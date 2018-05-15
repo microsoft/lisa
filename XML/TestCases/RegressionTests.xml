@@ -1,0 +1,37 @@
+<TestCases>
+	<test>
+		<TestName>VERIFY-DEPLOYMENT-PROVISION</TestName>
+		<PowershellScript>BVT-VERIFY-DEPLOYMENT-PROVISION.ps1</PowershellScript>
+		<files></files>
+		<setupType>SingleVM</setupType>
+		<Platform>Azure</Platform>
+		<Category>Regression</Category>
+		<Area>default</Area>
+		<Tags>bvt</Tags>
+		<TestID>Regression_001</TestID>
+	</test>
+	<test>
+		<TestName>VERIFY-HOSTNAME</TestName>
+		<testScript>BVT-VERIFY-HOSTNAME.py</testScript>
+		<PowershellScript>BVT-VERIFY-HOSTNAME.ps1</PowershellScript>
+		<files>.\remote-scripts\nslookup.py,.\remote-scripts\BVT-VERIFY-HOSTNAME.py,.\remote-scripts\azuremodules.py</files>
+		<setupType>SingleVM</setupType>
+		<Platform>Azure</Platform>
+		<Category>Regression</Category>
+		<Area>default</Area>
+		<Tags>bvt</Tags>
+		<TestID>Regression_002</TestID>
+	</test>
+	<test>
+		<TestName>VERIFY-ROOT-PASSWORD-DELETED</TestName>
+		<testScript>BVT-IS-ROOT-PASSWORD-DELETED.py</testScript>
+		<PowershellScript>BVT-IS-ROOT-PASSWORD-DELETED.ps1</PowershellScript>
+		<files>.\remote-scripts\BVT-IS-ROOT-PASSWORD-DELETED.py,.\remote-scripts\azuremodules.py</files>
+		<setupType>SingleVM</setupType>
+		<Platform>Azure</Platform>
+		<Category>Regression</Category>
+		<Area>default</Area>
+		<Tags>bvt</Tags>
+		<TestID>Regression_003</TestID>
+	</test>
+</TestCases>

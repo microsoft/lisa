@@ -1,0 +1,19 @@
+<TestCases>
+    <test>
+        <testName>PERF-NETWORK-TCP-MULTICONNECTION</testName>
+        <testScript></testScript>
+        <PowershellScript>ICA-PERF-NTTTCP-TEST.ps1</PowershellScript>
+        <setupType>M1S1</setupType>
+        <SubtestValues>This-tag-will-be-removed</SubtestValues>
+        <files>.\remote-scripts\azuremodules.sh</files>
+        <TestParameters>
+            <param>testDuration=300</param>
+            <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024 2048 4096 6144 8192 10240"</param>
+        </TestParameters>
+		<Platform>Azure</Platform>
+		<Category>Performance</Category>
+		<Area>Network</Area>
+		<Tags>tcp,network</Tags>
+		<TestID>Smoke_003</TestID>
+    </test>
+</TestCases>

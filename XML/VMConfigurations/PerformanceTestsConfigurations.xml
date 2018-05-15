@@ -1,0 +1,29 @@
+<TestSetup>
+    <M1S1>
+        <isDeployed>NO</isDeployed>
+        <HostedService>
+            <VirtualMachine>
+                <ARMInstanceSize>Standard_D15_v2</ARMInstanceSize>
+                <RoleName>server-vm</RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>1111</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+            </VirtualMachine>
+            <VirtualMachine>
+                <ARMInstanceSize>Standard_D15_v2</ARMInstanceSize>
+                <RoleName>client-vm</RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>1112</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+            </VirtualMachine>					
+        </HostedService>
+    </M1S1>    
+</TestSetup>

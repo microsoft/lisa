@@ -1,0 +1,15 @@
+<TestCases>
+	<test>
+		<testName>VERIFY-NVIDIA-CUDA-DRIVER-FOR-NC6-VM</testName>
+		<PowershellScript>ICA-N-Series-GPU-TEST.ps1</PowershellScript>
+		<setupType>SingleVM</setupType>
+		<OverrideVMSize>Standard_NC6</OverrideVMSize>
+		<SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
+		<files>.\remote-scripts\azuremodules.sh</files>
+		<Platform>Azure</Platform>
+		<Category>Functional</Category>
+		<Area>default</Area>
+		<Tags>gpu,pci_hyperv</Tags>
+		<TestID>Functional_001</TestID>
+	</test>
+</TestCases>
