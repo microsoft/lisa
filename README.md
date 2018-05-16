@@ -1,58 +1,57 @@
-# azure-linux-automation
+# Test Automation for Microsoft Linux on Azure & Hyper-V
 Automation platform for Linux images testing on Microsoft Azure and Hyper-V
 
 ## Overview
-LISA-v2 (Linux Integrated Service Automation) is the omni automation solution for Linux images/kernel testing on Microsoft Azure and Hyper-V. LISA-v2 supports both Microsoft Azure and Hyper-V automation, and they use PowerShell, BASH and python scripts. Tests for feature, performance, stress and regression about new Linux Operating Systems and kernels. The test suite provides Build Verification Tests (BVTs), Azure VNET Tests and Network tests. 
-
+LISA-v2 (Linux Integrated Service Automation) is the One-stop automation solution for Linux images/kernel testing on Microsoft Azure and Hyper-V. LISA-v2 supports both Microsoft Azure and Hyper-V automation, and they use PowerShell, BASH and python scripts. Tests for feature, performance, stress and regression about new Linux Operating Systems and kernels. The test suite provides Build Verification Tests (BVTs), Azure VNET Tests and Network tests.
 
 ### Prerequisite
 1.  You must have a Windows Machine with PowerShell. Tested Platforms:
 
-          a.  Windows 7x64
-          b.  Windows 8x64
-          c.  Server 2008
-          d.  Server 2012
-          e.  Server 2012 R2
-          
+          a.  Windows 8x64
+          b.  Windows 10x64
+          c.  Server 2012
+          d.  Server 2012 R2
+          e.  Server 2016
+
 2.  You must be connected to Internet.
 3.  You must have a valid Windows Azure Subscription.
 
           a.  Subscription Name
           b.  Subscription ID
-          
+
 ### Download Latest Automation Code
-1.  Checkout from https://github.com/Azure/azure-linux-automation.git
+1.  Checkout from https://github.com/LIS/LISAv2.git to your local storage
 
 ### Download Latest Azure PowerShell
-1.	Download Web Platform Installer from : http://go.microsoft.com/fwlink/p/?linkid=320376&clcid=0x409 
-2.	Start Web Platform Installer and select Azure PowerShell and proceed for Azure PowerShell Installation.
+1.  Download Web Platform Installer from : http://go.microsoft.com/fwlink/p/?linkid=320376&clcid=0x409 
+2.  Start Web Platform Installer and select Azure PowerShell and proceed for Azure PowerShell Installation.
 
 ### Authenticate Your Machine with Your Azure Subscription
 There are two ways to authenticate your machine with your subscription.
 
-1.	Azure AD method
+1.  Azure AD method
 
       This creates a 12 Hours temporary session in PowerShell, in that session, you are allowed to run Windows Azure Cmdlets to control / use your subscription. After 12 hours you will be asked to enter username and password of your subscription. This may create problems long running automations, hence we use certificate method.
 
-2.	Certificate Method.
+2.  Certificate Method.
 
       To learn more about how to configure your PowerShell with your subscription, please visit [here](http://azure.microsoft.com/en-us/documentation/articles/powershell-install-configure/#Connect).
 
 ### Download Public Utilities
 Download Putty executables from http://www.putty.org and keep them in `.\automation_root_folder\tools`. You should have the following utilities:
 
-        •	plink.exe
-        •	pscp.exe
-        •	putty.exe
-        •	puttygen.exe
+        ï¿½ plink.exe
+        ï¿½ pscp.exe
+        ï¿½ putty.exe
+        ï¿½ puttygen.exe
 
 Download dos2unix executables from http://sourceforge.net/projects/dos2unix/ and keep them in `.\automation_root_folder\tools`. You should have the following utilities:
 
-        •	dos2unix.exe
+        ï¿½	dos2unix.exe
 		
 Download 7-zip executable from http://www.7-zip.org/ ( Direct Download Link : http://www.7-zip.org/a/7za920.zip ) and keep them in `.\automation_root_folder\tools`. You should have the following utility:
 
-        •	7za.exe
+        ï¿½	7za.exe
 		
 ### Update Azure_ICA_all.xml file
 1.	Setup Subscription details.
@@ -96,7 +95,7 @@ Download 7-zip executable from http://www.7-zip.org/ ( Direct Download Link : ht
 ### Prepare VHD to work in Azure
 `Applicable if you are uploading your own VHD with Linux OS to Azure.`
 
-A VHD with Linux OS must be made compatible to work in Azure environment. This includes –
+A VHD with Linux OS must be made compatible to work in Azure environment. This includes ï¿½
 
         1.	Installation of Linux Integration Services to Linux VM (if already not present)
         2.	Installation of Windows Azure Linux Agent to Linux VM (if already not installed.)
@@ -130,7 +129,7 @@ To run automation code successfully, you need have following packages installed 
         18.	tcpdump
 
 ### Create SSH Key Pair
-`PublicKey.cer – PrivateKey.ppk`
+`PublicKey.cer ï¿½ PrivateKey.ppk`
 
 A Linux Virtual machine login can be done with Password authentication or SSH key pair authentication. You must create a Public Key and Private key to run automation successfully. To learn more about how to create SSH key pair, please visit [here](http://azure.microsoft.com/en-us/documentation/articles/virtual-machines-linux-use-ssh-key/).
 
@@ -143,7 +142,7 @@ After creating Public Key (.cer) and putty compatible private key (.ppk), you mu
 A virtual network should be created and connected to Customer Network before running VNET test cases. To learn about how to create a virtual network on Azure, please visit [here](https://azure.microsoft.com/documentation/articles/vpn-gateway-site-to-site-create/).
 
 #### Create A customer site using RRAS
-Apart from Virtual Network in Azure, you also need a network (composed of Subnets and DNS server) to work as Customer Network. If you don’t have separate network to run VNET, you can create a virtual customer network using RRAS. To learn more, please visit [here](https://msdn.microsoft.com/en-us/library/dn636917.aspx).
+Apart from Virtual Network in Azure, you also need a network (composed of Subnets and DNS server) to work as Customer Network. If you donï¿½t have separate network to run VNET, you can create a virtual customer network using RRAS. To learn more, please visit [here](https://msdn.microsoft.com/en-us/library/dn636917.aspx).
 
 ## How to Start Automation
 Before starting Automation, make sure that you have completed steps in chapter [Prepare Your Machine for Automation Cycle](#prepare)
@@ -175,11 +174,11 @@ Before starting Automation, make sure that you have completed steps in chapter [
 #### Command to Start any of the Automation Cycle
 Run test in ASM mode
 
-        .\AzureAutomationManager.ps1 -xmlConfigFile .\Azure_ICA_ALL.xml -runtests -email –Distro <DistroName> -cycleName <TestCycleToExecute> 
+        .\AzureAutomationManager.ps1 -xmlConfigFile .\Azure_ICA_ALL.xml -runtests -email ï¿½Distro <DistroName> -cycleName <TestCycleToExecute> 
         
 Run test in ARM mode
 
-        .\AzureAutomationManager.ps1 -xmlConfigFile .\Azure_ICA_ALL.xml -runtests -email –Distro <DistroName> -cycleName <TestCycleToExecute> -UseAzureResourceManager
+        .\AzureAutomationManager.ps1 -xmlConfigFile .\Azure_ICA_ALL.xml -runtests -email ï¿½Distro <DistroName> -cycleName <TestCycleToExecute> -UseAzureResourceManager
 
 #### More Information
 For more details, please refer to the documents [here](https://github.com/Azure/azure-linux-automation/tree/master/Documentation).
