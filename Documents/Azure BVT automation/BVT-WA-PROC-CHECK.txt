@@ -1,0 +1,33 @@
+Login on your Hyper-V server.
+
+Start PowerShell with the Run As Administrator option.
+
+Deploy VM's in Azure.
+	1.	Create a hosted service.
+	2. 	Deploy a Virtual Machine in newly created hosted service.
+	
+Execute Test :
+	1.	Login to newly created VM.
+	2.	Get running process details. (Execute-"ps -ef" on the VM)
+	3.	Verify that output contains-"waagent" process.
+
+Cleanup the test VMs.
+	1.	If test is PASS, delete all VMs under test. 
+	2.	If test is FAIL, collect the logs and preserve deployed VMs.
+
+Edit the XML file used to drive the test
+    <test>
+		<testName>BVT-WA-PROC-CHECK</testName>
+		<testScript>BVT-WA-PROC-CHECK.py</testScript>
+		<testScriptPs1>BVT-WA-PROC-CHECK.ps1</testScriptPs1>
+		<files>remote-scripts\BVT-WA-PROC-CHECK.py,remote-scripts\azuremodules.py</files>
+		<setupType>BVTDeployment</setupType>
+		<TestType></TestType>
+		<TestFeature></TestFeature>
+		<TestID>AzureBVT_005</TestID>
+    </test>
+	
+Run the tests defined in the .xml file.
+           From the PowerShell command line, issue the following command:
+           Run all BVT tests:
+.\AzureAutomationManager.ps1 -xmlConfigFile azure_ica_all.xml -runtests -Distro CentOS -cycleName BVT

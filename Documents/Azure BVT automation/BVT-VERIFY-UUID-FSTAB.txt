@@ -1,0 +1,35 @@
+Login on your Hyper-V server.
+
+Start PowerShell with the Run As Administrator option.
+
+Deploy VM's in Azure.
+	1.	Create a hosted service.
+	2. 	Deploy a Virtual Machine in newly created hosted service.
+	
+Execute Test :
+	1.	Login to newly created VM.
+	2.	Get the boot messages. (Execute-"dmesg" on the VM)
+	3.	Get UUID of OS disk.
+	4.	Get fstab information. (Execute-"cat /etc/fstab" on the VM)
+	5.	Verify that UUID from fstab information matches with UUID from dmesg information.
+
+Cleanup the test VMs.
+	1.	If test is PASS, delete all VMs under test. 
+	2.	If test is FAIL, collect the logs and preserve deployed VMs.
+
+Edit the XML file used to drive the test
+    <test>
+		<testName>BVT-VERIFY-UUID-FSTAB</testName>
+		<testScript>BVT-VERIFY-UUID-FSTAB.py</testScript>
+		<testScriptPs1>BVT-VERIFY-UUID-FSTAB.ps1</testScriptPs1>
+		<files>remote-scripts\azuremodules.py,remote-scripts\BVT-VERIFY-UUID-FSTAB.py</files>
+		<setupType>BVTDeployment</setupType>
+		<TestType></TestType>
+		<TestFeature></TestFeature>
+		<TestID>AzureBVT_019</TestID>
+    </test>
+	
+Run the tests defined in the .xml file.
+           From the PowerShell command line, issue the following command:
+           Run all BVT tests:
+.\AzureAutomationManager.ps1 -xmlConfigFile azure_ica_all.xml -runtests -Distro CentOS -cycleName BVT

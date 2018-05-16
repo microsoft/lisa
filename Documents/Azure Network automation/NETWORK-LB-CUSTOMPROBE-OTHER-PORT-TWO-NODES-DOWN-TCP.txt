@@ -1,0 +1,61 @@
+Login on your Hyper-V server.
+
+Start PowerShell with the Run As Administrator option.
+
+Deploy VM's in Azure.
+	1.	Create deployment of type : Load Balanced - Probe Port on other port
+		You will get Two VMs deployed in a hosted service.
+		VM alias : HS1VM1, HS1VM2
+		Hosted Service Alias : HS1
+		[please go through DEPLOYMENT-CONFIGURATIONS.txt for more information about deploy types.]
+	
+Execute Test :
+	1. 	Start Iperf server on HS1VM1
+		Execute "iperf -s -p <probe port>"
+	2. 	Start Iperf server on HS1VM2
+		Execute "iperf -s -p <probe port>"
+	3. 	Start Iperf server on HS1VM1
+		Execute "iperf -s -p <TCP load balanced port>"
+	4. 	Start Iperf server on HS1VM2
+		Execute "iperf -s -p <TCP load balanced port>"
+		Note : To start multiple instances of iperf server on single VM, use multiple ssh consoles.
+	5.	Wait until you see probe messages on both probe ports.
+	6. 	Start Iperf client on dtap machine (A machine outside Azure, which have a static IP address).
+		Execute "iperf -c <VIP of HS1> -p <TCP load balanced port> -P 2"
+	7.	Verify HS1VM1 and HS1VM2 connected to One connection each. And data transfer is evenly distributed.
+	8.	Stop iperf server on HS1VM1 and HS1VM2.
+		Execute "killall iperf" on HS1VM1 & HS1VM2 and wait 20 seconds.
+	9.	Start Iperf client on dtap machine.
+		Execute "iperf -c <VIP of HS1> -p <TCP load balanced port> -P 2"
+	10.	Verify that iperf client is failing to connect.
+	11.	Start Iperf server on HS1VM1 and HS1VM2 again as per step 1 - 4
+		Execute "iperf -s -p <TCP load balanced port>"
+	12.	Wait until you see probe messages on both probe ports.
+	13.	Start Iperf client on dtap machine (A machine outside Azure, which have a static IP address).
+		Execute "iperf -c <VIP of HS1> -p <TCP load balanced port> -P 2"
+	14.	Verify HS1VM1 and HS1VM2 connected to One connection each. And data transfer is evenly distributed.
+	15.	Repeat 1 - 14 using DNS name of VM roles.
+		Hint : Execute "iperf -c <DNS name of HS1> -p <TCP load balanced port> -P 2" on Dtap machine.
+
+Cleanup the test VMs.
+	1.	If test is PASS, delete all VMs under test. 
+	2.	If test is FAIL, collect the logs and preserve deployed VMs.
+
+Add following test definition under "<testsDefinition>..</testsDefinition>" in XML file to drive the test:
+    <test>
+		<testName>NETWORK-LB-CUSTOMPROBE-OTHER-PORT-TWO-NODES-DOWN-TCP</testName>
+		<testScript></testScript>
+		<testScriptps1>NETWORK-LB-CUSTOMPROBE-OTHER-PORT-TWO-NODES-DOWN-TCP.ps1</testScriptps1>
+		<files>remote-scripts\start-server.py, remote-scripts\start-client.py, remote-scripts\check-server.py, remote-scripts\stop-server.py, remote-scripts\azuremodules.py, remote-scripts\start-server-without-stopping.py</files>
+		<setupType>CustomProbeOtherPort</setupType>
+		<TestType></TestType>
+		<TestFeature></TestFeature>
+		<TestID>AzureNetwork_CPOP_005</TestID>
+		<TestMode>VIP,URL</TestMode>
+		<Priority>P0</Priority>
+    </test>
+ 	
+Run the tests defined in the .xml file.
+           From the PowerShell command line, issue the following command:
+           Run all NETWORK tests:
+.\AzureAutomationManager.ps1 -xmlConfigFile azure_ica_all.xml -runtests -Distro CentOS -cycleName NETWORK

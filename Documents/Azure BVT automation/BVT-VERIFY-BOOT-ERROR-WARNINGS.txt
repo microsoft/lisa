@@ -1,0 +1,33 @@
+Login on your Hyper-V server.
+
+Start PowerShell with the Run As Administrator option.
+
+Deploy VM's in Azure.
+	1.	Create a hosted service.
+	2. 	Deploy a Virtual Machine in newly created hosted service.
+	
+Execute Test :
+	1.	Login to newly created VM.
+	2.	Get boot messages. (Execute-"dmesg" on the VM)
+	3.	Verify that boot messages should not contain any ERROR, WARNING or FAIL messages.
+
+Cleanup the test VMs.
+	1.	If test is PASS, delete all VMs under test. 
+	2.	If test is FAIL, collect the logs and preserve deployed VMs.
+
+Edit the XML file used to drive the test
+    <test>
+		<testName>BVT-VERIFY-BOOT-ERROR-WARNINGS</testName>
+		<testScript>BVT-VERIFY-BOOT-ERROR-WARNINGS.py</testScript>
+		<testScriptPs1>BVT-VERIFY-BOOT-ERROR-WARNINGS.ps1</testScriptPs1>
+		<files>remote-scripts\azuremodules.py,remote-scripts\BVT-VERIFY-BOOT-ERROR-WARNINGS.py</files>
+		<setupType>BVTDeployment</setupType>
+		<TestType></TestType>
+		<TestFeature></TestFeature>
+		<TestID>AzureBVT_015</TestID>
+    </test>
+	
+Run the tests defined in the .xml file.
+           From the PowerShell command line, issue the following command:
+           Run all BVT tests:
+.\AzureAutomationManager.ps1 -xmlConfigFile azure_ica_all.xml -runtests -Distro CentOS -cycleName BVT

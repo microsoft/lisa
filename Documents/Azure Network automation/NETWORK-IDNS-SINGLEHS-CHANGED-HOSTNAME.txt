@@ -1,0 +1,73 @@
+Login on your Hyper-V server.
+
+Start PowerShell with the Run As Administrator option.
+
+Deploy VM's in Azure.
+	1.	Create deployment of type : Internal Endpoint Single Hosted Service.
+		You will get Two VMs deployed in a hosted service.
+		VM alias : HS1VM1, HS1VM2
+		Hosted Service Alias : HS1
+		[please go through DEPLOYMENT-CONFIGURATIONS.txt for more information about deploy types.]
+	
+Execute Test :
+	VERIFY DEFAULT HOSTNAME
+	1. 	Login to HS1VM1.
+	2.	Execute "nslookup <hostname of HS1VM2>" on HS1VM1.
+	3.	Verify nslookup is resolving DIP of HS1VM2.
+	4.	Execute "dig <FQDN of HS1VM2>" on HS1VM1.
+		Note : To get FQDN of HS1VM2, execute "hostname --fqdn" on HS1VM2.
+	5.	Verify dig is resolving DIP of HS1VM2.
+	6.	Verify that DIP nslookup & dig scenarios are successful.
+
+	VERIFY CHANGED HOSTNAME IS ACCESSIBLE
+	8.	Change hostname of HS1VM2.
+		Execute "hostname <New_Hostname>" on HS1VM2.
+		[Wait 5 minutes.]
+	9.	Execute "nslookup <New_Hostname of HS1VM2>" on HS1VM1.
+	10.	Verify nslookup is resolving DIP of HS1VM2.
+	11.	Execute "dig <New_FQDN of HS1VM2>" on HS1VM1.
+		Note : To get new FQDN of HS1VM2, execute "hostname --fqdn" on HS1VM2.
+	12.	Verify that DIP nslookup & dig scenarios are successful.
+
+	VERIFY OLD HOSTNAME IS NOT ACCESSIBLE.
+	13.	Execute "nslookup <Old_hostname of HS1VM2>" on HS1VM1.
+	14.	Verify nslookup is not resolving DIP of HS1VM2.
+	15.	Execute "dig <Old_FQDN of HS1VM2>" on HS1VM1.
+		Note : To get FQDN of HS1VM2, execute "hostname --fqdn" on HS1VM2.
+	16.	Verify dig is not resolving DIP of HS1VM2.
+	17.	Verify that DIP nslookup & dig scenarios are not successful.
+
+	RESET HOSTNAME TO DEFAULT VALUE AND VERIFY DEFAULT HOSTNAME IS ACCESSIBLE.
+	18.	Change hostname of HS1VM2 to default.
+		Execute "hostname <Old_hostname>" on HS1VM2.
+		[Wait 5 minutes.]
+	19.	Execute "nslookup <Old_hostname of HS1VM2>" on HS1VM1.
+	20.	Verify nslookup is resolving DIP of HS1VM2.
+	21.	Execute "dig <Old_FQDN of HS1VM2>" on HS1VM1.
+		Note : To get new FQDN of HS1VM2, execute "hostname --fqdn" on HS1VM2.
+	22.	Verify that DIP nslookup & dig scenarios are successful.
+	
+	23. If all above scenarios are successful, then mark test as PASS.
+	
+Cleanup the test VMs.
+	1.	If test is PASS, delete all VMs under test. 
+	2.	If test is FAIL, collect the logs and preserve deployed VMs.
+
+Add following test definition under "<testsDefinition>..</testsDefinition>" in XML file to drive the test:
+    <test>
+		<testName>NETWORK-IDNS-SINGLEHS-CHANGED-HOSTNAME</testName>
+		<testScript></testScript>
+		<testScriptps1>NETWORK-IDNS-SINGLEHS-CHANGED-HOSTNAME.ps1</testScriptps1>
+		<TestMode>VerifyDefaultHostname,VerifyChangedHostname,VerifyDefaultHostnameNotAccessible,ResetHostnameToDefaultAndVerify</TestMode>
+		<SubtestValues></SubtestValues>
+		<files>remote-scripts\dig.py, remote-scripts\azuremodules.py, remote-scripts\nslookup.py</files>
+		<setupType>IEndpointSingleHS</setupType>
+		<TestType></TestType>
+		<TestFeature></TestFeature>
+		<TestID>AzureNetwork_IDNS_002</TestID>
+    </test>
+ 	
+Run the tests defined in the .xml file.
+           From the PowerShell command line, issue the following command:
+           Run all NETWORK tests:
+.\AzureAutomationManager.ps1 -xmlConfigFile azure_ica_all.xml -runtests -Distro CentOS -cycleName NETWORK

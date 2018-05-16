@@ -1,0 +1,38 @@
+Login on your Hyper-V server.
+
+Start PowerShell with the Run As Administrator option.
+
+Deploy VM's in Azure.
+	1.	Create deployment of type : Internal Endpoint.
+		[please go through DEPLOYMENT-CONFIGURATIONS.txt for more information about deploy types.]
+	
+Execute Test :
+	1. 	Start Iperf Server on VM role in azure (HS1VM1) in UDP mode on unopened UDP port.
+		Execute "iperf -s -p <port number> -u"
+		<port number> should NOT be UDP test port.
+	2.	Start iperf Client on dtap machine, using VM role's VIP on unopened UDP port.
+		Execute "iperf -c <VIP of VM role> -p <port number> -u"
+	3.	Verify that iperf server is not getting any connections from Iperf client.
+	4.	Repeat steps 1 - 3 for VM role's DNS name.
+	
+Cleanup the test VMs.
+	1.	If test is PASS, delete all VMs under test. 
+	2.	If test is FAIL, collect the logs and preserve deployed VMs.
+
+Add following test definition under "<testsDefinition>..</testsDefinition>" in XML file to drive the test:
+    <test>
+		<testName>INT-ENDPOINT-NON-CONN-UDP</testName>
+		<testScript></testScript>
+		<testScriptps1>INT-ENDPOINT-NON-CONN-UDP.ps1</testScriptps1>
+		<files>remote-scripts\start-server.py, remote-scripts\start-client.py, remote-scripts\check-server.py, remote-scripts\azuremodules.py</files>
+		<setupType>IEndpointTwoHS</setupType>
+		<TestType></TestType>
+		<TestFeature></TestFeature>
+		<TestID>AzureNetwork_INT_009</TestID>
+		<TestMode>IP,Hostname</TestMode>
+    </test>
+ 	
+Run the tests defined in the .xml file.
+           From the PowerShell command line, issue the following command:
+           Run all NETWORK tests:
+.\AzureAutomationManager.ps1 -xmlConfigFile azure_ica_all.xml -runtests -Distro CentOS -cycleName NETWORK

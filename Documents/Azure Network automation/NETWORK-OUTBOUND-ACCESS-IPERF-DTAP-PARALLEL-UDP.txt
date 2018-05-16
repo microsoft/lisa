@@ -1,0 +1,39 @@
+Login on your Hyper-V server.
+
+Start PowerShell with the Run As Administrator option.
+
+Deploy VM's in Azure.
+	1.	Create deployment of type : Public Endpoint.
+		[please go through DEPLOYMENT-CONFIGURATIONS.txt for more information about deploy types.]
+	
+Execute Test :
+	1.	Login to newly created VM.
+	2. 	Start Iperf Server on dtap machine in UDP mode.
+		Execute "iperf -s -p <port number> -u"
+	3.	Start iperf Client on the VM role with N parallel connections, using dtap machine's IP.
+		Execute : "iperf -c<IP/ServerName> -p <port number> -P <Number of parallel connections> -u" 
+	4.	Verify that iperf server is connected to N parallel connections and it is receiving data from iperf client.
+
+Cleanup the test VMs.
+	1.	If test is PASS, delete all VMs under test. 
+	2.	If test is FAIL, collect the logs and preserve deployed VMs.
+
+Add following test definition under "<testsDefinition>..</testsDefinition>" in XML file to drive the test:
+    <test>
+		<testName>NETWORK-OUTBOUND-ACCESS-IPERF-DTAP-PARALLEL-UDP</testName>
+		<testScript></testScript>
+		<testScriptps1>NETWORK-OUTBOUND-ACCESS-IPERF-DTAP-PARALLEL-UDP.ps1</testScriptps1>
+		<SubtestValues>2,4</SubtestValues>
+		<files>remote-scripts\start-server.py, remote-scripts\start-client.py, remote-scripts\check-server.py, remote-scripts\azuremodules.py</files>
+		<setupType>PublicEndpoint</setupType>
+		<TestType></TestType>
+		<TestFeature></TestFeature>
+		<TestID>AzureNetwork_OA_006</TestID>
+		<Priority>P0</Priority>
+    </test>
+
+	
+Run the tests defined in the .xml file.
+           From the PowerShell command line, issue the following command:
+           Run all NETWORK tests:
+.\AzureAutomationManager.ps1 -xmlConfigFile azure_ica_all.xml -runtests -Distro CentOS -cycleName NETWORK

@@ -1,0 +1,54 @@
+Login on your Hyper-V server.
+
+Start PowerShell with the Run As Administrator option.
+
+Make sure that you have set-up a Virtual Network (VNET) environment first.
+	If not you didn't setup VNET, then please go through SETUP-VNET-TEST-ENVIRONMENT.txt.
+	
+Deploy VM's in VNET as following:
+		Hosted Service 1                          Hosted Service 2
+			   |                                          |
+		VM1-----------VM2                       VM3---------------VM4  
+	 (Subnet1)      (Subnet2)                (Subnet2)         (Subnet1)
+
+Configure DNS server with newly deployed Virtual Machine details.
+	Please see 	CONFIGURE-VNET-DNS-SERVER.txt
+	
+Execute Test :
+	SSH TEST :
+	1.	From VM in Customer Site, do ssh to VM1 in VNET using DIP of VM1. Verify that you can successfully log in to VM2 and execute some commands.
+	2.	Verify above scenario for VM2, VM3 and VM4.
+	3.	From VM in Customer Site, do ssh to VM1 in VNET using Hostname of VM1. Verify that you can successfully log in to VM2 and execute some commands.
+	4.	Verify above scenario for VM3 and VM4.
+	SCP TEST
+	1.	From VM in Customer Site, do scp file copy to VM1 in VNET using DIP of VM1. Verify that file is copied successfully.
+	2. 	Repeat above step for VM2, VM3 and VM4.
+	3.	From VM in Customer Site, do scp file copy to VM1 in VNET using Hostname of VM1. Verify that file is copied successfully.
+	4.	Repeat above step for VM2, VM3 and VM4.
+	Verify that all SSH and SCP scenarios are successful.
+	
+Cleanup the test VMs.
+	1.	If test is PASS, delete all VMs under test. 
+	2.	If test is FAIL, collect the logs and preserve deployed VMs.
+
+Edit the XML file used to drive the test
+  <test>
+      <testName>VNET-VERIFY-REMOTE-SSH-SCP-LOCAL-TO-VNET-ACCESS</testName>
+      <testScript></testScript>
+      <testScriptps1>VNET-VERIFY-REMOTE-SSH-SCP-LOCAL-TO-VNET-ACCESS.ps1</testScriptps1>
+      <files>remote-scripts\RunSSHCmd.py, remote-scripts\azuremodules.py</files>
+      <setupType>VNETVMPR</setupType>
+      <TestType></TestType>
+      <TestFeature></TestFeature>
+      <TestID>AzureVNET_INTER_009</TestID>
+      <SubtestValues>HS1VM1,HS1VM2,HS2VM1,HS2VM2</SubtestValues>
+      <TestMode>DIP,Hostname</TestMode>
+    </test>
+
+	
+Run the tests defined in the .xml file.
+            From the PowerShell command line, issue the following command:
+           Run all VNET tests:
+.\AzureAutomationManager.ps1 -xmlConfigFile azure_ica_all.xml -runtests -Distro CentOS -cycleName VNET
+ 
+

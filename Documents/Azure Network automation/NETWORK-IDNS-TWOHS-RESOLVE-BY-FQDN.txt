@@ -1,0 +1,39 @@
+Login on your Hyper-V server.
+
+Start PowerShell with the Run As Administrator option.
+
+Deploy VM's in Azure.
+	1.	Create deployment of type : Internal Endpoint Two Hosted Services.
+		You will get Two VMs deployed in a hosted service.
+		VM alias : HS1VM1, HS1VM2, HS2VM1, HS2VM2
+		Hosted Service Alias : HS1, HS2
+		[please go through DEPLOYMENT-CONFIGURATIONS.txt for more information about deploy types.]
+	
+Execute Test :
+	1. 	Login to HS1VM1.
+	2.	Execute "dig <FQDN of HS2VM1>" on HS1VM1.
+		Note : To get FQDN of HS1VM2, execute "hostname --fqdn" on HS2VM1.
+	3.	Verify dig is resolving DIP of HS1VM2.
+	
+Cleanup the test VMs.
+	1.	If test is PASS, delete all VMs under test. 
+	2.	If test is FAIL, collect the logs and preserve deployed VMs.
+
+Add following test definition under "<testsDefinition>..</testsDefinition>" in XML file to drive the test:
+    <test>
+		<testName>NETWORK-IDNS-TWOHS-RESOLVE-BY-FQDN</testName>
+		<testScript></testScript>
+		<testScriptps1>NETWORK-IDNS-TWOHS-RESOLVE-BY-FQDN.ps1</testScriptps1>
+		<TestMode></TestMode>
+		<SubtestValues></SubtestValues>
+		<files>remote-scripts\dig.py, remote-scripts\azuremodules.py, remote-scripts\nslookup.py</files>
+		<setupType>IEndpointTwoHS</setupType>
+		<TestType></TestType>
+		<TestFeature></TestFeature>
+		<TestID>AzureNetwork_IDNS_006</TestID>
+    </test>
+ 	
+Run the tests defined in the .xml file.
+           From the PowerShell command line, issue the following command:
+           Run all NETWORK tests:
+.\AzureAutomationManager.ps1 -xmlConfigFile azure_ica_all.xml -runtests -Distro CentOS -cycleName NETWORK
