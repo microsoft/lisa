@@ -1,3 +1,0 @@
-#!/bin/bash
-#V-SHISAV@MICROSOFT.COM
-

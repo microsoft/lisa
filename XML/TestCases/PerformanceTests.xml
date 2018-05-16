@@ -14,6 +14,7 @@
 		<Category>Performance</Category>
 		<Area>Network</Area>
 		<Tags>tcp,network</Tags>
-		<TestID>Smoke_003</TestID>
+		<TestID>Perf_001</TestID>
     </test>
+    
 </TestCases>
