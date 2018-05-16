@@ -1,0 +1,34 @@
+Login on your Hyper-V server.
+
+Start PowerShell with the Run As Administrator option.
+
+Deploy VM's in Azure.
+	1.	Create a hosted service.
+	2. 	Deploy a Virtual Machine in newly created hosted service.
+	
+Execute Test :
+	1.	Login to newly created VM.
+	2.	Get the list of all installed modules. (Execute-"lsmod" on the VM)
+	3.	Verify that all following modules are listed in the output.
+		"hv_storvsc","hv_netvsc","hv_vmbus","hv_utils","hid_hyperv"
+
+Cleanup the test VMs.
+	1.	If test is PASS, delete all VMs under test. 
+	2.	If test is FAIL, collect the logs and preserve deployed VMs.
+
+Edit the XML file used to drive the test
+    <test>
+		<testName>BVT-HVMODULES-CHECK</testName>
+		<testScript>BVT-HVMODULES-CHECK.py</testScript>
+		<testScriptPs1>BVT-HVMODULES-CHECK.ps1</testScriptPs1>
+		<files>remote-scripts\azuremodules.py,remote-scripts\BVT-HVMODULES-CHECK.py</files>
+		<setupType>BVTDeployment</setupType>
+		<TestType></TestType>
+		<TestFeature></TestFeature>
+		<TestID>AzureBVT_009</TestID>
+    </test>
+	
+Run the tests defined in the .xml file.
+           From the PowerShell command line, issue the following command:
+           Run all BVT tests:
+.\AzureAutomationManager.ps1 -xmlConfigFile azure_ica_all.xml -runtests -Distro CentOS -cycleName BVT

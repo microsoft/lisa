@@ -1,0 +1,33 @@
+Login on your Hyper-V server.
+
+Start PowerShell with the Run As Administrator option.
+
+Deploy VM's in Azure.
+	1.	Create a hosted service.
+	2. 	Deploy a Virtual Machine in newly created hosted service.
+	
+Execute Test :
+	1.	Login to newly created VM.
+	2.	Get disk size information. (Execute-"df" on the VM)
+	3.	Verify disk size is equal to attached disk size.
+
+Cleanup the test VMs.
+	1.	If test is PASS, delete all VMs under test. 
+	2.	If test is FAIL, collect the logs and preserve deployed VMs.
+
+Edit the XML file used to drive the test
+    <test>
+		<testName>BVT-VERIFY-DISKSIZE</testName>
+		<testScript>BVT-VERIFY-DISKSIZE.py</testScript>
+		<testScriptPs1>BVT-VERIFY-DISKSIZE.ps1</testScriptPs1>
+		<files>remote-scripts\azuremodules.py,remote-scripts\BVT-VERIFY-DISKSIZE.py</files>
+		<setupType>BVTDeployment</setupType>
+		<TestType></TestType>
+		<TestFeature></TestFeature>
+		<TestID>AzureBVT_013</TestID>
+    </test>
+	
+Run the tests defined in the .xml file.
+           From the PowerShell command line, issue the following command:
+           Run all BVT tests:
+.\AzureAutomationManager.ps1 -xmlConfigFile azure_ica_all.xml -runtests -Distro CentOS -cycleName BVT

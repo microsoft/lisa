@@ -1,0 +1,46 @@
+Login on your Hyper-V server.
+
+Start PowerShell with the Run As Administrator option.
+
+Make sure that you have set-up a Virtual Network (VNET) environment first.
+	If not you didn't setup VNET, then please go through SETUP-VNET-TEST-ENVIRONMENT.txt.
+	
+Deploy VM's in VNET as following:
+		Hosted Service 1                          Hosted Service 2
+			   |                                          |
+		VM1-----------VM2                       VM3---------------VM4  
+	 (Subnet1)      (Subnet2)                (Subnet2)         (Subnet1)
+
+Configure DNS server with newly deployed Virtual Machine details.
+	Please see 	CONFIGURE-VNET-DNS-SERVER.txt
+	
+Execute Test :
+	1.	On VM1 in VNET, execute "route". 
+	2.	Verify that IP address of gateway, is from gateway address space.
+	3. 	Repeat above step on VM2, VM3 and VM4.
+	4.	If all VMs have gateway IP address from gateway address space then, mark test as PASS.
+	
+Cleanup the test VMs.
+	1.	If test is PASS, delete all VMs under test. 
+	2.	If test is FAIL, collect the logs and preserve deployed VMs.
+	
+Edit the XML file used to drive the test
+    <test>
+      <testName>VNET-VERIFY-GATEWAY-IP</testName>
+      <testScript></testScript>
+      <testScriptps1>VNET-VERIFY-GATEWAY-IP.ps1</testScriptps1>
+      <files></files>
+      <setupType>VNETVMPR</setupType>
+      <TestType></TestType>
+      <TestFeature></TestFeature>
+      <TestID>AzureVNET_SANITY_005</TestID>
+      <SubtestValues></SubtestValues>
+      <TestMode></TestMode>
+    </test>
+	
+Run the tests defined in the .xml file.
+            From the PowerShell command line, issue the following command:
+           Run all VNET tests:
+.\AzureAutomationManager.ps1 -xmlConfigFile azure_ica_all.xml -runtests -Distro CentOS -cycleName VNET
+ 
+

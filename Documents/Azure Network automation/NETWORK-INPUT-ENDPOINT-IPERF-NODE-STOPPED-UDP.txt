@@ -1,0 +1,49 @@
+Login on your Hyper-V server.
+
+Start PowerShell with the Run As Administrator option.
+
+Deploy VM's in Azure.
+	1.	Create deployment of type : Input Endpoint.
+		[please go through DEPLOYMENT-CONFIGURATIONS.txt for more information about deploy types.]
+	
+Execute Test :
+	1. 	Start Iperf Server on VM role in azure (HS1VM1) in UDP mode.
+		Execute "iperf -s -p <port number> -u"
+		<port number> should be UDP test port.
+	2.	Start iperf Client on dtap machine, using VM role's VIP.
+		Execute "iperf -c <VIP of VM role> -p <port number> -u"
+	3.	Verify that iperf server is receiving data from iperf client.
+	4.	Stop (kill) iperf server.
+		Execute "killall iperf"
+	5.	Start iperf Client on dtap machine, using VM role's VIP.
+		Execute "iperf -c <VIP of VM role> -p <port number> -u"
+	6.	Verify that iperf client is not connecting to iperf server.
+	7.	Restart iperf server on VM role in azure (HS1VM1) in UDP mode.
+		Execute "iperf -s -p <port number> -u"
+	8.	Start iperf Client on dtap machine, using VM role's VIP.
+		Execute "iperf -c <VIP of VM role> -p <port number> -u"
+	9.	Verify that iperf server is receiving data from iperf client.
+	10.	Repeat steps 1 - 9 using VM role's DNS name.
+	
+Cleanup the test VMs.
+	1.	If test is PASS, delete all VMs under test. 
+	2.	If test is FAIL, collect the logs and preserve deployed VMs.
+
+Add following test definition under "<testsDefinition>..</testsDefinition>" in XML file to drive the test:
+    <test>
+		<testName>NETWORK-INPUT-ENDPOINT-IPERF-NODE-STOPPED-UDP</testName>
+		<testScript></testScript>
+		<testScriptps1>NETWORK-INPUT-ENDPOINT-IPERF-NODE-STOPPED-UDP.ps1</testScriptps1>
+		<files>remote-scripts\start-server.py, remote-scripts\start-client.py, remote-scripts\check-server.py, remote-scripts\azuremodules.py, remote-scripts\stop-server.py, remote-scripts\stop-client.py </files>
+		<setupType>PublicEndpoint</setupType>
+		<TestType></TestType>
+		<TestFeature></TestFeature>
+		<TestID>AzureNetwork_INP_008</TestID>
+		<TestMode>VIP,URL</TestMode>
+		<Priority>P0</Priority>
+    </test>
+ 	
+Run the tests defined in the .xml file.
+           From the PowerShell command line, issue the following command:
+           Run all NETWORK tests:
+.\AzureAutomationManager.ps1 -xmlConfigFile azure_ica_all.xml -runtests -Distro CentOS -cycleName NETWORK

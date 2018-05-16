@@ -1,0 +1,48 @@
+Login on your Hyper-V server.
+
+Start PowerShell with the Run As Administrator option.
+
+Deploy VM's in Azure.
+	1.	Create deployment of type : Internal Endpoint Single Hosted Service.
+		You will get Two VMs deployed in a hosted service.
+		VM alias : HS1VM1, HS1VM2
+		Hosted Service Alias : HS1
+		[please go through DEPLOYMENT-CONFIGURATIONS.txt for more information about deploy types.]
+	
+Execute Test :
+	1. 	Start Iperf Server on HS1VM1 in UDP mode.
+		Execute "iperf -s -p <port number> -u"
+		<port number> can be any random port. (e.g 534, 650, ..)
+	2.	Start iperf Client on HS1VM2 in UDP mode.
+		Execute "iperf -c <DIP of HS1VM1 role> -p <port number> -u -l <Datagram Size>"
+		<Datagram Size> can be 100, 200 .. 1428. 
+	3.	Verify that iperf server is receiving data from iperf client.
+	4.	Start iperf Client on HS1VM2 in UDP mode with hostname.
+		Execute "iperf -c <Hostname of HS1VM1 role> -p <port number> -u -l <Datagram Size>"
+	5.	Verify that iperf server is receiving data from iperf client.
+	6.	Execute this test for different Datagram Sizes : 100, 200, 400, 600, 800, 1100, 1428.
+	7.	If DIP and Hostname scenarios are successful, Mark the test as PASS.
+	
+Cleanup the test VMs.
+	1.	If test is PASS, delete all VMs under test. 
+	2.	If test is FAIL, collect the logs and preserve deployed VMs.
+
+Add following test definition under "<testsDefinition>..</testsDefinition>" in XML file to drive the test:
+    <test>
+		<testName>NETWORK-IE-UDP-SINGLE-HS-DIFF-DATAGRAM</testName>
+		<testScript></testScript>
+		<testScriptps1>NETWORK-IE-UDP-SINGLE-HS-DIFF-DATAGRAM.ps1</testScriptps1>
+		<TestMode>VIP,URL</TestMode>
+		<SubtestValues>100,300,500,700,900,1100,1300,1420</SubtestValues>
+		<files>remote-scripts\start-server.py, remote-scripts\start-client.py, remote-scripts\check-server.py, remote-scripts\azuremodules.py</files>
+		<setupType>IEndpointSingleHS</setupType>
+		<TestType></TestType>
+		<TestFeature></TestFeature>
+		<TestID>AzureNetwork_INT_004</TestID>
+		<Priority>P0</Priority>
+    </test>
+ 	
+Run the tests defined in the .xml file.
+           From the PowerShell command line, issue the following command:
+           Run all NETWORK tests:
+.\AzureAutomationManager.ps1 -xmlConfigFile azure_ica_all.xml -runtests -Distro CentOS -cycleName NETWORK

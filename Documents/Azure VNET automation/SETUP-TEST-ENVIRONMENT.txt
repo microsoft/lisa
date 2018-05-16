@@ -1,0 +1,82 @@
+Login on your Automation Server/LISINTER785.
+
+Download Azure PowerShell
+	Download Web Platform Installer from : http://go.microsoft.com/fwlink/p/?linkid=320376&clcid=0x409
+	Start Web Platform Installer and select Azure PowerShell and proceed for Azure Powershell Installation.
+
+Download/Update the Automation code from  https://ossl-svn01.ctac.nttest.microsoft.com/svn/ica/Azure/Development%20Branch
+	Download New Copy of automation code.
+		Create a directory to hold automation code.
+		Right click on directory and select SVN Chekckout.
+		Give above mentioned link and click OK.
+	Update existing working copy of automation code.
+		Right click on automation code directory.
+		Click : SVN update.
+
+Download 3rd Party utilities.
+	Download Putty executables from http://www.putty.org and keep them in ./AutomationDirectory/bin
+		You should have the following utilities:
+			plink.exe
+			pscp.exe
+			putty.exe
+			puttygen.exe
+
+Update Azure_ICA_all.xml file.
+	Setup Subscription details.
+		Go to Config > Azure > General and update following fields :
+		1.SubscriptionID
+		2.SubscriptionName
+		3.CertificateThumbprint
+			Make sure you have installed certificate and can access it.
+		4.StorageAccount
+		5.Location
+		6.AffinityGroup
+			Make sure that you either use <Location> or <AffinityGroup>. Means, if you want to use Location, then AffinityGroup should be blank and vice versa.
+			
+		Example :
+			<General>
+				<SubscriptionID>51627e5a-c9df-453c-9038-991020af2830</SubscriptionID>
+				<SubscriptionName>Windows Azure Internal Consumption</SubscriptionName>
+				<CertificateThumbprint>C093FA5CD3AAE057CB7C4E04532B2E16E07C26CA</CertificateThumbprint>
+				<ManagementEndpoint>https://management.core.windows.net</ManagementEndpoint>
+				<StorageAccount>sivahydsa</StorageAccount>
+				<Location></Location>
+				<AffinityGroup>affinityuswest</AffinityGroup>
+			</General>
+	Add VHD details in XML File.
+		1. Goto Config > Azure > Deployment > Data.
+		2. Make sure that your "VHD under test" should be present here in one of <Distro>..</Distro> entries.
+			If your VHD is not listed here. Create a new Distro element and add your VHD details.
+			Example.
+			<Distro>
+				<Name>Distro_Name</Name>
+				<OsImage>Distro_OS_Image_Name_As_Appearing_under_Azure_OS_Images</OsImage>
+			</Distro>
+		3.Save file.
+
+Prepare a VHD for tests.
+	1.Start PowerShell with the Run As Administrator option.
+	2.In powershell, Goto Automation Folder. 
+	3.Run following command.
+	
+		.\AzureAutomationManager.ps1 -xmlConfigFile .\Azure_ICA_all.xml -cycleName autosetup -Distro YourDistroName -runtests
+		
+	This command will  "Minimum Required Packages" and will capture the VHD which can be used to run further tests like, Network tests & VNET tests.
+	
+	List of minimum packages
+		iperf
+		mysql
+		gcc
+		bind
+		bind-utils
+		bind9
+		python
+		python-argparse
+		python-crypto
+		python-paramiko
+		libstdc++6
+		psmisc
+		nfs-utils
+		nfs-common
+		tcpdump
+	4.Once you get the prepared VHD Name, create a new element "Distro" in XML file and give prepared VHD name in Distro element.

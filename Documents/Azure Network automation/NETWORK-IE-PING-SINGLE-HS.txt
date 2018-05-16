@@ -1,0 +1,44 @@
+Login on your Hyper-V server.
+
+Start PowerShell with the Run As Administrator option.
+
+Deploy VM's in Azure.
+	1.	Create deployment of type : Internal Endpoint Single Hosted Service.
+		You will get Two VMs deployed in a hosted service.
+		VM alias : HS1VM1, HS1VM2
+		Hosted Service Alias : HS1
+		[please go through DEPLOYMENT-CONFIGURATIONS.txt for more information about deploy types.]
+	
+Execute Test :
+	1. 	Login to HS1VM1.
+	2.	Try to ping HS1VM2 with DIP of HS1VM2.
+		Execute "ping <DIP of HS1VM2>"
+	3.	Verify that ping is successful.
+	4.	Try to ping HS1VM2 with Hostname of HS1VM2.
+		Execute "ping <Hostname of HS1VM2>"
+	5.	Verify that ping is successful.
+	6.	If DIP and Hostname scenarios are successful, then mark test as PASS.
+	
+Cleanup the test VMs.
+	1.	If test is PASS, delete all VMs under test. 
+	2.	If test is FAIL, collect the logs and preserve deployed VMs.
+
+Add following test definition under "<testsDefinition>..</testsDefinition>" in XML file to drive the test:
+    <test>
+		<testName>NETWORK-IE-PING-SINGLE-HS</testName>
+		<testScript></testScript>
+		<testScriptps1>NETWORK-IE-PING-SINGLE-HS.ps1</testScriptps1>
+		<SubtestValues></SubtestValues>
+		<files>remote-scripts\ping.py, remote-scripts\azuremodules.py</files>
+		<setupType>IEndpointSingleHS</setupType>
+		<TestType></TestType>
+		<TestFeature></TestFeature>
+		<TestID>AzureNetwork_INT_006</TestID>
+		<TestMode>DIP,Hostname</TestMode>
+		<Priority>P0</Priority>
+    </test>
+ 	
+Run the tests defined in the .xml file.
+           From the PowerShell command line, issue the following command:
+           Run all NETWORK tests:
+.\AzureAutomationManager.ps1 -xmlConfigFile azure_ica_all.xml -runtests -Distro CentOS -cycleName NETWORK
