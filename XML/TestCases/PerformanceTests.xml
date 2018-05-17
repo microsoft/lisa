@@ -17,6 +17,7 @@
 		<TestID>Perf_Network_001</TestID>
     </test>
     <test>
+<<<<<<< HEAD
         <testName>PERF-NETWORK-TCP-LATENCY-MULTICONNECTION</testName>
         <testScript></testScript>
         <PowershellScript>PERF-NETWORK-TCP-LATENCY-MULTICONNECTION-LAGSCOPE.ps1</PowershellScript>
@@ -99,4 +100,153 @@
 		<Tags>hv_storvsc,storage</Tags>
 		<TestID>Perf_Storage_002</TestID>
     </test>                
+=======
+        <testName>NETWORK-PERF-CLOUDHARMONY-TEST</testName>
+        <testScript>network-perf-cloudharmony-server.sh,network-perf-cloudharmony-client.sh</testScript>
+        <testScriptps1>NETWORK-PERF-CLOUDHARMONY-TEST.ps1</testScriptps1>
+        <SubtestValues></SubtestValues>
+        <files1>remote-scripts\network-perf-cloudharmony-server.sh</files1>
+        <files>.\remote-scripts\network-perf-cloudharmony-client.sh,.\remote-scripts\perf-cloudharmony-options.txt</files>
+        <setupType>IEndpointSingleHS</setupType>
+        <TestType></TestType>
+        <TestFeature></TestFeature>
+        <SupportedExecutionModes>AzureServiceManagement</SupportedExecutionModes>
+        <Platform>Azure</Platform>
+		<Category>Performance</Category>
+		<Area>Network</Area>
+		<Tags>tcp,network</Tags>
+		<TestID>Perf_002</TestID>
+    </test>
+    <test>
+        <testName>NETWORK-PERF-THROUGHPUT-6K-CONNETCTIONS-TEST</testName>
+        <testScript>network-6k-connections-server.sh,network-6k-connections-client.sh</testScript>
+        <testScriptps1>NETWORK-PERF-THROUGHPUT-6K-CONNETCTIONS-TEST.ps1</testScriptps1>
+        <SubtestValues></SubtestValues>
+        <files1>remote-scripts\network-6k-connections-server.sh</files1>
+        <files>.\remote-scripts\network-6k-connections-client.sh,.\remote-scripts\perf-statistics.sh</files>
+        <setupType>IEndpointSingleHS</setupType>
+        <TestType></TestType>
+        <TestFeature></TestFeature>
+        <SupportedExecutionModes>AzureServiceManagement</SupportedExecutionModes>
+        <Platform>Azure</Platform>
+		<Category>Performance</Category>
+		<Area>Network</Area>
+		<Tags>tcp,network</Tags>
+		<TestID>Perf_003</TestID>
+    </test>
+    <test>
+        <testName>NETWORK-PERF-MESH-TEST</testName>
+        <testScript>meshnetwork-perf-main.sh,meshnetwork-perf-server.sh,meshnetwork-perf-client.sh</testScript>
+        <testScriptps1>NETWORK-PERF-MESH-TEST.ps1</testScriptps1>
+        <SubtestValues>32,64,512,1000,2000,4000,6000</SubtestValues>
+        <files>.\remote-scripts\meshnetwork-perf-main.sh,.\remote-scripts\meshnetwork-perf-server.sh,.\remote-scripts\meshnetwork-perf-client.sh,.\remote-scripts\collect-stats.sh</files>
+        <setupType>MeshVM</setupType>
+        <TestType></TestType>
+        <TestFeature></TestFeature>
+        <SupportedExecutionModes>AzureServiceManagement</SupportedExecutionModes>
+        <Platform>Azure</Platform>
+		<Category>Performance</Category>
+		<Area>Network</Area>
+		<Tags>tcp,network,mesh</Tags>
+		<TestID>Perf_004</TestID>
+    </test>
+    <test>
+        <testName>ICA-IO-DISK-PERF-TEST-RAID-D</testName>
+        <testScript>io-test-setup.sh</testScript>
+        <testScriptps1>ICA-IO-DISK-PERF-TEST.ps1</testScriptps1>
+        <files>.\remote-scripts\sysbench-full-io-test.sh,.\remote-scripts\azuremodules.sh,.\remote-scripts\sysbench-log-parser.sh,.\remote-scripts\io-test-setup.sh,.\remote-scripts\keep_cmds_in_startup.sh</files>
+        <setupType>D14DISK12</setupType>
+        <!-- <setupType>DS14DISK32</setupType> -->
+        <TestType></TestType>
+        <DiskType>RAID</DiskType>
+        <TestFeature></TestFeature>
+        <SupportedExecutionModes>AzureServiceManagement,AzureResourceManager</SupportedExecutionModes>
+        <Platform>Azure</Platform>
+		<Category>Performance</Category>
+		<Area>Network</Area>
+		<Tags>tcp,network,raid</Tags>
+		<TestID>Perf_005</TestID>
+    </test>
+    <test>
+        <testName>ICA-IO-DISK-PERF-TEST-RAID-DS</testName>
+        <testScript>io-test-setup.sh</testScript>
+        <testScriptps1>ICA-IO-DISK-PERF-TEST.ps1</testScriptps1>
+        <files>.\remote-scripts\sysbench-full-io-test.sh,.\remote-scripts\azuremodules.sh,.\remote-scripts\sysbench-log-parser.sh,.\remote-scripts\io-test-setup.sh,.\remote-scripts\keep_cmds_in_startup.sh</files>
+        <setupType>DS14DISK12</setupType>
+        <!-- <setupType>DS14DISK32</setupType> -->
+        <TestType></TestType>
+        <DiskType>RAID</DiskType>
+        <TestFeature></TestFeature>
+        <SupportedExecutionModes>AzureServiceManagement,AzureResourceManager</SupportedExecutionModes>
+        <Platform>Azure</Platform>
+		<Category>Performance</Category>
+		<Area>Network</Area>
+		<Tags>tcp,network,raid</Tags>
+		<TestID>Perf_006</TestID>
+    </test>
+    <test>
+        <testName>ICA-IO-DISK-PERF-TEST-LVM</testName>
+        <testScript>io-test-setup.sh</testScript>
+        <testScriptps1>ICA-IO-DISK-PERF-TEST.ps1</testScriptps1>
+        <files>.\remote-scripts\sysbench-full-io-test.sh,.\remote-scripts\azuremodules.sh,.\remote-scripts\sysbench-log-parser.sh,.\remote-scripts\io-test-setup.sh,.\remote-scripts\keep_cmds_in_startup.sh</files>
+        <setupType>D14DISK32</setupType>
+        <!-- <setupType>DS14DISK32</setupType> -->
+        <TestType></TestType>
+        <DiskType>LVM</DiskType>
+        <TestFeature></TestFeature>
+        <SupportedExecutionModes>AzureServiceManagement,AzureResourceManager</SupportedExecutionModes>
+        <Platform>Azure</Platform>
+		<Category>Performance</Category>
+		<Area>Network</Area>
+		<Tags>tcp,network</Tags>
+		<TestID>Perf_007</TestID>
+    </test>	
+    <test>
+        <testName>ICA-NETWORK-PERF-TEST</testName>
+        <testScript>NetPerf_setup_startup.sh</testScript>
+        <testScriptps1>ICA-NETWORK-PERF-TEST.ps1</testScriptps1>
+        <files>.\remote-scripts\NetPerf_setup_startup.sh,.\remote-scripts\client_start.sh,.\remote-scripts\server_start.sh,.\remote-scripts\keep_cmds_in_startup.sh,.\remote-scripts\azuremodules.sh,.\remote-scripts\sar-top.sh,.\remote-scripts\generate_csvs.sh</files>
+        <setupType>M1S1</setupType>
+        <TestType>TCP</TestType>
+        <TestFeature></TestFeature>
+        <SupportedExecutionModes>AzureServiceManagement,AzureResourceManager</SupportedExecutionModes>
+        <Platform>Azure</Platform>
+		<Category>Performance</Category>
+		<Area>Network</Area>
+		<Tags>tcp,network</Tags>
+		<TestID>Perf_008</TestID>
+    </test>
+    <test>
+        <testName>ICA-PERF-NETWORK-UDP-TEST</testName>
+        <testScript>NetPerf_setup_startup.sh</testScript>
+        <testScriptps1>ICA-PERF-NETWORK-UDP-TEST.ps1</testScriptps1>
+        <files>.\remote-scripts\NetPerf_setup_startup.sh,.\remote-scripts\client_start.sh,.\remote-scripts\server_start.sh,.\remote-scripts\keep_cmds_in_startup.sh,.\remote-scripts\azuremodules.sh,.\remote-scripts\sar-top.sh,.\remote-scripts\generate_csvs.sh</files>
+        <setupType>M1S1</setupType>
+        <TestType>UDP</TestType>
+        <BufferLength>1K,8K</BufferLength>
+        <TestFeature></TestFeature>
+        <SubtestValues>Here_some_text_is_required_due_to_automation_structure</SubtestValues>
+        <SupportedExecutionModes>AzureServiceManagement,AzureResourceManager</SupportedExecutionModes>
+        <Platform>Azure</Platform>
+		<Category>Performance</Category>
+		<Area>Network</Area>
+		<Tags>udp,network</Tags>
+		<TestID>Perf_009</TestID>
+    </test>
+    <test>
+        <testName>ICA-MYSQLDB-PERF-TEST</testName>
+        <testScript>mariadb_perf_client.sh</testScript>
+        <testScriptps1>ICA-MYSQLDB-PERF-TEST.ps1</testScriptps1>
+        <files>.\remote-scripts\mariadb_perf_client.sh,.\remote-scripts\mariadb_perf_server_conf.sh,.\remote-scripts\azuremodules.sh</files>
+        <setupType>DBPerf1HS2VM</setupType>
+        <TestType></TestType>
+        <TestFeature></TestFeature>
+        <SupportedExecutionModes>AzureServiceManagement,AzureResourceManager</SupportedExecutionModes>
+        <Platform>Azure</Platform>
+		<Category>Performance</Category>
+		<Area>Network</Area>
+		<Tags>tcp,network,mysql</Tags>
+		<TestID>Perf_010</TestID>
+    </test>	
+>>>>>>> juhlee/performance_xml_update
 </TestCases>
