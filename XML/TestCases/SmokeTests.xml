@@ -14,7 +14,7 @@
 		<TestName>VERIFY-HOSTNAME</TestName>
 		<testScript>BVT-VERIFY-HOSTNAME.py</testScript>
 		<PowershellScript>BVT-VERIFY-HOSTNAME.ps1</PowershellScript>
-		<files>.\remote-scripts\nslookup.py,.\remote-scripts\BVT-VERIFY-HOSTNAME.py,.\remote-scripts\azuremodules.py</files>
+		<files>.\Testscripts\Linux\nslookup.py,.\Testscripts\Linux\BVT-VERIFY-HOSTNAME.py,.\Testscripts\Linux\azuremodules.py</files>
 		<setupType>SingleVM</setupType>
 		<Platform>Azure</Platform>
 		<Category>Smoke</Category>
@@ -26,7 +26,7 @@
 		<TestName>VERIFY-ROOT-PASSWORD-DELETED</TestName>
 		<testScript>BVT-IS-ROOT-PASSWORD-DELETED.py</testScript>
 		<PowershellScript>BVT-IS-ROOT-PASSWORD-DELETED.ps1</PowershellScript>
-		<files>.\remote-scripts\BVT-IS-ROOT-PASSWORD-DELETED.py,.\remote-scripts\azuremodules.py</files>
+		<files>.\Testscripts\Linux\BVT-IS-ROOT-PASSWORD-DELETED.py,.\Testscripts\Linux\azuremodules.py</files>
 		<setupType>SingleVM</setupType>
 		<Platform>Azure</Platform>
 		<Category>Smoke</Category>

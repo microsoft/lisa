@@ -1,11 +1,11 @@
 <TestCases>
     <test>
-        <testName>PERF-NETWORK-TCP-MULTICONNECTION</testName>
+        <testName>PERF-NETWORK-TCP-THROUGHPUT-MULTICONNECTION</testName>
         <testScript></testScript>
-        <PowershellScript>ICA-PERF-NTTTCP-TEST.ps1</PowershellScript>
+        <PowershellScript>PERF-NETWORK-TCP-THROUGHPUT-MULTICONNECTION-NTTTCP.ps1</PowershellScript>
         <setupType>M1S1</setupType>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
-        <files>.\remote-scripts\azuremodules.sh</files>
+        <files>.\Testscripts\Linux\azuremodules.sh</files>
         <TestParameters>
             <param>testDuration=300</param>
             <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024 2048 4096 6144 8192 10240"</param>
@@ -13,8 +13,90 @@
 		<Platform>Azure</Platform>
 		<Category>Performance</Category>
 		<Area>Network</Area>
-		<Tags>tcp,network</Tags>
-		<TestID>Perf_001</TestID>
+		<Tags>tcp,network,hv_netvsc</Tags>
+		<TestID>Perf_Network_001</TestID>
     </test>
-    
+    <test>
+        <testName>PERF-NETWORK-TCP-LATENCY-MULTICONNECTION</testName>
+        <testScript></testScript>
+        <PowershellScript>PERF-NETWORK-TCP-LATENCY-MULTICONNECTION-LAGSCOPE.ps1</PowershellScript>
+        <setupType>M1S1</setupType>
+        <SubtestValues>This-tag-will-be-removed</SubtestValues>
+        <files>.\Testscripts\Linux\azuremodules.sh</files>
+        <TestParameters>
+            <param>pingIteration=1000000</param>
+        </TestParameters>
+		<Platform>Azure</Platform>
+		<Category>Performance</Category>
+		<Area>Network</Area>
+		<Tags>tcp,network,hv_netvsc</Tags>
+		<TestID>Perf_Network_002</TestID>
+    </test>
+    <test>
+        <testName>PERF-NETWORK-UDP-THROUGHPUT-MULTICONNECTION</testName>
+        <testScript></testScript>
+        <PowershellScript>PERF-NETWORK-UDP-THROUGHPUT-MULTICONNECTION-IPERF3.ps1</PowershellScript>
+        <setupType>M1S1</setupType>
+        <SubtestValues>This-tag-will-be-removed</SubtestValues>
+        <files>.\Testscripts\Linux\azuremodules.sh</files>
+        <TestParameters>
+            <param>testDuration=300</param>
+            <param>testType=udp</param>
+            <param>max_parallel_connections_per_instance=64</param>
+            <param>connections=(1 2 4 8 16 32 64 128 256 512 1024)</param>
+            <param>bufferLengths=(1024 8192)</param>
+            <param>IPversion=4</param>
+        </TestParameters>
+		<Platform>Azure</Platform>
+		<Category>Performance</Category>
+		<Area>Network</Area>
+		<Tags>udp,network,hv_netvsc</Tags>
+		<TestID>Perf_Network_003</TestID>
+    </test>
+    <test>
+        <testName>PERF-STORAGE-4K-IO</testName>
+        <testScript></testScript>
+        <PowershellScript>PERF-STORAGE-MULTIDISK-RAID0-FIO.ps1</PowershellScript>
+        <setupType>DS14DISK12</setupType>
+        <SubtestValues>This-tag-will-be-removed</SubtestValues>
+        <files>.\Testscripts\Linux\azuremodules.sh</files>
+        <TestParameters>
+            <param>modes='randread randwrite read write'</param>
+            <param>startThread=1</param>
+            <param>maxThread=1024</param>
+            <param>startIO=4</param>
+            <param>numjobs=1</param>
+            <param>ioruntime=300</param>
+            <param>maxIO=4</param>
+            <param>fileSize=1023G</param>
+        </TestParameters>
+		<Platform>Azure</Platform>
+		<Category>Performance</Category>
+		<Area>Storage</Area>
+		<Tags>hv_storvsc,storage</Tags>
+		<TestID>Perf_Storage_001</TestID>
+    </test>
+    <test>
+        <testName>PERF-STORAGE-1024K-IO</testName>
+        <testScript></testScript>
+        <PowershellScript>PERF-STORAGE-MULTIDISK-RAID0-FIO.ps1</PowershellScript>
+        <setupType>DS14DISK12</setupType>
+        <SubtestValues>This-tag-will-be-removed</SubtestValues>
+        <files>.\Testscripts\Linux\azuremodules.sh</files>
+        <TestParameters>
+            <param>modes='randread randwrite read write'</param>
+            <param>startThread=1</param>
+            <param>maxThread=1024</param>
+            <param>startIO=4</param>
+            <param>numjobs=1</param>
+            <param>ioruntime=300</param>
+            <param>maxIO=1024</param>
+            <param>fileSize=1023G</param>
+        </TestParameters>
+		<Platform>Azure</Platform>
+		<Category>Performance</Category>
+		<Area>Storage</Area>
+		<Tags>hv_storvsc,storage</Tags>
+		<TestID>Perf_Storage_002</TestID>
+    </test>                
 </TestCases>
