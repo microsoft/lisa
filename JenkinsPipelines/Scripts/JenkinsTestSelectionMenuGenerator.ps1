@@ -13,16 +13,31 @@ foreach ( $file in (Get-ChildItem -Path .\XML\TestCases\*.xml ))
 }
 $TestToRegionMapping = ([xml](Get-Content .\XML\TestToRegionMapping.xml))
 #Get Unique Platforms
+
 $Platforms = $xmlData.test.Platform.Split(',')  | Sort-Object | Get-Unique
-Write-Host $Platforms
+LogMsg "ALL TEST PLATFORMS"
+LogMsg "--------------"
+$i = 1; $Platforms | ForEach-Object { LogMsg "$i. $($_)"; $i++ }
+
 $Categories = $xmlData.test.Category | Sort-Object | Get-Unique
-Write-Host $Categories
+LogMsg "ALL TEST CATEGORIES"
+LogMsg "----------------"
+$i = 1; $Categories | ForEach-Object { LogMsg "$i. $($_)"; $i++ }
+
 $Areas =$xmlData.test.Area | Sort-Object | Get-Unique
-Write-Host $Areas
+LogMsg "ALL TEST AREAS"
+LogMsg "----------"
+$i = 1; $Areas | ForEach-Object { LogMsg "$i. $($_)"; $i++ }
+
+$TestNames = $xmlData.test.testName | Sort-Object | Get-Unique
+LogMsg "ALL TEST NAMES"
+LogMsg "----------"
+$i = 1; $TestNames | ForEach-Object { LogMsg "$i. $($_)"; $i++ }
+
 $Tags =$xmlData.test.Tags.Split(",") | Sort-Object | Get-Unique
-Write-Host $Tags
-$TestNames = $xmlData.testName | Sort-Object | Get-Unique
-Write-Host $TestNames
+LogMsg "TEST TAGS"
+LogMsg "---------"
+$i = 1; $Tags | ForEach-Object { LogMsg "$i. $($_)"; $i++ }
 
 
 $TestByCategory =  "platform`tcategory`tarea`tregion`n"
@@ -56,10 +71,10 @@ foreach ( $platform in $Platforms )
                     $AreaRegions = ($TestToRegionMapping.enabledRegions.Area.$area).Split(",")
                     foreach ( $arearegion in $AreaRegions )
                     {
-                        Write-Host "foreach ( $arearegion in $AreaRegions )"
+                        LogMsg "foreach ( $arearegion in $AreaRegions )"
                         if ( $Regions.Contains($arearegion))
                         {
-                            Write-Host "if ( $Regions.Contains($arearegion))"
+                            LogMsg "if ( $Regions.Contains($arearegion))"
                             $tempRegions += $arearegion
                         }
                     }
@@ -95,9 +110,11 @@ foreach ( $platform in $Platforms )
     }
 }
 
+LogMsg "Saving TestByCategory.txt..."
 Set-Content -Value $TestByCategory -Path "$DestinationPath\TestByCategory.txt" -Force
+LogMsg "Validating TestByCategory.txt..."
 (Get-Content "$DestinationPath\TestByCategory.txt") | Where-Object {$_.trim() -ne "" } | set-content "$DestinationPath\TestByCategory.txt"
-
+LogMsg "Done"
 
 $TestsByTag = "platform`ttag`tregion`n"
 foreach ( $platform in $Platforms )
@@ -118,9 +135,11 @@ foreach ( $platform in $Platforms )
         }
     }
 }
+LogMsg "Saving TestsByTag.txt..."
 Set-Content -Value $TestsByTag -Path "$DestinationPath\TestsByTag.txt" -Force
+LogMsg "Validating TestsByTag.txt..."
 (Get-Content "$DestinationPath\TestsByTag.txt") | Where-Object {$_.trim() -ne "" } | set-content "$DestinationPath\TestsByTag.txt"
-
+LogMsg "Done"
 
 <#
 $TestByTestName = "platform`ttestname`tregion`n"
@@ -202,17 +221,16 @@ foreach ( $platform in $Platforms )
                 }
                 foreach ( $region in $Regions)
                 {
-                    #Write-Host "$platform`t$category`t$area`t$testname`t$region"
+                    #LogMsg "$platform`t$category`t$area`t$testname`t$region"
                     $TestByTestname += "$platform`t$category`t$area`t$testname`t$platform>>$category>>$area>>$testname>>$region`n"
                 }
             }
         }
     }
 }
-Write-Host "Setting Content"
+LogMsg "Saving TestByTestname.txt..."
 Set-Content -Value $TestByTestname -Path "$DestinationPath\TestByTestname.txt" -Force
-Write-Host "Replacing whitespaces"
+LogMsg "Validating TestByTestname.txt..."
 (Get-Content "$DestinationPath\TestByTestname.txt") | Where-Object {$_.trim() -ne "" } | set-content "$DestinationPath\TestByTestname.txt"
-Write-Host "Completed."
-
+LogMsg "Done"
 exit 0
