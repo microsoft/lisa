@@ -49,8 +49,8 @@ ICA_TESTFAILED="TestFailed"        # Error occurred during the test
 #
 #######################################################################
 
-if [ -z "$customKernel" ]; then
-        echo "Please mention -customKernel next"
+if [ -z "$CustomKernel" ]; then
+        echo "Please mention -CustomKernel next"
         exit 1
 fi
 if [ -z "$logFolder" ]; then
@@ -63,7 +63,7 @@ fi
 LogMsg()
 {
     echo `date "+%b %d %Y %T"` : "${1}"    # Add the time stamp to the log message
-    echo "${1}" >> $logFolder/build-customKernel.txt
+    echo "${1}" >> $logFolder/build-CustomKernel.txt
 }
 
 UpdateTestState()
@@ -72,7 +72,7 @@ UpdateTestState()
 }
 
 
-touch $logFolder/build-customKernel.txt
+touch $logFolder/build-CustomKernel.txt
 
 CheckInstallLockUbuntu()
 {
@@ -90,10 +90,10 @@ CheckInstallLockUbuntu()
 InstallKernel()
 {
         sleep 10
-        if [ "${customKernel}" == "linuxnext" ]; then
+        if [ "${CustomKernel}" == "linuxnext" ]; then
                 kernelSource="https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git"
                 sourceDir="linux-next"
-        elif [ "${customKernel}" == "proposed" ]; then
+        elif [ "${CustomKernel}" == "proposed" ]; then
                 DISTRO=`grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux" /etc/{issue,*release,*version}`
                 if [[ $DISTRO =~ "Xenial" ]];
                 then
@@ -101,8 +101,8 @@ InstallKernel()
                         echo "deb http://archive.ubuntu.com/ubuntu/ xenial-proposed restricted main multiverse universe" >> /etc/apt/sources.list
                         rm -rf /etc/apt/preferences.d/proposed-updates
                         LogMsg "Installing linux-image-generic from proposed repository."
-                        apt -y update >> $logFolder/build-customKernel.txt 2>&1
-                        apt -y --fix-missing upgrade >> $logFolder/build-customKernel.txt 2>&1
+                        apt -y update >> $logFolder/build-CustomKernel.txt 2>&1
+                        apt -y --fix-missing upgrade >> $logFolder/build-CustomKernel.txt 2>&1
                         kernelInstallStatus=$?
                 elif [[ $DISTRO =~ "Trusty" ]];
                 then
@@ -110,8 +110,8 @@ InstallKernel()
                         echo "deb http://archive.ubuntu.com/ubuntu/ trusty-proposed restricted main multiverse universe" >> /etc/apt/sources.list
                         rm -rf /etc/apt/preferences.d/proposed-updates
                         LogMsg "Installing linux-image-generic from proposed repository."
-                        apt -y update >> $logFolder/build-customKernel.txt 2>&1
-                        apt -y --fix-missing upgrade >> $logFolder/build-customKernel.txt 2>&1
+                        apt -y update >> $logFolder/build-CustomKernel.txt 2>&1
+                        apt -y --fix-missing upgrade >> $logFolder/build-CustomKernel.txt 2>&1
                         kernelInstallStatus=$?
                 fi
                 UpdateTestState $ICA_TESTCOMPLETED
@@ -122,16 +122,16 @@ InstallKernel()
                         LogMsg "CUSTOM_KERNEL_SUCCESS"
                         UpdateTestState $ICA_TESTCOMPLETED
                 fi
-        elif [ "${customKernel}" == "latest" ]; then
+        elif [ "${CustomKernel}" == "latest" ]; then
                 DISTRO=`grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux" /etc/{issue,*release,*version}`
                 if [[ $DISTRO =~ "Ubuntu" ]];
                 then
                         LogMsg "Installing linux-image-generic from repository."
-                        apt -y update >> $logFolder/build-customKernel.txt 2>&1
-                        apt -y --fix-missing upgrade >> $logFolder/build-customKernel.txt 2>&1
+                        apt -y update >> $logFolder/build-CustomKernel.txt 2>&1
+                        apt -y --fix-missing upgrade >> $logFolder/build-CustomKernel.txt 2>&1
                         LogMsg "Installing linux-image-generic from proposed repository."
-                        apt -y update >> $logFolder/build-customKernel.txt 2>&1
-                        apt -y --fix-missing upgrade >> $logFolder/build-customKernel.txt 2>&1
+                        apt -y update >> $logFolder/build-CustomKernel.txt 2>&1
+                        apt -y --fix-missing upgrade >> $logFolder/build-CustomKernel.txt 2>&1
                         kernelInstallStatus=$?
                 fi
                 UpdateTestState $ICA_TESTCOMPLETED
@@ -142,25 +142,25 @@ InstallKernel()
                         LogMsg "CUSTOM_KERNEL_SUCCESS"
                         UpdateTestState $ICA_TESTCOMPLETED
                 fi
-        elif [ "${customKernel}" == "netnext" ]; then
+        elif [ "${CustomKernel}" == "netnext" ]; then
                 kernelSource="https://git.kernel.org/pub/scm/linux/kernel/git/davem/net-next.git"
                 sourceDir="net-next"
-        elif [[ $customKernel == *.deb ]]; then
-                LogMsg "Custom Kernel:$customKernel"
+        elif [[ $CustomKernel == *.deb ]]; then
+                LogMsg "Custom Kernel:$CustomKernel"
                 apt-get update
-                if [[ $customKernel =~ "http" ]];then
+                if [[ $CustomKernel =~ "http" ]];then
 						CheckInstallLockUbuntu
                         apt-get install wget
-                        LogMsg "Debian package web link detected. Downloading $customKernel"
-                        wget $customKernel
-                        LogMsg "Installing ${customKernel##*/}"
-                        dpkg -i "${customKernel##*/}"  >> $logFolder/build-customKernel.txt 2>&1
+                        LogMsg "Debian package web link detected. Downloading $CustomKernel"
+                        wget $CustomKernel
+                        LogMsg "Installing ${CustomKernel##*/}"
+                        dpkg -i "${CustomKernel##*/}"  >> $logFolder/build-CustomKernel.txt 2>&1
                         kernelInstallStatus=$?
                 else
                         CheckInstallLockUbuntu
                         prefix="localfile:"
-                        LogMsg "Installing ${customKernel#$prefix}"
-                        dpkg -i "${customKernel#$prefix}"  >> $logFolder/build-customKernel.txt 2>&1
+                        LogMsg "Installing ${CustomKernel#$prefix}"
+                        dpkg -i "${CustomKernel#$prefix}"  >> $logFolder/build-CustomKernel.txt 2>&1
                         kernelInstallStatus=$?
                 fi
 
@@ -172,20 +172,20 @@ InstallKernel()
                         LogMsg "CUSTOM_KERNEL_SUCCESS"
                         UpdateTestState $ICA_TESTCOMPLETED
                 fi
-        elif [[ $customKernel == *.rpm ]]; then
-                LogMsg "Custom Kernel:$customKernel"
+        elif [[ $CustomKernel == *.rpm ]]; then
+                LogMsg "Custom Kernel:$CustomKernel"
 
-                if [[ $customKernel =~ "http" ]];then
+                if [[ $CustomKernel =~ "http" ]];then
                         yum -y install wget
-                        LogMsg "RPM package web link detected. Downloading $customKernel"
-                        wget $customKernel
-                        LogMsg "Installing ${customKernel##*/}"
-                        rpm -ivh "${customKernel##*/}"  >> $logFolder/build-customKernel.txt 2>&1
+                        LogMsg "RPM package web link detected. Downloading $CustomKernel"
+                        wget $CustomKernel
+                        LogMsg "Installing ${CustomKernel##*/}"
+                        rpm -ivh "${CustomKernel##*/}"  >> $logFolder/build-CustomKernel.txt 2>&1
                         kernelInstallStatus=$?
                 else
                         prefix="localfile:"
-                        LogMsg "Installing ${customKernel#$prefix}"
-                        rpm -ivh "${customKernel#$prefix}"  >> $logFolder/build-customKernel.txt 2>&1
+                        LogMsg "Installing ${CustomKernel#$prefix}"
+                        rpm -ivh "${CustomKernel#$prefix}"  >> $logFolder/build-CustomKernel.txt 2>&1
                         kernelInstallStatus=$?
 
                 fi
@@ -199,8 +199,8 @@ InstallKernel()
                         grub2-set-default 0
                 fi
         fi
-        if [[ ${customKernel} == "linuxnext" ]] || [[ ${customKernel} == "netnext" ]]; then
-                LogMsg "Custom Kernel:$customKernel"
+        if [[ ${CustomKernel} == "linuxnext" ]] || [[ ${CustomKernel} == "netnext" ]]; then
+                LogMsg "Custom Kernel:$CustomKernel"
                 chmod +x $logFolder/DetectLinuxDistro.sh
                 LinuxDistro=`$logFolder/DetectLinuxDistro.sh`
                 if [ $LinuxDistro == "SLES" -o $LinuxDistro == "SUSE" ]; then
@@ -221,19 +221,19 @@ InstallKernel()
 						CheckInstallLockUbuntu
                         apt-get update
                         LogMsg "Installing packages git make tar gcc bc patch dos2unix wget ..."
-                        apt-get install -y git make tar gcc bc patch dos2unix wget >> $logFolder/build-customKernel.txt 2>&1
+                        apt-get install -y git make tar gcc bc patch dos2unix wget >> $logFolder/build-CustomKernel.txt 2>&1
                         LogMsg "Installing kernel-package ..."
-                        apt-get -o Dpkg::Options::="--force-confnew" -y install kernel-package >> $logFolder/build-customKernel.txt 2>&1
+                        apt-get -o Dpkg::Options::="--force-confnew" -y install kernel-package >> $logFolder/build-CustomKernel.txt 2>&1
                         rm -rf linux-next
                         LogMsg "Downloading kernel source..."
-                        git clone ${kernelSource} >> $logFolder/build-customKernel.txt 2>&1
+                        git clone ${kernelSource} >> $logFolder/build-CustomKernel.txt 2>&1
                         cd ${sourceDir}
                         #Download kernel build shell script...
                         wget https://raw.githubusercontent.com/simonxiaoss/linux_performance_test/master/git_bisect/build-ubuntu.sh
                         chmod +x build-ubuntu.sh
                         #Start installing kernel
                         LogMsg "Building and Installing kernel..."
-                        ./build-ubuntu.sh  >> $logFolder/build-customKernel.txt 2>&1
+                        ./build-ubuntu.sh  >> $logFolder/build-CustomKernel.txt 2>&1
                         kernelInstallStatus=$?
                         if [ $kernelInstallStatus -eq 0 ]; then
                                 LogMsg "CUSTOM_KERNEL_SUCCESS"

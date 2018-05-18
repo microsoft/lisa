@@ -1,7 +1,7 @@
 #v-shisav : STILL IN BETA VERSION
 
-param($xmlConfig, [string] $Distro, [string] $cycleName, [int] $testIterations)
-Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $testIterations )
+param($xmlConfig, [string] $Distro, [string] $cycleName, [int] $TestIterations)
+Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 {
 	$StartTime = [Datetime]::Now.ToUniversalTime()
 	LogMsg "Starting the Cycle - $($CycleName.ToUpper())"
@@ -160,9 +160,9 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $testIterations )
 			$originalTestName = $currentTestData.testName
 		}
 		# Generate Unique Test
-		for ( $testIterationCount = 1; $testIterationCount -le $testIterations; $testIterationCount ++ )
+		for ( $testIterationCount = 1; $testIterationCount -le $TestIterations; $testIterationCount ++ )
 		{
-			if ( $testIterations -ne 1 )
+			if ( $TestIterations -ne 1 )
 			{
 				$currentTestData.testName = "$($originalTestName)-$testIterationCount"
 				$test.Name = "$($originalTestName)-$testIterationCount"
@@ -480,4 +480,4 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $testIterations )
 	$testSuiteResultDetails
 }
 
-RunTestsOnCycle -cycleName $cycleName -xmlConfig $xmlConfig -Distro $Distro -testIterations $testIterations
+RunTestsOnCycle -cycleName $cycleName -xmlConfig $xmlConfig -Distro $Distro -TestIterations $TestIterations

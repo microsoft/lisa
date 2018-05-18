@@ -407,14 +407,14 @@ Function CreateAllResourceGroupDeployments($setupType, $xmlConfig, $Distro, [str
                 $readyToDeploy = ValidateSubscriptionUsage -subscriptionID $xmlConfig.config.Azure.General.SubscriptionID -RGXMLData $RG
                 $validateCurrentTime = Get-Date
                 $elapsedWaitTime = ($validateCurrentTime - $validateStartTime).TotalSeconds
-                if ( (!$readyToDeploy) -and ($elapsedWaitTime -lt $coureCountExceededTimeout))
+                if ( (!$readyToDeploy) -and ($elapsedWaitTime -lt $CoreCountExceededTimeout))
                 {
                     $waitPeriod = Get-Random -Minimum 1 -Maximum 10 -SetSeed (Get-Random)
-                    LogMsg "Timeout in approx. $($coureCountExceededTimeout - $elapsedWaitTime) seconds..."
+                    LogMsg "Timeout in approx. $($CoreCountExceededTimeout - $elapsedWaitTime) seconds..."
                     LogMsg "Waiting $waitPeriod minutes..."
                     sleep -Seconds ($waitPeriod*60)
                 }
-                if ( $elapsedWaitTime -gt $coureCountExceededTimeout )
+                if ( $elapsedWaitTime -gt $CoreCountExceededTimeout )
                 {
                     break
                 }
@@ -1113,20 +1113,20 @@ Set-Content -Value "$($indents[0]){" -Path $jsonFile -Force
                 Add-Content -Value "$($indents[3])^type^: ^Microsoft.Compute/availabilitySets^," -Path $jsonFile
                 Add-Content -Value "$($indents[3])^name^: ^[variables('availabilitySetName')]^," -Path $jsonFile
                 Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
-                if ( $tipSessionId -and $tipCluster)
+                if ( $TiPSessionId -and $TiPCluster)
                 {
                     Add-Content -Value "$($indents[3])^tags^:" -Path $jsonFile
                     Add-Content -Value "$($indents[3]){" -Path $jsonFile
-                        Add-Content -Value "$($indents[4])^TipNode.SessionId^: ^$tipSessionId^" -Path $jsonFile
+                        Add-Content -Value "$($indents[4])^TipNode.SessionId^: ^$TiPSessionId^" -Path $jsonFile
                     Add-Content -Value "$($indents[3])}," -Path $jsonFile
                 }
                 Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
                 Add-Content -Value "$($indents[3]){" -Path $jsonFile
-                if ( $tipSessionId -and $tipCluster)
+                if ( $TiPSessionId -and $TiPCluster)
                 {            
                     Add-Content -Value "$($indents[4])^internalData^:" -Path $jsonFile
                     Add-Content -Value "$($indents[4]){" -Path $jsonFile
-                        Add-Content -Value "$($indents[5])^pinnedFabricCluster^ : ^$tipCluster^" -Path $jsonFile  
+                        Add-Content -Value "$($indents[5])^pinnedFabricCluster^ : ^$TiPCluster^" -Path $jsonFile  
                     Add-Content -Value "$($indents[4])}" -Path $jsonFile
                 }
                 Add-Content -Value "$($indents[3])}" -Path $jsonFile
@@ -2358,6 +2358,8 @@ Function DeployResourceGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFailed
             $i = 0
             $role = 1
             $setupTypeData = $xmlConfig.config.Azure.Deployment.$setupType
+            #DEBUGRG
+            #$isAllDeployed = CreateAllResourceGroupDeployments -setupType $setupType -xmlConfig $xmlConfig -Distro $Distro -region $region -storageAccount $storageAccount -DebugRG "ICA-RG-M1S1-SSTEST-GZBX-636621761998"
             $isAllDeployed = CreateAllResourceGroupDeployments -setupType $setupType -xmlConfig $xmlConfig -Distro $Distro -region $region -storageAccount $storageAccount
             $isAllVerified = "False"
             $isAllConnected = "False"

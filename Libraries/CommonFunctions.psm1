@@ -250,16 +250,16 @@ Function ProvisionVMsForLisa($allVMData, $installPackagesOnRoleNames)
 	}
 }
 
-function InstallCustomKernel ($customKernel, $allVMData, [switch]$RestartAfterUpgrade)
+function InstallCustomKernel ($CustomKernel, $allVMData, [switch]$RestartAfterUpgrade)
 {
     try
     {
         $currentKernelVersion = ""
         $upgradedKernelVersion = ""
-        $customKernel = $customKernel.Trim()
-        if( ($customKernel -ne "linuxnext") -and ($customKernel -ne "netnext") -and ($customKernel -ne "proposed") -and ($customKernel -ne "latest") -and !($customKernel.EndsWith(".deb"))  -and !($customKernel.EndsWith(".rpm")) )
+        $CustomKernel = $CustomKernel.Trim()
+        if( ($CustomKernel -ne "linuxnext") -and ($CustomKernel -ne "netnext") -and ($CustomKernel -ne "proposed") -and ($CustomKernel -ne "latest") -and !($CustomKernel.EndsWith(".deb"))  -and !($CustomKernel.EndsWith(".rpm")) )
         {
-            LogErr "Only linuxnext, netnext, proposed, latest are supported. E.g. -customKernel linuxnext/netnext/proposed. Or use -customKernel <link to deb file>, -customKernel <link to rpm file>"
+            LogErr "Only linuxnext, netnext, proposed, latest are supported. E.g. -CustomKernel linuxnext/netnext/proposed. Or use -CustomKernel <link to deb file>, -CustomKernel <link to rpm file>"
         }
         else
         {
@@ -270,9 +270,9 @@ function InstallCustomKernel ($customKernel, $allVMData, [switch]$RestartAfterUp
 	        foreach ( $vmData in $allVMData )
 	        {
                 RemoteCopy -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files ".\Testscripts\Linux\$scriptName,.\Testscripts\Linux\DetectLinuxDistro.sh" -username $user -password $password -upload
-                if ( $customKernel.StartsWith("localfile:"))
+                if ( $CustomKernel.StartsWith("localfile:"))
                 {
-                    $customKernelFilePath = $customKernel.Replace('localfile:','')
+                    $customKernelFilePath = $CustomKernel.Replace('localfile:','')
                     RemoteCopy -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files ".\$customKernelFilePath" -username $user -password $password -upload                    
                 }
                 RemoteCopy -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files ".\Testscripts\Linux\$scriptName,.\Testscripts\Linux\DetectLinuxDistro.sh" -username $user -password $password -upload
@@ -280,7 +280,7 @@ function InstallCustomKernel ($customKernel, $allVMData, [switch]$RestartAfterUp
                 $out = RunLinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -command "chmod +x *.sh" -runAsSudo
                 $currentKernelVersion = RunLinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -command "uname -r"
 		        LogMsg "Executing $scriptName ..."
-		        $jobID = RunLinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -command "/home/$user/$scriptName -customKernel $customKernel -logFolder /home/$user" -RunInBackground -runAsSudo
+		        $jobID = RunLinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -command "/home/$user/$scriptName -CustomKernel $CustomKernel -logFolder /home/$user" -RunInBackground -runAsSudo
 		        $packageInstallObj = New-Object PSObject
 		        Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name ID -Value $jobID
 		        Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name RoleName -Value $vmData.RoleName
@@ -299,20 +299,20 @@ function InstallCustomKernel ($customKernel, $allVMData, [switch]$RestartAfterUp
 		        {
 			        if ( (Get-Job -Id $($job.ID)).State -eq "Running" )
 			        {
-				        $currentStatus = RunLinuxCmd -ip $job.PublicIP -port $job.SSHPort -username $user -password $password -command "tail -n 1 build-customKernel.txt"
+				        $currentStatus = RunLinuxCmd -ip $job.PublicIP -port $job.SSHPort -username $user -password $password -command "tail -n 1 build-CustomKernel.txt"
 				        LogMsg "Package Installation Status for $($job.RoleName) : $currentStatus"
 				        $packageInstallJobsRunning = $true
 			        }
 			        else
 			        {
-                        if ( !(Test-Path -Path "$LogDir\$($job.RoleName)-build-customKernel.txt" ) )
+                        if ( !(Test-Path -Path "$LogDir\$($job.RoleName)-build-CustomKernel.txt" ) )
                         {
-				            RemoteCopy -download -downloadFrom $job.PublicIP -port $job.SSHPort -files "build-customKernel.txt" -username $user -password $password -downloadTo $LogDir
-                            if ( ( Get-Content "$LogDir\build-customKernel.txt" ) -imatch "CUSTOM_KERNEL_SUCCESS" )
+				            RemoteCopy -download -downloadFrom $job.PublicIP -port $job.SSHPort -files "build-CustomKernel.txt" -username $user -password $password -downloadTo $LogDir
+                            if ( ( Get-Content "$LogDir\build-CustomKernel.txt" ) -imatch "CUSTOM_KERNEL_SUCCESS" )
                             {
                                 $kernelSuccess += 1
                             }
-				            Rename-Item -Path "$LogDir\build-customKernel.txt" -NewName "$($job.RoleName)-build-customKernel.txt" -Force | Out-Null
+				            Rename-Item -Path "$LogDir\build-CustomKernel.txt" -NewName "$($job.RoleName)-build-CustomKernel.txt" -Force | Out-Null
                         }
 			        }
 		        }
@@ -323,7 +323,7 @@ function InstallCustomKernel ($customKernel, $allVMData, [switch]$RestartAfterUp
 	        }
             if ( $kernelSuccess -eq $jobCount )
             {
-                LogMsg "Kernel upgraded to `"$customKernel`" successfully in $($allVMData.Count) VM(s)."
+                LogMsg "Kernel upgraded to `"$CustomKernel`" successfully in $($allVMData.Count) VM(s)."
                 if ( $RestartAfterUpgrade )
                 {
                     LogMsg "Now restarting VMs..."
@@ -341,7 +341,7 @@ function InstallCustomKernel ($customKernel, $allVMData, [switch]$RestartAfterUp
                             if ($currentKernelVersion -eq $upgradedKernelVersion)
                             {
                                 LogErr "Kernel version is same after restarting VMs."
-                                if ($customKernel -eq "latest")
+                                if ($CustomKernel -eq "latest")
                                 {
                                     LogMsg "Continuing the tests as default kernel is latest."
                                     $isKernelUpgraded = $true
@@ -381,14 +381,14 @@ function InstallCustomKernel ($customKernel, $allVMData, [switch]$RestartAfterUp
     }
 }
 
-function InstallcustomLIS ($customLIS, $customLISBranch, $allVMData, [switch]$RestartAfterUpgrade)
+function InstallcustomLIS ($CustomLIS, $customLISBranch, $allVMData, [switch]$RestartAfterUpgrade)
 {
     try
     {
-        $customLIS = $customLIS.Trim()
-        if( ($customLIS -ne "lisnext") -and !($customLIS.EndsWith("tar.gz")))
+        $CustomLIS = $CustomLIS.Trim()
+        if( ($CustomLIS -ne "lisnext") -and !($CustomLIS.EndsWith("tar.gz")))
         {
-            LogErr "Only lisnext and *.tar.gz links are supported. Use -customLIS lisnext -LISbranch <branch name>. Or use -customLIS <link to tar.gz file>"
+            LogErr "Only lisnext and *.tar.gz links are supported. Use -CustomLIS lisnext -LISbranch <branch name>. Or use -CustomLIS <link to tar.gz file>"
         }
         else
         {
@@ -403,7 +403,7 @@ function InstallcustomLIS ($customLIS, $customLISBranch, $allVMData, [switch]$Re
                 $out = RunLinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username "root" -password $password -command "chmod +x *.sh" -runAsSudo
                 $currentlisVersion = RunLinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus"
 		        LogMsg "Executing $scriptName ..."
-		        $jobID = RunLinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username "root" -password $password -command "/root/$scriptName -customLIS $customLIS -LISbranch $customLISBranch" -RunInBackground -runAsSudo
+		        $jobID = RunLinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username "root" -password $password -command "/root/$scriptName -CustomLIS $CustomLIS -LISbranch $customLISBranch" -RunInBackground -runAsSudo
 		        $packageInstallObj = New-Object PSObject
 		        Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name ID -Value $jobID
 		        Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name RoleName -Value $vmData.RoleName
@@ -422,20 +422,20 @@ function InstallcustomLIS ($customLIS, $customLISBranch, $allVMData, [switch]$Re
 		        {
 			        if ( (Get-Job -Id $($job.ID)).State -eq "Running" )
 			        {
-				        $currentStatus = RunLinuxCmd -ip $job.PublicIP -port $job.SSHPort -username "root" -password $password -command "tail -n 1 build-customLIS.txt"
+				        $currentStatus = RunLinuxCmd -ip $job.PublicIP -port $job.SSHPort -username "root" -password $password -command "tail -n 1 build-CustomLIS.txt"
 				        LogMsg "Package Installation Status for $($job.RoleName) : $currentStatus"
 				        $packageInstallJobsRunning = $true
 			        }
 			        else
 			        {
-                        if ( !(Test-Path -Path "$LogDir\$($job.RoleName)-build-customLIS.txt" ) )
+                        if ( !(Test-Path -Path "$LogDir\$($job.RoleName)-build-CustomLIS.txt" ) )
                         {
-				            RemoteCopy -download -downloadFrom $job.PublicIP -port $job.SSHPort -files "build-customLIS.txt" -username "root" -password $password -downloadTo $LogDir
-                            if ( ( Get-Content "$LogDir\build-customLIS.txt" ) -imatch "CUSTOM_LIS_SUCCESS" )
+				            RemoteCopy -download -downloadFrom $job.PublicIP -port $job.SSHPort -files "build-CustomLIS.txt" -username "root" -password $password -downloadTo $LogDir
+                            if ( ( Get-Content "$LogDir\build-CustomLIS.txt" ) -imatch "CUSTOM_LIS_SUCCESS" )
                             {
                                 $lisSuccess += 1
                             }
-				            Rename-Item -Path "$LogDir\build-customLIS.txt" -NewName "$($job.RoleName)-build-customLIS.txt" -Force | Out-Null
+				            Rename-Item -Path "$LogDir\build-CustomLIS.txt" -NewName "$($job.RoleName)-build-CustomLIS.txt" -Force | Out-Null
                         }
 			        }
 		        }
@@ -447,7 +447,7 @@ function InstallcustomLIS ($customLIS, $customLISBranch, $allVMData, [switch]$Re
     
             if ( $lisSuccess -eq $jobCount )
             {
-                LogMsg "lis upgraded to `"$customLIS`" successfully in all VMs."
+                LogMsg "lis upgraded to `"$CustomLIS`" successfully in all VMs."
                 if ( $RestartAfterUpgrade )
                 {
                     LogMsg "Now restarting VMs..."
@@ -994,23 +994,23 @@ Function DeployVMs ($xmlConfig, $setupType, $Distro, $getLogsIfFailed = $false, 
        }
 		$retValue = DeployManagementServices -xmlConfig $xmlConfig -setupType $setupType -Distro $Distro -getLogsIfFailed $getLogsIfFailed -GetDeploymentStatistics $GetDeploymentStatistics -region $region -storageAccount $storageAccount -timeOutSeconds $timeOutSeconds
 	}
-    if ( $retValue -and $customKernel)
+    if ( $retValue -and $CustomKernel)
     {
-        LogMsg "Custom kernel: $customKernel will be installed on all machines..."
-        $kernelUpgradeStatus = InstallCustomKernel -customKernel $customKernel -allVMData $allVMData -RestartAfterUpgrade
+        LogMsg "Custom kernel: $CustomKernel will be installed on all machines..."
+        $kernelUpgradeStatus = InstallCustomKernel -CustomKernel $CustomKernel -allVMData $allVMData -RestartAfterUpgrade
         if ( !$kernelUpgradeStatus )
         {
-            LogError "Custom Kernel: $customKernel installation FAIL. Aborting tests."
+            LogError "Custom Kernel: $CustomKernel installation FAIL. Aborting tests."
             $retValue = ""
         }
     }
-    if ( $retValue -and $customLIS)
+    if ( $retValue -and $CustomLIS)
     {
-        LogMsg "Custom LIS: $customLIS will be installed on all machines..."
-        $LISUpgradeStatus = InstallCustomLIS -customLIS $customLIS -allVMData $allVMData -customLISBranch $customLISBranch -RestartAfterUpgrade
+        LogMsg "Custom LIS: $CustomLIS will be installed on all machines..."
+        $LISUpgradeStatus = InstallCustomLIS -CustomLIS $CustomLIS -allVMData $allVMData -customLISBranch $customLISBranch -RestartAfterUpgrade
         if ( !$LISUpgradeStatus )
         {
-            LogError "Custom Kernel: $customKernel installation FAIL. Aborting tests."
+            LogError "Custom Kernel: $CustomKernel installation FAIL. Aborting tests."
             $retValue = ""
         }
     }
@@ -1837,9 +1837,9 @@ Function DoTestCleanUp($result, $testName, $DeployedServices, $ResourceGroups, [
 									$isVMLogsCollected = $true								}
 								else
 								{
-                                	if ( $keepReproInact )
+                                	if ( $KeepReproInact )
                                 	{
-										LogMsg "Skipping cleanup due to 'keepReproInact' flag is set."
+										LogMsg "Skipping cleanup due to 'KeepReproInact' flag is set."
                                     }
                                     else
 									{
@@ -1870,11 +1870,11 @@ Function DoTestCleanUp($result, $testName, $DeployedServices, $ResourceGroups, [
 								GetVMLogs -allVMData $allDeploymentData
 							}
 							$isVMLogsCollected = $true
-							if(!$keepUserDirectory -and !$keepReproInact -and $EconomyMode)
+							if(!$keepUserDirectory -and !$KeepReproInact -and $EconomyMode)
 								{
 									RemoveAllFilesFromHomeDirectory -allDeployedVMs $allVMData
 								}
-							if($keepReproInact)
+							if($KeepReproInact)
 							{
 								$xmlConfig.config.Azure.Deployment.$setupType.isDeployed = "NO"
 							}
@@ -1886,7 +1886,7 @@ Function DoTestCleanUp($result, $testName, $DeployedServices, $ResourceGroups, [
 						{
 							LogMsg "Collecting VM logs.."
 							GetVMLogs -allVMData $allDeploymentData
-							if($keepReproInact)
+							if($KeepReproInact)
 							{
 								$xmlConfig.config.Azure.Deployment.$setupType.isDeployed = "NO"
 							}
@@ -1936,9 +1936,9 @@ Function DoTestCleanUp($result, $testName, $DeployedServices, $ResourceGroups, [
 								}
 								else
 								{
-									if ( $keepReproInact )
+									if ( $KeepReproInact )
 									{
-										LogMsg "Skipping cleanup due to 'keepReproInact' flag is set."
+										LogMsg "Skipping cleanup due to 'KeepReproInact' flag is set."
 									}
 									else
 									{
@@ -1970,11 +1970,11 @@ Function DoTestCleanUp($result, $testName, $DeployedServices, $ResourceGroups, [
 								GetVMLogs -allVMData $allVMData
 							}
 							$isVMLogsCollected = $true
-							if(!$keepUserDirectory -and !$keepReproInact -and $EconomyMode)
+							if(!$keepUserDirectory -and !$KeepReproInact -and $EconomyMode)
 								{
 									RemoveAllFilesFromHomeDirectory -allDeployedVMs $allVMData
 								}
-							if($keepReproInact)
+							if($KeepReproInact)
 							{
 								$xmlConfig.config.Azure.Deployment.$setupType.isDeployed = "NO"
 							}

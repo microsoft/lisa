@@ -25,13 +25,13 @@ param (
 [string] $TestPriority,
 [string] $osImage,
 [switch] $EconomyMode,
-[switch] $keepReproInact,
+[switch] $KeepReproInact,
 [string] $DebugDistro,
 [switch] $UseAzureResourceManager,
 [string] $OverrideVMSize,
 [switch] $EnableAcceleratedNetworking,
-[string] $customKernel,
-[string] $customLIS,
+[string] $CustomKernel,
+[string] $CustomLIS,
 [string] $customLISBranch,
 [string] $resizeVMsAfterDeployment,
 [string] $ExistingResourceGroup,
@@ -40,10 +40,10 @@ param (
 # Experimental Feature
 [switch] $UseManagedDisks,
 
-[int] $coureCountExceededTimeout = 3600,
-[int] $testIterations = 1,
-[string] $tipSessionId="",
-[string] $tipCluster="",
+[int] $CoreCountExceededTimeout = 3600,
+[int] $TestIterations = 1,
+[string] $TiPSessionId="",
+[string] $TiPCluster="",
 [switch] $ForceDeleteResources
 )
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global}
@@ -63,11 +63,11 @@ Set-Variable -Name PublicConfiguration -Value @() -Scope Global
 Set-Variable -Name PrivateConfiguration -Value @() -Scope Global
 Set-Variable -Name CurrentTestData -Value $CurrentTestData -Scope Global
 Set-Variable -Name preserveKeyword -Value "preserving" -Scope Global
-Set-Variable -Name tipSessionId -Value $tipSessionId -Scope Global
-Set-Variable -Name tipCluster -Value $tipCluster -Scope Global
+Set-Variable -Name TiPSessionId -Value $TiPSessionId -Scope Global
+Set-Variable -Name TiPCluster -Value $TiPCluster -Scope Global
 
 Set-Variable -Name global4digitRandom -Value $(Get-Random -SetSeed $(Get-Random) -Maximum 9999 -Minimum 1111) -Scope Global
-Set-Variable -Name coureCountExceededTimeout -Value $coureCountExceededTimeout -Scope Global
+Set-Variable -Name CoreCountExceededTimeout -Value $CoreCountExceededTimeout -Scope Global
 
 if($EnableAcceleratedNetworking)
 {
@@ -87,13 +87,13 @@ if ( $OverrideVMSize )
 {
     Set-Variable -Name OverrideVMSize -Value $OverrideVMSize -Scope Global
 }
-if ( $customKernel )
+if ( $CustomKernel )
 {
-    Set-Variable -Name customKernel -Value $customKernel -Scope Global
+    Set-Variable -Name CustomKernel -Value $CustomKernel -Scope Global
 }
-if ( $customLIS )
+if ( $CustomLIS )
 {
-    Set-Variable -Name customLIS -Value $customLIS -Scope Global
+    Set-Variable -Name CustomLIS -Value $CustomLIS -Scope Global
 }
 if ( $customLISBranch )
 {
@@ -157,21 +157,21 @@ try
         if($EconomyMode)
         {
             Set-Variable -Name EconomyMode -Value $true -Scope Global
-            if($keepReproInact)
+            if($KeepReproInact)
             {
-                Set-Variable -Name keepReproInact -Value $true -Scope Global
+                Set-Variable -Name KeepReproInact -Value $true -Scope Global
             }
         }
         else
         {
             Set-Variable -Name EconomyMode -Value $false -Scope Global
-            if($keepReproInact)
+            if($KeepReproInact)
             {
-                Set-Variable -Name keepReproInact -Value $true -Scope Global
+                Set-Variable -Name KeepReproInact -Value $true -Scope Global
             }
             else
             {
-                Set-Variable -Name keepReproInact -Value $false -Scope Global
+                Set-Variable -Name KeepReproInact -Value $false -Scope Global
             }
         }
         $AzureSetup = $xmlConfig.config.Azure.General
@@ -204,9 +204,9 @@ try
         LogMsg "User                   : $($userIDSplitted[0])-xxxx-xxxx-xxxx-$($userIDSplitted[4])"
         LogMsg "ServiceEndpoint        : $($SelectedSubscription.Environment.ActiveDirectoryServiceEndpointResourceId)"
         LogMsg "CurrentStorageAccount  : $($AzureSetup.ARMStorageAccount)"
-        if($keepReproInact)
+        if($KeepReproInact)
         {
-            LogMsg "PLEASE NOTE: keepReproInact is set. VMs will not be deleted after test is finished even if, test gets PASS."
+            LogMsg "PLEASE NOTE: KeepReproInact is set. VMs will not be deleted after test is finished even if, test gets PASS."
         }
         
         if ($DebugDistro)
@@ -215,7 +215,7 @@ try
             Set-Variable -Name DebugOsImage -Value $OsImage -Scope Global
         }
         $testCycle =  GetCurrentCycleData -xmlConfig $xmlConfig -cycleName $cycleName
-        $testSuiteResultDetails=.\AzureTestSuite.ps1 $xmlConfig -Distro $Distro -cycleName $cycleName -testIterations $testIterations
+        $testSuiteResultDetails=.\AzureTestSuite.ps1 $xmlConfig -Distro $Distro -cycleName $cycleName -TestIterations $TestIterations
         $logDirFilename = [System.IO.Path]::GetFilenameWithoutExtension($xmlConfigFile)
         $summaryAll = GetTestSummary -testCycle $testCycle -StartTime $testStartTime -xmlFileName $logDirFilename -distro $Distro -testSuiteResultDetails $testSuiteResultDetails
         $PlainTextSummary += $summaryAll[0]
