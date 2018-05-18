@@ -3,7 +3,7 @@ Param(
     $DestinationPath = ".\"
 )
 
-Get-ChildItem .\TestLibs\*.psm1 | ForEach-Object { Import-Module $_.FullName -Force}
+Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global }
 ValiateXMLs -ParentFolder ".\"
 
 $xmlData = @()
@@ -13,19 +13,34 @@ foreach ( $file in (Get-ChildItem -Path .\XML\TestCases\*.xml ))
 }
 $TestToRegionMapping = ([xml](Get-Content .\XML\TestToRegionMapping.xml))
 #Get Unique Platforms
+
 $Platforms = $xmlData.test.Platform.Split(',')  | Sort-Object | Get-Unique
-Write-Host $Platforms
+LogMsg "ALL TEST PLATFORMS"
+LogMsg "--------------"
+$i = 1; $Platforms | ForEach-Object { LogMsg "$i. $($_)"; $i++ }
+
 $Categories = $xmlData.test.Category | Sort-Object | Get-Unique
-Write-Host $Categories
+LogMsg "ALL TEST CATEGORIES"
+LogMsg "----------------"
+$i = 1; $Categories | ForEach-Object { LogMsg "$i. $($_)"; $i++ }
+
 $Areas =$xmlData.test.Area | Sort-Object | Get-Unique
-Write-Host $Areas
+LogMsg "ALL TEST AREAS"
+LogMsg "----------"
+$i = 1; $Areas | ForEach-Object { LogMsg "$i. $($_)"; $i++ }
+
+$TestNames = $xmlData.test.testName | Sort-Object | Get-Unique
+LogMsg "ALL TEST NAMES"
+LogMsg "----------"
+$i = 1; $TestNames | ForEach-Object { LogMsg "$i. $($_)"; $i++ }
+
 $Tags =$xmlData.test.Tags.Split(",") | Sort-Object | Get-Unique
-Write-Host $Tags
-$TestNames = $xmlData.testName | Sort-Object | Get-Unique
-Write-Host $TestNames
+LogMsg "TEST TAGS"
+LogMsg "---------"
+$i = 1; $Tags | ForEach-Object { LogMsg "$i. $($_)"; $i++ }
 
 
-$JenkinsMenuFile =  "platform`tcategory`tarea`tregion`n"
+$TestByCategory =  "platform`tcategory`tarea`tregion`n"
 #Generate Jenkins File
 foreach ( $platform in $Platforms )
 {
@@ -56,10 +71,10 @@ foreach ( $platform in $Platforms )
                     $AreaRegions = ($TestToRegionMapping.enabledRegions.Area.$area).Split(",")
                     foreach ( $arearegion in $AreaRegions )
                     {
-                        Write-Host "foreach ( $arearegion in $AreaRegions )"
+                        LogMsg "foreach ( $arearegion in $AreaRegions )"
                         if ( $Regions.Contains($arearegion))
                         {
-                            Write-Host "if ( $Regions.Contains($arearegion))"
+                            LogMsg "if ( $Regions.Contains($arearegion))"
                             $tempRegions += $arearegion
                         }
                     }
@@ -75,14 +90,14 @@ foreach ( $platform in $Platforms )
             }
             foreach ( $region in $Regions)
             {
-                $JenkinsMenuFile += "$platform`t$category`t$area`t$platform>>$category>>$area>>$region`n"
+                $TestByCategory += "$platform`t$category`t$area`t$platform>>$category>>$area>>$region`n"
             }
         }
         if ( $(($Areas | Get-Unique).Count) -gt 1)
         {
             foreach ( $region in $Regions)
             {
-                $JenkinsMenuFile += "$platform`t$category`tAll`t$platform>>$category>>All>>$region`n"
+                $TestByCategory += "$platform`t$category`tAll`t$platform>>$category>>All>>$region`n"
             }
         }
     }
@@ -90,16 +105,18 @@ foreach ( $platform in $Platforms )
     {
         foreach ( $region in $Regions)
         {
-            $JenkinsMenuFile += "$platform`tAll`tAll`t$platform>>All>>All>>$region`n"
+            $TestByCategory += "$platform`tAll`tAll`t$platform>>All>>All>>$region`n"
         }
     }
 }
 
-Set-Content -Value $JenkinsMenuFile -Path "$DestinationPath\JenkinsMenuFile.txt" -Force
-(Get-Content "$DestinationPath\JenkinsMenuFile.txt") | Where-Object {$_.trim() -ne "" } | set-content "$DestinationPath\JenkinsMenuFile.txt"
+LogMsg "Saving TestByCategory.txt..."
+Set-Content -Value $TestByCategory -Path "$DestinationPath\TestByCategory.txt" -Force
+LogMsg "Validating TestByCategory.txt..."
+(Get-Content "$DestinationPath\TestByCategory.txt") | Where-Object {$_.trim() -ne "" } | set-content "$DestinationPath\TestByCategory.txt"
+LogMsg "Done"
 
-
-$tagsFile = "platform`ttag`tregion`n"
+$TestsByTag = "platform`ttag`tregion`n"
 foreach ( $platform in $Platforms )
 {
     foreach ( $tag in $Tags)
@@ -113,16 +130,19 @@ foreach ( $platform in $Platforms )
             }
             foreach ( $region in $Regions)
             {
-                $tagsFile += "$platform`t$tag`t$platform>>$tag>>$region`n"
+                $TestsByTag += "$platform`t$tag`t$platform>>$tag>>$region`n"
             }
         }
     }
 }
-Set-Content -Value $tagsFile -Path "$DestinationPath\JenkinsMenuFile4.txt" -Force
-(Get-Content "$DestinationPath\JenkinsMenuFile4.txt") | Where-Object {$_.trim() -ne "" } | set-content "$DestinationPath\JenkinsMenuFile4.txt"
+LogMsg "Saving TestsByTag.txt..."
+Set-Content -Value $TestsByTag -Path "$DestinationPath\TestsByTag.txt" -Force
+LogMsg "Validating TestsByTag.txt..."
+(Get-Content "$DestinationPath\TestsByTag.txt") | Where-Object {$_.trim() -ne "" } | set-content "$DestinationPath\TestsByTag.txt"
+LogMsg "Done"
 
-
-$testnameFile = "platform`ttestname`tregion`n"
+<#
+$TestByTestName = "platform`ttestname`tregion`n"
 foreach ( $platform in $Platforms )
 {
     foreach ( $testname in $TestNames)
@@ -136,17 +156,16 @@ foreach ( $platform in $Platforms )
         {
             foreach ( $region in $Regions)
             {
-                $testnameFile += "$platform`t$testname`t$region`n"
+                $TestByTestName += "$platform`t$testname`t$region`n"
             }
         }
     }
 }
-Set-Content -Value $testnameFile -Path "$DestinationPath\JenkinsMenuFile3.txt" -Force
+Set-Content -Value $TestByTestName -Path "$DestinationPath\JenkinsMenuFile3.txt" -Force
 (Get-Content "$DestinationPath\JenkinsMenuFile3.txt") | Where-Object {$_.trim() -ne "" } | set-content "$DestinationPath\JenkinsMenuFile3.txt"
+#>
 
-
-
-$JenkinsMenuFile2 =  "platform`tcategory`tarea`ttestname`tregion`n"
+$TestByTestname =  "platform`tcategory`tarea`ttestname`tregion`n"
 #Generate Jenkins File
 foreach ( $platform in $Platforms )
 {
@@ -202,17 +221,16 @@ foreach ( $platform in $Platforms )
                 }
                 foreach ( $region in $Regions)
                 {
-                    #Write-Host "$platform`t$category`t$area`t$testname`t$region"
-                    $JenkinsMenuFile2 += "$platform`t$category`t$area`t$testname`t$platform>>$category>>$area>>$testname>>$region`n"
+                    #LogMsg "$platform`t$category`t$area`t$testname`t$region"
+                    $TestByTestname += "$platform`t$category`t$area`t$testname`t$platform>>$category>>$area>>$testname>>$region`n"
                 }
             }
         }
     }
 }
-Write-Host "Setting Content"
-Set-Content -Value $JenkinsMenuFile2 -Path "$DestinationPath\JenkinsMenuFile2.txt" -Force
-Write-Host "Replacing whitespaces"
-(Get-Content "$DestinationPath\JenkinsMenuFile2.txt") | Where-Object {$_.trim() -ne "" } | set-content "$DestinationPath\JenkinsMenuFile2.txt"
-Write-Host "Completed."
-
+LogMsg "Saving TestByTestname.txt..."
+Set-Content -Value $TestByTestname -Path "$DestinationPath\TestByTestname.txt" -Force
+LogMsg "Validating TestByTestname.txt..."
+(Get-Content "$DestinationPath\TestByTestname.txt") | Where-Object {$_.trim() -ne "" } | set-content "$DestinationPath\TestByTestname.txt"
+LogMsg "Done"
 exit 0
