@@ -2,7 +2,6 @@
 Param(
     $DestinationPath = ".\"
 )
-
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global }
 ValiateXMLs -ParentFolder ".\"
 
@@ -44,68 +43,24 @@ $TestByCategory =  "platform`tcategory`tarea`tregion`n"
 #Generate Jenkins File
 foreach ( $platform in $Platforms )
 {
-    $Categories = ($xmlData.test | Where-Object { $_.Platform.Contains($platform) }).Category
-    foreach ( $category in $Categories)
-    {
-        $Regions =$TestToRegionMapping.enabledRegions.global.Split(",")
-        $Areas = ($xmlData.test | Where-Object { $_.Platform.Contains($platform) } | Where-Object { $_.Category -eq "$category" }).Area
-        if ( $TestToRegionMapping.enabledRegions.Category.$category )
+    $CurrentCategories = ($xmlData.test | Where-Object { $_.Platform.Contains($platform) }).Category | Sort-Object | Get-Unique
+    foreach ( $category in $CurrentCategories)
+    {        
+       if ( $TestToRegionMapping.enabledRegions.Category.$category )
         {
-            $Regions = ($TestToRegionMapping.enabledRegions.Category.$category).Split(",")
+            $CurrentRegions = ($TestToRegionMapping.enabledRegions.Category.$category).Split(",")
         }
-        foreach ($area in $Areas)
+        else 
         {
-            if ( [string]::IsNullOrEmpty($TestToRegionMapping.enabledRegions.Category.$category))
-            {
-                if ($TestToRegionMapping.enabledRegions.Area.$area)
-                {
-                    $Regions = ($TestToRegionMapping.enabledRegions.Area.$area).Split(",")
-                }
-            }
-            else
-            {
-                $Regions = ($TestToRegionMapping.enabledRegions.Category.$category).Split(",")
-                if ( $TestToRegionMapping.enabledRegions.Area.$area )
-                {
-                    $tempRegions = @()
-                    $AreaRegions = ($TestToRegionMapping.enabledRegions.Area.$area).Split(",")
-                    foreach ( $arearegion in $AreaRegions )
-                    {
-                        LogMsg "foreach ( $arearegion in $AreaRegions )"
-                        if ( $Regions.Contains($arearegion))
-                        {
-                            LogMsg "if ( $Regions.Contains($arearegion))"
-                            $tempRegions += $arearegion
-                        }
-                    }
-                    if ( $tempRegions.Count -ge 1)
-                    {
-                        $Regions = $tempRegions
-                    }
-                    else
-                    {
-                        $Regions = "no_region_available"
-                    }
-                }
-            }
-            foreach ( $region in $Regions)
+            $CurrentRegions =$TestToRegionMapping.enabledRegions.global.Split(",")
+        }
+        $CurrentAreas = ($xmlData.test | Where-Object { $_.Platform.Contains($platform) } | Where-Object { $_.Category -eq "$category" }).Area | Sort-Object | Get-Unique       
+        foreach ($area in $CurrentAreas)
+        {
+            foreach ( $region in $CurrentRegions)
             {
                 $TestByCategory += "$platform`t$category`t$area`t$platform>>$category>>$area>>$region`n"
             }
-        }
-        if ( $(($Areas | Get-Unique).Count) -gt 1)
-        {
-            foreach ( $region in $Regions)
-            {
-                $TestByCategory += "$platform`t$category`tAll`t$platform>>$category>>All>>$region`n"
-            }
-        }
-    }
-    if ( $(($Categories | Get-Unique).Count) -gt 1)
-    {
-        foreach ( $region in $Regions)
-        {
-            $TestByCategory += "$platform`tAll`tAll`t$platform>>All>>All>>$region`n"
         }
     }
 }
@@ -141,96 +96,70 @@ LogMsg "Validating TestsByTag.txt..."
 (Get-Content "$DestinationPath\TestsByTag.txt") | Where-Object {$_.trim() -ne "" } | set-content "$DestinationPath\TestsByTag.txt"
 LogMsg "Done"
 
-<#
-$TestByTestName = "platform`ttestname`tregion`n"
+
+$TestByTestnameQuick = "platform`ttestname`tregion`n"
 foreach ( $platform in $Platforms )
 {
     foreach ( $testname in $TestNames)
     {
-        $Regions =$TestToRegionMapping.enabledRegions.global.Split(",")
+        
         if ( $TestToRegionMapping.enabledRegions.TestName.$testname )
         {
             $Regions = ($TestToRegionMapping.enabledRegions.TestName.$testname).Split(",")
         }
-        if ( $testname )
+        else 
         {
-            foreach ( $region in $Regions)
-            {
-                $TestByTestName += "$platform`t$testname`t$region`n"
-            }
+            $Regions =$TestToRegionMapping.enabledRegions.global.Split(",")
+        }
+        foreach ( $region in $Regions)
+        {
+            $TestByTestnameQuick += "$platform`t$testname`t$region`n"
         }
     }
 }
-Set-Content -Value $TestByTestName -Path "$DestinationPath\JenkinsMenuFile3.txt" -Force
-(Get-Content "$DestinationPath\JenkinsMenuFile3.txt") | Where-Object {$_.trim() -ne "" } | set-content "$DestinationPath\JenkinsMenuFile3.txt"
-#>
 
-$TestByTestname =  "platform`tcategory`tarea`ttestname`tregion`n"
+LogMsg "Saving TestByTestnameQuick.txt..."
+Set-Content -Value $TestByTestnameQuick -Path "$DestinationPath\TestByTestnameQuick.txt" -Force
+LogMsg "Validating TestByTestnameQuick.txt..."
+(Get-Content "$DestinationPath\TestByTestnameQuick.txt") | Where-Object {$_.trim() -ne "" } | set-content "$DestinationPath\TestByTestnameQuick.txt"
+LogMsg "Done"
+
+
+$TestByTestnameDetailed =  "platform`tcategory`tarea`ttestname`tregion`n"
 #Generate Jenkins File
 foreach ( $platform in $Platforms )
 {
-    $Categories = ($xmlData.test | Where-Object { $_.Platform.Contains($platform) }).Category
-    foreach ( $category in $Categories)
-    {
-        $Regions =$TestToRegionMapping.enabledRegions.global.Split(",")
-        $Areas = ($xmlData.test | Where-Object { $_.Platform.Contains($platform) } | Where-Object { $_.Category -eq "$category" }).Area
-        if ( $TestToRegionMapping.enabledRegions.Category.$category )
+    $CurrentCategories = ($xmlData.test | Where-Object { $_.Platform.Contains($platform) }).Category | Sort-Object | Get-Unique
+    foreach ( $category in $CurrentCategories)
+    {        
+        $CurrentAreas = ($xmlData.test | Where-Object { $_.Platform.Contains($platform) } | Where-Object { $_.Category -eq "$category" }).Area | Sort-Object | Get-Unique       
+        foreach ($area in $CurrentAreas)
         {
-            $Regions = ($TestToRegionMapping.enabledRegions.Category.$category).Split(",")
-        }
-        foreach ($area in $Areas)
-        {
-            if ( [string]::IsNullOrEmpty($TestToRegionMapping.enabledRegions.Category.$category))
-            {
-                if ($TestToRegionMapping.enabledRegions.Area.$area)
-                {
-                    $Regions = ($TestToRegionMapping.enabledRegions.Area.$area).Split(",")
-                }
-            }
-            else
-            {
-                $Regions = ($TestToRegionMapping.enabledRegions.Category.$category).Split(",")
-                if ( $TestToRegionMapping.enabledRegions.Area.$area )
-                {
-                    $tempRegions = @()
-                    $AreaRegions = ($TestToRegionMapping.enabledRegions.Area.$area).Split(",")
-                    foreach ( $arearegion in $AreaRegions )
-                    {
-                        if ( $Regions.Contains($arearegion))
-                        {
-                            $tempRegions += $arearegion
-                        }
-                    }
-                    if ( $tempRegions.Count -ge 1)
-                    {
-                        $Regions = $tempRegions
-                    }
-                    else
-                    {
-                        $Regions = "no_region_available"
-                    }
-                }
-            }
-            $TestNames = ($xmlData.test | Where-Object { $_.Platform.Contains($platform) } | Where-Object { $_.Category -eq "$category" } | Where-Object { $_.Area -eq "$area" } ).TestName
+            $TestNames = ($xmlData.test | Where-Object { $_.Platform.Contains($platform) } | Where-Object { $_.Category -eq "$category" } | Where-Object { $_.Area -eq "$area" } ).TestName | Sort-Object | Get-Unique
             foreach ( $testname in $TestNames )
             {
-                $Regions =$TestToRegionMapping.enabledRegions.global.Split(",")
                 if ( $TestToRegionMapping.enabledRegions.TestName.$testname )
                 {
-                    $Regions = ($TestToRegionMapping.enabledRegions.TestName.$testname).Split(",")
+                    $CurrentRegions = ($TestToRegionMapping.enabledRegions.TestName.$testname).Split(",")
                 }
-                foreach ( $region in $Regions)
+                else 
                 {
-                    #LogMsg "$platform`t$category`t$area`t$testname`t$region"
-                    $TestByTestname += "$platform`t$category`t$area`t$testname`t$platform>>$category>>$area>>$testname>>$region`n"
+                    $CurrentRegions =$TestToRegionMapping.enabledRegions.global.Split(",")
+                }                
+                foreach ( $region in $CurrentRegions)
+                {
+                    $TestByTestnameDetailed += "$platform`t$category`t$area`t$testname`t$platform>>$category>>$area>>$testname>>$region`n"
                 }
             }
         }
     }
 }
-LogMsg "Saving TestByTestname.txt..."
-Set-Content -Value $TestByTestname -Path "$DestinationPath\TestByTestname.txt" -Force
-LogMsg "Validating TestByTestname.txt..."
-(Get-Content "$DestinationPath\TestByTestname.txt") | Where-Object {$_.trim() -ne "" } | set-content "$DestinationPath\TestByTestname.txt"
+
+LogMsg "Saving TestByTestnameDetailed.txt..."
+Set-Content -Value $TestByTestnameDetailed -Path "$DestinationPath\TestByTestnameDetailed.txt" -Force
+LogMsg "Validating TestByTestnameDetailed.txt..."
+(Get-Content "$DestinationPath\TestByTestnameDetailed.txt") | Where-Object {$_.trim() -ne "" } | set-content "$DestinationPath\TestByTestnameDetailed.txt"
 LogMsg "Done"
+
+
 exit 0
