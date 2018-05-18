@@ -2247,16 +2247,16 @@ Function GetAllDeployementData($DeployedServices, $ResourceGroups)
 	else
 	{
 		$allDeployedVMs = @()
-		foreach ($hostedservice in $DeployedServices.Split("^"))
+		foreach ($ResourceGroup in $DeployedServices.Split("^"))
 		{
-			LogMsg "Collecting $hostedservice data..."
-			$testServiceData = Get-AzureService -ServiceName $hostedservice
-			$DeployedVMs = Get-AzureVM -ServiceName $hostedService
+			LogMsg "Collecting $ResourceGroup data..."
+			$testServiceData = Get-AzureService -ServiceName $ResourceGroup
+			$DeployedVMs = Get-AzureVM -ServiceName $ResourceGroup
 			foreach ($testVM in $DeployedVMs)
 			{
 				$QuickVMNode = CreateQuickVMNode
 				$AllEndpoints = Get-AzureEndpoint -VM $testVM
-				$QuickVMNode.ServiceName = $hostedservice
+				$QuickVMNode.ServiceName = $ResourceGroup
 				$QuickVMNode.RoleName = $testVM.InstanceName
 				$QuickVMNode.PublicIP = $AllEndpoints[0].Vip
 				$QuickVMNode.InternalIP = $testVM.IpAddress
@@ -2273,7 +2273,7 @@ Function GetAllDeployementData($DeployedServices, $ResourceGroups)
 				$QuickVMNode.Status = $testVM.InstanceStatus
 				$allDeployedVMs += $QuickVMNode
 			}
-			LogMsg "Collected $hostedservice data!"
+			LogMsg "Collected $ResourceGroup data!"
 		}
 	}
 	return $allDeployedVMs

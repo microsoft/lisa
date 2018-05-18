@@ -1,7 +1,7 @@
 <TestSetup>
     <M1S1>
         <isDeployed>NO</isDeployed>
-        <HostedService>
+        <ResourceGroup>
             <VirtualMachine>
                 <ARMInstanceSize>Standard_D15_v2</ARMInstanceSize>
                 <RoleName>server-vm</RoleName>
@@ -24,11 +24,11 @@
                 </EndPoints>
                 <DataDisk></DataDisk>
             </VirtualMachine>					
-        </HostedService>
+        </ResourceGroup>
     </M1S1>
     <S1C15>
         <isDeployed>NO</isDeployed>
-        <HostedService>
+        <ResourceGroup>
             <VirtualMachine>
                 <state></state>
                 <InstanceSize>Standard_D1_v2</InstanceSize>
@@ -237,6 +237,6 @@
                 </EndPoints>
                 <DataDisk></DataDisk>
             </VirtualMachine>
-        </HostedService>					
+        </ResourceGroup>					
     </S1C15>
 </TestSetup>

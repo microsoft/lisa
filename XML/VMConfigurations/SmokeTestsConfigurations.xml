@@ -1,7 +1,7 @@
 <TestSetup>
     <SingleVM>
         <isDeployed>NO</isDeployed>
-        <HostedService>
+        <ResourceGroup>
             <VirtualMachine>
                 <state></state>
                 <InstanceSize>Standard_DS1</InstanceSize>
@@ -15,11 +15,11 @@
                 </EndPoints>
                 <DataDisk></DataDisk>
             </VirtualMachine>
-        </HostedService>
+        </ResourceGroup>
     </SingleVM>
     <BVTDeployment>
         <isDeployed>NO</isDeployed>
-        <HostedService>
+        <ResourceGroup>
             <VirtualMachine>
                 <state></state>
                 <InstanceSize>Standard_DS1</InstanceSize>
@@ -33,6 +33,6 @@
                 </EndPoints>
                 <DataDisk></DataDisk>
             </VirtualMachine>
-        </HostedService>
+        </ResourceGroup>
     </BVTDeployment>    
 </TestSetup>
