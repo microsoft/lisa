@@ -371,7 +371,7 @@ Function CreateAllResourceGroupDeployments($setupType, $xmlConfig, $Distro, [str
         LogMsg $setupType
         $setupTypeData = $xml.config.Azure.Deployment.$setupType
         $allsetupGroups = $setupTypeData
-        if ($allsetupGroups.HostedService[0].Location -or $allsetupGroups.HostedService[0].AffinityGroup)
+        if ($allsetupGroups.ResourceGroup[0].Location -or $allsetupGroups.ResourceGroup[0].AffinityGroup)
         {
             $isMultiple = 'True'
             $resourceGroupCount = 0
@@ -390,14 +390,14 @@ Function CreateAllResourceGroupDeployments($setupType, $xmlConfig, $Distro, [str
     
         if ( $location -imatch "-" )
         {
-            $RGCount = $setupTypeData.HostedService.Count
+            $RGCount = $setupTypeData.ResourceGroup.Count
             $xRegionTest = $true
             $xRegionTotalLocations = $location.Split("-").Count
             $xRegionLocations = $location.Split("-")
             $locationCounter = 0
             LogMsg "$RGCount Resource groups will be deployed in $($xRegionLocations.Replace('-',' and '))"
         }
-        foreach ($RG in $setupTypeData.HostedService )
+        foreach ($RG in $setupTypeData.ResourceGroup )
         {
             $validateStartTime = Get-Date
             LogMsg "Checking the subscription usage..."
@@ -2358,7 +2358,6 @@ Function DeployResourceGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFailed
             $i = 0
             $role = 1
             $setupTypeData = $xmlConfig.config.Azure.Deployment.$setupType
-            #$isAllDeployed = CreateAllResourceGroupDeployments -setupType $setupType -xmlConfig $xmlConfig -Distro $Distro -region $region -storageAccount $storageAccount -DebugRG "ICA-RG-SingleVM-TEST-UQJB-636620979900"
             $isAllDeployed = CreateAllResourceGroupDeployments -setupType $setupType -xmlConfig $xmlConfig -Distro $Distro -region $region -storageAccount $storageAccount
             $isAllVerified = "False"
             $isAllConnected = "False"
