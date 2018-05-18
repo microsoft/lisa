@@ -5,31 +5,39 @@ Param(
 
     #Required
     [string] $TestLocation="westeurope",
-    [string] $RGIdentifier = "TEST",
+    [string] $RGIdentifier = "SSTEST",
     [string] $TestPlatform = "Azure",
     [string] $ARMImageName = "Canonical UbuntuServer 16.04-LTS latest",
 
     #Optinal
     [string] $OsVHD, #... Required if -ARMImageName is not provided.
-    [string] $TestCategory = "",
-    [string] $TestArea,
+    [string] $TestCategory = "Performance",
+    [string] $TestArea = "Network",
     [string] $TestTag = "",
-    [string] $TestNames="VERIFY-DEPLOYMENT-PROVISION",
+    [string] $TestNames="PERF-NETWORK-TCP-LATENCY-MULTICONNECTION",
     [switch] $Verbose,
+    [string] $CustomKernel = "",
+    [string] $OverrideVMSize = "Standard_D1_v2",
+    [string] $CustomLIS,
+    [string] $CoreCountExceededTimeout,
+    [int] $TestIterations,
+    [string] $TiPSessionId,
+    [string] $TiPCluster,
 
-
-    #Swithces
-    [switch] $keepReproInact
+    #Toggles
+    [switch] $KeepReproInact,
+    [switch] $EnableAcceleratedNetworking,
+    [switch] $ForceDeleteResources,
+    [switch] $UseManagedDisks
 )
 
 #Import the Functinos from Library Files.
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global }
-LogVerbose "Set-Variable -Name WorkingDirectory -Value (Get-Location).Path  -Scope Global"
+
 
 try 
 {
     #region Validate Parameters
-    LogVerbose "Set-Variable -Name WorkingDirectory -Value (Get-Location).Path  -Scope Global"
     $ParameterErrors = @()
     if ( !$TestPlatform )
     {
@@ -389,9 +397,57 @@ try
     Move-Item -Path "*.exe" -Destination .\tools -ErrorAction SilentlyContinue -Force
     #endregion
 
-    LogMsg ".\AutomationManager.ps1 -xmlConfigFile '$xmlFile' -cycleName TC-$shortRandomNumber -RGIdentifier $RGIdentifier -runtests -UseAzureResourceManager"
-    .\AutomationManager.ps1 -xmlConfigFile "$xmlFile" -cycleName "TC-$shortRandomNumber" -RGIdentifier $RGIdentifier -runtests -UseAzureResourceManager -keepReproInact
+    #region Prepare execution command
+
+    $command = ".\AutomationManager.ps1 -xmlConfigFile '$xmlFile' -cycleName 'TC-$shortRandomNumber' -RGIdentifier '$RGIdentifier' -runtests -UseAzureResourceManager"
+
+    if ( $CustomKernel)
+    {
+        $command += " -CustomKernel '$CustomKernel'"
+    }
+    if ( $OverrideVMSize )
+    {
+        $cmd += " -OverrideVMSize $OverrideVMSize"
+    }
+    if ( $EnableAcceleratedNetworking )
+    {
+        $cmd += " -EnableAcceleratedNetworking"
+    }
+    if ( $ForceDeleteResources )
+    {
+        $cmd += " -ForceDeleteResources"
+    }
+    if ( $KeepReproInact )
+    {
+        $cmd += " -KeepReproInact"
+    }
+    if ( $CustomLIS)
+    {
+        $cmd += " -CustomLIS $CustomLIS"
+    }
+    if ( $CoreCountExceededTimeout )
+    {
+        $cmd += " -CoreCountExceededTimeout $CoreCountExceededTimeout"
+    }
+    if ( $TestIterations -gt 1 )
+    {
+        $cmd += " -TestIterations $TestIterations"
+    }
+    if ( $TiPSessionId)
+    {
+        $cmd += " -TiPSessionId $TiPSessionId"
+    }
+    if ( $TiPCluster)
+    {
+        $cmd += " -TiPCluster $TiPCluster"
+    }
+    if ($UseManagedDisks)
+    {
+        $cmd += " -UseManagedDisks"
+    }                            
     
+    Invoke-Expression -Command $command
+
     #TBD Analyse the test result
     #TBD Archive the logs
     #TBD Email the reports
