@@ -113,7 +113,7 @@ foreach ( $platform in $Platforms )
         }
         foreach ( $region in $Regions)
         {
-            $TestByTestnameQuick += "$platform`t$testname`t$region`n"
+            $TestByTestnameQuick += "$platform`t$testname`t$platform>>$testname>>$region`n"
         }
     }
 }
