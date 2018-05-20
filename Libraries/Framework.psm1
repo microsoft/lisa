@@ -443,3 +443,68 @@ Function RefineTestResult1 ($tempResult)
 
 	return $tempResultSplitted[$lastWord]
 }
+
+Function ValidateVHD($vhdPath)
+{
+    try
+    {
+        $tempVHDName = Split-Path $vhdPath -leaf
+        LogMsg "Inspecting '$tempVHDName'. Please wait..."
+        $VHDInfo = Get-VHD -Path $vhdPath -ErrorAction Stop
+        LogMsg "  VhdFormat            :$($VHDInfo.VhdFormat)"
+        LogMsg "  VhdType              :$($VHDInfo.VhdType)"
+        LogMsg "  FileSize             :$($VHDInfo.FileSize)"
+        LogMsg "  Size                 :$($VHDInfo.Size)"
+        LogMsg "  LogicalSectorSize    :$($VHDInfo.LogicalSectorSize)"
+        LogMsg "  PhysicalSectorSize   :$($VHDInfo.PhysicalSectorSize)"
+        LogMsg "  BlockSize            :$($VHDInfo.BlockSize)"
+        LogMsg "Validation successful."
+    }
+    catch
+    {
+        LogMsg "Failed: Get-VHD -Path $vhdPath"
+        Throw "INVALID_VHD_EXCEPTION"
+    }
+}
+
+Function ValidateMD5($filePath, $expectedMD5hash)
+{
+    LogMsg "Expected MD5 hash for $filePath : $($expectedMD5hash.ToUpper())"
+    $hash = Get-FileHash -Path $filePath -Algorithm MD5
+    LogMsg "Calculated MD5 hash for $filePath : $($hash.Hash.ToUpper())"
+    if ($hash.Hash.ToUpper() -eq  $expectedMD5hash.ToUpper())
+    {
+        LogMsg "MD5 checksum verified successfully."
+    }
+    else
+    {
+        Throw "MD5 checksum verification failed."
+    }
+}
+
+Function Test-FileLock 
+{
+	param 
+	(
+	  [parameter(Mandatory=$true)][string]$Path
+	)
+	$File = New-Object System.IO.FileInfo $Path
+	if ((Test-Path -Path $Path) -eq $false) 
+	{
+		return $false
+	}
+	try 
+	{
+		$oStream = $File.Open([System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+		if ($oStream) 
+		{
+			$oStream.Close()
+		}
+		return $false
+	} 
+	catch 
+	{
+		# file is locked by a process.
+		return $true
+	}
+}

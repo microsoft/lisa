@@ -4,26 +4,26 @@ Param(
     $BuildNumber=$env:BUILD_NUMBER,
 
     #Required
-    [string] $TestLocation="westeurope",
+    [string] $TestLocation="northeurope",
     [string] $RGIdentifier = "SSTEST",
     [string] $TestPlatform = "Azure",
     [string] $ARMImageName = "Canonical UbuntuServer 16.04-LTS latest",
 
     #Optinal
     [string] $OsVHD, #... Required if -ARMImageName is not provided.
-    [string] $TestCategory = "Performance",
-    [string] $TestArea = "Network",
-    [string] $TestTag = "",
-    [string] $TestNames="PERF-NETWORK-TCP-LATENCY-MULTICONNECTION",
+    [string] $TestCategory = "",
+    [string] $TestArea = "",
+    [string] $TestTag = "sriov",
+    [string] $TestNames="",
     [switch] $Verbose,
     [string] $CustomKernel = "",
-    [string] $OverrideVMSize = "Standard_D1_v2",
+    [string] $OverrideVMSize = "",
     [string] $CustomLIS,
     [string] $CoreCountExceededTimeout,
     [int] $TestIterations,
     [string] $TiPSessionId,
     [string] $TiPCluster,
-
+    [string] $XMLSecretFile = "",
     #Toggles
     [switch] $KeepReproInact,
     [switch] $EnableAcceleratedNetworking,
@@ -33,7 +33,6 @@ Param(
 
 #Import the Functinos from Library Files.
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global }
-
 
 try 
 {
@@ -68,9 +67,17 @@ try
     
     if ($TestPlatform -eq "Azure")
     {
-        #TBD Verify if the current PS session is authenticated.
-        #As of now, it expects that PS session is authenticated.
-        #We'll change this behaviour in upcoming commits.
+        if ( $XMLSecretFile )
+        {
+            ValiateXMLs -ParentFolder $((Get-Item -Path $XMLSecretFile).FullName | Split-Path -Parent)
+            .\Utilities\AddAzureRmAccountFromSecretsFile.ps1 -customSecretsFilePath $XMLSecretFile
+            Set-Variable -Value ([xml](Get-Content $XMLSecretFile)) -Name XmlSecrets -Scope Global
+        }
+        else 
+        {
+            LogMsg "XML secret file not provided." 
+            LogMsg "Powershell session must be authenticated to manage the azure subscription."
+        }
     }
 
     #region Static Global Variables
@@ -446,6 +453,7 @@ try
         $cmd += " -UseManagedDisks"
     }                            
     
+    LogMsg $command
     Invoke-Expression -Command $command
 
     #TBD Analyse the test result

@@ -346,23 +346,23 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 							$testCycle.htmlSummary += "<tr><td><font size=`"3`">$executionCount</font></td><td>$tempHtmlText$(AddReproVMDetailsToHtmlReport)</td><td>$testRunDuration min</td><td>$testResultRow</td></tr>"
 						}
 					}
-					if ($xmlSecrets)
+					if ($XmlSecrets)
 					{
 						try
 						{
 							$testLogFolder = "TestLogs"
-							$testLogStorageAccount = $xmlSecrets.secrets.testLogsStorageAccount
-							$testLogStorageAccountKey = $xmlSecrets.secrets.testLogsStorageAccountKey
+							$testLogStorageAccount = $XmlSecrets.secrets.testLogsStorageAccount
+							$testLogStorageAccountKey = $XmlSecrets.secrets.testLogsStorageAccountKey
 							$ticks= (Get-Date).Ticks
 							$uploadFileName = ".\temp\$($currentTestData.testName)-$ticks.zip"
 							$out = ZipFiles -zipfilename $uploadFileName -sourcedir $LogDir
 							$uploadLink = .\Extras\UploadFilesToStorageAccount.ps1 -filePaths $uploadFileName -destinationStorageAccount $testLogStorageAccount -destinationContainer "logs" -destinationFolder "$testLogFolder" -destinationStorageKey $testLogStorageAccountKey
 							$utctime = (Get-Date).ToUniversalTime()
 							$dbDateTimeUTC = "$($utctime.Year)-$($utctime.Month)-$($utctime.Day) $($utctime.Hour):$($utctime.Minute):$($utctime.Second)"
-							$dataSource = $xmlSecrets.secrets.DatabaseServer
-							$dbuser = $xmlSecrets.secrets.DatabaseUser
-							$dbpassword = $xmlSecrets.secrets.DatabasePassword
-							$database = $xmlSecrets.secrets.DatabaseName
+							$dataSource = $XmlSecrets.secrets.DatabaseServer
+							$dbuser = $XmlSecrets.secrets.DatabaseUser
+							$dbpassword = $XmlSecrets.secrets.DatabasePassword
+							$database = $XmlSecrets.secrets.DatabaseName
 							$dataTableName = "AzureTestResultsMasterTable"
 							$dbTestName = $($currentTestData.testName)
 							$SQLQuery = "INSERT INTO $dataTableName (DateTimeUTC,Environment,TestCycle,ExecutionID,TestName,TestResult,ARMImage,OsVHD,KernelVersion,LISVersion,GuestDistro,AzureHost,Location,OverrideVMSize,Networking,LogFile,BuildURL) VALUES "
