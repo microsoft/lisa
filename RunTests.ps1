@@ -246,6 +246,11 @@ try
     }
     else 
     {
+        LogError "TestPlatform : $TestPlatform"
+        LogError "TestCategory : $TestCategory"
+        LogError "TestArea : $TestArea"
+        LogError "TestNames : $TestNames"
+        LogError "TestTag : $TestTag"
         Throw "Invalid Test Selection"
     }
     #endregion 
