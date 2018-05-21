@@ -1920,7 +1920,15 @@ Function DoTestCleanUp($result, $testName, $DeployedServices, $ResourceGroups, [
 							}
 							else
 							{
-								$RGdetails = Get-AzureRmResourceGroup -Name $group
+								try 
+								{
+									$RGdetails = Get-AzureRmResourceGroup -Name $group -ErrorAction SilentlyContinue	
+								}
+								catch 
+								{
+									LogMsg "Resource group '$group' not found."
+								}
+								
 								if ( $RGdetails.Tags )
 								{
 									if ( (  $RGdetails.Tags[0].Name -eq $preserveKeyword ) -and (  $RGdetails.Tags[0].Value -eq "yes" ))
@@ -2473,7 +2481,7 @@ Function PerformIOTestOnDisk($testVMObject, [string]$attachedDisk, [string]$disk
 	return $retValue
 }
 
-Function RetryOperation($operation, $description, $expectResult=$null, $maxRetryCount=10, $retryInterval=10, [switch]$NoLogsPlease)
+Function RetryOperation($operation, $description, $expectResult=$null, $maxRetryCount=10, $retryInterval=10, [switch]$NoLogsPlease, [switch]$ThrowExceptionOnFailure)
 {
 	$retryCount = 1
 	
@@ -2520,12 +2528,19 @@ Function RetryOperation($operation, $description, $expectResult=$null, $maxRetry
 		}
 		if ($retryCount -ge $maxRetryCount)
 		{
-			LogError "Opearation Failed." 
+			LogError "Command '$operation' Failed." 
 			break;
 		}
 	} while ($True)
 	
-	return $null
+	if ($ThrowExceptionOnFailure)
+	{
+		ThrowException -Exception "Command '$operation' Failed."
+	}
+	else 
+	{
+		return $null	
+	}
 }
 
 Function GetFilePathsFromLinuxFolder ([string]$folderToSearch, $IpAddress, $SSHPort, $username, $password, $maxRetryCount=20, [string]$expectedFiles)
@@ -2606,8 +2621,9 @@ Function GetFilePathsFromLinuxFolder ([string]$folderToSearch, $IpAddress, $SSHP
 
 function ZipFiles( $zipfilename, $sourcedir )
 {
+	LogMsg "Creating '$zipfilename' from '$sourcedir'"
     $currentDir = (Get-Location).Path
-    $7z = (Get-ChildItem .\tools\7za.exe).FullName
+    $7z = (Get-ChildItem .\Tools\7za.exe).FullName
     $sourcedir = $sourcedir.Trim('\')
     cd $sourcedir
     $out = Invoke-Expression "$7z a -mx5 $currentDir\$zipfilename * -r"

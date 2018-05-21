@@ -29,46 +29,47 @@ param
 )
 
 #---------------------------------------------------------[Initializations]--------------------------------------------------------
+Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global }
 
 if ( $customSecretsFilePath ) {
     $secretsFile = $customSecretsFilePath
-    Write-Host "Using provided secrets file: $($secretsFile | Split-Path -Leaf)"
+    LogMsg "Using provided secrets file: $($secretsFile | Split-Path -Leaf)"
 }
 if ($env:Azure_Secrets_File) {
     $secretsFile = $env:Azure_Secrets_File
-    Write-Host "Using predefined secrets file: $($secretsFile | Split-Path -Leaf) in Jenkins Global Environments."
+    LogMsg "Using predefined secrets file: $($secretsFile | Split-Path -Leaf) in Jenkins Global Environments."
 }
 if ( $secretsFile -eq $null ) {
-    Write-Host "ERROR: Azure Secrets file not found in Jenkins / user not provided -customSecretsFilePath" -ForegroundColor Red -BackgroundColor Black
+    LogMsg "ERROR: Azure Secrets file not found in Jenkins / user not provided -customSecretsFilePath" -ForegroundColor Red -BackgroundColor Black
     exit 1
 }
 
 #---------------------------------------------------------[Script Start]--------------------------------------------------------
 
 if ( Test-Path $secretsFile ) {
-    Write-Host "$($secretsFile | Split-Path -Leaf) found."
-    Write-Host "---------------------------------"
-    Write-Host "Authenticating Azure PS session.."
-    $xmlSecrets = [xml](Get-Content $secretsFile)
-    $ClientID = $xmlSecrets.secrets.SubscriptionServicePrincipalClientID
-    $TenantID = $xmlSecrets.secrets.SubscriptionServicePrincipalTenantID
-    $Key = $xmlSecrets.secrets.SubscriptionServicePrincipalKey
+    LogMsg "$($secretsFile | Split-Path -Leaf) found."
+    LogMsg "---------------------------------"
+    LogMsg "Authenticating Azure PS session.."
+    $XmlSecrets = [xml](Get-Content $secretsFile)
+    $ClientID = $XmlSecrets.secrets.SubscriptionServicePrincipalClientID
+    $TenantID = $XmlSecrets.secrets.SubscriptionServicePrincipalTenantID
+    $Key = $XmlSecrets.secrets.SubscriptionServicePrincipalKey
     $pass = ConvertTo-SecureString $key -AsPlainText -Force
     $mycred = New-Object System.Management.Automation.PSCredential ($ClientID, $pass)
     $out = Add-AzureRmAccount -ServicePrincipal -Tenant $TenantID -Credential $mycred
-    $subIDSplitted = ($xmlSecrets.secrets.SubscriptionID).Split("-")
-    $selectedSubscription = Select-AzureRmSubscription -SubscriptionId $xmlSecrets.secrets.SubscriptionID
-    if ( $selectedSubscription.Subscription.Id -eq $xmlSecrets.secrets.SubscriptionID ) {
-        Write-Host "Current Subscription : $($subIDSplitted[0])-xxxx-xxxx-xxxx-$($subIDSplitted[4])."
-        Write-Host "---------------------------------"
+    $subIDSplitted = ($XmlSecrets.secrets.SubscriptionID).Split("-")
+    $selectedSubscription = Select-AzureRmSubscription -SubscriptionId $XmlSecrets.secrets.SubscriptionID
+    if ( $selectedSubscription.Subscription.Id -eq $XmlSecrets.secrets.SubscriptionID ) {
+        LogMsg "Current Subscription : $($subIDSplitted[0])-xxxx-xxxx-xxxx-$($subIDSplitted[4])."
+        LogMsg "---------------------------------"
     }
     else {
-        Write-Host "There was error selecting $($subIDSplitted[0])-xxxx-xxxx-xxxx-$($subIDSplitted[4])."
-        Write-Host "---------------------------------"
+        LogMsg "There was error selecting $($subIDSplitted[0])-xxxx-xxxx-xxxx-$($subIDSplitted[4])."
+        LogMsg "---------------------------------"
     }
 }
 else {
-    Write-Host "$($secretsFile | Spilt-Path -Leaf) file is not added in Jenkins Global Environments OR it is not bound to 'Azure_Secrets_File' variable." -ForegroundColor Red -BackgroundColor Black
-    Write-Host "Aborting."-ForegroundColor Red -BackgroundColor Black
+    LogMsg "$($secretsFile | Spilt-Path -Leaf) file is not added in Jenkins Global Environments OR it is not bound to 'Azure_Secrets_File' variable." -ForegroundColor Red -BackgroundColor Black
+    LogMsg "Aborting."-ForegroundColor Red -BackgroundColor Black
     exit 1
 }

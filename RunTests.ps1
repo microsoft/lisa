@@ -4,36 +4,37 @@ Param(
     $BuildNumber=$env:BUILD_NUMBER,
 
     #Required
-    [string] $TestLocation="westeurope",
-    [string] $RGIdentifier = "SSTEST",
-    [string] $TestPlatform = "Azure",
-    [string] $ARMImageName = "Canonical UbuntuServer 16.04-LTS latest",
+    [string] $TestLocation="",
+    [string] $RGIdentifier = "",
+    [string] $TestPlatform = "",
+    [string] $ARMImageName = "",
 
     #Optinal
     [string] $OsVHD, #... Required if -ARMImageName is not provided.
-    [string] $TestCategory = "Performance",
-    [string] $TestArea = "Network",
+    [string] $TestCategory = "",
+    [string] $TestArea = "",
     [string] $TestTag = "",
-    [string] $TestNames="PERF-NETWORK-TCP-LATENCY-MULTICONNECTION",
+    [string] $TestNames="",
     [switch] $Verbose,
     [string] $CustomKernel = "",
-    [string] $OverrideVMSize = "Standard_D1_v2",
+    [string] $OverrideVMSize = "",
     [string] $CustomLIS,
     [string] $CoreCountExceededTimeout,
     [int] $TestIterations,
     [string] $TiPSessionId,
     [string] $TiPCluster,
-
+    [string] $XMLSecretFile = "",
     #Toggles
     [switch] $KeepReproInact,
     [switch] $EnableAcceleratedNetworking,
     [switch] $ForceDeleteResources,
-    [switch] $UseManagedDisks
+    [switch] $UseManagedDisks,
+
+    [switch] $ExitWithZero    
 )
 
 #Import the Functinos from Library Files.
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global }
-
 
 try 
 {
@@ -68,9 +69,18 @@ try
     
     if ($TestPlatform -eq "Azure")
     {
-        #TBD Verify if the current PS session is authenticated.
-        #As of now, it expects that PS session is authenticated.
-        #We'll change this behaviour in upcoming commits.
+        if ( $XMLSecretFile )
+        {
+            ValiateXMLs -ParentFolder $((Get-Item -Path $XMLSecretFile).FullName | Split-Path -Parent)
+            .\Utilities\AddAzureRmAccountFromSecretsFile.ps1 -customSecretsFilePath $XMLSecretFile
+            Set-Variable -Value ([xml](Get-Content $XMLSecretFile)) -Name XmlSecrets -Scope Global
+            LogMsg "XmlSecrets set as global variable."
+        }
+        else 
+        {
+            LogMsg "XML secret file not provided." 
+            LogMsg "Powershell session must be authenticated to manage the azure subscription."
+        }
     }
 
     #region Static Global Variables
@@ -239,6 +249,11 @@ try
     }
     else 
     {
+        LogError "TestPlatform : $TestPlatform"
+        LogError "TestCategory : $TestCategory"
+        LogError "TestArea : $TestArea"
+        LogError "TestNames : $TestNames"
+        LogError "TestTag : $TestTag"
         Throw "Invalid Test Selection"
     }
     #endregion 
@@ -371,32 +386,6 @@ try
     
     #endregion
 
-    #region Download necessary tools.
-    mkdir -Path .\tools -ErrorAction SilentlyContinue | Out-Null
-    Import-Module BitsTransfer  
-    if (!( Test-Path -Path .\tools\7za.exe ))
-    {
-        Write-Host "Downloading 7za.exe"
-        $out = Start-BitsTransfer -Source "https://github.com/iamshital/azure-linux-automation-support-files/raw/master/tools/7za.exe" | Out-Null
-    }
-    if (!( Test-Path -Path .\tools\dos2unix.exe ))
-    {
-        Write-Host "Downloading dos2unix.exe"
-        $out = Start-BitsTransfer -Source "https://github.com/iamshital/azure-linux-automation-support-files/raw/master/tools/dos2unix.exe" | Out-Null
-    }
-    if (!( Test-Path -Path .\tools\plink.exe ))
-    {
-        Write-Host "Downloading plink.exe"
-        $out = Start-BitsTransfer -Source "https://github.com/iamshital/azure-linux-automation-support-files/raw/master/tools/plink.exe" | Out-Null
-    }
-    if (!( Test-Path -Path .\tools\pscp.exe ))
-    {
-        Write-Host "Downloading pscp.exe"
-        $out = Start-BitsTransfer -Source "https://github.com/iamshital/azure-linux-automation-support-files/raw/master/tools/pscp.exe"  | Out-Null
-    }
-    Move-Item -Path "*.exe" -Destination .\tools -ErrorAction SilentlyContinue -Force
-    #endregion
-
     #region Prepare execution command
 
     $command = ".\AutomationManager.ps1 -xmlConfigFile '$xmlFile' -cycleName 'TC-$shortRandomNumber' -RGIdentifier '$RGIdentifier' -runtests -UseAzureResourceManager"
@@ -446,11 +435,59 @@ try
         $cmd += " -UseManagedDisks"
     }                            
     
+    LogMsg $command
     Invoke-Expression -Command $command
 
-    #TBD Analyse the test result
     #TBD Archive the logs
-    #TBD Email the reports
+    $TestCycle = "TC-$shortRandomNumber"
+
+    $LogDir = Get-Content .\report\lastLogDirectory.txt -ErrorAction SilentlyContinue
+    $ticks = (Get-Date).Ticks
+    $out = Remove-Item *.json -Force
+    $out = Remove-Item *.xml -Force
+    $zipFile = "$(($TestCycle).Trim())-$ticks-$Platform-buildlogs.zip"
+    $out = ZipFiles -zipfilename $zipFile -sourcedir $LogDir
+
+    try
+    {
+        if (Test-Path -Path ".\report\report_$(($TestCycle).Trim()).xml" )
+        {
+            $resultXML = [xml](Get-Content ".\report\report_$(($TestCycle).Trim()).xml" -ErrorAction SilentlyContinue)
+            Copy-Item -Path ".\report\report_$(($TestCycle).Trim()).xml" -Destination ".\report\report_$(($TestCycle).Trim())-junit.xml" -Force -ErrorAction SilentlyContinue
+            LogMsg "Copied : .\report\report_$(($TestCycle).Trim()).xml --> .\report\report_$(($TestCycle).Trim())-junit.xml"
+            LogMsg "Analysing results.."
+            LogMsg "PASS  : $($resultXML.testsuites.testsuite.tests - $resultXML.testsuites.testsuite.errors - $resultXML.testsuites.testsuite.failures)"
+            LogMsg "FAIL  : $($resultXML.testsuites.testsuite.failures)"
+            LogMsg "ABORT : $($resultXML.testsuites.testsuite.errors)"
+            if ( ( $resultXML.testsuites.testsuite.failures -eq 0 ) -and ( $resultXML.testsuites.testsuite.errors -eq 0 ) -and ( $resultXML.testsuites.testsuite.tests -gt 0 ))
+            {
+                $ExitCode = 0
+            }
+            else
+            {
+                $ExitCode = 1
+            }
+        }
+        else
+        {
+            LogMsg "Summary file: .\report\report_$(($TestCycle).Trim()).xml does not exist. Exiting with 1."
+            $ExitCode = 1
+        }
+    }
+    catch
+    {
+        LogMsg "$($_.Exception.GetType().FullName, " : ",$_.Exception.Message)"
+        $ExitCode = 1
+    }
+    finally
+    {
+        if ( $ExitWithZero -and ($ExitCode -ne 0) )
+        {
+            LogMsg "Changed exit code from 1 --> 0. (-ExitWithZero mentioned.)"
+            $ExitCode = 0
+        }
+        LogMsg "Exiting with code : $ExitCode"
+    }
 }
 catch 
 {

@@ -140,6 +140,10 @@ try
         {
             mkdir $testResults | out-null
         }
+        if (! (test-path ".\report"))
+        {
+            mkdir ".\report" | out-null
+        }        
         $testStartTime = [DateTime]::Now.ToUniversalTime()
         Set-Variable -Name testStartTime -Value $testStartTime -Scope Global
         $testDir = $testResults + "\" + $cycleName + "-" + $testStartTime.ToString("yyyyMMddHHmmssff")
@@ -148,11 +152,11 @@ try
         Set-Content -Value "" -Path .\report\AdditionalInfo.html -Force -ErrorAction SilentlyContinue | Out-Null
         $logFile = $testDir + "\" + "AzureLogs.txt"
         Set-Variable -Name logfile -Value $logFile -Scope Global
-        Set-Content -Path .\report\lastLogDirectory.txt -Value $testDir -ErrorAction SilentlyContinue
         Set-Variable -Name Distro -Value $RGIdentifier -Scope Global
         Set-Variable -Name onCloud -Value $onCloud -Scope Global
         Set-Variable -Name xmlConfig -Value $xmlConfig -Scope Global
-        Set-Content -Path .\report\lastLogDirectory.txt -Value $testDir -ErrorAction SilentlyContinue
+        LogMsg = "'$testDir' saved to .\report\lastLogDirectory.txt"
+        Set-Content -Path .\report\lastLogDirectory.txt -Value $testDir -Force
         Set-Variable -Name vnetIsAllConfigured -Value $false -Scope Global
         if($EconomyMode)
         {
@@ -196,7 +200,7 @@ try
             }
         }
         Set-Variable -Name UseAzureResourceManager -Value $true -Scope Global
-        $SelectedSubscription = RetryOperation -operation { Select-AzureRmSubscription -SubscriptionId $AzureSetup.SubscriptionID } -maxRetryCount 5 -description "Selecting subscription..."
+        $SelectedSubscription = Select-AzureRmSubscription -SubscriptionId $AzureSetup.SubscriptionID
         $subIDSplitted = ($SelectedSubscription.Subscription.SubscriptionId).Split("-")
         $userIDSplitted = ($SelectedSubscription.Account.Id).Split("-")
         LogMsg "SubscriptionName       : $($SelectedSubscription.Subscription.Name)"
