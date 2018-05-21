@@ -1920,7 +1920,15 @@ Function DoTestCleanUp($result, $testName, $DeployedServices, $ResourceGroups, [
 							}
 							else
 							{
-								$RGdetails = Get-AzureRmResourceGroup -Name $group
+								try 
+								{
+									$RGdetails = Get-AzureRmResourceGroup -Name $group -ErrorAction SilentlyContinue	
+								}
+								catch 
+								{
+									LogMsg "Resource group '$group' not found."
+								}
+								
 								if ( $RGdetails.Tags )
 								{
 									if ( (  $RGdetails.Tags[0].Name -eq $preserveKeyword ) -and (  $RGdetails.Tags[0].Value -eq "yes" ))
@@ -2613,8 +2621,9 @@ Function GetFilePathsFromLinuxFolder ([string]$folderToSearch, $IpAddress, $SSHP
 
 function ZipFiles( $zipfilename, $sourcedir )
 {
+	LogMsg "Creating '$zipfilename' from '$sourcedir'"
     $currentDir = (Get-Location).Path
-    $7z = (Get-ChildItem .\tools\7za.exe).FullName
+    $7z = (Get-ChildItem .\Tools\7za.exe).FullName
     $sourcedir = $sourcedir.Trim('\')
     cd $sourcedir
     $out = Invoke-Expression "$7z a -mx5 $currentDir\$zipfilename * -r"
