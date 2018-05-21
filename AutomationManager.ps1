@@ -196,7 +196,7 @@ try
             }
         }
         Set-Variable -Name UseAzureResourceManager -Value $true -Scope Global
-        $SelectedSubscription = RetryOperation -operation { Select-AzureRmSubscription -SubscriptionId $AzureSetup.SubscriptionID } -maxRetryCount 5 -description "Selecting subscription..."
+        $SelectedSubscription = Select-AzureRmSubscription -SubscriptionId $AzureSetup.SubscriptionID
         $subIDSplitted = ($SelectedSubscription.Subscription.SubscriptionId).Split("-")
         $userIDSplitted = ($SelectedSubscription.Account.Id).Split("-")
         LogMsg "SubscriptionName       : $($SelectedSubscription.Subscription.Name)"

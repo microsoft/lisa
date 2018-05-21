@@ -383,32 +383,6 @@ try
     
     #endregion
 
-    #region Download necessary tools.
-    mkdir -Path .\tools -ErrorAction SilentlyContinue | Out-Null
-    Import-Module BitsTransfer  
-    if (!( Test-Path -Path .\tools\7za.exe ))
-    {
-        Write-Host "Downloading 7za.exe"
-        $out = Start-BitsTransfer -Source "https://github.com/iamshital/azure-linux-automation-support-files/raw/master/tools/7za.exe" | Out-Null
-    }
-    if (!( Test-Path -Path .\tools\dos2unix.exe ))
-    {
-        Write-Host "Downloading dos2unix.exe"
-        $out = Start-BitsTransfer -Source "https://github.com/iamshital/azure-linux-automation-support-files/raw/master/tools/dos2unix.exe" | Out-Null
-    }
-    if (!( Test-Path -Path .\tools\plink.exe ))
-    {
-        Write-Host "Downloading plink.exe"
-        $out = Start-BitsTransfer -Source "https://github.com/iamshital/azure-linux-automation-support-files/raw/master/tools/plink.exe" | Out-Null
-    }
-    if (!( Test-Path -Path .\tools\pscp.exe ))
-    {
-        Write-Host "Downloading pscp.exe"
-        $out = Start-BitsTransfer -Source "https://github.com/iamshital/azure-linux-automation-support-files/raw/master/tools/pscp.exe"  | Out-Null
-    }
-    Move-Item -Path "*.exe" -Destination .\tools -ErrorAction SilentlyContinue -Force
-    #endregion
-
     #region Prepare execution command
 
     $command = ".\AutomationManager.ps1 -xmlConfigFile '$xmlFile' -cycleName 'TC-$shortRandomNumber' -RGIdentifier '$RGIdentifier' -runtests -UseAzureResourceManager"

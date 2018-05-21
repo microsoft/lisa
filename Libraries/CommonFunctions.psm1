@@ -2473,7 +2473,7 @@ Function PerformIOTestOnDisk($testVMObject, [string]$attachedDisk, [string]$disk
 	return $retValue
 }
 
-Function RetryOperation($operation, $description, $expectResult=$null, $maxRetryCount=10, $retryInterval=10, [switch]$NoLogsPlease)
+Function RetryOperation($operation, $description, $expectResult=$null, $maxRetryCount=10, $retryInterval=10, [switch]$NoLogsPlease, [switch]$ThrowExceptionOnFailure)
 {
 	$retryCount = 1
 	
@@ -2520,12 +2520,19 @@ Function RetryOperation($operation, $description, $expectResult=$null, $maxRetry
 		}
 		if ($retryCount -ge $maxRetryCount)
 		{
-			LogError "Opearation Failed." 
+			LogError "Command '$operation' Failed." 
 			break;
 		}
 	} while ($True)
 	
-	return $null
+	if ($ThrowExceptionOnFailure)
+	{
+		ThrowException -Exception "Command '$operation' Failed."
+	}
+	else 
+	{
+		return $null	
+	}
 }
 
 Function GetFilePathsFromLinuxFolder ([string]$folderToSearch, $IpAddress, $SSHPort, $username, $password, $maxRetryCount=20, [string]$expectedFiles)
