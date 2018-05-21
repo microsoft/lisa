@@ -74,6 +74,7 @@ try
             ValiateXMLs -ParentFolder $((Get-Item -Path $XMLSecretFile).FullName | Split-Path -Parent)
             .\Utilities\AddAzureRmAccountFromSecretsFile.ps1 -customSecretsFilePath $XMLSecretFile
             Set-Variable -Value ([xml](Get-Content $XMLSecretFile)) -Name XmlSecrets -Scope Global
+            LogMsg "XmlSecrets set as global variable."
         }
         else 
         {
@@ -438,6 +439,8 @@ try
     Invoke-Expression -Command $command
 
     #TBD Archive the logs
+    $TestCycle = "TC-$shortRandomNumber"
+
     $LogDir = Get-Content .\report\lastLogDirectory.txt -ErrorAction SilentlyContinue
     $ticks = (Get-Date).Ticks
     $out = Remove-Item *.json -Force
@@ -445,8 +448,6 @@ try
     $zipFile = "$(($TestCycle).Trim())-$ticks-$Platform-buildlogs.zip"
     $out = ZipFiles -zipfilename $zipFile -sourcedir $LogDir
 
-    #Analyse the test result
-    $TestCycle = "TC-$shortRandomNumber"
     try
     {
         if (Test-Path -Path ".\report\report_$(($TestCycle).Trim()).xml" )
