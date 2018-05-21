@@ -4,16 +4,16 @@ Param(
     $BuildNumber=$env:BUILD_NUMBER,
 
     #Required
-    [string] $TestLocation="northeurope",
-    [string] $RGIdentifier = "SSTEST",
-    [string] $TestPlatform = "Azure",
-    [string] $ARMImageName = "Canonical UbuntuServer 16.04-LTS latest",
+    [string] $TestLocation="",
+    [string] $RGIdentifier = "",
+    [string] $TestPlatform = "",
+    [string] $ARMImageName = "",
 
     #Optinal
     [string] $OsVHD, #... Required if -ARMImageName is not provided.
     [string] $TestCategory = "",
     [string] $TestArea = "",
-    [string] $TestTag = "sriov",
+    [string] $TestTag = "",
     [string] $TestNames="",
     [switch] $Verbose,
     [string] $CustomKernel = "",
