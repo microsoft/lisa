@@ -28,7 +28,9 @@ Param(
     [switch] $KeepReproInact,
     [switch] $EnableAcceleratedNetworking,
     [switch] $ForceDeleteResources,
-    [switch] $UseManagedDisks
+    [switch] $UseManagedDisks,
+
+    [switch] $ExitWithZero    
 )
 
 #Import the Functinos from Library Files.
@@ -435,9 +437,56 @@ try
     LogMsg $command
     Invoke-Expression -Command $command
 
-    #TBD Analyse the test result
     #TBD Archive the logs
-    #TBD Email the reports
+    $LogDir = Get-Content .\report\lastLogDirectory.txt -ErrorAction SilentlyContinue
+    $ticks = (Get-Date).Ticks
+    $out = Remove-Item *.json -Force
+    $out = Remove-Item *.xml -Force
+    $zipFile = "$(($TestCycle).Trim())-$ticks-$Platform-buildlogs.zip"
+    $out = ZipFiles -zipfilename $zipFile -sourcedir $LogDir
+
+    #Analyse the test result
+    $TestCycle = "TC-$shortRandomNumber"
+    try
+    {
+        if (Test-Path -Path ".\report\report_$(($TestCycle).Trim()).xml" )
+        {
+            $resultXML = [xml](Get-Content ".\report\report_$(($TestCycle).Trim()).xml" -ErrorAction SilentlyContinue)
+            Copy-Item -Path ".\report\report_$(($TestCycle).Trim()).xml" -Destination ".\report\report_$(($TestCycle).Trim())-junit.xml" -Force -ErrorAction SilentlyContinue
+            LogMsg "Copied : .\report\report_$(($TestCycle).Trim()).xml --> .\report\report_$(($TestCycle).Trim())-junit.xml"
+            LogMsg "Analysing results.."
+            LogMsg "PASS  : $($resultXML.testsuites.testsuite.tests - $resultXML.testsuites.testsuite.errors - $resultXML.testsuites.testsuite.failures)"
+            LogMsg "FAIL  : $($resultXML.testsuites.testsuite.failures)"
+            LogMsg "ABORT : $($resultXML.testsuites.testsuite.errors)"
+            if ( ( $resultXML.testsuites.testsuite.failures -eq 0 ) -and ( $resultXML.testsuites.testsuite.errors -eq 0 ) -and ( $resultXML.testsuites.testsuite.tests -gt 0 ))
+            {
+                $ExitCode = 0
+            }
+            else
+            {
+                $ExitCode = 1
+            }
+        }
+        else
+        {
+            LogMsg "Summary file: .\report\report_$(($TestCycle).Trim()).xml does not exist. Exiting with 1."
+            $ExitCode = 1
+        }
+    }
+    catch
+    {
+        LogMsg "$($_.Exception.GetType().FullName, " : ",$_.Exception.Message)"
+        $ExitCode = 1
+    }
+    finally
+    {
+        if ( $ExitWithZero -and ($ExitCode -ne 0) )
+        {
+            LogMsg "Changed exit code from 1 --> 0. (-ExitWithZero mentioned.)"
+            $ExitCode = 0
+        }
+        LogMsg "Exiting with code : $ExitCode"
+    }
 }
 catch 
 {
