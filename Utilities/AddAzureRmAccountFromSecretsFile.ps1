@@ -41,7 +41,7 @@ if ($env:Azure_Secrets_File) {
 }
 if ( $secretsFile -eq $null ) {
     LogMsg "ERROR: Azure Secrets file not found in Jenkins / user not provided -customSecretsFilePath" -ForegroundColor Red -BackgroundColor Black
-    exit 1
+    ThrowException ("XML Secrets file not provided")
 }
 
 #---------------------------------------------------------[Script Start]--------------------------------------------------------
@@ -71,5 +71,5 @@ if ( Test-Path $secretsFile ) {
 else {
     LogMsg "$($secretsFile | Spilt-Path -Leaf) file is not added in Jenkins Global Environments OR it is not bound to 'Azure_Secrets_File' variable." -ForegroundColor Red -BackgroundColor Black
     LogMsg "Aborting."-ForegroundColor Red -BackgroundColor Black
-    exit 1
+    ThrowException ("XML Secrets file not provided")
 }

@@ -1,12 +1,12 @@
 ﻿Param (
     $RemoteFolder = "Z:\ReceivedFiles",
-    $LocalFolder = "Q:\ReceivedFiles"
+    $LocalFolder = "D:\Temp"
 )
 
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global }
 
 $CurrentRemoteFolder = "$RemoteFolder\$env:JenkinsUser"
-$CurrentLocalFolder = "$LocalFolder\$env:JenkinsUser"
+$CurrentLocalFolder = "$LocalFolder"
 
 $ExitCode = 0
 try

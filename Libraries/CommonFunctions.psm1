@@ -2630,6 +2630,42 @@ function ZipFiles( $zipfilename, $sourcedir )
     cd $currentDir
     if ($out -match "Everything is Ok")
     {
-        Write-Host "$currentDir\$zipfilename created successfully."
+        LogMsg "$currentDir\$zipfilename created successfully."
     }
+}
+
+Function GetStorageAccountFromRegion($Region,$StorageAccount)
+{
+#region Select Storage Account Type
+	$RegionName = $Region.Replace(" ","").Replace('"',"").ToLower()
+	$regionStorageMapping = [xml](Get-Content .\XML\RegionAndStorageAccounts.xml)
+	if ($StorageAccount)
+	{
+		if ( $StorageAccount -imatch "ExistingStorage_Standard" )
+		{
+			$StorageAccountName = $regionStorageMapping.AllRegions.$RegionName.StandardStorage
+		}
+		elseif ( $StorageAccount -imatch "ExistingStorage_Premium" )
+		{
+			$StorageAccountName = $regionStorageMapping.AllRegions.$RegionName.PremiumStorage
+		}
+		elseif ( $StorageAccount -imatch "NewStorage_Standard" )
+		{
+			$StorageAccountName = "NewStorage_Standard_LRS"
+		}
+		elseif ( $StorageAccount -imatch "NewStorage_Premium" )
+		{
+			$StorageAccountName = "NewStorage_Premium_LRS"
+		}
+		elseif ($StorageAccount -eq "")
+		{
+			$StorageAccountName = $regionStorageMapping.AllRegions.$RegionName.StandardStorage
+		}
+	}
+	else 
+	{
+		$StorageAccountName = $regionStorageMapping.AllRegions.$RegionName.StandardStorage  
+	}
+	LogMsg "Selected : $StorageAccountName"
+	return $StorageAccountName
 }
