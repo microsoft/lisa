@@ -44,7 +44,7 @@ try
                     $VhdActualSize = ($7zConsoleOuput -imatch "size").Replace(" ",'').Replace(" ",'').Replace(" ",'').Replace(" ",'').Split(":")[1]
                     $VhdCompressedSize = ($7zConsoleOuput -imatch "Compressed").Replace(" ",'').Replace(" ",'').Replace(" ",'').Replace(" ",'').Split(":")[1]
                     $CompressinRatio = ((($VhdCompressedSize/($VhdActualSize-$VhdCompressedSize))*100))
-                    LogMsg "Compression Ratio : $CompressinRatio %"
+                    LogMsg "Compression Ratio : $([math]::Round($CompressinRatio,2))%"
                 }
                 else
                 {
