@@ -103,7 +103,7 @@ then
     cd ..
 elif [[ $TestFileSystem == "ext4" ]] || [[ $TestFileSystem == "xfs" ]];
 then
-    LogMsg "Formatting /dev/sdc with ${$TestFileSystem}"
+    LogMsg "Formatting /dev/sdc with ${TestFileSystem}"
     if [[ $TestFileSystem == "xfs" ]];
     then
         mkfs.xfs -f /dev/sdc

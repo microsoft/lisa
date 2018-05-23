@@ -154,15 +154,18 @@ try
             $destContextArr = $newDestContextArr
             Sleep -Seconds 10
         }
+        $ExitCode = 0
     }
     LogMsg "All Copy Operations completed successfully."
 }
 catch 
 {
-    
+    $ExitCode = 1
+    ThrowExcpetion ($_)
 }
 finally
 {
-    
+    LogMsg "Exiting with code: $ExitCode"
+    exit $ExitCode
 }
 #endregion
