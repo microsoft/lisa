@@ -1,0 +1,22 @@
+<TestSetup>
+    <M1Disk1>
+        <isDeployed>NO</isDeployed>
+        <ResourceGroup>
+            <VirtualMachine>
+                <ARMInstanceSize>Standard_DS14_v2</ARMInstanceSize>
+                <RoleName></RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>22</PublicPort>
+                </EndPoints>
+                <DataDisk>
+                    <LUN>0</LUN>
+                    <DiskSizeInGB>1023</DiskSizeInGB>
+                    <HostCaching>None</HostCaching>
+                </DataDisk>
+            </VirtualMachine>				
+        </ResourceGroup>
+    </M1Disk1>
+</TestSetup>

@@ -1,0 +1,67 @@
+﻿$result = ""
+$testResult = ""
+$resultArr = @()
+$isDeployed = DeployVMS -setupType $currentTestData.setupType -Distro $Distro -xmlConfig $xmlConfig
+if ($isDeployed)
+{
+    try
+    {
+        ProvisionVMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
+        RemoteCopy -uploadTo $allVMData.PublicIP -port $allVMData.SSHPort -files $currentTestData.files -username "root" -password $password -upload
+
+        $out = RunLinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "chmod +x *.sh"
+        $TestFileSystem = $currentTestData.TestParameters.param.Replace("TestFileSystem=","")
+        $testJob = RunLinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "/root/perf_xfstesting.sh -TestFileSystem $TestFileSystem" -RunInBackground
+        #endregion
+
+        #region MONITOR TEST
+        while ( (Get-Job -Id $testJob).State -eq "Running" )
+        {
+            $currentStatus = RunLinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "tail -1 XFSTestingConsole.log"
+            LogMsg "Current Test Staus : $currentStatus"
+            WaitFor -seconds 20
+        }
+        RemoteCopy -download -downloadFrom $allVMData.PublicIP -files "XFSTestingConsole.log" -downloadTo $LogDir -port $allVMData.SSHPort -username "root" -password $password
+        $XFSTestingConsole = Get-Content "$LogDir\XFSTestingConsole.log"
+        if ( $XFSTestingConsole -imatch "Passed all" )
+        {
+            $testResult = "PASS"
+        }
+        else 
+        {
+            $testResult = "FAIL"
+        }
+        foreach ( $line in $XFSTestingConsole.Split("`n"))
+        {
+            LogMsg "$line"
+        }
+    }
+    catch
+    {
+        $ErrorMessage =  $_.Exception.Message
+        LogMsg "EXCEPTION : $ErrorMessage"
+    }
+    Finally
+    {
+        $metaData = ""
+        if (!$testResult)
+        {
+            $testResult = "Aborted"
+        }
+        $resultArr += $testResult
+    }
+}
+
+else
+{
+    $testResult = "FAIL"
+    $resultArr += $testResult
+}
+
+$result = GetFinalResultHeader -resultarr $resultArr
+
+#Clean up the setup
+DoTestCleanUp -result $result -testName $currentTestData.testName -deployedServices $isDeployed -ResourceGroups $isDeployed
+
+#Return the result and summery to the test suite script..
+return $result
