@@ -11,7 +11,7 @@
         <Platform>Azure</Platform>
 		<Category>BVT</Category>
 		<Area>BVT</Area>
-		<Tags>bvt,provision</Tags>
+		<Tags>bvt,boot</Tags>
         <TestID>AzureBVT_001</TestID>
     </test>
 	<test>
@@ -26,7 +26,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt,provision</Tags>
+        <Tags>bvt</Tags>
         <TestID>AzureBVT_002</TestID>
     </test>
     <test>
@@ -41,7 +41,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt,provision</Tags>
+        <Tags>bvt</Tags>
         <TestID>AzureBVT_003</TestID>
     </test>
     <test>
@@ -56,7 +56,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt,provision</Tags>
+        <Tags>bvt</Tags>
         <TestID>AzureBVT_004</TestID>
     </test>
     <test>
@@ -71,7 +71,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt,provision</Tags>
+        <Tags>bvt</Tags>
         <TestID>AzureBVT_005</TestID>
     </test>
     <test>
@@ -86,7 +86,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt,timeout</Tags>
+        <Tags>bvt</Tags>
         <TestID>AzureBVT_006</TestID>
     </test>
     <test>
@@ -101,7 +101,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt,hv</Tags>
+        <Tags>bvt</Tags>
         <TestID>AzureBVT_007</TestID>
     </test>
     <test>
@@ -116,7 +116,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt,hv</Tags>
+        <Tags>bvt</Tags>
         <TestID>AzureBVT_008</TestID>
     </test>
     <test>
@@ -131,7 +131,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt,swap</Tags>
+        <Tags>bvt</Tags>
         <TestID>AzureBVT_009</TestID>
     </test>
 	<test>
@@ -146,7 +146,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt,mtab</Tags>
+        <Tags>bvt</Tags>
         <TestID>AzureBVT_010</TestID>
     </test>
     <test>
@@ -161,7 +161,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt,console</Tags>
+        <Tags>bvt</Tags>
         <TestID>AzureBVT_011</TestID>        
     </test>
     <test>
@@ -176,7 +176,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt,disksize</Tags>
+        <Tags>bvt</Tags>
         <TestID>AzureBVT_012</TestID>
     </test>
     <test>
@@ -191,7 +191,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt,firewall</Tags>
+        <Tags>bvt</Tags>
         <TestID>AzureBVT_013</TestID>
     </test>
     <test>
@@ -206,7 +206,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt,boot</Tags>
+        <Tags>bvt</Tags>
         <TestID>AzureBVT_014</TestID>
     </test>
     <test>
@@ -221,7 +221,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt,boot</Tags>
+        <Tags>bvt</Tags>
         <TestID>AzureBVT_015</TestID>
     </test>
     <test>
@@ -236,7 +236,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt,restart</Tags>
+        <Tags>bvt</Tags>
         <TestID>AzureBVT_016</TestID>
     </test>
     <test>
@@ -251,7 +251,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt,mount,io</Tags>
+        <Tags>bvt</Tags>
         <TestID>AzureBVT_017</TestID>
     </test>
     <test>
@@ -266,7 +266,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt,uuid</Tags>
+        <Tags>bvt</Tags>
         <TestID>AzureBVT_018</TestID>
     </test>
     <test>
@@ -281,7 +281,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt,auth</Tags>
+        <Tags>bvt</Tags>
         <TestID>AzureBVT_019</TestID>
     </test>
     <test>
@@ -296,7 +296,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt,sshd</Tags>
+        <Tags>bvt</Tags>
         <TestID>AzureBVT_020</TestID>
     </test>
     <test>
@@ -311,7 +311,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt,vhd</Tags>
+        <Tags>bvt</Tags>
         <TestID>AzureBVT_021</TestID>
     </test>
     <test>
@@ -326,7 +326,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt,mount</Tags>
+       <Tags>bvt</Tags>
         <TestID>AzureBVT_022</TestID>
     </test>
     <test>
@@ -341,7 +341,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt,mount</Tags>
+        <Tags>bvt</Tags>
         <TestID>AzureBVT_023</TestID>
     </test>
     <test>
@@ -356,7 +356,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt,mount</Tags>
+        <Tags>bvt</Tags>
         <TestID>AzureBVT_024</TestID>
     </test>
     <test>
@@ -371,7 +371,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt,bash,history</Tags>
+        <Tags>bvt</Tags>
         <TestID>AzureBVT_025</TestID>
     </test>
     <test>
@@ -388,7 +388,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt,policy</Tags>
+        <Tags>bvt</Tags>
         <TestID>AzureBVT_026</TestID>
     </test>
     <test>
@@ -405,7 +405,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt,vhd</Tags>
+        <Tags>bvt</Tags>
         <TestID>AzureBVT_027</TestID>
     </test>
     <test>
@@ -422,7 +422,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt,vhd</Tags>        
+        <Tags>bvt</Tags>
 	    <TestID>AzureBVT_028</TestID>
     </test>
     <test>
@@ -437,7 +437,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt,kvp</Tags>
+        <Tags>bvt</Tags>
         <TestID>AzureBVT_029</TestID>
     </test>
     <test>
@@ -454,7 +454,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt,vm,size</Tags>
+        <Tags>bvt</Tags>
         <TestID>AzureBVT_030</TestID>
     </test>
     <test>
@@ -471,7 +471,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt,disk</Tags>
+        <Tags>bvt</Tags>
         <TestID>AzureBVT_031</TestID>
     </test>
     <test>
@@ -488,7 +488,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt,disk</Tags>
+        <Tags>bvt</Tags>
         <TestID>AzureBVT_032</TestID>
     </test>
 </TestCases>
