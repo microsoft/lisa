@@ -9,7 +9,7 @@
         </TestParameters>        
 		<Platform>Azure</Platform>
 		<Category>Community</Category>
-		<Area>Community</Area>
+		<Area>Xfstesting-cifs</Area>
 		<Tags>smb</Tags>
 		<TestID>Community_001</TestID>
 	</test>
@@ -23,7 +23,7 @@
         </TestParameters>        
 		<Platform>Azure</Platform>
 		<Category>Community</Category>
-		<Area>Community</Area>
+		<Area>Xfstesting-cifs</Area>
 		<Tags>xfs,disk</Tags>
 		<TestID>Community_001</TestID>
 	</test>
@@ -37,7 +37,7 @@
         </TestParameters>        
 		<Platform>Azure</Platform>
 		<Category>Community</Category>
-		<Area>Community</Area>
+		<Area>Xfstesting-cifs</Area>
 		<Tags>ext4,disk</Tags>
 		<TestID>Community_002</TestID>
 	</test>
