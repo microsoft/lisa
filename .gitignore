@@ -7,3 +7,4 @@ TestConfiguration.xml
 Temp*
 report*
 UploadStatusFile*
+*.azure.env
