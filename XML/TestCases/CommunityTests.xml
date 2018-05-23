@@ -1,0 +1,30 @@
+<TestCases>
+	<test>
+		<TestName>FILE-SYSTEM-VERIFICATION-TESTS-CIFS</TestName>
+		<PowershellScript>FILE-SYSTEM-VERIFICATION-TESTS.ps1</PowershellScript>
+		<files>.\Testscripts\Linux\perf_xfstesting.sh,.\Testscripts\Linux\xfstests-config.config</files>
+		<setupType>M1Disk1</setupType>
+        <TestParameters>
+            <param>TestFileSystem=cifs</param>
+        </TestParameters>        
+		<Platform>Azure</Platform>
+		<Category>Community</Category>
+		<Area>Community</Area>
+		<Tags>smb</Tags>
+		<TestID>Community_001</TestID>
+	</test>
+	<test>
+		<TestName>FILE-SYSTEM-VERIFICATION-TESTS-EXT4</TestName>
+		<PowershellScript>FILE-SYSTEM-VERIFICATION-TESTS.ps1</PowershellScript>
+		<files>.\Testscripts\Linux\perf_xfstesting.sh,.\Testscripts\Linux\xfstests-config.config</files>
+		<setupType>M1Disk1</setupType>
+        <TestParameters>
+            <param>TestFileSystem=ext4</param>
+        </TestParameters>        
+		<Platform>Azure</Platform>
+		<Category>Community</Category>
+		<Area>Community</Area>
+		<Tags>disk</Tags>
+		<TestID>Community_002</TestID>
+	</test>
+</TestCases>
