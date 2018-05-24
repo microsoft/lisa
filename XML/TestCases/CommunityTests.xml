@@ -25,7 +25,7 @@
 		<Category>Community</Category>
 		<Area>Xfstesting-cifs</Area>
 		<Tags>xfs,disk</Tags>
-		<TestID>Community_001</TestID>
+		<TestID>Community_002</TestID>
 	</test>
 	<test>
 		<TestName>FILE-SYSTEM-VERIFICATION-TESTS-EXT4</TestName>
@@ -39,6 +39,18 @@
 		<Category>Community</Category>
 		<Area>Xfstesting-cifs</Area>
 		<Tags>ext4,disk</Tags>
-		<TestID>Community_002</TestID>
+		<TestID>Community_003</TestID>
 	</test>
+	<test>
+		<TestName>LINUX-TEST-PROJECT-TESTS</TestName>
+		<PowershellScript>LINUX-TEST-PROJECT-TESTS.ps1</PowershellScript>
+		<files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\Linux-Test-Project-Tests.sh</files>
+		<setupType>LTP</setupType>
+		<SubtestValues>This-tag-will-be-removed</SubtestValues>      
+		<Platform>Azure</Platform>
+		<Category>Community</Category>
+		<Area>LTP</Area>
+		<Tags>LTP</Tags>
+		<TestID>Community_004</TestID>
+	</test>	
 </TestCases>
