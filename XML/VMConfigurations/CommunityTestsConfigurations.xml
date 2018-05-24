@@ -19,4 +19,22 @@
             </VirtualMachine>				
         </ResourceGroup>
     </M1Disk1>
+    <LTP>
+        <isDeployed>NO</isDeployed>
+        <ResourceGroup>
+            <VirtualMachine>
+                <state></state>
+                <InstanceSize>Standard_DS14_v2</InstanceSize>
+                <ARMInstanceSize>Standard_DS14_v2</ARMInstanceSize>
+                <RoleName>linux-test-project-tests</RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>22</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+            </VirtualMachine>
+        </ResourceGroup>
+    </LTP>    
 </TestSetup>
