@@ -161,5 +161,10 @@ LogMsg "Validating TestByTestnameDetailed.txt..."
 (Get-Content "$DestinationPath\TestByTestnameDetailed.txt") | Where-Object {$_.trim() -ne "" } | set-content "$DestinationPath\TestByTestnameDetailed.txt"
 LogMsg "Done"
 
+LogMsg "Saving '$($env:GitRepo)' to DefaultGitRepo.txt..."
+Set-Content -Value "DefaultGitRepo=$($env:GitRepo)"  -Path "$DestinationPath\DefaultGitRepo.txt" -Force -NoNewline
+
+LogMsg "Saving '$($env:GitBranch)' to DefaultGitBranch.txt..."
+Set-Content -Value "DefaultGitBranch=$($env:GitBranch)"  -Path "$DestinationPath\DefaultGitBranch.txt" -Force -NoNewline
 
 exit 0
