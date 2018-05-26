@@ -39,9 +39,9 @@ try
             {
                 $KernelFile = Split-Path $ReceivedFile -Leaf
                 LogMsg "Copying $ReceivedFile --> $CurrentLocalFolder."
-                $out = Copy-Item -Path $ReceivedFile -Destination ".\$KernelFile" -Force
-                LogMsg "Saving .\$KernelFile to .\CustomKernel.azure.env"
-                $out = Set-Content -Value ".\$KernelFile" -Path .\CustomKernel.azure.env -Force -NoNewline
+                $out = Copy-Item -Path $ReceivedFile -Destination "$KernelFile" -Force
+                LogMsg "Saving $KernelFile to CustomKernel.azure.env"
+                $out = Set-Content -Value "$KernelFile" -Path CustomKernel.azure.env -Force -NoNewline
                 $ExitCode = 0
             }
             else 
@@ -64,17 +64,23 @@ try
             LogMsg "Overriding CustomKernelURL."
         }         
         $DestinationFile = "$(Split-Path -Path $env:CustomKernelURL -Leaf)"
-        Import-Module BitsTransfer -Force 
-        $DownloadJob = Start-BitsTransfer -Source "$env:CustomKernelURL" -Asynchronous -Destination "$DestinationFile" -TransferPolicy Unrestricted -TransferType Download -Priority High
+        Import-Module BitsTransfer -Force
+        $WorkingDirectory = (Get-Location).Path
+        LogMsg "Downloading $env:CustomKernelURL to '$WorkingDirectory\$DestinationFile'"
+        $DownloadJob = Start-BitsTransfer -Source "$env:CustomKernelURL" -Asynchronous -Destination "$WorkingDirectory\$DestinationFile" -TransferPolicy Unrestricted -TransferType Download -Priority High
         $DownloadJobStatus = Get-BitsTransfer -JobId $DownloadJob.JobId
         Start-Sleep -Seconds 1
         while ($DownloadJobStatus.JobState -eq "Connecting" -or $DownloadJobStatus.JobState -eq "Transferring") 
         {
             $DownloadProgress = 100 - ((($DownloadJobStatus.BytesTotal - $DownloadJobStatus.BytesTransferred) / $DownloadJobStatus.BytesTotal) * 100)
+            $DownloadProgress = [math]::Round($DownloadProgress,2)
             LogMsg "Download progress: $DownloadProgress%"
+            Start-Sleep -Seconds 2
         }
         if ($DownloadJobStatus.JobState -eq "Transferred")
         {
+            LogMsg "Finalizing downloaded file..."
+            Complete-BitsTransfer -BitsJob $DownloadJob
             LogMsg "Download progress: Completed"
         }
         else
@@ -86,8 +92,8 @@ try
             $KernelFile = "$env:UpstreamBuildNumber-$DestinationFile"
             LogMsg "Renaming $DestinationFile --> $KernelFile."
             $Out = Rename-Item -Path $DestinationFile -NewName $KernelFile
-            LogMsg "Saving .\$KernelFile to .\CustomKernel.azure.env"
-            $out = Set-Content -Value ".\$KernelFile" -Path .\CustomKernel.azure.env -Force -NoNewline
+            LogMsg "Saving $KernelFile to CustomKernel.azure.env"
+            $out = Set-Content -Value "$KernelFile" -Path CustomKernel.azure.env -Force -NoNewline
             $ExitCode = 0            
         }
         else 
