@@ -70,11 +70,12 @@ try
         $DownloadJob = Start-BitsTransfer -Source "$env:CustomKernelURL" -Asynchronous -Destination "$WorkingDirectory\$DestinationFile" -TransferPolicy Unrestricted -TransferType Download -Priority High
         $DownloadJobStatus = Get-BitsTransfer -JobId $DownloadJob.JobId
         Start-Sleep -Seconds 1
-        while ($DownloadJobStatus.JobState -eq "Connecting" -or $DownloadJobStatus.JobState -eq "Transferring") 
+        LogMsg "JobID: $($DownloadJob.JobId)"
+        while ($DownloadJobStatus.JobState -eq "Connecting" -or $DownloadJobStatus.JobState -eq "Transferring" -or $DownloadJobStatus.JobState -eq "Queued" ) 
         {
             $DownloadProgress = 100 - ((($DownloadJobStatus.BytesTotal - $DownloadJobStatus.BytesTransferred) / $DownloadJobStatus.BytesTotal) * 100)
             $DownloadProgress = [math]::Round($DownloadProgress,2)
-            LogMsg "Download progress: $DownloadProgress%"
+            LogMsg "Download '$($DownloadJobStatus.JobState)': $DownloadProgress%"
             Start-Sleep -Seconds 2
         }
         if ($DownloadJobStatus.JobState -eq "Transferred")
