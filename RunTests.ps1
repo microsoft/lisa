@@ -23,7 +23,7 @@ Param(
     [int] $TestIterations,
     [string] $TiPSessionId,
     [string] $TiPCluster,
-    [string] $XMLSecretFile = "D:\GitHub\LISAv2\XML\AzureSecrets.xml",
+    [string] $XMLSecretFile = "",
     #Toggles
     [switch] $KeepReproInact,
     [switch] $EnableAcceleratedNetworking,
@@ -38,6 +38,8 @@ Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1"
 
 try 
 {
+    $LogDir = $null
+
     #region Validate Parameters
     $ParameterErrors = @()
     if ( !$TestPlatform )
@@ -67,6 +69,13 @@ try
     }
     #endregion
     
+    New-Item -ItemType Directory -Path "TestResults" -Force | Out-Null
+
+    $LogDir = ".\TestResults\$(Get-Date -Format 'yyyy-dd-MM-HH-mm-ss-ffff')"
+    Set-Variable -Name LogDir -Value $LogDir -Scope Global -Force
+    New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
+    LogMsg "Created LogDir: $LogDir"
+
     if ($TestPlatform -eq "Azure")
     {
         if ($env:Azure_Secrets_File)
@@ -449,7 +458,6 @@ try
     #TBD Archive the logs
     $TestCycle = "TC-$shortRandomNumber"
 
-    $LogDir = Get-Content .\report\lastLogDirectory.txt -ErrorAction SilentlyContinue
     $ticks = (Get-Date).Ticks
     $out = Remove-Item *.json -Force
     $out = Remove-Item *.xml -Force

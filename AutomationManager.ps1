@@ -14,7 +14,6 @@ param (
 [CmdletBinding()]
 [string] $xmlConfigFile,
 [switch] $eMail,
-[string] $logFilename="azure_ica.log",
 [switch] $runtests, [switch]$onCloud,
 [switch] $vhdprep,
 [switch] $upload,
@@ -149,10 +148,10 @@ try
 
     if ( $Platform -eq "Azure" )
     {
-        $testResults = "TestResults"
-        if (! (test-path $testResults))
+        $TestResultsDir = "TestResults"
+        if (! (test-path $TestResultsDir))
         {
-            mkdir $testResults | out-null
+            mkdir $TestResultsDir | out-null
         }
         if (! (test-path ".\report"))
         {
@@ -160,17 +159,14 @@ try
         }        
         $testStartTime = [DateTime]::Now.ToUniversalTime()
         Set-Variable -Name testStartTime -Value $testStartTime -Scope Global
-        $testDir = $testResults + "\" + $cycleName + "-" + $testStartTime.ToString("yyyyMMddHHmmssff")
-        mkdir $testDir -ErrorAction SilentlyContinue | out-null
         Set-Content -Value "" -Path .\report\testSummary.html -Force -ErrorAction SilentlyContinue | Out-Null
         Set-Content -Value "" -Path .\report\AdditionalInfo.html -Force -ErrorAction SilentlyContinue | Out-Null
-        $logFile = $testDir + "\" + "AzureLogs.txt"
-        Set-Variable -Name logfile -Value $logFile -Scope Global
+        Set-Variable -Name LogFile -Value $LogFile -Scope Global
         Set-Variable -Name Distro -Value $RGIdentifier -Scope Global
         Set-Variable -Name onCloud -Value $onCloud -Scope Global
         Set-Variable -Name xmlConfig -Value $xmlConfig -Scope Global
-        LogMsg = "'$testDir' saved to .\report\lastLogDirectory.txt"
-        Set-Content -Path .\report\lastLogDirectory.txt -Value $testDir -Force
+        LogMsg = "'$LogDir' saved to .\report\lastLogDirectory.txt"
+        Set-Content -Path .\report\lastLogDirectory.txt -Value $LogDir -Force
         Set-Variable -Name vnetIsAllConfigured -Value $false -Scope Global
         if($EconomyMode)
         {
@@ -194,8 +190,7 @@ try
         }
         $AzureSetup = $xmlConfig.config.Azure.General
         LogMsg  ("Info : AzureAutomationManager.ps1 - LIS on Azure Automation")
-        LogMsg  ("Info : Created test results directory:", $testDir)
-        LogMsg  ("Info : Logfile = $logfile")
+        LogMsg  ("Info : Created test results directory:$LogDir" )
         LogMsg  ("Info : Using config file $xmlConfigFile")
         if ( ( $xmlConfig.config.Azure.General.ARMStorageAccount -imatch "ExistingStorage" ) -or ($xmlConfig.config.Azure.General.StorageAccount -imatch "ExistingStorage" ) )
         {

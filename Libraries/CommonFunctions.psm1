@@ -44,7 +44,16 @@ function LogError ()
 			$text = $text.Replace($password,"******")
 		}
         $now = [Datetime]::Now.ToUniversalTime().ToString("MM/dd/yyyy HH:mm:ss")
-        Write-Host "Error: $now : $text"
+		$FinalMessage = "ERROR : $now : $text"
+		Write-Host $FinalMessage
+		if ($LogDir)
+		{
+			Add-Content -Value $FinalMessage -Path "$LogDir\Logs.txt" -Force
+		}
+		if ($CurrentTestLogDir )
+		{
+			Add-Content -Value $FinalMessage -Path "$CurrentTestLogDir\CurrentTestLogs.txt" -Force
+		}
     }
     catch
     {
@@ -65,7 +74,16 @@ function LogMsg()
 			$text = $text.Replace($password,"******")
 		}
         $now = [Datetime]::Now.ToUniversalTime().ToString("MM/dd/yyyy HH:mm:ss")
-        Write-Host "$now : $text"
+		$FinalMessage = "INFO : $now : $text"
+		Write-Host $FinalMessage
+		if ($LogDir)
+		{
+			Add-Content -Value $FinalMessage -Path "$LogDir\Logs.txt" -Force
+		}
+		if ($CurrentTestLogDir )
+		{
+			Add-Content -Value $FinalMessage -Path "$CurrentTestLogDir\CurrentTestLogs.txt" -Force
+		}
     }
     catch
     {
@@ -95,7 +113,16 @@ Function LogWarn()
 			$text = $text.Replace($password,"******")
 		}
         $now = [Datetime]::Now.ToUniversalTime().ToString("MM/dd/yyyy HH:mm:ss")
-        Write-Host "WARGNING: $now : $text"
+		$FinalMessage = "WARNING : $now : $text"
+		Write-Host $FinalMessage
+		if ($LogDir)
+		{
+			Add-Content -Value $FinalMessage -Path "$LogDir\Logs.txt" -Force
+		}
+		if ($CurrentTestLogDir )
+		{
+			Add-Content -Value $FinalMessage -Path "$CurrentTestLogDir\CurrentTestLogs.txt" -Force
+		}
     }
     catch
     {
