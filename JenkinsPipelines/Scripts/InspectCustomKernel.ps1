@@ -1,6 +1,6 @@
 ﻿Param (
     $RemoteFolder = "Z:\ReceivedFiles",
-    $LocalFolder = "."
+    $LocalFolder = "Q:\Temp"
 )
 
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global }

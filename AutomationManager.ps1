@@ -127,12 +127,14 @@ else
 
 if ( $XMLSecretFile )
 {
-    Set-Variable -Value ([xml](Get-Content $XMLSecretFile)) -Name XmlSecrets -Scope Global
+    $xmlSecrets = ([xml](Get-Content $XMLSecretFile))
+    Set-Variable -Value $xmlSecrets -Name xmlSecrets -Scope Global -Force 
     LogMsg "XmlSecrets set as global variable."
 }
 elseif ($env:Azure_Secrets_File)
 {
-    Set-Variable -Value ([xml](Get-Content $env:Azure_Secrets_File)) -Name XmlSecrets -Scope Global
+    $xmlSecrets = ([xml](Get-Content $env:Azure_Secrets_File))
+    Set-Variable -Value $xmlSecrets -Name xmlSecrets -Scope Global -Force 
     LogMsg "XmlSecrets set as global variable."
 }
 
@@ -193,7 +195,7 @@ try
         $AzureSetup = $xmlConfig.config.Azure.General
         LogMsg  ("Info : AzureAutomationManager.ps1 - LIS on Azure Automation")
         LogMsg  ("Info : Created test results directory:", $testDir)
-        LogMsg  ("Info : Logfile = ", $logfile)
+        LogMsg  ("Info : Logfile = $logfile")
         LogMsg  ("Info : Using config file $xmlConfigFile")
         if ( ( $xmlConfig.config.Azure.General.ARMStorageAccount -imatch "ExistingStorage" ) -or ($xmlConfig.config.Azure.General.StorageAccount -imatch "ExistingStorage" ) )
         {
