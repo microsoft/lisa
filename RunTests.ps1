@@ -461,7 +461,20 @@ try
     $ticks = (Get-Date).Ticks
     $out = Remove-Item *.json -Force
     $out = Remove-Item *.xml -Force
-    $zipFile = "$(($TestCycle).Trim())-$ticks-$Platform-buildlogs.zip"
+    $zipFile = "$TestPlatform"
+    if ( $TestCategory )
+    {
+        $zipFile += "-$TestCategory"
+    }
+    if ( $TestArea )
+    {
+        $zipFile += "-$TestArea"
+    }
+    if ( $TestTag )
+    {
+        $zipFile += "-$($TestTag)"
+    }
+    $zipFile += "-$shortRandomNumber-buildlogs.zip"
     $out = ZipFiles -zipfilename $zipFile -sourcedir $LogDir
 
     try
