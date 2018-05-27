@@ -393,7 +393,7 @@ stage('Capture VHD with Custom Kernel')
 stage('Copy VHD to other regions')
 {
     def CurrentTestRegions = ""
-    if ((CustomVHD != "" && CustomVHD != null) || (CustomKernelFile != "" && CustomKernelFile != null) || (CustomKernelURL != "" && CustomKernelURL != null) || (Kernel != "default"))
+    if ((CustomVHDURL != "" && CustomVHDURL != null)  || (CustomVHD != "" && CustomVHD != null) || (CustomKernelFile != "" && CustomKernelFile != null) || (CustomKernelURL != "" && CustomKernelURL != null) || (Kernel != "default"))
     {
         node ("vhd")
         {
