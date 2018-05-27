@@ -23,7 +23,7 @@ Param(
     [int] $TestIterations,
     [string] $TiPSessionId,
     [string] $TiPCluster,
-    [string] $XMLSecretFile = "",
+    [string] $XMLSecretFile = "D:\GitHub\LISAv2\XML\AzureSecrets.xml",
     #Toggles
     [switch] $KeepReproInact,
     [switch] $EnableAcceleratedNetworking,
@@ -69,6 +69,11 @@ try
     
     if ($TestPlatform -eq "Azure")
     {
+        if ($env:Azure_Secrets_File)
+        {
+            LogMsg "Detected Azure_Secrets_File in Jenkins environment."
+            $XMLSecretFile = $env:Azure_Secrets_File
+        }
         if ( $XMLSecretFile )
         {
             ValiateXMLs -ParentFolder $((Get-Item -Path $XMLSecretFile).FullName | Split-Path -Parent)
@@ -433,8 +438,11 @@ try
     if ($UseManagedDisks)
     {
         $cmd += " -UseManagedDisks"
-    }                            
-    
+    }
+    if ($XMLSecretFile)
+    {
+        $cmd += " -XMLSecretFile '$XMLSecretFile'"
+    }
     LogMsg $command
     Invoke-Expression -Command $command
 

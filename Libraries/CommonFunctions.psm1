@@ -16,7 +16,10 @@ function LogVerbose ()
     )
     try
     {
-        $text = $text.Replace('"','`"')
+		if ($password)
+		{
+			$text = $text.Replace($password,"******")
+		}
         $now = [Datetime]::Now.ToUniversalTime().ToString("MM/dd/yyyy HH:mm:ss")
         if ( $VerboseCommand )
         {
@@ -36,13 +39,16 @@ function LogError ()
     )
     try
     {
-        $text = $text.Replace('"','`"')
+		if ($password)
+		{
+			$text = $text.Replace($password,"******")
+		}
         $now = [Datetime]::Now.ToUniversalTime().ToString("MM/dd/yyyy HH:mm:ss")
         Write-Host "Error: $now : $text"
     }
     catch
     {
-        ThrowException($_)
+        Write-Host "Unable to LogError : $now : $text"
     }    
 }
 
@@ -54,13 +60,16 @@ function LogMsg()
     )
     try
     {
-        $text = $text.Replace('"','`"')
+		if ($password)
+		{
+			$text = $text.Replace($password,"******")
+		}
         $now = [Datetime]::Now.ToUniversalTime().ToString("MM/dd/yyyy HH:mm:ss")
         Write-Host "$now : $text"
     }
     catch
     {
-        ThrowException($_)
+        Write-Host "Unable to LogMsg : $now : $text"
     }  
 }
 
@@ -81,13 +90,16 @@ Function LogWarn()
     )
     try
     {
-        $text = $text.Replace('"','`"')
+		if ($password)
+		{
+			$text = $text.Replace($password,"******")
+		}
         $now = [Datetime]::Now.ToUniversalTime().ToString("MM/dd/yyyy HH:mm:ss")
         Write-Host "WARGNING: $now : $text"
     }
     catch
     {
-        ThrowException($_)
+        Write-Host "Unable to LogWarn : $now : $text"
     }  
 }
 Function ValiateXMLs( [string]$ParentFolder )

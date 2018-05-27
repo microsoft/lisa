@@ -36,6 +36,7 @@ param (
 [string] $resizeVMsAfterDeployment,
 [string] $ExistingResourceGroup,
 [switch] $CleanupExistingRG,
+[string] $XMLSecretFile,
 
 # Experimental Feature
 [switch] $UseManagedDisks,
@@ -122,6 +123,17 @@ if ($UseManagedDisks)
 else 
 {
     Set-Variable -Name UseManagedDisks -Value $false -Scope Global    
+}
+
+if ( $XMLSecretFile )
+{
+    Set-Variable -Value ([xml](Get-Content $XMLSecretFile)) -Name XmlSecrets -Scope Global
+    LogMsg "XmlSecrets set as global variable."
+}
+elseif ($env:Azure_Secrets_File)
+{
+    Set-Variable -Value ([xml](Get-Content $env:Azure_Secrets_File)) -Name XmlSecrets -Scope Global
+    LogMsg "XmlSecrets set as global variable."
 }
 
 if ( $xmlConfig.config.Azure.General.ARMStorageAccount -imatch "NewStorage_" )

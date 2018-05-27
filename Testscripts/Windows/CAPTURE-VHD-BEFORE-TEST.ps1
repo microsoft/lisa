@@ -34,7 +34,6 @@ if ($isDeployed)
             $newVHDName = "EOSG-AUTOBUILT-$($OsVHD.Replace('.vhd',''))-$Distro"
         }
         $newVHDName = "$newVHDName.vhd"
-        Set-Content -Path .\ARM_OSVHD_NAME.azure.env -Value $newVHDName -NoNewline -Force
         LogMsg "Sleeping 30 seconds..."
         Start-Sleep -Seconds 30
 
@@ -73,6 +72,8 @@ if ($isDeployed)
         LogMsg ".\Utilities\CopyVHDtoOtherStorageAccount.ps1 -sourceLocation $sourceRegion -destinationLocations $sourceRegion -destinationAccountType $targetStorageAccountType -sourceVHDName $currentVHDName -destinationVHDName $newVHDName"
         $Out = .\Utilities\CopyVHDtoOtherStorageAccount.ps1 -sourceLocation $sourceRegion -destinationLocations $sourceRegion -destinationAccountType $targetStorageAccountType -sourceVHDName $currentVHDName -destinationVHDName $newVHDName
         LogMsg "---------------Copy #1: END----------------"
+        LogMsg "Saving '$newVHDName' to .\CapturedVHD.azure.env"
+        $Out = Set-Content -Path .\CapturedVHD.azure.env -Value $newVHDName -NoNewline -Force
         #endregion
 
         $testResult = "PASS"
