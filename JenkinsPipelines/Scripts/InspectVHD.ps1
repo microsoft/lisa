@@ -71,7 +71,7 @@ try
             if ($env:CustomVHDURL)
             {
                 LogMsg "Moving downloaded $ReceivedFile --> $CurrentLocalFolder."
-                $Out = Move-Item $ReceivedFile -Path -Destination $CurrentLocalFolder -Force
+                $Out = Move-Item -Path $ReceivedFile -Destination $CurrentLocalFolder -Force
             }
             else 
             {
