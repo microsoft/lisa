@@ -479,7 +479,7 @@ Function CreateAllResourceGroupDeployments($setupType, $xmlConfig, $Distro, [str
                         }
                         if ($isServiceCreated -eq "True")
                         {
-                            $azureDeployJSONFilePath = "$LogDir\$groupName.json"
+                            $azureDeployJSONFilePath = ".\Temp\$groupName.json"
                             $DeploymentCommand = GenerateAzureDeployJSONFile -RGName $groupName -osImage $osImage -osVHD $osVHD -RGXMLData $RG -Location $location -azuredeployJSONFilePath $azureDeployJSONFilePath -storageAccount $storageAccount
                             $DeploymentStartTime = (Get-Date)
                             $CreateRGDeployments = CreateResourceGroupDeployment -RGName $groupName -location $location -setupType $setupType -TemplateFile $azureDeployJSONFilePath

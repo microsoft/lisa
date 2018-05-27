@@ -55,7 +55,7 @@ function GetTestSummary($testCycle, [DateTime] $StartTime, [string] $xmlFilename
     $str += "<pre>"
     $str += $testCycle.emailSummary + "<br />"
     $hostName = hostname
-    $str += "<br />Logs can be found at \\${hostname}\TestResults\" + $xmlFilename + "-" + $StartTime.ToString("yyyyMMdd-HHmmss") + "<br /><br />"
+    $str += "<br />Logs can be found at $LogDir" + "<br /><br />"
     $str += "</pre>"
     $plainTextSummary = $str
     $strHtml =  "<style type='text/css'>" +

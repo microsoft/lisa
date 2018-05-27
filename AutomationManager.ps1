@@ -165,7 +165,7 @@ try
         Set-Variable -Name Distro -Value $RGIdentifier -Scope Global
         Set-Variable -Name onCloud -Value $onCloud -Scope Global
         Set-Variable -Name xmlConfig -Value $xmlConfig -Scope Global
-        LogMsg = "'$LogDir' saved to .\report\lastLogDirectory.txt"
+        LogMsg "'$LogDir' saved to .\report\lastLogDirectory.txt"
         Set-Content -Path .\report\lastLogDirectory.txt -Value $LogDir -Force
         Set-Variable -Name vnetIsAllConfigured -Value $false -Scope Global
         if($EconomyMode)
