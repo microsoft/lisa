@@ -38,10 +38,10 @@
 		<files></files>
 		<setupType>DS14DISK12NFS</setupType>
 		<Platform>Azure</Platform>
-		<Category>Demo</Category>
-		<Area>Demo</Area>
-		<Tags>demo</Tags>
-		<TestID>Demo_003</TestID>
+		<Category></Category>
+		<Area></Area>
+		<Tags></Tags>
+		<TestID></TestID>
 	</test>	
 	
 </TestCases>

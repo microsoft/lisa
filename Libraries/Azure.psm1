@@ -818,7 +818,7 @@ $dnsNameForPublicIP = $($RGName.ToLower() -replace '[^a-z0-9]') + "$randomNum"
 $dnsNameForPublicIPv6 = $($RGName.ToLower() -replace '[^a-z0-9]') + "v6" + "$randomNum"
 #$virtualNetworkName = $($RGName.ToUpper() -replace '[^a-z]') + "VNET"
 $virtualNetworkName = "VirtualNetwork"
-$defaultSubnetName = "Subnet1"
+$defaultSubnetName = "SubnetForPrimaryNIC"
 #$availibilitySetName = $($RGName.ToUpper() -replace '[^a-z]') + "AvSet"
 $availibilitySetName = "AvailibilitySet"
 #$LoadBalancerName =  $($RGName.ToUpper() -replace '[^a-z]') + "LoadBalancer"
@@ -911,6 +911,7 @@ for ($i =0; $i -lt 30; $i++)
 $numberOfVMs = 0
 $EnableIPv6 = $false
 $ForceLoadBalancerForSingleVM = $false
+$totalSubnetsRequired = 0
 foreach ( $newVM in $RGXMLData.VirtualMachine)
 {
     $numberOfVMs += 1
@@ -926,6 +927,11 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
             {
                 $ForceLoadBalancerForSingleVM = $true
             }
+            #Check total subnets required
+            if ( $newVM.ExtraNICs -ne 0)
+            {
+                $totalSubnetsRequired = $newVM.ExtraNICs
+            }            
         }
     }
 }
@@ -1228,13 +1234,25 @@ Set-Content -Value "$($indents[0]){" -Path $jsonFile -Force
                             Add-Content -Value "$($indents[7])^addressPrefix^: ^[variables('defaultSubnetPrefix')]^" -Path $jsonFile
                         Add-Content -Value "$($indents[6])}" -Path $jsonFile
                     Add-Content -Value "$($indents[5])}" -Path $jsonFile
-                    #Add-Content -Value "$($indents[5]){" -Path $jsonFile
-                    #    Add-Content -Value "$($indents[6])^name^: ^[variables('subnet2Name')]^," -Path $jsonFile
-                    #    Add-Content -Value "$($indents[6])^properties^: " -Path $jsonFile
-                    #    Add-Content -Value "$($indents[6]){" -Path $jsonFile
-                    #        Add-Content -Value "$($indents[7])^addressPrefix^: ^[variables('subnet2Prefix')]^" -Path $jsonFile
-                    #    Add-Content -Value "$($indents[6])}" -Path $jsonFile
-                    #Add-Content -Value "$($indents[5])}" -Path $jsonFile
+                    LogMsg "  Added Default Subnet to $virtualNetworkName.."
+
+                    if ($totalSubnetsRequired -ne 0)
+                    {
+                        $subnetCounter = 1
+                        While($subnetCounter -le $totalSubnetsRequired)
+                        {
+                    Add-Content -Value "$($indents[5])," -Path $jsonFile
+                    Add-Content -Value "$($indents[5]){" -Path $jsonFile
+                        Add-Content -Value "$($indents[6])^name^: ^ExtraSubnet-$subnetCounter^," -Path $jsonFile
+                        Add-Content -Value "$($indents[6])^properties^: " -Path $jsonFile
+                        Add-Content -Value "$($indents[6]){" -Path $jsonFile
+                            Add-Content -Value "$($indents[7])^addressPrefix^: ^10.0.$subnetCounter.0/24^" -Path $jsonFile
+                        Add-Content -Value "$($indents[6])}" -Path $jsonFile
+                    Add-Content -Value "$($indents[5])}" -Path $jsonFile
+                    LogMsg "  Added ExtraSubnet-$subnetCounter to $virtualNetworkName.."
+                    $subnetCounter += 1
+                        }
+                    }
                 Add-Content -Value "$($indents[4])]" -Path $jsonFile
             Add-Content -Value "$($indents[3])}" -Path $jsonFile
         Add-Content -Value "$($indents[2])}," -Path $jsonFile
@@ -1347,7 +1365,7 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
     }
     else
     {
-        $vmName = $RGName+"-role-"+$role
+        $vmName = "$RGName-role-$role"
     }
     foreach ( $endpoint in $newVM.EndPoints)
     {
@@ -1402,7 +1420,7 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
     }
     else
     {
-        $vmName = $RGName+"-role-"+$role
+        $vmName = "$RGName-role-$role"
     }
     
     foreach ( $endpoint in $newVM.EndPoints)
@@ -1496,14 +1514,16 @@ $addedProbes = $null
 $role = 0
 foreach ( $newVM in $RGXMLData.VirtualMachine)
 {
+    
     if($newVM.RoleName)
     {
         $vmName = $newVM.RoleName
     }
     else
     {
-        $vmName = $RGName+"-role-"+$role
+        $vmName = "$RGName-role-$role"
     }
+
     foreach ( $endpoint in $newVM.EndPoints)
     {
         if ( ($endpoint.LoadBalanced -eq "True") )
@@ -1571,7 +1591,7 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
     }
     else
     {
-        $vmName = $RGName+"-role-"+$role + "-$($randomNum)"
+        $vmName = "$RGName-role-$role"
     }
     $NIC = "PrimaryNIC" + "-$vmName"
 
@@ -1734,7 +1754,53 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
             }
 				Add-Content -Value "$($indents[3])}" -Path $jsonFile
 			Add-Content -Value "$($indents[2])}," -Path $jsonFile
-		}
+        }
+        
+        #Add Bulk NICs
+        $currentVMNics = 0
+		while ($currentVMNics -lt $newVM.ExtraNICs)
+		{
+            $totalRGNics += 1
+            $currentVMNics += 1
+			$NicName = "$($vmName)-ExtraNetworkCard-$currentVMNics"
+			$NicNameList.add($NicName)
+			Add-Content -Value "$($indents[2]){" -Path $jsonFile
+				Add-Content -Value "$($indents[3])^apiVersion^: ^2016-09-01^," -Path $jsonFile
+				Add-Content -Value "$($indents[3])^type^: ^Microsoft.Network/networkInterfaces^," -Path $jsonFile
+				Add-Content -Value "$($indents[3])^name^: ^$NicName^," -Path $jsonFile
+				Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^,"   -Path $jsonFile
+				Add-Content -Value "$($indents[3])^dependsOn^: " -Path $jsonFile
+				Add-Content -Value "$($indents[3])[" -Path $jsonFile
+					Add-Content -Value "$($indents[4])^[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]^," -Path $jsonFile
+                    Add-Content -Value "$($indents[4])^[variables('lbID')]^" -Path $jsonFile
+				Add-Content -Value "$($indents[3])]," -Path $jsonFile
+
+				Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
+				Add-Content -Value "$($indents[3]){" -Path $jsonFile
+					Add-Content -Value "$($indents[4])^ipConfigurations^: " -Path $jsonFile
+					Add-Content -Value "$($indents[4])[" -Path $jsonFile
+						Add-Content -Value "$($indents[5]){" -Path $jsonFile
+							Add-Content -Value "$($indents[6])^name^: ^IPv4Config1^," -Path $jsonFile
+							Add-Content -Value "$($indents[6])^properties^: " -Path $jsonFile
+							Add-Content -Value "$($indents[6]){" -Path $jsonFile
+								Add-Content -Value "$($indents[7])^subnet^:" -Path $jsonFile
+								Add-Content -Value "$($indents[7]){" -Path $jsonFile
+                                    Add-Content -Value "$($indents[8])^id^: ^[concat(variables('vnetID'),'/subnets/', 'ExtraSubnet-$currentVMNics')]^" -Path $jsonFile
+                                    LogMsg "  $NicName is part of subnet - ExtraSubnet-$currentVMNics"
+								Add-Content -Value "$($indents[7])}" -Path $jsonFile
+							Add-Content -Value "$($indents[6])}" -Path $jsonFile
+						Add-Content -Value "$($indents[5])}" -Path $jsonFile
+					Add-Content -Value "$($indents[4])]" -Path $jsonFile
+            if ($EnableAcceleratedNetworking -or $CurrentTestData.AdditionalHWConfig.Networking -imatch "SRIOV")
+            {
+                Add-Content -Value "$($indents[4])," -Path $jsonFile
+                Add-Content -Value "$($indents[4])^enableAcceleratedNetworking^: true" -Path $jsonFile
+                LogMsg "  Enabled Accelerated Networking for $NicName."
+            }
+				Add-Content -Value "$($indents[3])}" -Path $jsonFile
+			Add-Content -Value "$($indents[2])}," -Path $jsonFile
+        }
+                
 		#endregion
         #region virtualMachines
         LogMsg "Adding Virtual Machine $vmName"
@@ -1768,15 +1834,15 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
             {
                 Add-Content -Value "$($indents[4])^[concat('Microsoft.Storage/storageAccounts/', variables('StorageAccountName'))]^," -Path $jsonFile
             }
-		if($NicNameList)
-		{
-			foreach($NicName in $NicNameList)
-			{
-                Add-Content -Value "$($indents[4])^[concat('Microsoft.Network/networkInterfaces/', '$NicName')]^," -Path $jsonFile
-			}
-        }
-                Add-Content -Value "$($indents[4])^[concat('Microsoft.Network/networkInterfaces/', '$NIC')]^" -Path $jsonFile
-            Add-Content -Value "$($indents[3])]," -Path $jsonFile
+            if($NicNameList)
+            {
+                foreach($NicName in $NicNameList)
+                {
+                    Add-Content -Value "$($indents[4])^[concat('Microsoft.Network/networkInterfaces/', '$NicName')]^," -Path $jsonFile
+                }
+            }
+                    Add-Content -Value "$($indents[4])^[concat('Microsoft.Network/networkInterfaces/', '$NIC')]^" -Path $jsonFile
+                Add-Content -Value "$($indents[3])]," -Path $jsonFile
 
             #region VM Properties
             Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
@@ -1892,11 +1958,11 @@ if ( ($numberOfVMs -eq 1) -and !$EnableIPv6 -and !$ForceLoadBalancerForSingleVM 
     {
         if($newVM.RoleName)
         {
-            $vmName = $newVM.RoleName + "-$($randomNum)"
+            $vmName = $newVM.RoleName
         }
         else
         {
-            $vmName = $RGName+"-role-0-$($randomNum)"
+            $vmName = "$RGName-role-0"
         }
     }
     else
@@ -1907,7 +1973,7 @@ if ( ($numberOfVMs -eq 1) -and !$EnableIPv6 -and !$ForceLoadBalancerForSingleVM 
         }
         else
         {
-            $vmName = $RGName+"-role-0"
+            $vmName = "$RGName-role-0"
         }
     }
     $vmAdded = $false
@@ -2013,7 +2079,50 @@ if ( ($numberOfVMs -eq 1) -and !$EnableIPv6 -and !$ForceLoadBalancerForSingleVM 
             }
 				Add-Content -Value "$($indents[3])}" -Path $jsonFile
 			Add-Content -Value "$($indents[2])}," -Path $jsonFile
-		}
+        }
+        
+        #Add Bulk NICs
+        $currentVMNics = 0
+		while ($currentVMNics -lt $newVM.ExtraNICs)
+		{
+			$NicName = "ExtraNetworkCard-$totalRGNics"
+			$NicNameList.add($NicName)
+			Add-Content -Value "$($indents[2]){" -Path $jsonFile
+				Add-Content -Value "$($indents[3])^apiVersion^: ^2016-09-01^," -Path $jsonFile
+				Add-Content -Value "$($indents[3])^type^: ^Microsoft.Network/networkInterfaces^," -Path $jsonFile
+				Add-Content -Value "$($indents[3])^name^: ^$NicName^," -Path $jsonFile
+				Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
+				Add-Content -Value "$($indents[3])^dependsOn^: " -Path $jsonFile
+				Add-Content -Value "$($indents[3])[" -Path $jsonFile
+					Add-Content -Value "$($indents[4])^[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]^," -Path $jsonFile
+				Add-Content -Value "$($indents[3])]," -Path $jsonFile
+
+				Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
+				Add-Content -Value "$($indents[3]){" -Path $jsonFile
+					Add-Content -Value "$($indents[4])^ipConfigurations^: " -Path $jsonFile
+					Add-Content -Value "$($indents[4])[" -Path $jsonFile
+						Add-Content -Value "$($indents[5]){" -Path $jsonFile
+							Add-Content -Value "$($indents[6])^name^: ^IPv4Config1^," -Path $jsonFile
+							Add-Content -Value "$($indents[6])^properties^: " -Path $jsonFile
+							Add-Content -Value "$($indents[6]){" -Path $jsonFile
+								Add-Content -Value "$($indents[7])^subnet^:" -Path $jsonFile
+								Add-Content -Value "$($indents[7]){" -Path $jsonFile
+									Add-Content -Value "$($indents[8])^id^: ^[variables('defaultSubnetID')]^" -Path $jsonFile
+								Add-Content -Value "$($indents[7])}" -Path $jsonFile
+							Add-Content -Value "$($indents[6])}" -Path $jsonFile
+						Add-Content -Value "$($indents[5])}" -Path $jsonFile
+					Add-Content -Value "$($indents[4])]" -Path $jsonFile
+            if ($EnableAcceleratedNetworking -or $CurrentTestData.AdditionalHWConfig.Networking -imatch "SRIOV")
+            {
+                Add-Content -Value "$($indents[4])," -Path $jsonFile
+                Add-Content -Value "$($indents[4])^enableAcceleratedNetworking^: true" -Path $jsonFile
+                LogMsg "Enabled Accelerated Networking for $NicName."
+            }
+				Add-Content -Value "$($indents[3])}" -Path $jsonFile
+			Add-Content -Value "$($indents[2])}," -Path $jsonFile
+            $totalRGNics += 1
+            $currentVMNics += 1
+		}        
 		#endregion
         
         #endregion
