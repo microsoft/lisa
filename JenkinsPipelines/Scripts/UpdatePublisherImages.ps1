@@ -9,7 +9,6 @@ try
     $ExitCode = 1
     #region Update All ARM Images
     $tab = "	"
-    $OutputFilePath = "."
     $Location = "northeurope"
     $allRMPubs = $Publishers.Split(",") | Sort-Object
     $ARMImages = "Publisher	Offer	SKU	Version`n"
@@ -56,6 +55,7 @@ try
         }
     }
     $ARMImages = $ARMImages.TrimEnd("`n")
+    LogMsg "$OutputFilePath Saving  successfully."
     Set-Content -Value $ARMImages -Path $OutputFilePath -Force -NoNewline
     LogMsg "$OutputFilePath Saved successfully."
     $ExitCode = 0
