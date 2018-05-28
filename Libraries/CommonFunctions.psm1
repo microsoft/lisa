@@ -16,7 +16,10 @@ function LogVerbose ()
     )
     try
     {
-        $text = $text.Replace('"','`"')
+		if ($password)
+		{
+			$text = $text.Replace($password,"******")
+		}
         $now = [Datetime]::Now.ToUniversalTime().ToString("MM/dd/yyyy HH:mm:ss")
         if ( $VerboseCommand )
         {
@@ -36,13 +39,25 @@ function LogError ()
     )
     try
     {
-        $text = $text.Replace('"','`"')
+		if ($password)
+		{
+			$text = $text.Replace($password,"******")
+		}
         $now = [Datetime]::Now.ToUniversalTime().ToString("MM/dd/yyyy HH:mm:ss")
-        Write-Host "Error: $now : $text"
+		$FinalMessage = "ERROR : $now : $text"
+		Write-Host $FinalMessage
+		if ($LogDir)
+		{
+			Add-Content -Value $FinalMessage -Path "$LogDir\Logs.txt" -Force
+		}
+		if ($CurrentTestLogDir )
+		{
+			Add-Content -Value $FinalMessage -Path "$CurrentTestLogDir\CurrentTestLogs.txt" -Force
+		}
     }
     catch
     {
-        ThrowException($_)
+        Write-Host "Unable to LogError : $now : $text"
     }    
 }
 
@@ -54,13 +69,25 @@ function LogMsg()
     )
     try
     {
-        $text = $text.Replace('"','`"')
+		if ($password)
+		{
+			$text = $text.Replace($password,"******")
+		}
         $now = [Datetime]::Now.ToUniversalTime().ToString("MM/dd/yyyy HH:mm:ss")
-        Write-Host "$now : $text"
+		$FinalMessage = "INFO : $now : $text"
+		Write-Host $FinalMessage
+		if ($LogDir)
+		{
+			Add-Content -Value $FinalMessage -Path "$LogDir\Logs.txt" -Force
+		}
+		if ($CurrentTestLogDir )
+		{
+			Add-Content -Value $FinalMessage -Path "$CurrentTestLogDir\CurrentTestLogs.txt" -Force
+		}
     }
     catch
     {
-        ThrowException($_)
+        Write-Host "Unable to LogMsg : $now : $text"
     }  
 }
 
@@ -81,13 +108,25 @@ Function LogWarn()
     )
     try
     {
-        $text = $text.Replace('"','`"')
+		if ($password)
+		{
+			$text = $text.Replace($password,"******")
+		}
         $now = [Datetime]::Now.ToUniversalTime().ToString("MM/dd/yyyy HH:mm:ss")
-        Write-Host "WARGNING: $now : $text"
+		$FinalMessage = "WARNING : $now : $text"
+		Write-Host $FinalMessage
+		if ($LogDir)
+		{
+			Add-Content -Value $FinalMessage -Path "$LogDir\Logs.txt" -Force
+		}
+		if ($CurrentTestLogDir )
+		{
+			Add-Content -Value $FinalMessage -Path "$CurrentTestLogDir\CurrentTestLogs.txt" -Force
+		}
     }
     catch
     {
-        ThrowException($_)
+        Write-Host "Unable to LogWarn : $now : $text"
     }  
 }
 Function ValiateXMLs( [string]$ParentFolder )
@@ -119,20 +158,11 @@ Function ValiateXMLs( [string]$ParentFolder )
 
 Function ProvisionVMsForLisa($allVMData, $installPackagesOnRoleNames)
 {
-	$scriptUrl = "https://raw.githubusercontent.com/iamshital/lis-test/master/WS2012R2/lisa/remote-scripts/ica/provisionLinuxForLisa.sh"
-	$sshPrivateKeyPath = ".\ssh\myPrivateKey.key"
-	$sshPrivateKey = "myPrivateKey.key"
-	LogMsg "Downloading $scriptUrl ..."
-	$scriptName =  $scriptUrl.Split("/")[$scriptUrl.Split("/").Count-1]
-	$start_time = Get-Date
-	$out = Invoke-WebRequest -Uri $scriptUrl -OutFile "$LogDir\$scriptName"
-	LogMsg "Time taken: $((Get-Date).Subtract($start_time).Seconds) second(s)"
-
     $keysGenerated = $false
 	foreach ( $vmData in $allVMData )
 	{
 		LogMsg "Configuring $($vmData.RoleName) for LISA test..."
-		RemoteCopy -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files ".\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\$LogDir\provisionLinuxForLisa.sh" -username $user -password $password -upload
+		RemoteCopy -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files ".\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\provisionLinuxForLisa.sh" -username $user -password $password -upload
 		$out = RunLinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -command "chmod +x /home/$user/*.sh" -runAsSudo			
 		$rootPasswordSet = RunLinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -command "/home/$user/enableRoot.sh -password $($password.Replace('"',''))" -runAsSudo
 		LogMsg $rootPasswordSet
@@ -1746,26 +1776,29 @@ Function DoTestCleanUp($result, $testName, $DeployedServices, $ResourceGroups, [
 		{
 			try
 			{
-				foreach ($vmData in $allVMData)
+				if (!$SkipVerifyKernelLogs)
 				{
-					$out = RemoteCopy -upload -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files .\Testscripts\Linux\CollectLogFile.sh -username $user -password $password
-					$out = RunLinuxCmd -username $user -password $password -ip $vmData.PublicIP -port $vmData.SSHPort -command "bash CollectLogFile.sh" -ignoreLinuxExitCode
-					$out = RemoteCopy -downloadFrom $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -files "$($vmData.RoleName)-*.txt" -downloadTo "$LogDir" -download
-					$finalKernelVersion = Get-Content "$LogDir\$($vmData.RoleName)-kernelVersion.txt"
-					Set-Variable -Name finalKernelVersion -Value $finalKernelVersion -Scope Global
-					#region LIS Version
-					$tempLIS = (Select-String -Path "$LogDir\$($vmData.RoleName)-lis.txt" -Pattern "^version:").Line
-					if ($tempLIS)
+					foreach ($vmData in $allVMData)
 					{
-						$finalLISVersion = $tempLIS.Split(":").Trim()[1]
+						$out = RemoteCopy -upload -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files .\Testscripts\Linux\CollectLogFile.sh -username $user -password $password
+						$out = RunLinuxCmd -username $user -password $password -ip $vmData.PublicIP -port $vmData.SSHPort -command "bash CollectLogFile.sh" -ignoreLinuxExitCode
+						$out = RemoteCopy -downloadFrom $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -files "$($vmData.RoleName)-*.txt" -downloadTo "$LogDir" -download
+						$finalKernelVersion = Get-Content "$LogDir\$($vmData.RoleName)-kernelVersion.txt"
+						Set-Variable -Name finalKernelVersion -Value $finalKernelVersion -Scope Global
+						#region LIS Version
+						$tempLIS = (Select-String -Path "$LogDir\$($vmData.RoleName)-lis.txt" -Pattern "^version:").Line
+						if ($tempLIS)
+						{
+							$finalLISVersion = $tempLIS.Split(":").Trim()[1]
+						}
+						else
+						{
+							$finalLISVersion = "NA"
+						}
+						Set-Variable -Name finalLISVersion -Value $finalLISVersion -Scope Global
+						Write-Host "Setting : finalLISVersion : $finalLISVersion"
+						#endregion
 					}
-					else
-					{
-						$finalLISVersion = "NA"
-					}
-					Set-Variable -Name finalLISVersion -Value $finalLISVersion -Scope Global
-					Write-Host "Setting : finalLISVersion : $finalLISVersion"
-					#endregion
 				}
 			}
 			catch
@@ -2131,7 +2164,7 @@ Function RemoveAllFilesFromHomeDirectory($allDeployedVMs)
 	}
 }
 
-Function GetAllDeployementData($DeployedServices, $ResourceGroups)
+Function GetAllDeployementData($ResourceGroups)
 {
 	$allDeployedVMs = @()
 	function CreateQuickVMNode()
@@ -2151,138 +2184,103 @@ Function GetAllDeployementData($DeployedServices, $ResourceGroups)
 		return $objNode
 	}
 
-	if ( $UseAzureResourceManager )
+	foreach ($ResourceGroup in $ResourceGroups.Split("^"))
 	{
-		foreach ($ResourceGroup in $ResourceGroups.Split("^"))
-		{
-			LogMsg "Collecting $ResourceGroup data.."
+		LogMsg "Collecting $ResourceGroup data.."
 
-			$allRGResources = (Get-AzureRmResource | where { $_.ResourceGroupName -eq $ResourceGroup } | Select ResourceType).ResourceType
-			LogMsg "    Microsoft.Network/publicIPAddresses data collection in progress.."
-			$RGIPdata = Get-AzureRmResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Network/publicIPAddresses" -Verbose -ExpandProperties
-			LogMsg "    Microsoft.Compute/virtualMachines data collection in progress.."
-			$RGVMs = Get-AzureRmResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Compute/virtualMachines" -Verbose -ExpandProperties
-			LogMsg "    Microsoft.Network/networkInterfaces data collection in progress.."
-			$NICdata = Get-AzureRmResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Network/networkInterfaces" -Verbose -ExpandProperties
-			$currentRGLocation = (Get-AzureRmResourceGroup -ResourceGroupName $ResourceGroup).Location
-			$numberOfVMs = 0
-			foreach ($testVM in $RGVMs)
-			{
-				$numberOfVMs += 1
-			}
-			if ( ($numberOfVMs -gt 1) -or (($RGIPData | where { $_.Properties.publicIPAddressVersion -eq "IPv6" }).Properties.ipAddress) -or ($allRGResources -contains "Microsoft.Network/loadBalancers"))
-			{
-				LogMsg "    Microsoft.Network/loadBalancers data collection in progress.."
-				$LBdata = Get-AzureRmResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Network/loadBalancers" -ExpandProperties -Verbose
-			}
-			foreach ($testVM in $RGVMs)
-			{
-				$QuickVMNode = CreateQuickVMNode
-				if ( ( $numberOfVMs -gt 1 ) -or (($RGIPData | where { $_.Properties.publicIPAddressVersion -eq "IPv6" }).Properties.ipAddress)  -or ($allRGResources -contains "Microsoft.Network/loadBalancers"))
-				{
-					$InboundNatRules = $LBdata.Properties.InboundNatRules
-					foreach ($endPoint in $InboundNatRules)
-					{
-						if ( $endPoint.Name -imatch $testVM.ResourceName)
-						{
-							$endPointName = "$($endPoint.Name)".Replace("$($testVM.ResourceName)-","")
-							Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($endPointName)Port" -Value $endPoint.Properties.FrontendPort -Force
-						}
-					}
-					$LoadBalancingRules = $LBdata.Properties.LoadBalancingRules
-					foreach ( $LBrule in $LoadBalancingRules )
-					{
-						if ( $LBrule.Name -imatch "$ResourceGroup-LB-" )
-						{
-							$endPointName = "$($LBrule.Name)".Replace("$ResourceGroup-LB-","")
-							Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($endPointName)Port" -Value $LBrule.Properties.FrontendPort -Force
-						}
-					}
-					$Probes = $LBdata.Properties.Probes
-					foreach ( $Probe in $Probes )
-					{
-						if ( $Probe.Name -imatch "$ResourceGroup-LB-" )
-						{
-							$probeName = "$($Probe.Name)".Replace("$ResourceGroup-LB-","").Replace("-probe","")
-							Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($probeName)ProbePort" -Value $Probe.Properties.Port -Force
-						}
-					}
-				}
-				else
-				{
-					LogMsg "    Microsoft.Network/networkSecurityGroups data collection in progress.."
-					$SGData = Get-AzureRmResource -ResourceGroupName $ResourceGroup -ResourceName "SG-$($testVM.ResourceName)" -ResourceType "Microsoft.Network/networkSecurityGroups" -ExpandProperties
-					foreach ($securityRule in $SGData.Properties.securityRules)
-					{
-						Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($securityRule.name)Port" -Value $securityRule.properties.destinationPortRange -Force
-					}
-					if($AllEndpoints.Length -eq 0)
-					{
-                        $sg = Get-AzureRmNetworkSecurityGroup -ResourceGroupName $testVM.ResourceGroupName -Name "SG-$($testVM.ResourceName)"
-						foreach($rule in $sg.SecurityRules)
-						{
-							Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($rule.Name)Port" -Value $rule.DestinationPortRange[0] -Force
-							if (($rule.Name -imatch "Cleanuptool-22-Corpnet") -and ($QuickVMNode.SSHPort -ne "22"))
-							{
-								LogMsg "    Cleanuptool-22-Corpnet detected. Applying workaroud."
-								Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "SSHPort" -Value "22" -Force
-							}                
-						}
-					}
-				}
-				foreach ( $nic in $NICdata )
-				{
-					if ( $nic.Name -imatch $testVM.ResourceName)
-					{
-						$QuickVMNode.InternalIP = "$($nic.Properties.IpConfigurations[0].Properties.PrivateIPAddress)"
-					}
-				}
-				$QuickVMNode.ResourceGroupName = $ResourceGroup
-                
-				$QuickVMNode.PublicIP = ($RGIPData | where { $_.Properties.publicIPAddressVersion -eq "IPv4" }).Properties.ipAddress
-				$QuickVMNode.PublicIPv6 = ($RGIPData | where { $_.Properties.publicIPAddressVersion -eq "IPv6" }).Properties.ipAddress
-				$QuickVMNode.URL = ($RGIPData | where { $_.Properties.publicIPAddressVersion -eq "IPv4" }).Properties.dnsSettings.fqdn
-				$QuickVMNode.URLv6 = ($RGIPData | where { $_.Properties.publicIPAddressVersion -eq "IPv6" }).Properties.dnsSettings.fqdn
-				$QuickVMNode.RoleName = $testVM.ResourceName
-				$QuickVMNode.Status = $testVM.Properties.ProvisioningState
-				$QuickVMNode.InstanceSize = $testVM.Properties.hardwareProfile.vmSize
-				$QuickVMNode.Location = $currentRGLocation
-				$allDeployedVMs += $QuickVMNode
-			}
-			LogMsg "Collected $ResourceGroup data!"		
-		}
-	}
-	else
-	{
-		$allDeployedVMs = @()
-		foreach ($ResourceGroup in $DeployedServices.Split("^"))
+		$allRGResources = (Get-AzureRmResource | where { $_.ResourceGroupName -eq $ResourceGroup } | Select ResourceType).ResourceType
+		LogMsg "    Microsoft.Network/publicIPAddresses data collection in progress.."
+		$RGIPdata = Get-AzureRmResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Network/publicIPAddresses" -Verbose -ExpandProperties
+		LogMsg "    Microsoft.Compute/virtualMachines data collection in progress.."
+		$RGVMs = Get-AzureRmResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Compute/virtualMachines" -Verbose -ExpandProperties
+		LogMsg "    Microsoft.Network/networkInterfaces data collection in progress.."
+		$NICdata = Get-AzureRmResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Network/networkInterfaces" -Verbose -ExpandProperties
+		$currentRGLocation = (Get-AzureRmResourceGroup -ResourceGroupName $ResourceGroup).Location
+		$numberOfVMs = 0
+		foreach ($testVM in $RGVMs)
 		{
-			LogMsg "Collecting $ResourceGroup data..."
-			$testServiceData = Get-AzureService -ServiceName $ResourceGroup
-			$DeployedVMs = Get-AzureVM -ServiceName $ResourceGroup
-			foreach ($testVM in $DeployedVMs)
+			$numberOfVMs += 1
+		}
+		if ( ($numberOfVMs -gt 1) -or (($RGIPData | where { $_.Properties.publicIPAddressVersion -eq "IPv6" }).Properties.ipAddress) -or ($allRGResources -contains "Microsoft.Network/loadBalancers"))
+		{
+			LogMsg "    Microsoft.Network/loadBalancers data collection in progress.."
+			$LBdata = Get-AzureRmResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Network/loadBalancers" -ExpandProperties -Verbose
+		}
+		foreach ($testVM in $RGVMs)
+		{
+			$QuickVMNode = CreateQuickVMNode
+			if ( ( $numberOfVMs -gt 1 ) -or (($RGIPData | where { $_.Properties.publicIPAddressVersion -eq "IPv6" }).Properties.ipAddress)  -or ($allRGResources -contains "Microsoft.Network/loadBalancers"))
 			{
-				$QuickVMNode = CreateQuickVMNode
-				$AllEndpoints = Get-AzureEndpoint -VM $testVM
-				$QuickVMNode.ServiceName = $ResourceGroup
-				$QuickVMNode.RoleName = $testVM.InstanceName
-				$QuickVMNode.PublicIP = $AllEndpoints[0].Vip
-				$QuickVMNode.InternalIP = $testVM.IpAddress
-				$QuickVMNode.InstanceSize = $testVM.InstanceSize
-				foreach ($endpoint in $AllEndpoints)
+				$InboundNatRules = $LBdata.Properties.InboundNatRules
+				foreach ($endPoint in $InboundNatRules)
 				{
-					Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($endpoint.Name)Port" -Value $endpoint.Port -Force
-					if ( $endpoint.ProbePort )
+					if ( $endPoint.Name -imatch $testVM.ResourceName)
 					{
-						Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($endpoint.Name)ProbePort" -Value $endpoint.ProbePort -Force
+						$endPointName = "$($endPoint.Name)".Replace("$($testVM.ResourceName)-","")
+						Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($endPointName)Port" -Value $endPoint.Properties.FrontendPort -Force
 					}
 				}
-				$QuickVMNode.URL = ($testVM.DNSName).Replace("http://","").Replace("/","")
-				$QuickVMNode.Status = $testVM.InstanceStatus
-				$allDeployedVMs += $QuickVMNode
+				$LoadBalancingRules = $LBdata.Properties.LoadBalancingRules
+				foreach ( $LBrule in $LoadBalancingRules )
+				{
+					if ( $LBrule.Name -imatch "$ResourceGroup-LB-" )
+					{
+						$endPointName = "$($LBrule.Name)".Replace("$ResourceGroup-LB-","")
+						Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($endPointName)Port" -Value $LBrule.Properties.FrontendPort -Force
+					}
+				}
+				$Probes = $LBdata.Properties.Probes
+				foreach ( $Probe in $Probes )
+				{
+					if ( $Probe.Name -imatch "$ResourceGroup-LB-" )
+					{
+						$probeName = "$($Probe.Name)".Replace("$ResourceGroup-LB-","").Replace("-probe","")
+						Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($probeName)ProbePort" -Value $Probe.Properties.Port -Force
+					}
+				}
 			}
-			LogMsg "Collected $ResourceGroup data!"
+			else
+			{
+				LogMsg "    Microsoft.Network/networkSecurityGroups data collection in progress.."
+				$SGData = Get-AzureRmResource -ResourceGroupName $ResourceGroup -ResourceName "SG-$($testVM.ResourceName)" -ResourceType "Microsoft.Network/networkSecurityGroups" -ExpandProperties
+				foreach ($securityRule in $SGData.Properties.securityRules)
+				{
+					Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($securityRule.name)Port" -Value $securityRule.properties.destinationPortRange -Force
+				}
+				if($AllEndpoints.Length -eq 0)
+				{
+					$sg = Get-AzureRmNetworkSecurityGroup -ResourceGroupName $testVM.ResourceGroupName -Name "SG-$($testVM.ResourceName)"
+					foreach($rule in $sg.SecurityRules)
+					{
+						Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($rule.Name)Port" -Value $rule.DestinationPortRange[0] -Force
+						if (($rule.Name -imatch "Cleanuptool-22-Corpnet") -and ($QuickVMNode.SSHPort -ne "22"))
+						{
+							LogMsg "    Cleanuptool-22-Corpnet detected. Applying workaroud."
+							Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "SSHPort" -Value "22" -Force
+						}                
+					}
+				}
+			}
+			foreach ( $nic in $NICdata )
+			{
+				if ( $nic.Name -imatch $testVM.ResourceName)
+				{
+					$QuickVMNode.InternalIP = "$($nic.Properties.IpConfigurations[0].Properties.PrivateIPAddress)"
+				}
+			}
+			$QuickVMNode.ResourceGroupName = $ResourceGroup
+			
+			$QuickVMNode.PublicIP = ($RGIPData | where { $_.Properties.publicIPAddressVersion -eq "IPv4" }).Properties.ipAddress
+			$QuickVMNode.PublicIPv6 = ($RGIPData | where { $_.Properties.publicIPAddressVersion -eq "IPv6" }).Properties.ipAddress
+			$QuickVMNode.URL = ($RGIPData | where { $_.Properties.publicIPAddressVersion -eq "IPv4" }).Properties.dnsSettings.fqdn
+			$QuickVMNode.URLv6 = ($RGIPData | where { $_.Properties.publicIPAddressVersion -eq "IPv6" }).Properties.dnsSettings.fqdn
+			$QuickVMNode.RoleName = $testVM.ResourceName
+			$QuickVMNode.Status = $testVM.Properties.ProvisioningState
+			$QuickVMNode.InstanceSize = $testVM.Properties.hardwareProfile.vmSize
+			$QuickVMNode.Location = $currentRGLocation
+			$allDeployedVMs += $QuickVMNode
 		}
+		LogMsg "Collected $ResourceGroup data!"		
 	}
 	return $allDeployedVMs
 }

@@ -35,16 +35,7 @@ else
     LogMsg "$PartnerUsernameShareDirectory available."
 
 }
-
-if ($env:ImageSource -eq $null -and $env:CustomVHD -eq $null)
-{
-    LogMsg "---------------------------------------------------------------------"
-    LogMsg "Error: Please upload a VHD file or choose ImageSource from the list."
-    LogMsg "---------------------------------------------------------------------"
-    $ExitCode += 1
-    exit $ExitCode
-}
-if ($env:ImageSource -eq $null -and $env:CustomVHD -eq $null)
+if (!$env:ImageSource -and !$env:CustomVHD -and !$env:CustomVHDURL)
 {
     LogMsg "---------------------------------------------------------------------"
     LogMsg "Error: Please upload a VHD file or choose ImageSource from the list."

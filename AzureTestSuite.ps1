@@ -110,7 +110,7 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 	}
 
 
-	$testSuiteLogFile=$logFile
+	$testSuiteLogFile=$LogFile
 	$testSuiteResultDetails=@{"totalTc"=0;"totalPassTc"=0;"totalFailTc"=0;"totalAbortedTc"=0}
 	$id = ""
 
@@ -197,14 +197,17 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 				}
 				if(($testPriority -imatch $currentTestData.Priority ) -or (!$testPriority))
 				{
+					$CurrentTestLogDir = "$LogDir\$($currentTestData.testName)"
+					mkdir "$CurrentTestLogDir" -ErrorAction SilentlyContinue | out-null
+					Set-Variable -Name CurrentTestLogDir -Value $CurrentTestLogDir -Scope Global
+					$TestCaseLogFile = "$CurrentTestLogDir\CurrentTestLogs.txt" 
+					
 					$testcase = StartLogTestCase $testsuite "$($test.Name)" "CloudTesting.$($testCycle.cycleName)"
 					$testSuiteResultDetails.totalTc = $testSuiteResultDetails.totalTc +1
 					$stopWatch = SetStopWatch
+					
 					Set-Variable -Name currentTestData -Value $currentTestData -Scope Global
-					mkdir "$testDir\$($currentTestData.testName)" -ErrorAction SilentlyContinue | out-null
-					$testCaseLogFile = $testDir + "\" + $($currentTestData.testName) + "\" + "azure_ica.log"
-					$global:logFile  = $testCaseLogFile
-					Set-Content -Value "" -Path $testCaseLogFile -Force | Out-Null 
+
 					if ((!$currentTestData.SubtestValues -and !$currentTestData.TestMode))
 					{
 						#Tests With No subtests and no SubValues will be executed here..
@@ -212,8 +215,6 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 						{
 							$testMode =  "single"
 							$testResult = ""
-							$LogDir = "$testDir\$($currentTestData.testName)"
-							Set-Variable -Name LogDir -Value $LogDir -Scope Global
 							LogMsg "~~~~~~~~~~~~~~~TEST STARTED : $($currentTestData.testName)~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 							$testScriptPs1 = $currentTestData.PowershellScript
 							$startTime = [Datetime]::Now.ToUniversalTime()
@@ -237,6 +238,8 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 							$testCycle.emailSummary += "	$($currentTestData.testName) : $testResult <br />"
 							$testResultRow = ""
 							LogMsg "~~~~~~~~~~~~~~~TEST END : $($currentTestData.testName)~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+							$CurrentTestLogDir = $null
+							Set-Variable -Name CurrentTestLogDir -Value $null -Scope Global -Force							
 							$dbTestName = $($currentTestData.testName)
 							$dbTestResult = $testResult
 						}
@@ -251,7 +254,7 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 						{
 							$testSuiteResultDetails.totalFailTc = $testSuiteResultDetails.totalFailTc +1
 							$testResultRow = "<span style='color:red;font-weight:bolder'>FAIL</span>"
-							$caseLog = Get-Content -Raw $testCaseLogFile
+							$caseLog = Get-Content -Raw $TestCaseLogFile
 							FinishLogTestCase $testcase "FAIL" "$($test.Name) failed." $caseLog
 							$testCycle.htmlSummary += "<tr><td><font size=`"3`">$executionCount</font></td><td>$($currentTestData.testName)$(AddReproVMDetailsToHtmlReport)</td><td>$testRunDuration min</td><td>$testResultRow</td></tr>"
 						}
@@ -259,7 +262,7 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 						{
 							$testSuiteResultDetails.totalAbortedTc = $testSuiteResultDetails.totalAbortedTc +1
 							$testResultRow = "<span style='background-color:yellow;font-weight:bolder'>ABORT</span>"
-							$caseLog = Get-Content -Raw $testCaseLogFile
+							$caseLog = Get-Content -Raw $TestCaseLogFile
 							FinishLogTestCase $testcase "ERROR" "$($test.Name) is aborted." $caseLog
 							$testCycle.htmlSummary += "<tr><td><font size=`"3`">$executionCount</font></td><td>$($currentTestData.testName)$(AddReproVMDetailsToHtmlReport)</td><td>$testRunDuration min</td><td>$testResultRow</td></tr>"
 						}
@@ -267,7 +270,7 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 						{
 							LogErr "Test Result is empty."
 							$testSuiteResultDetails.totalAbortedTc = $testSuiteResultDetails.totalAbortedTc +1
-							$caseLog = Get-Content -Raw $testCaseLogFile
+							$caseLog = Get-Content -Raw $TestCaseLogFile
 							$testResultRow = "<span style='background-color:yellow;font-weight:bolder'>ABORT</span>"
 							FinishLogTestCase $testcase "ERROR" "$($test.Name) is aborted." $caseLog
 							$testCycle.htmlSummary += "<tr><td><font size=`"3`">$executionCount</font></td><td>$tempHtmlText$(AddReproVMDetailsToHtmlReport)</td><td>$testRunDuration min</td><td>$testResultRow</td></tr>"
@@ -279,8 +282,6 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 						{
 							$testMode =  "multi"
 							$testResult = @()
-							$LogDir = "$testDir\$($currentTestData.testName)"
-							Set-Variable -Name LogDir -Value $LogDir -Scope Global
 							LogMsg "~~~~~~~~~~~~~~~TEST STARTED : $($currentTestData.testName)~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 							$testScriptPs1 = $currentTestData.PowershellScript
 							$command = ".\Testscripts\Windows\" + $testScriptPs1
@@ -312,6 +313,8 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 							$testCycle.emailSummary += "$($testResult[1])"
 							$summary = "$($testResult[1])"
 							LogMsg "~~~~~~~~~~~~~~~TEST END : $($currentTestData.testName)~~~~~~~~~~"
+							$CurrentTestLogDir = $null
+							Set-Variable -Name CurrentTestLogDir -Value $null -Scope Global -Force							
 						}
 						if($testResult[0] -imatch "PASS")
 						{
@@ -323,7 +326,7 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 						elseif($testResult[0] -imatch "FAIL")
 						{
 							$testSuiteResultDetails.totalFailTc = $testSuiteResultDetails.totalFailTc +1
-							$caseLog = Get-Content -Raw $testCaseLogFile
+							$caseLog = Get-Content -Raw $TestCaseLogFile
 							$testResultRow = "<span style='color:red;font-weight:bolder'>FAIL</span>"
 							FinishLogTestCase $testcase "FAIL" "$($test.Name) failed." $caseLog
 							$testCycle.htmlSummary += "<tr><td><font size=`"3`">$executionCount</font></td><td>$tempHtmlText$(AddReproVMDetailsToHtmlReport)</td><td>$testRunDuration min</td><td>$testResultRow</td></tr>"
@@ -331,7 +334,7 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 						elseif($testResult[0] -imatch "ABORTED")
 						{
 							$testSuiteResultDetails.totalAbortedTc = $testSuiteResultDetails.totalAbortedTc +1
-							$caseLog = Get-Content -Raw $testCaseLogFile
+							$caseLog = Get-Content -Raw $TestCaseLogFile
 							$testResultRow = "<span style='background-color:yellow;font-weight:bolder'>ABORT</span>"
 							FinishLogTestCase $testcase "ERROR" "$($test.Name) is aborted." $caseLog
 							$testCycle.htmlSummary += "<tr><td><font size=`"3`">$executionCount</font></td><td>$tempHtmlText$(AddReproVMDetailsToHtmlReport)</td><td>$testRunDuration min</td><td>$testResultRow</td></tr>"
@@ -340,7 +343,7 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 						{
 							LogErr "Test Result is empty."
 							$testSuiteResultDetails.totalAbortedTc = $testSuiteResultDetails.totalAbortedTc +1
-							$caseLog = Get-Content -Raw $testCaseLogFile
+							$caseLog = Get-Content -Raw $TestCaseLogFile
 							$testResultRow = "<span style='background-color:yellow;font-weight:bolder'>ABORT</span>"
 							FinishLogTestCase $testcase "ERROR" "$($test.Name) is aborted." $caseLog
 							$testCycle.htmlSummary += "<tr><td><font size=`"3`">$executionCount</font></td><td>$tempHtmlText$(AddReproVMDetailsToHtmlReport)</td><td>$testRunDuration min</td><td>$testResultRow</td></tr>"
@@ -404,7 +407,7 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 					}
 					Write-Host $testSuiteResultDetails.totalPassTc,$testSuiteResultDetails.totalFailTc,$testSuiteResultDetails.totalAbortedTc
 					#Back to Test Suite Main Logging
-					$global:logFile = $testSuiteLogFile
+					$global:LogFile = $testSuiteLogFile
 					$currentJobs = Get-Job
 					foreach ( $job in $currentJobs )
 					{

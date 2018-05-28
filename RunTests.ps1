@@ -38,6 +38,8 @@ Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1"
 
 try 
 {
+    $LogDir = $null
+
     #region Validate Parameters
     $ParameterErrors = @()
     if ( !$TestPlatform )
@@ -67,8 +69,21 @@ try
     }
     #endregion
     
+    New-Item -ItemType Directory -Path "TestResults" -Force -ErrorAction SilentlyContinue | Out-Null
+
+    $LogDir = ".\TestResults\$(Get-Date -Format 'yyyy-dd-MM-HH-mm-ss-ffff')"
+    Set-Variable -Name LogDir -Value $LogDir -Scope Global -Force
+    New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
+    New-Item -ItemType Directory -Path Temp -Force -ErrorAction SilentlyContinue | Out-Null
+    LogMsg "Created LogDir: $LogDir"
+
     if ($TestPlatform -eq "Azure")
     {
+        if ($env:Azure_Secrets_File)
+        {
+            LogMsg "Detected Azure_Secrets_File in Jenkins environment."
+            $XMLSecretFile = $env:Azure_Secrets_File
+        }
         if ( $XMLSecretFile )
         {
             ValiateXMLs -ParentFolder $((Get-Item -Path $XMLSecretFile).FullName | Split-Path -Parent)
@@ -433,19 +448,34 @@ try
     if ($UseManagedDisks)
     {
         $cmd += " -UseManagedDisks"
-    }                            
-    
+    }
+    if ($XMLSecretFile)
+    {
+        $cmd += " -XMLSecretFile '$XMLSecretFile'"
+    }
     LogMsg $command
     Invoke-Expression -Command $command
 
     #TBD Archive the logs
     $TestCycle = "TC-$shortRandomNumber"
 
-    $LogDir = Get-Content .\report\lastLogDirectory.txt -ErrorAction SilentlyContinue
     $ticks = (Get-Date).Ticks
     $out = Remove-Item *.json -Force
     $out = Remove-Item *.xml -Force
-    $zipFile = "$(($TestCycle).Trim())-$ticks-$Platform-buildlogs.zip"
+    $zipFile = "$TestPlatform"
+    if ( $TestCategory )
+    {
+        $zipFile += "-$TestCategory"
+    }
+    if ( $TestArea )
+    {
+        $zipFile += "-$TestArea"
+    }
+    if ( $TestTag )
+    {
+        $zipFile += "-$($TestTag)"
+    }
+    $zipFile += "-$shortRandomNumber-buildlogs.zip"
     $out = ZipFiles -zipfilename $zipFile -sourcedir $LogDir
 
     try
