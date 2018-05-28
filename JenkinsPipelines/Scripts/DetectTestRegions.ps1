@@ -23,6 +23,13 @@ if ( $TestByCategorizedTestName )
         $TestRegions += $Test.Split(">>")[$Test.Split(">>").Count - 1]
     }
 }
+if ( $TestByCategory )
+{
+    foreach( $Test in $TestByCategory.Split(","))
+    {
+        $TestRegions += $Test.Split(">>")[$Test.Split(">>").Count - 1]
+    }
+}
 if ( $TestByTag )
 {
     foreach( $Test in $TestByTag.Split(","))
