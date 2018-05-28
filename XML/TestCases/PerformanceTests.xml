@@ -153,7 +153,7 @@
             <param>modes='randread randwrite read write'</param>
             <param>startThread=1</param>
             <param>maxThread=1024</param>
-            <param>startIO=4</param>
+            <param>startIO=1024</param>
             <param>numjobs=1</param>
             <param>ioruntime=300</param>
             <param>maxIO=1024</param>
@@ -164,5 +164,107 @@
 		<Area>Storage</Area>
 		<Tags>hv_storvsc,storage</Tags>
 		<TestID>Perf_Storage_002</TestID>
-    </test>                
+    </test>
+    <test>
+        <testName>PERF-STORAGE-OVER-NFS-Synthetic-TCP-4K</testName>
+        <testScript></testScript>
+        <PowershellScript>PERF-STORAGE-OVER-NFS.ps1</PowershellScript>
+        <setupType>DS14DISK12NFS</setupType>
+        <SubtestValues>This-tag-will-be-removed</SubtestValues>
+        <files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh</files>
+        <TestParameters>
+            <param>modes='randread randwrite read write'</param>
+            <param>startThread=1</param>
+            <param>maxThread=1024</param>
+            <param>startIO=4</param>
+            <param>numjobs=1</param>
+            <param>ioruntime=300</param>
+            <param>maxIO=4</param>
+            <param>fileSize=1023G</param>
+            <param>nfsprotocol=tcp</param>
+        </TestParameters>
+		<Platform>Azure</Platform>
+		<Category>Performance</Category>
+		<Area>Storage</Area>
+		<Tags>hv_storvsc,storage</Tags>
+		<TestID>Perf_Storage_003</TestID>
+    </test>
+    <test>
+        <testName>PERF-STORAGE-OVER-NFS-Synthetic-UDP-4K</testName>
+        <testScript></testScript>
+        <PowershellScript>PERF-STORAGE-OVER-NFS.ps1</PowershellScript>
+        <setupType>DS14DISK12NFS</setupType>
+        <SubtestValues>This-tag-will-be-removed</SubtestValues>
+        <files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh</files>
+        <TestParameters>
+            <param>modes='randread randwrite read write'</param>
+            <param>startThread=1</param>
+            <param>maxThread=1024</param>
+            <param>startIO=4</param>
+            <param>numjobs=1</param>
+            <param>ioruntime=300</param>
+            <param>maxIO=4</param>
+            <param>fileSize=1023G</param>
+            <param>nfsprotocol=udp</param>
+        </TestParameters>
+		<Platform>Azure</Platform>
+		<Category>Performance</Category>
+		<Area>Storage</Area>
+		<Tags>hv_storvsc,storage</Tags>
+		<TestID>Perf_Storage_003</TestID>
+    </test>
+    <test>
+        <testName>PERF-STORAGE-OVER-NFS-SRIOV-TCP-4K</testName>
+        <testScript></testScript>
+        <PowershellScript>PERF-STORAGE-OVER-NFS.ps1</PowershellScript>
+        <setupType>DS14DISK12NFS</setupType>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>         
+        <SubtestValues>This-tag-will-be-removed</SubtestValues>
+        <files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh</files>
+        <TestParameters>
+            <param>modes='randread randwrite read write'</param>
+            <param>startThread=1</param>
+            <param>maxThread=1024</param>
+            <param>startIO=4</param>
+            <param>numjobs=1</param>
+            <param>ioruntime=300</param>
+            <param>maxIO=4</param>
+            <param>fileSize=1023G</param>
+            <param>nfsprotocol=tcp</param>
+        </TestParameters>
+		<Platform>Azure</Platform>
+		<Category>Performance</Category>
+		<Area>Storage</Area>
+		<Tags>hv_storvsc,storage</Tags>
+		<TestID>Perf_Storage_003</TestID>
+    </test>
+    <test>
+        <testName>PERF-STORAGE-OVER-NFS-SRIOV-UDP-4K</testName>
+        <testScript></testScript>
+        <PowershellScript>PERF-STORAGE-OVER-NFS.ps1</PowershellScript>
+        <setupType>DS14DISK12NFS</setupType>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>         
+        <SubtestValues>This-tag-will-be-removed</SubtestValues>
+        <files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh</files>
+        <TestParameters>
+            <param>modes='randread randwrite read write'</param>
+            <param>startThread=1</param>
+            <param>maxThread=1024</param>
+            <param>startIO=4</param>
+            <param>numjobs=1</param>
+            <param>ioruntime=300</param>
+            <param>maxIO=4</param>
+            <param>fileSize=1023G</param>
+            <param>nfsprotocol=tcp</param>
+        </TestParameters>
+		<Platform>Azure</Platform>
+		<Category>Performance</Category>
+		<Area>Storage</Area>
+		<Tags>hv_storvsc,storage</Tags>
+		<TestID>Perf_Storage_003</TestID>
+    </test>                               
 </TestCases>

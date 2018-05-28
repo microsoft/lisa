@@ -8,9 +8,25 @@ if ($isDeployed)
     {
         ProvisionVMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
         RemoteCopy -uploadTo $allVMData.PublicIP -port $allVMData.SSHPort -files $currentTestData.files -username "root" -password $password -upload
+        
+        $constantsFile = ".\Temp\xfstests-config.config"
+        LogMsg "Generating $constantsFile ..."
+		Set-Content -Value "" -Path $constantsFile -NoNewline
+		foreach ( $param in $currentTestData.TestParameters.param)
+		{
+			if ( $param -imatch "FSTYP=" )
+			{
+                $TestFileSystem = ($param.Replace("FSTYP=",""))
+                Add-Content -Value "[$TestFileSystem]" -Path $constantsFile
+                LogMsg "[$TestFileSystem] added to constants.sh"
+			}
+            Add-Content -Value "$param" -Path $constantsFile
+            LogMsg "$param added to constants.sh"
+		}
+		LogMsg "$constantsFile created successfully..."
+        RemoteCopy -uploadTo $allVMData.PublicIP -port $allVMData.SSHPort -files $constantsFile -username "root" -password $password -upload
 
         $out = RunLinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "chmod +x *.sh"
-        $TestFileSystem = $currentTestData.TestParameters.param.Replace("TestFileSystem=","")
         $testJob = RunLinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "/root/perf_xfstesting.sh -TestFileSystem $TestFileSystem" -RunInBackground
         #endregion
 
