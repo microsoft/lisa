@@ -3,7 +3,7 @@
 		<testName>CAPTURE-VHD-BEFORE-TEST</testName>
 		<PowershellScript>CAPTURE-VHD-BEFORE-TEST.ps1</PowershellScript>
 		<setupType>SingleVM</setupType>
-		<OverrideVMSize>Standard_DS1_v2</OverrideVMSize>
+		<OverrideVMSize>Standard_DS14_v2</OverrideVMSize>
 		<files></files>
 		<Platform>Azure</Platform>
 		<Category></Category>

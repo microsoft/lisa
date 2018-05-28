@@ -2,7 +2,7 @@
 	<test>
 		<TestName>FILE-SYSTEM-VERIFICATION-TESTS-CIFS</TestName>
 		<PowershellScript>FILE-SYSTEM-VERIFICATION-TESTS.ps1</PowershellScript>
-		<files>.\Testscripts\Linux\perf_xfstesting.sh,.\Testscripts\Linux\xfstests-config.config</files>
+		<files>.\Testscripts\Linux\perf_xfstesting.sh</files>
 		<setupType>M1Disk1</setupType>
         <TestParameters>
             <param>TestFileSystem=cifs</param>
@@ -16,10 +16,13 @@
 	<test>
 		<TestName>FILE-SYSTEM-VERIFICATION-TESTS-XFS</TestName>
 		<PowershellScript>FILE-SYSTEM-VERIFICATION-TESTS.ps1</PowershellScript>
-		<files>.\Testscripts\Linux\perf_xfstesting.sh,.\Testscripts\Linux\xfstests-config.config</files>
+		<files>.\Testscripts\Linux\perf_xfstesting.sh</files>
 		<setupType>M1Disk1</setupType>
         <TestParameters>
-            <param>TestFileSystem=xfs</param>
+            <param>FSTYP=xfs</param>
+            <param>TEST_DEV=/dev/sdc</param>
+            <param>TEST_DIR=/root/xfs</param>
+            <param>TEST_FS_MOUNT_OPTS='-o nobarrier'</param>
         </TestParameters>        
 		<Platform>Azure</Platform>
 		<Category>Community</Category>
@@ -30,10 +33,13 @@
 	<test>
 		<TestName>FILE-SYSTEM-VERIFICATION-TESTS-EXT4</TestName>
 		<PowershellScript>FILE-SYSTEM-VERIFICATION-TESTS.ps1</PowershellScript>
-		<files>.\Testscripts\Linux\perf_xfstesting.sh,.\Testscripts\Linux\xfstests-config.config</files>
+		<files>.\Testscripts\Linux\perf_xfstesting.sh</files>
 		<setupType>M1Disk1</setupType>
         <TestParameters>
-            <param>TestFileSystem=ext4</param>
+            <param>FSTYP=ext4</param>
+            <param>TEST_DEV=/dev/sdc</param>
+            <param>TEST_DIR=/root/ext4</param>
+            <param>TEST_FS_MOUNT_OPTS='-o nobarrier'</param>
         </TestParameters>        
 		<Platform>Azure</Platform>
 		<Category>Community</Category>
