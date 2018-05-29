@@ -12,11 +12,11 @@ if ($isDeployed)
 
 		LogMsg "Executing : $($currentTestData.testScript)"
 		RunLinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "bash -c ./$($currentTestData.testScript)" -runAsSudo
-		RunLinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "mv Runtime.log $($currentTestData.testScript).log" -runAsSudo
 		RemoteCopy -download -downloadFrom $AllVMData.PublicIP -files "/home/$user/TestState.log, /home/$user/TestExecution.log" -downloadTo $LogDir -port $AllVMData.SSHPort -username $user -password $password
 		$testResult = Get-Content $LogDir\TestState.log
+		LogMsg (Get-Content -Path "$LogDir\TestExecution.log")
+		
 		LogMsg "Test result : $testResult"
-
 		if ($testResult -eq "PASS")
 		{
 			LogMsg "Test PASS"
@@ -24,7 +24,6 @@ if ($isDeployed)
 		else
 		{
 			LogMsg "Test Failed"
-			LogMsg ("$(Get-Content -Path '$LogDir\TestExecution.log')")
 		}
 	}
 
