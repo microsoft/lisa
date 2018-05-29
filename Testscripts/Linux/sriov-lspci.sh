@@ -30,8 +30,8 @@ UpdateTestState()
 ############################################################
 
 LogMsg "*********INFO: Starting test execution ... *********"
-lspci=$(lspci)
-LogMsg $lspci
+OUTPUT="$(lspci)"
+LogMsg "${OUTPUT}"
 
 lspci | grep -i "Mellanox"
 
