@@ -51,70 +51,84 @@ $htmlFooter='
 </table>
 '
 
-$currentFiles = Get-ChildItem -Path $folderToQuery -Recurse -Verbose
-$SR = 1
-$htmlData = ""
-
-function GetFileObject()
+try 
 {
-    $object = New-Object -TypeName PSObject
-    $object | Add-Member -MemberType NoteProperty -Name SR -Value $null
-    $object | Add-Member -MemberType NoteProperty -Name FileName -Value $null
-    $object | Add-Member -MemberType NoteProperty -Name LastWriteTime -Value $null
-    $object | Add-Member -MemberType NoteProperty -Name Size -Value $null
-    return $object
-}
-
-$htmlData += $htmlHeader
-$totalSize = 0
-$allFileObjects = @()
-$cleanupFileList = "FileName="
-foreach ($file in $currentFiles)
-{
-    $currentHTMLRow = $htmlRow
-    $currentHTMLRow = $currentHTMLRow.Replace("CURRENT_SERIAL","$SR")
-    $currentHTMLRow = $currentHTMLRow.Replace("CURRENT_FILENAME","$($file.Name)")
-    $cleanupFileList += "$($file.Name),"
-    $currentHTMLRow = $currentHTMLRow.Replace("CURRENT_DATE","$($file.LastWriteTime)")
-    $currentFileSize = [math]::Round($($file.Length / 1024 / 1024 / 1024 ),3)
-    $currentHTMLRow = $currentHTMLRow.Replace("CURRENT_SIZE","$currentFileSize GB")
-    $totalSize += $file.Length
-    $htmlData += $currentHTMLRow
-    $fileObject = GetFileObject
-    $fileObject.SR = $SR
-    $fileObject.FileName = $($file.Name)
-    $fileObject.LastWriteTime = $file.LastWriteTime
-    $fileObject.Size = "$currentFileSize GB"
-    $allFileObjects += $fileObject
-    $SR += 1
-}
-if ( $currentFiles.Count -gt 0)
-{
-    $totalSizeInGB = [math]::Round(($totalSize / 1024 / 1024 / 1024),3)
-
-    $currentHtmlFooter = $htmlFooter
-    $currentHtmlFooter = $currentHtmlFooter.Replace("TOTAL_USAGE","$totalSizeInGB GB")
-    $htmlData += $currentHtmlFooter
-    Set-Content -Value $htmlData -Path $htmlFilePath -Force -Verbose
-    Remove-Item -Path $textFilePath -Force -Verbose
-    $allFileObjects | Out-File -FilePath $textFilePath -Force -Verbose -NoClobber
-    Add-Content -Value "--------------------------------------------------------" -Path $textFilePath
-    Add-Content -Value "                                       Total : $totalSizeInGB GB" -Path $textFilePath
-    $cleanupFileList = $cleanupFileList.TrimEnd(",")    
-    if ($currentFiles.Count -gt 2)
+    $currentFiles = Get-ChildItem -Path $folderToQuery -Recurse -Verbose
+    $SR = 1
+    $htmlData = ""
+    
+    function GetFileObject()
     {
-        $cleanupFileList = $cleanupFileList.Replace("FileName=","FileName=Delete All Files,")
+        $object = New-Object -TypeName PSObject
+        $object | Add-Member -MemberType NoteProperty -Name SR -Value $null
+        $object | Add-Member -MemberType NoteProperty -Name FileName -Value $null
+        $object | Add-Member -MemberType NoteProperty -Name LastWriteTime -Value $null
+        $object | Add-Member -MemberType NoteProperty -Name Size -Value $null
+        return $object
     }
-    Set-Content -Value $cleanupFileList -Path $cleanupFilesPath -Force -Verbose
+    
+    $htmlData += $htmlHeader
+    $totalSize = 0
+    $allFileObjects = @()
+    $cleanupFileList = "FileName="
+    foreach ($file in $currentFiles)
+    {
+        $currentHTMLRow = $htmlRow
+        $currentHTMLRow = $currentHTMLRow.Replace("CURRENT_SERIAL","$SR")
+        $currentHTMLRow = $currentHTMLRow.Replace("CURRENT_FILENAME","$($file.Name)")
+        $cleanupFileList += "$($file.Name),"
+        $currentHTMLRow = $currentHTMLRow.Replace("CURRENT_DATE","$($file.LastWriteTime)")
+        $currentFileSize = [math]::Round($($file.Length / 1024 / 1024 / 1024 ),3)
+        $currentHTMLRow = $currentHTMLRow.Replace("CURRENT_SIZE","$currentFileSize GB")
+        $totalSize += $file.Length
+        $htmlData += $currentHTMLRow
+        $fileObject = GetFileObject
+        $fileObject.SR = $SR
+        $fileObject.FileName = $($file.Name)
+        $fileObject.LastWriteTime = $file.LastWriteTime
+        $fileObject.Size = "$currentFileSize GB"
+        $allFileObjects += $fileObject
+        $SR += 1
+    }
+    if ( $currentFiles.Count -gt 0)
+    {
+        $totalSizeInGB = [math]::Round(($totalSize / 1024 / 1024 / 1024),3)
+    
+        $currentHtmlFooter = $htmlFooter
+        $currentHtmlFooter = $currentHtmlFooter.Replace("TOTAL_USAGE","$totalSizeInGB GB")
+        $htmlData += $currentHtmlFooter
+        Set-Content -Value $htmlData -Path $htmlFilePath -Force -Verbose
+        Remove-Item -Path $textFilePath -Force -Verbose
+        $allFileObjects | Out-File -FilePath $textFilePath -Force -Verbose -NoClobber
+        Add-Content -Value "--------------------------------------------------------" -Path $textFilePath
+        Add-Content -Value "                                       Total : $totalSizeInGB GB" -Path $textFilePath
+        $cleanupFileList = $cleanupFileList.TrimEnd(",")    
+        if ($currentFiles.Count -gt 2)
+        {
+            $cleanupFileList = $cleanupFileList.Replace("FileName=","FileName=Delete All Files,")
+        }
+        Set-Content -Value $cleanupFileList -Path $cleanupFilesPath -Force -Verbose
+    }
+    else 
+    {
+        $currentHtmlFooter = $htmlFooter
+        $currentHtmlFooter = $currentHtmlFooter.Replace("TOTAL_USAGE","0 GB")
+        $htmlData += $currentHtmlFooter
+        Set-Content -Value $htmlData -Path $htmlFilePath -Force -Verbose
+        Remove-Item -Path $textFilePath -Force -Verbose
+        $allFileObjects | Out-File -FilePath $textFilePath -Force -Verbose -NoClobber
+        Add-Content -Value "--------------------------------------------------------" -Path $textFilePath
+        Add-Content -Value "                                       Total : 0 GB" -Path $textFilePath    
+    }
+    $ExitCode = 0  
 }
-else 
+catch 
 {
-    $currentHtmlFooter = $htmlFooter
-    $currentHtmlFooter = $currentHtmlFooter.Replace("TOTAL_USAGE","0 GB")
-    $htmlData += $currentHtmlFooter
-    Set-Content -Value $htmlData -Path $htmlFilePath -Force -Verbose
-    Remove-Item -Path $textFilePath -Force -Verbose
-    $allFileObjects | Out-File -FilePath $textFilePath -Force -Verbose -NoClobber
-    Add-Content -Value "--------------------------------------------------------" -Path $textFilePath
-    Add-Content -Value "                                       Total : 0 GB" -Path $textFilePath    
+    $ExitCode = 1
+    ThrowExcpetion($_)
+}
+finally
+{
+    LogMsg "Exiting with ExitCode = $ExitCode"
+    exit $ExitCode 
 }
