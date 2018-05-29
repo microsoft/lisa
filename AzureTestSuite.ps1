@@ -189,7 +189,6 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 			}
 			if ($currentTestData)
 			{
-
 				if (!( $currentTestData.Platform.Contains($xmlConfig.config.CurrentTestPlatform)))
 				{
 					LogMsg "$($currentTestData.testName) does not support $($xmlConfig.config.CurrentTestPlatform) platform."
@@ -207,7 +206,7 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 					$stopWatch = SetStopWatch
 					
 					Set-Variable -Name currentTestData -Value $currentTestData -Scope Global
-
+					Set-Variable -Name OverrideVMSize -Value $currentTestData.OverrideVMSize -Scope Global  
 					if ((!$currentTestData.SubtestValues -and !$currentTestData.TestMode))
 					{
 						#Tests With No subtests and no SubValues will be executed here..
