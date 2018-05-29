@@ -14,21 +14,6 @@
 		<Tags>bvt,boot</Tags>
         <TestID>AzureBVT_001</TestID>
     </test>
-	<test>
-        <testName>BVT-VERIFY-HOSTNAME</testName>
-        <testScript>BVT-VERIFY-HOSTNAME.py</testScript>
-        <PowershellScript>BVT-VERIFY-HOSTNAME.ps1</PowershellScript>
-        <files>.\Testscripts\Linux\nslookup.py,.\Testscripts\Linux\BVT-VERIFY-HOSTNAME.py,.\Testscripts\Linux\azuremodules.py</files>
-        <setupType>BVTDeployment</setupType>
-        <TestType></TestType>
-        <TestFeature></TestFeature>
-        <SupportedExecutionModes>AzureServiceManagement,AzureResourceManager</SupportedExecutionModes>
-        <Platform>Azure</Platform>
-        <Category>BVT</Category>
-        <Area>BVT</Area>
-        <Tags>bvt</Tags>
-        <TestID>AzureBVT_002</TestID>
-    </test>
     <test>
         <testName>BVT-IS-ROOT-PASSWORD-DELETED</testName>
         <testScript>BVT-IS-ROOT-PASSWORD-DELETED.py</testScript>
@@ -43,36 +28,6 @@
         <Area>BVT</Area>
         <Tags>bvt</Tags>
         <TestID>AzureBVT_003</TestID>
-    </test>
-    <test>
-        <testName>BVT-WA-PROC-CHECK</testName>
-        <testScript>BVT-WA-PROC-CHECK.py</testScript>
-        <PowershellScript>BVT-WA-PROC-CHECK.ps1</PowershellScript>
-        <files>.\Testscripts\Linux\BVT-WA-PROC-CHECK.py,.\Testscripts\Linux\azuremodules.py</files>
-        <setupType>BVTDeployment</setupType>
-        <TestType></TestType>
-        <TestFeature></TestFeature>
-        <SupportedExecutionModes>AzureServiceManagement,AzureResourceManager</SupportedExecutionModes>
-        <Platform>Azure</Platform>
-        <Category>BVT</Category>
-        <Area>BVT</Area>
-        <Tags>bvt</Tags>
-        <TestID>AzureBVT_004</TestID>
-    </test>
-    <test>
-        <testName>BVT-WA-VER-CHECK</testName>
-        <testScript>BVT-WA-VER-CHECK.py</testScript>
-        <PowershellScript>BVT-WA-VER-CHECK.ps1</PowershellScript>
-        <files>.\Testscripts\Linux\BVT-WA-VER-CHECK.py,.\Testscripts\Linux\azuremodules.py</files>
-        <setupType>BVTDeployment</setupType>
-        <TestType></TestType>
-        <TestFeature></TestFeature>
-        <SupportedExecutionModes>AzureServiceManagement,AzureResourceManager</SupportedExecutionModes>
-        <Platform>Azure</Platform>
-        <Category>BVT</Category>
-        <Area>BVT</Area>
-        <Tags>bvt</Tags>
-        <TestID>AzureBVT_005</TestID>
     </test>
     <test>
         <testName>BVT-ROOT-DEVICE-TIMEOUT-CHECK</testName>
@@ -103,21 +58,6 @@
         <Area>BVT</Area>
         <Tags>bvt</Tags>
         <TestID>AzureBVT_007</TestID>
-    </test>
-    <test>
-        <testName>BVT-RESOURCE-DISK-FILESYSTEM</testName>
-        <testScript>BVT-RESOURCE-DISK-FILESYSTEM.py</testScript>
-        <PowershellScript>BVT-RESOURCE-DISK-FILESYSTEM.ps1</PowershellScript>
-        <files>.\Testscripts\Linux\BVT-RESOURCE-DISK-FILESYSTEM.py,.\Testscripts\Linux\azuremodules.py</files>
-        <setupType>BVTDeployment</setupType>
-        <TestType></TestType>
-        <TestFeature></TestFeature>
-        <SupportedExecutionModes>AzureServiceManagement,AzureResourceManager</SupportedExecutionModes>
-        <Platform>Azure</Platform>
-        <Category>BVT</Category>
-        <Area>BVT</Area>
-        <Tags>bvt</Tags>
-        <TestID>AzureBVT_008</TestID>
     </test>
     <test>
         <testName>BVT-SWAP-CHECK</testName>
@@ -179,21 +119,7 @@
         <Tags>bvt</Tags>
         <TestID>AzureBVT_012</TestID>
     </test>
-    <test>
-        <testName>BVT-VERIFY-FIREWALL-STATUS</testName>
-        <testScript>BVT-VERIFY-FIREWALL-STATUS.py</testScript>
-        <PowershellScript>BVT-VERIFY-FIREWALL-STATUS.ps1</PowershellScript>
-        <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-FIREWALL-STATUS.py</files>
-        <setupType>BVTDeployment</setupType>
-        <TestType></TestType>
-        <TestFeature></TestFeature>
-        <SupportedExecutionModes>AzureServiceManagement,AzureResourceManager</SupportedExecutionModes>
-        <Platform>Azure</Platform>
-        <Category>BVT</Category>
-        <Area>BVT</Area>
-        <Tags>bvt</Tags>
-        <TestID>AzureBVT_013</TestID>
-    </test>
+
     <test>
         <testName>BVT-VERIFY-BOOT-ERROR-WARNINGS</testName>
         <testScript>BVT-VERIFY-BOOT-ERROR-WARNINGS.py</testScript>
@@ -223,36 +149,6 @@
         <Area>BVT</Area>
         <Tags>bvt</Tags>
         <TestID>AzureBVT_015</TestID>
-    </test>
-    <test>
-        <testName>BVT-VERIFY-RESTART</testName>
-        <testScript></testScript>
-        <PowershellScript>BVT-VERIFY-RESTART.ps1</PowershellScript>
-        <files></files>
-        <setupType>BVTDeployment</setupType>
-        <TestType></TestType>
-        <TestFeature></TestFeature>
-        <SupportedExecutionModes>AzureServiceManagement,AzureResourceManager</SupportedExecutionModes>
-        <Platform>Azure</Platform>
-        <Category>BVT</Category>
-        <Area>BVT</Area>
-        <Tags>bvt</Tags>
-        <TestID>AzureBVT_016</TestID>
-    </test>
-    <test>
-        <testName>BVT-VERIFY-MNT-RESOURCE-WRITABLE</testName>
-        <testScript>BVT-VERIFY-MNT-RESOURCE-WRITABLE.py</testScript>
-        <PowershellScript>BVT-VERIFY-MNT-RESOURCE-WRITABLE.ps1</PowershellScript>
-        <files>.\Testscripts\Linux\BVT-VERIFY-MNT-RESOURCE-WRITABLE.py,.\Testscripts\Linux\azuremodules.py</files>
-        <setupType>BVTDeployment</setupType>
-        <TestType></TestType>
-        <TestFeature></TestFeature>
-        <SupportedExecutionModes>AzureServiceManagement,AzureResourceManager</SupportedExecutionModes>
-        <Platform>Azure</Platform>
-        <Category>BVT</Category>
-        <Area>BVT</Area>
-        <Tags>bvt</Tags>
-        <TestID>AzureBVT_017</TestID>
     </test>
     <test>
         <testName>BVT-VERIFY-UUID-FSTAB</testName>
@@ -313,21 +209,6 @@
         <Area>BVT</Area>
         <Tags>bvt</Tags>
         <TestID>AzureBVT_021</TestID>
-    </test>
-    <test>
-        <testName>BVT-VERIFY-MNT-RESOURCE-README</testName>
-        <testScript>BVT-VERIFY-MNT-RESOURCE-README.py</testScript>
-        <PowershellScript>BVT-VERIFY-MNT-RESOURCE-README.ps1</PowershellScript>
-        <files>.\Testscripts\Linux\BVT-VERIFY-MNT-RESOURCE-README.py,.\Testscripts\Linux\azuremodules.py</files>
-        <setupType>BVTDeployment</setupType>
-        <TestType></TestType>
-        <TestFeature></TestFeature>
-        <SupportedExecutionModes>AzureServiceManagement,AzureResourceManager</SupportedExecutionModes>
-        <Platform>Azure</Platform>
-        <Category>BVT</Category>
-        <Area>BVT</Area>
-       <Tags>bvt</Tags>
-        <TestID>AzureBVT_022</TestID>
     </test>
     <test>
         <testName>BVT-VERIFY-NO-ERROR-IN-LOGS</testName>
@@ -392,40 +273,6 @@
         <TestID>AzureBVT_026</TestID>
     </test>
     <test>
-        <testName>BVT-CAPTURE-VHD</testName>
-        <testScript></testScript>
-        <PowershellScript>BVT-CAPTURE-VHD.ps1</PowershellScript>
-        <files></files>
-        <setupType>BVTDeployment</setupType>
-        <TestType>
-        </TestType>
-        <TestFeature>
-        </TestFeature>
-        <SupportedExecutionModes>AzureResourceManager</SupportedExecutionModes>
-        <Platform>Azure</Platform>
-        <Category>BVT</Category>
-        <Area>BVT</Area>
-        <Tags>bvt</Tags>
-        <TestID>AzureBVT_027</TestID>
-    </test>
-    <test>
-	    <testName>BVT-DELETE-VHD</testName>
-	    <testScript></testScript>
-	    <PowershellScript>BVT-CAPTURE-VHD.ps1</PowershellScript>
-	    <files></files>
-	    <setupType>BVTDeployment</setupType>
-	    <TestType>
-	    </TestType>
-	    <TestFeature>
-	    </TestFeature>
-	    <SupportedExecutionModes>AzureResourceManager</SupportedExecutionModes>
-        <Platform>Azure</Platform>
-        <Category>BVT</Category>
-        <Area>BVT</Area>
-        <Tags>bvt</Tags>
-	    <TestID>AzureBVT_028</TestID>
-    </test>
-    <test>
         <testName>BVT-VERIFY-KVP-DAEMON-STATUS</testName>
         <testScript></testScript>
         <PowershellScript>BVT-VERIFY-KVP-DAEMON-STATUS.ps1</PowershellScript>
@@ -449,7 +296,6 @@
         <SubtestValues></SubtestValues>
         <files>.\Testscripts\Linux\azuremodules.sh</files>
         <TestParameters>
-            <param></param>
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>BVT</Category>
@@ -466,7 +312,6 @@
         <SubtestValues></SubtestValues>
         <files>.\Testscripts\Linux\azuremodules.sh</files>
         <TestParameters>
-            <param></param>
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>BVT</Category>
@@ -483,7 +328,6 @@
         <SubtestValues></SubtestValues>
         <files>.\Testscripts\Linux\azuremodules.sh</files>
         <TestParameters>
-            <param></param>
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>BVT</Category>

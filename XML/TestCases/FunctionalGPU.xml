@@ -8,7 +8,7 @@
 		<files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\InstallCUDADrivers.sh</files>
 		<Platform>Azure</Platform>
 		<Category>Functional</Category>
-		<Area>default</Area>
+		<Area>GPU</Area>
 		<Tags>gpu,pci_hyperv</Tags>
 		<TestID>Functional_GPU_001</TestID>
 	</test>
@@ -21,7 +21,7 @@
 		<files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\InstallCUDADrivers.sh</files>
 		<Platform>Azure</Platform>
 		<Category>Functional</Category>
-		<Area>default</Area>
+		<Area>GPU</Area>
 		<Tags>gpu,pci_hyperv</Tags>
 		<TestID>Functional_GPU_002</TestID>
 	</test>
@@ -34,7 +34,7 @@
 		<files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\InstallCUDADrivers.sh</files>
 		<Platform>Azure</Platform>
 		<Category>Functional</Category>
-		<Area>default</Area>
+		<Area>GPU</Area>
 		<Tags>gpu,pci_hyperv</Tags>
 		<TestID>Functional_GPU_003</TestID>
 	</test>
@@ -47,7 +47,7 @@
 		<files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\InstallCUDADrivers.sh</files>
 		<Platform>Azure</Platform>
 		<Category>Functional</Category>
-		<Area>default</Area>
+		<Area>GPU</Area>
 		<Tags>gpu,pci_hyperv</Tags>
 		<TestID>Functional_GPU_004</TestID>
 	</test>			
