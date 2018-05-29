@@ -266,5 +266,24 @@
 		<Area>Storage</Area>
 		<Tags>hv_storvsc,storage</Tags>
 		<TestID>Perf_Storage_003</TestID>
-    </test>                               
+    </test>
+    <test>
+        <testName>PERF-DPDK-TESTPMD-TEST</testName>
+        <PowershellScript>PERF-DPDK-TESTPMD-TEST.ps1</PowershellScript>
+        <setupType>DPDK</setupType>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>        
+        <SubtestValues>This-tag-will-be-removed</SubtestValues>
+        <files>.\Testscripts\Linux\azuremodules.sh</files>
+        <TestParameters>
+            <param>testDuration=60</param>
+            <param>modes="rxonly io"</param>
+        </TestParameters>
+		<Platform>Azure</Platform>
+		<Category>Performance</Category>
+		<Area>DPDK</Area>
+		<Tags>dpdk,network,hv_netvsc,sriov</Tags>
+		<TestID>Perf_Network_007</TestID>
+    </test>                                               
 </TestCases>
