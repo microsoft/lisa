@@ -5,8 +5,8 @@
 		<setupType>SingleVM</setupType>
 		<OverrideVMSize>Standard_D15_v2</OverrideVMSize>
 		<AdditionalHWConfig>
-            <Networking>SRIOV</Networking>
-        </AdditionalHWConfig>
+			<Networking>SRIOV</Networking>
+		</AdditionalHWConfig>
 		<PowershellScript>RUN-SCRIPT-IN-LINUX-GUEST.ps1</PowershellScript>
 		<testScript>sriov-lspci.sh</testScript>
 		<files>.\Testscripts\Linux\sriov-lspci.sh</files>
@@ -14,5 +14,5 @@
 		<Category>Functional</Category>
 		<Area>SRIOV</Area>
 		<Tags>sriov,hv_netvsc</Tags>
-	</test>			
+	</test>	
 </TestCases>
