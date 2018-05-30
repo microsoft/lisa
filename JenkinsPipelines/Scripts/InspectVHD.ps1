@@ -1,5 +1,5 @@
 ﻿Param (
-    $RemoteFolder = "Z:\ReceivedFiles",
+    $RemoteFolder = "J:\ReceivedFiles",
     $LocalFolder = "Q:\Temp"
 )
 

@@ -1,5 +1,5 @@
 param (
-    [string]$SharedParentDirectory = "Z:\ReceivedFiles",
+    [string]$SharedParentDirectory = "J:\ReceivedFiles",
     [string]$PartnerUsername
 )
 

@@ -1,6 +1,6 @@
 Param 
 (    
-    $OutputFilePath = "Z:\Jenkins_Shared_Do_Not_Delete\userContent\common\VMImages-ARM.txt",
+    $OutputFilePath = "J:\Jenkins_Shared_Do_Not_Delete\userContent\common\VMImages-ARM.txt",
     $Publishers = "Canonical,SUSE,Oracle,CoreOS,RedHat,OpenLogic,credativ,kali-linux,clear-linux-project"
 )
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global }
