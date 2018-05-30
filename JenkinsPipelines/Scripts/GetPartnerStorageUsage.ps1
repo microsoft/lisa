@@ -118,7 +118,8 @@ try
         Remove-Item -Path $textFilePath -Force -Verbose
         $allFileObjects | Out-File -FilePath $textFilePath -Force -Verbose -NoClobber
         Add-Content -Value "--------------------------------------------------------" -Path $textFilePath
-        Add-Content -Value "                                       Total : 0 GB" -Path $textFilePath    
+        Add-Content -Value "                                       Total : 0 GB" -Path $textFilePath
+        Set-Content -Value "" -Path $cleanupFilesPath -Force -Verbose   
     }
     $ExitCode = 0  
 }
