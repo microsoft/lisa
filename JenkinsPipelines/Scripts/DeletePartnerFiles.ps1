@@ -1,7 +1,7 @@
 param 
 (
     $JenkinsUser,
-    $RemoteReceivedFolder = "Z:\ReceivedFiles",
+    $RemoteReceivedFolder = "J:\ReceivedFiles",
     $fileNames
 )
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global }

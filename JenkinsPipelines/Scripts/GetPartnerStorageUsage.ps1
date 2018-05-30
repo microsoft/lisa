@@ -1,7 +1,7 @@
 Param
 ( 
     $JenkinsUser,
-    $RemoteReceivedFolder="Z:\ReceivedFiles",
+    $RemoteReceivedFolder="J:\ReceivedFiles",
     $htmlFilePath,
     $textFilePath,
     $cleanupFilesPath 
