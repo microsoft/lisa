@@ -8,7 +8,7 @@ UpstreamBuildNumber="unique-string"
 
 #Required any one of the following
 ImageSource=""
-CustomVHD=""
+CustomVHD="" 
 CustomVHDURL=""
 
 #Required
@@ -19,10 +19,10 @@ CustomKernelFile=""
 CustomKernelURL=""
 
 #Required
-GitUrlForAutomation=""
+GitUrlForAutomation="https://github.com/LIS/LISAv2.git"
 
 #Required
-GitBranchForAutomation=""
+GitBranchForAutomation="master"
 
 #Required at least one test selection choise from following.
 #TestByTestname="Azure>>VERIFY-DEPLOYMENT-PROVISION>>eastus2,Azure>>VERIFY-DEPLOYMENT-PROVISION>>eastus"
@@ -40,17 +40,18 @@ LinuxPassword=""
 
 #Required to access Jenkins.
 ApiToken=""
+#Required to upload Files to jenkins server using FTP
+FtpUsername=""
+FtpPassword=""
 
 #Required
 JenkinsURL="penguinator.westus2.cloudapp.azure.com"
 
 #Required
-#TestPipeline="/view/Microsoft/job/Microsoft/job/Microsoft-Test-Execution-Pipeline"
+#TestPipeline="/job/Microsoft-Test-Execution-Pipeline"
 TestPipeline=""
 
-#Required to upload Files to jenkins server using FTP
-FtpUsername=""
-FtpPassword=""
+
 
 ExitCode=0
 
@@ -77,6 +78,15 @@ else
         URLEncodedImageSource=${ImageSource// /%20}
         echo "ImageSource '${ImageSource}' encoded to '${URLEncodedImageSource}'"
     fi
+    if ([[ -f $CustomVHD ]]);
+    then
+        VHDName=$(basename $CustomVHD)
+        EncodedVHDName="${UpstreamBuildNumber}-${VHDName}"
+        echo "CustomVHD '${VHDName}' encoded to '${EncodedVHDName}'"
+    else
+        echo "CustomVHD '${CustomVHD}' does not exists. Please verify path."
+    fi
+    
 fi
 if [[ $Kernel == "" ]] || [[ -z $Kernel ]];
 then
@@ -88,11 +98,16 @@ if [[ $Kernel == "" ]] || [[ -z $Kernel ]];
 then
 
     echo "Kernel parameter is required"
+    ExitCode=$(( ExitCode + 1 ))
+fi
+if [[ $GitUrlForAutomation == "" ]] || [[ -z $GitUrlForAutomation ]];
+then
+    echo "GitUrlForAutomation parameter is required"
     ExitCode=$(( ExitCode + 1 ))
 fi
 if [[ $GitBranchForAutomation == "" ]] || [[ -z $GitBranchForAutomation ]];
 then
-    echo "GitUrlForAutomation parameter is required"
+    echo "GitBranchForAutomation parameter is required"
     ExitCode=$(( ExitCode + 1 ))
 fi
 if ([[ $TestByTestname == "" ]] || [[ -z $TestByTestname ]]) && ([[ $TestByCategorisedTestname == "" ]] || [[ -z $TestByCategorisedTestname ]]) && ([[ $TestByCategory == "" ]] || [[ -z $TestByCategory ]]) && ([[ $TestByTag == "" ]] || [[ -z $TestByTag ]]);
@@ -123,7 +138,7 @@ else
 fi
 if [[ $Email == "" ]] || [[ -z $Email ]];
 then
-    echo "GitUrlForAutomation parameter is required"
+    echo "Email parameter is required"
     ExitCode=$(( ExitCode + 1 ))
 else
     EncodedEmail=${Email//@/%40}
@@ -149,7 +164,9 @@ then
     RemoteTriggerURL="${RemoteTriggerURL}&ImageSource=${URLEncodedImageSource}"
 elif ([[ ! $CustomVHD == "" ]] || [[ ! -z $CustomVHD ]]);
 then
-    RemoteTriggerURL="${RemoteTriggerURL}&CustomVHD=${CustomVHD}"
+    echo "Uploading ${CustomVHD} with name ${EncodedVHDName}..."
+    curl -v -T $CustomVHD ftp://${JenkinsURL} --user ${FtpUsername}:${FtpPassword} -Q "-RNFR ${VHDName}" -Q "-RNTO ${EncodedVHDName}"
+    RemoteTriggerURL="${RemoteTriggerURL}&CustomVHD=${VHDName}"
 elif ([[ ! $CustomVHDURL == "" ]] || [[ ! -z $CustomVHDURL ]]);
 then
     RemoteTriggerURL="${RemoteTriggerURL}&CustomVHDURL=${CustomVHDURL}"
