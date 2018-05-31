@@ -676,7 +676,7 @@ Function CreateResourceGroupDeployment([string]$RGName, $location, $setupType, $
 {
     $FailCounter = 0
     $retValue = "False"
-    $ResourceGroupDeploymentName = "LISA-" + [guid]::NewGuid().Guid
+    $ResourceGroupDeploymentName = "eosg" + (Get-Date).Ticks
     While(($retValue -eq $false) -and ($FailCounter -lt 1))
     {
         try
@@ -2629,7 +2629,7 @@ Function CreateRGDeploymentWithTempParameters([string]$RGName, $TemplateFile, $T
 {
     $FailCounter = 0
     $retValue = "False"
-    $ResourceGroupDeploymentName = $RGName + "-deployment"
+    $ResourceGroupDeploymentName = "eosg" + (Get-Date).Ticks
     While(($retValue -eq $false) -and ($FailCounter -lt 1))
     {
         try
