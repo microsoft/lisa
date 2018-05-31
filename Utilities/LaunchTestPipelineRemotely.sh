@@ -1,57 +1,35 @@
 #!/bin/bash
 
-#Required
-JenkinsUser="microsoft"
+#####################################################################################################
+#How to use:
 
-#Required
-UpstreamBuildNumber="unique-string"
+# Method 1: You can pass all the parameters from a parameters file.
+#./LaunchTestPipelineRemotely.sh -ParametersFile <Path to parameters file>
 
-#Required any one of the following
-ImageSource=""
-CustomVHD="" 
-CustomVHDURL=""
+# Method 2: You can also pass all the perameters to commandline.
+#./LaunchTestPipelineRemotely.sh -JenkinsUser "assigned username" -UpstreamBuildNumber <UniqueBuildID> ... etc.
 
-#Required
-Kernel="default"
+######################################################################################################
 
-#Required any of the following if Kernel=custom
-CustomKernelFile=""
-CustomKernelURL=""
+while echo $1 | grep ^- > /dev/null; do
+    eval $( echo $1 | sed 's/-//g' | tr -d '\012')=$2
+    shift
+    shift
+done
 
-#Required
-GitUrlForAutomation="https://github.com/LIS/LISAv2.git"
-
-#Required
-GitBranchForAutomation="master"
-
-#Required at least one test selection choise from following.
-#TestByTestname="Azure>>VERIFY-DEPLOYMENT-PROVISION>>eastus2,Azure>>VERIFY-DEPLOYMENT-PROVISION>>eastus"
-TestByTestname=""
-TestByCategorisedTestname=""
-TestByCategory=""
-TestByTag=""
-
-#Required
-Email=""
-
-#Optional
-LinuxUsername=""
-LinuxPassword=""
-
-#Required to access Jenkins.
-ApiToken=""
-#Required to upload Files to jenkins server using FTP
-FtpUsername=""
-FtpPassword=""
-
-#Required
-JenkinsURL="penguinator.westus2.cloudapp.azure.com"
-
-#Required
-#TestPipeline="/job/Microsoft-Test-Execution-Pipeline"
-TestPipeline=""
-
-
+#Verify the parameters file and import parameters.
+if [[ ! -z $ParametersFile ]];
+then
+	echo "Parameters File: $ParametersFile"
+	if [[ -f $ParametersFile  ]];
+	then
+		echo "Importing parameters..."
+		source $ParametersFile
+	else
+		echo "Unable to locate $ParametersFile. Exiting with 1"
+		exit 1
+	fi
+fi
 
 ExitCode=0
 
