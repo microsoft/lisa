@@ -1,5 +1,12 @@
-#v-shisav : STILL IN BETA VERSION
-
+##############################################################################################
+# AzureTestSuite.ps1
+# Copyright (c) Microsoft. All rights reserved.
+# Licensed under the MIT license. See LICENSE file in the project root for full license information.
+# Description : 
+# Operations :
+#              
+## Author : v-shisav@microsoft.com, lisasupport@microsoft.com
+###############################################################################################
 param($xmlConfig, [string] $Distro, [string] $cycleName, [int] $TestIterations)
 Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 {

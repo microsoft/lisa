@@ -2,6 +2,9 @@
 .SYNOPSIS
     This script authenticates PS sessing using Azure principal account.
 
+    # Copyright (c) Microsoft. All rights reserved.
+    # Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
 .DESCRIPTION
     This script authenticates PS sessing using Azure principal account.
 
@@ -15,7 +18,7 @@
 
 .NOTES
     Version:        1.0
-    Author:         Shital Savekar <v-shisav@microsoft.com>
+    Author:         Shital Savekar <v-shisav@microsoft.com>, lisasupport@microsoft.com
     Creation Date:  14th December 2017
     Purpose/Change: Initial script development
 

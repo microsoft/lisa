@@ -1,4 +1,25 @@
+<#
+.SYNOPSIS
+    This script copies VHD file to another storage account.
 
+    # Copyright (c) Microsoft. All rights reserved.
+    # Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+.DESCRIPTION
+    This script copies VHD files by another storage account.
+
+.PARAMETER 
+
+.INPUTS
+
+.NOTES
+    Version:        1.0
+    Author:         lisasupport@microsoft.com
+    Creation Date:  
+    Purpose/Change: 
+
+.EXAMPLE
+#>
 
 param
 (

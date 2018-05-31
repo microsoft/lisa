@@ -1,5 +1,7 @@
 ﻿##############################################################################################
 # AzureAutomationManager.ps1
+# Copyright (c) Microsoft. All rights reserved.
+# Licensed under the MIT license. See LICENSE file in the project root for full license information.
 # Description : This script manages all the setup and test operations in Azure environemnt.
 #               It is an entry script of Azure Automation
 # Operations :
@@ -7,8 +9,7 @@
 #              - VHD preparation : Installing packages required by ICA, LIS drivers and waagent
 #              - Uplaoding test VHD to cloud
 #              - Invokes azure test suite
-## Author : v-shisav@microsoft.com
-## Author : v-ampaw@microsoft.com
+## Author : v-shisav@microsoft.com, v-ampaw@microsoft.com, lisasupport@microsoft.com
 ###############################################################################################
 param (
 [CmdletBinding()]
