@@ -7,8 +7,6 @@
 #              
 ## Author : lisasupport@microsoft.com
 ###############################################################################################
-Import-Module .\AzureWinUtils.psm1 -Force
-
 Function GetStringMatchCount([string] $logFile,[string] $beg,[string] $end, [string] $str){
 $match=GetStringMatchObject -logFile $logFile -beg $beg -end $end -str $str
 return $match.Count
