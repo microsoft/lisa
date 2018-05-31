@@ -104,4 +104,8 @@
 		<StandardStorage>eosgkoreasouth</StandardStorage>
 		<PremiumStorage>eosgkoreasouthx</PremiumStorage>
 	</koreasouth>
+	<francecentral>
+		<StandardStorage>eosgfrancecentral</StandardStorage>
+		<PremiumStorage>eosgfrancecentralx</PremiumStorage>
+	</francecentral>
 </AllRegions>
