@@ -206,8 +206,12 @@ then
     BuildState=$(curl --silent -X GET "https://${JenkinsUser}:${ApiToken}@${JenkinsURL}/job/${TestPipeline}/${BuildNumber}/api/json" | ./jq '.building' | sed 's/"//g')
     BuildResult=$(curl --silent -X GET "https://${JenkinsUser}:${ApiToken}@${JenkinsURL}/job/${TestPipeline}/${BuildNumber}/api/json" | ./jq '.result' | sed 's/"//g')
     BlueOceanURL="https://${JenkinsURL}/blue/organizations/jenkins/${TestPipeline}/detail/${TestPipeline}/${BuildNumber}/pipeline"
-    echo "BuildURL (Classic) : ${BuildURL}"
+    echo "--------------------------------------"
     echo "BuildURL (BlueOcean) : ${BlueOceanURL}"
+    echo "--------------------------------------"
+    echo "BuildURL (Classic) : ${BuildURL}console"
+    echo "--------------------------------------"
+
     if [[ $WaitForResult == "yes" ]];
     then
         while [[ "$BuildState" ==  "true" ]]
