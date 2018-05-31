@@ -61,9 +61,9 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
   Go to Global > Azure  and update following fields :
 
         a. SubscriptionID
-        b. SubscriptionName
+        b. SubscriptionName (Optional)
         c. ManagementEndpoint
-        d. Environment
+        d. Environment: For Azure PublicCloud, use AzureCloud.
         e. ARMStorageAccount
 
   Example :
