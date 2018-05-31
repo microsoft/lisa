@@ -70,3 +70,7 @@ LinuxPassword=""
 #Required (Your pipeline name)
 TestPipeline=""
 #Example TestPipeline="<PatnerName>-Test-Execution-Pipeline"
+
+#Optinal. (Keep the polling enabled after build job is triggered and exit with final result.)
+WaitForResult=""
+#Example WaitForResul="yes"
