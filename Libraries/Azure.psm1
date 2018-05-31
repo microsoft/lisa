@@ -676,7 +676,7 @@ Function CreateResourceGroupDeployment([string]$RGName, $location, $setupType, $
 {
     $FailCounter = 0
     $retValue = "False"
-    $ResourceGroupDeploymentName = $RGName + "-deployment"
+    $ResourceGroupDeploymentName = "LISA-" + [guid]::NewGuid().Guid
     While(($retValue -eq $false) -and ($FailCounter -lt 1))
     {
         try
