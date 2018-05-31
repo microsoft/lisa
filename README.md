@@ -2,7 +2,7 @@
 
 May 2018
 
-## Overview
+### Overview
 
 LISAv2 is the one-stop automation solution implemented by PowerShell scripts, Linux BASH scripts and Python scripts for verifying Linux image/kernel on below platforms:
 * Microsoft Azure
@@ -50,7 +50,7 @@ A VHD with Linux OS must be made compatible to work in HyperV environment. This 
 
 Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azure/virtual-machines/linux/create-upload-generic)
 
-#### Launch Test Suite
+### Launch Test Suite
 
 1. Clone this automation code to your test driver by:
 
@@ -85,6 +85,6 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
 
         .\RunTests.ps1 -TestPlatform "Azure" -TestLocation "<Region location>" -RGIdentifier "<Identifier of the resource group>" [-ARMImageName "<publisher offer SKU version>" | -OsVHD "<VHD from storage account>" ] [[-TestCategory "<Test Catogry from Jenkins pipeline>" | -TestArea "<Test Area from Jenkins pipeline>"]* | -TestTag "<A Tag from Jenkins pipeline>" | -TestNames "<Test cases separated by comma>"]
 
-#### More Information
+### More Information
 
 For more details, please refer to the documents [here](https://github.com/LIS/LISAv2/blob/master/Documents/How-to-use.md).
