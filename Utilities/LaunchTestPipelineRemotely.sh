@@ -17,6 +17,9 @@ while echo $1 | grep ^- > /dev/null; do
     shift
 done
 
+#Define static variables
+JenkinsURL="penguinator.westus2.cloudapp.azure.com"
+
 #Verify the parameters file and import parameters.
 if [[ ! -z $ParametersFile ]];
 then
@@ -43,8 +46,8 @@ then
 fi
 if [[ $UpstreamBuildNumber == "" ]] || [[ -z $UpstreamBuildNumber ]];
 then
-    echo "UpstreamBuildNumber parameter is required"
-    ExitCode=$(( ExitCode + 1 ))
+    UpstreamBuildNumber=$(cat /dev/urandom | tr -dc '0-9' | fold -w 10 | head -1)
+    echo "UpstreamBuildNumber was not given. Using random build ID: ${UpstreamBuildNumber}"
 fi
 if ([[ $ImageSource == "" ]] || [[ -z $ImageSource ]]) && ([[ $CustomVHD == "" ]] || [[ -z $CustomVHD ]]) && ([[ $CustomVHDURL == "" ]] || [[ -z $CustomVHDURL ]]);
 then
@@ -54,15 +57,18 @@ else
     if ([[ ! $ImageSource == "" ]] || [[ ! -z $ImageSource ]]);
     then
         URLEncodedImageSource=${ImageSource// /%20}
-        echo "ImageSource '${ImageSource}' encoded to '${URLEncodedImageSource}'"
+        #echo "ImageSource '${ImageSource}' encoded to '${URLEncodedImageSource}'"
     fi
-    if ([[ -f $CustomVHD ]]);
+    if ([[ ! $CustomVHD == "" ]] || [[ ! -z $CustomVHD ]]);
     then
-        VHDName=$(basename $CustomVHD)
-        EncodedVHDName="${UpstreamBuildNumber}-${VHDName}"
-        echo "CustomVHD '${VHDName}' encoded to '${EncodedVHDName}'"
-    else
-        echo "CustomVHD '${CustomVHD}' does not exists. Please verify path."
+        if ([[ -f $CustomVHD ]]);
+        then
+            VHDName=$(basename $CustomVHD)
+            EncodedVHDName="${UpstreamBuildNumber}-${VHDName}"
+            #echo "CustomVHD '${VHDName}' encoded to '${EncodedVHDName}'"
+        else
+            echo "CustomVHD '${CustomVHD}' does not exists. Please verify path."
+        fi
     fi
     
 fi
@@ -96,22 +102,22 @@ else
     if [[ ! $TestByTestname == "" ]] || [[ ! -z $TestByTestname ]];
     then
         EncodedTestByTestname=${TestByTestname//>>/%3E%3E}
-        echo "TestByTestname '${TestByTestname}' encoded to '${EncodedTestByTestname}'"
+        #echo "TestByTestname '${TestByTestname}' encoded to '${EncodedTestByTestname}'"
     fi
     if [[ ! $TestByCategorisedTestname == "" ]] || [[ ! -z $TestByCategorisedTestname ]];
     then
         EncodedTestByCategorisedTestname=${TestByCategorisedTestname//>>/%3E%3E}
-        echo "TestByCategorisedTestname '${TestByCategorisedTestname}' encoded to '${EncodedTestByCategorisedTestname}'"
+        #echo "TestByCategorisedTestname '${TestByCategorisedTestname}' encoded to '${EncodedTestByCategorisedTestname}'"
     fi
     if [[ ! $TestByCategory == "" ]] || [[ ! -z $TestByCategory ]];
     then
         EncodedTestByCategory=${TestByCategory//>>/%3E%3E}
-        echo "TestByCategory '${TestByCategory}' encoded to '${EncodedTestEncodedTestByCategoryByTestname}'"
+        #echo "TestByCategory '${TestByCategory}' encoded to '${EncodedTestEncodedTestByCategoryByTestname}'"
     fi
     if [[ ! $TestByTag == "" ]] || [[ ! -z $TestByTag ]];
     then
         EncodedTestByTag=${TestByTag//>>/%3E%3E}
-        echo "TestByTag '${TestByTag}' encoded to '${EncodedTestByTag}'"
+        #echo "TestByTag '${TestByTag}' encoded to '${EncodedTestByTag}'"
     fi
 fi
 if [[ $Email == "" ]] || [[ -z $Email ]];
@@ -120,7 +126,7 @@ then
     ExitCode=$(( ExitCode + 1 ))
 else
     EncodedEmail=${Email//@/%40}
-    echo "Email '${Email}' encoded to '${EncodedEmail}'"    
+    #echo "Email '${Email}' encoded to '${EncodedEmail}'"    
 fi
 if [[ $ExitCode == 0 ]];
 then
@@ -134,7 +140,7 @@ fi
 #################################################
 #Generate the Link
 
-RemoteTriggerURL="https://${JenkinsUser}:${ApiToken}@${JenkinsURL}${TestPipeline}/buildWithParameters?token=1234567890&JenkinsUser=${JenkinsUser}&UpstreamBuildNumber=${UpstreamBuildNumber}"
+RemoteTriggerURL="https://${JenkinsUser}:${ApiToken}@${JenkinsURL}/job/${TestPipeline}/buildWithParameters?token=1234567890&JenkinsUser=${JenkinsUser}&UpstreamBuildNumber=${UpstreamBuildNumber}"
 
 #Add image source.
 if ([[ ! $URLEncodedImageSource == "" ]] || [[ ! -z $URLEncodedImageSource ]]);
@@ -143,7 +149,7 @@ then
 elif ([[ ! $CustomVHD == "" ]] || [[ ! -z $CustomVHD ]]);
 then
     echo "Uploading ${CustomVHD} with name ${EncodedVHDName}..."
-    curl -v -T $CustomVHD ftp://${JenkinsURL} --user ${FtpUsername}:${FtpPassword} -Q "-RNFR ${VHDName}" -Q "-RNTO ${EncodedVHDName}"
+    curl -T $CustomVHD ftp://${JenkinsURL} --user ${FtpUsername}:${FtpPassword} -Q "-RNFR ${VHDName}" -Q "-RNTO ${EncodedVHDName}"
     RemoteTriggerURL="${RemoteTriggerURL}&CustomVHD=${VHDName}"
 elif ([[ ! $CustomVHDURL == "" ]] || [[ ! -z $CustomVHDURL ]]);
 then
@@ -172,15 +178,48 @@ then
 fi
 #Add email
 RemoteTriggerURL="${RemoteTriggerURL}&Email=${EncodedEmail}"
-RemoteQueryURL="https://${JenkinsUser}:${ApiToken}@${JenkinsURL}${TestPipeline}/lastBuild/api/xml"
-echo ${RemoteTriggerURL}
+RemoteQueryURL="https://${JenkinsUser}:${ApiToken}@${JenkinsURL}/job/${TestPipeline}/lastBuild/api/xml"
+#echo ${RemoteTriggerURL}
 echo "Triggering job..."
-curl -v -X POST ${RemoteTriggerURL}
+curl --silent -X POST ${RemoteTriggerURL}
 if [[ "$?" == "0" ]];
 then
-    xmlResponse=$(curl -v -X GET "${RemoteQueryURL}")
-    echo $xmlResponse | tr ">" "\n" | grep penguinator | tr "<" "\n" | head -1
     echo "Job triggered successfully."
+    if [[ ! -f ./jq ]];
+    then
+        echo "Downloading json parser"
+        curl --silent -O https://raw.githubusercontent.com/LIS/LISAv2/master/Tools/jq
+        chmod +x jq
+    fi
+    BuildNumber=$(curl --silent -X GET "https://${JenkinsUser}:${ApiToken}@${JenkinsURL}/job/${TestPipeline}/lastBuild/api/json" | ./jq '.id' | sed 's/"//g')
+    BuildURL=$(curl --silent -X GET "https://${JenkinsUser}:${ApiToken}@${JenkinsURL}/job/${TestPipeline}/${BuildNumber}/api/json" | ./jq '.url' | sed 's/"//g')
+    BuildState=$(curl --silent -X GET "https://${JenkinsUser}:${ApiToken}@${JenkinsURL}/job/${TestPipeline}/${BuildNumber}/api/json" | ./jq '.building' | sed 's/"//g')
+    BuildResult=$(curl --silent -X GET "https://${JenkinsUser}:${ApiToken}@${JenkinsURL}/job/${TestPipeline}/${BuildNumber}/api/json" | ./jq '.result' | sed 's/"//g')
+    BlueOceanURL="https://${JenkinsURL}/blue/organizations/jenkins/${TestPipeline}/detail/${TestPipeline}/${BuildNumber}/pipeline"
+    echo "BuildURL (Classic) : ${BuildURL}"
+    echo "BuildURL (BlueOcean) : ${BlueOceanURL}"
+    if [[ $WaitForResult == "yes" ]];
+    then
+        while [[ "$BuildState" ==  "true" ]]
+        do
+            BuildState=$(curl --silent -X GET "https://${JenkinsUser}:${ApiToken}@${JenkinsURL}/job/${TestPipeline}/${BuildNumber}/api/json" | ./jq '.building' | sed 's/"//g')
+            echo "Current state : Running."
+            sleep 5       
+        done
+        BuildResult=$(curl --silent -X GET "https://${JenkinsUser}:${ApiToken}@${JenkinsURL}/job/${TestPipeline}/${BuildNumber}/api/json" | ./jq '.result' | sed 's/"//g')
+        if [[ "$BuildResult" == "SUCCESS" ]];
+        then
+            echo "Current State : Completed."
+            echo "Result: SUCCESS."
+            exit 0
+        else
+            echo "Result: ${BuildResult}"
+            exit 1
+        fi
+    else
+        exit 0
+    fi
 else
     echo "Failed to trigger job."
+    exit 1
 fi

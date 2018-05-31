@@ -7,7 +7,7 @@
 #Required
 JenkinsUser=""
 
-#Required
+#Optinal
 UpstreamBuildNumber=""
 
 #Required any one of the following
@@ -37,19 +37,17 @@ TestByTag=""
 #Required
 Email=""
 
-#Optional
+#Required
 LinuxUsername=""
 LinuxPassword=""
 
 #Required to access Jenkins.
 ApiToken=""
+
 #Required to upload Files to jenkins server using FTP
 FtpUsername=""
 FtpPassword=""
 
 #Required
-JenkinsURL="penguinator.westus2.cloudapp.azure.com"
-
-#Required
-#TestPipeline="/view/Microsoft/job/Microsoft/job/Microsoft-Test-Execution-Pipeline"
+#TestPipeline="/Microsoft/job/Microsoft-Test-Execution-Pipeline"
 TestPipeline=""
