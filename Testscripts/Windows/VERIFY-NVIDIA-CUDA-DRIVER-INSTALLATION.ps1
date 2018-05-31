@@ -2,7 +2,6 @@ $result = ""
 $testResult = ""
 $resultArr = @()
 
-Set-Variable -Name OverrideVMSize -Value $currentTestData.OverrideVMSize -Scope Global
 $isDeployed = DeployVMS -setupType $currentTestData.setupType -Distro $Distro -xmlConfig $xmlConfig
 if ($isDeployed)
 {
