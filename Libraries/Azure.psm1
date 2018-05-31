@@ -1,3 +1,12 @@
+##############################################################################################
+# Azure.psm1
+# Copyright (c) Microsoft. All rights reserved.
+# Licensed under the MIT license. See LICENSE file in the project root for full license information.
+# Description : Azure PS module file having all required for test execution.
+# Operations :
+#              
+## Author : lisasupport@microsoft.com
+###############################################################################################
 Function ValidateSubscriptionUsage($subscriptionID, $RGXMLData)
 {
     #region VM Cores...
