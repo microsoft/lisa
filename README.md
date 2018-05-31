@@ -1,6 +1,6 @@
 ﻿# Test Automation for Microsoft Linux on Azure & Hyper-V
 
-Automation platform for Linux images testing on Microsoft Azure and Hyper-V
+Automation platform for Linux images testing on Microsoft Azure & Hyper-V
 
 ## Overview
 
@@ -115,7 +115,7 @@ Before starting Automation, make sure that you have completed steps in chapter [
         2. Navigate to folder where automation code exists
         3. Issue automation command
 
-#### Automation Cycles Available
+#### Test Categories Available
 
         1. BVT
         2. PERFORMANCE
@@ -123,9 +123,6 @@ Before starting Automation, make sure that you have completed steps in chapter [
         4. COMMUNITY
         5. SMOKE
 
-#### Supported Azure Mode
-
-        - AzureResourceManager, if the value is present in the SupportedExecutionModes tag of the case definition
 
 #### Command to Start any of the Automation Cycle
 
