@@ -1,3 +1,13 @@
+##############################################################################################
+# TriggerTestPipelineRemotely.sh
+# Copyright (c) Microsoft. All rights reserved.
+# Licensed under the MIT license. See LICENSE file in the project root for full license information.
+# Description : 
+# Operations :
+#              
+## Author : lisasupport@microsoft.com
+###############################################################################################
+
 #!/bin/bash
 
 #Required
@@ -10,6 +20,18 @@ UpstreamBuildNumber="unique-string"
 ImageSource=""
 CustomVHD="" 
 CustomVHDURL=""
+
+if [ - $ImageSource ];
+    echo "Missing required parameter - ImageSource"
+fi
+
+if [ - $CustomVHD ];
+    echo "Missing required parameter - CustomVHD"
+fi
+
+if [ - $CustomVHDURL ];
+    echo "Missing required parameter - CustomVHDURL"
+fi
 
 #Required
 Kernel="default"
