@@ -155,4 +155,4 @@ Before starting Automation, make sure that you have completed steps in chapter [
 
 #### More Information
 
-For more details, please refer to the documents [here](https://github.com/LIS/LISAv2/tree/master/Documentation/How-to-use.md).
+For more details, please refer to the documents [here](https://github.com/LIS/LISAv2/blob/master/Documents/How-to-use.md).
