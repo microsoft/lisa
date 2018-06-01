@@ -1,13 +1,3 @@
-##############################################################################################
-# TriggerTestPipelineRemotely.sh
-# Copyright (c) Microsoft. All rights reserved.
-# Licensed under the MIT license. See LICENSE file in the project root for full license information.
-# Description : 
-# Operations :
-#              
-## Author : lisasupport@microsoft.com
-###############################################################################################
-
 #!/bin/bash
 
 #####################################################################################################
@@ -27,19 +17,25 @@ while echo $1 | grep ^- > /dev/null; do
     shift
 done
 
+LogMsg()
+{
+    echo "[$(date +"%x %r %Z")] ${1}"
+    echo "[$(date +"%x %r %Z")] ${1}" >> "LaunchTestPipelineRemotely.log"
+}
+
 #Define static variables
 JenkinsURL="penguinator.westus2.cloudapp.azure.com"
 
 #Verify the parameters file and import parameters.
 if [[ ! -z $ParametersFile ]];
 then
-	echo "Parameters File: $ParametersFile"
+	LogMsg "Parameters File: $ParametersFile"
 	if [[ -f $ParametersFile  ]];
 	then
-		echo "Importing parameters..."
+		LogMsg "Importing parameters..."
 		source $ParametersFile
 	else
-		echo "Unable to locate $ParametersFile. Exiting with 1"
+		LogMsg "Unable to locate $ParametersFile. Exiting with 1"
 		exit 1
 	fi
 fi
@@ -51,17 +47,17 @@ ExitCode=0
 ##############################################################
 if [[ $JenkinsUser == "" ]] || [[ -z $JenkinsUser ]];
 then
-    echo "JenkinsUser parameter is required"
+    LogMsg "JenkinsUser parameter is required"
     ExitCode=$(( ExitCode + 1 ))
 fi
 if [[ $UpstreamBuildNumber == "" ]] || [[ -z $UpstreamBuildNumber ]];
 then
     UpstreamBuildNumber=$(cat /dev/urandom | tr -dc '0-9' | fold -w 10 | head -1)
-    echo "UpstreamBuildNumber was not given. Using random build ID: ${UpstreamBuildNumber}"
+    LogMsg "UpstreamBuildNumber was not given. Using random build ID: ${UpstreamBuildNumber}"
 fi
 if ([[ $ImageSource == "" ]] || [[ -z $ImageSource ]]) && ([[ $CustomVHD == "" ]] || [[ -z $CustomVHD ]]) && ([[ $CustomVHDURL == "" ]] || [[ -z $CustomVHDURL ]]);
 then
-    echo "ImageSource/CustomVHD/CustomVHDURL parameter is required"
+    LogMsg "ImageSource/CustomVHD/CustomVHDURL parameter is required"
     ExitCode=$(( ExitCode + 1 ))
 else
     if ([[ ! $ImageSource == "" ]] || [[ ! -z $ImageSource ]]);
@@ -85,28 +81,28 @@ fi
 if [[ $Kernel == "" ]] || [[ -z $Kernel ]];
 then
 
-    echo "Kernel parameter is required"
+    LogMsg "Kernel parameter is required"
     ExitCode=$(( ExitCode + 1 ))
 fi
 if [[ $Kernel == "" ]] || [[ -z $Kernel ]];
 then
 
-    echo "Kernel parameter is required"
+    LogMsg "Kernel parameter is required"
     ExitCode=$(( ExitCode + 1 ))
 fi
 if [[ $GitUrlForAutomation == "" ]] || [[ -z $GitUrlForAutomation ]];
 then
-    echo "GitUrlForAutomation parameter is required"
+    LogMsg "GitUrlForAutomation parameter is required"
     ExitCode=$(( ExitCode + 1 ))
 fi
 if [[ $GitBranchForAutomation == "" ]] || [[ -z $GitBranchForAutomation ]];
 then
-    echo "GitBranchForAutomation parameter is required"
+    LogMsg "GitBranchForAutomation parameter is required"
     ExitCode=$(( ExitCode + 1 ))
 fi
 if ([[ $TestByTestname == "" ]] || [[ -z $TestByTestname ]]) && ([[ $TestByCategorisedTestname == "" ]] || [[ -z $TestByCategorisedTestname ]]) && ([[ $TestByCategory == "" ]] || [[ -z $TestByCategory ]]) && ([[ $TestByTag == "" ]] || [[ -z $TestByTag ]]);
 then
-    echo "TestByTestname/TestByCategorisedTestname/TestByCategory/TestByTag parameter is required"
+    LogMsg "TestByTestname/TestByCategorisedTestname/TestByCategory/TestByTag parameter is required"
     ExitCode=$(( ExitCode + 1 ))
 else
     if [[ ! $TestByTestname == "" ]] || [[ ! -z $TestByTestname ]];
@@ -132,7 +128,7 @@ else
 fi
 if [[ $Email == "" ]] || [[ -z $Email ]];
 then
-    echo "Email parameter is required"
+    LogMsg "Email parameter is required"
     ExitCode=$(( ExitCode + 1 ))
 else
     EncodedEmail=${Email//@/%40}
@@ -140,9 +136,9 @@ else
 fi
 if [[ $ExitCode == 0 ]];
 then
-    echo "Parameters are valid."
+    LogMsg "Parameters are valid."
 else
-    echo "Exiting with 1"
+    LogMsg "Exiting with 1"
     exit 1
 fi
 
@@ -158,7 +154,7 @@ then
     RemoteTriggerURL="${RemoteTriggerURL}&ImageSource=${URLEncodedImageSource}"
 elif ([[ ! $CustomVHD == "" ]] || [[ ! -z $CustomVHD ]]);
 then
-    echo "Uploading ${CustomVHD} with name ${EncodedVHDName}..."
+    LogMsg "Uploading ${CustomVHD} with name ${EncodedVHDName}..."
     curl -T $CustomVHD ftp://${JenkinsURL} --user ${FtpUsername}:${FtpPassword} -Q "-RNFR ${VHDName}" -Q "-RNTO ${EncodedVHDName}"
     RemoteTriggerURL="${RemoteTriggerURL}&CustomVHD=${VHDName}"
 elif ([[ ! $CustomVHDURL == "" ]] || [[ ! -z $CustomVHDURL ]]);
@@ -190,14 +186,14 @@ fi
 RemoteTriggerURL="${RemoteTriggerURL}&Email=${EncodedEmail}"
 RemoteQueryURL="https://${JenkinsUser}:${ApiToken}@${JenkinsURL}/job/${TestPipeline}/lastBuild/api/xml"
 #echo ${RemoteTriggerURL}
-echo "Triggering job..."
+LogMsg "Triggering job..."
 curl --silent -X POST ${RemoteTriggerURL}
 if [[ "$?" == "0" ]];
 then
-    echo "Job triggered successfully."
+    LogMsg "Job triggered successfully."
     if [[ ! -f ./jq ]];
     then
-        echo "Downloading json parser"
+        LogMsg "Downloading json parser"
         curl --silent -O https://raw.githubusercontent.com/LIS/LISAv2/master/Tools/jq
         chmod +x jq
     fi
@@ -206,34 +202,34 @@ then
     BuildState=$(curl --silent -X GET "https://${JenkinsUser}:${ApiToken}@${JenkinsURL}/job/${TestPipeline}/${BuildNumber}/api/json" | ./jq '.building' | sed 's/"//g')
     BuildResult=$(curl --silent -X GET "https://${JenkinsUser}:${ApiToken}@${JenkinsURL}/job/${TestPipeline}/${BuildNumber}/api/json" | ./jq '.result' | sed 's/"//g')
     BlueOceanURL="https://${JenkinsURL}/blue/organizations/jenkins/${TestPipeline}/detail/${TestPipeline}/${BuildNumber}/pipeline"
-    echo "--------------------------------------"
-    echo "BuildURL (BlueOcean) : ${BlueOceanURL}"
-    echo "--------------------------------------"
-    echo "BuildURL (Classic) : ${BuildURL}console"
-    echo "--------------------------------------"
+    LogMsg "--------------------------------------"
+    LogMsg "BuildURL (BlueOcean) : ${BlueOceanURL}"
+    LogMsg "--------------------------------------"
+    LogMsg "BuildURL (Classic) : ${BuildURL}console"
+    LogMsg "--------------------------------------"
 
     if [[ $WaitForResult == "yes" ]];
     then
         while [[ "$BuildState" ==  "true" ]]
         do
             BuildState=$(curl --silent -X GET "https://${JenkinsUser}:${ApiToken}@${JenkinsURL}/job/${TestPipeline}/${BuildNumber}/api/json" | ./jq '.building' | sed 's/"//g')
-            echo "Current state : Running."
+            LogMsg "Current state : Running."
             sleep 5       
         done
         BuildResult=$(curl --silent -X GET "https://${JenkinsUser}:${ApiToken}@${JenkinsURL}/job/${TestPipeline}/${BuildNumber}/api/json" | ./jq '.result' | sed 's/"//g')
         if [[ "$BuildResult" == "SUCCESS" ]];
         then
-            echo "Current State : Completed."
-            echo "Result: SUCCESS."
+            LogMsg "Current State : Completed."
+            LogMsg "Result: SUCCESS."
             exit 0
         else
-            echo "Result: ${BuildResult}"
+            LogMsg "Result: ${BuildResult}"
             exit 1
         fi
     else
         exit 0
     fi
 else
-    echo "Failed to trigger job."
+    LogMsg "Failed to trigger job."
     exit 1
 fi
