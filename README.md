@@ -31,17 +31,19 @@ LISAv2 includes below test suite categories:
 
 ### Authenticate Your Test Driver Machine with Your Azure Subscription
 
-1. Azure AD method
+#### Azure AD method
 
-        This creates a 12 Hours temporary session in PowerShell, in that session, you are allowed to run Windows Azure Cmdlets to control / use your subscription. After 12 hours you will be asked to enter username and password of your subscription. This may create problems long running automations, hence we use service principal method.
+This creates a 12 Hours temporary session in PowerShell. In that session, you are allowed to run Windows Azure Cmdlets to control / use your subscription.
 
-2. Service Principal method
+After 12 hours you will be asked to enter username and password of your subscription again.
 
-        Refer to this URL [here](https://docs.microsoft.com/en-us/azure/azure-resource-manager/resource-group-create-service-principal-portal)
+#### Service Principal method
+
+Refer to this URL [here](https://docs.microsoft.com/en-us/azure/azure-resource-manager/resource-group-create-service-principal-portal)
 
 ### Prepare VHD for Your Test
 
-`Applicable if you are uploading your own Linux VHD to Azure for test.`
+> Applicable if you are uploading your own Linux VHD to Azure for test.
 
 A VHD with Linux OS must be made compatible to work in HyperV environment. This includes:
 
@@ -58,15 +60,15 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
           
 2. Update the GlobalConfigurations.xml file with your Azure subscription infomation: 
 
-  Go to Global > Azure  and update following fields :
+   Go to Global > Azure  and update following fields :
 
         a. SubscriptionID
         b. SubscriptionName (Optional)
         c. ManagementEndpoint
-        d. Environment: For Azure PublicCloud, use AzureCloud.
+        d. Environment (For Azure PublicCloud, use `AzureCloud`)
         e. ARMStorageAccount
 
-  Example :
+   Example :
 
 ```xml
 
