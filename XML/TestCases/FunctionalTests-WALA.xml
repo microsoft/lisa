@@ -18,7 +18,7 @@
         <testName>WALA-PROCESS-CHECK</testName>
         <testScript>WALA-PROCESS-CHECK.py</testScript>
         <PowershellScript>WALA-PROCESS-CHECK.ps1</PowershellScript>
-        <files>.\Testscripts\Linux\BWALA-PROCESS-CHECK.py,.\Testscripts\Linux\azuremodules.py</files>
+        <files>.\Testscripts\Linux\WALA-PROCESS-CHECK.py,.\Testscripts\Linux\azuremodules.py</files>
         <setupType>BVTDeployment</setupType>
         <TestType></TestType>
         <TestFeature></TestFeature>
