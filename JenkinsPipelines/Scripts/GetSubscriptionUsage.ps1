@@ -1,6 +1,6 @@
 param 
 ( 
-    [switch] $UploadToDB=$true,
+    [switch] $UploadToDB,
     $customSecretsFilePath=""
 )
 
@@ -298,7 +298,7 @@ if ($UploadToDB)
 #endregion
 
 LogMsg "Getting top 20 VMs."
-.\Utilities\SubscriptionUsageTopVMs.ps1 -TopVMsCount 20
+.\JenkinsPipelines\Scripts\SubscriptionUsageTopVMs.ps1 -TopVMsCount 20
 
 $TopVMsHTMLReport = (Get-Content -Path .\vmAge.html)
 
