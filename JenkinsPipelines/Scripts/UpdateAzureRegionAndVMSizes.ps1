@@ -12,6 +12,7 @@ try
     $allRegions = $allRegions | Sort-Object
     $i = 1
     $allRegions | ForEach-Object { LogMsg "$i. $_"; $i++ }
+    $tab = "	"
     $RegionAndVMSize = "Region$tab`Size`n"
     foreach ( $NewRegion in $allRegions  )
     {
