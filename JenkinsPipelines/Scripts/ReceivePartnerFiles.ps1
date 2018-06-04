@@ -111,7 +111,7 @@ if ($env:Kernel -eq "custom")
         }
         else
         {
-            LogText "Downloading $($env:customKernelURL)"
+            LogMsg "Downloading $($env:customKernelURL)"
             $out = Start-BitsTransfer  -Source "$env:customKernelURL"
             if ($?)
             {
@@ -131,7 +131,7 @@ if ($env:Kernel -eq "custom")
             else
             {
                 LogMsg "--------------------------------------------------------------------------------------------------------------"
-                LogText "ERROR: Failed to download $($env:customKernelURL). Please verify that your URL is accessible on public internet."
+                LogMsg "ERROR: Failed to download $($env:customKernelURL). Please verify that your URL is accessible on public internet."
                 LogMsg "--------------------------------------------------------------------------------------------------------------"
                 $ExitCode += 1
                 exit $ExitCode
