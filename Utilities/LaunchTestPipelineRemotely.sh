@@ -29,15 +29,15 @@ JenkinsURL="penguinator.westus2.cloudapp.azure.com"
 #Verify the parameters file and import parameters.
 if [[ ! -z $ParametersFile ]];
 then
-	LogMsg "Parameters File: $ParametersFile"
-	if [[ -f $ParametersFile  ]];
-	then
-		LogMsg "Importing parameters..."
-		source $ParametersFile
-	else
-		LogMsg "Unable to locate $ParametersFile. Exiting with 1"
-		exit 1
-	fi
+    LogMsg "Parameters File: $ParametersFile"
+    if [[ -f $ParametersFile  ]];
+    then
+        LogMsg "Importing parameters..."
+        source $ParametersFile
+    else
+        LogMsg "Unable to locate $ParametersFile. Exiting with 1"
+        exit 1
+    fi
 fi
 
 ExitCode=0
@@ -74,21 +74,44 @@ else
             #echo "CustomVHD '${VHDName}' encoded to '${EncodedVHDName}'"
         else
             echo "CustomVHD '${CustomVHD}' does not exists. Please verify path."
+            ExitCode=$(( ExitCode + 1 ))
         fi
     fi
     
 fi
 if [[ $Kernel == "" ]] || [[ -z $Kernel ]];
 then
-
     LogMsg "Kernel parameter is required"
     ExitCode=$(( ExitCode + 1 ))
-fi
-if [[ $Kernel == "" ]] || [[ -z $Kernel ]];
-then
-
-    LogMsg "Kernel parameter is required"
-    ExitCode=$(( ExitCode + 1 ))
+else
+    if [[ $Kernel == "custom" ]];
+    then
+        if [[ ! $CustomKernelFile == "" ]] || [[ ! -z $CustomKernelFile ]];
+        then
+            if ([[ -f $CustomKernelFile ]]);
+            then
+                KernelName=$(basename $CustomKernelFile)
+                EncodedKernelName="${UpstreamBuildNumber}-${KernelName}"
+                #echo "CustomKernelFile '${KernelName}' encoded to '${EncodedKernelName}'"
+            else
+                echo "CustomKernelFile '${CustomKernelFile}' does not exists. Please verify path."
+                ExitCode=$(( ExitCode + 1 ))
+            fi            
+        elif [[ ! $CustomKernelURL == "" ]] || [[ ! -z $CustomKernelURL ]];
+        then
+            KernelName=$(basename $CustomKernelURL)
+            rm -rf $KernelName
+            LogMsg "Downloading $CustomKernelURL"
+            wget $CustomKernelURL
+            if [[ "$?" == "0" ]];then
+                EncodedKernelName="${UpstreamBuildNumber}-${KernelName}"
+                #echo "CustomKernelFile '${KernelName}' encoded to '${EncodedKernelName}'"
+            else
+                LogMsg "Failed."
+                ExitCode=$(( ExitCode + 1 ))
+            fi
+        fi
+    fi
 fi
 if [[ $GitUrlForAutomation == "" ]] || [[ -z $GitUrlForAutomation ]];
 then
@@ -163,7 +186,21 @@ then
 fi
 
 #Add Kernel and Git details
-RemoteTriggerURL="${RemoteTriggerURL}&Kernel=${Kernel}&GitUrlForAutomation=${GitUrlForAutomation}&GitBranchForAutomation=${GitBranchForAutomation}"
+RemoteTriggerURL="${RemoteTriggerURL}&Kernel=${Kernel}"
+if [[ $Kernel == 'custom' ]];
+then
+    if ([[ ! $CustomKernelFile == "" ]] || [[ ! -z $CustomKernelFile ]]) || ([[ ! $CustomKernelURL == "" ]] || [[ ! -z $CustomKernelURL ]]);
+    then
+        LogMsg "Uploading ${KernelName} with name ${EncodedKernelName}..."
+        curl -T $KernelName ftp://${JenkinsURL} --user ${FtpUsername}:${FtpPassword} -Q "-RNFR ${KernelName}" -Q "-RNTO ${EncodedKernelName}"
+        if ([[ ! $CustomKernelFile == "" ]] || [[ ! -z $CustomKernelFile ]]);then
+            RemoteTriggerURL="${RemoteTriggerURL}&CustomKernelFile=${KernelName}"        
+        elif ([[ ! $CustomKernelURL == "" ]] || [[ ! -z $CustomKernelURL ]]);then
+            RemoteTriggerURL="${RemoteTriggerURL}&CustomKernelURL=${CustomKernelURL}" 
+        fi
+    fi
+fi
+RemoteTriggerURL="${RemoteTriggerURL}&GitUrlForAutomation=${GitUrlForAutomation}&GitBranchForAutomation=${GitBranchForAutomation}"
 
 #Add Tests
 if ([[ ! $EncodedTestByTestname == "" ]] || [[ ! -z $EncodedTestByTestname ]]);
