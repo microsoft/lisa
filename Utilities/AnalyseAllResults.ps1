@@ -6,7 +6,7 @@
     # Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 .DESCRIPTION
-    This script authenticates PS sessing using Azure principal account.
+    This script checks contents of the ./report/*-junit.xml files and exit with zero or non-zero exit code.
 
 .PARAMETER 
 
