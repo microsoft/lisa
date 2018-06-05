@@ -79,91 +79,108 @@ try
                 }
                 else 
                 {
-                    $ExitCode = 1
+                    $ExitCode += 1
                     LogError "$SourceVHDName is not present. Is the CustomVHDURL a valid link?"  
                 }                
             }            
         }
         else 
         {
-            $CurrentVHD = "$LocalFolder\$env:UpstreamBuildNumber-$CustomVHD"
-            $ReceivedVHD = "$CurrentRemoteFolder\$env:CustomVHD"
-            LogMsg "Copying $ReceivedVHD --> $CurrentVHD"
-            Copy-Item -Path $ReceivedVHD -Destination $CurrentVHD -Force
-            LogMsg "Completed."
+            $SourceVHDName = $env:CustomVHD
+            $CurrentVHD = "$LocalFolder\$env:UpstreamBuildNumber-$SourceVHDName"
+            $ReceivedVHD = "$CurrentRemoteFolder\$SourceVHDName"
+            if (Test-Path $ReceivedVHD)
+            {
+                LogMsg "$SourceVHDName File was present in local storage."
+                LogMsg "Copying $ReceivedVHD --> $CurrentVHD for current use.."
+                Copy-Item -Path $ReceivedVHD -Destination $CurrentVHD -Force
+                LogMsg "Copy Completed."
+            }
+            else 
+            {
+                LogMsg "We're not able to find $ReceivedVHD. Did uploade went successful?"
+                $ExitCode += 1
+            }
         }
 
-        if ( ($CurrentVHD).EndsWith(".xz") -or ($CurrentVHD).EndsWith(".vhd") -or ($CurrentVHD).EndsWith(".vhdx"))
+        if ( Test-Path $CurrentVHD)
         {
-            #region Extract the VHD if required.
-            if ($CurrentVHD.EndsWith(".xz"))
+            if ( ($CurrentVHD).EndsWith(".xz") -or ($CurrentVHD).EndsWith(".vhd") -or ($CurrentVHD).EndsWith(".vhdx"))
             {
-                $FilenameToExtract = $CurrentVHD | Split-Path -Leaf
-                Set-Location $CurrentLocalFolder
-                LogMsg "Detected *.xz file."
-                LogMsg "Extracting '$FilenameToExtract'. Please wait..."
-                $7zConsoleOuput = Invoke-Expression -Command "$7zExePath -y x '$FilenameToExtract';" -Verbose
-                if ($7zConsoleOuput -imatch "Everything is Ok")
+                #region Extract the VHD if required.
+                if ($CurrentVHD.EndsWith(".xz"))
                 {
-                    LogMsg "Extraction completed."
-                    $CurrentVHD = $CurrentVHD.TrimEnd("xz").TrimEnd(".")
-                    LogMsg "Changing working directory to $WorkingDirectory"
-                    Set-Location $WorkingDirectory
-                    $VhdActualSize = ($7zConsoleOuput -imatch "size").Replace(" ",'').Replace(" ",'').Replace(" ",'').Replace(" ",'').Split(":")[1]
-                    $VhdCompressedSize = ($7zConsoleOuput -imatch "Compressed").Replace(" ",'').Replace(" ",'').Replace(" ",'').Replace(" ",'').Split(":")[1]
-                    $CompressinRatio = ((($VhdCompressedSize/($VhdActualSize-$VhdCompressedSize))*100))
-                    LogMsg "Compression Ratio : $([math]::Round($CompressinRatio,2))%"
+                    $FilenameToExtract = $CurrentVHD | Split-Path -Leaf
+                    Set-Location $CurrentLocalFolder
+                    LogMsg "Detected *.xz file."
+                    LogMsg "Extracting '$FilenameToExtract'. Please wait..."
+                    $7zConsoleOuput = Invoke-Expression -Command "$7zExePath -y x '$FilenameToExtract';" -Verbose
+                    if ($7zConsoleOuput -imatch "Everything is Ok")
+                    {
+                        LogMsg "Extraction completed."
+                        $CurrentVHD = $CurrentVHD.TrimEnd("xz").TrimEnd(".")
+                        LogMsg "Changing working directory to $WorkingDirectory"
+                        Set-Location $WorkingDirectory
+                        $VhdActualSize = ($7zConsoleOuput -imatch "size").Replace(" ",'').Replace(" ",'').Replace(" ",'').Replace(" ",'').Split(":")[1]
+                        $VhdCompressedSize = ($7zConsoleOuput -imatch "Compressed").Replace(" ",'').Replace(" ",'').Replace(" ",'').Replace(" ",'').Split(":")[1]
+                        $CompressinRatio = ((($VhdCompressedSize/($VhdActualSize-$VhdCompressedSize))*100))
+                        LogMsg "Compression Ratio : $([math]::Round($CompressinRatio,2))%"
+                    }
+                    else
+                    {
+                        $ExitCode += 1
+                        ThrowException "Failed to extract $FilenameToExtract."
+                    }
                 }
-                else
+                #endregion
+    
+                if ($CurrentVHD.EndsWith(".vhdx"))
                 {
-                    $ExitCode += 1
-                    ThrowException "Failed to extract $FilenameToExtract."
-                }
+                    Set-Location $CurrentLocalFolder
+                    $vhdx = $CurrentVHD | Split-Path -Leaf
+                    $vhd = $vhdx.TrimEnd("x")
+                    LogMsg "Converting '$vhdx' --> '$vhd'. [VHDx to VHD]"
+                    $convertJob = Start-Job -ScriptBlock { Convert-VHD -Path $args[0] -DestinationPath $args[1] -VHDType Dynamic } -ArgumentList "$CurrentLocalFolder\$vhdx", "$CurrentLocalFolder\$vhd"
+                    while ($convertJob.State -eq "Running")
+                    {
+                        LogMsg "'$vhdx' --> '$vhd' is running"
+                        Start-Sleep -Seconds 10
+                    }
+                    if ( $convertJob.State -eq "Completed")
+                    {
+                        LogMsg "$CurrentVHD Created suceessfully."
+                        $CurrentVHD = $CurrentVHD.TrimEnd("x")
+                        LogMsg "'$vhdx' --> '$vhd' is Succeeded."
+                        LogMsg "Removing '$vhdx'..."
+                        Remove-Item "$CurrentLocalFolder\$vhdx" -Force -ErrorAction SilentlyContinue
+                    }
+                    else
+                    {
+                        LogMsg "'$vhdx' --> '$vhd' is Failed."
+                        $ExitCode += 1
+                    }
+                    Set-Location $WorkingDirectory                
+                }        
+                ValidateVHD -vhdPath $CurrentVHD
+                Set-Content -Value "$($CurrentVHD | Split-Path -Leaf)" -Path .\CustomVHD.azure.env -NoNewline -Force
             }
-            #endregion
-
-            if ($CurrentVHD.EndsWith(".vhdx"))
+            else 
             {
-                Set-Location $CurrentLocalFolder
-                $vhdx = $CurrentVHD | Split-Path -Leaf
-                $vhd = $vhdx.TrimEnd("x")
-                LogMsg "Converting '$vhdx' --> '$vhd'. [VHDx to VHD]"
-                $convertJob = Start-Job -ScriptBlock { Convert-VHD -Path $args[0] -DestinationPath $args[1] -VHDType Dynamic } -ArgumentList "$CurrentLocalFolder\$vhdx", "$CurrentLocalFolder\$vhd"
-                while ($convertJob.State -eq "Running")
-                {
-                    LogMsg "'$vhdx' --> '$vhd' is running"
-                    Start-Sleep -Seconds 10
-                }
-                if ( $convertJob.State -eq "Completed")
-                {
-                    LogMsg "$CurrentVHD Created suceessfully."
-                    $CurrentVHD = $CurrentVHD.TrimEnd("x")
-                    LogMsg "'$vhdx' --> '$vhd' is Succeeded."
-                    $ExitCode = 0
-                    LogMsg "Removing '$vhdx'..."
-                    Remove-Item "$CurrentLocalFolder\$vhdx" -Force -ErrorAction SilentlyContinue
-                }
-                else
-                {
-                    LogMsg "'$vhdx' --> '$vhd' is Failed."
-                    $ExitCode += 1
-                }
-                Set-Location $WorkingDirectory                
-            }        
-            ValidateVHD -vhdPath $CurrentVHD
-            Set-Content -Value "$($CurrentVHD | Split-Path -Leaf)" -Path .\CustomVHD.azure.env -NoNewline -Force
+                $FileExtension = [System.IO.Path]::GetExtension("$CurrentVHD") 
+                LogError "Unsupported file type: *$FileExtension"
+                $ExitCode += 1
+            }
         }
         else 
         {
-            $FileExtension = [System.IO.Path]::GetExtension("$CurrentVHD") 
-            LogError "Unsupported file type: *$FileExtension"
-            $ExitCode += 1
+            LogError "$CurrentVHD is not found. Exiting."
+            $ExitCode = 1             
         }
     }
     else 
     {
         LogError "Did you forgot to provide value for 'CustomVHD' parameter?"
-        $ExitCode = 1 
+        $ExitCode += 1 
     }
 }
 catch
