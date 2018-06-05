@@ -1,6 +1,6 @@
 ﻿Param (
     $RemoteFolder = "J:\ReceivedFiles",
-    $LocalFolder = "Q:\Temp"
+    $LocalFolder = "."
 )
 
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global }
@@ -62,7 +62,7 @@ try
         {
             $SourceKernelName = "$(Split-Path -Path $env:CustomKernelURL -Leaf)"
             $CurrentKernel = "$CurrentLocalFolder\$env:UpstreamBuildNumber-$SourceKernelName"
-            $ReceivedKernel = "$CurrentRemoteFolder\$env:SourceKernelName"
+            $ReceivedKernel = "$CurrentRemoteFolder\$SourceKernelName"
             
             if (Test-Path $ReceivedKernel)
             {
