@@ -19,7 +19,7 @@
 		<Platform>Azure</Platform>
 		<Category>Smoke</Category>
 		<Area>default</Area>
-		<Tags>bvt</Tags>
+		<Tags>bvt,wala</Tags>
 		<TestID>Smoke_002</TestID>
 	</test>
 	<test>

@@ -83,7 +83,6 @@ if ($env:Kernel -eq "custom")
         }
         else
         {
-            #$TestKernel = "$BuildNumber-$env:CustomKernelFile"
             $TestKernel = "$env:CustomKernelFile"
             LogMsg "Renaming CustomKernelFile --> $TestKernel"
             Rename-Item -Path CustomKernelFile -NewName $TestKernel
@@ -99,41 +98,12 @@ if ($env:Kernel -eq "custom")
             $ExitCode += 1
             exit $ExitCode
         }
-        else
-        {
-            <#
-            LogMsg "Downloading $($env:customKernelURL)"
-            $out = Start-BitsTransfer  -Source "$env:customKernelURL"
-            if ($?)
-            {
-                $TestKernel = "$BuildNumber-$($env:customKernelURL.Split("/")[$env:customKernelURL.Split("/").Count -1])"
-                LogMsg "Renaming $($env:customKernelURL.Split("/")[$env:customKernelURL.Split("/").Count -1]) --> $TestKernel"
-                Rename-Item -Path $($env:customKernelURL.Split("/")[$env:customKernelURL.Split("/").Count -1]) -NewName $TestKernel
-            }
-            else
-            {
-                LogMsg "--------------------------------------------------------------------------------------------------------------"
-                LogMsg "ERROR: Failed to download $($env:customKernelURL). Please verify that your URL is accessible on public internet."
-                LogMsg "--------------------------------------------------------------------------------------------------------------"
-                $ExitCode += 1
-                exit $ExitCode
-            }
-            #>
-        }
     }       
 }
-
-#$PartnerUsernameShareDirectory = "$SharedParentDirectory\$PartnerName-files"
-#$out = mkdir "$SharedParentDirectory\$PartnerName-files" -ErrorAction SilentlyContinue | Out-Null
-
 if ($TestKernel)
 {
-    #$out = Start-BitsTransfer  -Source "https://github.com/iamshital/azure-linux-automation/raw/master/AddAzureRmAccountFromSecretsFile.ps1" 
-    #$out = Start-BitsTransfer  -Source "https://github.com/iamshital/azure-linux-automation/raw/master/Extras/UploadFilesToStorageAccount.ps1"
-    #.\UploadFilesToStorageAccount.ps1 -filePaths $TestKernel -destinationStorageAccount konkasoftpackages -destinationContainer partner -destinationFolder $PartnerName
     LogMsg "Moving $TestKernel --> $PartnerUsernameShareDirectory\$TestKernel"
     Move-Item $TestKernel $PartnerUsernameShareDirectory\$TestKernel -Force
-
 }
 if ($env:CustomVHD)
 {
@@ -141,10 +111,6 @@ if ($env:CustomVHD)
     $TempVHD = ($env:CustomVHD).ToLower()
     if ( $TempVHD.EndsWith(".vhd") -or $TempVHD.EndsWith(".vhdx") -or $TempVHD.EndsWith(".xz"))
     {
-        
-
-        #LogMsg "Copying '$env:CustomVHD' --> $PartnerUsernameShareDirectory\$BuildNumber-$env:CustomVHD"
-        #Move-Item CustomVHD $PartnerUsernameShareDirectory\$BuildNumber-$env:CustomVHD -Force
         LogMsg "Moving '$env:CustomVHD' --> $PartnerUsernameShareDirectory\$env:CustomVHD"
         Move-Item CustomVHD $PartnerUsernameShareDirectory\$env:CustomVHD -Force
         $ExitCode = 0
