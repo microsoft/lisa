@@ -67,49 +67,31 @@ else
     fi
     if ([[ ! $CustomVHD == "" ]] || [[ ! -z $CustomVHD ]]);
     then
+        VHDName=$(basename $CustomVHD)
         if ([[ -f $CustomVHD ]]);
         then
-            VHDName=$(basename $CustomVHD)
-            EncodedVHDName="${UpstreamBuildNumber}-${VHDName}"
-            #echo "CustomVHD '${VHDName}' encoded to '${EncodedVHDName}'"
+            LogMsg "Local file ${CustomVHD} available. It will be uploaded."
         else
-            echo "CustomVHD '${CustomVHD}' does not exists. Please verify path."
-            ExitCode=$(( ExitCode + 1 ))
+            LogMsg "No local file ${CustomVHD}. Assume it exists in ftp server."
         fi
     fi
-    
 fi
 if [[ $Kernel == "" ]] || [[ -z $Kernel ]];
 then
-    LogMsg "Kernel parameter is required"
+    LogMsg "Kernel parameter is required."
     ExitCode=$(( ExitCode + 1 ))
 else
     if [[ $Kernel == "custom" ]];
     then
         if [[ ! $CustomKernelFile == "" ]] || [[ ! -z $CustomKernelFile ]];
         then
+            KernelName=$(basename $CustomKernelFile)
             if ([[ -f $CustomKernelFile ]]);
             then
-                KernelName=$(basename $CustomKernelFile)
-                EncodedKernelName="${UpstreamBuildNumber}-${KernelName}"
-                #echo "CustomKernelFile '${KernelName}' encoded to '${EncodedKernelName}'"
+                LogMsg "Local file ${CustomKernelFile} available. It will be uploaded."
             else
-                echo "CustomKernelFile '${CustomKernelFile}' does not exists. Please verify path."
-                ExitCode=$(( ExitCode + 1 ))
+                LogMsg "No local file ${CustomKernelFile}. Assume it exists in ftp server."
             fi            
-        elif [[ ! $CustomKernelURL == "" ]] || [[ ! -z $CustomKernelURL ]];
-        then
-            KernelName=$(basename $CustomKernelURL)
-            rm -rf $KernelName
-            LogMsg "Downloading $CustomKernelURL"
-            wget $CustomKernelURL
-            if [[ "$?" == "0" ]];then
-                EncodedKernelName="${UpstreamBuildNumber}-${KernelName}"
-                #echo "CustomKernelFile '${KernelName}' encoded to '${EncodedKernelName}'"
-            else
-                LogMsg "Failed."
-                ExitCode=$(( ExitCode + 1 ))
-            fi
         fi
     fi
 fi
@@ -177,8 +159,11 @@ then
     RemoteTriggerURL="${RemoteTriggerURL}&ImageSource=${URLEncodedImageSource}"
 elif ([[ ! $CustomVHD == "" ]] || [[ ! -z $CustomVHD ]]);
 then
-    LogMsg "Uploading ${CustomVHD} with name ${EncodedVHDName}..."
-    curl -T $CustomVHD ftp://${JenkinsURL} --user ${FtpUsername}:${FtpPassword} -Q "-RNFR ${VHDName}" -Q "-RNTO ${EncodedVHDName}"
+    if ([[ -f $CustomVHD ]]);
+    then
+        LogMsg "Uploading ${CustomVHD}..."
+        curl -T $CustomVHD ftp://${JenkinsURL} --user ${FtpUsername}:${FtpPassword}
+    fi
     RemoteTriggerURL="${RemoteTriggerURL}&CustomVHD=${VHDName}"
 elif ([[ ! $CustomVHDURL == "" ]] || [[ ! -z $CustomVHDURL ]]);
 then
@@ -189,16 +174,18 @@ fi
 RemoteTriggerURL="${RemoteTriggerURL}&Kernel=${Kernel}"
 if [[ $Kernel == 'custom' ]];
 then
-    if ([[ ! $CustomKernelFile == "" ]] || [[ ! -z $CustomKernelFile ]]) || ([[ ! $CustomKernelURL == "" ]] || [[ ! -z $CustomKernelURL ]]);
+    if ([[ ! $CustomKernelFile == "" ]] || [[ ! -z $CustomKernelFile ]]);
     then
-        LogMsg "Uploading ${KernelName} with name ${EncodedKernelName}..."
-        curl -T $KernelName ftp://${JenkinsURL} --user ${FtpUsername}:${FtpPassword} -Q "-RNFR ${KernelName}" -Q "-RNTO ${EncodedKernelName}"
-        if ([[ ! $CustomKernelFile == "" ]] || [[ ! -z $CustomKernelFile ]]);then
-            RemoteTriggerURL="${RemoteTriggerURL}&CustomKernelFile=${KernelName}"        
-        elif ([[ ! $CustomKernelURL == "" ]] || [[ ! -z $CustomKernelURL ]]);then
-            RemoteTriggerURL="${RemoteTriggerURL}&CustomKernelURL=${CustomKernelURL}" 
+        if [[ -f $CustomKernelFile ]];
+        then
+            LogMsg "Uploading ${KernelName}..."
+            curl -T $KernelName ftp://${JenkinsURL} --user ${FtpUsername}:${FtpPassword}
         fi
-    fi
+        RemoteTriggerURL="${RemoteTriggerURL}&CustomKernelFile=${KernelName}"
+    elif ([[ ! $CustomKernelURL == "" ]] || [[ ! -z $CustomKernelURL ]]);
+    then
+        RemoteTriggerURL="${RemoteTriggerURL}&CustomKernelURL=${CustomKernelURL}" 
+    fi    
 fi
 RemoteTriggerURL="${RemoteTriggerURL}&GitUrlForAutomation=${GitUrlForAutomation}&GitBranchForAutomation=${GitBranchForAutomation}"
 
@@ -223,50 +210,57 @@ fi
 RemoteTriggerURL="${RemoteTriggerURL}&Email=${EncodedEmail}"
 RemoteQueryURL="https://${JenkinsUser}:${ApiToken}@${JenkinsURL}/job/${TestPipeline}/lastBuild/api/xml"
 #echo ${RemoteTriggerURL}
-LogMsg "Triggering job..."
-curl --silent -X POST ${RemoteTriggerURL}
-if [[ "$?" == "0" ]];
-then
-    LogMsg "Job triggered successfully."
-    if [[ ! -f ./jq ]];
-    then
-        LogMsg "Downloading json parser"
-        curl --silent -O https://raw.githubusercontent.com/LIS/LISAv2/master/Tools/jq
-        chmod +x jq
-    fi
-    BuildNumber=$(curl --silent -X GET "https://${JenkinsUser}:${ApiToken}@${JenkinsURL}/job/${TestPipeline}/lastBuild/api/json" | ./jq '.id' | sed 's/"//g')
-    BuildURL=$(curl --silent -X GET "https://${JenkinsUser}:${ApiToken}@${JenkinsURL}/job/${TestPipeline}/${BuildNumber}/api/json" | ./jq '.url' | sed 's/"//g')
-    BuildState=$(curl --silent -X GET "https://${JenkinsUser}:${ApiToken}@${JenkinsURL}/job/${TestPipeline}/${BuildNumber}/api/json" | ./jq '.building' | sed 's/"//g')
-    BuildResult=$(curl --silent -X GET "https://${JenkinsUser}:${ApiToken}@${JenkinsURL}/job/${TestPipeline}/${BuildNumber}/api/json" | ./jq '.result' | sed 's/"//g')
-    BlueOceanURL="https://${JenkinsURL}/blue/organizations/jenkins/${TestPipeline}/detail/${TestPipeline}/${BuildNumber}/pipeline"
-    LogMsg "--------------------------------------"
-    LogMsg "BuildURL (BlueOcean) : ${BlueOceanURL}"
-    LogMsg "--------------------------------------"
-    LogMsg "BuildURL (Classic) : ${BuildURL}console"
-    LogMsg "--------------------------------------"
 
-    if [[ $WaitForResult == "yes" ]];
+if [[ "$ExitCode" == "0" ]];
+then
+    LogMsg "Triggering job..."
+    curl --silent -X POST ${RemoteTriggerURL}
+    if [[ "$?" == "0" ]];
     then
-        while [[ "$BuildState" ==  "true" ]]
-        do
-            BuildState=$(curl --silent -X GET "https://${JenkinsUser}:${ApiToken}@${JenkinsURL}/job/${TestPipeline}/${BuildNumber}/api/json" | ./jq '.building' | sed 's/"//g')
-            LogMsg "Current state : Running."
-            sleep 5       
-        done
-        BuildResult=$(curl --silent -X GET "https://${JenkinsUser}:${ApiToken}@${JenkinsURL}/job/${TestPipeline}/${BuildNumber}/api/json" | ./jq '.result' | sed 's/"//g')
-        if [[ "$BuildResult" == "SUCCESS" ]];
+        LogMsg "Job triggered successfully."
+        if [[ ! -f ./jq ]];
         then
-            LogMsg "Current State : Completed."
-            LogMsg "Result: SUCCESS."
-            exit 0
+            LogMsg "Downloading json parser"
+            curl --silent -O https://raw.githubusercontent.com/LIS/LISAv2/master/Tools/jq
+            chmod +x jq
+        fi
+        BuildNumber=$(curl --silent -X GET "https://${JenkinsUser}:${ApiToken}@${JenkinsURL}/job/${TestPipeline}/lastBuild/api/json" | ./jq '.id' | sed 's/"//g')
+        BuildURL=$(curl --silent -X GET "https://${JenkinsUser}:${ApiToken}@${JenkinsURL}/job/${TestPipeline}/${BuildNumber}/api/json" | ./jq '.url' | sed 's/"//g')
+        BuildState=$(curl --silent -X GET "https://${JenkinsUser}:${ApiToken}@${JenkinsURL}/job/${TestPipeline}/${BuildNumber}/api/json" | ./jq '.building' | sed 's/"//g')
+        BuildResult=$(curl --silent -X GET "https://${JenkinsUser}:${ApiToken}@${JenkinsURL}/job/${TestPipeline}/${BuildNumber}/api/json" | ./jq '.result' | sed 's/"//g')
+        BlueOceanURL="https://${JenkinsURL}/blue/organizations/jenkins/${TestPipeline}/detail/${TestPipeline}/${BuildNumber}/pipeline"
+        LogMsg "--------------------------------------"
+        LogMsg "BuildURL (BlueOcean) : ${BlueOceanURL}"
+        LogMsg "--------------------------------------"
+        LogMsg "BuildURL (Classic) : ${BuildURL}console"
+        LogMsg "--------------------------------------"
+
+        if [[ $WaitForResult == "yes" ]];
+        then
+            while [[ "$BuildState" ==  "true" ]]
+            do
+                BuildState=$(curl --silent -X GET "https://${JenkinsUser}:${ApiToken}@${JenkinsURL}/job/${TestPipeline}/${BuildNumber}/api/json" | ./jq '.building' | sed 's/"//g')
+                LogMsg "Current state : Running."
+                sleep 5       
+            done
+            BuildResult=$(curl --silent -X GET "https://${JenkinsUser}:${ApiToken}@${JenkinsURL}/job/${TestPipeline}/${BuildNumber}/api/json" | ./jq '.result' | sed 's/"//g')
+            if [[ "$BuildResult" == "SUCCESS" ]];
+            then
+                LogMsg "Current State : Completed."
+                LogMsg "Result: SUCCESS."
+                exit 0
+            else
+                LogMsg "Result: ${BuildResult}"
+                exit 1
+            fi
         else
-            LogMsg "Result: ${BuildResult}"
-            exit 1
+            exit 0
         fi
     else
-        exit 0
+        LogMsg "Failed to trigger job."
+        exit 1
     fi
 else
-    LogMsg "Failed to trigger job."
+    LogMsg "Found ${ExitCode} errors. Exiting without launching tests."
     exit 1
 fi
