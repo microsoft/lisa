@@ -12,9 +12,9 @@
 	</test>
 	<test>
 		<TestName>VERIFY-HOSTNAME</TestName>
-		<testScript>BVT-VERIFY-HOSTNAME.py</testScript>
-		<PowershellScript>BVT-VERIFY-HOSTNAME.ps1</PowershellScript>
-		<files>.\Testscripts\Linux\nslookup.py,.\Testscripts\Linux\BVT-VERIFY-HOSTNAME.py,.\Testscripts\Linux\azuremodules.py</files>
+		<testScript>WALA-VERIFY-HOSTNAME.py</testScript>
+		<PowershellScript>WALA-VERIFY-HOSTNAME.ps1</PowershellScript>
+		<files>.\Testscripts\Linux\nslookup.py,.\Testscripts\Linux\WALA-VERIFY-HOSTNAME.py,.\Testscripts\Linux\azuremodules.py</files>
 		<setupType>SingleVM</setupType>
 		<Platform>Azure</Platform>
 		<Category>Smoke</Category>
