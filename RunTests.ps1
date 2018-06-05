@@ -39,6 +39,9 @@ Param(
     [switch] $ForceDeleteResources,
     [switch] $UseManagedDisks,
 
+    [string] $ResultDBTable = "",
+    [string] $ResultDBTestTag = "",    
+
     [switch] $ExitWithZero    
 )
 
@@ -400,6 +403,19 @@ try
     try 
     {
         $xmlConfig = [xml](Get-Content $xmlFile)
+        if( $ResultDBTable -or $ResultDBTestTag)
+        {
+            if( $ResultDBTable )
+            {
+                $xmlConfig.config.Azure.database.dbtable = ($ResultDBTable).Trim()
+                LogMsg "ResultDBTable : $ResultDBTable added."
+            }
+            if( $ResultDBTestTag )
+            {
+                $xmlConfig.config.Azure.database.testTag = ($ResultDBTestTag).Trim()
+                LogMsg "ResultDBTestTag: $ResultDBTestTag added."
+            }            
+        }
         $xmlConfig.Save("$xmlFile")
         LogMsg "Auto created $xmlFile validated successfully."   
     }
