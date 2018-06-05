@@ -19,134 +19,168 @@ try
         New-Item -Path $CurrentLocalFolder -ItemType Directory -Force | Out-Null
     }
     LogMsg "Directory : $CurrentLocalFolder is available."
-    
+    $WorkingDirectory = (Get-Location).Path
+
     #region VALIDATE ARGUMENTS
     if ( $env:CustomVHD -or $env:CustomVHDURL)
     {
         if ( $env:CustomVHDURL )
         {
-            $DestinationFile = "$(Split-Path -Path $env:CustomVHDURL -Leaf)"
-            Import-Module BitsTransfer -Force
-            $WorkingDirectory = (Get-Location).Path
-            LogMsg "Downloading $env:CustomVHDURL to '$WorkingDirectory\$DestinationFile'"
-            $DownloadJob = Start-BitsTransfer -Source "$env:CustomVHDURL" -Asynchronous -Destination "$WorkingDirectory\$DestinationFile" -TransferPolicy Unrestricted -TransferType Download -Priority High
-            $DownloadJobStatus = Get-BitsTransfer -JobId $DownloadJob.JobId
-            Start-Sleep -Seconds 1
-            LogMsg "JobID: $($DownloadJob.JobId)"
-            while ($DownloadJobStatus.JobState -eq "Connecting" -or $DownloadJobStatus.JobState -eq "Transferring" -or $DownloadJobStatus.JobState -eq "Queued" ) 
+            $SourceVHDName = "$(Split-Path -Path $env:CustomVHDURL -Leaf)"
+            $CurrentVHD = "$LocalFolder\$env:UpstreamBuildNumber-$SourceVHDName"
+            $ReceivedVHD = "$CurrentRemoteFolder\$SourceVHDName"
+            if (Test-Path $ReceivedVHD)
             {
-                $DownloadProgress = 100 - ((($DownloadJobStatus.BytesTotal - $DownloadJobStatus.BytesTransferred) / $DownloadJobStatus.BytesTotal) * 100)
-                $DownloadProgress = [math]::Round($DownloadProgress,2)
-                LogMsg "Download '$($DownloadJobStatus.JobState)': $DownloadProgress%"
-                Start-Sleep -Seconds 2
-            }
-            if ($DownloadJobStatus.JobState -eq "Transferred")
-            {
-                LogMsg "Finalizing downloaded file..."
-                Complete-BitsTransfer -BitsJob $DownloadJob
-            }
-            else
-            {
-                LogMsg "Download status : $($DownloadJobStatus.JobState)"
-            }
-            if (Test-Path $DestinationFile)
-            {
-                $CurrentVHD = $DestinationFile
-                Rename-Item -Path $CurrentVHD  -NewName "$env:UpstreamBuildNumber-$CurrentVHD" -Verbose
-                LogMsg "Download progress: Completed"
+                LogMsg "$SourceVHDName File was already downloaded."
+                LogMsg "Copying $ReceivedVHD --> $CurrentVHD..."
+                Copy-Item -Path $ReceivedVHD -Destination $CurrentVHD -Force
+                LogMsg "Copy Completed."
             }
             else 
             {
-                $ExitCode = 1
-                LogError "$DestinationFile is not present. Is the CustomVHDURL a valid link?"  
+                LogMsg "$CurrentVHD file not present locally."
+                Import-Module BitsTransfer -Force
+
+                #Region Download the VHD.
+                LogMsg "Downloading $env:CustomVHDURL to '$LocalFolder\$SourceVHDName'"
+                $DownloadJob = Start-BitsTransfer -Source "$env:CustomVHDURL" -Asynchronous -Destination "$LocalFolder\$SourceVHDName" -TransferPolicy Unrestricted -TransferType Download -Priority High
+                $DownloadJobStatus = Get-BitsTransfer -JobId $DownloadJob.JobId
+                Start-Sleep -Seconds 1
+                LogMsg "JobID: $($DownloadJob.JobId)"
+                while ($DownloadJobStatus.JobState -eq "Connecting" -or $DownloadJobStatus.JobState -eq "Transferring" -or $DownloadJobStatus.JobState -eq "Queued" ) 
+                {
+                    $DownloadProgress = 100 - ((($DownloadJobStatus.BytesTotal - $DownloadJobStatus.BytesTransferred) / $DownloadJobStatus.BytesTotal) * 100)
+                    $DownloadProgress = [math]::Round($DownloadProgress,2)
+                    LogMsg "Download '$($DownloadJobStatus.JobState)': $DownloadProgress%"
+                    Start-Sleep -Seconds 2
+                }
+                if ($DownloadJobStatus.JobState -eq "Transferred")
+                {
+                    LogMsg "Finalizing downloaded file..."
+                    Complete-BitsTransfer -BitsJob $DownloadJob
+                }
+                else
+                {
+                    LogMsg "Download status : $($DownloadJobStatus.JobState)"
+                }
+                #endregion
+
+                if (Test-Path "$LocalFolder\$SourceVHDName")
+                {
+                    LogMsg "Download progress: Completed"
+
+                    #Copy VHD to remote received files - 
+                    LogMsg "Copying $SourceVHDName --> $ReceivedVHD for future use."
+                    Copy-Item -Path $LocalFolder\$SourceVHDName -Destination $ReceivedVHD -Force
+
+                    #Move VHD to Local Temp Folder.
+                    LogMsg "Moving $SourceVHDName --> $CurrentVHD for current use."
+                    Move-Item -Path $LocalFolder\$SourceVHDName -Destination $CurrentVHD -Force
+                }
+                else 
+                {
+                    $ExitCode += 1
+                    LogError "$SourceVHDName is not present. Is the CustomVHDURL a valid link?"  
+                }                
             }            
         }
         else 
         {
-            $CurrentVHD = $env:CustomVHD
+            $SourceVHDName = $env:CustomVHD
+            $CurrentVHD = "$LocalFolder\$env:UpstreamBuildNumber-$SourceVHDName"
+            $ReceivedVHD = "$CurrentRemoteFolder\$SourceVHDName"
+            if (Test-Path $ReceivedVHD)
+            {
+                LogMsg "$SourceVHDName File was present in local storage."
+                LogMsg "Copying $ReceivedVHD --> $CurrentVHD for current use.."
+                Copy-Item -Path $ReceivedVHD -Destination $CurrentVHD -Force
+                LogMsg "Copy Completed."
+            }
+            else 
+            {
+                LogMsg "We're not able to find $ReceivedVHD. Did uploade went successful?"
+                $ExitCode += 1
+            }
         }
-        if ( ($CurrentVHD).EndsWith(".xz") -or ($CurrentVHD).EndsWith(".vhd") -or ($CurrentVHD).EndsWith(".vhdx"))
+
+        if ( Test-Path $CurrentVHD)
         {
-            $ReceivedFile = "$env:UpstreamBuildNumber-$CurrentVHD"
-            if ($env:CustomVHDURL)
+            if ( ($CurrentVHD).EndsWith(".xz") -or ($CurrentVHD).EndsWith(".vhd") -or ($CurrentVHD).EndsWith(".vhdx"))
             {
-                LogMsg "Moving downloaded $ReceivedFile --> $CurrentLocalFolder."
-                $Out = Move-Item -Path $ReceivedFile -Destination $CurrentLocalFolder -Force
+                #region Extract the VHD if required.
+                if ($CurrentVHD.EndsWith(".xz"))
+                {
+                    $FilenameToExtract = $CurrentVHD | Split-Path -Leaf
+                    Set-Location $CurrentLocalFolder
+                    LogMsg "Detected *.xz file."
+                    LogMsg "Extracting '$FilenameToExtract'. Please wait..."
+                    $7zConsoleOuput = Invoke-Expression -Command "$7zExePath -y x '$FilenameToExtract';" -Verbose
+                    if ($7zConsoleOuput -imatch "Everything is Ok")
+                    {
+                        LogMsg "Extraction completed."
+                        $CurrentVHD = $CurrentVHD.TrimEnd("xz").TrimEnd(".")
+                        LogMsg "Changing working directory to $WorkingDirectory"
+                        Set-Location $WorkingDirectory
+                        $VhdActualSize = ($7zConsoleOuput -imatch "size").Replace(" ",'').Replace(" ",'').Replace(" ",'').Replace(" ",'').Split(":")[1]
+                        $VhdCompressedSize = ($7zConsoleOuput -imatch "Compressed").Replace(" ",'').Replace(" ",'').Replace(" ",'').Replace(" ",'').Split(":")[1]
+                        $CompressinRatio = ((($VhdCompressedSize/($VhdActualSize-$VhdCompressedSize))*100))
+                        LogMsg "Compression Ratio : $([math]::Round($CompressinRatio,2))%"
+                    }
+                    else
+                    {
+                        $ExitCode += 1
+                        ThrowException "Failed to extract $FilenameToExtract."
+                    }
+                }
+                #endregion
+    
+                if ($CurrentVHD.EndsWith(".vhdx"))
+                {
+                    Set-Location $CurrentLocalFolder
+                    $vhdx = $CurrentVHD | Split-Path -Leaf
+                    $vhd = $vhdx.TrimEnd("x")
+                    LogMsg "Converting '$vhdx' --> '$vhd'. [VHDx to VHD]"
+                    $convertJob = Start-Job -ScriptBlock { Convert-VHD -Path $args[0] -DestinationPath $args[1] -VHDType Dynamic } -ArgumentList "$CurrentLocalFolder\$vhdx", "$CurrentLocalFolder\$vhd"
+                    while ($convertJob.State -eq "Running")
+                    {
+                        LogMsg "'$vhdx' --> '$vhd' is running"
+                        Start-Sleep -Seconds 10
+                    }
+                    if ( $convertJob.State -eq "Completed")
+                    {
+                        LogMsg "$CurrentVHD Created suceessfully."
+                        $CurrentVHD = $CurrentVHD.TrimEnd("x")
+                        LogMsg "'$vhdx' --> '$vhd' is Succeeded."
+                        LogMsg "Removing '$vhdx'..."
+                        Remove-Item "$CurrentLocalFolder\$vhdx" -Force -ErrorAction SilentlyContinue
+                    }
+                    else
+                    {
+                        LogMsg "'$vhdx' --> '$vhd' is Failed."
+                        $ExitCode += 1
+                    }
+                    Set-Location $WorkingDirectory                
+                }        
+                ValidateVHD -vhdPath $CurrentVHD
+                Set-Content -Value "$($CurrentVHD | Split-Path -Leaf)" -Path .\CustomVHD.azure.env -NoNewline -Force
             }
             else 
             {
-                LogMsg "Copying received $ReceivedFile --> $CurrentLocalFolder."
-                Copy-Item -Path "$CurrentRemoteFolder\$ReceivedFile" -Destination "$CurrentLocalFolder\$ReceivedFile" -Force                
+                $FileExtension = [System.IO.Path]::GetExtension("$CurrentVHD") 
+                LogError "Unsupported file type: *$FileExtension"
+                $ExitCode += 1
             }
-            if ($ReceivedFile.EndsWith(".xz"))
-            {
-                $WorkingDirectory = (Get-Location).Path
-                Set-Location $CurrentLocalFolder
-                LogMsg "Detected *.xz file."
-                LogMsg "Extracting '$ReceivedFile'. Please wait..."
-                $7zConsoleOuput = Invoke-Expression -Command "$7zExePath -y x '$ReceivedFile';" -Verbose
-                if ($7zConsoleOuput -imatch "Everything is Ok")
-                {
-                    LogMsg "Extraction completed."
-                    $NewVHDName = $(($ReceivedFile).TrimEnd("xz").TrimEnd("."))
-                    LogMsg "Changing working directory to $WorkingDirectory"
-                    Set-Location $WorkingDirectory
-                    $VhdActualSize = ($7zConsoleOuput -imatch "size").Replace(" ",'').Replace(" ",'').Replace(" ",'').Replace(" ",'').Split(":")[1]
-                    $VhdCompressedSize = ($7zConsoleOuput -imatch "Compressed").Replace(" ",'').Replace(" ",'').Replace(" ",'').Replace(" ",'').Split(":")[1]
-                    $CompressinRatio = ((($VhdCompressedSize/($VhdActualSize-$VhdCompressedSize))*100))
-                    LogMsg "Compression Ratio : $([math]::Round($CompressinRatio,2))%"
-                }
-                else
-                {
-                    $ExitCode += 1
-                    ThrowException "Failed to extract $ReceivedFile."
-                }
-            }
-            else 
-            {
-                $NewVHDName = $ReceivedFile  
-            }
-            if ($NewVHDName.EndsWith(".vhdx"))
-            {
-                $WorkingDirectory = $pwd
-                Set-Location $CurrentLocalFolder            
-                $NewVHDxName = $NewVHDName
-                $NewVHDName = $NewVHDxName.Replace(".vhdx",".vhd")
-                LogMsg "Converting '$NewVHDxName' --> '$NewVHDName'. [VHDx to VHD]"
-                $convertJob = Start-Job -ScriptBlock { Convert-VHD -Path $args[0] -DestinationPath $args[1] -VHDType Dynamic } -ArgumentList "$CurrentLocalFolder\$NewVHDxName", "$CurrentLocalFolder\$NewVHDName"
-                while ($convertJob.State -eq "Running")
-                {
-                    LogMsg "'$NewVHDxName' --> '$NewVHDName' is running"
-                    Start-Sleep -Seconds 10
-                }
-                if ( $convertJob.State -eq "Completed")
-                {
-                    LogMsg "'$NewVHDxName' --> '$NewVHDName' is Succeeded."
-                    $ExitCode = 0
-                    LogMsg "Removing '$NewVHDxName'..."
-                    Remove-Item "$CurrentLocalFolder\$NewVHDxName" -Force -ErrorAction SilentlyContinue
-                }
-                else
-                {
-                    LogMsg "'$NewVHDxName' --> '$NewVHDName' is Failed."
-                    $ExitCode += 1
-                }
-                Set-Location $WorkingDirectory                
-            }        
-            ValidateVHD -vhdPath "$CurrentLocalFolder\$NewVHDName"
-            Set-Content -Value "$NewVHDName" -Path .\CustomVHD.azure.env -NoNewline -Force
         }
         else 
         {
-            $FileExtension = [System.IO.Path]::GetExtension("$CurrentVHD") 
-            LogError "Unsupported file type: *$FileExtension"
-            $ExitCode += 1
+            LogError "$CurrentVHD is not found. Exiting."
+            $ExitCode = 1             
         }
     }
     else 
     {
         LogError "Did you forgot to provide value for 'CustomVHD' parameter?"
-        $ExitCode = 1 
+        $ExitCode += 1 
     }
 }
 catch
