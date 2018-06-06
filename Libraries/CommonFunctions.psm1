@@ -74,7 +74,7 @@ function LogMsg()
 {
     param
     (
-        [string]$text
+        $text
     )
     try
     {
@@ -82,16 +82,23 @@ function LogMsg()
 		{
 			$text = $text.Replace($password,"******")
 		}
-        $now = [Datetime]::Now.ToUniversalTime().ToString("MM/dd/yyyy HH:mm:ss")
-		$FinalMessage = "INFO : $now : $text"
-		Write-Host $FinalMessage
-		if ($LogDir)
+		if (! $text)
 		{
-			Add-Content -Value $FinalMessage -Path "$LogDir\Logs.txt" -Force
+			$text = ""
 		}
-		if ($CurrentTestLogDir )
+		foreach ($line in $text)
 		{
-			Add-Content -Value $FinalMessage -Path "$CurrentTestLogDir\CurrentTestLogs.txt" -Force
+			$now = [Datetime]::Now.ToUniversalTime().ToString("MM/dd/yyyy HH:mm:ss")
+			$FinalMessage = "INFO : $now : $line"
+			Write-Host $FinalMessage
+			if ($LogDir)
+			{
+				Add-Content -Value $FinalMessage -Path "$LogDir\Logs.txt" -Force
+			}
+			if ($CurrentTestLogDir )
+			{
+				Add-Content -Value $FinalMessage -Path "$CurrentTestLogDir\CurrentTestLogs.txt" -Force
+			}
 		}
     }
     catch
