@@ -1,0 +1,37 @@
+<TestCases>
+	<test>
+		<TestID>Functional_SRIOV_LSPCI</TestID>
+		<testName>VERIFY-SRIOV-LSPCI</testName>
+		<setupType>SingleVM</setupType>
+		<OverrideVMSize>Standard_D15_v2</OverrideVMSize>
+		<AdditionalHWConfig>
+			<Networking>SRIOV</Networking>
+		</AdditionalHWConfig>
+		<PowershellScript>RUN-SCRIPT-IN-LINUX-GUEST.ps1</PowershellScript>
+		<testScript>sriov-lspci.sh</testScript>
+		<files>.\Testscripts\Linux\sriov-lspci.sh</files>
+		<Platform>Azure</Platform>
+		<Category>Functional</Category>
+		<Area>SRIOV</Area>
+		<Tags>sriov,hv_netvsc</Tags>
+	</test>
+	<test>
+		<TestID>Functional_NIC_001</TestID>
+		<testName>VERIFY-IFUP-IFDOW-ETH0-RMMOD-MODPROBE-HV_NETVSC-SRIOV</testName>
+		<setupType>SingleVM</setupType>
+		<OverrideVMSize>Standard_D13_v2</OverrideVMSize>
+		<AdditionalHWConfig>
+			<Networking>SRIOV</Networking>
+		</AdditionalHWConfig>
+        <TestParameters>
+            <param>TestIterations=10</param>
+        </TestParameters>		
+		<PowershellScript>VERIFY-TEST-SCRIPT-IN-LINUX-GUEST.ps1</PowershellScript>
+		<testScript>verify-ifdown-ifup-eth0-rmmod-modprobe-hv-netvsc.sh</testScript>
+		<files>.\Testscripts\Linux\verify-ifdown-ifup-eth0-rmmod-modprobe-hv-netvsc.sh</files>
+		<Platform>Azure</Platform>
+		<Category>Functional</Category>
+		<Area>SRIOV</Area>
+		<Tags>sriov,hv_netvsc</Tags>
+	</test>	
+</TestCases>

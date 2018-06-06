@@ -368,7 +368,7 @@ stage('Capture VHD with Custom Kernel')
             withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')])
             {
                 RunPowershellCommand (".\\Utilities\\AddAzureRmAccountFromSecretsFile.ps1;" +
-                ".\\JenkinsPipelines\\Scripts\\InspectCustomKernel.ps1 -RemoteFolder 'Z:\\ReceivedFiles' -LocalFolder '.'" 
+                ".\\JenkinsPipelines\\Scripts\\InspectCustomKernel.ps1 -RemoteFolder 'J:\\ReceivedFiles' -LocalFolder '.'" 
                 )
                 KernelFile = readFile 'CustomKernel.azure.env'
                 stash includes: KernelFile, name: 'CustomKernelStash'

@@ -50,25 +50,5 @@
 		<Area>default</Area>
 		<Tags>gpu,pci_hyperv</Tags>
 		<TestID>Functional_GPU_004</TestID>
-	</test>
-    <test>
-        <testName>VERIFY-DPDK-BUILD-AND-RUN-TESTPMD-TEST</testName>
-        <PowershellScript>VERIFY-DPDK-BUILD-AND-RUN-TESTPMD-TEST.ps1</PowershellScript>
-        <setupType>DPDK</setupType>
-        <AdditionalHWConfig>
-            <Networking>SRIOV</Networking>
-        </AdditionalHWConfig>        
-        <SubtestValues>This-tag-will-be-removed</SubtestValues>
-        <files>.\Testscripts\Linux\azuremodules.sh</files>
-        <TestParameters>
-			<param>dpdkSrcLink="https://fast.dpdk.org/rel/dpdk-18.05.tar.xz"</param>
-            <param>testDuration=60</param>
-            <param>modes="rxonly io"</param>
-        </TestParameters>
-		<Platform>Azure</Platform>
-		<Category>Functional</Category>
-		<Area>DPDK</Area>
-		<Tags>dpdk,network,hv_netvsc,sriov</Tags>
-		<TestID>Functional_DPDK_001</TestID>
-    </test>	
+	</test>	
 </TestCases>

@@ -1,5 +1,12 @@
-#v-shisav : STILL IN BETA VERSION
-
+##############################################################################################
+# AzureTestSuite.ps1
+# Copyright (c) Microsoft. All rights reserved.
+# Licensed under the MIT license. See LICENSE file in the project root for full license information.
+# Description : 
+# Operations :
+#              
+## Author : v-shisav@microsoft.com, lisasupport@microsoft.com
+###############################################################################################
 param($xmlConfig, [string] $Distro, [string] $cycleName, [int] $TestIterations)
 Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 {
@@ -189,7 +196,6 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 			}
 			if ($currentTestData)
 			{
-
 				if (!( $currentTestData.Platform.Contains($xmlConfig.config.CurrentTestPlatform)))
 				{
 					LogMsg "$($currentTestData.testName) does not support $($xmlConfig.config.CurrentTestPlatform) platform."
@@ -207,7 +213,10 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 					$stopWatch = SetStopWatch
 					
 					Set-Variable -Name currentTestData -Value $currentTestData -Scope Global
-
+					if ($currentTestData.OverrideVMSize)
+					{
+						Set-Variable -Name OverrideVMSize -Value $currentTestData.OverrideVMSize -Scope Global
+					}
 					if ((!$currentTestData.SubtestValues -and !$currentTestData.TestMode))
 					{
 						#Tests With No subtests and no SubValues will be executed here..

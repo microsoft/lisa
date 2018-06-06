@@ -1,4 +1,13 @@
-﻿Param
+﻿##############################################################################################
+# UploadVHDtoAzureStorage.ps1
+# Copyright (c) Microsoft. All rights reserved.
+# Licensed under the MIT license. See LICENSE file in the project root for full license information.
+# Description : 
+# Operations :
+#              
+## Author : lisasupport@microsoft.com
+###############################################################################################
+Param
 ( 
 
     #Mandatory parameters

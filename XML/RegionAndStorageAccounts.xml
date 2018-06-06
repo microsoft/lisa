@@ -2,106 +2,110 @@
 <AllRegions>
 	<eastasia>
 		<StandardStorage>eosgeastasia</StandardStorage>
-		<PremiumStorage>konkacieastasiaxiov2</PremiumStorage>
+		<PremiumStorage>eosgeastasiax</PremiumStorage>
 	</eastasia>
 	<southeastasia>
 		<StandardStorage>eosgsoutheastasia</StandardStorage>
-		<PremiumStorage>konkacisouthestasiaxiov2</PremiumStorage>
+		<PremiumStorage>eosgsouthestasiax</PremiumStorage>
 	</southeastasia>
 	<centralus>
 		<StandardStorage>eosgcentralus</StandardStorage>
-		<PremiumStorage>konkacicentralusxiov2</PremiumStorage>
+		<PremiumStorage>eosgcentralusx</PremiumStorage>
 	</centralus>
 	<eastus>
 		<StandardStorage>eosgeastus</StandardStorage>
-		<PremiumStorage>konkacieastusxiov2</PremiumStorage>
+		<PremiumStorage>eosgeastusx</PremiumStorage>
 	</eastus>
 	<eastus2>
 		<StandardStorage>eosgeastus2</StandardStorage>
-		<PremiumStorage>konkacieastus2xiov2</PremiumStorage>
+		<PremiumStorage>eosgeastus2x</PremiumStorage>
 	</eastus2>
 	<westus>
 		<StandardStorage>eosgwestus</StandardStorage>
-		<PremiumStorage>konkaciwestusxiov2</PremiumStorage>
+		<PremiumStorage>eosgwestusx</PremiumStorage>
 	</westus>
 	<northcentralus>
 		<StandardStorage>eosgnorthcentralus</StandardStorage>
-		<PremiumStorage>konkacinorthcntrlusxiov2</PremiumStorage>
+		<PremiumStorage>eosgnorthcntrlusx</PremiumStorage>
 	</northcentralus>
 	<southcentralus>
 		<StandardStorage>eosgsouthcentralus</StandardStorage>
-		<PremiumStorage>konkacisouthcntrlusxiov2</PremiumStorage>
+		<PremiumStorage>eosgsouthcntrlusx</PremiumStorage>
 	</southcentralus>
 	<northeurope>
 		<StandardStorage>eosgnortheurope</StandardStorage>
-		<PremiumStorage>konkacineuropexiov2</PremiumStorage>
+		<PremiumStorage>eosgneuropex</PremiumStorage>
 	</northeurope>
 	<westeurope>
 		<StandardStorage>eosgwesteurope</StandardStorage>
-		<PremiumStorage>konkaciwesteuropexiov2</PremiumStorage>
+		<PremiumStorage>eosgwesteuropex</PremiumStorage>
 	</westeurope>
 	<japanwest>
 		<StandardStorage>eosgjapanwest</StandardStorage>
-		<PremiumStorage>konkacijapanwestxiov2</PremiumStorage>
+		<PremiumStorage>eosgjapanwestx</PremiumStorage>
 	</japanwest>
 	<japaneast>
 		<StandardStorage>eosgjapaneast</StandardStorage>
-		<PremiumStorage>konkacijapaneastxiov2</PremiumStorage>
+		<PremiumStorage>eosgjapaneastx</PremiumStorage>
 	</japaneast>
 	<brazilsouth>
 		<StandardStorage>eosgbrazilsouth</StandardStorage>
-		<PremiumStorage>konkacibrazilsouthxiov2</PremiumStorage>
+		<PremiumStorage>eosgbrazilsouthx</PremiumStorage>
 	</brazilsouth>
 	<australiaeast>
 		<StandardStorage>eosgaustraliaeast</StandardStorage>
-		<PremiumStorage>konkaciaustraliaestxiov2</PremiumStorage>
+		<PremiumStorage>eosgaustraliaestx</PremiumStorage>
 	</australiaeast>
 	<australiasoutheast>
 		<StandardStorage>eosgaustraliasoutheast</StandardStorage>
-		<PremiumStorage>konkaciaussouthestxiov2</PremiumStorage>
+		<PremiumStorage>eosgaussouthestx</PremiumStorage>
 	</australiasoutheast>
 	<southindia>
 		<StandardStorage>eosgsouthindia</StandardStorage>
-		<PremiumStorage>konkacisouthindiaxiov2</PremiumStorage>
+		<PremiumStorage>eosgsouthindiax</PremiumStorage>
 	</southindia>
 	<centralindia>
 		<StandardStorage>eosgcentralindia</StandardStorage>
-		<PremiumStorage>konkacicentralindiaxiov2</PremiumStorage>
+		<PremiumStorage>eosgcentralindiax</PremiumStorage>
 	</centralindia>	
 	<westindia>
 		<StandardStorage>eosgwestindia</StandardStorage>
-		<PremiumStorage>konkaciwestindiaxiov2</PremiumStorage>
+		<PremiumStorage>eosgwestindiax</PremiumStorage>
 	</westindia>
 	<canadacentral>
 		<StandardStorage>eosgcanadacentral</StandardStorage>
-		<PremiumStorage>konkacicanadacntralxiov2</PremiumStorage>
+		<PremiumStorage>eosgcanadacntralx</PremiumStorage>
 	</canadacentral>
 	<canadaeast>
 		<StandardStorage>eosgcanadaeast</StandardStorage>
-		<PremiumStorage>konkacicanadaeastxiov2</PremiumStorage>
+		<PremiumStorage>eosgcanadaeastx</PremiumStorage>
 	</canadaeast>
 	<uksouth>
 		<StandardStorage>eosguksouth</StandardStorage>
-		<PremiumStorage>konkaciuksouthxiov2</PremiumStorage>
+		<PremiumStorage>eosguksouthx</PremiumStorage>
 	</uksouth>
 	<ukwest>
 		<StandardStorage>eosgukwest</StandardStorage>
-		<PremiumStorage>konkaciukwestxiov2</PremiumStorage>
+		<PremiumStorage>eosgukwestx</PremiumStorage>
 	</ukwest>
 	<westcentralus>
 		<StandardStorage>eosgwestcentralus</StandardStorage>
-		<PremiumStorage>konkaciwestcentrlusxiov2</PremiumStorage>
+		<PremiumStorage>eosgwestcentrlusx</PremiumStorage>
 	</westcentralus>
 	<westus2>
 		<StandardStorage>eosgwestus2</StandardStorage>
-		<PremiumStorage>konkaciwestus2xiov2</PremiumStorage>
+		<PremiumStorage>eosgwestus2x</PremiumStorage>
 	</westus2>
 	<koreacentral>
 		<StandardStorage>eosgkoreacentral</StandardStorage>
-		<PremiumStorage>konkacikoreacentralxiov2</PremiumStorage>
+		<PremiumStorage>eosgkoreacentralx</PremiumStorage>
 	</koreacentral>
 	<koreasouth>
 		<StandardStorage>eosgkoreasouth</StandardStorage>
-		<PremiumStorage>konkacikoreasouthxiov2</PremiumStorage>
+		<PremiumStorage>eosgkoreasouthx</PremiumStorage>
 	</koreasouth>
+	<francecentral>
+		<StandardStorage>eosgfrancecentral</StandardStorage>
+		<PremiumStorage>eosgfrancecentralx</PremiumStorage>
+	</francecentral>
 </AllRegions>

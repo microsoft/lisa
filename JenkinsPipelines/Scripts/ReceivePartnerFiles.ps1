@@ -1,5 +1,5 @@
 param (
-    [string]$SharedParentDirectory = "Z:\ReceivedFiles",
+    [string]$SharedParentDirectory = "J:\ReceivedFiles",
     [string]$PartnerUsername
 )
 
@@ -10,8 +10,6 @@ Import-Module BitsTransfer -Force
 
 $BuildNumber = $env:BUILD_NUMBER
 $ExitCode = 0
-
-$BuildNumber
 
 $PartnerUsernameShareDirectory = "$SharedParentDirectory\$PartnerUsername"
 
@@ -85,18 +83,9 @@ if ($env:Kernel -eq "custom")
         }
         else
         {
-            if ($env:CustomKernelFile.EndsWith(".deb"))
-            {
-                $TestKernel = "$BuildNumber-$env:CustomKernelFile"
-                LogMsg "Renaming CustomKernelFile --> $TestKernel"
-                Rename-Item -Path CustomKernelFile -NewName $TestKernel
-            }
-            if ($env:CustomKernelFile.EndsWith(".rpm"))
-            {
-                $TestKernel = "$BuildNumber-$env:CustomKernelFile"
-                LogMsg "Renaming  CustomKernelFile --> $TestKernel"
-                Rename-Item -Path CustomKernelFile -NewName $TestKernel
-            }
+            $TestKernel = "$env:CustomKernelFile"
+            LogMsg "Renaming CustomKernelFile --> $TestKernel"
+            Rename-Item -Path CustomKernelFile -NewName $TestKernel
         }
     } 
     if ($env:customKernelURL)
@@ -109,48 +98,12 @@ if ($env:Kernel -eq "custom")
             $ExitCode += 1
             exit $ExitCode
         }
-        else
-        {
-            LogText "Downloading $($env:customKernelURL)"
-            $out = Start-BitsTransfer  -Source "$env:customKernelURL"
-            if ($?)
-            {
-                if ($env:customKernelURL.EndsWith(".deb"))
-                {
-                    $TestKernel = "$BuildNumber-$($env:customKernelURL.Split("/")[$env:customKernelURL.Split("/").Count -1])"
-                    LogMsg "Renaming $($env:customKernelURL.Split("/")[$env:customKernelURL.Split("/").Count -1]) --> $TestKernel"
-                    Rename-Item -Path $($env:customKernelURL.Split("/")[$env:customKernelURL.Split("/").Count -1]) -NewName $TestKernel
-                }            
-                if ($env:customKernelURL.EndsWith(".rpm"))
-                {
-                    $TestKernel = "$BuildNumber-$($env:customKernelURL.Split("/")[$env:customKernelURL.Split("/").Count -1])"
-                    LogMsg "Renaming $($env:customKernelURL.Split("/")[$env:customKernelURL.Split("/").Count -1]) --> $TestKernel"
-                    Rename-Item -Path $($env:customKernelURL.Split("/")[$env:customKernelURL.Split("/").Count -1]) -NewName $TestKernel
-                }
-            }
-            else
-            {
-                LogMsg "--------------------------------------------------------------------------------------------------------------"
-                LogText "ERROR: Failed to download $($env:customKernelURL). Please verify that your URL is accessible on public internet."
-                LogMsg "--------------------------------------------------------------------------------------------------------------"
-                $ExitCode += 1
-                exit $ExitCode
-            }
-        }
     }       
 }
-
-#$PartnerUsernameShareDirectory = "$SharedParentDirectory\$PartnerName-files"
-#$out = mkdir "$SharedParentDirectory\$PartnerName-files" -ErrorAction SilentlyContinue | Out-Null
-
 if ($TestKernel)
 {
-    #$out = Start-BitsTransfer  -Source "https://github.com/iamshital/azure-linux-automation/raw/master/AddAzureRmAccountFromSecretsFile.ps1" 
-    #$out = Start-BitsTransfer  -Source "https://github.com/iamshital/azure-linux-automation/raw/master/Extras/UploadFilesToStorageAccount.ps1"
-    #.\UploadFilesToStorageAccount.ps1 -filePaths $TestKernel -destinationStorageAccount konkasoftpackages -destinationContainer partner -destinationFolder $PartnerName
-    LogMsg "Copying $TestKernel --> $PartnerUsernameShareDirectory\$TestKernel"
+    LogMsg "Moving $TestKernel --> $PartnerUsernameShareDirectory\$TestKernel"
     Move-Item $TestKernel $PartnerUsernameShareDirectory\$TestKernel -Force
-
 }
 if ($env:CustomVHD)
 {
@@ -158,10 +111,8 @@ if ($env:CustomVHD)
     $TempVHD = ($env:CustomVHD).ToLower()
     if ( $TempVHD.EndsWith(".vhd") -or $TempVHD.EndsWith(".vhdx") -or $TempVHD.EndsWith(".xz"))
     {
-        
-
-        LogMsg "Copying '$env:CustomVHD' --> $PartnerUsernameShareDirectory\$BuildNumber-$env:CustomVHD"
-        Move-Item CustomVHD $PartnerUsernameShareDirectory\$BuildNumber-$env:CustomVHD -Force
+        LogMsg "Moving '$env:CustomVHD' --> $PartnerUsernameShareDirectory\$env:CustomVHD"
+        Move-Item CustomVHD $PartnerUsernameShareDirectory\$env:CustomVHD -Force
         $ExitCode = 0
     }
     else

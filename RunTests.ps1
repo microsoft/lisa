@@ -1,3 +1,12 @@
+##############################################################################################
+# RunTests.ps1
+# Copyright (c) Microsoft. All rights reserved.
+# Licensed under the MIT license. See LICENSE file in the project root for full license information.
+# Description : 
+# Operations :
+#              
+## Author : v-shisav@microsoft.com, lisasupport@microsoft.com
+###############################################################################################
 Param(
 
     #Do not use. Reserved for Jenkins use.   
@@ -29,6 +38,9 @@ Param(
     [switch] $EnableAcceleratedNetworking,
     [switch] $ForceDeleteResources,
     [switch] $UseManagedDisks,
+
+    [string] $ResultDBTable = "",
+    [string] $ResultDBTestTag = "",    
 
     [switch] $ExitWithZero    
 )
@@ -391,6 +403,19 @@ try
     try 
     {
         $xmlConfig = [xml](Get-Content $xmlFile)
+        if( $ResultDBTable -or $ResultDBTestTag)
+        {
+            if( $ResultDBTable )
+            {
+                $xmlConfig.config.Azure.database.dbtable = ($ResultDBTable).Trim()
+                LogMsg "ResultDBTable : $ResultDBTable added."
+            }
+            if( $ResultDBTestTag )
+            {
+                $xmlConfig.config.Azure.database.testTag = ($ResultDBTestTag).Trim()
+                LogMsg "ResultDBTestTag: $ResultDBTestTag added."
+            }            
+        }
         $xmlConfig.Save("$xmlFile")
         LogMsg "Auto created $xmlFile validated successfully."   
     }
@@ -411,47 +436,47 @@ try
     }
     if ( $OverrideVMSize )
     {
-        $cmd += " -OverrideVMSize $OverrideVMSize"
+        $command += " -OverrideVMSize $OverrideVMSize"
     }
     if ( $EnableAcceleratedNetworking )
     {
-        $cmd += " -EnableAcceleratedNetworking"
+        $command += " -EnableAcceleratedNetworking"
     }
     if ( $ForceDeleteResources )
     {
-        $cmd += " -ForceDeleteResources"
+        $command += " -ForceDeleteResources"
     }
     if ( $KeepReproInact )
     {
-        $cmd += " -KeepReproInact"
+        $command += " -KeepReproInact"
     }
     if ( $CustomLIS)
     {
-        $cmd += " -CustomLIS $CustomLIS"
+        $command += " -CustomLIS $CustomLIS"
     }
     if ( $CoreCountExceededTimeout )
     {
-        $cmd += " -CoreCountExceededTimeout $CoreCountExceededTimeout"
+        $command += " -CoreCountExceededTimeout $CoreCountExceededTimeout"
     }
     if ( $TestIterations -gt 1 )
     {
-        $cmd += " -TestIterations $TestIterations"
+        $command += " -TestIterations $TestIterations"
     }
     if ( $TiPSessionId)
     {
-        $cmd += " -TiPSessionId $TiPSessionId"
+        $command += " -TiPSessionId $TiPSessionId"
     }
     if ( $TiPCluster)
     {
-        $cmd += " -TiPCluster $TiPCluster"
+        $command += " -TiPCluster $TiPCluster"
     }
     if ($UseManagedDisks)
     {
-        $cmd += " -UseManagedDisks"
+        $command += " -UseManagedDisks"
     }
     if ($XMLSecretFile)
     {
-        $cmd += " -XMLSecretFile '$XMLSecretFile'"
+        $command += " -XMLSecretFile '$XMLSecretFile'"
     }
     LogMsg $command
     Invoke-Expression -Command $command

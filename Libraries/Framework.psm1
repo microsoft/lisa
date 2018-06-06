@@ -1,3 +1,12 @@
+##############################################################################################
+# Framework.psm1
+# Copyright (c) Microsoft. All rights reserved.
+# Licensed under the MIT license. See LICENSE file in the project root for full license information.
+# Description : Pipeline framework modules.
+# Operations :
+#              
+## Author : lisasupport@microsoft.com
+###############################################################################################
 function GetTestSummary($testCycle, [DateTime] $StartTime, [string] $xmlFilename, [string] $distro, $testSuiteResultDetails)
 {
     <#

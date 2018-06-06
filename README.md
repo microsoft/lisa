@@ -1,165 +1,92 @@
-# Test Automation for Microsoft Linux on Azure & Hyper-V
-Automation platform for Linux images testing on Microsoft Azure and Hyper-V
+﻿# Linux Integration Services Automation (LISA), version 2
 
-## Overview
-LISA-v2 (Linux Integrated Service Automation) is the One-stop automation solution for Linux images/kernel testing on Microsoft Azure and Hyper-V. LISA-v2 supports both Microsoft Azure and Hyper-V automation, and they use PowerShell, BASH and python scripts. Tests for feature, performance, stress and regression about new Linux Operating Systems and kernels. The test suite provides Build Verification Tests (BVTs), Azure VNET Tests and Network tests.
+May 2018
+
+### Overview
+
+LISAv2 is the one-stop automation solution implemented by PowerShell scripts, Linux BASH scripts and Python scripts for verifying Linux image/kernel on below platforms:
+* Microsoft Azure
+* Microsoft Azure Stack
+* Microsoft Hyper-V
+
+LISAv2 includes below test suite categories:
+* BVT tests
+* Smoke tests
+* Functional tests
+* Performance tests
+* Test suites developed by Open Source communities
 
 ### Prerequisite
-1.  You must have a Windows Machine with PowerShell. Tested Platforms:
 
-          a.  Windows 8x64
-          b.  Windows 10x64
-          c.  Server 2012
-          d.  Server 2012 R2
-          e.  Server 2016
+1. You must have a Windows Machine with PowerShell (v5.0 and above) as test driver.
 
-2.  You must be connected to Internet.
-3.  You must have a valid Windows Azure Subscription.
+2. You must be connected to Internet.
 
-          a.  Subscription Name
-          b.  Subscription ID
-
-### Download Latest Automation Code
-1.  Checkout from https://github.com/LIS/LISAv2.git to your local storage
+3. You must have a valid Windows Azure Subscription.
 
 ### Download Latest Azure PowerShell
-1.  Download Web Platform Installer from : http://go.microsoft.com/fwlink/p/?linkid=320376&clcid=0x409 
-2.  Start Web Platform Installer and select Azure PowerShell and proceed for Azure PowerShell Installation.
 
-### Authenticate Your Machine with Your Azure Subscription
-There are two ways to authenticate your machine with your subscription.
+1. Download Web Platform Installer from [here](http://go.microsoft.com/fwlink/p/?linkid=320376&clcid=0x409) 
+2. Start Web Platform Installer and select Azure PowerShell (Recommend 6.0.0 or above) and proceed for Azure PowerShell Installation.
 
-1. Azure AD method
+### Authenticate Your Test Driver Machine with Your Azure Subscription
 
-      This creates a 12 Hours temporary session in PowerShell, in that session, you are allowed to run Windows Azure Cmdlets to control / use your subscription. After 12 hours you will be asked to enter username and password of your subscription. This may create problems long running automations, hence we use certificate method.
+#### Azure AD method
 
-2. Certificate Method.
+This creates a 12 Hours temporary session in PowerShell. In that session, you are allowed to run Windows Azure Cmdlets to control / use your subscription.
 
-      To learn more about how to configure your PowerShell with your subscription, please visit [here](http://azure.microsoft.com/en-us/documentation/articles/powershell-install-configure/#Connect).
+After 12 hours you will be asked to enter username and password of your subscription again.
 
-### Download Public Utilities
-Download Putty executables from http://www.putty.org and keep them in `.\TestScripts\Tools`. You should have the following utilities:
+#### Service Principal method
 
-        � plink.exe
-        � pscp.exe
-        � putty.exe
-        � puttygen.exe
+Refer to this URL [here](https://docs.microsoft.com/en-us/azure/azure-resource-manager/resource-group-create-service-principal-portal)
 
-Download dos2unix executables from http://sourceforge.net/projects/dos2unix/ and keep them in `.\TestScripts\Tools`. You should have the following utilities:
+### Prepare VHD for Your Test
 
-        � dos2unix.exe
+> Applicable if you are uploading your own Linux VHD to Azure for test.
 
-Download 7-zip executable from http://www.7-zip.org/ ( Direct Download Link : http://www.7-zip.org/a/7za920.zip ) and keep them in `.\TestScripts\Tools`. You should have the following utility:
+A VHD with Linux OS must be made compatible to work in HyperV environment. This includes:
 
-        � 7za.exe
+* Linux Integration Services
+* Windows Azure Linux Agent (for testing in Azure environment only)
 
-### Update GlobalConfigurations.xml file
-1. Setup Subscription details.
+Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azure/virtual-machines/linux/create-upload-generic)
 
-      Go to Global > Azure  and update following fields :
+### Launch Test Suite
+
+1. Clone this automation code to your test driver by:
+
+          git clone https://github.com/LIS/LISAv2.git
+          
+2. Update the GlobalConfigurations.xml file with your Azure subscription infomation: 
+
+   Go to Global > Azure  and update following fields :
 
         a. SubscriptionID
-        b. SubscriptionName
-        c. ManagementEndpoint 
-        d. Environment
-        e. ARMStorageAccount 
+        b. SubscriptionName (Optional)
+        c. ManagementEndpoint
+        d. Environment (For Azure PublicCloud, use `AzureCloud`)
+        e. ARMStorageAccount
 
-  Example :
-  ```xml
+   Example :
+
+```xml
+
   <Azure>
         <Subscription>
-            <SubscriptionID>2cd20493-fe97-42ef-9ace-ab95b63d82c4</SubscriptionID>
+            <SubscriptionID>2cd20493-0000-1111-2222-0123456789ab</SubscriptionID>
             <SubscriptionName>YOUR_SUBSCRIPTION_NAME</SubscriptionName>
             <ManagementEndpoint>https://management.core.windows.net</ManagementEndpoint>
             <Environment>AzureCloud</Environment>
             <ARMStorageAccount>ExistingStorage_Standard</ARMStorageAccount>
         </Subscription>
-  ```
-      
-2. Save file.
 
-### Prepare VHD to work in Azure
-`Applicable if you are uploading your own VHD with Linux OS to Azure.`
-TODO: Need to revise ******
-A VHD with Linux OS must be made compatible to work in Azure environment. This includes �
+```
 
-        1. Installation of Linux Integration Services to Linux VM (if already not present)
-        2. Installation of Windows Azure Linux Agent to Linux VM (if already not installed.)
-        3. Installation of minimum required packages. (Applicable if you want to run Tests using Automation code)
+3. Run the test suite with below command:
 
-Please follow the steps mentioned at: 
-http://azure.microsoft.com/en-us/documentation/articles/virtual-machines-linux-create-upload-vhd/
+        .\RunTests.ps1 -TestPlatform "Azure" -TestLocation "<Region location>" -RGIdentifier "<Identifier of the resource group>" [-ARMImageName "<publisher offer SKU version>" | -OsVHD "<VHD from storage account>" ] [[-TestCategory "<Test Catogry from Jenkins pipeline>" | -TestArea "<Test Area from Jenkins pipeline>"]* | -TestTag "<A Tag from Jenkins pipeline>" | -TestNames "<Test cases separated by comma>"]
 
-### Prepare VHD to work with Automation code.
-`Applicable if you are using already uploaded VHD / Platform Image to run automation.`
+### More Information
 
-To run automation code successfully, you need have following packages installed in your Linux VHD.
-
-        1. iperf
-        2. mysql-server
-        3. mysql-client
-        4. gcc
-        5. gcc-c++
-        6. bind
-        7. bind-utils
-        8. bind9
-        9. python
-        10. python-pyasn1
-        11. python-argparse
-        12. python-crypto
-        13. python-paramiko
-        14. libstdc++6
-        15. psmisc
-        16. nfs-utils
-        17. nfs-common
-        18. tcpdump
-
-### Create SSH Key Pair
-`PublicKey.cer � PrivateKey.ppk`
-
-A Linux Virtual machine login can be done with Password authentication or SSH key pair authentication. You must create a Public Key and Private key to run automation successfully. To learn more about how to create SSH key pair, please visit [here](http://azure.microsoft.com/en-us/documentation/articles/virtual-machines-linux-use-ssh-key/).
-
-After creating Public Key (.cer) and putty compatible private key (.ppk), you must put it in your `automation_root_folder\ssh\` folder and mention their names in Azure XML file.
-
-### VNET Preparation
-`Required for executing Virtual Network Tests`
-
-#### Create a Virtual Network in Azure
-A virtual network should be created and connected to Customer Network before running VNET test cases. To learn about how to create a virtual network on Azure, please visit [here](https://azure.microsoft.com/documentation/articles/vpn-gateway-site-to-site-create/).
-
-#### Create A customer site using RRAS
-Apart from Virtual Network in Azure, you also need a network (composed of Subnets and DNS server) to work as Customer Network. If you don�t have separate network to run VNET, you can create a virtual customer network using RRAS. To learn more, please visit [here](https://msdn.microsoft.com/en-us/library/dn636917.aspx).
-
-## How to Start Automation
-Before starting Automation, make sure that you have completed steps in chapter [Prepare Your Machine for Automation Cycle](#prepare)
-
-        1. Start PowerShell with Administrator privileges
-        2. Navigate to folder where automation code exists
-        3. Issue automation command
-
-#### Automation Cycles Available
-TODO: Revision *****
-        1. BVT
-        2. NETWORK
-        3. VNET
-        4. E2E-1
-        5. E2E-DISK
-        6. E2E-TIMESYNC
-        7. E2E-TIMESYNC-KERNBANCH
-        8. WORDPRESS1VM
-        9. WORDPRESS4VM
-        10. DAYTRADER1VM
-        11. DAYTRADER4VM
-        12. NETPERF
-        13. IOPERF-RAID
-        14. IOPERF-LVM
-
-#### Supported Azure Mode
-        - AzureResourceManager, if the value is present in the SupportedExecutionModes tag of the case definition
-        
-#### Command to Start any of the Automation Cycle
-TODO: Revision ***
-        .\AzureAutomationManager.ps1 -xmlConfigFile .\Azure_ICA_ALL.xml -runtests -email �Distro <DistroName> -cycleName <TestCycleToExecute> -UseAzureResourceManager
-
-#### More Information
-For more details, please refer to the documents [here](https://github.com/LIS/LISAv2/tree/master/Documentation).
+For more details, please refer to the documents [here](https://github.com/LIS/LISAv2/blob/master/Documents/How-to-use.md).

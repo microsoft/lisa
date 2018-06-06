@@ -1,3 +1,12 @@
+##############################################################################################
+# Azure.psm1
+# Copyright (c) Microsoft. All rights reserved.
+# Licensed under the MIT license. See LICENSE file in the project root for full license information.
+# Description : Azure PS module file having all required for test execution.
+# Operations :
+#              
+## Author : lisasupport@microsoft.com
+###############################################################################################
 Function ValidateSubscriptionUsage($subscriptionID, $RGXMLData)
 {
     #region VM Cores...
@@ -676,7 +685,7 @@ Function CreateResourceGroupDeployment([string]$RGName, $location, $setupType, $
 {
     $FailCounter = 0
     $retValue = "False"
-    $ResourceGroupDeploymentName = $RGName + "-deployment"
+    $ResourceGroupDeploymentName = "eosg" + (Get-Date).Ticks
     While(($retValue -eq $false) -and ($FailCounter -lt 1))
     {
         try
@@ -814,8 +823,8 @@ $singleIndent = ""
 $indents += $indent
 $RGRandomNumber = $((Get-Random -Maximum 999999 -Minimum 100000))
 $RGrandomWord = ([System.IO.Path]::GetRandomFileName() -replace '[^a-z]')
-$dnsNameForPublicIP = $($RGName.ToLower() -replace '[^a-z0-9]') + "$randomNum"
-$dnsNameForPublicIPv6 = $($RGName.ToLower() -replace '[^a-z0-9]') + "v6" + "$randomNum"
+$dnsNameForPublicIP = "ica$RGRandomNumber" + "v4"
+$dnsNameForPublicIPv6 = "ica$RGRandomNumber" + "v6"
 #$virtualNetworkName = $($RGName.ToUpper() -replace '[^a-z]') + "VNET"
 $virtualNetworkName = "VirtualNetwork"
 $defaultSubnetName = "SubnetForPrimaryNIC"
@@ -2629,7 +2638,7 @@ Function CreateRGDeploymentWithTempParameters([string]$RGName, $TemplateFile, $T
 {
     $FailCounter = 0
     $retValue = "False"
-    $ResourceGroupDeploymentName = $RGName + "-deployment"
+    $ResourceGroupDeploymentName = "eosg" + (Get-Date).Ticks
     While(($retValue -eq $false) -and ($FailCounter -lt 1))
     {
         try

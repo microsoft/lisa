@@ -40,7 +40,7 @@
 		<TestID>Perf_Network_002</TestID>
     </test>
     <test>
-        <testName>PERF-NETWORK-TCP-LATENCY-MULTICONNECTION-Syntetic</testName>
+        <testName>PERF-NETWORK-TCP-LATENCY-MULTICONNECTION-Synthetic</testName>
         <testScript></testScript>
         <PowershellScript>PERF-NETWORK-TCP-LATENCY-MULTICONNECTION-LAGSCOPE.ps1</PowershellScript>
         <setupType>M1S1</setupType>
