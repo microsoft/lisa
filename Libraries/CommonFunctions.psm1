@@ -2279,7 +2279,7 @@ Function GetAllDeployementData($ResourceGroups)
 			}
 			foreach ( $nic in $NICdata )
 			{
-				if ( $nic.Name -imatch $testVM.ResourceName)
+				if (( $nic.Name -imatch $testVM.ResourceName) -and ( $nic.Name -imatch "PrimaryNIC"))
 				{
 					$QuickVMNode.InternalIP = "$($nic.Properties.IpConfigurations[0].Properties.PrivateIPAddress)"
 				}
