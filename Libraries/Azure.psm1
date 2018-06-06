@@ -1771,7 +1771,7 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
 		{
             $totalRGNics += 1
             $currentVMNics += 1
-			$NicName = "$($vmName)-ExtraNetworkCard-$currentVMNics"
+			$NicName = "ExtraNetworkCard-$currentVMNics-$($vmName)"
 			$NicNameList.add($NicName)
 			Add-Content -Value "$($indents[2]){" -Path $jsonFile
 				Add-Content -Value "$($indents[3])^apiVersion^: ^2016-09-01^," -Path $jsonFile
@@ -2094,7 +2094,7 @@ if ( ($numberOfVMs -eq 1) -and !$EnableIPv6 -and !$ForceLoadBalancerForSingleVM 
         $currentVMNics = 0
 		while ($currentVMNics -lt $newVM.ExtraNICs)
 		{
-			$NicName = "ExtraNetworkCard-$totalRGNics"
+			$NicName = "ExtraNetworkCard-$totalRGNics-$($vmName)"
 			$NicNameList.add($NicName)
 			Add-Content -Value "$($indents[2]){" -Path $jsonFile
 				Add-Content -Value "$($indents[3])^apiVersion^: ^2016-09-01^," -Path $jsonFile
