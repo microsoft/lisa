@@ -54,43 +54,46 @@ function detect_linux_ditribution_version()
 
 function detect_linux_ditribution()
 {
-    local  linux_ditribution=`cat /etc/*release*|sed 's/"//g'|grep "^ID="| sed 's/ID=//'`
+    local linux_ditribution=`cat /etc/*release*|sed 's/"//g'|grep "^ID="| sed 's/ID=//'`
     local temp_text=`cat /etc/*release*`
-    if [ "$linux_ditribution" == "" ]
-    then
+    if [ "$linux_ditribution" == "" ]; then
         if echo "$temp_text" | grep -qi "ol"; then
-            linux_ditribution='Oracle'
+            linux_ditribution='oracle'
         elif echo "$temp_text" | grep -qi "Ubuntu"; then
-            linux_ditribution='Ubuntu'
+            linux_ditribution='ubuntu'
         elif echo "$temp_text" | grep -qi "SUSE Linux"; then
-            linux_ditribution='SUSE'
+            linux_ditribution='suse'
         elif echo "$temp_text" | grep -qi "openSUSE"; then
-            linux_ditribution='OpenSUSE'
+            linux_ditribution='opensuse'
         elif echo "$temp_text" | grep -qi "centos"; then
-            linux_ditribution='CentOS'
+            linux_ditribution='centos'
         elif echo "$temp_text" | grep -qi "Oracle"; then
-            linux_ditribution='Oracle'
+            linux_ditribution='oracle'
         elif echo "$temp_text" | grep -qi "Red Hat"; then
-            linux_ditribution='RHEL'
+            linux_ditribution='rhel'
         else
             linux_ditribution='unknown'
         fi
+    elif [ "$linux_ditribution" == "ol" ]; then
+        linux_ditribution='oracle'
+    elif echo "$linux_ditribution" | grep -qi "debian"; then
+        linux_ditribution='debian'
     fi
-    echo "$(echo "$linux_ditribution" | sed 's/.*/\u&/')"
+    echo "$(echo "$linux_ditribution" | awk '{print tolower($0)}')"
 }
 
 function updaterepos()
 {
     ditribution=$(detect_linux_ditribution)
     case "$ditribution" in
-        Oracle|RHEL|CentOS)
+        oracle|rhel|centos)
             yum makecache
             ;;
     
-        Ubuntu)
+        ubuntu|debian)
             apt-get update
             ;;
-        SUSE|openSUSE|sles)
+        suse|opensuse|sles)
             zypper refresh
             ;;
          
@@ -143,15 +146,15 @@ function install_package ()
 	for i in "${package_name[@]}"
 	do
 	    case "$ditribution" in
-	        Oracle|RHEL|CentOS)
+	        oracle|rhel|centos)
 	            yum_install "$package_name"
 	            ;;
 
-	        Ubuntu)
+	        ubuntu|debian)
 	            apt_get_install "$package_name"
 	            ;;
 
-	        SUSE|OpenSUSE|sles)
+	        suse|opensuse|sles)
 	            zypper_install "$package_name"
 	            ;;
 
@@ -160,6 +163,27 @@ function install_package ()
 	            return 1
 		esac
 	done
+}
+
+function install_epel ()
+{
+    wget https://dl.fedoraproject.org/pub/epel/7/x86_64/Packages/e/epel-release-7-11.noarch.rpm
+    rpm -i epel-release-7-11.noarch.rpm
+    check_exit_status "install_epel"
+}
+
+function install_sshpass ()
+{
+    if [[ `which sshpass` == "" ]]; then
+        echo "sshpass not installed\n Installing now..."
+        distro=$(detect_linux_ditribution)
+        if [ $distro == "sles" ]; then
+            wget https://download.opensuse.org/repositories/network/SLE_12_SP3/x86_64/sshpass-1.06-7.1.x86_64.rpm
+            rpm -i sshpass-1.06-7.1.x86_64.rpm
+        else
+            install_package "sshpass"
+        fi
+    fi    
 }
 
 function creat_partitions ()
@@ -231,16 +255,12 @@ function remote_copy ()
     remote_path="~"
 
     while echo $1 | grep -q ^-; do
-       eval $( echo $1 | sed 's/^-//' )=$2
+       declare $( echo $1 | sed 's/^-//' )=$2
        shift
        shift
     done
 
-    if [[ `which sshpass` == "" ]]
-    then
-        echo "sshpass not installed\n Installing now..." 
-        install_package "sshpass" 
-    fi
+    install_sshpass
 
     if [ "x$host" == "x" ] || [ "x$user" == "x" ] || [ "x$passwd" == "x" ] || [ "x$filename" == "x" ] ; then
        echo "Usage: remote_copy -user <username> -passwd <user password> -host <host ipaddress> -filename <filename> -remote_path <location of the file on remote vm> -cmd <put/get>"
@@ -256,30 +276,35 @@ function remote_copy ()
     fi
 
     status=`sshpass -p $passwd scp -o StrictHostKeyChecking=no $source_path $destination_path 2>&1`
+    exit_status=$?
     echo $status
+    return $exit_status
 }
 
 function remote_exec ()
 {
     while echo $1 | grep -q ^-; do
-       eval $( echo $1 | sed 's/^-//' )=$2
+       declare $( echo $1 | sed 's/^-//' )=$2
        shift
        shift
     done
     cmd=$@
-    if [[ `which sshpass` == "" ]]
-    then
-        echo "sshpass not installed\n Installing now..." 
-        install_package "sshpass" 
-    fi
+
+    install_sshpass
 
     if [ "x$host" == "x" ] || [ "x$user" == "x" ] || [ "x$passwd" == "x" ] || [ "x$cmd" == "x" ] ; then
-       echo "Usage: remote_exec -user <username> -passwd <user password> -host <host ipaddress> <onlycommand>"
-       return
+        echo "Usage: remote_exec -user <username> -passwd <user password> -host <host ipaddress> <onlycommand>"
+        return
     fi
 
-    status=`sshpass -p $passwd ssh -t -o StrictHostKeyChecking=no $user@$host $cmd 2>&1`
+    if [ "x$port" == "x" ]; then
+        port=22
+    fi
+
+    status=`sshpass -p $passwd ssh -t -o StrictHostKeyChecking=no -p $port $user@$host $cmd 2>&1`
+    exit_status=$?
     echo $status
+    return $exit_status
 }
 
 function set_user_password {
