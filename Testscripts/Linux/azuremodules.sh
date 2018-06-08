@@ -167,23 +167,42 @@ function install_package ()
 
 function install_epel ()
 {
-    wget https://dl.fedoraproject.org/pub/epel/7/x86_64/Packages/e/epel-release-7-11.noarch.rpm
-    rpm -i epel-release-7-11.noarch.rpm
+    distro=$(detect_linux_ditribution)
+    case "$distro" in
+        oracle|rhel|centos)
+            version=$(detect_linux_ditribution_version)
+            if echo $version | grep "6\."; then
+                epel_rpm_url="https://dl.fedoraproject.org/pub/epel/epel-release-latest-6.noarch.rpm"
+            elif echo $version | grep "7\."; then
+                epel_rpm_url="https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm"
+            else
+                echo "Unsupported version to install epel repository"
+                return 1
+            fi
+            ;;
+        *)
+            echo "Unsupported distribution to install epel repository"
+            return 1
+    esac
+    rpm -ivh $epel_rpm_url
     check_exit_status "install_epel"
 }
 
 function install_sshpass ()
 {
-    if [[ `which sshpass` == "" ]]; then
+    which sshpass
+    if [ $? -ne 0 ]; then
         echo "sshpass not installed\n Installing now..."
         distro=$(detect_linux_ditribution)
-        if [ $distro == "sles" ]; then
+        version=$(detect_linux_ditribution_version)
+        if [ $distro == "sles" ] && echo $version | grep "12"; then
             wget https://download.opensuse.org/repositories/network/SLE_12_SP3/x86_64/sshpass-1.06-7.1.x86_64.rpm
             rpm -i sshpass-1.06-7.1.x86_64.rpm
         else
             install_package "sshpass"
         fi
-    fi    
+    fi
+    check_exit_status "install_sshpass"
 }
 
 function creat_partitions ()
