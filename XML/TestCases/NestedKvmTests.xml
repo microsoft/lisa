@@ -5,17 +5,17 @@
 		<PowershellScript>NESTED-KVM-BASIC-VERIFICATION.ps1</PowershellScript>
 		<files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\nested_kvm_basic_test.sh</files>
 		<setupType>E4v3</setupType>
-        <TestParameters>
+		<TestParameters>
 			<!--The nested image should be qcow2 format, and accessible from a public URL-->
-            <param>NestedImageUrl=REPLACE_THIS</param>
+			<param>NestedImageUrl=REPLACE_THIS</param>
 			<param>NestedUser=REPLACE_THIS</param>
 			<param>NestedUserPassword=REPLACE_THIS</param>
 			<param>HostFwdPort=60022</param>
-        </TestParameters>        
+		</TestParameters>
 		<Platform>Azure</Platform>
-		<Category>NestedKvm</Category>
-		<Area></Area>
-		<Tags></Tags>
+		<Category>Functional</Category>
+		<Area>Nested</Area>
+		<Tags>Nested</Tags>
 		<TestID>NestedKvm_001</TestID>
 	</test>
 </TestCases>
