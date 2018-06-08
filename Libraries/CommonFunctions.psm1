@@ -2204,7 +2204,6 @@ Function GetAllDeployementData($ResourceGroups)
 	{
 		LogMsg "Collecting $ResourceGroup data.."
 
-		$allRGResources = (Get-AzureRmResource | where { $_.ResourceGroupName -eq $ResourceGroup } | Select ResourceType).ResourceType
 		LogMsg "    Microsoft.Network/publicIPAddresses data collection in progress.."
 		$RGIPdata = Get-AzureRmResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Network/publicIPAddresses" -Verbose -ExpandProperties
 		LogMsg "    Microsoft.Compute/virtualMachines data collection in progress.."
@@ -2212,71 +2211,39 @@ Function GetAllDeployementData($ResourceGroups)
 		LogMsg "    Microsoft.Network/networkInterfaces data collection in progress.."
 		$NICdata = Get-AzureRmResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Network/networkInterfaces" -Verbose -ExpandProperties
 		$currentRGLocation = (Get-AzureRmResourceGroup -ResourceGroupName $ResourceGroup).Location
-		$numberOfVMs = 0
-		foreach ($testVM in $RGVMs)
-		{
-			$numberOfVMs += 1
-		}
-		if ( ($numberOfVMs -gt 1) -or (($RGIPData | where { $_.Properties.publicIPAddressVersion -eq "IPv6" }).Properties.ipAddress) -or ($allRGResources -contains "Microsoft.Network/loadBalancers"))
-		{
-			LogMsg "    Microsoft.Network/loadBalancers data collection in progress.."
-			$LBdata = Get-AzureRmResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Network/loadBalancers" -ExpandProperties -Verbose
-		}
+		LogMsg "    Microsoft.Network/loadBalancers data collection in progress.."
+		$LBdata = Get-AzureRmResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Network/loadBalancers" -ExpandProperties -Verbose
 		foreach ($testVM in $RGVMs)
 		{
 			$QuickVMNode = CreateQuickVMNode
-			if ( ( $numberOfVMs -gt 1 ) -or (($RGIPData | where { $_.Properties.publicIPAddressVersion -eq "IPv6" }).Properties.ipAddress)  -or ($allRGResources -contains "Microsoft.Network/loadBalancers"))
+			$InboundNatRules = $LBdata.Properties.InboundNatRules
+			foreach ($endPoint in $InboundNatRules)
 			{
-				$InboundNatRules = $LBdata.Properties.InboundNatRules
-				foreach ($endPoint in $InboundNatRules)
+				if ( $endPoint.Name -imatch $testVM.ResourceName)
 				{
-					if ( $endPoint.Name -imatch $testVM.ResourceName)
-					{
-						$endPointName = "$($endPoint.Name)".Replace("$($testVM.ResourceName)-","")
-						Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($endPointName)Port" -Value $endPoint.Properties.FrontendPort -Force
-					}
-				}
-				$LoadBalancingRules = $LBdata.Properties.LoadBalancingRules
-				foreach ( $LBrule in $LoadBalancingRules )
-				{
-					if ( $LBrule.Name -imatch "$ResourceGroup-LB-" )
-					{
-						$endPointName = "$($LBrule.Name)".Replace("$ResourceGroup-LB-","")
-						Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($endPointName)Port" -Value $LBrule.Properties.FrontendPort -Force
-					}
-				}
-				$Probes = $LBdata.Properties.Probes
-				foreach ( $Probe in $Probes )
-				{
-					if ( $Probe.Name -imatch "$ResourceGroup-LB-" )
-					{
-						$probeName = "$($Probe.Name)".Replace("$ResourceGroup-LB-","").Replace("-probe","")
-						Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($probeName)ProbePort" -Value $Probe.Properties.Port -Force
-					}
+					$endPointName = "$($endPoint.Name)".Replace("$($testVM.ResourceName)-","")
+					Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($endPointName)Port" -Value $endPoint.Properties.FrontendPort -Force
 				}
 			}
-			else
+			$LoadBalancingRules = $LBdata.Properties.LoadBalancingRules
+			foreach ( $LBrule in $LoadBalancingRules )
 			{
-				LogMsg "    Microsoft.Network/networkSecurityGroups data collection in progress.."
-				$SGData = Get-AzureRmResource -ResourceGroupName $ResourceGroup -ResourceName "SG-$($testVM.ResourceName)" -ResourceType "Microsoft.Network/networkSecurityGroups" -ExpandProperties
-				foreach ($securityRule in $SGData.Properties.securityRules)
+				if ( $LBrule.Name -imatch "$ResourceGroup-LB-" )
 				{
-					Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($securityRule.name)Port" -Value $securityRule.properties.destinationPortRange -Force
-				}
-				if($AllEndpoints.Length -eq 0)
-				{
-					$sg = Get-AzureRmNetworkSecurityGroup -ResourceGroupName $testVM.ResourceGroupName -Name "SG-$($testVM.ResourceName)"
-					foreach($rule in $sg.SecurityRules)
-					{
-						Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($rule.Name)Port" -Value $rule.DestinationPortRange[0] -Force
-						if (($rule.Name -imatch "Cleanuptool-22-Corpnet") -and ($QuickVMNode.SSHPort -ne "22"))
-						{
-							LogMsg "    Cleanuptool-22-Corpnet detected. Applying workaroud."
-							Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "SSHPort" -Value "22" -Force
-						}                
-					}
+					$endPointName = "$($LBrule.Name)".Replace("$ResourceGroup-LB-","")
+					Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($endPointName)Port" -Value $LBrule.Properties.FrontendPort -Force
 				}
 			}
+			$Probes = $LBdata.Properties.Probes
+			foreach ( $Probe in $Probes )
+			{
+				if ( $Probe.Name -imatch "$ResourceGroup-LB-" )
+				{
+					$probeName = "$($Probe.Name)".Replace("$ResourceGroup-LB-","").Replace("-probe","")
+					Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($probeName)ProbePort" -Value $Probe.Properties.Port -Force
+				}
+			}
+
 			foreach ( $nic in $NICdata )
 			{
 				if (( $nic.Name -imatch $testVM.ResourceName) -and ( $nic.Name -imatch "PrimaryNIC"))
