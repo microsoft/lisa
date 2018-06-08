@@ -19,6 +19,7 @@ Param(
     [string] $ARMImageName = "",
 
     #Optinal
+    [string] $StorageAccount="",
     [string] $OsVHD, #... Required if -ARMImageName is not provided.
     [string] $TestCategory = "",
     [string] $TestArea = "",
@@ -33,6 +34,7 @@ Param(
     [string] $TiPSessionId,
     [string] $TiPCluster,
     [string] $XMLSecretFile = "",
+    [switch] $UpdateGlobalConfigurationFromSecretsFile,
     #Toggles
     [switch] $KeepReproInact,
     [switch] $EnableAcceleratedNetworking,
@@ -40,8 +42,8 @@ Param(
     [switch] $UseManagedDisks,
 
     [string] $ResultDBTable = "",
-    [string] $ResultDBTestTag = "",    
-
+    [string] $ResultDBTestTag = "",
+    
     [switch] $ExitWithZero    
 )
 
@@ -81,6 +83,72 @@ try
     }
     #endregion
     
+
+    #Region Update Global Configuration XML file as needed
+    if ($UpdateGlobalConfigurationFromSecretsFile)
+    {
+        if ($XMLSecretFile)
+        {
+            if (Test-Path -Path $XMLSecretFile)
+            {
+                LogMsg "Updating .\XML\GlobalConfigurations.xml"
+                .\Utilities\UpdateGlobalConfigurationFromXmlSecrets.ps1 -XmlSecretsFilePath $XMLSecretFile
+            }
+            else 
+            {
+                LogErr "Failed to update .\XML\GlobalConfigurations.xml. '$XMLSecretFile' not found."    
+            }
+        }
+        else 
+        {
+            LogErr "Failed to update .\XML\GlobalConfigurations.xml. '-XMLSecretFile [FilePath]' not provided."    
+        }
+    }
+    $RegionStorageMapping = [xml](Get-Content .\XML\RegionAndStorageAccounts.xml)
+    $GlobalConfiguration = [xml](Get-Content .\XML\GlobalConfigurations.xml)
+    if ( $StorageAccount -imatch "ExistingStorage_Standard" )
+    {
+        $GlobalConfiguration.Global.Azure.Subscription.ARMStorageAccount = $RegionStorageMapping.AllRegions.$TestLocation.StandardStorage
+    }
+    elseif ( $StorageAccount -imatch "ExistingStorage_Premium" )
+    {
+        $GlobalConfiguration.Global.Azure.Subscription.ARMStorageAccount = $RegionStorageMapping.AllRegions.$TestLocation.PremiumStorage
+    }
+    elseif ( $StorageAccount -imatch "NewStorage_Standard" )
+    {
+        $GlobalConfiguration.Global.Azure.Subscription.ARMStorageAccount = "NewStorage_Standard_LRS"
+    }
+    elseif ( $StorageAccount -imatch "NewStorage_Premium" )
+    {
+        $GlobalConfiguration.Global.Azure.Subscription.ARMStorageAccount = "NewStorage_Premium_LRS"
+    }
+    elseif ($StorageAccount -eq "")
+    {
+        $GlobalConfiguration.Global.Azure.Subscription.ARMStorageAccount = $RegionStorageMapping.AllRegions.$TestLocation.StandardStorage
+        LogMsg "Auto selecting storage account : $($GlobalConfiguration.Global.Azure.Subscription.ARMStorageAccount) as per your test region."
+    }
+    elseif ($StorageAccount -ne "")
+    {
+        $GlobalConfiguration.Global.Azure.Subscription.ARMStorageAccount = $StorageAccount.Trim()
+        Write-Host "Selecting custom storage account : $($GlobalConfiguration.Global.Azure.Subscription.ARMStorageAccount) as per your test region."
+    }
+
+    if( $ResultDBTable -or $ResultDBTestTag)
+    {
+        if( $ResultDBTable )
+        {
+            $GlobalConfiguration.Global.Azure.ResultsDatabase.dbtable = ($ResultDBTable).Trim()
+            LogMsg "ResultDBTable : $ResultDBTable added to .\XML\GlobalConfigurations.xml"
+        }
+        if( $ResultDBTestTag )
+        {
+            $GlobalConfiguration.Global.Azure.ResultsDatabase.testTag = ($ResultDBTestTag).Trim()
+            LogMsg "ResultDBTestTag: $ResultDBTestTag added to .\XML\GlobalConfigurations.xml"
+        }                      
+    }
+    $GlobalConfiguration.Save(".\XML\GlobalConfigurations.xml")
+    #endregion
+
     New-Item -ItemType Directory -Path "TestResults" -Force -ErrorAction SilentlyContinue | Out-Null
 
     $LogDir = ".\TestResults\$(Get-Date -Format 'yyyy-dd-MM-HH-mm-ss-ffff')"
@@ -400,22 +468,10 @@ try
         #endregion
     $xmlContent += ("$($tab[0])" + "</config>`n") 
     Set-Content -Value $xmlContent -Path $xmlFile -Force
+
     try 
-    {
+    {   
         $xmlConfig = [xml](Get-Content $xmlFile)
-        if( $ResultDBTable -or $ResultDBTestTag)
-        {
-            if( $ResultDBTable )
-            {
-                $xmlConfig.config.Azure.database.dbtable = ($ResultDBTable).Trim()
-                LogMsg "ResultDBTable : $ResultDBTable added."
-            }
-            if( $ResultDBTestTag )
-            {
-                $xmlConfig.config.Azure.database.testTag = ($ResultDBTestTag).Trim()
-                LogMsg "ResultDBTestTag: $ResultDBTestTag added."
-            }            
-        }
         $xmlConfig.Save("$xmlFile")
         LogMsg "Auto created $xmlFile validated successfully."   
     }
