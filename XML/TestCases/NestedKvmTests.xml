@@ -4,7 +4,8 @@
 		<testScript>nested_kvm_basic_test.sh</testScript>
 		<PowershellScript>NESTED-KVM-BASIC-VERIFICATION.ps1</PowershellScript>
 		<files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\nested_kvm_basic_test.sh</files>
-		<setupType>E4v3</setupType>
+		<setupType>SingleVM</setupType>
+		<OverrideVMSize>Standard_E4_v3</OverrideVMSize>
 		<TestParameters>
 			<!--The nested image should be qcow2 format, and accessible from a public URL-->
 			<param>NestedImageUrl=REPLACE_THIS</param>
