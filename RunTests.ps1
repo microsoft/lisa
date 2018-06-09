@@ -39,7 +39,7 @@ Param(
     [switch] $KeepReproInact,
     [switch] $EnableAcceleratedNetworking,
     [switch] $ForceDeleteResources,
-    [switch] $UseManagedDisks,
+    [switch] $UseManagedDisk,
 
     [string] $ResultDBTable = "",
     [string] $ResultDBTestTag = "",
@@ -72,6 +72,10 @@ try
     {
         $ParameterErrors += "-RGIdentifier <PersonalIdentifier> is required. This string will added to Resources created by Automation."
     }
+    if ($UseManagedDisks -and $OsVHD)
+    {
+        $ParameterErrors += "Managed disks + OS VHD not supported at this time."
+    }    
     if ( $ParameterErrors.Count -gt 0)
     {
         $ParameterErrors | ForEach-Object { LogError $_ }

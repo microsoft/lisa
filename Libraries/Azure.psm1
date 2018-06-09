@@ -367,7 +367,7 @@ Function ValidateSubscriptionUsage($subscriptionID, $RGXMLData)
     }
 }
 
-Function CreateAllResourceGroupDeployments($setupType, $xmlConfig, $Distro, [string]$region = "", [string]$storageAccount = "", $DebugRG = "")
+Function CreateAllResourceGroupDeployments($setupType, $xmlConfig, $Distro, [string]$region = "", $DebugRG = "")
 {
     if ($DebugRG)
     {
@@ -376,9 +376,8 @@ Function CreateAllResourceGroupDeployments($setupType, $xmlConfig, $Distro, [str
     else
     {
         $resourceGroupCount = 0
-        $xml = $xmlConfig
         LogMsg $setupType
-        $setupTypeData = $xml.config.Azure.Deployment.$setupType
+        $setupTypeData = $xmlConfig.config.Azure.Deployment.$setupType
         $allsetupGroups = $setupTypeData
         if ($allsetupGroups.ResourceGroup[0].Location -or $allsetupGroups.ResourceGroup[0].AffinityGroup)
         {
@@ -390,8 +389,7 @@ Function CreateAllResourceGroupDeployments($setupType, $xmlConfig, $Distro, [str
             $isMultiple = 'False'
         }
         $OsVHD = $BaseOsVHD
-        $location = $xml.config.Azure.General.Location
-        $AffinityGroup = $xml.config.Azure.General.AffinityGroup
+        $location = $xmlConfig.config.Azure.General.Location
         if($region)
         {
           $location = $region;
@@ -489,7 +487,7 @@ Function CreateAllResourceGroupDeployments($setupType, $xmlConfig, $Distro, [str
                         if ($isServiceCreated -eq "True")
                         {
                             $azureDeployJSONFilePath = ".\Temp\$groupName.json"
-                            $DeploymentCommand = GenerateAzureDeployJSONFile -RGName $groupName -osImage $osImage -osVHD $osVHD -RGXMLData $RG -Location $location -azuredeployJSONFilePath $azureDeployJSONFilePath -storageAccount $storageAccount
+                            $DeploymentCommand = GenerateAzureDeployJSONFile -RGName $groupName -osImage $osImage -osVHD $osVHD -RGXMLData $RG -Location $location -azuredeployJSONFilePath $azureDeployJSONFilePath
                             $DeploymentStartTime = (Get-Date)
                             $CreateRGDeployments = CreateResourceGroupDeployment -RGName $groupName -location $location -setupType $setupType -TemplateFile $azureDeployJSONFilePath
                             $DeploymentEndTime = (Get-Date)
@@ -735,12 +733,52 @@ Function CreateResourceGroupDeployment([string]$RGName, $location, $setupType, $
     return $retValue
 }
 
-Function GenerateAzureDeployJSONFile ($RGName, $osImage, $osVHD, $RGXMLData, $Location, $azuredeployJSONFilePath, [string]$storageAccount = "")
+Function GenerateAzureDeployJSONFile ($RGName, $osImage, $osVHD, $RGXMLData, $Location, $azuredeployJSONFilePath)
 {
-$randomNum = Get-Random -Maximum 999999 -Minimum 111111
-LogMsg "Generating Template : $azuredeployJSONFilePath"
-$jsonFile = $azuredeployJSONFilePath
-$StorageAccountName = $xml.config.Azure.General.ARMStorageAccount
+
+#Random Data
+$RGrandomWord = ([System.IO.Path]::GetRandomFileName() -replace '[^a-z]')
+$RGRandomNumber = Get-Random -Minimum 11111 -Maximum 99999
+
+#Generate the initial data
+$numberOfVMs = 0
+$VMNames = @()
+$EnableIPv6 = $false
+$ForceLoadBalancerForSingleVM = $false
+$totalSubnetsRequired = 0
+foreach ( $newVM in $RGXMLData.VirtualMachine)
+{
+    if ( !$EnableIPv6 )
+    {
+        foreach ( $endpoint in $newVM.EndPoints )
+        {
+            if ( $endpoint.EnableIPv6 -eq "True" )
+            {
+                $EnableIPv6 = $true
+            }
+            if ( $endpoint.LoadBalanced -eq "True" )
+            {
+                $ForceLoadBalancerForSingleVM = $true
+            }
+            #Check total subnets required
+            if ( $newVM.ExtraNICs -ne 0)
+            {
+                $totalSubnetsRequired = $newVM.ExtraNICs
+            }            
+        }
+    }
+    if($newVM.RoleName)
+    {
+        $VMNames += $newVM.RoleName
+    }
+    else
+    {
+        $VMNames += "$RGName-role-$numberOfVMs"
+    }
+    $numberOfVMs += 1
+}
+
+
 $saInfoCollected = $false
 $retryCount = 0
 $maxRetryCount = 999
@@ -770,6 +808,64 @@ while(!$saInfoCollected -and ($retryCount -lt $maxRetryCount))
     }
 }
 
+$StorageAccountName = $xmlConfig.config.Azure.General.ARMStorageAccount
+#Condition Existing Storage - NonManaged disks
+if ( $StorageAccountName -inotmatch "NewStorage" -and !$UseManagedDisks)
+{
+    $StorageAccountType = ($GetAzureRMStorageAccount | where {$_.StorageAccountName -eq $StorageAccountName}).Sku.Tier.ToString()
+    $StorageAccountRG = ($GetAzureRMStorageAccount | where {$_.StorageAccountName -eq $StorageAccountName}).ResourceGroupName.ToString()
+    if($StorageAccountType -match 'Premium')
+    {
+        $StorageAccountType = "Premium_LRS"
+    }
+    else
+    {
+	    $StorageAccountType = "Standard_LRS"
+    }
+    LogMsg "Storage Account Type : $StorageAccountType"  
+    Set-Variable -Name StorageAccountTypeGlobal -Value $StorageAccountType -Scope Global  
+}
+
+#Condition Existing Storage - Managed Disks
+if ( $StorageAccountName -inotmatch "NewStorage" -and $UseManagedDisks)
+{
+    $StorageAccountType = ($GetAzureRMStorageAccount | where {$_.StorageAccountName -eq $StorageAccountName}).Sku.Tier.ToString()
+    if($StorageAccountType -match 'Premium')
+    {
+        $StorageAccountType = "Premium_LRS"
+    }
+    else
+    {
+	    $StorageAccountType = "Standard_LRS"
+    }
+    Set-Variable -Name StorageAccountTypeGlobal -Value $StorageAccountType -Scope Global      
+}
+
+
+#Condition New Storage - NonManaged disk
+if ( $StorageAccountName -imatch "NewStorage" -and !$UseManagedDisks)
+{
+    $NewARMStorageAccountType = ($StorageAccountName).Replace("NewStorage_","")
+    Set-Variable -Name StorageAccountTypeGlobal -Value $NewARMStorageAccountType  -Scope Global
+    $StorageAccountName = $($NewARMStorageAccountType.ToLower().Replace("_","")) + "$RGRandomNumber"
+    $NewStorageAccountName = $StorageAccountName
+    LogMsg "Using New ARM Storage Account : $StorageAccountName"
+    $StorageAccountType= $NewARMStorageAccountType
+    $StorageAccountRG = $RGName
+}
+
+#Condition New Storage - Managed disk
+if ( $StorageAccountName -imatch "NewStorage" -and $UseManagedDisks)
+{
+    Set-Variable -Name StorageAccountTypeGlobal -Value ($StorageAccountName).Replace("NewStorage_","")  -Scope Global
+    LogMsg "Conflicting parameters - NewStorage and UseManagedDisks. Storage account will not be created."
+}
+#Region Define all Variables.
+
+
+LogMsg "Generating Template : $azuredeployJSONFilePath"
+$jsonFile = $azuredeployJSONFilePath
+
 
 if ($ARMImage -and !$osVHD)
 {
@@ -786,31 +882,7 @@ elseif ($CurrentTestData.Publisher -and $CurrentTestData.Offer)
     $version = $CurrentTestData.Version
 }
 
-if($storageAccount)
-{ 
- $StorageAccountName = $storageAccount
-}
-if ( $NewARMStorageAccountType )
-{
-    LogMsg "New storage account of type : $NewARMStorageAccountType will be created in $RGName."
-    Set-Variable -Name StorageAccountTypeGlobal -Value $NewARMStorageAccountType  -Scope Global
-    $StorageAccountRG = $RGName
-}
-else
-{
-    $StorageAccountType = ($GetAzureRMStorageAccount | where {$_.StorageAccountName -eq $StorageAccountName}).Sku.Tier.ToString()
-    $StorageAccountRG = ($GetAzureRMStorageAccount | where {$_.StorageAccountName -eq $StorageAccountName}).ResourceGroupName.ToString()
-    if($StorageAccountType -match 'Premium')
-    {
-        $StorageAccountType = "Premium_LRS"
-    }
-    else
-    {
-	    $StorageAccountType = "Standard_LRS"
-    }
-    LogMsg "Storage Account Type : $StorageAccountType"
-    Set-Variable -Name StorageAccountTypeGlobal -Value $StorageAccountType -Scope Global
-}
+
 $HS = $RGXMLData
 $setupType = $Setup
 $totalVMs = 0
@@ -821,8 +893,6 @@ $indents = @()
 $indent = ""
 $singleIndent = ""
 $indents += $indent
-$RGRandomNumber = $((Get-Random -Maximum 999999 -Minimum 100000))
-$RGrandomWord = ([System.IO.Path]::GetRandomFileName() -replace '[^a-z]')
 $dnsNameForPublicIP = "ica$RGRandomNumber" + "v4"
 $dnsNameForPublicIPv6 = "ica$RGRandomNumber" + "v6"
 #$virtualNetworkName = $($RGName.ToUpper() -replace '[^a-z]') + "VNET"
@@ -832,9 +902,9 @@ $defaultSubnetName = "SubnetForPrimaryNIC"
 $availibilitySetName = "AvailibilitySet"
 #$LoadBalancerName =  $($RGName.ToUpper() -replace '[^a-z]') + "LoadBalancer"
 $LoadBalancerName =  "LoadBalancer"
-$apiVersion = "2016-03-30"
+$apiVersion = "2018-04-01"
 #$PublicIPName = $($RGName.ToUpper() -replace '[^a-z]') + "PublicIPv4"
-$PublicIPName = "PublicIPv4-$randomNum"
+$PublicIPName = "PublicIPv4-$RGRandomNumber"
 #$PublicIPv6Name = $($RGName.ToUpper() -replace '[^a-z]') + "PublicIPv6"
 $PublicIPv6Name = "PublicIPv6"
 $sshPath = '/home/' + $user + '/.ssh/authorized_keys'
@@ -877,20 +947,12 @@ if ( $CurrentTestData.ProvisionTimeExtensions )
 	$extensionXML = [xml]$extensionString
 }
 
-$LocationLower = $Location.Replace(" ","").ToLower().Replace('"','')
-if ( $NewARMStorageAccountType )
-{
-    #$StorageAccountName = $($NewARMStorageAccountType.ToLower().Replace("_","").Replace("standard","std").Replace("premium","prm")) + "$RGRandomNumber" + "$LocationLower"
-    $StorageAccountName = $($NewARMStorageAccountType.ToLower().Replace("_","")) + "$RGRandomNumber"
-    #$StorageAccountName = "$LocationLower" + "$RGRandomNumber"
-    LogMsg "Using New ARM Storage Account : $StorageAccountName"
-    $StorageAccountType= $NewARMStorageAccountType
-}
-else
-{
-    LogMsg "Using ARM Storage Account : $StorageAccountName"
-}
-$bootDiagnosticsSA = "icadiagnostic$RGRandomNumber"
+
+
+#Create Managed OS Disks for all VMs using OSVHD.
+
+
+
 LogMsg "Using API VERSION : $apiVersion"
 $ExistingVnet = $null
 if ($RGXMLData.ARMVnetName -ne $null)
@@ -916,34 +978,14 @@ for ($i =0; $i -lt 30; $i++)
 }
 
 
-#Check if the deployment Type is single VM deployment or multiple VM deployment
-$numberOfVMs = 0
-$EnableIPv6 = $false
-$ForceLoadBalancerForSingleVM = $false
-$totalSubnetsRequired = 0
-foreach ( $newVM in $RGXMLData.VirtualMachine)
-{
-    $numberOfVMs += 1
-    if ( !$EnableIPv6 )
-    {
-        foreach ( $endpoint in $newVM.EndPoints )
-        {
-            if ( $endpoint.EnableIPv6 -eq "True" )
-            {
-                $EnableIPv6 = $true
-            }
-            if ( $endpoint.LoadBalanced -eq "True" )
-            {
-                $ForceLoadBalancerForSingleVM = $true
-            }
-            #Check total subnets required
-            if ( $newVM.ExtraNICs -ne 0)
-            {
-                $totalSubnetsRequired = $newVM.ExtraNICs
-            }            
-        }
-    }
-}
+
+
+
+
+
+
+
+
 
 
 $StorageProfileScriptBlock = {
@@ -974,20 +1016,37 @@ $StorageProfileScriptBlock = {
                     Add-Content -Value "$($indents[5]){" -Path $jsonFile
                     if($osVHD)
                     {
-                        LogMsg ">>Using VHD : $osVHD"
-                        Add-Content -Value "$($indents[6])^image^: " -Path $jsonFile
-                        Add-Content -Value "$($indents[6]){" -Path $jsonFile
-                            Add-Content -Value "$($indents[7])^uri^: ^[concat('http://',variables('StorageAccountName'),'.blob.core.windows.net/vhds/','$osVHD')]^" -Path $jsonFile
-                        Add-Content -Value "$($indents[6])}," -Path $jsonFile
-                        Add-Content -Value "$($indents[6])^osType^: ^Linux^," -Path $jsonFile
-                        Add-Content -Value "$($indents[6])^name^: ^$vmName-OSDisk^," -Path $jsonFile
-                        #Add-Content -Value "$($indents[6])^osType^: ^Linux^," -Path $jsonFile
-                        Add-Content -Value "$($indents[6])^vhd^: " -Path $jsonFile
-                        Add-Content -Value "$($indents[6]){" -Path $jsonFile
-                            Add-Content -Value "$($indents[7])^uri^: ^[concat('http://',variables('StorageAccountName'),'.blob.core.windows.net/vhds/','$vmName-$RGrandomWord-osdisk.vhd')]^" -Path $jsonFile
-                        Add-Content -Value "$($indents[6])}," -Path $jsonFile
-                        Add-Content -Value "$($indents[6])^caching^: ^ReadWrite^," -Path $jsonFile
-                        Add-Content -Value "$($indents[6])^createOption^: ^FromImage^" -Path $jsonFile
+                        if ($UseManagedDisks)
+                        {
+                            $ManagedDiskID = ($ManagedDisks | Where-Object {$_.Name -eq "$vmName-OSDisk"}).Id
+                            LogMsg ">>Using VHD : $osVHD (Converted to Managed Disk)"
+                            Add-Content -Value "$($indents[6])^osType^: ^Linux^," -Path $jsonFile
+                            Add-Content -Value "$($indents[6])^name^: ^$vmName-OSDisk-Copy^," -Path $jsonFile
+                            #Add-Content -Value "$($indents[6])^osType^: ^Linux^," -Path $jsonFile
+                            Add-Content -Value "$($indents[6])^managedDisk^: " -Path $jsonFile
+                            Add-Content -Value "$($indents[6]){" -Path $jsonFile
+                                Add-Content -Value "$($indents[7])^storageAccountType^: ^$StorageAccountType^" -Path $jsonFile
+                            Add-Content -Value "$($indents[6])}," -Path $jsonFile
+                            Add-Content -Value "$($indents[6])^caching^: ^ReadWrite^," -Path $jsonFile
+                            Add-Content -Value "$($indents[6])^createOption^: ^FromImage^" -Path $jsonFile
+                        }
+                        else 
+                        {
+                            LogMsg ">>Using VHD : $osVHD"
+                            Add-Content -Value "$($indents[6])^image^: " -Path $jsonFile
+                            Add-Content -Value "$($indents[6]){" -Path $jsonFile
+                                Add-Content -Value "$($indents[7])^uri^: ^[concat('http://',variables('StorageAccountName'),'.blob.core.windows.net/vhds/','$osVHD')]^" -Path $jsonFile
+                            Add-Content -Value "$($indents[6])}," -Path $jsonFile
+                            Add-Content -Value "$($indents[6])^osType^: ^Linux^," -Path $jsonFile
+                            Add-Content -Value "$($indents[6])^name^: ^$vmName-OSDisk^," -Path $jsonFile
+                            #Add-Content -Value "$($indents[6])^osType^: ^Linux^," -Path $jsonFile
+                            Add-Content -Value "$($indents[6])^vhd^: " -Path $jsonFile
+                            Add-Content -Value "$($indents[6]){" -Path $jsonFile
+                                Add-Content -Value "$($indents[7])^uri^: ^[concat('http://',variables('StorageAccountName'),'.blob.core.windows.net/vhds/','$vmName-$RGrandomWord-osdisk.vhd')]^" -Path $jsonFile
+                            Add-Content -Value "$($indents[6])}," -Path $jsonFile
+                            Add-Content -Value "$($indents[6])^caching^: ^ReadWrite^," -Path $jsonFile
+                            Add-Content -Value "$($indents[6])^createOption^: ^FromImage^" -Path $jsonFile                            
+                        }
                     }
                     else
                     {
@@ -999,6 +1058,7 @@ $StorageProfileScriptBlock = {
                             Add-Content -Value "$($indents[6]){" -Path $jsonFile
                                 Add-Content -Value "$($indents[7])^storageAccountType^: ^$StorageAccountType^" -Path $jsonFile
                             Add-Content -Value "$($indents[6])}" -Path $jsonFile
+                            LogMsg "Added managed OS disk : $vmName-OSDisk"
 
                         }
                         else 
@@ -1009,7 +1069,7 @@ $StorageProfileScriptBlock = {
                             Add-Content -Value "$($indents[6]){" -Path $jsonFile
                                 Add-Content -Value "$($indents[7])^uri^: ^[concat('http://',variables('StorageAccountName'),'.blob.core.windows.net/vhds/','$vmName-$RGrandomWord-osdisk.vhd')]^" -Path $jsonFile
                             Add-Content -Value "$($indents[6])}," -Path $jsonFile
-                            Add-Content -Value "$($indents[6])^caching^: ^ReadWrite^" -Path $jsonFile                            
+                            Add-Content -Value "$($indents[6])^caching^: ^ReadWrite^" -Path $jsonFile                         
                         }
                     }
                     Add-Content -Value "$($indents[5])}," -Path $jsonFile
@@ -1024,6 +1084,24 @@ $StorageProfileScriptBlock = {
                         {
                         Add-Content -Value "$($indents[6])," -Path $jsonFile
                         }
+
+                        if ($UseManagedDisks)
+                        {
+                        Add-Content -Value "$($indents[6]){" -Path $jsonFile
+                            Add-Content -Value "$($indents[7])^name^: ^$vmName-disk-lun-$($dataDisk.LUN)^," -Path $jsonFile
+                            Add-Content -Value "$($indents[7])^diskSizeGB^: ^$($dataDisk.DiskSizeInGB)^," -Path $jsonFile
+                            Add-Content -Value "$($indents[7])^lun^: ^$($dataDisk.LUN)^," -Path $jsonFile
+                            Add-Content -Value "$($indents[7])^createOption^: ^Empty^," -Path $jsonFile
+                            Add-Content -Value "$($indents[7])^caching^: ^$($dataDisk.HostCaching)^," -Path $jsonFile
+                            Add-Content -Value "$($indents[7])^managedDisk^:" -Path $jsonFile
+                            Add-Content -Value "$($indents[7]){" -Path $jsonFile
+                                Add-Content -Value "$($indents[8])^storageAccountType^: ^$StorageAccountType^" -Path $jsonFile
+                            Add-Content -Value "$($indents[7])}" -Path $jsonFile
+                        Add-Content -Value "$($indents[6])}" -Path $jsonFile 
+                        LogMsg "Added managed $($dataDisk.DiskSizeInGB)GB Datadisk to $($dataDisk.LUN)."
+                        }
+                        else 
+                        {
                         Add-Content -Value "$($indents[6]){" -Path $jsonFile
                             Add-Content -Value "$($indents[7])^name^: ^$vmName-disk-lun-$($dataDisk.LUN)^," -Path $jsonFile
                             Add-Content -Value "$($indents[7])^diskSizeGB^: ^$($dataDisk.DiskSizeInGB)^," -Path $jsonFile
@@ -1034,8 +1112,10 @@ $StorageProfileScriptBlock = {
                             Add-Content -Value "$($indents[7]){" -Path $jsonFile
                                 Add-Content -Value "$($indents[8])^uri^: ^[concat('http://',variables('StorageAccountName'),'.blob.core.windows.net/vhds/','$vmName-$RGrandomWord-disk-lun-$($dataDisk.LUN).vhd')]^" -Path $jsonFile
                             Add-Content -Value "$($indents[7])}" -Path $jsonFile
-                        Add-Content -Value "$($indents[6])}" -Path $jsonFile
-                        LogMsg "Added $($dataDisk.DiskSizeInGB)GB Datadisk to $($dataDisk.LUN)."
+                        Add-Content -Value "$($indents[6])}" -Path $jsonFile                            
+                        LogMsg "Added unmanaged $($dataDisk.DiskSizeInGB)GB Datadisk to $($dataDisk.LUN)."
+                        }
+                        
                         $dataDiskAdded = $true
                     }
                 }
@@ -1128,6 +1208,13 @@ Set-Content -Value "$($indents[0]){" -Path $jsonFile -Force
                 Add-Content -Value "$($indents[3])^type^: ^Microsoft.Compute/availabilitySets^," -Path $jsonFile
                 Add-Content -Value "$($indents[3])^name^: ^[variables('availabilitySetName')]^," -Path $jsonFile
                 Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
+                if ($UseManagedDisks)
+                {
+                    Add-Content -Value "$($indents[3])^sku^:" -Path $jsonFile
+                    Add-Content -Value "$($indents[3]){" -Path $jsonFile
+                        Add-Content -Value "$($indents[4])^name^: ^Aligned^" -Path $jsonFile
+                    Add-Content -Value "$($indents[3])}," -Path $jsonFile                    
+                }
                 if ( $TiPSessionId -and $TiPCluster)
                 {
                     Add-Content -Value "$($indents[3])^tags^:" -Path $jsonFile
@@ -1137,8 +1224,11 @@ Set-Content -Value "$($indents[0]){" -Path $jsonFile -Force
                 }
                 Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
                 Add-Content -Value "$($indents[3]){" -Path $jsonFile
+                    Add-Content -Value "$($indents[4])^platformFaultDomainCount^:2," -Path $jsonFile
+                    Add-Content -Value "$($indents[4])^platformUpdateDomainCount^:5" -Path $jsonFile              
                 if ( $TiPSessionId -and $TiPCluster)
-                {            
+                {
+                    Add-Content -Value "$($indents[4])^," -Path $jsonFile
                     Add-Content -Value "$($indents[4])^internalData^:" -Path $jsonFile
                     Add-Content -Value "$($indents[4]){" -Path $jsonFile
                         Add-Content -Value "$($indents[5])^pinnedFabricCluster^ : ^$TiPCluster^" -Path $jsonFile  
@@ -1168,51 +1258,58 @@ Set-Content -Value "$($indents[0]){" -Path $jsonFile -Force
         LogMsg "Added Public IP Address $PublicIPName.."
         #endregion
 
+        #region CustomImages
+        if ($OsVHD -and $UseManagedDisks)
+        {
+        Add-Content -Value "$($indents[2]){" -Path $jsonFile
+            Add-Content -Value "$($indents[3])^apiVersion^: ^$apiVersion^," -Path $jsonFile
+            Add-Content -Value "$($indents[3])^type^: ^Microsoft.Compute/images^," -Path $jsonFile
+            Add-Content -Value "$($indents[3])^name^: ^CustomImage^," -Path $jsonFile
+            Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
+            Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
+            Add-Content -Value "$($indents[3]){" -Path $jsonFile
+                Add-Content -Value "$($indents[4])^storageProfile^: " -Path $jsonFile
+                Add-Content -Value "$($indents[4]){" -Path $jsonFile
+
+                    Add-Content -Value "$($indents[5])^osDisk^: " -Path $jsonFile
+                    Add-Content -Value "$($indents[5]){" -Path $jsonFile
+                        Add-Content -Value "$($indents[6])^osType^: ^Linux^," -Path $jsonFile
+                        Add-Content -Value "$($indents[6])^osState^: ^Generalized^," -Path $jsonFile
+                        Add-Content -Value "$($indents[6])^blobUri^: ^$sourceVHDURI^," -Path $jsonFile
+                        Add-Content -Value "$($indents[6])^storageAccountType^: ^$StorageAccountType^," -Path $jsonFile
+                    Add-Content -Value "$($indents[5])}" -Path $jsonFile
+
+                Add-Content -Value "$($indents[4])}" -Path $jsonFile
+            Add-Content -Value "$($indents[3])}" -Path $jsonFile
+        Add-Content -Value "$($indents[2])}," -Path $jsonFile
+        LogMsg "Added Custom image Address $OsVHD.."
+
+        }
+        #endregion
+        
+
     #region New ARM Storage Account, if necessory!
-    if ( $NewARMStorageAccountType )
+    if ( $NewStorageAccountName)
     {
     
         Add-Content -Value "$($indents[2]){" -Path $jsonFile
             Add-Content -Value "$($indents[3])^apiVersion^: ^2015-06-15^," -Path $jsonFile
             Add-Content -Value "$($indents[3])^type^: ^Microsoft.Storage/storageAccounts^," -Path $jsonFile
-            Add-Content -Value "$($indents[3])^name^: ^[variables('StorageAccountName')]^," -Path $jsonFile
+            Add-Content -Value "$($indents[3])^name^: ^$NewStorageAccountName^," -Path $jsonFile
             Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
             Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
             Add-Content -Value "$($indents[3]){" -Path $jsonFile
                 Add-Content -Value "$($indents[4])^accountType^: ^$($NewARMStorageAccountType.Trim())^" -Path $jsonFile
             Add-Content -Value "$($indents[3])}" -Path $jsonFile
         Add-Content -Value "$($indents[2])}," -Path $jsonFile
-        LogMsg "Added New Storage Account $StorageAccountName.."
+        LogMsg "Added New Storage Account $NewStorageAccountName.."
     }
     #endregion
 
     #region New ARM Bood Diagnostic Account if Storage Account Type is Premium LRS.
-    
-    if ($StorageAccountType -imatch "Premium_LRS")
-    {
-
-        $bootDiagnosticsSA = ([xml](Get-Content .\XML\RegionAndStorageAccounts.xml)).AllRegions.$LocationLower.StandardStorage
-        $diagnosticRG = $StorageAccountRG = ($GetAzureRMStorageAccount | where {$_.StorageAccountName -eq $bootDiagnosticsSA}).ResourceGroupName.ToString()
-        <#
-        Add-Content -Value "$($indents[2]){" -Path $jsonFile
-            Add-Content -Value "$($indents[3])^apiVersion^: ^2015-06-15^," -Path $jsonFile
-            Add-Content -Value "$($indents[3])^type^: ^Microsoft.Storage/storageAccounts^," -Path $jsonFile
-            Add-Content -Value "$($indents[3])^name^: ^$bootDiagnosticsSA^," -Path $jsonFile
-            Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
-            Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
-            Add-Content -Value "$($indents[3]){" -Path $jsonFile
-                Add-Content -Value "$($indents[4])^accountType^: ^Standard_LRS^" -Path $jsonFile
-            Add-Content -Value "$($indents[3])}" -Path $jsonFile
-        Add-Content -Value "$($indents[2])}," -Path $jsonFile
-        $diagnosticRG = $RGName
-        LogMsg "Added boot diagnostic Storage Account $bootDiagnosticsSA.."
-        #>
-    }
-    else
-    {
-        $bootDiagnosticsSA = $StorageAccountName
-        $diagnosticRG = $StorageAccountRG
-    }
+ 
+    $bootDiagnosticsSA = ([xml](Get-Content .\XML\RegionAndStorageAccounts.xml)).AllRegions.$Location.StandardStorage
+    $diagnosticRG = ($GetAzureRMStorageAccount | where {$_.StorageAccountName -eq $bootDiagnosticsSA}).ResourceGroupName.ToString()
     #endregion
 
         #region virtualNetworks
@@ -1840,6 +1937,7 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
             {
                 Add-Content -Value "$($indents[4])^[concat('Microsoft.Storage/storageAccounts/', variables('StorageAccountName'))]^," -Path $jsonFile
             }
+            
             if($NicNameList)
             {
                 foreach($NicName in $NicNameList)
@@ -1965,7 +2063,7 @@ Set-Content -Path $jsonFile -Value (Get-Content $jsonFile).Replace("^",'"') -For
     return $createSetupCommand,  $RGName, $vmCount
 } 
 
-Function DeployResourceGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFailed = $false, $GetDeploymentStatistics = $false, [string]$region = "", [string]$storageAccount = "")
+Function DeployResourceGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFailed = $false, $GetDeploymentStatistics = $false, [string]$region = "")
 {
     if( (!$EconomyMode) -or ( $EconomyMode -and ($xmlConfig.config.Azure.Deployment.$setupType.isDeployed -eq "NO")))
     {
@@ -1980,7 +2078,7 @@ Function DeployResourceGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFailed
             $setupTypeData = $xmlConfig.config.Azure.Deployment.$setupType
             #DEBUGRG
             #$isAllDeployed = CreateAllResourceGroupDeployments -setupType $setupType -xmlConfig $xmlConfig -Distro $Distro -region $region -storageAccount $storageAccount -DebugRG "ICA-RG-M1S1-SSTEST-GZBX-636621761998"
-            $isAllDeployed = CreateAllResourceGroupDeployments -setupType $setupType -xmlConfig $xmlConfig -Distro $Distro -region $region -storageAccount $storageAccount
+            $isAllDeployed = CreateAllResourceGroupDeployments -setupType $setupType -xmlConfig $xmlConfig -Distro $Distro -region $region
             $isAllVerified = "False"
             $isAllConnected = "False"
             #$isAllDeployed = @("True","ICA-RG-IEndpointSingleHS-U1510-8-10-12-34-9","30")

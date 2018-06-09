@@ -1020,27 +1020,14 @@ Function SetDistroSpecificVariables($detectedDistro)
 	}
 }
 
-Function DeployVMs ($xmlConfig, $setupType, $Distro, $getLogsIfFailed = $false, $GetDeploymentStatistics = $false, [string]$region = "", [string]$storageAccount = "", [int]$timeOutSeconds = 600)
+Function DeployVMs ($xmlConfig, $setupType, $Distro, $getLogsIfFailed = $false, $GetDeploymentStatistics = $false, [string]$region = "", [int]$timeOutSeconds = 600)
 {
     $AzureSetup = $xmlConfig.config.Azure.General
-
-	if ($UseAzureResourceManager)
-	{
-        if($storageAccount)
-        {
-		 LogMsg "CurrentStorageAccount  : $($storageAccount)"
-        }
-       $retValue = DeployResourceGroups  -xmlConfig $xmlConfig -setupType $setupType -Distro $Distro -getLogsIfFailed $getLogsIfFailed -GetDeploymentStatistics $GetDeploymentStatistics -region $region -storageAccount $storageAccount 
-	}
-	else
-	{
-        if($storageAccount)
-        {
-         LogMsg "CurrentStorageAccount  : $($storageAccount)"
-       }
-		$retValue = DeployManagementServices -xmlConfig $xmlConfig -setupType $setupType -Distro $Distro -getLogsIfFailed $getLogsIfFailed -GetDeploymentStatistics $GetDeploymentStatistics -region $region -storageAccount $storageAccount -timeOutSeconds $timeOutSeconds
-	}
-    if ( $retValue -and $CustomKernel)
+	
+	#Test Platform Azure
+	$retValue = DeployResourceGroups  -xmlConfig $xmlConfig -setupType $setupType -Distro $Distro -getLogsIfFailed $getLogsIfFailed -GetDeploymentStatistics $GetDeploymentStatistics -region $region
+	
+	if ( $retValue -and $CustomKernel)
     {
         LogMsg "Custom kernel: $CustomKernel will be installed on all machines..."
         $kernelUpgradeStatus = InstallCustomKernel -CustomKernel $CustomKernel -allVMData $allVMData -RestartAfterUpgrade
