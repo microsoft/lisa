@@ -1112,7 +1112,7 @@ Function RemoteCopy($uploadTo, $downloadFrom, $downloadTo, $port, $files, $usern
 					if ( ( $f.Split(".")[$f.Split(".").count-1] -eq "sh" ) -or ( $f.Split(".")[$f.Split(".").count-1] -eq "py" ) )
 					{
 						$out = .\tools\dos2unix.exe $f 2>&1
-						LogMsg $out
+						LogMsg ([string]$out)
 					}
 					$fileCounter ++
 				}

@@ -206,6 +206,7 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 					$CurrentTestLogDir = "$LogDir\$($currentTestData.testName)"
 					mkdir "$CurrentTestLogDir" -ErrorAction SilentlyContinue | out-null
 					Set-Variable -Name CurrentTestLogDir -Value $CurrentTestLogDir -Scope Global
+					Set-Variable -Name LogDir -Value $CurrentTestLogDir -Scope Global
 					$TestCaseLogFile = "$CurrentTestLogDir\CurrentTestLogs.txt" 
 					
 					$testcase = StartLogTestCase $testsuite "$($test.Name)" "CloudTesting.$($testCycle.cycleName)"
@@ -431,6 +432,7 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 							LogMsg "$($job.Name) is running."
 						}
 					}
+					Set-Variable -Name LogDir -Value $RootLogDir -Scope Global
 				}
 				else
 				{

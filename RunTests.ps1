@@ -20,7 +20,7 @@ Param(
 
     #Optinal
     [string] $StorageAccount="",
-    [string] $OsVHD, #... Required if -ARMImageName is not provided.
+    [string] $OsVHD = "", #... Required if -ARMImageName is not provided.
     [string] $TestCategory = "",
     [string] $TestArea = "",
     [string] $TestTag = "",
@@ -39,7 +39,7 @@ Param(
     [switch] $KeepReproInact,
     [switch] $EnableAcceleratedNetworking,
     [switch] $ForceDeleteResources,
-    [switch] $UseManagedDisk,
+    [switch] $UseManagedDisks,
 
     [string] $ResultDBTable = "",
     [string] $ResultDBTestTag = "",
@@ -71,11 +71,7 @@ try
     if ( !$RGIdentifier )
     {
         $ParameterErrors += "-RGIdentifier <PersonalIdentifier> is required. This string will added to Resources created by Automation."
-    }
-    if ($UseManagedDisks -and $OsVHD)
-    {
-        $ParameterErrors += "Managed disks + OS VHD not supported at this time."
-    }    
+    }   
     if ( $ParameterErrors.Count -gt 0)
     {
         $ParameterErrors | ForEach-Object { LogError $_ }
@@ -157,6 +153,7 @@ try
 
     $LogDir = ".\TestResults\$(Get-Date -Format 'yyyy-dd-MM-HH-mm-ss-ffff')"
     Set-Variable -Name LogDir -Value $LogDir -Scope Global -Force
+    Set-Variable -Name RootLogDir -Value $LogDir -Scope Global -Force
     New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
     New-Item -ItemType Directory -Path Temp -Force -ErrorAction SilentlyContinue | Out-Null
     LogMsg "Created LogDir: $LogDir"
