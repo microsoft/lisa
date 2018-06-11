@@ -113,6 +113,20 @@ This XML file defines the regions per Category. It may require specific region o
 
 Per Category, each XML file has VM name, Resource Group name, etc. We do not recommend to make change of the file.
 
+## Add test case in Azure
+
+    1. Design test case and its configuration.
+    2. Create a new test case xml file under ./XML/TestCases folder. Or, update with new tags in the existing xml file.
+    3. Define testName, PowershellScript, setupType, Platform, Category, Area and Tags as required. Add optional tag if needed.
+    4. Test design may have two ways;
+        a. A single PowerShell script execution: A single PowerShell script imports builtin library modules and posts the result. 
+            For example, 'BVT-VERIFY-DEPLOYMET-PROVISION.ps1' shows this script calls 'DeployVMS' function for its testing and 
+            collect the result by 'CheckKernelLogs'. 'DeplyVM' and 'CheckKernelLogs' are builtin modules 
+            in ./Libraries/CommonFunctions.psm1 module. You can add new module or update existing ones for further development.
+        b. PowerShell script wraps multiple non-PowerShell script like Bash or Python scripts: Like 'VERIFY-TEST-SCRIPT-IN-LINUX-GUEST.ps1',
+            the PowerShell script wraps the multiple Bash or Python script as a parameter of 'RunLinuxCmd' PS module.
+    5. Before PR review, we recommend you run script testing in cmdline/API mode. See above instruction.
+
 ## Support Contact
 
 Contact LisaSupport@microsoft.com (Linux Integration Service Support), if you have technical issues.
