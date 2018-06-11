@@ -86,7 +86,8 @@ This XML file defines the regions per Category. It may require specific region o
 
 ## XML files in XML/TestCases folder
 
-    This location has the list of XML files for test cases. Each XML file names after category for each maintenance / sharing.
+    This location has the list of XML files for test cases. Each XML file names after category 
+    for each maintenance / sharing.
         1. BVT.xml: BVT (Build Validation Test) test cases
         2. CommunityTests.xml: Tests from Open Source Community.
         3. FunctionalTests.xml: Feature tests for SR-IOV, GPU, DPDK, etc.
@@ -94,7 +95,8 @@ This XML file defines the regions per Category. It may require specific region o
         5. PerformanceTests.xml: Performance test cases
         6. RegressionTests.xml: Add any tests for regression cycle.
         7. SmokeTests.xml: It will run before BVT test runs.
-        8. StressTests.xml: Under development. Network traffic and stroage IO testing under heavy CPU and Memory stress.
+        8. StressTests.xml: Under development. Network traffic and stroage IO testing 
+        under heavy CPU and Memory stress.
 
     Here is the format inside of TestCases.xml file. TODO: Revise the definition, and required field or not.
     [Req] Required
@@ -103,7 +105,8 @@ This XML file defines the regions per Category. It may require specific region o
         <testScript></testScript>: test script file name [Opt]
         <PowershellScript></PowershellScript>: Actual launch PS script file name. [Req]
         <files></files>: If test requires data files, add the file names here [Opt]
-        <setupType></setupType>: The name represents VM definition in <Category name>TestsConfigurations xml file, VMConfigurations folder. [Req]
+        <setupType></setupType>: The name represents VM definition in <Category name>TestsConfigurations xml file, 
+            VMConfigurations folder. [Req]
         <Platform></Platform>: Supported platform names. Azure, HyperV, etc. [Req]
         <Category></Category>: Available Test Category [Req]
         <Area></Area>: Test Area [Req]
@@ -116,15 +119,20 @@ Per Category, each XML file has VM name, Resource Group name, etc. We do not rec
 ## Add test case in Azure
 
     1. Design test case and its configuration.
-    2. Create a new test case xml file under ./XML/TestCases folder. Or, update with new tags in the existing xml file.
-    3. Define testName, PowershellScript, setupType, Platform, Category, Area and Tags as required. Add optional tag if needed.
+    2. Create a new test case xml file under ./XML/TestCases folder. Or, update with new tags 
+        in the existing xml file.
+    3. Define testName, PowershellScript, setupType, Platform, Category, Area and Tags as required. 
+        Add optional tag if needed.
     4. Test design may have two ways;
-        a. A single PowerShell script execution: A single PowerShell script imports builtin library modules and posts the result. 
-            For example, 'BVT-VERIFY-DEPLOYMET-PROVISION.ps1' shows this script calls 'DeployVMS' function for its testing and 
-            collect the result by 'CheckKernelLogs'. 'DeplyVM' and 'CheckKernelLogs' are builtin modules 
-            in ./Libraries/CommonFunctions.psm1 module. You can add new module or update existing ones for further development.
-        b. PowerShell script wraps multiple non-PowerShell script like Bash or Python scripts: Like 'VERIFY-TEST-SCRIPT-IN-LINUX-GUEST.ps1',
-            the PowerShell script wraps the multiple Bash or Python script as a parameter of 'RunLinuxCmd' PS module.
+        a. A single PowerShell script execution: A single PowerShell script imports builtin library 
+            modules and posts the result. For example, 'BVT-VERIFY-DEPLOYMET-PROVISION.ps1' shows 
+            this script calls 'DeployVMS' function for its testing and collect the result 
+            by 'CheckKernelLogs'. 'DeplyVM' and 'CheckKernelLogs' are builtin modules 
+            in ./Libraries/CommonFunctions.psm1 module. 
+            You can add new module or update existing ones for further development.
+        b. PowerShell script wraps multiple non-PowerShell script like Bash or Python scripts: 
+            Like 'VERIFY-TEST-SCRIPT-IN-LINUX-GUEST.ps1', the PowerShell script wraps the multiple 
+            Bash or Python script as a parameter of 'RunLinuxCmd' PS module.
     5. Before PR review, we recommend you run script testing in cmdline/API mode. See above instruction.
 
 ## Support Contact
