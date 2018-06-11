@@ -206,6 +206,7 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 					$CurrentTestLogDir = "$LogDir\$($currentTestData.testName)"
 					mkdir "$CurrentTestLogDir" -ErrorAction SilentlyContinue | out-null
 					Set-Variable -Name CurrentTestLogDir -Value $CurrentTestLogDir -Scope Global
+					Set-Variable -Name LogDir -Value $CurrentTestLogDir -Scope Global
 					$TestCaseLogFile = "$CurrentTestLogDir\CurrentTestLogs.txt" 
 					
 					$testcase = StartLogTestCase $testsuite "$($test.Name)" "CloudTesting.$($testCycle.cycleName)"
@@ -213,10 +214,7 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 					$stopWatch = SetStopWatch
 					
 					Set-Variable -Name currentTestData -Value $currentTestData -Scope Global
-					if ($currentTestData.OverrideVMSize)
-					{
-						Set-Variable -Name OverrideVMSize -Value $currentTestData.OverrideVMSize -Scope Global
-					}
+					
 					if ((!$currentTestData.SubtestValues -and !$currentTestData.TestMode))
 					{
 						#Tests With No subtests and no SubValues will be executed here..
@@ -434,6 +432,7 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 							LogMsg "$($job.Name) is running."
 						}
 					}
+					Set-Variable -Name LogDir -Value $RootLogDir -Scope Global
 				}
 				else
 				{
