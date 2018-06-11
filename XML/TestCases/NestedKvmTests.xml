@@ -16,7 +16,7 @@
 		<Platform>Azure</Platform>
 		<Category>Functional</Category>
 		<Area>Nested</Area>
-		<Tags>nested</Tags>
-		<TestID>NestedKvm_001</TestID>
+		<Tags>nested,kvm</Tags>
+		<TestID>Nested_001</TestID>
 	</test>
 </TestCases>
