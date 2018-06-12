@@ -50,14 +50,6 @@ while echo $1 | grep -q ^-; do
    shift
 done
 
-#
-# Constants/Globals
-#
-ICA_TESTRUNNING="TestRunning"      # The test is running
-ICA_TESTCOMPLETED="TestCompleted"  # The test completed successfully
-ICA_TESTABORTED="TestAborted"      # Error during the setup of the test
-ICA_TESTFAILED="TestFailed"        # Error occurred during the test
-
 ImageName="nested.qcow2"
 
 if [ -z "$NestedImageUrl" ]; then
@@ -83,23 +75,22 @@ else
         echo "Using Log Folder $logFolder"
 fi
 
-touch $logFolder/state.txt
-touch $logFolder/Summary.log
-touch $logFolder/nested_kvm_basic_test.sh.log
+touch $logFolder/TestExecution.log
+touch $logFolder/TestExecutionError.log
 
 LogMsg()
 {
-    echo `date "+%b %d %Y %T"` : "$1" >> $logFolder/nested_kvm_basic_test.sh.log
+    echo `date "+%b %d %Y %T"` : "$1" >> $logFolder/TestExecution.log
 }
-
-UpdateTestState()
+LogErr()
 {
-    echo "$1" > $logFolder/state.txt
+    echo `date "+%b %d %Y %T"` : "$1" >> $logFolder/TestExecutionError.log
 }
 
 ResultLog()
 {
-    echo "$1" > $logFolder/Summary.log
+    #Result can only be PASS / FAIL / Aborted
+    echo "$1" > $logFolder/TestState.log
 }
 
 InstallKvm()
@@ -108,9 +99,9 @@ InstallKvm()
     lsmod | grep kvm_intel
     exit_status=$?
     if [ $exit_status -ne 0 ]; then
-        LogMsg "Install KVM fail"
-        UpdateTestState $ICA_TESTFAILED
-        exit 1
+        LogErr "Install KVM fail"
+        ResultLog  "Aborted"
+        exit 0
     else
         LogMsg "Install KVM succeed"
     fi
@@ -118,13 +109,13 @@ InstallKvm()
 
 DownloadImage()
 {
-    install_package wget
-    wget $NestedImageUrl -O $ImageName
+    LogMsg "Downloading $NestedImageUrl..."
+    curl -o $ImageName $NestedImageUrl
     exit_status=$?
     if [ $exit_status -ne 0 ]; then
-        LogMsg "Download image fail: $NestedImageUrl"
-        UpdateTestState $ICA_TESTFAILED
-        exit 1
+        LogErr "Download image fail: $NestedImageUrl"
+        ResultLog "Aborted"
+        exit 0
     else
         LogMsg "Download image succeed"
     fi
@@ -141,23 +132,24 @@ RunNestedVM()
     fi
     which qemu-system-x86_64
     if [ $? -ne 0 ]; then
-        LogMsg "Cannot find qemu-system-x86_64"
-        UpdateTestState $ICA_TESTFAILED
-        exit 1
+        LogErr "Cannot find qemu-system-x86_64"
+        ResultLog "Aborted"
+        exit 0
     fi
 
     LogMsg "Start the nested VM"
     qemu-system-x86_64 -smp 2 -m 2048 -hda $ImageName -display none -device e1000,netdev=user.0 -netdev user,id=user.0,hostfwd=tcp::$HostFwdPort-:22 -enable-kvm &
     LogMsg "Wait for the nested VM to boot up ..."
     sleep 10
-    retry_times=15
+    retry_times=24
     exit_status=1
     while [ $exit_status -ne 0 ] && [ $retry_times -gt 0 ];
     do
         retry_times=$(expr $retry_times - 1)
         if [ $retry_times -eq 0 ]; then
-            LogMsg "Timeout to validate the network connection of the nested VM"
-            UpdateTestState $ICA_TESTFAILED
+            LogErr "Timeout to validate the network connection of the nested VM"
+            ResultLog "FAIL"
+            exit 0
         else
            sleep 10
            LogMsg "Try to connect to the nested VM, left retry times: $retry_times"
@@ -166,9 +158,10 @@ RunNestedVM()
         fi
     done
     if [ $exit_status -eq 0 ]; then
-        ResultLog "Pass"
+        ResultLog "PASS"
+        StopNestedVM
     else
-        ResultLog "Fail"
+        ResultLog "FAIL"
     fi
 }
 
@@ -181,9 +174,9 @@ StopNestedVM()
     fi
 }
 
-UpdateTestState $ICA_TESTRUNNING
 InstallKvm
 DownloadImage
 RunNestedVM
-StopNestedVM
-UpdateTestState $ICA_TESTCOMPLETED
+
+#Exiting with zero is important.
+exit 0
