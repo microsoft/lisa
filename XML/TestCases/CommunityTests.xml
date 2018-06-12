@@ -1,62 +1,62 @@
 <TestCases>
-	<test>
-		<TestName>FILE-SYSTEM-VERIFICATION-TESTS-CIFS</TestName>
-		<PowershellScript>FILE-SYSTEM-VERIFICATION-TESTS.ps1</PowershellScript>
-		<files>.\Testscripts\Linux\perf_xfstesting.sh</files>
-		<setupType>M1Disk1</setupType>
+    <test>
+        <TestName>FILE-SYSTEM-VERIFICATION-TESTS-CIFS</TestName>
+        <PowershellScript>FILE-SYSTEM-VERIFICATION-TESTS.ps1</PowershellScript>
+        <files>.\Testscripts\Linux\perf_xfstesting.sh</files>
+        <setupType>M1Disk1</setupType>
         <TestParameters>
             <param>TestFileSystem=cifs</param>
         </TestParameters>        
-		<Platform>Azure</Platform>
-		<Category>Community</Category>
-		<Area>Xfstesting-cifs</Area>
-		<Tags>smb</Tags>
-		<TestID>Community_001</TestID>
-	</test>
-	<test>
-		<TestName>FILE-SYSTEM-VERIFICATION-TESTS-XFS</TestName>
-		<PowershellScript>FILE-SYSTEM-VERIFICATION-TESTS.ps1</PowershellScript>
-		<files>.\Testscripts\Linux\perf_xfstesting.sh</files>
-		<setupType>M1Disk1</setupType>
+        <Platform>Azure</Platform>
+        <Category>Community</Category>
+        <Area>Xfstesting-cifs</Area>
+        <Tags>smb</Tags>
+        <TestID>Community_001</TestID>
+    </test>
+    <test>
+        <TestName>FILE-SYSTEM-VERIFICATION-TESTS-XFS</TestName>
+        <PowershellScript>FILE-SYSTEM-VERIFICATION-TESTS.ps1</PowershellScript>
+        <files>.\Testscripts\Linux\perf_xfstesting.sh</files>
+        <setupType>M1Disk1</setupType>
         <TestParameters>
             <param>FSTYP=xfs</param>
             <param>TEST_DEV=/dev/sdc</param>
             <param>TEST_DIR=/root/xfs</param>
             <param>TEST_FS_MOUNT_OPTS='-o nobarrier'</param>
         </TestParameters>        
-		<Platform>Azure</Platform>
-		<Category>Community</Category>
-		<Area>Xfstesting-cifs</Area>
-		<Tags>xfs,disk</Tags>
-		<TestID>Community_002</TestID>
-	</test>
-	<test>
-		<TestName>FILE-SYSTEM-VERIFICATION-TESTS-EXT4</TestName>
-		<PowershellScript>FILE-SYSTEM-VERIFICATION-TESTS.ps1</PowershellScript>
-		<files>.\Testscripts\Linux\perf_xfstesting.sh</files>
-		<setupType>M1Disk1</setupType>
+        <Platform>Azure</Platform>
+        <Category>Community</Category>
+        <Area>Xfstesting-cifs</Area>
+        <Tags>xfs,disk</Tags>
+        <TestID>Community_002</TestID>
+    </test>
+    <test>
+        <TestName>FILE-SYSTEM-VERIFICATION-TESTS-EXT4</TestName>
+        <PowershellScript>FILE-SYSTEM-VERIFICATION-TESTS.ps1</PowershellScript>
+        <files>.\Testscripts\Linux\perf_xfstesting.sh</files>
+        <setupType>M1Disk1</setupType>
         <TestParameters>
             <param>FSTYP=ext4</param>
             <param>TEST_DEV=/dev/sdc</param>
             <param>TEST_DIR=/root/ext4</param>
             <param>TEST_FS_MOUNT_OPTS='-o nobarrier'</param>
         </TestParameters>        
-		<Platform>Azure</Platform>
-		<Category>Community</Category>
-		<Area>Xfstesting-cifs</Area>
-		<Tags>ext4,disk</Tags>
-		<TestID>Community_003</TestID>
-	</test>
-	<test>
-		<TestName>LINUX-TEST-PROJECT-TESTS</TestName>
-		<PowershellScript>LINUX-TEST-PROJECT-TESTS.ps1</PowershellScript>
-		<files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\Linux-Test-Project-Tests.sh</files>
-		<setupType>LTP</setupType>
-		<SubtestValues>This-tag-will-be-removed</SubtestValues>      
-		<Platform>Azure</Platform>
-		<Category>Community</Category>
-		<Area>LTP</Area>
-		<Tags>LTP</Tags>
-		<TestID>Community_004</TestID>
-	</test>	
+        <Platform>Azure</Platform>
+        <Category>Community</Category>
+        <Area>Xfstesting-cifs</Area>
+        <Tags>ext4,disk</Tags>
+        <TestID>Community_003</TestID>
+    </test>
+    <test>
+        <TestName>LINUX-TEST-PROJECT-TESTS</TestName>
+        <PowershellScript>LINUX-TEST-PROJECT-TESTS.ps1</PowershellScript>
+        <files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\Linux-Test-Project-Tests.sh</files>
+        <setupType>LTP</setupType>
+        <SubtestValues>This-tag-will-be-removed</SubtestValues>      
+        <Platform>Azure</Platform>
+        <Category>Community</Category>
+        <Area>LTP</Area>
+        <Tags>LTP</Tags>
+        <TestID>Community_004</TestID>
+    </test>	
 </TestCases>
