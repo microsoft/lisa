@@ -13,11 +13,11 @@
             <param>testDuration=300</param>
             <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024 2048 4096 6144 8192 10240"</param>
         </TestParameters>
-		<Platform>Azure</Platform>
-		<Category>Performance</Category>
-		<Area>Network</Area>
-		<Tags>tcp,network,hv_netvsc</Tags>
-		<TestID>Perf_Network_001</TestID>
+        <Platform>Azure</Platform>
+        <Category>Performance</Category>
+        <Area>Network</Area>
+        <Tags>tcp,network,hv_netvsc</Tags>
+        <TestID>Perf_Network_001</TestID>
     </test>
     <test>
         <testName>PERF-NETWORK-TCP-THROUGHPUT-MULTICONNECTION-SRIOV</testName>
@@ -33,11 +33,11 @@
             <param>testDuration=300</param>
             <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024 2048 4096 6144 8192 10240"</param>
         </TestParameters>
-		<Platform>Azure</Platform>
-		<Category>Performance</Category>
-		<Area>Network</Area>
-		<Tags>tcp,network,hv_netvsc,sriov</Tags>
-		<TestID>Perf_Network_002</TestID>
+        <Platform>Azure</Platform>
+        <Category>Performance</Category>
+        <Area>Network</Area>
+        <Tags>tcp,network,hv_netvsc,sriov</Tags>
+        <TestID>Perf_Network_002</TestID>
     </test>
     <test>
         <testName>PERF-NETWORK-TCP-LATENCY-MULTICONNECTION-Synthetic</testName>
@@ -49,11 +49,11 @@
         <TestParameters>
             <param>pingIteration=1000000</param>
         </TestParameters>
-		<Platform>Azure</Platform>
-		<Category>Performance</Category>
-		<Area>Network</Area>
-		<Tags>tcp,network,hv_netvsc</Tags>
-		<TestID>Perf_Network_003</TestID>
+        <Platform>Azure</Platform>
+        <Category>Performance</Category>
+        <Area>Network</Area>
+        <Tags>tcp,network,hv_netvsc</Tags>
+        <TestID>Perf_Network_003</TestID>
     </test>
     <test>
         <testName>PERF-NETWORK-TCP-LATENCY-MULTICONNECTION-SRIOV</testName>
@@ -68,11 +68,11 @@
         <TestParameters>
             <param>pingIteration=1000000</param>
         </TestParameters>
-		<Platform>Azure</Platform>
-		<Category>Performance</Category>
-		<Area>Network</Area>
-		<Tags>tcp,network,hv_netvsc,sriov</Tags>
-		<TestID>Perf_Network_004</TestID>
+        <Platform>Azure</Platform>
+        <Category>Performance</Category>
+        <Area>Network</Area>
+        <Tags>tcp,network,hv_netvsc,sriov</Tags>
+        <TestID>Perf_Network_004</TestID>
     </test>    
     <test>
         <testName>PERF-NETWORK-UDP-THROUGHPUT-MULTICONNECTION-Synthetic</testName>
@@ -89,11 +89,11 @@
             <param>bufferLengths=(1024 8192)</param>
             <param>IPversion=4</param>
         </TestParameters>
-		<Platform>Azure</Platform>
-		<Category>Performance</Category>
-		<Area>Network</Area>
-		<Tags>udp,network,hv_netvsc</Tags>
-		<TestID>Perf_Network_005</TestID>
+        <Platform>Azure</Platform>
+        <Category>Performance</Category>
+        <Area>Network</Area>
+        <Tags>udp,network,hv_netvsc</Tags>
+        <TestID>Perf_Network_005</TestID>
     </test>
     <test>
         <testName>PERF-NETWORK-UDP-THROUGHPUT-MULTICONNECTION-SRIOV</testName>
@@ -113,11 +113,11 @@
             <param>bufferLengths=(1024 8192)</param>
             <param>IPversion=4</param>
         </TestParameters>
-		<Platform>Azure</Platform>
-		<Category>Performance</Category>
-		<Area>Network</Area>
-		<Tags>udp,network,hv_netvsc,sriov</Tags>
-		<TestID>Perf_Network_006</TestID>
+        <Platform>Azure</Platform>
+        <Category>Performance</Category>
+        <Area>Network</Area>
+        <Tags>udp,network,hv_netvsc,sriov</Tags>
+        <TestID>Perf_Network_006</TestID>
     </test>
     <test>
         <testName>PERF-STORAGE-4K-IO</testName>
@@ -136,11 +136,11 @@
             <param>maxIO=4</param>
             <param>fileSize=1023G</param>
         </TestParameters>
-		<Platform>Azure</Platform>
-		<Category>Performance</Category>
-		<Area>Storage</Area>
-		<Tags>hv_storvsc,storage</Tags>
-		<TestID>Perf_Storage_001</TestID>
+        <Platform>Azure</Platform>
+        <Category>Performance</Category>
+        <Area>Storage</Area>
+        <Tags>hv_storvsc,storage</Tags>
+        <TestID>Perf_Storage_001</TestID>
     </test>
     <test>
         <testName>PERF-STORAGE-1024K-IO</testName>
@@ -159,11 +159,11 @@
             <param>maxIO=1024</param>
             <param>fileSize=1023G</param>
         </TestParameters>
-		<Platform>Azure</Platform>
-		<Category>Performance</Category>
-		<Area>Storage</Area>
-		<Tags>hv_storvsc,storage</Tags>
-		<TestID>Perf_Storage_002</TestID>
+        <Platform>Azure</Platform>
+        <Category>Performance</Category>
+        <Area>Storage</Area>
+        <Tags>hv_storvsc,storage</Tags>
+        <TestID>Perf_Storage_002</TestID>
     </test>
     <test>
         <testName>PERF-STORAGE-OVER-NFS-Synthetic-TCP-4K</testName>
@@ -183,11 +183,11 @@
             <param>fileSize=1023G</param>
             <param>nfsprotocol=tcp</param>
         </TestParameters>
-		<Platform>Azure</Platform>
-		<Category>Performance</Category>
-		<Area>Storage</Area>
-		<Tags>hv_storvsc,storage</Tags>
-		<TestID>Perf_Storage_003</TestID>
+        <Platform>Azure</Platform>
+        <Category>Performance</Category>
+        <Area>Storage</Area>
+        <Tags>hv_storvsc,storage</Tags>
+        <TestID>Perf_Storage_003</TestID>
     </test>
     <test>
         <testName>PERF-STORAGE-OVER-NFS-Synthetic-UDP-4K</testName>
@@ -207,11 +207,11 @@
             <param>fileSize=1023G</param>
             <param>nfsprotocol=udp</param>
         </TestParameters>
-		<Platform>Azure</Platform>
-		<Category>Performance</Category>
-		<Area>Storage</Area>
-		<Tags>hv_storvsc,storage</Tags>
-		<TestID>Perf_Storage_003</TestID>
+        <Platform>Azure</Platform>
+        <Category>Performance</Category>
+        <Area>Storage</Area>
+        <Tags>hv_storvsc,storage</Tags>
+        <TestID>Perf_Storage_003</TestID>
     </test>
     <test>
         <testName>PERF-STORAGE-OVER-NFS-SRIOV-TCP-4K</testName>
@@ -234,11 +234,11 @@
             <param>fileSize=1023G</param>
             <param>nfsprotocol=tcp</param>
         </TestParameters>
-		<Platform>Azure</Platform>
-		<Category>Performance</Category>
-		<Area>Storage</Area>
-		<Tags>hv_storvsc,storage</Tags>
-		<TestID>Perf_Storage_003</TestID>
+        <Platform>Azure</Platform>
+        <Category>Performance</Category>
+        <Area>Storage</Area>
+        <Tags>hv_storvsc,storage</Tags>
+        <TestID>Perf_Storage_003</TestID>
     </test>
     <test>
         <testName>PERF-STORAGE-OVER-NFS-SRIOV-UDP-4K</testName>
@@ -261,10 +261,10 @@
             <param>fileSize=1023G</param>
             <param>nfsprotocol=tcp</param>
         </TestParameters>
-		<Platform>Azure</Platform>
-		<Category>Performance</Category>
-		<Area>Storage</Area>
-		<Tags>hv_storvsc,storage</Tags>
-		<TestID>Perf_Storage_003</TestID>
+        <Platform>Azure</Platform>
+        <Category>Performance</Category>
+        <Area>Storage</Area>
+        <Tags>hv_storvsc,storage</Tags>
+        <TestID>Perf_Storage_003</TestID>
     </test>                                               
 </TestCases>
