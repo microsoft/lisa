@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <AllRegions>
-    <eastasia>
-        <StandardStorage>eosgeastasia</StandardStorage>
-        <PremiumStorage>eosgeastasiax</PremiumStorage>
-    </eastasia>
-    <southeastasia>
-        <StandardStorage>eosgsoutheastasia</StandardStorage>
+	<eastasia>
+		<StandardStorage>eosgeastasia</StandardStorage>
+		<PremiumStorage>eosgeastasiax</PremiumStorage>
+	</eastasia>
+	<southeastasia>
+		<StandardStorage>eosgsoutheastasia</StandardStorage>
 		<PremiumStorage>eosgsouthestasiax</PremiumStorage>
 	</southeastasia>
 	<centralus>
