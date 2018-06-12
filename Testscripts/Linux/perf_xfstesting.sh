@@ -59,7 +59,7 @@ InstallXFSTestTools()
         LogMsg "Detected Ubuntu/Debian. Installing required packages..."
         until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done
         apt-get update
-        apt-get -y install gcc xfslibs-dev uuid-dev libtool xfsprogs e2fsprogs automake libuuid1 libuuidm-ocaml-dev attr libattr1-dev libacl1-dev libaio-dev  gawk xfsprogs libgdbm-dev quota fio dbench bc make dos2unix
+        apt-get -y install gcc xfslibs-dev uuid-dev libtool xfsprogs e2fsprogs automake libuuid1 libuuidm-ocaml-dev attr libattr1-dev libacl1-dev libaio-dev  gawk xfsprogs libgdbm-dev quota fio dbench bc make dos2unix samba
         git clone git://git.kernel.org/pub/scm/fs/xfs/xfstests-dev.git
         mv xfstests-dev xfstests
         cd xfstests
@@ -89,17 +89,26 @@ cp -f ${XFSTestConfigFile} ./xfstests/local.config
 
 mkdir -p /root/ext4
 mkdir -p /root/xfs
+mkdir -p /root/cifs
+mkdir -p /root/sdc
 
 #RunTests
 if [[ $TestFileSystem == "cifs" ]];
 then
-    mkdir -p /test1
     cd xfstests
     #Download Exclusion files
     wget https://wiki.samba.org/images/d/db/Xfstests.exclude.very-slow.txt -O tests/cifs/exclude.very-slow
     wget https://wiki.samba.org/images/b/b0/Xfstests.exclude.incompatible-smb3.txt -O tests/cifs/exclude.incompatible-smb3
-
-    ./check -s $TestFileSystem -E tests/cifs/exclude.incompatible-smb3 -E tests/cifs/exclude.very-slow >> /root/XFSTestingConsole.log
+    mkfs.xfs -f /dev/sdc
+    mount -o nobarrier /dev/sdc /root/sdc
+    pass='abcdefghijklmnopqrstuvwxyz'
+    (echo "$pass"; echo "$pass") | smbpasswd -s -a root
+    echo '[share]' >> /etc/samba/smb.conf
+    echo 'path = /root/sdc' >> /etc/samba/smb.conf
+    echo 'valid users = root' >> /etc/samba/smb.conf
+    echo 'read only = no' >> /etc/samba/smb.conf
+    #./check -s $TestFileSystem -E tests/cifs/exclude.incompatible-smb3 -E tests/cifs/exclude.very-slow >> /root/XFSTestingConsole.log
+    ./check -s $TestFileSystem >> /root/XFSTestingConsole.log
     cd ..
 elif [[ $TestFileSystem == "ext4" ]] || [[ $TestFileSystem == "xfs" ]];
 then
