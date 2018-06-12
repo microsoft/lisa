@@ -138,11 +138,6 @@ elseif ($env:Azure_Secrets_File)
     LogMsg "XmlSecrets set as global variable."
 }
 
-if ( $xmlConfig.config.Azure.General.ARMStorageAccount -imatch "NewStorage_" )
-{
-    $NewARMStorageAccountType = ($xmlConfig.config.Azure.General.ARMStorageAccount).Replace("NewStorage_","")
-    Set-Variable -Name NewARMStorageAccountType -Value $NewARMStorageAccountType -Scope Global
-}
 try
 {
     $Platform = $xmlConfig.config.CurrentTestPlatform
