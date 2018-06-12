@@ -27,12 +27,11 @@
 # Author : SHITAL SAVEKAR <v-shisav@microsoft.com>
 #
 # Description:
-#       Download and run IPERF3 network performance tests.
-#       This script needs to be run on client VM.
+#       Download and run xfs tests.
 #
 # Supported Distros:
 #       Ubuntu 16.04
-# Supported Filesystems : ext4, xfs
+# Supported Filesystems : ext4, xfs, btrfs
 
 #######################################################################
 
@@ -89,7 +88,7 @@ cp -f ${XFSTestConfigFile} ./xfstests/local.config
 
 mkdir -p /root/ext4
 mkdir -p /root/xfs
-
+mkdir -p /root/btrfs
 #RunTests
 if [[ $TestFileSystem == "cifs" ]];
 then
@@ -101,12 +100,12 @@ then
 
     ./check -s $TestFileSystem -E tests/cifs/exclude.incompatible-smb3 -E tests/cifs/exclude.very-slow >> /root/XFSTestingConsole.log
     cd ..
-elif [[ $TestFileSystem == "ext4" ]] || [[ $TestFileSystem == "xfs" ]];
+elif [[ $TestFileSystem == "ext4" ]] || [[ $TestFileSystem == "xfs" ]] || [[ $TestFileSystem == "btrfs" ]];
 then
     LogMsg "Formatting /dev/sdc with ${TestFileSystem}"
-    if [[ $TestFileSystem == "xfs" ]];
+    if [[ $TestFileSystem == "xfs" ]] || [[ $TestFileSystem == "btrfs" ]];
     then
-        mkfs.xfs -f /dev/sdc
+        mkfs.$TestFileSystem -f /dev/sdc
     else
         echo y | mkfs -t $TestFileSystem /dev/sdc
     fi
