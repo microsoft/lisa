@@ -1,30 +1,30 @@
 <!--#This list contains the ignorable boot errors of different images.-->
 <messages>		
-		<failures>
-			<keywords>Fast TSC calibration</keywords>
-			<keywords>acpi PNP0A03:00</keywords>
-			<keywords>systemd-journald-audit.socket</keywords>
-			<keywords>Failed to set file attributes: Inappropriate ioctl for device</keywords>
-			<keywords>Failed to create new system journal: No such file or directory</keywords>
-			<keywords>failed to get extended button data</keywords>
-			<keywords>ipmi_si</keywords>
-			<keywords>pci_root PNP0A03:00</keywords>
-			<keywords>disabling PCIe ASPM</keywords>
-			<keywords>systemd-journald</keywords>
-			<keywords>Cannot add dependency job</keywords>
-			<keywords>failsafe</keywords>
-			<keywords>startpar-bridge</keywords>
-			<keywords>Failed to spawn</keywords>
-			<keywords>display-manager.service</keywords>
-			<keywords>ACPI PCC probe failed</keywords>
-			<keywords>Failed to access perfctr msr</keywords>
-		</failures>
-		<errors>
-			<keywords>end_request: I/O error, dev fd0, sector 0</keywords>
-			<keywords>blk_update_request: I/O error, dev fd0, sector 0</keywords>
-			<keywords>floppy: error -5 while reading block 0</keywords>
-			<keywords>Broken pipe</keywords>
-			<keywords>errors=remount-ro</keywords>			
-		</errors>
-		<warnings/>
+        <failures>
+            <keywords>Fast TSC calibration</keywords>
+            <keywords>acpi PNP0A03:00</keywords>
+            <keywords>systemd-journald-audit.socket</keywords>
+            <keywords>Failed to set file attributes: Inappropriate ioctl for device</keywords>
+            <keywords>Failed to create new system journal: No such file or directory</keywords>
+            <keywords>failed to get extended button data</keywords>
+            <keywords>ipmi_si</keywords>
+            <keywords>pci_root PNP0A03:00</keywords>
+            <keywords>disabling PCIe ASPM</keywords>
+            <keywords>systemd-journald</keywords>
+            <keywords>Cannot add dependency job</keywords>
+            <keywords>failsafe</keywords>
+            <keywords>startpar-bridge</keywords>
+            <keywords>Failed to spawn</keywords>
+            <keywords>display-manager.service</keywords>
+            <keywords>ACPI PCC probe failed</keywords>
+            <keywords>Failed to access perfctr msr</keywords>
+        </failures>
+        <errors>
+            <keywords>end_request: I/O error, dev fd0, sector 0</keywords>
+            <keywords>blk_update_request: I/O error, dev fd0, sector 0</keywords>
+            <keywords>floppy: error -5 while reading block 0</keywords>
+            <keywords>Broken pipe</keywords>
+            <keywords>errors=remount-ro</keywords>			
+        </errors>
+        <warnings/>
 </messages>

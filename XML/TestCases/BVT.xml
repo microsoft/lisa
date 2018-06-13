@@ -6,9 +6,9 @@
         <files></files>
         <setupType>SingleVM</setupType>
         <Platform>Azure</Platform>
-		<Category>BVT</Category>
-		<Area>BVT</Area>
-		<Tags>bvt,boot</Tags>
+        <Category>BVT</Category>
+        <Area>BVT</Area>
+        <Tags>bvt,boot</Tags>
         <TestID>AzureBVT_001</TestID>
     </test>
     <test>
@@ -59,7 +59,7 @@
         <Tags>bvt</Tags>
         <TestID>AzureBVT_009</TestID>
     </test>
-	<test>
+    <test>
         <testName>BVT-MTAB-ENTRY-CHECK</testName>
         <testScript>BVT-MTAB-ENTRY-CHECK.py</testScript>
         <PowershellScript>BVT-MTAB-ENTRY-CHECK.ps1</PowershellScript>
