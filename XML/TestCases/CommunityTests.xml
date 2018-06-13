@@ -5,7 +5,6 @@
         <files>.\Testscripts\Linux\perf_xfstesting.sh</files>
         <setupType>M1Disk1</setupType>
         <TestParameters>
-<<<<<<< HEAD
             <param>FSTYP=cifs</param>
             <param>TEST_DEV=//localhost/share</param>
             <param>TEST_DIR=/root/cifs</param>
@@ -22,21 +21,6 @@
 		<PowershellScript>FILE-SYSTEM-VERIFICATION-TESTS.ps1</PowershellScript>
 		<files>.\Testscripts\Linux\perf_xfstesting.sh</files>
 		<setupType>M1Disk1</setupType>
-=======
-            <param>TestFileSystem=cifs</param>
-        </TestParameters>        
-        <Platform>Azure</Platform>
-        <Category>Community</Category>
-        <Area>Xfstesting-cifs</Area>
-        <Tags>smb</Tags>
-        <TestID>Community_001</TestID>
-    </test>
-    <test>
-        <TestName>FILE-SYSTEM-VERIFICATION-TESTS-XFS</TestName>
-        <PowershellScript>FILE-SYSTEM-VERIFICATION-TESTS.ps1</PowershellScript>
-        <files>.\Testscripts\Linux\perf_xfstesting.sh</files>
-        <setupType>M1Disk1</setupType>
->>>>>>> upstream/master
         <TestParameters>
             <param>FSTYP=xfs</param>
             <param>TEST_DEV=/dev/sdc</param>
