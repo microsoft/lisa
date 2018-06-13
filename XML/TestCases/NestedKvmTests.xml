@@ -1,0 +1,22 @@
+<TestCases>
+	<test>
+		<TestName>NESTED-KVM-BASIC-VERIFICATION</TestName>
+		<testScript>nested_kvm_basic_test.sh</testScript>
+		<PowershellScript>VERIFY-TEST-SCRIPT-IN-LINUX-GUEST.ps1</PowershellScript>
+		<files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\nested_kvm_basic_test.sh</files>
+		<setupType>SingleVM</setupType>
+		<OverrideVMSize>Standard_E4_v3</OverrideVMSize>
+		<TestParameters>
+			<!--The nested image should be qcow2 format, and accessible from a public URL-->
+			<param>NestedImageUrl=NESTED_IMAGE_URL</param>
+			<param>NestedUser=NESTED_VM_USER</param>
+			<param>NestedUserPassword=NESTED_VM_PASSWORD</param>
+			<param>HostFwdPort=60022</param>
+		</TestParameters>
+		<Platform>Azure</Platform>
+		<Category>Functional</Category>
+		<Area>Nested</Area>
+		<Tags>nested,kvm</Tags>
+		<TestID>Nested_001</TestID>
+	</test>
+</TestCases>

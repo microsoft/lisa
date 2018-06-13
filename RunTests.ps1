@@ -34,8 +34,9 @@ Param(
     [string] $TiPSessionId,
     [string] $TiPCluster,
     [string] $XMLSecretFile = "",
-    [switch] $UpdateGlobalConfigurationFromSecretsFile,
     #Toggles
+    [switch] $UpdateGlobalConfigurationFromSecretsFile,
+    [switch] $UpdateXMLStringsFromSecretsFile,    
     [switch] $KeepReproInact,
     [switch] $EnableAcceleratedNetworking,
     [switch] $ForceDeleteResources,
@@ -83,7 +84,25 @@ try
     }
     #endregion
     
-
+    #region Replace strings in XML files
+    if ($UpdateXMLStringsFromSecretsFile)
+    {
+        if ($XMLSecretFile)
+        {
+            if (Test-Path -Path $XMLSecretFile)
+            {
+                .\Utilities\UpdateXMLStringsFromXmlSecrets.ps1 -XmlSecretsFilePath $XMLSecretFile
+            }
+            else 
+            {
+                LogErr "Failed to update Strings in .\XML files. '$XMLSecretFile' not found."    
+            }
+        }
+        else 
+        {
+            LogErr "Failed to update Strings in .\XML files. '-XMLSecretFile [FilePath]' not provided."    
+        }
+    }
     #Region Update Global Configuration XML file as needed
     if ($UpdateGlobalConfigurationFromSecretsFile)
     {
@@ -104,6 +123,8 @@ try
             LogErr "Failed to update .\XML\GlobalConfigurations.xml. '-XMLSecretFile [FilePath]' not provided."    
         }
     }
+
+
     $RegionStorageMapping = [xml](Get-Content .\XML\RegionAndStorageAccounts.xml)
     $GlobalConfiguration = [xml](Get-Content .\XML\GlobalConfigurations.xml)
     if ( $StorageAccount -imatch "ExistingStorage_Standard" )

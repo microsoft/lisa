@@ -81,10 +81,11 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                                         def Testname = CurrentExecution.split(">>")[1]
                                         def TestRegion = CurrentExecution.split(">>")[2]
                                         Prepare()
-                                        powershell(".\\Utilities\\UpdateXMLs.ps1 -SubscriptionID '2cd20493-fe97-42ef-9ace-ab95b63d82c4' -LinuxUsername '${LinuxUsername}' -LinuxPassword '${LinuxPassword}'")
                                         withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')]) 
                                         {
                                             RunPowershellCommand(".\\RunTests.ps1" +
+                                            " -UpdateGlobalConfigurationFromSecretsFile" +
+                                            " -UpdateXMLStringsFromSecretsFile" +                                              
                                             " -ExitWithZero" +
                                             " -XMLSecretFile '${Azure_Secrets_File}'" +
                                             " -TestLocation '${TestRegion}'" +
@@ -139,10 +140,11 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                                         def TestName = CurrentExecution.split(">>")[3]
                                         def TestRegion = CurrentExecution.split(">>")[4]
                                         Prepare()
-                                        powershell(".\\Utilities\\UpdateXMLs.ps1 -SubscriptionID '2cd20493-fe97-42ef-9ace-ab95b63d82c4' -LinuxUsername '${LinuxUsername}' -LinuxPassword '${LinuxPassword}'")
                                         withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')]) 
                                         {
                                             RunPowershellCommand(".\\RunTests.ps1" +
+                                            " -UpdateGlobalConfigurationFromSecretsFile" +
+                                            " -UpdateXMLStringsFromSecretsFile" +                                            
                                             " -ExitWithZero" +
                                             " -XMLSecretFile '${Azure_Secrets_File}'" +
                                             " -TestLocation '${TestRegion}'" +
@@ -196,10 +198,11 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                                         def TestArea = CurrentExecution.split(">>")[2]
                                         def TestRegion = CurrentExecution.split(">>")[3]
                                         Prepare()
-                                        powershell(".\\Utilities\\UpdateXMLs.ps1 -SubscriptionID '2cd20493-fe97-42ef-9ace-ab95b63d82c4' -LinuxUsername '${LinuxUsername}' -LinuxPassword '${LinuxPassword}'")
                                         withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')]) 
                                         {
                                             RunPowershellCommand(".\\RunTests.ps1" +
+                                            " -UpdateGlobalConfigurationFromSecretsFile" +
+                                            " -UpdateXMLStringsFromSecretsFile" +                                            
                                             " -ExitWithZero" +
                                             " -XMLSecretFile '${Azure_Secrets_File}'" +
                                             " -TestLocation '${TestRegion}'" +
@@ -253,10 +256,11 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                                         def TestTag = CurrentExecution.split(">>")[1]
                                         def TestRegion = CurrentExecution.split(">>")[2]
                                         Prepare()
-                                        powershell(".\\Utilities\\UpdateXMLs.ps1 -SubscriptionID '2cd20493-fe97-42ef-9ace-ab95b63d82c4' -LinuxUsername '${LinuxUsername}' -LinuxPassword '${LinuxPassword}'")
                                         withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')]) 
                                         {
                                             RunPowershellCommand(".\\RunTests.ps1" +
+                                            " -UpdateGlobalConfigurationFromSecretsFile" +
+                                            " -UpdateXMLStringsFromSecretsFile" +                                            
                                             " -ExitWithZero" +
                                             " -XMLSecretFile '${Azure_Secrets_File}'" +
                                             " -TestLocation '${TestRegion}'" +
@@ -372,8 +376,9 @@ stage('Capture VHD with Custom Kernel')
                 )
                 KernelFile = readFile 'CustomKernel.azure.env'
                 stash includes: KernelFile, name: 'CustomKernelStash'
-                powershell(".\\Utilities\\UpdateXMLs.ps1 -SubscriptionID '2cd20493-fe97-42ef-9ace-ab95b63d82c4' -LinuxUsername '${LinuxUsername}' -LinuxPassword '${LinuxPassword}'")
                 RunPowershellCommand(".\\RunTests.ps1" +
+                " -UpdateGlobalConfigurationFromSecretsFile" +
+                " -UpdateXMLStringsFromSecretsFile" +                  
                 " -XMLSecretFile '${Azure_Secrets_File}'" +
                 " -TestLocation 'westus2'" +
                 " -RGIdentifier '${JenkinsUser}'" +

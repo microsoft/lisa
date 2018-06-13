@@ -1440,14 +1440,17 @@ Function WrapperCommandsToFile([string] $username,[string] $password,[string] $i
     }
 }
 
-Function RunLinuxCmd([string] $username,[string] $password,[string] $ip,[string] $command, [int] $port, [switch]$runAsSudo, [Boolean]$WriteHostOnly, [Boolean]$NoLogsPlease, [switch]$ignoreLinuxExitCode, [int]$runMaxAllowedTime = 300, [switch]$RunInBackGround)
+Function RunLinuxCmd([string] $username,[string] $password,[string] $ip,[string] $command, [int] $port, [switch]$runAsSudo, [Boolean]$WriteHostOnly, [Boolean]$NoLogsPlease, [switch]$ignoreLinuxExitCode, [int]$runMaxAllowedTime = 300, [switch]$RunInBackGround, [int]$maxRetryCount = 20)
 {
 	if ($detectedDistro -ne "COREOS" )
 	{
 		WrapperCommandsToFile $username $password $ip $command $port
 	}
 	$randomFileName = [System.IO.Path]::GetRandomFileName()
-	$maxRetryCount = 20
+	if ( $maxRetryCount -eq 0)
+	{
+		$maxRetryCount = 1
+	}
 	$currentDir = $PWD.Path
 	$RunStartTime = Get-Date
 	
