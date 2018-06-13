@@ -106,8 +106,7 @@ then
     echo 'path = /root/sdc' >> /etc/samba/smb.conf
     echo 'valid users = root' >> /etc/samba/smb.conf
     echo 'read only = no' >> /etc/samba/smb.conf
-    #./check -s $TestFileSystem -E tests/cifs/exclude.incompatible-smb3 -E tests/cifs/exclude.very-slow >> /root/XFSTestingConsole.log
-    ./check -s $TestFileSystem >> /root/XFSTestingConsole.log
+    ./check -s $TestFileSystem -E tests/cifs/exclude.incompatible-smb3 >> /root/XFSTestingConsole.log
     cd ..
 elif [[ $TestFileSystem == "ext4" ]] || [[ $TestFileSystem == "xfs" ]] || [[ $TestFileSystem == "btrfs" ]];
 then
