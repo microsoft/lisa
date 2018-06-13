@@ -10,7 +10,7 @@
 			<!--The nested image should be qcow2 format, and accessible from a public URL-->
 			<param>NestedImageUrl=NESTED_IMAGE_URL</param>
 			<param>NestedUser=NESTED_VM_USER</param>
-			<param>NestedUserPassword=NESTED_VM_PASSWORD</param>
+			<param>NestedUserPassword='NESTED_VM_PASSWORD'</param>
 			<param>HostFwdPort=60022</param>
 		</TestParameters>
 		<Platform>Azure</Platform>

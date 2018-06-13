@@ -1,11 +1,11 @@
 <!--#This list contains the ignorable boot errors of different images.-->
 <messages>		
-	<errors>
-		<keywords>.*Error Code is 127\n[^\n]*parted /dev/sdb print\n[^\n]*parted: command not found</keywords>		
-		<keywords>.*Failed to config rdma device.*</keywords>
-		<keywords>.*ERROR:CalledProcessError.  Error Code is 1\n[^\n]*ERROR:CalledProcessError.  Command string was chcon unconfined_u:object_r:ssh_home_t:s0[^\n]*\n[^\n]*ERROR:CalledProcessError.  Command result was chcon: invalid context: unconfined_u:object_r:ssh_home_t:s0: Operation not supported</keywords>
-		<keywords>.*ERROR:Traceback \(most recent call last\):\n[^\n]*in DoDhcpWork\n[^\n]*ERROR:    receiveBuffer = sock.recv\(1024\)\n[^\n]*ERROR:timeout: timed out\n[^\n]*ERROR:</keywords>
-		<keywords>.*error result is 0 output is : Adding repository 'msft-rdma-pack' \[......done\].*</keywords>
-		<keywords>ERROR Event: name=WALinuxAgent, op=Download, message=Incarnation 1 failed to get Prod package list: \(000008\)Failed to fetch ExtensionManifest from all sources</keywords>
-	</errors>
+    <errors>
+        <keywords>.*Error Code is 127\n[^\n]*parted /dev/sdb print\n[^\n]*parted: command not found</keywords>		
+        <keywords>.*Failed to config rdma device.*</keywords>
+        <keywords>.*ERROR:CalledProcessError.  Error Code is 1\n[^\n]*ERROR:CalledProcessError.  Command string was chcon unconfined_u:object_r:ssh_home_t:s0[^\n]*\n[^\n]*ERROR:CalledProcessError.  Command result was chcon: invalid context: unconfined_u:object_r:ssh_home_t:s0: Operation not supported</keywords>
+        <keywords>.*ERROR:Traceback \(most recent call last\):\n[^\n]*in DoDhcpWork\n[^\n]*ERROR:    receiveBuffer = sock.recv\(1024\)\n[^\n]*ERROR:timeout: timed out\n[^\n]*ERROR:</keywords>
+        <keywords>.*error result is 0 output is : Adding repository 'msft-rdma-pack' \[......done\].*</keywords>
+        <keywords>ERROR Event: name=WALinuxAgent, op=Download, message=Incarnation 1 failed to get Prod package list: \(000008\)Failed to fetch ExtensionManifest from all sources</keywords>
+    </errors>
 </messages>
