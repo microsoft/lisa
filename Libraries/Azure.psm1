@@ -93,21 +93,24 @@ Function ValidateSubscriptionUsage($subscriptionID, $RGXMLData)
             {
                 $testVMSize = $overrideVMSize
             }
+            elseif ( $CurrentTestData.OverrideVMSize)
+            {
+                $testVMSize = $CurrentTestData.OverrideVMSize
+            }
             else
             {
                 $testVMSize = $VM.ARMInstanceSize
             }
-            
-            if ($OverrideVMSize -and ($testVMUsage -gt 0))
-            {
 
+            if (($OverrideVMSize -or $CurrentTestData.OverrideVMSize) -and ($testVMUsage -gt 0))
+            {
+                #Do nothing.
             }
             else
             {
                 $testVMUsage = (Get-AzureRmVMSize -Location $Location | Where { $_.Name -eq $testVMSize}).NumberOfCores
-                #Write-Host $testVMUsage
             }
-            
+
 
             $testVMSize = $testVMSize.Replace("Standard_","")
 
@@ -1534,6 +1537,10 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
     {
         $instanceSize = $OverrideVMSize
     }
+    elseif ( $CurrentTestData.OverrideVMSize)
+    {
+        $instanceSize = $CurrentTestData.OverrideVMSize
+    }    
     else
     {
 		$instanceSize = $newVM.ARMInstanceSize

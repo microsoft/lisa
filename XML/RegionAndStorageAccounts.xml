@@ -34,7 +34,7 @@
     </southcentralus>
     <northeurope>
         <StandardStorage>eosgnortheurope</StandardStorage>
-        <PremiumStorage>eosgneuropex</PremiumStorage>
+        <PremiumStorage>eosgnortheuropex</PremiumStorage>
     </northeurope>
     <westeurope>
         <StandardStorage>eosgwesteurope</StandardStorage>

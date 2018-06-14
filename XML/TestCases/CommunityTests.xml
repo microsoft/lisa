@@ -5,8 +5,11 @@
         <files>.\Testscripts\Linux\perf_xfstesting.sh</files>
         <setupType>M1Disk1</setupType>
         <TestParameters>
-            <param>TestFileSystem=cifs</param>
-        </TestParameters>        
+            <param>FSTYP=cifs</param>
+            <param>TEST_DEV=//localhost/share</param>
+            <param>TEST_DIR=/root/cifs</param>
+            <param>TEST_FS_MOUNT_OPTS=-o user=root,password=abcdefghijklmnopqrstuvwxyz</param>
+        </TestParameters>         
         <Platform>Azure</Platform>
         <Category>Community</Category>
         <Area>Xfstesting-cifs</Area>
