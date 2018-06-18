@@ -2,8 +2,8 @@
 # UpdateXMLs.ps1
 # Copyright (c) Microsoft. All rights reserved.
 # Licensed under the MIT license. See LICENSE file in the project root for full license information.
-# Description : 
-# Operations :
+# Description : This file updates REPLACEBLE STRINGS in XML files under .\XML\TestCases.
+#               
 #              
 ## Author : lisasupport@microsoft.com
 ###############################################################################################
