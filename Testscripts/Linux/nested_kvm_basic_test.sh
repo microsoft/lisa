@@ -95,6 +95,7 @@ ResultLog()
 
 InstallKvm()
 {
+    update_repos
     install_package qemu-kvm
     lsmod | grep kvm_intel
     exit_status=$?

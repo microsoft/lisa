@@ -82,7 +82,7 @@ function detect_linux_ditribution()
     echo "$(echo "$linux_ditribution" | awk '{print tolower($0)}')"
 }
 
-function updaterepos()
+function update_repos()
 {
     ditribution=$(detect_linux_ditribution)
     case "$ditribution" in
@@ -201,8 +201,8 @@ function install_sshpass ()
         else
             install_package "sshpass"
         fi
+        check_exit_status "install_sshpass"
     fi
-    check_exit_status "install_sshpass"
 }
 
 function creat_partitions ()
@@ -286,6 +286,10 @@ function remote_copy ()
        return
     fi
 
+    if [ "x$port" == "x" ]; then
+        port=22
+    fi
+
     if [ "$cmd" == "get" ] || [ "x$cmd" == "x" ]; then
        source_path="$user@$host:$remote_path/$filename"
        destination_path="."
@@ -294,7 +298,7 @@ function remote_copy ()
        destination_path=$user@$host:$remote_path/
     fi
 
-    status=`sshpass -p $passwd scp -o StrictHostKeyChecking=no $source_path $destination_path 2>&1`
+    status=`sshpass -p $passwd scp -o StrictHostKeyChecking=no -P $port $source_path $destination_path 2>&1`
     exit_status=$?
     echo $status
     return $exit_status

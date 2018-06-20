@@ -19,4 +19,28 @@
         <Tags>nested,kvm</Tags>
         <TestID>Nested_001</TestID>
     </test>
+    <test>
+        <TestName>NESTED-KVM-NTTTCP-PRIVATE-BRIDGE</TestName>
+        <testScript>nested_kvm_ntttcp_private_bridge.sh</testScript>
+        <PowershellScript>NESTED-KVM-NTTTCP-PRIVATE-BRIDGE.ps1</PowershellScript>
+        <files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\nested_kvm_ntttcp_private_bridge.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
+        <setupType>SingleVM</setupType>
+        <OverrideVMSize>Standard_E8_v3</OverrideVMSize>
+        <TestParameters>
+            <!--The nested image should be qcow2 format, and accessible from a public URL-->
+            <param>NestedImageUrl=NESTED_IMAGE_URL</param>
+            <param>NestedUser=NESTED_VM_USER</param>
+            <param>NestedUserPassword='NESTED_VM_PASSWORD'</param>
+            <param>NestedCpuNum=4</param>
+            <param>NestedMemMB=4096</param>
+            <param>NestedNetDevice=virtio-net-pci</param>
+            <param>testDuration=60</param>
+            <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024 2048 4096"</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Performance</Category>
+        <Area>Nested</Area>
+        <Tags>nested,kvm</Tags>
+        <TestID>Nested_002</TestID>
+    </test>
 </TestCases>
