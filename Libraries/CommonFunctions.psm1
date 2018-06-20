@@ -1804,14 +1804,16 @@ Function DoTestCleanUp($result, $testName, $DeployedServices, $ResourceGroups, [
 						if ($TestPlatform -eq "Azure")
 						{
 							$finalKernelVersion = Get-Content "$LogDir\$($vmData.RoleName)-kernelVersion.txt"
+							$tempLIS = (Select-String -Path "$LogDir\$($vmData.RoleName)-lis.txt" -Pattern "^version:").Line
 						}
 						elseif ($TestPlatform -eq "HyperV")
 						{
 							$finalKernelVersion = Get-Content "$LogDir\*-kernelVersion.txt"
+							$tempLIS = (Select-String -Path "$LogDir\*-lis.txt" -Pattern "^version:").Line
 						}
 						Set-Variable -Name finalKernelVersion -Value $finalKernelVersion -Scope Global
 						#region LIS Version
-						$tempLIS = (Select-String -Path "$LogDir\$($vmData.RoleName)-lis.txt" -Pattern "^version:").Line
+						
 						if ($tempLIS)
 						{
 							$finalLISVersion = $tempLIS.Split(":").Trim()[1]

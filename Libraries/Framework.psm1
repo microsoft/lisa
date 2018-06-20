@@ -195,7 +195,8 @@ Function UpdateXMLStringsFromSecretsFile()
 
 Function CollectTestCases()
 {
-    #region Collect Tests Data
+	#region Collect Tests Data
+	$allTests = @()
     if ( $TestPlatform -and !$TestCategory -and !$TestArea -and !$TestNames -and !$TestTag)
     {
         foreach ( $file in $TestXMLs.FullName)

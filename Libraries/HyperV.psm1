@@ -309,7 +309,7 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML)
     $CreatedVMs =  @()
     #$OsVHD =  "SS-RHEL75-TEST-VHD-DYNAMIC.vhd"
     $OsVHD = $BaseOsVHD
-    $VMSwitches = Get-VMSwitch  *
+    $VMSwitches = Get-VMSwitch  * | Where { $_.Name -imatch "Ext" }
     $ErrorCount = 0
     $SourceOsVHDPath = $xmlConfig.config.Hyperv.Host.SourceOsVHDPath
     $DestinationOsVHDPath = $xmlConfig.config.Hyperv.Host.DestinationOsVHDPath
@@ -338,9 +338,8 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML)
                 $CurrentVMCpu = $HyperVMappedSizes.HyperV.$($VirtualMachine.ARMInstanceSize).NumberOfCores
                 $CurrentVMMemory = $HyperVMappedSizes.HyperV.$($VirtualMachine.ARMInstanceSize).MemoryInMB
                 $CurrentVMMemory = [int]$CurrentVMMemory * 1024 * 1024
-                $CurrentVMMemory = [int]512 * 1024 * 1024
-                LogMsg "New-VM -Name $CurrentVMName -MemoryStartupBytes $CurrentVMMemory -BootDevice VHD -VHDPath $CurrentVMOsVHDPath -Path .\VMData -Generation 1 -Switch $($VMSwitches.Name)"
-                $NewVM = New-VM -Name $CurrentVMName -MemoryStartupBytes $CurrentVMMemory -BootDevice VHD -VHDPath $CurrentVMOsVHDPath -Path .\VMData -Generation 1 -Switch $VMSwitches.Name
+                LogMsg "New-VM -Name $CurrentVMName -MemoryStartupBytes $CurrentVMMemory -BootDevice VHD -VHDPath $CurrentVMOsVHDPath -Path .\Temp\VMData -Generation 1 -Switch $($VMSwitches.Name)"
+                $NewVM = New-VM -Name $CurrentVMName -MemoryStartupBytes $CurrentVMMemory -BootDevice VHD -VHDPath $CurrentVMOsVHDPath -Path .\Temp\VMData -Generation 1 -Switch $($VMSwitches.Name)
                 if ($?)
                 {
                     $Out = Set-VM -VM $NewVM -ProcessorCount $CurrentVMCpu -StaticMemory  -CheckpointType Disabled -Notes "$HyperVGroupName"
@@ -479,10 +478,10 @@ Function GetAllHyperVDeployementData($HyperVGroupNames,$RetryCount = 100)
         foreach ( $VM in $AllVMs)
         {
             $QuickVMNode = CreateQuickVMNode
-            LogMsg "    Get-VMNetworkAdapter $($VM.Name)..."
+            LogMsg "    $($VM.Name) : Waiting for IP address..."
             $VMNicProperties = $VM | Get-VMNetworkAdapter
-            $QuickVMNode.PublicIP = $VMNicProperties.IPAddresses | Where-Object {$_ -imatch "\d.\d.\d.\d"}
-            if ($QuickVMNode.PublicIP -notmatch "\d.\d.\d.\d")
+            $QuickVMNode.PublicIP = $VMNicProperties.IPAddresses | Where-Object {$_ -imatch "\b(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}\b"}
+            if ($QuickVMNode.PublicIP -notmatch "\b(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}\b")
             {
                 $RecheckVMs += $VM
                 $AllPublicIPsCollected = $false
