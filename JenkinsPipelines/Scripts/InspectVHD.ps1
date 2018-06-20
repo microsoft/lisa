@@ -43,11 +43,11 @@ try
 
                 #Region Download the VHD.
                 LogMsg "Downloading $env:CustomVHDURL to '$LocalFolder\$SourceVHDName'"
-                $DownloadJob = Start-BitsTransfer -Source "$env:CustomVHDURL" -Asynchronous -Destination "$LocalFolder\$SourceVHDName" -TransferPolicy Unrestricted -TransferType Download -Priority High
+                $DownloadJob = Start-BitsTransfer -Source "$env:CustomVHDURL" -Asynchronous -Destination "$LocalFolder\$SourceVHDName" -TransferPolicy Unrestricted -TransferType Download -Priority Foreground
                 $DownloadJobStatus = Get-BitsTransfer -JobId $DownloadJob.JobId
                 Start-Sleep -Seconds 1
                 LogMsg "JobID: $($DownloadJob.JobId)"
-                while ($DownloadJobStatus.JobState -eq "Connecting" -or $DownloadJobStatus.JobState -eq "Transferring" -or $DownloadJobStatus.JobState -eq "Queued" ) 
+                while ($DownloadJobStatus.JobState -eq "Connecting" -or $DownloadJobStatus.JobState -eq "Transferring" -or $DownloadJobStatus.JobState -eq "Queued" -or $DownloadJobStatus.JobState -eq "TransientError" ) 
                 {
                     $DownloadProgress = 100 - ((($DownloadJobStatus.BytesTotal - $DownloadJobStatus.BytesTransferred) / $DownloadJobStatus.BytesTotal) * 100)
                     $DownloadProgress = [math]::Round($DownloadProgress,2)
@@ -80,7 +80,9 @@ try
                 else 
                 {
                     $ExitCode += 1
-                    LogError "$SourceVHDName is not present. Is the CustomVHDURL a valid link?"  
+                    LogError "$SourceVHDName is not present. Is the CustomVHDURL a valid link?"
+                    $DownloadJob = Remove-BitsTransfer -BitsJob $DownloadJob  
+                    LogMsg "JobID: $($DownloadJob.JobId) Removed."
                 }                
             }            
         }
