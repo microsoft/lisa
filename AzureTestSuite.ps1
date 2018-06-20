@@ -13,10 +13,13 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 	$StartTime = [Datetime]::Now.ToUniversalTime()
 	LogMsg "Starting the Cycle - $($CycleName.ToUpper())"
 	$executionCount = 0
-	$dbEnvironment = "Azure"
+	$dbEnvironment = $TestPlatform
 	$dbTestCycle = $CycleName.Trim()
 	$dbExecutionID = $dbDateTimeUTC = "$($StartTime.Year)-$($StartTime.Month)-$($StartTime.Day) $($StartTime.Hour):$($StartTime.Minute):$($StartTime.Second)"
-	$dbLocation = ($xmlConfig.config.Azure.General.Location).Replace('"','').Replace(" ","").ToLower()
+	if ($TestPlatform -eq "Azure")
+	{
+		$dbLocation = ($xmlConfig.config.$TestPlatform.General.Location).Replace('"','').Replace(" ","").ToLower()
+	}
 	$dbOverrideVMSize = $OverrideVMSize
 	if ( $EnableAcceleratedNetworking )
 	{
@@ -26,13 +29,12 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 	{
 		$dbNetworking = "Synthetic"
 	}
-	foreach ( $tempDistro in $xmlConfig.config.Azure.Deployment.Data.Distro )
+	foreach ( $tempDistro in $xmlConfig.config.$TestPlatform.Deployment.Data.Distro )
 	{
 		if ( ($tempDistro.Name).ToUpper() -eq ($Distro).ToUpper() )
 		{
 			if ( $UseAzureResourceManager )
 			{
-				Write-Host $tempDistro.ARMImage 
 				if ( ($tempDistro.ARMImage.Publisher -ne $null) -and ($tempDistro.ARMImage.Offer -ne $null) -and ($tempDistro.ARMImage.Sku -ne $null) -and ($tempDistro.ARMImage.Version -ne $null) )
 				{
 					$ARMImage = $tempDistro.ARMImage
@@ -72,7 +74,7 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 	{
 		#Check if the test storage account is same as VHD's original storage account.
 		$givenVHDStorageAccount = $BaseOsVHD.Replace("https://","").Replace("http://","").Split(".")[0]
-		$ARMStorageAccount = $xmlConfig.config.Azure.General.ARMStorageAccount
+		$ARMStorageAccount = $xmlConfig.config.$TestPlatform.General.ARMStorageAccount
 
 		if ($givenVHDStorageAccount -ne $ARMStorageAccount )
 		{

@@ -25,7 +25,7 @@ if ($isDeployed)
 
         #Execute the script.
 		LogMsg "Executing : $($currentTestData.testScript)"
-		RunLinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "bash -c ./$($currentTestData.testScript)" -runAsSudo -runMaxAllowedTime 7200
+		RunLinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "bash -c ./$($currentTestData.testScript)" -runAsSudo -runMaxAllowedTime 7200 -maxRetryCount 0
 		RemoteCopy -download -downloadFrom $AllVMData.PublicIP -files "/home/$user/TestState.log, /home/$user/TestExecution.log, /home/$user/TestExecutionError.log" -downloadTo $LogDir -port $AllVMData.SSHPort -username $user -password $password
         $testResult = Get-Content $LogDir\TestState.log
 

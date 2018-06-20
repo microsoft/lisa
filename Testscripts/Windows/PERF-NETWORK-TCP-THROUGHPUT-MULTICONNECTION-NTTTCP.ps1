@@ -185,12 +185,12 @@ collect_VM_properties
 		LogMsg "Test Completed"
 		
 		LogMsg "Uploading the test results.."
-		$dataSource = $xmlConfig.config.Azure.database.server
-		$user = $xmlConfig.config.Azure.database.user
-		$password = $xmlConfig.config.Azure.database.password
-		$database = $xmlConfig.config.Azure.database.dbname
-		$dataTableName = $xmlConfig.config.Azure.database.dbtable
-		$TestCaseName = $xmlConfig.config.Azure.database.testTag
+		$dataSource = $xmlConfig.config.$TestPlatform.database.server
+		$user = $xmlConfig.config.$TestPlatform.database.user
+		$password = $xmlConfig.config.$TestPlatform.database.password
+		$database = $xmlConfig.config.$TestPlatform.database.dbname
+		$dataTableName = $xmlConfig.config.$TestPlatform.database.dbtable
+		$TestCaseName = $xmlConfig.config.$TestPlatform.database.testTag
 		if ($dataSource -And $user -And $password -And $database -And $dataTableName) 
 		{
 			$GuestDistro	= cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
@@ -204,7 +204,7 @@ collect_VM_properties
 			{
 				$HostType	= "Azure"
 			}
-			$HostBy	= ($xmlConfig.config.Azure.General.Location).Replace('"','')
+			$HostBy	= ($xmlConfig.config.$TestPlatform.General.Location).Replace('"','')
 			$HostOS	= cat "$LogDir\VM_properties.csv" | Select-String "Host Version"| %{$_ -replace ",Host Version,",""}
 			$GuestOSType	= "Linux"
 			$GuestDistro	= cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}

@@ -7,6 +7,319 @@
 #              
 ## Author : lisasupport@microsoft.com
 ###############################################################################################
+
+Function ValidateParameters()
+{
+	$ParameterErrors = @()
+	if ($TestPlatform -eq "Azure")
+	{
+		#region Validate Parameters
+		
+		if ( !$TestPlatform )
+		{
+			$ParameterErrors += "-TestPlatform <Azure/AzureStack> is required."
+		}
+		if ( !$ARMImageName -and !$OsVHD )
+		{
+			$ParameterErrors += "-ARMImageName <'Publisher Offer Sku Version'>/ -OsVHD <'VHD_Name.vhd'> is required"
+		}
+		if ( !$TestLocation)
+		{
+			$ParameterErrors += "-TestLocation <Location> is required"
+		}
+		if ( !$RGIdentifier )
+		{
+			$ParameterErrors += "-RGIdentifier <PersonalIdentifier> is required. This string will added to Resources created by Automation."
+		}   
+		#endregion
+	}
+	elseif ($TestPlatform -eq "HyperV")
+	{
+		#region Validate Parameters
+		if (!$OsVHD )
+		{
+			$ParameterErrors += "-ARMImageName <'Publisher Offer Sku Version'>/ -OsVHD <'VHD_Name.vhd'> is required"
+		}
+		if ( !$RGIdentifier )
+		{
+			$ParameterErrors += "-RGIdentifier <PersonalIdentifier> is required. This string will added to Resources created by Automation."
+		}   
+		#endregion
+	}	
+	elseif ($TestPlatform)
+	{
+		$ParameterErrors += "$TestPlatform is not yet supported."
+	}
+	else
+	{
+		$ParameterErrors += "Did you forgot to provide -TestPlatform?"
+	}
+	
+	
+	
+	if ( $ParameterErrors.Count -gt 0)
+	{
+		$ParameterErrors | ForEach-Object { LogError $_ }
+		Throw "Invalid test parameters. Please fix above parameter issues."
+	}
+	else 
+	{
+		LogMsg "Input parameters are valid. Continueing for tests..."
+	}	
+}
+
+Function UpdateGlobalConfigurationXML()
+{
+	#Region Update Global Configuration XML file as needed
+	if ($UpdateGlobalConfigurationFromSecretsFile)
+	{
+		if ($XMLSecretFile)
+		{
+			if (Test-Path -Path $XMLSecretFile)
+			{
+				LogMsg "Updating .\XML\GlobalConfigurations.xml"
+				.\Utilities\UpdateGlobalConfigurationFromXmlSecrets.ps1 -XmlSecretsFilePath $XMLSecretFile
+			}
+			else 
+			{
+				LogErr "Failed to update .\XML\GlobalConfigurations.xml. '$XMLSecretFile' not found."    
+			}
+		}
+		else 
+		{
+			LogErr "Failed to update .\XML\GlobalConfigurations.xml. '-XMLSecretFile [FilePath]' not provided."    
+		}
+	}
+	$RegionStorageMapping = [xml](Get-Content .\XML\RegionAndStorageAccounts.xml)
+	$GlobalConfiguration = [xml](Get-Content .\XML\GlobalConfigurations.xml)
+
+	if ($TestPlatform -eq "Azure")
+	{
+		if ( $StorageAccount -imatch "ExistingStorage_Standard" )
+		{
+			$GlobalConfiguration.Global.$TestPlatform.Subscription.ARMStorageAccount = $RegionStorageMapping.AllRegions.$TestLocation.StandardStorage
+		}
+		elseif ( $StorageAccount -imatch "ExistingStorage_Premium" )
+		{
+			$GlobalConfiguration.Global.$TestPlatform.Subscription.ARMStorageAccount = $RegionStorageMapping.AllRegions.$TestLocation.PremiumStorage
+		}
+		elseif ( $StorageAccount -imatch "NewStorage_Standard" )
+		{
+			$GlobalConfiguration.Global.$TestPlatform.Subscription.ARMStorageAccount = "NewStorage_Standard_LRS"
+		}
+		elseif ( $StorageAccount -imatch "NewStorage_Premium" )
+		{
+			$GlobalConfiguration.Global.$TestPlatform.Subscription.ARMStorageAccount = "NewStorage_Premium_LRS"
+		}
+		elseif ($StorageAccount -eq "")
+		{
+			$GlobalConfiguration.Global.$TestPlatform.Subscription.ARMStorageAccount = $RegionStorageMapping.AllRegions.$TestLocation.StandardStorage
+			LogMsg "Auto selecting storage account : $($GlobalConfiguration.Global.$TestPlatform.Subscription.ARMStorageAccount) as per your test region."
+		}
+		elseif ($StorageAccount -ne "")
+		{
+			$GlobalConfiguration.Global.$TestPlatform.Subscription.ARMStorageAccount = $StorageAccount.Trim()
+			Write-Host "Selecting custom storage account : $($GlobalConfiguration.Global.$TestPlatform.Subscription.ARMStorageAccount) as per your test region."
+		}
+	}
+	#If user provides Result database / result table, then add it to the GlobalConfiguration.
+	if( $ResultDBTable -or $ResultDBTestTag)
+	{
+		if( $ResultDBTable )
+		{
+			$GlobalConfiguration.Global.$TestPlatform.ResultsDatabase.dbtable = ($ResultDBTable).Trim()
+			LogMsg "ResultDBTable : $ResultDBTable added to .\XML\GlobalConfigurations.xml"
+		}
+		if( $ResultDBTestTag )
+		{
+			$GlobalConfiguration.Global.$TestPlatform.ResultsDatabase.testTag = ($ResultDBTestTag).Trim()
+			LogMsg "ResultDBTestTag: $ResultDBTestTag added to .\XML\GlobalConfigurations.xml"
+		}                      
+	}
+	$GlobalConfiguration.Save(".\XML\GlobalConfigurations.xml")
+	#endregion
+
+	New-Item -ItemType Directory -Path "TestResults" -Force -ErrorAction SilentlyContinue | Out-Null
+
+	$LogDir = ".\TestResults\$(Get-Date -Format 'yyyy-dd-MM-HH-mm-ss-ffff')"
+	Set-Variable -Name LogDir -Value $LogDir -Scope Global -Force
+	Set-Variable -Name RootLogDir -Value $LogDir -Scope Global -Force
+	New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
+	New-Item -ItemType Directory -Path Temp -Force -ErrorAction SilentlyContinue | Out-Null
+	LogMsg "Created LogDir: $LogDir"
+
+	if ($TestPlatform -eq "Azure")
+	{
+		if ($env:Azure_Secrets_File)
+		{
+			LogMsg "Detected Azure_Secrets_File in Jenkins environment."
+			$XMLSecretFile = $env:Azure_Secrets_File
+		}
+		if ( $XMLSecretFile )
+		{
+			ValiateXMLs -ParentFolder $((Get-Item -Path $XMLSecretFile).FullName | Split-Path -Parent)
+			.\Utilities\AddAzureRmAccountFromSecretsFile.ps1 -customSecretsFilePath $XMLSecretFile
+			Set-Variable -Value ([xml](Get-Content $XMLSecretFile)) -Name XmlSecrets -Scope Global
+			LogMsg "XmlSecrets set as global variable."
+		}
+		else 
+		{
+			LogMsg "XML secret file not provided." 
+			LogMsg "Powershell session must be authenticated to manage the azure subscription."
+		}
+	}
+}
+
+Function UpdateXMLStringsFromSecretsFile()
+{
+	#region Replace strings in XML files
+    if ($UpdateXMLStringsFromSecretsFile)
+    {
+        if ($XMLSecretFile)
+        {
+            if (Test-Path -Path $XMLSecretFile)
+            {
+                .\Utilities\UpdateXMLStringsFromXmlSecrets.ps1 -XmlSecretsFilePath $XMLSecretFile
+            }
+            else 
+            {
+                LogErr "Failed to update Strings in .\XML files. '$XMLSecretFile' not found."    
+            }
+        }
+        else 
+        {
+            LogErr "Failed to update Strings in .\XML files. '-XMLSecretFile [FilePath]' not provided."    
+        }
+    }
+}
+
+Function CollectTestCases()
+{
+    #region Collect Tests Data
+    if ( $TestPlatform -and !$TestCategory -and !$TestArea -and !$TestNames -and !$TestTag)
+    {
+        foreach ( $file in $TestXMLs.FullName)
+        {
+            $currentTests = ([xml]( Get-Content -Path $file)).TestCases
+            if ( $TestPlatform )
+            {
+                foreach ( $test in $currentTests.test )
+                {
+                    if ($test.Platform.Split(",").Contains($TestPlatform) ) 
+                    {
+                        LogMsg "Collected $($test.TestName)"
+                        $allTests += $test
+                    }
+                }
+            }
+        }         
+    }
+    elseif ( $TestPlatform -and $TestCategory -and (!$TestArea -or $TestArea -eq "default") -and !$TestNames -and !$TestTag)
+    {
+        foreach ( $file in $TestXMLs.FullName)
+        {
+            
+            $currentTests = ([xml]( Get-Content -Path $file)).TestCases
+            if ( $TestPlatform )
+            {
+                foreach ( $test in $currentTests.test )
+                {
+                    if ( ($test.Platform.Split(",").Contains($TestPlatform) ) -and $($TestCategory -eq $test.Category) )
+                    {
+                        LogMsg "Collected $($test.TestName)"
+                        $allTests += $test
+                    }
+                }
+            }
+        }         
+    }
+    elseif ( $TestPlatform -and $TestCategory -and ($TestArea -and $TestArea -ne "default") -and !$TestNames -and !$TestTag)
+    {
+        foreach ( $file in $TestXMLs.FullName)
+        {
+            
+            $currentTests = ([xml]( Get-Content -Path $file)).TestCases
+            if ( $TestPlatform )
+            {
+                foreach ( $test in $currentTests.test )
+                {
+                    if ( ($test.Platform.Split(",").Contains($TestPlatform) ) -and $($TestCategory -eq $test.Category) -and $($TestArea -eq $test.Area) )
+                    {
+                        LogMsg "Collected $($test.TestName)"
+                        $allTests += $test
+                    }
+                }
+            }
+        }         
+    }
+    elseif ( $TestPlatform -and $TestCategory  -and $TestNames -and !$TestTag)
+    {
+        foreach ( $file in $TestXMLs.FullName)
+        {
+            
+            $currentTests = ([xml]( Get-Content -Path $file)).TestCases
+            if ( $TestPlatform )
+            {
+                foreach ( $test in $currentTests.test )
+                {
+                    if ( ($test.Platform.Split(",").Contains($TestPlatform) ) -and $($TestCategory -eq $test.Category) -and $($TestArea -eq $test.Area) -and ($TestNames.Split(",").Contains($test.TestName) ) )
+                    {
+                        LogMsg "Collected $($test.TestName)"
+                        $allTests += $test
+                    }
+                }
+            }
+        }         
+    }
+    elseif ( $TestPlatform -and !$TestCategory -and !$TestArea -and $TestNames -and !$TestTag)
+    {
+        foreach ( $file in $TestXMLs.FullName)
+        {   
+            $currentTests = ([xml]( Get-Content -Path $file)).TestCases
+            if ( $TestPlatform )
+            {
+                foreach ( $test in $currentTests.test )
+                {
+                    if ( ($test.Platform.Split(",").Contains($TestPlatform) ) -and ($TestNames.Split(",").Contains($test.TestName) ) )
+                    {
+                        LogMsg "Collected $($test.TestName)"
+                        $allTests += $test
+                    }
+                }
+            }
+        }         
+    }    
+    elseif ( $TestPlatform -and !$TestCategory -and !$TestArea -and !$TestNames -and $TestTag)
+    {
+        foreach ( $file in $TestXMLs.FullName)
+        {
+            
+            $currentTests = ([xml]( Get-Content -Path $file)).TestCases
+            if ( $TestPlatform )
+            {
+                foreach ( $test in $currentTests.test )
+                {
+                    if ( ($test.Platform.Split(",").Contains($TestPlatform) ) -and ( $test.Tags.Split(",").Contains($TestTag) ) )
+                    {
+                        LogMsg "Collected $($test.TestName)"
+                        $allTests += $test
+                    }
+                }
+            }
+        }         
+    }
+    else 
+    {
+        LogError "TestPlatform : $TestPlatform"
+        LogError "TestCategory : $TestCategory"
+        LogError "TestArea : $TestArea"
+        LogError "TestNames : $TestNames"
+        LogError "TestTag : $TestTag"
+        Throw "Invalid Test Selection"
+	}
+	return $allTests
+    #endregion 	
+}
 function GetTestSummary($testCycle, [DateTime] $StartTime, [string] $xmlFilename, [string] $distro, $testSuiteResultDetails)
 {
     <#
