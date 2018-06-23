@@ -164,7 +164,7 @@ collect_VM_properties
 			$KernelVersion	= cat "$LogDir\VM_properties.csv" | Select-String "Kernel version"| %{$_ -replace ",Kernel version,",""}
 			$IPVersion = "IPv4"
 			$ProtocolType = "TCP"
-			if($EnableAcceleratedNetworking)
+			if($EnableAcceleratedNetworking -or ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV"))
 			{
 				$DataPath = "SRIOV"
 			}
