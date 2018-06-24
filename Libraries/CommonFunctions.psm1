@@ -1032,8 +1032,8 @@ Function DeployVMs ($xmlConfig, $setupType, $Distro, $getLogsIfFailed = $false, 
 	if ( $TestPlatform -eq "HyperV" )
 	{
 		$retValue = DeployHyperVGroups  -xmlConfig $xmlConfig -setupType $setupType -Distro $Distro -getLogsIfFailed $getLogsIfFailed -GetDeploymentStatistics $GetDeploymentStatistics
+		
 	}
-
 	if ( $retValue -and $CustomKernel)
     {
         LogMsg "Custom kernel: $CustomKernel will be installed on all machines..."
@@ -1790,27 +1790,12 @@ Function DoTestCleanUp($result, $testName, $DeployedServices, $ResourceGroups, [
 				{
 					foreach ($vmData in $allVMData)
 					{
-						if ($TestPlatform -eq "Azure")
-						{
-							$FilesToDownload = "$($vmData.RoleName)-*.txt"
-						}
-						elseif($TestPlatform -eq "HyperV")
-						{
-							$FilesToDownload = "*.txt"
-						}
+						$FilesToDownload = "$($vmData.RoleName)-*.txt"
 						$out = RemoteCopy -upload -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files .\Testscripts\Linux\CollectLogFile.sh -username $user -password $password
 						$out = RunLinuxCmd -username $user -password $password -ip $vmData.PublicIP -port $vmData.SSHPort -command "bash CollectLogFile.sh" -ignoreLinuxExitCode
 						$out = RemoteCopy -downloadFrom $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -files "$FilesToDownload" -downloadTo "$LogDir" -download
-						if ($TestPlatform -eq "Azure")
-						{
-							$finalKernelVersion = Get-Content "$LogDir\$($vmData.RoleName)-kernelVersion.txt"
-							$tempLIS = (Select-String -Path "$LogDir\$($vmData.RoleName)-lis.txt" -Pattern "^version:").Line
-						}
-						elseif ($TestPlatform -eq "HyperV")
-						{
-							$finalKernelVersion = Get-Content "$LogDir\*-kernelVersion.txt"
-							$tempLIS = (Select-String -Path "$LogDir\*-lis.txt" -Pattern "^version:").Line
-						}
+						$finalKernelVersion = Get-Content "$LogDir\$($vmData.RoleName)-kernelVersion.txt"
+						$tempLIS = (Select-String -Path "$LogDir\$($vmData.RoleName)-lis.txt" -Pattern "^version:").Line
 						Set-Variable -Name finalKernelVersion -Value $finalKernelVersion -Scope Global
 						#region LIS Version
 						
@@ -2542,4 +2527,12 @@ Function GetStorageAccountFromRegion($Region,$StorageAccount)
 	}
 	LogMsg "Selected : $StorageAccountName"
 	return $StorageAccountName
+}
+
+function CreateTestResultObject()
+{
+	$objNode = New-Object -TypeName PSObject
+	Add-Member -InputObject $objNode -MemberType NoteProperty -Name TestResult -Value $null -Force
+	Add-Member -InputObject $objNode -MemberType NoteProperty -Name TestSummary -Value $null -Force
+	return $objNode
 }

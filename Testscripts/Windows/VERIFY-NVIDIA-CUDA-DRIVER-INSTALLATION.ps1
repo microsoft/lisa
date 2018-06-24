@@ -1,5 +1,5 @@
 $result = ""
-$testResult = ""
+$CurrentTestResult = CreateTestResultObject
 $resultArr = @()
 
 $isDeployed = DeployVMS -setupType $currentTestData.setupType -Distro $Distro -xmlConfig $xmlConfig
@@ -87,14 +87,14 @@ collect_VM_properties
                 if ( (Select-String -Path $LogDir\PIC-Express-pass-through.txt -Pattern "PCI Express pass-through").Matches.Count -eq $expectedCount )
                 {
                     LogMsg "Expected `"PCI Express pass-through`" count: $expectedCount. Observed Count: $expectedCount"
-                    $resultSummary +=  CreateResultSummary -testResult "PASS" -metaData "PCI Express pass-through" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+                    $CurrentTestResult.TestSummary += CreateResultSummary -testResult "PASS" -metaData "PCI Express pass-through" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
                 }
                 else
                 {
                     $errorCount += 1
                     LogErr "Error in lsvmbus Outoput."
                     LogErr "$PCIExpress"
-                    $resultSummary +=  CreateResultSummary -testResult "FAIL" -metaData "PCI Express pass-through" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+                    $CurrentTestResult.TestSummary += CreateResultSummary -testResult "FAIL" -metaData "PCI Express pass-through" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
                 }
                  #endregion
 
@@ -104,14 +104,14 @@ collect_VM_properties
                 if ( (Select-String -Path $LogDir\lspci.txt -Pattern "NVIDIA Corporation").Matches.Count -eq $expectedCount )
                 {
                     LogMsg "Expected `"3D controller: NVIDIA Corporation`" count: $expectedCount. Observed Count: $expectedCount"
-                    $resultSummary +=  CreateResultSummary -testResult "PASS" -metaData "lspci" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+                    $CurrentTestResult.TestSummary += CreateResultSummary -testResult "PASS" -metaData "lspci" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
                 }
                 else
                 {
                     $errorCount += 1
                     LogErr "Error in lspci Outoput."
                     LogErr "$lspci"
-                    $resultSummary +=  CreateResultSummary -testResult "FAIL" -metaData "lspci" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+                    $CurrentTestResult.TestSummary += CreateResultSummary -testResult "FAIL" -metaData "lspci" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
                 }
 
                 #endregion
@@ -122,14 +122,14 @@ collect_VM_properties
                 if ( ((Select-String -Path $LogDir\lshw-c-video.txt -Pattern "product: NVIDIA Corporation").Matches.Count -eq $expectedCount) -or ((Select-String -Path $LogDir\lshw-c-video.txt -Pattern "vendor: NVIDIA Corporation").Matches.Count -eq $expectedCount) )
                 {
                     LogMsg "Expected Display adapters: $expectedCount. Observed adapters: $expectedCount"
-                    $resultSummary +=  CreateResultSummary -testResult "PASS" -metaData "lshw -c video" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+                    $CurrentTestResult.TestSummary += CreateResultSummary -testResult "PASS" -metaData "lshw -c video" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
                 }
                 else
                 {
                     $errorCount += 1
                     LogErr "Error in display adapters."
                     LogErr "$lshw"
-                    $resultSummary +=  CreateResultSummary -testResult "FAIL" -metaData "lshw -c video" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+                    $CurrentTestResult.TestSummary += CreateResultSummary -testResult "FAIL" -metaData "lshw -c video" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
                 }
 
                 #endregion
@@ -140,14 +140,14 @@ collect_VM_properties
                 if ( (Select-String -Path $LogDir\nvidia-smi.txt -Pattern "Tesla ").Matches.Count -eq $expectedCount )
                 {
                     LogMsg "Expected Tesla count: $expectedCount. Observed count: $expectedCount"
-                    $resultSummary +=  CreateResultSummary -testResult "PASS" -metaData "nvidia-smi" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+                    $CurrentTestResult.TestSummary += CreateResultSummary -testResult "PASS" -metaData "nvidia-smi" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
                 }
                 else
                 {
                     $errorCount += 1
                     LogErr "Error in nvidia-smi."
                     LogErr "$nvidiasmi"
-                    $resultSummary +=  CreateResultSummary -testResult "FAIL" -metaData "nvidia-smi" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+                    $CurrentTestResult.TestSummary += CreateResultSummary -testResult "FAIL" -metaData "nvidia-smi" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
                 }
                 #endregion
             }
@@ -198,10 +198,10 @@ else
 	$resultArr += $testResult
 }
 
-$result = GetFinalResultHeader -resultarr $resultArr
+$CurrentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
 
 #Clean up the setup
-DoTestCleanUp -result $result -testName $currentTestData.testName -deployedServices $isDeployed -ResourceGroups $isDeployed
+DoTestCleanUp -result  $CurrentTestResult.TestResult -testName $currentTestData.testName -ResourceGroups $isDeployed
 
 #Return the result and summery to the test suite script..
-return $result, $resultSummary
+return $CurrentTestResult

@@ -26,6 +26,7 @@ Function DeployHyperVGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFailed =
                 $isAllConnected = isAllSSHPortsEnabledRG -AllVMDataObject $allVMData
                 if ($isAllConnected -eq "True")
                 {
+                    InjectHostnamesInHyperVVMs -allVMData $allVMData
                     $VerifiedGroups = $DeployedHyperVGroup
                     $retValue = $VerifiedGroups
                     if ( Test-Path -Path  .\Extras\UploadDeploymentDataToDB.ps1 )
@@ -248,12 +249,14 @@ Function DeleteHyperVGroup([string]$HyperVGroupName)
                     }
                     Remove-VMGroup -Name $HyperVGroupName -Force 
                     LogMsg "$($HyperVGroupName) Removed!"
+                    $retValue = $true
                 }
                 elseif ($CurrentGroup)
                 {
                     LogMsg "$HyperVGroupName is empty. Removing..."
                     Remove-VMGroup -Name $HyperVGroupName -Force 
                     LogMsg "$HyperVGroupName Removed!"
+                    $retValue = $true
                 }
                 else
                 {
@@ -335,11 +338,19 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML)
             if ($?)
             {
                 LogMsg "Prerequiste: Prepare OS Disk $CurrentVMOsVHDPath - Succeeded."
-                $CurrentVMCpu = $HyperVMappedSizes.HyperV.$($VirtualMachine.ARMInstanceSize).NumberOfCores
-                $CurrentVMMemory = $HyperVMappedSizes.HyperV.$($VirtualMachine.ARMInstanceSize).MemoryInMB
+                if ($OverrideVMSize)
+                {
+                    $CurrentVMSize = $OverrideVMSize
+                }
+                else 
+                {
+                    $CurrentVMSize = $VirtualMachine.ARMInstanceSize
+                }
+                $CurrentVMCpu = $HyperVMappedSizes.HyperV.$CurrentVMSize.NumberOfCores
+                $CurrentVMMemory = $HyperVMappedSizes.HyperV.$CurrentVMSize.MemoryInMB
                 $CurrentVMMemory = [int]$CurrentVMMemory * 1024 * 1024
-                LogMsg "New-VM -Name $CurrentVMName -MemoryStartupBytes $CurrentVMMemory -BootDevice VHD -VHDPath $CurrentVMOsVHDPath -Path .\Temp\VMData -Generation 1 -Switch $($VMSwitches.Name)"
-                $NewVM = New-VM -Name $CurrentVMName -MemoryStartupBytes $CurrentVMMemory -BootDevice VHD -VHDPath $CurrentVMOsVHDPath -Path .\Temp\VMData -Generation 1 -Switch $($VMSwitches.Name)
+                LogMsg "New-VM -Name $CurrentVMName -MemoryStartupBytes $CurrentVMMemory -BootDevice VHD -VHDPath $CurrentVMOsVHDPath -Path .\Temp\VMData -Generation 1 -Switch $($VMSwitches.Name) -ComputerName $HyperVHost"
+                $NewVM = New-VM -Name $CurrentVMName -MemoryStartupBytes $CurrentVMMemory -BootDevice VHD -VHDPath $CurrentVMOsVHDPath -Path .\Temp\VMData -Generation 1 -Switch $($VMSwitches.Name) -ComputerName $HyperVHost
                 if ($?)
                 {
                     $Out = Set-VM -VM $NewVM -ProcessorCount $CurrentVMCpu -StaticMemory  -CheckpointType Disabled -Notes "$HyperVGroupName"
@@ -383,7 +394,7 @@ Function StartHyperVGroupVMs($HyperVGroupName)
     foreach ( $VM in $AllVMs.VMMembers)
     {
         LogMsg "Starting $($VM.Name) from $HyperVGroupName..."
-        $StartVMStatus = Start-VM -VM $VM 
+        $StartVMStatus = Start-VM -VM $VM
         if ( $? )
         {
             LogMsg "Succeeded."
@@ -414,7 +425,7 @@ Function StopHyperVGroupVMs($HyperVGroupName)
     foreach ( $VM in $AllVMs.VMMembers)
     {
         LogMsg "Shutting down $($VM.Name) from $HyperVGroupName..."
-        $StopVMStatus = Stop-VM -VM $VM 
+        $StopVMStatus = Stop-VM -VM $VM
         if ( $? )
         {
             LogMsg "Succeeded."
@@ -422,7 +433,7 @@ Function StopHyperVGroupVMs($HyperVGroupName)
         else
         {
             LogErr "Shutdown failed. Turning off.."
-            $StopVMStatus = Stop-VM -VM $VM  -Force -TurnOff
+            $StopVMStatus = Stop-VM -VM $VM  -Force -TurnOff -ComputerName $HyperVHost
             if ( $? )
             {
                 LogMsg "Succeeded."
@@ -455,6 +466,7 @@ Function GetAllHyperVDeployementData($HyperVGroupNames,$RetryCount = 100)
         Add-Member -InputObject $objNode -MemberType NoteProperty -Name HyperVHost -Value $HyperVHost -Force
         Add-Member -InputObject $objNode -MemberType NoteProperty -Name HyperVGroupName -Value $null -Force 
         Add-Member -InputObject $objNode -MemberType NoteProperty -Name PublicIP -Value $null -Force
+        Add-Member -InputObject $objNode -MemberType NoteProperty -Name InternalIP -Value $null -Force
         Add-Member -InputObject $objNode -MemberType NoteProperty -Name RoleName -Value $null -Force
         Add-Member -InputObject $objNode -MemberType NoteProperty -Name SSHPort -Value 22 -Force
         return $objNode
@@ -481,6 +493,7 @@ Function GetAllHyperVDeployementData($HyperVGroupNames,$RetryCount = 100)
             LogMsg "    $($VM.Name) : Waiting for IP address..."
             $VMNicProperties = $VM | Get-VMNetworkAdapter
             $QuickVMNode.PublicIP = $VMNicProperties.IPAddresses | Where-Object {$_ -imatch "\b(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}\b"}
+            $QuickVMNode.InternalIP = $QuickVMNode.PublicIP
             if ($QuickVMNode.PublicIP -notmatch "\b(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}\b")
             {
                 $RecheckVMs += $VM
@@ -519,4 +532,33 @@ Function RestartAllHyperVDeployments($allVMData)
     }
 	$isSSHOpened = isAllSSHPortsEnabledRG -AllVMDataObject $AllVMData
 	return $isSSHOpened    
+}
+
+Function InjectHostnamesInHyperVVMs($allVMData)
+{
+    $ErrorCount = 0
+    try 
+    {
+        foreach ( $VM in $allVMData )
+        {
+            LogMsg "Injecting hostname '$($VM.RoleName)' in HyperV VM..."
+            $out = RunLinuxCmd -username $user -password $password -ip $VM.PublicIP -port $VM.SSHPort -command "echo $($VM.RoleName) > /etc/hostname" -runAsSudo -maxRetryCount 5
+        }
+        $RestartStatus = RestartAllHyperVDeployments -allVMData $allVMData 
+    }
+    catch 
+    {
+        $ErrorCount += 1
+    }
+    finally 
+    {
+        if ( ($ErrorCount -eq 0) -and ($RestartStatus -eq "True"))
+        {
+            LogMsg "Hostnames are injected successfully."
+        }
+        else 
+        {
+            LogErr "Failed to inject $ErrorCount hostnames in HyperV VMs. Continuing the tests..."    
+        }
+    }
 }

@@ -1,5 +1,5 @@
 $result = ""
-$testResult = ""
+$CurrentTestResult = CreateTestResultObject
 $resultArr = @()
 
 $isDeployed = DeployVMS -setupType $currentTestData.setupType -Distro $Distro -xmlConfig $xmlConfig
@@ -325,7 +325,7 @@ collect_VM_properties
 		{
 			$connResult="ClientTxGbps=$($udpResultObject.ClientTxGbps) ServerRxGbps=$($udpResultObject.ServerRxGbps) UDPLoss=$($udpResultObject.ClientUDPLoss)%"
 			$metaData = "Buffer=$($udpResultObject.BufferSize)K Connections=$($udpResultObject.Connections)"
-			$resultSummary +=  CreateResultSummary -testResult $connResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+			$CurrentTestResult.TestSummary += CreateResultSummary -testResult $connResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 		}
 		if ( $finalStatus -imatch "TestFailed")
 		{
@@ -426,10 +426,10 @@ else
 	$resultArr += $testResult
 }
 
-$result = GetFinalResultHeader -resultarr $resultArr
+$CurrentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
 
 #Clean up the setup
-DoTestCleanUp -result $result -testName $currentTestData.testName -deployedServices $isDeployed -ResourceGroups $isDeployed
+DoTestCleanUp -result  $CurrentTestResult.TestResult -testName $currentTestData.testName -ResourceGroups $isDeployed
 
 #Return the result and summery to the test suite script..
-return $result, $resultSummary
+return $CurrentTestResult

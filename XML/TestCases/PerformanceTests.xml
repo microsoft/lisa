@@ -13,7 +13,7 @@
             <param>testDuration=300</param>
             <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024 2048 4096 6144 8192 10240"</param>
         </TestParameters>
-        <Platform>Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
         <Area>Network</Area>
         <Tags>tcp,network,hv_netvsc</Tags>
@@ -27,7 +27,6 @@
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
-        <SubtestValues>This-tag-will-be-removed</SubtestValues>
         <files>.\Testscripts\Linux\azuremodules.sh</files>
         <TestParameters>
             <param>testDuration=300</param>
@@ -44,12 +43,11 @@
         <testScript></testScript>
         <PowershellScript>PERF-NETWORK-TCP-LATENCY-MULTICONNECTION-LAGSCOPE.ps1</PowershellScript>
         <setupType>M1S1</setupType>
-        <SubtestValues>This-tag-will-be-removed</SubtestValues>
         <files>.\Testscripts\Linux\azuremodules.sh</files>
         <TestParameters>
             <param>pingIteration=1000000</param>
         </TestParameters>
-        <Platform>Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
         <Area>Network</Area>
         <Tags>tcp,network,hv_netvsc</Tags>
@@ -89,7 +87,7 @@
             <param>bufferLengths=(1024 8192)</param>
             <param>IPversion=4</param>
         </TestParameters>
-        <Platform>Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
         <Area>Network</Area>
         <Tags>udp,network,hv_netvsc</Tags>

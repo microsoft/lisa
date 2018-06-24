@@ -1,5 +1,5 @@
 $result = ""
-$testResult = ""
+$CurrentTestResult = CreateTestResultObject
 $resultArr = @()
 $isDeployed = DeployVMS -setupType $currentTestData.setupType -Distro $Distro -xmlConfig $xmlConfig
 if ($isDeployed)
@@ -66,13 +66,13 @@ collect_VM_properties
         $ltpResultLog = Get-Content -Path "$LogDir\ltp-results.log"
         
         $totalLTPTests = (Select-String -Path "$LogDir\ltp-results.log" -Pattern "Total Tests").Line.Split(":")[1].Trim()
-        $resultSummary +=  CreateResultSummary -testResult $totalLTPTests -metaData "Total Tests" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+        $CurrentTestResult.TestSummary += CreateResultSummary -testResult $totalLTPTests -metaData "Total Tests" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 
         $totalLTPSkippedTests = (Select-String -Path "$LogDir\ltp-results.log" -Pattern "Total Skipped Tests").Line.Split(":")[1].Trim()
-        $resultSummary +=  CreateResultSummary -testResult $totalLTPSkippedTests -metaData "Total Skipped Tests" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+        $CurrentTestResult.TestSummary += CreateResultSummary -testResult $totalLTPSkippedTests -metaData "Total Skipped Tests" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 
         $totalLTPFails = (Select-String -Path "$LogDir\ltp-results.log" -Pattern "Total Failures").Line.Split(":")[1].Trim()
-        $resultSummary +=  CreateResultSummary -testResult $totalLTPFails -metaData "Total Failures" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+        $CurrentTestResult.TestSummary += CreateResultSummary -testResult $totalLTPFails -metaData "Total Failures" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
         }
         else
         {
@@ -115,10 +115,10 @@ else
     $resultArr += $testResult
 }
 
-$result = GetFinalResultHeader -resultarr $resultArr
+$CurrentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
 
 #Clean up the setup
-DoTestCleanUp -result $result -testName $currentTestData.testName -deployedServices $isDeployed -ResourceGroups $isDeployed
+DoTestCleanUp -result  $CurrentTestResult.TestResult -testName $currentTestData.testName -ResourceGroups $isDeployed
 
 #Return the result and summery to the test suite script..
-return $result, $resultSummary
+return $CurrentTestResult

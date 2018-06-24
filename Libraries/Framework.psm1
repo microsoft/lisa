@@ -739,7 +739,7 @@ Function RefineTestResult2 ($testResult)
 	$tempResult = @()
 	foreach ($cmp in $testResult)
 	{
-		if(($cmp -eq "PASS") -or ($cmp -eq "FAIL") -or ($cmp -eq "ABORTED"))
+		if(($cmp -eq "PASS") -or ($cmp -eq "FAIL") -or ($cmp -eq "ABORTED") -or ($cmp -eq "Aborted"))
 		{
 			$tempResult += $testResult[$i]
 			$tempResult += $testResult[$i+1]
@@ -830,4 +830,19 @@ Function Test-FileLock
 		# file is locked by a process.
 		return $true
 	}
+}
+
+Function CreateArrayOfTabs()
+{
+	$tab = @()
+    for ( $i = 0; $i -lt 30; $i++)
+    {
+        $currentTab = ""
+        for ( $j = 0; $j -lt $i; $j++)
+        {
+            $currentTab +=  "`t"
+        }
+        $tab += $currentTab
+	}
+	return $tab
 }

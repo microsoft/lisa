@@ -130,17 +130,7 @@ try
     #region Create Test XML
     $SetupTypes = $allTests.SetupType | Sort-Object | Get-Unique
 
-    $tab = @()
-    for ( $i = 0; $i -lt 30; $i++)
-    {
-        $currentTab = ""
-        for ( $j = 0; $j -lt $i; $j++)
-        {
-            $currentTab +=  "`t"
-        }
-        $tab += $currentTab
-    }
-
+    $tab = CreateArrayOfTabs
 
     $TestCycle = "TC-$shortRandomNumber"
 
@@ -381,10 +371,7 @@ try
     {
         $command += " -XMLSecretFile '$XMLSecretFile'"
     }
-    if ($TestPlatform -eq "Azure")
-    {
-        $command += " -UseAzureResourceManager"
-    }
+
     LogMsg $command
     Invoke-Expression -Command $command
 
