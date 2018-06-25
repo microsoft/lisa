@@ -41,7 +41,8 @@ Param(
     [string] $TiPSessionId,
     [string] $TiPCluster,
     [string] $XMLSecretFile = "",
-    
+    [switch] $EnableTelemetry,
+
     #[Optional] Parameters for dynamically updating XML files
     [switch] $UpdateGlobalConfigurationFromSecretsFile,
     [switch] $UpdateXMLStringsFromSecretsFile,    
@@ -49,11 +50,10 @@ Param(
     #[Optional] Parameters for Overriding VM Configuration in Azure.
     [string] $OverrideVMSize = "",
     [switch] $EnableAcceleratedNetworking,
+    [string] $OverrideHyperVDiskMode = "",
     [switch] $ForceDeleteResources,
     [switch] $UseManagedDisks,
     [switch] $DoNotDeleteVMs,
-
-
 
     [string] $ResultDBTable = "",
     [string] $ResultDBTestTag = "",
@@ -70,11 +70,19 @@ try
 
     #region Static Global Variables
     Set-Variable -Name WorkingDirectory -Value (Get-Location).Path  -Scope Global
-    LogVerbose "Set-Variable -Name WorkingDirectory -Value (Get-Location).Path  -Scope Global"
     Set-Variable -Name shortRandomNumber -Value $(Get-Random -Maximum 99999 -Minimum 11111) -Scope Global
-    LogVerbose "Set-Variable -Name shortRandomNumber -Value $(Get-Random -Maximum 99999 -Minimum 11111) -Scope Global"
     Set-Variable -Name shortRandomWord -Value $(-join ((65..90) | Get-Random -Count 4 | ForEach-Object {[char]$_})) -Scope Global
-    LogVerbose "Set-Variable -Name shortRandomWord -Value $(-join ((65..90) | Get-Random -Count 4 | ForEach-Object {[char]$_})) -Scope Global"
+    Set-Variable -Name TestPlatform -Value $TestPlatform -Scope Global
+    Set-Variable -Name TestCategory -Value $TestCategory -Scope Global
+    Set-Variable -Name TestArea -Value $TestArea -Scope Global
+    Set-Variable -Name TestLocation -Value $TestLocation -Scope Global
+    Set-Variable -Name ARMImageName -Value $ARMImageName -Scope Global
+    Set-Variable -Name OsVHD -Value $OsVHD -Scope Global
+    Set-Variable -Name OverrideHyperVDiskMode -Value $OverrideHyperVDiskMode -Scope Global
+    if ($EnableTelemetry)
+    {
+        Set-Variable -Name EnableTelemetry -Value $true -Scope Global
+    }
     #endregion
 
     #region Runtime Global Variables

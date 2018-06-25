@@ -70,7 +70,7 @@ Finally
 $CurrentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
 
 #Clean up the setup
-DoTestCleanUp -result  $CurrentTestResult.TestResult -testName $currentTestData.testName -ResourceGroups $isDeployed
+DoTestCleanUp -CurrentTestResult $CurrentTestResult -testName $currentTestData.testName -ResourceGroups $isDeployed
 
 #Return the result and summary to the test suite script..
 return $CurrentTestResult

@@ -291,62 +291,6 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 						FinishLogTestCase $testcase "ERROR" "$($test.Name) is aborted." $caseLog
 						$testCycle.htmlSummary += "<tr><td><font size=`"3`">$executionCount</font></td><td>$tempHtmlText$(AddReproVMDetailsToHtmlReport)</td><td>$testRunDuration min</td><td>$testResultRow</td></tr>"
 					}
-					if ($XmlSecrets)
-					{
-						try
-						{
-							$testLogFolder = "TestLogs"
-							$testLogStorageAccount = $XmlSecrets.secrets.testLogsStorageAccount
-							$testLogStorageAccountKey = $XmlSecrets.secrets.testLogsStorageAccountKey
-							$ticks= (Get-Date).Ticks
-							$uploadFileName = ".\temp\$($currentTestData.testName)-$ticks.zip"
-							$out = ZipFiles -zipfilename $uploadFileName -sourcedir $LogDir
-							$uploadLink = .\Extras\UploadFilesToStorageAccount.ps1 -filePaths $uploadFileName -destinationStorageAccount $testLogStorageAccount -destinationContainer "logs" -destinationFolder "$testLogFolder" -destinationStorageKey $testLogStorageAccountKey
-							$utctime = (Get-Date).ToUniversalTime()
-							$dbDateTimeUTC = "$($utctime.Year)-$($utctime.Month)-$($utctime.Day) $($utctime.Hour):$($utctime.Minute):$($utctime.Second)"
-							$dataSource = $XmlSecrets.secrets.DatabaseServer
-							$dbuser = $XmlSecrets.secrets.DatabaseUser
-							$dbpassword = $XmlSecrets.secrets.DatabasePassword
-							$database = $XmlSecrets.secrets.DatabaseName
-							$dataTableName = "AzureTestResultsMasterTable"
-							$dbTestName = $($currentTestData.testName)
-							$SQLQuery = "INSERT INTO $dataTableName (DateTimeUTC,Environment,TestCycle,ExecutionID,TestName,TestResult,ARMImage,OsVHD,KernelVersion,LISVersion,GuestDistro,AzureHost,Location,OverrideVMSize,Networking,LogFile,BuildURL) VALUES "
-							if ($testSummary)
-							{
-								$SQLQuery += "('$dbDateTimeUTC','$dbEnvironment','$dbTestCycle','$dbExecutionID','$dbTestName','$($testResult)','$dbARMImage','$BaseOsVHD','$finalKernelVersion','$finalLISVersion','$GuestDistro','$HostVersion','$dbLocation','$dbOverrideVMSize','$dbNetworking','$uploadLink', '$env:BUILD_URL`consoleFull'),"
-								foreach ($tempResult in $testSummary.Split('>'))
-								{
-									if ($tempResult)
-									{
-										$tempResult = $tempResult.Trim().Replace("<br /","").Trim()
-										$subTestResult = $tempResult.Split(":")[$tempResult.Split(":").Count -1 ].Trim()
-										$subTestName = $tempResult.Replace("$subTestResult","").Trim().TrimEnd(":").Trim()
-										$SQLQuery += "('$dbDateTimeUTC','$dbEnvironment','$dbTestCycle','$dbExecutionID','SubTest-$subTestName','$subTestResult','$dbARMImage','$BaseOsVHD','$finalKernelVersion','$finalLISVersion','$GuestDistro','$HostVersion','$dbLocation','$dbOverrideVMSize','$dbNetworking', '$uploadLink', '$env:BUILD_URL`consoleFull'),"
-									}
-								}
-							}
-							else
-							{
-								$dbTestResult = $testResult
-								$SQLQuery += "('$dbDateTimeUTC','$dbEnvironment','$dbTestCycle','$dbExecutionID','$dbTestName','$dbTestResult','$dbARMImage','$BaseOsVHD','$finalKernelVersion','$finalLISVersion','$GuestDistro','$HostVersion','$dbLocation','$dbOverrideVMSize','$dbNetworking', '$uploadLink', '$env:BUILD_URL`consoleFull')"
-							}
-							$SQLQuery = $SQLQuery.TrimEnd(',')
-							$connectionString = "Server=$dataSource;uid=$dbuser; pwd=$dbpassword;Database=$database;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
-							$connection = New-Object System.Data.SqlClient.SqlConnection
-							$connection.ConnectionString = $connectionString
-							$connection.Open()
-							$command = $connection.CreateCommand()
-							$command.CommandText = $SQLQuery
-							$result = $command.executenonquery()
-							$connection.Close()
-							LogMsg "Uploading test results to database :  done!!"
-						}
-						catch
-						{
-							LogErr "Uploading test results to database :  ERROR"
-							LogMsg $SQLQuery
-						}
-					}
 					LogMsg "CURRENT - PASS    - $($testSuiteResultDetails.totalPassTc)"
 					LogMsg "CURRENT - FAIL    - $($testSuiteResultDetails.totalFailTc)"
 					LogMsg "CURRENT - ABORTED - $($testSuiteResultDetails.totalAbortedTc)"

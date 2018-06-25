@@ -11,7 +11,7 @@ Function DeployHyperVGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFailed =
             $setupTypeData = $xmlConfig.config.$TestPlatform.Deployment.$setupType
             #DEBUGRG
             #$isAllDeployed = CreateAllHyperVGroupDeployments -setupType $setupType -xmlConfig $xmlConfig -Distro $Distro -region $region -storageAccount $storageAccount -DebugRG "ICA-RG-M1S1-SSTEST-GZBX-636621761998"
-            $isAllDeployed = CreateAllHyperVGroupDeployments -setupType $setupType -xmlConfig $xmlConfig -Distro $Distro -HyperVHost "localhost"
+            $isAllDeployed = CreateAllHyperVGroupDeployments -setupType $setupType -xmlConfig $xmlConfig -Distro $Distro
             $isAllVerified = "False"
             $isAllConnected = "False"
             #$isAllDeployed = @("True","ICA-RG-IEndpointSingleHS-U1510-8-10-12-34-9","30")
@@ -236,11 +236,11 @@ Function DeleteHyperVGroup([string]$HyperVGroupName)
                     }
                     foreach ($CleanupVM in $CleanupVMList)
                     {
+                        LogMsg "Stop-VM -Name $($CleanupVM.Name)-Force -TurnOff "
                         $CleanupVM | Stop-VM -Force  -TurnOff
                         $VM = Get-VM -Id $CleanupVM.Id
                         foreach ($VHD in $CleanupVM.HardDrives)
                         {
-                            
                             Remove-Item -Force -Path $VHD.Path 
                             LogMsg "$($VHD.Path) Removed!"
                         }
@@ -346,6 +346,7 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML)
                 {
                     $CurrentVMSize = $VirtualMachine.ARMInstanceSize
                 }
+                Set-Variable -Name HyperVInstanceSize -Value $CurrentVMSize -Scope Global
                 $CurrentVMCpu = $HyperVMappedSizes.HyperV.$CurrentVMSize.NumberOfCores
                 $CurrentVMMemory = $HyperVMappedSizes.HyperV.$CurrentVMSize.MemoryInMB
                 $CurrentVMMemory = [int]$CurrentVMMemory * 1024 * 1024
@@ -353,7 +354,9 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML)
                 $NewVM = New-VM -Name $CurrentVMName -MemoryStartupBytes $CurrentVMMemory -BootDevice VHD -VHDPath $CurrentVMOsVHDPath -Path .\Temp\VMData -Generation 1 -Switch $($VMSwitches.Name) -ComputerName $HyperVHost
                 if ($?)
                 {
+                    LogMsg "Set-VM -VM $($NewVM.Name) -ProcessorCount $CurrentVMCpu -StaticMemory -CheckpointType Disabled -Notes $HyperVGroupName"
                     $Out = Set-VM -VM $NewVM -ProcessorCount $CurrentVMCpu -StaticMemory  -CheckpointType Disabled -Notes "$HyperVGroupName"
+                    LogMsg "Add-VMGroupMember -Name $HyperVGroupName -VM $($NewVM.Name)"
                     $Out = Add-VMGroupMember -Name "$HyperVGroupName" -VM $NewVM
                 }
                 else 

@@ -1722,7 +1722,7 @@ Function RunLinuxCmd([string] $username,[string] $password,[string] $ip,[string]
 			if ($LinuxExitCode -imatch "AZURE-LINUX-EXIT-CODE-0") 
 			{
 				$returnCode = 0
-				LogMsg "$command executed successfully in $RunElaplsedTime seconds." -WriteHostOnly $WriteHostOnly -NoLogsPlease $NoLogsPlease
+				LogMsg "$command executed successfully in $([math]::Round($RunElaplsedTime,2)) seconds." -WriteHostOnly $WriteHostOnly -NoLogsPlease $NoLogsPlease
 				$retValue = $RunLinuxCmdOutput.Trim()
 			}
 			else
@@ -1778,40 +1778,59 @@ Function RunLinuxCmd([string] $username,[string] $password,[string] $ip,[string]
 #endregion
 
 #region Test Case Logging
-Function DoTestCleanUp($result, $testName, $DeployedServices, $ResourceGroups, [switch]$keepUserDirectory, [switch]$SkipVerifyKernelLogs)
+Function DoTestCleanUp($CurrentTestResult, $testName, $DeployedServices, $ResourceGroups, [switch]$keepUserDirectory, [switch]$SkipVerifyKernelLogs)
 {
 	try
 	{
-		if($DeployedServices -or $ResourceGroups)
+		$result = $CurrentTestResult.TestResult
+		
+		if($ResourceGroups)
 		{
 			try
 			{
-				if (!$SkipVerifyKernelLogs)
+				if ($allVMData.Count -gt 1)
 				{
-					foreach ($vmData in $allVMData)
-					{
-						$FilesToDownload = "$($vmData.RoleName)-*.txt"
-						$out = RemoteCopy -upload -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files .\Testscripts\Linux\CollectLogFile.sh -username $user -password $password
-						$out = RunLinuxCmd -username $user -password $password -ip $vmData.PublicIP -port $vmData.SSHPort -command "bash CollectLogFile.sh" -ignoreLinuxExitCode
-						$out = RemoteCopy -downloadFrom $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -files "$FilesToDownload" -downloadTo "$LogDir" -download
-						$finalKernelVersion = Get-Content "$LogDir\$($vmData.RoleName)-kernelVersion.txt"
-						$tempLIS = (Select-String -Path "$LogDir\$($vmData.RoleName)-lis.txt" -Pattern "^version:").Line
-						Set-Variable -Name finalKernelVersion -Value $finalKernelVersion -Scope Global
-						#region LIS Version
-						
-						if ($tempLIS)
-						{
-							$finalLISVersion = $tempLIS.Split(":").Trim()[1]
-						}
-						else
-						{
-							$finalLISVersion = "NA"
-						}
-						Set-Variable -Name finalLISVersion -Value $finalLISVersion -Scope Global
-						Write-Host "Setting : finalLISVersion : $finalLISVersion"
-						#endregion
-					}
+					$vmData = $allVMData[0]
 				}
+				else 
+				{
+					$vmData = $allVMData	
+				}
+				$TestName = $CurrentTestData.TestName
+				$FilesToDownload = "$($vmData.RoleName)-*.txt"
+				$out = RemoteCopy -upload -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files .\Testscripts\Linux\CollectLogFile.sh -username $user -password $password
+				$out = RunLinuxCmd -username $user -password $password -ip $vmData.PublicIP -port $vmData.SSHPort -command "bash CollectLogFile.sh" -ignoreLinuxExitCode
+				$out = RemoteCopy -downloadFrom $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -files "$FilesToDownload" -downloadTo "$LogDir" -download
+				$KernelVersion = Get-Content "$LogDir\$($vmData.RoleName)-kernelVersion.txt"
+				$GuestDistro = Get-Content "$LogDir\$($vmData.RoleName)-distroVersion.txt"
+				$LISMatch = (Select-String -Path "$LogDir\$($vmData.RoleName)-lis.txt" -Pattern "^version:").Line
+				if ($LISMatch)
+				{
+					$LISVersion = $LISMatch.Split(":").Trim()[1]
+				}
+				else
+				{
+					$LISVersion = "NA"
+				}
+				$HostVersion = (Select-String -Path "$LogDir\$($vmData.RoleName)-dmesg.txt" -Pattern "Host Build").Line.Split(":")[1]
+				if($EnableAcceleratedNetworking -or ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV"))
+				{
+					$Networking = "SRIOV"
+				}
+				else
+				{
+					$Networking = "Synthetic"    
+				}
+				if ($TestPlatform -eq "Azure")
+				{
+					$VMSize = $vmData.InstanceSize
+				}				
+				if ( $TestPlatform -eq "HyperV")
+				{
+					$VMSize = $HyperVInstanceSize
+				}
+				#endregion
+				UploadTestResultToDatabase -TestPlatform $TestPlatform -TestLocation $TestLocation -TestCategory $TestCategory -TestArea $TestArea -TestName $CurrentTestData.TestName -CurrentTestResult $CurrentTestResult -TestTag $TestTag -GuestDistro $GuestDistro -KernelVersion $KernelVersion -LISVersion $LISVersion -HostVersion $HostVersion -VMSize $VMSize -Networking $Networking -ARMImage $ARMImage -OsVHD $OsVHD -BuildURL $env:BUILD_URL
 			}
 			catch
 			{
