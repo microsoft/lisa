@@ -47,7 +47,7 @@ if ($isDeployed)
 
 		#endregion
 
-		if($EnableAcceleratedNetworking)
+		if($EnableAcceleratedNetworking -or ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV"))
 		{
 			$DataPath = "SRIOV"
             LogMsg "Getting SRIOV NIC Name."
