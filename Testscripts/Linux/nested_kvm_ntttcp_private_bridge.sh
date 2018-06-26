@@ -53,8 +53,6 @@ ClientImage="nestedclient.qcow2"
 ServerImage="nestedserver.qcow2"
 ClientHostFwdPort=60022
 ServerHostFwdPort=60023
-ClientMacAddr="52:54:00:$(dd if=/dev/urandom bs=512 count=1 2>/dev/null | md5sum | sed 's/^\(..\)\(..\)\(..\).*$/\1:\2:\3/')"
-ServerMacAddr="52:54:00:$(dd if=/dev/urandom bs=512 count=1 2>/dev/null | md5sum | sed 's/^\(..\)\(..\)\(..\).*$/\1:\2:\3/')"
 BrName="br0"
 BrAddr="192.168.1.10"
 ClientIpAddr="192.168.1.11"
@@ -171,7 +169,7 @@ SetupTap()
 {
     tap_name=$1
     LogMsg "Setup tap $tap_name"
-    ip tuntap add $tap_name mode tap user `whoami`
+    ip tuntap add $tap_name mode tap user `whoami` multi_queue
     ip link set $tap_name up
     ip link set $tap_name master br0
     check_exit_status "Setup tap $tap_name"
@@ -182,14 +180,17 @@ StartNestedVM()
     image_name=$1
     tap_name=$2
     host_fwd_port=$3
-    mac_addr=$4
-    ip_addr=$5
+    ip_addr=$4
+    mac_addr1="52:54:00:a1:$(dd if=/dev/urandom bs=512 count=1 2>/dev/null | md5sum | sed 's/^\(..\)\(..\).*$/\1:\2/')"
+    mac_addr2="52:54:00:a2:$(dd if=/dev/urandom bs=512 count=1 2>/dev/null | md5sum | sed 's/^\(..\)\(..\).*$/\1:\2/')"
     LogMsg "Start the nested VM: $image_name"
-    qemu-system-x86_64 -smp $NestedCpuNum -m $NestedMemMB -hda $image_name -device $NestedNetDevice,netdev=user.0 -netdev user,id=user.0,hostfwd=tcp::$host_fwd_port-:22 \
-        -device $NestedNetDevice,netdev=user.1,mac=$mac_addr -netdev tap,id=user.1,ifname=$tap_name,script=no -display none -enable-kvm &
+    LogMsg "qemu-system-x86_64 -cpu host -smp $NestedCpuNum -m $NestedMemMB -hda $image_name -device $NestedNetDevice,netdev=net0,mac=$mac_addr1 -netdev user,id=net0,hostfwd=tcp::$host_fwd_port-:22 \
+        -device $NestedNetDevice,netdev=net1,mac=$mac_addr2,mq=on,vectors=10 -netdev tap,id=net1,ifname=$tap_name,script=no,vhost=on,queues=4 -display none -enable-kvm &"
+    qemu-system-x86_64 -cpu host -smp $NestedCpuNum -m $NestedMemMB -hda $image_name -device $NestedNetDevice,netdev=net0,mac=$mac_addr1 -netdev user,id=net0,hostfwd=tcp::$host_fwd_port-:22 \
+        -device $NestedNetDevice,netdev=net1,mac=$mac_addr2,mq=on,vectors=10 -netdev tap,id=net1,ifname=$tap_name,script=no,vhost=on,queues=4 -display none -enable-kvm &
     LogMsg "Wait for the nested VM to boot up ..."
     sleep 10
-    retry_times=15
+    retry_times=20
     exit_status=1
     while [ $exit_status -ne 0 ] && [ $retry_times -gt 0 ];
     do
@@ -227,7 +228,7 @@ StartNestedVM()
 PrepareClient()
 {
     SetupTap $ClientTap
-    StartNestedVM $ClientImage $ClientTap $ClientHostFwdPort $ClientMacAddr $ClientIpAddr
+    StartNestedVM $ClientImage $ClientTap $ClientHostFwdPort $ClientIpAddr
     remote_exec -host localhost -user root -passwd $NestedUserPassword -port $ClientHostFwdPort "rm -rf /root/sshFix"
     remote_exec -host localhost -user root -passwd $NestedUserPassword -port $ClientHostFwdPort "/root/enablePasswordLessRoot.sh"
     remote_copy -host localhost -user root -passwd $NestedUserPassword -port $ClientHostFwdPort -filename sshFix.tar -remote_path "/root/" -cmd get
@@ -243,7 +244,7 @@ PrepareClient()
 PrepareServer()
 {
     SetupTap $ServerTap
-    StartNestedVM $ServerImage $ServerTap $ServerHostFwdPort $ServerMacAddr $ServerIpAddr
+    StartNestedVM $ServerImage $ServerTap $ServerHostFwdPort $ServerIpAddr
     remote_copy -host localhost -user root -passwd $NestedUserPassword -port $ServerHostFwdPort -filename ./sshFix.tar -remote_path "/root/" -cmd put
     remote_exec -host localhost -user root -passwd $NestedUserPassword -port $ServerHostFwdPort "/root/enablePasswordLessRoot.sh"
     remote_exec -host localhost -user root -passwd $NestedUserPassword -port $ServerHostFwdPort 'md5sum /root/.ssh/id_rsa > /root/servermd5sum.log'
@@ -275,14 +276,19 @@ RunNtttcpOnClient()
 CollectLogs()
 {
     LogMsg "Finished running perf_ntttcp.sh, start to collect logs"
-    remote_exec -host localhost -user root -passwd $NestedUserPassword -port $ClientHostFwdPort 'tar -cf ./ntttcp-test-logs.tar ./ntttcp-test-logs'
+    remote_exec -host localhost -user root -passwd $NestedUserPassword -port $ClientHostFwdPort 'mv ./ntttcp-test-logs ./ntttcp-test-logs-sender'
+    remote_exec -host localhost -user root -passwd $NestedUserPassword -port $ClientHostFwdPort 'tar -cf ./ntttcp-test-logs-sender.tar ./ntttcp-test-logs-sender'
     remote_copy -host localhost -user root -passwd $NestedUserPassword -port $ClientHostFwdPort -filename ./azuremodules.sh -remote_path "/root/" -cmd put
     remote_exec -host localhost -user root -passwd $NestedUserPassword -port $ClientHostFwdPort '. ./azuremodules.sh  && collect_VM_properties nested_properties.csv'
-    remote_copy -host localhost -user root -passwd $NestedUserPassword -port $ClientHostFwdPort -filename ntttcp-test-logs.tar -remote_path "/root/" -cmd get
+    remote_copy -host localhost -user root -passwd $NestedUserPassword -port $ClientHostFwdPort -filename ntttcp-test-logs-sender.tar -remote_path "/root/" -cmd get
     remote_copy -host localhost -user root -passwd $NestedUserPassword -port $ClientHostFwdPort -filename ntttcpConsoleLogs -remote_path "/root/" -cmd get
     remote_copy -host localhost -user root -passwd $NestedUserPassword -port $ClientHostFwdPort -filename ntttcpTest.log -remote_path "/root/" -cmd get
     remote_copy -host localhost -user root -passwd $NestedUserPassword -port $ClientHostFwdPort -filename nested_properties.csv -remote_path "/root/" -cmd get
-    tar -xf ./ntttcp-test-logs.tar 
+    remote_copy -host localhost -user root -passwd $NestedUserPassword -port $ClientHostFwdPort -filename report.log -remote_path "/root/" -cmd get
+
+    remote_exec -host localhost -user root -passwd $NestedUserPassword -port $ServerHostFwdPort 'mv ./ntttcp-test-logs ./ntttcp-test-logs-receiver'
+    remote_exec -host localhost -user root -passwd $NestedUserPassword -port $ServerHostFwdPort 'tar -cf ./ntttcp-test-logs-receiver.tar ./ntttcp-test-logs-receiver'
+    remote_copy -host localhost -user root -passwd $NestedUserPassword -port $ServerHostFwdPort -filename ntttcp-test-logs-receiver.tar -remote_path "/root/" -cmd get
 }
 
 StopNestedVMs()

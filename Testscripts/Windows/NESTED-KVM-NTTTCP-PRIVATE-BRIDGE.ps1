@@ -37,132 +37,140 @@ if ($isDeployed)
         }
 
 		RemoteCopy -download -downloadFrom $hs1VIP -files "/home/$user/state.txt, /home/$user/$($currentTestData.testScript).log, /home/$user/TestExecutionConsole.log" -downloadTo $LogDir -port $hs1vm1sshport -username $user -password $password
-		RemoteCopy -download -downloadFrom $hs1VIP -files "/home/$user/ntttcpConsoleLogs, /home/$user/ntttcpTest.log" -downloadTo $LogDir -port $hs1vm1sshport -username $user -password $password
-		RemoteCopy -download -downloadFrom $hs1VIP -files "/home/$user/nested_properties.csv" -downloadTo $LogDir -port $hs1vm1sshport -username $user -password $password
-		RemoteCopy -download -downloadFrom $hs1VIP -files "/home/$user/ntttcp-test-logs/*" -downloadTo $LogDir -port $hs1vm1sshport -username $user -password $password
-
-		RunLinuxCmd -username $user -password $password -ip $hs1VIP -port $hs1vm1sshport -command ". azuremodules.sh && collect_VM_properties" -runAsSudo
-		RemoteCopy -download -downloadFrom $hs1VIP -files "/home/$user/VM_properties.csv" -downloadTo $LogDir -port $hs1vm1sshport -username $user -password $password
-
 		$finalStatus = Get-Content $LogDir\state.txt
-	
-		$testSummary = $null
-		$ntttcpReportLog = Get-Content -Path "$LogDir\report.log"
-		foreach ( $line in $ntttcpReportLog )
-		{
-            if ( $line -imatch "test_connections" )
-            {
-                continue;
-            }
-            try
-            {
-				$uploadResults = $true
-                $test_connections = $line.Trim().Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Split(" ")[0]
-                $throughput_gbps = $line.Trim().Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Split(" ")[1]
-				$cycle_per_byte = $line.Trim().Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Split(" ")[2]
-                $average_tcp_latency = $line.Trim().Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Split(" ")[3]
-                $metadata = "Connections=$test_connections"
-                $connResult = "throughput=$throughput_gbps`Gbps cyclePerBytet=$cycle_per_byte Avg_TCP_lat=$average_tcp_latency"
-                $resultSummary +=  CreateResultSummary -testResult $connResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
-				if ([string]$throughput_gbps -imatch "0.00")
-				{
-					$uploadResults = $false
-					$testResult = "FAIL"
-				}
-            }
-            catch
-            {
-                $resultSummary +=  CreateResultSummary -testResult "Error in parsing logs." -metaData "NTTTCP" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
-            }
-		}
-		#endregion
-
-		if ( $finalStatus -imatch "TestFailed")
+		if ($finalStatus -imatch "TestFailed")
 		{
 			LogErr "Test failed. Last known status : $currentStatus."
 			$testResult = "FAIL"
 		}
-		elseif ( $finalStatus -imatch "TestAborted")
+		elseif ($finalStatus -imatch "TestAborted")
 		{
 			LogErr "Test Aborted. Last known status : $currentStatus."
 			$testResult = "ABORTED"
 		}
-		elseif ( ($finalStatus -imatch "TestCompleted") -and $uploadResults )
+		elseif ($finalStatus -imatch "TestCompleted")
 		{
 			$testResult = "PASS"
 		}
-		elseif ( $finalStatus -imatch "TestRunning")
+		elseif ($finalStatus -imatch "TestRunning")
 		{
 			LogMsg "Powershell backgroud job for test is completed but VM is reporting that test is still running. Please check $LogDir\zkConsoleLogs.txt"
 			LogMsg "Contests of summary.log : $testSummary"
-			$testResult = "PASS"
+			$testResult = "ABORTED"
 		}
-		
-		LogMsg "Test Completed"
-		LogMsg $resultSummary
 
-		LogMsg "Uploading the test results.."
-		$dataSource = $xmlConfig.config.Azure.database.server
-		$user = $xmlConfig.config.Azure.database.user
-		$password = $xmlConfig.config.Azure.database.password
-		$database = $xmlConfig.config.Azure.database.dbname
-		$dataTableName = $xmlConfig.config.Azure.database.dbtable
-		$TestCaseName = $xmlConfig.config.Azure.database.testTag
-		if ($dataSource -And $user -And $password -And $database -And $dataTableName) 
+		RunLinuxCmd -username $user -password $password -ip $hs1VIP -port $hs1vm1sshport -command ". azuremodules.sh && collect_VM_properties" -runAsSudo
+		RemoteCopy -download -downloadFrom $hs1VIP -files "/home/$user/VM_properties.csv" -downloadTo $LogDir -port $hs1vm1sshport -username $user -password $password
+
+		if ($testResult -imatch "PASS")
 		{
-			# Get host info
-			if ( $UseAzureResourceManager )
+			RemoteCopy -download -downloadFrom $hs1VIP -files "/home/$user/ntttcpConsoleLogs, /home/$user/ntttcpTest.log" -downloadTo $LogDir -port $hs1vm1sshport -username $user -password $password
+			RemoteCopy -download -downloadFrom $hs1VIP -files "/home/$user/nested_properties.csv, /home/$user/report.log" -downloadTo $LogDir -port $hs1vm1sshport -username $user -password $password
+			RemoteCopy -download -downloadFrom $hs1VIP -files "/home/$user/ntttcp-test-logs-receiver.tar, /home/$user/ntttcp-test-logs-sender.tar" -downloadTo $LogDir -port $hs1vm1sshport -username $user -password $password
+
+			$testSummary = $null
+			$ntttcpReportLog = Get-Content -Path "$LogDir\report.log"
+			if (!$ntttcpReportLog)
 			{
-				$HostType	= "Azure-ARM"
+				$testResult = "FAIL"
+				throw "Invalid NTTTCP report file"
 			}
-			else
+			$uploadResults = $true
+			foreach ( $line in $ntttcpReportLog )
 			{
-				$HostType	= "Azure"
-			}
-			$HostBy	= ($xmlConfig.config.Azure.General.Location).Replace('"','')
-			$HostOS	= cat "$LogDir\VM_properties.csv" | Select-String "Host Version"| %{$_ -replace ",Host Version,",""}
-
-			# Get L1 guest info
-			$L1GuestDistro	= cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
-			$L1GuestOSType	= "Linux"
-			$L1GuestSize = $AllVMData.InstanceSize
-			$L1GuestKernelVersion	= cat "$LogDir\VM_properties.csv" | Select-String "Kernel version"| %{$_ -replace ",Kernel version,",""}
-
-			# Get L2 guest info
-			$L2GuestDistro	= cat "$LogDir\nested_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
-			$L2GuestKernelVersion	= cat "$LogDir\nested_properties.csv" | Select-String "Kernel version"| %{$_ -replace ",Kernel version,",""}
-
-			foreach ( $param in $currentTestData.TestParameters.param)
-			{
-				if ($param -match "NestedCpuNum")
+				if ( $line -imatch "test_connections" )
 				{
-					$L2GuestCpuNum = [int]($param.split("=")[1])
+					continue;
 				}
-				if ($param -match "NestedMemMB")
+				try
 				{
-					$L2GuestMemMB = [int]($param.split("=")[1])
+					$test_connections = $line.Trim().Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Split(" ")[0]
+					$throughput_gbps = $line.Trim().Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Split(" ")[1]
+					$cycle_per_byte = $line.Trim().Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Split(" ")[2]
+					$average_tcp_latency = $line.Trim().Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Split(" ")[3]
+					$metadata = "Connections=$test_connections"
+					$connResult = "throughput=$throughput_gbps`Gbps cyclePerBytet=$cycle_per_byte Avg_TCP_lat=$average_tcp_latency"
+					$resultSummary +=  CreateResultSummary -testResult $connResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+					if ([string]$throughput_gbps -imatch "0.00")
+					{
+						$testResult = "FAIL"
+						$uploadResults = $false
+					}
 				}
-				if ($param -match "NestedNetDevice")
+				catch
 				{
-					$KvmNetDevice = $param.split("=")[1]
+					$resultSummary +=  CreateResultSummary -testResult "Error in parsing logs." -metaData "NTTTCP" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 				}
 			}
+			#endregion
 
-			$IPVersion = "IPv4"
-			$ProtocolType = "TCP"
-			$connectionString = "Server=$dataSource;uid=$user; pwd=$password;Database=$database;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
-			$LogContents = Get-Content -Path "$LogDir\report.log"
-			$SQLQuery = "INSERT INTO $dataTableName (TestCaseName,TestDate,HostType,HostBy,HostOS,L1GuestOSType,L1GuestDistro,L1GuestSize,L1GuestKernelVersion,L2GuestDistro,L2GuestKernelVersion,L2GuestMemMB,L2GuestCpuNum,KvmNetDevice,IPVersion,ProtocolType,NumberOfConnections,Throughput_Gbps,Latency_ms) VALUES "
-
-			for($i = 1; $i -lt $LogContents.Count; $i++)
+			LogMsg $resultSummary
+			if (!$uploadResults)
 			{
-				$Line = $LogContents[$i].Trim() -split '\s+'
-				$SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$HostType','$HostBy','$HostOS','$L1GuestOSType','$L1GuestDistro','$L1GuestSize','$L1GuestKernelVersion','$L2GuestDistro','$L2GuestKernelVersion','$L2GuestMemMB','$L2GuestCpuNum','$KvmNetDevice','$IPVersion','$ProtocolType',$($Line[0]),$($Line[1]),$($Line[2])),"
+				throw "Zero throughput for some connections, results will no be uploaded to database!"
 			}
-			$SQLQuery = $SQLQuery.TrimEnd(',')
-			LogMsg $SQLQuery
-			if ($uploadResults)
+
+			LogMsg "Uploading the test results.."
+			$dataSource = $xmlConfig.config.Azure.database.server
+			$user = $xmlConfig.config.Azure.database.user
+			$password = $xmlConfig.config.Azure.database.password
+			$database = $xmlConfig.config.Azure.database.dbname
+			$dataTableName = $xmlConfig.config.Azure.database.dbtable
+			$TestCaseName = $xmlConfig.config.Azure.database.testTag
+			if ($dataSource -And $user -And $password -And $database -And $dataTableName)
 			{
+				# Get host info
+				if ( $UseAzureResourceManager )
+				{
+					$HostType	= "Azure-ARM"
+				}
+				else
+				{
+					$HostType	= "Azure"
+				}
+				$HostBy	= ($xmlConfig.config.Azure.General.Location).Replace('"','')
+				$HostOS	= cat "$LogDir\VM_properties.csv" | Select-String "Host Version"| %{$_ -replace ",Host Version,",""}
+
+				# Get L1 guest info
+				$L1GuestDistro	= cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
+				$L1GuestOSType	= "Linux"
+				$L1GuestSize = $AllVMData.InstanceSize
+				$L1GuestKernelVersion	= cat "$LogDir\VM_properties.csv" | Select-String "Kernel version"| %{$_ -replace ",Kernel version,",""}
+
+				# Get L2 guest info
+				$L2GuestDistro	= cat "$LogDir\nested_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
+				$L2GuestKernelVersion	= cat "$LogDir\nested_properties.csv" | Select-String "Kernel version"| %{$_ -replace ",Kernel version,",""}
+
+				foreach ( $param in $currentTestData.TestParameters.param)
+				{
+					if ($param -match "NestedCpuNum")
+					{
+						$L2GuestCpuNum = [int]($param.split("=")[1])
+					}
+					if ($param -match "NestedMemMB")
+					{
+						$L2GuestMemMB = [int]($param.split("=")[1])
+					}
+					if ($param -match "NestedNetDevice")
+					{
+						$KvmNetDevice = $param.split("=")[1]
+					}
+				}
+
+				$IPVersion = "IPv4"
+				$ProtocolType = "TCP"
+				$connectionString = "Server=$dataSource;uid=$user; pwd=$password;Database=$database;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
+				$LogContents = Get-Content -Path "$LogDir\report.log"
+				$SQLQuery = "INSERT INTO $dataTableName (TestCaseName,TestDate,HostType,HostBy,HostOS,L1GuestOSType,L1GuestDistro,L1GuestSize,L1GuestKernelVersion,L2GuestDistro,L2GuestKernelVersion,L2GuestMemMB,L2GuestCpuNum,KvmNetDevice,IPVersion,ProtocolType,NumberOfConnections,Throughput_Gbps,Latency_ms) VALUES "
+
+				for($i = 1; $i -lt $LogContents.Count; $i++)
+				{
+					$Line = $LogContents[$i].Trim() -split '\s+'
+					$SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$HostType','$HostBy','$HostOS','$L1GuestOSType','$L1GuestDistro','$L1GuestSize','$L1GuestKernelVersion','$L2GuestDistro','$L2GuestKernelVersion','$L2GuestMemMB','$L2GuestCpuNum','$KvmNetDevice','$IPVersion','$ProtocolType',$($Line[0]),$($Line[1]),$($Line[2])),"
+				}
+				$SQLQuery = $SQLQuery.TrimEnd(',')
+				LogMsg $SQLQuery
+
 				$connection = New-Object System.Data.SqlClient.SqlConnection
 				$connection.ConnectionString = $connectionString
 				$connection.Open()
@@ -173,17 +181,11 @@ if ($isDeployed)
 				$connection.Close()
 				LogMsg "Uploading the test results done!!"
 			}
-			else 
+			else
 			{
-				LogErr "Uploading the test results cancelled due to zero throughput for some connections!!"
-				$testResult = "FAIL"
+				LogMsg "Database details are not provided. Results will not be uploaded to database!"
 			}
 		}
-		else
-		{
-			LogMsg "Invalid database details. Failed to upload result to database!"
-		}
-		LogMsg "Test result : $testResult"
 	}
 	catch
 	{
@@ -198,9 +200,9 @@ if ($isDeployed)
 			$testResult = "Aborted"
 		}
 		$resultArr += $testResult
+		LogMsg "Test result : $testResult"
 	}   
 }
-
 else
 {
 	$testResult = "Aborted"
@@ -213,4 +215,4 @@ $result = GetFinalResultHeader -resultarr $resultArr
 DoTestCleanUp -result $result -testName $currentTestData.testName -deployedServices $isDeployed -ResourceGroups $isDeployed
 
 #Return the result and summery to the test suite script..
-return $result, $resultSummary
+return $result
