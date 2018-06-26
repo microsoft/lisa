@@ -107,7 +107,7 @@ if ($isDeployed)
 			LogMsg $resultSummary
 			if (!$uploadResults)
 			{
-				throw "Zero throughput for some connections, results will no be uploaded to database!"
+				throw "Zero throughput for some connections, results will not be uploaded to database!"
 			}
 
 			LogMsg "Uploading the test results.."
@@ -120,14 +120,7 @@ if ($isDeployed)
 			if ($dataSource -And $user -And $password -And $database -And $dataTableName)
 			{
 				# Get host info
-				if ( $UseAzureResourceManager )
-				{
-					$HostType	= "Azure-ARM"
-				}
-				else
-				{
-					$HostType	= "Azure"
-				}
+				$HostType	= "Azure"
 				$HostBy	= ($xmlConfig.config.Azure.General.Location).Replace('"','')
 				$HostOS	= cat "$LogDir\VM_properties.csv" | Select-String "Host Version"| %{$_ -replace ",Host Version,",""}
 
