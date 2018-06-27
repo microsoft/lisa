@@ -28,7 +28,7 @@ Param(
     [switch] $Verbose,
     [string] $CustomKernel = "",
     [string] $OverrideVMSize = "",
-    [string] $CustomLIS,
+    [string] $CustomLIS="",
     [string] $CoreCountExceededTimeout,
     [int] $TestIterations,
     [string] $TiPSessionId,
