@@ -38,7 +38,7 @@ if ( $TestByTag )
     }
 }
 
-$UniqueTestRegions = $TestRegions | Get-Unique
+$UniqueTestRegions = $TestRegions | Sort-Object |  Get-Unique
 LogMsg "Selected test regions:"
 $i = 1
 $CurrentTestRegions = ""
