@@ -79,6 +79,7 @@ function checkCmdExitStatus ()
 runTestPmd()
 {
 	UpdateTestState ICA_TESTRUNNING
+	mv $LOGDIR $LOGDIR-$(date +"%m%d%Y-%H%M%S")
 	mkdir -p $LOGDIR
 	ssh ${server} "mkdir -p $LOGDIR"
 	dpdkSrcDir=`ls | grep dpdk-`
@@ -89,19 +90,20 @@ runTestPmd()
 		LogMsg "Configure huge pages on ${server}"
 		LogMsg "TestPmd is starting on ${serverNIC1ip} with ${testmode} mode, duration ${testDuration} secs"
 		vdevOption="'net_vdev_netvsc0,iface=$interfaceName,force=1'"
-		ssh ${server} "echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages &&  mount -a && modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib;cd $HOMEDIR/$dpdkSrcDir/x86_64-native-linuxapp-gcc/app && timeout 10 ./testpmd -l 1-3 -n 2 -w 0002:00:02.0 --vdev='net_vdev_netvsc1,iface=eth1,force=1' -- --port-topology=chained --nb-cores 1 --forward-mode=${testmode}  --stats-period 1" 2>&1 > $HOMEDIR/dpdkVersion.txt 
-		sleep 30
+		ssh ${server} "echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages &&  mount -a && modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib;cd $HOMEDIR/$dpdkSrcDir/x86_64-native-linuxapp-gcc/app && timeout 10 ./testpmd -l 1-3 -n 2 -w 0002:00:02.0 --vdev='net_vdev_netvsc0,iface=eth1,force=1' -- --port-topology=chained --nb-cores 1 --forward-mode=${testmode}  --stats-period 1" 2>&1 > $HOMEDIR/dpdkVersion.txt 
+		ssh ${server} "pkill testpmd"
+		sleep 60
 		ssh ${server} "echo 0 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages"
-		serverTestPmdCmd="echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages &&  mount -a && modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib;cd $HOMEDIR/$dpdkSrcDir/x86_64-native-linuxapp-gcc/app && timeout ${testDuration} ./testpmd -l 1-3 -n 2 -w 0002:00:02.0 --vdev='net_vdev_netvsc1,iface=eth1,force=1' -- --port-topology=chained --nb-cores 1 --forward-mode=${testmode}  --stats-period 1"
+		serverTestPmdCmd="echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages &&  mount -a && modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib;cd $HOMEDIR/$dpdkSrcDir/x86_64-native-linuxapp-gcc/app && timeout ${testDuration} ./testpmd -l 1-3 -n 2 -w 0002:00:02.0 --vdev='net_vdev_netvsc0,iface=eth1,force=1' -- --port-topology=chained --nb-cores 1 --forward-mode=${testmode}  --stats-period 1"
 		echo $serverTestPmdCmd
-		ssh ${server} $serverTestPmdCmd 2>&1 > $LOGDIR/dpdk-testpmd-${testmode}-receiver.log &
+		ssh ${server} $serverTestPmdCmd 2>&1 > $LOGDIR/dpdk-testpmd-${testmode}-receiver-$(date +"%m%d%Y-%H%M%S").log &
 		checkCmdExitStatus "TestPmd started on ${serverNIC1ip} with ${testmode} mode, duration ${testDuration} secs"
 		LogMsg "Configure huge pages on ${client}"
 		
 		LogMsg "TestPmd is starting on ${clientNIC1ip} with txonly mode, duration ${testDuration} secs"
-		echo "echo 0 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 0 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages && echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages &&  modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib;cd $HOMEDIR/$dpdkSrcDir/x86_64-native-linuxapp-gcc/app && timeout ${testDuration} ./testpmd -l 1-3 -n 2 -w 0002:00:02.0 --vdev='net_vdev_netvsc1,iface=eth1,force=1' -- --port-topology=chained --nb-cores 1 --forward-mode=txonly  --stats-period 1 2>&1 >> $LOGDIR/dpdk-testpmd-${testmode}-sender.log &"
+		echo "echo 0 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 0 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages && echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages &&  modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib;cd $HOMEDIR/$dpdkSrcDir/x86_64-native-linuxapp-gcc/app && timeout ${testDuration} ./testpmd -l 1-3 -n 2 -w 0002:00:02.0 --vdev='net_vdev_netvsc0,iface=eth1,force=1' -- --port-topology=chained --nb-cores 1 --forward-mode=txonly  --stats-period 1 2>&1 >> $LOGDIR/dpdk-testpmd-${testmode}-sender.log &"
 		
-		echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages &&  modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib;cd $HOMEDIR/$dpdkSrcDir/x86_64-native-linuxapp-gcc/app && timeout ${testDuration} ./testpmd -l 1-3 -n 2 -w 0002:00:02.0 --vdev='net_vdev_netvsc1,iface=eth1,force=1' -- --port-topology=chained --nb-cores 1 --forward-mode=txonly  --stats-period 1 2>&1 > $LOGDIR/dpdk-testpmd-${testmode}-sender.log &
+		echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages &&  modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib;cd $HOMEDIR/$dpdkSrcDir/x86_64-native-linuxapp-gcc/app && timeout ${testDuration} ./testpmd -l 1-3 -n 2 -w 0002:00:02.0 --vdev='net_vdev_netvsc0,iface=eth1,force=1' -- --port-topology=chained --nb-cores 1 --forward-mode=txonly  --stats-period 1 2>&1 > $LOGDIR/dpdk-testpmd-${testmode}-sender-$(date +"%m%d%Y-%H%M%S").log &
 		checkCmdExitStatus "TestPmd started on ${clientNIC1ip} with txonly mode, duration ${testDuration} secs"
 		sleep ${testDuration}
 		LogMsg "reset used huge pages"
@@ -117,8 +119,10 @@ testPmdParser ()
 {
 	LogMsg "*********INFO: Parser Started*********"
 	testpmdCsvFile=$HOMEDIR/dpdkTestPmd.csv
+	mv $HOMEDIR/dpdkTestPmd.csv $HOMEDIR/dpdkTestPmd-$(date +"%m%d%Y-%H%M%S").csv
+	DpdkVersion=`$HOMEDIR/$dpdkSrcDir/x86_64-native-linuxapp-gcc/app/testpmd -v 2>&1 | grep DPDK | tr ":" "\n" | sed 's/^ //g' | sed "s/'//g" | tail -1`
 	logFiles=(`ls $LOGDIR/*.log`)
-	echo "DpdkVersion,TestMode,Max-Rx-pps,Tx-pps,Rx-pps,Tx-bytes,Rx-bytes,Tx-packets,Rx-packets,RTx-pps,RTx-bytes,RTx-packets,Tx-pkt-size,Rx-pkt-size" > $testpmdCsvFile
+	echo "DpdkVersion,TestMode,MaxRxPps,TxPps,RxPps,TxBytes,RxBytes,TxPackets,RxPackets,ReTxPps,ReTxBytes,ReTxPackets,TxPacketSize,RxPacketSize" > $testpmdCsvFile
 	fileCount=0
 	while [ "x${logFiles[$fileCount]}" != "x" ]
 	do
@@ -199,25 +203,25 @@ testPmdParser ()
 		echo $rxonly_Txbytes_Avg $rxonly_Txpackets_Avg
 		Tx_Pkt_Size=$((rxonly_Txbytes_Avg/rxonly_Txpackets_Avg))
 		Rx_Pkt_Size=$((rxonly_Rxbytes_Avg/rxonly_Rxpackets_Avg))
-		echo "$dpdkVersion,$rxonly_mode,$rxonly_Rxpps_Max,$rxonly_Txpps_Avg,$rxonly_Rxpps_Avg,$rxonly_Txbytes_Avg,$rxonly_Rxbytes_Avg,$rxonly_Txpackets_Avg,$rxonly_Rxpackets_Avg,$rxonly_RTxpps_Avg,$rxonly_RTxbytes_Avg,$rxonly_RTxpackets_Avg,$Tx_Pkt_Size,$Rx_Pkt_Size" >> $testpmdCsvFile
+		echo "$DpdkVersion,$rxonly_mode,$rxonly_Rxpps_Max,$rxonly_Txpps_Avg,$rxonly_Rxpps_Avg,$rxonly_Txbytes_Avg,$rxonly_Rxbytes_Avg,$rxonly_Txpackets_Avg,$rxonly_Rxpackets_Avg,$rxonly_RTxpps_Avg,$rxonly_RTxbytes_Avg,$rxonly_RTxpackets_Avg,$Tx_Pkt_Size,$Rx_Pkt_Size" >> $testpmdCsvFile
 	fi
 	if [ $io_mode == "io" ];then
 		LogMsg "$io_mode pushing to csv file"	
 		Tx_Pkt_Size=$((io_Txbytes_Avg/io_Txpackets_Avg))
 		Rx_Pkt_Size=$((io_Rxbytes_Avg/io_Rxpackets_Avg))
-		echo "$dpdkVersion,$io_mode,$io_Rxpps_Max,$io_Txpps_Avg,$io_Rxpps_Avg,$io_Txbytes_Avg,$io_Rxbytes_Avg,$io_Txpackets_Avg,$io_Rxpackets_Avg,$io_RTxpps_Avg,$io_RTxbytes_Avg,$io_RTxpackets_Avg,$Tx_Pkt_Size,$Rx_Pkt_Size" >> $testpmdCsvFile
+		echo "$DpdkVersion,$io_mode,$io_Rxpps_Max,$io_Txpps_Avg,$io_Rxpps_Avg,$io_Txbytes_Avg,$io_Rxbytes_Avg,$io_Txpackets_Avg,$io_Rxpackets_Avg,$io_RTxpps_Avg,$io_RTxbytes_Avg,$io_RTxpackets_Avg,$Tx_Pkt_Size,$Rx_Pkt_Size" >> $testpmdCsvFile
 	fi
 }
 
 LogMsg "*********INFO: Starting DPDK Setup execution*********"
-
 ./dpdkSetup.sh
-
+checkCmdExitStatus "DPDK Setup"
 LogMsg "*********INFO: Starting TestPmd test execution with DPDK ${dpdkVersion}*********"
 runTestPmd
 checkCmdExitStatus "TestPmd execution"
 LogMsg "Collecting testpmd logs from server-vm ${server}"
-tar -cvzf DpdkTestPmdLogs.tar.gz $LOGDIR
+mv  DpdkTestPmdLogs.tar.gz  DpdkTestPmdLogs-$(date +"%m%d%Y-%H%M%S").tar.gz
+tar -cvzf DpdkTestPmdLogs.tar.gz DpdkTestPmdLogs/
 LogMsg "*********INFO: Starting TestPmd results parser execution*********"
 testPmdParser
 checkCmdExitStatus "Parser execution"

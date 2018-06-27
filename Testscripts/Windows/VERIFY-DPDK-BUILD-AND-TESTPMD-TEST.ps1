@@ -1,6 +1,7 @@
 $result = ""
 $testResult = ""
 $resultArr = @()
+
 $isDeployed = DeployVMS -setupType $currentTestData.setupType -Distro $Distro -xmlConfig $xmlConfig
 if ($isDeployed)
 {
@@ -42,7 +43,6 @@ if ($isDeployed)
 		LogMsg "  SSH Port : $($serverVMData.SSHPort)"
 		LogMsg "  Internal IP : $($serverVMData.InternalIP)"
 		
-
 		#
 		# PROVISION VMS FOR LISA WILL ENABLE ROOT USER AND WILL MAKE ENABLE PASSWORDLESS AUTHENTICATION ACROSS ALL VMS IN SAME HOSTED SERVICE.	
 		#
@@ -50,13 +50,13 @@ if ($isDeployed)
 
 		#endregion
 
-		if($EnableAcceleratedNetworking)
+		if($EnableAcceleratedNetworking -or ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV"))
 		{
 			$DataPath = "SRIOV"
             LogMsg "Getting SRIOV NIC Name."
-            $clientNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "route | grep '^default' | grep -o '[^ ]*$'").Trim()
+            $clientNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "route | grep '^default' | grep -o '[^ ]*$' 2>&1 | ip route | grep default | tr ' ' '\n' | grep eth").Trim()
             LogMsg "CLIENT SRIOV NIC: $clientNicName"
-            $serverNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username "root" -password $password -command "route | grep '^default' | grep -o '[^ ]*$'").Trim()
+            $serverNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username "root" -password $password -command "route | grep '^default' | grep -o '[^ ]*$' 2>&1 | ip route | grep default | tr ' ' '\n' | grep eth").Trim()
             LogMsg "SERVER SRIOV NIC: $serverNicName"
             if ( $serverNicName -eq $clientNicName)
             {
@@ -71,9 +71,9 @@ if ($isDeployed)
 		{
 			$DataPath = "Synthetic"
             LogMsg "Getting Active NIC Name."
-            $clientNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "route | grep '^default' | grep -o '[^ ]*$'").Trim()
+            $clientNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "route | grep '^default' | grep -o '[^ ]*$' 2>&1 | ip route | grep default | tr ' ' '\n' | grep eth").Trim()
             LogMsg "CLIENT NIC: $clientNicName"
-            $serverNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username "root" -password $password -command "route | grep '^default' | grep -o '[^ ]*$'").Trim()
+            $serverNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username "root" -password $password -command "route | grep '^default' | grep -o '[^ ]*$' 2>&1 | ip route | grep default | tr ' ' '\n' | grep eth").Trim()
             LogMsg "SERVER NIC: $serverNicName"
             if ( $serverNicName -eq $clientNicName)
             {
@@ -100,14 +100,13 @@ if ($isDeployed)
 			if ( $param -imatch "modes" )
 			{
 				$modes = ($param.Replace("modes=",""))
-			}
+			} 
 		}
 		LogMsg "constanst.sh created successfully..."
 		LogMsg "test modes : $modes"
 		LogMsg (Get-Content -Path $constantsFile)
 		#endregion
 
-		
 		#region EXECUTE TEST
 		$myString = @"
 cd /root/
@@ -131,9 +130,8 @@ collect_VM_properties
 			WaitFor -seconds 20
 		}
 		$finalStatus = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "cat /root/state.txt"
-		$uploadResults = $true
 		RemoteCopy -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "*.csv, *.txt, *.log, *.tar.gz"
-
+		$uploadResults = $true
 		if ( $finalStatus -imatch "TestFailed")
 		{
 			LogErr "Test failed. Last known status : $currentStatus."
@@ -156,7 +154,6 @@ collect_VM_properties
 			$testResult = "PASS"
 		}
 		
-		LogMsg "Test Completed"
 		try
 		{
 			$testpmdDataCsv = Import-Csv -Path $LogDir\dpdkTestPmd.csv
@@ -184,35 +181,38 @@ collect_VM_properties
 				$HostOS	= cat "$LogDir\VM_properties.csv" | Select-String "Host Version"| %{$_ -replace ",Host Version,",""}
 				$GuestOSType	= "Linux"
 				$GuestDistro	= cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
-				$GuestSize = $testVMData.InstanceSize
+				$GuestSize = $clientVMData.InstanceSize
 				$KernelVersion	= cat "$LogDir\VM_properties.csv" | Select-String "Kernel version"| %{$_ -replace ",Kernel version,",""}
-				
+				$IPVersion = "IPv4"
+				$ProtocolType = "TCP"
 				$connectionString = "Server=$dataSource;uid=$DBuser; pwd=$DBpassword;Database=$database;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
 
-				$SQLQuery = "INSERT INTO $dataTableName (TestCaseName,TestDate,HostType,HostBy,HostOS,GuestOSType,GuestDistro,GuestSize,KernelVersion,DpdkVersion,TestMode,Tx-pps,Rx-pps,Tx-bytes,Rx-bytes,Tx-packets,Rx-packets,RTx-pps,RTx-bytes,RTx-packets,Tx-pkt-size,Rx-pkt-size) VALUES "
+				$SQLQuery = "INSERT INTO $dataTableName (TestPlatFrom,TestCaseName,TestDate,HostType,HostBy,HostOS,GuestOSType,GuestDistro,GuestSize,KernelVersion,LISVersion,IPVersion,ProtocolType,DataPath,DPDKVersion,TestMode,Max_Rxpps,Txpps,Rxpps,Txbytes,Rxbytes,Txpackets,Rxpackets,Re_Txpps,Re_Txbytes,Re_Txpackets,Tx_PacketSize_KBytes,Rx_PacketSize_KBytes) VALUES "
 				foreach( $mode in $testpmdDataCsv) 
 				{
-					$SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$HostType','$HostBy','$HostOS','$GuestOSType','$GuestDistro','$GuestSize','$KernelVersion','dpdk-18.05.2','$mode.TestMode','$mode.Tx-pps','$mode.Rx-pps','$mode.Tx-bytes','$mode.Rx-bytes','$mode.Tx-packets','$mode.Rx-packets','$mode.RTx-pps','$mode.RTx-bytes','$mode.RTx-packets','$mode.Tx-pkt-size','$mode.Rx-pkt-size'),"
-					LogMsg "Collected performace data for $mode.TestMode mode."
+					$SQLQuery += "('Azure','$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$HostType','$HostBy','$HostOS','$GuestOSType','$GuestDistro','$GuestSize','$KernelVersion','Inbuilt','$IPVersion','$ProtocolType','$DataPath','$($mode.DpdkVersion)','$($mode.TestMode)','$($mode.MaxRxPps)','$($mode.TxPps)','$($mode.RxPps)','$($mode.TxBytes)','$($mode.RxBytes)','$($mode.TxPackets)','$($mode.RxPackets)','$($mode.ReTxPps)','$($mode.ReTxBytes)','$($mode.ReTxPackets)','$($mode.TxPacketSize)','$($mode.RxPacketSize)'),"
+					LogMsg "Collected performace data for $($mode.TestMode) mode."
 				}
 				$SQLQuery = $SQLQuery.TrimEnd(',')
 				LogMsg $SQLQuery
 				$connection = New-Object System.Data.SqlClient.SqlConnection
 				$connection.ConnectionString = $connectionString
-				# $connection.Open()
+				$connection.Open()
 
-				# $command = $connection.CreateCommand()
-				# $command.CommandText = $SQLQuery
+				$command = $connection.CreateCommand()
+				$command.CommandText = $SQLQuery
 				
-				# $result = $command.executenonquery()
-				# $connection.Close()
-				# LogMsg "Uploading the test results done!!"
+				$result = $command.executenonquery()
+				$connection.Close()
+				LogMsg "Uploading the test results done!!"
 			}
 			else{
 				LogMsg "Invalid database details. Failed to upload result to database!"
 			}
 		}
 		catch{
+			$ErrorMessage =  $_.Exception.Message
+			LogMsg "EXCEPTION : $ErrorMessage"
 		}
 		LogMsg "Test result : $testResult"
 		LogMsg ($testpmdDataCsv | Format-Table | Out-String)
@@ -224,7 +224,7 @@ collect_VM_properties
 	}
 	Finally
 	{
-		$metaData = "NTTTCP RESULT"
+		$metaData = "DPDK RESULT"
 		if (!$testResult)
 		{
 			$testResult = "Aborted"
