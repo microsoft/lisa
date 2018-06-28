@@ -156,12 +156,12 @@ if ($isDeployed)
 				$protocolType = "TCP"
 				$connectionString = "Server=$dataSource;uid=$user; pwd=$password;Database=$database;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
 				$logContents = Get-Content -Path "$LogDir\report.log"
-				$sqlQuery = "INSERT INTO $dataTableName (TestPlatform,TestCaseName,TestDate,HostType,HostBy,HostOS,ImageName,L1GuestOSType,L1GuestDistro,L1GuestSize,L1GuestKernelVersion,L2GuestDistro,L2GuestKernelVersion,L2GuestMemMB,L2GuestCpuNum,KvmNetDevice,IPVersion,ProtocolType,NumberOfConnections,Throughput_Gbps,Latency_ms) VALUES "
+				$sqlQuery = "INSERT INTO $dataTableName (TestCaseName,TestDate,HostType,HostBy,HostOS,ImageName,L1GuestOSType,L1GuestDistro,L1GuestSize,L1GuestKernelVersion,L2GuestDistro,L2GuestKernelVersion,L2GuestMemMB,L2GuestCpuNum,KvmNetDevice,IPVersion,ProtocolType,NumberOfConnections,Throughput_Gbps,Latency_ms) VALUES "
 
 				for($i = 1; $i -lt $logContents.Count; $i++)
 				{
 					$line = $logContents[$i].Trim() -split '\s+'
-					$sqlQuery += "(Azure,'$testCaseName','$(Get-Date -Format yyyy-MM-dd)','$hostType','$hostBy','$hostOS','$imageName','$l1GuestOSType','$l1GuestDistro','$l1GuestSize','$l1GuestKernelVersion','$l2GuestDistro','$l2GuestKernelVersion','$L2GuestMemMB','$L2GuestCpuNum','$KvmNetDevice','$ipVersion','$protocolType',$($line[0]),$($line[1]),$($line[2])),"
+					$sqlQuery += "('$testCaseName','$(Get-Date -Format yyyy-MM-dd)','$hostType','$hostBy','$hostOS','$imageName','$l1GuestOSType','$l1GuestDistro','$l1GuestSize','$l1GuestKernelVersion','$l2GuestDistro','$l2GuestKernelVersion','$L2GuestMemMB','$L2GuestCpuNum','$KvmNetDevice','$ipVersion','$protocolType',$($line[0]),$($line[1]),$($line[2])),"
 				}
 				$sqlQuery = $sqlQuery.TrimEnd(',')
 				LogMsg $sqlQuery
