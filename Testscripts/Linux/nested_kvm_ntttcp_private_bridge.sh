@@ -213,7 +213,6 @@ StartNestedVM()
     remote_copy -host localhost -user $NestedUser -passwd $NestedUserPassword -port $host_fwd_port -filename ./enablePasswordLessRoot.sh -remote_path /home/$NestedUser -cmd put
     remote_copy -host localhost -user $NestedUser -passwd $NestedUserPassword -port $host_fwd_port -filename ./perf_ntttcp.sh -remote_path /home/$NestedUser -cmd put
     remote_exec -host localhost -user $NestedUser -passwd $NestedUserPassword -port $host_fwd_port "chmod a+x /home/$NestedUser/*.sh"
-    remote_exec -host localhost -user $NestedUser -passwd $NestedUserPassword -port $host_fwd_port "echo $NestedUserPassword | sudo -S ifconfig ens4 $ip_addr netmask 255.255.255.0 up"
     remote_exec -host localhost -user $NestedUser -passwd $NestedUserPassword -port $host_fwd_port "echo $NestedUserPassword | sudo -S /home/$NestedUser/enableRoot.sh -password $NestedUserPassword"
     if [ $? -eq 0 ]; then
         LogMsg "Root enabled for VM: $image_name"
@@ -239,6 +238,9 @@ PrepareClient()
     echo "client=$ClientIpAddr" >> ./constants.sh
     echo "nicName=ens4" >> ./constants.sh
     remote_copy -host localhost -user root -passwd $NestedUserPassword -port $ClientHostFwdPort -filename ./constants.sh -remote_path "/root/" -cmd put
+    LogMsg "Reboot the nested client VM"
+    remote_exec -host localhost -user root -passwd $NestedUserPassword -port $ClientHostFwdPort 'reboot'
+    BringUpNicWithPrivateIp $ClientIpAddr $ClientHostFwdPort
 }
 
 PrepareServer()
@@ -249,6 +251,9 @@ PrepareServer()
     remote_exec -host localhost -user root -passwd $NestedUserPassword -port $ServerHostFwdPort "/root/enablePasswordLessRoot.sh"
     remote_exec -host localhost -user root -passwd $NestedUserPassword -port $ServerHostFwdPort 'md5sum /root/.ssh/id_rsa > /root/servermd5sum.log'
     remote_copy -host localhost -user root -passwd $NestedUserPassword -port $ServerHostFwdPort -filename servermd5sum.log -remote_path "/root/" -cmd get
+    LogMsg "Reboot the nested server VM"
+    remote_exec -host localhost -user root -passwd $NestedUserPassword -port $ServerHostFwdPort 'reboot'
+    BringUpNicWithPrivateIp $ServerIpAddr $ServerHostFwdPort
 }
 
 PrepareNestedVMs()
@@ -265,6 +270,32 @@ PrepareNestedVMs()
         UpdateTestState $ICA_TESTFAILED
         exit 0
     fi   
+}
+
+BringUpNicWithPrivateIp()
+{
+    ip_addr=$1
+    host_fwd_port=$2
+    retry_times=20
+    exit_status=1
+    while [ $exit_status -ne 0 ] && [ $retry_times -gt 0 ];
+    do
+        retry_times=$(expr $retry_times - 1)
+        if [ $retry_times -eq 0 ]; then
+            LogMsg "Timeout to connect to the nested VM"
+            UpdateTestState $ICA_TESTFAILED
+            exit 0
+        else
+           sleep 10
+           LogMsg "Try to bring up the nested VM NIC with private IP, left retry times: $retry_times"
+           remote_exec -host localhost -user root -passwd $NestedUserPassword -port $host_fwd_port "ifconfig ens4 $ip_addr netmask 255.255.255.0 up"
+           exit_status=$?
+        fi
+    done
+    if [ $exit_status -ne 0 ]; then
+        UpdateTestState $ICA_TESTFAILED
+        exit 0
+    fi
 }
 
 RunNtttcpOnClient()

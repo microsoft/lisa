@@ -116,23 +116,25 @@ if ($isDeployed)
 			$password = $xmlConfig.config.Azure.database.password
 			$database = $xmlConfig.config.Azure.database.dbname
 			$dataTableName = $xmlConfig.config.Azure.database.dbtable
-			$TestCaseName = $xmlConfig.config.Azure.database.testTag
+			$testCaseName = $xmlConfig.config.Azure.database.testTag
 			if ($dataSource -And $user -And $password -And $database -And $dataTableName)
 			{
 				# Get host info
-				$HostType	= "Azure"
-				$HostBy	= ($xmlConfig.config.Azure.General.Location).Replace('"','')
-				$HostOS	= cat "$LogDir\VM_properties.csv" | Select-String "Host Version"| %{$_ -replace ",Host Version,",""}
+				$hostType	= "Azure"
+				$hostBy	= ($xmlConfig.config.Azure.General.Location).Replace('"','')
+				$hostOS	= cat "$LogDir\VM_properties.csv" | Select-String "Host Version"| %{$_ -replace ",Host Version,",""}
 
 				# Get L1 guest info
-				$L1GuestDistro	= cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
-				$L1GuestOSType	= "Linux"
-				$L1GuestSize = $AllVMData.InstanceSize
-				$L1GuestKernelVersion	= cat "$LogDir\VM_properties.csv" | Select-String "Kernel version"| %{$_ -replace ",Kernel version,",""}
+				$l1GuestDistro	= cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
+				$l1GuestOSType	= "Linux"
+				$l1GuestSize = $AllVMData.InstanceSize
+				$l1GuestKernelVersion	= cat "$LogDir\VM_properties.csv" | Select-String "Kernel version"| %{$_ -replace ",Kernel version,",""}
+				$imageInfo = $xmlConfig.config.Azure.Deployment.Data.Distro.ARMImage
+				$imageName = "$($imageInfo.Publisher) $($imageInfo.Offer) $($imageInfo.Sku) $($imageInfo.Version)"
 
 				# Get L2 guest info
-				$L2GuestDistro	= cat "$LogDir\nested_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
-				$L2GuestKernelVersion	= cat "$LogDir\nested_properties.csv" | Select-String "Kernel version"| %{$_ -replace ",Kernel version,",""}
+				$l2GuestDistro	= cat "$LogDir\nested_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
+				$l2GuestKernelVersion	= cat "$LogDir\nested_properties.csv" | Select-String "Kernel version"| %{$_ -replace ",Kernel version,",""}
 
 				foreach ( $param in $currentTestData.TestParameters.param)
 				{
@@ -150,26 +152,26 @@ if ($isDeployed)
 					}
 				}
 
-				$IPVersion = "IPv4"
-				$ProtocolType = "TCP"
+				$ipVersion = "IPv4"
+				$protocolType = "TCP"
 				$connectionString = "Server=$dataSource;uid=$user; pwd=$password;Database=$database;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
-				$LogContents = Get-Content -Path "$LogDir\report.log"
-				$SQLQuery = "INSERT INTO $dataTableName (TestCaseName,TestDate,HostType,HostBy,HostOS,L1GuestOSType,L1GuestDistro,L1GuestSize,L1GuestKernelVersion,L2GuestDistro,L2GuestKernelVersion,L2GuestMemMB,L2GuestCpuNum,KvmNetDevice,IPVersion,ProtocolType,NumberOfConnections,Throughput_Gbps,Latency_ms) VALUES "
+				$logContents = Get-Content -Path "$LogDir\report.log"
+				$sqlQuery = "INSERT INTO $dataTableName (TestPlatform,TestCaseName,TestDate,HostType,HostBy,HostOS,ImageName,L1GuestOSType,L1GuestDistro,L1GuestSize,L1GuestKernelVersion,L2GuestDistro,L2GuestKernelVersion,L2GuestMemMB,L2GuestCpuNum,KvmNetDevice,IPVersion,ProtocolType,NumberOfConnections,Throughput_Gbps,Latency_ms) VALUES "
 
-				for($i = 1; $i -lt $LogContents.Count; $i++)
+				for($i = 1; $i -lt $logContents.Count; $i++)
 				{
-					$Line = $LogContents[$i].Trim() -split '\s+'
-					$SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$HostType','$HostBy','$HostOS','$L1GuestOSType','$L1GuestDistro','$L1GuestSize','$L1GuestKernelVersion','$L2GuestDistro','$L2GuestKernelVersion','$L2GuestMemMB','$L2GuestCpuNum','$KvmNetDevice','$IPVersion','$ProtocolType',$($Line[0]),$($Line[1]),$($Line[2])),"
+					$line = $logContents[$i].Trim() -split '\s+'
+					$sqlQuery += "(Azure,'$testCaseName','$(Get-Date -Format yyyy-MM-dd)','$hostType','$hostBy','$hostOS','$imageName','$l1GuestOSType','$l1GuestDistro','$l1GuestSize','$l1GuestKernelVersion','$l2GuestDistro','$l2GuestKernelVersion','$L2GuestMemMB','$L2GuestCpuNum','$KvmNetDevice','$ipVersion','$protocolType',$($line[0]),$($line[1]),$($line[2])),"
 				}
-				$SQLQuery = $SQLQuery.TrimEnd(',')
-				LogMsg $SQLQuery
+				$sqlQuery = $sqlQuery.TrimEnd(',')
+				LogMsg $sqlQuery
 
 				$connection = New-Object System.Data.SqlClient.SqlConnection
 				$connection.ConnectionString = $connectionString
 				$connection.Open()
 
 				$command = $connection.CreateCommand()
-				$command.CommandText = $SQLQuery
+				$command.CommandText = $sqlQuery
 				$result = $command.executenonquery()
 				$connection.Close()
 				LogMsg "Uploading the test results done!!"
@@ -182,8 +184,8 @@ if ($isDeployed)
 	}
 	catch
 	{
-		$ErrorMessage =  $_.Exception.Message
-		LogMsg "EXCEPTION : $ErrorMessage"   
+		$errorMessage =  $_.Exception.Message
+		LogMsg "EXCEPTION : $errorMessage"
 	}
 	Finally
 	{
