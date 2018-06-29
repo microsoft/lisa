@@ -14,11 +14,6 @@ Function ValidateParameters()
 	if ($TestPlatform -eq "Azure")
 	{
 		#region Validate Parameters
-		
-		if ( !$TestPlatform )
-		{
-			$ParameterErrors += "-TestPlatform <Azure/AzureStack> is required."
-		}
 		if ( !$ARMImageName -and !$OsVHD )
 		{
 			$ParameterErrors += "-ARMImageName <'Publisher Offer Sku Version'>/ -OsVHD <'VHD_Name.vhd'> is required"
@@ -38,12 +33,12 @@ Function ValidateParameters()
 		#region Validate Parameters
 		if (!$OsVHD )
 		{
-			$ParameterErrors += "-ARMImageName <'Publisher Offer Sku Version'>/ -OsVHD <'VHD_Name.vhd'> is required"
+			$ParameterErrors += "-OsVHD <'VHD_Name.vhd'> is required"
 		}
 		if ( !$RGIdentifier )
 		{
 			$ParameterErrors += "-RGIdentifier <PersonalIdentifier> is required. This string will added to Resources created by Automation."
-		}   
+		}
 		#endregion
 	}	
 	elseif ($TestPlatform)
@@ -122,6 +117,30 @@ Function UpdateGlobalConfigurationXML()
 			Write-Host "Selecting custom storage account : $($GlobalConfiguration.Global.$TestPlatform.Subscription.ARMStorageAccount) as per your test region."
 		}
 	}
+	if ($TestPlatform -eq "HyperV")
+	{
+		if ( $TestLocation)
+		{
+			$GlobalConfiguration.Global.$TestPlatform.Host.ServerName = $TestLocation
+			$VMs = Get-VM -ComputerName $GlobalConfiguration.Global.$TestPlatform.Host.ServerName
+			if ($?)
+			{
+				LogMsg "Set '$TestLocation' to As GlobalConfiguration.Global.HyperV.Host.ServerName"
+			}
+			else 
+			{
+				LogErr "Did you used -TestLocation XXXXXXX. In HyperV mode, -TestLocation can be used to Override HyperV server mentioned in GlobalConfiguration XML file."
+				LogErr "In HyperV mode, -TestLocation can be used to Override HyperV server mentioned in GlobalConfiguration XML file."
+				Throw "Unable to access HyperV server - $TestLocation"	
+			}
+		}
+		else
+		{
+            $VMs = Get-VM -ComputerName $TestLocation
+		}
+        
+		
+	}
 	#If user provides Result database / result table, then add it to the GlobalConfiguration.
 	if( $ResultDBTable -or $ResultDBTestTag)
 	{
@@ -193,7 +212,7 @@ Function UpdateXMLStringsFromSecretsFile()
     }
 }
 
-Function CollectTestCases()
+Function CollectTestCases($TestXMLs)
 {
 	#region Collect Tests Data
 	$allTests = @()
@@ -481,12 +500,21 @@ Function GetCurrentCycleData($xmlConfig, $cycleName)
 }
 Function ThrowException($Exception)
 {
-    $line = $Exception.InvocationInfo.ScriptLineNumber
-    $script_name = ($Exception.InvocationInfo.ScriptName).Replace($PWD,".")
-    $ErrorMessage =  $Exception.Exception.Message
-    Write-Host "EXCEPTION : $ErrorMessage"
-    Write-Host "SOURCE : Line $line in script $script_name."
-    Throw "Calling function - $($MyInvocation.MyCommand)"
+	try
+	{
+		$line = $Exception.InvocationInfo.ScriptLineNumber
+		$script_name = ($Exception.InvocationInfo.ScriptName).Replace($PWD,".")
+		$ErrorMessage =  $Exception.Exception.Message
+	}
+	catch
+	{
+	}
+	finally
+	{
+		Write-Host "EXCEPTION : $ErrorMessage"
+		Write-Host "SOURCE : Line $line in script $script_name."
+		Throw "Calling function - $($MyInvocation.MyCommand)"
+	}
 }
 
 <#
