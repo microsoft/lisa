@@ -2,7 +2,7 @@
 # AzureTestSuite.ps1
 # Copyright (c) Microsoft. All rights reserved.
 # Licensed under the MIT license. See LICENSE file in the project root for full license information.
-# Description : 
+# Description : This scripts takes care of launching .\Windows\PowershellScript.ps1 file
 # Operations :
 #              
 ## Author : v-shisav@microsoft.com, lisasupport@microsoft.com

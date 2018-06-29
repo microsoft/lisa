@@ -328,7 +328,7 @@ try
     }
     catch 
     {
-        Throw "Auto created $xmlFile is not valid."    
+        Throw "Framework error: $xmlFile is not valid. Please report to lisasupport@microsoft.com"    
     }
     
     #endregion
@@ -427,7 +427,7 @@ try
             }
         }
         else
-        {
+        {                                               
             LogMsg "Summary file: .\report\report_$(($TestCycle).Trim()).xml does not exist. Exiting with 1."
             $ExitCode = 1
         }

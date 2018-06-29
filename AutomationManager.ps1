@@ -164,10 +164,7 @@ try
     if($EconomyMode)
     {
         Set-Variable -Name EconomyMode -Value $true -Scope Global
-        if($DoNotDeleteVMs)
-        {
-            Set-Variable -Name DoNotDeleteVMs -Value $true -Scope Global
-        }
+        Set-Variable -Name DoNotDeleteVMs -Value $DoNotDeleteVMs -Scope Global
     }
     else
     {
