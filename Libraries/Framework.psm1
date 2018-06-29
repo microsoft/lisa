@@ -136,7 +136,7 @@ Function UpdateGlobalConfigurationXML()
 			LogMsg "ResultDBTestTag: $ResultDBTestTag added to .\XML\GlobalConfigurations.xml"
 		}                      
 	}
-	$GlobalConfiguration.Save(".\XML\GlobalConfigurations.xml")
+	$GlobalConfiguration.Save("$WorkingDirectory\XML\GlobalConfigurations.xml")
 	#endregion
 
 	New-Item -ItemType Directory -Path "TestResults" -Force -ErrorAction SilentlyContinue | Out-Null
