@@ -7,8 +7,8 @@
 #              
 ## Author : v-shisav@microsoft.com, lisasupport@microsoft.com
 ###############################################################################################
+[CmdletBinding()]
 Param(
-
     #Do not use. Reserved for Jenkins use.   
     $BuildNumber=$env:BUILD_NUMBER,
 
@@ -66,23 +66,29 @@ Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1"
 
 try 
 {
-    $LogDir = $null
+    #region Prepare / Clean the powershell console.
+    $WorkingDirectory = Split-Path -parent $MyInvocation.MyCommand.Definition 
+    $ParameterList = (Get-Command -Name $PSCmdlet.MyInvocation.InvocationName).Parameters;
+    foreach ($key in $ParameterList.keys)
+    {
+        $var = Get-Variable -Name $key -ErrorAction SilentlyContinue;
+        if($var)
+        {
+            Set-Variable -Name $($var.name) -Value $($var.value) -Scope Global -Force
+        }
+    }
+	$LogDir = ".\TestResults\$(Get-Date -Format 'yyyy-dd-MM-HH-mm-ss-ffff')"
+	Set-Variable -Name LogDir -Value $LogDir -Scope Global -Force
+	Set-Variable -Name RootLogDir -Value $LogDir -Scope Global -Force
+	New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
+	New-Item -ItemType Directory -Path Temp -Force -ErrorAction SilentlyContinue | Out-Null
+	LogMsg "Created LogDir: $LogDir"
+    #endregion
 
     #region Static Global Variables
-    Set-Variable -Name WorkingDirectory -Value (Get-Location).Path  -Scope Global
+    Set-Variable -Name WorkingDirectory -Value $WorkingDirectory  -Scope Global
     Set-Variable -Name shortRandomNumber -Value $(Get-Random -Maximum 99999 -Minimum 11111) -Scope Global
     Set-Variable -Name shortRandomWord -Value $(-join ((65..90) | Get-Random -Count 4 | ForEach-Object {[char]$_})) -Scope Global
-    Set-Variable -Name TestPlatform -Value $TestPlatform -Scope Global
-    Set-Variable -Name TestCategory -Value $TestCategory -Scope Global
-    Set-Variable -Name TestArea -Value $TestArea -Scope Global
-    Set-Variable -Name TestLocation -Value $TestLocation -Scope Global
-    Set-Variable -Name ARMImageName -Value $ARMImageName -Scope Global
-    Set-Variable -Name OsVHD -Value $OsVHD -Scope Global
-    Set-Variable -Name OverrideHyperVDiskMode -Value $OverrideHyperVDiskMode -Scope Global
-    if ($EnableTelemetry)
-    {
-        Set-Variable -Name EnableTelemetry -Value $true -Scope Global
-    }
     #endregion
 
     #region Runtime Global Variables
@@ -133,7 +139,7 @@ try
     #endregion
 
     #Validate all XML files in working directory.
-    $allTests = CollectTestCases
+    $allTests = CollectTestCases -TestXMLs $TestXMLs
     
     #region Create Test XML
     $SetupTypes = $allTests.SetupType | Sort-Object | Get-Unique
@@ -382,8 +388,6 @@ try
 
     LogMsg $command
     Invoke-Expression -Command $command
-
-    $ticks = (Get-Date).Ticks
     #$out = Remove-Item *.json -Force
     #$out = Remove-Item *.xml -Force
     $zipFile = "$TestPlatform"
@@ -454,5 +458,6 @@ catch
 }
 finally 
 {
+    Get-Variable -Scope Global | Remove-Variable -Force -ErrorAction SilentlyContinue
     exit $ExitCode    
 }
