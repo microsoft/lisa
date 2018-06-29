@@ -26,7 +26,6 @@ param (
 [string] $osImage,
 [switch] $EconomyMode,
 [switch] $DoNotDeleteVMs,
-[string] $DebugDistro,
 [switch] $UseAzureResourceManager,
 [string] $OverrideVMSize,
 [switch] $EnableAcceleratedNetworking,
@@ -223,12 +222,6 @@ try
     if($DoNotDeleteVMs)
     {
         LogMsg "PLEASE NOTE: DoNotDeleteVMs is set. VMs will not be deleted after test is finished even if, test gets PASS."
-    }
-    
-    if ($DebugDistro)
-    {
-        $OsImage = $xmlConfig.config.$TestPlatform.Deployment.Data.Distro | ? { $_.name -eq $DebugDistro} | % { $_.OsImage }
-        Set-Variable -Name DebugOsImage -Value $OsImage -Scope Global
     }
     $testCycle =  GetCurrentCycleData -xmlConfig $xmlConfig -cycleName $cycleName
     $testSuiteResultDetails=.\AzureTestSuite.ps1 $xmlConfig -Distro $Distro -cycleName $cycleName -TestIterations $TestIterations
