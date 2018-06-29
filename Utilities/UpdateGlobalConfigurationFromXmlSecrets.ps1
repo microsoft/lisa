@@ -11,7 +11,8 @@ param(
     [string]$XmlSecretsFilePath= ""
 )
 $XmlSecrets = [xml](Get-Content $XmlSecretsFilePath)
-$GlobalXML = [xml](Get-Content ".\XML\GlobalConfigurations.xml")
+$GlobalConfigurationXMLFilePath = Resolve-Path ".\XML\GlobalConfigurations.xml"
+$GlobalXML = [xml](Get-Content $GlobalConfigurationXMLFilePath  )
 $GlobalXML.Global.Azure.Subscription.SubscriptionID = $XmlSecrets.secrets.SubscriptionID
 
 $GlobalXML.Global.Azure.TestCredentials.LinuxUsername = $XmlSecrets.secrets.linuxTestUsername
@@ -28,6 +29,6 @@ $GlobalXML.Global.HyperV.ResultsDatabase.user = $XmlSecrets.secrets.DatabaseUser
 $GlobalXML.Global.HyperV.ResultsDatabase.password = $XmlSecrets.secrets.DatabasePassword
 $GlobalXML.Global.HyperV.ResultsDatabase.dbname = $XmlSecrets.secrets.DatabaseName
 
-$GlobalXML.Save(".\XML\GlobalConfigurations.xml")
+$GlobalXML.Save($GlobalConfigurationXMLFilePath )
 
 Write-Host "Updated GlobalConfigurations.xml"
