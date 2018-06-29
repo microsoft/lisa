@@ -7,11 +7,8 @@ if ($isDeployed)
 	try
 	{
 		LogMsg "Check 1: Checking call tracess again after 30 seconds sleep"
-		LogMsg "Test Result : PASS."
-		$testResult = "PASS"
-		<#
 		Start-Sleep 30
-		
+		$noIssues = CheckKernelLogs -allVMData $allVMData
 		if ($noIssues)
 		{
 			$RestartStatus = RestartAllDeployments -allVMData $allVMData
@@ -43,7 +40,6 @@ if ($isDeployed)
 			LogMsg "Test Result : FAIL."
 			$testResult = "FAIL"
 		}
-		#>
 	}
 	catch
 	{
