@@ -597,10 +597,14 @@ Function DeleteResourceGroup([string]$RGName, [switch]$KeepDisks)
             if ( $XmlSecrets.secrets.AutomationRunbooks.CleanupResourceGroupRunBook )
             {
                 $parameters = $parameters = @{"NAMEFILTER"="$RGName"; "PREVIEWMODE"=$false};
+                $CleanupRG = Get-AzureRmResourceGroup  -Name $XmlSecrets.secrets.AutomationRunbooks.ResourceGroupName -ErrorAction SilentlyContinue
+            }
+            if ($CleanupRG)
+            {
                 $rubookJob = Start-AzureRmAutomationRunbook -Name $XmlSecrets.secrets.AutomationRunbooks.CleanupResourceGroupRunBook -Parameters $parameters -AutomationAccountName $XmlSecrets.secrets.AutomationRunbooks.AutomationAccountName -ResourceGroupName $XmlSecrets.secrets.AutomationRunbooks.ResourceGroupName
                 LogMsg "Cleanup job ID: '$($rubookJob.JobId)' for '$RGName' started using runbooks."
                 $retValue = $true
-            }
+            }            
             else
             {
                 $currentGUID = ([guid]::newguid()).Guid

@@ -104,7 +104,6 @@ Function CreateAllHyperVGroupDeployments($setupType, $xmlConfig, $Distro, [strin
             if ($readyToDeploy)
             {
                 $curtime = ([string]((Get-Date).Ticks / 1000000)).Split(".")[0]
-                $randomNumber = $global4digitRandom
                 $isHyperVGroupDeployed = "False"
                 $retryDeployment = 0
                 if ( $HyperVGroupXML.Tag -ne $null )
@@ -198,6 +197,7 @@ Function DeleteHyperVGroup([string]$HyperVGroupName)
     $HyperVHost = $xmlConfig.config.HyperV.Host.ServerName
     try
     {
+        $AllGroups = $null
         LogMsg "Checking if HyperV VM group '$HyperVGroupName' exists in $HyperVHost..."
         $AllGroups = Get-VMGroup -Name $HyperVGroupName -ErrorAction SilentlyContinue -ComputerName $HyperVHost
     }
@@ -213,10 +213,9 @@ Function DeleteHyperVGroup([string]$HyperVGroupName)
 		else
 		{
             $CurrentGroup = $null
-            $AllGroups = $null
-            $AllGroups = Get-VMGroup -Name $HyperVGroupName -ErrorAction SilentlyContinue -ComputerName $HyperVHost
             foreach ( $CurrentGroup in $AllGroups )
             {
+                $CurrentGroup = Get-VMGroup -Name $CurrentGroup.Name -ComputerName $HyperVHost
                 if ( $CurrentGroup.VMMembers.Count -gt 0 )
                 {
                     $CleanupVMList = @()
@@ -237,14 +236,14 @@ Function DeleteHyperVGroup([string]$HyperVGroupName)
                     foreach ($CleanupVM in $CleanupVMList)
                     {
                         LogMsg "Stop-VM -Name $($CleanupVM.Name)-Force -TurnOff "
-                        $CleanupVM | Stop-VM -Force  -TurnOff
-                        $VM = Get-VM -Id $CleanupVM.Id
+                        $CleanupVM | Stop-VM -Force -TurnOff
+                        $VM = Get-VM -Id $CleanupVM.Id -ComputerName $HyperVHost
                         foreach ($VHD in $CleanupVM.HardDrives)
                         {
-                            Remove-Item -Force -Path $VHD.Path 
+                            Invoke-Command -ComputerName $HyperVHost -ScriptBlock { Remove-Item -Path $args[0] -Force -Verbose } -ArgumentList $VHD.Path
                             LogMsg "$($VHD.Path) Removed!"
                         }
-                        $CleanupVM | Remove-VM -Force 
+                        $CleanupVM | Remove-VM -Force
                         LogMsg "$($CleanupVM.Name) Removed!"
                     }
                     Remove-VMGroup -Name $HyperVGroupName -Force 
@@ -254,7 +253,7 @@ Function DeleteHyperVGroup([string]$HyperVGroupName)
                 elseif ($CurrentGroup)
                 {
                     LogMsg "$HyperVGroupName is empty. Removing..."
-                    Remove-VMGroup -Name $HyperVGroupName -Force 
+                    Remove-VMGroup -Name $HyperVGroupName -Force -ComputerName $HyperVHost
                     LogMsg "$HyperVGroupName Removed!"
                     $retValue = $true
                 }
@@ -317,7 +316,7 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML)
     $SourceOsVHDPath = $xmlConfig.config.Hyperv.Host.SourceOsVHDPath
     $DestinationOsVHDPath = $xmlConfig.config.Hyperv.Host.DestinationOsVHDPath
     $i = 0
-    $CurrentHyperVGroup = Get-VMGroup -Name $HyperVGroupName
+    $CurrentHyperVGroup = Get-VMGroup -Name $HyperVGroupName -ComputerName $HyperVHost
     if ( $CurrentHyperVGroup.Count -eq 1)
     {
         foreach ( $VirtualMachine in $HyperVGroupXML.VirtualMachine)
@@ -333,7 +332,7 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML)
                 $CurrentVMOsVHDPath = "$DestinationOsVHDPath\$HyperVGroupName-role-$i-diff-OSDisk.vhd"
                 $i += 1
             }
-            $Out = New-VHD -ParentPath "$SourceOsVHDPath\$OsVHD" -Path $CurrentVMOsVHDPath 
+            $Out = New-VHD -ParentPath "$SourceOsVHDPath\$OsVHD" -Path $CurrentVMOsVHDPath  -ComputerName $HyperVHost
             #Convert-VHD -Path "$SourceOsVHDPath\$OsVHD" -DestinationPath $CurrentVMOsVHDPath -VHDType Dynamic 
             if ($?)
             {
@@ -357,7 +356,7 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML)
                     LogMsg "Set-VM -VM $($NewVM.Name) -ProcessorCount $CurrentVMCpu -StaticMemory -CheckpointType Disabled -Notes $HyperVGroupName"
                     $Out = Set-VM -VM $NewVM -ProcessorCount $CurrentVMCpu -StaticMemory  -CheckpointType Disabled -Notes "$HyperVGroupName"
                     LogMsg "Add-VMGroupMember -Name $HyperVGroupName -VM $($NewVM.Name)"
-                    $Out = Add-VMGroupMember -Name "$HyperVGroupName" -VM $NewVM
+                    $Out = Add-VMGroupMember -Name "$HyperVGroupName" -VM $NewVM -ComputerName $HyperVHost
                 }
                 else 
                 {
@@ -392,7 +391,7 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML)
 Function StartHyperVGroupVMs($HyperVGroupName)
 {
     $HyperVHost = $xmlConfig.config.Hyperv.Host.ServerName
-    $AllVMs = Get-VMGroup -Name $HyperVGroupName
+    $AllVMs = Get-VMGroup -Name $HyperVGroupName -ComputerName $HyperVHost
     $CurrentErrors = @()
     foreach ( $VM in $AllVMs.VMMembers)
     {
@@ -423,7 +422,7 @@ Function StartHyperVGroupVMs($HyperVGroupName)
 Function StopHyperVGroupVMs($HyperVGroupName)
 {
     $HyperVHost = $xmlConfig.config.Hyperv.Host.ServerName
-    $AllVMs = Get-VMGroup -Name $HyperVGroupName
+    $AllVMs = Get-VMGroup -Name $HyperVGroupName -ComputerName $HyperVHost
     $CurrentErrors = @()
     foreach ( $VM in $AllVMs.VMMembers)
     {
@@ -480,7 +479,7 @@ Function GetAllHyperVDeployementData($HyperVGroupNames,$RetryCount = 100)
     foreach ($HyperVGroupName in $HyperVGroupNames.Split("^"))
     {
         LogMsg "Collecting $HyperVGroupName data.."
-        $CurrentGroupData = Get-VMGroup -Name $HyperVGroupName
+        $CurrentGroupData = Get-VMGroup -Name $HyperVGroupName -ComputerName $HyperVHost
         foreach ( $VM in $CurrentGroupData.VMMembers)
         {
             $ALLVMs += $VM
