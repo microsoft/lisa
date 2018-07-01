@@ -167,7 +167,8 @@ try
             LogMsg "ResultDBTestTag: $ResultDBTestTag added to .\XML\GlobalConfigurations.xml"
         }                      
     }
-    $GlobalConfiguration.Save(".\XML\GlobalConfigurations.xml")
+    $xmlGlobalConfigPath = Resolve-Path -Path ".\XML\GlobalConfigurations.xml"
+    $GlobalConfiguration.Save($xmlGlobalConfigPath)
     #endregion
 
     New-Item -ItemType Directory -Path "TestResults" -Force -ErrorAction SilentlyContinue | Out-Null
