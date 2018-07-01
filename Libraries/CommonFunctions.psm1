@@ -1812,7 +1812,16 @@ Function DoTestCleanUp($CurrentTestResult, $testName, $DeployedServices, $Resour
 				{
 					$LISVersion = "NA"
 				}
-				$HostVersion = (Select-String -Path "$LogDir\$($vmData.RoleName)-dmesg.txt" -Pattern "Host Build").Line.Split(":")[1]
+				#region Host Version checking
+				$FoundLineNumber = (Select-String -Path "$LogDir\$($vmData.RoleName)-dmesg.txt" -Pattern "Hyper-V Host Build").LineNumber
+				$ActualLineNumber = $FoundLineNumber - 1
+				$FinalLine = (Get-Content -Path "$LogDir\$($vmData.RoleName)-dmesg.txt")[$ActualLineNumber]
+				#Write-Host $finalLine
+				$FinalLine = $FinalLine.Replace('; Vmbus version:4.0','')
+				$FinalLine = $FinalLine.Replace('; Vmbus version:3.0','')
+				$HostVersion = ($FinalLine.Split(":")[$FinalLine.Split(":").Count -1 ]).Trim().TrimEnd(";")
+				#endregion				
+				
 				if($EnableAcceleratedNetworking -or ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV"))
 				{
 					$Networking = "SRIOV"
