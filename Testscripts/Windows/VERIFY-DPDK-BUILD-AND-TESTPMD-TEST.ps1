@@ -1,5 +1,5 @@
 $result = ""
-$testResult = ""
+$CurrentTestResult = CreateTestResultObject
 $resultArr = @()
 $isDeployed = DeployVMS -setupType $currentTestData.setupType -Distro $Distro -xmlConfig $xmlConfig
 if ($isDeployed)
@@ -161,12 +161,12 @@ collect_VM_properties
 		{
 			$testpmdDataCsv = Import-Csv -Path $LogDir\dpdkTestPmd.csv
 			LogMsg "Uploading the test results.."
-			$dataSource = $xmlConfig.config.Azure.database.server
-			$DBuser = $xmlConfig.config.Azure.database.user
-			$DBpassword = $xmlConfig.config.Azure.database.password
-			$database = $xmlConfig.config.Azure.database.dbname
-			$dataTableName = $xmlConfig.config.Azure.database.dbtable
-			$TestCaseName = $xmlConfig.config.Azure.database.testTag
+			$dataSource = $xmlConfig.config.$TestPlatform.database.server
+			$DBuser = $xmlConfig.config.$TestPlatform.database.user
+			$DBpassword = $xmlConfig.config.$TestPlatform.database.password
+			$database = $xmlConfig.config.$TestPlatform.database.dbname
+			$dataTableName = $xmlConfig.config.$TestPlatform.database.dbtable
+			$TestCaseName = $xmlConfig.config.$TestPlatform.database.testTag
 			
 			if ($dataSource -And $DBuser -And $DBpassword -And $database -And $dataTableName) 
 			{
@@ -180,7 +180,7 @@ collect_VM_properties
 					$HostType	= "Azure"
 				}
 				
-				$HostBy	= ($xmlConfig.config.Azure.General.Location).Replace('"','')
+				$HostBy	= ($xmlConfig.config.$TestPlatform.General.Location).Replace('"','')
 				$HostOS	= cat "$LogDir\VM_properties.csv" | Select-String "Host Version"| %{$_ -replace ",Host Version,",""}
 				$GuestOSType	= "Linux"
 				$GuestDistro	= cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
@@ -230,7 +230,7 @@ collect_VM_properties
 			$testResult = "Aborted"
 		}
 		$resultArr += $testResult
-		$resultSummary +=  CreateResultSummary -testResult $testResult -metaData "DPDK-TESTPMD" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+		$CurrentTestResult.TestSummary += CreateResultSummary -testResult $testResult -metaData "DPDK-TESTPMD" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 	}   
 }
 else
@@ -239,10 +239,10 @@ else
 	$resultArr += $testResult
 }
 
-$result = GetFinalResultHeader -resultarr $resultArr
+$CurrentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
 
 #Clean up the setup
-DoTestCleanUp -result $result -testName $currentTestData.testName -deployedServices $isDeployed -ResourceGroups $isDeployed
+DoTestCleanUp -CurrentTestResult $CurrentTestResult -testName $currentTestData.testName -ResourceGroups $isDeployed
 
 #Return the result and summery to the test suite script..
-return $result, $resultSummary
+return $CurrentTestResult

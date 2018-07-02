@@ -5,7 +5,7 @@
         <PowershellScript>BVT-VERIFY-DEPLOYMENT-PROVISION.ps1</PowershellScript>
         <files></files>
         <setupType>SingleVM</setupType>
-        <Platform>Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt,boot</Tags>
@@ -17,7 +17,7 @@
         <PowershellScript>BVT-IS-ROOT-PASSWORD-DELETED.ps1</PowershellScript>
         <files>.\Testscripts\Linux\BVT-IS-ROOT-PASSWORD-DELETED.py,.\Testscripts\Linux\azuremodules.py</files>
         <setupType>BVTDeployment</setupType>
-        <Platform>Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
@@ -29,7 +29,7 @@
         <PowershellScript>BVT-ROOT-DEVICE-TIMEOUT-CHECK.ps1</PowershellScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-ROOT-DEVICE-TIMEOUT-CHECK.py</files>
         <setupType>BVTDeployment</setupType>
-        <Platform>Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
@@ -41,7 +41,7 @@
         <PowershellScript>BVT-HVMODULES-CHECK.ps1</PowershellScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-HVMODULES-CHECK.py</files>
         <setupType>BVTDeployment</setupType>
-        <Platform>Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
@@ -53,7 +53,7 @@
         <PowershellScript>BVT-SWAP-CHECK.ps1</PowershellScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-SWAP-CHECK.py</files>
         <setupType>BVTDeployment</setupType>
-        <Platform>Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
@@ -77,7 +77,7 @@
         <PowershellScript>BVT-LAST-CONSOLE-CHECK.ps1</PowershellScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-LAST-CONSOLE-CHECK.py</files>
         <setupType>BVTDeployment</setupType>
-        <Platform>Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
@@ -89,7 +89,7 @@
         <PowershellScript>BVT-VERIFY-BOOT-ERROR-WARNINGS.ps1</PowershellScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-BOOT-ERROR-WARNINGS.py,.\XML\Other\ignorable-boot-errors.xml</files>
         <setupType>BVTDeployment</setupType>
-        <Platform>Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
@@ -113,7 +113,7 @@
         <PowershellScript>BVT-VERIFY-UUID-FSTAB.ps1</PowershellScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-UUID-FSTAB.py</files>
         <setupType>BVTDeployment</setupType>
-        <Platform>Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
@@ -125,7 +125,7 @@
         <PowershellScript>BVT-VERIFY-SSHD-CONFIG.ps1</PowershellScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-SSHD-CONFIG.py</files>
         <setupType>BVTDeployment</setupType>
-        <Platform>Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
@@ -137,7 +137,7 @@
         <PowershellScript>BVT-VERIFY-VHD-PREREQUISITES.ps1</PowershellScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-VHD-PREREQUISITES.py</files>
         <setupType>BVTDeployment</setupType>
-        <Platform>Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
@@ -149,7 +149,7 @@
         <PowershellScript>BVT-VERIFY-NO-ERROR-IN-LOGS.ps1</PowershellScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-NO-ERROR-IN-LOGS.py,.\XML\Other\ignorable-walalog-errors.xml</files>
         <setupType>BVTDeployment</setupType>
-        <Platform>Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
@@ -161,7 +161,7 @@
         <PowershellScript>BVT-VERIFY-VERBOSE-ENABLED-LOGS.ps1</PowershellScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-VERBOSE-ENABLED-LOGS.py</files>
         <setupType>BVTDeployment</setupType>
-        <Platform>Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
@@ -173,7 +173,7 @@
         <PowershellScript>BVT-VERIFY-BASH-HISTORY.ps1</PowershellScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-BASH-HISTORY.py</files>
         <setupType>BVTDeployment</setupType>
-        <Platform>Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
@@ -201,7 +201,7 @@
         <PowershellScript>BVT-VERIFY-KVP-DAEMON-STATUS.ps1</PowershellScript>
         <files></files>
         <setupType>BVTDeployment</setupType>
-        <Platform>Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
