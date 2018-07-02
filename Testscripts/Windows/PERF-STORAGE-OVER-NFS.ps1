@@ -1,5 +1,5 @@
 $result = ""
-$testResult = ""
+$CurrentTestResult = CreateTestResultObject
 $resultArr = @()
 
 $isDeployed = DeployVMS -setupType $currentTestData.setupType -Distro $Distro -xmlConfig $xmlConfig
@@ -132,7 +132,7 @@ chmod 666 /root/perf_fio.csv
 		}
 		LogMsg "Test result : $testResult"
 		LogMsg "Test Completed"
-		$resultSummary +=  CreateResultSummary -testResult $testResult -metaData "" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+		$CurrentTestResult.TestSummary += CreateResultSummary -testResult $testResult -metaData "" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 		
     try
         {
@@ -175,12 +175,12 @@ chmod 666 /root/perf_fio.csv
 
 
 			LogMsg "Uploading the test results.."
-			$dataSource = $xmlConfig.config.Azure.database.server
-			$DBuser = $xmlConfig.config.Azure.database.user
-			$DBpassword = $xmlConfig.config.Azure.database.password
-			$database = $xmlConfig.config.Azure.database.dbname
-			$dataTableName = $xmlConfig.config.Azure.database.dbtable
-			$TestCaseName = $xmlConfig.config.Azure.database.testTag
+			$dataSource = $xmlConfig.config.$TestPlatform.database.server
+			$DBuser = $xmlConfig.config.$TestPlatform.database.user
+			$DBpassword = $xmlConfig.config.$TestPlatform.database.password
+			$database = $xmlConfig.config.$TestPlatform.database.dbname
+			$dataTableName = $xmlConfig.config.$TestPlatform.database.dbtable
+			$TestCaseName = $xmlConfig.config.$TestPlatform.database.testTag
 			if ($dataSource -And $DBuser -And $DBpassword -And $database -And $dataTableName) 
 			{
 				$GuestDistro	= cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
@@ -193,7 +193,7 @@ chmod 666 /root/perf_fio.csv
 					$HostType	= "Azure"
 				}
 				
-				$HostBy	= ($xmlConfig.config.Azure.General.Location).Replace('"','')
+				$HostBy	= ($xmlConfig.config.$TestPlatform.General.Location).Replace('"','')
 				$HostOS	= cat "$LogDir\VM_properties.csv" | Select-String "Host Version"| %{$_ -replace ",Host Version,",""}
 				$GuestOSType	= "Linux"
 				$GuestDistro	= cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
@@ -273,10 +273,10 @@ else
 	$resultArr += $testResult
 }
 
-$result = GetFinalResultHeader -resultarr $resultArr
+$CurrentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
 
 #Clean up the setup
-DoTestCleanUp -result $result -testName $currentTestData.testName -deployedServices $isDeployed -ResourceGroups $isDeployed
+DoTestCleanUp -CurrentTestResult $CurrentTestResult -testName $currentTestData.testName -ResourceGroups $isDeployed
 
 #Return the result and summery to the test suite script..
-return $result, $resultSummary
+return $CurrentTestResult

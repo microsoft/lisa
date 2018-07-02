@@ -76,7 +76,7 @@ Function ValidateSubscriptionUsage($subscriptionID, $RGXMLData)
             return $overFlowErrors
         }
         #Get the region
-        $Location = ($xmlConfig.config.Azure.General.Location).Replace('"',"").Replace(' ',"").ToLower()
+        $Location = ($xmlConfig.config.$TestPlatform.General.Location).Replace('"',"").Replace(' ',"").ToLower()
         $AllowedUsagePercentage = 100
         $currentStatus = Get-AzureRmVMUsage -Location $Location
         $overFlowErrors = 0
@@ -296,15 +296,15 @@ Function ValidateSubscriptionUsage($subscriptionID, $RGXMLData)
     #region Storage Accounts
     LogMsg "Estimating storage account usage..."
     $currentStorageStatus = Get-AzureRmStorageUsage
-    if ( ($premiumVMs -gt 0 ) -and ($xmlConfig.config.Azure.General.StorageAccount -imatch "NewStorage_"))
+    if ( ($premiumVMs -gt 0 ) -and ($xmlConfig.config.$TestPlatform.General.StorageAccount -imatch "NewStorage_"))
     {
         $requiredStorageAccounts = 1
     }
-    elseif( ($premiumVMs -gt 0 ) -and !($xmlConfig.config.Azure.General.StorageAccount -imatch "NewStorage_"))
+    elseif( ($premiumVMs -gt 0 ) -and !($xmlConfig.config.$TestPlatform.General.StorageAccount -imatch "NewStorage_"))
     {
         $requiredStorageAccounts = 1
     }
-    elseif( !($premiumVMs -gt 0 ) -and !($xmlConfig.config.Azure.General.StorageAccount -imatch "NewStorage_"))
+    elseif( !($premiumVMs -gt 0 ) -and !($xmlConfig.config.$TestPlatform.General.StorageAccount -imatch "NewStorage_"))
     {
         $requiredStorageAccounts = 0
     }
@@ -380,7 +380,7 @@ Function CreateAllResourceGroupDeployments($setupType, $xmlConfig, $Distro, [str
     {
         $resourceGroupCount = 0
         LogMsg $setupType
-        $setupTypeData = $xmlConfig.config.Azure.Deployment.$setupType
+        $setupTypeData = $xmlConfig.config.$TestPlatform.Deployment.$setupType
         $allsetupGroups = $setupTypeData
         if ($allsetupGroups.ResourceGroup[0].Location -or $allsetupGroups.ResourceGroup[0].AffinityGroup)
         {
@@ -392,7 +392,7 @@ Function CreateAllResourceGroupDeployments($setupType, $xmlConfig, $Distro, [str
             $isMultiple = 'False'
         }
         $OsVHD = $BaseOsVHD
-        $location = $xmlConfig.config.Azure.General.Location
+        $location = $xmlConfig.config.$TestPlatform.General.Location
         if($region)
         {
           $location = $region;
@@ -414,7 +414,7 @@ Function CreateAllResourceGroupDeployments($setupType, $xmlConfig, $Distro, [str
             $readyToDeploy = $false
             while (!$readyToDeploy)
             {
-                $readyToDeploy = ValidateSubscriptionUsage -subscriptionID $xmlConfig.config.Azure.General.SubscriptionID -RGXMLData $RG
+                $readyToDeploy = ValidateSubscriptionUsage -subscriptionID $xmlConfig.config.$TestPlatform.General.SubscriptionID -RGXMLData $RG
                 $validateCurrentTime = Get-Date
                 $elapsedWaitTime = ($validateCurrentTime - $validateStartTime).TotalSeconds
                 if ( (!$readyToDeploy) -and ($elapsedWaitTime -lt $CoreCountExceededTimeout))
@@ -597,10 +597,14 @@ Function DeleteResourceGroup([string]$RGName, [switch]$KeepDisks)
             if ( $XmlSecrets.secrets.AutomationRunbooks.CleanupResourceGroupRunBook )
             {
                 $parameters = $parameters = @{"NAMEFILTER"="$RGName"; "PREVIEWMODE"=$false};
+                $CleanupRG = Get-AzureRmResourceGroup  -Name $XmlSecrets.secrets.AutomationRunbooks.ResourceGroupName -ErrorAction SilentlyContinue
+            }
+            if ($CleanupRG)
+            {
                 $rubookJob = Start-AzureRmAutomationRunbook -Name $XmlSecrets.secrets.AutomationRunbooks.CleanupResourceGroupRunBook -Parameters $parameters -AutomationAccountName $XmlSecrets.secrets.AutomationRunbooks.AutomationAccountName -ResourceGroupName $XmlSecrets.secrets.AutomationRunbooks.ResourceGroupName
                 LogMsg "Cleanup job ID: '$($rubookJob.JobId)' for '$RGName' started using runbooks."
                 $retValue = $true
-            }
+            }            
             else
             {
                 $currentGUID = ([guid]::newguid()).Guid
@@ -811,7 +815,7 @@ while(!$saInfoCollected -and ($retryCount -lt $maxRetryCount))
     }
 }
 
-$StorageAccountName = $xmlConfig.config.Azure.General.ARMStorageAccount
+$StorageAccountName = $xmlConfig.config.$TestPlatform.General.ARMStorageAccount
 #Condition Existing Storage - NonManaged disks
 if ( $StorageAccountName -inotmatch "NewStorage" -and !$UseManagedDisks)
 {
@@ -2067,7 +2071,7 @@ Set-Content -Path $jsonFile -Value (Get-Content $jsonFile).Replace("^",'"') -For
 
 Function DeployResourceGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFailed = $false, $GetDeploymentStatistics = $false, [string]$region = "")
 {
-    if( (!$EconomyMode) -or ( $EconomyMode -and ($xmlConfig.config.Azure.Deployment.$setupType.isDeployed -eq "NO")))
+    if( (!$EconomyMode) -or ( $EconomyMode -and ($xmlConfig.config.$TestPlatform.Deployment.$setupType.isDeployed -eq "NO")))
     {
         try
         {
@@ -2077,7 +2081,7 @@ Function DeployResourceGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFailed
             #$ExistingGroups = RetryOperation -operation { Get-AzureRmResourceGroup } -description "Getting information of existing resource groups.." -retryInterval 5 -maxRetryCount 5
             $i = 0
             $role = 1
-            $setupTypeData = $xmlConfig.config.Azure.Deployment.$setupType
+            $setupTypeData = $xmlConfig.config.$TestPlatform.Deployment.$setupType
             #DEBUGRG
             #$isAllDeployed = CreateAllResourceGroupDeployments -setupType $setupType -xmlConfig $xmlConfig -Distro $Distro -region $region -storageAccount $storageAccount -DebugRG "ICA-RG-M1S1-SSTEST-GZBX-636621761998"
             $isAllDeployed = CreateAllResourceGroupDeployments -setupType $setupType -xmlConfig $xmlConfig -Distro $Distro -region $region
@@ -2111,7 +2115,7 @@ Function DeployResourceGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFailed
                         $VerifiedGroups = $deployedGroups
                         $retValue = $VerifiedGroups
                         #$vnetIsAllConfigured = $false
-                        $xmlConfig.config.Azure.Deployment.$setupType.isDeployed = $retValue
+                        $xmlConfig.config.$TestPlatform.Deployment.$setupType.isDeployed = $retValue
                         #Collecting Initial Kernel
                         if ( Test-Path -Path  .\Extras\UploadDeploymentDataToDB.ps1 )
                         {
@@ -2167,7 +2171,7 @@ Function DeployResourceGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFailed
     }
     else
     {
-        $retValue = $xmlConfig.config.Azure.Deployment.$setupType.isDeployed
+        $retValue = $xmlConfig.config.$TestPlatform.Deployment.$setupType.isDeployed
         $KernelLogOutput= GetAndCheckKernelLogs -allDeployedVMs $allVMData -status "Initial"
     }
     if ( $GetDeploymentStatistics )
@@ -2442,4 +2446,74 @@ Function SetResourceGroupLock ([string]$ResourceGroup,  [string]$LockNote, [stri
     {
         LogMsg "Fix the paremeters and try again."    
     }
+}
+
+Function RestartAllAzureDeployments($allVMData)
+{
+	$currentGUID = ([guid]::newguid()).Guid
+	$out = Save-AzureRmContext -Path "$env:TEMP\$($currentGUID).azurecontext" -Force
+	$restartJobs = @()	
+	foreach ( $vmData in $AllVMData )
+	{
+		if ( $UseAzureResourceManager)
+		{
+			LogMsg "Triggering Restart-$($vmData.RoleName)..."
+			$restartJobs += Start-Job -ScriptBlock { $vmData = $args[0]
+				$currentGUID = $args[1]
+				Import-AzureRmContext -AzureContext "$env:TEMP\$($currentGUID).azurecontext"
+				$restartVM = Restart-AzureRmVM -ResourceGroupName $vmData.ResourceGroupName -Name $vmData.RoleName -Verbose
+			} -ArgumentList $vmData,$currentGUID -Name "Restart-$($vmData.RoleName)"
+		}
+		else
+		{
+			$restartVM = Restart-AzureVM -ServiceName $vmData.ServiceName -Name $vmData.RoleName -Verbose
+			$isRestarted = $?
+			if ($isRestarted)
+			{
+				LogMsg "Restarted : $($vmData.RoleName)"
+			}
+			else
+			{
+				LogError "FAILED TO RESTART : $($vmData.RoleName)"
+				$retryCount = $retryCount + 1
+				if ($retryCount -gt 0)
+				{
+					LogMsg "Retrying..."
+				}
+				if ($retryCount -eq 0)
+				{
+					Throw "Calling function - $($MyInvocation.MyCommand). Unable to Restart : $($vmData.RoleName)"
+				}
+			}
+		}
+	}
+	$recheckAgain = $true
+	LogMsg "Waiting until VMs restart..."
+	$jobCount = $restartJobs.Count
+	$completedJobsCount = 0
+	While ($recheckAgain)
+	{
+		$recheckAgain = $false
+		$tempJobs = @()
+		foreach ($restartJob in $restartJobs)
+		{
+			if ($restartJob.State -eq "Completed")
+			{
+				$completedJobsCount += 1
+				LogMsg "[$completedJobsCount/$jobCount] $($restartJob.Name) is done."
+				$out = Remove-Job -Id $restartJob.ID -Force -ErrorAction SilentlyContinue
+			}
+			else
+			{
+				$tempJobs += $restartJob
+				$recheckAgain = $true
+			}
+		}
+		$restartJobs = $tempJobs
+		Start-Sleep -Seconds 1
+	}
+	
+	Remove-Item -Path "$env:TEMP\$($currentGUID).azurecontext" -Force -ErrorAction SilentlyContinue | Out-Null
+	$isSSHOpened = isAllSSHPortsEnabledRG -AllVMDataObject $AllVMData
+	return $isSSHOpened
 }

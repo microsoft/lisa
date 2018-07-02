@@ -1022,11 +1022,18 @@ Function SetDistroSpecificVariables($detectedDistro)
 
 Function DeployVMs ($xmlConfig, $setupType, $Distro, $getLogsIfFailed = $false, $GetDeploymentStatistics = $false, [string]$region = "", [int]$timeOutSeconds = 600)
 {
-    $AzureSetup = $xmlConfig.config.Azure.General
+    $AzureSetup = $xmlConfig.config.$TestPlatform.General
 	
 	#Test Platform Azure
-	$retValue = DeployResourceGroups  -xmlConfig $xmlConfig -setupType $setupType -Distro $Distro -getLogsIfFailed $getLogsIfFailed -GetDeploymentStatistics $GetDeploymentStatistics -region $region
-	
+	if ( $TestPlatform -eq "Azure" )
+	{
+		$retValue = DeployResourceGroups  -xmlConfig $xmlConfig -setupType $setupType -Distro $Distro -getLogsIfFailed $getLogsIfFailed -GetDeploymentStatistics $GetDeploymentStatistics -region $region
+	}
+	if ( $TestPlatform -eq "HyperV" )
+	{
+		$retValue = DeployHyperVGroups  -xmlConfig $xmlConfig -setupType $setupType -Distro $Distro -getLogsIfFailed $getLogsIfFailed -GetDeploymentStatistics $GetDeploymentStatistics
+		
+	}
 	if ( $retValue -and $CustomKernel)
     {
         LogMsg "Custom kernel: $CustomKernel will be installed on all machines..."
@@ -1056,9 +1063,6 @@ Function DeployVMs ($xmlConfig, $setupType, $Distro, $getLogsIfFailed = $false, 
             $retValue = ""
 		}
     }
-
-
-
     if ( $retValue -and $resizeVMsAfterDeployment)
     {
 		$SRIOVStatus = EnableSRIOVInAllVMs -allVMData $allVMData
@@ -1718,7 +1722,7 @@ Function RunLinuxCmd([string] $username,[string] $password,[string] $ip,[string]
 			if ($LinuxExitCode -imatch "AZURE-LINUX-EXIT-CODE-0") 
 			{
 				$returnCode = 0
-				LogMsg "$command executed successfully in $RunElaplsedTime seconds." -WriteHostOnly $WriteHostOnly -NoLogsPlease $NoLogsPlease
+				LogMsg "$command executed successfully in $([math]::Round($RunElaplsedTime,2)) seconds." -WriteHostOnly $WriteHostOnly -NoLogsPlease $NoLogsPlease
 				$retValue = $RunLinuxCmdOutput.Trim()
 			}
 			else
@@ -1774,38 +1778,68 @@ Function RunLinuxCmd([string] $username,[string] $password,[string] $ip,[string]
 #endregion
 
 #region Test Case Logging
-Function DoTestCleanUp($result, $testName, $DeployedServices, $ResourceGroups, [switch]$keepUserDirectory, [switch]$SkipVerifyKernelLogs)
+Function DoTestCleanUp($CurrentTestResult, $testName, $DeployedServices, $ResourceGroups, [switch]$keepUserDirectory, [switch]$SkipVerifyKernelLogs)
 {
 	try
 	{
-		if($DeployedServices -or $ResourceGroups)
+		$result = $CurrentTestResult.TestResult
+		
+		if($ResourceGroups)
 		{
 			try
 			{
-				if (!$SkipVerifyKernelLogs)
+				if ($allVMData.Count -gt 1)
 				{
-					foreach ($vmData in $allVMData)
-					{
-						$out = RemoteCopy -upload -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files .\Testscripts\Linux\CollectLogFile.sh -username $user -password $password
-						$out = RunLinuxCmd -username $user -password $password -ip $vmData.PublicIP -port $vmData.SSHPort -command "bash CollectLogFile.sh" -ignoreLinuxExitCode
-						$out = RemoteCopy -downloadFrom $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -files "$($vmData.RoleName)-*.txt" -downloadTo "$LogDir" -download
-						$finalKernelVersion = Get-Content "$LogDir\$($vmData.RoleName)-kernelVersion.txt"
-						Set-Variable -Name finalKernelVersion -Value $finalKernelVersion -Scope Global
-						#region LIS Version
-						$tempLIS = (Select-String -Path "$LogDir\$($vmData.RoleName)-lis.txt" -Pattern "^version:").Line
-						if ($tempLIS)
-						{
-							$finalLISVersion = $tempLIS.Split(":").Trim()[1]
-						}
-						else
-						{
-							$finalLISVersion = "NA"
-						}
-						Set-Variable -Name finalLISVersion -Value $finalLISVersion -Scope Global
-						Write-Host "Setting : finalLISVersion : $finalLISVersion"
-						#endregion
-					}
+					$vmData = $allVMData[0]
 				}
+				else 
+				{
+					$vmData = $allVMData	
+				}
+				$TestName = $CurrentTestData.TestName
+				$FilesToDownload = "$($vmData.RoleName)-*.txt"
+				$out = RemoteCopy -upload -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files .\Testscripts\Linux\CollectLogFile.sh -username $user -password $password
+				$out = RunLinuxCmd -username $user -password $password -ip $vmData.PublicIP -port $vmData.SSHPort -command "bash CollectLogFile.sh" -ignoreLinuxExitCode
+				$out = RemoteCopy -downloadFrom $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -files "$FilesToDownload" -downloadTo "$LogDir" -download
+				$KernelVersion = Get-Content "$LogDir\$($vmData.RoleName)-kernelVersion.txt"
+				$GuestDistro = Get-Content "$LogDir\$($vmData.RoleName)-distroVersion.txt"
+				$LISMatch = (Select-String -Path "$LogDir\$($vmData.RoleName)-lis.txt" -Pattern "^version:").Line
+				if ($LISMatch)
+				{
+					$LISVersion = $LISMatch.Split(":").Trim()[1]
+				}
+				else
+				{
+					$LISVersion = "NA"
+				}
+				#region Host Version checking
+				$FoundLineNumber = (Select-String -Path "$LogDir\$($vmData.RoleName)-dmesg.txt" -Pattern "Hyper-V Host Build").LineNumber
+				$ActualLineNumber = $FoundLineNumber - 1
+				$FinalLine = (Get-Content -Path "$LogDir\$($vmData.RoleName)-dmesg.txt")[$ActualLineNumber]
+				#Write-Host $finalLine
+				$FinalLine = $FinalLine.Replace('; Vmbus version:4.0','')
+				$FinalLine = $FinalLine.Replace('; Vmbus version:3.0','')
+				$HostVersion = ($FinalLine.Split(":")[$FinalLine.Split(":").Count -1 ]).Trim().TrimEnd(";")
+				#endregion				
+				
+				if($EnableAcceleratedNetworking -or ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV"))
+				{
+					$Networking = "SRIOV"
+				}
+				else
+				{
+					$Networking = "Synthetic"    
+				}
+				if ($TestPlatform -eq "Azure")
+				{
+					$VMSize = $vmData.InstanceSize
+				}				
+				if ( $TestPlatform -eq "HyperV")
+				{
+					$VMSize = $HyperVInstanceSize
+				}
+				#endregion
+				UploadTestResultToDatabase -TestPlatform $TestPlatform -TestLocation $TestLocation -TestCategory $TestCategory -TestArea $TestArea -TestName $CurrentTestData.TestName -CurrentTestResult $CurrentTestResult -TestTag $TestTag -GuestDistro $GuestDistro -KernelVersion $KernelVersion -LISVersion $LISVersion -HostVersion $HostVersion -VMSize $VMSize -Networking $Networking -ARMImage $ARMImage -OsVHD $OsVHD -BuildURL $env:BUILD_URL
 			}
 			catch
 			{
@@ -1828,7 +1862,7 @@ Function DoTestCleanUp($result, $testName, $DeployedServices, $ResourceGroups, [
 				Remove-Job -Id $taskID -Force
 				Remove-Item $LogDir\CurrentTestBackgroundJobs.txt -ErrorAction SilentlyContinue
 			}
-			$user=$xmlConfig.config.Azure.Deployment.Data.UserName
+			$user=$xmlConfig.config.$TestPlatform.Deployment.Data.UserName
 			if ( !$SkipVerifyKernelLogs )
 			{
 				try
@@ -1842,197 +1876,129 @@ Function DoTestCleanUp($result, $testName, $DeployedServices, $ResourceGroups, [
 				}
 			}			
 			$isClened = @()
-			if ( !$UseAzureResourceManager )
+			$ResourceGroups = $ResourceGroups.Split("^")
+			$isVMLogsCollected = $false
+			foreach ($group in $ResourceGroups)
 			{
-				$hsNames = $DeployedServices
-				$allDeploymentData = $allVMData
-				$hsNames = $hsNames.Split("^")
-				$isVMLogsCollected = $false
-				foreach ($hs in $hsNames)
+				if ($ForceDeleteResources)
 				{
-					$hsDetails = Get-AzureService -ServiceName $hs
-					if (!($hsDetails.Description -imatch "DONOTDISTURB"))
+					LogMsg "-ForceDeleteResources is Set. Deleting $group."
+					if ($TestPlatform -eq "Azure")
 					{
-						if($result -eq "PASS")
+						$isClened = DeleteResourceGroup -RGName $group
+
+					}
+					elseif ($TestPlatform -eq "HyperV")
+					{
+						$isClened = DeleteHyperVGroup -HyperVGroupName $group										
+					}
+					if (!$isClened)
+					{
+						LogMsg "CleanUP unsuccessful for $group.. Please delete the services manually."
+					}
+					else
+					{
+						LogMsg "CleanUP Successful for $group.."
+					}
+				}
+				else 
+				{
+					if($result -eq "PASS")
+					{
+						if($EconomyMode -and (-not $IsLastCaseInCycle))
 						{
-							if($EconomyMode -and (-not $IsLastCaseInCycle))
+							LogMsg "Skipping cleanup of Resource Group : $group."
+							if(!$keepUserDirectory)
 							{
-								LogMsg "Skipping cleanup of $hs."
-								if(!$keepUserDirectory)
-								{
-									RemoveAllFilesFromHomeDirectory -allDeployedVMs $allVMData
-								}
-							}
-							else
-							{
-								if ( $hsDetails.Description -imatch $preserveKeyword )
-								{
-									LogMsg "Skipping cleanup of preserved service."
-									LogMsg "Collecting VM logs.."
-									if ( !$isVMLogsCollected )
-									{
-										GetVMLogs -allVMData $allDeploymentData
-									}
-									$isVMLogsCollected = $true								}
-								else
-								{
-                                	if ( $KeepReproInact )
-                                	{
-										LogMsg "Skipping cleanup due to 'KeepReproInact' flag is set."
-                                    }
-                                    else
-									{
-										LogMsg "Collecting VM logs of PASS test case.."
-										$out = GetVMLogs -allVMData $allVMData
-										LogMsg "Cleaning up deployed test virtual machines."
-										$isClened = DeleteService -serviceName $hsDetails.ServiceName
-										if ($isClened -contains "False")
-										{
-											#LogMsg "CleanUP unsuccessful for $($hsDetails.ServiceName).. Please delete the services manually."
-										}
-										else
-										{
-											#LogMsg "CleanUP Successful for $($hsDetails.ServiceName).."
-										}
-									}
-								}
+								RemoveAllFilesFromHomeDirectory -allDeployedVMs $allVMData
 							}
 						}
 						else
 						{
-							LogMsg "Preserving the hosted service(s) $hsNames"
-							LogMsg "Integrating Test Case Name in the `"Description`" of preserved setups.."
-							$suppressedOut = RetryOperation -operation { RunAzureCmd -AzureCmdlet "Set-AzureService -ServiceName $hs -Description `"Preserving this setup for FAILED/ABORTED test : $testName`"" -maxWaitTimeSeconds 120 } -maxRetryCount 5 -retryInterval 5
-							LogMsg "Collecting VM logs.."
-							if ( !$isVMLogsCollected )
+							try 
 							{
-								GetVMLogs -allVMData $allDeploymentData
+								$RGdetails = Get-AzureRmResourceGroup -Name $group -ErrorAction SilentlyContinue	
 							}
-							$isVMLogsCollected = $true
-							if(!$keepUserDirectory -and !$KeepReproInact -and $EconomyMode)
-								{
-									RemoveAllFilesFromHomeDirectory -allDeployedVMs $allVMData
-								}
-							if($KeepReproInact)
+							catch 
 							{
-								$xmlConfig.config.Azure.Deployment.$setupType.isDeployed = "NO"
+								LogMsg "Resource group '$group' not found."
+							}
+							
+							if ( $RGdetails.Tags )
+							{
+								if ( (  $RGdetails.Tags[0].Name -eq $preserveKeyword ) -and (  $RGdetails.Tags[0].Value -eq "yes" ))
+								{
+									LogMsg "Skipping Cleanup of preserved resource group."
+									LogMsg "Collecting VM logs.."
+									if ( !$isVMLogsCollected)
+									{
+										GetVMLogs -allVMData $allVMData
+									}
+									$isVMLogsCollected = $true
+								}
+							}
+							else
+							{
+								if ( $DoNotDeleteVMs )
+								{
+									LogMsg "Skipping cleanup due to 'DoNotDeleteVMs' flag is set."
+								}
+								else
+								{
+									LogMsg "Cleaning up deployed test virtual machines."
+									if ($TestPlatform -eq "Azure")
+									{
+										$isClened = DeleteResourceGroup -RGName $group
+
+									}
+									elseif ($TestPlatform -eq "HyperV")
+									{
+										$isClened = DeleteHyperVGroup -HyperVGroupName $group										
+									}
+									if (!$isClened)
+									{
+										LogMsg "CleanUP unsuccessful for $group.. Please delete the services manually."
+									}
+									else
+									{
+										LogMsg "CleanUP Successful for $group.."
+									}											
+								}
 							}
 						}
 					}
 					else
 					{
-						if ($result -ne "PASS")
+						LogMsg "Preserving the Resource Group(s) $group"
+						if ($TestPlatform -eq "Azure")
 						{
-							LogMsg "Collecting VM logs.."
-							GetVMLogs -allVMData $allDeploymentData
-							if($KeepReproInact)
-							{
-								$xmlConfig.config.Azure.Deployment.$setupType.isDeployed = "NO"
-							}
-						}
-						LogMsg "Skipping cleanup, as service is marked as DO NOT DISTURB.."
-					}
-				}
-			}
-			else
-			{
-				$ResourceGroups = $ResourceGroups.Split("^")
-				$isVMLogsCollected = $false
-				foreach ($group in $ResourceGroups)
-				{
-					if ($ForceDeleteResources)
-					{
-						LogMsg "-ForceDeleteResources is Set. Deleting $group."
-						$isClened = DeleteResourceGroup -RGName $group
-					}
-					else 
-					{
-						if($result -eq "PASS")
-						{
-							if($EconomyMode -and (-not $IsLastCaseInCycle))
-							{
-								LogMsg "Skipping cleanup of Resource Group : $group."
-								if(!$keepUserDirectory)
-								{
-									RemoveAllFilesFromHomeDirectory -allDeployedVMs $allVMData
-								}
-							}
-							else
-							{
-								try 
-								{
-									$RGdetails = Get-AzureRmResourceGroup -Name $group -ErrorAction SilentlyContinue	
-								}
-								catch 
-								{
-									LogMsg "Resource group '$group' not found."
-								}
-								
-								if ( $RGdetails.Tags )
-								{
-									if ( (  $RGdetails.Tags[0].Name -eq $preserveKeyword ) -and (  $RGdetails.Tags[0].Value -eq "yes" ))
-									{
-										LogMsg "Skipping Cleanup of preserved resource group."
-										LogMsg "Collecting VM logs.."
-										if ( !$isVMLogsCollected)
-										{
-											GetVMLogs -allVMData $allVMData
-										}
-										$isVMLogsCollected = $true
-									}
-								}
-								else
-								{
-									if ( $KeepReproInact )
-									{
-										LogMsg "Skipping cleanup due to 'KeepReproInact' flag is set."
-									}
-									else
-									{
-										LogMsg "Cleaning up deployed test virtual machines."
-										$isClened = DeleteResourceGroup -RGName $group
-										if (!$isClened)
-										{
-											LogMsg "CleanUP unsuccessful for $group.. Please delete the services manually."
-										}
-										else
-										{
-											#LogMsg "CleanUP Successful for $group.."
-										}
-									}
-								}
-							}
-						}
-						else
-						{
-							LogMsg "Preserving the Resource Group(s) $group"
 							LogMsg "Setting tags : preserve = yes; testName = $testName"
 							$hash = @{}
 							$hash.Add($preserveKeyword,"yes")
 							$hash.Add("testName","$testName")
 							$out = Set-AzureRmResourceGroup -Name $group -Tag $hash
-							LogMsg "Collecting VM logs.."
-							if ( !$isVMLogsCollected)
-							{
-								GetVMLogs -allVMData $allVMData
-							}
-							$isVMLogsCollected = $true
-							if(!$keepUserDirectory -and !$KeepReproInact -and $EconomyMode)
-								{
-									RemoveAllFilesFromHomeDirectory -allDeployedVMs $allVMData
-								}
-							if($KeepReproInact)
-							{
-								$xmlConfig.config.Azure.Deployment.$setupType.isDeployed = "NO"
-							}
-						}						
-					}
+						}
+						LogMsg "Collecting VM logs.."
+						if ( !$isVMLogsCollected)
+						{
+							GetVMLogs -allVMData $allVMData
+						}
+						$isVMLogsCollected = $true
+						if(!$keepUserDirectory -and !$DoNotDeleteVMs -and $EconomyMode)
+						{
+							RemoveAllFilesFromHomeDirectory -allDeployedVMs $allVMData
+						}
+						if($DoNotDeleteVMs)
+						{
+							$xmlConfig.config.$TestPlatform.Deployment.$setupType.isDeployed = "NO"
+						}
+					}						
 				}
 			}
 		}
 		else
 		{
-			LogMsg "Skipping cleanup, as No services / resource groups deployed for cleanup!"
+			LogMsg "Skipping cleanup, as No services / resource groups / HyperV Groups deployed for cleanup!"
 		}
 	}
 	catch
@@ -2138,7 +2104,10 @@ Function GetVMLogs($allVMData)
 			LogMsg $out
 			RemoteCopy -download -downloadFrom $testIP -username $user -password $password -port $testPort -downloadTo $LogDir -files $LisLogFile
 			LogMsg "Logs collected successfully from IP : $testIP PORT : $testPort"
-			Rename-Item -Path "$LogDir\$LisLogFile" -NewName ("LIS-Logs-" + $testVM.RoleName + ".tgz") -Force
+			if ($TestPlatform -eq "Azure")
+			{
+				Rename-Item -Path "$LogDir\$LisLogFile" -NewName ("LIS-Logs-" + $testVM.RoleName + ".tgz") -Force
+			}
 		}
 		catch
 		{
@@ -2260,73 +2229,20 @@ Function GetAllDeployementData($ResourceGroups)
 
 Function RestartAllDeployments($allVMData)
 {
-	$currentGUID = ([guid]::newguid()).Guid
-	$out = Save-AzureRmContext -Path "$env:TEMP\$($currentGUID).azurecontext" -Force
-	$restartJobs = @()	
-	foreach ( $vmData in $AllVMData )
+	if ($TestPlatform -eq "Azure")
 	{
-		if ( $UseAzureResourceManager)
-		{
-			LogMsg "Triggering Restart-$($vmData.RoleName)..."
-			$restartJobs += Start-Job -ScriptBlock { $vmData = $args[0]
-				$currentGUID = $args[1]
-				Import-AzureRmContext -AzureContext "$env:TEMP\$($currentGUID).azurecontext"
-				$restartVM = Restart-AzureRmVM -ResourceGroupName $vmData.ResourceGroupName -Name $vmData.RoleName -Verbose
-			} -ArgumentList $vmData,$currentGUID -Name "Restart-$($vmData.RoleName)"
-		}
-		else
-		{
-			$restartVM = Restart-AzureVM -ServiceName $vmData.ServiceName -Name $vmData.RoleName -Verbose
-			$isRestarted = $?
-			if ($isRestarted)
-			{
-				LogMsg "Restarted : $($vmData.RoleName)"
-			}
-			else
-			{
-				LogError "FAILED TO RESTART : $($vmData.RoleName)"
-				$retryCount = $retryCount + 1
-				if ($retryCount -gt 0)
-				{
-					LogMsg "Retrying..."
-				}
-				if ($retryCount -eq 0)
-				{
-					Throw "Calling function - $($MyInvocation.MyCommand). Unable to Restart : $($vmData.RoleName)"
-				}
-			}
-		}
+		$RestartStatus = RestartAllAzureDeployments -allVMData $allVMData
 	}
-	$recheckAgain = $true
-	LogMsg "Waiting until VMs restart..."
-	$jobCount = $restartJobs.Count
-	$completedJobsCount = 0
-	While ($recheckAgain)
+	elseif ($TestPlatform -eq "HyperV")
 	{
-		$recheckAgain = $false
-		$tempJobs = @()
-		foreach ($restartJob in $restartJobs)
-		{
-			if ($restartJob.State -eq "Completed")
-			{
-				$completedJobsCount += 1
-				LogMsg "[$completedJobsCount/$jobCount] $($restartJob.Name) is done."
-				$out = Remove-Job -Id $restartJob.ID -Force -ErrorAction SilentlyContinue
-			}
-			else
-			{
-				$tempJobs += $restartJob
-				$recheckAgain = $true
-			}
-		}
-		$restartJobs = $tempJobs
-		Start-Sleep -Seconds 1
+		$RestartStatus = RestartAllHyperVDeployments -allVMData $allVMData
 	}
-	
-	Remove-Item -Path "$env:TEMP\$($currentGUID).azurecontext" -Force -ErrorAction SilentlyContinue | Out-Null
-
-	$isSSHOpened = isAllSSHPortsEnabledRG -AllVMDataObject $AllVMData
-	return $isSSHOpened
+	else 
+	{
+		LogErr "Function RestartAllDeployments does not support '$TestPlatform' Test platform."	
+		$RestartStatus = "False"
+	}
+	return $RestartStatus
 }
 
 Function GetTotalPhysicalDisks($FdiskOutput)
@@ -2639,4 +2555,12 @@ Function GetStorageAccountFromRegion($Region,$StorageAccount)
 	}
 	LogMsg "Selected : $StorageAccountName"
 	return $StorageAccountName
+}
+
+function CreateTestResultObject()
+{
+	$objNode = New-Object -TypeName PSObject
+	Add-Member -InputObject $objNode -MemberType NoteProperty -Name TestResult -Value $null -Force
+	Add-Member -InputObject $objNode -MemberType NoteProperty -Name TestSummary -Value $null -Force
+	return $objNode
 }
