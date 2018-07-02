@@ -1,5 +1,5 @@
 ﻿$result = ""
-$testResult = ""
+$CurrentTestResult = CreateTestResultObject
 $resultArr = @()
 try {
 	if($testId.ToUpper() -eq "AZUREBVT_000" -and ($customKernel -or $customLIS))
@@ -69,6 +69,6 @@ Finally
 	$resultArr += $testResult
 }
 
-$result = GetFinalResultHeader -resultarr $resultArr
+$CurrentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
 
-return $result
+return $CurrentTestResult

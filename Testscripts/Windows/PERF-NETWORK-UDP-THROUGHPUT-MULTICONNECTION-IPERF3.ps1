@@ -1,5 +1,5 @@
 $result = ""
-$testResult = ""
+$CurrentTestResult = CreateTestResultObject
 $resultArr = @()
 
 $isDeployed = DeployVMS -setupType $currentTestData.setupType -Distro $Distro -xmlConfig $xmlConfig
@@ -47,7 +47,7 @@ if ($isDeployed)
 
 		#endregion
 
-		if($EnableAcceleratedNetworking)
+		if($EnableAcceleratedNetworking -or ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV"))
 		{
 			$DataPath = "SRIOV"
             LogMsg "Getting SRIOV NIC Name."
@@ -325,7 +325,7 @@ collect_VM_properties
 		{
 			$connResult="ClientTxGbps=$($udpResultObject.ClientTxGbps) ServerRxGbps=$($udpResultObject.ServerRxGbps) UDPLoss=$($udpResultObject.ClientUDPLoss)%"
 			$metaData = "Buffer=$($udpResultObject.BufferSize)K Connections=$($udpResultObject.Connections)"
-			$resultSummary +=  CreateResultSummary -testResult $connResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+			$CurrentTestResult.TestSummary += CreateResultSummary -testResult $connResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 		}
 		if ( $finalStatus -imatch "TestFailed")
 		{
@@ -353,12 +353,12 @@ collect_VM_properties
 
 
 		LogMsg "Uploading the test results to DB STARTED.."
-		$dataSource = $xmlConfig.config.Azure.database.server
-		$dbuser = $xmlConfig.config.Azure.database.user
-		$dbpassword = $xmlConfig.config.Azure.database.password
-		$database = $xmlConfig.config.Azure.database.dbname
-		$dataTableName = $xmlConfig.config.Azure.database.dbtable
-		$TestCaseName = $xmlConfig.config.Azure.database.testTag
+		$dataSource = $xmlConfig.config.$TestPlatform.database.server
+		$dbuser = $xmlConfig.config.$TestPlatform.database.user
+		$dbpassword = $xmlConfig.config.$TestPlatform.database.password
+		$database = $xmlConfig.config.$TestPlatform.database.dbname
+		$dataTableName = $xmlConfig.config.$TestPlatform.database.dbtable
+		$TestCaseName = $xmlConfig.config.$TestPlatform.database.testTag
 		if ($dataSource -And $dbuser -And $dbpassword -And $database -And $dataTableName)
 		{
 			$GuestDistro	= cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
@@ -370,7 +370,7 @@ collect_VM_properties
 			{
 				$HostType	= "Azure"
 			}
-			$HostBy	= ($xmlConfig.config.Azure.General.Location).Replace('"','')
+			$HostBy	= ($xmlConfig.config.$TestPlatform.General.Location).Replace('"','')
 			$HostOS	= cat "$LogDir\VM_properties.csv" | Select-String "Host Version"| %{$_ -replace ",Host Version,",""}
 			$GuestOSType	= "Linux"
 			$GuestDistro	= cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
@@ -426,10 +426,10 @@ else
 	$resultArr += $testResult
 }
 
-$result = GetFinalResultHeader -resultarr $resultArr
+$CurrentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
 
 #Clean up the setup
-DoTestCleanUp -result $result -testName $currentTestData.testName -deployedServices $isDeployed -ResourceGroups $isDeployed
+DoTestCleanUp -CurrentTestResult $CurrentTestResult -testName $currentTestData.testName -ResourceGroups $isDeployed
 
 #Return the result and summery to the test suite script..
-return $result, $resultSummary
+return $CurrentTestResult

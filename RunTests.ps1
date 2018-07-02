@@ -7,40 +7,53 @@
 #              
 ## Author : v-shisav@microsoft.com, lisasupport@microsoft.com
 ###############################################################################################
+[CmdletBinding()]
 Param(
-
     #Do not use. Reserved for Jenkins use.   
     $BuildNumber=$env:BUILD_NUMBER,
 
-    #Required
+    #[Required]
+    [string] $TestPlatform = "",
+    
+    #[Required] for Azure.
     [string] $TestLocation="",
     [string] $RGIdentifier = "",
-    [string] $TestPlatform = "",
     [string] $ARMImageName = "",
-
-    #Optinal
     [string] $StorageAccount="",
-    [string] $OsVHD = "", #... Required if -ARMImageName is not provided.
+
+    #[Required] for HyperV
+
+    #[Required] Common for HyperV and Azure.
+    [string] $OsVHD = "",   #... [Azure: Required only if -ARMImageName is not provied.]
+                            #... [HyperV: Mandatory]
     [string] $TestCategory = "",
     [string] $TestArea = "",
     [string] $TestTag = "",
     [string] $TestNames="",
-    [switch] $Verbose,
+    
+    #[Optional] Parameters for Image preparation before running tests.
     [string] $CustomKernel = "",
-    [string] $OverrideVMSize = "",
     [string] $CustomLIS,
+
+    #[Optional] Parameters for changing framework behaviour.
     [string] $CoreCountExceededTimeout,
     [int] $TestIterations,
     [string] $TiPSessionId,
     [string] $TiPCluster,
     [string] $XMLSecretFile = "",
-    #Toggles
+    [switch] $EnableTelemetry,
+
+    #[Optional] Parameters for dynamically updating XML files
     [switch] $UpdateGlobalConfigurationFromSecretsFile,
     [switch] $UpdateXMLStringsFromSecretsFile,    
-    [switch] $KeepReproInact,
+    
+    #[Optional] Parameters for Overriding VM Configuration in Azure.
+    [string] $OverrideVMSize = "",
     [switch] $EnableAcceleratedNetworking,
+    [string] $OverrideHyperVDiskMode = "",
     [switch] $ForceDeleteResources,
     [switch] $UseManagedDisks,
+    [switch] $DoNotDeleteVMs,
 
     [string] $ResultDBTable = "",
     [string] $ResultDBTestTag = "",
@@ -53,160 +66,29 @@ Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1"
 
 try 
 {
-    $LogDir = $null
-
-    #region Validate Parameters
-    $ParameterErrors = @()
-    if ( !$TestPlatform )
+    #region Prepare / Clean the powershell console.
+    $WorkingDirectory = Split-Path -parent $MyInvocation.MyCommand.Definition 
+    $ParameterList = (Get-Command -Name $PSCmdlet.MyInvocation.InvocationName).Parameters;
+    foreach ($key in $ParameterList.keys)
     {
-        $ParameterErrors += "-TestPlatform <Azure/AzureStack> is required."
+        $var = Get-Variable -Name $key -ErrorAction SilentlyContinue;
+        if($var)
+        {
+            Set-Variable -Name $($var.name) -Value $($var.value) -Scope Global -Force
+        }
     }
-    if ( !$ARMImageName -and !$OsVHD )
-    {
-        $ParameterErrors += "-ARMImageName <'Publisher Offer Sku Version'>/ -OsVHD <'VHD_Name.vhd'> is required"
-    }
-    if ( !$TestLocation)
-    {
-        $ParameterErrors += "-TestLocation <Location> is required"
-    }
-    if ( !$RGIdentifier )
-    {
-        $ParameterErrors += "-RGIdentifier <PersonalIdentifier> is required. This string will added to Resources created by Automation."
-    }   
-    if ( $ParameterErrors.Count -gt 0)
-    {
-        $ParameterErrors | ForEach-Object { LogError $_ }
-        Throw "Paremeters are not valid."
-    }
-    else 
-    {
-        LogMsg "Input parameters are valid"
-    }
+	$LogDir = ".\TestResults\$(Get-Date -Format 'yyyy-dd-MM-HH-mm-ss-ffff')"
+	Set-Variable -Name LogDir -Value $LogDir -Scope Global -Force
+	Set-Variable -Name RootLogDir -Value $LogDir -Scope Global -Force
+	New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
+	New-Item -ItemType Directory -Path Temp -Force -ErrorAction SilentlyContinue | Out-Null
+	LogMsg "Created LogDir: $LogDir"
     #endregion
-    
-    #region Replace strings in XML files
-    if ($UpdateXMLStringsFromSecretsFile)
-    {
-        if ($XMLSecretFile)
-        {
-            if (Test-Path -Path $XMLSecretFile)
-            {
-                .\Utilities\UpdateXMLStringsFromXmlSecrets.ps1 -XmlSecretsFilePath $XMLSecretFile
-            }
-            else 
-            {
-                LogErr "Failed to update Strings in .\XML files. '$XMLSecretFile' not found."    
-            }
-        }
-        else 
-        {
-            LogErr "Failed to update Strings in .\XML files. '-XMLSecretFile [FilePath]' not provided."    
-        }
-    }
-    #Region Update Global Configuration XML file as needed
-    if ($UpdateGlobalConfigurationFromSecretsFile)
-    {
-        if ($XMLSecretFile)
-        {
-            if (Test-Path -Path $XMLSecretFile)
-            {
-                LogMsg "Updating .\XML\GlobalConfigurations.xml"
-                .\Utilities\UpdateGlobalConfigurationFromXmlSecrets.ps1 -XmlSecretsFilePath $XMLSecretFile
-            }
-            else 
-            {
-                LogErr "Failed to update .\XML\GlobalConfigurations.xml. '$XMLSecretFile' not found."    
-            }
-        }
-        else 
-        {
-            LogErr "Failed to update .\XML\GlobalConfigurations.xml. '-XMLSecretFile [FilePath]' not provided."    
-        }
-    }
-
-
-    $RegionStorageMapping = [xml](Get-Content .\XML\RegionAndStorageAccounts.xml)
-    $GlobalConfiguration = [xml](Get-Content .\XML\GlobalConfigurations.xml)
-    if ( $StorageAccount -imatch "ExistingStorage_Standard" )
-    {
-        $GlobalConfiguration.Global.Azure.Subscription.ARMStorageAccount = $RegionStorageMapping.AllRegions.$TestLocation.StandardStorage
-    }
-    elseif ( $StorageAccount -imatch "ExistingStorage_Premium" )
-    {
-        $GlobalConfiguration.Global.Azure.Subscription.ARMStorageAccount = $RegionStorageMapping.AllRegions.$TestLocation.PremiumStorage
-    }
-    elseif ( $StorageAccount -imatch "NewStorage_Standard" )
-    {
-        $GlobalConfiguration.Global.Azure.Subscription.ARMStorageAccount = "NewStorage_Standard_LRS"
-    }
-    elseif ( $StorageAccount -imatch "NewStorage_Premium" )
-    {
-        $GlobalConfiguration.Global.Azure.Subscription.ARMStorageAccount = "NewStorage_Premium_LRS"
-    }
-    elseif ($StorageAccount -eq "")
-    {
-        $GlobalConfiguration.Global.Azure.Subscription.ARMStorageAccount = $RegionStorageMapping.AllRegions.$TestLocation.StandardStorage
-        LogMsg "Auto selecting storage account : $($GlobalConfiguration.Global.Azure.Subscription.ARMStorageAccount) as per your test region."
-    }
-    elseif ($StorageAccount -ne "")
-    {
-        $GlobalConfiguration.Global.Azure.Subscription.ARMStorageAccount = $StorageAccount.Trim()
-        Write-Host "Selecting custom storage account : $($GlobalConfiguration.Global.Azure.Subscription.ARMStorageAccount) as per your test region."
-    }
-
-    if( $ResultDBTable -or $ResultDBTestTag)
-    {
-        if( $ResultDBTable )
-        {
-            $GlobalConfiguration.Global.Azure.ResultsDatabase.dbtable = ($ResultDBTable).Trim()
-            LogMsg "ResultDBTable : $ResultDBTable added to .\XML\GlobalConfigurations.xml"
-        }
-        if( $ResultDBTestTag )
-        {
-            $GlobalConfiguration.Global.Azure.ResultsDatabase.testTag = ($ResultDBTestTag).Trim()
-            LogMsg "ResultDBTestTag: $ResultDBTestTag added to .\XML\GlobalConfigurations.xml"
-        }                      
-    }
-    $GlobalConfiguration.Save(".\XML\GlobalConfigurations.xml")
-    #endregion
-
-    New-Item -ItemType Directory -Path "TestResults" -Force -ErrorAction SilentlyContinue | Out-Null
-
-    $LogDir = ".\TestResults\$(Get-Date -Format 'yyyy-dd-MM-HH-mm-ss-ffff')"
-    Set-Variable -Name LogDir -Value $LogDir -Scope Global -Force
-    Set-Variable -Name RootLogDir -Value $LogDir -Scope Global -Force
-    New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
-    New-Item -ItemType Directory -Path Temp -Force -ErrorAction SilentlyContinue | Out-Null
-    LogMsg "Created LogDir: $LogDir"
-
-    if ($TestPlatform -eq "Azure")
-    {
-        if ($env:Azure_Secrets_File)
-        {
-            LogMsg "Detected Azure_Secrets_File in Jenkins environment."
-            $XMLSecretFile = $env:Azure_Secrets_File
-        }
-        if ( $XMLSecretFile )
-        {
-            ValiateXMLs -ParentFolder $((Get-Item -Path $XMLSecretFile).FullName | Split-Path -Parent)
-            .\Utilities\AddAzureRmAccountFromSecretsFile.ps1 -customSecretsFilePath $XMLSecretFile
-            Set-Variable -Value ([xml](Get-Content $XMLSecretFile)) -Name XmlSecrets -Scope Global
-            LogMsg "XmlSecrets set as global variable."
-        }
-        else 
-        {
-            LogMsg "XML secret file not provided." 
-            LogMsg "Powershell session must be authenticated to manage the azure subscription."
-        }
-    }
 
     #region Static Global Variables
-    Set-Variable -Name WorkingDirectory -Value (Get-Location).Path  -Scope Global
-    LogVerbose "Set-Variable -Name WorkingDirectory -Value (Get-Location).Path  -Scope Global"
+    Set-Variable -Name WorkingDirectory -Value $WorkingDirectory  -Scope Global
     Set-Variable -Name shortRandomNumber -Value $(Get-Random -Maximum 99999 -Minimum 11111) -Scope Global
-    LogVerbose "Set-Variable -Name shortRandomNumber -Value $(Get-Random -Maximum 99999 -Minimum 11111) -Scope Global"
     Set-Variable -Name shortRandomWord -Value $(-join ((65..90) | Get-Random -Count 4 | ForEach-Object {[char]$_})) -Scope Global
-    LogVerbose "Set-Variable -Name shortRandomWord -Value $(-join ((65..90) | Get-Random -Count 4 | ForEach-Object {[char]$_})) -Scope Global"
     #endregion
 
     #region Runtime Global Variables
@@ -219,9 +101,18 @@ try
     {
         Set-Variable -Name VerboseCommand -Value "" -Scope Global
     }
-    
-    
     #endregion
+
+    #Validate the test parameters.
+    ValidateParameters
+
+    ValiateXMLs -ParentFolder $WorkingDirectory
+    
+    UpdateGlobalConfigurationXML
+
+    UpdateXMLStringsFromSecretsFile    
+
+
     
     #region Local Variables
     $TestXMLs = Get-ChildItem -Path "$WorkingDirectory\XML\TestCases\*.xml"
@@ -243,152 +134,19 @@ try
     }
     if ( $TestTag -eq "All")
     {
-        $TestTag = $null
+        $TestTag = ""
     }
     #endregion
 
     #Validate all XML files in working directory.
-    ValiateXMLs -ParentFolder $WorkingDirectory
+    $allTests = CollectTestCases -TestXMLs $TestXMLs
     
-    #region Collect Tests Data
-    if ( $TestPlatform -and !$TestCategory -and !$TestArea -and !$TestNames -and !$TestTag)
-    {
-        foreach ( $file in $TestXMLs.FullName)
-        {
-            $currentTests = ([xml]( Get-Content -Path $file)).TestCases
-            if ( $TestPlatform )
-            {
-                foreach ( $test in $currentTests.test )
-                {
-                    if ($TestPlatform -eq $test.Platform ) 
-                    {
-                        LogMsg "Collected $($test.TestName)"
-                        $allTests += $test
-                    }
-                }
-            }
-        }         
-    }
-    elseif ( $TestPlatform -and $TestCategory -and (!$TestArea -or $TestArea -eq "default") -and !$TestNames -and !$TestTag)
-    {
-        foreach ( $file in $TestXMLs.FullName)
-        {
-            
-            $currentTests = ([xml]( Get-Content -Path $file)).TestCases
-            if ( $TestPlatform )
-            {
-                foreach ( $test in $currentTests.test )
-                {
-                    if ( ($TestPlatform -eq $test.Platform ) -and $($TestCategory -eq $test.Category) )
-                    {
-                        LogMsg "Collected $($test.TestName)"
-                        $allTests += $test
-                    }
-                }
-            }
-        }         
-    }
-    elseif ( $TestPlatform -and $TestCategory -and ($TestArea -and $TestArea -ne "default") -and !$TestNames -and !$TestTag)
-    {
-        foreach ( $file in $TestXMLs.FullName)
-        {
-            
-            $currentTests = ([xml]( Get-Content -Path $file)).TestCases
-            if ( $TestPlatform )
-            {
-                foreach ( $test in $currentTests.test )
-                {
-                    if ( ($TestPlatform -eq $test.Platform ) -and $($TestCategory -eq $test.Category) -and $($TestArea -eq $test.Area) )
-                    {
-                        LogMsg "Collected $($test.TestName)"
-                        $allTests += $test
-                    }
-                }
-            }
-        }         
-    }
-    elseif ( $TestPlatform -and $TestCategory  -and $TestNames -and !$TestTag)
-    {
-        foreach ( $file in $TestXMLs.FullName)
-        {
-            
-            $currentTests = ([xml]( Get-Content -Path $file)).TestCases
-            if ( $TestPlatform )
-            {
-                foreach ( $test in $currentTests.test )
-                {
-                    if ( ($TestPlatform -eq $test.Platform ) -and $($TestCategory -eq $test.Category) -and $($TestArea -eq $test.Area) -and ($TestNames.Split(",").Contains($test.TestName) ) )
-                    {
-                        LogMsg "Collected $($test.TestName)"
-                        $allTests += $test
-                    }
-                }
-            }
-        }         
-    }
-    elseif ( $TestPlatform -and !$TestCategory -and !$TestArea -and $TestNames -and !$TestTag)
-    {
-        foreach ( $file in $TestXMLs.FullName)
-        {
-            
-            $currentTests = ([xml]( Get-Content -Path $file)).TestCases
-            if ( $TestPlatform )
-            {
-                foreach ( $test in $currentTests.test )
-                {
-                    if ( ($TestPlatform -eq $test.Platform ) -and ($TestNames.Split(",").Contains($test.TestName) ) )
-                    {
-                        LogMsg "Collected $($test.TestName)"
-                        $allTests += $test
-                    }
-                }
-            }
-        }         
-    }    
-    elseif ( $TestPlatform -and !$TestCategory -and !$TestArea -and !$TestNames -and $TestTag)
-    {
-        foreach ( $file in $TestXMLs.FullName)
-        {
-            
-            $currentTests = ([xml]( Get-Content -Path $file)).TestCases
-            if ( $TestPlatform )
-            {
-                foreach ( $test in $currentTests.test )
-                {
-                    if ( ($TestPlatform -eq $test.Platform ) -and ( $test.Tags.Split(",").Contains($TestTag) ) )
-                    {
-                        LogMsg "Collected $($test.TestName)"
-                        $allTests += $test
-                    }
-                }
-            }
-        }         
-    }
-    else 
-    {
-        LogError "TestPlatform : $TestPlatform"
-        LogError "TestCategory : $TestCategory"
-        LogError "TestArea : $TestArea"
-        LogError "TestNames : $TestNames"
-        LogError "TestTag : $TestTag"
-        Throw "Invalid Test Selection"
-    }
-    #endregion 
-
     #region Create Test XML
     $SetupTypes = $allTests.SetupType | Sort-Object | Get-Unique
 
-    $tab = @()
-    for ( $i = 0; $i -lt 30; $i++)
-    {
-        $currentTab = ""
-        for ( $j = 0; $j -lt $i; $j++)
-        {
-            $currentTab +=  "`t"
-        }
-        $tab += $currentTab
-    }
+    $tab = CreateArrayOfTabs
 
+    $TestCycle = "TC-$shortRandomNumber"
 
     $GlobalConfiguration = [xml](Get-content .\XML\GlobalConfigurations.xml)
     <##########################################################################
@@ -397,12 +155,14 @@ try
     $xmlContent =  ("$($tab[0])" + '<?xml version="1.0" encoding="utf-8"?>')
     $xmlContent += ("$($tab[0])" + "<config>`n") 
     $xmlContent += ("$($tab[0])" + "<CurrentTestPlatform>$TestPlatform</CurrentTestPlatform>`n") 
+    if ($TestPlatform -eq "Azure")
+    {
         $xmlContent += ("$($tab[1])" + "<Azure>`n") 
 
             #region Add Subscription Details
             $xmlContent += ("$($tab[2])" + "<General>`n")
             
-            foreach ( $line in $GlobalConfiguration.Global.Azure.Subscription.InnerXml.Replace("><",">`n<").Split("`n"))
+            foreach ( $line in $GlobalConfiguration.Global.$TestPlatform.Subscription.InnerXml.Replace("><",">`n<").Split("`n"))
             {
                 $xmlContent += ("$($tab[3])" + "$line`n")
             }
@@ -412,7 +172,7 @@ try
 
             #region Database details
             $xmlContent += ("$($tab[2])" + "<database>`n")
-                foreach ( $line in $GlobalConfiguration.Global.Azure.ResultsDatabase.InnerXml.Replace("><",">`n<").Split("`n"))
+                foreach ( $line in $GlobalConfiguration.Global.$TestPlatform.ResultsDatabase.InnerXml.Replace("><",">`n<").Split("`n"))
                 {
                     $xmlContent += ("$($tab[3])" + "$line`n")
                 }
@@ -432,8 +192,8 @@ try
                         $xmlContent += ("$($tab[5])" + "</ARMImage>`n")
                         $xmlContent += ("$($tab[5])" + "<OsVHD>" + "$OsVHD" + "</OsVHD>`n")
                     $xmlContent += ("$($tab[4])" + "</Distro>`n")
-                    $xmlContent += ("$($tab[4])" + "<UserName>" + "$($GlobalConfiguration.Global.Azure.TestCredentials.LinuxUsername)" + "</UserName>`n")
-                    $xmlContent += ("$($tab[4])" + "<Password>" + "$($GlobalConfiguration.Global.Azure.TestCredentials.LinuxPassword)" + "</Password>`n")
+                    $xmlContent += ("$($tab[4])" + "<UserName>" + "$($GlobalConfiguration.Global.$TestPlatform.TestCredentials.LinuxUsername)" + "</UserName>`n")
+                    $xmlContent += ("$($tab[4])" + "<Password>" + "$($GlobalConfiguration.Global.$TestPlatform.TestCredentials.LinuxPassword)" + "</Password>`n")
                 $xmlContent += ("$($tab[3])" + "</Data>`n")
                 
                 foreach ( $file in $SetupTypeXMLs.FullName)
@@ -458,18 +218,87 @@ try
             $xmlContent += ("$($tab[2])" + "</Deployment>`n")
             #endregion        
         $xmlContent += ("$($tab[1])" + "</Azure>`n")
-        
+    }   
+    elseif ($TestPlatform -eq "Hyperv")
+    {
+        $xmlContent += ("$($tab[1])" + "<Hyperv>`n") 
 
+            #region Add Subscription Details
+            $xmlContent += ("$($tab[2])" + "<Host>`n")
+            
+            foreach ( $line in $GlobalConfiguration.Global.HyperV.Host.InnerXml.Replace("><",">`n<").Split("`n"))
+            {
+                $xmlContent += ("$($tab[3])" + "$line`n")
+            }
+            $xmlContent += ("$($tab[2])" + "</Host>`n")
+            #endregion
+
+            #region Database details
+            $xmlContent += ("$($tab[2])" + "<database>`n")
+                foreach ( $line in $GlobalConfiguration.Global.HyperV.ResultsDatabase.InnerXml.Replace("><",">`n<").Split("`n"))
+                {
+                    $xmlContent += ("$($tab[3])" + "$line`n")
+                }
+            $xmlContent += ("$($tab[2])" + "</database>`n")
+            #endregion
+
+            #region Deployment details
+            $xmlContent += ("$($tab[2])" + "<Deployment>`n")
+                $xmlContent += ("$($tab[3])" + "<Data>`n")
+                    $xmlContent += ("$($tab[4])" + "<Distro>`n")
+                        $xmlContent += ("$($tab[5])" + "<Name>$RGIdentifier</Name>`n")
+                        $xmlContent += ("$($tab[5])" + "<ARMImage>`n")
+                            $xmlContent += ("$($tab[6])" + "<Publisher>" + "$($ARMImage[0])" + "</Publisher>`n")
+                            $xmlContent += ("$($tab[6])" + "<Offer>" + "$($ARMImage[1])" + "</Offer>`n")
+                            $xmlContent += ("$($tab[6])" + "<Sku>" + "$($ARMImage[2])" + "</Sku>`n")
+                            $xmlContent += ("$($tab[6])" + "<Version>" + "$($ARMImage[3])" + "</Version>`n")
+                        $xmlContent += ("$($tab[5])" + "</ARMImage>`n")
+                        $xmlContent += ("$($tab[5])" + "<OsVHD>" + "$OsVHD" + "</OsVHD>`n")
+                    $xmlContent += ("$($tab[4])" + "</Distro>`n")
+                    $xmlContent += ("$($tab[4])" + "<UserName>" + "$($GlobalConfiguration.Global.$TestPlatform.TestCredentials.LinuxUsername)" + "</UserName>`n")
+                    $xmlContent += ("$($tab[4])" + "<Password>" + "$($GlobalConfiguration.Global.$TestPlatform.TestCredentials.LinuxPassword)" + "</Password>`n")
+                $xmlContent += ("$($tab[3])" + "</Data>`n")
+                
+                foreach ( $file in $SetupTypeXMLs.FullName)
+                {
+                    foreach ( $SetupType in $SetupTypes )
+                    {                    
+                        $CurrentSetupType = ([xml]( Get-Content -Path $file)).TestSetup
+                        if ( $CurrentSetupType.$SetupType -ne $null)
+                        {
+                            $SetupTypeElement = $CurrentSetupType.$SetupType
+                            $xmlContent += ("$($tab[3])" + "<$SetupType>`n")
+                                #$xmlContent += ("$($tab[4])" + "$($SetupTypeElement.InnerXml)`n")
+                                foreach ( $line in $SetupTypeElement.InnerXml.Replace("><",">`n<").Split("`n"))
+                                {
+                                    $xmlContent += ("$($tab[4])" + "$line`n")
+                                }
+                                                
+                            $xmlContent += ("$($tab[3])" + "</$SetupType>`n")
+                        }
+                    }                    
+                }
+            $xmlContent += ("$($tab[2])" + "</Deployment>`n")
+            #endregion        
+        $xmlContent += ("$($tab[1])" + "</Hyperv>`n")
+    }    
         #region TestDefinition
         $xmlContent += ("$($tab[1])" + "<testsDefinition>`n")
         foreach ( $currentTest in $allTests)
         {
-            $xmlContent += ("$($tab[2])" + "<test>`n")
-            foreach ( $line in $currentTest.InnerXml.Replace("><",">`n<").Split("`n"))
+            if ($currentTest.Platform.Contains($TestPlatform))
             {
-                $xmlContent += ("$($tab[3])" + "$line`n")
-            } 
-            $xmlContent += ("$($tab[2])" + "</test>`n")
+                $xmlContent += ("$($tab[2])" + "<test>`n")
+                foreach ( $line in $currentTest.InnerXml.Replace("><",">`n<").Split("`n"))
+                {
+                    $xmlContent += ("$($tab[3])" + "$line`n")
+                } 
+                $xmlContent += ("$($tab[2])" + "</test>`n")
+            }
+            else 
+            {
+                LogErr "*** UNSUPPORTED TEST *** : $currentTest. Skipped."
+            }
         }
         $xmlContent += ("$($tab[1])" + "</testsDefinition>`n")
         #endregion
@@ -477,7 +306,7 @@ try
         #region TestCycle
         $xmlContent += ("$($tab[1])" + "<testCycles>`n")
             $xmlContent += ("$($tab[2])" + "<Cycle>`n")
-                $xmlContent += ("$($tab[3])" + "<cycleName>TC-$shortRandomNumber</cycleName>`n")
+                $xmlContent += ("$($tab[3])" + "<cycleName>$TestCycle</cycleName>`n")
                 foreach ( $currentTest in $allTests)
                 {
                     $line = $currentTest.TestName
@@ -499,7 +328,7 @@ try
     }
     catch 
     {
-        Throw "Auto created $xmlFile is not valid."    
+        Throw "Framework error: $xmlFile is not valid. Please report to lisasupport@microsoft.com"    
     }
     
     #endregion
@@ -524,9 +353,9 @@ try
     {
         $command += " -ForceDeleteResources"
     }
-    if ( $KeepReproInact )
+    if ( $DoNotDeleteVMs )
     {
-        $command += " -KeepReproInact"
+        $command += " -DoNotDeleteVMs"
     }
     if ( $CustomLIS)
     {
@@ -556,15 +385,11 @@ try
     {
         $command += " -XMLSecretFile '$XMLSecretFile'"
     }
+
     LogMsg $command
     Invoke-Expression -Command $command
-
-    #TBD Archive the logs
-    $TestCycle = "TC-$shortRandomNumber"
-
-    $ticks = (Get-Date).Ticks
-    $out = Remove-Item *.json -Force
-    $out = Remove-Item *.xml -Force
+    #$out = Remove-Item *.json -Force
+    #$out = Remove-Item *.xml -Force
     $zipFile = "$TestPlatform"
     if ( $TestCategory )
     {
@@ -602,7 +427,7 @@ try
             }
         }
         else
-        {
+        {                                               
             LogMsg "Summary file: .\report\report_$(($TestCycle).Trim()).xml does not exist. Exiting with 1."
             $ExitCode = 1
         }
@@ -633,5 +458,6 @@ catch
 }
 finally 
 {
+    Get-Variable -Scope Global | Remove-Variable -Force -ErrorAction SilentlyContinue
     exit $ExitCode    
 }

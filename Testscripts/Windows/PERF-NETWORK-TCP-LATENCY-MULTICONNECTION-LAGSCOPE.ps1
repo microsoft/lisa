@@ -1,5 +1,5 @@
 $result = ""
-$testResult = ""
+$CurrentTestResult = CreateTestResultObject
 $resultArr = @()
 
 $isDeployed = DeployVMS -setupType $currentTestData.setupType -Distro $Distro -xmlConfig $xmlConfig
@@ -93,24 +93,24 @@ collect_VM_properties
 		
 		$testSummary = $null
 		$lagscopeReportLog = Get-Content -Path "$LogDir\lagscope-n$pingIteration-output.txt"
-        LogMsg $lagscopeReportLog
-
-            try
-            {
-                $matchLine= (Select-String -Path "$LogDir\lagscope-n$pingIteration-output.txt" -Pattern "Average").Line
-                $minimumLat = $matchLine.Split(",").Split("=").Trim().Replace("us","")[1]
-                $maximumLat = $matchLine.Split(",").Split("=").Trim().Replace("us","")[3]
-                $averageLat = $matchLine.Split(",").Split("=").Trim().Replace("us","")[5]
-
-                $resultSummary +=  CreateResultSummary -testResult $minimumLat -metaData "Minimum Latency" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
-                $resultSummary +=  CreateResultSummary -testResult $maximumLat -metaData "Maximum Latency" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
-                $resultSummary +=  CreateResultSummary -testResult $averageLat -metaData "Average Latency" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
-            }
-            catch
-            {
-                $resultSummary +=  CreateResultSummary -testResult "Error in parsing logs." -metaData "LAGSCOPE" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
-            }
+		LogMsg $lagscopeReportLog
 		#endregion
+
+		try
+		{
+			$matchLine= (Select-String -Path "$LogDir\lagscope-n$pingIteration-output.txt" -Pattern "Average").Line
+			$minimumLat = $matchLine.Split(",").Split("=").Trim().Replace("us","")[1]
+			$maximumLat = $matchLine.Split(",").Split("=").Trim().Replace("us","")[3]
+			$averageLat = $matchLine.Split(",").Split("=").Trim().Replace("us","")[5]
+
+			$CurrentTestResult.TestSummary += CreateResultSummary -testResult $minimumLat -metaData "Minimum Latency" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+			$CurrentTestResult.TestSummary += CreateResultSummary -testResult $maximumLat -metaData "Maximum Latency" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+			$CurrentTestResult.TestSummary += CreateResultSummary -testResult $averageLat -metaData "Average Latency" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+		}
+		catch
+		{
+			$CurrentTestResult.TestSummary += CreateResultSummary -testResult "Error in parsing logs." -metaData "LAGSCOPE" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+		}
 
 		if ( $finalStatus -imatch "TestFailed")
 		{
@@ -137,15 +137,15 @@ collect_VM_properties
 		LogMsg "Test Completed"
 		
 		LogMsg "Uploading the test results.."
-		$dataSource = $xmlConfig.config.Azure.database.server
-		$user = $xmlConfig.config.Azure.database.user
-		$password = $xmlConfig.config.Azure.database.password
-		$database = $xmlConfig.config.Azure.database.dbname
-		$dataTableName = $xmlConfig.config.Azure.database.dbtable
-		$TestCaseName = $xmlConfig.config.Azure.database.testTag
+		$dataSource = $xmlConfig.config.$TestPlatform.database.server
+		$user = $xmlConfig.config.$TestPlatform.database.user
+		$password = $xmlConfig.config.$TestPlatform.database.password
+		$database = $xmlConfig.config.$TestPlatform.database.dbname
+		$dataTableName = $xmlConfig.config.$TestPlatform.database.dbtable
+		$TestCaseName = $xmlConfig.config.$TestPlatform.database.testTag
 		if ($dataSource -And $user -And $password -And $database -And $dataTableName) 
 		{
-			$GuestDistro	= cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
+			$GuestDistro	= cat "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object {$_ -replace ",OS type,",""}
 			
 			#$TestCaseName	= "LINUX-NEXT-UPSTREAM-TEST"
 			if ( $UseAzureResourceManager )
@@ -156,7 +156,7 @@ collect_VM_properties
 			{
 				$HostType	= "Azure"
 			}
-			$HostBy	= ($xmlConfig.config.Azure.General.Location).Replace('"','')
+			$HostBy	= ($xmlConfig.config.$TestPlatform.General.Location).Replace('"','')
 			$HostOS	= cat "$LogDir\VM_properties.csv" | Select-String "Host Version"| %{$_ -replace ",Host Version,",""}
 			$GuestOSType	= "Linux"
 			$GuestDistro	= cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
@@ -164,7 +164,7 @@ collect_VM_properties
 			$KernelVersion	= cat "$LogDir\VM_properties.csv" | Select-String "Kernel version"| %{$_ -replace ",Kernel version,",""}
 			$IPVersion = "IPv4"
 			$ProtocolType = "TCP"
-			if($EnableAcceleratedNetworking)
+			if($EnableAcceleratedNetworking -or ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV"))
 			{
 				$DataPath = "SRIOV"
 			}
@@ -221,10 +221,10 @@ else
 	$resultArr += $testResult
 }
 
-$result = GetFinalResultHeader -resultarr $resultArr
+$CurrentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
 
 #Clean up the setup
-DoTestCleanUp -result $result -testName $currentTestData.testName -deployedServices $isDeployed -ResourceGroups $isDeployed
+DoTestCleanUp -CurrentTestResult $CurrentTestResult -testName $currentTestData.testName -ResourceGroups $isDeployed
 
 #Return the result and summery to the test suite script..
-return $result, $resultSummary
+return $CurrentTestResult

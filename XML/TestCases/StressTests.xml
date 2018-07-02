@@ -1,3 +1,17 @@
 <TestCases>
-
+    <test>
+        <testName>STRESSTEST-VERIFY-RESTART</testName>
+        <testScript></testScript>
+        <PowershellScript>STRESSTEST-VERIFY-RESTART.ps1</PowershellScript>
+        <files></files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>rebootNumber=100</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>STRESSTEST</Category>
+        <Area>stress</Area>
+        <Tags>stress,boot</Tags>
+        <TestID>AzureStress_001</TestID>
+    </test>
 </TestCases>

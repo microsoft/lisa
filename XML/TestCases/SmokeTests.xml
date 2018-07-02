@@ -4,7 +4,7 @@
         <PowershellScript>BVT-VERIFY-DEPLOYMENT-PROVISION.ps1</PowershellScript>
         <files></files>
         <setupType>SingleVM</setupType>
-        <Platform>Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>Smoke</Category>
         <Area>default</Area>
         <Tags>bvt</Tags>

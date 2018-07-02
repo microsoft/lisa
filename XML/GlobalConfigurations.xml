@@ -20,4 +20,23 @@
             <LinuxPassword>xxxxxxxxxxxxxxxxxxxxxxxxx</LinuxPassword>
         </TestCredentials>
     </Azure>
+    <HyperV>
+        <Host>
+            <ServerName>localhost</ServerName>
+            <SourceOsVHDPath>VHDs_Source_Path</SourceOsVHDPath>
+            <DestinationOsVHDPath>VHDs_Destination_Path</DestinationOsVHDPath>
+        </Host>
+        <ResultsDatabase>
+            <server></server>
+            <user></user>
+            <password></password>
+            <dbname></dbname>
+            <dbtable></dbtable>
+            <testTag></testTag>
+        </ResultsDatabase>
+        <TestCredentials>
+            <LinuxUsername>YOUR_USERNAME</LinuxUsername>
+            <LinuxPassword>xxxxxxxxxxxxxxxxxxxxxxxxx</LinuxPassword>
+        </TestCredentials>
+    </HyperV>
 </Global>
