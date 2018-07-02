@@ -10,6 +10,8 @@
 param(
     [string]$XmlSecretsFilePath= ""
 )
+
+$xmlGlobalConfigPath = Resolve-Path -Path ".\XML\GlobalConfigurations.xml"
 $XmlSecrets = [xml](Get-Content $XmlSecretsFilePath)
 $GlobalConfigurationXMLFilePath = Resolve-Path ".\XML\GlobalConfigurations.xml"
 $GlobalXML = [xml](Get-Content $GlobalConfigurationXMLFilePath  )

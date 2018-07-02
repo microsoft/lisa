@@ -6,7 +6,7 @@
     </eastasia>
     <southeastasia>
         <StandardStorage>eosgsoutheastasia</StandardStorage>
-        <PremiumStorage>eosgsouthestasiax</PremiumStorage>
+        <PremiumStorage>eosgsoutheastasiax</PremiumStorage>
     </southeastasia>
     <centralus>
         <StandardStorage>eosgcentralus</StandardStorage>
@@ -26,11 +26,11 @@
     </westus>
     <northcentralus>
         <StandardStorage>eosgnorthcentralus</StandardStorage>
-        <PremiumStorage>eosgnorthcntrlusx</PremiumStorage>
+        <PremiumStorage>eosgnorthcentralusx</PremiumStorage>
     </northcentralus>
     <southcentralus>
         <StandardStorage>eosgsouthcentralus</StandardStorage>
-        <PremiumStorage>eosgsouthcntrlusx</PremiumStorage>
+        <PremiumStorage>eosgsouthcentralusx</PremiumStorage>
     </southcentralus>
     <northeurope>
         <StandardStorage>eosgnortheurope</StandardStorage>
@@ -54,11 +54,11 @@
     </brazilsouth>
     <australiaeast>
         <StandardStorage>eosgaustraliaeast</StandardStorage>
-        <PremiumStorage>eosgaustraliaestx</PremiumStorage>
+        <PremiumStorage>eosgaustraliaeastx</PremiumStorage>
     </australiaeast>
     <australiasoutheast>
         <StandardStorage>eosgaustraliasoutheast</StandardStorage>
-        <PremiumStorage>eosgaussouthestx</PremiumStorage>
+        <PremiumStorage>eosgaustraliasoutheastx</PremiumStorage>
     </australiasoutheast>
     <southindia>
         <StandardStorage>eosgsouthindia</StandardStorage>
@@ -74,7 +74,7 @@
     </westindia>
     <canadacentral>
         <StandardStorage>eosgcanadacentral</StandardStorage>
-        <PremiumStorage>eosgcanadacntralx</PremiumStorage>
+        <PremiumStorage>eosgcanadacentralx</PremiumStorage>
     </canadacentral>
     <canadaeast>
         <StandardStorage>eosgcanadaeast</StandardStorage>
@@ -90,7 +90,7 @@
     </ukwest>
     <westcentralus>
         <StandardStorage>eosgwestcentralus</StandardStorage>
-        <PremiumStorage>eosgwestcentrlusx</PremiumStorage>
+        <PremiumStorage>eosgwestcentralusx</PremiumStorage>
     </westcentralus>
     <westus2>
         <StandardStorage>eosgwestus2</StandardStorage>
