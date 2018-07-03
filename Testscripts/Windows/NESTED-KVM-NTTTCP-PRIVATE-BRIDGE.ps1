@@ -1,5 +1,4 @@
-﻿$result = ""
-$CurrentTestResult = CreateTestResultObject
+﻿$CurrentTestResult = CreateTestResultObject
 $resultArr = @()
 $isDeployed = DeployVMS -setupType $currentTestData.setupType -Distro $Distro -xmlConfig $xmlConfig
 if ($isDeployed)
