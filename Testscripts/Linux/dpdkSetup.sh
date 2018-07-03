@@ -94,30 +94,14 @@ function installDPDK ()
 	srcIp=${2}
 	dstIp=${3}
 	LogMsg "Configuring ${1} for DPDK test..."
-	if [[ $DISTRO =~ "Ubuntu 18.04" ]];
+	if [[ $DISTRO =~ "Ubuntu" ]];
 	then
 		LogMsg "Detected UBUNTU"
-		srcIp=${2}
-		dstIp=${3}
 		ssh ${1} "until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done"
 		ssh ${1} "add-apt-repository ppa:canonical-server/dpdk-mlx-tech-preview"
 		ssh ${1} "apt-get update"
 		LogMsg "Configuring ${1} for DPDK test..."
-		ssh ${1} "apt-get install -y gcc wget psmisc tar make dpdk-doc dpdk-dev libdpdk-dev librdmacm-dev librdmacm1 build-essential libnuma-dev libpcap-dev ibverbs-utils"
-	elif [[ $DISTRO =~ "Ubuntu 16.04" ]];
-	then
-		LogMsg "Detected UBUNTU 16.04"
-		ssh ${1} "wget  http://content.mellanox.com/ofed/MLNX_OFED-4.3-1.0.1.0/MLNX_OFED_LINUX-4.3-1.0.1.0-ubuntu16.04-x86_64.tgz"
-		ssh ${1} "tar xvf MLNX_OFED_LINUX-4.3-1.0.1.0-ubuntu16.04-x86_64.tgz"
-		ssh ${1} "cd MLNX_OFED_LINUX-4.3-1.0.1.0-ubuntu16.04-x86_64 && ./mlnxofedinstall --upstream-libs --guest --dpdk --force"
-		checkCmdExitStatus "MLX driver install on ${1}"
-		srcIp=${2}
-		dstIp=${3}
-		ssh ${1} "until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done"
-		ssh ${1} "add-apt-repository ppa:canonical-server/dpdk-mlx-tech-preview"
-		ssh ${1} "apt-get update"
-		LogMsg "Configuring ${1} for DPDK test..."
-		ssh ${1} "apt-get install -y gcc wget tar psmisc make dpdk-doc dpdk-dev libdpdk-dev librdmacm-dev librdmacm1 build-essential libnuma-dev libpcap-dev ibverbs-utils"
+		ssh ${1} "apt-get install -y gcc wget psmisc tar make dpdk dpdk-doc dpdk-dev libdpdk-dev librdmacm-dev librdmacm1 build-essential libnuma-dev libpcap-dev ibverbs-utils"
 	elif [[ $DISTRO =~ "CentOS Linux release 7" ]] || [[ $DISTRO =~ "Red Hat Enterprise Linux Server release 7" ]]; 
 	then
 		LogMsg "Detected RHEL/CENTOS 7.x"
@@ -125,6 +109,12 @@ function installDPDK ()
 		ssh ${1} "yum install -y kernel-devel-`uname -r` gcc make psmisc numactl-devel.x86_64 numactl-debuginfo.x86_64 numad.x86_64 numactl.x86_64 numactl-libs.x86_64 libpcap-devel librdmacm-devel librdmacm dpdk-doc dpdk-devel librdmacm-utils libibcm libibverbs-utils libibverbs"
 		ssh ${1} "dracut --add-drivers 'mlx4_en mlx4_ib mlx5_ib' -f "
 		ssh ${1} "systemctl enable rdma"
+	elif [[ $DISTRO =~ "SUSE Linux Enterprise Server 15" ]];
+	then
+		LogMsg "Detected SLES 15"
+		ssh ${1} "zypper addrepo https://download.opensuse.org/repositories/network:utilities/SLE_15/network:utilities.repo"
+		ssh ${1} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys refresh"
+		ssh ${1} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install kernel-devel kernel-default-devel wget tar bc gcc make psmisc libnuma-devel numactl numad libpcap-devel librdmacm1 librdmacm-utils rdma-core-devel libdpdk-17_11-0"
 	else
 		LogMsg "Unknown Distro"
 		UpdateTestState "TestAborted"
