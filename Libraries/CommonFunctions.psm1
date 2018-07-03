@@ -303,7 +303,7 @@ function InstallCustomKernel ($CustomKernel, $allVMData, [switch]$RestartAfterUp
         $currentKernelVersion = ""
         $upgradedKernelVersion = ""
         $CustomKernel = $CustomKernel.Trim()
-        if( ($CustomKernel -ne "linuxnext") -and ($CustomKernel -ne "netnext") -and ($CustomKernel -ne "proposed") -and ($CustomKernel -ne "latest") -and !($CustomKernel.EndsWith(".deb"))  -and !($CustomKernel.EndsWith(".rpm")) )
+        if( ($CustomKernel -ne "ppa") -and ($CustomKernel -ne "linuxnext") -and ($CustomKernel -ne "netnext") -and ($CustomKernel -ne "proposed") -and ($CustomKernel -ne "latest") -and !($CustomKernel.EndsWith(".deb"))  -and !($CustomKernel.EndsWith(".rpm")) )
         {
             LogErr "Only linuxnext, netnext, proposed, latest are supported. E.g. -CustomKernel linuxnext/netnext/proposed. Or use -CustomKernel <link to deb file>, -CustomKernel <link to rpm file>"
         }
@@ -1998,6 +1998,7 @@ Function DoTestCleanUp($CurrentTestResult, $testName, $DeployedServices, $Resour
 		}
 		else
 		{
+			UploadTestResultToDatabase -TestPlatform $TestPlatform -TestLocation $TestLocation -TestCategory $TestCategory -TestArea $TestArea -TestName $CurrentTestData.TestName -CurrentTestResult $CurrentTestResult -TestTag $TestTag -GuestDistro $GuestDistro -KernelVersion $KernelVersion -LISVersion $LISVersion -HostVersion $HostVersion -VMSize $VMSize -Networking $Networking -ARMImage $ARMImage -OsVHD $OsVHD -BuildURL $env:BUILD_URL
 			LogMsg "Skipping cleanup, as No services / resource groups / HyperV Groups deployed for cleanup!"
 		}
 	}
@@ -2038,11 +2039,11 @@ Function CreateResultSummary($testResult, $checkValues, $testName, $metaData)
 {
 	if ( $metaData )
 	{
-		$resultString = "		  $testName : $metaData : $testResult <br />"
+		$resultString = "		  $metaData : $testResult <br />"
 	}
 	else
 	{
-		$resultString = "		  $testName : $testResult <br />"
+		$resultString = "		  $testResult <br />"
 	}
 	return $resultString
 }
