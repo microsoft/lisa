@@ -1,5 +1,5 @@
 ﻿$result = ""
-$testResult = ""
+$CurrentTestResult = CreateTestResultObject
 $resultArr = @()
 $isDeployed = DeployVMS -setupType $currentTestData.setupType -Distro $Distro -xmlConfig $xmlConfig
 if ($isDeployed)
@@ -55,7 +55,6 @@ if ($isDeployed)
 		elseif ($finalStatus -imatch "TestRunning")
 		{
 			LogMsg "Powershell backgroud job for test is completed but VM is reporting that test is still running. Please check $LogDir\zkConsoleLogs.txt"
-			LogMsg "Contests of summary.log : $testSummary"
 			$testResult = "ABORTED"
 		}
 
@@ -68,7 +67,6 @@ if ($isDeployed)
 			RemoteCopy -download -downloadFrom $hs1VIP -files "/home/$user/nested_properties.csv, /home/$user/report.log" -downloadTo $LogDir -port $hs1vm1sshport -username $user -password $password
 			RemoteCopy -download -downloadFrom $hs1VIP -files "/home/$user/ntttcp-test-logs-receiver.tar, /home/$user/ntttcp-test-logs-sender.tar" -downloadTo $LogDir -port $hs1vm1sshport -username $user -password $password
 
-			$testSummary = $null
 			$ntttcpReportLog = Get-Content -Path "$LogDir\report.log"
 			if (!$ntttcpReportLog)
 			{
@@ -90,7 +88,7 @@ if ($isDeployed)
 					$average_tcp_latency = $line.Trim().Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Split(" ")[3]
 					$metadata = "Connections=$test_connections"
 					$connResult = "throughput=$throughput_gbps`Gbps cyclePerBytet=$cycle_per_byte Avg_TCP_lat=$average_tcp_latency"
-					$resultSummary +=  CreateResultSummary -testResult $connResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+					$CurrentTestResult.TestSummary +=  CreateResultSummary -testResult $connResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 					if ([string]$throughput_gbps -imatch "0.00")
 					{
 						$testResult = "FAIL"
@@ -99,12 +97,12 @@ if ($isDeployed)
 				}
 				catch
 				{
-					$resultSummary +=  CreateResultSummary -testResult "Error in parsing logs." -metaData "NTTTCP" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+					$CurrentTestResult.TestSummary +=  CreateResultSummary -testResult "Error in parsing logs." -metaData "NTTTCP" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 				}
 			}
 			#endregion
 
-			LogMsg $resultSummary
+			LogMsg $CurrentTestResult.TestSummary
 			if (!$uploadResults)
 			{
 				throw "Zero throughput for some connections, results will not be uploaded to database!"
@@ -204,10 +202,10 @@ else
 	$resultArr += $testResult
 }
 
-$result = GetFinalResultHeader -resultarr $resultArr
+$CurrentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
 
 #Clean up the setup
-DoTestCleanUp -result $result -testName $currentTestData.testName -deployedServices $isDeployed -ResourceGroups $isDeployed
+DoTestCleanUp -CurrentTestResult $CurrentTestResult -testName $currentTestData.testName -ResourceGroups $isDeployed
 
 #Return the result and summery to the test suite script..
-return $result
+return $CurrentTestResult
