@@ -264,5 +264,49 @@
         <Area>Storage</Area>
         <Tags>hv_storvsc,storage</Tags>
         <TestID>Perf_Storage_003</TestID>
-    </test>                                               
+    </test>
+    <test>
+        <testName>PERF-NETWORK-TCP-SINGLE-CONNECTION-THROUGHPUT-Synthetic</testName>
+        <testScript></testScript>
+        <PowershellScript>PERF-NETWORK-TCP-SINGLE-CONNECTION-THROUGHPUT.ps1</PowershellScript>
+        <setupType>M1S1</setupType>
+        <AdditionalHWConfig>
+            <Networking>Synthetic</Networking>
+        </AdditionalHWConfig>         
+        <files></files>
+        <TestParameters>
+            <param>testDuration=120</param>
+            <param>testType=tcp</param>
+            <param>max_parallel_connections_per_instance=64</param>
+            <param>connections=(1)</param>
+            <param>bufferLengths=(32 64 128 256 512 1024 2048 4096 8192 16384 32768 65536)</param>
+            <param>IPversion=4</param>
+        </TestParameters>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Performance</Category>
+        <Area>Network</Area>
+        <Tags>hv_netvsc,network,tcp</Tags>
+    </test>
+    <test>
+        <testName>PERF-NETWORK-TCP-SINGLE-CONNECTION-THROUGHPUT-SRIOV</testName>
+        <testScript></testScript>
+        <PowershellScript>PERF-NETWORK-TCP-SINGLE-CONNECTION-THROUGHPUT.ps1</PowershellScript>
+        <setupType>M1S1</setupType>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>         
+        <files></files>
+        <TestParameters>
+            <param>testDuration=120</param>
+            <param>testType=tcp</param>
+            <param>max_parallel_connections_per_instance=64</param>
+            <param>connections=(1)</param>
+            <param>bufferLengths=(32 64 128 256 512 1024 2048 4096 8192 16384 32768 65536)</param>
+            <param>IPversion=4</param>
+        </TestParameters>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Performance</Category>
+        <Area>Network</Area>
+        <Tags>hv_netvsc,network,tcp,sriov</Tags>
+    </test>    
 </TestCases>
