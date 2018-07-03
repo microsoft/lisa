@@ -94,26 +94,14 @@ function installDPDK ()
 	srcIp=${2}
 	dstIp=${3}
 	LogMsg "Configuring ${1} for DPDK test..."
-	if [[ $DISTRO =~ "Ubuntu 18.04" ]];
+	if [[ $DISTRO =~ "Ubuntu" ]];
 	then
-		LogMsg "Detected UBUNTU 18.04"
-		srcIp=${2}
-		dstIp=${3}
+		LogMsg "Detected UBUNTU"
 		ssh ${1} "until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done"
 		ssh ${1} "add-apt-repository ppa:canonical-server/dpdk-mlx-tech-preview"
 		ssh ${1} "apt-get update"
 		LogMsg "Configuring ${1} for DPDK test..."
 		ssh ${1} "apt-get install -y gcc wget psmisc tar make dpdk dpdk-doc dpdk-dev libdpdk-dev librdmacm-dev librdmacm1 build-essential libnuma-dev libpcap-dev ibverbs-utils"
-	elif [[ $DISTRO =~ "Ubuntu 16.04" ]];
-	then
-		LogMsg "Detected UBUNTU 16.04"
-		srcIp=${2}
-		dstIp=${3}
-		ssh ${1} "until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done"
-		ssh ${1} "add-apt-repository ppa:canonical-server/dpdk-mlx-tech-preview"
-		ssh ${1} "apt-get update"
-		LogMsg "Configuring ${1} for DPDK test..."
-		ssh ${1} "apt-get install -y gcc wget tar psmisc make dpdk dpdk-doc dpdk-dev libdpdk-dev librdmacm-dev librdmacm1 build-essential libnuma-dev libpcap-dev ibverbs-utils"
 	elif [[ $DISTRO =~ "CentOS Linux release 7" ]] || [[ $DISTRO =~ "Red Hat Enterprise Linux Server release 7" ]]; 
 	then
 		LogMsg "Detected RHEL/CENTOS 7.x"
