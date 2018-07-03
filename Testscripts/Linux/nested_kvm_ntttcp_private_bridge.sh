@@ -321,6 +321,7 @@ StopNestedVMs()
     LogMsg "Stop the nested VMs"
     pid=$(pidof qemu-system-x86_64)
     if [ $? -eq 0 ]; then
+        LogMsg "Killing pid $pid"
         kill -9 $pid
     fi
 }
