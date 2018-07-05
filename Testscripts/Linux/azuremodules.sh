@@ -26,14 +26,19 @@ function check_exit_status ()
     exit_status=$?
     message=$1
 
+    cmd="echo"
+    if [ ! -z $2 ]; then
+        cmd=$2
+    fi
+
     if [ $exit_status -ne 0 ]; then
-        echo "$message: Failed (exit code: $exit_status)" 
+        $cmd "$message: Failed (exit code: $exit_status)"
         if [ "$2" == "exit" ]
         then
             exit $exit_status
         fi 
     else
-        echo "$message: Success" 
+        $cmd "$message: Success"
     fi
 }
 
@@ -439,5 +444,10 @@ function remove_cmd_from_startup ()
 	then
 		echo "Cannot find $testcommand in $startup_files files"
 	fi
+}
+
+function generate_random_mac_addr ()
+{
+    echo "52:54:00:$(dd if=/dev/urandom bs=512 count=1 2>/dev/null | md5sum | sed 's/^\(..\)\(..\)\(..\).*$/\1:\2:\3/')"
 }
 
