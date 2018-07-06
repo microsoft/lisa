@@ -58,6 +58,7 @@ CLIENT_IP_ADDR="192.168.1.11"
 SERVER_IP_ADDR="192.168.1.12"
 CLIENT_TAP="tap1"
 SERVER_TAP="tap2"
+NIC_NAME="ens4"
 
 if [ -z "$NestedImageUrl" ]; then
         echo "Please mention -NestedImageUrl next"
@@ -128,7 +129,8 @@ remote_copy_wrapper() {
         path="/root"
     fi
 
-    remote_copy -host localhost -user $user_name -passwd $NestedUserPassword -port $port -filename $file_name -remote_path $path -cmd $cmd
+    remote_copy -host localhost -user $user_name -passwd $NestedUserPassword -port $port \
+        -filename $file_name -remote_path $path -cmd $cmd
 }
 
 install_dependencies() {
@@ -242,7 +244,7 @@ prepare_client() {
 
     echo "server=$SERVER_IP_ADDR" >> ./constants.sh
     echo "client=$CLIENT_IP_ADDR" >> ./constants.sh
-    echo "nicName=ens4" >> ./constants.sh
+    echo "nicName=$NIC_NAME" >> ./constants.sh
     remote_copy_wrapper "root" $CLIENT_HOST_FWD_PORT "./constants.sh" "put"
     log_msg "Reboot the nested client VM"
     remote_exec_wrapper "root" $CLIENT_HOST_FWD_PORT "reboot"
@@ -293,7 +295,7 @@ bring_up_nic_with_private_ip() {
         else
            sleep 10
            log_msg "Try to bring up the nested VM NIC with private IP, left retry times: $retry_times"
-           remote_exec_wrapper "root" $host_fwd_port "ifconfig ens4 $ip_addr netmask 255.255.255.0 up"
+           remote_exec_wrapper "root" $host_fwd_port "ifconfig $NIC_NAME $ip_addr netmask 255.255.255.0 up"
            exit_status=$?
         fi
     done
