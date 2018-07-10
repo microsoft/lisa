@@ -102,16 +102,24 @@ InstallLAGSCOPE() {
 				ssh ${1} "git clone https://github.com/Microsoft/lagscope"
 				ssh ${1} "cd lagscope/src && make && make install"
 				ssh ${1} "iptables -F"
-
-		elif [[ $DISTRO =~ "SUSE Linux Enterprise Server 12" ]];
+		elif [[ $DISTRO =~ "SUSE Linux Enterprise Server" ]];
 		then
-		LogMsg "Detected SLES12"
-				ssh ${1} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys remove gettext-runtime-mini*"
-				ssh ${1} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install sysstat git bc make gcc grub2"
-				ssh ${1} "rm -rf lagscope"
-				ssh ${1} "git clone https://github.com/Microsoft/lagscope"
-				ssh ${1} "cd lagscope/src && make && make install"
-				ssh ${1} "iptables -F"
+				LogMsg "Detected SLES"
+				if [[ $DISTRO =~ "SUSE Linux Enterprise Server 12" ]];
+				then
+					LogMsg "Detected SLES 12"    
+					ssh ${1} "zypper addrepo https://download.opensuse.org/repositories/network:utilities/SLE_12_SP3/network:utilities.repo"
+				elif [[ $DISTRO =~ "SUSE Linux Enterprise Server 15" ]];
+				then
+					LogMsg "Detected SLES 15"
+					ssh ${1} "zypper addrepo https://download.opensuse.org/repositories/network:utilities/SLE_15/network:utilities.repo"
+				fi
+					ssh ${1} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys refresh"
+					ssh ${1} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install sysstat git bc make gcc dstat psmisc"
+					ssh ${1} "rm -rf lagscope"
+					ssh ${1} "git clone https://github.com/Microsoft/lagscope"
+					ssh ${1} "cd lagscope/src && make && make install"
+					ssh ${1} "iptables -F"
 		elif [[ $DISTRO =~ "clear-linux-os" ]];
 		then
 				LogMsg "Detected Clear Linux OS. Installing required packages"
