@@ -46,41 +46,37 @@ if ($isDeployed)
 		ProvisionVMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
 
 		#endregion
-
-		if($EnableAcceleratedNetworking -or ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV"))
+		
+		if( $detectedDistro -imatch "SLES 15" )
 		{
-			$DataPath = "SRIOV"
-            LogMsg "Getting SRIOV NIC Name."
-            $clientNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "route | grep '^default' | grep -o '[^ ]*$'").Trim()
-            LogMsg "CLIENT SRIOV NIC: $clientNicName"
-            $serverNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username "root" -password $password -command "route | grep '^default' | grep -o '[^ ]*$'").Trim()
-            LogMsg "SERVER SRIOV NIC: $serverNicName"
-            if ( $serverNicName -eq $clientNicName)
-            {
-                $nicName = $clientNicName
-            }
-            else
-            {
-                Throw "Server and client SRIOV NICs are not same."
-            }
+			LogMsg " Installing Package for ifconfig cmd in SLES 15"
+			RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install net-tools-deprecated"  #-runAsSudo
+			WaitFor -seconds 10
+			RunLinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username "root" -password $password -command "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install net-tools-deprecated"  #-runAsSudo
+			WaitFor -seconds 10
+		}
+
+		LogMsg "Getting Active NIC Name."	
+		$clientNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "route | grep '^default' | grep -o '[^ ]*$'").Trim()
+		$serverNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username "root" -password $password -command "route | grep '^default' | grep -o '[^ ]*$'").Trim()
+		if ( $serverNicName -eq $clientNicName)
+		{
+			$nicName = $clientNicName
 		}
 		else
 		{
-			$DataPath = "Synthetic"
-            LogMsg "Getting Active NIC Name."
-            $clientNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "route | grep '^default' | grep -o '[^ ]*$'").Trim()
-            LogMsg "CLIENT NIC: $clientNicName"
-            $serverNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username "root" -password $password -command "route | grep '^default' | grep -o '[^ ]*$'").Trim()
-            LogMsg "SERVER NIC: $serverNicName"
-            if ( $serverNicName -eq $clientNicName)
-            {
-                $nicName = $clientNicName
-            }
-            else
-            {
-                Throw "Server and client NICs are not same."
-            }
+			Throw "Server and client SRIOV NICs are not same."
 		}
+		if($EnableAcceleratedNetworking -or ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV"))
+		{
+			$DataPath = "SRIOV"
+		}
+        else
+		{
+			$DataPath = "Synthetic"
+		}
+		LogMsg "CLIENT $DataPath NIC: $clientNicName"
+		LogMsg "SERVER $DataPath NIC: $serverNicName"
 
 		LogMsg "Generating constansts.sh ..."
 		$constantsFile = "$LogDir\constants.sh"
@@ -114,6 +110,7 @@ collect_VM_properties
 		Set-Content "$LogDir\Startiperf3udpTest.sh" $myString
 		RemoteCopy -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files ".\$constantsFile,.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\perf_iperf3.sh,.\$LogDir\Startiperf3udpTest.sh" -username "root" -password $password -upload
 		RemoteCopy -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files $currentTestData.files -username "root" -password $password -upload
+		RemoteCopy -uploadTo $clientVMData.PublicIP -port $serverVMData.SSHPort -files $currentTestData.files -username "root" -password $password -upload
 
 		$out = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "chmod +x *.sh"
 		$testJob = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "/root/Startiperf3udpTest.sh" -RunInBackground

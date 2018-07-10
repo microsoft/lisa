@@ -43,44 +43,71 @@ touch ./IPERF3Test.log
 
 InstallIPERF3()
 {
-		DISTRO=`grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os" /etc/{issue,*release,*version} /usr/lib/os-release`
-		if [[ $DISTRO =~ "Ubuntu" ]];
-		then
-			
-			LogMsg "Detected Ubuntu"
-			ssh ${1} "until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done"
-			ssh ${1} "apt-get update"
-			ssh ${1} "apt-get -y install iperf3 sysstat bc psmisc"
-			if [ $IPversion -eq 6 ]; then	
-				scp ConfigureUbuntu1604IPv6.sh ${1}:
-				ssh ${1} "chmod +x ConfigureUbuntu1604IPv6.sh"
-				ssh ${1} "./ConfigureUbuntu1604IPv6.sh"
-			fi
-		elif [[ $DISTRO =~ "Red Hat Enterprise Linux Server release 6" ]] || [[ $DISTRO =~ "CentOS Linux release 6" ]] || [[ $DISTRO =~ "CentOS release 6" ]];
-		then
-				LogMsg "Detected Redhat/CentOS 6.x"
-				ssh ${1} "rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-6.noarch.rpm"
-				ssh ${1} "yum -y --nogpgcheck install iperf3 sysstat bc psmisc"
-				ssh ${1} "iptables -F"				
-				
-		elif [[ $DISTRO =~ "Red Hat Enterprise Linux Server release 7" ]] || [[ $DISTRO =~ "CentOS Linux release 7" ]];
-		then
-				LogMsg "Detected Redhat/CentOS 7.x"
-				ssh ${1} "rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm"
-				ssh ${1} "yum -y --nogpgcheck install iperf3 sysstat bc psmisc"
-				ssh ${1} "iptables -F"
-		elif [[ $DISTRO =~ "clear-linux-os" ]];
-		then
-				LogMsg "Detected Clear Linux OS. Installing required packages"
-				ssh ${1} "swupd bundle-add dev-utils-dev sysadmin-basic performance-tools os-testsuite-phoronix network-basic openssh-server dev-utils os-core os-core-dev"
-				ssh ${1} "iptables -F"
-								
-		else
-				LogMsg "Unknown Distro"
-				UpdateTestState "TestAborted"
-				UpdateSummary "Unknown Distro, test aborted"
-				return 1
+	DISTRO=`grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os" /etc/{issue,*release,*version} /usr/lib/os-release`
+	if [[ $DISTRO =~ "Ubuntu" ]];
+	then	
+		LogMsg "Detected Ubuntu"
+		ssh ${1} "until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done"
+		ssh ${1} "apt-get update"
+		ssh ${1} "apt-get -y install iperf3 sysstat bc psmisc"
+		if [ $IPversion -eq 6 ]; then	
+			scp ConfigureUbuntu1604IPv6.sh ${1}:
+			ssh ${1} "chmod +x ConfigureUbuntu1604IPv6.sh"
+			ssh ${1} "./ConfigureUbuntu1604IPv6.sh"
 		fi
+	elif [[ $DISTRO =~ "Red Hat Enterprise Linux Server release 6" ]] || [[ $DISTRO =~ "CentOS Linux release 6" ]] || [[ $DISTRO =~ "CentOS release 6" ]];
+	then
+		LogMsg "Detected Redhat/CentOS 6.x"
+		ssh ${1} "rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-6.noarch.rpm"
+		ssh ${1} "yum -y --nogpgcheck install iperf3 sysstat bc psmisc"
+		ssh ${1} "iptables -F"				
+	elif [[ $DISTRO =~ "Red Hat Enterprise Linux Server release 7" ]] || [[ $DISTRO =~ "CentOS Linux release 7" ]];
+	then
+		LogMsg "Detected Redhat/CentOS 7.x"
+		ssh ${1} "rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm"
+		ssh ${1} "yum -y --nogpgcheck install iperf3 sysstat bc psmisc"
+		ssh ${1} "iptables -F"
+	elif [[ $DISTRO =~ "SUSE Linux Enterprise Server" ]];
+	then
+		LogMsg "Detected SLES"
+		if [[ $DISTRO =~ "SUSE Linux Enterprise Server 12" ]];
+		then
+			LogMsg "Detected SLES 12"    
+			ssh ${1} "zypper addrepo https://download.opensuse.org/repositories/network:utilities/SLE_12_SP3/network:utilities.repo"
+			ssh ${1} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys refresh"
+			ssh ${1} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install iperf"
+		elif [[ $DISTRO =~ "SUSE Linux Enterprise Server 15" ]];
+		then
+			LogMsg "Detected SLES 15"
+			ssh ${1} "zypper addrepo https://download.opensuse.org/repositories/network:utilities/SLE_15/network:utilities.repo"
+		fi
+		ssh ${1} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys refresh"
+		ssh ${1} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install sysstat git bc make gcc psmisc"
+		ssh ${1} "which iperf3"
+		if [ $? -ne 0 ]; then
+			LogMsg "Info: iperf3 is not installed from repsitory. So, Installing iperf3 using rpm"
+			LogMsg "rpm -ivh iperf-sles-x86_64.rpm libiperf0-sles-x86_64.rpm"
+			ssh ${1} "rpm -ivh iperf-sles-x86_64.rpm libiperf0-sles-x86_64.rpm"
+			ssh ${1} "which iperf3"
+			if [ $? -ne 0 ]; then
+				LogMsg "Error: Unable to install iperf3 from source/rpm"
+				return 1
+			fi				
+		else
+			LogMsg "Info: Iperf3 installed from repository"
+		fi
+		ssh ${1} "iptables -F"	
+	elif [[ $DISTRO =~ "clear-linux-os" ]];
+	then
+		LogMsg "Detected Clear Linux OS. Installing required packages"
+		ssh ${1} "swupd bundle-add dev-utils-dev sysadmin-basic performance-tools os-testsuite-phoronix network-basic openssh-server dev-utils os-core os-core-dev"
+		ssh ${1} "iptables -F"					
+	else
+		LogMsg "Unknown Distro"
+		UpdateTestState "TestAborted"
+		UpdateSummary "Unknown Distro, test aborted"
+		return 1
+	fi
 }
 
 
