@@ -688,10 +688,10 @@ Function DetectLinuxDistro($VIP, $SSHport, $testVMUser, $testVMPassword)
 			elseif ($DistroName -imatch "CENTOS")
 			{
 				$CleanedDistroName = "CENTOS"
-			}
+			}			
 			elseif ($DistroName -imatch "SLES")
 			{
-				$CleanedDistroName = "SLES"
+				$CleanedDistroName = $DistroName
 			}
 			elseif ($DistroName -imatch "SUSE")
 			{

@@ -123,7 +123,7 @@
         <PowershellScript>PERF-STORAGE-MULTIDISK-RAID0-FIO.ps1</PowershellScript>
         <setupType>DS14DISK12</setupType>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
-        <files>.\Testscripts\Linux\azuremodules.sh</files>
+        <files>.\Testscripts\Linux\azuremodules.sh,.\Tools\fio-sles.rpm</files>
         <TestParameters>
             <param>modes='randread randwrite read write'</param>
             <param>startThread=1</param>
@@ -146,7 +146,7 @@
         <PowershellScript>PERF-STORAGE-MULTIDISK-RAID0-FIO.ps1</PowershellScript>
         <setupType>DS14DISK12</setupType>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
-        <files>.\Testscripts\Linux\azuremodules.sh</files>
+        <files>.\Testscripts\Linux\azuremodules.sh,.\Tools\fio-sles.rpm</files>
         <TestParameters>
             <param>modes='randread randwrite read write'</param>
             <param>startThread=1</param>
