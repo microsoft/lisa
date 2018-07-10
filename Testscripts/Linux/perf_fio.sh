@@ -104,12 +104,13 @@ InstallFIO()
 		which fio
 		if [ $? -ne 0 ]; then
 			LogMsg "Info: fio not installed from repsitory. So, Installing fio using rpm"
-			LogMsg "rpm -ivh fio-sles.rpm"
-			rpm -ivh fio-sles.rpm
+			LogMsg "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install fio-sles.rpm"
+			zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install fio-sles.rpm
 			which fio
 			if [ $? -ne 0 ]; then
 				LogMsg "Error: Unable to install fio from source/rpm"
-				return 1
+				UpdateTestState "TestAborted"
+				exit 1
 			fi
 		else
 			LogMsg "Info: fio installed from repository"
