@@ -114,12 +114,12 @@ InstallLAGSCOPE() {
 					LogMsg "Detected SLES 15"
 					ssh ${1} "zypper addrepo https://download.opensuse.org/repositories/network:utilities/SLE_15/network:utilities.repo"
 				fi
-					ssh ${1} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys refresh"
-					ssh ${1} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install sysstat git bc make gcc dstat psmisc"
-					ssh ${1} "rm -rf lagscope"
-					ssh ${1} "git clone https://github.com/Microsoft/lagscope"
-					ssh ${1} "cd lagscope/src && make && make install"
-					ssh ${1} "iptables -F"
+				ssh ${1} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys refresh"
+				ssh ${1} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install sysstat git bc make gcc dstat psmisc"
+				ssh ${1} "rm -rf lagscope"
+				ssh ${1} "git clone https://github.com/Microsoft/lagscope"
+				ssh ${1} "cd lagscope/src && make && make install"
+				ssh ${1} "iptables -F"
 		elif [[ $DISTRO =~ "clear-linux-os" ]];
 		then
 				LogMsg "Detected Clear Linux OS. Installing required packages"

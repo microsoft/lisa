@@ -73,7 +73,7 @@
         <files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\Linux-Test-Project-Tests.sh</files>
         <setupType>LTP</setupType>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>      
-        <Platform>Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>Community</Category>
         <Area>LTP</Area>
         <Tags>LTP</Tags>
