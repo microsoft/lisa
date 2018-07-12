@@ -69,6 +69,10 @@ Set-Variable -Name TiPCluster -Value $TiPCluster -Scope Global
 Set-Variable -Name global4digitRandom -Value $(Get-Random -SetSeed $(Get-Random) -Maximum 9999 -Minimum 1111) -Scope Global
 Set-Variable -Name CoreCountExceededTimeout -Value $CoreCountExceededTimeout -Scope Global
 
+Set-Variable -Name resultPass -Value "PASS" -Scope Global
+Set-Variable -Name resultFail -Value "FAIL" -Scope Global
+Set-Variable -Name resultAborted -Value "ABORTED" -Scope Global
+
 if($EnableAcceleratedNetworking)
 {
     Set-Variable -Name EnableAcceleratedNetworking -Value $true -Scope Global
