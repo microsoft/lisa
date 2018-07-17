@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 $result = ""
 $CurrentTestResult = CreateTestResultObject
 $resultArr = @()
@@ -14,7 +16,6 @@ if ($isDeployed)
 
 		RemoteCopy -uploadTo $hs1VIP -port $hs1vm1sshport -files $currentTestData.files -username $user -password $password -upload
 		RunLinuxCmd -username $user -password $password -ip $hs1VIP -port $hs1vm1sshport -command "chmod +x *" -runAsSudo
-
 
 		LogMsg "Executing : $($currentTestData.testScript)"
 		RunLinuxCmd -username $user -password $password -ip $hs1VIP -port $hs1vm1sshport -command "$python_cmd $($currentTestData.testScript)" -runAsSudo
@@ -44,7 +45,7 @@ if ($isDeployed)
 		}
 		$resultArr += $testResult
 
-	}   
+	}
 }
 
 else

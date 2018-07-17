@@ -1,5 +1,7 @@
 #!/bin/bash
 #
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 # This script will do setup huge pages and DPDK installation with SRC & DST IPs for DPDk TestPmd test.
 # To run this script constants.sh details must.
 #

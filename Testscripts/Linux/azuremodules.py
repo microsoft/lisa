@@ -1,8 +1,7 @@
 #!/usr/bin/python
 #####################################################################################################################################
-# THIS FILE CONTAINS ALL THE FUNCTIONS USED IN PYTHON TEST FILES... HANDLE WITH CARE...
-# FOR ANY QUERY - V-SHISAV@MICROSOFT.COM
-# DO NOT DELETE ANY STATEMENT FROM THE FUNCTION EVEN IF IT IS COMMENTED!!! BECAUSE I'M TRACKING, WHAT I'M DOING...
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 #####################################################################################################################################
 
 import subprocess

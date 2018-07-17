@@ -1,8 +1,30 @@
 #!/bin/bash
+##############################################################################################
+# TestParameters.sh
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
+# Operations :
+#<#
+#.SYNOPSIS
+#   Paramerers file for LaunchTestPipelineRemotely.sh
 
-##################################################
-#Paramerers file for LaunchTestPipelineRemotely.sh
-##################################################
+#.PARAMETER
+#   <Parameters>
+
+#.INPUTS
+
+
+#.NOTES
+#    Creation Date:  
+#    Purpose/Change: 
+
+#.EXAMPLE
+
+
+#>
+###############################################################################################
+
+#
 
 #Required (Your jenkins username)
 #This will be used to login jenkins in conjuction with ApiToken

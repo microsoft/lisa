@@ -1,4 +1,6 @@
 #!/bin/bash
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 export PATH="/sbin:/bin:/usr/sbin:/usr/bin"
 dmesg > `hostname`-dmesg.txt
 cp /var/log/waagent.log `hostname`-waagent.log.txt

@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 Import-Module .\TestLibs\RDFELibs.psm1 -Force
 $result = ""
 $testResult = ""
@@ -27,7 +29,7 @@ try
                 LogMsg "Adding an empty data disk of size $diskSizeinGB GB"
                 $out = Add-AzureRMVMDataDisk -VM $VirtualMachine -Name $diskName -DiskSizeInGB $diskSizeinGB -LUN $count -VhdUri $VHDuri.ToString() -CreateOption Empty
                 LogMsg "Successfully created an empty data disk of size $diskSizeinGB GB"                
-            
+
                 #LogMsg "Number of data disks added to the VM $count"
                 $out = Update-AzureRMVM -VM $VirtualMachine -ResourceGroupName $ResourceGroupUnderTest
                 LogMsg "Successfully added an empty data disk to the VM of size $diskSizeinGB"
@@ -36,7 +38,6 @@ try
 
                 foreach($line in ($fdiskOutput.Split([Environment]::NewLine)))
                 {
-
                     if($line -imatch "Disk /dev/sd[^ab]" -and ([int]($line.Split()[2]) -ge [int]$diskSizeinGB))
                     {
                         LogMsg "Data disk is successfully mounted to the VM: $line"

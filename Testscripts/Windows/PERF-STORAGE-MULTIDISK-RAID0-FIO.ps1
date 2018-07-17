@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 $result = ""
 $CurrentTestResult = CreateTestResultObject
 $resultArr = @()
@@ -35,7 +37,7 @@ chmod +x perf_fio.sh
 . azuremodules.sh
 collect_VM_properties
 "@
-
+# TODO - code refactoring should fix non Microsoft blob access
 		$myString2 = @"
 wget https://konkaciwestus1.blob.core.windows.net/scriptfiles/JSON.awk
 wget https://konkaciwestus1.blob.core.windows.net/scriptfiles/gawk

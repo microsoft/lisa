@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 $result = ""
 $CurrentTestResult = CreateTestResultObject
 $resultArr = @()
@@ -76,7 +78,7 @@ collect_VM_properties
         }
         else
         {
-
+# TODO: this part should be revised during code refactoring.
         }
         #endregion
 

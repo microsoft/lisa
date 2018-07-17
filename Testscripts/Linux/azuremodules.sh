@@ -1,9 +1,6 @@
 #!/bin/bash
-#
-# This script is library for shell scripts used in Azure Linux Automation.
-# Author: Srikanth Myakam
-# Email	: v-srm@microsoft.com
-#
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 #
 
 function get_lis_version ()

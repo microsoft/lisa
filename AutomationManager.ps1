@@ -1,15 +1,35 @@
 ﻿##############################################################################################
 # AzureAutomationManager.ps1
-# Copyright (c) Microsoft. All rights reserved.
-# Licensed under the MIT license. See LICENSE file in the project root for full license information.
-# Description : This script manages all the setup and test operations in Azure environemnt.
-#               It is an entry script of Azure Automation
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 # Operations :
-#              - Installing AzureSDK
-#              - VHD preparation : Installing packages required by ICA, LIS drivers and waagent
-#              - Uplaoding test VHD to cloud
-#              - Invokes azure test suite
-## Author : v-shisav@microsoft.com, v-ampaw@microsoft.com, lisasupport@microsoft.com
+#
+<#
+.SYNOPSIS
+       This script manages all the setup and test operations in Azure environemnt.
+        It is an entry script of Azure Automation
+        Installing AzureSDK
+        - VHD preparation : Installing packages required by ICA, LIS drivers and waagent
+        - Uplaoding test VHD to cloud
+        - Invokes azure test suite
+
+.PARAMETER
+	<Parameters>
+
+.INPUTS
+    Load dependent modules
+    Set all parameters are ito global vars
+    Azure login
+    Start AzureTestSuite.ps1
+
+.NOTES
+    Creation Date:
+    Purpose/Change: 
+
+.EXAMPLE
+
+
+#>
 ###############################################################################################
 param (
 [CmdletBinding()]
@@ -46,6 +66,7 @@ param (
 [string] $TiPCluster="",
 [switch] $ForceDeleteResources
 )
+
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global}
 
 $xmlConfig = [xml](Get-Content $xmlConfigFile)
@@ -153,7 +174,7 @@ try
     if (! (test-path ".\report"))
     {
         mkdir ".\report" | out-null
-    }        
+    }
     $testStartTime = [DateTime]::Now.ToUniversalTime()
     Set-Variable -Name testStartTime -Value $testStartTime -Scope Global
     Set-Content -Value "" -Path .\report\testSummary.html -Force -ErrorAction SilentlyContinue | Out-Null

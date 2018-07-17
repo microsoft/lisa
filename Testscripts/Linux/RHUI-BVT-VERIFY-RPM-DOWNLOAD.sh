@@ -1,4 +1,6 @@
 ﻿#!/bin/bash
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 ./package-download-test.sh
 if [[ $? == 0 ]]; then
         echo 'PASS' > Summary.log

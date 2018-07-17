@@ -1,20 +1,40 @@
 ##############################################################################################
 # RunTests.ps1
-# Copyright (c) Microsoft. All rights reserved.
-# Licensed under the MIT license. See LICENSE file in the project root for full license information.
-# Description : 
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 # Operations :
-#              
-## Author : v-shisav@microsoft.com, lisasupport@microsoft.com
+#
+<#
+.SYNOPSIS
+	<Description>
+
+.PARAMETER
+	This script launches AutomationManager.ps1 remotely.
+
+.INPUTS
+    Set all ENV parameters
+    $xmlFile is constructed
+    Start AutomationManager.ps1
+    Read report_test.xml file.
+
+.NOTES
+    Creation Date:  
+    Purpose/Change: 
+
+.EXAMPLE
+
+
+#>
 ###############################################################################################
+
 [CmdletBinding()]
 Param(
-    #Do not use. Reserved for Jenkins use.   
+    #Do not use. Reserved for Jenkins use.
     $BuildNumber=$env:BUILD_NUMBER,
 
     #[Required]
     [string] $TestPlatform = "",
-    
+
     #[Required] for Azure.
     [string] $TestLocation="",
     [string] $RGIdentifier = "",
@@ -30,7 +50,7 @@ Param(
     [string] $TestArea = "",
     [string] $TestTag = "",
     [string] $TestNames="",
-    
+
     #[Optional] Parameters for Image preparation before running tests.
     [string] $CustomKernel = "",
     [string] $CustomLIS,
@@ -45,8 +65,8 @@ Param(
 
     #[Optional] Parameters for dynamically updating XML files
     [switch] $UpdateGlobalConfigurationFromSecretsFile,
-    [switch] $UpdateXMLStringsFromSecretsFile,    
-    
+    [switch] $UpdateXMLStringsFromSecretsFile,
+
     #[Optional] Parameters for Overriding VM Configuration in Azure.
     [string] $OverrideVMSize = "",
     [switch] $EnableAcceleratedNetworking,
@@ -57,14 +77,14 @@ Param(
 
     [string] $ResultDBTable = "",
     [string] $ResultDBTestTag = "",
-    
-    [switch] $ExitWithZero    
+
+    [switch] $ExitWithZero
 )
 
 #Import the Functinos from Library Files.
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global }
 
-try 
+try
 {
     #region Prepare / Clean the powershell console.
     $WorkingDirectory = Split-Path -parent $MyInvocation.MyCommand.Definition 
@@ -97,7 +117,7 @@ try
         $VerboseCommand = "-Verbose"
         Set-Variable -Name VerboseCommand -Value "-Verbose" -Scope Global
     }
-    else 
+    else
     {
         Set-Variable -Name VerboseCommand -Value "" -Scope Global
     }
@@ -107,13 +127,11 @@ try
     ValidateParameters
 
     ValiateXMLs -ParentFolder $WorkingDirectory
-    
+
     UpdateGlobalConfigurationXML
 
-    UpdateXMLStringsFromSecretsFile    
+    UpdateXMLStringsFromSecretsFile
 
-
-    
     #region Local Variables
     $TestXMLs = Get-ChildItem -Path "$WorkingDirectory\XML\TestCases\*.xml"
     $SetupTypeXMLs = Get-ChildItem -Path "$WorkingDirectory\XML\VMConfigurations\*.xml"
@@ -213,7 +231,7 @@ try
                                                 
                             $xmlContent += ("$($tab[3])" + "</$SetupType>`n")
                         }
-                    }                    
+                    }
                 }
             $xmlContent += ("$($tab[2])" + "</Deployment>`n")
             #endregion        
@@ -276,7 +294,7 @@ try
                                                 
                             $xmlContent += ("$($tab[3])" + "</$SetupType>`n")
                         }
-                    }                    
+                    }
                 }
             $xmlContent += ("$($tab[2])" + "</Deployment>`n")
             #endregion        
@@ -320,17 +338,17 @@ try
     $xmlContent += ("$($tab[0])" + "</config>`n") 
     Set-Content -Value $xmlContent -Path $xmlFile -Force
 
-    try 
-    {   
+    try
+    {
         $xmlConfig = [xml](Get-Content $xmlFile)
         $xmlConfig.Save("$xmlFile")
-        LogMsg "Auto created $xmlFile validated successfully."   
+        LogMsg "Auto created $xmlFile validated successfully."
     }
-    catch 
+    catch
     {
-        Throw "Framework error: $xmlFile is not valid. Please report to lisasupport@microsoft.com"    
+        Throw "Framework error: $xmlFile is not valid. Please report to lisasupport@microsoft.com"
     }
-    
+
     #endregion
 
     #region Prepare execution command
@@ -427,7 +445,7 @@ try
             }
         }
         else
-        {                                               
+        {
             LogMsg "Summary file: .\report\report_$(($TestCycle).Trim()).xml does not exist. Exiting with 1."
             $ExitCode = 1
         }
@@ -459,5 +477,5 @@ catch
 finally 
 {
     Get-Variable -Scope Global | Remove-Variable -Force -ErrorAction SilentlyContinue
-    exit $ExitCode    
+    exit $ExitCode
 }

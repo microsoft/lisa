@@ -1,12 +1,32 @@
 ##############################################################################################
 # AzureTestSuite.ps1
-# Copyright (c) Microsoft. All rights reserved.
-# Licensed under the MIT license. See LICENSE file in the project root for full license information.
-# Description : This scripts takes care of launching .\Windows\PowershellScript.ps1 file
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 # Operations :
-#              
-## Author : v-shisav@microsoft.com, lisasupport@microsoft.com
+#
+<#
+.SYNOPSIS
+	This scripts takes care of launching .\Windows\PowershellScript.ps1 file
+
+.PARAMETER
+	<Parameters>
+
+.INPUTS
+    Copied Base VHD to current storage account
+    Cycle through each test scripts
+    Start TestScripts
+    Start logging in report_test.xml
+
+.NOTES
+    Creation Date:
+    Purpose/Change:
+
+.EXAMPLE
+
+
+#>
 ###############################################################################################
+
 param($xmlConfig, [string] $Distro, [string] $cycleName, [int] $TestIterations)
 Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 {
@@ -118,7 +138,6 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 		}
 	}
 
-
 	$testSuiteLogFile=$LogFile
 	$testSuiteResultDetails=@{"totalTc"=0;"totalPassTc"=0;"totalFailTc"=0;"totalAbortedTc"=0}
 	$id = ""
@@ -210,7 +229,7 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 					Set-Variable -Name CurrentTestLogDir -Value $CurrentTestLogDir -Scope Global
 					Set-Variable -Name LogDir -Value $CurrentTestLogDir -Scope Global
 					$TestCaseLogFile = "$CurrentTestLogDir\CurrentTestLogs.txt" 
-					
+
 					$testcase = StartLogTestCase $testsuite "$($test.Name)" "CloudTesting.$($testCycle.cycleName)"
 					$testSuiteResultDetails.totalTc = $testSuiteResultDetails.totalTc +1
 					$stopWatch = SetStopWatch
@@ -257,7 +276,7 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 						}
 						LogMsg "~~~~~~~~~~~~~~~TEST END : $($currentTestData.testName)~~~~~~~~~~"
 						$CurrentTestLogDir = $null
-						Set-Variable -Name CurrentTestLogDir -Value $null -Scope Global -Force							
+						Set-Variable -Name CurrentTestLogDir -Value $null -Scope Global -Force
 					}
 					if($testResult -imatch "PASS")
 					{

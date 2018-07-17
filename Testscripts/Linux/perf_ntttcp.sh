@@ -2,30 +2,14 @@
 
 #######################################################################
 #
-# Linux on Hyper-V and Azure Test Code, ver. 1.0.0
-# Copyright (c) Microsoft Corporation
-#
-# All rights reserved.
-# Licensed under the Apache License, Version 2.0 (the ""License"");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# THIS CODE IS PROVIDED *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS
-# OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION
-# ANY IMPLIED WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR
-# PURPOSE, MERCHANTABLITY OR NON-INFRINGEMENT.
-#
-# See the Apache Version 2.0 License for specific language governing
-# permissions and limitations under the License.
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 #
 #######################################################################
 
 #######################################################################
 #
 # perf_ntttcp.sh
-# Author : SHITAL SAVEKAR <v-shisav@microsoft.com>
-#
 # Description:
 #    Download and run ntttcp network performance tests.
 #    This script needs to be run on client VM.
@@ -209,7 +193,7 @@ LogMsg "Configuring server ${server}..."
 InstallNTTTCP ${server}
 
 #Now, start the ntttcp client on client VM.
-
+# TODO - code refactoring should remove this personal repo access. Suggest to move inside working repo.
 ssh root@${client} "wget https://raw.githubusercontent.com/iamshital/linux_performance_test/master/run_ntttcp-for-linux/run-ntttcp-and-tcping.sh"
 ssh root@${client} "wget https://raw.githubusercontent.com/iamshital/linux_performance_test/master/run_ntttcp-for-linux/report-ntttcp-and-tcping.sh"
 ssh root@${client} "chmod +x run-ntttcp-and-tcping.sh && chmod +x report-ntttcp-and-tcping.sh"

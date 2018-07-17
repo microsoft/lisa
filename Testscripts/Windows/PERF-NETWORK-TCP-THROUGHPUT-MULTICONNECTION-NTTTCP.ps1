@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 $result = ""
 $CurrentTestResult = CreateTestResultObject
 $resultArr = @()
@@ -261,7 +263,7 @@ collect_VM_properties
 			$testResult = "Aborted"
 		}
 		$resultArr += $testResult
-	}   
+	}
 }
 
 else

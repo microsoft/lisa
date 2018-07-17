@@ -1,11 +1,10 @@
-﻿<#
+﻿
+##############################################################################################
+# AddAzureRmAccountFromSecretsFile.ps1
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
+<#
 .SYNOPSIS
-    This script authenticates PS sessing using Azure principal account.
-
-    # Copyright (c) Microsoft. All rights reserved.
-    # Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-.DESCRIPTION
     This script authenticates PS sessing using Azure principal account.
 
 .PARAMETER -customSecretsFilePath
@@ -13,18 +12,18 @@
     Required: Optinal.
 
 .INPUTS
-    AzureSecrets.xml file. If you are running this script in Jenkins, then make sure to add a secret file with ID: Azure_Secrets_File
+    AzureSecrets.xml file. If you are running this script in Jenkins, then make sure to add a secret 
+    file with ID: Azure_Secrets_File
     If you are running the file locally, then pass secrets file path to -customSecretsFilePath parameter.
 
 .NOTES
-    Version:        1.0
-    Author:         Shital Savekar <v-shisav@microsoft.com>, lisasupport@microsoft.com
     Creation Date:  14th December 2017
     Purpose/Change: Initial script development
 
 .EXAMPLE
     .\AddAzureRmAccountFromSecretsFile.ps1 -customSecretsFilePath .\AzureSecrets.xml
 #>
+###############################################################################################
 
 param
 (

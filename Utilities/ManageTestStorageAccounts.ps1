@@ -1,25 +1,27 @@
+##############################################################################################
+# ManageTestStorageAccounts.ps1
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
+# Operations :
+#
 <#
 .SYNOPSIS
     This script copies VHD file to another storage account.
+    This script will do Create / Delete operation for storage accounts 
+    mentioned in .\XML\RegionAndStorageAccounts.xml
 
-    # Copyright (c) Microsoft. All rights reserved.
-    # Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-.DESCRIPTION
-    This script will do Create / Delete operation for storage accounts mentioned in .\XML\RegionAndStorageAccounts.xml
-
-.PARAMETER 
+.PARAMETER
 
 .INPUTS
 
 .NOTES
-    Version:        1.0
-    Author:         lisasupport@microsoft.com
-    Creation Date:  
-    Purpose/Change: 
+    Creation Date:
+    Purpose/Change:
 
 .EXAMPLE
+
 #>
+###############################################################################################
 
 param
 (
@@ -63,7 +65,7 @@ try
                 {
                     $Out = Get-AzureRmResourceGroup -Name $ResourceGroupName -ErrorAction SilentlyContinue
                     if ( ! $Out.ResourceGroupName )
-                    {   
+                    {
                         LogMsg "$ResourceGroupName creating..."
                         $Out = New-AzureRmResourceGroup -Name $ResourceGroupName -Location $Region -ErrorAction SilentlyContinue
                         if ($Out.ProvisioningState -eq "Succeeded")
@@ -83,10 +85,10 @@ try
                         {
                             LogMsg "Creating Standard_LRS storage account : $($RegionStorageMapping.AllRegions.$Region.StandardStorage) : Succeeded"
                         }
-                        else 
+                        else
                         {
                             LogMsg "Creating Standard_LRS storage account : $($RegionStorageMapping.AllRegions.$Region.StandardStorage) : Failed"
-                        }            
+                        }
                     }
                     if ($RegionStorageMapping.AllRegions.$Region.PremiumStorage)
                     {
@@ -96,13 +98,13 @@ try
                         {
                             LogMsg "Creating Premium_LRS storage account : $($RegionStorageMapping.AllRegions.$Region.PremiumStorage) : Succeeded"
                         }
-                        else 
+                        else
                         {
                             LogMsg "Creating Premium_LRS storage account : $($RegionStorageMapping.AllRegions.$Region.StandardStorage) : Failed"
                         }
                     }
                 }
-                elseif ($Delete) 
+                elseif ($Delete)
                 {
                     if ($RegionStorageMapping.AllRegions.$Region.StandardStorage)
                     {
@@ -121,13 +123,13 @@ try
             }
         }
     }
-    else 
+    else
     {
-        LogMsg "Please provide either -Create or -Delete option."    
+        LogMsg "Please provide either -Create or -Delete option."
     }
 
 }
-catch 
+catch
 {
     $ExitCode = 1
     ThrowExcpetion ($_)

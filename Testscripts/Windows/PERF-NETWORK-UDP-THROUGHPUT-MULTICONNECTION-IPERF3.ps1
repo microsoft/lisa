@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 $result = ""
 $CurrentTestResult = CreateTestResultObject
 $resultArr = @()
@@ -147,7 +149,6 @@ collect_VM_properties
 		$FinalClientUDPLossArr=@()
 		$FinalServerUDPLossArr=@()
 		$FinalServerClientUDPResultObjArr = @()
-
 		function GetUDPDataObject()
 		{
 			$objNode = New-Object -TypeName PSObject
@@ -317,7 +318,6 @@ collect_VM_properties
 				Write-Host "-------------------------------"
 			}
 		}
-
 
 		#endregion
 

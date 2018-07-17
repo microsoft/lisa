@@ -1,10 +1,11 @@
 #!/bin/bash
-#AUTHOR : SHITAL SAVEKAR <v-shisav@microsoft.com>
-#Description : Enables passwordless authentication for root user.
-#How to use : ./enablePasswordLessRoot.sh
-#In multi VM cluster. Execute this script in one VM. It will create a sshFix.tar
-#Copy this sshFix.tar to other VMs (/root) in your cluster and execute same script. It will extract previously created keys.
-#This way, all VMs will have same public and private keys in .ssh folder.
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
+# Description : Enables passwordless authentication for root user.
+# How to use : ./enablePasswordLessRoot.sh
+# In multi VM cluster. Execute this script in one VM. It will create a sshFix.tar
+# Copy this sshFix.tar to other VMs (/root) in your cluster and execute same script. It will extract previously created keys.
+# This way, all VMs will have same public and private keys in .ssh folder.
 
 rm -rf /root/.ssh
 cd /root
