@@ -11,6 +11,21 @@
         <TestID>Smoke_001</TestID>
     </test>
     <test>
+        <TestName>VERIFY-DEPLOYMENT-PROVISION-SRIOV</TestName>
+        <PowershellScript>BVT-VERIFY-DEPLOYMENT-PROVISION.ps1</PowershellScript>
+        <files></files>
+        <setupType>SingleVM</setupType>
+        <OverrideVMSize>Standard_D13_v2</OverrideVMSize>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>        
+        <Platform>Azure</Platform>
+        <Category>Smoke</Category>
+        <Area>default</Area>
+        <Tags>bvt</Tags>
+        <TestID>Smoke_001</TestID>
+    </test>
+    <test>
         <TestName>VERIFY-HOSTNAME</TestName>
         <testScript>WALA-VERIFY-HOSTNAME.py</testScript>
         <PowershellScript>WALA-VERIFY-HOSTNAME.ps1</PowershellScript>

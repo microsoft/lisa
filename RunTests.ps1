@@ -87,7 +87,26 @@ Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1"
 try
 {
     #region Prepare / Clean the powershell console.
-    $WorkingDirectory = Split-Path -parent $MyInvocation.MyCommand.Definition 
+    $MaxDirLength = 32
+    $WorkingDirectory = Split-Path -parent $MyInvocation.MyCommand.Definition
+    Set-Variable -Name shortRandomNumber -Value $(Get-Random -Maximum 99999 -Minimum 11111) -Scope Global
+    Set-Variable -Name shortRandomWord -Value $(-join ((65..90) | Get-Random -Count 4 | ForEach-Object {[char]$_})) -Scope Global
+    if ( $WorkingDirectory.Length -gt $MaxDirLength)
+    {
+        $OriginalWorkingDirectory = $WorkingDirectory
+        Write-Host "Current working directory '$WorkingDirectory' length is greather than $MaxDirLength. Need to change the working directory."
+        $TempWorkspace = "$(Split-Path $OriginalWorkingDirectory -Qualifier)"
+        New-Item -ItemType Directory -Path "$TempWorkspace\LISAv2" -Force -ErrorAction SilentlyContinue | Out-Null
+        New-Item -ItemType Directory -Path "$TempWorkspace\LISAv2\$shortRandomWord$shortRandomNumber" -Force -ErrorAction SilentlyContinue | Out-Null
+        $finalWorkingDirectory = "$TempWorkspace\LISAv2\$shortRandomWord$shortRandomNumber"
+        $tmpSource = '\\?\' + "$OriginalWorkingDirectory\*"
+        Write-Host "Copying current workspace to $finalWorkingDirectory"
+        Copy-Item -Path $tmpSource -Destination $finalWorkingDirectory -Recurse -Force | Out-Null
+        Set-Location -Path $finalWorkingDirectory | Out-Null
+        Write-Host "Working directory changed to $finalWorkingDirectory"
+        $WorkingDirectory = $finalWorkingDirectory
+    }
+     
     $ParameterList = (Get-Command -Name $PSCmdlet.MyInvocation.InvocationName).Parameters;
     foreach ($key in $ParameterList.keys)
     {
@@ -107,8 +126,6 @@ try
 
     #region Static Global Variables
     Set-Variable -Name WorkingDirectory -Value $WorkingDirectory  -Scope Global
-    Set-Variable -Name shortRandomNumber -Value $(Get-Random -Maximum 99999 -Minimum 11111) -Scope Global
-    Set-Variable -Name shortRandomWord -Value $(-join ((65..90) | Get-Random -Count 4 | ForEach-Object {[char]$_})) -Scope Global
     #endregion
 
     #region Runtime Global Variables
@@ -462,7 +479,6 @@ try
             LogMsg "Changed exit code from 1 --> 0. (-ExitWithZero mentioned.)"
             $ExitCode = 0
         }
-        LogMsg "Exiting with code : $ExitCode"
     }
 }
 catch 
@@ -476,6 +492,17 @@ catch
 }
 finally 
 {
+    if ( $finalWorkingDirectory )
+    {
+        Write-Host "Copying all files to original working directory."
+        $tmpDest = '\\?\' + $originalWorkingDirectory
+        Copy-Item -Path "$finalWorkingDirectory\*" -Destination $tmpDest -Force -Recurse | Out-Null
+        cd ..
+        Write-Host "Cleaning $finalWorkingDirectory"
+        Remove-Item -Path $finalWorkingDirectory -Force -Recurse -ErrorAction SilentlyContinue
+        Write-Host "Setting workspace to original location: $originalWorkingDirectory"
+        cd $originalWorkingDirectory
+    }
     Get-Variable -Scope Global | Remove-Variable -Force -ErrorAction SilentlyContinue
-    exit $ExitCode
-}
+    LogMsg "Exiting with code : $ExitCode"
+    exit $ExitCode}

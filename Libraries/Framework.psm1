@@ -891,7 +891,7 @@ Function CreateArrayOfTabs()
 	return $tab
 }
 
-Function UploadTestResultToDatabase ($TestPlatform,$TestLocation,$TestCategory,$TestArea,$TestName,$CurrentTestResult,$TestTag,$GuestDistro,$KernelVersion,$LISVersion,$HostVersion,$VMSize,$Networking,$ARMImage,$OsVHD,$LogFile,$BuildURL)
+Function UploadTestResultToDatabase ($TestPlatform,$TestLocation,$TestCategory,$TestArea,$TestName,$CurrentTestResult,$ExecutionTag,$GuestDistro,$KernelVersion,$LISVersion,$HostVersion,$VMSize,$Networking,$ARMImage,$OsVHD,$LogFile,$BuildURL)
 {
 	if ( $EnableTelemetry )
 	{
@@ -933,8 +933,8 @@ Function UploadTestResultToDatabase ($TestPlatform,$TestLocation,$TestCategory,$
 				$dbpassword = $XmlSecrets.secrets.DatabasePassword
 				$database = $XmlSecrets.secrets.DatabaseName
 				$dataTableName = "LISAv2Results"
-				$SQLQuery = "INSERT INTO $dataTableName (DateTimeUTC,TestPlatform,TestLocation,TestCategory,TestArea,TestName,TestResult,SubTestName,SubTestResult,TestTag,GuestDistro,KernelVersion,LISVersion,HostVersion,VMSize,Networking,ARMImage,OsVHD,LogFile,BuildURL) VALUES "
-				$SQLQuery += "('$DateTimeUTC','$TestPlatform','$TestLocation','$TestCategory','$TestArea','$TestName','$testResult','','','$TestTag','$GuestDistro','$KernelVersion','$LISVersion','$HostVersion','$VMSize','$Networking','$ARMImageName','$OsVHD','$UploadedURL', '$BuildURL'),"
+				$SQLQuery = "INSERT INTO $dataTableName (DateTimeUTC,TestPlatform,TestLocation,TestCategory,TestArea,TestName,TestResult,SubTestName,SubTestResult,ExecutionTag,GuestDistro,KernelVersion,LISVersion,HostVersion,VMSize,Networking,ARMImage,OsVHD,LogFile,BuildURL) VALUES "
+				$SQLQuery += "('$DateTimeUTC','$TestPlatform','$TestLocation','$TestCategory','$TestArea','$TestName','$testResult','','','$ExecutionTag','$GuestDistro','$KernelVersion','$LISVersion','$HostVersion','$VMSize','$Networking','$ARMImageName','$OsVHD','$UploadedURL', '$BuildURL'),"
 				if ($TestSummary)
 				{
 					foreach ($tempResult in $TestSummary.Split('>'))
@@ -944,7 +944,7 @@ Function UploadTestResultToDatabase ($TestPlatform,$TestLocation,$TestCategory,$
 							$tempResult = $tempResult.Trim().Replace("<br /","").Trim()
 							$subTestResult = $tempResult.Split(":")[$tempResult.Split(":").Count -1 ].Trim()
 							$subTestName = $tempResult.Replace("$subTestResult","").Trim().TrimEnd(":").Trim()
-							$SQLQuery += "('$DateTimeUTC','$TestPlatform','$TestLocation','$TestCategory','$TestArea','$TestName','$testResult','$subTestName','$subTestResult','$TestTag','$GuestDistro','$KernelVersion','$LISVersion','$HostVersion','$VMSize','$Networking','$ARMImageName','$OsVHD','$UploadedURL', '$BuildURL'),"
+							$SQLQuery += "('$DateTimeUTC','$TestPlatform','$TestLocation','$TestCategory','$TestArea','$TestName','$testResult','$subTestName','$subTestResult','$ExecutionTag','$GuestDistro','$KernelVersion','$LISVersion','$HostVersion','$VMSize','$Networking','$ARMImageName','$OsVHD','$UploadedURL', '$BuildURL'),"
 						}
 					}
 				}

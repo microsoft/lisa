@@ -524,7 +524,7 @@ Function GetAllHyperVDeployementData($HyperVGroupNames,$RetryCount = 100)
         foreach ( $VM in $AllVMs)
         {
             $QuickVMNode = CreateQuickVMNode
-            LogMsg "    $($VM.Name) : Waiting for IP address..."
+            LogMsg "    [$CurrentRetryAttempt/$RetryCount] : $($VM.Name) : Waiting for IP address ..."
             $VMNicProperties = $VM | Get-VMNetworkAdapter
             $QuickVMNode.PublicIP = $VMNicProperties.IPAddresses | Where-Object {$_ -imatch "\b(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}\b"}
             $QuickVMNode.InternalIP = $QuickVMNode.PublicIP
