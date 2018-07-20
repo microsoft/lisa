@@ -26,12 +26,22 @@
 
 Function ThrowException($Exception)
 {
-    $line = $Exception.InvocationInfo.ScriptLineNumber
-    $script_name = ($Exception.InvocationInfo.ScriptName).Replace($PWD,".")
-    $ErrorMessage =  $Exception.Exception.Message
-    Write-Host "EXCEPTION : $ErrorMessage"
-    Write-Host "SOURCE : Line $line in script $script_name."
-    Throw "Calling function - $($MyInvocation.MyCommand)"
+	try
+	{
+		$line = $Exception.InvocationInfo.ScriptLineNumber
+		$script_name = ($Exception.InvocationInfo.ScriptName).Replace($PWD,".")
+		$ErrorMessage =  $Exception.Exception.Message
+	}
+	catch
+	{
+	}
+	finally
+	{
+		$now = [Datetime]::Now.ToUniversalTime().ToString("MM/dd/yyyy HH:mm:ss")
+		Write-Host "$now : [OOPS   ]: $ErrorMessage"  -ForegroundColor Red
+		Write-Host "$now : [SOURCE ]: Line $line in script $script_name."  -ForegroundColor Red
+		Throw "Calling function - $($MyInvocation.MyCommand)"
+	}
 }
 
 function LogVerbose () 
@@ -57,6 +67,7 @@ function LogVerbose ()
         ThrowException($_)
     }
 }
+
 function LogError () 
 {
     param
@@ -70,8 +81,8 @@ function LogError ()
 			$text = $text.Replace($password,"******")
 		}
         $now = [Datetime]::Now.ToUniversalTime().ToString("MM/dd/yyyy HH:mm:ss")
-		$FinalMessage = "ERROR : $now : $text"
-		Write-Host $FinalMessage
+		$FinalMessage = "$now : [ERROR  ] $text"
+		Write-Host $FinalMessage -ForegroundColor Red
 		if ($LogDir)
 		{
 			Add-Content -Value $FinalMessage -Path "$LogDir\Logs.txt" -Force
@@ -106,7 +117,7 @@ function LogMsg()
 		foreach ($line in $text)
 		{
 			$now = [Datetime]::Now.ToUniversalTime().ToString("MM/dd/yyyy HH:mm:ss")
-			$FinalMessage = "INFO : $now : $line"
+			$FinalMessage = "$now : [INFO   ] $text"
 			Write-Host $FinalMessage
 			if ($LogDir)
 			{
@@ -146,8 +157,8 @@ Function LogWarn()
 			$text = $text.Replace($password,"******")
 		}
         $now = [Datetime]::Now.ToUniversalTime().ToString("MM/dd/yyyy HH:mm:ss")
-		$FinalMessage = "WARNING : $now : $text"
-		Write-Host $FinalMessage
+		$FinalMessage = "$now : [WARNING] $text"
+		Write-Host $FinalMessage -ForegroundColor Yellow
 		if ($LogDir)
 		{
 			Add-Content -Value $FinalMessage -Path "$LogDir\Logs.txt" -Force
