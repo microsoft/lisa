@@ -32,15 +32,19 @@ Function ValidateParameters()
 		#region Validate Parameters
 		if ( !$ARMImageName -and !$OsVHD )
 		{
-			$ParameterErrors += "-ARMImageName <'Publisher Offer Sku Version'>/ -OsVHD <'VHD_Name.vhd'> is required"
+			$ParameterErrors += "-ARMImageName <'Publisher Offer Sku Version'>, or -OsVHD <'VHD_Name.vhd'> is required."
+		}
+		if ($ARMImageName.Split(" ").Count -ne 4)
+		{
+			$ParameterErrors += "Invalid value for -ARMImageName <'Publisher Offer Sku Version'> provided. 'Publisher Offer Sku Version' should be separated by space ' ' char."
 		}
 		if ( !$TestLocation)
 		{
-			$ParameterErrors += "-TestLocation <Location> is required"
+			$ParameterErrors += "-TestLocation <AzureRegion> is required."
 		}
 		if ( !$RGIdentifier )
 		{
-			$ParameterErrors += "-RGIdentifier <PersonalIdentifier> is required. This string will added to Resources created by Automation."
+			$ParameterErrors += "-RGIdentifier <ResourceGroupIdentifier> is required."
 		}   
 		#endregion
 	}
@@ -49,11 +53,11 @@ Function ValidateParameters()
 		#region Validate Parameters
 		if (!$OsVHD )
 		{
-			$ParameterErrors += "-OsVHD <'VHD_Name.vhd'> is required"
+			$ParameterErrors += "-OsVHD <'VHD_Name.vhd'> is required."
 		}
 		if ( !$RGIdentifier )
 		{
-			$ParameterErrors += "-RGIdentifier <PersonalIdentifier> is required. This string will added to Resources created by Automation."
+			$ParameterErrors += "-RGIdentifier <ResourceGroupIdentifier> is required."
 		}
 		#endregion
 	}	
@@ -63,7 +67,7 @@ Function ValidateParameters()
 	}
 	else
 	{
-		$ParameterErrors += "Did you forgot to provide -TestPlatform?"
+		$ParameterErrors += "'-TestPlatform' is not provided."
 	}
 	
 	
@@ -71,11 +75,11 @@ Function ValidateParameters()
 	if ( $ParameterErrors.Count -gt 0)
 	{
 		$ParameterErrors | ForEach-Object { LogError $_ }
-		Throw "Invalid test parameters. Please fix above parameter issues."
+		Throw "Failed to validate the test parameters provided. Please fix above issues and retry."
 	}
 	else 
 	{
-		LogMsg "Input parameters are valid. Continueing for tests..."
+		LogMsg "Test parameters have been validated successfully. Continue running the test."
 	}	
 }
 
@@ -513,24 +517,6 @@ Function GetCurrentCycleData($xmlConfig, $cycleName)
         }
     }
     
-}
-Function ThrowException($Exception)
-{
-	try
-	{
-		$line = $Exception.InvocationInfo.ScriptLineNumber
-		$script_name = ($Exception.InvocationInfo.ScriptName).Replace($PWD,".")
-		$ErrorMessage =  $Exception.Exception.Message
-	}
-	catch
-	{
-	}
-	finally
-	{
-		Write-Host "EXCEPTION : $ErrorMessage"
-		Write-Host "SOURCE : Line $line in script $script_name."
-		Throw "Calling function - $($MyInvocation.MyCommand)"
-	}
 }
 
 <#

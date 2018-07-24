@@ -33,6 +33,7 @@ Param(
     $BuildNumber=$env:BUILD_NUMBER,
 
     #[Required]
+    [ValidateSet('Azure','HyperV')]
     [string] $TestPlatform = "",
 
     #[Required] for Azure.
@@ -57,7 +58,7 @@ Param(
 
     #[Optional] Parameters for changing framework behaviour.
     [string] $CoreCountExceededTimeout,
-    [int] $TestIterations,
+    [int]    $TestIterations,
     [string] $TiPSessionId,
     [string] $TiPCluster,
     [string] $XMLSecretFile = "",
@@ -94,7 +95,7 @@ try
     if ( $WorkingDirectory.Length -gt $MaxDirLength)
     {
         $OriginalWorkingDirectory = $WorkingDirectory
-        Write-Host "Current working directory '$WorkingDirectory' length is greather than $MaxDirLength. Need to change the working directory."
+        Write-Host "Current working directory '$WorkingDirectory' length is greather than $MaxDirLength."
         $TempWorkspace = "$(Split-Path $OriginalWorkingDirectory -Qualifier)"
         New-Item -ItemType Directory -Path "$TempWorkspace\LISAv2" -Force -ErrorAction SilentlyContinue | Out-Null
         New-Item -ItemType Directory -Path "$TempWorkspace\LISAv2\$shortRandomWord$shortRandomNumber" -Force -ErrorAction SilentlyContinue | Out-Null
@@ -103,7 +104,7 @@ try
         Write-Host "Copying current workspace to $finalWorkingDirectory"
         Copy-Item -Path $tmpSource -Destination $finalWorkingDirectory -Recurse -Force | Out-Null
         Set-Location -Path $finalWorkingDirectory | Out-Null
-        Write-Host "Working directory changed to $finalWorkingDirectory"
+        Write-Host "Working directory has been changed to $finalWorkingDirectory"
         $WorkingDirectory = $finalWorkingDirectory
     }
      
@@ -494,15 +495,15 @@ finally
 {
     if ( $finalWorkingDirectory )
     {
-        Write-Host "Copying all files to original working directory."
+        Write-Host "Copying all files back to original working directory: $originalWorkingDirectory."
         $tmpDest = '\\?\' + $originalWorkingDirectory
         Copy-Item -Path "$finalWorkingDirectory\*" -Destination $tmpDest -Force -Recurse | Out-Null
         cd ..
-        Write-Host "Cleaning $finalWorkingDirectory"
+        Write-Host "Cleaning up $finalWorkingDirectory"
         Remove-Item -Path $finalWorkingDirectory -Force -Recurse -ErrorAction SilentlyContinue
-        Write-Host "Setting workspace to original location: $originalWorkingDirectory"
+        Write-Host "Setting workspace back to original location: $originalWorkingDirectory"
         cd $originalWorkingDirectory
     }
     Get-Variable -Scope Global | Remove-Variable -Force -ErrorAction SilentlyContinue
-    LogMsg "Exiting with code : $ExitCode"
+    LogMsg "LISAv2 exits with code: $ExitCode"
     exit $ExitCode}
