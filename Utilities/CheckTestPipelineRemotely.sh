@@ -1,12 +1,28 @@
 #!/bin/bash
+##############################################################################################
+# CheckTestPipelineRemotely.sh
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
+# Operations :
+#<#
+#.SYNOPSIS
+#    Pipeline framework modules.
 
-#####################################################################################################
-#How to use:
+#.PARAMETER
+#	<Parameters>
 
-# Method 1: You can pass all the parameters from a parameters file.
-#./CheckTestPipelineRemotely.sh -BuildNumber <JenkinsBuildID>
+#.INPUTS
 
-######################################################################################################
+
+#.NOTES
+#    Creation Date:  
+#    Purpose/Change: 
+
+#.EXAMPLE
+#    ./CheckTestPipelineRemotely.sh -BuildNumber <JenkinsBuildID>
+
+#>
+###############################################################################################
 
 while echo $1 | grep ^- > /dev/null; do
     eval $( echo $1 | sed 's/-//g' | tr -d '\012')=$2

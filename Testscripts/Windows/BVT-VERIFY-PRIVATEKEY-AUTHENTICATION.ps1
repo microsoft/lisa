@@ -1,4 +1,6 @@
-﻿$result = ""
+﻿# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
+$result = ""
 $CurrentTestResult = CreateTestResultObject
 $resultArr = @()
 $isDeployed = DeployVMS -setupType $currentTestData.setupType -Distro $Distro -xmlConfig $xmlConfig
@@ -54,7 +56,7 @@ if ($isDeployed)
 	catch
 	{
 		$ErrorMessage =  $_.Exception.Message
-		LogMsg "EXCEPTION : $ErrorMessage"   
+		LogMsg "EXCEPTION : $ErrorMessage"
 	}
 	Finally
 	{
@@ -65,7 +67,7 @@ if ($isDeployed)
 		}
 		$resultArr += $testResult
 
-	}   
+	}
 }
 
 else

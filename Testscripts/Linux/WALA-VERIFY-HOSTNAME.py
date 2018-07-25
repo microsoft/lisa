@@ -1,7 +1,7 @@
 #!/usr/bin/python
-
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 from azuremodules import *
-
 
 import argparse
 import sys
@@ -48,6 +48,5 @@ def CheckFQDN(expectedHost):
     else:
         RunLog.error("nslookup failed for: {0}, {1}".format(expectedHost, output))
         return False
-
 
 RunTest(expectedHostname)

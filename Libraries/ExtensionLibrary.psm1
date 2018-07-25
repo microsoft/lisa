@@ -1,12 +1,29 @@
 ﻿##############################################################################################
 # ExtensionLibrary.psm1
-# Copyright (c) Microsoft. All rights reserved.
-# Licensed under the MIT license. See LICENSE file in the project root for full license information.
-# Description : Azure extension test library.
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 # Operations :
-#              
-## Author : lisasupport@microsoft.com
+#
+<#
+.SYNOPSIS
+    Azure extension test library.
+
+.PARAMETER
+    <Parameters>
+
+.INPUTS
+
+
+.NOTES
+    Creation Date:  
+    Purpose/Change: 
+
+.EXAMPLE
+
+
+#>
 ###############################################################################################
+
 Function VerifyExtensionFromAzure ([string]$ExtensionName, [string]$ServiceName, [string]$ResourceGroupName, $maxRetryCount=20, $retryIntervalInSeconds=10)
 {
 	$retryCount = 1

@@ -1,5 +1,7 @@
 #!/bin/bash
 #
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 # This script will run DPDk TestPmd test and generate report in .csv file.
 # To run this script constants.sh details must.
 #

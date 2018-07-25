@@ -2,22 +2,8 @@
 
 #######################################################################
 #
-# Linux on Hyper-V and Azure Test Code, ver. 1.0.0
-# Copyright (c) Microsoft Corporation
-#
-# All rights reserved.
-# Licensed under the Apache License, Version 2.0 (the ""License"");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# THIS CODE IS PROVIDED *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS
-# OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION
-# ANY IMPLIED WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR
-# PURPOSE, MERCHANTABLITY OR NON-INFRINGEMENT.
-#
-# See the Apache Version 2.0 License for specific language governing
-# permissions and limitations under the License.
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 #
 #######################################################################
 
@@ -71,7 +57,6 @@ UpdateTestState()
     echo "${1}" > $logFolder/state.txt
 }
 
-
 touch $logFolder/build-CustomKernel.txt
 
 CheckInstallLockUbuntu()
@@ -85,7 +70,6 @@ CheckInstallLockUbuntu()
                 LogMsg "No lock on dpkg present."
         fi
 }
-
 
 InstallKernel()
 {
@@ -111,6 +95,54 @@ InstallKernel()
                         rm -rf /etc/apt/preferences.d/proposed-updates
                         LogMsg "Installing linux-image-generic from proposed repository."
                         apt -y update >> $logFolder/build-CustomKernel.txt 2>&1
+                        apt -y --fix-missing upgrade >> $logFolder/build-CustomKernel.txt 2>&1
+                        kernelInstallStatus=$?
+                fi
+                UpdateTestState $ICA_TESTCOMPLETED
+                if [ $kernelInstallStatus -ne 0 ]; then
+                        LogMsg "CUSTOM_KERNEL_FAIL"
+                        UpdateTestState $ICA_TESTFAILED
+                else
+                        LogMsg "CUSTOM_KERNEL_SUCCESS"
+                        UpdateTestState $ICA_TESTCOMPLETED
+                fi
+        elif [ "${CustomKernel}" == "proposed" ]; then
+                DISTRO=`grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux" /etc/{issue,*release,*version}`
+                if [[ $DISTRO =~ "Xenial" ]];
+                then
+                        LogMsg "Enabling proposed repositry..."
+                        echo "deb http://archive.ubuntu.com/ubuntu/ xenial-proposed restricted main multiverse universe" >> /etc/apt/sources.list
+                        rm -rf /etc/apt/preferences.d/proposed-updates
+                        LogMsg "Installing linux-image-generic from proposed repository."
+                        apt -y update >> $logFolder/build-CustomKernel.txt 2>&1
+                        apt -y --fix-missing upgrade >> $logFolder/build-CustomKernel.txt 2>&1
+                        kernelInstallStatus=$?
+                elif [[ $DISTRO =~ "Trusty" ]];
+                then
+                        LogMsg "Enabling proposed repositry..."
+                        echo "deb http://archive.ubuntu.com/ubuntu/ trusty-proposed restricted main multiverse universe" >> /etc/apt/sources.list
+                        rm -rf /etc/apt/preferences.d/proposed-updates
+                        LogMsg "Installing linux-image-generic from proposed repository."
+                        apt -y update >> $logFolder/build-CustomKernel.txt 2>&1
+                        apt -y --fix-missing upgrade >> $logFolder/build-CustomKernel.txt 2>&1
+                        kernelInstallStatus=$?
+                fi
+                UpdateTestState $ICA_TESTCOMPLETED
+                if [ $kernelInstallStatus -ne 0 ]; then
+                        LogMsg "CUSTOM_KERNEL_FAIL"
+                        UpdateTestState $ICA_TESTFAILED
+                else
+                        LogMsg "CUSTOM_KERNEL_SUCCESS"
+                        UpdateTestState $ICA_TESTCOMPLETED
+                fi
+        elif [ "${CustomKernel}" == "ppa" ]; then
+                DISTRO=`grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux" /etc/{issue,*release,*version}`
+                if [[ $DISTRO =~ "Ubuntu" ]];
+                then
+                        LogMsg "Enabling ppa repositry..."
+                        DEBIAN_FRONTEND=noninteractive add-apt-repository --yes ppa:canonical-kernel-team/ppa
+                        apt -y update >> $logFolder/build-CustomKernel.txt 2>&1
+                        LogMsg "Installing linux-image-generic from proposed repository."
                         apt -y --fix-missing upgrade >> $logFolder/build-CustomKernel.txt 2>&1
                         kernelInstallStatus=$?
                 fi
@@ -149,7 +181,7 @@ InstallKernel()
                 LogMsg "Custom Kernel:$CustomKernel"
                 apt-get update
                 if [[ $CustomKernel =~ "http" ]];then
-						CheckInstallLockUbuntu
+                        CheckInstallLockUbuntu
                         apt-get install wget
                         LogMsg "Debian package web link detected. Downloading $CustomKernel"
                         wget $CustomKernel
@@ -183,7 +215,7 @@ InstallKernel()
                         LogMsg "Installing ${CustomKernel##*/}"
                         rpm -ivh "${CustomKernel##*/}"  >> $logFolder/build-CustomKernel.txt 2>&1
                         kernelInstallStatus=$?
-                        
+
                 else
                         prefix="localfile:"
                         LogMsg "Installing ${CustomKernel#$prefix}"
@@ -221,7 +253,7 @@ InstallKernel()
                         ucf --purge /etc/kernel-img.conf
                         export DEBIAN_FRONTEND=noninteractive
                         LogMsg "Updating distro..."
-						CheckInstallLockUbuntu
+                        CheckInstallLockUbuntu
                         apt-get update
                         LogMsg "Installing packages git make tar gcc bc patch dos2unix wget ..."
                         apt-get install -y git make tar gcc bc patch dos2unix wget >> $logFolder/build-CustomKernel.txt 2>&1

@@ -1,4 +1,6 @@
-﻿$result = ""
+﻿# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
+$result = ""
 $CurrentTestResult = CreateTestResultObject
 $resultArr = @()
 $isDeployed = DeployVMS -setupType $currentTestData.setupType -Distro $Distro -xmlConfig $xmlConfig

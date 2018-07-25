@@ -1,6 +1,6 @@
 ﻿# Linux Integration Services Automation (LISA), version 2
 
-May 2018
+July 2018
 
 ### Overview
 
@@ -90,3 +90,5 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
 ### More Information
 
 For more details, please refer to the documents [here](https://github.com/LIS/LISAv2/blob/master/Documents/How-to-use.md).
+
+Contact: <lisasupport@microsoft.com>

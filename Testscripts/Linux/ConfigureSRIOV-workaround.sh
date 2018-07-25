@@ -1,5 +1,6 @@
 #!/bin/bash
-
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 DISTRO=`grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux" /etc/{issue,*release,*version}`
 bootLogs=`dmesg`
 if [[ $bootLogs =~ "Data path switched to VF" ]];

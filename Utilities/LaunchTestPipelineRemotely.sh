@@ -1,15 +1,32 @@
 #!/bin/bash
+##############################################################################################
+# LaunchTestPipelineRemotely.sh
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
+# Operations :
+#<#
+#.SYNOPSIS
+#   <Description>
 
-#####################################################################################################
-#How to use:
+#.PARAMETER
+#   <Parameters>
 
+#.INPUTS
+
+
+#.NOTES
+#    Creation Date:  
+#    Purpose/Change: 
+
+#.EXAMPLE
 # Method 1: You can pass all the parameters from a parameters file.
 #./LaunchTestPipelineRemotely.sh -ParametersFile <Path to parameters file>
-
 # Method 2: You can also pass all the perameters to commandline.
-#./LaunchTestPipelineRemotely.sh -JenkinsUser "assigned username" -UpstreamBuildNumber <UniqueBuildID> ... etc.
+#./LaunchTestPipelineRemotely.sh -JenkinsUser "assigned username" -UpstreamBuildNumber 
+#                                   <UniqueBuildID> ... etc.
 
-######################################################################################################
+#>
+###############################################################################################
 
 while echo $1 | grep ^- > /dev/null; do
     eval $( echo $1 | sed 's/-//g' | tr -d '\012')=$2

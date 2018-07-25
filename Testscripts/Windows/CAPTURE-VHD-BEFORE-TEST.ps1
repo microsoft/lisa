@@ -1,4 +1,6 @@
-﻿#This is not a test. This script will capture the VHD.
+﻿# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
+#This is not a test. This script will capture the VHD.
 
 $result = ""
 $CurrentTestResult = CreateTestResultObject

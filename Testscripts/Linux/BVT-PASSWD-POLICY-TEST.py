@@ -1,4 +1,6 @@
 #! /usr/bin/env python
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 from azuremodules import *
 from subprocess import Popen, PIPE
 from collections import OrderedDict

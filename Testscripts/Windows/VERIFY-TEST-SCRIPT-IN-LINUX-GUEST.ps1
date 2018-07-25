@@ -1,4 +1,6 @@
-﻿$result = ""
+﻿# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
+$result = ""
 $CurrentTestResult = CreateTestResultObject
 $resultArr = @()
 
@@ -57,7 +59,7 @@ if ($isDeployed)
 			$testResult = "Aborted"
 		}
 		$resultArr += $testResult
-	}   
+	}
 }
 
 else

@@ -1,11 +1,27 @@
 ##############################################################################################
 # Framework.psm1
-# Copyright (c) Microsoft. All rights reserved.
-# Licensed under the MIT license. See LICENSE file in the project root for full license information.
-# Description : Pipeline framework modules.
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 # Operations :
-#              
-## Author : lisasupport@microsoft.com
+#
+<#
+.SYNOPSIS
+    Pipeline framework modules.
+
+.PARAMETER
+    <Parameters>
+
+.INPUTS
+
+
+.NOTES
+    Creation Date:  
+    Purpose/Change: 
+
+.EXAMPLE
+
+
+#>
 ###############################################################################################
 
 Function ValidateParameters()
@@ -16,15 +32,19 @@ Function ValidateParameters()
 		#region Validate Parameters
 		if ( !$ARMImageName -and !$OsVHD )
 		{
-			$ParameterErrors += "-ARMImageName <'Publisher Offer Sku Version'>/ -OsVHD <'VHD_Name.vhd'> is required"
+			$ParameterErrors += "-ARMImageName <'Publisher Offer Sku Version'>, or -OsVHD <'VHD_Name.vhd'> is required."
+		}
+		if ($ARMImageName.Split(" ").Count -ne 4)
+		{
+			$ParameterErrors += "Invalid value for -ARMImageName <'Publisher Offer Sku Version'> provided. 'Publisher Offer Sku Version' should be separated by space ' ' char."
 		}
 		if ( !$TestLocation)
 		{
-			$ParameterErrors += "-TestLocation <Location> is required"
+			$ParameterErrors += "-TestLocation <AzureRegion> is required."
 		}
 		if ( !$RGIdentifier )
 		{
-			$ParameterErrors += "-RGIdentifier <PersonalIdentifier> is required. This string will added to Resources created by Automation."
+			$ParameterErrors += "-RGIdentifier <ResourceGroupIdentifier> is required."
 		}   
 		#endregion
 	}
@@ -33,11 +53,11 @@ Function ValidateParameters()
 		#region Validate Parameters
 		if (!$OsVHD )
 		{
-			$ParameterErrors += "-OsVHD <'VHD_Name.vhd'> is required"
+			$ParameterErrors += "-OsVHD <'VHD_Name.vhd'> is required."
 		}
 		if ( !$RGIdentifier )
 		{
-			$ParameterErrors += "-RGIdentifier <PersonalIdentifier> is required. This string will added to Resources created by Automation."
+			$ParameterErrors += "-RGIdentifier <ResourceGroupIdentifier> is required."
 		}
 		#endregion
 	}	
@@ -47,7 +67,7 @@ Function ValidateParameters()
 	}
 	else
 	{
-		$ParameterErrors += "Did you forgot to provide -TestPlatform?"
+		$ParameterErrors += "'-TestPlatform' is not provided."
 	}
 	
 	
@@ -55,11 +75,11 @@ Function ValidateParameters()
 	if ( $ParameterErrors.Count -gt 0)
 	{
 		$ParameterErrors | ForEach-Object { LogError $_ }
-		Throw "Invalid test parameters. Please fix above parameter issues."
+		Throw "Failed to validate the test parameters provided. Please fix above issues and retry."
 	}
 	else 
 	{
-		LogMsg "Input parameters are valid. Continueing for tests..."
+		LogMsg "Test parameters have been validated successfully. Continue running the test."
 	}	
 }
 
@@ -498,24 +518,6 @@ Function GetCurrentCycleData($xmlConfig, $cycleName)
     }
     
 }
-Function ThrowException($Exception)
-{
-	try
-	{
-		$line = $Exception.InvocationInfo.ScriptLineNumber
-		$script_name = ($Exception.InvocationInfo.ScriptName).Replace($PWD,".")
-		$ErrorMessage =  $Exception.Exception.Message
-	}
-	catch
-	{
-	}
-	finally
-	{
-		Write-Host "EXCEPTION : $ErrorMessage"
-		Write-Host "SOURCE : Line $line in script $script_name."
-		Throw "Calling function - $($MyInvocation.MyCommand)"
-	}
-}
 
 <#
 JUnit XML Report Schema:
@@ -875,7 +877,7 @@ Function CreateArrayOfTabs()
 	return $tab
 }
 
-Function UploadTestResultToDatabase ($TestPlatform,$TestLocation,$TestCategory,$TestArea,$TestName,$CurrentTestResult,$TestTag,$GuestDistro,$KernelVersion,$LISVersion,$HostVersion,$VMSize,$Networking,$ARMImage,$OsVHD,$LogFile,$BuildURL)
+Function UploadTestResultToDatabase ($TestPlatform,$TestLocation,$TestCategory,$TestArea,$TestName,$CurrentTestResult,$ExecutionTag,$GuestDistro,$KernelVersion,$LISVersion,$HostVersion,$VMSize,$Networking,$ARMImage,$OsVHD,$LogFile,$BuildURL)
 {
 	if ( $EnableTelemetry )
 	{
@@ -917,8 +919,8 @@ Function UploadTestResultToDatabase ($TestPlatform,$TestLocation,$TestCategory,$
 				$dbpassword = $XmlSecrets.secrets.DatabasePassword
 				$database = $XmlSecrets.secrets.DatabaseName
 				$dataTableName = "LISAv2Results"
-				$SQLQuery = "INSERT INTO $dataTableName (DateTimeUTC,TestPlatform,TestLocation,TestCategory,TestArea,TestName,TestResult,SubTestName,SubTestResult,TestTag,GuestDistro,KernelVersion,LISVersion,HostVersion,VMSize,Networking,ARMImage,OsVHD,LogFile,BuildURL) VALUES "
-				$SQLQuery += "('$DateTimeUTC','$TestPlatform','$TestLocation','$TestCategory','$TestArea','$TestName','$testResult','','','$TestTag','$GuestDistro','$KernelVersion','$LISVersion','$HostVersion','$VMSize','$Networking','$ARMImageName','$OsVHD','$UploadedURL', '$BuildURL'),"
+				$SQLQuery = "INSERT INTO $dataTableName (DateTimeUTC,TestPlatform,TestLocation,TestCategory,TestArea,TestName,TestResult,SubTestName,SubTestResult,ExecutionTag,GuestDistro,KernelVersion,LISVersion,HostVersion,VMSize,Networking,ARMImage,OsVHD,LogFile,BuildURL) VALUES "
+				$SQLQuery += "('$DateTimeUTC','$TestPlatform','$TestLocation','$TestCategory','$TestArea','$TestName','$testResult','','','$ExecutionTag','$GuestDistro','$KernelVersion','$LISVersion','$HostVersion','$VMSize','$Networking','$ARMImageName','$OsVHD','$UploadedURL', '$BuildURL'),"
 				if ($TestSummary)
 				{
 					foreach ($tempResult in $TestSummary.Split('>'))
@@ -928,7 +930,7 @@ Function UploadTestResultToDatabase ($TestPlatform,$TestLocation,$TestCategory,$
 							$tempResult = $tempResult.Trim().Replace("<br /","").Trim()
 							$subTestResult = $tempResult.Split(":")[$tempResult.Split(":").Count -1 ].Trim()
 							$subTestName = $tempResult.Replace("$subTestResult","").Trim().TrimEnd(":").Trim()
-							$SQLQuery += "('$DateTimeUTC','$TestPlatform','$TestLocation','$TestCategory','$TestArea','$TestName','$testResult','$subTestName','$subTestResult','$TestTag','$GuestDistro','$KernelVersion','$LISVersion','$HostVersion','$VMSize','$Networking','$ARMImageName','$OsVHD','$UploadedURL', '$BuildURL'),"
+							$SQLQuery += "('$DateTimeUTC','$TestPlatform','$TestLocation','$TestCategory','$TestArea','$TestName','$testResult','$subTestName','$subTestResult','$ExecutionTag','$GuestDistro','$KernelVersion','$LISVersion','$HostVersion','$VMSize','$Networking','$ARMImageName','$OsVHD','$UploadedURL', '$BuildURL'),"
 						}
 					}
 				}

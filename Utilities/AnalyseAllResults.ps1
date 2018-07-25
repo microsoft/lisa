@@ -1,25 +1,26 @@
+##############################################################################################
+# AnalysisAllResults.ps1
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
+# Operations :
+#
 <#
 .SYNOPSIS
     This script authenticates PS sessing using All test results analysis.
-
-    # Copyright (c) Microsoft. All rights reserved.
-    # Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-.DESCRIPTION
-    This script checks contents of the ./report/*-junit.xml files and exit with zero or non-zero exit code.
+    This script checks contents of the ./report/*-junit.xml files and exit 
+    with zero or non-zero exit code.
 
 .PARAMETER 
 
 .INPUTS
 
 .NOTES
-    Version:        1.0
-    Author:         lisasupport@microsoft.com
-    Creation Date:  
-    Purpose/Change: 
+    Creation Date:
+    Purpose/Change:
 
 .EXAMPLE
 #>
+###############################################################################################
 
 #Import Libraries.
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global }
@@ -47,7 +48,7 @@ foreach ( $report in $allReports )
         {
             LogMsg "$($testcase.name) : PASS"
         }
-    }    
+    } 
     LogMsg "----------------------------------------------"
 }
 LogMsg "Exiting with Code : $retValue"

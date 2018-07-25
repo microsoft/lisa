@@ -1,20 +1,47 @@
 ##############################################################################################
 # CommonFunctions.psm1
-# Copyright (c) Microsoft. All rights reserved.
-# Licensed under the MIT license. See LICENSE file in the project root for full license information.
-# Description : Azure commone test modules.
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 # Operations :
-#              
-## Author : lisasupport@microsoft.com
+#
+<#
+.SYNOPSIS
+    Azure commone test modules.
+
+.PARAMETER
+    <Parameters>
+
+.INPUTS
+
+
+.NOTES
+    Creation Date:  
+    Purpose/Change: 
+
+.EXAMPLE
+
+
+#>
 ###############################################################################################
+
 Function ThrowException($Exception)
 {
-    $line = $Exception.InvocationInfo.ScriptLineNumber
-    $script_name = ($Exception.InvocationInfo.ScriptName).Replace($PWD,".")
-    $ErrorMessage =  $Exception.Exception.Message
-    Write-Host "EXCEPTION : $ErrorMessage"
-    Write-Host "SOURCE : Line $line in script $script_name."
-    Throw "Calling function - $($MyInvocation.MyCommand)"
+	try
+	{
+		$line = $Exception.InvocationInfo.ScriptLineNumber
+		$script_name = ($Exception.InvocationInfo.ScriptName).Replace($PWD,".")
+		$ErrorMessage =  $Exception.Exception.Message
+	}
+	catch
+	{
+	}
+	finally
+	{
+		$now = [Datetime]::Now.ToUniversalTime().ToString("MM/dd/yyyy HH:mm:ss")
+		Write-Host "$now : [OOPS   ]: $ErrorMessage"  -ForegroundColor Red
+		Write-Host "$now : [SOURCE ]: Line $line in script $script_name."  -ForegroundColor Red
+		Throw "Calling function - $($MyInvocation.MyCommand)"
+	}
 }
 
 function LogVerbose () 
@@ -40,6 +67,7 @@ function LogVerbose ()
         ThrowException($_)
     }
 }
+
 function LogError () 
 {
     param
@@ -53,8 +81,8 @@ function LogError ()
 			$text = $text.Replace($password,"******")
 		}
         $now = [Datetime]::Now.ToUniversalTime().ToString("MM/dd/yyyy HH:mm:ss")
-		$FinalMessage = "ERROR : $now : $text"
-		Write-Host $FinalMessage
+		$FinalMessage = "$now : [ERROR  ] $text"
+		Write-Host $FinalMessage -ForegroundColor Red
 		if ($LogDir)
 		{
 			Add-Content -Value $FinalMessage -Path "$LogDir\Logs.txt" -Force
@@ -89,7 +117,7 @@ function LogMsg()
 		foreach ($line in $text)
 		{
 			$now = [Datetime]::Now.ToUniversalTime().ToString("MM/dd/yyyy HH:mm:ss")
-			$FinalMessage = "INFO : $now : $line"
+			$FinalMessage = "$now : [INFO   ] $text"
 			Write-Host $FinalMessage
 			if ($LogDir)
 			{
@@ -129,8 +157,8 @@ Function LogWarn()
 			$text = $text.Replace($password,"******")
 		}
         $now = [Datetime]::Now.ToUniversalTime().ToString("MM/dd/yyyy HH:mm:ss")
-		$FinalMessage = "WARNING : $now : $text"
-		Write-Host $FinalMessage
+		$FinalMessage = "$now : [WARNING] $text"
+		Write-Host $FinalMessage -ForegroundColor Yellow
 		if ($LogDir)
 		{
 			Add-Content -Value $FinalMessage -Path "$LogDir\Logs.txt" -Force
@@ -303,7 +331,10 @@ function InstallCustomKernel ($CustomKernel, $allVMData, [switch]$RestartAfterUp
         $currentKernelVersion = ""
         $upgradedKernelVersion = ""
         $CustomKernel = $CustomKernel.Trim()
-        if( ($CustomKernel -ne "linuxnext") -and ($CustomKernel -ne "netnext") -and ($CustomKernel -ne "proposed") -and ($CustomKernel -ne "latest") -and !($CustomKernel.EndsWith(".deb"))  -and !($CustomKernel.EndsWith(".rpm")) )
+		if( ($CustomKernel -ne "ppa") -and ($CustomKernel -ne "linuxnext") -and `
+		($CustomKernel -ne "netnext") -and ($CustomKernel -ne "proposed") -and `
+		($CustomKernel -ne "latest") -and !($CustomKernel.EndsWith(".deb"))  -and `
+		!($CustomKernel.EndsWith(".rpm")) )
         {
             LogErr "Only linuxnext, netnext, proposed, latest are supported. E.g. -CustomKernel linuxnext/netnext/proposed. Or use -CustomKernel <link to deb file>, -CustomKernel <link to rpm file>"
         }
@@ -387,9 +418,9 @@ function InstallCustomKernel ($CustomKernel, $allVMData, [switch]$RestartAfterUp
                             if ($currentKernelVersion -eq $upgradedKernelVersion)
                             {
                                 LogErr "Kernel version is same after restarting VMs."
-                                if ($CustomKernel -eq "latest")
+                                if ( ($CustomKernel -eq "latest") -or ($CustomKernel -eq "ppa") -or ($CustomKernel -eq "proposed") ) 
                                 {
-                                    LogMsg "Continuing the tests as default kernel is latest."
+                                    LogMsg "Continuing the tests as default kernel is same as $CustomKernel."
                                     $isKernelUpgraded = $true
                                 }
                                 else
@@ -1839,7 +1870,11 @@ Function DoTestCleanUp($CurrentTestResult, $testName, $DeployedServices, $Resour
 					$VMSize = $HyperVInstanceSize
 				}
 				#endregion
-				UploadTestResultToDatabase -TestPlatform $TestPlatform -TestLocation $TestLocation -TestCategory $TestCategory -TestArea $TestArea -TestName $CurrentTestData.TestName -CurrentTestResult $CurrentTestResult -TestTag $TestTag -GuestDistro $GuestDistro -KernelVersion $KernelVersion -LISVersion $LISVersion -HostVersion $HostVersion -VMSize $VMSize -Networking $Networking -ARMImage $ARMImage -OsVHD $OsVHD -BuildURL $env:BUILD_URL
+				UploadTestResultToDatabase -TestPlatform $TestPlatform -TestLocation $TestLocation -TestCategory $TestCategory `
+				-TestArea $TestArea -TestName $CurrentTestData.TestName -CurrentTestResult $CurrentTestResult `
+				-ExecutionTag $ResultDBTestTag -GuestDistro $GuestDistro -KernelVersion $KernelVersion `
+				-LISVersion $LISVersion -HostVersion $HostVersion -VMSize $VMSize -Networking $Networking `
+				-ARMImage $ARMImage -OsVHD $OsVHD -BuildURL $env:BUILD_URL
 			}
 			catch
 			{
@@ -1998,6 +2033,7 @@ Function DoTestCleanUp($CurrentTestResult, $testName, $DeployedServices, $Resour
 		}
 		else
 		{
+			UploadTestResultToDatabase -TestPlatform $TestPlatform -TestLocation $TestLocation -TestCategory $TestCategory -TestArea $TestArea -TestName $CurrentTestData.TestName -CurrentTestResult $CurrentTestResult -ExecutionTag $ResultDBTestTag -GuestDistro $GuestDistro -KernelVersion $KernelVersion -LISVersion $LISVersion -HostVersion $HostVersion -VMSize $VMSize -Networking $Networking -ARMImage $ARMImage -OsVHD $OsVHD -BuildURL $env:BUILD_URL
 			LogMsg "Skipping cleanup, as No services / resource groups / HyperV Groups deployed for cleanup!"
 		}
 	}
@@ -2038,11 +2074,11 @@ Function CreateResultSummary($testResult, $checkValues, $testName, $metaData)
 {
 	if ( $metaData )
 	{
-		$resultString = "		  $testName : $metaData : $testResult <br />"
+		$resultString = "		  $metaData : $testResult <br />"
 	}
 	else
 	{
-		$resultString = "		  $testName : $testResult <br />"
+		$resultString = "		  $testResult <br />"
 	}
 	return $resultString
 }

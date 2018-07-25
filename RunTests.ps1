@@ -1,20 +1,41 @@
 ##############################################################################################
 # RunTests.ps1
-# Copyright (c) Microsoft. All rights reserved.
-# Licensed under the MIT license. See LICENSE file in the project root for full license information.
-# Description : 
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 # Operations :
-#              
-## Author : v-shisav@microsoft.com, lisasupport@microsoft.com
+#
+<#
+.SYNOPSIS
+	<Description>
+
+.PARAMETER
+	This script launches AutomationManager.ps1 remotely.
+
+.INPUTS
+    Set all ENV parameters
+    $xmlFile is constructed
+    Start AutomationManager.ps1
+    Read report_test.xml file.
+
+.NOTES
+    Creation Date:  
+    Purpose/Change: 
+
+.EXAMPLE
+
+
+#>
 ###############################################################################################
+
 [CmdletBinding()]
 Param(
-    #Do not use. Reserved for Jenkins use.   
+    #Do not use. Reserved for Jenkins use.
     $BuildNumber=$env:BUILD_NUMBER,
 
     #[Required]
+    [ValidateSet('Azure','HyperV')]
     [string] $TestPlatform = "",
-    
+
     #[Required] for Azure.
     [string] $TestLocation="",
     [string] $RGIdentifier = "",
@@ -30,14 +51,14 @@ Param(
     [string] $TestArea = "",
     [string] $TestTag = "",
     [string] $TestNames="",
-    
+
     #[Optional] Parameters for Image preparation before running tests.
     [string] $CustomKernel = "",
     [string] $CustomLIS,
 
     #[Optional] Parameters for changing framework behaviour.
     [string] $CoreCountExceededTimeout,
-    [int] $TestIterations,
+    [int]    $TestIterations,
     [string] $TiPSessionId,
     [string] $TiPCluster,
     [string] $XMLSecretFile = "",
@@ -45,8 +66,8 @@ Param(
 
     #[Optional] Parameters for dynamically updating XML files
     [switch] $UpdateGlobalConfigurationFromSecretsFile,
-    [switch] $UpdateXMLStringsFromSecretsFile,    
-    
+    [switch] $UpdateXMLStringsFromSecretsFile,
+
     #[Optional] Parameters for Overriding VM Configuration in Azure.
     [string] $OverrideVMSize = "",
     [switch] $EnableAcceleratedNetworking,
@@ -57,17 +78,36 @@ Param(
 
     [string] $ResultDBTable = "",
     [string] $ResultDBTestTag = "",
-    
-    [switch] $ExitWithZero    
+
+    [switch] $ExitWithZero
 )
 
 #Import the Functinos from Library Files.
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global }
 
-try 
+try
 {
     #region Prepare / Clean the powershell console.
-    $WorkingDirectory = Split-Path -parent $MyInvocation.MyCommand.Definition 
+    $MaxDirLength = 32
+    $WorkingDirectory = Split-Path -parent $MyInvocation.MyCommand.Definition
+    Set-Variable -Name shortRandomNumber -Value $(Get-Random -Maximum 99999 -Minimum 11111) -Scope Global
+    Set-Variable -Name shortRandomWord -Value $(-join ((65..90) | Get-Random -Count 4 | ForEach-Object {[char]$_})) -Scope Global
+    if ( $WorkingDirectory.Length -gt $MaxDirLength)
+    {
+        $OriginalWorkingDirectory = $WorkingDirectory
+        Write-Host "Current working directory '$WorkingDirectory' length is greather than $MaxDirLength."
+        $TempWorkspace = "$(Split-Path $OriginalWorkingDirectory -Qualifier)"
+        New-Item -ItemType Directory -Path "$TempWorkspace\LISAv2" -Force -ErrorAction SilentlyContinue | Out-Null
+        New-Item -ItemType Directory -Path "$TempWorkspace\LISAv2\$shortRandomWord$shortRandomNumber" -Force -ErrorAction SilentlyContinue | Out-Null
+        $finalWorkingDirectory = "$TempWorkspace\LISAv2\$shortRandomWord$shortRandomNumber"
+        $tmpSource = '\\?\' + "$OriginalWorkingDirectory\*"
+        Write-Host "Copying current workspace to $finalWorkingDirectory"
+        Copy-Item -Path $tmpSource -Destination $finalWorkingDirectory -Recurse -Force | Out-Null
+        Set-Location -Path $finalWorkingDirectory | Out-Null
+        Write-Host "Working directory has been changed to $finalWorkingDirectory"
+        $WorkingDirectory = $finalWorkingDirectory
+    }
+     
     $ParameterList = (Get-Command -Name $PSCmdlet.MyInvocation.InvocationName).Parameters;
     foreach ($key in $ParameterList.keys)
     {
@@ -87,8 +127,6 @@ try
 
     #region Static Global Variables
     Set-Variable -Name WorkingDirectory -Value $WorkingDirectory  -Scope Global
-    Set-Variable -Name shortRandomNumber -Value $(Get-Random -Maximum 99999 -Minimum 11111) -Scope Global
-    Set-Variable -Name shortRandomWord -Value $(-join ((65..90) | Get-Random -Count 4 | ForEach-Object {[char]$_})) -Scope Global
     #endregion
 
     #region Runtime Global Variables
@@ -97,7 +135,7 @@ try
         $VerboseCommand = "-Verbose"
         Set-Variable -Name VerboseCommand -Value "-Verbose" -Scope Global
     }
-    else 
+    else
     {
         Set-Variable -Name VerboseCommand -Value "" -Scope Global
     }
@@ -107,13 +145,11 @@ try
     ValidateParameters
 
     ValiateXMLs -ParentFolder $WorkingDirectory
-    
+
     UpdateGlobalConfigurationXML
 
-    UpdateXMLStringsFromSecretsFile    
+    UpdateXMLStringsFromSecretsFile
 
-
-    
     #region Local Variables
     $TestXMLs = Get-ChildItem -Path "$WorkingDirectory\XML\TestCases\*.xml"
     $SetupTypeXMLs = Get-ChildItem -Path "$WorkingDirectory\XML\VMConfigurations\*.xml"
@@ -213,7 +249,7 @@ try
                                                 
                             $xmlContent += ("$($tab[3])" + "</$SetupType>`n")
                         }
-                    }                    
+                    }
                 }
             $xmlContent += ("$($tab[2])" + "</Deployment>`n")
             #endregion        
@@ -276,7 +312,7 @@ try
                                                 
                             $xmlContent += ("$($tab[3])" + "</$SetupType>`n")
                         }
-                    }                    
+                    }
                 }
             $xmlContent += ("$($tab[2])" + "</Deployment>`n")
             #endregion        
@@ -320,17 +356,17 @@ try
     $xmlContent += ("$($tab[0])" + "</config>`n") 
     Set-Content -Value $xmlContent -Path $xmlFile -Force
 
-    try 
-    {   
+    try
+    {
         $xmlConfig = [xml](Get-Content $xmlFile)
         $xmlConfig.Save("$xmlFile")
-        LogMsg "Auto created $xmlFile validated successfully."   
+        LogMsg "Auto created $xmlFile validated successfully."
     }
-    catch 
+    catch
     {
-        Throw "Framework error: $xmlFile is not valid. Please report to lisasupport@microsoft.com"    
+        Throw "Framework error: $xmlFile is not valid. Please report to lisasupport@microsoft.com"
     }
-    
+
     #endregion
 
     #region Prepare execution command
@@ -427,7 +463,7 @@ try
             }
         }
         else
-        {                                               
+        {
             LogMsg "Summary file: .\report\report_$(($TestCycle).Trim()).xml does not exist. Exiting with 1."
             $ExitCode = 1
         }
@@ -444,7 +480,6 @@ try
             LogMsg "Changed exit code from 1 --> 0. (-ExitWithZero mentioned.)"
             $ExitCode = 0
         }
-        LogMsg "Exiting with code : $ExitCode"
     }
 }
 catch 
@@ -458,6 +493,17 @@ catch
 }
 finally 
 {
+    if ( $finalWorkingDirectory )
+    {
+        Write-Host "Copying all files back to original working directory: $originalWorkingDirectory."
+        $tmpDest = '\\?\' + $originalWorkingDirectory
+        Copy-Item -Path "$finalWorkingDirectory\*" -Destination $tmpDest -Force -Recurse | Out-Null
+        cd ..
+        Write-Host "Cleaning up $finalWorkingDirectory"
+        Remove-Item -Path $finalWorkingDirectory -Force -Recurse -ErrorAction SilentlyContinue
+        Write-Host "Setting workspace back to original location: $originalWorkingDirectory"
+        cd $originalWorkingDirectory
+    }
     Get-Variable -Scope Global | Remove-Variable -Force -ErrorAction SilentlyContinue
-    exit $ExitCode    
-}
+    LogMsg "LISAv2 exits with code: $ExitCode"
+    exit $ExitCode}
