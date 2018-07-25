@@ -52,15 +52,17 @@ if ($isDeployed)
 		if( $detectedDistro -imatch "SLES 15" )
 		{
 			LogMsg " Installing Package for ifconfig cmd in SLES 15"
-			RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install net-tools-deprecated"  #-runAsSudo
+			$netToolDeprecateCmd = "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install net-tools-deprecated"
+			RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command $netToolDeprecateCmd
 			WaitFor -seconds 10
-			RunLinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username "root" -password $password -command "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install net-tools-deprecated"  #-runAsSudo
+			RunLinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username "root" -password $password -command $netToolDeprecateCmd
 			WaitFor -seconds 10
 		}
 
-		LogMsg "Getting Active NIC Name."	
-		$clientNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "route | grep '^default' | grep -o '[^ ]*$'").Trim()
-		$serverNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username "root" -password $password -command "route | grep '^default' | grep -o '[^ ]*$'").Trim()
+		LogMsg "Getting Active NIC Name."
+		$getNicCmd = "route | grep '^default' | grep -o '[^ ]*$'"	
+		$clientNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command $getNicCmd).Trim()
+		$serverNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username "root" -password $password -command $getNicCmd).Trim()
 		if ( $serverNicName -eq $clientNicName)
 		{
 			$nicName = $clientNicName

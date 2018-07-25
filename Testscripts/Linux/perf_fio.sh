@@ -93,20 +93,23 @@ InstallFIO()
 		if [[ $DISTRO =~ "SUSE Linux Enterprise Server 12" ]];
 		then
 			LogMsg "Detected SLES 12"
-			zypper addrepo https://download.opensuse.org/repositories/network:utilities/SLE_12_SP3/network:utilities.repo
+			repositoryUrl="https://download.opensuse.org/repositories/benchmark/SLE_12_SP3_Backports/benchmark.repo"
 		elif [[ $DISTRO =~ "SUSE Linux Enterprise Server 15" ]];
 		then
 			LogMsg "Detected SLES 15"
-			zypper addrepo https://download.opensuse.org/repositories/network:utilities/SLE_15/network:utilities.repo
+			repositoryUrl="https://download.opensuse.org/repositories/network:utilities/SLE_15/network:utilities.repo"
 		fi
+		zypper addrepo $repositoryUrl
 		zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys refresh
 		zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install wget mdadm blktrace libaio1 sysstat
 		zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install fio
 		which fio
 		if [ $? -ne 0 ]; then
-			LogMsg "Info: fio not installed from repsitory. So, Installing fio using rpm"
-			LogMsg "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install fio-sles.rpm"
-			zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install fio-sles.rpm
+			LogMsg "Info: fio is not available in repsitory. So, Installing fio using rpm"
+			fioUrl="https://eosgpackages.blob.core.windows.net/testpackages/tools/fio-sles-x86_64.rpm"
+			wget $fioUrl
+			LogMsg "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install ${fioUrl##*/}"
+			zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install ${fioUrl##*/}
 			which fio
 			if [ $? -ne 0 ]; then
 				LogMsg "Error: Unable to install fio from source/rpm"

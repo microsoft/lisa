@@ -56,26 +56,29 @@ InstallIPERF3()
 		LogMsg "Detected SLES"
 		if [[ $DISTRO =~ "SUSE Linux Enterprise Server 12" ]];
 		then
-			LogMsg "Detected SLES 12"    
-			ssh ${1} "zypper addrepo https://download.opensuse.org/repositories/network:utilities/SLE_12_SP3/network:utilities.repo"
-			ssh ${1} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys refresh"
-			ssh ${1} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install iperf"
+			LogMsg "Detected SLES 12"
+			repositoryUrl="https://download.opensuse.org/repositories/network:utilities/SLE_12_SP3/network:utilities.repo"
 		elif [[ $DISTRO =~ "SUSE Linux Enterprise Server 15" ]];
 		then
 			LogMsg "Detected SLES 15"
-			ssh ${1} "zypper addrepo https://download.opensuse.org/repositories/network:utilities/SLE_15/network:utilities.repo"
+			repositoryUrl="https://download.opensuse.org/repositories/network:utilities/SLE_15/network:utilities.repo"
 		fi
+		ssh ${1} "zypper addrepo ${repositoryUrl}"
 		ssh ${1} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys refresh"
 		ssh ${1} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install sysstat git bc make gcc psmisc"
 		ssh ${1} "which iperf3"
 		if [ $? -ne 0 ]; then
-			LogMsg "Info: iperf3 is not installed from repsitory. So, Installing iperf3 using rpm"
-			LogMsg "rpm -ivh iperf-sles-x86_64.rpm libiperf0-sles-x86_64.rpm"
-			ssh ${1} "rpm -ivh iperf-sles-x86_64.rpm libiperf0-sles-x86_64.rpm"
+			LogMsg "Info: iperf3 is not installed. So, Installing iperf3 using rpm"
+			iperfUrl="https://eosgpackages.blob.core.windows.net/testpackages/tools/iperf-sles-x86_64.rpm"
+			libIperfUrl="https://eosgpackages.blob.core.windows.net/testpackages/tools/libiperf0-sles-x86_64.rpm"
+			ssh ${1} "wget ${iperfUrl}"
+			ssh ${1} "wget ${libIperfUrl}"
+			LogMsg "rpm -ivh ${iperfUrl##*/} ${libIperfUrl##*/}"
+			ssh ${1} "rpm -ivh ${iperfUrl##*/} ${libIperfUrl##*/}"
 			ssh ${1} "which iperf3"
 			if [ $? -ne 0 ]; then
 				LogMsg "Error: Unable to install iperf3 from source/rpm"
-				return 1
+				exit 1
 			fi				
 		else
 			LogMsg "Info: Iperf3 installed from repository"
