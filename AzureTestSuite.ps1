@@ -23,7 +23,6 @@
 
 .EXAMPLE
 
-
 #>
 ###############################################################################################
 
@@ -137,7 +136,6 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 			$results = $testCycle.AppendChild($newElement)
 		}
 	}
-
 	$testSuiteLogFile=$LogFile
 	$testSuiteResultDetails=@{"totalTc"=0;"totalPassTc"=0;"totalFailTc"=0;"totalAbortedTc"=0}
 	$id = ""
@@ -150,42 +148,52 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 	}
 	StartLogReport("$reportFolder/report_$($testCycle.cycleName).xml")
 	$testsuite = StartLogTestSuite "CloudTesting"
+	
+	if ($testPlatform -eq "Azure") {
+		$ExecuteSetupForEachTest = $true
+	} elseif ($testPlatform -eq "Hyperv") {
+		$ExecuteSetupForEachTest = $false
+	}
 
 	$testCount = $currentCycleData.test.Length
+	$testIndex = 0
 	if (-not $testCount)
 	{
 		$testCount = 1
 	}
-
+	if ($RunSelectedTests) {
+		foreach ($test in $currentCycleData.SelectNodes("test")) {
+			if ($RunSelectedTests.Trim().Replace(" ","").Split(",") -notcontains $test.Name) {
+				LogMsg "Skipping $($test.Name) because it is not in selected tests to run."
+				$test.ParentNode.RemoveChild($test) 
+			}
+		}
+	}
 	foreach ($test in $currentCycleData.test)
 	{
 		$originalTest = $test
+		$testIndex ++
 		if (-not $test)
 		{
 			$test = $currentCycleData.test
 			$originalTest = $test
 		}
-		if ($RunSelectedTests)
+		$currentTestData = GetCurrentTestData -xmlConfig $xmlConfig -testName $test.Name
+		$originalTestName = $currentTestData.testName
+		if ( $currentTestData.AdditionalCustomization.Networking -eq "SRIOV" )
 		{
-			if ($RunSelectedTests.Trim().Replace(" ","").Split(",") -contains $test.Name)
-			{
-				$currentTestData = GetCurrentTestData -xmlConfig $xmlConfig -testName $test.Name
-				$originalTestName = $currentTestData.testName
-				if ( $currentTestData.AdditionalCustomization.Networking -eq "SRIOV" )
-				{
-					Set-Variable -Name EnableAcceleratedNetworking -Value $true -Scope Global
-				}
-			}
-			else
-			{
-				LogMsg "Skipping $($test.Name) because it is not in selected tests to run."
-				Continue;
-			}
+			Set-Variable -Name EnableAcceleratedNetworking -Value $true -Scope Global
 		}
-		else
-		{
-			$currentTestData = GetCurrentTestData -xmlConfig $xmlConfig -testName $test.Name
-			$originalTestName = $currentTestData.testName
+
+		if ($testIndex -eq 1) {
+			$TestState = @{"ExecuteSetup" = $True}
+			if ($testCount -eq 1) {
+				$TestState += @{"ExecuteTeardown" = $True}
+			}
+		} elseif ($testIndex -eq $testCount) {
+			$TestState = @{"ExecuteTeardown" = $True}
+		} else {
+			$TestState = @{}
 		}
 		# Generate Unique Test
 		for ( $testIterationCount = 1; $testIterationCount -le $TestIterations; $testIterationCount ++ )
@@ -229,7 +237,6 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 					Set-Variable -Name CurrentTestLogDir -Value $CurrentTestLogDir -Scope Global
 					Set-Variable -Name LogDir -Value $CurrentTestLogDir -Scope Global
 					$TestCaseLogFile = "$CurrentTestLogDir\CurrentTestLogs.txt" 
-
 					$testcase = StartLogTestCase $testsuite "$($test.Name)" "CloudTesting.$($testCycle.cycleName)"
 					$testSuiteResultDetails.totalTc = $testSuiteResultDetails.totalTc +1
 					$stopWatch = SetStopWatch
@@ -241,11 +248,11 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 						$testResult = @()
 						LogMsg "~~~~~~~~~~~~~~~TEST STARTED : $($currentTestData.testName)~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 						$testScriptPs1 = $currentTestData.PowershellScript
-						$command = ".\Testscripts\Windows\" + $testScriptPs1
-						LogMsg "$command"
 						LogMsg "Starting multiple tests : $($currentTestData.testName)"
 						$startTime = [Datetime]::Now.ToUniversalTime()
-						$CurrentTestResult = Invoke-Expression $command
+						$CurrentTestResult = Run-Test -CurrentTestData $currentTestData -XmlConfig $xmlConfig `
+							-Distro $Distro -LogDir $LogDir -VMUser $user -VMPassword $password `
+							-DeployVMPerEachTest $ExecuteSetupForEachTest @TestState
 						$testResult = $CurrentTestResult.TestResult
 						$testSummary = $CurrentTestResult.TestSummary
 					}
@@ -253,7 +260,8 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations )
 					{
 						$testResult = "ABORTED"
 						$ErrorMessage =  $_.Exception.Message
-						LogMsg "EXCEPTION : $ErrorMessage"
+						$line = $_.InvocationInfo.ScriptLineNumber
+						LogMsg "EXCEPTION : $ErrorMessage at line: $line"
 					}
 					finally
 					{
