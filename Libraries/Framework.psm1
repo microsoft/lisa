@@ -178,15 +178,6 @@ Function UpdateGlobalConfigurationXML()
 	$GlobalConfiguration.Save("$WorkingDirectory\XML\GlobalConfigurations.xml")
 	#endregion
 
-	New-Item -ItemType Directory -Path "TestResults" -Force -ErrorAction SilentlyContinue | Out-Null
-
-	$LogDir = ".\TestResults\$(Get-Date -Format 'yyyy-dd-MM-HH-mm-ss-ffff')"
-	Set-Variable -Name LogDir -Value $LogDir -Scope Global -Force
-	Set-Variable -Name RootLogDir -Value $LogDir -Scope Global -Force
-	New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
-	New-Item -ItemType Directory -Path Temp -Force -ErrorAction SilentlyContinue | Out-Null
-	LogMsg "Created LogDir: $LogDir"
-
 	if ($TestPlatform -eq "Azure")
 	{
 		if ($env:Azure_Secrets_File)
