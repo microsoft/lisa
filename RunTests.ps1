@@ -18,8 +18,8 @@
     Read report_test.xml file.
 
 .NOTES
-    Creation Date:  
-    Purpose/Change: 
+    Creation Date:
+    Purpose/Change:
 
 .EXAMPLE
 
@@ -85,8 +85,21 @@ Param(
 #Import the Functinos from Library Files.
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global }
 
-try
-{
+try {
+    # Copy required binary files to working folder
+    $CurrentDirectory = Get-Location
+    $CmdArray = '7za.exe','dos2unix.exe', 'gawk','jq','plink.exe','pscp.exe'
+    $WebClient = New-Object System.Net.WebClient
+
+    $CmdArray | ForEach-Object {
+        $WebClient.DownloadFile("https://partnerpipelineshare.blob.core.windows.net/binarytools/$_","$CurrentDirectory\Tools\$_")
+        if (Test-Path "$CurrentDirectory\Tools\$_") {
+            Write-Host "$_ File Copies Successully"
+        } else {
+            Write-Error "$_ File not Found"
+        }
+    }
+
     #region Prepare / Clean the powershell console.
     $MaxDirLength = 32
     $WorkingDirectory = Split-Path -parent $MyInvocation.MyCommand.Definition
@@ -107,7 +120,7 @@ try
         Write-Host "Working directory has been changed to $finalWorkingDirectory"
         $WorkingDirectory = $finalWorkingDirectory
     }
-     
+
     $ParameterList = (Get-Command -Name $PSCmdlet.MyInvocation.InvocationName).Parameters;
     foreach ($key in $ParameterList.keys)
     {
@@ -176,7 +189,7 @@ try
 
     #Validate all XML files in working directory.
     $allTests = CollectTestCases -TestXMLs $TestXMLs
-    
+
     #region Create Test XML
     $SetupTypes = $allTests.SetupType | Sort-Object | Get-Unique
 
@@ -197,7 +210,7 @@ try
 
             #region Add Subscription Details
             $xmlContent += ("$($tab[2])" + "<General>`n")
-            
+
             foreach ( $line in $GlobalConfiguration.Global.$TestPlatform.Subscription.InnerXml.Replace("><",">`n<").Split("`n"))
             {
                 $xmlContent += ("$($tab[3])" + "$line`n")
@@ -231,7 +244,7 @@ try
                     $xmlContent += ("$($tab[4])" + "<UserName>" + "$($GlobalConfiguration.Global.$TestPlatform.TestCredentials.LinuxUsername)" + "</UserName>`n")
                     $xmlContent += ("$($tab[4])" + "<Password>" + "$($GlobalConfiguration.Global.$TestPlatform.TestCredentials.LinuxPassword)" + "</Password>`n")
                 $xmlContent += ("$($tab[3])" + "</Data>`n")
-                
+
                 foreach ( $file in $SetupTypeXMLs.FullName)
                 {
                     foreach ( $SetupType in $SetupTypes )
@@ -246,13 +259,13 @@ try
                                 {
                                     $xmlContent += ("$($tab[4])" + "$line`n")
                                 }
-                                                
+
                             $xmlContent += ("$($tab[3])" + "</$SetupType>`n")
                         }
                     }
                 }
             $xmlContent += ("$($tab[2])" + "</Deployment>`n")
-            #endregion        
+            #endregion
         $xmlContent += ("$($tab[1])" + "</Azure>`n")
     }   
     elseif ($TestPlatform -eq "Hyperv")
@@ -261,7 +274,7 @@ try
 
             #region Add Subscription Details
             $xmlContent += ("$($tab[2])" + "<Host>`n")
-            
+
             foreach ( $line in $GlobalConfiguration.Global.HyperV.Host.InnerXml.Replace("><",">`n<").Split("`n"))
             {
                 $xmlContent += ("$($tab[3])" + "$line`n")
@@ -294,7 +307,7 @@ try
                     $xmlContent += ("$($tab[4])" + "<UserName>" + "$($GlobalConfiguration.Global.$TestPlatform.TestCredentials.LinuxUsername)" + "</UserName>`n")
                     $xmlContent += ("$($tab[4])" + "<Password>" + "$($GlobalConfiguration.Global.$TestPlatform.TestCredentials.LinuxPassword)" + "</Password>`n")
                 $xmlContent += ("$($tab[3])" + "</Data>`n")
-                
+
                 foreach ( $file in $SetupTypeXMLs.FullName)
                 {
                     foreach ( $SetupType in $SetupTypes )
@@ -309,15 +322,15 @@ try
                                 {
                                     $xmlContent += ("$($tab[4])" + "$line`n")
                                 }
-                                                
+
                             $xmlContent += ("$($tab[3])" + "</$SetupType>`n")
                         }
                     }
                 }
             $xmlContent += ("$($tab[2])" + "</Deployment>`n")
-            #endregion        
+            #endregion
         $xmlContent += ("$($tab[1])" + "</Hyperv>`n")
-    }    
+    }
         #region TestDefinition
         $xmlContent += ("$($tab[1])" + "<testsDefinition>`n")
         foreach ( $currentTest in $allTests)
@@ -328,10 +341,10 @@ try
                 foreach ( $line in $currentTest.InnerXml.Replace("><",">`n<").Split("`n"))
                 {
                     $xmlContent += ("$($tab[3])" + "$line`n")
-                } 
+                }
                 $xmlContent += ("$($tab[2])" + "</test>`n")
             }
-            else 
+            else
             {
                 LogErr "*** UNSUPPORTED TEST *** : $currentTest. Skipped."
             }
@@ -491,7 +504,7 @@ catch
     LogMsg "Source : Line $line in script $script_name."
     $ExitCode = 1
 }
-finally 
+finally
 {
     if ( $finalWorkingDirectory )
     {
