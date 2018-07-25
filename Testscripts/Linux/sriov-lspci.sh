@@ -15,20 +15,15 @@
 # must log its output to a different directory.
 #
 
-LogMsg()
-{
-	echo "[$(date +"%x %r %Z")] ${1}"
-	echo "[$(date +"%x %r %Z")] ${1}" >> "./TestExecution.log"
+# Source utils.sh
+. utils.sh || {
+    echo "ERROR: unable to source utils.sh!"
+    echo "TestAborted" > state.txt
+    exit 2
 }
 
-UpdateTestState()
-{
-	echo "${1}" > ./TestState.log
-}
-
-############################################################
-#	Main body
-############################################################
+# Source constants file and initialize most common variables
+UtilsInit
 
 LogMsg "*********INFO: Starting test execution ... *********"
 OUTPUT="$(lspci)"
@@ -38,9 +33,9 @@ lspci | grep -i "Mellanox"
 
 if [[ "$?" == "0" ]];
 then
-	UpdateTestState "PASS"
+	SetTestStateCompleted
 else
-	UpdateTestState "FAIL"
+	SetTestStateFailed
 fi
 
 LogMsg "*********INFO: Script execution completed. *********"

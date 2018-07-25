@@ -1,7 +1,7 @@
 <TestCases>
     <test>
         <testName>VERIFY-NVIDIA-CUDA-DRIVER-FOR-NC6-VM</testName>
-        <PowershellScript>VERIFY-NVIDIA-CUDA-DRIVER-INSTALLATION.ps1</PowershellScript>
+        <testScript>VERIFY-NVIDIA-CUDA-DRIVER-INSTALLATION.ps1</testScript>
         <setupType>SingleVM</setupType>
         <OverrideVMSize>Standard_NC6</OverrideVMSize>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
@@ -14,7 +14,7 @@
     </test>
     <test>
         <testName>VERIFY-NVIDIA-CUDA-DRIVER-FOR-NC12-VM</testName>
-        <PowershellScript>VERIFY-NVIDIA-CUDA-DRIVER-INSTALLATION.ps1</PowershellScript>
+        <testScript>VERIFY-NVIDIA-CUDA-DRIVER-INSTALLATION.ps1</testScript>
         <setupType>SingleVM</setupType>
         <OverrideVMSize>Standard_NC12</OverrideVMSize>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
@@ -27,7 +27,7 @@
     </test>
     <test>
         <testName>VERIFY-NVIDIA-CUDA-DRIVER-FOR-NC24-VM</testName>
-        <PowershellScript>VERIFY-NVIDIA-CUDA-DRIVER-INSTALLATION.ps1</PowershellScript>
+        <testScript>VERIFY-NVIDIA-CUDA-DRIVER-INSTALLATION.ps1</testScript>
         <setupType>SingleVM</setupType>
         <OverrideVMSize>Standard_NC24</OverrideVMSize>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
@@ -40,7 +40,7 @@
     </test>
     <test>
         <testName>VERIFY-NVIDIA-CUDA-DRIVER-FOR-NC24r-VM</testName>
-        <PowershellScript>VERIFY-NVIDIA-CUDA-DRIVER-INSTALLATION.ps1</PowershellScript>
+        <testScript>VERIFY-NVIDIA-CUDA-DRIVER-INSTALLATION.ps1</testScript>
         <setupType>SingleVM</setupType>
         <OverrideVMSize>Standard_NC24r</OverrideVMSize>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>

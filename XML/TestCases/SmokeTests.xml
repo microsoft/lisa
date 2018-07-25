@@ -1,7 +1,7 @@
 <TestCases>
     <test>
         <TestName>VERIFY-DEPLOYMENT-PROVISION</TestName>
-        <PowershellScript>BVT-VERIFY-DEPLOYMENT-PROVISION.ps1</PowershellScript>
+        <testScript>BVT-VERIFY-DEPLOYMENT-PROVISION.ps1</testScript>
         <files></files>
         <setupType>SingleVM</setupType>
         <Platform>Azure,HyperV</Platform>
@@ -28,10 +28,12 @@
     <test>
         <TestName>VERIFY-HOSTNAME</TestName>
         <testScript>WALA-VERIFY-HOSTNAME.py</testScript>
-        <PowershellScript>WALA-VERIFY-HOSTNAME.ps1</PowershellScript>
         <files>.\Testscripts\Linux\nslookup.py,.\Testscripts\Linux\WALA-VERIFY-HOSTNAME.py,.\Testscripts\Linux\azuremodules.py</files>
         <setupType>SingleVM</setupType>
         <Platform>Azure</Platform>
+        <TestParameters>
+            <param>SECRET_PARAMS=(RoleName)</param>
+        </TestParameters>
         <Category>Smoke</Category>
         <Area>default</Area>
         <Tags>bvt,wala</Tags>
@@ -40,7 +42,6 @@
     <test>
         <TestName>VERIFY-ROOT-PASSWORD-DELETED</TestName>
         <testScript>BVT-IS-ROOT-PASSWORD-DELETED.py</testScript>
-        <PowershellScript>BVT-IS-ROOT-PASSWORD-DELETED.ps1</PowershellScript>
         <files>.\Testscripts\Linux\BVT-IS-ROOT-PASSWORD-DELETED.py,.\Testscripts\Linux\azuremodules.py</files>
         <setupType>SingleVM</setupType>
         <Platform>Azure</Platform>

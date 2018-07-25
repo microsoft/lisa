@@ -1,8 +1,7 @@
 <TestCases>
     <test>
         <testName>PERF-NETWORK-TCP-THROUGHPUT-MULTICONNECTION-Synthetic</testName>
-        <testScript></testScript>
-        <PowershellScript>PERF-NETWORK-TCP-THROUGHPUT-MULTICONNECTION-NTTTCP.ps1</PowershellScript>
+        <testScript>PERF-NETWORK-TCP-THROUGHPUT-MULTICONNECTION-NTTTCP.ps1</testScript>
         <setupType>M1S1</setupType>
         <AdditionalHWConfig>
             <Networking>Synthetic</Networking>
@@ -21,8 +20,7 @@
     </test>
     <test>
         <testName>PERF-NETWORK-TCP-THROUGHPUT-MULTICONNECTION-SRIOV</testName>
-        <testScript></testScript>
-        <PowershellScript>PERF-NETWORK-TCP-THROUGHPUT-MULTICONNECTION-NTTTCP.ps1</PowershellScript>
+        <testScript>PERF-NETWORK-TCP-THROUGHPUT-MULTICONNECTION-NTTTCP.ps1</testScript>
         <setupType>M1S1</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
@@ -40,8 +38,7 @@
     </test>
     <test>
         <testName>PERF-NETWORK-TCP-LATENCY-MULTICONNECTION-Synthetic</testName>
-        <testScript></testScript>
-        <PowershellScript>PERF-NETWORK-TCP-LATENCY-MULTICONNECTION-LAGSCOPE.ps1</PowershellScript>
+        <testScript>PERF-NETWORK-TCP-LATENCY-MULTICONNECTION-LAGSCOPE.ps1</testScript>
         <setupType>M1S1</setupType>
         <files>.\Testscripts\Linux\azuremodules.sh</files>
         <TestParameters>
@@ -55,8 +52,7 @@
     </test>
     <test>
         <testName>PERF-NETWORK-TCP-LATENCY-MULTICONNECTION-SRIOV</testName>
-        <testScript></testScript>
-        <PowershellScript>PERF-NETWORK-TCP-LATENCY-MULTICONNECTION-LAGSCOPE.ps1</PowershellScript>
+        <testScript>PERF-NETWORK-TCP-LATENCY-MULTICONNECTION-LAGSCOPE.ps1</testScript>
         <setupType>M1S1</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
@@ -74,8 +70,7 @@
     </test>    
     <test>
         <testName>PERF-NETWORK-UDP-THROUGHPUT-MULTICONNECTION-Synthetic</testName>
-        <testScript></testScript>
-        <PowershellScript>PERF-NETWORK-UDP-THROUGHPUT-MULTICONNECTION-IPERF3.ps1</PowershellScript>
+        <testScript>PERF-NETWORK-UDP-THROUGHPUT-MULTICONNECTION-IPERF3.ps1</testScript>
         <setupType>M1S1</setupType>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
         <files>.\Testscripts\Linux\azuremodules.sh</files>
@@ -96,7 +91,7 @@
     <test>
         <testName>PERF-NETWORK-UDP-THROUGHPUT-MULTICONNECTION-SRIOV</testName>
         <testScript></testScript>
-        <PowershellScript>PERF-NETWORK-UDP-THROUGHPUT-MULTICONNECTION-IPERF3.ps1</PowershellScript>
+        <testScript>PERF-NETWORK-UDP-THROUGHPUT-MULTICONNECTION-IPERF3.ps1</testScript>
         <setupType>M1S1</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
@@ -119,8 +114,7 @@
     </test>
     <test>
         <testName>PERF-STORAGE-4K-IO</testName>
-        <testScript></testScript>
-        <PowershellScript>PERF-STORAGE-MULTIDISK-RAID0-FIO.ps1</PowershellScript>
+        <testScript>PERF-STORAGE-MULTIDISK-RAID0-FIO.ps1</testScript>
         <setupType>DS14DISK12</setupType>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
         <files>.\Testscripts\Linux\azuremodules.sh</files>
@@ -142,8 +136,7 @@
     </test>
     <test>
         <testName>PERF-STORAGE-1024K-IO</testName>
-        <testScript></testScript>
-        <PowershellScript>PERF-STORAGE-MULTIDISK-RAID0-FIO.ps1</PowershellScript>
+        <testScript>PERF-STORAGE-MULTIDISK-RAID0-FIO.ps1</testScript>
         <setupType>DS14DISK12</setupType>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
         <files>.\Testscripts\Linux\azuremodules.sh</files>
@@ -165,8 +158,7 @@
     </test>
     <test>
         <testName>PERF-STORAGE-OVER-NFS-Synthetic-TCP-4K</testName>
-        <testScript></testScript>
-        <PowershellScript>PERF-STORAGE-OVER-NFS.ps1</PowershellScript>
+        <testScript>PERF-STORAGE-OVER-NFS.ps1</testScript>
         <setupType>DS14DISK12NFS</setupType>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
         <files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh</files>
@@ -189,8 +181,7 @@
     </test>
     <test>
         <testName>PERF-STORAGE-OVER-NFS-Synthetic-UDP-4K</testName>
-        <testScript></testScript>
-        <PowershellScript>PERF-STORAGE-OVER-NFS.ps1</PowershellScript>
+        <testScript>PERF-STORAGE-OVER-NFS.ps1</testScript>
         <setupType>DS14DISK12NFS</setupType>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
         <files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh</files>
@@ -213,8 +204,7 @@
     </test>
     <test>
         <testName>PERF-STORAGE-OVER-NFS-SRIOV-TCP-4K</testName>
-        <testScript></testScript>
-        <PowershellScript>PERF-STORAGE-OVER-NFS.ps1</PowershellScript>
+        <testScript>PERF-STORAGE-OVER-NFS.ps1</testScript>
         <setupType>DS14DISK12NFS</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
@@ -240,8 +230,7 @@
     </test>
     <test>
         <testName>PERF-STORAGE-OVER-NFS-SRIOV-UDP-4K</testName>
-        <testScript></testScript>
-        <PowershellScript>PERF-STORAGE-OVER-NFS.ps1</PowershellScript>
+        <testScript>PERF-STORAGE-OVER-NFS.ps1</testScript>
         <setupType>DS14DISK12NFS</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
@@ -267,8 +256,7 @@
     </test>
     <test>
         <testName>PERF-NETWORK-TCP-SINGLE-CONNECTION-THROUGHPUT-Synthetic</testName>
-        <testScript></testScript>
-        <PowershellScript>PERF-NETWORK-TCP-SINGLE-CONNECTION-THROUGHPUT.ps1</PowershellScript>
+        <testScript>PERF-NETWORK-TCP-SINGLE-CONNECTION-THROUGHPUT.ps1</testScript>
         <setupType>M1S1</setupType>
         <AdditionalHWConfig>
             <Networking>Synthetic</Networking>
@@ -289,8 +277,7 @@
     </test>
     <test>
         <testName>PERF-NETWORK-TCP-SINGLE-CONNECTION-THROUGHPUT-SRIOV</testName>
-        <testScript></testScript>
-        <PowershellScript>PERF-NETWORK-TCP-SINGLE-CONNECTION-THROUGHPUT.ps1</PowershellScript>
+        <testScript>PERF-NETWORK-TCP-SINGLE-CONNECTION-THROUGHPUT.ps1</testScript>
         <setupType>M1S1</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>

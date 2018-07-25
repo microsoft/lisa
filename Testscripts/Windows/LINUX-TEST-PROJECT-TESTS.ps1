@@ -1,22 +1,21 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
-$result = ""
-$CurrentTestResult = CreateTestResultObject
-$resultArr = @()
-$isDeployed = DeployVMS -setupType $currentTestData.setupType -Distro $Distro -xmlConfig $xmlConfig
-if ($isDeployed)
-{
-    try
-    {
+
+function Main {
+    # Create test result 
+    $result = ""
+    $currentTestResult = CreateTestResultObject
+    $resultArr = @()
+
+    try {
         $clientVMData = $allVMData
         #region CONFIGURE VM FOR TERASORT TEST
         LogMsg "Test VM details :"
         LogMsg "  RoleName : $($clientVMData.RoleName)"
         LogMsg "  Public IP : $($clientVMData.PublicIP)"
         LogMsg "  SSH Port : $($clientVMData.SSHPort)"
-        #
+
         # PROVISION VMS FOR LISA WILL ENABLE ROOT USER AND WILL MAKE ENABLE PASSWORDLESS AUTHENTICATION ACROSS ALL VMS IN SAME HOSTED SERVICE.    
-        #
         ProvisionVMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
         #endregion
 
@@ -28,7 +27,6 @@ if ($isDeployed)
         LogMsg (Get-Content -Path $constantsFile)
         #endregion
 
-        
         #region EXECUTE TEST
         $myString = @"
 cd /root/
@@ -46,8 +44,7 @@ collect_VM_properties
         #endregion
 
         #region MONITOR TEST
-        while ( (Get-Job -Id $testJob).State -eq "Running" )
-        {
+        while ( (Get-Job -Id $testJob).State -eq "Running" ) {
             $currentStatus = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "tail -n 1  LtpBasicConsoleLogs.txt"
             LogMsg "Current Test Staus : $currentStatus"
             WaitFor -seconds 20
@@ -59,68 +56,46 @@ collect_VM_properties
 
         $finalStatus = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "cat /root/state.txt"
 
-        if ($finalStatus -imatch "TestCompleted")
-        {
-        
-        RemoteCopy -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "ltp-output.log"
-        RemoteCopy -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "ltp-results.log"
-        $testSummary = $null
-        $ltpResultLog = Get-Content -Path "$LogDir\ltp-results.log"
-        
-        $totalLTPTests = (Select-String -Path "$LogDir\ltp-results.log" -Pattern "Total Tests").Line.Split(":")[1].Trim()
-        $CurrentTestResult.TestSummary += CreateResultSummary -testResult $totalLTPTests -metaData "Total Tests" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+        if ($finalStatus -imatch "TestCompleted") {
+            RemoteCopy -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "ltp-output.log"
+            RemoteCopy -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "ltp-results.log"
+            $testSummary = $null
+            $ltpResultLog = Get-Content -Path "$LogDir\ltp-results.log"
+            
+            $totalLTPTests = (Select-String -Path "$LogDir\ltp-results.log" -Pattern "Total Tests").Line.Split(":")[1].Trim()
+            $currentTestResult.TestSummary += CreateResultSummary -testResult $totalLTPTests -metaData "Total Tests" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 
-        $totalLTPSkippedTests = (Select-String -Path "$LogDir\ltp-results.log" -Pattern "Total Skipped Tests").Line.Split(":")[1].Trim()
-        $CurrentTestResult.TestSummary += CreateResultSummary -testResult $totalLTPSkippedTests -metaData "Total Skipped Tests" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+            $totalLTPSkippedTests = (Select-String -Path "$LogDir\ltp-results.log" -Pattern "Total Skipped Tests").Line.Split(":")[1].Trim()
+            $currentTestResult.TestSummary += CreateResultSummary -testResult $totalLTPSkippedTests -metaData "Total Skipped Tests" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 
-        $totalLTPFails = (Select-String -Path "$LogDir\ltp-results.log" -Pattern "Total Failures").Line.Split(":")[1].Trim()
-        $CurrentTestResult.TestSummary += CreateResultSummary -testResult $totalLTPFails -metaData "Total Failures" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
-        }
-        else
-        {
-# TODO: this part should be revised during code refactoring.
+            $totalLTPFails = (Select-String -Path "$LogDir\ltp-results.log" -Pattern "Total Failures").Line.Split(":")[1].Trim()
+            $currentTestResult.TestSummary += CreateResultSummary -testResult $totalLTPFails -metaData "Total Failures" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
         }
         #endregion
 
-        if ( ($totalLTPFails -ne 0) -or (!$finalStatus -imatch "TestCompleted"))
-        {
+        if (($totalLTPFails -ne 0) -or (!$finalStatus -imatch "TestCompleted")) {
             LogErr "Test failed. : $summary."
             $testResult = "FAIL"
         }
-        elseif ( $totalLTPFails -eq 0)
-        {
+        elseif ( $totalLTPFails -eq 0) {
             LogMsg "Test Completed."
             $testResult = "PASS"
         }
         LogMsg "Test result : $testResult"
         LogMsg "Test Completed"
-    }
-    catch
-    {
+    } catch {
         $ErrorMessage =  $_.Exception.Message
-        LogMsg "EXCEPTION : $ErrorMessage"   
-    }
-    Finally
-    {
+        $ErrorLine = $_.InvocationInfo.ScriptLineNumber
+        LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+    } finally {
         $metaData = "NTTTCP RESULT"
-        if (!$testResult)
-        {
+        if (!$testResult) {
             $testResult = "Aborted"
         }
         $resultArr += $testResult
     }   
+    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    return $currentTestResult.TestResult  
 }
 
-else
-{
-    $testResult = "Aborted"
-    $resultArr += $testResult
-}
-
-$CurrentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
-
-#Clean up the setup
-DoTestCleanUp -CurrentTestResult $CurrentTestResult -testName $currentTestData.testName -ResourceGroups $isDeployed
-
-#Return the result and summery to the test suite script..
-return $CurrentTestResult
+Main

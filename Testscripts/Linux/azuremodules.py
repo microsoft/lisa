@@ -62,6 +62,18 @@ def UpdateRepos(current_distro):
     RunLog.info ("Updating the repositoriy information... [done]")
     return True
 
+def GetParams(file_path):
+    params = dict()
+
+    with open(file_path) as file:
+        lines = file.readlines()
+        for line in lines:
+            if not line.startswith("#"):
+                param_name = line.split("=")[0].strip()
+                param_value = line.split("=")[1].strip().strip('"')
+                params[param_name] = param_value
+    return params
+	
 def DownloadUrl(url, destination_folder, output_file=None):
     cmd = "wget -P "+destination_folder+" "+url+ " 2>&1"
     if output_file is not None:
