@@ -98,6 +98,9 @@ InstallFIO()
 		then
 			LogMsg "Detected SLES 15"
 			repositoryUrl="https://download.opensuse.org/repositories/network:utilities/SLE_15/network:utilities.repo"
+		else
+			LogMsg "Error: Unknown SLES version"
+			exit 1			
 		fi
 		zypper addrepo $repositoryUrl
 		zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys refresh
@@ -105,9 +108,9 @@ InstallFIO()
 		zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install fio
 		which fio
 		if [ $? -ne 0 ]; then
-			LogMsg "Info: fio is not available in repsitory. So, Installing fio using rpm"
+			LogMsg "Info: fio is not available in repository. So, Installing fio using rpm"
 			fioUrl="https://eosgpackages.blob.core.windows.net/testpackages/tools/fio-sles-x86_64.rpm"
-			wget $fioUrl
+			wget --no-check-certificate $fioUrl
 			LogMsg "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install ${fioUrl##*/}"
 			zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install ${fioUrl##*/}
 			which fio

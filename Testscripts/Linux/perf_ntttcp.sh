@@ -115,6 +115,9 @@ InstallNTTTCP()
         then
             LogMsg "Detected SLES 15"
             repositoryUrl="https://download.opensuse.org/repositories/network:utilities/SLE_15/network:utilities.repo"
+        else
+            LogMsg "Error: Unknown SLES version"
+            exit 1
         fi
         ssh ${1} "zypper addrepo ${repositoryUrl}"        
         ssh ${1} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys refresh"

@@ -78,7 +78,7 @@
         <PowershellScript>PERF-NETWORK-UDP-THROUGHPUT-MULTICONNECTION-IPERF3.ps1</PowershellScript>
         <setupType>M1S1</setupType>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
-        <files>.\Testscripts\Linux\azuremodules.sh,.\Tools\iperf-sles-x86_64.rpm,.\Tools\libiperf0-sles-x86_64.rpm</files>
+        <files>.\Testscripts\Linux\azuremodules.sh</files>        
         <TestParameters>
             <param>testDuration=300</param>
             <param>testType=udp</param>
@@ -102,7 +102,7 @@
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>        
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
-        <files>.\Testscripts\Linux\azuremodules.sh,.\Tools\iperf-sles-x86_64.rpm,.\Tools\libiperf0-sles-x86_64.rpm</files>
+        <files>.\Testscripts\Linux\azuremodules.sh</files>       
         <TestParameters>
             <param>testDuration=300</param>
             <param>testType=udp</param>
@@ -123,7 +123,7 @@
         <PowershellScript>PERF-STORAGE-MULTIDISK-RAID0-FIO.ps1</PowershellScript>
         <setupType>DS14DISK12</setupType>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
-        <files>.\Testscripts\Linux\azuremodules.sh,.\Tools\fio-sles.rpm</files>
+        <files>.\Testscripts\Linux\azuremodules.sh</files>    
         <TestParameters>
             <param>modes='randread randwrite read write'</param>
             <param>startThread=1</param>
@@ -146,7 +146,7 @@
         <PowershellScript>PERF-STORAGE-MULTIDISK-RAID0-FIO.ps1</PowershellScript>
         <setupType>DS14DISK12</setupType>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
-        <files>.\Testscripts\Linux\azuremodules.sh,.\Tools\fio-sles.rpm</files>
+        <files>.\Testscripts\Linux\azuremodules.sh</files>
         <TestParameters>
             <param>modes='randread randwrite read write'</param>
             <param>startThread=1</param>

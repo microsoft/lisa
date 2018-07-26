@@ -62,6 +62,9 @@ InstallIPERF3()
 		then
 			LogMsg "Detected SLES 15"
 			repositoryUrl="https://download.opensuse.org/repositories/network:utilities/SLE_15/network:utilities.repo"
+		else
+			LogMsg "Error: Unknown SLES version"
+			exit 1
 		fi
 		ssh ${1} "zypper addrepo ${repositoryUrl}"
 		ssh ${1} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys refresh"
@@ -71,8 +74,8 @@ InstallIPERF3()
 			LogMsg "Info: iperf3 is not installed. So, Installing iperf3 using rpm"
 			iperfUrl="https://eosgpackages.blob.core.windows.net/testpackages/tools/iperf-sles-x86_64.rpm"
 			libIperfUrl="https://eosgpackages.blob.core.windows.net/testpackages/tools/libiperf0-sles-x86_64.rpm"
-			ssh ${1} "wget ${iperfUrl}"
-			ssh ${1} "wget ${libIperfUrl}"
+			ssh ${1} "wget --no-check-certificate ${iperfUrl}"
+			ssh ${1} "wget --no-check-certificate ${libIperfUrl}"
 			LogMsg "rpm -ivh ${iperfUrl##*/} ${libIperfUrl##*/}"
 			ssh ${1} "rpm -ivh ${iperfUrl##*/} ${libIperfUrl##*/}"
 			ssh ${1} "which iperf3"
