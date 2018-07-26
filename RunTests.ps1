@@ -92,11 +92,27 @@ try {
     $WebClient = New-Object System.Net.WebClient
 
     $CmdArray | ForEach-Object {
-        $WebClient.DownloadFile("https://partnerpipelineshare.blob.core.windows.net/binarytools/$_","$CurrentDirectory\Tools\$_")
-        if (Test-Path "$CurrentDirectory\Tools\$_") {
-            Write-Host "$_ File Copies Successully"
+        # Verify the binary file in Tools location
+        if ( Test-Path $CurrentDirectory/Tools/$_ ) {
+            Write-Host "$_ File exists already and available to use in Tools folder."
         } else {
-            Write-Error "$_ File not Found"
+            # Look for binary files
+            if ($XMLSecretFile -eq "") {
+                Write-Error "There is no tool $_ or no AzureSecret XML file available. Testing terminates."
+                throw [System.IO.FileNotFoundException]
+            } else {
+                # Access to blob location
+                $xmlSecret = ([xml](Get-Content $XMLSecretFile))
+                $blobPath = $xmlSecret.secrets.blobStorageLocation
+                $WebClient.DownloadFile("$blobPath/$_","$CurrentDirectory\Tools\$_")
+
+                # Verify new file in Tools folder
+                if (Test-Path "$CurrentDirectory\Tools\$_") {
+                    Write-Host "$_ File Copies Successully"
+                } else {
+                    Write-Error "$_ File not Found"
+                }
+            }
         }
     }
 
