@@ -75,7 +75,7 @@ if ($isDeployed)
 		{
 			$DataPath = "SRIOV"
 		}
-        else
+		else
 		{
 			$DataPath = "Synthetic"
 		}
