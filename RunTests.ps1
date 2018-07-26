@@ -89,30 +89,13 @@ try {
     # Copy required binary files to working folder
     $CurrentDirectory = Get-Location
     $CmdArray = '7za.exe','dos2unix.exe', 'gawk','jq','plink.exe','pscp.exe'
-    $WebClient = New-Object System.Net.WebClient
 
     $CmdArray | ForEach-Object {
         # Verify the binary file in Tools location
         if ( Test-Path $CurrentDirectory/Tools/$_ ) {
             Write-Host "$_ File exists already and available to use in Tools folder."
         } else {
-            # Look for binary files
-            if ($XMLSecretFile -eq "") {
-                Write-Error "There is no tool $_ or no AzureSecret XML file available. Testing terminates."
-                throw [System.IO.FileNotFoundException]
-            } else {
-                # Access to blob location
-                $xmlSecret = ([xml](Get-Content $XMLSecretFile))
-                $blobPath = $xmlSecret.secrets.blobStorageLocation
-                $WebClient.DownloadFile("$blobPath/$_","$CurrentDirectory\Tools\$_")
-
-                # Verify new file in Tools folder
-                if (Test-Path "$CurrentDirectory\Tools\$_") {
-                    Write-Host "$_ File Copies Successully"
-                } else {
-                    Write-Error "$_ File not Found"
-                }
-            }
+            Write-Error "File not found in Tools folder: $_. Testing terminates."
         }
     }
 
