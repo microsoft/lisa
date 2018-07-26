@@ -96,6 +96,7 @@ try {
             Write-Host "$_ File exists already and available to use in Tools folder."
         } else {
             Write-Error "File not found in Tools folder: $_. Testing terminates."
+            throw [System.IO.FileNotFoundException]
         }
     }
 
