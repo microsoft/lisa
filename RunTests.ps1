@@ -498,12 +498,14 @@ finally
         Write-Host "Copying all files back to original working directory: $originalWorkingDirectory."
         $tmpDest = '\\?\' + $originalWorkingDirectory
         Copy-Item -Path "$finalWorkingDirectory\*" -Destination $tmpDest -Force -Recurse | Out-Null
-        cd ..
+        Set-Location ..
         Write-Host "Cleaning up $finalWorkingDirectory"
         Remove-Item -Path $finalWorkingDirectory -Force -Recurse -ErrorAction SilentlyContinue
         Write-Host "Setting workspace back to original location: $originalWorkingDirectory"
-        cd $originalWorkingDirectory
+        Set-Location $originalWorkingDirectory
     }
-    Get-Variable -Scope Global | Remove-Variable -Force -ErrorAction SilentlyContinue
+    Get-Variable -Exclude PWD,*Preference | Remove-Variable -Force -ErrorAction SilentlyContinue
     LogMsg "LISAv2 exits with code: $ExitCode"
-    exit $ExitCode}
+
+    exit $ExitCode
+}
