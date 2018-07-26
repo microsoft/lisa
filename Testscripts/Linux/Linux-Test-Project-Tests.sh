@@ -117,6 +117,7 @@ InstallSLESDependencies() {
 # Installs UBUNTU LTP dependencies
 #######################################################################
 InstallUbuntuDependencies() {
+    apt-get -y update
     apt-get -y install autoconf
     apt-get -y install automake
     apt-get -y install m4
