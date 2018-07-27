@@ -2,26 +2,29 @@
 # RunTests.ps1
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
-# Operations :
 #
 <#
 .SYNOPSIS
-<Description>
+	This is the entrance script for LISAv2.
+	LISAv2 is the test framework to run Linux test cases on HyperV based platforms,
+	including Azure and on-premises HyperV environment.
 
 .PARAMETER
-This script launches AutomationManager.ps1 remotely.
-
-.INPUTS
-Set all ENV parameters
-$xmlFile is constructed
-Start AutomationManager.ps1
-Read report_test.xml file.
+	See source code for the detailed parameters
 
 .NOTES
-Creation Date:
-Purpose/Change:
+	PREREQUISITES:
+	1) Prepare necessary 3rd party tools and put them into the Tools folder;
+	2) Review the XML configuration files under XML folder and make necessary change for your environment.
+	See more from https://github.com/LIS/LISAv2 for helps.
 
 .EXAMPLE
+	.\RunTests.ps1	-TestPlatform "Azure" -TestLocation "westus2" -RGIdentifier "mylisatest" 
+					-ARMImageName "Canonical UbuntuServer 16.04-LTS latest"
+					-XMLSecretFile "C:\MyAzureSecrets.xml"
+					-UpdateGlobalConfigurationFromSecretsFile
+					-UpdateXMLStringsFromSecretsFile
+					-TestNames "BVT-VERIFY-DEPLOYMENT-PROVISION"
 
 
 #>
@@ -29,57 +32,57 @@ Purpose/Change:
 
 [CmdletBinding()]
 Param(
-#Do not use. Reserved for Jenkins use.
-$BuildNumber=$env:BUILD_NUMBER,
+	#Do not use. Reserved for Jenkins use.
+	$BuildNumber=$env:BUILD_NUMBER,
 
-#[Required]
-[ValidateSet('Azure','HyperV')]
-[string] $TestPlatform = "",
+	#[Required]
+	[ValidateSet('Azure','HyperV', IgnoreCase = $false)]
+	[string] $TestPlatform = "",
 
-#[Required] for Azure.
-[string] $TestLocation="",
-[string] $RGIdentifier = "",
-[string] $ARMImageName = "",
-[string] $StorageAccount="",
+	#[Required] for Azure.
+	[string] $TestLocation="",
+	[string] $RGIdentifier = "",
+	[string] $ARMImageName = "",
+	[string] $StorageAccount="",
 
-#[Required] for HyperV
+	#[Required] for HyperV
 
-#[Required] Common for HyperV and Azure.
-[string] $OsVHD = "",   #... [Azure: Required only if -ARMImageName is not provied.]
-						#... [HyperV: Mandatory]
-[string] $TestCategory = "",
-[string] $TestArea = "",
-[string] $TestTag = "",
-[string] $TestNames="",
+	#[Required] Common for HyperV and Azure.
+	[string] $OsVHD = "",   #... [Azure: Required only if -ARMImageName is not provied.]
+							#... [HyperV: Mandatory]
+	[string] $TestCategory = "",
+	[string] $TestArea = "",
+	[string] $TestTag = "",
+	[string] $TestNames="",
 
-#[Optional] Parameters for Image preparation before running tests.
-[string] $CustomKernel = "",
-[string] $CustomLIS,
+	#[Optional] Parameters for Image preparation before running tests.
+	[string] $CustomKernel = "",
+	[string] $CustomLIS,
 
-#[Optional] Parameters for changing framework behaviour.
-[string] $CoreCountExceededTimeout,
-[int]    $TestIterations,
-[string] $TiPSessionId,
-[string] $TiPCluster,
-[string] $XMLSecretFile = "",
-[switch] $EnableTelemetry,
+	#[Optional] Parameters for changing framework behaviour.
+	[string] $CoreCountExceededTimeout,
+	[int]    $TestIterations,
+	[string] $TiPSessionId,
+	[string] $TiPCluster,
+	[string] $XMLSecretFile = "",
+	[switch] $EnableTelemetry,
 
-#[Optional] Parameters for dynamically updating XML files
-[switch] $UpdateGlobalConfigurationFromSecretsFile,
-[switch] $UpdateXMLStringsFromSecretsFile,
+	#[Optional] Parameters for dynamically updating XML files.
+	[switch] $UpdateGlobalConfigurationFromSecretsFile,
+	[switch] $UpdateXMLStringsFromSecretsFile,
 
-#[Optional] Parameters for Overriding VM Configuration in Azure.
-[string] $OverrideVMSize = "",
-[switch] $EnableAcceleratedNetworking,
-[string] $OverrideHyperVDiskMode = "",
-[switch] $ForceDeleteResources,
-[switch] $UseManagedDisks,
-[switch] $DoNotDeleteVMs,
+	#[Optional] Parameters for Overriding VM Configuration in Azure.
+	[string] $OverrideVMSize = "",
+	[switch] $EnableAcceleratedNetworking,
+	[string] $OverrideHyperVDiskMode = "",
+	[switch] $ForceDeleteResources,
+	[switch] $UseManagedDisks,
+	[switch] $DoNotDeleteVMs,
 
-[string] $ResultDBTable = "",
-[string] $ResultDBTestTag = "",
+	[string] $ResultDBTable = "",
+	[string] $ResultDBTestTag = "",
 
-[switch] $ExitWithZero
+	[switch] $ExitWithZero
 )
 
 #Import the Functinos from Library Files.
@@ -99,6 +102,7 @@ try {
 		if ( Test-Path $CurrentDirectory/Tools/$_ ) {
 			Write-Host "$_ File exists already and available to use in Tools folder."
 		} else {
+
 			$WebClient.DownloadFile("$azureBlobLoc/$_","$CurrentDirectory\Tools\$_")
 
 			if (Test-Path "$CurrentDirectory\Tools\$_") {
@@ -258,7 +262,7 @@ try {
 				foreach ( $file in $SetupTypeXMLs.FullName)
 				{
 					foreach ( $SetupType in $SetupTypes )
-					{                    
+					{					
 						$CurrentSetupType = ([xml]( Get-Content -Path $file)).TestSetup
 						if ( $CurrentSetupType.$SetupType -ne $null)
 						{
@@ -321,7 +325,7 @@ try {
 				foreach ( $file in $SetupTypeXMLs.FullName)
 				{
 					foreach ( $SetupType in $SetupTypes )
-					{                    
+					{
 						$CurrentSetupType = ([xml]( Get-Content -Path $file)).TestSetup
 						if ( $CurrentSetupType.$SetupType -ne $null)
 						{
@@ -505,7 +509,8 @@ try {
 		}
 	}
 }
-catch {
+catch 
+{
 	$line = $_.InvocationInfo.ScriptLineNumber
 	$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
 	$ErrorMessage =  $_.Exception.Message
@@ -513,7 +518,8 @@ catch {
 	LogMsg "Source : Line $line in script $script_name."
 	$ExitCode = 1
 }
-finally	{
+finally
+{
 	if ( $finalWorkingDirectory )
 	{
 		Write-Host "Copying all files back to original working directory: $originalWorkingDirectory."

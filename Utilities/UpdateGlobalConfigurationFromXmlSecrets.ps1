@@ -50,4 +50,4 @@ $GlobalXML.Global.HyperV.ResultsDatabase.dbname = $XmlSecrets.secrets.DatabaseNa
 
 $GlobalXML.Save($GlobalConfigurationXMLFilePath )
 
-Write-Host "Updated GlobalConfigurations.xml"
+LogMsg "Updated GlobalConfigurations.xml"

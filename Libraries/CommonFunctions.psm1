@@ -68,11 +68,13 @@ function LogVerbose ()
     }
 }
 
-function LogError () 
+function Write-Log()
 {
     param
     (
-        [string]$text
+		[ValidateSet('INFO','WARN','ERROR', IgnoreCase = $false)]
+		[string]$logLevel,
+		[string]$text
     )
     try
     {
@@ -81,98 +83,70 @@ function LogError ()
 			$text = $text.Replace($password,"******")
 		}
         $now = [Datetime]::Now.ToUniversalTime().ToString("MM/dd/yyyy HH:mm:ss")
-		$FinalMessage = "$now : [ERROR  ] $text"
-		Write-Host $FinalMessage -ForegroundColor Red
+		$logType = $logLevel.PadRight(5, ' ')
+		$finalMessage = "$now : [$logType] $text"
+		
+		$fgColor = "White"
+		switch ($logLevel)
+		{
+			"INFO"	{$fgColor = "White"; continue}
+			"WARN"	{$fgColor = "Yellow"; continue}
+			"ERROR"	{$fgColor = "Red"; continue}
+		}
+		Write-Host $finalMessage -ForegroundColor $fgColor
+		
+		$logFolder = ""
+		$logFile = "Logs.txt"
 		if ($LogDir)
 		{
-			Add-Content -Value $FinalMessage -Path "$LogDir\Logs.txt" -Force
+			$logFolder = $LogDir
+			$logFile = "Logs.txt"
 		}
 		if ($CurrentTestLogDir )
 		{
-			Add-Content -Value $FinalMessage -Path "$CurrentTestLogDir\CurrentTestLogs.txt" -Force
+			$logFolder = $CurrentTestLogDir
+			$logFile = "CurrentTestLogs.txt"
+		}
+		
+		if ( !(Test-Path "$logFolder\$logFile" ) )
+		{
+			if (!(Test-Path $logFolder) )
+			{
+				New-Item -ItemType Directory -Force -Path $logFolder | Out-Null
+			}
+			New-Item -path $logFolder -name $logFile -type "file" -value $finalMessage | Out-Null
+		}
+		else
+		{
+			Add-Content -Value $finalMessage -Path "$logFolder\$logFile" -Force
 		}
     }
     catch
     {
         Write-Host "Unable to LogError : $now : $text"
-    }    
-}
-
-function LogMsg()
-{
-    param
-    (
-        $text
-    )
-    try
-    {
-		if ($password)
-		{
-			$text = $text.Replace($password,"******")
-		}
-		if (! $text)
-		{
-			$text = ""
-		}
-		foreach ($line in $text)
-		{
-			$now = [Datetime]::Now.ToUniversalTime().ToString("MM/dd/yyyy HH:mm:ss")
-			$FinalMessage = "$now : [INFO   ] $text"
-			Write-Host $FinalMessage
-			if ($LogDir)
-			{
-				Add-Content -Value $FinalMessage -Path "$LogDir\Logs.txt" -Force
-			}
-			if ($CurrentTestLogDir )
-			{
-				Add-Content -Value $FinalMessage -Path "$CurrentTestLogDir\CurrentTestLogs.txt" -Force
-			}
-		}
     }
-    catch
-    {
-        Write-Host "Unable to LogMsg : $now : $text"
-    }  
 }
 
-Function LogErr
+function LogMsg($text)
 {
-    param
-    (
-        [string]$text
-    )
-    LogError $text
+    Write-Log "INFO" $text
 }
 
-Function LogWarn()
+Function LogErr($text)
 {
-    param
-    (
-        [string]$text
-    )
-    try
-    {
-		if ($password)
-		{
-			$text = $text.Replace($password,"******")
-		}
-        $now = [Datetime]::Now.ToUniversalTime().ToString("MM/dd/yyyy HH:mm:ss")
-		$FinalMessage = "$now : [WARNING] $text"
-		Write-Host $FinalMessage -ForegroundColor Yellow
-		if ($LogDir)
-		{
-			Add-Content -Value $FinalMessage -Path "$LogDir\Logs.txt" -Force
-		}
-		if ($CurrentTestLogDir )
-		{
-			Add-Content -Value $FinalMessage -Path "$CurrentTestLogDir\CurrentTestLogs.txt" -Force
-		}
-    }
-    catch
-    {
-        Write-Host "Unable to LogWarn : $now : $text"
-    }  
+    Write-Log "ERROR" $text
 }
+
+Function LogError($text)
+{
+    Write-Log "ERROR" $text
+}
+
+Function LogWarn($text)
+{
+	Write-Log "WARN" $text
+}
+
 Function ValiateXMLs( [string]$ParentFolder )
 {
     LogMsg "Validating XML Files from $ParentFolder folder recursively..."
