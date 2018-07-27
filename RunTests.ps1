@@ -85,7 +85,7 @@ $BuildNumber=$env:BUILD_NUMBER,
 #Import the Functinos from Library Files.
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global }
 Write-Host "--------------------------------"
-write-host $XMLSecretFile
+write-host Resolve-Path $XMLSecretFile
 Write-Host "--------------------------------"
 try {
 	# Copy required binary files to working folder
