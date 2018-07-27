@@ -59,7 +59,8 @@ try
 catch
 {
     $ErrorMessage =  $_.Exception.Message
-    LogMsg "EXCEPTION : $ErrorMessage" 
+    $ErrorLine = $_.InvocationInfo.ScriptLineNumber
+    LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
 }
 Finally
     {

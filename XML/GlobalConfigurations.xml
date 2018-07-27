@@ -23,7 +23,7 @@
     <HyperV>
         <Host>
             <ServerName>localhost</ServerName>
-            <SourceOsVHDPath>VHDs_Source_Path</SourceOsVHDPath>
+            <SourceOsVHDPath></SourceOsVHDPath>
             <DestinationOsVHDPath>VHDs_Destination_Path</DestinationOsVHDPath>
         </Host>
         <ResultsDatabase>

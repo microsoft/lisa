@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#!/usr/bin/env python
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 from azuremodules import *
@@ -9,11 +9,10 @@ import platform
 import string
 import random
 
-if(len(sys.argv) == 1):
-	RunLog.error('please specify the origin vm password.')
-	exit()
-else:
-	origin_password = sys.argv[1]
+file_path = os.path.dirname(os.path.realpath(__file__))
+constants_path = os.path.join(file_path, "constants.sh")
+params = GetParams(constants_path)
+origin_password = params["PASSWORD"]
 
 allowed_min_len_passwd = 6
 allowed_max_len_passwd = 72

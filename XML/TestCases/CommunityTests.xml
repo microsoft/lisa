@@ -1,7 +1,7 @@
 <TestCases>
     <test>
         <TestName>FILE-SYSTEM-VERIFICATION-TESTS-CIFS</TestName>
-        <PowershellScript>FILE-SYSTEM-VERIFICATION-TESTS.ps1</PowershellScript>
+        <TestScript>FILE-SYSTEM-VERIFICATION-TESTS.ps1</TestScript>
         <files>.\Testscripts\Linux\perf_xfstesting.sh</files>
         <setupType>M1Disk1</setupType>
         <TestParameters>
@@ -18,7 +18,7 @@
     </test>
     <test>
         <TestName>FILE-SYSTEM-VERIFICATION-TESTS-XFS</TestName>
-        <PowershellScript>FILE-SYSTEM-VERIFICATION-TESTS.ps1</PowershellScript>
+        <TestScript>FILE-SYSTEM-VERIFICATION-TESTS.ps1</TestScript>
         <files>.\Testscripts\Linux\perf_xfstesting.sh</files>
         <setupType>M1Disk1</setupType>
         <TestParameters>
@@ -35,7 +35,7 @@
     </test>
     <test>
         <TestName>FILE-SYSTEM-VERIFICATION-TESTS-EXT4</TestName>
-        <PowershellScript>FILE-SYSTEM-VERIFICATION-TESTS.ps1</PowershellScript>
+        <TestScript>FILE-SYSTEM-VERIFICATION-TESTS.ps1</TestScript>
         <files>.\Testscripts\Linux\perf_xfstesting.sh</files>
         <setupType>M1Disk1</setupType>
         <TestParameters>
@@ -52,7 +52,7 @@
     </test>
     <test>
         <TestName>FILE-SYSTEM-VERIFICATION-TESTS-BTRFS</TestName>
-        <PowershellScript>FILE-SYSTEM-VERIFICATION-TESTS.ps1</PowershellScript>
+        <TestScript>FILE-SYSTEM-VERIFICATION-TESTS.ps1</TestScript>
         <files>.\Testscripts\Linux\perf_xfstesting.sh</files>
         <setupType>M1Disk1</setupType>
         <TestParameters>
@@ -69,7 +69,7 @@
     </test>	
     <test>
         <TestName>LINUX-TEST-PROJECT-TESTS</TestName>
-        <PowershellScript>LINUX-TEST-PROJECT-TESTS.ps1</PowershellScript>
+        <TestScript>LINUX-TEST-PROJECT-TESTS.ps1</TestScript>
         <files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\Linux-Test-Project-Tests.sh</files>
         <setupType>LTP</setupType>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>      

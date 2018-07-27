@@ -2,8 +2,7 @@
     <test>
         <TestName>NESTED-KVM-BASIC-VERIFICATION</TestName>
         <testScript>nested_kvm_basic_test.sh</testScript>
-        <PowershellScript>VERIFY-TEST-SCRIPT-IN-LINUX-GUEST.ps1</PowershellScript>
-        <files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\nested_kvm_basic_test.sh</files>
+        <files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\nested_kvm_basic_test.sh,.\TestScripts\Linux\utils.sh</files>
         <setupType>SingleVM</setupType>
         <OverrideVMSize>Standard_E4_v3</OverrideVMSize>
         <TestParameters>
@@ -21,8 +20,7 @@
     </test>
     <test>
         <TestName>NESTED-KVM-NTTTCP-PRIVATE-BRIDGE</TestName>
-        <testScript>nested_kvm_ntttcp_private_bridge.sh</testScript>
-        <PowershellScript>NESTED-KVM-NTTTCP-PRIVATE-BRIDGE.ps1</PowershellScript>
+        <testScript>NESTED-KVM-NTTTCP-PRIVATE-BRIDGE.ps1</testScript>
         <files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\nested_kvm_ntttcp_private_bridge.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
         <setupType>SingleVM</setupType>
         <OverrideVMSize>Standard_E16_v3</OverrideVMSize>
