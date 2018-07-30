@@ -1876,7 +1876,7 @@ Function DoTestCleanUp($CurrentTestResult, $testName, $DeployedServices, $Resour
 			{
 				try
 				{
-					$KernelLogOutput=GetAndCheckKernelLogs -allDeployedVMs $allVMData -status "Final" #Collecting kernel logs after execution of test case : v-sirebb
+					$KernelLogOutput=GetAndCheckKernelLogs -allDeployedVMs $allVMData -status "Final"
 				}
 				catch 
 				{

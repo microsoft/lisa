@@ -193,10 +193,8 @@ LogMsg "Configuring server ${server}..."
 InstallNTTTCP ${server}
 
 #Now, start the ntttcp client on client VM.
-# TODO - code refactoring should remove this personal repo access. Suggest to move inside working repo.
-ssh root@${client} "wget https://raw.githubusercontent.com/iamshital/linux_performance_test/master/run_ntttcp-for-linux/run-ntttcp-and-tcping.sh"
-ssh root@${client} "wget https://raw.githubusercontent.com/iamshital/linux_performance_test/master/run_ntttcp-for-linux/report-ntttcp-and-tcping.sh"
-ssh root@${client} "chmod +x run-ntttcp-and-tcping.sh && chmod +x report-ntttcp-and-tcping.sh"
+ssh root@${client} "chmod +x run-ntttcp-and-tcping.sh report-ntttcp-and-tcping.sh"
+
 LogMsg "Now running NTTTCP test"
 ssh root@${client} "rm -rf ntttcp-test-logs"
 ssh root@${client} "./run-ntttcp-and-tcping.sh ntttcp-test-logs ${server} root ${testDuration} ${nicName} '$testConnections'"
