@@ -106,35 +106,6 @@ InstallKernel()
                         LogMsg "CUSTOM_KERNEL_SUCCESS"
                         UpdateTestState $ICA_TESTCOMPLETED
                 fi
-        elif [ "${CustomKernel}" == "proposed" ]; then
-                DISTRO=`grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux" /etc/{issue,*release,*version}`
-                if [[ $DISTRO =~ "Xenial" ]];
-                then
-                        LogMsg "Enabling proposed repositry..."
-                        echo "deb http://archive.ubuntu.com/ubuntu/ xenial-proposed restricted main multiverse universe" >> /etc/apt/sources.list
-                        rm -rf /etc/apt/preferences.d/proposed-updates
-                        LogMsg "Installing linux-image-generic from proposed repository."
-                        apt -y update >> $logFolder/build-CustomKernel.txt 2>&1
-                        apt -y --fix-missing upgrade >> $logFolder/build-CustomKernel.txt 2>&1
-                        kernelInstallStatus=$?
-                elif [[ $DISTRO =~ "Trusty" ]];
-                then
-                        LogMsg "Enabling proposed repositry..."
-                        echo "deb http://archive.ubuntu.com/ubuntu/ trusty-proposed restricted main multiverse universe" >> /etc/apt/sources.list
-                        rm -rf /etc/apt/preferences.d/proposed-updates
-                        LogMsg "Installing linux-image-generic from proposed repository."
-                        apt -y update >> $logFolder/build-CustomKernel.txt 2>&1
-                        apt -y --fix-missing upgrade >> $logFolder/build-CustomKernel.txt 2>&1
-                        kernelInstallStatus=$?
-                fi
-                UpdateTestState $ICA_TESTCOMPLETED
-                if [ $kernelInstallStatus -ne 0 ]; then
-                        LogMsg "CUSTOM_KERNEL_FAIL"
-                        UpdateTestState $ICA_TESTFAILED
-                else
-                        LogMsg "CUSTOM_KERNEL_SUCCESS"
-                        UpdateTestState $ICA_TESTCOMPLETED
-                fi
         elif [ "${CustomKernel}" == "ppa" ]; then
                 DISTRO=`grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux" /etc/{issue,*release,*version}`
                 if [[ $DISTRO =~ "Ubuntu" ]];
