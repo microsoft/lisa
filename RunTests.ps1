@@ -170,7 +170,7 @@ try {
 	$TestXMLs = Get-ChildItem -Path "$WorkingDirectory\XML\TestCases\*.xml"
 	$SetupTypeXMLs = Get-ChildItem -Path "$WorkingDirectory\XML\VMConfigurations\*.xml"
 	$allTests = @()
-	$ARMImage = $ARMImageName.Split(" ")
+	$ARMImage = $ARMImageName.Trim().Split(" ")
 	$xmlFile = "$WorkingDirectory\TestConfiguration.xml"
 	if ( $TestCategory -eq "All")
 	{

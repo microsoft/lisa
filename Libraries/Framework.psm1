@@ -32,11 +32,12 @@ Function ValidateParameters()
 		#region Validate Parameters
 		if ( !$ARMImageName -and !$OsVHD )
 		{
-			$ParameterErrors += "-ARMImageName <'Publisher Offer Sku Version'>, or -OsVHD <'VHD_Name.vhd'> is required."
+			$ParameterErrors += "-ARMImageName '<Publisher> <Offer> <Sku> <Version>', or -OsVHD <'VHD_Name.vhd'> is required."
 		}
-		if ($ARMImageName.Split(" ").Count -ne 4)
+		if ($ARMImageName.Trim().Split(" ").Count -ne 4)
 		{
-			$ParameterErrors += "Invalid value for -ARMImageName <'Publisher Offer Sku Version'> provided. 'Publisher Offer Sku Version' should be separated by space ' ' char."
+			$ParameterErrors += ("Invalid value for the provided ARMImageName parameter: <'${ARMImageName}'>." + `
+                                 "The ARM image should be in the format: '<Publisher> <Offer> <Sku> <Version>'.")
 		}
 		if ( !$TestLocation)
 		{
