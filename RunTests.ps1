@@ -160,11 +160,11 @@ try {
 	#Validate the test parameters.
 	ValidateParameters
 
-	ValiateXMLs -ParentFolder $WorkingDirectory
-
 	UpdateGlobalConfigurationXML
 
 	UpdateXMLStringsFromSecretsFile
+
+	ValidateXmlFiles -ParentFolder $WorkingDirectory
 
 	#region Local Variables
 	$TestXMLs = Get-ChildItem -Path "$WorkingDirectory\XML\TestCases\*.xml"
