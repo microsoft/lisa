@@ -102,14 +102,14 @@ try {
 		if ( Test-Path $CurrentDirectory/Tools/$_ ) {
 			Write-Host "$_ File exists already and available to use in Tools folder."
 		} else {
+			Write-Error "File not found in Tools folder: $_. Testing terminates."
+			Write-Host "Downloading required files from Azure blob of your Storage Account"
 
 			$WebClient.DownloadFile("$azureBlobLoc/$_","$CurrentDirectory\Tools\$_")
 
 			if (Test-Path "$CurrentDirectory\Tools\$_") {
-				Write-Host "File $_ successfully downloaded in Tools folder: $_."
-			} else {
-				Write-Error "File not found in Tools folder: $_. Testing terminates."
-				throw [System.IO.FileNotFoundException]	
+				# Successfully downloaded files
+				Write-Host "File $_ successfully downloaded in Tools folder: $_."				
 			}
 		}
 	}
@@ -514,6 +514,10 @@ catch
 	$line = $_.InvocationInfo.ScriptLineNumber
 	$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
 	$ErrorMessage =  $_.Exception.Message
+
+	if ( $_.FullyQualifiedErrorId -eq "InvokeMethodOnNull") {
+        Write-Error "WebClient failed to download required tool files from Azure blob"
+    }
 	LogMsg "EXCEPTION : $ErrorMessage"
 	LogMsg "Source : Line $line in script $script_name."
 	$ExitCode = 1
