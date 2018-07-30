@@ -109,7 +109,7 @@ try {
 
 			if (Test-Path "$CurrentDirectory\Tools\$_") {
 				# Successfully downloaded files
-				Write-Host "File $_ successfully downloaded in Tools folder: $_."				
+				Write-Host "File $_ successfully downloaded in Tools folder: $_."
 			}
 		}
 	}
@@ -516,8 +516,8 @@ catch
 	$ErrorMessage =  $_.Exception.Message
 
 	if ( $_.FullyQualifiedErrorId -eq "InvokeMethodOnNull") {
-        Write-Error "WebClient failed to download required tool files from Azure blob"
-    }
+		Write-Error "WebClient failed to download required tool files from Azure blob. Those required files should be placed in Tool folder before next execution."
+	}
 	LogMsg "EXCEPTION : $ErrorMessage"
 	LogMsg "Source : Line $line in script $script_name."
 	$ExitCode = 1
