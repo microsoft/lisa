@@ -100,15 +100,15 @@ try {
 	$CmdArray | ForEach-Object {
 		# Verify the binary file in Tools location
 		if ( Test-Path $CurrentDirectory/Tools/$_ ) {
-			Write-Host "$_ File exists already and available to use in Tools folder."
+			Write-Host "$_ File found in Tools folder."
 		} else {
-			Write-Error "File not found in Tools folder: $_. Testing terminates."
+			Write-Host "$_ File not found in Tools folder."
 			Write-Host "Downloading required files from Azure blob of your Storage Account"
 
 			$WebClient.DownloadFile("$azureBlobLoc/$_","$CurrentDirectory\Tools\$_")
 
 			# Successfully downloaded files
-			Write-Host "File $_ successfully downloaded in Tools folder: $_."	
+			Write-Host "$_ File successfully downloaded in Tools folder: $_."	
 		}
 	}
 
