@@ -24,7 +24,7 @@ LISAv2 includes below test suite categories:
 
 3. You must have a valid Windows Azure Subscription.
 
-4. You download 3rd party software in Tools folder.
+4. You download 3rd party software in Tools folder. If you are using Azure blob in Storage account, you can add a tag <blobStorageLocation></blobStorageLocation> in any secret xml file.
 * 7za.exe
 * dos2unix.exe
 * gawk

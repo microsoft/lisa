@@ -93,13 +93,22 @@ try {
 	$CurrentDirectory = Get-Location
 	$CmdArray = '7za.exe','dos2unix.exe', 'gawk','jq','plink.exe','pscp.exe'
 
+	$WebClient = New-Object System.Net.WebClient
+	$xmlSecret = [xml](Get-Content $XMLSecretFile)
+	$azureBlobLoc = $xmlSecret.secrets.blobStorageLocation
+
 	$CmdArray | ForEach-Object {
 		# Verify the binary file in Tools location
 		if ( Test-Path $CurrentDirectory/Tools/$_ ) {
 			Write-Host "$_ File exists already and available to use in Tools folder."
 		} else {
 			Write-Error "File not found in Tools folder: $_. Testing terminates."
-			throw [System.IO.FileNotFoundException]
+			Write-Host "Downloading required files from Azure blob of your Storage Account"
+
+			$WebClient.DownloadFile("$azureBlobLoc/$_","$CurrentDirectory\Tools\$_")
+
+			# Successfully downloaded files
+			Write-Host "File $_ successfully downloaded in Tools folder: $_."	
 		}
 	}
 
@@ -314,7 +323,7 @@ try {
 				foreach ( $file in $SetupTypeXMLs.FullName)
 				{
 					foreach ( $SetupType in $SetupTypes )
-					{					
+					{
 						$CurrentSetupType = ([xml]( Get-Content -Path $file)).TestSetup
 						if ( $CurrentSetupType.$SetupType -ne $null)
 						{
@@ -503,6 +512,10 @@ catch
 	$line = $_.InvocationInfo.ScriptLineNumber
 	$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
 	$ErrorMessage =  $_.Exception.Message
+
+	if ( $_.FullyQualifiedErrorId -eq "InvokeMethodOnNull") {
+		Write-Error "WebClient failed to download required tool files from Azure blob. Those required files should be placed in Tool folder before next execution."
+	}
 	LogMsg "EXCEPTION : $ErrorMessage"
 	LogMsg "Source : Line $line in script $script_name."
 	$ExitCode = 1
