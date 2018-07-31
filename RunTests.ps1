@@ -107,10 +107,8 @@ try {
 
 			$WebClient.DownloadFile("$azureBlobLoc/$_","$CurrentDirectory\Tools\$_")
 
-			if (Test-Path "$CurrentDirectory\Tools\$_") {
-				# Successfully downloaded files
-				Write-Host "File $_ successfully downloaded in Tools folder: $_."
-			}
+			# Successfully downloaded files
+			Write-Host "File $_ successfully downloaded in Tools folder: $_."	
 		}
 	}
 
