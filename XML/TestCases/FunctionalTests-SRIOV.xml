@@ -26,14 +26,32 @@
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
         <TestParameters>
-            <param>TC_COVERED=Functional_NIC_001</param>
-            <param>TestIterations=2</param>
+            <param>TestIterations=10</param>
         </TestParameters>
+        <PowershellScript>VERIFY-TEST-SCRIPT-IN-LINUX-GUEST.ps1</PowershellScript>
         <testScript>verify-ifdown-ifup-eth0-rmmod-modprobe-hv-netvsc.sh</testScript>
         <files>.\Testscripts\Linux\verify-ifdown-ifup-eth0-rmmod-modprobe-hv-netvsc.sh,.\TestScripts\Linux\utils.sh</files>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>SRIOV</Area>
         <Tags>sriov,hv_netvsc</Tags>
-    </test>	
+    </test>
+    <test>
+        <TestID>Functional_NICS_SRIOV_IFUP</TestID>
+        <testName>VERIFY-IFUP-NICS-SRIOV</testName>
+        <setupType>SingleVMMaxNetwork</setupType>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <TestParameters>
+            <param>network_interface_count=8</param>
+        </TestParameters>
+        <PowershellScript>VERIFY-TEST-SCRIPT-IN-LINUX-GUEST.ps1</PowershellScript>
+        <testScript>verify-ifup-nics.sh</testScript>
+        <files>.\Testscripts\Linux\verify-ifup-nics.sh</files>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>SRIOV</Area>
+        <Tags>sriov,linux_image,network</Tags>
+    </test>
 </TestCases>

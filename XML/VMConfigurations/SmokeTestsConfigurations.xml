@@ -17,6 +17,25 @@
             </VirtualMachine>
         </ResourceGroup>
     </SingleVM>
+    <SingleVMMaxNetwork>
+        <isDeployed>NO</isDeployed>
+        <ResourceGroup>
+            <VirtualMachine>
+                <state></state>
+                <InstanceSize>Standard_D14_v2</InstanceSize>
+                <ARMInstanceSize>Standard_D14_v2</ARMInstanceSize>
+                <RoleName></RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>22</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+                <ExtraNICs>7</ExtraNICs>
+            </VirtualMachine>
+        </ResourceGroup>
+    </SingleVMMaxNetwork>
     <BVTDeployment>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
