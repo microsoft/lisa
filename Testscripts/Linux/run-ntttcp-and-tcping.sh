@@ -27,7 +27,7 @@
 	if [ "$(which ntttcp)" == "" ]; then
 		rm -rf ntttcp-for-linux
 		git clone https://github.com/Microsoft/ntttcp-for-linux
-		cd ntttcp-for-linux/src
+		cd ntttcp-for-linux/src || return
 		make && make install
 		cd ../..
 	fi
@@ -35,7 +35,7 @@
 	if [ "$(which lagscope)" == "" ]; then
 		rm -rf lagscope
 		git clone https://github.com/Microsoft/lagscope
-		cd lagscope/src
+		cd lagscope/src || return
 		make && make install
 		cd ../..
 	fi
