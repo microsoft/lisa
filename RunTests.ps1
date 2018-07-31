@@ -120,7 +120,7 @@ try {
 	if ( $WorkingDirectory.Length -gt $MaxDirLength)
 	{
 		$OriginalWorkingDirectory = $WorkingDirectory
-		Write-Host "Current working directory '$WorkingDirectory' length is greather than $MaxDirLength."
+		Write-Host "Current working directory '$WorkingDirectory' length is greater than $MaxDirLength."
 		$TempWorkspace = "$(Split-Path $OriginalWorkingDirectory -Qualifier)"
 		New-Item -ItemType Directory -Path "$TempWorkspace\LISAv2" -Force -ErrorAction SilentlyContinue | Out-Null
 		New-Item -ItemType Directory -Path "$TempWorkspace\LISAv2\$shortRandomWord$shortRandomNumber" -Force -ErrorAction SilentlyContinue | Out-Null
