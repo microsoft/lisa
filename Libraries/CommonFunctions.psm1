@@ -147,7 +147,7 @@ Function LogWarn($text)
 	Write-Log "WARN" $text
 }
 
-Function ValiateXMLs( [string]$ParentFolder )
+Function ValidateXmlFiles( [string]$ParentFolder )
 {
     LogMsg "Validating XML Files from $ParentFolder folder recursively..."
     LogVerbose "Get-ChildItem `"$ParentFolder\*.xml`" -Recurse..."
