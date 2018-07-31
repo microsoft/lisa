@@ -2,12 +2,14 @@
 	<test>
         <testName>WALA-VERIFY-HOSTNAME</testName>
         <testScript>WALA-VERIFY-HOSTNAME.py</testScript>
-        <PowershellScript>WALA-VERIFY-HOSTNAME.ps1</PowershellScript>
         <files>.\Testscripts\Linux\nslookup.py,.\Testscripts\Linux\WALA-VERIFY-HOSTNAME.py,.\Testscripts\Linux\azuremodules.py</files>
         <setupType>BVTDeployment</setupType>
         <TestType></TestType>
         <TestFeature></TestFeature>
         <SupportedExecutionModes>AzureServiceManagement,AzureResourceManager</SupportedExecutionModes>
+        <TestParameters>
+            <param>SECRET_PARAMS=(RoleName)</param>
+        </TestParameters>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>WALA</Area>
@@ -17,7 +19,6 @@
     <test>
         <testName>WALA-PROCESS-CHECK</testName>
         <testScript>WALA-PROCESS-CHECK.py</testScript>
-        <PowershellScript>WALA-PROCESS-CHECK.ps1</PowershellScript>
         <files>.\Testscripts\Linux\WALA-PROCESS-CHECK.py,.\Testscripts\Linux\azuremodules.py</files>
         <setupType>BVTDeployment</setupType>
         <TestType></TestType>
@@ -32,12 +33,14 @@
     <test>
         <testName>WALA-VERSION-CHECK</testName>
         <testScript>WALA-VERSION-CHECK.py</testScript>
-        <PowershellScript>WALA-VERSION-CHECK.ps1</PowershellScript>
         <files>.\Testscripts\Linux\WALA-VERSION-CHECK.py,.\Testscripts\Linux\azuremodules.py</files>
         <setupType>BVTDeployment</setupType>
         <TestType></TestType>
         <TestFeature></TestFeature>
         <SupportedExecutionModes>AzureServiceManagement,AzureResourceManager</SupportedExecutionModes>
+        <TestParameters>
+            <param>SECRET_PARAMS=(Distro)</param>
+        </TestParameters>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>WALA</Area>
@@ -47,7 +50,6 @@
     <test>
         <testName>WALA-RESOURCE-DISK-FILESYSTEM-CHECK</testName>
         <testScript>WALA-RESOURCE-DISK-FILESYSTEM-CHECK.py</testScript>
-        <PowershellScript>WALA-RESOURCE-DISK-FILESYSTEM-CHECK.ps1</PowershellScript>
         <files>.\Testscripts\Linux\WALA-RESOURCE-DISK-FILESYSTEM-CHECK.py,.\Testscripts\Linux\azuremodules.py</files>
         <setupType>BVTDeployment</setupType>
         <TestType></TestType>
@@ -62,7 +64,6 @@
     <test>
         <testName>WALA-VERIFY-MNT-RESOURCE-WRITABLE</testName>
         <testScript>WALA-VERIFY-MNT-RESOURCE-WRITABLE.py</testScript>
-        <PowershellScript>WALA-VERIFY-MNT-RESOURCE-WRITABLE.ps1</PowershellScript>
         <files>.\Testscripts\Linux\WALA-VERIFY-MNT-RESOURCE-WRITABLE.py,.\Testscripts\Linux\azuremodules.py</files>
         <setupType>BVTDeployment</setupType>
         <TestType></TestType>
@@ -77,7 +78,6 @@
     <test>
         <testName>WALA-VERIFY-MNT-RESOURCE-README</testName>
         <testScript>WALA-VERIFY-MNT-RESOURCE-README.py</testScript>
-        <PowershellScript>WALA-VERIFY-MNT-RESOURCE-README.ps1</PowershellScript>
         <files>.\Testscripts\Linux\WALA-VERIFY-MNT-RESOURCE-README.py,.\Testscripts\Linux\azuremodules.py</files>
         <setupType>BVTDeployment</setupType>
         <TestType></TestType>
@@ -92,7 +92,6 @@
     <test>
         <testName>WALA-VERIFY-FIREWALL-STATUS</testName>
         <testScript>WALA-VERIFY-FIREWALL-STATUS.py</testScript>
-        <PowershellScript>WALA-VERIFY-FIREWALL-STATUS.ps1</PowershellScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\WALA-VERIFY-FIREWALL-STATUS.py</files>
         <setupType>BVTDeployment</setupType>
         <TestType></TestType>

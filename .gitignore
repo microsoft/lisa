@@ -7,3 +7,4 @@ report*
 UploadStatusFile*
 *.azure.env
 *-buildlogs.zip
+.vscode/settings.json

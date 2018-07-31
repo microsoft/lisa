@@ -1,11 +1,14 @@
 <TestCases>
     <test>
         <testName>CAPTURE-VHD-BEFORE-TEST</testName>
-        <PowershellScript>CAPTURE-VHD-BEFORE-TEST.ps1</PowershellScript>
+        <TestScript>CAPTURE-VHD-BEFORE-TEST.ps1</TestScript>
         <setupType>SingleVM</setupType>
         <OverrideVMSize>Standard_DS14_v2</OverrideVMSize>
         <files></files>
         <Platform>Azure</Platform>
+        <TestParameters>
+            <param>SkipVerifyKernelLogs=true</param>
+        </TestParameters>
         <Category></Category>
         <Area></Area>
         <Tags></Tags>

@@ -24,6 +24,14 @@ LISAv2 includes below test suite categories:
 
 3. You must have a valid Windows Azure Subscription.
 
+4. You download 3rd party software in Tools folder. If you are using Azure blob in Storage account, you can add a tag <blobStorageLocation></blobStorageLocation> in any secret xml file.
+* 7za.exe
+* dos2unix.exe
+* gawk
+* jq
+* plink.exe
+* pscp.exe
+
 ### Download Latest Azure PowerShell
 
 1. Download Web Platform Installer from [here](http://go.microsoft.com/fwlink/p/?linkid=320376&clcid=0x409) 
@@ -57,7 +65,7 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
 1. Clone this automation code to your test driver by:
 
           git clone https://github.com/LIS/LISAv2.git
-          
+
 2. Update the GlobalConfigurations.xml file with your Azure subscription infomation: 
 
    Go to Global > Azure  and update following fields :

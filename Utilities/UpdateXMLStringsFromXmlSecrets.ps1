@@ -39,7 +39,7 @@ foreach ($file in $TestXMLs)
         {
             $content = [System.IO.File]::ReadAllText($file.FullName).Replace($ReplaceString,$ReplaceWith)
             [System.IO.File]::WriteAllText($file.FullName, $content)
-            Write-Host "$ReplaceString replaced in $($file.FullName)"
+            LogMsg "$ReplaceString replaced in $($file.FullName)"
         }
     }
 }

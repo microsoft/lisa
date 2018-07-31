@@ -1,8 +1,7 @@
 <TestCases>
     <test>
         <testName>STRESSTEST-VERIFY-RESTART</testName>
-        <testScript></testScript>
-        <PowershellScript>STRESSTEST-VERIFY-RESTART.ps1</PowershellScript>
+        <testScript>STRESSTEST-VERIFY-RESTART.ps1</testScript>
         <files></files>
         <setupType>SingleVM</setupType>
         <TestParameters>

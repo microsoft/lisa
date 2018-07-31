@@ -28,7 +28,7 @@ Param(
     $DestinationPath = ".\"
 )
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global }
-ValiateXMLs -ParentFolder ".\"
+ValidateXmlFiles -ParentFolder ".\"
 
 $xmlData = @()
 foreach ( $file in (Get-ChildItem -Path .\XML\TestCases\*.xml ))
