@@ -118,8 +118,7 @@ try {
 	$WorkingDirectory = Split-Path -parent $MyInvocation.MyCommand.Definition
 	Set-Variable -Name shortRandomNumber -Value $(Get-Random -Maximum 99999 -Minimum 11111) -Scope Global
 	Set-Variable -Name shortRandomWord -Value $(-join ((65..90) | Get-Random -Count 4 | ForEach-Object {[char]$_})) -Scope Global
-	if ( $WorkingDirectory.Length -gt $MaxDirLength)
-	{
+	if ( $WorkingDirectory.Length -gt $MaxDirLength) {
 		$OriginalWorkingDirectory = $WorkingDirectory
 		Write-Output "Current working directory '$WorkingDirectory' length is greather than $MaxDirLength."
 		$TempWorkspace = "$(Split-Path $OriginalWorkingDirectory -Qualifier)"
@@ -135,11 +134,9 @@ try {
 	}
 
 	$ParameterList = (Get-Command -Name $PSCmdlet.MyInvocation.InvocationName).Parameters;
-	foreach ($key in $ParameterList.keys)
-	{
+	foreach ($key in $ParameterList.keys) {
 		$var = Get-Variable -Name $key -ErrorAction SilentlyContinue;
-		if($var)
-		{
+		if($var) {
 			Set-Variable -Name $($var.name) -Value $($var.value) -Scope Global -Force
 		}
 	}
@@ -157,12 +154,9 @@ try {
 
 	#region Runtime Global Variables
 	$VerboseCommand = "-Verbose"
-	if ( $Verbose )
-	{
+	if ( $Verbose ) {
 		Set-Variable -Name $VerboseCommand -Value "-Verbose" -Scope Global
-	}
-	else
-	{
+	} else {
 		Set-Variable -Name $VerboseCommand -Value "" -Scope Global
 	}
 	#endregion
@@ -182,22 +176,10 @@ try {
 	$allTests = @()
 	$ARMImage = $ARMImageName.Trim().Split(" ")
 	$xmlFile = "$WorkingDirectory\TestConfiguration.xml"
-	if ( $TestCategory -eq "All")
-	{
-		$TestCategory = ""
-	}
-	if ( $TestArea -eq "All")
-	{
-		$TestArea = ""
-	}
-	if ( $TestNames -eq "All")
-	{
-		$TestNames = ""
-	}
-	if ( $TestTag -eq "All")
-	{
-		$TestTag = ""
-	}
+	if ( $TestCategory -eq "All") { $TestCategory = "" }
+	if ( $TestArea -eq "All") {	$TestArea = "" }
+	if ( $TestNames -eq "All") { $TestNames = "" }
+	if ( $TestTag -eq "All") { $TestTag = "" }
 	#endregion
 
 	#Validate all XML files in working directory.
@@ -217,15 +199,13 @@ try {
 	$xmlContent =  ("$($tab[0])" + '<?xml version="1.0" encoding="utf-8"?>')
 	$xmlContent += ("$($tab[0])" + "<config>`n")
 	$xmlContent += ("$($tab[0])" + "<CurrentTestPlatform>$TestPlatform</CurrentTestPlatform>`n")
-	if ($TestPlatform -eq "Azure")
-	{
+	if ($TestPlatform -eq "Azure") {
 		$xmlContent += ("$($tab[1])" + "<Azure>`n")
 
 			#region Add Subscription Details
 			$xmlContent += ("$($tab[2])" + "<General>`n")
 
-			foreach ( $line in $GlobalConfiguration.Global.$TestPlatform.Subscription.InnerXml.Replace("><",">`n<").Split("`n"))
-			{
+			foreach ( $line in $GlobalConfiguration.Global.$TestPlatform.Subscription.InnerXml.Replace("><",">`n<").Split("`n")) {
 				$xmlContent += ("$($tab[3])" + "$line`n")
 			}
 			$xmlContent += ("$($tab[2])" + "<Location>$TestLocation</Location>`n")
@@ -234,10 +214,9 @@ try {
 
 			#region Database details
 			$xmlContent += ("$($tab[2])" + "<database>`n")
-				foreach ( $line in $GlobalConfiguration.Global.$TestPlatform.ResultsDatabase.InnerXml.Replace("><",">`n<").Split("`n"))
-				{
-					$xmlContent += ("$($tab[3])" + "$line`n")
-				}
+			foreach ( $line in $GlobalConfiguration.Global.$TestPlatform.ResultsDatabase.InnerXml.Replace("><",">`n<").Split("`n")) {
+				$xmlContent += ("$($tab[3])" + "$line`n")
+			}
 			$xmlContent += ("$($tab[2])" + "</database>`n")
 			#endregion
 
@@ -258,21 +237,16 @@ try {
 					$xmlContent += ("$($tab[4])" + "<Password>" + "$($GlobalConfiguration.Global.$TestPlatform.TestCredentials.LinuxPassword)" + "</Password>`n")
 				$xmlContent += ("$($tab[3])" + "</Data>`n")
 
-				foreach ( $file in $SetupTypeXMLs.FullName)
-				{
-					foreach ( $SetupType in $SetupTypes )
-					{
+				foreach ( $file in $SetupTypeXMLs.FullName)	{
+					foreach ( $SetupType in $SetupTypes ) {
 						$CurrentSetupType = ([xml]( Get-Content -Path $file)).TestSetup
-						if ($null -ne $CurrentSetupType.$SetupType)
-						{
+						if ($null -ne $CurrentSetupType.$SetupType) {
 							$SetupTypeElement = $CurrentSetupType.$SetupType
 							$xmlContent += ("$($tab[3])" + "<$SetupType>`n")
 								#$xmlContent += ("$($tab[4])" + "$($SetupTypeElement.InnerXml)`n")
-								foreach ( $line in $SetupTypeElement.InnerXml.Replace("><",">`n<").Split("`n"))
-								{
+								foreach ( $line in $SetupTypeElement.InnerXml.Replace("><",">`n<").Split("`n")) {
 									$xmlContent += ("$($tab[4])" + "$line`n")
 								}
-
 							$xmlContent += ("$($tab[3])" + "</$SetupType>`n")
 						}
 					}
@@ -280,16 +254,13 @@ try {
 			$xmlContent += ("$($tab[2])" + "</Deployment>`n")
 			#endregion
 		$xmlContent += ("$($tab[1])" + "</Azure>`n")
-	}
-	elseif ($TestPlatform -eq "Hyperv")
-	{
+	} elseif ($TestPlatform -eq "Hyperv") {
 		$xmlContent += ("$($tab[1])" + "<Hyperv>`n")
 
 			#region Add Subscription Details
 			$xmlContent += ("$($tab[2])" + "<Host>`n")
 
-			foreach ( $line in $GlobalConfiguration.Global.HyperV.Host.InnerXml.Replace("><",">`n<").Split("`n"))
-			{
+			foreach ( $line in $GlobalConfiguration.Global.HyperV.Host.InnerXml.Replace("><",">`n<").Split("`n")) {
 				$xmlContent += ("$($tab[3])" + "$line`n")
 			}
 			$xmlContent += ("$($tab[2])" + "</Host>`n")
@@ -297,8 +268,7 @@ try {
 
 			#region Database details
 			$xmlContent += ("$($tab[2])" + "<database>`n")
-				foreach ( $line in $GlobalConfiguration.Global.HyperV.ResultsDatabase.InnerXml.Replace("><",">`n<").Split("`n"))
-				{
+				foreach ( $line in $GlobalConfiguration.Global.HyperV.ResultsDatabase.InnerXml.Replace("><",">`n<").Split("`n")) {
 					$xmlContent += ("$($tab[3])" + "$line`n")
 				}
 			$xmlContent += ("$($tab[2])" + "</database>`n")
@@ -321,18 +291,14 @@ try {
 					$xmlContent += ("$($tab[4])" + "<Password>" + "$($GlobalConfiguration.Global.$TestPlatform.TestCredentials.LinuxPassword)" + "</Password>`n")
 				$xmlContent += ("$($tab[3])" + "</Data>`n")
 
-				foreach ( $file in $SetupTypeXMLs.FullName)
-				{
-					foreach ( $SetupType in $SetupTypes )
-					{
+				foreach ( $file in $SetupTypeXMLs.FullName)	{
+					foreach ( $SetupType in $SetupTypes ) {
 						$CurrentSetupType = ([xml]( Get-Content -Path $file)).TestSetup
-						if ($null -ne $CurrentSetupType.$SetupType)
-						{
+						if ($null -ne $CurrentSetupType.$SetupType) {
 							$SetupTypeElement = $CurrentSetupType.$SetupType
 							$xmlContent += ("$($tab[3])" + "<$SetupType>`n")
 								#$xmlContent += ("$($tab[4])" + "$($SetupTypeElement.InnerXml)`n")
-								foreach ( $line in $SetupTypeElement.InnerXml.Replace("><",">`n<").Split("`n"))
-								{
+								foreach ( $line in $SetupTypeElement.InnerXml.Replace("><",">`n<").Split("`n")) {
 									$xmlContent += ("$($tab[4])" + "$line`n")
 								}
 
@@ -346,19 +312,14 @@ try {
 	}
 		#region TestDefinition
 		$xmlContent += ("$($tab[1])" + "<testsDefinition>`n")
-		foreach ( $currentTest in $allTests)
-		{
-			if ($currentTest.Platform.Contains($TestPlatform))
-			{
+		foreach ( $currentTest in $allTests) {
+			if ($currentTest.Platform.Contains($TestPlatform)) {
 				$xmlContent += ("$($tab[2])" + "<test>`n")
-				foreach ( $line in $currentTest.InnerXml.Replace("><",">`n<").Split("`n"))
-				{
+				foreach ( $line in $currentTest.InnerXml.Replace("><",">`n<").Split("`n")) {
 					$xmlContent += ("$($tab[3])" + "$line`n")
 				}
 				$xmlContent += ("$($tab[2])" + "</test>`n")
-			}
-			else
-			{
+			} else {
 				LogErr "*** UNSUPPORTED TEST *** : $currentTest. Skipped."
 			}
 		}
@@ -369,8 +330,7 @@ try {
 		$xmlContent += ("$($tab[1])" + "<testCycles>`n")
 			$xmlContent += ("$($tab[2])" + "<Cycle>`n")
 				$xmlContent += ("$($tab[3])" + "<cycleName>$TestCycle</cycleName>`n")
-				foreach ( $currentTest in $allTests)
-				{
+				foreach ( $currentTest in $allTests) {
 					$line = $currentTest.TestName
 					$xmlContent += ("$($tab[3])" + "<test>`n")
 						$xmlContent += ("$($tab[4])" + "<Name>$line</Name>`n")
@@ -382,14 +342,11 @@ try {
 	$xmlContent += ("$($tab[0])" + "</config>`n")
 	Set-Content -Value $xmlContent -Path $xmlFile -Force
 
-	try
-	{
+	try {
 		$xmlConfig = [xml](Get-Content $xmlFile)
 		$xmlConfig.Save("$xmlFile")
 		LogMsg "Auto created $xmlFile validated successfully."
-	}
-	catch
-	{
+	} catch {
 		Throw "Framework error: $xmlFile is not valid. Please report to lisasupport@microsoft.com"
 	}
 
@@ -415,17 +372,9 @@ try {
 	LogMsg $command
 	Invoke-Expression -Command $command
 	$zipFile = "$TestPlatform"
-	if ( $TestCategory ) {
-		$zipFile += "-$TestCategory"
-	}
-
-	if ( $TestArea ) {
-		$zipFile += "-$TestArea"
-	}
-
-	if ( $TestTag ) {
-		$zipFile += "-$($TestTag)"
-	}
+	if ( $TestCategory ) { $zipFile += "-$TestCategory"	}
+	if ( $TestArea ) { $zipFile += "-$TestArea" }
+	if ( $TestTag ) { $zipFile += "-$($TestTag)" }
 
 	$zipFile += "-$shortRandomNumber-buildlogs.zip"
 	$out = ZipFiles -zipfilename $zipFile -sourcedir $LogDir
