@@ -2,7 +2,6 @@
 # AutomationManager.ps1
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
-# Operations :
 #
 <#
 .SYNOPSIS
@@ -14,20 +13,13 @@
 		- Invokes Azure test suite or Hyper-v tests
 
 .PARAMETER
-	<Parameters>
+#	See param lines
 
 .INPUTS
 	Load dependent modules
 	Set all parameters are ito global vars
 	Azure login
 	Start AzureTestSuite.ps1, if for Azure testing
-
-.NOTES
-	Creation Date:
-	Purpose/Change:
-
-.EXAMPLE
-
 
 #>
 ###############################################################################################
