@@ -48,7 +48,7 @@ Param(
 	#[Required] for HyperV
 
 	#[Required] Common for HyperV and Azure.
-	[string] $OsVHD = "",   #... [Azure: Required only if -ARMImageName is not provied.]
+	[string] $OsVHD = "",   #... [Azure: Required only if -ARMImageName is not provided.]
 							#... [HyperV: Mandatory]
 	[string] $TestCategory = "",
 	[string] $TestArea = "",
@@ -59,7 +59,7 @@ Param(
 	[string] $CustomKernel = "",
 	[string] $CustomLIS,
 
-	#[Optional] Parameters for changing framework behaviour.
+	#[Optional] Parameters for changing framework behavior.
 	[string] $CoreCountExceededTimeout,
 	[int]    $TestIterations,
 	[string] $TiPSessionId,
@@ -85,7 +85,7 @@ Param(
 	[switch] $ExitWithZero
 )
 
-#Import the Functinos from Library Files.
+#Import the Functions from Library Files.
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global }
 
 try {

@@ -6,11 +6,11 @@
 #
 <#
 .SYNOPSIS
-       This script manages all the setup and test operations in Azure environemnt.
+       This script manages all the setup and test operations in Azure environment.
         It is an entry script of Azure Automation
         Installing AzureSDK
-        - VHD preparation : Installing packages required by ICA, LIS drivers and waagent
-        - Uplaoding test VHD to cloud
+        - VHD preparation : Installing packages required by ICA, LIS drivers and WALA
+        - Uploading test VHD to cloud
         - Invokes azure test suite
 
 .PARAMETER
@@ -18,7 +18,7 @@
 
 .INPUTS
     Load dependent modules
-    Set all parameters are ito global vars
+    Set all parameters are to global vars
     Azure login
     Start AzureTestSuite.ps1
 
