@@ -24,7 +24,7 @@ LISAv2 includes below test suite categories:
 
 3. You must have a valid Windows Azure Subscription.
 
-4. You download 3rd party software in Tools folder. If you are using Azure blob in Storage account, you can add a tag <blobStorageLocation></blobStorageLocation> in any secret xml file.
+4. You download 3rd party software in Tools folder. If you are using secure blob in Azure Storage Account or UNC path, you can add a tag <blobStorageLocation></blobStorageLocation> in any secret xml file.
 * 7za.exe
 * dos2unix.exe
 * gawk
@@ -34,7 +34,7 @@ LISAv2 includes below test suite categories:
 
 ### Download Latest Azure PowerShell
 
-1. Download Web Platform Installer from [here](http://go.microsoft.com/fwlink/p/?linkid=320376&clcid=0x409) 
+1. Download Web Platform Installer from [here](http://go.microsoft.com/fwlink/p/?linkid=320376&clcid=0x409)
 2. Start Web Platform Installer and select Azure PowerShell (Recommend 6.0.0 or above) and proceed for Azure PowerShell Installation.
 
 ### Authenticate Your Test Driver Machine with Your Azure Subscription
@@ -89,6 +89,13 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
             <ARMStorageAccount>ExistingStorage_Standard</ARMStorageAccount>
         </Subscription>
 
+  <HyperV>
+        <Host>
+            <ServerName>localhost</ServerName>
+            <SourceOsVHDPath>
+            </SourceOsVHDPath>
+            <DestinationOsVHDPath>VHDs_Destination_Path</DestinationOsVHDPath>
+        </Host>
 ```
 
 3. Run the test suite with below command:

@@ -156,9 +156,9 @@ try {
 	#endregion
 
 	#region Runtime Global Variables
+	$VerboseCommand = "-Verbose"
 	if ( $Verbose )
 	{
-		$VerboseCommand = "-Verbose"
 		Set-Variable -Name $VerboseCommand -Value "-Verbose" -Scope Global
 	}
 	else
