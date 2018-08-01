@@ -8,7 +8,7 @@
 	This script manages all the setup and test operations in Azure & Hyper-V environemnt.
 		It is an entry script of Automation
 		Installing AzureSDK
-		- VHD preparation : Installing packages required by ICA, LIS drivers and waagent
+		- VHD preparation : Installing packages required by ICA, LIS drivers and WALA
 		- Uplaoding test VHD to cloud
 		- Invokes Azure test suite or Hyper-v tests
 
@@ -20,7 +20,6 @@
 	Set all parameters are ito global vars
 	Azure login
 	Start AzureTestSuite.ps1, if for Azure testing
-
 #>
 ###############################################################################################
 param (

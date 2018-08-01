@@ -6,7 +6,7 @@
 #
 <#
 .SYNOPSIS
-    This script authenticates PS sessing using All test results analysis.
+    This script authenticates PS session using All test results analysis.
     This script checks contents of the ./report/*-junit.xml files and exit 
     with zero or non-zero exit code.
 

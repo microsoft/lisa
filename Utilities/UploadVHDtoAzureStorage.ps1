@@ -15,7 +15,7 @@ Param
     [string]$StorageAccount="ExistingStorage_Standard",
     [string]$Region="westus2",
 
-    #Optinal parameters
+    #Optional parameters
     [int]$NumberOfUploaderThreads=16,
     [switch]$DeleteVHDAfterUpload=$false
 )
