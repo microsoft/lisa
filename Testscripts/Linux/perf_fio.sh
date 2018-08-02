@@ -55,9 +55,8 @@ InstallFIO()
 	then
 		LogMsg "Detected UBUNTU/Debian. Installing required packages"
 		until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done
-		apt-get update
-		apt-get install -y pciutils gawk mdadm
-		apt-get install -y wget sysstat blktrace bc fio
+		apt-get update 
+		apt-get install -y pciutils gawk mdadm wget sysstat blktrace bc fio
 		if [ $? -ne 0 ]; then
 			LogMsg "Error: Unable to install fio"
 			exit 1
