@@ -1,11 +1,27 @@
 ##############################################################################################
-# UpdateXMLs.ps1
-# Copyright (c) Microsoft. All rights reserved.
-# Licensed under the MIT license. See LICENSE file in the project root for full license information.
-# Description : This file updates REPLACEBLE STRINGS in XML files under .\XML\TestCases.
-#               
-#              
-## Author : lisasupport@microsoft.com
+# UpdateXMLStringFromXmlSecrets.ps1
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
+# Operations :
+#
+<#
+.SYNOPSIS
+    This file updates REPLACEBLE STRINGS in XML files under .\XML\TestCases.
+
+.PARAMETER
+    <Parameters>
+
+.INPUTS
+
+
+.NOTES
+    Creation Date:
+    Purpose/Change:
+
+.EXAMPLE
+
+
+#>
 ###############################################################################################
 param(
     [string]$XmlSecretsFilePath= ""
@@ -23,7 +39,7 @@ foreach ($file in $TestXMLs)
         {
             $content = [System.IO.File]::ReadAllText($file.FullName).Replace($ReplaceString,$ReplaceWith)
             [System.IO.File]::WriteAllText($file.FullName, $content)
-            Write-Host "$ReplaceString replaced in $($file.FullName)"
+            LogMsg "$ReplaceString replaced in $($file.FullName)"
         }
     }
 }

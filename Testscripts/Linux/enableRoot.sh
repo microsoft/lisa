@@ -1,7 +1,8 @@
 #!/bin/bash
-#AUTHOR : SHITAL SAVEKAR <v-shisav@microsoft.com>
-#Description : Enables root user and sets password. Needs to run with sudo permissions.
-#How to use : ./enableRoot.sh -password <new_root_password>
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
+# Description : Enables root user and sets password. Needs to run with sudo permissions.
+# How to use : ./enableRoot.sh -password <new_root_password>
 
 while echo $1 | grep ^- > /dev/null; do
     eval $( echo $1 | sed 's/-//g' | tr -d '\012')=$2

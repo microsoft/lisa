@@ -1,16 +1,15 @@
 #!/usr/bin/python
-
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 import argparse
 import sys
 import re
 from azuremodules import *
 
-parser = argparse.ArgumentParser()
-
-parser.add_argument('-d', '--distro', help='Please mention which distro you are testing', required=True, type = str)
-
-args = parser.parse_args()
-distro = args.distro
+file_path = os.path.dirname(os.path.realpath(__file__))
+constants_path = os.path.join(file_path, "constants.sh")
+params = GetParams(constants_path)
+distro = params["DETECTED_DISTRO"]
 
 def RunTest(command):
     UpdateState("TestRunning")

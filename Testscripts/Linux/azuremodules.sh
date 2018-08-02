@@ -1,9 +1,6 @@
 #!/bin/bash
-#
-# This script is library for shell scripts used in Azure Linux Automation.
-# Author: Srikanth Myakam
-# Email	: v-srm@microsoft.com
-#
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 #
 
 function get_lis_version ()
@@ -26,14 +23,19 @@ function check_exit_status ()
     exit_status=$?
     message=$1
 
+    cmd="echo"
+    if [ ! -z $2 ]; then
+        cmd=$2
+    fi
+
     if [ $exit_status -ne 0 ]; then
-        echo "$message: Failed (exit code: $exit_status)" 
+        $cmd "$message: Failed (exit code: $exit_status)"
         if [ "$2" == "exit" ]
         then
             exit $exit_status
         fi 
     else
-        echo "$message: Success" 
+        $cmd "$message: Success"
     fi
 }
 
@@ -82,7 +84,7 @@ function detect_linux_ditribution()
     echo "$(echo "$linux_ditribution" | awk '{print tolower($0)}')"
 }
 
-function updaterepos()
+function update_repos()
 {
     ditribution=$(detect_linux_ditribution)
     case "$ditribution" in
@@ -201,8 +203,8 @@ function install_sshpass ()
         else
             install_package "sshpass"
         fi
+        check_exit_status "install_sshpass"
     fi
-    check_exit_status "install_sshpass"
 }
 
 function creat_partitions ()
@@ -286,6 +288,10 @@ function remote_copy ()
        return
     fi
 
+    if [ "x$port" == "x" ]; then
+        port=22
+    fi
+
     if [ "$cmd" == "get" ] || [ "x$cmd" == "x" ]; then
        source_path="$user@$host:$remote_path/$filename"
        destination_path="."
@@ -294,7 +300,7 @@ function remote_copy ()
        destination_path=$user@$host:$remote_path/
     fi
 
-    status=`sshpass -p $passwd scp -o StrictHostKeyChecking=no $source_path $destination_path 2>&1`
+    status=`sshpass -p $passwd scp -o StrictHostKeyChecking=no -P $port $source_path $destination_path 2>&1`
     exit_status=$?
     echo $status
     return $exit_status
@@ -435,5 +441,10 @@ function remove_cmd_from_startup ()
 	then
 		echo "Cannot find $testcommand in $startup_files files"
 	fi
+}
+
+function generate_random_mac_addr ()
+{
+    echo "52:54:00:$(dd if=/dev/urandom bs=512 count=1 2>/dev/null | md5sum | sed 's/^\(..\)\(..\)\(..\).*$/\1:\2:\3/')"
 }
 

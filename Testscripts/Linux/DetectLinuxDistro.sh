@@ -1,5 +1,6 @@
 #!/bin/bash
-#V-SHISAV@MICROSOFT.COM
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 # THIS SCRIPT DETECT FOLLOWING DISTROS:
 #  UBUNTU [VERSION INDEPENDANT]
 #  CENTOS [VERSION INDEPENDANT]

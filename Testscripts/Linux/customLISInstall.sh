@@ -1,11 +1,11 @@
 #!/bin/bash
 
 #######################################################################
-# 
+#
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 # Description: It install the LIS using given LIS source file (.tar.gz or lis-next)
 # Usage: ./customLISInstall.sh -CustomLIS lisnext or tar file link -LISbranch a specific branch or default is master
-# Author: Sivakanth Rebba
-# Email	: v-sirebb@microsoft.com 
 #
 #######################################################################
 
@@ -148,6 +148,7 @@ elif [ $DistroName == "CENTOS" -o $DistroName == "REDHAT" -o $DistroName == "FED
 	cd $LISsourceDir
 	LISDir=`pwd`
 	LogMsg "Installing kernel-devel-${kernel} for LIS..."
+	# TODO - code refactoring should fix non Microsoft blob access
 	yum install -y "https://konkasoftpackages.blob.core.windows.net/linuxbinaries/kernel-devel-${kernel}.rpm" ~/build-CustomLIS.txt 2>&1
 	LogMsg "LIS is installing from this ${LISDir} branch..."
 	./*-hv-driver-install >> ~/build-CustomLIS.txt 2>&1

@@ -1,9 +1,34 @@
+##############################################################################################
+# JenkinsTestSelectionMenuGenerator.ps1
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
+# Operations :
+#
+<#
+.SYNOPSIS
+	<Description>
+
+.PARAMETER
+	<Parameters>
+
+.INPUTS
+	
+
+.NOTES
+    Creation Date:  
+    Purpose/Change: 
+
+.EXAMPLE
+
+
+#>
+###############################################################################################
 
 Param(
     $DestinationPath = ".\"
 )
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global }
-ValiateXMLs -ParentFolder ".\"
+ValidateXmlFiles -ParentFolder ".\"
 
 $xmlData = @()
 foreach ( $file in (Get-ChildItem -Path .\XML\TestCases\*.xml ))

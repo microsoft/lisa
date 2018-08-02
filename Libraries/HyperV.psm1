@@ -1,3 +1,29 @@
+##############################################################################################
+# HyperV.psm1
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
+# Operations :
+#
+<#
+.SYNOPSIS
+    Required for Hyper-V test execution.
+
+.PARAMETER
+    <Parameters>
+
+.INPUTS
+	
+
+.NOTES
+    Creation Date:  
+    Purpose/Change: 
+
+.EXAMPLE
+
+
+#>
+###############################################################################################
+
 Function DeployHyperVGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFailed = $false, $GetDeploymentStatistics = $false)
 {
     if( (!$EconomyMode) -or ( $EconomyMode -and ($xmlConfig.config.HyperV.Deployment.$setupType.isDeployed -eq "NO")))
@@ -208,7 +234,7 @@ Function DeleteHyperVGroup([string]$HyperVGroupName)
     {
 		if ($ExistingRG)
 		{
-			#TBD If user mentiones to use existing group, then skip the deletion of the HyperV group.
+			#TBD If user wants to use existing group, then skip the deletion of the HyperV group.
 		}
 		else
 		{
@@ -354,9 +380,15 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML)
                 if ($?)
                 {
                     LogMsg "Set-VM -VM $($NewVM.Name) -ProcessorCount $CurrentVMCpu -StaticMemory -CheckpointType Disabled -Notes $HyperVGroupName"
+
                     $Out = Set-VM -VM $NewVM -ProcessorCount $CurrentVMCpu -StaticMemory  -CheckpointType Disabled -Notes "$HyperVGroupName"
                     LogMsg "Add-VMGroupMember -Name $HyperVGroupName -VM $($NewVM.Name)"
                     $Out = Add-VMGroupMember -Name "$HyperVGroupName" -VM $NewVM -ComputerName $HyperVHost
+                    $ResourceDiskPath = ".\Temp\ResourceDisk-$((Get-Date).Ticks)-sdb.vhd"
+                    LogMsg "New-VHD -Path $ResourceDiskPath -SizeBytes 1GB -Dynamic -Verbose -ComputerName $HyperVHost"
+                    $VHD = New-VHD -Path $ResourceDiskPath -SizeBytes 1GB -Dynamic -Verbose -ComputerName $HyperVHost
+                    LogMsg "Add-VMHardDiskDrive -ControllerType SCSI -Path $ResourceDiskPath -VM $($NewVM.Name)"
+                    $NewVM | Add-VMHardDiskDrive -ControllerType SCSI -Path $ResourceDiskPath
                 }
                 else 
                 {
@@ -492,7 +524,7 @@ Function GetAllHyperVDeployementData($HyperVGroupNames,$RetryCount = 100)
         foreach ( $VM in $AllVMs)
         {
             $QuickVMNode = CreateQuickVMNode
-            LogMsg "    $($VM.Name) : Waiting for IP address..."
+            LogMsg "    [$CurrentRetryAttempt/$RetryCount] : $($VM.Name) : Waiting for IP address ..."
             $VMNicProperties = $VM | Get-VMNetworkAdapter
             $QuickVMNode.PublicIP = $VMNicProperties.IPAddresses | Where-Object {$_ -imatch "\b(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}\b"}
             $QuickVMNode.InternalIP = $QuickVMNode.PublicIP

@@ -1,20 +1,17 @@
 #!/usr/bin/python
-
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 from azuremodules import *
-
 
 import argparse
 import sys
 import time
 import re
-        #for error checking
-parser = argparse.ArgumentParser()
 
-parser.add_argument('-e', '--expected', help='specify expected hostname', required=True)
-
-args = parser.parse_args()
-                #if no value specified then stop
-expectedHostname = args.expected
+file_path = os.path.dirname(os.path.realpath(__file__))
+constants_path = os.path.join(file_path, "constants.sh")
+params = GetParams(constants_path)
+expectedHostname = params["ROLENAME"]
 
 def RunTest(expectedHost):
     UpdateState("TestRunning")
@@ -48,6 +45,5 @@ def CheckFQDN(expectedHost):
     else:
         RunLog.error("nslookup failed for: {0}, {1}".format(expectedHost, output))
         return False
-
 
 RunTest(expectedHostname)

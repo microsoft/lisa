@@ -1,12 +1,29 @@
 ##############################################################################################
 # Azure.psm1
-# Copyright (c) Microsoft. All rights reserved.
-# Licensed under the MIT license. See LICENSE file in the project root for full license information.
-# Description : Azure PS module file having all required for test execution.
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 # Operations :
-#              
-## Author : lisasupport@microsoft.com
+#
+<#
+.SYNOPSIS
+	PS modules for Azure test automation
+
+.PARAMETER
+	<Parameters>
+
+.INPUTS
+	
+
+.NOTES
+    Creation Date:  
+    Purpose/Change: 
+
+.EXAMPLE
+
+
+#>
 ###############################################################################################
+
 Function ValidateSubscriptionUsage($subscriptionID, $RGXMLData)
 {
     #region VM Cores...
@@ -1149,7 +1166,7 @@ Set-Content -Value "$($indents[0]){" -Path $jsonFile -Force
         #endregion
         
 
-    #region New ARM Storage Account, if necessory!
+    #region New ARM Storage Account, if necessary!
     if ( $NewStorageAccountName)
     {
         Add-Content -Value "$($indents[2]){" -Path $jsonFile
@@ -1833,7 +1850,7 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
                 Add-Content -Value "$($indents[4])}," -Path $jsonFile
                 #endregion
 
-                #region OSProfie
+                #region OSProfile
                 Add-Content -Value "$($indents[4])^osProfile^: " -Path $jsonFile
                 Add-Content -Value "$($indents[4]){" -Path $jsonFile
                     Add-Content -Value "$($indents[5])^computername^: ^$vmName^," -Path $jsonFile

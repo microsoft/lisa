@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 csv_file=perf_fio.csv
 csv_file_tmp=output_tmp.csv
 echo $file_name

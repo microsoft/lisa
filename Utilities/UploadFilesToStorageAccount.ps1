@@ -1,3 +1,28 @@
+##############################################################################################
+# UploadFilesToStorageAccount.ps1
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
+# Operations :
+#
+<#
+.SYNOPSIS
+    Upload files to USer Storage Account's Blob location
+
+.PARAMETER
+    <Parameters>
+
+.INPUTS
+
+
+.NOTES
+    Creation Date:
+    Purpose/Change:
+
+.EXAMPLE
+
+#>
+###############################################################################################
+
 param
 (
     $filePaths,
@@ -40,9 +65,9 @@ try
             LogMsg "Succeeded."
             $UploadedFileURLs += "$($blobContext.BlobEndPoint)$containerName/$blobName"
         }
-        else 
+        else
         {
-            LogErr "Failed."    
+            LogErr "Failed."
         }
     }
     return $UploadedFileURLs

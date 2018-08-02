@@ -1,5 +1,6 @@
 #!/bin/bash
-
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 DISTRO=`grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux" /etc/{issue,*release,*version}`
 if [[ $DISTRO =~ "SUSE Linux Enterprise Server 12" ]];
 then
@@ -23,7 +24,7 @@ then
         echo "Error: Unable to install mdadm"
         exit 1
     fi
-                    
+
 elif [[ $DISTRO =~ "Red Hat Enterprise Linux Server release 6" ]];
 then
     echo "Detected RHEL 6.x; Installing required packages"
@@ -36,14 +37,14 @@ then
     rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
     yum -y --nogpgcheck install mdadm
     mount -t debugfs none /sys/kernel/debug
-        
+
 elif [[ $DISTRO =~ "CentOS Linux release 6" ]] || [[ $DISTRO =~ "CentOS release 6" ]];
 then
     echo "Detected CentOS 6.x; Installing required packages"
     rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-6.noarch.rpm
     yum -y --nogpgcheck install mdadm
     mount -t debugfs none /sys/kernel/debug
-        
+
 elif [[ $DISTRO =~ "CentOS Linux release 7" ]];
 then
     echo "Detected CentOS 7.x; Installing required packages"
@@ -67,7 +68,6 @@ else
         echo "Unknown Distro"
         exit 1
 fi
-
 
 #Create Raid of All available Data disks
 umount /data

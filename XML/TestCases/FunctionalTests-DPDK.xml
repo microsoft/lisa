@@ -1,7 +1,7 @@
 <TestCases>
     <test>
         <testName>VERIFY-DPDK-BUILD-AND-TESTPMD-TEST</testName>
-        <PowershellScript>VERIFY-DPDK-BUILD-AND-TESTPMD-TEST.ps1</PowershellScript>
+        <testScript>VERIFY-DPDK-BUILD-AND-TESTPMD-TEST.ps1</testScript>
         <setupType>DPDK</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
@@ -9,8 +9,8 @@
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
         <files>.\Testscripts\Linux\azuremodules.sh</files>
         <TestParameters>
-            <param>dpdkSrcLink="https://fast.dpdk.org/rel/dpdk-18.05.tar.xz"</param>
-            <param>testDuration=60</param>
+            <param>dpdkSrcLink="https://eosgcloudstorage.blob.core.windows.net/testpackages/dpdk/dpdk-18.05.tar.xz"</param>
+            <param>testDuration=120</param>
             <param>modes="rxonly io"</param>
         </TestParameters>
         <Platform>Azure</Platform>

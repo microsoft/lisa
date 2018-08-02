@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 $result = ""
 $CurrentTestResult = CreateTestResultObject
 $resultArr = @()
@@ -80,7 +82,8 @@ try
 catch
 {
     $ErrorMessage =  $_.Exception.Message
-    LogMsg "EXCEPTION : $ErrorMessage" 
+    $ErrorLine = $_.InvocationInfo.ScriptLineNumber
+    LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
 }
 Finally
     {

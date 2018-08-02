@@ -1,5 +1,6 @@
 #!/usr/bin/python
-
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 from azuremodules import *
 
 import sys

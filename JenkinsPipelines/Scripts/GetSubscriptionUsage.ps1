@@ -1,3 +1,29 @@
+##############################################################################################
+# GetSibscriptionUsgae.ps1
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
+# Operations :
+#
+<#
+.SYNOPSIS
+	<Description>
+
+.PARAMETER
+	<Parameters>
+
+.INPUTS
+	
+
+.NOTES
+    Creation Date:  
+    Purpose/Change: 
+
+.EXAMPLE
+
+
+#>
+###############################################################################################
+
 param 
 ( 
     [switch] $UploadToDB,
@@ -307,7 +333,7 @@ foreach ( $line in $TopVMsHTMLReport.Split("`n"))
     $FinalEmailSummary += $line
 }
 
-$FinalEmailSummary += '<p style="text-align: right;"><em><span style="font-size: 18px;"><span style="font-family: times new roman,times,serif;">For any issues contact  - Shital Savekar &lt;<a href="mailto:v-shisav@microsoft.com">v-shisav@microsoft.com</a>&gt;</span></span></em></p>'
+$FinalEmailSummary += '<p style="text-align: right;"><em><span style="font-size: 18px;"><span style="font-family: times new roman,times,serif;">&gt;</span></span></em></p>'
 #endregion
 
 Set-Content -Path $FinalHtmlFile -Value $FinalEmailSummary

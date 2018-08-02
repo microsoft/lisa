@@ -1,5 +1,6 @@
-#!/usr/bin/python
-
+#!/usr/bin/env python
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 from azuremodules import *
 
 import argparse
@@ -10,10 +11,11 @@ import os
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument('-p', '--passwd', help='specify password of vm', required=True)
-args = parser.parse_args()
+file_path = os.path.dirname(os.path.realpath(__file__))
+constants_path = os.path.join(file_path, "constants.sh")
+params = GetParams(constants_path)
+passwd = params["PASSWORD"]
 
-passwd = args.passwd
 distro = platform.dist()
 
 def RunTest():

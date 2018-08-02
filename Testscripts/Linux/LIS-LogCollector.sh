@@ -1,5 +1,6 @@
 #!/bin/bash
-#Author: Vijay Tripathi <vijayt@microsoft.com>
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
 Log() {
         msg="echo $1"
         cmd=$2

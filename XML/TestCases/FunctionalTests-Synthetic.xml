@@ -10,7 +10,6 @@
         <TestParameters>
             <param>TestIterations=10</param>
         </TestParameters>		
-        <PowershellScript>VERIFY-TEST-SCRIPT-IN-LINUX-GUEST.ps1</PowershellScript>
         <testScript>verify-ifdown-ifup-eth0-rmmod-modprobe-hv-netvsc.sh</testScript>
         <files>.\Testscripts\Linux\verify-ifdown-ifup-eth0-rmmod-modprobe-hv-netvsc.sh</files>
         <Platform>Azure</Platform>
