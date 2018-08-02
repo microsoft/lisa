@@ -49,7 +49,7 @@ UpdateTestState()
 
 InstallFIO() 
 {
-	DISTRO=`grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os" /etc/{issue,*release,*version} /usr/lib/os-release`
+	DISTRO=`grep -ihs "ubuntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os" /etc/{issue,*release,*version} /usr/lib/os-release`
 
 	if [[ $DISTRO =~ "Ubuntu" ]] || [[ $DISTRO =~ "Debian" ]];
 	then
@@ -100,7 +100,8 @@ InstallFIO()
 			repositoryUrl="https://download.opensuse.org/repositories/network:utilities/SLE_15/network:utilities.repo"
 		else
 			LogMsg "Error: Unknown SLES version"
-			exit 1			
+			UpdateTestState "TestAborted"
+			return 2			
 		fi
 		zypper addrepo $repositoryUrl
 		zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys refresh
@@ -117,7 +118,7 @@ InstallFIO()
 			if [ $? -ne 0 ]; then
 				LogMsg "Error: Unable to install fio from source/rpm"
 				UpdateTestState "TestAborted"
-				exit 1
+				return 3
 			fi
 		else
 			LogMsg "Info: fio installed from repository"
@@ -355,6 +356,11 @@ mountDir="/data"
 cd ${HOMEDIR}
 
 InstallFIO
+if [ $? -ne 0 ]; then
+	LogMsg "Error: fio installation failed.."
+	UpdateTestState "TestAborted"
+	exit 1
+fi
 
 #Creating RAID before triggering test
 CreateRAID0 ext4

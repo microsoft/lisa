@@ -27,7 +27,7 @@ touch ./lagscopeTest.log
 
 
 InstallLAGSCOPE() {
-		DISTRO=`grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os" /etc/{issue,*release,*version} /usr/lib/os-release`
+		DISTRO=`grep -ihs "ubuntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os" /etc/{issue,*release,*version} /usr/lib/os-release`
 
 		if [[ $DISTRO =~ "Ubuntu" ]];
 		then
@@ -99,7 +99,8 @@ InstallLAGSCOPE() {
 					repositoryUrl="https://download.opensuse.org/repositories/network:utilities/SLE_15/network:utilities.repo"
 				else
 					LogMsg "Error: Unknown SLES version"
-					exit 1
+					UpdateTestState "TestAborted"
+					return 2
 				fi
 				ssh ${1} "zypper addrepo ${repositoryUrl}"
 				ssh ${1} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys refresh"
@@ -168,9 +169,19 @@ fi
 
 LogMsg "Configuring client ${client}..."
 InstallLAGSCOPE ${client}
+if [ $? -ne 0 ]; then
+	LogMsg "Error: lagscope installation failed in ${client}.."
+	UpdateTestState "TestAborted"
+	exit 1
+fi
 
 LogMsg "Configuring server ${server}..."
 InstallLAGSCOPE ${server}
+if [ $? -ne 0 ]; then
+	LogMsg "Error: lagscope installation failed in ${server}.."
+	UpdateTestState "TestAborted"
+	exit 1
+fi
 
 #Now, start the ntttcp client on client VM.
 

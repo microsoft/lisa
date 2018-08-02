@@ -27,7 +27,7 @@ touch ./IPERF3Test.log
 
 InstallIPERF3()
 {
-	DISTRO=`grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os" /etc/{issue,*release,*version} /usr/lib/os-release`
+	DISTRO=`grep -ihs "ubuntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os" /etc/{issue,*release,*version} /usr/lib/os-release`
 	if [[ $DISTRO =~ "Ubuntu" ]];
 	then	
 		LogMsg "Detected Ubuntu"
@@ -64,7 +64,8 @@ InstallIPERF3()
 			repositoryUrl="https://download.opensuse.org/repositories/network:utilities/SLE_15/network:utilities.repo"
 		else
 			LogMsg "Error: Unknown SLES version"
-			exit 1
+			UpdateTestState "TestAborted"
+			return 2
 		fi
 		ssh ${1} "zypper addrepo ${repositoryUrl}"
 		ssh ${1} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys refresh"
@@ -81,7 +82,8 @@ InstallIPERF3()
 			ssh ${1} "which iperf3"
 			if [ $? -ne 0 ]; then
 				LogMsg "Error: Unable to install iperf3 from source/rpm"
-				exit 1
+				UpdateTestState "TestAborted"
+				return 3
 			fi				
 		else
 			LogMsg "Info: Iperf3 installed from repository"
@@ -210,10 +212,18 @@ fi
 
 LogMsg "Configuring client ${client}..."
 InstallIPERF3 ${client}
-
+if [ $? -ne 0 ]; then
+	LogMsg "Error: iperf installation failed in ${client}.."
+	UpdateTestState "TestAborted"
+	exit 1
+fi
 LogMsg "Configuring server ${server}..."
 InstallIPERF3 ${server}
-
+if [ $? -ne 0 ]; then
+	LogMsg "Error: iperf installation failed in ${server}.."
+	UpdateTestState "TestAborted"
+	exit 1
+fi
 ssh ${server} "rm -rf iperf-server-*"
 ssh ${client} "rm -rf iperf-client-*"
 ssh ${client} "rm -rf iperf-server-*"

@@ -28,7 +28,7 @@ touch ./ntttcpTest.log
 
 InstallNTTTCP() 
 {
-    DISTRO=`grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os" /etc/{issue,*release,*version} /usr/lib/os-release`
+    DISTRO=`grep -ihs "ubuntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os" /etc/{issue,*release,*version} /usr/lib/os-release`
 
     if [[ $DISTRO =~ "Ubuntu" ]];
     then
@@ -117,7 +117,8 @@ InstallNTTTCP()
             repositoryUrl="https://download.opensuse.org/repositories/network:utilities/SLE_15/network:utilities.repo"
         else
             LogMsg "Error: Unknown SLES version"
-            exit 1
+            UpdateTestState "TestAborted"
+            return 2
         fi
         ssh ${1} "zypper addrepo ${repositoryUrl}"        
         ssh ${1} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys refresh"
@@ -196,9 +197,18 @@ fi
 
 LogMsg "Configuring client ${client}..."
 InstallNTTTCP ${client}
-
+if [ $? -ne 0 ]; then
+	LogMsg "Error: ntttcp installation failed in ${client}.."
+	UpdateTestState "TestAborted"
+	exit 1
+fi
 LogMsg "Configuring server ${server}..."
 InstallNTTTCP ${server}
+if [ $? -ne 0 ]; then
+	LogMsg "Error: ntttcp installation failed in ${server}.."
+	UpdateTestState "TestAborted"
+	exit 1
+fi
 
 #Now, start the ntttcp client on client VM.
 ssh root@${client} "chmod +x run-ntttcp-and-tcping.sh report-ntttcp-and-tcping.sh"
