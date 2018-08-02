@@ -24,9 +24,20 @@
 #   -logFolder: The folder path for logs
 #
 #######################################################################
+# Source utils.sh and azuremodules.sh
+. utils.sh || {
+    echo "ERROR: unable to source utils.sh!"
+    echo "TestAborted" > state.txt
+    exit 2
+}
 
-. ./azuremodules.sh
-. ./constants.sh
+. ./azuremodules.sh || {
+    echo "ERROR: unable to source azuremodules.sh!"
+    echo "TestAborted" > state.txt
+    exit 2
+}
+# Source constants file and initialize most common variables
+UtilsInit
 
 #HOW TO PARSE THE ARGUMENTS.. SOURCE - http://stackoverflow.com/questions/4882349/parsing-shell-script-arguments
 while echo $1 | grep -q ^-; do
@@ -60,24 +71,6 @@ else
         echo "Using Log Folder $logFolder"
 fi
 
-touch $logFolder/TestExecution.log
-touch $logFolder/TestExecutionError.log
-
-LogMsg()
-{
-    echo `date "+%b %d %Y %T"` : "$1" >> $logFolder/TestExecution.log
-}
-LogErr()
-{
-    echo `date "+%b %d %Y %T"` : "$1" >> $logFolder/TestExecutionError.log
-}
-
-ResultLog()
-{
-    #Result can only be PASS / FAIL / Aborted
-    echo "$1" > $logFolder/TestState.log
-}
-
 InstallKvm()
 {
     update_repos
@@ -85,8 +78,8 @@ InstallKvm()
     lsmod | grep kvm_intel
     exit_status=$?
     if [ $exit_status -ne 0 ]; then
-        LogErr "Install KVM fail"
-        ResultLog  "Aborted"
+        LogMsg "Install KVM fail"
+        SetTestStateAborted
         exit 0
     else
         LogMsg "Install KVM succeed"
@@ -99,8 +92,8 @@ DownloadImage()
     curl -o $ImageName $NestedImageUrl
     exit_status=$?
     if [ $exit_status -ne 0 ]; then
-        LogErr "Download image fail: $NestedImageUrl"
-        ResultLog "Aborted"
+        LogMsg "Download image fail: $NestedImageUrl"
+        SetTestStateAborted
         exit 0
     else
         LogMsg "Download image succeed"
@@ -119,7 +112,7 @@ RunNestedVM()
     which qemu-system-x86_64
     if [ $? -ne 0 ]; then
         LogErr "Cannot find qemu-system-x86_64"
-        ResultLog "Aborted"
+        SetTestStateAborted
         exit 0
     fi
 
@@ -134,7 +127,7 @@ RunNestedVM()
         retry_times=$(expr $retry_times - 1)
         if [ $retry_times -eq 0 ]; then
             LogErr "Timeout to validate the network connection of the nested VM"
-            ResultLog "FAIL"
+            SetTestStateFailed
             exit 0
         else
            sleep 10
@@ -144,10 +137,10 @@ RunNestedVM()
         fi
     done
     if [ $exit_status -eq 0 ]; then
-        ResultLog "PASS"
+        SetTestStateCompleted
         StopNestedVM
     else
-        ResultLog "FAIL"
+        SetTestStateFailed
     fi
 }
 

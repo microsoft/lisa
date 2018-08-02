@@ -32,11 +32,12 @@ Function ValidateParameters()
 		#region Validate Parameters
 		if ( !$ARMImageName -and !$OsVHD )
 		{
-			$ParameterErrors += "-ARMImageName <'Publisher Offer Sku Version'>, or -OsVHD <'VHD_Name.vhd'> is required."
+			$ParameterErrors += "-ARMImageName '<Publisher> <Offer> <Sku> <Version>', or -OsVHD <'VHD_Name.vhd'> is required."
 		}
-		if ($ARMImageName.Split(" ").Count -ne 4)
+		if ($ARMImageName.Trim().Split(" ").Count -ne 4)
 		{
-			$ParameterErrors += "Invalid value for -ARMImageName <'Publisher Offer Sku Version'> provided. 'Publisher Offer Sku Version' should be separated by space ' ' char."
+			$ParameterErrors += ("Invalid value for the provided ARMImageName parameter: <'${ARMImageName}'>." + `
+                                 "The ARM image should be in the format: '<Publisher> <Offer> <Sku> <Version>'.")
 		}
 		if ( !$TestLocation)
 		{
@@ -178,15 +179,6 @@ Function UpdateGlobalConfigurationXML()
 	$GlobalConfiguration.Save("$WorkingDirectory\XML\GlobalConfigurations.xml")
 	#endregion
 
-	New-Item -ItemType Directory -Path "TestResults" -Force -ErrorAction SilentlyContinue | Out-Null
-
-	$LogDir = ".\TestResults\$(Get-Date -Format 'yyyy-dd-MM-HH-mm-ss-ffff')"
-	Set-Variable -Name LogDir -Value $LogDir -Scope Global -Force
-	Set-Variable -Name RootLogDir -Value $LogDir -Scope Global -Force
-	New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
-	New-Item -ItemType Directory -Path Temp -Force -ErrorAction SilentlyContinue | Out-Null
-	LogMsg "Created LogDir: $LogDir"
-
 	if ($TestPlatform -eq "Azure")
 	{
 		if ($env:Azure_Secrets_File)
@@ -196,7 +188,6 @@ Function UpdateGlobalConfigurationXML()
 		}
 		if ( $XMLSecretFile )
 		{
-			ValiateXMLs -ParentFolder $((Get-Item -Path $XMLSecretFile).FullName | Split-Path -Parent)
 			.\Utilities\AddAzureRmAccountFromSecretsFile.ps1 -customSecretsFilePath $XMLSecretFile
 			Set-Variable -Value ([xml](Get-Content $XMLSecretFile)) -Name XmlSecrets -Scope Global
 			LogMsg "XmlSecrets set as global variable."

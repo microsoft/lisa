@@ -1,8 +1,7 @@
 <TestCases>
     <test>
         <testName>BVT-VERIFY-DEPLOYMENT-PROVISION</testName>
-        <testScript></testScript>
-        <PowershellScript>BVT-VERIFY-DEPLOYMENT-PROVISION.ps1</PowershellScript>
+        <testScript>BVT-VERIFY-DEPLOYMENT-PROVISION.ps1</testScript>
         <files></files>
         <setupType>SingleVM</setupType>
         <Platform>Azure,HyperV</Platform>
@@ -14,10 +13,9 @@
     <test>
         <testName>BVT-IS-ROOT-PASSWORD-DELETED</testName>
         <testScript>BVT-IS-ROOT-PASSWORD-DELETED.py</testScript>
-        <PowershellScript>BVT-IS-ROOT-PASSWORD-DELETED.ps1</PowershellScript>
         <files>.\Testscripts\Linux\BVT-IS-ROOT-PASSWORD-DELETED.py,.\Testscripts\Linux\azuremodules.py</files>
         <setupType>BVTDeployment</setupType>
-        <Platform>Azure,HyperV</Platform>
+        <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
@@ -26,10 +24,9 @@
     <test>
         <testName>BVT-ROOT-DEVICE-TIMEOUT-CHECK</testName>
         <testScript>BVT-ROOT-DEVICE-TIMEOUT-CHECK.py</testScript>
-        <PowershellScript>BVT-ROOT-DEVICE-TIMEOUT-CHECK.ps1</PowershellScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-ROOT-DEVICE-TIMEOUT-CHECK.py</files>
         <setupType>BVTDeployment</setupType>
-        <Platform>Azure,HyperV</Platform>
+        <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
@@ -38,10 +35,9 @@
     <test>
         <testName>BVT-HVMODULES-CHECK</testName>
         <testScript>BVT-HVMODULES-CHECK.py</testScript>
-        <PowershellScript>BVT-HVMODULES-CHECK.ps1</PowershellScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-HVMODULES-CHECK.py</files>
         <setupType>BVTDeployment</setupType>
-        <Platform>Azure,HyperV</Platform>
+        <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
@@ -50,10 +46,9 @@
     <test>
         <testName>BVT-SWAP-CHECK</testName>
         <testScript>BVT-SWAP-CHECK.py</testScript>
-        <PowershellScript>BVT-SWAP-CHECK.ps1</PowershellScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-SWAP-CHECK.py</files>
         <setupType>BVTDeployment</setupType>
-        <Platform>Azure,HyperV</Platform>
+        <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
@@ -62,7 +57,6 @@
     <test>
         <testName>BVT-MTAB-ENTRY-CHECK</testName>
         <testScript>BVT-MTAB-ENTRY-CHECK.py</testScript>
-        <PowershellScript>BVT-MTAB-ENTRY-CHECK.ps1</PowershellScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-MTAB-ENTRY-CHECK.py</files>
         <setupType>BVTDeployment</setupType>
         <Platform>Azure</Platform>
@@ -74,10 +68,9 @@
     <test>
         <testName>BVT-LAST-CONSOLE-CHECK</testName>
         <testScript>BVT-LAST-CONSOLE-CHECK.py</testScript>
-        <PowershellScript>BVT-LAST-CONSOLE-CHECK.ps1</PowershellScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-LAST-CONSOLE-CHECK.py</files>
         <setupType>BVTDeployment</setupType>
-        <Platform>Azure,HyperV</Platform>
+        <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
@@ -86,10 +79,9 @@
     <test>
         <testName>BVT-VERIFY-BOOT-ERROR-WARNINGS</testName>
         <testScript>BVT-VERIFY-BOOT-ERROR-WARNINGS.py</testScript>
-        <PowershellScript>BVT-VERIFY-BOOT-ERROR-WARNINGS.ps1</PowershellScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-BOOT-ERROR-WARNINGS.py,.\XML\Other\ignorable-boot-errors.xml</files>
         <setupType>BVTDeployment</setupType>
-        <Platform>Azure,HyperV</Platform>
+        <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
@@ -97,23 +89,35 @@
     </test>
     <test>
         <testName>BVT-VERIFY-SHUTDOWN</testName>
-        <testScript></testScript>
-        <PowershellScript>BVT-VERIFY-SHUTDOWN.ps1</PowershellScript>
+        <testScript>BVT-VERIFY-SHUTDOWN.ps1</testScript>
         <files></files>
         <setupType>BVTDeployment</setupType>
         <Platform>Azure</Platform>
+        <TestParameters>
+            <param>SkipVerifyKernelLogs=true</param>
+        </TestParameters>
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
         <TestID>AzureBVT_015</TestID>
     </test>
     <test>
+        <testName>BVT-VERIFY-RESTART</testName>
+        <testScript>BVT-VERIFY-RESTART.ps1</testScript>
+        <files></files>
+        <setupType>BVTDeployment</setupType>
+        <Platform>Azure</Platform>
+        <Category>BVT</Category>
+        <Area>BVT</Area>
+        <Tags>bvt</Tags>
+        <TestID>AzureBVT_016</TestID>
+    </test>
+    <test>
         <testName>BVT-VERIFY-UUID-FSTAB</testName>
         <testScript>BVT-VERIFY-UUID-FSTAB.py</testScript>
-        <PowershellScript>BVT-VERIFY-UUID-FSTAB.ps1</PowershellScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-UUID-FSTAB.py</files>
         <setupType>BVTDeployment</setupType>
-        <Platform>Azure,HyperV</Platform>
+        <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
@@ -121,11 +125,10 @@
     </test>
     <test>
         <testName>BVT-VERIFY-SSHD-CONFIG</testName>
-        <testScript>BVT-VERIFY-SSHD-CONFIG.py</testScript>
-        <PowershellScript>BVT-VERIFY-SSHD-CONFIG.ps1</PowershellScript>
+        <testScript>BVT-VERIFY-SSHD-CONFIG.ps1</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-SSHD-CONFIG.py</files>
         <setupType>BVTDeployment</setupType>
-        <Platform>Azure,HyperV</Platform>
+        <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
@@ -133,11 +136,10 @@
     </test>
     <test>
         <testName>BVT-VERIFY-VHD-PREREQUISITES</testName>
-        <testScript>BVT-VERIFY-VHD-PREREQUISITES.py</testScript>
-        <PowershellScript>BVT-VERIFY-VHD-PREREQUISITES.ps1</PowershellScript>
+        <testScript>BVT-VERIFY-VHD-PREREQUISITES.ps1</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-VHD-PREREQUISITES.py</files>
         <setupType>BVTDeployment</setupType>
-        <Platform>Azure,HyperV</Platform>
+        <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
@@ -146,10 +148,9 @@
     <test>
         <testName>BVT-VERIFY-NO-ERROR-IN-LOGS</testName>
         <testScript>BVT-VERIFY-NO-ERROR-IN-LOGS.py</testScript>
-        <PowershellScript>BVT-VERIFY-NO-ERROR-IN-LOGS.ps1</PowershellScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-NO-ERROR-IN-LOGS.py,.\XML\Other\ignorable-walalog-errors.xml</files>
         <setupType>BVTDeployment</setupType>
-        <Platform>Azure,HyperV</Platform>
+        <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
@@ -158,10 +159,12 @@
     <test>
         <testName>BVT-VERIFY-VERBOSE-ENABLED-LOGS</testName>
         <testScript>BVT-VERIFY-VERBOSE-ENABLED-LOGS.py</testScript>
-        <PowershellScript>BVT-VERIFY-VERBOSE-ENABLED-LOGS.ps1</PowershellScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-VERBOSE-ENABLED-LOGS.py</files>
         <setupType>BVTDeployment</setupType>
-        <Platform>Azure,HyperV</Platform>
+        <testParameters>
+            <param>SECRET_PARAMS=(Password)</param>
+        </testParameters>
+        <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
@@ -170,10 +173,9 @@
     <test>
         <testName>BVT-VERIFY-BASH-HISTORY</testName>
         <testScript>BVT-VERIFY-BASH-HISTORY.py</testScript>
-        <PowershellScript>BVT-VERIFY-BASH-HISTORY.ps1</PowershellScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-BASH-HISTORY.py</files>
         <setupType>BVTDeployment</setupType>
-        <Platform>Azure,HyperV</Platform>
+        <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
@@ -182,13 +184,11 @@
     <test>
         <testName>BVT-PASSWD-POLICY-TEST</testName>
         <testScript>BVT-PASSWD-POLICY-TEST.py</testScript>
-        <PowershellScript>BVT-PASSWD-POLICY-TEST.ps1</PowershellScript>
         <files>.\Testscripts\Linux\BVT-PASSWD-POLICY-TEST.py,.\Testscripts\Linux\azuremodules.py</files>
         <setupType>BVTDeployment</setupType>
-        <TestType>
-        </TestType>
-        <TestFeature>
-        </TestFeature>
+        <testParameters>
+            <param>SECRET_PARAMS=(Password)</param>
+        </testParameters>
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
@@ -197,14 +197,100 @@
     </test>
     <test>
         <testName>BVT-VERIFY-KVP-DAEMON-STATUS</testName>
-        <testScript></testScript>
-        <PowershellScript>BVT-VERIFY-KVP-DAEMON-STATUS.ps1</PowershellScript>
+        <testScript>BVT-VERIFY-KVP-DAEMON-STATUS.ps1</testScript>
         <files></files>
         <setupType>BVTDeployment</setupType>
-        <Platform>Azure,HyperV</Platform>
+        <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
         <TestID>AzureBVT_029</TestID>
+    </test>
+        <test>
+        <testName>BVT-CORE-TIMESYNC-NTP</testName>
+        <testScript>BVT-CORE-TIMESYNC-NTP.sh</testScript>
+        <files>.\TestScripts\Linux\BVT-CORE-TIMESYNC-NTP.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>TC_COVERED=CORE-04</param>
+        </TestParameters>
+        <Platform>Azure,HyperV</Platform>
+        <Category>BVT</Category>
+        <Area>CORE</Area>
+        <Tags>core</Tags>
+        <TestID>CORE-04</TestID>
+    </test>
+    <test>
+        <testName>BVT-CORE-VERIFY-LIS-MODULES</testName>
+        <testScript>BVT-CORE-VERIFY-LIS-MODULES.sh</testScript>
+        <files>.\TestScripts\Linux\BVT-CORE-VERIFY-LIS-MODULES.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>TC_COVERED=CORE-09</param>
+            <param>HYPERV_MODULES=(hyperv_keyboard hv_netvsc hid_hyperv hv_util hv_storvsc)</param>
+        </TestParameters>
+        <Platform>Azure,HyperV</Platform>
+        <Category>BVT</Category>
+        <Area>CORE</Area>
+        <Tags>core</Tags>
+        <TestID>CORE-09</TestID>
+    </test>
+    <test>
+        <testName>BVT-CORE-VERIFY-LIS-MODULES-VERSION</testName>
+        <testScript>BVT-CORE-VERIFY-LIS-MODULES-VERSION.sh</testScript>
+        <files>.\TestScripts\Linux\BVT-CORE-VERIFY-LIS-MODULES-VERSION.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>TC_COVERED=CORE-15</param>
+            <param>HYPERV_MODULES=(hv_vmbus hyperv_keyboard hv_netvsc hid_hyperv hv_utils hv_storvsc hv_balloon)</param>
+        </TestParameters>
+        <Platform>Azure,HyperV</Platform>
+        <Category>BVT</Category>
+        <Area>CORE</Area>
+        <Tags>core</Tags>
+        <TestID>CORE-15</TestID>
+    </test>
+    <test>
+        <testName>BVT-CORE-RELOAD-MODULES</testName>
+        <testScript>BVT-CORE-RELOAD-MODULES.ps1</testScript>
+        <files>.\TestScripts\Linux\BVT-CORE-RELOAD-MODULES.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>TC_COVERED=CORE-18</param>
+        </TestParameters>
+        <Platform>Azure,HyperV</Platform>
+        <Category>BVT</Category>
+        <Area>CORE</Area>
+        <Tags>core</Tags>
+        <TestID>CORE-18</TestID>
+    </test>
+    <test>
+        <testName>BVT-CORE-TIME-CLOCKSOURCE</testName>
+        <testScript>BVT-CORE-TIME-CLOCKSOURCE.sh</testScript>
+        <files>.\TestScripts\Linux\BVT-CORE-TIME-CLOCKSOURCE.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>TC_COVERED=CORE-26</param>
+        </TestParameters>
+        <Platform>Azure,HyperV</Platform>
+        <Category>BVT</Category>
+        <Area>CORE</Area>
+        <Tags>core</Tags>
+        <TestID>CORE-26</TestID>
+    </test>
+    <test>
+        <testName>BVT-CORE-TIME-CLOCKEVENT</testName>
+        <testScript>BVT-CORE-TIME-CLOCKEVENT.sh</testScript>
+        <files>.\TestScripts\Linux\BVT-CORE-TIME-CLOCKEVENT.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>TC_COVERED=CORE-36a</param>
+            <param>VCPU=1</param>
+        </TestParameters>
+        <Platform>Azure,HyperV</Platform>
+        <Category>BVT</Category>
+        <Area>CORE</Area>
+        <Tags>core</Tags>
+        <TestID>CORE-36a</TestID>
     </test>
 </TestCases>

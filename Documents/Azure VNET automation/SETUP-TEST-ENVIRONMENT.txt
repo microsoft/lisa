@@ -39,7 +39,7 @@ Update Azure_ICA_all.xml file.
 				<SubscriptionName>Windows Azure Internal Consumption</SubscriptionName>
 				<CertificateThumbprint>C093FA5CD3AAE057CB7C4E04532B2E16E07C26CA</CertificateThumbprint>
 				<ManagementEndpoint>https://management.core.windows.net</ManagementEndpoint>
-				<StorageAccount>sivahydsa</StorageAccount>
+				<StorageAccount>partnerpieplineshare</StorageAccount>
 				<Location></Location>
 				<AffinityGroup>affinityuswest</AffinityGroup>
 			</General>
