@@ -27,7 +27,7 @@ touch ./lagscopeTest.log
 
 
 InstallLAGSCOPE() {
-		DISTRO=`grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os" /etc/{issue,*release,*version} /usr/lib/os-release`
+		DISTRO=`grep -ihs "ubuntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os" /etc/{issue,*release,*version} /usr/lib/os-release`
 
 		if [[ $DISTRO =~ "Ubuntu" ]];
 		then
@@ -86,12 +86,25 @@ InstallLAGSCOPE() {
 				ssh ${1} "git clone https://github.com/Microsoft/lagscope"
 				ssh ${1} "cd lagscope/src && make && make install"
 				ssh ${1} "iptables -F"
-
-		elif [[ $DISTRO =~ "SUSE Linux Enterprise Server 12" ]];
+		elif [[ $DISTRO =~ "SUSE Linux Enterprise Server" ]];
 		then
-		LogMsg "Detected SLES12"
-				ssh ${1} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys remove gettext-runtime-mini*"
-				ssh ${1} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install sysstat git bc make gcc grub2"
+				LogMsg "Detected SLES"
+				if [[ $DISTRO =~ "SUSE Linux Enterprise Server 12" ]];
+				then
+					LogMsg "Detected SLES 12"
+					repositoryUrl="https://download.opensuse.org/repositories/network:utilities/SLE_12_SP3/network:utilities.repo"
+				elif [[ $DISTRO =~ "SUSE Linux Enterprise Server 15" ]];
+				then
+					LogMsg "Detected SLES 15"
+					repositoryUrl="https://download.opensuse.org/repositories/network:utilities/SLE_15/network:utilities.repo"
+				else
+					LogMsg "Error: Unknown SLES version"
+					UpdateTestState "TestAborted"
+					return 2
+				fi
+				ssh ${1} "zypper addrepo ${repositoryUrl}"
+				ssh ${1} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys refresh"
+				ssh ${1} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install sysstat git bc make gcc dstat psmisc"
 				ssh ${1} "rm -rf lagscope"
 				ssh ${1} "git clone https://github.com/Microsoft/lagscope"
 				ssh ${1} "cd lagscope/src && make && make install"
@@ -156,9 +169,19 @@ fi
 
 LogMsg "Configuring client ${client}..."
 InstallLAGSCOPE ${client}
+if [ $? -ne 0 ]; then
+	LogMsg "Error: lagscope installation failed in ${client}.."
+	UpdateTestState "TestAborted"
+	exit 1
+fi
 
 LogMsg "Configuring server ${server}..."
 InstallLAGSCOPE ${server}
+if [ $? -ne 0 ]; then
+	LogMsg "Error: lagscope installation failed in ${server}.."
+	UpdateTestState "TestAborted"
+	exit 1
+fi
 
 #Now, start the ntttcp client on client VM.
 
