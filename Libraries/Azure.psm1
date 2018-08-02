@@ -1166,7 +1166,7 @@ Set-Content -Value "$($indents[0]){" -Path $jsonFile -Force
         #endregion
         
 
-    #region New ARM Storage Account, if necessory!
+    #region New ARM Storage Account, if necessary!
     if ( $NewStorageAccountName)
     {
         Add-Content -Value "$($indents[2]){" -Path $jsonFile
@@ -1850,7 +1850,7 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
                 Add-Content -Value "$($indents[4])}," -Path $jsonFile
                 #endregion
 
-                #region OSProfie
+                #region OSProfile
                 Add-Content -Value "$($indents[4])^osProfile^: " -Path $jsonFile
                 Add-Content -Value "$($indents[4]){" -Path $jsonFile
                     Add-Content -Value "$($indents[5])^computername^: ^$vmName^," -Path $jsonFile

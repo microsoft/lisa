@@ -5,11 +5,11 @@
 # Licensed under the Apache License.
 <#
 .SYNOPSIS
-    This script authenticates PS sessing using Azure principal account.
+    This script authenticates PS session using Azure principal account.
 
 .PARAMETER -customSecretsFilePath
     Type: string
-    Required: Optinal.
+    Required: Optional.
 
 .INPUTS
     AzureSecrets.xml file. If you are running this script in Jenkins, then make sure to add a secret 

@@ -6,7 +6,7 @@
 #
 <#
 .SYNOPSIS
-    Azure commone test modules.
+    Azure common test modules.
 
 .PARAMETER
     <Parameters>
@@ -858,7 +858,7 @@ Function GetAndCheckKernelLogs($allDeployedVMs, $status, $vmUser, $vmPassword)
 					LogMsg "No any call traces found."
 				}
 				$KernelDiff = Compare-Object -ReferenceObject (Get-Content $FinalBootLog) -DifferenceObject (Get-Content $InitailBootLog)
-				#Removing final dmesg file from logs to reduce the size of logs. We can alwayas see complete Final Logs as : Initial Kernel Logs + Difference in Kernel Logs
+				#Removing final dmesg file from logs to reduce the size of logs. We can always see complete Final Logs as : Initial Kernel Logs + Difference in Kernel Logs
 				Remove-Item -Path $FinalBootLog -Force | Out-Null
 				if($KernelDiff -eq $null)
 				{
