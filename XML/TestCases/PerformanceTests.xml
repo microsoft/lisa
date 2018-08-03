@@ -53,7 +53,7 @@
         <setupType>M1S1</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
-        </AdditionalHWConfig>        
+        </AdditionalHWConfig>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
         <files>.\Testscripts\Linux\azuremodules.sh</files>
         <TestParameters>
@@ -63,7 +63,7 @@
         <Category>Performance</Category>
         <Area>Network</Area>
         <Tags>tcp,network,hv_netvsc,sriov</Tags>
-    </test>    
+    </test>
     <test>
         <testName>PERF-NETWORK-UDP-THROUGHPUT-MULTICONNECTION-Synthetic</testName>
         <testScript>PERF-NETWORK-UDP-THROUGHPUT-MULTICONNECTION-IPERF3.ps1</testScript>
@@ -90,7 +90,7 @@
         <setupType>M1S1</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
-        </AdditionalHWConfig>        
+        </AdditionalHWConfig>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
         <files>.\Testscripts\Linux\azuremodules.sh</files>
         <TestParameters>
@@ -198,7 +198,7 @@
         <setupType>DS14DISK12NFS</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
-        </AdditionalHWConfig>         
+        </AdditionalHWConfig>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
         <files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh</files>
         <TestParameters>
@@ -223,7 +223,7 @@
         <setupType>DS14DISK12NFS</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
-        </AdditionalHWConfig>         
+        </AdditionalHWConfig>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
         <files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh</files>
         <TestParameters>
@@ -248,7 +248,7 @@
         <setupType>M1S1</setupType>
         <AdditionalHWConfig>
             <Networking>Synthetic</Networking>
-        </AdditionalHWConfig>         
+        </AdditionalHWConfig>
         <files></files>
         <TestParameters>
             <param>testDuration=120</param>
@@ -269,7 +269,7 @@
         <setupType>M1S1</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
-        </AdditionalHWConfig>         
+        </AdditionalHWConfig>
         <files></files>
         <TestParameters>
             <param>testDuration=120</param>
@@ -283,5 +283,5 @@
         <Category>Performance</Category>
         <Area>Network</Area>
         <Tags>hv_netvsc,network,tcp,sriov</Tags>
-    </test>    
+    </test>
 </TestCases>

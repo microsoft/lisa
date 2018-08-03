@@ -40,31 +40,33 @@ function Main {
         ProvisionVMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
         #endregion
 
-        if ($EnableAcceleratedNetworking -or ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV")) {
+        if( $detectedDistro -imatch "SLES 15" ) {
+            LogMsg "Installing Package for ifconfig cmd in $detectedDistro"
+            $netToolDeprecateCmd = "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install net-tools-deprecated"
+			RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command $netToolDeprecateCmd
+            WaitFor -seconds 10
+            RunLinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username "root" -password $password -command $netToolDeprecateCmd
+            WaitFor -seconds 10
+        } else {
+            LogMsg "Net tool deprecation not required for $detectedDistro"
+        }
+
+        LogMsg "Getting Active NIC Name."
+        $getNicCmd = "route | grep '^default' | grep -o '[^ ]*$'"
+        $clientNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command $getNicCmd).Trim()
+        $serverNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username "root" -password $password -command $getNicCmd).Trim()
+        if ( $serverNicName -eq $clientNicName) {
+            $nicName = $clientNicName
+        } else {
+            Throw "Server and client SRIOV NICs are not same."
+        }
+        if($EnableAcceleratedNetworking -or ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV")) {
             $DataPath = "SRIOV"
-            LogMsg "Getting SRIOV NIC Name."
-            $clientNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "route | grep '^default' | grep -o '[^ ]*$'").Trim()
-            LogMsg "CLIENT SRIOV NIC: $clientNicName"
-            $serverNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username "root" -password $password -command "route | grep '^default' | grep -o '[^ ]*$'").Trim()
-            LogMsg "SERVER SRIOV NIC: $serverNicName"
-            if ($serverNicName -eq $clientNicName) {
-                $nicName = $clientNicName
-            } else {
-                Throw "Server and client SRIOV NICs are not same."
-            }
         } else {
             $DataPath = "Synthetic"
-            LogMsg "Getting Active NIC Name."
-            $clientNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "route | grep '^default' | grep -o '[^ ]*$'").Trim()
-            LogMsg "CLIENT NIC: $clientNicName"
-            $serverNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username "root" -password $password -command "route | grep '^default' | grep -o '[^ ]*$'").Trim()
-            LogMsg "SERVER NIC: $serverNicName"
-            if ($serverNicName -eq $clientNicName) {
-                $nicName = $clientNicName
-            } else {
-                Throw "Server and client NICs are not same."
-            }
         }
+        LogMsg "CLIENT $DataPath NIC: $clientNicName"
+        LogMsg "SERVER $DataPath NIC: $serverNicName"
 
         LogMsg "Generating constansts.sh ..."
         $constantsFile = "$LogDir\constants.sh"

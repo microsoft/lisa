@@ -47,69 +47,90 @@ UpdateTestState()
     echo "${1}" > $HOMEDIR/state.txt
 }
 
-InstallFIO() {
-		DISTRO=`grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os" /etc/{issue,*release,*version} /usr/lib/os-release`
+InstallFIO() 
+{
+	DISTRO=`grep -ihs "ubuntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os" /etc/{issue,*release,*version} /usr/lib/os-release`
 
-		if [[ $DISTRO =~ "Ubuntu" ]] || [[ $DISTRO =~ "Debian" ]];
+	if [[ $DISTRO =~ "Ubuntu" ]] || [[ $DISTRO =~ "Debian" ]];
+	then
+		LogMsg "Detected UBUNTU/Debian. Installing required packages"
+		until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done
+		apt-get update 
+		apt-get install -y pciutils gawk mdadm wget sysstat blktrace bc fio
+		if [ $? -ne 0 ]; then
+			LogMsg "Error: Unable to install fio"
+			exit 1
+		fi
+		mount -t debugfs none /sys/kernel/debug						
+	elif [[ $DISTRO =~ "Red Hat Enterprise Linux Server release 6" ]];
+	then
+		LogMsg "Detected RHEL 6.x; Installing required packages"
+		rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-6.noarch.rpm
+		yum -y --nogpgcheck install wget sysstat mdadm blktrace libaio fio
+		mount -t debugfs none /sys/kernel/debug
+	elif [[ $DISTRO =~ "Red Hat Enterprise Linux Server release 7" ]];
+	then
+		LogMsg "Detected RHEL 7.x; Installing required packages"
+		rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+		yum -y --nogpgcheck install wget sysstat mdadm blktrace libaio fio
+		mount -t debugfs none /sys/kernel/debug	
+	elif [[ $DISTRO =~ "CentOS Linux release 6" ]] || [[ $DISTRO =~ "CentOS release 6" ]];
+	then
+		LogMsg "Detected CentOS 6.x; Installing required packages"
+		rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-6.noarch.rpm
+		yum -y --nogpgcheck install wget sysstat mdadm blktrace libaio fio
+		mount -t debugfs none /sys/kernel/debug		
+	elif [[ $DISTRO =~ "CentOS Linux release 7" ]];
+	then
+		LogMsg "Detected CentOS 7.x; Installing required packages"
+		rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+		yum -y --nogpgcheck install wget sysstat mdadm blktrace libaio fio
+		mount -t debugfs none /sys/kernel/debug
+	elif [[ $DISTRO =~ "SUSE Linux Enterprise Server" ]];
+	then
+		LogMsg "Detected SLES. Installing required packages"
+		if [[ $DISTRO =~ "SUSE Linux Enterprise Server 12" ]];
 		then
-			LogMsg "Detected UBUNTU/Debian. Installing required packages"
-			until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done
-			apt-get update
-			apt-get install -y pciutils gawk mdadm
-			apt-get install -y wget sysstat blktrace bc fio
-			if [ $? -ne 0 ]; then
-				LogMsg "Error: Unable to install fio"
-				exit 1
-			fi
-			mount -t debugfs none /sys/kernel/debug
-							
-		elif [[ $DISTRO =~ "Red Hat Enterprise Linux Server release 6" ]];
+			LogMsg "Detected SLES 12"
+			repositoryUrl="https://download.opensuse.org/repositories/benchmark/SLE_12_SP3_Backports/benchmark.repo"
+		elif [[ $DISTRO =~ "SUSE Linux Enterprise Server 15" ]];
 		then
-			LogMsg "Detected RHEL 6.x; Installing required packages"
-			rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-6.noarch.rpm
-			yum -y --nogpgcheck install wget sysstat mdadm blktrace libaio fio
-			mount -t debugfs none /sys/kernel/debug
-
-		elif [[ $DISTRO =~ "Red Hat Enterprise Linux Server release 7" ]];
-		then
-			LogMsg "Detected RHEL 7.x; Installing required packages"
-			rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
-			yum -y --nogpgcheck install wget sysstat mdadm blktrace libaio fio
-			mount -t debugfs none /sys/kernel/debug
-				
-		elif [[ $DISTRO =~ "CentOS Linux release 6" ]] || [[ $DISTRO =~ "CentOS release 6" ]];
-		then
-			LogMsg "Detected CentOS 6.x; Installing required packages"
-			rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-6.noarch.rpm
-			yum -y --nogpgcheck install wget sysstat mdadm blktrace libaio fio
-			mount -t debugfs none /sys/kernel/debug
-				
-		elif [[ $DISTRO =~ "CentOS Linux release 7" ]];
-		then
-			LogMsg "Detected CentOS 7.x; Installing required packages"
-			rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
-			yum -y --nogpgcheck install wget sysstat mdadm blktrace libaio fio
-			mount -t debugfs none /sys/kernel/debug
-
-		elif [[ $DISTRO =~ "SUSE Linux Enterprise Server 12" ]];
-		then
-			LogMsg "Detected SLES12. Installing required packages"
-			zypper addrepo http://download.opensuse.org/repositories/benchmark/SLE_12_SP3_Backports/benchmark.repo
-			zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys refresh
-			zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys remove gettext-runtime-mini-0.19.2-1.103.x86_64
-			zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install sysstat
-			zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install grub2
-			zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install wget mdadm blktrace libaio1 fio
-		elif [[ $DISTRO =~ "clear-linux-os" ]];
-		then
-			LogMsg "Detected Clear Linux OS. Installing required packages"
-			swupd bundle-add dev-utils-dev sysadmin-basic performance-tools os-testsuite-phoronix network-basic openssh-server dev-utils os-core os-core-dev
-
+			LogMsg "Detected SLES 15"
+			repositoryUrl="https://download.opensuse.org/repositories/network:utilities/SLE_15/network:utilities.repo"
 		else
-				LogMsg "Unknown Distro"
+			LogMsg "Error: Unknown SLES version"
+			UpdateTestState "TestAborted"
+			return 2			
+		fi
+		zypper addrepo $repositoryUrl
+		zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys refresh
+		zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install wget mdadm blktrace libaio1 sysstat
+		zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install fio
+		which fio
+		if [ $? -ne 0 ]; then
+			LogMsg "Info: fio is not available in repository. So, Installing fio using rpm"
+			fioUrl="https://eosgpackages.blob.core.windows.net/testpackages/tools/fio-sles-x86_64.rpm"
+			wget --no-check-certificate $fioUrl
+			LogMsg "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install ${fioUrl##*/}"
+			zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install ${fioUrl##*/}
+			which fio
+			if [ $? -ne 0 ]; then
+				LogMsg "Error: Unable to install fio from source/rpm"
 				UpdateTestState "TestAborted"
-				UpdateSummary "Unknown Distro, test aborted"
-				return 1
+				return 3
+			fi
+		else
+			LogMsg "Info: fio installed from repository"
+		fi
+	elif [[ $DISTRO =~ "clear-linux-os" ]];
+	then
+		LogMsg "Detected Clear Linux OS. Installing required packages"
+		swupd bundle-add dev-utils-dev sysadmin-basic performance-tools os-testsuite-phoronix network-basic openssh-server dev-utils os-core os-core-dev
+	else
+		LogMsg "Unknown Distro"
+		UpdateTestState "TestAborted"
+		UpdateSummary "Unknown Distro, test aborted"
+		return 1
 	fi
 }
 
@@ -266,8 +287,8 @@ CreateRAID0()
 	sleep 1
 	mount -o nobarrier ${mdVolume} ${mountDir}
 	if [ $? -ne 0 ]; then
-            LogMsg "Error: Unable to create raid"            
-            exit 1
+		LogMsg "Error: Unable to create raid"            
+		exit 1
 	else
 		LogMsg "${mdVolume} mounted to ${mountDir} successfully."
 	fi
@@ -334,6 +355,11 @@ mountDir="/data"
 cd ${HOMEDIR}
 
 InstallFIO
+if [ $? -ne 0 ]; then
+	LogMsg "Error: fio installation failed.."
+	UpdateTestState "TestAborted"
+	exit 1
+fi
 
 #Creating RAID before triggering test
 CreateRAID0 ext4

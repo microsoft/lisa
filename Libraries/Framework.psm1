@@ -34,7 +34,7 @@ Function ValidateParameters()
 		{
 			$ParameterErrors += "-ARMImageName '<Publisher> <Offer> <Sku> <Version>', or -OsVHD <'VHD_Name.vhd'> is required."
 		}
-		if (($ARMImageName.Trim().Split(" ").Count -ne 4) -and !$OsVHD) 
+		if (($ARMImageName.Trim().Split(" ").Count -ne 4) -and ($ARMImageName -ne "")) 
 		{
 			$ParameterErrors += ("Invalid value for the provided ARMImageName parameter: <'${ARMImageName}'>." + `
                                  "The ARM image should be in the format: '<Publisher> <Offer> <Sku> <Version>'.")
