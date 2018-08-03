@@ -117,7 +117,7 @@
         <testScript>PERF-STORAGE-MULTIDISK-RAID0-FIO.ps1</testScript>
         <setupType>DS14DISK12</setupType>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
-        <files>.\Testscripts\Linux\azuremodules.sh</files>
+        <files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <TestParameters>
             <param>modes='randread randwrite read write'</param>
             <param>startThread=1</param>
@@ -139,7 +139,7 @@
         <testScript>PERF-STORAGE-MULTIDISK-RAID0-FIO.ps1</testScript>
         <setupType>DS14DISK12</setupType>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
-        <files>.\Testscripts\Linux\azuremodules.sh</files>
+        <files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <TestParameters>
             <param>modes='randread randwrite read write'</param>
             <param>startThread=1</param>

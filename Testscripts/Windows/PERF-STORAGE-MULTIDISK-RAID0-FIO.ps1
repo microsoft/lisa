@@ -33,11 +33,7 @@ chmod +x perf_fio.sh
 . azuremodules.sh
 collect_VM_properties
 "@
-        # TODO - code refactoring should fix non Microsoft blob access
         $myString2 = @"
-wget https://konkaciwestus1.blob.core.windows.net/scriptfiles/JSON.awk
-wget https://konkaciwestus1.blob.core.windows.net/scriptfiles/gawk
-wget https://konkaciwestus1.blob.core.windows.net/scriptfiles/fio_jason_parser.sh
 chmod +x *.sh
 cp fio_jason_parser.sh gawk JSON.awk /root/FIOLog/jsonLog/
 cd /root/FIOLog/jsonLog/
@@ -47,7 +43,7 @@ chmod 666 /root/perf_fio.csv
 "@
         Set-Content "$LogDir\StartFioTest.sh" $myString
         Set-Content "$LogDir\ParseFioTestLogs.sh" $myString2        
-        RemoteCopy -uploadTo $testVMData.PublicIP -port $testVMData.SSHPort -files ".\$constantsFile,.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\perf_fio.sh,.\$LogDir\StartFioTest.sh,.\$LogDir\ParseFioTestLogs.sh" -username "root" -password $password -upload
+        RemoteCopy -uploadTo $testVMData.PublicIP -port $testVMData.SSHPort -files ".\$constantsFile,.\$LogDir\StartFioTest.sh,.\$LogDir\ParseFioTestLogs.sh" -username "root" -password $password -upload
         RemoteCopy -uploadTo $testVMData.PublicIP -port $testVMData.SSHPort -files $currentTestData.files -username "root" -password $password -upload
         $out = RunLinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -command "chmod +x *.sh" -runAsSudo
         $testJob = RunLinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -command "./StartFioTest.sh" -RunInBackground -runAsSudo

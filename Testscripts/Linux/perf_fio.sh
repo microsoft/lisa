@@ -100,7 +100,7 @@ InstallFIO()
 		else
 			LogMsg "Error: Unknown SLES version"
 			UpdateTestState "TestAborted"
-			return 2			
+			exit 1			
 		fi
 		zypper addrepo $repositoryUrl
 		zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys refresh
@@ -117,7 +117,7 @@ InstallFIO()
 			if [ $? -ne 0 ]; then
 				LogMsg "Error: Unable to install fio from source/rpm"
 				UpdateTestState "TestAborted"
-				return 3
+				exit 1
 			fi
 		else
 			LogMsg "Info: fio installed from repository"
@@ -130,7 +130,7 @@ InstallFIO()
 		LogMsg "Unknown Distro"
 		UpdateTestState "TestAborted"
 		UpdateSummary "Unknown Distro, test aborted"
-		return 1
+		exit 1
 	fi
 }
 
@@ -355,11 +355,6 @@ mountDir="/data"
 cd ${HOMEDIR}
 
 InstallFIO
-if [ $? -ne 0 ]; then
-	LogMsg "Error: fio installation failed.."
-	UpdateTestState "TestAborted"
-	exit 1
-fi
 
 #Creating RAID before triggering test
 CreateRAID0 ext4
