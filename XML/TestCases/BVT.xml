@@ -8,7 +8,6 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt,boot</Tags>
-        <TestID>AzureBVT_001</TestID>
     </test>
     <test>
         <testName>BVT-IS-ROOT-PASSWORD-DELETED</testName>
@@ -19,7 +18,6 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
-        <TestID>AzureBVT_003</TestID>
     </test>
     <test>
         <testName>BVT-ROOT-DEVICE-TIMEOUT-CHECK</testName>
@@ -30,7 +28,6 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
-        <TestID>AzureBVT_006</TestID>
     </test>
     <test>
         <testName>BVT-HVMODULES-CHECK</testName>
@@ -41,7 +38,6 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
-        <TestID>AzureBVT_007</TestID>
     </test>
     <test>
         <testName>BVT-SWAP-CHECK</testName>
@@ -52,7 +48,6 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
-        <TestID>AzureBVT_009</TestID>
     </test>
     <test>
         <testName>BVT-MTAB-ENTRY-CHECK</testName>
@@ -63,7 +58,6 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
-        <TestID>AzureBVT_010</TestID>
     </test>
     <test>
         <testName>BVT-LAST-CONSOLE-CHECK</testName>
@@ -74,7 +68,6 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
-        <TestID>AzureBVT_011</TestID>        
     </test>
     <test>
         <testName>BVT-VERIFY-BOOT-ERROR-WARNINGS</testName>
@@ -85,7 +78,6 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
-        <TestID>AzureBVT_014</TestID>
     </test>
     <test>
         <testName>BVT-VERIFY-SHUTDOWN</testName>
@@ -99,7 +91,6 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
-        <TestID>AzureBVT_015</TestID>
     </test>
     <test>
         <testName>BVT-VERIFY-RESTART</testName>
@@ -110,7 +101,6 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
-        <TestID>AzureBVT_016</TestID>
     </test>
     <test>
         <testName>BVT-VERIFY-UUID-FSTAB</testName>
@@ -121,7 +111,6 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
-        <TestID>AzureBVT_018</TestID>
     </test>
     <test>
         <testName>BVT-VERIFY-SSHD-CONFIG</testName>
@@ -132,7 +121,6 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
-        <TestID>AzureBVT_020</TestID>
     </test>
     <test>
         <testName>BVT-VERIFY-VHD-PREREQUISITES</testName>
@@ -143,7 +131,6 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
-        <TestID>AzureBVT_021</TestID>
     </test>
     <test>
         <testName>BVT-VERIFY-NO-ERROR-IN-LOGS</testName>
@@ -154,7 +141,6 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
-        <TestID>AzureBVT_023</TestID>
     </test>
     <test>
         <testName>BVT-VERIFY-VERBOSE-ENABLED-LOGS</testName>
@@ -168,7 +154,6 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
-        <TestID>AzureBVT_024</TestID>
     </test>
     <test>
         <testName>BVT-VERIFY-BASH-HISTORY</testName>
@@ -179,7 +164,6 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
-        <TestID>AzureBVT_025</TestID>
     </test>
     <test>
         <testName>BVT-PASSWD-POLICY-TEST</testName>
@@ -193,7 +177,6 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
-        <TestID>AzureBVT_026</TestID>
     </test>
     <test>
         <testName>BVT-VERIFY-KVP-DAEMON-STATUS</testName>
@@ -204,7 +187,6 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
-        <TestID>AzureBVT_029</TestID>
     </test>
         <test>
         <testName>BVT-CORE-TIMESYNC-NTP</testName>
@@ -218,7 +200,6 @@
         <Category>BVT</Category>
         <Area>CORE</Area>
         <Tags>core</Tags>
-        <TestID>CORE-04</TestID>
     </test>
     <test>
         <testName>BVT-CORE-VERIFY-LIS-MODULES</testName>
@@ -233,7 +214,6 @@
         <Category>BVT</Category>
         <Area>CORE</Area>
         <Tags>core</Tags>
-        <TestID>CORE-09</TestID>
     </test>
     <test>
         <testName>BVT-CORE-VERIFY-LIS-MODULES-VERSION</testName>
@@ -248,7 +228,6 @@
         <Category>BVT</Category>
         <Area>CORE</Area>
         <Tags>core</Tags>
-        <TestID>CORE-15</TestID>
     </test>
     <test>
         <testName>BVT-CORE-RELOAD-MODULES</testName>
@@ -262,7 +241,6 @@
         <Category>BVT</Category>
         <Area>CORE</Area>
         <Tags>core</Tags>
-        <TestID>CORE-18</TestID>
     </test>
     <test>
         <testName>BVT-CORE-TIME-CLOCKSOURCE</testName>
@@ -276,7 +254,6 @@
         <Category>BVT</Category>
         <Area>CORE</Area>
         <Tags>core</Tags>
-        <TestID>CORE-26</TestID>
     </test>
     <test>
         <testName>BVT-CORE-TIME-CLOCKEVENT</testName>
@@ -291,6 +268,5 @@
         <Category>BVT</Category>
         <Area>CORE</Area>
         <Tags>core</Tags>
-        <TestID>CORE-36a</TestID>
     </test>
 </TestCases>

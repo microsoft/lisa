@@ -16,7 +16,6 @@
         <Category>Functional</Category>
         <Area>Nested</Area>
         <Tags>nested,kvm</Tags>
-        <TestID>Nested_001</TestID>
     </test>
     <test>
         <TestName>NESTED-KVM-NTTTCP-PRIVATE-BRIDGE</TestName>
@@ -39,6 +38,5 @@
         <Category>Performance</Category>
         <Area>Nested</Area>
         <Tags>nested,kvm</Tags>
-        <TestID>Nested_002</TestID>
     </test>
 </TestCases>

@@ -33,7 +33,6 @@ Add following test definition under "<testsDefinition>..</testsDefinition>" in X
 		<setupType>CustomProbeSamePort</setupType>
 		<TestType></TestType>
 		<TestFeature></TestFeature>
-		<TestID>AzureNetwork_CPSP_003</TestID>
 		<TestMode>VIP,URL</TestMode>
 		<Priority>P0</Priority>
     </test>

@@ -17,6 +17,5 @@
         <Category>Functional</Category>
         <Area>DPDK</Area>
         <Tags>dpdk,network,hv_netvsc,sriov</Tags>
-        <TestID>Functional_DPDK_001</TestID>
     </test>	
 </TestCases>

@@ -53,7 +53,6 @@ Add following test definition under "<testsDefinition>..</testsDefinition>" in X
 		<setupType>CustomProbeOtherPort</setupType>
 		<TestType></TestType>
 		<TestFeature></TestFeature>
-		<TestID>AzureNetwork_CPOP_004</TestID>
 		<TestMode>VIP,URL</TestMode>
     </test>
  	

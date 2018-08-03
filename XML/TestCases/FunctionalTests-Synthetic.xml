@@ -1,6 +1,5 @@
 <TestCases>
     <test>
-        <TestID>Functional_NIC_000</TestID>
         <testName>VERIFY-IFUP-IFDOW-ETH0-RMMOD-MODPROBE-HV_NETVSC-Synthetic</testName>
         <setupType>SingleVM</setupType>
         <OverrideVMSize>Standard_D2_v2</OverrideVMSize>

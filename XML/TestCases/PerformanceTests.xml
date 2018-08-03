@@ -16,7 +16,6 @@
         <Category>Performance</Category>
         <Area>Network</Area>
         <Tags>tcp,network,hv_netvsc</Tags>
-        <TestID>Perf_Network_001</TestID>
     </test>
     <test>
         <testName>PERF-NETWORK-TCP-THROUGHPUT-MULTICONNECTION-SRIOV</testName>
@@ -34,7 +33,6 @@
         <Category>Performance</Category>
         <Area>Network</Area>
         <Tags>tcp,network,hv_netvsc,sriov</Tags>
-        <TestID>Perf_Network_002</TestID>
     </test>
     <test>
         <testName>PERF-NETWORK-TCP-LATENCY-MULTICONNECTION-Synthetic</testName>
@@ -48,7 +46,6 @@
         <Category>Performance</Category>
         <Area>Network</Area>
         <Tags>tcp,network,hv_netvsc</Tags>
-        <TestID>Perf_Network_003</TestID>
     </test>
     <test>
         <testName>PERF-NETWORK-TCP-LATENCY-MULTICONNECTION-SRIOV</testName>
@@ -66,7 +63,6 @@
         <Category>Performance</Category>
         <Area>Network</Area>
         <Tags>tcp,network,hv_netvsc,sriov</Tags>
-        <TestID>Perf_Network_004</TestID>
     </test>    
     <test>
         <testName>PERF-NETWORK-UDP-THROUGHPUT-MULTICONNECTION-Synthetic</testName>
@@ -86,7 +82,6 @@
         <Category>Performance</Category>
         <Area>Network</Area>
         <Tags>udp,network,hv_netvsc</Tags>
-        <TestID>Perf_Network_005</TestID>
     </test>
     <test>
         <testName>PERF-NETWORK-UDP-THROUGHPUT-MULTICONNECTION-SRIOV</testName>
@@ -110,7 +105,6 @@
         <Category>Performance</Category>
         <Area>Network</Area>
         <Tags>udp,network,hv_netvsc,sriov</Tags>
-        <TestID>Perf_Network_006</TestID>
     </test>
     <test>
         <testName>PERF-STORAGE-4K-IO</testName>
@@ -132,7 +126,6 @@
         <Category>Performance</Category>
         <Area>Storage</Area>
         <Tags>hv_storvsc,storage</Tags>
-        <TestID>Perf_Storage_001</TestID>
     </test>
     <test>
         <testName>PERF-STORAGE-1024K-IO</testName>
@@ -154,7 +147,6 @@
         <Category>Performance</Category>
         <Area>Storage</Area>
         <Tags>hv_storvsc,storage</Tags>
-        <TestID>Perf_Storage_002</TestID>
     </test>
     <test>
         <testName>PERF-STORAGE-OVER-NFS-Synthetic-TCP-4K</testName>
@@ -177,7 +169,6 @@
         <Category>Performance</Category>
         <Area>Storage</Area>
         <Tags>hv_storvsc,storage</Tags>
-        <TestID>Perf_Storage_003</TestID>
     </test>
     <test>
         <testName>PERF-STORAGE-OVER-NFS-Synthetic-UDP-4K</testName>
@@ -200,7 +191,6 @@
         <Category>Performance</Category>
         <Area>Storage</Area>
         <Tags>hv_storvsc,storage</Tags>
-        <TestID>Perf_Storage_003</TestID>
     </test>
     <test>
         <testName>PERF-STORAGE-OVER-NFS-SRIOV-TCP-4K</testName>
@@ -226,7 +216,6 @@
         <Category>Performance</Category>
         <Area>Storage</Area>
         <Tags>hv_storvsc,storage</Tags>
-        <TestID>Perf_Storage_003</TestID>
     </test>
     <test>
         <testName>PERF-STORAGE-OVER-NFS-SRIOV-UDP-4K</testName>
@@ -252,7 +241,6 @@
         <Category>Performance</Category>
         <Area>Storage</Area>
         <Tags>hv_storvsc,storage</Tags>
-        <TestID>Perf_Storage_003</TestID>
     </test>
     <test>
         <testName>PERF-NETWORK-TCP-SINGLE-CONNECTION-THROUGHPUT-Synthetic</testName>

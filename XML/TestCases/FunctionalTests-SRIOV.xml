@@ -1,6 +1,5 @@
 <TestCases>
     <test>
-        <TestID>Functional_SRIOV_LSPCI</TestID>
         <testName>VERIFY-SRIOV-LSPCI</testName>
         <setupType>SingleVM</setupType>
         <OverrideVMSize>Standard_D15_v2</OverrideVMSize>
@@ -18,7 +17,6 @@
         <Tags>sriov,hv_netvsc</Tags>
     </test>
     <test>
-        <TestID>Functional_NIC_001</TestID>
         <testName>VERIFY-IFUP-IFDOW-ETH0-RMMOD-MODPROBE-HV_NETVSC-SRIOV</testName>
         <setupType>SingleVM</setupType>
         <OverrideVMSize>Standard_D13_v2</OverrideVMSize>
@@ -37,7 +35,6 @@
         <Tags>sriov,hv_netvsc</Tags>
     </test>
     <test>
-        <TestID>Functional_NICS_SRIOV_IFUP</TestID>
         <testName>VERIFY-IFUP-NICS-SRIOV</testName>
         <setupType>SingleVMMaxNetwork</setupType>
         <AdditionalHWConfig>
