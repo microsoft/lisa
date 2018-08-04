@@ -26,7 +26,7 @@
             <param>rebootNumber=3</param>
         </TestParameters>
         <Platform>Azure</Platform>
-        <Category>STRESSTEST</Category>
+        <Category>Stress</Category>
         <Area>stress</Area>
         <Tags>stress,boot,network,sriov</Tags>
         <TestID>AzureStress_001</TestID>
