@@ -64,7 +64,6 @@ Add following test definition under "<testsDefinition>..</testsDefinition>" in X
 		<setupType>IEndpointSingleHS</setupType>
 		<TestType></TestType>
 		<TestFeature></TestFeature>
-		<TestID>AzureNetwork_IDNS_002</TestID>
     </test>
  	
 Run the tests defined in the .xml file.

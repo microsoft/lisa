@@ -38,7 +38,6 @@ Test definition used to drive the test
 		<setupType>VNETVMPR</setupType>
 		<TestType></TestType>
 		<TestFeature></TestFeature>
-		<TestID>AzureVNET_INTRA_003</TestID>
 		<SubtestValues>SameHS-DiffSubnet,DiffHS-SameSubnet,DiffHS-DiffSubnet</SubtestValues>
 		<TestMode>DIP,Hostname</TestMode>
     </test>

@@ -25,7 +25,6 @@ Edit the XML file used to drive the test
 		<setupType>BVTDeployment</setupType>
 		<TestType></TestType>
 		<TestFeature></TestFeature>
-		<TestID>AzureBVT_017</TestID>
     </test>
 	
 Run the tests defined in the .xml file.

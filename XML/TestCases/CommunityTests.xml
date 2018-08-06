@@ -14,7 +14,6 @@
         <Category>Community</Category>
         <Area>Xfstesting-cifs</Area>
         <Tags>smb</Tags>
-        <TestID>Community_001</TestID>
     </test>
     <test>
         <TestName>FILE-SYSTEM-VERIFICATION-TESTS-XFS</TestName>
@@ -31,7 +30,6 @@
         <Category>Community</Category>
         <Area>Xfstesting-cifs</Area>
         <Tags>xfs,disk</Tags>
-        <TestID>Community_002</TestID>
     </test>
     <test>
         <TestName>FILE-SYSTEM-VERIFICATION-TESTS-EXT4</TestName>
@@ -48,7 +46,6 @@
         <Category>Community</Category>
         <Area>Xfstesting-cifs</Area>
         <Tags>ext4,disk</Tags>
-        <TestID>Community_003</TestID>
     </test>
     <test>
         <TestName>FILE-SYSTEM-VERIFICATION-TESTS-BTRFS</TestName>
@@ -65,7 +62,6 @@
         <Category>Community</Category>
         <Area>Xfstesting-cifs</Area>
         <Tags>btrfs,disk</Tags>
-        <TestID>Community_005</TestID>
     </test>	
     <test>
         <TestName>LINUX-TEST-PROJECT-TESTS</TestName>
@@ -77,6 +73,5 @@
         <Category>Community</Category>
         <Area>LTP</Area>
         <Tags>LTP</Tags>
-        <TestID>Community_004</TestID>
     </test>	
 </TestCases>

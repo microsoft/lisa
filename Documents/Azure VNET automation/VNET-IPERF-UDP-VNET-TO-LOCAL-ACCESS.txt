@@ -38,7 +38,6 @@ Edit the XML file used to drive the test
       <setupType>VNETVMPR</setupType>
       <TestType></TestType>
       <TestFeature></TestFeature>
-      <TestID>AzureVNET_INTER_007</TestID>
       <SubtestValues>HS1VM1,HS1VM2,HS2VM1,HS2VM2</SubtestValues>
       <TestMode>IP,Hostname</TestMode>
     </test>

@@ -11,7 +11,6 @@
         <Category>Stress</Category>
         <Area>stress</Area>
         <Tags>stress,boot</Tags>
-        <TestID>AzureStress_001</TestID>
     </test>
     <test>
         <testName>STRESSTEST-VERIFY-RESTART-MAX-SRIOV-NICS</testName>
@@ -29,6 +28,5 @@
         <Category>Stress</Category>
         <Area>stress</Area>
         <Tags>stress,boot,network,sriov</Tags>
-        <TestID>AzureStress_001</TestID>
     </test>
 </TestCases>

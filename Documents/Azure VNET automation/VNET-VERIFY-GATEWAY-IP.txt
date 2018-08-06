@@ -33,7 +33,6 @@ Edit the XML file used to drive the test
       <setupType>VNETVMPR</setupType>
       <TestType></TestType>
       <TestFeature></TestFeature>
-      <TestID>AzureVNET_SANITY_005</TestID>
       <SubtestValues></SubtestValues>
       <TestMode></TestMode>
     </test>

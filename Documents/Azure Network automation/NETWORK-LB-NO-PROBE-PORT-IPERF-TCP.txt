@@ -33,7 +33,6 @@ Add following test definition under "<testsDefinition>..</testsDefinition>" in X
 		<setupType>LoadBalancedNoCP</setupType>
 		<TestType></TestType>
 		<TestFeature></TestFeature>
-		<TestID>AzureNetwork_LB_001</TestID>
 		<TestMode>VIP,URL</TestMode>
 		<Priority>P0</Priority>
     </test>

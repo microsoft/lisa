@@ -78,7 +78,7 @@ function Run-SetupScript {
         [string]$SSHPort,
         [string]$Username,
         [string]$Password,
-        [string]$TestID
+        [string]$TestName
     )
 
     $workDir = Get-Location
@@ -456,7 +456,7 @@ function Run-Test {
     if ($testPlatform -eq "Hyperv" -and $CurrentTestData.SetupScript) {
         $setupResult = Run-SetupScript -Script $CurrentTestData.SetupScript `
              -Parameters $testParameters -VMData $AllVMData `
-             -TestID $CurrentTestData.TestID
+             -TestName $CurrentTestData.TestName
     }
 
     if ($CurrentTestData.files) {

@@ -40,7 +40,6 @@ Edit the XML file used to drive the test
       <setupType>VNETVMPR</setupType>
       <TestType></TestType>
       <TestFeature></TestFeature>
-      <TestID>AzureVNET_INTRA_002</TestID>
       <SubtestValues>SameHS-DiffSubnet,DiffHS-SameSubnet,DiffHS-DiffSubnet</SubtestValues>
       <TestMode>DIP,Hostname</TestMode>
     </test>

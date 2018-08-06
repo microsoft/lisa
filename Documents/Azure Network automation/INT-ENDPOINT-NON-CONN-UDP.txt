@@ -28,7 +28,6 @@ Add following test definition under "<testsDefinition>..</testsDefinition>" in X
 		<setupType>IEndpointTwoHS</setupType>
 		<TestType></TestType>
 		<TestFeature></TestFeature>
-		<TestID>AzureNetwork_INT_009</TestID>
 		<TestMode>IP,Hostname</TestMode>
     </test>
  	

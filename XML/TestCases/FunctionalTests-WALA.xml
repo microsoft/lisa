@@ -14,7 +14,6 @@
         <Category>Functional</Category>
         <Area>WALA</Area>
         <Tags>wala</Tags>
-        <TestID>AzureWALA_002</TestID>
     </test>
     <test>
         <testName>WALA-PROCESS-CHECK</testName>
@@ -28,7 +27,6 @@
         <Category>Functional</Category>
         <Area>WALA</Area>
         <Tags>wala</Tags>
-        <TestID>AzureWALA_004</TestID>
     </test>
     <test>
         <testName>WALA-VERSION-CHECK</testName>
@@ -45,7 +43,6 @@
         <Category>Functional</Category>
         <Area>WALA</Area>
         <Tags>wala</Tags>
-        <TestID>AzureWALA_005</TestID>
     </test>
     <test>
         <testName>WALA-RESOURCE-DISK-FILESYSTEM-CHECK</testName>
@@ -59,7 +56,6 @@
         <Category>Functional</Category>
         <Area>WALA</Area>
         <Tags>wala</Tags>
-        <TestID>AzureWALA_008</TestID>
     </test>
     <test>
         <testName>WALA-VERIFY-MNT-RESOURCE-WRITABLE</testName>
@@ -73,7 +69,6 @@
         <Category>Functional</Category>
         <Area>WALA</Area>
         <Tags>wala</Tags>
-        <TestID>AzureWALA_017</TestID>
     </test>
     <test>
         <testName>WALA-VERIFY-MNT-RESOURCE-README</testName>
@@ -87,7 +82,6 @@
         <Category>Functional</Category>
         <Area>WALA</Area>
         <Tags>wala</Tags>
-        <TestID>AzureWALA_022</TestID>
     </test>
     <test>
         <testName>WALA-VERIFY-FIREWALL-STATUS</testName>
@@ -101,6 +95,5 @@
         <Category>Functional</Category>
         <Area>WALA</Area>
         <Tags>wala</Tags>
-        <TestID>AzureWALA_013</TestID>
     </test>            
 </TestCases>

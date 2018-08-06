@@ -41,7 +41,6 @@ Add following test definition under "<testsDefinition>..</testsDefinition>" in X
 		<setupType>CustomProbeOtherPort</setupType>
 		<TestType></TestType>
 		<TestFeature></TestFeature>
-		<TestID>AzureNetwork_CPSP_007</TestID>
 		<SubtestValues>2,4</SubtestValues>
 		<TestMode>VIP,URL</TestMode>
 		<Priority>P0</Priority>
