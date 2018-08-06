@@ -94,20 +94,16 @@ try {
 	$CurrentDirectory = Get-Location
 	$CmdArray = '7za.exe','dos2unix.exe', 'gawk','jq','plink.exe','pscp.exe'
 
-	if ($XMLSecretFile) {
-		$WebClient = New-Object System.Net.WebClient
-		$xmlSecret = [xml](Get-Content $XMLSecretFile)
-		$toolFileAccessLocation = $xmlSecret.secrets.blobStorageLocation
-	}
+	$WebClient = New-Object System.Net.WebClient
+	$xmlSecret = [xml](Get-Content $XMLSecretFile)
+	$toolFileAccessLocation = $xmlSecret.secrets.blobStorageLocation
 
 	$CmdArray | ForEach-Object {
 		# Verify the binary file in Tools location
 		if ( Test-Path $CurrentDirectory/Tools/$_ ) {
-			Write-Output "$_ file found in Tools folder."
-		} elseif (! $toolFileAccessLocation) {
-			Throw "$_ file is not found, please either download the file to Tools folder, or specify the blobStorageLocation in XMLSecretFile"
+			Write-Output "$_ File found in Tools folder."
 		} else {
-			Write-Output "$_ file not found in Tools folder."
+			Write-Output "$_ File not found in Tools folder."
 			Write-Output "Downloading required files from blob Storage Location"
 
 			$WebClient.DownloadFile("$toolFileAccessLocation/$_","$CurrentDirectory\Tools\$_")
@@ -429,9 +425,9 @@ try {
 	$ExitCode = 1
 } finally {
 	if ( $finalWorkingDirectory ) {
-		Write-Output "Copying test results back to original working directory: $originalWorkingDirectory."
+		Write-Output "Copying all files back to original working directory: $originalWorkingDirectory."
 		$tmpDest = '\\?\' + $originalWorkingDirectory
-		Copy-Item -Path "$finalWorkingDirectory\TestResults" -Destination $tmpDest -Force -Recurse | Out-Null
+		Copy-Item -Path "$finalWorkingDirectory\*" -Destination $tmpDest -Force -Recurse | Out-Null
 		Set-Location ..
 		Write-Output "Cleaning up $finalWorkingDirectory"
 		Remove-Item -Path $finalWorkingDirectory -Force -Recurse -ErrorAction SilentlyContinue
