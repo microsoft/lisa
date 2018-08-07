@@ -434,7 +434,7 @@ try {
 		Write-Output "Setting workspace back to original location: $originalWorkingDirectory"
 		Set-Location $originalWorkingDirectory
 	}
-	Get-Variable -Exclude PWD,*Preference | Remove-Variable -Force -ErrorAction SilentlyContinue
+	Get-Variable -Exclude PWD,*Preference,ExitCode | Remove-Variable -Force -ErrorAction SilentlyContinue
 	LogMsg "LISAv2 exits with code: $ExitCode"
 
 	exit $ExitCode
