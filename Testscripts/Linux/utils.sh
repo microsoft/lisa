@@ -42,6 +42,12 @@ declare __LIS_TESTFAILED="TestFailed"        # Error during execution of test
 # LIS constants file which contains the paramaters passed to the test
 declare __LIS_CONSTANTS_FILE="$LIS_HOME/constants.sh"
 
+# LIS log file.
+declare __LIS_LOG_FILE="$LIS_HOME/TestExecution.log"
+
+# LIS error log file.
+declare __LIS_ERROR_LOG_FILE="$LIS_HOME/TestExecutionError.log"
+
 # LIS summary file. Should be less verbose than the separate log file
 declare __LIS_SUMMARY_FILE="$LIS_HOME/summary.log"
 
@@ -67,12 +73,21 @@ UtilsInit()
 	fi
 
 	# clean-up any remaining files
-	if [ -e "$__LIS_STATE_FILE" ]; then
-		if [ -d "$__LIS_STATE_FILE" ]; then
-			rm -rf "$__LIS_STATE_FILE"
-			LogMsg "Warning: Found $__LIS_STATE_FILE directory"
+	if [ -e "$__LIS_LOG_FILE" ]; then
+		if [ -d "$__LIS_LOG_FILE" ]; then
+			rm -rf "$__LIS_LOG_FILE"
+			LogMsg "Warning: Found $__LIS_LOG_FILE directory"
 		else
-			rm -f "$__LIS_STATE_FILE"
+			rm -f "$__LIS_LOG_FILE"
+		fi
+	fi
+
+	if [ -e "$__LIS_ERROR_LOG_FILE" ]; then
+		if [ -d "$__LIS_ERROR_LOG_FILE" ]; then
+			rm -rf "$__LIS_ERROR_LOG_FILE"
+			LogMsg "Warning: Found $__LIS_ERROR_LOG_FILE directory"
+		else
+			rm -f "$__LIS_ERROR_LOG_FILE"
 		fi
 	fi
 
@@ -94,6 +109,8 @@ UtilsInit()
 		return 2
 	}
 
+	touch "$__LIS_LOG_FILE"
+	touch "$__LIS_ERROR_LOG_FILE"
 	touch "$__LIS_SUMMARY_FILE"
 
 	if [ -f "$__LIS_CONSTANTS_FILE" ]; then
@@ -170,6 +187,15 @@ SetTestStateRunning()
 LogMsg()
 {
 	echo $(date "+%a %b %d %T %Y") : "${1}"
+	echo $(date "+%a %b %d %T %Y") : "${1}" >> "./TestExecution.log"
+}
+
+# Error Logging function. The way LIS currently runs scripts and collects log files, just echo the message
+# $1 == Message
+LogErr()
+{
+	echo $(date "+%a %b %d %T %Y") : "${1}"
+	echo $(date "+%a %b %d %T %Y") : "${1}" >> "./TestExecutionError.log"
 }
 
 # Update summary file with message $1

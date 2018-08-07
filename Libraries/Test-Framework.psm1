@@ -200,22 +200,35 @@ function Collect-TestLogs {
     )
     # Note: This is a temporary solution until a standard is decided
     # for what string py/sh scripts return
-    $resultTranslation = @{ "TestAborted" = "Aborted"; "TestFailed" = "FAIL"; "TestCompleted" = "PASS" }
+    $resultTranslation = @{ "TestAborted" = "Aborted";
+                            "TestFailed" = "FAIL";
+                            "TestCompleted" = "PASS"
+                          }
 
     if ($TestType -eq "sh") {
+        $filesTocopy = "{0}/state.txt, {0}/summary.log, {0}/TestExecution.log, {0}/TestExecutionError.log" `
+            -f @("/home/${Username}")
         RemoteCopy -download -downloadFrom $PublicIP -downloadTo $LogsDestination `
              -Port $SSHPort -Username "root" -password $Password `
-             -files "/home/${Username}/state.txt, /home/${Username}/${TestName}_summary.log"
-        $statePath = Join-Path $LogDir "state.txt"
-        $testResult += $(Get-Content $statePath)
-        $testResult = $resultTranslation[$testResult]
+             -files $filesTocopy
+        $summary = Get-Content (Join-Path $LogDir "summary.log")
+        $testState = Get-Content (Join-Path $LogDir "state.txt")
+        $testResult = $resultTranslation[$testState]
     } elseif ($TestType -eq "py") {
+        $filesTocopy = "{0}/state.txt, {0}/Summary.log, {0}/${TestName}_summary.log" `
+            -f @("/home/${Username}")
         RemoteCopy -download -downloadFrom $PublicIP -downloadTo $LogsDestination `
              -Port $SSHPort -Username "root" -password $Password `
-             -files "/home/${Username}/state.txt, /home/${Username}/Summary.log, /home/${Username}/${TestName}_summary.log"
-        $statePath = Join-Path $LogDir "Summary.log"
-        $testResult += $(Get-Content $statePath)
+             -files $filesTocopy
+        $summary = Get-Content (Join-Path $LogDir "Summary.log")
+        $testResult = $summary
     }
+
+    LogMsg "TEST SCRIPT SUMMARY ~~~~~~~~~~~~~~~"
+    $summary | ForEach-Object {
+        Write-Host $_ -ForegroundColor Gray -BackgroundColor White
+    }
+    LogMsg "END OF TEST SCRIPT SUMMARY ~~~~~~~~~~~~~~~"
 
     return $testResult
 }

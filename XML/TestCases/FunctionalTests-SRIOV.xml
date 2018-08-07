@@ -45,7 +45,7 @@
         </TestParameters>
         <PowershellScript>VERIFY-TEST-SCRIPT-IN-LINUX-GUEST.ps1</PowershellScript>
         <testScript>verify-ifup-nics.sh</testScript>
-        <files>.\Testscripts\Linux\verify-ifup-nics.sh</files>
+        <files>.\Testscripts\Linux\verify-ifup-nics.sh,.\TestScripts\Linux\utils.sh</files>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>SRIOV</Area>
