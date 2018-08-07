@@ -11,7 +11,7 @@
     </test>
     <test>
         <TestName>VERIFY-DEPLOYMENT-PROVISION-SRIOV</TestName>
-        <PowershellScript>BVT-VERIFY-DEPLOYMENT-PROVISION.ps1</PowershellScript>
+        <testScript>BVT-VERIFY-DEPLOYMENT-PROVISION.ps1</testScript>
         <files></files>
         <setupType>SingleVM</setupType>
         <OverrideVMSize>Standard_D13_v2</OverrideVMSize>
