@@ -162,9 +162,9 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
 
 				if(($testPriority -imatch $currentTestData.Priority ) -or (!$testPriority))	{
 					$CurrentTestLogDir = "$LogDir\$($currentTestData.testName)"
-					mkdir "$CurrentTestLogDir" -ErrorAction SilentlyContinue | out-null
-					Set-Variable -Name CurrentTestLogDir -Value $CurrentTestLogDir -Scope Global
-					Set-Variable -Name LogDir -Value $CurrentTestLogDir -Scope Global
+					New-Item -Type Directory -Path $CurrentTestLogDir -ErrorAction SilentlyContinue | Out-Null
+					Set-Variable -Name "CurrentTestLogDir" -Value $CurrentTestLogDir -Scope Global
+					Set-Variable -Name "LogDir" -Value $CurrentTestLogDir -Scope Global
 					$TestCaseLogFile = "$CurrentTestLogDir\CurrentTestLogs.txt"
 					$testcase = StartLogTestCase $testsuite "$($test.Name)" "CloudTesting.$($testCycle.cycleName)"
 					$testSuiteResultDetails.totalTc = $testSuiteResultDetails.totalTc +1
@@ -176,7 +176,7 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
 						LogMsg "~~~~~~~~~~~~~~~TEST STARTED : $($currentTestData.testName)~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 						LogMsg "Starting multiple tests : $($currentTestData.testName)"
 						$CurrentTestResult = Run-Test -CurrentTestData $currentTestData -XmlConfig $xmlConfig `
-							-Distro $Distro -LogDir $LogDir -VMUser $user -VMPassword $password `
+							-Distro $Distro -LogDir $CurrentTestLogDir -VMUser $user -VMPassword $password `
 							-DeployVMPerEachTest $ExecuteSetupForEachTest @TestState
 						$testResult = $CurrentTestResult.TestResult
 						$testSummary = $CurrentTestResult.TestSummary
