@@ -834,7 +834,7 @@ while(!$saInfoCollected -and ($retryCount -lt $maxRetryCount))
 
 $StorageAccountName = $xmlConfig.config.$TestPlatform.General.ARMStorageAccount
 #Condition Existing Storage - NonManaged disks
-if ( $StorageAccountName -inotmatch "NewStorage" -and !$UseManagedDisks)
+if ( $StorageAccountName -inotmatch "NewStorage" -and !$UseManagedDisks -and $CurrentTestData.AdditionalHWConfig.DiskType -ne "Managed")
 {
     $StorageAccountType = ($GetAzureRMStorageAccount | where {$_.StorageAccountName -eq $StorageAccountName}).Sku.Tier.ToString()
     $StorageAccountRG = ($GetAzureRMStorageAccount | where {$_.StorageAccountName -eq $StorageAccountName}).ResourceGroupName.ToString()
@@ -851,7 +851,7 @@ if ( $StorageAccountName -inotmatch "NewStorage" -and !$UseManagedDisks)
 }
 
 #Condition Existing Storage - Managed Disks
-if ( $StorageAccountName -inotmatch "NewStorage" -and $UseManagedDisks)
+if ( $StorageAccountName -inotmatch "NewStorage" -and ($UseManagedDisks -or $CurrentTestData.AdditionalHWConfig.DiskType -eq "Managed"))
 {
     $StorageAccountType = ($GetAzureRMStorageAccount | where {$_.StorageAccountName -eq $StorageAccountName}).Sku.Tier.ToString()
     if($StorageAccountType -match 'Premium')
@@ -867,7 +867,7 @@ if ( $StorageAccountName -inotmatch "NewStorage" -and $UseManagedDisks)
 
 
 #Condition New Storage - NonManaged disk
-if ( $StorageAccountName -imatch "NewStorage" -and !$UseManagedDisks)
+if ( $StorageAccountName -imatch "NewStorage" -and !$UseManagedDisks -and $CurrentTestData.AdditionalHWConfig.DiskType -ne "Managed")
 {
     $NewARMStorageAccountType = ($StorageAccountName).Replace("NewStorage_","")
     Set-Variable -Name StorageAccountTypeGlobal -Value $NewARMStorageAccountType  -Scope Global
@@ -879,7 +879,7 @@ if ( $StorageAccountName -imatch "NewStorage" -and !$UseManagedDisks)
 }
 
 #Condition New Storage - Managed disk
-if ( $StorageAccountName -imatch "NewStorage" -and $UseManagedDisks)
+if ( $StorageAccountName -imatch "NewStorage" -and ($UseManagedDisks -or $CurrentTestData.AdditionalHWConfig.DiskType -eq "Managed"))
 {
     Set-Variable -Name StorageAccountTypeGlobal -Value ($StorageAccountName).Replace("NewStorage_","")  -Scope Global
     LogMsg "Conflicting parameters - NewStorage and UseManagedDisks. Storage account will not be created."
@@ -1086,7 +1086,7 @@ Set-Content -Value "$($indents[0]){" -Path $jsonFile -Force
                 Add-Content -Value "$($indents[3])^type^: ^Microsoft.Compute/availabilitySets^," -Path $jsonFile
                 Add-Content -Value "$($indents[3])^name^: ^[variables('availabilitySetName')]^," -Path $jsonFile
                 Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
-                if ($UseManagedDisks)
+                if ($UseManagedDisks -or ($CurrentTestData.AdditionalHWConfig.DiskType -eq "Managed"))
                 {
                     Add-Content -Value "$($indents[3])^sku^:" -Path $jsonFile
                     Add-Content -Value "$($indents[3]){" -Path $jsonFile
@@ -1137,7 +1137,7 @@ Set-Content -Value "$($indents[0]){" -Path $jsonFile -Force
         #endregion
 
         #region CustomImages
-        if ($OsVHD -and $UseManagedDisks)
+        if ($OsVHD -and ($UseManagedDisks -or $CurrentTestData.AdditionalHWConfig.DiskType -eq "Managed"))
         {
         Add-Content -Value "$($indents[2]){" -Path $jsonFile
             Add-Content -Value "$($indents[3])^apiVersion^: ^2017-12-01^," -Path $jsonFile
@@ -1818,7 +1818,7 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
             {
                 Add-Content -Value "$($indents[4])^[concat('Microsoft.Storage/storageAccounts/', variables('StorageAccountName'))]^," -Path $jsonFile
             }
-            if ( $UseManagedDisks -and $OsVHD )
+            if ( $OsVHD -and ($UseManagedDisks -or $CurrentTestData.AdditionalHWConfig.DiskType -eq "Managed") )
             {
                 Add-Content -Value "$($indents[4])^[resourceId('Microsoft.Compute/images', '$RGName-Image')]^," -Path $jsonFile
             }
@@ -1898,7 +1898,7 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
                         Add-Content -Value "$($indents[6])^version^: ^$version^" -Path $jsonFile
                     Add-Content -Value "$($indents[5])}," -Path $jsonFile
                 }
-                elseif ( $UseManagedDisks -and $OsVHD )
+                elseif ( $OsVHD -and ($UseManagedDisks -or $CurrentTestData.AdditionalHWConfig.DiskType -eq "Managed") )
                 {
                     Add-Content -Value "$($indents[5])^imageReference^ : " -Path $jsonFile
                     Add-Content -Value "$($indents[5]){" -Path $jsonFile
@@ -1909,7 +1909,7 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
                     Add-Content -Value "$($indents[5]){" -Path $jsonFile
                     if($osVHD)
                     {
-                        if ($UseManagedDisks)
+                        if ($UseManagedDisks -or $CurrentTestData.AdditionalHWConfig.DiskType -eq "Managed")
                         {
                             LogMsg ">>Using VHD : $osVHD (Converted to Managed Image)"
                             Add-Content -Value "$($indents[6])^osType^: ^Linux^," -Path $jsonFile
@@ -1942,7 +1942,7 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
                     }
                     else
                     {
-                        if ($UseManagedDisks)
+                        if ($UseManagedDisks -or $CurrentTestData.AdditionalHWConfig.DiskType -eq "Managed")
                         {
                             Add-Content -Value "$($indents[6])^name^: ^$vmName-OSDisk^," -Path $jsonFile
                             Add-Content -Value "$($indents[6])^createOption^: ^FromImage^," -Path $jsonFile
@@ -1977,7 +1977,7 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
                         Add-Content -Value "$($indents[6])," -Path $jsonFile
                         }
 
-                        if ($UseManagedDisks)
+                        if ($UseManagedDisks -or $CurrentTestData.AdditionalHWConfig.DiskType -eq "Managed")
                         {
                         Add-Content -Value "$($indents[6]){" -Path $jsonFile
                             Add-Content -Value "$($indents[7])^name^: ^$vmName-disk-lun-$($dataDisk.LUN)^," -Path $jsonFile
