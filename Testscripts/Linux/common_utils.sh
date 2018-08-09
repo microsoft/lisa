@@ -356,7 +356,7 @@ function build_lagscope () {
 
 function install_lagscope () {
 	echo "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of lagscope"
-	update_repo
+	update_repos
 	case "$DISTRO_NAME" in
 		rhel|centos)
 			install_epel
@@ -403,7 +403,7 @@ function build_ntttcp () {
 
 function install_ntttcp () {
 	echo "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of ntttcp"
-	update_repo
+	update_repos
 	case "$DISTRO_NAME" in
 		rhel|centos)
 			install_epel
