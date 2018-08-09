@@ -1804,7 +1804,7 @@ Function DoTestCleanUp($CurrentTestResult, $testName, $DeployedServices, $Resour
 				$TestName = $CurrentTestData.TestName
 				$FilesToDownload = "$($vmData.RoleName)-*.txt"
 				$out = RemoteCopy -upload -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files .\Testscripts\Linux\CollectLogFile.sh -username $user -password $password
-				$out = RunLinuxCmd -username $user -password $password -ip $vmData.PublicIP -port $vmData.SSHPort -command "bash CollectLogFile.sh" -ignoreLinuxExitCode
+				$out = RunLinuxCmd -username $user -password $password -ip $vmData.PublicIP -port $vmData.SSHPort -command "bash CollectLogFile.sh" -ignoreLinuxExitCode -runAsSudo
 				$out = RemoteCopy -downloadFrom $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -files "$FilesToDownload" -downloadTo "$LogDir" -download
 				$KernelVersion = Get-Content "$LogDir\$($vmData.RoleName)-kernelVersion.txt"
 				$GuestDistro = Get-Content "$LogDir\$($vmData.RoleName)-distroVersion.txt"
