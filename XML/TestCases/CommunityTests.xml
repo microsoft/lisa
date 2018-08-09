@@ -65,13 +65,31 @@
     </test>	
     <test>
         <TestName>LINUX-TEST-PROJECT-TESTS</TestName>
-        <TestScript>LINUX-TEST-PROJECT-TESTS.ps1</TestScript>
-        <files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\Linux-Test-Project-Tests.sh</files>
+        <TestScript>Linux-Test-Project-Tests.sh</TestScript>
+        <files>.\Testscripts\Linux\utils.sh,.\TestScripts\Linux\Linux-Test-Project-Tests.sh</files>
         <setupType>LTP</setupType>
+		<TestParameters>
+            <param>TC_COVERED=LTP-01</param>
+        </TestParameters>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>      
+        <Timeout>7200</Timeout>
         <Platform>Azure,HyperV</Platform>
         <Category>Community</Category>
         <Area>LTP</Area>
         <Tags>LTP</Tags>
-    </test>	
+    </test>
+	<test>
+        <testName>LSVMBUS</testName>
+        <testScript>LSVMBUS.sh</testScript>
+        <files>.\TestScripts\Linux\LSVMBUS.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>Stress</setupType>
+        <TestParameters>
+            <param>TC_COVERED=lsvmbus-01,lsvmbus-02</param>
+            <param>VCPU=8</param>
+        </TestParameters>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Community</Category>
+        <Area>LSVMBUS</Area>
+        <Tags>lsvmbus</Tags>
+    </test>
 </TestCases>

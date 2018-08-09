@@ -269,34 +269,6 @@
         <Area>CORE</Area>
         <Tags>core</Tags>
     </test>
-        <test>
-        <testName>BVT-LSVMBUS</testName>
-        <testScript>BVT-LSVMBUS.sh</testScript>
-        <files>.\TestScripts\Linux\BVT-LSVMBUS.sh,.\TestScripts\Linux\utils.sh</files>
-        <setupType>Stress</setupType>
-        <TestParameters>
-            <param>TC_COVERED=lsvmbus-01,lsvmbus-02</param>
-            <param>VCPU=8</param>
-        </TestParameters>
-        <Platform>Azure,HyperV</Platform>
-        <Category>BVT</Category>
-        <Area>LSVMBUS</Area>
-        <Tags>lsvmbus</Tags>
-    </test>
-    <test>
-        <testName>BVT-LTP-BASIC</testName>
-        <testScript>BVT-LTP-BASIC.sh</testScript>
-        <files>.\TestScripts\Linux\BVT-LTP-BASIC.sh,.\TestScripts\Linux\utils.sh</files>
-        <setupType>Stress</setupType>
-        <TestParameters>
-            <param>TC_COVERED=LTP-01</param>
-        </TestParameters>
-        <Timeout>7200</Timeout>
-        <Platform>Azure,HyperV</Platform>
-        <Category>BVT</Category>
-        <Area>LTP</Area>
-        <Tags>ltp</Tags>
-    </test>
     <test>
         <testName>BVT-KVP-MAX-READ</testName>
         <testScript>BVT-KVP-MAX-READ.ps1</testScript>
