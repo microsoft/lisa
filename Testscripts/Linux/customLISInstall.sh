@@ -149,7 +149,7 @@ elif [ $DistroName == "CENTOS" -o $DistroName == "REDHAT" -o $DistroName == "FED
 	LISDir=`pwd`
 	LogMsg "Installing kernel-devel-${kernel} for LIS..."
 	# TODO - code refactoring should fix non Microsoft blob access
-	yum install -y "https://konkasoftpackages.blob.core.windows.net/linuxbinaries/kernel-devel-${kernel}.rpm" ~/build-CustomLIS.txt 2>&1
+	yum install -y "https://partnerpipelineshare.blob.core.windows.net/kernel-devel-rpms/kernel-devel-${kernel}.rpm" ~/build-CustomLIS.txt 2>&1
 	LogMsg "LIS is installing from this ${LISDir} branch..."
 	./*-hv-driver-install >> ~/build-CustomLIS.txt 2>&1
 	if [ $? -ne 0 ]; then
