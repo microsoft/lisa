@@ -109,6 +109,9 @@
         <testName>PERF-STORAGE-4K-IO</testName>
         <testScript>PERF-STORAGE-MULTIDISK-RAID0-FIO.ps1</testScript>
         <setupType>DS14DISK12</setupType>
+        <AdditionalHWConfig>
+            <DiskType>Managed</DiskType>
+        </AdditionalHWConfig>        
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
         <files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <TestParameters>
@@ -130,6 +133,9 @@
         <testName>PERF-STORAGE-1024K-IO</testName>
         <testScript>PERF-STORAGE-MULTIDISK-RAID0-FIO.ps1</testScript>
         <setupType>DS14DISK12</setupType>
+        <AdditionalHWConfig>
+            <DiskType>Managed</DiskType>
+        </AdditionalHWConfig>        
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
         <files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <TestParameters>
