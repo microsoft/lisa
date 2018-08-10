@@ -41,7 +41,7 @@ function Main {
         #endregion
 
         LogMsg "Getting Active NIC Name."
-        $getNicCmd = ". ./common_utils.sh &> /dev/null && get_active_nic_name"
+        $getNicCmd = ". ./utils.sh &> /dev/null && get_active_nic_name"
         $clientNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command $getNicCmd).Trim()
         $serverNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username "root" -password $password -command $getNicCmd).Trim()
         if ( $serverNicName -eq $clientNicName) {
@@ -74,7 +74,7 @@ function Main {
         $myString = @"
 cd /root/
 ./perf_ntttcp.sh &> ntttcpConsoleLogs.txt
-. common_utils.sh
+. utils.sh
 collect_VM_properties
 "@
         Set-Content "$LogDir\StartNtttcpTest.sh" $myString

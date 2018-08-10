@@ -21,9 +21,9 @@ LogMsg()
 	echo "[$(date +"%x %r %Z")] ${1}"
 	echo "[$(date +"%x %r %Z")] ${1}" >> "${HOMEDIR}/runlog.txt"
 }
-
+LogMsg "Test start..."
 CONSTANTS_FILE="$HOMEDIR/constants.sh"
-UTIL_FILE="$HOMEDIR/common_utils.sh"
+UTIL_FILE="$HOMEDIR/utils.sh"
 ICA_TESTRUNNING="TestRunning"      # The test is running
 ICA_TESTCOMPLETED="TestCompleted"  # The test completed successfully
 ICA_TESTABORTED="TestAborted"      # Error during the setup of the test

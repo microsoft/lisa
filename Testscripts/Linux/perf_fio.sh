@@ -25,7 +25,7 @@ LogMsg "Sleeping 10 seconds.."
 sleep 10
 
 CONSTANTS_FILE="$HOMEDIR/constants.sh"
-UTIL_FILE="$HOMEDIR/common_utils.sh"
+UTIL_FILE="$HOMEDIR/utils.sh"
 STATE_FILE="$HOMEDIR/state.txt"
 ICA_TESTRUNNING="TestRunning"      # The test is running
 ICA_TESTCOMPLETED="TestCompleted"  # The test completed successfully

@@ -48,7 +48,7 @@ function Main {
             $DataPath = "Synthetic"
         }
         LogMsg "Getting $DataPath NIC Name."
-        $getNicCmd = ". ./common_utils.sh &> /dev/null && get_active_nic_name"
+        $getNicCmd = ". ./utils.sh &> /dev/null && get_active_nic_name"
         $clientNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command $getNicCmd).Trim()
         $serverNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username "root" -password $password -command $getNicCmd).Trim()
         LogMsg "CLIENT $DataPath NIC: $clientNicName"
@@ -99,7 +99,7 @@ function Main {
         $myString = @"
 cd /root/
 ./perf_iperf3.sh &> iperf3tcpConsoleLogs.txt
-. common_utils.sh
+. utils.sh
 collect_VM_properties
 "@
         Set-Content "$LogDir\Startiperf3tcpTest.sh" $myString

@@ -2,7 +2,7 @@
     <test>
         <TestName>NESTED-KVM-BASIC-VERIFICATION</TestName>
         <testScript>nested_kvm_basic_test.sh</testScript>
-        <files>.\Testscripts\Linux\common_utils.sh,.\Testscripts\Linux\nested_kvm_basic_test.sh,.\TestScripts\Linux\utils.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_kvm_basic_test.sh,.\TestScripts\Linux\utils.sh</files>
         <setupType>SingleVM</setupType>
         <OverrideVMSize>Standard_E4_v3</OverrideVMSize>
         <TestParameters>
@@ -20,7 +20,7 @@
     <test>
         <TestName>NESTED-KVM-NTTTCP-PRIVATE-BRIDGE</TestName>
         <testScript>NESTED-KVM-NTTTCP-PRIVATE-BRIDGE.ps1</testScript>
-        <files>.\Testscripts\Linux\common_utils.sh,.\Testscripts\Linux\nested_kvm_ntttcp_private_bridge.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_kvm_ntttcp_private_bridge.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_ntttcp.sh,.\Testscripts\Linux\run-ntttcp-and-tcping.sh,.\Testscripts\Linux\report-ntttcp-and-tcping.sh</files>
         <setupType>SingleVM</setupType>
         <OverrideVMSize>Standard_E16_v3</OverrideVMSize>
         <TestParameters>

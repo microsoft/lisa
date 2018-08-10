@@ -24,18 +24,13 @@
 #   -logFolder: The folder path for logs
 #
 #######################################################################
-# Source utils.sh and common_utils.sh
+# Source utils.sh
 . utils.sh || {
 	echo "ERROR: unable to source utils.sh!"
 	echo "TestAborted" > state.txt
 	exit 2
 }
 
-. ./common_utils.sh || {
-	echo "ERROR: unable to source common_utils.sh!"
-	echo "TestAborted" > state.txt
-	exit 2
-}
 # Source constants file and initialize most common variables
 UtilsInit
 
@@ -102,8 +97,7 @@ DownloadImage()
 
 RunNestedVM()
 {
-	distro=$(detect_linux_ditribution)
-	if [ $distro == "centos" ] || [ $distro == "rhel" ] || [ $distro == "oracle" ]; then
+	if [ $DISTRO_NAME == "centos" ] || [ $DISTRO_NAME == "rhel" ] || [ $DISTRO_NAME == "oracle" ]; then
 		LogMsg "Install epel repository"
 		install_epel
 		LogMsg "Install qemu-system-x86"

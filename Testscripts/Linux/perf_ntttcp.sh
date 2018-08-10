@@ -19,7 +19,7 @@
 #######################################################################
 
 CONSTANTS_FILE="./constants.sh"
-UTIL_FILE="./common_utils.sh"
+UTIL_FILE="./utils.sh"
 ICA_TESTRUNNING="TestRunning"           # The test is running
 ICA_TESTCOMPLETED="TestCompleted"       # The test completed successfully
 ICA_TESTABORTED="TestAborted"           # Error during the setup of the test

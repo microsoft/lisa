@@ -24,7 +24,7 @@ done
 #
 # Constants/Globals
 #
-UTIL_FILE="./common_utils.sh"
+UTIL_FILE="./utils.sh"
 CONSTANTS_FILE="./constants.sh"
 ICA_TESTRUNNING="TestRunning"      # The test is running
 ICA_TESTCOMPLETED="TestCompleted"  # The test completed successfully
@@ -134,8 +134,7 @@ install_dependencies() {
 	install_package "qemu-kvm"
 	lsmod | grep "kvm_intel"
 	check_exit_status "Install KVM" "log_msg"
-	distro=$(detect_linux_ditribution)
-	if [ $distro == "centos" ] || [ $distro == "rhel" ] || [ $distro == "oracle" ]; then
+	if [ $DISTRO_NAME == "centos" ] || [ $DISTRO_NAME == "rhel" ] || [ $DISTRO_NAME == "oracle" ]; then
 		log_msg "Install epel repository"
 		install_epel
 		log_msg "Install qemu-system-x86"
@@ -220,6 +219,7 @@ start_nested_vm() {
 	fi
 	remote_copy_wrapper $NestedUser $host_fwd_port "./enablePasswordLessRoot.sh" "put"
 	remote_copy_wrapper $NestedUser $host_fwd_port "./perf_ntttcp.sh" "put"
+	remote_copy_wrapper $NestedUser $host_fwd_port "$UTIL_FILE" "put"
 	remote_exec_wrapper $NestedUser $host_fwd_port "chmod a+x /home/$NestedUser/*.sh"
 	remote_exec_wrapper $NestedUser $host_fwd_port "echo $NestedUserPassword | sudo -S /home/$NestedUser/enableRoot.sh -password $NestedUserPassword"
 	check_exit_status "Enable root for VM $image_name" "log_msg"
@@ -310,7 +310,6 @@ collect_logs() {
 	log_msg "Finished running perf_ntttcp.sh, start to collect logs"
 	remote_exec_wrapper "root" $CLIENT_HOST_FWD_PORT "mv ./ntttcp-test-logs ./ntttcp-test-logs-sender"
 	remote_exec_wrapper "root" $CLIENT_HOST_FWD_PORT "tar -cf ./ntttcp-test-logs-sender.tar ./ntttcp-test-logs-sender"
-	remote_copy_wrapper "root" $CLIENT_HOST_FWD_PORT "$UTIL_FILE" "put"
 	remote_exec_wrapper "root" $CLIENT_HOST_FWD_PORT ". $UTIL_FILE  && collect_VM_properties nested_properties.csv"
 	remote_copy_wrapper "root" $CLIENT_HOST_FWD_PORT "ntttcp-test-logs-sender.tar" "get"
 	remote_copy_wrapper "root" $CLIENT_HOST_FWD_PORT "ntttcpConsoleLogs" "get"

@@ -60,7 +60,7 @@ function Main {
         $myString = @"
 chmod +x perf_fio_nfs.sh
 ./perf_fio_nfs.sh &> fioConsoleLogs.txt
-. common_utls.sh
+. utils.sh
 collect_VM_properties
 "@
 

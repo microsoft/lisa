@@ -60,7 +60,7 @@ function Main {
         $myString = @"
 cd /root/
 ./perf_lagscope.sh &> lagscopeConsoleLogs.txt
-. common_utils.sh
+. utils.sh
 collect_VM_properties
 "@
         Set-Content "$LogDir\StartLagscopeTest.sh" $myString
