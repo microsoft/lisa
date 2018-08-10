@@ -92,7 +92,8 @@ Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1"
 try {
 	# Copy required binary files to working folder
 	$CurrentDirectory = Get-Location
-	$CmdArray = '7za.exe','dos2unix.exe', 'gawk','jq','plink.exe','pscp.exe'
+	$CmdArray = @('7za.exe','dos2unix.exe','gawk','jq','plink.exe','pscp.exe', `
+				  'kvp_client32','kvp_client64')
 
 	if ($XMLSecretFile) {
 		$WebClient = New-Object System.Net.WebClient

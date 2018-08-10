@@ -1,2 +1,20 @@
-<TestSetup>    
+<TestSetup>
+	<Stress>
+		<isDeployed>NO</isDeployed>
+		<ResourceGroup>
+			<VirtualMachine>
+				<state></state>
+				<InstanceSize>Standard_DS4_v2</InstanceSize>
+				<ARMInstanceSize>Standard_DS4_v2</ARMInstanceSize>
+				<RoleName></RoleName>
+				<EndPoints>
+					<Name>SSH</Name>
+					<Protocol>tcp</Protocol>
+					<LocalPort>22</LocalPort>
+					<PublicPort>22</PublicPort>
+				</EndPoints>
+				<DataDisk></DataDisk>
+			</VirtualMachine>
+		</ResourceGroup>
+	</Stress> 
 </TestSetup>

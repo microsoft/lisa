@@ -1,11 +1,7 @@
 #!/bin/bash
-
-########################################################################
-#
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
-#
-########################################################################
+
 ########################################################################
 #
 # Description:
@@ -20,13 +16,15 @@
 #    No optional parameters are needed
 #
 ########################################################################
+# Source utils.sh
+. utils.sh || {
+    echo "Error: unable to source utils.sh!"
+    echo "TestAborted" > state.txt
+    exit 0 
+}
 
-ICA_TESTRUNNING="TestRunning"      # The test is running
-ICA_TESTCOMPLETED="TestCompleted"  # The test completed successfully
-ICA_TESTABORTED="TestAborted"      # Error during setup of test
-ICA_TESTFAILED="TestFailed"        # Error while performing the test
-
-CONSTANTS_FILE="constants.sh"
+# Source constants file and initialize most common variables
+UtilsInit
 
 # define regular stable releases in order to avoid unstable builds
 # https://github.com/linux-test-project/ltp/tags
@@ -34,213 +32,108 @@ ltp_version="20170929"
 
 TOP_BUILDDIR="/opt/ltp"
 TOP_SRCDIR="$HOME/src"
-LTP_RESULTS="/root/ltp-results.log"
-LTP_OUTPUT="/root/ltp-output.log"
-LTP_FAILED="/root/ltp-failed.log"
-LTP_HTML="/root/ltp-results.html"
-LTP_SKIPFILE="/root/ltp-skipfile"
-DMESG_LOG_DIR="/root/ltp-kernel.log"
+LTP_RESULTS="$HOME/ltp-results.log"
+LTP_OUTPUT="$HOME/ltp-output.log"
 
-MAKE_JOBS=$(getconf _NPROCESSORS_ONLN)
+proc_count=$(grep -c processor < /proc/cpuinfo)
 
-#######################################################################
-# Adds a timestamp to the log file
-#######################################################################
-LogMsg() {
-    echo $(date "+%a %b %d %T %Y") : ${1}
+function verify_install () {
+    if [ "$1" -eq "0" ]; then
+        LogMsg "${2} was successfully installed."
+    else
+        LogMsg "Error: failed to install $2"
+    fi
 }
 
-#######################################################################
-# Updates the summary.log file
-#######################################################################
-UpdateSummary() {
-    echo $1 >> ~/summary.log
-}
-
-#######################################################################
-# Keeps track of the state of the test
-#######################################################################
-UpdateTestState() {
-    echo $1 > ~/state.txt
-}
-
-#######################################################################
-# Checks what Linux distro we are running
-#######################################################################
-LinuxRelease() {
-    DISTRO=`grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux" /etc/{issue,*release,*version}`
-
-    case $DISTRO in
-        *buntu*)
-            echo "UBUNTU";;
-        Fedora*)
-            echo "FEDORA";;
-        CentOS*)
-            echo "CENTOS";;
-        *SUSE*)
-            echo "SLES";;
-        *Red*Hat*)
-            echo "RHEL";;
-        Debian*)
-            echo "DEBIAN";;
-        *)
-            LogMsg "Unknown Distro"
-            UpdateTestState "TestAborted"
-            UpdateSummary "Unknown Distro, test aborted"
-            exit 1
-            ;; 
-    esac
-}
-
-#######################################################################
-# Installs SLES LTP dependencies
-#######################################################################
-InstallSLESDependencies() {
-    zypper --non-interactive in m4
-    zypper --non-interactive in libaio-devel
-    zypper --non-interactive in libattr1
-    zypper --non-interactive in libcap-progs
-    zypper --non-interactive in 'bison>=2.4.1'
-    zypper --non-interactive in db48-utils
-    zypper --non-interactive in libdb-4_8
-    zypper --non-interactive in perl-BerkeleyDB
-    zypper --non-interactive in 'flex>=2.5.33'
-    zypper --non-interactive in 'make>=3.81'
-    zypper --non-interactive in 'automake>=1.10.2'
-    zypper --non-interactive in 'autoconf>=2.61'
-    zypper --non-interactive in gcc
-    zypper --non-interactive in git-core
-
-}
-
-#######################################################################
-# Installs UBUNTU LTP dependencies
-#######################################################################
-InstallUbuntuDependencies() {
-    apt-get -y update
-    apt-get -y install autoconf
-    apt-get -y install automake
-    apt-get -y install m4
-    apt-get -y install libaio-dev
-    apt-get -y install libattr1
-    apt-get -y install libcap-dev
-    apt-get -y install bison
-    apt-get -y install db48-utils
-    apt-get -y install libdb4.8
-    apt-get -y install libberkeleydb-perl
-    apt-get -y install flex
-    apt-get -y install make
-    apt-get -y install gcc
-    apt-get -y install git
-    apt-get -y install expect
-}
-
-#######################################################################
-# Installs RHEL LTP dependencies
-#######################################################################
-InstallRHELDependencies() {
-    yum install -y autoconf
-    yum install -y automake
-    yum install -y m4
-    yum install -y libaio-devel
-    yum install -y libattr
-    yum install -y libcap-devel
-    yum install -y bison
-    yum install -y db48-utils
-    yum install -y libdb4.8
-    yum install -y libberkeleydb-perl
-    yum install -y flex
-    yum install -y make
-    yum install -y gcc
-}
-
-if [ -e ~/summary.log ]; then
-    LogMsg "Cleaning up previous copies of summary.log"
-    rm -rf ~/summary.log
-fi
-
-LogMsg "Updating test case state to running"
-UpdateTestState $ICA_TESTRUNNING
-
-# Source the constants file
-if [ -e ~/${CONSTANTS_FILE} ]; then
-    source ~/${CONSTANTS_FILE}
-else
-    msg="Error: no ${CONSTANTS_FILE} file"
-    echo $msg
-    echo $msg >> ~/summary.log
-    UpdateTestState $ICA_TESTABORTED
-   exit 1
-fi
-
-echo "Covers ${TC_COVERED}" > ~/summary.log
-
+# Checks what Linux distro we are running on
 LogMsg "Installing dependencies"
-case $(LinuxRelease) in
-    "SLES")
-        InstallSLESDependencies;;
-    "UBUNTU" | "DEBIAN")
-        InstallUbuntuDependencies;;
-    "RHEL")
-        InstallRHELDependencies;;
-    "CENTOS")
-        InstallRHELDependencies;;
+GetDistro
+case $DISTRO in
+    "suse"*)
+        suse_packages=(m4 libaio-devel libattr1 libcap-progs 'bison>=2.4.1' \
+            db48-utils libdb-4_8 perl-BerkeleyDB 'flex>=2.5.33' 'make>=3.81' \
+            'automake>=1.10.2' 'autoconf>=2.61' gcc git-core psmisc)
+        for item in ${suse_packages[*]}
+        do
+            LogMsg "Starting to install ${item}... "
+            zypper --non-interactive in "$item"
+            verify_install "$?" "$item"
+        done
+        ;;
+    "ubuntu"* | "debian"*)
+        deb_packages=(autoconf automake m4 libaio-dev libattr1 libcap-dev \
+            bison db48-utils libdb4.8 libberkeleydb-perl flex make \
+            gcc git expect dh-autoreconf psmisc)
+        for item in ${deb_packages[*]}
+        do
+            LogMsg "Starting to install ${item}... "
+            apt install -y "$item"
+            verify_install "$?" "$item"
+        done
+        ;;
+    "redhat"* | "centos"* | "fedora"*)
+        rpm_packages=(autoconf automake m4 libaio-devel libattr libcap-devel \
+            bison db48-utils libdb4.8 libberkeleydb-perl flex make gcc git psmisc)
+        for item in ${rpm_packages[*]}
+        do
+            LogMsg "Starting to install ${item}... "
+            yum -y install "$item"
+            verify_install "$?" "$item"
+        done
+        ;;
     *)
         LogMsg "Unknown Distro"
-        UpdateTestState $ICA_TESTABORTED
-        UpdateSummary "Unknown distro: $ICA_TESTABORTED"
-        exit 1
+        SetTestStateAborted
+        exit 0
         ;;
 esac
 
 test -d "$TOP_SRCDIR" || mkdir -p "$TOP_SRCDIR"
-cd $TOP_SRCDIR
+cd "$TOP_SRCDIR"
 
 LogMsg "Cloning LTP"
 git clone https://github.com/linux-test-project/ltp.git
-TOP_SRCDIR="$HOME/src/ltp"
+TOP_SRCDIR="${HOME}/src/ltp"
 
-cd $TOP_SRCDIR
-git -c advice.detachedHead=false checkout tags/$ltp_version
+cd "$TOP_SRCDIR"
+git checkout tags/$ltp_version
 
 LogMsg "Configuring LTP..."
 # use autoreconf to match the installed package versions
-autoreconf -f
-make autotools
+autoreconf -f 2>/dev/null
+make autotools 2>/dev/null
 
 test -d "$TOP_BUILDDIR" || mkdir -p "$TOP_BUILDDIR"
-cd $TOP_BUILDDIR && "$TOP_SRCDIR/configure"
+cd "$TOP_BUILDDIR" && "$TOP_SRCDIR/configure"
 cd "$TOP_SRCDIR"
-./configure
+./configure 2>/dev/null
 
 LogMsg "Compiling LTP..."
-make all
-if [ $? -gt 0 ]; then
+make -j "$proc_count" all 2>/dev/null
+if [ $? -ne 0 ]; then
     LogMsg "Error: Failed to compile LTP!"
-    UpdateSummary "Error: Failed to compile LTP!"
-    UpdateTestState $ICA_TESTFAILED
-    exit 1
+    SetTestStateFailed
+    exit 0
 fi
 
 LogMsg "Installing LTP..."
-make install
-if [ $? -gt 0 ]; then
-        LogMsg "Error: Failed to install LTP!"
-        UpdateSummary "Error: Failed to install LTP!"
-        UpdateTestState $ICA_TESTFAILED
-        exit 1
+make -j "$proc_count" install 2>/dev/null
+if [ $? -ne 0 ]; then
+    LogMsg "Error: Failed to install LTP!"
+    SetTestStateFailed
+    exit 0
 fi
 
-cd $TOP_BUILDDIR
+cd "$TOP_BUILDDIR"
 
 LogMsg "Running LTP..."
-./runltplite.sh -c 4 -p -q -l $LTP_RESULTS -o $LTP_OUTPUT
+./runltplite.sh -c 4 -p -q -l "$LTP_RESULTS" -o "$LTP_OUTPUT" 2>/dev/null
 
-grep -A 5 "Total Tests" $LTP_RESULTS >> ~/summary.log
-if grep FAIL $LTP_OUTPUT ; then
+grep -A 5 "Total Tests" "$LTP_RESULTS" >> ~/summary.log
+if grep FAIL "$LTP_OUTPUT" ; then
     echo "Failed Tests:" >> ~/summary.log
-    grep FAIL $LTP_OUTPUT | cut -d':' -f 2- >> ~/summary.log
+    grep FAIL "$LTP_OUTPUT" | cut -d':' -f 2- >> ~/summary.log
 fi
 
-UpdateTestState $ICA_TESTCOMPLETED
+SetTestStateCompleted
 exit 0
