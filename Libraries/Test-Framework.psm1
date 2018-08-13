@@ -71,27 +71,19 @@ function Run-SetupScript {
 
     param(
         [string]$Script,
-        [hashtable]$Parameters,
-        [string]$VMname,
-        [string]$Hostname,
-        [string]$PublicIP,
-        [string]$SSHPort,
-        [string]$Username,
-        [string]$Password,
-        [string]$TestName
+        [hashtable]$Parameters
     )
 
     $workDir = Get-Location
     $scriptLocation = Join-Path $workDir $Script
-    $scriptParameters = ("rootDir={0};ipv4={1};username={2};password={3}" `
-             -f @($workDir,$PublicIP,$Username,$Password))
+    $scriptParameters = ""
     foreach ($param in $Parameters.Keys) {
-        $scriptParameters += "${param}=$($Parameters[$param])"
+        $scriptParameters += "${param}=$($Parameters[$param]);"
     }
     $msg = ("Test setup started using setup script:{0} with parameters:{1}" `
              -f @($Script,$scriptParameters))
-    $result = & "${scriptLocation}" -VMName $VMname -hvServer $Hostname `
-         -TestParams $scriptParameters
+    LogMsg $msg
+    $result = & "${scriptLocation}" -TestParams $scriptParameters
     return $result
 }
 
@@ -454,10 +446,15 @@ function Run-Test {
         }
     } else {
         if ($testPlatform.ToUpper() -eq "HYPERV") {
-            Apply-HyperVCheckpoint -VMnames $AllVMData.RoleName -CheckpointName "ICAbase"
-            $AllVMData = Check-IP -VMData $AllVMData
-            Set-Variable -Name AllVMData -Value $AllVMData -Scope Global
-            LogMsg "Public IP found for all VMs in deployment after checkpoint restore"
+            if ($CurrentTestData.AdditionalHWConfig.HyperVApplyCheckpoint -eq "False") {
+                RemoveAllFilesFromHomeDirectory -allDeployedVMs $AllVMData
+                LogMsg "Removed all files from home directory."
+            } else  {
+                Apply-HyperVCheckpoint -VMnames $AllVMData.RoleName -CheckpointName "ICAbase"
+                $AllVMData = Check-IP -VMData $AllVMData
+                Set-Variable -Name AllVMData -Value $AllVMData -Scope Global
+                LogMsg "Public IP found for all VMs in deployment after checkpoint restore"
+            }
         }
     }
 
@@ -468,8 +465,7 @@ function Run-Test {
 
     if ($testPlatform -eq "Hyperv" -and $CurrentTestData.SetupScript) {
         $setupResult = Run-SetupScript -Script $CurrentTestData.SetupScript `
-             -Parameters $testParameters -VMData $AllVMData `
-             -TestName $CurrentTestData.TestName
+             -Parameters $testParameters
     }
 
     if ($CurrentTestData.files) {
