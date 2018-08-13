@@ -251,7 +251,7 @@ function Enable-RootUser {
     foreach ($VM in $VMData) {
         RemoteCopy -upload -uploadTo $VM.PublicIP -Port $VM.SSHPort `
              -files ".\Testscripts\Linux\enableRoot.sh" -Username $Username -password $Password
-        $cmdResult = RunLinuxCmd -Command "echo '${Password}' | sudo -S bash enableRoot.sh -password ${RootPassword}" `
+        $cmdResult = RunLinuxCmd -Command "bash enableRoot.sh -password ${RootPassword}" -runAsSudo `
              -Username $Username -password $Password -ip $VM.PublicIP -Port $VM.SSHPort
         if (-not $cmdResult) {
             LogMsg "Fail to enable root user for VM: $($VM.RoleName)"
