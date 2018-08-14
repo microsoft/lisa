@@ -18,120 +18,38 @@
 HOMEDIR="/root"
 LogMsg()
 {
-    echo "[$(date +"%x %r %Z")] ${1}"
+	echo "[$(date +"%x %r %Z")] ${1}"
 	echo "[$(date +"%x %r %Z")] ${1}" >> "${HOMEDIR}/runlog.txt"
 }
 LogMsg "Sleeping 10 seconds.."
 sleep 10
 
-#export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/oem/bin:/usr/share/oem/python/bin:/opt/bin
 CONSTANTS_FILE="$HOMEDIR/constants.sh"
+UTIL_FILE="$HOMEDIR/utils.sh"
+STATE_FILE="$HOMEDIR/state.txt"
 ICA_TESTRUNNING="TestRunning"      # The test is running
 ICA_TESTCOMPLETED="TestCompleted"  # The test completed successfully
 ICA_TESTABORTED="TestAborted"      # Error during the setup of the test
 ICA_TESTFAILED="TestFailed"        # Error occurred during the test
 touch ./fioTest.log
+touch $STATE_FILE
 
-if [ -e ${CONSTANTS_FILE} ]; then
-    . ${CONSTANTS_FILE}
-else
-    errMsg="Error: missing ${CONSTANTS_FILE} file"
-    LogMsg "${errMsg}"
-    UpdateTestState $ICA_TESTABORTED
-    exit 10
-fi
-
+. ${CONSTANTS_FILE} || {
+	errMsg="Error: missing ${CONSTANTS_FILE} file"
+	LogMsg "${errMsg}"
+	UpdateTestState $ICA_TESTABORTED
+	exit 10
+}
+. ${UTIL_FILE} || {
+	errMsg="Error: missing ${UTIL_FILE} file"
+	LogMsg "${errMsg}"
+	UpdateTestState $ICA_TESTABORTED
+	exit 10
+}
 
 UpdateTestState()
 {
-    echo "${1}" > $HOMEDIR/state.txt
-}
-
-InstallFIO() 
-{
-	DISTRO=`grep -ihs "ubuntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os" /etc/{issue,*release,*version} /usr/lib/os-release`
-
-	if [[ $DISTRO =~ "Ubuntu" ]] || [[ $DISTRO =~ "Debian" ]];
-	then
-		LogMsg "Detected UBUNTU/Debian. Installing required packages"
-		until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done
-		apt-get update 
-		apt-get install -y pciutils gawk mdadm wget sysstat blktrace bc fio
-		if [ $? -ne 0 ]; then
-			LogMsg "Error: Unable to install fio"
-			exit 1
-		fi
-		mount -t debugfs none /sys/kernel/debug						
-	elif [[ $DISTRO =~ "Red Hat Enterprise Linux Server release 6" ]];
-	then
-		LogMsg "Detected RHEL 6.x; Installing required packages"
-		rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-6.noarch.rpm
-		yum -y --nogpgcheck install wget sysstat mdadm blktrace libaio fio
-		mount -t debugfs none /sys/kernel/debug
-	elif [[ $DISTRO =~ "Red Hat Enterprise Linux Server release 7" ]];
-	then
-		LogMsg "Detected RHEL 7.x; Installing required packages"
-		rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
-		yum -y --nogpgcheck install wget sysstat mdadm blktrace libaio fio
-		mount -t debugfs none /sys/kernel/debug	
-	elif [[ $DISTRO =~ "CentOS Linux release 6" ]] || [[ $DISTRO =~ "CentOS release 6" ]];
-	then
-		LogMsg "Detected CentOS 6.x; Installing required packages"
-		rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-6.noarch.rpm
-		yum -y --nogpgcheck install wget sysstat mdadm blktrace libaio fio
-		mount -t debugfs none /sys/kernel/debug		
-	elif [[ $DISTRO =~ "CentOS Linux release 7" ]];
-	then
-		LogMsg "Detected CentOS 7.x; Installing required packages"
-		rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
-		yum -y --nogpgcheck install wget sysstat mdadm blktrace libaio fio
-		mount -t debugfs none /sys/kernel/debug
-	elif [[ $DISTRO =~ "SUSE Linux Enterprise Server" ]];
-	then
-		LogMsg "Detected SLES. Installing required packages"
-		if [[ $DISTRO =~ "SUSE Linux Enterprise Server 12" ]];
-		then
-			LogMsg "Detected SLES 12"
-			repositoryUrl="https://download.opensuse.org/repositories/benchmark/SLE_12_SP3_Backports/benchmark.repo"
-		elif [[ $DISTRO =~ "SUSE Linux Enterprise Server 15" ]];
-		then
-			LogMsg "Detected SLES 15"
-			repositoryUrl="https://download.opensuse.org/repositories/network:utilities/SLE_15/network:utilities.repo"
-		else
-			LogMsg "Error: Unknown SLES version"
-			UpdateTestState "TestAborted"
-			exit 1			
-		fi
-		zypper addrepo $repositoryUrl
-		zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys refresh
-		zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install wget mdadm blktrace libaio1 sysstat
-		zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install fio
-		which fio
-		if [ $? -ne 0 ]; then
-			LogMsg "Info: fio is not available in repository. So, Installing fio using rpm"
-			fioUrl="https://eosgpackages.blob.core.windows.net/testpackages/tools/fio-sles-x86_64.rpm"
-			wget --no-check-certificate $fioUrl
-			LogMsg "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install ${fioUrl##*/}"
-			zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install ${fioUrl##*/}
-			which fio
-			if [ $? -ne 0 ]; then
-				LogMsg "Error: Unable to install fio from source/rpm"
-				UpdateTestState "TestAborted"
-				exit 1
-			fi
-		else
-			LogMsg "Info: fio installed from repository"
-		fi
-	elif [[ $DISTRO =~ "clear-linux-os" ]];
-	then
-		LogMsg "Detected Clear Linux OS. Installing required packages"
-		swupd bundle-add dev-utils-dev sysadmin-basic performance-tools os-testsuite-phoronix network-basic openssh-server dev-utils os-core os-core-dev
-	else
-		LogMsg "Unknown Distro"
-		UpdateTestState "TestAborted"
-		UpdateSummary "Unknown Distro, test aborted"
-		exit 1
-	fi
+	echo "${1}" > $STATE_FILE
 }
 
 RunFIO()
@@ -287,7 +205,7 @@ CreateRAID0()
 	sleep 1
 	mount -o nobarrier ${mdVolume} ${mountDir}
 	if [ $? -ne 0 ]; then
-		LogMsg "Error: Unable to create raid"            
+		LogMsg "Error: Unable to create raid"
 		exit 1
 	else
 		LogMsg "${mdVolume} mounted to ${mountDir} successfully."
@@ -327,9 +245,9 @@ CreateLVM()
 	mkdir ${mountDir}
 	mount -o nobarrier /dev/${vggroup}/lv1 ${mountDir}
 	if [ $? -ne 0 ]; then
-            LogMsg "Error: Unable to create LVM "            
-            exit 1
-        fi
+		LogMsg "Error: Unable to create LVM "
+		exit 1
+	fi
 	
 	#LogMsg "INFO: adding fstab entry"
 	#echo "${mdVolume}	${mountDir}	ext4	defaults	1 1" >> /etc/fstab
@@ -343,9 +261,8 @@ HOMEDIR=$HOME
 mv $HOMEDIR/FIOLog/ $HOMEDIR/FIOLog-$(date +"%m%d%Y-%H%M%S")/
 mkdir $HOMEDIR/FIOLog
 LOGDIR="${HOMEDIR}/FIOLog"
-DISTRO=`grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux" /etc/{issue,*release,*version}`
-if [[ $DISTRO =~ "SUSE Linux Enterprise Server 12" ]];
-then
+
+if [ $DISTRO_NAME == "sles" ] && [[ $DISTRO_VERSION =~ 12 ]]; then
 	mdVolume="/dev/md/mdauto0"
 else
 	mdVolume="/dev/md0"
@@ -354,7 +271,7 @@ vggroup="vg1"
 mountDir="/data"
 cd ${HOMEDIR}
 
-InstallFIO
+install_fio
 
 #Creating RAID before triggering test
 CreateRAID0 ext4

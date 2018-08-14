@@ -60,11 +60,11 @@ function Main {
         $myString = @"
 cd /root/
 ./perf_lagscope.sh &> lagscopeConsoleLogs.txt
-. azuremodules.sh
+. utils.sh
 collect_VM_properties
 "@
         Set-Content "$LogDir\StartLagscopeTest.sh" $myString
-        RemoteCopy -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files ".\$constantsFile,.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\perf_lagscope.sh,.\$LogDir\StartLagscopeTest.sh" -username "root" -password $password -upload
+        RemoteCopy -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files ".\$constantsFile,.\$LogDir\StartLagscopeTest.sh" -username "root" -password $password -upload
         RemoteCopy -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files $currentTestData.files -username "root" -password $password -upload
 
         $out = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "chmod +x *.sh"

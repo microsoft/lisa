@@ -23,7 +23,7 @@ function Main {
         $myString = @"
 cd /root/
 ./InstallCUDADrivers.sh -logFolder /root &> GPUConsoleLogs.txt
-. azuremodules.sh
+. utils.sh
 collect_VM_properties
 "@
         $StartScriptName = "StartGPUDriverInstall.sh"

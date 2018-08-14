@@ -5,7 +5,7 @@
         <setupType>SingleVM</setupType>
         <OverrideVMSize>Standard_NC6</OverrideVMSize>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
-        <files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\InstallCUDADrivers.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\InstallCUDADrivers.sh</files>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>GPU</Area>
@@ -17,7 +17,7 @@
         <setupType>SingleVM</setupType>
         <OverrideVMSize>Standard_NC12</OverrideVMSize>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
-        <files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\InstallCUDADrivers.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\InstallCUDADrivers.sh</files>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>GPU</Area>
@@ -29,7 +29,7 @@
         <setupType>SingleVM</setupType>
         <OverrideVMSize>Standard_NC24</OverrideVMSize>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
-        <files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\InstallCUDADrivers.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\InstallCUDADrivers.sh</files>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>GPU</Area>
@@ -41,7 +41,7 @@
         <setupType>SingleVM</setupType>
         <OverrideVMSize>Standard_NC24r</OverrideVMSize>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
-        <files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\InstallCUDADrivers.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\InstallCUDADrivers.sh</files>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>GPU</Area>

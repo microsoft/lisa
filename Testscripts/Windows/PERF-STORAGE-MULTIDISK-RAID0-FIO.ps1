@@ -30,7 +30,7 @@ function Main {
         $myString = @"
 chmod +x perf_fio.sh
 ./perf_fio.sh &> fioConsoleLogs.txt
-. azuremodules.sh
+. utils.sh
 collect_VM_properties
 "@
         $myString2 = @"

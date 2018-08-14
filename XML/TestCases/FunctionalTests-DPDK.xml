@@ -7,7 +7,7 @@
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>        
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
-        <files>.\Testscripts\Linux\azuremodules.sh</files>
+        <files>.\Testscripts\Linux\utils.sh</files>
         <TestParameters>
             <param>dpdkSrcLink="https://eosgcloudstorage.blob.core.windows.net/testpackages/dpdk/dpdk-18.05.tar.xz"</param>
             <param>testDuration=120</param>

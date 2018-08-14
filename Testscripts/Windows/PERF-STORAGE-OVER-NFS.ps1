@@ -11,7 +11,7 @@ function Main {
         $noClient = $true
         $noServer = $true
         foreach ($vmData in $allVMData) {
-            if ($vmData.RoleName -imhtch "client") {
+            if ($vmData.RoleName -imatch "client") {
                 $clientVMData = $vmData
                 $noClient = $false
             }
@@ -60,7 +60,7 @@ function Main {
         $myString = @"
 chmod +x perf_fio_nfs.sh
 ./perf_fio_nfs.sh &> fioConsoleLogs.txt
-. azuremodules.sh
+. utils.sh
 collect_VM_properties
 "@
 
@@ -73,7 +73,7 @@ cp perf_fio.csv /root
 chmod 666 /root/perf_fio.csv
 "@
         Set-Content "$LogDir\StartFioTest.sh" $myString
-        Set-Content "$LogDir\ParseFioTestLogs.sh" $myString2        
+        Set-Content "$LogDir\ParseFioTestLogs.sh" $myString2
         RemoteCopy -uploadTo $testVMData.PublicIP -port $testVMData.SSHPort -files $currentTestData.files -username "root" -password $password -upload
 
         RemoteCopy -uploadTo $testVMData.PublicIP -port $testVMData.SSHPort -files ".\$constantsFile,.\$LogDir\StartFioTest.sh,.\$LogDir\ParseFioTestLogs.sh" -username "root" -password $password -upload

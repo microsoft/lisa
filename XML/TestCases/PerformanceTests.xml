@@ -7,7 +7,7 @@
             <Networking>Synthetic</Networking>
         </AdditionalHWConfig>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
-        <files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\perf_ntttcp.sh,.\Testscripts\Linux\run-ntttcp-and-tcping.sh,.\Testscripts\Linux\report-ntttcp-and-tcping.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_ntttcp.sh,.\Testscripts\Linux\run-ntttcp-and-tcping.sh,.\Testscripts\Linux\report-ntttcp-and-tcping.sh</files>
         <TestParameters>
             <param>testDuration=300</param>
             <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024 2048 4096 6144 8192 10240"</param>
@@ -24,7 +24,7 @@
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
-        <files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\perf_ntttcp.sh,.\Testscripts\Linux\run-ntttcp-and-tcping.sh,.\Testscripts\Linux\report-ntttcp-and-tcping.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_ntttcp.sh,.\Testscripts\Linux\run-ntttcp-and-tcping.sh,.\Testscripts\Linux\report-ntttcp-and-tcping.sh</files>
         <TestParameters>
             <param>testDuration=300</param>
             <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024 2048 4096 6144 8192 10240"</param>
@@ -38,7 +38,7 @@
         <testName>PERF-NETWORK-TCP-LATENCY-MULTICONNECTION-Synthetic</testName>
         <testScript>PERF-NETWORK-TCP-LATENCY-MULTICONNECTION-LAGSCOPE.ps1</testScript>
         <setupType>M1S1</setupType>
-        <files>.\Testscripts\Linux\azuremodules.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_lagscope.sh</files>
         <TestParameters>
             <param>pingIteration=1000000</param>
         </TestParameters>
@@ -55,7 +55,7 @@
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
-        <files>.\Testscripts\Linux\azuremodules.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_lagscope.sh</files>
         <TestParameters>
             <param>pingIteration=1000000</param>
         </TestParameters>
@@ -69,7 +69,7 @@
         <testScript>PERF-NETWORK-UDP-THROUGHPUT-MULTICONNECTION-IPERF3.ps1</testScript>
         <setupType>M1S1</setupType>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
-        <files>.\Testscripts\Linux\azuremodules.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_iperf3.sh</files>
         <TestParameters>
             <param>testDuration=300</param>
             <param>testType=udp</param>
@@ -91,7 +91,7 @@
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
-        <files>.\Testscripts\Linux\azuremodules.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_iperf3.sh</files>
         <TestParameters>
             <param>testDuration=300</param>
             <param>testType=udp</param>
@@ -113,7 +113,7 @@
             <DiskType>Managed</DiskType>
         </AdditionalHWConfig>        
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
-        <files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <TestParameters>
             <param>modes='randread randwrite read write'</param>
             <param>startThread=1</param>
@@ -137,7 +137,7 @@
             <DiskType>Managed</DiskType>
         </AdditionalHWConfig>        
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
-        <files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <TestParameters>
             <param>modes='randread randwrite read write'</param>
             <param>startThread=1</param>
@@ -158,7 +158,7 @@
         <testScript>PERF-STORAGE-OVER-NFS.ps1</testScript>
         <setupType>DS14DISK12NFS</setupType>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
-        <files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh</files>
         <TestParameters>
             <param>modes='randread randwrite read write'</param>
             <param>startThread=1</param>
@@ -180,7 +180,7 @@
         <testScript>PERF-STORAGE-OVER-NFS.ps1</testScript>
         <setupType>DS14DISK12NFS</setupType>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
-        <files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh</files>
         <TestParameters>
             <param>modes='randread randwrite read write'</param>
             <param>startThread=1</param>
@@ -205,7 +205,7 @@
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
-        <files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh</files>
         <TestParameters>
             <param>modes='randread randwrite read write'</param>
             <param>startThread=1</param>
@@ -230,7 +230,7 @@
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
-        <files>.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh</files>
         <TestParameters>
             <param>modes='randread randwrite read write'</param>
             <param>startThread=1</param>
@@ -254,7 +254,7 @@
         <AdditionalHWConfig>
             <Networking>Synthetic</Networking>
         </AdditionalHWConfig>
-        <files></files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_iperf3.sh</files>
         <TestParameters>
             <param>testDuration=120</param>
             <param>testType=tcp</param>
@@ -275,7 +275,7 @@
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
-        <files></files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_iperf3.sh</files>
         <TestParameters>
             <param>testDuration=120</param>
             <param>testType=tcp</param>

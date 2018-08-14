@@ -40,19 +40,8 @@ function Main {
         ProvisionVMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
         #endregion
 
-        if( $detectedDistro -imatch "SLES 15" ) {
-            LogMsg "Installing Package for ifconfig cmd in $detectedDistro"
-            $netToolDeprecateCmd = "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install net-tools-deprecated"
-			RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command $netToolDeprecateCmd
-            WaitFor -seconds 10
-            RunLinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username "root" -password $password -command $netToolDeprecateCmd
-            WaitFor -seconds 10
-        } else {
-            LogMsg "Net tool deprecation not required for $detectedDistro"
-        }
-
         LogMsg "Getting Active NIC Name."
-        $getNicCmd = "route | grep '^default' | grep -o '[^ ]*$'"
+        $getNicCmd = ". ./utils.sh &> /dev/null && get_active_nic_name"
         $clientNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command $getNicCmd).Trim()
         $serverNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username "root" -password $password -command $getNicCmd).Trim()
         if ( $serverNicName -eq $clientNicName) {
@@ -90,11 +79,11 @@ function Main {
         $myString = @"
 cd /root/
 ./perf_iperf3.sh &> iperf3udpConsoleLogs.txt
-. azuremodules.sh
+. utils.sh
 collect_VM_properties
 "@
         Set-Content "$LogDir\Startiperf3udpTest.sh" $myString
-        RemoteCopy -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files ".\$constantsFile,.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\perf_iperf3.sh,.\$LogDir\Startiperf3udpTest.sh" -username "root" -password $password -upload
+        RemoteCopy -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files ".\$constantsFile,.\$LogDir\Startiperf3udpTest.sh" -username "root" -password $password -upload
         RemoteCopy -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files $currentTestData.files -username "root" -password $password -upload
 
         $out = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "chmod +x *.sh"

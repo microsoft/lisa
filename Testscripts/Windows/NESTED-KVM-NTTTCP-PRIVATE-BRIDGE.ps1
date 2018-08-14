@@ -135,7 +135,7 @@ function Main {
         }
 
         # Collect L1 VM properties
-        RunLinuxCmd -username $user -password $password -ip $hs1VIP -port $hs1vm1sshport -command ". azuremodules.sh && collect_VM_properties" -runAsSudo
+        RunLinuxCmd -username $user -password $password -ip $hs1VIP -port $hs1vm1sshport -command ". utils.sh && collect_VM_properties" -runAsSudo
         RemoteCopy -download -downloadFrom $hs1VIP -files "/home/$user/VM_properties.csv" -downloadTo $LogDir -port $hs1vm1sshport -username $user -password $password
 
         if ($testResult -imatch $resultPass) {

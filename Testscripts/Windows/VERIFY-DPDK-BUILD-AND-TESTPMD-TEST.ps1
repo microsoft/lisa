@@ -82,11 +82,11 @@ function Main {
         $myString = @"
 cd /root/
 ./dpdkTestPmd.sh 2>&1 > dpdkConsoleLogs.txt
-. azuremodules.sh
+. utils.sh
 collect_VM_properties
 "@
         Set-Content "$LogDir\StartDpdkTestPmd.sh" $myString
-        RemoteCopy -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files ".\$constantsFile,.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\dpdkSetup.sh,.\Testscripts\Linux\dpdkTestPmd.sh,.\$LogDir\StartDpdkTestPmd.sh" -username "root" -password $password -upload
+        RemoteCopy -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files ".\$constantsFile,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkSetup.sh,.\Testscripts\Linux\dpdkTestPmd.sh,.\$LogDir\StartDpdkTestPmd.sh" -username "root" -password $password -upload
         RemoteCopy -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files $currentTestData.files -username "root" -password $password -upload
 
         $out = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "chmod +x *.sh"

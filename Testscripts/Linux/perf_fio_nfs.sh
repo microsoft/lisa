@@ -18,95 +18,34 @@
 HOMEDIR="/root"
 LogMsg()
 {
-    echo "[$(date +"%x %r %Z")] ${1}"
+	echo "[$(date +"%x %r %Z")] ${1}"
 	echo "[$(date +"%x %r %Z")] ${1}" >> "${HOMEDIR}/runlog.txt"
 }
-
+LogMsg "Test start..."
 CONSTANTS_FILE="$HOMEDIR/constants.sh"
+UTIL_FILE="$HOMEDIR/utils.sh"
 ICA_TESTRUNNING="TestRunning"      # The test is running
 ICA_TESTCOMPLETED="TestCompleted"  # The test completed successfully
 ICA_TESTABORTED="TestAborted"      # Error during the setup of the test
 ICA_TESTFAILED="TestFailed"        # Error occurred during the test
 touch ./fioTest.log
 
-if [ -e ${CONSTANTS_FILE} ]; then
-    . ${CONSTANTS_FILE}
-else
-    errMsg="Error: missing ${CONSTANTS_FILE} file"
-    LogMsg "${errMsg}"
-    UpdateTestState $ICA_TESTABORTED
-    exit 10
-fi
-UpdateTestState()
-{
-    echo "${1}" > $HOMEDIR/state.txt
+. ${CONSTANTS_FILE} || {
+	errMsg="Error: missing ${CONSTANTS_FILE} file"
+	LogMsg "${errMsg}"
+	UpdateTestState $ICA_TESTABORTED
+	exit 10
+}
+. ${UTIL_FILE} || {
+	errMsg="Error: missing ${UTIL_FILE} file"
+	LogMsg "${errMsg}"
+	UpdateTestState $ICA_TESTABORTED
+	exit 10
 }
 
-InstallFIO() 
+UpdateTestState()
 {
-	DISTRO=`grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os" /etc/{issue,*release,*version} /usr/lib/os-release`
-
-	if [[ $DISTRO =~ "Ubuntu" ]] || [[ $DISTRO =~ "Debian" ]];
-	then
-		LogMsg "Detected UBUNTU/Debian. Installing required packages"
-		until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done
-		apt-get update
-		apt-get install -y pciutils gawk mdadm
-		apt-get install -y wget sysstat blktrace bc fio nfs-common
-		if [ $? -ne 0 ]; then
-			LogMsg "Error: Unable to install fio"
-			exit 1
-		fi
-		mount -t debugfs none /sys/kernel/debug
-						
-	elif [[ $DISTRO =~ "Red Hat Enterprise Linux Server release 6" ]];
-	then
-		LogMsg "Detected RHEL 6.x; Installing required packages"
-		rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-6.noarch.rpm
-		yum -y --nogpgcheck install wget sysstat mdadm blktrace libaio fio nfs-common
-		mount -t debugfs none /sys/kernel/debug
-
-	elif [[ $DISTRO =~ "Red Hat Enterprise Linux Server release 7" ]];
-	then
-		LogMsg "Detected RHEL 7.x; Installing required packages"
-		rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
-		yum -y --nogpgcheck install wget sysstat mdadm blktrace libaio fio nfs-common
-		mount -t debugfs none /sys/kernel/debug
-			
-	elif [[ $DISTRO =~ "CentOS Linux release 6" ]] || [[ $DISTRO =~ "CentOS release 6" ]];
-	then
-		LogMsg "Detected CentOS 6.x; Installing required packages"
-		rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-6.noarch.rpm
-		yum -y --nogpgcheck install wget sysstat mdadm blktrace libaio fio nfs-common
-		mount -t debugfs none /sys/kernel/debug
-			
-	elif [[ $DISTRO =~ "CentOS Linux release 7" ]];
-	then
-		LogMsg "Detected CentOS 7.x; Installing required packages"
-		rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
-		yum -y --nogpgcheck install wget sysstat mdadm blktrace libaio fio nfs-common
-		mount -t debugfs none /sys/kernel/debug
-
-	elif [[ $DISTRO =~ "SUSE Linux Enterprise Server 12" ]];
-	then
-		LogMsg "Detected SLES12. Installing required packages"
-		zypper addrepo http://download.opensuse.org/repositories/benchmark/SLE_12_SP2_Backports/benchmark.repo
-		zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys refresh
-		zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys remove gettext-runtime-mini-0.19.2-1.103.x86_64
-		zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install sysstat
-		zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install grub2
-		zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install wget mdadm blktrace libaio1 fio nfs-common
-	elif [[ $DISTRO =~ "clear-linux-os" ]];
-	then
-		LogMsg "Detected Clear Linux OS. Installing required packages"
-		swupd bundle-add dev-utils-dev sysadmin-basic performance-tools os-testsuite-phoronix network-basic openssh-server dev-utils os-core os-core-dev
-
-	else
-			LogMsg "Unknown Distro"
-			UpdateTestState "TestAborted"
-			UpdateSummary "Unknown Distro, test aborted"
-			return 1
-	fi
+	echo "${1}" > $HOMEDIR/state.txt
 }
 
 RunFIO()
@@ -218,16 +157,16 @@ if [ $? -eq 0 ]; then
 	mv $HOMEDIR/FIOLog/ $HOMEDIR/FIOLog-$(date +"%m%d%Y-%H%M%S")/
 	mkdir $HOMEDIR/FIOLog
 	LOGDIR="${HOMEDIR}/FIOLog"
-	DISTRO=`grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux" /etc/{issue,*release,*version}`
-	if [[ $DISTRO =~ "SUSE Linux Enterprise Server 12" ]];
-	then
+
+	if [ $DISTRO_NAME == "sles" ] && [[ $DISTRO_VERSION =~ 12 ]]; then
 		mdVolume="/dev/md/mdauto0"
 	else
 		mdVolume="/dev/md0"
 	fi
 	mountDir="/data"
 	cd ${HOMEDIR}
-	InstallFIO
+	install_fio
+	install_package "nfs-common"
 
 	#Start NFS Server
 	ssh root@nfs-server-vm "apt update"

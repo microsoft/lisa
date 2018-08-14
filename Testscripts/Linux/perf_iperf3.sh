@@ -19,89 +19,12 @@
 #######################################################################
 
 CONSTANTS_FILE="./constants.sh"
+UTIL_FILE="./utils.sh"
 ICA_TESTRUNNING="TestRunning"	  # The test is running
 ICA_TESTCOMPLETED="TestCompleted"  # The test completed successfully
 ICA_TESTABORTED="TestAborted"	  # Error during the setup of the test
 ICA_TESTFAILED="TestFailed"		# Error occurred during the test
 touch ./IPERF3Test.log
-
-InstallIPERF3()
-{
-	DISTRO=`grep -ihs "ubuntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os" /etc/{issue,*release,*version} /usr/lib/os-release`
-	if [[ $DISTRO =~ "Ubuntu" ]];
-	then	
-		LogMsg "Detected Ubuntu"
-		ssh ${1} "until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done"
-		ssh ${1} "apt-get update"
-		ssh ${1} "apt-get -y install iperf3 sysstat bc psmisc"
-		if [ $IPversion -eq 6 ]; then	
-			scp ConfigureUbuntu1604IPv6.sh ${1}:
-			ssh ${1} "chmod +x ConfigureUbuntu1604IPv6.sh"
-			ssh ${1} "./ConfigureUbuntu1604IPv6.sh"
-		fi
-	elif [[ $DISTRO =~ "Red Hat Enterprise Linux Server release 6" ]] || [[ $DISTRO =~ "CentOS Linux release 6" ]] || [[ $DISTRO =~ "CentOS release 6" ]];
-	then
-		LogMsg "Detected Redhat/CentOS 6.x"
-		ssh ${1} "rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-6.noarch.rpm"
-		ssh ${1} "yum -y --nogpgcheck install iperf3 sysstat bc psmisc"
-		ssh ${1} "iptables -F"				
-	elif [[ $DISTRO =~ "Red Hat Enterprise Linux Server release 7" ]] || [[ $DISTRO =~ "CentOS Linux release 7" ]];
-	then
-		LogMsg "Detected Redhat/CentOS 7.x"
-		ssh ${1} "rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm"
-		ssh ${1} "yum -y --nogpgcheck install iperf3 sysstat bc psmisc"
-		ssh ${1} "iptables -F"
-	elif [[ $DISTRO =~ "SUSE Linux Enterprise Server" ]];
-	then
-		LogMsg "Detected SLES"
-		if [[ $DISTRO =~ "SUSE Linux Enterprise Server 12" ]];
-		then
-			LogMsg "Detected SLES 12"
-			repositoryUrl="https://download.opensuse.org/repositories/network:utilities/SLE_12_SP3/network:utilities.repo"
-		elif [[ $DISTRO =~ "SUSE Linux Enterprise Server 15" ]];
-		then
-			LogMsg "Detected SLES 15"
-			repositoryUrl="https://download.opensuse.org/repositories/network:utilities/SLE_15/network:utilities.repo"
-		else
-			LogMsg "Error: Unknown SLES version"
-			UpdateTestState "TestAborted"
-			return 2
-		fi
-		ssh ${1} "zypper addrepo ${repositoryUrl}"
-		ssh ${1} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys refresh"
-		ssh ${1} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install sysstat git bc make gcc psmisc"
-		ssh ${1} "which iperf3"
-		if [ $? -ne 0 ]; then
-			LogMsg "Info: iperf3 is not installed. So, Installing iperf3 using rpm"
-			iperfUrl="https://eosgpackages.blob.core.windows.net/testpackages/tools/iperf-sles-x86_64.rpm"
-			libIperfUrl="https://eosgpackages.blob.core.windows.net/testpackages/tools/libiperf0-sles-x86_64.rpm"
-			ssh ${1} "wget --no-check-certificate ${iperfUrl}"
-			ssh ${1} "wget --no-check-certificate ${libIperfUrl}"
-			LogMsg "rpm -ivh ${iperfUrl##*/} ${libIperfUrl##*/}"
-			ssh ${1} "rpm -ivh ${iperfUrl##*/} ${libIperfUrl##*/}"
-			ssh ${1} "which iperf3"
-			if [ $? -ne 0 ]; then
-				LogMsg "Error: Unable to install iperf3 from source/rpm"
-				UpdateTestState "TestAborted"
-				return 3
-			fi				
-		else
-			LogMsg "Info: Iperf3 installed from repository"
-		fi
-		ssh ${1} "iptables -F"	
-	elif [[ $DISTRO =~ "clear-linux-os" ]];
-	then
-		LogMsg "Detected Clear Linux OS. Installing required packages"
-		ssh ${1} "swupd bundle-add dev-utils-dev sysadmin-basic performance-tools os-testsuite-phoronix network-basic openssh-server dev-utils os-core os-core-dev"
-		ssh ${1} "iptables -F"					
-	else
-		LogMsg "Unknown Distro"
-		UpdateTestState "TestAborted"
-		UpdateSummary "Unknown Distro, test aborted"
-		return 1
-	fi
-}
-
 
 LogMsg()
 {
@@ -114,14 +37,18 @@ UpdateTestState()
 	echo "${1}" > ./state.txt
 }
 
-if [ -e ${CONSTANTS_FILE} ]; then
-	source ${CONSTANTS_FILE}
-else
+. ${CONSTANTS_FILE} || {
 	errMsg="Error: missing ${CONSTANTS_FILE} file"
 	LogMsg "${errMsg}"
 	UpdateTestState $ICA_TESTABORTED
 	exit 10
-fi
+}
+. ${UTIL_FILE} || {
+	errMsg="Error: missing ${UTIL_FILE} file"
+	LogMsg "${errMsg}"
+	UpdateTestState $ICA_TESTABORTED
+	exit 10
+}
 
 if [ ! ${server} ]; then
 	errMsg="Please add/provide value for server in constants.sh. server=<server ip>"
@@ -147,61 +74,60 @@ if [ ! ${testDuration} ]; then
 fi
 
 if [ ! ${testType} ]; then
-		errMsg="Please add/provide value for testType in constants.sh. testType=tcp/udp"
-		LogMsg "${errMsg}"
-		echo "${errMsg}" >> ./summary.log
-		UpdateTestState $ICA_TESTABORTED
-		exit 1
+	errMsg="Please add/provide value for testType in constants.sh. testType=tcp/udp"
+	LogMsg "${errMsg}"
+	echo "${errMsg}" >> ./summary.log
+	UpdateTestState $ICA_TESTABORTED
+	exit 1
 fi
 
 if [ ! ${max_parallel_connections_per_instance} ]; then
-		errMsg="Please add/provide value for max_parallel_connections_per_instance in constants.sh. max_parallel_connections_per_instance=60"
-		LogMsg "${errMsg}"
-		echo "${errMsg}" >> ./summary.log
-		UpdateTestState $ICA_TESTABORTED
-		exit 1
+	errMsg="Please add/provide value for max_parallel_connections_per_instance in constants.sh. max_parallel_connections_per_instance=60"
+	LogMsg "${errMsg}"
+	echo "${errMsg}" >> ./summary.log
+	UpdateTestState $ICA_TESTABORTED
+	exit 1
 fi
 
 if [ ! ${connections} ]; then
-		errMsg="Please add/provide value for connections in constants.sh. connections=(1 2 4 8 ....)"
-		LogMsg "${errMsg}"
-		echo "${errMsg}" >> ./summary.log
-		UpdateTestState $ICA_TESTABORTED
-		exit 1
+	errMsg="Please add/provide value for connections in constants.sh. connections=(1 2 4 8 ....)"
+	LogMsg "${errMsg}"
+	echo "${errMsg}" >> ./summary.log
+	UpdateTestState $ICA_TESTABORTED
+	exit 1
 fi
 
 if [ ! ${bufferLengths} ]; then
-		errMsg="Please add/provide value for bufferLengths in constants.sh. bufferLengths=(1 8). Note buffer lenghs are in Bytest"
-		LogMsg "${errMsg}"
-		echo "${errMsg}" >> ./summary.log
-		UpdateTestState $ICA_TESTABORTED
-		exit 1
+	errMsg="Please add/provide value for bufferLengths in constants.sh. bufferLengths=(1 8). Note buffer lenghs are in Bytest"
+	LogMsg "${errMsg}"
+	echo "${errMsg}" >> ./summary.log
+	UpdateTestState $ICA_TESTABORTED
+	exit 1
 fi
 
 if [ ! ${IPversion} ]; then
-		errMsg="Please add/provide value for IPversion in constants.sh. IPversion=4/6."
-		LogMsg "${errMsg}"
-		echo "${errMsg}" >> ./summary.log
-		UpdateTestState $ICA_TESTABORTED
-		exit 1
+	errMsg="Please add/provide value for IPversion in constants.sh. IPversion=4/6."
+	LogMsg "${errMsg}"
+	echo "${errMsg}" >> ./summary.log
+	UpdateTestState $ICA_TESTABORTED
+	exit 1
 fi
 
 if [ $IPversion -eq 6 ]; then
 	if [ ! ${serverIpv6} ]; then
-			errMsg="Please add/provide value for serverIpv6 in constants.sh"
-			LogMsg "${errMsg}"
-			echo "${errMsg}" >> ./summary.log
-			UpdateTestState $ICA_TESTABORTED
-			exit 1
+		errMsg="Please add/provide value for serverIpv6 in constants.sh"
+		LogMsg "${errMsg}"
+		echo "${errMsg}" >> ./summary.log
+		UpdateTestState $ICA_TESTABORTED
+		exit 1
 	fi
-		if [ ! ${clientIpv6} ]; then
-				errMsg="Please add/provide value for clientIpv6 in constants.sh."
-				LogMsg "${errMsg}"
-				echo "${errMsg}" >> ./summary.log
-				UpdateTestState $ICA_TESTABORTED
-				exit 1
-		fi
-	
+	if [ ! ${clientIpv6} ]; then
+		errMsg="Please add/provide value for clientIpv6 in constants.sh."
+		LogMsg "${errMsg}"
+		echo "${errMsg}" >> ./summary.log
+		UpdateTestState $ICA_TESTABORTED
+		exit 1
+	fi
 fi
 
 
@@ -211,19 +137,23 @@ fi
 #Make & build IPERF3 on client and server Machine
 
 LogMsg "Configuring client ${client}..."
-InstallIPERF3 ${client}
+ssh ${client} ". $UTIL_FILE && install_iperf3 $IPversion"
+ssh ${client} "which iperf3"
 if [ $? -ne 0 ]; then
 	LogMsg "Error: iperf installation failed in ${client}.."
 	UpdateTestState "TestAborted"
 	exit 1
 fi
+
 LogMsg "Configuring server ${server}..."
-InstallIPERF3 ${server}
+ssh ${server} ". $UTIL_FILE && install_iperf3 $IPversion"
+ssh ${server} "which iperf3"
 if [ $? -ne 0 ]; then
 	LogMsg "Error: iperf installation failed in ${server}.."
 	UpdateTestState "TestAborted"
 	exit 1
 fi
+
 ssh ${server} "rm -rf iperf-server-*"
 ssh ${client} "rm -rf iperf-client-*"
 ssh ${client} "rm -rf iperf-server-*"
@@ -233,12 +163,9 @@ ssh ${client} "rm -rf iperf-server-*"
 #BufferLenghts are in K
 #bufferLenghs=(1 8)
 
-for current_buffer in "${bufferLengths[@]}"
-		do
-		for current_test_connections in "${connections[@]}"
-		do
-		if [ $current_test_connections -lt $max_parallel_connections_per_instance ]
-		then
+for current_buffer in "${bufferLengths[@]}"; do
+	for current_test_connections in "${connections[@]}"; do
+		if [ $current_test_connections -lt $max_parallel_connections_per_instance ]; then
 			num_threads_P=$current_test_connections
 			num_threads_n=1
 		else
@@ -252,8 +179,7 @@ for current_buffer in "${bufferLengths[@]}"
 		startPort=750
 		currentPort=$startPort
 		currentIperfInstanses=0
-		while [ $currentIperfInstanses -lt $num_threads_n ]
-		do
+		while [ $currentIperfInstanses -lt $num_threads_n ]; do
 			currentIperfInstanses=$(($currentIperfInstanses+1))
 			serverCommand="iperf3 -s -1 -J -i10 -f g -p ${currentPort} > iperf-server-${testType}-IPv${IPversion}-buffer-${current_buffer}-conn-$current_test_connections-instance-${currentIperfInstanses}.txt 2>&1"
 			ssh ${server} $serverCommand &
@@ -269,24 +195,21 @@ for current_buffer in "${bufferLengths[@]}"
 		currentPort=$startPort
 		currentIperfInstanses=0
 		if [ $IPversion -eq 4 ]; then
-				testServer=$server
+			testServer=$server
 		else
-				testServer=$serverIpv6
+			testServer=$serverIpv6
 		fi
 		#ssh ${client} "./sar-top.sh ${testDuration} $current_test_connections root" &
 		#ssh ${server} "./sar-top.sh ${testDuration} $current_test_connections root" &
-		while [ $currentIperfInstanses -lt $num_threads_n ]
-		do
+		while [ $currentIperfInstanses -lt $num_threads_n ]; do
 			currentIperfInstanses=$(($currentIperfInstanses+1))
 
-			if [[ "$testType" == "udp" ]];
-			then
+			if [[ "$testType" == "udp" ]]; then
 				clientCommand="iperf3 -c $testServer -u -b 0 -J -f g -i10 -l ${current_buffer} -t ${testDuration} -p ${currentPort} -P $num_threads_P -${IPversion} > iperf-client-${testType}-IPv${IPversion}-buffer-${current_buffer}-conn-$current_test_connections-instance-${currentIperfInstanses}.txt 2>&1"
 			fi
-						if [[ "$testType" == "tcp" ]];
-						then
-								clientCommand="iperf3 -c $testServer -b 0 -J -f g -i10 -l ${current_buffer} -t ${testDuration} -p ${currentPort} -P $num_threads_P -${IPversion} > iperf-client-${testType}-IPv${IPversion}-buffer-${current_buffer}-conn-$current_test_connections-instance-${currentIperfInstanses}.txt 2>&1"
-						fi
+			if [[ "$testType" == "tcp" ]]; then
+				clientCommand="iperf3 -c $testServer -b 0 -J -f g -i10 -l ${current_buffer} -t ${testDuration} -p ${currentPort} -P $num_threads_P -${IPversion} > iperf-client-${testType}-IPv${IPversion}-buffer-${current_buffer}-conn-$current_test_connections-instance-${currentIperfInstanses}.txt 2>&1"
+			fi
 			
 			ssh ${client} $clientCommand &
 			LogMsg "Executed: $clientCommand"
@@ -299,8 +222,7 @@ for current_buffer in "${bufferLengths[@]}"
 		sleep 5
 		var=`ps -C "iperf3 -c" --no-headers | wc -l`
 		echo $var
-		while [[ $var -gt 0 ]];
-		do
+		while [[ $var -gt 0 ]]; do
 			timeoutSeconds=`expr $timeoutSeconds - 1`
 			if [ $timeoutSeconds -eq 0 ]; then
 				LogMsg "Iperf3 running buffer ${current_buffer}K $num_threads_P X $num_threads_n. Timeout."
@@ -311,7 +233,7 @@ for current_buffer in "${bufferLengths[@]}"
 				sleep 1
 				var=`ps -C "iperf3 -c" --no-headers | wc -l`
 				LogMsg "Iperf3 running buffer ${current_buffer}K $num_threads_P X $num_threads_n. Waiting to finish $var instances."
-			fi			
+			fi
 		done
 		#Sleep extra 5 seconds.
 		sleep 5

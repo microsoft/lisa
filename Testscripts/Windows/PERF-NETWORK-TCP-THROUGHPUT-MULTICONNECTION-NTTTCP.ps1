@@ -40,19 +40,8 @@ function Main {
         ProvisionVMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
         #endregion
 
-        if( $detectedDistro -imatch "SLES 15" ) {
-            LogMsg "Installing Package for ifconfig cmd in $detectedDistro"
-            $netToolDeprecateCmd = "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install net-tools-deprecated"
-			RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command $netToolDeprecateCmd
-            WaitFor -seconds 10
-            RunLinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username "root" -password $password -command $netToolDeprecateCmd
-            WaitFor -seconds 10
-        } else {
-            LogMsg "Net tool deprecation not required for $detectedDistro"
-        }
-
         LogMsg "Getting Active NIC Name."
-        $getNicCmd = "route | grep '^default' | grep -o '[^ ]*$'"
+        $getNicCmd = ". ./utils.sh &> /dev/null && get_active_nic_name"
         $clientNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command $getNicCmd).Trim()
         $serverNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username "root" -password $password -command $getNicCmd).Trim()
         if ( $serverNicName -eq $clientNicName) {
@@ -85,7 +74,7 @@ function Main {
         $myString = @"
 cd /root/
 ./perf_ntttcp.sh &> ntttcpConsoleLogs.txt
-. azuremodules.sh
+. utils.sh
 collect_VM_properties
 "@
         Set-Content "$LogDir\StartNtttcpTest.sh" $myString

@@ -42,30 +42,21 @@ function Main {
         ProvisionVMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
         #endregion
 
-        if ($EnableAcceleratedNetworking -or $CurrentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
+        if ($EnableAcceleratedNetworking -or $currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
             $DataPath = "SRIOV"
-            LogMsg "Getting SRIOV NIC Name."
-            $clientNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "route | grep '^default' | grep -o '[^ ]*$'").Trim()
-            LogMsg "CLIENT SRIOV NIC: $clientNicName"
-            $serverNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username "root" -password $password -command "route | grep '^default' | grep -o '[^ ]*$'").Trim()
-            LogMsg "SERVER SRIOV NIC: $serverNicName"
-            if ($serverNicName -eq $clientNicName) {
-                $nicName = $clientNicName
-            } else {
-                Throw "Server and client SRIOV NICs are not same."
-            }
         } else {
             $DataPath = "Synthetic"
-            LogMsg "Getting Active NIC Name."
-            $clientNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "route | grep '^default' | grep -o '[^ ]*$'").Trim()
-            LogMsg "CLIENT NIC: $clientNicName"
-            $serverNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username "root" -password $password -command "route | grep '^default' | grep -o '[^ ]*$'").Trim()
-            LogMsg "SERVER NIC: $serverNicName"
-            if ($serverNicName -eq $clientNicName) {
-                $nicName = $clientNicName
-            } else {
-                Throw "Server and client NICs are not same."
-            }
+        }
+        LogMsg "Getting $DataPath NIC Name."
+        $getNicCmd = ". ./utils.sh &> /dev/null && get_active_nic_name"
+        $clientNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command $getNicCmd).Trim()
+        $serverNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username "root" -password $password -command $getNicCmd).Trim()
+        LogMsg "CLIENT $DataPath NIC: $clientNicName"
+        LogMsg "SERVER $DataPath NIC: $serverNicName"
+        if ( $serverNicName -eq $clientNicName) {
+            $nicName = $clientNicName
+        } else {
+            Throw "Server and client SRIOV NICs are not same."
         }
 
         LogMsg "Generating constansts.sh ..."
@@ -108,11 +99,11 @@ function Main {
         $myString = @"
 cd /root/
 ./perf_iperf3.sh &> iperf3tcpConsoleLogs.txt
-. azuremodules.sh
+. utils.sh
 collect_VM_properties
 "@
         Set-Content "$LogDir\Startiperf3tcpTest.sh" $myString
-        RemoteCopy -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files ".\$constantsFile,.\Testscripts\Linux\azuremodules.sh,.\Testscripts\Linux\perf_iperf3.sh,.\Testscripts\Linux\ConfigureUbuntu1604IPv6.sh,.\$LogDir\Startiperf3tcpTest.sh" -username "root" -password $password -upload
+        RemoteCopy -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files ".\$constantsFile,.\$LogDir\Startiperf3tcpTest.sh" -username "root" -password $password -upload
         $out = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "chmod +x *.sh"
         $testJob = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "/root/Startiperf3tcpTest.sh" -RunInBackground
         #endregion
