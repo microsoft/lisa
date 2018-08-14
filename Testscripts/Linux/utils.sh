@@ -2669,7 +2669,7 @@ function install_ntttcp () {
 			;;
 
 		ubuntu)
-			until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done
+			dpkg_configure
 			apt-get -y install wget libaio1 sysstat git bc make gcc dstat psmisc
 			build_ntttcp
 			build_lagscope
