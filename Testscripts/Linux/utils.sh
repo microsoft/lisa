@@ -60,6 +60,12 @@ declare -a SYNTH_NET_INTERFACES
 # LEGACY_NET_INTERFACES is an array containing all legacy network interfaces found
 declare -a LEGACY_NET_INTERFACES
 
+# Location that package blobs are stored
+declare PACKAGE_BLOB_LOCATION="https://eosgpackages.blob.core.windows.net/testpackages/tools"
+
+# Link of sshpass RPM for SLES 12
+declare SLES_12_SSHPASS_LINK="https://download.opensuse.org/repositories/network/SLE_12_SP3/x86_64/sshpass-1.06-7.1.x86_64.rpm"
+
 ######################################## Functions ########################################
 
 # Convenience function used to set-up most common variables
@@ -2220,7 +2226,7 @@ CheckCallTracesWithDelay()
 # Get the verison of LIS
 function get_lis_version ()
 {
-	lis_version=`modinfo hv_vmbus | grep "^version:"| awk '{print $2}'`
+	lis_version=$(modinfo hv_vmbus | grep "^version:"| awk '{print $2}')
 	if [ "$lis_version" == "" ]; then
 		lis_version="Default_LIS"
 	fi
@@ -2320,15 +2326,16 @@ function update_repos() {
 # Install RPM package
 function install_rpm () {
 	package_name=$1
-	rpm -ivh --nodeps  $package_name
+	sudo rpm -ivh --nodeps  $package_name
 	check_exit_status "install_rpm $package_name"
 }
 
 # Install DEB package
 function install_deb () {
 	package_name=$1
-	dpkg -i  $package_name
-	apt-get install -f
+	sudo dpkg -i $package_name
+	check_exit_status "dpkg -i $package_name"
+	sudo apt-get install -f
 	check_exit_status "install_deb $package_name"
 }
 
@@ -2336,7 +2343,7 @@ function install_deb () {
 function apt_get_install ()
 {
 	package_name=$1
-	DEBIAN_FRONTEND=noninteractive apt-get install -y  --force-yes $package_name
+	sudo DEBIAN_FRONTEND=noninteractive apt-get install -y  --force-yes $package_name
 	check_exit_status "apt_get_install $package_name"
 }
 
@@ -2344,7 +2351,7 @@ function apt_get_install ()
 function yum_install ()
 {
 	package_name=$1
-	yum -y --nogpgcheck install $package_name
+	sudo yum -y --nogpgcheck install $package_name
 	check_exit_status "yum_install $package_name"
 }
 
@@ -2352,7 +2359,7 @@ function yum_install ()
 function zypper_install ()
 {
 	package_name=$1
-	zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys in $package_name
+	sudo zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys in $package_name
 	check_exit_status "zypper_install $package_name"
 }
 
@@ -2398,7 +2405,7 @@ function install_epel () {
 			echo "Unsupported distribution to install epel repository"
 			return 1
 	esac
-	rpm -ivh $epel_rpm_url
+	sudo rpm -ivh $epel_rpm_url
 	check_exit_status "install_epel"
 }
 
@@ -2408,7 +2415,7 @@ function install_sshpass () {
 	if [ $? -ne 0 ]; then
 		echo "sshpass not installed\n Installing now..."
 		if [ $DISTRO_NAME == "sles" ] && [[ $DISTRO_VERSION =~ 12 ]]; then
-			rpm -ivh "https://download.opensuse.org/repositories/network/SLE_12_SP3/x86_64/sshpass-1.06-7.1.x86_64.rpm"
+			rpm -ivh $SLES_12_SSHPASS_LINK
 		else
 			install_package "sshpass"
 		fi
@@ -2461,6 +2468,16 @@ function add_sles_network_utilities_repo () {
 	fi
 }
 
+function dpkg_configure () {
+	retry=5
+	until [ $retry -le 0 ]; do
+		sudo dpkg --force-all --configure -a && break
+		retry=$[$retry - 1]
+		sleep 5
+		echo 'Trying again to run dpkg --configure ...'
+	done
+}
+
 # Install fio and required packages
 function install_fio () {
 	echo "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of fio"
@@ -2474,7 +2491,7 @@ function install_fio () {
 			;;
 
 		ubuntu|debian)
-			until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done
+			dpkg_configure
 			apt-get install -y pciutils gawk mdadm wget sysstat blktrace bc fio
 			check_exit_status "install_fio"
 			mount -t debugfs none /sys/kernel/debug
@@ -2494,9 +2511,10 @@ function install_fio () {
 			if [ $? -ne 0 ]; then
 				echo "Info: fio is not available in repository. So, Installing fio using rpm"
 				fio_url="$PACKAGE_BLOB_LOCATION/fio-sles-x86_64.rpm"
-				wget --no-check-certificate $fio_url
-				echo "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install ${fio_url##*/}"
-				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install ${fio_url##*/}
+				fio_file="fio-sles-x86_64.rpm"
+				curl -o $fio_file $fio_url
+				echo "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install $fio_file"
+				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install $fio_file
 				which fio
 				if [ $? -ne 0 ]; then
 					echo "Error: Unable to install fio from source/rpm"
@@ -2530,13 +2548,14 @@ function install_iperf3 () {
 			;;
 
 		ubuntu)
-			until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done
+			dpkg_configure
 			apt-get -y install iperf3 sysstat bc psmisc
 			if [ $ip_version -eq 6 ] && [[ $DISTRO_VERSION =~ 16 ]]; then
-				echo 'iface eth0 inet6 auto' >> /etc/network/interfaces.d/50-cloud-init.cfg
-				echo 'up sleep 5' >> /etc/network/interfaces.d/50-cloud-init.cfg
-				echo 'up dhclient -1 -6 -cf /etc/dhcp/dhclient6.conf -lf /var/lib/dhcp/dhclient6.eth0.leases -v eth0 || true' >> /etc/network/interfaces.d/50-cloud-init.cfg
-				ifdown eth0 && ifup eth0
+				nic_name=$(get_active_nic_name)
+				echo "iface $nic_name inet6 auto" >> /etc/network/interfaces.d/50-cloud-init.cfg
+				echo "up sleep 5" >> /etc/network/interfaces.d/50-cloud-init.cfg
+				echo "up dhclient -1 -6 -cf /etc/dhcp/dhclient6.conf -lf /var/lib/dhcp/dhclient6.$nic_name.leases -v $nic_name || true" >> /etc/network/interfaces.d/50-cloud-init.cfg
+				ifdown $nic_name && ifup $nic_name
 			fi
 			;;
 
@@ -2583,8 +2602,8 @@ function install_iperf3 () {
 function build_lagscope () {
 	rm -rf lagscope
 	git clone https://github.com/Microsoft/lagscope
-	cd lagscope/src && make && make install
-	cd ../..
+	pushd lagscope/src && make && make install
+	popd
 }
 
 # Install lagscope and required packages
@@ -2600,7 +2619,7 @@ function install_lagscope () {
 			;;
 
 		ubuntu)
-			until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done
+			dpkg_configure
 			apt-get -y install libaio1 sysstat git bc make gcc
 			build_lagscope
 			;;
@@ -2632,8 +2651,8 @@ function install_lagscope () {
 function build_ntttcp () {
 	wget https://github.com/Microsoft/ntttcp-for-linux/archive/v1.3.4.tar.gz
 	tar -zxvf v1.3.4.tar.gz
-	cd ntttcp-for-linux-1.3.4/src/ && make && make install
-	cd ../..
+	pushd ntttcp-for-linux-1.3.4/src/ && make && make install
+	popd
 }
 
 # Install ntttcp and required packages
@@ -2689,7 +2708,7 @@ function get_active_nic_name () {
 }
 
 # Create partitions
-function creat_partitions () {
+function create_partitions () {
 	disk_list=($@)
 	echo "Creating partitions on ${disk_list[@]}"
 
@@ -2914,6 +2933,5 @@ function generate_random_mac_addr () {
 	echo "52:54:00:$(dd if=/dev/urandom bs=512 count=1 2>/dev/null | md5sum | sed 's/^\(..\)\(..\)\(..\).*$/\1:\2:\3/')"
 }
 
-DISTRO_NAME=$(detect_linux_distribution)
-DISTRO_VERSION=$(detect_linux_distribution_version)
-PACKAGE_BLOB_LOCATION="https://eosgpackages.blob.core.windows.net/testpackages/tools"
+declare DISTRO_NAME=$(detect_linux_distribution)
+declare DISTRO_VERSION=$(detect_linux_distribution_version)
