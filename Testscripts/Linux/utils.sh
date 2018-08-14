@@ -196,6 +196,7 @@ LogErr()
 {
 	echo $(date "+%a %b %d %T %Y") : "${1}"
 	echo $(date "+%a %b %d %T %Y") : "${1}" >> "./TestExecutionError.log"
+	UpdateSummary "${1}"
 }
 
 # Update summary file with message $1
@@ -214,6 +215,7 @@ UpdateSummary()
 		LogMsg "Warning: summary file $__LIS_SUMMARY_FILE either does not exist or is not a regular file. Trying to create it..."
 		echo "$1" >> "$__LIS_SUMMARY_FILE" || return 2
 	fi
+	LogMsg "$1"
 
 	return 0
 }
