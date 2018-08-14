@@ -270,22 +270,6 @@
         <Tags>core</Tags>
     </test>
     <test>
-        <testName>BVT-KVP-MAX-READ</testName>
-        <testScript>BVT-KVP-MAX-READ.ps1</testScript>
-        <files>.\Tools\kvp_client32,.\Tools\kvp_client64</files>
-        <setupType>SingleVM</setupType>
-        <TestParameters>
-            <param>TC_COVERED=KVP-12</param>
-            <param>Pool=1</param>
-            <!-- Number of key pairs to be added in the kvp pool -->
-            <param>Entries=250</param>
-        </TestParameters>
-        <Platform>HyperV</Platform>
-        <Category>BVT</Category>
-        <Area>KVP</Area>
-        <Tags>kvp</Tags>
-    </test>
-    <test>
         <testName>BVT-NET-ETHTOOL-CHECK-KEYS</testName>
         <testScript>BVT-NET-ETHTOOL-CHECK-KEYS.sh</testScript>
         <files>.\TestScripts\Linux\BVT-NET-ETHTOOL-CHECK-KEYS.sh,.\TestScripts\Linux\utils.sh</files>
