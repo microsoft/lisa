@@ -160,12 +160,12 @@ collect_VM_properties
         LogMsg "Test Completed"
         
         LogMsg "Analysing the test results.."   
-        $dataSource = $xmlConfig.config.$Platform.database.server
-        $user = $xmlConfig.config.$Platform.database.user
-        $password = $xmlConfig.config.$Platform.database.password
-        $database = $xmlConfig.config.$Platform.database.dbname
-        $dataTableName = $xmlConfig.config.$Platform.database.dbtable
-        $TestCaseName = $xmlConfig.config.$Platform.database.testTag
+        $dataSource = $xmlConfig.config.$TestPlatform.database.server
+        $user = $xmlConfig.config.$TestPlatform.database.user
+        $password = $xmlConfig.config.$TestPlatform.database.password
+        $database = $xmlConfig.config.$TestPlatform.database.dbname
+        $dataTableName = $xmlConfig.config.$TestPlatform.database.dbtable
+        $TestCaseName = $xmlConfig.config.$TestPlatform.database.testTag
         $TestDate = "$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')"
         $GuestDistro    = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
         $HostType   = $Platform
