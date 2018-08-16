@@ -346,7 +346,6 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML)
     $OsVHD = $BaseOsVHD
     $InterfaceAliasWithInternet = (Get-NetIPConfiguration | where {$_.NetProfile.Name -ne 'Unidentified network'}).InterfaceAlias
     $VMSwitches = Get-VMSwitch | where {$InterfaceAliasWithInternet -match $_.Name}
-    #$VMSwitches = Get-VMSwitch  * | Where { $_.Name -imatch "Ext" }
     $ErrorCount = 0
     $SourceOsVHDPath = $xmlConfig.config.Hyperv.Host.SourceOsVHDPath
     $DestinationOsVHDPath = $xmlConfig.config.Hyperv.Host.DestinationOsVHDPath
