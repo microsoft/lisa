@@ -135,6 +135,20 @@ Per Category, each XML file has VM name, Resource Group name, etc. We do not rec
             Bash or Python script as a parameter of 'RunLinuxCmd' function.
     5. Before PR review, we recommend you run script testing in cmdline/API mode. See above instruction.
 
+## Coding Style
+
+    1. Reuse existing module, consolidate similar modules before you add or extend new function or file.
+    2. Remove duplicated methods or modules.
+    3. Remove commented code snippets and personal information.
+    4. Review file header comments.
+    5. Enforce code convention.
+    6. Clean coding in open source tools; PSScript-Analyzer, pep8, etc.
+    7. Use tab for indentation.
+    8. Test log clean up requires:
+        a. Log should be readable to reflect what’s happening in the test execution.
+        b. Remove noise. Determine if it would be error or warning.
+        c. Exception only in the case of fatal errors.
+
 ## Support Contact
 
 Contact LisaSupport@microsoft.com (Linux Integration Service Support), if you have technical issues.
