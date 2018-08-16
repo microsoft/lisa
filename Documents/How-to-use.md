@@ -137,7 +137,7 @@ Per Category, each XML file has VM name, Resource Group name, etc. We do not rec
 
 ## Coding Style
 
-    1. Reuse existing module, consolidate similiar modules before you add or extend new function or file.
+    1. Reuse existing module, consolidate similar modules before you add or extend new function or file.
     2. Remove duplicated methods or modules.
     3. Remove commented code snippets and personal information.
     4. Review file header comments.
@@ -146,7 +146,7 @@ Per Category, each XML file has VM name, Resource Group name, etc. We do not rec
     7. Use tab for indentation.
     8. Test log clean up requires:
         a. Log should be readable to reflect what’s happening in the test execution.
-        b. Remove noise. Determind if it would be error or warning.
+        b. Remove noise. Determine if it would be error or warning.
         c. Exception only in the case of fatal errors.
 
 ## Support Contact
