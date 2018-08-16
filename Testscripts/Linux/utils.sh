@@ -2547,9 +2547,17 @@ function install_iperf3 () {
 			iptables -F
 			;;
 
-		ubuntu)
+		ubuntu|debian)
 			dpkg_configure
-			apt-get -y install iperf3 sysstat bc psmisc
+			if [[ "${DISTRO_NAME}" == "ubuntu" ]]; then
+				apt-get -y install iperf3 sysstat bc psmisc
+			elif [[ "${DISTRO_NAME}" == "debian" ]]; then
+				# Debian default repositories has 3.0 iperf3 version, which is not supported by automation.
+				apt-get -y install sysstat bc psmisc
+				wget https://iperf.fr/download/ubuntu/iperf3_3.1.3-1_amd64.deb
+				wget https://iperf.fr/download/ubuntu/libiperf0_3.1.3-1_amd64.deb
+				dpkg -i iperf3_3.1.3-1_amd64.deb libiperf0_3.1.3-1_amd64.deb
+			fi
 			if [ $ip_version -eq 6 ] && [[ $DISTRO_VERSION =~ 16 ]]; then
 				nic_name=$(get_active_nic_name)
 				echo "iface $nic_name inet6 auto" >> /etc/network/interfaces.d/50-cloud-init.cfg
@@ -2618,7 +2626,7 @@ function install_lagscope () {
 			iptables -F
 			;;
 
-		ubuntu)
+		ubuntu|debian)
 			dpkg_configure
 			apt-get -y install libaio1 sysstat git bc make gcc
 			build_lagscope
@@ -2668,7 +2676,7 @@ function install_ntttcp () {
 			iptables -F
 			;;
 
-		ubuntu)
+		ubuntu|debian)
 			dpkg_configure
 			apt-get -y install wget libaio1 sysstat git bc make gcc dstat psmisc
 			build_ntttcp
