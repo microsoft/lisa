@@ -1,0 +1,57 @@
+<TestCases>
+    <test>
+        <testName>PERF-DPDK-SINGLE-CORE-PPS-DS4</testName>
+        <testScript>DPDK-TEMPLATE.ps1</testScript>
+        <setupType>DS4v2_2NIC_x2</setupType>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>        
+        <files>.\Testscripts\Linux\dpdk-testPMDmulticore.sh,.\Testscripts\Windows\dpdk-testPMDmulticore.ps1</files>
+        <TestParameters>
+            <param>dpdkSrcLink="https://fast.dpdk.org/rel/dpdk-18.05.tar.xz"</param>
+            <param>testDuration=120</param>
+            <param>modes="rxonly io"</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Performance</Category>
+        <Area>DPDK</Area>
+        <Tags>dpdk,pps,testpmd,network,hv_netvsc,sriov</Tags>
+    </test>	
+    <test>
+        <testName>PERF-DPDK-SINGLE-CORE-PPS-DS15</testName>
+        <testScript>DPDK-TEMPLATE.ps1</testScript>
+        <setupType>DS15v2_2NIC_x2</setupType>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>        
+        <files>.\Testscripts\Linux\dpdk-testPMDmulticore.sh,.\Testscripts\Windows\dpdk-testPMDmulticore.ps1</files>
+        <TestParameters>
+            <param>dpdkSrcLink="https://fast.dpdk.org/rel/dpdk-18.05.tar.xz"</param>
+            <param>testDuration=120</param>
+            <param>modes="rxonly io"</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Performance</Category>
+        <Area>DPDK</Area>
+        <Tags>dpdk,pps,testpmd,network,hv_netvsc,sriov</Tags>
+    </test>	
+    <test>
+        <testName>PERF-DPDK-MULTICORE-PPS-DS15</testName>
+        <testScript>DPDK-TEMPLATE.ps1</testScript>
+        <setupType>DS15v2_2NIC_x2</setupType>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>        
+        <files>.\Testscripts\Linux\dpdk-testPMDmulticore.sh,.\Testscripts\Windows\dpdk-testPMDmulticore.ps1</files>
+        <TestParameters>
+            <param>dpdkSrcLink="https://fast.dpdk.org/rel/dpdk-18.05.tar.xz"</param>
+            <param>testDuration=120</param>
+            <param>modes="rxonly io"</param>
+            <param>cores="2 4 8 16"</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Performance</Category>
+        <Area>DPDK</Area>
+        <Tags>dpdk,pps,testpmd,cores,multicore,network,hv_netvsc,sriov</Tags>
+    </test>	
+</TestCases>
