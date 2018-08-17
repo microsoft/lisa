@@ -244,8 +244,8 @@
         <ResourceGroup>
             <VirtualMachine>
                 <state></state>
-                <InstanceSize>Standard_DS14</InstanceSize>
-                <ARMInstanceSize>Standard_DS14</ARMInstanceSize>
+                <InstanceSize>Standard_DS14_v2</InstanceSize>
+                <ARMInstanceSize>Standard_DS14_v2</ARMInstanceSize>
                 <EndPoints>
                     <Name>SSH</Name>
                     <Protocol>tcp</Protocol>
