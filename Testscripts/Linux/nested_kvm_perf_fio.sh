@@ -143,33 +143,6 @@ remove_raid_and_format()
 	done
 }
 
-create_raid0()
-{
-	disks=$(ls -l /dev | grep sd[b-z]$ | awk '{print $10}')	
-	log_msg "INFO: Creating Partitions"
-	count=0
-	for disk in ${disks}
-	do		
-		log_msg "Partition disk /dev/${disk}"
-		(echo d; echo n; echo p; echo 1; echo; echo; echo t; echo fd; echo w;) | fdisk /dev/${disk}
-		count=$(( $count + 1 ))
-		sleep 1
-	done
-	log_msg "INFO: Creating RAID of ${count} devices."
-	sleep 1
-	yes | mdadm --create ${mdVolume} --level 0 --raid-devices ${count} /dev/sd[b-z][1-5]
-	sleep 1
-	if [ $? -ne 0 ]; then
-		update_test_state "$ICA_TESTFAILED"
-		log_msg "Error: unable to create raid ${mdVolume}"
-		exit 1
-	else
-		log_msg "Raid ${mdVolume} create successfully."
-	fi
-	log_msg "formatting ${mdVolume}"
-	time mkfs -t $1 -F ${mdVolume}
-}
-
 ############################################################
 #	Main body
 ############################################################
@@ -190,16 +163,22 @@ cd ${HOMEDIR}
 install_fio
 remove_raid_and_format
 
+disks=$(ls -l /dev | grep sd[b-z]$ | awk '{print $10}')
 if [[ $RaidOption == 'RAID in L2' ]]; then
 	#For RAID in L2
-	create_raid0 ext4
+	create_raid0 "$disks" $mdVolume
+	if [ $? -ne 0 ]; then
+		update_test_state "$ICA_TESTFAILED"
+		exit 1
+	fi
+	log_msg "formatting ${mdVolume}"
+	time mkfs -t ext4 -F ${mdVolume}
 	devices=$mdVolume
 	disks='md0'
 else
 	#For RAID in L1, No RAID and single disk
 	devices=''
-	disks=($(ls -l /dev | grep sd[b-z]$ | awk '{print $10}'))
-	for disk in ${disks[@]}
+	for disk in ${disks}
 	do
 		if [[ $devices == '' ]]; then
 			devices="/dev/${disk}"
@@ -209,7 +188,7 @@ else
 	done
 fi
 
-for disk in ${disks[@]}
+for disk in ${disks}
 do
 	log_msg "set rq_affinity to 0 for device ${disk}"
 	echo 0 > /sys/block/${disk}/queue/rq_affinity

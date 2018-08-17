@@ -2767,6 +2767,36 @@ function create_raid_and_mount() {
 	check_exit_status "RAID ($deviceName) mount on $mountdir as $format"
 }
 
+#Create raid0
+function create_raid0()
+{
+	if [[ $# == 2 ]]; then
+		local disks=$1
+		local deviceName=$2
+	else
+		echo "Error: create_raid0 accepts 2 arguments: 1. disks name, separated by whitespace 2. deviceName for raid"
+		return 100
+	fi
+	count=0
+	for disk in ${disks}
+	do
+		echo "Partition disk /dev/${disk}"
+		(echo d; echo n; echo p; echo 1; echo; echo; echo t; echo fd; echo w;) | fdisk /dev/${disk}
+		raidDevices="${raidDevices} /dev/${disk}1"
+		count=$(( $count + 1 ))
+	done
+	echo "INFO: Creating RAID of ${count} devices."
+	sleep 1
+	echo "Run cmd: yes | mdadm --create ${deviceName} --level 0 --raid-devices $count $raidDevices"
+	yes | mdadm --create ${deviceName} --level 0 --raid-devices $count $raidDevices
+	if [ $? -ne 0 ]; then
+		echo "Error: unable to create raid ${deviceName}"
+		return 1
+	else
+		echo "Raid ${deviceName} create successfully."
+	fi
+}
+
 # Copy/download files to/from remote server
 # Usage:
 #   remote_copy -user <username> -passwd <password> -host <host IP> -port <host port> -filename <filename> -remote_path <file path on remote vm> -cmd <put/get>

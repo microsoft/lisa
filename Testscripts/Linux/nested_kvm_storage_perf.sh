@@ -62,10 +62,6 @@ if [ -z "$NestedMemMB" ]; then
     echo "Please mention -NestedMemMB next"
     exit 1
 fi
-if [ -z "$TestPlatform" ]; then
-    echo "Please mention -platform next"
-    exit 1
-fi
 if [ -z "$RaidOption" ]; then
     echo "Please mention -RaidOption next"
     exit 1
@@ -106,28 +102,6 @@ remove_raid()
             echo "formatting disk /dev/${disk}"
             mkfs -t ext4 -F /dev/${disk}
         done
-    fi
-}
-
-create_raid0()
-{
-    log_msg "INFO: Creating Partitions"
-    count=0
-    for disk in ${disks}
-    do
-        echo "formatting disk /dev/${disk}"
-        (echo d; echo n; echo p; echo 1; echo; echo; echo t; echo fd; echo w;) | fdisk /dev/${disk}
-        count=$(( $count + 1 ))
-        sleep 1
-    done
-    log_msg "INFO: Creating RAID of ${count} devices."
-    yes | mdadm --create ${mdVolume} --level 0 --raid-devices ${count} /dev/${devices}[1-5]
-    if [ $? -ne 0 ]; then
-        update_test_state $ICA_TESTFAILED
-        log_msg "Error: Unable to create raid"
-        exit 0
-    else
-        log_msg "Create raid successfully."
     fi
 }
 
@@ -184,22 +158,20 @@ collect_logs()
 ############################################################
 update_test_state $ICA_TESTRUNNING
 
-if [[ $TestPlatform == 'HyperV' ]]; then
-    devices='sd[b-z]'
-else
-    devices='sd[c-z]'
-fi
-
-disks=$(ls -l /dev | grep ${devices}$ | awk '{print $10}')
+disks=$(ls -l /dev | grep sd[c-z]$ | awk '{print $10}')
 remove_raid
 
 if [[ $RaidOption == 'RAID in L1' ]]; then
     mdVolume="/dev/md0"
-    create_raid0
+    create_raid0 "$disks" $mdVolume
+    if [ $? -ne 0 ]; then
+        update_test_state $ICA_TESTFAILED
+        exit 0
+    fi
     disks='md0'
 fi
 
-for disk in ${disks[@]}
+for disk in ${disks}
 do
     log_msg "set rq_affinity to 0 for device ${disk}"
     echo 0 > /sys/block/${disk}/queue/rq_affinity
