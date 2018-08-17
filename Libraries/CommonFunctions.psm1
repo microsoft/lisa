@@ -1433,7 +1433,7 @@ Function RemoteCopy($uploadTo, $downloadFrom, $downloadTo, $port, $files, $usern
 
 Function WrapperCommandsToFile([string] $username,[string] $password,[string] $ip,[string] $command, [int] $port)
 {
-    if ( ( $lastLinuxCmd -eq $command) -and ($lastIP -eq $ip) -and ($lastPort -eq $port) -and ($lastUser -eq $username) )
+    if ( ( $lastLinuxCmd -eq $command) -and ($lastIP -eq $ip) -and ($lastPort -eq $port) -and ($lastUser -eq $username) -and ($TestPlatform -eq "Azure"))
     {
         #Skip upload if current command is same as last command.
     }
@@ -2679,7 +2679,7 @@ function Get-VMFeatureSupportStatus {
         Check if VM supports a feature or not.
     .Description
         Check if VM supports one feature or not based on comparison 
-            of curent kernel version with featuresupported kernel version. 
+            of curent kernel version with feature supported kernel version.
         If the current version is lower than feature supported version, 
             return false, otherwise return true.
     .Parameter Ipv4
@@ -2799,4 +2799,74 @@ function Get-VMFeatureSupportStatus {
         }
     }
     return $cmpResult
+}
+
+function Get-UnixVMTime {
+    param (
+        [String] $Ipv4,
+        [String] $Port,
+        [String] $Username,
+        [String] $Password
+    )
+    
+    $unixTimeStr = $null
+
+    $unixTimeStr = Get-TimeFromVM -Ipv4 $Ipv4 -Port $Port `
+        -Username $Username -Password $Password
+    if (-not $unixTimeStr -and $unixTimeStr.Length -lt 10) {
+        return $null
+    }
+
+    return $unixTimeStr
+}
+
+function Get-TimeSync {
+    param (
+        [String] $Ipv4,
+        [String] $Port,
+        [String] $Username,
+        [String] $Password
+    )
+
+    # Get a time string from the VM, then convert the Unix time string into a .NET DateTime object
+    $unixTimeStr = RunLinuxCmd -ip $Ipv4 -port $Port -username $Username -password $Password `
+        -command 'date "+%m/%d/%Y/%T" -u'
+    if (-not $unixTimeStr) {
+        LogErr "Error: Unable to get date/time string from VM"
+        return $False
+    }
+
+    $pattern = 'MM/dd/yyyy/HH:mm:ss'
+    $unixTime = [DateTime]::ParseExact($unixTimeStr, $pattern, $null)
+
+    # Get our time
+    $windowsTime = [DateTime]::Now.ToUniversalTime()
+
+    # Compute the timespan, then convert it to the absolute value of the total difference in seconds
+    $diffInSeconds = $null
+    $timeSpan = $windowsTime - $unixTime
+    if (-not $timeSpan) {
+        LogErr "Error: Unable to compute timespan"
+        return $False
+    } else {
+        $diffInSeconds = [Math]::Abs($timeSpan.TotalSeconds)
+    }
+
+    # Display the data
+    LogMsg "Windows time: $($windowsTime.ToString())"
+    LogMsg "Unix time: $($unixTime.ToString())"
+    LogMsg "Difference: $diffInSeconds"
+    LogMsg "Time difference = ${diffInSeconds}"
+    return $diffInSeconds
+}
+
+function CheckVMState {
+    param (
+        [String] $VMName, 
+        [String] $HvServer
+    )
+    $vm = Get-Vm -VMName $VMName -ComputerName $HvServer
+    $vmStatus = $vm.state
+
+    return $vmStatus
 }
