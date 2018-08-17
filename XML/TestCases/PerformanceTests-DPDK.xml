@@ -1,7 +1,7 @@
 <TestCases>
     <test>
         <testName>PERF-DPDK-SINGLE-CORE-PPS-DS4</testName>
-        <testScript>DPDK-TEMPLATE.ps1</testScript>
+        <testScript>DPDK-TESTCASE-DRIVER.ps1</testScript>
         <setupType>DS4v2_2NIC_x2</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
@@ -15,11 +15,11 @@
         <Platform>Azure</Platform>
         <Category>Performance</Category>
         <Area>DPDK</Area>
-        <Tags>dpdk,pps,testpmd,network,hv_netvsc,sriov</Tags>
+        <Tags>dpdk,network,hv_netvsc,sriov</Tags>
     </test>	
     <test>
         <testName>PERF-DPDK-SINGLE-CORE-PPS-DS15</testName>
-        <testScript>DPDK-TEMPLATE.ps1</testScript>
+        <testScript>DPDK-TESTCASE-DRIVER.ps1</testScript>
         <setupType>DS15v2_2NIC_x2</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
@@ -33,11 +33,11 @@
         <Platform>Azure</Platform>
         <Category>Performance</Category>
         <Area>DPDK</Area>
-        <Tags>dpdk,pps,testpmd,network,hv_netvsc,sriov</Tags>
+        <Tags>dpdk,network,hv_netvsc,sriov</Tags>
     </test>	
     <test>
         <testName>PERF-DPDK-MULTICORE-PPS-DS15</testName>
-        <testScript>DPDK-TEMPLATE.ps1</testScript>
+        <testScript>DPDK-TESTCASE-DRIVER.ps1</testScript>
         <setupType>DS15v2_2NIC_x2</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
@@ -52,6 +52,6 @@
         <Platform>Azure</Platform>
         <Category>Performance</Category>
         <Area>DPDK</Area>
-        <Tags>dpdk,pps,testpmd,cores,multicore,network,hv_netvsc,sriov</Tags>
+        <Tags>dpdk,network,hv_netvsc,sriov</Tags>
     </test>	
 </TestCases>

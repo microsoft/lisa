@@ -70,7 +70,7 @@ function hugePageSetup() {
         if [ $res -eq 1 ]; then
             LogErr "ERROR: must pass valid ip to hugePageSetup"
             SetTestStateAborted
-            exit 10
+            exit 1
         fi
         ssh ${1} "${hugepageCMD}"
     fi
@@ -84,7 +84,7 @@ function modprobeSetup() {
     local modprobeCMD="modprobe -a ib_uverbs"
     
     # known issue on sles15
-    local distro=$(detectDistro)$(detectDistroVersion)
+    local distro=$(detect_linux_distribution)$(detect_linux_distribution_version)
     if [[ "${distro}" == "sles15" ]]; then
         modprobeCMD="$modprobeCMD mlx4_ib"
     fi
@@ -96,60 +96,17 @@ function modprobeSetup() {
         if [ $res -eq 1 ]; then
             LogErr "ERROR: must pass valid ip to modprobeSetup"
             SetTestStateAborted
-            exit 10
+            exit 1
         fi
         ssh ${1} "${modprobeCMD}"
     fi
-}
-
-function detectDistroVersion() {
-    local  distro_version="Unknown"
-    if [ -f /etc/centos-release ] ; then
-        distro_version=`cat /etc/centos-release | sed s/.*release\ // | sed s/\ .*//`
-    elif [ -f /etc/oracle-release ] ; then
-        distro_version=`cat /etc/oracle-release | sed s/.*release\ // | sed s/\ .*//`
-    elif [ -f /etc/redhat-release ] ; then
-        distro_version=`cat /etc/redhat-release | sed s/.*release\ // | sed s/\ .*//`
-    elif [ -f /etc/os-release ] ; then
-        distro_version=`cat /etc/os-release|sed 's/"//g'|grep "VERSION_ID="| sed 's/VERSION_ID=//'| sed 's/\r//'`
-    fi
-    echo $distro_version
-}
-
-function detectDistro() {
-    local linux_distribution=`cat /etc/*release*|sed 's/"//g'|grep "^ID="| sed 's/ID=//'`
-    local temp_text=`cat /etc/*release*`
-    if [ "$linux_distribution" == "" ]; then
-        if echo "$temp_text" | grep -qi "ol"; then
-            linux_distribution='oracle'
-        elif echo "$temp_text" | grep -qi "Ubuntu"; then
-            linux_distribution='ubuntu'
-        elif echo "$temp_text" | grep -qi "SUSE Linux"; then
-            linux_distribution='suse'
-        elif echo "$temp_text" | grep -qi "openSUSE"; then
-            linux_distribution='opensuse'
-        elif echo "$temp_text" | grep -qi "centos"; then
-            linux_distribution='centos'
-        elif echo "$temp_text" | grep -qi "Oracle"; then
-            linux_distribution='oracle'
-        elif echo "$temp_text" | grep -qi "Red Hat"; then
-            linux_distribution='rhel'
-        else
-            linux_distribution='unknown'
-        fi
-    elif [ "$linux_distribution" == "ol" ]; then
-        linux_distribution='oracle'
-    elif echo "$linux_distribution" | grep -qi "debian"; then
-        linux_distribution='debian'
-    fi
-    echo "$(echo "$linux_distribution" | awk '{print tolower($0)}')"
 }
 
 function sourceScript() {
     if [ -z "${1}" ]; then
         LogErr "ERROR: Must supply script name as 1st argument to sourceScript"
         SetTestStateAborted
-        exit 10
+        exit 1
     fi
 
     local file="${1}"
@@ -158,7 +115,7 @@ function sourceScript() {
     else
         LogErr "ERROR: func sourceScript unable to source ${file} file"
         SetTestStateAborted
-        exit 10
+        exit 1
     fi
 }
 
@@ -197,7 +154,7 @@ function installDPDK() {
     if [ $ip1invalid -eq 1 -o $ip2invalid -eq 1 -o $ip3invalid -eq 1 ]; then
         LogErr "ERROR: provided IPs to installDPDK must valid"
         SetTestStateAborted
-        exit 10
+        exit 1
     fi
 
     local srcIp=${2}
@@ -213,7 +170,7 @@ function installDPDK() {
     local dpdkVersion=$(echo $dpdkSrcTar | grep -Po "(\d+\.)+\d+")
     local DPDK_BUILD=x86_64-native-linuxapp-gcc
 
-    local distro=$(detectDistro)$(detectDistroVersion)
+    local distro=$(detect_linux_distribution)$(detect_linux_distribution_version)
     if [[ "${distro}" == ubuntu* ]]; then
         if [[ "${distro}" == "ubuntu16.04" ]]; then
             LogMsg "Detected ubuntu16.04"
@@ -234,7 +191,7 @@ function installDPDK() {
 
         ssh ${1} "yum -y groupinstall 'Infiniband Support'"
         ssh ${1} "dracut --add-drivers 'mlx4_en mlx4_ib mlx5_ib' -f"
-        ssh ${1} "yum install -y gcc kernel-devel-`uname -r` numactl-devel.x86_64 librdmacm-devel"
+        ssh ${1} "yum install -y gcc kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel"
 
     elif [[ "${distro}" == "sles15" ]]; then
         LogMsg "Detected sles15"
@@ -258,14 +215,14 @@ function installDPDK() {
     LogMsg "dpdk source on ${1} $dpdkSrcDir"
 
     LogMsg "dpdk build with NIC SRC IP $srcIp ADDR on ${1}"
-    local srcIpArry=( `echo $srcIp | sed "s/\./ /g"` )
+    local srcIpArry=($(echo $srcIp | sed "s/\./ /g"))
     local srcIpAddrs="define IP_SRC_ADDR ((${srcIpArry[0]}U << 24) | (${srcIpArry[1]} << 16) | ( ${srcIpArry[2]} << 8) | ${srcIpArry[3]})"
     local srcIpConfigCmd="sed -i 's/define IP_SRC_ADDR.*/$srcIpAddrs/' $LIS_HOME/$dpdkSrcDir/app/test-pmd/txonly.c"
     LogMsg "ssh ${1} $srcIpConfigCmd"
     ssh ${1} $srcIpConfigCmd
 
     LogMsg "dpdk build with NIC DST IP $dstIp ADDR on ${1}"
-    local dstIpArry=( `echo $dstIp | sed "s/\./ /g"` )
+    local dstIpArry=($(echo $dstIp | sed "s/\./ /g"))
     local dstIpAddrs="define IP_DST_ADDR ((${dstIpArry[0]}U << 24) | (${dstIpArry[1]} << 16) | (${dstIpArry[2]} << 8) | ${dstIpArry[3]})"
     local dstIpConfigCmd="sed -i 's/define IP_DST_ADDR.*/$dstIpAddrs/' $LIS_HOME/$dpdkSrcDir/app/test-pmd/txonly.c"
     LogMsg "ssh ${1} $dstIpConfigCmd"
@@ -274,7 +231,7 @@ function installDPDK() {
     LogMsg "MLX_PMD flag enabling on ${1}"
     ssh ${1} "cd $LIS_HOME/$dpdkSrcDir && make config T=${DPDK_BUILD}"
     ssh ${1} "sed -ri 's,(MLX._PMD=)n,\1y,' $LIS_HOME/$dpdkSrcDir/build/.config"
-    ssh ${1} "cd $LIS_HOME/$dpdkSrcDir && make -j8"
+    ssh ${1} "cd $LIS_HOME/$dpdkSrcDir && make -j"
     ssh ${1} "cd $LIS_HOME/$dpdkSrcDir && make install"
 
     LogMsg "Installed DPDK version on ${1} is ${dpdkVersion}"

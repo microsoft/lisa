@@ -39,12 +39,12 @@ runTestPmd() {
     fi
 
     core=${1}
-    dpdkSrcDir=`ls | grep dpdk- | grep -v \.sh`
+    dpdkSrcDir=$(ls | grep dpdk- | grep -v \.sh)
 
     pairs=($(getSyntheticVfPairs))
     if [ -z "${pairs[@]}" ]; then
         LogErr "ERROR: No VFs present"
-        SetTestStateAborted
+        SetTestStateFailed
         exit 1
     fi
 
@@ -63,7 +63,6 @@ runTestPmd() {
         serverTestPmdCmd="timeout ${serverDuration} $LIS_HOME/$dpdkSrcDir/build/app/testpmd -l 0-${core} -w ${busaddr} --vdev='net_vdev_netvsc0,iface=${iface}' -- --port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core} --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=${testmode} --stats-period 1"
         LogMsg "${serverTestPmdCmd}"
         ssh ${server} $serverTestPmdCmd 2>&1 > $LOGDIR/dpdk-testpmd-${testmode}-receiver-${core}-core-$(date +"%m%d%Y-%H%M%S").log &
-        checkCmdExitStatus "TestPmd started on server with ${testmode} mode, duration ${testDuration} secs"
 
         sleep 5
         
@@ -71,7 +70,6 @@ runTestPmd() {
         clientTestPmdCmd="timeout ${testDuration} $LIS_HOME/$dpdkSrcDir/build/app/testpmd -l 0-${core} -w ${busaddr} --vdev='net_vdev_netvsc0,iface=${iface}' -- --port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core} --mbcache=512 --txd=4096 --forward-mode=txonly --stats-period 1 2>&1 > $LOGDIR/dpdk-testpmd-${testmode}-sender-${core}-core-$(date +"%m%d%Y-%H%M%S").log &"
         LogMsg "${clientTestPmdCmd}"
         eval $clientTestPmdCmd
-        checkCmdExitStatus "TestPmd started on client with txonly mode, duration ${testDuration} secs"
 
         sleep ${testDuration}
 
@@ -117,31 +115,31 @@ testPmdParser() {
         LogMsg "collecting results from ${logFiles[$fileCount]}"
         if [[ ${logFiles[$fileCount]} =~ "rxonly-receiver-${core}-core" ]];	then
             rxonly_mode="rxonly"
-            rxonly_Rxpps_Max=`cat ${logFiles[$fileCount]} | grep Rx-pps: | awk '{print $2}' | sort -n | tail -1`
-            rxonly_Rxpps=(`cat ${logFiles[$fileCount]} | grep Rx-pps: | awk '{print $2}'`)
+            rxonly_Rxpps_Max=$(cat ${logFiles[$fileCount]} | grep Rx-pps: | awk '{print $2}' | sort -n | tail -1)
+            rxonly_Rxpps=($(cat ${logFiles[$fileCount]} | grep Rx-pps: | awk '{print $2}'))
             rxonly_Rxpps_Avg=$(($(expr $(printf '%b + ' "${rxonly_Rxpps[@]::${#rxonly_Rxpps[@]}}"\\c))/${#rxonly_Rxpps[@]}))
 
-            rxonly_ReTxpps_Max=`cat ${logFiles[$fileCount]} | grep Tx-pps: | awk '{print $2}' | sort -n | tail -1`
-            rxonly_ReTxpps=(`cat ${logFiles[$fileCount]} | grep Tx-pps: | awk '{print $2}'`)
+            rxonly_ReTxpps_Max=$(cat ${logFiles[$fileCount]} | grep Tx-pps: | awk '{print $2}' | sort -n | tail -1)
+            rxonly_ReTxpps=($(cat ${logFiles[$fileCount]} | grep Tx-pps: | awk '{print $2}'))
             rxonly_ReTxpps_Avg=$(($(expr $(printf '%b + ' "${rxonly_ReTxpps[@]::${#rxonly_ReTxpps[@]}}"\\c))/${#rxonly_ReTxpps[@]}))
         elif [[ ${logFiles[$fileCount]} =~ "rxonly-sender-${core}-core" ]]; then
             rxonly_mode="rxonly"
-            rxonly_Txpps_Max=(`cat ${logFiles[$fileCount]} | grep Tx-pps: | awk '{print $2}' | sort -n | tail -1`)
-            rxonly_Txpps=(`cat ${logFiles[$fileCount]} | grep Tx-pps: | awk '{print $2}'`)
+            rxonly_Txpps_Max=($(cat ${logFiles[$fileCount]} | grep Tx-pps: | awk '{print $2}' | sort -n | tail -1))
+            rxonly_Txpps=($(cat ${logFiles[$fileCount]} | grep Tx-pps: | awk '{print $2}'))
             rxonly_Txpps_Avg=$(($(expr $(printf '%b + ' "${rxonly_Txpps[@]::${#rxonly_Txpps[@]}}"\\c))/${#rxonly_Txpps[@]}))
         elif [[ ${logFiles[$fileCount]} =~ "io-receiver-${core}-core" ]]; then
             io_mode="io"
-            io_Rxpps_Max=`cat ${logFiles[$fileCount]} | grep Rx-pps: | awk '{print $2}' | sort -n | tail -1`
-            io_Rxpps=(`cat ${logFiles[$fileCount]} | grep Rx-pps: | awk '{print $2}'`)
+            io_Rxpps_Max=$(cat ${logFiles[$fileCount]} | grep Rx-pps: | awk '{print $2}' | sort -n | tail -1)
+            io_Rxpps=($(cat ${logFiles[$fileCount]} | grep Rx-pps: | awk '{print $2}'))
             io_Rxpps_Avg=$(($(expr $(printf '%b + ' "${io_Rxpps[@]::${#io_Rxpps[@]}}"\\c))/${#io_Rxpps[@]}))
 
-            io_ReTxpps_Max=`cat ${logFiles[$fileCount]} | grep Tx-pps: | awk '{print $2}' | sort -n | tail -1`
-            io_ReTxpps=(`cat ${logFiles[$fileCount]} | grep Tx-pps: | awk '{print $2}'`)
+            io_ReTxpps_Max=$(cat ${logFiles[$fileCount]} | grep Tx-pps: | awk '{print $2}' | sort -n | tail -1)
+            io_ReTxpps=($(cat ${logFiles[$fileCount]} | grep Tx-pps: | awk '{print $2}'))
             io_ReTxpps_Avg=$(($(expr $(printf '%b + ' "${io_ReTxpps[@]::${#io_ReTxpps[@]}}"\\c))/${#io_ReTxpps[@]}))
         elif [[ ${logFiles[$fileCount]} =~ "io-sender-${core}-core" ]]; then
             io_mode="io"
-            io_Txpps_Max=(`cat ${logFiles[$fileCount]} | grep Tx-pps: | awk '{print $2}' | sort -n | tail -1`)
-            io_Txpps=(`cat ${logFiles[$fileCount]} | grep Tx-pps: | awk '{print $2}'`)
+            io_Txpps_Max=($(cat ${logFiles[$fileCount]} | grep Tx-pps: | awk '{print $2}' | sort -n | tail -1))
+            io_Txpps=($(cat ${logFiles[$fileCount]} | grep Tx-pps: | awk '{print $2}'))
             io_Txpps_Avg=$(($(expr $(printf '%b + ' "${io_Txpps[@]::${#io_Txpps[@]}}"\\c))/${#io_Txpps[@]}))
         fi
         ((fileCount++))

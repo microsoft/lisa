@@ -20,10 +20,10 @@ function Main {
             }
         }
         if ($noClient) {
-            Throw "No master VM defined. Be sure that, Client VM role name matches with the pattern `"*client*`". Aborting Test."
+            throw "No master VM defined. Be sure that, Client VM role name matches with the pattern `"*client*`". Aborting Test."
         }
         if ($noServer) {
-            Throw "No slave VM defined. Be sure that, Server machine role names matches with pattern `"*server*`" Aborting Test."
+            throw "No slave VM defined. Be sure that, Server machine role names matches with pattern `"*server*`" Aborting Test."
         }
 
         LogMsg "CLIENT VM details :"
@@ -114,8 +114,8 @@ cd /root/
             $testResult = (verifyPerf)
         }
         elseif ($finalStatus -imatch "TestRunning") {
-            LogMsg "Powershell backgroud job for test is completed but VM is reporting that test is still running. Please check $LogDir\zkConsoleLogs.txt"
-            LogMsg "Contests of summary.log : $testSummary"
+            LogWarn "Powershell backgroud job for test is completed but VM is reporting that test is still running. Please check $LogDir\zkConsoleLogs.txt"
+            LogWarn "Contests of summary.log : $testSummary"
             $testResult = "ABORTED"
         }
 
@@ -124,7 +124,7 @@ cd /root/
     catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+        LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     } finally {
         if (!$testResult) {
             $testResult = "Aborted"
