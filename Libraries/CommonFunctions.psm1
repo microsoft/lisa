@@ -2574,3 +2574,229 @@ function CreateTestResultObject()
 	Add-Member -InputObject $objNode -MemberType NoteProperty -Name TestSummary -Value $null -Force
 	return $objNode
 }
+
+function Get-HostBuildNumber {
+    <#
+    .Synopsis
+        Get host BuildNumber.
+
+    .Description
+        Get host BuildNumber.
+        14393: 2016 host
+        9600: 2012R2 host
+        9200: 2012 host
+        0: error
+
+    .Parameter hvServer
+        Name of the server hosting the VM
+
+    .ReturnValue
+        Host BuildNumber.
+
+    .Example
+        Get-HostBuildNumber
+    #>
+    param (
+        [String] $HvServer
+    )
+
+    [System.Int32]$buildNR = (Get-WmiObject -class Win32_OperatingSystem -ComputerName $HvServer).BuildNumber
+
+    if ( $buildNR -gt 0 ) {
+        return $buildNR
+    } else {
+        LogMsg "Get host build number failed"
+        return 0
+    }
+}
+
+function Convert-KvpToDict($RawData) {
+    <#
+    .Synopsis
+        Convert the KVP data to a PowerShell dictionary.
+
+    .Description
+        Convert the KVP xml data into a PowerShell dictionary.
+        All keys are added to the dictionary, even if their
+        values are null.
+
+    .Parameter RawData
+        The raw xml KVP data.
+
+    .Example
+        Convert-KvpToDict $myKvpData
+    #>
+
+    $dict = @{}
+
+    foreach ($dataItem in $RawData) {
+        $key = ""
+        $value = ""
+        $xmlData = [Xml] $dataItem
+
+        foreach ($p in $xmlData.INSTANCE.PROPERTY) {
+            if ($p.Name -eq "Name") {
+                $key = $p.Value
+            }
+            if ($p.Name -eq "Data") {
+                $value = $p.Value
+            }
+        }
+        $dict[$key] = $value
+    }
+
+    return $dict
+}
+
+function Check-Systemd {
+    param (
+        [String] $Ipv4,
+        [String] $SSHPort,
+        [String] $Username,
+        [String] $Password
+    )
+    
+    $check1 = $true
+    $check2 = $true
+    
+    .\Tools\plink.exe -C -pw $Password -P $SSHPort $Username@$Ipv4 "ls -l /sbin/init | grep systemd"
+    if ($LASTEXITCODE -ne "True") {
+       LogMsg "Systemd not found on VM"
+       $check1 = $false
+    }
+    .\Tools\plink.exe -C -pw $Password -P $SSHPort $Username@$Ipv4 "systemd-analyze --help"
+    if ($LASTEXITCODE -ne "True") {
+        LogMsg "Systemd-analyze not present on VM."
+        $check2 = $false
+    }
+
+    return ($check1 -and $check2)
+}
+
+function Get-VMFeatureSupportStatus {
+    <#
+    .Synopsis
+        Check if VM supports a feature or not.
+    .Description
+        Check if VM supports one feature or not based on comparison 
+            of curent kernel version with featuresupported kernel version. 
+        If the current version is lower than feature supported version, 
+            return false, otherwise return true.
+    .Parameter Ipv4
+        IPv4 address of the Linux VM.
+    .Parameter SSHPort
+        SSH port used to connect to VM.
+    .Parameter Username
+        Username used to connect to the Linux VM.
+    .Parameter Password
+        Password used to connect to the Linux VM.
+    .Parameter Supportkernel
+        The kernel version number starts to support this feature, e.g. supportkernel = "3.10.0.383"
+    .Example
+        Get-VMFeatureSupportStatus $ipv4 $SSHPort $Username $Password $Supportkernel
+    #>
+    
+    param (
+        [String] $Ipv4,
+        [String] $SSHPort,
+        [String] $Username,
+        [String] $Password,
+        [String] $SupportKernel
+    )
+    
+    echo y | .\Tools\plink.exe -C -pw $Password -P $SSHPort $Username@$Ipv4 'exit 0'
+    $currentKernel = .\Tools\plink.exe -C -pw $Password -P $SSHPort $Username@$Ipv4  "uname -r"
+    if( $LASTEXITCODE -eq $false){
+        LogMsg "Warning: Could not get kernel version".
+    }
+    $sKernel = $SupportKernel.split(".-")
+    $cKernel = $currentKernel.split(".-")
+
+    for ($i=0; $i -le 3; $i++) {
+        if ($cKernel[$i] -lt $sKernel[$i] ) {
+            $cmpResult = $false
+            break;
+        }
+        if ($cKernel[$i] -gt $sKernel[$i] ) {
+            $cmpResult = $true
+            break
+        }
+        if ($i -eq 3) { $cmpResult = $True }
+    }
+    return $cmpResult
+}
+
+function Get-SelinuxAVCLog() {
+    <#
+    .Synopsis
+        Check selinux audit.log in Linux VM for avc denied log.
+    .Description
+        Check audit.log in Linux VM for avc denied log.
+        If get avc denied log for hyperv daemons, return $true, else return $false.
+    #>
+    
+    param (
+        [String] $Ipv4,
+        [String] $SSHPort,
+        [String] $Username,
+        [String] $Password
+    )
+    
+    $FILE_NAME = ".\audit.log"
+    $TEXT_HV = "hyperv"
+    $TEXT_AVC = "type=avc"
+
+    echo y | .\Tools\plink.exe -C -pw $Password -P $SSHPort $Username@$Ipv4 "ls /var/log/audit/audit.log > /dev/null 2>&1"
+    if (-not $LASTEXITCODE) {
+        LogErr "Warning: Unable to find audit.log from the VM, ignore audit log check"
+        return $True
+    }
+    .\Tools\pscp -C -pw $Password -P $SSHPort $Username@${Ipv4}:/var/log/audit/audit.log $filename
+    if (-not $LASTEXITCODE) {
+        LogErr "ERROR: Unable to copy audit.log from the VM"
+        return $False
+    }
+
+    $file = Get-Content $FILE_NAME
+    Remove-Item $FILE_NAME
+    foreach ($line in $file) {
+        if ($line -match $TEXT_HV -and $line -match $TEXT_AVC){
+            LogErr "ERROR: get the avc denied log: $line"
+            return $True
+        }
+    }
+    LogErr "Info: no avc denied log in audit log as expected"
+    return $False
+}
+
+function Get-VMFeatureSupportStatus {
+    param (
+        [String] $VmIp, 
+        [String] $VmPort,
+        [String] $UserName,
+        [String] $Password,
+        [String] $SupportKernel
+    )
+
+    $currentKernel = .\Tools\plink.exe -C -pw $Password -P $VmPort $UserName@$VmIp "uname -r"
+    if ($LASTEXITCODE -eq $False) {
+        Write-Output "Warning: Could not get kernel version".
+    }
+    $sKernel = $supportKernel.split(".-")
+    $cKernel = $currentKernel.split(".-")
+
+    for ($i=0; $i -le 3; $i++) {
+        if ($cKernel[$i] -lt $sKernel[$i] ) {
+            $cmpResult = $false
+            break;
+        }
+        if ($cKernel[$i] -gt $sKernel[$i] ) {
+            $cmpResult = $true
+            break
+        }
+        if ($i -eq 3) {
+            $cmpResult = $True 
+        }
+    }
+    return $cmpResult
+}
