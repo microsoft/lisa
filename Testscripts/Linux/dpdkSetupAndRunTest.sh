@@ -11,47 +11,46 @@
 #
 #############################################################################
 
-dpdkMulticoreSetup() {
+function dpdk_setup() {
+    if [ -z "${CLIENT}" -o -z "${SERVER}" ]; then
+        LogErr "ERROR: CLIENT and SERVER must be defined in environment"
+        SetTestStateAborted
+        exit 1
+    fi
+
     # work around for known issue of some distro's NICs not coming up with IP
-    local distro=$(detectDistro)$(detectDistroVersion)
+    local distro=$(detect_linux_distribution)$(detect_linux_distribution_version)
     if [[ "${distro}" == "ubuntu18.04" || "${distro}" == "rhel7.5" ]]; then
         LogMsg "Running dhcp for ${distro}; known issue"
-        local dhcpCMD="dhclient eth1 eth2"
-        ssh ${server} $dhcpCMD
-        eval $dhcpCMD
+        local dhcp_cmd="dhclient eth1 eth2"
+        ssh ${SERVER} $dhcp_cmd
+        eval $dhcp_cmd
     fi
 
     sleep 5
 
-    local clientIPs=($(ssh ${client} "hostname -I | awk '{print $1}'"))
-    local serverIPs=($(ssh ${server} "hostname -I | awk '{print $1}'"))
+    local client_ips=($(ssh ${CLIENT} "hostname -I | awk '{print $1}'"))
+    local server_ips=($(ssh ${SERVER} "hostname -I | awk '{print $1}'"))
 
-    local serverNIC1ip=${serverIPs[1]}
-    local serverNIC2ip=${serverIPs[2]}
+    local server_ip1=${server_ips[1]}
+    local client_ip1=${client_ips[1]}
 
-    local clientNIC1ip=${clientIPs[1]}
-    local clientNIC2ip=${clientIPs[2]}
+    install_dpdk ${CLIENT} ${client_ip1} ${server_ip1} &
+    local client_install_pid=$!
 
-    echo "server-vm : eth0 : ${server} : eth1 : ${serverNIC1ip} eth2 : ${serverNIC2ip}"
-    echo "client-vm : eth0 : ${client} : eth1 : ${clientNIC1ip} eth2 : ${clientNIC2ip}"
+    install_dpdk ${SERVER} ${server_ip1} ${client_ip1}
 
-    LogMsg "Installing DPDK on: ${client} and ${server}"
-    installDPDK ${client} ${clientNIC1ip} ${serverNIC1ip} &
-    local clientInstallPID=$!
-
-    installDPDK ${server} ${serverNIC1ip} ${clientNIC1ip}
-
-    wait $clientInstallPID
+    wait $client_install_pid
 
     LogMsg "Setting up Hugepages and modprobing drivers"
-    hugePageSetup ${server}
-    modprobeSetup ${server}
+    hugepage_setup ${SERVER}
+    modprobe_setup ${SERVER}
 }
 
 # Source utils.sh
 . utils.sh || {
-    echo "ERROR: unable to source utils.sh!" | tee ${LIS_HOME}/TestExecutionError.log
-    echo "TestAborted" > ${LIS_HOME}/state.txt
+    echo "ERROR: unable to source utils.sh!" | tee ${HOME}/TestExecutionError.log
+    echo "TestAborted" > ${HOME}/state.txt
     exit 1
 }
 
@@ -63,28 +62,28 @@ dpdkMulticoreSetup() {
 
 # Source constants file and initialize most common variables
 UtilsInit
-LOGDIR="${LIS_HOME}/logdir"
-mkdir $LOGDIR
+LOG_DIR="${LIS_HOME}/logdir"
+mkdir $LOG_DIR
 
 # constants.sh is now loaded; load user provided scripts
-for file in $userFiles; do
-    sourceScript "${LIS_HOME}/${file}"
+for file in $USER_FILES; do
+    source_script "${LIS_HOME}/${file}"
 done
 
 # error check here so on failure don't waste time setting up dpdk
-if ! type runTestcase > /dev/null; then
-    LogErr "ERROR: missing runTestcase function"
+if ! type run_testcase > /dev/null; then
+    LogErr "ERROR: missing run_testcase function"
     SetTestStateAborted
     exit 10
 fi
 
 LogMsg "Starting DPDK Setup"
-dpdkMulticoreSetup
+dpdk_setup
 
-# calling user provided function
-runTestcase
+LogMsg "Calling testcase provided run function"
+run_testcase
 
-tar -cvzf vmTestcaseLogs.tar.gz $LOGDIR
+tar -cvzf vmTestcaseLogs.tar.gz $LOG_DIR
 
 LogMsg "dpdkSetupAndRunTest completed!"
 SetTestStateCompleted

@@ -11,7 +11,7 @@ function verifyPerf() {
 
     # use temp so when a case fails we still check the rest
     $tempResult = "PASS"
-    $testpmdDataCsv = Import-Csv -Path $LogDir\dpdkTestPmd.csv
+    $testpmdDataCsv = Import-Csv -Path $LogDir\dpdk_testpmd.csv
 
     $allPpsData = [Xml](Get-Content .\XML\Other\pps_lowerbound.xml)
     $sizeData = Select-Xml -Xml $allPpsData -XPath "testpmdpps/$vmSize" | Select-Object -ExpandProperty Node
@@ -28,33 +28,34 @@ function verifyPerf() {
 
     foreach($testRun in $testpmdDataCsv) {
         $coreData = Select-Xml -Xml $sizeData -XPath "core$($testRun.core)" | Select-Object -ExpandProperty Node
-
-        LogMsg "compare tx pps $($testRun.TxPps) with lowerbound $($coreData.tx)"
-        if ([int]$testRun.TxPps -lt [int]$coreData.tx) {
-            LogErr "Perf Failure in $($testRun.TestMode) mode; $($testRun.TxPps) must be > $($coreData.tx)"
+        LogMsg "Comparing $($testRun.core) core(s) data"
+        LogMsg "compare tx pps $($testRun.tx_pps_avg) with lowerbound $($coreData.tx)"
+        if ([int]$testRun.tx_pps_avg -lt [int]$coreData.tx) {
+            LogErr "Perf Failure in $($testRun.test_mode) mode; $($testRun.tx_pps_avg) must be > $($coreData.tx)"
             $tempResult = "FAIL"
         }
 
-        if ($testRun.TestMode -eq "rxonly") {
-            LogMsg "compare rx pps $($testRun.RxPps) with lowerbound $($coreData.rx)"
-            if ([int]$testRun.RxPps -lt [int]$coreData.rx) {
-                LogErr "Perf Failure in $($testRun.TestMode) mode; $($testRun.RxPps) must be > $($coreData.rx)"
+        if ($testRun.test_mode -eq "rxonly") {
+            LogMsg "compare rx pps $($testRun.rx_pps_avg) with lowerbound $($coreData.rx)"
+            if ([int]$testRun.rx_pps_avg -lt [int]$coreData.rx) {
+                LogErr "Perf Failure in $($testRun.test_mode) mode; $($testRun.rx_pps_avg) must be > $($coreData.rx)"
                 $tempResult = "FAIL"
             }
-        } elseif ($testRun.TestMode -eq "io") {
-            LogMsg "compare rx pps $($testRun.RxPps) with lowerbound $($coreData.fwdrx)"
-            LogMsg "compare fwdtx pps $($testRun.ReTxPps) with lowerbound $($coreData.fwdtx)"
-            if ([int]$testRun.RxPps -lt [int]$coreData.fwdrx) {
-                LogErr "Perf Failure in $($testRun.TestMode) mode; $($testRun.RxPps) must be > $($coreData.fwdrx)"
+        # fwd corresponds to testpmd's io mode
+        } elseif ($testRun.test_mode -eq "fwd") {
+            LogMsg "compare rx pps $($testRun.rx_pps_avg) with lowerbound $($coreData.fwdrx)"
+            LogMsg "compare fwdtx pps $($testRun.fwdtx_pps_avg) with lowerbound $($coreData.fwdtx)"
+            if ([int]$testRun.rx_pps_avg -lt [int]$coreData.fwdrx) {
+                LogErr "Perf Failure in $($testRun.test_mode) mode; $($testRun.rx_pps_avg) must be > $($coreData.fwdrx)"
                 $tempResult = "FAIL"
             }
 
-            if ([int]$testRun.ReTxPps -lt [int]$coreData.fwdtx) {
-                LogErr "Perf Failure in $($testRun.TestMode) mode; $($testRun.ReTxPps) must be > $($coreData.fwdtx)"
+            if ([int]$testRun.fwdtx_pps_avg -lt [int]$coreData.fwdtx) {
+                LogErr "Perf Failure in $($testRun.test_mode) mode; $($testRun.fwdtx_pps_avg) must be > $($coreData.fwdtx)"
                 $tempResult = "FAIL"
             }
         } else {
-            throw "No pps data for test mode $($testRun.TestMode)"
+            throw "No pps data for test mode $($testRun.test_mode)"
         }
     }
 
@@ -78,10 +79,10 @@ function prepareParameters() {
 
     foreach ($param in $currentTestData.TestParameters.param) {
         Add-Content -Value "$param" -Path $constantsFile
-        if ($param -imatch "modes") {
-            $modes = ($param.Replace("modes=",""))
-        } elseif ($param -imatch "cores") {
-            $cores = ($param.Replace("cores=",""))
+        if ($param -imatch "MODES") {
+            $modes = ($param.Replace("MODES=",""))
+        } elseif ($param -imatch "CORES") {
+            $cores = ($param.Replace("CORES=",""))
         }
     }
 

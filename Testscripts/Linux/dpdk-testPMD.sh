@@ -5,172 +5,154 @@
 
 #############################################################################
 #
-# dpdk-testPMDmulticore.sh
+# dpdk-testPMD.sh
 # Description:
 #	This script runs testpmd in various modes scaling across various cores.
-# 	It places testpmd output in $LOGDIR, and the parses output to get avg pps
+# 	It places testpmd output in $LOG_DIR, and then parses output to get avg pps
 # 	numbers. The accompanying ps1 script makes sure testpmd performs above the
 #	required threshold.
 #
 #############################################################################
 
-# call with cores
-runTestPmd() {	
-    if [ -z "${1}" ]; then
-        LogErr "ERROR: Must provide core list as argument 1 to runTestPmd()"
+# Requires
+#   - core, modes, and test_duration as arguments in that order
+#   - LOG_DIR to be defined
+#   - called 1 dir above dpdk source
+function run_testpmd() {
+    if [ -z "${1}" -o -z "${2}" -o -z "${3}" ]; then
+        LogErr "ERROR: Must provide core, modes, test_duration as arguments in that order to run_testpmd()"
         SetTestStateAborted
         exit 1
     fi
 
-    if [ -z "${testDuration}" ]; then
-        testDuration=120
-        LogMsg "testDuration not provided to runTestPmd(); using default $testDuration"
-    fi
-
-    if [ -z "${modes}" ]; then
-        modes="rxonly io"
-        LogMsg "modes parameter not provided to runTestPmd(); using default $modes"
-    fi
-
-    if [ -z "${LIS_HOME}" -o -z "${LOGDIR}" ]; then
-        LogErr "ERROR: LIS_HOME and LOGDIR must be defined"
+    if [ -z "${LIS_HOME}" -o -z "${LOG_DIR}" -o -z "${SERVER}" ]; then
+        LogErr "ERROR: LIS_HOME, LOG_DIR, and SERVER must be defined in environment"
         SetTestStateAborted
         exit 1
     fi
 
-    core=${1}
-    dpdkSrcDir=$(ls | grep dpdk- | grep -v \.sh)
+    local core=${1}
+    local modes=${2}
+    local test_duration=${3}
+    local dpdk_dir=$(ls | grep dpdk- | grep -v \.sh)
 
-    pairs=($(getSyntheticVfPairs))
-    if [ -z "${pairs[@]}" ]; then
+    local pairs=($(get_synthetic_vf_pairs))
+    if [ "${#pairs[@]}" -eq 0 ]; then
         LogErr "ERROR: No VFs present"
         SetTestStateFailed
         exit 1
     fi
 
-    iface="${pairs[0]}"
-    busaddr="${pairs[1]}"
+    local iface="${pairs[0]}"
+    local bus_addr="${pairs[1]}"
 
-    for testmode in $modes; do
+    for test_mode in $modes; do
         LogMsg "Ensuring free hugepages"
-        freeHugeCMD="rm -rf /dev/hugepages/*"
-        ssh ${server} $freeHugeCMD
-        eval $freeHugeCMD
+        local free_huge_cmd="rm -rf /dev/hugepages/*"
+        ssh ${SERVER} $free_huge_cmd
+        eval $free_huge_cmd
 
-        serverDuration=$(expr $testDuration + 5)
+        # start server in advance so traffic spike doesn't cause output freeze
+        local server_duration=$(expr $test_duration + 5)
 
-        # update to use 2nd NIC
-        serverTestPmdCmd="timeout ${serverDuration} $LIS_HOME/$dpdkSrcDir/build/app/testpmd -l 0-${core} -w ${busaddr} --vdev='net_vdev_netvsc0,iface=${iface}' -- --port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core} --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=${testmode} --stats-period 1"
-        LogMsg "${serverTestPmdCmd}"
-        ssh ${server} $serverTestPmdCmd 2>&1 > $LOGDIR/dpdk-testpmd-${testmode}-receiver-${core}-core-$(date +"%m%d%Y-%H%M%S").log &
+        local pmd_mode=$test_mode
+        if [ "${test_mode}" = "fwd" ]; then
+            pmd_mode="io"
+        fi
+        local server_testpmd_cmd="timeout ${server_duration} $LIS_HOME/$dpdk_dir/build/app/testpmd -l 0-${core} -w ${bus_addr} --vdev='net_vdev_netvsc0,iface=${iface}' -- --port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core} --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=${pmd_mode} --stats-period 1"
+        LogMsg "${server_testpmd_cmd}"
+        ssh ${SERVER} $server_testpmd_cmd 2>&1 > $LOG_DIR/dpdk-testpmd-${test_mode}-receiver-${core}-core-$(date +"%m%d%Y-%H%M%S").log &
 
         sleep 5
         
         # should scale memory channels 2 * NUM_NUMA_NODES
-        clientTestPmdCmd="timeout ${testDuration} $LIS_HOME/$dpdkSrcDir/build/app/testpmd -l 0-${core} -w ${busaddr} --vdev='net_vdev_netvsc0,iface=${iface}' -- --port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core} --mbcache=512 --txd=4096 --forward-mode=txonly --stats-period 1 2>&1 > $LOGDIR/dpdk-testpmd-${testmode}-sender-${core}-core-$(date +"%m%d%Y-%H%M%S").log &"
-        LogMsg "${clientTestPmdCmd}"
-        eval $clientTestPmdCmd
+        local client_testpmd_cmd="timeout ${test_duration} $LIS_HOME/$dpdk_dir/build/app/testpmd -l 0-${core} -w ${bus_addr} --vdev='net_vdev_netvsc0,iface=${iface}' -- --port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core} --mbcache=512 --txd=4096 --forward-mode=txonly --stats-period 1 2>&1 > $LOG_DIR/dpdk-testpmd-${test_mode}-sender-${core}-core-$(date +"%m%d%Y-%H%M%S").log &"
+        LogMsg "${client_testpmd_cmd}"
+        eval $client_testpmd_cmd
 
-        sleep ${testDuration}
+        sleep ${test_duration}
 
         LogMsg "killing testpmd"
-        killCMD="pkill testpmd"
-        ssh ${server} $killCMD
-        eval $killCMD
+        local kill_cmd="pkill testpmd"
+        eval $kill_cmd
+        ssh ${SERVER} $kill_cmd
 
-        LogMsg "TestPmd execution for ${testmode} mode on ${core} core(s) is COMPLETED"
-        sleep 10
+        LogMsg "TestPmd execution for ${test_mode} mode on ${core} core(s) is COMPLETED"
+        sleep 5
     done	
 }
 
-# call with cores
-testPmdParser() {
-    if [ -z "${1}" ]; then
-        LogErr "ERROR: Must provide core list as argument 1 to testPmdParser()"
+# Requires
+#   - UtilsInit
+#   - arguments in order: core, test_mode, csv file
+#   - DPDK_LINK and LOG_DIR to be defined
+function testpmd_parser() {
+    if [ -z "${1}" -o -z "${2}" -o -z "${3}" ]; then
+        LogErr "ERROR: Must provide core, test_mode, and csv file in that order to test_pmd_parser()"
         SetTestStateAborted
         exit 1
     fi
 
-    if [ -z "${dpdkSrcLink}" ]; then
-        LogErr "ERROR: dpdkSrcLink missing from constants file"
+    if [ -z "${DPDK_LINK}" -o -z "${LOG_DIR}" ]; then
+        LogErr "ERROR: DPDK_LINK and LOG_DIR must be defined"
         SetTestStateAborted
         exit 1
     fi
 
-    if [ -z "${LIS_HOME}" -o -z "${LOGDIR}" ]; then
-        LogErr "ERROR: LIS_HOME and LOGDIR must be global"
-        SetTestStateAborted
-        exit 1
-    fi
+    local core=${1}
+    local test_mode=${2}
+    local testpmd_csv_file=${3}
+    # update when dpdk latest link becomes available
+    local dpdk_version=$(echo $DPDK_LINK | grep -Po "(\d+\.)+\d+")
 
-    core=${1}
-    dpdkSrcDir=$(ls | grep dpdk- | grep -v \.sh)
-    dpdkVersion=$(echo $dpdkSrcLink | grep -Po "(\d+\.)+\d+")
-    testpmdCsvFile=$LIS_HOME/dpdkTestPmd.csv
-    logFiles=($(ls $LOGDIR/*.log))
-    fileCount=0
+    local log_files=$(ls $LOG_DIR/*.log | grep "dpdk-testpmd-${test_mode}-.*-${core}")
+    LogMsg "Parsing test mode ${test_mode} using ${core} core(s)"
+    for file in $log_files; do
+        LogMsg "  Reading ${file}"
+        if [[ "${file}" =~ "receiver" ]]; then
+            rx_pps_arr=($(grep Rx-pps: $file | awk '{print $2}'))
+            rx_pps_avg=$(($(expr $(printf '%b + ' "${rx_pps_arr[@]}"\\c))/${#rx_pps_arr[@]}))
 
-    while [ "x${logFiles[$fileCount]}" != "x" ]
-    do
-        LogMsg "collecting results from ${logFiles[$fileCount]}"
-        if [[ ${logFiles[$fileCount]} =~ "rxonly-receiver-${core}-core" ]];	then
-            rxonly_mode="rxonly"
-            rxonly_Rxpps_Max=$(cat ${logFiles[$fileCount]} | grep Rx-pps: | awk '{print $2}' | sort -n | tail -1)
-            rxonly_Rxpps=($(cat ${logFiles[$fileCount]} | grep Rx-pps: | awk '{print $2}'))
-            rxonly_Rxpps_Avg=$(($(expr $(printf '%b + ' "${rxonly_Rxpps[@]::${#rxonly_Rxpps[@]}}"\\c))/${#rxonly_Rxpps[@]}))
-
-            rxonly_ReTxpps_Max=$(cat ${logFiles[$fileCount]} | grep Tx-pps: | awk '{print $2}' | sort -n | tail -1)
-            rxonly_ReTxpps=($(cat ${logFiles[$fileCount]} | grep Tx-pps: | awk '{print $2}'))
-            rxonly_ReTxpps_Avg=$(($(expr $(printf '%b + ' "${rxonly_ReTxpps[@]::${#rxonly_ReTxpps[@]}}"\\c))/${#rxonly_ReTxpps[@]}))
-        elif [[ ${logFiles[$fileCount]} =~ "rxonly-sender-${core}-core" ]]; then
-            rxonly_mode="rxonly"
-            rxonly_Txpps_Max=($(cat ${logFiles[$fileCount]} | grep Tx-pps: | awk '{print $2}' | sort -n | tail -1))
-            rxonly_Txpps=($(cat ${logFiles[$fileCount]} | grep Tx-pps: | awk '{print $2}'))
-            rxonly_Txpps_Avg=$(($(expr $(printf '%b + ' "${rxonly_Txpps[@]::${#rxonly_Txpps[@]}}"\\c))/${#rxonly_Txpps[@]}))
-        elif [[ ${logFiles[$fileCount]} =~ "io-receiver-${core}-core" ]]; then
-            io_mode="io"
-            io_Rxpps_Max=$(cat ${logFiles[$fileCount]} | grep Rx-pps: | awk '{print $2}' | sort -n | tail -1)
-            io_Rxpps=($(cat ${logFiles[$fileCount]} | grep Rx-pps: | awk '{print $2}'))
-            io_Rxpps_Avg=$(($(expr $(printf '%b + ' "${io_Rxpps[@]::${#io_Rxpps[@]}}"\\c))/${#io_Rxpps[@]}))
-
-            io_ReTxpps_Max=$(cat ${logFiles[$fileCount]} | grep Tx-pps: | awk '{print $2}' | sort -n | tail -1)
-            io_ReTxpps=($(cat ${logFiles[$fileCount]} | grep Tx-pps: | awk '{print $2}'))
-            io_ReTxpps_Avg=$(($(expr $(printf '%b + ' "${io_ReTxpps[@]::${#io_ReTxpps[@]}}"\\c))/${#io_ReTxpps[@]}))
-        elif [[ ${logFiles[$fileCount]} =~ "io-sender-${core}-core" ]]; then
-            io_mode="io"
-            io_Txpps_Max=($(cat ${logFiles[$fileCount]} | grep Tx-pps: | awk '{print $2}' | sort -n | tail -1))
-            io_Txpps=($(cat ${logFiles[$fileCount]} | grep Tx-pps: | awk '{print $2}'))
-            io_Txpps_Avg=$(($(expr $(printf '%b + ' "${io_Txpps[@]::${#io_Txpps[@]}}"\\c))/${#io_Txpps[@]}))
+            fwdtx_pps_arr=($(grep Tx-pps: $file | awk '{print $2}'))
+            fwdtx_pps_avg=$(($(expr $(printf '%b + ' "${fwdtx_pps_arr[@]}"\\c))/${#fwdtx_pps_arr[@]}))
+        elif [[ "${file}" =~ "sender" ]]; then
+            tx_pps_arr=($(grep Tx-pps: $file | awk '{print $2}'))
+            tx_pps_avg=$(($(expr $(printf '%b + ' "${tx_pps_arr[@]}"\\c))/${#tx_pps_arr[@]}))
         fi
-        ((fileCount++))
     done
-    if [[ $rxonly_mode == "rxonly" ]];then
-        LogMsg "$rxonly_mode pushing to csv file"
-        echo "$dpdkVersion,$rxonly_mode,${core},$rxonly_Rxpps_Max,$rxonly_Txpps_Avg,$rxonly_Rxpps_Avg,$rxonly_ReTxpps_Avg" >> $testpmdCsvFile
-    fi
-    if [[ $io_mode == "io" ]];then
-        LogMsg "$io_mode pushing to csv file"	
-        echo "$dpdkVersion,$io_mode,${core},$io_Rxpps_Max,$io_Txpps_Avg,$io_Rxpps_Avg,$io_ReTxpps_Avg" >> $testpmdCsvFile
-    fi
+
+    echo "$dpdk_version,$test_mode,$core,$tx_pps_avg,$rx_pps_avg,$fwdtx_pps_avg" >> $testpmd_csv_file
 }
 
-runTestcase() {
-    if [ -z "${cores}" ]; then
-        LogMsg "cores parameter not provided; doing default single core test"
-        cores="1"
+function run_testcase() {
+    if [ -z "${CORES}" ]; then
+        CORES="1"
+        LogMsg "CORES not found in environment; doing default single core test"
     fi
 
-    LogMsg "Starting TestPmd test execution with DPDK"
-    for core in $cores; do
-        runTestPmd $core
+    if [ -z "${TEST_DURATION}" ]; then
+        TEST_DURATION=120
+        LogMsg "TEST_DURATION not provided to run_testpmd(); using default $TEST_DURATION"
+    fi
+
+    if [ -z "${MODES}" ]; then
+        MODES="rxonly fwd"
+        LogMsg "MODES parameter not provided to run_testpmd(); using default $MODES"
+    fi
+
+    LogMsg "Starting testpmd execution"
+    for core in $CORES; do
+        run_testpmd $core "$MODES" $TEST_DURATION
     done
 
-    LogMsg "Starting TestPmd results parser execution"
-    echo "DpdkVersion,TestMode,Core,MaxRxPps,TxPps,RxPps,ReTxPps" > $LIS_HOME/dpdkTestPmd.csv
-    for core in $cores; do
-        testPmdParser $core
+    LogMsg "Starting testpmd parser execution"
+    echo "dpdk_version,test_mode,core,tx_pps_avg,rx_pps_avg,fwdtx_pps_avg" > $LIS_HOME/dpdk_testpmd.csv
+    for core in $CORES; do
+        for test_mode in $MODES; do
+            testpmd_parser $core $test_mode $LIS_HOME/dpdk_testpmd.csv
+        done
     done
 
-    LogMsg "TestPmd RESULTS"
-    column -s, -t $LIS_HOME/dpdkTestPmd.csv
+    LogMsg "testpmd results"
+    column -s, -t $LIS_HOME/dpdk_testpmd.csv
 }

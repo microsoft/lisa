@@ -3,7 +3,6 @@
 
 function Main {
     # Create test result 
-    $result = ""
     $currentTestResult = CreateTestResultObject
     $resultArr = @()
 
@@ -20,10 +19,10 @@ function Main {
             }
         }
         if ($noClient) {
-            throw "No master VM defined. Be sure that, Client VM role name matches with the pattern `"*client*`". Aborting Test."
+            throw "No client VM defined. Be sure that, Client VM role name matches with the pattern *client*. Aborting Test."
         }
         if ($noServer) {
-            throw "No slave VM defined. Be sure that, Server machine role names matches with pattern `"*server*`" Aborting Test."
+            throw "No server VM defined. Be sure that, Server machine role names matches with pattern *server* Aborting Test."
         }
 
         LogMsg "CLIENT VM details :"
@@ -72,9 +71,9 @@ function Main {
         # is there a case when this context is necessary
         prepareParameters
         # have user process before so they remove/break these
-        Add-Content -Value "server=$($serverVMData.InternalIP)" -Path $constantsFile
-        Add-Content -Value "client=$($clientVMData.InternalIP)" -Path $constantsFile
-        Add-Content -Value "userFiles='$bashFileNames'" -Path $constantsFile
+        Add-Content -Value "SERVER=$($serverVMData.InternalIP)" -Path $constantsFile
+        Add-Content -Value "CLIENT=$($clientVMData.InternalIP)" -Path $constantsFile
+        Add-Content -Value "USER_FILES='$bashFileNames'" -Path $constantsFile
 
         LogMsg "constanst.sh created successfully..."
         LogMsg (Get-Content -Path $constantsFile)

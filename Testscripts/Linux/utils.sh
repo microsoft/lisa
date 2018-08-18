@@ -2935,3 +2935,69 @@ function generate_random_mac_addr () {
 
 declare DISTRO_NAME=$(detect_linux_distribution)
 declare DISTRO_VERSION=$(detect_linux_distribution_version)
+
+# Gets Synthetic - VF pairs by comparing MAC addresses.
+#   Will ignore the default route interface even if it has accelerated networking,
+#   which should be the primaryNIC with pubilc ip to which you SSH
+# Recommend to capture output in array like so
+#   pairs=($(getSyntheticVfPair))
+#   then synthetic ${pairs[n]} maps to vf pci address ${pairs[n+1]}
+#   when starting from zero i.e. index 1 and 2 have no relation
+#   if captured output is empty then no VFs exist
+function get_synthetic_vf_pairs() {
+    all_ifs=$(ls /sys/class/net | grep -v lo)
+    local ignore_if=$(ip route | grep default | awk '{print $5}')
+
+    local synth_ifs=""
+    local vf_ifs=""
+    local interface
+    for interface in $all_ifs; do
+        if [ "${interface}" != "${ignore_if}" ]; then
+            # alternative is, but then must always know driver name
+            # readlink -f /sys/class/net/<interface>/device/driver/
+            local bus_addr=$(ethtool -i $interface | grep bus-info | awk '{print $2}')
+            if [ -z "${bus_addr}" ]; then
+                synth_ifs="$synth_ifs $interface"
+            else
+                vf_ifs="$vf_ifs $interface"
+            fi
+        fi
+    done
+
+    local synth_if
+    local vf_if
+    for synth_if in $synth_ifs; do
+        local synth_mac=$(ip link show $synth_if | grep ether | awk '{print $2}')
+
+        for vf_if in $vf_ifs; do
+            local vf_mac=$(ip link show $vf_if | grep ether | awk '{print $2}')
+            # single = is posix compliant
+            if [ "${synth_mac}" = "${vf_mac}" ]; then
+                bus_addr=$(ethtool -i $vf_if | grep bus-info | awk '{print $2}')
+                echo "${synth_if} ${bus_addr}"
+            fi
+        done
+    done
+}
+
+# Requires:
+#	- UtilsInit has been called
+# 	- 1st argument is script to source
+# Effects:
+#	Sources script, if it cannot aborts test
+function source_script() {
+    if [ -z "${1}" ]; then
+        LogErr "ERROR: Must supply script name as 1st argument to sourceScript"
+        SetTestStateAborted
+        exit 1
+    fi
+
+    local file=${1}
+    if [ -e ${file} ]; then
+        source ${file}
+    else
+        LogErr "ERROR: func sourceScript unable to source ${file} file"
+        SetTestStateAborted
+        exit 1
+    fi
+}
