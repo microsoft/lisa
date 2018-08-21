@@ -2951,29 +2951,29 @@ function get_synthetic_vf_pairs() {
     local synth_ifs=""
     local vf_ifs=""
     local interface
-    for interface in $all_ifs; do
+    for interface in ${all_ifs}; do
         if [ "${interface}" != "${ignore_if}" ]; then
             # alternative is, but then must always know driver name
             # readlink -f /sys/class/net/<interface>/device/driver/
-            local bus_addr=$(ethtool -i $interface | grep bus-info | awk '{print $2}')
+            local bus_addr=$(ethtool -i ${interface} | grep bus-info | awk '{print $2}')
             if [ -z "${bus_addr}" ]; then
-                synth_ifs="$synth_ifs $interface"
+                synth_ifs="${synth_ifs} ${interface}"
             else
-                vf_ifs="$vf_ifs $interface"
+                vf_ifs="${vf_ifs} ${interface}"
             fi
         fi
     done
 
     local synth_if
     local vf_if
-    for synth_if in $synth_ifs; do
-        local synth_mac=$(ip link show $synth_if | grep ether | awk '{print $2}')
+    for synth_if in ${synth_ifs}; do
+        local synth_mac=$(ip link show ${synth_if} | grep ether | awk '{print $2}')
 
-        for vf_if in $vf_ifs; do
-            local vf_mac=$(ip link show $vf_if | grep ether | awk '{print $2}')
+        for vf_if in ${vf_ifs}; do
+            local vf_mac=$(ip link show ${vf_if} | grep ether | awk '{print $2}')
             # single = is posix compliant
             if [ "${synth_mac}" = "${vf_mac}" ]; then
-                bus_addr=$(ethtool -i $vf_if | grep bus-info | awk '{print $2}')
+                bus_addr=$(ethtool -i ${vf_if} | grep bus-info | awk '{print $2}')
                 echo "${synth_if} ${bus_addr}"
             fi
         done

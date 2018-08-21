@@ -24,7 +24,7 @@ function hugepage_setup() {
     local hugepage_cmd="mkdir /mnt/huge; mount -t hugetlbfs nodev /mnt/huge && \
         echo 4096 | tee /sys/devices/system/node/node*/hugepages/hugepages-2048kB/nr_hugepages > /dev/null"
 
-    eval $hugepage_cmd
+    eval ${hugepage_cmd}
     if [ -n "${1}" ]; then
         CheckIP ${1}
         if [ $? -eq 1 ]; then
@@ -48,10 +48,10 @@ function modprobe_setup() {
     # known issue on sles15
     local distro=$(detect_linux_distribution)$(detect_linux_distribution_version)
     if [[ "${distro}" == "sles15" ]]; then
-        modprobe_cmd="$modprobe_cmd mlx4_ib"
+        modprobe_cmd="${modprobe_cmd} mlx4_ib"
     fi
 
-    eval $modprobe_cmd
+    eval ${modprobe_cmd}
     if [ -n "${1}" ]; then
         CheckIP ${1}
         if [ $? -eq 1 ]; then
@@ -85,11 +85,11 @@ function testpmd_ip_setup() {
     local install_ip=${2}
     local ip_for_testpmd=${3}
 
-    local ip_arr=($(echo $ip_for_testpmd | sed "s/\./ /g"))
+    local ip_arr=($(echo ${ip_for_testpmd} | sed "s/\./ /g"))
     local ip_addr="define IP_${ip_type}_ADDR ((${ip_arr[0]}U << 24) | (${ip_arr[1]} << 16) | ( ${ip_arr[2]} << 8) | ${ip_arr[3]})"
-    local ip_config_cmd="sed -i 's/define IP_${ip_type}_ADDR.*/$ip_addr/' $LIS_HOME/$dpdk_dir/app/test-pmd/txonly.c"
-    LogMsg "ssh ${install_ip} $ip_config_cmd"
-    ssh ${install_ip} $ip_config_cmd
+    local ip_config_cmd="sed -i 's/define IP_${ip_type}_ADDR.*/${ip_addr}/' ${LIS_HOME}/${dpdk_dir}/app/test-pmd/txonly.c"
+    LogMsg "ssh ${install_ip} ${ip_config_cmd}"
+    ssh ${install_ip} ${ip_config_cmd}
 }
 
 # Requires:
@@ -116,21 +116,21 @@ function install_dpdk() {
     fi
 
     CheckIP ${1}
-    local ip_1_invalid=$?
+    local ip_1_invalid=${?}
     local ip_2_invalid=0
     local ip_3_invalid=0
 
     if [ -n "${2}" ]; then
         CheckIP ${2}
-        ip_2_invalid=$?
+        ip_2_invalid=${?}
     fi
 
     if [ -n "${3}" ]; then
         CheckIP ${3}
-        ip_3_invalid=$?
+        ip_3_invalid=${?}
     fi
 
-    if [ $ip_1_invalid -eq 1 -o $ip_2_invalid -eq 1 -o $ip_3_invalid -eq 1 ]; then
+    if [ ${ip_1_invalid} -eq 1 -o ${ip_2_invalid} -eq 1 -o ${ip_3_invalid} -eq 1 ]; then
         LogErr "ERROR: must provide valid IPs to install_dpdk()"
         SetTestStateAborted
         exit 1
@@ -144,7 +144,7 @@ function install_dpdk() {
     # when available update to dpdk latest
     if [ -z "${DPDK_LINK}" ]; then
         DPDK_LINK="https://fast.dpdk.org/rel/dpdk-18.08.tar.xz"
-        LogMsg "DPDK_LINK missing from environment; using $DPDK_LINK"
+        LogMsg "DPDK_LINK missing from environment; using ${DPDK_LINK}"
     fi
 
     local distro=$(detect_linux_distribution)$(detect_linux_distribution_version)
@@ -188,27 +188,27 @@ function install_dpdk() {
     local dpdk_tar="${DPDK_LINK##*/}"
     local dpdk_build=x86_64-native-linuxapp-gcc
 
-    LogMsg "Install dpdk from source tar $dpdk_tar"
-    ssh ${install_ip} "wget $DPDK_LINK -P /tmp"
-    ssh ${install_ip} "tar xvf /tmp/$dpdk_tar"
+    LogMsg "Install dpdk from source tar ${dpdk_tar}"
+    ssh ${install_ip} "wget ${DPDK_LINK} -P /tmp"
+    ssh ${install_ip} "tar xvf /tmp/${dpdk_tar}"
     local dpdk_dir=$(ssh ${install_ip} "ls | grep dpdk- | grep -v \.sh")
-    LogMsg "dpdk source on ${install_ip} $dpdk_dir"
+    LogMsg "dpdk source on ${install_ip} ${dpdk_dir}"
 
     if [ -n "${src_ip}" ]; then
-        LogMsg "dpdk build with NIC SRC IP $src_ip ADDR on ${install_ip}"
-        testpmd_ip_setup "SRC" ${install_ip} $src_ip
+        LogMsg "dpdk build with NIC SRC IP ${src_ip} ADDR on ${install_ip}"
+        testpmd_ip_setup "SRC" ${install_ip} ${src_ip}
     fi
 
     if [ -n "${dst_ip}" ]; then
-        LogMsg "dpdk build with NIC DST IP $dst_ip ADDR on ${install_ip}"
-        testpmd_ip_setup "DST" ${install_ip} $dst_ip
+        LogMsg "dpdk build with NIC DST IP ${dst_ip} ADDR on ${install_ip}"
+        testpmd_ip_setup "DST" ${install_ip} ${dst_ip}
     fi
 
     LogMsg "MLX_PMD flag enabling on ${install_ip}"
-    ssh ${install_ip} "cd $LIS_HOME/$dpdk_dir && make config T=${dpdk_build}"
-    ssh ${install_ip} "sed -ri 's,(MLX4_PMD=)n,\1y,' $LIS_HOME/$dpdk_dir/build/.config"
-    ssh ${install_ip} "cd $LIS_HOME/$dpdk_dir && make -j"
-    ssh ${install_ip} "cd $LIS_HOME/$dpdk_dir && make install"
+    ssh ${install_ip} "cd ${LIS_HOME}/${dpdk_dir} && make config T=${dpdk_build}"
+    ssh ${install_ip} "sed -ri 's,(MLX4_PMD=)n,\1y,' ${LIS_HOME}/${dpdk_dir}/build/.config"
+    ssh ${install_ip} "cd ${LIS_HOME}/${dpdk_dir} && make -j"
+    ssh ${install_ip} "cd ${LIS_HOME}/${dpdk_dir} && make install"
 
     LogMsg "Finished installing dpdk on ${install_ip}"
 }

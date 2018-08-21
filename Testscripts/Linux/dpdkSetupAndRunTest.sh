@@ -23,14 +23,14 @@ function dpdk_setup() {
     if [[ "${distro}" == "ubuntu18.04" || "${distro}" == "rhel7.5" ]]; then
         LogMsg "Running dhcp for ${distro}; known issue"
         local dhcp_cmd="dhclient eth1 eth2"
-        ssh ${SERVER} $dhcp_cmd
-        eval $dhcp_cmd
+        ssh ${SERVER} ${dhcp_cmd}
+        eval ${dhcp_cmd}
     fi
 
     sleep 5
 
-    local client_ips=($(ssh ${CLIENT} "hostname -I | awk '{print $1}'"))
-    local server_ips=($(ssh ${SERVER} "hostname -I | awk '{print $1}'"))
+    local client_ips=($(ssh ${CLIENT} "hostname -I | awk '{print ${1}}'"))
+    local server_ips=($(ssh ${SERVER} "hostname -I | awk '{print ${1}}'"))
 
     local server_ip1=${server_ips[1]}
     local client_ip1=${client_ips[1]}
@@ -40,7 +40,7 @@ function dpdk_setup() {
 
     install_dpdk ${SERVER} ${server_ip1} ${client_ip1}
 
-    wait $client_install_pid
+    wait ${client_install_pid}
 
     LogMsg "Setting up Hugepages and modprobing drivers"
     hugepage_setup ${SERVER}
@@ -63,10 +63,10 @@ function dpdk_setup() {
 # Source constants file and initialize most common variables
 UtilsInit
 LOG_DIR="${LIS_HOME}/logdir"
-mkdir $LOG_DIR
+mkdir ${LOG_DIR}
 
 # constants.sh is now loaded; load user provided scripts
-for file in $USER_FILES; do
+for file in ${USER_FILES}; do
     source_script "${LIS_HOME}/${file}"
 done
 
@@ -74,7 +74,7 @@ done
 if ! type run_testcase > /dev/null; then
     LogErr "ERROR: missing run_testcase function"
     SetTestStateAborted
-    exit 10
+    exit 1
 fi
 
 LogMsg "Starting DPDK Setup"
@@ -83,7 +83,7 @@ dpdk_setup
 LogMsg "Calling testcase provided run function"
 run_testcase
 
-tar -cvzf vmTestcaseLogs.tar.gz $LOG_DIR
+tar -cvzf vmTestcaseLogs.tar.gz ${LOG_DIR}
 
 LogMsg "dpdkSetupAndRunTest completed!"
 SetTestStateCompleted
