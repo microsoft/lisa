@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 
-function verifyPerf() {
+function Verify-Performance() {
 	$vmSizes = @()
 	# error checks made in prepareParameters already
 	foreach ($vm in $allVMData) {
@@ -62,7 +62,7 @@ function verifyPerf() {
 	return $tempResult
 }
 
-function prepareParameters() {
+function Prepare-Parameters() {
 	$vmSizes = @()
 	foreach ($vm in $allVMData) {
 		$vmSizes += $vm.InstanceSize

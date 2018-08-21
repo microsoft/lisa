@@ -69,8 +69,8 @@ function Main {
 		# let user do extra paramter processing, not sure this necessary anymore
 		# just always pass all parameters, then do processing VM side
 		# is there a case when this context is necessary
-		prepareParameters
-		# have user process before so they remove/break these
+		Prepare-Parameters
+
 		Add-Content -Value "SERVER=$($serverVMData.InternalIP)" -Path $constantsFile
 		Add-Content -Value "CLIENT=$($clientVMData.InternalIP)" -Path $constantsFile
 		Add-Content -Value "USER_FILES='$bashFileNames'" -Path $constantsFile
@@ -110,7 +110,7 @@ cd /root/
 		}
 		elseif ($finalStatus -imatch "TestCompleted") {
 			LogMsg "Test Completed."
-			$testResult = (verifyPerf)
+			$testResult = (Verify-Performance)
 		}
 		elseif ($finalStatus -imatch "TestRunning") {
 			LogWarn "Powershell backgroud job for test is completed but VM is reporting that test is still running. Please check $LogDir\zkConsoleLogs.txt"
