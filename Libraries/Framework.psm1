@@ -52,10 +52,6 @@ Function ValidateParameters()
 	elseif ($TestPlatform -eq "HyperV")
 	{
 		#region Validate Parameters
-		if ( !$SourceOsVHDPath )
-		{
-			$ParameterErrors += "-SourceOsVHDPath <'VHD Path'> is required"
-		}
 		if (!$OsVHD )
 		{
 			$ParameterErrors += "-OsVHD <'VHD_Name.vhd'> is required."
@@ -144,7 +140,10 @@ Function UpdateGlobalConfigurationXML()
 	}
 	if ($TestPlatform -eq "HyperV")
 	{
-		$GlobalConfiguration.Global.$TestPlatform.Host.SourceOsVHDPath = $SourceOsVHDPath
+		if ( $SourceOsVHDPath )
+		{
+			$GlobalConfiguration.Global.$TestPlatform.Host.SourceOsVHDPath = $SourceOsVHDPath
+		}
 		if ( $TestLocation)
 		{
 			$GlobalConfiguration.Global.$TestPlatform.Host.ServerName = $TestLocation
