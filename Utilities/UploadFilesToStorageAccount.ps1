@@ -51,12 +51,19 @@ try
     $containerName = "$destinationContainer"
     $storageAccountName = $destinationStorageAccount
     $blobContext = New-AzureStorageContext -StorageAccountName $storageAccountName -StorageAccountKey $destinationStorageKey
+    $Out = New-AzureStorageContainer -Name $destinationContainer -Permission Blob -Context $blobContext -ErrorAction SilentlyContinue
     $UploadedFileURLs = @()
     foreach($fileName in $filePaths.Split(","))
     {
         $ticks = (Get-Date).Ticks
-        #$fileName = "$LogDir\$($vmData.RoleName)-waagent.log.txt"
-        $blobName = "$destinationFolder/$($fileName | Split-Path -Leaf)"
+        if ($destinationFolder)
+        {
+            $blobName = "$destinationFolder/$($fileName | Split-Path -Leaf)"
+        }
+        else 
+        {
+            $blobName = "$($fileName | Split-Path -Leaf)"
+        }
         $LocalFileProperties = Get-Item -Path $fileName
         LogMsg "Uploading $([math]::Round($LocalFileProperties.Length/1024,2))KB $filename --> $($blobContext.BlobEndPoint)$containerName/$blobName"
         $UploadedFileProperties = Set-AzureStorageBlobContent -File $filename -Container $containerName -Blob $blobName -Context $blobContext -Force -ErrorAction Stop

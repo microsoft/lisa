@@ -102,6 +102,11 @@ function Write-Log()
 			$logFolder = $LogDir
 			$logFile = "Logs.txt"
 		}
+		else
+		{
+			$logFolder = ".\Temp"
+			$logFile = "TempLogs.txt"
+		}
 		if ($CurrentTestLogDir )
 		{
 			$logFolder = $CurrentTestLogDir
