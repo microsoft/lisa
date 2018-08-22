@@ -2533,6 +2533,10 @@ function install_fio () {
 			echo "Unsupported distribution for install_fio"
 			return 1
 	esac
+	which fio
+	if [ $? -ne 0 ]; then
+		return 1
+	fi	
 }
 
 # Install iperf3 and required packages
@@ -2604,6 +2608,10 @@ function install_iperf3 () {
 			echo "Unsupported distribution for install_iperf3"
 			return 1
 	esac
+	which iperf3
+	if [ $? -ne 0 ]; then
+		return 1
+	fi
 }
 
 # Build and install lagscope
@@ -2653,6 +2661,10 @@ function install_lagscope () {
 			echo "Unsupported distribution for install_lagscope"
 			return 1
 	esac
+	which lagscope
+	if [ $? -ne 0 ]; then
+		return 1
+	fi
 }
 
 # Build and install ntttcp
@@ -2705,6 +2717,10 @@ function install_ntttcp () {
 			echo "Unsupported distribution for install_ntttcp"
 			return 1
 	esac
+	which ntttcp
+	if [ $? -ne 0 ]; then
+		return 1
+	fi
 }
 
 # Get the active NIC name
