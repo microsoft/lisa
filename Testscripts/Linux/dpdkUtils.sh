@@ -161,24 +161,26 @@ function install_dpdk() {
         fi
 
         ssh ${install_ip} "apt-get update"
-        ssh ${install_ip} "apt-get install -y librdmacm-dev librdmacm1 build-essential libnuma-dev"
+        ssh ${install_ip} "apt-get install -y librdmacm-dev librdmacm1 build-essential libnuma-dev libmnl-dev"
 
     elif [[ "${distro}" == "rhel7.5" || "${distro}" == centos7.5* ]]; then
         LogMsg "Detected (rhel/centos)7.5"
 
         ssh ${install_ip} "yum -y groupinstall 'Infiniband Support'"
         ssh ${install_ip} "dracut --add-drivers 'mlx4_en mlx4_ib mlx5_ib' -f"
-        ssh ${install_ip} "yum install -y gcc kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel"
+        ssh ${install_ip} "yum install -y gcc kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel libmnl-devel"
 
     elif [[ "${distro}" == "sles15" ]]; then
         LogMsg "Detected sles15"
 
         local kernel=$(uname -r)
         if [[ "${kernel}" == *azure ]]; then
-            ssh ${install_ip} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install kernel-azure kernel-devel-azure gcc make libnuma-devel numactl librdmacm1 rdma-core-devel"
+            ssh ${install_ip} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install kernel-azure kernel-devel-azure gcc make libnuma-devel numactl librdmacm1 rdma-core-devel libmnl-devel"
         else
-            ssh ${install_ip} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install kernel-default-devel gcc make libnuma-devel numactl librdmacm1 rdma-core-devel"
+            ssh ${install_ip} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install kernel-default-devel gcc make libnuma-devel numactl librdmacm1 rdma-core-devel libmnl-devel"
         fi
+
+        ssh ${install_ip} "mv /usr/include/libmnl/libmnl/libmnl.h /usr/include/libmnl"
     else 
         LogErr "ERROR: unsupported distro for dpdk on Azure"
         SetTestStateAborted
@@ -206,7 +208,7 @@ function install_dpdk() {
 
     LogMsg "MLX_PMD flag enabling on ${install_ip}"
     ssh ${install_ip} "cd ${LIS_HOME}/${dpdk_dir} && make config T=${dpdk_build}"
-    ssh ${install_ip} "sed -ri 's,(MLX4_PMD=)n,\1y,' ${LIS_HOME}/${dpdk_dir}/build/.config"
+    ssh ${install_ip} "sed -ri 's,(MLX._PMD=)n,\1y,' ${LIS_HOME}/${dpdk_dir}/build/.config"
     ssh ${install_ip} "cd ${LIS_HOME}/${dpdk_dir} && make -j"
     ssh ${install_ip} "cd ${LIS_HOME}/${dpdk_dir} && make install"
 
