@@ -44,7 +44,7 @@ try
     {
         LogMsg "Getting $destinationStorageAccount storage account key..."
         $allResources = Get-AzureRmResource
-        $destSARG = ($allResources | Where { $_.ResourceType -imatch "storageAccounts" -and $_.ResourceName -eq "$destinationStorageAccount" }).ResourceGroupName
+        $destSARG = ($allResources | Where { $_.ResourceType -imatch "storageAccounts" -and $_.Name -eq "$destinationStorageAccount" }).ResourceGroupName
         $keyObj = Get-AzureRmStorageAccountKey -ResourceGroupName $destSARG -Name $destinationStorageAccount
         $destinationStorageKey = $keyObj[0].Value
     }
