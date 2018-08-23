@@ -73,6 +73,9 @@
         <testScript>NESTED-KVM-STORAGE-PERF.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_kvm_utils.sh,.\Testscripts\Linux\nested_kvm_storage_perf.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh</files>
         <setupType>D16SV3DISK1</setupType>
+        <AdditionalHWConfig>
+            <DiskType>Managed</DiskType>
+        </AdditionalHWConfig>
         <TestParameters>
             <!--The nested image should be qcow2 format, and accessible from a public URL-->
             <param>NestedImageUrl=NESTED_IMAGE_URL</param>
@@ -130,6 +133,9 @@
         <testScript>NESTED-KVM-STORAGE-PERF.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_kvm_utils.sh,.\Testscripts\Linux\nested_kvm_storage_perf.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh</files>
         <setupType>D16SV3DISK6</setupType>
+        <AdditionalHWConfig>
+            <DiskType>Managed</DiskType>
+        </AdditionalHWConfig>
         <TestParameters>
             <!--The nested image should be qcow2 format, and accessible from a public URL-->
             <param>NestedImageUrl=NESTED_IMAGE_URL</param>
