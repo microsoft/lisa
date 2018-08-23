@@ -140,6 +140,10 @@ Function UpdateGlobalConfigurationXML()
 	}
 	if ($TestPlatform -eq "HyperV")
 	{
+		if ( $SourceOsVHDPath )
+		{
+			$GlobalConfiguration.Global.$TestPlatform.Host.SourceOsVHDPath = $SourceOsVHDPath
+		}
 		if ( $TestLocation)
 		{
 			$GlobalConfiguration.Global.$TestPlatform.Host.ServerName = $TestLocation

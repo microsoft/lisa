@@ -166,6 +166,11 @@ Function CreateAllHyperVGroupDeployments($setupType, $xmlConfig, $Distro, [strin
                             $DeploymentElapsedTime = $DeploymentEndTime - $DeploymentStartTime
                             if ( $VMCreationStatus )
                             {
+                                if($TestArea -eq 'Nested')
+                                {
+                                    LogMsg "Test Platform is HyperV and Test Area is $TestArea, need to enable nested virtualization"
+                                    $status = EnableHyperVNestedVirtualization -HyperVGroupName $HyperVGroupName
+                                }
                                 $StartVMStatus = StartHyperVGroupVMs -HyperVGroupName $HyperVGroupName
                                 if ($StartVMStatus)
                                 {
@@ -266,8 +271,11 @@ Function DeleteHyperVGroup([string]$HyperVGroupName)
                         $VM = Get-VM -Id $CleanupVM.Id -ComputerName $HyperVHost
                         foreach ($VHD in $CleanupVM.HardDrives)
                         {
-                            Invoke-Command -ComputerName $HyperVHost -ScriptBlock { Remove-Item -Path $args[0] -Force -Verbose } -ArgumentList $VHD.Path
-                            LogMsg "$($VHD.Path) Removed!"
+                            if ( Test-Path -Path $VHD.Path )
+                            {
+                                Invoke-Command -ComputerName $HyperVHost -ScriptBlock { Remove-Item -Path $args[0] -Force -Verbose } -ArgumentList $VHD.Path
+                                LogMsg "$($VHD.Path) Removed!"
+                            }
                         }
                         $CleanupVM | Remove-VM -Force
                         LogMsg "$($CleanupVM.Name) Removed!"
@@ -335,9 +343,9 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML)
     $HyperVHost = $xmlConfig.config.Hyperv.Host.ServerName
     $HyperVMappedSizes = [xml](Get-Content .\XML\AzureVMSizeToHyperVMapping.xml)
     $CreatedVMs =  @()
-    #$OsVHD =  "SS-RHEL75-TEST-VHD-DYNAMIC.vhd"
     $OsVHD = $BaseOsVHD
-    $VMSwitches = Get-VMSwitch  * | Where { $_.Name -imatch "Ext" }
+    $InterfaceAliasWithInternet = (Get-NetIPConfiguration | where {$_.NetProfile.Name -ne 'Unidentified network'}).InterfaceAlias
+    $VMSwitches = Get-VMSwitch | where {$InterfaceAliasWithInternet -match $_.Name}
     $ErrorCount = 0
     $SourceOsVHDPath = $xmlConfig.config.Hyperv.Host.SourceOsVHDPath
     $DestinationOsVHDPath = $xmlConfig.config.Hyperv.Host.DestinationOsVHDPath
@@ -389,6 +397,29 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML)
                     $VHD = New-VHD -Path $ResourceDiskPath -SizeBytes 1GB -Dynamic -Verbose -ComputerName $HyperVHost
                     LogMsg "Add-VMHardDiskDrive -ControllerType SCSI -Path $ResourceDiskPath -VM $($NewVM.Name)"
                     $NewVM | Add-VMHardDiskDrive -ControllerType SCSI -Path $ResourceDiskPath
+                    $LUNs = $VirtualMachine.DataDisk.LUN
+                    if($LUNs.count -gt 0)
+                    {
+                        LogMsg "check the offline physical disks on host $HyperVHost"
+                        $DiskNumbers = (Get-Disk | where {$_.OperationalStatus -eq 'offline'}).Number
+                        if($DiskNumbers.count -ge $LUNs.count)
+                        {
+                            LogMsg "The offline physical disks are enough for use"
+                            $ControllerType = 'SCSI'
+                            $count = 0
+                            foreach ( $LUN in $LUNs )
+                            {
+                                LogMsg "Add physical disk $($DiskNumbers[$count]) to $ControllerType controller on virtual machine $CurrentVMName."
+                                $NewVM | Add-VMHardDiskDrive -DiskNumber $($DiskNumbers[$count]) -ControllerType $ControllerType
+                                $count ++
+                            }
+                        }
+                        else
+                        {
+                            LogErr "The offline physical disks are not enough for use"
+                            $ErrorCount += 1
+                        }
+                    }
                 }
                 else 
                 {
@@ -420,6 +451,38 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML)
     }
     return $ReturnValue
 }
+
+Function EnableHyperVNestedVirtualization($HyperVGroupName)
+{
+    $AllVMs = Get-VMGroup -Name $HyperVGroupName
+    $CurrentErrors = @()
+    foreach ( $VM in $AllVMs.VMMembers)
+    {
+        LogMsg "Enable nested virtualization for $($VM.Name) from $HyperVGroupName..."
+        Set-VMProcessor -VMName $($VM.Name) -ExposeVirtualizationExtensions $true -ComputerName $HyperVHost
+        Set-VMNetworkAdapter -VMName $($VM.Name) -MacAddressSpoofing on -ComputerName $HyperVHost
+        if ( $? )
+        {
+            LogMsg "Succeeded."
+        }
+        else
+        {
+            LogErr "Failed"
+            $CurrentErrors += "Enable nested virtualization for $($VM.Name) from $HyperVGroupName failed."
+        }
+    }
+    if($CurrentErrors.Count -eq 0)
+    {
+        $ReturnValue = $true
+        $CurrentErrors | ForEach-Object { LogErr "$_" }
+    }
+    else 
+    {
+        $ReturnValue = $false    
+    }
+    return $ReturnValue
+}
+
 Function StartHyperVGroupVMs($HyperVGroupName)
 {
     $HyperVHost = $xmlConfig.config.Hyperv.Host.ServerName

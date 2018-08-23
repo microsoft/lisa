@@ -46,6 +46,7 @@ Param(
 	[string] $StorageAccount="",
 
 	#[Required] for HyperV
+	[string] $SourceOsVHDPath="",
 
 	#[Required] Common for HyperV and Azure.
 	[string] $OsVHD = "",   #... [Azure: Required only if -ARMImageName is not provided.]
