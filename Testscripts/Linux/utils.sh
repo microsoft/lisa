@@ -2368,8 +2368,8 @@ function zypper_install ()
 # Install packages, parameter: package name
 function install_package ()
 {
-	local package_name=$@
-	for i in "${package_name[@]}"; do
+	local package_list=("$@")
+	for package_name in "${package_list[@]}"; do
 		case "$DISTRO_NAME" in
 			oracle|rhel|centos)
 				yum_install "$package_name"
