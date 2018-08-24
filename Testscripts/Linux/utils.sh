@@ -2535,6 +2535,10 @@ function install_fio () {
 			echo "Unsupported distribution for install_fio"
 			return 1
 	esac
+	which fio
+	if [ $? -ne 0 ]; then
+		return 1
+	fi	
 }
 
 # Install iperf3 and required packages
@@ -2549,9 +2553,17 @@ function install_iperf3 () {
 			iptables -F
 			;;
 
-		ubuntu)
+		ubuntu|debian)
 			dpkg_configure
-			apt-get -y install iperf3 sysstat bc psmisc
+			apt-get -y install sysstat bc psmisc
+			if [[ "${DISTRO_NAME}" == "ubuntu" ]]; then
+				apt-get -y install iperf3
+			elif [[ "${DISTRO_NAME}" == "debian" ]]; then
+				# Debian default repositories has 3.0 iperf3 version, which is not supported by automation.
+				wget https://iperf.fr/download/ubuntu/iperf3_3.1.3-1_amd64.deb
+				wget https://iperf.fr/download/ubuntu/libiperf0_3.1.3-1_amd64.deb
+				dpkg -i iperf3_3.1.3-1_amd64.deb libiperf0_3.1.3-1_amd64.deb
+			fi
 			if [ $ip_version -eq 6 ] && [[ $DISTRO_VERSION =~ 16 ]]; then
 				nic_name=$(get_active_nic_name)
 				echo "iface $nic_name inet6 auto" >> /etc/network/interfaces.d/50-cloud-init.cfg
@@ -2598,6 +2610,10 @@ function install_iperf3 () {
 			echo "Unsupported distribution for install_iperf3"
 			return 1
 	esac
+	which iperf3
+	if [ $? -ne 0 ]; then
+		return 1
+	fi
 }
 
 # Build and install lagscope
@@ -2620,7 +2636,7 @@ function install_lagscope () {
 			iptables -F
 			;;
 
-		ubuntu)
+		ubuntu|debian)
 			dpkg_configure
 			apt-get -y install libaio1 sysstat git bc make gcc
 			build_lagscope
@@ -2647,6 +2663,10 @@ function install_lagscope () {
 			echo "Unsupported distribution for install_lagscope"
 			return 1
 	esac
+	which lagscope
+	if [ $? -ne 0 ]; then
+		return 1
+	fi
 }
 
 # Build and install ntttcp
@@ -2670,7 +2690,7 @@ function install_ntttcp () {
 			iptables -F
 			;;
 
-		ubuntu)
+		ubuntu|debian)
 			dpkg_configure
 			apt-get -y install wget libaio1 sysstat git bc make gcc dstat psmisc
 			build_ntttcp
@@ -2699,6 +2719,10 @@ function install_ntttcp () {
 			echo "Unsupported distribution for install_ntttcp"
 			return 1
 	esac
+	which ntttcp
+	if [ $? -ne 0 ]; then
+		return 1
+	fi
 }
 
 # Get the active NIC name
