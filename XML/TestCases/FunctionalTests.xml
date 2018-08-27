@@ -174,4 +174,75 @@
         <Area>KVP</Area>
         <Tags>kvp</Tags>
     </test>
+    <test>
+        <testName>CORE-VerifyHeartBeat</testName>
+        <testScript>CORE-VerifyHeartBeat.ps1</testScript>
+        <setupType>SingleVM</setupType>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>core</Tags>
+    </test>
+    <test>
+        <testName>CORE-VerifyShutdown</testName>
+        <testScript>CORE-VerifyShutdown.ps1</testScript>
+        <setupType>SingleVM</setupType>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>core</Tags>
+    </test>
+    <test>
+        <testName>CORE-VerifyTimeSync</testName>
+        <testScript>CORE-VerifyTimeSync.ps1</testScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\CORE-ConfigTimeSync.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>MaxTimeDiff=5</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>core</Tags>
+    </test>
+    <test>
+        <testName>CORE-InitrdModulesCheck</testName>
+        <testScript>CORE-InitrdModulesCheck.sh</testScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\CORE-InitrdModulesCheck.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>gen1_hv_modules=(hv_vmbus.ko hv_storvsc.ko hv_netvsc.ko)</param>
+            <param>gen2_hv_modules=(hv_vmbus.ko hv_storvsc.ko hv_netvsc.ko hyperv-keyboard.ko)</param>
+        </TestParameters>
+        <Platform>HyperV,Azure</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>core</Tags>
+    </test>
+    <test>
+        <testName>CORE-CPUVerifyOnline</testName>
+        <testScript>CORE-CPUVerifyOnline.sh</testScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\CORE-CPUVerifyOnline.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>vCPU=4</param>
+        </TestParameters>
+        <Platform>HyperV,Azure</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>core</Tags>
+    </test>
+    <test>
+        <testName>CORE-VerifyLISModulesVersion</testName>
+        <testScript>CORE-VerifyLISModulesVersion.sh</testScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\CORE-VerifyLISModulesVersion.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>HYPERV_MODULES=(hv_vmbus hv_netvsc hv_storvsc hv_utils hv_balloon hid_hyperv hyperv_keyboard hyperv_fb)</param>
+        </TestParameters>
+        <Platform>HyperV,Azure</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>core</Tags>
+    </test>
 </TestCases>
