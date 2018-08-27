@@ -1,6 +1,15 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 
+Function GetResultObject ()
+{
+    $Object = New-Object PSObject
+    $Object | add-member -MemberType NoteProperty -Name test -Value $null
+    $Object | add-member -MemberType NoteProperty -Name avgReal -Value $null
+    $Object | add-member -MemberType NoteProperty -Name avgUser -Value $null
+    $Object | add-member -MemberType NoteProperty -Name avgSystem -Value $null
+    return $Object
+}
 function Main {
     # Create test result
     $result = ""
@@ -54,16 +63,6 @@ collect_VM_properties
                 $logs = Get-Content -Path $logFilePath
                 $vmInfo = Get-Content -Path $logFilePath | select -First 2
                 $logs = $logs.Split("`n")
-
-                Function GetResultObject ()
-                {
-                    $Object = New-Object PSObject
-                    $Object | add-member -MemberType NoteProperty -Name test -Value $null
-                    $Object | add-member -MemberType NoteProperty -Name avgReal -Value $null
-                    $Object | add-member -MemberType NoteProperty -Name avgUser -Value $null
-                    $Object | add-member -MemberType NoteProperty -Name avgSystem -Value $null
-                    return $Object
-                }
                 $finalResult = @()
                 $finalResult += "************************************************************************"
                 $finalResult += " 	SYSCALL BENCHMARK TEST RESULTS 	"

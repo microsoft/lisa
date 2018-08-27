@@ -29,10 +29,10 @@ run_syscall_benchmark()
 	SetTestStateRunning
 	#Syscall benchmark test start..
 	LogMsg "git clone SysCall benchmark started..."
-    git clone $syscallurl
+	git clone $syscallurl
 	cd syscall-benchmark && ./compile.sh
 	if [ $? -ne 0 ]; then
-		LogMsg "Error: Syscall complie failed.."
+		LogMsg "Error: Syscall compile failed.."
 		SetTestStateAborted
 		exit 2
 	else
