@@ -73,17 +73,22 @@ function Run-SetupScript {
         [string]$Script,
         [hashtable]$Parameters
     )
-
+    if (Get-VM -Name $AllVMData[0].RoleName -EA SilentlyContinue){
+        Stop-VM -Name $AllVMData[0].RoleName -TurnOff -Force
+    }
     $workDir = Get-Location
     $scriptLocation = Join-Path $workDir $Script
     $scriptParameters = ""
     foreach ($param in $Parameters.Keys) {
         $scriptParameters += "${param}=$($Parameters[$param]);"
     }
-    $msg = ("Test setup started using setup script:{0} with parameters:{1}" `
+    $msg = ("Test setup/cleanup started using script:{0} with parameters:{1}" `
              -f @($Script,$scriptParameters))
     LogMsg $msg
     $result = & "${scriptLocation}" -TestParams $scriptParameters
+    if (Get-VM -Name $AllVMData[0].RoleName -EA SilentlyContinue){
+        Start-VM -Name $AllVMData[0].RoleName
+    }
     return $result
 }
 
@@ -501,5 +506,10 @@ function Run-Test {
              -ResourceGroups $isDeployed @optionalParams
     }
 
+    if ($testPlatform -eq "Hyperv" -and $CurrentTestData.CleanupScript) {
+        $setupResult = Run-SetupScript -Script $CurrentTestData.CleanupScript `
+             -Parameters $testParameters
+    }
+  
     return $currentTestResult
 }
