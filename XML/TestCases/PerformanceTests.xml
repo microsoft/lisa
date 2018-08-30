@@ -7,9 +7,10 @@
             <Networking>Synthetic</Networking>
         </AdditionalHWConfig>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_ntttcp.sh,.\Testscripts\Linux\run-ntttcp-and-tcping.sh,.\Testscripts\Linux\report-ntttcp-and-tcping.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
         <TestParameters>
             <param>testDuration=300</param>
+            <param>testType=tcp</param>
             <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024 2048 4096 6144 8192 10240"</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
@@ -24,9 +25,10 @@
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_ntttcp.sh,.\Testscripts\Linux\run-ntttcp-and-tcping.sh,.\Testscripts\Linux\report-ntttcp-and-tcping.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
         <TestParameters>
             <param>testDuration=300</param>
+            <param>testType=tcp</param>
             <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024 2048 4096 6144 8192 10240"</param>
         </TestParameters>
         <Platform>Azure</Platform>
@@ -111,7 +113,7 @@
         <setupType>DS14DISK12</setupType>
         <AdditionalHWConfig>
             <DiskType>Managed</DiskType>
-        </AdditionalHWConfig>        
+        </AdditionalHWConfig>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <TestParameters>
@@ -135,7 +137,7 @@
         <setupType>DS14DISK12</setupType>
         <AdditionalHWConfig>
             <DiskType>Managed</DiskType>
-        </AdditionalHWConfig>        
+        </AdditionalHWConfig>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <TestParameters>

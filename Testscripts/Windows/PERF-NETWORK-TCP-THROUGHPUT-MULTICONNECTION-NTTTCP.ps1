@@ -93,22 +93,22 @@ collect_VM_properties
         }
         $finalStatus = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "cat /root/state.txt"
         RemoteCopy -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "/root/ntttcpConsoleLogs.txt"
-        RemoteCopy -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "lagscope-ntttcp-*"
-        RemoteCopy -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "ntttcp-sender-p*"
-        RemoteCopy -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "mpstat-sender-p*"
-        RemoteCopy -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "dstat-sender-p*"
-        RemoteCopy -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "sar-sender-p*"
-        RemoteCopy -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "report.log"
+        RemoteCopy -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "lagscope-*.log"
+        RemoteCopy -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "ntttcp-*.log"
+        RemoteCopy -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "mpstat-*.log"
+        RemoteCopy -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "dstat-*.log"
+        RemoteCopy -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "sar-*.log"
+        RemoteCopy -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "report.log, report.csv"
         RemoteCopy -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "VM_properties.csv"
         
         $testSummary = $null
+        $uploadResults = $true
         $ntttcpReportLog = Get-Content -Path "$LogDir\report.log"
         foreach ($line in $ntttcpReportLog) {
             if ($line -imatch "test_connections") {
                 continue;
             }
             try {
-                $uploadResults = $true
                 $test_connections = $line.Trim().Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Split(" ")[0]
                 $throughput_gbps = $line.Trim().Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Split(" ")[1]
                 $cycle_per_byte = $line.Trim().Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Split(" ")[2]
@@ -144,7 +144,8 @@ collect_VM_properties
             $testResult = "PASS"
         }
         
-        LogMsg "Test Completed"
+        $ntttcpDataCsv = Import-Csv -Path $LogDir\report.csv
+        LogMsg ($ntttcpDataCsv | Format-Table | Out-String)
         
         LogMsg "Uploading the test results.."
         $dataSource = $xmlConfig.config.$TestPlatform.database.server
@@ -156,7 +157,6 @@ collect_VM_properties
         if ($dataSource -And $user -And $password -And $database -And $dataTableName) {
             $GuestDistro    = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
             
-            #$TestCaseName  = "LINUX-NEXT-UPSTREAM-TEST"
             if ($UseAzureResourceManager) {
                 $HostType   = "Azure-ARM"
             } else {
@@ -176,7 +176,7 @@ collect_VM_properties
 
             for ($i = 1; $i -lt $LogContents.Count; $i++) {
                 $Line = $LogContents[$i].Trim() -split '\s+'
-                $SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$HostType','$HostBy','$HostOS','$GuestOSType','$GuestDistro','$GuestSize','$KernelVersion','$IPVersion','$ProtocolType','$DataPath',$($Line[0]),$($Line[1]),$($Line[2])),"
+                $SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$HostType','$HostBy','$HostOS','$GuestOSType','$GuestDistro','$GuestSize','$KernelVersion','$IPVersion','$ProtocolType','$DataPath',$($Line[0]),$($Line[1]),$($Line[3])),"
             }
             $SQLQuery = $SQLQuery.TrimEnd(',')
             LogMsg $SQLQuery
