@@ -134,6 +134,9 @@ Per Category, each XML file has VM name, Resource Group name, etc. We do not rec
             Like 'VERIFY-TEST-SCRIPT-IN-LINUX-GUEST.ps1', the PowerShell script wraps the multiple 
             Bash or Python script as a parameter of 'RunLinuxCmd' function.
     5. Before PR review, we recommend you run script testing in cmdline/API mode. See above instruction.
+    6. Current tags in the Repo: bvt, network, nested, udp, hv_storvsc, linux_image, net, stress, disk, dpdk,
+        sriov, kvm, btrfs, smb, storage, xfs, boot, pci_hyperv, core, wala, lsvmbus, synthetic, ext4, kvp,
+        gpu, hv_netvsc, ltp, tcp, lis, fcopy, memory, backup. They are all lowercases.
 
 ## Coding Style
 
