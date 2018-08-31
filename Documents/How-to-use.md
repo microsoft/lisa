@@ -148,6 +148,7 @@ Per Category, each XML file has VM name, Resource Group name, etc. We do not rec
         a. Log should be readable to reflect what’s happening in the test execution.
         b. Remove noise. Determine if it would be error or warning.
         c. Exception only in the case of fatal errors.
+    9. Recommended function name format - Function_Name(). Upper letter in each string connected with underscore character.
 
 ## Support Contact
 
