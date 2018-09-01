@@ -76,7 +76,7 @@
         <Platform>Azure,HyperV</Platform>
         <Category>Community</Category>
         <Area>LTP</Area>
-        <Tags>LTP</Tags>
+        <Tags>ltp</Tags>
     </test>
 	<test>
         <testName>LSVMBUS</testName>
