@@ -76,11 +76,11 @@
         <Platform>Azure,HyperV</Platform>
         <Category>Community</Category>
         <Area>LTP</Area>
-        <Tags>LTP</Tags>
+        <Tags>ltp</Tags>
     </test>
 	<test>
-        <testName>LSVMBUS</testName>
-        <testScript>LSVMBUS.sh</testScript>
+        <TestName>LSVMBUS</TestName>
+        <TestScript>LSVMBUS.sh</TestScript>
         <files>.\TestScripts\Linux\LSVMBUS.sh,.\TestScripts\Linux\utils.sh</files>
         <setupType>Stress</setupType>
         <TestParameters>
