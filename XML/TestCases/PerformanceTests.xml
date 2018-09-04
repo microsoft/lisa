@@ -15,7 +15,7 @@
         <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
         <Area>Network</Area>
-        <Tags>tcp,network,hv_netvsc</Tags>
+        <Tags>network,hv_netvsc</Tags>
     </test>
     <test>
         <testName>PERF-NETWORK-TCP-THROUGHPUT-MULTICONNECTION-SRIOV</testName>
@@ -32,7 +32,7 @@
         <Platform>Azure</Platform>
         <Category>Performance</Category>
         <Area>Network</Area>
-        <Tags>tcp,network,hv_netvsc,sriov</Tags>
+        <Tags>network,hv_netvsc,sriov</Tags>
     </test>
     <test>
         <testName>PERF-NETWORK-TCP-LATENCY-MULTICONNECTION-Synthetic</testName>
@@ -45,7 +45,7 @@
         <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
         <Area>Network</Area>
-        <Tags>tcp,network,hv_netvsc</Tags>
+        <Tags>network,hv_netvsc</Tags>
     </test>
     <test>
         <testName>PERF-NETWORK-TCP-LATENCY-MULTICONNECTION-SRIOV</testName>
@@ -62,7 +62,7 @@
         <Platform>Azure</Platform>
         <Category>Performance</Category>
         <Area>Network</Area>
-        <Tags>tcp,network,hv_netvsc,sriov</Tags>
+        <Tags>network,hv_netvsc,sriov</Tags>
     </test>
     <test>
         <testName>PERF-NETWORK-UDP-THROUGHPUT-MULTICONNECTION-Synthetic</testName>
@@ -81,7 +81,7 @@
         <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
         <Area>Network</Area>
-        <Tags>udp,network,hv_netvsc</Tags>
+        <Tags>network,hv_netvsc</Tags>
     </test>
     <test>
         <testName>PERF-NETWORK-UDP-THROUGHPUT-MULTICONNECTION-SRIOV</testName>
@@ -103,7 +103,7 @@
         <Platform>Azure</Platform>
         <Category>Performance</Category>
         <Area>Network</Area>
-        <Tags>udp,network,hv_netvsc,sriov</Tags>
+        <Tags>network,hv_netvsc,sriov</Tags>
     </test>
     <test>
         <testName>PERF-STORAGE-4K-IO</testName>
@@ -266,7 +266,7 @@
         <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
         <Area>Network</Area>
-        <Tags>hv_netvsc,network,tcp</Tags>
+        <Tags>hv_netvsc,network</Tags>
     </test>
     <test>
         <testName>PERF-NETWORK-TCP-SINGLE-CONNECTION-THROUGHPUT-SRIOV</testName>
@@ -287,6 +287,6 @@
         <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
         <Area>Network</Area>
-        <Tags>hv_netvsc,network,tcp,sriov</Tags>
+        <Tags>hv_netvsc,network,sriov</Tags>
     </test>
 </TestCases>
