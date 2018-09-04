@@ -10,7 +10,6 @@
     the Linux VM, and then checks if the size is matching.
 
 #>
-
 param([String] $TestParams)
 
 function Main {
@@ -27,21 +26,13 @@ function Main {
 
 $testfile = $null
 $gsi = $null
-$retVal = "FAIL"
-
-
-
-
 #######################################################################
 #
 #   Main body script
 #
 #######################################################################
-
 # Change the working directory for the log files
-
-cd $RootDir
-
+Set-Location $RootDir
 # if host build number lower than 9600, skip test
 $BuildNumber = Get-HostBuildNumber  -hvServer $HvServer
 if ($BuildNumber -eq 0)
@@ -50,10 +41,9 @@ if ($BuildNumber -eq 0)
 }
 elseif ($BuildNumber -lt 9600)
 {
-    return "Skipped"
+    return "ABORTED"
 }
 
-$retVal = "PASS"
 #
 # Verify if the Guest services are enabled for this VM
 #
@@ -62,16 +52,15 @@ $fileSize = $fileSize/1
 
 $gsi = Get-VMIntegrationService -vmName $VMName -ComputerName $HvServer -Name "Guest Service Interface"
 if (-not $gsi) {
-    LogErr "Error: Unable to retrieve Integration Service status from VM '${vmName}'" 
-    return "Aborted"
+    LogErr "Unable to retrieve Integration Service status from VM '${vmName}'" 
+    return "ABORTED"
 }
 
 if (-not $gsi.Enabled) {
-    LogMsg "Warning: The Guest services are not enabled for VM '${vmName}'" 
+    LogWarn "The Guest services are not enabled for VM '${vmName}'" 
 	if ((Get-VM -ComputerName $HvServer -Name $VMName).State -ne "Off") {
 		Stop-VM -ComputerName $HvServer -Name $VMName -Force -Confirm:$false
 	}
-
 	# Waiting until the VM is off
 	while ((Get-VM -ComputerName $HvServer -Name $VMName).State -ne "Off") {
         LogMsg "Turning off VM:'${vmName}'" 
@@ -81,31 +70,26 @@ if (-not $gsi.Enabled) {
     Enable-VMIntegrationService -Name "Guest Service Interface" -vmName $VMName -ComputerName $HvServer
     LogMsg "Starting VM:'${vmName}'"
 	Start-VM -Name $VMName -ComputerName $HvServer
-
-	# Waiting for the VM to run again and respond to SSH - port 22
+	# Waiting for the VM to run again and respond 
 	do {
-		sleep 5
-	} until (Test-NetConnection $Ipv4 -Port 22 -WarningAction SilentlyContinue | ? { $_.TcpTestSucceeded } )
+		Start-Sleep -Seconds 5
+	} until (Test-NetConnection $Ipv4 -Port $VMPort -WarningAction SilentlyContinue | Where-Object { $_.TcpTestSucceeded } )
 }
 # Get VHD path of tested server; file will be copied there
-$vhd_path = Get-VMHost -ComputerName $HvServer | Select -ExpandProperty VirtualHardDiskPath
-
+$vhd_path = Get-VMHost -ComputerName $HvServer | Select-Object -ExpandProperty VirtualHardDiskPath
 # Fix path format if it's broken
 if ($vhd_path.Substring($vhd_path.Length - 1, 1) -ne "\"){
     $vhd_path = $vhd_path + "\"
 }
-
 $vhd_path_formatted = $vhd_path.Replace(':','$')
-
 # Define the file-name to use with the current time-stamp
 $testfile = "testfile-$(get-date -uformat '%H-%M-%S-%Y-%m-%d').file"
-
 $filePath = $vhd_path + $testfile
 $file_path_formatted = $vhd_path_formatted + $testfile
 
 if ($gsi.OperationalStatus -ne "OK") {
    LogErr "The Guest services are not working properly for VM '${vmName}'!" 
-    $retVal = "FAIL"
+    return "FAIL"
 }
 else {
     # Create a sample file
@@ -113,7 +97,7 @@ else {
 
     if ($createfile -notlike "File *testfile-*.file is created") {
        LogErr "Could not create the sample test file in the working directory!" 
-        $retVal = "FAIL"
+        return "FAIL"
     }
 }
 
@@ -127,63 +111,54 @@ if (-not $?){
 #
 # The fcopy daemon must be running on the Linux guest VM
 #
+
 $sts = Check-FcopyDaemon -vmPassword $VMPassword -VmPort $VMPort -vmUserName $VMUserName -ipv4 $Ipv4
 if (-not $sts[-1]) {
     LogErr "File copy daemon is not running inside the Linux guest VM!" 
-    $retVal = "FAIL"
+    return "FAIL"
 }
 
 $sts = Mount-disk -vmPassword $VMPassword -vmPort $VMPort -ipv4 $Ipv4
 if (-not $sts[-1]) {
     LogErr "FAIL to mount the disk in the VM." 
-    $retVal = "FAIL"
+    return "FAIL"
 }
 
 #
 # Run the test
 #
-for($i=0; $i -ne 4; $i++){
-    if ($retval) {
         $sts = Copy-FileVM -vmName $VMName -hvServer $HvServer  -filePath $filePath
         if (-not $sts) {
             LogErr "File could not be copied!" 
-            $retVal = "FAIL"
+            return "FAIL"
             break
         }
-        LogMsg "Info: File has been successfully copied to guest VM '${vmName}'"
+        LogMsg "File has been successfully copied to guest VM '${vmName}'"
 
         $sts = Check-File  -vmPassword $VMPassword -vmPort $VMPort -vmUserName $VMUserName -ipv4 $Ipv4   -fileName "/mnt/$testfile" -checkSize $true
         if (-not $sts) {
             LogErr "File check error on the guest VM '${vmName}'!" 
-            $retVal = "FAIL"
+            return "FAIL"
             break
         }
-        LogMsg "Info: The file copied matches the ${originalFileSize} size."
+        LogMsg "The file copied matches the ${originalFileSize} size."
 
         $sts = Remove-FileVM -vmPassword $VMPassword -vmPort $VMPort -ipv4 $Ipv4 -testfile $filePath
         if (-not $sts) {
             LogErr "FAIL to remove file from VM $VMName." 
-            $retVal = "FAIL"
+            return  "FAIL"
             break
         }
-        LogMsg "Info: File has been successfully removed from guest VM '${vmName}'"
-    }
-    else {
-        break
-    }
-}
-
+        LogMsg "File has been successfully removed from guest VM '${vmName}'"
 #
 # Removing the temporary test file
 #
 Remove-Item -Path \\$HvServer\$file_path_formatted -Force
 if (-not $?) {
     LogErr "Cannot remove the test file '${testfile}'!" 
+    return "FAIL"
 }
-
-return $retVal
 }
-
 Main -VMName $AllVMData.RoleName -HvServer $xmlConfig.config.Hyperv.Host.ServerName `
          -Ipv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort `
          -VMUserName $user -VMPassword $password -RootDir $WorkingDirectory `

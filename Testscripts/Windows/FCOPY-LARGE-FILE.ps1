@@ -36,7 +36,7 @@ $filesize = 10737418240
 #
 #######################################################################
 
-cd $RootDir
+Set-Location $RootDir
 # if host build number lower than 9600, skip test
 $BuildNumber = Get-HostBuildNumber -hvServer $HvServer
 if ($BuildNumber -eq 0)
@@ -45,9 +45,8 @@ if ($BuildNumber -eq 0)
 }
 elseif ($BuildNumber -lt 9600)
 {
-    return "Skipped"
+    return "ABORTED"
 }
-$retVal = "PASS"
 
 #
 # Verify if the Guest services are enabled for this VM
@@ -55,11 +54,11 @@ $retVal = "PASS"
 $gsi = Get-VMIntegrationService -vmName $VMName -ComputerName $HvServer -Name "Guest Service Interface"
 if (-not $gsi) {
     LogErr "Unable to retrieve Integration Service status from VM '${vmName}'" 
-    return "Aborted"
+    return "ABORTED"
 }
 
 if (-not $gsi.Enabled) {
-    LogMsg "Warning: The Guest services are not enabled for VM '${vmName}'" 
+    LogWarn "The Guest services are not enabled for VM '${vmName}'" 
 	if ((Get-VM -ComputerName $HvServer -Name $VMName).State -ne "Off") {
 		Stop-VM -ComputerName $HvServer -Name $VMName -Force -Confirm:$false
 	}
@@ -74,32 +73,26 @@ if (-not $gsi.Enabled) {
     LogMsg "Starting VM:'${vmName}'"
 	Start-VM -Name $VMName -ComputerName $HvServer
 
-	# Waiting for the VM to run again and respond to SSH - port 22
+	# Waiting for the VM to run again and respond 
 	do {
-		sleep 5
-	} until (Test-NetConnection $Ipv4 -Port 22 -WarningAction SilentlyContinue | ? { $_.TcpTestSucceeded } )
+		Start-Sleep -Seconds 5
+	} until (Test-NetConnection $Ipv4 -Port $VMPort -WarningAction SilentlyContinue | Where-Object { $_.TcpTestSucceeded } )
 }
-
 
 if ($gsi.OperationalStatus -ne "OK") {
 	LogErr "The Guest services are not working properly for VM '${vmName}'!" 
-	$retVal = "FAIL"
-	exit 1
+	return  "FAIL"
 }
-
 #
 # The fcopy daemon must be running on the Linux guest VM
 #
 $sts = Check-FcopyDaemon  -vmPassword $VMPassword -VmPort $VMPort -vmUserName $VMUserName -ipv4 $Ipv4
 if (-not $sts[-1]) {
 	 LogErr "File copy daemon is not running inside the Linux guest VM!" 
-	$retVal = "FAIL"
-	exit 1
-}
-
+	 return  "FAIL"
+ }
 # Get VHD path of tested server; file will be copied there
-$vhd_path = Get-VMHost -ComputerName $HvServer | Select -ExpandProperty VirtualHardDiskPath
-
+$vhd_path = Get-VMHost -ComputerName $HvServer | Select-Object -ExpandProperty VirtualHardDiskPath
 # Fix path format if it's broken
 if ($vhd_path.Substring($vhd_path.Length - 1, 1) -ne "\"){
     $vhd_path = $vhd_path + "\"
@@ -117,11 +110,9 @@ $file_path_formatted = $vhd_path_formatted + $testfile
 $createfile = fsutil file createnew \\$HvServer\$file_path_formatted $filesize
 
 if ($createfile -notlike "File *testfile-*.file is created") {
-	LogErr "Error: Could not create the sample test file in the working directory!" 
+	LogErr "Could not create the sample test file in the working directory!" 
 	return "FAIL"
 }
-
-
 # Verifying if /mnt folder on guest exists; if not, it will be created
 .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$Ipv4 "[ -d /mnt ]"
 if (-not $?){
@@ -134,7 +125,6 @@ if (-not $sts[-1]) {
     LogErr "FAIL to mount the disk in the VM." 
     return "FAIL"
 }
-
 #
 # Copy the file to the Linux guest VM
 #
@@ -143,7 +133,7 @@ $Error.Clear()
 $copyDuration = (Measure-Command { Copy-VMFile -vmName $VMName -ComputerName $HvServer -SourcePath $filePath -DestinationPath `
     "/mnt/" -FileSource Host }).totalseconds
 if ($Error.Count -eq 0) {
-	LogMsg "Info: File has been successfully copied to guest VM '${vmName}'" 
+	LogMsg "File has been successfully copied to guest VM '${vmName}'" 
 }
 else {
 	LogErr "File could not be copied!" 
@@ -163,22 +153,21 @@ if  (-not $sts[-1]) {
 	return "FAIL"
 }
 elseif ($sts[0] -eq $filesize) {
-	LogMsg "Info: The file copied matches the size: $filesize bytes."
+    LogMsg "The file copied matches the size: $filesize bytes."
+    return "PASS"
 }
 else {
 	LogErr "The file copied doesn't match the size: $filesize bytes!"
 	return "FAIL"
 }
-
 #
 # Removing the temporary test file
 #
 Remove-Item -Path \\$HvServer\$file_path_formatted -Force
 if (-not $?) {
-    LogERR "ERROR: Cannot remove the test file '${testfile}'!" 
+    LogErr "ERROR: Cannot remove the test file '${testfile}'!" 
+    return "FAIL"
 }
-
-return $retVal
 }
 
 Main -VMName $AllVMData.RoleName -HvServer $xmlConfig.config.Hyperv.Host.ServerName `

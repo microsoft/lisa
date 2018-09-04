@@ -251,7 +251,7 @@
         <setupType>SingleVM</setupType>
         <Platform>HyperV</Platform>
         <Category>FCOPY</Category>
-        <Area>FCOPY</Area>
+        <Area>Fcopy</Area>
         <Tags>fcopy</Tags>
     </test>
     <test>
@@ -260,7 +260,7 @@
         <setupType>SingleVM</setupType>
         <Platform>HyperV</Platform>
         <Category>FCOPY</Category>
-        <Area>FCOPY</Area>
+        <Area>Fcopy</Area>
         <Tags>fcopy</Tags>
     </test>
     <test>
@@ -269,7 +269,7 @@
         <setupType>SingleVM</setupType>
         <Platform>HyperV</Platform>
         <Category>FCOPY</Category>
-        <Area>FCOPY</Area>
+        <Area>Fcopy</Area>
         <Tags>fcopy</Tags>
     </test>
      <test>
@@ -282,7 +282,7 @@
         </testParameters>
         <Platform>HyperV</Platform>
         <Category>FCOPY</Category>
-        <Area>FCOPY</Area>
+        <Area>Fcopy</Area>
         <Tags>fcopy</Tags>
     </test>
     <test>
@@ -292,7 +292,7 @@
         <setupType>SingleVM</setupType>
         <Platform>HyperV</Platform>
         <Category>FCOPY</Category>
-        <Area>FCOPY</Area>
+        <Area>Fcopy</Area>
         <Tags>fcopy</Tags>
     </test>
     <test>
@@ -306,7 +306,7 @@
         </testParameters>
         <Platform>HyperV</Platform>
         <Category>FCOPY</Category>
-        <Area>FCOPY</Area>
+        <Area>Fcopy</Area>
         <Tags>fcopy</Tags>
     </test>
     <test>
@@ -322,7 +322,7 @@
         </testParameters>
         <Platform>HyperV</Platform>
         <Category>FCOPY</Category>
-        <Area>FCOPY</Area>
+        <Area>Fcopy</Area>
         <Tags>fcopy</Tags>
     </test>
     <test>
@@ -331,7 +331,7 @@
         <setupType>SingleVM</setupType>
         <Platform>HyperV</Platform>
         <Category>FCOPY</Category>
-        <Area>FCOPY</Area>
+        <Area>Fcopy</Area>
         <Tags>fcopy</Tags>
     </test>
 </TestCases>

@@ -27,9 +27,7 @@ function Main {
         $TestParams
     )
 
-
-$retVal = "FAIL"
-$testfile = $null
+$testfile = "$null"
 
 #######################################################################
 #
@@ -39,10 +37,7 @@ $testfile = $null
 
 #
 # Change the working directory for the log files
-# Delete any previous summary.log file, then create a new one
-
-cd $RootDir
-
+Set-Location $RootDir
 # If host build number lower than 9600, skip test
 $BuildNumber = Get-HostBuildNumber -hvServer $HvServer
 if ($BuildNumber -eq 0){
@@ -50,7 +45,7 @@ if ($BuildNumber -eq 0){
 }
 elseif ($BuildNumber -lt 9600){
     LogMsg "Hyper-v host version $BuildNumber does not support fcopy, skipping test." 
-    return "Skipped"
+    return "ABORTED"
 }
 
 # If vm does not support systemd, skip test.
@@ -63,27 +58,24 @@ if ( -not $True) {
 
 # Delete any previous test files
 .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$Ipv4 "rm -rf /tmp/testfile-* 2>/dev/null"
-
 #
 # Setup: Create temporary test file in the host
 #
 # Get VHD path of tested server; file will be created there
-$vhd_path = Get-VMHost -ComputerName $HvServer | Select -ExpandProperty VirtualHardDiskPath
+$vhd_path = Get-VMHost -ComputerName $HvServer | Select-Object -ExpandProperty VirtualHardDiskPath
 
 # Fix path format if it's broken
 if ($vhd_path.Substring($vhd_path.Length - 1, 1) -ne "\"){
     $vhd_path = $vhd_path + "\"
 }
-
 $vhd_path_formatted = $vhd_path.Replace(':','$')
-
 # Define the file-name to use with the current time-stamp
 $testfile = "testfile-$(get-date -uformat '%H-%M-%S-%Y-%m-%d').file"
-
 $filePath = $vhd_path + $testfile
 $file_path_formatted = $vhd_path_formatted + $testfile
 
 # Create a 10MB sample file
+LogMsg "Creating a 10MB sample file..."
 $createfile = fsutil file createnew \\$HvServer\$file_path_formatted 10485760
 
 if ($createfile -notlike "File *testfile-*.file is created") {
@@ -99,7 +91,7 @@ if ( $? -ne $true) {
 }
 
 # The fcopy daemon must be running on the Linux guest VM
-$sts = Check-FcopyDaemon  -vmPassword $VMPassword -VmPort $VMPort -vmUserName $VMUserName -ipv4 $Ipv4
+$sts = Check-FcopyDaemon  -vmPassword $VMPassword -VmPort $VMPort -vmUserName root -ipv4 $Ipv4
 if (-not $sts[-1]) {
     LogErr "File copy daemon is not running inside the Linux guest VM!"
     return "FAIL"
@@ -120,7 +112,7 @@ $Error.Clear()
 Copy-VMFile -vmName $VMName -ComputerName $HvServer -SourcePath $filePath -DestinationPath "/test" -FileSource host -ErrorAction SilentlyContinue
 
 if ( $? -eq $true ) {
-    LogErr  "Error: File has been copied to guest VM even  target folder immutable "
+    LogErr  "File has been copied to guest VM even  target folder immutable"
     return "FAIL"
 }
 elseif (($Error.Count -gt 0) -and ($Error[0].Exception.Message -like "*FAIL to initiate copying files to the guest*")) {
@@ -176,7 +168,7 @@ elseif (($Error.Count -gt 0) -and ($Error[0].Exception.Message -like "*FAIL to i
 }
 
 # Verify the file does not exist after hypervfcopyd start
-$daemonName = .\Tools\plink.exe -C -pw $vmPassword -P $vmPort $vmUserName@$Ipv4 "systemctl list-unit-files | grep fcopy"
+$daemonName = .\Tools\plink.exe -C -pw $vmPassword -P $vmPort root@$Ipv4 "systemctl list-unit-files | grep fcopy"
 $daemonName = $daemonName.Split(".")[0]
 .\Tools\plink.exe -C -pw $VMPassword -P $VMPort root@$Ipv4 "systemctl start $daemonName"
 start-sleep -s 2

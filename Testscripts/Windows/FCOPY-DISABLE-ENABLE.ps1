@@ -34,7 +34,7 @@ function Main {
 #
 #######################################################################
 # Read parameters
-$params = $testParams.TrimEnd(";").Split(";")
+$params = $TestParams.TrimEnd(";").Split(";")
 foreach ($p in $params) {
     $fields = $p.Split("=")
      switch ($fields[0].Trim()) {
@@ -49,10 +49,8 @@ foreach ($p in $params) {
         default     {}  # unknown param - just ignore it
     }
 }
-
 # Change directory
-cd $RootDir
-
+Set-Location $RootDir
 # if host build number lower than 9600, skip test
 $BuildNumber = Get-HostBuildNumber $HvServer
 if ($BuildNumber -eq 0)
@@ -61,16 +59,12 @@ if ($BuildNumber -eq 0)
 }
 elseif ($BuildNumber -lt 9600)
 {
-    return "Skipped"
+    return "ABORTED"
 }
-
-
-
-
 # Check VM state
 $currentState = Check-VMState -vmName $VMName -hvServer $HvServer
 if ($? -ne "True") {
-    LogErr "Error: Cannot check VM state" 
+    LogErr "Cannot check VM state" 
     return "FAIL"
 }
 
@@ -79,22 +73,23 @@ if ($currentState -ne "Running") {
     LogMsg "Found $VMName in $currentState state. Powering ON ... " 
     Start-VM -vmName $VMName -ComputerName $HvServer
     if ($? -ne "True") {
-        LogErr "Error: Unable to Power ON the VM" 
+        LogErr "Unable to Power ON the VM" 
         return "FAIL"
     }
+    LogMsg "Waiting 60 secs for VM $VMName to start ..."
     Start-Sleep 60
 }
 
     $checkVM = Check-Systemd -Ipv4 $Ipv4 -SSHPort $VMPort -Username $VMUserName -Password $VMPassword
     if ( -not $True) {
-       LogMsg "Systemd is not being used. Test Skipped"
+       LogErr "Systemd is not being used. Test Skipped"
        return "FAIL"
     }
 
     # Get Integration Services status
     $gsi = Get-VMIntegrationService -vmName $VMName -ComputerName $HvServer -Name "Guest Service Interface"
     if ($? -ne "True") {
-            LogErr "Error: Unable to run Get-VMIntegrationService on $VMName ($HvServer)" 
+            LogErr "Unable to run Get-VMIntegrationService on $VMName ($HvServer)" 
             return "FAIL"
     }
 
@@ -102,7 +97,7 @@ if ($currentState -ne "Running") {
     if ($gsi.Enabled -ne "True") {
         Enable-VMIntegrationService -Name "Guest Service Interface" -vmName $VMName -ComputerName $HvServer
         if ($? -ne "True") {
-            LogErr "Error: Unable to enable VMIntegrationService on $VMName ($HvServer)" 
+            LogErr "Unable to enable VMIntegrationService on $VMName ($HvServer)" 
             return "FAIL"
         }
     }
@@ -112,26 +107,25 @@ if ($currentState -ne "Running") {
     while ($counter -lt $CycleCount) {
         Disable-VMIntegrationService -Name "Guest Service Interface" -vmName $VMName -ComputerName $HvServer
         if ($? -ne "True") {
-            LogErr "Error: Unable to disable VMIntegrationService on $VMName ($HvServer) on $counter run"
+            LogErr "Unable to disable VMIntegrationService on $VMName ($HvServer) on $counter run"
             return "FAIL"
         }
         Start-Sleep 5
 
         Enable-VMIntegrationService -Name "Guest Service Interface" -vmName $VMName -ComputerName $HvServer
         if ($? -ne "True") {
-            LogErr "Error: Unable to enable VMIntegrationService on $VMName ($HvServer) on $counter run"
+            LogErr "Unable to enable VMIntegrationService on $VMName ($HvServer) on $counter run"
             return "FAIL"
         }
         Start-Sleep 5
         $counter += 1
     }
-
     LogMsg "Disabled and Enabled Guest Services $counter times" 
-
+    
     # Get VHD path of tested server; file will be copied there
-    $hvPath = Get-VMHost -ComputerName $HvServer | Select -ExpandProperty VirtualHardDiskPath
+    $hvPath = Get-VMHost -ComputerName $HvServer | Select-Object -ExpandProperty VirtualHardDiskPath
     if ($? -ne "True") {
-        LogErr "Error: Unable to get VM host" 
+        LogErr "Unable to get VM host" 
         return "FAIL"
     }
 
@@ -143,13 +137,13 @@ if ($currentState -ne "Running") {
     $hvPathFormatted = $hvPath.Replace(':','$')
 
     # Define the file-name to use with the current time-stamp
-    $testfile = "testfile-$(get-date -uformat '%H-%M-%S-%Y-%m-%d').file"
+    $testfile = "testfile-$(Get-Date -uformat '%H-%M-%S-%Y-%m-%d').file"
     $filePath = $hvPath + $testfile
     $filePathFormatted = $hvPathFormatted + $testfile
 
     # Make sure the fcopy daemon is running and Integration Services are OK
     $timer = 0
-    while ((Get-VMIntegrationService $VMName | ?{$_.name -eq "Guest Service Interface"}).PrimaryStatusDescription -ne "OK")
+    while ((Get-VMIntegrationService $VMName | Where-Object {$_.name -eq "Guest Service Interface"}).PrimaryStatusDescription -ne "OK")
     {
         Start-Sleep -Seconds 5
         LogMsg "Waiting for VM Integration Services $timer"
@@ -162,7 +156,7 @@ if ($currentState -ne "Running") {
     $operStatus = (Get-VMIntegrationService -vmName $VMName -ComputerName $HvServer -Name "Guest Service Interface").PrimaryStatusDescription
     LogMsg "Current Integration Services PrimaryStatusDescription is: $operStatus"
     if ($operStatus -ne "Ok") {
-        LogErr "Error: The Guest services are not working properly for VM $VMName!" 
+        LogErr "The Guest services are not working properly for VM $VMName!" 
         return "FAIL"
     }
     else {
@@ -171,7 +165,7 @@ if ($currentState -ne "Running") {
         # Create a 5GB sample file
         $createFile = fsutil file createnew \\$HvServer\$filePathFormatted $fileToCopySize
         if ($createFile -notlike "File *testfile-*.file is created") {
-            LogErr "Error: Could not create the sample test file in the working directory!" 
+            LogErr "Could not create the sample test file in the working directory!" 
             return "FAIL"
         }
     }
@@ -179,30 +173,30 @@ if ($currentState -ne "Running") {
     # Mount attached VHDX
     $sts = Mount-Disk -vmPassword $VMPassword -vmPort $VMPort -ipv4 $Ipv4
     if (-not $sts[-1]) {
-        LogErr "Error: FAIL to mount the disk in the VM." 
+        LogErr "FAIL to mount the disk in the VM." 
         return "FAIL"
     }
 
     # Daemon name might vary. Get the correct daemon name based on systemctl output
-    $daemonName = .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$Ipv4 "systemctl list-unit-files | grep fcopy"
+    $daemonName = .\Tools\plink.exe -C -pw $VMPassword -P $VMPort root@$Ipv4 "systemctl list-unit-files | grep fcopy"
     $daemonName = $daemonName.Split(".")[0]
 
-    $checkProcess = .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$Ipv4 "systemctl is-active $daemonName"
+    $checkProcess = .\Tools\plink.exe -C -pw $VMPassword -P $VMPort root@$Ipv4 "systemctl is-active $daemonName"
     if ($checkProcess -ne "active") {
         LogErr "Warning: $daemonName was not automatically started by systemd. Will start it manually."
-         $startProcess = .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$Ipv4 "systemctl start $daemonName"
+         $startProcess = .\Tools\plink.exe -C -pw $VMPassword -P $VMPort root@$Ipv4 "systemctl start $daemonName"
     }
 
     $gsi = Get-VMIntegrationService -vmName $VMName -ComputerName $HvServer -Name "Guest Service Interface"
     if ($gsi.Enabled -ne "True") {
-        LogErr "Error: FCopy Integration Service is not enabled"
+        LogErr "FCopy Integration Service is not enabled"
         return "FAIL"
     }
 
     # Check for the file to be copied
     Test-Path $filePathFormatted
     if ($? -ne "True") {
-        LogErr "Error: File to be copied not found." 
+        LogErr "File to be copied not found." 
         return "FAIL"
     }
 
@@ -211,34 +205,34 @@ if ($currentState -ne "Running") {
         "/mnt/" -FileSource host -ErrorAction SilentlyContinue }).totalseconds
 
     if ($Error.Count -eq 0) {
-        LogMsg "Info: File has been successfully copied to guest VM '${vmName}'"
+        LogMsg "File has been successfully copied to guest VM '${vmName}'"
     } else {
-        LogErr "Error: File could not be copied!"
+        LogErr "File could not be copied!"
         return "FAIL"
     }
 
     [int]$copyDuration = [math]::floor($copyDuration)
-    LogMsg "Info: The file copy process took ${copyDuration} seconds" 
+    LogMsg "The file copy process took ${copyDuration} seconds" 
 
     # Checking if the file is present on the guest and file size is matching
     $sts = Check-File -vmUserName $VMUserName -vmPassword $VMPassword -vmPort $VMPort -ipv4 $Ipv4 -fileName "/mnt/$testfile"  -checkSize $True  -checkContent $False
     if (-not $sts[-1]) {
-        LogErr "Error: File is not present on the guest VM"
+        LogErr "File is not present on the guest VM"
         return "FAIL"
     }
     elseif ($sts[0] -eq $fileToCopySize) {
-        LogMsg "Info: The file copied matches the $FcopyFileSize size."
+        LogMsg "The file copied matches the $FcopyFileSize size."
         return "PASS"
     }
     else {
-        LogErr "Error: The file copied doesn't match the $FcopyFileSize size!"
+        LogErr "The file copied doesn't match the $FcopyFileSize size!"
         return "FAIL"
     }
 
     # Removing the temporary test file
     Remove-Item -Path \\$HvServer\$filePathFormatted -Force
     if (-not $?) {
-        LogErr "Error: Cannot remove the test file '${testfile}'!"
+        LogErr "Cannot remove the test file '${testfile}'!"
         return "FAIL"
     }
 

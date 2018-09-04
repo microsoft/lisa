@@ -26,21 +26,13 @@ function Main {
         $RootDir,
         $TestParams
     )
-
-$retVal = $false
-
-
 #######################################################################
 #
 # Main script body
 #
 #######################################################################
-
 # Change the working directory to where we need to be
-cd $RootDir
-
-
-
+Set-Location $RootDir
 # if host build number lower than 9600, skip test
 $BuildNumber = Get-HostBuildNumber -hvServer $HvServer
 if ($BuildNumber -eq 0)
@@ -49,24 +41,22 @@ if ($BuildNumber -eq 0)
 }
 elseif ($BuildNumber -lt 9600)
 {
-    return "Skipped"
+    return "ABORTED"
 }
-
 #
 # Verify if the Guest services are enabled for this VM
 #
 $gsi = Get-VMIntegrationService -vmName $VMName -ComputerName $HvServer -Name "Guest Service Interface"
 if (-not $gsi) {
-    LogErr "Error: Unable to retrieve Integration Service status from VM '${vmName}'" 
-    return "Aborted"
+    LogErr "Unable to retrieve Integration Service status from VM '${vmName}'" 
+    return "ABORTED"
 }
 
 if (-not $gsi.Enabled) {
-    LogMsg "Warning: The Guest services are not enabled for VM '${vmName}'" 
+    LogWarn "Warning: The Guest services are not enabled for VM '${vmName}'" 
 	if ((Get-VM -ComputerName $HvServer -Name $VMName).State -ne "Off") {
 		Stop-VM -ComputerName $HvServer -Name $VMName -Force -Confirm:$false
 	}
-
 	# Waiting until the VM is off
 	while ((Get-VM -ComputerName $HvServer -Name $VMName).State -ne "Off") {
         LogMsg "Turning off VM:'${vmName}'" 
@@ -79,15 +69,15 @@ if (-not $gsi.Enabled) {
 
 	# Waiting for the VM to run again and respond to SSH - port 22
 	do {
-		sleep 5
-	} until (Test-NetConnection $Ipv4 -Port 22 -WarningAction SilentlyContinue | ? { $_.TcpTestSucceeded } )
+		Start-Sleep -Seconds 5
+	} until (Test-NetConnection $Ipv4 -Port 22 -WarningAction SilentlyContinue | Where-Object { $_.TcpTestSucceeded } )
 }
 
 # Check to see if the fcopy daemon is running on the VM
 $sts = Check-FcopyDaemon  -vmPassword $VMPassword -VmPort $VMPort -vmUserName $VMUserName -ipv4 $Ipv4
 if (-not $sts[-1]) {
 	 LogErr "File copy daemon is not running inside the Linux guest VM!" 
-	 return = "FAIL"
+	 return "FAIL"
 	exit 1
 }
 #
@@ -95,7 +85,7 @@ if (-not $sts[-1]) {
 #
 if ($gsi.OperationalStatus -ne "OK") {
    LogErr "The Guest services are not working properly for VM '${vmName}'!" 
-   return = "FAIL"
+   return  "FAIL"
 }
 else {
     # Define the file-name to use with the current time-stamp
@@ -108,7 +98,7 @@ else {
 
     # Create a ~2MB sample file with non-ascii characters
     $stream = [System.IO.StreamWriter] $pathToFile
-    1..8000 | % {
+    1..8000 | ForEach-Object {
         $stream.WriteLine($nonAsciiChars)
     }
     $stream.close()
@@ -124,7 +114,7 @@ else {
 
     # Multiply the contents of the sample file up to an 100MB auxiliary file
     New-Item $MyDir"auxFile" -type file | Out-Null
-    2..130| % {
+    2..130| ForEach-Object {
         $testfileContent = Get-Content $pathToFile
         Add-Content $MyDir"auxFile" $testfileContent
     }
@@ -141,10 +131,10 @@ else {
     # Checking file size. It must be over 85MB
     $testfileSize = (Get-Item $pathToFile).Length
     if ($testfileSize -le 85mb) {
-        LogErr "Error: File not big enough. File size: $testfileSize MB" g
+        LogErr "File not big enough. File size: $testfileSize MB" 
         $testfileSize = $testfileSize / 1MB
         $testfileSize = [math]::round($testfileSize,2)
-        LogErr "Error: File not big enough (over 85MB)! File size: $testfileSize MB" 
+        LogErr "File not big enough (over 85MB)! File size: $testfileSize MB" 
         RemoveTestFile -pathToFile $pathToFile -tesfile $testfile
         return "FAIL"
     }
@@ -155,7 +145,7 @@ else {
     }
 
     # Getting MD5 checksum of the file
-    $local_chksum = Get-FileHash .\$testfile -Algorithm MD5 | Select -ExpandProperty hash
+    $local_chksum = Get-FileHash .\$testfile -Algorithm MD5 | Select-Object -ExpandProperty hash
     if (-not $?){
        LogErr "Unable to get MD5 checksum!" 
        RemoveTestFile -pathToFile $pathToFile -tesfile $testfile
@@ -163,10 +153,11 @@ else {
     }
     else {
         LogMsg "MD5 file checksum on the host-side: $local_chksum"
+        return "PASS"
     }
 
     # Get vhd folder
-    $vhd_path = Get-VMHost -ComputerName $HvServer | Select -ExpandProperty VirtualHardDiskPath
+    $vhd_path = Get-VMHost -ComputerName $HvServer | Select-Object -ExpandProperty VirtualHardDiskPath
 
     # Fix path format if it's broken
     if ($vhd_path.Substring($vhd_path.Length - 1, 1) -ne "\"){
@@ -189,11 +180,14 @@ else {
 # Sending the test file to VM
 #
 $Error.Clear()
-Copy-VMFile -vmName $VMName -ComputerName $HvServer -SourcePath $filePath -DestinationPath "/tmp/" -FileSource host -ErrorAction SilentlyContinue
+Copy-VMFile -vmName $VMName -ComputerName $HvServer -SourcePath $filePath -DestinationPath "/tmp/" `
+ -FileSource host -ErrorAction SilentlyContinue
 if ($Error.Count -eq 0) {
     LogMsg "File has been successfully copied to guest VM '${vmName}'" 
+    return "PASS"
 }
-elseif (($Error.Count -gt 0) -and ($Error[0].Exception.Message -like "*FAIL to initiate copying files to the guest: The file exists. (0x80070050)*")) {
+elseif (($Error.Count -gt 0) -and ($Error[0].Exception.Message  `
+ -like "*FAIL to initiate copying files to the guest: The file exists. (0x80070050)*")) {
     LogErr "Test FAIL! File could not be copied as it already exists on guest VM '${vmName}'" 
     return "FAIL"
 }
@@ -236,7 +230,6 @@ if ($? -ne "True") {
     LogErr "Cannot remove the test file '${testfile}'!" 
 	return "FAIL"
 }
-
 #
 # If we made it here, everything worked
 #

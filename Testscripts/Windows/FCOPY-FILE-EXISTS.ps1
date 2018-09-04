@@ -29,18 +29,14 @@ function Main {
         $TestParams
     )
 
-$retVal = "FAIL"
-$testfile = $null
-$gsi = $null
-
-
+$testfile = "$null"
+$gsi = "$null"
 #######################################################################
 #
 #	Main body script
 #
 #######################################################################
-cd $RootDir
-
+Set-Location $RootDir
 # if host build number lower than 9600, skip test
 $BuildNumber = Get-HostBuildNumber -HvServer $HvServer
 if ($BuildNumber -eq 0)
@@ -49,23 +45,19 @@ if ($BuildNumber -eq 0)
 }
 elseif ($BuildNumber -lt 9600)
 {
-    return "Abort"
+    return "ABORTED"
 }
-
-$retVal = "PASS"
-
-
 #
 # Verify if the Guest services are enabled for this VM
 #
 $gsi = Get-VMIntegrationService -vmName $VMName -ComputerName $hvServer -Name "Guest Service Interface"
 if (-not $gsi) {
     LogErr " Unable to retrieve Integration Service status from VM '${vmName}'" 
-    return "Aborted"
+    return "ABORTED"
 }
 
 if (-not $gsi.Enabled) {
-    LogMsg "Warning: The Guest services are not enabled for VM '${vmName}'" 
+    LogWarn "The Guest services are not enabled for VM '${vmName}'" 
 	if ((Get-VM -ComputerName $hvServer -Name $VMName).State -ne "Off") {
 		Stop-VM -ComputerName $hvServer -Name $VMName -Force -Confirm:$false
 	}
@@ -80,15 +72,15 @@ if (-not $gsi.Enabled) {
     LogMsg "Starting VM:'${vmName}'"
 	Start-VM -Name $VMName -ComputerName $hvServer
 
-	# Waiting for the VM to run again and respond to SSH - port 22
+	# Waiting for the VM to run again and respond 
 	do {
-		sleep 5
-	} until (Test-NetConnection $Ipv4 -Port 22 -WarningAction SilentlyContinue | ? { $_.TcpTestSucceeded } )
+        Start-Sleep -Seconds 5
+	} until (Test-NetConnection $Ipv4 -Port $VMPort -WarningAction SilentlyContinue | Where-Object { $_.TcpTestSucceeded } )
 }
 
 
 # Get VHD path of tested server; file will be copied there
-$vhd_path = Get-VMHost -ComputerName $hvServer | Select -ExpandProperty VirtualHardDiskPath
+$vhd_path = Get-VMHost -ComputerName $hvServer | Select-Object -ExpandProperty VirtualHardDiskPath
 
 # Fix path format if it's broken
 if ($vhd_path.Substring($vhd_path.Length - 1, 1) -ne "\"){
@@ -98,7 +90,7 @@ if ($vhd_path.Substring($vhd_path.Length - 1, 1) -ne "\"){
 $vhd_path_formatted = $vhd_path.Replace(':','$')
 
 # Define the file-name to use with the current time-stamp
-$testfile = "testfile-$(get-date -uformat '%H-%M-%S-%Y-%m-%d').file"
+$testfile = "testfile-$(Get-Date -uformat '%H-%M-%S-%Y-%m-%d').file"
 
 $filePath = $vhd_path + $testfile
 $file_path_formatted = $vhd_path_formatted + $testfile
@@ -106,7 +98,7 @@ $file_path_formatted = $vhd_path_formatted + $testfile
 
 if ($gsi.OperationalStatus -ne "OK") {
     LogErr "The Guest services are not working properly for VM '${vmName}'!" 
-    return"FAIL"
+    return "FAIL"
  }
  else {
      # Create a 10MB sample file
@@ -124,14 +116,12 @@ if (-not $?){
     LogMsg "Folder /tmp not present on guest. It will be created"
     .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$Ipv4 "mkdir /tmp"
 }
-
 # The fcopy daemon must be running on the Linux guest VM
 $sts = Check-FcopyDaemon  -vmPassword $VMPassword -VmPort $VMPort -vmUserName $VMUserName -ipv4 $Ipv4
 if (-not $sts[-1]) {
     LogErr "File copy daemon is not running inside the Linux guest VM!" 
     return "FAIL"
 }
-
 # Removing previous test files on the VM
 .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$Ipv4 "rm -f /tmp/testfile-*"
 
@@ -148,7 +138,8 @@ if ($error.Count -eq 0) {
 		return "FAIL"
 	}
 	elseif ($sts[0] -eq 10485760) {
-		LogMsg "Info: The file copied matches the 10MB size." 
+        LogMsg "Info: The file copied matches the 10MB size." 
+        return "PASS"
 	}
     else {
 	    LogErr "The file copied doesn't match the 10MB size!" 
@@ -164,24 +155,20 @@ elseif ($Error.Count -gt 0) {
 $Error.Clear()
 # Second copy file attempt must fail with the below error code pattern
 Copy-VMFile -vmName $VMName -ComputerName $hvServer -SourcePath $filePath -DestinationPath "/tmp/" -FileSource host -ErrorAction SilentlyContinue
-
-
 if  ($error.Count -eq 0) {
-	LogMsg "Test PASS! File could not be copied as it already exists on guest VM '${vmName}'" 
+    LogMsg "Test PASS! File could not be copied as it already exists on guest VM '${vmName}'" 
+    return "PASS"
 }
 elseif ($error.Count -eq 1) {
 	LogErr "File '${testfile}' has been copied twice to guest VM '${vmName}'!" 
 	return "FAIL"
 }
-
 # Removing the temporary test file
 Remove-Item -Path \\$HvServer\$file_path_formatted -Force
 if ($LASTEXITCODE -ne "0") {
     LogErr "cannot remove the test file '${testfile}'!" 
+    return "FAIL"
 }
-
-
-return $retVal
 }
 Main -VMName $AllVMData.RoleName -HvServer $xmlConfig.config.Hyperv.Host.ServerName `
          -Ipv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort `

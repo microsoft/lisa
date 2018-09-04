@@ -11,8 +11,6 @@
      specified hard drive. If the hard drive does not exist, it
      will be created.
 
-
-
 .Parameter vmName
     Name of the VM to remove disk from.
 
@@ -23,13 +21,9 @@
     Test data for this test case
 
 .Example
-    setupScripts\AddVhdxHardDisk.ps1 -vmName myVM -hvServer localhost -testParams "SCSI=0,0,Dynamic,4096;sshkey=linux_id_rsa.ppk;ipv4=IPaddress;RootDir="
-
+    .\Testscripts\Windows\AddVhdxHardDisk.ps1 -vmName myVM -hvServer localhost -testParams "SCSI=1,0,Dynamic,4096;ipv4=IPaddress;RootDir="
 #>
 param([String] $TestParams)
-
-
-
 $retVal = $true
 $global:MinDiskSize = 1GB
 $global:DefaultDynamicSize = 127GB
@@ -38,7 +32,6 @@ $IDECount = 0
 $diskCount=$null
 $lun=$null
 $vmGeneration=$null
-
 
 ############################################################################
 #
