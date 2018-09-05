@@ -143,7 +143,7 @@ if (-not $sts[-1]) {
         }
         LogMsg "The file copied matches the ${originalFileSize} size."
 
-        $sts = Remove-FileVM -vmPassword $VMPassword -vmPort $VMPort -ipv4 $Ipv4 -testfile $filePath
+        $sts = Send-CommandToVM -vmPassword $VMPassword -vmPort $VMPort -ipv4 $Ipv4 "rm -f /mnt/$filePath"
         if (-not $sts) {
             LogErr "FAIL to remove file from VM $VMName."
             return  "FAIL"

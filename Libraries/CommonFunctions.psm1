@@ -3047,29 +3047,6 @@ function Mount-Disk{
     return $True
 }
 
-function Remove-FileVM{
-    param(
-        [string] $vmPassword,
-        [string] $vmPort,
-        [string] $ipv4,
-        [String] $testfile
-    )
- <#
-    .Synopsis
-     Removes testfile from VM   using SendCommandToVM function
-    .Description
-     Removes testfile from VM  using SendCommandToVM function
-
-    #>
-
-
-    $sts = Send-CommandToVM -vmPassword $vmPassword -vmPort $vmPort -ipv4 $ipv4 "rm -f /mnt/$testfile"
-    if (-not $sts) {
-        return $False
-    }
-    return $True
-}
-
 function Copy-FileVM{
     param(
         [string] $vmName,
