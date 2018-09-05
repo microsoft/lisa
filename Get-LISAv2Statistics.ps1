@@ -45,7 +45,7 @@ foreach ($fname in $files) {
 
 # Show the statistics information
 Write-Output ""
-Write-Output "===== Test Cases counts per platform ====="
+Write-Output "===== Test Cases Number per platform ====="
 Write-Output ""
 Write-Output "Azure only: $azure_only"
 Write-Output "Hyper-V only: $hyperv_only"
