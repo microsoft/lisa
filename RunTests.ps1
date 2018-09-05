@@ -350,7 +350,7 @@ try {
 	Set-Content -Value $xmlContent -Path $xmlFile -Force
 
 	#This function will inject default / custom replacable test parameters to TestConfiguration.xml
-	InjectReplaceableTestParameters -XmlConfigFilePath $xmlFile
+	Add-ReplaceableTestParameters -XmlConfigFilePath $xmlFile
 
 	try {
 		$xmlConfig = [xml](Get-Content $xmlFile)

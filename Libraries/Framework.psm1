@@ -84,9 +84,9 @@ Function ValidateParameters()
 	}	
 }
 
-Function InjectReplaceableTestParameters($XmlConfigFilePath)
+Function Add-ReplaceableTestParameters($XmlConfigFilePath)
 {
-	$ReplacableTestParameters = [xml](Get-Content -Path "$WorkingDirectory\XML\ReplaceableTestParameters.xml")
+	$ReplacableTestParameters = [xml](Get-Content -Path "$WorkingDirectory\XML\Other\ReplaceableTestParameters.xml")
 	if ($CustomParameters)
 	{
 		LogMsg "Checking custom parameters"
@@ -96,9 +96,9 @@ Function InjectReplaceableTestParameters($XmlConfigFilePath)
 			$CustomParameter = $CustomParameter.Trim()
 			$ReplaceThis = $CustomParameter.Split("=")[0]
 			$ReplaceWith = $CustomParameter.Split("=")[1]
-			$OldValue = ($ReplacableTestParameters.ReplaceableTestParameters.Parameter | Where `
+			$OldValue = ($ReplacableTestParameters.ReplaceableTestParameters.Parameter | Where-Object `
 			{ $_.ReplaceThis -eq $ReplaceThis }).ReplaceWith
-			($ReplacableTestParameters.ReplaceableTestParameters.Parameter | Where `
+			($ReplacableTestParameters.ReplaceableTestParameters.Parameter | Where-Object `
 			{ $_.ReplaceThis -eq $ReplaceThis }).ReplaceWith = $ReplaceWith
 			LogMsg "Custom Parameter: $ReplaceThis=$OldValue --> $ReplaceWith"
 		}
