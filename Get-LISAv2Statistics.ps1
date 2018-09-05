@@ -13,15 +13,15 @@ $both_platforms = 0
 # Hashtab for tag info collection
 $tags = @{}
 
-Write-Host ""
+Write-Output ""
 “{0,-60} {1,20} {2,15} {3,15} {4,40}” -f` "TestCase", "Platform", "Category", "Area", "Tags"
-Write-Host "----------------------------------------------------------------------------------------------------------------------------------------------------------"
+Write-Output "----------------------------------------------------------------------------------------------------------------------------------------------------------"
 
 foreach ($fname in $files) {
     $xml = [xml](Get-Content $fname)
     foreach ($item in $xml.TestCases.test) {
-        “{0,-60} {1,20} {2,15} {3,15} {4,40}” -f` $item.testName, $item.Platform, $item.Category, $item.Area, $item.Tags 
-        
+        “{0,-60} {1,20} {2,15} {3,15} {4,40}” -f` $item.testName, $item.Platform, $item.Category, $item.Area, $item.Tags
+
         # Group per platform type
         if ($item.Platform -eq "HyperV") {
             $hyperv_only++
@@ -44,14 +44,14 @@ foreach ($fname in $files) {
 }
 
 # Show the statistics information
-Write-Host ""
-Write-Host "===== Test Cases counts per platform ====="
-Write-Host ""
-Write-Host "Azure only: $azure_only" 
-Write-Host "Hyper-V only: $hyperv_only" 
-Write-Host "Both platforms: $both_platforms" 
-Write-Host ""
-Write-Host "===== Tag Details ====="
+Write-Output ""
+Write-Output "===== Test Cases counts per platform ====="
+Write-Output ""
+Write-Output "Azure only: $azure_only"
+Write-Output "Hyper-V only: $hyperv_only"
+Write-Output "Both platforms: $both_platforms"
+Write-Output ""
+Write-Output "===== Tag Details ====="
 
 # Show tag information
 $tags
