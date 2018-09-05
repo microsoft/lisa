@@ -53,19 +53,19 @@ elseif ($BuildNumber -lt 9600)
 #
 $gsi = Get-VMIntegrationService -vmName $VMName -ComputerName $HvServer -Name "Guest Service Interface"
 if (-not $gsi) {
-    LogErr "Unable to retrieve Integration Service status from VM '${vmName}'" 
+    LogErr "Unable to retrieve Integration Service status from VM '${vmName}'"
     return "ABORTED"
 }
 
 if (-not $gsi.Enabled) {
-    LogWarn "The Guest services are not enabled for VM '${vmName}'" 
+    LogWarn "The Guest services are not enabled for VM '${vmName}'"
 	if ((Get-VM -ComputerName $HvServer -Name $VMName).State -ne "Off") {
 		Stop-VM -ComputerName $HvServer -Name $VMName -Force -Confirm:$false
 	}
 
 	# Waiting until the VM is off
 	while ((Get-VM -ComputerName $HvServer -Name $VMName).State -ne "Off") {
-        LogMsg "Turning off VM:'${vmName}'" 
+        LogMsg "Turning off VM:'${vmName}'"
         Start-Sleep -Seconds 5
 	}
     LogMsg "Enabling  Guest services on VM:'${vmName}'"
@@ -90,7 +90,7 @@ if (-not $?){
 #
 $sts = Check-FcopyDaemon  -vmPassword $VMPassword -VmPort $VMPort -vmUserName $VMUserName -ipv4 $Ipv4
 if (-not $sts[-1]) {
-   LogErr "File copy daemon is not running inside the Linux guest VM!" 
+   LogErr "File copy daemon is not running inside the Linux guest VM!"
    return "FAIL"
 }
 # Define the file-name to use with the current time-stamp
@@ -113,9 +113,9 @@ $vhd_path_formatted = $vhd_path.Replace(':','$')
 $filePath = $vhd_path + $testfile
 $file_path_formatted = $vhd_path_formatted + $testfile
 
-$sts = Copy-Check-File -vmUserName $VMUserName -vmPassword $VMPassword -ipv4 $Ipv4 -vmPort $VMPort -vmName $VMName -hvServer $HvServer  -testfile $testfile -overwrite $False -contentlength 20 -filePath $filePath -vhd_path_formatted $vhd_path_formatted
+$sts = Copy-Check-FileInLinuxGuest -vmUserName $VMUserName -vmPassword $VMPassword -ipv4 $Ipv4 -vmPort $VMPort -vmName $VMName -hvServer $HvServer  -testfile $testfile -overwrite $False -contentlength 20 -filePath $filePath -vhd_path_formatted $vhd_path_formatted
 if (-not $sts) {
-    LogErr "FAIL to initially copy the file '${testfile}' to the VM." 
+    LogErr "FAIL to initially copy the file '${testfile}' to the VM."
     return "FAIL"
 }
 else {
@@ -125,20 +125,20 @@ else {
 #
 # Second copy file overwrites the initial file. Re-write the text file with 15 characters, and then copy it with -Force parameter.
 #
-$sts = Copy-Check-File -vmUserName $VMUserName -vmPassword $VMPassword -ipv4 $Ipv4 -vmPort $VMPort -vmName $VMName -hvServer $HvServer -testfile $testfile -overwrite $True -contentlength 15 -filePath $filePath -vhd_path_formatted $vhd_path_formatted
+$sts = Copy-Check-FileInLinuxGuest -vmUserName $VMUserName -vmPassword $VMPassword -ipv4 $Ipv4 -vmPort $VMPort -vmName $VMName -hvServer $HvServer -testfile $testfile -overwrite $True -contentlength 15 -filePath $filePath -vhd_path_formatted $vhd_path_formatted
 if (-not $sts[-1]) {
-    LogErr "FAIL to overwrite the file '${testfile}' to the VM." 
+    LogErr "FAIL to overwrite the file '${testfile}' to the VM."
     return "FAIL"
 }
 else {
-    LogMsg "The file has been overwritten to the VM '${vmName}'." 
+    LogMsg "The file has been overwritten to the VM '${vmName}'."
     return "PASS"
 }
 
 # Removing the temporary test file
 Remove-Item -Path \\$HvServer\$file_path_formatted -Force
 if ($? -ne "True") {
-    LogErr "Cannot remove the test file '${testfile}'!" 
+    LogErr "Cannot remove the test file '${testfile}'!"
     return "FAIL"
 }
 }

@@ -53,19 +53,19 @@ elseif ($BuildNumber -lt 9600)
 #
 $gsi = Get-VMIntegrationService -vmName $VMName -ComputerName $HvServer -Name "Guest Service Interface"
 if (-not $gsi) {
-    LogErr "Unable to retrieve Integration Service status from VM '${vmName}'" 
+    LogErr "Unable to retrieve Integration Service status from VM '${vmName}'"
     return "ABORTED"
 }
 
 if (-not $gsi.Enabled) {
-    LogWarn "The Guest services are not enabled for VM '${vmName}'" 
+    LogWarn "The Guest services are not enabled for VM '${vmName}'"
 	if ((Get-VM -ComputerName $HvServer -Name $VMName).State -ne "Off") {
 		Stop-VM -ComputerName $HvServer -Name $VMName -Force -Confirm:$false
 	}
 
 	# Waiting until the VM is off
 	while ((Get-VM -ComputerName $HvServer -Name $VMName).State -ne "Off") {
-        LogMsg "Turning off VM:'${vmName}'" 
+        LogMsg "Turning off VM:'${vmName}'"
         Start-Sleep -Seconds 5
 	}
     LogMsg "Enabling  Guest services on VM:'${vmName}'"
@@ -73,14 +73,14 @@ if (-not $gsi.Enabled) {
     LogMsg "Starting VM:'${vmName}'"
 	Start-VM -Name $VMName -ComputerName $HvServer
 
-	# Waiting for the VM to run again and respond 
+	# Waiting for the VM to run again and respond
 	do {
 		Start-Sleep -Seconds 5
 	} until (Test-NetConnection $Ipv4 -Port $VMPort -WarningAction SilentlyContinue | Where-Object { $_.TcpTestSucceeded } )
 }
 
 if ($gsi.OperationalStatus -ne "OK") {
-	LogErr "The Guest services are not working properly for VM '${vmName}'!" 
+	LogErr "The Guest services are not working properly for VM '${vmName}'!"
 	return  "FAIL"
 }
 #
@@ -88,7 +88,7 @@ if ($gsi.OperationalStatus -ne "OK") {
 #
 $sts = Check-FcopyDaemon  -vmPassword $VMPassword -VmPort $VMPort -vmUserName $VMUserName -ipv4 $Ipv4
 if (-not $sts[-1]) {
-	 LogErr "File copy daemon is not running inside the Linux guest VM!" 
+	 LogErr "File copy daemon is not running inside the Linux guest VM!"
 	 return  "FAIL"
  }
 # Get VHD path of tested server; file will be copied there
@@ -110,7 +110,7 @@ $file_path_formatted = $vhd_path_formatted + $testfile
 $createfile = fsutil file createnew \\$HvServer\$file_path_formatted $filesize
 
 if ($createfile -notlike "File *testfile-*.file is created") {
-	LogErr "Could not create the sample test file in the working directory!" 
+	LogErr "Could not create the sample test file in the working directory!"
 	return "FAIL"
 }
 # Verifying if /mnt folder on guest exists; if not, it will be created
@@ -122,7 +122,7 @@ if (-not $?){
 
 $sts = Mount-Disk -vmPassword $VMPassword -vmPort $VMPort -ipv4 $Ipv4
 if (-not $sts[-1]) {
-    LogErr "FAIL to mount the disk in the VM." 
+    LogErr "FAIL to mount the disk in the VM."
     return "FAIL"
 }
 #
@@ -133,23 +133,23 @@ $Error.Clear()
 $copyDuration = (Measure-Command { Copy-VMFile -vmName $VMName -ComputerName $HvServer -SourcePath $filePath -DestinationPath `
     "/mnt/" -FileSource Host }).totalseconds
 if ($Error.Count -eq 0) {
-	LogMsg "File has been successfully copied to guest VM '${vmName}'" 
+	LogMsg "File has been successfully copied to guest VM '${vmName}'"
 }
 else {
-	LogErr "File could not be copied!" 
+	LogErr "File could not be copied!"
 	return "FAIL"
 }
 
 [int]$copyDuration = [math]::floor($copyDuration)
 
-LogMsg "The file copy process took ${copyDuration} seconds" 
+LogMsg "The file copy process took ${copyDuration} seconds"
 
 #
 # Checking if the file is present on the guest and file size is matching
 #
-$sts = Check-File -vmUserName $VMUserName -vmPassword $VMPassword -vmPort $VMPort -ipv4 $Ipv4 -fileName "/mnt/$testfile"  -checkSize $True  -checkContent $False
+$sts = Check-FileInLinuxGuest -vmUserName $VMUserName -vmPassword $VMPassword -vmPort $VMPort -ipv4 $Ipv4 -fileName "/mnt/$testfile"  -checkSize $True  -checkContent $False
 if  (-not $sts[-1]) {
-	LogMsg "File is not present on the guest VM '${vmName}'!" 
+	LogMsg "File is not present on the guest VM '${vmName}'!"
 	return "FAIL"
 }
 elseif ($sts[0] -eq $filesize) {
@@ -165,7 +165,7 @@ else {
 #
 Remove-Item -Path \\$HvServer\$file_path_formatted -Force
 if (-not $?) {
-    LogErr "ERROR: Cannot remove the test file '${testfile}'!" 
+    LogErr "ERROR: Cannot remove the test file '${testfile}'!"
     return "FAIL"
 }
 }
