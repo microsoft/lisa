@@ -2660,10 +2660,10 @@ function Check-Systemd {
         [String] $Username,
         [String] $Password
     )
-    
+
     $check1 = $true
     $check2 = $true
-    
+
     .\Tools\plink.exe -C -pw $Password -P $SSHPort $Username@$Ipv4 "ls -l /sbin/init | grep systemd"
     if ($LASTEXITCODE -ne "True") {
        LogMsg "Systemd not found on VM"
@@ -2683,9 +2683,9 @@ function Get-VMFeatureSupportStatus {
     .Synopsis
         Check if VM supports a feature or not.
     .Description
-        Check if VM supports one feature or not based on comparison 
+        Check if VM supports one feature or not based on comparison
             of curent kernel version with feature supported kernel version.
-        If the current version is lower than feature supported version, 
+        If the current version is lower than feature supported version,
             return false, otherwise return true.
     .Parameter Ipv4
         IPv4 address of the Linux VM.
@@ -2700,7 +2700,7 @@ function Get-VMFeatureSupportStatus {
     .Example
         Get-VMFeatureSupportStatus $ipv4 $SSHPort $Username $Password $Supportkernel
     #>
-    
+
     param (
         [String] $Ipv4,
         [String] $SSHPort,
@@ -2708,7 +2708,7 @@ function Get-VMFeatureSupportStatus {
         [String] $Password,
         [String] $SupportKernel
     )
-    
+
     echo y | .\Tools\plink.exe -C -pw $Password -P $SSHPort $Username@$Ipv4 'exit 0'
     $currentKernel = .\Tools\plink.exe -C -pw $Password -P $SSHPort $Username@$Ipv4  "uname -r"
     if( $LASTEXITCODE -eq $false){
@@ -2739,14 +2739,14 @@ function Get-SelinuxAVCLog() {
         Check audit.log in Linux VM for avc denied log.
         If get avc denied log for hyperv daemons, return $true, else return $false.
     #>
-    
+
     param (
         [String] $Ipv4,
         [String] $SSHPort,
         [String] $Username,
         [String] $Password
     )
-    
+
     $FILE_NAME = ".\audit.log"
     $TEXT_HV = "hyperv"
     $TEXT_AVC = "type=avc"
@@ -2776,7 +2776,7 @@ function Get-SelinuxAVCLog() {
 
 function Get-VMFeatureSupportStatus {
     param (
-        [String] $VmIp, 
+        [String] $VmIp,
         [String] $VmPort,
         [String] $UserName,
         [String] $Password,
@@ -2813,7 +2813,7 @@ function Get-UnixVMTime {
         [String] $Username,
         [String] $Password
     )
-    
+
     $unixTimeStr = $null
 
     $unixTimeStr = Get-TimeFromVM -Ipv4 $Ipv4 -Port $Port `
@@ -2867,11 +2867,1075 @@ function Get-TimeSync {
 
 function CheckVMState {
     param (
-        [String] $VMName, 
+        [String] $VMName,
         [String] $HvServer
     )
     $vm = Get-Vm -VMName $VMName -ComputerName $HvServer
     $vmStatus = $vm.state
 
     return $vmStatus
+}
+function Check-FileInLinuxGuest{
+    param (
+        [String] $vmPassword,
+        [String] $vmPort,
+        [string] $vmUserName,
+        [string] $ipv4,
+        [string] $fileName,
+        [boolean] $checkSize = $False ,
+        [boolean] $checkContent = $False
+    )
+   <#
+    .Synopsis
+         Checks if test file is present or not
+    .Description
+        Checks if test file is present or not, if set $checkSize as $True, return file size,
+        if set checkContent as $True, will return file content.
+   #>
+    if ($checkSize) {
+
+        .\Tools\plink.exe -C -pw $vmPassword -P $vmPort $vmUserName@$ipv4 "wc -c < $fileName"
+    }
+    else {
+        .\Tools\plink.exe -C -pw $vmPassword -P $vmPort $vmUserName@$ipv4 "stat ${fileName} >/dev/null" 
+    }
+
+    if (-not $?) {
+        return $False
+    }
+    if ($checkContent) {
+
+        .\Tools\plink.exe -C -pw $vmPassword -P $vmPort $vmUserName@$ipv4 "cat ${fileName}"
+        if (-not $?) {
+            return $False
+        }
+    }
+    return  $True
+}
+
+function Send-CommandToVM {
+    param  (
+        [string] $vmPassword,
+        [string] $vmPort,
+        [string] $ipv4,
+        [string] $command
+    )
+
+    <#
+    .Synopsis
+        Send a command to a Linux VM using SSH.
+    .Description
+        Send a command to a Linux VM using SSH.
+
+    #>
+
+    $retVal = $False
+
+    if (-not $ipv4)
+    {
+        LogErr "ipv4 is null" 
+        return $False
+    }
+
+    if (-not $vmPassword)
+    {
+        LogErr "vmPassword is null"
+        return $False
+    }
+
+    if (-not $command)
+    {
+        LogErr "command is null"
+        return $False
+    }
+
+    # get around plink questions
+    echo y | .\Tools\plink.exe -C -pw ${vmPassword} -P ${vmPort} root@$ipv4 'exit 0'
+    $process = Start-Process .\Tools\plink.exe -ArgumentList "-C -pw ${vmPassword} -P ${vmPort} root@$ipv4 ${command}" -PassThru -NoNewWindow -Wait
+    if ($process.ExitCode -eq 0)
+    {
+
+        $retVal = $True
+    }
+    else
+    {
+        LogErr "Unable to send command to ${ipv4}. Command = '${command}'"
+    }
+    return $retVal
+}
+
+function Check-FcopyDaemon{
+    param (
+        [string] $vmPassword,
+        [string] $vmPort,
+        [string] $vmUserName,
+        [string] $ipv4
+    )
+  <#
+    .Synopsis
+     Verifies that the fcopy_daemon
+    .Description
+     Verifies that the fcopy_daemon on VM and attempts to copy a file
+
+    #>
+
+    $filename = ".\fcopy_present"
+
+    .\Tools\plink.exe -C -pw $vmPassword -P $vmPort $vmUserName@$ipv4 "ps -ef | grep '[h]v_fcopy_daemon\|[h]ypervfcopyd' > /tmp/fcopy_present"
+    if (-not $?) {
+        LogErr  "Unable to verify if the fcopy daemon is running"
+        return $False
+    }
+
+    .\tools\pscp.exe  -v -2 -unsafe -pw $vmPassword -q -P ${vmPort} $vmUserName@${ipv4}:/tmp/fcopy_present .
+    if (-not $?) {
+        LogErr "Unable to copy the confirmation file from the VM"
+        return $False
+    }
+
+    # When using grep on the process in file, it will return 1 line if the daemon is running
+    if ((Get-Content $filename  | Measure-Object -Line).Lines -eq  "1" ) {
+        LogMsg "hv_fcopy_daemon process is running."
+        $retValue = $True
+    }
+
+    del $filename
+    return $retValue
+}
+
+function Mount-Disk{
+    param(
+        [string] $vmPassword,
+        [string] $vmPort,
+        [string] $ipv4
+    )
+ <#
+    .Synopsis
+     Mounts  and formates to ext4 a disk on vm
+    .Description
+     Mounts  and formates to ext4 a disk on vm
+
+    #>
+
+    $driveName = "/dev/sdc"
+
+    $sts = Send-CommandToVM -vmPassword $vmPassword -vmPort $vmPort -ipv4 $ipv4 "(echo d;echo;echo w)|fdisk ${driveName}"
+    if (-not $sts) {
+        LogErr "Failed to format the disk in the VM $vmName."
+        return $False
+    }
+
+    $sts = Send-CommandToVM -vmPassword $vmPassword -vmPort $vmPort -ipv4 $ipv4  "(echo n;echo p;echo 1;echo;echo;echo w)|fdisk ${driveName}" 
+    if (-not $sts) {
+        LogErr "Failed to format the disk in the VM $vmName."
+        return $False
+    }
+
+    $sts = Send-CommandToVM -vmPassword $vmPassword -vmPort $vmPort -ipv4 $ipv4  "mkfs.ext4 ${driveName}1"
+    if (-not $sts) {
+        LogErr "Failed to make file system in the VM $vmName."
+        return $False
+    }
+
+    $sts = Send-CommandToVM -vmPassword $vmPassword -vmPort $vmPort -ipv4 $ipv4  "mount ${driveName}1 /mnt"
+    if (-not $sts) {
+        LogErr "Failed to mount the disk in the VM $vmName."
+        return $False
+    }
+
+    LogMsg "$driveName has been mounted to /mnt in the VM $vmName."
+    return $True
+}
+
+function Copy-FileVM{
+    param(
+        [string] $vmName,
+        [string] $hvServer,
+        [String] $filePath
+    )
+ <#
+    .Synopsis
+     Copy the file to the Linux guest VM
+    .Description
+    Copy the file to the Linux guest VM
+
+    #>
+
+    $Error.Clear()
+    Copy-VMFile -vmName $vmName -ComputerName $hvServer -SourcePath $filePath -DestinationPath "/mnt/" -FileSource host -ErrorAction SilentlyContinue
+    if ($Error.Count -ne 0) {
+        return $false
+    }
+    return $true
+}
+
+
+
+function Remove-TestFile{
+    param(
+        [String] $pathToFile,
+        [String] $testfile
+    )
+<#
+    .Synopsis
+     Delete temporary test file
+    .Description
+    Delete temporary test file
+
+    #>
+
+    Remove-Item -Path $pathToFile -Force
+    if ($? -ne "True") {
+        LogErr "cannot remove the test file '${testfile}'!"
+        return $False
+    }
+}
+
+function Copy-Check-FileInLinuxGuest{
+    param(
+        [String] $vmName,
+        [String] $hvServer,
+        [String] $vmUserName,
+        [String] $vmPassword,
+        [String] $vmPort,
+        [String] $ipv4,
+        [String] $testfile,
+        [Boolean] $overwrite,
+        [Int] $contentlength,
+        [String]$filePath,
+        [String]$vhd_path_formatted
+    )
+
+    # Write the file
+    $filecontent = Generate-RandomString -length $contentlength
+
+    $filecontent | Out-File $testfile
+    if (-not $?) {
+        LogErr "Cannot create file $testfile'."
+        return $False
+    }
+
+    $filesize = (Get-Item $testfile).Length
+    if (-not $filesize){
+        LogErr "Cannot get the size of file $testfile'."
+        return $False
+    }
+
+    # Copy file to vhd folder
+    Copy-Item -Path .\$testfile -Destination \\$hvServer\$vhd_path_formatted
+
+    # Copy the file and check copied file
+    $Error.Clear()
+    if ($overwrite) {
+        Copy-VMFile -vmName $vmName -ComputerName $hvServer -SourcePath $filePath -DestinationPath "/tmp/" -FileSource host -ErrorAction SilentlyContinue -Force
+    }
+    else {
+        Copy-VMFile -vmName $vmName -ComputerName $hvServer -SourcePath $filePath -DestinationPath "/tmp/" -FileSource host -ErrorAction SilentlyContinue
+    }
+    if ($Error.Count -eq 0) {
+        $sts = Check-FileInLinuxGuest -vmUserName $vmUserName -vmPassword $vmPassword -vmPort $vmPort -ipv4 $ipv4 -fileName "/tmp/$testfile" -checkSize $True -checkContent  $True
+        if (-not $sts[-1]) {
+            LogErr "File is not present on the guest VM '${vmName}'!"
+            return $False
+        }
+        elseif ($sts[0] -ne $filesize) {
+            LogErr "The copied file doesn't match the $filesize size."
+            return $False
+        }
+        elseif ($sts[1] -ne $filecontent) {
+            LogErr "The copied file doesn't match the content '$filecontent'."
+            return $False
+        }
+        else {
+            LogMsg "The copied file matches the $filesize size and content '$filecontent'."
+        }
+    }
+    else {
+        LogErr "An error has occurred while copying the file to guest VM '${vmName}'."
+        $error[0]
+        return $False
+    }
+    return $True
+}
+
+function Generate-RandomString{
+    param(
+        [Int] $length
+    )
+
+    $set = "abcdefghijklmnopqrstuvwxyz0123456789".ToCharArray()
+    $result = ""
+    for ($x = 0; $x -lt $length; $x++)
+    {
+        $result += $set | Get-Random
+    }
+    return $result
+}
+
+function Get-RemoteFileInfo{
+    param (
+        [String] $filename,
+        [String] $server
+    )
+
+    $fileInfo = $null
+
+    if (-not $filename)
+    {
+        return $null
+    }
+
+    if (-not $server)
+    {
+        return $null
+    }
+
+    $remoteFilename = $filename.Replace("\", "\\")
+    $fileInfo = Get-WmiObject -query "SELECT * FROM CIM_DataFile WHERE Name='${remoteFilename}'" -computer $server
+
+    return $fileInfo
+}
+
+function Convert-StringToUInt64{
+    param (
+        [string] $str
+    )
+
+    $uint64Size = $null
+    $newSize = $str
+    #
+    # Make sure we received a string to convert
+    #
+    if (-not $str)
+    {
+        LogErr "ConvertStringToUInt64() - input string is null"
+        return $null
+    }
+
+    if ($str.EndsWith("MB"))
+    {
+        $num = $str.Replace("MB","")
+        $uint64Size = ([Convert]::ToUInt64($num)) * 1MB
+    }
+    elseif ($str.EndsWith("GB"))
+    {
+        $num = $str.Replace("GB","")
+        $uint64Size = ([Convert]::ToUInt64($num)) * 1GB
+    }
+    elseif ($str.EndsWith("TB"))
+    {
+        $num = $str.Replace("TB","")
+        $uint64Size = ([Convert]::ToUInt64($num)) * 1TB
+    }
+    else
+    {
+        LogErr "Invalid newSize parameter: ${str}"
+        return $null
+    }
+
+    return $uint64Size
+}
+
+function Run-Test{
+    param(
+        [String] $vmPassword,
+        [String] $vmPort,
+        [String] $vmUserName,
+        [String] $ipv4,
+        [String] $filename
+    )
+
+    "exec ./${filename}.sh &> ${filename}.log " | out-file -encoding ASCII -filepath runtest.sh
+
+    .\tools\pscp.exe  -v -2 -unsafe -pw $vmPassword -q -P ${vmPort} $vmUserName@${ipv4}:.\runtest.sh
+    if (-not $?)
+    {
+       LogErr "Unable to copy ${filename}.sh to the VM"
+       return $False
+    }
+
+    .\tools\pscp.exe  -v -2 -unsafe -pw $vmPassword -q -P ${vmPort} $vmUserName@${ipv4}:${filename}.sh
+    if (-not $?)
+    {
+        LogErr  "Unable to copy ${filename}.sh to the VM"
+       return $False
+    }
+
+    .\Tools\plink.exe -C -pw ${vmPassword} -P ${vmPort} ${vmUserName}@${ipv4} "dos2unix ${filename}.sh  2> /dev/null"
+    if (-not $?)
+    {
+        LogErr "Unable to run dos2unix on ${filename}.sh"
+        return $False
+    }
+
+    .\Tools\plink.exe -C -pw ${vmPassword} -P ${vmPort} ${vmUserName}@${ipv4} "dos2unix runtest.sh  2> /dev/null"
+    if (-not $?)
+    {
+        LogErr "Unable to run dos2unix on runtest.sh"
+        return $False
+    }
+
+    .\Tools\plink.exe -C -pw ${vmPassword} -P ${vmPort} ${vmUserName}@${ipv4} "chmod +x ${filename}.sh   2> /dev/null"
+    if (-not $?)
+    {
+        LogErr "Unable to chmod +x ${filename}.sh"
+        return $False
+    }
+    .\Tools\plink.exe -C -pw ${vmPassword} -P ${vmPort} ${vmUserName}@${ipv4} "chmod +x runtest.sh  2> /dev/null"
+    if (-not $?)
+    {
+        LogErr "Unable to chmod +x runtest.sh "
+        return $False
+    }
+
+    .\Tools\plink.exe -C -pw ${vmPassword} -P ${vmPort} ${vmUserName}@${ipv4} "./runtest.sh 2> /dev/null"
+    if (-not $?)
+    {
+        LogErr "Unable to run runtest.sh "
+        return $False
+    }
+
+    del runtest.sh
+    return $True
+}
+
+
+function Check-Result{
+    param(
+        [String] $vmPassword,
+        [String] $vmPort,
+        [String] $ipv4
+    )
+
+    $retVal = $False
+    $stateFile     = "state.txt"
+    $localStateFile= "${vmName}_state.txt"
+    $TestCompleted = "TestCompleted"
+    $TestAborted   = "TestAborted"
+    $TestRunning   = "TestRunning"
+    $timeout       = 6000
+
+    while ($timeout -ne 0 )
+    {
+        .\tools\pscp.exe  -v -2 -unsafe -pw $vmPassword -q -P ${vmPort} root@${ipv4}:${stateFile} ${localStateFile} #| out-null
+        $sts = $?
+        if ($sts)
+        {
+            if (test-path $localStateFile)
+            {
+                $contents = Get-Content -Path $localStateFile
+                if ($null -ne $contents)
+                {
+                        if ($contents -eq $TestCompleted)
+                        {
+                            $retVal = $True
+                            break
+
+                        }
+
+                        if ($contents -eq $TestAborted)
+                        {
+                             LogMsg  "State file contains TestAborted failed. "
+                             break
+
+                        }
+
+                        $timeout--
+
+                        if ($timeout -eq 0)
+                        {
+                            LogErr "Timed out on Test Running , Exiting test execution."
+                            break
+                        }
+
+                }
+                else
+                {
+                    LogMsg "state file is empty"
+                    break
+                }
+
+            }
+            else
+            {
+                LogMsg "ssh reported success, but state file was not copied"
+                 break
+            }
+        }
+        else #
+        {
+            LogErr "pscp exit status = $sts"
+            LogErr "unable to pull state.txt from VM."
+             break
+        }
+    }
+    del $localStateFile
+    return $retVal
+}
+
+function Get-VMGeneration {
+    # Get VM generation type from host, generation 1 or generation 2
+    param (
+        [String] $vmName, 
+        [String] $hvServer
+    )
+
+    # Hyper-V Server 2012 (no R2) only supports generation 1 VM
+    $vmInfo = Get-VM -Name $vmName -ComputerName $hvServer
+    if (!$vmInfo.Generation) {
+        $vmGeneration = 1
+    } else {
+        $vmGeneration = $vmInfo.Generation
+    }
+
+    return $vmGeneration
+}
+
+function Convert-StringToDecimal {
+    Param (
+        [string] $Str
+    )
+    $uint64Size = $null
+
+    # Make sure we received a string to convert
+    if (-not $Str) {
+        LogErr "ConvertStringToDecimal() - input string is null"
+        return $null
+    }
+
+    if ($Str.EndsWith("MB")) {
+        $num = $Str.Replace("MB","")
+        $uint64Size = ([Convert]::ToDecimal($num)) * 1MB
+    } elseif ($Str.EndsWith("GB")) {
+        $num = $Str.Replace("GB","")
+        $uint64Size = ([Convert]::ToDecimal($num)) * 1GB
+    } elseif ($Str.EndsWith("TB")) {
+        $num = $Str.Replace("TB","")
+        $uint64Size = ([Convert]::ToDecimal($num)) * 1TB
+    } else {
+        LogErr "Invalid newSize parameter: ${Str}"
+        return $null
+    }
+
+    return $uint64Size
+}
+
+function Create-Controller{
+    param (
+        [string] $vmName,
+        [string] $server,
+        [string] $controllerID
+    )
+
+    #
+    # Initially, we will limit this to 4 SCSI controllers...
+    #
+    if ($ControllerID -lt 0 -or $controllerID -gt 3)
+    {
+        LogErr "Bad SCSI controller ID: $controllerID"
+        return $False
+    }
+
+    #
+    # Check if the controller already exists.
+    #
+    $scsiCtrl = Get-VMScsiController -VMName $vmName -ComputerName $server
+    if ($scsiCtrl.Length -1 -ge $controllerID)
+    {
+       LogMsg "SCSI controller already exists"
+    }
+    else
+    {
+        $error.Clear()
+        Add-VMScsiController -VMName $vmName -ComputerName $server
+        if ($error.Count -gt 0)
+        {
+           LogErr "Add-VMScsiController failed to add 'SCSI Controller $ControllerID'"
+            $error[0].Exception
+            return $False
+        }
+        LogMsg "Controller successfully added"
+    }
+    return $True
+}
+
+function Stop-FcopyDaemon{
+    param(
+        [String] $vmPassword,
+        [String] $vmPort,
+        [String] $vmUserName,
+        [String] $ipv4
+       )
+    $sts = check_fcopy_daemon  -vmPassword $vmPassword -vmPort $vmPort -vmUserName $vmUserName -ipv4 $ipv4
+    if ($sts[-1] -eq $True ){
+        .\Tools\plink.exe -C -pw ${vmPassword} -P ${vmPort} ${vmUserName}@${ipv4} "pkill -f 'fcopy'"
+        if (-not $?) {
+            LogErr "Unable to kill hypervfcopy daemon"
+            return $False
+        }
+    }
+    return $true
+}
+
+function Check-VMState{
+    param(
+        [String] $vmName,
+        [String] $hvServer
+    )
+
+    $vm = Get-Vm -VMName $vmName -ComputerName $hvServer
+    $vmStatus = $vm.state
+
+    return $vmStatus
+}
+
+function Get-HostBuildNumber {
+    # Get host BuildNumber.
+    # 14393: 2016 host --- 9600: 2012R2 host --- 9200: 2012 host -- 0: error
+    param (
+        [String] $hvServer
+    ) 
+
+    [System.Int32]$buildNR = (Get-WmiObject -class Win32_OperatingSystem -ComputerName $hvServer).BuildNumber
+
+    if ( $buildNR -gt 0 ) {
+        return $buildNR
+    } else {
+        LogErr "Get host build number failed"
+        return 0
+    }
+}
+
+function Convert-KvpToDict($RawData) {
+    <#
+    .Synopsis
+        Convert the KVP data to a PowerShell dictionary.
+
+    .Description
+        Convert the KVP xml data into a PowerShell dictionary.
+        All keys are added to the dictionary, even if their
+        values are null.
+
+    .Parameter RawData
+        The raw xml KVP data.
+
+    .Example
+        Convert-KvpToDict $myKvpData
+    #>
+
+    $dict = @{}
+
+    foreach ($dataItem in $RawData) {
+        $key = ""
+        $value = ""
+        $xmlData = [Xml] $dataItem
+
+        foreach ($p in $xmlData.INSTANCE.PROPERTY) {
+            if ($p.Name -eq "Name") {
+                $key = $p.Value
+            }
+            if ($p.Name -eq "Data") {
+                $value = $p.Value
+            }
+        }
+        $dict[$key] = $value
+    }
+
+    return $dict
+}
+
+function Check-Systemd {
+    param (
+        [String] $Ipv4,
+        [String] $SSHPort,
+        [String] $Username,
+        [String] $Password
+    )
+
+    $check1 = $true
+    $check2 = $true
+
+    .\Tools\plink.exe -C -pw $Password -P $SSHPort $Username@$Ipv4 "ls -l /sbin/init | grep systemd"
+    if ($LASTEXITCODE -gt "0") {
+       LogMsg "Systemd not found on VM"
+       $check1 = $false
+    }
+    .\Tools\plink.exe -C -pw $Password -P $SSHPort $Username@$Ipv4 "systemd-analyze --help"
+    if ($LASTEXITCODE -gt "0") {
+        LogMsg "Systemd-analyze not present on VM."
+        $check2 = $false
+    }
+
+    return ($check1 -and $check2)
+}
+
+function Get-IPv4ViaKVP {
+    # Try to determine a VMs IPv4 address with KVP Intrinsic data.
+    param (
+        [String] $VmName,
+        [String] $HvServer
+    )
+
+    $vmObj = Get-WmiObject -Namespace root\virtualization\v2 -Query "Select * From Msvm_ComputerSystem Where ElementName=`'$VmName`'" -ComputerName $HvServer
+    if (-not $vmObj) {
+        LogWarn "Get-IPv4ViaKVP: Unable to create Msvm_ComputerSystem object"
+        return $null
+    }
+
+    $kvp = Get-WmiObject -Namespace root\virtualization\v2 -Query "Associators of {$vmObj} Where AssocClass=Msvm_SystemDevice ResultClass=Msvm_KvpExchangeComponent" -ComputerName $HvServer
+    if (-not $kvp) {
+        LogWarn "Get-IPv4ViaKVP: Unable to create KVP exchange component"
+        return $null
+    }
+
+    $rawData = $Kvp.GuestIntrinsicExchangeItems
+    if (-not $rawData) {
+        LogWarn "Get-IPv4ViaKVP: No KVP Intrinsic data returned"
+        return $null
+    }
+
+    $name = $null
+    $addresses = $null
+
+    foreach ($dataItem in $rawData) {
+        $found = 0
+        $xmlData = [Xml] $dataItem
+        foreach ($p in $xmlData.INSTANCE.PROPERTY) {
+            if ($p.Name -eq "Name" -and $p.Value -eq "NetworkAddressIPv4") {
+                $found += 1
+            }
+
+            if ($p.Name -eq "Data") {
+                $addresses = $p.Value
+                $found += 1
+            }
+
+            if ($found -eq 2) {
+                $addrs = $addresses.Split(";")
+                foreach ($addr in $addrs) {
+                    if ($addr.StartsWith("127.")) {
+                        Continue
+                    }
+                    return $addr
+                }
+            }
+        }
+    }
+
+    LogWarn "Get-IPv4ViaKVP: No IPv4 address found for VM ${VmName}"
+    return $null
+}
+
+function Get-IPv4AndWaitForSSHStart {
+    # Wait for KVP start and
+    # Get ipv4 via kvp
+    # Wait for ssh start, test ssh.
+    # Returns [String]ipv4 address if succeeded or $False if failed
+    param (
+        [String] $VmName,
+        [String] $HvServer,
+        [String] $VmPort,
+        [String] $User,
+        [String] $Password,
+        [int] $StepTimeout
+    )
+
+    # Wait for KVP to start and able to get ipv4 addr
+    if (-not (Wait-ForVMToStartKVP $VmName $HvServer $StepTimeout)) {
+        LogErr "GetIPv4AndWaitForSSHStart: Unable to get ipv4 from VM ${vmName} via KVP within timeout period ($StepTimeout)"
+        return $False
+    }
+
+    # Get new ipv4 in case an new ip is allocated to vm after reboot
+    $new_ip = Get-IPv4ViaKVP $vmName $hvServer
+    if (-not ($new_ip)){
+        LogErr "GetIPv4AndWaitForSSHStart: Unable to get ipv4 from VM ${vmName} via KVP"
+        return $False
+    }
+
+    # Wait for port 22 open
+    if (-not (Wait-ForVMToStartSSH $new_ip $stepTimeout)) {
+        LogErr "GetIPv4AndWaitForSSHStart: Failed to connect $new_ip port 22 within timeout period ($StepTimeout)"
+        return $False
+    }
+
+    # Cache fingerprint, Check ssh is functional after reboot
+    echo y | .\Tools\plink.exe -C -pw $Password -P $VmPort $User@$new_ip 'exit 0'
+    $TestConnection = .\Tools\plink.exe -C -pw $Password -P $VmPort $User@$new_ip "echo Connected"
+    if ($TestConnection -ne "Connected") {
+        LogErr "GetIPv4AndWaitForSSHStart: SSH is not working correctly after boot up"
+        return $False
+    }
+
+    return $new_ip
+}
+
+function Wait-ForVMToStartSSH {
+    #  Wait for a Linux VM to start SSH. This is done by testing
+    # if the target machine is lisetning on port 22.
+    param (
+        [String] $Ipv4addr,
+        [int] $StepTimeout
+    )
+    $retVal = $False
+
+    $waitTimeOut = $StepTimeout
+    while ($waitTimeOut -gt 0) {
+        $sts = Test-Port -ipv4addr $Ipv4addr -timeout 5
+        if ($sts) {
+            return $True
+        }
+
+        $waitTimeOut -= 15  # Note - Test Port will sleep for 5 seconds
+        Start-Sleep -s 10
+    }
+
+    if (-not $retVal) {
+        LogErr "Wait-ForVMToStartSSH: VM did not start SSH within timeout period ($StepTimeout)"
+    }
+
+    return $retVal
+}
+
+function Wait-ForVMToStartKVP {
+    # Wait for a Linux VM with the LIS installed to start the KVP daemon
+    param (
+        [String] $VmName,
+        [String] $HvServer,
+        [int] $StepTimeout
+    )
+    $ipv4 = $null
+    $retVal = $False
+
+    $waitTimeOut = $StepTimeout
+    while ($waitTimeOut -gt 0) {
+        $ipv4 = Get-IPv4ViaKVP $VmName $HvServer
+        if ($ipv4) {
+            return $True
+        }
+
+        $waitTimeOut -= 10
+        Start-Sleep -s 10
+    }
+
+    LogErr "Wait-ForVMToStartKVP: VM ${VmName} did not start KVP within timeout period ($StepTimeout)"
+    return $retVal
+}
+
+function Wait-ForVMToStop {
+    # Wait for a VM to enter the Hyper-V Off state.
+    param (
+        [String] $VmName,
+        [String] $HvServer,
+        [int] $Timeout
+    )
+
+    [System.Reflection.Assembly]::LoadWithPartialName("Microsoft.HyperV.PowerShell")
+    $tmo = $Timeout
+    while ($tmo -gt 0) {
+        Start-Sleep -s 1
+        $tmo -= 5
+
+        $vm = Get-VM -Name $VmName -ComputerName $HvServer
+        if (-not $vm) {
+            return $False
+        }
+
+        if ($vm.State -eq [Microsoft.HyperV.PowerShell.VMState]::off) {
+            return $True
+        }
+    }
+
+    LogErr "StopVM: VM did not stop within timeout period"
+    return $False
+}
+
+function Test-Port {
+    # Test if a remote host is listening on a spceific TCP port
+    # Wait only timeout seconds.
+    param (
+        [String] $Ipv4addr,
+        [String] $PortNumber=22,
+        [int] $Timeout=5
+    )
+
+    $retVal = $False
+    $to = $Timeout * 1000
+
+    # Try an async connect to the specified machine/port
+    $tcpClient = new-Object system.Net.Sockets.TcpClient
+    $iar = $tcpclient.BeginConnect($Ipv4addr,$PortNumber,$null,$null)
+
+    # Wait for the connect to complete. Also set a timeout
+    # so we don't wait all day
+    $connected = $iar.AsyncWaitHandle.WaitOne($to,$false)
+
+    # Check to see if the connection is done
+    if ($connected) {
+        # Close our connection
+        try {
+            $sts = $tcpclient.EndConnect($iar)
+            $retVal = $true
+        } catch {
+            # Nothing we need to do...
+            $msg = $_.Exception.Message
+        }
+    }
+    $tcpclient.Close()
+
+    return $retVal
+}
+
+function Get-ParentVHD {
+    # To Get Parent VHD from VM
+    param (
+        [String] $vmName,
+        [String] $hvServer
+    )
+
+    $ParentVHD = $null
+
+    $VmInfo = Get-VM -Name $vmName -ComputerName $hvServer
+    if (-not $VmInfo) {
+       LogErr "Unable to collect VM settings for ${vmName}"
+       return $False
+    }
+
+    $vmGen = Get-VMGeneration $vmName $hvServer
+    if ($vmGen -eq 1 ) {
+        $Disks = $VmInfo.HardDrives
+        foreach ($VHD in $Disks) {
+            if (($VHD.ControllerLocation -eq 0) -and ($VHD.ControllerType -eq "IDE")) {
+                $Path = Get-VHD $VHD.Path -ComputerName $hvServer
+                if ([string]::IsNullOrEmpty($Path.ParentPath)) {
+                    $ParentVHD = $VHD.Path
+                } else {
+                    $ParentVHD =  $Path.ParentPath
+                }
+
+                LogMsg "Parent VHD Found: $ParentVHD "
+            }
+        }
+    }
+    if ( $vmGen -eq 2 ) {
+        $Disks = $VmInfo.HardDrives
+        foreach ($VHD in $Disks) {
+            if (($VHD.ControllerLocation -eq 0 ) -and ($VHD.ControllerType -eq "SCSI")) {
+                $Path = Get-VHD $VHD.Path -ComputerName $hvServer
+                if ([string]::IsNullOrEmpty($Path.ParentPath)) {
+                    $ParentVHD = $VHD.Path
+                } else {
+                    $ParentVHD =  $Path.ParentPath
+                }
+                LogMsg "Parent VHD Found: $ParentVHD "
+            }
+        }
+    }
+
+    if (-not ($ParentVHD.EndsWith(".vhd") -xor $ParentVHD.EndsWith(".vhdx"))) {
+        LogErr "Parent VHD is Not correct please check VHD, Parent VHD is: $ParentVHD"
+        return $False
+    }
+
+    return $ParentVHD
+}
+
+function Create-ChildVHD {
+    param (
+        [String] $ParentVHD,
+        [String] $defaultpath,
+        [String] $hvServer
+    )
+
+    $ChildVHD  = $null
+    $hostInfo = Get-VMHost -ComputerName $hvServer
+    if (-not $hostInfo) {
+        LogErr "Unable to collect Hyper-V settings for $hvServer"
+        return $False
+    }
+
+    # Create Child VHD
+    if ($ParentVHD.EndsWith("x")) {
+        $ChildVHD = $defaultpath + ".vhdx"
+    } else {
+        $ChildVHD = $defaultpath + ".vhd"
+    }
+
+    if (Test-Path $ChildVHD) {
+        LogMsg "Deleting existing VHD $ChildVHD"
+        del $ChildVHD
+    }
+
+    # Copy Child VHD
+    # Write-Host $ParentVHD
+    # Write-Host $ChildVHD
+    Copy-Item "$ParentVHD" "$ChildVHD"
+    if (-not $?) {
+        LogErr  "Unable to create child VHD"
+        return $False
+    }
+
+    return $ChildVHD
+}
+
+function Convert-ToMemSize {
+    param (
+        [String] $memString,
+        [String] $hvServer
+    )
+    $memSize = [Int64] 0
+
+    if ($memString.EndsWith("MB")) {
+        $num = $memString.Replace("MB","")
+        $memSize = ([Convert]::ToInt64($num)) * 1MB
+    } elseif ($memString.EndsWith("GB")) {
+        $num = $memString.Replace("GB","")
+        $memSize = ([Convert]::ToInt64($num)) * 1GB
+    } elseif ($memString.EndsWith("%")) {
+        $osInfo = Get-WMIObject Win32_OperatingSystem -ComputerName $hvServer
+        if (-not $osInfo) {
+            LogErr "Unable to retrieve Win32_OperatingSystem object for server ${hvServer}"
+            return $False
+        }
+
+        $hostMemCapacity = $osInfo.FreePhysicalMemory * 1KB
+        $memPercent = [Convert]::ToDouble("0." + $memString.Replace("%",""))
+        $num = [Int64] ($memPercent * $hostMemCapacity)
+
+        # Align on a 4k boundry
+        $memSize = [Int64](([Int64] ($num / 2MB)) * 2MB)
+    } else {
+        $memSize = ([Convert]::ToInt64($memString))
+    }
+
+    return $memSize
+}
+
+function Get-NumaSupportStatus {
+    param (
+        [string] $kernel
+    )
+    # Get whether NUMA is supported or not based on kernel verison.
+    # Generally, from RHEL 6.6 with kernel version 2.6.32-504,
+    # NUMA is supported well.
+
+    if ( $kernel.Contains("i686") -or $kernel.Contains("i386")) {
+        return $false
+    }
+
+    if ($kernel.StartsWith("2.6")) {
+        $numaSupport = "2.6.32.504"
+        $kernelSupport = $numaSupport.split(".")
+        $kernelCurrent = $kernel.replace("-",".").split(".")
+
+        for ($i=0; $i -le 3; $i++) {
+            if ($kernelCurrent[$i] -lt $kernelSupport[$i]) {
+                return $false
+            }
+        }
+    }
+
+    # We skip the check if kernel is not 2.6
+    # Anything newer will have support for it
+    return $true
 }
