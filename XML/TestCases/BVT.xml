@@ -349,7 +349,7 @@
         <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>NETWORK</Area>
-        <Tags>net</Tags>
+        <Tags>network</Tags>
     </test>
     <test>
         <testName>BVT-NET-IFUP-IFDOWN</testName>
