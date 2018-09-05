@@ -2660,10 +2660,10 @@ function Check-Systemd {
         [String] $Username,
         [String] $Password
     )
-    
+
     $check1 = $true
     $check2 = $true
-    
+
     .\Tools\plink.exe -C -pw $Password -P $SSHPort $Username@$Ipv4 "ls -l /sbin/init | grep systemd"
     if ($LASTEXITCODE -ne "True") {
        LogMsg "Systemd not found on VM"
@@ -2683,9 +2683,9 @@ function Get-VMFeatureSupportStatus {
     .Synopsis
         Check if VM supports a feature or not.
     .Description
-        Check if VM supports one feature or not based on comparison 
+        Check if VM supports one feature or not based on comparison
             of curent kernel version with feature supported kernel version.
-        If the current version is lower than feature supported version, 
+        If the current version is lower than feature supported version,
             return false, otherwise return true.
     .Parameter Ipv4
         IPv4 address of the Linux VM.
@@ -2700,7 +2700,7 @@ function Get-VMFeatureSupportStatus {
     .Example
         Get-VMFeatureSupportStatus $ipv4 $SSHPort $Username $Password $Supportkernel
     #>
-    
+
     param (
         [String] $Ipv4,
         [String] $SSHPort,
@@ -2708,7 +2708,7 @@ function Get-VMFeatureSupportStatus {
         [String] $Password,
         [String] $SupportKernel
     )
-    
+
     echo y | .\Tools\plink.exe -C -pw $Password -P $SSHPort $Username@$Ipv4 'exit 0'
     $currentKernel = .\Tools\plink.exe -C -pw $Password -P $SSHPort $Username@$Ipv4  "uname -r"
     if( $LASTEXITCODE -eq $false){
@@ -2739,14 +2739,14 @@ function Get-SelinuxAVCLog() {
         Check audit.log in Linux VM for avc denied log.
         If get avc denied log for hyperv daemons, return $true, else return $false.
     #>
-    
+
     param (
         [String] $Ipv4,
         [String] $SSHPort,
         [String] $Username,
         [String] $Password
     )
-    
+
     $FILE_NAME = ".\audit.log"
     $TEXT_HV = "hyperv"
     $TEXT_AVC = "type=avc"
@@ -2776,7 +2776,7 @@ function Get-SelinuxAVCLog() {
 
 function Get-VMFeatureSupportStatus {
     param (
-        [String] $VmIp, 
+        [String] $VmIp,
         [String] $VmPort,
         [String] $UserName,
         [String] $Password,
@@ -2813,7 +2813,7 @@ function Get-UnixVMTime {
         [String] $Username,
         [String] $Password
     )
-    
+
     $unixTimeStr = $null
 
     $unixTimeStr = Get-TimeFromVM -Ipv4 $Ipv4 -Port $Port `
@@ -2867,7 +2867,7 @@ function Get-TimeSync {
 
 function CheckVMState {
     param (
-        [String] $VMName, 
+        [String] $VMName,
         [String] $HvServer
     )
     $vm = Get-Vm -VMName $VMName -ComputerName $HvServer
@@ -2875,15 +2875,15 @@ function CheckVMState {
 
     return $vmStatus
 }
-function Check-File{
+function Check-FileInLinuxGuest{
     param (
         [String] $vmPassword,
         [String] $vmPort,
         [string] $vmUserName,
         [string] $ipv4,
-        [string] $fileName, 
-        [boolean] $checkSize = $False , 
-        [boolean] $checkContent = $False 
+        [string] $fileName,
+        [boolean] $checkSize = $False ,
+        [boolean] $checkContent = $False
     )
    <#
     .Synopsis
@@ -2893,7 +2893,7 @@ function Check-File{
         if set checkContent as $True, will return file content.
    #>
     if ($checkSize) {
-        
+
         .\Tools\plink.exe -C -pw $vmPassword -P $vmPort $vmUserName@$ipv4 "wc -c < $fileName"
     }
     else {
@@ -2904,7 +2904,7 @@ function Check-File{
         return $False
     }
     if ($checkContent) {
-        
+
         .\Tools\plink.exe -C -pw $vmPassword -P $vmPort $vmUserName@$ipv4 "cat ${fileName}"
         if (-not $?) {
             return $False
@@ -2917,7 +2917,7 @@ function Send-CommandToVM {
     param  (
         [string] $vmPassword,
         [string] $vmPort,
-        [string] $ipv4, 
+        [string] $ipv4,
         [string] $command
     )
 
@@ -2926,7 +2926,7 @@ function Send-CommandToVM {
         Send a command to a Linux VM using SSH.
     .Description
         Send a command to a Linux VM using SSH.
-    
+
     #>
 
     $retVal = $False
@@ -2973,17 +2973,17 @@ function Check-FcopyDaemon{
     )
   <#
     .Synopsis
-     Verifies that the fcopy_daemon 
+     Verifies that the fcopy_daemon
     .Description
-     Verifies that the fcopy_daemon on VM and attempts to copy a file 
-    
+     Verifies that the fcopy_daemon on VM and attempts to copy a file
+
     #>
 
     $filename = ".\fcopy_present"
 
     .\Tools\plink.exe -C -pw $vmPassword -P $vmPort $vmUserName@$ipv4 "ps -ef | grep '[h]v_fcopy_daemon\|[h]ypervfcopyd' > /tmp/fcopy_present"
     if (-not $?) {
-        LogErr  "Unable to verify if the fcopy daemon is running" 
+        LogErr  "Unable to verify if the fcopy daemon is running"
         return $False
     }
 
@@ -3011,17 +3011,17 @@ function Mount-Disk{
     )
  <#
     .Synopsis
-     Mounts  and formates to ext4 a disk on vm  
+     Mounts  and formates to ext4 a disk on vm
     .Description
-     Mounts  and formates to ext4 a disk on vm  
-    
+     Mounts  and formates to ext4 a disk on vm
+
     #>
 
     $driveName = "/dev/sdc"
 
     $sts = Send-CommandToVM -vmPassword $vmPassword -vmPort $vmPort -ipv4 $ipv4 "(echo d;echo;echo w)|fdisk ${driveName}"
     if (-not $sts) {
-        LogErr "Failed to format the disk in the VM $vmName." 
+        LogErr "Failed to format the disk in the VM $vmName."
         return $False
     }
 
@@ -3033,13 +3033,13 @@ function Mount-Disk{
 
     $sts = Send-CommandToVM -vmPassword $vmPassword -vmPort $vmPort -ipv4 $ipv4  "mkfs.ext4 ${driveName}1"
     if (-not $sts) {
-        LogErr "Failed to make file system in the VM $vmName." 
+        LogErr "Failed to make file system in the VM $vmName."
         return $False
     }
 
     $sts = Send-CommandToVM -vmPassword $vmPassword -vmPort $vmPort -ipv4 $ipv4  "mount ${driveName}1 /mnt"
     if (-not $sts) {
-        LogErr "Failed to mount the disk in the VM $vmName." 
+        LogErr "Failed to mount the disk in the VM $vmName."
         return $False
     }
 
@@ -3059,10 +3059,10 @@ function Remove-FileVM{
      Removes testfile from VM   using SendCommandToVM function
     .Description
      Removes testfile from VM  using SendCommandToVM function
-    
+
     #>
 
-    
+
     $sts = Send-CommandToVM -vmPassword $vmPassword -vmPort $vmPort -ipv4 $ipv4 "rm -f /mnt/$testfile"
     if (-not $sts) {
         return $False
@@ -3081,7 +3081,7 @@ function Copy-FileVM{
      Copy the file to the Linux guest VM
     .Description
     Copy the file to the Linux guest VM
-    
+
     #>
 
     $Error.Clear()
@@ -3092,32 +3092,7 @@ function Copy-FileVM{
     return $true
 }
 
-function Check-FileVM{
-    param (
-        [String] $vmName,
-        [String] $testfile,
-        [String] $originalFileSize, 
-        [String] $fileSize
-    )
- <#
-    .Synopsis
-     Checking if the file is present on the guest and file size is matching
-    .Description
-    Checking if the file is present on the guest and file size is matching
-    
-    #>
 
-    $sts = Check-File $testfile
-    if (-not $sts[-1]) {
-        LogErr "File is not present on the guest VM '${vmName}'!" 
-        return $False
-    }
-    elseif ($sts[0] -ne $fileSize) {
-        LogErr "The file copied doesn't match the ${originalFileSize} size!" 
-        return $False
-    }
-    return $True
-}
 
 function Remove-TestFile{
     param(
@@ -3129,17 +3104,17 @@ function Remove-TestFile{
      Delete temporary test file
     .Description
     Delete temporary test file
-    
+
     #>
 
     Remove-Item -Path $pathToFile -Force
     if ($? -ne "True") {
-        LogErr "cannot remove the test file '${testfile}'!" 
+        LogErr "cannot remove the test file '${testfile}'!"
         return $False
     }
 }
 
-function Copy-Check-File{
+function Copy-Check-FileInLinuxGuest{
     param(
         [String] $vmName,
         [String] $hvServer,
@@ -3147,10 +3122,10 @@ function Copy-Check-File{
         [String] $vmPassword,
         [String] $vmPort,
         [String] $ipv4,
-        [String] $testfile, 
-        [Boolean] $overwrite, 
-        [Int] $contentlength, 
-        [String]$filePath, 
+        [String] $testfile,
+        [Boolean] $overwrite,
+        [Int] $contentlength,
+        [String]$filePath,
         [String]$vhd_path_formatted
     )
 
@@ -3159,13 +3134,13 @@ function Copy-Check-File{
 
     $filecontent | Out-File $testfile
     if (-not $?) {
-        LogErr "Cannot create file $testfile'." 
+        LogErr "Cannot create file $testfile'."
         return $False
     }
 
     $filesize = (Get-Item $testfile).Length
     if (-not $filesize){
-        LogErr "Cannot get the size of file $testfile'." 
+        LogErr "Cannot get the size of file $testfile'."
         return $False
     }
 
@@ -3181,26 +3156,26 @@ function Copy-Check-File{
         Copy-VMFile -vmName $vmName -ComputerName $hvServer -SourcePath $filePath -DestinationPath "/tmp/" -FileSource host -ErrorAction SilentlyContinue
     }
     if ($Error.Count -eq 0) {
-        $sts = Check-File -vmUserName $vmUserName -vmPassword $vmPassword -vmPort $vmPort -ipv4 $ipv4 -fileName "/tmp/$testfile" -checkSize $True -checkContent  $True
+        $sts = Check-FileInLinuxGuest -vmUserName $vmUserName -vmPassword $vmPassword -vmPort $vmPort -ipv4 $ipv4 -fileName "/tmp/$testfile" -checkSize $True -checkContent  $True
         if (-not $sts[-1]) {
-            LogErr "File is not present on the guest VM '${vmName}'!" 
+            LogErr "File is not present on the guest VM '${vmName}'!"
             return $False
         }
         elseif ($sts[0] -ne $filesize) {
-            LogErr "The copied file doesn't match the $filesize size." 
+            LogErr "The copied file doesn't match the $filesize size."
             return $False
         }
         elseif ($sts[1] -ne $filecontent) {
-            LogErr "The copied file doesn't match the content '$filecontent'." 
+            LogErr "The copied file doesn't match the content '$filecontent'."
             return $False
         }
         else {
-            LogMsg "The copied file matches the $filesize size and content '$filecontent'." 
+            LogMsg "The copied file matches the $filesize size and content '$filecontent'."
         }
     }
     else {
-        LogErr "An error has occurred while copying the file to guest VM '${vmName}'." 
-        $error[0] 
+        LogErr "An error has occurred while copying the file to guest VM '${vmName}'."
+        $error[0]
         return $False
     }
     return $True
@@ -3223,7 +3198,7 @@ function Generate-RandomString{
 function Get-RemoteFileInfo{
     param (
         [String] $filename,
-        [String] $server 
+        [String] $server
     )
 
     $fileInfo = $null
@@ -3284,7 +3259,7 @@ function Convert-StringToUInt64{
     return $uint64Size
 }
 
-function Run-Test{  
+function Run-Test{
     param(
         [String] $vmPassword,
         [String] $vmPort,
@@ -3295,38 +3270,38 @@ function Run-Test{
 
     "exec ./${filename}.sh &> ${filename}.log " | out-file -encoding ASCII -filepath runtest.sh
 
-    .\tools\pscp.exe  -v -2 -unsafe -pw $vmPassword -q -P ${vmPort} $vmUserName@${ipv4}:.\runtest.sh 
+    .\tools\pscp.exe  -v -2 -unsafe -pw $vmPassword -q -P ${vmPort} $vmUserName@${ipv4}:.\runtest.sh
     if (-not $?)
     {
-       LogErr "Unable to copy ${filename}.sh to the VM" 
+       LogErr "Unable to copy ${filename}.sh to the VM"
        return $False
     }
 
     .\tools\pscp.exe  -v -2 -unsafe -pw $vmPassword -q -P ${vmPort} $vmUserName@${ipv4}:${filename}.sh
     if (-not $?)
     {
-        LogErr  "Unable to copy ${filename}.sh to the VM" 
+        LogErr  "Unable to copy ${filename}.sh to the VM"
        return $False
     }
 
     .\Tools\plink.exe -C -pw ${vmPassword} -P ${vmPort} ${vmUserName}@${ipv4} "dos2unix ${filename}.sh  2> /dev/null"
     if (-not $?)
     {
-        LogErr "Unable to run dos2unix on ${filename}.sh" 
+        LogErr "Unable to run dos2unix on ${filename}.sh"
         return $False
     }
 
     .\Tools\plink.exe -C -pw ${vmPassword} -P ${vmPort} ${vmUserName}@${ipv4} "dos2unix runtest.sh  2> /dev/null"
     if (-not $?)
     {
-        LogErr "Unable to run dos2unix on runtest.sh" 
+        LogErr "Unable to run dos2unix on runtest.sh"
         return $False
     }
 
     .\Tools\plink.exe -C -pw ${vmPassword} -P ${vmPort} ${vmUserName}@${ipv4} "chmod +x ${filename}.sh   2> /dev/null"
     if (-not $?)
     {
-        LogErr "Unable to chmod +x ${filename}.sh" 
+        LogErr "Unable to chmod +x ${filename}.sh"
         return $False
     }
     .\Tools\plink.exe -C -pw ${vmPassword} -P ${vmPort} ${vmUserName}@${ipv4} "chmod +x runtest.sh  2> /dev/null"
@@ -3339,7 +3314,7 @@ function Run-Test{
     .\Tools\plink.exe -C -pw ${vmPassword} -P ${vmPort} ${vmUserName}@${ipv4} "./runtest.sh 2> /dev/null"
     if (-not $?)
     {
-        LogErr "Unable to run runtest.sh " 
+        LogErr "Unable to run runtest.sh "
         return $False
     }
 
@@ -3392,7 +3367,7 @@ function Check-Result{
 
                         if ($timeout -eq 0)
                         {
-                            LogErr "Timed out on Test Running , Exiting test execution." 
+                            LogErr "Timed out on Test Running , Exiting test execution."
                             break
                         }
 
@@ -3412,8 +3387,8 @@ function Check-Result{
         }
         else #
         {
-            LogErr "pscp exit status = $sts" 
-            LogErr "unable to pull state.txt from VM." 
+            LogErr "pscp exit status = $sts"
+            LogErr "unable to pull state.txt from VM."
              break
         }
     }
@@ -3470,8 +3445,8 @@ function Convert-StringToDecimal {
 
 function Create-Controller{
     param (
-        [string] $vmName, 
-        [string] $server, 
+        [string] $vmName,
+        [string] $server,
         [string] $controllerID
     )
 
@@ -3527,7 +3502,7 @@ function Stop-FcopyDaemon{
 
 function Check-VMState{
     param(
-        [String] $vmName, 
+        [String] $vmName,
         [String] $hvServer
     )
 
@@ -3599,10 +3574,10 @@ function Check-Systemd {
         [String] $Username,
         [String] $Password
     )
-    
+
     $check1 = $true
     $check2 = $true
-    
+
     .\Tools\plink.exe -C -pw $Password -P $SSHPort $Username@$Ipv4 "ls -l /sbin/init | grep systemd"
     if ($LASTEXITCODE -gt "0") {
        LogMsg "Systemd not found on VM"
@@ -3620,7 +3595,7 @@ function Check-Systemd {
 function Get-IPv4ViaKVP {
     # Try to determine a VMs IPv4 address with KVP Intrinsic data.
     param (
-        [String] $VmName, 
+        [String] $VmName,
         [String] $HvServer
     )
 
@@ -3719,10 +3694,10 @@ function Get-IPv4AndWaitForSSHStart {
 }
 
 function Wait-ForVMToStartSSH {
-    #  Wait for a Linux VM to start SSH. This is done by testing 
+    #  Wait for a Linux VM to start SSH. This is done by testing
     # if the target machine is lisetning on port 22.
     param (
-        [String] $Ipv4addr, 
+        [String] $Ipv4addr,
         [int] $StepTimeout
     )
     $retVal = $False
@@ -3748,7 +3723,7 @@ function Wait-ForVMToStartSSH {
 function Wait-ForVMToStartKVP {
     # Wait for a Linux VM with the LIS installed to start the KVP daemon
     param (
-        [String] $VmName, 
+        [String] $VmName,
         [String] $HvServer,
         [int] $StepTimeout
     )
@@ -3773,7 +3748,7 @@ function Wait-ForVMToStartKVP {
 function Wait-ForVMToStop {
     # Wait for a VM to enter the Hyper-V Off state.
     param (
-        [String] $VmName, 
+        [String] $VmName,
         [String] $HvServer,
         [int] $Timeout
     )
@@ -3802,7 +3777,7 @@ function Test-Port {
     # Test if a remote host is listening on a spceific TCP port
     # Wait only timeout seconds.
     param (
-        [String] $Ipv4addr, 
+        [String] $Ipv4addr,
         [String] $PortNumber=22,
         [int] $Timeout=5
     )
@@ -3837,7 +3812,7 @@ function Test-Port {
 function Get-ParentVHD {
     # To Get Parent VHD from VM
     param (
-        [String] $vmName, 
+        [String] $vmName,
         [String] $hvServer
     )
 
@@ -3890,8 +3865,8 @@ function Get-ParentVHD {
 
 function Create-ChildVHD {
     param (
-        [String] $ParentVHD, 
-        [String] $defaultpath, 
+        [String] $ParentVHD,
+        [String] $defaultpath,
         [String] $hvServer
     )
 
@@ -3930,7 +3905,7 @@ function Convert-ToMemSize {
     param (
         [String] $memString,
         [String] $hvServer
-    )   
+    )
     $memSize = [Int64] 0
 
     if ($memString.EndsWith("MB")) {

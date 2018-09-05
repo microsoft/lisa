@@ -215,7 +215,7 @@ function Main {
     # Check if checksums are matching
     #
     $MD5IsMatching = @(Compare-Object $local_chksum $remote_chksum -SyncWindow 0).Length -eq 0
-    if ( -not $MD5IsMatching)
+    if ( -not $MD5IsMatching) {
         LogErr "MD5 checksum missmatch between host and VM test file!"
         return "FAIL"
     }
