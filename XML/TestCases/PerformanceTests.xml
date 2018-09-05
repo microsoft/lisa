@@ -111,7 +111,7 @@
         <setupType>DS14DISK12</setupType>
         <AdditionalHWConfig>
             <DiskType>Managed</DiskType>
-        </AdditionalHWConfig>        
+        </AdditionalHWConfig>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <TestParameters>
@@ -135,7 +135,7 @@
         <setupType>DS14DISK12</setupType>
         <AdditionalHWConfig>
             <DiskType>Managed</DiskType>
-        </AdditionalHWConfig>        
+        </AdditionalHWConfig>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <TestParameters>
@@ -288,5 +288,19 @@
         <Category>Performance</Category>
         <Area>Network</Area>
         <Tags>hv_netvsc,network,sriov</Tags>
+    </test>
+    <test>
+        <testName>PERF-SYSCALL-BENCHMARK</testName>
+        <testScript>PERF-SYSCALL-BENCHMARK.ps1</testScript>
+        <setupType>SingleVM</setupType>
+        <OverrideVMSize>Standard_D15_v2</OverrideVMSize>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_syscallbenchmark.sh</files>
+        <TestParameters>
+            <param>syscallurl="https://github.com/arkanis/syscall-benchmark.git"</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Performance</Category>
+        <Area>CPU</Area>
+        <Tags>syscall</Tags>
     </test>
 </TestCases>
