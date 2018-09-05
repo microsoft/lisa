@@ -1,7 +1,7 @@
 ﻿# Linux on Hyper-V and Azure Test Code, ver. 1.0.0
 # Copyright (c) Microsoft Corporation
 
-# Description: This script displays the LISav2 test case statistics and detail tag.
+# Description: This script displays the LISav2 test case statistics and list of available tags.
 
 # Read all test case xml files
 $files = Get-ChildItem XML\TestCases\*.xml
@@ -14,13 +14,13 @@ $both_platforms = 0
 $tags = @{}
 
 Write-Output ""
-“{0,-60} {1,20} {2,15} {3,15} {4,40}” -f` "TestCase", "Platform", "Category", "Area", "Tags"
+"{0,-60} {1,20} {2,15} {3,15} {4,40}" -f "TestCase", "Platform", "Category", "Area", "Tags"
 Write-Output "----------------------------------------------------------------------------------------------------------------------------------------------------------"
 
 foreach ($fname in $files) {
     $xml = [xml](Get-Content $fname)
     foreach ($item in $xml.TestCases.test) {
-        “{0,-60} {1,20} {2,15} {3,15} {4,40}” -f` $item.testName, $item.Platform, $item.Category, $item.Area, $item.Tags
+        "{0,-60} {1,20} {2,15} {3,15} {4,40}" -f $item.testName, $item.Platform, $item.Category, $item.Area, $item.Tags
 
         # Group per platform type
         if ($item.Platform -eq "HyperV") {
