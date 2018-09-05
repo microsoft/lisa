@@ -74,6 +74,7 @@ Param(
 	[switch] $UpdateXMLStringsFromSecretsFile,
 
 	#[Optional] Parameters for Overriding VM Configuration. Azure only.
+	[string] $CustomParameters = "",
 	[string] $OverrideVMSize = "",
 	[switch] $EnableAcceleratedNetworking,
 	[string] $OverrideHyperVDiskMode = "",
@@ -347,6 +348,9 @@ try {
 		#endregion
 	$xmlContent += ("$($tab[0])" + "</config>`n")
 	Set-Content -Value $xmlContent -Path $xmlFile -Force
+
+	#This function will inject default / custom replacable test parameters to TestConfiguration.xml
+	InjectReplaceableTestParameters -XmlConfigFilePath $xmlFile
 
 	try {
 		$xmlConfig = [xml](Get-Content $xmlFile)

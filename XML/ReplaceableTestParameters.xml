@@ -1,0 +1,46 @@
+<!-- 
+
+Parameters mentioned in this XML are replacable using commandline.
+We can convert any hardcoded test parameter in LISAv2 test definition to a "Replacable Parameter" using this file.
+
+Syntax :
+RunTests.ps1 -Platform <Platform> `
+             -Area <Area> `
+             .
+             .
+             .
+             -CustomParameters "ReplaceThis1=ReplaceWith1;ReplaceThis2=ReplaceWith2"
+
+Note: Multiple replace operations can be done using sign - semicolumn (";").
+
+Scenario 1 : You need to run the DPDK test with "git://dpdk.org/next/dpdk-next-net", instead of default.
+    -CustomParameters "DPDK_SOURCE_URL=git://dpdk.org/next/dpdk-next-net"
+
+Scenario 2 : You need to run all the performance tests quickly. 
+    The default test duration is 300 seconds for each scenario.
+-CustomParameters "NTTTCP_RUNTIME_IN_SECONDS=120;IPERF3_RUNTIME_IN_SECONDS=120;FIO_RUNTIME_IN_SECONDS=120;DPDK_TEST_DURATION_IN_SECONDS=60"
+
+-->
+
+<ReplaceableTestParameters>
+    <Parameter>
+        <ReplaceThis>DPDK_SOURCE_URL</ReplaceThis>
+        <ReplaceWith>https://fast.dpdk.org/rel/dpdk-18.08.tar.xz</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>NTTTCP_RUNTIME_IN_SECONDS</ReplaceThis>
+        <ReplaceWith>300</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>IPERF3_RUNTIME_IN_SECONDS</ReplaceThis>
+        <ReplaceWith>300</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>FIO_RUNTIME_IN_SECONDS</ReplaceThis>
+        <ReplaceWith>300</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>DPDK_TEST_DURATION_IN_SECONDS</ReplaceThis>
+        <ReplaceWith>120</ReplaceWith>
+    </Parameter>
+</ReplaceableTestParameters>
