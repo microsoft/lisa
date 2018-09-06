@@ -188,7 +188,7 @@
         <Area>BVT</Area>
         <Tags>bvt</Tags>
     </test>
-        <test>
+    <test>
         <testName>BVT-CORE-TIMESYNC-NTP</testName>
         <testScript>BVT-CORE-TIMESYNC-NTP.sh</testScript>
         <files>.\TestScripts\Linux\BVT-CORE-TIMESYNC-NTP.sh,.\TestScripts\Linux\utils.sh</files>
@@ -230,12 +230,15 @@
         <Tags>core</Tags>
     </test>
     <test>
-        <testName>BVT-CORE-RELOAD-MODULES</testName>
+        <testName>BVT-CORE-RELOAD-MODULES-SMP</testName>
+        <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1</setupScript>
         <testScript>BVT-CORE-RELOAD-MODULES.ps1</testScript>
         <files>.\TestScripts\Linux\BVT-CORE-RELOAD-MODULES.sh,.\TestScripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>Stress</setupType>
         <TestParameters>
             <param>TC_COVERED=CORE-18</param>
+            <param>VCPU=8</param>
+            <param>LoopCount=100</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
