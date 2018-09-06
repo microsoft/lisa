@@ -6,6 +6,7 @@ function Main {
         $resultArr = @()
         $Stage2Result = $true
         $SuperUser = "root"
+        $FailureCount = 0
         #Enable SRIOV
         for ($TestIteration = 1 ; $TestIteration -le [int]$CurrentTestData.TestIterations; $TestIteration ++ ) {
             if ($Stage2Result) {
@@ -27,18 +28,21 @@ function Main {
                         $resultArr += "FAIL"
                         $CurrentTestResult.TestSummary += CreateResultSummary -testResult "FAIL" -metaData "EnableSRIOV : Test Iteration - $TestIteration" `
                         -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+                        $FailureCount += 1
                     }
                 } else {
                     LogMsg "Test Accelerated networking : Failed."
                     $Stage1Result = $false
                     $resultArr += "FAIL"
                     $CurrentTestResult.TestSummary += CreateResultSummary -testResult "FAIL" -metaData "EnableSRIOV : Test Iteration - $TestIteration" `
-                    -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName                    
+                    -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+                    $FailureCount += 1
                 }
             }
             else {
                 #Break the for loop.
                 $resultArr += "FAIL"
+                $FailureCount += 1
                 break;
             }
 
@@ -62,29 +66,42 @@ function Main {
                         $resultArr += "FAIL"
                         $CurrentTestResult.TestSummary += CreateResultSummary -testResult "FAIL" -metaData "DisableSRIOV : Test Iteration - $TestIteration" `
                         -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+                        $FailureCount += 1
                     }
                 } else {
                     LogMsg "Test Accelerated networking : Failed."
                     $Stage2Result = $false
                     $resultArr += "FAIL"
                     $CurrentTestResult.TestSummary += CreateResultSummary -testResult "FAIL" -metaData "DisableSRIOV : Test Iteration - $TestIteration" `
-                    -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName                    
+                    -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+                    $FailureCount += 1
                 }
             }
             else {
                 #Break the for loop.
                 $resultArr += "FAIL"
+                $FailureCount += 1
                 break;
             }
         }
+
+        if ($FailureCount -eq 0) {
+            $testResult = "PASS"
+        } else {
+            $testResult = "FAIL"
+        }
+        LogMsg "Test Completed."
+        LogMsg "Test Result: $testResult"
+
     }
     catch {
         $ErrorMessage = $_.Exception.Message
-        LogErr "EXCEPTION : $ErrorMessage"
+        $ErrorLine = $_.InvocationInfo.ScriptLineNumber
+        LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     }
     Finally {
         if (!$testResult) {
-            $testResult = "Aborted"
+            $testResult = "ABORTED"
         }
         $resultArr += $testResult
     }

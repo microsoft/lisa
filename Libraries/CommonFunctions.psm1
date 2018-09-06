@@ -2113,9 +2113,9 @@ Function GetVMLogs($allVMData)
 		try
 		{
 			LogMsg "Collecting logs from IP : $testIP PORT : $testPort"	
-			RemoteCopy -upload -uploadTo $testIP -username $user -port $testPort -password $password -files '.\Testscripts\Linux\LIS-LogCollector.sh'
-			RunLinuxCmd -username $user -password $password -ip $testIP -port $testPort -command 'chmod +x LIS-LogCollector.sh'
-			$out = RunLinuxCmd -username $user -password $password -ip $testIP -port $testPort -command './LIS-LogCollector.sh -v' -runAsSudo
+			RemoteCopy -upload -uploadTo $testIP -username $user -port $testPort -password $password -files '.\Testscripts\Linux\CORE-LogCollector.sh'
+			RunLinuxCmd -username $user -password $password -ip $testIP -port $testPort -command 'chmod +x CORE-LogCollector.sh'
+			$out = RunLinuxCmd -username $user -password $password -ip $testIP -port $testPort -command './CORE-LogCollector.sh -v' -runAsSudo
 			LogMsg $out
 			RemoteCopy -download -downloadFrom $testIP -username $user -password $password -port $testPort -downloadTo $LogDir -files $LisLogFile
 			LogMsg "Logs collected successfully from IP : $testIP PORT : $testPort"
@@ -3952,25 +3952,35 @@ Function Test-SRIOVInLinuxGuest {
 		#Optional
 		[int]$ExpectedSriovNics
 	)
+
+	$MaximumAttempts = 10
+	$Attempts = 1
 	$VerificationCommand = "lspci | grep Mellanox | wc -l"
-	$DetectedSRIOVNics = RunLinuxCmd -username $username -password $password -ip $IpAddress -port $SSHPort -command $VerificationCommand
-	$DetectedSRIOVNics = [int]$DetectedSRIOVNics
-	if ($ExpectedSriovNics -ge 0) {
-		if ($DetectedSRIOVNics -eq $ExpectedSriovNics) {
-			$retValue = $true
-			LogMsg "$DetectedSRIOVNics Mellanox NIC(s) deteted in VM. Expected: $ExpectedSriovNics."
+	$retValue = $false
+	while ($retValue -eq $false -and $Attempts -le $MaximumAttempts) {
+		LogMsg "[Attempt $Attempts/$MaximumAttempts] Detecting Mellanox NICs..."
+		$DetectedSRIOVNics = RunLinuxCmd -username $username -password $password -ip $IpAddress -port $SSHPort -command $VerificationCommand
+		$DetectedSRIOVNics = [int]$DetectedSRIOVNics
+		if ($ExpectedSriovNics -ge 0) {
+			if ($DetectedSRIOVNics -eq $ExpectedSriovNics) {
+				$retValue = $true
+				LogMsg "$DetectedSRIOVNics Mellanox NIC(s) deteted in VM. Expected: $ExpectedSriovNics."
+			} else {
+				$retValue = $false
+				LogErr "$DetectedSRIOVNics Mellanox NIC(s) deteted in VM. Expected: $ExpectedSriovNics."
+				Start-Sleep -Seconds 20
+			}
 		} else {
-			$retValue = $false
-			LogErr "$DetectedSRIOVNics Mellanox NIC(s) deteted in VM. Expected: $ExpectedSriovNics."
+			if ($DetectedSRIOVNics -gt 0) {
+				$retValue = $true
+				LogMsg "$DetectedSRIOVNics Mellanox NIC(s) deteted in VM."
+			} else {
+				$retValue = $false
+				LogErr "$DetectedSRIOVNics Mellanox NIC(s) deteted in VM."
+				Start-Sleep -Seconds 20
+			}
 		}
-	} else {
-		if ($DetectedSRIOVNics -gt 0) {
-			$retValue = $true
-			LogMsg "$DetectedSRIOVNics Mellanox NIC(s) deteted in VM."
-		} else {
-			$retValue = $false
-			LogErr "$DetectedSRIOVNics Mellanox NIC(s) deteted in VM."
-		}
+		$Attempts += 1
 	}
 	return $retValue
 }

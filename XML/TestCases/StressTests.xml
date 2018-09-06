@@ -29,4 +29,18 @@
         <Area>stress</Area>
         <Tags>stress,boot,network,sriov</Tags>
     </test>
+        <test>
+        <testName>STRESSTEST-RELOAD-MODULES-UP</testName>
+        <testScript>BVT-CORE-RELOAD-MODULES.ps1</testScript>
+        <files>.\TestScripts\Linux\BVT-CORE-RELOAD-MODULES.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>TC_COVERED=CORE-18b</param>
+            <param>LoopCount=1000</param>
+        </TestParameters>
+        <Platform>Azure,HyperV</Platform>
+        <Category>BVT</Category>
+        <Area>Stress</Area>
+        <Tags>stress</Tags>
+    </test>
 </TestCases>
