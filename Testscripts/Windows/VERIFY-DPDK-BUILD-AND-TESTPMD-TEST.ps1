@@ -4,6 +4,7 @@
 function Main {
     # Create test result 
     $result = ""
+    $superUser = "root"
     $currentTestResult = CreateTestResultObject
     $resultArr = @()
 
@@ -43,8 +44,9 @@ function Main {
         #endregion
 
         LogMsg "Getting Active NIC Name."
-        $clientNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "route | grep '^default' | grep -o '[^ ]*$' 2>&1 | ip route | grep default | tr ' ' '\n' | grep eth").Trim()
-        $serverNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username "root" -password $password -command "route | grep '^default' | grep -o '[^ ]*$' 2>&1 | ip route | grep default | tr ' ' '\n' | grep eth").Trim()
+        $getNicCmd = ". ./utils.sh &> /dev/null && get_active_nic_name"
+        $clientNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -command $getNicCmd).Trim()
+        $serverNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username $superUser -password $password -command $getNicCmd).Trim()
         if ($serverNicName -eq $clientNicName) {
             $nicName = $clientNicName
         } else {
@@ -86,21 +88,20 @@ cd /root/
 collect_VM_properties
 "@
         Set-Content "$LogDir\StartDpdkTestPmd.sh" $myString
-        RemoteCopy -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files ".\$constantsFile,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkSetup.sh,.\Testscripts\Linux\dpdkTestPmd.sh,.\$LogDir\StartDpdkTestPmd.sh" -username "root" -password $password -upload
-        RemoteCopy -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files $currentTestData.files -username "root" -password $password -upload
+        RemoteCopy -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files ".\$constantsFile,.\$LogDir\StartDpdkTestPmd.sh" -username $superUser -password $password -upload
 
-        $out = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "chmod +x *.sh"
-        $testJob = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "./StartDpdkTestPmd.sh" -RunInBackground
+        $out = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -command "chmod +x *.sh"
+        $testJob = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -command "./StartDpdkTestPmd.sh" -RunInBackground
         #endregion
 
         #region MONITOR TEST
         while ((Get-Job -Id $testJob).State -eq "Running") {
-            $currentStatus = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "tail -2 dpdkConsoleLogs.txt | head -1"
+            $currentStatus = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -command "tail -2 dpdkConsoleLogs.txt | head -1"
             LogMsg "Current Test Staus : $currentStatus"
             WaitFor -seconds 20
         }
-        $finalStatus = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "cat /root/state.txt"
-        RemoteCopy -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "*.csv, *.txt, *.log, *.tar.gz"
+        $finalStatus = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -command "cat /root/state.txt"
+        RemoteCopy -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -download -downloadTo $LogDir -files "*.csv, *.txt, *.log"
         
         if ($finalStatus -imatch "TestFailed") {
             LogErr "Test failed. Last known status : $currentStatus."
@@ -113,6 +114,7 @@ collect_VM_properties
         elseif ($finalStatus -imatch "TestCompleted") {
             LogMsg "Test Completed."
             $testResult = "PASS"
+            RemoteCopy -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -download -downloadTo $LogDir -files "*.tar.gz"
         }
         elseif ($finalStatus -imatch "TestRunning") {
             LogMsg "Powershell backgroud job for test is completed but VM is reporting that test is still running. Please check $LogDir\zkConsoleLogs.txt"
@@ -148,9 +150,9 @@ collect_VM_properties
                 $ProtocolType = "TCP"
                 $connectionString = "Server=$dataSource;uid=$DBuser; pwd=$DBpassword;Database=$database;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
 
-                $SQLQuery = "INSERT INTO $dataTableName (TestPlatFrom,TestCaseName,TestDate,HostType,HostBy,HostOS,GuestOSType,GuestDistro,GuestSize,KernelVersion,LISVersion,IPVersion,ProtocolType,DataPath,DPDKVersion,TestMode,Max_Rxpps,Txpps,Rxpps,Txbytes,Rxbytes,Txpackets,Rxpackets,Re_Txpps,Re_Txbytes,Re_Txpackets,Tx_PacketSize_KBytes,Rx_PacketSize_KBytes) VALUES "
+                $SQLQuery = "INSERT INTO $dataTableName (TestPlatFrom,TestCaseName,TestDate,HostType,HostBy,HostOS,GuestOSType,GuestDistro,GuestSize,KernelVersion,LISVersion,IPVersion,ProtocolType,DataPath,DPDKVersion,TestMode,Cores,Max_Rxpps,Txpps,Fwdpps,Rxpps,Txbytes,Rxbytes,Fwdbytes,Txpackets,Rxpackets,Fwdpackets,Tx_PacketSize_KBytes,Rx_PacketSize_KBytes) VALUES "
                 foreach ($mode in $testpmdDataCsv) {
-                    $SQLQuery += "('$TestPlatform','$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$HostType','$HostBy','$HostOS','$GuestOSType','$GuestDistro','$GuestSize','$KernelVersion','Inbuilt','$IPVersion','$ProtocolType','$DataPath','$($mode.DpdkVersion)','$($mode.TestMode)','$($mode.MaxRxPps)','$($mode.TxPps)','$($mode.RxPps)','$($mode.TxBytes)','$($mode.RxBytes)','$($mode.TxPackets)','$($mode.RxPackets)','$($mode.ReTxPps)','$($mode.ReTxBytes)','$($mode.ReTxPackets)','$($mode.TxPacketSize)','$($mode.RxPacketSize)'),"
+                    $SQLQuery += "('$TestPlatform','$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$HostType','$HostBy','$HostOS','$GuestOSType','$GuestDistro','$GuestSize','$KernelVersion','Inbuilt','$IPVersion','$ProtocolType','$DataPath','$($mode.DpdkVersion)','$($mode.TestMode)','$($mode.Cores)','$($mode.MaxRxPps)','$($mode.TxPps)','$($mode.RxPps)','$($mode.FwdPps)','$($mode.TxBytes)','$($mode.RxBytes)','$($mode.FwdBytes)','$($mode.TxPackets)','$($mode.RxPackets)','$($mode.FwdPackets)','$($mode.TxPacketSize)','$($mode.RxPacketSize)'),"
                     LogMsg "Collected performace data for $($mode.TestMode) mode."
                 }
                 $SQLQuery = $SQLQuery.TrimEnd(',')
@@ -166,18 +168,20 @@ collect_VM_properties
                 $connection.Close()
                 LogMsg "Uploading the test results done!!"
             } else {
-                LogMsg "Invalid database details. Failed to upload result to database!"
+                LogErr "Invalid database details. Failed to upload result to database!"
             }
         } catch {
             $ErrorMessage =  $_.Exception.Message
             throw "$ErrorMessage"
+            $testResult = "FAIL"
         }
         LogMsg "Test result : $testResult"
         LogMsg ($testpmdDataCsv | Format-Table | Out-String)
     } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+        LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+        $testResult = "FAIL"
     } finally {
         $metaData = "DPDK RESULT"
         if (!$testResult) {

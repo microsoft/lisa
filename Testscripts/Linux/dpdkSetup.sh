@@ -9,43 +9,25 @@
 
 HOMEDIR=`pwd`
 CONSTANTS_FILE="./constants.sh"
-
-ICA_TESTCONFIGURATION="TestConfiguration" # The test configuration is running
-ICA_TESTRUNNING="TestRunning"           # The test is running
-ICA_TESTCOMPLETED="TestCompleted"       # The test completed successfully
-ICA_TESTABORTED="TestAborted"           # Error during the setup of the test
-ICA_TESTFAILED="TestFailed"             # Error occurred during the test
-touch ./dpdkRuntime.log
-
-LogMsg()
-{
-	echo `date "+%b %d %Y %T"` : "${1}"    # Add the time stamp to the log message
-	echo `date "+%b %d %Y %T"` : "${1}" >> $HOMEDIR/dpdkRuntime.log
-}
-
-UpdateTestState()
-{
-    echo "${1}" > $HOMEDIR/state.txt
-}
-
-LogMsg "*********INFO: Script execution Started********"
-
-if [ -e ${CONSTANTS_FILE} ]; then
-    source ${CONSTANTS_FILE}
-else
-    errMsg="Error: missing ${CONSTANTS_FILE} file"
-    LogMsg "${errMsg}"
-    UpdateTestState $ICA_TESTABORTED
-    exit 10
-fi
-
-dpdkSrcTar="${dpdkSrcLink##*/}"
-dpdkVersion=`echo $dpdkSrcTar | grep -Po "(\d+\.)+\d+"`
-dpdkSrcDir=""
+UTIL_FILE="./utils.sh"
 DPDK_BUILD=x86_64-native-linuxapp-gcc
 srcIp=""
 dstIp=""
 
+. ${CONSTANTS_FILE} || {
+	echo "ERROR: unable to source ${CONSTANTS_FILE}!"
+	echo "TestAborted" > state.txt
+	exit 1
+}
+. ${UTIL_FILE} || {
+	echo "ERROR: unable to source ${UTIL_FILE}!"
+	echo "TestAborted" > state.txt
+	exit 2
+}
+# Source constants file and initialize most common variables
+UtilsInit
+
+LogMsg "*********INFO: Script execution Started********"
 dhclient eth1 eth2
 ssh root@${server} "dhclient eth1 eth2"
 sleep 5
@@ -68,7 +50,7 @@ function checkCmdExitStatus ()
 
 	if [ $exit_status -ne 0 ]; then
 		echo "$cmd: FAILED (exit code: $exit_status)"
-		UpdateTestState ICA_TESTFAILED
+		SetTestStateAborted
 		exit $exit_status
 	else
 		echo "$cmd: SUCCESS" 
@@ -77,7 +59,7 @@ function checkCmdExitStatus ()
 
 function hugePageSetup ()
 {
-	UpdateTestState "Huge page setup is running"
+	LogMsg "Huge page setup is running"
 	ssh ${1} "mkdir -p  /mnt/huge"
 	ssh ${1} "mkdir -p  /mnt/huge-1G"
 	ssh ${1} "mount -t hugetlbfs nodev /mnt/huge"
@@ -91,43 +73,63 @@ function hugePageSetup ()
 
 function installDPDK ()
 {
-	UpdateTestState ICA_TESTCONFIGURATION
-	DISTRO=`grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os" /etc/{issue,*release,*version} /usr/lib/os-release`
+	SetTestStateRunning
 	srcIp=${2}
 	dstIp=${3}
-	LogMsg "Configuring ${1} for DPDK test..."
-	if [[ $DISTRO =~ "Ubuntu" ]];
-	then
-		LogMsg "Detected UBUNTU"
-		ssh ${1} "until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done"
-		ssh ${1} "add-apt-repository ppa:canonical-server/dpdk-mlx-tech-preview"
-		ssh ${1} "apt-get update"
-		LogMsg "Configuring ${1} for DPDK test..."
-		ssh ${1} "apt-get install -y gcc wget psmisc tar make dpdk dpdk-doc dpdk-dev libdpdk-dev librdmacm-dev librdmacm1 build-essential libnuma-dev libpcap-dev ibverbs-utils"
-	elif [[ $DISTRO =~ "CentOS Linux release 7" ]] || [[ $DISTRO =~ "Red Hat Enterprise Linux Server release 7" ]]; 
-	then
-		LogMsg "Detected RHEL/CENTOS 7.x"
-		ssh ${1} "yum -y groupinstall 'Infiniband Support'"
-		ssh ${1} "yum install -y kernel-devel-`uname -r` gcc make psmisc numactl-devel.x86_64 numactl-debuginfo.x86_64 numad.x86_64 numactl.x86_64 numactl-libs.x86_64 libpcap-devel librdmacm-devel librdmacm dpdk-doc dpdk-devel librdmacm-utils libibcm libibverbs-utils libibverbs"
-		ssh ${1} "dracut --add-drivers 'mlx4_en mlx4_ib mlx5_ib' -f "
-		ssh ${1} "systemctl enable rdma"
-	elif [[ $DISTRO =~ "SUSE Linux Enterprise Server 15" ]];
-	then
-		LogMsg "Detected SLES 15"
-		ssh ${1} "zypper addrepo https://download.opensuse.org/repositories/network:utilities/SLE_15/network:utilities.repo"
-		ssh ${1} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys refresh"
-		ssh ${1} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install kernel-devel kernel-default-devel wget tar bc gcc make psmisc libnuma-devel numactl numad libpcap-devel librdmacm1 librdmacm-utils rdma-core-devel libdpdk-17_11-0"
-	else
-		LogMsg "Unknown Distro"
-		UpdateTestState "TestAborted"
-		UpdateSummary "Unknown Distro, test aborted"
-		return 1
+	LogMsg "Configuring ${1} ${DISTRO_NAME} ${DISTRO_VERSION} for DPDK test..."
+	packages=(gcc make git tar wget dos2unix psmisc make)
+	case "${DISTRO_NAME}" in
+		oracle|rhel|centos)
+			ssh ${1} ". ${UTIL_FILE} && install_epel"
+			ssh ${1} "yum -y groupinstall 'Infiniband Support' && dracut --add-drivers 'mlx4_en mlx4_ib mlx5_ib' -f && systemctl enable rdma"
+			checkCmdExitStatus "Install Infiniband Support on ${1}"
+			packages+=(kernel-devel-`uname -r` numactl-devel.x86_64 librdmacm-devel) 
+			;;
+		ubuntu|debian)
+			ssh ${1} "until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done"
+			if [[ "${DISTRO_VERSION}" == "16.04" ]];
+			then
+				LogMsg "Adding dpdk repo to ${DISTRO_NAME} ${DISTRO_VERSION} for DPDK test..."
+				ssh ${1} "add-apt-repository ppa:canonical-server/dpdk-azure -y"
+			fi
+			ssh ${1} ". ${UTIL_FILE} && update_repos"
+			packages+=(librdmacm-dev librdmacm1 build-essential libnuma-dev libelf-dev)
+			;;
+		suse|opensuse|sles)
+			ssh ${1} ". ${UTIL_FILE} && add_sles_network_utilities_repo"
+			local kernel=$(uname -r)
+			if [[ "${kernel}" == *azure ]]; then
+				packages+=(kernel-devel-azure)
+			else
+				packages+=(kernel-default-devel)
+			fi
+			packages+=(libnuma-devel numactl librdmacm1 rdma-core-devel libmnl-devel)
+			;;
+		*)
+			echo "Unknown distribution"
+			SetTestStateAborted
+			exit 1
+	esac
+	ssh ${1} ". ${UTIL_FILE} && install_package ${packages[@]}"
+
+	if [[ $dpdkSrcLink =~ .tar ]]; then
+		dpdkSrcTar="${dpdkSrcLink##*/}"
+		dpdkVersion=`echo $dpdkSrcTar | grep -Po "(\d+\.)+\d+"`
+		LogMsg "Installing DPDK from source file $dpdkSrcTar"
+		ssh ${1} "wget $dpdkSrcLink -P /tmp"
+		ssh ${1} "tar xvf /tmp/$dpdkSrcTar"
+		checkCmdExitStatus "tar xvf /tmp/$dpdkSrcTar on ${1}"
+		dpdkSrcDir="${dpdkSrcTar%%".tar"*}"
+		LogMsg "dpdk source on ${1} $dpdkSrcDir"
+	elif [[ $dpdkSrcLink =~ "git" ]]; then
+		dpdkSrcDir="${dpdkSrcLink##*/}"
+		LogMsg "Installing DPDK from source file $dpdkSrcDir"
+		ssh ${1} git clone $dpdkSrcLink
+		checkCmdExitStatus "git clone $dpdkSrcLink on ${1}"
+		cd $dpdkSrcDir
+		LogMsg "dpdk source on ${1} $dpdkSrcDir"
 	fi
-	LogMsg "Installing DPDK from source file $dpdkSrcTar"
-	ssh ${1} "wget $dpdkSrcLink -P /tmp"
-	ssh ${1} "tar xvf /tmp/$dpdkSrcTar"
-	dpdkSrcDir=`ls | grep dpdk-`
-	LogMsg "dpdk source on ${1} $dpdkSrcDir"
+
 	if [ ! -z "$srcIp" -a "$srcIp" != " " ];
 	then
 		LogMsg "dpdk build with NIC SRC IP $srcIp ADDR on ${1}"
@@ -157,7 +159,7 @@ function installDPDK ()
 	checkCmdExitStatus "${1} CONFIG_RTE_LIBRTE_MLX4_PMD=y"
 	ssh ${1} "cd $HOMEDIR/$dpdkSrcDir && make config O=$DPDK_BUILD T=$DPDK_BUILD"
 	LogMsg "Starting DPDK build make on ${1}"
-	ssh ${1} "cd $HOMEDIR/$dpdkSrcDir/$DPDK_BUILD && make -j8"
+	ssh ${1} "cd $HOMEDIR/$dpdkSrcDir/$DPDK_BUILD && make -j8 && make install"
 	checkCmdExitStatus "dpdk build on ${1}"
 	LogMsg "*********INFO: Installed DPDK version on ${1} is ${dpdkVersion} ********"
 }
