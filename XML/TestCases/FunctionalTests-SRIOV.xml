@@ -51,4 +51,16 @@
         <Area>SRIOV</Area>
         <Tags>sriov,network</Tags>
     </test>
+    <test>
+        <testName>VERIFY-ENABLE-DISABLE-SRIOV-ON-EXISTING-VM</testName>
+        <setupType>SingleVM</setupType>
+        <OverrideVMSize>Standard_D3_v2</OverrideVMSize>
+        <testScript>VERIFY-ENABLE-DISABLE-SRIOV-ON-EXISTING-VM.ps1</testScript>
+        <files></files>
+        <TestIterations>5</TestIterations>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>SRIOV</Area>
+        <Tags>sriov,network</Tags>
+    </test>    
 </TestCases>

@@ -2541,3 +2541,142 @@ Function RestartAllAzureDeployments($allVMData)
 	$isSSHOpened = isAllSSHPortsEnabledRG -AllVMDataObject $AllVMData
 	return $isSSHOpened
 }
+
+Function Enable-SRIOVinAzureVM($ResourceGroup, $VMName) {
+    try {
+        #Get the primary NIC information.
+
+        $PrimaryNIC = Get-AzureRmNetworkInterface -ResourceGroupName $ResourceGroup `
+            | Where-Object { $($_.VirtualMachine.Id | Split-Path -leaf) -eq $VMName `
+                -and $_.Primary -eq $true }
+        if ($PrimaryNIC.EnableAcceleratedNetworking -eq $false) {
+            LogMsg "Current Accelerated networking status : DISABLED."
+            LogMsg "Shutting down $VMName..."
+            $StopVM = Stop-AzureRmVM -ResourceGroup $ResourceGroup -Name $VMName -Force
+
+            #Enable EnableAccelerated Networking
+            $PrimaryNIC.EnableAcceleratedNetworking = $true
+            $PrimaryNIC | Set-AzureRmNetworkInterface
+            LogMsg "Updated NIC configuration in $VMName successfuly."
+
+            #Start the VM..
+            LogMsg "Starting VM..."
+            $StartVM = Start-AzureRmVM -ResourceGroup $ResourceGroup -Name $VMName
+
+            #Public IP address changes most of the times, when we shutdown the VM.
+            #Hence, we need to refresh the data
+            $AllVMData = GetAllDeployementData -ResourceGroups $ResourceGroup
+            $VMData = $AllVMData | Where-Object {$_.ResourceGroupName -eq $ResourceGroup `
+                    -and $_.RoleName -eq $VMName }
+
+            #Verify if SSH is available
+            $isSSHOpened = isAllSSHPortsEnabledRG -AllVMDataObject $VMData
+            if ($isSSHOpened -eq "True") {
+                $isRestarted = $true
+            }
+            else {
+                LogErr "VM is not available after restart"
+                $isRestarted = $false
+            }
+
+            #Verify if EnableAccelerated Networking is enabled for NIC.
+            $PrimaryNIC = Get-AzureRmNetworkInterface -ResourceGroupName $ResourceGroup `
+                | Where-Object { $($_.VirtualMachine.Id | Split-Path -leaf) -eq $VMName `
+                    -and $_.Primary -eq $true }
+            if ($PrimaryNIC.EnableAcceleratedNetworking -eq $true) {
+                $NicVerified = $true
+            }
+            else {
+                $NicVerified = $false
+            }
+            if ($isRestarted -and $NicVerified) {
+                $retValue = $true
+                LogMsg "Accelarated networking enabled successfully for $VMName"
+            }
+            else {
+                $retValue = $false
+                LogErr "Accelarated networking enable failed for $VMName"
+            }
+        }
+        else {
+            $retValue = $true
+            LogMsg "Accelerated networking is already enabled for $VMName"
+        }
+    }
+    catch {
+        $retValue = $false
+        $ErrorMessage = $_.Exception.Message
+        $ErrorLine = $_.InvocationInfo.ScriptLineNumber
+        LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+    }
+    return $retValue
+}
+
+Function Disable-SRIOVinAzureVM($ResourceGroup, $VMName) {
+    try {
+        #Get the primary NIC information.
+
+        $PrimaryNIC = Get-AzureRmNetworkInterface -ResourceGroupName $ResourceGroup `
+            | Where-Object { $($_.VirtualMachine.Id | Split-Path -leaf) -eq $VMName `
+                -and $_.Primary -eq $true }
+        if ($PrimaryNIC.EnableAcceleratedNetworking -eq $true) {
+            LogMsg "Current Accelerated networking status : ENABLED."
+            LogMsg "Shutting down $VMName..."
+            $StopVM = Stop-AzureRmVM -ResourceGroup $ResourceGroup -Name $VMName -Force
+
+            #Enable EnableAccelerated Networking
+            $PrimaryNIC.EnableAcceleratedNetworking = $false
+            $PrimaryNIC | Set-AzureRmNetworkInterface
+            LogMsg "Updated NIC configuration in $VMName successfuly."
+            #Start the VM..
+            LogMsg "Starting VM..."
+            $StartVM = Start-AzureRmVM -ResourceGroup $ResourceGroup -Name $VMName
+
+            #Public IP address changes most of the times, when we shutdown the VM.
+            #Hence, we need to refresh the data
+            $AllVMData = GetAllDeployementData -ResourceGroups $ResourceGroup
+            $VMData = $AllVMData | Where-Object {$_.ResourceGroupName -eq $ResourceGroup `
+                    -and $_.RoleName -eq $VMName }
+
+            #Verify if SSH is available
+            $isSSHOpened = isAllSSHPortsEnabledRG -AllVMDataObject $VMData
+            if ($isSSHOpened -eq "True") {
+                $isRestarted = $true
+            }
+            else {
+                LogErr "VM is not available after restart"
+                $isRestarted = $false
+            }
+
+            #Verify if EnableAccelerated Networking is enabled for NIC.
+            $PrimaryNIC = Get-AzureRmNetworkInterface -ResourceGroupName $ResourceGroup `
+                | Where-Object { $($_.VirtualMachine.Id | Split-Path -leaf) -eq $VMName `
+                    -and $_.Primary -eq $true }
+            if ($PrimaryNIC.EnableAcceleratedNetworking -eq $false) {
+                $NicVerified = $true
+            }
+            else {
+                $NicVerified = $false
+            }
+            if ($isRestarted -and $NicVerified) {
+                $retValue = $true
+                LogMsg "Accelarated networking disabled successfully for $VMName"
+            }
+            else {
+                $retValue = $false
+                LogErr "Accelarated networking disalbe failed for $VMName"
+            }
+        }
+        else {
+            $retValue = $true
+            LogMsg "Accelerated networking is already disabled for $VMName"
+        }
+    }
+    catch {
+        $retValue = $false
+        $ErrorMessage = $_.Exception.Message
+        $ErrorLine = $_.InvocationInfo.ScriptLineNumber
+        LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+    }
+    return $retValue
+}

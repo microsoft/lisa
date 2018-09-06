@@ -2237,8 +2237,9 @@ Function GetAllDeployementData($ResourceGroups)
 			$QuickVMNode.Location = $currentRGLocation
 			$allDeployedVMs += $QuickVMNode
 		}
-		LogMsg "Collected $ResourceGroup data!"		
+		LogMsg "Collected $ResourceGroup data!"
 	}
+	Set-Variable -Name AllVMData -Value $allDeployedVMs -Scope Global
 	return $allDeployedVMs
 }
 
@@ -3938,4 +3939,38 @@ function Get-NumaSupportStatus {
     # We skip the check if kernel is not 2.6
     # Anything newer will have support for it
     return $true
+}
+
+Function Test-SRIOVInLinuxGuest {
+	param (
+		#Required
+		[string]$username,
+		[string]$password,
+		[string]$IpAddress,
+		[int]$SSHPort,
+
+		#Optional
+		[int]$ExpectedSriovNics
+	)
+	$VerificationCommand = "lspci | grep Mellanox | wc -l"
+	$DetectedSRIOVNics = RunLinuxCmd -username $username -password $password -ip $IpAddress -port $SSHPort -command $VerificationCommand
+	$DetectedSRIOVNics = [int]$DetectedSRIOVNics
+	if ($ExpectedSriovNics -ge 0) {
+		if ($DetectedSRIOVNics -eq $ExpectedSriovNics) {
+			$retValue = $true
+			LogMsg "$DetectedSRIOVNics Mellanox NIC(s) deteted in VM. Expected: $ExpectedSriovNics."
+		} else {
+			$retValue = $false
+			LogErr "$DetectedSRIOVNics Mellanox NIC(s) deteted in VM. Expected: $ExpectedSriovNics."
+		}
+	} else {
+		if ($DetectedSRIOVNics -gt 0) {
+			$retValue = $true
+			LogMsg "$DetectedSRIOVNics Mellanox NIC(s) deteted in VM."
+		} else {
+			$retValue = $false
+			LogErr "$DetectedSRIOVNics Mellanox NIC(s) deteted in VM."
+		}
+	}
+	return $retValue
 }
