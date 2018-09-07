@@ -28,18 +28,6 @@ dstIp=""
 UtilsInit
 
 LogMsg "*********INFO: Script execution Started********"
-dhclient eth1 eth2
-ssh root@${server} "dhclient eth1 eth2"
-sleep 5
-clientIPs=($(ssh root@${client} "hostname -I | awk '{print $1}'"))
-serverIPs=($(ssh root@${server} "hostname -I | awk '{print $1}'"))
-
-serverNIC1ip=${serverIPs[1]}
-serverNIC2ip=${serverIPs[2]}
-
-clientNIC1ip=${clientIPs[1]}
-clientNIC2ip=${clientIPs[2]}
-
 echo "server-vm : eth0 : ${server} : eth1 : ${serverNIC1ip} eth2 : ${serverNIC2ip}"
 echo "client-vm : eth0 : ${client} : eth1 : ${clientNIC1ip} eth2 : ${clientNIC2ip}"
 
@@ -98,7 +86,8 @@ function installDPDK ()
 		suse|opensuse|sles)
 			ssh ${1} ". ${UTIL_FILE} && add_sles_network_utilities_repo"
 			local kernel=$(uname -r)
-			if [[ "${kernel}" == *azure ]]; then
+			if [[ "${kernel}" == *azure ]];
+			then
 				packages+=(kernel-devel-azure)
 			else
 				packages+=(kernel-default-devel)
@@ -112,7 +101,8 @@ function installDPDK ()
 	esac
 	ssh ${1} ". ${UTIL_FILE} && install_package ${packages[@]}"
 
-	if [[ $dpdkSrcLink =~ .tar ]]; then
+	if [[ $dpdkSrcLink =~ .tar ]];
+	then
 		dpdkSrcTar="${dpdkSrcLink##*/}"
 		dpdkVersion=`echo $dpdkSrcTar | grep -Po "(\d+\.)+\d+"`
 		LogMsg "Installing DPDK from source file $dpdkSrcTar"
@@ -121,13 +111,16 @@ function installDPDK ()
 		checkCmdExitStatus "tar xvf /tmp/$dpdkSrcTar on ${1}"
 		dpdkSrcDir="${dpdkSrcTar%%".tar"*}"
 		LogMsg "dpdk source on ${1} $dpdkSrcDir"
-	elif [[ $dpdkSrcLink =~ "git" ]]; then
+	elif [[ $dpdkSrcLink =~ ".git" ]] || [[ $dpdkSrcLink =~ "git:" ]];
+	then
 		dpdkSrcDir="${dpdkSrcLink##*/}"
 		LogMsg "Installing DPDK from source file $dpdkSrcDir"
 		ssh ${1} git clone $dpdkSrcLink
 		checkCmdExitStatus "git clone $dpdkSrcLink on ${1}"
 		cd $dpdkSrcDir
 		LogMsg "dpdk source on ${1} $dpdkSrcDir"
+	else
+		LogMsg "Provide proper link $dpdkSrcLink"
 	fi
 
 	if [ ! -z "$srcIp" -a "$srcIp" != " " ];

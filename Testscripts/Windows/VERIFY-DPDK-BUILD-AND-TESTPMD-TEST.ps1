@@ -3,9 +3,7 @@
 
 function Main {
     # Create test result 
-    $result = ""
     $superUser = "root"
-    $currentTestResult = CreateTestResultObject
     $resultArr = @()
 
     try {
@@ -133,7 +131,7 @@ collect_VM_properties
             $TestCaseName = $xmlConfig.config.Azure.database.testTag
             
             if ($dataSource -And $DBuser -And $DBpassword -And $database -And $dataTableName) {
-                $GuestDistro = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
+                $GuestDistro = Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object {$_ -replace ",OS type,",""}
                 if ($UseAzureResourceManager) {
                     $HostType = "Azure-ARM"
                 } else {
@@ -141,11 +139,11 @@ collect_VM_properties
                 }
                 
                 $HostBy = ($xmlConfig.config.Azure.General.Location).Replace('"','')
-                $HostOS = cat "$LogDir\VM_properties.csv" | Select-String "Host Version"| %{$_ -replace ",Host Version,",""}
+                $HostOS = Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version"| ForEach-Object {$_ -replace ",Host Version,",""}
                 $GuestOSType = "Linux"
-                $GuestDistro = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
+                $GuestDistro = Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object {$_ -replace ",OS type,",""}
                 $GuestSize = $clientVMData.InstanceSize
-                $KernelVersion = cat "$LogDir\VM_properties.csv" | Select-String "Kernel version"| %{$_ -replace ",Kernel version,",""}
+                $KernelVersion = Get-Content "$LogDir\VM_properties.csv" | Select-String "Kernel version"| ForEach-Object {$_ -replace ",Kernel version,",""}
                 $IPVersion = "IPv4"
                 $ProtocolType = "TCP"
                 $connectionString = "Server=$dataSource;uid=$DBuser; pwd=$DBpassword;Database=$database;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
@@ -169,6 +167,9 @@ collect_VM_properties
                 LogMsg "Uploading the test results done!!"
             } else {
                 LogErr "Invalid database details. Failed to upload result to database!"
+                $ErrorMessage =  $_.Exception.Message
+                $ErrorLine = $_.InvocationInfo.ScriptLineNumber
+                LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
             }
         } catch {
             $ErrorMessage =  $_.Exception.Message
@@ -188,7 +189,7 @@ collect_VM_properties
             $testResult = "Aborted"
         }
         $resultArr += $testResult
-        $currentTestResult.TestSummary +=  CreateResultSummary -testResult $testResult -metaData "DPDK-TESTPMD" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+        $currentTestResult.TestSummary +=  CreateResultSummary -testResult $testResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
     }
     $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult  

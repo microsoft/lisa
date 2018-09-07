@@ -28,20 +28,22 @@ io_mode=""
 UtilsInit
 
 LogMsg "*********INFO: Script execution Started********"
-dhclient eth1 eth2
-ssh root@${server} "dhclient eth1 eth2"
-sleep 5
 clientIPs=($(ssh root@${client} "hostname -I | awk '{print $1}'"))
+if [[ ${clientIPs[1]} == "" ]] || [[ ${clientIPs[2]} == "" ]];
+then
+	LogMsg "Extra NICs doesn't have ips, do dhclient"
+	dhclient eth1 eth2
+	ssh root@${server} "dhclient eth1 eth2"
+	sleep 5
+	clientIPs=($(ssh root@${client} "hostname -I | awk '{print $1}'"))
+else
+	LogMsg "Extra NICs have ips, collect them for test."
+fi
 serverIPs=($(ssh root@${server} "hostname -I | awk '{print $1}'"))
-
-serverNIC1ip=${serverIPs[1]}
-serverNIC2ip=${serverIPs[2]}
-
-clientNIC1ip=${clientIPs[1]}
-clientNIC2ip=${clientIPs[2]}
+echo -e "serverNIC1ip=${serverIPs[1]}\nserverNIC2ip=${serverIPs[2]}\nclientNIC1ip=${clientIPs[1]}\nclientNIC2ip=${clientIPs[2]}" >> ${CONSTANTS_FILE}
+. ${CONSTANTS_FILE}
 echo "server-vm : eth0 : ${server} : eth1 : ${serverNIC1ip} eth2 : ${serverNIC2ip}"
 echo "client-vm : eth0 : ${client} : eth1 : ${clientNIC1ip} eth2 : ${clientNIC2ip}"
-
 
 function checkCmdExitStatus ()
 {
