@@ -2865,6 +2865,24 @@ function Get-TimeSync {
     return $diffInSeconds
 }
 
+function Optimize-TimeSync {
+    param (
+        [String] $Ipv4,
+        [String] $Port,
+        [String] $Username,
+        [String] $Password
+    )
+    $testScript = "timesync_config.sh"
+    $cmdSts = RunLinuxCmd -ip $Ipv4 -port $Port -username $Username `
+        -password $Password -command `
+        "echo '${Password}' | sudo -S -s eval `"export HOME=``pwd``;bash ${testScript} > ${testScript}.log`""
+    if (-not $?) {
+        LogMsg "Error: Failed to configure time sync. Check logs for details."
+        return $False
+    }
+    return $True
+}
+
 function CheckVMState {
     param (
         [String] $VMName,
