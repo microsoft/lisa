@@ -7,7 +7,7 @@
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>        
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
-        <files>.\Testscripts\Linux\utils.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkSetup.sh,.\Testscripts\Linux\dpdkTestPmd.sh</files>
         <TestParameters>
             <param>dpdkSrcLink="DPDK_SOURCE_URL"</param>
             <param>testDuration=DPDK_TEST_DURATION_IN_SECONDS</param>
