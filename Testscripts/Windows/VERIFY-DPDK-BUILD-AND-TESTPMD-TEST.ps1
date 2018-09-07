@@ -184,12 +184,10 @@ collect_VM_properties
         LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
         $testResult = "FAIL"
     } finally {
-        $metaData = "DPDK RESULT"
         if (!$testResult) {
             $testResult = "Aborted"
         }
         $resultArr += $testResult
-        $currentTestResult.TestSummary +=  CreateResultSummary -testResult $testResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
     }
     $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult  
