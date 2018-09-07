@@ -1438,7 +1438,8 @@ Function RemoteCopy($uploadTo, $downloadFrom, $downloadTo, $port, $files, $usern
 
 Function WrapperCommandsToFile([string] $username,[string] $password,[string] $ip,[string] $command, [int] $port)
 {
-    if ( ( $lastLinuxCmd -eq $command) -and ($lastIP -eq $ip) -and ($lastPort -eq $port) -and ($lastUser -eq $username) -and ($TestPlatform -eq "Azure"))
+    if ( ( $lastLinuxCmd -eq $command) -and ($lastIP -eq $ip) `-and ($lastPort -eq $port) `
+        -and ($lastUser -eq $username) -and ($TestPlatform -ne "HyperV"))
     {
         #Skip upload if current command is same as last command.
     }
