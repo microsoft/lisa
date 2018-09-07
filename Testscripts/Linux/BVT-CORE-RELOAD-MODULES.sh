@@ -23,6 +23,11 @@
 # Source constants file and initialize most common variables
 UtilsInit
 
+# If loopCount is not set, assign 100 by default
+if [ "${LoopCount:-UNDEFINED}" = "UNDEFINED" ]; then
+    LoopCount=100
+fi
+
 VerifyModules()
 {
     MODULES=~/modules.txt
@@ -88,7 +93,7 @@ fi
 
 pass=0
 START=$(date +%s)
-while [ $pass -lt 100 ]
+while [ $pass -lt $LoopCount ]
 do
     modprobe -r hv_netvsc
     sleep 1
