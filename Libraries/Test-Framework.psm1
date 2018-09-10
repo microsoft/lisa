@@ -28,6 +28,10 @@ function Get-SecretParams {
                 $value = $detectedDistro
                 $testParams["DETECTED_DISTRO"] = $value
             }
+            "Ipv4" {
+                $value = $AllVMData.PublicIP
+                $testParams["ipv4"] = $value
+            }
         }
     }
 
@@ -73,9 +77,6 @@ function Run-SetupScript {
         [string]$Script,
         [hashtable]$Parameters
     )
-    if (Get-VM -Name $AllVMData[0].RoleName -EA SilentlyContinue){
-        Stop-VM -Name $AllVMData[0].RoleName -TurnOff -Force
-    }
     $workDir = Get-Location
     $scriptLocation = Join-Path $workDir $Script
     $scriptParameters = ""
@@ -86,9 +87,6 @@ function Run-SetupScript {
              -f @($Script,$scriptParameters))
     LogMsg $msg
     $result = & "${scriptLocation}" -TestParams $scriptParameters
-    if (Get-VM -Name $AllVMData[0].RoleName -EA SilentlyContinue){
-        Start-VM -Name $AllVMData[0].RoleName
-    }
     return $result
 }
 
@@ -268,17 +266,21 @@ function Create-HyperVCheckpoint {
 
     param(
         $VMnames,
+        $TestLocation,
         [string]$CheckpointName
     )
 
     foreach ($VMname in $VMnames) {
-        Stop-VM -Name $VMname -TurnOff -Force
-        Set-VM -Name $VMname -CheckpointType Standard
-        Checkpoint-VM -Name $VMname -SnapshotName $CheckpointName
+        Stop-VM -Name $VMname -TurnOff -Force -ComputerName `
+            $TestLocation
+        Set-VM -Name $VMname -CheckpointType Standard -ComputerName `
+            $TestLocation
+        Checkpoint-VM -Name $VMname -SnapshotName $CheckpointName -ComputerName `
+            $TestLocation
         $msg = ("Checkpoint:{0} created for VM:{1}" `
                  -f @($CheckpointName,$VMName))
         LogMsg $msg
-        Start-VM -Name $VMname
+        Start-VM -Name $VMname -ComputerName $TestLocation
     }
 }
 
@@ -291,16 +293,19 @@ function Apply-HyperVCheckpoint {
 
     param(
         $VMnames,
+        $TestLocation,
         [string]$CheckpointName
     )
 
     foreach ($VMname in $VMnames) {
-        Stop-VM -Name $VMname -TurnOff -Force
-        Restore-VMSnapshot -Name $CheckpointName -VMName $VMname -Confirm:$false
+        Stop-VM -Name $VMname -TurnOff -Force -ComputerName `
+            $TestLocation
+        Restore-VMSnapshot -Name $CheckpointName -VMName $VMname -Confirm:$false `
+           -ComputerName $TestLocation
         $msg = ("VM:{0} restored to checkpoint: {1}" `
                  -f ($VMName,$CheckpointName))
         LogMsg $msg
-        Start-VM -Name $VMname
+        Start-VM -Name $VMname -ComputerName $TestLocation
     }
 }
 
@@ -314,6 +319,7 @@ function Check-IP {
 
     param(
         $VMData,
+        $TestLocation,
         [string]$SSHPort,
         [int]$Timeout = 300
     )
@@ -326,7 +332,8 @@ function Check-IP {
             $publicIP = ""
             while (-not $publicIP) {
                 LogMsg "$($VM.RoleName) : Waiting for IP address..."
-                $vmNic = Get-VM -Name $VM.RoleName | Get-VMNetworkAdapter
+                $vmNic = Get-VM -Name $VM.RoleName -ComputerName `
+                    $TestLocation | Get-VMNetworkAdapter
                 $vmIP = $vmNic.IPAddresses[0]
                 if ($vmIP) {
                     $vmIP = $([ipaddress]$vmIP.trim()).IPAddressToString
@@ -444,8 +451,9 @@ function Run-Test {
              -Username $VMUser -password $VMPassword
 
         if ($testPlatform.ToUpper() -eq "HYPERV") {
-            Create-HyperVCheckpoint -VMnames $AllVMData.RoleName -CheckpointName "ICAbase"
-            $AllVMData = Check-IP -VMData $AllVMData
+            Create-HyperVCheckpoint -VMnames $AllVMData.RoleName -TestLocation `
+                $testLocation -CheckpointName "ICAbase"
+            $AllVMData = Check-IP -VMData $AllVMData -TestLocation $testLocation
             Set-Variable -Name AllVMData -Value $AllVMData -Scope Global
             Set-Variable -Name isDeployed -Value $isDeployed -Scope Global
         }
@@ -455,8 +463,9 @@ function Run-Test {
                 RemoveAllFilesFromHomeDirectory -allDeployedVMs $AllVMData
                 LogMsg "Removed all files from home directory."
             } else  {
-                Apply-HyperVCheckpoint -VMnames $AllVMData.RoleName -CheckpointName "ICAbase"
-                $AllVMData = Check-IP -VMData $AllVMData
+                Apply-HyperVCheckpoint -VMnames $AllVMData.RoleName -TestLocation `
+                    $testLocation -CheckpointName "ICAbase"
+                $AllVMData = Check-IP -VMData $AllVMData -TestLocation $testLocation
                 Set-Variable -Name AllVMData -Value $AllVMData -Scope Global
                 LogMsg "Public IP found for all VMs in deployment after checkpoint restore"
             }
@@ -469,8 +478,22 @@ function Run-Test {
     }
 
     if ($testPlatform -eq "Hyperv" -and $CurrentTestData.SetupScript) {
-        $setupResult = Run-SetupScript -Script $CurrentTestData.SetupScript `
-             -Parameters $testParameters
+        foreach ($vmName in $AllVMData.RoleName) {
+            if (Get-VM -Name $vmName -ComputerName `
+                $testLocation -EA SilentlyContinue) {
+                Stop-VM -Name $vmName -TurnOff -Force -ComputerName `
+                    $testLocation
+            }
+            foreach ($script in $($CurrentTestData.SetupScript).Split(",")) {
+                $setupResult = Run-SetupScript -Script $script `
+                    -Parameters $testParameters
+            }
+            if (Get-VM -Name $vmName -ComputerName $testLocation `
+                -EA SilentlyContinue) {
+                Start-VM -Name $vmName -ComputerName `
+                    $testLocation
+            }
+        }
     }
 
     if ($CurrentTestData.files) {
@@ -507,8 +530,22 @@ function Run-Test {
     }
 
     if ($testPlatform -eq "Hyperv" -and $CurrentTestData.CleanupScript) {
-        $setupResult = Run-SetupScript -Script $CurrentTestData.CleanupScript `
-             -Parameters $testParameters
+        foreach ($vmName in $AllVMData.RoleName) {
+            if (Get-VM -Name $vmName -ComputerName `
+                $testLocation -EA SilentlyContinue) {
+                Stop-VM -Name $vmName -TurnOff -Force -ComputerName `
+                    $testLocation
+            }
+            foreach ($script in $($CurrentTestData.CleanupScript).Split(",")) {
+                $setupResult = Run-SetupScript -Script $script `
+                    -Parameters $testParameters
+            }
+            if (Get-VM -Name $vmName -ComputerName $testLocation `
+                -EA SilentlyContinue) {
+                Start-VM -Name $vmName -ComputerName `
+                    $testLocation
+            }
+        }
     }
   
     return $currentTestResult
