@@ -3092,7 +3092,7 @@ function Remove-TestFile{
     }
 }
 
-function Copy-Check-FileInLinuxGuest{
+function Copy-CheckFileInLinuxGuest{
     param(
         [String] $vmName,
         [String] $hvServer,
