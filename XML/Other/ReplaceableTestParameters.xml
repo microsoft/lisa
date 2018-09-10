@@ -43,4 +43,8 @@ Scenario 2 : You need to run all the performance tests quickly.
         <ReplaceThis>DPDK_TEST_DURATION_IN_SECONDS</ReplaceThis>
         <ReplaceWith>120</ReplaceWith>
     </Parameter>
+    <Parameter>
+        <ReplaceThis>LTP_TESTS_GIT_TAG</ReplaceThis>
+        <ReplaceWith>20180515</ReplaceWith>
+    </Parameter>
 </ReplaceableTestParameters>
