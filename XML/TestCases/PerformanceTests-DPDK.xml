@@ -8,8 +8,8 @@
 		</AdditionalHWConfig>
 		<files>.\Testscripts\Linux\dpdk-testPMD.sh,.\Testscripts\Windows\dpdk-testPMD.ps1</files>
 		<TestParameters>
-			<param>DPDK_LINK="https://fast.dpdk.org/rel/dpdk-18.08.tar.xz"</param>
-			<param>TEST_DURATION=120</param>
+			<param>DPDK_LINK="DPDK_SOURCE_URL"</param>
+			<param>TEST_DURATION=DPDK_TEST_DURATION_IN_SECONDS</param>
 			<param>MODES="rxonly fwd"</param>
 		</TestParameters>
 		<Platform>Azure</Platform>
@@ -26,8 +26,8 @@
 		</AdditionalHWConfig>
 		<files>.\Testscripts\Linux\dpdk-testPMD.sh,.\Testscripts\Windows\dpdk-testPMD.ps1</files>
 		<TestParameters>
-			<param>DPDK_LINK="https://fast.dpdk.org/rel/dpdk-18.08.tar.xz"</param>
-			<param>TEST_DURATION=120</param>
+			<param>DPDK_LINK="DPDK_SOURCE_URL"</param>
+			<param>TEST_DURATION=DPDK_TEST_DURATION_IN_SECONDS</param>
 			<param>MODES="rxonly fwd"</param>
 		</TestParameters>
 		<Platform>Azure</Platform>
@@ -44,8 +44,8 @@
 		</AdditionalHWConfig>
 		<files>.\Testscripts\Linux\dpdk-testPMD.sh,.\Testscripts\Windows\dpdk-testPMD.ps1</files>
 		<TestParameters>
-			<param>DPDK_LINK="https://fast.dpdk.org/rel/dpdk-18.08.tar.xz"</param>
-			<param>TEST_DURATION=120</param>
+			<param>DPDK_LINK="DPDK_SOURCE_URL"</param>
+			<param>TEST_DURATION=DPDK_TEST_DURATION_IN_SECONDS</param>
 			<param>MODES="rxonly fwd"</param>
 			<param>CORES="2 4 8 16"</param>
 		</TestParameters>

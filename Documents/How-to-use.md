@@ -134,6 +134,9 @@ Per Category, each XML file has VM name, Resource Group name, etc. We do not rec
             Like 'VERIFY-TEST-SCRIPT-IN-LINUX-GUEST.ps1', the PowerShell script wraps the multiple 
             Bash or Python script as a parameter of 'RunLinuxCmd' function.
     5. Before PR review, we recommend you run script testing in cmdline/API mode. See above instruction.
+    6. Current tags in the Repo: bvt, network, nested, hv_storvsc, stress, disk, dpdk,
+        sriov, kvm, smb, storage, boot, pci_hyperv, core, wala, lsvmbus, synthetic, kvp,
+        gpu, hv_netvsc, ltp, lis, fcopy, memory, backup. They are all lowercases.
 
 ## Coding Style
 
@@ -148,6 +151,7 @@ Per Category, each XML file has VM name, Resource Group name, etc. We do not rec
         a. Log should be readable to reflect what’s happening in the test execution.
         b. Remove noise. Determine if it would be error or warning.
         c. Exception only in the case of fatal errors.
+    9. Recommended function name format - Function_Name(). Upper letter in each string connected with underscore character.
 
 ## Support Contact
 
