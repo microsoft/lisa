@@ -10,7 +10,7 @@
 		<TestParameters>
 			<param>DPDK_LINK="DPDK_SOURCE_URL"</param>
 			<param>TEST_DURATION=DPDK_TEST_DURATION_IN_SECONDS</param>
-			<param>MODES="rxonly fwd"</param>
+			<param>MODES="rxonly io"</param>
 		</TestParameters>
 		<Platform>Azure</Platform>
 		<Category>Performance</Category>
@@ -28,7 +28,7 @@
 		<TestParameters>
 			<param>DPDK_LINK="DPDK_SOURCE_URL"</param>
 			<param>TEST_DURATION=DPDK_TEST_DURATION_IN_SECONDS</param>
-			<param>MODES="rxonly fwd"</param>
+			<param>MODES="rxonly io"</param>
 		</TestParameters>
 		<Platform>Azure</Platform>
 		<Category>Performance</Category>
@@ -46,7 +46,7 @@
 		<TestParameters>
 			<param>DPDK_LINK="DPDK_SOURCE_URL"</param>
 			<param>TEST_DURATION=DPDK_TEST_DURATION_IN_SECONDS</param>
-			<param>MODES="rxonly fwd"</param>
+			<param>MODES="rxonly io"</param>
 			<param>CORES="2 4 8 16"</param>
 		</TestParameters>
 		<Platform>Azure</Platform>
