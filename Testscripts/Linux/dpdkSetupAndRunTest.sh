@@ -63,7 +63,7 @@ function dpdk_setup() {
 # Source constants file and initialize most common variables
 UtilsInit
 LOG_DIR="${LIS_HOME}/logdir"
-mkdir ${LOG_DIR}
+mkdir -p ${LOG_DIR}
 
 # constants.sh is now loaded; load user provided scripts
 for file in ${USER_FILES}; do
@@ -83,7 +83,8 @@ dpdk_setup
 LogMsg "Calling testcase provided run function"
 run_testcase
 
-tar -cvzf vmTestcaseLogs.tar.gz ${LOG_DIR}
+LogMsg "tar -cvzf ${LIS_HOME}/vmTestcaseLogs.tar.gz ${LOG_DIR}"
+tar -cvzf ${LIS_HOME}/vmTestcaseLogs.tar.gz ${LOG_DIR}
 
 LogMsg "dpdkSetupAndRunTest completed!"
 SetTestStateCompleted

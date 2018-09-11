@@ -41,8 +41,7 @@ function Verify-Performance() {
 				LogErr "  Perf Failure in $($testRun.test_mode) mode; $($testRun.rx_pps_avg) must be > $($coreData.rx)"
 				$tempResult = "FAIL"
 			}
-		# fwd corresponds to testpmd's io mode
-		} elseif ($testRun.test_mode -eq "fwd") {
+		} elseif ($testRun.test_mode -eq "io") {
 			LogMsg "  compare rx pps $($testRun.rx_pps_avg) with lowerbound $($coreData.fwdrx)"
 			LogMsg "  compare fwdtx pps $($testRun.fwdtx_pps_avg) with lowerbound $($coreData.fwdtx)"
 			if ([int]$testRun.rx_pps_avg -lt [int]$coreData.fwdrx) {
