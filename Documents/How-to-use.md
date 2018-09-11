@@ -153,6 +153,12 @@ Per Category, each XML file has VM name, Resource Group name, etc. We do not rec
         c. Exception only in the case of fatal errors.
     9. Recommended Bash & Python function name format - Function_Name(). Upper letter in each string connected
         with underscore character. PowerShell function name format remains Verb-Entity() format like Get-VMSize().
+    10. Use the same terminology: PASS, FAIL, ABORTED (all upper cases)
+
+## Use recommended distro name
+
+    1. Short distro name in log, graph or script: CentOS, ClearLinux, Debian, OpenSUSE, Oracle, RHEL, SLES, Ubuntu, CoreOS.
+    2. Add version number, project name or use full name if space is sufficient.
 
 ## Support Contact
 
