@@ -103,7 +103,7 @@ fi
 log_folder="ntttcp-${testType}-test-logs"
 max_server_threads=64
 
-get_throughput()
+Get_Throughput()
 {
 	throughput=0
 	throughput=$(cat ${1} | grep throughput | tail -1 | tr ":" " " | awk '{ print $NF }')
@@ -126,7 +126,7 @@ get_throughput()
 	echo $throughput
 }
 
-get_average_latency()
+Get_Average_Latency()
 {
 	avglatency=0
 	avglatency=$(cat ${1} | grep Average | sed 's/.* //')
@@ -146,7 +146,7 @@ get_average_latency()
 	echo $avglatency
 }
 
-get_cyclesperbytes()
+Get_Cyclesperbytes()
 {
 	cyclesperbytes=0
 	cyclesperbytes=$(cat ${1} | grep cycles/byte | tr ":" " " | awk '{ print $NF }')
@@ -158,7 +158,7 @@ get_cyclesperbytes()
 	echo $cyclesperbytes
 }
 
-run_ntttcp()
+Run_Ntttcp()
 {
 	i=0
 	data_loss=0
@@ -166,7 +166,17 @@ run_ntttcp()
 	ssh ${server} "mkdir -p $log_folder"
 	ssh ${client} "mkdir -p $log_folder"
 	result_file="${log_folder}/report.csv"
-	echo "test_connections,throughput_in_Gbps,cycles/byte,avglatency_in_us" > $result_file
+	if [[ $testType == "udp" ]];
+	then
+		bufferLength=$(($bufferLength/1024))
+		echo "test_connections,tx_throughput_in_Gbps,rx_throughput_in_Gbps,datagram_loss_in_%" > $result_file
+		core_mem_set_cmd="sysctl -w net.core.rmem_max=67108864; sysctl -w net.core.rmem_default=67108864; sysctl -w net.core.wmem_default=67108864; sysctl -w net.core.wmem_max=67108864"
+		ssh ${server} "${core_mem_set_cmd}"
+		ssh ${client} "${core_mem_set_cmd}"
+	else
+		testType="tcp"
+		echo "test_connections,throughput_in_Gbps,cycles/byte,avglatency_in_us" > $result_file
+	fi
 	
 	for current_test_threads in $testConnections; do
 		if [[ $current_test_threads -lt $max_server_threads ]];
@@ -178,20 +188,29 @@ run_ntttcp()
 			num_threads_n=$(($current_test_threads/$num_threads_P))
 		fi
 
-		LogMsg "============================================="
-		LogMsg "Running ${testType} Test: $current_test_threads connections : $num_threads_P X $num_threads_n"
-		LogMsg "============================================="
+		if [[ $testType == "udp" ]];
+		then
+			tx_log_prefix="sender-${testType}-${bufferLength}k-p${num_threads_P}X${num_threads_n}.log"
+			rx_log_prefix="receiver-${testType}-${bufferLength}k-p${num_threads_P}X${num_threads_n}.log"
+			run_msg="Running ${testType} ${bufferLength}k Test: $current_test_threads connections : $num_threads_P X $num_threads_n"
+			server_ntttcp_cmd="ulimit -n 204800 && ntttcp -u -b ${bufferLength}k -P ${num_threads_P} -t ${testDuration} -e -W 1 -C 1"
+			client_ntttcp_cmd="ulimit -n 204800 && ntttcp -s${server} -u -b ${bufferLength}k -P ${num_threads_P} -n ${num_threads_n} -t ${testDuration} -W 1 -C 1"
+		else
+			tx_log_prefix="sender-${testType}-p${num_threads_P}X${num_threads_n}.log"
+			rx_log_prefix="receiver-${testType}-p${num_threads_P}X${num_threads_n}.log"
+			run_msg="Running ${testType} Test: $current_test_threads connections : $num_threads_P X $num_threads_n"
+			server_ntttcp_cmd="ulimit -n 204800 && ntttcp -P ${num_threads_P} -t ${testDuration} -e -W 1 -C 1"
+			client_ntttcp_cmd="ulimit -n 204800 && ntttcp -s${server} -P ${num_threads_P} -n ${num_threads_n} -t ${testDuration} -W 1 -C 1"
+			ssh ${server} "for i in {1..$testDuration}; do ss -ta | grep ESTA | grep -v ssh | wc -l >> ./$log_folder/tcp-connections-p${num_threads_P}X${num_threads_n}.log; sleep 1; done" &
 
-		tx_log_prefix="${testType}-sender-p${num_threads_P}X${num_threads_n}.log"
-		rx_log_prefix="${testType}-receiver-p${num_threads_P}X${num_threads_n}.log"
+		fi
+
+		LogMsg "============================================="
+		LogMsg "${run_msg}"
+		LogMsg "============================================="
 		tx_ntttcp_log_file="$log_folder/ntttcp-${tx_log_prefix}"
 		tx_lagscope_log_file="$log_folder/lagscope-${tx_log_prefix}"
 		rx_ntttcp_log_file="$log_folder/ntttcp-${rx_log_prefix}"
-		
-		server_ntttcp_cmd="ulimit -n 204800 && ntttcp -P ${num_threads_P} -t ${testDuration} -e"
-		client_ntttcp_cmd="ntttcp -s${server} -P ${num_threads_P} -n ${num_threads_n} -t ${testDuration}"
-		ssh ${server} "for i in {1..$testDuration}; do ss -ta | grep ESTA | grep -v ssh | wc -l >> ./$log_folder/tcp-connections-p${num_threads_P}X${num_threads_n}.log; sleep 1; done" &
-		
 		ssh ${server} "pkill -f ntttcp"
 		LogMsg "ServerCmd: $server_ntttcp_cmd > ./$log_folder/ntttcp-${rx_log_prefix}"
 		ssh ${server} "${server_ntttcp_cmd}" > "./$log_folder/ntttcp-${rx_log_prefix}" &
@@ -202,29 +221,27 @@ run_ntttcp()
 		ssh ${server} "pkill -f mpstat"
 		ssh ${server} "mpstat -P ALL 1 ${testDuration}" > "./$log_folder/mpstat-${rx_log_prefix}" &
 
-		ulimit -n 204800
-		sleep 2		
+		sleep 2
 		sar -n DEV 1 ${testDuration} > "./$log_folder/sar-${tx_log_prefix}" &
 		dstat -dam > "./$log_folder/dstat-${tx_log_prefix}" &
 		mpstat -P ALL 1 ${testDuration} > "./$log_folder/mpstat-${tx_log_prefix}" &
 		lagscope -s${server} -t ${testDuration} -V > "./$log_folder/lagscope-${tx_log_prefix}" &
 		LogMsg "ClientCmd: ${client_ntttcp_cmd} > ./${log_folder}/ntttcp-${tx_log_prefix}"
-		$client_ntttcp_cmd > "./${log_folder}/ntttcp-${tx_log_prefix}"
+		ssh ${client} "${client_ntttcp_cmd}" > "./${log_folder}/ntttcp-${tx_log_prefix}"
 
 		LogMsg "Parsing results for $current_test_threads connections"
 		sleep 10
-		tx_throughput=$(get_throughput "$tx_ntttcp_log_file")
-		rx_throughput=$(get_throughput "$rx_ntttcp_log_file")
-		tx_cyclesperbytes=$(get_cyclesperbytes "$tx_ntttcp_log_file")
-		avg_latency=$(get_average_latency "$tx_lagscope_log_file")
-		rx_cyclesperbytes=$(get_cyclesperbytes "$rx_ntttcp_log_file")
+		tx_throughput=$(Get_Throughput "$tx_ntttcp_log_file")
+		rx_throughput=$(Get_Throughput "$rx_ntttcp_log_file")
+		tx_cyclesperbytes=$(Get_Cyclesperbytes "$tx_ntttcp_log_file")
+		avg_latency=$(Get_Average_Latency "$tx_lagscope_log_file")
+		rx_cyclesperbytes=$(Get_Cyclesperbytes "$rx_ntttcp_log_file")
 		if [[ $tx_throughput == 0 ]];
 		then
 			data_loss=`printf %.2f 0`
 		else
 			data_loss=`printf %.2f $(echo "scale=5; 100*(($tx_throughput-$rx_throughput)/$tx_throughput)" | bc)`
 		fi
-		data_loss=$data_loss%
 		
 		LogMsg "Test Results: "
 		LogMsg "---------------"
@@ -232,7 +249,13 @@ run_ntttcp()
 		LogMsg "Cycles/Byte: Tx: $tx_cyclesperbytes , Rx: $rx_cyclesperbytes"
 		LogMsg "AvgLaentcy in us: $avg_latency"
 		LogMsg "DataLoss in %: $data_loss"
-		echo "$current_test_threads,$tx_throughput,$tx_cyclesperbytes,$avg_latency" >> $result_file
+		if [[ $testType == "udp" ]];
+		then
+			echo "$current_test_threads,$tx_throughput,$rx_throughput,$data_loss" >> $result_file
+		else
+		testType="tcp"
+			echo "$current_test_threads,$tx_throughput,$tx_cyclesperbytes,$avg_latency" >> $result_file
+		fi
 		LogMsg "current test finished. wait for next one... "
 		i=$(($i + 1))
 		sleep 5
@@ -241,7 +264,7 @@ run_ntttcp()
 
 #Now, start the ntttcp client on client VM.
 LogMsg "Now running ${testType} test using NTTTCP"
-run_ntttcp
+Run_Ntttcp
 
 pkill -f dstat
 ssh ${server} "pkill -f lagscope"
