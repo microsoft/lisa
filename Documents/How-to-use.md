@@ -160,16 +160,56 @@ Per Category, each XML file has VM name, Resource Group name, etc. We do not rec
 
 ## Use recommended distro name
 
-    1. Short distro name in log, graph or script:
+    1. Short distro name in log, graph and script:
         a. CentOS
+            CentOS Linux release 7.0.1406 (Core)
+            CentOS Linux release 7.1.1503 (Core)
+            CentOS Linux release 7.2.1511 (Core)
+            CentOS Linux release 7.3.1611 (Core)
+            CentOS Linux release 7.4.1708 (Core)
+            CentOS Linux release 7.5.1804 (Core)
+            CentOS release 6.5 (Final)
+            CentOS release 6.6 (Final)
+            CentOS release 6.7 (Final)
+            CentOS release 6.8 (Final)
+            CentOS release 6.9 (Final)
         b. ClearLinux
+            Clear Linux OS for Intel Architecture 1
         c. Debian
+            Debian GNU/Linux 7 (wheezy)
+            Debian GNU/Linux 8 (jessie)
+            Debian GNU/Linux 9 (stretch)
         d. OpenSUSE
+            openSUSE Leap 42.3
         e. Oracle
+            Oracle Linux Server 6.8
+            Oracle Linux Server 6.9
+            Oracle Linux Server 7.3
+            Oracle Linux Server 7.4
         f. RHEL
+            Red Hat Enterprise Linux Server release 6.7 (Santiago)
+            Red Hat Enterprise Linux Server release 6.8 (Santiago)
+            Red Hat Enterprise Linux Server release 6.9 (Santiago)
+            Red Hat Enterprise Linux Server release 7.2 (Maipo)
+            Red Hat Enterprise Linux Server release 7.3 (Maipo)
+            Red Hat Enterprise Linux Server release 7.4 (Maipo)
+            Red Hat Enterprise Linux Server release 7.5 (Maipo)
         g. SLES
+            SUSE Linux Enterprise Server 11 SP4
+            SUSE Linux Enterprise Server 12 SP2
+            SUSE Linux Enterprise Server 12 SP3
         h. Ubuntu
+            Ubuntu 12.04.5 LTS, Precise Pangolin
+            Ubuntu 14.04.5 LTS, Trusty Tahr
+            Ubuntu 16.04.4 LTS (Xenial Xerus)
+            Ubuntu 16.04.5 LTS (Xenial Xerus)
+            Ubuntu 17.10 (Artful Aardvark)
+            Ubuntu 18.04 LTS (Bionic Beaver)
+            Ubuntu 18.04.1 LTS (Bionic Beaver)
         j. CoreOS
+            CoreOS Linux (Stable)
+            CoreOS Linux (Alpha)
+            CoreOS Linux (Beta)
     2. Add version number, project name or use full name if space is sufficient.
 
 ## Support Contact
