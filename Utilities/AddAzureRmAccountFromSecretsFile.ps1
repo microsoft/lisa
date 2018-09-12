@@ -71,7 +71,8 @@ if ( Test-Path $secretsFile ) {
     }
 }
 else {
-    LogMsg "$($secretsFile | Spilt-Path -Leaf) file is not added in Jenkins Global Environments OR it is not bound to 'Azure_Secrets_File' variable." -ForegroundColor Red -BackgroundColor Black
-    LogMsg "Aborting."-ForegroundColor Red -BackgroundColor Black
+    LogMsg "$($secretsFile | Split-Path -Leaf) file is not added in Jenkins Global Environments OR it is not bound to 'Azure_Secrets_File' variable." `
+        -ForegroundColor Red -BackgroundColor Black
+    LogMsg "Aborting." -ForegroundColor Red -BackgroundColor Black
     ThrowException ("XML Secrets file not provided")
 }
