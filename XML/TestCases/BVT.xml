@@ -259,13 +259,28 @@
         <Tags>core</Tags>
     </test>
     <test>
-        <testName>BVT-CORE-TIME-CLOCKEVENT</testName>
+        <testName>BVT-CORE-TIME-CLOCKEVENT-UP</testName>
         <testScript>BVT-CORE-TIME-CLOCKEVENT.sh</testScript>
         <files>.\TestScripts\Linux\BVT-CORE-TIME-CLOCKEVENT.sh,.\TestScripts\Linux\utils.sh</files>
         <setupType>SingleVM</setupType>
         <TestParameters>
             <param>TC_COVERED=CORE-36a</param>
             <param>VCPU=1</param>
+        </TestParameters>
+        <Platform>Azure,HyperV</Platform>
+        <Category>BVT</Category>
+        <Area>CORE</Area>
+        <Tags>core</Tags>
+    </test>
+    <test>
+        <testName>BVT-CORE-TIME-CLOCKEVENT-SMP</testName>
+        <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1</setupScript>
+        <testScript>BVT-CORE-TIME-CLOCKEVENT.sh</testScript>
+        <files>.\TestScripts\Linux\BVT-CORE-TIME-CLOCKEVENT.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>Stress</setupType>
+        <TestParameters>
+            <param>TC_COVERED=CORE-36a</param>
+            <param>VCPU=8</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
