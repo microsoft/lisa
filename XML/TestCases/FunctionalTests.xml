@@ -490,7 +490,7 @@
         <Area>CORE</Area>
         <Tags>core</Tags>
     </test>
-	   <test>
+	<test>
         <testName>LIS-CHECK-HYPERVDAEMONS-FILES-STATUS</testName>
         <testScript>LIS-Check-HypervDaemons-Files-Status.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\LIS-Check-HypervDaemons-Files-Status.sh</files>
@@ -772,5 +772,102 @@
         <Category>Functional</Category>
         <Area>LIS</Area>
         <Tags>lis,nmi</Tags>
+    </test>
+    <test>
+        <testName>KDUMP-CrashSingleCore</testName>
+        <setupScript>.\TestScripts\Windows\SETUP-Config-VM.ps1</setupScript>
+        <testScript>KDUMP-TestScript.ps1</testScript>
+        <files>.\Testscripts\Linux\KDUMP-Execute.sh,.\Testscripts\Linux\KDUMP-Config.sh,.\Testscripts\Linux\KDUMP-Results.sh,.\Testscripts\Linux\utils.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>vmCpuNumber=1</param>
+            <param>vmMemory=4GB</param>
+            <param>crashkernel=384M@128M</param>
+        </TestParameters>
+        <Platform>HyperV,Azure</Platform>
+        <Category>Functional</Category>
+        <Area>KDUMP</Area>
+        <Tags>kdump</Tags>
+    </test>
+    <test>
+        <testName>KDUMP-CrashSMP</testName>
+        <setupScript>.\TestScripts\Windows\SETUP-Config-VM.ps1</setupScript>
+        <testScript>KDUMP-TestScript.ps1</testScript>
+        <files>.\Testscripts\Linux\KDUMP-Execute.sh,.\Testscripts\Linux\KDUMP-Config.sh,.\Testscripts\Linux\KDUMP-Results.sh,.\Testscripts\Linux\utils.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>vmCpuNumber=2</param>
+            <param>vmMemory=2GB</param>
+            <param>crashkernel=256M@128M</param>
+        </TestParameters>
+        <Platform>HyperV,Azure</Platform>
+        <Category>Functional</Category>
+        <Area>KDUMP</Area>
+        <Tags>kdump</Tags>
+    </test>
+    <test>
+        <testName>KDUMP-CrashNMI</testName>
+        <setupScript>.\TestScripts\Windows\SETUP-Config-VM.ps1</setupScript>
+        <testScript>KDUMP-TestScript.ps1</testScript>
+        <files>.\Testscripts\Linux\KDUMP-Execute.sh,.\Testscripts\Linux\KDUMP-Config.sh,.\Testscripts\Linux\KDUMP-Results.sh,.\Testscripts\Linux\utils.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>vmCpuNumber=3</param>
+            <param>vmMemory=3GB</param>
+            <param>crashkernel=384M@128M</param>
+            <param>NMI=1</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>KDUMP</Area>
+        <Tags>kdump</Tags>
+    </test>
+    <test>
+        <testName>KDUMP-CrashAutoSize</testName>
+        <setupScript>.\TestScripts\Windows\SETUP-Config-VM.ps1</setupScript>
+        <testScript>KDUMP-TestScript.ps1</testScript>
+        <files>.\Testscripts\Linux\KDUMP-Execute.sh,.\Testscripts\Linux\KDUMP-Config.sh,.\Testscripts\Linux\KDUMP-Results.sh,.\Testscripts\Linux\utils.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>vmCpuNumber=2</param>
+            <param>vmMemory=2GB</param>
+            <param>crashkernel=auto</param>
+        </TestParameters>
+        <Platform>HyperV,Azure</Platform>
+        <Category>Functional</Category>
+        <Area>KDUMP</Area>
+        <Tags>kdump</Tags>
+    </test>
+    <test>
+        <testName>KDUMP-CrashDifferentVCPU</testName>
+        <setupScript>.\TestScripts\Windows\SETUP-Config-VM.ps1</setupScript>
+        <testScript>KDUMP-TestScript.ps1</testScript>
+        <files>.\Testscripts\Linux\KDUMP-Execute.sh,.\Testscripts\Linux\KDUMP-Config.sh,.\Testscripts\Linux\KDUMP-Results.sh,.\Testscripts\Linux\utils.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>vmCpuNumber=4</param>
+            <param>vmMemory=2GB</param>
+            <param>crashkernel=384M@128M</param>
+        </TestParameters>
+        <Platform>HyperV,Azure</Platform>
+        <Category>Functional</Category>
+        <Area>KDUMP</Area>
+        <Tags>kdump</Tags>
+    </test>
+    <test>
+        <testName>KDUMP-Crash16cores</testName>
+        <setupScript>.\TestScripts\Windows\SETUP-Config-VM.ps1</setupScript>
+        <testScript>KDUMP-TestScript.ps1</testScript>
+        <files>.\Testscripts\Linux\KDUMP-Execute.sh,.\Testscripts\Linux\KDUMP-Config.sh,.\Testscripts\Linux\KDUMP-Results.sh,.\Testscripts\Linux\utils.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>vmCpuNumber=16</param>
+            <param>vmMemory=4GB</param>
+            <param>crashkernel=512M@128M</param>
+        </TestParameters>
+        <Platform>HyperV,Azure</Platform>
+        <Category>Functional</Category>
+        <Area>KDUMP</Area>
+        <Tags>kdump</Tags>
     </test>
 </TestCases>

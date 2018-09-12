@@ -339,3 +339,4 @@ fi
 mkdir -p /var/crash
 rm -rf /var/crash/*
 SetTestStateCompleted
+
