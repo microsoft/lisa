@@ -70,6 +70,7 @@
         <setupType>LTP</setupType>
 		<TestParameters>
             <param>TC_COVERED=LTP-01</param>
+            <param>ltp_version_git_tag="LTP_TESTS_GIT_TAG"</param>
         </TestParameters>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>      
         <Timeout>7200</Timeout>
