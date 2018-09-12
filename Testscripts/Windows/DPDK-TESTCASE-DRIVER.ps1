@@ -163,7 +163,7 @@ collect_VM_properties
                 $command = $connection.CreateCommand()
                 $command.CommandText = $SQLQuery
                 
-                $result = $command.executenonquery()
+                $command.executenonquery() | Out-Null
                 $connection.Close()
                 LogMsg "Uploading the test results done!!"
             } else {

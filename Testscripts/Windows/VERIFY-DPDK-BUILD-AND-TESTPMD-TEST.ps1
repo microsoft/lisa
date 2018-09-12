@@ -46,7 +46,7 @@ function Main {
         $clientNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -command $getNicCmd).Trim()
         $serverNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username $superUser -password $password -command $getNicCmd).Trim()
         if ($serverNicName -eq $clientNicName) {
-            $nicName = $clientNicName
+            LogMsg "Client and Server VMs have same nic name: $clientNicName"
         } else {
             Throw "Server and client SRIOV NICs are not same."
         }
@@ -88,7 +88,7 @@ collect_VM_properties
         Set-Content "$LogDir\StartDpdkTestPmd.sh" $myString
         RemoteCopy -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files ".\$constantsFile,.\$LogDir\StartDpdkTestPmd.sh" -username $superUser -password $password -upload
 
-        $out = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -command "chmod +x *.sh"
+        RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -command "chmod +x *.sh" | Out-Null
         $testJob = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -command "./StartDpdkTestPmd.sh" -RunInBackground
         #endregion
 
@@ -162,7 +162,7 @@ collect_VM_properties
                 $command = $connection.CreateCommand()
                 $command.CommandText = $SQLQuery
                 
-                $result = $command.executenonquery()
+                $command.executenonquery() | Out-Null
                 $connection.Close()
                 LogMsg "Uploading the test results done!!"
             } else {
