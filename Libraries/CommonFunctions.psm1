@@ -3984,3 +3984,64 @@ Function Test-SRIOVInLinuxGuest {
 	}
 	return $retValue
 }
+
+Function Set-SRIOVInVMs {
+    param (
+        $VirtualMachinesGroupName,
+        $VMNames,
+        [switch]$Enable,
+        [switch]$Disable
+    )
+	
+    if ( $TestPlatform -eq "Azure") {
+        LogMsg "Set-SRIOVInVMs running in 'Azure' mode."
+        if ($Enable) {
+            if ($VMNames) {
+                $retValue = Set-SRIOVinAzureVMs -ResourceGroup $VirtualMachinesGroupName -VMNames $VMNames -Enable
+            }
+            else {
+                $retValue = Set-SRIOVinAzureVMs -ResourceGroup $VirtualMachinesGroupName -Enable
+            }
+        }
+        elseif ($Disable) {
+            if ($VMNames) {
+                $retValue = Set-SRIOVinAzureVMs -ResourceGroup $VirtualMachinesGroupName -VMNames $VMNames -Disable
+            }
+            else {
+                $retValue = Set-SRIOVinAzureVMs -ResourceGroup $VirtualMachinesGroupName -Disable
+            }
+        }
+    }
+    elseif ($TestPlatform -eq "HyperV") {
+        <#
+        ####################################################################
+        # Note: Function Set-SRIOVinHypervVMs needs to be implemented in HyperV.psm1.
+        # It should allow the same parameters as implemented for Azure.
+        #   -HyperVGroup [string]
+        #   -VMNames [string] ... comma separated VM names. [Optional]
+        #        If no VMNames is provided, it should pick all the VMs from HyperVGroup
+        #   -Enable
+        #   -Disable
+        ####################################################################
+        LogMsg "Set-SRIOVInVMs running in 'HyperV' mode."
+        if ($Enable) {
+            if ($VMNames) {
+                $retValue = Set-SRIOVinHypervVMs -HyperVGroup $VirtualMachinesGroupName -VMNames $VMNames -Enable
+            }
+            else {
+                $retValue = Set-SRIOVinHypervVMs -HyperVGroup $VirtualMachinesGroupName -Enable
+            }
+        }
+        elseif ($Disable) {
+            if ($VMNames) {
+                $retValue = Set-SRIOVinHypervVMs -HyperVGroup $VirtualMachinesGroupName -VMNames $VMNames -Disable
+            }
+            else {
+                $retValue = Set-SRIOVinHypervVMs -HyperVGroup $VirtualMachinesGroupName -Disable
+            }
+        }
+        #>
+        $retValue = $false
+    }
+    return $retValue
+}
