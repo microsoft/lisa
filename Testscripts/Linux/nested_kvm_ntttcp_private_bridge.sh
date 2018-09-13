@@ -245,8 +245,6 @@ bring_up_nic_with_private_ip() {
 run_ntttcp_on_client() {
 	log_msg "Copy test scripts to nested VM"
 	remote_copy_wrapper "root" $CLIENT_HOST_FWD_PORT "./perf_ntttcp.sh" "put"
-	remote_copy_wrapper "root" $CLIENT_HOST_FWD_PORT "./run-ntttcp-and-tcping.sh" "put"
-	remote_copy_wrapper "root" $CLIENT_HOST_FWD_PORT "./report-ntttcp-and-tcping.sh" "put"
 	remote_exec_wrapper "root" $CLIENT_HOST_FWD_PORT "chmod a+x *.sh"
 	log_msg "Start to run perf_ntttcp.sh on nested client VM"
 	remote_exec_wrapper "root" $CLIENT_HOST_FWD_PORT "/root/perf_ntttcp.sh > ntttcpConsoleLogs"
@@ -254,15 +252,15 @@ run_ntttcp_on_client() {
 
 collect_logs() {
 	log_msg "Finished running perf_ntttcp.sh, start to collect logs"
-	remote_exec_wrapper "root" $CLIENT_HOST_FWD_PORT "mv ./ntttcp-test-logs ./ntttcp-test-logs-sender"
-	remote_exec_wrapper "root" $CLIENT_HOST_FWD_PORT "tar -cf ./ntttcp-test-logs-sender.tar ./ntttcp-test-logs-sender"
+	remote_exec_wrapper "root" $CLIENT_HOST_FWD_PORT "mv ./ntttcp-${testType}-test-logs ./ntttcp-${testType}-test-logs-sender"
+	remote_exec_wrapper "root" $CLIENT_HOST_FWD_PORT "tar -cf ./ntttcp-test-logs-sender.tar ./ntttcp-${testType}-test-logs-sender"
 	remote_exec_wrapper "root" $CLIENT_HOST_FWD_PORT ". utils.sh  && collect_VM_properties nested_properties.csv"
 	remote_copy_wrapper "root" $CLIENT_HOST_FWD_PORT "ntttcp-test-logs-sender.tar" "get"
 	remote_copy_wrapper "root" $CLIENT_HOST_FWD_PORT "ntttcpConsoleLogs" "get"
 	remote_copy_wrapper "root" $CLIENT_HOST_FWD_PORT "ntttcpTest.log" "get"
 	remote_copy_wrapper "root" $CLIENT_HOST_FWD_PORT "nested_properties.csv" "get"
-	remote_exec_wrapper "root" $SERVER_HOST_FWD_PORT "mv ./ntttcp-test-logs ./ntttcp-test-logs-receiver"
-	remote_exec_wrapper "root" $SERVER_HOST_FWD_PORT "tar -cf ./ntttcp-test-logs-receiver.tar ./ntttcp-test-logs-receiver"
+	remote_exec_wrapper "root" $SERVER_HOST_FWD_PORT "mv ./ntttcp-${testType}-test-logs ./ntttcp-${testType}-test-logs-receiver"
+	remote_exec_wrapper "root" $SERVER_HOST_FWD_PORT "tar -cf ./ntttcp-test-logs-receiver.tar ./ntttcp-${testType}-test-logs-receiver"
 	remote_copy_wrapper "root" $SERVER_HOST_FWD_PORT "ntttcp-test-logs-receiver.tar" "get"
 	remote_copy_wrapper "root" $CLIENT_HOST_FWD_PORT "report.log" "get"
 	check_exit_status "Get the NTTTCP report" "log_msg"
