@@ -2536,8 +2536,198 @@ Function RestartAllAzureDeployments($allVMData)
 		$restartJobs = $tempJobs
 		Start-Sleep -Seconds 1
 	}
-	
+
 	Remove-Item -Path "$env:TEMP\$($currentGUID).azurecontext" -Force -ErrorAction SilentlyContinue | Out-Null
 	$isSSHOpened = isAllSSHPortsEnabledRG -AllVMDataObject $AllVMData
 	return $isSSHOpened
+}
+
+Function Set-SRIOVinAzureVMs {
+    param (
+        $ResourceGroup,
+        $VMNames, #... Optional
+        [switch]$Enable,
+        [switch]$Disable)
+    try {
+        Function Check-CurrentNICStatus () {
+            if ($Enable) {
+                if ($AllNics.Count -eq 1) {
+                    if ($AllNics.EnableAcceleratedNetworking -eq $true) {
+                        $StatusChangeNotRequired = $true
+                    }
+                }
+                else {
+                    if (-not $AllNics.EnableAcceleratedNetworking.Contains($false)) {
+                        $StatusChangeNotRequired = $true
+                    }
+                }
+            }
+            if ($Disable) {
+                if ($AllNics.Count -eq 1) {
+                    if ($AllNics.EnableAcceleratedNetworking -eq $false) {
+                        $StatusChangeNotRequired = $true
+                    }
+                }
+                else {
+                    if (-not $AllNics.EnableAcceleratedNetworking.Contains($true)) {
+                        $StatusChangeNotRequired = $true
+                    }
+                }
+            }
+            return $StatusChangeNotRequired
+        }
+
+        if ( $Enable -and $Disable ) {
+            Throw "Please mention either -Enable or -Disable. Don't use both switches."
+        }
+        $TargettedVMs = @()
+        $SuccessCount = 0
+        #"SS-R75SRIOV-Deploy2VM-ECMI-636723398793"
+        $AllVMs = Get-AzureRmVM -ResourceGroupName $ResourceGroup
+        if ($VMNames) {
+            $VMNames = $VMNames.Trim()
+            foreach ( $VMName in $VMNames.Split(",")) {
+                if ( -not $VMNames.Contains("$VMName")) {
+                    Throw "$VMName does not exist in $ResourceGroup."
+                }
+                else {
+                    $TargettedVMs += $ALLVMs | Where-Object { $_.Name -eq "$VMName" }
+                }
+            }
+        }
+        else {
+            $TargettedVMs = $AllVMs
+        }
+
+        foreach ( $TargetVM in $TargettedVMs) {
+            $VMName = $TargetVM.Name
+            $AllNics = Get-AzureRmNetworkInterface -ResourceGroupName $ResourceGroup `
+                | Where-Object { $($_.VirtualMachine.Id | Split-Path -leaf) -eq $VMName }
+
+            if ($Enable) {
+                $DesiredState = "Enabled"
+                if (Check-CurrentNICStatus) {
+                    LogMsg "Accelerated networking is already enabled for all nics in $VMName."
+                    $retValue = $true
+                    $VMPropertiesChanged = $false
+                }
+                else {
+                    $TargettedNics = $AllNics | Where-Object { $_.EnableAcceleratedNetworking -eq $false}
+                    LogMsg "Current Accelerated networking disabled NICs : $($TargettedNics.Name)"
+                    LogMsg "Shutting down $VMName..."
+                    $StopVM = Stop-AzureRmVM -ResourceGroup $ResourceGroup -Name $VMName -Force
+                    foreach ($TargetNic in $TargettedNics) {
+                        #Enable EnableAccelerated Networking
+                        $TargetNic.EnableAcceleratedNetworking = $true
+                        $ChangedNic = $TargetNic | Set-AzureRmNetworkInterface
+                        $VMPropertiesChanged = $true
+                        if ( $ChangedNic.EnableAcceleratedNetworking -eq $true) {
+                            LogMsg "$($TargetNic.Name) [EnableAcceleratedNetworking=true]| Set-AzureRmNetworkInterface : SUCCESS"
+                        }
+                        else {
+                            LogMsg "$($TargetNic.Name) [EnableAcceleratedNetworking=true]| Set-AzureRmNetworkInterface : FAIL"
+                        }
+                    }
+                }
+            }
+            if ($Disable) {
+                $DesiredState = "Disabled"
+                if (Check-CurrentNICStatus) {
+                    LogMsg "Accelerated networking is already disabled for all nics in $VMName."
+                    $retValue = $true
+                    $VMPropertiesChanged = $false
+                }
+                else {
+                    $TargettedNics = $AllNics | Where-Object { $_.EnableAcceleratedNetworking -eq $true}
+                    LogMsg "Current Accelerated networking enabled NICs : $($TargettedNics.Name)"
+                    LogMsg "Shutting down $VMName..."
+                    $StopVM = Stop-AzureRmVM -ResourceGroup $ResourceGroup -Name $VMName -Force
+                    foreach ($TargetNic in $TargettedNics) {
+                        #Enable EnableAccelerated Networking
+                        $TargetNic.EnableAcceleratedNetworking = $false
+                        $ChangedNic = $TargetNic | Set-AzureRmNetworkInterface
+                        $VMPropertiesChanged = $true
+                        if ( $ChangedNic.EnableAcceleratedNetworking -eq $false) {
+                            LogMsg "$($TargetNic.Name) [EnableAcceleratedNetworking=false] | Set-AzureRmNetworkInterface : SUCCESS"
+                        }
+                        else {
+                            LogMsg "$($TargetNic.Name) [EnableAcceleratedNetworking=false] | Set-AzureRmNetworkInterface : FAIL"
+                        }
+                    }
+                }
+            }
+        }
+        if ( $VMPropertiesChanged ) {
+            foreach ( $TargetVM in $TargettedVMs) {
+                #Start the VM..
+                LogMsg "Starting VM $($TargetVM.Name)..."
+                $StartVM = Start-AzureRmVM -ResourceGroup $ResourceGroup -Name $TargetVM.Name
+            }
+            #Public IP address changes most of the times, when we shutdown the VM.
+            #Hence, we need to refresh the data
+            $AllVMData = GetAllDeployementData -ResourceGroups $ResourceGroup
+            $TestVMData = @()
+            foreach ( $TargetVM in $TargettedVMs) {
+                $TestVMData += $AllVMData | Where-Object {$_.ResourceGroupName -eq $ResourceGroup `
+                        -and $_.RoleName -eq $TargetVM.Name }
+                #Start the VM..
+            }
+            $isSSHOpened = isAllSSHPortsEnabledRG -AllVMDataObject $TestVMData
+            if ($isSSHOpened -eq "True") {
+                $isRestarted = $true
+            }
+            else {
+                LogErr "VM is not available after restart"
+                $isRestarted = $false
+            }
+            foreach ( $TargetVM in $TargettedVMs) {
+                $VMName = $TargetVM.Name
+                $AllNics = Get-AzureRmNetworkInterface -ResourceGroupName $ResourceGroup `
+                    | Where-Object { $($_.VirtualMachine.Id | Split-Path -leaf) -eq $VMName }
+                if ($Enable) {
+                    if (Check-CurrentNICStatus) {
+                        LogMsg "Accelerated networking is successfully enabled for all nics in $VMName."
+                        $NicVerified = $true
+                    }
+                    else {
+                        LogMsg "Accelerated networking is failed to enable for all/some nics in $VMName."
+                        $NicVerified = $false
+                    }
+                }
+                if ($Disable) {
+                    if (Check-CurrentNICStatus) {
+                        LogMsg "Accelerated networking is successfully disabled for all nics in $VMName."
+                        $NicVerified = $true
+                    }
+                    else {
+                        LogMsg "Accelerated networking is failed to disable for all/some nics in $VMName."
+                        $NicVerified = $false
+                    }
+                }
+                if ($isRestarted -and $NicVerified) {
+                    $SuccessCount += 1
+                    LogMsg "Accelarated networking '$DesiredState' successfully for $VMName"
+                }
+                else {
+                    LogErr "Accelarated networking '$DesiredState' failed for $VMName"
+                }
+            }
+            if ( $TargettedVMs.Count -eq $SuccessCount ) {
+                $retValue = $true
+            }
+            else {
+                $retValue = $false
+            }
+        }
+        else {
+            LogMsg "Accelarated networking is already '$DesiredState'."
+        }
+    }
+    catch {
+        $retValue = $false
+        $ErrorMessage = $_.Exception.Message
+        $ErrorLine = $_.InvocationInfo.ScriptLineNumber
+        LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+    }
+    return $retValue
 }

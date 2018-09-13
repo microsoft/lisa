@@ -2212,6 +2212,7 @@ Function GetAllDeployementData($ResourceGroups)
 		}
 		LogMsg "Collected $ResourceGroup data!"
 	}
+	Set-Variable -Name AllVMData -Value $allDeployedVMs -Scope Global
 	return $allDeployedVMs
 }
 
@@ -3918,4 +3919,109 @@ function Get-NumaSupportStatus {
 	# We skip the check if kernel is not 2.6
 	# Anything newer will have support for it
 	return $true
+}
+
+Function Test-SRIOVInLinuxGuest {
+	param (
+		#Required
+		[string]$username,
+		[string]$password,
+		[string]$IpAddress,
+		[int]$SSHPort,
+
+		#Optional
+		[int]$ExpectedSriovNics
+	)
+
+	$MaximumAttempts = 10
+	$Attempts = 1
+	$VerificationCommand = "lspci | grep Mellanox | wc -l"
+	$retValue = $false
+	while ($retValue -eq $false -and $Attempts -le $MaximumAttempts) {
+		LogMsg "[Attempt $Attempts/$MaximumAttempts] Detecting Mellanox NICs..."
+		$DetectedSRIOVNics = RunLinuxCmd -username $username -password $password -ip $IpAddress -port $SSHPort -command $VerificationCommand
+		$DetectedSRIOVNics = [int]$DetectedSRIOVNics
+		if ($ExpectedSriovNics -ge 0) {
+			if ($DetectedSRIOVNics -eq $ExpectedSriovNics) {
+				$retValue = $true
+				LogMsg "$DetectedSRIOVNics Mellanox NIC(s) deteted in VM. Expected: $ExpectedSriovNics."
+			} else {
+				$retValue = $false
+				LogErr "$DetectedSRIOVNics Mellanox NIC(s) deteted in VM. Expected: $ExpectedSriovNics."
+				Start-Sleep -Seconds 20
+			}
+		} else {
+			if ($DetectedSRIOVNics -gt 0) {
+				$retValue = $true
+				LogMsg "$DetectedSRIOVNics Mellanox NIC(s) deteted in VM."
+			} else {
+				$retValue = $false
+				LogErr "$DetectedSRIOVNics Mellanox NIC(s) deteted in VM."
+				Start-Sleep -Seconds 20
+			}
+		}
+		$Attempts += 1
+	}
+	return $retValue
+}
+
+Function Set-SRIOVInVMs {
+    param (
+        $VirtualMachinesGroupName,
+        $VMNames,
+        [switch]$Enable,
+        [switch]$Disable
+    )
+	
+    if ( $TestPlatform -eq "Azure") {
+        LogMsg "Set-SRIOVInVMs running in 'Azure' mode."
+        if ($Enable) {
+            if ($VMNames) {
+                $retValue = Set-SRIOVinAzureVMs -ResourceGroup $VirtualMachinesGroupName -VMNames $VMNames -Enable
+            }
+            else {
+                $retValue = Set-SRIOVinAzureVMs -ResourceGroup $VirtualMachinesGroupName -Enable
+            }
+        }
+        elseif ($Disable) {
+            if ($VMNames) {
+                $retValue = Set-SRIOVinAzureVMs -ResourceGroup $VirtualMachinesGroupName -VMNames $VMNames -Disable
+            }
+            else {
+                $retValue = Set-SRIOVinAzureVMs -ResourceGroup $VirtualMachinesGroupName -Disable
+            }
+        }
+    }
+    elseif ($TestPlatform -eq "HyperV") {
+        <#
+        ####################################################################
+        # Note: Function Set-SRIOVinHypervVMs needs to be implemented in HyperV.psm1.
+        # It should allow the same parameters as implemented for Azure.
+        #   -HyperVGroup [string]
+        #   -VMNames [string] ... comma separated VM names. [Optional]
+        #        If no VMNames is provided, it should pick all the VMs from HyperVGroup
+        #   -Enable
+        #   -Disable
+        ####################################################################
+        LogMsg "Set-SRIOVInVMs running in 'HyperV' mode."
+        if ($Enable) {
+            if ($VMNames) {
+                $retValue = Set-SRIOVinHypervVMs -HyperVGroup $VirtualMachinesGroupName -VMNames $VMNames -Enable
+            }
+            else {
+                $retValue = Set-SRIOVinHypervVMs -HyperVGroup $VirtualMachinesGroupName -Enable
+            }
+        }
+        elseif ($Disable) {
+            if ($VMNames) {
+                $retValue = Set-SRIOVinHypervVMs -HyperVGroup $VirtualMachinesGroupName -VMNames $VMNames -Disable
+            }
+            else {
+                $retValue = Set-SRIOVinHypervVMs -HyperVGroup $VirtualMachinesGroupName -Disable
+            }
+        }
+        #>
+        $retValue = $false
+    }
+    return $retValue
 }
