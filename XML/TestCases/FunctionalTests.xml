@@ -490,4 +490,49 @@
         <Area>CORE</Area>
         <Tags>core</Tags>
     </test>
+	   <test>
+        <testName>LIS-Check-HypervDaemons-Files-Status</testName>
+        <testScript>LIS-Check-HypervDaemons-Files-Status.ps1</testScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\LIS-Check-HypervDaemons-Files-Status.sh</files>
+        <setupType>SingleVM</setupType>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>LIS</Area>
+        <Tags>lis</Tags>
+    </test>
+     <test>
+        <testName>LIS-Mount-FloppyDisk</testName>
+        <testScript>LIS-Mount-FloppyDisk.ps1</testScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\LIS-Mount-FloppyDisk.sh</files>
+        <setupType>SingleVM</setupType>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>LIS</Area>
+        <Tags>lis</Tags>
+    </test>
+     <test>
+        <testName>LIS-Mount-CD</testName>
+        <setupScript>.\TestScripts\Windows\LIS-Mount-CD.ps1</setupScript>
+        <testScript>LIS-Mount-CD.sh</testScript>
+        <files>.\Testscripts\Linux\LIS-Mount-CD.sh,.\Testscripts\Linux\check_traces.sh,.\Testscripts\Linux\utils.sh</files>
+        <setupType>SingleVM</setupType>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>LIS</Area>
+        <Tags>lis</Tags>
+    </test>
+     <test>
+        <testName>LIS-Mount-CD-HotAdd</testName>
+        <setupScript>.\TestScripts\Windows\LIS-Mount-CD.ps1</setupScript>
+        <testScript>LIS-Mount-CD.sh</testScript>
+        <files>.\Testscripts\Linux\LIS-Mount-CD.sh,.\Testscripts\Linux\check_traces.sh,.\Testscripts\Linux\utils.sh</files>
+        <TestParameters>
+            <param>HotAdd=True</param>
+        </TestParameters>
+        <setupType>SingleVM</setupType>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>LIS</Area>
+        <Tags>lis</Tags>
+   </test>
 </TestCases>
