@@ -12,8 +12,6 @@
 #     and performs read operations .
 #
 ################################################################
-
-dos2unix utils.sh
 . utils.sh || {
     echo "Error: unable to source utils.sh!"
     exit 0
@@ -105,8 +103,6 @@ if [ 0 -ne ${sts} ]; then
 else
     LogMsg  "CDROM unmounted successfully"
 fi
-
-
 #
 # Check without multiple "medium not present" in dmesg log
 # Refer to https://lkml.org/lkml/2016/5/23/332

@@ -1,5 +1,4 @@
 #!/bin/bash
-
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 ########################################################################
@@ -99,21 +98,21 @@ LogMsg "Perform read operation on the floppy disk"
 cat Sample.txt
 sts=$?
 if [ $? -ne 0 ]; then
-	LogMsg "Unable to read Sample.txt file from the floppy disk"
-	LogMsg "Read file from Floppy disk failed: ${sts}"
-	SetTestStateAborted
-	exit 0
+    LogMsg "Unable to read Sample.txt file from the floppy disk"
+    LogMsg "Read file from Floppy disk failed: ${sts}"
+    SetTestStateAborted
+    exit 0
 else
-	LogMsg "Sample.txt file is read successfully from the Floppy disk"
+    LogMsg "Sample.txt file is read successfully from the Floppy disk"
 fi
 LogMsg "Perform delete operation on the Floppy disk"
 rm Sample.txt
 sts=$?
 if [ $? -ne 0 ]; then
-	LogMsg "Unable to delete Sample.txt file from the floppy disk"
-	LogMsg "Delete file failed: ${sts}"
-	SetTestStateFailed
-	exit 0
+    LogMsg "Unable to delete Sample.txt file from the floppy disk"
+    LogMsg "Delete file failed: ${sts}"
+    SetTestStateFailed
+    exit 0
 else
    LogMsg "Sample.txt file is deleted successfully from the Floppy disk"
 fi
@@ -123,10 +122,10 @@ cd ~
 sudo umount /mnt/floppy/
 sts=$?
 if [ $? -ne 0 ]; then
-	LogMsg "Unable to umount the floppy disk"
-	LogMsg "umount failed: ${sts}"
-	SetTestStateFailed
-	exit 0
+    LogMsg "Unable to umount the floppy disk"
+    LogMsg "umount failed: ${sts}"
+    SetTestStateFailed
+    exit 0
 else
     LogMsg "Floppy disk unmounted successfully"
     LogMsg "Result: Test Completed Successfully"

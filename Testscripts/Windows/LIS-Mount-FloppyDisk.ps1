@@ -14,7 +14,6 @@
 
 #>
 
-param([String] $TestParams)
 
 function Main {
     param (
@@ -24,8 +23,7 @@ function Main {
         $VMPort,
         $VMUserName,
         $VMPassword,
-        $RootDir,
-        $TestParams
+        $RootDir
     )
 
     $vfdPath = "$null"
@@ -50,7 +48,7 @@ function Main {
 
     # Check for floppy support. If it's not present, test will be skipped
 
-    $sts = RunLinuxCmd -username "root" -password $VMPassword -ip $Ipv4 -port $VMPort -command "cat /boot/config-`$(uname -r) | grep -e CONFIG_BLK_DEV_FD=y -e CONFIG_BLK_DEV_FD=m"
+    $sts = RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort -command "cat /boot/config-`$(uname -r) | grep -e CONFIG_BLK_DEV_FD=y -e CONFIG_BLK_DEV_FD=m" -runAsSudo
     if (-not $?) {
         LogWarn "Support for floppy does not exist! Test skipped!"
         return "Aborted"
@@ -76,7 +74,7 @@ function Main {
     #
     # The .vfd file does not exist, so create one
     #
-        $newVfd = New-VFD -Path $vfdPath -ComputerName $HvServer 
+        $newVfd = New-VFD -Path $vfdPath -ComputerName $HvServer
         if (-not $newVfd) {
             LogErr "Unable to create VFD file ${vfdPath}"
             return "FAIL"
@@ -118,5 +116,4 @@ function Main {
 }
 Main -VMName $AllVMData.RoleName -HvServer $xmlConfig.config.Hyperv.Host.ServerName `
     -Ipv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort `
-    -VMUserName $user -VMPassword $password -RootDir $WorkingDirectory `
-    -TestParams $TestParams
+    -VMUserName $user -VMPassword $password -RootDir $WorkingDirectory

@@ -7,8 +7,6 @@
 
 .Description
     Mount a .iso in the default DVD drive.
-
-
 #>
 
 param([String] $TestParams)
@@ -20,8 +18,6 @@ function Main {
         $RootDir,
         $TestParams
     )
-
-
     # any small ISO file URL can be used
     # using a PowerPC ISO, which does not boot on Gen1/Gen2 VMs
     # For other bootable media must ensure that boot from CD is not the first option
