@@ -84,6 +84,39 @@ Function ValidateParameters()
 	}	
 }
 
+Function Add-ReplaceableTestParameters($XmlConfigFilePath)
+{
+	$ReplacableTestParameters = [xml](Get-Content -Path "$WorkingDirectory\XML\Other\ReplaceableTestParameters.xml")
+	if ($CustomParameters)
+	{
+		LogMsg "Checking custom parameters"
+		$CustomParameters = $CustomParameters.Trim().Trim(";").Split(";")
+		foreach ($CustomParameter in $CustomParameters)
+		{
+			$CustomParameter = $CustomParameter.Trim()
+			$ReplaceThis = $CustomParameter.Split("=")[0]
+			$ReplaceWith = $CustomParameter.Split("=")[1]
+			$OldValue = ($ReplacableTestParameters.ReplaceableTestParameters.Parameter | Where-Object `
+			{ $_.ReplaceThis -eq $ReplaceThis }).ReplaceWith
+			($ReplacableTestParameters.ReplaceableTestParameters.Parameter | Where-Object `
+			{ $_.ReplaceThis -eq $ReplaceThis }).ReplaceWith = $ReplaceWith
+			LogMsg "Custom Parameter: $ReplaceThis=$OldValue --> $ReplaceWith"
+		}
+		LogMsg "Custom parameter(s) are ready to be injected along with default parameters, if any."
+	}
+
+	$XmlConfigContents = (Get-Content -Path $XmlConfigFilePath) 
+	foreach ($ReplaceableParameter in $ReplacableTestParameters.ReplaceableTestParameters.Parameter)
+	{
+		if ($XmlConfigContents -match $ReplaceableParameter.ReplaceThis)
+		{
+			$XmlConfigContents = $XmlConfigContents.Replace($ReplaceableParameter.ReplaceThis,$ReplaceableParameter.ReplaceWith)
+			LogMsg "$($ReplaceableParameter.ReplaceThis)=$($ReplaceableParameter.ReplaceWith) injected into $XmlConfigFilePath"
+		}
+	}
+	Set-Content -Value $XmlConfigContents -Path $XmlConfigFilePath -Force
+}
+
 Function UpdateGlobalConfigurationXML()
 {
 	#Region Update Global Configuration XML file as needed

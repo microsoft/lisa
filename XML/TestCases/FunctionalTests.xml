@@ -408,7 +408,89 @@
         <Area>CORE</Area>
         <Tags>core</Tags>
     </test>
-	    <test>
+    <test>
+        <testName>Timesync-Basic</testName>
+        <testScript>Timesync-Basic.ps1</testScript>
+        <files>.\Testscripts\Linux\timesync_config.sh,.\Testscripts\Linux\utils.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>TestDelay=10</param>
+            <param>MaxTimeDiff=1.0</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>core</Tags>
+    </test>
+   <test>
+        <testName>Timesync-SavedVM</testName>
+        <testScript>Timesync-Change-State.ps1</testScript>
+        <files>.\Testscripts\Linux\timesync_config.sh,.\Testscripts\Linux\utils.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>vmState=Save</param>
+            <param>TestDelay=600</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>core</Tags>
+    </test>
+    <test>
+        <testName>Timesync-PausedVM</testName>
+        <testScript>Timesync-Change-State.ps1</testScript>
+        <files>.\Testscripts\Linux\timesync_config.sh,.\Testscripts\Linux\utils.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>vmState=Pause</param>
+            <param>TestDelay=600</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>core</Tags>
+    </test>
+    <test>
+        <testName>Timesync-SavedVM-ChronyOff</testName>
+        <testScript>Timesync-Change-State.ps1</testScript>
+        <files>.\Testscripts\Linux\timesync_config.sh,.\Testscripts\Linux\utils.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>vmState=Save</param>
+            <param>TestDelay=120</param>
+            <param>Chrony=off</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>core</Tags>
+    </test>
+    <test>
+        <testName>Timesync-PausedVM-ChronyOff</testName>
+        <testScript>Timesync-Change-State.ps1</testScript>
+        <files>.\Testscripts\Linux\timesync_config.sh,.\Testscripts\Linux\utils.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>vmState=Pause</param>
+            <param>TestDelay=120</param>
+            <param>Chrony=off</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>core</Tags>
+    </test>
+    <test>
+        <testName>Timesync-VDSO</testName>
+        <testScript>Timesync-VDSO.ps1</testScript>
+        <files>.\Tools\gettime.c</files>
+        <setupType>SingleVM</setupType>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>core</Tags>
+    </test>
+	   <test>
         <testName>LIS-Check-HypervDaemons-Files-Status</testName>
         <testScript>LIS-Check-HypervDaemons-Files-Status.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\LIS-Check-HypervDaemons-Files-Status.sh</files>
@@ -418,7 +500,7 @@
         <Area>LIS</Area>
         <Tags>lis</Tags>
     </test>
-        <test>
+     <test>
         <testName>LIS-Mount-FloppyDisk</testName>
         <testScript>LIS-Mount-FloppyDisk.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\LIS-Mount-FloppyDisk.sh</files>
@@ -428,7 +510,7 @@
         <Area>LIS</Area>
         <Tags>lis</Tags>
     </test>
-        <test>
+     <test>
         <testName>LIS-Mount-CD</testName>
         <setupScript>.\TestScripts\Windows\LIS-Mount-CD.ps1</setupScript>
         <testScript>LIS-Mount-CD.sh</testScript>
@@ -439,7 +521,7 @@
         <Area>LIS</Area>
         <Tags>lis</Tags>
     </test>
-        <test>
+     <test>
         <testName>LIS-Mount-CD-HotAdd</testName>
         <setupScript>.\TestScripts\Windows\LIS-Mount-CD.ps1</setupScript>
         <testScript>LIS-Mount-CD.sh</testScript>
@@ -452,5 +534,5 @@
         <Category>Functional</Category>
         <Area>LIS</Area>
         <Tags>lis</Tags>
-    </test>
+   </test>
 </TestCases>

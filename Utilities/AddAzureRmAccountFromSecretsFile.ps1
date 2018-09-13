@@ -27,11 +27,17 @@
 
 param
 (
-    [string]$customSecretsFilePath = $null
+    [parameter(Mandatory=$true)]
+    [string]$customSecretsFilePath
 )
 
+$ErrorActionPreference = "Stop"
 #---------------------------------------------------------[Initializations]--------------------------------------------------------
-Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global }
+$scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$rootPath = Split-Path -Parent $scriptPath
+Get-ChildItem (Join-Path $rootPath "Libraries") -Recurse | `
+    Where-Object { $_.FullName.EndsWith(".psm1") } | `
+    ForEach-Object { Import-Module $_.FullName -Force -Global }
 
 if ( $customSecretsFilePath ) {
     $secretsFile = $customSecretsFilePath
@@ -71,7 +77,8 @@ if ( Test-Path $secretsFile ) {
     }
 }
 else {
-    LogMsg "$($secretsFile | Spilt-Path -Leaf) file is not added in Jenkins Global Environments OR it is not bound to 'Azure_Secrets_File' variable." -ForegroundColor Red -BackgroundColor Black
-    LogMsg "Aborting."-ForegroundColor Red -BackgroundColor Black
+    LogMsg "$($secretsFile | Split-Path -Leaf) file is not added in Jenkins Global Environments OR it is not bound to 'Azure_Secrets_File' variable." `
+        -ForegroundColor Red -BackgroundColor Black
+    LogMsg "Aborting." -ForegroundColor Red -BackgroundColor Black
     ThrowException ("XML Secrets file not provided")
 }

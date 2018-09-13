@@ -1,15 +1,16 @@
 <TestCases>
     <test>
-        <testName>PERF-NETWORK-TCP-THROUGHPUT-MULTICONNECTION-Synthetic</testName>
-        <testScript>PERF-NETWORK-TCP-THROUGHPUT-MULTICONNECTION-NTTTCP.ps1</testScript>
+        <testName>PERF-NETWORK-TCP-THROUGHPUT-MULTICONNECTION-NTTTCP-Synthetic</testName>
+        <testScript>PERF-NETWORK-THROUGHPUT-MULTICONNECTION-NTTTCP.ps1</testScript>
         <setupType>M1S1</setupType>
         <AdditionalHWConfig>
             <Networking>Synthetic</Networking>
         </AdditionalHWConfig>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_ntttcp.sh,.\Testscripts\Linux\run-ntttcp-and-tcping.sh,.\Testscripts\Linux\report-ntttcp-and-tcping.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
         <TestParameters>
-            <param>testDuration=300</param>
+            <param>testDuration=NTTTCP_RUNTIME_IN_SECONDS</param>
+            <param>testType=tcp</param>
             <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024 2048 4096 6144 8192 10240"</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
@@ -18,15 +19,16 @@
         <Tags>network,hv_netvsc</Tags>
     </test>
     <test>
-        <testName>PERF-NETWORK-TCP-THROUGHPUT-MULTICONNECTION-SRIOV</testName>
-        <testScript>PERF-NETWORK-TCP-THROUGHPUT-MULTICONNECTION-NTTTCP.ps1</testScript>
+        <testName>PERF-NETWORK-TCP-THROUGHPUT-MULTICONNECTION-NTTTCP-SRIOV</testName>
+        <testScript>PERF-NETWORK-THROUGHPUT-MULTICONNECTION-NTTTCP.ps1</testScript>
         <setupType>M1S1</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_ntttcp.sh,.\Testscripts\Linux\run-ntttcp-and-tcping.sh,.\Testscripts\Linux\report-ntttcp-and-tcping.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
         <TestParameters>
-            <param>testDuration=300</param>
+            <param>testDuration=NTTTCP_RUNTIME_IN_SECONDS</param>
+            <param>testType=tcp</param>
             <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024 2048 4096 6144 8192 10240"</param>
         </TestParameters>
         <Platform>Azure</Platform>
@@ -34,6 +36,46 @@
         <Area>Network</Area>
         <Tags>network,hv_netvsc,sriov</Tags>
     </test>
+    <test>
+        <testName>PERF-NETWORK-UDP-1K-THROUGHPUT-MULTICONNECTION-NTTTCP-Synthetic</testName>
+        <testScript>PERF-NETWORK-THROUGHPUT-MULTICONNECTION-NTTTCP.ps1</testScript>
+        <setupType>M1S1</setupType>
+        <AdditionalHWConfig>
+            <Networking>Synthetic</Networking>
+        </AdditionalHWConfig>
+        <SubtestValues>This-tag-will-be-removed</SubtestValues>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
+        <TestParameters>
+            <param>testDuration=NTTTCP_RUNTIME_IN_SECONDS</param>
+            <param>testType=udp</param>
+            <param>bufferLength=1024</param>
+            <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024"</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Performance</Category>
+        <Area>Network</Area>
+        <Tags>network,hv_netvsc</Tags>
+    </test>
+    <test>
+        <testName>PERF-NETWORK-UDP-1K-THROUGHPUT-MULTICONNECTION-NTTTCP-SRIOV</testName>
+        <testScript>PERF-NETWORK-THROUGHPUT-MULTICONNECTION-NTTTCP.ps1</testScript>
+        <setupType>M1S1</setupType>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <SubtestValues>This-tag-will-be-removed</SubtestValues>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
+        <TestParameters>
+            <param>testDuration=NTTTCP_RUNTIME_IN_SECONDS</param>
+            <param>testType=udp</param>
+            <param>bufferLength=1024</param>
+            <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024"</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Performance</Category>
+        <Area>Network</Area>
+        <Tags>network,hv_netvsc,sriov</Tags>
+    </test>    
     <test>
         <testName>PERF-NETWORK-TCP-LATENCY-MULTICONNECTION-Synthetic</testName>
         <testScript>PERF-NETWORK-TCP-LATENCY-MULTICONNECTION-LAGSCOPE.ps1</testScript>
@@ -71,7 +113,7 @@
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_iperf3.sh</files>
         <TestParameters>
-            <param>testDuration=300</param>
+            <param>testDuration=IPERF3_RUNTIME_IN_SECONDS</param>
             <param>testType=udp</param>
             <param>max_parallel_connections_per_instance=64</param>
             <param>connections=(1 2 4 8 16 32 64 128 256 512 1024)</param>
@@ -93,7 +135,7 @@
         <SubtestValues>This-tag-will-be-removed</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_iperf3.sh</files>
         <TestParameters>
-            <param>testDuration=300</param>
+            <param>testDuration=IPERF3_RUNTIME_IN_SECONDS</param>
             <param>testType=udp</param>
             <param>max_parallel_connections_per_instance=64</param>
             <param>connections=(1 2 4 8 16 32 64 128 256 512 1024)</param>
@@ -120,7 +162,7 @@
             <param>maxThread=1024</param>
             <param>startIO=4</param>
             <param>numjobs=1</param>
-            <param>ioruntime=300</param>
+            <param>ioruntime=FIO_RUNTIME_IN_SECONDS</param>
             <param>maxIO=4</param>
             <param>fileSize=1023G</param>
         </TestParameters>
@@ -144,7 +186,7 @@
             <param>maxThread=1024</param>
             <param>startIO=1024</param>
             <param>numjobs=1</param>
-            <param>ioruntime=300</param>
+            <param>ioruntime=FIO_RUNTIME_IN_SECONDS</param>
             <param>maxIO=1024</param>
             <param>fileSize=1023G</param>
         </TestParameters>
@@ -165,7 +207,7 @@
             <param>maxThread=1024</param>
             <param>startIO=4</param>
             <param>numjobs=1</param>
-            <param>ioruntime=300</param>
+            <param>ioruntime=FIO_RUNTIME_IN_SECONDS</param>
             <param>maxIO=4</param>
             <param>fileSize=1023G</param>
             <param>nfsprotocol=tcp</param>
@@ -187,7 +229,7 @@
             <param>maxThread=1024</param>
             <param>startIO=4</param>
             <param>numjobs=1</param>
-            <param>ioruntime=300</param>
+            <param>ioruntime=FIO_RUNTIME_IN_SECONDS</param>
             <param>maxIO=4</param>
             <param>fileSize=1023G</param>
             <param>nfsprotocol=udp</param>
@@ -212,7 +254,7 @@
             <param>maxThread=1024</param>
             <param>startIO=4</param>
             <param>numjobs=1</param>
-            <param>ioruntime=300</param>
+            <param>ioruntime=FIO_RUNTIME_IN_SECONDS</param>
             <param>maxIO=4</param>
             <param>fileSize=1023G</param>
             <param>nfsprotocol=tcp</param>
@@ -237,7 +279,7 @@
             <param>maxThread=1024</param>
             <param>startIO=4</param>
             <param>numjobs=1</param>
-            <param>ioruntime=300</param>
+            <param>ioruntime=FIO_RUNTIME_IN_SECONDS</param>
             <param>maxIO=4</param>
             <param>fileSize=1023G</param>
             <param>nfsprotocol=tcp</param>
@@ -256,7 +298,7 @@
         </AdditionalHWConfig>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_iperf3.sh</files>
         <TestParameters>
-            <param>testDuration=120</param>
+            <param>testDuration=IPERF3_RUNTIME_IN_SECONDS</param>
             <param>testType=tcp</param>
             <param>max_parallel_connections_per_instance=64</param>
             <param>connections=(1)</param>
@@ -277,7 +319,7 @@
         </AdditionalHWConfig>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_iperf3.sh</files>
         <TestParameters>
-            <param>testDuration=120</param>
+            <param>testDuration=IPERF3_RUNTIME_IN_SECONDS</param>
             <param>testType=tcp</param>
             <param>max_parallel_connections_per_instance=64</param>
             <param>connections=(1)</param>

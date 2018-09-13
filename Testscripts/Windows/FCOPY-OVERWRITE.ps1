@@ -113,7 +113,7 @@ $vhd_path_formatted = $vhd_path.Replace(':','$')
 $filePath = $vhd_path + $testfile
 $file_path_formatted = $vhd_path_formatted + $testfile
 
-$sts = Copy-Check-FileInLinuxGuest -vmUserName $VMUserName -vmPassword $VMPassword -ipv4 $Ipv4 -vmPort $VMPort -vmName $VMName -hvServer $HvServer  -testfile $testfile -overwrite $False -contentlength 20 -filePath $filePath -vhd_path_formatted $vhd_path_formatted
+$sts = Copy-CheckFileInLinuxGuest -vmUserName $VMUserName -vmPassword $VMPassword -ipv4 $Ipv4 -vmPort $VMPort -vmName $VMName -hvServer $HvServer  -testfile $testfile -overwrite $False -contentlength 20 -filePath $filePath -vhd_path_formatted $vhd_path_formatted
 if (-not $sts) {
     LogErr "FAIL to initially copy the file '${testfile}' to the VM."
     return "FAIL"
@@ -125,7 +125,7 @@ else {
 #
 # Second copy file overwrites the initial file. Re-write the text file with 15 characters, and then copy it with -Force parameter.
 #
-$sts = Copy-Check-FileInLinuxGuest -vmUserName $VMUserName -vmPassword $VMPassword -ipv4 $Ipv4 -vmPort $VMPort -vmName $VMName -hvServer $HvServer -testfile $testfile -overwrite $True -contentlength 15 -filePath $filePath -vhd_path_formatted $vhd_path_formatted
+$sts = Copy-CheckFileInLinuxGuest -vmUserName $VMUserName -vmPassword $VMPassword -ipv4 $Ipv4 -vmPort $VMPort -vmName $VMName -hvServer $HvServer -testfile $testfile -overwrite $True -contentlength 15 -filePath $filePath -vhd_path_formatted $vhd_path_formatted
 if (-not $sts[-1]) {
     LogErr "FAIL to overwrite the file '${testfile}' to the VM."
     return "FAIL"

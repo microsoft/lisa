@@ -21,7 +21,7 @@
 #    Configures hugepages on local machine and IP if provided
 function hugepage_setup() {
     # if huge mnt point already exists still complete rest of cmd
-    local hugepage_cmd="mkdir /mnt/huge; mount -t hugetlbfs nodev /mnt/huge && \
+    local hugepage_cmd="mkdir -p /mnt/huge; mount -t hugetlbfs nodev /mnt/huge && \
         echo 4096 | tee /sys/devices/system/node/node*/hugepages/hugepages-2048kB/nr_hugepages > /dev/null"
 
     eval ${hugepage_cmd}
@@ -168,16 +168,16 @@ function install_dpdk() {
 
         ssh ${install_ip} "yum -y groupinstall 'Infiniband Support'"
         ssh ${install_ip} "dracut --add-drivers 'mlx4_en mlx4_ib mlx5_ib' -f"
-        ssh ${install_ip} "yum install -y gcc kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel libmnl-devel"
+        ssh ${install_ip} "yum install -y gcc make git tar wget dos2unix psmisc kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel libmnl-devel"
 
     elif [[ "${distro}" == "sles15" ]]; then
         LogMsg "Detected sles15"
 
         local kernel=$(uname -r)
         if [[ "${kernel}" == *azure ]]; then
-            ssh ${install_ip} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install kernel-azure kernel-devel-azure gcc make libnuma-devel numactl librdmacm1 rdma-core-devel libmnl-devel"
+            ssh ${install_ip} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install gcc make git tar wget dos2unix psmisc kernel-azure kernel-devel-azure libnuma-devel numactl librdmacm1 rdma-core-devel libmnl-devel"
         else
-            ssh ${install_ip} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install kernel-default-devel gcc make libnuma-devel numactl librdmacm1 rdma-core-devel libmnl-devel"
+            ssh ${install_ip} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install gcc make git tar wget dos2unix psmisc kernel-default-devel libnuma-devel numactl librdmacm1 rdma-core-devel libmnl-devel"
         fi
 
         ssh ${install_ip} "mv /usr/include/libmnl/libmnl/libmnl.h /usr/include/libmnl"
@@ -187,15 +187,22 @@ function install_dpdk() {
         exit 1
     fi
 
-    local dpdk_tar="${DPDK_LINK##*/}"
     local dpdk_build=x86_64-native-linuxapp-gcc
-
-    LogMsg "Install dpdk from source tar ${dpdk_tar}"
-    ssh ${install_ip} "wget ${DPDK_LINK} -P /tmp"
-    ssh ${install_ip} "tar xvf /tmp/${dpdk_tar}"
-    local dpdk_dir=$(ssh ${install_ip} "ls | grep dpdk- | grep -v \.sh")
-    LogMsg "dpdk source on ${install_ip} ${dpdk_dir}"
-
+    if [[ $DPDK_LINK =~ .tar ]]; then
+        local dpdk_tar="${DPDK_LINK##*/}"
+        LogMsg "Install dpdk from source tar ${dpdk_tar}"
+        ssh ${install_ip} "wget ${DPDK_LINK} -P /tmp"
+        ssh ${install_ip} "tar xvf /tmp/${dpdk_tar}"
+        local dpdk_dir=$(ssh ${install_ip} echo "${dpdk_tar%%".tar"*}")
+        LogMsg "dpdk source on ${install_ip} ${dpdk_dir}"
+    elif [[ $DPDK_LINK =~ ".git" ]] || [[ $DPDK_LINK =~ "git:" ]]; then
+		dpdk_dir="${DPDK_LINK##*/}"
+		LogMsg "Installing DPDK from source file $dpdk_dir"
+		ssh ${install_ip} git clone $DPDK_LINK
+		cd $dpdk_dir
+		LogMsg "dpdk source on ${install_ip} $dpdk_dir"
+	fi
+    
     if [ -n "${src_ip}" ]; then
         LogMsg "dpdk build with NIC SRC IP ${src_ip} ADDR on ${install_ip}"
         testpmd_ip_setup "SRC" ${install_ip} ${src_ip}
