@@ -51,7 +51,7 @@
             <param>bufferLength=1024</param>
             <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024"</param>
         </TestParameters>
-        <Platform>Azure,HyperV</Platform>
+        <Platform>Azure</Platform>
         <Category>Performance</Category>
         <Area>Network</Area>
         <Tags>network,hv_netvsc</Tags>
@@ -71,7 +71,7 @@
             <param>bufferLength=1024</param>
             <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024"</param>
         </TestParameters>
-        <Platform>Azure,HyperV</Platform>
+        <Platform>Azure</Platform>
         <Category>Performance</Category>
         <Area>Network</Area>
         <Tags>network,hv_netvsc,sriov</Tags>
