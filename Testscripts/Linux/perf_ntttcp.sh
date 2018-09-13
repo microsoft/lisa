@@ -247,7 +247,7 @@ Run_Ntttcp()
 		LogMsg "---------------"
 		LogMsg "Throughput in Gbps: Tx: $tx_throughput , Rx: $rx_throughput"
 		LogMsg "Cycles/Byte: Tx: $tx_cyclesperbytes , Rx: $rx_cyclesperbytes"
-		LogMsg "AvgLaentcy in us: $avg_latency"
+		LogMsg "AvgLatency in us: $avg_latency"
 		LogMsg "DataLoss in %: $data_loss"
 		if [[ $testType == "udp" ]];
 		then
