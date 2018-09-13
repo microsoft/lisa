@@ -56,9 +56,6 @@ function run_testpmd() {
         local server_duration=$(expr ${test_duration} + 5)
 
         local pmd_mode=${test_mode}
-        if [ "${test_mode}" = "fwd" ]; then
-            pmd_mode="io"
-        fi
         local server_testpmd_cmd="timeout ${server_duration} ${LIS_HOME}/${dpdk_dir}/build/app/testpmd -l 0-${core} -w ${bus_addr} --vdev='net_vdev_netvsc0,iface=${iface}' -- --port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core} --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=${pmd_mode} --stats-period 1"
         LogMsg "${server_testpmd_cmd}"
         ssh ${SERVER} ${server_testpmd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testpmd-${test_mode}-receiver-${core}-core-$(date +"%m%d%Y-%H%M%S").log &
@@ -110,18 +107,32 @@ function testpmd_parser() {
     for file in ${log_files}; do
         LogMsg "  Reading ${file}"
         if [[ "${file}" =~ "receiver" ]]; then
+            rx_pps_Max=`cat ${file} | grep Rx-pps: | awk '{print $2}' | sort -n | tail -1`
             rx_pps_arr=($(grep Rx-pps: ${file} | awk '{print $2}' | sort -n))
             rx_pps_avg=$(( ($(printf '%b + ' "${rx_pps_arr[@]}"\\c)) / ${#rx_pps_arr[@]} ))
+            rx_bytes_arr=(`cat  ${file} | grep RX-bytes: | rev | awk '{print $1}' | rev`)
+            rx_bytes_avg=$(($(expr $(printf '%b + ' "${rx_bytes_arr[@]::${#rx_bytes_arr[@]}}"\\c))/${#rx_bytes_arr[@]}))
+            rx_packets_arr=(`cat  ${file} | grep RX-packets: | awk '{print $2}'`)
+            rx_packets_avg=$(($(expr $(printf '%b + ' "${rx_packets_arr[@]::${#rx_packets_arr[@]}}"\\c))/${#rx_packets_arr[@]}))
 
             fwdtx_pps_arr=($(grep Tx-pps: ${file} | awk '{print $2}' | sort -n))
             fwdtx_pps_avg=$(( ($(printf '%b + ' "${fwdtx_pps_arr[@]}"\\c)) / ${#fwdtx_pps_arr[@]} ))
+            fwdtx_bytes_arr=(`cat ${file} | grep TX-bytes: | rev | awk '{print $1}' | rev`)
+            fwdtx_bytes_avg=$(($(expr $(printf '%b + ' "${fwdtx_bytes_arr[@]::${#fwdtx_bytes_arr[@]}}"\\c))/${#fwdtx_bytes_arr[@]}))
+            fwdtx_packets_arr=(`cat ${file} | grep TX-packets: | awk '{print $2}'`)
+            fwdtx_packets_avg=$(($(expr $(printf '%b + ' "${fwdtx_packets_arr[@]::${#fwdtx_packets_arr[@]}}"\\c))/${#fwdtx_packets_arr[@]}))
         elif [[ "${file}" =~ "sender" ]]; then
             tx_pps_arr=($(grep Tx-pps: ${file} | awk '{print $2}' | sort -n))
             tx_pps_avg=$(( ($(printf '%b + ' "${tx_pps_arr[@]}"\\c)) / ${#tx_pps_arr[@]} ))
+            tx_bytes_arr=(`cat ${file} | grep TX-bytes: | rev | awk '{print $1}' | rev`)
+            tx_bytes_avg=$(($(expr $(printf '%b + ' "${tx_bytes_arr[@]::${#tx_bytes_arr[@]}}"\\c))/${#tx_bytes_arr[@]}))
+            rx_packets_arr=(`cat ${file} | grep TX-packets: | awk '{print $2}'`)
+            tx_packets_avg=$(($(expr $(printf '%b + ' "${rx_packets_arr[@]::${#rx_packets_arr[@]}}"\\c))/${#rx_packets_arr[@]}))
         fi
     done
-
-    echo "${dpdk_version},${test_mode},${core},${tx_pps_avg},${rx_pps_avg},${fwdtx_pps_avg}" >> ${testpmd_csv_file}
+    tx_packet_size=$((tx_bytes_avg/tx_packets_avg))
+    rx_packet_size=$((rx_bytes_avg/rx_packets_avg))
+    echo "${dpdk_version},${test_mode},${core},${rx_pps_Max},${tx_pps_avg},${rx_pps_avg},${fwdtx_pps_avg},${tx_bytes_avg},${rx_bytes_avg},${fwdtx_bytes_avg},${tx_packets_avg},${rx_packets_avg},${fwdtx_packets_avg},${tx_packet_size},${rx_packet_size}" >> ${testpmd_csv_file}
 }
 
 function run_testcase() {
@@ -146,9 +157,10 @@ function run_testcase() {
     done
 
     LogMsg "Starting testpmd parser execution"
-    echo "dpdk_version,test_mode,core,tx_pps_avg,rx_pps_avg,fwdtx_pps_avg" > ${LIS_HOME}/dpdk_testpmd.csv
+    echo "dpdk_version,test_mode,core,max_rx_pps,tx_pps_avg,rx_pps_avg,fwdtx_pps_avg,tx_bytes,rx_bytes,fwd_bytes,tx_packets,rx_packets,fwd_packets,tx_packet_size,rx_packet_size" > ${LIS_HOME}/dpdk_testpmd.csv
     for core in ${CORES}; do
         for test_mode in ${MODES}; do
+            LogMsg "Parsing dpdk results for ${core} core ${test_mode} mode"
             testpmd_parser ${core} ${test_mode} ${LIS_HOME}/dpdk_testpmd.csv
         done
     done

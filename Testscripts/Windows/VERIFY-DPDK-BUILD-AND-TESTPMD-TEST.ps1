@@ -46,7 +46,7 @@ function Main {
         $clientNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -command $getNicCmd).Trim()
         $serverNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username $superUser -password $password -command $getNicCmd).Trim()
         if ($serverNicName -eq $clientNicName) {
-            $nicName = $clientNicName
+            LogMsg "Client and Server VMs have same nic name: $clientNicName"
         } else {
             Throw "Server and client SRIOV NICs are not same."
         }
@@ -88,7 +88,7 @@ collect_VM_properties
         Set-Content "$LogDir\StartDpdkTestPmd.sh" $myString
         RemoteCopy -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files ".\$constantsFile,.\$LogDir\StartDpdkTestPmd.sh" -username $superUser -password $password -upload
 
-        $out = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -command "chmod +x *.sh"
+        RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -command "chmod +x *.sh" | Out-Null
         $testJob = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -command "./StartDpdkTestPmd.sh" -RunInBackground
         #endregion
 
@@ -148,7 +148,7 @@ collect_VM_properties
                 $ProtocolType = "TCP"
                 $connectionString = "Server=$dataSource;uid=$DBuser; pwd=$DBpassword;Database=$database;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
 
-                $SQLQuery = "INSERT INTO $dataTableName (TestPlatFrom,TestCaseName,TestDate,HostType,HostBy,HostOS,GuestOSType,GuestDistro,GuestSize,KernelVersion,LISVersion,IPVersion,ProtocolType,DataPath,DPDKVersion,TestMode,Cores,Max_Rxpps,Txpps,Fwdpps,Rxpps,Txbytes,Rxbytes,Fwdbytes,Txpackets,Rxpackets,Fwdpackets,Tx_PacketSize_KBytes,Rx_PacketSize_KBytes) VALUES "
+                $SQLQuery = "INSERT INTO $dataTableName (TestPlatFrom,TestCaseName,TestDate,HostType,HostBy,HostOS,GuestOSType,GuestDistro,GuestSize,KernelVersion,LISVersion,IPVersion,ProtocolType,DataPath,DPDKVersion,TestMode,Cores,Max_Rxpps,Txpps,Rxpps,Fwdpps,Txbytes,Rxbytes,Fwdbytes,Txpackets,Rxpackets,Fwdpackets,Tx_PacketSize_KBytes,Rx_PacketSize_KBytes) VALUES "
                 foreach ($mode in $testpmdDataCsv) {
                     $SQLQuery += "('$TestPlatform','$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$HostType','$HostBy','$HostOS','$GuestOSType','$GuestDistro','$GuestSize','$KernelVersion','Inbuilt','$IPVersion','$ProtocolType','$DataPath','$($mode.DpdkVersion)','$($mode.TestMode)','$($mode.Cores)','$($mode.MaxRxPps)','$($mode.TxPps)','$($mode.RxPps)','$($mode.FwdPps)','$($mode.TxBytes)','$($mode.RxBytes)','$($mode.FwdBytes)','$($mode.TxPackets)','$($mode.RxPackets)','$($mode.FwdPackets)','$($mode.TxPacketSize)','$($mode.RxPacketSize)'),"
                     LogMsg "Collected performace data for $($mode.TestMode) mode."
@@ -162,7 +162,7 @@ collect_VM_properties
                 $command = $connection.CreateCommand()
                 $command.CommandText = $SQLQuery
                 
-                $result = $command.executenonquery()
+                $command.executenonquery() | Out-Null
                 $connection.Close()
                 LogMsg "Uploading the test results done!!"
             } else {
