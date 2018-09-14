@@ -10,7 +10,7 @@
             <param>TestIterations=10</param>
         </TestParameters>		
         <testScript>verify-ifdown-ifup-eth0-rmmod-modprobe-hv-netvsc.sh</testScript>
-        <files>.\Testscripts\Linux\verify-ifdown-ifup-eth0-rmmod-modprobe-hv-netvsc.sh</files>
+        <files>.\Testscripts\Linux\verify-ifdown-ifup-eth0-rmmod-modprobe-hv-netvsc.sh,.\TestScripts\Linux\utils.sh</files>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>Synthetic</Area>
