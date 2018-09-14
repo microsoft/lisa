@@ -4021,3 +4021,177 @@ Function Set-SRIOVInVMs {
     }
     return $retValue
 }
+
+# Checks if MAC is valid. Delimiter can be : - or nothing
+function Is-ValidMAC {
+    param (
+        [String]$macAddr
+    )
+
+    $retVal = $macAddr -match '^([0-9a-fA-F]{2}[:-]{0,1}){5}[0-9a-fA-F]{2}$'
+    return $retVal
+}
+
+# Returns an unused random MAC capable
+# The address will be outside of the dynamic MAC pool
+# Note that the Manufacturer bytes (first 3 bytes) are also randomly generated 
+function Get-RandUnusedMAC {
+    param (
+        [String] $HvServer,
+        [Char] $Delim
+    )
+    # First get the dynamic pool range
+    $dynMACStart = (Get-VMHost -ComputerName $HvServer).MacAddressMinimum
+    $validMac = Is-ValidMAC $dynMACStart
+    if (-not $validMac) {
+        return $false
+    }
+
+    $dynMACEnd = (Get-VMHost -ComputerName $HvServer).MacAddressMaximum
+    $validMac = Is-ValidMAC $dynMACEnd
+    if (-not $validMac) {
+        return $false
+    }
+
+    [uint64]$lowerDyn = "0x$dynMACStart"
+    [uint64]$upperDyn = "0x$dynMACEnd"
+    if ($lowerDyn -gt $upperDyn) {
+        return $false
+    }
+
+    # leave out the broadcast address
+    [uint64]$maxMac = 281474976710655 #FF:FF:FF:FF:FF:FE
+
+    # now random from the address space that has more macs
+    [uint64]$belowPool = $lowerDyn - [uint64]1
+    [uint64]$abovePool = $maxMac - $upperDyn
+
+    if ($belowPool -gt $abovePool) {
+        [uint64]$randStart = [uint64]1
+        [uint64]$randStop = [uint64]$lowerDyn - [uint64]1
+    } else {
+        [uint64]$randStart = $upperDyn + [uint64]1
+        [uint64]$randStop = $maxMac
+    }
+
+    # before getting the random number, check all VMs for static MACs
+    $staticMacs = (get-VM -computerName $hvServer | Get-VMNetworkAdapter | where { $_.DynamicMacAddressEnabled -like "False" }).MacAddress
+    do {
+        # now get random number
+        [uint64]$randDecAddr = Get-Random -minimum $randStart -maximum $randStop
+        [String]$randAddr = "{0:X12}" -f $randDecAddr
+
+        # Now set the unicast/multicast flag bit.
+        [Byte] $firstbyte = "0x" + $randAddr.substring(0,2)
+        # Set low-order bit to 0: unicast
+        $firstbyte = [Byte] $firstbyte -band [Byte] 254 #254 == 11111110
+
+        $randAddr = ("{0:X}" -f $firstbyte).padleft(2,"0") + $randAddr.substring(2)
+
+    } while ($staticMacs -contains $randAddr) # check that we didn't random an already assigned MAC Address
+
+    # randAddr now contains the new random MAC Address
+    # add delim if specified
+    if ($Delim) {
+        for ($i = 2 ; $i -le 14 ; $i += 3) {
+            $randAddr = $randAddr.insert($i,$Delim)
+        }
+    }
+
+    $validMac = Is-ValidMAC $randAddr
+    if (-not $validMac) {
+        return $false
+    }
+
+    return $randAddr
+}
+
+function Start-VMandGetIP {
+    param (
+        $VMName,
+        $HvServer,
+        $VMPort,
+        $VMUserName,
+        $VMPassword   
+    )
+    $newIpv4 = $null
+
+    Start-VM -Name $VMName -ComputerName $HvServer
+    if (-not $?) {
+        LogErr "Error: Failed to start VM $VMName on $HvServer"
+        return $False
+    } else {
+        LogMsg "$VMName started on $HvServe"
+    }
+
+    # Wait for VM to boot
+    $newIpv4 = Get-Ipv4AndWaitForSSHStart $VMName $HvServer $VMPort $VMUserName `
+                $VMPassword 300
+    if ($null -ne $newIpv4) {
+        LogMsg "$VMName IP address: $newIpv4"
+        return $newIpv4
+    } else {
+        LogErr "Error: Failed to get IP of $VMName on $HvServer"
+        return $False
+    }
+}
+
+# Generates an unused IP address based on an old IP address.
+function Generate-IPv4{
+    param (
+        $TempIpv4, 
+        $OldIpv4
+    )
+    [int]$i= $null
+    [int]$check = $null
+
+    if ($OldIpv4 -eq $null){
+        [int]$octet = 102
+    } else {
+        $oldIpPart = $OldIpv4.Split(".")
+        [int]$octet  = $oldIpPart[3]
+    }
+
+    $ipPart = $TempIpv4.Split(".")
+    $newAddress = ($ipPart[0]+"."+$ipPart[1]+"."+$ipPart[2])
+
+    while ($check -ne 1 -and $octet -lt 255) {
+        $octet = 1 + $octet
+        if (!(Test-Connection "$newAddress.$octet" -Count 1 -Quiet)) {
+            $splitIp = $newAddress + "." + $octet
+            $check = 1
+        }
+    }
+
+    return $splitIp.ToString()
+}
+
+# CIDR to netmask
+function Convert-CIDRtoNetmask{
+    param (
+        [int]$CIDR
+    )
+    $mask = ""
+
+    for ($i=0; $i -lt 32; $i+=1) {
+        if($i -lt $CIDR){
+            $ip+="1"
+        }else{
+            $ip+= "0"
+        }
+    }
+    for ($byte=0; $byte -lt $ip.Length/8; $byte+=1) {
+        $decimal = 0
+        for ($bit=0;$bit -lt 8; $bit+=1) {
+            $poz = $byte * 8 + $bit
+            if ($ip[$poz] -eq "1") {
+                $decimal += [math]::Pow(2, 8 - $bit -1)
+            }
+        }
+        $mask +=[convert]::ToString($decimal)
+        if ($byte -ne $ip.Length /8 -1) {
+             $mask += "."
+        }
+    }
+    return $mask
+}
