@@ -69,7 +69,7 @@ else
 	error_message="missing ${CONSTANTS_FILE} file"
 	LogErr "${error_message}"
 	SetTestStateFailed
-	exit 10
+	exit 1
 fi
 
 slaves_array=$(echo ${slaves} | tr ',' ' ')

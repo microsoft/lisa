@@ -13,7 +13,6 @@ function Main {
             if ( $VmData.RoleName -imatch "controller" ) {
                 $ServerVMData = $VmData
                 $NoServer = $false
-
             }
             elseif ( $VmData.RoleName -imatch "Client" ) {
                 $ClientMachines += $VmData
@@ -92,11 +91,11 @@ function Main {
 
         #region Upload files to master VM...
         RemoteCopy -uploadTo $ServerVMData.PublicIP -port $ServerVMData.SSHPort `
-        -files "$constantsFile,$($CurrentTestData.files)" -username "root" -password $password -upload
+            -files "$constantsFile,$($CurrentTestData.files)" -username "root" -password $password -upload
         #endregion
 
         RemoteCopy -uploadTo $ServerVMData.PublicIP -port $ServerVMData.SSHPort `
-        -files "$constantsFile" -username "root" -password $password -upload
+            -files "$constantsFile" -username "root" -password $password -upload
         $out = RunLinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort `
         -username "root" -password $password -command "chmod +x *.sh"
         $RemainingRebootIterations = $CurrentTestData.NumberOfReboots
@@ -110,7 +109,7 @@ function Main {
                 foreach ( $ClientVMData in $ClientMachines ) {
                     LogMsg "Getting initial MAC address info from $($ClientVMData.RoleName)"
                     RunLinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
-                    -password $password "ifconfig $InfinibandNic | grep ether | awk '{print `$2}' > InitialInfiniBandMAC.txt"
+                        -password $password "ifconfig $InfinibandNic | grep ether | awk '{print `$2}' > InitialInfiniBandMAC.txt"
                 }
             }
             else {
@@ -118,9 +117,9 @@ function Main {
                 foreach ( $ClientVMData in $ClientMachines ) {
                     LogMsg "Step 1/2: Getting current MAC address info from $($ClientVMData.RoleName)"
                     $CurrentMAC = RunLinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
-                    -password $password "ifconfig $InfinibandNic | grep ether | awk '{print `$2}'"
+                        -password $password "ifconfig $InfinibandNic | grep ether | awk '{print `$2}'"
                     $InitialMAC = RunLinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
-                    -password $password "cat InitialInfiniBandMAC.txt"
+                        -password $password "cat InitialInfiniBandMAC.txt"
                     if ($CurrentMAC -eq $InitialMAC) {
                         LogMsg "Step 2/2: MAC address verified in $($ClientVMData.RoleName)."
                     }
@@ -136,30 +135,30 @@ function Main {
                 $Iteration += 1
                 LogMsg "******************Iteration - $Iteration/$ExpectedSuccessCount*******************"
                 $TestJob = RunLinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
-                -password $password -command "/root/TestRDMA_MultiVM.sh" -RunInBackground
+                    -password $password -command "/root/TestRDMA_MultiVM.sh" -RunInBackground
                 #endregion
 
                 #region MONITOR TEST
                 while ( (Get-Job -Id $TestJob).State -eq "Running" ) {
                     $CurrentStatus = RunLinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
-                    -password $password -command "tail -n 1 /root/TestExecution.log"
+                        -password $password -command "tail -n 1 /root/TestExecution.log"
                     LogMsg "Current Test Staus : $CurrentStatus"
                     WaitFor -seconds 10
                 }
 
                 RemoteCopy -downloadFrom $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
-                -password $password -download -downloadTo $LogDir -files "/root/$InfinibandNic-status*"
+                    -password $password -download -downloadTo $LogDir -files "/root/$InfinibandNic-status*"
                 RemoteCopy -downloadFrom $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
-                -password $password -download -downloadTo $LogDir -files "/root/IMB-*"
+                    -password $password -download -downloadTo $LogDir -files "/root/IMB-*"
                 RemoteCopy -downloadFrom $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
-                -password $password -download -downloadTo $LogDir -files "/root/kernel-logs-*"
+                    -password $password -download -downloadTo $LogDir -files "/root/kernel-logs-*"
                 RemoteCopy -downloadFrom $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
-                -password $password -download -downloadTo $LogDir -files "/root/TestExecution.log"
+                    -password $password -download -downloadTo $LogDir -files "/root/TestExecution.log"
                 RemoteCopy -downloadFrom $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
-                -password $password -download -downloadTo $LogDir -files "/root/state.txt"
+                    -password $password -download -downloadTo $LogDir -files "/root/state.txt"
                 $ConsoleOutput = ( Get-Content -Path "$LogDir\TestExecution.log" | Out-String )
                 $FinalStatus = RunLinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
-                -password $password -command "cat /root/state.txt"
+                    -password $password -command "cat /root/state.txt"
                 if ($Iteration -eq 1) {
                     $TempName = "FirstBoot"
                 }
@@ -188,7 +187,7 @@ function Main {
                 LogMsg "$pattern : $currentResult"
                 $resultArr += $currentResult
                 $CurrentTestResult.TestSummary += CreateResultSummary -testResult $currentResult -metaData $metaData `
-                -checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
+                    -checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
                 #endregion
 
                 #region Check MPI pingpong intranode tests
@@ -206,7 +205,7 @@ function Main {
                 LogMsg "$pattern : $currentResult"
                 $resultArr += $currentResult
                 $CurrentTestResult.TestSummary += CreateResultSummary -testResult $currentResult -metaData $metaData `
-                -checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
+                    -checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
                 #endregion
 
                 #region Check MPI pingpong internode tests
@@ -303,7 +302,7 @@ function Main {
                 $testResult = "FAIL"
             }
             elseif ( $FinalStatus -imatch "TestAborted") {
-                LogErr "Test Aborted. Last known status : $CurrentStatus."
+                LogErr "Test ABORTED. Last known status : $CurrentStatus."
                 $testResult = "ABORTED"
             }
             elseif ( $FinalStatus -imatch "TestCompleted") {
@@ -337,15 +336,15 @@ function Main {
         }
         LogMsg "Test result : $testResult"
         LogMsg "Test Completed"
-
     }
     catch {
-        $ErrorMessage = $_.Exception.Message
-        LogErr "EXCEPTION : $ErrorMessage"
+        $ErrorMessage =  $_.Exception.Message
+        $ErrorLine = $_.InvocationInfo.ScriptLineNumber
+        LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     }
     Finally {
         if (!$testResult) {
-            $testResult = "Aborted"
+            $testResult = "ABORTED"
         }
         $resultArr += $testResult
     }
