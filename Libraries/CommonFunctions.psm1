@@ -202,15 +202,6 @@ Function ProvisionVMsForLisa($allVMData, $installPackagesOnRoleNames)
 			{
 				$keysGenerated = $true
 				LogMsg "SSH keys copied to $($vmData.RoleName)"
-				$md5sumCopy = RunLinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username "root" -password $password -command "md5sum .ssh/id_rsa"
-				if ( $md5sumGen -eq $md5sumCopy )
-				{
-					LogMsg "md5sum check success for .ssh/id_rsa."
-				}
-				else
-				{
-					Throw "md5sum check failed for .ssh/id_rsa. Aborting test."
-				}
 			}
 			else
 			{
@@ -227,7 +218,6 @@ Function ProvisionVMsForLisa($allVMData, $installPackagesOnRoleNames)
 				$keysGenerated = $true
 				LogMsg "SSH keys generated in $($vmData.RoleName)"
 				RemoteCopy -download -downloadFrom $vmData.PublicIP -port $vmData.SSHPort  -files "/root/sshFix.tar" -username "root" -password $password -downloadTo $LogDir
-				$md5sumGen = RunLinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username "root" -password $password -command "md5sum .ssh/id_rsa"
 			}
 			else
 			{

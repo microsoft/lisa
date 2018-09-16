@@ -106,25 +106,25 @@ function Main {
             if ($FirstRun) {
                 $FirstRun = $false
                 $ContinueMPITest = $true
-                foreach ( $ClientVMData in $ClientMachines ) {
-                    LogMsg "Getting initial MAC address info from $($ClientVMData.RoleName)"
-                    RunLinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
+                foreach ( $VmData in $AllVMData ) {
+                    LogMsg "Getting initial MAC address info from $($VmData.RoleName)"
+                    RunLinuxCmd -ip $VmData.PublicIP -port $VmData.SSHPort -username "root" `
                         -password $password "ifconfig $InfinibandNic | grep ether | awk '{print `$2}' > InitialInfiniBandMAC.txt"
                 }
             }
             else {
                 $ContinueMPITest = $true
-                foreach ( $ClientVMData in $ClientMachines ) {
-                    LogMsg "Step 1/2: Getting current MAC address info from $($ClientVMData.RoleName)"
-                    $CurrentMAC = RunLinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
+                foreach ( $VmData in $AllVMData ) {
+                    LogMsg "Step 1/2: Getting current MAC address info from $($VmData.RoleName)"
+                    $CurrentMAC = RunLinuxCmd -ip $VmData.PublicIP -port $VmData.SSHPort -username "root" `
                         -password $password "ifconfig $InfinibandNic | grep ether | awk '{print `$2}'"
-                    $InitialMAC = RunLinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
+                    $InitialMAC = RunLinuxCmd -ip $VmData.PublicIP -port $VmData.SSHPort -username "root" `
                         -password $password "cat InitialInfiniBandMAC.txt"
                     if ($CurrentMAC -eq $InitialMAC) {
-                        LogMsg "Step 2/2: MAC address verified in $($ClientVMData.RoleName)."
+                        LogMsg "Step 2/2: MAC address verified in $($VmData.RoleName)."
                     }
                     else {
-                        LogErr "Step 2/2: MAC address swapped / changed in $($ClientVMData.RoleName)."
+                        LogErr "Step 2/2: MAC address swapped / changed in $($VmData.RoleName)."
                         $ContinueMPITest = $false
                     }
                 }
