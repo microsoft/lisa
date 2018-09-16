@@ -47,4 +47,44 @@ Scenario 2 : You need to run all the performance tests quickly.
         <ReplaceThis>LTP_TESTS_GIT_TAG</ReplaceThis>
         <ReplaceWith>20180515</ReplaceWith>
     </Parameter>
+    <Parameter>
+        <ReplaceThis>INFINIBAND_INTEL_TOTAL_REBOOT_COUNT</ReplaceThis>
+        <ReplaceWith>1</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>INFINIBAND_INTEL_MPI_SETTINGS</ReplaceThis>
+        <ReplaceWith>-env I_MPI_FABRICS shm:dapl -env I_MPI_DAPL_PROVIDER=ofa-v2-ib0 -env SECS_PER_SAMPLE=600</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>INFINIBAND_INTEL_IB_NIC</ReplaceThis>
+        <ReplaceWith>eth1</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>INFINIBAND_INTEL_MPI_TESTNAMES</ReplaceThis>
+        <ReplaceWith>pingpong allreduce</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>INFINIBAND_INTEL_PPN</ReplaceThis>
+        <ReplaceWith>2</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>INFINIBAND_INTEL_MPI_TEST_COUNT</ReplaceThis>
+        <ReplaceWith>1000</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>INFINIBAND_INTEL_RMA_TESTNAMES</ReplaceThis>
+        <ReplaceWith>all</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>INFINIBAND_INTEL_RMA_TEST_COUNT</ReplaceThis>
+        <ReplaceWith>1</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>INFINIBAND_INTEL_NBC_TESTNAMES</ReplaceThis>
+        <ReplaceWith>all</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>INFINIBAND_INTEL_NBC_TEST_COUNT</ReplaceThis>
+        <ReplaceWith>1</ReplaceWith>
+    </Parameter>
 </ReplaceableTestParameters>
