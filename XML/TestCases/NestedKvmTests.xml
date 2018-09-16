@@ -21,7 +21,7 @@
     <test>
         <TestName>NESTED-KVM-NTTTCP-PRIVATE-BRIDGE</TestName>
         <testScript>NESTED-KVM-NTTTCP-PRIVATE-BRIDGE.ps1</testScript>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_kvm_utils.sh,.\Testscripts\Linux\nested_kvm_ntttcp_private_bridge.sh,.\Testscripts\Linux\run-ntttcp-and-tcping.sh,.\Testscripts\Linux\report-ntttcp-and-tcping.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_kvm_utils.sh,.\Testscripts\Linux\nested_kvm_ntttcp_private_bridge.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
         <setupType>SingleVM</setupType>
         <OverrideVMSize>Standard_E16_v3</OverrideVMSize>
         <TestParameters>
@@ -33,6 +33,7 @@
             <param>NestedMemMB=8192</param>
             <param>NestedNetDevice=virtio-net-pci</param>
             <param>testDuration=60</param>
+            <param>testType=tcp</param>            
             <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024 2048 4096"</param>
         </TestParameters>
         <Platform>Azure</Platform>

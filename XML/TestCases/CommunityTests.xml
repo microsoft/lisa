@@ -29,7 +29,7 @@
         <Platform>Azure</Platform>
         <Category>Community</Category>
         <Area>Xfstesting-cifs</Area>
-        <Tags>xfs,disk</Tags>
+        <Tags>disk</Tags>
     </test>
     <test>
         <TestName>FILE-SYSTEM-VERIFICATION-TESTS-EXT4</TestName>
@@ -45,7 +45,7 @@
         <Platform>Azure</Platform>
         <Category>Community</Category>
         <Area>Xfstesting-cifs</Area>
-        <Tags>ext4,disk</Tags>
+        <Tags>disk</Tags>
     </test>
     <test>
         <TestName>FILE-SYSTEM-VERIFICATION-TESTS-BTRFS</TestName>
@@ -61,7 +61,7 @@
         <Platform>Azure</Platform>
         <Category>Community</Category>
         <Area>Xfstesting-cifs</Area>
-        <Tags>btrfs,disk</Tags>
+        <Tags>disk</Tags>
     </test>	
     <test>
         <TestName>LINUX-TEST-PROJECT-TESTS</TestName>
@@ -70,6 +70,7 @@
         <setupType>LTP</setupType>
 		<TestParameters>
             <param>TC_COVERED=LTP-01</param>
+            <param>ltp_version_git_tag="LTP_TESTS_GIT_TAG"</param>
         </TestParameters>
         <SubtestValues>This-tag-will-be-removed</SubtestValues>      
         <Timeout>7200</Timeout>

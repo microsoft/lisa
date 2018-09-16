@@ -134,6 +134,9 @@ Per Category, each XML file has VM name, Resource Group name, etc. We do not rec
             Like 'VERIFY-TEST-SCRIPT-IN-LINUX-GUEST.ps1', the PowerShell script wraps the multiple 
             Bash or Python script as a parameter of 'RunLinuxCmd' function.
     5. Before PR review, we recommend you run script testing in cmdline/API mode. See above instruction.
+    6. Current tags in the Repo: bvt, network, nested, hv_storvsc, stress, disk, dpdk,
+        sriov, kvm, smb, storage, boot, pci_hyperv, core, wala, lsvmbus, synthetic, kvp,
+        gpu, hv_netvsc, ltp, lis, fcopy, memory, backup. They are all lowercases.
 
 ## Coding Style
 
@@ -148,6 +151,66 @@ Per Category, each XML file has VM name, Resource Group name, etc. We do not rec
         a. Log should be readable to reflect what’s happening in the test execution.
         b. Remove noise. Determine if it would be error or warning.
         c. Exception only in the case of fatal errors.
+    9. Recommended Bash & Python function name format - Function_Name(). Upper letter in each string connected
+        with underscore character. PowerShell function name format remains Verb-Entity() format like Get-VMSize().
+    10. Use the same terminology:
+        1. PASS
+        2. FAIL
+        3. ABORTED (all upper cases)
+
+## Use recommended distro name
+
+    1. Short distro name in log, graph and script:
+        a. CentOS
+            CentOS Linux release 7.0.1406 (Core)
+            CentOS Linux release 7.1.1503 (Core)
+            CentOS Linux release 7.2.1511 (Core)
+            CentOS Linux release 7.3.1611 (Core)
+            CentOS Linux release 7.4.1708 (Core)
+            CentOS Linux release 7.5.1804 (Core)
+            CentOS release 6.5 (Final)
+            CentOS release 6.6 (Final)
+            CentOS release 6.7 (Final)
+            CentOS release 6.8 (Final)
+            CentOS release 6.9 (Final)
+        b. ClearLinux
+            Clear Linux OS for Intel Architecture 1
+        c. Debian
+            Debian GNU/Linux 7 (wheezy)
+            Debian GNU/Linux 8 (jessie)
+            Debian GNU/Linux 9 (stretch)
+        d. OpenSUSE
+            openSUSE Leap 42.3
+        e. Oracle
+            Oracle Linux Server 6.8
+            Oracle Linux Server 6.9
+            Oracle Linux Server 7.3
+            Oracle Linux Server 7.4
+        f. RHEL
+            Red Hat Enterprise Linux Server release 6.7 (Santiago)
+            Red Hat Enterprise Linux Server release 6.8 (Santiago)
+            Red Hat Enterprise Linux Server release 6.9 (Santiago)
+            Red Hat Enterprise Linux Server release 7.2 (Maipo)
+            Red Hat Enterprise Linux Server release 7.3 (Maipo)
+            Red Hat Enterprise Linux Server release 7.4 (Maipo)
+            Red Hat Enterprise Linux Server release 7.5 (Maipo)
+        g. SLES
+            SUSE Linux Enterprise Server 11 SP4
+            SUSE Linux Enterprise Server 12 SP2
+            SUSE Linux Enterprise Server 12 SP3
+        h. Ubuntu
+            Ubuntu 12.04.5 LTS, Precise Pangolin
+            Ubuntu 14.04.5 LTS, Trusty Tahr
+            Ubuntu 16.04.4 LTS (Xenial Xerus)
+            Ubuntu 16.04.5 LTS (Xenial Xerus)
+            Ubuntu 17.10 (Artful Aardvark)
+            Ubuntu 18.04 LTS (Bionic Beaver)
+            Ubuntu 18.04.1 LTS (Bionic Beaver)
+        j. CoreOS
+            CoreOS Linux (Stable)
+            CoreOS Linux (Alpha)
+            CoreOS Linux (Beta)
+    2. Add version number, project name or use full name if space is sufficient.
 
 ## Support Contact
 
