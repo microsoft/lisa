@@ -1773,72 +1773,74 @@ Function DoTestCleanUp($CurrentTestResult, $testName, $DeployedServices, $Resour
 
 		if($ResourceGroups)
 		{
-			try
-			{
-				if ($allVMData.Count -gt 1)
+			if(!$IsWindows){
+				try
 				{
-					$vmData = $allVMData[0]
-				}
-				else
-				{
-					$vmData = $allVMData
-				}
-				$TestName = $CurrentTestData.TestName
-				$FilesToDownload = "$($vmData.RoleName)-*.txt"
-				$Null = RemoteCopy -upload -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files .\Testscripts\Linux\CollectLogFile.sh -username $user -password $password
-				$Null = RunLinuxCmd -username $user -password $password -ip $vmData.PublicIP -port $vmData.SSHPort -command "bash CollectLogFile.sh" -ignoreLinuxExitCode -runAsSudo
-				$Null = RemoteCopy -downloadFrom $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -files "$FilesToDownload" -downloadTo "$LogDir" -download
-				$KernelVersion = Get-Content "$LogDir\$($vmData.RoleName)-kernelVersion.txt"
-				$GuestDistro = Get-Content "$LogDir\$($vmData.RoleName)-distroVersion.txt"
-				$LISMatch = (Select-String -Path "$LogDir\$($vmData.RoleName)-lis.txt" -Pattern "^version:").Line
-				if ($LISMatch)
-				{
-					$LISVersion = $LISMatch.Split(":").Trim()[1]
-				}
-				else
-				{
-					$LISVersion = "NA"
-				}
-				#region Host Version checking
-				$FoundLineNumber = (Select-String -Path "$LogDir\$($vmData.RoleName)-dmesg.txt" -Pattern "Hyper-V Host Build").LineNumber
-				$ActualLineNumber = $FoundLineNumber - 1
-				$FinalLine = (Get-Content -Path "$LogDir\$($vmData.RoleName)-dmesg.txt")[$ActualLineNumber]
-				$FinalLine = $FinalLine.Replace('; Vmbus version:4.0','')
-				$FinalLine = $FinalLine.Replace('; Vmbus version:3.0','')
-				$HostVersion = ($FinalLine.Split(":")[$FinalLine.Split(":").Count -1 ]).Trim().TrimEnd(";")
-				#endregion
+					if ($allVMData.Count -gt 1)
+					{
+						$vmData = $allVMData[0]
+					}
+					else
+					{
+						$vmData = $allVMData
+					}
+					$TestName = $CurrentTestData.TestName
+					$FilesToDownload = "$($vmData.RoleName)-*.txt"
+					$Null = RemoteCopy -upload -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files .\Testscripts\Linux\CollectLogFile.sh -username $user -password $password
+					$Null = RunLinuxCmd -username $user -password $password -ip $vmData.PublicIP -port $vmData.SSHPort -command "bash CollectLogFile.sh" -ignoreLinuxExitCode -runAsSudo
+					$Null = RemoteCopy -downloadFrom $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -files "$FilesToDownload" -downloadTo "$LogDir" -download
+					$KernelVersion = Get-Content "$LogDir\$($vmData.RoleName)-kernelVersion.txt"
+					$GuestDistro = Get-Content "$LogDir\$($vmData.RoleName)-distroVersion.txt"
+					$LISMatch = (Select-String -Path "$LogDir\$($vmData.RoleName)-lis.txt" -Pattern "^version:").Line
+					if ($LISMatch)
+					{
+						$LISVersion = $LISMatch.Split(":").Trim()[1]
+					}
+					else
+					{
+						$LISVersion = "NA"
+					}
+					#region Host Version checking
+					$FoundLineNumber = (Select-String -Path "$LogDir\$($vmData.RoleName)-dmesg.txt" -Pattern "Hyper-V Host Build").LineNumber
+					$ActualLineNumber = $FoundLineNumber - 1
+					$FinalLine = (Get-Content -Path "$LogDir\$($vmData.RoleName)-dmesg.txt")[$ActualLineNumber]
+					$FinalLine = $FinalLine.Replace('; Vmbus version:4.0','')
+					$FinalLine = $FinalLine.Replace('; Vmbus version:3.0','')
+					$HostVersion = ($FinalLine.Split(":")[$FinalLine.Split(":").Count -1 ]).Trim().TrimEnd(";")
+					#endregion
 
-				if($EnableAcceleratedNetworking -or ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV"))
-				{
-					$Networking = "SRIOV"
+					if($EnableAcceleratedNetworking -or ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV"))
+					{
+						$Networking = "SRIOV"
+					}
+					else
+					{
+						$Networking = "Synthetic"
+					}
+					if ($TestPlatform -eq "Azure")
+					{
+						$VMSize = $vmData.InstanceSize
+					}
+					if ( $TestPlatform -eq "HyperV")
+					{
+						$VMSize = $HyperVInstanceSize
+					}
+					#endregion
+					UploadTestResultToDatabase -TestPlatform $TestPlatform -TestLocation $TestLocation -TestCategory $TestCategory `
+					-TestArea $TestArea -TestName $CurrentTestData.TestName -CurrentTestResult $CurrentTestResult `
+					-ExecutionTag $ResultDBTestTag -GuestDistro $GuestDistro -KernelVersion $KernelVersion `
+					-LISVersion $LISVersion -HostVersion $HostVersion -VMSize $VMSize -Networking $Networking `
+					-ARMImage $ARMImage -OsVHD $OsVHD -BuildURL $env:BUILD_URL
 				}
-				else
+				catch
 				{
-					$Networking = "Synthetic"
+					$line = $_.InvocationInfo.ScriptLineNumber
+					$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
+					$ErrorMessage =  $_.Exception.Message
+					LogError "EXCEPTION : $ErrorMessage"
+					LogError "Source : Line $line in script $script_name."
+					LogError "Ignorable error in collecting final data from VMs."
 				}
-				if ($TestPlatform -eq "Azure")
-				{
-					$VMSize = $vmData.InstanceSize
-				}
-				if ( $TestPlatform -eq "HyperV")
-				{
-					$VMSize = $HyperVInstanceSize
-				}
-				#endregion
-				UploadTestResultToDatabase -TestPlatform $TestPlatform -TestLocation $TestLocation -TestCategory $TestCategory `
-				-TestArea $TestArea -TestName $CurrentTestData.TestName -CurrentTestResult $CurrentTestResult `
-				-ExecutionTag $ResultDBTestTag -GuestDistro $GuestDistro -KernelVersion $KernelVersion `
-				-LISVersion $LISVersion -HostVersion $HostVersion -VMSize $VMSize -Networking $Networking `
-				-ARMImage $ARMImage -OsVHD $OsVHD -BuildURL $env:BUILD_URL
-			}
-			catch
-			{
-				$line = $_.InvocationInfo.ScriptLineNumber
-				$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
-				$ErrorMessage =  $_.Exception.Message
-				LogError "EXCEPTION : $ErrorMessage"
-				LogError "Source : Line $line in script $script_name."
-				LogError "Ignorable error in collecting final data from VMs."
 			}
 			$currentTestBackgroundJobs = Get-Content $LogDir\CurrentTestBackgroundJobs.txt -ErrorAction SilentlyContinue
 			if ( $currentTestBackgroundJobs )
@@ -1865,7 +1867,7 @@ Function DoTestCleanUp($CurrentTestResult, $testName, $DeployedServices, $Resour
 					LogMsg "EXCEPTION in GetAndCheckKernelLogs(): $ErrorMessage"
 				}
 			}
-			$isClened = @()
+			$isCleaned = @()
 			$ResourceGroups = $ResourceGroups.Split("^")
 			$isVMLogsCollected = $false
 			foreach ($group in $ResourceGroups)
@@ -1875,14 +1877,20 @@ Function DoTestCleanUp($CurrentTestResult, $testName, $DeployedServices, $Resour
 					LogMsg "-ForceDeleteResources is Set. Deleting $group."
 					if ($TestPlatform -eq "Azure")
 					{
-						$isClened = DeleteResourceGroup -RGName $group
+						$isCleaned = DeleteResourceGroup -RGName $group
 
 					}
 					elseif ($TestPlatform -eq "HyperV")
 					{
-						$isClened = DeleteHyperVGroup -HyperVGroupName $group
+						foreach($vmData in $allVMData)
+						{
+							if($group -eq $vmData.HyperVGroupName)
+							{
+								$isCleaned = DeleteHyperVGroup -HyperVGroupName $group -HyperVHost $vmData.HyperVHost
+							}
+						}
 					}
-					if (!$isClened)
+					if (!$isCleaned)
 					{
 						LogMsg "CleanUP unsuccessful for $group.. Please delete the services manually."
 					}
@@ -1937,14 +1945,20 @@ Function DoTestCleanUp($CurrentTestResult, $testName, $DeployedServices, $Resour
 									LogMsg "Cleaning up deployed test virtual machines."
 									if ($TestPlatform -eq "Azure")
 									{
-										$isClened = DeleteResourceGroup -RGName $group
+										$isCleaned = DeleteResourceGroup -RGName $group
 
 									}
 									elseif ($TestPlatform -eq "HyperV")
 									{
-										$isClened = DeleteHyperVGroup -HyperVGroupName $group
+										foreach($vmData in $allVMData)
+										{
+											if($group -eq $vmData.HyperVGroupName)
+											{
+												$isCleaned = DeleteHyperVGroup -HyperVGroupName $group -HyperVHost $vmData.HyperVHost
+											}
+										}
 									}
-									if (!$isClened)
+									if (!$isCleaned)
 									{
 										LogMsg "CleanUP unsuccessful for $group.. Please delete the services manually."
 									}
@@ -2140,6 +2154,7 @@ Function GetAllDeployementData($ResourceGroups)
 		Add-Member -InputObject $objNode -MemberType NoteProperty -Name PublicIP -Value $PublicIP -Force
 		Add-Member -InputObject $objNode -MemberType NoteProperty -Name PublicIPv6 -Value $PublicIP -Force
 		Add-Member -InputObject $objNode -MemberType NoteProperty -Name InternalIP -Value $InternalIP -Force
+		Add-Member -InputObject $objNode -MemberType NoteProperty -Name SecondInternalIP -Value $SecondInternalIP -Force
 		Add-Member -InputObject $objNode -MemberType NoteProperty -Name URL -Value $URL -Force
 		Add-Member -InputObject $objNode -MemberType NoteProperty -Name URLv6 -Value $URL -Force
 		Add-Member -InputObject $objNode -MemberType NoteProperty -Name Status -Value $Status -Force
@@ -2196,6 +2211,10 @@ Function GetAllDeployementData($ResourceGroups)
 				if (( $nic.Name -imatch $testVM.ResourceName) -and ( $nic.Name -imatch "PrimaryNIC"))
 				{
 					$QuickVMNode.InternalIP = "$($nic.Properties.IpConfigurations[0].Properties.PrivateIPAddress)"
+				}
+				if (( $nic.Name -imatch $testVM.ResourceName) -and ( $nic.Name -imatch "ExtraNetworkCard-1"))
+				{
+					$QuickVMNode.SecondInternalIP = "$($nic.Properties.IpConfigurations[0].Properties.PrivateIPAddress)"
 				}
 			}
 			$QuickVMNode.ResourceGroupName = $ResourceGroup

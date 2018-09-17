@@ -25,19 +25,19 @@ done
 #
 # Constants/Globals
 #
-UTIL_FILE="./nested_kvm_utils.sh"
+UTIL_FILE="./nested_vm_utils.sh"
 CONSTANTS_FILE="./constants.sh"
 ImageName="nested.qcow2"
 
 . ${CONSTANTS_FILE} || {
     errMsg="Error: missing ${CONSTANTS_FILE} file"
-    log_msg "${errMsg}"
+    LogMsg "${errMsg}"
     update_test_state $ICA_TESTABORTED
     exit 10
 }
 . ${UTIL_FILE} || {
     errMsg="Error: missing ${UTIL_FILE} file"
-    log_msg "${errMsg}"
+    LogMsg "${errMsg}"
     update_test_state $ICA_TESTABORTED
     exit 10
 }
@@ -81,16 +81,12 @@ else
 fi
 
 touch $logFolder/state.txt
-touch $logFolder/`basename "$0"`.log
-
-log_msg()
-{
-    echo `date "+%b %d %Y %T"` : "$1" >> $logFolder/`basename "$0"`.log
-}
+log_file=$logFolder/`basename "$0"`.log
+touch $log_file
 
 remove_raid()
 {
-    log_msg "INFO: Check and remove RAID first"
+    log_msg "INFO: Check and remove RAID first" $log_file
     mdvol=$(cat /proc/mdstat | grep md | awk -F: '{ print $1 }')
     if [ -n "$mdvol" ]; then
         echo "/dev/${mdvol} already exist...removing first"
@@ -123,25 +119,25 @@ prepare_nested_vm()
 
 run_fio()
 {
-    log_msg "Copy necessary scripts to nested VM"
+    log_msg "Copy necessary scripts to nested VM" $log_file
     remote_copy -host localhost -user root -passwd $NestedUserPassword -port $HostFwdPort -filename ./utils.sh -remote_path /root -cmd put
     remote_copy -host localhost -user root -passwd $NestedUserPassword -port $HostFwdPort -filename ./StartFioTest.sh -remote_path /root -cmd put
     remote_copy -host localhost -user root -passwd $NestedUserPassword -port $HostFwdPort -filename ./constants.sh -remote_path /root -cmd put
     remote_copy -host localhost -user root -passwd $NestedUserPassword -port $HostFwdPort -filename ./ParseFioTestLogs.sh -remote_path /root -cmd put
     remote_copy -host localhost -user root -passwd $NestedUserPassword -port $HostFwdPort -filename ./nested_kvm_perf_fio.sh -remote_path /root -cmd put
 
-    log_msg "Start to run StartFioTest.sh on nested VM"
+    log_msg "Start to run StartFioTest.sh on nested VM" $log_file
     remote_exec -host localhost -user root -passwd $NestedUserPassword -port $HostFwdPort '/root/StartFioTest.sh'
 }
 
 collect_logs()
 {
-    log_msg "Finished running StartFioTest.sh, start to collect logs"
+    log_msg "Finished running StartFioTest.sh, start to collect logs" $log_file
     remote_copy -host localhost -user root -passwd $NestedUserPassword -port $HostFwdPort -filename fioConsoleLogs.txt -remote_path "/root" -cmd get
     remote_copy -host localhost -user root -passwd $NestedUserPassword -port $HostFwdPort -filename runlog.txt -remote_path "/root" -cmd get
     remote_copy -host localhost -user root -passwd $NestedUserPassword -port $HostFwdPort -filename state.txt -remote_path "/root" -cmd get
     state=`cat state.txt`
-    log_msg "FIO Test state: $state"
+    log_msg "FIO Test state: $state" $log_file
     if [ $state == 'TestCompleted' ]; then
         remote_exec -host localhost -user root -passwd $NestedUserPassword -port $HostFwdPort '/root/ParseFioTestLogs.sh'
         remote_copy -host localhost -user root -passwd $NestedUserPassword -port $HostFwdPort -filename FIOTest-*.tar.gz -remote_path "/root" -cmd get
@@ -173,7 +169,7 @@ fi
 
 for disk in ${disks}
 do
-    log_msg "set rq_affinity to 0 for device ${disk}"
+    log_msg "set rq_affinity to 0 for device ${disk}" $log_file
     echo 0 > /sys/block/${disk}/queue/rq_affinity
 done
 

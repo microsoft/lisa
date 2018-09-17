@@ -175,29 +175,43 @@ Function UpdateGlobalConfigurationXML()
 	{
 		if ( $SourceOsVHDPath )
 		{
-			$GlobalConfiguration.Global.$TestPlatform.Host.SourceOsVHDPath = $SourceOsVHDPath
-		}
-		if ( $TestLocation)
-		{
-			$GlobalConfiguration.Global.$TestPlatform.Host.ServerName = $TestLocation
-			$VMs = Get-VM -ComputerName $GlobalConfiguration.Global.$TestPlatform.Host.ServerName
-			if ($?)
-			{
-				LogMsg "Set '$TestLocation' to As GlobalConfiguration.Global.HyperV.Host.ServerName"
+			for( $index=0 ; $index -lt $GlobalConfiguration.Global.$TestPlatform.Hosts.ChildNodes.Count ; $index++ ) {
+				$GlobalConfiguration.Global.$TestPlatform.Hosts.ChildNodes[$index].SourceOsVHDPath = $SourceOsVHDPath
 			}
-			else 
+		}
+		if ( $DestinationOsVHDPath )
+		{
+			for( $index=0 ; $index -lt $GlobalConfiguration.Global.$TestPlatform.Hosts.ChildNodes.Count ; $index++ ) {
+				$GlobalConfiguration.Global.$TestPlatform.Hosts.ChildNodes[$index].DestinationOsVHDPath = $DestinationOsVHDPath
+			}
+		}
+		if ($TestLocation)
+		{
+			$Locations = $TestLocation.split(',')
+			$index = 0
+			foreach($Location in $Locations)
 			{
-				LogErr "Did you used -TestLocation XXXXXXX. In HyperV mode, -TestLocation can be used to Override HyperV server mentioned in GlobalConfiguration XML file."
-				LogErr "In HyperV mode, -TestLocation can be used to Override HyperV server mentioned in GlobalConfiguration XML file."
-				Throw "Unable to access HyperV server - $TestLocation"	
+				$GlobalConfiguration.Global.$TestPlatform.Hosts.ChildNodes[$index].ServerName = $Location
+				Get-VM -ComputerName $GlobalConfiguration.Global.$TestPlatform.Hosts.ChildNodes[$index].ServerName
+				if ($?)
+				{
+					LogMsg "Set '$($Location)' to As GlobalConfiguration.Global.HyperV.Hosts.ChildNodes[$($index)].ServerName"
+				}
+				else
+				{
+					LogErr "Did you used -TestLocation XXXXXXX. In HyperV mode, -TestLocation can be used to Override HyperV server mentioned in GlobalConfiguration XML file."
+					LogErr "In HyperV mode, -TestLocation can be used to Override HyperV server mentioned in GlobalConfiguration XML file."
+					Throw "Unable to access HyperV server - '$($Location)'"
+				}
+				$index++
 			}
 		}
 		else
 		{
-            $VMs = Get-VM -ComputerName $TestLocation
+			$TestLocation = $GlobalConfiguration.Global.$TestPlatform.Hosts.ChildNodes[0].ServerName
+			LogMsg "Read Test Location from GlobalConfiguration.Global.HyperV.Hosts.ChildNodes[0].ServerName"
+			$VMs = Get-VM -ComputerName $TestLocation
 		}
-        
-		
 	}
 	#If user provides Result database / result table, then add it to the GlobalConfiguration.
 	if( $ResultDBTable -or $ResultDBTestTag)

@@ -24,9 +24,9 @@
 #   -logFolder: The folder path for logs
 #
 #######################################################################
-# Source nested_kvm_utils.sh
-. nested_kvm_utils.sh || {
-	echo "ERROR: unable to source nested_kvm_utils.sh!"
+# Source nested_vm_utils.sh
+. nested_vm_utils.sh || {
+	echo "ERROR: unable to source nested_vm_utils.sh!"
 	echo "TestAborted" > state.txt
 	exit 2
 }
