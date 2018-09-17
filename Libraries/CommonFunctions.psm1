@@ -1170,7 +1170,6 @@ Function RemoteCopy($uploadTo, $downloadFrom, $downloadTo, $port, $files, $usern
 								Start-Sleep -Seconds 1
 								$uploadJobStatus = Get-Job -Id $uploadJob.Id
 							}
-							Write-Output ""
 							$returnCode = Get-Content -Path $uploadStatusRandomFile
 							Remove-Item -Force $uploadStatusRandomFile | Out-Null
 							Remove-Job -Id $uploadJob.Id -Force | Out-Null
@@ -1253,7 +1252,6 @@ Function RemoteCopy($uploadTo, $downloadFrom, $downloadTo, $port, $files, $usern
 								Start-Sleep -Seconds 1
 								$uploadJobStatus = Get-Job -Id $uploadJob.Id
 							}
-							Write-Output ""
 							$returnCode = Get-Content -Path $uploadStatusRandomFile
 							Remove-Item -Force $uploadStatusRandomFile | Out-Null
 							Remove-Job -Id $uploadJob.Id -Force | Out-Null
@@ -1320,7 +1318,6 @@ Function RemoteCopy($uploadTo, $downloadFrom, $downloadTo, $port, $files, $usern
 							Start-Sleep -Seconds 1
 							$downloadJobStatus = Get-Job -Id $downloadJob.Id
 						}
-						Write-Output ""
 						$returnCode = Get-Content -Path $downloadStatusRandomFile
 						Remove-Item -Force $downloadStatusRandomFile | Out-Null
 						Remove-Job -Id $downloadJob.Id -Force | Out-Null
@@ -1360,7 +1357,6 @@ Function RemoteCopy($uploadTo, $downloadFrom, $downloadTo, $port, $files, $usern
 							Start-Sleep -Seconds 1
 							$downloadJobStatus = Get-Job -Id $downloadJob.Id
 						}
-						Write-Output ""
 						$downloadExitCode = (Select-String -Path $downloadStatusRandomFile -Pattern "DownloadExtiCode_").Line
 						if ( $downloadExitCode )
 						{
