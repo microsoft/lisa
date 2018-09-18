@@ -349,7 +349,7 @@ function Main {
         $resultArr += $testResult
     }
     $CurrentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
-    return $currentTestResult.TestResult
+    return $CurrentTestResult.TestResult
 }
 
 Main
