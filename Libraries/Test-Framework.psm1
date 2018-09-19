@@ -150,7 +150,7 @@ function Run-TestScript {
     }
     LogMsg "Test script: ${Script} started."
     if ($scriptExtension -eq "sh") {
-        RunLinuxCmd -Command "echo '${Password}' | sudo -S -s eval `"export HOME=``pwd``;bash ${Script} > ${TestName}_summary.log`"" `
+        RunLinuxCmd -Command "echo '${Password}' | sudo -S -s eval `"export HOME=``pwd``;bash ${Script} > ${TestName}_summary.log 2>&1`"" `
              -Username $Username -password $Password -ip $VMData.PublicIP -Port $VMData.SSHPort `
              -runMaxAllowedTime $Timeout
     } elseif ($scriptExtension -eq "ps1") {
