@@ -143,10 +143,12 @@ function Run-TestScript {
     $testResult = ""
 
     Create-ConstantsFile -FilePath $constantsPath -Parameters $Parameters
-    foreach ($VM in $VMData) {
-        RemoteCopy -upload -uploadTo $VM.PublicIP -Port $VM.SSHPort `
-             -files $constantsPath -Username $Username -password $Password
-        LogMsg "Constants file uploaded to: $($VM.RoleName)"
+    if(!$IsWindows){
+        foreach ($VM in $VMData) {
+            RemoteCopy -upload -uploadTo $VM.PublicIP -Port $VM.SSHPort `
+                -files $constantsPath -Username $Username -password $Password
+            LogMsg "Constants file uploaded to: $($VM.RoleName)"
+        }
     }
     LogMsg "Test script: ${Script} started."
     if ($scriptExtension -eq "sh") {
@@ -265,22 +267,18 @@ function Create-HyperVCheckpoint {
     #>
 
     param(
-        $VMnames,
-        $TestLocation,
+        $VMData,
         [string]$CheckpointName
     )
 
-    foreach ($VMname in $VMnames) {
-        Stop-VM -Name $VMname -TurnOff -Force -ComputerName `
-            $TestLocation
-        Set-VM -Name $VMname -CheckpointType Standard -ComputerName `
-            $TestLocation
-        Checkpoint-VM -Name $VMname -SnapshotName $CheckpointName -ComputerName `
-            $TestLocation
+    foreach ($VM in $VMData) {
+        Stop-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -TurnOff -Force
+        Set-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -CheckpointType Standard
+        Checkpoint-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -SnapshotName $CheckpointName
         $msg = ("Checkpoint:{0} created for VM:{1}" `
-                 -f @($CheckpointName,$VMName))
+                 -f @($CheckpointName,$VM.RoleName))
         LogMsg $msg
-        Start-VM -Name $VMname -ComputerName $TestLocation
+        Start-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost
     }
 }
 
@@ -292,20 +290,17 @@ function Apply-HyperVCheckpoint {
     #>
 
     param(
-        $VMnames,
-        $TestLocation,
+        $VMData,
         [string]$CheckpointName
     )
 
-    foreach ($VMname in $VMnames) {
-        Stop-VM -Name $VMname -TurnOff -Force -ComputerName `
-            $TestLocation
-        Restore-VMSnapshot -Name $CheckpointName -VMName $VMname -Confirm:$false `
-           -ComputerName $TestLocation
+    foreach ($VM in $VMData) {
+        Stop-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -TurnOff -Force
+        Restore-VMSnapshot -Name $CheckpointName -VMName $VM.RoleName -ComputerName $VM.HyperVHost -Confirm:$false
         $msg = ("VM:{0} restored to checkpoint: {1}" `
-                 -f ($VMName,$CheckpointName))
+                 -f ($VM.RoleName,$CheckpointName))
         LogMsg $msg
-        Start-VM -Name $VMname -ComputerName $TestLocation
+        Start-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost
     }
 }
 
@@ -319,7 +314,6 @@ function Check-IP {
 
     param(
         $VMData,
-        $TestLocation,
         [string]$SSHPort,
         [int]$Timeout = 300
     )
@@ -333,7 +327,10 @@ function Check-IP {
             while (-not $publicIP) {
                 LogMsg "$($VM.RoleName) : Waiting for IP address..."
                 $vmNic = Get-VM -Name $VM.RoleName -ComputerName `
-                    $TestLocation | Get-VMNetworkAdapter
+                    $VM.HyperVHost | Get-VMNetworkAdapter
+                if ($vmNic.Length -gt 1){
+                   $vmNic = $vmNic[0]
+                }
                 $vmIP = $vmNic.IPAddresses[0]
                 if ($vmIP) {
                     $vmIP = $([ipaddress]$vmIP.trim()).IPAddressToString
@@ -440,20 +437,24 @@ function Run-Test {
     if ($testPlatform -eq "Azure") {
         $testLocation = $($xmlConfig.config.$TestPlatform.General.Location).Replace('"',"").Replace(' ',"").ToLower()
     } elseif ($testPlatform -eq "HyperV") {
-        $testLocation = $xmlConfig.config.HyperV.Host.ServerName
+        if($TestLocation){
+            $testLocation = $TestLocation
+        }else{
+            $testLocation = $xmlConfig.config.HyperV.Hosts.ChildNodes[0].ServerName
+        }
     }
 
     if ($DeployVMPerEachTest -or $ExecuteSetup) {
         # Note: This method will create $AllVMData global variable
         $isDeployed = DeployVMS -setupType $CurrentTestData.setupType `
              -Distro $Distro -XMLConfig $XmlConfig
-        Enable-RootUser -RootPassword $VMPassword -VMData $AllVMData `
-             -Username $VMUser -password $VMPassword
-
+        if(!$IsWindows){
+            Enable-RootUser -RootPassword $VMPassword -VMData $AllVMData `
+                -Username $VMUser -password $VMPassword
+        }
         if ($testPlatform.ToUpper() -eq "HYPERV") {
-            Create-HyperVCheckpoint -VMnames $AllVMData.RoleName -TestLocation `
-                $testLocation -CheckpointName "ICAbase"
-            $AllVMData = Check-IP -VMData $AllVMData -TestLocation $testLocation
+            Create-HyperVCheckpoint -VMData $AllVMData -CheckpointName "ICAbase"
+            $AllVMData = Check-IP -VMData $AllVMData
             Set-Variable -Name AllVMData -Value $AllVMData -Scope Global
             Set-Variable -Name isDeployed -Value $isDeployed -Scope Global
         }
@@ -463,9 +464,8 @@ function Run-Test {
                 RemoveAllFilesFromHomeDirectory -allDeployedVMs $AllVMData
                 LogMsg "Removed all files from home directory."
             } else  {
-                Apply-HyperVCheckpoint -VMnames $AllVMData.RoleName -TestLocation `
-                    $testLocation -CheckpointName "ICAbase"
-                $AllVMData = Check-IP -VMData $AllVMData -TestLocation $testLocation
+                Apply-HyperVCheckpoint -VMData $AllVMData -CheckpointName "ICAbase"
+                $AllVMData = Check-IP -VMData $AllVMData
                 Set-Variable -Name AllVMData -Value $AllVMData -Scope Global
                 LogMsg "Public IP found for all VMs in deployment after checkpoint restore"
             }
@@ -478,30 +478,32 @@ function Run-Test {
     }
 
     if ($testPlatform -eq "Hyperv" -and $CurrentTestData.SetupScript) {
-        foreach ($vmName in $AllVMData.RoleName) {
-            if (Get-VM -Name $vmName -ComputerName `
-                $testLocation -EA SilentlyContinue) {
-                Stop-VM -Name $vmName -TurnOff -Force -ComputerName `
-                    $testLocation
+        foreach ($VM in $AllVMData) {
+            if (Get-VM -Name $VM.RoleName -ComputerName `
+                $VM.HyperVHost -EA SilentlyContinue) {
+                Stop-VM -Name $VM.RoleName -TurnOff -Force -ComputerName `
+                    $VM.HyperVHost
             }
             foreach ($script in $($CurrentTestData.SetupScript).Split(",")) {
                 $setupResult = Run-SetupScript -Script $script `
                     -Parameters $testParameters
             }
-            if (Get-VM -Name $vmName -ComputerName $testLocation `
+            if (Get-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost `
                 -EA SilentlyContinue) {
-                Start-VM -Name $vmName -ComputerName `
-                    $testLocation
+                Start-VM -Name $VM.RoleName -ComputerName `
+                    $VM.HyperVHost
             }
         }
     }
 
     if ($CurrentTestData.files) {
         # This command uploads test dependencies in the home directory for the $vmUsername user
-        foreach ($VMData in $AllVMData) {
-            RemoteCopy -upload -uploadTo $VMData.PublicIP -Port $VMData.SSHPort `
-                 -files $CurrentTestData.files -Username $VMUser -password $VMPassword
-            LogMsg "Test files uploaded to VM $($VMData.RoleName)"
+        if(!$IsWindows){
+            foreach ($VMData in $AllVMData) {
+                RemoteCopy -upload -uploadTo $VMData.PublicIP -Port $VMData.SSHPort `
+                    -files $CurrentTestData.files -Username $VMUser -password $VMPassword
+                LogMsg "Test files uploaded to VM $($VMData.RoleName)"
+            }
         }
     }
 
@@ -530,20 +532,20 @@ function Run-Test {
     }
 
     if ($testPlatform -eq "Hyperv" -and $CurrentTestData.CleanupScript) {
-        foreach ($vmName in $AllVMData.RoleName) {
-            if (Get-VM -Name $vmName -ComputerName `
-                $testLocation -EA SilentlyContinue) {
-                Stop-VM -Name $vmName -TurnOff -Force -ComputerName `
-                    $testLocation
+        foreach ($VM in $AllVMData) {
+            if (Get-VM -Name $VM.RoleName -ComputerName `
+                $VM.HyperVHost -EA SilentlyContinue) {
+                Stop-VM -Name $VM.RoleName -TurnOff -Force -ComputerName `
+                    $VM.HyperVHost
             }
             foreach ($script in $($CurrentTestData.CleanupScript).Split(",")) {
                 $setupResult = Run-SetupScript -Script $script `
                     -Parameters $testParameters
             }
-            if (Get-VM -Name $vmName -ComputerName $testLocation `
+            if (Get-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost `
                 -EA SilentlyContinue) {
-                Start-VM -Name $vmName -ComputerName `
-                    $testLocation
+                Start-VM -Name $VM.RoleName -ComputerName `
+                    $VM.HyperVHost
             }
         }
     }

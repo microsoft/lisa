@@ -126,5 +126,5 @@ function Main {
     return $result
 }
 
-Main -VMName $AllVMData.RoleName -HvServer $xmlConfig.config.Hyperv.Host.ServerName `
+Main -VMName $AllVMData.RoleName -HvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
         -RootDir $WorkingDirectory -TestParams $TestParams

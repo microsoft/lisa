@@ -368,5 +368,5 @@ function Main {
 
     return $retVal
 }
-Main -VmName $AllVMData.RoleName -hvServer $xmlConfig.config.Hyperv.Host.ServerName `
+Main -VmName $AllVMData.RoleName -hvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
          -testParams $TestParams -rootDir $WorkingDirectory

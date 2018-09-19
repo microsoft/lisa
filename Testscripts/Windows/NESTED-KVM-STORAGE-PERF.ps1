@@ -64,7 +64,7 @@ function Send-ResultToDatabase ($xmlConfig, $logDir)
 		$HostType = $TestPlatform
 		if ($TestPlatform -eq "hyperV")
 		{
-			$HostBy = $xmlConfig.config.Hyperv.Host.ServerName
+			$HostBy = $TestLocation
 			$HyperVMappedSizes = [xml](Get-Content .\XML\AzureVMSizeToHyperVMapping.xml)
 			$L1GuestCpuNum = $HyperVMappedSizes.HyperV.$HyperVInstanceSize.NumberOfCores
 			$L1GuestMemMB = [int]($HyperVMappedSizes.HyperV.$HyperVInstanceSize.MemoryInMB)

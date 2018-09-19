@@ -17,12 +17,12 @@
 #######################################################################
 
 HOMEDIR="/root"
-log_msg()
+Log_Msg()
 {
 	echo "[$(date +"%x %r %Z")] ${1}"
 	echo "[$(date +"%x %r %Z")] ${1}" >> "${HOMEDIR}/runlog.txt"
 }
-log_msg "Sleeping 10 seconds.."
+Log_Msg "Sleeping 10 seconds.."
 sleep 10
 
 CONSTANTS_FILE="$HOMEDIR/constants.sh"
@@ -35,25 +35,25 @@ touch ./fioTest.log
 
 . ${CONSTANTS_FILE} || {
 	errMsg="Error: missing ${CONSTANTS_FILE} file"
-	log_msg "${errMsg}"
-	update_test_state $ICA_TESTABORTED
+	Log_Msg "${errMsg}"
+	Update_Test_State $ICA_TESTABORTED
 	exit 10
 }
 . ${UTIL_FILE} || {
 	errMsg="Error: missing ${UTIL_FILE} file"
-	log_msg "${errMsg}"
-	update_test_state $ICA_TESTABORTED
+	Log_Msg "${errMsg}"
+	Update_Test_State $ICA_TESTABORTED
 	exit 10
 }
 
 
-update_test_state()
+Update_Test_State()
 {
 	echo "${1}" > $HOMEDIR/state.txt
 }
-run_fio()
+Run_Fio()
 {
-	update_test_state $ICA_TESTRUNNING
+	Update_Test_State $ICA_TESTRUNNING
 
 	####################################
 	#All run config set here
@@ -102,7 +102,7 @@ run_fio()
 				iostatfilename="${IOSTATLOGDIR}/iostat-fio-${testmode}-${io}K-${Thread}td.txt"
 				nohup iostat -x 5 -t -y > $iostatfilename &
 				echo "-- iteration ${iteration} ----------------------------- ${testmode} test, ${io}K bs, ${Thread} threads, ${numjobs} jobs, 5 minutes ------------------ $(date +"%x %r %Z") ---" >> $LOGFILE
-				log_msg "Running ${testmode} test, ${io}K bs, ${Thread} threads ..."
+				Log_Msg "Running ${testmode} test, ${io}K bs, ${Thread} threads ..."
 				jsonfilename="${JSONFILELOG}/fio-result-${testmode}-${io}K-${Thread}td.json"
 				fio $FILEIO --readwrite=$testmode --bs=${io}K --runtime=$ioruntime --iodepth=$Thread --numjobs=$numjobs --output-format=json --output=$jsonfilename --name="iteration"${iteration} >> $LOGFILE
 				iostatPID=`ps -ef | awk '/iostat/ && !/awk/ { print $2 }'`
@@ -117,28 +117,28 @@ run_fio()
 	echo "===================================== Completed Run $(date +"%x %r %Z") script generated 2/9/2015 4:24:44 PM ================================" >> $LOGFILE
 
 	compressedFileName="${HOMEDIR}/FIOTest-$(date +"%m%d%Y-%H%M%S").tar.gz"
-	log_msg "INFO: Please wait...Compressing all results to ${compressedFileName}..."
+	Log_Msg "INFO: Please wait...Compressing all results to ${compressedFileName}..."
 	tar -cvzf $compressedFileName $LOGDIR/
 
 	echo "Test logs are located at ${LOGDIR}"
-	update_test_state $ICA_TESTCOMPLETED
+	Update_Test_State $ICA_TESTCOMPLETED
 }
 
-remove_raid_and_format()
+Remove_Raid_And_Format()
 {
 	disks=$(ls -l /dev | grep sd[b-z]$ | awk '{print $10}')
 
-	log_msg "INFO: Check and remove RAID first"
+	Log_Msg "INFO: Check and remove RAID first"
 	mdvol=$(cat /proc/mdstat | grep md | awk -F: '{ print $1 }')
 	if [ -n "$mdvol" ]; then
-		log_msg "/dev/${mdvol} already exist...removing first"
+		Log_Msg "/dev/${mdvol} already exist...removing first"
 		umount /dev/${mdvol}
 		mdadm --stop /dev/${mdvol}
 		mdadm --remove /dev/${mdvol}
 	fi
 	for disk in ${disks}
 	do
-		log_msg "formatting disk /dev/${disk}"
+		Log_Msg "formatting disk /dev/${disk}"
 		mkfs -t ext4 -F /dev/${disk}
 	done
 }
@@ -161,17 +161,17 @@ fi
 cd ${HOMEDIR}
 
 install_fio
-remove_raid_and_format
+Remove_Raid_And_Format
 
 disks=$(ls -l /dev | grep sd[b-z]$ | awk '{print $10}')
 if [[ $RaidOption == 'RAID in L2' ]]; then
 	#For RAID in L2
 	create_raid0 "$disks" $mdVolume
 	if [ $? -ne 0 ]; then
-		update_test_state "$ICA_TESTFAILED"
+		Update_Test_State "$ICA_TESTFAILED"
 		exit 1
 	fi
-	log_msg "formatting ${mdVolume}"
+	Log_Msg "formatting ${mdVolume}"
 	time mkfs -t ext4 -F ${mdVolume}
 	devices=$mdVolume
 	disks='md0'
@@ -190,14 +190,14 @@ fi
 
 for disk in ${disks}
 do
-	log_msg "set rq_affinity to 0 for device ${disk}"
+	Log_Msg "set rq_affinity to 0 for device ${disk}"
 	echo 0 > /sys/block/${disk}/queue/rq_affinity
 done
 
-log_msg "*********INFO: Starting test execution*********"
+Log_Msg "*********INFO: Starting test execution*********"
 
 FILEIO="--size=${fileSize} --direct=1 --ioengine=libaio --filename=${devices} --overwrite=1"
-log_msg "FIO common parameters: ${FILEIO}"
-run_fio
+Log_Msg "FIO common parameters: ${FILEIO}"
+Run_Fio
 
-log_msg "*********INFO: Script execution reach END. Completed !!!*********"
+Log_Msg "*********INFO: Script execution reach END. Completed !!!*********"

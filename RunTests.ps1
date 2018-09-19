@@ -48,6 +48,9 @@ Param(
 	#[Required] for HyperV
 	[string] $SourceOsVHDPath="",
 
+	#[Required] for Two Hosts HyperV
+	[string] $DestinationOsVHDPath="",
+
 	#[Required] Common for HyperV and Azure.
 	[string] $OsVHD = "",   #... [Azure: Required only if -ARMImageName is not provided.]
 							#... [HyperV: Mandatory]
@@ -264,13 +267,22 @@ try {
 	} elseif ($TestPlatform -eq "Hyperv") {
 		$xmlContent += ("$($tab[1])" + "<Hyperv>`n")
 
-			#region Add Subscription Details
-			$xmlContent += ("$($tab[2])" + "<Host>`n")
+			#region Add Hosts Details
+			$xmlContent += ("$($tab[2])" + "<Hosts>`n")
+				$xmlContent += ("$($tab[3])" + "<Host>`n")
+				foreach ( $line in $GlobalConfiguration.Global.HyperV.Hosts.FirstChild.InnerXml.Replace("><",">`n<").Split("`n")) {
+					$xmlContent += ("$($tab[4])" + "$line`n")
+				}
+				$xmlContent += ("$($tab[3])" + "</Host>`n")
 
-			foreach ( $line in $GlobalConfiguration.Global.HyperV.Host.InnerXml.Replace("><",">`n<").Split("`n")) {
-				$xmlContent += ("$($tab[3])" + "$line`n")
-			}
-			$xmlContent += ("$($tab[2])" + "</Host>`n")
+				if($TestLocation -and $TestLocation.split(',').Length -eq 2){
+					$xmlContent += ("$($tab[3])" + "<Host>`n")
+					foreach ( $line in $GlobalConfiguration.Global.HyperV.Hosts.LastChild.InnerXml.Replace("><",">`n<").Split("`n")) {
+						$xmlContent += ("$($tab[4])" + "$line`n")
+					}
+					$xmlContent += ("$($tab[3])" + "</Host>`n")
+				}
+			$xmlContent += ("$($tab[2])" + "</Hosts>`n")
 			#endregion
 
 			#region Database details

@@ -731,10 +731,17 @@ Function CreateResourceGroupDeployment([string]$RGName, $location, $setupType, $
                 if ($ForceDeleteResources)
                 {
                     LogMsg "-ForceDeleteResources is Set. Deleting $RGName."
-                    $isClened = DeleteResourceGroup -RGName $RGName
-                
+                    $isCleaned = DeleteResourceGroup -RGName $RGName
+                    if (!$isCleaned)
+                    {
+                        LogMsg "CleanUP unsuccessful for $RGName.. Please delete the services manually."
+                    }
+                    else
+                    {
+                        LogMsg "CleanUP Successful for $RGName.."
+                    }
                 }
-                else 
+                else
                 {
                     $VMsCreated = Get-AzureRmVM -ResourceGroupName $RGName
                     if ( $VMsCreated )
@@ -744,9 +751,17 @@ Function CreateResourceGroupDeployment([string]$RGName, $location, $setupType, $
                     else
                     {
                         LogMsg "Removing Failed resource group, as we found 0 VM(s) deployed."
-                        $isClened = DeleteResourceGroup -RGName $RGName
-                    }                        
-                }                
+                        $isCleaned = DeleteResourceGroup -RGName $RGName
+                        if (!$isCleaned)
+                        {
+                            LogMsg "CleanUP unsuccessful for $RGName.. Please delete the services manually."
+                        }
+                        else
+                        {
+                            LogMsg "CleanUP Successful for $RGName.."
+                        }
+                    }
+                }
             }
         }
         catch

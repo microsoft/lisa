@@ -21,11 +21,18 @@
         </TestCredentials>
     </Azure>
     <HyperV>
-        <Host>
-            <ServerName>localhost</ServerName>
-            <SourceOsVHDPath></SourceOsVHDPath>
-            <DestinationOsVHDPath>VHDs_Destination_Path</DestinationOsVHDPath>
-        </Host>
+        <Hosts>
+            <Host>
+                <ServerName>localhost</ServerName>
+                <SourceOsVHDPath></SourceOsVHDPath>
+                <DestinationOsVHDPath>VHDs_Destination_Path</DestinationOsVHDPath>
+            </Host>
+            <Host>
+                <ServerName>localhost</ServerName>
+                <SourceOsVHDPath></SourceOsVHDPath>
+                <DestinationOsVHDPath>VHDs_Destination_Path</DestinationOsVHDPath>
+            </Host>
+        </Hosts>
         <ResultsDatabase>
             <server></server>
             <user></user>
