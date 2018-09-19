@@ -8,12 +8,46 @@ function Start-TestExecution ($ip, $port, $cmd) {
 	RunLinuxCmd -username $nestedUser -password $nestedPassword -ip $ip -port $port -command "chmod +x *" -runAsSudo
 	LogMsg "Executing : ${cmd}"
 	$testJob = RunLinuxCmd -username $nestedUser -password $nestedPassword -ip $ip -port $port -command $cmd -runAsSudo -RunInBackground
-	$testJob = $testJob[1]
 	while ( (Get-Job -Id $testJob).State -eq "Running" ) {
 		$currentStatus = RunLinuxCmd -username $nestedUser -password $nestedPassword -ip $ip -port $port -command "cat /home/$nestedUser/state.txt"
 		LogMsg "Current Test Staus : $currentStatus"
 		WaitFor -seconds 20
 	}
+}
+
+function Download-OSvhd ($session, $srcPath, $dstPath) {
+	LogMsg "Downloading vhd from $srcPath to $dstPath ..."
+	Invoke-Command -Session $session -ScriptBlock {
+		param($srcPath, $dstPath)
+		Import-Module BitsTransfer
+		$displayName = "MyBitsTransfer" + (Get-Date)
+		Start-BitsTransfer `
+			-Source $srcPath `
+			-Destination $dstPath `
+			-DisplayName $displayName `
+			-Asynchronous
+		$btjob = Get-BitsTransfer $displayName
+		$lastStatus = $btjob.JobState
+		do{
+			if($lastStatus -ne $btjob.JobState) {
+				$lastStatus = $btjob.JobState
+			}
+
+			if($lastStatus -like "*Error*") {
+				Remove-BitsTransfer $btjob
+				Write-Output "Error connecting $srcPath to download."
+				return 1
+			}
+		} while ($lastStatus -ne "Transferring")
+
+		do{
+			Write-Output (Get-Date) $btjob.BytesTransferred $btjob.BytesTotal ($btjob.BytesTransferred/$btjob.BytesTotal*100)
+			Start-Sleep -s 10
+		} while ($btjob.BytesTransferred -lt $btjob.BytesTotal)
+
+		Write-Output (Get-Date) $btjob.BytesTransferred $btjob.BytesTotal ($btjob.BytesTransferred/$btjob.BytesTotal*100)
+		Complete-BitsTransfer $btjob
+	}  -ArgumentList $srcPath, $dstPath
 }
 
 function Send-ResultToDatabase ($xmlConfig, $logDir) {
@@ -28,13 +62,13 @@ function Send-ResultToDatabase ($xmlConfig, $logDir) {
 	{
 		# Get host info
 		$HostType	= $xmlConfig.config.CurrentTestPlatform
-		$HostBy	= $xmlConfig.config.$TestPlatform.Hosts.ChildNodes[0].ServerName + " - " + $xmlConfig.config.$TestPlatform.Hosts.ChildNodes[1].ServerName
+		$HostBy	= $TestLocation
 		$HostOS	= (Get-WmiObject -Class Win32_OperatingSystem -ComputerName $xmlConfig.config.$TestPlatform.Hosts.ChildNodes[0].ServerName).Version
 
 		# Get L1 guest info
-        $L1GuestKernelVersion = Get-Content "$LogDir\nested_properties.csv" | Select-String "Host Version"| ForEach-Object{$_ -replace ",Host Version,",""}
-        $computerInfo = Invoke-Command -ComputerName $hs1VIP -ScriptBlock {Get-ComputerInfo} -Credential $cred
-        $L1GuestDistro	= $computerInfo.OsName
+		$L1GuestKernelVersion = Get-Content "$LogDir\nested_properties.csv" | Select-String "Host Version"| ForEach-Object{$_ -replace ",Host Version,",""}
+		$computerInfo = Invoke-Command -ComputerName $hs1VIP -ScriptBlock {Get-ComputerInfo} -Credential $cred
+		$L1GuestDistro	= $computerInfo.OsName
 
 		$L1GuestOSType	= "Windows"
 		$HyperVMappedSizes = [xml](Get-Content .\XML\AzureVMSizeToHyperVMapping.xml)
@@ -129,7 +163,7 @@ function Main () {
 		LogMsg "Restart VMs to make sure Hyper-V install completely"
 		RestartAllHyperVDeployments -allVMData $AllVMData
 
-        start-sleep 20
+		start-sleep 20
 		$serverSession = New-PSSession -ComputerName $hs1VIP -Credential $cred
 		$clientSession = New-PSSession -ComputerName $hs2VIP -Credential $cred
 
@@ -143,7 +177,7 @@ function Main () {
 			{
 				$L2GuestMemMB = [int]($param.split("=")[1])
 			}
-			if ($param -match "NestedVhdUrl")
+			if ($param -match "NestedImageUrl")
 			{
 				$L2ImageUrl = $param.split("=")[1]
 			}
@@ -157,13 +191,25 @@ function Main () {
 			}
 		}
 
+		if( $L2ImageUrl.Trim().StartsWith("http") ){
+			$curtime = ([string]((Get-Date).Ticks / 1000000)).Split(".")[0]
+			$nestOSVHD = "C:\Users\test_" + "$curtime" +".vhd"
+			Download-OSvhd -session $serverSession -srcPath $L2ImageUrl -dstPath $nestOSVHD
+			Download-OSvhd -session $clientSession -srcPath $L2ImageUrl -dstPath $nestOSVHD
+		}
+		else {
+			$nestOSVHD = $L2ImageUrl
+		}
+
 		$constantsFile = "$PWD\constants.sh"
 		$allDeployedNestedVMs = @()
 		$nestVMSSHPort=22
 		foreach($vm in $AllVMData)
 		{
+			$IPAddresses = ""
+			$output = ""
 			Invoke-Command -ComputerName $vm.PublicIP -ScriptBlock {
-				param([Int32]$CurrentVMCpu, [Int64]$CurrentVMMemory, $ImageUrl="")
+				param([Int32]$CurrentVMCpu, [Int64]$CurrentVMMemory, $OsVHD="")
 				$externalSwitchName = "External"
 				$nosriovSwitchName = "NonSriov"
 				$vmName = "test"
@@ -181,10 +227,9 @@ function Main () {
 					}
 				}
 
-				$SourceOsVHDPath = "C:\test"
-				$OsVHD="server.vhd"
-				$CurrentVMOsVHDPath = Join-Path $SourceOsVHDPath test.vhd
-				New-VHD -ParentPath "$SourceOsVHDPath\$OsVHD" -Path $CurrentVMOsVHDPath
+				$savePath = "C:\Users\"
+				$CurrentVMOsVHDPath = $savePath + $vmName + ".vhd"
+				New-VHD -ParentPath "$OsVHD" -Path $CurrentVMOsVHDPath
 
 				$CurrentVMMemory = [Int64]$CurrentVMMemory * 1024 * 1024
 				$NewVM = New-VM -Name $vmName -MemoryStartupBytes $CurrentVMMemory -BootDevice VHD -VHDPath $CurrentVMOsVHDPath -Generation 1 -Switch $externalSwitchName
@@ -197,7 +242,7 @@ function Main () {
 				$VMNicProperties= Get-VMNetworkAdapter -VMName $vmName
 
 				return $VMNicProperties.IPAddresses | Where-Object {$_ -imatch $IP_MATCH}
-			} -Credential $cred -ArgumentList $L2GuestCpuNum,$L2GuestMemMB,$L2ImageUrl
+			} -Credential $cred -ArgumentList $L2GuestCpuNum,$L2GuestMemMB,$nestOSVHD
 
 			$output = Invoke-Command -ComputerName $vm.PublicIP -ScriptBlock {
 				$vmName = "test"
@@ -206,29 +251,44 @@ function Main () {
 
 			$IPAddresses = $output.IPAddresses | Where-Object {$_ -imatch $IP_MATCH}
 
-			if($vm.RoleName.Contains("server"))
-			{
-				$NestedVMNode = CreateNestedVMNode
-				$nttcpServerIP = $IPAddresses
-				$NestedVMNode.PublicIP = $nttcpServerIP
-				$NestedVMNode.RoleName = "ntttcp-server"
-				$allDeployedNestedVMs += $NestedVMNode
-			}
-			if($vm.RoleName.Contains("client"))
-			{
-				$NestedVMNode = CreateNestedVMNode
-				$nttcpClientIP = $IPAddresses
-				$NestedVMNode.PublicIP = $nttcpClientIP
-				$NestedVMNode.RoleName = "ntttcp-client"
-				$allDeployedNestedVMs += $NestedVMNode
-			}
 			RunLinuxCmd -username $nestedUser -password $nestedPassword -ip $IPAddresses -port $nestVMSSHPort -command "echo $($vm.RoleName) > /etc/hostname" -runAsSudo -maxRetryCount 5
 			RemoteCopy -uploadTo $IPAddresses -port $nestVMSSHPort -files "$constantsFile" -username $nestedUser -password $nestedPassword -upload
 			RunLinuxCmd -username $nestedUser -password $nestedPassword -ip $IPAddresses -port $nestVMSSHPort -command "reboot" -runAsSudo -RunInBackGround
+		}
 
+		foreach($vm in $AllVMData)
+		{
 			$IPAddresses = ""
 			$output = ""
-        }
+			$RetryCount = 20
+			$CurrentRetryAttempt=0
+			do
+			{
+				$CurrentRetryAttempt++
+				Start-Sleep 5
+				LogMsg "    [$CurrentRetryAttempt/$RetryCount] : nested vm on $($vm.RoleName) : Waiting for IP address ..."
+				$output = Invoke-Command -ComputerName $vm.PublicIP -ScriptBlock {
+				$vmName = "test"
+				Get-VMNetworkAdapter -VMName $vmName
+				} -Credential $cred
+				$IPAddresses = $output.IPAddresses | Where-Object {$_ -imatch $IP_MATCH}
+			}while(($CurrentRetryAttempt -lt $RetryCount) -and (!$IPAddresses))
+
+			$NestedVMNode = CreateNestedVMNode
+			$NestedVMNode.PublicIP = $IPAddresses
+			if($vm.RoleName.Contains("server"))
+			{
+				$NestedVMNode.RoleName = "ntttcp-server"
+				$nttcpServerIP = $IPAddresses
+			}
+			if($vm.RoleName.Contains("client"))
+			{
+				$NestedVMNode.RoleName = "ntttcp-client"
+				$nttcpClientIP = $IPAddresses
+			}
+			$allDeployedNestedVMs += $NestedVMNode
+			$NestedVMNode = ""
+		}
 		isAllSSHPortsEnabledRG $allDeployedNestedVMs
 
 		Remove-PSSession -Session $serverSession
@@ -237,7 +297,7 @@ function Main () {
 		RemoteCopy -uploadTo $nttcpServerIP -port $nestVMSSHPort -files $currentTestData.files -username $nestedUser -password $nestedPassword -upload
 		RunLinuxCmd -username $nestedUser -password $nestedPassword -ip $nttcpServerIP -port $nestVMSSHPort -command "chmod +x *" -runAsSudo
 		$cmd = "/home/$nestedUser/${testScript} -role server -logFolder /home/$nestedUser > /home/$nestedUser/TestExecutionConsole.log"
-        LogMsg "Executing : $($cmd)"
+		LogMsg "Executing : $($cmd)"
 		RunLinuxCmd -username $nestedUser -password $nestedPassword -ip $nttcpServerIP -port $nestVMSSHPort -command $cmd -runAsSudo
 
 		$cmd = "/home/$nestedUser/${testScript} -role client -logFolder /home/$nestedUser > /home/$nestedUser/TestExecutionConsole.log"
@@ -321,7 +381,7 @@ function Main () {
 	{
 		$errorMessage =  $_.Exception.Message
 		LogMsg "EXCEPTION : $errorMessage"
-    }
+	}
 
 	$resultArr += $testResult
 	LogMsg "Test result : $testResult"

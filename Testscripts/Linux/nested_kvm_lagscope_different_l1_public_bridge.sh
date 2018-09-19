@@ -38,16 +38,16 @@ NIC_NAME="ens4"
 IP_ADDR=$CLIENT_IP_ADDR
 
 . ${CONSTANTS_FILE} || {
-	errMsg="Error: missing ${CONSTANTS_FILE} file"
-	LogMsg "${errMsg}"
-	UpdateTestState $ICA_TESTABORTED
-	exit 10
+    errMsg="Error: missing ${CONSTANTS_FILE} file"
+    LogMsg "${errMsg}"
+    UpdateTestState $ICA_TESTABORTED
+    exit 10
 }
 . ${UTIL_FILE} || {
-	errMsg="Error: missing ${UTIL_FILE} file"
-	LogMsg "${errMsg}"
-	UpdateTestState $ICA_TESTABORTED
-	exit 10
+    errMsg="Error: missing ${UTIL_FILE} file"
+    LogMsg "${errMsg}"
+    UpdateTestState $ICA_TESTABORTED
+    exit 10
 }
 
 if [ -z "$role" ]; then
@@ -114,95 +114,95 @@ touch $log_file
 if [ "$role" == "server" ]; then
     IMAGE_NAME="nestedserver.qcow2"
     BR_ADDR="192.168.4.10"
-	IP_ADDR=$SERVER_IP_ADDR
+    IP_ADDR=$SERVER_IP_ADDR
 fi
 
-start_nested_vm_public_bridge()
+Start_Nested_VM_Public_Bridge()
 {
     image_name=$1
     tap_name=$2
     host_fwd_port=$3
     mac_addr1=$(generate_random_mac_addr)
-    log_msg "Start the nested VM: $image_name" $log_file
-    log_msg "qemu-system-x86_64 -cpu host -smp $NestedCpuNum -m $NestedMemMB -hda $image_name -device $NestedNetDevice,netdev=net0 -netdev user,id=net0,hostfwd=tcp::$host_fwd_port-:22 -device $NestedNetDevice,netdev=net1,mac=$mac_addr1,mq=on,vectors=10 -netdev tap,id=net1,ifname=$tap_name,script=no,vhost=on,queues=4 -display none -enable-kvm -daemonize" $log_file
+    Log_Msg "Start the nested VM: $image_name" $log_file
+    Log_Msg "qemu-system-x86_64 -cpu host -smp $NestedCpuNum -m $NestedMemMB -hda $image_name -device $NestedNetDevice,netdev=net0 -netdev user,id=net0,hostfwd=tcp::$host_fwd_port-:22 -device $NestedNetDevice,netdev=net1,mac=$mac_addr1,mq=on,vectors=10 -netdev tap,id=net1,ifname=$tap_name,script=no,vhost=on,queues=4 -display none -enable-kvm -daemonize" $log_file
     cmd="qemu-system-x86_64 -cpu host -smp $NestedCpuNum -m $NestedMemMB -hda $image_name -device $NestedNetDevice,netdev=net0 -netdev user,id=net0,hostfwd=tcp::$host_fwd_port-:22 -device $NestedNetDevice,netdev=net1,mac=$mac_addr1,mq=on,vectors=10 -netdev tap,id=net1,ifname=$tap_name,script=no,vhost=on,queues=4 -display none -enable-kvm -daemonize"
-	start_nested_vm -user $NestedUser -passwd $NestedUserPassword -port $host_fwd_port $cmd
-	enable_root -user $NestedUser -passwd $NestedUserPassword -port $host_fwd_port
-	
-    remote_copy_wrapper $NestedUser $host_fwd_port "./enablePasswordLessRoot.sh" "put"
-    remote_copy_wrapper $NestedUser $host_fwd_port "./perf_lagscope.sh" "put"
-    remote_copy_wrapper $NestedUser $host_fwd_port "./utils.sh" "put"
-    remote_exec_wrapper $NestedUser $host_fwd_port "chmod a+x /home/$NestedUser/*.sh"
-    remote_exec_wrapper $NestedUser $host_fwd_port "echo $NestedUserPassword | sudo -S /home/$NestedUser/enableRoot.sh -password $NestedUserPassword"
+    Start_Nested_VM -user $NestedUser -passwd $NestedUserPassword -port $host_fwd_port $cmd
+    Enable_Root -user $NestedUser -passwd $NestedUserPassword -port $host_fwd_port
+
+    Remote_Copy_Wrapper $NestedUser $host_fwd_port "./enablePasswordLessRoot.sh" "put"
+    Remote_Copy_Wrapper $NestedUser $host_fwd_port "./perf_lagscope.sh" "put"
+    Remote_Copy_Wrapper $NestedUser $host_fwd_port "./utils.sh" "put"
+    Remote_Exec_Wrapper $NestedUser $host_fwd_port "chmod a+x /home/$NestedUser/*.sh"
+    Remote_Exec_Wrapper $NestedUser $host_fwd_port "echo $NestedUserPassword | sudo -S /home/$NestedUser/enableRoot.sh -password $NestedUserPassword"
     check_exit_status "Enable root for VM $image_name"
-    remote_exec_wrapper "root" $host_fwd_port "cp /home/$NestedUser/*.sh /root"
+    Remote_Exec_Wrapper "root" $host_fwd_port "cp /home/$NestedUser/*.sh /root"
 }
 
-prepare_client()
+Prepare_Client()
 {
-    setup_tap $TAP_NAME $BR_NAME
-    start_nested_vm_public_bridge $IMAGE_NAME $TAP_NAME $HOST_FWD_PORT
-    remote_copy_wrapper "root" $HOST_FWD_PORT "/tmp/sshFix.tar" "put"
-    remote_exec_wrapper "root" $HOST_FWD_PORT "/root/enablePasswordLessRoot.sh"
-    remote_exec_wrapper "root" $HOST_FWD_PORT "md5sum /root/.ssh/id_rsa > /root/clientmd5sum.log"
-    remote_copy_wrapper "root" $HOST_FWD_PORT "clientmd5sum.log" "get"
+    Setup_Tap $TAP_NAME $BR_NAME
+    Start_Nested_VM_Public_Bridge $IMAGE_NAME $TAP_NAME $HOST_FWD_PORT
+    Remote_Copy_Wrapper "root" $HOST_FWD_PORT "/tmp/sshFix.tar" "put"
+    Remote_Exec_Wrapper "root" $HOST_FWD_PORT "/root/enablePasswordLessRoot.sh"
+    Remote_Exec_Wrapper "root" $HOST_FWD_PORT "md5sum /root/.ssh/id_rsa > /root/clientmd5sum.log"
+    Remote_Copy_Wrapper "root" $HOST_FWD_PORT "clientmd5sum.log" "get"
 
     echo "server=$SERVER_IP_ADDR" >> ${CONSTANTS_FILE}
     echo "client=$CLIENT_IP_ADDR" >> ${CONSTANTS_FILE}
     echo "pingIteration=$pingIteration" >> ${CONSTANTS_FILE}
-    remote_copy_wrapper "root" $HOST_FWD_PORT "${CONSTANTS_FILE}" "put"
+    Remote_Copy_Wrapper "root" $HOST_FWD_PORT "${CONSTANTS_FILE}" "put"
 }
 
-prepare_server()
+Prepare_Server()
 {
-	setup_tap $TAP_NAME $BR_NAME
-    start_nested_vm_public_bridge $IMAGE_NAME $TAP_NAME $HOST_FWD_PORT
+    Setup_Tap $TAP_NAME $BR_NAME
+    Start_Nested_VM_Public_Bridge $IMAGE_NAME $TAP_NAME $HOST_FWD_PORT
 
-    remote_exec_wrapper "root" $HOST_FWD_PORT "rm -rf /root/sshFix"
-    remote_exec_wrapper "root" $HOST_FWD_PORT "/root/enablePasswordLessRoot.sh"
-    remote_copy_wrapper "root" $HOST_FWD_PORT "sshFix.tar" "get"
-    remote_exec_wrapper "root" $HOST_FWD_PORT 'md5sum /root/.ssh/id_rsa > /root/servermd5sum.log'
-    remote_copy_wrapper "root" $HOST_FWD_PORT "servermd5sum.log" "get"
-    
+    Remote_Exec_Wrapper "root" $HOST_FWD_PORT "rm -rf /root/sshFix"
+    Remote_Exec_Wrapper "root" $HOST_FWD_PORT "/root/enablePasswordLessRoot.sh"
+    Remote_Copy_Wrapper "root" $HOST_FWD_PORT "sshFix.tar" "get"
+    Remote_Exec_Wrapper "root" $HOST_FWD_PORT 'md5sum /root/.ssh/id_rsa > /root/servermd5sum.log'
+    Remote_Copy_Wrapper "root" $HOST_FWD_PORT "servermd5sum.log" "get"
+
     remote_copy -host $level1ClientIP -user $level1User -passwd $level1Password -port $level1Port -filename ./sshFix.tar -remote_path "/tmp" -cmd put
 }
 
-prepare_nested_vms()
+Prepare_Nested_VMs()
 {
     if [ "$role" == "server" ]; then
-        prepare_server
+        Prepare_Server
     fi
     if [ "$role" == "client" ]; then
-        prepare_client
+        Prepare_Client
     fi
-	reboot_nested_vm -user "root" -passwd $NestedUserPassword -port $HOST_FWD_PORT
-    remote_exec_wrapper "root" $HOST_FWD_PORT "ifconfig $NIC_NAME $IP_ADDR netmask 255.255.255.0 up"
+    Reboot_Nested_VM -user "root" -passwd $NestedUserPassword -port $HOST_FWD_PORT
+    Remote_Exec_Wrapper "root" $HOST_FWD_PORT "ifconfig $NIC_NAME $IP_ADDR netmask 255.255.255.0 up"
 }
 
-run_lagscope_on_client()
+Run_Lagscope_On_Client()
 {
-    log_msg "Start to run perf_lagscope.sh on nested client VM" $log_file
-    remote_exec_wrapper "root" $HOST_FWD_PORT '/root/perf_lagscope.sh > lagscopeConsoleLogs.txt'
+    Log_Msg "Start to run perf_lagscope.sh on nested client VM" $log_file
+    Remote_Exec_Wrapper "root" $HOST_FWD_PORT '/root/perf_lagscope.sh > lagscopeConsoleLogs.txt'
 }
 
-collect_logs()
+Collect_Logs()
 {
-    log_msg "Finished running perf_lagscope.sh, start to collect logs" $log_file
+    Log_Msg "Finished running perf_lagscope.sh, start to collect logs" $log_file
 
-    remote_exec_wrapper "root" $HOST_FWD_PORT  ". ./utils.sh && collect_VM_properties nested_properties.csv"
-    remote_copy_wrapper "root" $HOST_FWD_PORT "lagscope-n$pingIteration-output.txt" "get"
-    remote_copy_wrapper "root" $HOST_FWD_PORT "lagscopeConsoleLogs.txt" "get"
-    remote_copy_wrapper "root" $HOST_FWD_PORT "nested_properties.csv" "get"
+    Remote_Exec_Wrapper "root" $HOST_FWD_PORT  ". ./utils.sh && collect_VM_properties nested_properties.csv"
+    Remote_Copy_Wrapper "root" $HOST_FWD_PORT "lagscope-n$pingIteration-output.txt" "get"
+    Remote_Copy_Wrapper "root" $HOST_FWD_PORT "lagscopeConsoleLogs.txt" "get"
+    Remote_Copy_Wrapper "root" $HOST_FWD_PORT "nested_properties.csv" "get"
 }
 
-update_test_state $ICA_TESTRUNNING
-install_kvm_dependencies
-download_image_files -destination_image_name $IMAGE_NAME -source_image_url $NestedImageUrl
-setup_public_bridge $BR_NAME $BR_ADDR
-prepare_nested_vms
+Update_Test_State $ICA_TESTRUNNING
+Install_KVM_Dependencies
+Download_Image_Files -destination_image_name $IMAGE_NAME -source_image_url $NestedImageUrl
+Setup_Public_Bridge $BR_NAME $BR_ADDR
+Prepare_Nested_VMs
 if [ "$role" == "client" ]; then
-    run_lagscope_on_client
-    collect_logs
-    stop_nested_vm
+    Run_Lagscope_On_Client
+    Collect_Logs
+    Stop_Nested_VM
 fi
-update_test_state $ICA_TESTCOMPLETED
+Update_Test_State $ICA_TESTCOMPLETED

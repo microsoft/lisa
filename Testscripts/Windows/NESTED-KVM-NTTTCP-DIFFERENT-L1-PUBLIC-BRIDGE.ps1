@@ -4,18 +4,17 @@
 $testScript = "nested_kvm_ntttcp_different_l1_public_bridge.sh"
 if(($($currentTestData.TestName)).Contains("NESTED-KVM-NTTTCP-DIFFERENT-L1-NAT"))
 {
-    $testScript = "nested_kvm_ntttcp_different_l1_nat.sh"
+	$testScript = "nested_kvm_ntttcp_different_l1_nat.sh"
 }
 
 function Start-TestExecution ($ip, $port, $cmd) {
-    LogMsg "Executing : ${cmd}"
-    $testJob = RunLinuxCmd -username $user -password $password -ip $ip -port $port -command $cmd -runAsSudo -RunInBackground
-    $testJob = $testJob[1]
-    while ((Get-Job -Id $testJob).State -eq "Running" ) {
-        $currentStatus = RunLinuxCmd -username $user -password $password -ip $ip -port $port -command "cat /home/$user/state.txt"
-        LogMsg "Current Test Staus : $currentStatus"
-        WaitFor -seconds 20
-    }
+	LogMsg "Executing : ${cmd}"
+	$testJob = RunLinuxCmd -username $user -password $password -ip $ip -port $port -command $cmd -runAsSudo -RunInBackground
+	while ((Get-Job -Id $testJob).State -eq "Running" ) {
+		$currentStatus = RunLinuxCmd -username $user -password $password -ip $ip -port $port -command "cat /home/$user/state.txt"
+		LogMsg "Current Test Staus : $currentStatus"
+		WaitFor -seconds 20
+	}
 }
 
 function Send-ResultToDatabase ($xmlConfig, $logDir) {
@@ -30,7 +29,7 @@ function Send-ResultToDatabase ($xmlConfig, $logDir) {
 	{
 		# Get host info
 		$HostType	= $xmlConfig.config.CurrentTestPlatform
-		$HostBy	= $xmlConfig.config.$TestPlatform.Hosts.ChildNodes[0].ServerName + " - " + $xmlConfig.config.$TestPlatform.Hosts.ChildNodes[1].ServerName
+		$HostBy	= $TestLocation
 		$HostOS	= Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version"| ForEach-Object{$_ -replace ",Host Version,",""}
 
 		# Get L1 guest info
@@ -51,6 +50,12 @@ function Send-ResultToDatabase ($xmlConfig, $logDir) {
 		{
 			$flag=0
 		}
+		$imageName = " "
+		if($TestPlatform -eq "Azure"){
+			$imageInfo = $xmlConfig.config.Azure.Deployment.Data.Distro.ARMImage
+			$imageName = "$($imageInfo.Publisher) $($imageInfo.Offer) $($imageInfo.Sku) $($imageInfo.Version)"
+		}
+
 		foreach ( $param in $currentTestData.TestParameters.param)
 		{
 			if ($param -match "NestedCpuNum")
@@ -71,12 +76,12 @@ function Send-ResultToDatabase ($xmlConfig, $logDir) {
 		$ProtocolType = "TCP"
 		$connectionString = "Server=$dataSource;uid=$user; pwd=$password;Database=$database;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
 		$LogContents = Get-Content -Path "$LogDir\report.log"
-		$SQLQuery = "INSERT INTO $dataTableName (TestCaseName,TestDate,HostType,HostBy,HostOS,L1GuestOSType,L1GuestDistro,L1GuestSize,L1GuestKernelVersion,L2GuestDistro,L2GuestKernelVersion,L2GuestMemMB,L2GuestCpuNum,KvmNetDevice,IPVersion,ProtocolType,NumberOfConnections,Throughput_Gbps,Latency_ms,TestPlatform,DataPath,SameHost) VALUES "
+		$SQLQuery = "INSERT INTO $dataTableName (TestCaseName,TestDate,HostType,HostBy,HostOS,ImageName,L1GuestOSType,L1GuestDistro,L1GuestSize,L1GuestKernelVersion,L2GuestDistro,L2GuestKernelVersion,L2GuestMemMB,L2GuestCpuNum,KvmNetDevice,IPVersion,ProtocolType,NumberOfConnections,Throughput_Gbps,Latency_ms,TestPlatform,DataPath,SameHost) VALUES "
 
 		for($i = 1; $i -lt $LogContents.Count; $i++)
 		{
 			$Line = $LogContents[$i].Trim() -split '\s+'
-			$SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$HostType','$HostBy','$HostOS','$L1GuestOSType','$L1GuestDistro','$L1GuestSize','$L1GuestKernelVersion','$L2GuestDistro','$L2GuestKernelVersion','$L2GuestMemMB','$L2GuestCpuNum','$KvmNetDevice','$IPVersion','$ProtocolType',$($Line[0]),$($Line[1]),$($Line[2]),'$HostType','Synthetic','$flag'),"
+			$SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$HostType','$HostBy','$HostOS','$imageName','$L1GuestOSType','$L1GuestDistro','$L1GuestSize','$L1GuestKernelVersion','$L2GuestDistro','$L2GuestKernelVersion','$L2GuestMemMB','$L2GuestCpuNum','$KvmNetDevice','$IPVersion','$ProtocolType',$($Line[0]),$($Line[1]),$($Line[2]),'$HostType','Synthetic','$flag'),"
 		}
 		$SQLQuery = $SQLQuery.TrimEnd(',')
 		LogMsg $SQLQuery

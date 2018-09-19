@@ -65,22 +65,22 @@ else
 	echo "Using Log Folder $logFolder"
 fi
 
-test_nested_vm()
+Test_Nested_VM()
 {
 	#Prepare command for start nested kvm
 	cmd="qemu-system-x86_64 -smp 2 -m 2048 -hda $ImageName -display none -device e1000,netdev=user.0 -netdev user,id=user.0,hostfwd=tcp::$HostFwdPort-:22 -enable-kvm -daemonize"
 	#Start nested kvm
-	start_nested_vm -user $NestedUser -passwd $NestedUserPassword -port $HostFwdPort $cmd
+	Start_Nested_VM -user $NestedUser -passwd $NestedUserPassword -port $HostFwdPort $cmd
 }
 
 
 
-install_kvm_dependencies
-download_image_files -destination_image_name $ImageName -source_image_url $NestedImageUrl
+Install_KVM_Dependencies
+Download_Image_Files -destination_image_name $ImageName -source_image_url $NestedImageUrl
 
 #Prepare nested kvm
-test_nested_vm
-stop_nested_vm
+Test_Nested_VM
+Stop_Nested_VM
 SetTestStateCompleted
 
 #Exiting with zero is important.

@@ -32,16 +32,16 @@ CLIENT_IP_ADDR="192.168.4.21"
 NIC_NAME="eth1"
 
 . ${CONSTANTS_FILE} || {
-	errMsg="Error: missing ${CONSTANTS_FILE} file"
-	LogMsg "${errMsg}"
-	UpdateTestState $ICA_TESTABORTED
-	exit 10
+    errMsg="Error: missing ${CONSTANTS_FILE} file"
+    LogMsg "${errMsg}"
+    UpdateTestState $ICA_TESTABORTED
+    exit 10
 }
 . ${UTIL_FILE} || {
-	errMsg="Error: missing ${UTIL_FILE} file"
-	LogMsg "${errMsg}"
-	UpdateTestState $ICA_TESTABORTED
-	exit 10
+    errMsg="Error: missing ${UTIL_FILE} file"
+    LogMsg "${errMsg}"
+    UpdateTestState $ICA_TESTABORTED
+    exit 10
 }
 
 if [ -z "$role" ]; then
@@ -81,7 +81,7 @@ if [ "$role" == "client" ]; then
     IP_ADDR=$CLIENT_IP_ADDR
 fi
 
-start_test()
+Start_Test()
 {
     echo "server=$SERVER_IP_ADDR" >> ${CONSTANTS_FILE}
     echo "client=$CLIENT_IP_ADDR" >> ${CONSTANTS_FILE}
@@ -91,7 +91,7 @@ start_test()
     check_exit_status "Setup static IP address for $NIC_NAME"
     chmod a+x /home/$NestedUser/*.sh
 
-    log_msg "Enable root for VM $role" $log_file
+    Log_Msg "Enable root for VM $role" $log_file
     echo $NestedUserPassword | sudo -S /home/$NestedUser/enableRoot.sh -password $NestedUserPassword
     echo $NestedUserPassword | sudo -S cp /home/$NestedUser/*.sh /root 
     remote_exec -host localhost -user root -passwd $NestedUserPassword -port 22 "hostname"
@@ -102,7 +102,7 @@ start_test()
         echo $NestedUserPassword | sudo -S cp /root/sshFix.tar /tmp
     else
         echo $NestedUserPassword | sudo -S rm -rf /root/sshFix.tar
-		log_msg "remote_copy -host $SERVER_IP_ADDR -user $NestedUser -passwd $NestedUserPassword -port 22 -filename sshFix.tar -remote_path '/tmp' -cmd get" $log_file
+        Log_Msg "remote_copy -host $SERVER_IP_ADDR -user $NestedUser -passwd $NestedUserPassword -port 22 -filename sshFix.tar -remote_path '/tmp' -cmd get" $log_file
         remote_copy -host $SERVER_IP_ADDR -user $NestedUser -passwd $NestedUserPassword -port 22 -filename "sshFix.tar" -remote_path "/tmp" -cmd get
         echo $NestedUserPassword | sudo -S cp -fR /home/$NestedUser/sshFix.tar /root/sshFix.tar
         remote_exec -host localhost -user root -passwd $NestedUserPassword -port 22 "/root/enablePasswordLessRoot.sh"
@@ -110,25 +110,27 @@ start_test()
     fi
 
     if [ "$role" == "client" ]; then
-        log_msg "Start to run perf_ntttcp.sh on nested client VM" $log_file
-        echo $NestedUserPassword | sudo -S /root/perf_ntttcp.sh > ntttcpConsoleLogs
-        collect_logs
+        Log_Msg "Start to run perf_ntttcp.sh on nested client VM" $log_file
+        remote_exec -host localhost -user root -passwd $NestedUserPassword -port 22 "/root/perf_ntttcp.sh > ntttcpConsoleLogs"
+        Collect_Logs
     fi
 }
 
-collect_logs() {
-    log_msg "Finished running perf_ntttcp.sh, start to collect logs" $log_file
-    echo $NestedUserPassword | sudo -S mv /root/ntttcp-${testType}-test-logs ./ntttcp-${testType}-test-logs-sender
+Collect_Logs() {
+    Log_Msg "Finished running perf_ntttcp.sh, start to collect logs" $LOG_FILE
+    remote_exec -host localhost -user root -passwd $NestedUserPassword -port 22 "mv /root/ntttcp-${testType}-test-logs /home/${NestedUser}/ntttcp-${testType}-test-logs-sender"
     tar -cf ./ntttcp-test-logs-sender.tar ./ntttcp-${testType}-test-logs-sender
     collect_VM_properties nested_properties.csv
 
     remote_exec -host $SERVER_IP_ADDR -user root -passwd $NestedUserPassword -port 22 "mv ./ntttcp-${testType}-test-logs ./ntttcp-${testType}-test-logs-receiver"
     remote_exec -host $SERVER_IP_ADDR -user root -passwd $NestedUserPassword -port 22 "tar -cf ./ntttcp-test-logs-receiver.tar ./ntttcp-${testType}-test-logs-receiver"
-    remote_copy -host $SERVER_IP_ADDR -user root -passwd $NestedUserPassword -port 22 -filename "./ntttcp-test-logs-receiver.tar" -remote_path "/root" -cmd "get" 
-    echo $NestedUserPassword | sudo -S mv /root/report.log ./
+    remote_copy -host $SERVER_IP_ADDR -user root -passwd $NestedUserPassword -port 22 -filename "ntttcp-test-logs-receiver.tar" -remote_path "/root" -cmd "get" 
+    remote_exec -host localhost -user root -passwd $NestedUserPassword -port 22 "mv /root/report.log /home/${NestedUser}"
+    remote_exec -host localhost -user root -passwd $NestedUserPassword -port 22 "mv /root/ntttcpTest.log /home/${NestedUser}"
+    remote_exec -host localhost -user root -passwd $NestedUserPassword -port 22 "mv /root/ntttcpConsoleLogs /home/${NestedUser}"
     check_exit_status "Get the NTTTCP report"
 }
 
-update_test_state $ICA_TESTRUNNING
-start_test
-update_test_state $ICA_TESTCOMPLETED
+Update_Test_State $ICA_TESTRUNNING
+Start_Test
+Update_Test_State $ICA_TESTCOMPLETED

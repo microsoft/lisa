@@ -42,13 +42,13 @@ NIC_NAME="ens4"
 . ${CONSTANTS_FILE} || {
 	errMsg="Error: missing ${CONSTANTS_FILE} file"
 	LogMsg "${errMsg}"
-	update_test_state $ICA_TESTABORTED
+	Update_Test_State $ICA_TESTABORTED
 	exit 10
 }
 . ${UTIL_FILE} || {
 	errMsg="Error: missing ${UTIL_FILE} file"
 	LogMsg "${errMsg}"
-	update_test_state $ICA_TESTABORTED
+	Update_Test_State $ICA_TESTABORTED
 	exit 10
 }
 
@@ -95,89 +95,89 @@ touch $logFolder/state.txt
 log_file=$logFolder/`basename "$0"`.log
 touch $log_file
 
-setup_bridge() {
+Setup_Bridge() {
 	ip link show $BR_NAME
 	if [ $? -eq 0 ]; then
-		log_msg "Bridge $BR_NAME is already up" $log_file
+		Log_Msg "Bridge $BR_NAME is already up" $log_file
 		return
 	fi
-	log_msg "Setting up bridge $BR_NAME" $log_file
+	Log_Msg "Setting up bridge $BR_NAME" $log_file
 	ip link add $BR_NAME type bridge
 	ifconfig $BR_NAME $BR_ADDR netmask 255.255.255.0 up
 	check_exit_status "Setup bridge $BR_NAME"
 }
 
-prepare_client() {
-	setup_tap $CLIENT_TAP $BR_NAME
+Prepare_Client() {
+	Setup_Tap $CLIENT_TAP $BR_NAME
 	mac_addr1=$(generate_random_mac_addr)
 	mac_addr2=$(generate_random_mac_addr)
 	cmd="qemu-system-x86_64 -cpu host -smp $NestedCpuNum -m $NestedMemMB -hda $CLIENT_IMAGE \
-	    -device $NestedNetDevice,netdev=net0,mac=$mac_addr1 -netdev user,id=net0,hostfwd=tcp::$CLIENT_HOST_FWD_PORT-:22 \
-	    -device $NestedNetDevice,netdev=net1,mac=$mac_addr2,mq=on,vectors=10 \
-	    -netdev tap,id=net1,ifname=$CLIENT_TAP,script=no,vhost=on,queues=4 -display none -enable-kvm -daemonize"
+		-device $NestedNetDevice,netdev=net0,mac=$mac_addr1 -netdev user,id=net0,hostfwd=tcp::$CLIENT_HOST_FWD_PORT-:22 \
+		-device $NestedNetDevice,netdev=net1,mac=$mac_addr2,mq=on,vectors=10 \
+		-netdev tap,id=net1,ifname=$CLIENT_TAP,script=no,vhost=on,queues=4 -display none -enable-kvm -daemonize"
 
-	start_nested_vm -user $NestedUser -passwd $NestedUserPassword -port $CLIENT_HOST_FWD_PORT $cmd
-	enable_root -user $NestedUser -passwd $NestedUserPassword -port $CLIENT_HOST_FWD_PORT
-	remote_copy_wrapper "root" $CLIENT_HOST_FWD_PORT "./enablePasswordLessRoot.sh" "put"
-	remote_copy_wrapper "root" $CLIENT_HOST_FWD_PORT "./utils.sh" "put"
-	remote_exec_wrapper "root" $CLIENT_HOST_FWD_PORT "chmod a+x *.sh"
-	remote_exec_wrapper "root" $CLIENT_HOST_FWD_PORT "rm -rf /root/sshFix"
-	remote_exec_wrapper "root" $CLIENT_HOST_FWD_PORT "/root/enablePasswordLessRoot.sh"
-	remote_copy_wrapper "root" $CLIENT_HOST_FWD_PORT "sshFix.tar" "get"
+	Start_Nested_VM -user $NestedUser -passwd $NestedUserPassword -port $CLIENT_HOST_FWD_PORT $cmd
+	Enable_Root -user $NestedUser -passwd $NestedUserPassword -port $CLIENT_HOST_FWD_PORT
+	Remote_Copy_Wrapper "root" $CLIENT_HOST_FWD_PORT "./enablePasswordLessRoot.sh" "put"
+	Remote_Copy_Wrapper "root" $CLIENT_HOST_FWD_PORT "./utils.sh" "put"
+	Remote_Exec_Wrapper "root" $CLIENT_HOST_FWD_PORT "chmod a+x *.sh"
+	Remote_Exec_Wrapper "root" $CLIENT_HOST_FWD_PORT "rm -rf /root/sshFix"
+	Remote_Exec_Wrapper "root" $CLIENT_HOST_FWD_PORT "/root/enablePasswordLessRoot.sh"
+	Remote_Copy_Wrapper "root" $CLIENT_HOST_FWD_PORT "sshFix.tar" "get"
 	check_exit_status "Download key from the client VM"
 
-	remote_exec_wrapper "root" $CLIENT_HOST_FWD_PORT "md5sum /root/.ssh/id_rsa > /root/clientmd5sum.log"
-	remote_copy_wrapper "root" $CLIENT_HOST_FWD_PORT "clientmd5sum.log" "get"
+	Remote_Exec_Wrapper "root" $CLIENT_HOST_FWD_PORT "md5sum /root/.ssh/id_rsa > /root/clientmd5sum.log"
+	Remote_Copy_Wrapper "root" $CLIENT_HOST_FWD_PORT "clientmd5sum.log" "get"
 
 	echo "server=$SERVER_IP_ADDR" >> ${CONSTANTS_FILE}
 	echo "client=$CLIENT_IP_ADDR" >> ${CONSTANTS_FILE}
 	echo "nicName=$NIC_NAME" >> ${CONSTANTS_FILE}
-	remote_copy_wrapper "root" $CLIENT_HOST_FWD_PORT "${CONSTANTS_FILE}" "put"
-	log_msg "Reboot the nested client VM" $log_file
-	remote_exec_wrapper "root" $CLIENT_HOST_FWD_PORT "reboot"
-	bring_up_nic_with_private_ip $CLIENT_IP_ADDR $CLIENT_HOST_FWD_PORT
+	Remote_Copy_Wrapper "root" $CLIENT_HOST_FWD_PORT "${CONSTANTS_FILE}" "put"
+	Log_Msg "Reboot the nested client VM" $log_file
+	Remote_Exec_Wrapper "root" $CLIENT_HOST_FWD_PORT "reboot"
+	Bring_Up_Nic_With_Private_Ip $CLIENT_IP_ADDR $CLIENT_HOST_FWD_PORT
 }
 
-prepare_server() {
-	setup_tap $SERVER_TAP $BR_NAME
+Prepare_Server() {
+	Setup_Tap $SERVER_TAP $BR_NAME
 	mac_addr1=$(generate_random_mac_addr)
 	mac_addr2=$(generate_random_mac_addr)
 	cmd="qemu-system-x86_64 -cpu host -smp $NestedCpuNum -m $NestedMemMB -hda $SERVER_IMAGE \
 	    -device $NestedNetDevice,netdev=net0,mac=$mac_addr1 -netdev user,id=net0,hostfwd=tcp::$SERVER_HOST_FWD_PORT-:22 \
 	    -device $NestedNetDevice,netdev=net1,mac=$mac_addr2,mq=on,vectors=10 \
 	    -netdev tap,id=net1,ifname=$SERVER_TAP,script=no,vhost=on,queues=4 -display none -enable-kvm -daemonize"
-	start_nested_vm -user $NestedUser -passwd $NestedUserPassword -port $SERVER_HOST_FWD_PORT $cmd
-	enable_root -user $NestedUser -passwd $NestedUserPassword -port $SERVER_HOST_FWD_PORT
-	remote_copy_wrapper "root" $SERVER_HOST_FWD_PORT "./enablePasswordLessRoot.sh" "put"
-	remote_copy_wrapper "root" $SERVER_HOST_FWD_PORT "./utils.sh" "put"
-	remote_exec_wrapper "root" $SERVER_HOST_FWD_PORT "chmod a+x *.sh"
-	remote_copy_wrapper "root" $SERVER_HOST_FWD_PORT "./sshFix.tar" "put"
+	Start_Nested_VM -user $NestedUser -passwd $NestedUserPassword -port $SERVER_HOST_FWD_PORT $cmd
+	Enable_Root -user $NestedUser -passwd $NestedUserPassword -port $SERVER_HOST_FWD_PORT
+	Remote_Copy_Wrapper "root" $SERVER_HOST_FWD_PORT "./enablePasswordLessRoot.sh" "put"
+	Remote_Copy_Wrapper "root" $SERVER_HOST_FWD_PORT "./utils.sh" "put"
+	Remote_Exec_Wrapper "root" $SERVER_HOST_FWD_PORT "chmod a+x *.sh"
+	Remote_Copy_Wrapper "root" $SERVER_HOST_FWD_PORT "./sshFix.tar" "put"
 	check_exit_status "Copy key to the server VM"
 
-	remote_exec_wrapper "root" $SERVER_HOST_FWD_PORT "/root/enablePasswordLessRoot.sh"
-	remote_exec_wrapper "root" $SERVER_HOST_FWD_PORT "md5sum /root/.ssh/id_rsa > /root/servermd5sum.log"
-	remote_copy_wrapper "root" $SERVER_HOST_FWD_PORT "servermd5sum.log" "get"
-	log_msg "Reboot the nested server VM" $log_file
-	remote_exec_wrapper "root" $SERVER_HOST_FWD_PORT "reboot"
-	bring_up_nic_with_private_ip $SERVER_IP_ADDR $SERVER_HOST_FWD_PORT
+	Remote_Exec_Wrapper "root" $SERVER_HOST_FWD_PORT "/root/enablePasswordLessRoot.sh"
+	Remote_Exec_Wrapper "root" $SERVER_HOST_FWD_PORT "md5sum /root/.ssh/id_rsa > /root/servermd5sum.log"
+	Remote_Copy_Wrapper "root" $SERVER_HOST_FWD_PORT "servermd5sum.log" "get"
+	Log_Msg "Reboot the nested server VM" $log_file
+	Remote_Exec_Wrapper "root" $SERVER_HOST_FWD_PORT "reboot"
+	Bring_Up_Nic_With_Private_Ip $SERVER_IP_ADDR $SERVER_HOST_FWD_PORT
 }
 
-prepare_nested_vms() {
-	prepare_client
-	prepare_server
+Prepare_Nested_VMs() {
+	Prepare_Client
+	Prepare_Server
 	client_md5sum=$(cat ./clientmd5sum.log)
 	server_md5sum=$(cat ./servermd5sum.log)
 
 	if [[ $client_md5sum == $server_md5sum ]]; then
-		log_msg "md5sum check success for .ssh/id_rsa" $log_file
+		Log_Msg "md5sum check success for .ssh/id_rsa" $log_file
 	else
-		log_msg "md5sum check failed for .ssh/id_rsa" $log_file
-		update_test_state $ICA_TESTFAILED
+		Log_Msg "md5sum check failed for .ssh/id_rsa" $log_file
+		Update_Test_State $ICA_TESTFAILED
 		exit 1
 	fi
 }
 
-bring_up_nic_with_private_ip() {
+Bring_Up_Nic_With_Private_Ip() {
 	ip_addr=$1
 	host_fwd_port=$2
 	retry_times=20
@@ -186,53 +186,53 @@ bring_up_nic_with_private_ip() {
 	do
 		retry_times=$(expr $retry_times - 1)
 		if [ $retry_times -eq 0 ]; then
-			log_msg "Timeout to connect to the nested VM" $log_file
-			update_test_state $ICA_TESTFAILED
+			Log_Msg "Timeout to connect to the nested VM" $log_file
+			Update_Test_State $ICA_TESTFAILED
 			exit 0
 		else
 			sleep 10
-			log_msg "Try to bring up the nested VM NIC with private IP, left retry times: $retry_times" $log_file
-			remote_exec_wrapper "root" $host_fwd_port "ifconfig $NIC_NAME $ip_addr netmask 255.255.255.0 up"
+			Log_Msg "Try to bring up the nested VM NIC with private IP, left retry times: $retry_times" $log_file
+			Remote_Exec_Wrapper "root" $host_fwd_port "ifconfig $NIC_NAME $ip_addr netmask 255.255.255.0 up"
 			exit_status=$?
 		fi
 	done
 	if [ $exit_status -ne 0 ]; then
-		update_test_state $ICA_TESTFAILED
+		Update_Test_State $ICA_TESTFAILED
 		exit 1
 	fi
 }
 
-run_ntttcp_on_client() {
-	log_msg "Copy test scripts to nested VM" $log_file
-	remote_copy_wrapper "root" $CLIENT_HOST_FWD_PORT "./perf_ntttcp.sh" "put"
-	remote_exec_wrapper "root" $CLIENT_HOST_FWD_PORT "chmod a+x *.sh"
-	log_msg "Start to run perf_ntttcp.sh on nested client VM" $log_file
-	remote_exec_wrapper "root" $CLIENT_HOST_FWD_PORT "/root/perf_ntttcp.sh > ntttcpConsoleLogs"
+Run_Ntttcp_On_Client() {
+	Log_Msg "Copy test scripts to nested VM" $log_file
+	Remote_Copy_Wrapper "root" $CLIENT_HOST_FWD_PORT "./perf_ntttcp.sh" "put"
+	Remote_Exec_Wrapper "root" $CLIENT_HOST_FWD_PORT "chmod a+x *.sh"
+	Log_Msg "Start to run perf_ntttcp.sh on nested client VM" $log_file
+	Remote_Exec_Wrapper "root" $CLIENT_HOST_FWD_PORT "/root/perf_ntttcp.sh > ntttcpConsoleLogs"
 }
 
-collect_logs() {
-	log_msg "Finished running perf_ntttcp.sh, start to collect logs" $log_file
-	remote_exec_wrapper "root" $CLIENT_HOST_FWD_PORT "mv ./ntttcp-${testType}-test-logs ./ntttcp-${testType}-test-logs-sender"
-	remote_exec_wrapper "root" $CLIENT_HOST_FWD_PORT "tar -cf ./ntttcp-test-logs-sender.tar ./ntttcp-${testType}-test-logs-sender"
-	remote_exec_wrapper "root" $CLIENT_HOST_FWD_PORT ". utils.sh  && collect_VM_properties nested_properties.csv"
-	remote_copy_wrapper "root" $CLIENT_HOST_FWD_PORT "ntttcp-test-logs-sender.tar" "get"
-	remote_copy_wrapper "root" $CLIENT_HOST_FWD_PORT "ntttcpConsoleLogs" "get"
-	remote_copy_wrapper "root" $CLIENT_HOST_FWD_PORT "ntttcpTest.log" "get"
-	remote_copy_wrapper "root" $CLIENT_HOST_FWD_PORT "nested_properties.csv" "get"
-	remote_exec_wrapper "root" $SERVER_HOST_FWD_PORT "mv ./ntttcp-${testType}-test-logs ./ntttcp-${testType}-test-logs-receiver"
-	remote_exec_wrapper "root" $SERVER_HOST_FWD_PORT "tar -cf ./ntttcp-test-logs-receiver.tar ./ntttcp-${testType}-test-logs-receiver"
-	remote_copy_wrapper "root" $SERVER_HOST_FWD_PORT "ntttcp-test-logs-receiver.tar" "get"
-	remote_copy_wrapper "root" $CLIENT_HOST_FWD_PORT "report.log" "get"
+Collect_Logs() {
+	Log_Msg "Finished running perf_ntttcp.sh, start to collect logs" $log_file
+	Remote_Exec_Wrapper "root" $CLIENT_HOST_FWD_PORT "mv ./ntttcp-${testType}-test-logs ./ntttcp-${testType}-test-logs-sender"
+	Remote_Exec_Wrapper "root" $CLIENT_HOST_FWD_PORT "tar -cf ./ntttcp-test-logs-sender.tar ./ntttcp-${testType}-test-logs-sender"
+	Remote_Exec_Wrapper "root" $CLIENT_HOST_FWD_PORT ". utils.sh  && collect_VM_properties nested_properties.csv"
+	Remote_Copy_Wrapper "root" $CLIENT_HOST_FWD_PORT "ntttcp-test-logs-sender.tar" "get"
+	Remote_Copy_Wrapper "root" $CLIENT_HOST_FWD_PORT "ntttcpConsoleLogs" "get"
+	Remote_Copy_Wrapper "root" $CLIENT_HOST_FWD_PORT "ntttcpTest.log" "get"
+	Remote_Copy_Wrapper "root" $CLIENT_HOST_FWD_PORT "nested_properties.csv" "get"
+	Remote_Exec_Wrapper "root" $SERVER_HOST_FWD_PORT "mv ./ntttcp-${testType}-test-logs ./ntttcp-${testType}-test-logs-receiver"
+	Remote_Exec_Wrapper "root" $SERVER_HOST_FWD_PORT "tar -cf ./ntttcp-test-logs-receiver.tar ./ntttcp-${testType}-test-logs-receiver"
+	Remote_Copy_Wrapper "root" $SERVER_HOST_FWD_PORT "ntttcp-test-logs-receiver.tar" "get"
+	Remote_Copy_Wrapper "root" $CLIENT_HOST_FWD_PORT "report.log" "get"
 	check_exit_status "Get the NTTTCP report"
 }
 
-update_test_state $ICA_TESTRUNNING
-install_kvm_dependencies
-download_image_files -destination_image_name $CLIENT_IMAGE -source_image_url $NestedImageUrl
+Update_Test_State $ICA_TESTRUNNING
+Install_KVM_Dependencies
+Download_Image_Files -destination_image_name $CLIENT_IMAGE -source_image_url $NestedImageUrl
 cp $CLIENT_IMAGE $SERVER_IMAGE
-setup_bridge
-prepare_nested_vms
-run_ntttcp_on_client
-collect_logs
-stop_nested_vm
-update_test_state $ICA_TESTCOMPLETED
+Setup_Bridge
+Prepare_Nested_VMs
+Run_Ntttcp_On_Client
+Collect_Logs
+Stop_Nested_VM
+Update_Test_State $ICA_TESTCOMPLETED

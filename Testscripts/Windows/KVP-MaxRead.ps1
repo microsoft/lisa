@@ -157,5 +157,5 @@ function Main {
 }
 
 Main -VMName $AllVMData.RoleName -Ipv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort `
-        -VMLocation $xmlConfig.config.Hyperv.Host.ServerName -TestParams $TestParams
+        -VMLocation $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName -TestParams $TestParams
     

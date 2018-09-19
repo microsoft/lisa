@@ -6,7 +6,6 @@ $testScript = "nested_kvm_lagscope_different_l1_public_bridge.sh"
 function Start-TestExecution ($ip, $port, $cmd) {
 	LogMsg "Executing : ${cmd}"
 	$testJob = RunLinuxCmd -username $user -password $password -ip $ip -port $port -command $cmd -runAsSudo -RunInBackground
-	$testJob = $testJob[1]
 	while ((Get-Job -Id $testJob).State -eq "Running" ) {
 		$currentStatus = RunLinuxCmd -username $user -password $password -ip $ip -port $port -command "cat /home/$user/state.txt"
 		LogMsg "Current Test Staus : $currentStatus"
@@ -26,7 +25,7 @@ function Send-ResultToDatabase ($xmlConfig, $logDir) {
 	{
 		# Get host info
 		$HostType	= $xmlConfig.config.CurrentTestPlatform
-		$HostBy	= $xmlConfig.config.$TestPlatform.Hosts.ChildNodes[0].ServerName + " - " + $xmlConfig.config.$TestPlatform.Hosts.ChildNodes[1].ServerName
+		$HostBy	= $TestLocation
 		$HostOS	= Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version"| Foreach-Object{$_ -replace ",Host Version,",""}
 
 		# Get L1 guest info

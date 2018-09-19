@@ -43,9 +43,9 @@ do_dnsmasq() {
 
 check_bridge() {
     if do_brctl show | grep "^$1" > /dev/null 2> /dev/null; then
-	return 1
+    return 1
     else
-	return 0
+    return 0
     fi
 }
 
@@ -91,38 +91,38 @@ EOF
 
 start_dnsmasq() {
     do_dnsmasq \
-	--strict-order \
-	--except-interface=lo \
-	--interface=$BRIDGE \
-	--listen-address=$GATEWAY \
-	--bind-interfaces \
-	--dhcp-range=$DHCPRANGE \
-	--conf-file="" \
-	--pid-file=/var/run/qemu-dnsmasq-$BRIDGE.pid \
-	--dhcp-leasefile=/var/run/qemu-dnsmasq-$BRIDGE.leases \
-	--dhcp-no-override \
-	${TFTPROOT:+"--enable-tftp"} \
-	${TFTPROOT:+"--tftp-root=$TFTPROOT"} \
-	${BOOTP:+"--dhcp-boot=$BOOTP"}
+    --strict-order \
+    --except-interface=lo \
+    --interface=$BRIDGE \
+    --listen-address=$GATEWAY \
+    --bind-interfaces \
+    --dhcp-range=$DHCPRANGE \
+    --conf-file="" \
+    --pid-file=/var/run/qemu-dnsmasq-$BRIDGE.pid \
+    --dhcp-leasefile=/var/run/qemu-dnsmasq-$BRIDGE.leases \
+    --dhcp-no-override \
+    ${TFTPROOT:+"--enable-tftp"} \
+    ${TFTPROOT:+"--tftp-root=$TFTPROOT"} \
+    ${BOOTP:+"--dhcp-boot=$BOOTP"}
 }
 
-setup_bridge_nat() {
+Setup_Bridge_nat() {
     if check_bridge "$1" ; then
-	create_bridge "$1"
-	enable_ip_forward
-	add_filter_rules "$1"
-	start_dnsmasq "$1"
+    create_bridge "$1"
+    enable_ip_forward
+    add_filter_rules "$1"
+    start_dnsmasq "$1"
     fi
 }
 
-setup_bridge_vlan() {
+Setup_Bridge_vlan() {
     if check_bridge "$1" ; then
-	create_bridge "$1"
-	start_dnsmasq "$1"
+    create_bridge "$1"
+    start_dnsmasq "$1"
     fi
 }
 
-setup_bridge_nat "$BRIDGE"
+Setup_Bridge_nat "$BRIDGE"
 
 if test "$1" ; then
     do_ifconfig "$1" 0.0.0.0 up

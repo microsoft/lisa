@@ -251,6 +251,6 @@ function Main {
     }
 }
 
-Main -VMName $AllVMData.RoleName -hvServer $xmlConfig.config.Hyperv.Host.ServerName `
+Main -VMName $AllVMData.RoleName -hvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
          -VMPort $AllVMData.SSHPort -VMUserName $user -VMPassword $password `
          -RootDir $WorkingDirectory

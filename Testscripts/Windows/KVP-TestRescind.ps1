@@ -141,7 +141,7 @@ function Main {
     return "PASS"
 }
 
-Main -VMName $AllVMData.RoleName -hvServer $xmlConfig.config.Hyperv.Host.ServerName `
+Main -VMName $AllVMData.RoleName -hvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
          -ipv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort `
          -VMUserName $user -VMPassword $password -rootDir $WorkingDirectory `
          -testParams $testParams

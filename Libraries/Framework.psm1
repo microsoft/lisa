@@ -210,7 +210,7 @@ Function UpdateGlobalConfigurationXML()
 		{
 			$TestLocation = $GlobalConfiguration.Global.$TestPlatform.Hosts.ChildNodes[0].ServerName
 			LogMsg "Read Test Location from GlobalConfiguration.Global.HyperV.Hosts.ChildNodes[0].ServerName"
-			$VMs = Get-VM -ComputerName $TestLocation
+			Get-VM -ComputerName $TestLocation
 		}
 	}
 	#If user provides Result database / result table, then add it to the GlobalConfiguration.
@@ -950,7 +950,7 @@ Function UploadTestResultToDatabase ($TestPlatform,$TestLocation,$TestCategory,$
 				}
 				if ( $TestPlatform -eq "HyperV")
 				{
-					$TestLocation = ($GlobalConfiguration.Global.$TestPlatform.Host.ServerName).ToLower()
+					$TestLocation = ($GlobalConfiguration.Global.$TestPlatform.Hosts.ChildNodes[0].ServerName).ToLower()
 				}
 				elseif ($TestPlatform -eq "Azure")
 				{
