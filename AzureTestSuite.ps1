@@ -112,6 +112,7 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
 
 	$testCount = $currentCycleData.test.Length
 	$testIndex = 0
+	$SummaryHeaderAdded = $false
 	if (-not $testCount) {
 		$testCount = 1
 	}
@@ -197,8 +198,12 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
 						$executionCount += 1
 						$testRunDuration = GetStopWatchElapasedTime $stopWatch "mm"
 						$testRunDuration = $testRunDuration.ToString()
-						$testCycle.emailSummary += "$($currentTestData.testName) Execution Time: $testRunDuration minutes<br />"
-						$testCycle.emailSummary += "	$($currentTestData.testName) : $($testResult)  <br />"
+						if ( -not $SummaryHeaderAdded ) {
+							$testCycle.emailSummary += "#Sr. Test Name : Test Result : Test Duration (in minutes)<br />"
+							$testCycle.emailSummary += "----------------------------------------------------<br />"
+							$SummaryHeaderAdded = $true
+						}
+						$testCycle.emailSummary += "$executionCount. $($currentTestData.testName) : $($testResult) : $testRunDuration<br />"
 						if ( $testSummary ) {
 							$testCycle.emailSummary += "$($testSummary)"
 						}

@@ -2037,11 +2037,11 @@ Function CreateResultSummary($testResult, $checkValues, $testName, $metaData)
 {
 	if ( $metaData )
 	{
-		$resultString = "			$metaData : $testResult <br />"
+		$resultString = "	$metaData : $testResult <br />"
 	}
 	else
 	{
-		$resultString = "			$testResult <br />"
+		$resultString = "	$testResult <br />"
 	}
 	return $resultString
 }
