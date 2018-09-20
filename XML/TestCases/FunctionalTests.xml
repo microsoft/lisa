@@ -1,6 +1,6 @@
 <TestCases>
     <test>
-        <testName>SQM-Basic</testName>
+        <testName>SQM-BASIC</testName>
         <testScript>SQM-Basic.ps1</testScript>
         <files></files>
         <setupType>SingleVM</setupType>
@@ -13,7 +13,7 @@
         <Tags>kvp</Tags>
     </test>
     <test>
-        <testName>KVP-Intrinsic</testName>
+        <testName>KVP-INTRINSIC</testName>
         <testScript>KVP-Intrinsic.ps1</testScript>
         <files></files>
         <setupType>SingleVM</setupType>
@@ -26,7 +26,7 @@
         <Tags>kvp</Tags>
     </test>
     <test>
-        <testName>KVP-BasicChecks</testName>
+        <testName>KVP-BASIC-CHECKS</testName>
         <testScript>KVP-BasicChecks.sh</testScript>
         <files>.\Testscripts\Linux\KVP-BasicChecks.sh,.\Testscripts\Linux\utils.sh,.\Tools\kvp_client64,.\Tools\kvp_client32</files>
         <setupType>SingleVM</setupType>
@@ -42,7 +42,7 @@
         <Tags>kvp</Tags>
     </test>
     <test>
-        <testName>KVP-AddKeyValues</testName>
+        <testName>KVP-ADD-KEY-VALUES</testName>
         <setupScript>.\Testscripts\Windows\KVP-AddKeyValues.ps1</setupScript>
         <testScript>KVP-AddKeyValues.sh</testScript>
         <files>.\Testscripts\Linux\KVP-AddKeyValues.sh,.\Testscripts\Linux\utils.sh,.\Tools\kvp_client64,.\Tools\kvp_client32</files>
@@ -59,7 +59,7 @@
         <Tags>kvp</Tags>
     </test>
     <test>
-        <testName>KVP-ModifyKeyValues</testName>
+        <testName>KVP-MODIFY-KEY-VALUES</testName>
         <setupScript>.\Testscripts\Windows\KVP-ModifyKeyValues.ps1</setupScript>
         <testScript>KVP-AddKeyValues.sh</testScript>
         <files>.\Testscripts\Linux\KVP-AddKeyValues.sh,.\Testscripts\Linux\utils.sh,.\Tools\kvp_client64,.\Tools\kvp_client32</files>
@@ -80,7 +80,7 @@
         <Tags>kvp</Tags>
     </test>
     <test>
-        <testName>KVP-RemoveKeyValues</testName>
+        <testName>KVP-REMOVE-KEY-VALUES</testName>
         <testScript>KVP-RemoveKeyValues.ps1</testScript>
         <AdditionalHWConfig>
             <HyperVApplyCheckpoint>False</HyperVApplyCheckpoint>
@@ -98,7 +98,7 @@
         <Tags>kvp</Tags>
     </test>
     <test>
-        <testName>KVP-PushKeyValues</testName>
+        <testName>KVP-PUSH-KEY-VALUES</testName>
         <testScript>KVP-PushKeyValues.ps1</testScript>
         <files>.\Tools\kvp_client64,.\Tools\kvp_client32</files>
         <setupType>SingleVM</setupType>
@@ -113,7 +113,7 @@
         <Tags>kvp</Tags>
     </test>
     <test>
-        <testName>KVP-DeleteNonExistKVPOnGuest</testName>
+        <testName>KVP-DELETE-NON-EXIST-KVP-ON-GUEST</testName>
         <testScript>KVP-DeleteNonExistKVPOnGuest.ps1</testScript>
         <files></files>
         <setupType>SingleVM</setupType>
@@ -129,7 +129,7 @@
         <Tags>kvp</Tags>
     </test>
     <test>
-        <testName>KVP-ModifyNonExistKVPOnGuest</testName>
+        <testName>KVP-MODIFY-NON-EXIST-KVP-ON-GUEST</testName>
         <testScript>KVP-ModifyNonExistKVPOnGuest.ps1</testScript>
         <files></files>
         <setupType>SingleVM</setupType>
@@ -145,7 +145,7 @@
         <Tags>kvp</Tags>
     </test>
     <test>
-        <testName>KVP-TestRescind</testName>
+        <testName>KVP-TEST-RESCIND</testName>
         <testScript>KVP-TestRescind.ps1</testScript>
         <files></files>
         <setupType>SingleVM</setupType>
@@ -159,7 +159,7 @@
         <Tags>kvp</Tags>
     </test>
     <test>
-        <testName>KVP-MaxRead</testName>
+        <testName>KVP-MAX-READ</testName>
         <testScript>KVP-MaxRead.ps1</testScript>
         <files>.\Tools\kvp_client32,.\Tools\kvp_client64</files>
         <setupType>SingleVM</setupType>
@@ -175,7 +175,7 @@
         <Tags>kvp</Tags>
     </test>
     <test>
-        <testName>CORE-VerifyHeartBeat</testName>
+        <testName>CORE-VERIFY-HEART-BEAT</testName>
         <testScript>CORE-VerifyHeartBeat.ps1</testScript>
         <setupType>SingleVM</setupType>
         <Platform>HyperV</Platform>
@@ -184,7 +184,7 @@
         <Tags>core</Tags>
     </test>
     <test>
-        <testName>CORE-VerifyShutdown</testName>
+        <testName>CORE-VERIFY-SHUTDOWN</testName>
         <testScript>CORE-VerifyShutdown.ps1</testScript>
         <setupType>SingleVM</setupType>
         <Platform>HyperV</Platform>
@@ -193,7 +193,7 @@
         <Tags>core</Tags>
     </test>
     <test>
-        <testName>CORE-VerifyTimeSync</testName>
+        <testName>CORE-VERIFY-TIME-SYNC</testName>
         <testScript>CORE-VerifyTimeSync.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\CORE-ConfigTimeSync.sh</files>
         <setupType>SingleVM</setupType>
@@ -206,7 +206,7 @@
         <Tags>core</Tags>
     </test>
     <test>
-        <testName>CORE-InitrdModulesCheck</testName>
+        <testName>CORE-INITRD-MODULES-CHECK</testName>
         <testScript>CORE-InitrdModulesCheck.sh</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\CORE-InitrdModulesCheck.sh</files>
         <setupType>SingleVM</setupType>
@@ -220,7 +220,7 @@
         <Tags>core</Tags>
     </test>
     <test>
-        <testName>CORE-CPUVerifyOnline</testName>
+        <testName>CORE-CPU-VERIFY-ONLINE</testName>
         <testScript>CORE-CPUVerifyOnline.sh</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\CORE-CPUVerifyOnline.sh</files>
         <setupType>SingleVM</setupType>
@@ -233,7 +233,7 @@
         <Tags>core</Tags>
     </test>
     <test>
-        <testName>CORE-VerifyLISModulesVersion</testName>
+        <testName>CORE-VERIFY-LIS-MODULES-VERSION</testName>
         <testScript>CORE-VerifyLISModulesVersion.sh</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\CORE-VerifyLISModulesVersion.sh</files>
         <setupType>SingleVM</setupType>
@@ -335,7 +335,7 @@
         <Tags>fcopy</Tags>
     </test>
     <test>
-        <testName>Max-vCPU</testName>
+        <testName>MAX-VCPU</testName>
         <setupScript>.\TestScripts\Windows\SETUP-Config-VM.ps1</setupScript>
         <testScript>Max-vCPU.ps1</testScript>
         <setupType>SingleVM</setupType>
@@ -349,7 +349,7 @@
         <Tags>core</Tags>
     </test>
     <test>
-        <testName>Paused-Critical-Heartbeat</testName>
+        <testName>PAUSED-CRITICAL-HEARTBEAT</testName>
         <testScript>Heartbeat-PausedCritical.ps1</testScript>
         <setupType>SingleVM</setupType>
         <TestParameters>
@@ -362,7 +362,7 @@
         <Tags>core</Tags>
     </test>
     <test>
-        <testName>Check-Numa</testName>
+        <testName>CHECK-NUMA</testName>
         <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1</setupScript>
         <testScript>NUMA-Test.ps1</testScript>
         <files>.\Testscripts\Linux\NUMA_check.sh,.\Testscripts\Linux\utils.sh</files>
@@ -380,7 +380,7 @@
         <Tags>core</Tags>
     </test>
     <test>
-        <testName>Check-Numa-Maximum</testName>
+        <testName>CHECK-NUMA-MAXIMUM</testName>
         <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1</setupScript>
         <testScript>NUMA-Test.ps1</testScript>
         <files>.\Testscripts\Linux\NUMA_check.sh,.\Testscripts\Linux\utils.sh</files>
@@ -400,7 +400,7 @@
         <Tags>core</Tags>
     </test>
     <test>
-        <testName>Reboot-Different-Memory-Settings</testName>
+        <testName>REBOOT-DIFFERENT-MEMORY-SETTINGS</testName>
         <testScript>Reboot-Diff-Memory-Settings.ps1</testScript>
         <setupType>SingleVM</setupType>
         <Platform>HyperV</Platform>
@@ -409,7 +409,7 @@
         <Tags>core</Tags>
     </test>
     <test>
-        <testName>Timesync-Basic</testName>
+        <testName>TIMESYNC-BASIC</testName>
         <testScript>Timesync-Basic.ps1</testScript>
         <files>.\Testscripts\Linux\timesync_config.sh,.\Testscripts\Linux\utils.sh</files>
         <setupType>SingleVM</setupType>
@@ -423,7 +423,7 @@
         <Tags>core</Tags>
     </test>
    <test>
-        <testName>Timesync-SavedVM</testName>
+        <testName>TIMESYNC-SAVEDVM</testName>
         <testScript>Timesync-Change-State.ps1</testScript>
         <files>.\Testscripts\Linux\timesync_config.sh,.\Testscripts\Linux\utils.sh</files>
         <setupType>SingleVM</setupType>
@@ -437,7 +437,7 @@
         <Tags>core</Tags>
     </test>
     <test>
-        <testName>Timesync-PausedVM</testName>
+        <testName>TIMESYNC-PAUSEDVM</testName>
         <testScript>Timesync-Change-State.ps1</testScript>
         <files>.\Testscripts\Linux\timesync_config.sh,.\Testscripts\Linux\utils.sh</files>
         <setupType>SingleVM</setupType>
@@ -451,7 +451,7 @@
         <Tags>core</Tags>
     </test>
     <test>
-        <testName>Timesync-SavedVM-ChronyOff</testName>
+        <testName>TIMESYNC-SAVEDVM-CHRONYOFF</testName>
         <testScript>Timesync-Change-State.ps1</testScript>
         <files>.\Testscripts\Linux\timesync_config.sh,.\Testscripts\Linux\utils.sh</files>
         <setupType>SingleVM</setupType>
@@ -466,7 +466,7 @@
         <Tags>core</Tags>
     </test>
     <test>
-        <testName>Timesync-PausedVM-ChronyOff</testName>
+        <testName>TIMESYNC-PAUSEDVM-CHRONYOFF</testName>
         <testScript>Timesync-Change-State.ps1</testScript>
         <files>.\Testscripts\Linux\timesync_config.sh,.\Testscripts\Linux\utils.sh</files>
         <setupType>SingleVM</setupType>
@@ -481,7 +481,7 @@
         <Tags>core</Tags>
     </test>
     <test>
-        <testName>Timesync-VDSO</testName>
+        <testName>TIMESYNC-VDSO</testName>
         <testScript>Timesync-VDSO.ps1</testScript>
         <files>.\Tools\gettime.c</files>
         <setupType>SingleVM</setupType>
@@ -491,7 +491,7 @@
         <Tags>core</Tags>
     </test>
 	   <test>
-        <testName>LIS-Check-HypervDaemons-Files-Status</testName>
+        <testName>LIS-CHECK-HYPERVDAEMONS-FILES-STATUS</testName>
         <testScript>LIS-Check-HypervDaemons-Files-Status.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\LIS-Check-HypervDaemons-Files-Status.sh</files>
         <setupType>SingleVM</setupType>
@@ -501,7 +501,7 @@
         <Tags>lis</Tags>
     </test>
      <test>
-        <testName>LIS-Mount-FloppyDisk</testName>
+        <testName>LIS-MOUNT-FLOPPYDISK</testName>
         <testScript>LIS-Mount-FloppyDisk.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\LIS-Mount-FloppyDisk.sh</files>
         <setupType>SingleVM</setupType>
@@ -511,7 +511,7 @@
         <Tags>lis</Tags>
     </test>
      <test>
-        <testName>LIS-Mount-CD</testName>
+        <testName>LIS-MOUNT-CD</testName>
         <setupScript>.\TestScripts\Windows\LIS-Mount-CD.ps1</setupScript>
         <testScript>LIS-Mount-CD.sh</testScript>
         <files>.\Testscripts\Linux\LIS-Mount-CD.sh,.\Testscripts\Linux\check_traces.sh,.\Testscripts\Linux\utils.sh</files>
@@ -522,7 +522,7 @@
         <Tags>lis</Tags>
     </test>
      <test>
-        <testName>LIS-Mount-CD-HotAdd</testName>
+        <testName>LIS-MOUNT-CD-HOTADD</testName>
         <setupScript>.\TestScripts\Windows\LIS-Mount-CD.ps1</setupScript>
         <testScript>LIS-Mount-CD.sh</testScript>
         <files>.\Testscripts\Linux\LIS-Mount-CD.sh,.\Testscripts\Linux\check_traces.sh,.\Testscripts\Linux\utils.sh</files>
@@ -536,7 +536,7 @@
         <Tags>lis</Tags>
    </test>
     <test>
-        <testName>Net-External</testName>
+        <testName>NET-EXTERNAL</testName>
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1,.\Testscripts\Windows\SETUP-Inject-IP-Constants.ps1</setupScript>
         <testScript>NET-Test-Network.sh</testScript>
         <files>.\Testscripts\Linux\NET-Test-Network.sh,.\Testscripts\Linux\utils.sh</files>
@@ -553,7 +553,7 @@
         <Tags>net</Tags>
     </test>
     <test>
-        <testName>Net-Internal</testName>
+        <testName>NET-INTERNAL</testName>
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1,.\Testscripts\Windows\SETUP-Inject-IP-Constants.ps1</setupScript>
         <testScript>NET-Test-Network.sh</testScript>
         <files>.\Testscripts\Linux\NET-Test-Network.sh,.\Testscripts\Linux\utils.sh</files>
@@ -569,7 +569,7 @@
         <Tags>net</Tags>
     </test>
     <test>
-        <testName>Net-Private</testName>
+        <testName>NET-PRIVATE</testName>
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1,.\Testscripts\Windows\SETUP-Inject-IP-Constants.ps1</setupScript>
         <testScript>NET-Test-Network.sh</testScript>
         <files>.\Testscripts\Linux\NET-Test-Network.sh,.\Testscripts\Linux\utils.sh</files>
@@ -589,7 +589,7 @@
         <Tags>net</Tags>
     </test>
     <test>
-        <testName>Net-Legacy</testName>
+        <testName>NET-LEGACY</testName>
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1,.\TestScripts\Windows\SETUP-Change-CPU.ps1</setupScript>
         <testScript>NET-Test-Legacy.sh</testScript>
         <files>.\Testscripts\Linux\NET-Test-Legacy.sh,.\Testscripts\Linux\utils.sh</files>
@@ -609,7 +609,7 @@
         <Tags>net</Tags>
     </test>
     <test>
-        <testName>Net-Promiscuous</testName>
+        <testName>NET-PROMISCUOUS</testName>
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1</setupScript>
         <testScript>NET-Test-Promiscuous.sh</testScript>
         <files>.\Testscripts\Linux\NET-Test-Promiscuous.sh,.\Testscripts\Linux\utils.sh</files>
@@ -625,7 +625,7 @@
         <Tags>net</Tags>
     </test>
     <test>
-        <testName>Net-Operstate</testName>
+        <testName>NET-OPERSTATE</testName>
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1</setupScript>
         <testScript>NET-Operstate.sh</testScript>
         <files>.\Testscripts\Linux\NET-Operstate.sh,.\Testscripts\Linux\utils.sh</files>
@@ -640,7 +640,7 @@
         <Tags>net</Tags>
     </test>
     <test>
-        <testName>Net-Change-Internal-NIC</testName>
+        <testName>NET-CHANGE-INTERNAL-NIC</testName>
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1,.\Testscripts\Windows\SETUP-Inject-IP-Constants.ps1,.\Testscripts\Windows\SETUP-NET-Switch-NIC.ps1</setupScript>
         <testScript>NET-Test-Network.sh</testScript>
         <files>.\Testscripts\Linux\NET-Test-Network.sh,.\Testscripts\Linux\utils.sh</files>
@@ -657,7 +657,7 @@
         <Tags>net</Tags>
     </test>
     <test>
-        <testName>Net-Max-Synthetic-NICs</testName>
+        <testName>NET-MAX-SYNTHETIC-NICS</testName>
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-Max-NIC.ps1</setupScript>
         <testScript>NET-Max-NICs.sh</testScript>
         <files>.\Testscripts\Linux\NET-Max-NICs.sh,.\Testscripts\Linux\utils.sh</files>
@@ -674,7 +674,7 @@
         <Tags>net</Tags>
     </test>
     <test>
-        <testName>Net-Max-Legacy-NICs</testName>
+        <testName>NET-MAX-LEGACY-NICS</testName>
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-Max-NIC.ps1,.\TestScripts\Windows\SETUP-Change-CPU.ps1</setupScript>
         <testScript>NET-Max-NICs.sh</testScript>
         <files>.\Testscripts\Linux\NET-Max-NICs.sh,.\Testscripts\Linux\utils.sh</files>
@@ -692,7 +692,7 @@
         <Tags>net</Tags>
     </test>
     <test>
-        <testName>Net-Max-NICs</testName>
+        <testName>NET-MAX-NICS</testName>
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-Max-NIC.ps1,.\TestScripts\Windows\SETUP-Change-CPU.ps1</setupScript>
         <testScript>NET-Max-NICs.sh</testScript>
         <files>.\Testscripts\Linux\NET-Max-NICs.sh,.\Testscripts\Linux\utils.sh</files>

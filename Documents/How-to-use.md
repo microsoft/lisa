@@ -157,6 +157,7 @@ Per Category, each XML file has VM name, Resource Group name, etc. We do not rec
         1. PASS
         2. FAIL
         3. ABORTED (all upper cases)
+    11. TestCase names in XML files are in all Capital.
 
 ## Use recommended distro name
 
