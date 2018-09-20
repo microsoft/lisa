@@ -17,5 +17,23 @@
         <Category>Functional</Category>
         <Area>DPDK</Area>
         <Tags>dpdk,network,hv_netvsc,sriov</Tags>
-    </test>	
+    </test>
+    <test>
+        <testName>VERIFY-SRIOV-FAILSAFE-FOR-DPDK</testName>
+        <testScript>VERIFY-SRIOV-FAILSAFE-FOR-DPDK.ps1</testScript>
+        <setupType>DPDK</setupType>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkSetup.sh,.\Testscripts\Linux\dpdkTestPmd.sh</files>
+        <TestParameters>
+            <param>dpdkSrcLink="DPDK_SOURCE_URL"</param>
+            <param>testDuration=30</param>
+            <param>modes="rxonly"</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>DPDK</Area>
+        <Tags>dpdk,network,hv_netvsc,sriov</Tags>
+    </test>  	
 </TestCases>
