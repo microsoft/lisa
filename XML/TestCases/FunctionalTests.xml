@@ -774,7 +774,7 @@
         <Tags>lis,nmi</Tags>
     </test>
     <test>
-        <testName>KDUMP-CrashSingleCore</testName>
+        <testName>KDUMP-CRASH-SINGLE-CORE</testName>
         <setupScript>.\TestScripts\Windows\SETUP-Config-VM.ps1</setupScript>
         <testScript>KDUMP-TestScript.ps1</testScript>
         <files>.\Testscripts\Linux\KDUMP-Execute.sh,.\Testscripts\Linux\KDUMP-Config.sh,.\Testscripts\Linux\KDUMP-Results.sh,.\Testscripts\Linux\utils.sh</files>
@@ -790,7 +790,7 @@
         <Tags>kdump</Tags>
     </test>
     <test>
-        <testName>KDUMP-CrashSMP</testName>
+        <testName>KDUMP-CRASH-SMP</testName>
         <setupScript>.\TestScripts\Windows\SETUP-Config-VM.ps1</setupScript>
         <testScript>KDUMP-TestScript.ps1</testScript>
         <files>.\Testscripts\Linux\KDUMP-Execute.sh,.\Testscripts\Linux\KDUMP-Config.sh,.\Testscripts\Linux\KDUMP-Results.sh,.\Testscripts\Linux\utils.sh</files>
@@ -806,7 +806,7 @@
         <Tags>kdump</Tags>
     </test>
     <test>
-        <testName>KDUMP-CrashNMI</testName>
+        <testName>KDUMP-CRASH-NMI</testName>
         <setupScript>.\TestScripts\Windows\SETUP-Config-VM.ps1</setupScript>
         <testScript>KDUMP-TestScript.ps1</testScript>
         <files>.\Testscripts\Linux\KDUMP-Execute.sh,.\Testscripts\Linux\KDUMP-Config.sh,.\Testscripts\Linux\KDUMP-Results.sh,.\Testscripts\Linux\utils.sh</files>
@@ -823,7 +823,7 @@
         <Tags>kdump</Tags>
     </test>
     <test>
-        <testName>KDUMP-CrashAutoSize</testName>
+        <testName>KDUMP-CRASH-AUTO-SIZE</testName>
         <setupScript>.\TestScripts\Windows\SETUP-Config-VM.ps1</setupScript>
         <testScript>KDUMP-TestScript.ps1</testScript>
         <files>.\Testscripts\Linux\KDUMP-Execute.sh,.\Testscripts\Linux\KDUMP-Config.sh,.\Testscripts\Linux\KDUMP-Results.sh,.\Testscripts\Linux\utils.sh</files>
@@ -839,7 +839,7 @@
         <Tags>kdump</Tags>
     </test>
     <test>
-        <testName>KDUMP-CrashDifferentVCPU</testName>
+        <testName>KDUMP-CRASH-DIFFERENT-VCPU</testName>
         <setupScript>.\TestScripts\Windows\SETUP-Config-VM.ps1</setupScript>
         <testScript>KDUMP-TestScript.ps1</testScript>
         <files>.\Testscripts\Linux\KDUMP-Execute.sh,.\Testscripts\Linux\KDUMP-Config.sh,.\Testscripts\Linux\KDUMP-Results.sh,.\Testscripts\Linux\utils.sh</files>
@@ -855,7 +855,7 @@
         <Tags>kdump</Tags>
     </test>
     <test>
-        <testName>KDUMP-Crash16cores</testName>
+        <testName>KDUMP-CRASH-16-CORES</testName>
         <setupScript>.\TestScripts\Windows\SETUP-Config-VM.ps1</setupScript>
         <testScript>KDUMP-TestScript.ps1</testScript>
         <files>.\Testscripts\Linux\KDUMP-Execute.sh,.\Testscripts\Linux\KDUMP-Config.sh,.\Testscripts\Linux\KDUMP-Results.sh,.\Testscripts\Linux\utils.sh</files>
