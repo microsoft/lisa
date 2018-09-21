@@ -2741,6 +2741,60 @@ function install_ntttcp () {
 	fi
 }
 
+function build_netperf () {
+	rm -rf lagscope
+	wget https://github.com/HewlettPackard/netperf/archive/netperf-2.7.0.tar.gz
+	tar -xzf netperf-2.7.0.tar.gz
+	pushd netperf-netperf-2.7.0 && ./configure && make && make install
+	popd
+}
+
+# Install ntttcp and required packages
+function install_netperf () {
+	echo "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of netperf"
+	update_repos
+	case "$DISTRO_NAME" in
+		rhel|centos)
+			install_epel
+			yum -y --nogpgcheck install sysstat make gcc
+			build_netperf
+			iptables -F
+			;;
+
+		ubuntu|debian)
+			dpkg_configure
+			apt-get -y install sysstat make gcc
+			build_netperf
+			;;
+
+		sles)
+			if [[ $DISTRO_VERSION =~ 12|15 ]]; then
+				add_sles_network_utilities_repo
+				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install sysstat make gcc
+				build_netperf
+				iptables -F
+			else
+				echo "Unsupported SLES version"
+				return 1
+			fi
+			;;
+
+		clear-linux-os)
+			swupd bundle-add dev-utils-dev sysadmin-basic performance-tools os-testsuite-phoronix network-basic openssh-server dev-utils os-core os-core-dev
+			build_netperf
+			iptables -F
+			;;
+
+		*)
+			echo "Unsupported distribution for build_netperf"
+			return 1
+	esac
+	which netperf
+	if [ $? -ne 0 ]; then
+		return 1
+	fi
+}
+
 # Get the active NIC name
 function get_active_nic_name () {
 	if [ $DISTRO_NAME == "sles" ] && [[ $DISTRO_VERSION =~ 15 ]]; then
