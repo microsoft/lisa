@@ -227,8 +227,9 @@ UpdateSummary()
 }
 
 
-# Function to get current distro
+# Function to get current distro and distro family
 # Sets the $DISTRO variable to one of the following: suse, centos_{5, 6, 7}, redhat_{5, 6, 7}, fedora, ubuntu
+# Sets the $OS_FAMILY variable to one of the following: Rhel, Debian, Suse
 # The naming scheme will be distroname_version
 # Takes no arguments
 
@@ -319,6 +320,21 @@ GetDistro()
 			DISTRO=unknown
 			return 1
 			;;
+	esac
+	case $DISTRO in
+		centos* | redhat* | fedora*)
+			OS_FAMILY="Rhel"
+		;;
+		ubuntu* | debian*)
+			OS_FAMILY="Debian"
+		;;
+		suse*)
+			OS_FAMILY="Sles"
+		;;
+		*)
+			OS_FAMILY="unknown"
+			return 1
+		;;
 	esac
 
 	return 0

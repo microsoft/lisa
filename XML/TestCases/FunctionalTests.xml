@@ -710,4 +710,48 @@
         <Area>NET</Area>
         <Tags>net</Tags>
     </test>
+    <test>
+        <testName>VMBUS_VERIFY_PROTOCOL_VERSION</testName>
+        <testScript>verify_vmbus_protocol_version.sh</testScript>
+        <files>.\Testscripts\Linux\verify_vmbus_protocol_version.sh,.\Testscripts\Linux\utils.sh</files>
+        <setupType>SingleVM</setupType>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>LIS</Area>
+        <Tags>lis,vmbus</Tags>
+    </test>
+    <test>
+        <testName>VMBUS_VERIFY_INTERRUPTS</testName>
+        <testScript>verify_vmbus_interrupts.sh</testScript>
+        <files>.\Testscripts\Linux\verify_vmbus_interrupts.sh,.\Testscripts\Linux\utils.sh</files>
+        <setupType>VMBUS</setupType>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>LIS</Area>
+        <Tags>lis,vmbus</Tags>
+    </test>
+    <test>
+        <testName>VMBUS_PANIC_NOTIFIER</testName>
+        <testScript>Check-VMBUSPanicEvent.ps1</testScript>
+        <files>.\Testscripts\Linux\utils.sh</files>
+        <setupType>SingleVM</setupType>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>LIS</Area>
+        <Tags>lis,vmbus</Tags>
+    </test>
+    <test>
+        <testName>VMBUS_PANIC_NOTIFIER_KDUMP</testName>
+        <testScript>Check-VMBUSPanicEvent.ps1</testScript>
+        <files>.\Testscripts\Linux\KDUMP-Config.sh,.\Testscripts\Linux\utils.sh</files>
+        <TestParameters>
+            <param>ENABLE_KDUMP=true</param>
+            <param>crashkernel=384M@128M</param>
+        </TestParameters>
+        <setupType>SingleVM</setupType>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>LIS</Area>
+        <Tags>lis,vmbus</Tags>
+    </test>
 </TestCases>

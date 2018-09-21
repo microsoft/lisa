@@ -440,4 +440,22 @@
             </VirtualMachine>
         </ResourceGroup>
     </RDMA16VMs>
+    <VMBUS>
+        <isDeployed>NO</isDeployed>
+        <ResourceGroup>
+            <VirtualMachine>
+                <state></state>
+                <InstanceSize>Standard_A3</InstanceSize>
+                <ARMInstanceSize>Standard_A3</ARMInstanceSize>
+                <RoleName></RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>22</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+            </VirtualMachine>
+        </ResourceGroup>
+    </VMBUS>
 </TestSetup>
