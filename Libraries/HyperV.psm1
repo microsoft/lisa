@@ -698,3 +698,75 @@ Function Get-Cred($user, $password)
     Set-Item WSMan:\localhost\Client\TrustedHosts * -Force
     return $cred
 }
+
+function Get-VMPanicEvent {
+    param(
+        $VMName,
+        $HvServer,
+        $StartTime,
+        $RetryCount=30,
+        $RetryInterval=5
+    )
+
+    $currentRetryCount = 0
+    $testPassed = $false
+    while ($currentRetryCount -lt $RetryCount -and !$testPassed) {
+        LogMsg "Checking eventlog for 18590 event sent by VM ${VMName}"
+        $currentRetryCount++
+        $events = @(Get-WinEvent -FilterHashTable `
+            @{LogName = "Microsoft-Windows-Hyper-V-Worker-Admin";
+              StartTime = $StartTime} `
+            -ComputerName $hvServer -ErrorAction SilentlyContinue)
+        foreach ($evt in $events) {
+            if ($evt.id -eq 18590 -and $evt.message.Contains($vmName)) {
+                $testPassed = $true
+                break
+            }
+        }
+        Start-Sleep $RetryInterval
+    }
+    return $testPassed
+}
+
+function Wait-VMState {
+    param(
+        $VMName,
+        $VMState,
+        $HvServer,
+        $RetryCount=30,
+        $RetryInterval=5
+    )
+
+    $currentRetryCount = 0
+    while ($currentRetryCount -lt $RetryCount -and `
+              (Get-VM -ComputerName $hvServer -Name $vmName).State -ne $VMState) {
+        LogMsg "Waiting for VM ${VMName} to enter ${VMState} state"
+        Start-Sleep -Seconds $RetryInterval
+        $currentRetryCount++
+    }
+    if ($currentRetryCount -eq $RetryCount) {
+        throw "VM ${VMName} failed to enter ${VMState} state"
+    }
+}
+
+function Wait-VMHeartbeatOK {
+    param(
+        $VMName,
+        $HvServer,
+        $RetryCount=30,
+        $RetryInterval=5
+    )
+
+    $currentRetryCount = 0
+    do {
+        $currentRetryCount++
+        Start-Sleep -Seconds $RetryInterval
+        LogMsg "Waiting for VM ${VMName} to enter Heartbeat OK state"
+    } until ($currentRetryCount -ge $RetryCount -or `
+                 (Get-VMIntegrationService -VMName $vmName -ComputerName $hvServer | `
+                  Where-Object  { $_.name -eq "Heartbeat" }
+              ).PrimaryStatusDescription -eq "OK")
+    if ($currentRetryCount -eq $RetryCount) {
+        throw "VM ${VMName} failed to enter Heartbeat OK state"
+    }
+}

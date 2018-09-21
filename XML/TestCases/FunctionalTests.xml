@@ -754,4 +754,23 @@
         <Area>LIS</Area>
         <Tags>lis,vmbus</Tags>
     </test>
+    <test>
+        <testName>NMI_VERIFY_INTERRUPT</testName>
+        <testScript>Trigger-NmiInterrupt.ps1</testScript>
+        <files>.\Testscripts\Linux\check_triggered_nmi.sh,.\Testscripts\Linux\utils.sh</files>
+        <setupType>SingleVM</setupType>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>LIS</Area>
+        <Tags>lis,nmi</Tags>
+    </test>
+    <test>
+        <testName>NMI_VERIFY_FAILED_INTERRUPT</testName>
+        <testScript>Trigger-FailedNmiInterrupt.ps1</testScript>
+        <setupType>SingleVM</setupType>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>LIS</Area>
+        <Tags>lis,nmi</Tags>
+    </test>
 </TestCases>
