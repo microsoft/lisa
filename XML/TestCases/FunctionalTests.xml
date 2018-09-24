@@ -569,26 +569,6 @@
         <Tags>net</Tags>
     </test>
     <test>
-        <testName>NET-PRIVATE</testName>
-        <setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1,.\Testscripts\Windows\SETUP-Inject-IP-Constants.ps1</setupScript>
-        <testScript>NET-Test-Network.sh</testScript>
-        <files>.\Testscripts\Linux\NET-Test-Network.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>TwoVMs</setupType>
-        <TestParameters>
-            <param>NIC_1=NetworkAdapter,Private,Private</param>
-            <param>STATIC_IP=10.10.10.1</param>
-            <param>STATIC_IP2=10.10.10.2</param>
-            <param>NETMASK=255.255.255.0</param>
-            <param>PING_FAIL=8.8.4.4</param>
-            <param>PING_FAIL2=192.168.0.1</param>
-            <param>SECRET_PARAMS=(Ipv4)</param>
-        </TestParameters>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>NET</Area>
-        <Tags>net</Tags>
-    </test>
-    <test>
         <testName>NET-LEGACY</testName>
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1,.\TestScripts\Windows\SETUP-Change-CPU.ps1</setupScript>
         <testScript>NET-Test-Legacy.sh</testScript>
