@@ -819,7 +819,14 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
     }
     else
     {
-        $VMNames += "$RGName-role-$numberOfVMs"
+        if($IsWindows -and $testPlatform -eq "Azure"){
+            # Windows computer name cannot be more than 15 characters long on Azure
+            $VMNames += $RGName.Substring(0,8) + "role-$numberOfVMs"
+        }
+        else
+        {
+            $VMNames += "$RGName-role-$numberOfVMs"
+        }
     }
     $numberOfVMs += 1
 }
@@ -1368,6 +1375,10 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
     else
     {
         $vmName = "$RGName-role-$role"
+        if($IsWindows -and $testPlatform -eq "Azure"){
+            # Windows computer name cannot be more than 15 characters long on Azure
+            $vmName = $RGName.Substring(0,8) + "role-$role"
+        }
     }
     foreach ( $endpoint in $newVM.EndPoints)
     {
@@ -1423,6 +1434,10 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
     else
     {
         $vmName = "$RGName-role-$role"
+        if($IsWindows -and $testPlatform -eq "Azure"){
+            # Windows computer name cannot be more than 15 characters long on Azure
+            $vmName = $RGName.Substring(0,8) + "role-$role"
+        }
     }
     
     foreach ( $endpoint in $newVM.EndPoints)
@@ -1524,6 +1539,10 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
     else
     {
         $vmName = "$RGName-role-$role"
+        if($IsWindows -and $testPlatform -eq "Azure"){
+            # Windows computer name cannot be more than 15 characters long on Azure
+            $vmName = $RGName.Substring(0,8) + "role-$role"
+        }
     }
 
     foreach ( $endpoint in $newVM.EndPoints)
@@ -1598,6 +1617,10 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
     else
     {
         $vmName = "$RGName-role-$role"
+        if($IsWindows -and $testPlatform -eq "Azure"){
+            # Windows computer name cannot be more than 15 characters long on Azure
+            $vmName = $RGName.Substring(0,8) + "role-$role"
+        }
     }
     $NIC = "PrimaryNIC" + "-$vmName"
 
@@ -2160,7 +2183,10 @@ Function DeployResourceGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFailed
                         {
                             $out = .\Extras\UploadDeploymentDataToDB.ps1 -allVMData $allVMData -DeploymentTime $DeploymentElapsedTime.TotalSeconds
                         }
-                        $KernelLogOutput= GetAndCheckKernelLogs -allDeployedVMs $allVMData -status "Initial"
+                        if(!$IsWindows)
+                        {
+                            $KernelLogOutput = GetAndCheckKernelLogs -allDeployedVMs $allVMData -status "Initial"
+                        }
                     }
                     else
                     {
@@ -2211,7 +2237,10 @@ Function DeployResourceGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFailed
     else
     {
         $retValue = $xmlConfig.config.$TestPlatform.Deployment.$setupType.isDeployed
-        $KernelLogOutput= GetAndCheckKernelLogs -allDeployedVMs $allVMData -status "Initial"
+        if(!$IsWindows)
+        {
+            $KernelLogOutput = GetAndCheckKernelLogs -allDeployedVMs $allVMData -status "Initial"
+        }
     }
     if ( $GetDeploymentStatistics )
     {

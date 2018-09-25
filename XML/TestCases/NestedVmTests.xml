@@ -288,4 +288,130 @@
         <Area>Nested</Area>
         <Tags>nested,kvm</Tags>
     </test>
+    <test>
+        <TestName>HYPERV-WINDOWS-NESTED-HYPERV-STORAGE-SINGLE-DISK</TestName>
+        <testScript>NESTED-HYPERV-STORAGE-PERF.ps1</testScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
+        <setupType>HYPERVDISK1</setupType>
+        <TestParameters>
+            <!-- The nested image should be vhd format, it's a local path, a SMB path, or a public URL  -->
+            <param>NestedImageUrl=NESTED_VHD_PATH</param>
+            <param>NestedUser=NESTED_VM_USER</param>
+            <param>NestedUserPassword='NESTED_VM_PASSWORD'</param>
+            <param>NestedCpuNum=8</param>
+            <param>NestedMemMB=8192</param>
+            <param>HostFwdPort=60022</param>
+            <param>RaidOption='No RAID'</param>
+            <param>modes='randread randwrite read write'</param>
+            <param>startThread=1</param>
+            <param>maxThread=1024</param>
+            <param>startIO=4</param>
+            <param>numjobs=1</param>
+            <param>ioruntime=300</param>
+            <param>maxIO=4</param>
+            <param>fileSize=8G</param>
+            <param>SkipVerifyKernelLogs=true</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Performance</Category>
+        <Area>Nested</Area>
+        <Tags>nested,hyperv,win</Tags>
+    </test>
+    <test>
+        <TestName>HYPERV-WINDOWS-NESTED-HYPERV-STORAGE-MULTIDISK</TestName>
+        <testScript>NESTED-HYPERV-STORAGE-PERF.ps1</testScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
+        <setupType>HYPERVDISK4</setupType>
+        <TestParameters>
+            <!-- The nested image should be vhd format, it's a local path, a SMB path, or a public URL  -->
+            <param>NestedImageUrl=NESTED_VHD_PATH</param>
+            <param>NestedUser=NESTED_VM_USER</param>
+            <param>NestedUserPassword='NESTED_VM_PASSWORD'</param>
+            <param>NestedCpuNum=8</param>
+            <param>NestedMemMB=8192</param>
+            <param>HostFwdPort=60022</param>
+            <!--The raid option allowed values: 'No RAID','RAID in L1','RAID in L2'-->
+            <param>RaidOption='RAID_OPTION'</param>
+            <param>modes='randread randwrite read write'</param>
+            <param>startThread=1</param>
+            <param>maxThread=1024</param>
+            <param>startIO=4</param>
+            <param>numjobs=1</param>
+            <param>ioruntime=300</param>
+            <param>maxIO=4</param>
+            <param>fileSize=8G</param>
+            <param>Interleave=65536</param>
+            <param>SkipVerifyKernelLogs=true</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Performance</Category>
+        <Area>Nested</Area>
+        <Tags>nested,hyperv,win</Tags>
+    </test>
+    <test>
+        <TestName>AZURE-WINDOWS-NESTED-HYPERV-STORAGE-SINGLE-DISK</TestName>
+        <testScript>NESTED-HYPERV-STORAGE-PERF.ps1</testScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
+        <setupType>D16SV3DISK1</setupType>
+        <AdditionalHWConfig>
+            <DiskType>Managed</DiskType>
+        </AdditionalHWConfig>
+        <TestParameters>
+            <!--The nested image should be vhd format, and accessible from a public URL-->
+            <param>NestedImageUrl=NESTED_VHD_URL</param>
+            <param>NestedUser=NESTED_VM_USER</param>
+            <param>NestedUserPassword='NESTED_VM_PASSWORD'</param>
+            <param>NestedCpuNum=8</param>
+            <param>NestedMemMB=8192</param>
+            <param>HostFwdPort=60022</param>
+            <param>RaidOption='No RAID'</param>
+            <param>modes='randread randwrite read write'</param>
+            <param>startThread=1</param>
+            <param>maxThread=1024</param>
+            <param>startIO=4</param>
+            <param>numjobs=1</param>
+            <param>ioruntime=300</param>
+            <param>maxIO=4</param>
+            <param>fileSize=8G</param>
+            <param>SkipVerifyKernelLogs=true</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Performance</Category>
+        <Area>Nested</Area>
+        <Tags>nested,azure,win</Tags>
+    </test>
+    <test>
+        <TestName>AZURE-WINDOWS-NESTED-HYPERV-STORAGE-MULTIDISK</TestName>
+        <testScript>NESTED-HYPERV-STORAGE-PERF.ps1</testScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
+        <setupType>D16SV3DISK6</setupType>
+        <AdditionalHWConfig>
+            <DiskType>Managed</DiskType>
+        </AdditionalHWConfig>
+        <TestParameters>
+            <!--The nested image should be vhd format, and accessible from a public URL-->
+            <param>NestedImageUrl=NESTED_VHD_URL</param>
+            <param>NestedUser=NESTED_VM_USER</param>
+            <param>NestedUserPassword='NESTED_VM_PASSWORD'</param>
+            <param>NestedCpuNum=8</param>
+            <param>NestedMemMB=8192</param>
+            <param>HostFwdPort=60022</param>
+            <!--The raid option allowed values: 'No RAID','RAID in L1','RAID in L2'-->
+            <param>RaidOption='RAID_OPTION'</param>
+            <param>modes='randread randwrite read write'</param>
+            <param>startThread=1</param>
+            <param>maxThread=1024</param>
+            <param>startIO=4</param>
+            <param>numjobs=1</param>
+            <param>ioruntime=300</param>
+            <param>maxIO=4</param>
+            <param>fileSize=8G</param>
+            <param>Interleave=65536</param>
+            <param>SkipVerifyKernelLogs=true</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Performance</Category>
+        <Area>Nested</Area>
+        <Tags>nested,azure,win</Tags>
+    </test>
 </TestCases>

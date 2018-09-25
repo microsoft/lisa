@@ -1865,7 +1865,11 @@ Function DoTestCleanUp($CurrentTestResult, $testName, $DeployedServices, $Resour
 			}
 			$isCleaned = @()
 			$ResourceGroups = $ResourceGroups.Split("^")
-			$isVMLogsCollected = $false
+			if(!$IsWindows){
+				$isVMLogsCollected = $false
+			} else {
+				$isVMLogsCollected = $true
+			}
 			foreach ($group in $ResourceGroups)
 			{
 				if ($ForceDeleteResources)
@@ -2213,6 +2217,11 @@ Function GetAllDeployementData($ResourceGroups)
 					$QuickVMNode.SecondInternalIP = "$($nic.Properties.IpConfigurations[0].Properties.PrivateIPAddress)"
 				}
 			}
+
+			if($IsWindows){
+				Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name SSHPort -Value 3389 -Force
+			}
+
 			$QuickVMNode.ResourceGroupName = $ResourceGroup
 
 			$QuickVMNode.PublicIP = ($RGIPData | Where-Object { $_.Properties.publicIPAddressVersion -eq "IPv4" }).Properties.ipAddress
