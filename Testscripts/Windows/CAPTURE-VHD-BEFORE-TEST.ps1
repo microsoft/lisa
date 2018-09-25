@@ -24,12 +24,19 @@ function Main {
         LogMsg "Shutting down VM.."
         $stopVM = Stop-AzureRmVM -Name $captureVMData.RoleName -ResourceGroupName $captureVMData.ResourceGroupName -Force -Verbose
         LogMsg "Shutdown successful."
+        $Append = $Distro
+        if ($env:BUILD_NAME){
+            $Append += "-$env:BUILD_NAME"
+        }
+        if ($env:BUILD_NUMBER){
+            $Append += "-$env:BUILD_NUMBER"
+        }
         #Copy the OS VHD with different name.
         if ($ARMImage) {
-            $newVHDName = "EOSG-AUTOBUILT-$($ARMImage.Publisher)-$($ARMImage.Offer)-$($ARMImage.Sku)-$($ARMImage.Version)-$Distro"
+            $newVHDName = "EOSG-AUTOBUILT-$($ARMImage.Publisher)-$($ARMImage.Offer)-$($ARMImage.Sku)-$($ARMImage.Version)-$Append"
         }
         if ($OsVHD) {
-            $newVHDName = "EOSG-AUTOBUILT-$($OsVHD.Replace('.vhd',''))-$Distro"
+            $newVHDName = "EOSG-AUTOBUILT-$($OsVHD.Replace('.vhd',''))-$Append"
         }
         $newVHDName = "$newVHDName.vhd"
         LogMsg "Sleeping 30 seconds..."
