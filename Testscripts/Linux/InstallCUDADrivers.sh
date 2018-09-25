@@ -25,10 +25,10 @@ while echo $1 | grep ^- > /dev/null; do
 	shift
 done
 
-#Updated as of 23rd May 2018
-CUDADriverVersion="9.2.88-1"
+#Updated as of 24th Sept 2018
+CUDADriverVersion="10.0.130-1"
 #############################
-
+#Reference: https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/index.html
 
 ICA_TESTRUNNING="TestRunning"	  # The test is running
 ICA_TESTCOMPLETED="TestCompleted"  # The test completed successfully

@@ -3,8 +3,6 @@
 
 function Main {
     # Create test result 
-    $testResult = ""
-    $currentTestResult = CreateTestResultObject
     $resultArr = @()
 
     try {
