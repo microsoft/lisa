@@ -75,7 +75,7 @@ function installDPDK ()
 			;;
 		ubuntu|debian)
 			ssh ${1} "until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done"
-			if [[ "${DISTRO_VERSION}" == "16.04" ]];
+			if [[ "${DISTRO_VERSION}" == "16.04" ]] || [[ "${DISTRO_VERSION}" == "14.04" ]];
 			then
 				LogMsg "Adding dpdk repo to ${DISTRO_NAME} ${DISTRO_VERSION} for DPDK test..."
 				ssh ${1} "add-apt-repository ppa:canonical-server/dpdk-azure -y"
@@ -162,14 +162,18 @@ LogMsg "*********INFO: Starting Huge page configuration*********"
 LogMsg "INFO: Configuring huge pages on client ${client}..."
 hugePageSetup ${client}
 
-LogMsg "INFO: Configuring huge pages on server ${server}..."
-hugePageSetup ${server}
-
 LogMsg "*********INFO: Starting setup & configuration of DPDK*********"
 LogMsg "INFO: Installing DPDK on client ${client}..."
 installDPDK ${client} ${clientNIC1ip} ${serverNIC1ip}
 
-LogMsg "INFO: Installing DPDK on server ${server}..."
-installDPDK ${server} ${serverNIC1ip} ${clientNIC1ip}
-
+if [[ ${client} == ${server} ]];
+then
+	LogMsg "Skip DPDK setup on server"
+	SetTestStateCompleted
+else
+	LogMsg "INFO: Configuring huge pages on server ${server}..."
+	hugePageSetup ${server}
+	LogMsg "INFO: Installing DPDK on server ${server}..."
+	installDPDK ${server} ${serverNIC1ip} ${clientNIC1ip}
+fi
 LogMsg "*********INFO: DPDK setup script execution reach END. Completed !!!*********"
