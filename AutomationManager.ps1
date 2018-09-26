@@ -58,7 +58,8 @@ param (
 [switch] $ForceDeleteResources
 )
 
-Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global}
+Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | `
+	ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking}
 
 $xmlConfig = [xml](Get-Content $xmlConfigFile)
 $user = $xmlConfig.config.$TestPlatform.Deployment.Data.UserName
@@ -178,7 +179,8 @@ try {
 	}
 
 	Set-Variable -Name IsWindows -Value $false -Scope Global
-	if($xmlConfig.config.testsDefinition.test.Tags.ToString().Contains("win"))
+	if($xmlconfig.config.testsDefinition.test.Tags `
+           -and $xmlconfig.config.testsDefinition.test.Tags.ToString().Contains("win"))
 	{
 		Set-Variable -Name IsWindows -Value $true -Scope Global
 	}
