@@ -33,7 +33,6 @@ ICA_TESTABORTED="TestAborted"      # Error during the setup of the test
 ICA_TESTFAILED="TestFailed"        # Error occurred during the test
 touch $STATE_FILE
 
-
 . ${UTIL_FILE} || {
 	errMsg="Error: missing ${UTIL_FILE} file"
 	LogMsg "${errMsg}" 
