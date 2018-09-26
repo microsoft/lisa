@@ -382,4 +382,14 @@
         <Area>NETWORK</Area>
         <Tags>network</Tags>
     </test>
+    <test>
+        <testName>BVT-VERIFY-NOBARRIER</testName>
+        <TestScript>BVT-VERIFY-NOBARRIER.ps1</TestScript>
+        <files>.\Testscripts\Linux\nobarrier.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>SingleVM</setupType>
+        <Platform>Azure</Platform>
+        <Category>BVT</Category>
+        <Area>BVT</Area>
+        <Tags>bvt,disk</Tags>
+    </test>
 </TestCases>
