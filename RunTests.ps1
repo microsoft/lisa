@@ -76,7 +76,7 @@ Param(
 	[switch] $UpdateGlobalConfigurationFromSecretsFile,
 	[switch] $UpdateXMLStringsFromSecretsFile,
 
-	#[Optional] Parameters for Overriding VM Configuration. Azure only.
+	#[Optional] Parameters for Overriding VM Configuration.
 	[string] $CustomParameters = "",
 	[string] $OverrideVMSize = "",
 	[switch] $EnableAcceleratedNetworking,
@@ -84,6 +84,7 @@ Param(
 	[switch] $ForceDeleteResources,
 	[switch] $UseManagedDisks,
 	[switch] $DoNotDeleteVMs,
+	[string] $VMGeneration = "1",
 
 	[string] $ResultDBTable = "",
 	[string] $ResultDBTestTag = "",
@@ -92,7 +93,8 @@ Param(
 )
 
 #Import the Functions from Library Files.
-Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global }
+Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | `
+	ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking}
 
 try {
 	# Copy required binary files to working folder
@@ -171,8 +173,8 @@ try {
 	}
 	#endregion
 
-	#Validate the test parameters.
-	ValidateParameters
+	# Validate the test parameters.
+	Validate-Parameters
 
 	UpdateGlobalConfigurationXML
 
@@ -242,6 +244,7 @@ try {
 							$xmlContent += ("$($tab[6])" + "<Version>" + "$($ARMImage[3])" + "</Version>`n")
 						$xmlContent += ("$($tab[5])" + "</ARMImage>`n")
 						$xmlContent += ("$($tab[5])" + "<OsVHD>" + "$OsVHD" + "</OsVHD>`n")
+						$xmlContent += ("$($tab[5])" + "<VMGeneration>" + "$VMGeneration" + "</VMGeneration>`n")
 					$xmlContent += ("$($tab[4])" + "</Distro>`n")
 					$xmlContent += ("$($tab[4])" + "<UserName>" + "$($GlobalConfiguration.Global.$TestPlatform.TestCredentials.LinuxUsername)" + "</UserName>`n")
 					$xmlContent += ("$($tab[4])" + "<Password>" + "$($GlobalConfiguration.Global.$TestPlatform.TestCredentials.LinuxPassword)" + "</Password>`n")
@@ -447,13 +450,13 @@ try {
 	$ExitCode = 1
 } finally {
 	if ( $finalWorkingDirectory ) {
-		Write-Output "Copying all files back to original working directory: $originalWorkingDirectory."
+		Write-Host "Copying all files back to original working directory: $originalWorkingDirectory."
 		$tmpDest = '\\?\' + $originalWorkingDirectory
 		Copy-Item -Path "$finalWorkingDirectory\*" -Destination $tmpDest -Force -Recurse | Out-Null
 		Set-Location ..
-		Write-Output "Cleaning up $finalWorkingDirectory"
+		Write-Host "Cleaning up $finalWorkingDirectory"
 		Remove-Item -Path $finalWorkingDirectory -Force -Recurse -ErrorAction SilentlyContinue
-		Write-Output "Setting workspace back to original location: $originalWorkingDirectory"
+		Write-Host "Setting workspace back to original location: $originalWorkingDirectory"
 		Set-Location $originalWorkingDirectory
 	}
 	Get-Variable -Exclude PWD,*Preference,ExitCode | Remove-Variable -Force -ErrorAction SilentlyContinue

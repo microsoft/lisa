@@ -24,64 +24,79 @@
 #>
 ###############################################################################################
 
-Function ValidateParameters()
-{
-	$ParameterErrors = @()
-	if ($TestPlatform -eq "Azure")
-	{
-		#region Validate Parameters
-		if ( !$ARMImageName -and !$OsVHD )
-		{
-			$ParameterErrors += "-ARMImageName '<Publisher> <Offer> <Sku> <Version>', or -OsVHD <'VHD_Name.vhd'> is required."
-		}
-		if (($ARMImageName.Trim().Split(" ").Count -ne 4) -and ($ARMImageName -ne "")) 
-		{
-			$ParameterErrors += ("Invalid value for the provided ARMImageName parameter: <'${ARMImageName}'>." + `
-                                 "The ARM image should be in the format: '<Publisher> <Offer> <Sku> <Version>'.")
-		}
-		if ( !$TestLocation)
-		{
-			$ParameterErrors += "-TestLocation <AzureRegion> is required."
-		}
-		if ( !$RGIdentifier )
-		{
-			$ParameterErrors += "-RGIdentifier <ResourceGroupIdentifier> is required."
-		}   
-		#endregion
-	}
-	elseif ($TestPlatform -eq "HyperV")
-	{
-		#region Validate Parameters
-		if (!$OsVHD )
-		{
-			$ParameterErrors += "-OsVHD <'VHD_Name.vhd'> is required."
-		}
-		if ( !$RGIdentifier )
-		{
-			$ParameterErrors += "-RGIdentifier <ResourceGroupIdentifier> is required."
-		}
-		#endregion
-	}	
-	elseif ($TestPlatform)
-	{
-		$ParameterErrors += "$TestPlatform is not yet supported."
-	}
-	else
-	{
-		$ParameterErrors += "'-TestPlatform' is not provided."
-	}
-	
-	
-	
-	if ( $ParameterErrors.Count -gt 0)
-	{
-		$ParameterErrors | ForEach-Object { LogError $_ }
-		Throw "Failed to validate the test parameters provided. Please fix above issues and retry."
-	}
-	else 
-	{
-		LogMsg "Test parameters have been validated successfully. Continue running the test."
-	}	
+function Validate-AzureParameters {
+    $parameterErrors = @()
+    if ( !$ARMImageName -and !$OsVHD ) {
+        $parameterErrors += "-ARMImageName '<Publisher> <Offer> <Sku> <Version>', or -OsVHD <'VHD_Name.vhd'> is required."
+    }
+
+    if (($ARMImageName.Trim().Split(" ").Count -ne 4) -and ($ARMImageName -ne "")) {
+        $parameterErrors += ("Invalid value for the provided ARMImageName parameter: <'${ARMImageName}'>." + `
+                             "The ARM image should be in the format: '<Publisher> <Offer> <Sku> <Version>'.")
+    }
+
+    if ($OsVHD -and [System.IO.Path]::GetExtension($OsVHD) -ne ".vhd") {
+        $parameterErrors += "-OsVHD $OsVHD does not have .vhd extension required by Platform Azure."
+    }
+
+    if ( !$TestLocation) {
+        $parameterErrors += "-TestLocation <AzureRegion> is required."
+    }
+
+    if ([string]$VMGeneration -eq "2") {
+        $parameterErrors += "-VMGeneration 2 is not supported on Azure."
+    }
+    return $parameterErrors
+}
+
+function Validate-HyperVParameters {
+    $parameterErrors = @()
+    if (!$OsVHD ) {
+        $parameterErrors += "-OsVHD <'VHD_Name.vhd'> is required."
+    }
+    return $parameterErrors
+}
+
+function Validate-Parameters {
+    $parameterErrors = @()
+    $supportedPlatforms = @("Azure", "HyperV")
+
+    if ($supportedPlatforms.contains($TestPlatform)) {
+
+        # Validate general parameters
+        if ( !$RGIdentifier ) {
+            $parameterErrors += "-RGIdentifier <ResourceGroupIdentifier> is required."
+        }
+        if (!$VMGeneration) {
+             $parameterErrors += "-VMGeneration <VMGeneration> is required."
+        } else {
+            $supportedVMGenerations = @("1","2")
+            if ($supportedVMGenerations.contains([string]$VMGeneration)) {
+                if ([string]$VMGeneration -eq "2" -and $OsVHD `
+                         -and [System.IO.Path]::GetExtension($OsVHD) -ne ".vhdx") {
+                    $parameterErrors += "-VMGeneration 2 requires .vhdx files."
+                }
+            } else {
+                $parameterErrors += "-VMGeneration $VMGeneration is not yet supported."
+            }
+        }
+
+        # Validate platform dependent parameters
+        $parameterErrors += & "Validate-${TestPlatform}Parameters"
+    } else {
+        if ($TestPlatform) {
+            $parameterErrors += "$TestPlatform is not yet supported."
+        } else {
+            $parameterErrors += "'-TestPlatform' is not provided."
+        }
+    }
+
+    if ($parameterErrors.Count -gt 0) {
+        $parameterErrors | ForEach-Object { LogError $_ }
+        throw "Failed to validate the test parameters provided. Please fix above issues and retry."
+    } else {
+        LogMsg "Test parameters have been validated successfully. Continue running the test."
+    }
 }
 
 Function Add-ReplaceableTestParameters($XmlConfigFilePath)
@@ -192,7 +207,7 @@ Function UpdateGlobalConfigurationXML()
 			foreach($Location in $Locations)
 			{
 				$GlobalConfiguration.Global.$TestPlatform.Hosts.ChildNodes[$index].ServerName = $Location
-				Get-VM -ComputerName $GlobalConfiguration.Global.$TestPlatform.Hosts.ChildNodes[$index].ServerName
+				Get-VM -ComputerName $GlobalConfiguration.Global.$TestPlatform.Hosts.ChildNodes[$index].ServerName | Out-Null
 				if ($?)
 				{
 					LogMsg "Set '$($Location)' to As GlobalConfiguration.Global.HyperV.Hosts.ChildNodes[$($index)].ServerName"
@@ -210,7 +225,7 @@ Function UpdateGlobalConfigurationXML()
 		{
 			$TestLocation = $GlobalConfiguration.Global.$TestPlatform.Hosts.ChildNodes[0].ServerName
 			LogMsg "Read Test Location from GlobalConfiguration.Global.HyperV.Hosts.ChildNodes[0].ServerName"
-			Get-VM -ComputerName $TestLocation
+			Get-VM -ComputerName $TestLocation | Out-Null
 		}
 	}
 	#If user provides Result database / result table, then add it to the GlobalConfiguration.

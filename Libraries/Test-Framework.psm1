@@ -447,7 +447,10 @@ function Run-Test {
     if ($DeployVMPerEachTest -or $ExecuteSetup) {
         # Note: This method will create $AllVMData global variable
         $isDeployed = DeployVMS -setupType $CurrentTestData.setupType `
-             -Distro $Distro -XMLConfig $XmlConfig
+             -Distro $Distro -XMLConfig $XmlConfig -VMGeneration $VMGeneration
+        if (!$isDeployed) {
+            throw "Could not deploy VMs."
+        }
         if(!$IsWindows){
             Enable-RootUser -RootPassword $VMPassword -VMData $AllVMData `
                 -Username $VMUser -password $VMPassword
