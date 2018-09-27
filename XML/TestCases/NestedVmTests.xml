@@ -314,7 +314,7 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Performance</Category>
-        <Area>Nested</Area>
+        <Area>Storage</Area>
         <Tags>nested,hyperv,win</Tags>
     </test>
     <test>
@@ -331,7 +331,7 @@
             <param>NestedMemMB=8192</param>
             <param>HostFwdPort=60022</param>
             <!--The raid option allowed values: 'No RAID','RAID in L1','RAID in L2'-->
-            <param>RaidOption='RAID_OPTION'</param>
+            <param>RaidOption='RAID in L1'</param>
             <param>modes='randread randwrite read write'</param>
             <param>startThread=1</param>
             <param>maxThread=1024</param>
@@ -345,7 +345,7 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Performance</Category>
-        <Area>Nested</Area>
+        <Area>Storage</Area>
         <Tags>nested,hyperv,win</Tags>
     </test>
     <test>
@@ -377,7 +377,7 @@
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Performance</Category>
-        <Area>Nested</Area>
+        <Area>Storage</Area>
         <Tags>nested,azure,win</Tags>
     </test>
     <test>
@@ -397,7 +397,7 @@
             <param>NestedMemMB=8192</param>
             <param>HostFwdPort=60022</param>
             <!--The raid option allowed values: 'No RAID','RAID in L1','RAID in L2'-->
-            <param>RaidOption='RAID_OPTION'</param>
+            <param>RaidOption='RAID in L1'</param>
             <param>modes='randread randwrite read write'</param>
             <param>startThread=1</param>
             <param>maxThread=1024</param>
@@ -411,7 +411,7 @@
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Performance</Category>
-        <Area>Nested</Area>
+        <Area>Storage</Area>
         <Tags>nested,azure,win</Tags>
     </test>
 </TestCases>

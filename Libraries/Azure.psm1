@@ -772,6 +772,21 @@ Function CreateResourceGroupDeployment([string]$RGName, $location, $setupType, $
     return $retValue
 }
 
+Function GenerateVMName ($namePrefix, $numberOfVMs)
+{
+    if( $IsWindows -and ( $testPlatform -eq "Azure" ) ){
+        # Windows computer name cannot be more than 15 characters long on Azure
+        $suffix = "role-$numberOfVMs"
+        $len = 15 - $suffix.Length
+        $VMName = $namePrefix.Substring(0,$len) + $suffix
+    }
+    else
+    {
+        $VMName = "$namePrefix-role-$numberOfVMs"
+    }
+    return $VMName
+}
+
 Function GenerateAzureDeployJSONFile ($RGName, $osImage, $osVHD, $RGXMLData, $Location, $azuredeployJSONFilePath)
 {
 
@@ -819,14 +834,7 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
     }
     else
     {
-        if($IsWindows -and $testPlatform -eq "Azure"){
-            # Windows computer name cannot be more than 15 characters long on Azure
-            $VMNames += $RGName.Substring(0,8) + "role-$numberOfVMs"
-        }
-        else
-        {
-            $VMNames += "$RGName-role-$numberOfVMs"
-        }
+        $VMNames += GenerateVMName -namePrefix $RGName -numberOfVMs $numberOfVMs
     }
     $numberOfVMs += 1
 }
@@ -1374,11 +1382,7 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
     }
     else
     {
-        $vmName = "$RGName-role-$role"
-        if($IsWindows -and $testPlatform -eq "Azure"){
-            # Windows computer name cannot be more than 15 characters long on Azure
-            $vmName = $RGName.Substring(0,8) + "role-$role"
-        }
+        $vmName = GenerateVMName -namePrefix $RGName -numberOfVMs $role
     }
     foreach ( $endpoint in $newVM.EndPoints)
     {
@@ -1433,13 +1437,9 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
     }
     else
     {
-        $vmName = "$RGName-role-$role"
-        if($IsWindows -and $testPlatform -eq "Azure"){
-            # Windows computer name cannot be more than 15 characters long on Azure
-            $vmName = $RGName.Substring(0,8) + "role-$role"
-        }
+        $vmName = GenerateVMName -namePrefix $RGName -numberOfVMs $role
     }
-    
+
     foreach ( $endpoint in $newVM.EndPoints)
     {
         if ( ($endpoint.LoadBalanced -eq "True") -and !($addedLBPort -imatch "$($endpoint.Name)-$($endpoint.PublicPort)" ) )
@@ -1538,11 +1538,7 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
     }
     else
     {
-        $vmName = "$RGName-role-$role"
-        if($IsWindows -and $testPlatform -eq "Azure"){
-            # Windows computer name cannot be more than 15 characters long on Azure
-            $vmName = $RGName.Substring(0,8) + "role-$role"
-        }
+        $vmName = GenerateVMName -namePrefix $RGName -numberOfVMs $role
     }
 
     foreach ( $endpoint in $newVM.EndPoints)
@@ -1616,11 +1612,7 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
     }
     else
     {
-        $vmName = "$RGName-role-$role"
-        if($IsWindows -and $testPlatform -eq "Azure"){
-            # Windows computer name cannot be more than 15 characters long on Azure
-            $vmName = $RGName.Substring(0,8) + "role-$role"
-        }
+        $vmName = GenerateVMName -namePrefix $RGName -numberOfVMs $role
     }
     $NIC = "PrimaryNIC" + "-$vmName"
 

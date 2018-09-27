@@ -121,7 +121,7 @@ function Start-TestExecution ($ip, $port, $username, $passwd)
 	RunLinuxCmd -ip $ip -port $port -username $username -password $passwd -command "chmod +x *.sh;chmod +x /root/*.sh" -runAsSudo
 	LogMsg "Executing : StartFioTest.sh"
 	$cmd = "/home/$username/StartFioTest.sh"
-	$testJob = RunLinuxCmd -ip $ip -port  $port -username $username -password $passwd -command $cmd -runAsSudo  -runMaxAllowedTime  24000  -RunInBackground
+	RunLinuxCmd -ip $ip -port  $port -username $username -password $passwd -command $cmd -runAsSudo  -runMaxAllowedTime  24000  -RunInBackground
 	$currentStatus = RunLinuxCmd -ip $ip -port  $port -username $username -password $passwd -command "cat /home/$username/state.txt"  -runAsSudo
 	while ( $currentStatus -like "*TestRunning*" -or -not $currentStatus )
 	{
@@ -622,6 +622,9 @@ function Main()
 	{
 		if($session){
 			Remove-PSSession -Session $session
+		}
+		if(!$testResult){
+			$testResult = $resultAborted
 		}
 	}
 
