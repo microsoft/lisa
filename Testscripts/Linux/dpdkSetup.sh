@@ -75,7 +75,7 @@ function installDPDK ()
 			;;
 		ubuntu|debian)
 			ssh ${1} "until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done"
-			if [[ "${DISTRO_VERSION}" == "16.04" ]] || [[ "${DISTRO_VERSION}" == "14.04" ]];
+			if [[ "${DISTRO_VERSION}" == "16.04" ]];
 			then
 				LogMsg "Adding dpdk repo to ${DISTRO_NAME} ${DISTRO_VERSION} for DPDK test..."
 				ssh ${1} "add-apt-repository ppa:canonical-server/dpdk-azure -y"

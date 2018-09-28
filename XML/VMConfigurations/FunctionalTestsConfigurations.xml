@@ -1,5 +1,5 @@
 <TestSetup>
-    <DPDK1VM2NICs>
+    <DPDK1VM3NICs>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
             <VirtualMachine>
@@ -16,7 +16,7 @@
                 <ExtraNICs>2</ExtraNICs>
             </VirtualMachine>
         </ResourceGroup>
-    </DPDK1VM2NICs>
+    </DPDK1VM3NICs>
     <DPDK>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
