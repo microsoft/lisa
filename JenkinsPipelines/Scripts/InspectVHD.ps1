@@ -38,8 +38,8 @@ $CurrentLocalFolder = "$LocalFolder"
 $ExitCode = 0
 try
 {
-	#Download the tools required for LISAv2 execution.
-	Get-LISAv2Tools -XMLSecretFile $XMLSecretFile
+    #Download the tools required for LISAv2 execution.
+    Get-LISAv2Tools -XMLSecretFile $XMLSecretFile
 
     $7zExePath = (Get-Item .\Tools\7za.exe).FullName
 
