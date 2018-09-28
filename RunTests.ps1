@@ -41,7 +41,6 @@ Param(
 
 	#[Required] for Azure.
 	[string] $TestLocation="",
-	[string] $RGIdentifier = "",
 	[string] $ARMImageName = "",
 	[string] $StorageAccount="",
 
@@ -52,6 +51,7 @@ Param(
 	[string] $DestinationOsVHDPath="",
 
 	#[Required] Common for HyperV and Azure.
+	[string] $RGIdentifier = "",
 	[string] $OsVHD = "",   #... [Azure: Required only if -ARMImageName is not provided.]
 							#... [HyperV: Mandatory]
 	[string] $TestCategory = "",
@@ -464,3 +464,4 @@ try {
 
 	exit $ExitCode
 }
+
