@@ -369,7 +369,11 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML, 
             $vhdSuffix = [System.IO.Path]::GetExtension($OsVHD)
             if ( $VirtualMachine.RoleName)
             {
-                $CurrentVMName = $VirtualMachine.RoleName
+                if ($VirtualMachine.RoleName -match "dependency") {
+                    $CurrentVMName = $HyperVGroupName + "-" + $VirtualMachine.RoleName 
+                } else {
+                    $CurrentVMName = $VirtualMachine.RoleName
+                }
                 $CurrentVMOsVHDPath = "$DestinationOsVHDPath\$HyperVGroupName-$CurrentVMName-diff-OSDisk${vhdSuffix}"
             }
             else 

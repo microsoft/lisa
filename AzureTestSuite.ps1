@@ -108,6 +108,11 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
 		$ExecuteSetupForEachTest = $true
 	} elseif ($testPlatform -eq "Hyperv") {
 		$ExecuteSetupForEachTest = $false
+		$VmSetup = @()
+		foreach ($test in $currentCycleData.test) {
+			$currentTestData = GetCurrentTestData -xmlConfig $xmlConfig -testName $test.Name
+			$VmSetup += $currentTestData.setupType	
+		}
 	}
 
 	$testCount = $currentCycleData.test.Length
@@ -133,16 +138,34 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
 			Set-Variable -Name EnableAcceleratedNetworking -Value $true -Scope Global
 		}
 
+		$currentVmSetup = $VmSetup[$testIndex-1]
+		$nextVmSetup = $VmSetup[$testIndex]
+		$previousVmSetup = $VmSetup[$testIndex-2]
+
 		if ($testIndex -eq 1) {
 			$TestState = @{"ExecuteSetup" = $True}
 			if ($testCount -eq 1) {
 				$TestState += @{"ExecuteTeardown" = $True}
+			} else {
+				if ($currentVmSetup -ne $nextVmSetup) {
+					$TestState += @{"ExecuteTeardown" = $True}	
+				} 
 			}
 		} elseif ($testIndex -eq $testCount) {
 			$TestState = @{"ExecuteTeardown" = $True}
-		} else {
+			if ($previousVmSetup -ne $currentVmSetup) {
+				$TestState += @{"ExecuteSetup" = $True}	
+			}
+		} else {		
 			$TestState = @{}
+			if ($previousVmSetup -ne $currentVmSetup) {
+				$TestState += @{"ExecuteSetup" = $True}	
+			}
+			if ($currentVmSetup -ne $nextVmSetup) {
+				$TestState += @{"ExecuteTeardown" = $True}	
+			}
 		}
+
 		# Generate Unique Test
 		for ( $testIterationCount = 1; $testIterationCount -le $TestIterations; $testIterationCount ++ ) {
 			if ( $TestIterations -ne 1 ) {

@@ -6,7 +6,10 @@
  Switch an existing NIC (with a certain MAC address) to a different network.
 #>
 
-param([String] $TestParams)
+param(
+    [String] $VMName=$AllVMData.RoleName,
+    [String] $TestParams
+)
 
 function Main {
     param (
@@ -42,6 +45,8 @@ function Main {
             $networkName = $nicArgs[2].Trim()
             if ($nicArgs.Length -eq 4) {
                 $macAddress = $nicArgs[3].Trim()
+            } else {
+                $macAddress = $streamReader.ReadLine()
             }
             $legacy = $False
             
@@ -74,7 +79,6 @@ function Main {
             }
             
             # Get NIC with given MAC Address
-            $macAddress = $streamReader.ReadLine()
             $nic = Get-VMNetworkAdapter -VMName $vmName -ComputerName $hvServer -IsLegacy:$legacy | where {$_.MacAddress -eq $macAddress }
             if ($nic) {
                 if ($networkType -like "None") {
@@ -86,7 +90,6 @@ function Main {
                 $retVal = $?
             } else {
                 LogErr "Error: $vmName - No NIC found with MAC $macAddress ."
-                $retVal = $False
             }
         }
     }
@@ -95,5 +98,5 @@ function Main {
     return $retVal
 }
 
-Main -VMName $AllVMData.RoleName -hvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
+Main -VMName $VMName -hvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
          -TestParams $TestParams

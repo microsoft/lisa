@@ -24,7 +24,10 @@
         "NIC=NetworkAdapter,Internal,InternalNet,001600112200"
 #>
 
-param([String] $TestParams)
+param(
+    [String] $TestParams,
+    [String] $VMName = $AllVMData.RoleName
+)
 
 function Main {
     param (
@@ -32,13 +35,27 @@ function Main {
         $HvServer,
         $TestParams
     )
-    $currentDir= "$pwd\"
-    $testfile = "macAddress.file"
-    $pathToFile="$currentDir"+"$testfile"
-    $streamWrite = [System.IO.StreamWriter] $pathToFile
-    $macAddress = $null
+    $isDynamicMAC = $false
 
     $params = $TestParams.Split(';')
+    foreach ($p in $params) {
+        $temp = $p.Trim().Split('=')
+        if ($temp[0].Trim() -match "NIC_") {
+            $nicArgs = $temp[1].Split(',')
+            if ($nicArgs.Length -eq 3) {
+                $isDynamicMAC = $true
+            }
+        }
+    }
+
+    if ($isDynamicMAC -eq $true) {
+        $currentDir= "$pwd\"
+        $testfile = "macAddress.file"
+        $pathToFile="$currentDir"+"$testfile"
+        $streamWrite = [System.IO.StreamWriter] $pathToFile
+        $macAddress = $null
+    }
+
     foreach ($p in $params) {
         $temp = $p.Trim().Split('=')
         if ($temp.Length -ne 2) {
@@ -98,9 +115,25 @@ function Main {
                 }
             }
 
-            $macAddress = Get-RandUnusedMAC $HvServer
-            LogMsg "Info: Generated MAC address: $macAddress"
-            $streamWrite.WriteLine($macAddress)
+            if ($isDynamicMAC -eq $true) {
+                $macAddress = Get-RandUnusedMAC $HvServer
+                LogMsg "Info: Generated MAC address: $macAddress"
+                $streamWrite.WriteLine($macAddress)
+            } else {
+                # Validate the MAC is the correct length
+                if ($macAddress.Length -ne 12) {
+                    LogErr "Error: Invalid mac address: $p"
+                    return $false
+                }
+                # Make sure each character is a hex digit
+                $ca = $macAddress.ToCharArray()
+                foreach ($c in $ca) {
+                    if ($c -notmatch "[A-Fa-f0-9]") {
+                        LogErr "Error: MAC address contains non hexidecimal characters: $c"
+                        return $false
+                    }
+                }
+            }
 
             # Add NIC with given MAC Address
             if ($networkType -notlike "None") {
@@ -127,9 +160,11 @@ function Main {
             }
         }
     }
-    $streamWrite.close()
+    if ($isDynamicMAC -eq $true){
+        $streamWrite.close()
+    }
     return $retVal
 }
 
-Main -VMName $AllVMData.RoleName -hvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
+Main -VMName $VMName -hvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
          -TestParams $TestParams
