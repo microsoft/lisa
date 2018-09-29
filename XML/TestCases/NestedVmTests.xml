@@ -210,7 +210,7 @@
         <Platform>HyperV</Platform>
         <Category>Performance</Category>
         <Area>Nested</Area>
-        <Tags>nested,hyperv,win</Tags>
+        <Tags>nested,hyperv,windows</Tags>
     </test>
     <test>
         <TestName>NESTED-KVM-NTTTCP-DIFFERENT-L1-NAT</TestName>
@@ -315,7 +315,7 @@
         <Platform>HyperV</Platform>
         <Category>Performance</Category>
         <Area>Storage</Area>
-        <Tags>nested,hyperv,win</Tags>
+        <Tags>nested,hyperv,windows</Tags>
     </test>
     <test>
         <TestName>HYPERV-WINDOWS-NESTED-HYPERV-STORAGE-MULTIDISK</TestName>
@@ -346,7 +346,7 @@
         <Platform>HyperV</Platform>
         <Category>Performance</Category>
         <Area>Storage</Area>
-        <Tags>nested,hyperv,win</Tags>
+        <Tags>nested,hyperv,windows</Tags>
     </test>
     <test>
         <TestName>AZURE-WINDOWS-NESTED-HYPERV-STORAGE-SINGLE-DISK</TestName>
@@ -378,7 +378,7 @@
         <Platform>Azure</Platform>
         <Category>Performance</Category>
         <Area>Storage</Area>
-        <Tags>nested,azure,win</Tags>
+        <Tags>nested,azure,windows</Tags>
     </test>
     <test>
         <TestName>AZURE-WINDOWS-NESTED-HYPERV-STORAGE-MULTIDISK</TestName>
@@ -412,6 +412,6 @@
         <Platform>Azure</Platform>
         <Category>Performance</Category>
         <Area>Storage</Area>
-        <Tags>nested,azure,win</Tags>
+        <Tags>nested,azure,windows</Tags>
     </test>
 </TestCases>

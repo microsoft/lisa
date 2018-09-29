@@ -772,7 +772,7 @@ Function CreateResourceGroupDeployment([string]$RGName, $location, $setupType, $
     return $retValue
 }
 
-Function GenerateVMName ($namePrefix, $numberOfVMs)
+Function Get-NewVMName ($namePrefix, $numberOfVMs)
 {
     if( $IsWindows -and ( $testPlatform -eq "Azure" ) ){
         # Windows computer name cannot be more than 15 characters long on Azure
@@ -834,7 +834,7 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
     }
     else
     {
-        $VMNames += GenerateVMName -namePrefix $RGName -numberOfVMs $numberOfVMs
+        $VMNames += Get-NewVMName -namePrefix $RGName -numberOfVMs $numberOfVMs
     }
     $numberOfVMs += 1
 }
@@ -1382,7 +1382,7 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
     }
     else
     {
-        $vmName = GenerateVMName -namePrefix $RGName -numberOfVMs $role
+        $vmName = Get-NewVMName -namePrefix $RGName -numberOfVMs $role
     }
     foreach ( $endpoint in $newVM.EndPoints)
     {
@@ -1437,7 +1437,7 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
     }
     else
     {
-        $vmName = GenerateVMName -namePrefix $RGName -numberOfVMs $role
+        $vmName = Get-NewVMName -namePrefix $RGName -numberOfVMs $role
     }
 
     foreach ( $endpoint in $newVM.EndPoints)
@@ -1538,7 +1538,7 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
     }
     else
     {
-        $vmName = GenerateVMName -namePrefix $RGName -numberOfVMs $role
+        $vmName = Get-NewVMName -namePrefix $RGName -numberOfVMs $role
     }
 
     foreach ( $endpoint in $newVM.EndPoints)
@@ -1612,7 +1612,7 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
     }
     else
     {
-        $vmName = GenerateVMName -namePrefix $RGName -numberOfVMs $role
+        $vmName = Get-NewVMName -namePrefix $RGName -numberOfVMs $role
     }
     $NIC = "PrimaryNIC" + "-$vmName"
 
@@ -2253,28 +2253,34 @@ Function isAllSSHPortsEnabledRG($AllVMDataObject)
         $WaitingForConnect = 0
         foreach ( $vm in $AllVMDataObject)
         {
-            $out = Test-TCP  -testIP $($vm.PublicIP) -testport $($vm.SSHPort)
+            if($IsWindows){
+                $port = $($vm.RDPPort)
+            } else {
+                $port = $($vm.SSHPort)
+            }
+
+            $out = Test-TCP  -testIP $($vm.PublicIP) -testport $port
             if ($out -ne "True")
             {
-                LogMsg "Connecting to  $($vm.PublicIP) : $($vm.SSHPort) : Failed"
+                LogMsg "Connecting to  $($vm.PublicIP) : $port : Failed"
                 $WaitingForConnect = $WaitingForConnect + 1
             }
             else
             {
-                LogMsg "Connecting to  $($vm.PublicIP) : $($vm.SSHPort) : Connected"
+                LogMsg "Connecting to  $($vm.PublicIP) : $port : Connected"
             }
         }
         if($WaitingForConnect -gt 0)
         {
             $timeout = $timeout + 1
-            LogMsg "$WaitingForConnect VM(s) still awaiting to open SSH port.."
+            LogMsg "$WaitingForConnect VM(s) still awaiting to open port $port .."
             LogMsg "Retry $timeout/100"
             sleep 3
             $retValue = "False"
         }
         else
         {
-            LogMsg "ALL VM's SSH port is/are open now.."
+            LogMsg "ALL VM's port $port is/are open now.."
             $retValue = "True"
         }
 
@@ -2287,7 +2293,7 @@ Function isAllSSHPortsEnabledRG($AllVMDataObject)
     #{
     #    foreach ( $vm in $AllVMDataObject)
     #    {
-    #        $out = Test-TCP  -testIP $($vm.PublicIP) -testport $($vm.SSHPort)
+    #        $out = Test-TCP  -testIP $($vm.PublicIP) -testport $port
     #        if ($out -ne "True")
     #        {
     #            LogMsg "Getting boot diagnostic data from $($vm.RoleName)"

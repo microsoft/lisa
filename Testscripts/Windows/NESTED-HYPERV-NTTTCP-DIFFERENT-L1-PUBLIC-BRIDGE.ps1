@@ -289,7 +289,9 @@ function Main () {
 			$allDeployedNestedVMs += $NestedVMNode
 			$NestedVMNode = ""
 		}
+		Set-Variable -Name IsWindows -Value $false -Scope Global
 		isAllSSHPortsEnabledRG $allDeployedNestedVMs
+		Set-Variable -Name IsWindows -Value $true -Scope Global
 
 		Remove-PSSession -Session $serverSession
 		Remove-PSSession -Session $clientSession

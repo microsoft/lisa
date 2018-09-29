@@ -73,7 +73,7 @@
                     <PublicPort>22</PublicPort>
                 </EndPoints>
                 <EndPoints>
-                    <Name>MSTSC</Name>
+                    <Name>RDP</Name>
                     <Protocol>tcp</Protocol>
                     <LocalPort>3389</LocalPort>
                     <PublicPort>3389</PublicPort>
@@ -113,7 +113,7 @@
                     <PublicPort>22</PublicPort>
                 </EndPoints>
                 <EndPoints>
-                    <Name>MSTSC</Name>
+                    <Name>RDP</Name>
                     <Protocol>tcp</Protocol>
                     <LocalPort>3389</LocalPort>
                     <PublicPort>3389</PublicPort>
@@ -178,7 +178,7 @@
                     <PublicPort>22</PublicPort>
                 </EndPoints>
                 <EndPoints>
-                    <Name>MSTSC</Name>
+                    <Name>RDP</Name>
                     <Protocol>tcp</Protocol>
                     <LocalPort>3389</LocalPort>
                     <PublicPort>3389</PublicPort>

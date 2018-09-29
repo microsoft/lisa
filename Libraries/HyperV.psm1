@@ -181,9 +181,10 @@ Function CreateAllHyperVGroupDeployments($setupType, $xmlConfig, $Distro, $Debug
                             $DeploymentElapsedTime = $DeploymentEndTime - $DeploymentStartTime
                             if ( $VMCreationStatus )
                             {
-                                if($TestArea -eq 'Nested')
+                                if($xmlconfig.config.testsDefinition.test.Tags `
+                                    -and $xmlconfig.config.testsDefinition.test.Tags.ToString().Contains("nested"))
                                 {
-                                    LogMsg "Test Platform is $TestPlatform and Test Area is $TestArea, need to enable nested virtualization"
+                                    LogMsg "Test Platform is $TestPlatform and nested VMs will be created, need to enable nested virtualization"
                                     $status = EnableHyperVNestedVirtualization -HyperVGroupName $HyperVGroupName -HyperVHost $HyperVHost
                                 }
                                 $StartVMStatus = StartHyperVGroupVMs -HyperVGroupName $HyperVGroupName -HyperVHost $HyperVHost
@@ -587,7 +588,7 @@ Function GetAllHyperVDeployementData($HyperVGroupNames,$RetryCount = 100)
         Add-Member -InputObject $objNode -MemberType NoteProperty -Name InternalIP -Value $null -Force
         Add-Member -InputObject $objNode -MemberType NoteProperty -Name RoleName -Value $null -Force
         if($IsWindows){
-            Add-Member -InputObject $objNode -MemberType NoteProperty -Name SSHPort -Value 3389 -Force
+            Add-Member -InputObject $objNode -MemberType NoteProperty -Name RDPPort -Value 3389 -Force
         }
         else{
             Add-Member -InputObject $objNode -MemberType NoteProperty -Name SSHPort -Value 22 -Force
