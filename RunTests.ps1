@@ -97,33 +97,6 @@ Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1"
 	ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking}
 
 try {
-	# Copy required binary files to working folder
-	$CurrentDirectory = Get-Location
-	$CmdArray = @('7za.exe','dos2unix.exe','gawk','jq','plink.exe','pscp.exe', `
-				  'kvp_client32','kvp_client64')
-
-	if ($XMLSecretFile) {
-		$WebClient = New-Object System.Net.WebClient
-		$xmlSecret = [xml](Get-Content $XMLSecretFile)
-		$toolFileAccessLocation = $xmlSecret.secrets.blobStorageLocation
-	}
-
-	$CmdArray | ForEach-Object {
-		# Verify the binary file in Tools location
-		if ( Test-Path $CurrentDirectory/Tools/$_ ) {
-			Write-Output "$_ file found in Tools folder."
-		} elseif (! $toolFileAccessLocation) {
-			Throw "$_ file is not found, please either download the file to Tools folder, or specify the blobStorageLocation in XMLSecretFile"
-		} else {
-			Write-Output "$_ file not found in Tools folder."
-			Write-Output "Downloading required files from blob Storage Location"
-
-			$WebClient.DownloadFile("$toolFileAccessLocation/$_","$CurrentDirectory\Tools\$_")
-
-			# Successfully downloaded files
-			Write-Output "File $_ successfully downloaded in Tools folder: $_."
-		}
-	}
 
 	#region Prepare / Clean the powershell console.
 	$MaxDirLength = 32
@@ -172,6 +145,9 @@ try {
 		Set-Variable -Name $VerboseCommand -Value "" -Scope Global
 	}
 	#endregion
+
+	#Download the tools required for LISAv2 execution.
+	Get-LISAv2Tools -XMLSecretFile $XMLSecretFile
 
 	# Validate the test parameters.
 	Validate-Parameters
@@ -405,7 +381,7 @@ try {
 	$out = ZipFiles -zipfilename $zipFile -sourcedir $LogDir
 
 	if ($out -match "Everything is Ok") {
-		LogMsg "$currentDir\$zipfilename created successfully."
+		LogMsg "$WorkingDirectory\$zipfilename created successfully."
 	}
 
 	try {
