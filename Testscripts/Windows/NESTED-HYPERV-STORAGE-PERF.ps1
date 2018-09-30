@@ -135,21 +135,16 @@ function Start-TestExecution ($ip, $port, $username, $passwd)
 	RunLinuxCmd -ip $ip -port  $port -username $username -password $passwd -command $cmd -runAsSudo
 }
 
-function Send-ResultToDatabase ($xmlConfig, $logDir, $session)
+function Get-SQLQueryOfNestedHyperv ($xmlConfig, $logDir, $session)
 {
-	LogMsg "Uploading the test results.."
-	$dataSource = $xmlConfig.config.$TestPlatform.database.server
-	$DBuser = $xmlConfig.config.$TestPlatform.database.user
-	$DBpassword = $xmlConfig.config.$TestPlatform.database.password
-	$database = $xmlConfig.config.$TestPlatform.database.dbname
-	$dataTableName = $xmlConfig.config.$TestPlatform.database.dbtable
-	$TestCaseName = $xmlConfig.config.$TestPlatform.database.testTag
-	if ($dataSource -And $DBuser -And $DBpassword -And $database -And $dataTableName)
+	try
 	{
+		LogMsg "Getting the SQL query of test results.."
+		$dataTableName = $xmlConfig.config.$TestPlatform.database.dbtable
+		$TestCaseName = $xmlConfig.config.$TestPlatform.database.testTag
 		Import-Csv -Path $LogDir\maxIOPSforMode.csv
 		Import-Csv -Path $LogDir\maxIOPSforBlockSize.csv
 		$fioDataCsv = Import-Csv -Path $LogDir\fioData.csv
-
 		$HostType = $TestPlatform
 		if ($TestPlatform -eq "hyperV")
 		{
@@ -218,10 +213,8 @@ function Send-ResultToDatabase ($xmlConfig, $logDir, $session)
 				$RaidOption = $param.Replace("RaidOption=","").Replace("'","")
 			}
 		}
-		$connectionString = "Server=$dataSource;uid=$DBuser; pwd=$DBpassword;Database=$database;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
 
 		$SQLQuery = "INSERT INTO $dataTableName (TestCaseName,TestDate,HostType,HostBy,HostOS,L1GuestOSType,L1GuestDistro,L1GuestSize,L1GuestKernelVersion,L2GuestDistro,L2GuestKernelVersion,L2GuestCpuNum,L2GuestMemMB,DiskSetup,RaidOption,BlockSize_KB,QDepth,seq_read_iops,seq_read_lat_usec,rand_read_iops,rand_read_lat_usec,seq_write_iops,seq_write_lat_usec,rand_write_iops,rand_write_lat_usec) VALUES "
-
 		for ( $QDepth = $startThread; $QDepth -le $maxThread; $QDepth *= 2 )
 		{
 			$seq_read_iops = [Float](($fioDataCsv |  Where-Object { $_.TestType -eq "read" -and  $_.Threads -eq "$QDepth"} | Select-Object ReadIOPS).ReadIOPS)
@@ -239,26 +232,17 @@ function Send-ResultToDatabase ($xmlConfig, $logDir, $session)
 			$BlockSize_KB= [Int]((($fioDataCsv |  Where-Object { $_.Threads -eq "$QDepth"} | Select-Object BlockSize)[0].BlockSize).Replace("K",""))
 
 			$SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$HostType','$HostBy','$HostOS','$L1GuestOSType','$L1GuestDistro','$L1GuestSize','$L1GuestKernelVersion','$L2GuestDistro','$L2GuestKernelVersion','$L2GuestCpuNum','$L2GuestMemMB','$DiskSetup','$RaidOption','$BlockSize_KB','$QDepth','$seq_read_iops','$seq_read_lat_usec','$rand_read_iops','$rand_read_lat_usec','$seq_write_iops','$seq_write_lat_usec','$rand_write_iops','$rand_write_lat_usec'),"
-			LogMsg "Collected performace data for $QDepth QDepth."
 		}
-
 		$SQLQuery = $SQLQuery.TrimEnd(',')
-		LogMsg "SQLQuery:"
-		LogMsg "$SQLQuery"
-		$connection = New-Object System.Data.SqlClient.SqlConnection
-		$connection.ConnectionString = $connectionString
-		$connection.Open()
-
-		$command = $connection.CreateCommand()
-		$command.CommandText = $SQLQuery
-
-		$command.executenonquery()
-		$connection.Close()
-		LogMsg "Uploading the test results done!!"
+		LogMsg "Getting the SQL query of test results:  done"
+		return $SQLQuery
 	}
-	else
+	catch
 	{
-		LogMsg "Database details are not provided. Results will not be uploaded to database!!"
+		LogErr "Getting the SQL query of test results:  ERROR"
+		$errorMessage =  $_.Exception.Message
+		$ErrorLine = $_.InvocationInfo.ScriptLineNumber
+		LogMsg "EXCEPTION : $errorMessage at line: $ErrorLine"
 	}
 }
 
@@ -609,7 +593,11 @@ function Main()
 				}
 			}
 
-			Send-ResultToDatabase -xmlConfig $xmlConfig -logDir $LogDir -session $session
+			$nestedHypervSQLQuery = Get-SQLQueryOfNestedHyperv -xmlConfig $xmlConfig -logDir $LogDir -session $session
+			if($nestedHypervSQLQuery)
+			{
+				UploadTestResultToDatabase -SQLQuery $nestedHypervSQLQuery
+			}
 		}
 	}
 	catch

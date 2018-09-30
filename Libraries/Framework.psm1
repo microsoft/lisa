@@ -934,69 +934,96 @@ Function CreateArrayOfTabs()
 	return $tab
 }
 
-Function UploadTestResultToDatabase ($TestPlatform,$TestLocation,$TestCategory,$TestArea,$TestName,$CurrentTestResult,$ExecutionTag,$GuestDistro,$KernelVersion,$LISVersion,$HostVersion,$VMSize,$Networking,$ARMImage,$OsVHD,$LogFile,$BuildURL)
+Function Get-SQLQueryOfTelemetryData ($TestPlatform,$TestLocation,$TestCategory,$TestArea,$TestName,$CurrentTestResult,$ExecutionTag,$GuestDistro,$KernelVersion,$LISVersion,$HostVersion,$VMSize,$Networking,$ARMImage,$OsVHD,$LogFile,$BuildURL)
 {
 	if ( $EnableTelemetry )
 	{
-		if ($XmlSecrets)
+		try
+		{
+			$TestResult = $CurrentTestResult.TestResult
+			$TestSummary = $CurrentTestResult.TestSummary
+			$UTCTime = (Get-Date).ToUniversalTime()
+			$DateTimeUTC = "$($UTCTime.Year)-$($UTCTime.Month)-$($UTCTime.Day) $($UTCTime.Hour):$($UTCTime.Minute):$($UTCTime.Second)"
+			$GlobalConfiguration = [xml](Get-Content .\XML\GlobalConfigurations.xml)
+			$TestTag = $GlobalConfiguration.Global.$TestPlatform.ResultsDatabase.testTag
+			$testLogStorageAccount = $XmlSecrets.secrets.testLogsStorageAccount
+			$testLogStorageAccountKey = $XmlSecrets.secrets.testLogsStorageAccountKey
+			$testLogFolder = "$($UTCTime.Year)-$($UTCTime.Month)-$($UTCTime.Day)"
+			$ticks= (Get-Date).Ticks
+			$uploadFileName = ".\Temp\$($TestName)-$ticks.zip"
+			$out = ZipFiles -zipfilename $uploadFileName -sourcedir $LogDir
+			$UploadedURL = .\Utilities\UploadFilesToStorageAccount.ps1 -filePaths $uploadFileName -destinationStorageAccount $testLogStorageAccount -destinationContainer "lisav2logs" -destinationFolder "$testLogFolder" -destinationStorageKey $testLogStorageAccountKey
+			if ( $BuildURL )
+			{
+				$BuildURL = "$BuildURL`consoleFull"
+			}
+			else
+			{
+				$BuildURL = ""
+			}
+			if ( $TestPlatform -eq "HyperV")
+			{
+				$TestLocation = ($GlobalConfiguration.Global.$TestPlatform.Hosts.ChildNodes[0].ServerName).ToLower()
+			}
+			elseif ($TestPlatform -eq "Azure")
+			{
+				$TestLocation = $TestLocation.ToLower()
+			}
+			$dataTableName = "LISAv2Results"
+			$SQLQuery = "INSERT INTO $dataTableName (DateTimeUTC,TestPlatform,TestLocation,TestCategory,TestArea,TestName,TestResult,SubTestName,SubTestResult,ExecutionTag,GuestDistro,KernelVersion,LISVersion,HostVersion,VMSize,Networking,ARMImage,OsVHD,LogFile,BuildURL) VALUES "
+			$SQLQuery += "('$DateTimeUTC','$TestPlatform','$TestLocation','$TestCategory','$TestArea','$TestName','$testResult','','','$ExecutionTag','$GuestDistro','$KernelVersion','$LISVersion','$HostVersion','$VMSize','$Networking','$ARMImageName','$OsVHD','$UploadedURL', '$BuildURL'),"
+			if ($TestSummary)
+			{
+				foreach ($tempResult in $TestSummary.Split('>'))
+				{
+					if ($tempResult)
+					{
+						$tempResult = $tempResult.Trim().Replace("<br /","").Trim()
+						$subTestResult = $tempResult.Split(":")[$tempResult.Split(":").Count -1 ].Trim()
+						$subTestName = $tempResult.Replace("$subTestResult","").Trim().TrimEnd(":").Trim()
+						$SQLQuery += "('$DateTimeUTC','$TestPlatform','$TestLocation','$TestCategory','$TestArea','$TestName','$testResult','$subTestName','$subTestResult','$ExecutionTag','$GuestDistro','$KernelVersion','$LISVersion','$HostVersion','$VMSize','$Networking','$ARMImageName','$OsVHD','$UploadedURL', '$BuildURL'),"
+					}
+				}
+			}
+			$SQLQuery = $SQLQuery.TrimEnd(',')
+			LogMsg "Get the SQL query of test results:  done"
+			return $SQLQuery
+		}
+		catch
+		{
+			LogErr "Get the SQL query of test results:  ERROR"
+			$line = $_.InvocationInfo.ScriptLineNumber
+			$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
+			$ErrorMessage =  $_.Exception.Message
+			LogMsg "EXCEPTION : $ErrorMessage"
+			LogMsg "Source : Line $line in script $script_name."
+		}
+	}
+	else
+	{
+		return $null
+	}
+}
+
+
+Function UploadTestResultToDatabase ($SQLQuery)
+{
+	if ( $XmlSecrets )
+	{
+		$dataSource = $XmlSecrets.secrets.DatabaseServer
+		$dbuser = $XmlSecrets.secrets.DatabaseUser
+		$dbpassword = $XmlSecrets.secrets.DatabasePassword
+		$database = $XmlSecrets.secrets.DatabaseName
+
+		if ( $dataSource -and $dbuser -and $dbpassword -and $database )
 		{
 			try
 			{
-				$TestResult = $CurrentTestResult.TestResult
-				$TestSummary = $CurrentTestResult.TestSummary
-				$UTCTime = (Get-Date).ToUniversalTime()
-				$DateTimeUTC = "$($UTCTime.Year)-$($UTCTime.Month)-$($UTCTime.Day) $($UTCTime.Hour):$($UTCTime.Minute):$($UTCTime.Second)"
-				$GlobalConfiguration = [xml](Get-Content .\XML\GlobalConfigurations.xml)
-				$TestTag = $GlobalConfiguration.Global.$TestPlatform.ResultsDatabase.testTag
-				$testLogStorageAccount = $XmlSecrets.secrets.testLogsStorageAccount
-				$testLogStorageAccountKey = $XmlSecrets.secrets.testLogsStorageAccountKey
-				$testLogFolder = "$($UTCTime.Year)-$($UTCTime.Month)-$($UTCTime.Day)"
-				$ticks= (Get-Date).Ticks
-				$uploadFileName = ".\Temp\$($TestName)-$ticks.zip"
-				$out = ZipFiles -zipfilename $uploadFileName -sourcedir $LogDir
-				$UploadedURL = .\Utilities\UploadFilesToStorageAccount.ps1 -filePaths $uploadFileName -destinationStorageAccount $testLogStorageAccount -destinationContainer "lisav2logs" -destinationFolder "$testLogFolder" -destinationStorageKey $testLogStorageAccountKey
-				if ( $BuildURL )
-				{
-					$BuildURL = "$BuildURL`consoleFull"
-				}
-				else 
-				{
-					$BuildURL = ""	
-				}
-				if ( $TestPlatform -eq "HyperV")
-				{
-					$TestLocation = ($GlobalConfiguration.Global.$TestPlatform.Hosts.ChildNodes[0].ServerName).ToLower()
-				}
-				elseif ($TestPlatform -eq "Azure")
-				{
-					$TestLocation = $TestLocation.ToLower()
-				}
-				$dataSource = $XmlSecrets.secrets.DatabaseServer
-				$dbuser = $XmlSecrets.secrets.DatabaseUser
-				$dbpassword = $XmlSecrets.secrets.DatabasePassword
-				$database = $XmlSecrets.secrets.DatabaseName
-				$dataTableName = "LISAv2Results"
-				$SQLQuery = "INSERT INTO $dataTableName (DateTimeUTC,TestPlatform,TestLocation,TestCategory,TestArea,TestName,TestResult,SubTestName,SubTestResult,ExecutionTag,GuestDistro,KernelVersion,LISVersion,HostVersion,VMSize,Networking,ARMImage,OsVHD,LogFile,BuildURL) VALUES "
-				$SQLQuery += "('$DateTimeUTC','$TestPlatform','$TestLocation','$TestCategory','$TestArea','$TestName','$testResult','','','$ExecutionTag','$GuestDistro','$KernelVersion','$LISVersion','$HostVersion','$VMSize','$Networking','$ARMImageName','$OsVHD','$UploadedURL', '$BuildURL'),"
-				if ($TestSummary)
-				{
-					foreach ($tempResult in $TestSummary.Split('>'))
-					{
-						if ($tempResult)
-						{
-							$tempResult = $tempResult.Trim().Replace("<br /","").Trim()
-							$subTestResult = $tempResult.Split(":")[$tempResult.Split(":").Count -1 ].Trim()
-							$subTestName = $tempResult.Replace("$subTestResult","").Trim().TrimEnd(":").Trim()
-							$SQLQuery += "('$DateTimeUTC','$TestPlatform','$TestLocation','$TestCategory','$TestArea','$TestName','$testResult','$subTestName','$subTestResult','$ExecutionTag','$GuestDistro','$KernelVersion','$LISVersion','$HostVersion','$VMSize','$Networking','$ARMImageName','$OsVHD','$UploadedURL', '$BuildURL'),"
-						}
-					}
-				}
-				$SQLQuery = $SQLQuery.TrimEnd(',')
+				LogMsg "SQLQuery:  $SQLQuery"
 				$connectionString = "Server=$dataSource;uid=$dbuser; pwd=$dbpassword;Database=$database;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
 				$connection = New-Object System.Data.SqlClient.SqlConnection
 				$connection.ConnectionString = $connectionString
 				$connection.Open()
-				LogMsg $SQLQuery
 				$command = $connection.CreateCommand()
 				$command.CommandText = $SQLQuery
 				$result = $command.executenonquery()
@@ -1004,19 +1031,23 @@ Function UploadTestResultToDatabase ($TestPlatform,$TestLocation,$TestCategory,$
 				LogMsg "Uploading test results to database :  done!!"
 			}
 			catch
-			{			
+			{
 				LogErr "Uploading test results to database :  ERROR"
 				$line = $_.InvocationInfo.ScriptLineNumber
 				$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
 				$ErrorMessage =  $_.Exception.Message
 				LogMsg "EXCEPTION : $ErrorMessage"
-				LogMsg "Source : Line $line in script $script_name."			
+				LogMsg "Source : Line $line in script $script_name."
 			}
 		}
-		else 
+		else
 		{
-			LogErr "Unable to send telemetry data to Azure. XML Secrets file not provided."	
+			LogErr "Database details are not provided. Results will not be uploaded to database!!"
 		}
+	}
+	else
+	{
+		LogErr "Unable to send telemetry data to Azure. XML Secrets file not provided."
 	}
 }
 
