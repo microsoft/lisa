@@ -9,26 +9,27 @@ function Main {
 		if ($allVMData.Count -eq 0) {
 			throw "DPDK-TESTCASE-DRIVER requires at least one VM"
 		}
-
 		$masterVM = $allVMData[0]
-		$vmId = 0
-		$ipAddrs = ""
-		foreach ($vmData in $allVMData) {
-			LogMsg "VM $vmId details :"
-			LogMsg "  RoleName : $($vmData.RoleName)"
-			LogMsg "  Public IP : $($vmData.PublicIP)"
-			LogMsg "  SSH Port : $($vmData.SSHPort)"
-			LogMsg "  Internal IP : $($vmData.InternalIP)"
-
-			$ipAddrs = "$ipAddrs $($vmData.InternalIP)"
-			++$vmId
-		}
 
 		# enables root access and key auth
 		ProvisionVMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
 
 		LogMsg "Generating constansts.sh ..."
 		$constantsFile = "$LogDir\constants.sh"
+
+		$ipAddrs = ""
+		foreach ($vmData in $allVMData) {
+			$roleName = $vmData.RoleName
+			$internalIp = $vmData.InternalIP
+
+			LogMsg "VM $roleName details :"
+			LogMsg "  Public IP : $($vmData.PublicIP)"
+			LogMsg "  SSH Port : $($vmData.SSHPort)"
+			LogMsg "  Internal IP : $internalIp"
+
+			$ipAddrs = "$ipAddrs $internalIp"
+			Add-Contnet -Value "$roleName=$internalIp" -Path $constantsFile
+		}
 
 		# separate user provided files source ps1s now
 		# add sh to constants.sh to be sourced on VM
@@ -65,7 +66,11 @@ cd /root/
 . utils.sh
 collect_VM_properties
 "@
-		Set-Content "$LogDir\StartDpdkTestPmd.sh" $myString
+		Set-content "$LogDir\StartDpdkTestPmd.sh" $myString
+		# upload updated constants file to all VMs
+		foreach ($vmData in $allVMData) {
+			RemoteCopy -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files ".\$constantsFile" -username "root" -password $password -upload
+		}
 		RemoteCopy -uploadTo $masterVM.PublicIP -port $masterVM.SSHPort -files ".\$constantsFile,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkUtils.sh,.\Testscripts\Linux\dpdkSetupAndRunTest.sh,.\$LogDir\StartDpdkTestPmd.sh" -username "root" -password $password -upload
 		# upload user specified file from Testcase.xml to root's home
 		RemoteCopy -uploadTo $masterVM.PublicIP -port $masterVM.SSHPort -files $bashFilePaths -username "root" -password $password -upload

@@ -13,6 +13,8 @@
 #
 #############################################################################
 
+# Below functions intended to aid dpdkSetupAndRunTest
+
 # Requires:
 #   - UtilsInit has been called
 #   - SSH by root, passwordless login, and no StrictHostChecking. Basically have ran
@@ -132,34 +134,6 @@ function install_dpdk_dependencies() {
 }
 
 # Requires:
-#   - called only from dpdk top level directory
-#   - see install_dpdk() requires
-#   - type [SRC | DST], install ip, and testpmd ip to configure as arguments in that order
-function testpmd_ip_setup() {
-    if [ -z "${1}" -o -z "${2}" -o -z "${3}" ]; then
-        LogErr "ERROR: must provide ip type as SRC or DST, install ip, and testpmd ip to testpmd_ip_setup()"
-        SetTestStateAborted
-        exit 1
-    fi
-
-    local ip_type=${1}
-    if [ "${ip_type}" != "SRC" -a "${ip_type}" != "DST" ]; then
-        LogErr "ERROR: ip type invalid use SRC or DST testpmd_ip_setup()"
-        SetTestStateAborted
-        exit 1
-    fi
-
-    local install_ip=${2}
-    local ip_for_testpmd=${3}
-
-    local ip_arr=($(echo ${ip_for_testpmd} | sed "s/\./ /g"))
-    local ip_addr="define IP_${ip_type}_ADDR ((${ip_arr[0]}U << 24) | (${ip_arr[1]} << 16) | ( ${ip_arr[2]} << 8) | ${ip_arr[3]})"
-    local ip_config_cmd="sed -i 's/define IP_${ip_type}_ADDR.*/${ip_addr}/' ${LIS_HOME}/${dpdk_dir}/app/test-pmd/txonly.c"
-    LogMsg "ssh ${install_ip} ${ip_config_cmd}"
-    ssh ${install_ip} ${ip_config_cmd}
-}
-
-# Requires:
 #   - basic environ i.e. have called UtilsInit
 #   - ${1} dpdk install target ip
 #   - SSH by root, passwordless login, and no StrictHostChecking. Basically have ran
@@ -202,6 +176,7 @@ function install_dpdk() {
 
     if [[ $DPDK_LINK =~ .tar ]]; then
         local dpdk_dir="dpdk-$(echo ${DPDK_LINK} | grep -Po "(\d+\.)+\d+")"
+        ssh ${install_ip} "mkdir $dpdk_dir"
         ssh ${install_ip} "wget -O - ${DPDK_LINK} | tar -xJ -C ${dpdk_dir} --strip-components=1"
     elif [[ $DPDK_LINK =~ ".git" ]] || [[ $DPDK_LINK =~ "git:" ]]; then
 		local dpdk_dir="${DPDK_LINK##*/}"
@@ -214,12 +189,46 @@ function install_dpdk() {
     ssh ${install_ip} "sed -ri 's,(MLX._PMD=)n,\1y,' ${LIS_HOME}/${dpdk_dir}/build/.config"
 
     if type dpdk_configure > /dev/null; then
-        echo "Calling testcase provided dpdk_configure() function"
-        dpdk_configure
+        echo "Calling testcase provided dpdk_configure(install_ip) on ${install_ip}"
+        ssh ${install_ip} ". constants.sh; . utils.sh; . dpdkUtils.sh; cd ${LIS_HOME}/${dpdk_dir}; $(typeset -f dpdk_configure); dpdk_configure ${install_ip}"
     fi
 
     ssh ${install_ip} "cd ${LIS_HOME}/${dpdk_dir} && make -j"
     ssh ${install_ip} "cd ${LIS_HOME}/${dpdk_dir} && make install"
 
     LogMsg "Finished installing dpdk on ${install_ip}"
+}
+
+# Below function(s) intended for use by a testcase provided dpdk_configure() function:
+#   - dpdk_configure() lets testcase configure dpdk before compilation
+#   - when called, it is gauranteed to have contants.sh, utils, and dpdkUtils.sh
+#     sourced; it will be called on the target machine in dpdk top level dir,
+#     and it will be passed target machine's ip
+#   - UtilsInit is not called in this environment
+
+# Requires:
+#   - called only from dpdk top level directory
+#   - type [SRC | DST] and testpmd ip to configure as arguments
+#   - configures this machine's testpmd
+function testpmd_ip_setup() {
+    if [ -z "${1}" -o -z "${2}" ]; then
+        LogErr "ERROR: must provide ip type as SRC or DST and testpmd ip to testpmd_ip_setup()"
+        SetTestStateAborted
+        exit 1
+    fi
+
+    local ip_type=${1}
+    if [ "${ip_type}" != "SRC" -a "${ip_type}" != "DST" ]; then
+        LogErr "ERROR: ip type invalid use SRC or DST testpmd_ip_setup()"
+        SetTestStateAborted
+        exit 1
+    fi
+
+    local ip_for_testpmd=${2}
+
+    local ip_arr=($(echo ${ip_for_testpmd} | sed "s/\./ /g"))
+    local ip_addr="define IP_${ip_type}_ADDR ((${ip_arr[0]}U << 24) | (${ip_arr[1]} << 16) | (${ip_arr[2]} << 8) | ${ip_arr[3]})"
+    local ip_config_cmd="sed -i 's/define IP_${ip_type}_ADDR.*/${ip_addr}/' app/test-pmd/txonly.c"
+    LogMsg "${ip_config_cmd}"
+    eval "${ip_config_cmd}"
 }

@@ -16,29 +16,28 @@
 
 # Requires
 #   - called by install_dpdk in dpdk top level dir
+#   - first argument is install_ip
 function dpdk_configure() {
-    if [ -n "${IP_ADDRS}" ]; then
-        local client=$(echo ${IP_ADDRS} | awk '{print $1}')
-        local server=$(echo ${IP_ADDRS} | awk '{print $2}')
-        local current_vm_ips=$(hostname -I)
+    if [ -z "${1}" ]; then
+        LogErr "ERROR: Must provide install_ip to dpdk_configure"
+        SetTestStateAborted
+        exit 1
+    fi
 
-        for ip in ${current_vm_ips}; do
-            if [ "${ip}" = "${client}" ]; then
-                local dpdk_ip_cmd="hostname -I | awk '{print $2}'"
-                local client_dpdk_ip=$(eval ${dpdk_ip_cmd})
-                local server_dpdk_ip=$(ssh ${server} "${dpdk_ip_cmd}")
+    if [ "${1}" = "${client}" ]; then
+        local dpdk_ips_cmd="hostname -I"
+        local client_dpdk_ips=($(eval ${dpdk_ips_cmd}))
+        local server_dpdk_ips=($(ssh ${server} "${dpdk_ips_cmd}"))
 
-                testpmd_ip_setup "SRC" ${client} ${client_dpdk_ip}
-                testpmd_ip_setup "DST" ${client} ${server_dpdk_ip}
-            fi
-        done
+        testpmd_ip_setup "SRC" "${client_dpdk_ips[1]}"
+        testpmd_ip_setup "DST" "${server_dpdk_ips[1]}"
     fi
 }
 
 # Requires
 #   - UtilsInit
 #   - core, modes, and test_duration as arguments in that order
-#   - LOG_DIR and IP_ADDRS to be defined
+#   - LOG_DIR and server to be defined
 function run_testpmd() {
     if [ -z "${1}" -o -z "${2}" -o -z "${3}" ]; then
         LogErr "ERROR: Must provide core, modes, test_duration as arguments in that order to run_testpmd()"
@@ -46,12 +45,11 @@ function run_testpmd() {
         exit 1
     fi
 
-    if [ -z "${LIS_HOME}" -o -z "${LOG_DIR}" -o -z "${IP_ADDRS}" ]; then
-        LogErr "ERROR: LIS_HOME, LOG_DIR, and IP_ADDRS must be defined in environment"
+    if [ -z "${LIS_HOME}" -o -z "${LOG_DIR}" -o -z "${server}" ]; then
+        LogErr "ERROR: LIS_HOME, LOG_DIR, and server must be defined in environment"
         SetTestStateAborted
         exit 1
     fi
-    local server=$(echo ${IP_ADDRS} | awk '{print $2}')
 
     local core=${1}
     local modes=${2}
@@ -169,7 +167,7 @@ function run_testcase() {
     fi
 
     if [ -z "${MODES}" ]; then
-        MODES="rxonly fwd"
+        MODES="rxonly io"
         LogMsg "MODES parameter not found in environment; using default ${MODES}"
     fi
 

@@ -18,23 +18,25 @@ function dpdk_setup() {
         exit 1
     fi
 
-    for $ip in $IP_ADDRS; do
+    local ip
+    for ip in $IP_ADDRS; do
         install_dpdk ${ip} &
-        local last_pid=$!
+        local pids="$pids $!"
     done
-    wait $last_pid
+    wait $pids
 
-    for $ip in $IP_ADDRS; do
+    for ip in $IP_ADDRS; do
         hugepage_setup ${ip} &
-        local last_pid=$!
+        local pids="$pids $!"
     done
-    wait $last_pid
+    wait $pids
 
-    for $ip in $IP_ADDRS; do
+    for ip in $IP_ADDRS; do
         modprobe_setup ${ip} &
-        local last_pid=$!
+        local pids="$pids $!"
     done
-    wait $last_pid
+    wait $pids
+    sleep 2
 }
 
 # Source utils.sh
