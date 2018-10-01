@@ -43,4 +43,53 @@
         <Area>Stress</Area>
         <Tags>stress</Tags>
     </test>
+    <test>
+        <testName>STRESSTEST-SYSBENCH</testName>
+        <testScript>Sysbench.sh</testScript>
+        <files>.\TestScripts\Linux\Sysbench.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>TEST_FILE=(seqwr seqrewr seqrd rndrd rndwr rndrw)</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Stress</Category>
+        <Area>stress</Area>
+        <Tags>stress</Tags>
+    </test>
+    <test>
+        <testName>STRESSTEST-CHANGE-MTU-RELOAD-NETVSC</testName>
+        <testScript>STRESS-MTU-Netvsc-Reload.ps1</testScript>
+        <setupType>SingleVM</setupType>
+        <Platform>HyperV</Platform>
+        <Category>Stress</Category>
+        <Area>stress</Area>
+        <Tags>stress</Tags>
+    </test>
+    <test>
+        <testName>STRESSTEST-BOOT-VM-LARGE-MEMORY</testName>
+        <setupScript>.\TestScripts\Windows\Set-VM-Memory.ps1</setupScript>
+        <testScript>STRESS-BootLargeMemory.ps1</testScript>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>staticMem=true</param>
+            <param>memWeight=100</param>
+            <param>VMMemory=69632MB</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Stress</Category>
+        <Area>stress</Area>
+        <Tags>stress</Tags>
+    </test>
+    <test>
+        <testName>STRESSTEST-EventId-18602-Regression</testName>
+        <testScript>STRESS-EventID-18602-Regression.ps1</testScript>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>count=100</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Stress</Category>
+        <Area>stress</Area>
+        <Tags>stress</Tags>
+    </test>
 </TestCases>
