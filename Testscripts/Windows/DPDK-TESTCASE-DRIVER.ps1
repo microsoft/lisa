@@ -42,8 +42,7 @@ function Main {
 				$fileName = $filePath.Split("\")[$filePath.Split("\").count - 1]
 				$bashFileNames = "$bashFileNames$fileName "
 			} elseif ($fileExt -eq "ps1") {
-				# source user provided file for `prepareParameters`
-				#   and `verifyPerf` calls
+				# source user provided file for `Verify-Performance`
 				. $filePath
 			} else {
 				throw "user provided unsupported file type"

@@ -18,22 +18,25 @@
 #   - SSH by root, passwordless login, and no StrictHostChecking. Basically have ran
 #     enableRoot.sh and enablePasswordLessRoot.sh from Testscripts/Linux
 # Effects:
-#    Configures hugepages on local machine and IP if provided
+#    Configures hugepages on machine at IP provided
 function hugepage_setup() {
-    # if huge mnt point already exists still complete rest of cmd
+    if [ -z "${1}" ]; then
+        LogErr "ERROR: must provide target ip to hugepage_setup()"
+        SetTestStateAborted
+        exit 1
+    fi
+
+    CheckIP ${1}
+    if [ $? -eq 1 ]; then
+        LogErr "ERROR: must pass valid ip to hugepage_setup()"
+        SetTestStateAborted
+        exit 1
+    fi
+
     local hugepage_cmd="mkdir -p /mnt/huge; mount -t hugetlbfs nodev /mnt/huge && \
         echo 4096 | tee /sys/devices/system/node/node*/hugepages/hugepages-2048kB/nr_hugepages > /dev/null"
 
-    eval ${hugepage_cmd}
-    if [ -n "${1}" ]; then
-        CheckIP ${1}
-        if [ $? -eq 1 ]; then
-            LogErr "ERROR: must pass valid ip to hugepage_setup()"
-            SetTestStateAborted
-            exit 1
-        fi
-        ssh ${1} "${hugepage_cmd}"
-    fi
+    ssh ${1} "${hugepage_cmd}"
 }
 
 # Requires:
@@ -41,25 +44,90 @@ function hugepage_setup() {
 #   - SSH by root, passwordless login, and no StrictHostChecking. Basically have ran
 #     enableRoot.sh and enablePasswordLessRoot.sh from Testscripts/Linux
 # Effects:
-#    modprobes required mods for dpdk on local machine and IP if provided
+#    modprobes required modules for dpdk on machine at IP provided
 function modprobe_setup() {
+    if [ -z "${1}" ]; then
+        LogErr "ERROR: must provide target ip to modprobe_setup()"
+        SetTestStateAborted
+        exit 1
+    fi
+
+    CheckIP ${1}
+    if [ $? -eq 1 ]; then
+        LogErr "ERROR: must pass valid ip to modprobe_setup()"
+        SetTestStateAborted
+        exit 1
+    fi
+
     local modprobe_cmd="modprobe -a ib_uverbs"
-    
     # known issue on sles15
     local distro=$(detect_linux_distribution)$(detect_linux_distribution_version)
     if [[ "${distro}" == "sles15" ]]; then
-        modprobe_cmd="${modprobe_cmd} mlx4_ib"
+        modprobe_cmd="${modprobe_cmd} mlx4_ib mlx5_ib"
     fi
 
-    eval ${modprobe_cmd}
-    if [ -n "${1}" ]; then
-        CheckIP ${1}
-        if [ $? -eq 1 ]; then
-            LogErr "ERROR: must pass valid ip to modprobe_setup()"
+    ssh ${1} "${modprobe_cmd}"
+}
+
+# Helper function to install_dpdk()
+# Requires:
+#   - called only from install_dpdk()
+#   - see install_dpdk() requires
+#   - arguments: ip, distro
+function install_dpdk_dependencies() {
+    if [ -z "${1}" -o -z "${2}" ]; then
+        LogErr "ERROR: must provide install ip and distro to install_dpdk_dependencies()"
+        SetTestStateAborted
+        exit 1
+    fi
+
+    local install_ip="${1}"
+    local distro="${2}"
+
+    CheckIP ${install_ip}
+    if [ $? -eq 1 ]; then
+        LogErr "ERROR: must pass valid ip to modprobe_setup()"
+        SetTestStateAborted
+        exit 1
+    fi
+
+    if [[ "${distro}" == ubuntu* ]]; then
+        if [[ "${distro}" == "ubuntu16.04" ]]; then
+            LogMsg "Detected ubuntu16.04"
+            ssh ${install_ip} "add-apt-repository ppa:canonical-server/dpdk-azure -y"
+        elif [[ "${distro}" == "ubuntu18.04" ]]; then
+            LogMsg "Detected ubuntu18.04"
+        else
+            LogErr "ERROR: unsupported ubuntu version for dpdk on Azure"
             SetTestStateAborted
             exit 1
         fi
-        ssh ${1} "${modprobe_cmd}"
+
+        ssh ${install_ip} "apt-get update"
+        ssh ${install_ip} "apt-get install -y librdmacm-dev librdmacm1 build-essential libnuma-dev libmnl-dev"
+
+    elif [[ "${distro}" == "rhel7.5" || "${distro}" == centos7.5* ]]; then
+        LogMsg "Detected (rhel/centos)7.5"
+
+        ssh ${install_ip} "yum -y groupinstall 'Infiniband Support'"
+        ssh ${install_ip} "dracut --add-drivers 'mlx4_en mlx4_ib mlx5_ib' -f"
+        ssh ${install_ip} "yum install -y gcc make git tar wget dos2unix psmisc kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel libmnl-devel"
+
+    elif [[ "${distro}" == "sles15" ]]; then
+        LogMsg "Detected sles15"
+
+        local kernel=$(uname -r)
+        if [[ "${kernel}" == *azure ]]; then
+            ssh ${install_ip} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install gcc make git tar wget dos2unix psmisc kernel-azure kernel-devel-azure libnuma-devel numactl librdmacm1 rdma-core-devel libmnl-devel"
+        else
+            ssh ${install_ip} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install gcc make git tar wget dos2unix psmisc kernel-default-devel libnuma-devel numactl librdmacm1 rdma-core-devel libmnl-devel"
+        fi
+
+        ssh ${install_ip} "ln -s /usr/include/libmnl/libmnl/libmnl.h /usr/include/libmnl/libmnl.h"
+    else
+        LogErr "ERROR: unsupported distro for dpdk on Azure"
+        SetTestStateAborted
+        exit 1
     fi
 }
 
@@ -148,60 +216,16 @@ function install_dpdk() {
     fi
 
     local distro=$(detect_linux_distribution)$(detect_linux_distribution_version)
-    if [[ "${distro}" == ubuntu* ]]; then
-        if [[ "${distro}" == "ubuntu16.04" ]]; then
-            LogMsg "Detected ubuntu16.04"
-            ssh ${install_ip} "add-apt-repository ppa:canonical-server/dpdk-azure -y"
-        elif [[ "${distro}" == "ubuntu18.04" ]]; then 
-            LogMsg "Detected ubuntu18.04"
-        else
-            LogErr "ERROR: unsupported ubuntu version for dpdk on Azure"
-            SetTestStateAborted
-            exit 1
-        fi
+    install_dpdk_dependencies $install_ip $distro
 
-        ssh ${install_ip} "apt-get update"
-        ssh ${install_ip} "apt-get install -y librdmacm-dev librdmacm1 build-essential libnuma-dev libmnl-dev"
-
-    elif [[ "${distro}" == "rhel7.5" || "${distro}" == centos7.5* ]]; then
-        LogMsg "Detected (rhel/centos)7.5"
-
-        ssh ${install_ip} "yum -y groupinstall 'Infiniband Support'"
-        ssh ${install_ip} "dracut --add-drivers 'mlx4_en mlx4_ib mlx5_ib' -f"
-        ssh ${install_ip} "yum install -y gcc make git tar wget dos2unix psmisc kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel libmnl-devel"
-
-    elif [[ "${distro}" == "sles15" ]]; then
-        LogMsg "Detected sles15"
-
-        local kernel=$(uname -r)
-        if [[ "${kernel}" == *azure ]]; then
-            ssh ${install_ip} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install gcc make git tar wget dos2unix psmisc kernel-azure kernel-devel-azure libnuma-devel numactl librdmacm1 rdma-core-devel libmnl-devel"
-        else
-            ssh ${install_ip} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install gcc make git tar wget dos2unix psmisc kernel-default-devel libnuma-devel numactl librdmacm1 rdma-core-devel libmnl-devel"
-        fi
-
-        ssh ${install_ip} "mv /usr/include/libmnl/libmnl/libmnl.h /usr/include/libmnl"
-    else 
-        LogErr "ERROR: unsupported distro for dpdk on Azure"
-        SetTestStateAborted
-        exit 1
-    fi
-
-    local dpdk_build=x86_64-native-linuxapp-gcc
     if [[ $DPDK_LINK =~ .tar ]]; then
-        local dpdk_tar="${DPDK_LINK##*/}"
-        LogMsg "Install dpdk from source tar ${dpdk_tar}"
-        ssh ${install_ip} "wget ${DPDK_LINK} -P /tmp"
-        ssh ${install_ip} "tar xvf /tmp/${dpdk_tar}"
-        local dpdk_dir=$(ssh ${install_ip} echo "${dpdk_tar%%".tar"*}")
-        LogMsg "dpdk source on ${install_ip} ${dpdk_dir}"
+        local dpdk_dir="dpdk-$(echo ${DPDK_LINK} | grep -Po "(\d+\.)+\d+")"
+        ssh ${install_ip} "wget -O - ${DPDK_LINK} | tar -xJ -C ${dpdk_dir} --strip-components=1"
     elif [[ $DPDK_LINK =~ ".git" ]] || [[ $DPDK_LINK =~ "git:" ]]; then
-		dpdk_dir="${DPDK_LINK##*/}"
-		LogMsg "Installing DPDK from source file $dpdk_dir"
-		ssh ${install_ip} git clone $DPDK_LINK
-		cd $dpdk_dir
-		LogMsg "dpdk source on ${install_ip} $dpdk_dir"
+		local dpdk_dir="${DPDK_LINK##*/}"
+		ssh ${install_ip} "git clone ${DPDK_LINK} ${dpdk_dir}"
 	fi
+    LogMsg "dpdk source on ${install_ip} at ${dpdk_dir}"
     
     if [ -n "${src_ip}" ]; then
         LogMsg "dpdk build with NIC SRC IP ${src_ip} ADDR on ${install_ip}"
@@ -214,7 +238,7 @@ function install_dpdk() {
     fi
 
     LogMsg "MLX_PMD flag enabling on ${install_ip}"
-    ssh ${install_ip} "cd ${LIS_HOME}/${dpdk_dir} && make config T=${dpdk_build}"
+    ssh ${install_ip} "cd ${LIS_HOME}/${dpdk_dir} && make config T=x86_64-native-linuxapp-gcc"
     ssh ${install_ip} "sed -ri 's,(MLX._PMD=)n,\1y,' ${LIS_HOME}/${dpdk_dir}/build/.config"
     ssh ${install_ip} "cd ${LIS_HOME}/${dpdk_dir} && make -j"
     ssh ${install_ip} "cd ${LIS_HOME}/${dpdk_dir} && make install"
