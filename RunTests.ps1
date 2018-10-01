@@ -173,6 +173,10 @@ try {
 	#Validate all XML files in working directory.
 	$allTests = CollectTestCases -TestXMLs $TestXMLs
 
+	if( !$allTests.innerXML ) {
+		Throw "Specified -TestNames or -TestCategory not found"
+	}
+
 	#region Create Test XML
 	$SetupTypes = $allTests.SetupType | Sort-Object | Get-Unique
 
