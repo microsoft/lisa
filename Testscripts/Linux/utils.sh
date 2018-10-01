@@ -3071,23 +3071,21 @@ declare DISTRO_VERSION=$(detect_linux_distribution_version)
 #   when starting from zero i.e. index 1 and 2 have no relation
 #   if captured output is empty then no VFs exist
 function get_synthetic_vf_pairs() {
-    all_ifs=$(ls /sys/class/net | grep -v lo)
     local ignore_if=$(ip route | grep default | awk '{print $5}')
+    local interfaces=$(ls /sys/class/net | grep -v lo | grep -v ${ignore_if})
 
     local synth_ifs=""
     local vf_ifs=""
     local interface
-    for interface in ${all_ifs}; do
-        if [ "${interface}" != "${ignore_if}" ]; then
-            # alternative is, but then must always know driver name
-            # readlink -f /sys/class/net/<interface>/device/driver/
-            local bus_addr=$(ethtool -i ${interface} | grep bus-info | awk '{print $2}')
-            if [ -z "${bus_addr}" ]; then
-                synth_ifs="${synth_ifs} ${interface}"
-            else
-                vf_ifs="${vf_ifs} ${interface}"
-            fi
-        fi
+    for interface in ${interfaces}; do
+		# alternative is, but then must always know driver name
+		# readlink -f /sys/class/net/<interface>/device/driver/
+		local bus_addr=$(ethtool -i ${interface} | grep bus-info | awk '{print $2}')
+		if [ -z "${bus_addr}" ]; then
+			synth_ifs="${synth_ifs} ${interface}"
+		else
+			vf_ifs="${vf_ifs} ${interface}"
+		fi
     done
 
     local synth_if

@@ -131,9 +131,8 @@ function install_dpdk_dependencies() {
     fi
 }
 
-# Helper function to install_dpdk()
 # Requires:
-#   - called only from install_dpdk()
+#   - called only from dpdk top level directory
 #   - see install_dpdk() requires
 #   - type [SRC | DST], install ip, and testpmd ip to configure as arguments in that order
 function testpmd_ip_setup() {
@@ -184,29 +183,12 @@ function install_dpdk() {
     fi
 
     CheckIP ${1}
-    local ip_1_invalid=${?}
-    local ip_2_invalid=0
-    local ip_3_invalid=0
-
-    if [ -n "${2}" ]; then
-        CheckIP ${2}
-        ip_2_invalid=${?}
-    fi
-
-    if [ -n "${3}" ]; then
-        CheckIP ${3}
-        ip_3_invalid=${?}
-    fi
-
-    if [ ${ip_1_invalid} -eq 1 -o ${ip_2_invalid} -eq 1 -o ${ip_3_invalid} -eq 1 ]; then
-        LogErr "ERROR: must provide valid IPs to install_dpdk()"
+    if [ $? -eq 1 ]; then
+        LogErr "ERROR: must pass valid ip to install_dpdk()"
         SetTestStateAborted
         exit 1
     fi
-
     local install_ip=${1}
-    local src_ip=${2}
-    local dst_ip=${3}
     LogMsg "Installing dpdk on ${install_ip}"
 
     # when available update to dpdk latest
@@ -227,19 +209,15 @@ function install_dpdk() {
 	fi
     LogMsg "dpdk source on ${install_ip} at ${dpdk_dir}"
     
-    if [ -n "${src_ip}" ]; then
-        LogMsg "dpdk build with NIC SRC IP ${src_ip} ADDR on ${install_ip}"
-        testpmd_ip_setup "SRC" ${install_ip} ${src_ip}
-    fi
-
-    if [ -n "${dst_ip}" ]; then
-        LogMsg "dpdk build with NIC DST IP ${dst_ip} ADDR on ${install_ip}"
-        testpmd_ip_setup "DST" ${install_ip} ${dst_ip}
-    fi
-
     LogMsg "MLX_PMD flag enabling on ${install_ip}"
     ssh ${install_ip} "cd ${LIS_HOME}/${dpdk_dir} && make config T=x86_64-native-linuxapp-gcc"
     ssh ${install_ip} "sed -ri 's,(MLX._PMD=)n,\1y,' ${LIS_HOME}/${dpdk_dir}/build/.config"
+
+    if type dpdk_configure > /dev/null; then
+        echo "Calling testcase provided dpdk_configure() function"
+        dpdk_configure
+    fi
+
     ssh ${install_ip} "cd ${LIS_HOME}/${dpdk_dir} && make -j"
     ssh ${install_ip} "cd ${LIS_HOME}/${dpdk_dir} && make install"
 

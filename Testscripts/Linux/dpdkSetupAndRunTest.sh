@@ -12,39 +12,29 @@
 #############################################################################
 
 function dpdk_setup() {
-    if [ -z "${CLIENT}" -o -z "${SERVER}" ]; then
-        LogErr "ERROR: CLIENT and SERVER must be defined in environment"
+    if [ -z "${IP_ADDRS}" ]; then
+        LogErr "ERROR: IP_ADDRS must be defined in environment"
         SetTestStateAborted
         exit 1
     fi
 
-    # work around for known issue of some distro's NICs not coming up with IP
-    local distro=$(detect_linux_distribution)$(detect_linux_distribution_version)
-    if [[ "${distro}" == "ubuntu18.04" || "${distro}" == "rhel7.5" ]]; then
-        LogMsg "Running dhcp for ${distro}; known issue"
-        local dhcp_cmd="dhclient eth1 eth2"
-        ssh ${SERVER} ${dhcp_cmd}
-        eval ${dhcp_cmd}
-    fi
+    for $ip in $IP_ADDRS; do
+        install_dpdk ${ip} &
+        local last_pid=$!
+    done
+    wait $last_pid
 
-    sleep 5
+    for $ip in $IP_ADDRS; do
+        hugepage_setup ${ip} &
+        local last_pid=$!
+    done
+    wait $last_pid
 
-    local client_ips=($(ssh ${CLIENT} "hostname -I | awk '{print ${1}}'"))
-    local server_ips=($(ssh ${SERVER} "hostname -I | awk '{print ${1}}'"))
-
-    local server_ip1=${server_ips[1]}
-    local client_ip1=${client_ips[1]}
-
-    install_dpdk ${CLIENT} ${client_ip1} ${server_ip1} &
-    local client_install_pid=$!
-
-    install_dpdk ${SERVER} ${server_ip1} ${client_ip1}
-
-    wait ${client_install_pid}
-
-    LogMsg "Setting up Hugepages and modprobing drivers"
-    hugepage_setup ${SERVER}
-    modprobe_setup ${SERVER}
+    for $ip in $IP_ADDRS; do
+        modprobe_setup ${ip} &
+        local last_pid=$!
+    done
+    wait $last_pid
 }
 
 # Source utils.sh

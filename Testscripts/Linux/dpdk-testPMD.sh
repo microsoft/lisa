@@ -15,9 +15,30 @@
 #############################################################################
 
 # Requires
+#   - called by install_dpdk in dpdk top level dir
+function dpdk_configure() {
+    if [ -n "${IP_ADDRS}" ]; then
+        local client=$(echo ${IP_ADDRS} | awk '{print $1}')
+        local server=$(echo ${IP_ADDRS} | awk '{print $2}')
+        local current_vm_ips=$(hostname -I)
+
+        for ip in ${current_vm_ips}; do
+            if [ "${ip}" = "${client}" ]; then
+                local dpdk_ip_cmd="hostname -I | awk '{print $2}'"
+                local client_dpdk_ip=$(eval ${dpdk_ip_cmd})
+                local server_dpdk_ip=$(ssh ${server} "${dpdk_ip_cmd}")
+
+                testpmd_ip_setup "SRC" ${client} ${client_dpdk_ip}
+                testpmd_ip_setup "DST" ${client} ${server_dpdk_ip}
+            fi
+        done
+    fi
+}
+
+# Requires
 #   - UtilsInit
 #   - core, modes, and test_duration as arguments in that order
-#   - LOG_DIR and SERVER to be defined
+#   - LOG_DIR and IP_ADDRS to be defined
 function run_testpmd() {
     if [ -z "${1}" -o -z "${2}" -o -z "${3}" ]; then
         LogErr "ERROR: Must provide core, modes, test_duration as arguments in that order to run_testpmd()"
@@ -25,16 +46,17 @@ function run_testpmd() {
         exit 1
     fi
 
-    if [ -z "${LIS_HOME}" -o -z "${LOG_DIR}" -o -z "${SERVER}" ]; then
-        LogErr "ERROR: LIS_HOME, LOG_DIR, and SERVER must be defined in environment"
+    if [ -z "${LIS_HOME}" -o -z "${LOG_DIR}" -o -z "${IP_ADDRS}" ]; then
+        LogErr "ERROR: LIS_HOME, LOG_DIR, and IP_ADDRS must be defined in environment"
         SetTestStateAborted
         exit 1
     fi
+    local server=$(echo ${IP_ADDRS} | awk '{print $2}')
 
     local core=${1}
     local modes=${2}
     local test_duration=${3}
-    local dpdk_dir=$(ls ${LIS_HOME} | grep dpdk- | grep -v \.sh)
+    local dpdk_dir=$(ls ${LIS_HOME} | grep dpdk | grep -v \.sh)
 
     local pairs=($(get_synthetic_vf_pairs))
     if [ "${#pairs[@]}" -eq 0 ]; then
@@ -49,7 +71,7 @@ function run_testpmd() {
     for test_mode in ${modes}; do
         LogMsg "Ensuring free hugepages"
         local free_huge_cmd="rm -rf /dev/hugepages/*"
-        ssh ${SERVER} ${free_huge_cmd}
+        ssh ${server} ${free_huge_cmd}
         eval ${free_huge_cmd}
 
         # start server in advance so traffic spike doesn't cause output freeze
@@ -58,10 +80,10 @@ function run_testpmd() {
         local pmd_mode=${test_mode}
         local server_testpmd_cmd="timeout ${server_duration} ${LIS_HOME}/${dpdk_dir}/build/app/testpmd -l 0-${core} -w ${bus_addr} --vdev='net_vdev_netvsc0,iface=${iface}' -- --port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core} --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=${pmd_mode} --stats-period 1"
         LogMsg "${server_testpmd_cmd}"
-        ssh ${SERVER} ${server_testpmd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testpmd-${test_mode}-receiver-${core}-core-$(date +"%m%d%Y-%H%M%S").log &
+        ssh ${server} ${server_testpmd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testpmd-${test_mode}-receiver-${core}-core-$(date +"%m%d%Y-%H%M%S").log &
 
         sleep 5
-        
+
         # should scale memory channels 2 * NUM_NUMA_NODES
         local client_testpmd_cmd="timeout ${test_duration} ${LIS_HOME}/${dpdk_dir}/build/app/testpmd -l 0-${core} -w ${bus_addr} --vdev='net_vdev_netvsc0,iface=${iface}' -- --port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core} --mbcache=512 --txd=4096 --forward-mode=txonly --stats-period 1 2>&1 > ${LOG_DIR}/dpdk-testpmd-${test_mode}-sender-${core}-core-$(date +"%m%d%Y-%H%M%S").log &"
         LogMsg "${client_testpmd_cmd}"
@@ -72,7 +94,7 @@ function run_testpmd() {
         LogMsg "killing testpmd"
         local kill_cmd="pkill testpmd"
         eval ${kill_cmd}
-        ssh ${SERVER} ${kill_cmd}
+        ssh ${server} ${kill_cmd}
 
         LogMsg "TestPmd execution for ${test_mode} mode on ${core} core(s) is COMPLETED"
         sleep 10
