@@ -1,5 +1,23 @@
 <TestCases>
 	<test>
+		<testName>PERF-DPDK-FWD-PPS-DS15</testName>
+		<testScript>DPDK-TESTCASE-DRIVER.ps1</testScript>
+		<setupType>DS15v2_2NIC_x3</setupType>
+		<AdditionalHWConfig>
+			<Networking>SRIOV</Networking>
+		</AdditionalHWConfig>
+		<files>.\Testscripts\Linux\dpdk-testFWD.sh,.\Testscripts\Windows\dpdk-testFWD.ps1</files>
+		<TestParameters>
+			<param>DPDK_LINK="DPDK_SOURCE_URL"</param>
+			<param>TEST_DURATION=DPDK_TEST_DURATION_IN_SECONDS</param>
+			<param>CORES="2 4 8 16"</param>
+		</TestParameters>
+		<Platform>Azure</Platform>
+		<Category>Performance</Category>
+		<Area>DPDK</Area>
+		<Tags>dpdk,network,hv_netvsc,sriov</Tags>
+	</test>
+	<test>
 		<testName>PERF-DPDK-SINGLE-CORE-PPS-DS4</testName>
 		<testScript>DPDK-TESTCASE-DRIVER.ps1</testScript>
 		<setupType>DS4v2_2NIC_x2</setupType>

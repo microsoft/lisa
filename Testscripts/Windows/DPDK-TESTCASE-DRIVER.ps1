@@ -18,6 +18,7 @@ function Main {
 		$constantsFile = "$LogDir\constants.sh"
 
 		$ipAddrs = ""
+		$vmNames = ""
 		foreach ($vmData in $allVMData) {
 			$roleName = $vmData.RoleName
 			$internalIp = $vmData.InternalIP
@@ -27,10 +28,13 @@ function Main {
 			LogMsg "  SSH Port : $($vmData.SSHPort)"
 			LogMsg "  Internal IP : $internalIp"
 
+			$vmNames = "$vmNames $roleName"
 			$ipAddrs = "$ipAddrs $internalIp"
 			Add-Contnet -Value "$roleName=$internalIp" -Path $constantsFile
 		}
 
+		Add-Content -Value "VM_NAMES='$vmNames'" -Path $constantsFile
+		Add-Content -Value "IP_ADDRS='$ipAddrs'" -Path $constantsFile
 		# separate user provided files source ps1s now
 		# add sh to constants.sh to be sourced on VM
 		$bashFilePaths = ""
@@ -53,7 +57,6 @@ function Main {
 		$bashFilePaths = $bashFilePaths -replace ".$"
 		$bashFileNames = $bashFileNames -replace ".$"
 
-		Add-Content -Value "IP_ADDRS='$ipAddrs'" -Path $constantsFile
 		Add-Content -Value "USER_FILES='$bashFileNames'" -Path $constantsFile
 
 		LogMsg "constanst.sh created successfully..."
