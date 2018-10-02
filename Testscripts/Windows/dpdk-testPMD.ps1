@@ -1,6 +1,10 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 
+function Configure-Test() {
+	return
+}
+
 function Verify-Performance() {
 	$vmSizes = @()
 

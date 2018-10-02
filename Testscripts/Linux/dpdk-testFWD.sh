@@ -24,16 +24,18 @@ function dpdk_configure() {
 		exit 1
 	fi
 
+	local dpdk_ips_cmd="hostname -I"
 	if [ "${1}" = "${sender}" ]; then
-		local dpdk_ips_cmd="hostname -I"
 		local sender_dpdk_ips=($(eval ${dpdk_ips_cmd}))
 		local forwarder_dpdk_ips=($(ssh ${forwarder} "${dpdk_ips_cmd}"))
 
 		testpmd_ip_setup "SRC" "${sender_dpdk_ips[1]}"
 		testpmd_ip_setup "DST" "${forwarder_dpdk_ips[1]}"
 	elif [ "${1}" = "${forwarder}" ]; then
+		local receiver_dpdk_ips=($(ssh ${receiver} "${dpdk_ips_cmd}"))
+
 		ptr_code="struct ipv4_hdr *ipv4_hdr;"
-		dst_addr=$(echo ${receiver} | sed 'y/\./,/')
+		dst_addr=$(echo ${receiver[1]} | sed 'y/\./,/')
 		dst_addr_code="ipv4_hdr = rte_pktmbuf_mtod_offset(mb, struct ipv4_hdr *, sizeof(struct ether_hdr)); ipv4_hdr->dst_addr = rte_be_to_cpu_32(IPv4(${dst_addr}));"
 
 		sed -i "81i ${ptr_code}" app/test-pmd/macswap.c

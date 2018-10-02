@@ -61,6 +61,11 @@ function Main {
 
 		LogMsg "constanst.sh created successfully..."
 		LogMsg (Get-Content -Path $constantsFile)
+		foreach ($param in $currentTestData.TestParameters.param) {
+			Add-Content -Value "$param" -Path $constantsFile
+		}
+
+		Configure-Test
 
 		# start test
 		$myString = @"
@@ -111,63 +116,63 @@ collect_VM_properties
 
 		LogMsg "Test result : $testResult"
 		try {
-            $testpmdDataCsv = Import-Csv -Path $LogDir\dpdk_testpmd.csv
-            LogMsg "Uploading the test results.."
-            $dataSource = $xmlConfig.config.Azure.database.server
-            $DBuser = $xmlConfig.config.Azure.database.user
-            $DBpassword = $xmlConfig.config.Azure.database.password
-            $database = $xmlConfig.config.Azure.database.dbname
-            $dataTableName = $xmlConfig.config.Azure.database.dbtable
-            $TestCaseName = $xmlConfig.config.Azure.database.testTag
-            
-            if ($dataSource -And $DBuser -And $DBpassword -And $database -And $dataTableName) {
-                $GuestDistro = Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object {$_ -replace ",OS type,",""}
-                if ($UseAzureResourceManager) {
-                    $HostType = "Azure-ARM"
-                } else {
-                    $HostType = "Azure"
-                }
-                
-                $HostBy = ($xmlConfig.config.Azure.General.Location).Replace('"','')
-                $HostOS = Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version"| ForEach-Object {$_ -replace ",Host Version,",""}
-                $GuestOSType = "Linux"
-                $GuestDistro = Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object {$_ -replace ",OS type,",""}
-                $GuestSize = $masterVM.InstanceSize
-                $KernelVersion = Get-Content "$LogDir\VM_properties.csv" | Select-String "Kernel version"| ForEach-Object {$_ -replace ",Kernel version,",""}
-                $IPVersion = "IPv4"
-                $ProtocolType = "TCP"
-                $connectionString = "Server=$dataSource;uid=$DBuser; pwd=$DBpassword;Database=$database;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
+			$testpmdDataCsv = Import-Csv -Path $LogDir\dpdk_testpmd.csv
+			LogMsg "Uploading the test results.."
+			$dataSource = $xmlConfig.config.Azure.database.server
+			$DBuser = $xmlConfig.config.Azure.database.user
+			$DBpassword = $xmlConfig.config.Azure.database.password
+			$database = $xmlConfig.config.Azure.database.dbname
+			$dataTableName = $xmlConfig.config.Azure.database.dbtable
+			$TestCaseName = $xmlConfig.config.Azure.database.testTag
+			
+			if ($dataSource -And $DBuser -And $DBpassword -And $database -And $dataTableName) {
+				$GuestDistro = Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object {$_ -replace ",OS type,",""}
+				if ($UseAzureResourceManager) {
+					$HostType = "Azure-ARM"
+				} else {
+					$HostType = "Azure"
+				}
+				
+				$HostBy = ($xmlConfig.config.Azure.General.Location).Replace('"','')
+				$HostOS = Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version"| ForEach-Object {$_ -replace ",Host Version,",""}
+				$GuestOSType = "Linux"
+				$GuestDistro = Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object {$_ -replace ",OS type,",""}
+				$GuestSize = $masterVM.InstanceSize
+				$KernelVersion = Get-Content "$LogDir\VM_properties.csv" | Select-String "Kernel version"| ForEach-Object {$_ -replace ",Kernel version,",""}
+				$IPVersion = "IPv4"
+				$ProtocolType = "TCP"
+				$connectionString = "Server=$dataSource;uid=$DBuser; pwd=$DBpassword;Database=$database;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
 
-                $SQLQuery = "INSERT INTO $dataTableName (TestPlatFrom,TestCaseName,TestDate,HostType,HostBy,HostOS,GuestOSType,GuestDistro,GuestSize,KernelVersion,LISVersion,IPVersion,ProtocolType,DataPath,DPDKVersion,TestMode,Cores,Max_Rxpps,Txpps,Rxpps,Fwdpps,Txbytes,Rxbytes,Fwdbytes,Txpackets,Rxpackets,Fwdpackets,Tx_PacketSize_KBytes,Rx_PacketSize_KBytes) VALUES "
-                foreach ($mode in $testpmdDataCsv) {
+				$SQLQuery = "INSERT INTO $dataTableName (TestPlatFrom,TestCaseName,TestDate,HostType,HostBy,HostOS,GuestOSType,GuestDistro,GuestSize,KernelVersion,LISVersion,IPVersion,ProtocolType,DataPath,DPDKVersion,TestMode,Cores,Max_Rxpps,Txpps,Rxpps,Fwdpps,Txbytes,Rxbytes,Fwdbytes,Txpackets,Rxpackets,Fwdpackets,Tx_PacketSize_KBytes,Rx_PacketSize_KBytes) VALUES "
+				foreach ($mode in $testpmdDataCsv) {
 					$SQLQuery += "('$TestPlatform','$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$HostType','$HostBy','$HostOS','$GuestOSType','$GuestDistro','$GuestSize','$KernelVersion','Inbuilt','$IPVersion','$ProtocolType','$DataPath','$($mode.dpdk_version)','$($mode.test_mode)','$($mode.core)','$($mode.max_rx_pps)','$($mode.tx_pps_avg)','$($mode.rx_pps_avg)','$($mode.fwdtx_pps_avg)','$($mode.tx_bytes)','$($mode.rx_bytes)','$($mode.fwd_bytes)','$($mode.tx_packets)','$($mode.rx_packets)','$($mode.fwd_packets)','$($mode.tx_packet_size)','$($mode.rx_packet_size)'),"
-                    LogMsg "Collected performace data for $($mode.TestMode) mode."
-                }
-                $SQLQuery = $SQLQuery.TrimEnd(',')
-                LogMsg $SQLQuery
-                $connection = New-Object System.Data.SqlClient.SqlConnection
-                $connection.ConnectionString = $connectionString
-                $connection.Open()
+					LogMsg "Collected performace data for $($mode.TestMode) mode."
+				}
+				$SQLQuery = $SQLQuery.TrimEnd(',')
+				LogMsg $SQLQuery
+				$connection = New-Object System.Data.SqlClient.SqlConnection
+				$connection.ConnectionString = $connectionString
+				$connection.Open()
 
-                $command = $connection.CreateCommand()
-                $command.CommandText = $SQLQuery
-                
-                $command.executenonquery() | Out-Null
-                $connection.Close()
-                LogMsg "Uploading the test results done!!"
-            } else {
-                LogErr "Invalid database details. Failed to upload result to database!"
-                $ErrorMessage =  $_.Exception.Message
-                $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-                LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
-            }
-        } catch {
-            $ErrorMessage =  $_.Exception.Message
-            throw "$ErrorMessage"
-            $testResult = "FAIL"
-        }
-        LogMsg "Test result : $testResult"
-        LogMsg ($testpmdDataCsv | Format-Table | Out-String)
+				$command = $connection.CreateCommand()
+				$command.CommandText = $SQLQuery
+				
+				$command.executenonquery() | Out-Null
+				$connection.Close()
+				LogMsg "Uploading the test results done!!"
+			} else {
+				LogErr "Invalid database details. Failed to upload result to database!"
+				$ErrorMessage =  $_.Exception.Message
+				$ErrorLine = $_.InvocationInfo.ScriptLineNumber
+				LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+			}
+		} catch {
+			$ErrorMessage =  $_.Exception.Message
+			throw "$ErrorMessage"
+			$testResult = "FAIL"
+		}
+		LogMsg "Test result : $testResult"
+		LogMsg ($testpmdDataCsv | Format-Table | Out-String)
 	}
 	catch {
 		$ErrorMessage =  $_.Exception.Message
