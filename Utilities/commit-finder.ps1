@@ -12,7 +12,11 @@ if ($before -imatch "today")
     $before = Get-Date -Format "yyyy-MM-dd"
 }
 $CommitCounter = 1
-Write-Host $FilesToTrack
+foreach ($file in $FilesToTrack.Split(';'))
+{
+    Write-Host $file
+}
+
 cd .\linux-next
 
 if ( -not $before -and -not $after -and $From -and $Till )
@@ -21,7 +25,7 @@ if ( -not $before -and -not $after -and $From -and $Till )
     #region Get 'From' Commits
     Write-Host "Checking out $From"
     git checkout --force $From
-    foreach ($file in $FilesToTrack.Split())
+    foreach ($file in $FilesToTrack.Split(';'))
     {
         if ($file)
         {
@@ -35,7 +39,7 @@ if ( -not $before -and -not $after -and $From -and $Till )
     #region Get 'Till' Commits
     Write-Host "Checking out $Till"
     git checkout --force $till
-    foreach ($file in $FilesToTrack.Split())
+    foreach ($file in $FilesToTrack.Split(';'))
     {
         if ($file)
         {
@@ -47,7 +51,7 @@ if ( -not $before -and -not $after -and $From -and $Till )
     #endregion
     #>
     Write-Host "---------------------------Results---------------------------"
-    foreach ($file in $FilesToTrack.Split())
+    foreach ($file in $FilesToTrack.Split(';'))
     {
         if ($file)
         {
@@ -89,7 +93,7 @@ if ( -not $before -and -not $after -and $From -and $Till )
 }
 if ( $before -and $after -and  -not $From -and -not $Till )
 {
-    foreach ($file in $FilesToTrack.Split())
+    foreach ($file in $FilesToTrack.Split(';'))
     {
         if ($file)
         {
@@ -100,7 +104,7 @@ if ( $before -and $after -and  -not $From -and -not $Till )
     }
 
     Write-Host "---------------------------Results---------------------------"
-    foreach ($file in $FilesToTrack.Split())
+    foreach ($file in $FilesToTrack.Split(';'))
     {
         if ($file)
         {
