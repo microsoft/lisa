@@ -613,7 +613,7 @@ Function GetAllHyperVDeployementData($HyperVGroupNames,$RetryCount = 100)
             $VM = Get-VM -Name $property.Name -ComputerName $ComputerName
             $VMNicProperties =  Get-VMNetworkAdapter -ComputerName $ComputerName -VMName $property.Name
 
-            $RetryCount = 20
+            $RetryCount = 50
             $CurrentRetryAttempt=0
             $QuickVMNode = CreateQuickVMNode
             do
