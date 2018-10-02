@@ -36,8 +36,8 @@ function dpdk_configure() {
 		dst_addr=$(echo ${receiver} | sed 'y/\./,/')
 		dst_addr_code="ipv4_hdr = rte_pktmbuf_mtod_offset(mb, struct ipv4_hdr *, sizeof(struct ether_hdr)); ipv4_hdr->dst_addr = rte_be_to_cpu_32(IPv4(${dst_addr}));"
 
-		sed -i '81i ${ptr_code}' app/test-pmd/macswap.c
-		sed -i '129i ${dst_addr_code}' app/test-pmd/macswap.c
+		sed -i "81i ${ptr_code}" app/test-pmd/macswap.c
+		sed -i "129i ${dst_addr_code}" app/test-pmd/macswap.c
 	fi
 }
 
@@ -88,7 +88,7 @@ function run_testfwd() {
 
 	sleep 5
 	
-	local sender_testfwd_cmd="timeout ${test_duration} ${LIS_HOME}/${dpdk_dir}/build/app/testfwd -l 0-${core} -w ${bus_addr} --vdev='net_vdev_netvsc0,iface=${iface}' -- --port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core} --mbcache=512 --txd=4096 --forward-mode=txonly --stats-period 1 2>&1 > ${LOG_DIR}/dpdk-testfwd-sender-${core}-core-$(date +"%m%d%Y-%H%M%S").log &"
+	local sender_testfwd_cmd="timeout ${test_duration} ${LIS_HOME}/${dpdk_dir}/build/app/testpmd -l 0-${core} -w ${sender_busaddr} --vdev='net_vdev_netvsc0,iface=${sender_iface}' -- --port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core} --mbcache=512 --txd=4096 --forward-mode=txonly --stats-period 1 2>&1 > ${LOG_DIR}/dpdk-testfwd-sender-${core}-core-$(date +"%m%d%Y-%H%M%S").log &"
 	LogMsg "${sender_testfwd_cmd}"
 	eval ${sender_testfwd_cmd}
 	
@@ -169,7 +169,7 @@ function run_testcase() {
 	for name in $VM_NAMES; do
 		local pairs=($(ssh ${!name} "$(typeset -f get_synthetic_vf_pairs); get_synthetic_vf_pairs"))
 		if [ "${#pairs[@]}" -eq 0 ]; then
-			LogErr "ERROR: No forwarder VFs present"
+			LogErr "ERROR: No ${name} VFs present"
 			SetTestStateFailed
 			exit 1
 		fi
