@@ -4218,3 +4218,83 @@ function Convert-CIDRtoNetmask{
     }
     return $mask
 }
+
+function Set-GuestInterface {
+    param (
+        $VMUser,
+        $VMIpv4,
+        $VMPort,
+        $VMPassword,
+        $InterfaceMAC,
+        $VMStaticIP,
+        $Bootproto,
+        $Netmask,
+        $VMName,
+        $VlanID
+    )
+
+    RemoteCopy -upload -uploadTo $VMIpv4 -Port $VMPort `
+        -files ".\Testscripts\Linux\utils.sh" -Username $VMUser -password $VMPassword
+    if (-not $?) {
+        LogErr "Failed to send utils.sh to VM!"
+        return $False
+    }
+
+    # Configure NIC on the guest
+    LogMsg "Configuring test interface ($InterfaceMAC) on $VMName ($VMIpv4)"
+    # Get the interface name that coresponds to the MAC address
+    $cmdToSend = "testInterface=`$(grep -il ${InterfaceMAC} /sys/class/net/*/address) ; basename `"`$(dirname `$testInterface)`""
+    $testInterfaceName = RunLinuxCmd -username $VMUser -password $VMPassword -ip $VMIpv4 -port $VMPort `
+        -command $cmdToSend 
+    if (-not $testInterfaceName) {
+        LogErr "Failed to get the interface name that has $InterfaceMAC MAC address"
+        return $False
+    } else {
+        LogMsg "The interface that will be configured on $VMName is $testInterfaceName"
+    }
+    $configFunction = "CreateIfupConfigFile"
+    if ($VlanID) {
+        $configFunction = "CreateVlanConfig"  
+    }
+    
+    # Configure the interface
+    $cmdToSend = ". utils.sh; $configFunction $testInterfaceName $Bootproto $VMStaticIP $Netmask $VlanID"
+    RunLinuxCmd -username $VMUser -password $VMPassword -ip $VMIpv4 -port $VMPort -command $cmdToSend
+    if (-not $?) {
+        LogErr "Failed to configure $testInterfaceName NIC on vm $VMName"
+        return $False
+    }
+    LogMsg "Sucessfuly configured $testInterfaceName on $VMName"
+    return $True
+}
+
+function Test-GuestInterface {
+    param (
+        $VMUser,
+        $AddressToPing,
+        $VMIpv4,
+        $VMPort,
+        $VMPassword,
+        $InterfaceMAC,
+        $PingVersion,
+        $PacketNumber,
+        $Vlan
+    )
+
+    $nicPath = "/sys/class/net/*/address"
+    if ($Vlan -eq "yes") {
+        $nicPath = "/sys/class/net/*.*/address"
+    }
+    $cmdToSend = "testInterface=`$(grep -il ${InterfaceMAC} ${nicPath}) ; basename `"`$(dirname `$testInterface)`""
+    $testInterfaceName = RunLinuxCmd -username $VMUser -password $VMPassword -ip $VMIpv4 -port $VMPort `
+        -command $cmdToSend
+
+    $cmdToSend = "$PingVersion -I $testInterfaceName $AddressToPing -c $PacketNumber -p `"cafed00d00766c616e0074616700`""
+    $pingResult = RunLinuxCmd -username $VMUser -password $VMPassword -ip $VMIpv4 -port $VMPort `
+        -command $cmdToSend -ignoreLinuxExitCode:$true
+
+    if ($pingResult -notMatch "$PacketNumber received") {
+        return $False
+    }
+    return $True
+}

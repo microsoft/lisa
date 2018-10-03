@@ -16,7 +16,6 @@ function Main {
     param (
         $VMName,
         $HvServer,
-        $Ipv4,
         $VMPort,
         $VMUserName,
         $VMPassword
@@ -34,23 +33,23 @@ function Main {
             "AddressFamily" {$addressFamily = $fields[1].Trim()}
             "SWITCH" {$switchType = $fields[1].Trim()}
             "TestMAC" {$testMAC= $fields[1].Trim()}
-            "Remote_Server" {$remoteServer = $fields[1].Trim()}
+            "VM2Name" {$VM2Name = $fields[1].Trim()}
             default {}
         }
         if ($fields[0].Trim() -match "NIC_") {
-            $nic = $fields[1].Trim()   
+            $nic = $fields[1].Trim()
         }
     }
 
 
     $ipv4 = Start-VMandGetIP $VMName $HvServer $VMPort $VMUserName $VMPassword
     if (-not $ipv4) {
-        LogErr "Error: could not retrieve test VM's test IP address"
+        LogErr "Could not retrieve test VM's test IP address"
         return $False
     }
 
     if (-not $addressFamily) {
-        LogErr "Error: addressFamily variable not defined"
+        LogErr "AddressFamily variable not defined"
         return $False
     }
 
@@ -80,7 +79,7 @@ function Main {
 
     $cmd=""
     switch ($testType) {
-        "Internal" {   
+        "Internal" {
             $PING_SUCC=$internalIP
             $PING_FAIL=$externalIP
             $PING_FAIL2=$privateIP
@@ -88,12 +87,12 @@ function Main {
             $NETMASK = Convert-CIDRtoNetmask $interface.PrefixLength
 
         }
-        "External" {   
+        "External" {
             $PING_SUCC=$externalIP
             $PING_FAIL=$internalIP
             $PING_FAIL2=$privateIP
         }
-        "Private" {   
+        "Private" {
             $PING_SUCC=$privateIP
             $PING_FAIL=$externalIP
             $PING_FAIL2=$internalIP
@@ -153,13 +152,38 @@ function Main {
         "NETMASK=$NETMASK"
     }
 
+    # If vm2name is present, set up ssh login
+    if ($VM2Name) {
+        $cmd+="echo `'SSH_PRIVATE_KEY=id_rsa`' >> /home/$VMUserName/net_constants.sh;";
+        $vm2ipv4 = Get-IPv4ViaKVP $VM2Name $HvServer
+        # Setup ssh on VM1
+        RemoteCopy -uploadTo $Ipv4 -port $VMPort -files `
+            ".\Testscripts\Linux\enablePasswordLessRoot.sh" `
+            -username "root" -password $VMPassword -upload
+        RemoteCopy -uploadTo $vm2ipv4 -port $VMPort -files `
+            ".\Testscripts\Linux\enablePasswordLessRoot.sh" `
+            -username "root" -password $VMPassword -upload
+        RunLinuxCmd -ip $Ipv4 -port $VMPort -username "root" -password `
+            $VMPassword -command "chmod +x ~/*.sh"
+        RunLinuxCmd -ip $vm2ipv4 -port $VMPort -username "root" -password `
+            $VMPassword -command "chmod +x ~/*.sh"
+        $keyCopyOut = RunLinuxCmd -ip $Ipv4 -port $VMPort -username "root" -password `
+            $VMPassword -command "./enablePasswordLessRoot.sh ; cp -rf /root/.ssh /home/$VMUserName"
+        # Copy keys from VM1 and setup VM2
+        RemoteCopy -download -downloadFrom $Ipv4 -port $VMPort -files `
+            "/root/sshFix.tar" -username "root" -password $VMPassword -downloadTo $LogDir
+        RemoteCopy -uploadTo $vm2ipv4 -port $VMPort -files "$LogDir\sshFix.tar" `
+            -username "root" -password $VMPassword -upload
+        $keyCopyOut = RunLinuxCmd -ip $vm2ipv4 -port $VMPort -username "root" -password `
+            $VMPassword -command "./enablePasswordLessRoot.sh ; cp -rf /root/.ssh /home/$VMUserName"
+    }
+
     RunLinuxCmd -username $VMUserName -password $VMPassword -ip $ipv4 -port $VMPort `
         -command $cmd -runAsSudo
     if (-not $?) {
-        LogErr "Error: Unable to submit ${cmd} to vm"
+        LogErr "Unable to submit ${cmd} to vm"
         return $False
     }
-
     LogMsg "Test IP parameters successfully added to constants file"
     return $true
 }
