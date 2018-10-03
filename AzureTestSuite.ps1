@@ -108,12 +108,12 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
 		$ExecuteSetupForEachTest = $true
 	} elseif ($testPlatform -eq "Hyperv") {
 		$ExecuteSetupForEachTest = $false
-		$VmSetup = @()
-		foreach ($test in $currentCycleData.test) {
-			$currentTestData = GetCurrentTestData -xmlConfig $xmlConfig -testName $test.Name
-			$VmSetup += $currentTestData.setupType	
-		}
 	}
+	$VmSetup = @()
+	foreach ($test in $currentCycleData.test) {
+		$currentTestData = GetCurrentTestData -xmlConfig $xmlConfig -testName $test.Name
+		$VmSetup += $currentTestData.setupType	
+	}	
 
 	$testCount = $currentCycleData.test.Length
 	$testIndex = 0
