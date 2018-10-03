@@ -344,10 +344,10 @@ try {
 	$xmlContent += ("$($tab[0])" + "</config>`n")
 	Set-Content -Value $xmlContent -Path $xmlFile -Force
 
-	#This function will inject default / custom replacable test parameters to TestConfiguration.xml
+	# This function will inject default / custom replacable test parameters to TestConfiguration.xml
 	Add-ReplaceableTestParameters -XmlConfigFilePath $xmlFile
 
-	#This function will expand the VirtualMachineSets in TestConfiguration.xml
+	# This function will expand the VirtualMachineSets in TestConfiguration.xml
 	Expand-XMLVirtualMachineSet -XmlConfigFilePath $xmlFile
 
 	try {
