@@ -347,6 +347,9 @@ try {
 	#This function will inject default / custom replacable test parameters to TestConfiguration.xml
 	Add-ReplaceableTestParameters -XmlConfigFilePath $xmlFile
 
+	#This function will expand the VirtualMachineSets in TestConfiguration.xml
+	Expand-XMLVirtualMachineSet -XmlConfigFilePath $xmlFile
+
 	try {
 		$xmlConfig = [xml](Get-Content $xmlFile)
 		$xmlConfig.Save("$xmlFile")

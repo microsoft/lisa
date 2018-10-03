@@ -1050,3 +1050,52 @@ Function Get-LISAv2Tools($XMLSecretFile)
 		}
 	}
 }
+
+Function Expand-XMLVirtualMachineSet ($XmlConfigFilePath) 
+{	
+	$xml = [xml](Get-Content -Path $XmlConfigFilePath)	
+
+	$SetupTypes = @()
+	foreach ($node in $xml.config.$TestPlatform.Deployment.ChildNodes) {
+		if ($node.InnerXml.Contains("VirtualMachine")) {
+			$SetupTypes += $node.Name
+		}
+	}
+	
+	foreach ($SetupType in $SetupTypes ) {
+		foreach ($ResourceGroup in $xml.config.$TestPlatform.Deployment.$SetupType.ResourceGroup ) {
+			foreach ($VMSet in $ResourceGroup.VirtualMachineSet) {
+				$VMCount = $VMSet.VMCount
+				LogMsg "Expanding VirtualMachineSet in $SetupType for $VMCount VMs"				
+				$nodeToRemove = $VMSet.SelectSingleNode("//VMCount[.='$VMCount']")
+				[void] $nodeToRemove.ParentNode.RemoveChild($nodeToRemove)
+				$CurrentVM = $VMSet
+				if ($VMSet.RoleName) {
+					$RoleName = $VMSet.RoleName
+				}
+				$IncreamentPort = $false
+				for ($i = 1; $i -le $VMCount; $i++) {
+					$NewVM = $CurrentVM
+					if ($NewVM.RoleName) {
+						$NewVM.RoleName = "$RoleName-$i"
+					}
+					foreach ($EndPoint in $NewVM.EndPoints) {
+						if ($IncreamentPort) {
+							$EndPoint.PublicPort = [string]([int]$EndPoint.PublicPort + 1)
+						}
+						else {
+							$IncreamentPort = $true
+						}
+					}
+					# We cannot rename XmlElement in Powershell becuase it is immutable.
+					# Hence, I'm creating new element and adding InnerXml of customized VM.
+					$CreatedElement = $xml.CreateElement("VirtualMachine")
+					$CreatedElement.InnerXml = $NewVM.InnerXml
+					[void] $NewVM.ParentNode.AppendChild($CreatedElement)
+				}
+			}
+			[void] $VMSet.ParentNode.RemoveChild($VMSet)
+		}
+	}
+	$xml.Save("$XmlConfigFilePath")
+}
