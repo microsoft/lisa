@@ -3127,3 +3127,125 @@ function source_script() {
         exit 1
     fi
 }
+
+function test_rsync() {
+    . net_constants.sh
+    ping -I vxlan0 242.0.0.11 -c 3
+    if [ $? -ne 0 ]; then
+        LogErr "Failed to ping the second vm through vxlan0 after configurations."
+        SetTestStateAborted
+        exit 1
+    else
+        LogMsg "Successfuly pinged the second vm through vxlan0 after configurations."
+        LogMsg "Starting to transfer files with rsync"
+        rsyncPara="ssh -o StrictHostKeyChecking=no -i /root/.ssh/$SSH_PRIVATE_KEY"
+        echo "rsync -e '$rsyncPara' -avz /root/test root@242.0.0.11:/root" | at now +1 minutes
+        SetTestStateCompleted
+        exit 0
+    fi
+}
+
+function test_rsync_files() {
+    ping -I vxlan0 242.0.0.12 -c 3
+    if [ $? -ne 0 ]; then
+        LogErr "Could not ping the first VM through the vxlan interface"
+        SetTestStateAborted
+        exit 1
+    else
+        LogMsg "Checking if the directory was transfered corectly."
+        if [ -d "/root/test" ]; then
+            echo "Test directory was found." >> summary.log
+            size=$(du -h /root/test | awk '{print $1;}')
+            if [ $size == "10G" ] || [ $size == "11G" ]; then
+                LogMsg "Test directory has the proper size. Test ended successfuly."
+                SetTestStateCompleted
+                exit 0
+            else
+                LogErr "Test directory doesn't have the proper size. Test failed."
+                SetTestStateFailed
+                exit 1
+            fi
+        else
+            LogErr "Test directory was not found"
+            SetTestStateFailed
+            exit 1
+        fi
+    fi
+}
+
+function change_mtu_increment() {
+    test_iface=$1
+    ignore_iface=$2
+
+    __iterator=0
+    declare -i current_mtu=0
+    declare -i const_max_mtu=61440
+    declare -i const_increment_size=4096
+    while [ "$current_mtu" -lt "$const_max_mtu" ]; do
+        sleep 2
+        current_mtu=$((current_mtu+const_increment_size))
+        ip link set dev "$test_iface" mtu "$current_mtu"
+        if [ 0 -ne $? ]; then
+            # we reached the maximum mtu for this interface. break loop
+            current_mtu=$((current_mtu-const_increment_size))
+            break
+        fi
+        # make sure mtu was set. otherwise, set test to failed
+        actual_mtu=$(ip -o link show "$test_iface" | cut -d ' ' -f5)
+        if [ x"$actual_mtu" != x"$current_mtu" ]; then
+            LogErr "Error: Set mtu on interface $test_iface to $current_mtu but ip reports mtu to be $actual_mtu"
+            return 1
+        fi
+        LogMsg "Successfully set mtu to $current_mtu on interface $test_iface"
+    done
+    max_mtu="$current_mtu"
+
+    # Hyper-V does not support multiple MTUs per endpoint, so we need to set the max MTU on all interfaces,
+    # including the interface ignored because it's used by the LIS framework.
+    # This can fail (e.g. the LIS connection uses a legacy adapter), but the test will continue
+    # and only issue a warning
+    if [ -n "$iface_ignore" ]; then
+        ip link set dev "$iface_ignore" mtu "$max_mtu"
+        # make sure mtu was set. otherwise, issue a warning
+        actual_mtu=$(ip -o link show "$iface_ignore" | cut -d ' ' -f5)
+        if [ x"$actual_mtu" != x"$max_mtu" ]; then
+            LogMsg "Set mtu on interface $iface_ignore to $max_mtu but ip reports mtu to be $actual_mtu"
+        fi
+    fi
+
+    return 0
+}
+
+function stop_firewall() {
+    GetDistro
+    case "$DISTRO" in
+        suse*)
+            status=`systemctl is-active rcSuSEfirewall2`
+            if [ "$status" = "active" ]; then
+               /sbin/rcSuSEfirewall2 stop
+                if [ $? -ne 0 ]; then    
+                    return 1
+                fi
+            fi
+            ;;
+        ubuntu*|debian*)
+            ufw disable
+            if [ $? -ne 0 ]; then
+                return 1
+            fi
+            ;;
+        redhat* | centos* | fedora*)
+            service firewalld stop
+            if [ $? -ne 0 ]; then
+                exit 1
+            fi
+            iptables -F
+            iptables -X
+            ;;
+        *)
+            LogErr "OS Version not supported!"
+            return 1
+        ;;
+    esac
+    return 0
+}
