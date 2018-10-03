@@ -324,7 +324,10 @@ stage ("Inspect VHD")
         {
             Prepare()
             println "Running Inspect file"
-            RunPowershellCommand (".\\JenkinsPipelines\\Scripts\\InspectVHD.ps1")
+            withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')])
+            {            
+                RunPowershellCommand (".\\JenkinsPipelines\\Scripts\\InspectVHD.ps1 -XMLSecretFile '${Azure_Secrets_File}'")
+            }
             stash includes: 'CustomVHD.azure.env', name: 'CustomVHD'
         }
     }
@@ -342,7 +345,7 @@ stage('Upload VHD to Azure')
             FinalVHDName = readFile 'CustomVHD.azure.env'
             withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')])
             {
-                RunPowershellCommand (".\\Utilities\\AddAzureRmAccountFromSecretsFile.ps1;" +
+                RunPowershellCommand (".\\Utilities\\AddAzureRmAccountFromSecretsFile.ps1 -customSecretsFilePath '${Azure_Secrets_File}';" +
                 ".\\Utilities\\UploadVHDtoAzureStorage.ps1 -Region westus2 -VHDPath 'Q:\\Temp\\${FinalVHDName}' -DeleteVHDAfterUpload -NumberOfUploaderThreads 64"
                 )
             }    
@@ -373,7 +376,7 @@ stage('Capture VHD with Custom Kernel')
             Prepare()
             withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')])
             {
-                RunPowershellCommand (".\\Utilities\\AddAzureRmAccountFromSecretsFile.ps1;" +
+                RunPowershellCommand (".\\Utilities\\AddAzureRmAccountFromSecretsFile.ps1 -customSecretsFilePath '${Azure_Secrets_File}';" +
                 ".\\JenkinsPipelines\\Scripts\\InspectCustomKernel.ps1 -RemoteFolder 'J:\\ReceivedFiles' -LocalFolder '.'" 
                 )
                 KernelFile = readFile 'CustomKernel.azure.env'
@@ -420,7 +423,7 @@ stage('Copy VHD to other regions')
             {
                 RunPowershellCommand ( ".\\JenkinsPipelines\\Scripts\\DetectTestRegions.ps1 -TestByTestName '${TestByTestname}' -TestByCategorizedTestName '${TestByCategorisedTestname}' -TestByCategory '${TestByCategory}' -TestByTag '${TestByTag}'" )
                 CurrentTestRegions = readFile 'CurrentTestRegions.azure.env'
-                RunPowershellCommand (".\\Utilities\\AddAzureRmAccountFromSecretsFile.ps1;" +
+                RunPowershellCommand (".\\Utilities\\AddAzureRmAccountFromSecretsFile.ps1  customSecretsFilePath '${Azure_Secrets_File}';" +
                 ".\\Utilities\\CopyVHDtoOtherStorageAccount.ps1 -SourceLocation westus2 -destinationLocations '${CurrentTestRegions}' -sourceVHDName '${FinalVHDName}' -DestinationAccountType Standard"
                 )             
             }
