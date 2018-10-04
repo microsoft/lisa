@@ -92,4 +92,44 @@
         <Area>stress</Area>
         <Tags>stress</Tags>
     </test>
+    <test>
+        <testName>DM-LOADED</testName>
+	    <setupScript>./TestScripts/Windows/DM-CONFIGURE-MEMORY.ps1</setupScript>
+	    <TestParameters>
+	        <param>enableDM=yes</param>
+	        <param>minMem=1024MB</param>
+	        <param>maxMem=2GB</param>
+	        <param>startupMem=1024MB</param>
+	        <param>memWeight=0</param>
+	        <param>staticMem=1024MB</param>
+	    </TestParameters>
+	    <testScript>DM_VERIFY_LOADED.sh</testScript>
+	    <files>.\TestScripts\Linux\DM_VERIFY_LOADED.sh,.\TestScripts\Linux\utils.sh</files>
+	        <timeout>800</timeout>
+            <setupType>SingleVM</setupType>
+            <Platform>HyperV</Platform>
+            <Category>DM</Category>
+            <Area>Stress</Area>
+            <Tags>stress</Tags>
+    </test>
+    <test>
+	   <testName>HOTADD-VERIFY-UDEV</testName>
+	   <setupScript>./TestScripts/Windows/DM-CONFIGURE-MEMORY.ps1</setupScript>
+	   <TestParameters>
+			<param>enableDM=yes</param>
+			<param>minMem=1024MB</param>
+			<param>maxMem=2GB</param>
+			<param>startupMem=1024MB</param>
+			<param>memWeight=20</param>
+			<param>staticMem=1024MB</param>
+	   </TestParameters>
+	   <testScript>DM_HotAdd_Verify_udev.sh</testScript>
+	   <files>.\TestScripts\Linux\DM_HotAdd_Verify_udev.sh,.\TestScripts\Linux\utils.sh</files>
+	   <timeout>1200</timeout>
+       <setupType>SingleVM</setupType>
+	   <Platform>HyperV</Platform>
+       <Category>DM</Category>
+       <Area>Stress</Area>
+       <Tags>stress</Tags>
+    </test>
 </TestCases>
