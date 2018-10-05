@@ -250,7 +250,7 @@ Function DeleteHyperVGroup([string]$HyperVGroupName, [string]$HyperVHost) {
     $vmGroup = Get-VMGroup -Name $HyperVGroupName -ErrorAction SilentlyContinue `
                            -ComputerName $HyperVHost
     if (!$vmGroup) {
-        LogErr "Hyper-V VM group ${HyperVGroupName} does not exist"
+        LogWarn "Hyper-V VM group ${HyperVGroupName} does not exist"
         return $true
     }
 

@@ -1084,7 +1084,7 @@ Function Test-TCP($testIP, $testport)
 	}
 	catch [System.Net.Sockets.SocketException]
 	{
-		LogError "TCP test failed"
+		LogWarn "TCP test failed"
 	}
 	if ($socket.Connected)
 	{
@@ -4298,3 +4298,4 @@ function Test-GuestInterface {
     }
     return $True
 }
+
