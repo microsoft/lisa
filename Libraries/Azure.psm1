@@ -774,14 +774,12 @@ Function CreateResourceGroupDeployment([string]$RGName, $location, $setupType, $
 
 Function Get-NewVMName ($namePrefix, $numberOfVMs)
 {
-    if( $IsWindows -and ( $testPlatform -eq "Azure" ) ){
+    if($IsWindows) {
         # Windows computer name cannot be more than 15 characters long on Azure
-        $suffix = "role-$numberOfVMs"
+        $suffix = "-$numberOfVMs"
         $len = 15 - $suffix.Length
         $VMName = $namePrefix.Substring(0,$len) + $suffix
-    }
-    else
-    {
+    } else {
         $VMName = "$namePrefix-role-$numberOfVMs"
     }
     return $VMName

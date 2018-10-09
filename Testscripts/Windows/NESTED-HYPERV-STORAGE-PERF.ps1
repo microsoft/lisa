@@ -146,18 +146,17 @@ function Get-SQLQueryOfNestedHyperv ($xmlConfig, $logDir, $session)
 		Import-Csv -Path $LogDir\maxIOPSforBlockSize.csv
 		$fioDataCsv = Import-Csv -Path $LogDir\fioData.csv
 		$HostType = $TestPlatform
+		$HostBy = $TestLocation
 		if ($TestPlatform -eq "hyperV")
 		{
-			$HostBy = $xmlConfig.config.Hyperv.Host.ServerName
 			$HyperVMappedSizes = [xml](Get-Content .\XML\AzureVMSizeToHyperVMapping.xml)
 			$L1GuestCpuNum = $HyperVMappedSizes.HyperV.$HyperVInstanceSize.NumberOfCores
 			$L1GuestMemMB = [int]($HyperVMappedSizes.HyperV.$HyperVInstanceSize.MemoryInMB)
 			$L1GuestSize = "$($L1GuestCpuNum)Cores $($L1GuestMemMB/1024)G"
-			$HostOS	= (Get-WmiObject -Class Win32_OperatingSystem -ComputerName $xmlConfig.config.$TestPlatform.Host.ServerName).Version
+			$HostOS = (Get-WmiObject -Class Win32_OperatingSystem -ComputerName $xmlConfig.config.$TestPlatform.Hosts.ChildNodes[0].ServerName).Version
 		}
 		else
 		{
-			$HostBy	= ($xmlConfig.config.$TestPlatform.General.Location).Replace('"','')
 			$L1GuestSize = $AllVMData.InstanceSize
 			$keys = "HostingSystemOsMajor", "HostingSystemOsMinor", "HostingSystemEditionId"
 			$registryEntry =  'HKLM:\SOFTWARE\Microsoft\Virtual Machine\Guest\Parameters'
@@ -183,7 +182,7 @@ function Get-SQLQueryOfNestedHyperv ($xmlConfig, $logDir, $session)
 
 		# Get L1 guest info
 		$computerInfo = Invoke-Command -Session $session -ScriptBlock {Get-ComputerInfo}
-		$L1GuestDistro	= $computerInfo.OsName
+		$L1GuestDistro = $computerInfo.OsName
 		$L1GuestKernelVersion = Get-Content "$LogDir\nested_properties.csv" | Select-String "Host Version"| ForEach-Object {$_ -replace ",Host Version,",""}
 		$L1GuestOSType = "Windows"
 

@@ -894,7 +894,7 @@ Function ValidateMD5($filePath, $expectedMD5hash)
 
 Function Test-FileLock 
 {
-	param 
+	param
 	(
 	  [parameter(Mandatory=$true)][string]$Path
 	)
@@ -903,7 +903,7 @@ Function Test-FileLock
 	{
 		return $false
 	}
-	try 
+	try
 	{
 		$oStream = $File.Open([System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
 		if ($oStream) 
@@ -911,8 +911,8 @@ Function Test-FileLock
 			$oStream.Close()
 		}
 		return $false
-	} 
-	catch 
+	}
+	catch
 	{
 		# file is locked by a process.
 		return $true
@@ -936,8 +936,7 @@ Function CreateArrayOfTabs()
 
 Function Get-SQLQueryOfTelemetryData ($TestPlatform,$TestLocation,$TestCategory,$TestArea,$TestName,$CurrentTestResult,$ExecutionTag,$GuestDistro,$KernelVersion,$LISVersion,$HostVersion,$VMSize,$Networking,$ARMImage,$OsVHD,$LogFile,$BuildURL)
 {
-	if ( $EnableTelemetry )
-	{
+	if ($EnableTelemetry) {
 		try
 		{
 			$TestResult = $CurrentTestResult.TestResult
@@ -953,31 +952,22 @@ Function Get-SQLQueryOfTelemetryData ($TestPlatform,$TestLocation,$TestCategory,
 			$uploadFileName = ".\Temp\$($TestName)-$ticks.zip"
 			$out = ZipFiles -zipfilename $uploadFileName -sourcedir $LogDir
 			$UploadedURL = .\Utilities\UploadFilesToStorageAccount.ps1 -filePaths $uploadFileName -destinationStorageAccount $testLogStorageAccount -destinationContainer "lisav2logs" -destinationFolder "$testLogFolder" -destinationStorageKey $testLogStorageAccountKey
-			if ( $BuildURL )
-			{
+			if ($BuildURL) {
 				$BuildURL = "$BuildURL`consoleFull"
-			}
-			else
-			{
+			} else {
 				$BuildURL = ""
 			}
-			if ( $TestPlatform -eq "HyperV")
-			{
+			if ($TestPlatform -eq "HyperV") {
 				$TestLocation = ($GlobalConfiguration.Global.$TestPlatform.Hosts.ChildNodes[0].ServerName).ToLower()
-			}
-			elseif ($TestPlatform -eq "Azure")
-			{
+			} elseif ($TestPlatform -eq "Azure") {
 				$TestLocation = $TestLocation.ToLower()
 			}
 			$dataTableName = "LISAv2Results"
 			$SQLQuery = "INSERT INTO $dataTableName (DateTimeUTC,TestPlatform,TestLocation,TestCategory,TestArea,TestName,TestResult,SubTestName,SubTestResult,ExecutionTag,GuestDistro,KernelVersion,LISVersion,HostVersion,VMSize,Networking,ARMImage,OsVHD,LogFile,BuildURL) VALUES "
 			$SQLQuery += "('$DateTimeUTC','$TestPlatform','$TestLocation','$TestCategory','$TestArea','$TestName','$testResult','','','$ExecutionTag','$GuestDistro','$KernelVersion','$LISVersion','$HostVersion','$VMSize','$Networking','$ARMImageName','$OsVHD','$UploadedURL', '$BuildURL'),"
-			if ($TestSummary)
-			{
-				foreach ($tempResult in $TestSummary.Split('>'))
-				{
-					if ($tempResult)
-					{
+			if ($TestSummary) {
+				foreach ($tempResult in $TestSummary.Split('>')) {
+					if ($tempResult) {
 						$tempResult = $tempResult.Trim().Replace("<br /","").Trim()
 						$subTestResult = $tempResult.Split(":")[$tempResult.Split(":").Count -1 ].Trim()
 						$subTestName = $tempResult.Replace("$subTestResult","").Trim().TrimEnd(":").Trim()
@@ -998,25 +988,20 @@ Function Get-SQLQueryOfTelemetryData ($TestPlatform,$TestLocation,$TestCategory,
 			LogMsg "EXCEPTION : $ErrorMessage"
 			LogMsg "Source : Line $line in script $script_name."
 		}
-	}
-	else
-	{
+	} else {
 		return $null
 	}
 }
 
-
 Function UploadTestResultToDatabase ($SQLQuery)
 {
-	if ( $XmlSecrets )
-	{
+	if ($XmlSecrets) {
 		$dataSource = $XmlSecrets.secrets.DatabaseServer
 		$dbuser = $XmlSecrets.secrets.DatabaseUser
 		$dbpassword = $XmlSecrets.secrets.DatabasePassword
 		$database = $XmlSecrets.secrets.DatabaseName
 
-		if ( $dataSource -and $dbuser -and $dbpassword -and $database )
-		{
+		if ($dataSource -and $dbuser -and $dbpassword -and $database) {
 			try
 			{
 				LogMsg "SQLQuery:  $SQLQuery"
@@ -1039,14 +1024,10 @@ Function UploadTestResultToDatabase ($SQLQuery)
 				LogMsg "EXCEPTION : $ErrorMessage"
 				LogMsg "Source : Line $line in script $script_name."
 			}
-		}
-		else
-		{
+		} else {
 			LogErr "Database details are not provided. Results will not be uploaded to database!!"
 		}
-	}
-	else
-	{
+	} else {
 		LogErr "Unable to send telemetry data to Azure. XML Secrets file not provided."
 	}
 }
