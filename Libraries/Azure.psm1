@@ -1128,7 +1128,7 @@ Set-Content -Value "$($indents[0]){" -Path $jsonFile -Force
                     Add-Content -Value "$($indents[4])^platformUpdateDomainCount^:5" -Path $jsonFile              
                 if ( $TiPSessionId -and $TiPCluster)
                 {
-                    Add-Content -Value "$($indents[4])^," -Path $jsonFile
+                    Add-Content -Value "$($indents[4])," -Path $jsonFile
                     Add-Content -Value "$($indents[4])^internalData^:" -Path $jsonFile
                     Add-Content -Value "$($indents[4]){" -Path $jsonFile
                         Add-Content -Value "$($indents[5])^pinnedFabricCluster^ : ^$TiPCluster^" -Path $jsonFile  
