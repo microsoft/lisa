@@ -4,7 +4,7 @@
 # Description: This script displays the LISav2 test case statistics and list of available tags.
 
 # Read all test case xml files
-$files = Get-ChildItem XML\TestCases\*.xml
+$files = Get-ChildItem ..\XML\TestCases\*.xml -Exclude Other.xml
 
 $azure_only = 0
 $hyperv_only = 0
