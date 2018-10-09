@@ -1,5 +1,5 @@
 ##############################################################################################
-# RunTests.ps1
+# Run-LisaV2.ps1
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 #
@@ -19,7 +19,7 @@
 	See more from https://github.com/LIS/LISAv2 for helps including README and How-to-use document.
 
 .EXAMPLE
-	.\RunTests.ps1	-TestPlatform "Azure" -TestLocation "westus2" -RGIdentifier "mylisatest"
+	.\Run-LisaV2.ps1	-TestPlatform "Azure" -TestLocation "westus2" -RGIdentifier "mylisatest"
 					-ARMImageName "Canonical UbuntuServer 16.04-LTS latest"
 					-XMLSecretFile "C:\MySecrets.xml"
 					-UpdateGlobalConfigurationFromSecretsFile

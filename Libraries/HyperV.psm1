@@ -240,86 +240,41 @@ Function CreateAllHyperVGroupDeployments($setupType, $xmlConfig, $Distro, $Debug
     }
 }
 
-Function DeleteHyperVGroup([string]$HyperVGroupName, [string]$HyperVHost)
-{
-    try
-    {
-        $AllGroups = $null
-        LogMsg "Checking if HyperV VM group '$HyperVGroupName' exists in $HyperVHost..."
-        $AllGroups = Get-VMGroup -Name $HyperVGroupName -ErrorAction SilentlyContinue -ComputerName $HyperVHost
+Function DeleteHyperVGroup([string]$HyperVGroupName, [string]$HyperVHost) {
+    if ($ExistingRG) {
+        LogMsg "Skipping removal of Hyper-V VM group ${HyperVGroupName}"
+        return $true
     }
-    catch
-    {
+
+    $vmGroup = $null
+    LogMsg "Checking if Hyper-V VM group '$HyperVGroupName' exists on $HyperVHost..."
+    $vmGroup = Get-VMGroup -Name $HyperVGroupName -ErrorAction SilentlyContinue `
+                           -ComputerName $HyperVHost
+    if (!$vmGroup) {
+        LogWarn "Hyper-V VM group ${HyperVGroupName} does not exist"
+        return $true
     }
-    if ($AllGroups)
-    {
-		if ($ExistingRG)
-		{
-			#TBD If user wants to use existing group, then skip the deletion of the HyperV group.
-		}
-		else
-		{
-            $CurrentGroup = $null
-            foreach ( $CurrentGroup in $AllGroups )
-            {
-                $CurrentGroup = Get-VMGroup -Name $CurrentGroup.Name -ComputerName $HyperVHost
-                if ( $CurrentGroup.VMMembers.Count -gt 0 )
-                {
-                    $CleanupVMList = @()
-                    foreach ($CleanupVM in $CurrentGroup.VMMembers)
-                    {
-                        if ($VMnames)
-                        {
-                            if ( $VMNames.Split(",").Contains($CleanupVM.Name) )
-                            {
-                                $CleanupVMList += $CleanupVM
-                            }
-                        }
-                        else
-                        {
-                            $CleanupVMList += $CleanupVM
-                        }
-                    }
-                    foreach ($CleanupVM in $CleanupVMList)
-                    {
-                        LogMsg "Stop-VM -Name $($CleanupVM.Name) -Force -TurnOff "
-                        Stop-VM -Name $CleanupVM.Name -Force -TurnOff -ComputerName $HyperVHost
-                        $VM = Get-VM -Id $CleanupVM.Id -ComputerName $HyperVHost
-                        foreach ($VHD in $CleanupVM.HardDrives)
-                        {
-                            if ( Test-Path -Path $VHD.Path )
-                            {
-                                Invoke-Command -ComputerName $HyperVHost -ScriptBlock { Remove-Item -Path $args[0] -Force -Verbose } -ArgumentList $VHD.Path
-                                LogMsg "$($VHD.Path) Removed!"
-                            }
-                        }
-                        Remove-VM -Name $CleanupVM.Name -ComputerName $HyperVHost -Force
-                        LogMsg "$($CleanupVM.Name) Removed!"
-                    }
-                    Remove-VMGroup -Name $HyperVGroupName -ComputerName $HyperVHost -Force
-                    LogMsg "$($HyperVGroupName) Removed!"
-                    $retValue = $true
-                }
-                elseif ($CurrentGroup)
-                {
-                    LogMsg "$HyperVGroupName is empty. Removing..."
-                    Remove-VMGroup -Name $HyperVGroupName -Force -ComputerName $HyperVHost
-                    LogMsg "$HyperVGroupName Removed!"
-                    $retValue = $true
-                }
-                else
-                {
-                    LogMsg "$HyperVGroupName does not exists."
-                }
+
+    $vmGroup.VMMembers | ForEach-Object {
+        LogMsg "Stop-VM -Name $($_.Name) -Force -TurnOff "
+        $vm = $_
+        Stop-VM -Name $vm.Name -Force -TurnOff -ComputerName $HyperVHost
+        $vm.HardDrives | ForEach-Object {
+            $vhd = $_
+            if (Test-Path -Path $vhd.Path) {
+                Invoke-Command -ComputerName $HyperVHost -ScriptBlock {
+                    Remove-Item -Path $args[0] -Force } -ArgumentList $vhd.Path
+                LogMsg "VHD $($vhd.Path) removed!"
             }
         }
+        Remove-VM -Name $vm.Name -ComputerName $HyperVHost -Force
+        LogMsg "Hyper-V VM $($vm.Name) removed!"
     }
-    else
-    {
-        LogMsg "$HyperVGroupName does not exists."
-        $retValue = $true
-    }
-    return $retValue
+
+    LogMsg "Hyper-V VM group ${HyperVGroupName} is being removed!"
+    Remove-VMGroup -Name $HyperVGroupName -ComputerName $HyperVHost -Force
+    LogMsg "Hyper-V VM group ${HyperVGroupName} removed!"
+    return $true
 }
 
 Function CreateHyperVGroup([string]$HyperVGroupName, [string]$HyperVHost)
@@ -370,7 +325,11 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML, 
             $vhdSuffix = [System.IO.Path]::GetExtension($OsVHD)
             if ( $VirtualMachine.RoleName)
             {
-                $CurrentVMName = $VirtualMachine.RoleName
+                if ($VirtualMachine.RoleName -match "dependency") {
+                    $CurrentVMName = $HyperVGroupName + "-" + $VirtualMachine.RoleName 
+                } else {
+                    $CurrentVMName = $VirtualMachine.RoleName
+                }
                 $CurrentVMOsVHDPath = "$DestinationOsVHDPath\$HyperVGroupName-$CurrentVMName-diff-OSDisk${vhdSuffix}"
             }
             else 
@@ -614,7 +573,7 @@ Function GetAllHyperVDeployementData($HyperVGroupNames,$RetryCount = 100)
             $VM = Get-VM -Name $property.Name -ComputerName $ComputerName
             $VMNicProperties =  Get-VMNetworkAdapter -ComputerName $ComputerName -VMName $property.Name
 
-            $RetryCount = 20
+            $RetryCount = 50
             $CurrentRetryAttempt=0
             $QuickVMNode = CreateQuickVMNode
             do
