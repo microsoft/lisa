@@ -250,7 +250,7 @@ Function DeleteHyperVGroup([string]$HyperVGroupName, [string]$HyperVHost) {
     $vmGroup = Get-VMGroup -Name $HyperVGroupName -ErrorAction SilentlyContinue `
                            -ComputerName $HyperVHost
     if (!$vmGroup) {
-        LogErr "Hyper-V VM group ${HyperVGroupName} does not exist"
+        LogWarn "Hyper-V VM group ${HyperVGroupName} does not exist"
         return $true
     }
 
@@ -312,7 +312,7 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML, 
     $HyperVMappedSizes = [xml](Get-Content .\XML\AzureVMSizeToHyperVMapping.xml)
     $CreatedVMs =  @()
     $OsVHD = $BaseOsVHD
-    $InterfaceAliasWithInternet = (Get-NetIPConfiguration | where {$_.NetProfile.Name -ne 'Unidentified network'}).InterfaceAlias
+    $InterfaceAliasWithInternet = (Get-NetIPConfiguration -ComputerName $HyperVHost | where {$_.NetProfile.Name -ne 'Unidentified network'}).InterfaceAlias
     $VMSwitches = Get-VMSwitch | where {$InterfaceAliasWithInternet -match $_.Name}
     $ErrorCount = 0
     $i = 0
@@ -337,9 +337,36 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML, 
                 $CurrentVMOsVHDPath = "$DestinationOsVHDPath\$HyperVGroupName-role-$i-diff-OSDisk${vhdSuffix}"
                 $i += 1
             }
-            $Out = New-VHD -ParentPath "$SourceOsVHDPath\$OsVHD" -Path $CurrentVMOsVHDPath -ComputerName $HyperVHost
-            if ($?)
-            {
+
+            $parentOsVHDPath = $OsVHD
+            if ($SourceOsVHDPath) {
+                $parentOsVHDPath = Join-Path $SourceOsVHDPath $OsVHD
+            }
+            $infoParentOsVHD = Get-VHD $parentOsVHDPath
+            $uriParentOsVHDPath = [System.Uri]$parentOsVHDPath
+            if ($uriParentOsVHDPath -and $uriParentOsVHDPath.isUnc) {
+                LogMsg "Parent VHD path ${parentOsVHDPath} is on an SMB share."
+                if ($infoParentOsVHD.VhdType -eq "Differencing") {
+                    LogErr "Unsupported differencing disk on the share."
+                    $ErrorCount += 1
+                    return $false
+                }
+                LogMsg "Checking if we have a local VHD with the same disk identifier on the host"
+                $hypervVHDLocalPath = (Get-VMHost -ComputerName $HyperVHost).VirtualHardDiskPath
+                $vhdName = [System.IO.Path]::GetFileNameWithoutExtension($(Split-Path -Leaf $parentOsVHDPath))
+                $newVhdName = "{0}-{1}{2}" -f @($vhdName, $infoParentOsVHD.DiskIdentifier.Replace("-", ""),$vhdSuffix)
+                $localVHDPath = Join-Path $hypervVHDLocalPath $newVhdName
+                if ((Test-Path $localVHDPath)) {
+                    LogMsg "${parentOsVHDPath} is already found at path ${localVHDPath}"
+                } else {
+                    LogMsg "${parentOsVHDPath} will be copied at path ${localVHDPath}"
+                    Copy-Item -Force $parentOsVHDPath $localVHDPath
+                }
+                $parentOsVHDPath = $localVHDPath
+            }
+
+            $Out = New-VHD -ParentPath $parentOsVHDPath -Path $CurrentVMOsVHDPath -ComputerName $HyperVHost
+            if ($?) {
                 LogMsg "Prerequiste: Prepare OS Disk $CurrentVMOsVHDPath - Succeeded."
                 if ($OverrideVMSize)
                 {
@@ -411,18 +438,16 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML, 
                     $Out = Remove-Item -Path $CurrentVMOsVHDPath -Force 
                     $ErrorCount += 1
                 }
-            }
-            else 
-            {
+            } else {
                 LogMsg "Prerequiste: Prepare OS Disk $CurrentVMOsVHDPath - Failed." 
-                $ErrorCount += 1   
+                $ErrorCount += 1
             }
         }
     }
     else 
     {
         LogErr "There are $($CurrentHyperVGroup.Count) HyperV groups. We need 1 HyperV group."
-        $ErrorCount += 1    
+        $ErrorCount += 1
     }
     if ( $ErrorCount -eq 0 )
     {
@@ -430,7 +455,7 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML, 
     }
     else 
     {
-        $ReturnValue = $false    
+        $ReturnValue = $false
     }
     return $ReturnValue
 }

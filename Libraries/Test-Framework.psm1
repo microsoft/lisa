@@ -169,7 +169,7 @@ function Run-TestScript {
         foreach ($param in $Parameters.Keys) {
             $scriptParameters += (";{0}={1}" -f ($param,$($Parameters[$param])))
         }
-
+        LogMsg "${scriptLoc} -TestParams $scriptParameters"
         $testResult = & "${scriptLoc}" -TestParams $scriptParameters
     } elseif ($scriptExtension -eq "py") {
         RunLinuxCmd -Username $Username -password $Password -ip $VMData.PublicIP -Port $VMData.SSHPort `

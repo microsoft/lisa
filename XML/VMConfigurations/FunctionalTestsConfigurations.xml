@@ -1,4 +1,22 @@
 <TestSetup>
+    <DPDK1VM3NICs>
+        <isDeployed>NO</isDeployed>
+        <ResourceGroup>
+            <VirtualMachine>
+                <state></state>
+                <ARMInstanceSize>Standard_D5_v2</ARMInstanceSize>
+                <RoleName></RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>22</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+                <ExtraNICs>2</ExtraNICs>
+            </VirtualMachine>
+        </ResourceGroup>
+    </DPDK1VM3NICs>
     <DPDK>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>

@@ -52,7 +52,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                             Prepare()
                             withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')]) 
                             {
-                                RunPowershellCommand(".\\RunTests.ps1" +
+                                RunPowershellCommand(".\\Run-LisaV2.ps1" +
                                 " -UpdateGlobalConfigurationFromSecretsFile" +
                                 " -UpdateXMLStringsFromSecretsFile" +
                                 " -RGIdentifier '${JenkinsUser}'" +
@@ -98,7 +98,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                             Prepare()                                
                             withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')]) 
                             {
-                                RunPowershellCommand(".\\RunTests.ps1" +
+                                RunPowershellCommand(".\\Run-LisaV2.ps1" +
                                 " -UpdateGlobalConfigurationFromSecretsFile" +
                                 " -UpdateXMLStringsFromSecretsFile" +                                
                                 " -RGIdentifier '${JenkinsUser}'" +                                    
@@ -219,7 +219,7 @@ stage('Capture VHD with Custom Kernel')
                 KernelFile = readFile 'CustomKernel.azure.env'
                 stash includes: KernelFile, name: 'CustomKernelStash'
                 powershell(".\\Utilities\\UpdateXMLs.ps1 -SubscriptionID '2cd20493-fe97-42ef-9ace-ab95b63d82c4' -LinuxUsername '${LinuxUsername}' -LinuxPassword '${LinuxPassword}'")
-                RunPowershellCommand(".\\RunTests.ps1" +
+                RunPowershellCommand(".\\Run-LisaV2.ps1" +
                 " -XMLSecretFile '${Azure_Secrets_File}'" +
                 " -TestLocation 'westus2'" +
                 " -RGIdentifier '${JenkinsUser}'" +

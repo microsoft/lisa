@@ -162,14 +162,18 @@ LogMsg "*********INFO: Starting Huge page configuration*********"
 LogMsg "INFO: Configuring huge pages on client ${client}..."
 hugePageSetup ${client}
 
-LogMsg "INFO: Configuring huge pages on server ${server}..."
-hugePageSetup ${server}
-
 LogMsg "*********INFO: Starting setup & configuration of DPDK*********"
 LogMsg "INFO: Installing DPDK on client ${client}..."
 installDPDK ${client} ${clientNIC1ip} ${serverNIC1ip}
 
-LogMsg "INFO: Installing DPDK on server ${server}..."
-installDPDK ${server} ${serverNIC1ip} ${clientNIC1ip}
-
+if [[ ${client} == ${server} ]];
+then
+	LogMsg "Skip DPDK setup on server"
+	SetTestStateCompleted
+else
+	LogMsg "INFO: Configuring huge pages on server ${server}..."
+	hugePageSetup ${server}
+	LogMsg "INFO: Installing DPDK on server ${server}..."
+	installDPDK ${server} ${serverNIC1ip} ${clientNIC1ip}
+fi
 LogMsg "*********INFO: DPDK setup script execution reach END. Completed !!!*********"
