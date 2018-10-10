@@ -31,6 +31,9 @@ LISAv2 includes below test suite categories:
 * jq
 * plink.exe
 * pscp.exe
+* kvp_client32
+* kvp_client64
+* nc.exe
 
 ### Download Latest Azure PowerShell
 
