@@ -115,14 +115,13 @@ function Main {
     Start-VM $VMName -ComputerName $HvServer
 
     while ($timeout -gt 0) {
-         $newIpv4 = Get-Ipv4AndWaitForSSHStart $VMName $HvServer $VMPort $VMUserName `
-        $VMPassword 300
+        $newIpv4 = Get-Ipv4AndWaitForSSHStart $VMName $HvServer $VMPort $VMUserName `
+                   $VMPassword 300
         if ($newIpv4 -ne $Null) {
             break
         }
 
-        Start-Sleep -S 3
-        Start-Sleep -S 3
+        Start-Sleep -S 6
         $timeout -= 3
     }
 

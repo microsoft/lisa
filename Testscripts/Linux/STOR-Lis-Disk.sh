@@ -10,56 +10,56 @@
 #
 UtilsInit
 
-Integrity-Check() {
-    targetDevice=$1
-    testFile="/dev/shm/testsource"
-    blockSize=$((32 * 1024 * 1024))
-    _gb=$((1 * 1024 * 1024 * 1024))
-    targetSize=$(blockdev --getsize64 $targetDevice)
-    let "blocks=$targetSize / $blockSize"
+Integrity_Check() {
+    target_device=$1
+    test_file="/dev/shm/testsource"
+    block_size=$((32 * 1024 * 1024))
+    gb=$((1 * 1024 * 1024 * 1024))
+    target_size=$(blockdev --getsize64 $target_device)
+    let "blocks=$target_size / $block_size"
 
-    if [ "$targetSize" -gt "$_gb" ]; then
-        targetSize=$_gb
-        let "blocks=$targetSize / $blockSize"
+    if [ "$target_size" -gt "$gb" ]; then
+        target_size=$gb
+        let "blocks=$target_size / $block_size"
     fi
 
     blocks=$((blocks - 1))
-    mount $targetDevice /mnt/
-    targetDevice="/mnt/1"
-    LogMsg "Creating test data file $testfile with size $blockSize"
-    LogMsg "We will fill the device $targetDevice (of size $targetSize) with this data (in $blocks) and then will check if the data is not corrupted."
-    LogMsg "This will erase all data in $targetDevice"
+    mount $target_device /mnt/
+    target_device="/mnt/1"
+    LogMsg "Creating test data file $test_file with size $block_size"
+    LogMsg "We will fill the device $target_device (of size $target_size) with this data (in $blocks) and then will check if the data is not corrupted."
+    LogMsg "This will erase all data in $target_device"
 
-    LogMsg "Creating test source file... ($BLOCKSIZE)"
+    LogMsg "Creating test source file... ($block_size)"
 
-    dd if=/dev/urandom of=$testFile bs=$blockSize count=1 status=noxfer 2>/dev/null
+    dd if=/dev/urandom of=$test_file bs=$block_size count=1 status=noxfer 2>/dev/null
 
     LogMsg "Calculating source checksum..."
-    checksum=$(sha1sum $testFile | cut -d " " -f 1)
+    checksum=$(sha1sum $test_file | cut -d " " -f 1)
     LogMsg $checksum
     LogMsg "Checking ${blocks} blocks"
     for ((y = 0; y < $blocks; y++)); do
-        LogMsg "Writing block $y to device $targetDevice ..."
-        dd if=$testFile of=$targetDevice bs=$blockSize count=1 seek=$y status=noxfer 2>/dev/null
+        LogMsg "Writing block $y to device $target_device ..."
+        dd if=$test_file of=$target_device bs=$block_size count=1 seek=$y status=noxfer 2>/dev/null
         LogMsg "Checking block $y ..."
-        testChecksum=$(dd if=$targetDevice bs=$blockSize count=1 skip=$y status=noxfer 2>/dev/null | sha1sum | cut -d " " -f 1)
-        if [ "$checksum" == "$testChecksum" ]; then
+        test_checksum=$(dd if=$target_device bs=$block_size count=1 skip=$y status=noxfer 2>/dev/null | sha1sum | cut -d " " -f 1)
+        if [ "$checksum" == "$test_checksum" ]; then
             LogMsg "Checksum matched for block $y"
         else
-            LogErr "Checksum mismatch on  block $y for ${targetDevice} "
+            LogErr "Checksum mismatch on  block $y for ${target_device} "
             SetTestStateFailed
             exit 0
         fi
     done
     LogMsg "Data integrity test on ${blocks} blocks on drive $1 : success "
     umount /mnt/
-    rm -f $testFile
+    rm -f $test_file
 }
 
 SetTestStateRunning
 # Count the number of SCSI= and IDE= entries in constants
 #
-diskCount=1
+disk_count=1
 # Set to 1 because of resource disk
 for entry in $(cat ./constants.sh); do
     # Convert to lower case
@@ -67,33 +67,33 @@ for entry in $(cat ./constants.sh); do
 
     # does it start wtih ide or scsi
     if [[ $lowStr == ide* ]]; then
-        diskCount=$((diskCount + 1))
+        disk_count=$((disk_count + 1))
     fi
 
     if [[ $lowStr == scsi* ]]; then
-        diskCount=$((diskCount + 1))
+        disk_count=$((disk_count + 1))
     fi
 done
 
-LogMsg "constants disk count = $diskCount"
+LogMsg "constants disk count = $disk_count"
 
 #
 # Compute the number of sd* drives on the system.
 #
-sdCount=0
+sd_count=0
 for drive in /dev/sd*[^0-9]; do
-    sdCount=$((sdCount + 1))
+    sd_count=$((sd_count + 1))
 done
 
 #
-# Subtract the boot disk from the sdCount, then make
+# Subtract the boot disk from the sd_count, then make
 # sure the two disk counts match
 #
-sdCount=$((sdCount - 1))
-LogMsg "/dev/sd* disk count = $sdCount"
+sd_count=$((sd_count - 1))
+LogMsg "/dev/sd* disk count = $sd_count"
 
-if [ $sdCount != $diskCount ]; then
-    LogErr " disk count ($diskCount) does not match disk count from /dev/sd* ($sdCount)"
+if [ $sd_count != $disk_count ]; then
+    LogErr " disk count ($disk_count) does not match disk count from /dev/sd* ($sd_count)"
     SetTestStateAborted
     exit 0
 fi
@@ -103,31 +103,31 @@ fi
 # size in bytes.  The setup script will add Fixed
 #.vhd of size 1GB, and Dynamic .vhd of 137GB
 #
-FixedDiskSize=1073741824
-Disk4KSize=4096
-DynamicDiskSize=136365211648
+fixed_disk_size=1073741824
+disk_4k_size=4096
+dynamic_disk_size=136365211648
 
-for driveName in /dev/sd*[^0-9]; do
+for drive_name in /dev/sd*[^0-9]; do
     # Skip /dev/sda and /dev/sdb
-    if [ ${driveName} = "/dev/sda" ]; then
+    if [ ${drive_name} = "/dev/sda" ]; then
         continue
     fi
-    if [ ${driveName} = "/dev/sdb" ]; then
+    if [ ${drive_name} = "/dev/sdb" ]; then
         continue
     fi
 
-    fdisk -l $driveName >fdisk.dat 2>/dev/null
+    fdisk -l $drive_name >fdisk.dat 2>/dev/null
     # Format the Disk and Create a file system , Mount and create file on it .
-    (echo d;echo;echo w)|fdisk $driveName
-    (echo n;echo p;echo 1;echo;echo;echo w)|fdisk $driveName
+    (echo d;echo;echo w)|fdisk $drive_name
+    (echo n;echo p;echo 1;echo;echo;echo w)|fdisk $drive_name
     if [ "$?" = "0" ]; then
         sleep 5
 
-        # IntegrityCheck $driveName
-        mkfs.ext4 ${driveName}1
+        # IntegrityCheck $drive_name
+        mkfs.ext4 ${drive_name}1
         if [ "$?" = "0" ]; then
-            LogMsg "mkfs.ext4   ${driveName}1 successful..."
-            mount ${driveName}1 /mnt
+            LogMsg "mkfs.ext4   ${drive_name}1 successful..."
+            mount ${drive_name}1 /mnt
             if [ "$?" = "0" ]; then
                 LogMsg "Drive mounted successfully..."
                 mkdir /mnt/Example
@@ -142,7 +142,7 @@ for driveName in /dev/sd*[^0-9]; do
                     if [ "$?" = "0" ]; then
                         LogMsg "Drive unmounted successfully..."
                     fi
-                    LogMsg "Disk test's completed for ${driveName}1"
+                    LogMsg "Disk test's completed for ${drive_name}1"
                 else
                     LogErr "Error in creating directory /mnt/Example..."
                     SetTestStateFailed
@@ -159,21 +159,21 @@ for driveName in /dev/sd*[^0-9]; do
             exit 0
         fi
     else
-        LogErr "Error in executing fdisk  ${driveName}1"
+        LogErr "Error in executing fdisk  ${drive_name}1"
         SetTestStateFailed
         exit 0
     fi
     # Perform Data integrity test
-    Integrity-Check ${driveName}1
+    Integrity_Check ${drive_name}1
     # The fdisk output appears as one word on each line of the file
     # The 6th element (index 5) is the disk size in bytes
     #
-    elementCount=0
+    element_count=0
     for word in $(cat fdisk.dat); do
-        elementCount=$((elementCount + 1))
-        if [ $elementCount == 5 ]; then
-            if [ $word -ne $FixedDiskSize -a $word -ne $DynamicDiskSize -a $word -ne $Disk4KSize ]; then
-                LogMsg "Warning: $driveName has an unknown disk size: $word"
+        element_count=$((element_count + 1))
+        if [ $element_count == 5 ]; then
+            if [ $word -ne $fixed_disk_size -a $word -ne $dynamic_disk_size -a $word -ne $disk_4k_size ]; then
+                LogMsg "Warning: $drive_name has an unknown disk size: $word"
             fi
         fi
     done
