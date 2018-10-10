@@ -27,7 +27,6 @@
 
 param
 (
-    [parameter(Mandatory=$true)]
     [string]$customSecretsFilePath
 )
 
