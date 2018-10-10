@@ -312,7 +312,7 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML, 
     $HyperVMappedSizes = [xml](Get-Content .\XML\AzureVMSizeToHyperVMapping.xml)
     $CreatedVMs =  @()
     $OsVHD = $BaseOsVHD
-    $InterfaceAliasWithInternet = (Get-NetIPConfiguration | where {$_.NetProfile.Name -ne 'Unidentified network'}).InterfaceAlias
+    $InterfaceAliasWithInternet = (Get-NetIPConfiguration -ComputerName $HyperVHost | where {$_.NetProfile.Name -ne 'Unidentified network'}).InterfaceAlias
     $VMSwitches = Get-VMSwitch | where {$InterfaceAliasWithInternet -match $_.Name}
     $ErrorCount = 0
     $i = 0
