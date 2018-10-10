@@ -506,37 +506,5 @@
                 <DataDisk></DataDisk>
             </VirtualMachine>
         </ResourceGroup>
-    </TwoVMs>
-    <RDMACustomVMs>
-        <isDeployed>NO</isDeployed>
-        <ResourceGroup>
-            <VirtualMachine>
-                <state></state>
-                <InstanceSize>INFINIBAND_CUSTOM_VM_SIZE</InstanceSize>
-                <ARMInstanceSize>INFINIBAND_CUSTOM_VM_SIZE</ARMInstanceSize>
-                <RoleName>controller-vm</RoleName>
-                <EndPoints>
-                    <Name>SSH</Name>
-                    <Protocol>tcp</Protocol>
-                    <LocalPort>22</LocalPort>
-                    <PublicPort>1110</PublicPort>
-                </EndPoints>
-                <DataDisk></DataDisk>
-            </VirtualMachine>
-            <VirtualMachineSet>
-                <VMCount>INFINIBAND_CUSTOM_VM_COUNT</VMCount>
-                <state></state>
-                <InstanceSize>INFINIBAND_CUSTOM_VM_SIZE</InstanceSize>
-                <ARMInstanceSize>INFINIBAND_CUSTOM_VM_SIZE</ARMInstanceSize>
-                <RoleName>client-vm</RoleName>
-                <EndPoints>
-                    <Name>SSH</Name>
-                    <Protocol>tcp</Protocol>
-                    <LocalPort>22</LocalPort>
-                    <PublicPort>1111</PublicPort>
-                </EndPoints>
-                <DataDisk></DataDisk>
-            </VirtualMachineSet>
-        </ResourceGroup>
-    </RDMACustomVMs>    
+    </TwoVMs> 
 </TestSetup>
