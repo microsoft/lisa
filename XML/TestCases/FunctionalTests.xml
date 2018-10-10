@@ -246,7 +246,7 @@
         <Tags>core</Tags>
     </test>
     <test>
-        <testName>FCOPY-BASIC</testName> 
+        <testName>FCOPY-BASIC</testName>
         <testScript>FCOPY-BASIC.ps1</testScript>
         <setupType>SingleVM</setupType>
         <Platform>HyperV</Platform>
@@ -272,7 +272,7 @@
         <Area>Fcopy</Area>
         <Tags>fcopy</Tags>
     </test>
-     <test>
+    <test>
         <testName>FCOPY-LARGE-FILE</testName>
         <setupScript>.\Testscripts\Windows\AddVhdxHardDisk.ps1</setupScript>
         <testScript>FCOPY-LARGE-FILE.ps1</testScript>
@@ -301,8 +301,8 @@
         <testScript>FCOPY-REPEATED-DELETE.ps1</testScript>
         <setupType>SingleVM</setupType>
         <testParameters>
-             <param>SCSI=1,0,Fixed,512,3GB</param>
-             <param>FileSize=2GB</param>
+            <param>SCSI=1,0,Fixed,512,3GB</param>
+            <param>FileSize=2GB</param>
         </testParameters>
         <Platform>HyperV</Platform>
         <Category>FCOPY</Category>
@@ -316,9 +316,9 @@
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\check_traces.sh</files>
         <setupType>SingleVM</setupType>
         <testParameters>
-              <param>SCSI=1,0,Fixed,512,7GB</param>
-              <param>FcopyFileSize=5GB</param>
-              <param>CycleCount=20</param>
+            <param>SCSI=1,0,Fixed,512,7GB</param>
+            <param>FcopyFileSize=5GB</param>
+            <param>CycleCount=20</param>
         </testParameters>
         <Platform>HyperV</Platform>
         <Category>FCOPY</Category>
@@ -422,7 +422,7 @@
         <Area>CORE</Area>
         <Tags>core</Tags>
     </test>
-   <test>
+    <test>
         <testName>TIMESYNC-SAVEDVM</testName>
         <testScript>Timesync-Change-State.ps1</testScript>
         <files>.\Testscripts\Linux\timesync_config.sh,.\Testscripts\Linux\utils.sh</files>
@@ -490,7 +490,7 @@
         <Area>CORE</Area>
         <Tags>core</Tags>
     </test>
-	<test>
+    <test>
         <testName>LIS-CHECK-HYPERVDAEMONS-FILES-STATUS</testName>
         <testScript>LIS-Check-HypervDaemons-Files-Status.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\LIS-Check-HypervDaemons-Files-Status.sh</files>
@@ -500,7 +500,7 @@
         <Area>LIS</Area>
         <Tags>lis</Tags>
     </test>
-     <test>
+    <test>
         <testName>LIS-MOUNT-FLOPPYDISK</testName>
         <testScript>LIS-Mount-FloppyDisk.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\LIS-Mount-FloppyDisk.sh</files>
@@ -510,7 +510,7 @@
         <Area>LIS</Area>
         <Tags>lis</Tags>
     </test>
-     <test>
+    <test>
         <testName>LIS-MOUNT-CD</testName>
         <setupScript>.\TestScripts\Windows\LIS-Mount-CD.ps1</setupScript>
         <testScript>LIS-Mount-CD.sh</testScript>
@@ -521,7 +521,7 @@
         <Area>LIS</Area>
         <Tags>lis</Tags>
     </test>
-     <test>
+    <test>
         <testName>LIS-MOUNT-CD-HOTADD</testName>
         <setupScript>.\TestScripts\Windows\LIS-Mount-CD.ps1</setupScript>
         <testScript>LIS-Mount-CD.sh</testScript>
@@ -534,7 +534,7 @@
         <Category>Functional</Category>
         <Area>LIS</Area>
         <Tags>lis</Tags>
-   </test>
+    </test>
     <test>
         <testName>NET-EXTERNAL</testName>
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1,.\Testscripts\Windows\SETUP-Inject-IP-Constants.ps1</setupScript>
@@ -1116,5 +1116,33 @@
         <Category>Functional</Category>
         <Area>KDUMP</Area>
         <Tags>kdump</Tags>
+    </test>
+    <test>
+        <testName>STORAGE-TAKE-REVERT-SNAPSHOT</testName>
+        <setupScript>.\TestScripts\Windows\\AddVhdxHardDisk.ps1</setupScript>
+        <testScript>SETUP-STOR-TakeRevert-Snapshot.ps1</testScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\check_traces.sh,.\Testscripts\Linux\STOR-Lis-Disk.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>DiskType=VHD</param>
+            <param>SCSI=1,1,Dynamic</param>
+            <param>SnapshotName=ICABase</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>STORAGE</Area>
+        <Tags>storage</Tags>
+    </test>
+    <test>
+        <testName>STORAGE-EXPORT-IMPORT-VM</testName>
+        <testScript>STOR-ExportImportVM.ps1</testScript>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>SnapshotName=ICABase</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>STORAGE</Area>
+        <Tags>storage</Tags>
     </test>
 </TestCases>
