@@ -1145,4 +1145,18 @@
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
     </test>
+    <test>
+        <testName>STORAGE-VHDX-VERIFY-SECTORSIZE</testName>
+        <setupScript>.\TestScripts\Windows\AddVhdxHardDisk.ps1</setupScript>
+        <testScript>STOR-Verify-Sector-Size.sh</testScript>
+        <files>.\Testscripts\Linux\STOR-Verify-Sector-Size.sh,.\Testscripts\Linux\utils.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>SCSI=1,1,Dynamic,512</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>STORAGE</Area>
+        <Tags>storage</Tags>
+    </test>
 </TestCases>
