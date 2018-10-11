@@ -1,6 +1,7 @@
 <!--#This list contains the ignorable boot errors of different images.-->
 <messages>		
         <failures>
+            <keywords>Perf event create on CPU 0 failed with -2</keywords>
             <keywords>Fast TSC calibration</keywords>
             <keywords>acpi PNP0A03:00</keywords>
             <keywords>systemd-journald-audit.socket</keywords>
@@ -26,5 +27,8 @@
             <keywords>Broken pipe</keywords>
             <keywords>errors=remount-ro</keywords>			
         </errors>
-        <warnings/>
+        <warnings>
+            <keywords>Proceeding WITHOUT firewalling in effect!</keywords>
+            <keywords>urandom warning(s) missed due to ratelimiting</keywords>
+        </warnings>
 </messages>
