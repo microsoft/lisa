@@ -55,7 +55,6 @@ function Main {
     param (
          $TestParams
 	  )
-    $currentTestResult = CreateTestResultObject
     $resultArr = @()
     try {
         $testResult = $null
@@ -77,12 +76,14 @@ function Main {
         {
           throw "Error: TestParams is null"
         }
+        $vm_mem = (Get-VMMemory $VMName -ComputerName $HvServer).Startup
+        LogMsg "VM Memory $vm_mem"
         $tpEnabled = $null
-        [int64]$tPminMem = 0
-        [int64]$tPmaxMem = 0
-        [int64]$tPstartupMem = 0
-        [int64]$tPmemWeight = -1
-        [int64]$tPstaticMem = 0
+        [int64]$dmMinMem = 0
+        [int64]$dmMaxMem = 0
+        [int64]$dmStartupMem = 0
+        [int64]$dmMemWeight = -1
+        [int64]$dmStaticMem = 0
         $bootLargeMem = $false
         if ($TestParams.enableDM -ilike "yes")
         {
@@ -92,44 +93,44 @@ function Main {
         {
             $tpEnabled = $false
         }
-        $tPminMem = Convert-ToMemSize $TestParams.minMem $HvServer
+        $dmMinMem = Convert-ToMemSize $TestParams.minMem $HvServer
 
-        if ($tPminMem -le 0)
+        if ($dmMinMem -le 0)
         {
             LogErr "Error: Unable to convert minMem to int64."
         }
 
-        $tPmaxMem = Convert-ToMemSize $TestParams.maxMem $HvServer
+        $dmMaxMem = Convert-ToMemSize $TestParams.maxMem $HvServer
 
-        if ($tPmaxMem -le 0)
+        if ($dmMaxMem -le 0)
         {
            LogErr "Error: Unable to convert maxMem to int64."
         }
-        $tPstartupMem = Convert-ToMemSize $TestParams.startupMem $HvServer
-        if ($tPstartupMem -le 0)
+        $dmStartupMem = Convert-ToMemSize $TestParams.startupMem $HvServer
+        if ($dmStartupMem -le 0)
         {
             LogErr "Error: Unable to convert minMem to int64."
         }
-        $tPmemWeight = [Convert]::ToInt32($TestParams.memWeight)
+        $dmMemWeight = [Convert]::ToInt32($TestParams.memWeight)
 
-        if ($tPmemWeight -lt 0 -or $tPmemWeight -gt 100)
+        if ($dmMemWeight -lt 0 -or $dmmemWeight -gt 100)
         {
            throw "Error: Memory weight needs to be between 0 and 100."
         }
-        LogMsg "tPmemWeight $tPmemWeight"
+        LogMsg "dmmemWeight $dmMemWeight"
 
         if ($TestParams.bootLargeMem -ilike "yes")
         {
 		    $bootLargeMem = $true
         }
         LogMsg "BootLargeMemory: $bootLargeMem"
-        $tPstaticMem = Convert-ToMemSize $TestParams.staticMem $HvServer
-        if ($tPstaticMem -le 0)
+        $dmStaticMem = Convert-ToMemSize $TestParams.staticMem $HvServer
+        if ($dmStaticMem -le 0)
         {
            LogErr "Error: Unable to convert staticMem to int64."
         }
         # check if we have all variables set
-        if ( $VMName -and ($tpEnabled -eq $false -or $tpEnabled -eq $true) -and $tPstartupMem -and ([int64]$tPmemWeight -ge [int64]0) )
+        if ( $VMName -and ($tpEnabled -eq $false -or $tpEnabled -eq $true) -and $dmStartupMem -and ([int64]$dmMemWeight -ge [int64]0) )
         {
             # make sure VM is off
             if (Get-VM -Name $VMName -ComputerName $HvServer |  Where-Object { $_.State -like "Running" })
@@ -144,40 +145,32 @@ function Main {
 
                 # wait for VM to finish shutting down
                 $timeout = 30
-                while (Get-VM -Name $VMName -ComputerName $HvServer |  Where-Object { $_.State -notlike "Off" })
-                {
-                    if ($timeout -le 0)
-                    {
-                        throw "Error: Unable to shutdown $VMName"
-                    }
-                    start-sleep -s 5
-                    $timeout = $timeout - 5
-                }
+                Wait-ForHyeprVVMShutdown $HvServer $VMName $timeout
             }
-            if ($bootLargeMem) {
+	        if ($bootLargeMem) {
                 $OSInfo = Get-CIMInstance Win32_OperatingSystem -ComputerName $HvServer
 		        $freeMem = $OSInfo.FreePhysicalMemory * 1KB
-		        if ($tPstartupMem -le $freeMem) {
-		            Set-VMMemory -VMName $VMName -ComputerName $HvServer -DynamicMemoryEnabled $false -StartupBytes $tPstartupMem
-                }
-                else {
-                    throw "Error: Insufficient memory to run test. Skipping test."
+		        if ($dmStartupMem -le $freeMem) {
+			        Set-VMMemory -VMName $VMName -ComputerName $HvServer -DynamicMemoryEnabled $false -StartupBytes $dmStartupMem
 		        }
-            }
-	        elseif ($tpEnabled)
+		        else {
+			        throw "Error: Insufficient memory to run test. Skipping test."
+		        }
+	        }
+            elseif ($tpEnabled)
             {
                 if ($maxMem_xmlValue -eq $startupMem_xmlValue)
                 {
-                  $tPstartupMem = $tPmaxMem
+                    $dmStartupMem = $dmMaxMem
                 }
                 Set-VMMemory -VMName $VMName -ComputerName $HvServer -DynamicMemoryEnabled $tpEnabled `
-                              -MinimumBytes $tPminMem -MaximumBytes $tPmaxMem -StartupBytes $tPstartupMem `
-                              -Priority $tPmemWeight
+                              -MinimumBytes $dmMinMem -MaximumBytes $dmMaxMem -StartupBytes $dmStartupMem `
+                              -Priority $dmMemWeight
             }
             else
             {
                 Set-VMMemory -VMName $VMName -ComputerName $HvServer -DynamicMemoryEnabled $tpEnabled `
-                            -StartupBytes $tPstartupMem -Priority $tPmemWeight
+                            -StartupBytes $dmStartupMem -Priority $dmMemWeight
             }
             if ( $?){
                LogMsg "set VM memeory for $VMName."
@@ -186,21 +179,21 @@ function Main {
             {
                 throw "Error: Unable to set VM Memory for $VMName."
                 "DM enabled: $tpEnabled"
-                "min Mem: $tPminMem"
-                "max Mem: $tPmaxMem"
-                "startup Mem: $tPstartupMem"
-                "weight Mem: $tPmemWeight"
+                "min Mem: $dmMinMem"
+                "max Mem: $dmMaxMem"
+                "startup Mem: $dmStartupMem"
+                "weight Mem: $dmMemWeight"
             }
             # check if mem is set correctly
             $vm_mem = (Get-VMMemory $VMName -ComputerName $HvServer).Startup
-            if( $vm_mem -eq $tPstartupMem )
+            if( $vm_mem -eq $dmStartupMem )
             {
-                LogMSG "Set VM Startup Memory for $VMName to $tPstartupMem"
+                LogMSG "Set VM Startup Memory for $VMName to $dmStartupMem"
                 $testResult = "PASS"
             }
             else
             {
-                throw "Error : Unable to set VM Startup Memory for $VMName to $tPstartupMem"
+                throw "Error : Unable to set VM Startup Memory for $VMName to $dmStartupMem"
             }
         }
     }
@@ -211,7 +204,7 @@ function Main {
     }
     finally {
         if (!$testResult) {
-            $testResult = "Aborted"
+            $testResult = "ABORTED"
         }
             $resultArr += $testResult
     }

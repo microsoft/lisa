@@ -831,3 +831,34 @@ function Wait-VMHeartbeatOK {
         throw "VM ${VMName} failed to enter Heartbeat OK state"
     }
 }
+
+Function Wait-ForHyeprVVMShutdown($HvServer,$VMNames, $TimeoutInSecond)
+{
+    LogMsg "Waiting for VM Shuting Down"
+    if (-not $TimeoutInSecond)
+    {
+        $TimeoutInSecond = 30
+        LogMsg "Deafult wait time for VM Shut Down $TimeoutInSecond"
+    }
+    if ($VMNames -and $HvServer)
+    {
+        foreach ($VMName in $VMNames.split(","))
+        {
+            while (Get-VM -Name $VMName -ComputerName $HvServer |  Where-Object { $_.State -notlike "Off" })
+            {
+                LogMsg " While: HvServer $HvServer VMName $VMNames TimeoutInSecound $TimeoutInSecond"
+                if ($TimeoutInSecond -le 0)
+                {
+                    throw "Error: Unable to shutdown $VMName"
+                }
+                Start-Sleep -s 5
+                $TimeoutInSecond = $TimeoutInSecond - 5
+            }
+        }
+    }
+    else
+    {
+        LogError "Please provide HvServer and VMNames."
+        Throw "Wait-ForHyeprVVMShutdown Missing Mandatory Paramters"
+    }
+}

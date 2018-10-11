@@ -21,7 +21,6 @@ UtilsInit
 # Create the state.txt file so ICA knows we are running
 SetTestStateRunning
 
-
 # Cleanup any old summary.log files
 if [ -e ~/summary.log ]; then
     rm -rf ~/summary.log
