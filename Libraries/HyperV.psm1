@@ -258,13 +258,38 @@ Function DeleteHyperVGroup([string]$HyperVGroupName, [string]$HyperVHost) {
         LogMsg "Stop-VM -Name $($_.Name) -Force -TurnOff "
         $vm = $_
         Stop-VM -Name $vm.Name -Force -TurnOff -ComputerName $HyperVHost
+        Remove-VMSnapshot -VMName $vm.Name -ComputerName $HyperVHost `
+            -IncludeAllChildCheckpoints -Confirm:$false
+        if (!$?) {
+            LogErr ("Failed to remove snapshots for VM {0}" -f @($vm.Name))
+            return $false
+        }
+        Wait-VMStatus -VMName $vm.Name -VMStatus "Operating Normally" -RetryInterval 2 `
+            -HvServer $HyperVHost
+        $vm = Get-VM -Name $vm.Name -ComputerName $HyperVHost
         $vm.HardDrives | ForEach-Object {
-            $vhd = $_
-            if (Test-Path -Path $vhd.Path) {
-                Invoke-Command -ComputerName $HyperVHost -ScriptBlock {
-                    Remove-Item -Path $args[0] -Force } -ArgumentList $vhd.Path
-                LogMsg "VHD $($vhd.Path) removed!"
+            $vhdPath = $_.Path
+            $invokeCommandParams = @{
+                "ScriptBlock" = {
+                    Remove-Item -Path $args[0] -Force
+                };
+                "ArgumentList" = $vhdPath;
             }
+            if ($HyperVHost -ne "localhost" -and $HyperVHost -ne $(hostname)) {
+                $invokeCommandParams.ComputerName = $HyperVHost
+            }
+            Invoke-Command @invokeCommandParams
+            if (!$?) {
+                LogMsg "Failed to remove ${vhdPath} using Invoke-Command"
+                $vhdUncPath = $vhdPath -replace '^(.):', "\\$(HyperVHost)\`$1$"
+                LogMsg "Removing ${vhdUncPath} ..."
+                Remove-Item -Path $vhdUncPath -Force
+                if (!$? -or (Test-Path $vhdUncPath)) {
+                    LogErr "Failed to remove ${vhdPath} using UNC paths"
+                    return $false
+                }
+            }
+            LogMsg "VHD ${vhdPath} removed!"
         }
         Remove-VM -Name $vm.Name -ComputerName $HyperVHost -Force
         LogMsg "Hyper-V VM $($vm.Name) removed!"
@@ -739,6 +764,27 @@ function Wait-VMState {
     }
     if ($currentRetryCount -eq $RetryCount) {
         throw "VM ${VMName} failed to enter ${VMState} state"
+    }
+}
+
+function Wait-VMStatus {
+    param(
+        $VMName,
+        $VMStatus,
+        $HvServer,
+        $RetryCount=30,
+        $RetryInterval=5
+    )
+
+    $currentRetryCount = 0
+    while ($currentRetryCount -lt $RetryCount -and `
+              (Get-VM -ComputerName $HvServer -Name $VMName).Status -ne $VMStatus) {
+        LogMsg "Waiting for VM ${VMName} to enter '${VMStatus}' status"
+        Start-Sleep -Seconds $RetryInterval
+        $currentRetryCount++
+    }
+    if ($currentRetryCount -eq $RetryCount) {
+        throw "VM ${VMName} failed to enter ${VMStatus} status"
     }
 }
 
