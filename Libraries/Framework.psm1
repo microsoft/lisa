@@ -934,7 +934,9 @@ Function CreateArrayOfTabs()
 	return $tab
 }
 
-Function Get-SQLQueryOfTelemetryData ($TestPlatform,$TestLocation,$TestCategory,$TestArea,$TestName,$CurrentTestResult,$ExecutionTag,$GuestDistro,$KernelVersion,$LISVersion,$HostVersion,$VMSize,$Networking,$ARMImage,$OsVHD,$LogFile,$BuildURL)
+Function Get-SQLQueryOfTelemetryData ($TestPlatform,$TestLocation,$TestCategory,$TestArea,$TestName,$CurrentTestResult, `
+									$ExecutionTag,$GuestDistro,$KernelVersion,$LISVersion,$HostVersion,$VMSize, `
+									$Networking,$ARMImage,$OsVHD,$LogFile,$BuildURL)
 {
 	if ($EnableTelemetry) {
 		try
@@ -951,7 +953,9 @@ Function Get-SQLQueryOfTelemetryData ($TestPlatform,$TestLocation,$TestCategory,
 			$ticks= (Get-Date).Ticks
 			$uploadFileName = ".\Temp\$($TestName)-$ticks.zip"
 			$out = ZipFiles -zipfilename $uploadFileName -sourcedir $LogDir
-			$UploadedURL = .\Utilities\UploadFilesToStorageAccount.ps1 -filePaths $uploadFileName -destinationStorageAccount $testLogStorageAccount -destinationContainer "lisav2logs" -destinationFolder "$testLogFolder" -destinationStorageKey $testLogStorageAccountKey
+			$UploadedURL = .\Utilities\UploadFilesToStorageAccount.ps1 -filePaths $uploadFileName `
+			-destinationStorageAccount $testLogStorageAccount -destinationContainer "lisav2logs" `
+			-destinationFolder "$testLogFolder" -destinationStorageKey $testLogStorageAccountKey
 			if ($BuildURL) {
 				$BuildURL = "$BuildURL`consoleFull"
 			} else {
