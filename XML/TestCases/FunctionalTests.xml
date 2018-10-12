@@ -1333,12 +1333,12 @@
         <testName>DYNAMIC-MEMORY-VERIFY-UDEV</testName>
         <setupScript>.\Testscripts\Windows\DM-CONFIGURE-MEMORY.ps1</setupScript>
         <TestParameters>
-            <param>enableDM=yes</param>
-            <param>minMem=1024MB</param>
-            <param>maxMem=2GB</param>
-            <param>startupMem=1024MB</param>
-            <param>memWeight=20</param>
-            <param>staticMem=1024MB</param>
+		    <param>enableDM=yes</param>
+			<param>minMem=1024MB</param>
+			<param>maxMem=2GB</param>
+			<param>startupMem=1024MB</param>
+			<param>memWeight=20</param>
+			<param>staticMem=1024MB</param>
         </TestParameters>
         <testScript>DM_HotAdd_Verify_udev.sh</testScript>
         <files>.\Testscripts\Linux\DM_HotAdd_Verify_udev.sh,.\Testscripts\Linux\utils.sh</files>
@@ -1350,10 +1350,12 @@
         <Tags>memory</Tags>
     </test>
     <test>
-        <testName>HOT-ADD</testName>
-        <setupScript>./Testscripts/Windows/DM-CONFIGURE-MEMORY.ps1</setupScript>
+        <testName>DYNAMIC-MEMORY-HOT-ADD</testName>
+        <setupScript>.\Testscripts\Windows\DM-CONFIGURE-MEMORY.ps1</setupScript>
+        <testScript>DM-HOTADD-STRESS-NG.ps1</testScript>
+        <files>.\Testscripts\Linux\check_traces.sh</files>
+        <setupType>SingleVM</setupType>
         <TestParameters>
-            <param>TC_COVERED=DM-04</param>
             <param>Stress_Level=0</param>
             <param>enableDM=yes</param>
             <param>minMem=1024MB</param>
@@ -1362,10 +1364,6 @@
             <param>memWeight=100</param>
             <param>staticMem=1024MB</param>
         </TestParameters>
-        <testScript>DM-HOTADD-STRESS-NG.ps1</testScript>
-        <files>.\Testscripts\Linux\check_traces.sh</files>
-        <timeout>1200</timeout>
-        <setupType>SingleVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>Dynamic_Memory</Area>

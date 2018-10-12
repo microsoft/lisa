@@ -12,7 +12,7 @@
       vmName=Name of a VM, enableDM=[yes|no], minMem= (decimal) [MB|GB|%], maxMem=(decimal) [MB|GB|%],
       startupMem=(decimal) [MB|GB|%], memWeight=(0 < decimal < 100)
 
-   vmName is the name of a existing Virtual Machines.
+   vmName is the name of an existing Virtual Machines.
 
    enable specifies if Dynamic Memory should be enabled or not on the given Virtual Machines.
      accepted values are: yes | no
@@ -144,8 +144,7 @@ function Main {
                 }
 
                 # wait for VM to finish shutting down
-                $timeout = 30
-                Wait-ForHyeprVVMShutdown $HvServer $VMName $timeout
+                Wait-ForHyperVVMShutdown $HvServer $VMName
             }
 	        if ($bootLargeMem) {
                 $OSInfo = Get-CIMInstance Win32_OperatingSystem -ComputerName $HvServer
@@ -173,7 +172,7 @@ function Main {
                             -StartupBytes $dmStartupMem -Priority $dmMemWeight
             }
             if ( $?){
-               LogMsg "set VM memeory for $VMName."
+               LogMsg "set VM memory for $VMName."
             }
             if (-not $?)
             {
