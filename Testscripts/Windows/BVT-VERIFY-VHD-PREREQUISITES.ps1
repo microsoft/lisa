@@ -34,6 +34,8 @@ function Main {
         }
         elseif ($detectedDistro -imatch "SLES") {
             $matchstrings = @("_TEST_SUDOERS_VERIFICATION_SUCCESS","_TEST_GRUB_VERIFICATION_SUCCESS", "_TEST_REPOSITORIES_AVAILABLE")
+            # to avoid extra blank space
+            $detectedDistro="SLES"
         }
         if ($detectedDistro -imatch "COREOS") {
             $matchstrings = @("_TEST_UDEV_RULES_SUCCESS")

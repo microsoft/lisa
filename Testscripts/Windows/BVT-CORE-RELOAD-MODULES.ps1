@@ -35,15 +35,16 @@ function Check-Result {
     $testCompleted = "TestCompleted"
     $testAborted = "TestAborted"
     $testFailed = "TestFailed"
+    $testSkipped = "TestSkipped"
     $attempts = 200
 
     while ($attempts -ne 0 ){
-        RemoteCopy -download -downloadFrom $VmIp -files "/home/${User}/state.txt" -downloadTo $LogDir -port $VMPort -username "root" -password $Password
+        RemoteCopy -download -downloadFrom $VmIp -files "/home/${User}/state.txt" -downloadTo $LogDir -port $VMPort -username $User -password $Password
             if (Test-Path $stateFile){
                 $contents = Get-Content -Path $stateFile
                 if ($null -ne $contents){
-                    if ($contents -eq $testCompleted) {
-                        LogMsg "Info: state file contains TestCompleted"
+                    if (($contents -eq $testCompleted) -or ($contents -eq $testSkipped)) {
+                        LogMsg "Info: state file contains ${contents}"
                         $retVal = $True
                         break
                     }
@@ -122,6 +123,6 @@ function Main {
     }
 }
 
-Main -VMName $AllVMData.RoleName -hvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
+Main -VMName $AllVMData.RoleName -hvServer $TestLocation `
          -ipv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort `
          -VMUserName $user -VMPassword $password -RootDir $WorkingDirectory

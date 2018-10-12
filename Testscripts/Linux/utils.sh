@@ -2020,6 +2020,11 @@ function GetOSVersion {
         os_PACKAGE="deb"
         os_CODENAME=$(awk '/VERSION=/' /etc/os-release | sed 's/VERSION=//' | sed -r 's/\"|\(|\)//g' | awk '{print $2}')
         os_RELEASE=$(awk '/VERSION_ID=/' /etc/os-release | sed 's/VERSION_ID=//' | sed 's/\"//g')
+    elif [[ -f /etc/os-release ]] && [[ $(cat /etc/os-release) =~ "SUSE Linux Enterprise Server 15" ]]; then
+        os_VENDOR="SLES"
+        os_PACKAGE="rpm"
+        os_CODENAME=""
+        os_RELEASE=$(awk '/VERSION_ID=/' /etc/os-release | sed 's/VERSION_ID=//' | sed 's/\"//g')
     fi
     export os_VENDOR os_RELEASE os_UPDATE os_PACKAGE os_CODENAME
 }

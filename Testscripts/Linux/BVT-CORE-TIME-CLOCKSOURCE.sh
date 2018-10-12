@@ -54,7 +54,7 @@ CheckSource()
 
 	# check dmesg with hyperv_clocksource
 	__dmesg_output=$(grep -rnw '/var/log' -e "clocksource $clocksource" --ignore-case)
-	if [ -n $__dmesg_output ]; then
+	if [[ -n $__dmesg_output ]]
 	then
 		LogMsg "Test successful. dmesg contains log - clocksource $__dmesg_output"
 	else
@@ -98,6 +98,10 @@ case $DISTRO in
 		UnbindCurrentSource
 		;;
 	ubuntu* )
+		CheckSource
+		UnbindCurrentSource
+		;;
+	suse* )
 		CheckSource
 		UnbindCurrentSource
 		;;

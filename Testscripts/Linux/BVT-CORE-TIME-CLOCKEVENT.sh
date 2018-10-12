@@ -103,6 +103,11 @@ case $DISTRO in
         CheckTimerInfo
         UnbindClockEvent
         ;;
+    suse* )
+        CheckClockEvent
+        CheckTimerInfo
+        UnbindClockEvent
+        ;;
     *)
         msg="ERROR: Distro '$DISTRO' not supported"
         LogMsg "${msg}"

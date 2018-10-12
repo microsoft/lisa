@@ -61,6 +61,13 @@ ReloadNetvsc()
 # Source constants file and initialize most common variables
 UtilsInit
 
+netvsc_includes=`grep CONFIG_HYPERV_NET=y /boot/config-$(uname -r)`
+if [ $netvsc_includes ]; then
+    LogMsg "Info: Skiping case since hv_netvsc module as it is built-in."
+    SetTestStateSkipped
+    exit 0
+fi
+
 while [ "$TestCount" -lt "$LoopCount" ]
 do
     TestCount=$((TestCount+1))

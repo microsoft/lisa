@@ -2,14 +2,9 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 from azuremodules import *
-import argparse
 import os
 
-parser = argparse.ArgumentParser()
-parser.add_argument('-wl', '--whitelist', help='specify the xml file which contains the ignorable errors')
-
-args = parser.parse_args()
-white_list_xml = args.whitelist
+white_list_xml = "ignorable-boot-errors.xml"
 
 def RunTest():
     UpdateState("TestRunning")
