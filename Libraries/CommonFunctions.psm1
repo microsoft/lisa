@@ -1518,7 +1518,7 @@ Function RunLinuxCmd([string] $username,[string] $password,[string] $ip,[string]
 			While(($runLinuxCmdJob.State -eq "Running") -and ($isBackGroundProcessStarted -eq $false ) -and $notExceededTimeLimit)
 			{
 				$SSHOut = Receive-Job $runLinuxCmdJob 2> $LogDir\$randomFileName
-				$JobOut = Get-Content $LogDir\$randomFileName
+				$jobOut = Get-Content $LogDir\$randomFileName
 				if($jobOut)
 				{
 					foreach($outLine in $jobOut)
@@ -1641,6 +1641,7 @@ Function RunLinuxCmd([string] $username,[string] $password,[string] $ip,[string]
 				$jobOut = Receive-Job $runLinuxCmdJob 2> $LogDir\$randomFileName
 				if($jobOut)
 				{
+					$jobOut = $jobOut.Replace("[sudo] password for $username`: ","")
 					foreach ($outLine in $jobOut)
 					{
 						if($outLine -imatch "AZURE-LINUX-EXIT-CODE-")
@@ -1681,6 +1682,7 @@ Function RunLinuxCmd([string] $username,[string] $password,[string] $ip,[string]
 			$jobOut = Receive-Job $runLinuxCmdJob 2> $LogDir\$randomFileName
 			if($jobOut)
 			{
+				$jobOut = $jobOut.Replace("[sudo] password for $username`: ","")
 				foreach ($outLine in $jobOut)
 				{
 					if($outLine -imatch "AZURE-LINUX-EXIT-CODE-")
