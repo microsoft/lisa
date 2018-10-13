@@ -101,19 +101,7 @@ $htmlFileStart = '
 </style>
 
 <p style="text-align: left;"><em>Last refreshed&nbsp;<strong>DATE_TIME. </strong></em> <a href="https://msit.powerbi.com/groups/a765920a-87fb-4668-bf25-780ff25639be/reports/9e04d866-5c5b-4020-aa63-f61d952c5b75/ReportSection" target="_blank" rel="noopener"><em><strong>Click Here</strong></em></a> to see the report in PowerBI.</p>
-
-<table class="tg">
-  <tr>
-    <th class="tg-amwmleft">SR. #</th>
-    <th class="tg-amwmleft">Region</th>
-    <th class="tg-amwm">Total VMs</th>
-    <th class="tg-amwm">vCPU Cores (Used / Deallocated / Max Allowed)</th>
-    <th class="tg-amwm">vCPU Core usage %</th>
-    <th class="tg-amwm">Storage Accounts</th>
-    <th class="tg-amwm">Public IPs</th>
-    <th class="tg-amwm">Virtual Networks</th>
-  </tr>
-  '
+'
   
 $htmlFileStart = $htmlFileStart.Replace("DATE_TIME","$($psttime.DateTime) PST")
 #endregion
@@ -164,10 +152,21 @@ $totalStorageAccounts = 0
 
 #region Create HTML report
 
-$FinalEmailSummary = ""
-$FinalEmailSummary += $htmlFileStart
+$UsageReport = '
+<table class="tg">
+  <tr>
+    <th class="tg-amwmleft">SR. #</th>
+    <th class="tg-amwmleft">Region</th>
+    <th class="tg-amwm">Total VMs</th>
+    <th class="tg-amwm">vCPU Cores (Used / Deallocated / Max Allowed)</th>
+    <th class="tg-amwm">vCPU Core usage %</th>
+    <th class="tg-amwm">Storage Accounts</th>
+    <th class="tg-amwm">Public IPs</th>
+    <th class="tg-amwm">Virtual Networks</th>
+  </tr>
+  '
 
-$FinalEmailSummary += "FINAL_SUMMARY"
+$UsageReport += "FINAL_SUMMARY"
 
 if ($UploadToDB)
 {
@@ -255,7 +254,7 @@ foreach ($region in $allRegions)
     $currentHTMLNode = $currentHTMLNode.Replace("Region_PublicIP","$currentPublicIPs")
     $currentHTMLNode = $currentHTMLNode.Replace("Region_VNET","$currentVNETs")
     #Add-Content -Path $FinalHtmlFile -Value $currentHTMLNode
-    $FinalEmailSummary += $currentHTMLNode
+    $UsageReport += $currentHTMLNode
     
     $totalVMs += $currentVMs
     $totalVNETs += $currentVNETs
@@ -295,8 +294,8 @@ $htmlSummary = $htmlSummary.Replace("Total_SA","$totalStorageAccounts")
 $htmlSummary = $htmlSummary.Replace("Allowed_SA","200")
 $htmlSummary = $htmlSummary.Replace("Total_PublicIP","$totalPublicIPs")
 $htmlSummary = $htmlSummary.Replace("Total_VNET","$totalVNETs")
-$FinalEmailSummary = $FinalEmailSummary.Replace("FINAL_SUMMARY",$htmlSummary)
-$FinalEmailSummary += '</table>'
+$UsageReport = $UsageReport.Replace("FINAL_SUMMARY",$htmlSummary)
+$UsageReport += '</table>'
 
 #region Upload usage to DB
 if ($UploadToDB)
@@ -328,7 +327,13 @@ LogMsg "Getting top 20 VMs."
 
 $TopVMsHTMLReport = (Get-Content -Path .\vmAge.html)
 
+$FinalEmailSummary += $htmlFileStart
+
 foreach ( $line in $TopVMsHTMLReport.Split("`n"))
+{
+    $FinalEmailSummary += $line
+}
+foreach ( $line in $UsageReport.Split("`n"))
 {
     $FinalEmailSummary += $line
 }
