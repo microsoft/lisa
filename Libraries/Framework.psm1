@@ -1019,3 +1019,34 @@ Function UploadTestResultToDatabase ($TestPlatform,$TestLocation,$TestCategory,$
 		}
 	}
 }
+
+Function Get-LISAv2Tools($XMLSecretFile)
+{
+	# Copy required binary files to working folder
+	$CurrentDirectory = Get-Location
+	$CmdArray = @('7za.exe','dos2unix.exe','gawk','jq','plink.exe','pscp.exe', `
+					'kvp_client32','kvp_client64','nc.exe')
+
+	if ($XMLSecretFile) {
+		$WebClient = New-Object System.Net.WebClient
+		$xmlSecret = [xml](Get-Content $XMLSecretFile)
+		$toolFileAccessLocation = $xmlSecret.secrets.blobStorageLocation
+	}
+
+	$CmdArray | ForEach-Object {
+		# Verify the binary file in Tools location
+		if ( Test-Path $CurrentDirectory/Tools/$_ ) {
+			LogMsg "$_ file found in Tools folder."
+		} elseif (! $toolFileAccessLocation) {
+			Throw "$_ file is not found, please either download the file to Tools folder, or specify the blobStorageLocation in XMLSecretFile"
+		} else {
+			LogMsg "$_ file not found in Tools folder."
+			LogMsg "Downloading required files from blob Storage Location"
+
+			$WebClient.DownloadFile("$toolFileAccessLocation/$_","$CurrentDirectory\Tools\$_")
+
+			# Successfully downloaded files
+			LogMsg "File $_ successfully downloaded in Tools folder: $_."
+		}
+	}
+}

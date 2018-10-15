@@ -31,6 +31,9 @@ LISAv2 includes below test suite categories:
 * jq
 * plink.exe
 * pscp.exe
+* kvp_client32
+* kvp_client64
+* nc.exe
 
 ### Download Latest Azure PowerShell
 
@@ -100,7 +103,7 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
 
 3. Run the test suite with below command:
 
-        .\RunTests.ps1 -TestPlatform "Azure" -TestLocation "<Region location>" -RGIdentifier "<Identifier of the resource group>" [-ARMImageName "<publisher offer SKU version>" | -OsVHD "<VHD from storage account>" ] [[-TestCategory "<Test Catogry from Jenkins pipeline>" | -TestArea "<Test Area from Jenkins pipeline>"]* | -TestTag "<A Tag from Jenkins pipeline>" | -TestNames "<Test cases separated by comma>"]
+        .\Run-LisaV2.ps1 -TestPlatform "Azure" -TestLocation "<Region location>" -RGIdentifier "<Identifier of the resource group>" [-ARMImageName "<publisher offer SKU version>" | -OsVHD "<VHD from storage account>" ] [[-TestCategory "<Test Catogry from Jenkins pipeline>" | -TestArea "<Test Area from Jenkins pipeline>"]* | -TestTag "<A Tag from Jenkins pipeline>" | -TestNames "<Test cases separated by comma>"]
 
 ### More Information
 

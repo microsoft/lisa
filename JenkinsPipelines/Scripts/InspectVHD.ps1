@@ -26,7 +26,8 @@
 
 Param (
     $RemoteFolder = "J:\ReceivedFiles",
-    $LocalFolder = "Q:\Temp"
+    $LocalFolder = "Q:\Temp",
+    $XMLSecretFile = ""
 )
 
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global }
@@ -37,6 +38,9 @@ $CurrentLocalFolder = "$LocalFolder"
 $ExitCode = 0
 try
 {
+    #Download the tools required for LISAv2 execution.
+    Get-LISAv2Tools -XMLSecretFile $XMLSecretFile
+
     $7zExePath = (Get-Item .\Tools\7za.exe).FullName
 
     #Prerequisites:

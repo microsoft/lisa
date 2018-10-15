@@ -1084,7 +1084,7 @@ Function Test-TCP($testIP, $testport)
 	}
 	catch [System.Net.Sockets.SocketException]
 	{
-		LogError "TCP test failed"
+		LogWarn "TCP test failed"
 	}
 	if ($socket.Connected)
 	{
@@ -3242,70 +3242,6 @@ function Convert-StringToUInt64{
 	return $uint64Size
 }
 
-function Run-Test{
-	param(
-		[String] $vmPassword,
-		[String] $vmPort,
-		[String] $vmUserName,
-		[String] $ipv4,
-		[String] $filename
-	)
-
-	"exec ./${filename}.sh &> ${filename}.log " | out-file -encoding ASCII -filepath runtest.sh
-
-	.\tools\pscp.exe  -v -2 -unsafe -pw $vmPassword -q -P ${vmPort} $vmUserName@${ipv4}:.\runtest.sh
-	if (-not $?)
-	{
-	LogErr "Unable to copy ${filename}.sh to the VM"
-	return $False
-	}
-
-	.\tools\pscp.exe  -v -2 -unsafe -pw $vmPassword -q -P ${vmPort} $vmUserName@${ipv4}:${filename}.sh
-	if (-not $?)
-	{
-		LogErr  "Unable to copy ${filename}.sh to the VM"
-	return $False
-	}
-
-	.\Tools\plink.exe -C -pw ${vmPassword} -P ${vmPort} ${vmUserName}@${ipv4} "dos2unix ${filename}.sh  2> /dev/null"
-	if (-not $?)
-	{
-		LogErr "Unable to run dos2unix on ${filename}.sh"
-		return $False
-	}
-
-	.\Tools\plink.exe -C -pw ${vmPassword} -P ${vmPort} ${vmUserName}@${ipv4} "dos2unix runtest.sh  2> /dev/null"
-	if (-not $?)
-	{
-		LogErr "Unable to run dos2unix on runtest.sh"
-		return $False
-	}
-
-	.\Tools\plink.exe -C -pw ${vmPassword} -P ${vmPort} ${vmUserName}@${ipv4} "chmod +x ${filename}.sh   2> /dev/null"
-	if (-not $?)
-	{
-		LogErr "Unable to chmod +x ${filename}.sh"
-		return $False
-	}
-	.\Tools\plink.exe -C -pw ${vmPassword} -P ${vmPort} ${vmUserName}@${ipv4} "chmod +x runtest.sh  2> /dev/null"
-	if (-not $?)
-	{
-		LogErr "Unable to chmod +x runtest.sh "
-		return $False
-	}
-
-	.\Tools\plink.exe -C -pw ${vmPassword} -P ${vmPort} ${vmUserName}@${ipv4} "./runtest.sh 2> /dev/null"
-	if (-not $?)
-	{
-		LogErr "Unable to run runtest.sh "
-		return $False
-	}
-
-	Remove-Item runtest.sh
-	return $True
-}
-
-
 function Check-Result{
 	param(
 		[String] $vmPassword,
@@ -4218,3 +4154,84 @@ function Convert-CIDRtoNetmask{
     }
     return $mask
 }
+
+function Set-GuestInterface {
+    param (
+        $VMUser,
+        $VMIpv4,
+        $VMPort,
+        $VMPassword,
+        $InterfaceMAC,
+        $VMStaticIP,
+        $Bootproto,
+        $Netmask,
+        $VMName,
+        $VlanID
+    )
+
+    RemoteCopy -upload -uploadTo $VMIpv4 -Port $VMPort `
+        -files ".\Testscripts\Linux\utils.sh" -Username $VMUser -password $VMPassword
+    if (-not $?) {
+        LogErr "Failed to send utils.sh to VM!"
+        return $False
+    }
+
+    # Configure NIC on the guest
+    LogMsg "Configuring test interface ($InterfaceMAC) on $VMName ($VMIpv4)"
+    # Get the interface name that coresponds to the MAC address
+    $cmdToSend = "testInterface=`$(grep -il ${InterfaceMAC} /sys/class/net/*/address) ; basename `"`$(dirname `$testInterface)`""
+    $testInterfaceName = RunLinuxCmd -username $VMUser -password $VMPassword -ip $VMIpv4 -port $VMPort `
+        -command $cmdToSend 
+    if (-not $testInterfaceName) {
+        LogErr "Failed to get the interface name that has $InterfaceMAC MAC address"
+        return $False
+    } else {
+        LogMsg "The interface that will be configured on $VMName is $testInterfaceName"
+    }
+    $configFunction = "CreateIfupConfigFile"
+    if ($VlanID) {
+        $configFunction = "CreateVlanConfig"  
+    }
+    
+    # Configure the interface
+    $cmdToSend = ". utils.sh; $configFunction $testInterfaceName $Bootproto $VMStaticIP $Netmask $VlanID"
+    RunLinuxCmd -username $VMUser -password $VMPassword -ip $VMIpv4 -port $VMPort -command $cmdToSend
+    if (-not $?) {
+        LogErr "Failed to configure $testInterfaceName NIC on vm $VMName"
+        return $False
+    }
+    LogMsg "Sucessfuly configured $testInterfaceName on $VMName"
+    return $True
+}
+
+function Test-GuestInterface {
+    param (
+        $VMUser,
+        $AddressToPing,
+        $VMIpv4,
+        $VMPort,
+        $VMPassword,
+        $InterfaceMAC,
+        $PingVersion,
+        $PacketNumber,
+        $Vlan
+    )
+
+    $nicPath = "/sys/class/net/*/address"
+    if ($Vlan -eq "yes") {
+        $nicPath = "/sys/class/net/*.*/address"
+    }
+    $cmdToSend = "testInterface=`$(grep -il ${InterfaceMAC} ${nicPath}) ; basename `"`$(dirname `$testInterface)`""
+    $testInterfaceName = RunLinuxCmd -username $VMUser -password $VMPassword -ip $VMIpv4 -port $VMPort `
+        -command $cmdToSend
+
+    $cmdToSend = "$PingVersion -I $testInterfaceName $AddressToPing -c $PacketNumber -p `"cafed00d00766c616e0074616700`""
+    $pingResult = RunLinuxCmd -username $VMUser -password $VMPassword -ip $VMIpv4 -port $VMPort `
+        -command $cmdToSend -ignoreLinuxExitCode:$true
+
+    if ($pingResult -notMatch "$PacketNumber received") {
+        return $False
+    }
+    return $True
+}
+

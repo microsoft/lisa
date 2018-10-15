@@ -92,7 +92,6 @@ cd "$TOP_SRCDIR"
 # 'ltp_version_git_tag' is passed from Test Definition in .\XML\TestCases\CommunityTests.xml. 
 # 'ltp_version_git_tag' default value is defined in .\XML\Other\ReplaceableTestParameters.xml
 # You can run the ltp test with any tag using LISAv2's Custom Parameters feature.
-#   Syntax: RunTests.ps1 -CustomParameters "LTP_TESTS_GIT_TAG=new_tag"
 LogMsg "Cloning LTP"
 git clone https://github.com/linux-test-project/ltp.git
 TOP_SRCDIR="${HOME}/src/ltp"

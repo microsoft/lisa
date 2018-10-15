@@ -15,7 +15,7 @@ def RunTest():
     output = output.lower()
     filter_condition_dmesg = r'.*root=UUID=(.*?) .*'
     filter_condition_fstab = r'.*UUID=(.*?)[ \t]+\/[ \t]+'
-    if (DetectDistro()[0] == 'opensuse' or DetectDistro()[0] == 'SUSE'or DetectDistro()[0] == 'sles'):
+    if (DetectDistro()[0] == 'opensuse' or DetectDistro()[0] == 'SUSE' or (DetectDistro()[0] == 'sles' and DetectDistro()[1] != '15')):
         filter_condition_dmesg = r'.*root=/dev/disk/by-uuid/(.*?) .*'
         filter_condition_fstab = r'.*/dev/disk/by-uuid/(.*?)[ \t]+\/[ \t]+'
 

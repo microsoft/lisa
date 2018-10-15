@@ -38,4 +38,7 @@ if [ $sshdServiceStatus == 0 ]; then
 else
     echo "SSHD_RESTART_FAIL"
 fi
+
+sync
+
 exit 0

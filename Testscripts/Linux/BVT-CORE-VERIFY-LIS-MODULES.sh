@@ -28,8 +28,8 @@ fi
 # Check to see if each module is loaded.
 for module in "${HYPERV_MODULES[@]}"; do
     LogMsg "Module: $module"
-    load_module=$(dmesg | grep "hv_vmbus: registering driver $module")
-    if [[ $load_module == "" ]]; then
+    load_module=$(grep -rnw '/var/log' -e "hv_vmbus: registering driver $module" --ignore-case)
+    if [ -z $load_module == "" ]; then
         LogMsg "ERROR: Status: $module is not loaded"
         PASS="1"
     else

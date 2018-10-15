@@ -14,14 +14,14 @@ function Get-SecretParams {
     $platform = $XMLConfig.config.CurrentTestPlatform
     $testParams = @{}
 
-    foreach ($param in $ParamsArray) {
+    foreach ($param in $ParamsArray.Split(',')) {
         switch ($param) {
             "Password" {
                 $value = $($XMLConfig.config.$platform.Deployment.Data.Password)
                 $testParams["PASSWORD"] = $value
             }
             "RoleName" {
-                $value = $AllVMData.RoleName
+                $value = $AllVMData.RoleName | ?{$_ -notMatch "dependency"}
                 $testParams["ROLENAME"] = $value
             }
             "Distro" {
@@ -31,6 +31,14 @@ function Get-SecretParams {
             "Ipv4" {
                 $value = $AllVMData.PublicIP
                 $testParams["ipv4"] = $value
+            }
+            "VM2Name" {
+                $value = $DependencyVmName
+                $testParams["VM2Name"] = $value
+            }
+            "CheckpointName" {
+                $value = "ICAbase"
+                $testParams["CheckpointName"] = $value
             }
         }
     }
@@ -161,7 +169,7 @@ function Run-TestScript {
         foreach ($param in $Parameters.Keys) {
             $scriptParameters += (";{0}={1}" -f ($param,$($Parameters[$param])))
         }
-
+        LogMsg "${scriptLoc} -TestParams $scriptParameters"
         $testResult = & "${scriptLoc}" -TestParams $scriptParameters
     } elseif ($scriptExtension -eq "py") {
         RunLinuxCmd -Username $Username -password $Password -ip $VMData.PublicIP -Port $VMData.SSHPort `
@@ -323,6 +331,10 @@ function Check-IP {
 
     while ($runTime -le $Timeout) {
         foreach ($VM in $VMData) {
+            if ($VM.RoleName -match "dependency") {
+                Set-Variable -Name DependencyVmName -Value $VM.RoleName -Scope Global
+                continue
+            }
             $publicIP = ""
             while (-not $publicIP) {
                 LogMsg "$($VM.RoleName) : Waiting for IP address..."

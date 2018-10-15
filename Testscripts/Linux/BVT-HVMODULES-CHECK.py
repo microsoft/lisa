@@ -6,6 +6,27 @@ from azuremodules import *
 def RunTest(command):
     UpdateState("TestStarted")
     hvModules=["hv_storvsc","hv_netvsc","hv_vmbus","hv_utils","hid_hyperv",]
+
+    output = Run('grep CONFIG_HYPERV_STORAGE=y /boot/config-$(uname -r)')
+    if output:
+        hvModules.remove("hv_storvsc")
+
+    output = Run('grep CONFIG_HYPERV_NET=y /boot/config-$(uname -r)')
+    if output:
+        hvModules.remove("hv_netvsc")
+
+    output = Run('grep CONFIG_HYPERV=y /boot/config-$(uname -r)')
+    if output:
+        hvModules.remove("hv_vmbus")
+
+    output = Run('grep CONFIG_HYPERV_UTILS=y /boot/config-$(uname -r)')
+    if output:
+        hvModules.remove("hv_utils")
+
+    output = Run('grep CONFIG_HID_HYPERV_MOUSE=y /boot/config-$(uname -r)')
+    if output:
+        hvModules.remove("hid_hyperv")
+
     totalModules = len(hvModules)
     presentModules = 0
     UpdateState("TestRunning")
@@ -17,6 +38,7 @@ def RunTest(command):
             RunLog.info('Module %s : Present.', module)
             presentModules = presentModules + 1
         else :
+
             RunLog.error('Module %s : Absent.', module)
             
     if (totalModules == presentModules) :

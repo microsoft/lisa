@@ -4,7 +4,7 @@ Parameters mentioned in this XML are replaceable using commandline.
 We can convert any hardcoded test parameter in LISAv2 test definition to a "Replaceable Parameter" using this file.
 
 Syntax :
-RunTests.ps1 -Platform <Platform> `
+Run-LisaV2.ps1 -Platform <Platform> `
              -Area <Area> `
              .
              .
