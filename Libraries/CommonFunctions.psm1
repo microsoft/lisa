@@ -1826,11 +1826,15 @@ Function DoTestCleanUp($CurrentTestResult, $testName, $DeployedServices, $Resour
 						$VMSize = $HyperVInstanceSize
 					}
 					#endregion
-					UploadTestResultToDatabase -TestPlatform $TestPlatform -TestLocation $TestLocation -TestCategory $TestCategory `
+					$SQLQuery = Get-SQLQueryOfTelemetryData -TestPlatform $TestPlatform -TestLocation $TestLocation -TestCategory $TestCategory `
 					-TestArea $TestArea -TestName $CurrentTestData.TestName -CurrentTestResult $CurrentTestResult `
 					-ExecutionTag $ResultDBTestTag -GuestDistro $GuestDistro -KernelVersion $KernelVersion `
 					-LISVersion $LISVersion -HostVersion $HostVersion -VMSize $VMSize -Networking $Networking `
 					-ARMImage $ARMImage -OsVHD $OsVHD -BuildURL $env:BUILD_URL
+					if($SQLQuery)
+					{
+						UploadTestResultToDatabase -SQLQuery $SQLQuery
+					}
 				}
 				catch
 				{
@@ -1869,7 +1873,11 @@ Function DoTestCleanUp($CurrentTestResult, $testName, $DeployedServices, $Resour
 			}
 			$isCleaned = @()
 			$ResourceGroups = $ResourceGroups.Split("^")
-			$isVMLogsCollected = $false
+			if(!$IsWindows){
+				$isVMLogsCollected = $false
+			} else {
+				$isVMLogsCollected = $true
+			}
 			foreach ($group in $ResourceGroups)
 			{
 				if ($ForceDeleteResources)
@@ -2001,7 +2009,15 @@ Function DoTestCleanUp($CurrentTestResult, $testName, $DeployedServices, $Resour
 		}
 		else
 		{
-			UploadTestResultToDatabase -TestPlatform $TestPlatform -TestLocation $TestLocation -TestCategory $TestCategory -TestArea $TestArea -TestName $CurrentTestData.TestName -CurrentTestResult $CurrentTestResult -ExecutionTag $ResultDBTestTag -GuestDistro $GuestDistro -KernelVersion $KernelVersion -LISVersion $LISVersion -HostVersion $HostVersion -VMSize $VMSize -Networking $Networking -ARMImage $ARMImage -OsVHD $OsVHD -BuildURL $env:BUILD_URL
+			$SQLQuery = Get-SQLQueryOfTelemetryData -TestPlatform $TestPlatform -TestLocation $TestLocation -TestCategory $TestCategory `
+			-TestArea $TestArea -TestName $CurrentTestData.TestName -CurrentTestResult $CurrentTestResult `
+			-ExecutionTag $ResultDBTestTag -GuestDistro $GuestDistro -KernelVersion $KernelVersion `
+			-LISVersion $LISVersion -HostVersion $HostVersion -VMSize $VMSize -Networking $Networking `
+			-ARMImage $ARMImage -OsVHD $OsVHD -BuildURL $env:BUILD_URL
+			if($SQLQuery)
+			{
+				UploadTestResultToDatabase -SQLQuery $SQLQuery
+			}
 			LogMsg "Skipping cleanup, as No services / resource groups / HyperV Groups deployed for cleanup!"
 		}
 	}

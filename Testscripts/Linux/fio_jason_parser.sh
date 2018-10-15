@@ -16,11 +16,27 @@ do
 	Jobs=`echo -e $file_name |awk -f JSON.awk|grep '"jobname"'| wc -l`
 	ReadIOPS=`echo -e $file_name |awk -f JSON.awk|grep '"read","iops"'| sed 's/.*]//' | paste -sd+ - | bc`
 	MaxOfReadMeanLatency=`echo -e $file_name |awk -f JSON.awk|grep '"read","lat","mean"'| sed 's/.*]//'| sed 's/[[:blank:]]//g'|sort -g|tail -1`
+	if [[ $MaxOfReadMeanLatency == '' ]];then
+		MaxOfReadMeanLatency=`echo -e $file_name |awk -f JSON.awk|grep '"read","lat_ns","mean"' | sed 's/.*]//'| sed 's/[[:blank:]]//g'|sort -g|tail -1|awk '{print $1/1000}'`
+	fi
+
 	ReadMaxLatency=`echo -e $file_name |awk -f JSON.awk|grep '"read","lat","max"'| sed 's/.*]//'| sed 's/[[:blank:]]//g'|sort -g|tail -1`
+	if [[ $ReadMaxLatency == '' ]];then
+		ReadMaxLatency=`echo -e $file_name |awk -f JSON.awk|grep '"read","lat_ns","max"' | sed 's/.*]//'| sed 's/[[:blank:]]//g'|sort -g|tail -1|awk '{print $1/1000}'`
+	fi
+
 	ReadBw=`echo -e $file_name |awk -f JSON.awk|grep '"read","bw"'| sed 's/.*]//'| sed 's/[[:blank:]]//g'| paste -sd+ - | bc`
 	WriteIOPS=`echo -e $file_name |awk -f JSON.awk|grep '"write","iops"'| sed 's/.*]//' | paste -sd+ - | bc`
 	MaxOfWriteMeanLatency=`echo -e $file_name |awk -f JSON.awk|grep '"write","lat","mean"'| sed 's/.*]//'| sed 's/[[:blank:]]//g'|sort -g|tail -1`
+	if [[ $MaxOfWriteMeanLatency == '' ]];then
+		MaxOfWriteMeanLatency=`echo -e $file_name |awk -f JSON.awk|grep '"write","lat_ns","mean"' | sed 's/.*]//'| sed 's/[[:blank:]]//g'|sort -g|tail -1|awk '{print $1/1000}'`
+	fi
+
 	WriteMaxLatency=`echo -e $file_name |awk -f JSON.awk|grep '"write","lat","max"'| sed 's/.*]//'| sed 's/[[:blank:]]//g'|sort -g|tail -1`
+	if [[ $WriteMaxLatency == '' ]];then
+		WriteMaxLatency=`echo -e $file_name |awk -f JSON.awk|grep '"write","lat_ns","max"' | sed 's/.*]//'| sed 's/[[:blank:]]//g'|sort -g|tail -1|awk '{print $1/1000}'`
+	fi
+
 	WriteBw=`echo -e $file_name |awk -f JSON.awk|grep '"write","bw"'| sed 's/.*]//'| sed 's/[[:blank:]]//g'| paste -sd+ - | bc`
 	IFS='-' read -r -a array <<< "$file_name"
 	TestType=${array[2]}

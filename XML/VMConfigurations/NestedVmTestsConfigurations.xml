@@ -72,6 +72,24 @@
                     <LocalPort>22</LocalPort>
                     <PublicPort>22</PublicPort>
                 </EndPoints>
+                <EndPoints>
+                    <Name>RDP</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>3389</LocalPort>
+                    <PublicPort>3389</PublicPort>
+                </EndPoints>
+                <EndPoints>
+                    <Name>NestedSSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>222</LocalPort>
+                    <PublicPort>222</PublicPort>
+                </EndPoints>
+                <EndPoints>
+                    <Name>Session</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>5985</LocalPort>
+                    <PublicPort>5985</PublicPort>
+                </EndPoints>
                 <DataDisk>
                     <LUN>0</LUN>
                     <DiskSizeInGB>513</DiskSizeInGB>
@@ -93,6 +111,24 @@
                     <Protocol>tcp</Protocol>
                     <LocalPort>22</LocalPort>
                     <PublicPort>22</PublicPort>
+                </EndPoints>
+                <EndPoints>
+                    <Name>RDP</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>3389</LocalPort>
+                    <PublicPort>3389</PublicPort>
+                </EndPoints>
+                <EndPoints>
+                    <Name>NestedSSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>222</LocalPort>
+                    <PublicPort>222</PublicPort>
+                </EndPoints>
+                <EndPoints>
+                    <Name>Session</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>5985</LocalPort>
+                    <PublicPort>5985</PublicPort>
                 </EndPoints>
                 <DataDisk>
                     <LUN>0</LUN>
@@ -140,6 +176,24 @@
                     <Protocol>tcp</Protocol>
                     <LocalPort>22</LocalPort>
                     <PublicPort>22</PublicPort>
+                </EndPoints>
+                <EndPoints>
+                    <Name>RDP</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>3389</LocalPort>
+                    <PublicPort>3389</PublicPort>
+                </EndPoints>
+                <EndPoints>
+                    <Name>NestedSSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>222</LocalPort>
+                    <PublicPort>222</PublicPort>
+                </EndPoints>
+                <EndPoints>
+                    <Name>Session</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>5985</LocalPort>
+                    <PublicPort>5985</PublicPort>
                 </EndPoints>
                 <DataDisk>
                     <LUN>0</LUN>

@@ -346,7 +346,12 @@ function Check-IP {
                 $vmIP = $vmNic.IPAddresses[0]
                 if ($vmIP) {
                     $vmIP = $([ipaddress]$vmIP.trim()).IPAddressToString
-                    $sshConnected = Test-TCP -testIP $($vmIP) -testport $($VM.SSHPort)
+                    if($IsWindows){
+                        $port = $($VM.RDPPort)
+                    } else {
+                        $port = $($VM.SSHPort)
+                    }
+                    $sshConnected = Test-TCP -testIP $($vmIP) -testport $port
                     if ($sshConnected -eq "True") {
                         $publicIP = $vmIP
                     }
