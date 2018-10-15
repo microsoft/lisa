@@ -8,7 +8,7 @@ function Main {
             $ResourceGroupUnderTest = $VM.ResourceGroupName
             $VirtualMachine = Get-AzureRmVM -ResourceGroupName $VM.ResourceGroupName -Name $VM.RoleName
             $diskCount = (Get-AzureRmVMSize -Location $allVMData.Location | Where-Object {$_.Name -eq $allVMData.InstanceSize}).MaxDataDiskCount
-            LogMsg "Max Disks are $diskCount to VM"
+            LogMsg "Max $diskCount Disks are attach to VM"
             LogMsg "--------------------------------------------------------"
             LogMsg "Serial Addition of Data Disks"
             LogMsg "--------------------------------------------------------"
@@ -55,6 +55,8 @@ function Main {
             LogMsg "Test Completed."
             $testResult = "PASS"
         }
+        $CurrentTestResult.TestSummary += CreateResultSummary -testResult $testResult -metaData "$($allVMData.InstanceSize) : Number of Disk Attached - $diskCount" `
+            -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
     }
     catch {
         $ErrorMessage = $_.Exception.Message
@@ -64,6 +66,8 @@ function Main {
     finally {
         if (!$testResult) {
             $testResult = "Aborted"
+            $CurrentTestResult.TestSummary += CreateResultSummary -testResult $testResult -metaData "$($allVMData.InstanceSize) : Number of Disk Attached - $diskCount" `
+            -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
         }
         $resultArr += $testResult
     }   	

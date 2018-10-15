@@ -2836,14 +2836,16 @@ function remove_partitions () {
 
 # Create RAID using unused data disks attached to the VM.
 function create_raid_and_mount() {
-	if [[ $# == 3 ]]; then
+	if [[ $# == 4 ]]; then
 		local deviceName=$1
 		local mountdir=$2
 		local format=$3
+		local mount_option=$4
 	else
 		local deviceName="/dev/md1"
 		local mountdir=/data-dir
 		local format="ext4"
+		local mount_option=""
 	fi
 
 	local uuid=""
@@ -2864,7 +2866,12 @@ function create_raid_and_mount() {
 	mkdir $mountdir
 	uuid=`blkid $deviceName| sed "s/.*UUID=\"//"| sed "s/\".*\"//"`
 	echo "UUID=$uuid $mountdir $format defaults 0 2" >> /etc/fstab
-	mount $deviceName $mountdir
+	if [ -z "$mount_option" ]
+	then
+		mount $deviceName $mountdir
+	else
+		mount -o $mount_option $deviceName $mountdir
+	fi
 	check_exit_status "RAID ($deviceName) mount on $mountdir as $format"
 }
 
