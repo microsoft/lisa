@@ -7,8 +7,8 @@
 .Description
     This is a PowerShell test case script that implements
 	dynamic resizing of VHDX hard disk.
-    Ensures that the VM sees the newly attached VHDx hard disk,
-	creates partitions, filesytem, mounts partitions, sees if
+    Ensures that the VM detects the newly attached VHDx hard disk,
+	creates partitions, filesytem, mounts partitions, detects if
 	it can perform read/write operations on the newly created
 	partitions and deletes partitions
 .Parameter testParams
@@ -21,11 +21,9 @@ $ErrorActionPreference = "Stop"
 
 Function Main
 {
+	param ($vmname, $hvserver, $ip, $port)
+
 	$tps = Parse-TestParameters -XMLParams $CurrentTestData.TestParameters
-	$vmname = $allVMData.RoleName
-	$hvserver = $allVMData.HyperVHost
-	$ip = $AllVMData.PublicIP
-	$port = $AllVMData.SSHPort
 	$resultArr = @()
 	$testResult = $null
 
@@ -130,8 +128,8 @@ Function Main
 			Throw "Unable to grow VHDX file '${vhdPath}"
 		}
 
-		LogMsg "Let system have some time for the volume change to be indicated. Sleep 60 ..."
-		Start-Sleep -s 60
+		LogMsg "Let system have some time for the volume change to be indicated. Sleep 5 ..."
+		Start-Sleep -s 5
 
 		# Now start the VM if IDE disk attached
 		if ( $controllertype -eq "IDE" ) {
@@ -153,8 +151,7 @@ Function Main
 			Throw "Failed to Resize Disk to new Size"
 		}
 
-		# Check if the guest sees the added space
-		LogMsg "Check if the guest sees the new space"
+		LogMsg "Check if the guest detects the new space"
 
 		$sd = "sdc"
 		if ( $controllertype -eq "IDE" ) {
@@ -171,7 +168,7 @@ Function Main
 
 		if ($diskSize -ne $newVhdxSize) {
 			$testResult = "FAIL"
-			Throw "VM ${vmname} sees a disk size of ${diskSize}, not the expected size of ${newVhdxSize}"
+			Throw "VM ${vmname} detects a disk size of ${diskSize}, not the expected size of ${newVhdxSize}"
 		}
 
 		# Make sure if we can perform Read/Write operations on the guest VM
@@ -190,7 +187,7 @@ Function Main
 			$testResult = "FAIL"
 			Throw "Running '${guest_script}'script failed on VM. check VM logs , exiting test case execution"
 		}
-		LogMsg "The guest sees the new size after resizing ($diskSize)"
+		LogMsg "The guest detects the new size after resizing ($diskSize)"
 		LogMsg "VHDx Resize - ${TC_COVERED} is Done"
 		$testResult = "PASS"
 
@@ -214,4 +211,4 @@ Function Main
 	return $currentTestResult.TestResult
 } # end Main
 
-Main
+Main -vmname $allVMData.RoleName -hvserver $allVMData.HyperVHost -ip $AllVMData.PublicIP -port $AllVMData.SSHPort
