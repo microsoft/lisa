@@ -4,33 +4,32 @@ function Main {
 
     try {
         $count = 0
-        foreach ($VM in $allVMData) {
-            $ResourceGroupUnderTest = $VM.ResourceGroupName
-            $VirtualMachine = Get-AzureRmVM -ResourceGroupName $VM.ResourceGroupName -Name $VM.RoleName
-            $diskCount = (Get-AzureRmVMSize -Location $allVMData.Location | Where-Object {$_.Name -eq $allVMData.InstanceSize}).MaxDataDiskCount
-            LogMsg "Max $diskCount Disks are attach to VM"
-            LogMsg "--------------------------------------------------------"
-            LogMsg "Serial Addition of Data Disks"
-            LogMsg "--------------------------------------------------------"
-            While ($count -lt $diskCount) {
-                $count += 1
-                $verifiedDiskCount = 0
-                $diskName = "disk" + $count.ToString()
-                $diskSizeinGB = "10"
-                $VHDuri = $VirtualMachine.StorageProfile.OsDisk.Vhd.Uri
-                $VHDUri = $VHDUri.Replace("osdisk", $diskName)
-                LogMsg "Adding an empty data disk of size $diskSizeinGB GB, $count"
-                $Null = Add-AzureRMVMDataDisk -VM $VirtualMachine -Name $diskName -DiskSizeInGB $diskSizeinGB -LUN $count -VhdUri $VHDuri.ToString() -CreateOption Empty
-                LogMsg "Successfully created an empty data disk of size $diskSizeinGB GB,$count"
-                $Null = Update-AzureRMVM -VM $VirtualMachine -ResourceGroupName $ResourceGroupUnderTest
-                LogMsg "Successfully added an empty data disk to the VM of size $diskSizeinGB, $count"
-                LogMsg "Verifying if data disk is added to the VM: Running fdisk on remote VM"
-                $fdiskOutput = RunLinuxCmd -username $user -password $password -ip $VM.PublicIP -port $VM.SSHPort -command "/sbin/fdisk -l | grep /dev/sd" -runAsSudo
-                foreach ($line in ($fdiskOutput.Split([Environment]::NewLine))) {
-                    if ($line -imatch "Disk /dev/sd[^ab]" -and ([int]($line.Split()[2]) -ge [int]$diskSizeinGB)) {
-                        LogMsg "Data disk is successfully mounted to the VM: $line"
-                        $verifiedDiskCount += 1
-                    }
+        $VM = $allVMData
+        $ResourceGroupUnderTest = $VM.ResourceGroupName
+        $VirtualMachine = Get-AzureRmVM -ResourceGroupName $VM.ResourceGroupName -Name $VM.RoleName
+        $diskCount = (Get-AzureRmVMSize -Location $allVMData.Location | Where-Object {$_.Name -eq $allVMData.InstanceSize}).MaxDataDiskCount
+        LogMsg "Max $diskCount Disks are attach to VM"
+        LogMsg "--------------------------------------------------------"
+        LogMsg "Serial Addition of Data Disks"
+        LogMsg "--------------------------------------------------------"
+        While ($count -lt $diskCount) {
+            $count += 1
+            $verifiedDiskCount = 0
+            $diskName = "disk" + $count.ToString()
+            $diskSizeinGB = "10"
+            $VHDuri = $VirtualMachine.StorageProfile.OsDisk.Vhd.Uri
+            $VHDUri = $VHDUri.Replace("osdisk", $diskName)
+            LogMsg "Adding an empty data disk of size $diskSizeinGB GB, $count"
+            $Null = Add-AzureRMVMDataDisk -VM $VirtualMachine -Name $diskName -DiskSizeInGB $diskSizeinGB -LUN $count -VhdUri $VHDuri.ToString() -CreateOption Empty
+            LogMsg "Successfully created an empty data disk of size $diskSizeinGB GB,$count"
+            $Null = Update-AzureRMVM -VM $VirtualMachine -ResourceGroupName $ResourceGroupUnderTest
+            LogMsg "Successfully added an empty data disk to the VM of size $diskSizeinGB, $count"
+            LogMsg "Verifying if data disk is added to the VM: Running fdisk on remote VM"
+            $fdiskOutput = RunLinuxCmd -username $user -password $password -ip $VM.PublicIP -port $VM.SSHPort -command "/sbin/fdisk -l | grep /dev/sd" -runAsSudo
+            foreach ($line in ($fdiskOutput.Split([Environment]::NewLine))) {
+                if ($line -imatch "Disk /dev/sd[^ab]" -and ([int]($line.Split()[2]) -ge [int]$diskSizeinGB)) {
+                    LogMsg "Data disk is successfully mounted to the VM: $line"
+                    $verifiedDiskCount += 1
                 }
             }
         }
@@ -67,7 +66,7 @@ function Main {
         if (!$testResult) {
             $testResult = "Aborted"
             $CurrentTestResult.TestSummary += CreateResultSummary -testResult $testResult -metaData "$($allVMData.InstanceSize) : Number of Disk Attached - $diskCount" `
-            -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+                -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
         }
         $resultArr += $testResult
     }   	

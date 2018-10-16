@@ -1173,6 +1173,6 @@
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>STORAGE</Area>
-        <Tags>storage</Tags>
+        <Tags>disk,hv_storvsc</Tags>
     </test>
 </TestCases>
