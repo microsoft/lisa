@@ -17,7 +17,7 @@ function Verify-Performance() {
 	$tempResult = "PASS"
 	$testpmdDataCsv = Import-Csv -Path $LogDir\dpdk_testpmd.csv
 
-	$allPpsData = [Xml](Get-Content .\XML\Other\pps_lowerbound.xml)
+	$allPpsData = [Xml](Get-Content .\XML\Other\testpmd_pps_lowerbound.xml)
 	$sizeData = Select-Xml -Xml $allPpsData -XPath "testpmdpps/$vmSize" | Select-Object -ExpandProperty Node
 
 	if ($null -eq $sizeData) {

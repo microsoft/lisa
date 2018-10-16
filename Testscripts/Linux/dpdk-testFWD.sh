@@ -31,15 +31,25 @@ function dpdk_configure() {
 
 		testpmd_ip_setup "SRC" "${sender_dpdk_ips[1]}"
 		testpmd_ip_setup "DST" "${forwarder_dpdk_ips[1]}"
+
+		local num_port_code="#define NUM_SRC_PORTS 8"
+		local port_arr_code="static uint16_t src_ports[NUM_SRC_PORTS] = {200,300,400,500,600,700,800,900};"
+		local port_code="pkt_udp_hdr.src_port = rte_cpu_to_be_16(src_ports[nb_pkt % NUM_SRC_PORTS]);"
+
+		sed -i "54i ${num_port_code}" app/test-pmd/txonly.c
+		sed -i "55i ${port_arr_code}" app/test-pmd/txonly.c
+		sed -i "234i ${port_code}" app/test-pmd/txonly.c
 	elif [ "${1}" = "${forwarder}" ]; then
 		local receiver_dpdk_ips=($(ssh ${receiver} "${dpdk_ips_cmd}"))
 
-		ptr_code="struct ipv4_hdr *ipv4_hdr;"
-		dst_addr=$(echo ${receiver[1]} | sed 'y/\./,/')
-		dst_addr_code="ipv4_hdr = rte_pktmbuf_mtod_offset(mb, struct ipv4_hdr *, sizeof(struct ether_hdr)); ipv4_hdr->dst_addr = rte_be_to_cpu_32(IPv4(${dst_addr}));"
+		local ptr_code="struct ipv4_hdr *ipv4_hdr;"
+		local offload_code="ol_flags |= PKT_TX_IP_CKSUM; ol_flags |= PKT_TX_IPV4;"
+		local dst_addr=$(echo ${receiver_dpdk_ips[1]} | sed 'y/\./,/')
+		local dst_addr_code="ipv4_hdr = rte_pktmbuf_mtod_offset(mb, struct ipv4_hdr *, sizeof(struct ether_hdr)); ipv4_hdr->dst_addr = rte_be_to_cpu_32(IPv4(${dst_addr}));"
 
-		sed -i "81i ${ptr_code}" app/test-pmd/macswap.c
-		sed -i "129i ${dst_addr_code}" app/test-pmd/macswap.c
+		sed -i "53i ${ptr_code}" app/test-pmd/macfwd.c
+		sed -i "90i ${offload_code}" app/test-pmd/macfwd.c
+		sed -i "101i ${dst_addr_code}" app/test-pmd/macfwd.c
 	fi
 }
 
@@ -84,7 +94,7 @@ function run_testfwd() {
 	LogMsg "${receiver_testfwd_cmd}"
 	ssh ${receiver} ${receiver_testfwd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testfwd-receiver-${core}-core-$(date +"%m%d%Y-%H%M%S").log &
  
-	local forwarder_testfwd_cmd="timeout ${fwd_recv_duration} ${LIS_HOME}/${dpdk_dir}/build/app/testpmd -l 0-${core} -w ${forwarder_busaddr} --vdev='net_vdev_netvsc0,iface=${forwarder_iface}' -- --port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core} --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=macswap --stats-period 1"
+	local forwarder_testfwd_cmd="timeout ${fwd_recv_duration} ${LIS_HOME}/${dpdk_dir}/build/app/testpmd -l 0-${core} -w ${forwarder_busaddr} --vdev='net_vdev_netvsc0,iface=${forwarder_iface}' -- --port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core} --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=mac --stats-period 1 --tx-offloads=0x800e"
 	LogMsg "${forwarder_testfwd_cmd}"
 	ssh ${forwarder} ${forwarder_testfwd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testfwd-forwarder-${core}-core-$(date +"%m%d%Y-%H%M%S").log &
 
@@ -125,7 +135,7 @@ function testfwd_parser() {
 
 	local core=${1}
 	local testfwd_csv_file=${2}
-	local dpdk_dir=$(ls ${LIS_HOME} | grep dpdk | grep -v \.sh)
+	local dpdk_dir=$(ls ${LIS_HOME} | grep dpdk | grep -v \.sh | grep -v \.csv)
 	local dpdk_version=$(grep "Version:" ${LIS_HOME}/${dpdk_dir}/pkg/dpdk.spec | awk '{print $2}')
 
 	local log_files=$(ls ${LOG_DIR}/*.log | grep "dpdk-testfwd-.*-${core}-core")
@@ -133,21 +143,21 @@ function testfwd_parser() {
 	for file in ${log_files}; do
 		LogMsg "  Reading ${file}"
 		if [[ "${file}" =~ "receiver" ]]; then
-			rx_pps_arr=($(grep Rx-pps: ${file} | awk '{print $2}' | sort -n))
-			rx_pps_avg=$(( ($(printf '%b + ' "${rx_pps_arr[@]}"\\c)) / ${#rx_pps_arr[@]} ))
+			local rx_pps_arr=($(grep Rx-pps: ${file} | awk '{print $2}' | sort -n))
+			local rx_pps_avg=$(( ($(printf '%b + ' "${rx_pps_arr[@]}"\\c)) / ${#rx_pps_arr[@]} ))
 		elif [[ "${file}" =~ "forwarder" ]]; then
-			fwdrx_pps_arr=($(grep Rx-pps: ${file} | awk '{print $2}' | sort -n))
-			fwdrx_pps_avg=$(( ($(printf '%b + ' "${rx_pps_arr[@]}"\\c)) / ${#rx_pps_arr[@]} ))
+			local fwdrx_pps_arr=($(grep Rx-pps: ${file} | awk '{print $2}' | sort -n))
+			local fwdrx_pps_avg=$(( ($(printf '%b + ' "${fwdrx_pps_arr[@]}"\\c)) / ${#fwdrx_pps_arr[@]} ))
 
-			fwdtx_pps_arr=($(grep Tx-pps: ${file} | awk '{print $2}' | sort -n))
-			fwdtx_pps_avg=$(( ($(printf '%b + ' "${fwdtx_pps_arr[@]}"\\c)) / ${#fwdtx_pps_arr[@]} ))
+			local fwdtx_pps_arr=($(grep Tx-pps: ${file} | awk '{print $2}' | sort -n))
+			local fwdtx_pps_avg=$(( ($(printf '%b + ' "${fwdtx_pps_arr[@]}"\\c)) / ${#fwdtx_pps_arr[@]} ))
 		elif [[ "${file}" =~ "sender" ]]; then
-			tx_pps_arr=($(grep Tx-pps: ${file} | awk '{print $2}' | sort -n))
-			tx_pps_avg=$(( ($(printf '%b + ' "${tx_pps_arr[@]}"\\c)) / ${#tx_pps_arr[@]} ))
+			local tx_pps_arr=($(grep Tx-pps: ${file} | awk '{print $2}' | sort -n))
+			local tx_pps_avg=$(( ($(printf '%b + ' "${tx_pps_arr[@]}"\\c)) / ${#tx_pps_arr[@]} ))
 		fi
 	done
 
-	echo "dpdk_version,core,tx_pps_avg,fwdrx_pps_avg,fwdtx_pps_avg,rx_pps_avg" >> ${testfwd_csv_file}
+	echo "${dpdk_version},${core},${tx_pps_avg},${fwdrx_pps_avg},${fwdtx_pps_avg},${rx_pps_avg}" >> ${testfwd_csv_file}
 }
 
 function run_testcase() {
