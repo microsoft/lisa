@@ -5,11 +5,12 @@
 .Synopsis
     Verify basic VHDx Hard Disk resizing.
 .Description
-    This is a PowerShell test case script that implements Dynamic
-    Resizing of VHDX test case 2.3.1 and 2.3.2.
-    Ensures that the VM sees the newly attached VHDx Hard Disk
-    Creates partitions, filesytem, mounts partitions, sees if it can perform
-    Read/Write operations on the newly created partitions and deletes partitions
+    This is a PowerShell test case script that implements
+	dynamic resizing of VHDX hard disk.
+    Ensures that the VM sees the newly attached VHDx hard disk,
+	creates partitions, filesytem, mounts partitions, sees if
+	it can perform read/write operations on the newly created
+	partitions and deletes partitions
 .Parameter testParams
     Test data for this test case
 #>
@@ -45,7 +46,7 @@ Function Main
 		}
 		else {
 			$testResult = "ABORTED"
-			Throw "Could not determinde ControllerType"
+			Throw "Could not determine ControllerType"
 		}
 
 		if ( $controllertype -eq "IDE" ) {

@@ -40,7 +40,6 @@ testDir=/mnt/testDir
 testFile=/mnt/testDir/testFile
 
 # Check for call trace log
-dos2unix check_traces.sh
 chmod +x check_traces.sh
 ./check_traces.sh &
 
@@ -67,9 +66,6 @@ if [ $original_checksum != $target_checksum ]; then
 	SetTestStateFailed
 	exit 10
 fi
-
-LogMsg "writing to file $testFile"
-checkResult "Failed to write to $testFile"
 
 ls $testFile
 checkResult "Failed to list file $testFile"

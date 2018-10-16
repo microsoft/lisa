@@ -5,10 +5,11 @@
 ########################################################################
 # STOR_VHDXResize_PartitionDisk.sh
 # Description:
-#     This script will verify if you can create, format, mount, perform
-#     read/write operation, unmount and deleting a partition on a resized
-#     VHDx file
-#     Hyper-V setting pane. The test performs the following steps
+#    This script will verify if you can create, format, mount, perform
+#    read/write operation, unmount and delete a partition on a resized
+#    VHDx file.
+#
+#    The test performs the following steps:
 #
 #    1. Make sure we have a constants.sh file.
 #    2. Creates partition
@@ -46,7 +47,6 @@ fi
 LogMsg "The Linux guest detected the drive"
 
 #Prepare Read/Write script for execution
-dos2unix STOR_VHDXResize_ReadWrite.sh
 chmod +x STOR_VHDXResize_ReadWrite.sh
 
 #If the script is being run a second time modify the following variables
@@ -63,7 +63,7 @@ count=0
 for fs in "${fileSystems[@]}"; do
 
     # Create the new partition
-    # delete partition firstly maily used if partition size >2TB, after use parted
+    # delete partition first, mainly used if partition size >2TB, after use parted
     # to rm partition, still can show in fdisk -l even it does not exist in fact.
     (echo d; echo w) | fdisk /dev/sdc 2> /dev/null
     (echo n; echo p; echo $fdiskOption; echo ; echo ;echo w) | fdisk /dev/sdc 2> /dev/null
