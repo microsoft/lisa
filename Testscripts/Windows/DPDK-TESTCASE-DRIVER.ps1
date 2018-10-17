@@ -6,10 +6,6 @@ function Main {
 	$resultArr = @()
 
 	try {
-		if ($allVMData.Count -eq 0) {
-			throw "DPDK-TESTCASE-DRIVER requires at least one VM"
-		}
-
 		# enables root access and key auth
 		ProvisionVMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
 
@@ -34,6 +30,10 @@ function Main {
 			$vmNames = "$vmNames $roleName"
 			$ipAddrs = "$ipAddrs $internalIp"
 			Add-Content -Value "$roleName=$internalIp" -Path $constantsFile
+		}
+
+		if ($masterVM -eq $null) {
+			throw "DPDK-TESTCASE-DRIVER requires at least one VM with RoleName of sender"
 		}
 
 		Add-Content -Value "VM_NAMES='$vmNames'" -Path $constantsFile
