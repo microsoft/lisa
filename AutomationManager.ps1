@@ -180,7 +180,7 @@ try {
 
 	Set-Variable -Name IsWindows -Value $false -Scope Global
 	if($xmlconfig.config.testsDefinition.test.Tags `
-           -and $xmlconfig.config.testsDefinition.test.Tags.ToString().Contains("windows"))
+           -and $xmlconfig.config.testsDefinition.test.Tags.ToString().Contains("nested-hyperv"))
 	{
 		Set-Variable -Name IsWindows -Value $true -Scope Global
 	}
