@@ -27,7 +27,7 @@ IFS=$' \t\n'
 # All vars are first defined here
 
 # Directory containing all files pushed by LIS framework
-declare LIS_HOME="$HOME"
+declare LIS_HOME=$(pwd)
 
 # LIS state file used by powershell to get the test's state
 declare __LIS_STATE_FILE="$LIS_HOME/state.txt"
