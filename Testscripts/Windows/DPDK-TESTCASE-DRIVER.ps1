@@ -77,17 +77,17 @@ cd /root/
 . utils.sh
 collect_VM_properties
 "@
-		Set-content "$LogDir\StartDpdkTestPmd.sh" $myString
+		Set-content "$LogDir\StartDpdkTest.sh" $myString
 		# upload updated constants file to all VMs
 		foreach ($vmData in $allVMData) {
 			RemoteCopy -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files ".\$constantsFile,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkUtils.sh," -username "root" -password $password -upload
 		}
-		RemoteCopy -uploadTo $masterVM.PublicIP -port $masterVM.SSHPort -files ".\Testscripts\Linux\dpdkSetupAndRunTest.sh,.\$LogDir\StartDpdkTestPmd.sh" -username "root" -password $password -upload
+		RemoteCopy -uploadTo $masterVM.PublicIP -port $masterVM.SSHPort -files ".\Testscripts\Linux\dpdkSetupAndRunTest.sh,.\$LogDir\StartDpdkTest.sh" -username "root" -password $password -upload
 		# upload user specified file from Testcase.xml to root's home
 		RemoteCopy -uploadTo $masterVM.PublicIP -port $masterVM.SSHPort -files $bashFilePaths -username "root" -password $password -upload
 
 		RunLinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "chmod +x *.sh"
-		$testJob = RunLinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "./StartDpdkTestPmd.sh" -RunInBackground
+		$testJob = RunLinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "./StartDpdkTest.sh" -RunInBackground
 
 		# monitor test
 		while ((Get-Job -Id $testJob).State -eq "Running") {
@@ -98,6 +98,7 @@ collect_VM_properties
 		$finalStatus = RunLinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "cat /root/state.txt"
 		RemoteCopy -downloadFrom $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "*.csv, *.txt, *.log"
 
+		$testDataCsv = Import-Csv -Path $LogDir\dpdk_test.csv
 		if ($finalStatus -imatch "TestFailed") {
 			LogErr "Test failed. Last known status : $currentStatus."
 			$testResult = "FAIL"
@@ -119,7 +120,6 @@ collect_VM_properties
 
 		LogMsg "Test result : $testResult"
 		try {
-			$testpmdDataCsv = Import-Csv -Path $LogDir\dpdk_testpmd.csv
 			LogMsg "Uploading the test results.."
 			$dataSource = $xmlConfig.config.Azure.database.server
 			$DBuser = $xmlConfig.config.Azure.database.user
@@ -147,7 +147,7 @@ collect_VM_properties
 				$connectionString = "Server=$dataSource;uid=$DBuser; pwd=$DBpassword;Database=$database;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
 
 				$SQLQuery = "INSERT INTO $dataTableName (TestPlatFrom,TestCaseName,TestDate,HostType,HostBy,HostOS,GuestOSType,GuestDistro,GuestSize,KernelVersion,LISVersion,IPVersion,ProtocolType,DataPath,DPDKVersion,TestMode,Cores,Max_Rxpps,Txpps,Rxpps,Fwdpps,Txbytes,Rxbytes,Fwdbytes,Txpackets,Rxpackets,Fwdpackets,Tx_PacketSize_KBytes,Rx_PacketSize_KBytes) VALUES "
-				foreach ($mode in $testpmdDataCsv) {
+				foreach ($mode in $testDataCsv) {
 					$SQLQuery += "('$TestPlatform','$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$HostType','$HostBy','$HostOS','$GuestOSType','$GuestDistro','$GuestSize','$KernelVersion','Inbuilt','$IPVersion','$ProtocolType','$DataPath','$($mode.dpdk_version)','$($mode.test_mode)','$($mode.core)','$($mode.max_rx_pps)','$($mode.tx_pps_avg)','$($mode.rx_pps_avg)','$($mode.fwdtx_pps_avg)','$($mode.tx_bytes)','$($mode.rx_bytes)','$($mode.fwd_bytes)','$($mode.tx_packets)','$($mode.rx_packets)','$($mode.fwd_packets)','$($mode.tx_packet_size)','$($mode.rx_packet_size)'),"
 					LogMsg "Collected performace data for $($mode.TestMode) mode."
 				}
@@ -175,7 +175,7 @@ collect_VM_properties
 			$testResult = "FAIL"
 		}
 		LogMsg "Test result : $testResult"
-		LogMsg ($testpmdDataCsv | Format-Table | Out-String)
+		LogMsg ($testDataCsv | Format-Table | Out-String)
 	}
 	catch {
 		$ErrorMessage =  $_.Exception.Message
@@ -186,7 +186,7 @@ collect_VM_properties
 			$testResult = "Aborted"
 		}
 		$resultArr += $testResult
-		$currentTestResult.TestSummary +=  CreateResultSummary -testResult $testResult -metaData "DPDK-TESTPMD" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+		$currentTestResult.TestSummary +=  CreateResultSummary -testResult $testResult -metaData "DPDK-TEST" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 	}
 
 	$currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr

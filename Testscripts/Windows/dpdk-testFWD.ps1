@@ -25,7 +25,6 @@ function Verify-Performance() {
 
 	# use temp so when a case fails we still check the rest
 	$tempResult = "PASS"
-	$testfwdDataCsv = Import-Csv -Path $LogDir\dpdk_testfwd.csv
 
 	$allPpsData = [Xml](Get-Content .\XML\Other\testfwd_pps_lowerbound.xml)
 	$sizeData = Select-Xml -Xml $allPpsData -XPath "testfwdpps/$vmSize" | Select-Object -ExpandProperty Node
@@ -35,12 +34,12 @@ function Verify-Performance() {
 	}
 
 	# count is non header lines
-	$isEmpty = ($testfwdDataCsv.Count -eq 0)
+	$isEmpty = ($testDataCsv.Count -eq 0)
 	if ($isEmpty) {
 		throw "No data downloaded from vm"
 	}
 
-	foreach($testRun in $testfwdDataCsv) {
+	foreach($testRun in $testDataCsv) {
 		$coreData = Select-Xml -Xml $sizeData -XPath "core$($testRun.core)" | Select-Object -ExpandProperty Node
 		LogMsg "Comparing $($testRun.core) core(s) data"
 		LogMsg "  compare tx pps $($testRun.tx_pps_avg) with lowerbound $($coreData.tx)"

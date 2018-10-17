@@ -31,6 +31,8 @@ function dpdk_configure() {
 
 		testpmd_ip_setup "SRC" "${client_dpdk_ips[1]}"
 		testpmd_ip_setup "DST" "${server_dpdk_ips[1]}"
+
+		testpmd_multiple_tx_flows_setup
 	fi
 }
 
@@ -61,16 +63,6 @@ function run_testpmd() {
 	local modes=${2}
 	local test_duration=${3}
 
-	local pairs=($(get_synthetic_vf_pairs))
-	if [ "${#pairs[@]}" -eq 0 ]; then
-		LogErr "ERROR: No VFs present"
-		SetTestStateFailed
-		exit 1
-	fi
-
-	local iface="${pairs[0]}"
-	local bus_addr="${pairs[1]}"
-
 	for test_mode in ${modes}; do
 		LogMsg "Ensuring free hugepages"
 		local free_huge_cmd="rm -rf /dev/hugepages/*"
@@ -81,13 +73,13 @@ function run_testpmd() {
 		# start server in advance so traffic spike doesn't cause output freeze
 		local server_duration=$(expr ${test_duration} + 5)
 
-		local server_testpmd_cmd="timeout ${server_duration} ${LIS_HOME}/${DPDK_DIR}/build/app/testpmd -l 0-${core} -w ${bus_addr} --vdev='net_vdev_netvsc0,iface=${iface}' -- --port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core} --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=${test_mode} --stats-period 1"
+		local server_testpmd_cmd="timeout ${server_duration} ${LIS_HOME}/${DPDK_DIR}/build/app/testpmd -l 0-${core} -w ${receiver_busaddr} --vdev='net_vdev_netvsc0,iface=${receiver_iface}' -- --port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core} --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=${test_mode} --stats-period 1"
 		LogMsg "${server_testpmd_cmd}"
 		ssh ${receiver} ${server_testpmd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testpmd-${test_mode}-receiver-${core}-core-$(date +"%m%d%Y-%H%M%S").log &
 
 		sleep 5
 
-		local client_testpmd_cmd="timeout ${test_duration} ${LIS_HOME}/${DPDK_DIR}/build/app/testpmd -l 0-${core} -w ${bus_addr} --vdev='net_vdev_netvsc0,iface=${iface}' -- --port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core} --mbcache=512 --txd=4096 --forward-mode=txonly --stats-period 1 2>&1 > ${LOG_DIR}/dpdk-testpmd-${test_mode}-sender-${core}-core-$(date +"%m%d%Y-%H%M%S").log &"
+		local client_testpmd_cmd="timeout ${test_duration} ${LIS_HOME}/${DPDK_DIR}/build/app/testpmd -l 0-${core} -w ${sender_busaddr} --vdev='net_vdev_netvsc0,iface=${sender_iface}' -- --port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core} --mbcache=512 --txd=4096 --forward-mode=txonly --stats-period 1 2>&1 > ${LOG_DIR}/dpdk-testpmd-${test_mode}-sender-${core}-core-$(date +"%m%d%Y-%H%M%S").log &"
 		LogMsg "${client_testpmd_cmd}"
 		eval ${client_testpmd_cmd}
 
@@ -175,20 +167,22 @@ function run_testcase() {
 		LogMsg "MODES parameter not found in environment; using default ${MODES}"
 	fi
 
-	LogMsg "Starting testpmd execution"
+	LogMsg "Starting testpmd"
+	create_vm_synthetic_vf_pair_mappings
 	for core in ${CORES}; do
 		run_testpmd ${core} "${MODES}" ${TEST_DURATION}
 	done
 
-	LogMsg "Starting testpmd parser execution"
-	echo "dpdk_version,test_mode,core,max_rx_pps,tx_pps_avg,rx_pps_avg,fwdtx_pps_avg,tx_bytes,rx_bytes,fwd_bytes,tx_packets,rx_packets,fwd_packets,tx_packet_size,rx_packet_size" > ${LIS_HOME}/dpdk_testpmd.csv
+	LogMsg "Starting testpmd parser"
+	local csv_name=$(create_csv)
+	echo "dpdk_version,test_mode,core,max_rx_pps,tx_pps_avg,rx_pps_avg,fwdtx_pps_avg,tx_bytes,rx_bytes,fwd_bytes,tx_packets,rx_packets,fwd_packets,tx_packet_size,rx_packet_size" > ${csv_name}
 	for core in ${CORES}; do
 		for test_mode in ${MODES}; do
 			LogMsg "Parsing dpdk results for ${core} core ${test_mode} mode"
-			testpmd_parser ${core} ${test_mode} ${LIS_HOME}/dpdk_testpmd.csv
+			testpmd_parser ${core} ${test_mode} ${csv_name}
 		done
 	done
 
 	LogMsg "testpmd results"
-	column -s, -t ${LIS_HOME}/dpdk_testpmd.csv
+	column -s, -t ${csv_name}
 }

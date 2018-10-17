@@ -32,13 +32,7 @@ function dpdk_configure() {
 		testpmd_ip_setup "SRC" "${sender_dpdk_ips[1]}"
 		testpmd_ip_setup "DST" "${forwarder_dpdk_ips[1]}"
 
-		local num_port_code="#define NUM_SRC_PORTS 8"
-		local port_arr_code="static uint16_t src_ports[NUM_SRC_PORTS] = {200,300,400,500,600,700,800,900};"
-		local port_code="pkt_udp_hdr.src_port = rte_cpu_to_be_16(src_ports[nb_pkt % NUM_SRC_PORTS]);"
-
-		sed -i "54i ${num_port_code}" app/test-pmd/txonly.c
-		sed -i "55i ${port_arr_code}" app/test-pmd/txonly.c
-		sed -i "234i ${port_code}" app/test-pmd/txonly.c
+		testpmd_multiple_tx_flows_setup
 	elif [ "${1}" = "${forwarder}" ]; then
 		local receiver_dpdk_ips=($(ssh ${receiver} "${dpdk_ips_cmd}"))
 
@@ -169,38 +163,20 @@ function run_testcase() {
 		LogMsg "TEST_DURATION not found in environment; using default ${TEST_DURATION}"
 	fi
 
-	if [ -z "${VM_NAMES}" ]; then
-		LogErr "ERROR: VM_NAMES should be defined by constants.sh"
-		SetTestStateAborted
-		exit 1
-	fi
-
-	local name
-	for name in $VM_NAMES; do
-		local pairs=($(ssh ${!name} "$(typeset -f get_synthetic_vf_pairs); get_synthetic_vf_pairs"))
-		if [ "${#pairs[@]}" -eq 0 ]; then
-			LogErr "ERROR: No ${name} VFs present"
-			SetTestStateFailed
-			exit 1
-		fi
-
-		# set global if/busaddr pairs
-		eval ${name}_iface="${pairs[0]}"
-		eval ${name}_busaddr="${pairs[1]}"
-	done
-
-	LogMsg "Starting testfwd execution"
+	LogMsg "Starting testfwd"
+	create_vm_synthetic_vf_pair_mappings
 	for core in ${CORES}; do
 		run_testfwd ${core} ${TEST_DURATION}
 	done
 
 	LogMsg "Starting testfwd parser"
-	echo "dpdk_version,core,tx_pps_avg,fwdrx_pps_avg,fwdtx_pps_avg,rx_pps_avg" > ${LIS_HOME}/dpdk_testfwd.csv
+	local csv_name=$(create_csv)
+	echo "dpdk_version,core,tx_pps_avg,fwdrx_pps_avg,fwdtx_pps_avg,rx_pps_avg" > ${csv_name}
 	for core in ${CORES}; do
 		LogMsg "Parsing dpdk fwd results for ${core} core mode"
-		testfwd_parser ${core} ${LIS_HOME}/dpdk_testfwd.csv
+		testfwd_parser ${core} ${csv_name}
 	done
 
 	LogMsg "testfwd results"
-	column -s, -t ${LIS_HOME}/dpdk_testfwd.csv
+	column -s, -t ${csv_name}
 }

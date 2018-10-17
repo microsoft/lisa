@@ -46,11 +46,7 @@ function dpdk_setup() {
 	exit 1
 }
 
-. dpdkUtils.sh || {
-	LogErr "ERROR: unable to source dpdkUtils.sh!"
-	SetTestStateAborted
-	exit 1
-}
+source_script "dpdkUtils.sh"
 
 # Source constants file and initialize most common variables
 UtilsInit
@@ -70,6 +66,18 @@ if ! type run_testcase > /dev/null; then
 fi
 
 LogMsg "Starting DPDK Setup"
+# when available update to dpdk latest
+if [ -z "${DPDK_LINK}" ]; then
+	DPDK_LINK="https://fast.dpdk.org/rel/dpdk-18.08.tar.xz"
+	LogMsg "DPDK_LINK missing from environment; using ${DPDK_LINK}"
+fi
+
+# set dpdk global
+if [[ $DPDK_LINK =~ .tar ]]; then
+	DPDK_DIR="dpdk-$(echo ${DPDK_LINK} | grep -Po "(\d+\.)+\d+")"
+elif [[ $DPDK_LINK =~ ".git" ]] || [[ $DPDK_LINK =~ "git:" ]]; then
+	DPDK_DIR="${DPDK_LINK##*/}"
+fi
 dpdk_setup
 
 LogMsg "Calling testcase provided run function"
