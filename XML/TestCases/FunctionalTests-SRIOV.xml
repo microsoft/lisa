@@ -62,5 +62,23 @@
         <Category>Functional</Category>
         <Area>SRIOV</Area>
         <Tags>sriov,network</Tags>
-    </test>    
+    </test>
+    <test>
+        <testName>SRIOV-DISABLEVF-PING</testName>
+        <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
+        <testScript>SRIOV-DISABLEVF-PING.ps1</testScript>
+        <setupType>SRIOVVMs</setupType>
+        <TestParameters>
+            <param>NIC_COUNT=1</param>
+            <param>VF_IP1=10.0.0.10</param>
+            <param>VF_IP2=10.0.0.20</param>
+            <param>NETMASK=255.255.255.0</param>
+            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>SRIOV</Area>
+        <Tags>sriov,network</Tags>
+    </test>   
 </TestCases>

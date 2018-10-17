@@ -333,6 +333,7 @@ function Check-IP {
         foreach ($VM in $VMData) {
             if ($VM.RoleName -match "dependency") {
                 Set-Variable -Name DependencyVmName -Value $VM.RoleName -Scope Global
+                Set-Variable -Name DependencyVmHost -Value $VM.HyperVHost -Scope Global
                 continue
             }
             $publicIP = ""
