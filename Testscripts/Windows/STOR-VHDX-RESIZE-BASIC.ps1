@@ -100,9 +100,6 @@ Function Main
 		}
 
 		# Copy files from home of user to home of root
-		$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "chmod +x /home/$user/STOR_VHDXResize_ReadWrite.sh" -runAsSudo
-		$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "chmod +x /home/$user/STOR_VHDXResize_PartitionDisk.sh" -runAsSudo
-		$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "chmod +x /home/$user/check_traces.sh" -runAsSudo
 		$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "cp -f /home/$user/STOR_VHDXResize_ReadWrite.sh /root/" -runAsSudo
 		$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "cp -f /home/$user/STOR_VHDXResize_PartitionDisk.sh /root/" -runAsSudo
 		$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "cp -f /home/$user/check_traces.sh /root/" -runAsSudo
@@ -173,7 +170,6 @@ Function Main
 
 		# Make sure if we can perform Read/Write operations on the guest VM
 		if ([int]($newVhdxGrowSize/1gb) -gt 2048) {
-			$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "chmod +x /home/$user/STOR_VHDXResize_PartitionDiskOver2TB.sh" -runAsSudo
 			$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "cp -f /home/$user/STOR_VHDXResize_PartitionDiskOver2TB.sh /root/" -runAsSudo
 			$guest_script = "STOR_VHDXResize_PartitionDiskOver2TB.sh"
 		} else {
@@ -188,7 +184,6 @@ Function Main
 			Throw "Running '${guest_script}'script failed on VM. check VM logs , exiting test case execution"
 		}
 		LogMsg "The guest detects the new size after resizing ($diskSize)"
-		LogMsg "VHDx Resize - ${TC_COVERED} is Done"
 		$testResult = "PASS"
 
 	} catch {
@@ -198,7 +193,7 @@ Function Main
 
 	} finally {
 		Stop-VM -VMName $vmname -ComputerName $hvserver -force
-		Remove-VMHardDiskDrive $vhdxDrive
+		Remove-VMHardDiskDrive -VMHardDiskDrive $vhdxDrive
 		Start-VM -Name $vmname -ComputerName $hvserver
 
 		if (!$testResult) {
