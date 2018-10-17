@@ -10,6 +10,12 @@
 #    Ubuntu, SUSE, RedHat, CentOS
 #######################################################################
 HOMEDIR=`pwd`
+CONSTANTS_FILE="./constants.sh"
+. ${CONSTANTS_FILE} || {
+	echo "ERROR: unable to source constants.sh!"
+	echo "TestAborted" > state.txt
+	exit 1
+}
 UTIL_FILE="./utils.sh"
 . ${UTIL_FILE} || {
 	echo "ERROR: unable to source utils.sh!"
@@ -19,7 +25,7 @@ UTIL_FILE="./utils.sh"
 # Source constants file and initialize most common variables
 UtilsInit
 #Install required packages for raid
-packages=("gcc" "git" "tar" "wget" "dos2unix","mdadm")
+packages=("gcc" "git" "tar" "wget" "dos2unix" "mdadm")
 case "$DISTRO_NAME" in
 	oracle|rhel|centos)
 		install_epel
@@ -38,4 +44,11 @@ esac
 install_package "${packages[@]}"
 # Raid Creation
 create_raid_and_mount $deviceName $mountDir $diskformat $mount_option
-SetTestStateCompleted
+mount -l | grep "$mountDir"
+if [ $? -ne 0 ]; then
+	LogErr "Error: ${deviceName} not mounted with ${mount_option}"
+	SetTestStateFailed
+else
+	LogMsg "${deviceName} mounted with ${mount_option}"
+	SetTestStateCompleted
+fi

@@ -2836,17 +2836,22 @@ function remove_partitions () {
 
 # Create RAID using unused data disks attached to the VM.
 function create_raid_and_mount() {
-	if [[ $# == 4 ]]; then
-		local deviceName=$1
-		local mountdir=$2
-		local format=$3
-		local mount_option=$4
-	else
 		local deviceName="/dev/md1"
 		local mountdir=/data-dir
 		local format="ext4"
 		local mount_option=""
-	fi
+		if [[ ! -z "$1" ]];then
+			deviceName=$1
+		fi
+		if [[ ! -z "$2" ]];then
+			mountdir=$2
+		fi
+		if [[ ! -z "$3" ]];then
+			format=$3
+		fi
+		if [[ ! -z "$4" ]];then
+			mount_option=$4
+		fi
 
 	local uuid=""
 	local list=""
