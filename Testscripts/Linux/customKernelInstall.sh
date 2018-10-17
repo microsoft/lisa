@@ -28,12 +28,7 @@ ICA_TESTRUNNING="TestRunning"      # The test is running
 ICA_TESTCOMPLETED="TestCompleted"  # The test completed successfully
 ICA_TESTABORTED="TestAborted"      # Error during the setup of the test
 ICA_TESTFAILED="TestFailed"        # Error occurred during the test
-
-#######################################################################
-#
-# LogMsg()
-#
-#######################################################################
+LOCAL_FILE_PREFIX="localfile:"
 
 if [ -z "$CustomKernel" ]; then
         echo "Please mention -CustomKernel next"
@@ -73,7 +68,6 @@ CheckInstallLockUbuntu()
 
 InstallKernel()
 {
-        sleep 10
         if [ "${CustomKernel}" == "linuxnext" ]; then
                 kernelSource="https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git"
                 sourceDir="linux-next"
@@ -150,10 +144,10 @@ InstallKernel()
                 sourceDir="net-next"
         elif [[ $CustomKernel == *.deb ]]; then
                 LogMsg "Custom Kernel:$CustomKernel"
-                apt-get update
                 if [[ $CustomKernel =~ "http" ]];then
                         CheckInstallLockUbuntu
-                        apt-get install wget
+                        apt-get update
+                        apt-get install wget -y
                         LogMsg "Debian package web link detected. Downloading $CustomKernel"
                         wget $CustomKernel
                         LogMsg "Installing ${CustomKernel##*/}"
@@ -161,9 +155,28 @@ InstallKernel()
                         kernelInstallStatus=$?
                 else
                         CheckInstallLockUbuntu
-                        prefix="localfile:"
-                        LogMsg "Installing ${CustomKernel#$prefix}"
-                        dpkg -i "${CustomKernel#$prefix}"  >> $logFolder/build-CustomKernel.txt 2>&1
+                        customKernelFilesUnExpanded="${CustomKernel#$LOCAL_FILE_PREFIX}"
+
+                        LogMsg "Removing packages that do not allow the kernel to be installed"
+                        apt-get remove -y grub-legacy-ec2
+                        if [[ "${customKernelFilesUnExpanded}" == *'*.deb'* ]]; then
+                            apt-get remove -y linux-cloud-tools-common
+                        fi
+
+                        LogMsg "Installing ${customKernelFilesUnExpanded}"
+                        eval "dpkg -i $customKernelFilesUnExpanded >> $logFolder/build-CustomKernel.txt 2>&1"
+
+                        LogMsg "Configuring the correct kernel boot order"
+                        image_file=$(ls -1 *image* | grep -v "dbg" | sed -n 1p)
+                        if [[ "${image_file}" != '' ]]; then
+                            kernel_identifier=$(dpkg-deb --info "${image_file}" | grep 'Package: ' | grep -o "image.*")
+                            kernel_identifier=${kernel_identifier#image-}
+                            sed -i.bak 's/GRUB_DEFAULT=.*/GRUB_DEFAULT="Advanced options for Ubuntu>Ubuntu, with Linux '$kernel_identifier'"/g' /etc/default/grub
+                            update-grub
+                        else
+                            msg="Kernel correct boot order could not be set."
+                            LogErr "$msg"
+                        fi
                         kernelInstallStatus=$?
                 fi
 
@@ -180,19 +193,27 @@ InstallKernel()
                 LogMsg "Custom Kernel:$CustomKernel"
 
                 if [[ $CustomKernel =~ "http" ]];then
-                        yum -y install wget
-                        LogMsg "RPM package web link detected. Downloading $CustomKernel"
-                        wget $CustomKernel
-                        LogMsg "Installing ${CustomKernel##*/}"
-                        rpm -ivh "${CustomKernel##*/}"  >> $logFolder/build-CustomKernel.txt 2>&1
-                        kernelInstallStatus=$?
-
+                    yum -y install wget
+                    LogMsg "RPM package web link detected. Downloading $CustomKernel"
+                    wget $CustomKernel
+                    LogMsg "Installing ${CustomKernel##*/}"
+                    rpm -ivh "${CustomKernel##*/}"  >> $logFolder/build-CustomKernel.txt 2>&1
+                    kernelInstallStatus=$?
                 else
-                        prefix="localfile:"
-                        LogMsg "Installing ${CustomKernel#$prefix}"
-                        rpm -ivh "${CustomKernel#$prefix}"  >> $logFolder/build-CustomKernel.txt 2>&1
-                        kernelInstallStatus=$?
+                    customKernelFilesUnExpanded="${CustomKernel#$LOCAL_FILE_PREFIX}"
 
+                    LogMsg "Removing packages that do not allow the kernel to be installed"
+                    if [[ "${customKernelFilesUnExpanded}" == *'*.rpm'* ]]; then
+                        yum remove -y hypervvssd hypervkvpd hypervfcopyd hyperv-daemons
+                    fi
+
+                    LogMsg "Installing ${customKernelFilesUnExpanded}"
+                    eval "yum -y install $customKernelFilesUnExpanded >> $logFolder/build-CustomKernel.txt 2>&1"
+                    kernelInstallStatus=$?
+
+                    LogMsg "Configuring the correct kernel boot order"
+                    sed -i 's%GRUB_DEFAULT=.*%GRUB_DEFAULT=0%' /etc/default/grub
+                    grub2-mkconfig -o /boot/grub2/grub.cfg
                 fi
                 UpdateTestState $ICA_TESTCOMPLETED
                 if [ $kernelInstallStatus -ne 0 ]; then
