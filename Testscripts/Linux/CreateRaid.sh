@@ -1,7 +1,8 @@
 #!/bin/bash
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
-DISTRO=`grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux" /etc/{issue,*release,*version}`
+DISTRO=`grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os" /etc/{issue,*release,*version} /usr/lib/os-release`
+
 if [[ $DISTRO =~ "SUSE Linux Enterprise Server 12" ]];
 then
     mdVolume="/dev/md/mdauto0"
@@ -12,8 +13,6 @@ mountDir="/data"
 raidFileSystem="ext4"
 
 #Install Required Packages.
-DISTRO=`grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os" /etc/{issue,*release,*version} /usr/lib/os-release`
-
 if [[ $DISTRO =~ "Ubuntu" ]] || [[ $DISTRO =~ "Debian" ]];
 then
     echo "Detected UBUNTU/Debian. Installing required packages"
@@ -63,7 +62,7 @@ then
 elif [[ $DISTRO =~ "clear-linux-os" ]];
 then
     echo "Detected Clear Linux OS. Installing required packages"
-    swupd bundle-add dev-utils-dev sysadmin-basic performance-tools os-testsuite-phoronix network-basic openssh-server dev-utils os-core os-core-dev
+    swupd bundle-add performance-tools os-core-dev
 else
         echo "Unknown Distro"
         exit 1

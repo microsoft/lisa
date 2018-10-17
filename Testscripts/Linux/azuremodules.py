@@ -96,7 +96,10 @@ def DetectDistro():
     version = 'unknown'
 
     RunLog.info("Detecting Distro ")
-    output = Run("cat /etc/*-release")
+    if os.path.isfile("/etc/*-release"):
+        output = Run("cat /etc/*-release")
+    elif os.path.isfile("/usr/lib/os-release"):
+        output = Run("cat /usr/lib/os-release")
     outputlist = re.split("\n", output)
 
     for line in outputlist:
@@ -159,11 +162,15 @@ def DetectLinuxDistro():
         return (True, "Debian")
     if os.path.isfile("/etc/SuSE-release"):
         return (True, "Suse")
+    if os.path.isfile("/usr/lib/os-release") and "clear-linux-os" in GetFileContents("/usr/lib/os-release"):
+        return (True, "ClearOS")
     return (False, "Unknown")
 
 def IsUbuntu():
         cmd = "cat /etc/issue"
-        tmp=Run(cmd)
+        tmp = Run(cmd)
+        if type(tmp) == bytes:
+            tmp = tmp.decode("utf-8")
         return ("Ubuntu" in tmp)
 
 def ParseWalaConf2Dict(walaconfpath):
@@ -185,6 +192,8 @@ def ParseWalaConf2Dict(walaconfpath):
 def GetWalaConfPath():
     if os.path.exists("/etc/lsb-release") and int(Run("cat /etc/lsb-release | grep -i coreos | wc -l")) > 0:
         return "/usr/share/oem/waagent.conf"
+    elif DetectDistro()[0] == 'clear-linux-os':
+        return "/usr/share/defaults/waagent/waagent.conf"
     else:
         return "/etc/waagent.conf"
 

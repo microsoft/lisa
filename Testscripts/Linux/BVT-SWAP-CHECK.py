@@ -13,6 +13,8 @@ def RunTest(command):
 	output = temp
 	if os.path.exists("/etc/lsb-release") and int(Run("cat /etc/lsb-release | grep -i coreos | wc -l")) > 0:
 		waagent_conf_file = "/usr/share/oem/waagent.conf"
+	elif DetectDistro()[0] == 'clear-linux-os':
+		waagent_conf_file = "/usr/share/defaults/waagent/waagent.conf"
 	else:
 		waagent_conf_file = "/etc/waagent.conf"
 

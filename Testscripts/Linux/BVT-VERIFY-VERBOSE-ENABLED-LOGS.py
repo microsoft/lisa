@@ -49,6 +49,8 @@ def RunTest():
 def Restartwaagent():
     if (distro[0] == "CoreOS") :
         Run("echo '"+passwd+"' | sudo -S sed -i s/Logs.Verbose=n/Logs.Verbose=y/g  /usr/share/oem/waagent.conf")
+    elif (DetectDistro()[0] == 'clear-linux-os') :
+        Run("echo '"+passwd+"' | sudo -S sed -i s/Logs.Verbose=n/Logs.Verbose=y/g  /usr/share/defaults/waagent/waagent.conf")
     else :
         Run("echo '"+passwd+"' | sudo -S sed -i s/Logs.Verbose=n/Logs.Verbose=y/g  /etc/waagent.conf")
     RunLog.info("Restart waagent service...")
