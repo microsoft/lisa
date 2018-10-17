@@ -24,10 +24,10 @@ function dpdk_configure() {
 		exit 1
 	fi
 
-	if [ "${1}" = "${client-vm}" ]; then
+	if [ "${1}" = "${sender}" ]; then
 		local dpdk_ips_cmd="hostname -I"
 		local client_dpdk_ips=($(eval ${dpdk_ips_cmd}))
-		local server_dpdk_ips=($(ssh ${server-vm} "${dpdk_ips_cmd}"))
+		local server_dpdk_ips=($(ssh ${receiver} "${dpdk_ips_cmd}"))
 
 		testpmd_ip_setup "SRC" "${client_dpdk_ips[1]}"
 		testpmd_ip_setup "DST" "${server_dpdk_ips[1]}"
@@ -45,8 +45,14 @@ function run_testpmd() {
 		exit 1
 	fi
 
-	if [ -z "${LIS_HOME}" -o -z "${LOG_DIR}" -o -z "${server-vm}" ]; then
-		LogErr "ERROR: LIS_HOME, LOG_DIR, and server-vm must be defined in environment"
+	if [ -z "${LIS_HOME}" -o -z "${LOG_DIR}" -o -z "${DPDK_DIR}" ]; then
+		LogErr "ERROR: LIS_HOME, LOG_DIR, and DPDK_DIR must be defined in environment"
+		SetTestStateAborted
+		exit 1
+	fi
+
+	if [ -z "${sender}" -o -z "${receiver}" -o -z "${IP_ADDRS}" ]; then
+		LogErr "ERROR: sender, receiver, and IP_ADDRS must be defined by constants.sh"
 		SetTestStateAborted
 		exit 1
 	fi
@@ -54,7 +60,6 @@ function run_testpmd() {
 	local core=${1}
 	local modes=${2}
 	local test_duration=${3}
-	local dpdk_dir=$(ls ${LIS_HOME} | grep dpdk | grep -v \.sh)
 
 	local pairs=($(get_synthetic_vf_pairs))
 	if [ "${#pairs[@]}" -eq 0 ]; then
@@ -69,20 +74,20 @@ function run_testpmd() {
 	for test_mode in ${modes}; do
 		LogMsg "Ensuring free hugepages"
 		local free_huge_cmd="rm -rf /dev/hugepages/*"
-		ssh ${server-vm} ${free_huge_cmd}
-		eval ${free_huge_cmd}
+		for ip in $IP_ADDRS; do
+			ssh ${ip} ${free_huge_cmd}
+		done
 
 		# start server in advance so traffic spike doesn't cause output freeze
 		local server_duration=$(expr ${test_duration} + 5)
 
-		local server_testpmd_cmd="timeout ${server_duration} ${LIS_HOME}/${dpdk_dir}/build/app/testpmd -l 0-${core} -w ${bus_addr} --vdev='net_vdev_netvsc0,iface=${iface}' -- --port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core} --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=${test_mode} --stats-period 1"
+		local server_testpmd_cmd="timeout ${server_duration} ${LIS_HOME}/${DPDK_DIR}/build/app/testpmd -l 0-${core} -w ${bus_addr} --vdev='net_vdev_netvsc0,iface=${iface}' -- --port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core} --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=${test_mode} --stats-period 1"
 		LogMsg "${server_testpmd_cmd}"
-		ssh ${server-vm} ${server_testpmd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testpmd-${test_mode}-receiver-${core}-core-$(date +"%m%d%Y-%H%M%S").log &
+		ssh ${receiver} ${server_testpmd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testpmd-${test_mode}-receiver-${core}-core-$(date +"%m%d%Y-%H%M%S").log &
 
 		sleep 5
 
-		# should scale memory channels 2 * NUM_NUMA_NODES
-		local client_testpmd_cmd="timeout ${test_duration} ${LIS_HOME}/${dpdk_dir}/build/app/testpmd -l 0-${core} -w ${bus_addr} --vdev='net_vdev_netvsc0,iface=${iface}' -- --port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core} --mbcache=512 --txd=4096 --forward-mode=txonly --stats-period 1 2>&1 > ${LOG_DIR}/dpdk-testpmd-${test_mode}-sender-${core}-core-$(date +"%m%d%Y-%H%M%S").log &"
+		local client_testpmd_cmd="timeout ${test_duration} ${LIS_HOME}/${DPDK_DIR}/build/app/testpmd -l 0-${core} -w ${bus_addr} --vdev='net_vdev_netvsc0,iface=${iface}' -- --port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core} --mbcache=512 --txd=4096 --forward-mode=txonly --stats-period 1 2>&1 > ${LOG_DIR}/dpdk-testpmd-${test_mode}-sender-${core}-core-$(date +"%m%d%Y-%H%M%S").log &"
 		LogMsg "${client_testpmd_cmd}"
 		eval ${client_testpmd_cmd}
 
@@ -90,8 +95,9 @@ function run_testpmd() {
 
 		LogMsg "killing testpmd"
 		local kill_cmd="pkill testpmd"
-		eval ${kill_cmd}
-		ssh ${server-vm} ${kill_cmd}
+		for ip in $IP_ADDRS; do
+			ssh ${ip} ${kill_cmd}
+		done
 
 		LogMsg "TestPmd execution for ${test_mode} mode on ${core} core(s) is COMPLETED"
 		sleep 10
@@ -118,8 +124,7 @@ function testpmd_parser() {
 	local core=${1}
 	local test_mode=${2}
 	local testpmd_csv_file=${3}
-	local dpdk_dir=$(ls ${LIS_HOME} | grep dpdk- | grep -v \.sh)
-	local dpdk_version=$(grep "Version:" ${LIS_HOME}/${dpdk_dir}/pkg/dpdk.spec | awk '{print $2}')
+	local dpdk_version=$(grep "Version:" ${LIS_HOME}/${DPDK_DIR}/pkg/dpdk.spec | awk '{print $2}')
 
 	local log_files=$(ls ${LOG_DIR}/*.log | grep "dpdk-testpmd-${test_mode}-.*-${core}-core")
 	LogMsg "Parsing test run ${test_mode} mode ${core} core(s)"

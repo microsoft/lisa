@@ -143,6 +143,7 @@ function install_dpdk_dependencies() {
 # Effects:
 #   - does NOT set up hugepages or modprobe (see other funcs)
 #	- only installs dpdk on first IP provided
+#   - now sets DPDK_DIR global
 function install_dpdk() {
 	if [ -z "${LIS_HOME}" ]; then
 		LogErr "ERROR: LIS_HOME must be defined before calling install_dpdk()"
@@ -174,27 +175,28 @@ function install_dpdk() {
 	local distro=$(detect_linux_distribution)$(detect_linux_distribution_version)
 	install_dpdk_dependencies $install_ip $distro
 
+	# set DPDK_DIR global
 	if [[ $DPDK_LINK =~ .tar ]]; then
-		local dpdk_dir="dpdk-$(echo ${DPDK_LINK} | grep -Po "(\d+\.)+\d+")"
-		ssh ${install_ip} "mkdir $dpdk_dir"
-		ssh ${install_ip} "wget -O - ${DPDK_LINK} | tar -xJ -C ${dpdk_dir} --strip-components=1"
+		DPDK_DIR="dpdk-$(echo ${DPDK_LINK} | grep -Po "(\d+\.)+\d+")"
+		ssh ${install_ip} "mkdir $DPDK_DIR"
+		ssh ${install_ip} "wget -O - ${DPDK_LINK} | tar -xJ -C ${DPDK_DIR} --strip-components=1"
 	elif [[ $DPDK_LINK =~ ".git" ]] || [[ $DPDK_LINK =~ "git:" ]]; then
-		local dpdk_dir="${DPDK_LINK##*/}"
-		ssh ${install_ip} "git clone ${DPDK_LINK} ${dpdk_dir}"
+		DPDK_DIR="${DPDK_LINK##*/}"
+		ssh ${install_ip} "git clone ${DPDK_LINK} ${DPDK_DIR}"
 	fi
-	LogMsg "dpdk source on ${install_ip} at ${dpdk_dir}"
+	LogMsg "dpdk source on ${install_ip} at ${DPDK_DIR}"
 
 	LogMsg "MLX_PMD flag enabling on ${install_ip}"
-	ssh ${install_ip} "cd ${LIS_HOME}/${dpdk_dir} && make config T=x86_64-native-linuxapp-gcc"
-	ssh ${install_ip} "sed -ri 's,(MLX._PMD=)n,\1y,' ${LIS_HOME}/${dpdk_dir}/build/.config"
+	ssh ${install_ip} "cd ${LIS_HOME}/${DPDK_DIR} && make config T=x86_64-native-linuxapp-gcc"
+	ssh ${install_ip} "sed -ri 's,(MLX._PMD=)n,\1y,' ${LIS_HOME}/${DPDK_DIR}/build/.config"
 
 	if type dpdk_configure > /dev/null; then
 		echo "Calling testcase provided dpdk_configure(install_ip) on ${install_ip}"
-		ssh ${install_ip} ". constants.sh; . utils.sh; . dpdkUtils.sh; cd ${LIS_HOME}/${dpdk_dir}; $(typeset -f dpdk_configure); dpdk_configure ${install_ip}"
+		ssh ${install_ip} ". constants.sh; . utils.sh; . dpdkUtils.sh; cd ${LIS_HOME}/${DPDK_DIR}; $(typeset -f dpdk_configure); dpdk_configure ${install_ip}"
 	fi
 
-	ssh ${install_ip} "cd ${LIS_HOME}/${dpdk_dir} && make -j"
-	ssh ${install_ip} "cd ${LIS_HOME}/${dpdk_dir} && make install"
+	ssh ${install_ip} "cd ${LIS_HOME}/${DPDK_DIR} && make -j"
+	ssh ${install_ip} "cd ${LIS_HOME}/${DPDK_DIR} && make install"
 
 	LogMsg "Finished installing dpdk on ${install_ip}"
 }

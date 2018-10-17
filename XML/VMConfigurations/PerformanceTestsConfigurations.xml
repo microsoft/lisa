@@ -49,7 +49,7 @@
             <VirtualMachine>
                 <state></state>
                 <ARMInstanceSize>Standard_DS4_v2</ARMInstanceSize>
-                <RoleName>server-vm</RoleName>
+                <RoleName>sender</RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
                     <Protocol>tcp</Protocol>
@@ -62,7 +62,7 @@
             <VirtualMachine>
                 <state></state>
                 <ARMInstanceSize>Standard_DS4_v2</ARMInstanceSize>
-                <RoleName>client-vm</RoleName>
+                <RoleName>receiver</RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
                     <Protocol>tcp</Protocol>
@@ -80,7 +80,7 @@
             <VirtualMachine>
                 <state></state>
                 <ARMInstanceSize>Standard_DS15_v2</ARMInstanceSize>
-                <RoleName>server-vm</RoleName>
+                <RoleName>sender</RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
                     <Protocol>tcp</Protocol>
@@ -93,7 +93,7 @@
             <VirtualMachine>
                 <state></state>
                 <ARMInstanceSize>Standard_DS15_v2</ARMInstanceSize>
-                <RoleName>client-vm</RoleName>
+                <RoleName>receiver</RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
                     <Protocol>tcp</Protocol>

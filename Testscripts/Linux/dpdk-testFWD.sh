@@ -64,21 +64,20 @@ function run_testfwd() {
 		exit 1
 	fi
 
-	if [ -z "${LIS_HOME}" -o -z "${LOG_DIR}" ]; then
-		LogErr "ERROR: LIS_HOME, LOG_DIR ust be defined in environment"
+	if [ -z "${LIS_HOME}" -o -z "${LOG_DIR}" -o -z "${DPDK_DIR}" ]; then
+		LogErr "ERROR: LIS_HOME, LOG_DIR, and DPDK_DIR must be defined in environment"
 		SetTestStateAborted
 		exit 1
 	fi
 
-	if [ -z "${sender}" -o -z "${forwarder}" -o -z "${receiver}" ]; then
-		LogErr "ERROR: sender, forwarder, and receiver must be define by constants.sh"
+	if [ -z "${sender}" -o -z "${forwarder}" -o -z "${receiver}" -o -z "${IP_ADDRS}" ]; then
+		LogErr "ERROR: sender, forwarder, receiver, and IP_ADDRS must be defined by constants.sh"
 		SetTestStateAborted
 		exit 1
 	fi
 
 	local core=${1}
 	local test_duration=${2}
-	local dpdk_dir=$(ls ${LIS_HOME} | grep dpdk | grep -v \.sh)
 
 	local ip
 	LogMsg "Ensuring free hugepages"
@@ -90,17 +89,17 @@ function run_testfwd() {
 	# start receiver, fowarder in advance so testpmd comes up easily
 	local fwd_recv_duration=$(expr ${test_duration} + 5)
 	
-	local receiver_testfwd_cmd="timeout ${fwd_recv_duration} ${LIS_HOME}/${dpdk_dir}/build/app/testpmd -l 0-${core} -w ${receiver_busaddr} --vdev='net_vdev_netvsc0,iface=${receiver_iface}' -- --port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core} --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=rxonly --stats-period 1"
+	local receiver_testfwd_cmd="timeout ${fwd_recv_duration} ${LIS_HOME}/${DPDK_DIR}/build/app/testpmd -l 0-${core} -w ${receiver_busaddr} --vdev='net_vdev_netvsc0,iface=${receiver_iface}' -- --port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core} --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=rxonly --stats-period 1"
 	LogMsg "${receiver_testfwd_cmd}"
 	ssh ${receiver} ${receiver_testfwd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testfwd-receiver-${core}-core-$(date +"%m%d%Y-%H%M%S").log &
  
-	local forwarder_testfwd_cmd="timeout ${fwd_recv_duration} ${LIS_HOME}/${dpdk_dir}/build/app/testpmd -l 0-${core} -w ${forwarder_busaddr} --vdev='net_vdev_netvsc0,iface=${forwarder_iface}' -- --port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core} --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=mac --stats-period 1 --tx-offloads=0x800e"
+	local forwarder_testfwd_cmd="timeout ${fwd_recv_duration} ${LIS_HOME}/${DPDK_DIR}/build/app/testpmd -l 0-${core} -w ${forwarder_busaddr} --vdev='net_vdev_netvsc0,iface=${forwarder_iface}' -- --port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core} --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=mac --stats-period 1 --tx-offloads=0x800e"
 	LogMsg "${forwarder_testfwd_cmd}"
 	ssh ${forwarder} ${forwarder_testfwd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testfwd-forwarder-${core}-core-$(date +"%m%d%Y-%H%M%S").log &
 
 	sleep 5
 	
-	local sender_testfwd_cmd="timeout ${test_duration} ${LIS_HOME}/${dpdk_dir}/build/app/testpmd -l 0-${core} -w ${sender_busaddr} --vdev='net_vdev_netvsc0,iface=${sender_iface}' -- --port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core} --mbcache=512 --txd=4096 --forward-mode=txonly --stats-period 1 2>&1 > ${LOG_DIR}/dpdk-testfwd-sender-${core}-core-$(date +"%m%d%Y-%H%M%S").log &"
+	local sender_testfwd_cmd="timeout ${test_duration} ${LIS_HOME}/${DPDK_DIR}/build/app/testpmd -l 0-${core} -w ${sender_busaddr} --vdev='net_vdev_netvsc0,iface=${sender_iface}' -- --port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core} --mbcache=512 --txd=4096 --forward-mode=txonly --stats-period 1 2>&1 > ${LOG_DIR}/dpdk-testfwd-sender-${core}-core-$(date +"%m%d%Y-%H%M%S").log &"
 	LogMsg "${sender_testfwd_cmd}"
 	eval ${sender_testfwd_cmd}
 	
@@ -135,8 +134,7 @@ function testfwd_parser() {
 
 	local core=${1}
 	local testfwd_csv_file=${2}
-	local dpdk_dir=$(ls ${LIS_HOME} | grep dpdk | grep -v \.sh | grep -v \.csv)
-	local dpdk_version=$(grep "Version:" ${LIS_HOME}/${dpdk_dir}/pkg/dpdk.spec | awk '{print $2}')
+	local dpdk_version=$(grep "Version:" ${LIS_HOME}/${DPDK_DIR}/pkg/dpdk.spec | awk '{print $2}')
 
 	local log_files=$(ls ${LOG_DIR}/*.log | grep "dpdk-testfwd-.*-${core}-core")
 	LogMsg "Parsing test run mode ${core} core(s)"

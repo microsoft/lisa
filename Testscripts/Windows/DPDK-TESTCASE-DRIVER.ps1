@@ -9,7 +9,6 @@ function Main {
 		if ($allVMData.Count -eq 0) {
 			throw "DPDK-TESTCASE-DRIVER requires at least one VM"
 		}
-		$masterVM = $allVMData[0]
 
 		# enables root access and key auth
 		ProvisionVMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
@@ -20,6 +19,10 @@ function Main {
 		$ipAddrs = ""
 		$vmNames = ""
 		foreach ($vmData in $allVMData) {
+			if ($vmData.RoleName -eq "sender") {
+				$masterVM = $vmData
+			}
+
 			$roleName = $vmData.RoleName
 			$internalIp = $vmData.InternalIP
 
@@ -30,7 +33,7 @@ function Main {
 
 			$vmNames = "$vmNames $roleName"
 			$ipAddrs = "$ipAddrs $internalIp"
-			Add-Contnet -Value "$roleName=$internalIp" -Path $constantsFile
+			Add-Content -Value "$roleName=$internalIp" -Path $constantsFile
 		}
 
 		Add-Content -Value "VM_NAMES='$vmNames'" -Path $constantsFile
@@ -77,9 +80,9 @@ collect_VM_properties
 		Set-content "$LogDir\StartDpdkTestPmd.sh" $myString
 		# upload updated constants file to all VMs
 		foreach ($vmData in $allVMData) {
-			RemoteCopy -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files ".\$constantsFile" -username "root" -password $password -upload
+			RemoteCopy -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files ".\$constantsFile,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkUtils.sh," -username "root" -password $password -upload
 		}
-		RemoteCopy -uploadTo $masterVM.PublicIP -port $masterVM.SSHPort -files ".\$constantsFile,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkUtils.sh,.\Testscripts\Linux\dpdkSetupAndRunTest.sh,.\$LogDir\StartDpdkTestPmd.sh" -username "root" -password $password -upload
+		RemoteCopy -uploadTo $masterVM.PublicIP -port $masterVM.SSHPort -files ".\Testscripts\Linux\dpdkSetupAndRunTest.sh,.\$LogDir\StartDpdkTestPmd.sh" -username "root" -password $password -upload
 		# upload user specified file from Testcase.xml to root's home
 		RemoteCopy -uploadTo $masterVM.PublicIP -port $masterVM.SSHPort -files $bashFilePaths -username "root" -password $password -upload
 
