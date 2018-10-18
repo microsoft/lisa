@@ -85,7 +85,9 @@ collect_VM_properties
         }
         LogMsg "Test result : $testResult"        
     } catch {
-        ThrowException $_
+        $ErrorMessage =  $_.Exception.Message
+        $ErrorLine = $_.InvocationInfo.ScriptLineNumber
+        LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
         $testResult = "FAIL"
     } finally {
         if (!$testResult) {

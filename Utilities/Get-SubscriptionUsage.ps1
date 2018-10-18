@@ -74,9 +74,6 @@ try
 }
 catch 
 {
-    $ErrorMessage =  $_.Exception.Message
-    $line = $_.InvocationInfo.ScriptLineNumber
-    LogMsg "EXCEPTION : $ErrorMessage at line: $line"
     LogMsg "Error while fetching data. Please try again."
     Set-Content -Path $FinalHtmlFile -Value "There was some error in fetching data from Azure today."
     Set-Content -Path $EmailSubjectTextFile -Value "Azure Subscription Daily Utilization Report: $($psttime.Year)/$($psttime.Month)/$($psttime.Day)"
@@ -319,9 +316,6 @@ if ($UploadToDB)
     }
     catch
     {
-        $ErrorMessage =  $_.Exception.Message
-        $line = $_.InvocationInfo.ScriptLineNumber
-        LogMsg "EXCEPTION : $ErrorMessage at line: $line"
         LogMsg $_.Exception | format-list -force
     }
 }

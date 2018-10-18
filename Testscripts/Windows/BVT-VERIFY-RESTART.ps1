@@ -35,7 +35,9 @@ function Main {
             $testResult = "FAIL"
         }
     } catch {
-        ThrowException $_
+        $ErrorMessage =  $_.Exception.Message
+        $ErrorLine = $_.InvocationInfo.ScriptLineNumber
+        LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     } finally {
         $metaData = ""
         if (!$testResult) {

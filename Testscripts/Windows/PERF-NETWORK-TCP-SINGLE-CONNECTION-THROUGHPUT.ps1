@@ -213,7 +213,11 @@ collect_VM_properties
             LogMsg "Invalid database details. Failed to upload result to database!"
         }
     } catch {
-        ThrowException $_
+        $line = $_.InvocationInfo.ScriptLineNumber
+        $script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
+        $ErrorMessage =  $_.Exception.Message
+        LogMsg "EXCEPTION : $ErrorMessage"
+        LogMsg "Source : Line $line in script $script_name." 
     } finally {
         $metaData = "iperf3tcp RESULT"
         if (!$testResult) {
