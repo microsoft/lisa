@@ -1159,4 +1159,20 @@
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
     </test>
+    <test>
+        <testName>VERIFY-DISK-WITH-NOBARRIER</testName>
+        <TestScript>VERIFY-DISK-WITH-NOBARRIER.ps1</TestScript>
+        <files>.\Testscripts\Linux\nobarrier.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>deviceName=/dev/md0</param>
+            <param>mountDir=/data</param>
+            <param>diskformat=ext4</param>
+            <param>mount_option=nobarrier</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>STORAGE</Area>
+        <Tags>disk,hv_storvsc</Tags>
+    </test>
 </TestCases>
