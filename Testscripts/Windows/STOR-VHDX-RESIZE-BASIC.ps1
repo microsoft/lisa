@@ -122,7 +122,7 @@ Function Main
 
 		if (-not $?) {
 			$testResult = "FAIL"
-			Throw "Unable to grow VHDX file '${vhdPath}"
+			Throw "Unable to grow VHDX file ${vhdPath}"
 		}
 
 		LogMsg "Let system have some time for the volume change to be indicated. Sleep 5 ..."

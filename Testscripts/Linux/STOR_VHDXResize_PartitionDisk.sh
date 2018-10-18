@@ -64,12 +64,7 @@ for fs in "${fileSystems[@]}"; do
     # to rm partition, still can show in fdisk -l even it does not exist in fact.
     (echo d; echo w) | fdisk /dev/sdc 2> /dev/null
     (echo n; echo p; echo $fdiskOption; echo ; echo ;echo w) | fdisk /dev/sdc 2> /dev/null
-    if [ $? -gt 0 ]; then
-        LogErr "Failed to create partition"
-        SetTestStateFailed
-        exit 1
-    fi
-    LogMsg "Partition created"
+	check_exit_status "Create partition" "LogMsg"
     sync
 
     # Format the partition
@@ -85,12 +80,7 @@ for fs in "${fileSystems[@]}"; do
             option="-f"
         fi
         mkfs -t $fs $option $testPartition
-        if [ $? -ne 0 ]; then
-            LogErr "Failed to format partition with $fs"
-            SetTestStateFailed
-            exit 1
-        fi
-        LogMsg "Successfully formated partition with $fs"
+		check_exit_status "Format partition with $fs" "LogMsg"
     fi
 
     if [ $count -eq ${#fileSystems[@]} ]; then
@@ -99,43 +89,23 @@ for fs in "${fileSystems[@]}"; do
         exit 1
     fi
 
-    # Mount partition
-    if [ ! -e "/mnt" ]; then
-        mkdir /mnt
-        if [ $? -ne 0 ]; then
-            LogErr "Failed to create mount point"
-            SetTestStateFailed
-            exit 1
-        fi
-        LogMsg "Mount point /dev/mnt created"
+	$mntDir="/mnt"
+    if [ ! -e $mntDir ]; then
+        mkdir $mntDir
+		check_exit_status "Create mount point" "LogMsg"
     fi
 
-    mount $testPartition /mnt
-    if [ $? -ne 0 ]; then
-        LogErr "Failed to mount partition"
-        SetTestStateFailed
-        exit 1
-    fi
-    LogMsg "Partition mount successful"
+    mount $testPartition $mntDir
+	check_exit_status "Mount partition" "LogMsg"
 
     # Read/Write mount point
     ./STOR_VHDXResize_ReadWrite.sh
 
-    umount /mnt
-    if [ $? -ne 0 ]; then
-        LogErr "Failed to unmount partition"
-        SetTestStateFailed
-        exit 1
-    fi
-    LogMsg "Unmount partition successful"
+    umount $mntDir
+	check_exit_status "Unmount partition" "LogMsg"
 
     (echo d; echo w) | fdisk /dev/sdc 2> /dev/null
-    if [ $? -ne 0 ]; then
-        LogErr "Failed to delete partition"
-        SetTestStateFailed
-        exit 1
-    fi
-    LogMsg "Succesfully deleted partition"
+	check_exit_status "Delete partition" "LogMsg"
 
 done
 

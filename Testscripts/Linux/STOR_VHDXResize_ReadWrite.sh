@@ -25,15 +25,16 @@
 # Source constants file and initialize most common variables
 UtilsInit
 
-testDir=/mnt/testDir
-testFile=/mnt/testDir/testFile
+$mntDir="/mnt"
+testDir="$mntDir/testDir"
+testFile="$mntDir/testDir/testFile"
 
 # Check for call trace log
 CheckCallTracesWithDelay 1
 
 # Read/Write mount point
 mkdir $testDir 2> ~/summary.log
-check_exit_status "Failed to create file $testDir"
+check_exit_status "Create file $testDir" "LogMsg"
 
 dd if=/dev/zero of=/root/testFile bs=64 count=1
 original_file_size=$(du -b /root/testFile | awk '{ print $1}')
@@ -56,15 +57,15 @@ if [ $original_checksum != $target_checksum ]; then
 fi
 
 ls $testFile
-check_exit_status "Failed to list file $testFile"
+check_exit_status "List file $testFile" "LogMsg"
 
 cat $testFile
-check_exit_status "Failed to read file $testFile"
+check_exit_status "Read file $testFile" "LogMsg"
 
 rm $testFile
-check_exit_status "Failed to delete file $testFile"
+check_exit_status "Delete file $testFile" "LogMsg"
 
 rmdir $testDir
-check_exit_status "Failed to delete directory $testDir"
+check_exit_status "Delete directory $testDir" "LogMsg"
 
 LogMsg "Successfully run read/write script"
