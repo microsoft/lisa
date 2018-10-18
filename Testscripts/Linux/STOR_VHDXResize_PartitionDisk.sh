@@ -7,17 +7,13 @@
 # Description:
 #    This script will verify if you can create, format, mount, perform
 #    read/write operation, unmount and delete a partition on a resized
-#    VHDx file.
-#
-#    The test performs the following steps:
-#
+#    VHDx file. The test performs the following steps:
 #    1. Make sure we have a constants.sh file.
 #    2. Creates partition
 #    3. Creates filesystem
 #    4. Performs read/write operations
 #    5. Unmounts partition
 #    6. Deletes partition
-#
 ########################################################################
 
 # Source utils.sh
@@ -36,8 +32,14 @@ if [ "${fileSystems:-UNDEFINED}" = "UNDEFINED" ]; then
     exit 1
 fi
 
+if [ "${deviceName:-UNDEFINED}" = "UNDEFINED" ]; then
+    LogErr "Parameter deviceName is not defined in constants file."
+    SetTestStateAborted
+    exit 1
+fi
+
 # Verify if guest detects the new drive
-if [ ! -e "/dev/sdc" ]; then
+if [ ! -e "$deviceName" ]; then
     LogErr "The Linux guest cannot detect the drive"
     SetTestStateAborted
     exit 1
@@ -50,10 +52,10 @@ chmod +x STOR_VHDXResize_ReadWrite.sh
 # If the script is being run a second time modify the following variables
 if [ "$rerun" = "yes" ]; then
     LogMsg "Second run of the script"
-    testPartition="/dev/sdc2"
+    testPartition="$deviceName"2
     fdiskOption=2
 else
-    testPartition="/dev/sdc1"
+    testPartition="$deviceName"1
     fdiskOption=1
 fi
 
@@ -62,8 +64,8 @@ for fs in "${fileSystems[@]}"; do
     # Create the new partition
     # delete partition first, mainly used if partition size >2TB, after use parted
     # to rm partition, still can show in fdisk -l even it does not exist in fact.
-    (echo d; echo w) | fdisk /dev/sdc 2> /dev/null
-    (echo n; echo p; echo $fdiskOption; echo ; echo ;echo w) | fdisk /dev/sdc 2> /dev/null
+    (echo d; echo w) | fdisk "$deviceName" 2> /dev/null
+    (echo n; echo p; echo $fdiskOption; echo ; echo ;echo w) | fdisk "$deviceName" 2> /dev/null
 	check_exit_status "Create partition" "LogMsg"
     sync
 
@@ -104,7 +106,7 @@ for fs in "${fileSystems[@]}"; do
     umount $mntDir
 	check_exit_status "Unmount partition" "LogMsg"
 
-    (echo d; echo w) | fdisk /dev/sdc 2> /dev/null
+    (echo d; echo w) | fdisk "$deviceName" 2> /dev/null
 	check_exit_status "Delete partition" "LogMsg"
 
 done
