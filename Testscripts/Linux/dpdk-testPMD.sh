@@ -26,11 +26,11 @@ function dpdk_configure() {
 
 	if [ "${1}" = "${sender}" ]; then
 		local dpdk_ips_cmd="hostname -I"
-		local client_dpdk_ips=($(eval ${dpdk_ips_cmd}))
-		local server_dpdk_ips=($(ssh ${receiver} "${dpdk_ips_cmd}"))
+		local sender_dpdk_ips=($(eval ${dpdk_ips_cmd}))
+		local receiver_dpdk_ips=($(ssh ${receiver} "${dpdk_ips_cmd}"))
 
-		testpmd_ip_setup "SRC" "${client_dpdk_ips[1]}"
-		testpmd_ip_setup "DST" "${server_dpdk_ips[1]}"
+		testpmd_ip_setup "SRC" "${sender_dpdk_ips[1]}"
+		testpmd_ip_setup "DST" "${receiver_dpdk_ips[1]}"
 
 		testpmd_multiple_tx_flows_setup
 	fi
@@ -39,7 +39,8 @@ function dpdk_configure() {
 # Requires
 #   - UtilsInit
 #   - core, modes, and test_duration as arguments in that order
-#   - LOG_DIR and server to be defined
+#   - LIS_HOME, LOG_DIR, and DPDK_DIR to be defined
+#   - sender, receiver, and IP_ADDRS to be defined
 function run_testpmd() {
 	if [ -z "${1}" -o -z "${2}" -o -z "${3}" ]; then
 		LogErr "ERROR: Must provide core, modes, test_duration as arguments in that order to run_testpmd()"
@@ -70,18 +71,18 @@ function run_testpmd() {
 			ssh ${ip} ${free_huge_cmd}
 		done
 
-		# start server in advance so traffic spike doesn't cause output freeze
-		local server_duration=$(expr ${test_duration} + 5)
+		# start receiver in advance so traffic spike doesn't cause output freeze
+		local receiver_duration=$(expr ${test_duration} + 5)
 
-		local server_testpmd_cmd="timeout ${server_duration} ${LIS_HOME}/${DPDK_DIR}/build/app/testpmd -l 0-${core} -w ${receiver_busaddr} --vdev='net_vdev_netvsc0,iface=${receiver_iface}' -- --port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core} --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=${test_mode} --stats-period 1"
-		LogMsg "${server_testpmd_cmd}"
-		ssh ${receiver} ${server_testpmd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testpmd-${test_mode}-receiver-${core}-core-$(date +"%m%d%Y-%H%M%S").log &
+		local receiver_testpmd_cmd="$(create_testpmd_cmd ${receiver_duration} ${core} ${receiver_busaddr} ${receiver_iface} ${test_mode})"
+		LogMsg "${receiver_testpmd_cmd}"
+		ssh ${receiver} ${receiver_testpmd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testpmd-${test_mode}-receiver-${core}-core-$(date +"%m%d%Y-%H%M%S").log &
 
 		sleep 5
 
-		local client_testpmd_cmd="timeout ${test_duration} ${LIS_HOME}/${DPDK_DIR}/build/app/testpmd -l 0-${core} -w ${sender_busaddr} --vdev='net_vdev_netvsc0,iface=${sender_iface}' -- --port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core} --mbcache=512 --txd=4096 --forward-mode=txonly --stats-period 1 2>&1 > ${LOG_DIR}/dpdk-testpmd-${test_mode}-sender-${core}-core-$(date +"%m%d%Y-%H%M%S").log &"
-		LogMsg "${client_testpmd_cmd}"
-		eval ${client_testpmd_cmd}
+		local sender_testpmd_cmd="$(create_testpmd_cmd ${test_duration} ${core} ${sender_busaddr} ${sender_iface} txonly)"
+		LogMsg "${sender_testpmd_cmd}"
+		eval "${sender_testpmd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testpmd-${test_mode}-sender-${core}-core-$(date +"%m%d%Y-%H%M%S").log &"
 
 		sleep ${test_duration}
 
@@ -178,7 +179,6 @@ function run_testcase() {
 	echo "dpdk_version,test_mode,core,max_rx_pps,tx_pps_avg,rx_pps_avg,fwdtx_pps_avg,tx_bytes,rx_bytes,fwd_bytes,tx_packets,rx_packets,fwd_packets,tx_packet_size,rx_packet_size" > ${csv_name}
 	for core in ${CORES}; do
 		for test_mode in ${MODES}; do
-			LogMsg "Parsing dpdk results for ${core} core ${test_mode} mode"
 			testpmd_parser ${core} ${test_mode} ${csv_name}
 		done
 	done

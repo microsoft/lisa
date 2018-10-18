@@ -72,22 +72,22 @@ function run_testfwd() {
 		ssh ${ip} ${free_huge_cmd}
 	done
 	
-	# start receiver, fowarder in advance so testpmd comes up easily
+	# start receiver and fowarder in advance so testpmd comes up easily
 	local fwd_recv_duration=$(expr ${test_duration} + 5)
 	
-	local receiver_testfwd_cmd="timeout ${fwd_recv_duration} ${LIS_HOME}/${DPDK_DIR}/build/app/testpmd -l 0-${core} -w ${receiver_busaddr} --vdev='net_vdev_netvsc0,iface=${receiver_iface}' -- --port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core} --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=rxonly --stats-period 1"
+	local receiver_testfwd_cmd="$(create_testpmd_cmd ${fwd_recv_duration} ${core} ${receiver_busaddr} ${receiver_iface} rxonly)"
 	LogMsg "${receiver_testfwd_cmd}"
 	ssh ${receiver} ${receiver_testfwd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testfwd-receiver-${core}-core-$(date +"%m%d%Y-%H%M%S").log &
  
-	local forwarder_testfwd_cmd="timeout ${fwd_recv_duration} ${LIS_HOME}/${DPDK_DIR}/build/app/testpmd -l 0-${core} -w ${forwarder_busaddr} --vdev='net_vdev_netvsc0,iface=${forwarder_iface}' -- --port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core} --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=mac --stats-period 1 --tx-offloads=0x800e"
+	local forwarder_testfwd_cmd="$(create_testpmd_cmd ${fwd_recv_duration} ${core} ${forwarder_busaddr} ${forwarder_iface} mac)"
 	LogMsg "${forwarder_testfwd_cmd}"
 	ssh ${forwarder} ${forwarder_testfwd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testfwd-forwarder-${core}-core-$(date +"%m%d%Y-%H%M%S").log &
 
 	sleep 5
 	
-	local sender_testfwd_cmd="timeout ${test_duration} ${LIS_HOME}/${DPDK_DIR}/build/app/testpmd -l 0-${core} -w ${sender_busaddr} --vdev='net_vdev_netvsc0,iface=${sender_iface}' -- --port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core} --mbcache=512 --txd=4096 --forward-mode=txonly --stats-period 1 2>&1 > ${LOG_DIR}/dpdk-testfwd-sender-${core}-core-$(date +"%m%d%Y-%H%M%S").log &"
+	local sender_testfwd_cmd="$(create_testpmd_cmd ${test_duration} ${core} ${sender_busaddr} ${sender_iface} txonly)"
 	LogMsg "${sender_testfwd_cmd}"
-	eval ${sender_testfwd_cmd}
+	eval "${sender_testfwd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testfwd-sender-${core}-core-$(date +"%m%d%Y-%H%M%S").log &"
 	
 	sleep ${test_duration}
 	
@@ -123,7 +123,7 @@ function testfwd_parser() {
 	local dpdk_version=$(grep "Version:" ${LIS_HOME}/${DPDK_DIR}/pkg/dpdk.spec | awk '{print $2}')
 
 	local log_files=$(ls ${LOG_DIR}/*.log | grep "dpdk-testfwd-.*-${core}-core")
-	LogMsg "Parsing test run mode ${core} core(s)"
+	LogMsg "Parsing test fwd ${core} core(s)"
 	for file in ${log_files}; do
 		LogMsg "  Reading ${file}"
 		if [[ "${file}" =~ "receiver" ]]; then
@@ -165,7 +165,6 @@ function run_testcase() {
 	local csv_name=$(create_csv)
 	echo "dpdk_version,core,tx_pps_avg,fwdrx_pps_avg,fwdtx_pps_avg,rx_pps_avg" > ${csv_name}
 	for core in ${CORES}; do
-		LogMsg "Parsing dpdk fwd results for ${core} core mode"
 		testfwd_parser ${core} ${csv_name}
 	done
 

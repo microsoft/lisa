@@ -241,6 +241,46 @@ function create_vm_synthetic_vf_pair_mappings() {
 	done
 }
 
+# create_testpmd_cmd() creates the testpmd cmd string based on provided args
+# Requires:
+#   - basic environ i.e. have called UtilsInit
+#   - DPDK_DIR is defined in environment
+#   - Arguments (in order):
+#        1. duration in seconds
+#        2. number of cores
+#        3. busaddr of VF
+#        4. name of corresponding synthetic nic iface
+#        5. any of the valid testpmd fwd modes e.g. txonly, mac, rxonly
+# Effects:
+#   - outputs testpmd command with no redireciton nor ampersand
+function create_testpmd_cmd() {
+	if [ -z "${1}" -o -z "${2}" -o -z "${3}" -o -z "${4}" -o -z "${5}" ]; then
+		LogErr "ERROR: duration, cores, busaddr, iface, and testpmd mode must be passed to create_testpmd_cmd"
+		SetTestStateAborted
+		exit 1
+	fi
+
+	if [ -z "${DPDK_DIR}" ]; then
+		LogErr "ERROR: DPDK_DIR must be defined before calling create_testpmd_cmd()"
+		SetTestStateAborted
+		exit 1
+	fi
+
+	local duration="${1}"
+	local core="${2}"
+	local busaddr="${3}"
+	local iface="${4}"
+	local mode="${5}"
+
+	# partial strings to concat
+	local testpmd_timeout="timeout ${duration} ${LIS_HOME}/${DPDK_DIR}/build/app/testpmd"
+	local eal_opts="-l 0-${core} -w ${busaddr} --vdev='net_vdev_netvsc0,iface=${iface}' --"
+	local testpmd_opts0="--port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core}"
+	local testpmd_opts1="--mbcache=512 --txd=4096 --rxd=4096 --forward-mode=${mode} --stats-period 1 --tx-offloads=0x800e"
+
+	echo "${testpmd_timeout} ${eal_opts} ${testpmd_opts0} ${testpmd_opts1}"
+}
+
 # Below function(s) intended for use by a testcase provided dpdk_configure() function:
 #   - dpdk_configure() lets a testcase configure dpdk before compilation
 #   - when called, it is gauranteed to have contants.sh, utils.sh, and dpdkUtils.sh
