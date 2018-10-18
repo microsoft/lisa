@@ -243,7 +243,7 @@ function create_vm_synthetic_vf_pair_mappings() {
 
 # Below function(s) intended for use by a testcase provided dpdk_configure() function:
 #   - dpdk_configure() lets a testcase configure dpdk before compilation
-#   - when called, it is gauranteed to have contants.sh, utils, and dpdkUtils.sh
+#   - when called, it is gauranteed to have contants.sh, utils.sh, and dpdkUtils.sh
 #     sourced; it will be called on the target machine in dpdk top level dir,
 #     and it will be passed target machine's ip
 #   - UtilsInit is not called in this environment
@@ -276,7 +276,6 @@ function testpmd_ip_setup() {
 	eval "${ip_config_cmd}"
 }
 
-
 # Requires:
 #   - called only from dpdk top level directory
 # Modifies:
@@ -289,4 +288,29 @@ function testpmd_multiple_tx_flows_setup() {
 	sed -i "54i ${num_port_code}" app/test-pmd/txonly.c
 	sed -i "55i ${port_arr_code}" app/test-pmd/txonly.c
 	sed -i "234i ${port_code}" app/test-pmd/txonly.c
+}
+
+# Requires:
+#   - called only from dpdk top level directory
+#   - first argument to is destination IP
+#   - requires ip forwarding to be turned on in the VM
+# Modifies:
+#   - local testpmd mac mode to forward packets to supplied ip
+# Notes:
+#   - Be aware of subnets
+function testpmd_macfwd_to_dest() {
+	if [ -z "${1}" -o ]; then
+		LogErr "ERROR: must provide dest ip to testpmd_macfwd_to_dest()"
+		SetTestStateAborted
+		exit 1
+	fi
+
+	local ptr_code="struct ipv4_hdr *ipv4_hdr;"
+	local offload_code="ol_flags |= PKT_TX_IP_CKSUM; ol_flags |= PKT_TX_IPV4;"
+	local dst_addr=$(echo ${1} | sed 'y/\./,/')
+	local dst_addr_code="ipv4_hdr = rte_pktmbuf_mtod_offset(mb, struct ipv4_hdr *, sizeof(struct ether_hdr)); ipv4_hdr->dst_addr = rte_be_to_cpu_32(IPv4(${dst_addr}));"
+
+	sed -i "53i ${ptr_code}" app/test-pmd/macfwd.c
+	sed -i "90i ${offload_code}" app/test-pmd/macfwd.c
+	sed -i "101i ${dst_addr_code}" app/test-pmd/macfwd.c
 }

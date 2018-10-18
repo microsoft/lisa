@@ -52,6 +52,8 @@ source_script "dpdkUtils.sh"
 UtilsInit
 LOG_DIR="${LIS_HOME}/logdir"
 mkdir -p ${LOG_DIR}
+PHASE="${LIS_HOME}/phase.txt"
+touch ${PHASE}
 
 # constants.sh is now loaded; load user provided scripts
 for file in ${USER_FILES}; do
@@ -72,7 +74,7 @@ if [ -z "${DPDK_LINK}" ]; then
 	LogMsg "DPDK_LINK missing from environment; using ${DPDK_LINK}"
 fi
 
-# set dpdk global
+# set DPDK_DIR global
 if [[ $DPDK_LINK =~ .tar ]]; then
 	DPDK_DIR="dpdk-$(echo ${DPDK_LINK} | grep -Po "(\d+\.)+\d+")"
 elif [[ $DPDK_LINK =~ ".git" ]] || [[ $DPDK_LINK =~ "git:" ]]; then

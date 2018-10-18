@@ -69,3 +69,7 @@ function Verify-Performance() {
 
 	return $tempResult
 }
+
+function Alter-Runtime() {
+	return
+}

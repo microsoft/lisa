@@ -90,29 +90,39 @@ collect_VM_properties
 		$testJob = RunLinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "./StartDpdkTest.sh" -RunInBackground
 
 		# monitor test
+		$outputCounter = 0
 		while ((Get-Job -Id $testJob).State -eq "Running") {
-			$currentStatus = RunLinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "tail -2 dpdkConsoleLogs.txt | head -1"
-			LogMsg "Current Test Status : $currentStatus"
-			WaitFor -seconds 20
+			if ($outputCounter -eq 5) {
+				$currentOutput = RunLinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "tail -2 dpdkConsoleLogs.txt | head -1"
+				LogMsg "Current Test Output: $currentOutput"
+
+				$outputCounter = 0
+			}
+
+			$currrentPhase = RunLinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "cat phase.txt"
+			Alter-Runtime
+
+			++$outputCounter
+			WaitFor -seconds 5
 		}
-		$finalStatus = RunLinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "cat /root/state.txt"
+		$finalState = RunLinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "cat /root/state.txt"
 		RemoteCopy -downloadFrom $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "*.csv, *.txt, *.log"
 
 		$testDataCsv = Import-Csv -Path $LogDir\dpdk_test.csv
-		if ($finalStatus -imatch "TestFailed") {
-			LogErr "Test failed. Last known status : $currentStatus."
+		if ($finalState -imatch "TestFailed") {
+			LogErr "Test failed. Last known output: $currentOutput."
 			$testResult = "FAIL"
 		}
-		elseif ($finalStatus -imatch "TestAborted") {
-			LogErr "Test Aborted. Last known status : $currentStatus."
+		elseif ($finalState -imatch "TestAborted") {
+			LogErr "Test Aborted. Last known output: $currentOutput."
 			$testResult = "ABORTED"
 		}
-		elseif ($finalStatus -imatch "TestCompleted") {
+		elseif ($finalState -imatch "TestCompleted") {
 			LogMsg "Test Completed."
 			RemoteCopy -downloadFrom $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "*.tar.gz"
 			$testResult = (Verify-Performance)
 		}
-		elseif ($finalStatus -imatch "TestRunning") {
+		elseif ($finalState -imatch "TestRunning") {
 			LogWarn "Powershell backgroud job for test is completed but VM is reporting that test is still running. Please check $LogDir\zkConsoleLogs.txt"
 			LogWarn "Contests of summary.log : $testSummary"
 			$testResult = "ABORTED"

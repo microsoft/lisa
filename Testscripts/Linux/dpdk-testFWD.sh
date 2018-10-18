@@ -35,15 +35,7 @@ function dpdk_configure() {
 		testpmd_multiple_tx_flows_setup
 	elif [ "${1}" = "${forwarder}" ]; then
 		local receiver_dpdk_ips=($(ssh ${receiver} "${dpdk_ips_cmd}"))
-
-		local ptr_code="struct ipv4_hdr *ipv4_hdr;"
-		local offload_code="ol_flags |= PKT_TX_IP_CKSUM; ol_flags |= PKT_TX_IPV4;"
-		local dst_addr=$(echo ${receiver_dpdk_ips[1]} | sed 'y/\./,/')
-		local dst_addr_code="ipv4_hdr = rte_pktmbuf_mtod_offset(mb, struct ipv4_hdr *, sizeof(struct ether_hdr)); ipv4_hdr->dst_addr = rte_be_to_cpu_32(IPv4(${dst_addr}));"
-
-		sed -i "53i ${ptr_code}" app/test-pmd/macfwd.c
-		sed -i "90i ${offload_code}" app/test-pmd/macfwd.c
-		sed -i "101i ${dst_addr_code}" app/test-pmd/macfwd.c
+		testpmd_macfwd_to_dest "${receiver_dpdk_ips[1]}"
 	fi
 }
 
