@@ -104,6 +104,6 @@ try {
         -LogDir $LogDir
     
 } catch {
-    LogErr "Error triggering VMBus panic event with error message: $_"
+    ThrowException $_
     return "FAIL"
 }

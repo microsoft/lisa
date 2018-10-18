@@ -238,10 +238,7 @@ function Get-SQLQueryOfNestedHyperv ($xmlConfig, $logDir, $session)
 	}
 	catch
 	{
-		LogErr "Getting the SQL query of test results:  ERROR"
-		$errorMessage =  $_.Exception.Message
-		$ErrorLine = $_.InvocationInfo.ScriptLineNumber
-		LogMsg "EXCEPTION : $errorMessage at line: $ErrorLine"
+		ThrowException $_
 	}
 }
 
@@ -481,6 +478,7 @@ function Main()
 			}
 			catch
 			{
+				ThrowException $_
 				# Ignore the exception caused by restart the vm
 			}
 
@@ -601,9 +599,7 @@ function Main()
 	}
 	catch
 	{
-		$errorMessage =  $_.Exception.Message
-		$ErrorLine = $_.InvocationInfo.ScriptLineNumber
-		LogMsg "EXCEPTION : $errorMessage at line: $ErrorLine"
+		ThrowException $_
 	}
 	Finally
 	{

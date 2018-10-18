@@ -147,11 +147,7 @@ collect_VM_properties
         LogMsg "Test result : $testResult"
         LogMsg "Test Completed"
     } catch {
-        $ErrorMessage =  $_.Exception.Message
-        $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
-        $exception =  $_.Exception
-        LogMsg "EXCEPTION FULL: $exception"
+        ThrowException $_
     } finally {
         $metaData = "GPU Verification"
         if (!$testResult) {

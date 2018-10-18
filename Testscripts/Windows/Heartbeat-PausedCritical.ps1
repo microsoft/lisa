@@ -88,6 +88,7 @@ function Main {
                 Remove-Item $vhdpath -Force
                 $foundName = $true
             } catch {
+				ThrowException $_
                 $foundName = $false
             }
         } else {

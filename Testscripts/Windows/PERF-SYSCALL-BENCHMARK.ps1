@@ -130,9 +130,7 @@ collect_VM_properties
                 Set-Content -Value $finalResult -Path "$LogDir\syscalResults.txt"
                 Write-Host ($finalResult | Format-Table | Out-String)
             } catch {
-                $ErrorMessage =  $_.Exception.Message
-                $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-                LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+                ThrowException $_
             }
         }
         elseif ($finalStatus -imatch "TestRunning") {
@@ -144,9 +142,7 @@ collect_VM_properties
         LogMsg "Test Completed"
         $currentTestResult.TestSummary += CreateResultSummary -testResult $testResult -metaData "" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
     } catch {
-        $ErrorMessage =  $_.Exception.Message
-        $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+        ThrowException $_
     } finally {
         $metaData = "SYSCALL RESULT"
         if (!$testResult) {

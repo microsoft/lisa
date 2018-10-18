@@ -338,9 +338,7 @@ function Main {
         LogMsg "Test Completed"
     }
     catch {
-        $ErrorMessage =  $_.Exception.Message
-        $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+        ThrowException $_
     }
     Finally {
         if (!$testResult) {

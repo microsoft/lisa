@@ -69,6 +69,9 @@ try
         }
         catch
         {
+            $ErrorMessage =  $_.Exception.Message
+            $line = $_.InvocationInfo.ScriptLineNumber
+            LogMsg "EXCEPTION : $ErrorMessage at line: $line"
             LogErr "Error in fetching Storage Account info. Retrying in 10 seconds."
             sleep -Seconds 10
             $saInfoCollected = $false
@@ -180,6 +183,9 @@ try
 }
 catch 
 {
+    $ErrorMessage =  $_.Exception.Message
+    $line = $_.InvocationInfo.ScriptLineNumber
+    LogMsg "EXCEPTION : $ErrorMessage at line: $line"
     $ExitCode = 1
     ThrowExcpetion ($_)
 }

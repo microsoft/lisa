@@ -85,8 +85,7 @@ try
 }
 catch
 {
-    $ErrorMessage =  $_.Exception.Message
-    LogMsg "EXCEPTION : $ErrorMessage" 
+    ThrowException $_
 }
 Finally
     {

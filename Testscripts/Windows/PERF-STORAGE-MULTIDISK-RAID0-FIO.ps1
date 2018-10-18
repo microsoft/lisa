@@ -178,14 +178,10 @@ chmod 666 /root/perf_fio.csv
                 LogMsg "Invalid database details. Failed to upload result to database!"
             } 
         } catch {
-            $ErrorMessage =  $_.Exception.Message
-            $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-            LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+            ThrowException $_
         }
     } catch {
-        $ErrorMessage =  $_.Exception.Message
-        $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+        ThrowException $_
     } finally {
         $metaData = "NTTTCP RESULT"
         if (!$testResult) {

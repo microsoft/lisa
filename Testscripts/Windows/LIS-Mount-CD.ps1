@@ -79,9 +79,7 @@ function Main {
             Remove-VMDvdDrive $dvd -Confirm:$False
         }
         catch {
-            LogErr "Cannot remove DVD drive from ${vmName}"
-            $error[0].Exception
-            return $False
+            ThrowException $_
         }
     }
 
@@ -107,7 +105,7 @@ function Main {
         Get-RemoteFileInfo -filename $isoPath  -server $HvServer
     }
     catch {
-        LogErr "The .iso file $isoPath could not be found!"
+        ThrowException $_
         return $False
     }
 

@@ -161,9 +161,7 @@ collect_VM_properties
                 -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
         }
         catch {
-            $ErrorMessage = $_.Exception.Message
-            $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-            LogErr "EXCEPTION in Netperf log parsing : $ErrorMessage at line: $ErrorLine"            
+            ThrowException $_
         }
         #endregion
 
@@ -204,9 +202,7 @@ collect_VM_properties
             }
         }
         catch {
-            $ErrorMessage = $_.Exception.Message
-            $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-            LogErr "EXCEPTION in uploading netperf results to DB : $ErrorMessage at line: $ErrorLine"                   
+            ThrowException $_
         }
         #endregion
 
@@ -225,9 +221,7 @@ collect_VM_properties
         LogMsg "Test result : $testResult"
     }
     catch {
-        $ErrorMessage = $_.Exception.Message
-        $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+        ThrowException $_
     }
     finally {
         $metaData = "Netperf result"

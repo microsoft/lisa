@@ -146,6 +146,7 @@ function Main () {
 			$currentTestResult.TestSummary += CreateResultSummary -testResult $maximumLat -metaData "Maximum Latency" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 			$currentTestResult.TestSummary += CreateResultSummary -testResult $averageLat -metaData "Average Latency" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 		} catch {
+			ThrowException $_
 			$currentTestResult.TestSummary += CreateResultSummary -testResult "Error in parsing logs." -metaData "LAGSCOPE" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 		}
 
@@ -177,9 +178,7 @@ function Main () {
 			Send-ResultToDatabase -xmlConfig $xmlConfig -logDir $LogDir
 		}
 	} catch {
-		$ErrorMessage =  $_.Exception.Message
-		$ErrorLine = $_.InvocationInfo.ScriptLineNumber
-		LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+		ThrowException $_
 	} finally {
 		if (!$testResult) {
 			$testResult = "Aborted"

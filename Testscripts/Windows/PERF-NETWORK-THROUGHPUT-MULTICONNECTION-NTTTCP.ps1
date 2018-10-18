@@ -219,9 +219,7 @@ collect_VM_properties
         }
         LogMsg "Test result : $testResult"
     } catch {
-        $ErrorMessage =  $_.Exception.Message
-        $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+        ThrowException $_
     } finally {
         $metaData = "NTTTCP RESULT"
         if (!$testResult) {

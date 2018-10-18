@@ -366,6 +366,7 @@ function Main () {
 				}
 				catch
 				{
+					ThrowException $_
 					$currentTestResult.TestSummary +=  CreateResultSummary -testResult "Error in parsing logs." -metaData "NTTTCP" -checkValues $checkValues -testName $currentTestData.testName
 				}
 			}
@@ -381,8 +382,7 @@ function Main () {
 	}
 	catch
 	{
-		$errorMessage =  $_.Exception.Message
-		LogMsg "EXCEPTION : $errorMessage"
+		ThrowException $_
 	}
 
 	$resultArr += $testResult

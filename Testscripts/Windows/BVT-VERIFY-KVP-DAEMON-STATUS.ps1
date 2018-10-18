@@ -28,9 +28,7 @@ function Main {
         LogMsg "******************************************************"
         LogMsg "Test result : $testResult"
     } catch {
-        $ErrorMessage =  $_.Exception.Message
-        $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+        ThrowException $_
     } finally {
         $metaData = ""
         if (!$testResult) {

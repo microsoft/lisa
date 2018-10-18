@@ -217,8 +217,7 @@ function Main () {
 	}
 	catch
 	{
-		$errorMessage =  $_.Exception.Message
-		LogMsg "EXCEPTION : $errorMessage"
+		ThrowException $_
 	}
 
 	$resultArr += $testResult

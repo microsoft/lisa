@@ -28,7 +28,7 @@ function Execute-StopStateTest {
             -ErrorAction "Stop"
         LogErr "NMI could be sent when the VM ${VMName} is in stopped state."
     } catch {
-        LogMsg "NMI could not be sent when the VM ${VMName} is in stopped state."
+        ThrowException $_
         $testStates["StopState"] = $true
     }
 }
@@ -50,7 +50,7 @@ function Execute-SavedStateTest {
             -ErrorAction "Stop"
         LogErr "NMI could be sent when the VM ${VMName} is in saved state."
     } catch {
-        LogMsg "NMI could not be sent when the VM ${VMName} is in saved state."
+        ThrowException $_
         $testStates["SavedState"] = $true
     }
 }
@@ -73,7 +73,7 @@ function Execute-PausedStateTest {
             -ErrorAction "Stop"
         LogErr "NMI could be sent when the VM ${VMName} is in suspended state."
     } catch {
-        LogMsg "NMI could not be sent when the VM ${VMName} is in suspended state."
+        ThrowException $_
         $testStates["SavedState"] = $true
     } finally {
         # Note(v-advlad): Needed by the test framework, as there might be failures
@@ -102,7 +102,7 @@ function Trigger-FailedNmiInterrupt {
             & "Execute-${testState}Test" -VMName $VMName `
                                          -HvServer $HvServer
         } catch {
-            LogErr "$testState has failed to execute."
+            ThrowException $_
         }
     }
 
