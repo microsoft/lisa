@@ -319,20 +319,30 @@ function InstallCustomKernel ($CustomKernel, $allVMData, [switch]$RestartAfterUp
 			$jobCount = 0
 			$kernelSuccess = 0
 			$packageInstallJobs = @()
+			$CustomKernelLabel = $CustomKernel
 			foreach ( $vmData in $allVMData )
 			{
 				RemoteCopy -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files ".\Testscripts\Linux\$scriptName,.\Testscripts\Linux\DetectLinuxDistro.sh" -username $user -password $password -upload
-				if ( $CustomKernel.StartsWith("localfile:"))
-				{
+				if ( $CustomKernel.StartsWith("localfile:")) {
 					$customKernelFilePath = $CustomKernel.Replace('localfile:','')
-					RemoteCopy -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files ".\$customKernelFilePath" -username $user -password $password -upload
+					$customKernelFilePath = (Resolve-Path $customKernelFilePath).Path
+					if ($customKernelFilePath -and (Test-Path $customKernelFilePath)) {
+						RemoteCopy -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files $customKernelFilePath `
+							-username $user -password $password -upload
+					} else {
+						LogErr "Failed to find kernel file ${customKernelFilePath}"
+						return $false
+					}
+					$CustomKernelLabel = "localfile:{0}" -f @((Split-Path -Leaf $CustomKernel.Replace('localfile:','')))
 				}
 				RemoteCopy -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files ".\Testscripts\Linux\$scriptName,.\Testscripts\Linux\DetectLinuxDistro.sh" -username $user -password $password -upload
 
 				$Null = RunLinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -command "chmod +x *.sh" -runAsSudo
 				$currentKernelVersion = RunLinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -command "uname -r"
 				LogMsg "Executing $scriptName ..."
-				$jobID = RunLinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -command "/home/$user/$scriptName -CustomKernel $CustomKernel -logFolder /home/$user" -RunInBackground -runAsSudo
+				$jobID = RunLinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user `
+					-password $password -command "/home/$user/$scriptName -CustomKernel '$CustomKernelLabel' -logFolder /home/$user" `
+					-RunInBackground -runAsSudo
 				$packageInstallObj = New-Object PSObject
 				Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name ID -Value $jobID
 				Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name RoleName -Value $vmData.RoleName
@@ -1897,6 +1907,11 @@ Function DoTestCleanUp($CurrentTestResult, $testName, $DeployedServices, $Resour
 							if($group -eq $vmData.HyperVGroupName)
 							{
 								$isCleaned = DeleteHyperVGroup -HyperVGroupName $group -HyperVHost $vmData.HyperVHost
+								if (Get-Variable 'DependencyVmHost' -Scope 'Global' -EA 'Ig') {
+									if ($DependencyVmHost -ne $vmData.HyperVHost) {
+										DeleteHyperVGroup -HyperVGroupName $group -HyperVHost $DependencyVmHost
+									}
+								}
 							}
 						}
 					}
@@ -1965,6 +1980,11 @@ Function DoTestCleanUp($CurrentTestResult, $testName, $DeployedServices, $Resour
 											if($group -eq $vmData.HyperVGroupName)
 											{
 												$isCleaned = DeleteHyperVGroup -HyperVGroupName $group -HyperVHost $vmData.HyperVHost
+												if (Get-Variable 'DependencyVmHost' -Scope 'Global' -EA 'Ig') {
+													if ($DependencyVmHost -ne $vmData.HyperVHost) {
+														DeleteHyperVGroup -HyperVGroupName $group -HyperVHost $DependencyVmHost
+													}
+												}
 											}
 										}
 									}

@@ -506,5 +506,37 @@
                 <DataDisk></DataDisk>
             </VirtualMachine>
         </ResourceGroup>
-    </TwoVMs> 
+    </TwoVMs>
+    <SRIOVVMs>
+        <isDeployed>NO</isDeployed>
+        <ResourceGroup>
+            <VirtualMachine>
+                <state></state>
+                <InstanceSize>Standard_D12_v2</InstanceSize>
+                <ARMInstanceSize>Standard_D12_v2</ARMInstanceSize>
+                <RoleName></RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>22</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+            </VirtualMachine>
+            <VirtualMachine>
+                <DeployOnDifferentHyperVHost>yes</DeployOnDifferentHyperVHost>
+                <state></state>
+                <InstanceSize>Standard_D12_v2</InstanceSize>
+                <ARMInstanceSize>Standard_D12_v2</ARMInstanceSize>
+                <RoleName>dependency-vm</RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>22</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+            </VirtualMachine>
+        </ResourceGroup>
+    </SRIOVVMs>
 </TestSetup>

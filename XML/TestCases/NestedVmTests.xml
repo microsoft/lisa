@@ -16,7 +16,7 @@
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>Nested</Area>
-        <Tags>nested,kvm</Tags>
+        <Tags>nested,nested-kvm</Tags>
     </test>
     <test>
         <TestName>NESTED-KVM-NTTTCP-PRIVATE-BRIDGE</TestName>
@@ -39,7 +39,7 @@
         <Platform>Azure</Platform>
         <Category>Performance</Category>
         <Area>Nested</Area>
-        <Tags>nested,kvm</Tags>
+        <Tags>nested,nested-kvm</Tags>
     </test>
     <test>
         <TestName>HYPERV-NESTED-KVM-STORAGE-SINGLE-DISK</TestName>
@@ -67,7 +67,7 @@
         <Platform>HyperV</Platform>
         <Category>Performance</Category>
         <Area>Nested</Area>
-        <Tags>nested,kvm</Tags>
+        <Tags>nested,nested-kvm</Tags>
     </test>
     <test>
         <TestName>AZURE-NESTED-KVM-STORAGE-SINGLE-DISK</TestName>
@@ -98,7 +98,7 @@
         <Platform>Azure</Platform>
         <Category>Performance</Category>
         <Area>Nested</Area>
-        <Tags>nested,kvm</Tags>
+        <Tags>nested,nested-kvm</Tags>
     </test>
     <test>
         <TestName>HYPERV-NESTED-KVM-STORAGE-MULTIDISK</TestName>
@@ -127,7 +127,7 @@
         <Platform>HyperV</Platform>
         <Category>Performance</Category>
         <Area>Nested</Area>
-        <Tags>nested,kvm</Tags>
+        <Tags>nested,nested-kvm</Tags>
     </test>
     <test>
         <TestName>AZURE-NESTED-KVM-STORAGE-MULTIDISK</TestName>
@@ -159,7 +159,7 @@
         <Platform>Azure</Platform>
         <Category>Performance</Category>
         <Area>Nested</Area>
-        <Tags>nested,kvm</Tags>
+        <Tags>nested,nested-kvm</Tags>
     </test>
     <test>
         <TestName>NESTED-KVM-NTTTCP-DIFFERENT-L1-PUBLIC-BRIDGE</TestName>
@@ -185,7 +185,7 @@
         <Platform>HyperV</Platform>
         <Category>Performance</Category>
         <Area>Nested</Area>
-        <Tags>nested,kvm</Tags>
+        <Tags>nested,nested-kvm</Tags>
     </test>
     <test>
         <TestName>NESTED-HYPERV-NTTTCP-DIFFERENT-L1-PUBLIC-BRIDGE</TestName>
@@ -210,7 +210,7 @@
         <Platform>HyperV</Platform>
         <Category>Performance</Category>
         <Area>Nested</Area>
-        <Tags>nested,hyperv,windows</Tags>
+        <Tags>nested,nested-hyperv</Tags>
     </test>
     <test>
         <TestName>NESTED-KVM-NTTTCP-DIFFERENT-L1-NAT</TestName>
@@ -236,7 +236,7 @@
         <Platform>HyperV</Platform>
         <Category>Performance</Category>
         <Area>Nested</Area>
-        <Tags>nested,kvm</Tags>
+        <Tags>nested,nested-kvm</Tags>
     </test>
     <test>
         <TestName>NESTED-KVM-LAGSCOPE-DIFFERENT-L1-PUBLIC-BRIDGE</TestName>
@@ -260,7 +260,7 @@
         <Platform>HyperV</Platform>
         <Category>Performance</Category>
         <Area>Nested</Area>
-        <Tags>nested,kvm</Tags>
+        <Tags>nested,nested-kvm</Tags>
     </test>
     <test>
         <TestName>AZURE-NESTED-KVM-NTTTCP-DIFFERENT-L1-NAT</TestName>
@@ -286,7 +286,7 @@
         <Platform>Azure</Platform>
         <Category>Performance</Category>
         <Area>Nested</Area>
-        <Tags>nested,kvm</Tags>
+        <Tags>nested,nested-kvm</Tags>
     </test>
     <test>
         <TestName>HYPERV-WINDOWS-NESTED-HYPERV-STORAGE-SINGLE-DISK</TestName>
@@ -315,7 +315,7 @@
         <Platform>HyperV</Platform>
         <Category>Performance</Category>
         <Area>Storage</Area>
-        <Tags>nested,hyperv,windows</Tags>
+        <Tags>nested,nested-hyperv</Tags>
     </test>
     <test>
         <TestName>HYPERV-WINDOWS-NESTED-HYPERV-STORAGE-MULTIDISK</TestName>
@@ -346,7 +346,7 @@
         <Platform>HyperV</Platform>
         <Category>Performance</Category>
         <Area>Storage</Area>
-        <Tags>nested,hyperv,windows</Tags>
+        <Tags>nested,nested-hyperv</Tags>
     </test>
     <test>
         <TestName>AZURE-WINDOWS-NESTED-HYPERV-STORAGE-SINGLE-DISK</TestName>
@@ -378,7 +378,7 @@
         <Platform>Azure</Platform>
         <Category>Performance</Category>
         <Area>Storage</Area>
-        <Tags>nested,azure,windows</Tags>
+        <Tags>nested,nested-hyperv</Tags>
     </test>
     <test>
         <TestName>AZURE-WINDOWS-NESTED-HYPERV-STORAGE-MULTIDISK</TestName>
@@ -412,6 +412,6 @@
         <Platform>Azure</Platform>
         <Category>Performance</Category>
         <Area>Storage</Area>
-        <Tags>nested,azure,windows</Tags>
+        <Tags>nested,nested-hyperv</Tags>
     </test>
 </TestCases>
