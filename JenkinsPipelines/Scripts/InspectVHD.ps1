@@ -57,6 +57,11 @@ try
         if ( $env:CustomVHDURL )
         {
             $SourceVHDName = "$(Split-Path -Path $env:CustomVHDURL -Leaf)"
+            if ($SourceVHDName -imatch '`?')
+            {
+                $SourceVHDName = $SourceVHDName.Split('?')[0]
+            }
+            $SourceVHDName = Remove-InvalidCharactersFromFileName -FileName $SourceVHDName
             $CurrentVHD = "$LocalFolder\$env:UpstreamBuildNumber-$SourceVHDName"
             $ReceivedVHD = "$CurrentRemoteFolder\$SourceVHDName"
             if (Test-Path $ReceivedVHD)

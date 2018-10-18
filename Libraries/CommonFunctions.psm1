@@ -4273,3 +4273,15 @@ function Test-GuestInterface {
     return $True
 }
 
+# This function removes all the invalid characters from given filename.
+# Do not pass file paths (relative or full) to this function.
+# Only file name is supported.
+Function Remove-InvalidCharactersFromFileName 
+{
+    param (
+        [String]$FileName
+	)
+    $WindowsInvalidCharacters = [IO.Path]::GetInvalidFileNameChars() -join ''
+    $Regex = "[{0}]" -f [RegEx]::Escape($WindowsInvalidCharacters)
+    return ($FileName -replace $Regex)
+}
