@@ -38,6 +38,11 @@ Function Main
 
 		if ($tps.Contains("IDE")) {
 			$controllertype = "IDE"
+			$vmGeneration = Get-VMGeneration $vmname $hvserver
+			if ($vmGeneration -eq 2 ) {
+				$testResult = "ABORTED"
+				Throw "Generation 2 VM does not support IDE disk, skip test"
+			}
 		}
 		elseif ($tps.Contains("SCSI")) {
 			$controllertype = "SCSI"
@@ -47,25 +52,13 @@ Function Main
 			Throw "Could not determine ControllerType"
 		}
 
-		if ( $controllertype -eq "IDE" ) {
-			$vmGeneration = Get-VMGeneration $vmname $hvserver
-			if ($vmGeneration -eq 2 ) {
-				$testResult = "ABORTED"
-				Throw "Generation 2 VM does not support IDE disk, skip test"
-			}
-		}
-
 		$newVhdxSize = Convert-StringToUInt64 $tps.NewSize
 		$sizeFlag = Convert-StringToUInt64 "20GB"
 
-		# Make sure the VM has a SCSI 0 controller, and that
-		# Lun 0 on the controller has a .vhdx file attached.
-
-		LogMsg "Check if VM ${vmname} has a $controllertype drive"
+		# Find the vhdx drive to operate on
 		$vhdxName =  $vmname + "-" + $controllertype
 
 		$vhdxDrive = Get-VMHardDiskDrive -VMName $vmname  -ComputerName $hvserver -ControllerLocation 1
-
 		if (-not $vhdxDrive) {
 			$testResult = "FAIL"
 			Throw "No suitable virtual hard disk drives attached VM ${vmname}"
@@ -92,8 +85,6 @@ Function Main
 			$testResult = "FAIL"
 			Throw "Unable to collect information on drive ${deviceID}"
 		}
-
-		# if disk is very large, e.g. 2T with dynamic, requires less disk free space
 		if ($diskInfo.FreeSpace -le $sizeFlag + 10MB) {
 			$testResult = "FAIL"
 			Throw "Insufficent disk free space, This test case requires ${tps.NewSize} free, Current free space is $($diskInfo.FreeSpace)"
@@ -119,7 +110,6 @@ Function Main
 		}
 
 		Resize-VHD -Path $vhdPath -SizeBytes ($newVhdxSize) -ComputerName $hvserver
-
 		if (-not $?) {
 			$testResult = "FAIL"
 			Throw "Unable to grow VHDX file ${vhdPath}"
@@ -142,14 +132,12 @@ Function Main
 
 		# check file size after resize
 		$vhdxInfoResize = Get-VHD -Path $vhdPath -ComputerName $hvserver
-
 		if ( $tps.NewSize.contains("GB") -and $vhdxInfoResize.Size/1gb -ne $tps.NewSize.Trim("GB") ) {
 			$testResult = "FAIL"
 			Throw "Failed to Resize Disk to new Size"
 		}
 
 		LogMsg "Check if the guest detects the new space"
-
 		$sd = "sdc"
 		if ( $controllertype -eq "IDE" ) {
 			$sd = "sdb"
@@ -162,13 +150,13 @@ Function Main
 			$testResult = "FAIL"
 			Throw "Unable to determine disk size from within the guest after growing the VHDX"
 		}
-
 		if ($diskSize -ne $newVhdxSize) {
 			$testResult = "FAIL"
 			Throw "VM ${vmname} detects a disk size of ${diskSize}, not the expected size of ${newVhdxSize}"
 		}
 
 		# Make sure if we can perform Read/Write operations on the guest VM
+		# if file size larger than 2T (2048G), use parted to format disk
 		if ([int]($newVhdxGrowSize/1gb) -gt 2048) {
 			$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "cp -f /home/$user/STOR_VHDXResize_PartitionDiskOver2TB.sh /root/" -runAsSudo
 			$guest_script = "STOR_VHDXResize_PartitionDiskOver2TB.sh"
