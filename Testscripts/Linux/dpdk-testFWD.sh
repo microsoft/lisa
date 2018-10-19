@@ -127,16 +127,16 @@ function testfwd_parser() {
 	for file in ${log_files}; do
 		LogMsg "  Reading ${file}"
 		if [[ "${file}" =~ "receiver" ]]; then
-			local rx_pps_arr=($(grep Rx-pps: ${file} | awk '{print $2}' | sort -n))
+			local rx_pps_arr=($(grep Rx-pps: ${file} | awk '{print $2}'))
 			local rx_pps_avg=$(( ($(printf '%b + ' "${rx_pps_arr[@]}"\\c)) / ${#rx_pps_arr[@]} ))
 		elif [[ "${file}" =~ "forwarder" ]]; then
-			local fwdrx_pps_arr=($(grep Rx-pps: ${file} | awk '{print $2}' | sort -n))
+			local fwdrx_pps_arr=($(grep Rx-pps: ${file} | awk '{print $2}'))
 			local fwdrx_pps_avg=$(( ($(printf '%b + ' "${fwdrx_pps_arr[@]}"\\c)) / ${#fwdrx_pps_arr[@]} ))
 
-			local fwdtx_pps_arr=($(grep Tx-pps: ${file} | awk '{print $2}' | sort -n))
+			local fwdtx_pps_arr=($(grep Tx-pps: ${file} | awk '{print $2}'))
 			local fwdtx_pps_avg=$(( ($(printf '%b + ' "${fwdtx_pps_arr[@]}"\\c)) / ${#fwdtx_pps_arr[@]} ))
 		elif [[ "${file}" =~ "sender" ]]; then
-			local tx_pps_arr=($(grep Tx-pps: ${file} | awk '{print $2}' | sort -n))
+			local tx_pps_arr=($(grep Tx-pps: ${file} | awk '{print $2}'))
 			local tx_pps_avg=$(( ($(printf '%b + ' "${tx_pps_arr[@]}"\\c)) / ${#tx_pps_arr[@]} ))
 		fi
 	done
@@ -162,12 +162,12 @@ function run_testcase() {
 	done
 
 	LogMsg "Starting testfwd parser"
-	local csv_name=$(create_csv)
-	echo "dpdk_version,core,tx_pps_avg,fwdrx_pps_avg,fwdtx_pps_avg,rx_pps_avg" > ${csv_name}
+	local csv_file=$(create_csv)
+	echo "dpdk_version,core,tx_pps_avg,fwdrx_pps_avg,fwdtx_pps_avg,rx_pps_avg" > ${csv_file}
 	for core in ${CORES}; do
-		testfwd_parser ${core} ${csv_name}
+		testfwd_parser ${core} ${csv_file}
 	done
 
 	LogMsg "testfwd results"
-	column -s, -t ${csv_name}
+	column -s, -t ${csv_file}
 }

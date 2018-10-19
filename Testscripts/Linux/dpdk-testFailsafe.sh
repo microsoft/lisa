@@ -83,31 +83,28 @@ function run_testfailsafe() {
 	
 	lost_vf_output="sub_device . probe failed"
 
-	sleep 10
-	# testpmd is has now run for 10 request testcase driver to revoke VF
+	sleep 15
+	# testpmd is has now run for 15 request testcase driver to revoke VF
 	local ready_for_revoke_msg="READY_FOR_REVOKE"
 	LogMsg ${ready_for_revoke_msg}
 	update_phase ${ready_for_revoke_msg}
-
-	# wait till revoke is done
 	local phase
 	while true; do
 		phase="$(read_phase)"
 		if [[ "${phase}" == "REVOKE_DONE" ]]; then
-			sleep 10
+			sleep 15
 			break
 		fi
 	done
 
-	# vf was revoked for >= 10. now ready for it to be re-enabled
+	# vf was revoked for >= 15. now ready for it to be re-enabled
 	local ready_for_vf_msg="READY_FOR_VF"
 	LogMsg ${ready_for_vf_msg}
 	update_phase ${ready_for_vf_msg}
 	while true; do
 		phase="$(read_phase)"
 		if [[ "${phase}" == "VF_RE_ENABLED" ]]; then
-			sleep 10
-			# vf has been re-enabled for >=10 seconds now
+			sleep 15
 			break
 		fi
 	done
@@ -125,42 +122,50 @@ function run_testfailsafe() {
 #   - UtilsInit
 #   - arguments in order: core, csv file
 #   - LOG_DIR to be defined
-function testfwd_parser() {
-	if [ -z "${1}" ]; then
-		LogErr "ERROR: Must provide csv file to testfwd_parser()"
-		SetTestStateAborted
-		exit 1
-	fi
-
+function testfailsafe_parser() {
 	if [ -z "${LOG_DIR}" ]; then
 		LogErr "ERROR: LOG_DIR must be defined"
 		SetTestStateAborted
 		exit 1
 	fi
 
-	local testfwd_csv_file=${1}
+	local csv_file=$(create_csv)
+	echo "dpdk_version,phase,fwdrx_pps_avg,fwdtx_pps_avg" > ${csv_file}
 	local dpdk_version=$(grep "Version:" ${LIS_HOME}/${DPDK_DIR}/pkg/dpdk.spec | awk '{print $2}')
 
-	local log_files=$(ls ${LOG_DIR}/*.log | grep "dpdk-testfailsafe-")
+	local trimmed_prefix="trimmed-forwarder"
+	local trimmed_log="${LOG_DIR}/${trimmed_prefix}.log"
+	tail -n +11 ${LOG_DIR}/dpdk-testfailsafe-forwarder.log > ${trimmed_log}
+
+	sed -e '/device removal event/,$d' ${trimmed_log} > ${LOG_DIR}/${trimmed_prefix}-before-revoke.log
+	sed -e '1,/device removal event/d' ${trimmed_log} | sed -e '/EAL:.*probe driver:.*net_mlx./,$d' > ${LOG_DIR}/${trimmed_prefix}-during-revoke.log
+	sed -e '1,/EAL:.*probe driver:.*net_mlx./d' ${trimmed_log} > ${LOG_DIR}/${trimmed_prefix}-after-enable.log
+
+	local log_files=$(ls ${LOG_DIR}/*.log | grep "${trimmed_prefix}")
 	LogMsg "Parsing testfailsafe"
 	for file in ${log_files}; do
 		LogMsg "  Reading ${file}"
-		if [[ "${file}" =~ "receiver" ]]; then
-			local rx_pps_arr=($(grep Rx-pps: ${file} | awk '{print $2}' | sort -n))
-			local rx_pps_avg=$(( ($(printf '%b + ' "${rx_pps_arr[@]}"\\c)) / ${#rx_pps_arr[@]} ))
-		elif [[ "${file}" =~ "forwarder" ]]; then
-			local fwdrx_pps_arr=($(grep Rx-pps: ${file} | awk '{print $2}' | sort -n))
-			local fwdrx_pps_avg=$(( ($(printf '%b + ' "${fwdrx_pps_arr[@]}"\\c)) / ${#fwdrx_pps_arr[@]} ))
 
-			local fwdtx_pps_arr=($(grep Tx-pps: ${file} | awk '{print $2}' | sort -n))
-			local fwdtx_pps_avg=$(( ($(printf '%b + ' "${fwdtx_pps_arr[@]}"\\c)) / ${#fwdtx_pps_arr[@]} ))
-		elif [[ "${file}" =~ "sender" ]]; then
-			local tx_pps_arr=($(grep Tx-pps: ${file} | awk '{print $2}' | sort -n))
-			local tx_pps_avg=$(( ($(printf '%b + ' "${tx_pps_arr[@]}"\\c)) / ${#tx_pps_arr[@]} ))
+		local fwdrx_pps_arr=($(grep Rx-pps: ${file} | awk '{print $2}'))
+		local fwdrx_pps_avg=$(( ($(printf '%b + ' "${fwdrx_pps_arr[@]}"\\c)) / ${#fwdrx_pps_arr[@]} ))
+
+		local fwdtx_pps_arr=($(grep Tx-pps: ${file} | awk '{print $2}'))
+		local fwdtx_pps_avg=$(( ($(printf '%b + ' "${fwdtx_pps_arr[@]}"\\c)) / ${#fwdtx_pps_arr[@]} ))
+
+		local phase
+		if [[ "${file}" =~ "before" ]]; then
+			phase="before"
+		elif [[ "${file}" =~ "during" ]]; then
+			phase="during"
+		elif [[ "${file}" =~ "after" ]]; then
+			phase="after"
+		else
+			phase="overall"
 		fi
+		echo "${dpdk_version},${phase},${fwdrx_pps_avg},${fwdtx_pps_avg}" >> ${csv_file}
 	done
 
-	echo "${dpdk_version},${tx_pps_avg},${fwdrx_pps_avg},${fwdtx_pps_avg},${rx_pps_avg}" >> ${testfwd_csv_file}
+	column -s, -t ${csv_file}
 }
 
 function run_testcase() {
@@ -169,10 +174,5 @@ function run_testcase() {
 	run_testfailsafe
 
 	LogMsg "Starting testfailsafe parser"
-	local csv_name=$(create_csv)
-	echo "dpdk_version,tx_pps_avg,fwdrx_pps_avg,fwdtx_pps_avg,rx_pps_avg" > ${csv_name}
-	testfwd_parser ${csv_name}
-
-	LogMsg "testfailsafe results"
-	column -s, -t ${csv_name}
+	testfailsafe_parser
 }

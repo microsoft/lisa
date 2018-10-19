@@ -2,31 +2,27 @@
 # Licensed under the Apache License.
 
 function Configure-Test() {
-	$rg = $allVMData[0].ResourceGroupName
-	$nics = Get-AzureRmNetworkInterface -ResourceGroupName $rg | Where-Object {($_.VirtualMachine.Id -ne $null) `
-		-and (($_.VirtualMachine.Id | Split-Path -leaf) -eq "forwarder")}
+	$nics = Get-NonManagementNics "forwarder"
+	$nics[0].EnableIPForwarding = $true
+	$nics[0] | Set-AzureRmNetworkInterface
+}
 
-	foreach ($nic in $nics) {
-		if ($nic.IpConfigurations.PublicIpAddress -eq $null) {
-			$nic.EnableIPForwarding = $true
-			$nic | Set-AzureRmNetworkInterface
-		}
+function Alter-Runtime() {
+	if ($currentPhase -eq "READY_FOR_REVOKE") {
+		$nics = Get-NonManagementNics "forwarder"
+		$nics[0].EnableAcceleratedNetworking = $false
+		$nics[0] | Set-AzureRmNetworkInterface
+
+		Change-Phase "REVOKE_DONE"
+	} elseif ($currentPhase -eq "READY_FOR_VF") {
+		$nics = Get-NonManagementNics "forwarder"
+		$nics[0].EnableAcceleratedNetworking = $true
+		$nics[0] | Set-AzureRmNetworkInterface
+
+		Change-Phase "VF_RE_ENABLED"
 	}
 }
 
 function Verify-Performance() {
 	return
-}
-
-function Alter-Runtime() {
-	$rg = $allVMData[0].ResourceGroupName
-	$nics = Get-AzureRmNetworkInterface -ResourceGroupName $rg | Where-Object {($_.VirtualMachine.Id -ne $null) `
-		-and (($_.VirtualMachine.Id | Split-Path -leaf) -eq "forwarder")}
-
-	foreach ($nic in $nics) {
-		if ($nic.IpConfigurations.PublicIpAddress -eq $null) {
-			$nic.EnableAcceleratedNetworking = $true
-			$nic | Set-AzureRmNetworkInterface
-		}
-	}
 }

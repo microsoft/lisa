@@ -1,6 +1,50 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 
+# DPDK-TESTCASE-DRIVER.ps1 when used in conjunction with utils.sh, dpdkUtils.sh
+# and dpdkSetupAndRunTest.sh provides a dpdk test environment.
+#
+# Testcases supply their own XML testcase, VM configuration (with one vm named
+# "sender"), one powershell file, and one bash script file.
+# The testcase provides 3 functions in its ps1 file:
+#   1. Configure-Test
+#   2. Alter-Runtime
+#   3. Verify-Performance
+# The testcase provides 2 functions in its bash file:
+#   1. dpdk_configure
+#   2. run_testcase
+#
+# DPDK is automatically installed on all VMs and all their IPs are listed in the 
+# contants.sh file.
+
+function Get-NonManagementNics() {
+	param (
+		[string] $vmName
+	)
+
+	$rg = $allVMData[0].ResourceGroupName
+	$allNics = Get-AzureRmNetworkInterface -ResourceGroupName $rg | Where-Object {($_.VirtualMachine.Id -ne $null) `
+		-and (($_.VirtualMachine.Id | Split-Path -leaf) -eq $vmName)}
+
+	$nics = @()
+	foreach ($nic in $allNics) {
+		if ($nic.IpConfigurations.PublicIpAddress -eq $null) {
+			$nics += $nic
+		}
+	}
+
+	return $nics
+}
+
+function Change-Phase() {
+	param (
+		[string] $phase
+	)
+
+	Set-Content "$LogDir\phase.txt" $phase
+	RemoteCopy -uploadTo $masterVM.PublicIP -port $masterVM.SSHPort -files "$LogDir\phase.txt" -username "root" -password $password -upload
+}
+
 function Main {
 	# Create test result
 	$resultArr = @()
@@ -71,13 +115,13 @@ function Main {
 		Configure-Test
 
 		# start test
-		$myString = @"
+		$startTestCmd = @"
 cd /root/
 ./dpdkSetupAndRunTest.sh 2>&1 > dpdkConsoleLogs.txt
 . utils.sh
 collect_VM_properties
 "@
-		Set-content "$LogDir\StartDpdkTest.sh" $myString
+		Set-content "$LogDir\StartDpdkTest.sh" $startTestCmd
 		# upload updated constants file to all VMs
 		foreach ($vmData in $allVMData) {
 			RemoteCopy -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files ".\$constantsFile,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkUtils.sh," -username "root" -password $password -upload

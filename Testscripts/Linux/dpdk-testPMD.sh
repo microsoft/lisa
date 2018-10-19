@@ -175,14 +175,14 @@ function run_testcase() {
 	done
 
 	LogMsg "Starting testpmd parser"
-	local csv_name=$(create_csv)
-	echo "dpdk_version,test_mode,core,max_rx_pps,tx_pps_avg,rx_pps_avg,fwdtx_pps_avg,tx_bytes,rx_bytes,fwd_bytes,tx_packets,rx_packets,fwd_packets,tx_packet_size,rx_packet_size" > ${csv_name}
+	local csv_file=$(create_csv)
+	echo "dpdk_version,test_mode,core,max_rx_pps,tx_pps_avg,rx_pps_avg,fwdtx_pps_avg,tx_bytes,rx_bytes,fwd_bytes,tx_packets,rx_packets,fwd_packets,tx_packet_size,rx_packet_size" > ${csv_file}
 	for core in ${CORES}; do
 		for test_mode in ${MODES}; do
-			testpmd_parser ${core} ${test_mode} ${csv_name}
+			testpmd_parser ${core} ${test_mode} ${csv_file}
 		done
 	done
 
 	LogMsg "testpmd results"
-	column -s, -t ${csv_name}
+	column -s, -t ${csv_file}
 }

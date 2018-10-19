@@ -5,6 +5,10 @@ function Configure-Test() {
 	return
 }
 
+function Alter-Runtime() {
+	return
+}
+
 function Verify-Performance() {
 	$vmSizes = @()
 
@@ -62,8 +66,4 @@ function Verify-Performance() {
 	}
 
 	return $tempResult
-}
-
-function Alter-Runtime() {
-	return
 }
