@@ -191,6 +191,14 @@ function install_dpdk() {
 	LogMsg "Finished installing dpdk on ${install_ip}"
 }
 
+# Below function(s) intended for use by a testcase provided run_testcase() function:
+#   - run_testcase() allows a user to run their own test within a preconfigured DPDK environment
+#   - when called, it is gauranteed to have contants.sh, utils.sh, and dpdkUtils.sh sourced
+#   - UtilsInit is called in this environment
+#   - run_testcase() is called on the "sender" VM and should orchestrate the testcase
+#     across the other VMs
+#   - see other tests for example
+
 # create_csv() creates a csv file for use with DPDK-TESTCASE-DRVER and
 # outputs that name so the user can write parsed performance data into it
 # Requires:
@@ -207,6 +215,36 @@ function create_csv() {
 	local csv_name="${LIS_HOME}/dpdk_test.csv"
 	touch ${csv_name}
 	echo ${csv_name}
+}
+
+# update_phase() updates the test "phase"
+# The test phase is read by the main testcase loop in DPDK-TESTCASE-DRIVER
+# and the testcase provided Alter-Runtime function can read this. This allows
+# testcases to control/adjust any aspect of runtime based on the testcase
+# running on the VMs. e.g. revoke VF through Azure Infra during DPDK test
+# Requires:
+#    - basic environ i.e. have called UtilsInit
+#    - 1st argument to be message to write to file
+# Effects:
+#    - Clobbers previous phase with passed phase message
+function update_phase() {
+	if [ -z "${1}" ]; then
+		LogErr "ERROR: Must supply phase message to update_phase()"
+		SetTestStateAborted
+		exit 1
+	fi
+
+	local msg="${1}"
+	LogMsg "Updated phase with: ${msg}"
+	echo "${msg}" > ${PHASE_FILE}
+}
+
+# Requires:
+#    - basic environ i.e. have called UtilsInit
+# Effects:
+#    - Outputs phase message
+function read_phase() {
+	cat ${PHASE_FILE}
 }
 
 # create_vm_synthetic_vf_pair_mappings() matches the name of VM with  its synthetic and
@@ -241,7 +279,7 @@ function create_vm_synthetic_vf_pair_mappings() {
 	done
 }
 
-# create_testpmd_cmd() creates the testpmd cmd string based on provided args
+# create_timed_testpmd_cmd() creates the testpmd cmd string based on provided args
 # Requires:
 #   - basic environ i.e. have called UtilsInit
 #   - DPDK_DIR is defined in environment
@@ -253,9 +291,33 @@ function create_vm_synthetic_vf_pair_mappings() {
 #        5. any of the valid testpmd fwd modes e.g. txonly, mac, rxonly
 # Effects:
 #   - outputs testpmd command with no redireciton nor ampersand
+function create_timed_testpmd_cmd() {
+	if [ -z "${1}" ]; then
+		LogErr "ERROR: duration must be passed to create_timed_testpmd_cmd"
+		SetTestStateAborted
+		exit 1
+	fi
+	local duration="${1}"
+
+	cmd="$(create_testpmd_cmd ${2} ${3} ${4} ${5})"
+	echo "timeout ${duration} ${cmd}"
+}
+
+# create_testpmd_cmd() creates the testpmd cmd string based on provided args
+# Requires:
+#   - basic environ i.e. have called UtilsInit
+#   - DPDK_DIR is defined in environment
+#   - Arguments (in order):
+#        1. number of cores
+#        2. busaddr of VF
+#        3. name of corresponding synthetic nic iface
+#        4. any of the valid testpmd fwd modes e.g. txonly, mac, rxonly
+# Effects:
+#   - outputs testpmd command with no redireciton nor ampersand
+
 function create_testpmd_cmd() {
-	if [ -z "${1}" -o -z "${2}" -o -z "${3}" -o -z "${4}" -o -z "${5}" ]; then
-		LogErr "ERROR: duration, cores, busaddr, iface, and testpmd mode must be passed to create_testpmd_cmd"
+	if [ -z "${1}" -o -z "${2}" -o -z "${3}" -o -z "${4}" ]; then
+		LogErr "ERROR: cores, busaddr, iface, and testpmd mode must be passed to create_testpmd_cmd"
 		SetTestStateAborted
 		exit 1
 	fi
@@ -266,19 +328,18 @@ function create_testpmd_cmd() {
 		exit 1
 	fi
 
-	local duration="${1}"
-	local core="${2}"
-	local busaddr="${3}"
-	local iface="${4}"
-	local mode="${5}"
+	local core="${1}"
+	local busaddr="${2}"
+	local iface="${3}"
+	local mode="${4}"
 
 	# partial strings to concat
-	local testpmd_timeout="timeout ${duration} ${LIS_HOME}/${DPDK_DIR}/build/app/testpmd"
+	local testpmd="${LIS_HOME}/${DPDK_DIR}/build/app/testpmd"
 	local eal_opts="-l 0-${core} -w ${busaddr} --vdev='net_vdev_netvsc0,iface=${iface}' --"
 	local testpmd_opts0="--port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core}"
 	local testpmd_opts1="--mbcache=512 --txd=4096 --rxd=4096 --forward-mode=${mode} --stats-period 1 --tx-offloads=0x800e"
 
-	echo "${testpmd_timeout} ${eal_opts} ${testpmd_opts0} ${testpmd_opts1}"
+	echo "${testpmd} ${eal_opts} ${testpmd_opts0} ${testpmd_opts1}"
 }
 
 # Below function(s) intended for use by a testcase provided dpdk_configure() function:

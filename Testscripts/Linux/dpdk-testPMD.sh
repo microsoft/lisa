@@ -74,13 +74,13 @@ function run_testpmd() {
 		# start receiver in advance so traffic spike doesn't cause output freeze
 		local receiver_duration=$(expr ${test_duration} + 5)
 
-		local receiver_testpmd_cmd="$(create_testpmd_cmd ${receiver_duration} ${core} ${receiver_busaddr} ${receiver_iface} ${test_mode})"
+		local receiver_testpmd_cmd="$(create_timed_testpmd_cmd ${receiver_duration} ${core} ${receiver_busaddr} ${receiver_iface} ${test_mode})"
 		LogMsg "${receiver_testpmd_cmd}"
 		ssh ${receiver} ${receiver_testpmd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testpmd-${test_mode}-receiver-${core}-core-$(date +"%m%d%Y-%H%M%S").log &
 
 		sleep 5
 
-		local sender_testpmd_cmd="$(create_testpmd_cmd ${test_duration} ${core} ${sender_busaddr} ${sender_iface} txonly)"
+		local sender_testpmd_cmd="$(create_timed_testpmd_cmd ${test_duration} ${core} ${sender_busaddr} ${sender_iface} txonly)"
 		LogMsg "${sender_testpmd_cmd}"
 		eval "${sender_testpmd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testpmd-${test_mode}-sender-${core}-core-$(date +"%m%d%Y-%H%M%S").log &"
 

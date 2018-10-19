@@ -52,8 +52,8 @@ source_script "dpdkUtils.sh"
 UtilsInit
 LOG_DIR="${LIS_HOME}/logdir"
 mkdir -p ${LOG_DIR}
-PHASE="${LIS_HOME}/phase.txt"
-touch ${PHASE}
+PHASE_FILE="${LIS_HOME}/phase.txt"
+touch ${PHASE_FILE}
 
 # constants.sh is now loaded; load user provided scripts
 for file in ${USER_FILES}; do

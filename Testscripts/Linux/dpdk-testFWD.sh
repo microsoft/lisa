@@ -75,17 +75,17 @@ function run_testfwd() {
 	# start receiver and fowarder in advance so testpmd comes up easily
 	local fwd_recv_duration=$(expr ${test_duration} + 5)
 	
-	local receiver_testfwd_cmd="$(create_testpmd_cmd ${fwd_recv_duration} ${core} ${receiver_busaddr} ${receiver_iface} rxonly)"
+	local receiver_testfwd_cmd="$(create_timed_testpmd_cmd ${fwd_recv_duration} ${core} ${receiver_busaddr} ${receiver_iface} rxonly)"
 	LogMsg "${receiver_testfwd_cmd}"
 	ssh ${receiver} ${receiver_testfwd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testfwd-receiver-${core}-core-$(date +"%m%d%Y-%H%M%S").log &
  
-	local forwarder_testfwd_cmd="$(create_testpmd_cmd ${fwd_recv_duration} ${core} ${forwarder_busaddr} ${forwarder_iface} mac)"
+	local forwarder_testfwd_cmd="$(create_timed_testpmd_cmd ${fwd_recv_duration} ${core} ${forwarder_busaddr} ${forwarder_iface} mac)"
 	LogMsg "${forwarder_testfwd_cmd}"
 	ssh ${forwarder} ${forwarder_testfwd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testfwd-forwarder-${core}-core-$(date +"%m%d%Y-%H%M%S").log &
 
 	sleep 5
 	
-	local sender_testfwd_cmd="$(create_testpmd_cmd ${test_duration} ${core} ${sender_busaddr} ${sender_iface} txonly)"
+	local sender_testfwd_cmd="$(create_timed_testpmd_cmd ${test_duration} ${core} ${sender_busaddr} ${sender_iface} txonly)"
 	LogMsg "${sender_testfwd_cmd}"
 	eval "${sender_testfwd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testfwd-sender-${core}-core-$(date +"%m%d%Y-%H%M%S").log &"
 	

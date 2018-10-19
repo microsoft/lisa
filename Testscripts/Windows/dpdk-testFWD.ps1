@@ -12,7 +12,6 @@ function Configure-Test() {
 			$nic | Set-AzureRmNetworkInterface
 		}
 	}
-	return
 }
 
 function Verify-Performance() {
