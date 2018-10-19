@@ -23,6 +23,46 @@ function Alter-Runtime() {
 	}
 }
 
+function Verify-WithinPercentage() {
+	param (
+		[double]$num0,
+		[double]$num1,
+		[double]$percent
+	)
+
+	$larger = $num0
+	$smaller = $num1
+	if ($smaller -gt $larger) {
+		$larger = $num1
+		$smaller = $num0
+	}
+
+	$difference = ($larger - $smaller) / $smaller * 100
+
+	if ($difference -gt $percent) {
+		return $false
+	}
+
+	return $true
+}
+
 function Verify-Performance() {
-	return
+	# count is non header lines
+	$isEmpty = ($testDataCsv.Count -eq 0)
+	if ($isEmpty) {
+		throw "No data downloaded from vm"
+	}
+
+	foreach($phaseData in $testDataCsv) {
+		if ($phaseData.phase -eq "before") {
+			$before_rx_pps = [int]$phaseData.fwdrx_pps_avg
+			$before_tx_pps = [int]$phaseData.fwdtx_pps_avg
+		} elseif ($phaseData.phase -eq "after") {
+			$after_rx_pps = [int]$phaseData.fwdrx_pps_avg
+			$after_tx_pps = [int]$phaseData.fwdtx_pps_avg
+		}
+	}
+
+	return (Verify-WithinPercentage $before_rx_pps $after_rx_pps 10) -and
+			(Verify-WithinPercentage $before_tx_pps $after_tx_pps 10)
 }

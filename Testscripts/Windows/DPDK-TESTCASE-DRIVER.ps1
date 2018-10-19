@@ -38,10 +38,10 @@ function Get-NonManagementNics() {
 
 function Change-Phase() {
 	param (
-		[string] $phase
+		[string] $phase_msg
 	)
 
-	Set-Content "$LogDir\phase.txt" $phase
+	Set-Content "$LogDir\phase.txt" $phase_msg
 	RemoteCopy -uploadTo $masterVM.PublicIP -port $masterVM.SSHPort -files "$LogDir\phase.txt" -username "root" -password $password -upload
 }
 
