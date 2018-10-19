@@ -65,7 +65,9 @@ function Main {
         LogMsg "Test Status : Completed"
         Logmsg "Test Resullt : $testResult"
     } catch {
-        ThrowException $_
+        $ErrorMessage =  $_.Exception.Message
+        $ErrorLine = $_.InvocationInfo.ScriptLineNumber
+        LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     } finally {
         $metaData = ""
         if (!$testResult) {

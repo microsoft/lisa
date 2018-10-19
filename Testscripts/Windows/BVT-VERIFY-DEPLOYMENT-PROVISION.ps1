@@ -40,7 +40,8 @@ function Main {
 		}
 	}
 	catch {
-		ThrowException $_
+		$ErrorMessage =  $_.Exception.Message
+		LogMsg "EXCEPTION : $ErrorMessage"
 	}
 	Finally {
 		$metaData = ""

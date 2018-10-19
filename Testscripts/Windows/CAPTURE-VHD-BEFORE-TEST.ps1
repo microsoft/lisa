@@ -78,7 +78,9 @@ function Main {
 
         $testResult = "PASS"
     } catch {
-        ThrowException $_
+        $ErrorMessage =  $_.Exception.Message
+        $ErrorLine = $_.InvocationInfo.ScriptLineNumber
+        LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     } finally {
         $metaData = "GPU Verification"
         if (!$testResult) {

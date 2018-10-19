@@ -172,12 +172,16 @@ collect_VM_properties
                 LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
             }
         } catch {
-            ThrowException $_
+            $ErrorMessage =  $_.Exception.Message
+            throw "$ErrorMessage"
+            $testResult = "FAIL"
         }
         LogMsg "Test result : $testResult"
         LogMsg ($testpmdDataCsv | Format-Table | Out-String)
     } catch {
-        ThrowException $_
+        $ErrorMessage =  $_.Exception.Message
+        $ErrorLine = $_.InvocationInfo.ScriptLineNumber
+        LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
         $testResult = "FAIL"
     } finally {
         if (!$testResult) {

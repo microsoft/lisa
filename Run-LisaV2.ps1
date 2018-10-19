@@ -408,7 +408,7 @@ try {
 		}
 	}
 	catch {
-		ThrowException $_
+		LogMsg "$($_.Exception.GetType().FullName, " : ",$_.Exception.Message)"
 		$ExitCode = 1
 	}
 	finally {
@@ -418,8 +418,10 @@ try {
 		}
 	}
 } catch {
-	ThrowException $_
-	
+	$line = $_.InvocationInfo.ScriptLineNumber
+	$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
+	$ErrorMessage =  $_.Exception.Message
+
 	if ( $_.FullyQualifiedErrorId -eq "InvokeMethodOnNull") {
 		Write-Error "WebClient failed to download required tools from blob Storage Location. Those files should be placed in Tools folder before next execution."
 	}

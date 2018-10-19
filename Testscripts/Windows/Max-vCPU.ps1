@@ -70,7 +70,7 @@ function Main {
     try {
         Wait-ForVMToStop $VMName $HvServer 200
     } catch [system.exception] {
-		ThrowException $_
+        LogErr "Error: Timed out while stopping VM $VMName!"
         return "FAIL"
     }
 

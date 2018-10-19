@@ -14,7 +14,8 @@ if ($isDeployed)
 	}
 	catch
 	{
-		ThrowException $_
+		$ErrorMessage =  $_.Exception.Message
+		LogMsg "EXCEPTION : $ErrorMessage"
 	}
 	Finally
 	{

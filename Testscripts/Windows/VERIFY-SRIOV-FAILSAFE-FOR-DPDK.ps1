@@ -207,7 +207,9 @@ collect_VM_properties
 		$currentTestResult.TestSummary +=  CreateResultSummary -testResult "$($initialSriovResult.RxPps) : $($finalSriovResult.RxPps) : $($lossinpercentage)" -metaData "DPDK RxPPS : Difference between Initial and Re-Enabled SRIOV" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
         LogMsg "Test result : $testResult"
     } catch {
-        ThrowException $_
+        $ErrorMessage =  $_.Exception.Message
+        $ErrorLine = $_.InvocationInfo.ScriptLineNumber
+        LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
         $testResult = "FAIL"
     } finally {
         if (!$testResult) {

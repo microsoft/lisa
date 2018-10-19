@@ -31,7 +31,6 @@ function Main {
                 LogMsg "Privatekey Authentication Verification loop : $i : SuCCESS"
                 $successCount += 1
             } catch {
-                ThrowException $_
                 $testResult = "FAIL"
                 LogMsg "Privatekey Authentication Verification loop : $i : FAILED"
             }
@@ -43,7 +42,9 @@ function Main {
             $testResult = "FAIL"
         }
     } catch {
-        ThrowException $_
+        $ErrorMessage =  $_.Exception.Message
+        $ErrorLine = $_.InvocationInfo.ScriptLineNumber
+        LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     } finally {
         $metaData = ""
         if (!$testResult) {

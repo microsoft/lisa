@@ -206,15 +206,16 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
 						$testSummary = $CurrentTestResult.TestSummary
 					}
 					catch {
-						ThrowException $_
 						$testResult = "ABORTED"
+						$ErrorMessage =  $_.Exception.Message
+						$line = $_.InvocationInfo.ScriptLineNumber
+						LogMsg "EXCEPTION : $ErrorMessage at line: $line"
 					}
 					finally	{
 						try {
 							$tempHtmlText = ($testSummary).Substring(0,((($testSummary).Length)-6))
 						}
 						catch {
-							ThrowException $_
 							$tempHtmlText = "Unable to parse the results. Will be fixed shortly."
 						}
 						$executionCount += 1

@@ -242,7 +242,9 @@ function Main()
 	}
 	catch
 	{
-		ThrowException $_
+		$errorMessage =  $_.Exception.Message
+		$ErrorLine = $_.InvocationInfo.ScriptLineNumber
+		LogMsg "EXCEPTION : $errorMessage at line: $ErrorLine"
 	}
 
 	$resultArr += $testResult

@@ -59,7 +59,8 @@ function Trigger-NmiInterrupt {
         }
         return "PASS"
     } catch {
-        ThrowException $_
+        LogErr "Failed to trigger an NMI on VM ${VMName}"
+        LogErr "Internal error message: $_"
         return "FAIL"
     }
 }

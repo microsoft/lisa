@@ -181,7 +181,9 @@ collect_VM_properties
         LogMsg ($testpmdDataCsv | Format-Table | Out-String)
 	}
 	catch {
-		ThrowException $_
+		$ErrorMessage =  $_.Exception.Message
+		$ErrorLine = $_.InvocationInfo.ScriptLineNumber
+		LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
 	} finally {
 		if (!$testResult) {
 			$testResult = "Aborted"

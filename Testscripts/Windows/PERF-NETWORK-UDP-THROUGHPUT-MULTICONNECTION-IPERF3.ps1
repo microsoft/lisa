@@ -328,7 +328,9 @@ collect_VM_properties
             LogMsg "Invalid database details. Failed to upload result to database!"
         }
     } catch {
-        ThrowException $_
+        $ErrorMessage =  $_.Exception.Message
+        $ErrorLine = $_.InvocationInfo.ScriptLineNumber
+        LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     } finally {
         $metaData = "iperf3udp RESULT"
         if (!$testResult) {

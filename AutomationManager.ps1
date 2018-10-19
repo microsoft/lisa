@@ -245,7 +245,7 @@ try {
 }
 
 catch {
-	ThrowException $_
+	ThrowException($_)
 }
 Finally {
 	exit
