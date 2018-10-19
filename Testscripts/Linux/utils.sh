@@ -317,7 +317,7 @@ GetDistro()
 			DISTRO=redhat_x
 			;;
 		*ID=clear-linux-os*)
-			DISTRO=clear_linux
+			DISTRO=clear-linux-os
 			;;
 		*)
 			DISTRO=unknown

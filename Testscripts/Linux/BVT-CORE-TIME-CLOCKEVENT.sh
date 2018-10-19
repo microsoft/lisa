@@ -93,7 +93,7 @@ case $DISTRO in
         SetTestStateAborted
         exit 0
         ;;
-    redhat_7|redhat_8|centos_7|centos_8|fedora*|clear_linux)
+    redhat_7|redhat_8|centos_7|centos_8|fedora*|clear-linux-os)
         CheckClockEvent
         CheckTimerInfo
         UnbindClockEvent
