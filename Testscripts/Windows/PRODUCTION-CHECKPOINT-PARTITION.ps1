@@ -171,10 +171,11 @@ function Main {
         #
         LogMsg "Info : Deleting Snapshot ${snapshot} of VM ${VMName}"
         # First, unmount the partitions
-        RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command "umount /dev/sdc1; umount /dev/sdc2" -runAsSudo
         if ($TestParams.DUALMOUNT) {
             RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command "umount /dev/sdd1;  umount /dev/sdd2" -runAsSudo
         }
+        RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command "umount /dev/sdc1; umount /dev/sdc2" -runAsSudo
+
         Remove-VMSnapshot -VMName $VMName -Name $snapshot -ComputerName $HvServer
 
         if( $testResult -ne $resultFail){
