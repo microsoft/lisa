@@ -25,7 +25,6 @@ function Main {
         if ($vm.Generation -ne 2) {
             throw "VM ${VMName} is not a Generation 2 VM"
         }
-        LogMsg "VM ${VMName} is a Generation 2 VM"
         #
         # Check if Secure Boot is enabled
         #

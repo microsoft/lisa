@@ -1183,21 +1183,23 @@
         <setupType>SingleVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>BOOT</Area>
-        <Tags>boot</Tags>
+        <Area>SECUREBOOT</Area>
+        <Tags>secureboot</Tags>
     </test>
     <test>
         <testName>SECUREBOOT-UPDATE-KERNEL</testName>
         <setupScript>.\TestScripts\Windows\SET-SECUREBOOT.ps1</setupScript>
         <testScript>SECUREBOOT.ps1</testScript>
+        <files>.\TestScripts\Linux\utils.sh</files>
         <Timeout>1800</Timeout>
         <setupType>SingleVM</setupType>
         <TestParameters>
             <param>updateKernel=True</param>
+            <param>opensuselink="OPENSUSE_DOWNLOAD_URL"</param>
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>BOOT</Area>
-        <Tags>boot</Tags>
+        <Area>SECUREBOOT</Area>
+        <Tags>secureboot</Tags>
     </test>
 </TestCases>

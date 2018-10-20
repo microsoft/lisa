@@ -10,13 +10,13 @@
 #>
 param([String] $TestParams)
 $ErrorActionPreference = "Stop"
-function MigrateVM([String] $vmName)
+function Enable-VMMigration([String] $vmName)
 {
     #
     # Load the cluster commandlet module
     #
-    $sts = Import-module FailoverClusters
-    if (-not $sts) {
+    Import-module FailoverClusters
+    if (-not $?) {
         LogErr "Unable to load FailoverClusters module"
         return $False
     }
@@ -80,68 +80,6 @@ function MigrateVM([String] $vmName)
     }
     return $True
 }
-
-function UpdateKernel([String]$conIpv4,[String]$SSHPort)
-{
-    $cmdToVM = @"
-
-        #!/bin/bash
-
-        LinuxRelease()
-        {
-            DISTRO=``grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux" /etc/{issue,*release,*version}``
-            case `$DISTRO in
-                *buntu*)
-                    echo "UBUNTU";;
-                Fedora*)
-                    echo "FEDORA";;
-                CentOS*)
-                    echo "CENTOS";;
-                *SUSE*)
-                    echo "SLES";;
-                *Red*Hat*)
-                    echo "RHEL";;
-                Debian*)
-                    echo "DEBIAN";;
-            esac
-        }
-        retVal=1
-        distro=``LinuxRelease``
-        case `$distro in
-            "SLES")
-                zypper ar -f http://download.opensuse.org/repositories/Kernel:/stable/standard/ kernel
-                zypper --gpg-auto-import-keys --non-interactive dup -r kernel
-                retVal=`$?
-            ;;
-            "UBUNTU")
-                apt-get update -y
-                apt-get dist-upgrade -y
-                retVal=`$?
-            ;;
-            "RHEL" | "CENTOS")
-                yum install -y kernel
-                retVal=`$?
-            ;;
-            *)
-            ;;
-        esac
-        exit `$retVal
-"@
-
-    $filename="UpdateKernel.sh"
-    # check for file
-    if (Test-Path ".\${filename}") {
-        Remove-Item ".\${filename}"
-    }
-    Add-Content $filename "$cmdToVM"
-    # send file
-    RemoteCopy -uploadTo $conIpv4 -port $SSHPort -files $filename -username $user -password $password -upload
-    # execute command
-    $retVal = RunLinuxCmd -username $user -password $password -ip $conIpv4 -port $SSHPort `
-        -command "echo $password | sudo chmod u+x ${filename} && sed -i 's/\r//g' ${filename} && ./${filename}" -runAsSudo
-    return $retVal
-}
-
 ##########################################################################
 #
 # Main script body
@@ -160,8 +98,6 @@ function Main {
         $VMPort= $captureVMData.SSHPort
         # Change the working directory to where we need to be
         Set-Location $WorkingDirectory
-        # Check if the VM VHD in not on the same drive as the backup destination
-        $vm = Get-VM -Name $VMName -ComputerName $HvServer
         #
         # Check heartbeat
         #
@@ -172,18 +108,6 @@ function Main {
         else {
             throw "$VMName heartbeat not detected"
         }
-        #
-        # Test network conectivity
-        #
-        $pingObject = New-Object System.Net.NetworkInformation.Ping
-        if (-not $pingObject) {
-            throw "Unable to create a ping object"
-        }
-        $pingReply = $pingObject.Send($Ipv4)
-        if ($pingReply.Status -ne "Success") {
-            throw "Cannot ping $VMName. Status = $($pingReply.Status)"
-        }
-        LogMsg "Ping reply - $($pingReply.Status)"
         #
         # Waiting for the VM to run again and respond to SSH - port 22
         #
@@ -200,7 +124,7 @@ function Main {
         }
         LogMsg "SSH port opened"
         if ($TestParams.Migrate) {
-            $migrateResult= MigrateVM $VMName
+            $migrateResult= Enable-VMMigration $VMName
             if (-not $migrateResult) {
                 $testResult = $resultFail
                 throw "Migration failed"
@@ -213,68 +137,6 @@ function Main {
                 $testResult = $resultFail
                 throw "Secure boot settings changed"
             }
-            #
-            # Test network connectivity after migration ends
-            #
-            $pingObject = New-Object System.Net.NetworkInformation.Ping
-            if (-not $pingObject) {
-                throw "Unable to create a ping object"
-            }
-            $pingReply = $pingObject.Send($Ipv4)
-            if ($pingReply.Status -ne "Success") {
-                throw "Cannot ping $VMName. Status = $($pingReply.Status)"
-            }
-            LogMsg "Ping reply after migration - $($pingReply.Status)"
-
-        }
-        if ($TestParams.updateKernel) {
-            $updateResult = UpdateKernel $Ipv4 $VMPort
-            if (-not $updateResult) {
-                $testResult = $resultFail
-                throw "UpdateKernel failed"
-            }
-            else {
-                LogMsg "Success: Update kernel"
-            }
-            LogMsg "Shutdown VM ${VMName}"
-            $vm | Stop-VM
-            if (-not $?) {
-                throw "Unable to Shut Down VM"
-            }
-            $timeout = 180
-            $sts = Wait-ForVMToStop $VMName $HvServer $timeout
-            if (-not $sts) {
-                throw "WaitForVMToStop fail"
-            }
-            LogMsg "Starting VM ${VMName}"
-            Start-VM -Name $VMName -ComputerName $HvServer -ErrorAction SilentlyContinue
-            if (-not $?) {
-                throw "unable to start the VM"
-            }
-            $sleepPeriod = 60 #seconds
-            Start-Sleep -s $sleepPeriod
-            #
-            # Check heartbeat
-            #
-            $heartbeat = Get-VMIntegrationService -VMName $VMName -Name "HeartBeat"
-            if ($heartbeat.Enabled) {
-                LogMsg "$VMName heartbeat detected"
-            }
-            else {
-                throw "$VMName heartbeat not detected"
-            }
-            #
-            # Test network connectivity
-            #
-            $pingObject = New-Object System.Net.NetworkInformation.Ping
-            if (-not $pingObject) {
-                throw "Unable to create a ping object"
-            }
-            $pingReply = $pingObject.Send($Ipv4)
-            if ($pingReply.Status -ne "Success") {
-                throw "Cannot ping $VMName. Status = $($pingReply.Status)"
-            }
-            LogMsg "Ping reply - $($pingReply.Status)"
             #
             # Waiting for the VM to run again and respond to SSH - port 22
             #
@@ -290,6 +152,58 @@ function Main {
                 throw "Test case timed out waiting for VM to boot"
             }
             LogMsg "SSH port opened"
+
+        }
+        if ($TestParams.updateKernel) {
+            # Getting kernel version before upgrade
+            $kernel_beforeupgrade=RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command "uname -a" -runAsSudo
+            # Upgrading kernel to latest
+            $Upgradecheck = "echo '${password}' | sudo -S -s eval `"export HOME=``pwd``;. utils.sh && UtilsInit && Update_Kernel`""
+            RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command $Upgradecheck -runAsSudo
+            LogMsg "Shutdown VM ${VMName}"
+            Stop-VM -ComputerName $HvServer -Name $VMName -Confirm:$false
+            if (-not $?) {
+                throw "Unable to Shut Down VM"
+            }
+            $timeout = 180
+            $sts = Wait-ForVMToStop $VMName $HvServer $timeout
+            if (-not $sts) {
+                throw "WaitForVMToStop fail"
+            }
+            LogMsg "Starting VM ${VMName}"
+            Start-VM -Name $VMName -ComputerName $HvServer -ErrorAction SilentlyContinue
+            if (-not $?) {
+                throw "unable to start the VM"
+            }
+            $sleepPeriod = 5 # seconds
+            Start-Sleep -s $sleepPeriod
+            #
+            # Check heartbeat
+            #
+            $heartbeat = Get-VMIntegrationService -VMName $VMName -Name "HeartBeat"
+            if ($heartbeat.Enabled) {
+                LogMsg "$VMName heartbeat detected"
+            }
+            else {
+                throw "$VMName heartbeat not detected"
+            }
+            #
+            # Waiting for the VM to run again and respond to SSH - port 22
+            #
+            $timeout = 500
+            $retval = Wait-ForVMToStartSSH -Ipv4addr $Ipv4 -StepTimeout $timeout
+            if ($retval -eq $False) {
+                throw "Error: Test case timed out waiting for VM to boot"
+            }
+            LogMsg "SSH port opened"
+            # Getting kernel version after upgrade
+            $kernel_afterupgrade=RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command "uname -a" -runAsSudo
+            # check whether kernel has upgraded to latest version
+            if (-not (Compare-Object $kernel_afterupgrade $kernel_beforeupgrade)) {
+                $testResult = $resultFail
+                throw "Update_Kernel failed"
+            }
+            LogMsg "Success: Updated kerenl"
         }
         if( $testResult -ne $resultFail) {
             $testResult=$resultPass
