@@ -2,9 +2,12 @@
 # Licensed under the Apache License.
 
 function Configure-Test() {
-	$nics = Get-NonManagementNics "forwarder"
+	$vm = "forwarder"
+	$nics = Get-NonManagementNics $vm
 	$nics[0].EnableIPForwarding = $true
 	$nics[0] | Set-AzureRmNetworkInterface
+
+	LogMsg "Enabled ip forwarding on $vm's non management nic"
 }
 
 function Alter-Runtime() {

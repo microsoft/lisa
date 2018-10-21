@@ -28,11 +28,12 @@ function Get-NonManagementNics() {
 
 	$nics = @()
 	foreach ($nic in $allNics) {
-		if ($nic.IpConfigurations.PublicIpAddress -eq $null) {
+		if ($nic.Primary -eq $false) {
 			$nics += $nic
 		}
 	}
 
+	LogMsg "Found $($nics.count) non-management NIC(s)"
 	return $nics
 }
 
@@ -42,6 +43,7 @@ function Change-Phase() {
 	)
 
 	Set-Content "$LogDir\phase.txt" $phase_msg
+	LogMsg "Changing phase to $phase_msg"
 	RemoteCopy -uploadTo $masterVM.PublicIP -port $masterVM.SSHPort -files "$LogDir\phase.txt" -username "root" -password $password -upload
 }
 
@@ -135,6 +137,7 @@ collect_VM_properties
 
 		# monitor test
 		$outputCounter = 0
+		$oldPhase = ""
 		while ((Get-Job -Id $testJob).State -eq "Running") {
 			if ($outputCounter -eq 5) {
 				$currentOutput = RunLinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "tail -2 dpdkConsoleLogs.txt | head -1"
@@ -143,7 +146,10 @@ collect_VM_properties
 				$outputCounter = 0
 			}
 
-			$currrentPhase = RunLinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "cat phase.txt"
+			$currentPhase = RunLinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "cat phase.txt"
+			if ($currentPhase -ne $oldPhase) {
+				LogMsg "Read new phase: $currentPhase"
+			}
 			Alter-Runtime
 
 			++$outputCounter

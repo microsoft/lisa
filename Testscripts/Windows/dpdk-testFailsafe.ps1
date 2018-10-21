@@ -2,9 +2,12 @@
 # Licensed under the Apache License.
 
 function Configure-Test() {
-	$nics = Get-NonManagementNics "forwarder"
+	$vm = "forwarder"
+	$nics = Get-NonManagementNics $vm
 	$nics[0].EnableIPForwarding = $true
 	$nics[0] | Set-AzureRmNetworkInterface
+
+	LogMsg "Enabled ip forwarding on $vm's non management nic"
 }
 
 function Alter-Runtime() {
@@ -13,12 +16,14 @@ function Alter-Runtime() {
 		$nics[0].EnableAcceleratedNetworking = $false
 		$nics[0] | Set-AzureRmNetworkInterface
 
+		LogMsg "VF Revoked"
 		Change-Phase "REVOKE_DONE"
 	} elseif ($currentPhase -eq "READY_FOR_VF") {
 		$nics = Get-NonManagementNics "forwarder"
 		$nics[0].EnableAcceleratedNetworking = $true
 		$nics[0] | Set-AzureRmNetworkInterface
 
+		LogMsg "VF Re-enabled"
 		Change-Phase "VF_RE_ENABLED"
 	}
 }
@@ -57,9 +62,17 @@ function Verify-Performance() {
 		if ($phaseData.phase -eq "before") {
 			$before_rx_pps = [int]$phaseData.fwdrx_pps_avg
 			$before_tx_pps = [int]$phaseData.fwdtx_pps_avg
+
+			LogMsg "Before VF revoke performance"
+			LogMsg "    TX: $before_tx_pps"
+			LogMsg "    RX: $before_rx_pps"
 		} elseif ($phaseData.phase -eq "after") {
 			$after_rx_pps = [int]$phaseData.fwdrx_pps_avg
 			$after_tx_pps = [int]$phaseData.fwdtx_pps_avg
+
+			LogMsg "After VF re-enable performance"
+			LogMsg "    TX: $after_tx_pps"
+			LogMsg "    RX: $after_rx_pps"
 		}
 	}
 
