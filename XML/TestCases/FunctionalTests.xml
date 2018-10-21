@@ -1175,6 +1175,65 @@
         <Area>STORAGE</Area>
         <Tags>disk,hv_storvsc</Tags>
     </test>
+    <test>
+        <testName>PRODUCTION-CHECKPOINT-FAILBACK</testName>
+        <testScript>PRODUCTION-CHECKPOINT-FAILBACK.ps1</testScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
+        <files>.\Testscripts\Linux\PC_Stop_VSS_Daemon.sh</files>
+        <setupType>SingleVM</setupType>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>PROD_CHECKPOINT</Area>
+        <Tags>prod_checkpoint</Tags>
+    </test>
+    <test>
+        <testName>PRODUCTION-CHECKPOINT-EXT4</testName>
+        <setupScript>.\Testscripts\Windows\AddVhdxHardDisk.ps1</setupScript>
+        <testScript>PRODUCTION-CHECKPOINT-PARTITION.ps1</testScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
+        <files>.\Testscripts\Linux\PartitionDisks.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>SCSI=1,1,Dynamic,512</param>
+            <param>FILESYS=ext4</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>PROD_CHECKPOINT</Area>
+        <Tags>prod_checkpoint</Tags>
+    </test>
+    <test>
+        <testName>PRODUCTION-CHECKPOINT-BTRFS</testName>
+        <setupScript>.\Testscripts\Windows\AddVhdxHardDisk.ps1</setupScript>
+        <testScript>PRODUCTION-CHECKPOINT-PARTITION.ps1</testScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
+        <files>.\Testscripts\Linux\PartitionDisks.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>SCSI=1,1,Dynamic,512</param>
+            <param>FILESYS=btrfs</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>PROD_CHECKPOINT</Area>
+        <Tags>prod_checkpoint</Tags>
+    </test>
+    <test>
+        <testName>PRODUCTION-CHECKPOINT-VHDX_XFS</testName>
+        <setupScript>.\Testscripts\Windows\AddVhdxHardDisk.ps1</setupScript>
+        <testScript>PRODUCTION-CHECKPOINT-PARTITION.ps1</testScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
+        <files>.\Testscripts\Linux\PartitionDisks.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>SCSI=1,1,Dynamic,512</param>
+            <param>FILESYS=xfs</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>PROD_CHECKPOINT</Area>
+        <Tags>prod_checkpoint</Tags>
+    </test>
 	<test>
 		<testName>VHDX-RESIZE-TO-BIGGER512</testName>
 		<setupScript>.\Testscripts\Windows\AddVhdxHardDisk.ps1</setupScript>
