@@ -25,10 +25,10 @@
 			<rx>9800000</rx>
 		</core8>
 		<core16>
-			<tx>13000000</tx>
-			<fwdrx>10500000</fwdrx>
-			<fwdtx>10500000</fwdtx>
-			<rx>9000000</rx>
+			<tx>8500000</tx>
+			<fwdrx>8500000</fwdrx>
+			<fwdtx>8500000</fwdtx>
+			<rx>8500000</rx>
 		</core16>
 	</Standard_DS15_v2>
 </testfwdpps>

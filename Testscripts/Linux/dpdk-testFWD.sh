@@ -15,11 +15,11 @@
 #############################################################################
 
 # Requires
-#   - called by install_dpdk in dpdk top level dir
+#   - called by Install_Dpdk in dpdk top level dir
 #   - first argument is install_ip
-function dpdk_configure() {
+function Dpdk_Configure() {
 	if [ -z "${1}" ]; then
-		LogErr "ERROR: Must provide install_ip to dpdk_configure"
+		LogErr "ERROR: Must provide install_ip to Dpdk_Configure"
 		SetTestStateAborted
 		exit 1
 	fi
@@ -29,13 +29,13 @@ function dpdk_configure() {
 		local sender_dpdk_ips=($(eval ${dpdk_ips_cmd}))
 		local forwarder_dpdk_ips=($(ssh ${forwarder} "${dpdk_ips_cmd}"))
 
-		testpmd_ip_setup "SRC" "${sender_dpdk_ips[1]}"
-		testpmd_ip_setup "DST" "${forwarder_dpdk_ips[1]}"
+		Testpmd_Ip_Setup "SRC" "${sender_dpdk_ips[1]}"
+		Testpmd_Ip_Setup "DST" "${forwarder_dpdk_ips[1]}"
 
-		testpmd_multiple_tx_flows_setup
+		Testpmd_Multiple_Tx_Flows_Setup
 	elif [ "${1}" = "${forwarder}" ]; then
 		local receiver_dpdk_ips=($(ssh ${receiver} "${dpdk_ips_cmd}"))
-		testpmd_macfwd_to_dest "${receiver_dpdk_ips[1]}"
+		Testpmd_Macfwd_To_Dest "${receiver_dpdk_ips[1]}"
 	fi
 }
 
@@ -43,9 +43,9 @@ function dpdk_configure() {
 #   - UtilsInit
 #   - core and test_duration as arguments in that order
 #   - LOG_DIR, IP_ADDRS, sender, forwarder, and receiver to be defined
-function run_testfwd() {
+function Run_Testfwd() {
 	if [ -z "${1}" -o -z "${2}" ]; then
-		LogErr "ERROR: Must provide core and test_duration as arguments in that order to run_testfwd()"
+		LogErr "ERROR: Must provide core and test_duration as arguments in that order to Run_Testfwd()"
 		SetTestStateAborted
 		exit 1
 	fi
@@ -75,17 +75,17 @@ function run_testfwd() {
 	# start receiver and fowarder in advance so testpmd comes up easily
 	local fwd_recv_duration=$(expr ${test_duration} + 5)
 	
-	local receiver_testfwd_cmd="$(create_timed_testpmd_cmd ${fwd_recv_duration} ${core} ${receiver_busaddr} ${receiver_iface} rxonly)"
+	local receiver_testfwd_cmd="$(Create_Timed_Testpmd_Cmd ${fwd_recv_duration} ${core} ${receiver_busaddr} ${receiver_iface} rxonly)"
 	LogMsg "${receiver_testfwd_cmd}"
 	ssh ${receiver} ${receiver_testfwd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testfwd-receiver-${core}-core-$(date +"%m%d%Y-%H%M%S").log &
  
-	local forwarder_testfwd_cmd="$(create_timed_testpmd_cmd ${fwd_recv_duration} ${core} ${forwarder_busaddr} ${forwarder_iface} mac)"
+	local forwarder_testfwd_cmd="$(Create_Timed_Testpmd_Cmd ${fwd_recv_duration} ${core} ${forwarder_busaddr} ${forwarder_iface} mac)"
 	LogMsg "${forwarder_testfwd_cmd}"
 	ssh ${forwarder} ${forwarder_testfwd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testfwd-forwarder-${core}-core-$(date +"%m%d%Y-%H%M%S").log &
 
 	sleep 5
 	
-	local sender_testfwd_cmd="$(create_timed_testpmd_cmd ${test_duration} ${core} ${sender_busaddr} ${sender_iface} txonly)"
+	local sender_testfwd_cmd="$(Create_Timed_Testpmd_Cmd ${test_duration} ${core} ${sender_busaddr} ${sender_iface} txonly)"
 	LogMsg "${sender_testfwd_cmd}"
 	eval "${sender_testfwd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testfwd-sender-${core}-core-$(date +"%m%d%Y-%H%M%S").log &"
 	
@@ -105,9 +105,9 @@ function run_testfwd() {
 #   - UtilsInit
 #   - arguments in order: core, csv file
 #   - LOG_DIR to be defined
-function testfwd_parser() {
+function Testfwd_Parser() {
 	if [ -z "${1}" -o -z "${2}" ]; then
-		LogErr "ERROR: Must provide core, and csv file in that order to testfwd_parser()"
+		LogErr "ERROR: Must provide core, and csv file in that order to Testfwd_Parser()"
 		SetTestStateAborted
 		exit 1
 	fi
@@ -144,7 +144,7 @@ function testfwd_parser() {
 	echo "${dpdk_version},${core},${tx_pps_avg},${fwdrx_pps_avg},${fwdtx_pps_avg},${rx_pps_avg}" >> ${testfwd_csv_file}
 }
 
-function run_testcase() {
+function Run_Testcase() {
 	if [ -z "${CORES}" ]; then
 		CORES="1"
 		LogMsg "CORES not found in environment; doing default single core test"
@@ -156,16 +156,16 @@ function run_testcase() {
 	fi
 
 	LogMsg "Starting testfwd"
-	create_vm_synthetic_vf_pair_mappings
+	Create_Vm_Synthetic_Vf_Pair_Mappings
 	for core in ${CORES}; do
-		run_testfwd ${core} ${TEST_DURATION}
+		Run_Testfwd ${core} ${TEST_DURATION}
 	done
 
 	LogMsg "Starting testfwd parser"
-	local csv_file=$(create_csv)
+	local csv_file=$(Create_Csv)
 	echo "dpdk_version,core,tx_pps_avg,fwdrx_pps_avg,fwdtx_pps_avg,rx_pps_avg" > ${csv_file}
 	for core in ${CORES}; do
-		testfwd_parser ${core} ${csv_file}
+		Testfwd_Parser ${core} ${csv_file}
 	done
 
 	LogMsg "testfwd results"

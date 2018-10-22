@@ -43,25 +43,25 @@ function Verify-Performance() {
 		LogMsg "Comparing $($testRun.core) core(s) data"
 		LogMsg "  compare tx pps $($testRun.tx_pps_avg) with lowerbound $($coreData.tx)"
 		if ([int]$testRun.tx_pps_avg -lt [int]$coreData.tx) {
-			LogErr "  Perf Failure in $($testRun.test_mode) mode; $($testRun.tx_pps_avg) must be > $($coreData.tx)"
+			LogErr "  Perf Failure; $($testRun.tx_pps_avg) must be > $($coreData.tx)"
 			$tempResult = "FAIL"
 		}
 
 		LogMsg "  compare fwdrx pps $($testRun.fwdrx_pps_avg) with lowerbound $($coreData.fwdrx)"
 		if ([int]$testRun.fwdrx_pps_avg -lt [int]$coreData.fwdrx) {
-			LogErr "  Perf Failure in $($testRun.test_mode) mode; $($testRun.fwdrx_pps_avg) must be > $($coreData.fwdrx)"
+			LogErr "  Perf Failure; $($testRun.fwdrx_pps_avg) must be > $($coreData.fwdrx)"
 			$tempResult = "FAIL"
 		}
 
 		LogMsg "  compare fwdtx pps $($testRun.fwdtx_pps_avg) with lowerbound $($coreData.fwdtx)"
 		if ([int]$testRun.fwdtx_pps_avg -lt [int]$coreData.fwdtx) {
-			LogErr "  Perf Failure in $($testRun.test_mode) mode; $($testRun.fwdtx_pps_avg) must be > $($coreData.fwdtx)"
+			LogErr "  Perf Failure; $($testRun.fwdtx_pps_avg) must be > $($coreData.fwdtx)"
 			$tempResult = "FAIL"
 		}
 
 		LogMsg "  compare rx pps $($testRun.rx_pps_avg) with lowerbound $($coreData.rx)"
 		if ([int]$testRun.rx_pps_avg -lt [int]$coreData.rx) {
-			LogErr "  Perf Failure in $($testRun.test_mode) mode; $($testRun.rx_pps_avg) must be > $($coreData.rx)"
+			LogErr "  Perf Failure; $($testRun.rx_pps_avg) must be > $($coreData.rx)"
 			$tempResult = "FAIL"
 		}
 	}

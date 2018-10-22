@@ -15,11 +15,11 @@
 #############################################################################
 
 # Requires
-#   - called by install_dpdk in dpdk top level dir
+#   - called by Install_Dpdk in dpdk top level dir
 #   - first argument is install_ip
-function dpdk_configure() {
+function Dpdk_Configure() {
 	if [ -z "${1}" ]; then
-		LogErr "ERROR: Must provide install_ip to dpdk_configure"
+		LogErr "ERROR: Must provide install_ip to Dpdk_Configure"
 		SetTestStateAborted
 		exit 1
 	fi
@@ -29,13 +29,13 @@ function dpdk_configure() {
 		local sender_dpdk_ips=($(eval ${dpdk_ips_cmd}))
 		local forwarder_dpdk_ips=($(ssh ${forwarder} "${dpdk_ips_cmd}"))
 
-		testpmd_ip_setup "SRC" "${sender_dpdk_ips[1]}"
-		testpmd_ip_setup "DST" "${forwarder_dpdk_ips[1]}"
+		Testpmd_Ip_Setup "SRC" "${sender_dpdk_ips[1]}"
+		Testpmd_Ip_Setup "DST" "${forwarder_dpdk_ips[1]}"
 
-		testpmd_multiple_tx_flows_setup
+		Testpmd_Multiple_Tx_Flows_Setup
 	elif [ "${1}" = "${forwarder}" ]; then
 		local receiver_dpdk_ips=($(ssh ${receiver} "${dpdk_ips_cmd}"))
-		testpmd_macfwd_to_dest "${receiver_dpdk_ips[1]}"
+		Testpmd_Macfwd_To_Dest "${receiver_dpdk_ips[1]}"
 	fi
 }
 
@@ -43,7 +43,7 @@ function dpdk_configure() {
 #   - UtilsInit
 #   - core and test_duration as arguments in that order
 #   - LOG_DIR, IP_ADDRS, sender, forwarder, and receiver to be defined
-function run_testfailsafe() {
+function Run_Testfailsafe() {
 	if [ -z "${LIS_HOME}" -o -z "${LOG_DIR}" -o -z "${DPDK_DIR}" ]; then
 		LogErr "ERROR: LIS_HOME, LOG_DIR, and DPDK_DIR must be defined in environment"
 		SetTestStateAborted
@@ -65,17 +65,17 @@ function run_testfailsafe() {
 		ssh ${ip} ${free_huge_cmd}
 	done
 	
-	local receiver_testfwd_cmd="$(create_testpmd_cmd ${core} ${receiver_busaddr} ${receiver_iface} rxonly)"
+	local receiver_testfwd_cmd="$(Create_Testpmd_Cmd ${core} ${receiver_busaddr} ${receiver_iface} rxonly)"
 	LogMsg "${receiver_testfwd_cmd}"
 	ssh ${receiver} ${receiver_testfwd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testfailsafe-receiver.log &
  
-	local forwarder_testfwd_cmd="$(create_testpmd_cmd ${core} ${forwarder_busaddr} ${forwarder_iface} mac)"
+	local forwarder_testfwd_cmd="$(Create_Testpmd_Cmd ${core} ${forwarder_busaddr} ${forwarder_iface} mac)"
 	LogMsg "${forwarder_testfwd_cmd}"
 	ssh ${forwarder} ${forwarder_testfwd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testfailsafe-forwarder.log &
 
 	sleep 5
 	
-	local sender_testfwd_cmd="$(create_testpmd_cmd ${core} ${sender_busaddr} ${sender_iface} txonly)"
+	local sender_testfwd_cmd="$(Create_Testpmd_Cmd ${core} ${sender_busaddr} ${sender_iface} txonly)"
 	# reduce txd so VF revoke doesn't kill forwarder
 	sender_testfwd_cmd=$(echo ${sender_testfwd_cmd} | sed -r 's,(--.xd=)4096,\110,')
 	LogMsg "${sender_testfwd_cmd}"
@@ -86,10 +86,10 @@ function run_testfailsafe() {
 	sleep 120
 	# testpmd is has now run for 120 request testcase driver to revoke VF
 	local ready_for_revoke_msg="READY_FOR_REVOKE"
-	update_phase ${ready_for_revoke_msg}
+	Update_Phase ${ready_for_revoke_msg}
 	local phase
 	while true; do
-		phase="$(read_phase)"
+		phase="$(Read_Phase)"
 		if [ "${phase}" = "REVOKE_DONE" ]; then
 			LogMsg "Phase changed to ${phase}"
 			sleep 120
@@ -99,9 +99,9 @@ function run_testfailsafe() {
 
 	# vf was revoked for >= 120. now ready for it to be re-enabled
 	local ready_for_vf_msg="READY_FOR_VF"
-	update_phase ${ready_for_vf_msg}
+	Update_Phase ${ready_for_vf_msg}
 	while true; do
-		phase="$(read_phase)"
+		phase="$(Read_Phase)"
 		if [ "${phase}" = "VF_RE_ENABLED" ]; then
 			LogMsg "Phase changed to ${phase}"
 			sleep 120
@@ -122,14 +122,14 @@ function run_testfailsafe() {
 #   - UtilsInit
 #   - arguments in order: core, csv file
 #   - LOG_DIR to be defined
-function testfailsafe_parser() {
+function Testfailsafe_Parser() {
 	if [ -z "${LOG_DIR}" ]; then
 		LogErr "ERROR: LOG_DIR must be defined"
 		SetTestStateAborted
 		exit 1
 	fi
 
-	local csv_file=$(create_csv)
+	local csv_file=$(Create_Csv)
 	echo "dpdk_version,phase,fwdrx_pps_avg,fwdtx_pps_avg" > ${csv_file}
 	local dpdk_version=$(grep "Version:" ${LIS_HOME}/${DPDK_DIR}/pkg/dpdk.spec | awk '{print $2}')
 
@@ -168,11 +168,11 @@ function testfailsafe_parser() {
 	column -s, -t ${csv_file}
 }
 
-function run_testcase() {
+function Run_Testcase() {
 	LogMsg "Starting testfailsafe"
-	create_vm_synthetic_vf_pair_mappings
-	run_testfailsafe
+	Create_Vm_Synthetic_Vf_Pair_Mappings
+	Run_Testfailsafe
 
 	LogMsg "Starting testfailsafe parser"
-	testfailsafe_parser
+	Testfailsafe_Parser
 }

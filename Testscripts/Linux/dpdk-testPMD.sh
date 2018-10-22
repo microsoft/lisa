@@ -15,11 +15,11 @@
 #############################################################################
 
 # Requires
-#   - called by install_dpdk in dpdk top level dir
+#   - called by Install_Dpdk in dpdk top level dir
 #   - first argument is install_ip
-function dpdk_configure() {
+function Dpdk_Configure() {
 	if [ -z "${1}" ]; then
-		LogErr "ERROR: Must provide install_ip to dpdk_configure"
+		LogErr "ERROR: Must provide install_ip to Dpdk_Configure"
 		SetTestStateAborted
 		exit 1
 	fi
@@ -29,10 +29,10 @@ function dpdk_configure() {
 		local sender_dpdk_ips=($(eval ${dpdk_ips_cmd}))
 		local receiver_dpdk_ips=($(ssh ${receiver} "${dpdk_ips_cmd}"))
 
-		testpmd_ip_setup "SRC" "${sender_dpdk_ips[1]}"
-		testpmd_ip_setup "DST" "${receiver_dpdk_ips[1]}"
+		Testpmd_Ip_Setup "SRC" "${sender_dpdk_ips[1]}"
+		Testpmd_Ip_Setup "DST" "${receiver_dpdk_ips[1]}"
 
-		testpmd_multiple_tx_flows_setup
+		Testpmd_Multiple_Tx_Flows_Setup
 	fi
 }
 
@@ -41,9 +41,9 @@ function dpdk_configure() {
 #   - core, modes, and test_duration as arguments in that order
 #   - LIS_HOME, LOG_DIR, and DPDK_DIR to be defined
 #   - sender, receiver, and IP_ADDRS to be defined
-function run_testpmd() {
+function Run_Testpmd() {
 	if [ -z "${1}" -o -z "${2}" -o -z "${3}" ]; then
-		LogErr "ERROR: Must provide core, modes, test_duration as arguments in that order to run_testpmd()"
+		LogErr "ERROR: Must provide core, modes, test_duration as arguments in that order to Run_Testpmd()"
 		SetTestStateAborted
 		exit 1
 	fi
@@ -74,13 +74,13 @@ function run_testpmd() {
 		# start receiver in advance so traffic spike doesn't cause output freeze
 		local receiver_duration=$(expr ${test_duration} + 5)
 
-		local receiver_testpmd_cmd="$(create_timed_testpmd_cmd ${receiver_duration} ${core} ${receiver_busaddr} ${receiver_iface} ${test_mode})"
+		local receiver_testpmd_cmd="$(Create_Timed_Testpmd_Cmd ${receiver_duration} ${core} ${receiver_busaddr} ${receiver_iface} ${test_mode})"
 		LogMsg "${receiver_testpmd_cmd}"
 		ssh ${receiver} ${receiver_testpmd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testpmd-${test_mode}-receiver-${core}-core-$(date +"%m%d%Y-%H%M%S").log &
 
 		sleep 5
 
-		local sender_testpmd_cmd="$(create_timed_testpmd_cmd ${test_duration} ${core} ${sender_busaddr} ${sender_iface} txonly)"
+		local sender_testpmd_cmd="$(Create_Timed_Testpmd_Cmd ${test_duration} ${core} ${sender_busaddr} ${sender_iface} txonly)"
 		LogMsg "${sender_testpmd_cmd}"
 		eval "${sender_testpmd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testpmd-${test_mode}-sender-${core}-core-$(date +"%m%d%Y-%H%M%S").log &"
 
@@ -101,7 +101,7 @@ function run_testpmd() {
 #   - UtilsInit
 #   - arguments in order: core, test_mode, csv file
 #   - LOG_DIR to be defined
-function testpmd_parser() {
+function Testpmd_Parser() {
 	if [ -z "${1}" -o -z "${2}" -o -z "${3}" ]; then
 		LogErr "ERROR: Must provide core, test_mode, and csv file in that order to test_pmd_parser()"
 		SetTestStateAborted
@@ -152,7 +152,7 @@ function testpmd_parser() {
 	echo "${dpdk_version},${test_mode},${core},${rx_pps_Max},${tx_pps_avg},${rx_pps_avg},${fwdtx_pps_avg},${tx_bytes_avg},${rx_bytes_avg},${fwdtx_bytes_avg},${tx_packets_avg},${rx_packets_avg},${fwdtx_packets_avg},${tx_packet_size},${rx_packet_size}" >> ${testpmd_csv_file}
 }
 
-function run_testcase() {
+function Run_Testcase() {
 	if [ -z "${CORES}" ]; then
 		CORES="1"
 		LogMsg "CORES not found in environment; doing default single core test"
@@ -169,17 +169,17 @@ function run_testcase() {
 	fi
 
 	LogMsg "Starting testpmd"
-	create_vm_synthetic_vf_pair_mappings
+	Create_Vm_Synthetic_Vf_Pair_Mappings
 	for core in ${CORES}; do
-		run_testpmd ${core} "${MODES}" ${TEST_DURATION}
+		Run_Testpmd ${core} "${MODES}" ${TEST_DURATION}
 	done
 
 	LogMsg "Starting testpmd parser"
-	local csv_file=$(create_csv)
+	local csv_file=$(Create_Csv)
 	echo "dpdk_version,test_mode,core,max_rx_pps,tx_pps_avg,rx_pps_avg,fwdtx_pps_avg,tx_bytes,rx_bytes,fwd_bytes,tx_packets,rx_packets,fwd_packets,tx_packet_size,rx_packet_size" > ${csv_file}
 	for core in ${CORES}; do
 		for test_mode in ${MODES}; do
-			testpmd_parser ${core} ${test_mode} ${csv_file}
+			Testpmd_Parser ${core} ${test_mode} ${csv_file}
 		done
 	done
 

@@ -21,16 +21,16 @@
 #     enableRoot.sh and enablePasswordLessRoot.sh from Testscripts/Linux
 # Effects:
 #    Configures hugepages on machine at IP provided
-function hugepage_setup() {
+function Hugepage_Setup() {
 	if [ -z "${1}" ]; then
-		LogErr "ERROR: must provide target ip to hugepage_setup()"
+		LogErr "ERROR: must provide target ip to Hugepage_Setup()"
 		SetTestStateAborted
 		exit 1
 	fi
 
 	CheckIP ${1}
 	if [ $? -eq 1 ]; then
-		LogErr "ERROR: must pass valid ip to hugepage_setup()"
+		LogErr "ERROR: must pass valid ip to Hugepage_Setup()"
 		SetTestStateAborted
 		exit 1
 	fi
@@ -47,16 +47,16 @@ function hugepage_setup() {
 #     enableRoot.sh and enablePasswordLessRoot.sh from Testscripts/Linux
 # Effects:
 #    modprobes required modules for dpdk on machine at IP provided
-function modprobe_setup() {
+function Modprobe_Setup() {
 	if [ -z "${1}" ]; then
-		LogErr "ERROR: must provide target ip to modprobe_setup()"
+		LogErr "ERROR: must provide target ip to Modprobe_Setup()"
 		SetTestStateAborted
 		exit 1
 	fi
 
 	CheckIP ${1}
 	if [ $? -eq 1 ]; then
-		LogErr "ERROR: must pass valid ip to modprobe_setup()"
+		LogErr "ERROR: must pass valid ip to Modprobe_Setup()"
 		SetTestStateAborted
 		exit 1
 	fi
@@ -71,14 +71,14 @@ function modprobe_setup() {
 	ssh ${1} "${modprobe_cmd}"
 }
 
-# Helper function to install_dpdk()
+# Helper function to Install_Dpdk()
 # Requires:
-#   - called only from install_dpdk()
-#   - see install_dpdk() requires
+#   - called only from Install_Dpdk()
+#   - see Install_Dpdk() requires
 #   - arguments: ip, distro
-function install_dpdk_dependencies() {
+function Install_Dpdk_Dependencies() {
 	if [ -z "${1}" -o -z "${2}" ]; then
-		LogErr "ERROR: must provide install ip and distro to install_dpdk_dependencies()"
+		LogErr "ERROR: must provide install ip and distro to Install_Dpdk_Dependencies()"
 		SetTestStateAborted
 		exit 1
 	fi
@@ -88,7 +88,7 @@ function install_dpdk_dependencies() {
 
 	CheckIP ${install_ip}
 	if [ $? -eq 1 ]; then
-		LogErr "ERROR: must pass valid ip to modprobe_setup()"
+		LogErr "ERROR: must pass valid ip to Modprobe_Setup()"
 		SetTestStateAborted
 		exit 1
 	fi
@@ -143,22 +143,22 @@ function install_dpdk_dependencies() {
 # Effects:
 #   - does NOT set up hugepages or modprobe (see other funcs)
 #	- only installs dpdk on first IP provided
-function install_dpdk() {
+function Install_Dpdk() {
 	if [ -z "${LIS_HOME}" -o -z "${DPDK_LINK}" -o -z "${DPDK_DIR}" ]; then
-		LogErr "ERROR: LIS_HOME, DPDK_LINK, and DPDK_DIR must be defined before calling install_dpdk()"
+		LogErr "ERROR: LIS_HOME, DPDK_LINK, and DPDK_DIR must be defined before calling Install_Dpdk()"
 		SetTestStateAborted
 		exit 1
 	fi
 
 	if [ -z "${1}" ]; then
-		LogErr "ERROR: Must supply ip of host to install_dpdk()"
+		LogErr "ERROR: Must supply ip of host to Install_Dpdk()"
 		SetTestStateAborted
 		exit 1
 	fi
 
 	CheckIP ${1}
 	if [ $? -eq 1 ]; then
-		LogErr "ERROR: must pass valid ip to install_dpdk()"
+		LogErr "ERROR: must pass valid ip to Install_Dpdk()"
 		SetTestStateAborted
 		exit 1
 	fi
@@ -166,7 +166,7 @@ function install_dpdk() {
 	LogMsg "Installing dpdk on ${install_ip}"
 
 	local distro=$(detect_linux_distribution)$(detect_linux_distribution_version)
-	install_dpdk_dependencies $install_ip $distro
+	Install_Dpdk_Dependencies $install_ip $distro
 
 	if [[ $DPDK_LINK =~ .tar ]]; then
 		ssh ${install_ip} "mkdir ${DPDK_DIR}"
@@ -180,9 +180,9 @@ function install_dpdk() {
 	ssh ${install_ip} "cd ${LIS_HOME}/${DPDK_DIR} && make config T=x86_64-native-linuxapp-gcc"
 	ssh ${install_ip} "sed -ri 's,(MLX._PMD=)n,\1y,' ${LIS_HOME}/${DPDK_DIR}/build/.config"
 
-	if type dpdk_configure > /dev/null; then
-		echo "Calling testcase provided dpdk_configure(install_ip) on ${install_ip}"
-		ssh ${install_ip} ". constants.sh; . utils.sh; . dpdkUtils.sh; cd ${LIS_HOME}/${DPDK_DIR}; $(typeset -f dpdk_configure); dpdk_configure ${install_ip}"
+	if type Dpdk_Configure > /dev/null; then
+		echo "Calling testcase provided Dpdk_Configure(install_ip) on ${install_ip}"
+		ssh ${install_ip} ". constants.sh; . utils.sh; . dpdkUtils.sh; cd ${LIS_HOME}/${DPDK_DIR}; $(typeset -f Dpdk_Configure); Dpdk_Configure ${install_ip}"
 	fi
 
 	ssh ${install_ip} "cd ${LIS_HOME}/${DPDK_DIR} && make -j"
@@ -191,21 +191,21 @@ function install_dpdk() {
 	LogMsg "Finished installing dpdk on ${install_ip}"
 }
 
-# Below function(s) intended for use by a testcase provided run_testcase() function:
-#   - run_testcase() allows a user to run their own test within a preconfigured DPDK environment
+# Below function(s) intended for use by a testcase provided Run_Testcase() function:
+#   - Run_Testcase() allows a user to run their own test within a preconfigured DPDK environment
 #   - when called, it is gauranteed to have contants.sh, utils.sh, and dpdkUtils.sh sourced
 #   - UtilsInit is called in this environment
-#   - run_testcase() is called on the "sender" VM and should orchestrate the testcase
+#   - Run_Testcase() is called on the "sender" VM and should orchestrate the testcase
 #     across the other VMs
 #   - see other tests for example
 
-# create_csv() creates a csv file for use with DPDK-TESTCASE-DRVER and
+# Create_Csv() creates a csv file for use with DPDK-TESTCASE-DRVER and
 # outputs that name so the user can write parsed performance data into it
 # Requires:
 #   - basic environ i.e. have called UtilsInit
 # Effects:
 #   - creates csv, outputs name, capture to use
-function create_csv() {
+function Create_Csv() {
 	if [ -z "${LIS_HOME}" ]; then
 		LogErr "ERROR: LIS_HOME must be defined in environment"
 		SetTestStateAborted
@@ -217,7 +217,7 @@ function create_csv() {
 	echo ${csv_name}
 }
 
-# update_phase() updates the test "phase"
+# Update_Phase() updates the test "phase"
 # The test phase is read by the main testcase loop in DPDK-TESTCASE-DRIVER
 # and the testcase provided Alter-Runtime function can read this. This allows
 # testcases to control/adjust any aspect of runtime based on the testcase
@@ -227,9 +227,9 @@ function create_csv() {
 #    - 1st argument to be message to write to file
 # Effects:
 #    - Clobbers previous phase with passed phase message
-function update_phase() {
+function Update_Phase() {
 	if [ -z "${1}" ]; then
-		LogErr "ERROR: Must supply phase message to update_phase()"
+		LogErr "ERROR: Must supply phase message to Update_Phase()"
 		SetTestStateAborted
 		exit 1
 	fi
@@ -243,11 +243,11 @@ function update_phase() {
 #    - basic environ i.e. have called UtilsInit
 # Effects:
 #    - Outputs phase message
-function read_phase() {
+function Read_Phase() {
 	cat ${PHASE_FILE}
 }
 
-# create_vm_synthetic_vf_pair_mappings() matches the name of VM with  its synthetic and
+# Create_Vm_Synthetic_Vf_Pair_Mappings() matches the name of VM with  its synthetic and
 # VF NIC pair.
 # Requires:
 #   - basic environ i.e. have called UtilsInit
@@ -257,9 +257,9 @@ function read_phase() {
 #   - sets global variables of the form:
 #       <vm_name>_iface
 #       <vm_name>_busaddr
-function create_vm_synthetic_vf_pair_mappings() {
+function Create_Vm_Synthetic_Vf_Pair_Mappings() {
 	if [ -z "${VM_NAMES}" ]; then
-		LogErr "ERROR: VM_NAMES must be defined for create_vm_synthetic_vf_pair_mappings()"
+		LogErr "ERROR: VM_NAMES must be defined for Create_Vm_Synthetic_Vf_Pair_Mappings()"
 		SetTestStateAborted
 		exit 1
 	fi
@@ -279,7 +279,7 @@ function create_vm_synthetic_vf_pair_mappings() {
 	done
 }
 
-# create_timed_testpmd_cmd() creates the testpmd cmd string based on provided args
+# Create_Timed_Testpmd_Cmd() creates the testpmd cmd string based on provided args
 # Requires:
 #   - basic environ i.e. have called UtilsInit
 #   - DPDK_DIR is defined in environment
@@ -291,19 +291,19 @@ function create_vm_synthetic_vf_pair_mappings() {
 #        5. any of the valid testpmd fwd modes e.g. txonly, mac, rxonly
 # Effects:
 #   - outputs testpmd command with no redireciton nor ampersand
-function create_timed_testpmd_cmd() {
+function Create_Timed_Testpmd_Cmd() {
 	if [ -z "${1}" ]; then
-		LogErr "ERROR: duration must be passed to create_timed_testpmd_cmd"
+		LogErr "ERROR: duration must be passed to Create_Timed_Testpmd_Cmd"
 		SetTestStateAborted
 		exit 1
 	fi
 	local duration="${1}"
 
-	cmd="$(create_testpmd_cmd ${2} ${3} ${4} ${5})"
+	cmd="$(Create_Testpmd_Cmd ${2} ${3} ${4} ${5})"
 	echo "timeout ${duration} ${cmd}"
 }
 
-# create_testpmd_cmd() creates the testpmd cmd string based on provided args
+# Create_Testpmd_Cmd() creates the testpmd cmd string based on provided args
 # Requires:
 #   - basic environ i.e. have called UtilsInit
 #   - DPDK_DIR is defined in environment
@@ -315,15 +315,15 @@ function create_timed_testpmd_cmd() {
 # Effects:
 #   - outputs testpmd command with no redireciton nor ampersand
 
-function create_testpmd_cmd() {
+function Create_Testpmd_Cmd() {
 	if [ -z "${1}" -o -z "${2}" -o -z "${3}" -o -z "${4}" ]; then
-		LogErr "ERROR: cores, busaddr, iface, and testpmd mode must be passed to create_testpmd_cmd"
+		LogErr "ERROR: cores, busaddr, iface, and testpmd mode must be passed to Create_Testpmd_Cmd"
 		SetTestStateAborted
 		exit 1
 	fi
 
 	if [ -z "${DPDK_DIR}" ]; then
-		LogErr "ERROR: DPDK_DIR must be defined before calling create_testpmd_cmd()"
+		LogErr "ERROR: DPDK_DIR must be defined before calling Create_Testpmd_Cmd()"
 		SetTestStateAborted
 		exit 1
 	fi
@@ -342,8 +342,8 @@ function create_testpmd_cmd() {
 	echo "${testpmd} ${eal_opts} ${testpmd_opts0} ${testpmd_opts1}"
 }
 
-# Below function(s) intended for use by a testcase provided dpdk_configure() function:
-#   - dpdk_configure() lets a testcase configure dpdk before compilation
+# Below function(s) intended for use by a testcase provided Dpdk_Configure() function:
+#   - Dpdk_Configure() lets a testcase configure dpdk before compilation
 #   - when called, it is gauranteed to have contants.sh, utils.sh, and dpdkUtils.sh
 #     sourced; it will be called on the target machine in dpdk top level dir,
 #     and it will be passed target machine's ip
@@ -354,16 +354,16 @@ function create_testpmd_cmd() {
 #   - type [SRC | DST] and testpmd ip to configure as arguments
 # Modifies:
 #   - local testpmd tx src and destination ips
-function testpmd_ip_setup() {
+function Testpmd_Ip_Setup() {
 	if [ -z "${1}" -o -z "${2}" ]; then
-		LogErr "ERROR: must provide ip type as SRC or DST and testpmd ip to testpmd_ip_setup()"
+		LogErr "ERROR: must provide ip type as SRC or DST and testpmd ip to Testpmd_Ip_Setup()"
 		SetTestStateAborted
 		exit 1
 	fi
 
 	local ip_type=${1}
 	if [ "${ip_type}" != "SRC" -a "${ip_type}" != "DST" ]; then
-		LogErr "ERROR: ip type invalid use SRC or DST testpmd_ip_setup()"
+		LogErr "ERROR: ip type invalid use SRC or DST Testpmd_Ip_Setup()"
 		SetTestStateAborted
 		exit 1
 	fi
@@ -381,7 +381,7 @@ function testpmd_ip_setup() {
 #   - called only from dpdk top level directory
 # Modifies:
 #   - local testpmd txonly to support multiple flows
-function testpmd_multiple_tx_flows_setup() {
+function Testpmd_Multiple_Tx_Flows_Setup() {
 	local num_port_code="#define NUM_SRC_PORTS 8"
 	local port_arr_code="static uint16_t src_ports[NUM_SRC_PORTS] = {200,300,400,500,600,700,800,900};"
 	local port_code="pkt_udp_hdr.src_port = rte_cpu_to_be_16(src_ports[nb_pkt % NUM_SRC_PORTS]);"
@@ -399,9 +399,9 @@ function testpmd_multiple_tx_flows_setup() {
 #   - local testpmd mac mode to forward packets to supplied ip
 # Notes:
 #   - Be aware of subnets
-function testpmd_macfwd_to_dest() {
+function Testpmd_Macfwd_To_Dest() {
 	if [ -z "${1}" -o ]; then
-		LogErr "ERROR: must provide dest ip to testpmd_macfwd_to_dest()"
+		LogErr "ERROR: must provide dest ip to Testpmd_Macfwd_To_Dest()"
 		SetTestStateAborted
 		exit 1
 	fi

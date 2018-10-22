@@ -20,19 +20,19 @@ function dpdk_setup() {
 
 	local ip
 	for ip in $IP_ADDRS; do
-		install_dpdk ${ip} &
+		Install_Dpdk ${ip} &
 		local pids="$pids $!"
 	done
 	wait $pids
 
 	for ip in $IP_ADDRS; do
-		hugepage_setup ${ip} &
+		Hugepage_Setup ${ip} &
 		local pids="$pids $!"
 	done
 	wait $pids
 
 	for ip in $IP_ADDRS; do
-		modprobe_setup ${ip} &
+		Modprobe_Setup ${ip} &
 		local pids="$pids $!"
 	done
 	wait $pids
@@ -61,8 +61,8 @@ for file in ${USER_FILES}; do
 done
 
 # error check here so on failure don't waste time setting up dpdk
-if ! type run_testcase > /dev/null; then
-	LogErr "ERROR: missing run_testcase function"
+if ! type Run_Testcase > /dev/null; then
+	LogErr "ERROR: missing Run_Testcase function"
 	SetTestStateAborted
 	exit 1
 fi
@@ -83,7 +83,7 @@ fi
 dpdk_setup
 
 LogMsg "Calling testcase provided run function"
-run_testcase
+Run_Testcase
 
 LogMsg "tar -cvzf ${LIS_HOME}/vmTestcaseLogs.tar.gz ${LOG_DIR}"
 tar -cvzf ${LIS_HOME}/vmTestcaseLogs.tar.gz ${LOG_DIR}

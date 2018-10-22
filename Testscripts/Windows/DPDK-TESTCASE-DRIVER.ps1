@@ -11,8 +11,8 @@
 #   2. Alter-Runtime
 #   3. Verify-Performance
 # The testcase provides 2 functions in its bash file:
-#   1. dpdk_configure
-#   2. run_testcase
+#   1. Dpdk_Configure
+#   2. Run_Testcase
 #
 # DPDK is automatically installed on all VMs and all their IPs are listed in the 
 # contants.sh file.
