@@ -3,15 +3,46 @@
 
 <#
 .Synopsis
-    Check RTT with SR-IOV enabled/disabled from VM Settings
-
-.Description
-    Continuously ping a server, from a Linux client, over a SR-IOV connection.
-    Disable SR-IOV on the Linux client and observe RTT increase.
-    Re-enable SR-IOV and observe that RTT lowers.
+    Disable SR-IOV while transferring data of the device, then enable SR-IOV.
+    For both operations, measure time between the switch.
+    If the time is bigger than 30 seconds, fail the test
 #>
 
 param ([string] $TestParams)
+
+function Measure-TimeToSwitch {
+    param (
+        $ExpectedVfNumber,
+        $VMuser,
+        $VMIp,
+        $VMPass,
+        $VMPort
+    )
+
+    $timeToRun = 0
+    $hasSwitched = $false
+    while ($hasSwitched -eq $false) {
+        # Check if the VF is still present
+        $vfCount = RunLinuxCmd -ip $VMIp -port $VMPort -username $VMuser -password `
+            $VMPass -command "find /sys/devices -name net -a -ipath '*vmbus*' | grep -c pci" `
+            -ignoreLinuxExitCode:$true
+        if ($vfCount -eq $ExpectedVfNumber) {
+            $hasSwitched = $true
+        }
+
+        $timeToRun++
+        if ($timeToRun -ge 30) {
+            LogErr "The switch beteen VF and netvsc was not made"
+            return $false
+        }
+
+        if ($hasSwitched -eq $false){
+            Start-Sleep -s 1
+        }
+    }
+    LogMsg "Failback was made in $timeToRun second(s)"
+    return $true
+}
 
 function Main {
     param (
@@ -20,7 +51,7 @@ function Main {
         $VMPort,
         $VMPassword
     )
-    $VMRootUser= "root"
+    $VMRootUser = "root"
 
     # Get IP
     $ipv4 = Get-IPv4ViaKVP $VMName $HvServer
@@ -49,20 +80,10 @@ function Main {
         LogErr "Failed to disable SR-IOV on $VMName!"
         return "FAIL"
     }
-
-    # Read the RTT with SR-IOV disabled; it should be higher
-    Start-Sleep -s 30
-    [decimal]$vfDisabledRTT = RunLinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
-        $VMPassword -command "tail -5 PingResults.log | head -1 | awk '{print `$7}' | sed 's/=/ /' | awk '{print `$2}'" `
-        -ignoreLinuxExitCode:$true
-    if (-not $vfDisabledRTT){
-        LogErr "No result was logged after SR-IOV was disabled!"
-        return "FAIL"
-    }
-
-    LogMsg "The RTT with SR-IOV disabled is $vfDisabledRTT ms"
-    if ($vfDisabledRTT -le $vfEnabledRTT) {
-        LogErr "The RTT was lower with SR-IOV disabled, it should be higher"
+    # Measure the failback time
+    Measure-TimeToSwitch "0" $VMRootUser $ipv4 $VMPassword $VMPort
+    if (-not $?) {
+        LogErr "Failback time is too high"
         return "FAIL"
     }
 
@@ -72,10 +93,16 @@ function Main {
         LogErr "Failed to enable SR-IOV on $VMName!"
         return "FAIL"
     }
+    # Measure the failback time
+    Measure-TimeToSwitch "1" $VMRootUser $ipv4 $VMPassword $VMPort
+    if (-not $?) {
+        LogErr "Failback time is too high"
+        return "FAIL"
+    }
 
-    Start-Sleep -s 30
     # Read the RTT again, it should be lower than before
     # We should see values to close to the initial RTT measured
+    Start-Sleep 10
     [decimal]$vfEnabledRTT = $vfEnabledRTT * 1.3
     [decimal]$vfFinalRTT = RunLinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
         $VMPassword -command "tail -5 PingResults.log | head -1 | awk '{print `$7}' | sed 's/=/ /' | awk '{print `$2}'" `
