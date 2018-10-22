@@ -83,8 +83,8 @@ function run_testfailsafe() {
 	
 	lost_vf_output="sub_device . probe failed"
 
-	sleep 30
-	# testpmd is has now run for 30 request testcase driver to revoke VF
+	sleep 120
+	# testpmd is has now run for 120 request testcase driver to revoke VF
 	local ready_for_revoke_msg="READY_FOR_REVOKE"
 	update_phase ${ready_for_revoke_msg}
 	local phase
@@ -92,19 +92,19 @@ function run_testfailsafe() {
 		phase="$(read_phase)"
 		if [ "${phase}" = "REVOKE_DONE" ]; then
 			LogMsg "Phase changed to ${phase}"
-			sleep 30
+			sleep 120
 			break
 		fi
 	done
 
-	# vf was revoked for >= 30. now ready for it to be re-enabled
+	# vf was revoked for >= 120. now ready for it to be re-enabled
 	local ready_for_vf_msg="READY_FOR_VF"
 	update_phase ${ready_for_vf_msg}
 	while true; do
 		phase="$(read_phase)"
 		if [ "${phase}" = "VF_RE_ENABLED" ]; then
 			LogMsg "Phase changed to ${phase}"
-			sleep 30
+			sleep 120
 			break
 		fi
 	done

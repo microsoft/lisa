@@ -44,7 +44,7 @@ function Change-Phase() {
 
 	Set-Content "$LogDir\phase.txt" $phase_msg
 	LogMsg "Changing phase to $phase_msg"
-	RemoteCopy -uploadTo $masterVM.PublicIP -port $masterVM.SSHPort -files "$LogDir\phase.txt" -username "root" -password $password -upload
+	RunLinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "echo $phase_msg > phase.txt"
 }
 
 function Main {
