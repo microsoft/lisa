@@ -149,6 +149,7 @@ collect_VM_properties
 			$currentPhase = RunLinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "cat phase.txt"
 			if ($currentPhase -ne $oldPhase) {
 				LogMsg "Read new phase: $currentPhase"
+				$oldPhase = $currentPhase
 			}
 			Alter-Runtime
 

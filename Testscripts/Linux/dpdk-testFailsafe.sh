@@ -86,12 +86,12 @@ function run_testfailsafe() {
 	sleep 30
 	# testpmd is has now run for 30 request testcase driver to revoke VF
 	local ready_for_revoke_msg="READY_FOR_REVOKE"
-	LogMsg ${ready_for_revoke_msg}
 	update_phase ${ready_for_revoke_msg}
 	local phase
 	while true; do
 		phase="$(read_phase)"
-		if [[ "${phase}" == "REVOKE_DONE" ]]; then
+		if [ "${phase}" = "REVOKE_DONE" ]; then
+			LogMsg "Phase changed to ${phase}"
 			sleep 30
 			break
 		fi
@@ -99,11 +99,11 @@ function run_testfailsafe() {
 
 	# vf was revoked for >= 30. now ready for it to be re-enabled
 	local ready_for_vf_msg="READY_FOR_VF"
-	LogMsg ${ready_for_vf_msg}
 	update_phase ${ready_for_vf_msg}
 	while true; do
 		phase="$(read_phase)"
-		if [[ "${phase}" == "VF_RE_ENABLED" ]]; then
+		if [ "${phase}" = "VF_RE_ENABLED" ]; then
+			LogMsg "Phase changed to ${phase}"
 			sleep 30
 			break
 		fi
