@@ -3,8 +3,8 @@
 
 # Description: This script lists the VMs in the current subscription and lists our Tags and VMAges.
 param 
-( 
-    [switch] $NoSecrets,
+(
+    [switch] $UseSecretsFile,
     [switch] $IncludeAge,
     $AzureSecretsFile,
     [string] $Region,
@@ -13,9 +13,10 @@ param
 )
 
 #Load libraries
-Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global }
+Get-ChildItem ..\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global }
 
-if( $NoSecrets -eq $false )
+#When given -UseSecretsFile or an AzureSecretsFile path, we will attempt to search the path or the environment variable.
+if( $UseSecretsFile -or $AzureSecretsFile )
 {
     #Read secrets file and terminate if not present.
     if ($AzureSecretsFile)
@@ -34,7 +35,7 @@ if( $NoSecrets -eq $false )
     if ( Test-Path $secretsFile)
     {
         LogMsg "Secrets file found."
-        .\Utilities\AddAzureRmAccountFromSecretsFile.ps1 -customSecretsFilePath $secretsFile
+        .\AddAzureRmAccountFromSecretsFile.ps1 -customSecretsFilePath $secretsFile
         $xmlSecrets = [xml](Get-Content $secretsFile)
     }
     else
@@ -43,6 +44,7 @@ if( $NoSecrets -eq $false )
         exit 1
     }
 }
+
 function Get-VMAgeFromDisk()
 {
     param
