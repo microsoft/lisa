@@ -49,41 +49,24 @@ function Main {
         elseif ($BuildNumber -lt 10500) {
             throw "Feature supported only on WS2016 and newer"
         }
-        # Check if the Vm VHD in not on the same drive as the backup destination
+
         $vm = Get-VM -Name $vmName -ComputerName $hvServer
         # Check to see Linux VM is running VSS backup daemon
         $remoteScript="STOR_VSS_Check_VSS_Daemon.sh"
-        $stateFile = "stor_vss_daemon_state.txt"
-        $Hypervcheck = "echo '${password}' | sudo -S -s eval `"export HOME=``pwd``;bash ${remoteScript} > Hypervcheck.log`""
-        RunLinuxCmd -username $user -password $password -ip $ipv4 -port $port $Hypervcheck -runAsSudo
-        RemoteCopy -download -downloadFrom $ipv4 -files "/home/${user}/state.txt" `
-            -downloadTo $LogDir -port $port -username $user -password $password
-        rename-item -path ${LogDir}\state.txt -newname $stateFile
-        RemoteCopy -download -downloadFrom $ipv4 -files "/home/${user}/Hypervcheck.log" `
-            -downloadTo $LogDir -port $port -username $user -password $password
-        $contents = Get-Content -Path $LogDir\$stateFile
-        if (($contents -eq "TestAborted") -or ($contents -eq "TestFailed")) {
+        $retval = Invoke-RemoteScriptAndCheckStateFile $remoteScript $user $password $ipv4 $port
+        if ($retval -eq $False) {
             throw "Running $remoteScript script failed on VM!"
         }
-
         LogMsg "VSS Daemon is running"
+
         # Run the remote iSCSI partition script
         $remoteScript = "STOR_VSS_ISCSI_PartitionDisks.sh"
-        $remoteLog = "STOR_VSS_ISCSI_PartitionDisks.log"
-        $stateFile = "stor_vss_iscsi_state.txt"
-        $Hypervcheck = "echo '${password}' | sudo -S -s eval `"export HOME=``pwd``;bash ${remoteScript} > $remoteLog`""
-        RunLinuxCmd -username $user -password $password -ip $ipv4 -port $port $Hypervcheck -runAsSudo
-        RemoteCopy -download -downloadFrom $ipv4 -files "/home/${user}/state.txt" `
-            -downloadTo $LogDir -port $port -username $user -password $password
-        rename-item -path ${LogDir}\state.txt -newname $stateFile
-        RemoteCopy -download -downloadFrom $ipv4 -files "/home/${user}/$remoteLog" `
-            -downloadTo $LogDir -port $port -username $user -password $password
-        $contents = Get-Content -Path $LogDir\$stateFile
-        if (($contents -eq "TestAborted") -or ($contents -eq "TestFailed")) {
+        $retval = Invoke-RemoteScriptAndCheckStateFile $remoteScript $user $password $ipv4 $port
+        if ($retval -eq $False) {
             throw "Running $remoteScript script failed on VM!"
         }
-
         LogMsg "$remoteScript execution on VM: Success"
+
         # Create a file on the VM
         RunLinuxCmd -username $user -password $password -ip $ipv4 -port $port -command "touch /mnt/1/TestFile1" -runAsSudo
         if (-not $?) {
@@ -95,9 +78,7 @@ function Main {
             throw "Can not create file /mnt/2/TestFile1"
         }
 
-        Start-Sleep -seconds 30
-
-        #Check if we can set the Production Checkpoint as default
+        # Check if we can set the Production Checkpoint as default
         if ($vm.CheckpointType -ne "ProductionOnly") {
             Set-VM -Name $vmName -CheckpointType ProductionOnly -ComputerName $hvServer
             if (-not $?) {
@@ -113,11 +94,11 @@ function Main {
         }
 
         # Create another file on the VM
-        $sts1 = RunLinuxCmd -username $user -password $password -ip $ipv4 -port $port -command "touch /mnt/1/TestFile2" -runAsSudo
+        RunLinuxCmd -username $user -password $password -ip $ipv4 -port $port -command "touch /mnt/1/TestFile2" -runAsSudo
         if (-not $?) {
             throw "Can not create file /mnt/1/TestFile2"
         }
-        $sts2 = RunLinuxCmd -username $user -password $password -ip $ipv4 -port $port -command "touch /mnt/2/TestFile2" -runAsSudo
+        RunLinuxCmd -username $user -password $password -ip $ipv4 -port $port -command "touch /mnt/2/TestFile2" -runAsSudo
         if (-not $?) {
             throw "Can not create file /mnt/2/TestFile2"
         }
@@ -140,15 +121,9 @@ function Main {
         # Waiting for the VM to run again and respond to SSH - port 22
         #
         $timeout = 500
-        while ($timeout -gt 0) {
-            if ( (Test-TCP $ipv4 $port) -eq "True" ) {
-                break
-            }
-            Start-Sleep -seconds 2
-            $timeout -= 2
-        }
-        if ($timeout -eq 0) {
-            throw "Test case timed out waiting for VM to boot"
+        $retval = Wait-ForVMToStartSSH -Ipv4addr $Ipv4 -StepTimeout $timeout
+        if ($retval -eq $False) {
+            throw "Error: Test case timed out waiting for VM to boot"
         }
 
         LogMsg "Mount the partitions"

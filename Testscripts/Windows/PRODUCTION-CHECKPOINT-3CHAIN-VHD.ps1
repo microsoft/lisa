@@ -28,7 +28,7 @@ param([string] $testParams)
 #######################################################################
 # Fix snapshots. If there are more than one, remove all except latest.
 #######################################################################
-function FixSnapshots($vmName, $hvServer)
+function Restore-LatestVMSnapshot($vmName, $hvServer)
 {
     # Get all the snapshots
     $vmsnapshots = Get-VMSnapshot -VMName $vmName
@@ -70,21 +70,21 @@ function FixSnapshots($vmName, $hvServer)
 #######################################################################
 # To Create Grand Child VHD from Parent VHD.
 #######################################################################
-function CreateGChildVHD($ParentVHD)
+function Get-GChildVHD($ParentVHD)
 {
     $GChildVHD = $null
     $ChildVHD  = $null
 
     $hostInfo = Get-VMHost -ComputerName $hvServer
     if (-not $hostInfo) {
-             LogErr "Error: Unable to collect Hyper-V settings for ${hvServer}"
-             return $False
-        }
+        LogErr "Unable to collect Hyper-V settings for ${hvServer}"
+        return $False
+    }
 
     $defaultVhdPath = $hostInfo.VirtualHardDiskPath
-        if (-not $defaultVhdPath.EndsWith("\")) {
-            $defaultVhdPath += "\"
-        }
+    if (-not $defaultVhdPath.EndsWith("\")) {
+        $defaultVhdPath += "\"
+    }
 
     # Create Child VHD
     if ($ParentVHD.EndsWith("x") ) {
@@ -161,18 +161,10 @@ function Main {
 
         # Check to see Linux VM is running VSS backup daemon
         $remoteScript="STOR_VSS_Check_VSS_Daemon.sh"
-        $stateFile = "${LogDir}\state.txt"
-        $Hypervcheck = "echo '${password}' | sudo -S -s eval `"export HOME=``pwd``;bash ${remoteScript} > Hypervcheck.log`""
-        RunLinuxCmd -username $user -password $password -ip $ipv4 -port $port $Hypervcheck -runAsSudo
-        RemoteCopy -download -downloadFrom $ipv4 -files "/home/${user}/state.txt" `
-            -downloadTo $LogDir -port $port -username $user -password $password
-        RemoteCopy -download -downloadFrom $ipv4 -files "/home/${user}/Hypervcheck.log" `
-            -downloadTo $LogDir -port $port -username $user -password $password
-        $contents = Get-Content -Path $stateFile
-        if (($contents -eq "TestAborted") -or ($contents -eq "TestFailed")) {
+        $retval = Invoke-RemoteScriptAndCheckStateFile $remoteScript $user $password $ipv4 $port
+        if ($retval -eq $False) {
             throw "Running $remoteScript script failed on VM!"
         }
-
         LogMsg "VSS Daemon is running"
 
         # Stop the running VM so we can create New VM from this parent disk.
@@ -190,7 +182,7 @@ function Main {
 
         # Clean snapshots
         LogMsg "Cleaning up snapshots..."
-        $sts = FixSnapshots $vmName $hvServer
+        $sts = Restore-LatestVMSnapshot $vmName $hvServer
         if (-not $sts[-1]) {
             throw "Error: Cleaning snapshots on $vmname failed."
         }
@@ -204,7 +196,7 @@ function Main {
         LogMsg "Successfully Got Parent VHD"
 
         # Create Child and Grand Child VHD
-        $CreateVHD = CreateGChildVHD $ParentVHD
+        $CreateVHD = Get-GChildVHD $ParentVHD
         if(-not $CreateVHD) {
             throw  "Error Creating Child and Grand Child VHD of VM $vmName"
         }
@@ -271,9 +263,6 @@ function Main {
         }
 
         LogMsg "IPv4 $newIP for $vmNameChild"
-
-        $cmd = "echo y | exit"
-        RunLinuxCmd -username $user -password $password -ip $vm2ipv4 -port $port -command $cmd -runAsSudo
 
         # Create a file on the child VM
         RunLinuxCmd -username $user -password $password -ip $vm2ipv4 -port $port -command "touch TestFile1" -runAsSudo

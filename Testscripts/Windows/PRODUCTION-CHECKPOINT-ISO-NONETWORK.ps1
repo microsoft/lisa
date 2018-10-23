@@ -28,7 +28,7 @@ $NetworkStopScript = "STOR_VSS_StopNetwork.sh"
 ######################################################################
 # Runs a remote script on the VM without checking the log
 #######################################################################
-function RunRemoteScriptNoState($remoteScript, $Ipv4, $VMPort)
+function Invoke-RemoteScriptNoState($remoteScript, $Ipv4, $VMPort)
 {
     $remoteTest = "echo '${password}' | sudo -S -s eval `"export HOME=``pwd``;bash ${remoteScript} > remotescript.log`""
     LogMsg "Run the remotescript $remoteScript"
@@ -48,7 +48,7 @@ function Main {
     )
     try{
         $testResult = $null
-        $url = "http://ports.ubuntu.com/dists/trusty/main/installer-powerpc/current/images/powerpc/netboot/mini.iso"
+        $url = $TestParams.CDISO
         $captureVMData = $allVMData
         $vmName = $captureVMData.RoleName
         $hvServer= $captureVMData.HyperVhost
@@ -72,19 +72,11 @@ function Main {
 
         # Check to see Linux VM is running VSS backup daemon
         $remoteScript="STOR_VSS_Check_VSS_Daemon.sh"
-        $stateFile = "${LogDir}\state.txt"
-        $Hypervcheck = "echo '${password}' | sudo -S -s eval `"export HOME=``pwd``;bash ${remoteScript} > Hypervcheck.log`""
-        RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort $Hypervcheck -runAsSudo
-        RemoteCopy -download -downloadFrom $Ipv4 -files "/home/${user}/state.txt" `
-            -downloadTo $LogDir -port $VMPort -username $user -password $password
-        RemoteCopy -download -downloadFrom $Ipv4 -files "/home/${user}/Hypervcheck.log" `
-            -downloadTo $LogDir -port $VMPort -username $user -password $password
-        $contents = Get-Content -Path $stateFile
-        if (($contents -eq "TestAborted") -or ($contents -eq "TestFailed")) {
+        $retval = Invoke-RemoteScriptAndCheckStateFile $remoteScript $user $password $Ipv4 $VMPort
+        if ($retval -eq $False) {
             throw "Running $remoteScript script failed on VM!"
         }
-
-        LogMsg "Info: VSS Daemon is running"
+        LogMsg "VSS Daemon is running"
 
         #
         # Get Hyper-V VHD path
@@ -121,7 +113,7 @@ function Main {
         LogMsg "Attached DVD: Success"
 
         # Bring down the network.
-        RunRemoteScriptNoState $NetworkStopScript $Ipv4 $VMPort
+        Invoke-RemoteScriptNoState $NetworkStopScript $Ipv4 $VMPort
 
         Start-Sleep -Seconds 3
 
@@ -167,7 +159,7 @@ function Main {
         # Waiting for the VM to run again and respond to SSH - port 22
         #
         $timeout = 300
-        $retval = Wait-ForVMToStartSSH $Ipv4 $timeout
+        $retval = Wait-ForVMToStartSSH -Ipv4addr $Ipv4 -StepTimeout $timeout
         if ($retval -eq $False) {
             throw "Error: Test case timed out waiting for VM to boot"
         }
@@ -185,10 +177,10 @@ function Main {
         #
         # Delete the snapshot
         #
-        "Info : Deleting Snapshot ${Snapshot} of VM ${vmName}"
+        LogMsg "Deleting Snapshot ${Snapshot} of VM ${vmName}"
         Remove-VMSnapshot -VMName $vmName -Name $snapshot -ComputerName $hvServer
         if ( -not $?) {
-            LogErr"Could not delete snapshot"
+            LogErr "Could not delete snapshot"
         }
 
     } catch {

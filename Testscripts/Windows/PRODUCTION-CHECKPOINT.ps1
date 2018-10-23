@@ -42,15 +42,8 @@ function Main {
 
         # Check to see Linux VM is running VSS backup daemon
         $remoteScript="STOR_VSS_Check_VSS_Daemon.sh"
-        $stateFile = "${LogDir}\state.txt"
-        $Hypervcheck = "echo '${password}' | sudo -S -s eval `"export HOME=``pwd``;bash ${remoteScript} > Hypervcheck.log`""
-        RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort $Hypervcheck -runAsSudo
-        RemoteCopy -download -downloadFrom $Ipv4 -files "/home/${user}/state.txt" `
-            -downloadTo $LogDir -port $VMPort -username $user -password $password
-        RemoteCopy -download -downloadFrom $Ipv4 -files "/home/${user}/Hypervcheck.log" `
-            -downloadTo $LogDir -port $VMPort -username $user -password $password
-        $contents = Get-Content -Path $stateFile
-        if (($contents -eq "TestAborted") -or ($contents -eq "TestFailed")) {
+        $retval = Invoke-RemoteScriptAndCheckStateFile $remoteScript $user $VMPassword $Ipv4 $VMPort
+        if ($retval -eq $False) {
             throw "Running $remoteScript script failed on VM!"
         }
 
@@ -94,16 +87,9 @@ function Main {
         # Waiting for the VM to run again and respond to SSH - port 22
         #
         $timeout = 500
-        while ($timeout -gt 0) {
-            if ( (Test-TCP $Ipv4 $VMPort) -eq "True" ) {
-                break
-            }
-
-            Start-Sleep -seconds 2
-            $timeout -= 2
-        }
-        if ($timeout -eq 0) {
-            throw "Test case timed out waiting for VM to boot"
+        $retval = Wait-ForVMToStartSSH -Ipv4addr $Ipv4 -StepTimeout $timeout
+        if ($retval -eq $False) {
+            throw "Error: Test case timed out waiting for VM to boot"
         }
 
         $sts = Check-FileInLinuxGuest -VMPassword $password -VMPort $VMPort -VMUserName $user -Ipv4 $Ipv4 -fileName $testfile1

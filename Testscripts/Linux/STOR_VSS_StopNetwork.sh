@@ -13,7 +13,6 @@
 # Source constants file and initialize most common variables
 UtilsInit
 
-
 # Cleanup any old summary.log files
 if [ -e ~/summary.log ]; then
     rm -rf ~/summary.log
@@ -24,13 +23,7 @@ fi
 interfaces=(`ip link | grep '^[0-9]\+:' | awk '{ print $2 }' | grep -v lo | tr -d ':'`)
 for int in ${interfaces[*]}; do
     ip link set $int down
-    if [ $? -ne 0 ]; then
-        LogErr "Error: ifdown failed on interface $int"
-        SetTestStateAborted
-        exit 1
-    else
-        LogMsg "Interface $int : down"
-    fi
+    check_exit_status "Bring down interface $int"
 done
 SetTestStateCompleted
 exit 0

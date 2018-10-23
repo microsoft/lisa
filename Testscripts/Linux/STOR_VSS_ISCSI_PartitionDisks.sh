@@ -7,45 +7,17 @@ count=0
 #######################################################################
 # Connects to a iscsi target. It takes the target ip as an argument.
 #######################################################################
-function iscsiConnect() {
+function iScsi_Connect() {
 # Start the iscsi service. This is distro-specific.
     if is_suse ; then
         /etc/init.d/open-iscsi start
-        sts=$?
-        if [ 0 -ne ${sts} ]; then
-            LogMsg "ERROR: iSCSI start failed. Please check if iSCSI initiator is installed"
-	    SetTestStateAborted
-            UpdateSummary "iSCSI service: Failed"
-            exit 1
-        else
-            LogMsg "iSCSI start: Success"
-            UpdateSummary "iSCSI start: Success"
-        fi
+        check_exit_status "iSCSI start" "exit"
     elif is_ubuntu ; then
         service open-iscsi restart
-        sts=$?
-        if [ 0 -ne ${sts} ]; then
-            LogMsg "ERROR: iSCSI start failed. Please check if iSCSI initiator is installed"
-            SetTestStateAborted
-            UpdateSummary "iSCSI service: Failed"
-            exit 1
-        else
-            LogMsg "iSCSI start: Success"
-            UpdateSummary "iSCSI start: Success"
-        fi
-
+        check_exit_status "iSCSI service restart" "exit"
     elif is_fedora ; then
         service iscsi restart
-        sts=$?
-        if [ 0 -ne ${sts} ]; then
-            LogMsg "ERROR: iSCSI start failed. Please check if iSCSI initiator is installed"
-            SetTestStateAborted
-            UpdateSummary "iSCSI service: Failed"
-            exit 1
-        else
-            LogMsg "iSCSI start: Success"
-            UpdateSummary "iSCSI start: Success"
-        fi
+        check_exit_status "iSCSI service restart" "exit"
     else
         LogMsg "Distro not supported"
         SetTestStateAborted
@@ -56,7 +28,7 @@ function iscsiConnect() {
     # Discover the IQN
     iscsiadm -m discovery -t st -p ${TargetIP}
     if [ 0 -ne $? ]; then
-        LogMsg "ERROR: iSCSI discovery failed. Please check the target IP address (${TargetIP})"
+        LogErr "iSCSI discovery failed. Please check the target IP address (${TargetIP})"
         SetTestStateAborted
         UpdateSummary " iSCSI service: Failed"
         exit 1
@@ -67,16 +39,7 @@ function iscsiConnect() {
 
     # Now we have all data necesary to connect to the iscsi target
     iscsiadm -m node -T ${IQN} -p  ${TargetIP} -l
-    sts=$?
-    if [ 0 -ne ${sts} ]; then
-        LogMsg "ERROR: iSCSI connection failed ${sts}"
-        SetTestStateAborted
-        UpdateSummary "iSCSI connection: Failed"
-        exit 1
-    else
-        LogMsg "iSCSI connection to ${TargetIP} >> ${IQN} : Success"
-        UpdateSummary " SCSI connection: Success"
-    fi
+    check_exit_status "iSCSI connection to ${TargetIP} >> ${IQN}"
 }
 
 
@@ -91,9 +54,6 @@ if [ -e ~/summary.log ]; then
     rm -rf ~/summary.log
 fi
 
-# Convert eol
-dos2unix utils.sh
-
 # Source utils.sh
 . utils.sh || {
     echo "Error: unable to source utils.sh!"
@@ -104,26 +64,17 @@ dos2unix utils.sh
 # Source constants file and initialize most common variables
 UtilsInit
 
-
-# Make sure the constants.sh file exists
-if [ ! -e ./constants.sh ];
-then
-    LogMsg "Cannot find constants.sh file."
-    UpdateTestState $ICA_TESTABORTED
-    exit 1
-fi
-
 # Source the constants file
 if [ -e $HOME/constants.sh ]; then
     . $HOME/constants.sh
 else
-    LogMsg "ERROR: Unable to source the constants file."
+    LogErr "Unable to source the constants file."
     exit 1
 fi
 
 # Check if Variable in Const file is present or not
 if [ ! ${FILESYS} ]; then
-    LogMsg "No FILESYS variable in constants.sh"
+    LogErr "No FILESYS variable in constants.sh"
     SetTestStateAborted
     exit 1
 else
@@ -131,7 +82,7 @@ else
 fi
 
 if [ ! ${TargetIP} ]; then
-    LogMsg "No TargetIP variable in constants.sh"
+    LogErr "No TargetIP variable in constants.sh"
     SetTestStateAborted
     exit 1
 else
@@ -139,22 +90,14 @@ else
 fi
 
 if [ ! ${IQN} ]; then
-    LogMsg "No IQN variable in constants.sh. Will try to autodiscover it"
+    LogErr "No IQN variable in constants.sh. Will try to autodiscover it"
 else
     LogMsg "IQN: ${IQN}"
 fi
 
 # Connect to the iSCSI Target
-iscsiConnect
-sts=$?
-if [ 0 -ne ${sts} ]; then
-    LogMsg "ERROR: iSCSI connect failed ${sts}"
-    SetTestStateAborted
-    UpdateSummary "iSCSI connection to $TargetIP: Failed"
-    exit 1
-else
-    LogMsg "iSCSI connection to $TargetIP: Success"
-fi
+iScsi_Connect
+check_exit_status "iScsi connection to $TargetIP" "exit"
 
 # Count the Number of partition present in added new Disk .
 for disk in $(cat /proc/partitions | grep sd | awk '{print $4}')
@@ -178,12 +121,10 @@ do
     fi
 
     # Delete the exisiting partition
-
     for (( c=1 ; c<=count; count--))
         do
             (echo d; echo $c ; echo ; echo w) | fdisk $driveName
         done
-
 
     # Partition Drive
     (echo n; echo p; echo 1; echo ; echo +500M; echo ; echo w) | fdisk $driveName
@@ -199,20 +140,11 @@ do
         UpdateSummary " Partitioning disk $driveName : Success"
     fi
 
-   sleep 1
+    sleep 1
 
 # Create file sytem on it .
-   echo "y" | mkfs.$FILESYS ${driveName}1  ; echo "y" | mkfs.$FILESYS ${driveName}2
-   sts=$?
-        if [ 0 -ne ${sts} ]; then
-            LogMsg "ERROR:  creating filesystem  Failed ${sts}"
-            SetTestStateAborted
-            UpdateSummary " Creating FileSystem $filesys on disk $driveName : Failed"
-            exit 1
-        else
-            LogMsg "Creating FileSystem $FILESYS on disk  $driveName : Success"
-            UpdateSummary " Creating FileSystem $FILESYS on disk $driveName : Success"
-        fi
+    echo "y" | mkfs.$FILESYS ${driveName}1  ; echo "y" | mkfs.$FILESYS ${driveName}2
+    check_exit_status "Creating·FileSystem·$filesys·on·disk·$driveName" "exit"
 
    sleep 1
 
@@ -228,13 +160,13 @@ do
    mount  ${driveName}1 $MountName ; mount  ${driveName}2 $MountName1
    sts=$?
        if [ 0 -ne ${sts} ]; then
-           LogMsg "ERROR:  mounting disk Failed ${sts}"
+           LogErr "mounting disk Failed ${sts}"
            SetTestStateAborted
            UpdateSummary " Mounting disk $driveName on $MountName: Failed"
            exit 1
        else
-       LogMsg "mounting disk ${driveName}1 on ${MountName}"
-       LogMsg "mounting disk ${driveName}2 on ${MountName1}"
+           LogMsg "mounting disk ${driveName}1 on ${MountName}"
+           LogMsg "mounting disk ${driveName}2 on ${MountName1}"
            UpdateSummary " Mounting disk ${driveName}1 : Success"
            UpdateSummary " Mounting disk ${driveName}2 : Success"
        fi
