@@ -839,7 +839,7 @@ Function Wait-ForHyperVVMShutdown($HvServer,$VMNames)
     {
         foreach ($VMName in $VMNames.split(","))
         {
-	    Wait-VMState -VMName $VMName -HvServer $HvServer -VMState "Off"
+            Wait-VMState -VMName $VMName -HvServer $HvServer -VMState "Off"
         }
     }
     else

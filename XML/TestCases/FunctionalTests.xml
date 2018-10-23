@@ -1330,15 +1330,16 @@
 		<Area>STORAGE</Area>
 		<Tags>storage</Tags>
        </test>
+    <test>
         <testName>DYNAMIC-MEMORY-VERIFY-UDEV</testName>
         <setupScript>.\Testscripts\Windows\DM-CONFIGURE-MEMORY.ps1</setupScript>
         <TestParameters>
-		    <param>enableDM=yes</param>
-			<param>minMem=1024MB</param>
-			<param>maxMem=2GB</param>
-			<param>startupMem=1024MB</param>
-			<param>memWeight=20</param>
-			<param>staticMem=1024MB</param>
+             <param>enableDM=yes</param>
+             <param>minMem=1024MB</param>
+             <param>maxMem=2GB</param>
+             <param>startupMem=1024MB</param>
+             <param>memWeight=20</param>
+             <param>staticMem=1024MB</param>
         </TestParameters>
         <testScript>DM_HotAdd_Verify_udev.sh</testScript>
         <files>.\Testscripts\Linux\DM_HotAdd_Verify_udev.sh,.\Testscripts\Linux\utils.sh</files>
