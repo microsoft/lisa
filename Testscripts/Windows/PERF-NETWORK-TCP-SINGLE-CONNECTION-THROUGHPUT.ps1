@@ -124,8 +124,17 @@ collect_VM_properties
         RemoteCopy -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "VM_properties.csv"
         $testSummary = $null
         foreach ($BufferSize_Bytes in $testBuffers) {
-            $serverJson = ConvertFrom-Json -InputObject ([string](Get-Content .\$iperf3LogDir\iperf-server-tcp-IPv4-buffer-$BufferSize_Bytes-conn-1-instance-1.txt))
-            $clientJson = ConvertFrom-Json -InputObject ([string](Get-Content .\$iperf3LogDir\iperf-client-tcp-IPv4-buffer-$BufferSize_Bytes-conn-1-instance-1.txt))
+            # remove extra warnings
+            $serverContent = Get-Content .\$iperf3LogDir\iperf-server-tcp-IPv4-buffer-$BufferSize_Bytes-conn-1-instance-1.txt
+            while(!$serverContent[0].ToString().Contains("{")) {
+                $serverContent=$serverContent[1..($serverContent.Length-1)]
+            }
+            $clientContent = Get-Content .\$iperf3LogDir\iperf-client-tcp-IPv4-buffer-$BufferSize_Bytes-conn-1-instance-1.txt
+            while(!$clientContent[0].ToString().Contains("{")) {
+                $clientContent=$clientContent[1..($clientContent.Length-1)]
+            }
+            $serverJson = ConvertFrom-Json -InputObject ([string]($serverContent))
+            $clientJson = ConvertFrom-Json -InputObject ([string]($clientContent))
             $RxThroughput_Gbps = [math]::Round($serverJson.end.sum_received.bits_per_second/1000000000,2)
             $TxThroughput_Gbps = [math]::Round($clientJson.end.sum_received.bits_per_second/1000000000,2)
             $RetransmittedSegments = $clientJson.end.streams.sender.retransmits
@@ -183,8 +192,17 @@ collect_VM_properties
         $connectionString = "Server=$dataSource;uid=$user; pwd=$password;Database=$database;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
         $SQLQuery = "INSERT INTO $dataTableName (TestCaseName,DataPath,TestDate,HostBy,HostOS,HostType,GuestSize,GuestOSType,GuestDistro,KernelVersion,IPVersion,ProtocolType,BufferSize_Bytes,RxThroughput_Gbps,TxThroughput_Gbps,RetransmittedSegments,CongestionWindowSize_KB) VALUES"
         foreach ($BufferSize_Bytes in $testBuffers) {
-            $serverJson = ConvertFrom-Json -InputObject ([string](Get-Content .\$iperf3LogDir\iperf-server-tcp-IPv4-buffer-$BufferSize_Bytes-conn-1-instance-1.txt))
-            $clientJson = ConvertFrom-Json -InputObject ([string](Get-Content .\$iperf3LogDir\iperf-client-tcp-IPv4-buffer-$BufferSize_Bytes-conn-1-instance-1.txt))
+            # remove extra warnings
+            $serverContent = Get-Content .\$iperf3LogDir\iperf-server-tcp-IPv4-buffer-$BufferSize_Bytes-conn-1-instance-1.txt
+            while(!$serverContent[0].ToString().Contains("{")) {
+                $serverContent=$serverContent[1..($serverContent.Length-1)]
+            }
+            $clientContent = Get-Content .\$iperf3LogDir\iperf-client-tcp-IPv4-buffer-$BufferSize_Bytes-conn-1-instance-1.txt
+            while(!$clientContent[0].ToString().Contains("{")) {
+                $clientContent=$clientContent[1..($clientContent.Length-1)]
+            }
+            $serverJson = ConvertFrom-Json -InputObject ([string]($serverContent))
+            $clientJson = ConvertFrom-Json -InputObject ([string]($clientContent))
             $RxThroughput_Gbps = [math]::Round($serverJson.end.sum_received.bits_per_second/1000000000,2)
             $TxThroughput_Gbps = [math]::Round($clientJson.end.sum_received.bits_per_second/1000000000,2)
             $RetransmittedSegments = $clientJson.end.streams.sender.retransmits

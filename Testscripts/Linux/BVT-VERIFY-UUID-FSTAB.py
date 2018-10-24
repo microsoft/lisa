@@ -52,6 +52,15 @@ def RunTest():
         else:
             RunLog.info('root partition is not mounted using LABEL in dmesg.')
             ResultLog.info('FAIL')
+    elif (DetectDistro()[0] == 'clear-linux-os'):
+        output_byuuid = Run('ls -l /dev/disk/by-partuuid | grep -i sda')
+        output_byuuid = output_byuuid.split('\n')[0].split(' ')[-3]
+        output = JustRun("dmesg | grep -e root=PARTUUID={0}" \
+                 .format(output_byuuid))
+        if (output):
+            ResultLog.info('PASS')
+        else:
+            ResultLog.info('FAIL')
     elif(DetectDistro()[0] == 'ubuntu' and fstab_dev_count == 1):
         if (uuid_from_demesg != 0 and uuid_from_fstab != 0 and uuid_from_demesg == uuid_from_fstab and dmsg_dev_count == 0): 
            ResultLog.info('PASS')  
