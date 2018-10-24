@@ -8,7 +8,7 @@ param
 (
     [int]$TopVMsCount=20
 )
-Get-ChildItem ..\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global }
+Get-ChildItem ..\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
 #region HTML File structure
 $htmlHeader = '
 <style type="text/css">

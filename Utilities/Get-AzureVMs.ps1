@@ -13,7 +13,7 @@ param
 )
 
 #Load libraries
-Get-ChildItem ..\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global }
+Get-ChildItem ..\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
 
 #When given -UseSecretsFile or an AzureSecretsFile path, we will attempt to search the path or the environment variable.
 if( $UseSecretsFile -or $AzureSecretsFile )
