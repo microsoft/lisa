@@ -1,4 +1,20 @@
 <TestCases>
+	<test>
+		<testName>VERIFY-DPDK-FAILSAFE-DURING-TRAFFIC</testName>
+		<testScript>DPDK-TESTCASE-DRIVER.ps1</testScript>
+		<setupType>DS15v2_2NIC_x3</setupType>
+		<AdditionalHWConfig>
+			<Networking>SRIOV</Networking>
+		</AdditionalHWConfig>
+		<files>.\Testscripts\Linux\dpdk-testFailsafe.sh,.\Testscripts\Windows\dpdk-testFailsafe.ps1</files>
+		<TestParameters>
+			<param>DPDK_LINK="DPDK_SOURCE_URL"</param>
+		</TestParameters>
+		<Platform>Azure</Platform>
+		<Category>Functional</Category>
+		<Area>DPDK</Area>
+		<Tags>dpdk,network,hv_netvsc,sriov</Tags>
+	</test>
     <test>
         <testName>VERIFY-DPDK-BUILD-AND-TESTPMD-TEST</testName>
         <testScript>VERIFY-DPDK-BUILD-AND-TESTPMD-TEST.ps1</testScript>
