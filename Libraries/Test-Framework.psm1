@@ -540,7 +540,18 @@ function Run-Test {
              -Timeout $timeout
         $resultArr += $testResult
     }
-    
+
+    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    if ($DeployVMPerEachTest -or $ExecuteTeardown) {
+        LogMsg "VM CLEANUP ~~~~~~~~~~~~~~~~~~~~~~~"
+        $optionalParams = @{}
+        if ($testParameters["SkipVerifyKernelLogs"] -eq "True" -or (-not $DeployVMPerEachTest)) {
+            $optionalParams["SkipVerifyKernelLogs"] = $True
+        }
+        DoTestCleanUp -CurrentTestResult $CurrentTestResult -TestName $currentTestData.testName `
+             -ResourceGroups $isDeployed @optionalParams
+    }
+
     if ($testPlatform -eq "Hyperv" -and $CurrentTestData.CleanupScript) {
         foreach ($VM in $AllVMData) {
             if (Get-VM -Name $VM.RoleName -ComputerName `
@@ -558,17 +569,6 @@ function Run-Test {
                     $VM.HyperVHost
             }
         }
-    }
-
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
-    if ($DeployVMPerEachTest -or $ExecuteTeardown) {
-        LogMsg "VM CLEANUP ~~~~~~~~~~~~~~~~~~~~~~~"
-        $optionalParams = @{}
-        if ($testParameters["SkipVerifyKernelLogs"] -eq "True" -or (-not $DeployVMPerEachTest)) {
-            $optionalParams["SkipVerifyKernelLogs"] = $True
-        }
-        DoTestCleanUp -CurrentTestResult $CurrentTestResult -TestName $currentTestData.testName `
-             -ResourceGroups $isDeployed @optionalParams
     }
   
     return $currentTestResult
