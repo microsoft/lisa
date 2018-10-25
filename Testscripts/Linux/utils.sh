@@ -3292,3 +3292,26 @@ function stop_firewall() {
     esac
     return 0
 }
+function Update_Kernel() {
+    GetDistro
+    case "$DISTRO" in
+        suse*)
+            zypper ar -f $opensuselink kernel
+            zypper --gpg-auto-import-keys --non-interactive dup -r kernel
+            retVal=$?
+            ;;
+        ubuntu*|debian*)
+            sudo DEBIAN_FRONTEND=noninteractive apt-get upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"
+            retVal=$?
+            ;;
+        redhat* | centos* | fedora*)
+            yum install -y kernel
+            retVal=$?
+            ;;
+        *)
+            LogErr "Platform not supported yet!"
+            retVal=1
+            ;;
+    esac
+    return $retVal
+}
