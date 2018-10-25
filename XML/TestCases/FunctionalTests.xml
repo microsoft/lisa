@@ -1203,6 +1203,21 @@
         <Tags>secureboot</Tags>
     </test>
     <test>
+        <testName>SECUREBOOT-VSS</testName>
+        <setupScript>.\TestScripts\Windows\SET-SECUREBOOT.ps1,.\Testscripts\Windows\SETUP-Backup-DISK.ps1</setupScript>
+        <testScript>STOR-VSS-BACKUP-RESTORE-PARTITION.ps1</testScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>secureBootVM=True</param>
+        </TestParameters>
+        <cleanupScript>.\TestScripts\Windows\CLEANUP-Backup-DISK.ps1</cleanupScript>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>SECUREBOOT</Area>
+        <Tags>secureboot</Tags>
+    </test>
+    <test>
         <testName>PRODUCTION-CHECKPOINT-FAILBACK</testName>
         <testScript>PRODUCTION-CHECKPOINT-FAILBACK.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
