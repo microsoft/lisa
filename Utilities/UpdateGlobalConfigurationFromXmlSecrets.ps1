@@ -34,7 +34,7 @@ $scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $rootPath = Split-Path -Parent $scriptPath
 Get-ChildItem (Join-Path $rootPath "Libraries") -Recurse | `
     Where-Object { $_.FullName.EndsWith(".psm1") } | `
-    ForEach-Object { Import-Module $_.FullName -Force -Global }
+    ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
 
 $xmlGlobalConfigPath = Resolve-Path -Path ".\XML\GlobalConfigurations.xml"
 $XmlSecrets = [xml](Get-Content $XmlSecretsFilePath)

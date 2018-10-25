@@ -30,7 +30,7 @@ Param (
     $XMLSecretFile = ""
 )
 
-Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global }
+Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
 
 $CurrentRemoteFolder = "$RemoteFolder\$env:JenkinsUser"
 $CurrentLocalFolder = "$LocalFolder"
@@ -57,6 +57,11 @@ try
         if ( $env:CustomVHDURL )
         {
             $SourceVHDName = "$(Split-Path -Path $env:CustomVHDURL -Leaf)"
+            if ($SourceVHDName -imatch '`?')
+            {
+                $SourceVHDName = $SourceVHDName.Split('?')[0]
+            }
+            $SourceVHDName = Remove-InvalidCharactersFromFileName -FileName $SourceVHDName
             $CurrentVHD = "$LocalFolder\$env:UpstreamBuildNumber-$SourceVHDName"
             $ReceivedVHD = "$CurrentRemoteFolder\$SourceVHDName"
             if (Test-Path $ReceivedVHD)

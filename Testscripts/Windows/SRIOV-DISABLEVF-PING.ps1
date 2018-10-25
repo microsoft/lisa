@@ -3,12 +3,12 @@
 
 <#
 .Synopsis
-    Run continous Ping while disabling and enabling the SR-IOV feature
+    Check RTT with SR-IOV enabled/disabled from VM Settings
 
 .Description
-    Continuously ping a server, from a Linux client, over a SR-IOV connection. 
-    Disable SR-IOV on the Linux client and observe RTT increase.  
-    Re-enable SR-IOV and observe that RTT lowers. 
+    Continuously ping a server, from a Linux client, over a SR-IOV connection.
+    Disable SR-IOV on the Linux client and observe RTT increase.
+    Re-enable SR-IOV and observe that RTT lowers.
 #>
 
 param ([string] $TestParams)
@@ -20,7 +20,7 @@ function Main {
         $VMPort,
         $VMPassword
     )
-    $VMRootUser = "root"
+    $VMRootUser= "root"
 
     # Get IP
     $ipv4 = Get-IPv4ViaKVP $VMName $HvServer
@@ -47,7 +47,7 @@ function Main {
     Set-VMNetworkAdapter -VMName $VMName -ComputerName $HvServer -IovWeight 0
     if (-not $?) {
         LogErr "Failed to disable SR-IOV on $VMName!"
-        return "FAIL" 
+        return "FAIL"
     }
 
     # Read the RTT with SR-IOV disabled; it should be higher
@@ -63,14 +63,14 @@ function Main {
     LogMsg "The RTT with SR-IOV disabled is $vfDisabledRTT ms"
     if ($vfDisabledRTT -le $vfEnabledRTT) {
         LogErr "The RTT was lower with SR-IOV disabled, it should be higher"
-        return "FAIL" 
+        return "FAIL"
     }
 
     # Enable SR-IOV on test VM
     Set-VMNetworkAdapter -VMName $VMName -ComputerName $HvServer -IovWeight 1
     if (-not $?) {
         LogErr "Failed to enable SR-IOV on $VMName!"
-        return "FAIL" 
+        return "FAIL"
     }
 
     Start-Sleep -s 30
@@ -83,7 +83,7 @@ function Main {
     LogMsg "The RTT after re-enabling SR-IOV is $vfFinalRTT ms"
     if ($vfFinalRTT -gt $vfEnabledRTT) {
         LogErr "After re-enabling SR-IOV, the RTT value has not lowered enough"
-        return "FAIL" 
+        return "FAIL"
     }
 
     return "PASS"

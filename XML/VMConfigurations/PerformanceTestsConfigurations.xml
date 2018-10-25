@@ -1,11 +1,11 @@
 <TestSetup>
-    <DS4v2_2NIC_x2>
+    <DS15v2_2NIC_x3>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
             <VirtualMachine>
                 <state></state>
-                <ARMInstanceSize>Standard_DS4_v2</ARMInstanceSize>
-                <RoleName>server-vm</RoleName>
+                <ARMInstanceSize>Standard_DS15_v2</ARMInstanceSize>
+                <RoleName>sender</RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
                     <Protocol>tcp</Protocol>
@@ -13,12 +13,12 @@
                     <PublicPort>1111</PublicPort>
                 </EndPoints>
                 <DataDisk></DataDisk>
-                <ExtraNICs>2</ExtraNICs>
+                <ExtraNICs>1</ExtraNICs>
             </VirtualMachine>
             <VirtualMachine>
                 <state></state>
-                <ARMInstanceSize>Standard_DS4_v2</ARMInstanceSize>
-                <RoleName>client-vm</RoleName>
+                <ARMInstanceSize>Standard_DS15_v2</ARMInstanceSize>
+                <RoleName>forwarder</RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
                     <Protocol>tcp</Protocol>
@@ -26,7 +26,51 @@
                     <PublicPort>1112</PublicPort>
                 </EndPoints>
                 <DataDisk></DataDisk>
-                <ExtraNICs>2</ExtraNICs>
+                <ExtraNICs>1</ExtraNICs>
+            </VirtualMachine>
+            <VirtualMachine>
+                <state></state>
+                <ARMInstanceSize>Standard_DS15_v2</ARMInstanceSize>
+                <RoleName>receiver</RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>1113</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+                <ExtraNICs>1</ExtraNICs>
+            </VirtualMachine>
+        </ResourceGroup>
+    </DS15v2_2NIC_x3>
+    <DS4v2_2NIC_x2>
+        <isDeployed>NO</isDeployed>
+        <ResourceGroup>
+            <VirtualMachine>
+                <state></state>
+                <ARMInstanceSize>Standard_DS4_v2</ARMInstanceSize>
+                <RoleName>sender</RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>1111</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+                <ExtraNICs>1</ExtraNICs>
+            </VirtualMachine>
+            <VirtualMachine>
+                <state></state>
+                <ARMInstanceSize>Standard_DS4_v2</ARMInstanceSize>
+                <RoleName>receiver</RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>1112</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+                <ExtraNICs>1</ExtraNICs>
             </VirtualMachine>
         </ResourceGroup>
     </DS4v2_2NIC_x2>
@@ -36,7 +80,7 @@
             <VirtualMachine>
                 <state></state>
                 <ARMInstanceSize>Standard_DS15_v2</ARMInstanceSize>
-                <RoleName>server-vm</RoleName>
+                <RoleName>sender</RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
                     <Protocol>tcp</Protocol>
@@ -44,12 +88,12 @@
                     <PublicPort>1111</PublicPort>
                 </EndPoints>
                 <DataDisk></DataDisk>
-                <ExtraNICs>2</ExtraNICs>
+                <ExtraNICs>1</ExtraNICs>
             </VirtualMachine>
             <VirtualMachine>
                 <state></state>
                 <ARMInstanceSize>Standard_DS15_v2</ARMInstanceSize>
-                <RoleName>client-vm</RoleName>
+                <RoleName>receiver</RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
                     <Protocol>tcp</Protocol>
@@ -57,7 +101,7 @@
                     <PublicPort>1112</PublicPort>
                 </EndPoints>
                 <DataDisk></DataDisk>
-                <ExtraNICs>2</ExtraNICs>
+                <ExtraNICs>1</ExtraNICs>
             </VirtualMachine>
         </ResourceGroup>
     </DS15v2_2NIC_x2>

@@ -831,3 +831,20 @@ function Wait-VMHeartbeatOK {
         throw "VM ${VMName} failed to enter Heartbeat OK state"
     }
 }
+
+Function Wait-ForHyperVVMShutdown($HvServer,$VMNames)
+{
+    LogMsg "Waiting for VM Shutting Down"
+    if ($VMNames -and $HvServer)
+    {
+        foreach ($VMName in $VMNames.split(","))
+        {
+            Wait-VMState -VMName $VMName -HvServer $HvServer -VMState "Off"
+        }
+    }
+    else
+    {
+        LogError "Please provide HvServer and VMNames."
+        throw "Wait-ForHyperVVMShutdown Missing Mandatory Paramters"
+    }
+}

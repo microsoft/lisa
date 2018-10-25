@@ -1,9 +1,17 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 
+function Configure-Test() {
+	return
+}
+
+function Alter-Runtime() {
+	return
+}
+
 function Verify-Performance() {
 	$vmSizes = @()
-	# error checks made in prepareParameters already
+
 	foreach ($vm in $allVMData) {
 		$vmSizes += $vm.InstanceSize
 	}
@@ -11,9 +19,8 @@ function Verify-Performance() {
 
 	# use temp so when a case fails we still check the rest
 	$tempResult = "PASS"
-	$testpmdDataCsv = Import-Csv -Path $LogDir\dpdk_testpmd.csv
 
-	$allPpsData = [Xml](Get-Content .\XML\Other\pps_lowerbound.xml)
+	$allPpsData = [Xml](Get-Content .\XML\Other\testpmd_pps_lowerbound.xml)
 	$sizeData = Select-Xml -Xml $allPpsData -XPath "testpmdpps/$vmSize" | Select-Object -ExpandProperty Node
 
 	if ($null -eq $sizeData) {
@@ -21,12 +28,12 @@ function Verify-Performance() {
 	}
 
 	# count is non header lines
-	$isEmpty = ($testpmdDataCsv.Count -eq 0)
+	$isEmpty = ($testDataCsv.Count -eq 0)
 	if ($isEmpty) {
 		throw "No data downloaded from vm"
 	}
 
-	foreach($testRun in $testpmdDataCsv) {
+	foreach($testRun in $testDataCsv) {
 		$coreData = Select-Xml -Xml $sizeData -XPath "core$($testRun.core)" | Select-Object -ExpandProperty Node
 		LogMsg "Comparing $($testRun.core) core(s) data"
 		LogMsg "  compare tx pps $($testRun.tx_pps_avg) with lowerbound $($coreData.tx)"
@@ -59,60 +66,4 @@ function Verify-Performance() {
 	}
 
 	return $tempResult
-}
-
-function Prepare-Parameters() {
-	$vmSizes = @()
-	foreach ($vm in $allVMData) {
-		$vmSizes += $vm.InstanceSize
-	}
-
-	if ($vmSizes.count -ne 2) {
-		throw "Test only supports two VMs"
-	}
-
-	if ($vmSizes[0] -ne $vmSizes[1]) {
-		throw "Test only supports VMs of same size"
-	}
-	$vmSize = $vmSizes[0]
-
-	foreach ($param in $currentTestData.TestParameters.param) {
-		Add-Content -Value "$param" -Path $constantsFile
-		if ($param -imatch "MODES") {
-			$modes = ($param.Replace("MODES=",""))
-		} elseif ($param -imatch "CORES") {
-			$cores = ($param.Replace("CORES=",""))
-		}
-	}
-
-	LogMsg "test modes: $modes"
-	if ($null -eq $cores) {
-		LogMsg "Single core test on $vmSize"
-	} else {
-		$cores = $cores -replace '"',''
-		$coresArray = $cores.split(' ')
-		$maxCore = 0
-		foreach ($coreStr in $coresArray) {
-			$coreNum = [int]$coreStr
-			if ($coreNum -gt $maxCore) {
-				$maxCore = $coreNum
-			}
-		}
-
-		switch ($vmSize) {
-			"Standard_DS4_v2" {
-				if ($maxCore -gt 7) {
-					throw "Too many cores, cannot be > 7"
-				}
-			}
-
-			"Standard_DS15_v2" {
-				if ($maxCore -gt 19) {
-					throw "Too many cores, cannot be > 19"
-				}
-			}
-		}
-
-		LogMsg "Cores $cores test on $vmSize"
-	}
 }

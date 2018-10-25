@@ -1,34 +1,14 @@
-##############################################################################################
-# SubscriptionUsageTopVMs.ps1
-# Copyright (c) Microsoft Corporation. All rights reserved.
-# Licensed under the Apache License.
-# Operations :
-#
-<#
-.SYNOPSIS
-	<Description>
+# Linux on Hyper-V and Azure Test Code, ver. 1.0.0
+# Copyright (c) Microsoft Corporation
 
-.PARAMETER
-	<Parameters>
+# Description: This script reads the ages of all the VMs in a subscription and stores the top N entries in .\vmAge.html
 
-.INPUTS
-	
-
-.NOTES
-    Creation Date:  
-    Purpose/Change: 
-
-.EXAMPLE
-
-
-#>
-###############################################################################################
 
 param
 (
     [int]$TopVMsCount=20
 )
-Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global }
+Get-ChildItem ..\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
 #region HTML File structure
 $htmlHeader = '
 <style type="text/css">
