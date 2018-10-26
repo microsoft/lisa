@@ -128,8 +128,6 @@ UtilsInit()
 		return 3
 	fi
 
-	[ -n "$TC_COVERED" ] && UpdateSummary "Test covers $TC_COVERED" || UpdateSummary "Starting unknown test due to missing TC_COVERED variable"
-
 	GetDistro && LogMsg "Testscript running on $DISTRO" || LogMsg "Warning: test running on unknown distro!"
 
 	LogMsg "Successfully initialized testscript!"

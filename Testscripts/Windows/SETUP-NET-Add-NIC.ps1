@@ -141,13 +141,12 @@ function Main {
             } else {
                 Add-VMNetworkAdapter -VMName $VMName -StaticMacAddress $macAddress -IsLegacy:$legacy -ComputerName $HvServer
             }
-
             if ($? -ne "True") {
                 LogErr "Error: Add-VMNetworkAdapter failed"
                 $retVal = $False
             } else {
                 if ($networkName -like '*SRIOV*') {
-                    $(get-vm -name $VMName -ComputerName $HvServer).NetworkAdapters | Where-Object { $_.SwitchName -like 'SRIOV' } | Set-VMNetworkAdapter -IovWeight 1
+                    $(Get-VM -Name $VMName -ComputerName $HvServer).NetworkAdapters | Where-Object { $_.SwitchName -like '*SRIOV*' } | Set-VMNetworkAdapter -IovWeight 1
                     if ($? -ne $True) {
                         LogErr "Error: Unable to enable SRIOV"
                         $retVal = $False
