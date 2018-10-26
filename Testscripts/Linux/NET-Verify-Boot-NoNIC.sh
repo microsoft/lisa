@@ -45,6 +45,7 @@ done
 
 # Bring up the new eth device
 ifup eth0
+sleep 60
 
 # Verify the eth device received an IP address
 echo "Info : Verify the new NIC received an IPv4 address"
@@ -57,7 +58,7 @@ fi
 echo "Info : eth0 is up"
 
 # Modify the KVP HotAddTest value to 'NICUp'
-echo "Info : Updating HotAddTesk KVP item to 'NICUp'"
+echo "Info : Updating HotAddTest KVP item to 'NICUp'"
 ./kvp_client64 append 1 'HotAddTest' 'NICUp'
 
 # Loop waiting for the eth device to be removed

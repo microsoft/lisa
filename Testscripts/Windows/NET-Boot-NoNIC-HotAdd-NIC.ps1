@@ -62,22 +62,29 @@ function Main {
     # on boot
     $linuxRelease = DetectLinuxDistro
     if ($linuxRelease -eq "CENTOS" -or $linuxRelease -eq "FEDORA" -or $linuxRelease -eq "RHEL") {
-        RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort -command `
-            "chmod +x /etc/rc.d/rc.local" -runAsSudo
-        RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort -command `
-            "echo 'chmod 755 /home/$VMUserName/NET-Verify-Boot-NoNIC.sh' >> /etc/rc.d/rc.local" -runAsSudo
-        RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort -command `
-            "echo 'cd /home/$VMUserName/ && ./NET-Verify-Boot-NoNIC.sh > /home/$VMUserName/NET-Verify-Boot-NoNIC.log  &' >> /etc/rc.d/rc.local" -runAsSudo
+        RunLinuxCmd -Command "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;chmod +x /etc/rc.d/rc.local`"" `
+            -Username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+            -runMaxAllowedTime $Timeout
+        RunLinuxCmd -Command "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;echo 'chmod 755 /home/$VMUserName/NET-Verify-Boot-NoNIC.sh' >> /etc/rc.d/rc.local`"" `
+            -Username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+            -runMaxAllowedTime $Timeout
+        RunLinuxCmd -Command "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;echo 'cd /home/$VMUserName && ./NET-Verify-Boot-NoNIC.sh > /home/$VMUserName/NET-Verify-Boot-NoNIC.log  &' >> /etc/rc.d/rc.local`"" `
+            -Username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+            -runMaxAllowedTime $Timeout
     }
     elseif ($linuxRelease -eq "UBUNTU" -or $linuxRelease -eq "DEBIAN") {
-        RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort -command `
-            "systemctl start cron.service" -runAsSudo
-        RunLinuxCmd -username $VMUserName  -password $VMPassword -ip $Ipv4 -port $VMPort -command `
-            "echo '@reboot chmod 755 /home/$VMUserName/NET-Verify-Boot-NoNIC.sh' >> /var/spool/cron/crontabs/root"  -runAsSudo
-        RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort -command `
-            "echo '@reboot cd /home/$VMUserName/ && ./NET-Verify-Boot-NoNIC.sh > /home/$VMUserName/NET-Verify-Boot-NoNIC.log  &' >> /var/spool/cron/crontabs/root"  -runAsSudo
-        RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort -command `
-            "chmod 0600 /var/spool/cron/crontabs/root" -runAsSudo
+        RunLinuxCmd -Command "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;systemctl start cron.service`"" `
+            -Username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+            -runMaxAllowedTime $Timeout
+        RunLinuxCmd -Command "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;echo '@reboot chmod 755 /home/$VMUserName/NET-Verify-Boot-NoNIC.sh' >> /var/spool/cron/crontabs/root`"" `
+            -Username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+            -runMaxAllowedTime $Timeout
+        RunLinuxCmd -Command "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;echo '@reboot cd /home/$VMUserName && ./NET-Verify-Boot-NoNIC.sh > /home/$VMUserName/NET-Verify-Boot-NoNIC.log  &' >> /var/spool/cron/crontabs/root`"" `
+            -Username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+            -runMaxAllowedTime $Timeout
+        RunLinuxCmd -Command "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;chmod 0600 /var/spool/cron/crontabs/root`"" `
+            -Username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+            -runMaxAllowedTime $Timeout
     }
     elseif ($linuxRelease -eq "SLES") {
         $cmdToVM = @"
@@ -87,18 +94,23 @@ After=getty.target
 
 [Service]
 Type=idle
-ExecStart= cd /home/$VMUserName/ && ./NET-Verify-Boot-NoNIC.sh
+ExecStart= cd /home/$VMUserName && ./NET-Verify-Boot-NoNIC.sh
 TimeoutSec=0
 RemainAfterExit=yes
 "@
-        RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort -command `
-            "echo '$cmdToVM' > /etc/systemd/system/after-local.service" -runAsSudo
-        RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort -command `
-            "chmod +x /etc/systemd/system/after-local.service" -runAsSudo
-        RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort -command `
-            "chmod 755 /home/$VMUserName/NET-Verify-Boot-NoNIC.sh" -runAsSudo
-        RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort -command `
-            "systemctl daemon-reload && systemctl enable after-local.service" -runAsSudo
+
+        RunLinuxCmd -Command "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;echo '$cmdToVM' > /etc/systemd/system/after-local.service`"" `
+            -Username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+            -runMaxAllowedTime $Timeout
+        RunLinuxCmd -Command "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;chmod +x /etc/systemd/system/after-local.service`"" `
+            -Username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+            -runMaxAllowedTime $Timeout
+        RunLinuxCmd -Command "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;chmod 755 /home/$VMUserName/NET-Verify-Boot-NoNIC.sh`"" `
+            -Username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+            -runMaxAllowedTime $Timeout
+        RunLinuxCmd -Command "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;systemctl daemon-reload && systemctl enable after-local.service`"" `
+            -Username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+            -runMaxAllowedTime $Timeout
     }
     else {
         LogErr "Unsupported linux distribution '${linuxRelease}'"

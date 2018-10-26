@@ -38,7 +38,7 @@ function Main {
         $val = $tokens[1].Trim()
         switch($tokens[0].Trim().ToLower())
         {
-		"SYNTHETIC_NICS"{ $nicsAmount  = $val -as [int] }
+         "SYNTHETIC_NICS"{ $nicsAmount  = $val -as [int] }
         default         { continue }
         }
     }
@@ -66,7 +66,7 @@ function Main {
 
     #	Hot Add maximum number of synthetic NICs
     LogMsg "Hot Adding the maximum number of synthetic NICs ..."
-    $addnic = Add-RemoveMaxNIC $vmName $hvServer $switchName "add" $nicsAmount
+    $addnic = Test-MaxNIC $vmName $hvServer $switchName "add" $nicsAmount
 
     # Run the NET_MAX_NIC.sh on the SUT VM to verify the VM detected the hot add
     LogMsg "Verifing the OS detected the NIC was hot add..."
@@ -80,7 +80,7 @@ function Main {
         -downloadTo $LogDir -port $VMPort -username $VMUserName -password $VMPassword
     $contents = Get-Content -Path $stateFile
     if (($contents -eq "TestAborted") -or ($contents -eq "TestFailed")) {
-        LogErr "Error: Running $remoteScript script failed on VM!"
+        LogErr "Running $remoteScript script failed on VM!"
         return "FAIL"
     }
     else {
@@ -88,7 +88,7 @@ function Main {
     }
 
     # Check if KVP IP values match the ones present in the VM
-    LogMsg "Info : Checking KVP values for each NIC"
+    LogMsg "Checking KVP values for each NIC"
     Start-Sleep -s 60
     $kvp_ip = Get-IPv4ViaKVP $vmName $hvServer | Select-Object -uniq
     $vm_ip = RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort -command "ip -4 -o addr show scope global | awk '{print `$4}'" | ForEach-Object {$_.Split('\n')} | ForEach-Object { $_.Split('/')[0]; }
@@ -109,7 +109,7 @@ function Main {
     }
 
     # Now Hot Remove the NIC
-    $removenic = Add-RemoveMaxNIC  $vmName  $hvServer  $switchName "remove" $nicsAmount
+    $removenic = Test-MaxNIC  $vmName  $hvServer  $switchName "remove" $nicsAmount
 
     # Run the NET_VerifyHotAddSyntheticNIC.sh on the SUT VM to verify the VM detected the hot remove
     LogMsg "Verifing the OS detected the NIC was hot removed..."
@@ -125,11 +125,11 @@ function Main {
     $contents = Get-Content -Path $stateFile
     $contents2 = Get-Content -Path $logFile
     if (($contents -eq "TestAborted") -or ($contents -eq "TestFailed")) {
-        LogErr "Error: Running $remoteScript script failed on VM!"
+        LogErr "Running $remoteScript script failed on VM!"
         return "FAIL"
     }
     if ($contents2 -match "netvsc throwed errors") {
-        LogErr "Error: VM '${vmName}' reported that netvsc throwed errors"
+        LogErr "VM '${vmName}' reported that netvsc throwed errors"
         return "FAIL"
     }
     else {
