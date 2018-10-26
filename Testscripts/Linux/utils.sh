@@ -2278,11 +2278,14 @@ function check_exit_status ()
 
 	if [ $exit_status -ne 0 ]; then
 		$cmd "$message: Failed (exit code: $exit_status)"
+		UpdateSummary "$message Failed·(exit·code:·$exit_status)"
 		if [ "$2" == "exit" ]; then
+			SetTestStateAborted
 			exit $exit_status
 		fi
 	else
 		$cmd "$message: Success"
+		UpdateSummary "$message: Success"
 	fi
 }
 

@@ -4334,3 +4334,28 @@ Function Start-StressNg {
         -command "echo $password | sudo -S cd /root && chmod u+x ${FILE_NAME} && sed -i 's/\r//g' ${FILE_NAME} && ./${FILE_NAME}"
     return $retVal
 }
+# This function runs the remote script on VM.
+# It checks the state of execution of remote script
+Function Invoke-RemoteScriptAndCheckStateFile
+{
+    param (
+        $remoteScript,
+        $VMUser,
+        $VMPassword,
+        $VMIpv4,
+        $VMPort
+        )
+    $stateFile = "${remoteScript}.state.txt"
+    $Hypervcheck = "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;bash ${remoteScript} > ${remoteScript}.log`""
+    RunLinuxCmd -username $VMUser -password $VMPassword -ip $VMIpv4 -port $VMPort $Hypervcheck -runAsSudo
+    RemoteCopy -download -downloadFrom $VMIpv4 -files "/home/${user}/state.txt" `
+        -downloadTo $LogDir -port $VMPort -username $VMUser -password $password
+    RemoteCopy -download -downloadFrom $VMIpv4 -files "/home/${user}/${remoteScript}.log" `
+        -downloadTo $LogDir -port $VMPort -username $VMUser -password $VMPassword
+    rename-item -path "${LogDir}\state.txt" -newname $stateFile
+    $contents = Get-Content -Path $LogDir\$stateFile
+    if (($contents -eq "TestAborted") -or ($contents -eq "TestFailed")) {
+        return $False
+    }
+    return $True
+}

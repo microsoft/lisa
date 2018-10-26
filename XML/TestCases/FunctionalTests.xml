@@ -1214,6 +1214,17 @@
         <Tags>prod_checkpoint</Tags>
     </test>
     <test>
+        <testName>PRODUCTION-CHECKPOINT</testName>
+        <testScript>PRODUCTION-CHECKPOINT.ps1</testScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
+        <Timeout>2400</Timeout>
+        <setupType>SingleVM</setupType>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>PROD_CHECKPOINT</Area>
+        <Tags>prod_checkpoint</Tags>
+    </test>
+    <test>
         <testName>PRODUCTION-CHECKPOINT-EXT4</testName>
         <setupScript>.\Testscripts\Windows\AddVhdxHardDisk.ps1</setupScript>
         <testScript>PRODUCTION-CHECKPOINT-PARTITION.ps1</testScript>
@@ -1246,6 +1257,25 @@
         <Tags>prod_checkpoint</Tags>
     </test>
     <test>
+        <testName>PRODUCTION-CHECKPOINT-IDE_SCSI</testName>
+        <setupScript>.\Testscripts\Windows\AddVhdxHardDisk.ps1</setupScript>
+        <testScript>PRODUCTION-CHECKPOINT-PARTITION.ps1</testScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
+        <files>.\Testscripts\Linux\PartitionDisks.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <!-- Param required to specify multiple disk mount or umount needed -->
+            <param>DUALMOUNT=true</param> 
+            <param>IDE=1,1,Dynamic,512</param>
+            <param>SCSI=1,1,Dynamic,512</param>
+            <param>FILESYS=ext4</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>PROD_CHECKPOINT</Area>
+        <Tags>prod_checkpoint</Tags>
+    </test>
+    <test>
         <testName>PRODUCTION-CHECKPOINT-VHDX_XFS</testName>
         <setupScript>.\Testscripts\Windows\AddVhdxHardDisk.ps1</setupScript>
         <testScript>PRODUCTION-CHECKPOINT-PARTITION.ps1</testScript>
@@ -1261,6 +1291,46 @@
         <Area>PROD_CHECKPOINT</Area>
         <Tags>prod_checkpoint</Tags>
     </test>
+    <test>
+        <testName>PRODUCTION-CHECKPOINT-ISO-NONETWORK</testName>
+        <testScript>PRODUCTION-CHECKPOINT-ISO-NONETWORK.ps1</testScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
+        <files>.\Testscripts\Linux\STOR_VSS_StopNetwork.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>CDISO=PROD_CHECKPOINT_MINI_ISO</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>PROD_CHECKPOINT</Area>
+        <Tags>prod_checkpoint</Tags>
+    </test>
+    <test>
+        <testName>PRODUCTION-CHECKPOINT-3CHAIN-VHD</testName>
+        <testScript>PRODUCTION-CHECKPOINT-3CHAIN-VHD.ps1</testScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
+        <setupType>SingleVM</setupType>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>PROD_CHECKPOINT</Area>
+        <Tags>prod_checkpoint</Tags>
+     </test>
+     <test>
+        <testName>PRODUCTION-CHECKPOINT-iSCSI</testName>
+        <testScript>PRODUCTION-CHECKPOINT-iSCSI.ps1</testScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
+        <files>.\Testscripts\Linux\STOR_VSS_ISCSI_PartitionDisks.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>TargetIP=TARGET_IP</param>
+            <param>IQN=TARGET_IQN</param>
+            <param>FILESYS=ext4</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>PROD_CHECKPOINT</Area>
+        <Tags>prod_checkpoint</Tags>
+     </test>
 	<test>
 		<testName>VHDX-RESIZE-TO-BIGGER512</testName>
 		<setupScript>.\Testscripts\Windows\AddVhdxHardDisk.ps1</setupScript>
