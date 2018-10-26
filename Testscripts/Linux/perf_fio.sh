@@ -110,7 +110,11 @@ RunFIO()
 	echo "--- Kernel Version Information ---" >> $LOGFILE
 	uname -a >> $LOGFILE
 	cat /proc/version >> $LOGFILE
-	cat /etc/*-release >> $LOGFILE
+	if [ -f /usr/share/clear/version ]; then
+		cat /usr/share/clear/version >> $LOGFILE
+	elif [ -f /etc/*-release ]; then
+		cat /etc/*-release >> $LOGFILE
+	fi
 	echo "--- PCI Bus Information ---" >> $LOGFILE
 	lspci >> $LOGFILE
 	echo "--- Drive Mounting Information ---" >> $LOGFILE

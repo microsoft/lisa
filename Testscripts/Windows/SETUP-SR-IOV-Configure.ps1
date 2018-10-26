@@ -10,7 +10,7 @@
     Steps:
     1. Add new NICs to VMs
     2. Configure/enable SR-IOV on VMs settings via cmdlet Set-VMNetworkAdapter
-    3. Set up SR-IOV on VM2 
+    3. Set up SR-IOV on VM2
     Optional: Set up an internal network on VM2
 #>
 param ([string] $TestParams)
@@ -76,19 +76,19 @@ function Main {
         switch ($fields[0].Trim()) {
             "NIC_COUNT" { $nicIterator = $fields[1].Trim()}
             "VM2NAME" { $VM2Name = $fields[1].Trim() }
-            "VF_IP1" { 
+            "VF_IP1" {
                 $vfIP1 = $fields[1].Trim()
                 $vfIP += ($vfIP1)
                 $vfIterator++ }
-            "VF_IP2" { 
+            "VF_IP2" {
                 $vfIP2 = $fields[1].Trim()
                 $vfIP += ($vfIP2)
                 $vfIterator++ }
-            "VF_IP3" { 
+            "VF_IP3" {
                 $vfIP3 = $fields[1].Trim()
                 $vfIP += ($vfIP3)
                 $vfIterator++ }
-            "VF_IP4" { 
+            "VF_IP4" {
                 $vfIP4 = $fields[1].Trim()
                 $vfIP += ($vfIP4)
                 $vfIterator++ }
@@ -96,7 +96,7 @@ function Main {
             "NETMASK" { $netmask = $fields[1].Trim() }
             "CheckpointName" { $checkpointName = $fields[1].Trim() }
             "Switch_Name"{ $networkName = $fields[1].Trim()}
-            default {} 
+            default {}
         }
     }
 
@@ -146,7 +146,7 @@ function Main {
             return $False
         }
 
-        Add-VMNetworkAdapter -VMName $VM2Name -SwitchName $networkName -IsLegacy:$false -ComputerName $DependencyVmHost 
+        Add-VMNetworkAdapter -VMName $VM2Name -SwitchName $networkName -IsLegacy:$false -ComputerName $DependencyVmHost
         if ($? -ne "True") {
             LogErr "Add-VmNic to $VM2Name failed"
             return $False
@@ -181,7 +181,7 @@ function Main {
         $VMPassword -command "chmod +x ~/*.sh"
     RunLinuxCmd -ip $vm2ipv4 -port $VMPort -username $VMRootUser -password `
         $VMPassword -command "chmod +x ~/*.sh"
-    $keyCopyOut = RunLinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+    RunLinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
         $VMPassword -command "./enablePasswordLessRoot.sh ; cp -rf /root/.ssh /home/$VMUsername"
 
     # Copy keys from VM1 and setup VM2
@@ -189,7 +189,7 @@ function Main {
         "/root/sshFix.tar" -username $VMRootUser -password $VMPassword -downloadTo $LogDir
     RemoteCopy -uploadTo $vm2ipv4 -port $VMPort -files "$LogDir\sshFix.tar" `
         -username $VMRootUser -password $VMPassword -upload
-    $keyCopyOut = RunLinuxCmd -ip $vm2ipv4 -port $VMPort -username $VMRootUser -password `
+    RunLinuxCmd -ip $vm2ipv4 -port $VMPort -username $VMRootUser -password `
             $VMPassword -command "./enablePasswordLessRoot.sh ; cp -rf /root/.ssh /home/$VMUsername"
 
     # Construct and send sriov_constants.sh

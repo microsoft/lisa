@@ -904,11 +904,8 @@ Function GetAndCheckKernelLogs($allDeployedVMs, $status, $vmUser, $vmPassword)
 					if ( $UseAzureResourceManager )
 					{
 						LogMsg "Preserving the Resource Group(s) $($VM.ResourceGroupName)"
-						LogMsg "Setting tags : $preserveKeyword = yes; testName = $testName"
-						$hash = @{}
-						$hash.Add($preserveKeyword,"yes")
-						$hash.Add("testName","$testName")
-						$Null = Set-AzureRmResourceGroup -Name $($VM.ResourceGroupName) -Tag $hash
+						Add-ResourceGroupTag -ResourceGroup $VM.ResourceGroupName -TagName $preserveKeyword -TagValue "yes"
+						Add-ResourceGroupTag -ResourceGroup $VM.ResourceGroupName -TagName "calltrace" -TagValue "yes"
 						LogMsg "Setting tags : calltrace = yes; testName = $testName"
 						$hash = @{}
 						$hash.Add("calltrace","yes")
@@ -2005,11 +2002,7 @@ Function DoTestCleanUp($CurrentTestResult, $testName, $DeployedServices, $Resour
 						LogMsg "Preserving the Resource Group(s) $group"
 						if ($TestPlatform -eq "Azure")
 						{
-							LogMsg "Setting tags : preserve = yes; testName = $testName"
-							$hash = @{}
-							$hash.Add($preserveKeyword,"yes")
-							$hash.Add("testName","$testName")
-							$out = Set-AzureRmResourceGroup -Name $group -Tag $hash
+							Add-ResourceGroupTag -ResourceGroup $group -TagName $preserveKeyword -TagValue "yes"
 						}
 						LogMsg "Collecting VM logs.."
 						if ( !$isVMLogsCollected)
@@ -4284,4 +4277,85 @@ Function Remove-InvalidCharactersFromFileName
     $WindowsInvalidCharacters = [IO.Path]::GetInvalidFileNameChars() -join ''
     $Regex = "[{0}]" -f [RegEx]::Escape($WindowsInvalidCharacters)
     return ($FileName -replace $Regex)
+}
+#Check if stress-ng is installed
+Function Is-StressNgInstalled {
+    param (
+        [String] $VMIpv4,
+        [String] $VMSSHPort
+    )
+
+    $cmdToVM = @"
+#!/bin/bash
+        command -v stress-ng
+        sts=`$?
+        exit `$sts
+"@
+    #"pingVMs: sending command to vm: $cmdToVM"
+    $FILE_NAME  = "CheckStress-ng.sh"
+    Set-Content $FILE_NAME "$cmdToVM"
+    # send file
+    RemoteCopy -uploadTo $VMIpv4 -port $VMSSHPort -files $FILE_NAME -username $user -password $password -upload
+    # execute command
+    $retVal = RunLinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMSSHPort `
+        -command "echo $password | sudo -S cd /root && chmod u+x ${FILE_NAME} && sed -i 's/\r//g' ${FILE_NAME} && ./${FILE_NAME}"
+    return $retVal
+}
+
+# function for starting stress-ng
+Function Start-StressNg {
+    param (
+        [String] $VMIpv4,
+        [String] $VMSSHPort
+    )
+    LogMsg "IP is $VMIpv4"
+    LogMsg "port is $VMSSHPort"
+      $cmdToVM = @"
+#!/bin/bash
+        __freeMem=`$(cat /proc/meminfo | grep -i MemFree | awk '{ print `$2 }')
+        __freeMem=`$((__freeMem/1024))
+        echo ConsumeMemory: Free Memory found `$__freeMem MB >> /root/HotAdd.log 2>&1
+        __threads=32
+        __chunks=`$((`$__freeMem / `$__threads))
+        echo "Going to start `$__threads instance(s) of stress-ng every 2 seconds, each consuming 128MB memory" >> /root/HotAdd.log 2>&1
+        stress-ng -m `$__threads --vm-bytes `${__chunks}M -t 120 --backoff 1500000
+        echo "Waiting for jobs to finish" >> /root/HotAdd.log 2>&1
+        wait
+        exit 0
+"@
+    #"pingVMs: sendig command to vm: $cmdToVM"
+    $FILE_NAME = "ConsumeMem.sh"
+    Set-Content $FILE_NAME "$cmdToVM"
+    # send file
+    RemoteCopy -uploadTo $VMIpv4 -port $VMSSHPort -files $FILE_NAME `
+        -username $user -password $password -upload
+    # execute command as job
+    $retVal = RunLinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMSSHPort `
+        -command "echo $password | sudo -S cd /root && chmod u+x ${FILE_NAME} && sed -i 's/\r//g' ${FILE_NAME} && ./${FILE_NAME}"
+    return $retVal
+}
+# This function runs the remote script on VM.
+# It checks the state of execution of remote script
+Function Invoke-RemoteScriptAndCheckStateFile
+{
+    param (
+        $remoteScript,
+        $VMUser,
+        $VMPassword,
+        $VMIpv4,
+        $VMPort
+        )
+    $stateFile = "${remoteScript}.state.txt"
+    $Hypervcheck = "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;bash ${remoteScript} > ${remoteScript}.log`""
+    RunLinuxCmd -username $VMUser -password $VMPassword -ip $VMIpv4 -port $VMPort $Hypervcheck -runAsSudo
+    RemoteCopy -download -downloadFrom $VMIpv4 -files "/home/${user}/state.txt" `
+        -downloadTo $LogDir -port $VMPort -username $VMUser -password $password
+    RemoteCopy -download -downloadFrom $VMIpv4 -files "/home/${user}/${remoteScript}.log" `
+        -downloadTo $LogDir -port $VMPort -username $VMUser -password $VMPassword
+    rename-item -path "${LogDir}\state.txt" -newname $stateFile
+    $contents = Get-Content -Path $LogDir\$stateFile
+    if (($contents -eq "TestAborted") -or ($contents -eq "TestFailed")) {
+        return $False
+    }
+    return $True
 }

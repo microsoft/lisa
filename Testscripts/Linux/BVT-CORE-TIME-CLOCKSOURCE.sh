@@ -53,7 +53,11 @@ CheckSource()
 	fi
 
 	# check dmesg with hyperv_clocksource
-	__dmesg_output=$(grep -rnw '/var/log' -e "clocksource $clocksource" --ignore-case)
+	if [[ detect_linux_distribution -eq clear-linux-os ]]; then
+		__dmesg_output=$(dmesg | grep -e "clocksource $clocksource")
+	else
+		__dmesg_output=$(grep -rnw '/var/log' -e "clocksource $clocksource" --ignore-case)
+	fi
 	if [[ -n $__dmesg_output ]]
 	then
 		LogMsg "Test successful. dmesg contains log - clocksource $__dmesg_output"
@@ -93,7 +97,7 @@ case $DISTRO in
 		LogMsg "WARNING: $DISTRO does not support unbind current clocksource, only check"
 		CheckSource
 		;;
-	redhat_7|redhat_8|centos_7|centos_8|fedora*)
+	redhat_7|redhat_8|centos_7|centos_8|fedora*|clear-linux-os)
 		CheckSource
 		UnbindCurrentSource
 		;;

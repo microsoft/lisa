@@ -50,36 +50,18 @@ function Main {
 
         # Check to see Linux VM is running VSS backup daemon
         $remoteScript="STOR_VSS_Check_VSS_Daemon.sh"
-        $stateFile = "stor_vss_daemon_state.txt"
-        $Hypervcheck = "echo '${password}' | sudo -S -s eval `"export HOME=``pwd``;bash ${remoteScript} > Hypervcheck.log`""
-        RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort $Hypervcheck -runAsSudo
-        RemoteCopy -download -downloadFrom $Ipv4 -files "/home/${user}/state.txt" `
-            -downloadTo $LogDir -port $VMPort -username $user -password $password
-        rename-item -path ${LogDir}\state.txt -newname $stateFile
-        RemoteCopy -download -downloadFrom $Ipv4 -files "/home/${user}/Hypervcheck.log" `
-            -downloadTo $LogDir -port $VMPort -username $user -password $password
-        $contents = Get-Content -Path $LogDir\$stateFile
-        if (($contents -eq "TestAborted") -or ($contents -eq "TestFailed")) {
+        $retval = Invoke-RemoteScriptAndCheckStateFile $remoteScript $user $password $Ipv4 $VMPort
+        if ($retval -eq $False) {
             throw "Running $remoteScript script failed on VM!"
         }
+        LogMsg "VSS Daemon is running"
 
-        LogMsg "Info: VSS Daemon is running"
-
-        # Stop the VSS daemon gracefully
+        # Run the Partition Disk script
         $remoteScript="PartitionDisks.sh"
-        $stateFile = "partition_disk_state.txt"
-        $MountPartition = "echo '${password}' | sudo -S -s eval `"export HOME=``pwd``;bash ${remoteScript} > PartitionCheck.log`""
-        RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort $MountPartition -runAsSudo
-        RemoteCopy -download -downloadFrom $Ipv4 -files "/home/${user}/state.txt" `
-            -downloadTo $LogDir -port $VMPort -username $user -password $password
-        rename-item -path ${LogDir}\state.txt -newname $stateFile
-        RemoteCopy -download -downloadFrom $Ipv4 -files "/home/${user}/PartitionCheck.log" `
-            -downloadTo $LogDir -port $VMPort -username $user -password $password
-        $contents = Get-Content -Path $LogDir\$stateFile
-        if (($contents -eq "TestAborted") -or ($contents -eq "TestFailed")) {
+        $retval = Invoke-RemoteScriptAndCheckStateFile $remoteScript $user $VMPassword $Ipv4 $VMPort
+        if ($retval -eq $False) {
             throw "Running $remoteScript script failed on VM!"
         }
-
         # Create a file on the VM
         LogMsg "Creating TestFile1"
         $testfile1="Testfile_$(Get-Random -minimum 1 -maximum 1000)"
@@ -136,15 +118,8 @@ function Main {
         # Waiting for the VM to run again and respond to SSH - port 22
         #
         $timeout = 500
-        while ($timeout -gt 0) {
-            if ( (Test-TCP $Ipv4 $VMPort) -eq "True" ) {
-                break
-            }
-
-            Start-Sleep -seconds 2
-            $timeout -= 2
-        }
-        if ($timeout -eq 0) {
+        $retval = Wait-ForVMToStartSSH -Ipv4addr $Ipv4 -StepTimeout $timeout
+        if ($retval -eq $False) {
             throw "Error: Test case timed out waiting for VM to boot"
         }
 
@@ -171,10 +146,11 @@ function Main {
         #
         LogMsg "Info : Deleting Snapshot ${snapshot} of VM ${VMName}"
         # First, unmount the partitions
-        RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command "umount /dev/sdc1; umount /dev/sdc2" -runAsSudo
         if ($TestParams.DUALMOUNT) {
             RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command "umount /dev/sdd1;  umount /dev/sdd2" -runAsSudo
         }
+        RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command "umount /dev/sdc1; umount /dev/sdc2" -runAsSudo
+
         Remove-VMSnapshot -VMName $VMName -Name $snapshot -ComputerName $HvServer
 
         if( $testResult -ne $resultFail){

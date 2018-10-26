@@ -238,7 +238,7 @@ GetDistro()
 	# Make sure we don't inherit anything
 	declare __DISTRO
 	#Get distro (snipper take from alsa-info.sh)
-	__DISTRO=$(grep -ihs "Ubuntu\|SUSE\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux" /etc/{issue,*release,*version})
+	__DISTRO=$(grep -ihs "Ubuntu\|SUSE\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os" /{etc,usr/lib}/{issue,*release,*version})
 	case $__DISTRO in
 		*Ubuntu*12*)
 			DISTRO=ubuntu_12
@@ -315,6 +315,9 @@ GetDistro()
 			;;
 		*Red*)
 			DISTRO=redhat_x
+			;;
+		*ID=clear-linux-os*)
+			DISTRO=clear-linux-os
 			;;
 		*)
 			DISTRO=unknown
@@ -2275,11 +2278,14 @@ function check_exit_status ()
 
 	if [ $exit_status -ne 0 ]; then
 		$cmd "$message: Failed (exit code: $exit_status)"
+		UpdateSummary "$message Failed·(exit·code:·$exit_status)"
 		if [ "$2" == "exit" ]; then
+			SetTestStateAborted
 			exit $exit_status
 		fi
 	else
 		$cmd "$message: Success"
+		UpdateSummary "$message: Success"
 	fi
 }
 
@@ -2294,14 +2300,21 @@ function detect_linux_distribution_version() {
 		distro_version=`cat /etc/redhat-release | sed s/.*release\ // | sed s/\ .*//`
 	elif [ -f /etc/os-release ]; then
 		distro_version=`cat /etc/os-release|sed 's/"//g'|grep "VERSION_ID="| sed 's/VERSION_ID=//'| sed 's/\r//'`
+	elif [ -f /usr/share/clear/version ]; then
+		distro_version=`cat /usr/share/clear/version`
 	fi
 	echo $distro_version
 }
 
 # Detect the Linux distribution name, it gets the name in lowercase
 function detect_linux_distribution() {
-	local linux_distribution=`cat /etc/*release*|sed 's/"//g'|grep "^ID="| sed 's/ID=//'`
-	local temp_text=`cat /etc/*release*`
+	if ls /etc/*release* 1> /dev/null 2>&1; then
+		local linux_distribution=`cat /etc/*release*|sed 's/"//g'|grep "^ID="| sed 's/ID=//'`
+		local temp_text=`cat /etc/*release*`
+	elif [ -f "/usr/lib/os-release" ]; then
+		local linux_distribution=`cat /usr/lib/os-release|sed 's/"//g'|grep "^ID="| sed 's/ID=//'`
+		local temp_text=`cat /usr/lib/os-release`
+	fi
 	if [ "$linux_distribution" == "" ]; then
 		if echo "$temp_text" | grep -qi "ol"; then
 			linux_distribution='oracle'
@@ -2339,6 +2352,9 @@ function update_repos() {
 			;;
 		suse|opensuse|sles)
 			zypper refresh
+			;;
+		clear-linux-os)
+			swupd update
 			;;
 		*)
 			echo "Unknown distribution"
@@ -2386,6 +2402,14 @@ function zypper_install ()
 	check_exit_status "zypper_install $package_name"
 }
 
+# swupd bundle install packages, parameter: package name
+function swupd_bundle_install ()
+{
+	package_name=$1
+	sudo swupd bundle-add $package_name
+	check_exit_status "swupd_bundle_install $package_name"
+}
+
 # Install packages, parameter: package name
 function install_package ()
 {
@@ -2404,6 +2428,9 @@ function install_package ()
 				zypper_install "$package_name"
 				;;
 
+			clear-linux-os)
+				swupd_bundle_install "$package_name"
+				;;
 			*)
 				echo "Unknown distribution"
 				return 1
@@ -2549,7 +2576,8 @@ function install_fio () {
 			;;
 
 		clear-linux-os)
-			swupd bundle-add dev-utils-dev sysadmin-basic performance-tools os-testsuite-phoronix network-basic openssh-server dev-utils os-core os-core-dev
+			swupd_bundle_install "performance-tools os-core-dev fio"
+			iptables -F
 			;;
 
 		*)
@@ -2623,7 +2651,7 @@ function install_iperf3 () {
 
 
 		clear-linux-os)
-			swupd bundle-add dev-utils-dev sysadmin-basic performance-tools os-testsuite-phoronix network-basic openssh-server dev-utils os-core os-core-dev
+			swupd_bundle_install "performance-tools os-core-dev"
 			iptables -F
 			;;
 
@@ -2676,7 +2704,8 @@ function install_lagscope () {
 			;;
 
 		clear-linux-os)
-			swupd bundle-add dev-utils-dev sysadmin-basic performance-tools os-testsuite-phoronix network-basic openssh-server dev-utils os-core os-core-dev
+			swupd_bundle_install "performance-tools os-core-dev"
+			build_lagscope
 			iptables -F
 			;;
 
@@ -2732,7 +2761,9 @@ function install_ntttcp () {
 			;;
 
 		clear-linux-os)
-			swupd bundle-add dev-utils-dev sysadmin-basic performance-tools os-testsuite-phoronix network-basic openssh-server dev-utils os-core os-core-dev
+			swupd_bundle_install "performance-tools os-core-dev"
+			build_ntttcp
+			build_lagscope
 			iptables -F
 			;;
 
@@ -2785,7 +2816,7 @@ function install_netperf () {
 			;;
 
 		clear-linux-os)
-			swupd bundle-add dev-utils-dev sysadmin-basic performance-tools os-testsuite-phoronix network-basic openssh-server dev-utils os-core os-core-dev
+			swupd_bundle_install "dev-utils-dev sysadmin-basic performance-tools os-testsuite-phoronix network-basic openssh-server dev-utils os-core os-core-dev"
 			build_netperf
 			iptables -F
 			;;
@@ -3088,23 +3119,21 @@ declare DISTRO_VERSION=$(detect_linux_distribution_version)
 #   when starting from zero i.e. index 1 and 2 have no relation
 #   if captured output is empty then no VFs exist
 function get_synthetic_vf_pairs() {
-    all_ifs=$(ls /sys/class/net | grep -v lo)
     local ignore_if=$(ip route | grep default | awk '{print $5}')
+    local interfaces=$(ls /sys/class/net | grep -v lo | grep -v ${ignore_if})
 
     local synth_ifs=""
     local vf_ifs=""
     local interface
-    for interface in ${all_ifs}; do
-        if [ "${interface}" != "${ignore_if}" ]; then
-            # alternative is, but then must always know driver name
-            # readlink -f /sys/class/net/<interface>/device/driver/
-            local bus_addr=$(ethtool -i ${interface} | grep bus-info | awk '{print $2}')
-            if [ -z "${bus_addr}" ]; then
-                synth_ifs="${synth_ifs} ${interface}"
-            else
-                vf_ifs="${vf_ifs} ${interface}"
-            fi
-        fi
+    for interface in ${interfaces}; do
+		# alternative is, but then must always know driver name
+		# readlink -f /sys/class/net/<interface>/device/driver/
+		local bus_addr=$(ethtool -i ${interface} | grep bus-info | awk '{print $2}')
+		if [ -z "${bus_addr}" ]; then
+			synth_ifs="${synth_ifs} ${interface}"
+		else
+			vf_ifs="${vf_ifs} ${interface}"
+		fi
     done
 
     local synth_if
@@ -3265,4 +3294,27 @@ function stop_firewall() {
         ;;
     esac
     return 0
+}
+function Update_Kernel() {
+    GetDistro
+    case "$DISTRO" in
+        suse*)
+            zypper ar -f $opensuselink kernel
+            zypper --gpg-auto-import-keys --non-interactive dup -r kernel
+            retVal=$?
+            ;;
+        ubuntu*|debian*)
+            sudo DEBIAN_FRONTEND=noninteractive apt-get upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"
+            retVal=$?
+            ;;
+        redhat* | centos* | fedora*)
+            yum install -y kernel
+            retVal=$?
+            ;;
+        *)
+            LogErr "Platform not supported yet!"
+            retVal=1
+            ;;
+    esac
+    return $retVal
 }

@@ -667,36 +667,28 @@ Function RemoveResidualResourceGroupVHDs($ResourceGroup,$storageAccount)
         }
     }
 }
-Function CreateResourceGroup([string]$RGName, $location)
-{
+Function CreateResourceGroup([string]$RGName, $location) {
     $FailCounter = 0
     $retValue = "False"
     $ResourceGroupDeploymentName = $RGName + "-arm"
 
-    While(($retValue -eq $false) -and ($FailCounter -lt 5))
-    {
-        try
-        {
+    While(($retValue -eq $false) -and ($FailCounter -lt 5)) {
+        try {
             $FailCounter++
-            if($location)
-            {
+            if($location) {
                 LogMsg "Using location : $location"
                 $createRG = New-AzureRmResourceGroup -Name $RGName -Location $location.Replace('"','') -Force -Verbose
             }
             $operationStatus = $createRG.ProvisioningState
-            if ($operationStatus  -eq "Succeeded")
-            {
+            if ($operationStatus  -eq "Succeeded") {
                 LogMsg "Resource Group $RGName Created."
+                Add-DefaultTagsToResourceGroup -ResourceGroup $RGName
                 $retValue = $true
-            }
-            else 
-            {
+            } else {
                 LogErr "Failed to Resource Group $RGName."
                 $retValue = $false
             }
-        }
-        catch
-        {
+        } catch {
             $retValue = $false
         }
     }
@@ -2770,4 +2762,75 @@ Function Set-SRIOVinAzureVMs {
         LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     }
     return $retValue
+}
+
+Function Add-ResourceGroupTag {
+    param (
+        [Parameter(Mandatory=$true)]
+        [string] $ResourceGroup,
+        [Parameter(Mandatory=$true)]
+        [string] $TagName,
+        [Parameter(Mandatory=$true)]
+        [string] $TagValue
+    )
+    try {
+        LogMsg "Setting $ResourceGroup tag : $TagName = $TagValue"
+        $ExistingTags = (Get-AzureRmResourceGroup -Name $ResourceGroup).Tags
+        if ( $ExistingTags.Keys.Count -gt 0 ) {
+            $ExistingKeyUpdated = $false
+            foreach ($Key in $ExistingTags.Keys) {
+                if ($Key -eq $TagName) {
+                    $ExistingTags.$Key = $TagValue
+                    $ExistingKeyUpdated = $true
+                    break;
+                }
+            }
+            $hash = $ExistingTags
+            if ( -not $ExistingKeyUpdated) {
+                $hash.Add($TagName,$TagValue)
+            }
+        } else {
+            $hash = @{}
+            $hash.Add($TagName,$TagValue)
+        }  
+        Set-AzureRmResourceGroup -Name $ResourceGroup -Tag $hash | Out-Null
+    } catch {
+        $ErrorMessage = $_.Exception.Message
+        $ErrorLine = $_.InvocationInfo.ScriptLineNumber
+        LogErr "EXCEPTION in Add-ResourceGroupTag() : $ErrorMessage at line: $ErrorLine"
+    }
+}
+
+Function Add-DefaultTagsToResourceGroup {
+    param (
+        [Parameter(Mandatory=$true)]
+        [string] $ResourceGroup
+    )
+    try {
+        # Add jenkins username if available or add username of current windows account.
+        if ($env:BUILD_USER) {
+            $UserTag = $env:BUILD_USER
+        } else {
+            $UserTag = $env:UserName
+        }
+        Add-ResourceGroupTag -ResourceGroup $ResourceGroup -TagName BuildUser -TagValue $UserTag
+         # Add jenkins build url if available.
+        if ($env:BUILD_URL) {
+            $BuildURLTag = $env:BUILD_URL
+        } else {
+            $BuildURLTag = "NA"
+        }
+        Add-ResourceGroupTag -ResourceGroup $ResourceGroup -TagName BuildURL -TagValue $BuildURLTag
+         # Add test name.
+        Add-ResourceGroupTag -ResourceGroup $ResourceGroup -TagName TestName -TagValue $currentTestData.testName
+         # Add LISAv2 launch machine name.
+        Add-ResourceGroupTag -ResourceGroup $ResourceGroup -TagName BuildMachine -TagValue "$env:UserDomain\$env:ComputerName"
+         # Add date-time.
+        $Time = $(((Get-Date).ToUniversalTime()).ToString("yyyy/MM/dd HH:mm:ss"))
+        Add-ResourceGroupTag -ResourceGroup $ResourceGroup -TagName CreationTime -TagValue "$Time"
+     } catch {
+        $ErrorMessage = $_.Exception.Message
+        $ErrorLine = $_.InvocationInfo.ScriptLineNumber
+        LogErr "EXCEPTION in Add-DefaultTagsToResourceGroup() : $ErrorMessage at line: $ErrorLine"
+    }
 }

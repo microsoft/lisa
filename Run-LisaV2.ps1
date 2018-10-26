@@ -94,7 +94,7 @@ Param(
 
 #Import the Functions from Library Files.
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | `
-	ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking}
+	ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
 
 try {
 
