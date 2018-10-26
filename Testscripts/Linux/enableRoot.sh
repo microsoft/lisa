@@ -10,7 +10,10 @@ while echo $1 | grep ^- > /dev/null; do
     shift
 done
 
-. utils.sh
+. utils.sh || {
+    echo "Error: missing utils.sh file."
+    exit 10
+}
 
 password=$password
 sshd_configFilePath="/etc/ssh/sshd_config"
@@ -25,12 +28,17 @@ if [ $? == 0 ]; then
     if [ $? == 0 ]; then
         echo "$sshd_configFilePath verifed for root login."
         echo "ROOT_PASSWRD_SET"
-        if [[ detect_linux_distribution -eq clear-linux-os ]]; then
+        if [[ $(detect_linux_distribution) == clear-linux-os ]]; then
             echo "Clear OS system, need extra steps"
             echo 'PermitRootLogin yes' >> $sshd_configFilePath
             echo 'ClientAliveInterval 1200' >> $sshd_configFilePath
             echo 'ClientAliveCountMax 1000' >> $sshd_configFilePath
             sed -i 's/.*ExecStart=.*/ExecStart=\/usr\/sbin\/sshd -D $OPTIONS -f \/etc\/ssh\/sshd_config/g' /usr/lib/systemd/system/sshd.service
+            systemctl daemon-reload
+        fi
+        if [[ $(detect_linux_distribution) == coreos ]]; then
+            echo "Enable root against COREOS"
+            echo 'PermitRootLogin yes' >> $sshd_configFilePath
             systemctl daemon-reload
         fi
         service $sshdServiceName restart || systemctl restart sshd.service

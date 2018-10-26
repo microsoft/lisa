@@ -35,7 +35,7 @@ collect_VM_properties
 "@
         $myString2 = @"
 chmod +x *.sh
-cp fio_jason_parser.sh gawk JSON.awk /root/FIOLog/jsonLog/
+cp fio_jason_parser.sh gawk JSON.awk utils.sh /root/FIOLog/jsonLog/
 cd /root/FIOLog/jsonLog/
 ./fio_jason_parser.sh
 cp perf_fio.csv /root
@@ -46,7 +46,7 @@ chmod 666 /root/perf_fio.csv
         RemoteCopy -uploadTo $testVMData.PublicIP -port $testVMData.SSHPort -files ".\$constantsFile,.\$LogDir\StartFioTest.sh,.\$LogDir\ParseFioTestLogs.sh" -username "root" -password $password -upload
         RemoteCopy -uploadTo $testVMData.PublicIP -port $testVMData.SSHPort -files $currentTestData.files -username "root" -password $password -upload
         $out = RunLinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -command "chmod +x *.sh" -runAsSudo
-        $testJob = RunLinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -command "./StartFioTest.sh" -RunInBackground -runAsSudo
+        $testJob = RunLinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -command "bash StartFioTest.sh" -RunInBackground -runAsSudo
         #endregion
 
         #region MONITOR TEST

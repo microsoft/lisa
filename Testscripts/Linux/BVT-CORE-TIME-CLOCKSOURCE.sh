@@ -53,7 +53,7 @@ CheckSource()
 	fi
 
 	# check dmesg with hyperv_clocksource
-	if [[ detect_linux_distribution -eq clear-linux-os ]]; then
+	if [[ $(detect_linux_distribution) == clear-linux-os ]]; then
 		__dmesg_output=$(dmesg | grep -e "clocksource $clocksource")
 	else
 		__dmesg_output=$(grep -rnw '/var/log' -e "clocksource $clocksource" --ignore-case)

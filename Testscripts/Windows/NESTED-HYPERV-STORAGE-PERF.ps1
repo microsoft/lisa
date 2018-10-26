@@ -101,7 +101,7 @@ collect_VM_properties nested_properties.csv
 
 	$scriptContent2 = @"
 chmod +x *.sh
-cp fio_jason_parser.sh gawk JSON.awk /home/$username/FIOLog/jsonLog/
+cp fio_jason_parser.sh gawk JSON.awk utils.sh /home/$username/FIOLog/jsonLog/
 cd /home/$username/FIOLog/jsonLog/
 bash fio_jason_parser.sh
 cp perf_fio.csv /home/$username/

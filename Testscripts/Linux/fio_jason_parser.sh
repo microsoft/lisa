@@ -1,5 +1,9 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
+. utils.sh || {
+	echo "Error: missing utils.sh file."
+	exit 10
+}
 csv_file=perf_fio.csv
 csv_file_tmp=output_tmp.csv
 echo $file_name
@@ -7,6 +11,7 @@ echo $csv_file
 rm -rf $csv_file
 echo "Iteration,TestType,BlockSize,Threads,Jobs,TotalIOPS,ReadIOPS,MaxOfReadMeanLatency,ReadMaxLatency,ReadBw,WriteIOPS,MaxOfWriteMeanLatency,WriteMaxLatency,WriteBw" > $csv_file_tmp
 
+bc_cmd=`echo $(Get_BC_Command)`
 json_list=(`ls *.json`)
 count=0
 while [ "x${json_list[$count]}" != "x" ]
@@ -14,7 +19,7 @@ do
 	file_name=${json_list[$count]}
 	Iteration=`echo -e $file_name |gawk -f JSON.awk|grep '"jobname"'| tail -1| sed 's/.*]//'| sed 's/[[:blank:]]//g'| sed 's/"iteration\(.*\)"/\1/'`
 	Jobs=`echo -e $file_name |awk -f JSON.awk|grep '"jobname"'| wc -l`
-	ReadIOPS=`echo -e $file_name |awk -f JSON.awk|grep '"read","iops"'| sed 's/.*]//' | paste -sd+ - | bc`
+	ReadIOPS=`echo -e $file_name |awk -f JSON.awk|grep '"read","iops"'| sed 's/.*]//' | paste -sd+ - | ${bc_cmd}`
 	MaxOfReadMeanLatency=`echo -e $file_name |awk -f JSON.awk|grep '"read","lat","mean"'| sed 's/.*]//'| sed 's/[[:blank:]]//g'|sort -g|tail -1`
 	if [[ $MaxOfReadMeanLatency == '' ]];then
 		MaxOfReadMeanLatency=`echo -e $file_name |awk -f JSON.awk|grep '"read","lat_ns","mean"' | sed 's/.*]//'| sed 's/[[:blank:]]//g'|sort -g|tail -1|awk '{print $1/1000}'`
@@ -25,8 +30,8 @@ do
 		ReadMaxLatency=`echo -e $file_name |awk -f JSON.awk|grep '"read","lat_ns","max"' | sed 's/.*]//'| sed 's/[[:blank:]]//g'|sort -g|tail -1|awk '{print $1/1000}'`
 	fi
 
-	ReadBw=`echo -e $file_name |awk -f JSON.awk|grep '"read","bw"'| sed 's/.*]//'| sed 's/[[:blank:]]//g'| paste -sd+ - | bc`
-	WriteIOPS=`echo -e $file_name |awk -f JSON.awk|grep '"write","iops"'| sed 's/.*]//' | paste -sd+ - | bc`
+	ReadBw=`echo -e $file_name |awk -f JSON.awk|grep '"read","bw"'| sed 's/.*]//'| sed 's/[[:blank:]]//g'| paste -sd+ - | ${bc_cmd}`
+	WriteIOPS=`echo -e $file_name |awk -f JSON.awk|grep '"write","iops"'| sed 's/.*]//' | paste -sd+ - | ${bc_cmd}`
 	MaxOfWriteMeanLatency=`echo -e $file_name |awk -f JSON.awk|grep '"write","lat","mean"'| sed 's/.*]//'| sed 's/[[:blank:]]//g'|sort -g|tail -1`
 	if [[ $MaxOfWriteMeanLatency == '' ]];then
 		MaxOfWriteMeanLatency=`echo -e $file_name |awk -f JSON.awk|grep '"write","lat_ns","mean"' | sed 's/.*]//'| sed 's/[[:blank:]]//g'|sort -g|tail -1|awk '{print $1/1000}'`
@@ -37,10 +42,10 @@ do
 		WriteMaxLatency=`echo -e $file_name |awk -f JSON.awk|grep '"write","lat_ns","max"' | sed 's/.*]//'| sed 's/[[:blank:]]//g'|sort -g|tail -1|awk '{print $1/1000}'`
 	fi
 
-	WriteBw=`echo -e $file_name |awk -f JSON.awk|grep '"write","bw"'| sed 's/.*]//'| sed 's/[[:blank:]]//g'| paste -sd+ - | bc`
+	WriteBw=`echo -e $file_name |awk -f JSON.awk|grep '"write","bw"'| sed 's/.*]//'| sed 's/[[:blank:]]//g'| paste -sd+ - | ${bc_cmd}`
 	IFS='-' read -r -a array <<< "$file_name"
 	TestType=${array[2]}
-	BlockSize=${array[3]} 
+	BlockSize=${array[3]}
 	Threads=`echo "${array[4]}"| sed "s/td\.json//"`
 	TotalIOPS=`echo $ReadIOPS $WriteIOPS	| awk '{printf "%d\n", $1+$2}'`
 	echo "$Iteration,$TestType,$BlockSize,$Threads,$Jobs,$TotalIOPS,$ReadIOPS,$MaxOfReadMeanLatency,$ReadMaxLatency,$ReadBw,$WriteIOPS,$MaxOfWriteMeanLatency,$WriteMaxLatency,$WriteBw" >> $csv_file_tmp

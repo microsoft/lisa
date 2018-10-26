@@ -180,7 +180,7 @@ Function ProvisionVMsForLisa($allVMData, $installPackagesOnRoleNames)
 	foreach ( $vmData in $allVMData )
 	{
 		LogMsg "Configuring $($vmData.RoleName) for LISA test..."
-		RemoteCopy -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files ".\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\provisionLinuxForLisa.sh" -username $user -password $password -upload
+		RemoteCopy -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files ".\Testscripts\Linux\utils.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\provisionLinuxForLisa.sh" -username $user -password $password -upload
 		$Null = RunLinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -command "chmod +x /home/$user/*.sh" -runAsSudo
 		$rootPasswordSet = RunLinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort `
 			-username $user -password $password -runAsSudo `

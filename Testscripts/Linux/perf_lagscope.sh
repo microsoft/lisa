@@ -77,7 +77,6 @@ fi
 
 LogMsg "Configuring client ${client}..."
 ssh ${client} ". $UTIL_FILE && install_lagscope"
-ssh ${client} "which lagscope"
 if [ $? -ne 0 ]; then
 	LogMsg "Error: lagscope installation failed in ${client}.."
 	UpdateTestState "TestAborted"
@@ -86,21 +85,28 @@ fi
 
 LogMsg "Configuring server ${server}..."
 ssh ${server} ". $UTIL_FILE && install_lagscope"
-ssh ${server} "which lagscope"
 if [ $? -ne 0 ]; then
 	LogMsg "Error: lagscope installation failed in ${server}.."
 	UpdateTestState "TestAborted"
 	exit 1
 fi
 
+if [[ $(detect_linux_distribution) == coreos ]]; then
+	cmd="docker run --network host lisms/lagscope"
+	ssh root@${server} ". $UTIL_FILE && Delete_Containers"
+	ssh root@${client} ". $UTIL_FILE && Delete_Containers"
+else
+	cmd="lagscope"
+fi
+
 #Now, start the ntttcp client on client VM.
 
 LogMsg "Now running Lagscope test"
 LogMsg "Starting server."
-ssh root@${server} "lagscope -r -D"
-sleep 1
+ssh root@${server} "${cmd} -r" &
+sleep 20
 LogMsg "lagscope client running..."
-ssh root@${client} "lagscope -s${server} -i0 -n${pingIteration} -H > lagscope-n${pingIteration}-output.txt"
+ssh root@${client} "${cmd} -s${server} -i0 -n${pingIteration} -H > lagscope-n${pingIteration}-output.txt"
 LogMsg "Test finsished."
 UpdateTestState ICA_TESTCOMPLETED
 

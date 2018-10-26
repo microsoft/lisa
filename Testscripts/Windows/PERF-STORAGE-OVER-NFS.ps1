@@ -66,7 +66,7 @@ collect_VM_properties
 
         $myString2 = @"
 chmod +x *.sh
-cp fio_jason_parser.sh gawk JSON.awk /root/FIOLog/jsonLog/
+cp fio_jason_parser.sh gawk JSON.awk utils.sh /root/FIOLog/jsonLog/
 cd /root/FIOLog/jsonLog/
 ./fio_jason_parser.sh
 cp perf_fio.csv /root

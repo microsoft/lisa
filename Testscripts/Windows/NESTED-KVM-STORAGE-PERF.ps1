@@ -17,7 +17,7 @@ wget https://ciwestusv2.blob.core.windows.net/scriptfiles/JSON.awk
 wget https://ciwestusv2.blob.core.windows.net/scriptfiles/gawk
 wget https://ciwestusv2.blob.core.windows.net/scriptfiles/fio_jason_parser.sh
 chmod +x *.sh
-cp fio_jason_parser.sh gawk JSON.awk /root/FIOLog/jsonLog/
+cp fio_jason_parser.sh gawk JSON.awk utils.sh /root/FIOLog/jsonLog/
 cd /root/FIOLog/jsonLog/
 ./fio_jason_parser.sh
 cp perf_fio.csv /root

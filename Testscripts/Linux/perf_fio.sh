@@ -54,8 +54,8 @@ UpdateTestState()
 
 RunFIO()
 {
-	UpdateTestState ICA_TESTRUNNING
-	FILEIO="--size=${fileSize} --direct=1 --ioengine=libaio --filename=fiodata --overwrite=1  "
+	UpdateTestState $ICA_TESTRUNNING
+	FILEIO="--size=${fileSize} --direct=1 --ioengine=libaio --filename=${mdVolume} --overwrite=1  "
 
 	####################################
 	#All run config set here
@@ -102,11 +102,6 @@ RunFIO()
 	echo "===================================== Starting Run $(date +"%x %r %Z") script generated 2/9/2015 4:24:44 PM ================================" >> $LOGFILE
 
 	chmod 666 $LOGFILE
-	echo "Preparing Files: $FILEIO"
-	echo "Preparing Files: $FILEIO" >> $LOGFILE
-	LogMsg "Preparing Files: $FILEIO"
-	# Remove any old files from prior runs (to be safe), then prepare a set of new files.
-	rm fiodata
 	echo "--- Kernel Version Information ---" >> $LOGFILE
 	uname -a >> $LOGFILE
 	cat /proc/version >> $LOGFILE
@@ -117,23 +112,15 @@ RunFIO()
 	fi
 	echo "--- PCI Bus Information ---" >> $LOGFILE
 	lspci >> $LOGFILE
-	echo "--- Drive Mounting Information ---" >> $LOGFILE
-	mount >> $LOGFILE
-	echo "--- Disk Usage Before Generating New Files ---" >> $LOGFILE
 	df -h >> $LOGFILE
 	fio --cpuclock-test >> $LOGFILE
-	fio $FILEIO --readwrite=read --bs=1M --runtime=1 --iodepth=128 --numjobs=8 --name=prepare
-	echo "--- Disk Usage After Generating New Files ---" >> $LOGFILE
-	df -h >> $LOGFILE
-	echo "=== End Preparation  $(date +"%x %r %Z") ===" >> $LOGFILE
-	LogMsg "Preparing Files: $FILEIO: Finished."
 	####################################
 	#Trigger run from here
 	for testmode in $modes; do
 		io=$startIO
 		while [ $io -le $maxIO ]
 		do
-			Thread=$startThread			
+			Thread=$startThread
 			while [ $Thread -le $maxThread ]
 			do
 				if [ $Thread -ge 8 ]
@@ -143,7 +130,7 @@ RunFIO()
 					numjobs=$Thread
 				fi
 				iostatfilename="${IOSTATLOGDIR}/iostat-fio-${testmode}-${io}K-${Thread}td.txt"
-				nohup iostat -x 5 -t -y > $iostatfilename &
+				nohup $iostat_cmd -x 5 -t -y > $iostatfilename &
 				#capture blktrace output during test
 				#LogMsg "INFO: start blktrace for 40 sec on device sdd and sdf"				
 				#blk_operation="${blk_base}/blktrace-fio-${testmode}-${io}K-${Thread}td/"							
@@ -153,19 +140,22 @@ RunFIO()
 				echo "-- iteration ${iteration} ----------------------------- ${testmode} test, ${io}K bs, ${Thread} threads, ${numjobs} jobs, 5 minutes ------------------ $(date +"%x %r %Z") ---" >> $LOGFILE
 				LogMsg "Running ${testmode} test, ${io}K bs, ${Thread} threads ..."
 				jsonfilename="${JSONFILELOG}/fio-result-${testmode}-${io}K-${Thread}td.json"
-				fio $FILEIO --readwrite=$testmode --bs=${io}K --runtime=$ioruntime --iodepth=$Thread --numjobs=$numjobs --output-format=json --output=$jsonfilename --name="iteration"${iteration} >> $LOGFILE
+				echo "${fio_cmd} $FILEIO --readwrite=${testmode} --bs=${io}K --runtime=${ioruntime} --iodepth=${Thread} --numjobs=${numjobs} --output-format=json --output=${jsonfilename} --name='iteration'${iteration}" >> $LOGFILE
+				$fio_cmd $FILEIO --readwrite=$testmode --bs=${io}K --runtime=$ioruntime --iodepth=$Thread --numjobs=$numjobs --output-format=json --output=$jsonfilename --name="iteration"${iteration} >> $LOGFILE
 				#fio $FILEIO --readwrite=$testmode --bs=${io}K --runtime=$ioruntime --iodepth=$Thread --numjobs=$numjobs --name="iteration"${iteration} --group_reporting >> $LOGFILE
 				iostatPID=`ps -ef | awk '/iostat/ && !/awk/ { print $2 }'`
 				kill -9 $iostatPID
-				Thread=$(( Thread*2 ))		
+				Thread=$(( Thread*2 ))
 				iteration=$(( iteration+1 ))
+				if [[ $(detect_linux_distribution) == coreos ]]; then
+					Kill_Process 127.0.0.1 fio
+				fi
 			done
 		io=$(( io * io_increment ))
 		done
 	done
 	####################################
 	echo "===================================== Completed Run $(date +"%x %r %Z") script generated 2/9/2015 4:24:44 PM ================================" >> $LOGFILE
-	rm fiodata
 
 	compressedFileName="${HOMEDIR}/FIOTest-$(date +"%m%d%Y-%H%M%S").tar.gz"
 	LogMsg "INFO: Please wait...Compressing all results to ${compressedFileName}..."
@@ -203,20 +193,6 @@ CreateRAID0()
 	LogMsg "INFO: Creating RAID of ${count} devices."
 	sleep 1
 	mdadm --create ${mdVolume} --level 0 --raid-devices ${count} /dev/sd[c-z][1-5]
-	sleep 1
-	time mkfs -t $1 -F ${mdVolume}
-	mkdir ${mountDir}
-	sleep 1
-	mount -o nobarrier ${mdVolume} ${mountDir}
-	if [ $? -ne 0 ]; then
-		LogMsg "Error: Unable to create raid"
-		exit 1
-	else
-		LogMsg "${mdVolume} mounted to ${mountDir} successfully."
-	fi
-	
-	#LogMsg "INFO: adding fstab entry"
-	#echo "${mdVolume}	${mountDir}	ext4	defaults	1 1" >> /etc/fstab
 }
 
 CreateLVM()
@@ -245,16 +221,6 @@ CreateLVM()
 	pvcreate /dev/sd[c-z][1-5]
 	vgcreate ${vggroup} /dev/sd[c-z][1-5]
 	lvcreate -l 100%FREE -i 12 -I 64 ${vggroup} -n lv1
-	time mkfs -t $1 -F /dev/${vggroup}/lv1
-	mkdir ${mountDir}
-	mount -o nobarrier /dev/${vggroup}/lv1 ${mountDir}
-	if [ $? -ne 0 ]; then
-		LogMsg "Error: Unable to create LVM "
-		exit 1
-	fi
-	
-	#LogMsg "INFO: adding fstab entry"
-	#echo "${mdVolume}	${mountDir}	ext4	defaults	1 1" >> /etc/fstab
 }
 
 ############################################################
@@ -272,18 +238,30 @@ else
 	mdVolume="/dev/md0"
 fi
 vggroup="vg1"
-mountDir="/data"
 cd ${HOMEDIR}
 
 install_fio
 
+if [ $? -ne 0 ]; then
+	LogMsg "Error: install fio failed"
+	UpdateTestState "TestAborted"
+	exit 1
+fi
+
+if [[ $(detect_linux_distribution) == coreos ]]; then
+	Delete_Containers
+	fio_cmd="docker run -v $HOMEDIR/FIOLog/jsonLog:$HOMEDIR/FIOLog/jsonLog --device ${mdVolume} lisms/fio"
+	iostat_cmd="docker run --network host lisms/toolbox iostat"
+else
+	fio_cmd="fio"
+	iostat_cmd="iostat"
+fi
+
 #Creating RAID before triggering test
-CreateRAID0 ext4
-#CreateLVM ext4
+CreateRAID0
+#CreateLVM
 
 #Run test from here
 LogMsg "*********INFO: Starting test execution*********"
-cd ${mountDir}
-mkdir sampleDIR
 RunFIO
 LogMsg "*********INFO: Script execution reach END. Completed !!!*********"
