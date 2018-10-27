@@ -26,48 +26,6 @@
 param([string] $testParams)
 
 #######################################################################
-# Fix snapshots. If there are more than one, remove all except latest.
-#######################################################################
-function Restore-LatestVMSnapshot($vmName, $hvServer)
-{
-    # Get all the snapshots
-    $vmsnapshots = Get-VMSnapshot -VMName $vmName
-    $snapnumber = ${vmsnapshots}.count
-
-    # Get latest snapshot
-    $latestsnapshot = Get-VMSnapshot -VMName $vmName | Sort-Object CreationTime | Select-Object -Last 1
-    $LastestSnapName = $latestsnapshot.name
-
-    # Delete all snapshots except the latest
-    if ($snapnumber -gt 1) {
-        LogMsg "$vmName has $snapnumber snapshots. Removing all except $LastestSnapName"
-        foreach ($snap in $vmsnapshots) {
-            if ($snap.id -ne $latestsnapshot.id) {
-                $snapName = ${snap}.Name
-                $sts = Remove-VMSnapshot -Name $snap.Name -VMName $vmName -ComputerName $hvServer
-                if (-not $?) {
-                    LogErr "ERROR: Unable to remove snapshot $snapName of ${vmName}: `n${sts}"
-                    return $False
-                }
-                LogMsg "Removed snapshot $snapName"
-            }
-        }
-    }
-
-    # If there are no snapshots, create one.
-    ElseIf ($snapnumber -eq 0) {
-        LogMsg "There are no snapshots for $vmName. Creating one ..."
-        $sts = Checkpoint-VM -VMName $vmName -ComputerName $hvServer
-        if (-not $?) {
-           LogErr "ERROR: Unable to create snapshot of ${vmName}: `n${sts}"
-           return $False
-        }
-    }
-
-    return $True
-}
-
-#######################################################################
 # To Create Grand Child VHD from Parent VHD.
 #######################################################################
 function Get-GChildVHD($ParentVHD)

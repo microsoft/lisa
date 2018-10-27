@@ -25,18 +25,6 @@ param([string] $testParams)
 # Define the guest side script
 $NetworkStopScript = "STOR_VSS_StopNetwork.sh"
 
-######################################################################
-# Runs a remote script on the VM without checking the log
-#######################################################################
-function Invoke-RemoteScriptNoState($remoteScript, $Ipv4, $VMPort)
-{
-    $remoteTest = "echo '${password}' | sudo -S -s eval `"export HOME=``pwd``;bash ${remoteScript} > remotescript.log`""
-    LogMsg "Run the remotescript $remoteScript"
-    #Run the test on VM
-    RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort $remoteTest -runAsSudo
-    return $True
-}
-
 #######################################################################
 #
 # Main script body
@@ -113,7 +101,10 @@ function Main {
         LogMsg "Attached DVD: Success"
 
         # Bring down the network.
-        Invoke-RemoteScriptNoState $NetworkStopScript $Ipv4 $VMPort
+        $remoteTest = "echo '${password}' | sudo -S -s eval `"export HOME=``pwd``;bash ${NetworkStopScript} > remotescript.log`""
+        LogMsg "Run the remotescript $remoteScript"
+        #Run the test on VM
+        RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort $remoteTest -runAsSudo
 
         Start-Sleep -Seconds 3
 

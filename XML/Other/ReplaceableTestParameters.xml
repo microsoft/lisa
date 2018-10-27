@@ -123,4 +123,8 @@ Scenario 2 : You need to run all the performance tests quickly.
         <ReplaceThis>IOZONE_SRC_URL</ReplaceThis>
         <ReplaceWith>http://www.iozone.org/src/current</ReplaceWith>
     </Parameter>
+    <Parameter>
+        <ReplaceThis>VSS_BACKUP_MINI_ISO</ReplaceThis>
+        <ReplaceWith>http://ports.ubuntu.com/dists/trusty/main/installer-powerpc/current/images/powerpc/netboot/mini.iso</ReplaceWith>
+    </Parameter>
 </ReplaceableTestParameters>

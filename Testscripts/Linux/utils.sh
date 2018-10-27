@@ -2270,10 +2270,6 @@ function check_exit_status ()
 	message=$1
 
 	cmd="echo"
-	if [ ! -z $2 ]; then
-		cmd=$2
-	fi
-
 	if [ $exit_status -ne 0 ]; then
 		$cmd "$message: Failed (exit code: $exit_status)"
 		UpdateSummary "$message Failed·(exit·code:·$exit_status)"

@@ -4833,3 +4833,40 @@ function Set-IntegrationService {
     }
     return $True
 }
+#######################################################################
+# Fix snapshots. If there are more than one remove all except latest.
+#######################################################################
+function Restore-LatestVMSnapshot($vmName, $hvServer)
+{
+    # Get all the snapshots
+    $vmsnapshots = Get-VMSnapshot -VMName $vmName -ComputerName $hvServer
+    $snapnumber = ${vmsnapshots}.count
+    # Get latest snapshot
+    $latestsnapshot = Get-VMSnapshot -VMName $vmName -ComputerName $hvServer | Sort-Object CreationTime | Select-Object -Last 1
+    $LastestSnapName = $latestsnapshot.name
+    # Delete all snapshots except the latest
+    if (1 -gt $snapnumber) {
+        LogMsg "$vmName has $snapnumber snapshots. Removing all except $LastestSnapName"
+        foreach ($snap in $vmsnapshots) {
+            if ($snap.id -ne $latestsnapshot.id) {
+                $snapName = ${snap}.Name
+                $sts = Remove-VMSnapshot -Name $snap.Name -VMName $vmName -ComputerName $hvServer
+                if (-not $?) {
+                    LogErr "Unable to remove snapshot $snapName of ${vmName}: `n${sts}"
+                    return $False
+                }
+                LogMsg "Removed snapshot $snapName"
+            }
+        }
+    }
+    # If there are no snapshots, create one.
+    ElseIf (0 -eq $snapnumber) {
+        LogMsg "There are no snapshots for $vmName. Creating one ..."
+        $sts = Checkpoint-VM -VMName $vmName -ComputerName $hvServer
+        if (-not $?) {
+           LogErr "Unable to create snapshot of ${vmName}: `n${sts}"
+           return $False
+        }
+    }
+    return $True
+}
