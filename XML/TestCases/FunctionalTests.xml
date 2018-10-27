@@ -2142,4 +2142,54 @@
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
     </test>
+        <test>
+        <testName>NET-HOT-ADD-MULTINIC</testName>
+        <testScript>NET-HotAdd-MultiNIC.ps1</testScript>
+        <files>.\Testscripts\Linux\NET-Verify-HotAdd-MultiNIC.sh,.\Testscripts\Linux\utils.sh</files>
+        <setupType>SingleVM</setupType>
+         <TestParameters>
+            <param>nic_action=add</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>NET</Area>
+        <Tags>net</Tags>
+    </test>
+    <test>
+        <testName>NET-HOT-REMOVE-MULTINIC</testName>
+        <testScript>NET-HotAdd-MultiNIC.ps1</testScript>
+        <files>.\Testscripts\Linux\NET-Verify-HotAdd-MultiNIC.sh,.\Testscripts\Linux\utils.sh</files>
+        <setupType>SingleVM</setupType>
+         <TestParameters>
+            <param>nic_action=remove</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>NET</Area>
+        <Tags>net</Tags>
+    </test>
+    <test>
+        <testName>NET-BOOT-NONIC-HOT-ADD-NIC</testName>
+        <testScript>NET-Boot-NoNIC-HotAdd-NIC.ps1</testScript>
+        <files>.\Testscripts\Linux\NET-Verify-Boot-NoNIC.sh,.\Testscripts\Linux\utils.sh,.\Tools\kvp_client64</files>
+        <setupType>SingleVM</setupType>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>NET</Area>
+        <Tags>net</Tags>
+    </test>
+    <test>
+        <testName>NET-HOT-ADD-REMOVE-MAXNIC</testName>
+        <testScript>NET-HotAddRemove-Max-NIC.ps1</testScript>
+        <files>.\Testscripts\Linux\NET-MAX-NICs.sh,.\Testscripts\Linux\NET-Verify-HotAdd-MultiNIC.sh,.\Testscripts\Linux\utils.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>TEST_TYPE=synthetic</param>
+            <param>SYNTHETIC_NICS=7</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>NET</Area>
+        <Tags>net</Tags>
+    </test>
 </TestCases>
