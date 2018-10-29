@@ -68,7 +68,9 @@ function Validate-Parameters {
             $parameterErrors += "-RGIdentifier <ResourceGroupIdentifier> is required."
         }
         if (!$VMGeneration) {
-             $parameterErrors += "-VMGeneration <VMGeneration> is required."
+			# Set VM Generation default value to 1, if not specified.
+			LogMsg "-VMGeneration not specified. Using default VMGeneration = 1"
+			Set-Variable -Name VMGeneration -Value 1 -Scope Global
         } else {
             $supportedVMGenerations = @("1","2")
             if ($supportedVMGenerations.contains([string]$VMGeneration)) {
@@ -89,9 +91,6 @@ function Validate-Parameters {
         } else {
             $parameterErrors += "'-TestPlatform' is not provided."
         }
-    }
-    if ($VMGeneration -ne 1 -and $VMGeneration -ne 2) {
-        Set-Variable -Name VMGeneration -Value 1 -Scope Global
     }
     if ($parameterErrors.Count -gt 0) {
         $parameterErrors | ForEach-Object { LogError $_ }
