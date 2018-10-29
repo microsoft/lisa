@@ -62,7 +62,6 @@ Function Set-HardDiskSize
 		$sd = "sdb"
 	}
 	$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "echo 'deviceName=/dev/$sd' >> constants.sh" -runAsSudo
-	$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "cp -f /home/$user/constants.sh /root/" -runAsSudo
 	# Do a request & rescan to refresh the disks info
 	$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "fdisk -l > /dev/null" -runAsSudo
 	$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "echo 1 > /sys/block/$sd/device/rescan" -runAsSudo
@@ -80,12 +79,10 @@ Function Set-HardDiskSize
 	# if file size larger than 2T (2048G), use parted to format disk
 	if ([int]($newSize/1gb) -gt 2048) {
 		$guestScript = "STOR_VHDXResize_PartitionDiskOver2TB.sh"
-		$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "cp -f /home/$user/$guestScript /root/" -runAsSudo
 		$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "./$guestScript" -runAsSudo -runMaxAllowedTime 1200
 	} else {
 		$guestScript = "STOR_VHDXResize_PartitionDisk.sh"
 		$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "echo 'rerun=yes' >> constants.sh" -runAsSudo
-		$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "cp -f /home/$user/constants.sh /root/" -runAsSudo
 		$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "./$guestScript" -runAsSudo
 	}
 	if (-not $ret) {
@@ -158,14 +155,8 @@ Function Main
 			Throw "Insufficent disk free space, This test case requires ${testParameters.NewSize} free, Current free space is $($diskInfo.FreeSpace)"
 		}
 
-		# Copy files from home of user to home of root
-		$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "cp -f /home/$user/STOR_VHDXResize_ReadWrite.sh /root/" -runAsSudo
-		$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "cp -f /home/$user/STOR_VHDXResize_PartitionDisk.sh /root/" -runAsSudo
-		$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "cp -f /home/$user/check_traces.sh /root/" -runAsSudo
-
 		# Make sure if we can perform Read/Write operations on the guest VM
 		$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "echo 'deviceName=/dev/sdc' >> constants.sh" -runAsSudo
-		$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "cp -f /home/$user/constants.sh /root/" -runAsSudo
 		$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "./STOR_VHDXResize_PartitionDisk.sh" -runAsSudo
 		if (-not $ret) {
 			$testResult = "FAIL"

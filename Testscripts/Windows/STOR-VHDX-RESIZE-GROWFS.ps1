@@ -64,7 +64,6 @@ Function Set-HardDiskSize
 		$sd = "sdb"
 	}
 	$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "echo 'deviceName=/dev/$sd' >> constants.sh" -runAsSudo
-	$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "cp -f /home/$user/constants.sh /root/" -runAsSudo
 	# Do a request & rescan to refresh the disks info
 	$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "fdisk -l > /dev/null" -runAsSudo
 	$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "echo 1 > /sys/block/$sd/device/rescan" -runAsSudo
@@ -82,7 +81,6 @@ Function Set-HardDiskSize
 	# if file size larger than 2T (2048G), use parted to format disk
 	$guestScript = "STOR_VHDXResize_PartitionDisk.sh"
 	$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "echo 'rerun=yes' >> constants.sh" -runAsSudo
-	$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "cp -f /home/$user/constants.sh /root/" -runAsSudo
 	$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "./$guestScript" -runAsSudo
 	if (-not $ret) {
 		$testResult = "FAIL"
@@ -141,13 +139,6 @@ Function Main
 			Throw "$controllerType $vhdxDrive.ControllerNumber $vhdxDrive.ControllerLocation virtual disk is not a .vhdx file."
 		}
 
-		# Copy files from home of user to home of root
-		$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "chmod +x *.sh"
-		$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "cp -f /home/$user/STOR_VHDXResize_ReadWrite.sh /root/" -runAsSudo
-		$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "cp -f /home/$user/STOR_VHDXResize_PartitionDisk.sh /root/" -runAsSudo
-		$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "cp -f /home/$user/STOR_VHDXResize_GrowFSAfterResize.sh /root/" -runAsSudo
-		$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "cp -f /home/$user/check_traces.sh /root/" -runAsSudo
-
 		$fileSystems = $testParameters.fileSystems.Trim("(",")")
 		$fileSystems = @($fileSystems.Split(" "))
 		foreach ($fs in $fileSystems) {
@@ -168,7 +159,6 @@ Function Main
 			$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "echo 'fs=$fs' >> constants.sh" -runAsSudo
 			$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "sed -i '/rerun=yes/d' constants.sh" -runAsSudo
 			$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "echo 'deviceName=/dev/sdc' >> constants.sh" -runAsSudo
-			$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "cp -f /home/$user/constants.sh /root/" -runAsSudo
 			$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "./STOR_VHDXResize_GrowFSAfterResize.sh" -runAsSudo
 			if (-not $ret) {
 				$testResult = "FAIL"
