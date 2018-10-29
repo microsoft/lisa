@@ -105,7 +105,7 @@ try {
 	Set-Variable -Name shortRandomWord -Value $(-join ((65..90) | Get-Random -Count 4 | ForEach-Object {[char]$_})) -Scope Global
 	if ( $WorkingDirectory.Length -gt $MaxDirLength) {
 		$OriginalWorkingDirectory = $WorkingDirectory
-		Write-Output "Current working directory '$WorkingDirectory' length is greather than $MaxDirLength."
+		Write-Output "Current working directory '$WorkingDirectory' length is greater than $MaxDirLength."
 		$TempWorkspace = "$(Split-Path $OriginalWorkingDirectory -Qualifier)"
 		New-Item -ItemType Directory -Path "$TempWorkspace\LISAv2" -Force -ErrorAction SilentlyContinue | Out-Null
 		New-Item -ItemType Directory -Path "$TempWorkspace\LISAv2\$shortRandomWord$shortRandomNumber" -Force -ErrorAction SilentlyContinue | Out-Null
