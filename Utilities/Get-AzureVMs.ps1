@@ -14,10 +14,10 @@ param
 
 #Load libraries
 Get-ChildItem ..\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
-
 #When given -UseSecretsFile or an AzureSecretsFile path, we will attempt to search the path or the environment variable.
 if( $UseSecretsFile -or $AzureSecretsFile )
 {
+    LogMsg "Evaluating Secrets File"
     #Read secrets file and terminate if not present.
     if ($AzureSecretsFile)
     {
@@ -45,6 +45,7 @@ if( $UseSecretsFile -or $AzureSecretsFile )
     }
 }
 
+# Determine the age by finding the creation time for the osdrive of the VM.
 function Get-VMAgeFromDisk()
 {
     param
@@ -90,136 +91,146 @@ function Get-VMAgeFromDisk()
     $ageDays
 }
 
+
 #Get all VMs and enumerate thru them adding items to results list.
 $allVMs = Get-AzureRmVM
 $allRGs = Get-AzureRmResourceGroup
 
 $results = @()
-
-
-$usingRegion = $false
-$usingVmSize = $false
-$usingTags = $false
-
 foreach ($vm in $allVMs) 
 {
-    $include = $false
-    $hasFailed = $false
+    $rg = $allRGs | Where-Object ResourceGroupName -eq $vm.ResourceGroupName
 
-    #Check to see if the Region is being used.
-    if( $Region -ne "" )
+    $result = New-Object psobject
+    $result | Add-Member VMName $($vm.Name)
+    $result | Add-Member Size $($vm.HardwareProfile.VmSize)
+    $result | Add-Member Region $($vm.Location)
+    $result | Add-Member ResourceGroupName $($rg.ResourceGroupName)
+
+    #Timestamp Date
+    $PotentialDate = (($result.ResourceGroupName).Split("-") | Select-Object -Last 1) + '000000'
+    $PossibleDate = $( $PotentialDate -match "^\d" -and $PotentialDate.Length -eq 18 )
+    if( $PossibleDate -eq $true )
     {
-        $usingRegion = $true
-        if( $vm.Location -like $Region )
-        {
-            $include = $true
-        }
-        else {
-            $include = $false
-            $hasFailed = $true
-        }
+        $when = $([datetime]([long]$PotentialDate))
+        $ageInDays = ([datetime]::Now - $when).Days
+        $result | Add-Member Age $ageInDays
     }
-    #Check to see if the VmSize is being used.
-    if( $VmSize -ne "" -and $hasFailed -eq $false )
+    #Get Tags (And Tag date if Timestamp wasn't there.)
+    if( $rg.Tags )
     {
-        $usingVmSize = $true
-        if( $vm.HardwareProfile.VmSize -like $VmSize )
+        if( $rg.Tags.BuildURL )
         {
-            $include = $true
+            $result | Add-Member BuildURL $rg.Tags.BuildURL
         }
-        else {
-            $include = $false
-            $hasFailed = $true
-        }
-    }
-    #Check to see if the comma seperated values in Tags are like any tags on the ResourceGroup.
-    if( $Tags -ne "" -and $hasFailed -eq $false )
-    {
-        $include = $false
-        $usingTags = $true
-        $eachTag = $Tags -Split ","
-        $rg = $allRGs | Where ResourceGroupName -eq $vm.ResourceGroupName
-        foreach( $tag in $eachTag )
+        if( $rg.Tags.TestName )
         {
-            if( $rg.Tags.BuildUrl -like $tag )
+            $result | Add-Member TestName $rg.Tags.TestName 
+        }
+        if( $rg.Tags.BuildUser )
+        {
+            $result | Add-Member BuildUser $rg.Tags.BuildUser
+        }
+        if( $rg.Tags.BuildMachine )
+        {
+            $result | Add-Member BuildMachine $rg.Tags.BuildMachine
+        }
+        if( $rg.Tags.CreationTime )
+        {
+            $result | Add-Member CreationTime $rg.Tags.CreationTime
+            #Update the age if we haven't already collected it.
+            #This script is unlikely to execute unless we stop using a timestamp in our resource names.
+            if( $null -ieq $result.Age )
             {
-                $include = $true
-            }
-            if( $rg.Tags.BuildUser -like $tag )
-            {
-                $include = $true
-            }
-            if( $rg.Tags.BuildMachine -like $tag )
-            {
-                $include = $true
-            }
-            if( $rg.Tags.TestName -like $tag )
-            {
-                $include = $true
+                $ageInDays = ([datetime]::Now - $rg.Tags.CreationTime).Days
+                $result | Add-Member Age $ageInDays
             }
         }
-        if( $include -eq $false )
-        {
-            $hasFailed = $true
-        }
     }
-
-    if( $hasFailed -eq $false )
+    #Check to see if the VM itself has it's own CreationTime tag.  If so, use that.
+    #CreationTime tags can be added to individual VMs using Az CLI
+    #   Example: az vm update --resource-group $rgName --name $vmName --set tags.CreationTime='08/08/2018 17:04:53'
+    if( !($null -ieq $vm.Tags.CreationTime) )
     {
-        #Check for NO filters.
-        if( $usingRegion -eq $usingVmSize -and $usingVmSize -eq $usingTags -and $usingVmSize -eq $false )
+        if( $result.Age )
         {
-            $include = $true
+            $result.PSObject.Properties.Remove( 'Age' )
         }
+        $vmCreate = [datetime]"$($vm.Tags.CreationTime)"
+        $ageInDays = ([datetime]::Now - $vmCreate).Days
+        $result | Add-Member Age $ageInDays
     }
 
-    if( $include -eq $true ) 
+    #Finally compute the long time running age for remaining machines by looking at the disk details.
+    if( $null -ieq $result.Age )  # Tag not present.
     {
-        $result = @{
-            'VMName' = $vm.Name
-            'VMSize' = $vm.HardwareProfile.VmSize
-            'VMRegion' = $vm.Location
-            'ResourceGroupName' = $vm.ResourceGroupName
-            'vm' = $vmIndex
+        #This is a time-consuming process and shouldn't be used without intent.
+        if( $IncludeAge )
+        {
+            $result | Add-Member vm $vm
         }
-        $results += $result
+        $result | Add-Member Age "Undefined"
     }
-}
-$results = $results | Foreach-Object { [pscustomobject] $_ }
-#Now add the resource group details.
-foreach( $result in $results )
-{
-    $rg = $allRGs | Where ResourceGroupName -eq $result.ResourceGroupName
-    $result | Add-Member BuildURL $rg.Tags.BuildURL
-    $result | Add-Member BuildUser $rg.Tags.BuildUser
-    $result | Add-Member TestName $rg.Tags.TestName
-    $result | Add-Member CreationDate $rg.Tags.CreationDate
-
-    if( $rg.Tags.CreationDate )
-    { 
-        $days = ([DateTime]::Now - $rg.Tags.CreationDate).Days
-        $result | Add-Member RGAge $days
-    }
-    else {
-        $result | Add-Member RGAge ""
-    }
+    $results += $result
 }
 
-#Perform costly age check
-if( $IncludeAge )
+#Apply the filters.
+# Region AND Size AND Tags
+# Since we have already accumulated ALL the items, let's walk thru the selected filters 
+# and remove entries that do not match.
+if( $Region )
 {
-    $ageIndex = 0
-    LogMsg "Collecting VM age from disk details for $($results.Length) machines."
+    $filteredResults = @()
     foreach( $result in $results )
     {
-        $result | Add-Member VMAge (Get-VMAgeFromDisk $allVms[$result.vm])
-        $ageIndex = $ageIndex + 1
+        if( $result.Region -like $Region )
+        {
+            $filteredResults += $result
+        }
+    }
+    $results = $filteredResults
+}
+if( $VmSize )
+{
+    $filteredResults = @()
+    foreach( $result in $results )
+    {
+        if( $result.Size -like $VmSize )
+        {
+            $filteredResults += $result
+        }
+    }
+    $results = $filteredResults
+}
+if( $Tags )
+{
+    $filteredResults = @()
+    foreach( $result in $results )
+    {
+        if( ($result.BuildUser -like $Tags) -or
+            ($result.BuildMachine -like $Tags) -or 
+            ($result.TestName -like $Tags) -or 
+            ($result.BuildURL -like $Tags ) )
+            {
+                $filteredResults += $result
+            }
+    }
+    $results = $filteredResults
+}
+
+#Finally compute ages for 'Undefined' ages when -IncludeAge switch is being used.
+#If this option is used, we will retrieve details from the blob or managed disk.
+if( $IncludeAge )
+{
+    foreach( $result in $results )
+    {
+        if( $result.Age -eq "Undefined" )
+        {
+            $result.PsObject.Properties.Remove( 'Age' )
+            $result | Add-Member Age $(Get-VMAgeFromDisk $result.vm)
+        }
+        $result.PsObject.Properties.Remove( 'vm' )
     }
 }
-#trim out the vm index.
-foreach( $result in $results )
-{
-    $result.PSObject.Properties.Remove('vm')
-}
 #output the table
-$results | Format-Table 
+$results | Format-Table -Property VMname, Region, Size, Age, BuildUser, TestName, ResourceGroupName
