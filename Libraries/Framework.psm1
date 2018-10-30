@@ -1062,7 +1062,7 @@ Function Get-LISAv2Tools($XMLSecretFile)
 			$WebClient.DownloadFile("$toolFileAccessLocation/$_","$CurrentDirectory\Tools\$_")
 
 			# Successfully downloaded files
-			LogMsg "File $_ successfully downloaded in Tools folder: $_."
+			LogMsg "File $_ successfully downloaded in Tools folder: $CurrentDirectory\Tools."
 		}
 	}
 }
