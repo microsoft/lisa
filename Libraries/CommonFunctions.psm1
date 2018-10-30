@@ -4278,6 +4278,259 @@ Function Remove-InvalidCharactersFromFileName
     $Regex = "[{0}]" -f [RegEx]::Escape($WindowsInvalidCharacters)
     return ($FileName -replace $Regex)
 }
+
+Function Check-VSSDemon {
+    param (
+        [String] $VMName,
+        [String] $HvServer,
+        [String] $VMIpv4,
+        [String] $VMPort
+    )
+    $remoteScript="STOR_VSS_Check_VSS_Daemon.sh"
+    $retval = Invoke-RemoteScriptAndCheckStateFile $remoteScript $user $password $VMIpv4 $VMPort
+    if ($retval -eq $False) {
+        LogErr "Running $remoteScript script failed on VM!"
+        return $False
+    }
+    LogMsg "VSS Daemon is running"
+    return $True
+}
+
+Function New-BackupSetup {
+    param (
+        [String] $VMName,
+        [String] $HvServer
+    )
+    LogMsg "Removing old backups"
+    Remove-WBBackupSet -Force -WarningAction SilentlyContinue
+    if(-not $?) {
+        LogErr "Not able to remove existing backup"
+        return $False
+    }
+    # Check if the VM VHD in not on the same drive as the backup destination
+    $vm = Get-VM -Name $VMName -ComputerName $HvServer
+    # Get drive letter
+    $sts = Get-DriveLetter $VMName $HvServer
+    $driveletter = $global:driveletter
+    if (-not $sts[-1]) {
+        LogErr "Cannot get the drive letter"
+        return $False
+    }
+    foreach ($drive in $vm.HardDrives) {
+        if ( $drive.Path.StartsWith("$driveletter")) {
+            LogErr "Backup partition $driveletter is same as partition hosting the VMs disk $($drive.Path)"
+            return $False
+        }
+    }
+    return $True
+}
+
+Function New-Backup {
+    param (
+        [String] $VMName,
+        [String] $DriveLetter,
+        [String] $HvServer,
+        [String] $VMIpv4,
+        [String] $VMPort
+    )
+    # Remove Existing Backup Policy
+    try {
+        Remove-WBPolicy -all -force
+    }
+    Catch {
+        LogMsg "No existing backup policy to remove"
+    }
+    # Set up a new Backup Policy
+    $policy = New-WBPolicy
+    # Set the backup location
+    $backupLocation = New-WBBackupTarget -VolumePath $DriveLetter
+    # Define VSS WBBackup type
+    Set-WBVssBackupOption -Policy $policy -VssCopyBackup
+    # Add the Virtual machines to the list
+    $VM = Get-WBVirtualMachine | Where-Object VMName -like $VMName
+    Add-WBVirtualMachine -Policy $policy -VirtualMachine $VM
+    Add-WBBackupTarget -Policy $policy -Target $backupLocation
+    # Start the backup
+    LogMsg "Backing to $DriveLetter"
+    Start-WBBackup -Policy $policy
+    # Review the results
+    $BackupTime = (New-Timespan -Start (Get-WBJob -Previous 1).StartTime -End (Get-WBJob -Previous 1).EndTime).Minutes
+    LogMsg "Backup duration: $BackupTime minutes"
+    $sts=Get-WBJob -Previous 1
+    if ($sts.JobState -ne "Completed" -or $sts.HResult -ne 0) {
+        LogErr "VSS Backup failed"
+        return $False
+    }
+    LogMsg "Backup successful!"
+    # Let's wait a few Seconds
+    Start-Sleep -Seconds 5
+    # Delete file on the VM
+    $vmState = $(Get-VM -name $VMName -ComputerName $HvServer).state
+    if (-not $vmState) {
+        RunLinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMPort -command "rm /root/1" -runAsSudo
+        if (-not $?) {
+            LogErr "Cannot delete test file!"
+            return $False
+        }
+        LogMsg "File deleted on VM: $VMName"
+    }
+    return $backupLocation
+}
+
+Function Restore-Backup {
+    param (
+        $BackupLocation,
+        $HypervGroupName,
+        $VMName
+    )
+    # Start the Restore
+    LogMsg "Now let's restore the VM from backup."
+    # Get BackupSet
+    $BackupSet = Get-WBBackupSet -BackupTarget $BackupLocation
+    # Start restore
+    Start-WBHyperVRecovery -BackupSet $BackupSet -VMInBackup $BackupSet.Application[0].Component[0] -Force -WarningAction SilentlyContinue
+    $sts=Get-WBJob -Previous 1
+    if ($sts.JobState -ne "Completed" -or $sts.HResult -ne 0) {
+        LogErr "VSS Restore failed"
+        return $False
+    }
+    # Add VM to VMGroup
+    Add-VMGroupMember -Name $HypervGroupName -VM $(Get-VM -name $VMName)
+    return $True
+}
+
+Function Check-VMStateAndFileStatus {
+    param (
+        [String] $VMName,
+        [String] $HvServer,
+        [String] $VMIpv4,
+        [String] $VMPort
+    )
+
+    # Review the results
+    $RestoreTime = (New-Timespan -Start (Get-WBJob -Previous 1).StartTime -End (Get-WBJob -Previous 1).EndTime).Minutes
+    LogMsg "Restore duration: $RestoreTime minutes"
+    # Make sure VM exists after VSS backup/restore operation
+    $vm = Get-VM -Name $VMName -ComputerName $HvServer
+    if (-not $vm) {
+        LogErr "VM ${VMName} does not exist after restore"
+        return $False
+    }
+    LogMsg "Restore success!"
+    $vmState = (Get-VM -name $VMName -ComputerName $HvServer).state
+    LogMsg "VM state is $vmState"
+    $ip_address = Get-IPv4ViaKVP $VMName $HvServer
+    $timeout = 300
+    if ($vmState -eq "Running") {
+        if ($null -eq $ip_address) {
+            LogMsg "Restarting VM ${VMName} to bring up network"
+            Restart-VM -vmName $VMName -ComputerName $HvServer
+            Wait-ForVMToStartKVP $VMName $HvServer $timeout
+            $ip_address = Get-IPv4ViaKVP $VMName $HvServer
+        }
+    }
+    elseif ($vmState -eq "Off" -or $vmState -eq "saved" ) {
+        LogMsg "Starting VM : ${VMName}"
+        Start-VM -vmName $VMName -ComputerName $HvServer
+        if (-not (Wait-ForVMToStartKVP $VMName $HvServer $timeout )) {
+            LogErr "${VMName} failed to start"
+            return $False
+        }
+        else {
+            $ip_address = Get-IPv4ViaKVP $VMName $HvServer
+        }
+    }
+    elseif ($vmState -eq "Paused") {
+        LogMsg "Resuming VM : ${VMName}"
+        Resume-VM -vmName $VMName -ComputerName $HvServer
+        if (-not (Wait-ForVMToStartKVP $VMName $HvServer $timeout )) {
+            LogErr "${VMName} failed to resume"
+            return $False
+        }
+        else {
+            $ip_address = Get-IPv4ViaKVP $VMName $HvServer
+        }
+    }
+    LogMsg "${VMName} IP is $ip_address"
+    # check selinux denied log after ip injection
+    $sts=Get-SelinuxAVCLog -ipv4 $VMIpv4 -SSHPort $VMPort -Username "root" -Password $password
+    if (-not $sts) {
+        return $False
+    }
+    # only check restore file when ip available
+    $stsipv4 = Test-NetConnection $VMIpv4 -Port 22 -WarningAction SilentlyContinue
+    if ($stsipv4.TcpTestSucceeded) {
+        $sts=Check-FileInLinuxGuest -VMPassword $password -VMPort $VMPort -VMUserName "root" -Ipv4 $VMIpv4 -fileName "/root/1"
+        if (-not $sts) {
+            LogErr "No /root/1 file after restore"
+            return $False
+        }
+        else {
+            LogMsg "there is /root/1 file after restore"
+        }
+    }
+    else {
+        LogMsg "Ignore checking file /root/1 when no network"
+    }
+    return $True
+}
+
+Function Remove-Backup {
+    param (
+        [String] $BackupLocation
+    )
+    # Remove Created Backup
+    LogMsg "Removing old backups from $BackupLocation"
+    try {
+        Remove-WBBackupSet -BackupTarget $BackupLocation -Force -WarningAction SilentlyContinue
+    }
+    Catch {
+        LogMsg "No existing backups to remove"
+    }
+}
+
+Function Get-BackupType() {
+    # check the latest successful job backup type, "online" or "offline"
+    $backupType = $null
+    $sts = Get-WBJob -Previous 1
+    if ($sts.JobState -ne "Completed" -or $sts.HResult -ne 0) {
+        LogErr "Error: VSS Backup failed "
+        return $backupType
+    }
+    $contents = get-content $sts.SuccessLogPath
+    foreach ($line in $contents ) {
+        if ( $line -match "Caption" -and $line -match "online") {
+            LogMsg "VSS Backup type is online"
+            $backupType = "online"
+        }
+        elseif ($line -match "Caption" -and $line -match "offline") {
+            LogMsg "VSS Backup type is offline"
+            $backupType = "offline"
+        }
+    }
+    return $backupType
+}
+
+Function Get-DriveLetter {
+    param (
+        [string] $VMName,
+        [string] $HvServer
+    )
+    if ($null -eq $VMName) {
+        LogErr "VM ${VMName} name was not specified."
+        return $False
+    }
+    # Get the letter of the mounted backup drive
+    $tempFile = (Get-VMHost -ComputerName $HvServer).VirtualHardDiskPath + "\" + $VMName + "_DRIVE_LETTER.txt"
+    if(Test-Path ($tempFile)) {
+        $global:driveletter = Get-Content -Path $tempFile
+        return $True
+    }
+    else {
+        return $False
+    }
+}
+
 #Check if stress-ng is installed
 Function Is-StressNgInstalled {
     param (
