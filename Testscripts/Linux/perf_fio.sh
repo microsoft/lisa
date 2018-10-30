@@ -97,12 +97,12 @@ RunFIO()
 	io_increment=128
 
 	####################################
-	echo "Test log created at: ${LOGFILE}"
-	echo "===================================== Starting Run $(date +"%x %r %Z") ================================"
-	echo "===================================== Starting Run $(date +"%x %r %Z") script generated 2/9/2015 4:24:44 PM ================================" >> $LOGFILE
+	LogMsg "Test log created at: ${LOGFILE}"
+	LogMsg "===================================== Starting Run $(date +"%x %r %Z") ================================"
+	LogMsg "===================================== Starting Run $(date +"%x %r %Z") script generated 2/9/2015 4:24:44 PM ================================"
 
 	chmod 666 $LOGFILE
-	echo "--- Kernel Version Information ---" >> $LOGFILE
+	LogMsg "--- Kernel Version Information ---"
 	uname -a >> $LOGFILE
 	cat /proc/version >> $LOGFILE
 	if [ -f /usr/share/clear/version ]; then
@@ -110,7 +110,7 @@ RunFIO()
 	elif [ -f /etc/*-release ]; then
 		cat /etc/*-release >> $LOGFILE
 	fi
-	echo "--- PCI Bus Information ---" >> $LOGFILE
+	LogMsg "--- PCI Bus Information ---"
 	lspci >> $LOGFILE
 	df -h >> $LOGFILE
 	fio --cpuclock-test >> $LOGFILE
@@ -137,10 +137,10 @@ RunFIO()
 				#mkdir $blk_operation
 				#blktrace -w 40 -d /dev/sdf -D $blk_operation &
 				#blktrace -w 40 -d /dev/sdm -D $blk_operation &
-				echo "-- iteration ${iteration} ----------------------------- ${testmode} test, ${io}K bs, ${Thread} threads, ${numjobs} jobs, 5 minutes ------------------ $(date +"%x %r %Z") ---" >> $LOGFILE
+				LogMsg "-- iteration ${iteration} ----------------------------- ${testmode} test, ${io}K bs, ${Thread} threads, ${numjobs} jobs, 5 minutes ------------------ $(date +"%x %r %Z") ---"
 				LogMsg "Running ${testmode} test, ${io}K bs, ${Thread} threads ..."
 				jsonfilename="${JSONFILELOG}/fio-result-${testmode}-${io}K-${Thread}td.json"
-				echo "${fio_cmd} $FILEIO --readwrite=${testmode} --bs=${io}K --runtime=${ioruntime} --iodepth=${Thread} --numjobs=${numjobs} --output-format=json --output=${jsonfilename} --name='iteration'${iteration}" >> $LOGFILE
+				LogMsg "${fio_cmd} $FILEIO --readwrite=${testmode} --bs=${io}K --runtime=${ioruntime} --iodepth=${Thread} --numjobs=${numjobs} --output-format=json --output=${jsonfilename} --name='iteration'${iteration}"
 				$fio_cmd $FILEIO --readwrite=$testmode --bs=${io}K --runtime=$ioruntime --iodepth=$Thread --numjobs=$numjobs --output-format=json --output=$jsonfilename --name="iteration"${iteration} >> $LOGFILE
 				#fio $FILEIO --readwrite=$testmode --bs=${io}K --runtime=$ioruntime --iodepth=$Thread --numjobs=$numjobs --name="iteration"${iteration} --group_reporting >> $LOGFILE
 				iostatPID=`ps -ef | awk '/iostat/ && !/awk/ { print $2 }'`
@@ -155,13 +155,13 @@ RunFIO()
 		done
 	done
 	####################################
-	echo "===================================== Completed Run $(date +"%x %r %Z") script generated 2/9/2015 4:24:44 PM ================================" >> $LOGFILE
+	LogMsg "===================================== Completed Run $(date +"%x %r %Z") script generated 2/9/2015 4:24:44 PM ================================"
 
 	compressedFileName="${HOMEDIR}/FIOTest-$(date +"%m%d%Y-%H%M%S").tar.gz"
 	LogMsg "INFO: Please wait...Compressing all results to ${compressedFileName}..."
 	tar -cvzf $compressedFileName $LOGDIR/
 
-	echo "Test logs are located at ${LOGDIR}"
+	LogMsg "Test logs are located at ${LOGDIR}"
 	UpdateTestState ICA_TESTCOMPLETED
 }
 
@@ -174,7 +174,7 @@ CreateRAID0()
 	LogMsg "INFO: Check and remove RAID first"
 	mdvol=$(cat /proc/mdstat | grep "active raid" | awk {'print $1'})
 	if [ -n "$mdvol" ]; then
-		echo "/dev/${mdvol} already exist...removing first"
+		LogMsg "/dev/${mdvol} already exist...removing first"
 		umount /dev/${mdvol}
 		mdadm --stop /dev/${mdvol}
 		mdadm --remove /dev/${mdvol}
@@ -185,7 +185,7 @@ CreateRAID0()
 	count=0
 	for disk in ${disks}
 	do		
-		echo "formatting disk /dev/${disk}"
+		LogMsg "formatting disk /dev/${disk}"
 		(echo d; echo n; echo p; echo 1; echo; echo; echo t; echo fd; echo w;) | fdisk /dev/${disk}
 		count=$(( $count + 1 ))
 		sleep 1
