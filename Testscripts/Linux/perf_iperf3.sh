@@ -138,7 +138,6 @@ fi
 
 LogMsg "Configuring client ${client}..."
 ssh ${client} ". $UTIL_FILE && install_iperf3 $IPversion"
-ssh ${client} "which iperf3"
 if [ $? -ne 0 ]; then
 	LogMsg "Error: iperf installation failed in ${client}.."
 	UpdateTestState "TestAborted"
@@ -147,11 +146,18 @@ fi
 
 LogMsg "Configuring server ${server}..."
 ssh ${server} ". $UTIL_FILE && install_iperf3 $IPversion"
-ssh ${server} "which iperf3"
 if [ $? -ne 0 ]; then
 	LogMsg "Error: iperf installation failed in ${server}.."
 	UpdateTestState "TestAborted"
 	exit 1
+fi
+
+if [[ $(detect_linux_distribution) == coreos ]]; then
+	iperf3_cmd="docker run --network host lisms/iperf3"
+	ssh root@${server} ". $UTIL_FILE && Delete_Containers"
+	ssh root@${client} ". $UTIL_FILE && Delete_Containers"
+else
+	iperf3_cmd="iperf3"
 fi
 
 ssh ${server} "rm -rf iperf-server-*"
@@ -173,15 +179,15 @@ for current_buffer in "${bufferLengths[@]}"; do
 			num_threads_n=$(($current_test_connections / $num_threads_P))
 		fi
 		
-		ssh ${server} "killall iperf3"
-		ssh ${client} "killall iperf3"
+		Kill_Process ${server} iperf3
+		Kill_Process ${client} iperf3
 		LogMsg "Starting $num_threads_n iperf3 server instances on $server.."
 		startPort=750
 		currentPort=$startPort
 		currentIperfInstanses=0
 		while [ $currentIperfInstanses -lt $num_threads_n ]; do
 			currentIperfInstanses=$(($currentIperfInstanses+1))
-			serverCommand="iperf3 -s -1 -J -i10 -f g -p ${currentPort} > iperf-server-${testType}-IPv${IPversion}-buffer-${current_buffer}-conn-$current_test_connections-instance-${currentIperfInstanses}.txt 2>&1"
+			serverCommand="${iperf3_cmd} -s -1 -J -i10 -f g -p ${currentPort} > iperf-server-${testType}-IPv${IPversion}-buffer-${current_buffer}-conn-$current_test_connections-instance-${currentIperfInstanses}.txt 2>&1"
 			ssh ${server} $serverCommand &
 			LogMsg "Executed: $serverCommand"
 			currentPort=$(($currentPort+1))
@@ -205,10 +211,10 @@ for current_buffer in "${bufferLengths[@]}"; do
 			currentIperfInstanses=$(($currentIperfInstanses+1))
 
 			if [[ "$testType" == "udp" ]]; then
-				clientCommand="iperf3 -c $testServer -u -b 0 -J -f g -i10 -l ${current_buffer} -t ${testDuration} -p ${currentPort} -P $num_threads_P -${IPversion} > iperf-client-${testType}-IPv${IPversion}-buffer-${current_buffer}-conn-$current_test_connections-instance-${currentIperfInstanses}.txt 2>&1"
+				clientCommand="${iperf3_cmd} -c $testServer -u -b 0 -J -f g -i10 -l ${current_buffer} -t ${testDuration} -p ${currentPort} -P $num_threads_P -${IPversion} > iperf-client-${testType}-IPv${IPversion}-buffer-${current_buffer}-conn-$current_test_connections-instance-${currentIperfInstanses}.txt 2>&1"
 			fi
 			if [[ "$testType" == "tcp" ]]; then
-				clientCommand="iperf3 -c $testServer -b 0 -J -f g -i10 -l ${current_buffer} -t ${testDuration} -p ${currentPort} -P $num_threads_P -${IPversion} > iperf-client-${testType}-IPv${IPversion}-buffer-${current_buffer}-conn-$current_test_connections-instance-${currentIperfInstanses}.txt 2>&1"
+				clientCommand="${iperf3_cmd} -c $testServer -b 0 -J -f g -i10 -l ${current_buffer} -t ${testDuration} -p ${currentPort} -P $num_threads_P -${IPversion} > iperf-client-${testType}-IPv${IPversion}-buffer-${current_buffer}-conn-$current_test_connections-instance-${currentIperfInstanses}.txt 2>&1"
 			fi
 			
 			ssh ${client} $clientCommand &
@@ -220,18 +226,18 @@ for current_buffer in "${bufferLengths[@]}"; do
 		sleep ${testDuration}
 		timeoutSeconds=900
 		sleep 5
-		var=`ps -C "iperf3 -c" --no-headers | wc -l`
+		var=`ps -C "${iperf3_cmd} -c" --no-headers | wc -l`
 		echo $var
 		while [[ $var -gt 0 ]]; do
 			timeoutSeconds=`expr $timeoutSeconds - 1`
 			if [ $timeoutSeconds -eq 0 ]; then
 				LogMsg "Iperf3 running buffer ${current_buffer}K $num_threads_P X $num_threads_n. Timeout."
 				LogMsg "killing all iperf3 client threads."
-				killall iperf3
+				Kill_Process ${client} iperf3
 				sleep 1
 			else
 				sleep 1
-				var=`ps -C "iperf3 -c" --no-headers | wc -l`
+				var=`ps -C "${iperf3_cmd} -c" --no-headers | wc -l`
 				LogMsg "Iperf3 running buffer ${current_buffer}K $num_threads_P X $num_threads_n. Waiting to finish $var instances."
 			fi
 		done
@@ -241,4 +247,4 @@ for current_buffer in "${bufferLengths[@]}"; do
 	done
 done
 scp ${server}:iperf-server-* ./
-UpdateTestState ICA_TESTCOMPLETED
+UpdateTestState $ICA_TESTCOMPLETED

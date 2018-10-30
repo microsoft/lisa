@@ -255,7 +255,7 @@ function Enable-RootUser {
 
     foreach ($VM in $VMData) {
         RemoteCopy -upload -uploadTo $VM.PublicIP -Port $VM.SSHPort `
-             -files ".\Testscripts\Linux\enableRoot.sh" -Username $Username -password $Password
+             -files ".\Testscripts\Linux\utils.sh,.\Testscripts\Linux\enableRoot.sh" -Username $Username -password $Password
         $cmdResult = RunLinuxCmd -Command "bash enableRoot.sh -password ${RootPassword}" -runAsSudo `
              -Username $Username -password $Password -ip $VM.PublicIP -Port $VM.SSHPort
         if (-not $cmdResult) {

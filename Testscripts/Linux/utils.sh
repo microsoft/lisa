@@ -2578,11 +2578,20 @@ function install_fio () {
 			iptables -F
 			;;
 
+		coreos)
+			docker pull lisms/fio
+			docker pull lisms/toolbox
+			;;
+
 		*)
 			echo "Unsupported distribution for install_fio"
 			return 1
 	esac
-	which fio
+	if [[ $(detect_linux_distribution) == coreos ]]; then
+		docker images | grep -i lisms/fio
+	else
+		which fio
+	fi
 	if [ $? -ne 0 ]; then
 		return 1
 	fi	
@@ -2653,11 +2662,19 @@ function install_iperf3 () {
 			iptables -F
 			;;
 
+		coreos)
+			docker pull lisms/iperf3
+			;;
+
 		*)
 			echo "Unsupported distribution for install_iperf3"
 			return 1
 	esac
-	which iperf3
+	if [[ $(detect_linux_distribution) == coreos ]]; then
+		docker images | grep -i lisms/iperf3
+	else
+		which iperf3
+	fi
 	if [ $? -ne 0 ]; then
 		return 1
 	fi
@@ -2707,11 +2724,19 @@ function install_lagscope () {
 			iptables -F
 			;;
 
+		coreos)
+			docker pull lisms/lagscope
+			;;
+
 		*)
 			echo "Unsupported distribution for install_lagscope"
 			return 1
 	esac
-	which lagscope
+	if [[ $(detect_linux_distribution) == coreos ]]; then
+		docker images | grep -i lisms/lagscope
+	else
+		which lagscope
+	fi
 	if [ $? -ne 0 ]; then
 		return 1
 	fi
@@ -2765,11 +2790,21 @@ function install_ntttcp () {
 			iptables -F
 			;;
 
+		coreos)
+			docker pull lisms/ntttcp
+			docker pull lisms/toolbox
+			docker pull lisms/lagscope
+			;;
+
 		*)
 			echo "Unsupported distribution for install_ntttcp"
 			return 1
 	esac
-	which ntttcp
+	if [[ $(detect_linux_distribution) == coreos ]]; then
+		docker images | grep -i lisms/ntttcp
+	else
+		which ntttcp
+	fi
 	if [ $? -ne 0 ]; then
 		return 1
 	fi
@@ -2819,11 +2854,20 @@ function install_netperf () {
 			iptables -F
 			;;
 
+		coreos)
+			docker pull lisms/netperf
+			docker pull lisms/toolbox
+			;;
+
 		*)
 			echo "Unsupported distribution for build_netperf"
 			return 1
 	esac
-	which netperf
+	if [[ $(detect_linux_distribution) == coreos ]]; then
+		docker images | grep -i lisms/netperf
+	else
+		which netperf
+	fi
 	if [ $? -ne 0 ]; then
 		return 1
 	fi
@@ -3293,6 +3337,7 @@ function stop_firewall() {
     esac
     return 0
 }
+
 function Update_Kernel() {
     GetDistro
     case "$DISTRO" in
@@ -3315,4 +3360,46 @@ function Update_Kernel() {
             ;;
     esac
     return $retVal
+}
+
+Kill_Process()
+{
+    ip=$1
+    if [[ $(detect_linux_distribution) == coreos ]]; then
+        output="default"
+        while [[ ${#output} != 0 ]]; do
+            output=`ssh $ip "docker ps -a | grep $2 "`
+            if [[ ${#output} == 0 ]]; then
+                break
+            fi
+            pid=$(echo $output | awk '{print $1}')
+            ssh $ip "docker stop $pid; docker rm $pid"
+        done
+    else
+        ssh $ip "killall $2"
+    fi
+}
+
+Delete_Containers()
+{
+    containers=`docker ps -a | grep -v 'CONTAINER ID' | awk '{print $1}'`
+    for containerID in ${containers}
+    do
+        docker stop $containerID > /dev/null 2>&1
+        docker rm $containerID > /dev/null 2>&1
+    done
+}
+
+Get_BC_Command()
+{
+    bc_cmd=""
+    if [[ $(detect_linux_distribution) != coreos ]]; then
+        bc_cmd="bc"
+    else
+        Delete_Containers
+        docker run -t -d lisms/toolbox > /dev/null 2>&1
+        containerID=`docker ps | grep -v 'CONTAINER ID' | awk '{print $1}'`
+        bc_cmd="docker exec -i $containerID bc"
+    fi
+    echo $bc_cmd
 }
