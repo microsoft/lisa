@@ -171,17 +171,9 @@ function Main {
                 Set-VMMemory -VMName $VMName -ComputerName $HvServer -DynamicMemoryEnabled $tpEnabled `
                             -StartupBytes $dmStartupMem -Priority $dmMemWeight
             }
-            if ( $?){
-               LogMsg "set VM memory for $VMName."
-            }
             if (-not $?)
             {
                 throw "Error: Unable to set VM Memory for $VMName."
-                "DM enabled: $tpEnabled"
-                "min Mem: $dmMinMem"
-                "max Mem: $dmMaxMem"
-                "startup Mem: $dmStartupMem"
-                "weight Mem: $dmMemWeight"
             }
             # check if mem is set correctly
             $vm_mem = (Get-VMMemory $VMName -ComputerName $HvServer).Startup

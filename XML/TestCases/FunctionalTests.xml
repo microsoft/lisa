@@ -1454,6 +1454,8 @@
         <files>.\Testscripts\Linux\check_traces.sh</files>
         <setupType>SingleVM</setupType>
         <TestParameters>
+            <param>appGitURL=DYNAMIC_MEMORY_STRESSNG</param>
+            <param>appGitTag=APP_GIT_TAG</param>
             <param>Stress_Level=0</param>
             <param>enableDM=yes</param>
             <param>minMem=1024MB</param>
@@ -2191,5 +2193,91 @@
         <Category>Functional</Category>
         <Area>NET</Area>
         <Tags>net</Tags>
+    </test>
+    <test>
+        <testName>DYNAMIC-MEMORY-HOTADD-STRESS-APP</testName>
+        <setupScript>.\Testscripts\Windows\DM-CONFIGURE-MEMORY.ps1</setupScript>
+        <testScript>DM-HOTADD-STRESS-APP.ps1</testScript>
+        <files>.\Testscripts\Linux\check_traces.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>enableDM=yes</param>
+            <param>minMem=1024MB</param>
+            <param>maxMem=4GB</param>
+            <param>startupMem=1024MB</param>
+            <param>memWeight=100</param>
+            <param>staticMem=1024MB</param>
+            <param>appGitURL=DYNAMIC_MEMORY_STRESSAPP</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>Dynamic_Memory</Area>
+        <Tags>memory</Tags>
+    </test>
+    <test>
+        <testName>DYNAMIC-MEMORY-STRESS-HOTADD-5SECONDS</testName>
+        <setupScript>.\Testscripts\Windows\DM-CONFIGURE-MEMORY.ps1</setupScript>
+        <testScript>DM-HOTADD-STRESS-NG.ps1</testScript>
+        <files>.\Testscripts\Linux\check_traces.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>Stress_Level=1</param>
+            <param>appGitURL=DYNAMIC_MEMORY_STRESSNG</param>
+            <param>appGitTag=APP_GIT_TAG</param>
+            <param>enableDM=yes</param>
+            <param>minMem=1024MB</param>
+            <param>maxMem=4GB</param>
+            <param>startupMem=1024MB</param>
+            <param>memWeight=100</param>
+            <param>staticMem=1024MB</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>Dynamic_Memory</Area>
+        <Tags>memory</Tags>
+    </test>
+    <test>
+        <testName>DYNAMIC-MEMORY-STRESS-HOTADD-1SECOND</testName>
+        <setupScript>.\Testscripts\Windows\DM-CONFIGURE-MEMORY.ps1</setupScript>
+        <testScript>DM-HOTADD-STRESS-NG.ps1</testScript>
+        <files>.\Testscripts\Linux\check_traces.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>Stress_Level=2</param>
+            <param>appGitURL=DYNAMIC_MEMORY_STRESSNG</param>
+            <param>appGitTag=APP_GIT_TAG</param>
+            <param>enableDM=yes</param>
+            <param>minMem=1024MB</param>
+            <param>maxMem=4GB</param>
+            <param>startupMem=1024MB</param>
+            <param>memWeight=100</param>
+            <param>staticMem=1024MB</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>Dynamic_Memory</Area>
+        <Tags>memory</Tags>
+    </test>
+    <test>
+        <testName>DYNAMIC-MEMORY-STRESS-LARGE-CHUNK</testName>
+        <setupScript>.\Testscripts\Windows\DM-CONFIGURE-MEMORY.ps1</setupScript>
+        <testScript>DM-HOTADD-STRESS-NG.ps1</testScript>
+        <files>.\Testscripts\Linux\check_traces.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>Stress_Level=3</param>
+            <param>appGitURL=DYNAMIC_MEMORY_STRESSNG</param>
+            <param>appGitTag=APP_GIT_TAG</param>
+            <param>enableDM=yes</param>
+            <param>minMem=1024MB</param>
+            <param>maxMem=8GB</param>
+            <param>startupMem=1024MB</param>
+            <param>memWeight=100</param>
+            <param>staticMem=1024MB</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>Dynamic_Memory</Area>
+        <Tags>memory</Tags>
     </test>
 </TestCases>

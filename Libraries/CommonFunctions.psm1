@@ -4460,3 +4460,93 @@ function Test-MaxNIC {
         }
     }
 }
+
+# This function is used for generating load using Stress NG tool
+function Get-MemoryStressNG([String]$VMIpv4, [String]$VMSSHPort, [int]$timeoutStress, [int64]$memMB, [int]$duration, [int64]$chunk)
+{
+    LogMsg "Get-MemoryStressNG started to generate memory load"
+    $cmdToVM = @"
+#!/bin/bash
+        if [ ! -e /proc/meminfo ]; then
+          echo "ConsumeMemory: no meminfo found. Make sure /proc is mounted" >> /root/HotAdd.log 2>&1
+          exit 100
+        fi
+
+        rm ~/HotAddErrors.log -f
+        __totalMem=`$(cat /proc/meminfo | grep -i MemTotal | awk '{ print `$2 }')
+        __totalMem=`$((__totalMem/1024))
+        echo "ConsumeMemory: Total Memory found `$__totalMem MB" >> /root/HotAdd.log 2>&1
+        declare -i __chunks
+        declare -i __threads
+        declare -i duration
+        declare -i timeout
+        if [ $chunk -le 0 ]; then
+            __chunks=128
+        else
+            __chunks=512
+        fi
+        __threads=`$(($memMB/__chunks))
+        if [ $timeoutStress -eq 0 ]; then
+            timeout=10000000
+            duration=`$((10*__threads))
+        elif [ $timeoutStress -eq 1 ]; then
+            timeout=5000000
+            duration=`$((5*__threads))
+        elif [ $timeoutStress -eq 2 ]; then
+            timeout=1000000
+            duration=`$__threads
+        else
+            timeout=1
+            duration=30
+            __threads=4
+            __chunks=2048
+        fi
+
+        if [ $duration -ne 0 ]; then
+            duration=$duration
+        fi
+        echo "Stress-ng info: `$__threads threads :: `$__chunks MB chunk size :: `$((`$timeout/1000000)) seconds between chunks :: `$duration seconds total stress time" >> /root/HotAdd.log 2>&1
+        stress-ng -m `$__threads --vm-bytes `${__chunks}M -t `$duration --backoff `$timeout
+        echo "Waiting for jobs to finish" >> /root/HotAdd.log 2>&1
+        wait
+        exit 0
+"@
+
+    $FILE_NAME = "ConsumeMem.sh"
+    Set-Content $FILE_NAME "$cmdToVM"
+    # send file
+    RemoteCopy -uploadTo $VMIpv4 -port $VMSSHPort -files $FILE_NAME -username $user -password $password -upload
+    LogMsg "remotecopy done"
+    # execute command
+    $sendCommand = "echo $password | sudo -S cd /root && chmod u+x ${FILE_NAME} && sed -i 's/\r//g' ${FILE_NAME} && ./${FILE_NAME}"
+    $retVal = RunLinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMSSHPort -command $sendCommand  -runAsSudo
+    return $retVal
+}
+
+# This function installs Stress NG/Stress APP
+Function Publish-App([string]$appName, [string]$customIP, [string]$appGitURL, [string]$appGitTag,[String] $VMSSHPort)
+{
+    # check whether app is already installed
+    if ($null -eq $appGitURL) {
+        LogMsg "ERROR: $appGitURL is not set"
+        return $False
+    }
+    $retVal = RunLinuxCmd -username $user -password $password -ip $customIP -port $VMSSHPort `
+        -command "echo $password | sudo -S cd /root; git clone $appGitURL $appName > /dev/null 2>&1"
+    if ($appGitTag) {
+        $retVal = RunLinuxCmd -username $user -password $password -ip $customIP -port $VMSSHPort `
+        -command "cd $appName; git checkout tags/$appGitTag > /dev/null 2>&1"
+    }
+    if ($appName -eq "stress-ng") {
+        $appInstall = "cd $appName; echo '${password}' | sudo -S make install"
+        $retVal = RunLinuxCmd -username $user -password $password -ip $customIP -port $VMSSHPort `
+             -command $appInstall
+    }
+    else {
+    $appInstall = "cd $appName;./configure;make;echo '${password}' | sudo -S make install"
+    $retVal = RunLinuxCmd -username $user -password $password -ip $customIP -port $VMSSHPort `
+        -command $appInstall
+    }
+    LogMsg "App $appName Installation is completed"
+    return $retVal
+}

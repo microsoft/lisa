@@ -99,4 +99,16 @@ Scenario 2 : You need to run all the performance tests quickly.
         <ReplaceThis>PROD_CHECKPOINT_MINI_ISO</ReplaceThis>
         <ReplaceWith>http://ports.ubuntu.com/dists/trusty/main/installer-powerpc/current/images/powerpc/netboot/mini.iso</ReplaceWith>
     </Parameter>
+    <Parameter>
+        <ReplaceThis>DYNAMIC_MEMORY_STRESSNG</ReplaceThis>
+        <ReplaceWith>https://github.com/ColinIanKing/stress-ng</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>APP_GIT_TAG</ReplaceThis>
+        <ReplaceWith>V0.07.16</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>DYNAMIC_MEMORY_STRESSAPP</ReplaceThis>
+        <ReplaceWith>https://github.com/stressapptest/stressapptest.git</ReplaceWith>
+    </Parameter>
 </ReplaceableTestParameters>
