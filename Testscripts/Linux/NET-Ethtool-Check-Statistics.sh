@@ -247,14 +247,6 @@ ChangeMTU(){
     #Log the values
     LogMsg "Wake_queue start value: $wake_value"
     LogMsg "Wake_queue value after changing MTU: $new_wake_value"
-
-    if [ $new_wake_value -eq 10 ]; then
-        LogMsg "Successfully test on wake_queue param."
-        return 0
-    else
-        LogErr "test on wake_queue param failed."
-        return 1
-    fi
 }
 
 # Main script body
@@ -336,7 +328,7 @@ ip link show $test_iface
 ethtool --version
 if [ $? -ne 0 ]; then
     update_repos
-    install_package "ethtool"  
+    install_package "ethtool"
 fi
 
 #Check if Statistics from ethtool are available
@@ -346,7 +338,7 @@ if [[ $sts = *"no stats available"* ]]; then
     LogErr "Operation not supported. Test Skipped."
     SetTestStateAborted
     exit 0
-fi 
+fi
 
 #Make all bash scripts executable
 cd ~
