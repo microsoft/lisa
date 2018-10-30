@@ -144,40 +144,44 @@ InstallKernel()
                 sourceDir="net-next"
         elif [[ $CustomKernel == *.deb ]]; then
                 LogMsg "Custom Kernel:$CustomKernel"
+                apt-get update
+
+                LogMsg "Adding packages required by the kernel."
+                apt-get install -y binutils
+
+                LogMsg "Removing packages that do not allow the kernel to be installed"
+                apt-get remove -y grub-legacy-ec2
+
                 if [[ $CustomKernel =~ "http" ]];then
-                        CheckInstallLockUbuntu
-                        apt-get update
-                        apt-get install wget -y
-                        LogMsg "Debian package web link detected. Downloading $CustomKernel"
-                        wget $CustomKernel
-                        LogMsg "Installing ${CustomKernel##*/}"
-                        dpkg -i "${CustomKernel##*/}"  >> $logFolder/build-CustomKernel.txt 2>&1
-                        kernelInstallStatus=$?
+                    CheckInstallLockUbuntu
+                    LogMsg "Debian package web link detected. Downloading $CustomKernel"
+                    apt-get install -y wget
+                    wget $CustomKernel
+                    LogMsg "Installing ${CustomKernel##*/}"
+                    dpkg -i "${CustomKernel##*/}"  >> $logFolder/build-CustomKernel.txt 2>&1
+                    kernelInstallStatus=$?
                 else
-                        CheckInstallLockUbuntu
-                        customKernelFilesUnExpanded="${CustomKernel#$LOCAL_FILE_PREFIX}"
+                    CheckInstallLockUbuntu
+                    customKernelFilesUnExpanded="${CustomKernel#$LOCAL_FILE_PREFIX}"
+                    if [[ "${customKernelFilesUnExpanded}" == *'*.deb'* ]]; then
+                        apt-get remove -y linux-cloud-tools-common
+                    fi
 
-                        LogMsg "Removing packages that do not allow the kernel to be installed"
-                        apt-get remove -y grub-legacy-ec2
-                        if [[ "${customKernelFilesUnExpanded}" == *'*.deb'* ]]; then
-                            apt-get remove -y linux-cloud-tools-common
-                        fi
+                    LogMsg "Installing ${customKernelFilesUnExpanded}"
+                    eval "dpkg -i $customKernelFilesUnExpanded >> $logFolder/build-CustomKernel.txt 2>&1"
 
-                        LogMsg "Installing ${customKernelFilesUnExpanded}"
-                        eval "dpkg -i $customKernelFilesUnExpanded >> $logFolder/build-CustomKernel.txt 2>&1"
-
-                        LogMsg "Configuring the correct kernel boot order"
-                        image_file=$(ls -1 *image* | grep -v "dbg" | sed -n 1p)
-                        if [[ "${image_file}" != '' ]]; then
-                            kernel_identifier=$(dpkg-deb --info "${image_file}" | grep 'Package: ' | grep -o "image.*")
-                            kernel_identifier=${kernel_identifier#image-}
-                            sed -i.bak 's/GRUB_DEFAULT=.*/GRUB_DEFAULT="Advanced options for Ubuntu>Ubuntu, with Linux '$kernel_identifier'"/g' /etc/default/grub
-                            update-grub
-                        else
-                            msg="Kernel correct boot order could not be set."
-                            LogErr "$msg"
-                        fi
-                        kernelInstallStatus=$?
+                    LogMsg "Configuring the correct kernel boot order"
+                    image_file=$(ls -1 *image* | grep -v "dbg" | sed -n 1p)
+                    if [[ "${image_file}" != '' ]]; then
+                        kernel_identifier=$(dpkg-deb --info "${image_file}" | grep 'Package: ' | grep -o "image.*")
+                        kernel_identifier=${kernel_identifier#image-}
+                        sed -i.bak 's/GRUB_DEFAULT=.*/GRUB_DEFAULT="Advanced options for Ubuntu>Ubuntu, with Linux '$kernel_identifier'"/g' /etc/default/grub
+                        update-grub
+                    else
+                        msg="Kernel correct boot order could not be set."
+                        LogErr "$msg"
+                    fi
+                    kernelInstallStatus=$?
                 fi
 
                 UpdateTestState $ICA_TESTCOMPLETED
