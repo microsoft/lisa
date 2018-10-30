@@ -123,7 +123,7 @@ function Main {
     }
 
     if (Get-VM -Name $VM2Name -ComputerName $DependencyVmHost | Where-Object { $_.State -like "Running" }) {
-        Stop-VM $VM2Name -ComputerName $DependencyVmHost -Force
+        Stop-VM $VM2Name -ComputerName $DependencyVmHost -Force -TurnOff
         if (-not $?) {
             LogErr "Unable to shut $VM2Name down (in order to add a new network Adapter)"
             return $False
@@ -196,7 +196,7 @@ function Main {
     Remove-Item sriov_constants.sh -Force -EA SilentlyContinue
     "SSH_PRIVATE_KEY=id_rsa" | Out-File sriov_constants.sh
     "NETMASK=${netmask}" | Out-File sriov_constants.sh -Append
-    [array]::Reverse($vfIP)
+    [array]::Sort($vfIP)
     for ($i=0; $i -lt $vfIterator; $i++){
         # get ip from array
         $j = $i + 1

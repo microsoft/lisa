@@ -74,8 +74,8 @@ VerifyVF()
     fi
 
     interface=$(ls /sys/class/net/ | grep -v 'eth0\|eth1\|lo' | head -1)
-    ifconfig -a | grep $interface
-        if [ $? -ne 0 ]; then
+    ip a | grep $interface
+    if [ $? -ne 0 ]; then
         LogErr "VF device, $interface , was not found!"
         SetTestStateFailed
         exit 1
@@ -235,6 +235,15 @@ InstallDependencies()
     # Check if iPerf3 is already installed
     iperf3 -v > /dev/null 2>&1
     if [ $? -ne 0 ]; then
+        update_repos
+        gcc -v
+        if [ $? -ne 0 ]; then
+            install_package "gcc"
+        fi
+        make -v
+        if [ $? -ne 0 ]; then
+            install_package "make"
+        fi
         wget $iperf3_url
         if [ $? -ne 0 ]; then
             LogErr "Failed to download iperf3 from $iperf3_url"
