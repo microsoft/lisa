@@ -783,13 +783,35 @@ Function GenerateAzureDeployJSONFile ($RGName, $osImage, $osVHD, $RGXMLData, $Lo
 #Random Data
 $RGrandomWord = ([System.IO.Path]::GetRandomFileName() -replace '[^a-z]')
 $RGRandomNumber = Get-Random -Minimum 11111 -Maximum 99999
-if ( $CurrentTestData.AdditionalHWConfig.DiskType -eq "Managed" )
+if ( $CurrentTestData.AdditionalHWConfig.DiskType -eq "Managed" -or $UseManagedDisks )
 {
-    $UseManageDiskForCurrentTest = $true
+    if ( $CurrentTestData.AdditionalHWConfig.DiskType -eq "Managed" )
+    {
+        $UseManageDiskForCurrentTest = $true
+    }
+    $DiskType = "Managed"
 }
 else
 {
     $UseManageDiskForCurrentTest = $false
+    $DiskType = "Unmanaged"
+}
+if ( $CurrentTestData.AdditionalHWConfig.OSDiskType -eq "Ephemeral" )
+{
+    if ( $UseManageDiskForCurrentTest )
+    {
+        $UseEphemeralOSDisk = $true
+        $DiskType += "-Ephemeral"
+    }
+    else
+    {
+        Throw "Invalid VM configuration. Ephemeral disks can only be created using Managed disk option."
+    }
+}
+else
+{
+    $DiskType += "-Persistant"
+    $UseEphemeralOSDisk = $false
 }
 #Generate the initial data
 $numberOfVMs = 0
@@ -1816,7 +1838,7 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
         #region virtualMachines
         LogMsg "Adding Virtual Machine $vmName"
         Add-Content -Value "$($indents[2]){" -Path $jsonFile
-            Add-Content -Value "$($indents[3])^apiVersion^: ^2017-03-30^," -Path $jsonFile
+            Add-Content -Value "$($indents[3])^apiVersion^: ^2018-06-01^," -Path $jsonFile
             Add-Content -Value "$($indents[3])^type^: ^Microsoft.Compute/virtualMachines^," -Path $jsonFile
             Add-Content -Value "$($indents[3])^name^: ^$vmName^," -Path $jsonFile
             Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
@@ -1946,7 +1968,18 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
                                 Add-Content -Value "$($indents[7])^storageAccountType^: ^$StorageAccountType^" -Path $jsonFile
                     
                             Add-Content -Value "$($indents[6])}," -Path $jsonFile
+                        if ($UseEphemeralOSDisk)
+                        {
+                            Add-Content -Value "$($indents[6])^caching^: ^ReadOnly^," -Path $jsonFile
+                            Add-Content -Value "$($indents[6])^diffDiskSettings^: " -Path $jsonFile
+                            Add-Content -Value "$($indents[6]){" -Path $jsonFile
+                                Add-Content -Value "$($indents[7])^option^: ^local^" -Path $jsonFile
+                            Add-Content -Value "$($indents[6])}," -Path $jsonFile
+                        }
+                        else 
+                        {
                             Add-Content -Value "$($indents[6])^caching^: ^ReadWrite^," -Path $jsonFile
+                        }
                             Add-Content -Value "$($indents[6])^createOption^: ^FromImage^" -Path $jsonFile
                         }
                         else 
@@ -1972,13 +2005,23 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
                         if ($UseManagedDisks -or $UseManageDiskForCurrentTest)
                         {
                             Add-Content -Value "$($indents[6])^name^: ^$vmName-OSDisk^," -Path $jsonFile
-                            Add-Content -Value "$($indents[6])^createOption^: ^FromImage^," -Path $jsonFile
                             Add-Content -Value "$($indents[6])^managedDisk^: " -Path $jsonFile
                             Add-Content -Value "$($indents[6]){" -Path $jsonFile
                                 Add-Content -Value "$($indents[7])^storageAccountType^: ^$StorageAccountType^" -Path $jsonFile
-                            Add-Content -Value "$($indents[6])}" -Path $jsonFile
-                            LogMsg "Added managed OS disk : $vmName-OSDisk"
-
+                            Add-Content -Value "$($indents[6])}," -Path $jsonFile
+                        if ($UseEphemeralOSDisk)
+                        {
+                            Add-Content -Value "$($indents[6])^caching^: ^ReadOnly^," -Path $jsonFile
+                            Add-Content -Value "$($indents[6])^diffDiskSettings^: " -Path $jsonFile
+                            Add-Content -Value "$($indents[6]){" -Path $jsonFile
+                                Add-Content -Value "$($indents[7])^option^: ^local^" -Path $jsonFile
+                            Add-Content -Value "$($indents[6])}," -Path $jsonFile
+                        }
+                        else
+                        {
+                            Add-Content -Value "$($indents[6])^caching^: ^ReadWrite^," -Path $jsonFile
+                        }                            
+                            Add-Content -Value "$($indents[6])^createOption^: ^FromImage^" -Path $jsonFile
                         }
                         else 
                         {
@@ -1992,6 +2035,7 @@ foreach ( $newVM in $RGXMLData.VirtualMachine)
                         }
                     }
                     Add-Content -Value "$($indents[5])}," -Path $jsonFile
+                    LogMsg "Added $DiskType OS disk : $vmName-OSDisk"
                     $dataDiskAdded = $false
                     Add-Content -Value "$($indents[5])^dataDisks^ : " -Path $jsonFile
                     Add-Content -Value "$($indents[5])[" -Path $jsonFile

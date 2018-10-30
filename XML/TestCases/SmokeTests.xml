@@ -10,6 +10,21 @@
         <Tags>bvt</Tags>
     </test>
     <test>
+        <TestName>VERIFY-DEPLOYMENT-PROVISION-EPHEMERAL-MANAGED-DISK</TestName>
+        <testScript>BVT-VERIFY-DEPLOYMENT-PROVISION.ps1</testScript>
+        <files></files>
+        <setupType>SingleVM</setupType>
+        <OverrideVMSize>Standard_DS1_v2</OverrideVMSize>
+        <AdditionalHWConfig>
+            <DiskType>Managed</DiskType>
+            <OSDiskType>Ephemeral</OSDiskType>
+        </AdditionalHWConfig>        
+        <Platform>Azure</Platform>
+        <Category>Smoke</Category>
+        <Area>default</Area>
+        <Tags>ephemeral_os_disk</Tags>
+    </test>        
+    <test>
         <TestName>VERIFY-DEPLOYMENT-PROVISION-SRIOV</TestName>
         <testScript>BVT-VERIFY-DEPLOYMENT-PROVISION.ps1</testScript>
         <files></files>
