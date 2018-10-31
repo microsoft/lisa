@@ -73,8 +73,8 @@ Param(
 	[switch] $EnableTelemetry,
 
 	#[Optional] Parameters for dynamically updating XML Secret file.
-	[switch] $UpdateGlobalConfigurationFromSecretsFile,
-	[switch] $UpdateXMLStringsFromSecretsFile,
+	[Obsolete("XMLSecretFile presence indicates UpdateGlobalConfigurationFromSecretsFile is true")] [switch] $UpdateGlobalConfigurationFromSecretsFile,
+	[Obsolete("XMLSecretFile presence indicates UpdateXMLStringsFromSecretsFile is true")] [switch] $UpdateXMLStringsFromSecretsFile,
 
 	#[Optional] Parameters for Overriding VM Configuration.
 	[string] $CustomParameters = "",
