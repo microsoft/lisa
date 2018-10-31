@@ -112,7 +112,10 @@ try {
 		$finalWorkingDirectory = "$TempWorkspace\LISAv2\$shortRandomWord$shortRandomNumber"
 		$tmpSource = '\\?\' + "$OriginalWorkingDirectory\*"
 		Write-Output "Copying current workspace to $finalWorkingDirectory"
-		Copy-Item -Path $tmpSource -Destination $finalWorkingDirectory -Recurse -Force | Out-Null
+		$excludedDirectories = @(".git", ".github", "TestResults",
+			"VHDs_Destination_Path", "*.zip", "report")
+		Copy-Item -Path $tmpSource -Destination $finalWorkingDirectory `
+			-Recurse -Force -Exclude $excludedDirectories | Out-Null
 		Set-Location -Path $finalWorkingDirectory | Out-Null
 		Write-Output "Working directory has been changed to $finalWorkingDirectory"
 		$WorkingDirectory = $finalWorkingDirectory
