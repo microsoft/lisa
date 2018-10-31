@@ -86,8 +86,6 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                                         withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')]) 
                                         {
                                             RunPowershellCommand(".\\Run-LisaV2.ps1" +
-                                            " -UpdateGlobalConfigurationFromSecretsFile" +
-                                            " -UpdateXMLStringsFromSecretsFile" +                                              
                                             " -ExitWithZero" +
                                             " -XMLSecretFile '${Azure_Secrets_File}'" +
                                             " -TestLocation '${TestRegion}'" +
@@ -145,8 +143,6 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                                         withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')]) 
                                         {
                                             RunPowershellCommand(".\\Run-LisaV2.ps1" +
-                                            " -UpdateGlobalConfigurationFromSecretsFile" +
-                                            " -UpdateXMLStringsFromSecretsFile" +                                            
                                             " -ExitWithZero" +
                                             " -XMLSecretFile '${Azure_Secrets_File}'" +
                                             " -TestLocation '${TestRegion}'" +
@@ -203,8 +199,6 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                                         withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')]) 
                                         {
                                             RunPowershellCommand(".\\Run-LisaV2.ps1" +
-                                            " -UpdateGlobalConfigurationFromSecretsFile" +
-                                            " -UpdateXMLStringsFromSecretsFile" +                                            
                                             " -ExitWithZero" +
                                             " -XMLSecretFile '${Azure_Secrets_File}'" +
                                             " -TestLocation '${TestRegion}'" +
@@ -261,8 +255,6 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                                         withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')]) 
                                         {
                                             RunPowershellCommand(".\\Run-LisaV2.ps1" +
-                                            " -UpdateGlobalConfigurationFromSecretsFile" +
-                                            " -UpdateXMLStringsFromSecretsFile" +                                            
                                             " -ExitWithZero" +
                                             " -XMLSecretFile '${Azure_Secrets_File}'" +
                                             " -TestLocation '${TestRegion}'" +
@@ -382,8 +374,6 @@ stage('Capture VHD with Custom Kernel')
                 KernelFile = readFile 'CustomKernel.azure.env'
                 stash includes: KernelFile, name: 'CustomKernelStash'
                 RunPowershellCommand(".\\Run-LisaV2.ps1" +
-                " -UpdateGlobalConfigurationFromSecretsFile" +
-                " -UpdateXMLStringsFromSecretsFile" +                  
                 " -XMLSecretFile '${Azure_Secrets_File}'" +
                 " -TestLocation 'westus2'" +
                 " -RGIdentifier '${JenkinsUser}'" +

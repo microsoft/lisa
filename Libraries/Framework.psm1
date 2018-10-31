@@ -134,25 +134,21 @@ Function Add-ReplaceableTestParameters($XmlConfigFilePath)
 
 Function UpdateGlobalConfigurationXML()
 {
-	#Region Update Global Configuration XML file as needed
-	if ($UpdateGlobalConfigurationFromSecretsFile)
+	if ($XMLSecretFile)
 	{
-		if ($XMLSecretFile)
+		if (Test-Path -Path $XMLSecretFile)
 		{
-			if (Test-Path -Path $XMLSecretFile)
-			{
-				LogMsg "Updating .\XML\GlobalConfigurations.xml"
-				.\Utilities\UpdateGlobalConfigurationFromXmlSecrets.ps1 -XmlSecretsFilePath $XMLSecretFile
-			}
-			else 
-			{
-				LogErr "Failed to update .\XML\GlobalConfigurations.xml. '$XMLSecretFile' not found."    
-			}
+			LogMsg "Updating .\XML\GlobalConfigurations.xml"
+			.\Utilities\UpdateGlobalConfigurationFromXmlSecrets.ps1 -XmlSecretsFilePath $XMLSecretFile
 		}
 		else 
 		{
-			LogErr "Failed to update .\XML\GlobalConfigurations.xml. '-XMLSecretFile [FilePath]' not provided."    
+			LogErr "Failed to update .\XML\GlobalConfigurations.xml. Secrets file not found."    
 		}
+	}
+	else 
+	{
+		LogErr "Failed to update .\XML\GlobalConfigurations.xml. '-XMLSecretFile [FilePath]' not provided."    
 	}
 	$RegionStorageMapping = [xml](Get-Content .\XML\RegionAndStorageAccounts.xml)
 	$GlobalConfiguration = [xml](Get-Content .\XML\GlobalConfigurations.xml)
@@ -268,25 +264,21 @@ Function UpdateGlobalConfigurationXML()
 
 Function UpdateXMLStringsFromSecretsFile()
 {
-	#region Replace strings in XML files
-    if ($UpdateXMLStringsFromSecretsFile)
-    {
-        if ($XMLSecretFile)
-        {
-            if (Test-Path -Path $XMLSecretFile)
-            {
-                .\Utilities\UpdateXMLStringsFromXmlSecrets.ps1 -XmlSecretsFilePath $XMLSecretFile
-            }
-            else 
-            {
-                LogErr "Failed to update Strings in .\XML files. '$XMLSecretFile' not found."    
-            }
-        }
-        else 
-        {
-            LogErr "Failed to update Strings in .\XML files. '-XMLSecretFile [FilePath]' not provided."    
-        }
-    }
+	if ($XMLSecretFile)
+	{
+		if (Test-Path -Path $XMLSecretFile)
+		{
+			.\Utilities\UpdateXMLStringsFromXmlSecrets.ps1 -XmlSecretsFilePath $XMLSecretFile
+		}
+		else 
+		{
+			LogErr "Failed to update Strings in .\XML files. '$XMLSecretFile' not found."    
+		}
+	}
+	else 
+	{
+		LogErr "Failed to update Strings in .\XML files. '-XMLSecretFile [FilePath]' not provided."    
+	}
 }
 
 Function CollectTestCases($TestXMLs)
