@@ -26,6 +26,8 @@
 					-UpdateXMLStringsFromSecretsFile
 					-TestNames "BVT-VERIFY-DEPLOYMENT-PROVISION"
 
+	.\Run-LisaV2.ps1 -TestParameters .\XML\TestParameters.xml
+	Note: Please refer .\XML\TestParameters.xml file for more details.
 
 #>
 ###############################################################################################

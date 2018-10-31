@@ -4,12 +4,20 @@ Parameters mentioned in this XML are replaceable using commandline.
 We can convert any hardcoded test parameter in LISAv2 test definition to a "Replaceable Parameter" using this file.
 
 Syntax :
-Run-LisaV2.ps1 -Platform <Platform> `
+
+There are two ways to start the tests -
+1.  Provide '-CustomParameters' to commandline.
+    Run-LisaV2.ps1 -Platform <Platform> `
              -Area <Area> `
              .
              .
              .
              -CustomParameters "ReplaceThis1=ReplaceWith1;ReplaceThis2=ReplaceWith2"
+
+2.  Provide 'CustomParameters' in .\XML\TestParameters.xml
+    a. Edit TestParameters.xml file as follows:
+    <CustomParameters>ReplaceThis1=ReplaceWith1;ReplaceThis2=ReplaceWith2</CustomParameters>
+    Run-LisaV2.ps1 -TestParameters .\XML\TestParameters.xml
 
 Note: Multiple replace operations can be done using sign - semicolumn (";").
 
