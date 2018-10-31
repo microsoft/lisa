@@ -2295,4 +2295,48 @@
         <Area>Dynamic_Memory</Area>
         <Tags>memory</Tags>
     </test>
+    <test>
+        <testName>STOR-VSS-BACKUP-RESTORE-DISKSTRESS</testName>
+        <setupScript>.\Testscripts\Windows\SETUP-Backup-DISK.ps1</setupScript>
+        <testScript>STOR-VSS-BACKUP-RESTORE-DISKSTRESS.ps1</testScript>
+        <cleanupScript>.\TestScripts\Windows\CLEANUP-Backup-DISK.ps1</cleanupScript>
+        <files>.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh,.\Testscripts\Linux\STOR_VSS_Disk_Stress.sh,.\Testscripts\Linux\utils.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>iozoneVers=3_424</param>
+            <param>iozonesrclink="IOZONE_SRC_URL"</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>BACKUP</Area>
+        <Tags>backup</Tags>
+    </test>
+    <test>
+        <testName>STOR-VSS-BACKUP-DISABLE-ENABLE-VSS</testName>
+        <setupScript>.\Testscripts\Windows\SETUP-Backup-DISK.ps1</setupScript>
+        <testScript>STOR-VSS-Backup-Disable-Enable-VSS.ps1</testScript>
+        <cleanupScript>.\TestScripts\Windows\CLEANUP-Backup-DISK.ps1</cleanupScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
+        <setupType>SingleVM</setupType>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>BACKUP</Area>
+        <Tags>backup</Tags>
+    </test>
+    <test>
+        <testName>STOR-VSS-BACKUP-RESTORE-FAIL</testName>
+        <setupScript>.\Testscripts\Windows\SETUP-Backup-DISK.ps1,.\TestScripts\Windows\AddHardDisk.ps1</setupScript>
+        <testScript>STOR-VSS-BackupRestore-Fail.ps1</testScript>
+        <cleanupScript>.\TestScripts\Windows\CLEANUP-Backup-DISK.ps1</cleanupScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh,.\Testscripts\Linux\STOR_VSS_Disk_Fail.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>IDE=1,1,Dynamic</param>
+            <param>FILESYS=ext4</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>BACKUP</Area>
+        <Tags>backup</Tags>
+    </test>
 </TestCases>

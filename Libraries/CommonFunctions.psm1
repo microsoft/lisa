@@ -4300,10 +4300,15 @@ Function New-BackupSetup {
         [String] $HvServer
     )
     LogMsg "Removing old backups"
-    Remove-WBBackupSet -Force -WarningAction SilentlyContinue
-    if(-not $?) {
-        LogErr "Not able to remove existing backup"
-        return $False
+    try {
+        Remove-WBBackupSet -MachineName $HvServer -Force -WarningAction SilentlyContinue
+        if (-not $?) {
+            LogErr "Not able to remove existing BackupSet"
+            return $False
+        }
+    }
+    catch {
+        LogMsg "No existing backup's to remove"
     }
     # Check if the VM VHD in not on the same drive as the backup destination
     $vm = Get-VM -Name $VMName -ComputerName $HvServer
@@ -4365,7 +4370,7 @@ Function New-Backup {
     # Delete file on the VM
     $vmState = $(Get-VM -name $VMName -ComputerName $HvServer).state
     if (-not $vmState) {
-        RunLinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMPort -command "rm /root/1" -runAsSudo
+        RunLinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMPort -command "rm /home/$user/1" -runAsSudo
         if (-not $?) {
             LogErr "Cannot delete test file!"
             return $False
@@ -4458,17 +4463,17 @@ Function Check-VMStateAndFileStatus {
     # only check restore file when ip available
     $stsipv4 = Test-NetConnection $VMIpv4 -Port 22 -WarningAction SilentlyContinue
     if ($stsipv4.TcpTestSucceeded) {
-        $sts=Check-FileInLinuxGuest -VMPassword $password -VMPort $VMPort -VMUserName "root" -Ipv4 $VMIpv4 -fileName "/root/1"
+        $sts=Check-FileInLinuxGuest -VMPassword $password -VMPort $VMPort -VMUserName $user -Ipv4 $VMIpv4 -fileName "/home/$user/1"
         if (-not $sts) {
-            LogErr "No /root/1 file after restore"
+            LogErr "No /home/$user/1 file after restore"
             return $False
         }
         else {
-            LogMsg "there is /root/1 file after restore"
+            LogMsg "there is /home/$user/1 file after restore"
         }
     }
     else {
-        LogMsg "Ignore checking file /root/1 when no network"
+        LogMsg "Ignore checking file /home/$user/1 when no network"
     }
     return $True
 }
@@ -4802,4 +4807,29 @@ Function Publish-App([string]$appName, [string]$customIP, [string]$appGitURL, [s
     }
     LogMsg "App $appName Installation is completed"
     return $retVal
+}
+# Set the Integration Service status based on service name and expected service status.
+function Set-IntegrationService {
+    param (
+        [string] $VMName,
+        [string] $HvServer,
+        [string] $ServiceName,
+        [boolean] $ServiceStatus
+    )
+    if (@("Guest Service Interface", "Time Synchronization", "Heartbeat", "Key-Value Pair Exchange", "Shutdown","VSS") -notcontains $ServiceName) {
+        LogErr "Unknown service type: $ServiceName"
+        return $false
+    }
+    if ($ServiceStatus -eq $false) {
+        Disable-VMIntegrationService -ComputerName $HvServer -VMName $VMName -Name $ServiceName
+    }
+    else {
+        Enable-VMIntegrationService -ComputerName $HvServer -VMName $VMName -Name $ServiceName
+    }
+    $status = Get-VMIntegrationService -ComputerName $HvServer -VMName $VMName -Name $ServiceName
+    if ($status.Enabled -ne $ServiceStatus) {
+        LogErr "The $ServiceName service could not be set as $ServiceStatus"
+        return $False
+    }
+    return $True
 }
