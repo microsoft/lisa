@@ -100,17 +100,26 @@ if [ "${hv_modules:-UNDEFINED}" = "UNDEFINED" ]; then
     exit 0
 fi
 
-if [[ $DISTRO == "redhat_6" ]]; then
-    yum_install -y dracut-network
-    dracut -f
-    if [ "$?" = "0" ]; then
-        LogMsg "dracut -f ran successfully"
-    else
-        LogErr "dracut -f fails to execute"
-        SetTestStateAborted
-        exit 0
-    fi
-fi
+GetDistro
+case $DISTRO in
+    centos_6 | redhat_6)
+        update_repos
+        install_package dracut-network
+        dracut -f
+        if [ "$?" = "0" ]; then
+            LogMsg "Info: dracut -f ran successfully"
+        else
+            LogErr "Error: dracut -f fails to execute"
+            SetTestStateAborted
+            exit 1
+        fi
+    ;;
+    ubuntu* | debian*)
+        update_repos
+        # Provides skipcpio binary
+        install_package dracut-core
+    ;;
+esac
 
 if [ -f /boot/initramfs-0-rescue* ]; then
     img=/boot/initramfs-0-rescue*
@@ -136,7 +145,10 @@ LogMsg "Unpacking the image..."
 
 case $img_type in
     *ASCII*cpio*)
-        /usr/lib/dracut/skipcpio boot.img |zcat| cpio -id --no-absolute-filenames
+        cpio -id -F boot.img &> out.file
+        skip_block_size=$(cat out.file | awk '{print $1}')
+        dd if=boot.img of=finalInitrd.img bs=512 skip=$skip_block_size
+        /usr/lib/dracut/skipcpio finalInitrd.img |zcat| cpio -id --no-absolute-filenames
         if [ $? -eq 0 ]; then
             LogMsg "Successfully unpacked the image."
         else
