@@ -1,7 +1,7 @@
 <TestParameters>
 
 	<!-- Instructions 
-	1.	Switch parameters can be enabled by setting its value to "true"
+	1.	Switch parameters can be enabled by setting their value to "true"
 	2.	Update the parameters in this file and run below command to start the tests.
 	3.	Syntax -
 		Run-LisaV2.ps1 -TestParameters <Path to XML file>
@@ -32,7 +32,7 @@
 	===========
 	1.	When you use -TestParameters <File Path> LISAv2 will import all the parameters defined there.
 	2.	All other parameters are still available to use. 
-	3.	Any parameter given to Run-LisaV2.ps1 in conjunction with -TestParameters will override it's value and 
+	3.	Any parameter given to Run-LisaV2.ps1 in conjunction with -TestParameters will override its value and 
 		value from XML parameters file will be ignored. 
 	-->
 
