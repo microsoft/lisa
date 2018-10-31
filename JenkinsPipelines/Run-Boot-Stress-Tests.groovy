@@ -53,8 +53,6 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                             withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')]) 
                             {
                                 RunPowershellCommand(".\\Run-LisaV2.ps1" +
-                                " -UpdateGlobalConfigurationFromSecretsFile" +
-                                " -UpdateXMLStringsFromSecretsFile" +
                                 " -RGIdentifier '${JenkinsUser}'" +
                                 " -ExitWithZero" +
                                 FinalImageSource +                                    
@@ -99,8 +97,6 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                             withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')]) 
                             {
                                 RunPowershellCommand(".\\Run-LisaV2.ps1" +
-                                " -UpdateGlobalConfigurationFromSecretsFile" +
-                                " -UpdateXMLStringsFromSecretsFile" +                                
                                 " -RGIdentifier '${JenkinsUser}'" +                                    
                                 " -ExitWithZero" +
                                 FinalImageSource +                                    

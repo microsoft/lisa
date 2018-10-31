@@ -22,8 +22,6 @@
 	.\Run-LisaV2.ps1	-TestPlatform "Azure" -TestLocation "westus2" -RGIdentifier "mylisatest"
 					-ARMImageName "Canonical UbuntuServer 16.04-LTS latest"
 					-XMLSecretFile "C:\MySecrets.xml"
-					-UpdateGlobalConfigurationFromSecretsFile
-					-UpdateXMLStringsFromSecretsFile
 					-TestNames "BVT-VERIFY-DEPLOYMENT-PROVISION"
 
 
@@ -68,13 +66,8 @@ Param(
 	[int]    $TestIterations,
 	[string] $TiPSessionId,
 	[string] $TiPCluster,
-	# Require both UpdateGlobalConfigurationFromSecretsFile and UpdateXMLStringsFromSecretsFile
 	[string] $XMLSecretFile = "",
 	[switch] $EnableTelemetry,
-
-	#[Optional] Parameters for dynamically updating XML Secret file.
-	[Obsolete("XMLSecretFile presence indicates UpdateGlobalConfigurationFromSecretsFile is true")] [switch] $UpdateGlobalConfigurationFromSecretsFile,
-	[Obsolete("XMLSecretFile presence indicates UpdateXMLStringsFromSecretsFile is true")] [switch] $UpdateXMLStringsFromSecretsFile,
 
 	#[Optional] Parameters for Overriding VM Configuration.
 	[string] $CustomParameters = "",
