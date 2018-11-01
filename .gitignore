@@ -1,6 +1,5 @@
 XML/AzureSecrets.xml
 TestResults*
-1
 TestConfiguration.xml
 Temp*
 report*
@@ -8,3 +7,4 @@ UploadStatusFile*
 *.azure.env
 *-buildlogs.zip
 .vscode/settings.json
+*.exe
