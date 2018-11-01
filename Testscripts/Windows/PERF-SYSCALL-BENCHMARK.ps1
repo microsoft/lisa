@@ -152,7 +152,6 @@ collect_VM_properties
                     $KernelVersion  = Get-Content "$LogDir\VM_properties.csv" | Select-String "Kernel version"| ForEach-Object{$_ -replace ",Kernel version,",""}
                     $LisVersion  = Get-Content "$LogDir\VM_properties.csv" | Select-String "LIS Version"| ForEach-Object{$_ -replace ",LIS Version,",""}
                     $cpuInfo = Get-Content -Path $logFilePath | Select-Object -First 1
-                    $connectionString = "Server=$dataSource;uid=$user; pwd=$password;Database=$database;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
                     $SQLQuery = "INSERT INTO $dataTableName (TestCaseName,TestDate,HostType,HostBy,HostOS,GuestOSType,GuestDistro,GuestSize,KernelVersion,LISVersion,CPU,SyscallTest,CpuUsageAvgReal,CpuUsageAvgUser,CpuUsageAvgSystem) VALUES "
                     for ($i = 1; $i -lt $finalResult.Count; $i++) {
                         if ($finalResult[$i].test){
@@ -163,14 +162,7 @@ collect_VM_properties
                     }
                     $SQLQuery = $SQLQuery.TrimEnd(',')
                     LogMsg $SQLQuery
-                    $connection = New-Object System.Data.SqlClient.SqlConnection
-                    $connection.ConnectionString = $connectionString
-                    $connection.Open()
-                    $command = $connection.CreateCommand()
-                    $command.CommandText = $SQLQuery
-                    $command.executenonquery() | Out-Null
-                    $connection.Close()
-                    LogMsg "Uploading test results to Database is done!!"
+                    UploadTestResultToDatabase ($SQLQuery)
                 } else {
                     LogMsg "Invalid database details. Failed to upload result to database!"
                 }
