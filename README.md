@@ -101,10 +101,18 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
         </Host>
 ```
 
-3. Run the test suite with below command:
+3. There are two ways to run LISAv2 tests:
 
+   a. Provide all parameters to Run-LisaV2.ps1
+   
         .\Run-LisaV2.ps1 -TestPlatform "Azure" -TestLocation "<Region location>" -RGIdentifier "<Identifier of the resource group>" [-ARMImageName "<publisher offer SKU version>" | -OsVHD "<VHD from storage account>" ] [[-TestCategory "<Test Catogry from Jenkins pipeline>" | -TestArea "<Test Area from Jenkins pipeline>"]* | -TestTag "<A Tag from Jenkins pipeline>" | -TestNames "<Test cases separated by comma>"]
-
+        
+   b. Provide parameters in .\XML\TestParameters.xml.
+   
+        .\Run-LisaV2.ps1 -TestParameters .\XML\TestParameters.xml
+        
+   Note: Please refer .\XML\TestParameters.xml file for more details.
+     
 ### More Information
 
 For more details, please refer to the documents [here](https://github.com/LIS/LISAv2/blob/master/Documents/How-to-use.md).

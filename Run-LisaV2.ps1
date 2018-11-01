@@ -24,6 +24,8 @@
 					-XMLSecretFile "C:\MySecrets.xml"
 					-TestNames "BVT-VERIFY-DEPLOYMENT-PROVISION"
 
+	.\Run-LisaV2.ps1 -TestParameters .\XML\TestParameters.xml
+	Note: Please refer .\XML\TestParameters.xml file for more details.
 
 #>
 ###############################################################################################
@@ -32,6 +34,9 @@
 Param(
 	#Do not use. Reserved for Jenkins use.
 	$BuildNumber=$env:BUILD_NUMBER,
+
+	#[Optional]
+	[string] $ParametersFile = "",
 
 	#[Required]
 	[ValidateSet('Azure','HyperV', IgnoreCase = $false)]
@@ -77,7 +82,7 @@ Param(
 	[switch] $ForceDeleteResources,
 	[switch] $UseManagedDisks,
 	[switch] $DoNotDeleteVMs,
-	[string] $VMGeneration = "1",
+	[string] $VMGeneration = "",
 
 	[string] $ResultDBTable = "",
 	[string] $ResultDBTestTag = "",
@@ -115,12 +120,41 @@ try {
 	}
 
 	$ParameterList = (Get-Command -Name $PSCmdlet.MyInvocation.InvocationName).Parameters;
+	$ScriptVariables = New-Object PSObject
 	foreach ($key in $ParameterList.keys) {
-		$var = Get-Variable -Name $key -ErrorAction SilentlyContinue;
+		$var = Get-Variable -Name $key -Scope Script -ErrorAction SilentlyContinue
 		if($var) {
-			Set-Variable -Name $($var.name) -Value $($var.value) -Scope Global -Force
+			$ScriptVariables | add-member -MemberType Noteproperty -Name $($var.name) -Value $($var.value)
 		}
 	}
+
+	# Import parameters from file if -ParametersFile is given
+	if ($ParametersFile) {
+		Import-LISAv2ParametersFromXMLFile -ParametersFile $ParametersFile
+	}
+
+	foreach ($key in $ParameterList.keys) {
+		if($ScriptVariables.$Key) {
+			if ($ParametersFile) {
+				$IgnoredParameterNames = ("ParametersFile")
+				if ($ScriptVariables.$Key) {
+					if (-not $IgnoredParameterNames.Contains($Key)) {
+						LogMsg "Overriding specified parameter $Key = $($ScriptVariables.$Key)"
+					}
+					Set-Variable -Name $Key -Value $ScriptVariables.$Key -Scope Global -Force
+				}
+			}
+			else {
+				Set-Variable -Name $Key -Value $ScriptVariables.$Key -Scope Global -Force
+			}
+		}
+	}
+		
+	$GlobalVariables = Get-Variable -Scope Global
+	foreach ($var in $GlobalVariables) {
+		[void](Set-Variable -Name $var.Name -Value $var.Value -Scope Local -ErrorAction SilentlyContinue) 
+	}
+	
 	$LogDir = ".\TestResults\$(Get-Date -Format 'yyyy-dd-MM-HH-mm-ss-ffff')"
 	Set-Variable -Name LogDir -Value $LogDir -Scope Global -Force
 	Set-Variable -Name RootLogDir -Value $LogDir -Scope Global -Force

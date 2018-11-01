@@ -68,7 +68,9 @@ function Validate-Parameters {
             $parameterErrors += "-RGIdentifier <ResourceGroupIdentifier> is required."
         }
         if (!$VMGeneration) {
-             $parameterErrors += "-VMGeneration <VMGeneration> is required."
+			# Set VM Generation default value to 1, if not specified.
+			LogMsg "-VMGeneration not specified. Using default VMGeneration = 1"
+			Set-Variable -Name VMGeneration -Value 1 -Scope Global
         } else {
             $supportedVMGenerations = @("1","2")
             if ($supportedVMGenerations.contains([string]$VMGeneration)) {
@@ -90,7 +92,6 @@ function Validate-Parameters {
             $parameterErrors += "'-TestPlatform' is not provided."
         }
     }
-
     if ($parameterErrors.Count -gt 0) {
         $parameterErrors | ForEach-Object { LogError $_ }
         throw "Failed to validate the test parameters provided. Please fix above issues and retry."
@@ -176,10 +177,10 @@ Function UpdateGlobalConfigurationXML()
 			$GlobalConfiguration.Global.$TestPlatform.Subscription.ARMStorageAccount = $RegionStorageMapping.AllRegions.$TestLocation.StandardStorage
 			LogMsg "Auto selecting storage account : $($GlobalConfiguration.Global.$TestPlatform.Subscription.ARMStorageAccount) as per your test region."
 		}
-		elseif ($StorageAccount -ne "")
+		elseif ($StorageAccount)
 		{
 			$GlobalConfiguration.Global.$TestPlatform.Subscription.ARMStorageAccount = $StorageAccount.Trim()
-			Write-Host "Selecting custom storage account : $($GlobalConfiguration.Global.$TestPlatform.Subscription.ARMStorageAccount) as per your test region."
+			LogMsg "Selecting custom storage account : $($GlobalConfiguration.Global.$TestPlatform.Subscription.ARMStorageAccount) as per your test region."
 		}
 	}
 	if ($TestPlatform -eq "HyperV")
@@ -1056,5 +1057,30 @@ Function Get-LISAv2Tools($XMLSecretFile)
 			# Successfully downloaded files
 			LogMsg "File $_ successfully downloaded in Tools folder: $CurrentDirectory\Tools."
 		}
+	}
+}
+
+Function Import-LISAv2ParametersFromXMLFile ($ParametersFile)
+{
+	try {
+		$LISAv2Parameters = [xml](Get-Content -Path $ParametersFile)
+		$ParameterNames = ($LISAv2Parameters.TestParameters.ChildNodes | Where-Object {$_.NodeType -eq "Element"}).Name
+		foreach ($ParameterName in $ParameterNames) {
+			if ($LISAv2Parameters.TestParameters.$ParameterName) {
+				if ($LISAv2Parameters.TestParameters.$ParameterName -eq "true") {
+					LogMsg "Setting boolean parameter $ParameterName -> $true"
+					Set-Variable -Name $ParameterName -Value $true -Scope Global -Force
+				}
+				else {
+					LogMsg "Setting parameter $ParameterName -> $($LISAv2Parameters.TestParameters.$ParameterName)"
+					Set-Variable -Name $ParameterName -Value $LISAv2Parameters.TestParameters.$ParameterName -Scope Global -Force
+				}
+			}
+		}
+	}
+	catch  {
+		$ErrorMessage = $_.Exception.Message
+		$ErrorLine = $_.InvocationInfo.ScriptLineNumber
+		LogErr "EXCEPTION in Import-LISAv2ParametersFromXMLFile() : $ErrorMessage at line: $ErrorLine"		
 	}
 }
