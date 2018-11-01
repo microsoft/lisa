@@ -30,7 +30,7 @@ function Validate-AzureParameters {
         $parameterErrors += "-ARMImageName '<Publisher> <Offer> <Sku> <Version>', or -OsVHD <'VHD_Name.vhd'> is required."
     }
 
-    if (($ARMImageName.Trim().Split(" ").Count -ne 4) -and ($ARMImageName -ne "")) {
+    if ($ARMImageName -and ($ARMImageName.Trim().Split(" ").Count -ne 4)) {
         $parameterErrors += ("Invalid value for the provided ARMImageName parameter: <'${ARMImageName}'>." + `
                              "The ARM image should be in the format: '<Publisher> <Offer> <Sku> <Version>'.")
     }
