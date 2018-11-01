@@ -208,7 +208,7 @@ InstallKernel()
 
                     LogMsg "Removing packages that do not allow the kernel to be installed"
                     if [[ "${customKernelFilesUnExpanded}" == *'*.rpm'* ]]; then
-                        yum remove -y hypervvssd hypervkvpd hypervfcopyd hyperv-daemons
+                        yum remove -y hypervvssd hypervkvpd hypervfcopyd hyperv-daemons hyperv-tools
                     fi
 
                     LogMsg "Installing ${customKernelFilesUnExpanded}"
