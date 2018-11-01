@@ -30,7 +30,7 @@ collect_VM_properties
 
         Set-Content "$LogDir\StartSysCallBenchmark.sh" $myString
         RemoteCopy -uploadTo $testVMData.PublicIP -port $testVMData.SSHPort -files ".\$LogDir\StartSysCallBenchmark.sh" -username $superUser -password $password -upload
-        $out = RunLinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username $superUser -password $password -command "chmod +x *.sh"
+        RunLinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username $superUser -password $password -command "chmod +x *.sh" | Out-Null
         $testJob = RunLinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username $superUser -password $password -command "./StartSysCallBenchmark.sh" -RunInBackground
         #endregion
 
@@ -127,8 +127,53 @@ collect_VM_properties
                         }
                     }
                 }
-                Set-Content -Value $finalResult -Path "$LogDir\syscalResults.txt"
+                Set-Content -Value ($finalResult | Format-Table | Out-String) -Path "$LogDir\syscalResults.txt"
                 Write-Host ($finalResult | Format-Table | Out-String)
+
+                LogMsg "Uploading test results to Database.."
+                $dataSource = $xmlConfig.config.$TestPlatform.database.server
+                $user = $xmlConfig.config.$TestPlatform.database.user
+                $password = $xmlConfig.config.$TestPlatform.database.password
+                $database = $xmlConfig.config.$TestPlatform.database.dbname
+                $dataTableName = $xmlConfig.config.$TestPlatform.database.dbtable
+                $TestCaseName = $xmlConfig.config.$TestPlatform.database.testTag
+                if ($dataSource -And $user -And $password -And $database -And $dataTableName) {
+                    $GuestDistro    = Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object{$_ -replace ",OS type,",""}
+                    if ($UseAzureResourceManager) {
+                        $HostType   = "Azure-ARM"
+                    } else {
+                        $HostType   = "Azure"
+                    }
+                    $HostBy = ($xmlConfig.config.$TestPlatform.General.Location).Replace('"','')
+                    $HostOS = Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version"| ForEach-Object{$_ -replace ",Host Version,",""}
+                    $GuestOSType    = "Linux"
+                    $GuestDistro    = Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object{$_ -replace ",OS type,",""}
+                    $GuestSize = $testVMData.InstanceSize
+                    $KernelVersion  = Get-Content "$LogDir\VM_properties.csv" | Select-String "Kernel version"| ForEach-Object{$_ -replace ",Kernel version,",""}
+                    $LisVersion  = Get-Content "$LogDir\VM_properties.csv" | Select-String "LIS Version"| ForEach-Object{$_ -replace ",LIS Version,",""}
+                    $cpuInfo = Get-Content -Path $logFilePath | Select-Object -First 1
+                    $connectionString = "Server=$dataSource;uid=$user; pwd=$password;Database=$database;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
+                    $SQLQuery = "INSERT INTO $dataTableName (TestCaseName,TestDate,HostType,HostBy,HostOS,GuestOSType,GuestDistro,GuestSize,KernelVersion,LISVersion,CPU,SyscallTest,CpuUsageAvgReal,CpuUsageAvgUser,CpuUsageAvgSystem) VALUES "
+                    for ($i = 1; $i -lt $finalResult.Count; $i++) {
+                        if ($finalResult[$i].test){
+                            $SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$HostType','$HostBy','$HostOS','$GuestOSType','$GuestDistro','$GuestSize','$KernelVersion','$LisVersion','$cpuInfo','$($finalResult[$i].test)',$($finalResult[$i].avgReal),$($finalResult[$i].avgUser),$($finalResult[$i].avgSystem)),"
+                        } else {
+                            continue
+                        }
+                    }
+                    $SQLQuery = $SQLQuery.TrimEnd(',')
+                    LogMsg $SQLQuery
+                    $connection = New-Object System.Data.SqlClient.SqlConnection
+                    $connection.ConnectionString = $connectionString
+                    $connection.Open()
+                    $command = $connection.CreateCommand()
+                    $command.CommandText = $SQLQuery
+                    $command.executenonquery() | Out-Null
+                    $connection.Close()
+                    LogMsg "Uploading test results to Database is done!!"
+                } else {
+                    LogMsg "Invalid database details. Failed to upload result to database!"
+                }
             } catch {
                 $ErrorMessage =  $_.Exception.Message
                 $ErrorLine = $_.InvocationInfo.ScriptLineNumber
