@@ -133,68 +133,74 @@ Function Add-ReplaceableTestParameters($XmlConfigFilePath)
 	Set-Content -Value $XmlConfigContents -Path $XmlConfigFilePath -Force
 }
 
-Function UpdateGlobalConfigurationXML()
+Function UpdateGlobalConfigurationXML($XmlSecretsFilePath)
 {
-	if ($XMLSecretFile)
-	{
-		if (Test-Path -Path $XMLSecretFile)
-		{
-			LogMsg "Updating .\XML\GlobalConfigurations.xml"
-			.\Utilities\UpdateGlobalConfigurationFromXmlSecrets.ps1 -XmlSecretsFilePath $XMLSecretFile
-		}
-		else 
-		{
-			LogErr "Failed to update .\XML\GlobalConfigurations.xml. Secrets file not found."    
-		}
-	}
-	else 
-	{
-		LogErr "Failed to update .\XML\GlobalConfigurations.xml. '-XMLSecretFile [FilePath]' not provided."    
-	}
-	$RegionStorageMapping = [xml](Get-Content .\XML\RegionAndStorageAccounts.xml)
-	$GlobalConfiguration = [xml](Get-Content .\XML\GlobalConfigurations.xml)
+	# The file $XmlSecretsFilePath has been validated before calling this function
+	Get-ChildItem (Join-Path "." "Libraries") -Recurse | `
+		Where-Object { $_.FullName.EndsWith(".psm1") } | `
+		ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
+
+	$XmlSecrets = [xml](Get-Content $XmlSecretsFilePath)
+	$GlobalConfigurationXMLFilePath = Resolve-Path ".\XML\GlobalConfigurations.xml"
+	$GlobalXML = [xml](Get-Content $GlobalConfigurationXMLFilePath)
+	$RegionAndStorageAccountsXMLFilePath = Resolve-Path ".\XML\RegionAndStorageAccounts.xml"
+	$RegionStorageMapping = [xml](Get-Content $RegionAndStorageAccountsXMLFilePath)
+
+	$GlobalXML.Global.Azure.Subscription.SubscriptionID = $XmlSecrets.secrets.SubscriptionID
+	$GlobalXML.Global.Azure.TestCredentials.LinuxUsername = $XmlSecrets.secrets.linuxTestUsername
+	$GlobalXML.Global.Azure.TestCredentials.LinuxPassword = $XmlSecrets.secrets.linuxTestPassword
+	$GlobalXML.Global.Azure.ResultsDatabase.server = $XmlSecrets.secrets.DatabaseServer
+	$GlobalXML.Global.Azure.ResultsDatabase.user = $XmlSecrets.secrets.DatabaseUser
+	$GlobalXML.Global.Azure.ResultsDatabase.password = $XmlSecrets.secrets.DatabasePassword
+	$GlobalXML.Global.Azure.ResultsDatabase.dbname = $XmlSecrets.secrets.DatabaseName
+	$GlobalXML.Global.HyperV.TestCredentials.LinuxUsername = $XmlSecrets.secrets.linuxTestUsername
+	$GlobalXML.Global.HyperV.TestCredentials.LinuxPassword = $XmlSecrets.secrets.linuxTestPassword
+	$GlobalXML.Global.HyperV.ResultsDatabase.server = $XmlSecrets.secrets.DatabaseServer
+	$GlobalXML.Global.HyperV.ResultsDatabase.user = $XmlSecrets.secrets.DatabaseUser
+	$GlobalXML.Global.HyperV.ResultsDatabase.password = $XmlSecrets.secrets.DatabasePassword
+	$GlobalXML.Global.HyperV.ResultsDatabase.dbname = $XmlSecrets.secrets.DatabaseName
 
 	if ($TestPlatform -eq "Azure")
 	{
 		if ( $StorageAccount -imatch "ExistingStorage_Standard" )
 		{
-			$GlobalConfiguration.Global.$TestPlatform.Subscription.ARMStorageAccount = $RegionStorageMapping.AllRegions.$TestLocation.StandardStorage
+			$GlobalXML.Global.$TestPlatform.Subscription.ARMStorageAccount = $RegionStorageMapping.AllRegions.$TestLocation.StandardStorage
 		}
 		elseif ( $StorageAccount -imatch "ExistingStorage_Premium" )
 		{
-			$GlobalConfiguration.Global.$TestPlatform.Subscription.ARMStorageAccount = $RegionStorageMapping.AllRegions.$TestLocation.PremiumStorage
+			$GlobalXML.Global.$TestPlatform.Subscription.ARMStorageAccount = $RegionStorageMapping.AllRegions.$TestLocation.PremiumStorage
 		}
 		elseif ( $StorageAccount -imatch "NewStorage_Standard" )
 		{
-			$GlobalConfiguration.Global.$TestPlatform.Subscription.ARMStorageAccount = "NewStorage_Standard_LRS"
+			$GlobalXML.Global.$TestPlatform.Subscription.ARMStorageAccount = "NewStorage_Standard_LRS"
 		}
 		elseif ( $StorageAccount -imatch "NewStorage_Premium" )
 		{
-			$GlobalConfiguration.Global.$TestPlatform.Subscription.ARMStorageAccount = "NewStorage_Premium_LRS"
+			$GlobalXML.Global.$TestPlatform.Subscription.ARMStorageAccount = "NewStorage_Premium_LRS"
 		}
 		elseif ($StorageAccount -eq "")
 		{
-			$GlobalConfiguration.Global.$TestPlatform.Subscription.ARMStorageAccount = $RegionStorageMapping.AllRegions.$TestLocation.StandardStorage
-			LogMsg "Auto selecting storage account : $($GlobalConfiguration.Global.$TestPlatform.Subscription.ARMStorageAccount) as per your test region."
+			$GlobalXML.Global.$TestPlatform.Subscription.ARMStorageAccount = $RegionStorageMapping.AllRegions.$TestLocation.StandardStorage
+			LogMsg "Auto selecting storage account : $($GlobalXML.Global.$TestPlatform.Subscription.ARMStorageAccount) as per your test region."
 		}
 		elseif ($StorageAccount)
 		{
-			$GlobalConfiguration.Global.$TestPlatform.Subscription.ARMStorageAccount = $StorageAccount.Trim()
-			LogMsg "Selecting custom storage account : $($GlobalConfiguration.Global.$TestPlatform.Subscription.ARMStorageAccount) as per your test region."
+			$GlobalXML.Global.$TestPlatform.Subscription.ARMStorageAccount = $StorageAccount.Trim()
+			LogMsg "Selecting custom storage account : $($GlobalXML.Global.$TestPlatform.Subscription.ARMStorageAccount) as per your test region."
 		}
 	}
 	if ($TestPlatform -eq "HyperV")
 	{
 		if ( $SourceOsVHDPath )
 		{
-			for( $index=0 ; $index -lt $GlobalConfiguration.Global.$TestPlatform.Hosts.ChildNodes.Count ; $index++ ) {
-				$GlobalConfiguration.Global.$TestPlatform.Hosts.ChildNodes[$index].SourceOsVHDPath = $SourceOsVHDPath
+			for( $index=0 ; $index -lt $GlobalXML.Global.$TestPlatform.Hosts.ChildNodes.Count ; $index++ ) {
+				$GlobalXML.Global.$TestPlatform.Hosts.ChildNodes[$index].SourceOsVHDPath = $SourceOsVHDPath
 			}
 		}
 		if ( $DestinationOsVHDPath )
 		{
-			for( $index=0 ; $index -lt $GlobalConfiguration.Global.$TestPlatform.Hosts.ChildNodes.Count ; $index++ ) {
-				$GlobalConfiguration.Global.$TestPlatform.Hosts.ChildNodes[$index].DestinationOsVHDPath = $DestinationOsVHDPath
+			for( $index=0 ; $index -lt $GlobalXML.Global.$TestPlatform.Hosts.ChildNodes.Count ; $index++ ) {
+				$GlobalXML.Global.$TestPlatform.Hosts.ChildNodes[$index].DestinationOsVHDPath = $DestinationOsVHDPath
 			}
 		}
 		if ($TestLocation)
@@ -203,8 +209,8 @@ Function UpdateGlobalConfigurationXML()
 			$index = 0
 			foreach($Location in $Locations)
 			{
-				$GlobalConfiguration.Global.$TestPlatform.Hosts.ChildNodes[$index].ServerName = $Location
-				Get-VM -ComputerName $GlobalConfiguration.Global.$TestPlatform.Hosts.ChildNodes[$index].ServerName | Out-Null
+				$GlobalXML.Global.$TestPlatform.Hosts.ChildNodes[$index].ServerName = $Location
+				Get-VM -ComputerName $GlobalXML.Global.$TestPlatform.Hosts.ChildNodes[$index].ServerName | Out-Null
 				if ($?)
 				{
 					LogMsg "Set '$($Location)' to As GlobalConfiguration.Global.HyperV.Hosts.ChildNodes[$($index)].ServerName"
@@ -220,7 +226,7 @@ Function UpdateGlobalConfigurationXML()
 		}
 		else
 		{
-			$TestLocation = $GlobalConfiguration.Global.$TestPlatform.Hosts.ChildNodes[0].ServerName
+			$TestLocation = $GlobalXML.Global.$TestPlatform.Hosts.ChildNodes[0].ServerName
 			LogMsg "Read Test Location from GlobalConfiguration.Global.HyperV.Hosts.ChildNodes[0].ServerName"
 			Get-VM -ComputerName $TestLocation | Out-Null
 		}
@@ -230,17 +236,18 @@ Function UpdateGlobalConfigurationXML()
 	{
 		if( $ResultDBTable )
 		{
-			$GlobalConfiguration.Global.$TestPlatform.ResultsDatabase.dbtable = ($ResultDBTable).Trim()
+			$GlobalXML.Global.$TestPlatform.ResultsDatabase.dbtable = ($ResultDBTable).Trim()
 			LogMsg "ResultDBTable : $ResultDBTable added to .\XML\GlobalConfigurations.xml"
 		}
 		if( $ResultDBTestTag )
 		{
-			$GlobalConfiguration.Global.$TestPlatform.ResultsDatabase.testTag = ($ResultDBTestTag).Trim()
+			$GlobalXML.Global.$TestPlatform.ResultsDatabase.testTag = ($ResultDBTestTag).Trim()
 			LogMsg "ResultDBTestTag: $ResultDBTestTag added to .\XML\GlobalConfigurations.xml"
 		}                      
 	}
-	$GlobalConfiguration.Save("$WorkingDirectory\XML\GlobalConfigurations.xml")
-	#endregion
+	#$GlobalConfiguration.Save("$WorkingDirectory\XML\GlobalConfigurations.xml")
+	$GlobalXML.Save($GlobalConfigurationXMLFilePath )
+	LogMsg "Updated GlobalConfigurations.xml"
 
 	if ($TestPlatform -eq "Azure")
 	{
@@ -263,22 +270,25 @@ Function UpdateGlobalConfigurationXML()
 	}
 }
 
-Function UpdateXMLStringsFromSecretsFile()
+Function UpdateXMLStringsFromSecretsFile($XmlSecretsFilePath)
 {
-	if ($XMLSecretFile)
+	# The file $XmlSecretsFilePath has been validated before calling this function
+	$TestXMLs = Get-ChildItem -Path ".\XML\TestCases\*.xml"
+	$XmlSecrets = [xml](Get-Content $XmlSecretsFilePath)
+	foreach ($file in $TestXMLs)
 	{
-		if (Test-Path -Path $XMLSecretFile)
+		$CurrentXMLText = Get-Content -Path $file.FullName
+		foreach ($Replace in $XmlSecrets.secrets.ReplaceTestXMLStrings.Replace)
 		{
-			.\Utilities\UpdateXMLStringsFromXmlSecrets.ps1 -XmlSecretsFilePath $XMLSecretFile
+			$ReplaceString = $Replace.Split("=")[0]
+			$ReplaceWith = $Replace.Split("=")[1]
+			if ($CurrentXMLText -imatch $ReplaceString)
+			{
+				$content = [System.IO.File]::ReadAllText($file.FullName).Replace($ReplaceString,$ReplaceWith)
+				[System.IO.File]::WriteAllText($file.FullName, $content)
+				LogMsg "$ReplaceString replaced in $($file.FullName)"
+			}
 		}
-		else 
-		{
-			LogErr "Failed to update Strings in .\XML files. '$XMLSecretFile' not found."    
-		}
-	}
-	else 
-	{
-		LogErr "Failed to update Strings in .\XML files. '-XMLSecretFile [FilePath]' not provided."    
 	}
 }
 

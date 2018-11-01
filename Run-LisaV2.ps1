@@ -176,15 +176,22 @@ try {
 	}
 	#endregion
 
-	#Download the tools required for LISAv2 execution.
-	Get-LISAv2Tools -XMLSecretFile $XMLSecretFile
-
 	# Validate the test parameters.
 	Validate-Parameters
 
-	UpdateGlobalConfigurationXML
+	if ($XMLSecretFile -ne [string]::Empty) {
+		if ((Test-Path -Path $XMLSecretFile) -eq $true) {
+	        #Download the tools required for LISAv2 execution.
+	        Get-LISAv2Tools -XMLSecretFile $XMLSecretFile
 
-	UpdateXMLStringsFromSecretsFile
+			UpdateGlobalConfigurationXML $XMLSecretFile
+			UpdateXMLStringsFromSecretsFile $XMLSecretFile
+		} else {
+			LogErr "The Secret File provided: $XMLSecretFile does not exist"
+		}
+	} else {
+		LogErr "Failed to update configuration files. '-XMLSecretFile [FilePath]' is not provided."
+	}
 
 	ValidateXmlFiles -ParentFolder $WorkingDirectory
 

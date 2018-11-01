@@ -70,10 +70,6 @@
 	<XMLSecretFile></XMLSecretFile>
 	<EnableTelemetry></EnableTelemetry>
 	
-	<!-- [Optional] Parameters for dynamically updating XML Secret file. -->
-	<UpdateGlobalConfigurationFromSecretsFile></UpdateGlobalConfigurationFromSecretsFile>
-	<UpdateXMLStringsFromSecretsFile></UpdateXMLStringsFromSecretsFile>
-
 	<!-- [Optional] Parameters for Overriding VM Configuration. -->
 	<CustomParameters></CustomParameters>
 	<OverrideVMSize></OverrideVMSize>
