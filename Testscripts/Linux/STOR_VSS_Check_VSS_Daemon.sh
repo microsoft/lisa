@@ -17,14 +17,16 @@ UtilsInit
 systemctl --version
 if [ $? -eq 0 ]; then
     if [[ "$(systemctl is-active hypervvssd)" == "active" ]] || \
-       [[ "$(systemctl is-active hv_vss_daemon)" == "active" ]]; then
+       [[ "$(systemctl is-active hv_vss_daemon)" == "active" ]] || \
+       [[ "$(systemctl is-active hv-vss-daemon)" == "active" ]]; then
 
         LogMsg "VSS Daemon is running"
         SetTestStateCompleted
         exit 0
 
     elif [[ "$(systemctl is-active hypervvssd)" == "unknown" ]] && \
-         [[ "$(systemctl is-active hv_vss_daemon)" == "unknown" ]]; then
+         [[ "$(systemctl is-active hv_vss_daemon)" == "unknown" ]] && \
+         [[ "$(systemctl is-active hv-vss-daemon)" == "unknown" ]]; then
 
         LogMsg "ERROR: VSS Daemon not installed, test aborted"
         SetTestStateAborted
@@ -38,7 +40,8 @@ if [ $? -eq 0 ]; then
 
 else # For older systems we use ps
     if [[ $(ps -ef | grep 'hypervvssd') ]] || \
-       [[ $(ps -ef | grep '[h]v_vss_daemon') ]]; then
+       [[ $(ps -ef | grep '[h]v_vss_daemon') ]] || \
+       [[ $(ps -ef | grep '[h]v-vss-daemon') ]]; then
 
         LogMsg "VSS Daemon is running"
         SetTestStateCompleted
