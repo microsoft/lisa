@@ -308,10 +308,13 @@ function InstallCustomKernel ($CustomKernel, $allVMData, [switch]$RestartAfterUp
 		$CustomKernel = $CustomKernel.Trim()
 		if( ($CustomKernel -ne "ppa") -and ($CustomKernel -ne "linuxnext") -and `
 		($CustomKernel -ne "netnext") -and ($CustomKernel -ne "proposed") -and `
+		($CustomKernel -ne "proposed-azure") -and ($CustomKernel -ne "proposed-edge") -and `
 		($CustomKernel -ne "latest") -and !($CustomKernel.EndsWith(".deb"))  -and `
 		!($CustomKernel.EndsWith(".rpm")) )
 		{
-			LogErr "Only linuxnext, netnext, proposed, latest are supported. E.g. -CustomKernel linuxnext/netnext/proposed. Or use -CustomKernel <link to deb file>, -CustomKernel <link to rpm file>"
+			LogErr "Only linuxnext, netnext, proposed, proposed-azure, proposed-edge, `
+			latest are supported. E.g. -CustomKernel linuxnext/netnext/proposed. `
+			Or use -CustomKernel <link to deb file>, -CustomKernel <link to rpm file>"
 		}
 		else
 		{

@@ -532,6 +532,8 @@ Function StartHyperVGroupVMs($HyperVGroupName,$HyperVHost)
     foreach ( $VM in $AllVMs.VMMembers)
     {
         LogMsg "Starting $($VM.Name) from $HyperVGroupName..."
+        # ComputerName is inherited here from line 530. Don't add it
+        # because Start-VM will fail
         Start-VM -VM $VM
         if ( $? )
         {
@@ -562,7 +564,9 @@ Function StopHyperVGroupVMs($HyperVGroupName, $HyperVHost)
     foreach ( $VM in $AllVMs.VMMembers)
     {
         LogMsg "Shutting down $($VM.Name) from $HyperVGroupName..."
-        Stop-VM -VM $VM -ComputerName $HyperVHost
+        # ComputerName is inherited here from line 562. Don't add it
+        # because Stop-VM will fail
+        Stop-VM -VM $VM
         if ( $? )
         {
             LogMsg "Succeeded."
