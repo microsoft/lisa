@@ -33,10 +33,6 @@ function Main {
             LogMsg "Warn: test parameter '$p' is being ignored because it appears to be malformed"
             continue
         }
-        if ($tokens[0].Trim() -eq "TC_COVERED") {
-            $TC_COVERED = $tokens[1].Trim()
-            LogMsg "TC_COVERED: $TC_COVERED"
-        }
     }
 
     if (-not $Ipv4) {
