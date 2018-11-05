@@ -24,7 +24,6 @@ function Main {
         $TestParams
     )
 
-    $tcCovered = "Undefined"
     $service = "Time Synchronization"
 
     if ($TestParams -eq $null) {
@@ -36,7 +35,6 @@ function Main {
     foreach ($p in $params) {
         $fields = $p.Split("=")
         switch ($fields[0].Trim()) {
-            "TC_COVERED" { $tcCovered = $fields[1].Trim() }
             "MaxTimeDiff" { $maxTimeDiff = $fields[1].Trim() }
             default  {}
         }

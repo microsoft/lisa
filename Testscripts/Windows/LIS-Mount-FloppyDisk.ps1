@@ -48,7 +48,7 @@ function Main {
 
     # Check for floppy support. If it's not present, test will be skipped
 
-    $sts = RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort -command "cat /boot/config-`$(uname -r) | grep -e CONFIG_BLK_DEV_FD=y -e CONFIG_BLK_DEV_FD=m" -runAsSudo
+    $null = RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort -command "cat /boot/config-`$(uname -r) | grep -e CONFIG_BLK_DEV_FD=y -e CONFIG_BLK_DEV_FD=m" -runAsSudo
     if (-not $?) {
         LogWarn "Support for floppy does not exist! Test skipped!"
         return "Aborted"

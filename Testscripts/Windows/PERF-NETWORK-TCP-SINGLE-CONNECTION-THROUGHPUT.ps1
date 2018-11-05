@@ -3,7 +3,6 @@
 
 function Main {
     # Create test result 
-    $result = ""
     $currentTestResult = CreateTestResultObject
     $resultArr = @()
 
@@ -54,7 +53,7 @@ function Main {
         LogMsg "CLIENT $DataPath NIC: $clientNicName"
         LogMsg "SERVER $DataPath NIC: $serverNicName"
         if ( $serverNicName -eq $clientNicName) {
-            $nicName = $clientNicName
+            LogMsg "Server and client SRIOV NICs are the same."
         } else {
             Throw "Server and client SRIOV NICs are not same."
         }
@@ -77,9 +76,6 @@ function Main {
             Add-Content -Value "$param" -Path $constantsFile
             if ($param -imatch "bufferLengths=") {
                 $testBuffers= $param.Replace("bufferLengths=(","").Replace(")","").Split(" ")
-            }
-            if ($param -imatch "connections=" ) {
-                $testConnections = $param.Replace("connections=(","").Replace(")","").Split(" ")
             }
             if ( $param -imatch "IPversion" ) {
                 if ( $param -imatch "IPversion=6" ) {
@@ -104,7 +100,7 @@ collect_VM_properties
 "@
         Set-Content "$LogDir\Startiperf3tcpTest.sh" $myString
         RemoteCopy -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files ".\$constantsFile,.\$LogDir\Startiperf3tcpTest.sh" -username "root" -password $password -upload
-        $out = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "chmod +x *.sh"
+        $null = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "chmod +x *.sh"
         $testJob = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "/root/Startiperf3tcpTest.sh" -RunInBackground
         #endregion
         
@@ -211,7 +207,7 @@ collect_VM_properties
                 $CongestionWindowSize_KB_Total += $interval.streams.snd_cwnd
             }
             $CongestionWindowSize_KB = [math]::Round($CongestionWindowSize_KB_Total / $clientJson.intervals.Count / 1024 )
-            $SQLQuery += "('$TestCaseName','$DataPath','$TestDate','$HostBy','$HostOS','$HostType','$GuestSize','$GuestOSType','$GuestDistro','$KernelVersion','IPv4','TCP','$BufferSize_Bytes','$RxThroughput_Gbps','$TxThroughput_Gbps','$RetransmittedSegments','$CongestionWindowSize_KB'),"
+            $SQLQuery += "('$TestCaseName','$DataPath','$TestDate','$HostBy','$HostOS','$HostType','$GuestSize','$GuestOSType','$GuestDistro','$KernelVersion','$IPVersion','$ProtocolType','$BufferSize_Bytes','$RxThroughput_Gbps','$TxThroughput_Gbps','$RetransmittedSegments','$CongestionWindowSize_KB'),"
             $currentTestResult.TestSummary += CreateResultSummary -testResult $RxThroughput_Gbps -metaData "Buffer : $BufferSize_Bytes Bytes, Rx ThroughputGbps" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
         }
         if ($dataSource -And $user -And $password -And $database -And $dataTableName) {
@@ -224,7 +220,7 @@ collect_VM_properties
 
             $command = $connection.CreateCommand()
             $command.CommandText = $SQLQuery
-            $result = $command.executenonquery()
+            $null = $command.executenonquery()
             $connection.Close()
             LogMsg "Uploading the test results done!!"
         } else {

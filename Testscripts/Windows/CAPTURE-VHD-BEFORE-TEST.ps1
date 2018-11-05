@@ -3,7 +3,6 @@
 
 function Main {
     # Create test result 
-    $result = ""
     $currentTestResult = CreateTestResultObject
     $resultArr = @()
 
@@ -18,11 +17,11 @@ function Main {
         # endregion
         # region Deprovision the VM.
         LogMsg "Deprovisioning $($captureVMData.RoleName)"
-        $testJob = RunLinuxCmd -ip $captureVMData.PublicIP -port $captureVMData.SSHPort -username $user -password $password -command "waagent -deprovision --force" -runAsSudo
+        $null = RunLinuxCmd -ip $captureVMData.PublicIP -port $captureVMData.SSHPort -username $user -password $password -command "waagent -deprovision --force" -runAsSudo
         LogMsg "Deprovisioning done."
         # endregion
         LogMsg "Shutting down VM.."
-        $stopVM = Stop-AzureRmVM -Name $captureVMData.RoleName -ResourceGroupName $captureVMData.ResourceGroupName -Force -Verbose
+        $null = Stop-AzureRmVM -Name $captureVMData.RoleName -ResourceGroupName $captureVMData.ResourceGroupName -Force -Verbose
         LogMsg "Shutdown successful."
         $Append = $Distro
         if ($env:BUILD_NAME){
@@ -70,10 +69,10 @@ function Main {
         $targetStorageAccountType =  [string]($(($GetAzureRmStorageAccount  | Where {$_.StorageAccountName -eq "$testStorageAccount"}).Sku.Tier))
         LogMsg "Check 1: $targetStorageAccountType"
         LogMsg ".\Utilities\CopyVHDtoOtherStorageAccount.ps1 -sourceLocation $sourceRegion -destinationLocations $sourceRegion -destinationAccountType $targetStorageAccountType -sourceVHDName $currentVHDName -destinationVHDName $newVHDName"
-        $out = .\Utilities\CopyVHDtoOtherStorageAccount.ps1 -sourceLocation $sourceRegion -destinationLocations $sourceRegion -destinationAccountType $targetStorageAccountType -sourceVHDName $currentVHDName -destinationVHDName $newVHDName
+        $null = .\Utilities\CopyVHDtoOtherStorageAccount.ps1 -sourceLocation $sourceRegion -destinationLocations $sourceRegion -destinationAccountType $targetStorageAccountType -sourceVHDName $currentVHDName -destinationVHDName $newVHDName
         LogMsg "---------------Copy #1: END----------------"
         LogMsg "Saving '$newVHDName' to .\CapturedVHD.azure.env"
-        $out = Set-Content -Path .\CapturedVHD.azure.env -Value $newVHDName -NoNewline -Force
+        $null = Set-Content -Path .\CapturedVHD.azure.env -Value $newVHDName -NoNewline -Force
         #endregion
 
         $testResult = "PASS"
@@ -82,7 +81,6 @@ function Main {
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
         LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     } finally {
-        $metaData = "GPU Verification"
         if (!$testResult) {
             $testResult = "Aborted"
         }

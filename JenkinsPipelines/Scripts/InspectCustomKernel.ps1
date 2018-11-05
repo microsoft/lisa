@@ -33,7 +33,6 @@ Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1"
 
 $CurrentRemoteFolder = "$RemoteFolder\$env:JenkinsUser"
 $CurrentLocalFolder = "$LocalFolder"
-$WorkingDirectory = (Get-Location).Path
 
 $ExitCode = 0
 try
@@ -62,11 +61,11 @@ try
             if (Test-Path $ReceivedKernel)
             {
                 LogMsg "Copying $ReceivedKernel --> $CurrentKernel for current use..."
-                $out = Copy-Item -Path $ReceivedKernel -Destination "$CurrentKernel" -Force
+                $null = Copy-Item -Path $ReceivedKernel -Destination "$CurrentKernel" -Force
                 $KernelFile = Split-Path $CurrentKernel -Leaf
 
                 LogMsg "Saving $KernelFile to CustomKernel.azure.env"
-                $out = Set-Content -Value "$KernelFile" -Path CustomKernel.azure.env -Force -NoNewline
+                $null = Set-Content -Value "$KernelFile" -Path CustomKernel.azure.env -Force -NoNewline
                 $ExitCode = 0
             }
             else 
@@ -97,7 +96,7 @@ try
                 Copy-Item -Path "$ReceivedKernel" -Destination $CurrentKernel -Force
                 $KernelFile = $CurrentKernel  | Split-Path -Leaf
                 LogMsg "Saving $KernelFile to CustomKernel.azure.env"
-                $out = Set-Content -Value "$KernelFile" -Path CustomKernel.azure.env -Force -NoNewline
+                $null = Set-Content -Value "$KernelFile" -Path CustomKernel.azure.env -Force -NoNewline
                 $ExitCode = 0
             }
             else 
@@ -136,7 +135,7 @@ try
                     Move-Item -Path "$CurrentLocalFolder\$SourceKernelName" -Destination $CurrentKernel -Force
                     $KernelFile = $CurrentKernel  | Split-Path -Leaf
                     LogMsg "Saving $KernelFile to CustomKernel.azure.env"
-                    $out = Set-Content -Value "$KernelFile" -Path CustomKernel.azure.env -Force -NoNewline
+                    $null = Set-Content -Value "$KernelFile" -Path CustomKernel.azure.env -Force -NoNewline
                     $ExitCode = 0
                 }
                 else 

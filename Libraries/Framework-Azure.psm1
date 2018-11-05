@@ -476,7 +476,6 @@ function GetTestSummary($testCycle, [DateTime] $StartTime, [string] $xmlFilename
     # Add information about the host running ICA to the e-mail summary
     $str += "<pre>"
     $str += $testCycle.emailSummary + "<br />"
-    $hostName = hostname
     $str += "<br />Logs can be found at $LogDir" + "<br /><br />"
     $str += "</pre>"
     $plainTextSummary = $str
@@ -548,7 +547,6 @@ function SendEmail([XML] $xmlConfig, $body)
     $from = $xmlConfig.config.global.emailSender
     $subject = $xmlConfig.config.global.emailSubject + " " + $testStartTime
     $smtpServer = $xmlConfig.config.global.smtpServer
-    $fname = [System.IO.Path]::GetFilenameWithoutExtension($xmlConfigFile)
     # Highlight the failed tests 
     $body = $body.Replace("Aborted", '<em style="background:Yellow; color:Red">Aborted</em>')
     $body = $body.Replace("FAIL", '<em style="background:Yellow; color:Red">Failed</em>')
@@ -633,9 +631,6 @@ report.xml:
 #>
 
 [xml]$junitReport = $null
-[object]$reportRootNode = $null
-[string]$junitReportPath = ""
-[bool]$isGenerateJunitReport=$False
 
 Function StartLogReport([string]$reportPath)
 {
@@ -644,10 +639,12 @@ Function StartLogReport([string]$reportPath)
 		$global:junitReport = new-object System.Xml.XmlDocument
 		$newElement = $global:junitReport.CreateElement("testsuites")
 		$global:reportRootNode = $global:junitReport.AppendChild($newElement)
-		
 		$global:junitReportPath = $reportPath
-		
 		$global:isGenerateJunitReport = $True
+		# To avoid PSUseDeclaredVarsMoreThanAssignments warning when run PS Analyzer
+		LogMsg "global parameter reportRootNode is set to $global:reportRootNode"
+		LogMsg "global parameter junitReportPath is set to $global:junitReportPath"
+		LogMsg "global parameter isGenerateJunitReport is set to $global:isGenerateJunitReport"
 	}
 	else
 	{
@@ -671,6 +668,11 @@ Function FinishLogReport([bool]$isFinal=$True)
 		$global:reportRootNode = $null
 		$global:junitReportPath = ""
 		$global:isGenerateJunitReport=$False
+		# To avoid PSUseDeclaredVarsMoreThanAssignments warning when run PS Analyzer
+		LogMsg "global parameter junitReport is set to $global:junitReport"
+		LogMsg "global parameter reportRootNode is set to $global:reportRootNode"
+		LogMsg "global parameter junitReportPath is set to $global:junitReportPath"
+		LogMsg "global parameter isGenerateJunitReport is set to $global:isGenerateJunitReport"
 	}
 }
 
@@ -949,13 +951,12 @@ Function Get-SQLQueryOfTelemetryData ($TestPlatform,$TestLocation,$TestCategory,
 			$UTCTime = (Get-Date).ToUniversalTime()
 			$DateTimeUTC = "$($UTCTime.Year)-$($UTCTime.Month)-$($UTCTime.Day) $($UTCTime.Hour):$($UTCTime.Minute):$($UTCTime.Second)"
 			$GlobalConfiguration = [xml](Get-Content .\XML\GlobalConfigurations.xml)
-			$TestTag = $GlobalConfiguration.Global.$TestPlatform.ResultsDatabase.testTag
 			$testLogStorageAccount = $XmlSecrets.secrets.testLogsStorageAccount
 			$testLogStorageAccountKey = $XmlSecrets.secrets.testLogsStorageAccountKey
 			$testLogFolder = "$($UTCTime.Year)-$($UTCTime.Month)-$($UTCTime.Day)"
 			$ticks= (Get-Date).Ticks
 			$uploadFileName = ".\Temp\$($TestName)-$ticks.zip"
-			$out = ZipFiles -zipfilename $uploadFileName -sourcedir $LogDir
+			$null = ZipFiles -zipfilename $uploadFileName -sourcedir $LogDir
 			$UploadedURL = .\Utilities\UploadFilesToStorageAccount.ps1 -filePaths $uploadFileName `
 			-destinationStorageAccount $testLogStorageAccount -destinationContainer "lisav2logs" `
 			-destinationFolder "$testLogFolder" -destinationStorageKey $testLogStorageAccountKey
@@ -1018,7 +1019,7 @@ Function UploadTestResultToDatabase ($SQLQuery)
 				$connection.Open()
 				$command = $connection.CreateCommand()
 				$command.CommandText = $SQLQuery
-				$result = $command.executenonquery()
+				$null = $command.executenonquery()
 				$connection.Close()
 				LogMsg "Uploading test results to database :  done!!"
 			}

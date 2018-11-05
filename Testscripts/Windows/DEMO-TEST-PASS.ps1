@@ -1,6 +1,5 @@
 ﻿# Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
-$result = ""
 $CurrentTestResult = CreateTestResultObject
 $resultArr = @()
 
@@ -19,7 +18,6 @@ if ($isDeployed)
 	}
 	Finally
 	{
-		$metaData = ""
 		if (!$testResult)
 		{
 			$testResult = "Aborted"

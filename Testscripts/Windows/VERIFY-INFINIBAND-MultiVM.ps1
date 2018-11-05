@@ -96,7 +96,7 @@ function Main {
 
         RemoteCopy -uploadTo $ServerVMData.PublicIP -port $ServerVMData.SSHPort `
             -files "$constantsFile" -username "root" -password $password -upload
-        $out = RunLinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort `
+        $null = RunLinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort `
         -username "root" -password $password -command "chmod +x *.sh"
         $RemainingRebootIterations = $CurrentTestData.NumberOfReboots
         $ExpectedSuccessCount = [int]($CurrentTestData.NumberOfReboots) + 1
@@ -165,12 +165,12 @@ function Main {
                 else {
                     $TempName = "Reboot"
                 }
-                $out = mkdir -Path "$LogDir\InfiniBand-Verification-$Iteration-$TempName" -Force | Out-Null
-                $out = Move-Item -Path "$LogDir\$InfinibandNic-status*" -Destination "$LogDir\InfiniBand-Verification-$Iteration-$TempName" | Out-Null
-                $out = Move-Item -Path "$LogDir\IMB-*" -Destination "$LogDir\InfiniBand-Verification-$Iteration-$TempName" | Out-Null
-                $out = Move-Item -Path "$LogDir\kernel-logs-*" -Destination "$LogDir\InfiniBand-Verification-$Iteration-$TempName" | Out-Null
-                $out = Move-Item -Path "$LogDir\TestExecution.log" -Destination "$LogDir\InfiniBand-Verification-$Iteration-$TempName" | Out-Null
-                $out = Move-Item -Path "$LogDir\state.txt" -Destination "$LogDir\InfiniBand-Verification-$Iteration-$TempName" | Out-Null
+                $null = mkdir -Path "$LogDir\InfiniBand-Verification-$Iteration-$TempName" -Force | Out-Null
+                $null = Move-Item -Path "$LogDir\$InfinibandNic-status*" -Destination "$LogDir\InfiniBand-Verification-$Iteration-$TempName" | Out-Null
+                $null = Move-Item -Path "$LogDir\IMB-*" -Destination "$LogDir\InfiniBand-Verification-$Iteration-$TempName" | Out-Null
+                $null = Move-Item -Path "$LogDir\kernel-logs-*" -Destination "$LogDir\InfiniBand-Verification-$Iteration-$TempName" | Out-Null
+                $null = Move-Item -Path "$LogDir\TestExecution.log" -Destination "$LogDir\InfiniBand-Verification-$Iteration-$TempName" | Out-Null
+                $null = Move-Item -Path "$LogDir\state.txt" -Destination "$LogDir\InfiniBand-Verification-$Iteration-$TempName" | Out-Null
 
                 #region Check if $InfinibandNic got IP address
                 $logFileName = "$LogDir\InfiniBand-Verification-$Iteration-$TempName\TestExecution.log"

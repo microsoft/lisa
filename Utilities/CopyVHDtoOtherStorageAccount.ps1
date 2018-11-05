@@ -136,7 +136,7 @@ try
         else
         {
             LogMsg "Copying $SrcStorageBlob as $DestBlob from and to storage account $DestAccountName/$DestContainer"
-            $out = Start-AzureStorageBlobCopy -AbsoluteUri $SasUrl  -DestContainer $destContainer -DestContext $destContext -DestBlob $destBlob -Force
+            $null = Start-AzureStorageBlobCopy -AbsoluteUri $SasUrl  -DestContainer $destContainer -DestContext $destContext -DestBlob $destBlob -Force
             $destContextArr += $destContext
         }
     }

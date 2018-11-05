@@ -51,11 +51,10 @@ try
     $containerName = "$destinationContainer"
     $storageAccountName = $destinationStorageAccount
     $blobContext = New-AzureStorageContext -StorageAccountName $storageAccountName -StorageAccountKey $destinationStorageKey
-    $Out = New-AzureStorageContainer -Name $destinationContainer -Permission Blob -Context $blobContext -ErrorAction SilentlyContinue
+    $null = New-AzureStorageContainer -Name $destinationContainer -Permission Blob -Context $blobContext -ErrorAction SilentlyContinue
     $UploadedFileURLs = @()
     foreach($fileName in $filePaths.Split(","))
     {
-        $ticks = (Get-Date).Ticks
         if ($destinationFolder)
         {
             $blobName = "$destinationFolder/$($fileName | Split-Path -Leaf)"

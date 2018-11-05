@@ -3,7 +3,6 @@
 
 function Main {
     # Create test result 
-    $result = ""
     $currentTestResult = CreateTestResultObject
     $resultArr = @()
 
@@ -26,7 +25,7 @@ function Main {
         LogMsg "$constantsFile created successfully..."
         RemoteCopy -uploadTo $allVMData.PublicIP -port $allVMData.SSHPort -files $constantsFile -username "root" -password $password -upload
 
-        $out = RunLinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "chmod +x *.sh"
+        $null = RunLinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "chmod +x *.sh"
         $testJob = RunLinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "/root/perf_xfstesting.sh -TestFileSystem $TestFileSystem" -RunInBackground
 
         # region MONITOR TEST
@@ -52,7 +51,6 @@ function Main {
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
         LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     } finally {
-        $metaData = ""
         if (!$testResult) {
             $testResult = "Aborted"
         }

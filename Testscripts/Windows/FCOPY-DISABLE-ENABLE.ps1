@@ -40,10 +40,6 @@ function Main {
         switch ($fields[0].Trim()) {
             "ipv4" { $ipv4 = $fields[1].Trim() }
             "rootDIR" { $rootDir = $fields[1].Trim() }
-            "DefaultSize" { $DefaultSize = $fields[1].Trim() }
-            "Type" { $Type = $fields[1].Trim() }
-            "SectorSize" { $SectorSize = $fields[1].Trim() }
-            "ControllerType" { $controllerType = $fields[1].Trim() }
             "CycleCount" { $CycleCount = $fields[1].Trim() }
             "FcopyFileSize" { $FcopyFileSize = $fields[1].Trim() }
             default {}  # unknown param - just ignore it
@@ -78,7 +74,7 @@ function Main {
         Start-Sleep 60
     }
 
-    $checkVM = Check-Systemd -Ipv4 $Ipv4 -SSHPort $VMPort -Username $VMUserName -Password $VMPassword
+    $null = Check-Systemd -Ipv4 $Ipv4 -SSHPort $VMPort -Username $VMUserName -Password $VMPassword
     if ( -not $True) {
         LogErr "Systemd is not being used. Test Skipped"
         return "FAIL"
@@ -181,7 +177,7 @@ function Main {
     $checkProcess = .\Tools\plink.exe -C -pw $VMPassword -P $VMPort root@$Ipv4 "systemctl is-active $daemonName"
     if ($checkProcess -ne "active") {
         LogErr "Warning: $daemonName was not automatically started by systemd. Will start it manually."
-        $startProcess = .\Tools\plink.exe -C -pw $VMPassword -P $VMPort root@$Ipv4 "systemctl start $daemonName"
+        $null = .\Tools\plink.exe -C -pw $VMPassword -P $VMPort root@$Ipv4 "systemctl start $daemonName"
     }
 
     $gsi = Get-VMIntegrationService -vmName $VMName -ComputerName $HvServer -Name "Guest Service Interface"

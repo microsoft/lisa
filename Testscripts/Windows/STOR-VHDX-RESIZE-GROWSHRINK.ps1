@@ -33,7 +33,6 @@ Function Set-HardDiskSize
 	$newVhdxSize = Convert-StringToUInt64 $newSize
 	Resize-VHD -Path $vhdPath -SizeBytes ($newVhdxSize) -ComputerName $hvServer
 	if (-not $?) {
-		$testResult = "FAIL"
 		Throw "Unable to grow VHDX file ${vhdPath}"
 	}
 
@@ -42,7 +41,6 @@ Function Set-HardDiskSize
 		$timeout = 300
 		Start-VM -Name $vmName -ComputerName $hvServer
 		if (-not (Wait-ForVMToStartKVP $vmName $hvServer $timeout )) {
-			$testResult = "FAIL"
 			Throw "${vmName} failed to start"
 		} else {
 			LogMsg "Started VM ${vmName}"
@@ -52,7 +50,6 @@ Function Set-HardDiskSize
 	# check file size after resize
 	$vhdxInfoResize = Get-VHD -Path $vhdPath -ComputerName $hvServer
 	if ( $newSize.contains("GB") -and $vhdxInfoResize.Size/1gb -ne $newSize.Trim("GB") ) {
-		$testResult = "FAIL"
 		Throw "Failed to Resize Disk to new Size"
 	}
 
@@ -67,11 +64,9 @@ Function Set-HardDiskSize
 	$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "echo 1 > /sys/block/$sd/device/rescan" -runAsSudo
 	$diskSize = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "fdisk -l /dev/$sd  2> /dev/null | grep Disk | grep $sd | cut -f 5 -d ' '" -runAsSudo
 	if (-not $diskSize) {
-		$testResult = "FAIL"
 		Throw "Unable to determine disk size from within the guest after growing the VHDX"
 	}
 	if ($diskSize -ne $newVhdxSize) {
-		$testResult = "FAIL"
 		Throw "VM ${vmName} detects a disk size of ${diskSize}, not the expected size of ${newVhdxSize}"
 	}
 
@@ -86,7 +81,6 @@ Function Set-HardDiskSize
 		$ret = RunLinuxCmd -ip $ip -port $port -username $user -password $password -command "./$guestScript" -runAsSudo
 	}
 	if (-not $ret) {
-		$testResult = "FAIL"
 		Throw "Running '${guestScript}'script failed on VM. check VM logs , exiting test case execution"
 	}
 	LogMsg "The guest detects the new size after resizing ($diskSize)"

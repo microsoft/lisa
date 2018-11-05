@@ -67,7 +67,7 @@ function Main {
     #       It also makes it easy to remove the hot added NIC since we can find
     #       the hot added NIC by name.
     LogMsg "Ensure the VM does not have a Synthetic NIC with the name '${nicName}'"
-    $nics = Get-VMNetworkAdapter -VMName $VMName -Name "${nicName}" -ComputerName $HvServer -ErrorAction SilentlyContinue
+    $null = Get-VMNetworkAdapter -VMName $VMName -Name "${nicName}" -ComputerName $HvServer -ErrorAction SilentlyContinue
     if ($?) {
         LogErr "VM '${VMName}' already has a NIC named '${nicName}'"
         return "FAIL"

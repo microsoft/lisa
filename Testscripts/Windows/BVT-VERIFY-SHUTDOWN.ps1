@@ -3,21 +3,20 @@
 
 function Main {
     # Create test result 
-    $result = ""
     $currentTestResult = CreateTestResultObject
     $resultArr = @()
 
     try {
         LogMsg "Trying to shut down $($AllVMData.RoleName)..."
         if ($UseAzureResourceManager) {
-            $stopVM = Stop-AzureRmVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName -Force -StayProvisioned -Verbose
+            $null = Stop-AzureRmVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName -Force -StayProvisioned -Verbose
             if ($?) {
                 $isStopped = $true
             } else {
                 $isStopped = $false
             }
         } else {
-            $out = StopAllDeployments -DeployedServices $isDeployed
+            $null = StopAllDeployments -DeployedServices $isDeployed
             $isStopped = $?
         }
         if ($isStopped) {
@@ -32,7 +31,6 @@ function Main {
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
         LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     } finally {
-        $metaData = ""
         if (!$testResult) {
             $testResult = "Aborted"
         }

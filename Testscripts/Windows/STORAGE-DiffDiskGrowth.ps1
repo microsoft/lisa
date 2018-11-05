@@ -46,7 +46,6 @@ function Main {
     $lun = $null
     $vhdType = $null
     $vhdName = $null
-    $parentVhd = $null
     $vhdFormat = $null
     $vmGeneration = $null
 
@@ -67,7 +66,6 @@ function Main {
         $rValue = $tokens[1].Trim()
 
         if ($lValue -eq "ParentVHD") {
-            $parentVhd = $rValue
             continue
         }
         if ($lValue -eq "vhdFormat") {

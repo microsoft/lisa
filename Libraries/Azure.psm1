@@ -83,7 +83,6 @@ Function ValidateSubscriptionUsage($subscriptionID, $RGXMLData) {
         $AllowedUsagePercentage = 100
         $currentStatus = Get-AzureRmVMUsage -Location $Location
         $overFlowErrors = 0
-        $requiredVMCores = 0
         $premiumVMs = 0
         $vmCounter = 0
         foreach ($VM in $RGXMLData.VirtualMachine) {
@@ -357,7 +356,6 @@ Function CreateAllResourceGroupDeployments($setupType, $xmlConfig, $Distro, [str
         if ( $location -imatch "-" ) {
             $RGCount = $setupTypeData.ResourceGroup.Count
             $xRegionTest = $true
-            $xRegionTotalLocations = $location.Split("-").Count
             $xRegionLocations = $location.Split("-")
             $locationCounter = 0
             LogMsg "$RGCount Resource groups will be deployed in $($xRegionLocations.Replace('-',' and '))"
@@ -382,7 +380,6 @@ Function CreateAllResourceGroupDeployments($setupType, $xmlConfig, $Distro, [str
             }
             if ($readyToDeploy) {
                 $curtime = ([string]((Get-Date).Ticks / 1000000)).Split(".")[0]
-                $randomNumber = $global4digitRandom
                 $isServiceDeployed = "False"
                 $retryDeployment = 0
                 if ( $RG.Tag -ne $null ) {
@@ -428,7 +425,7 @@ Function CreateAllResourceGroupDeployments($setupType, $xmlConfig, $Distro, [str
                         }
                         if ($isServiceCreated -eq "True") {
                             $azureDeployJSONFilePath = ".\Temp\$groupName.json"
-                            $DeploymentCommand = GenerateAzureDeployJSONFile -RGName $groupName -osImage $osImage -osVHD $osVHD -RGXMLData $RG -Location $location -azuredeployJSONFilePath $azureDeployJSONFilePath
+                            $null = GenerateAzureDeployJSONFile -RGName $groupName -osImage $osImage -osVHD $osVHD -RGXMLData $RG -Location $location -azuredeployJSONFilePath $azureDeployJSONFilePath
                             $DeploymentStartTime = (Get-Date)
                             $CreateRGDeployments = CreateResourceGroupDeployment -RGName $groupName -location $location -setupType $setupType -TemplateFile $azureDeployJSONFilePath
                             $DeploymentEndTime = (Get-Date)
@@ -498,7 +495,7 @@ Function DeleteResourceGroup([string]$RGName, [switch]$KeepDisks) {
                     else {
                         LogMsg "Removing $($resource.ResourceName)"
                         try {
-                            $out = Remove-AzureRmResource -ResourceId $resource.ResourceId -Force -Verbose    
+                            $null = Remove-AzureRmResource -ResourceId $resource.ResourceId -Force -Verbose
                         }
                         catch {
                             LogErr "Error. We will try to remove this in next attempt."
@@ -524,7 +521,7 @@ Function DeleteResourceGroup([string]$RGName, [switch]$KeepDisks) {
             }            
             else {
                 $currentGUID = ([guid]::newguid()).Guid
-                $out = Save-AzureRmContext -Path "$env:TEMP\$($currentGUID).azurecontext" -Force
+                $null = Save-AzureRmContext -Path "$env:TEMP\$($currentGUID).azurecontext" -Force
                 $cleanupRGScriptBlock = {
                     $RGName = $args[0]
                     $currentGUID = $args[1]
@@ -532,9 +529,9 @@ Function DeleteResourceGroup([string]$RGName, [switch]$KeepDisks) {
                     Remove-AzureRmResourceGroup -Name $RGName -Verbose -Force
                 }
                 $currentGUID = ([guid]::newguid()).Guid
-                $out = Save-AzureRmContext -Path "$env:TEMP\$($currentGUID).azurecontext" -Force
+                $null = Save-AzureRmContext -Path "$env:TEMP\$($currentGUID).azurecontext" -Force
                 LogMsg "Triggering : DeleteResourceGroup-$RGName..."
-                $deleteJob = Start-Job -ScriptBlock $cleanupRGScriptBlock -ArgumentList $RGName, $currentGUID -Name "DeleteResourceGroup-$RGName"
+                $null = Start-Job -ScriptBlock $cleanupRGScriptBlock -ArgumentList $RGName, $currentGUID -Name "DeleteResourceGroup-$RGName"
                 $retValue = $true
             }
         }
@@ -565,7 +562,6 @@ Function RemoveResidualResourceGroupVHDs($ResourceGroup, $storageAccount) {
 Function CreateResourceGroup([string]$RGName, $location) {
     $FailCounter = 0
     $retValue = "False"
-    $ResourceGroupDeploymentName = $RGName + "-arm"
 
     While (($retValue -eq $false) -and ($FailCounter -lt 5)) {
         try {
@@ -691,16 +687,12 @@ Function GenerateAzureDeployJSONFile ($RGName, $osImage, $osVHD, $RGXMLData, $Lo
     $numberOfVMs = 0
     $VMNames = @()
     $EnableIPv6 = $false
-    $ForceLoadBalancerForSingleVM = $false
     $totalSubnetsRequired = 0
     foreach ( $newVM in $RGXMLData.VirtualMachine) {
         if ( !$EnableIPv6 ) {
             foreach ( $endpoint in $newVM.EndPoints ) {
                 if ( $endpoint.EnableIPv6 -eq "True" ) {
                     $EnableIPv6 = $true
-                }
-                if ( $endpoint.LoadBalanced -eq "True" ) {
-                    $ForceLoadBalancerForSingleVM = $true
                 }
                 #Check total subnets required
                 if ( $newVM.ExtraNICs -ne 0) {
@@ -746,7 +738,6 @@ Function GenerateAzureDeployJSONFile ($RGName, $osImage, $osVHD, $RGXMLData, $Lo
     #Condition Existing Storage - NonManaged disks
     if ( $StorageAccountName -inotmatch "NewStorage" -and !$UseManagedDisks -and !$UseManageDiskForCurrentTest) {
         $StorageAccountType = ($GetAzureRMStorageAccount | where {$_.StorageAccountName -eq $StorageAccountName}).Sku.Tier.ToString()
-        $StorageAccountRG = ($GetAzureRMStorageAccount | where {$_.StorageAccountName -eq $StorageAccountName}).ResourceGroupName.ToString()
         if ($StorageAccountType -match 'Premium') {
             $StorageAccountType = "Premium_LRS"
         }
@@ -778,7 +769,6 @@ Function GenerateAzureDeployJSONFile ($RGName, $osImage, $osVHD, $RGXMLData, $Lo
         $NewStorageAccountName = $StorageAccountName
         LogMsg "Using New ARM Storage Account : $StorageAccountName"
         $StorageAccountType = $NewARMStorageAccountType
-        $StorageAccountRG = $RGName
     }
 
     #Condition New Storage - Managed disk
@@ -807,11 +797,6 @@ Function GenerateAzureDeployJSONFile ($RGName, $osImage, $osVHD, $RGXMLData, $Lo
     }
 
 
-    $HS = $RGXMLData
-    $setupType = $Setup
-    $totalVMs = 0
-    $totalHS = 0
-    $extensionCounter = 0
     $vmCount = 0
     $indents = @()
     $indent = ""
@@ -861,7 +846,6 @@ Function GenerateAzureDeployJSONFile ($RGName, $osImage, $osVHD, $RGXMLData, $Lo
                 sleep -Milliseconds 1
             }
         }
-        $extensionXML = [xml]$extensionString
     }
 
 
@@ -1391,7 +1375,6 @@ Function GenerateAzureDeployJSONFile ($RGName, $osImage, $osVHD, $RGXMLData, $Lo
     $vmAdded = $false
     $role = 0
     foreach ( $newVM in $RGXMLData.VirtualMachine) {
-        $VnetName = $RGXMLData.VnetName
         if ( $OverrideVMSize ) {
             $instanceSize = $OverrideVMSize
         }
@@ -1401,9 +1384,8 @@ Function GenerateAzureDeployJSONFile ($RGName, $osImage, $osVHD, $RGXMLData, $Lo
         else {
             $instanceSize = $newVM.ARMInstanceSize
         }
-    
+
         $ExistingSubnet = $newVM.ARMSubnetName
-        $DnsServerIP = $RGXMLData.DnsServerIP
         if ($newVM.RoleName) {
             $vmName = $newVM.RoleName
         }
@@ -1906,20 +1888,18 @@ Function DeployResourceGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFailed
             $VerifiedGroups = $NULL
             $retValue = $NULL
             #$ExistingGroups = RetryOperation -operation { Get-AzureRmResourceGroup } -description "Getting information of existing resource groups.." -retryInterval 5 -maxRetryCount 5
-            $i = 0
-            $role = 1
-            $setupTypeData = $xmlConfig.config.$TestPlatform.Deployment.$setupType
+            #$setupTypeData = $xmlConfig.config.$TestPlatform.Deployment.$setupType
             #DEBUGRG
             #$isAllDeployed = CreateAllResourceGroupDeployments -setupType $setupType -xmlConfig $xmlConfig -Distro $Distro -region $region -storageAccount $storageAccount -DebugRG "ICA-RG-M1S1-SSTEST-GZBX-636621761998"
             $isAllDeployed = CreateAllResourceGroupDeployments -setupType $setupType -xmlConfig $xmlConfig -Distro $Distro -region $region
-            $isAllVerified = "False"
+            #$isAllVerified = "False"
             $isAllConnected = "False"
             #$isAllDeployed = @("True","ICA-RG-IEndpointSingleHS-U1510-8-10-12-34-9","30")
             if ($isAllDeployed[0] -eq "True") {
                 $deployedGroups = $isAllDeployed[1]
-                $resourceGroupCount = $isAllDeployed[2]
+                #$resourceGroupCount = $isAllDeployed[2]
                 $DeploymentElapsedTime = $isAllDeployed[3]
-                $GroupsToVerify = $deployedGroups.Split('^')
+                #$GroupsToVerify = $deployedGroups.Split('^')
                 #if ( $GetDeploymentStatistics )
                 #{
                 #    $VMBooTime = GetVMBootTime -DeployedGroups $deployedGroups -TimeoutInSeconds 1800
@@ -1943,10 +1923,10 @@ Function DeployResourceGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFailed
                     $xmlConfig.config.$TestPlatform.Deployment.$setupType.isDeployed = $retValue
                     #Collecting Initial Kernel
                     if ( Test-Path -Path  .\Extras\UploadDeploymentDataToDB.ps1 ) {
-                        $out = .\Extras\UploadDeploymentDataToDB.ps1 -allVMData $allVMData -DeploymentTime $DeploymentElapsedTime.TotalSeconds
+                        $null = .\Extras\UploadDeploymentDataToDB.ps1 -allVMData $allVMData -DeploymentTime $DeploymentElapsedTime.TotalSeconds
                     }
                     if (!$IsWindows) {
-                        $KernelLogOutput = GetAndCheckKernelLogs -allDeployedVMs $allVMData -status "Initial"
+                        $null = GetAndCheckKernelLogs -allDeployedVMs $allVMData -status "Initial"
                     }
                 }
                 else {
@@ -1995,7 +1975,7 @@ Function DeployResourceGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFailed
     else {
         $retValue = $xmlConfig.config.$TestPlatform.Deployment.$setupType.isDeployed
         if (!$IsWindows) {
-            $KernelLogOutput = GetAndCheckKernelLogs -allDeployedVMs $allVMData -status "Initial"
+            $null = GetAndCheckKernelLogs -allDeployedVMs $allVMData -status "Initial"
         }
     }
     if ( $GetDeploymentStatistics ) {
@@ -2184,11 +2164,11 @@ Function CopyVHDToAnotherStorageAccount ($sourceStorageAccount, $sourceStorageCo
     $destContext = New-AzureStorageContext -StorageAccountName $destAccountName -StorageAccountKey $destAccountKey
     $testContainer = Get-AzureStorageContainer -Name $destContainer -Context $destContext -ErrorAction Ignore
     if ($testContainer -eq $null) {
-        $out = New-AzureStorageContainer -Name $destContainer -context $destContext
+        $null = New-AzureStorageContainer -Name $destContainer -context $destContext
     }
     # Start the Copy
     LogMsg "Copy $vhdName --> $($destContext.StorageAccountName) : Running"
-    $out = Start-AzureStorageBlobCopy -AbsoluteUri $SasUrl  -DestContainer $destContainer -DestContext $destContext -DestBlob $destBlob -Force
+    $null = Start-AzureStorageBlobCopy -AbsoluteUri $SasUrl  -DestContainer $destContainer -DestContext $destContext -DestBlob $destBlob -Force
     #
     # Monitor replication status
     #
@@ -2240,7 +2220,7 @@ Function SetResourceGroupLock ([string]$ResourceGroup, [string]$LockNote, [strin
 
 Function RestartAllAzureDeployments($allVMData) {
     $currentGUID = ([guid]::newguid()).Guid
-    $out = Save-AzureRmContext -Path "$env:TEMP\$($currentGUID).azurecontext" -Force
+    $null = Save-AzureRmContext -Path "$env:TEMP\$($currentGUID).azurecontext" -Force
     $restartJobs = @()	
     foreach ( $vmData in $AllVMData ) {
         if ( $UseAzureResourceManager) {
@@ -2248,11 +2228,11 @@ Function RestartAllAzureDeployments($allVMData) {
             $restartJobs += Start-Job -ScriptBlock { $vmData = $args[0]
                 $currentGUID = $args[1]
                 Import-AzureRmContext -AzureContext "$env:TEMP\$($currentGUID).azurecontext"
-                $restartVM = Restart-AzureRmVM -ResourceGroupName $vmData.ResourceGroupName -Name $vmData.RoleName -Verbose
+                $null = Restart-AzureRmVM -ResourceGroupName $vmData.ResourceGroupName -Name $vmData.RoleName -Verbose
             } -ArgumentList $vmData, $currentGUID -Name "Restart-$($vmData.RoleName)"
         }
         else {
-            $restartVM = Restart-AzureVM -ServiceName $vmData.ServiceName -Name $vmData.RoleName -Verbose
+            $null = Restart-AzureVM -ServiceName $vmData.ServiceName -Name $vmData.RoleName -Verbose
             $isRestarted = $?
             if ($isRestarted) {
                 LogMsg "Restarted : $($vmData.RoleName)"
@@ -2280,7 +2260,7 @@ Function RestartAllAzureDeployments($allVMData) {
             if ($restartJob.State -eq "Completed") {
                 $completedJobsCount += 1
                 LogMsg "[$completedJobsCount/$jobCount] $($restartJob.Name) is done."
-                $out = Remove-Job -Id $restartJob.ID -Force -ErrorAction SilentlyContinue
+                $null = Remove-Job -Id $restartJob.ID -Force -ErrorAction SilentlyContinue
             }
             else {
                 $tempJobs += $restartJob
@@ -2369,7 +2349,7 @@ Function Set-SRIOVinAzureVMs {
                     $TargettedNics = $AllNics | Where-Object { $_.EnableAcceleratedNetworking -eq $false}
                     LogMsg "Current Accelerated networking disabled NICs : $($TargettedNics.Name)"
                     LogMsg "Shutting down $VMName..."
-                    $StopVM = Stop-AzureRmVM -ResourceGroup $ResourceGroup -Name $VMName -Force
+                    $null = Stop-AzureRmVM -ResourceGroup $ResourceGroup -Name $VMName -Force
                     foreach ($TargetNic in $TargettedNics) {
                         #Enable EnableAccelerated Networking
                         $TargetNic.EnableAcceleratedNetworking = $true
@@ -2395,7 +2375,7 @@ Function Set-SRIOVinAzureVMs {
                     $TargettedNics = $AllNics | Where-Object { $_.EnableAcceleratedNetworking -eq $true}
                     LogMsg "Current Accelerated networking enabled NICs : $($TargettedNics.Name)"
                     LogMsg "Shutting down $VMName..."
-                    $StopVM = Stop-AzureRmVM -ResourceGroup $ResourceGroup -Name $VMName -Force
+                    $null = Stop-AzureRmVM -ResourceGroup $ResourceGroup -Name $VMName -Force
                     foreach ($TargetNic in $TargettedNics) {
                         #Enable EnableAccelerated Networking
                         $TargetNic.EnableAcceleratedNetworking = $false
@@ -2415,7 +2395,7 @@ Function Set-SRIOVinAzureVMs {
             foreach ( $TargetVM in $TargettedVMs) {
                 #Start the VM..
                 LogMsg "Starting VM $($TargetVM.Name)..."
-                $StartVM = Start-AzureRmVM -ResourceGroup $ResourceGroup -Name $TargetVM.Name
+                $null = Start-AzureRmVM -ResourceGroup $ResourceGroup -Name $TargetVM.Name
             }
             #Public IP address changes most of the times, when we shutdown the VM.
             #Hence, we need to refresh the data

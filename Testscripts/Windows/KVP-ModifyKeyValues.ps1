@@ -30,8 +30,7 @@ function Main {
     
     $key = $null
     $value = $null
-    $tcCovered = "unknown"
-    
+
     if (-not $TestParams) {
         LogErr "Error: No TestParams provided"
         LogErr "       This script requires the Key & value test parameters"
@@ -51,7 +50,6 @@ function Main {
         switch ($fields[0].Trim()) {
             "key"        { $key       = $fields[1].Trim() }
             "value"      { $value     = $fields[1].Trim() }
-            "tc_covered" { $tcCovered = $fields[1].Trim() }
             default   {}  # unknown param - just ignore it
         }
     }        

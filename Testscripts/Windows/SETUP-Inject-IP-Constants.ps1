@@ -167,14 +167,14 @@ function Main {
             $VMPassword -command "chmod +x ~/*.sh"
         RunLinuxCmd -ip $vm2ipv4 -port $VMPort -username "root" -password `
             $VMPassword -command "chmod +x ~/*.sh"
-        $keyCopyOut = RunLinuxCmd -ip $Ipv4 -port $VMPort -username "root" -password `
+        $null = RunLinuxCmd -ip $Ipv4 -port $VMPort -username "root" -password `
             $VMPassword -command "./enablePasswordLessRoot.sh ; cp -rf /root/.ssh /home/$VMUserName"
         # Copy keys from VM1 and setup VM2
         RemoteCopy -download -downloadFrom $Ipv4 -port $VMPort -files `
             "/root/sshFix.tar" -username "root" -password $VMPassword -downloadTo $LogDir
         RemoteCopy -uploadTo $vm2ipv4 -port $VMPort -files "$LogDir\sshFix.tar" `
             -username "root" -password $VMPassword -upload
-        $keyCopyOut = RunLinuxCmd -ip $vm2ipv4 -port $VMPort -username "root" -password `
+        $null = RunLinuxCmd -ip $vm2ipv4 -port $VMPort -username "root" -password `
             $VMPassword -command "./enablePasswordLessRoot.sh ; cp -rf /root/.ssh /home/$VMUserName"
     }
 

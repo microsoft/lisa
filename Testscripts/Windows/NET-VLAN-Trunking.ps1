@@ -127,7 +127,6 @@ function Main {
 
     # Get IPs from both VMs
     $ipv4 = Get-IPv4ViaKVP $VMName $HvServer
-    $vm2ipv4 = Get-IPv4ViaKVP $VM2Name $HvServer
 
     # Convert MAC adress
     if (-not $vm1MacAddress.Contains(":")) {

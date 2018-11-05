@@ -100,7 +100,7 @@ function Main {
     if ($FeatureSupported -ne $True) {
         LogMsg "Kernels older than 3.10.0-862 require LIS-4.x drivers."
         $lisDriversCmd = "rpm -qa | grep kmod-microsoft-hyper-v && rpm -qa | grep microsoft-hyper-v" 
-        $checkExternal = .\Tools\plink.exe -C -pw $password -P $VMPort $user@$Ipv4 $lisDriversCmd
+        $null = .\Tools\plink.exe -C -pw $password -P $VMPort $user@$Ipv4 $lisDriversCmd
         if ($? -ne "True") {
             LogErr "Error: No LIS-4.x drivers detected. Skipping test."
             $testResult = "Aborted"

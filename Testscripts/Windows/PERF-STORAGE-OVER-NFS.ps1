@@ -3,7 +3,6 @@
 
 function Main {
     # Create test result 
-    $result = ""
     $currentTestResult = CreateTestResultObject
     $resultArr = @()
 
@@ -78,7 +77,7 @@ chmod 666 /root/perf_fio.csv
 
         RemoteCopy -uploadTo $testVMData.PublicIP -port $testVMData.SSHPort -files ".\$constantsFile,.\$LogDir\StartFioTest.sh,.\$LogDir\ParseFioTestLogs.sh" -username "root" -password $password -upload
         
-        $out = RunLinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -command "chmod +x *.sh" -runAsSudo
+        $null = RunLinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -command "chmod +x *.sh" -runAsSudo
         $testJob = RunLinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -command "./StartFioTest.sh" -RunInBackground -runAsSudo
         #endregion
 
@@ -107,7 +106,7 @@ chmod 666 /root/perf_fio.csv
             $testResult = "ABORTED"
         }
         elseif ($finalStatus -imatch "TestCompleted") {
-            $out = RunLinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -command "/root/ParseFioTestLogs.sh"
+            $null = RunLinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -command "/root/ParseFioTestLogs.sh"
             RemoteCopy -downloadFrom $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "perf_fio.csv"
             LogMsg "Test Completed."
             $testResult = "PASS"
@@ -126,17 +125,14 @@ chmod 666 /root/perf_fio.csv
                 if ($line -imatch "Max IOPS of each mode") {
                     $maxIOPSforMode = $true
                     $maxIOPSforBlockSize = $false
-                    $fioData = $false
                 }
                 if ($line -imatch "Max IOPS of each BlockSize") {
                     $maxIOPSforMode = $false
                     $maxIOPSforBlockSize = $true
-                    $fioData = $false
                 }
                 if ($line -imatch "Iteration,TestType,BlockSize") {
                     $maxIOPSforMode = $false
                     $maxIOPSforBlockSize = $false
-                    $fioData = $true
                 }
                 if ($maxIOPSforMode) {
                     Add-Content -Value $line -Path $LogDir\maxIOPSforMode.csv
@@ -148,8 +144,6 @@ chmod 666 /root/perf_fio.csv
                     Add-Content -Value $line -Path $LogDir\fioData.csv
                 }
             }
-            $maxIOPSforModeCsv = Import-Csv -Path $LogDir\maxIOPSforMode.csv
-            $maxIOPSforBlockSizeCsv = Import-Csv -Path $LogDir\maxIOPSforBlockSize.csv
             $fioDataCsv = Import-Csv -Path $LogDir\fioData.csv
 
             LogMsg "Uploading the test results.."
@@ -206,7 +200,7 @@ chmod 666 /root/perf_fio.csv
                 $command = $connection.CreateCommand()
                 $command.CommandText = $SQLQuery
                 
-                $result = $command.executenonquery()
+                $null = $command.executenonquery()
                 $connection.Close()
                 LogMsg "Uploading the test results done!!"
             } else {
@@ -222,7 +216,6 @@ chmod 666 /root/perf_fio.csv
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
         LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     } finally {
-        $metaData = "NTTTCP RESULT"
         if (!$testResult) {
             $testResult = "Aborted"
         }

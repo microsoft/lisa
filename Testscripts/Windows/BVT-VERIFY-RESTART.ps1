@@ -3,7 +3,6 @@
 
 function Main {
     # Create test result 
-    $result = ""
     $currentTestResult = CreateTestResultObject
     $resultArr = @()
 
@@ -24,7 +23,7 @@ function Main {
                 LogErr "Restart Failed. Operation ID : $($restartVM.OperationId)"
             }
         } else {
-            $out = RestartAllDeployments -DeployedServices $isDeployed
+            $null = RestartAllDeployments -DeployedServices $isDeployed
             $isRestarted = $?
         }
         if ($isRestarted) {
@@ -39,7 +38,6 @@ function Main {
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
         LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     } finally {
-        $metaData = ""
         if (!$testResult) {
             $testResult = "Aborted"
         }

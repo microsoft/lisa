@@ -16,7 +16,6 @@ function Main {
         $VMName = $captureVMData.RoleName
         # Change the working directory to where we need to be
         Set-Location $WorkingDirectory
-        $utilsScript = ".\Utilities\STOR-VSS-Utils.ps1"
         $backupdisksize = 2*$(Get-VMHardDiskDrive -VMName $VMName |get-vhd)[0].size
         $backupdiskpath = (Get-VMHost).VirtualHardDiskPath + "\" + $VMName + "_VSS_DISK.vhdx"
         $driveletter = Get-ChildItem function:[g-y]: -n | Where-Object { !(test-path $_) } | Get-random

@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
-$result = ""
 $CurrentTestResult = CreateTestResultObject
 $resultArr = @()
 $allDiskNames = @()
@@ -26,11 +25,11 @@ try
                 $VHDuri = $VirtualMachine.StorageProfile.OsDisk.Vhd.Uri
                 $VHDUri = $VHDUri.Replace("osdisk",$diskName)
                 LogMsg "Adding an empty data disk of size $diskSizeinGB GB"
-                $out = Add-AzureRMVMDataDisk -VM $VirtualMachine -Name $diskName -DiskSizeInGB $diskSizeinGB -LUN $count -VhdUri $VHDuri.ToString() -CreateOption Empty
+                $null = Add-AzureRMVMDataDisk -VM $VirtualMachine -Name $diskName -DiskSizeInGB $diskSizeinGB -LUN $count -VhdUri $VHDuri.ToString() -CreateOption Empty
                 LogMsg "Successfully created an empty data disk of size $diskSizeinGB GB"                
             }
             LogMsg "Number of data disks added to the VM $count"
-            $out = Update-AzureRMVM -VM $VirtualMachine -ResourceGroupName $ResourceGroupUnderTest
+            $null = Update-AzureRMVM -VM $VirtualMachine -ResourceGroupName $ResourceGroupUnderTest
             LogMsg "Successfully added $diskCount empty data disks to the VM"
             LogMsg "Verifying if data disk is added to the VM: Running fdisk on remote VM"
             $fdiskOutput = RunLinuxCmd -username $user -password $password -ip $VM.PublicIP -port $VM.SSHPort -command "/sbin/fdisk -l | grep /dev/sd" -runAsSudo
@@ -59,8 +58,8 @@ try
             }
             LogMsg "------------------------------------------"
             LogMsg "Parallel Removal of Data Disks from the VM"
-            $out = Remove-AzureRmVMDataDisk -VM $VirtualMachine -DataDiskNames $allDiskNames
-            $out = Update-AzureRMVM -VM $VirtualMachine -ResourceGroupName $ResourceGroupUnderTest
+            $null = Remove-AzureRmVMDataDisk -VM $VirtualMachine -DataDiskNames $allDiskNames
+            $null = Update-AzureRMVM -VM $VirtualMachine -ResourceGroupName $ResourceGroupUnderTest
             LogMsg "Successfully removed the data disk from the VM"
             LogMsg "Verifying if data disks are removed from the VM: Running fdisk on remote VM"
 

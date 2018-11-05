@@ -44,7 +44,6 @@ function Main {
         $fields = $p.Split("=")
         switch ($fields[0].Trim()) {
             "ipv4"      { $ipv4    = $fields[1].Trim() }
-            "TC_COVERED"   { $tcCovered = $fields[1].Trim() }
             "CycleCount"    { $CycleCount = $fields[1].Trim() }
             default  {}
         }
@@ -66,13 +65,13 @@ function Main {
 
     # Check if VM is RedHat 7.3 or later (and if not, check external LIS exists)
     $supportkernel = "3.10.0.514" #kernel version for RHEL 7.3
-    $isRHEL = .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$ipv4 "yum --version 2> /dev/null"
+    $null = .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$ipv4 "yum --version 2> /dev/null"
     if ($? -eq "True") {
         $kernelSupport = Get-VMFeatureSupportStatus -VmIp $ipv4 -VmPort $VMPort -UserName $VMUserName `
                             -Password $VMPassword -SupportKernel $supportkernel
         if ($kernelSupport -ne "True") {
             LogMsg "Info: Kernels older than 3.10.0-514 require LIS-4.x drivers."
-            $checkExternal = .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$ipv4 `
+            $null = .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$ipv4 `
                                 "rpm -qa | grep kmod-microsoft-hyper-v && rpm -qa | grep microsoft-hyper-v"
             if ($? -ne "True") {
                 LogMsg "Error: No LIS-4.x drivers detected. Skipping test."

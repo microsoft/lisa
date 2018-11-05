@@ -98,11 +98,11 @@ Function DownloadExtensionLogFilesFromVarLog ($LogFilesPaths, $ExtensionName, $v
 		{
 			if ( $deleteAfterDownload )
 			{
-				$out = RunLinuxCmd -username $user -password $password -ip $vmData.PublicIP -port $vmData.SSHPort -command "cat $file > $fileName && rm -rf $file" -runAsSudo
+				$null = RunLinuxCmd -username $user -password $password -ip $vmData.PublicIP -port $vmData.SSHPort -command "cat $file > $fileName && rm -rf $file" -runAsSudo
 			}
 			else
 			{
-				$out = RunLinuxCmd -username $user -password $password -ip $vmData.PublicIP -port $vmData.SSHPort -command "cat $file > $fileName" -runAsSudo
+				$null = RunLinuxCmd -username $user -password $password -ip $vmData.PublicIP -port $vmData.SSHPort -command "cat $file > $fileName" -runAsSudo
 			}
 			RemoteCopy -download -downloadFrom $vmData.PublicIP -files $fileName -downloadTo $LogDir -port $vmData.SSHPort -username $user -password $password
 		}
@@ -128,8 +128,7 @@ Function GetExtensionStatusFromStatusFile ( $statusFilePaths, $ExtensionName, $v
 				if ( $file -imatch $ExtensionName ) 
 				{
 					$extensionErrorCount = 0
-					$statusFileNotFound = $false
-					$out = RunLinuxCmd -username $user -password $password -ip $vmData.PublicIP -port $vmData.SSHPort -command "cat $file > $fileName" -runAsSudo
+					$null = RunLinuxCmd -username $user -password $password -ip $vmData.PublicIP -port $vmData.SSHPort -command "cat $file > $fileName" -runAsSudo
 					RemoteCopy -download -downloadFrom $vmData.PublicIP -files $fileName -downloadTo $LogDir -port $vmData.SSHPort -username $user -password $password
 					$statusFile = [string](Get-Content -Path "$LogDir\$fileName")
 					$extensionVarLibStatus = ConvertFrom-Json -InputObject $statusFile

@@ -42,7 +42,6 @@ function Main {
         switch ($fields[0].Trim()) {
             "key"        { $key       = $fields[1].Trim() }
             "value"      { $value     = $fields[1].Trim() }
-            "tc_covered" { $tcCovered = $fields[1].Trim() }
         default   {}  # unknown param - just ignore it
         }
     }        

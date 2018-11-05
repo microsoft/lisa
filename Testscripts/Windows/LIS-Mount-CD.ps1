@@ -22,7 +22,6 @@ function Main {
     # using a PowerPC ISO, which does not boot on Gen1/Gen2 VMs
     # For other bootable media must ensure that boot from CD is not the first option
     $url = "http://ports.ubuntu.com/dists/trusty/main/installer-powerpc/current/images/powerpc/netboot/mini.iso"
-    $vmGeneration = "$null"
     $hotAdd = "$False"
     #######################################################################
     #

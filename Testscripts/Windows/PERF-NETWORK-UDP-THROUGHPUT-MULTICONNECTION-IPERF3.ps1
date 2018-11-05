@@ -3,7 +3,6 @@
 
 function Main {
     # Create test result 
-    $result = ""
     $currentTestResult = CreateTestResultObject
     $resultArr = @()
 
@@ -45,7 +44,7 @@ function Main {
         $clientNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command $getNicCmd).Trim()
         $serverNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username "root" -password $password -command $getNicCmd).Trim()
         if ( $serverNicName -eq $clientNicName) {
-            $nicName = $clientNicName
+            LogMsg "Server and client SRIOV NICs are the same."
         } else {
             Throw "Server and client SRIOV NICs are not same."
         }
@@ -86,7 +85,7 @@ collect_VM_properties
         RemoteCopy -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files ".\$constantsFile,.\$LogDir\Startiperf3udpTest.sh" -username "root" -password $password -upload
         RemoteCopy -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files $currentTestData.files -username "root" -password $password -upload
 
-        $out = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "chmod +x *.sh"
+        $null = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "chmod +x *.sh"
         $testJob = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "/root/Startiperf3udpTest.sh" -RunInBackground
         #endregion
 
@@ -149,7 +148,6 @@ collect_VM_properties
                     if ($file.Name -imatch "iperf-client-udp-IPv4-buffer-$($Buffer)-conn-$connection-instance-*") {
                         $currentInstanceclientJsonText = $null
                         $currentInstanceclientJsonObj = $null
-                        $currentInstanceClientPacketLoss = @()
                         $currentInstanceClientThroughput = $null
                         $fileName = $file.Name
                         try {
@@ -192,7 +190,6 @@ collect_VM_properties
                     if ($file.Name -imatch "iperf-server-udp-IPv4-buffer-$($Buffer)-conn-$connection-instance-*") {
                         $currentInstanceserverJsonText = $null
                         $currentInstanceserverJsonObj = $null
-                        $currentInstanceserverPacketLoss = @()
                         $currentInstanceserverThroughput = $null
                         $fileName = $file.Name
                         try {
@@ -310,7 +307,7 @@ collect_VM_properties
             $SQLQuery = "INSERT INTO $dataTableName (TestCaseName,TestDate,HostType,HostBy,HostOS,GuestOSType,GuestDistro,GuestSize,KernelVersion,IPVersion,ProtocolType,DataPath,SendBufSize_KBytes,NumberOfConnections,TxThroughput_Gbps,RxThroughput_Gbps,DatagramLoss) VALUES "
 
             foreach ($udpResultObject in $FinalServerClientUDPResultObjArr) {
-                $SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$HostType','$HostBy','$HostOS','$GuestOSType','$GuestDistro','$GuestSize','$KernelVersion','$IPVersion','UDP','$DataPath','$($udpResultObject.BufferSize)','$($udpResultObject.Connections)','$($udpResultObject.ClientTxGbps)','$($udpResultObject.ServerRxGbps)','$($udpResultObject.ClientUDPLoss)'),"
+                $SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$HostType','$HostBy','$HostOS','$GuestOSType','$GuestDistro','$GuestSize','$KernelVersion','$IPVersion','$ProtocolType','$DataPath','$($udpResultObject.BufferSize)','$($udpResultObject.Connections)','$($udpResultObject.ClientTxGbps)','$($udpResultObject.ServerRxGbps)','$($udpResultObject.ClientUDPLoss)'),"
             }
 
             $SQLQuery = $SQLQuery.TrimEnd(',')
@@ -321,7 +318,7 @@ collect_VM_properties
 
             $command = $connection.CreateCommand()
             $command.CommandText = $SQLQuery
-            $result = $command.executenonquery()
+            $null = $command.executenonquery()
             $connection.Close()
             LogMsg "Uploading the test results to DB DONE!!"
         } else {

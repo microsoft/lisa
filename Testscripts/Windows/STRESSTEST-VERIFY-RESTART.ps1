@@ -26,10 +26,6 @@ function Main {
     }
     for ($rebootNr = 1; $rebootNr -le $rebootNumber; $rebootNr++) {
         try {
-            $hs1VIP = $AllVMData.PublicIP
-            $hs1vm1sshport = $AllVMData.SSHPort
-            $hs1ServiceUrl = $AllVMData.URL
-            $hs1vm1Dip = $AllVMData.InternalIP
             LogMsg ("Trying to restart {0}: {1} / {2} ..." `
                 -f @($AllVMData.RoleName, $rebootNr, $rebootNumber))
             $RestartStatus = RestartAllDeployments -allVMData $AllVMData

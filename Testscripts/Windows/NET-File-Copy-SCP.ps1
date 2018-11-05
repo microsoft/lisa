@@ -18,7 +18,7 @@ function Get-FileCheck {
         [String] $VMUser,
         [String] $VMPort
     )
-    $retVal = RunLinuxCmd -username $VMUser -password $VMPassword -ip $IPv4 `
+    $null = RunLinuxCmd -username $VMUser -password $VMPassword -ip $IPv4 `
         -port $VMPort -command "wc -c < /mnt/$testfile" -ignoreLinuxExitCode:$true
     if (-not $?) {
         LogErr "Unable to read file /mnt/$testfile"
@@ -37,28 +37,28 @@ function Connect-Disk {
     )
     $driveName = "/dev/sdc"
 
-    $sts = RunLinuxCmd -username $VMUser -password $VMPassword -ip $IPv4 `
+    $null = RunLinuxCmd -username $VMUser -password $VMPassword -ip $IPv4 `
         -port $VMPort -command "(echo d;echo;echo w)|fdisk ${driveName}"
     if (-not $?) {
         LogErr "Failed to format the disk in the VM"
         return $False
     }
 
-    $sts = RunLinuxCmd -username $VMUser -password $VMPassword -ip $IPv4 `
+    $null = RunLinuxCmd -username $VMUser -password $VMPassword -ip $IPv4 `
         -port $VMPort -command "(echo n;echo p;echo 1;echo;echo;echo w)|fdisk ${driveName}"
     if (-not $?) {
         LogErr "Failed to format the disk in the VM"
         return $False
     }
 
-    $sts = RunLinuxCmd -username $VMUser -password $VMPassword -ip $IPv4 `
+    $null = RunLinuxCmd -username $VMUser -password $VMPassword -ip $IPv4 `
         -port $VMPort -command "mkfs.ext4 ${driveName}1"
     if (-not $?) {
         LogErr "Failed to make file system in the VM"
         return $False
     }
 
-    $sts = RunLinuxCmd -username $VMUser -password $VMPassword -ip $IPv4 `
+    $null = RunLinuxCmd -username $VMUser -password $VMPassword -ip $IPv4 `
         -port $VMPort -command "mount ${driveName}1 /mnt"
     if (-not $?) {
         LogErr "Failed to mount the disk in the VM"

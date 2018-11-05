@@ -3,7 +3,6 @@
 
 function Main {
     # Create test result 
-    $result = ""
     $currentTestResult = CreateTestResultObject
     $resultArr = @()
 
@@ -67,7 +66,7 @@ collect_VM_properties
         RemoteCopy -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files ".\$constantsFile,.\$LogDir\StartLagscopeTest.sh" -username "root" -password $password -upload
         RemoteCopy -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files $currentTestData.files -username "root" -password $password -upload
 
-        $out = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "chmod +x *.sh"
+        $null = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "chmod +x *.sh"
         $testJob = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "/root/StartLagscopeTest.sh" -RunInBackground
         #endregion
 
@@ -164,7 +163,7 @@ collect_VM_properties
 
             $command = $connection.CreateCommand()
             $command.CommandText = $SQLQuery
-            $result = $command.executenonquery()
+            $null = $command.executenonquery()
             $connection.Close()
             LogMsg "Uploading the test results done!!"
         } else {
@@ -175,7 +174,6 @@ collect_VM_properties
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
         LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     } finally {
-        $metaData = "LAGSCOPE RESULT"
         if (!$testResult) {
             $testResult = "Aborted"
         }
