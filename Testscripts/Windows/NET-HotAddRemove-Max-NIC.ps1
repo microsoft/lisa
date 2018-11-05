@@ -66,14 +66,14 @@ function Main {
 
     #	Hot Add maximum number of synthetic NICs
     LogMsg "Hot Adding the maximum number of synthetic NICs ..."
-    $addnic = Test-MaxNIC $vmName $hvServer $switchName "add" $nicsAmount
+    $null = Test-MaxNIC $vmName $hvServer $switchName "add" $nicsAmount
 
     # Run the NET_MAX_NIC.sh on the SUT VM to verify the VM detected the hot add
     LogMsg "Verifing the OS detected the NIC was hot add..."
 
     $stateFile = "${LogDir}\state.txt"
     $NETMaxNICs = "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;bash ${remoteScript}  > NETMaxNICs.log`""
-    $runcmd = RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort $NETMaxNICs -runAsSudo
+    $null = RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort $NETMaxNICs -runAsSudo
     RemoteCopy -download -downloadFrom $Ipv4 -files "/home/${VMUserName}/state.txt" `
         -downloadTo $LogDir -port $VMPort -username $VMUserName -password $VMPassword
     RemoteCopy -download -downloadFrom $Ipv4 -files "/home/${VMUserName}/NETMaxNICs.log" `
@@ -109,7 +109,7 @@ function Main {
     }
 
     # Now Hot Remove the NIC
-    $removenic = Test-MaxNIC  $vmName  $hvServer  $switchName "remove" $nicsAmount
+    $null = Test-MaxNIC  $vmName  $hvServer  $switchName "remove" $nicsAmount
 
     # Run the NET_VerifyHotAddSyntheticNIC.sh on the SUT VM to verify the VM detected the hot remove
     LogMsg "Verifing the OS detected the NIC was hot removed..."
@@ -117,7 +117,7 @@ function Main {
     $stateFile = "${LogDir}\state.txt"
     $logFile = "${LogDir}\NETVerifyHotRemoveMultiNIC.log"
     $HotRemoveMultiNIC = "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;bash ${remoteScript2} ${action} > NETVerifyHotRemoveMultiNIC.log`""
-    $runcmd2 = RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort $HotRemoveMultiNIC -runAsSudo
+    $null = RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort $HotRemoveMultiNIC -runAsSudo
     RemoteCopy -download -downloadFrom $Ipv4 -files "/home/${VMUserName}/state.txt" `
         -downloadTo $LogDir -port $VMPort -username $VMUserName -password $VMPassword
     RemoteCopy -download -downloadFrom $Ipv4 -files "/home/${VMUserName}/NETVerifyHotRemoveMultiNIC.log" `

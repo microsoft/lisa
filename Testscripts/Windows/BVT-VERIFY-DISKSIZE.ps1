@@ -1,6 +1,5 @@
 ﻿# Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
-$result = ""
 $currentTestResult = CreateTestResultObject
 $resultArr = @()
 
@@ -9,8 +8,6 @@ if ($isDeployed) {
     try {
         $hs1VIP = $AllVMData.PublicIP
         $hs1vm1sshport = $AllVMData.SSHPort
-        $hs1ServiceUrl = $AllVMData.URL
-        $hs1vm1Dip = $AllVMData.InternalIP
 
         $OsImageSize = Get-AzureVMImage | where {$_.ImageName -eq $BaseOsImage} | % {$_.LogicalSizeInGB}
         $OsImageSizeByte = $OsImageSize*1024*1024*1024
@@ -34,7 +31,6 @@ if ($isDeployed) {
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
         LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     } finally {
-        $metaData = ""
         if (!$testResult) {
             $testResult = "Aborted"
         }

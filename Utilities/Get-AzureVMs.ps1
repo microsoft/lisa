@@ -36,7 +36,6 @@ if( $UseSecretsFile -or $AzureSecretsFile )
     {
         LogMsg "Secrets file found."
         .\AddAzureRmAccountFromSecretsFile.ps1 -customSecretsFilePath $secretsFile
-        $xmlSecrets = [xml](Get-Content $secretsFile)
     }
     else
     {
@@ -52,7 +51,6 @@ function Get-VMAgeFromDisk()
     (
         [Parameter(Mandatory=$true)] $vm
     )
-    $storageKind = "none"
     $ageDays = -1
     if( $vm.StorageProfile.OsDisk.Vhd.Uri )
     {
@@ -64,7 +62,6 @@ function Get-VMAgeFromDisk()
         $container = $vhd.Split("/")[3]
         $blob = $vhd.Split("/")[4]
     
-        $storageKind = "blob"
         $blobStorageUsed = Get-AzureRmStorageAccount | where {  $($_.StorageAccountName -eq $storageAccount) -and $($_.Location -eq $vm.Location) }
         if( $blobStorageUsed )
         {
@@ -80,7 +77,6 @@ function Get-VMAgeFromDisk()
     }
     else
     {
-        $storageKind = "disk"
         $osdisk = Get-AzureRmDisk -ResourceGroupName $vm.ResourceGroupName -DiskName $vm.StorageProfile.OsDisk.Name -ErrorAction SilentlyContinue
         if( $osdisk )
         {

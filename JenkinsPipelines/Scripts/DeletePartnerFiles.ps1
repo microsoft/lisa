@@ -43,7 +43,7 @@ try
             foreach ( $file in $allFiles.Name)
             {
                 LogMsg "Removing $file..." -NoNewline
-                $out = Remove-Item -Path "$folderToQuery\$file" -Force
+                $null = Remove-Item -Path "$folderToQuery\$file" -Force
                 if ($?)
                 {
                     LogMsg " SUCCESS"
@@ -61,7 +61,7 @@ try
                 if ( ( Test-Path -Path "$folderToQuery\$file"))
                 {
                     LogMsg "Removing $file..." -NoNewline
-                    $out = Remove-Item -Path "$folderToQuery\$file" -Force
+                    $null = Remove-Item -Path "$folderToQuery\$file" -Force
                     if ($?)
                     {
                         LogMsg " SUCCESS"

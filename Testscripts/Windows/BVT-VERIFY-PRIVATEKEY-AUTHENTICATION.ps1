@@ -3,7 +3,6 @@
 
 function Main {
     # Create test result 
-    $result = ""
     $currentTestResult = CreateTestResultObject
     $resultArr = @()
 
@@ -18,7 +17,6 @@ function Main {
         $hs1ServiceUrl = $hs1vm1.DNSName
         $hs1ServiceUrl = $hs1ServiceUrl.Replace("http://","")
         $hs1ServiceUrl = $hs1ServiceUrl.Replace("/","")
-        $hs1vm1Hostname =  $hs1vm1.Name
         LogMsg "Uploading $testFile to $uploadTo, port $port using PrivateKey authentication"
         $successCount = 0
         for ($i = 0; $i -lt 16; $i++) {
@@ -46,7 +44,6 @@ function Main {
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
         LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     } finally {
-        $metaData = ""
         if (!$testResult) {
             $testResult = "Aborted"
         }

@@ -34,7 +34,6 @@ Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1"
 Get-ChildItem .\JenkinsPipelines\Scripts -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
 Import-Module BitsTransfer -Force
 
-$BuildNumber = $env:BUILD_NUMBER
 $ExitCode = 0
 
 $PartnerUsernameShareDirectory = "$SharedParentDirectory\$PartnerUsername"

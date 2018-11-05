@@ -63,7 +63,7 @@ if ( Test-Path $secretsFile ) {
     $Key = $XmlSecrets.secrets.SubscriptionServicePrincipalKey
     $pass = ConvertTo-SecureString $key -AsPlainText -Force
     $mycred = New-Object System.Management.Automation.PSCredential ($ClientID, $pass)
-    $out = Add-AzureRmAccount -ServicePrincipal -Tenant $TenantID -Credential $mycred
+    $null = Add-AzureRmAccount -ServicePrincipal -Tenant $TenantID -Credential $mycred
     $subIDSplitted = ($XmlSecrets.secrets.SubscriptionID).Split("-")
     $selectedSubscription = Select-AzureRmSubscription -SubscriptionId $XmlSecrets.secrets.SubscriptionID
     if ( $selectedSubscription.Subscription.Id -eq $XmlSecrets.secrets.SubscriptionID ) {

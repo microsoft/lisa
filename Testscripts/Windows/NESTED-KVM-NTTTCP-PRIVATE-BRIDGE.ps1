@@ -91,7 +91,7 @@ function Send-ResultToDatabase ($xmlConfig, $logDir) {
 
         $command = $connection.CreateCommand()
         $command.CommandText = $sqlQuery
-        $result = $command.executenonquery()
+        $null = $command.executenonquery()
         $connection.Close()
         LogMsg "Uploading the test results done!!"
     } else {

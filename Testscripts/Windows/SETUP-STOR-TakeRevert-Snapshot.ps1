@@ -133,7 +133,7 @@ function Main {
     # Verify that VM started OK after snapshot restore
     #
     LogMsg "Waiting for VM to boot ..."
-    $resultVMHeartbeat = Wait-VMHeartbeatOK -VMName $VMName -HvServer $HvServer `
+    $null = Wait-VMHeartbeatOK -VMName $VMName -HvServer $HvServer `
                          -RetryCount 60 -RetryInterval 4
     LogMsg "Checking if the test file is still present..."
     $sts = RunLinuxCmd -username $VMUserName -password $VMPassword -ip $newIpv4 -port $VMPort `

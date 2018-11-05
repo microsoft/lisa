@@ -172,7 +172,6 @@ foreach ($region in $allRegions)
     $currentVNETs = 0
     $currentPublicIPs = 0
     $currentUsedCores = 0
-    $currentAllowedCores = 0
     $currentDeallocatedCores = 0
     $currentStorageAccounts = 0
     $currentRegionSizes = Get-AzureRmVMSize -Location $region
@@ -296,7 +295,7 @@ if ($UploadToDB)
 
         $command = $connection.CreateCommand()
         $command.CommandText = $SQLQuery
-        $result = $command.executenonquery()
+        $null = $command.executenonquery()
         $connection.Close()
         LogMsg "Uploading data to DB done!!"
     }

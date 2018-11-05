@@ -36,7 +36,6 @@ function Main {
 
         switch ($fields[0].Trim()) {
           "crashkernel"   { $crashKernel    = $fields[1].Trim() }
-          "TestLogDir"    { $logDir = $fields[1].Trim() }
           "NMI"           { $nmi = $fields[1].Trim() }
           "VM2NAME"       { $vm2Name = $fields[1].Trim() }
           "use_nfs"       { $useNFS = $fields[1].Trim() }

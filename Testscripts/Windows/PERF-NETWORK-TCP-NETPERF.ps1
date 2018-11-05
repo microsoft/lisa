@@ -104,7 +104,6 @@ collect_VM_properties
         RemoteCopy -downloadFrom $serverVMData.PublicIP -port $serverVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "netperf-server-output.txt"
         RemoteCopy -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "VM_properties.csv"
         
-        $testSummary = $null
         $NetperfReportLog = Get-Content -Path "$LogDir\netperf-client-sar-output.txt"
         
         #Region : parse the logs
@@ -196,7 +195,7 @@ collect_VM_properties
                 $connection.Open()
                 $command = $connection.CreateCommand()
                 $command.CommandText = $SQLQuery
-                $result = $command.executenonquery()
+                $null = $command.executenonquery()
                 $connection.Close()
                 LogMsg "Uploading the test results done!!"
             } else {
@@ -230,7 +229,6 @@ collect_VM_properties
         LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     }
     finally {
-        $metaData = "Netperf result"
         if (!$testResult) {
             $testResult = "ABORTED"
         }

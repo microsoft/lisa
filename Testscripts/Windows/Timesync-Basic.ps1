@@ -18,7 +18,7 @@ function Main {
         $RootDir
     )
     $retVal = $False
-    $axTimeDiff = "5"
+    $maxTimeDiff = "5"
     $testDelay = "0"
 
     $params = $TestParams.Split(";")

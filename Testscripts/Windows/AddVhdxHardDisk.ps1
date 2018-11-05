@@ -215,8 +215,6 @@ function Main {
         switch ($fields[0].Trim())
         {
         "rootDIR"   { $rootDir = $fields[1].Trim() }
-        "TestLogDir" { $TestLogDir = $fields[1].Trim() }
-        "TestName"   { $TestName = $fields[1].Trim() }
         "diskCount"   { $diskCount = $fields[1].Trim() }
         "SCSI"  { $SCSICount = $SCSICount +1 }
         "IDE"  { $IDECount = $IDECount +1 }

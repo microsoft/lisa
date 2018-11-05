@@ -31,10 +31,11 @@ function Main {
         $tokens = $p.Trim().Split('=')
         if ($tokens.Length -ne 2) {
             LogMsg "Warn: test parameter '$p' is being ignored because it appears to be malformed"
-            continue
+            continue
         }
         if ($tokens[0].Trim() -eq "TC_COVERED") {
             $TC_COVERED = $tokens[1].Trim()
+            LogMsg "TC_COVERED: $TC_COVERED"
         }
     }
 
@@ -52,7 +53,6 @@ function Main {
     # Test if the VM is running
     $vm = Get-VM $VMName -ComputerName $HvServer 
     $hvState = $vm.State
-    $vmHeartbeat = $vm.Heartbeat
 
     if ($hvState -ne "Running") {
         "Error: VM $VMName is not in running state. Test failed."

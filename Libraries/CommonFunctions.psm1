@@ -1793,7 +1793,6 @@ Function DoTestCleanUp($CurrentTestResult, $testName, $DeployedServices, $Resour
 					{
 						$vmData = $allVMData
 					}
-					$TestName = $CurrentTestData.TestName
 					$FilesToDownload = "$($vmData.RoleName)-*.txt"
 					$Null = RemoteCopy -upload -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files .\Testscripts\Linux\CollectLogFile.sh -username $user -password $password
 					$Null = RunLinuxCmd -username $user -password $password -ip $vmData.PublicIP -port $vmData.SSHPort -command "bash CollectLogFile.sh" -ignoreLinuxExitCode -runAsSudo
@@ -2896,7 +2895,7 @@ function Optimize-TimeSync {
         [String] $Password
     )
     $testScript = "timesync_config.sh"
-    $cmdSts = RunLinuxCmd -ip $Ipv4 -port $Port -username $Username `
+    $null = RunLinuxCmd -ip $Ipv4 -port $Port -username $Username `
         -password $Password -command `
         "echo '${Password}' | sudo -S -s eval `"export HOME=``pwd``;bash ${testScript} > ${testScript}.log`""
     if (-not $?) {
@@ -4132,7 +4131,6 @@ function Generate-IPv4{
         $TempIpv4, 
         $OldIpv4
     )
-    [int]$i= $null
     [int]$check = $null
 
     if ($OldIpv4 -eq $null){
@@ -4524,6 +4522,7 @@ Function Get-DriveLetter {
     $tempFile = (Get-VMHost -ComputerName $HvServer).VirtualHardDiskPath + "\" + $VMName + "_DRIVE_LETTER.txt"
     if(Test-Path ($tempFile)) {
         $global:driveletter = Get-Content -Path $tempFile
+        LogMsg "$global:driveletter"
         return $True
     }
     else {
@@ -4690,7 +4689,7 @@ function Test-MaxNIC {
     if ($actionType -eq "add")
     {
         LogMsg "Ensure the VM does not have a Synthetic NIC with the name '${nicName}'"
-        $nics = Get-VMNetworkAdapter -vmName $vmName -Name "${nicName}" -ComputerName $hvServer -ErrorAction SilentlyContinue
+        $null = Get-VMNetworkAdapter -vmName $vmName -Name "${nicName}" -ComputerName $hvServer -ErrorAction SilentlyContinue
         if ($?)
         {
         LogErr "VM '${vmName}' already has a NIC named '${nicName}'"

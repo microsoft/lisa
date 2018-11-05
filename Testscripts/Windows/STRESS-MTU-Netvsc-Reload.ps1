@@ -39,7 +39,7 @@ function Main {
     foreach ($i in $mtu_values) {
         LogMsg "Changing MTU on VM to $i"
 
-        $retVal = RunLinuxCmd -username $rootUser -password $VMPassword -ip $Ipv4 -port $VMPort `
+        $null = RunLinuxCmd -username $rootUser -password $VMPassword -ip $Ipv4 -port $VMPort `
             -command "sleep 5 && ip link set dev eth0 mtu $i"
 
         Start-Sleep -s 30
@@ -61,7 +61,7 @@ function Main {
     Add-Content $scriptPath "$RELOAD_COMMAND"
     RemoteCopy -uploadTo $Ipv4 -port $VMPort -password $VMPassword -username $rootUser `
         -files $scriptPath -upload
-    $retVal = RunLinuxCmd -username $rootUser -password $VMPassword -ip $Ipv4 -port $VMPort `
+    $null = RunLinuxCmd -username $rootUser -password $VMPassword -ip $Ipv4 -port $VMPort `
         -command "dos2unix reload_netvsc.sh && sleep 5 && bash ~/reload_netvsc.sh" -RunInBackGround
 
     Start-Sleep -s 600

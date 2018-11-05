@@ -56,11 +56,7 @@ function Send-ResultToDatabase ($xmlConfig, $logDir)
 	$TestCaseName = $xmlConfig.config.$TestPlatform.database.testTag
 	if ($dataSource -And $DBuser -And $DBpassword -And $database -And $dataTableName)
 	{
-		$maxIOPSforModeCsv = Import-Csv -Path $LogDir\maxIOPSforMode.csv
-		$maxIOPSforBlockSizeCsv = Import-Csv -Path $LogDir\maxIOPSforBlockSize.csv
 		$fioDataCsv = Import-Csv -Path $LogDir\fioData.csv
-
-		$GuestDistro = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
 		$HostType = $TestPlatform
 		if ($TestPlatform -eq "hyperV")
 		{
@@ -148,7 +144,7 @@ function Send-ResultToDatabase ($xmlConfig, $logDir)
 		$command = $connection.CreateCommand()
 		$command.CommandText = $SQLQuery
 
-		$result = $command.executenonquery()
+		$null = $command.executenonquery()
 		$connection.Close()
 		LogMsg "Uploading the test results done!!"
 	}

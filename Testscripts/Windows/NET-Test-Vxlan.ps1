@@ -71,7 +71,7 @@ function Main {
             $i++
         }
     }
-    $retVal = Set-GuestInterface $guestUsername $IPv4 $VMPort $VMPassword $vm1MacAddress `
+    $null = Set-GuestInterface $guestUsername $IPv4 $VMPort $VMPassword $vm1MacAddress `
         $vm1StaticIP $bootproto $netmask $VMName
     if (-not $?) {
         LogErr "Couldn't configure the test interface on $VMName"

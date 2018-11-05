@@ -44,7 +44,6 @@ function Main {
 		LogMsg "EXCEPTION : $ErrorMessage"
 	}
 	Finally {
-		$metaData = ""
 		if (!$testResult) {
 			$testResult = "Aborted"
 		}

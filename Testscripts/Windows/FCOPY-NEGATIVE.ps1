@@ -49,7 +49,7 @@ function Main {
     }
 
     # If vm does not support systemd, skip test.
-    $checkVM = Check-Systemd -Ipv4 $Ipv4 -SSHPort $VMPort -Username $VMUserName -Password $VMPassword
+    $null = Check-Systemd -Ipv4 $Ipv4 -SSHPort $VMPort -Username $VMUserName -Password $VMPassword
     if ( -not $True) {
         LogMsg "Systemd is not being used. Test Skipped"
         return "FAIL"

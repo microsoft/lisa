@@ -154,11 +154,11 @@ function Main {
         }
     }
     if ($vlanId) {
-        $retVal = Set-GuestInterface -VMUser $guestUsername -VMIpv4 $vm2ipv4 -VMPort $VMPort `
+        $null = Set-GuestInterface -VMUser $guestUsername -VMIpv4 $vm2ipv4 -VMPort $VMPort `
             -VMPassword $VMPassword -InterfaceMAC $vm2MacAddress -VMStaticIP $vm2StaticIP `
             -Netmask $netmask -VMName $VM2Name -VlanID $vlanID
     } else {
-        $retVal = Set-GuestInterface $guestUsername $vm2ipv4 $VMPort $VMPassword $vm2MacAddress `
+        $null = Set-GuestInterface $guestUsername $vm2ipv4 $VMPort $VMPassword $vm2MacAddress `
             $vm2StaticIP $bootproto $netmask $VM2Name
     }
     

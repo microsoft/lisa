@@ -173,7 +173,6 @@ function Run-TestScript {
     $scriptName = $Script.split(".")[0]
     $scriptExtension = $Script.split(".")[1]
     $constantsPath = Join-Path $workDir "constants.sh"
-    $result = $false
     $testResult = ""
 
     Create-ConstantsFile -FilePath $constantsPath -Parameters $Parameters
@@ -470,7 +469,6 @@ function Run-Test {
         [switch]$ExecuteTeardown
     )
 
-    $result = ""
     $currentTestResult = CreateTestResultObject
     $resultArr = @()
     $testParameters = @{}
@@ -532,7 +530,7 @@ function Run-Test {
                     $VM.HyperVHost
             }
             foreach ($script in $($CurrentTestData.SetupScript).Split(",")) {
-                $setupResult = Run-SetupScript -Script $script `
+                $null = Run-SetupScript -Script $script `
                     -Parameters $testParameters
             }
             if (Get-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost `
@@ -575,7 +573,7 @@ function Run-Test {
                     $VM.HyperVHost
             }
             foreach ($script in $($CurrentTestData.CleanupScript).Split(",")) {
-                $setupResult = Run-SetupScript -Script $script `
+                $null = Run-SetupScript -Script $script `
                     -Parameters $testParameters
             }
             if (Get-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost `
