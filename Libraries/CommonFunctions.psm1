@@ -4522,7 +4522,8 @@ Function Get-DriveLetter {
     $tempFile = (Get-VMHost -ComputerName $HvServer).VirtualHardDiskPath + "\" + $VMName + "_DRIVE_LETTER.txt"
     if(Test-Path ($tempFile)) {
         $global:driveletter = Get-Content -Path $tempFile
-        LogMsg "$global:driveletter"
+        # To avoid PSUseDeclaredVarsMoreThanAssignments warning when run PS Analyzer
+        LogMsg "global parameter driveletter is set to $global:driveletter"
         return $True
     }
     else {

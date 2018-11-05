@@ -320,7 +320,8 @@ function Main {
         if ($diskArgs.Length -eq 5)
         {
             $global:MinDiskSize = Convert-StringToDecimal -str ($diskArgs[4].Trim())
-            LogMsg "MinDiskSize: $global:MinDiskSize"
+            # To avoid PSUseDeclaredVarsMoreThanAssignments warning when run PS Analyzer
+            LogMsg "global parameter MinDiskSize is set to $global:MinDiskSize"
         }
 
         if (@("Fixed", "Dynamic") -notcontains $vhdType)

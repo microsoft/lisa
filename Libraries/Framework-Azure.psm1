@@ -639,11 +639,12 @@ Function StartLogReport([string]$reportPath)
 		$global:junitReport = new-object System.Xml.XmlDocument
 		$newElement = $global:junitReport.CreateElement("testsuites")
 		$global:reportRootNode = $global:junitReport.AppendChild($newElement)
-		LogMsg "$global:reportRootNode"
 		$global:junitReportPath = $reportPath
-		LogMsg "$global:junitReportPath"
 		$global:isGenerateJunitReport = $True
-		LogMsg "$global:isGenerateJunitReport"
+		# To avoid PSUseDeclaredVarsMoreThanAssignments warning when run PS Analyzer
+		LogMsg "global parameter reportRootNode is set to $global:reportRootNode"
+		LogMsg "global parameter junitReportPath is set to $global:junitReportPath"
+		LogMsg "global parameter isGenerateJunitReport is set to $global:isGenerateJunitReport"
 	}
 	else
 	{
@@ -664,13 +665,14 @@ Function FinishLogReport([bool]$isFinal=$True)
 	if($isFinal)
 	{
 		$global:junitReport = $null
-		LogMsg "$global:junitReport"
 		$global:reportRootNode = $null
-		LogMsg "$global:reportRootNode"
 		$global:junitReportPath = ""
-		LogMsg "$global:junitReportPath"
 		$global:isGenerateJunitReport=$False
-		LogMsg "$global:isGenerateJunitReport"
+		# To avoid PSUseDeclaredVarsMoreThanAssignments warning when run PS Analyzer
+		LogMsg "global parameter junitReport is set to $global:junitReport"
+		LogMsg "global parameter reportRootNode is set to $global:reportRootNode"
+		LogMsg "global parameter junitReportPath is set to $global:junitReportPath"
+		LogMsg "global parameter isGenerateJunitReport is set to $global:isGenerateJunitReport"
 	}
 }
 
