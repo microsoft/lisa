@@ -320,6 +320,7 @@ function Main {
         if ($diskArgs.Length -eq 5)
         {
             $global:MinDiskSize = Convert-StringToDecimal -str ($diskArgs[4].Trim())
+            LogMsg "MinDiskSize: $global:MinDiskSize"
         }
 
         if (@("Fixed", "Dynamic") -notcontains $vhdType)

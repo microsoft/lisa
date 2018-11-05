@@ -639,10 +639,11 @@ Function StartLogReport([string]$reportPath)
 		$global:junitReport = new-object System.Xml.XmlDocument
 		$newElement = $global:junitReport.CreateElement("testsuites")
 		$global:reportRootNode = $global:junitReport.AppendChild($newElement)
-		
+		LogMsg "$global:reportRootNode"
 		$global:junitReportPath = $reportPath
-		
+		LogMsg "$global:junitReportPath"
 		$global:isGenerateJunitReport = $True
+		LogMsg "$global:isGenerateJunitReport"
 	}
 	else
 	{
@@ -663,9 +664,13 @@ Function FinishLogReport([bool]$isFinal=$True)
 	if($isFinal)
 	{
 		$global:junitReport = $null
+		LogMsg "$global:junitReport"
 		$global:reportRootNode = $null
+		LogMsg "$global:reportRootNode"
 		$global:junitReportPath = ""
+		LogMsg "$global:junitReportPath"
 		$global:isGenerateJunitReport=$False
+		LogMsg "$global:isGenerateJunitReport"
 	}
 }
 
