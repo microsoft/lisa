@@ -1715,6 +1715,8 @@
         <testScript>RUNTIME-MEM-HOTADD.ps1</testScript>
         <setupType>SingleVM</setupType>
         <TestParameters>
+            <param>appGitURL=STRESSNG</param>
+            <param>appGitTag=STRESS-NG_TAG</param>
             <param>startupMem=2GB</param>
             <param>testMem=4GB</param>
         </TestParameters>
@@ -1728,7 +1730,10 @@
         <testName>RUNTIME_MEM_HOTREMOVE</testName>
         <setupScript>.\Testscripts\Windows\RUNTIME-MEM-CONFIGURE.ps1</setupScript>
         <testScript>RUNTIME-MEM-HOTADD.ps1</testScript>
+        <setupType>SingleVM</setupType>
         <TestParameters>
+            <param>appGitURL=STRESSNG</param>
+            <param>appGitTag=STRESS-NG_TAG</param>
             <param>startupMem=4GB</param>
             <param>testMem=2GB</param>
         </TestParameters>
@@ -1744,6 +1749,8 @@
         <testScript>RUNTIME_MEM_HOTADD_CHUNKS.ps1</testScript>
         <setupType>SingleVM</setupType>
         <TestParameters>
+            <param>appGitURL=STRESSNG</param>
+            <param>appGitTag=STRESS-NG_TAG</param>
             <param>startupMem=2048MB</param>
             <param>chunkMem=128MB</param>
             <param>decrease=no</param>
@@ -1760,6 +1767,8 @@
         <testScript>RUNTIME_MEM_HOTADD_CHUNKS.ps1</testScript>
         <setupType>SingleVM</setupType>
         <TestParameters>
+            <param>appGitURL=STRESSNG</param>
+            <param>appGitTag=STRESS-NG_TAG</param>
             <param>startupMem=3072MB</param>
             <param>chunkMem=128MB</param>
             <param>decrease=yes</param>
@@ -1776,6 +1785,8 @@
         <testScript>RUNTIME_MEM_HOTADD_CHUNKS.ps1</testScript>
         <setupType>SingleVM</setupType>
         <TestParameters>
+            <param>appGitURL=STRESSNG</param>
+            <param>appGitTag=STRESS-NG_TAG</param>
             <param>startupMem=2048MB</param>
             <param>chunkMem=100MB</param>
             <param>decrease=no</param>
@@ -1792,6 +1803,8 @@
         <testScript>RUNTIME_MEM_HOTADD_CHUNKS.ps1</testScript>
         <setupType>SingleVM</setupType>
         <TestParameters>
+            <param>appGitURL=STRESSNG</param>
+            <param>appGitTag=STRESS-NG_TAG</param>
             <param>startupMem=3072MB</param>
             <param>chunkMem=100MB</param>
             <param>decrease=yes</param>
@@ -1808,6 +1821,8 @@
         <testScript>RUNTIME_MEM_MULTIPLEADDREMOVE.ps1</testScript>
         <setupType>SingleVM</setupType>
         <TestParameters>
+            <param>appGitURL=STRESSNG</param>
+            <param>appGitTag=STRESS-NG_TAG</param>
             <param>startupMem=3GB</param>
         </TestParameters>
         <Timeout>2400</Timeout>
@@ -1822,6 +1837,8 @@
         <testScript>RUNTIME_MEM_STRESSHOTREMOVE.ps1</testScript>
         <setupType>SingleVM</setupType>
         <TestParameters>
+            <param>appGitURL=STRESSNG</param>
+            <param>appGitTag=STRESS-NG_TAG</param>
             <param>startupMem=4GB</param>
         </TestParameters>
         <Timeout>2400</Timeout>

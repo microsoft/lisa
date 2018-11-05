@@ -17,7 +17,6 @@ function Main
         $HvServer= $captureVMData.HyperVhost
         # No dynamic memory needed; set false as default
         $DM_Enabled = $False
-
         # Assign startupMem with 0
         [int64]$startupMem = 0
         LogMsg "To Check the host build number"
@@ -38,50 +37,35 @@ function Main
             throw "Invalid startup memory"
         }
         LogMsg "startupMem: $startupMem"
-
         # check if we have all variables set
         if ($vmName -and $DM_Enabled -eq $False -and $startupMem)
         {
-            LogMsg "Starting VM:'${VMname}'"
-            Start-VM -Name $vmName -ComputerName $HvServer
+            LogMsg "Check VM:'${vmName}' is in Runnning state"`
             # make sure VM is off
-            if (Wait-VMState -VMName $vmName -HvServer $HvServer -VMState "Running")
-            {
+            if ( Get-VM -Name $vmName -ComputerName $HvServer |  Where-Object { $_.State -like "Running" }) {
                 LogMsg "Stopping VM $vmName"
                 Stop-VM -VMName $vmName -ComputerName $HvServer -TurnOff -Force
-                if (-not $?)
-                {
+                if (-not $?) {
                     throw "Unable to shut $vmName down (in order to set Memory parameters)"
                 }
-            }
-            LogMsg "VM $vmName stopped"
-            # wait for VM to finish shutting down
-            $timeout = 60
-            while (Wait-VMState -VMName $vmName -HvServer $HvServer -VMState "Off")
-            {
-                if ($timeout -le 0)
-                {
-                    throw "Unable to shut $vmName down"
-                }
-                Start-Sleep -s 5
-                $timeout = $timeout - 5
+                LogMsg "VM $vmName stopped"
+                # wait for VM to finish shutting down
+                Wait-VMState -VMName $vmName -HvServer $HvServer -VMState "Off"
             }
         }
         LogMsg "To Verify VM Version is greater than 7"
         $version = Get-VM -Name $vmName -ComputerName $HvServer | Select-Object -ExpandProperty Version
         [int]$version = [convert]::ToInt32($version[0],10)
-        if ($version -lt 7)
-        {
+        if ($version -lt 7) {
             throw  "$vmName is version $version. It needs to be version 7 or greater"
         }
-        elseif($version -gt 7){
+        elseif($version -gt 7) {
             LogMsg "VM $vmName is version $version"
         }
         #To set VM Memory
         Set-VMMemory -vmName $vmName -ComputerName $hvServer -DynamicMemoryEnabled $DM_Enabled `
                       -StartupBytes $startupMem
-        if (-not $?)
-        {
+        if (-not $?) {
            $testResult = $resultFail
            throw "Unable to set VM Memory for $vmName"
         }

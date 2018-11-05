@@ -38,6 +38,11 @@ function Main {
             Throw "Unable to convert startupMem to int64."
         }
         LogMsg "startupMem : $startupMem"
+        $appGitURL = $TestParams.appGitURL
+        $appGitTag = $TestParams.appGitTag
+        #LogMsg "Tries $tries"
+        LogMsg "stress-ng url is $appGitURL"
+        LogMsg "stress-ng tag is $appGitTag"
         # Delete any previous summary.log file
         $summaryLog = "${vmName}_summary.log"
         Remove-Item $summaryLog -ErrorAction SilentlyContinue
@@ -51,13 +56,13 @@ function Main {
             Throw "Info: Feature supported only on WS2016 and newer"
         }
         $VmInfo = Get-VM -Name $vmName -ComputerName $HvServer -ErrorAction SilentlyContinue
-        if ( -not $VmInfo ){
+        if ( -not $VmInfo ) {
             Throw "VM $vmName does not exist"
         }
         LogMsg "Checking if stress-ng is installed"
-        $retVal = Is-StressNgInstalled  -vmIpv4 $Ipv4 -VMSSHPort $VMPort -VMUser $user `
+        $retVal = Publish-App "stress-ng" $Ipv4 $appGitURL $appGitTag $VMPort
             -VMPassword $password
-        if ( -not $retVal ){
+        if ( -not $retVal ) {
             Throw "Dependency tool stress-ng is not installed."
         }
         LogMsg "Stress-ng is installed! Will begin running memory stress tests shortly."
@@ -65,19 +70,19 @@ function Main {
         Start-Sleep -s 10
         $sleepPeriod = 60
         # get VmInfo memory from host and guest
-        while ( $sleepPeriod -gt 0 ){
+        while ( $sleepPeriod -gt 0 ) {
             [int64]$vm1BeforeAssigned = ($VmInfo.MemoryAssigned/1MB)
             [int64]$vm1BeforeDemand = ($VmInfo.MemoryDemand/1MB)
             $lisDriversCmd = "cat /proc/meminfo | grep -i MemFree | awk '{ print `$2 }'"
-            [int64]$vm1BeforeIncrease  = .\Tools\plink.exe -C -pw $password -P $VMPort $user@$Ipv4 $lisDriversCmd
+            [int64]$vm1BeforeIncrease =RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command $lisDriversCmd -runAsSudo
             LogMsg "Free memory reported by guest VM before increase: $vm1BeforeIncrease"
-            if ( $vm1BeforeAssigned -gt 0 -and $vm1BeforeDemand -gt 0 -and $vm1BeforeIncrease -gt 0 ){
+            if ( $vm1BeforeAssigned -gt 0 -and $vm1BeforeDemand -gt 0 -and $vm1BeforeIncrease -gt 0 ) {
                 break
             }
             $sleepPeriod-= 5
             Start-Sleep -s 5
         }
-        if (($vm1BeforeAssigned -le 0) -or ($vm1BeforeDemand -le 0) -or ($vm1BeforeIncrease -le 0)){
+        if (($vm1BeforeAssigned -le 0) -or ($vm1BeforeDemand -le 0) -or ($vm1BeforeIncrease -le 0)) {
             Throw "vm1 $vmName reported 0 memory (assigned or demand)."
         }
         LogMsg "Memory stats after $vmName started reporting"
@@ -85,30 +90,30 @@ function Main {
         # Change 1 - Increase by 2048 MB(2147483648)
         $testMem = $startupMem + 2147483648
         # Set new memory value. Trying for 3 iterations
-        for ($i=0; $i -lt 3; $i++){
+        for ($i=0; $i -lt 3; $i++) {
             Set-VMMemory -VMName $vmName -ComputerName $HvServer -DynamicMemoryEnabled $false -StartupBytes $testMem
             Start-Sleep -s 5
-            if ( $VmInfo.MemoryAssigned -eq $testMem ){
+            if ( $VmInfo.MemoryAssigned -eq $testMem ) {
                 [int64]$vm1AfterAssigned = ($VmInfo.MemoryAssigned/1MB)
                 [int64]$vm1AfterDemand = ($VmInfo.MemoryDemand/1MB)
                 $lisDriversCmd = "cat /proc/meminfo | grep -i MemFree | awk '{ print `$2 }'"
-                [int64]$vm1AfterIncrease  = .\Tools\plink.exe -C -pw $password -P $VMPort $user@$Ipv4 $lisDriversCmd
+                [int64]$vm1AfterIncrease =RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command $lisDriversCmd -runAsSudo
                 LogMsg "Free memory reported by guest VM after increase: $vm1AfterIncrease KB"
                 break
             }
         }
-        if ( $i -eq 3 ){
+        if ( $i -eq 3 ) {
             $testResult = $resultFail
             Throw "VM failed to change memory. LIS 4.1 or kernel version 4.4 required"
         }
-        if ( $vm1AfterAssigned -ne ($testMem/1MB)){
+        if ( $vm1AfterAssigned -ne ($testMem/1MB)) {
             LogMsg "${vmName}: assigned - $vm1AfterAssigned | demand - $vm1AfterDemand"
             $testResult = $resultFail
             Throw "Memory assigned doesn't match the memory set as parameter"
         }
         LogMsg "Memory stats after $vmName memory was changed"
         LogMsg "${vmName}: Initial Memory - $vm1BeforeIncrease KB :: After setting new value - $vm1AfterIncrease"
-        if ( ($vm1AfterIncrease - $vm1BeforeIncrease) -le 2000000){
+        if ( ($vm1AfterIncrease - $vm1BeforeIncrease) -le 2000000) {
             $testResult = $resultFail
             Throw  "Guest reports that memory value hasn't increased enough!"
         }
@@ -118,29 +123,29 @@ function Main {
         Start-Sleep -s 10
         $testMem = $testMem - 2147483648
         # Set new memory value.Trying for 3 iterations
-        for ($i=0; $i -lt 3; $i++){
+        for ($i=0; $i -lt 3; $i++) {
             Set-VMMemory -VMName $vmName -ComputerName $HvServer -DynamicMemoryEnabled $false -StartupBytes $testMem
             Start-Sleep -s 5
-            if ( $VmInfo.MemoryAssigned -eq $testMem ){
+            if ( $VmInfo.MemoryAssigned -eq $testMem ) {
                 [int64]$vm1AfterAssigned = ($VmInfo.MemoryAssigned/1MB)
                 [int64]$vm1AfterDemand = ($VmInfo.MemoryDemand/1MB)
                 $lisDriversCmd = "cat /proc/meminfo | grep -i MemFree | awk '{ print `$2 }'"
-                [int64]$vm1AfterIncrease  = .\Tools\plink.exe -C -pw $password -P $VMPort $user@$Ipv4 $lisDriversCmd
+                [int64]$vm1AfterDecrease  =RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command $lisDriversCmd -runAsSudo
                 LogMsg "Free memory reported by guest VM after decrease: $vm1AfterDecrease KB"
                 break
             }
         }
-        if ( $i -eq 3 ){
+        if ( $i -eq 3 ) {
             $testResult = $resultFail
             Throw "VM failed to change memory. LIS 4.1 or kernel version 4.4 required"
         }
-        if ( $vm1AfterAssigned -ne ($testMem/1MB) ){
+        if ( $vm1AfterAssigned -ne ($testMem/1MB) ) {
             LogMsg "Memory stats after $vm1Name memory was changed"
             LogMsg "${vmName}: assigned - $vm1AfterAssigned | demand - $vm1AfterDemand"
             $testResult = $resultFail
             Throw "Memory assigned doesn't match the memory set as parameter"
         }
-        if (($vm1AfterIncrease - $vm1AfterDecrease) -le 2000000){
+        if (($vm1AfterIncrease - $vm1AfterDecrease) -le 2000000) {
             LogMsg "Memory stats after $vmName memory was changed"
             LogMsg "${vmName}: Initial Memory - $vm1AfterIncrease KB :: After setting new value - $vm1AfterDecrease KB"
             $testResult = $resultFail
@@ -152,29 +157,29 @@ function Main {
         Start-Sleep -s 10
         $testMem = $testMem + 1073741824
         # Set new memory value.Trying for 3 iterations
-        for ($i=0; $i -lt 3; $i++){
+        for ($i=0; $i -lt 3; $i++) {
             Set-VMMemory -VMName $vmName  -ComputerName $HvServer -DynamicMemoryEnabled $false -StartupBytes $testMem
             Start-Sleep -s 5
-            if ($VmInfo.MemoryAssigned -eq $testMem){
+            if ($VmInfo.MemoryAssigned -eq $testMem) {
                 [int64]$vm1AfterAssigned = ($VmInfo.MemoryAssigned/1MB)
                 [int64]$vm1AfterDemand = ($VmInfo.MemoryDemand/1MB)
                 $lisDriversCmd = "cat /proc/meminfo | grep -i MemFree | awk '{ print `$2 }'"
-                [int64]$vm1AfterIncrease  = .\Tools\plink.exe -C -pw $password -P $VMPort $user@$Ipv4 $lisDriversCmd
+                [int64]$vm1AfterIncrease   =RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command $lisDriversCmd -runAsSudo
                 LogMsg "Free memory reported by guest VM guest VM after increase: $vm1AfterIncrease KB"
                 break
             }
         }
-        if ( $i -eq 3 ){
+        if ( $i -eq 3 ) {
             $testResult = $resultFail
             Throw "VM failed to change memory. LIS 4.1 or kernel version 4.4 required"
         }
-        if ( $vm1AfterAssigned -ne ($testMem/1MB) ){
+        if ( $vm1AfterAssigned -ne ($testMem/1MB) ) {
             LogMsg "Memory stats after $vm1Name memory was changed"
             LogMsg "${vmName}: assigned - $vm1AfterAssigned | demand - $vm1AfterDemand"
             $testResult = $resultFail
             Throw "Memory assigned doesn't match the memory set as parameter!"
         }
-        if ( ($vm1AfterIncrease - $vm1AfterDecrease) -le 1000000){
+        if ( ($vm1AfterIncrease - $vm1AfterDecrease) -le 1000000) {
             LogMsg "Memory stats after $vm1Name memory was changed"
             LogMsg "${vmName}: Initial Memory - $vm1AfterDecrease KB :: After setting new value - $vm1AfterIncrease KB"
             $testResult = $resultFail
@@ -186,14 +191,14 @@ function Main {
         Start-Sleep -s 10
         $testMem = $testMem - 2147483648
         # Set new memory value. Trying for 3 iterations
-        for ($i=0; $i -lt 3; $i++){
+        for ($i=0; $i -lt 3; $i++) {
             Set-VMMemory -VMName $vmName  -ComputerName $HvServer -DynamicMemoryEnabled $false -StartupBytes $testMem
             Start-Sleep -s 5
-            if ($VmInfo.MemoryAssigned -eq $testMem){
+            if ($VmInfo.MemoryAssigned -eq $testMem) {
                 [int64]$vm1AfterAssigned = ($VmInfo.MemoryAssigned/1MB)
                 [int64]$vm1AfterDemand = ($VmInfo.MemoryDemand/1MB)
                 $lisDriversCmd = "cat /proc/meminfo | grep -i MemFree | awk '{ print `$2 }'"
-                [int64]$vm1AfterDecrease  = .\Tools\plink.exe -C -pw $password -P $VMPort $user@$Ipv4 $lisDriversCmd
+                [int64]$vm1AfterDecrease =RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command $lisDriversCmd -runAsSudo
                 LogMsg "Free memory reported by guest VM guest VM after increase: $vm1AfterDecrease KB"
                 break
             }
@@ -202,13 +207,13 @@ function Main {
             $testResult = $resultFail
             Throw "VM failed to change memory. LIS 4.1 or kernel version 4.4 required"
         }
-        if ( $vm1AfterAssigned -ne ($testMem/1MB) ){
+        if ( $vm1AfterAssigned -ne ($testMem/1MB) ) {
             LogMsg "Memory stats after $vm1Name memory was changed"
             LogMsg "${vmName}: assigned - $vm1AfterAssigned | demand - $vm1AfterDemand"
             $testResult = $resultFail
             Throw "Memory assigned doesn't match the memory set as parameter!"
         }
-        if ( ($vm1AfterIncrease - $vm1AfterDecrease) -le 2000000){
+        if ( ($vm1AfterIncrease - $vm1AfterDecrease) -le 2000000) {
             LogMsg "Memory stats after $vmName memory was changed"
             LogMsg "${vmName}: Initial Memory - $vm1AfterIncrease KB :: After setting new value - $vm1AfterDecrease KB"
             $testResult = $resultFail
@@ -217,48 +222,28 @@ function Main {
         LogMsg "Memory stats after $vmName memory was decreased by 2GB"
         LogMsg "${vmName}: assigned - $vm1AfterAssigned | demand - $vm1AfterDemand"
         # Send Command to consume
-        $job1 = Start-StressNg -vmIpv4 $Ipv4 -VMSSHPort $VMPort
-        if (-not $?){
-            Throw "Unable to start job for creating pressure on $vmName"
+        Start-StressNg -vmIpv4 $Ipv4 -VMSSHPort $VMPort
+        if (-not $?) {
+            Throw "Unable to start stress-ng for creating pressure on $vmName"
         }
-        # sleep a few seconds so stress-ng starts and the memory assigned/demand gets updated
-        Start-Sleep -s 50
-        # get memory stats while stress-ng is running
+
         [int64]$vm1Demand = ($VmInfo.MemoryDemand/1MB)
+        # sleep a few seconds so stress-ng starts and the memory assigned/demand gets updated
+        Start-Sleep -s 80
+        # get memory stats while stress-ng is running
         [int64]$vm1Assigned = ($VmInfo.MemoryAssigned/1MB)
         LogMsg "Memory stats after $vmName started stress-ng"
         LogMsg "${vmName}: assigned - $vm1Assigned"
         LogMsg "${vmName}: demand - $vm1Demand"
-        if ($vm1Demand -le $vm1BeforeDemand ){
-            LogErr "Memory Demand did not increase after starting stress-ng"
+        if ($vm1Demand -le $vm1BeforeDemand ) {
+            Throw "Memory Demand did not increase after starting stress-ng"
         }
-        # Wait for jobs to finish now and make sure they exited successfully
-        $timeout = 120
-        $firstJobStatus = $false
-        while ($timeout -gt 0){
-            if ( $job1.Status -like "Completed"){
-                $firstJobStatus = $true
-                $retVal = Receive-Job $job1
-                if (-not $retVal[-1]){
-                    Throw "Consume Memory script returned false on VM1 $vmName"
-                }
-            $diff = $totalTimeout - $timeout
-            LogMsg "Job finished in $diff seconds."
-            }
-            if ($firstJobStatus){
-                break
-            }
-            $timeout -= 1
-            start-sleep -s 1
-        }
-        start-sleep -s 5
         # get memory stats after tool stress-ng stopped running
         [int64]$vm1AfterStressAssigned = ($VmInfo.MemoryAssigned/1MB)
         [int64]$vm1AfterStressDemand = ($VmInfo.MemoryDemand/1MB)
         LogMsg "Memory stats after $vmName stress-ng run"
         LogMsg "${vmName}: assigned - $vm1AfterStressAssigned | demand - $vm1AfterStressDemand"
-
-        if ($vm1AfterStressDemand -le $vm1Demand){
+        if ($vm1AfterStressDemand -ge $vm1Demand) {
             $testResult = $resultFail
             Throw  "Memory Demand did not decrease after stress-ng stopped"
         }

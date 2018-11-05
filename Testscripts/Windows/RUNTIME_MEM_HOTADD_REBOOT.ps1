@@ -64,10 +64,10 @@ function Main {
         [int64]$vm1BeforeAssigned = ($VmInfo.MemoryAssigned/1MB)
         [int64]$vm1BeforeDemand = ($VmInfo.MemoryDemand/1MB)
         $lisDriversCmd = "cat /proc/meminfo | grep -i MemFree | awk '{ print `$2 }'"
-        [int64]$vm1BeforeIncrease  = .\Tools\plink.exe -C -pw $password -P $VMPort $user@$Ipv4 $lisDriversCmd
+        [int64]$vm1BeforeIncrease =RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command $lisDriversCmd -runAsSudo
         LogMsg "Free memory reported by guest VM before increase: $vm1BeforeIncrease"
         # Check memory values
-        if (($vm1BeforeAssigned -le 0) -or ($vm1BeforeDemand -le 0) -or ($vm1BeforeIncrease -le 0)){
+        if (($vm1BeforeAssigned -le 0) -or ($vm1BeforeDemand -le 0) -or ($vm1BeforeIncrease -le 0)) {
             Throw "vm1 $vmName reported 0 memory (assigned or demand)."
         }
         LogMsg "Memory stats after $vmName started reporting"
@@ -75,14 +75,14 @@ function Main {
         # Change 1 - Increase memory by 1000MB(1048576000)
         $testMem = $startupMem + 1048576000
         # Set new memory value for 3 iterations
-        for ($i=0; $i -le 3; $i++) {
+        for ($i=0; $i -lt 3; $i++) {
             Set-VMMemory -VMName $vmName  -ComputerName $HvServer -DynamicMemoryEnabled $false -StartupBytes $testMem
             Start-Sleep -s 5
-            if ( $VmInfo.MemoryAssigned -eq $testMem ){
+            if ( $VmInfo.MemoryAssigned -eq $testMem ) {
                 [int64]$vm1AfterAssigned = ($VmInfo.MemoryAssigned/1MB)
                 [int64]$vm1AfterDemand = ($VmInfo.MemoryDemand/1MB)
                 $lisDriversCmd = "cat /proc/meminfo | grep -i MemFree | awk '{ print `$2 }'"
-                [int64]$vm1AfterIncrease  = .\Tools\plink.exe -C -pw $password -P $VMPort $user@$Ipv4 $lisDriversCmd
+                [int64]$vm1AfterIncrease =RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command $lisDriversCmd -runAsSudo
                 LogMsg "Free memory reported by guest VM after first 1000MB increase: $vm1AfterIncrease KB"
                 break
             }
@@ -91,7 +91,7 @@ function Main {
             $testResult = $resultFail
             Throw "VM failed to change memory. LIS 4.1 or kernel version 4.4 required"
         }
-        if ($vm1AfterAssigned -ne ($testMem/1MB)){
+        if ($vm1AfterAssigned -ne ($testMem/1MB)) {
             LogMsg "Memory stats after $vmName memory was changed"
             LogMsg "${vmName}: assigned - $vm1AfterAssigned | demand - $vm1AfterDemand"
             $testResult = $resultFail
@@ -109,7 +109,7 @@ function Main {
         # Restart VM
         $timeout=120
         Restart-VM -VMName $vmName -ComputerName $HvServer -Force
-        $sts=Wait-ForVMToStartKVP $VMName1 $HvServer $timeout
+        $sts=Wait-ForVMToStartKVP $vmName $HvServer $timeout
         if( -not $sts[-1]) {
             $testResult = $resultFail
             Throw "VM $vmName has not booted after the restart" `
@@ -126,14 +126,14 @@ function Main {
                 [int64]$vm1AfterAssigned = ($VmInfo.MemoryAssigned/1MB)
                 [int64]$vm1AfterDemand = ($VmInfo.MemoryDemand/1MB)
                 $lisDriversCmd = "cat /proc/meminfo | grep -i MemFree | awk '{ print `$2 }'"
-                [int64]$vm1AfterDecrease  = .\Tools\plink.exe -C -pw $password -P $VMPort $user@$Ipv4 $lisDriversCmd
-                LogMsg "Free memory reported by guest VM after second 1000MB increase: $vm1AfterDecrease KB"
+                [int64]$vm1AfterIncrease =RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command $lisDriversCmd -runAsSudo
+                LogMsg "Free memory reported by guest VM after second 1000MB increase: $vm1AfterIncrease KB"
                 break
             }
         }
         if ( $i -eq 3 ) {
             $lisDriversCmd="dmesg | grep hot_add"
-            .\Tools\plink.exe -C -pw $password -P $VMPort $user@$Ipv4 $lisDriversCmd
+            RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command $lisDriversCmd -runAsSudo
             $testResult = $resultFail
             Throw "VM failed to change memory!"
         }
