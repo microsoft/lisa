@@ -523,20 +523,22 @@ function Run-Test {
     }
 
     if ($testPlatform -eq "Hyperv" -and $CurrentTestData.SetupScript) {
-        foreach ($VM in $AllVMData) {
-            if (Get-VM -Name $VM.RoleName -ComputerName `
-                $VM.HyperVHost -EA SilentlyContinue) {
-                Stop-VM -Name $VM.RoleName -TurnOff -Force -ComputerName `
-                    $VM.HyperVHost
+        if ($null -eq $CurrentTestData.runSetupScriptOnlyOnce) {
+            foreach ($VM in $AllVMData) {
+                if (Get-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -EA SilentlyContinue) {
+                    Stop-VM -Name $VM.RoleName -TurnOff -Force -ComputerName $VM.HyperVHost
+                }
+                foreach ($script in $($CurrentTestData.SetupScript).Split(",")) {
+                    $null = Run-SetupScript -Script $script -Parameters $testParameters
+                }
+                if (Get-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -EA SilentlyContinue) {
+                    Start-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost
+                }
             }
+        }
+        else {
             foreach ($script in $($CurrentTestData.SetupScript).Split(",")) {
-                $null = Run-SetupScript -Script $script `
-                    -Parameters $testParameters
-            }
-            if (Get-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost `
-                -EA SilentlyContinue) {
-                Start-VM -Name $VM.RoleName -ComputerName `
-                    $VM.HyperVHost
+                $null = Run-SetupScript -Script $script -Parameters $testParameters
             }
         }
     }
