@@ -4845,7 +4845,7 @@ function Restore-LatestVMSnapshot($vmName, $hvServer)
     $latestsnapshot = Get-VMSnapshot -VMName $vmName -ComputerName $hvServer | Sort-Object CreationTime | Select-Object -Last 1
     $LastestSnapName = $latestsnapshot.name
     # Delete all snapshots except the latest
-    if (1 -gt $snapnumber) {
+    if (1 -lt $snapnumber) {
         LogMsg "$vmName has $snapnumber snapshots. Removing all except $LastestSnapName"
         foreach ($snap in $vmsnapshots) {
             if ($snap.id -ne $latestsnapshot.id) {
