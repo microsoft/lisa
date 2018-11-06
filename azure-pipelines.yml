@@ -12,14 +12,6 @@ jobs:
     steps:
     - powershell: Install-Module -Name Pester -Scope CurrentUser -Force -SkipPublisherCheck -AllowClobber
     - powershell: Invoke-Pester -OutputFile "$(System.DefaultWorkingDirectory)\test.xml" -OutputFormat NUnitXml
-    - task: PublishTestResults@2
-      inputs:
-        testRunner: 'NUnit'
-        testResultsFiles: 'test.xml'
-    - task: PublishBuildArtifacts@1
-      inputs:
-        pathtoPublish: '$(System.DefaultWorkingDirectory)\test.xml'
-        artifactName: 'TestResult'
   - job: 'PowerShellCodeCheck_PSScriptAnalyzer'
     timeoutInMinutes: 10
     cancelTimeoutInMinutes: 12
