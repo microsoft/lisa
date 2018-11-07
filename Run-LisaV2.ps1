@@ -430,7 +430,7 @@ try {
 			$resultXML = [xml](Get-Content ".\report\report_$(($TestCycle).Trim()).xml" -ErrorAction SilentlyContinue)
 			Copy-Item -Path ".\report\report_$(($TestCycle).Trim()).xml" -Destination ".\report\report_$(($TestCycle).Trim())-junit.xml" -Force -ErrorAction SilentlyContinue
 			LogMsg "Copied : .\report\report_$(($TestCycle).Trim()).xml --> .\report\report_$(($TestCycle).Trim())-junit.xml"
-			LogMsg "Analysing results.."
+			LogMsg "Analyzing results.."
 			LogMsg "PASS  : $($resultXML.testsuites.testsuite.tests - $resultXML.testsuites.testsuite.errors - $resultXML.testsuites.testsuite.failures)"
 			LogMsg "FAIL  : $($resultXML.testsuites.testsuite.failures)"
 			LogMsg "ABORT : $($resultXML.testsuites.testsuite.errors)"
