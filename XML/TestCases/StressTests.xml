@@ -98,4 +98,30 @@
         <Tags>stress</Tags>
         <Priority>1</Priority>
     </test>
+    <test>
+        <testName>STRESSTEST-WEB-PARALLEL-ACCESS</testName>
+        <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
+        <testScript>STRESS-Web.ps1</testScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SR-IOV-Utils.sh,.\Testscripts\Linux\stress_web.sh</files>
+        <setupType>SRIOVVMsTwoNICs</setupType>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <TestParameters>
+            <param>NIC_COUNT=1</param>
+            <param>VF_IP1=10.0.0.20</param>
+            <param>VF_IP2=10.0.0.40</param>
+            <param>NETMASK=255.255.255.0</param>
+            <param>parallelConnections='200 500 1000 1020'</param>
+            <param>testFileSizeInKb='5 30 100 200 512 1024'</param>
+            <param>runtime=120</param>
+            <param>HTTP_LOAD=https://partnerpipelineshare.blob.core.windows.net/binarytools/http_load-12mar2006.tar.gz</param>
+            <param>Switch_Name=SRIOV</param>
+            <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
+        </TestParameters>
+        <Platform>HyperV,Azure</Platform>
+        <Category>Stress</Category>
+        <Area>stress</Area>
+        <Tags>stress,network,sriov</Tags>
+    </test>
 </TestCases>
