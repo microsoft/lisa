@@ -17,6 +17,7 @@
         <Category>Functional</Category>
         <Area>Nested</Area>
         <Tags>nested,nested-kvm</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <TestName>NESTED-KVM-NTTTCP-PRIVATE-BRIDGE</TestName>
@@ -40,6 +41,7 @@
         <Category>Performance</Category>
         <Area>Nested</Area>
         <Tags>nested,nested-kvm</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <TestName>HYPERV-NESTED-KVM-STORAGE-SINGLE-DISK</TestName>
@@ -68,6 +70,7 @@
         <Category>Performance</Category>
         <Area>Nested</Area>
         <Tags>nested,nested-kvm</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <TestName>AZURE-NESTED-KVM-STORAGE-SINGLE-DISK</TestName>
@@ -99,6 +102,7 @@
         <Category>Performance</Category>
         <Area>Nested</Area>
         <Tags>nested,nested-kvm</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <TestName>HYPERV-NESTED-KVM-STORAGE-MULTIDISK</TestName>
@@ -128,6 +132,7 @@
         <Category>Performance</Category>
         <Area>Nested</Area>
         <Tags>nested,nested-kvm</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <TestName>AZURE-NESTED-KVM-STORAGE-MULTIDISK</TestName>
@@ -160,6 +165,7 @@
         <Category>Performance</Category>
         <Area>Nested</Area>
         <Tags>nested,nested-kvm</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <TestName>NESTED-KVM-NTTTCP-DIFFERENT-L1-PUBLIC-BRIDGE</TestName>
@@ -186,6 +192,7 @@
         <Category>Performance</Category>
         <Area>Nested</Area>
         <Tags>nested,nested-kvm</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <TestName>NESTED-HYPERV-NTTTCP-DIFFERENT-L1-PUBLIC-BRIDGE</TestName>
@@ -211,6 +218,7 @@
         <Category>Performance</Category>
         <Area>Nested</Area>
         <Tags>nested,nested-hyperv</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <TestName>NESTED-KVM-NTTTCP-DIFFERENT-L1-NAT</TestName>
@@ -237,6 +245,7 @@
         <Category>Performance</Category>
         <Area>Nested</Area>
         <Tags>nested,nested-kvm</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <TestName>NESTED-KVM-LAGSCOPE-DIFFERENT-L1-PUBLIC-BRIDGE</TestName>
@@ -261,6 +270,7 @@
         <Category>Performance</Category>
         <Area>Nested</Area>
         <Tags>nested,nested-kvm</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <TestName>AZURE-NESTED-KVM-NTTTCP-DIFFERENT-L1-NAT</TestName>
@@ -287,6 +297,7 @@
         <Category>Performance</Category>
         <Area>Nested</Area>
         <Tags>nested,nested-kvm</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <TestName>HYPERV-WINDOWS-NESTED-HYPERV-STORAGE-SINGLE-DISK</TestName>
@@ -316,6 +327,7 @@
         <Category>Performance</Category>
         <Area>Storage</Area>
         <Tags>nested,nested-hyperv</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <TestName>HYPERV-WINDOWS-NESTED-HYPERV-STORAGE-MULTIDISK</TestName>
@@ -347,6 +359,7 @@
         <Category>Performance</Category>
         <Area>Storage</Area>
         <Tags>nested,nested-hyperv</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <TestName>AZURE-WINDOWS-NESTED-HYPERV-STORAGE-SINGLE-DISK</TestName>
@@ -379,6 +392,7 @@
         <Category>Performance</Category>
         <Area>Storage</Area>
         <Tags>nested,nested-hyperv</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <TestName>AZURE-WINDOWS-NESTED-HYPERV-STORAGE-MULTIDISK</TestName>
@@ -413,5 +427,6 @@
         <Category>Performance</Category>
         <Area>Storage</Area>
         <Tags>nested,nested-hyperv</Tags>
+        <Priority>2</Priority>
     </test>
 </TestCases>

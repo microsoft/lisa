@@ -25,6 +25,7 @@
         <Category>Functional</Category>
         <Area>INFINIBAND</Area>
         <Tags>rdma</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>VERIFY-INFINIBAND-INTEL-MPI-2VM-STANDARD-A9</testName>
@@ -52,6 +53,7 @@
         <Category>Functional</Category>
         <Area>INFINIBAND</Area>
         <Tags>rdma</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>VERIFY-INFINIBAND-INTEL-MPI-2VM-STANDARD-H16r</testName>
@@ -79,6 +81,7 @@
         <Category>Functional</Category>
         <Area>INFINIBAND</Area>
         <Tags>rdma</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>VERIFY-INFINIBAND-INTEL-MPI-2VM-STANDARD-H16mr</testName>
@@ -106,6 +109,7 @@
         <Category>Functional</Category>
         <Area>INFINIBAND</Area>
         <Tags>rdma</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>VERIFY-INFINIBAND-INTEL-MPI-2VM-STANDARD-NC24r</testName>
@@ -134,6 +138,7 @@
         <Category>Functional</Category>
         <Area>INFINIBAND</Area>
         <Tags>rdma</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>VERIFY-INFINIBAND-INTEL-MPI-4VM-STANDARD-A8</testName>
@@ -161,6 +166,7 @@
         <Category>Functional</Category>
         <Area>INFINIBAND</Area>
         <Tags>rdma</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>VERIFY-INFINIBAND-INTEL-MPI-4VM-STANDARD-A9</testName>
@@ -188,6 +194,7 @@
         <Category>Functional</Category>
         <Area>INFINIBAND</Area>
         <Tags>rdma</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>VERIFY-INFINIBAND-INTEL-MPI-4VM-STANDARD-H16r</testName>
@@ -215,6 +222,7 @@
         <Category>Functional</Category>
         <Area>INFINIBAND</Area>
         <Tags>rdma</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>VERIFY-INFINIBAND-INTEL-MPI-4VM-STANDARD-H16mr</testName>
@@ -242,6 +250,7 @@
         <Category>Functional</Category>
         <Area>INFINIBAND</Area>
         <Tags>rdma</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>VERIFY-INFINIBAND-INTEL-MPI-4VM-STANDARD-NC24r</testName>
@@ -270,6 +279,7 @@
         <Category>Functional</Category>
         <Area>INFINIBAND</Area>
         <Tags>rdma</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>VERIFY-INFINIBAND-INTEL-MPI-8VM-STANDARD-A8</testName>
@@ -297,6 +307,7 @@
         <Category>Functional</Category>
         <Area>INFINIBAND</Area>
         <Tags>rdma</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>VERIFY-INFINIBAND-INTEL-MPI-8VM-STANDARD-A9</testName>
@@ -324,6 +335,7 @@
         <Category>Functional</Category>
         <Area>INFINIBAND</Area>
         <Tags>rdma</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>VERIFY-INFINIBAND-INTEL-MPI-8VM-STANDARD-H16r</testName>
@@ -351,6 +363,7 @@
         <Category>Functional</Category>
         <Area>INFINIBAND</Area>
         <Tags>rdma</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>VERIFY-INFINIBAND-INTEL-MPI-8VM-STANDARD-H16mr</testName>
@@ -378,6 +391,7 @@
         <Category>Functional</Category>
         <Area>INFINIBAND</Area>
         <Tags>rdma</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>VERIFY-INFINIBAND-INTEL-MPI-8VM-STANDARD-NC24r</testName>
@@ -406,6 +420,7 @@
         <Category>Functional</Category>
         <Area>INFINIBAND</Area>
         <Tags>rdma</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>VERIFY-INFINIBAND-INTEL-MPI-16VM-STANDARD-A8</testName>
@@ -433,6 +448,7 @@
         <Category>Functional</Category>
         <Area>INFINIBAND</Area>
         <Tags>rdma</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>VERIFY-INFINIBAND-INTEL-MPI-16VM-STANDARD-A9</testName>
@@ -460,6 +476,7 @@
         <Category>Functional</Category>
         <Area>INFINIBAND</Area>
         <Tags>rdma</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>VERIFY-INFINIBAND-INTEL-MPI-16VM-STANDARD-H16r</testName>
@@ -487,6 +504,7 @@
         <Category>Functional</Category>
         <Area>INFINIBAND</Area>
         <Tags>rdma</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>VERIFY-INFINIBAND-INTEL-MPI-16VM-STANDARD-H16mr</testName>
@@ -514,6 +532,7 @@
         <Category>Functional</Category>
         <Area>INFINIBAND</Area>
         <Tags>rdma</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>VERIFY-INFINIBAND-INTEL-MPI-16VM-STANDARD-NC24r</testName>
@@ -542,5 +561,6 @@
         <Category>Functional</Category>
         <Area>INFINIBAND</Area>
         <Tags>rdma</Tags>
+        <Priority>2</Priority>
     </test>
 </TestCases>

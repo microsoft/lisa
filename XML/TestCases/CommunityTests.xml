@@ -14,6 +14,7 @@
         <Category>Community</Category>
         <Area>Xfstesting-cifs</Area>
         <Tags>smb</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <TestName>FILE-SYSTEM-VERIFICATION-TESTS-XFS</TestName>
@@ -30,6 +31,7 @@
         <Category>Community</Category>
         <Area>Xfstesting-cifs</Area>
         <Tags>disk</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <TestName>FILE-SYSTEM-VERIFICATION-TESTS-EXT4</TestName>
@@ -46,6 +48,7 @@
         <Category>Community</Category>
         <Area>Xfstesting-cifs</Area>
         <Tags>disk</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <TestName>FILE-SYSTEM-VERIFICATION-TESTS-BTRFS</TestName>
@@ -62,6 +65,7 @@
         <Category>Community</Category>
         <Area>Xfstesting-cifs</Area>
         <Tags>disk</Tags>
+        <Priority>2</Priority>
     </test>	
     <test>
         <TestName>LINUX-TEST-PROJECT-TESTS</TestName>
@@ -78,6 +82,7 @@
         <Category>Community</Category>
         <Area>LTP</Area>
         <Tags>ltp</Tags>
+        <Priority>2</Priority>
     </test>
 	<test>
         <TestName>LSVMBUS</TestName>
@@ -92,5 +97,6 @@
         <Category>Community</Category>
         <Area>LSVMBUS</Area>
         <Tags>lsvmbus</Tags>
+        <Priority>1</Priority>
     </test>
 </TestCases>
