@@ -267,8 +267,8 @@
         <testScript>FCOPY-BASIC.ps1</testScript>
         <setupType>SingleVM</setupType>
         <Platform>HyperV</Platform>
-        <Category>FCOPY</Category>
-        <Area>Fcopy</Area>
+        <Category>Functional</Category>
+        <Area>FCOPY</Area>
         <Tags>fcopy</Tags>
         <Priority>0</Priority>
     </test>
@@ -277,8 +277,8 @@
         <testScript>FCOPY-FILE-EXISTS.ps1</testScript>
         <setupType>SingleVM</setupType>
         <Platform>HyperV</Platform>
-        <Category>FCOPY</Category>
-        <Area>Fcopy</Area>
+        <Category>Functional</Category>
+        <Area>FCOPY</Area>
         <Tags>fcopy</Tags>
         <Priority>0</Priority>
     </test>
@@ -287,8 +287,8 @@
         <testScript>FCOPY-OVERWRITE.ps1</testScript>
         <setupType>SingleVM</setupType>
         <Platform>HyperV</Platform>
-        <Category>FCOPY</Category>
-        <Area>Fcopy</Area>
+        <Category>Functional</Category>
+        <Area>FCOPY</Area>
         <Tags>fcopy</Tags>
         <Priority>0</Priority>
     </test>
@@ -301,8 +301,8 @@
             <param>SCSI=1,0,Fixed,512,15GB</param>
         </testParameters>
         <Platform>HyperV</Platform>
-        <Category>FCOPY</Category>
-        <Area>Fcopy</Area>
+        <Category>Functional</Category>
+        <Area>FCOPY</Area>
         <Tags>fcopy</Tags>
         <Priority>0</Priority>
     </test>
@@ -312,8 +312,8 @@
         <files>.\Testscripts\Linux\utils.sh</files>
         <setupType>SingleVM</setupType>
         <Platform>HyperV</Platform>
-        <Category>FCOPY</Category>
-        <Area>Fcopy</Area>
+        <Category>Functional</Category>
+        <Area>FCOPY</Area>
         <Tags>fcopy</Tags>
         <Priority>0</Priority>
     </test>
@@ -327,8 +327,8 @@
             <param>FileSize=2GB</param>
         </testParameters>
         <Platform>HyperV</Platform>
-        <Category>FCOPY</Category>
-        <Area>Fcopy</Area>
+        <Category>Functional</Category>
+        <Area>FCOPY</Area>
         <Tags>fcopy</Tags>
         <Priority>0</Priority>
     </test>
@@ -344,8 +344,8 @@
             <param>CycleCount=20</param>
         </testParameters>
         <Platform>HyperV</Platform>
-        <Category>FCOPY</Category>
-        <Area>Fcopy</Area>
+        <Category>Functional</Category>
+        <Area>FCOPY</Area>
         <Tags>fcopy</Tags>
         <Priority>0</Priority>
     </test>
@@ -354,8 +354,8 @@
         <testScript>FCOPY-NEGATIVE.ps1</testScript>
         <setupType>SingleVM</setupType>
         <Platform>HyperV</Platform>
-        <Category>FCOPY</Category>
-        <Area>Fcopy</Area>
+        <Category>Functional</Category>
+        <Area>FCOPY</Area>
         <Tags>fcopy</Tags>
         <Priority>0</Priority>
     </test>
@@ -589,8 +589,8 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>NET</Area>
-        <Tags>net</Tags>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
         <Priority>0</Priority>
     </test>
     <test>
@@ -606,8 +606,8 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>NET</Area>
-        <Tags>net</Tags>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
         <Priority>0</Priority>
     </test>
     <test>
@@ -627,8 +627,8 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>NET</Area>
-        <Tags>net</Tags>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
         <Priority>2</Priority>
     </test>
     <test>
@@ -644,8 +644,8 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>NET</Area>
-        <Tags>net</Tags>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
         <Priority>1</Priority>
     </test>
     <test>
@@ -660,8 +660,8 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>NET</Area>
-        <Tags>net</Tags>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
         <Priority>0</Priority>
     </test>
     <test>
@@ -678,8 +678,8 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>NET</Area>
-        <Tags>net</Tags>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
         <Priority>2</Priority>
     </test>
     <test>
@@ -696,8 +696,8 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>NET</Area>
-        <Tags>net</Tags>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
         <Priority>1</Priority>
     </test>
     <test>
@@ -715,8 +715,8 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>NET</Area>
-        <Tags>net</Tags>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
         <Priority>2</Priority>
     </test>
     <test>
@@ -735,8 +735,8 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>NET</Area>
-        <Tags>net</Tags>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
         <Priority>2</Priority>
     </test>
     <test>
@@ -749,8 +749,8 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>NET</Area>
-        <Tags>net</Tags>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
         <Priority>2</Priority>
     </test>
     <test>
@@ -765,8 +765,8 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>NET</Area>
-        <Tags>net</Tags>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
         <Priority>2</Priority>
     </test>
     <test>
@@ -781,8 +781,8 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>NET</Area>
-        <Tags>net</Tags>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
         <Priority>2</Priority>
     </test>
     <test>
@@ -803,8 +803,8 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>NET</Area>
-        <Tags>net</Tags>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
         <Priority>2</Priority>
     </test>
     <test>
@@ -827,8 +827,8 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>NET</Area>
-        <Tags>net</Tags>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
         <Priority>2</Priority>
     </test>
     <test>
@@ -848,8 +848,8 @@
         <Timeout>900</Timeout>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>NET</Area>
-        <Tags>net</Tags>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
         <Priority>2</Priority>
     </test>
     <test>
@@ -871,8 +871,8 @@
         <Timeout>1200</Timeout>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>NET</Area>
-        <Tags>net</Tags>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
         <Priority>2</Priority>
     </test>
     <test>
@@ -893,8 +893,8 @@
         <Timeout>1200</Timeout>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>NET</Area>
-        <Tags>net</Tags>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
         <Priority>2</Priority>
     </test>
     <test>
@@ -913,8 +913,8 @@
         <Timeout>3600</Timeout>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>NET</Area>
-        <Tags>net</Tags>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
         <Priority>2</Priority>
     </test>
     <test>
@@ -934,8 +934,8 @@
         <Timeout>900</Timeout>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>NET</Area>
-        <Tags>net</Tags>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
         <Priority>2</Priority>
     </test>
     <test>
@@ -956,8 +956,8 @@
         <Timeout>900</Timeout>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>NET</Area>
-        <Tags>net</Tags>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
         <Priority>2</Priority>
     </test>
     <test>
@@ -976,8 +976,8 @@
         <Timeout>900</Timeout>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>NET</Area>
-        <Tags>net</Tags>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
         <Priority>2</Priority>
     </test>
     <test>
@@ -996,8 +996,8 @@
         <Timeout>600</Timeout>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>NET</Area>
-        <Tags>net</Tags>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
         <Priority>2</Priority>
     </test>
     <test>
@@ -1016,8 +1016,8 @@
         <Timeout>1800</Timeout>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>NET</Area>
-        <Tags>net</Tags>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
         <Priority>2</Priority>
     </test>
     <test>
@@ -1548,7 +1548,7 @@
         <setupType>SingleVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>Dynamic_Memory</Area>
+        <Area>DYNAMIC_MEMORY</Area>
         <Tags>memory</Tags>
     </test>
     <test>
@@ -1570,7 +1570,7 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>Dynamic_Memory</Area>
+        <Area>DYNAMIC_MEMORY</Area>
         <Tags>memory</Tags>
     </test>
     <test>
@@ -1720,9 +1720,9 @@
         </TestParameters>
         <Timeout>2400</Timeout>
         <Platform>HyperV</Platform>
-        <Category>Stress</Category>
-        <Area>Runtime_Memory_Resize</Area>
-        <Tags>runtime_memory</Tags>
+        <Category>Functional</Category>
+        <Area>RUNTIME_MEMORY</Area>
+        <Tags>memory</Tags>
     </test>
     <test>
         <testName>RUNTIME_MEM_HOTREMOVE</testName>
@@ -1734,9 +1734,9 @@
         </TestParameters>
         <Timeout>2400</Timeout>
         <Platform>HyperV</Platform>
-        <Category>Stress</Category>
-        <Area>Runtime_Memory_Resize</Area>
-        <Tags>runtime_memory</Tags>
+        <Category>Functional</Category>
+        <Area>RUNTIME_MEMORY</Area>
+        <Tags>memory</Tags>
     </test>
     <test>
         <testName>RUNTIME_MEM_SMALLINCREASE128</testName>
@@ -1750,9 +1750,9 @@
         </TestParameters>
         <Timeout>2400</Timeout>
         <Platform>HyperV</Platform>
-        <Category>Stress</Category>
-        <Area>Runtime_Memory_Resize</Area>
-        <Tags>runtime_memory</Tags>
+        <Category>Functional</Category>
+        <Area>RUNTIME_MEMORY</Area>
+        <Tags>memory</Tags>
     </test>
     <test>
         <testName>RUNTIME_MEM_SMALLDECREASE128</testName>
@@ -1766,9 +1766,9 @@
         </TestParameters>
         <Timeout>2400</Timeout>
         <Platform>HyperV</Platform>
-        <Category>Stress</Category>
-        <Area>Runtime_Memory_Resize</Area>
-        <Tags>runtime_memory</Tags>
+        <Category>Functional</Category>
+        <Area>RUNTIME_MEMORY</Area>
+        <Tags>memory</Tags>
     </test>
     <test>
         <testName>RUNTIME_MEM_SMALLINCREASE100</testName>
@@ -1782,9 +1782,9 @@
         </TestParameters>
         <Timeout>2400</Timeout>
         <Platform>HyperV</Platform>
-        <Category>Stress</Category>
-        <Area>Runtime_Memory_Resize</Area>
-        <Tags>runtime_memory</Tags>
+        <Category>Functional</Category>
+        <Area>RUNTIME_MEMORY</Area>
+        <Tags>memory</Tags>
     </test>
     <test>
         <testName>RUNTIME_MEM_SMALLDECREASE100</testName>
@@ -1798,9 +1798,9 @@
         </TestParameters>
         <Timeout>2400</Timeout>
         <Platform>HyperV</Platform>
-        <Category>Stress</Category>
-        <Area>Runtime_Memory_Resize</Area>
-        <Tags>runtime_memory</Tags>
+        <Category>Functional</Category>
+        <Area>RUNTIME_MEMORY</Area>
+        <Tags>memory</Tags>
     </test>
     <test>
         <testName>RUNTIME_MEM_MULTIPLEADDREMOVE</testName>
@@ -1812,9 +1812,9 @@
         </TestParameters>
         <Timeout>2400</Timeout>
         <Platform>HyperV</Platform>
-        <Category>Stress</Category>
-        <Area>Runtime_Memory_Resize</Area>
-        <Tags>runtime_memory</Tags>
+        <Category>Functional</Category>
+        <Area>RUNTIME_MEMORY</Area>
+        <Tags>memory</Tags>
     </test>
     <test>
         <testName>RUNTIME_MEM_STRESSHOTREMOVE</testName>
@@ -1826,9 +1826,9 @@
         </TestParameters>
         <Timeout>2400</Timeout>
         <Platform>HyperV</Platform>
-        <Category>Stress</Category>
-        <Area>Runtime_Memory_Resize</Area>
-        <Tags>runtime_memory</Tags>
+        <Category>Functional</Category>
+        <Area>RUNTIME_MEMORY</Area>
+        <Tags>memory</Tags>
     </test>
     <test>
         <testName>RUNTIME_MEM_HOTADD_REBOOT</testName>
@@ -1840,9 +1840,9 @@
         </TestParameters>
         <Timeout>2400</Timeout>
         <Platform>HyperV</Platform>s
-        <Category>Stress</Category>
-        <Area>Runtime_Memory_Resize</Area>
-        <Tags>runtime_memory</Tags>
+        <Category>Functional</Category>
+        <Area>RUNTIME_MEMORY</Area>
+        <Tags>memory</Tags>
     </test>
     <test>
         <testName>STORAGE-VHD-IDE-DYNAMIC</testName>
@@ -2258,8 +2258,8 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>NET</Area>
-        <Tags>net</Tags>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
     </test>
     <test>
         <testName>NET-HOT-REMOVE-MULTINIC</testName>
@@ -2271,8 +2271,8 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>NET</Area>
-        <Tags>net</Tags>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
     </test>
     <test>
         <testName>NET-BOOT-NONIC-HOT-ADD-NIC</testName>
@@ -2281,8 +2281,8 @@
         <setupType>SingleVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>NET</Area>
-        <Tags>net</Tags>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
     </test>
     <test>
         <testName>NET-HOT-ADD-REMOVE-MAXNIC</testName>
@@ -2295,8 +2295,8 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>NET</Area>
-        <Tags>net</Tags>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
     </test>
     <test>
         <testName>DYNAMIC-MEMORY-HOTADD-STRESS-APP</testName>
@@ -2315,7 +2315,7 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>Dynamic_Memory</Area>
+        <Area>DYNAMIC_MEMORY</Area>
         <Tags>memory</Tags>
     </test>
     <test>
@@ -2337,7 +2337,7 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>Dynamic_Memory</Area>
+        <Area>DYNAMIC_MEMORY</Area>
         <Tags>memory</Tags>
     </test>
     <test>
@@ -2359,7 +2359,7 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>Dynamic_Memory</Area>
+        <Area>DYNAMIC_MEMORY</Area>
         <Tags>memory</Tags>
     </test>
     <test>
@@ -2381,7 +2381,7 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>Dynamic_Memory</Area>
+        <Area>DYNAMIC_MEMORY</Area>
         <Tags>memory</Tags>
     </test>
     <test>
