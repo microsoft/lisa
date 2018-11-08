@@ -340,7 +340,7 @@ function Apply-HyperVCheckpoint {
 function Check-IP {
     <#
     .DESCRIPTION
-    Checks if the ip exists (and SSH port is open) for each VM in deployment.
+    Checks if the IP exists (and SSH port is open) for each VM in deployment.
     Return a structure (similar to AllVMData) with updated information.
     Supports Hyper-V only.
     #>

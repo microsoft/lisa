@@ -2709,7 +2709,7 @@ function Get-VMFeatureSupportStatus {
 		Check if VM supports a feature or not.
 	.Description
 		Check if VM supports one feature or not based on comparison
-			of curent kernel version with feature supported kernel version.
+			of current kernel version with feature supported kernel version.
 		If the current version is lower than feature supported version,
 			return false, otherwise return true.
 	.Parameter Ipv4
@@ -3053,9 +3053,9 @@ function Mount-Disk{
 	)
 <#
 	.Synopsis
-	Mounts  and formates to ext4 a disk on vm
+	Mounts and formats to ext4 a disk on vm
 	.Description
-	Mounts  and formates to ext4 a disk on vm
+	Mounts and formats to ext4 a disk on vm
 
 	#>
 
@@ -3612,13 +3612,13 @@ function Get-IPv4AndWaitForSSHStart {
 		[int] $StepTimeout
 	)
 
-	# Wait for KVP to start and able to get ipv4 addr
+	# Wait for KVP to start and able to get ipv4 address
 	if (-not (Wait-ForVMToStartKVP $VmName $HvServer $StepTimeout)) {
 		LogErr "GetIPv4AndWaitForSSHStart: Unable to get ipv4 from VM ${vmName} via KVP within timeout period ($StepTimeout)"
 		return $False
 	}
 
-	# Get new ipv4 in case an new ip is allocated to vm after reboot
+	# Get new ipv4 in case an new IP is allocated to vm after reboot
 	$new_ip = Get-IPv4ViaKVP $vmName $hvServer
 	if (-not ($new_ip)){
 		LogErr "GetIPv4AndWaitForSSHStart: Unable to get ipv4 from VM ${vmName} via KVP"
@@ -3723,7 +3723,7 @@ function Wait-ForVMToStop {
 }
 
 function Test-Port {
-	# Test if a remote host is listening on a spceific TCP port
+	# Test if a remote host is listening on a specific TCP port
 	# Wait only timeout seconds.
 	param (
 		[String] $Ipv4addr,
@@ -3871,7 +3871,7 @@ function Convert-ToMemSize {
 		$memPercent = [Convert]::ToDouble("0." + $memString.Replace("%",""))
 		$num = [Int64] ($memPercent * $hostMemCapacity)
 
-		# Align on a 4k boundry
+		# Align on a 4k boundary
 		$memSize = [Int64](([Int64] ($num / 2MB)) * 2MB)
 	} else {
 		$memSize = ([Convert]::ToInt64($memString))
@@ -3884,7 +3884,7 @@ function Get-NumaSupportStatus {
 	param (
 		[string] $kernel
 	)
-	# Get whether NUMA is supported or not based on kernel verison.
+	# Get whether NUMA is supported or not based on kernel version.
 	# Generally, from RHEL 6.6 with kernel version 2.6.32-504,
 	# NUMA is supported well.
 
@@ -4210,7 +4210,7 @@ function Set-GuestInterface {
 
     # Configure NIC on the guest
     LogMsg "Configuring test interface ($InterfaceMAC) on $VMName ($VMIpv4)"
-    # Get the interface name that coresponds to the MAC address
+    # Get the interface name that corresponds to the MAC address
     $cmdToSend = "testInterface=`$(grep -il ${InterfaceMAC} /sys/class/net/*/address) ; basename `"`$(dirname `$testInterface)`""
     $testInterfaceName = RunLinuxCmd -username $VMUser -password $VMPassword -ip $VMIpv4 -port $VMPort `
         -command $cmdToSend 
@@ -4458,12 +4458,12 @@ Function Check-VMStateAndFileStatus {
         }
     }
     LogMsg "${VMName} IP is $ip_address"
-    # check selinux denied log after ip injection
+    # check selinux denied log after IP injection
     $sts=Get-SelinuxAVCLog -ipv4 $VMIpv4 -SSHPort $VMPort -Username "root" -Password $password
     if (-not $sts) {
         return $False
     }
-    # only check restore file when ip available
+    # only check restore file when IP available
     $stsipv4 = Test-NetConnection $VMIpv4 -Port 22 -WarningAction SilentlyContinue
     if ($stsipv4.TcpTestSucceeded) {
         $sts=Check-FileInLinuxGuest -VMPassword $password -VMPort $VMPort -VMUserName $user -Ipv4 $VMIpv4 -fileName "/home/$user/1"
@@ -4584,7 +4584,7 @@ Function Start-StressNg {
         wait
         exit 0
 "@
-    #"pingVMs: sendig command to vm: $cmdToVM"
+    #"pingVMs: sending command to vm: $cmdToVM"
     $FILE_NAME = "ConsumeMem.sh"
     Set-Content $FILE_NAME "$cmdToVM"
     # send file

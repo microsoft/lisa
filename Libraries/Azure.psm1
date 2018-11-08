@@ -110,7 +110,7 @@ Function ValidateSubscriptionUsage($subscriptionID, $RGXMLData) {
 
             $testVMSize = $testVMSize.Replace("Standard_", "")
 
-            #region D-Series postmartem
+            #region D-Series
             if ( $testVMSize.StartsWith("DS") -and $testVMSize.EndsWith("v2")) {
                 $identifierText = "standardDSv2Family"
                 $currentStatus = SetUsage -currentStatus $currentStatus -text $identifierText  -usage $testVMUsage -AllowedUsagePercentage $AllowedUsagePercentage 
@@ -146,7 +146,7 @@ Function ValidateSubscriptionUsage($subscriptionID, $RGXMLData) {
             }
             #endregion
 
-            #region E-Series postmartem
+            #region E-Series
             elseif ( $testVMSize.StartsWith("E") -and $testVMSize.EndsWith("s_v3")) {
                 $identifierText = "standardESv3Family"
                 $currentStatus = SetUsage -currentStatus $currentStatus -text $identifierText  -usage $testVMUsage -AllowedUsagePercentage $AllowedUsagePercentage 
@@ -160,7 +160,7 @@ Function ValidateSubscriptionUsage($subscriptionID, $RGXMLData) {
             }            
             #endregion            
 
-            #region Standard A series postmartem
+            #region Standard A series
 
             elseif ( ( $testVMSize -eq "A8") -or ( $testVMSize -eq "A9") -or ( $testVMSize -eq "A10") -or ( $testVMSize -eq "A11") ) {
                 $identifierText = "standardA8_A11Family"
@@ -179,7 +179,7 @@ Function ValidateSubscriptionUsage($subscriptionID, $RGXMLData) {
             }
             #endregion
 
-            #region Standard F series postamartem
+            #region Standard F series
             elseif ( $testVMSize.StartsWith("FS")) {
                 $identifierText = "standardFSFamily" 
                 $currentStatus = SetUsage -currentStatus $currentStatus -text $identifierText  -usage $testVMUsage -AllowedUsagePercentage $AllowedUsagePercentage 
@@ -232,7 +232,7 @@ Function ValidateSubscriptionUsage($subscriptionID, $RGXMLData) {
                 $currentStatus = SetUsage -currentStatus $currentStatus -text $identifierText  -usage $testVMUsage -AllowedUsagePercentage $AllowedUsagePercentage 
                 $overFlowErrors += TestUsage -currentStatus $currentStatus -text $identifierText -AllowedUsagePercentage $AllowedUsagePercentage 
             }
-            #region M-Series postmartem
+            #region M-Series
             elseif ( $testVMSize.StartsWith("M")) {
                 $identifierText = "standardMSFamily"
                 $currentStatus = SetUsage -currentStatus $currentStatus -text $identifierText  -usage $testVMUsage -AllowedUsagePercentage $AllowedUsagePercentage 
@@ -807,7 +807,7 @@ Function GenerateAzureDeployJSONFile ($RGName, $osImage, $osVHD, $RGXMLData, $Lo
     #$virtualNetworkName = $($RGName.ToUpper() -replace '[^a-z]') + "VNET"
     $virtualNetworkName = "VirtualNetwork"
     $defaultSubnetName = "SubnetForPrimaryNIC"
-    #$availibilitySetName = $($RGName.ToUpper() -replace '[^a-z]') + "AvSet"
+    #$availabilitySetName = $($RGName.ToUpper() -replace '[^a-z]') + "AvSet"
     $availibilitySetName = "AvailibilitySet"
     #$LoadBalancerName =  $($RGName.ToUpper() -replace '[^a-z]') + "LoadBalancer"
     $LoadBalancerName = "LoadBalancer"
@@ -1822,7 +1822,7 @@ Function GenerateAzureDeployJSONFile ($RGName, $osImage, $osVHD, $RGXMLData, $Lo
         Add-Content -Value "$($indents[4]){" -Path $jsonFile
         Add-Content -Value "$($indents[5])^networkInterfaces^: " -Path $jsonFile
         Add-Content -Value "$($indents[5])[" -Path $jsonFile
-        #region configure multiple Nics to networkProfile
+        #region configure multiple NICs to networkProfile
         if ($NicNameList) {
             foreach ($NicName in $NicNameList) {
                 Add-Content -Value "$($indents[6]){" -Path $jsonFile

@@ -12,7 +12,7 @@ $azure_only = 0
 $hyperv_only = 0
 $both_platforms = 0
 
-# Hashtab for tag info collection
+# Hashtable for tag info collection
 $tags = @{}
 
 Write-Output ""
