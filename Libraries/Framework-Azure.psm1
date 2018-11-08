@@ -347,7 +347,8 @@ Function CollectTestCases($TestXMLs)
             {
                 foreach ( $test in $currentTests.test )
                 {
-                    if ( ($test.Platform.Split(",").Contains($TestPlatform) ) -and $($TestCategory -eq $test.Category) -and $($TestArea -eq $test.Area) )
+                    if (($test.Platform.Split(",").Contains($TestPlatform) ) -and $($TestCategory -eq $test.Category) `
+                        -and $($TestArea.Split(",").Contains($test.Area)))
                     {
                         LogMsg "Collected $($test.TestName)"
                         $allTests += $test
