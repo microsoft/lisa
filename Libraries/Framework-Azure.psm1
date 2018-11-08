@@ -30,16 +30,20 @@ function Validate-AzureParameters {
         $parameterErrors += "-ARMImageName '<Publisher> <Offer> <Sku> <Version>', or -OsVHD <'VHD_Name.vhd'> is required."
     }
 
-    if (($ARMImageName.Trim().Split(" ").Count -ne 4) -and ($ARMImageName -ne "")) {
-        $parameterErrors += ("Invalid value for the provided ARMImageName parameter: <'${ARMImageName}'>." + `
-                             "The ARM image should be in the format: '<Publisher> <Offer> <Sku> <Version>'.")
+    if (!$OsVHD) {
+        if (($ARMImageName.Trim().Split(" ").Count -ne 4) -and ($ARMImageName -ne "")) {
+            $parameterErrors += ("Invalid value for the provided ARMImageName parameter: <'${ARMImageName}'>." + `
+                                 "The ARM image should be in the format: '<Publisher> <Offer> <Sku> <Version>'.")
+        }   
+    }
+    
+    if (!$ARMImageName) {
+        if ($OsVHD -and [System.IO.Path]::GetExtension($OsVHD) -ne ".vhd") {
+            $parameterErrors += "-OsVHD $OsVHD does not have .vhd extension required by Platform Azure."
+        }    
     }
 
-    if ($OsVHD -and [System.IO.Path]::GetExtension($OsVHD) -ne ".vhd") {
-        $parameterErrors += "-OsVHD $OsVHD does not have .vhd extension required by Platform Azure."
-    }
-
-    if ( !$TestLocation) {
+    if (!$TestLocation) {
         $parameterErrors += "-TestLocation <AzureRegion> is required."
     }
 
