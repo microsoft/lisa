@@ -73,13 +73,20 @@ VerifyVF()
         exit 1
     fi
 
-    interface=$(ls /sys/class/net/ | grep -v 'eth0\|eth1\|lo' | head -1)
-    ip a | grep $interface
+    if [ -z $VF_IP1 ]; then
+        vf_interface=$(ls /sys/class/net/ | grep -v 'eth0\|eth1\|lo' | head -1)
+    else
+        synthetic_interface=$(ip addr | grep $VF_IP1 | awk '{print $NF}')
+        vf_interface=$(find /sys/devices/* -name "*${synthetic_interface}*" | grep "pci" | sed 's/\// /g' | awk '{print $12}')
+    fi
+
+    ip addr show $vf_interface
     if [ $? -ne 0 ]; then
-        LogErr "VF device, $interface , was not found!"
+        LogErr "VF device, $vf_interface , was not found!"
         SetTestStateFailed
         exit 1
     fi
+
 
     return 0
 }
