@@ -22,7 +22,7 @@ Edit the XML file used to drive the test
 		<testScript>BVT-VERIFY-MNT-RESOURCE-WRITABLE.py</testScript>
 		<testScriptPs1>BVT-VERIFY-MNT-RESOURCE-WRITABLE.ps1</testScriptPs1>
 		<files>remote-scripts\BVT-VERIFY-MNT-RESOURCE-WRITABLE.py,remote-scripts\azuremodules.py</files>
-		<setupType>BVTDeployment</setupType>
+		<setupType>SingleVM</setupType>
 		<TestType></TestType>
 		<TestFeature></TestFeature>
     </test>

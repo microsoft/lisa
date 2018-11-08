@@ -21,7 +21,7 @@ Edit the XML file used to drive the test
 		<testScript>BVT-VERIFY-DISKSIZE.py</testScript>
 		<testScriptPs1>BVT-VERIFY-DISKSIZE.ps1</testScriptPs1>
 		<files>remote-scripts\azuremodules.py,remote-scripts\BVT-VERIFY-DISKSIZE.py</files>
-		<setupType>BVTDeployment</setupType>
+		<setupType>SingleVM</setupType>
 		<TestType></TestType>
 		<TestFeature></TestFeature>
     </test>

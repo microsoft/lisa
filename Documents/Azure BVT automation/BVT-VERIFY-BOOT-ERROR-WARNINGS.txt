@@ -21,7 +21,7 @@ Edit the XML file used to drive the test
 		<testScript>BVT-VERIFY-BOOT-ERROR-WARNINGS.py</testScript>
 		<testScriptPs1>BVT-VERIFY-BOOT-ERROR-WARNINGS.ps1</testScriptPs1>
 		<files>remote-scripts\azuremodules.py,remote-scripts\BVT-VERIFY-BOOT-ERROR-WARNINGS.py</files>
-		<setupType>BVTDeployment</setupType>
+		<setupType>SingleVM</setupType>
 		<TestType></TestType>
 		<TestFeature></TestFeature>
     </test>

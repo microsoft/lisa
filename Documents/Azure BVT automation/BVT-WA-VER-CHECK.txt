@@ -21,7 +21,7 @@ Edit the XML file used to drive the test
 		<testScript>BVT-WA-VER-CHECK.py</testScript>
 		<testScriptPs1>BVT-WA-VER-CHECK.ps1</testScriptPs1>
 		<files>remote-scripts\BVT-WA-VER-CHECK.py, remote-scripts\azuremodules.py</files>
-		<setupType>BVTDeployment</setupType>
+		<setupType>SingleVM</setupType>
 		<TestType></TestType>
 		<TestFeature></TestFeature>
     </test>

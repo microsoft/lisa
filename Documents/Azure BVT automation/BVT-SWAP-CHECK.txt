@@ -21,7 +21,7 @@ Edit the XML file used to drive the test
 		<testScript>BVT-SWAP-CHECK.py</testScript>
 		<testScriptPs1>BVT-SWAP-CHECK.ps1</testScriptPs1>
 		<files>remote-scripts\azuremodules.py,remote-scripts\BVT-SWAP-CHECK.py</files>
-		<setupType>BVTDeployment</setupType>
+		<setupType>SingleVM</setupType>
 		<TestType></TestType>
 		<TestFeature></TestFeature>
     </test>
