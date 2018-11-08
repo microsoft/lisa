@@ -96,9 +96,8 @@ def DetectDistro():
     version = 'unknown'
 
     RunLog.info("Detecting Distro ")
-    if os.path.isfile("/etc/*-release"):
-        output = Run("cat /etc/*-release")
-    elif os.path.isfile("/usr/lib/os-release"):
+    output = Run("cat /etc/*-release")
+    if output == "" and os.path.isfile("/usr/lib/os-release"):
         output = Run("cat /usr/lib/os-release")
     outputlist = re.split("\n", output)
 
