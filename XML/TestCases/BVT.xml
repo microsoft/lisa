@@ -8,6 +8,7 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt,boot</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>BVT-IS-ROOT-PASSWORD-DELETED</testName>
@@ -18,6 +19,7 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>BVT-ROOT-DEVICE-TIMEOUT-CHECK</testName>
@@ -28,6 +30,7 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>BVT-HVMODULES-CHECK</testName>
@@ -38,6 +41,7 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>BVT-SWAP-CHECK</testName>
@@ -48,6 +52,7 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>BVT-MTAB-ENTRY-CHECK</testName>
@@ -58,6 +63,7 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>BVT-LAST-CONSOLE-CHECK</testName>
@@ -68,6 +74,7 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>BVT-VERIFY-BOOT-ERROR-WARNINGS</testName>
@@ -78,6 +85,7 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>BVT-VERIFY-SHUTDOWN</testName>
@@ -91,6 +99,7 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>BVT-VERIFY-RESTART</testName>
@@ -101,6 +110,7 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>BVT-VERIFY-UUID-FSTAB</testName>
@@ -111,6 +121,7 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>BVT-VERIFY-SSHD-CONFIG</testName>
@@ -121,6 +132,7 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>BVT-VERIFY-VHD-PREREQUISITES</testName>
@@ -131,6 +143,7 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>BVT-VERIFY-NO-ERROR-IN-LOGS</testName>
@@ -141,6 +154,7 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>BVT-VERIFY-VERBOSE-ENABLED-LOGS</testName>
@@ -154,6 +168,7 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>BVT-VERIFY-BASH-HISTORY</testName>
@@ -164,6 +179,7 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>BVT-PASSWD-POLICY-TEST</testName>
@@ -177,6 +193,7 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>BVT-VERIFY-KVP-DAEMON-STATUS</testName>
@@ -187,6 +204,7 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>bvt</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>BVT-CORE-TIMESYNC-NTP</testName>
@@ -200,6 +218,7 @@
         <Category>BVT</Category>
         <Area>CORE</Area>
         <Tags>core</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>BVT-CORE-VERIFY-LIS-MODULES</testName>
@@ -214,6 +233,7 @@
         <Category>BVT</Category>
         <Area>CORE</Area>
         <Tags>core</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>BVT-CORE-VERIFY-LIS-MODULES-VERSION</testName>
@@ -228,6 +248,7 @@
         <Category>BVT</Category>
         <Area>CORE</Area>
         <Tags>core</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>BVT-CORE-RELOAD-MODULES-SMP</testName>
@@ -244,6 +265,7 @@
         <Category>BVT</Category>
         <Area>CORE</Area>
         <Tags>core</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>BVT-CORE-TIME-CLOCKSOURCE</testName>
@@ -257,6 +279,7 @@
         <Category>BVT</Category>
         <Area>CORE</Area>
         <Tags>core</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>BVT-CORE-TIME-CLOCKEVENT-UP</testName>
@@ -271,6 +294,7 @@
         <Category>BVT</Category>
         <Area>CORE</Area>
         <Tags>core</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>BVT-CORE-TIME-CLOCKEVENT-SMP</testName>
@@ -286,6 +310,7 @@
         <Category>BVT</Category>
         <Area>CORE</Area>
         <Tags>core</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>BVT-NET-ETHTOOL-CHECK-KEYS</testName>
@@ -299,6 +324,7 @@
         <Category>BVT</Category>
         <Area>NETWORK</Area>
         <Tags>network</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>BVT-NET-ETHTOOL-CHANGE-RINGBUFFER</testName>
@@ -314,6 +340,7 @@
         <Category>BVT</Category>
         <Area>NETWORK</Area>
         <Tags>network</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>BVT-NET-ETHTOOL-TCP-HASHLEVELS</testName>
@@ -328,6 +355,7 @@
         <Category>BVT</Category>
         <Area>NETWORK</Area>
         <Tags>network</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>BVT-NET-ETHTOOL-UDP-HASHLEVELS</testName>
@@ -342,6 +370,7 @@
         <Category>BVT</Category>
         <Area>NETWORK</Area>
         <Tags>network</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>BVT-NET-ETHTOOL-GRO-LRO</testName>
@@ -355,6 +384,7 @@
         <Category>BVT</Category>
         <Area>NETWORK</Area>
         <Tags>network</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>BVT-NET-ETHTOOL-CHECK-CHANNEL</testName>
@@ -368,6 +398,7 @@
         <Category>BVT</Category>
         <Area>NETWORK</Area>
         <Tags>network</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>BVT-NET-IFUP-IFDOWN</testName>
@@ -381,5 +412,6 @@
         <Category>BVT</Category>
         <Area>NETWORK</Area>
         <Tags>network</Tags>
+        <Priority>0</Priority>
     </test>
 </TestCases>

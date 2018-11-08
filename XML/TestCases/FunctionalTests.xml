@@ -11,6 +11,7 @@
         <Category>Functional</Category>
         <Area>KVP</Area>
         <Tags>kvp</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>KVP-INTRINSIC</testName>
@@ -24,6 +25,7 @@
         <Category>Functional</Category>
         <Area>KVP</Area>
         <Tags>kvp</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>KVP-BASIC-CHECKS</testName>
@@ -40,6 +42,7 @@
         <Category>Functional</Category>
         <Area>KVP</Area>
         <Tags>kvp</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>KVP-ADD-KEY-VALUES</testName>
@@ -57,6 +60,7 @@
         <Category>Functional</Category>
         <Area>KVP</Area>
         <Tags>kvp</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>KVP-MODIFY-KEY-VALUES</testName>
@@ -78,6 +82,7 @@
         <Category>Functional</Category>
         <Area>KVP</Area>
         <Tags>kvp</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>KVP-REMOVE-KEY-VALUES</testName>
@@ -96,6 +101,7 @@
         <Category>Functional</Category>
         <Area>KVP</Area>
         <Tags>kvp</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>KVP-PUSH-KEY-VALUES</testName>
@@ -111,6 +117,7 @@
         <Category>Functional</Category>
         <Area>KVP</Area>
         <Tags>kvp</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>KVP-DELETE-NON-EXIST-KVP-ON-GUEST</testName>
@@ -127,6 +134,7 @@
         <Category>Functional</Category>
         <Area>KVP</Area>
         <Tags>kvp</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>KVP-MODIFY-NON-EXIST-KVP-ON-GUEST</testName>
@@ -143,6 +151,7 @@
         <Category>Functional</Category>
         <Area>KVP</Area>
         <Tags>kvp</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>KVP-TEST-RESCIND</testName>
@@ -157,6 +166,7 @@
         <Category>Functional</Category>
         <Area>KVP</Area>
         <Tags>kvp</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>KVP-MAX-READ</testName>
@@ -173,6 +183,7 @@
         <Category>Functional</Category>
         <Area>KVP</Area>
         <Tags>kvp</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>CORE-VERIFY-HEART-BEAT</testName>
@@ -182,6 +193,7 @@
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>core</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>CORE-VERIFY-SHUTDOWN</testName>
@@ -191,6 +203,7 @@
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>core</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>CORE-VERIFY-TIME-SYNC</testName>
@@ -204,6 +217,7 @@
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>core</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>CORE-INITRD-MODULES-CHECK</testName>
@@ -218,6 +232,7 @@
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>core</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>CORE-CPU-VERIFY-ONLINE</testName>
@@ -231,6 +246,7 @@
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>core</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>CORE-VERIFY-LIS-MODULES-VERSION</testName>
@@ -244,6 +260,7 @@
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>core</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>FCOPY-BASIC</testName>
@@ -253,6 +270,7 @@
         <Category>FCOPY</Category>
         <Area>Fcopy</Area>
         <Tags>fcopy</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>FCOPY-FILE-EXISTS</testName>
@@ -262,6 +280,7 @@
         <Category>FCOPY</Category>
         <Area>Fcopy</Area>
         <Tags>fcopy</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>FCOPY-OVERWRITE</testName>
@@ -271,6 +290,7 @@
         <Category>FCOPY</Category>
         <Area>Fcopy</Area>
         <Tags>fcopy</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>FCOPY-LARGE-FILE</testName>
@@ -284,6 +304,7 @@
         <Category>FCOPY</Category>
         <Area>Fcopy</Area>
         <Tags>fcopy</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>FCOPY-NON-ASCII</testName>
@@ -294,6 +315,7 @@
         <Category>FCOPY</Category>
         <Area>Fcopy</Area>
         <Tags>fcopy</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>FCOPY-REPEATED-DELETE</testName>
@@ -308,6 +330,7 @@
         <Category>FCOPY</Category>
         <Area>Fcopy</Area>
         <Tags>fcopy</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>FCOPY-DISABLE-ENABLE</testName>
@@ -324,6 +347,7 @@
         <Category>FCOPY</Category>
         <Area>Fcopy</Area>
         <Tags>fcopy</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>FCOPY-NEGATIVE</testName>
@@ -333,6 +357,7 @@
         <Category>FCOPY</Category>
         <Area>Fcopy</Area>
         <Tags>fcopy</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>MAX-VCPU</testName>
@@ -347,6 +372,7 @@
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>core</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>PAUSED-CRITICAL-HEARTBEAT</testName>
@@ -360,6 +386,7 @@
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>core</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>CHECK-NUMA</testName>
@@ -378,6 +405,7 @@
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>core</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>CHECK-NUMA-MAXIMUM</testName>
@@ -398,6 +426,7 @@
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>core</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>REBOOT-DIFFERENT-MEMORY-SETTINGS</testName>
@@ -407,6 +436,7 @@
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>core</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>TIMESYNC-BASIC</testName>
@@ -421,6 +451,7 @@
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>core</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>TIMESYNC-SAVEDVM</testName>
@@ -435,6 +466,7 @@
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>core</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>TIMESYNC-PAUSEDVM</testName>
@@ -449,6 +481,7 @@
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>core</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>TIMESYNC-SAVEDVM-CHRONYOFF</testName>
@@ -464,6 +497,7 @@
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>core</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>TIMESYNC-PAUSEDVM-CHRONYOFF</testName>
@@ -479,6 +513,7 @@
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>core</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>TIMESYNC-VDSO</testName>
@@ -489,6 +524,7 @@
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>core</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>LIS-CHECK-HYPERVDAEMONS-FILES-STATUS</testName>
@@ -499,6 +535,7 @@
         <Category>Functional</Category>
         <Area>LIS</Area>
         <Tags>lis</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>LIS-MOUNT-FLOPPYDISK</testName>
@@ -509,6 +546,7 @@
         <Category>Functional</Category>
         <Area>LIS</Area>
         <Tags>lis</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>LIS-MOUNT-CD</testName>
@@ -520,6 +558,7 @@
         <Category>Functional</Category>
         <Area>LIS</Area>
         <Tags>lis</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>LIS-MOUNT-CD-HOTADD</testName>
@@ -534,6 +573,7 @@
         <Category>Functional</Category>
         <Area>LIS</Area>
         <Tags>lis</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>NET-EXTERNAL</testName>
@@ -551,6 +591,7 @@
         <Category>Functional</Category>
         <Area>NET</Area>
         <Tags>net</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>NET-INTERNAL</testName>
@@ -567,6 +608,7 @@
         <Category>Functional</Category>
         <Area>NET</Area>
         <Tags>net</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>NET-LEGACY</testName>
@@ -587,6 +629,7 @@
         <Category>Functional</Category>
         <Area>NET</Area>
         <Tags>net</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>NET-PROMISCUOUS</testName>
@@ -603,6 +646,7 @@
         <Category>Functional</Category>
         <Area>NET</Area>
         <Tags>net</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>NET-OPERSTATE</testName>
@@ -618,6 +662,7 @@
         <Category>Functional</Category>
         <Area>NET</Area>
         <Tags>net</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>NET-CHANGE-INTERNAL-NIC</testName>
@@ -635,6 +680,7 @@
         <Category>Functional</Category>
         <Area>NET</Area>
         <Tags>net</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>NET-MAX-SYNTHETIC-NICS</testName>
@@ -652,6 +698,7 @@
         <Category>Functional</Category>
         <Area>NET</Area>
         <Tags>net</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>NET-MAX-LEGACY-NICS</testName>
@@ -670,6 +717,7 @@
         <Category>Functional</Category>
         <Area>NET</Area>
         <Tags>net</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>NET-MAX-NICS</testName>
@@ -689,6 +737,7 @@
         <Category>Functional</Category>
         <Area>NET</Area>
         <Tags>net</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>NET-FILE-COPY-SCP</testName>
@@ -702,6 +751,7 @@
         <Category>Functional</Category>
         <Area>NET</Area>
         <Tags>net</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>NET-IP-INJECTION</testName>
@@ -717,6 +767,7 @@
         <Category>Functional</Category>
         <Area>NET</Area>
         <Tags>net</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>NET-TCP-CORRUPTION</testName>
@@ -732,6 +783,7 @@
         <Category>Functional</Category>
         <Area>NET</Area>
         <Tags>net</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>NET-PRIVATE</testName>
@@ -753,6 +805,7 @@
         <Category>Functional</Category>
         <Area>NET</Area>
         <Tags>net</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>NET-CHANGE-PRIVATE-NIC</testName>
@@ -776,6 +829,7 @@
         <Category>Functional</Category>
         <Area>NET</Area>
         <Tags>net</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>NET-JUMBO-FRAMES</testName>
@@ -796,6 +850,7 @@
         <Category>Functional</Category>
         <Area>NET</Area>
         <Tags>net</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>NET-COPY-LARGE-FILE</testName>
@@ -818,6 +873,7 @@
         <Category>Functional</Category>
         <Area>NET</Area>
         <Tags>net</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>NET-COPY-FILE-DIFFERENT-MTU</testName>
@@ -839,6 +895,7 @@
         <Category>Functional</Category>
         <Area>NET</Area>
         <Tags>net</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>NET-COPY-BOTH-WAYS</testName>
@@ -858,6 +915,7 @@
         <Category>Functional</Category>
         <Area>NET</Area>
         <Tags>net</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>NET-VLAN-TAGGING</testName>
@@ -878,6 +936,7 @@
         <Category>Functional</Category>
         <Area>NET</Area>
         <Tags>net</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>NET-VLAN-TRUNKING</testName>
@@ -899,6 +958,7 @@
         <Category>Functional</Category>
         <Area>NET</Area>
         <Tags>net</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>NET-VXLAN</testName>
@@ -918,6 +978,7 @@
         <Category>Functional</Category>
         <Area>NET</Area>
         <Tags>net</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>NET-MULTICAST</testName>
@@ -937,6 +998,7 @@
         <Category>Functional</Category>
         <Area>NET</Area>
         <Tags>net</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>ETHTOOL-CHECK-STATISTICS</testName>
@@ -956,6 +1018,7 @@
         <Category>Functional</Category>
         <Area>NET</Area>
         <Tags>net</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>VMBUS_VERIFY_PROTOCOL_VERSION</testName>
@@ -966,6 +1029,7 @@
         <Category>Functional</Category>
         <Area>LIS</Area>
         <Tags>lis,vmbus</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>VMBUS_VERIFY_INTERRUPTS</testName>
@@ -976,6 +1040,7 @@
         <Category>Functional</Category>
         <Area>LIS</Area>
         <Tags>lis,vmbus</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>VMBUS_PANIC_NOTIFIER</testName>
@@ -986,6 +1051,7 @@
         <Category>Functional</Category>
         <Area>LIS</Area>
         <Tags>lis,vmbus</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>VMBUS_PANIC_NOTIFIER_KDUMP</testName>
@@ -1000,6 +1066,7 @@
         <Category>Functional</Category>
         <Area>LIS</Area>
         <Tags>lis,vmbus</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>NMI_VERIFY_INTERRUPT</testName>
@@ -1010,6 +1077,7 @@
         <Category>Functional</Category>
         <Area>LIS</Area>
         <Tags>lis,nmi</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>NMI_VERIFY_FAILED_INTERRUPT</testName>
@@ -1019,6 +1087,7 @@
         <Category>Functional</Category>
         <Area>LIS</Area>
         <Tags>lis,nmi</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>KDUMP-CRASH-SINGLE-CORE</testName>
@@ -1035,6 +1104,7 @@
         <Category>Functional</Category>
         <Area>KDUMP</Area>
         <Tags>kdump</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>KDUMP-CRASH-SMP</testName>
@@ -1051,6 +1121,7 @@
         <Category>Functional</Category>
         <Area>KDUMP</Area>
         <Tags>kdump</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>KDUMP-CRASH-NMI</testName>
@@ -1068,6 +1139,7 @@
         <Category>Functional</Category>
         <Area>KDUMP</Area>
         <Tags>kdump</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>KDUMP-CRASH-AUTO-SIZE</testName>
@@ -1084,6 +1156,7 @@
         <Category>Functional</Category>
         <Area>KDUMP</Area>
         <Tags>kdump</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>KDUMP-CRASH-DIFFERENT-VCPU</testName>
@@ -1100,6 +1173,7 @@
         <Category>Functional</Category>
         <Area>KDUMP</Area>
         <Tags>kdump</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>KDUMP-CRASH-16-CORES</testName>
@@ -1116,6 +1190,7 @@
         <Category>Functional</Category>
         <Area>KDUMP</Area>
         <Tags>kdump</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>STORAGE-TAKE-REVERT-SNAPSHOT</testName>
@@ -1132,6 +1207,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>STORAGE-EXPORT-IMPORT-VM</testName>
@@ -1144,6 +1220,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>STORAGE-VHDX-VERIFY-SECTORSIZE</testName>
@@ -1158,6 +1235,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>VERIFY-DISK-WITH-NOBARRIER</testName>
@@ -1174,6 +1252,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>disk,hv_storvsc</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>SECUREBOOT-BASIC</testName>
@@ -1227,6 +1306,7 @@
         <Category>Functional</Category>
         <Area>PROD_CHECKPOINT</Area>
         <Tags>prod_checkpoint</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>PRODUCTION-CHECKPOINT</testName>
@@ -1254,6 +1334,7 @@
         <Category>Functional</Category>
         <Area>PROD_CHECKPOINT</Area>
         <Tags>prod_checkpoint</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>PRODUCTION-CHECKPOINT-BTRFS</testName>
@@ -1270,6 +1351,7 @@
         <Category>Functional</Category>
         <Area>PROD_CHECKPOINT</Area>
         <Tags>prod_checkpoint</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>PRODUCTION-CHECKPOINT-IDE_SCSI</testName>
@@ -1305,6 +1387,7 @@
         <Category>Functional</Category>
         <Area>PROD_CHECKPOINT</Area>
         <Tags>prod_checkpoint</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>PRODUCTION-CHECKPOINT-ISO-NONETWORK</testName>
@@ -1361,6 +1444,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>VHDX-RESIZE-TO-BIGGER4096</testName>
@@ -1377,6 +1461,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
        </test>
     <test>
         <testName>VHDX-RESIZE-TO-BIGGER512-FIXED-IDE</testName>
@@ -1393,6 +1478,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
        </test>
     <test>
         <testName>VHDX-RESIZE-TO-BIGGER512-DYNAMIC-IDE</testName>
@@ -1409,6 +1495,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
        </test>
     <test>
         <testName>VHDX-RESIZE-TO-SMALLER512</testName>
@@ -1425,6 +1512,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
        </test>
     <test>
         <testName>VHDX-RESIZE-TO-SMALLER4096</testName>
@@ -1441,6 +1529,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
        </test>
     <test>
         <testName>DYNAMIC-MEMORY-VERIFY-UDEV</testName>
@@ -2297,7 +2386,7 @@
     </test>
     <test>
         <testName>STOR-VSS-BACKUPRESTORE-ISO-NONETWORK</testName>
-        <setupScript>.\Testscripts\Windows\SETUP-Backup-DISK.ps1</setupScript> 
+        <setupScript>.\Testscripts\Windows\SETUP-Backup-DISK.ps1</setupScript>
         <testScript>STOR-VSS-BackupRestore-ISO-NoNetwork.ps1</testScript>
         <cleanupScript>.\TestScripts\Windows\CLEANUP-Backup-DISK.ps1</cleanupScript>
         <files>.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh,.\Testscripts\Linux\STOR_VSS_StopNetwork.sh,.\Testscripts\Linux\utils.sh</files>

@@ -34,6 +34,7 @@
 		<Category>Performance</Category>
 		<Area>DPDK</Area>
 		<Tags>dpdk,network,hv_netvsc,sriov</Tags>
+		<Priority>2</Priority>
 	</test>
 	<test>
 		<testName>PERF-DPDK-SINGLE-CORE-PPS-DS15</testName>
@@ -52,6 +53,7 @@
 		<Category>Performance</Category>
 		<Area>DPDK</Area>
 		<Tags>dpdk,network,hv_netvsc,sriov</Tags>
+		<Priority>2</Priority>
 	</test>
 	<test>
 		<testName>PERF-DPDK-MULTICORE-PPS-DS15</testName>
@@ -71,5 +73,6 @@
 		<Category>Performance</Category>
 		<Area>DPDK</Area>
 		<Tags>dpdk,network,hv_netvsc,sriov</Tags>
+		<Priority>2</Priority>
 	</test>
 </TestCases>

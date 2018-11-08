@@ -17,6 +17,7 @@
         <Category>Functional</Category>
         <Area>SRIOV</Area>
         <Tags>sriov,hv_netvsc</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>VERIFY-IFUP-NICS-SRIOV</testName>
@@ -34,6 +35,7 @@
         <Category>Functional</Category>
         <Area>SRIOV</Area>
         <Tags>sriov,network</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>VERIFY-ENABLE-DISABLE-SRIOV-ON-EXISTING-VM</testName>
@@ -46,6 +48,7 @@
         <Category>Functional</Category>
         <Area>SRIOV</Area>
         <Tags>sriov,network</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>SRIOV-VERIFY-VF-BASIC-CONNECTION</testName>
@@ -283,6 +286,7 @@
         <Category>Functional</Category>
         <Area>SRIOV</Area>
         <Tags>sriov,network</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>SRIOV-DISABLEVF-IPERF</testName>
@@ -301,6 +305,7 @@
         <Category>Functional</Category>
         <Area>SRIOV</Area>
         <Tags>sriov,network</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>SRIOV-DETACH-NIC</testName>
@@ -319,6 +324,7 @@
         <Category>Functional</Category>
         <Area>SRIOV</Area>
         <Tags>sriov,network</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>SRIOV-DISABLEVF-ONHOST</testName>
@@ -337,6 +343,7 @@
         <Category>Functional</Category>
         <Area>SRIOV</Area>
         <Tags>sriov,network</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>SRIOV-DISABLE-NIC</testName>
@@ -355,6 +362,7 @@
         <Category>Functional</Category>
         <Area>SRIOV</Area>
         <Tags>sriov,network</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>SRIOV-DISABLE-VMQ</testName>
@@ -373,6 +381,7 @@
         <Category>Functional</Category>
         <Area>SRIOV</Area>
         <Tags>sriov,network</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>SRIOV-CHANGE-RSS</testName>
@@ -391,6 +400,7 @@
         <Category>Functional</Category>
         <Area>SRIOV</Area>
         <Tags>sriov,network</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>SRIOV-MEASURE-VF-FAILBACK</testName>
@@ -409,6 +419,7 @@
         <Category>Functional</Category>
         <Area>SRIOV</Area>
         <Tags>sriov,network</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>SRIOV-REBOOT-VM</testName>
@@ -427,6 +438,7 @@
         <Category>Functional</Category>
         <Area>SRIOV</Area>
         <Tags>sriov,network</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>SRIOV-MOVE-VHD</testName>
@@ -445,6 +457,7 @@
         <Category>Functional</Category>
         <Area>SRIOV</Area>
         <Tags>sriov,network</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>SRIOV-STRESS-SAVE</testName>
@@ -464,6 +477,7 @@
         <Category>Functional</Category>
         <Area>SRIOV</Area>
         <Tags>sriov,network</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>SRIOV-STRESS-PAUSE</testName>
@@ -483,6 +497,7 @@
         <Category>Functional</Category>
         <Area>SRIOV</Area>
         <Tags>sriov,network</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>SRIOV-MULTICAST</testName>
@@ -502,6 +517,7 @@
         <Category>Functional</Category>
         <Area>SRIOV</Area>
         <Tags>sriov,network</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>SRIOV-BROADCAST</testName>
@@ -521,5 +537,6 @@
         <Category>Functional</Category>
         <Area>SRIOV</Area>
         <Tags>sriov,network</Tags>
+        <Priority>1</Priority>
     </test>   
 </TestCases>

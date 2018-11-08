@@ -10,6 +10,7 @@
         <Category>Functional</Category>
         <Area>GPU</Area>
         <Tags>gpu,pci_hyperv</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>VERIFY-NVIDIA-CUDA-DRIVER-FOR-NC12-VM</testName>
@@ -22,6 +23,7 @@
         <Category>Functional</Category>
         <Area>GPU</Area>
         <Tags>gpu,pci_hyperv</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>VERIFY-NVIDIA-CUDA-DRIVER-FOR-NC24-VM</testName>
@@ -34,6 +36,7 @@
         <Category>Functional</Category>
         <Area>GPU</Area>
         <Tags>gpu,pci_hyperv</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>VERIFY-NVIDIA-CUDA-DRIVER-FOR-NC24r-VM</testName>
@@ -46,5 +49,6 @@
         <Category>Functional</Category>
         <Area>GPU</Area>
         <Tags>gpu,pci_hyperv</Tags>
+        <Priority>1</Priority>
     </test>		
 </TestCases>

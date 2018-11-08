@@ -11,6 +11,7 @@
         <Category>Stress</Category>
         <Area>stress</Area>
         <Tags>stress,boot</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>STRESSTEST-VERIFY-RESTART-MAX-SRIOV-NICS</testName>
@@ -28,6 +29,7 @@
         <Category>Stress</Category>
         <Area>stress</Area>
         <Tags>stress,boot,network,sriov</Tags>
+        <Priority>1</Priority>
     </test>
         <test>
         <testName>STRESSTEST-RELOAD-MODULES-UP</testName>
@@ -42,6 +44,7 @@
         <Category>BVT</Category>
         <Area>Stress</Area>
         <Tags>stress</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>STRESSTEST-SYSBENCH</testName>
@@ -55,6 +58,7 @@
         <Category>Stress</Category>
         <Area>stress</Area>
         <Tags>stress</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>STRESSTEST-CHANGE-MTU-RELOAD-NETVSC</testName>
@@ -64,6 +68,7 @@
         <Category>Stress</Category>
         <Area>stress</Area>
         <Tags>stress</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>STRESSTEST-BOOT-VM-LARGE-MEMORY</testName>
@@ -79,6 +84,7 @@
         <Category>Stress</Category>
         <Area>stress</Area>
         <Tags>stress</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>STRESSTEST-EventId-18602-Regression</testName>
@@ -91,5 +97,6 @@
         <Category>Stress</Category>
         <Area>stress</Area>
         <Tags>stress</Tags>
+        <Priority>1</Priority>
     </test>
 </TestCases>

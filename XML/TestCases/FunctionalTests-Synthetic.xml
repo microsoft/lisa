@@ -15,5 +15,6 @@
         <Category>Functional</Category>
         <Area>Synthetic</Area>
         <Tags>synthetic,hv_netvsc</Tags>
+        <Priority>0</Priority>
     </test>
 </TestCases>
