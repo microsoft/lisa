@@ -164,7 +164,7 @@ collect_VM_properties
         LogMsg "Test result : $testResult"
         LogMsg "Test Completed"
         
-        LogMsg "Analysing the test results.."   
+        LogMsg "Analyzing the test results.."   
         $dataSource = $xmlConfig.config.$TestPlatform.database.server
         $user = $xmlConfig.config.$TestPlatform.database.user
         $password = $xmlConfig.config.$TestPlatform.database.password
