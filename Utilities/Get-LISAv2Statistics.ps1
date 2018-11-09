@@ -16,13 +16,13 @@ $both_platforms = 0
 $tags = @{}
 
 Write-Output ""
-"{0,-60} {1,20} {2,15} {3,15} {4,40}" -f "TestCase", "Platform", "Category", "Area", "Tags"
-Write-Output "----------------------------------------------------------------------------------------------------------------------------------------------------------"
+"{0,-70} {1,20} {2,15} {3,15} {4,40} {5,5}" -f "TestCase", "Platform", "Category", "Area", "Tags", "Priority"
+Write-Output "------------------------------------------------------------------------------------------------------------------------------------------------------------------------------"
 
 foreach ($fname in $files) {
     $xml = [xml](Get-Content $fname)
     foreach ($item in $xml.TestCases.test) {
-        "{0,-60} {1,20} {2,15} {3,15} {4,40}" -f $item.testName, $item.Platform, $item.Category, $item.Area, $item.Tags
+        "{0,-70} {1,20} {2,15} {3,15} {4,40} {5,5}" -f $item.testName, $item.Platform, $item.Category, $item.Area, $item.Tags, $item.Priority
 
         # Group per platform type
         if ($item.Platform -eq "HyperV") {
