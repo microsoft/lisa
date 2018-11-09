@@ -16,7 +16,7 @@
         <Platform>Azure,HyperV</Platform>
         <Category>Functional</Category>
         <Area>SRIOV</Area>
-        <Tags>sriov,hv_netvsc</Tags>
+        <Tags>sriov,hv_netvsc,network</Tags>
         <Priority>0</Priority>
     </test>
     <test>
