@@ -6,7 +6,6 @@
         <OverrideVMSize>Standard_A8</OverrideVMSize>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh</files>
-        <Priority>P0</Priority>
         <NumberOfReboots>INFINIBAND_INTEL_TOTAL_REBOOT_COUNT</NumberOfReboots>
         <TestParameters>
             <param>mpi_settings="INFINIBAND_INTEL_MPI_SETTINGS"</param>
@@ -34,7 +33,6 @@
         <OverrideVMSize>Standard_A9</OverrideVMSize>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh</files>
-        <Priority>P0</Priority>
         <NumberOfReboots>INFINIBAND_INTEL_TOTAL_REBOOT_COUNT</NumberOfReboots>
         <TestParameters>
             <param>mpi_settings="INFINIBAND_INTEL_MPI_SETTINGS"</param>
@@ -62,7 +60,6 @@
         <OverrideVMSize>Standard_H16r</OverrideVMSize>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh</files>
-        <Priority>P0</Priority>
         <NumberOfReboots>INFINIBAND_INTEL_TOTAL_REBOOT_COUNT</NumberOfReboots>
         <TestParameters>
             <param>mpi_settings="INFINIBAND_INTEL_MPI_SETTINGS"</param>
@@ -90,7 +87,6 @@
         <OverrideVMSize>Standard_H16mr</OverrideVMSize>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh</files>
-        <Priority>P0</Priority>
         <NumberOfReboots>INFINIBAND_INTEL_TOTAL_REBOOT_COUNT</NumberOfReboots>
         <TestParameters>
             <param>mpi_settings="INFINIBAND_INTEL_MPI_SETTINGS"</param>
@@ -119,7 +115,6 @@
         <SupportedExecutionModes>AzureServiceManagement,AzureResourceManager</SupportedExecutionModes>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh</files>
-        <Priority>P0</Priority>
         <NumberOfReboots>INFINIBAND_INTEL_TOTAL_REBOOT_COUNT</NumberOfReboots>
         <TestParameters>
             <param>mpi_settings="INFINIBAND_INTEL_MPI_SETTINGS"</param>
@@ -147,7 +142,6 @@
         <OverrideVMSize>Standard_A8</OverrideVMSize>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh</files>
-        <Priority>P0</Priority>
         <NumberOfReboots>INFINIBAND_INTEL_TOTAL_REBOOT_COUNT</NumberOfReboots>
         <TestParameters>
             <param>mpi_settings="INFINIBAND_INTEL_MPI_SETTINGS"</param>
@@ -175,7 +169,6 @@
         <OverrideVMSize>Standard_A9</OverrideVMSize>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh</files>
-        <Priority>P0</Priority>
         <NumberOfReboots>INFINIBAND_INTEL_TOTAL_REBOOT_COUNT</NumberOfReboots>
         <TestParameters>
             <param>mpi_settings="INFINIBAND_INTEL_MPI_SETTINGS"</param>
@@ -203,7 +196,6 @@
         <OverrideVMSize>Standard_H16r</OverrideVMSize>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh</files>
-        <Priority>P0</Priority>
         <NumberOfReboots>INFINIBAND_INTEL_TOTAL_REBOOT_COUNT</NumberOfReboots>
         <TestParameters>
             <param>mpi_settings="INFINIBAND_INTEL_MPI_SETTINGS"</param>
@@ -231,7 +223,6 @@
         <OverrideVMSize>Standard_H16mr</OverrideVMSize>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh</files>
-        <Priority>P0</Priority>
         <NumberOfReboots>INFINIBAND_INTEL_TOTAL_REBOOT_COUNT</NumberOfReboots>
         <TestParameters>
             <param>mpi_settings="INFINIBAND_INTEL_MPI_SETTINGS"</param>
@@ -260,7 +251,6 @@
         <SupportedExecutionModes>AzureServiceManagement,AzureResourceManager</SupportedExecutionModes>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh</files>
-        <Priority>P0</Priority>
         <NumberOfReboots>INFINIBAND_INTEL_TOTAL_REBOOT_COUNT</NumberOfReboots>
         <TestParameters>
             <param>mpi_settings="INFINIBAND_INTEL_MPI_SETTINGS"</param>
@@ -288,7 +278,6 @@
         <OverrideVMSize>Standard_A8</OverrideVMSize>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh</files>
-        <Priority>P0</Priority>
         <NumberOfReboots>INFINIBAND_INTEL_TOTAL_REBOOT_COUNT</NumberOfReboots>
         <TestParameters>
             <param>mpi_settings="INFINIBAND_INTEL_MPI_SETTINGS"</param>
@@ -316,7 +305,6 @@
         <OverrideVMSize>Standard_A9</OverrideVMSize>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh</files>
-        <Priority>P0</Priority>
         <NumberOfReboots>INFINIBAND_INTEL_TOTAL_REBOOT_COUNT</NumberOfReboots>
         <TestParameters>
             <param>mpi_settings="INFINIBAND_INTEL_MPI_SETTINGS"</param>
@@ -344,7 +332,6 @@
         <OverrideVMSize>Standard_H16r</OverrideVMSize>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh</files>
-        <Priority>P0</Priority>
         <NumberOfReboots>INFINIBAND_INTEL_TOTAL_REBOOT_COUNT</NumberOfReboots>
         <TestParameters>
             <param>mpi_settings="INFINIBAND_INTEL_MPI_SETTINGS"</param>
@@ -372,7 +359,6 @@
         <OverrideVMSize>Standard_H16mr</OverrideVMSize>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh</files>
-        <Priority>P0</Priority>
         <NumberOfReboots>INFINIBAND_INTEL_TOTAL_REBOOT_COUNT</NumberOfReboots>
         <TestParameters>
             <param>mpi_settings="INFINIBAND_INTEL_MPI_SETTINGS"</param>
@@ -401,7 +387,6 @@
         <SupportedExecutionModes>AzureServiceManagement,AzureResourceManager</SupportedExecutionModes>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh</files>
-        <Priority>P0</Priority>
         <NumberOfReboots>INFINIBAND_INTEL_TOTAL_REBOOT_COUNT</NumberOfReboots>
         <TestParameters>
             <param>mpi_settings="INFINIBAND_INTEL_MPI_SETTINGS"</param>
@@ -429,7 +414,6 @@
         <OverrideVMSize>Standard_A8</OverrideVMSize>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh</files>
-        <Priority>P0</Priority>
            <NumberOfReboots>INFINIBAND_INTEL_TOTAL_REBOOT_COUNT</NumberOfReboots>
         <TestParameters>
             <param>mpi_settings="INFINIBAND_INTEL_MPI_SETTINGS"</param>
@@ -457,7 +441,6 @@
         <OverrideVMSize>Standard_A9</OverrideVMSize>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh</files>
-        <Priority>P0</Priority>
         <NumberOfReboots>INFINIBAND_INTEL_TOTAL_REBOOT_COUNT</NumberOfReboots>
         <TestParameters>
             <param>mpi_settings="INFINIBAND_INTEL_MPI_SETTINGS"</param>
@@ -485,7 +468,6 @@
         <OverrideVMSize>Standard_H16r</OverrideVMSize>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh</files>
-        <Priority>P0</Priority>
         <NumberOfReboots>INFINIBAND_INTEL_TOTAL_REBOOT_COUNT</NumberOfReboots>
         <TestParameters>
             <param>mpi_settings="INFINIBAND_INTEL_MPI_SETTINGS"</param>
@@ -513,7 +495,6 @@
         <OverrideVMSize>Standard_H16mr</OverrideVMSize>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh</files>
-        <Priority>P0</Priority>
         <NumberOfReboots>INFINIBAND_INTEL_TOTAL_REBOOT_COUNT</NumberOfReboots>
         <TestParameters>
             <param>mpi_settings="INFINIBAND_INTEL_MPI_SETTINGS"</param>
@@ -542,7 +523,6 @@
         <SupportedExecutionModes>AzureServiceManagement,AzureResourceManager</SupportedExecutionModes>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh</files>
-        <Priority>P0</Priority>
         <NumberOfReboots>INFINIBAND_INTEL_TOTAL_REBOOT_COUNT</NumberOfReboots>
         <TestParameters>
             <param>mpi_settings="INFINIBAND_INTEL_MPI_SETTINGS"</param>
