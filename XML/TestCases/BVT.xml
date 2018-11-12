@@ -402,7 +402,7 @@
     </test>
     <test>
         <testName>BVT-NET-IFUP-IFDOWN</testName>
-        <testScript>BVT-NET-IFUP-IFDOWN.sh</testScript>
+        <testScript>BVT-NET-IFUP-IFDOWN.ps1</testScript>
         <files>.\TestScripts\Linux\BVT-NET-IFUP-IFDOWN.sh,.\TestScripts\Linux\utils.sh</files>
         <setupType>SingleVM</setupType>
         <TestParameters>

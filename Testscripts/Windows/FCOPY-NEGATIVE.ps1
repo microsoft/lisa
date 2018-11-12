@@ -83,15 +83,37 @@ function Main {
         return "FAIL"
     }
 
-    Enable-VMIntegrationService -Name "Guest Service Interface" -vmName $VMName -ComputerName $HvServer
-
-    if ( $? -ne $true) {
-        LogErr "The Guest services are not working properly for VM!"
-        return "FAIL"
+    #
+    # Verify if the Guest services are enabled for this VM
+    #
+    $gsi = Get-VMIntegrationService -VMname $VMName -ComputerName $HvServer -Name "Guest Service Interface"
+    if (-not $gsi) {
+        LogErr "Unable to retrieve Integration Service status from VM '${VMname}'"
+        return "ABORTED"
     }
-
+    if (-not $gsi.Enabled) {
+        LogWarn "The Guest services are not enabled for VM '${VMname}'"
+        if ((Get-VM -ComputerName $HvServer -Name $VMName).State -ne "Off") {
+            Stop-VM -ComputerName $HvServer -Name $VMName -Force -Confirm:$false
+        }
+        # Waiting until the VM is off
+        while ((Get-VM -ComputerName $HvServer -Name $VMName).State -ne "Off") {
+            LogMsg "Turning off VM:'${VMname}'"
+            Start-Sleep -Seconds 5
+        }
+        LogMsg "Enabling  Guest services on VM:'${VMname}'"
+        Enable-VMIntegrationService -Name "Guest Service Interface" -VMname $VMName -ComputerName $HvServer
+        LogMsg "Starting VM:'${VMname}'"
+        Start-VM -Name $VMName -ComputerName $HvServer
+        # Waiting for the VM to run again and respond
+        LogMsg "Waiting for the VM to run again and respond ..."
+        if (-not (Wait-ForVMToStartSSH -Ipv4addr $Ipv4 -StepTimeout 200)) {
+            LogErr  "Test case timed out waiting for VM to be running again!"
+            return "FAIL"
+        }
+    }
     # The fcopy daemon must be running on the Linux guest VM
-    $sts = Check-FcopyDaemon  -vmPassword $VMPassword -VmPort $VMPort -vmUserName root -ipv4 $Ipv4
+    $sts = Check-FcopyDaemon  -VMPassword $VMPassword -VMPort $VMPort -VMUserName $VMUserName -Ipv4 $Ipv4
     if (-not $sts[-1]) {
         LogErr "File copy daemon is not running inside the Linux guest VM!"
         return "FAIL"

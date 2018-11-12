@@ -25,7 +25,7 @@ CheckPTPSupport()
 GetDistro
 case $DISTRO in
     centos* | redhat* | fedora*)
-        GetOSVersion 
+        GetOSVersion
         if [[ $os_RELEASE.$os_UPDATE =~ ^5.* ]] || [[ $os_RELEASE.$os_UPDATE =~ ^6.* ]] ; then
             LogMsg "INFO: Skipped config step"
         else
@@ -36,6 +36,8 @@ case $DISTRO in
         fi
     ;;
     ubuntu* | debian*)
+        #Update required before install
+        apt-get update
         package_manager="apt"
         chrony_config_path="/etc/chrony/chrony.conf"
         chrony_service_name="chrony"
