@@ -11,7 +11,14 @@ jobs:
       vmImage: 'win1803'
     steps:
     - powershell: Install-Module -Name Pester -Scope CurrentUser -Force -SkipPublisherCheck -AllowClobber
-    - powershell: Invoke-Pester -OutputFile "$(System.DefaultWorkingDirectory)\test.xml" -OutputFormat NUnitXml
+    - powershell:
+        $pesterResult = Invoke-Pester -PassThru;
+        if ($pesterResult.FailedCount) {
+            echo "Pester unit tests have failed.";
+            exit 1;
+        } else {
+            echo "Pester unit tests have passed.";
+        }
   - job: 'PowerShellCodeCheck_PSScriptAnalyzer'
     timeoutInMinutes: 10
     cancelTimeoutInMinutes: 12
@@ -29,4 +36,6 @@ jobs:
         if ($errors.Count -gt 0) {
             echo $errors;
             exit 1;
+        } else {
+            echo "PSScriptAnalyzer checks have passed."
         }
