@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
-
 function Main {
     param (
         $VMName,
@@ -22,8 +21,12 @@ function Main {
     $bvtCmd = "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;bash ${remoteScript} > BVT-NET-IFUP-IFDOWN.log`""
     RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort $bvtCmd -RunInBackground -runAsSudo
     Start-Sleep 30
-    $newIP = Get-IPv4AndWaitForSSHStart -VMName $VMName -HvServer $HvServer `
-    -VmPort $VmPort -User $VMUserName -Password $VMPassword -StepTimeout 360
+    if ($TestPlatform -eq "HyperV") {
+        $newIP = Get-IPv4AndWaitForSSHStart -VMName $VMName -HvServer $HvServer `
+            -VmPort $VmPort -User $VMUserName -Password $VMPassword -StepTimeout 360
+    } else {
+        $newIp = $allVmData.PublicIP
+    }
     RemoteCopy -download -downloadFrom $newIP -files "/home/${VMUserName}/state.txt" `
         -downloadTo $LogDir -port $VMPort -username $VMUserName -password $VMPassword
     RemoteCopy -download -downloadFrom $newIP -files "/home/${VMUserName}/BVT-NET-IFUP-IFDOWN.log" `
@@ -37,6 +40,6 @@ function Main {
         LogMsg "Test BVT-NET-IFUP-IFDOWN PASSED !"
     }
 }
-Main -VMName $AllVMData.RoleName -HvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
+Main -VMName $AllVMData.RoleName -HvServer $TestLocation `
     -Ipv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort `
     -VMUserName $user -VMPassword $password -RootDir $WorkingDirectory
