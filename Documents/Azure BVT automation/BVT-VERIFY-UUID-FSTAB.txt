@@ -23,7 +23,7 @@ Edit the XML file used to drive the test
 		<testScript>BVT-VERIFY-UUID-FSTAB.py</testScript>
 		<testScriptPs1>BVT-VERIFY-UUID-FSTAB.ps1</testScriptPs1>
 		<files>remote-scripts\azuremodules.py,remote-scripts\BVT-VERIFY-UUID-FSTAB.py</files>
-		<setupType>BVTDeployment</setupType>
+		<setupType>SingleVM</setupType>
 		<TestType></TestType>
 		<TestFeature></TestFeature>
     </test>

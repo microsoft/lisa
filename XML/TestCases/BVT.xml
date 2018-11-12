@@ -14,7 +14,7 @@
         <testName>BVT-IS-ROOT-PASSWORD-DELETED</testName>
         <testScript>BVT-IS-ROOT-PASSWORD-DELETED.py</testScript>
         <files>.\Testscripts\Linux\BVT-IS-ROOT-PASSWORD-DELETED.py,.\Testscripts\Linux\azuremodules.py</files>
-        <setupType>BVTDeployment</setupType>
+        <setupType>SingleVM</setupType>
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
@@ -25,7 +25,7 @@
         <testName>BVT-ROOT-DEVICE-TIMEOUT-CHECK</testName>
         <testScript>BVT-ROOT-DEVICE-TIMEOUT-CHECK.py</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-ROOT-DEVICE-TIMEOUT-CHECK.py</files>
-        <setupType>BVTDeployment</setupType>
+        <setupType>SingleVM</setupType>
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
@@ -36,7 +36,7 @@
         <testName>BVT-HVMODULES-CHECK</testName>
         <testScript>BVT-HVMODULES-CHECK.py</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-HVMODULES-CHECK.py</files>
-        <setupType>BVTDeployment</setupType>
+        <setupType>SingleVM</setupType>
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
@@ -47,7 +47,7 @@
         <testName>BVT-SWAP-CHECK</testName>
         <testScript>BVT-SWAP-CHECK.py</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-SWAP-CHECK.py</files>
-        <setupType>BVTDeployment</setupType>
+        <setupType>SingleVM</setupType>
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
@@ -58,7 +58,7 @@
         <testName>BVT-MTAB-ENTRY-CHECK</testName>
         <testScript>BVT-MTAB-ENTRY-CHECK.py</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-MTAB-ENTRY-CHECK.py</files>
-        <setupType>BVTDeployment</setupType>
+        <setupType>SingleVM</setupType>
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
@@ -69,7 +69,7 @@
         <testName>BVT-LAST-CONSOLE-CHECK</testName>
         <testScript>BVT-LAST-CONSOLE-CHECK.py</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-LAST-CONSOLE-CHECK.py</files>
-        <setupType>BVTDeployment</setupType>
+        <setupType>SingleVM</setupType>
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
@@ -80,7 +80,7 @@
         <testName>BVT-VERIFY-BOOT-ERROR-WARNINGS</testName>
         <testScript>BVT-VERIFY-BOOT-ERROR-WARNINGS.py</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-BOOT-ERROR-WARNINGS.py,.\XML\Other\ignorable-boot-errors.xml</files>
-        <setupType>BVTDeployment</setupType>
+        <setupType>SingleVM</setupType>
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
@@ -91,7 +91,7 @@
         <testName>BVT-VERIFY-SHUTDOWN</testName>
         <testScript>BVT-VERIFY-SHUTDOWN.ps1</testScript>
         <files></files>
-        <setupType>BVTDeployment</setupType>
+        <setupType>SingleVM</setupType>
         <Platform>Azure</Platform>
         <TestParameters>
             <param>SkipVerifyKernelLogs=true</param>
@@ -105,7 +105,7 @@
         <testName>BVT-VERIFY-RESTART</testName>
         <testScript>BVT-VERIFY-RESTART.ps1</testScript>
         <files></files>
-        <setupType>BVTDeployment</setupType>
+        <setupType>SingleVM</setupType>
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
@@ -116,7 +116,7 @@
         <testName>BVT-VERIFY-UUID-FSTAB</testName>
         <testScript>BVT-VERIFY-UUID-FSTAB.py</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-UUID-FSTAB.py</files>
-        <setupType>BVTDeployment</setupType>
+        <setupType>SingleVM</setupType>
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
@@ -127,7 +127,7 @@
         <testName>BVT-VERIFY-SSHD-CONFIG</testName>
         <testScript>BVT-VERIFY-SSHD-CONFIG.ps1</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-SSHD-CONFIG.py</files>
-        <setupType>BVTDeployment</setupType>
+        <setupType>SingleVM</setupType>
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
@@ -138,7 +138,7 @@
         <testName>BVT-VERIFY-VHD-PREREQUISITES</testName>
         <testScript>BVT-VERIFY-VHD-PREREQUISITES.ps1</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-VHD-PREREQUISITES.py</files>
-        <setupType>BVTDeployment</setupType>
+        <setupType>SingleVM</setupType>
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
@@ -149,7 +149,7 @@
         <testName>BVT-VERIFY-NO-ERROR-IN-LOGS</testName>
         <testScript>BVT-VERIFY-NO-ERROR-IN-LOGS.py</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-NO-ERROR-IN-LOGS.py,.\XML\Other\ignorable-walalog-errors.xml</files>
-        <setupType>BVTDeployment</setupType>
+        <setupType>SingleVM</setupType>
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
@@ -160,7 +160,7 @@
         <testName>BVT-VERIFY-VERBOSE-ENABLED-LOGS</testName>
         <testScript>BVT-VERIFY-VERBOSE-ENABLED-LOGS.py</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-VERBOSE-ENABLED-LOGS.py</files>
-        <setupType>BVTDeployment</setupType>
+        <setupType>SingleVM</setupType>
         <testParameters>
             <param>SECRET_PARAMS=(Password)</param>
         </testParameters>
@@ -174,7 +174,7 @@
         <testName>BVT-VERIFY-BASH-HISTORY</testName>
         <testScript>BVT-VERIFY-BASH-HISTORY.py</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-BASH-HISTORY.py</files>
-        <setupType>BVTDeployment</setupType>
+        <setupType>SingleVM</setupType>
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
@@ -185,7 +185,7 @@
         <testName>BVT-PASSWD-POLICY-TEST</testName>
         <testScript>BVT-PASSWD-POLICY-TEST.py</testScript>
         <files>.\Testscripts\Linux\BVT-PASSWD-POLICY-TEST.py,.\Testscripts\Linux\azuremodules.py</files>
-        <setupType>BVTDeployment</setupType>
+        <setupType>SingleVM</setupType>
         <testParameters>
             <param>SECRET_PARAMS=(Password)</param>
         </testParameters>
@@ -199,7 +199,7 @@
         <testName>BVT-VERIFY-KVP-DAEMON-STATUS</testName>
         <testScript>BVT-VERIFY-KVP-DAEMON-STATUS.ps1</testScript>
         <files></files>
-        <setupType>BVTDeployment</setupType>
+        <setupType>SingleVM</setupType>
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>

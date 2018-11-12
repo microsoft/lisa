@@ -3,7 +3,7 @@
         <testName>WALA-VERIFY-HOSTNAME</testName>
         <testScript>WALA-VERIFY-HOSTNAME.py</testScript>
         <files>.\Testscripts\Linux\nslookup.py,.\Testscripts\Linux\WALA-VERIFY-HOSTNAME.py,.\Testscripts\Linux\azuremodules.py</files>
-        <setupType>BVTDeployment</setupType>
+        <setupType>SingleVM</setupType>
         <TestType></TestType>
         <TestFeature></TestFeature>
         <SupportedExecutionModes>AzureServiceManagement,AzureResourceManager</SupportedExecutionModes>
@@ -20,7 +20,7 @@
         <testName>WALA-PROCESS-CHECK</testName>
         <testScript>WALA-PROCESS-CHECK.py</testScript>
         <files>.\Testscripts\Linux\WALA-PROCESS-CHECK.py,.\Testscripts\Linux\azuremodules.py</files>
-        <setupType>BVTDeployment</setupType>
+        <setupType>SingleVM</setupType>
         <TestType></TestType>
         <TestFeature></TestFeature>
         <SupportedExecutionModes>AzureServiceManagement,AzureResourceManager</SupportedExecutionModes>
@@ -34,7 +34,7 @@
         <testName>WALA-VERSION-CHECK</testName>
         <testScript>WALA-VERSION-CHECK.py</testScript>
         <files>.\Testscripts\Linux\WALA-VERSION-CHECK.py,.\Testscripts\Linux\azuremodules.py</files>
-        <setupType>BVTDeployment</setupType>
+        <setupType>SingleVM</setupType>
         <TestType></TestType>
         <TestFeature></TestFeature>
         <SupportedExecutionModes>AzureServiceManagement,AzureResourceManager</SupportedExecutionModes>
@@ -51,7 +51,7 @@
         <testName>WALA-RESOURCE-DISK-FILESYSTEM-CHECK</testName>
         <testScript>WALA-RESOURCE-DISK-FILESYSTEM-CHECK.py</testScript>
         <files>.\Testscripts\Linux\WALA-RESOURCE-DISK-FILESYSTEM-CHECK.py,.\Testscripts\Linux\azuremodules.py</files>
-        <setupType>BVTDeployment</setupType>
+        <setupType>SingleVM</setupType>
         <TestType></TestType>
         <TestFeature></TestFeature>
         <SupportedExecutionModes>AzureServiceManagement,AzureResourceManager</SupportedExecutionModes>
@@ -65,7 +65,7 @@
         <testName>WALA-VERIFY-MNT-RESOURCE-WRITABLE</testName>
         <testScript>WALA-VERIFY-MNT-RESOURCE-WRITABLE.py</testScript>
         <files>.\Testscripts\Linux\WALA-VERIFY-MNT-RESOURCE-WRITABLE.py,.\Testscripts\Linux\azuremodules.py</files>
-        <setupType>BVTDeployment</setupType>
+        <setupType>SingleVM</setupType>
         <TestType></TestType>
         <TestFeature></TestFeature>
         <SupportedExecutionModes>AzureServiceManagement,AzureResourceManager</SupportedExecutionModes>
@@ -79,7 +79,7 @@
         <testName>WALA-VERIFY-MNT-RESOURCE-README</testName>
         <testScript>WALA-VERIFY-MNT-RESOURCE-README.py</testScript>
         <files>.\Testscripts\Linux\WALA-VERIFY-MNT-RESOURCE-README.py,.\Testscripts\Linux\azuremodules.py</files>
-        <setupType>BVTDeployment</setupType>
+        <setupType>SingleVM</setupType>
         <TestType></TestType>
         <TestFeature></TestFeature>
         <SupportedExecutionModes>AzureServiceManagement,AzureResourceManager</SupportedExecutionModes>
@@ -93,7 +93,7 @@
         <testName>WALA-VERIFY-FIREWALL-STATUS</testName>
         <testScript>WALA-VERIFY-FIREWALL-STATUS.py</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\WALA-VERIFY-FIREWALL-STATUS.py</files>
-        <setupType>BVTDeployment</setupType>
+        <setupType>SingleVM</setupType>
         <TestType></TestType>
         <TestFeature></TestFeature>
         <SupportedExecutionModes>AzureServiceManagement,AzureResourceManager</SupportedExecutionModes>
