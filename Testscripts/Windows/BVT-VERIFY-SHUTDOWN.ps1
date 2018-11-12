@@ -8,23 +8,22 @@ function Main {
 
     try {
         LogMsg "Trying to shut down $($AllVMData.RoleName)..."
-        if ($UseAzureResourceManager) {
-            $null = Stop-AzureRmVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName -Force -StayProvisioned -Verbose
-            if ($?) {
-                $isStopped = $true
-            } else {
-                $isStopped = $false
-            }
-        } else {
-            $null = StopAllDeployments -DeployedServices $isDeployed
-            $isStopped = $?
-        }
-        if ($isStopped) {
+        $null = Stop-AzureRmVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName -Force -StayProvisioned -Verbose
+        if ($?) {
             LogMsg "Virtual machine shut down successful."
             $testResult = "PASS"
-        } else {
-            LogErr "Virtual machine shut down failed."
-            $testResult = "FAIL"
+
+            # Start the VM again for collect distro logs
+            LogMsg "Trying to start $($AllVMData.RoleName) to collect logs..."
+            $null = Start-AzureRmVM -ResourceGroup $AllVMData.ResourceGroupName -name $AllVMData.RoleName
+            # Refresh the data in case public IP address changes
+            $global:AllVMData = GetAllDeployementData -ResourceGroups $AllVMData.ResourceGroupName
+
+            $isSSHOpened = isAllSSHPortsEnabledRG -AllVMDataObject $AllVMData
+            if (!$isSSHOpened) {
+                $global:isDeployed = $null
+                LogMsg "Failed to connect to $($AllVMData.RoleName), set global variable isDeployed to null $global:isDeployed"
+            }
         }
     } catch {
         $ErrorMessage =  $_.Exception.Message
