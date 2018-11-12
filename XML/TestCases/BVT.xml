@@ -405,6 +405,9 @@
         <testScript>BVT-NET-IFUP-IFDOWN.ps1</testScript>
         <files>.\TestScripts\Linux\BVT-NET-IFUP-IFDOWN.sh,.\TestScripts\Linux\utils.sh</files>
         <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>TC_COVERED=NET-34</param>
+        </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>NETWORK</Area>
