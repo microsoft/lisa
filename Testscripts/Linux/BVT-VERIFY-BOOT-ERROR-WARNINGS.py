@@ -2,17 +2,16 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 from azuremodules import *
-import os
 
 white_list_xml = "ignorable-boot-errors.xml"
+
 
 def RunTest():
     UpdateState("TestRunning")
     RunLog.info("Checking for ERROR and WARNING messages in  kernel boot line.")
-    errors = Run("dmesg | grep -i error")
-    warnings = Run("dmesg | grep -i warning")
-    failures = Run("dmesg | grep -i fail")
-
+    errors = Run("grep -nw '/var/log/syslog' -e 'error' --ignore-case && grep -nw '/var/log/messages' -e 'error' --ignore-case")
+    warnings = Run("grep -nw '/var/log/syslog' -e 'warning' --ignore-case && grep -nw '/var/log/messages' -e 'warning' --ignore-case")
+    failures = Run("grep -nw '/var/log/syslog' -e 'fail' --ignore-case && grep -nw '/var/log/messages' -e 'fail' --ignore-case")
     if (not errors and not warnings and not failures):
         RunLog.error('ERROR/WARNING/FAILURE are not present in kernel boot line.')
         ResultLog.info('PASS')
@@ -29,7 +28,7 @@ def RunTest():
             RunLog.info('Checking ignorable boot ERROR/WARNING/FAILURE messages...')
             for node in xml_root:
                 if (failures and node.tag == "failures"):
-                    failures = RemoveIgnorableMessages(failures, node)                            
+                    failures = RemoveIgnorableMessages(failures, node)
                 if (errors and node.tag == "errors"):
                     errors = RemoveIgnorableMessages(errors, node)
                 if (warnings and node.tag == "warnings"):
