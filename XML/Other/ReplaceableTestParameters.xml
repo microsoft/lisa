@@ -127,4 +127,12 @@ Scenario 2 : You need to run all the performance tests quickly.
         <ReplaceThis>VSS_BACKUP_MINI_ISO</ReplaceThis>
         <ReplaceWith>http://ports.ubuntu.com/dists/trusty/main/installer-powerpc/current/images/powerpc/netboot/mini.iso</ReplaceWith>
     </Parameter>
+    <Parameter>
+        <ReplaceThis>STRESSNG</ReplaceThis>
+        <ReplaceWith>https://github.com/ColinIanKing/stress-ng</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>STRESS-NG_TAG</ReplaceThis>
+        <ReplaceWith>V0.07.16</ReplaceWith>
+    </Parameter>
 </ReplaceableTestParameters>
