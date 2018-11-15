@@ -80,7 +80,7 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
 		}
 	}
 
-	LogMsg "Loading the cycle Data..."
+	LogMsg "Loading the test cycle data ..."
 
 	$currentCycleData = GetCurrentCycleData -xmlConfig $xmlConfig -cycleName $cycleName
 
@@ -279,7 +279,6 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
 							LogMsg "$($job.Name) is running."
 						}
 					}
-					Set-Variable -Name LogDir -Value $RootLogDir -Scope Global
 				} else {
 					LogMsg "Skipping $($currentTestData.Priority) test : $($currentTestData.testName)"
 				}

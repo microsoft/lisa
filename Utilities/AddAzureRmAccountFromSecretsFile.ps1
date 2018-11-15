@@ -47,7 +47,7 @@ if ($env:Azure_Secrets_File) {
     LogMsg "Using predefined secrets file: $($secretsFile | Split-Path -Leaf) in Jenkins Global Environments."
 }
 if ( $secretsFile -eq $null ) {
-    LogMsg "ERROR: Azure Secrets file not found in Jenkins / user not provided -customSecretsFilePath" -ForegroundColor Red -BackgroundColor Black
+    LogMsg "ERROR: Azure Secrets file is not being set." -ForegroundColor Red -BackgroundColor Black
     ThrowException ("XML Secrets file not provided")
 }
 
@@ -76,8 +76,6 @@ if ( Test-Path $secretsFile ) {
     }
 }
 else {
-    LogMsg "$($secretsFile | Split-Path -Leaf) file is not added in Jenkins Global Environments OR it is not bound to 'Azure_Secrets_File' variable." `
-        -ForegroundColor Red -BackgroundColor Black
-    LogMsg "Aborting." -ForegroundColor Red -BackgroundColor Black
+    LogErr "Secret file $secretsFile does not exist"
     ThrowException ("XML Secrets file not provided")
 }

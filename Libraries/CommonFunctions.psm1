@@ -43,30 +43,6 @@ Function ThrowException($Exception)
 	}
 }
 
-function LogVerbose ()
-{
-	param
-	(
-		[string]$text
-	)
-	try
-	{
-		if ($password)
-		{
-			$text = $text.Replace($password,"******")
-		}
-		$now = [Datetime]::Now.ToUniversalTime().ToString("MM/dd/yyyy HH:mm:ss")
-		if ( $VerboseCommand )
-		{
-			Write-Verbose "$now : $text" -Verbose
-		}
-	}
-	catch
-	{
-		ThrowException($_)
-	}
-}
-
 function Write-Log()
 {
 	param
@@ -151,7 +127,6 @@ Function LogWarn($text)
 Function ValidateXmlFiles( [string]$ParentFolder )
 {
 	LogMsg "Validating XML Files from $ParentFolder folder recursively..."
-	LogVerbose "Get-ChildItem `"$ParentFolder\*.xml`" -Recurse..."
 	$allXmls = Get-ChildItem "$ParentFolder\*.xml" -Recurse
 	$xmlErrorFiles = @()
 	foreach ($file in $allXmls)
@@ -159,7 +134,6 @@ Function ValidateXmlFiles( [string]$ParentFolder )
 		try
 		{
 			$null = [xml](Get-Content $file.FullName)
-			LogVerbose -text "$($file.FullName) validation successful."
 		}
 		catch
 		{

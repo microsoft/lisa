@@ -251,27 +251,7 @@ Function UpdateGlobalConfigurationXML($XmlSecretsFilePath)
 	}
 	#$GlobalConfiguration.Save("$WorkingDirectory\XML\GlobalConfigurations.xml")
 	$GlobalXML.Save($GlobalConfigurationXMLFilePath )
-	LogMsg "Updated GlobalConfigurations.xml"
-
-	if ($TestPlatform -eq "Azure")
-	{
-		if ($env:Azure_Secrets_File)
-		{
-			LogMsg "Detected Azure_Secrets_File in Jenkins environment."
-			$XMLSecretFile = $env:Azure_Secrets_File
-		}
-		if ( $XMLSecretFile )
-		{
-			.\Utilities\AddAzureRmAccountFromSecretsFile.ps1 -customSecretsFilePath $XMLSecretFile
-			Set-Variable -Value ([xml](Get-Content $XMLSecretFile)) -Name XmlSecrets -Scope Global
-			LogMsg "XmlSecrets set as global variable."
-		}
-		else
-		{
-			LogMsg "XML secret file not provided."
-			LogMsg "Powershell session must be authenticated to manage the azure subscription."
-		}
-	}
+	LogMsg "Updated GlobalConfigurations.xml file."
 }
 
 Function UpdateXMLStringsFromSecretsFile($XmlSecretsFilePath)
@@ -294,12 +274,12 @@ Function UpdateXMLStringsFromSecretsFile($XmlSecretsFilePath)
 			}
 		}
 	}
+	LogMsg "Updated Test Case xml files."
 }
 
 Function CollectTestCases($TestXMLs)
 {
-	#region Collect Tests Data
-	$allTests = @()
+    $AllLisaTests = @()
     if ( $TestPlatform -and !$TestCategory -and !$TestArea -and !$TestNames -and !$TestTag)
     {
         foreach ( $file in $TestXMLs.FullName)
@@ -312,7 +292,7 @@ Function CollectTestCases($TestXMLs)
                     if ($test.Platform.Split(",").Contains($TestPlatform) )
                     {
                         LogMsg "Collected $($test.TestName)"
-                        $allTests += $test
+                        $AllLisaTests += $test
                     }
                 }
             }
@@ -331,7 +311,7 @@ Function CollectTestCases($TestXMLs)
                     if ( ($test.Platform.Split(",").Contains($TestPlatform) ) -and $($TestCategory -eq $test.Category) )
                     {
                         LogMsg "Collected $($test.TestName)"
-                        $allTests += $test
+                        $AllLisaTests += $test
                     }
                 }
             }
@@ -351,7 +331,7 @@ Function CollectTestCases($TestXMLs)
                         -and $($TestArea.Split(",").Contains($test.Area)))
                     {
                         LogMsg "Collected $($test.TestName)"
-                        $allTests += $test
+                        $AllLisaTests += $test
                     }
                 }
             }
@@ -370,7 +350,7 @@ Function CollectTestCases($TestXMLs)
                     if ( ($test.Platform.Split(",").Contains($TestPlatform) ) -and $($TestCategory -eq $test.Category) -and $($TestArea -eq $test.Area) -and ($TestNames.Split(",").Contains($test.TestName) ) )
                     {
                         LogMsg "Collected $($test.TestName)"
-                        $allTests += $test
+                        $AllLisaTests += $test
                     }
                 }
             }
@@ -388,7 +368,7 @@ Function CollectTestCases($TestXMLs)
                     if ( ($test.Platform.Split(",").Contains($TestPlatform) ) -and ($TestNames.Split(",").Contains($test.TestName) ) )
                     {
                         LogMsg "Collected $($test.TestName)"
-                        $allTests += $test
+                        $AllLisaTests += $test
                     }
                 }
             }
@@ -407,7 +387,7 @@ Function CollectTestCases($TestXMLs)
                     if ( ($test.Platform.Split(",").Contains($TestPlatform) ) -and ( $test.Tags.Split(",").Contains($TestTag) ) )
                     {
                         LogMsg "Collected $($test.TestName)"
-                        $allTests += $test
+                        $AllLisaTests += $test
                     }
                 }
             }
@@ -421,10 +401,10 @@ Function CollectTestCases($TestXMLs)
         LogError "TestNames : $TestNames"
         LogError "TestTag : $TestTag"
         Throw "Invalid Test Selection"
-	}
-	return $allTests
-    #endregion
+    }
+    return $AllLisaTests
 }
+
 function GetTestSummary($testCycle, [DateTime] $StartTime, [string] $xmlFilename, [string] $distro, $testSuiteResultDetails)
 {
     <#

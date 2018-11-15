@@ -134,16 +134,6 @@ if ($UseManagedDisks) {
 	Set-Variable -Name UseManagedDisks -Value $false -Scope Global
 }
 
-if ( $XMLSecretFile ) {
-	$xmlSecrets = ([xml](Get-Content $XMLSecretFile))
-	Set-Variable -Value $xmlSecrets -Name xmlSecrets -Scope Global -Force
-	LogMsg "XmlSecrets set as global variable."
-} elseif ($env:Azure_Secrets_File) {
-	$xmlSecrets = ([xml](Get-Content $env:Azure_Secrets_File))
-	Set-Variable -Value $xmlSecrets -Name xmlSecrets -Scope Global -Force
-	LogMsg "XmlSecrets set as global variable."
-}
-
 try {
 	$TestResultsDir = "TestResults"
 	if (! (test-path $TestResultsDir)) {
@@ -186,8 +176,6 @@ try {
 	}
 
 	$AzureSetup = $xmlConfig.config.$TestPlatform.General
-	LogMsg  ("Info : AzureAutomationManager.ps1 - LIS on Azure Automation")
-	LogMsg  ("Info : Created test results directory:$LogDir" )
 	LogMsg  ("Info : Using config file $xmlConfigFile")
 	if ( ( $xmlConfig.config.$TestPlatform.General.ARMStorageAccount -imatch "ExistingStorage" ) -or ($xmlConfig.config.$TestPlatform.General.StorageAccount -imatch "ExistingStorage" )) {
 		$regionName = $xmlConfig.config.$TestPlatform.General.Location.Replace(" ","").Replace('"',"").ToLower()
