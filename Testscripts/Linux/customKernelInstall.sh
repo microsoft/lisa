@@ -72,6 +72,7 @@ InstallKernel()
                 kernelSource="https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git"
                 sourceDir="linux-next"
         elif [ "${CustomKernel}" == "proposed" ]; then
+                export DEBIAN_FRONTEND=noninteractive
                 release=$(lsb_release -c -s)
                 LogMsg "Enabling proposed repository for $release distro"
                 echo "deb http://archive.ubuntu.com/ubuntu/ ${release}-proposed restricted main multiverse universe" >> /etc/apt/sources.list
@@ -92,6 +93,7 @@ InstallKernel()
                     UpdateTestState $ICA_TESTCOMPLETED
                 fi
         elif [ "${CustomKernel}" == "proposed-azure" ]; then
+                export DEBIAN_FRONTEND=noninteractive
                 release=$(lsb_release -c -s)
                 LogMsg "Enabling proposed repository for $release distro"
                 echo "deb http://archive.ubuntu.com/ubuntu/ ${release}-proposed restricted main multiverse universe" >> /etc/apt/sources.list
@@ -99,7 +101,7 @@ InstallKernel()
                 LogMsg "Installing linux-azure kernel from $release proposed repository."
                 apt clean all
                 apt -y update >> $logFolder/build-CustomKernel.txt 2>&1
-                apt install -y -qq linux-azure/$release >> $logFolder/build-CustomKernel.txt 2>&1
+                apt install -yq linux-azure/$release >> $logFolder/build-CustomKernel.txt 2>&1
                 kernelInstallStatus=$?
                 if [ $kernelInstallStatus -ne 0 ]; then
                     LogMsg "CUSTOM_KERNEL_FAIL"
@@ -109,6 +111,7 @@ InstallKernel()
                     UpdateTestState $ICA_TESTCOMPLETED
                 fi
         elif [ "${CustomKernel}" == "proposed-edge" ]; then
+                export DEBIAN_FRONTEND=noninteractive
                 release=$(lsb_release -c -s)
                 LogMsg "Enabling proposed repository for $release distro"
                 echo "deb http://archive.ubuntu.com/ubuntu/ ${release}-proposed restricted main multiverse universe" >> /etc/apt/sources.list
@@ -116,7 +119,7 @@ InstallKernel()
                 LogMsg "Installing linux-azure-edge kernel from $release proposed repository."
                 apt clean all
                 apt -y update >> $logFolder/build-CustomKernel.txt 2>&1
-                apt install -y -qq linux-azure-edge/$release >> $logFolder/build-CustomKernel.txt 2>&1
+                apt install -yq linux-azure-edge/$release >> $logFolder/build-CustomKernel.txt 2>&1
                 kernelInstallStatus=$?
                 if [ $kernelInstallStatus -ne 0 ]; then
                     LogMsg "CUSTOM_KERNEL_FAIL"
@@ -148,6 +151,7 @@ InstallKernel()
                 DISTRO=`grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux" /etc/{issue,*release,*version}`
                 if [[ $DISTRO =~ "Ubuntu" ]];
                 then
+                        export DEBIAN_FRONTEND=noninteractive
                         LogMsg "Installing linux-image-generic from repository."
                         apt -y update >> $logFolder/build-CustomKernel.txt 2>&1
                         apt -y --fix-missing upgrade >> $logFolder/build-CustomKernel.txt 2>&1
