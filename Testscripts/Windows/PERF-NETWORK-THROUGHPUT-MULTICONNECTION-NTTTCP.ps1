@@ -89,7 +89,7 @@ collect_VM_properties
         #region MONITOR TEST
         while ((Get-Job -Id $testJob).State -eq "Running") {
             $currentStatus = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "tail -2 ntttcpConsoleLogs.txt | head -1"
-            LogMsg "Current Test Staus : $currentStatus"
+            LogMsg "Current Test Status : $currentStatus"
             WaitFor -seconds 20
         }
         $finalStatus = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "cat /root/state.txt"

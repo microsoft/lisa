@@ -31,7 +31,7 @@ function Main {
         # region MONITOR TEST
         while ((Get-Job -Id $testJob).State -eq "Running") {
             $currentStatus = RunLinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "tail -1 XFSTestingConsole.log"
-            LogMsg "Current Test Staus : $currentStatus"
+            LogMsg "Current Test Status : $currentStatus"
             WaitFor -seconds 20
         }
         RemoteCopy -download -downloadFrom $allVMData.PublicIP -files "XFSTestingConsole.log" -downloadTo $LogDir -port $allVMData.SSHPort -username "root" -password $password

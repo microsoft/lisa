@@ -84,7 +84,7 @@ chmod 666 /root/perf_fio.csv
         #region MONITOR TEST
         while ((Get-Job -Id $testJob).State -eq "Running") {
             $currentStatus = RunLinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -command "tail -1 runlog.txt"-runAsSudo
-            LogMsg "Current Test Staus : $currentStatus"
+            LogMsg "Current Test Status : $currentStatus"
             WaitFor -seconds 20
         }
 
