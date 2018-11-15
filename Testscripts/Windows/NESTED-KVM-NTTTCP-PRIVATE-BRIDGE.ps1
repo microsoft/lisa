@@ -25,7 +25,7 @@ function Start-TestExecution ($ip, $port) {
 
     while ((Get-Job -Id $testJob).State -eq "Running" ) {
         $currentStatus = RunLinuxCmd -username $user -password $password -ip $ip -port $port -command "cat /home/$user/state.txt"
-        LogMsg "Current Test Staus : $currentStatus"
+        LogMsg "Current Test Status : $currentStatus"
         WaitFor -seconds 20
     }
 }

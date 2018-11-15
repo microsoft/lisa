@@ -142,7 +142,7 @@ function Main {
                 while ( (Get-Job -Id $TestJob).State -eq "Running" ) {
                     $CurrentStatus = RunLinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
                         -password $password -command "tail -n 1 /root/TestExecution.log"
-                    LogMsg "Current Test Staus : $CurrentStatus"
+                    LogMsg "Current Test Status : $CurrentStatus"
                     WaitFor -seconds 10
                 }
 

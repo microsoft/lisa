@@ -38,7 +38,7 @@ function Main {
         $testJob = RunLinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $user -password $password -command "bash /home/$user/nobarrier.sh > nobarrierConsole.txt" -RunInBackground -runAsSudo
         while ( (Get-Job -Id $testJob).State -eq "Running" ) {
             $currentStatus = RunLinuxCmd -username $user -password $password -ip $allVMData.PublicIP -port $allVMData.SSHPort -command "tail -1 /home/$user/nobarrierConsole.txt" -runAsSudo
-            LogMsg "Current Test Staus : $currentStatus"
+            LogMsg "Current Test Status : $currentStatus"
             WaitFor -seconds 20
         }
         $finalStatus = RunLinuxCmd -username $user -password $password -ip $allVMData.PublicIP -port $allVMData.SSHPort -command "cat /home/$user/state.txt" -runAsSudo
