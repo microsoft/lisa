@@ -211,8 +211,16 @@ function Main {
     foreach ($p in $params)
     {
         $fields = $p.Split("=")
-
-        switch ($fields[0].Trim())
+        # Lisav2 framework supports the param with unique name.
+        # Modifying the input SCSI_ and IDE_ multiple params and rebuilding testParams
+        $var = $fields[0].Trim()
+        if ($var -match "SCSI_") {
+            $var = "SCSI"
+        }
+        elseif ($var -match "IDE_") {
+            $var = "IDE"
+        }
+        switch ($var)
         {
         "rootDIR"   { $rootDir = $fields[1].Trim() }
         "diskCount"   { $diskCount = $fields[1].Trim() }
@@ -273,6 +281,15 @@ function Main {
         # Matches[1] represents the parameter name
         # Matches[2] is the value content of the parameter
         $controllerType = $Matches[1].Trim()
+        $value = $Matches[2].Trim()
+        if ($controllerType -match "SCSI_") {
+            $controllerType = "SCSI"
+        }
+        elseif ($controllerType -match "IDE_") {
+            $controllerType = "IDE"
+        }
+
+
         if (@("IDE", "SCSI") -notcontains $controllerType)
         {
             # Not a test parameter we are concerned with
@@ -285,7 +302,7 @@ function Main {
             $SCSI = $true
         }
 
-        $diskArgs = $Matches[2].Trim().Split(',')
+        $diskArgs = $value.Split(',')
 
         if ($diskArgs.Length -lt 3 -or $diskArgs.Length -gt 5)
         {

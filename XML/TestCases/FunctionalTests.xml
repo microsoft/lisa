@@ -2417,6 +2417,25 @@
         <Tags>backup</Tags>
     </test>
     <test>
+        <testName>STOR-VSS-BACKUPRESTORE-MULTIFS-VHDX</testName>
+        <setupScript>.\Testscripts\Windows\SETUP-Backup-DISK.ps1</setupScript>
+        <setupScript>.\Testscripts\Windows\AddVhdxHardDisk.ps1</setupScript>
+        <testScript>STOR-VSS-BACKUP-RESTORE-PARTITION.ps1</testScript>
+        <cleanupScript>.\TestScripts\Windows\CLEANUP-Backup-DISK.ps1</cleanupScript>
+        <files>.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\PartitionMultipleDisks.sh</files>
+        <setupType>SingleVM</setupType>
+        <TestParameters>
+            <param>SCSI_1=3,1,Dynamic</param>
+            <param>SCSI_2=2,1,Dynamic</param>
+            <param>SCSI_3=1,1,Dynamic</param>
+            <param>fileSystems=(ext4 xfs btrfs)</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>BACKUP</Area>
+        <Tags>backup</Tags>
+    </test>
+    <test>
         <testName>STOR-VSS-3CHAIN-VHD-BACKUP</testName>
         <setupScript>.\Testscripts\Windows\SETUP-Backup-DISK.ps1</setupScript>
         <testScript>STOR-VSS-3Chain-VHD-backup.ps1</testScript>
