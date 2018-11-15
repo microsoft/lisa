@@ -2,7 +2,7 @@
 # Licensed under the Apache License.
 
 function Main {
-    # Create test result 
+    # Create test result
     $currentTestResult = CreateTestResultObject
     $resultArr = @()
 
@@ -337,7 +337,7 @@ collect_VM_properties
     }
 
     $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
-    return $currentTestResult.TestResult  
+    return $currentTestResult.TestResult
 }
 
 Main

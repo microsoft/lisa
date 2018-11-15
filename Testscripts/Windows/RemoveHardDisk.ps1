@@ -22,7 +22,7 @@ function Main {
         $HvServer,
         $TestParams
     )
-    
+
     if ($null -eq $TestParams -or $TestParams.Length -lt 13) {
         # The minimum length testParams string is "IDE=1,1,Fixed"
         LogErr "No testParams provided"
@@ -31,7 +31,7 @@ function Main {
 
     $params = $TestParams.Split(';')
     foreach ($p in $params) {
-        if ($p.Trim().Length -eq 0) { 
+        if ($p.Trim().Length -eq 0) {
             continue
         }
 
@@ -49,7 +49,7 @@ function Main {
             $controllerType = $fields[0].Trim().ToUpper()
         }
     }
-    
+
     $vhdName = $VMName + "-" + $controllerType
     $vhdDisks = Get-VMHardDiskDrive -VMName $VMName -ComputerName $hvServer
     foreach ($vhd in $vhdDisks) {

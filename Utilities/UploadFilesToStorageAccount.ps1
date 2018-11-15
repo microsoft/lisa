@@ -59,7 +59,7 @@ try
         {
             $blobName = "$destinationFolder/$($fileName | Split-Path -Leaf)"
         }
-        else 
+        else
         {
             $blobName = "$($fileName | Split-Path -Leaf)"
         }

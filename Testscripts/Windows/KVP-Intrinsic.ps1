@@ -21,9 +21,9 @@ function Main {
         $RootDir,
         $TestParams
     )
-    
+
     $intrinsic = $True
-    
+
     if (-not $RootDir) {
         LogErr "Warn : no RootDir was specified"
     } else {
@@ -37,14 +37,14 @@ function Main {
     $params = $TestParams.Split(";")
     foreach ($p in $params) {
         $fields = $p.Split("=")
-        switch ($fields[0].Trim()) {      
+        switch ($fields[0].Trim()) {
             "nonintrinsic" { $intrinsic = $False }
             "TC_COVERED"   { $tcCovered = $fields[1].Trim() }
-            default  {}       
+            default  {}
         }
     }
     LogMsg "Covers: ${tcCovered}"
-    
+
     # Verify the Data Exchange Service is enabled for this VM
     $des = Get-VMIntegrationService -VMName $VMName -ComputerName $HvServer
     if (-not $des) {
@@ -79,7 +79,7 @@ function Main {
         LogErr "Error: Unable to retrieve KVP Exchange object for VM '${VMName}'"
         return "FAIL"
     }
-    
+
     if ($Intrinsic) {
         LogMsg "Intrinsic Data"
         $kvpData = $kvp.GuestIntrinsicExchangeItems
@@ -88,7 +88,7 @@ function Main {
         $kvpData = $kvp.GuestExchangeItems
     }
     $dict = Convert-KvpToDict $kvpData
-    
+
     # Write out the kvp data so it appears in the log file
     foreach ($key in $dict.Keys) {
         $value = $dict[$key]
@@ -122,7 +122,7 @@ function Main {
     } else {
         $result = "FAIL"
     }
-    
+
     return $result
 }
 

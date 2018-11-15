@@ -19,7 +19,7 @@ function Main {
         $RootDir,
         $TestParams
     )
-    
+
     $key = $null
     $value = $null
 
@@ -37,13 +37,13 @@ function Main {
     $params = $TestParams.Split(";")
     foreach ($p in $params) {
         $fields = $p.Split("=")
-        
+
         if ($fields[0].Trim() -eq "Key") {
             $key = $fields[1].Trim()
         }
         if ($fields[0].Trim() -eq "Value") {
             $value = $fields[1].Trim()
-        }       
+        }
     }
 
     if (-not $key) {
@@ -91,7 +91,7 @@ function Main {
         $job.get()
     }
     if ($job.ErrorCode -ne 0) {
-        LogErr "Error: Unable to add KVP value to guest"  
+        LogErr "Error: Unable to add KVP value to guest"
         LogErr "       error code $($job.ErrorCode)"
         return "FAIL"
     }
@@ -100,7 +100,7 @@ function Main {
         return "FAIL"
     }
 
-    LogMsg "Info : KVP item added successfully on guest" 
+    LogMsg "Info : KVP item added successfully on guest"
     return "PASS"
 }
 

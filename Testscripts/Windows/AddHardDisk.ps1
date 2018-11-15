@@ -18,8 +18,8 @@ $MinDiskSize = "1GB"
 
 function New-SCSIController {
     param (
-        [string] $VMName, 
-        [string] $Server, 
+        [string] $VMName,
+        [string] $Server,
         [string] $ControllerID
     )
 
@@ -33,7 +33,7 @@ function New-SCSIController {
     #       the last SCSI controller if there is one or more SCSI controllers on the VM.
     #       To determine if the controller needs to be created, count the number of
     #       SCSI controllers.
-    
+
     $maxControllerID = 0
     $CreateSCSIController = $true
     $controllers = Get-VMScsiController -VMName $VMName -ComputerName $Server
@@ -65,10 +65,10 @@ function New-SCSIController {
 
 function New-PassThruDrive {
     param (
-        [string] $vmName, 
-        [string] $server, 
+        [string] $vmName,
+        [string] $server,
         [switch] $scsi,
-        [string] $controllerID, 
+        [string] $controllerID,
         [string] $Lun,
         [int] $vmGen
     )
@@ -157,13 +157,13 @@ function New-PassThruDrive {
 
 function New-HardDrive
 {
-    param ( 
-        [string] $vmName, 
-        [string] $server, 
-        [System.Boolean] $SCSI, 
+    param (
+        [string] $vmName,
+        [string] $server,
+        [System.Boolean] $SCSI,
         [int] $ControllerID,
-        [int] $Lun, 
-        [string] $vhdType, 
+        [int] $Lun,
+        [string] $vhdType,
         [String] $newSize,
         [int] $vmGen
     )
@@ -227,7 +227,7 @@ function New-HardDrive
     $newVHDSize = Convert-StringToUInt64 $newSize
     $vhdName = ("{0}{1}-{2}-{3}-{4}-{5}.vhd" `
         -f @($defaultVhdPath, $vmName, $controllerType, $controllerID, $Lun, $vhdType))
-    
+
     if(Test-Path $vhdName) {
         Dismount-VHD -Path $vhdName -ErrorAction Ignore
         Remove-Item $vhdName
@@ -259,7 +259,7 @@ function New-HardDrive
                 }).Number
                 LogMsg "Physical drive found: $newVhd"
                 Start-Sleep 5
-            }   
+            }
             "Diff" {
                 $parentVhdName = $defaultVhdPath + "icaDiffParent.vhd"
                 $parentInfo = Get-RemoteFileInfo -filename $parentVhdName -server $hvServer
@@ -275,7 +275,7 @@ function New-HardDrive
             }
         }
         if ($null -eq $newVhd) {
-            #On WS2012R2, New-VHD cmdlet throws error even after successfully creation of VHD 
+            #On WS2012R2, New-VHD cmdlet throws error even after successfully creation of VHD
             #so re-checking if the VHD available on the server or not
             $newVhdInfo = Get-RemoteFileInfo -filename $vhdName -server $hvServer
             if ($null -eq $newVhdInfo) {
@@ -316,7 +316,7 @@ function New-HardDrive
         LogErr "Add-VMHardDiskDrive failed to add $($vhdName) to $controllerType $controllerID $Lun $vhdType"
         return $False
     }
-        
+
     LogMsg "Success"
     return $retVal
 }
@@ -334,12 +334,12 @@ function Main {
         LogErr "AddHardDisk.ps1 requires test params"
         return $False
     }
-    
+
     $vmGen = Get-VMGeneration $VMName $HvServer
     if ($vmGen -ne 1) {
         throw "VHD is not supported by Gen 2 VMs"
     }
-    
+
     # Parse the testParams string
     $params = $testParams.Split(';')
     foreach ($p in $params) {
@@ -370,7 +370,7 @@ function Main {
         $controllerID = $diskArgs[0].Trim()
         $lun = $diskArgs[1].Trim()
         $vhdType = $diskArgs[2].Trim()
-        
+
         $VHDSize = $MinDiskSize
         if ($diskArgs.Length -eq 4) {
             $VHDSize = $diskArgs[3].Trim()

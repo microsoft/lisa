@@ -43,7 +43,7 @@ function Main {
         $HvServer,
         $TestParams
     )
-    
+
     # Parse the testParams string
     $params = $testParams.Split(';')
     foreach ($p in $params) {
@@ -78,7 +78,7 @@ function Main {
             $controllerType = $lValue
             $SCSI = $false
             $IDE = $false
-            
+
             if ($controllerType -eq "SCSI") {
                 $SCSI = $true
             }
@@ -171,7 +171,7 @@ function Main {
     if (-not $defaultVhdPath.EndsWith("\")) {
         $defaultVhdPath += "\"
     }
-    
+
     $vhdName = ("{0}{1}-{2}-{3}-{4}-Diff.{5}" `
         -f @($defaultVhdPath, $vmName, $controllerType, $controllerID, $lun, $vhdFormat))
 

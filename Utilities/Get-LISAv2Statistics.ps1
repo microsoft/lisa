@@ -1,4 +1,4 @@
-﻿# Linux on Hyper-V and Azure Test Code, ver. 1.0.0
+# Linux on Hyper-V and Azure Test Code, ver. 1.0.0
 # Copyright (c) Microsoft Corporation
 
 # Description: This script displays the LISav2 test case statistics and list of available tags.

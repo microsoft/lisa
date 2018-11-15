@@ -12,11 +12,11 @@
 	<Parameters>
 
 .INPUTS
-	
+
 
 .NOTES
-    Creation Date:  
-    Purpose/Change: 
+    Creation Date:
+    Purpose/Change:
 
 .EXAMPLE
 
@@ -84,7 +84,7 @@ if ( (($env:CustomKernelFile -ne $null) -or ($env:customKernelURL -ne $null)) -a
     LogMsg "Please also select 'custom' value for Kernel parameter to confirm this."
     LogMsg "---------------------------------------------------------------------"
     $ExitCode += 1
-    exit $ExitCode   
+    exit $ExitCode
 }
 if ($env:Kernel -eq "custom")
 {
@@ -94,7 +94,7 @@ if ($env:Kernel -eq "custom")
         LogMsg "Error: You selected 'custom' Kernel but didn't provide kernel file or Kernel URL."
         LogMsg "---------------------------------------------------------------------"
         $ExitCode += 1
-        exit $ExitCode          
+        exit $ExitCode
     }
     if ($env:CustomKernelFile)
     {
@@ -112,7 +112,7 @@ if ($env:Kernel -eq "custom")
             LogMsg "Renaming CustomKernelFile --> $TestKernel"
             Rename-Item -Path CustomKernelFile -NewName $TestKernel
         }
-    } 
+    }
     if ($env:customKernelURL)
     {
         if (!($env:customKernelURL.EndsWith(".deb")) -and !($env:customKernelURL.EndsWith(".rpm")))
@@ -123,7 +123,7 @@ if ($env:Kernel -eq "custom")
             $ExitCode += 1
             exit $ExitCode
         }
-    }       
+    }
 }
 if ($TestKernel)
 {

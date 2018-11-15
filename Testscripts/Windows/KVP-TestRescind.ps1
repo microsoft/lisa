@@ -136,7 +136,7 @@ function Main {
     if (-not $sts) {
          return "FAIL"
     }
-    
+
     return "PASS"
 }
 

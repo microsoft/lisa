@@ -1,8 +1,8 @@
-﻿# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 
 function Main {
-    # Create test result 
+    # Create test result
     $currentTestResult = CreateTestResultObject
     $resultArr = @()
 
@@ -33,7 +33,7 @@ function Main {
                 LogMsg "Privatekey Authentication Verification loop : $i : FAILED"
             }
         }
-        
+
         if ($successCount -eq $i) {
             $testResult = "PASS"
         } else {
@@ -48,7 +48,7 @@ function Main {
             $testResult = "Aborted"
         }
         $resultArr += $testResult
-    }   
+    }
 
     $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult

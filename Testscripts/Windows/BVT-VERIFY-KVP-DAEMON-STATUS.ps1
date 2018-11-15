@@ -1,19 +1,19 @@
-﻿# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 
 function Main {
-    # Create test result 
+    # Create test result
     $currentTestResult = CreateTestResultObject
     $resultArr = @()
-    
-    try {  
+
+    try {
         ProvisionVMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
 
         # REGION FOR CHECK KVP DAEMON STATUS
         LogMsg "Executing : $($currentTestData.testScriptPs1)"
         Set-Content -Value "**************$($currentTestData.testName)******************" -Path "$logDir\$($currentTestData.testName)_Log.txt"
         LogMsg "Verifcation of KVP Daemon status is started.."
-        $kvpStatus = RunLinuxCmd -username "root" -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "pgrep -lf 'hypervkvpd|hv_kvp_daemon'" 
+        $kvpStatus = RunLinuxCmd -username "root" -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "pgrep -lf 'hypervkvpd|hv_kvp_daemon'"
         Add-Content -Value "KVP Daemon Status : $kvpStatus " -Path "$logDir\$($currentTestData.testName)_Log.txt"
         if ($kvpStatus -imatch "kvp") {
             LogMsg "KVP daemon is present in remote VM and KVP DAEMON STATUS : $kvpStatus"
@@ -23,7 +23,7 @@ function Main {
             $testResult = "FAIL"
         }
         LogMsg "***********************KVP DAEMON STATUS ***********************"
-        LogMsg " KVP DAEMON STATUS: $kvpStatus" 
+        LogMsg " KVP DAEMON STATUS: $kvpStatus"
         LogMsg "******************************************************"
         LogMsg "Test result : $testResult"
     } catch {
@@ -34,8 +34,8 @@ function Main {
         if (!$testResult) {
             $testResult = "Aborted"
         }
-        $resultArr += $testResult  
-    }   
+        $resultArr += $testResult
+    }
 
     $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult

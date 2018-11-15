@@ -14,9 +14,9 @@ function Main {
         $VMPassword,
         $RootDir
     )
-	
+
     $rootUser = "root"
-    
+
     $params = $testParams.Split(";")
     foreach ($p in $params) {
         $fields = $p.Split("=")

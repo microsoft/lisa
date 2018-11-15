@@ -234,9 +234,9 @@ function Main {
     {
         LogMsg "The differencing disk grew in size from ${vhdInitialSize} to ${vhdFinalSize}"
     }
-    
+
     LogMsg "Test finished with result: PASS"
-    
+
     return "PASS"
 }
 

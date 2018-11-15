@@ -35,7 +35,7 @@ function Main {
     $params = $TestParams.Split(";")
     foreach ($p in $params) {
         $fields = $p.Split("=")
-        
+
         switch ($fields[0].Trim()) {
             "key"        { $key       = $fields[1].Trim() }
             "value"      { $value     = $fields[1].Trim() }
@@ -83,12 +83,12 @@ function Main {
     $job = [wmi]$result.Job
     while($job.jobstate -lt 7) {
         $job.get()
-    } 
+    }
     if ($job.ErrorCode -ne 0) {
         LogErr "Error: Deleting the key value pair"
         LogErr "Error: Job error code = $($Job.ErrorCode)"
 
-        if ($job.ErrorCode -eq 32773) {  
+        if ($job.ErrorCode -eq 32773) {
             LogErr "Error: Key does not exist.  Key = '${key}'"
             return "FAIL"
         } else {

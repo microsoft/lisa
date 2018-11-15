@@ -36,13 +36,13 @@ function Main {
     $params = $TestParams.Split(";")
     foreach ($p in $params) {
         $fields = $p.Split("=")
-        
+
         switch ($fields[0].Trim()) {
             "key"        { $key       = $fields[1].Trim() }
             "value"      { $value     = $fields[1].Trim() }
             default   {}  # unknown param - just ignore it
         }
-    } 
+    }
 
     LogMsg "Info : Checking for required test parameters"
 
@@ -77,7 +77,7 @@ function Main {
         LogErr "Error: Unable to create Msvm_KvpExchangeDataItem object"
         return "FAIL"
     }
-    
+
     LogMsg "Info : Detecting Host version of Windows Server"
     $osInfo = GWMI Win32_OperatingSystem -ComputerName $HvServer
     if (-not $osInfo) {

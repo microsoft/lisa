@@ -10,10 +10,10 @@ param([String] $TestParams)
 
 function AddNICs {
     param (
-        [string] $VMName, 
-        [string] $HvServer, 
-        [string] $type, 
-        [string] $network_type, 
+        [string] $VMName,
+        [string] $HvServer,
+        [string] $type,
+        [string] $network_type,
         [int] $nicsAmount
     )
     if ($type -eq "legacy") {

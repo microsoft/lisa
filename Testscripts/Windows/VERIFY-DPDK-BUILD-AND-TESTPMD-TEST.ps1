@@ -2,7 +2,7 @@
 # Licensed under the Apache License.
 
 function Main {
-    # Create test result 
+    # Create test result
     $superUser = "root"
     $resultArr = @()
 
@@ -37,7 +37,7 @@ function Main {
         LogMsg "  SSH Port : $($serverVMData.SSHPort)"
         LogMsg "  Internal IP : $($serverVMData.InternalIP)"
 
-        # PROVISION VMS FOR LISA WILL ENABLE ROOT USER AND WILL MAKE ENABLE PASSWORDLESS AUTHENTICATION ACROSS ALL VMS IN SAME HOSTED SERVICE.  
+        # PROVISION VMS FOR LISA WILL ENABLE ROOT USER AND WILL MAKE ENABLE PASSWORDLESS AUTHENTICATION ACROSS ALL VMS IN SAME HOSTED SERVICE.
         ProvisionVMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
         #endregion
 
@@ -100,7 +100,7 @@ collect_VM_properties
         }
         $finalStatus = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -command "cat /root/state.txt"
         RemoteCopy -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -download -downloadTo $LogDir -files "*.csv, *.txt, *.log"
-        
+
         if ($finalStatus -imatch "TestFailed") {
             LogErr "Test failed. Last known status : $currentStatus."
             $testResult = "FAIL"
@@ -119,7 +119,7 @@ collect_VM_properties
             LogMsg "Contests of summary.log : $testSummary"
             $testResult = "PASS"
         }
-        
+
         try {
             $testpmdDataCsv = Import-Csv -Path $LogDir\dpdkTestPmd.csv
             LogMsg "Uploading the test results.."
@@ -129,7 +129,7 @@ collect_VM_properties
             $database = $xmlConfig.config.Azure.database.dbname
             $dataTableName = $xmlConfig.config.Azure.database.dbtable
             $TestCaseName = $xmlConfig.config.Azure.database.testTag
-            
+
             if ($dataSource -And $DBuser -And $DBpassword -And $database -And $dataTableName) {
                 $GuestDistro = Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object {$_ -replace ",OS type,",""}
                 if ($UseAzureResourceManager) {
@@ -137,7 +137,7 @@ collect_VM_properties
                 } else {
                     $HostType = "Azure"
                 }
-                
+
                 $HostBy = ($xmlConfig.config.Azure.General.Location).Replace('"','')
                 $HostOS = Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version"| ForEach-Object {$_ -replace ",Host Version,",""}
                 $GuestOSType = "Linux"
@@ -161,7 +161,7 @@ collect_VM_properties
 
                 $command = $connection.CreateCommand()
                 $command.CommandText = $SQLQuery
-                
+
                 $command.executenonquery() | Out-Null
                 $connection.Close()
                 LogMsg "Uploading the test results done!!"
@@ -190,7 +190,7 @@ collect_VM_properties
         $resultArr += $testResult
     }
     $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
-    return $currentTestResult.TestResult  
+    return $currentTestResult.TestResult
 }
 
 Main

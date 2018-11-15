@@ -30,7 +30,7 @@ jobs:
     - powershell: Install-Module -Name PSScriptAnalyzer -Scope CurrentUser -Force -SkipPublisherCheck -AllowClobber
     - powershell:
         $rules = @(
-                 "PSUseDeclaredVarsMoreThanAssignments"
+                 "PSUseDeclaredVarsMoreThanAssignments", "PSAvoidTrailingWhitespace"
                 );
         $errors = Invoke-ScriptAnalyzer -Path . -Recurse -IncludeRule $rules;
         if ($errors.Count -gt 0) {

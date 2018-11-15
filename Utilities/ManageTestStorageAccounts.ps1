@@ -7,7 +7,7 @@
 <#
 .SYNOPSIS
     This script copies VHD file to another storage account.
-    This script will do Create / Delete operation for storage accounts 
+    This script will do Create / Delete operation for storage accounts
     mentioned in .\XML\RegionAndStorageAccounts.xml
 
 .PARAMETER
@@ -32,7 +32,7 @@ param
 
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
 
-try 
+try
 {
     if ( ( $Create -or $Delete ) -and !($Create -and $Delete))
     {
@@ -48,9 +48,9 @@ try
             {
                 LogMsg "Proceeding for cleanup..."
             }
-            else 
+            else
             {
-                LogMsg "You entered wrong number. Exiting."  
+                LogMsg "You entered wrong number. Exiting."
                 exit 0
             }
         }
@@ -73,7 +73,7 @@ try
                             LogMsg "$ResourceGroupName created successfully."
                         }
                     }
-                    else 
+                    else
                     {
                         LogMsg "$ResourceGroupName exists."
                     }
@@ -109,7 +109,7 @@ try
                     if ($RegionStorageMapping.AllRegions.$Region.StandardStorage)
                     {
                         LogMsg "Removing Standard_LRS storage account : $($RegionStorageMapping.AllRegions.$Region.StandardStorage)"
-                        Remove-AzureRmStorageAccount -ResourceGroupName $ResourceGroupName -Name $RegionStorageMapping.AllRegions.$Region.StandardStorage -Force  -Verbose           
+                        Remove-AzureRmStorageAccount -ResourceGroupName $ResourceGroupName -Name $RegionStorageMapping.AllRegions.$Region.StandardStorage -Force  -Verbose
                     }
                     if ($RegionStorageMapping.AllRegions.$Region.PremiumStorage)
                     {

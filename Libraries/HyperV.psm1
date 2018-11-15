@@ -154,7 +154,7 @@ Function CreateAllHyperVGroupDeployments($setupType, $xmlConfig, $Distro, $Debug
                 {
                     if ($ExistingRG)
                     {
-                        #TBD 
+                        #TBD
                         #Use existing HypeV group for test.
                     }
                     else
@@ -197,7 +197,7 @@ Function CreateAllHyperVGroupDeployments($setupType, $xmlConfig, $Distro, $Debug
                                         $HyperVGroupCount = $HyperVGroupCount + 1
                                         $DeployedHyperVGroup += $HyperVGroupName
                                     }
-                                    else 
+                                    else
                                     {
                                         LogErr "Unable to start one or more VM's"
                                         $retryDeployment = $retryDeployment + 1
@@ -465,7 +465,7 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML, 
                         }
                     }
                 }
-                else 
+                else
                 {
                     LogErr "Failed to create VM."
                     LogErr "Removing OS Disk : $CurrentVMOsVHDPath"
@@ -478,7 +478,7 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML, 
             }
         }
     }
-    else 
+    else
     {
         LogErr "There are $($CurrentHyperVGroup.Count) HyperV groups. We need 1 HyperV group."
         $ErrorCount += 1
@@ -487,7 +487,7 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML, 
     {
         $ReturnValue = $true
     }
-    else 
+    else
     {
         $ReturnValue = $false
     }
@@ -604,7 +604,7 @@ Function GetAllHyperVDeployementData($HyperVGroupNames,$RetryCount = 100)
     {
         $objNode = New-Object -TypeName PSObject
         Add-Member -InputObject $objNode -MemberType NoteProperty -Name HyperVHost -Value $HyperVHost -Force
-        Add-Member -InputObject $objNode -MemberType NoteProperty -Name HyperVGroupName -Value $null -Force 
+        Add-Member -InputObject $objNode -MemberType NoteProperty -Name HyperVGroupName -Value $null -Force
         Add-Member -InputObject $objNode -MemberType NoteProperty -Name PublicIP -Value $null -Force
         Add-Member -InputObject $objNode -MemberType NoteProperty -Name InternalIP -Value $null -Force
         Add-Member -InputObject $objNode -MemberType NoteProperty -Name RoleName -Value $null -Force
@@ -685,7 +685,7 @@ Function RestartAllHyperVDeployments($allVMData)
 Function InjectHostnamesInHyperVVMs($allVMData)
 {
     $ErrorCount = 0
-    try 
+    try
     {
         foreach ( $VM in $allVMData )
         {
@@ -700,19 +700,19 @@ Function InjectHostnamesInHyperVVMs($allVMData)
                 Invoke-Command -ComputerName $VM.PublicIP -ScriptBlock {$computerInfo=Get-ComputerInfo;if($computerInfo.CsDNSHostName -ne $args[0]){Rename-computer -computername $computerInfo.CsDNSHostName -newname $args[0] -force}} -ArgumentList $VM.RoleName -Credential $cred
             }
         }
-        $RestartStatus = RestartAllHyperVDeployments -allVMData $allVMData 
+        $RestartStatus = RestartAllHyperVDeployments -allVMData $allVMData
     }
-    catch 
+    catch
     {
         $ErrorCount += 1
     }
-    finally 
+    finally
     {
         if ( ($ErrorCount -eq 0) -and ($RestartStatus -eq "True"))
         {
             LogMsg "Hostnames are injected successfully."
         }
-        else 
+        else
         {
             LogErr "Failed to inject $ErrorCount hostnames in HyperV VMs. Continuing the tests..."
         }
