@@ -864,7 +864,7 @@ Function Set-VMDynamicMemory
         return $False
     }
 
-} 
+}
 
 Function Get-VMDemandMemory {
     param (
