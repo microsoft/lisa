@@ -356,6 +356,7 @@ function InstallCustomKernel ($CustomKernel, $allVMData, [switch]$RestartAfterUp
 				#endregion
 			}
 			$packageInstallJobsRunning = $true
+			$kernelMatchSuccess = "CUSTOM_KERNEL_SUCCESS"
 			while ($packageInstallJobsRunning)
 			{
 				$packageInstallJobsRunning = $false
@@ -366,13 +367,16 @@ function InstallCustomKernel ($CustomKernel, $allVMData, [switch]$RestartAfterUp
 						$currentStatus = RunLinuxCmd -ip $job.PublicIP -port $job.SSHPort -username $user -password $password -command "tail -n 1 build-CustomKernel.txt"
 						LogMsg "Package Installation Status for $($job.RoleName) : $currentStatus"
 						$packageInstallJobsRunning = $true
+						if ($currentStatus -imatch $kernelMatchSuccess) {
+							Stop-Job -Id $job.ID -Confirm:$false -ErrorAction SilentlyContinue
+						}
 					}
 					else
 					{
 						if ( !(Test-Path -Path "$LogDir\$($job.RoleName)-build-CustomKernel.txt" ) )
 						{
 							RemoteCopy -download -downloadFrom $job.PublicIP -port $job.SSHPort -files "build-CustomKernel.txt" -username $user -password $password -downloadTo $LogDir
-							if ( ( Get-Content "$LogDir\build-CustomKernel.txt" ) -imatch "CUSTOM_KERNEL_SUCCESS" )
+							if ( ( Get-Content "$LogDir\build-CustomKernel.txt" ) -imatch $kernelMatchSuccess )
 							{
 								$kernelSuccess += 1
 							}
@@ -382,7 +386,7 @@ function InstallCustomKernel ($CustomKernel, $allVMData, [switch]$RestartAfterUp
 				}
 				if ( $packageInstallJobsRunning )
 				{
-					WaitFor -seconds 10
+					WaitFor -seconds 5
 				}
 			}
 			if ( $kernelSuccess -eq $jobCount )
