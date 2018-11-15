@@ -67,7 +67,7 @@ $htmlNodeRed =
   </tr>
 '
 
-$htmlEnd = 
+$htmlEnd =
 '
 </table>
 '
@@ -85,9 +85,9 @@ $allRegions = (Get-AzureRmLocation | Where-Object { $_.Providers -imatch "Micros
 foreach( $region in $allRegions )
 {
     LogMsg "Running:  Get-AzureRmVMSize -Location $($region)"
-    $allSizes[ $region ] = Get-AzureRmVMSize -Location $region     
+    $allSizes[ $region ] = Get-AzureRmVMSize -Location $region
 }
-try 
+try
 {
 	LogMsg "Running: Get-AzureRmVM -Status"
 	$allVMStatus = Get-AzureRmVM -Status
@@ -138,7 +138,7 @@ foreach( $vm in $allVMStatus )
     $idle = $($(Get-Date)-$lastWriteTime.DateTime)
     $ageDays = $age.Days
     $idleDays = $idle.Days
- 
+
     LogMsg " Age = $ageDays  Idle = $idleDays"
   }
   else
@@ -191,12 +191,12 @@ foreach ($currentVMNode in $VMAges)
         if ( $currentVMNode.Deallocated -eq $true)
         {
 			#Don't consider deallocated VMs in this count.
-            #$currentVMHTMLNode = $htmlNodeGreen 
+            #$currentVMHTMLNode = $htmlNodeGreen
         }
         else
         {
             $i += 1
-            $currentVMHTMLNode = $htmlNodeRed 
+            $currentVMHTMLNode = $htmlNodeRed
             $currentVMHTMLNode = $currentVMHTMLNode.Replace("SR_ID","$i")
             $currentVMHTMLNode = $currentVMHTMLNode.Replace("VM_WEIGHT","$($currentVMNode.Weight)")
             #$currentVMHTMLNode = $currentVMHTMLNode.Replace("INSTANCE_NAME","$($currentVMNode.Name)")
@@ -209,11 +209,11 @@ foreach ($currentVMNode in $VMAges)
             $currentVMHTMLNode = $currentVMHTMLNode.Replace("VM_SIZE","$($currentVMNode.vmSize)")
             $currentVMHTMLNode = $currentVMHTMLNode.Replace("VM_AGE","$($currentVMNode.Age)")
             $currentVMHTMLNode = $currentVMHTMLNode.Replace("VM_CORE","$($currentVMNode.coreCount)")
-            $finalHTMLString += $currentVMHTMLNode 
+            $finalHTMLString += $currentVMHTMLNode
             if ( $i -ge $maxCount)
             {
               break
-            }           
+            }
         }
     }
 }

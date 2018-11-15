@@ -2,7 +2,7 @@
 # Licensed under the Apache License.
 
 function Main {
-    # Create test result 
+    # Create test result
     $superUser = "root"
     $resultArr = @()
 
@@ -14,7 +14,7 @@ function Main {
         LogMsg "  SSH Port : $($allVMData.SSHPort)"
         LogMsg "  Internal IP : $($allVMData.InternalIP)"
 
-        # PROVISION VMS FOR LISA WILL ENABLE ROOT USER AND 
+        # PROVISION VMS FOR LISA WILL ENABLE ROOT USER AND
         #   WILL MAKE ENABLE PASSWORDLESS AUTHENTICATION ACROSS ALL VMS IN SAME HOSTED SERVICE.
         ProvisionVMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
         #endregion
@@ -22,7 +22,7 @@ function Main {
         LogMsg "Getting Active NIC Name."
         $getNicCmd = ". ./utils.sh &> /dev/null && get_active_nic_name"
         $vmNicName = (RunLinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superUser -password $password -command $getNicCmd).Trim()
-        
+
         if($EnableAcceleratedNetworking -or ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV")) {
             $DataPath = "SRIOV"
         } else {
@@ -65,7 +65,7 @@ collect_VM_properties
         }
         $finalStatus = RunLinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superUser -password $password -command "cat /root/state.txt"
         RemoteCopy -downloadFrom $allVMData.PublicIP -port $allVMData.SSHPort -username $superUser -password $password -download -downloadTo $LogDir -files "*.csv, *.txt, *.log"
-        
+
         if ($finalStatus -imatch "TestFailed") {
             LogErr "Test failed. Last known status : $currentStatus."
             $testResult = "FAIL"
@@ -76,14 +76,14 @@ collect_VM_properties
         }
         elseif ($finalStatus -imatch "TestCompleted") {
             LogMsg "Test Completed."
-            LogMsg "DPDK build is Success"            
+            LogMsg "DPDK build is Success"
             $testResult = "PASS"
         }
         else {
             LogErr "Test execution is not successful, Check test logs in VM."
             $testResult = "ABORTED"
         }
-        LogMsg "Test result : $testResult"        
+        LogMsg "Test result : $testResult"
     } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
@@ -96,7 +96,7 @@ collect_VM_properties
         $resultArr += $testResult
     }
     $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
-    return $currentTestResult.TestResult  
+    return $currentTestResult.TestResult
 }
 
 Main

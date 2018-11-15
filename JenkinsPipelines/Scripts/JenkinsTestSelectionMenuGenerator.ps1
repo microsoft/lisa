@@ -12,11 +12,11 @@
 	<Parameters>
 
 .INPUTS
-	
+
 
 .NOTES
-    Creation Date:  
-    Purpose/Change: 
+    Creation Date:
+    Purpose/Change:
 
 .EXAMPLE
 
@@ -70,16 +70,16 @@ foreach ( $platform in $Platforms )
 {
     $CurrentCategories = ($xmlData.test | Where-Object { $_.Platform.Contains($platform) }).Category | Sort-Object | Get-Unique
     foreach ( $category in $CurrentCategories)
-    {        
+    {
        if ( $TestToRegionMapping.enabledRegions.Category.$category )
         {
             $CurrentRegions = ($TestToRegionMapping.enabledRegions.Category.$category).Split(",")
         }
-        else 
+        else
         {
             $CurrentRegions =$TestToRegionMapping.enabledRegions.global.Split(",")
         }
-        $CurrentAreas = ($xmlData.test | Where-Object { $_.Platform.Contains($platform) } | Where-Object { $_.Category -eq "$category" }).Area | Sort-Object | Get-Unique       
+        $CurrentAreas = ($xmlData.test | Where-Object { $_.Platform.Contains($platform) } | Where-Object { $_.Category -eq "$category" }).Area | Sort-Object | Get-Unique
         foreach ($area in $CurrentAreas)
         {
             foreach ( $region in $CurrentRegions)
@@ -127,12 +127,12 @@ foreach ( $platform in $Platforms )
 {
     foreach ( $testname in $TestNames)
     {
-        
+
         if ( $TestToRegionMapping.enabledRegions.TestName.$testname )
         {
             $Regions = ($TestToRegionMapping.enabledRegions.TestName.$testname).Split(",")
         }
-        else 
+        else
         {
             $Regions =$TestToRegionMapping.enabledRegions.global.Split(",")
         }
@@ -156,8 +156,8 @@ foreach ( $platform in $Platforms )
 {
     $CurrentCategories = ($xmlData.test | Where-Object { $_.Platform.Contains($platform) }).Category | Sort-Object | Get-Unique
     foreach ( $category in $CurrentCategories)
-    {        
-        $CurrentAreas = ($xmlData.test | Where-Object { $_.Platform.Contains($platform) } | Where-Object { $_.Category -eq "$category" }).Area | Sort-Object | Get-Unique       
+    {
+        $CurrentAreas = ($xmlData.test | Where-Object { $_.Platform.Contains($platform) } | Where-Object { $_.Category -eq "$category" }).Area | Sort-Object | Get-Unique
         foreach ($area in $CurrentAreas)
         {
             $TestNames = ($xmlData.test | Where-Object { $_.Platform.Contains($platform) } | Where-Object { $_.Category -eq "$category" } | Where-Object { $_.Area -eq "$area" } ).TestName | Sort-Object | Get-Unique
@@ -167,10 +167,10 @@ foreach ( $platform in $Platforms )
                 {
                     $CurrentRegions = ($TestToRegionMapping.enabledRegions.TestName.$testname).Split(",")
                 }
-                else 
+                else
                 {
                     $CurrentRegions =$TestToRegionMapping.enabledRegions.global.Split(",")
-                }                
+                }
                 foreach ( $region in $CurrentRegions)
                 {
                     $TestByTestnameDetailed += "$platform`t$category`t$area`t$testname`t$platform>>$category>>$area>>$testname>>$region`n"

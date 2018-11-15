@@ -77,4 +77,4 @@ function Main {
 # $XmlConfig
 # $AllVMData
 
-Main -Distro $Distro -XmlConfig $xmlConfig 
+Main -Distro $Distro -XmlConfig $xmlConfig

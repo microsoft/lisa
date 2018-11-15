@@ -12,19 +12,19 @@
     <Parameters>
 
 .INPUTS
-	
+
 
 .NOTES
-    Creation Date:  
-    Purpose/Change: 
+    Creation Date:
+    Purpose/Change:
 
 .EXAMPLE
 
 
 #>
 ###############################################################################################
-Param 
-(    
+Param
+(
     $OutputFilePath = "J:\Jenkins_Shared_Do_Not_Delete\userContent\common\VMImages-ARM.txt",
     $Publishers = "Canonical,SUSE,Oracle,CoreOS,RedHat,OpenLogic,credativ,kali-linux,clear-linux-project"
 )
@@ -40,7 +40,7 @@ try
     foreach ( $newPub in $allRMPubs )
     {
         $offers = Get-AzureRmVMImageOffer -PublisherName $newPub -Location $Location
-        if ($offers) 
+        if ($offers)
         {
             LogMsg "Found $($offers.Count) offers for $($newPub)..."
             foreach ( $offer in $offers )
@@ -86,7 +86,7 @@ try
     $ExitCode = 0
     #endregion
 }
-catch 
+catch
 {
     $ExitCode = 1
     ThrowException ($_)

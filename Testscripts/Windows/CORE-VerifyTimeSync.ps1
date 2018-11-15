@@ -127,7 +127,7 @@ function Main {
 
     $diffInSeconds = Get-TimeSync -Ipv4 $Ipv4 -Port $VMPort `
                         -Username $VMUserName -Password $VMPassword
-    
+
     if ($diffInSeconds -and ($diffInSeconds -lt $maxTimeDiff)) {
         LogMsg "Time is properly synced"
         return "PASS"

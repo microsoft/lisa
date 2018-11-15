@@ -1,8 +1,8 @@
-﻿# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 
 function Main {
-    # Create test result 
+    # Create test result
     $currentTestResult = CreateTestResultObject
     $resultArr = @()
 
@@ -28,7 +28,7 @@ function Main {
         elseif ($detectedDistro -imatch "REDHAT") {
             $matchstrings = @("_TEST_SUDOERS_VERIFICATION_SUCCESS","_TEST_NETWORK_MANAGER_NOT_INSTALLED","_TEST_NETWORK_FILE_SUCCESS", "_TEST_IFCFG_ETH0_FILE_SUCCESS", "_TEST_UDEV_RULES_SUCCESS", "_TEST_GRUB_VERIFICATION_SUCCESS","_TEST_RHUIREPOSITORIES_AVAILABLE")
         }
-        elseif ($detectedDistro -imatch "FEDORA") {   
+        elseif ($detectedDistro -imatch "FEDORA") {
             $matchstrings = @("_TEST_SUDOERS_VERIFICATION_SUCCESS","_TEST_NETWORK_MANAGER_NOT_INSTALLED","_TEST_NETWORK_FILE_SUCCESS", "_TEST_IFCFG_ETH0_FILE_SUCCESS", "_TEST_UDEV_RULES_SUCCESS", "_TEST_GRUB_VERIFICATION_SUCCESS")
         }
         elseif ($detectedDistro -imatch "SLES") {
@@ -39,7 +39,7 @@ function Main {
         if ($detectedDistro -imatch "COREOS") {
             $matchstrings = @("_TEST_UDEV_RULES_SUCCESS")
         }
-      
+
         RemoteCopy -uploadTo $AllVMData.PublicIP -port $AllVMData.SSHPort -files $currentTestData.files -username $user -password $password -upload
         RunLinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "chmod +x *.py" -runAsSudo
 
@@ -55,7 +55,7 @@ function Main {
                 LogErr "Expected String : $detectedDistro$testString not present. Please check logs."
                 $errorCount += 1
             }
-        }  
+        }
         if($errorCount -eq 0) {
             $testResult = "PASS"
         } else {
@@ -75,7 +75,7 @@ function Main {
     }
 
     $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
-    return $currentTestResult.TestResult  
+    return $currentTestResult.TestResult
 }
 
 Main

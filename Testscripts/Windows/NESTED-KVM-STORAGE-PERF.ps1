@@ -246,7 +246,7 @@ function Main()
 	$resultArr += $testResult
 	LogMsg "Test result : $testResult"
 	$currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
-	return $currentTestResult.TestResult 
+	return $currentTestResult.TestResult
 }
 
 

@@ -19,7 +19,7 @@ function Main {
         $HvServer,
         $TestParams
     )
-    
+
     $controllerNumber=$null
 
     # Check arguments
@@ -46,7 +46,7 @@ function Main {
         $controllerNumber=0
     }
 
-    $dvdcount = $(Get-VMDvdDrive -VMName $vmName -ComputerName $hvServer).ControllerLocation.count 
+    $dvdcount = $(Get-VMDvdDrive -VMName $vmName -ComputerName $hvServer).ControllerLocation.count
     for ($i=0; $i -le $dvdcount; $i++) {
         $dvd = Get-VMDvdDrive -VMName $vmName -ComputerName $hvServer `
             -ControllerNumber $controllerNumber -ControllerLocation $i

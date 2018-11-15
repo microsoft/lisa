@@ -15,8 +15,8 @@
 
 
 .NOTES
-    Creation Date:  
-    Purpose/Change: 
+    Creation Date:
+    Purpose/Change:
 
 .EXAMPLE
 
@@ -152,7 +152,7 @@ function Run-TestScript {
     Supports python, shell and powershell scripts.
     Python and shell scripts will be executed remotely.
     Powershell scripts will be executed host side.
-    After the test completion, the method will collect logs 
+    After the test completion, the method will collect logs
     (for shell and python) and return the relevant test result.
     #>
 
@@ -408,10 +408,10 @@ function Run-Test {
 
     .DESCRIPTION
     The Run-Test function implements the existing LISAv2 methods into a common
-    framework used to run tests. 
+    framework used to run tests.
     The function is comprised of the next steps:
 
-    - Test resource deployment step: 
+    - Test resource deployment step:
         Deploys VMs and other necessary resources (network interfaces, virtual networks).
         Enables root user for all VMs in deployment.
         For Hyper-V it creates one snapshot for each VM in deployment.
@@ -566,7 +566,7 @@ function Run-Test {
              -Timeout $timeout
         $resultArr += $testResult
     }
-    
+
     if ($testPlatform -eq "Hyperv" -and $CurrentTestData.CleanupScript) {
         foreach ($VM in $AllVMData) {
             if (Get-VM -Name $VM.RoleName -ComputerName `
@@ -596,6 +596,6 @@ function Run-Test {
         DoTestCleanUp -CurrentTestResult $CurrentTestResult -TestName $currentTestData.testName `
              -ResourceGroups $isDeployed @optionalParams
     }
-  
+
     return $currentTestResult
 }

@@ -15,8 +15,8 @@
 
 
 .NOTES
-    Creation Date:  
-    Purpose/Change: 
+    Creation Date:
+    Purpose/Change:
 
 .EXAMPLE
 
@@ -34,13 +34,13 @@ function Validate-AzureParameters {
         if (($ARMImageName.Trim().Split(" ").Count -ne 4) -and ($ARMImageName -ne "")) {
             $parameterErrors += ("Invalid value for the provided ARMImageName parameter: <'${ARMImageName}'>." + `
                                  "The ARM image should be in the format: '<Publisher> <Offer> <Sku> <Version>'.")
-        }   
+        }
     }
-    
+
     if (!$ARMImageName) {
         if ($OsVHD -and [System.IO.Path]::GetExtension($OsVHD) -ne ".vhd") {
             $parameterErrors += "-OsVHD $OsVHD does not have .vhd extension required by Platform Azure."
-        }    
+        }
     }
 
     if (!$TestLocation) {
@@ -125,7 +125,7 @@ Function Add-ReplaceableTestParameters($XmlConfigFilePath)
 		LogMsg "Custom parameter(s) are ready to be injected along with default parameters, if any."
 	}
 
-	$XmlConfigContents = (Get-Content -Path $XmlConfigFilePath) 
+	$XmlConfigContents = (Get-Content -Path $XmlConfigFilePath)
 	foreach ($ReplaceableParameter in $ReplacableTestParameters.ReplaceableTestParameters.Parameter)
 	{
 		if ($XmlConfigContents -match $ReplaceableParameter.ReplaceThis)
@@ -247,7 +247,7 @@ Function UpdateGlobalConfigurationXML($XmlSecretsFilePath)
 		{
 			$GlobalXML.Global.$TestPlatform.ResultsDatabase.testTag = ($ResultDBTestTag).Trim()
 			LogMsg "ResultDBTestTag: $ResultDBTestTag added to .\XML\GlobalConfigurations.xml"
-		}                      
+		}
 	}
 	#$GlobalConfiguration.Save("$WorkingDirectory\XML\GlobalConfigurations.xml")
 	$GlobalXML.Save($GlobalConfigurationXMLFilePath )
@@ -266,9 +266,9 @@ Function UpdateGlobalConfigurationXML($XmlSecretsFilePath)
 			Set-Variable -Value ([xml](Get-Content $XMLSecretFile)) -Name XmlSecrets -Scope Global
 			LogMsg "XmlSecrets set as global variable."
 		}
-		else 
+		else
 		{
-			LogMsg "XML secret file not provided." 
+			LogMsg "XML secret file not provided."
 			LogMsg "Powershell session must be authenticated to manage the azure subscription."
 		}
 	}
@@ -309,20 +309,20 @@ Function CollectTestCases($TestXMLs)
             {
                 foreach ( $test in $currentTests.test )
                 {
-                    if ($test.Platform.Split(",").Contains($TestPlatform) ) 
+                    if ($test.Platform.Split(",").Contains($TestPlatform) )
                     {
                         LogMsg "Collected $($test.TestName)"
                         $allTests += $test
                     }
                 }
             }
-        }         
+        }
     }
     elseif ( $TestPlatform -and $TestCategory -and (!$TestArea -or $TestArea -eq "default") -and !$TestNames -and !$TestTag)
     {
         foreach ( $file in $TestXMLs.FullName)
         {
-            
+
             $currentTests = ([xml]( Get-Content -Path $file)).TestCases
             if ( $TestPlatform )
             {
@@ -335,13 +335,13 @@ Function CollectTestCases($TestXMLs)
                     }
                 }
             }
-        }         
+        }
     }
     elseif ( $TestPlatform -and $TestCategory -and ($TestArea -and $TestArea -ne "default") -and !$TestNames -and !$TestTag)
     {
         foreach ( $file in $TestXMLs.FullName)
         {
-            
+
             $currentTests = ([xml]( Get-Content -Path $file)).TestCases
             if ( $TestPlatform )
             {
@@ -355,13 +355,13 @@ Function CollectTestCases($TestXMLs)
                     }
                 }
             }
-        }         
+        }
     }
     elseif ( $TestPlatform -and $TestCategory  -and $TestNames -and !$TestTag)
     {
         foreach ( $file in $TestXMLs.FullName)
         {
-            
+
             $currentTests = ([xml]( Get-Content -Path $file)).TestCases
             if ( $TestPlatform )
             {
@@ -374,12 +374,12 @@ Function CollectTestCases($TestXMLs)
                     }
                 }
             }
-        }         
+        }
     }
     elseif ( $TestPlatform -and !$TestCategory -and !$TestArea -and $TestNames -and !$TestTag)
     {
         foreach ( $file in $TestXMLs.FullName)
-        {   
+        {
             $currentTests = ([xml]( Get-Content -Path $file)).TestCases
             if ( $TestPlatform )
             {
@@ -392,13 +392,13 @@ Function CollectTestCases($TestXMLs)
                     }
                 }
             }
-        }         
-    }    
+        }
+    }
     elseif ( $TestPlatform -and !$TestCategory -and !$TestArea -and !$TestNames -and $TestTag)
     {
         foreach ( $file in $TestXMLs.FullName)
         {
-            
+
             $currentTests = ([xml]( Get-Content -Path $file)).TestCases
             if ( $TestPlatform )
             {
@@ -411,9 +411,9 @@ Function CollectTestCases($TestXMLs)
                     }
                 }
             }
-        }         
+        }
     }
-    else 
+    else
     {
         LogError "TestPlatform : $TestPlatform"
         LogError "TestCategory : $TestCategory"
@@ -423,19 +423,19 @@ Function CollectTestCases($TestXMLs)
         Throw "Invalid Test Selection"
 	}
 	return $allTests
-    #endregion 	
+    #endregion
 }
 function GetTestSummary($testCycle, [DateTime] $StartTime, [string] $xmlFilename, [string] $distro, $testSuiteResultDetails)
 {
     <#
 	.Synopsis
     	Append the summary text from each VM into a single string.
-        
+
     .Description
         Append the summary text from each VM one long string. The
-        string includes line breaks so it can be display on a 
+        string includes line breaks so it can be display on a
         console or included in an e-mail message.
-        
+
 	.Parameter xmlConfig
     	The parsed xml from the $xmlFilename file.
         Type : [System.Xml]
@@ -447,18 +447,18 @@ function GetTestSummary($testCycle, [DateTime] $StartTime, [string] $xmlFilename
     .Parameter xmlFilename
         The name of the xml file for the current test run.
         Type : [String]
-        
+
     .ReturnValue
         A string containing all the summary message from all
         VMs in the current test run.
-        
+
     .Example
         GetTestSummary $testCycle $myStartTime $myXmlTestFile
-	
+
 #>
-    
+
 	$endTime = [Datetime]::Now.ToUniversalTime()
-	$testSuiteRunDuration= $endTime - $StartTime    
+	$testSuiteRunDuration= $endTime - $StartTime
 	$testSuiteRunDuration=$testSuiteRunDuration.Days.ToString() + ":" +  $testSuiteRunDuration.hours.ToString() + ":" + $testSuiteRunDuration.minutes.ToString()
     $str = "<br />Test Results Summary<br />"
     $str += "ICA test run on " + $startTime
@@ -477,7 +477,7 @@ function GetTestSummary($testCycle, [DateTime] $StartTime, [string] $xmlFilename
 	$str += "<br />Total Executed TestCases " + $testSuiteResultDetails.totalTc + " (" + $testSuiteResultDetails.totalPassTc + " Pass" + ", " + $testSuiteResultDetails.totalFailTc + " Fail" + ", " + $testSuiteResultDetails.totalAbortedTc + " Abort)"
 	$str += "<br />Total Execution Time(dd:hh:mm) " + $testSuiteRunDuration.ToString()
     $str += "<br />XML file: $xmlFilename<br /><br />"
-	        
+
     # Add information about the host running ICA to the e-mail summary
     $str += "<pre>"
     $str += $testCycle.emailSummary + "<br />"
@@ -515,11 +515,11 @@ function GetTestSummary($testCycle, [DateTime] $StartTime, [string] $xmlFilename
     $strHtml += "<table border='0' class='TFtable'>"
     $strHtml += $testCycle.htmlSummary
     $strHtml += "</table>"
-    
+
     $strHtml += "</body></Html>"
 
     if (-not (Test-Path(".\temp\CI"))) {
-        mkdir ".\temp\CI" | Out-Null 
+        mkdir ".\temp\CI" | Out-Null
     }
 
 	Set-Content ".\temp\CI\index.html" $strHtml
@@ -531,19 +531,19 @@ function SendEmail([XML] $xmlConfig, $body)
     <#
 	.Synopsis
     	Send an e-mail message with test summary information.
-        
+
     .Description
         Collect the test summary information from each testcycle.  Send an
         eMail message with this summary information to emailList defined
         in the xml config file.
-        
+
 	.Parameter xmlConfig
     	The parsed XML from the test xml file
         Type : [System.Xml]
-        
+
     .ReturnValue
         none
-        
+
     .Example
         SendEmail $myConfig
 	#>
@@ -552,10 +552,10 @@ function SendEmail([XML] $xmlConfig, $body)
     $from = $xmlConfig.config.global.emailSender
     $subject = $xmlConfig.config.global.emailSubject + " " + $testStartTime
     $smtpServer = $xmlConfig.config.global.smtpServer
-    # Highlight the failed tests 
+    # Highlight the failed tests
     $body = $body.Replace("Aborted", '<em style="background:Yellow; color:Red">Aborted</em>')
     $body = $body.Replace("FAIL", '<em style="background:Yellow; color:Red">Failed</em>')
-    
+
 	Send-mailMessage -to $to -from $from -subject $subject -body $body -smtpserver $smtpServer -BodyAsHtml
 }
 
@@ -579,7 +579,7 @@ Function GetCurrentCycleData($xmlConfig, $cycleName)
         break
         }
     }
-    
+
 }
 
 <#
@@ -655,7 +655,7 @@ Function StartLogReport([string]$reportPath)
 	{
 		throw "CI report has been created."
 	}
-	
+
 	return $junitReport
 }
 
@@ -665,7 +665,7 @@ Function FinishLogReport([bool]$isFinal=$True)
 	{
 		return
 	}
-	
+
 	$global:junitReport.Save($global:junitReportPath)
 	if($isFinal)
 	{
@@ -687,7 +687,7 @@ Function StartLogTestSuite([string]$testsuiteName)
 	{
 		return
 	}
-	
+
 	$newElement = $global:junitReport.CreateElement("testsuite")
 	$newElement.SetAttribute("name", $testsuiteName)
 	$newElement.SetAttribute("timestamp", [Datetime]::Now.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss"))
@@ -696,12 +696,12 @@ Function StartLogTestSuite([string]$testsuiteName)
 	$newElement.SetAttribute("errors", 0)
 	$newElement.SetAttribute("time", 0)
 	$testsuiteNode = $global:reportRootNode.AppendChild($newElement)
-	
+
 	$timer = CIStartTimer
 	$testsuite = New-Object -TypeName PSObject
 	Add-Member -InputObject $testsuite -MemberType NoteProperty -Name testsuiteNode -Value $testsuiteNode -Force
 	Add-Member -InputObject $testsuite -MemberType NoteProperty -Name timer -Value $timer -Force
-	
+
 	return $testsuite
 }
 
@@ -711,7 +711,7 @@ Function FinishLogTestSuite([object]$testsuite)
 	{
 		return
 	}
-	
+
 	$testsuite.testsuiteNode.Attributes["time"].Value = CIStopTimer $testsuite.timer
 	FinishLogReport $False
 }
@@ -722,14 +722,14 @@ Function StartLogTestCase([object]$testsuite, [string]$caseName, [string]$classN
 	{
 		return
 	}
-	
+
 	$newElement = $global:junitReport.CreateElement("testcase")
 	$newElement.SetAttribute("name", $caseName)
 	$newElement.SetAttribute("classname", $classname)
 	$newElement.SetAttribute("time", 0)
-	
+
 	$testcaseNode = $testsuite.testsuiteNode.AppendChild($newElement)
-	
+
 	$timer = CIStartTimer
 	$testcase = New-Object -TypeName PSObject
 	Add-Member -InputObject $testcase -MemberType NoteProperty -Name testsuite -Value $testsuite -Force
@@ -744,9 +744,9 @@ Function FinishLogTestCase([object]$testcase, [string]$result="PASS", [string]$m
 	{
 		return
 	}
-	
+
 	$testcase.testcaseNode.Attributes["time"].Value = CIStopTimer $testcase.timer
-	
+
 	[int]$testcase.testsuite.testsuiteNode.Attributes["tests"].Value += 1
 	if ($result -eq "FAIL")
 	{
@@ -754,17 +754,17 @@ Function FinishLogTestCase([object]$testcase, [string]$result="PASS", [string]$m
 		$newChildElement.InnerText = $detail
 		$newChildElement.SetAttribute("message", $message)
 		$testcase.testcaseNode.AppendChild($newChildElement)
-		
+
 		[int]$testcase.testsuite.testsuiteNode.Attributes["failures"].Value += 1
 	}
-	
+
 	if ($result -eq "ERROR")
 	{
 		$newChildElement = $global:junitReport.CreateElement("error")
 		$newChildElement.InnerText = $detail
 		$newChildElement.SetAttribute("message", $message)
 		$testcase.testcaseNode.AppendChild($newChildElement)
-		
+
 		[int]$testcase.testsuite.testsuiteNode.Attributes["errors"].Value += 1
 	}
 	FinishLogReport $False
@@ -902,21 +902,21 @@ Function ValidateMD5($filePath, $expectedMD5hash)
     }
 }
 
-Function Test-FileLock 
+Function Test-FileLock
 {
 	param
 	(
 	  [parameter(Mandatory=$true)][string]$Path
 	)
 	$File = New-Object System.IO.FileInfo $Path
-	if ((Test-Path -Path $Path) -eq $false) 
+	if ((Test-Path -Path $Path) -eq $false)
 	{
 		return $false
 	}
 	try
 	{
 		$oStream = $File.Open([System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
-		if ($oStream) 
+		if ($oStream)
 		{
 			$oStream.Close()
 		}
@@ -1093,6 +1093,6 @@ Function Import-LISAv2ParametersFromXMLFile ($ParametersFile)
 	catch  {
 		$ErrorMessage = $_.Exception.Message
 		$ErrorLine = $_.InvocationInfo.ScriptLineNumber
-		LogErr "EXCEPTION in Import-LISAv2ParametersFromXMLFile() : $ErrorMessage at line: $ErrorLine"		
+		LogErr "EXCEPTION in Import-LISAv2ParametersFromXMLFile() : $ErrorMessage at line: $ErrorLine"
 	}
 }

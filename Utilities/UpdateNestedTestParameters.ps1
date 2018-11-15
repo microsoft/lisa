@@ -6,7 +6,7 @@
 .SYNOPSIS
     Update test parameters for nested vm test case
 
-.PARAMETER 
+.PARAMETER
     <Parameters>
 
 .INPUTS

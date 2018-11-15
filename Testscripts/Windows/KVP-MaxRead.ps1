@@ -5,10 +5,10 @@ param([string] $TestParams)
 
 function Add-KVPEntries {
     param (
-        [String] $VmIp, 
+        [String] $VmIp,
         [String] $VMPort,
-        [String] $RootDir, 
-        [String] $Pool, 
+        [String] $RootDir,
+        [String] $Pool,
         [String] $Entries
     )
 
@@ -31,7 +31,7 @@ function Add-KVPEntries {
         uname -a | grep i686
         if [ `$? -eq 0 ]; then
             echo "32 bit architecture was detected"
-            kvp_client="kvp_client32" 
+            kvp_client="kvp_client32"
         else
             echo "Error: Unable to detect OS architecture" >> /root/KVP.log 2>&1
             exit 60
@@ -99,7 +99,7 @@ function Main {
     $FeatureSupported = Get-VMFeatureSupportStatus $Ipv4 $VMPort $user $password "3.10.0-860"
     if ($FeatureSupported -ne $True) {
         LogMsg "Kernels older than 3.10.0-862 require LIS-4.x drivers."
-        $lisDriversCmd = "rpm -qa | grep kmod-microsoft-hyper-v && rpm -qa | grep microsoft-hyper-v" 
+        $lisDriversCmd = "rpm -qa | grep kmod-microsoft-hyper-v && rpm -qa | grep microsoft-hyper-v"
         $null = .\Tools\plink.exe -C -pw $password -P $VMPort $user@$Ipv4 $lisDriversCmd
         if ($? -ne "True") {
             LogErr "Error: No LIS-4.x drivers detected. Skipping test."
@@ -116,7 +116,7 @@ function Main {
         $testResult = "FAIL"
         $resultArr += $testResult
         $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
-        return $currentTestResult.TestResult 
+        return $currentTestResult.TestResult
     }
 
     # Create a data exchange object and collect KVP data from the VM
@@ -127,7 +127,7 @@ function Main {
         $testResult = "FAIL"
         $resultArr += $testResult
         $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
-        return $currentTestResult.TestResult 
+        return $currentTestResult.TestResult
     }
 
     $kvp = Get-WmiObject -ComputerName $VMLocation -Namespace root\virtualization\v2 `
@@ -137,7 +137,7 @@ function Main {
         $testResult = "FAIL"
         $resultArr += $testResult
         $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
-        return $currentTestResult.TestResult 
+        return $currentTestResult.TestResult
     }
 
     $retVal = RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command  "ps aux | grep [k]vp"
@@ -146,16 +146,16 @@ function Main {
         $testResult = "FAIL"
         $resultArr += $testResult
         $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
-        return $currentTestResult.TestResult 
+        return $currentTestResult.TestResult
     } else {
         LogMsg "KVP daemon is running. Test Passed"
         $testResult = "PASS"
         $resultArr += $testResult
         $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
-        return $currentTestResult.TestResult    
-    }   
+        return $currentTestResult.TestResult
+    }
 }
 
 Main -VMName $AllVMData.RoleName -Ipv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort `
         -VMLocation $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName -TestParams $TestParams
-    
+

@@ -1,4 +1,4 @@
-﻿##############################################################################################
+##############################################################################################
 # InspectCustomKernel.ps1
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
@@ -12,11 +12,11 @@
 	<Parameters>
 
 .INPUTS
-	
+
 
 .NOTES
-    Creation Date:  
-    Purpose/Change: 
+    Creation Date:
+    Purpose/Change:
 
 .EXAMPLE
 
@@ -44,7 +44,7 @@ try
         New-Item -Path $CurrentLocalFolder -ItemType Directory -Force | Out-Null
     }
     LogMsg "Directory : $CurrentLocalFolder is available."
-    
+
     #region VALIDATE ARGUMENTS
     if ( $env:CustomKernelFile -and $env:CustomKernelURL )
     {
@@ -53,7 +53,7 @@ try
         $ExitCode = 1
     }
     elseif ( $env:CustomKernelFile)
-    {        
+    {
         if ( ($env:CustomKernelFile).EndsWith(".deb") -or ($env:CustomKernelFile).EndsWith(".rpm") )
         {
             $CurrentKernel = "$CurrentLocalFolder\$env:UpstreamBuildNumber-$env:CustomKernelFile"
@@ -68,15 +68,15 @@ try
                 $null = Set-Content -Value "$KernelFile" -Path CustomKernel.azure.env -Force -NoNewline
                 $ExitCode = 0
             }
-            else 
+            else
             {
                 $ExitCode = 1
-                LogError "$ReceivedKernel is not present. Did you forgot to upload it?"  
+                LogError "$ReceivedKernel is not present. Did you forgot to upload it?"
             }
         }
-        else 
+        else
         {
-            $FileExtension = [System.IO.Path]::GetExtension("$env:CustomKernelFile") 
+            $FileExtension = [System.IO.Path]::GetExtension("$env:CustomKernelFile")
             LogError "Unsupported file type: *$FileExtension"
             $ExitCode += 1
         }
@@ -88,7 +88,7 @@ try
             $SourceKernelName = "$(Split-Path -Path $env:CustomKernelURL -Leaf)"
             $CurrentKernel = "$CurrentLocalFolder\$env:UpstreamBuildNumber-$SourceKernelName"
             $ReceivedKernel = "$CurrentRemoteFolder\$SourceKernelName"
-            
+
             if (Test-Path $ReceivedKernel)
             {
                 LogMsg "$SourceKernelName File was already downloaded."
@@ -99,17 +99,17 @@ try
                 $null = Set-Content -Value "$KernelFile" -Path CustomKernel.azure.env -Force -NoNewline
                 $ExitCode = 0
             }
-            else 
+            else
             {
                 #Import down module.
                 Import-Module BitsTransfer -Force
-    
+
                 LogMsg "Downloading $env:CustomKernelURL to '$CurrentLocalFolder\$SourceKernelName'"
                 $DownloadJob = Start-BitsTransfer -Source "$env:CustomKernelURL" -Asynchronous -Destination "$CurrentLocalFolder\$SourceKernelName" -TransferPolicy Unrestricted -TransferType Download -Priority High
                 $DownloadJobStatus = Get-BitsTransfer -JobId $DownloadJob.JobId
                 Start-Sleep -Seconds 1
                 LogMsg "JobID: $($DownloadJob.JobId)"
-                while ($DownloadJobStatus.JobState -eq "Connecting" -or $DownloadJobStatus.JobState -eq "Transferring" -or $DownloadJobStatus.JobState -eq "Queued" ) 
+                while ($DownloadJobStatus.JobState -eq "Connecting" -or $DownloadJobStatus.JobState -eq "Transferring" -or $DownloadJobStatus.JobState -eq "Queued" )
                 {
                     $DownloadProgress = 100 - ((($DownloadJobStatus.BytesTotal - $DownloadJobStatus.BytesTransferred) / $DownloadJobStatus.BytesTotal) * 100)
                     $DownloadProgress = [math]::Round($DownloadProgress,2)
@@ -130,7 +130,7 @@ try
                 {
                     LogMsg "Copying $CurrentLocalFolder\$SourceKernelName --> $ReceivedKernel for future use..."
                     Copy-Item -Path "$CurrentLocalFolder\$SourceKernelName" -Destination $ReceivedKernel -Force
-    
+
                     LogMsg "Moving $CurrentLocalFolder\$SourceKernelName --> $CurrentKernel for current use..."
                     Move-Item -Path "$CurrentLocalFolder\$SourceKernelName" -Destination $CurrentKernel -Force
                     $KernelFile = $CurrentKernel  | Split-Path -Leaf
@@ -138,21 +138,21 @@ try
                     $null = Set-Content -Value "$KernelFile" -Path CustomKernel.azure.env -Force -NoNewline
                     $ExitCode = 0
                 }
-                else 
+                else
                 {
                     $ExitCode = 1
-                    LogError "$SourceKernelName is not present. Is the CustomKernelURL a valid link?"  
-                }            
+                    LogError "$SourceKernelName is not present. Is the CustomKernelURL a valid link?"
+                }
             }
         }
         else
         {
-            $FileExtension = [System.IO.Path]::GetExtension("$env:CustomKernelFile") 
+            $FileExtension = [System.IO.Path]::GetExtension("$env:CustomKernelFile")
             LogError "Unsupported file type: *$FileExtension"
-            $ExitCode += 1            
-        }        
+            $ExitCode += 1
+        }
     }
-    else 
+    else
     {
         LogError "Did you forgot to provide value for 'CustomKernelFile' or 'CustomKernelURL' parameter?"
         $ExitCode = 1

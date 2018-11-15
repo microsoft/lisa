@@ -3960,7 +3960,7 @@ Function Set-SRIOVInVMs {
         [switch]$Enable,
         [switch]$Disable
     )
-	
+
     if ( $TestPlatform -eq "Azure") {
         LogMsg "Set-SRIOVInVMs running in 'Azure' mode."
         if ($Enable) {
@@ -4026,7 +4026,7 @@ function Is-ValidMAC {
 
 # Returns an unused random MAC capable
 # The address will be outside of the dynamic MAC pool
-# Note that the Manufacturer bytes (first 3 bytes) are also randomly generated 
+# Note that the Manufacturer bytes (first 3 bytes) are also randomly generated
 function Get-RandUnusedMAC {
     param (
         [String] $HvServer,
@@ -4104,7 +4104,7 @@ function Start-VMandGetIP {
         $HvServer,
         $VMPort,
         $VMUserName,
-        $VMPassword   
+        $VMPassword
     )
     $newIpv4 = $null
 
@@ -4131,7 +4131,7 @@ function Start-VMandGetIP {
 # Generates an unused IP address based on an old IP address.
 function Generate-IPv4{
     param (
-        $TempIpv4, 
+        $TempIpv4,
         $OldIpv4
     )
     [int]$check = $null
@@ -4213,7 +4213,7 @@ function Set-GuestInterface {
     # Get the interface name that corresponds to the MAC address
     $cmdToSend = "testInterface=`$(grep -il ${InterfaceMAC} /sys/class/net/*/address) ; basename `"`$(dirname `$testInterface)`""
     $testInterfaceName = RunLinuxCmd -username $VMUser -password $VMPassword -ip $VMIpv4 -port $VMPort `
-        -command $cmdToSend 
+        -command $cmdToSend
     if (-not $testInterfaceName) {
         LogErr "Failed to get the interface name that has $InterfaceMAC MAC address"
         return $False
@@ -4222,9 +4222,9 @@ function Set-GuestInterface {
     }
     $configFunction = "CreateIfupConfigFile"
     if ($VlanID) {
-        $configFunction = "CreateVlanConfig"  
+        $configFunction = "CreateVlanConfig"
     }
-    
+
     # Configure the interface
     $cmdToSend = ". utils.sh; $configFunction $testInterfaceName $Bootproto $VMStaticIP $Netmask $VlanID"
     RunLinuxCmd -username $VMUser -password $VMPassword -ip $VMIpv4 -port $VMPort -command $cmdToSend
@@ -4270,7 +4270,7 @@ function Test-GuestInterface {
 # This function removes all the invalid characters from given filename.
 # Do not pass file paths (relative or full) to this function.
 # Only file name is supported.
-Function Remove-InvalidCharactersFromFileName 
+Function Remove-InvalidCharactersFromFileName
 {
     param (
         [String]$FileName

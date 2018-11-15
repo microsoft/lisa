@@ -1,4 +1,4 @@
-﻿##############################################################################################
+##############################################################################################
 # ExtensionLibrary.psm1
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
@@ -15,8 +15,8 @@
 
 
 .NOTES
-    Creation Date:  
-    Purpose/Change: 
+    Creation Date:
+    Purpose/Change:
 
 .EXAMPLE
 
@@ -62,7 +62,7 @@ Function VerifyExtensionFromAzure ([string]$ExtensionName, [string]$ServiceName,
 			}
  			if ( $extAzureStatus )
 			{
-				
+
 				LogMsg "$ExtensionName extension status is SUCCESS in (Get-AzureVM).ResourceExtensionStatusList.ExtensionSettingStatus"
 				$retValue = $true
 				$waitForExtension = $false
@@ -125,7 +125,7 @@ Function GetExtensionStatusFromStatusFile ( $statusFilePaths, $ExtensionName, $v
 			LogMsg "Verifying $ExtensionName from $file ..."
 			if($fileName -imatch "\d.status")
 			{
-				if ( $file -imatch $ExtensionName ) 
+				if ( $file -imatch $ExtensionName )
 				{
 					$extensionErrorCount = 0
 					$null = RunLinuxCmd -username $user -password $password -ip $vmData.PublicIP -port $vmData.SSHPort -command "cat $file > $fileName" -runAsSudo
@@ -173,7 +173,7 @@ Function GetExtensionStatusFromStatusFile ( $statusFilePaths, $ExtensionName, $v
 			$waitForExtension = $true
 			WaitFor -Seconds 30
 
-		}		
+		}
 		$retryCount += 1
 		if ( ($retryCount -le $maxRetryCount) -and $waitForExtension )
 		{
@@ -233,7 +233,7 @@ Function SetAzureVMExtension ( $publicConfigString, $privateConfigString, $Exten
 			else
 			{
 				WaitFor -Seconds 30
-			}			
+			}
 
 		}
 		else
@@ -293,7 +293,7 @@ Function GetStatusFileNameToVerfiy ($vmData, $expectedExtensionName, [switch]$up
 	LogMsg "Getting current *.status file info..."
 	do
 		{
-		$retryCount += 1		
+		$retryCount += 1
 		$currentExtFiles = GetFilePathsFromLinuxFolder -folderToSearch "/var/lib/waagent" -IpAddress $vmData.PublicIP -SSHPort $vmData.SSHPort -username $user -password $password -maxRetryCount 5
 		foreach ($line in $currentExtFiles[0].Split(","))
 		{
@@ -301,7 +301,7 @@ Function GetStatusFileNameToVerfiy ($vmData, $expectedExtensionName, [switch]$up
 			if ( ($tempFileName -imatch "\d.status") -and ($line -imatch $expectedExtensionName))
 			{
 				LogMsg "Found : $line."
-				$statusFileCounter += 1 
+				$statusFileCounter += 1
 			}
 		}
 		if ( $upcoming )
@@ -334,6 +334,6 @@ Function GetStatusFileNameToVerfiy ($vmData, $expectedExtensionName, [switch]$up
 		}
 	}
 	while (($retryCount -le $maxRetryCount) -and $waitForStatusFile )
-	
+
 	return $statusFileToVerfiy
 }

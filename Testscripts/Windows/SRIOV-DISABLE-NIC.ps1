@@ -8,8 +8,8 @@
 
 .Description
     Get the throughput before disabling the NIC. Disable NIC and get the
-    VF count inside the VM (it sohuld be 0). Enable NIC again and get the 
-    throughput. Finally, compare the initial throughput and the final one - 
+    VF count inside the VM (it sohuld be 0). Enable NIC again and get the
+    throughput. Finally, compare the initial throughput and the final one -
     they should be comparable.
 #>
 

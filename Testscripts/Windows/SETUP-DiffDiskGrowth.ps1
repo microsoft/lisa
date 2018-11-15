@@ -38,10 +38,10 @@ $vmGeneration = $null
 
 function New-ParentVhd {
     param (
-        [string] $vhdFormat, 
+        [string] $vhdFormat,
         [string] $server
     )
-    
+
     $hostInfo = Get-VMHost -ComputerName $server
     if (-not $hostInfo) {
             LogErr "Unable to collect Hyper-V settings for ${server}"
@@ -108,7 +108,7 @@ function Main {
         if (@("IDE", "SCSI") -contains $lValue) {
             $controllerType = $lValue
             $SCSI = $false
-            
+
             if ($controllerType -eq "SCSI") {
                 $SCSI = $true
             }

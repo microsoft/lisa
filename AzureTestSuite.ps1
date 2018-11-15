@@ -112,8 +112,8 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
 	$VmSetup = @()
 	foreach ($test in $currentCycleData.test) {
 		$currentTestData = GetCurrentTestData -xmlConfig $xmlConfig -testName $test.Name
-		$VmSetup += $currentTestData.setupType	
-	}	
+		$VmSetup += $currentTestData.setupType
+	}
 
 	$testCount = $currentCycleData.test.Length
 	$testIndex = 0
@@ -148,21 +148,21 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
 				$TestState += @{"ExecuteTeardown" = $True}
 			} else {
 				if ($currentVmSetup -ne $nextVmSetup) {
-					$TestState += @{"ExecuteTeardown" = $True}	
-				} 
+					$TestState += @{"ExecuteTeardown" = $True}
+				}
 			}
 		} elseif ($testIndex -eq $testCount) {
 			$TestState = @{"ExecuteTeardown" = $True}
 			if ($previousVmSetup -ne $currentVmSetup) {
-				$TestState += @{"ExecuteSetup" = $True}	
+				$TestState += @{"ExecuteSetup" = $True}
 			}
-		} else {		
+		} else {
 			$TestState = @{}
 			if ($previousVmSetup -ne $currentVmSetup) {
-				$TestState += @{"ExecuteSetup" = $True}	
+				$TestState += @{"ExecuteSetup" = $True}
 			}
 			if ($currentVmSetup -ne $nextVmSetup) {
-				$TestState += @{"ExecuteTeardown" = $True}	
+				$TestState += @{"ExecuteTeardown" = $True}
 			}
 		}
 

@@ -149,12 +149,12 @@ try {
 			}
 		}
 	}
-		
+
 	$GlobalVariables = Get-Variable -Scope Global
 	foreach ($var in $GlobalVariables) {
-		[void](Set-Variable -Name $var.Name -Value $var.Value -Scope Local -ErrorAction SilentlyContinue) 
+		[void](Set-Variable -Name $var.Name -Value $var.Value -Scope Local -ErrorAction SilentlyContinue)
 	}
-	
+
 	$LogDir = ".\TestResults\$(Get-Date -Format 'yyyy-dd-MM-HH-mm-ss-ffff')"
 	Set-Variable -Name LogDir -Value $LogDir -Scope Global -Force
 	Set-Variable -Name RootLogDir -Value $LogDir -Scope Global -Force

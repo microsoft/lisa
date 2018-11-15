@@ -161,10 +161,10 @@ function Main {
         $null = Set-GuestInterface $guestUsername $vm2ipv4 $VMPort $VMPassword $vm2MacAddress `
             $vm2StaticIP $bootproto $netmask $VM2Name
     }
-    
+
     if (-not $?) {
         return $False
-    } 
+    }
 
     return $True
 }

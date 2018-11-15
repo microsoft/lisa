@@ -1,4 +1,4 @@
-﻿##############################################################################################
+##############################################################################################
 # InspectVHD.ps1
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
@@ -12,11 +12,11 @@
 	<Parameters>
 
 .INPUTS
-	
+
 
 .NOTES
-    Creation Date:  
-    Purpose/Change: 
+    Creation Date:
+    Purpose/Change:
 
 .EXAMPLE
 
@@ -71,7 +71,7 @@ try
                 Copy-Item -Path $ReceivedVHD -Destination $CurrentVHD -Force
                 LogMsg "Copy Completed."
             }
-            else 
+            else
             {
                 LogMsg "$CurrentVHD file not present locally."
                 Import-Module BitsTransfer -Force
@@ -82,7 +82,7 @@ try
                 $DownloadJobStatus = Get-BitsTransfer -JobId $DownloadJob.JobId
                 Start-Sleep -Seconds 1
                 LogMsg "JobID: $($DownloadJob.JobId)"
-                while ($DownloadJobStatus.JobState -eq "Connecting" -or $DownloadJobStatus.JobState -eq "Transferring" -or $DownloadJobStatus.JobState -eq "Queued" -or $DownloadJobStatus.JobState -eq "TransientError" ) 
+                while ($DownloadJobStatus.JobState -eq "Connecting" -or $DownloadJobStatus.JobState -eq "Transferring" -or $DownloadJobStatus.JobState -eq "Queued" -or $DownloadJobStatus.JobState -eq "TransientError" )
                 {
                     $DownloadProgress = 100 - ((($DownloadJobStatus.BytesTotal - $DownloadJobStatus.BytesTransferred) / $DownloadJobStatus.BytesTotal) * 100)
                     $DownloadProgress = [math]::Round($DownloadProgress,2)
@@ -104,7 +104,7 @@ try
                 {
                     LogMsg "Download progress: Completed"
 
-                    #Copy VHD to remote received files - 
+                    #Copy VHD to remote received files -
                     LogMsg "Copying $SourceVHDName --> $ReceivedVHD for future use."
                     Copy-Item -Path $LocalFolder\$SourceVHDName -Destination $ReceivedVHD -Force
 
@@ -112,16 +112,16 @@ try
                     LogMsg "Moving $SourceVHDName --> $CurrentVHD for current use."
                     Move-Item -Path $LocalFolder\$SourceVHDName -Destination $CurrentVHD -Force
                 }
-                else 
+                else
                 {
                     $ExitCode += 1
                     LogError "$SourceVHDName is not present. Is the CustomVHDURL a valid link?"
-                    $DownloadJob = Remove-BitsTransfer -BitsJob $DownloadJob  
+                    $DownloadJob = Remove-BitsTransfer -BitsJob $DownloadJob
                     LogMsg "JobID: $($DownloadJob.JobId) Removed."
-                }                
-            }            
+                }
+            }
         }
-        else 
+        else
         {
             $SourceVHDName = $env:CustomVHD
             $CurrentVHD = "$LocalFolder\$env:UpstreamBuildNumber-$SourceVHDName"
@@ -133,7 +133,7 @@ try
                 Copy-Item -Path $ReceivedVHD -Destination $CurrentVHD -Force
                 LogMsg "Copy Completed."
             }
-            else 
+            else
             {
                 LogMsg "We're not able to find $ReceivedVHD. Did uploade went successful?"
                 $ExitCode += 1
@@ -170,7 +170,7 @@ try
                     }
                 }
                 #endregion
-    
+
                 if ($CurrentVHD.EndsWith(".vhdx"))
                 {
                     Set-Location $CurrentLocalFolder
@@ -196,28 +196,28 @@ try
                         LogMsg "'$vhdx' --> '$vhd' is Failed."
                         $ExitCode += 1
                     }
-                    Set-Location $WorkingDirectory                
-                }        
+                    Set-Location $WorkingDirectory
+                }
                 ValidateVHD -vhdPath $CurrentVHD
                 Set-Content -Value "$($CurrentVHD | Split-Path -Leaf)" -Path .\CustomVHD.azure.env -NoNewline -Force
             }
-            else 
+            else
             {
-                $FileExtension = [System.IO.Path]::GetExtension("$CurrentVHD") 
+                $FileExtension = [System.IO.Path]::GetExtension("$CurrentVHD")
                 LogError "Unsupported file type: *$FileExtension"
                 $ExitCode += 1
             }
         }
-        else 
+        else
         {
             LogError "$CurrentVHD is not found. Exiting."
-            $ExitCode = 1             
+            $ExitCode = 1
         }
     }
-    else 
+    else
     {
         LogError "Did you forgot to provide value for 'CustomVHD' parameter?"
-        $ExitCode += 1 
+        $ExitCode += 1
     }
 }
 catch

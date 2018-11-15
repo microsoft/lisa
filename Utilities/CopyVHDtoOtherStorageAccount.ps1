@@ -178,7 +178,7 @@ try
     }
     LogMsg "All Copy Operations completed successfully."
 }
-catch 
+catch
 {
     $ExitCode = 1
     ThrowExcpetion ($_)

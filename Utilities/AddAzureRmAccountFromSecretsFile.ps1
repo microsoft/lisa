@@ -1,4 +1,4 @@
-﻿
+
 ##############################################################################################
 # AddAzureRmAccountFromSecretsFile.ps1
 # Copyright (c) Microsoft Corporation. All rights reserved.
@@ -12,7 +12,7 @@
     Required: Optional.
 
 .INPUTS
-    AzureSecrets.xml file. If you are running this script in Jenkins, then make sure to add a secret 
+    AzureSecrets.xml file. If you are running this script in Jenkins, then make sure to add a secret
     file with ID: Azure_Secrets_File
     If you are running the file locally, then pass secrets file path to -customSecretsFilePath parameter.
 

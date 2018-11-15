@@ -2,7 +2,7 @@
 # Copyright (c) Microsoft Corporation
 
 # Description: This script lists the VMs in the current subscription and lists our Tags and VMAges.
-param 
+param
 (
     [switch] $UseSecretsFile,
     [switch] $IncludeAge,
@@ -23,11 +23,11 @@ if( $UseSecretsFile -or $AzureSecretsFile )
     {
         $secretsFile = $AzureSecretsFile
     }
-    elseif ($env:Azure_Secrets_File) 
+    elseif ($env:Azure_Secrets_File)
     {
         $secretsFile = $env:Azure_Secrets_File
     }
-    else 
+    else
     {
         LogMsg "-AzureSecretsFile and env:Azure_Secrets_File are empty. Exiting."
         exit 1
@@ -61,7 +61,7 @@ function Get-VMAgeFromDisk()
         $storageAccount = $vhd.Split("/")[2].Split(".")[0]
         $container = $vhd.Split("/")[3]
         $blob = $vhd.Split("/")[4]
-    
+
         $blobStorageUsed = Get-AzureRmStorageAccount | where {  $($_.StorageAccountName -eq $storageAccount) -and $($_.Location -eq $vm.Location) }
         if( $blobStorageUsed )
         {
@@ -93,7 +93,7 @@ $allVMs = Get-AzureRmVM
 $allRGs = Get-AzureRmResourceGroup
 
 $results = @()
-foreach ($vm in $allVMs) 
+foreach ($vm in $allVMs)
 {
     $rg = $allRGs | Where-Object ResourceGroupName -eq $vm.ResourceGroupName
 
@@ -121,7 +121,7 @@ foreach ($vm in $allVMs)
         }
         if( $rg.Tags.TestName )
         {
-            $result | Add-Member TestName $rg.Tags.TestName 
+            $result | Add-Member TestName $rg.Tags.TestName
         }
         if( $rg.Tags.BuildUser )
         {
@@ -172,7 +172,7 @@ foreach ($vm in $allVMs)
 
 #Apply the filters.
 # Region AND Size AND Tags
-# Since we have already accumulated ALL the items, let's walk thru the selected filters 
+# Since we have already accumulated ALL the items, let's walk thru the selected filters
 # and remove entries that do not match.
 if( $Region )
 {
@@ -204,8 +204,8 @@ if( $Tags )
     foreach( $result in $results )
     {
         if( ($result.BuildUser -like $Tags) -or
-            ($result.BuildMachine -like $Tags) -or 
-            ($result.TestName -like $Tags) -or 
+            ($result.BuildMachine -like $Tags) -or
+            ($result.TestName -like $Tags) -or
             ($result.BuildURL -like $Tags ) )
             {
                 $filteredResults += $result

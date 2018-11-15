@@ -19,7 +19,7 @@ function Main {
         $RootDir,
         $TestParams
     )
-    
+
     $key = $null
     $value = $null
 
@@ -38,13 +38,13 @@ function Main {
     $params = $TestParams.Split(";")
     foreach ($p in $params) {
         $fields = $p.Split("=")
-        
+
         switch ($fields[0].Trim()) {
             "key"        { $key       = $fields[1].Trim() }
             "value"      { $value     = $fields[1].Trim() }
         default   {}  # unknown param - just ignore it
         }
-    }        
+    }
 
     if (-not $key) {
         LogErr "Error: Missing testParam Key to be added"
@@ -102,7 +102,7 @@ function Main {
         LogErr "Error: while modifying the key value pair"
         LogErr "Error: Job error code = $($Job.ErrorCode)"
 
-        if ($job.ErrorCode -eq 32773) {  
+        if ($job.ErrorCode -eq 32773) {
             LogErr "Error (as expected): Key = '${key} ,Non-existing key cannot be modified Error Code-' $($Job.ErrorCode) "
             return "PASS"
         } elseIf ($job.ErrorCode -eq 32779 -And $buildNR -ge 10000) {

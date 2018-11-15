@@ -12,7 +12,7 @@ function Run_Dpdk_TestPmd {
 	}
 	$finalStatus = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -command "cat /root/state.txt"
 	RemoteCopy -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -download -downloadTo $currentDir -files "*.csv, *.txt, *.log"
-	
+
 	if ($finalStatus -imatch "TestFailed") {
 		LogErr "Test failed. Last known status : $currentStatus."
 		$testResult = "FAIL"
@@ -31,7 +31,7 @@ function Run_Dpdk_TestPmd {
 		LogMsg "Contests of summary.log : $testSummary"
 		$testResult = "PASS"
     }
-    
+
 	if ($testResult -eq "PASS") {
 		return $true
 	} else {
@@ -39,7 +39,7 @@ function Run_Dpdk_TestPmd {
 	}
 }
 function Main {
-    # Create test result 
+    # Create test result
     $superUser = "root"
     $resultArr = @()
     $lowerbound = 1000000
@@ -76,7 +76,7 @@ function Main {
         LogMsg "  SSH Port : $($serverVMData.SSHPort)"
         LogMsg "  Internal IP : $($serverVMData.InternalIP)"
 
-        # PROVISION VMS FOR LISA WILL ENABLE ROOT USER AND WILL MAKE ENABLE PASSWORDLESS AUTHENTICATION ACROSS ALL VMS IN SAME HOSTED SERVICE.  
+        # PROVISION VMS FOR LISA WILL ENABLE ROOT USER AND WILL MAKE ENABLE PASSWORDLESS AUTHENTICATION ACROSS ALL VMS IN SAME HOSTED SERVICE.
         ProvisionVMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
         #endregion
 
@@ -127,7 +127,7 @@ collect_VM_properties
         Set-Content "$LogDir\StartDpdkTestPmd.sh" $myString
         RemoteCopy -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files ".\$constantsFile,.\$LogDir\StartDpdkTestPmd.sh" -username $superUser -password $password -upload
 		$null = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -command "chmod +x *.sh" | Out-Null
-		
+
 		$currentDir = "$LogDir\initialSRIOVTest"
 		New-Item -Path $currentDir -ItemType Directory | Out-Null
         $initailTest = Run_Dpdk_TestPmd
@@ -141,7 +141,7 @@ collect_VM_properties
 		}
 		$resultArr += $testResult
 		$currentTestResult.TestSummary +=  CreateResultSummary -testResult "$($initialSriovResult.DpdkVersion) : TxPPS : $($initialSriovResult.TxPps) : RxPPS : $($initialSriovResult.RxPps)" -metaData "DPDK-TESTPMD : Initial SRIOV" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
-		
+
         #disable SRIOV
         $sriovStatus = $false
         $currentDir = "$LogDir\syntheticTest"
@@ -165,7 +165,7 @@ collect_VM_properties
 		}
 		$resultArr += $testResult
 		$currentTestResult.TestSummary +=  CreateResultSummary -testResult "$($syntheticResult.DpdkVersion) : TxPPS : $($syntheticResult.TxPps) : RxPPS : $($syntheticResult.RxPps)" -metaData "DPDK-TESTPMD : Synthetic" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
-		
+
         #enable SRIOV
         $currentDir = "$LogDir\finallSRIOVTest"
 		New-Item -Path $currentDir -ItemType Directory | Out-Null
@@ -218,7 +218,7 @@ collect_VM_properties
         $resultArr += $testResult
     }
     $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
-    return $currentTestResult.TestResult  
+    return $currentTestResult.TestResult
 }
 
 Main

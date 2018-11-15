@@ -12,11 +12,11 @@
 	<Parameters>
 
 .INPUTS
-	
+
 
 .NOTES
-    Creation Date:  
-    Purpose/Change: 
+    Creation Date:
+    Purpose/Change:
 
 .EXAMPLE
 
@@ -25,12 +25,12 @@
 ###############################################################################################
 
 Param
-( 
+(
     $JenkinsUser,
     $RemoteReceivedFolder="J:\ReceivedFiles",
     $htmlFilePath,
     $textFilePath,
-    $cleanupFilesPath 
+    $cleanupFilesPath
 )
 
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
@@ -77,12 +77,12 @@ $htmlFooter='
 </table>
 '
 
-try 
+try
 {
     $currentFiles = Get-ChildItem -Path $folderToQuery -Recurse -Verbose
     $SR = 1
     $htmlData = ""
-    
+
     function GetFileObject()
     {
         $object = New-Object -TypeName PSObject
@@ -92,7 +92,7 @@ try
         $object | Add-Member -MemberType NoteProperty -Name Size -Value $null
         return $object
     }
-    
+
     $htmlData += $htmlHeader
     $totalSize = 0
     $allFileObjects = @()
@@ -119,7 +119,7 @@ try
     if ( $currentFiles.Count -gt 0)
     {
         $totalSizeInGB = [math]::Round(($totalSize / 1024 / 1024 / 1024),3)
-    
+
         $currentHtmlFooter = $htmlFooter
         $currentHtmlFooter = $currentHtmlFooter.Replace("TOTAL_USAGE","$totalSizeInGB GB")
         $htmlData += $currentHtmlFooter
@@ -128,14 +128,14 @@ try
         $allFileObjects | Out-File -FilePath $textFilePath -Force -Verbose -NoClobber
         Add-Content -Value "--------------------------------------------------------" -Path $textFilePath
         Add-Content -Value "                                       Total : $totalSizeInGB GB" -Path $textFilePath
-        $cleanupFileList = $cleanupFileList.TrimEnd(",")    
+        $cleanupFileList = $cleanupFileList.TrimEnd(",")
         if ($currentFiles.Count -gt 2)
         {
             $cleanupFileList = $cleanupFileList.Replace("FileName=","FileName=Delete All Files,")
         }
         Set-Content -Value $cleanupFileList -Path $cleanupFilesPath -Force -Verbose
     }
-    else 
+    else
     {
         $currentHtmlFooter = $htmlFooter
         $currentHtmlFooter = $currentHtmlFooter.Replace("TOTAL_USAGE","0 GB")
@@ -145,11 +145,11 @@ try
         $allFileObjects | Out-File -FilePath $textFilePath -Force -Verbose -NoClobber
         Add-Content -Value "--------------------------------------------------------" -Path $textFilePath
         Add-Content -Value "                                       Total : 0 GB" -Path $textFilePath
-        Set-Content -Value "" -Path $cleanupFilesPath -Force -Verbose   
+        Set-Content -Value "" -Path $cleanupFilesPath -Force -Verbose
     }
-    $ExitCode = 0  
+    $ExitCode = 0
 }
-catch 
+catch
 {
     $ExitCode = 1
     ThrowExcpetion($_)
@@ -157,5 +157,5 @@ catch
 finally
 {
     LogMsg "Exiting with ExitCode = $ExitCode"
-    exit $ExitCode 
+    exit $ExitCode
 }
