@@ -12,13 +12,11 @@
     Required: Optional.
 
 .INPUTS
-    AzureSecrets.xml file. If you are running this script in Jenkins, then make sure to add a secret
-    file with ID: Azure_Secrets_File
-    If you are running the file locally, then pass secrets file path to -customSecretsFilePath parameter.
+    The Secrets.xml file.
+    If running in Jenkins, then please add a env variable for secret file with ID: Azure_Secrets_File;
+    If running locally, then pass the secrets file path to -customSecretsFilePath parameter.
 
 .NOTES
-    Creation Date:  14th December 2017
-    Purpose/Change: Initial script development
 
 .EXAMPLE
     .\AddAzureRmAccountFromSecretsFile.ps1 -customSecretsFilePath .\AzureSecrets.xml
@@ -40,21 +38,21 @@ Get-ChildItem (Join-Path $rootPath "Libraries") -Recurse | `
 
 if ( $customSecretsFilePath ) {
     $secretsFile = $customSecretsFilePath
-    LogMsg "Using provided secrets file: $($secretsFile | Split-Path -Leaf)"
+    LogMsg "Using provided secrets file: $secretsFile"
 }
 if ($env:Azure_Secrets_File) {
     $secretsFile = $env:Azure_Secrets_File
-    LogMsg "Using predefined secrets file: $($secretsFile | Split-Path -Leaf) in Jenkins Global Environments."
+    LogMsg "Using secrets file: $secretsFile, defined in environments."
 }
-if ( $secretsFile -eq $null ) {
-    LogMsg "ERROR: Azure Secrets file is not being set." -ForegroundColor Red -BackgroundColor Black
+if ( ($null -eq $secretsFile) -or ($secretsFile -eq [string]::Empty)) {
+    LogErr "ERROR: The Secrets file is not being set."
     ThrowException ("XML Secrets file not provided")
 }
 
 #---------------------------------------------------------[Script Start]--------------------------------------------------------
 
 if ( Test-Path $secretsFile ) {
-    LogMsg "$($secretsFile | Split-Path -Leaf) found."
+    LogMsg "$secretsFile found."
     LogMsg "---------------------------------"
     LogMsg "Authenticating Azure PS session.."
     $XmlSecrets = [xml](Get-Content $secretsFile)
@@ -63,15 +61,17 @@ if ( Test-Path $secretsFile ) {
     $Key = $XmlSecrets.secrets.SubscriptionServicePrincipalKey
     $pass = ConvertTo-SecureString $key -AsPlainText -Force
     $mycred = New-Object System.Management.Automation.PSCredential ($ClientID, $pass)
-    $null = Add-AzureRmAccount -ServicePrincipal -Tenant $TenantID -Credential $mycred
     $subIDSplitted = ($XmlSecrets.secrets.SubscriptionID).Split("-")
+    $subIDMasked = "$($subIDSplitted[0])-xxxx-xxxx-xxxx-$($subIDSplitted[4])"
+
+    $null = Add-AzureRmAccount -ServicePrincipal -Tenant $TenantID -Credential $mycred
     $selectedSubscription = Select-AzureRmSubscription -SubscriptionId $XmlSecrets.secrets.SubscriptionID
     if ( $selectedSubscription.Subscription.Id -eq $XmlSecrets.secrets.SubscriptionID ) {
-        LogMsg "Current Subscription : $($subIDSplitted[0])-xxxx-xxxx-xxxx-$($subIDSplitted[4])."
+        LogMsg "Current Subscription : $subIDMasked."
         LogMsg "---------------------------------"
     }
     else {
-        LogMsg "There was error selecting $($subIDSplitted[0])-xxxx-xxxx-xxxx-$($subIDSplitted[4])."
+        LogMsg "There was an error when selecting $subIDMasked."
         LogMsg "---------------------------------"
     }
 }
