@@ -1060,19 +1060,15 @@ Function Get-LISAv2Tools($XMLSecretFile)
 
 	$CmdArray | ForEach-Object {
 		# Verify the binary file in Tools location
-		if ( Test-Path $CurrentDirectory/Tools/$_ ) {
-			LogMsg "$_ file found in Tools folder."
-		} elseif (! $toolFileAccessLocation) {
-			Throw "$_ file is not found, please either download the file to Tools folder, or specify the blobStorageLocation in XMLSecretFile"
-		} else {
-			LogMsg "$_ file not found in Tools folder."
-			LogMsg "Downloading required files from blob Storage Location"
-
-			$WebClient.DownloadFile("$toolFileAccessLocation/$_","$CurrentDirectory\Tools\$_")
-
-			# Successfully downloaded files
-			LogMsg "File $_ successfully downloaded in Tools folder: $CurrentDirectory\Tools."
-		}
+		if (! (Test-Path $CurrentDirectory/Tools/$_) ) {
+			LogErr "$_ file is not found in Tools folder."
+		    if ($toolFileAccessLocation) {
+		        $WebClient.DownloadFile("$toolFileAccessLocation/$_","$CurrentDirectory\Tools\$_")
+		        LogMsg "File $_ successfully downloaded in Tools folder: $CurrentDirectory\Tools."
+		    } else {
+		        Throw "$_ file is not found, please either download the file to Tools folder, or specify the blobStorageLocation in XMLSecretFile"
+            }
+        }
 	}
 }
 
