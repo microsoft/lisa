@@ -3399,3 +3399,46 @@ Get_BC_Command()
     fi
     echo $bc_cmd
 }
+
+function ConsumeMemory() {
+    if [ ! -e /proc/meminfo ]; then
+        echo "Error: ConsumeMemory no meminfo found. Make sure /proc is mounted" >> HotAdd.log 2>&1
+        return 1
+    fi
+    rm ~/HotAdd.log -f
+    __totalMem=$(cat /proc/meminfo | grep -i MemTotal | awk '{ print $2 }')
+    __totalMem=$((__totalMem/1024))
+    echo "ConsumeMemory: Total Memory found $__totalMem MB" >> HotAdd.log 2>&1
+    declare -i __chunks
+    declare -i __threads
+    declare -i duration
+    declare -i timeout
+    if [ $chunk -le 0 ]; then
+        __chunks=128
+    else
+        __chunks=512
+    fi
+    __threads=$(($memMB/__chunks))
+    if [ $timeoutStress -eq 0 ]; then
+        timeout=10000000
+        duration=$((10*__threads))
+    elif [ $timeoutStress -eq 1 ]; then
+        timeout=5000000
+        duration=$((5*__threads))
+    elif [ $timeoutStress -eq 2 ]; then
+        timeout=1000000
+        duration=$__threads
+    else
+        timeout=1
+        duration=30
+        __threads=4
+        __chunks=2048
+    fi
+    if [ $duration -ne 0 ]; then
+        duration=$duration
+    fi
+    echo "Stress-ng info: $__threads threads :: $__chunks MB chunk size :: $(($timeout/1000000)) seconds between chunks :: $duration seconds total stress time" >> HotAdd.log 2>&1
+    stress-ng -m $__threads --vm-bytes ${__chunks}M -t $duration --backoff $timeout
+    wait
+    return 0
+}

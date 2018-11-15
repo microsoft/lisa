@@ -837,3 +837,54 @@ Function Wait-ForHyperVVMShutdown($HvServer,$VMNames)
         throw "Wait-ForHyperVVMShutdown Missing Mandatory Paramters"
     }
 }
+
+Function Set-VMDynamicMemory
+{
+    param (
+        $VM,
+        $MinMem,
+        $MaxMem,
+        $StartupMem,
+        $MemWeight
+    )
+    $MinMem = Convert-ToMemSize $MinMem $VM.HyperVHost
+    $MaxMem = Convert-ToMemSize $MaxMem $VM.HyperVHost
+    $StartupMem = Convert-ToMemSize $StartupMem $VM.HyperVHost
+    Stop-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -force
+    Set-VMMemory -vmName $VM.RoleName -ComputerName $VM.HyperVHost -DynamicMemoryEnabled $true `
+        -MinimumBytes $MinMem -MaximumBytes $MaxMem -StartupBytes $StartupMem -Priority $MemWeight
+    # check if mem is set correctly
+    $vmMem = (Get-VMMemory -vmName $VM.RoleName -ComputerName $VM.HyperVHost).Startup
+    if( $vmMem -eq $StartupMem ) {
+        LogMsg "Set VM Startup Memory for $($VM.RoleName) to $StartupMem"
+        return $True
+    }
+    else {
+        LogErr "Unable to set VM Startup Memory for $($VM.RoleName) to $StartupMem"
+        return $False
+    }
+
+} 
+
+Function Get-VMDemandMemory {
+    param (
+        [String] $VMName,
+        [String] $Server,
+        [int] $Timeout
+    )
+    $waitTimeOut = $Timeout
+    while($waitTimeOut -gt 0) {
+        $vm = Get-VM -Name $VMName -ComputerName $Server
+        if (-not $vm) {
+            LogErr "Get-VMDemandMemory: Unable to find VM ${VMName}"
+            return $false
+        }
+        if ($vm.MemoryDemand -and $vm.MemoryDemand -gt 0) {
+            return $True
+        }
+        $waitTimeOut -= 5  # Note - Test Port will sleep for 5 seconds
+        Start-Sleep -s 5
+    }
+    LogErr "Get-VMDemandMemory: VM ${VMName} did not get demand within timeout period ($Timeout)"
+    return $False
+}
