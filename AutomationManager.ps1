@@ -79,7 +79,6 @@ Set-Variable -Name preserveKeyword -Value "preserving" -Scope Global
 Set-Variable -Name TiPSessionId -Value $TiPSessionId -Scope Global
 Set-Variable -Name TiPCluster -Value $TiPCluster -Scope Global
 
-Set-Variable -Name global4digitRandom -Value $(Get-Random -SetSeed $(Get-Random) -Maximum 9999 -Minimum 1111) -Scope Global
 Set-Variable -Name CoreCountExceededTimeout -Value $CoreCountExceededTimeout -Scope Global
 
 Set-Variable -Name resultPass -Value "PASS" -Scope Global
@@ -193,7 +192,7 @@ try {
 	}
 
 	Set-Variable -Name UseAzureResourceManager -Value $true -Scope Global
-
+	LogMsg "------------------------------------------------------------------"
 	if ( $TestPlatform -eq "Azure") {
 		$SelectedSubscription = Select-AzureRmSubscription -SubscriptionId $AzureSetup.SubscriptionID
 		$subIDSplitted = ($SelectedSubscription.Subscription.SubscriptionId).Split("-")
@@ -210,6 +209,7 @@ try {
 			LogMsg "Destination VHD Path   : $($xmlConfig.config.Hyperv.Hosts.ChildNodes[$($index)].DestinationOsVHDPath)"
 		}
 	}
+	LogMsg "------------------------------------------------------------------"
 
 	if($DoNotDeleteVMs) {
 		LogMsg "PLEASE NOTE: DoNotDeleteVMs is set. VMs will not be deleted after test is finished even if, test gets PASS."

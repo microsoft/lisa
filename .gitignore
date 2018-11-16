@@ -8,3 +8,6 @@ UploadStatusFile*
 *-buildlogs.zip
 .vscode/settings.json
 *.exe
+Tools/kvp_*
+Tools/jq
+Tools/gawk

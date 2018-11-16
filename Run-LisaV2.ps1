@@ -97,6 +97,7 @@ Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1"
 try {
 	$TestID = "{0}{1}" -f $(-join ((65..90) | Get-Random -Count 4 | ForEach-Object {[char]$_})), $(Get-Random -Maximum 99999 -Minimum 11111)
 	Write-Output "Test ID generated for this test run: $TestID"
+	Set-Variable -Name "TestID" -Value $TestID -Scope Global -Force
 
 	# Prepare the workspace
 	$MaxDirLength = 32
@@ -165,6 +166,7 @@ try {
 	# Validate the test parameters.
 	Validate-Parameters
 
+	# Handle the Secrets file
 	if ($env:Azure_Secrets_File) {
 		$XMLSecretFile = $env:Azure_Secrets_File
 		LogMsg "Found Secrets file from environment."
@@ -424,12 +426,12 @@ try {
 				$ExitCode = 1
 			}
 		} else {
-			LogMsg "Summary file: .\report\report_$(($TestCycle).Trim()).xml does not exist. Exiting with 1."
+			LogErr "Summary file: .\report\report_$(($TestCycle).Trim()).xml does not exist. Exiting with 1."
 			$ExitCode = 1
 		}
 	}
 	catch {
-		LogMsg "$($_.Exception.GetType().FullName, " : ",$_.Exception.Message)"
+		LogErr "$($_.Exception.GetType().FullName, " : ",$_.Exception.Message)"
 		$ExitCode = 1
 	}
 	finally {
@@ -446,8 +448,8 @@ try {
 	if ( $_.FullyQualifiedErrorId -eq "InvokeMethodOnNull") {
 		Write-Error "WebClient failed to download required tools from blob Storage Location. Those files should be placed in Tools folder before next execution."
 	}
-	LogMsg "EXCEPTION : $ErrorMessage"
-	LogMsg "Source : Line $line in script $script_name."
+	LogErr "EXCEPTION : $ErrorMessage"
+	LogErr "Source : Line $line in script $script_name."
 	$ExitCode = 1
 } finally {
 	if ( $tempWorkingDir ) {

@@ -209,7 +209,7 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
 						$testResult = "ABORTED"
 						$ErrorMessage =  $_.Exception.Message
 						$line = $_.InvocationInfo.ScriptLineNumber
-						LogMsg "EXCEPTION : $ErrorMessage at line: $line"
+						LogErr "EXCEPTION : $ErrorMessage at line: $line"
 					}
 					finally	{
 						try {
@@ -310,11 +310,11 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
 			}
 		}
 		if ($runningJobsCount -gt 0) {
-			Write-Output "$runningJobsCount background cleanup jobs still running. Waiting 30 seconds..."
+			LogMsg "$runningJobsCount background cleanup jobs still running. Waiting 30 seconds..."
 			Start-Sleep -Seconds 30
 		}
 	}
-	Write-Output "All background cleanup jobs finished."
+	LogMsg "All background cleanup jobs finished."
 	$azureContextFiles = Get-Item "$env:TEMP\*.azurecontext"
 	$azureContextFiles | Remove-Item -Force | Out-Null
 	LogMsg "Removed $($azureContextFiles.Count) context files."

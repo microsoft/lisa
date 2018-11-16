@@ -382,11 +382,11 @@ Function CreateAllResourceGroupDeployments($setupType, $xmlConfig, $Distro, [str
                 $curtime = ([string]((Get-Date).Ticks / 1000000)).Split(".")[0]
                 $isServiceDeployed = "False"
                 $retryDeployment = 0
-                if ( $RG.Tag -ne $null ) {
-                    $groupName = "ICA-RG-" + $RG.Tag + "-" + $Distro + "-" + "$shortRandomWord-" + "$curtime"
+                if ( $null -ne $RG.Tag ) {
+                    $groupName = "ICA-RG-" + $RG.Tag + "-" + $Distro + "-" + "$TestID-" + "$curtime"
                 }
                 else {
-                    $groupName = "ICA-RG-" + $setupType + "-" + $Distro + "-" + "$shortRandomWord-" + "$curtime"
+                    $groupName = "ICA-RG-" + $setupType + "-" + $Distro + "-" + "$TestID-" + "$curtime"
                 }
                 if ($isMultiple -eq "True") {
                     $groupName = $groupName + "-" + $resourceGroupCount
@@ -476,16 +476,18 @@ Function CreateAllResourceGroupDeployments($setupType, $xmlConfig, $Distro, [str
 }
 
 Function DeleteResourceGroup([string]$RGName, [switch]$KeepDisks) {
+    LogMsg "Try to delete resource group $RGName ..."
     try {
-        LogMsg "Checking if $RGName exists..."
+        LogMsg "Checking if $RGName exists ..."
         $ResourceGroup = Get-AzureRmResourceGroup -Name $RGName -ErrorAction Ignore
     }
     catch {
+        LogMsg "Failed to get resource group: $RGName; maybe this resource group does not exist."
     }
     if ($ResourceGroup) {
         if ($ExistingRG) {
             $CurrentResources = @()
-            $CurrentResources += Get-AzureRmResource | Where {$_.ResourceGroupName -eq $ResourceGroup.ResourceGroupName}
+            $CurrentResources += Get-AzureRmResource | Where-Object {$_.ResourceGroupName -eq $ResourceGroup.ResourceGroupName}
             while ( $CurrentResources.Count -ne 1 ) {
                 foreach ($resource in $CurrentResources) {
                     Write-Host $resource.ResourceType
@@ -583,6 +585,11 @@ Function CreateResourceGroup([string]$RGName, $location) {
         }
         catch {
             $retValue = $false
+
+            $line = $_.InvocationInfo.ScriptLineNumber
+            $script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
+            LogErr "Exception in CreateResourceGroup"
+            LogErr "Source : Line $line in script $script_name."
         }
     }
     return $retValue
@@ -637,6 +644,11 @@ Function CreateResourceGroupDeployment([string]$RGName, $location, $setupType, $
         }
         catch {
             $retValue = $false
+
+            $line = $_.InvocationInfo.ScriptLineNumber
+            $script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
+            LogErr "Exception in CreateResourceGroupDeployment"
+            LogErr "Source : Line $line in script $script_name."
         }
     }
     return $retValue
@@ -1603,7 +1615,7 @@ Function GenerateAzureDeployJSONFile ($RGName, $osImage, $osVHD, $RGXMLData, $Lo
             Add-Content -Value "$($indents[4])^publisher^: ^clear-linux-project^" -Path $jsonFile
             Add-Content -Value "$($indents[3])}," -Path $jsonFile
         }
-        Add-Content -Value "$($indents[3])^tags^: {^GlobalRandom^: ^$GlobalRandom^}," -Path $jsonFile
+        Add-Content -Value "$($indents[3])^tags^: {^TestID^: ^$TestID^}," -Path $jsonFile
         Add-Content -Value "$($indents[3])^dependsOn^: " -Path $jsonFile
         Add-Content -Value "$($indents[3])[" -Path $jsonFile
         if ($ExistingRG) {

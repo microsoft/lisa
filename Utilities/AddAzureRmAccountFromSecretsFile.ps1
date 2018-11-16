@@ -53,7 +53,7 @@ if ( ($null -eq $secretsFile) -or ($secretsFile -eq [string]::Empty)) {
 
 if ( Test-Path $secretsFile ) {
     LogMsg "$secretsFile found."
-    LogMsg "---------------------------------"
+    LogMsg "------------------------------------------------------------------"
     LogMsg "Authenticating Azure PS session.."
     $XmlSecrets = [xml](Get-Content $secretsFile)
     $ClientID = $XmlSecrets.secrets.SubscriptionServicePrincipalClientID
@@ -68,12 +68,10 @@ if ( Test-Path $secretsFile ) {
     $selectedSubscription = Select-AzureRmSubscription -SubscriptionId $XmlSecrets.secrets.SubscriptionID
     if ( $selectedSubscription.Subscription.Id -eq $XmlSecrets.secrets.SubscriptionID ) {
         LogMsg "Current Subscription : $subIDMasked."
-        LogMsg "---------------------------------"
-    }
-    else {
+    } else {
         LogMsg "There was an error when selecting $subIDMasked."
-        LogMsg "---------------------------------"
     }
+    LogMsg "------------------------------------------------------------------"
 }
 else {
     LogErr "Secret file $secretsFile does not exist"
