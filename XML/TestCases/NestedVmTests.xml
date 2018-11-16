@@ -429,4 +429,105 @@
         <Tags>nested,nested-hyperv</Tags>
         <Priority>2</Priority>
     </test>
+    <test>
+        <TestName>NESTED-KVM-NETPERF-PPS</TestName>
+        <testScript>NESTED-KVM-NETPERF-PPS.ps1</testScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_netperf_pps.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_netperf.sh</files>
+        <setupType>M2S2</setupType>
+        <OverrideVMSize>Standard_F16</OverrideVMSize>
+        <AdditionalHWConfig>
+            <SwitchName>NonSRIOV</SwitchName>
+        </AdditionalHWConfig>
+        <TestParameters>
+            <!--The nested image should be qcow2 format, and accessible from a public URL-->
+            <param>NestedImageUrl=NESTED_IMAGE_URL</param>
+            <param>NestedUser=NESTED_VM_USER</param>
+            <param>NestedUserPassword='NESTED_VM_PASSWORD'</param>
+            <param>NestedCpuNum=8</param>
+            <param>NestedMemMB=8192</param>
+            <param>NestedNetDevice=virtio-net-pci</param>
+            <param>test_duration=NETPERF_RUNTIME_IN_SECONDS</param>
+            <param>test_type="singlepps"</param>
+            <!--singlepps/maxpps-->
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Performance</Category>
+        <Area>Nested</Area>
+        <Tags>nested,nested-kvm</Tags>
+        <Priority>2</Priority>
+    </test>
+    <test>
+        <TestName>AZURE-NESTED-KVM-NETPERF-PPS</TestName>
+        <testScript>NESTED-KVM-NETPERF-PPS.ps1</testScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_netperf_pps_nat.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_netperf.sh,.\Testscripts\Linux\nat_qemu_ifup.sh</files>
+        <setupType>M1S1NESTED</setupType>
+        <OverrideVMSize>Standard_F16</OverrideVMSize>
+        <TestParameters>
+            <!--The nested image should be qcow2 format, and accessible from a public URL-->
+            <param>NestedImageUrl=NESTED_IMAGE_URL</param>
+            <param>NestedUser=NESTED_VM_USER</param>
+            <param>NestedUserPassword='NESTED_VM_PASSWORD'</param>
+            <param>NestedCpuNum=8</param>
+            <param>NestedMemMB=8192</param>
+            <param>NestedNetDevice=virtio-net-pci</param>
+            <param>test_duration=NETPERF_RUNTIME_IN_SECONDS</param>
+            <param>test_type="singlepps"</param>
+            <!--singlepps/maxpps-->
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Performance</Category>
+        <Area>Nested</Area>
+        <Tags>nested,nested-kvm</Tags>
+        <Priority>2</Priority>
+    </test>
+    <test>
+        <TestName>NESTED-HYPERV-NTTTCP-DIFFERENT-L1-NAT</TestName>
+        <testScript>NESTED-HYPERV-NTTTCP-DIFFERENT-L1-NAT.ps1</testScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_hyperv_ntttcp_different_l1_nat.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
+        <setupType>M2S2</setupType>
+        <OverrideVMSize>Standard_F16</OverrideVMSize>
+        <TestParameters>
+            <!--The nested image should be vhd format, and accessible from a public URL-->
+            <param>NestedImageUrl=NESTED_VHD_URL</param>
+            <param>NestedUser=NESTED_VM_USER</param>
+            <param>NestedUserPassword='NESTED_VM_PASSWORD'</param>
+            <param>NestedCpuNum=8</param>
+            <param>NestedMemMB=8192</param>
+            <param>NestedNetDevice=virtio-net-pci</param>
+            <param>testDuration=60</param>
+            <param>testType=tcp</param>
+            <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024 2048 4096"</param>
+            <param>SkipVerifyKernelLogs=true</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Performance</Category>
+        <Area>Nested</Area>
+        <Tags>nested,nested-hyperv</Tags>
+        <Priority>2</Priority>
+    </test>
+    <test>
+        <TestName>AZURE-NESTED-HYPERV-NTTTCP-DIFFERENT-L1-NAT</TestName>
+        <testScript>NESTED-HYPERV-NTTTCP-DIFFERENT-L1-NAT.ps1</testScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_hyperv_ntttcp_different_l1_nat.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
+        <setupType>M1S1NESTEDNAT</setupType>
+        <OverrideVMSize>Standard_F16</OverrideVMSize>
+        <TestParameters>
+            <!--The nested image should be vhd format, and accessible from a public URL-->
+            <param>NestedImageUrl=NESTED_VHD_URL</param>
+            <param>NestedUser=NESTED_VM_USER</param>
+            <param>NestedUserPassword='NESTED_VM_PASSWORD'</param>
+            <param>NestedCpuNum=8</param>
+            <param>NestedMemMB=8192</param>
+            <param>NestedNetDevice=virtio-net-pci</param>
+            <param>testDuration=60</param>
+            <param>testType=tcp</param>
+            <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024 2048 4096"</param>
+            <param>SkipVerifyKernelLogs=true</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Performance</Category>
+        <Area>Nested</Area>
+        <Tags>nested,nested-hyperv</Tags>
+        <Priority>2</Priority>
+    </test>
 </TestCases>

@@ -186,7 +186,7 @@ Function CreateAllHyperVGroupDeployments($setupType, $xmlConfig, $Distro, $Debug
                                     -and $xmlconfig.config.testsDefinition.test.Tags.ToString().Contains("nested"))
                                 {
                                     LogMsg "Test Platform is $TestPlatform and nested VMs will be created, need to enable nested virtualization"
-                                    EnableHyperVNestedVirtualization -HyperVGroupName $HyperVGroupName -HyperVHost $HyperVHost
+                                    $null = EnableHyperVNestedVirtualization -HyperVGroupName $HyperVGroupName -HyperVHost $HyperVHost
                                 }
                                 foreach ($HyperVHost in $HyperVHostArray){
                                     $StartVMStatus = StartHyperVGroupVMs -HyperVGroupName $HyperVGroupName -HyperVHost $HyperVHost
