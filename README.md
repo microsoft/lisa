@@ -1,6 +1,6 @@
 ﻿# Linux Integration Services Automation (LISA), version 2
 
-July 2018
+Nov 2018
 
 ### Overview
 
@@ -69,9 +69,9 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
 
           git clone https://github.com/LIS/LISAv2.git
 
-2. Update the GlobalConfigurations.xml file with your Azure subscription infomation: 
+2. Update the .\XML\GlobalConfigurations.xml file with your Azure subscription information or HyperV host information:
 
-   Go to Global > Azure  and update following fields :
+   Go to Global > Azure/HyperV and update following fields :
 
         a. SubscriptionID
         b. SubscriptionName (Optional)
@@ -93,26 +93,41 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
         </Subscription>
 
   <HyperV>
-        <Host>
-            <ServerName>localhost</ServerName>
-            <SourceOsVHDPath>
-            </SourceOsVHDPath>
-            <DestinationOsVHDPath>VHDs_Destination_Path</DestinationOsVHDPath>
-        </Host>
+        <Hosts>
+            <Host>
+                <!--ServerName can be localhost or HyperV host name-->
+                <ServerName>localhost</ServerName>
+                <SourceOsVHDPath></SourceOsVHDPath>
+                <DestinationOsVHDPath>VHDs_Destination_Path</DestinationOsVHDPath>
+            </Host>
+            <Host>
+                <!--If run test against 2 hosts, set ServerName as another host computer name-->
+                <ServerName>lis-01</ServerName>
+                <SourceOsVHDPath></SourceOsVHDPath>
+                <!--If run test against 2 hosts, DestinationOsVHDPath is mandatory-->
+                <DestinationOsVHDPath>D:\vhd</DestinationOsVHDPath>
+            </Host>
+        </Hosts>
 ```
 
 3. There are two ways to run LISAv2 tests:
 
    a. Provide all parameters to Run-LisaV2.ps1
-   
+
         .\Run-LisaV2.ps1 -TestPlatform "Azure" -TestLocation "<Region location>" -RGIdentifier "<Identifier of the resource group>" [-ARMImageName "<publisher offer SKU version>" | -OsVHD "<VHD from storage account>" ] [[-TestCategory "<Test Catogry from Jenkins pipeline>" | -TestArea "<Test Area from Jenkins pipeline>"]* | -TestTag "<A Tag from Jenkins pipeline>" | -TestNames "<Test cases separated by comma>"]
-        
+        Example:
+        .\Run-LisaV2.ps1 -TestPlatform "Azure" -TestLocation "westus" -RGIdentifier "deployment" -ARMImageName "canonical ubuntuserver 18.04-lts Latest" -TestNames "BVT-VERIFY-DEPLOYMENT-PROVISION"
+
+        .\Run-LisaV2.ps1 -TestPlatform "HyperV" [-TestLocation "ServerName"] -RGIdentifier "<Identifier of the vm group>" -OsVHD "<local or UNC path>" [[-TestCategory "<Test Catogry from Jenkins pipeline>" | -TestArea "<Test Area from Jenkins pipeline>"]* | -TestTag "<A Tag from Jenkins pipeline>" | -TestNames "<Test cases separated by comma>"]
+        Example:
+        .\Run-LisaV2.ps1 -TestPlatform "HyperV" -RGIdentifier "ntp" -OsVHD 'E:\vhd\ubuntu_18_04.vhd' -TestNames "BVT-CORE-TIMESYNC-NTP"
+
    b. Provide parameters in .\XML\TestParameters.xml.
-   
+
         .\Run-LisaV2.ps1 -TestParameters .\XML\TestParameters.xml
-        
+
    Note: Please refer .\XML\TestParameters.xml file for more details.
-     
+
 ### More Information
 
 For more details, please refer to the documents [here](https://github.com/LIS/LISAv2/blob/master/Documents/How-to-use.md).

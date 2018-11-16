@@ -44,7 +44,7 @@
 	<RGIdentifier></RGIdentifier>
 	<ARMImageName></ARMImageName>
 	<StorageAccount></StorageAccount>
-	
+
 	<!-- [Required] for HyperV -->
 	<SourceOsVHDPath></SourceOsVHDPath>
 
@@ -69,7 +69,7 @@
 	<TiPCluster></TiPCluster>
 	<XMLSecretFile></XMLSecretFile>
 	<EnableTelemetry></EnableTelemetry>
-	
+
 	<!-- [Optional] Parameters for Overriding VM Configuration. -->
 	<CustomParameters></CustomParameters>
 	<OverrideVMSize></OverrideVMSize>
