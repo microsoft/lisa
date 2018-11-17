@@ -440,23 +440,23 @@ function GetTestSummary($testCycle, [DateTime] $StartTime, [string] $xmlFilename
 	$endTime = [Datetime]::Now.ToUniversalTime()
 	$testSuiteRunDuration= $endTime - $StartTime
 	$testSuiteRunDuration=$testSuiteRunDuration.Days.ToString() + ":" +  $testSuiteRunDuration.hours.ToString() + ":" + $testSuiteRunDuration.minutes.ToString()
-    $str = "<br />Test Results Summary<br />"
-    $str += "ICA test run on " + $startTime
+    $str = "<br />[LISAv2 Test Results Summary]<br />"
+    $str += "Test Run On           : " + $startTime
     if ( $BaseOsImage )
     {
-        $str += "<br />Image under test " + $BaseOsImage
+        $str += "<br />Image Under Test      : " + $BaseOsImage
     }
     if ( $BaseOSVHD )
     {
-        $str += "<br />VHD under test " + $BaseOSVHD
+        $str += "<br />VHD Under Test        : " + $BaseOSVHD
     }
     if ( $ARMImage )
     {
-        $str += "<br />ARM Image under test " + "$($ARMImage.Publisher) : $($ARMImage.Offer) : $($ARMImage.Sku) : $($ARMImage.Version)"
+        $str += "<br />ARM Image Under Test  : " + "$($ARMImage.Publisher) : $($ARMImage.Offer) : $($ARMImage.Sku) : $($ARMImage.Version)"
     }
-	$str += "<br />Total Executed TestCases " + $testSuiteResultDetails.totalTc + " (" + $testSuiteResultDetails.totalPassTc + " Pass" + ", " + $testSuiteResultDetails.totalFailTc + " Fail" + ", " + $testSuiteResultDetails.totalAbortedTc + " Abort)"
-	$str += "<br />Total Execution Time(dd:hh:mm) " + $testSuiteRunDuration.ToString()
-    $str += "<br />XML file: $xmlFilename<br /><br />"
+	$str += "<br />Total Test Cases      : " + $testSuiteResultDetails.totalTc + " (" + $testSuiteResultDetails.totalPassTc + " Pass" + ", " + $testSuiteResultDetails.totalFailTc + " Fail" + ", " + $testSuiteResultDetails.totalAbortedTc + " Abort)"
+	$str += "<br />Total Time (dd:hh:mm) : " + $testSuiteRunDuration.ToString()
+	$str += "<br />XML File              : $xmlFilename<br /><br />"
 
     # Add information about the host running ICA to the e-mail summary
     $str += "<pre>"
@@ -654,10 +654,10 @@ Function FinishLogReport([bool]$isFinal=$True)
 		$global:junitReportPath = ""
 		$global:isGenerateJunitReport=$False
 		# To avoid PSUseDeclaredVarsMoreThanAssignments warning when run PS Analyzer
-		LogMsg "global parameter junitReport is set to $global:junitReport"
-		LogMsg "global parameter reportRootNode is set to $global:reportRootNode"
-		LogMsg "global parameter junitReportPath is set to $global:junitReportPath"
-		LogMsg "global parameter isGenerateJunitReport is set to $global:isGenerateJunitReport"
+		LogMsg "global parameter junitReport is set to $global:junitReport  (null)"
+		LogMsg "global parameter reportRootNode is set to $global:reportRootNode  (null)"
+		LogMsg "global parameter junitReportPath is set to $global:junitReportPath (Empty)"
+		LogMsg "global parameter isGenerateJunitReport is set to $global:isGenerateJunitReport (False)"
 	}
 }
 

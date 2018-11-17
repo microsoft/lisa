@@ -579,7 +579,7 @@ Function CreateResourceGroup([string]$RGName, $location) {
                 $retValue = $true
             }
             else {
-                LogErr "Failed to Resource Group $RGName."
+                LogErr "Failed to create Resource Group: $RGName."
                 $retValue = $false
             }
         }
@@ -618,10 +618,10 @@ Function CreateResourceGroupDeployment([string]$RGName, $location, $setupType, $
                     LogMsg "-ForceDeleteResources is Set. Deleting $RGName."
                     $isCleaned = DeleteResourceGroup -RGName $RGName
                     if (!$isCleaned) {
-                        LogMsg "CleanUP unsuccessful for $RGName.. Please delete the services manually."
+                        LogMsg "Cleanup unsuccessful for $RGName.. Please delete the services manually."
                     }
                     else {
-                        LogMsg "CleanUP Successful for $RGName.."
+                        LogMsg "Cleanup Successful for $RGName.."
                     }
                 }
                 else {
@@ -633,10 +633,10 @@ Function CreateResourceGroupDeployment([string]$RGName, $location, $setupType, $
                         LogMsg "Removing Failed resource group, as we found 0 VM(s) deployed."
                         $isCleaned = DeleteResourceGroup -RGName $RGName
                         if (!$isCleaned) {
-                            LogMsg "CleanUP unsuccessful for $RGName.. Please delete the services manually."
+                            LogMsg "Cleanup unsuccessful for $RGName.. Please delete the services manually."
                         }
                         else {
-                            LogMsg "CleanUP Successful for $RGName.."
+                            LogMsg "Cleanup Successful for $RGName.."
                         }
                     }
                 }

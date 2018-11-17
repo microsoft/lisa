@@ -218,17 +218,17 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
 							$tempHtmlText = ($testSummary).Substring(0,((($testSummary).Length)-6))
 						}
 						catch {
-							$tempHtmlText = "Unable to parse the results. Will be fixed shortly."
+							$tempHtmlText = "Unable to parse the results."
 						}
 						$executionCount += 1
 						$testRunDuration = GetStopWatchElapasedTime $stopWatch "mm"
 						$testRunDuration = $testRunDuration.ToString()
 						if ( -not $SummaryHeaderAdded ) {
-							$testCycle.emailSummary += "#Sr. Test Name : Test Result : Test Duration (in minutes)<br />"
-							$testCycle.emailSummary += "----------------------------------------------------<br />"
+							$testCycle.emailSummary += "{0,5} {1,-50} {2,20} {3,20} <br />" -f "ID", "TestCaseName", "TestResult", "TestDuration(in minutes)"
+							$testCycle.emailSummary += "------------------------------------------------------------------------------------------------------<br />"
 							$SummaryHeaderAdded = $true
 						}
-						$testCycle.emailSummary += "$executionCount. $($currentTestData.testName) : $($testResult) : $testRunDuration<br />"
+						$testCycle.emailSummary += "{0,5} {1,-50} {2,20} {3,20} <br />" -f "$executionCount", "$($currentTestData.testName)", "$testResult", "$testRunDuration"
 						if ( $testSummary ) {
 							$testCycle.emailSummary += "$($testSummary)"
 						}
