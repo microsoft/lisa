@@ -60,7 +60,7 @@ function Invoke-CustomScript($fileUri)
 	}
 }
 
-function Get-DNSAddress($session) 
+function Get-DNSAddress($session)
 {
 	LogMsg "Get DNS Server IP"
 	$ips=Invoke-Command -Session $session -ScriptBlock {
@@ -464,7 +464,7 @@ function Main () {
 				New-NAT -session $serverSession -switchName $nestedVMSwithName -natName $nestedNATName
 				if ($testPlatform -ne "Azure") {
 					New-NestedVM-NetPerf -session $serverSession -vmMem $L2GuestMemMB -osVHD $nestOSVHD -processors $L2GuestCpuNum
-					$IPAddresses = Get-NestedVMIPAdress -session $serverSession -vmName "test" 
+					$IPAddresses = Get-NestedVMIPAdress -session $serverSession -vmName "test"
 				} else {
 					LogMsg "Install and configure DHCP against role $($vm.RoleName)"
 					Invoke-Command -Session $serverSession -ScriptBlock {Install-WindowsFeature DHCP -IncludeManagementTools}
@@ -478,7 +478,7 @@ function Main () {
 				New-NAT -session $clientSession -switchName $nestedVMSwithName -natName $nestedNATName
 				if ($testPlatform -ne "Azure") {
 					New-NestedVM-NetPerf -session $clientSession -vmMem $L2GuestMemMB -osVHD $nestOSVHD -processors $L2GuestCpuNum
-					$IPAddresses = Get-NestedVMIPAdress -session $clientSession -vmName "test" 
+					$IPAddresses = Get-NestedVMIPAdress -session $clientSession -vmName "test"
 				} else {
 					LogMsg "Install and configure DHCP against role $($vm.RoleName)"
 					Invoke-Command -Session $clientSession -ScriptBlock {Install-WindowsFeature DHCP -IncludeManagementTools}
@@ -540,12 +540,12 @@ function Main () {
 			foreach($nestedvm in $allDeployedNestedVMs) {
 				$session=$null
 				if($nestedvm.RoleName -eq "ntttcp-server") {
-					$session = $serverSession 
+					$session = $serverSession
 					$nttcpServerIP = $hs1VIP
 					$port = $nestedvm.SSHPort
 				}
 				if($nestedvm.RoleName -eq "ntttcp-client") {
-					$session = $clientSession 
+					$session = $clientSession
 					$nttcpServerIP = $hs2VIP
 					$nestedVmIP = $nestedvm.PublicIP
 					$port = $nestedvm.SSHPort
@@ -576,7 +576,7 @@ function Main () {
 			$server_cmd = "/home/$nestedUser/${testScript} -role server -level1ClientIP $nestedVmIP -level1ServerIP $serverInnerIP -logFolder /home/$nestedUser > /home/$nestedUser/TestExecutionConsole.log"
 			$cient_cmd = "/home/$nestedUser/${testScript} -role client -level1ClientIP $nestedVmIP -level1ServerIP $serverInnerIP -logFolder /home/$nestedUser > /home/$nestedUser/TestExecutionConsole.log"
 		}
-		
+
 		LogMsg "Executing : $($server_cmd)"
 		RunLinuxCmd -username $nestedUser -password $nestedPassword -ip $hs1VIP -port $nestVMServerSSHPort -command $server_cmd -runAsSudo
 		RemoteCopy -download -downloadFrom $hs1VIP -files "/tmp/sshFix.tar" -downloadTo $LogDir -port $nestVMServerSSHPort -username $nestedUser -password $nestedPassword

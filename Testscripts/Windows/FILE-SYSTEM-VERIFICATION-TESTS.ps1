@@ -59,4 +59,4 @@ function Main {
 
     $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
-}
+}
