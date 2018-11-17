@@ -113,7 +113,7 @@ Function CreateAllHyperVGroupDeployments($setupType, $xmlConfig, $Distro, $Debug
     else
     {
         $HyperVGroupCount = 0
-        LogMsg $setupType
+        LogMsg "Current test setup: $setupType"
         $setupTypeData = $xmlConfig.config.HyperV.Deployment.$setupType
         $index = 0
         foreach ($HyperVGroupXML in $setupTypeData.ResourceGroup )
@@ -432,7 +432,7 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML, 
                     $Out = Set-VM -VM $NewVM -ProcessorCount $CurrentVMCpu -StaticMemory  -CheckpointType Disabled -Notes "$HyperVGroupName"
                     LogMsg "Add-VMGroupMember -Name $HyperVGroupName -VM $($NewVM.Name)"
                     $Out = Add-VMGroupMember -Name "$HyperVGroupName" -VM $NewVM -ComputerName $HyperVHost
-                    $ResourceDiskPath = ".\Temp\ResourceDisk-$((Get-Date).Ticks)-sdb${vhdSuffix}"
+                    $ResourceDiskPath = Join-Path $env:TEMP "ResourceDisk-$((Get-Date).Ticks)-sdb${vhdSuffix}"
                     if($DestinationOsVHDPath -ne "VHDs_Destination_Path")
                     {
                         $ResourceDiskPath = "$DestinationOsVHDPath\ResourceDisk-$((Get-Date).Ticks)-sdb${vhdSuffix}"

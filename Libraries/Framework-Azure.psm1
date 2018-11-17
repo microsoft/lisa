@@ -940,7 +940,7 @@ Function Get-SQLQueryOfTelemetryData ($TestPlatform,$TestLocation,$TestCategory,
 			$testLogStorageAccountKey = $XmlSecrets.secrets.testLogsStorageAccountKey
 			$testLogFolder = "$($UTCTime.Year)-$($UTCTime.Month)-$($UTCTime.Day)"
 			$ticks= (Get-Date).Ticks
-			$uploadFileName = ".\Temp\$($TestName)-$ticks.zip"
+			$uploadFileName = Join-Path $env:TEMP "$TestName-$ticks.zip"
 			$null = ZipFiles -zipfilename $uploadFileName -sourcedir $LogDir
 			$UploadedURL = .\Utilities\UploadFilesToStorageAccount.ps1 -filePaths $uploadFileName `
 			-destinationStorageAccount $testLogStorageAccount -destinationContainer "lisav2logs" `

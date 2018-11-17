@@ -113,7 +113,7 @@ try {
 		New-Item -ItemType Directory -Path $tempWorkingDir    -Force -ErrorAction SilentlyContinue | Out-Null
 		$tmpSource = '\\?\' + "$OriginalWorkingDirectory\*"
 		Write-Output "Copying current workspace to $tempWorkingDir"
-		$excludedDirectories = @(".git", ".github", "TestResults", "VHDs_Destination_Path", "*.zip", "report")
+		$excludedDirectories = @(".git", "Documents", ".github", "report", "TestResults", "VHDs_Destination_Path", "*.zip", "report")
 		Copy-Item -Path $tmpSource -Destination $tempWorkingDir -Recurse -Force -Exclude $excludedDirectories | Out-Null
 		Set-Location -Path $tempWorkingDir | Out-Null
 		Write-Output "Working directory has been changed to $tempWorkingDir"
@@ -158,9 +158,10 @@ try {
 
 	# Prepare log folder
 	$LogDir = ".\TestResults\$(Get-Date -Format 'yyyy-dd-MM-HH-mm-ss-ffff')"
-	Set-Variable -Name LogDir -Value $LogDir -Scope Global -Force
+	$LogFileName = "LISAv2-Test-$TestID.log"
+	Set-Variable -Name LogDir      -Value $LogDir      -Scope Global -Force
+	Set-Variable -Name LogFileName -Value $LogFileName -Scope Global -Force
 	New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
-	New-Item -ItemType Directory -Path Temp -Force -ErrorAction SilentlyContinue | Out-Null
 	LogMsg "Created LogDir: $LogDir"
 
 	# Validate the test parameters.

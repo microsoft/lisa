@@ -337,7 +337,7 @@ Function CreateAllResourceGroupDeployments($setupType, $xmlConfig, $Distro, [str
     }
     else {
         $resourceGroupCount = 0
-        LogMsg $setupType
+        LogMsg "Current test setup: $setupType"
         $setupTypeData = $xmlConfig.config.$TestPlatform.Deployment.$setupType
         $allsetupGroups = $setupTypeData
         if ($allsetupGroups.ResourceGroup[0].Location -or $allsetupGroups.ResourceGroup[0].AffinityGroup) {
@@ -424,7 +424,7 @@ Function CreateAllResourceGroupDeployments($setupType, $xmlConfig, $Distro, [str
                             $isServiceCreated = CreateResourceGroup -RGName $groupName -location $location
                         }
                         if ($isServiceCreated -eq "True") {
-                            $azureDeployJSONFilePath = ".\Temp\$groupName.json"
+                            $azureDeployJSONFilePath = Join-Path $env:TEMP "$groupName.json"
                             $null = GenerateAzureDeployJSONFile -RGName $groupName -osImage $osImage -osVHD $osVHD -RGXMLData $RG -Location $location -azuredeployJSONFilePath $azureDeployJSONFilePath
                             $DeploymentStartTime = (Get-Date)
                             $CreateRGDeployments = CreateResourceGroupDeployment -RGName $groupName -location $location -setupType $setupType -TemplateFile $azureDeployJSONFilePath
@@ -1091,7 +1091,7 @@ Function GenerateAzureDeployJSONFile ($RGName, $osImage, $osVHD, $RGXMLData, $Lo
         Add-Content -Value "$($indents[7])^addressPrefix^: ^[variables('defaultSubnetPrefix')]^" -Path $jsonFile
         Add-Content -Value "$($indents[6])}" -Path $jsonFile
         Add-Content -Value "$($indents[5])}" -Path $jsonFile
-        LogMsg "  Added Default Subnet to $virtualNetworkName.."
+        LogMsg "Added Default Subnet to $virtualNetworkName.."
 
         if ($totalSubnetsRequired -ne 0) {
             $subnetCounter = 1
@@ -1684,7 +1684,7 @@ Function GenerateAzureDeployJSONFile ($RGName, $osImage, $osVHD, $RGXMLData, $Lo
         Add-Content -Value "$($indents[4])^storageProfile^: " -Path $jsonFile
         Add-Content -Value "$($indents[4]){" -Path $jsonFile
         if ($ARMImage -and !$osVHD) {
-            LogMsg ">>Using ARMImage : $($ARMImage.Publisher):$($ARMImage.Offer):$($ARMImage.Sku):$($ARMImage.Version)"
+            LogMsg ">>> Using ARMImage : $($ARMImage.Publisher):$($ARMImage.Offer):$($ARMImage.Sku):$($ARMImage.Version)"
             Add-Content -Value "$($indents[5])^imageReference^ : " -Path $jsonFile
             Add-Content -Value "$($indents[5]){" -Path $jsonFile
             Add-Content -Value "$($indents[6])^publisher^: ^$publisher^," -Path $jsonFile
@@ -1712,7 +1712,7 @@ Function GenerateAzureDeployJSONFile ($RGName, $osImage, $osVHD, $RGXMLData, $Lo
         Add-Content -Value "$($indents[5]){" -Path $jsonFile
         if ($osVHD) {
             if ($UseManagedDisks -or $UseManageDiskForCurrentTest) {
-                LogMsg ">>Using VHD : $osVHD (Converted to Managed Image)"
+                LogMsg ">>> Using VHD : $osVHD (Converted to Managed Image)"
                 Add-Content -Value "$($indents[6])^osType^: ^Linux^," -Path $jsonFile
                 Add-Content -Value "$($indents[6])^name^: ^$vmName-OSDisk^," -Path $jsonFile
                 Add-Content -Value "$($indents[6])^managedDisk^: " -Path $jsonFile
@@ -1733,7 +1733,7 @@ Function GenerateAzureDeployJSONFile ($RGName, $osImage, $osVHD, $RGXMLData, $Lo
                 Add-Content -Value "$($indents[6])^createOption^: ^FromImage^" -Path $jsonFile
             }
             else {
-                LogMsg ">>Using VHD : $osVHD"
+                LogMsg ">>> Using VHD : $osVHD"
                 Add-Content -Value "$($indents[6])^image^: " -Path $jsonFile
                 Add-Content -Value "$($indents[6]){" -Path $jsonFile
                 Add-Content -Value "$($indents[7])^uri^: ^[concat('http://',variables('StorageAccountName'),'.blob.core.windows.net/vhds/','$osVHD')]^" -Path $jsonFile
