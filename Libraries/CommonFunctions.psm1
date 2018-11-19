@@ -51,56 +51,41 @@ function Write-Log()
 		[string]$logLevel,
 		[string]$text
 	)
+
+	if ($password) {
+		$text = $text.Replace($password,"******")
+	}
+	$now = [Datetime]::Now.ToUniversalTime().ToString("MM/dd/yyyy HH:mm:ss")
+	$logType = $logLevel.PadRight(5, ' ')
+	$finalMessage = "$now : [$logType] $text"
+	$fgColor = "White"
+	switch ($logLevel)
+	{
+		"INFO"	{$fgColor = "White"; continue}
+		"WARN"	{$fgColor = "Yellow"; continue}
+		"ERROR"	{$fgColor = "Red"; continue}
+	}
+	Write-Host $finalMessage -ForegroundColor $fgColor
+
 	try
 	{
-		if ($password)
-		{
-			$text = $text.Replace($password,"******")
-		}
-		$now = [Datetime]::Now.ToUniversalTime().ToString("MM/dd/yyyy HH:mm:ss")
-		$logType = $logLevel.PadRight(5, ' ')
-		$finalMessage = "$now : [$logType] $text"
-		$fgColor = "White"
-		switch ($logLevel)
-		{
-			"INFO"	{$fgColor = "White"; continue}
-			"WARN"	{$fgColor = "Yellow"; continue}
-			"ERROR"	{$fgColor = "Red"; continue}
-		}
-		Write-Host $finalMessage -ForegroundColor $fgColor
-		$logFolder = ""
-		$logFile = "Logs.txt"
-		if ($LogDir)
-		{
-			$logFolder = $LogDir
-			$logFile = "Logs.txt"
-		}
-		else
-		{
-			$logFolder = ".\Temp"
-			$logFile = "TempLogs.txt"
-		}
-		if ($CurrentTestLogDir )
-		{
-			$logFolder = $CurrentTestLogDir
-			$logFile = "CurrentTestLogs.txt"
-		}
-		if ( !(Test-Path "$logFolder\$logFile" ) )
-		{
-			if (!(Test-Path $logFolder) )
-			{
-				New-Item -ItemType Directory -Force -Path $logFolder | Out-Null
+		if ($LogDir) {
+			if (!(Test-Path $LogDir)) {
+				New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 			}
-			New-Item -path $logFolder -name $logFile -type "file" -value $finalMessage | Out-Null
+		} else {
+			$LogDir = $env:TEMP
 		}
-		else
-		{
-			Add-Content -Value $finalMessage -Path "$logFolder\$logFile" -Force
+
+		$LogFileFullPath = Join-Path $LogDir $LogFileName
+		if (!(Test-Path $LogFileFullPath)) {
+			New-Item -path $LogDir -name $LogFileName -type "file" | Out-Null
 		}
+		Add-Content -Value $finalMessage -Path $LogFileFullPath -Force
 	}
 	catch
 	{
-		Write-Output "Unable to LogError : $now : $text"
+		Write-Output "[LOG FILE EXCEPTION] : $now : $text"
 	}
 }
 
@@ -1144,7 +1129,8 @@ Function RemoteCopy($uploadTo, $downloadFrom, $downloadTo, $port, $files, $usern
 						{
 							LogMsg "Uploading $tarFileName to $username : $uploadTo, port $port using Password authentication"
 							$curDir = $PWD
-							$uploadStatusRandomFile = ".\Temp\UploadStatusFile" + (Get-Random -Maximum 9999 -Minimum 1111) + ".txt"
+							$uploadStatusRandomFileName = "UploadStatusFile" + (Get-Random -Maximum 9999 -Minimum 1111) + ".txt"
+							$uploadStatusRandomFile = Join-Path $env:TEMP $uploadStatusRandomFileName
 							$uploadStartTime = Get-Date
 							$uploadJob = Start-Job -ScriptBlock { Set-Location $args[0]; Write-Output $args; Set-Content -Value "1" -Path $args[6]; $username = $args[4]; $uploadTo = $args[5]; Write-Output "yes" | .\tools\pscp -v -pw $args[1] -q -P $args[2] $args[3] $username@${uploadTo}: ; Set-Content -Value $LASTEXITCODE -Path $args[6];} -ArgumentList $curDir,$password,$port,$tarFileName,$username,${uploadTo},$uploadStatusRandomFile
 							Start-Sleep -Milliseconds 100
@@ -1152,7 +1138,6 @@ Function RemoteCopy($uploadTo, $downloadFrom, $downloadTo, $port, $files, $usern
 							$uploadTimout = $false
 							while (( $uploadJobStatus.State -eq "Running" ) -and ( !$uploadTimout ))
 							{
-								Write-Host "." -NoNewline
 								$now = Get-Date
 								if ( ($now - $uploadStartTime).TotalSeconds -gt 600 )
 								{
@@ -1226,7 +1211,8 @@ Function RemoteCopy($uploadTo, $downloadFrom, $downloadTo, $port, $files, $usern
 						{
 							LogMsg "Uploading $testFile to $username : $uploadTo, port $port using Password authentication"
 							$curDir = $PWD
-							$uploadStatusRandomFile = ".\Temp\UploadStatusFile" + (Get-Random -Maximum 9999 -Minimum 1111) + ".txt"
+							$uploadStatusRandomFileName = "UploadStatusFile" + (Get-Random -Maximum 9999 -Minimum 1111) + ".txt"
+							$uploadStatusRandomFile = Join-Path $env:TEMP $uploadStatusRandomFileName
 							$uploadStartTime = Get-Date
 							$uploadJob = Start-Job -ScriptBlock { Set-Location $args[0]; Write-Output $args; Set-Content -Value "1" -Path $args[6]; $username = $args[4]; $uploadTo = $args[5]; Write-Output "yes" | .\tools\pscp -v -pw $args[1] -q -P $args[2] $args[3] $username@${uploadTo}: ; Set-Content -Value $LASTEXITCODE -Path $args[6];} -ArgumentList $curDir,$password,$port,$testFile,$username,${uploadTo},$uploadStatusRandomFile
 							Start-Sleep -Milliseconds 100
@@ -1234,7 +1220,6 @@ Function RemoteCopy($uploadTo, $downloadFrom, $downloadTo, $port, $files, $usern
 							$uploadTimout = $false
 							while (( $uploadJobStatus.State -eq "Running" ) -and ( !$uploadTimout ))
 							{
-								Write-Host "." -NoNewline
 								$now = Get-Date
 								if ( ($now - $uploadStartTime).TotalSeconds -gt 600 )
 								{
@@ -1292,7 +1277,8 @@ Function RemoteCopy($uploadTo, $downloadFrom, $downloadTo, $port, $files, $usern
 					{
 						LogMsg "Downloading $testFile from $username : $downloadFrom,port $port to $downloadTo using PrivateKey authentication"
 						$curDir = $PWD
-						$downloadStatusRandomFile = ".\Temp\DownloadStatusFile" + (Get-Random -Maximum 9999 -Minimum 1111) + ".txt"
+						$downloadStatusRandomFileName = "DownloadStatusFile" + (Get-Random -Maximum 9999 -Minimum 1111) + ".txt"
+						$downloadStatusRandomFile = Join-Path $env:TEMP $downloadStatusRandomFileName
 						$downloadStartTime = Get-Date
 						$downloadJob = Start-Job -ScriptBlock { $curDir=$args[0];$sshKey=$args[1];$port=$args[2];$testFile=$args[3];$username=$args[4];${downloadFrom}=$args[5];$downloadTo=$args[6];$downloadStatusRandomFile=$args[7]; Set-Location $curDir; Set-Content -Value "1" -Path $args[6]; Write-Output "yes" | .\tools\pscp -i .\ssh\$sshKey -q -P $port $username@${downloadFrom}:$testFile $downloadTo; Set-Content -Value $LASTEXITCODE -Path $downloadStatusRandomFile;} -ArgumentList $curDir,$sshKey,$port,$testFile,$username,${downloadFrom},$downloadTo,$downloadStatusRandomFile
 						Start-Sleep -Milliseconds 100
@@ -1300,7 +1286,6 @@ Function RemoteCopy($uploadTo, $downloadFrom, $downloadTo, $port, $files, $usern
 						$downloadTimout = $false
 						while (( $downloadJobStatus.State -eq "Running" ) -and ( !$downloadTimout ))
 						{
-							Write-Host "." -NoNewline
 							$now = Get-Date
 							if ( ($now - $downloadStartTime).TotalSeconds -gt 600 )
 							{
@@ -1318,7 +1303,8 @@ Function RemoteCopy($uploadTo, $downloadFrom, $downloadTo, $port, $files, $usern
 					{
 						LogMsg "Downloading $testFile from $username : $downloadFrom,port $port to $downloadTo using Password authentication"
 						$curDir =  (Get-Item -Path ".\" -Verbose).FullName
-						$downloadStatusRandomFile = ".\Temp\DownloadStatusFile" + (Get-Random -Maximum 9999 -Minimum 1111) + ".txt"
+						$downloadStatusRandomFileName = "DownloadStatusFile" + (Get-Random -Maximum 9999 -Minimum 1111) + ".txt"
+						$downloadStatusRandomFile = Join-Path $env:TEMP $downloadStatusRandomFileName
 						Set-Content -Value "1" -Path $downloadStatusRandomFile
 						$downloadStartTime = Get-Date
 						$downloadJob = Start-Job -ScriptBlock {
@@ -1339,7 +1325,6 @@ Function RemoteCopy($uploadTo, $downloadFrom, $downloadTo, $port, $files, $usern
 						$downloadTimout = $false
 						while (( $downloadJobStatus.State -eq "Running" ) -and ( !$downloadTimout ))
 						{
-							Write-Host "." -NoNewline
 							$now = Get-Date
 							if ( ($now - $downloadStartTime).TotalSeconds -gt 600 )
 							{

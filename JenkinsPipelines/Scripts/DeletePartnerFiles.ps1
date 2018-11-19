@@ -42,7 +42,7 @@ try
             $allFiles = Get-ChildItem "$folderToQuery"
             foreach ( $file in $allFiles.Name)
             {
-                LogMsg "Removing $file..." -NoNewline
+                LogMsg "Removing $file..."
                 $null = Remove-Item -Path "$folderToQuery\$file" -Force
                 if ($?)
                 {
@@ -60,7 +60,7 @@ try
             {
                 if ( ( Test-Path -Path "$folderToQuery\$file"))
                 {
-                    LogMsg "Removing $file..." -NoNewline
+                    LogMsg "Removing $file..."
                     $null = Remove-Item -Path "$folderToQuery\$file" -Force
                     if ($?)
                     {

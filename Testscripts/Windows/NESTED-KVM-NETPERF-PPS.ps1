@@ -226,7 +226,7 @@ function Main () {
 			} catch {
 				$ErrorMessage = $_.Exception.Message
 				$ErrorLine = $_.InvocationInfo.ScriptLineNumber
-				LogErr "EXCEPTION in Netperf log parsing : $ErrorMessage at line: $ErrorLine"            
+				LogErr "EXCEPTION in Netperf log parsing : $ErrorMessage at line: $ErrorLine"
 			}
 			#endregion
 		}

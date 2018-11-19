@@ -189,7 +189,7 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
 					New-Item -Type Directory -Path $CurrentTestLogDir -ErrorAction SilentlyContinue | Out-Null
 					Set-Variable -Name "CurrentTestLogDir" -Value $CurrentTestLogDir -Scope Global
 					Set-Variable -Name "LogDir" -Value $CurrentTestLogDir -Scope Global
-					$TestCaseLogFile = "$CurrentTestLogDir\CurrentTestLogs.txt"
+					$TestCaseLogFile = "$CurrentTestLogDir\$LogFileName"
 					$testcase = StartLogTestCase $testsuite "$($test.Name)" "CloudTesting.$($testCycle.cycleName)"
 					$testSuiteResultDetails.totalTc = $testSuiteResultDetails.totalTc +1
 					$stopWatch = SetStopWatch
@@ -209,24 +209,26 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
 						$testResult = "ABORTED"
 						$ErrorMessage =  $_.Exception.Message
 						$line = $_.InvocationInfo.ScriptLineNumber
-						LogErr "EXCEPTION : $ErrorMessage at line: $line"
+						$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
+						LogErr "EXCEPTION : $ErrorMessage"
+						LogErr "Source : Line $line in script $script_name."
 					}
 					finally	{
 						try {
 							$tempHtmlText = ($testSummary).Substring(0,((($testSummary).Length)-6))
 						}
 						catch {
-							$tempHtmlText = "Unable to parse the results. Will be fixed shortly."
+							$tempHtmlText = "Unable to parse the results."
 						}
 						$executionCount += 1
 						$testRunDuration = GetStopWatchElapasedTime $stopWatch "mm"
 						$testRunDuration = $testRunDuration.ToString()
 						if ( -not $SummaryHeaderAdded ) {
-							$testCycle.emailSummary += "#Sr. Test Name : Test Result : Test Duration (in minutes)<br />"
-							$testCycle.emailSummary += "----------------------------------------------------<br />"
+							$testCycle.emailSummary += "{0,5} {1,-50} {2,20} {3,20} <br />" -f "ID", "TestCaseName", "TestResult", "TestDuration(in minutes)"
+							$testCycle.emailSummary += "------------------------------------------------------------------------------------------------------<br />"
 							$SummaryHeaderAdded = $true
 						}
-						$testCycle.emailSummary += "$executionCount. $($currentTestData.testName) : $($testResult) : $testRunDuration<br />"
+						$testCycle.emailSummary += "{0,5} {1,-50} {2,20} {3,20} <br />" -f "$executionCount", "$($currentTestData.testName)", "$testResult", "$testRunDuration"
 						if ( $testSummary ) {
 							$testCycle.emailSummary += "$($testSummary)"
 						}
