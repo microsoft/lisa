@@ -18,13 +18,11 @@ LISAv2 includes below test suite categories:
 
 ### Prerequisite
 
-1. You must have a Windows Machine with PowerShell (v5.0 and above) as test driver.
+1. You must have a Windows Machine (Host) with PowerShell (v5.0 and above) as test driver. It should be Windows Server for localhost, or any Windows system including Windows 10 for remote host access case.
 
 2. You must be connected to Internet.
 
-3. You must have a valid Windows Azure Subscription.
-
-4. You download 3rd party software in Tools folder. If you are using secure blob in Azure Storage Account or UNC path, you can add a tag <blobStorageLocation></blobStorageLocation> in any secret xml file.
+3. You download 3rd party software in Tools folder. If you are using secure blob in Azure Storage Account or UNC path, you can add a tag <blobStorageLocation>https://myownsecretlocation.blob.core.windows.net/binarytools</blobStorageLocation> in any secret xml file.
 * 7za.exe
 * dos2unix.exe
 * gawk
@@ -34,6 +32,13 @@ LISAv2 includes below test suite categories:
 * kvp_client32
 * kvp_client64
 * nc.exe
+
+4. For running Azure tests, you must have a valid Windows Azure Subscription.
+
+5. For running Hyper-V tests, the resource requirements are:
+- Hyper-V role enabled
+- At least 8 GB of memory on the Host - Most of lisav2 tests will create and start Virtual Machines (Guests) with 3.5 GB of memory assigned
+- 1 External vSwitch in Hyper-V Manager/Virtual Switch Manager. This vSwitch will be named 'External' and must have an internet connection. For Hyper-V NETWORK tests you need 2 more vSwitch types created: Internal and Private. These 2 vSwitches will have the naming also 'Internal' and 'Private'.
 
 ### Download Latest Azure PowerShell
 
@@ -58,8 +63,12 @@ Refer to this URL [here](https://docs.microsoft.com/en-us/azure/azure-resource-m
 
 A VHD with Linux OS must be made compatible to work in HyperV environment. This includes:
 
-* Linux Integration Services
+* Linux Integration Services. If not available, at least KVP daemon must be running. Without KVP daemon running, the framework will not be able to obtain an IP address from the guest.
 * Windows Azure Linux Agent (for testing in Azure environment only)
+* SSH, and the SSH daemon configured to start on boot.
+* Port 22 open in the firewall
+* A regular user account on the guest OS
+> "root" user cannot be used in the test configuration
 
 Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azure/virtual-machines/linux/create-upload-generic)
 
