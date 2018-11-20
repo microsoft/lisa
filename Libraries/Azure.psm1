@@ -1960,36 +1960,42 @@ Function isAllSSHPortsEnabledRG($AllVMDataObject) {
                 LogMsg "Connecting to  $($vm.PublicIP) : $port : Connected"
             }
         }
+
         if ($WaitingForConnect -gt 0) {
             $timeout = $timeout + 1
             LogMsg "$WaitingForConnect VM(s) still awaiting to open port $port .."
             LogMsg "Retry $timeout/100"
             sleep 3
             $retValue = "False"
-        }
-        else {
+        } else {
             LogMsg "ALL VM's port $port is/are open now.."
             $retValue = "True"
         }
 
+    } While (($timeout -lt 20) -and ($WaitingForConnect -gt 0))
+
+	if ($retValue -eq "False") {
+		foreach ($vm in $AllVMDataObject) {
+			$out = Test-TCP -testIP $($vm.PublicIP) -testport $port
+			if ($out -ne "True") {
+				LogMsg "Getting boot diagnostic data of VM $($vm.RoleName)"
+				$vmStatus = Get-AzureRmVm -ResourceGroupName $vm.ResourceGroupName -VMName $vm.RoleName -Status
+				if ($vmStatus -and $vmStatus.BootDiagnostics) {
+					if ($vmStatus.BootDiagnostics.SerialConsoleLogBlobUri) {
+						LogMsg "Getting serial boot logs of VM $($vm.RoleName)"
+						$uri = [System.Uri]$vmStatus.BootDiagnostics.SerialConsoleLogBlobUri
+						$storageAccountName = $uri.Host.Split(".")[0]
+						$diagnosticRG = ((Get-AzureRmStorageAccount) | where {$_.StorageAccountName -eq $storageAccountName}).ResourceGroupName.ToString()
+						$key = (Get-AzureRmStorageAccountKey -ResourceGroupName $diagnosticRG -Name $storageAccountName)[0].value
+						$diagContext = New-AzureStorageContext -StorageAccountName $storageAccountName -StorageAccountKey $key
+						Get-AzureStorageBlobContent -Blob $uri.LocalPath.Split("/")[2] `
+							-Context $diagContext -Container $uri.LocalPath.Split("/")[1] `
+							-Destination "$LogDir\$($vm.RoleName)-SSH-Fail-Boot-Logs.txt"
+					}
+				}
+			}
+		}
     }
-    While (($timeout -lt 100) -and ($WaitingForConnect -gt 0))
-
-    #Following Code will be enabled once https://github.com/Azure/azure-powershell/issues/4168 issue resolves.
-
-    #if ($retValue -eq "False")
-    #{
-    #    foreach ( $vm in $AllVMDataObject)
-    #    {
-    #        $out = Test-TCP  -testIP $($vm.PublicIP) -testport $port
-    #        if ($out -ne "True")
-    #        {
-    #            LogMsg "Getting boot diagnostic data from $($vm.RoleName)"
-    #            $bootData = Get-AzureRmVMBootDiagnosticsData -ResourceGroupName $vm.ResourceGroupName -Name $vm.RoleName -Linux
-    #            Set-Content -Value $bootData -Path "$LogDir\$($vm.RoleName)-SSH-Fail-Boot-Logs.txt"
-    #        }
-    #    }
-    #}
 
     return $retValue
 }

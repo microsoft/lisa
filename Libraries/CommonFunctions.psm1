@@ -723,126 +723,115 @@ Function WaitFor($seconds,$minutes,$hours)
 	}
 }
 
-Function GetAndCheckKernelLogs($allDeployedVMs, $status, $vmUser, $vmPassword)
-{
-	try
-	{
-		if ( !$vmUser )
-		{
+Function GetAndCheckKernelLogs($allDeployedVMs, $status, $vmUser, $vmPassword) {
+	try	{
+		if (!($status -imatch "Initial" -or $status -imatch "Final")) {
+			LogMsg "Status value should be either final or initial"
+			return $false
+		}
+
+		if (!$vmUser) {
 			$vmUser = $user
 		}
-		if ( !$vmPassword )
-		{
+		if (!$vmPassword) {
 			$vmPassword = $password
 		}
+
 		$retValue = $false
-		foreach ($VM in $allDeployedVMs)
-		{
-			$BootLogDir="$Logdir\$($VM.RoleName)"
-			mkdir $BootLogDir -Force | Out-Null
-			LogMsg "Collecting $($VM.RoleName) VM Kernel $status Logs.."
-			$InitailBootLog="$BootLogDir\InitialBootLogs.txt"
-			$FinalBootLog="$BootLogDir\FinalBootLogs.txt"
-			$KernelLogStatus="$BootLogDir\KernelLogStatus.txt"
-			if($status -imatch "Initial")
-			{
-				$randomFileName = [System.IO.Path]::GetRandomFileName()
-				Set-Content -Value "A Random file." -Path "$Logdir\$randomFileName"
-				$Null = RemoteCopy -uploadTo $VM.PublicIP -port $VM.SSHPort  -files "$Logdir\$randomFileName" -username $vmUser -password $vmPassword -upload
-				Remove-Item -Path "$Logdir\$randomFileName" -Force
-				$Null = RunLinuxCmd -ip $VM.PublicIP -port $VM.SSHPort -username $vmUser -password $vmPassword -command "dmesg > /home/$vmUser/InitialBootLogs.txt" -runAsSudo
-				$Null = RemoteCopy -download -downloadFrom $VM.PublicIP -port $VM.SSHPort -files "/home/$vmUser/InitialBootLogs.txt" -downloadTo $BootLogDir -username $vmUser -password $vmPassword
-				LogMsg "$($VM.RoleName): $status Kernel logs collected ..SUCCESSFULLY"
-				LogMsg "Checking for call traces in kernel logs.."
-				$KernelLogs = Get-Content $InitailBootLog
-				$callTraceFound  = $false
-				foreach ( $line in $KernelLogs )
-				{
-					if (( $line -imatch "Call Trace" ) -and  ($line -inotmatch "initcall "))
-					{
+		foreach ($VM in $allDeployedVMs) {
+			LogMsg "Collecting $($VM.RoleName) VM Kernel $status Logs..."
+
+			$bootLogDir = "$Logdir\$($VM.RoleName)"
+			mkdir $bootLogDir -Force | Out-Null
+			$initialBootLogFile = "InitialBootLogs.txt"
+			$finalBootLogFile = "FinalBootLogs.txt"
+			$initialBootLog = Join-Path $BootLogDir $initialBootLogFile
+			$finalBootLog = Join-Path $BootLogDir $finalBootLogFile
+			$currenBootLogFile = $finalBootLogFile
+			$currenBootLog = $initialBootLog
+			$kernelLogStatus = Join-Path $BootLogDir "KernelLogStatus.txt"
+
+			if ($status -imatch "Final") {
+				$currenBootLogFile = $finalBootLogFile
+				$currenBootLog = $finalBootLog
+			}
+
+			if ($status -imatch "Initial") {
+				$checkConnectivityFile = Join-Path $LogDir ([System.IO.Path]::GetcheckConnectivityFile())
+				Set-Content -Value "Test connectivity." -Path $checkConnectivityFile
+				RemoteCopy -uploadTo $VM.PublicIP -port $VM.SSHPort  -files $checkConnectivityFile `
+					-username $vmUser -password $vmPassword -upload | Out-Null
+				Remove-Item -Path $checkConnectivityFile -Force
+			}
+
+			RunLinuxCmd -ip $VM.PublicIP -port $VM.SSHPort -runAsSudo `
+				-username $vmUser -password $vmPassword `
+				-command "dmesg > /home/$vmUser/${currenBootLogFile}" | Out-Null
+			RemoteCopy -download -downloadFrom $VM.PublicIP -port $VM.SSHPort -files "/home/$vmUser/${currenBootLogFile}" `
+				-downloadTo $BootLogDir -username $vmUser -password $vmPassword | Out-Null
+			LogMsg "$($VM.RoleName): $status Kernel logs collected SUCCESSFULLY to ${currenBootLogFile} file."
+
+			LogMsg "Checking for call traces in kernel logs.."
+			$KernelLogs = Get-Content $currenBootLog
+			$callTraceFound  = $false
+			foreach ($line in $KernelLogs) {
+				if (( $line -imatch "Call Trace" ) -and ($line -inotmatch "initcall ")) {
+					LogError $line
+					$callTraceFound = $true
+				}
+				if ($callTraceFound) {
+					if ($line -imatch "\[<") {
 						LogError $line
-						$callTraceFound = $true
-					}
-					if ( $callTraceFound )
-					{
-						if ( $line -imatch "\[<")
-						{
-							LogError $line
-						}
 					}
 				}
-				if ( !$callTraceFound )
-				{
-					LogMsg "No any call traces found."
-				}
-				$detectedDistro = DetectLinuxDistro -VIP $VM.PublicIP -SSHport $VM.SSHPort -testVMUser $vmUser -testVMPassword $vmPassword
+			}
+			if (!$callTraceFound) {
+				LogMsg "No kernel call traces found."
+			}
+
+			if ($status -imatch "Initial") {
+				$detectedDistro = DetectLinuxDistro -VIP $VM.PublicIP -SSHport $VM.SSHPort `
+					-testVMUser $vmUser -testVMPassword $vmPassword
 				SetDistroSpecificVariables -detectedDistro $detectedDistro
 				$retValue = $true
 			}
-			elseif($status -imatch "Final")
-			{
-				$Null = RunLinuxCmd -ip $VM.PublicIP -port $VM.SSHPort -username $vmUser -password $vmPassword -command "dmesg > /home/$vmUser/FinalBootLogs.txt" -runAsSudo
-				$Null = RemoteCopy -download -downloadFrom $VM.PublicIP -port $VM.SSHPort -files "/home/$vmUser/FinalBootLogs.txt" -downloadTo $BootLogDir -username $vmUser -password $vmPassword
-				LogMsg "Checking for call traces in kernel logs.."
-				$KernelLogs = Get-Content $FinalBootLog
-				$callTraceFound  = $false
-				foreach ( $line in $KernelLogs )
-				{
-					if (( $line -imatch "Call Trace" ) -and ($line -inotmatch "initcall "))
-					{
-						LogError $line
-						$callTraceFound = $true
-					}
-					if ( $callTraceFound )
-					{
-						if ( $line -imatch "\[<")
-						{
-							LogError $line
-						}
-					}
-				}
-				if ( !$callTraceFound )
-				{
-					LogMsg "No any call traces found."
-				}
-				$KernelDiff = Compare-Object -ReferenceObject (Get-Content $FinalBootLog) -DifferenceObject (Get-Content $InitailBootLog)
-				#Removing final dmesg file from logs to reduce the size of logs. We can always see complete Final Logs as : Initial Kernel Logs + Difference in Kernel Logs
+
+			if($status -imatch "Final") {
+				$KernelDiff = Compare-Object -ReferenceObject (Get-Content $FinalBootLog) `
+					-DifferenceObject (Get-Content $InitialBootLog)
+
+				# Removing final dmesg file from logs to reduce the size of logs.
+				# We can always see complete Final Logs as: Initial Kernel Logs + Difference in Kernel Logs
 				Remove-Item -Path $FinalBootLog -Force | Out-Null
-				if($null -eq $KernelDiff)
-				{
-					LogMsg "** Initial and Final Kernel Logs has same content **"
-					Set-Content -Value "*** Initial and Final Kernel Logs has same content ***" -Path $KernelLogStatus
+				if (!$KernelDiff) {
+					$msg = "** Initial and Final Kernel Logs have same content **"
+					LogMsg $msg
+					Set-Content -Value $msg -Path $KernelLogStatus
 					$retValue = $true
-				}
-				else
-				{
+				} else {
 					$errorCount = 0
-					Set-Content -Value "Following lines were added in the kernel log during execution of test." -Path $KernelLogStatus
-					LogMsg "Following lines were added in the kernel log during execution of test."
+					$msg = "Following lines were added in the kernel log during execution of test."
+					LogMsg $msg
+					Set-Content -Value $msg -Path $KernelLogStatus
 					Add-Content -Value "-------------------------------START----------------------------------" -Path $KernelLogStatus
-					foreach ($line in $KernelDiff)
-					{
+					foreach ($line in $KernelDiff) {
 						Add-Content -Value $line.InputObject -Path $KernelLogStatus
-						if ( ($line.InputObject -imatch "fail") -or ($line.InputObject -imatch "error") -or ($line.InputObject -imatch "warning"))
-						{
+						if ( ($line.InputObject -imatch "fail") -or ($line.InputObject -imatch "error") `
+								-or ($line.InputObject -imatch "warning")) {
 							$errorCount += 1
 							LogError $line.InputObject
-						}
-						else
-						{
+						} else {
 							LogMsg $line.InputObject
 						}
 					}
 					Add-Content -Value "--------------------------------EOF-----------------------------------" -Path $KernelLogStatus
 				}
-				LogMsg "$($VM.RoleName): $status Kernel logs collected and Compared ..SUCCESSFULLY"
-				if ($errorCount -gt 0)
-				{
+				LogMsg "$($VM.RoleName): $status Kernel logs collected and compared SUCCESSFULLY"
+				if ($errorCount -gt 0) {
 					LogError "Found $errorCount fail/error/warning messages in kernel logs during execution."
 					$retValue = $false
 				}
-				if ( $callTraceFound )
-				{
+				if ($callTraceFound) {
 					LogMsg "Preserving the Resource Group(s) $($VM.ResourceGroupName)"
 					Add-ResourceGroupTag -ResourceGroup $VM.ResourceGroupName -TagName $preserveKeyword -TagValue "yes"
 					Add-ResourceGroupTag -ResourceGroup $VM.ResourceGroupName -TagName "calltrace" -TagValue "yes"
@@ -853,17 +842,11 @@ Function GetAndCheckKernelLogs($allDeployedVMs, $status, $vmUser, $vmPassword)
 					$Null = Set-AzureRmResourceGroup -Name $($VM.ResourceGroupName) -Tag $hash
 				}
 			}
-			else
-			{
-				LogMsg "pass value for status variable either final or initial"
-				$retValue = $false
-			}
 		}
-	}
-	catch
-	{
+	} catch {
 		$retValue = $false
 	}
+
 	return $retValue
 }
 
@@ -1035,10 +1018,9 @@ Function Test-TCP($testIP, $testport)
 	return $isConnected
 }
 
-Function RemoteCopy($uploadTo, $downloadFrom, $downloadTo, $port, $files, $username, $password, [switch]$upload, [switch]$download, [switch]$usePrivateKey, [switch]$doNotCompress) #Removed XML config
+Function RemoteCopy($uploadTo, $downloadFrom, $downloadTo, $port, $files, $username, $password, [switch]$upload, [switch]$download, [switch]$usePrivateKey, [switch]$doNotCompress, $maxRetry=20) #Removed XML config
 {
 	$retry=1
-	$maxRetry=20
 	if($upload)
 	{
 #LogMsg "Uploading the files"
@@ -1716,7 +1698,7 @@ Function DoTestCleanUp($CurrentTestResult, $testName, $DeployedServices, $Resour
 
 		if($ResourceGroups)
 		{
-			if(!$IsWindows){
+			if(!$IsWindows -and !$SkipVerifyKernelLogs) {
 				try
 				{
 					if ($allVMData.Count -gt 1)
@@ -1728,7 +1710,9 @@ Function DoTestCleanUp($CurrentTestResult, $testName, $DeployedServices, $Resour
 						$vmData = $allVMData
 					}
 					$FilesToDownload = "$($vmData.RoleName)-*.txt"
-					$Null = RemoteCopy -upload -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files .\Testscripts\Linux\CollectLogFile.sh -username $user -password $password
+					RemoteCopy -upload -uploadTo $vmData.PublicIP -port $vmData.SSHPort `
+						-files .\Testscripts\Linux\CollectLogFile.sh `
+						-username $user -password $password -maxRetry 5 | Out-Null
 					$Null = RunLinuxCmd -username $user -password $password -ip $vmData.PublicIP -port $vmData.SSHPort -command "bash CollectLogFile.sh" -ignoreLinuxExitCode -runAsSudo
 					$Null = RemoteCopy -downloadFrom $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -files "$FilesToDownload" -downloadTo "$LogDir" -download
 					$KernelVersion = Get-Content "$LogDir\$($vmData.RoleName)-kernelVersion.txt"
@@ -1788,27 +1772,23 @@ Function DoTestCleanUp($CurrentTestResult, $testName, $DeployedServices, $Resour
 					LogError "Ignorable error in collecting final data from VMs."
 				}
 			}
+
+			# Remove running background jobs
 			$currentTestBackgroundJobs = Get-Content $LogDir\CurrentTestBackgroundJobs.txt -ErrorAction SilentlyContinue
-			if ( $currentTestBackgroundJobs )
-			{
+			if ($currentTestBackgroundJobs) {
 				$currentTestBackgroundJobs = $currentTestBackgroundJobs.Split()
 			}
-			foreach ( $taskID in $currentTestBackgroundJobs )
-			{
-				#Removal of background
-				LogMsg "Removing Background Job ID : $taskID..."
+			foreach ($taskID in $currentTestBackgroundJobs) {
+				LogMsg "Removing Background Job $taskID..."
 				Remove-Job -Id $taskID -Force
 				Remove-Item $LogDir\CurrentTestBackgroundJobs.txt -ErrorAction SilentlyContinue
 			}
+
 			$user=$xmlConfig.config.$TestPlatform.Deployment.Data.UserName
-			if ( !$SkipVerifyKernelLogs )
-			{
-				try
-				{
-					$Null=GetAndCheckKernelLogs -allDeployedVMs $allVMData -status "Final"
-				}
-				catch
-				{
+			if (!$SkipVerifyKernelLogs) {
+				try {
+					GetAndCheckKernelLogs -allDeployedVMs $allVMData -status "Final" | Out-Null
+				} catch {
 					$ErrorMessage =  $_.Exception.Message
 					LogMsg "EXCEPTION in GetAndCheckKernelLogs(): $ErrorMessage"
 				}
