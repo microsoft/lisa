@@ -381,7 +381,7 @@ try {
 	#endregion
 
 	#region Prepare execution command
-	$command = ".\AutomationManager.ps1 -xmlConfigFile '$TestConfigurationXmlFile' -cycleName 'TC-$TestID' -RGIdentifier '$RGIdentifier' -runtests -UseAzureResourceManager"
+	$command = ".\AutomationManager.ps1 -xmlConfigFile '$TestConfigurationXmlFile' -cycleName 'TC-$TestID' -RGIdentifier '$RGIdentifier' -runtests"
 
 	if ( $CustomKernel) { $command += " -CustomKernel '$CustomKernel'" }
 	if ( $OverrideVMSize ) { $command += " -OverrideVMSize $OverrideVMSize" }

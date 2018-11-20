@@ -37,7 +37,6 @@ param (
 [string] $osImage,
 [switch] $DeployVMPerEachTest,
 [switch] $DoNotDeleteVMs,
-[switch] $UseAzureResourceManager,
 [string] $OverrideVMSize,
 [switch] $EnableAcceleratedNetworking,
 [string] $CustomKernel,
@@ -188,7 +187,6 @@ try {
 		}
 	}
 
-	Set-Variable -Name UseAzureResourceManager -Value $true -Scope Global
 	LogMsg "------------------------------------------------------------------"
 	if ( $TestPlatform -eq "Azure") {
 		$SelectedSubscription = Select-AzureRmSubscription -SubscriptionId $AzureSetup.SubscriptionID

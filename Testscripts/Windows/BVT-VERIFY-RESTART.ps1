@@ -8,23 +8,18 @@ function Main {
 
     try {
         LogMsg "Trying to restart $($AllVMData.RoleName)..."
-        if ($UseAzureResourceManager) {
-            $restartVM = Restart-AzureRmVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName -Verbose
-            if ( $restartVM.Status -eq "Succeeded" ) {
-                $isSSHOpened = isAllSSHPortsEnabledRG -AllVMDataObject $AllVMData
-                if ($isSSHOpened -eq "True") {
-                    $isRestarted = $true
-                } else {
-                    LogErr "VM is not available after restart"
-                    $isRestarted = $false
-                }
+        $restartVM = Restart-AzureRmVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName -Verbose
+        if ( $restartVM.Status -eq "Succeeded" ) {
+            $isSSHOpened = isAllSSHPortsEnabledRG -AllVMDataObject $AllVMData
+            if ($isSSHOpened -eq "True") {
+                $isRestarted = $true
             } else {
+                LogErr "VM is not available after restart"
                 $isRestarted = $false
-                LogErr "Restart Failed. Operation ID : $($restartVM.OperationId)"
             }
         } else {
-            $null = RestartAllDeployments -DeployedServices $isDeployed
-            $isRestarted = $?
+            $isRestarted = $false
+            LogErr "Restart Failed. Operation ID : $($restartVM.OperationId)"
         }
         if ($isRestarted) {
             LogMsg "Virtual machine restart successful."

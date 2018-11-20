@@ -122,13 +122,8 @@ chmod 666 /root/perf_fio.csv
             $dataTableName = $xmlConfig.config.$TestPlatform.database.dbtable
             $TestCaseName = $xmlConfig.config.$TestPlatform.database.testTag
             if ($dataSource -And $DBuser -And $DBpassword -And $database -And $dataTableName) {
-                $GuestDistro    = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
-                if ($UseAzureResourceManager) {
-                    $HostType   = "Azure-ARM"
-                } else {
-                    $HostType   = "Azure"
-                }
-
+                $GuestDistro = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
+                $HostType = "Azure"
                 $HostBy = ($xmlConfig.config.$TestPlatform.General.Location).Replace('"','')
                 $HostOS = cat "$LogDir\VM_properties.csv" | Select-String "Host Version"| %{$_ -replace ",Host Version,",""}
                 $GuestOSType    = "Linux"

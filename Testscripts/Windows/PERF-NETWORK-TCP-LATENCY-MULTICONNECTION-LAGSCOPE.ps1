@@ -126,13 +126,8 @@ collect_VM_properties
         $dataTableName = $xmlConfig.config.$TestPlatform.database.dbtable
         $TestCaseName = $xmlConfig.config.$TestPlatform.database.testTag
         if ($dataSource -And $user -And $password -And $database -And $dataTableName)  {
-            $GuestDistro    = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object {$_ -replace ",OS type,",""}
-            #$TestCaseName  = "LINUX-NEXT-UPSTREAM-TEST"
-            if ($UseAzureResourceManager) {
-                $HostType   = "Azure-ARM"
-            } else {
-                $HostType   = "Azure"
-            }
+            $GuestDistro = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object {$_ -replace ",OS type,",""}
+            $HostType = "Azure"
             $HostBy = ($xmlConfig.config.$TestPlatform.General.Location).Replace('"','')
             $HostOS = cat "$LogDir\VM_properties.csv" | Select-String "Host Version"| %{$_ -replace ",Host Version,",""}
             $GuestOSType    = "Linux"

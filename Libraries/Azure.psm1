@@ -2175,31 +2175,12 @@ Function RestartAllAzureDeployments($allVMData) {
     $null = Save-AzureRmContext -Path "$env:TEMP\$($currentGUID).azurecontext" -Force
     $restartJobs = @()
     foreach ( $vmData in $AllVMData ) {
-        if ( $UseAzureResourceManager) {
-            LogMsg "Triggering Restart-$($vmData.RoleName)..."
-            $restartJobs += Start-Job -ScriptBlock { $vmData = $args[0]
-                $currentGUID = $args[1]
-                Import-AzureRmContext -AzureContext "$env:TEMP\$($currentGUID).azurecontext"
-                $null = Restart-AzureRmVM -ResourceGroupName $vmData.ResourceGroupName -Name $vmData.RoleName -Verbose
-            } -ArgumentList $vmData, $currentGUID -Name "Restart-$($vmData.RoleName)"
-        }
-        else {
-            $null = Restart-AzureVM -ServiceName $vmData.ServiceName -Name $vmData.RoleName -Verbose
-            $isRestarted = $?
-            if ($isRestarted) {
-                LogMsg "Restarted : $($vmData.RoleName)"
-            }
-            else {
-                LogError "FAILED TO RESTART : $($vmData.RoleName)"
-                $retryCount = $retryCount + 1
-                if ($retryCount -gt 0) {
-                    LogMsg "Retrying..."
-                }
-                if ($retryCount -eq 0) {
-                    Throw "Calling function - $($MyInvocation.MyCommand). Unable to Restart : $($vmData.RoleName)"
-                }
-            }
-        }
+        LogMsg "Triggering Restart-$($vmData.RoleName)..."
+        $restartJobs += Start-Job -ScriptBlock { $vmData = $args[0]
+            $currentGUID = $args[1]
+            Import-AzureRmContext -AzureContext "$env:TEMP\$($currentGUID).azurecontext"
+            $null = Restart-AzureRmVM -ResourceGroupName $vmData.ResourceGroupName -Name $vmData.RoleName -Verbose
+        } -ArgumentList $vmData, $currentGUID -Name "Restart-$($vmData.RoleName)"
     }
     $recheckAgain = $true
     LogMsg "Waiting until VMs restart..."
