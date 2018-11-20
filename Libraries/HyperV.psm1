@@ -26,73 +26,58 @@
 
 Function DeployHyperVGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFailed = $false, $GetDeploymentStatistics = $false, $VMGeneration = "1")
 {
-    if( (!$EconomyMode) -or ( $EconomyMode -and ($xmlConfig.config.HyperV.Deployment.$setupType.isDeployed -eq "NO")))
+    try
     {
-        try
-        {
-            $VerifiedGroups =  $NULL
-            $retValue = $NULL
-            $isAllDeployed = CreateAllHyperVGroupDeployments -setupType $setupType -xmlConfig $xmlConfig `
-                -Distro $Distro -VMGeneration $VMGeneration
-            $isAllConnected = "False"
+        $VerifiedGroups =  $NULL
+        $retValue = $NULL
+        $isAllDeployed = CreateAllHyperVGroupDeployments -setupType $setupType -xmlConfig $xmlConfig `
+            -Distro $Distro -VMGeneration $VMGeneration
+        $isAllConnected = "False"
 
-            if($isAllDeployed[0] -eq "True")
-            {
-                $DeployedHyperVGroup = $isAllDeployed[1]
-                $DeploymentElapsedTime = $isAllDeployed[3]
-                $allVMData = GetAllHyperVDeployementData -HyperVGroupNames $DeployedHyperVGroup
-                Set-Variable -Name allVMData -Value $allVMData -Force -Scope Global
-                if (!$allVMData) {
-                    LogErr "One or more deployments failed..!"
-                    $retValue = $NULL
-                } else {
-                    $isAllConnected = isAllSSHPortsEnabledRG -AllVMDataObject $allVMData
-                    if ($isAllConnected -eq "True")
+        if($isAllDeployed[0] -eq "True")
+        {
+            $DeployedHyperVGroup = $isAllDeployed[1]
+            $DeploymentElapsedTime = $isAllDeployed[3]
+            $global:allVMData = GetAllHyperVDeployementData -HyperVGroupNames $DeployedHyperVGroup
+            if (!$allVMData) {
+                LogErr "One or more deployments failed..!"
+                $retValue = $NULL
+            } else {
+                $isAllConnected = isAllSSHPortsEnabledRG -AllVMDataObject $allVMData
+                if ($isAllConnected -eq "True")
+                {
+                    InjectHostnamesInHyperVVMs -allVMData $allVMData
+                    $VerifiedGroups = $DeployedHyperVGroup
+                    $retValue = $VerifiedGroups
+                    if ( Test-Path -Path  .\Extras\UploadDeploymentDataToDB.ps1 )
                     {
-                        InjectHostnamesInHyperVVMs -allVMData $allVMData
-                        $VerifiedGroups = $DeployedHyperVGroup
-                        $retValue = $VerifiedGroups
-                        if ( Test-Path -Path  .\Extras\UploadDeploymentDataToDB.ps1 )
-                        {
-                            .\Extras\UploadDeploymentDataToDB.ps1 -allVMData $allVMData -DeploymentTime $DeploymentElapsedTime.TotalSeconds
-                        }
-                        if(!$IsWindows)
-                        {
-                            GetAndCheckKernelLogs -allDeployedVMs $allVMData -status "Initial"
-                        }
-                    }
-                    else
-                    {
-                        LogErr "Unable to connect Some/All SSH ports.."
-                        $retValue = $NULL
+                        .\Extras\UploadDeploymentDataToDB.ps1 -allVMData $allVMData -DeploymentTime $DeploymentElapsedTime.TotalSeconds
                     }
                 }
-            }
-            else
-            {
-                LogErr "One or More Deployments are Failed..!"
-                $retValue = $NULL
+                else
+                {
+                    LogErr "Unable to connect SSH ports.."
+                    $retValue = $NULL
+                }
             }
         }
-        catch
+        else
         {
-            LogMsg "Exception detected. Source : DeployVMs()"
-            $line = $_.InvocationInfo.ScriptLineNumber
-            $script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
-            $ErrorMessage =  $_.Exception.Message
-            LogErr "EXCEPTION : $ErrorMessage"
-            LogErr "Source : Line $line in script $script_name."
+            LogErr "One or More Deployments are Failed..!"
             $retValue = $NULL
         }
     }
-    else
+    catch
     {
-        $retValue = $xmlConfig.config.$TestPlatform.Deployment.$setupType.isDeployed
-        if(!$IsWindows)
-        {
-            GetAndCheckKernelLogs -allDeployedVMs $allVMData -status "Initial"
-        }
+        LogMsg "Exception detected. Source : DeployHyperVGroups()"
+        $line = $_.InvocationInfo.ScriptLineNumber
+        $script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
+        $ErrorMessage =  $_.Exception.Message
+        LogErr "EXCEPTION : $ErrorMessage"
+        LogErr "Source : Line $line in script $script_name."
+        $retValue = $NULL
     }
+
     if ( $GetDeploymentStatistics )
     {
         return $retValue, $DeploymentElapsedTime
@@ -355,7 +340,7 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML, 
             }
             $vhdSuffix = [System.IO.Path]::GetExtension($OsVHD)
             $InterfaceAliasWithInternet = (Get-NetIPConfiguration -ComputerName $HyperVHost | Where-Object {$_.NetProfile.Name -ne 'Unidentified network'}).InterfaceAlias
-            $VMSwitches = Get-VMSwitch | Where-Object {$InterfaceAliasWithInternet -match $_.Name} | Select-Object -First 1
+            $VMSwitches = Get-VMSwitch -ComputerName $HyperVHost | Where-Object {$InterfaceAliasWithInternet -match $_.Name} | Select-Object -First 1
             if ( $VirtualMachine.RoleName)
             {
                 if ($VirtualMachine.RoleName -match "dependency") {

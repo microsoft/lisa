@@ -82,6 +82,7 @@ Param(
 	[switch] $ForceDeleteResources,
 	[switch] $UseManagedDisks,
 	[switch] $DoNotDeleteVMs,
+	[switch] $DeployVMPerEachTest,
 	[string] $VMGeneration = "",
 
 	[string] $ResultDBTable = "",
@@ -387,6 +388,7 @@ try {
 	if ( $EnableAcceleratedNetworking ) { $command += " -EnableAcceleratedNetworking" }
 	if ( $ForceDeleteResources ) { $command += " -ForceDeleteResources" }
 	if ( $DoNotDeleteVMs ) { $command += " -DoNotDeleteVMs" }
+	if ( $DeployVMPerEachTest ) { $command += " -DeployVMPerEachTest" }
 	if ( $CustomLIS) { $command += " -CustomLIS $CustomLIS" }
 	if ( $CoreCountExceededTimeout ) { $command += " -CoreCountExceededTimeout $CoreCountExceededTimeout" }
 	if ( $TestIterations -gt 1 ) { $command += " -TestIterations $TestIterations" }

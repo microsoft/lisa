@@ -20,8 +20,8 @@
 #>
 ###############################################################################################
 
-param($xmlConfig, [string] $Distro, [string] $cycleName, [int] $TestIterations)
-Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
+param($xmlConfig, [string] $Distro, [string] $cycleName, [int] $TestIterations, [bool] $deployVMPerEachTest)
+Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations, $deployVMPerEachTest ) {
 	LogMsg "Starting the Cycle - $($CycleName.ToUpper())"
 	$executionCount = 0
 
@@ -104,15 +104,16 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
 	StartLogReport("$reportFolder/report_$($testCycle.cycleName).xml")
 	$testsuite = StartLogTestSuite "CloudTesting"
 
-	if ($testPlatform -eq "Azure") {
-		$ExecuteSetupForEachTest = $true
-	} elseif ($testPlatform -eq "Hyperv") {
-		$ExecuteSetupForEachTest = $false
-	}
 	$VmSetup = @()
+	$overrideVmSizeList = @()
 	foreach ($test in $currentCycleData.test) {
 		$currentTestData = GetCurrentTestData -xmlConfig $xmlConfig -testName $test.Name
 		$VmSetup += $currentTestData.setupType
+		if ($currentTestData.OverrideVMSize) {
+			$overrideVmSizeList += $currentTestData.OverrideVMSize
+		} else {
+			$overrideVmSizeList += "Null"
+		}
 	}
 
 	$testCount = $currentCycleData.test.Length
@@ -142,28 +143,18 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
 		$nextVmSetup = $VmSetup[$testIndex]
 		$previousVmSetup = $VmSetup[$testIndex-2]
 
+		$currentOverrideVmSize = $overrideVmSizeList[$testIndex-1]
+		$nextOverrideVmSize = $overrideVmSizeList[$testIndex]
+		$previousOverrideVmSize = $overrideVmSizeList[$testIndex-2]
+
+		$shouldRunSetup = ($previousVmSetup -ne $currentVmSetup) -or ($previousOverrideVmSize -ne $currentOverrideVmSize)
+		$shouldRunTeardown = ($currentVmSetup -ne $nextVmSetup) -or ($currentOverrideVmSize -ne $nextOverrideVmSize)
+
 		if ($testIndex -eq 1) {
-			$TestState = @{"ExecuteSetup" = $True}
-			if ($testCount -eq 1) {
-				$TestState += @{"ExecuteTeardown" = $True}
-			} else {
-				if ($currentVmSetup -ne $nextVmSetup) {
-					$TestState += @{"ExecuteTeardown" = $True}
-				}
-			}
-		} elseif ($testIndex -eq $testCount) {
-			$TestState = @{"ExecuteTeardown" = $True}
-			if ($previousVmSetup -ne $currentVmSetup) {
-				$TestState += @{"ExecuteSetup" = $True}
-			}
-		} else {
-			$TestState = @{}
-			if ($previousVmSetup -ne $currentVmSetup) {
-				$TestState += @{"ExecuteSetup" = $True}
-			}
-			if ($currentVmSetup -ne $nextVmSetup) {
-				$TestState += @{"ExecuteTeardown" = $True}
-			}
+			$shouldRunSetup = $true
+		}
+		if ($testIndex -eq $testCount) {
+			$shouldRunTeardown = $true
 		}
 
 		# Generate Unique Test
@@ -172,12 +163,21 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
 				$currentTestData.testName = "$($originalTestName)-$testIterationCount"
 				$test.Name = "$($originalTestName)-$testIterationCount"
 			}
-			# For the last test running in economy mode, set the IsLastCaseInCycle flag so that the deployments could be cleaned up
-			if ($EconomyMode -and $counter -eq ($testCount - 1)) {
-				Set-Variable -Name IsLastCaseInCycle -Value $true -Scope Global
+
+			if ($deployVMPerEachTest) {
+				$shouldRunSetupForIteration = $true
+				$shouldRunTeardownForIteration = $true
 			} else {
-				Set-Variable -Name IsLastCaseInCycle -Value $false -Scope Global
+				$shouldRunSetupForIteration = $shouldRunSetup
+				$shouldRunTeardownForIteration = $shouldRunTeardown
+				if ($testIterationCount -eq 1 -and $TestIterations -gt 1) {
+					$shouldRunTeardownForIteration = $false
+				}
+				if ($testIterationCount -gt 1) {
+					$shouldRunSetupForIteration = $false
+				}
 			}
+
 			if ($currentTestData) {
 				if (!( $currentTestData.Platform.Contains($xmlConfig.config.CurrentTestPlatform))) {
 					LogMsg "$($currentTestData.testName) does not support $($xmlConfig.config.CurrentTestPlatform) platform."
@@ -199,9 +199,10 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
 						$testResult = @()
 						LogMsg "~~~~~~~~~~~~~~~TEST STARTED : $($currentTestData.testName)~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 						LogMsg "Starting multiple tests : $($currentTestData.testName)"
+
 						$CurrentTestResult = Run-Test -CurrentTestData $currentTestData -XmlConfig $xmlConfig `
 							-Distro $Distro -LogDir $CurrentTestLogDir -VMUser $user -VMPassword $password `
-							-DeployVMPerEachTest $ExecuteSetupForEachTest @TestState
+							-ExecuteSetup $shouldRunSetupForIteration -ExecuteTeardown $shouldRunTeardownForIteration
 						$testResult = $CurrentTestResult.TestResult
 						$testSummary = $CurrentTestResult.TestSummary
 					}
@@ -328,4 +329,4 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
 	$testSuiteResultDetails
 }
 
-RunTestsOnCycle -cycleName $cycleName -xmlConfig $xmlConfig -Distro $Distro -TestIterations $TestIterations
+RunTestsOnCycle -cycleName $cycleName -xmlConfig $xmlConfig -Distro $Distro -TestIterations $TestIterations -DeployVMPerEachTest $deployVMPerEachTest

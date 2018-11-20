@@ -35,7 +35,7 @@ param (
 [string] $RunSelectedTests,
 [string] $TestPriority,
 [string] $osImage,
-[switch] $EconomyMode,
+[switch] $DeployVMPerEachTest,
 [switch] $DoNotDeleteVMs,
 [switch] $UseAzureResourceManager,
 [string] $OverrideVMSize,
@@ -84,6 +84,9 @@ Set-Variable -Name CoreCountExceededTimeout -Value $CoreCountExceededTimeout -Sc
 Set-Variable -Name resultPass -Value "PASS" -Scope Global
 Set-Variable -Name resultFail -Value "FAIL" -Scope Global
 Set-Variable -Name resultAborted -Value "ABORTED" -Scope Global
+
+Set-Variable -Name AllVMData -Value @() -Scope Global
+Set-Variable -Name isDeployed -Value @() -Scope Global
 
 if($EnableAcceleratedNetworking) {
 	Set-Variable -Name EnableAcceleratedNetworking -Value $true -Scope Global
@@ -155,16 +158,10 @@ try {
 	Set-Content -Path .\report\lastLogDirectory.txt -Value $LogDir -Force
 	Set-Variable -Name vnetIsAllConfigured -Value $false -Scope Global
 
-	if($EconomyMode) {
-		Set-Variable -Name EconomyMode -Value $true -Scope Global
-		Set-Variable -Name DoNotDeleteVMs -Value $DoNotDeleteVMs -Scope Global
+	if($DoNotDeleteVMs) {
+		Set-Variable -Name DoNotDeleteVMs -Value $true -Scope Global
 	} else {
-		Set-Variable -Name EconomyMode -Value $false -Scope Global
-		if($DoNotDeleteVMs) {
-			Set-Variable -Name DoNotDeleteVMs -Value $true -Scope Global
-		} else {
-			Set-Variable -Name DoNotDeleteVMs -Value $false -Scope Global
-		}
+		Set-Variable -Name DoNotDeleteVMs -Value $false -Scope Global
 	}
 
 	Set-Variable -Name IsWindows -Value $false -Scope Global
@@ -216,7 +213,7 @@ try {
 	}
 
 	$testCycle =  GetCurrentCycleData -xmlConfig $xmlConfig -cycleName $cycleName
-	$testSuiteResultDetails=.\AzureTestSuite.ps1 $xmlConfig -Distro $Distro -cycleName $cycleName -TestIterations $TestIterations
+	$testSuiteResultDetails=.\AzureTestSuite.ps1 $xmlConfig -Distro $Distro -cycleName $cycleName -TestIterations $TestIterations -DeployVMPerEachTest $DeployVMPerEachTest
 	$logDirFilename = [System.IO.Path]::GetFilenameWithoutExtension($xmlConfigFile)
 	$summaryAll = GetTestSummary -testCycle $testCycle -StartTime $testStartTime -xmlFileName $logDirFilename -distro $Distro -testSuiteResultDetails $testSuiteResultDetails
 	$PlainTextSummary += $summaryAll[0]

@@ -444,17 +444,11 @@ function Run-Test {
     .PARAMETER VMPassword
         Password used in all VMs in deployment.
 
-    .PARAMETER DeployVMPerEachTest
-        Bool variable that specifies if the framework should create a new deployment for
-        each test (and clean the deployment after each test).
-
     .PARAMETER ExecuteSetup
         Switch variable that specifies if the framework should create a new deployment
-        (Used if DeployVMPerEachTest is False).
 
     .PARAMETER ExecuteTeardown
         Switch variable that specifies if the framework should clean the deployment
-        (Used if DeployVMPerEachTest is False).
     #>
 
     param(
@@ -464,9 +458,8 @@ function Run-Test {
         [string]$LogDir,
         [string]$VMUser,
         [string]$VMPassword,
-        [bool]$DeployVMPerEachTest,
-        [switch]$ExecuteSetup,
-        [switch]$ExecuteTeardown
+        [bool]$ExecuteSetup,
+        [bool]$ExecuteTeardown
     )
 
     $currentTestResult = CreateTestResultObject
@@ -486,10 +479,9 @@ function Run-Test {
         }
     }
 
-    if ($DeployVMPerEachTest -or $ExecuteSetup) {
-        # Note: This method will create $AllVMData global variable
-        $isDeployed = DeployVMS -setupType $CurrentTestData.setupType `
-             -Distro $Distro -XMLConfig $XmlConfig -VMGeneration $VMGeneration
+    if ($ExecuteSetup -or -not $isDeployed) {
+        $global:isDeployed = DeployVMS -setupType $CurrentTestData.setupType `
+            -Distro $Distro -XMLConfig $XmlConfig -VMGeneration $VMGeneration
         if (!$isDeployed) {
             throw "Could not deploy VMs."
         }
@@ -499,9 +491,7 @@ function Run-Test {
         }
         if ($testPlatform.ToUpper() -eq "HYPERV") {
             Create-HyperVCheckpoint -VMData $AllVMData -CheckpointName "ICAbase"
-            $AllVMData = Check-IP -VMData $AllVMData
-            Set-Variable -Name AllVMData -Value $AllVMData -Scope Global
-            Set-Variable -Name isDeployed -Value $isDeployed -Scope Global
+            $global:AllVMData = Check-IP -VMData $AllVMData
         }
     } else {
         if ($testPlatform.ToUpper() -eq "HYPERV") {
@@ -510,11 +500,14 @@ function Run-Test {
                 LogMsg "Removed all files from home directory."
             } else  {
                 Apply-HyperVCheckpoint -VMData $AllVMData -CheckpointName "ICAbase"
-                $AllVMData = Check-IP -VMData $AllVMData
-                Set-Variable -Name AllVMData -Value $AllVMData -Scope Global
+                $global:AllVMData = Check-IP -VMData $AllVMData
                 LogMsg "Public IP found for all VMs in deployment after checkpoint restore"
             }
         }
+    }
+
+    if (!$IsWindows) {
+        $null = GetAndCheckKernelLogs -allDeployedVMs $allVMData -status "Initial"
     }
 
     if ($CurrentTestData.TestParameters) {
@@ -587,15 +580,13 @@ function Run-Test {
     }
 
     $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
-    if ($DeployVMPerEachTest -or $ExecuteTeardown) {
-        LogMsg "VM CLEANUP ~~~~~~~~~~~~~~~~~~~~~~~"
-        $optionalParams = @{}
-        if ($testParameters["SkipVerifyKernelLogs"] -eq "True" -or (-not $DeployVMPerEachTest)) {
-            $optionalParams["SkipVerifyKernelLogs"] = $True
-        }
-        DoTestCleanUp -CurrentTestResult $CurrentTestResult -TestName $currentTestData.testName `
-             -ResourceGroups $isDeployed @optionalParams
+    LogMsg "VM CLEANUP ~~~~~~~~~~~~~~~~~~~~~~~"
+    $optionalParams = @{}
+    if ($testParameters["SkipVerifyKernelLogs"] -eq "True") {
+        $optionalParams["SkipVerifyKernelLogs"] = $True
     }
+    DoTestCleanUp -CurrentTestResult $CurrentTestResult -TestName $currentTestData.testName `
+    -ResourceGroups $isDeployed @optionalParams -DeleteRG $ExecuteTeardown
 
     return $currentTestResult
 }

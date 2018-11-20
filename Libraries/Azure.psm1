@@ -1894,101 +1894,41 @@ Function GenerateAzureDeployJSONFile ($RGName, $osImage, $osVHD, $RGXMLData, $Lo
 }
 
 Function DeployResourceGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFailed = $false, $GetDeploymentStatistics = $false, [string]$region = "") {
-    if ( (!$EconomyMode) -or ( $EconomyMode -and ($xmlConfig.config.$TestPlatform.Deployment.$setupType.isDeployed -eq "NO"))) {
-        try {
-
-            $VerifiedGroups = $NULL
-            $retValue = $NULL
-            #$ExistingGroups = RetryOperation -operation { Get-AzureRmResourceGroup } -description "Getting information of existing resource groups.." -retryInterval 5 -maxRetryCount 5
-            #$setupTypeData = $xmlConfig.config.$TestPlatform.Deployment.$setupType
-            #DEBUGRG
-            #$isAllDeployed = CreateAllResourceGroupDeployments -setupType $setupType -xmlConfig $xmlConfig -Distro $Distro -region $region -storageAccount $storageAccount -DebugRG "ICA-RG-M1S1-SSTEST-GZBX-636621761998"
-            $isAllDeployed = CreateAllResourceGroupDeployments -setupType $setupType -xmlConfig $xmlConfig -Distro $Distro -region $region
-            #$isAllVerified = "False"
-            $isAllConnected = "False"
-            #$isAllDeployed = @("True","ICA-RG-IEndpointSingleHS-U1510-8-10-12-34-9","30")
-            if ($isAllDeployed[0] -eq "True") {
-                $deployedGroups = $isAllDeployed[1]
-                #$resourceGroupCount = $isAllDeployed[2]
-                $DeploymentElapsedTime = $isAllDeployed[3]
-                #$GroupsToVerify = $deployedGroups.Split('^')
-                #if ( $GetDeploymentStatistics )
-                #{
-                #    $VMBooTime = GetVMBootTime -DeployedGroups $deployedGroups -TimeoutInSeconds 1800
-                #    $verifyAll = VerifyAllDeployments -GroupsToVerify $GroupsToVerify -GetVMProvisionTime $GetDeploymentStatistics
-                #    $isAllVerified = $verifyAll[0]
-                #    $VMProvisionTime = $verifyAll[1]
-                #}
-                #else
-                #{
-                #    $isAllVerified = VerifyAllDeployments -GroupsToVerify $GroupsToVerify
-                #}
-                #if ($isAllVerified -eq "True")
-                #{
-                $allVMData = GetAllDeployementData -ResourceGroups $deployedGroups
-                Set-Variable -Name allVMData -Value $allVMData -Force -Scope Global
-                $isAllConnected = isAllSSHPortsEnabledRG -AllVMDataObject $allVMData
-                if ($isAllConnected -eq "True") {
-                    $VerifiedGroups = $deployedGroups
-                    $retValue = $VerifiedGroups
-                    #$vnetIsAllConfigured = $false
-                    $xmlConfig.config.$TestPlatform.Deployment.$setupType.isDeployed = $retValue
-                    #Collecting Initial Kernel
-                    if ( Test-Path -Path  .\Extras\UploadDeploymentDataToDB.ps1 ) {
-                        $null = .\Extras\UploadDeploymentDataToDB.ps1 -allVMData $allVMData -DeploymentTime $DeploymentElapsedTime.TotalSeconds
-                    }
-                    if (!$IsWindows) {
-                        $null = GetAndCheckKernelLogs -allDeployedVMs $allVMData -status "Initial"
-                    }
+    try {
+        $VerifiedGroups = $NULL
+        $retValue = $NULL
+        $isAllDeployed = CreateAllResourceGroupDeployments -setupType $setupType -xmlConfig $xmlConfig -Distro $Distro -region $region
+        $isAllConnected = "False"
+        if ($isAllDeployed[0] -eq "True") {
+            $deployedGroups = $isAllDeployed[1]
+            $DeploymentElapsedTime = $isAllDeployed[3]
+            $global:allVMData = GetAllDeploymentData -ResourceGroups $deployedGroups
+            $isAllConnected = isAllSSHPortsEnabledRG -AllVMDataObject $allVMData
+            if ($isAllConnected -eq "True") {
+                $VerifiedGroups = $deployedGroups
+                $retValue = $VerifiedGroups
+                if ( Test-Path -Path  .\Extras\UploadDeploymentDataToDB.ps1 ) {
+                    $null = .\Extras\UploadDeploymentDataToDB.ps1 -allVMData $allVMData -DeploymentTime $DeploymentElapsedTime.TotalSeconds
                 }
-                else {
-                    LogErr "Unable to connect Some/All SSH ports.."
-                    $retValue = $NULL
-                }
-                #}
-                #else
-                #{
-                #    Write-Host "Provision Failed for one or more VMs"
-                #    $retValue = $NULL
-                #}
-
             }
             else {
-                LogErr "One or More Deployments are Failed..!"
+                LogErr "Unable to connect SSH ports.."
                 $retValue = $NULL
             }
-            # get the logs of the first provision-failed VM
-            #if ($retValue -eq $NULL -and $getLogsIfFailed -and $DebugOsImage)
-            #{
-            #    foreach ($service in $GroupsToVerify)
-            #    {
-            #        $VMs = Get-AzureVM -ServiceName $service
-            #        foreach ($vm in $VMs)
-            #        {
-            #            if ($vm.InstanceStatus -ne "ReadyRole" )
-            #            {
-            #                $out = GetLogsFromProvisionFailedVM -vmName $vm.Name -serviceName $service -xmlConfig $xmlConfig
-            #                return $NULL
-            #            }
-            #        }
-            #    }
-            #}
         }
-        catch {
-            LogMsg "Exception detected. Source : DeployVMs()"
-            $line = $_.InvocationInfo.ScriptLineNumber
-            $script_name = ($_.InvocationInfo.ScriptName).Replace($PWD, ".")
-            $ErrorMessage = $_.Exception.Message
-            LogErr "EXCEPTION : $ErrorMessage"
-            LogErr "Source : Line $line in script $script_name."
+        else {
+            LogErr "One or More Deployments are Failed..!"
             $retValue = $NULL
         }
     }
-    else {
-        $retValue = $xmlConfig.config.$TestPlatform.Deployment.$setupType.isDeployed
-        if (!$IsWindows) {
-            $null = GetAndCheckKernelLogs -allDeployedVMs $allVMData -status "Initial"
-        }
+    catch {
+        LogMsg "Exception detected. Source : DeployResourceGroups()"
+        $line = $_.InvocationInfo.ScriptLineNumber
+        $script_name = ($_.InvocationInfo.ScriptName).Replace($PWD, ".")
+        $ErrorMessage = $_.Exception.Message
+        LogErr "EXCEPTION : $ErrorMessage"
+        LogErr "Source : Line $line in script $script_name."
+        $retValue = $NULL
     }
     if ( $GetDeploymentStatistics ) {
         return $retValue, $DeploymentElapsedTime
@@ -2411,7 +2351,7 @@ Function Set-SRIOVinAzureVMs {
             }
             #Public IP address changes most of the times, when we shutdown the VM.
             #Hence, we need to refresh the data
-            $AllVMData = GetAllDeployementData -ResourceGroups $ResourceGroup
+            $global:AllVMData = GetAllDeploymentData -ResourceGroups $ResourceGroup
             $TestVMData = @()
             foreach ( $TargetVM in $TargettedVMs) {
                 $TestVMData += $AllVMData | Where-Object {$_.ResourceGroupName -eq $ResourceGroup `

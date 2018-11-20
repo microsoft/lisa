@@ -1740,7 +1740,7 @@ Function RunLinuxCmd([string] $username,[string] $password,[string] $ip,[string]
 #endregion
 
 #region Test Case Logging
-Function DoTestCleanUp($CurrentTestResult, $testName, $DeployedServices, $ResourceGroups, [switch]$keepUserDirectory, [switch]$SkipVerifyKernelLogs)
+Function DoTestCleanUp($CurrentTestResult, $testName, $DeployedServices, $ResourceGroups, [switch]$keepUserDirectory, [switch]$SkipVerifyKernelLogs, $DeleteRG=$true)
 {
 	try
 	{
@@ -1856,7 +1856,8 @@ Function DoTestCleanUp($CurrentTestResult, $testName, $DeployedServices, $Resour
 			{
 				if ($ForceDeleteResources)
 				{
-					LogMsg "-ForceDeleteResources is Set. Deleting $group."
+					$global:isDeployed = $null
+					LogMsg "-ForceDeleteResources is Set. Deleting $group. Set global variable isDeployed to $global:isDeployed"
 					if ($TestPlatform -eq "Azure")
 					{
 						$isCleaned = DeleteResourceGroup -RGName $group
@@ -1890,7 +1891,7 @@ Function DoTestCleanUp($CurrentTestResult, $testName, $DeployedServices, $Resour
 				{
 					if($result -eq "PASS")
 					{
-						if($EconomyMode -and (-not $IsLastCaseInCycle))
+						if(-not $DeleteRG)
 						{
 							LogMsg "Skipping cleanup of Resource Group : $group."
 							if(!$keepUserDirectory)
@@ -1900,6 +1901,7 @@ Function DoTestCleanUp($CurrentTestResult, $testName, $DeployedServices, $Resour
 						}
 						else
 						{
+							$global:isDeployed = $null
 							try
 							{
 								$RGdetails = Get-AzureRmResourceGroup -Name $group -ErrorAction SilentlyContinue
@@ -1908,18 +1910,15 @@ Function DoTestCleanUp($CurrentTestResult, $testName, $DeployedServices, $Resour
 							{
 								LogMsg "Resource group '$group' not found."
 							}
-							if ( $RGdetails.Tags )
+							if ( $RGdetails.Tags -and (  $RGdetails.Tags[0].Name -eq $preserveKeyword ) -and (  $RGdetails.Tags[0].Value -eq "yes" ))
 							{
-								if ( (  $RGdetails.Tags[0].Name -eq $preserveKeyword ) -and (  $RGdetails.Tags[0].Value -eq "yes" ))
+								LogMsg "Skipping Cleanup of preserved resource group."
+								LogMsg "Collecting VM logs.."
+								if ( !$isVMLogsCollected)
 								{
-									LogMsg "Skipping Cleanup of preserved resource group."
-									LogMsg "Collecting VM logs.."
-									if ( !$isVMLogsCollected)
-									{
-										GetVMLogs -allVMData $allVMData
-									}
-									$isVMLogsCollected = $true
+									GetVMLogs -allVMData $allVMData
 								}
+								$isVMLogsCollected = $true
 							}
 							else
 							{
@@ -1933,7 +1932,6 @@ Function DoTestCleanUp($CurrentTestResult, $testName, $DeployedServices, $Resour
 									if ($TestPlatform -eq "Azure")
 									{
 										$isCleaned = DeleteResourceGroup -RGName $group
-
 									}
 									elseif ($TestPlatform -eq "HyperV")
 									{
@@ -1968,6 +1966,7 @@ Function DoTestCleanUp($CurrentTestResult, $testName, $DeployedServices, $Resour
 						if ($TestPlatform -eq "Azure")
 						{
 							Add-ResourceGroupTag -ResourceGroup $group -TagName $preserveKeyword -TagValue "yes"
+							$global:isDeployed = $null
 						}
 						LogMsg "Collecting VM logs.."
 						if ( !$isVMLogsCollected)
@@ -1975,14 +1974,6 @@ Function DoTestCleanUp($CurrentTestResult, $testName, $DeployedServices, $Resour
 							GetVMLogs -allVMData $allVMData
 						}
 						$isVMLogsCollected = $true
-						if(!$keepUserDirectory -and !$DoNotDeleteVMs -and $EconomyMode)
-						{
-							RemoveAllFilesFromHomeDirectory -allDeployedVMs $allVMData
-						}
-						if($DoNotDeleteVMs)
-						{
-							$xmlConfig.config.$TestPlatform.Deployment.$setupType.isDeployed = "NO"
-						}
 					}
 				}
 			}
@@ -2137,7 +2128,7 @@ Function RemoveAllFilesFromHomeDirectory($allDeployedVMs)
 	}
 }
 
-Function GetAllDeployementData($ResourceGroups)
+Function GetAllDeploymentData($ResourceGroups)
 {
 	$allDeployedVMs = @()
 	function CreateQuickVMNode()
@@ -2227,7 +2218,6 @@ Function GetAllDeployementData($ResourceGroups)
 		}
 		LogMsg "Collected $ResourceGroup data!"
 	}
-	Set-Variable -Name AllVMData -Value $allDeployedVMs -Scope Global
 	return $allDeployedVMs
 }
 
