@@ -27,30 +27,19 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations, $de
 
 	foreach ( $tempDistro in $xmlConfig.config.$TestPlatform.Deployment.Data.Distro ) {
 		if ( ($tempDistro.Name).ToUpper() -eq ($Distro).ToUpper() )	{
-			if ( $UseAzureResourceManager )	{
-				if ( ($null -ne $tempDistro.ARMImage.Publisher) -and ($null -ne $tempDistro.ARMImage.Offer) -and ($null -ne $tempDistro.ARMImage.Sku) -and ($null -ne $tempDistro.ARMImage.Version)) {
-					$ARMImage = $tempDistro.ARMImage
-					Set-Variable -Name ARMImage -Value $ARMImage -Scope Global
-					LogMsg "ARMImage name - $($ARMImage.Publisher) : $($ARMImage.Offer) : $($ARMImage.Sku) : $($ARMImage.Version)"
-				}
-				if ( $tempDistro.OsVHD ) {
-					$BaseOsVHD = $tempDistro.OsVHD.Trim()
-					Set-Variable -Name BaseOsVHD -Value $BaseOsVHD -Scope Global
-					LogMsg "Base VHD name - $BaseOsVHD"
-				}
-			} else {
-				if ( $tempDistro.OsImage ) {
-					$BaseOsImage = $tempDistro.OsImage.Trim()
-					Set-Variable -Name BaseOsImage -Value $BaseOsImage -Scope Global
-					LogMsg "Base image name - $BaseOsImage"
-				}
+			if ( ($null -ne $tempDistro.ARMImage.Publisher) -and ($null -ne $tempDistro.ARMImage.Offer) -and ($null -ne $tempDistro.ARMImage.Sku) -and ($null -ne $tempDistro.ARMImage.Version)) {
+				$ARMImage = $tempDistro.ARMImage
+				Set-Variable -Name ARMImage -Value $ARMImage -Scope Global
+				LogMsg "ARMImage name - $($ARMImage.Publisher) : $($ARMImage.Offer) : $($ARMImage.Sku) : $($ARMImage.Version)"
+			}
+			if ( $tempDistro.OsVHD ) {
+				$BaseOsVHD = $tempDistro.OsVHD.Trim()
+				Set-Variable -Name BaseOsVHD -Value $BaseOsVHD -Scope Global
+				LogMsg "Base VHD name - $BaseOsVHD"
 			}
 		}
 	}
-	if (!$BaseOsImage  -and !$UseAzureResourceManager) {
-		Throw "Please give ImageName or OsVHD for ASM deployment."
-	}
-	if (!$($ARMImage.Publisher) -and !$BaseOSVHD -and $UseAzureResourceManager) {
+	if (!$($ARMImage.Publisher) -and !$BaseOSVHD) {
 		Throw "Please give ARM Image / VHD for ARM deployment."
 	}
 

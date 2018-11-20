@@ -168,12 +168,7 @@ collect_VM_properties
         $TestCaseName = $xmlConfig.config.$TestPlatform.database.testTag
         if ($dataSource -And $user -And $password -And $database -And $dataTableName) {
             $GuestDistro    = Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object{$_ -replace ",OS type,",""}
-
-            if ($UseAzureResourceManager) {
-                $HostType   = "Azure-ARM"
-            } else {
-                $HostType   = "Azure"
-            }
+            $HostType   = "Azure"
             $HostBy = ($xmlConfig.config.$TestPlatform.General.Location).Replace('"','')
             $HostOS = Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version"| ForEach-Object{$_ -replace ",Host Version,",""}
             $GuestOSType    = "Linux"
