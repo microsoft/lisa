@@ -104,37 +104,36 @@ function Validate-Parameters {
     }
 }
 
-Function Add-ReplaceableTestParameters($XmlConfigFilePath)
+Function Inject-CustomTestParameters($CustomParameters, $ReplaceableTestParameters, $TestConfigurationXmlFile)
 {
-	$ReplacableTestParameters = [xml](Get-Content -Path "$WorkingDirectory\XML\Other\ReplaceableTestParameters.xml")
 	if ($CustomParameters)
 	{
-		LogMsg "Checking custom parameters"
+		LogMsg "Checking custom parameters ..."
 		$CustomParameters = $CustomParameters.Trim().Trim(";").Split(";")
 		foreach ($CustomParameter in $CustomParameters)
 		{
 			$CustomParameter = $CustomParameter.Trim()
 			$ReplaceThis = $CustomParameter.Split("=")[0]
 			$ReplaceWith = $CustomParameter.Split("=")[1]
-			$OldValue = ($ReplacableTestParameters.ReplaceableTestParameters.Parameter | Where-Object `
-			{ $_.ReplaceThis -eq $ReplaceThis }).ReplaceWith
-			($ReplacableTestParameters.ReplaceableTestParameters.Parameter | Where-Object `
-			{ $_.ReplaceThis -eq $ReplaceThis }).ReplaceWith = $ReplaceWith
+			$OldValue = ($ReplaceableTestParameters.ReplaceableTestParameters.Parameter | Where-Object `
+				{ $_.ReplaceThis -eq $ReplaceThis }).ReplaceWith
+			($ReplaceableTestParameters.ReplaceableTestParameters.Parameter | Where-Object `
+				{ $_.ReplaceThis -eq $ReplaceThis }).ReplaceWith = $ReplaceWith
 			LogMsg "Custom Parameter: $ReplaceThis=$OldValue --> $ReplaceWith"
 		}
 		LogMsg "Custom parameter(s) are ready to be injected along with default parameters, if any."
 	}
 
-	$XmlConfigContents = (Get-Content -Path $XmlConfigFilePath)
-	foreach ($ReplaceableParameter in $ReplacableTestParameters.ReplaceableTestParameters.Parameter)
+	$XmlConfigContents = (Get-Content -Path $TestConfigurationXmlFile)
+	foreach ($ReplaceableParameter in $ReplaceableTestParameters.ReplaceableTestParameters.Parameter)
 	{
 		if ($XmlConfigContents -match $ReplaceableParameter.ReplaceThis)
 		{
 			$XmlConfigContents = $XmlConfigContents.Replace($ReplaceableParameter.ReplaceThis,$ReplaceableParameter.ReplaceWith)
-			LogMsg "$($ReplaceableParameter.ReplaceThis)=$($ReplaceableParameter.ReplaceWith) injected into $XmlConfigFilePath"
+			LogMsg "$($ReplaceableParameter.ReplaceThis)=$($ReplaceableParameter.ReplaceWith) injected into $TestConfigurationXmlFile"
 		}
 	}
-	Set-Content -Value $XmlConfigContents -Path $XmlConfigFilePath -Force
+	Set-Content -Value $XmlConfigContents -Path $TestConfigurationXmlFile -Force
 }
 
 Function UpdateGlobalConfigurationXML($XmlSecretsFilePath)
@@ -633,7 +632,7 @@ Function StartLogReport([string]$reportPath)
 	}
 	else
 	{
-		throw "CI report has been created."
+		throw "LISAv2 test report has been created."
 	}
 
 	return $junitReport
@@ -941,7 +940,7 @@ Function Get-SQLQueryOfTelemetryData ($TestPlatform,$TestLocation,$TestCategory,
 			$testLogFolder = "$($UTCTime.Year)-$($UTCTime.Month)-$($UTCTime.Day)"
 			$ticks= (Get-Date).Ticks
 			$uploadFileName = Join-Path $env:TEMP "$TestName-$ticks.zip"
-			$null = ZipFiles -zipfilename $uploadFileName -sourcedir $LogDir
+			$null = New-ZipFile -zipFileName $uploadFileName -sourceDir $LogDir
 			$UploadedURL = .\Utilities\UploadFilesToStorageAccount.ps1 -filePaths $uploadFileName `
 			-destinationStorageAccount $testLogStorageAccount -destinationContainer "lisav2logs" `
 			-destinationFolder "$testLogFolder" -destinationStorageKey $testLogStorageAccountKey

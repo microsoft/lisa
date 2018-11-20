@@ -141,20 +141,20 @@ try {
 		mkdir $TestResultsDir | out-null
 	}
 
-	if (! (test-path ".\report")) {
-		mkdir ".\report" | out-null
+	if (! (test-path ".\Report")) {
+		mkdir ".\Report" | out-null
 	}
 
 	$testStartTime = [DateTime]::Now.ToUniversalTime()
 	Set-Variable -Name testStartTime -Value $testStartTime -Scope Global
-	Set-Content -Value "" -Path .\report\testSummary.html -Force -ErrorAction SilentlyContinue | Out-Null
-	Set-Content -Value "" -Path .\report\AdditionalInfo.html -Force -ErrorAction SilentlyContinue | Out-Null
+	Set-Content -Value "" -Path .\Report\testSummary.html -Force -ErrorAction SilentlyContinue | Out-Null
+	Set-Content -Value "" -Path .\Report\AdditionalInfo.html -Force -ErrorAction SilentlyContinue | Out-Null
 	Set-Variable -Name LogFile -Value $LogFile -Scope Global
 	Set-Variable -Name Distro -Value $RGIdentifier -Scope Global
 	Set-Variable -Name onCloud -Value $onCloud -Scope Global
 	Set-Variable -Name xmlConfig -Value $xmlConfig -Scope Global
-	LogMsg "'$LogDir' saved to .\report\lastLogDirectory.txt"
-	Set-Content -Path .\report\lastLogDirectory.txt -Value $LogDir -Force
+	LogMsg "'$LogDir' saved to .\Report\lastLogDirectory.txt"
+	Set-Content -Path .\Report\lastLogDirectory.txt -Value $LogDir -Force
 	Set-Variable -Name vnetIsAllConfigured -Value $false -Scope Global
 
 	if($DoNotDeleteVMs) {
@@ -216,7 +216,7 @@ try {
 	$summaryAll = GetTestSummary -testCycle $testCycle -StartTime $testStartTime -xmlFileName $logDirFilename -distro $Distro -testSuiteResultDetails $testSuiteResultDetails
 	$PlainTextSummary += $summaryAll[0]
 	$HtmlTextSummary += $summaryAll[1]
-	Set-Content -Value $HtmlTextSummary -Path .\report\testSummary.html -Force | Out-Null
+	Set-Content -Value $HtmlTextSummary -Path .\Report\testSummary.html -Force | Out-Null
 	$PlainTextSummary = $PlainTextSummary.Replace("<br />", "`r`n")
 	$PlainTextSummary = $PlainTextSummary.Replace("<pre>", "")
 	$PlainTextSummary = $PlainTextSummary.Replace("</pre>", "")

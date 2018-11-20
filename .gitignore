@@ -2,11 +2,12 @@ XML/AzureSecrets.xml
 TestResults*
 TestConfiguration.xml
 Temp*
-report*
+Report*
 UploadStatusFile*
 *.azure.env
 *-buildlogs.zip
 .vscode/settings.json
+*.zip
 *.exe
 Tools/kvp_*
 Tools/jq

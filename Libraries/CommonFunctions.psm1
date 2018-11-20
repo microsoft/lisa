@@ -109,30 +109,6 @@ Function LogWarn($text)
 	Write-Log "WARN" $text
 }
 
-Function ValidateXmlFiles( [string]$ParentFolder )
-{
-	LogMsg "Validating XML Files from $ParentFolder folder recursively..."
-	$allXmls = Get-ChildItem "$ParentFolder\*.xml" -Recurse
-	$xmlErrorFiles = @()
-	foreach ($file in $allXmls)
-	{
-		try
-		{
-			$null = [xml](Get-Content $file.FullName)
-		}
-		catch
-		{
-			LogError -text "$($file.FullName) validation failed."
-			$xmlErrorFiles += $file.FullName
-		}
-	}
-	if ( $xmlErrorFiles.Count -gt 0 )
-	{
-		$xmlErrorFiles | ForEach-Object -Process {LogMsg $_}
-		Throw "Please fix above ($($xmlErrorFiles.Count)) XML files."
-	}
-}
-
 Function ProvisionVMsForLisa($allVMData, $installPackagesOnRoleNames)
 {
 	$keysGenerated = $false
@@ -382,8 +358,8 @@ function InstallCustomKernel ($CustomKernel, $allVMData, [switch]$RestartAfterUp
 							{
 								$isKernelUpgraded = $true
 							}
-							Add-Content -Value "Old kernel: $currentKernelVersion" -Path .\report\AdditionalInfo.html -Force
-							Add-Content -Value "New kernel: $upgradedKernelVersion" -Path .\report\AdditionalInfo.html -Force
+							Add-Content -Value "Old kernel: $currentKernelVersion" -Path .\Report\AdditionalInfo.html -Force
+							Add-Content -Value "New kernel: $upgradedKernelVersion" -Path .\Report\AdditionalInfo.html -Force
 							return $isKernelUpgraded
 						}
 					}
@@ -484,8 +460,8 @@ function InstallcustomLIS ($CustomLIS, $customLISBranch, $allVMData, [switch]$Re
 						$upgradedlisVersion = RunLinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus"
 						LogMsg "Old lis: $currentlisVersion"
 						LogMsg "New lis: $upgradedlisVersion"
-						Add-Content -Value "Old lis: $currentlisVersion" -Path .\report\AdditionalInfo.html -Force
-						Add-Content -Value "New lis: $upgradedlisVersion" -Path .\report\AdditionalInfo.html -Force
+						Add-Content -Value "Old lis: $currentlisVersion" -Path .\Report\AdditionalInfo.html -Force
+						Add-Content -Value "New lis: $upgradedlisVersion" -Path .\Report\AdditionalInfo.html -Force
 						return $true
 					}
 					else
@@ -2492,18 +2468,20 @@ Function GetFilePathsFromLinuxFolder ([string]$folderToSearch, $IpAddress, $SSHP
 	return $LogFilesPaths, $LogFiles
 }
 
-function ZipFiles( $zipfilename, $sourcedir )
+function New-ZipFile( $zipFileName, $sourceDir )
 {
-	LogMsg "Creating '$zipfilename' from '$sourcedir'"
+	LogMsg "Creating '$zipFileName' from '$sourceDir'"
 	$currentDir = (Get-Location).Path
 	$7z = (Get-ChildItem .\Tools\7za.exe).FullName
-	$sourcedir = $sourcedir.Trim('\')
-	Set-Location $sourcedir
-	$out = Invoke-Expression "$7z a -mx5 $currentDir\$zipfilename * -r"
+	$sourceDir = $sourceDir.Trim('\')
+	Set-Location $sourceDir
+	$out = Invoke-Expression "$7z a -mx5 $currentDir\$zipFileName * -r"
 	Set-Location $currentDir
-	if ($out -match "Everything is Ok")
-	{
-		LogMsg "$currentDir\$zipfilename created successfully."
+	if ($out -match "Everything is Ok") {
+		LogMsg "$currentDir\$zipFileName created successfully."
+	} else {
+		LogErr "Unexpected output from 7za.exe when creating $currentDir\$zipFileName :"
+		LogErr $out
 	}
 }
 

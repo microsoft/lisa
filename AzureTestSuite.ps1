@@ -85,12 +85,15 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations, $de
 	$testSuiteResultDetails=@{"totalTc"=0;"totalPassTc"=0;"totalFailTc"=0;"totalAbortedTc"=0}
 
 	# Start JUnit XML report logger.
-	$reportFolder = "$pwd/report"
+	$reportFolder = "$pwd/Report"
 	if(!(Test-Path $reportFolder)) {
 		New-Item -ItemType "Directory" $reportFolder
 	}
 
-	StartLogReport("$reportFolder/report_$($testCycle.cycleName).xml")
+	$TestReportXml = Join-Path "$reportFolder" "LISAv2_TestReport_$TestID.xml"
+	Set-Variable -Name TestReportXml -Value $TestReportXml -Scope Global -Force
+
+	StartLogReport($TestReportXml)
 	$testsuite = StartLogTestSuite "CloudTesting"
 
 	$VmSetup = @()
@@ -313,7 +316,7 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations, $de
 	LogMsg "Cycle Finished.. $($CycleName.ToUpper())"
 
 	FinishLogTestSuite($testsuite)
-	FinishLogReport
+	FinishLogReport $True
 
 	$testSuiteResultDetails
 }
