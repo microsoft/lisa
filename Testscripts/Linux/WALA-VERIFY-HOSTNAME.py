@@ -3,9 +3,6 @@
 # Licensed under the Apache License.
 from azuremodules import *
 
-import argparse
-import sys
-import time
 import re
 
 file_path = os.path.dirname(os.path.realpath(__file__))

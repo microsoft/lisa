@@ -2,10 +2,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 from azuremodules import *
-import sys
-import time
 import re
-import linecache
 
 def RunTest():
     UpdateState("TestRunning")
@@ -62,15 +59,14 @@ def RunTest():
         else:
             ResultLog.info('FAIL')
     elif(DetectDistro()[0] == 'ubuntu' and fstab_dev_count == 1):
-        if (uuid_from_demesg != 0 and uuid_from_fstab != 0 and uuid_from_demesg == uuid_from_fstab and dmsg_dev_count == 0): 
-           ResultLog.info('PASS')  
+        if (uuid_from_demesg != 0 and uuid_from_fstab != 0 and uuid_from_demesg == uuid_from_fstab and dmsg_dev_count == 0):
+           ResultLog.info('PASS')
         else:
-           ResultLog.info('FAIL')  
+           ResultLog.info('FAIL')
     else:
-        
-        if (uuid_from_demesg == 0): 
+        if (uuid_from_demesg == 0):
             RunLog.info('/ partition is not mounted using UUID in dmesg.')
-        if (uuid_from_fstab == 0): 
+        if (uuid_from_fstab == 0):
             RunLog.info('/ partition is not mounted using UUID in /etc/fstab.')
         if (uuid_from_demesg != uuid_from_fstab):
             RunLog.info(' UUID is not same in dmesg and /etc/fstab.')
@@ -79,7 +75,7 @@ def RunTest():
         if (fstab_dev_count != 0):
             RunLog.info('Found disks mounted without using UUID in /etc/fstab.')
 
-        ResultLog.info('FAIL')        
+        ResultLog.info('FAIL')
     UpdateState("TestCompleted")
 
 RunTest()

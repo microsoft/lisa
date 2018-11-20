@@ -5,14 +5,12 @@ from azuremodules import *
 
 
 import argparse
-import sys
-import time
-        #for error checking
+# for error checking
 parser = argparse.ArgumentParser()
 
 parser.add_argument('-e', '--expected', help='specify expected DiskSize in Byte', required=True)
 args = parser.parse_args()
-                #if no value specified then stop
+# if no value specified then stop
 expectedDiskSize = args.expected
 
 def RunTest(expectedSize):

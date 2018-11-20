@@ -84,9 +84,8 @@ if ( -not $before -and -not $after -and $From -and $Till )
                         $CommitCounter += 1
                     }
                 }
-            }
-            catch {
-
+            } catch {
+                $()
             }
         }
     }
@@ -139,8 +138,8 @@ if ( $before -and $after -and  -not $From -and -not $Till )
                         $CommitCounter += 1
                     }
                 }
-            }
-            catch {
+            } catch {
+                $()
             }
         }
     }
