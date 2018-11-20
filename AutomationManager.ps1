@@ -211,7 +211,8 @@ try {
 	}
 
 	$testCycle =  GetCurrentCycleData -xmlConfig $xmlConfig -cycleName $cycleName
-	$testSuiteResultDetails=.\AzureTestSuite.ps1 $xmlConfig -Distro $Distro -cycleName $cycleName -TestIterations $TestIterations -DeployVMPerEachTest $DeployVMPerEachTest
+	$testSuiteResultDetails=.\AzureTestSuite.ps1 $xmlConfig -Distro $Distro -cycleName $cycleName -TestIterations $TestIterations  -DeployVMPerEachTest $DeployVMPerEachTest
+	$testSuiteResultDetails = $testSuiteResultDetails | Select-Object -Last 1
 	$logDirFilename = [System.IO.Path]::GetFilenameWithoutExtension($xmlConfigFile)
 	$summaryAll = GetTestSummary -testCycle $testCycle -StartTime $testStartTime -xmlFileName $logDirFilename -distro $Distro -testSuiteResultDetails $testSuiteResultDetails
 	$PlainTextSummary += $summaryAll[0]
