@@ -61,6 +61,7 @@ Param(
 	[string] $TestArea = "",
 	[string] $TestTag = "",
 	[string] $TestNames="",
+	[string] $TestPriority="",
 
 	#[Optional] Parameters for Image preparation before running tests.
 	[string] $CustomKernel = "",

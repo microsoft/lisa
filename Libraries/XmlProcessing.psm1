@@ -29,10 +29,6 @@ Function Import-TestCases($WorkingDirectory, $TestConfigurationXmlFile) {
 	$TestXMLs = Get-ChildItem -Path "$WorkingDirectory\XML\TestCases\*.xml"
 	$SetupTypeXMLs = Get-ChildItem -Path "$WorkingDirectory\XML\VMConfigurations\*.xml"
 	$AllLisaTests = @()
-	if ( $TestCategory -eq "All") { $TestCategory = "" }
-	if ( $TestArea -eq "All") {	$TestArea = "" }
-	if ( $TestNames -eq "All") { $TestNames = "" }
-	if ( $TestTag -eq "All") { $TestTag = "" }
 
 	$AllLisaTests = CollectTestCases -TestXMLs $TestXMLs
 	if( !$AllLisaTests.innerXML ) {
