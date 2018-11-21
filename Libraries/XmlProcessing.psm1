@@ -219,3 +219,30 @@ Function Validate-XmlFiles( [string]$ParentFolder )
 		Throw "Please fix above ($($xmlErrorFiles.Count)) XML files."
 	}
 }
+
+Function Import-TestParameters($ParametersFile)
+{
+	try {
+		$LISAv2Parameters = [xml](Get-Content -Path $ParametersFile)
+		$ParameterNames = ($LISAv2Parameters.TestParameters.ChildNodes | Where-Object {$_.NodeType -eq "Element"}).Name
+		foreach ($ParameterName in $ParameterNames) {
+			if ($LISAv2Parameters.TestParameters.$ParameterName) {
+				if ($LISAv2Parameters.TestParameters.$ParameterName -eq "true") {
+					LogMsg "Setting boolean parameter $ParameterName -> $true"
+					Set-Variable -Name $ParameterName -Value $true -Scope Global -Force
+				}
+				else {
+					LogMsg "Setting parameter $ParameterName -> $($LISAv2Parameters.TestParameters.$ParameterName)"
+					Set-Variable -Name $ParameterName -Value $LISAv2Parameters.TestParameters.$ParameterName -Scope Global -Force
+				}
+			}
+		}
+	} catch {
+		$line = $_.InvocationInfo.ScriptLineNumber
+		$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
+		$ErrorMessage =  $_.Exception.Message
+
+		LogErr "EXCEPTION : $ErrorMessage"
+		LogErr "Source : Line $line in script $script_name."
+	}
+}
