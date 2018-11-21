@@ -9,7 +9,7 @@
 	PS modules for LISAv2 test automation.
 	When LISAv2 is running, some files may be created with multiple layer of folders;
 	in such cases, the total length of the file path may be too long for Windows to handle.
-	So, LISAv2 will try to find a folder with short folder path as its working directory. 
+	So, LISAv2 will try to find a folder with short folder path as its working directory.
 
 .PARAMETER
 	<Parameters>
