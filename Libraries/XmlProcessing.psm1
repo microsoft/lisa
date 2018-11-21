@@ -29,7 +29,6 @@ Function Import-TestCases($WorkingDirectory, $TestConfigurationXmlFile) {
 	$TestXMLs = Get-ChildItem -Path "$WorkingDirectory\XML\TestCases\*.xml"
 	$SetupTypeXMLs = Get-ChildItem -Path "$WorkingDirectory\XML\VMConfigurations\*.xml"
 	$AllLisaTests = @()
-	$ARMImage = $ARMImageName.Trim().Split(" ")
 	if ( $TestCategory -eq "All") { $TestCategory = "" }
 	if ( $TestArea -eq "All") {	$TestArea = "" }
 	if ( $TestNames -eq "All") { $TestNames = "" }
@@ -74,12 +73,15 @@ Function Import-TestCases($WorkingDirectory, $TestConfigurationXmlFile) {
 				$xmlContent += ("$($tab[3])" + "<Data>`n")
 					$xmlContent += ("$($tab[4])" + "<Distro>`n")
 						$xmlContent += ("$($tab[5])" + "<Name>$RGIdentifier</Name>`n")
-						$xmlContent += ("$($tab[5])" + "<ARMImage>`n")
-							$xmlContent += ("$($tab[6])" + "<Publisher>" + "$($ARMImage[0])" + "</Publisher>`n")
-							$xmlContent += ("$($tab[6])" + "<Offer>" + "$($ARMImage[1])" + "</Offer>`n")
-							$xmlContent += ("$($tab[6])" + "<Sku>" + "$($ARMImage[2])" + "</Sku>`n")
-							$xmlContent += ("$($tab[6])" + "<Version>" + "$($ARMImage[3])" + "</Version>`n")
-						$xmlContent += ("$($tab[5])" + "</ARMImage>`n")
+						if ($null -ne $ARMImageName) {
+							$ARMImage = $ARMImageName.Trim().Split(" ")
+							$xmlContent += ("$($tab[5])" + "<ARMImage>`n")
+								$xmlContent += ("$($tab[6])" + "<Publisher>" + "$($ARMImage[0])" + "</Publisher>`n")
+								$xmlContent += ("$($tab[6])" + "<Offer>" + "$($ARMImage[1])" + "</Offer>`n")
+								$xmlContent += ("$($tab[6])" + "<Sku>" + "$($ARMImage[2])" + "</Sku>`n")
+								$xmlContent += ("$($tab[6])" + "<Version>" + "$($ARMImage[3])" + "</Version>`n")
+							$xmlContent += ("$($tab[5])" + "</ARMImage>`n")
+						}
 						$xmlContent += ("$($tab[5])" + "<OsVHD>" + "$OsVHD" + "</OsVHD>`n")
 						$xmlContent += ("$($tab[5])" + "<VMGeneration>" + "$VMGeneration" + "</VMGeneration>`n")
 					$xmlContent += ("$($tab[4])" + "</Distro>`n")
@@ -134,12 +136,6 @@ Function Import-TestCases($WorkingDirectory, $TestConfigurationXmlFile) {
 				$xmlContent += ("$($tab[3])" + "<Data>`n")
 					$xmlContent += ("$($tab[4])" + "<Distro>`n")
 						$xmlContent += ("$($tab[5])" + "<Name>$RGIdentifier</Name>`n")
-						$xmlContent += ("$($tab[5])" + "<ARMImage>`n")
-							$xmlContent += ("$($tab[6])" + "<Publisher>" + "$($ARMImage[0])" + "</Publisher>`n")
-							$xmlContent += ("$($tab[6])" + "<Offer>" + "$($ARMImage[1])" + "</Offer>`n")
-							$xmlContent += ("$($tab[6])" + "<Sku>" + "$($ARMImage[2])" + "</Sku>`n")
-							$xmlContent += ("$($tab[6])" + "<Version>" + "$($ARMImage[3])" + "</Version>`n")
-						$xmlContent += ("$($tab[5])" + "</ARMImage>`n")
 						$xmlContent += ("$($tab[5])" + "<OsVHD>" + "$OsVHD" + "</OsVHD>`n")
 					$xmlContent += ("$($tab[4])" + "</Distro>`n")
 					$xmlContent += ("$($tab[4])" + "<UserName>" + "$($GlobalConfiguration.Global.$TestPlatform.TestCredentials.LinuxUsername)" + "</UserName>`n")
