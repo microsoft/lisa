@@ -46,7 +46,7 @@ Function DeployHyperVGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFailed =
                 $isAllConnected = isAllSSHPortsEnabledRG -AllVMDataObject $allVMData
                 if ($isAllConnected -eq "True")
                 {
-                    InjectHostnamesInHyperVVMs -allVMData $allVMData
+                    InjectHostnamesInHyperVVMs -allVMData $allVMData | Out-Null
                     $VerifiedGroups = $DeployedHyperVGroup
                     $retValue = $VerifiedGroups
                     if ( Test-Path -Path  .\Extras\UploadDeploymentDataToDB.ps1 )
@@ -129,11 +129,11 @@ Function CreateAllHyperVGroupDeployments($setupType, $xmlConfig, $Distro, $Debug
                 $retryDeployment = 0
                 if ( $HyperVGroupXML.Tag -ne $null )
                 {
-                    $HyperVGroupName = "ICA-HG-" + $HyperVGroupXML.Tag + "-" + $Distro + "-" + "$shortRandomWord-" + "$curtime"
+                    $HyperVGroupName = "ICA-HG-" + $HyperVGroupXML.Tag + "-" + $Distro + "-" + "$TestID-" + "$curtime"
                 }
                 else
                 {
-                    $HyperVGroupName = "ICA-HG-" + $setupType + "-" + $Distro + "-" + "$shortRandomWord-" + "$curtime"
+                    $HyperVGroupName = "ICA-HG-" + $setupType + "-" + $Distro + "-" + "$TestID-" + "$curtime"
                 }
                 while (($isHyperVGroupDeployed -eq "False") -and ($retryDeployment -lt 1))
                 {
