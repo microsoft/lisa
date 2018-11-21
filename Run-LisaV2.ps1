@@ -25,7 +25,7 @@
 					-TestNames "BVT-VERIFY-DEPLOYMENT-PROVISION"
 
 	.\Run-LisaV2.ps1 -ParametersFile .\XML\TestParameters.xml
-	Note: Please refer .\XML\ParametersFile.xml file for more details.
+	Note: Please refer .\XML\TestParameters.xml file for more details.
 
 #>
 ###############################################################################################
