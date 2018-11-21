@@ -222,6 +222,7 @@ Function Validate-XmlFiles( [string]$ParentFolder )
 
 Function Import-TestParameters($ParametersFile)
 {
+	LogMsg "Import test parameters from provided XML file $ParametersFile ..."
 	try {
 		$LISAv2Parameters = [xml](Get-Content -Path $ParametersFile)
 		$ParameterNames = ($LISAv2Parameters.TestParameters.ChildNodes | Where-Object {$_.NodeType -eq "Element"}).Name

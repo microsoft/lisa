@@ -25,7 +25,7 @@
 ###############################################################################################
 
 Function Move-ToNewWorkingSpace($originalFolder) {
-	Write-Output "Current working directory '$originalFolder' path length is too long."
+	Write-Host "Current working directory '$originalFolder' path length is too long."
 	$tempWorkspace    = "$(Split-Path $originalFolder -Qualifier)"
 	$tempParentFolder = "$tempWorkspace\LISAv2"
 	$tempWorkingDir   = "$tempWorkspace\LISAv2\$TestID"
@@ -33,11 +33,11 @@ Function Move-ToNewWorkingSpace($originalFolder) {
 	New-Item -ItemType Directory -Path $tempParentFolder -Force -ErrorAction SilentlyContinue | Out-Null
 	New-Item -ItemType Directory -Path $tempWorkingDir   -Force -ErrorAction SilentlyContinue | Out-Null
 	$tmpSource = '\\?\' + "$originalFolder\*"
-	Write-Output "Copying current workspace to $tempWorkingDir"
+	Write-Host "Copying current workspace to $tempWorkingDir"
 	$excludedDirectories = @(".git", "Documents", ".github", "Report", "TestResults", "VHDs_Destination_Path", "*.zip")
 	Copy-Item -Path $tmpSource -Destination $tempWorkingDir -Recurse -Force -Exclude $excludedDirectories | Out-Null
 	Set-Location -Path $tempWorkingDir | Out-Null
-	Write-Output "Working directory has been changed to $tempWorkingDir"
+	Write-Host "Working directory has been changed to $tempWorkingDir"
 	return $tempWorkingDir
 }
 

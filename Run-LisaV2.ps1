@@ -24,8 +24,8 @@
 					-XMLSecretFile "C:\MySecrets.xml"
 					-TestNames "BVT-VERIFY-DEPLOYMENT-PROVISION"
 
-	.\Run-LisaV2.ps1 -TestParameters .\XML\TestParameters.xml
-	Note: Please refer .\XML\TestParameters.xml file for more details.
+	.\Run-LisaV2.ps1 -ParametersFile .\XML\TestParameters.xml
+	Note: Please refer .\XML\ParametersFile.xml file for more details.
 
 #>
 ###############################################################################################
@@ -97,7 +97,7 @@ Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1"
 
 try {
 	$TestID = "{0}{1}" -f $(-join ((65..90) | Get-Random -Count 4 | ForEach-Object {[char]$_})), $(Get-Random -Maximum 99999 -Minimum 11111)
-	Write-Output "Test ID generated for this test run: $TestID"
+	Write-Host "Test ID generated for this test run: $TestID"
 	Set-Variable -Name "TestID" -Value $TestID -Scope Global -Force
 
 	# Prepare the workspace
@@ -108,6 +108,14 @@ try {
 		$WorkingDirectory = Move-ToNewWorkingSpace $OriginalWorkingDirectory | Select-Object -Last 1
 	}
 	Set-Variable -Name WorkingDirectory -Value $WorkingDirectory  -Scope Global
+
+	# Prepare log folder
+	$LogDir = Join-Path $WorkingDirectory "TestResults\$(Get-Date -Format 'yyyy-dd-MM-HH-mm-ss-ffff')"
+	$LogFileName = "LISAv2-Test-$TestID.log"
+	Set-Variable -Name LogDir      -Value $LogDir      -Scope Global -Force
+	Set-Variable -Name LogFileName -Value $LogFileName -Scope Global -Force
+	New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
+	LogMsg "Created LogDir: $LogDir"
 
 	# Load test parameters as PS objects
 	$ParameterList = (Get-Command -Name $PSCmdlet.MyInvocation.InvocationName).Parameters;
@@ -143,14 +151,6 @@ try {
 	foreach ($var in $GlobalVariables) {
 		[void](Set-Variable -Name $var.Name -Value $var.Value -Scope Local -ErrorAction SilentlyContinue)
 	}
-
-	# Prepare log folder
-	$LogDir = Join-Path $WorkingDirectory "TestResults\$(Get-Date -Format 'yyyy-dd-MM-HH-mm-ss-ffff')"
-	$LogFileName = "LISAv2-Test-$TestID.log"
-	Set-Variable -Name LogDir      -Value $LogDir      -Scope Global -Force
-	Set-Variable -Name LogFileName -Value $LogFileName -Scope Global -Force
-	New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
-	LogMsg "Created LogDir: $LogDir"
 
 	# Validate the test parameters.
 	Validate-Parameters
@@ -211,7 +211,7 @@ try {
 	if ($XMLSecretFile) { $command += " -XMLSecretFile '$XMLSecretFile'" }
 	LogMsg $command
 
-	#Invoke-Expression -Command $command
+	Invoke-Expression -Command $command
 
 	$zipFile = "$TestPlatform"
 	if ( $TestCategory ) { $zipFile += "-$TestCategory"	}
