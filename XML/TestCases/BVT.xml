@@ -211,9 +211,6 @@
         <testScript>BVT-CORE-TIMESYNC-NTP.sh</testScript>
         <files>.\TestScripts\Linux\BVT-CORE-TIMESYNC-NTP.sh,.\TestScripts\Linux\utils.sh</files>
         <setupType>SingleVM</setupType>
-        <TestParameters>
-            <param>TC_COVERED=CORE-04</param>
-        </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>CORE</Area>
@@ -226,7 +223,6 @@
         <files>.\TestScripts\Linux\BVT-CORE-VERIFY-LIS-MODULES.sh,.\TestScripts\Linux\utils.sh</files>
         <setupType>SingleVM</setupType>
         <TestParameters>
-            <param>TC_COVERED=CORE-09</param>
             <param>HYPERV_MODULES=(hyperv_keyboard hv_netvsc hid_hyperv hv_util hv_storvsc)</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
@@ -241,7 +237,6 @@
         <files>.\TestScripts\Linux\BVT-CORE-VERIFY-LIS-MODULES-VERSION.sh,.\TestScripts\Linux\utils.sh</files>
         <setupType>SingleVM</setupType>
         <TestParameters>
-            <param>TC_COVERED=CORE-15</param>
             <param>HYPERV_MODULES=(hv_vmbus hyperv_keyboard hv_netvsc hid_hyperv hv_utils hv_storvsc hv_balloon)</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
@@ -257,7 +252,6 @@
         <files>.\TestScripts\Linux\BVT-CORE-RELOAD-MODULES.sh,.\TestScripts\Linux\utils.sh</files>
         <setupType>Stress</setupType>
         <TestParameters>
-            <param>TC_COVERED=CORE-18</param>
             <param>VCPU=8</param>
             <param>LoopCount=100</param>
         </TestParameters>
@@ -272,9 +266,6 @@
         <testScript>BVT-CORE-TIME-CLOCKSOURCE.sh</testScript>
         <files>.\TestScripts\Linux\BVT-CORE-TIME-CLOCKSOURCE.sh,.\TestScripts\Linux\utils.sh</files>
         <setupType>SingleVM</setupType>
-        <TestParameters>
-            <param>TC_COVERED=CORE-26</param>
-        </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>CORE</Area>
@@ -287,7 +278,6 @@
         <files>.\TestScripts\Linux\BVT-CORE-TIME-CLOCKEVENT.sh,.\TestScripts\Linux\utils.sh</files>
         <setupType>SingleVM</setupType>
         <TestParameters>
-            <param>TC_COVERED=CORE-36a</param>
             <param>VCPU=1</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
@@ -303,7 +293,6 @@
         <files>.\TestScripts\Linux\BVT-CORE-TIME-CLOCKEVENT.sh,.\TestScripts\Linux\utils.sh</files>
         <setupType>Stress</setupType>
         <TestParameters>
-            <param>TC_COVERED=CORE-36a</param>
             <param>VCPU=8</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
@@ -317,9 +306,6 @@
         <testScript>BVT-NET-ETHTOOL-CHECK-KEYS.sh</testScript>
         <files>.\TestScripts\Linux\BVT-NET-ETHTOOL-CHECK-KEYS.sh,.\TestScripts\Linux\utils.sh</files>
         <setupType>SingleVM</setupType>
-        <TestParameters>
-            <param>TC_COVERED=NET-27</param>
-        </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>NETWORK</Area>
@@ -332,7 +318,6 @@
         <files>.\TestScripts\Linux\BVT-NET-ETHTOOL-CHANGE-RINGBUFFER.sh,.\TestScripts\Linux\utils.sh</files>
         <setupType>SingleVM</setupType>
         <TestParameters>
-            <param>TC_COVERED=NET-28</param>
             <param>rx=10000</param>
             <param>tx=200</param>
         </TestParameters>
@@ -348,7 +333,6 @@
         <files>.\TestScripts\Linux\BVT-NET-ETHTOOL-HANDLER-HASH-LEVELS.sh,.\TestScripts\Linux\utils.sh</files>
         <setupType>SingleVM</setupType>
         <TestParameters>
-            <param>TC_COVERED=NET-29a</param>
             <param>protocol=tcp4</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
@@ -363,7 +347,6 @@
         <files>.\TestScripts\Linux\BVT-NET-ETHTOOL-HANDLER-HASH-LEVELS.sh,.\TestScripts\Linux\utils.sh</files>
         <setupType>SingleVM</setupType>
         <TestParameters>
-            <param>TC_COVERED=NET-29b</param>
             <param>protocol=udp4</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
@@ -377,9 +360,6 @@
         <testScript>BVT-NET-ETHTOOL-GRO-LRO.sh</testScript>
         <files>.\TestScripts\Linux\BVT-NET-ETHTOOL-GRO-LRO.sh,.\TestScripts\Linux\utils.sh</files>
         <setupType>SingleVM</setupType>
-        <TestParameters>
-            <param>TC_COVERED=NET-30</param>
-        </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>NETWORK</Area>
@@ -391,9 +371,6 @@
         <testScript>BVT-NET-ETHTOOL-CHECK-CHANNEL.sh</testScript>
         <files>.\TestScripts\Linux\BVT-NET-ETHTOOL-CHECK-CHANNEL.sh,.\TestScripts\Linux\utils.sh</files>
         <setupType>SingleVM</setupType>
-        <TestParameters>
-            <param>TC_COVERED=NET-31</param>
-        </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>NETWORK</Area>

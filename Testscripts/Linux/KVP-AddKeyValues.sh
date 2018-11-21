@@ -3,7 +3,7 @@
 # Licensed under the Apache License.
 
 # Description:
-#   This script will verify a key is present in the speicified pool or not. 
+#   This script will verify a key is present in the speicified pool or not.
 #   The Parameters provided are - Test case number, Key Name. Value, Pool number
 #   This test should be run after the KVP Basic test.
 
@@ -31,12 +31,6 @@ fi
 #
 # Make sure constants.sh contains the variables we expect
 #
-if [ "${TC_COVERED:-UNDEFINED}" = "UNDEFINED" ]; then
-    LogErr "The test parameter TC_COVERED is not defined in ${CONSTANTS_FILE}"
-    SetTestStateAborted
-    exit 0
-fi
-
 if [ "${Key:-UNDEFINED}" = "UNDEFINED" ]; then
     LogErr "The test parameter Key is not defined in ${CONSTANTS_FILE}"
     SetTestStateAborted
@@ -54,8 +48,6 @@ if [ "${Pool:-UNDEFINED}" = "UNDEFINED" ]; then
     SetTestStateAborted
     exit 0
 fi
-
-UpdateSummary "Covers ${TC_COVERED}"
 
 #
 # Verify OS architecture
@@ -94,9 +86,9 @@ chmod 755 ~/${kvp_client}
 #
 ~/${kvp_client} $Pool | grep "${Key}; Value: ${Value}"
 if [ $? -ne 0 ]; then
-	LogErr "the KVP item is not in the pool"
-	SetTestStateFailed
-	exit 0
+    LogErr "the KVP item is not in the pool"
+    SetTestStateFailed
+    exit 0
 fi
 
 LogMsg "Updating test case state to completed"

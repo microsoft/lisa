@@ -37,7 +37,6 @@
         <files>.\TestScripts\Linux\BVT-CORE-RELOAD-MODULES.sh,.\TestScripts\Linux\utils.sh</files>
         <setupType>SingleVM</setupType>
         <TestParameters>
-            <param>TC_COVERED=CORE-18b</param>
             <param>LoopCount=1000</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>

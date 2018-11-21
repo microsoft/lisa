@@ -26,7 +26,6 @@ function Main {
 
     $key = $null
     $value = $null
-    $tcCovered = $null
 
     if (-not $RootDir) {
         LogErr "Warn : no RootDir was specified"
@@ -53,8 +52,7 @@ function Main {
         switch ($fields[0].Trim()) {      
             "key"        { $key       = $rValue }
             "value"      { $value     = $rValue }
-            "TC_COVERED" { $tcCovered = $rValue }
-            default      {}       
+            default      {}
         }
     }
 
@@ -66,9 +64,6 @@ function Main {
     if (-not $value) {
         "Error: The 'value' test parameter was not provided"
         return "FAIL"
-    }
-    if (-not $tcCovered) {
-        LogErr "Warn : the TC_COVERED test parameter was not provided"
     }
 
     # Verify the Data Exchange Service is enabled for the test VM

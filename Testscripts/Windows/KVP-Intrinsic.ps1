@@ -37,14 +37,12 @@ function Main {
     $params = $TestParams.Split(";")
     foreach ($p in $params) {
         $fields = $p.Split("=")
-        switch ($fields[0].Trim()) {      
+        switch ($fields[0].Trim()) {
             "nonintrinsic" { $intrinsic = $False }
-            "TC_COVERED"   { $tcCovered = $fields[1].Trim() }
-            default  {}       
+            default  {}
         }
     }
-    LogMsg "Covers: ${tcCovered}"
-    
+
     # Verify the Data Exchange Service is enabled for this VM
     $des = Get-VMIntegrationService -VMName $VMName -ComputerName $HvServer
     if (-not $des) {
