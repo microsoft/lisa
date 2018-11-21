@@ -21,12 +21,12 @@ try
                 $VirtualMachine.HardwareProfile.VmSize = $vmSize
                 Update-AzureRmVM -VM $VirtualMachine -ResourceGroupName $VM.ResourceGroupName
                 LogMsg "Resize the VM to size: $vmSize is successful"
-                
+
                 #Add CPU count and RAM checks
                 $expectedVMSize = Get-AzureRmVMSize -Location $allVMData.Location | Where-Object {$_.Name -eq $vmSize}
                 $expectedCPUCount = $expectedVMSize.NumberOfCores
                 $expectedRAMSizeinMB = $expectedVMSize.MemoryInMB
-                   
+
                 $actualCPUCount = RunLinuxCmd -username $user -password $password -ip $allVMData.PublicIP -port $allVMData.SSHPort -command "nproc"
                 $actualRAMSizeinKB = RunLinuxCmd -username $user -password $password -ip $allVMData.PublicIP -port $allVMData.SSHPort -command "cat /proc/meminfo | grep -i memtotal | awk '{ print `$`2 }'"
                 $actualRAMSizeinMB = $actualRAMSizeinKB/1024
@@ -35,9 +35,9 @@ try
                 LogMsg "Actual CPU Count in VM: $actualCPUCount"
                 LogMsg "Expected RAM Size in MB: $expectedRAMSizeinMB"
                 LogMsg "Actual RAM Size in MB in VM: $actualRAMSizeinMB"
-                                
+
                 if ($expectedCPUCount -eq $actualCPUCount)
-                { 
+                {
                     LogMsg "CPU Count verification is SUCCESS"
                     if($actualRAMSizeinMB -ne $expectedRAMSizeinMB)
                     {
@@ -48,11 +48,11 @@ try
                     LogErr "CPU count verification failed"
                     $testResult = "FAIL"
                 }
-                
+
             }
         }
         $testResult = "PASS"
-        
+
     }
 }
 catch
@@ -68,7 +68,7 @@ Finally
             $testResult = "Aborted"
         }
         $resultArr += $testResult
-    }   
+    }
 $CurrentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
 
 #Clean up the setup

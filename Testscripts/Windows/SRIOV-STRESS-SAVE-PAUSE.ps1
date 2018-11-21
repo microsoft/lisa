@@ -3,7 +3,7 @@
 
 <#
 .Synopsis
-    Save/Pause and resume the VM every 10 seconds and get the throughput 
+    Save/Pause and resume the VM every 10 seconds and get the throughput
     from iPerf3 each time. Make sure throughput doesn't drop to 0. If it
     does drop, check the VF count (it should be 1)
 #>

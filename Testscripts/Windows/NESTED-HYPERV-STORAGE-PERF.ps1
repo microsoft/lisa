@@ -476,12 +476,11 @@ function Main()
 		Get-OSvhd -session $session -srcPath $nestedVhdPath -dstPath $nestOSVHD
 
 		if ($testPlatform -eq "Azure") {
-			try{
-				Install-Hyperv -session $session
-			}
-			catch
-			{
-				# Ignore the exception caused by restart the vm
+			try {
+				Install-Hyperv -Session $session
+			} catch {
+				# Ignore the exception caused by Hyper-V is installation
+				$()
 			}
 
 			#Installation of Hyper-v will restart the vm, so renew the session

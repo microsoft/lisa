@@ -25,7 +25,7 @@
 param(
     [string]$SubscriptionID,
     [string]$LinuxUsername,
-    [string]$LinuxPassword 
+    [string]$LinuxPassword
 )
 $GlobalXML = [xml](Get-Content ".\XML\GlobalConfigurations.xml")
 $GlobalXML.Global.Azure.Subscription.SubscriptionID = $SubscriptionID

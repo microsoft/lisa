@@ -15,7 +15,7 @@ function Main {
         $TestParams,
         $TestPlatform
     )
-    
+
     $nmi = $null
     $useNFS = $null
 
@@ -49,7 +49,7 @@ function Main {
         return "FAIL"
     }
 
-    if ($TestPlatform -eq "HyperV") { 
+    if ($TestPlatform -eq "HyperV") {
         $buildNumber = Get-HostBuildNumber $HvServer
         #$RHEL7_Above = Get-VMFeatureSupportStatus -Ipv4 $Ipv4 -SSHPort $VMPort `
         #    -Username $VMUserName -Password $VMPassword -SupportKernel "3.10.0-123"

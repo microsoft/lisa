@@ -7,10 +7,10 @@
 <#
 .SYNOPSIS
     This script authenticates PS session using All test results analysis.
-    This script checks contents of the ./report/*-junit.xml files and exit 
+    This script checks contents of the ./Report/*-junit.xml files and exit
     with zero or non-zero exit code.
 
-.PARAMETER 
+.PARAMETER
 
 .INPUTS
 
@@ -25,7 +25,7 @@
 #Import Libraries.
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
 
-$allReports = Get-ChildItem .\report | Where-Object {($_.FullName).EndsWith("-junit.xml") -and ($_.FullName -imatch "\d\d\d\d\d\d")}
+$allReports = Get-ChildItem .\Report | Where-Object {($_.FullName).EndsWith("-junit.xml") -and ($_.FullName -imatch "\d\d\d\d\d\d")}
 $retValue = 0
 foreach ( $report in $allReports )
 {
@@ -44,11 +44,11 @@ foreach ( $report in $allReports )
         {
             LogMsg "$($testcase.name) : FAIL"
         }
-        else 
+        else
         {
             LogMsg "$($testcase.name) : PASS"
         }
-    } 
+    }
     LogMsg "----------------------------------------------"
 }
 LogMsg "Exiting with Code : $retValue"

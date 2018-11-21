@@ -14,7 +14,7 @@
 #   1. Dpdk_Configure
 #   2. Run_Testcase
 #
-# DPDK is automatically installed on all VMs and all their IPs are listed in the 
+# DPDK is automatically installed on all VMs and all their IPs are listed in the
 # contants.sh file.
 
 function Get-NonManagementNics() {
@@ -188,15 +188,10 @@ collect_VM_properties
 			$database = $xmlConfig.config.Azure.database.dbname
 			$dataTableName = $xmlConfig.config.Azure.database.dbtable
 			$TestCaseName = $xmlConfig.config.Azure.database.testTag
-			
+
 			if ($dataSource -And $DBuser -And $DBpassword -And $database -And $dataTableName) {
 				$GuestDistro = Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object {$_ -replace ",OS type,",""}
-				if ($UseAzureResourceManager) {
-					$HostType = "Azure-ARM"
-				} else {
-					$HostType = "Azure"
-				}
-				
+				$HostType = "Azure"
 				$HostBy = ($xmlConfig.config.Azure.General.Location).Replace('"','')
 				$HostOS = Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version"| ForEach-Object {$_ -replace ",Host Version,",""}
 				$GuestOSType = "Linux"
@@ -220,7 +215,7 @@ collect_VM_properties
 
 				$command = $connection.CreateCommand()
 				$command.CommandText = $SQLQuery
-				
+
 				$command.executenonquery() | Out-Null
 				$connection.Close()
 				LogMsg "Uploading the test results done!!"

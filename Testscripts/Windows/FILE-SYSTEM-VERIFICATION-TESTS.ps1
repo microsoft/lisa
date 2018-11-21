@@ -1,16 +1,16 @@
-﻿# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 
 function Main {
-    # Create test result 
+    # Create test result
     $currentTestResult = CreateTestResultObject
     $resultArr = @()
 
     try {
         ProvisionVMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
         RemoteCopy -uploadTo $allVMData.PublicIP -port $allVMData.SSHPort -files $currentTestData.files -username "root" -password $password -upload
-        
-        $constantsFile = ".\Temp\xfstests-config.config"
+
+        $constantsFile = Join-Path $env:TEMP "xfstests-config-$TestID.config"
         LogMsg "Generating $constantsFile ..."
         Set-Content -Value "" -Path $constantsFile -NoNewline
         foreach ($param in $currentTestData.TestParameters.param) {
@@ -36,7 +36,7 @@ function Main {
         }
         RemoteCopy -download -downloadFrom $allVMData.PublicIP -files "XFSTestingConsole.log" -downloadTo $LogDir -port $allVMData.SSHPort -username "root" -password $password
         $XFSTestingConsole = Get-Content "$LogDir\XFSTestingConsole.log"
-        
+
         if ($XFSTestingConsole -imatch "Passed all") {
             $testResult = "PASS"
         } else {
@@ -58,7 +58,5 @@ function Main {
     }
 
     $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
-    return $currentTestResult.TestResult  
+    return $currentTestResult.TestResult
 }
-
-Main

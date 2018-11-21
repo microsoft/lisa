@@ -20,37 +20,26 @@
 #>
 ###############################################################################################
 
-param($xmlConfig, [string] $Distro, [string] $cycleName, [int] $TestIterations)
-Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
+param($xmlConfig, [string] $Distro, [string] $cycleName, [int] $TestIterations, [bool] $deployVMPerEachTest)
+Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations, $deployVMPerEachTest ) {
 	LogMsg "Starting the Cycle - $($CycleName.ToUpper())"
 	$executionCount = 0
 
 	foreach ( $tempDistro in $xmlConfig.config.$TestPlatform.Deployment.Data.Distro ) {
 		if ( ($tempDistro.Name).ToUpper() -eq ($Distro).ToUpper() )	{
-			if ( $UseAzureResourceManager )	{
-				if ( ($null -ne $tempDistro.ARMImage.Publisher) -and ($null -ne $tempDistro.ARMImage.Offer) -and ($null -ne $tempDistro.ARMImage.Sku) -and ($null -ne $tempDistro.ARMImage.Version)) {
-					$ARMImage = $tempDistro.ARMImage
-					Set-Variable -Name ARMImage -Value $ARMImage -Scope Global
-					LogMsg "ARMImage name - $($ARMImage.Publisher) : $($ARMImage.Offer) : $($ARMImage.Sku) : $($ARMImage.Version)"
-				}
-				if ( $tempDistro.OsVHD ) {
-					$BaseOsVHD = $tempDistro.OsVHD.Trim()
-					Set-Variable -Name BaseOsVHD -Value $BaseOsVHD -Scope Global
-					LogMsg "Base VHD name - $BaseOsVHD"
-				}
-			} else {
-				if ( $tempDistro.OsImage ) {
-					$BaseOsImage = $tempDistro.OsImage.Trim()
-					Set-Variable -Name BaseOsImage -Value $BaseOsImage -Scope Global
-					LogMsg "Base image name - $BaseOsImage"
-				}
+			if ( ($null -ne $tempDistro.ARMImage.Publisher) -and ($null -ne $tempDistro.ARMImage.Offer) -and ($null -ne $tempDistro.ARMImage.Sku) -and ($null -ne $tempDistro.ARMImage.Version)) {
+				$ARMImage = $tempDistro.ARMImage
+				Set-Variable -Name ARMImage -Value $ARMImage -Scope Global
+				LogMsg "ARMImage name - $($ARMImage.Publisher) : $($ARMImage.Offer) : $($ARMImage.Sku) : $($ARMImage.Version)"
+			}
+			if ( $tempDistro.OsVHD ) {
+				$BaseOsVHD = $tempDistro.OsVHD.Trim()
+				Set-Variable -Name BaseOsVHD -Value $BaseOsVHD -Scope Global
+				LogMsg "Base VHD name - $BaseOsVHD"
 			}
 		}
 	}
-	if (!$BaseOsImage  -and !$UseAzureResourceManager) {
-		Throw "Please give ImageName or OsVHD for ASM deployment."
-	}
-	if (!$($ARMImage.Publisher) -and !$BaseOSVHD -and $UseAzureResourceManager) {
+	if (!$($ARMImage.Publisher) -and !$BaseOSVHD) {
 		Throw "Please give ARM Image / VHD for ARM deployment."
 	}
 
@@ -80,7 +69,7 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
 		}
 	}
 
-	LogMsg "Loading the cycle Data..."
+	LogMsg "Loading the test cycle data ..."
 
 	$currentCycleData = GetCurrentCycleData -xmlConfig $xmlConfig -cycleName $cycleName
 
@@ -96,24 +85,28 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
 	$testSuiteResultDetails=@{"totalTc"=0;"totalPassTc"=0;"totalFailTc"=0;"totalAbortedTc"=0}
 
 	# Start JUnit XML report logger.
-	$reportFolder = "$pwd/report"
+	$reportFolder = "$pwd/Report"
 	if(!(Test-Path $reportFolder)) {
 		New-Item -ItemType "Directory" $reportFolder
 	}
 
-	StartLogReport("$reportFolder/report_$($testCycle.cycleName).xml")
+	$TestReportXml = Join-Path "$reportFolder" "LISAv2_TestReport_$TestID.xml"
+	Set-Variable -Name TestReportXml -Value $TestReportXml -Scope Global -Force
+
+	StartLogReport($TestReportXml)
 	$testsuite = StartLogTestSuite "CloudTesting"
 
-	if ($testPlatform -eq "Azure") {
-		$ExecuteSetupForEachTest = $true
-	} elseif ($testPlatform -eq "Hyperv") {
-		$ExecuteSetupForEachTest = $false
-	}
 	$VmSetup = @()
+	$overrideVmSizeList = @()
 	foreach ($test in $currentCycleData.test) {
 		$currentTestData = GetCurrentTestData -xmlConfig $xmlConfig -testName $test.Name
-		$VmSetup += $currentTestData.setupType	
-	}	
+		$VmSetup += $currentTestData.setupType
+		if ($currentTestData.OverrideVMSize) {
+			$overrideVmSizeList += $currentTestData.OverrideVMSize
+		} else {
+			$overrideVmSizeList += "Null"
+		}
+	}
 
 	$testCount = $currentCycleData.test.Length
 	$testIndex = 0
@@ -142,28 +135,18 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
 		$nextVmSetup = $VmSetup[$testIndex]
 		$previousVmSetup = $VmSetup[$testIndex-2]
 
+		$currentOverrideVmSize = $overrideVmSizeList[$testIndex-1]
+		$nextOverrideVmSize = $overrideVmSizeList[$testIndex]
+		$previousOverrideVmSize = $overrideVmSizeList[$testIndex-2]
+
+		$shouldRunSetup = ($previousVmSetup -ne $currentVmSetup) -or ($previousOverrideVmSize -ne $currentOverrideVmSize)
+		$shouldRunTeardown = ($currentVmSetup -ne $nextVmSetup) -or ($currentOverrideVmSize -ne $nextOverrideVmSize)
+
 		if ($testIndex -eq 1) {
-			$TestState = @{"ExecuteSetup" = $True}
-			if ($testCount -eq 1) {
-				$TestState += @{"ExecuteTeardown" = $True}
-			} else {
-				if ($currentVmSetup -ne $nextVmSetup) {
-					$TestState += @{"ExecuteTeardown" = $True}	
-				} 
-			}
-		} elseif ($testIndex -eq $testCount) {
-			$TestState = @{"ExecuteTeardown" = $True}
-			if ($previousVmSetup -ne $currentVmSetup) {
-				$TestState += @{"ExecuteSetup" = $True}	
-			}
-		} else {		
-			$TestState = @{}
-			if ($previousVmSetup -ne $currentVmSetup) {
-				$TestState += @{"ExecuteSetup" = $True}	
-			}
-			if ($currentVmSetup -ne $nextVmSetup) {
-				$TestState += @{"ExecuteTeardown" = $True}	
-			}
+			$shouldRunSetup = $true
+		}
+		if ($testIndex -eq $testCount) {
+			$shouldRunTeardown = $true
 		}
 
 		# Generate Unique Test
@@ -172,12 +155,21 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
 				$currentTestData.testName = "$($originalTestName)-$testIterationCount"
 				$test.Name = "$($originalTestName)-$testIterationCount"
 			}
-			# For the last test running in economy mode, set the IsLastCaseInCycle flag so that the deployments could be cleaned up
-			if ($EconomyMode -and $counter -eq ($testCount - 1)) {
-				Set-Variable -Name IsLastCaseInCycle -Value $true -Scope Global
+
+			if ($deployVMPerEachTest) {
+				$shouldRunSetupForIteration = $true
+				$shouldRunTeardownForIteration = $true
 			} else {
-				Set-Variable -Name IsLastCaseInCycle -Value $false -Scope Global
+				$shouldRunSetupForIteration = $shouldRunSetup
+				$shouldRunTeardownForIteration = $shouldRunTeardown
+				if ($testIterationCount -eq 1 -and $TestIterations -gt 1) {
+					$shouldRunTeardownForIteration = $false
+				}
+				if ($testIterationCount -gt 1) {
+					$shouldRunSetupForIteration = $false
+				}
 			}
+
 			if ($currentTestData) {
 				if (!( $currentTestData.Platform.Contains($xmlConfig.config.CurrentTestPlatform))) {
 					LogMsg "$($currentTestData.testName) does not support $($xmlConfig.config.CurrentTestPlatform) platform."
@@ -189,7 +181,7 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
 					New-Item -Type Directory -Path $CurrentTestLogDir -ErrorAction SilentlyContinue | Out-Null
 					Set-Variable -Name "CurrentTestLogDir" -Value $CurrentTestLogDir -Scope Global
 					Set-Variable -Name "LogDir" -Value $CurrentTestLogDir -Scope Global
-					$TestCaseLogFile = "$CurrentTestLogDir\CurrentTestLogs.txt"
+					$TestCaseLogFile = "$CurrentTestLogDir\$LogFileName"
 					$testcase = StartLogTestCase $testsuite "$($test.Name)" "CloudTesting.$($testCycle.cycleName)"
 					$testSuiteResultDetails.totalTc = $testSuiteResultDetails.totalTc +1
 					$stopWatch = SetStopWatch
@@ -199,9 +191,10 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
 						$testResult = @()
 						LogMsg "~~~~~~~~~~~~~~~TEST STARTED : $($currentTestData.testName)~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 						LogMsg "Starting multiple tests : $($currentTestData.testName)"
+
 						$CurrentTestResult = Run-Test -CurrentTestData $currentTestData -XmlConfig $xmlConfig `
 							-Distro $Distro -LogDir $CurrentTestLogDir -VMUser $user -VMPassword $password `
-							-DeployVMPerEachTest $ExecuteSetupForEachTest @TestState
+							-ExecuteSetup $shouldRunSetupForIteration -ExecuteTeardown $shouldRunTeardownForIteration
 						$testResult = $CurrentTestResult.TestResult
 						$testSummary = $CurrentTestResult.TestSummary
 					}
@@ -209,24 +202,26 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
 						$testResult = "ABORTED"
 						$ErrorMessage =  $_.Exception.Message
 						$line = $_.InvocationInfo.ScriptLineNumber
-						LogMsg "EXCEPTION : $ErrorMessage at line: $line"
+						$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
+						LogErr "EXCEPTION : $ErrorMessage"
+						LogErr "Source : Line $line in script $script_name."
 					}
 					finally	{
 						try {
 							$tempHtmlText = ($testSummary).Substring(0,((($testSummary).Length)-6))
 						}
 						catch {
-							$tempHtmlText = "Unable to parse the results. Will be fixed shortly."
+							$tempHtmlText = "Unable to parse the results."
 						}
 						$executionCount += 1
 						$testRunDuration = GetStopWatchElapasedTime $stopWatch "mm"
 						$testRunDuration = $testRunDuration.ToString()
 						if ( -not $SummaryHeaderAdded ) {
-							$testCycle.emailSummary += "#Sr. Test Name : Test Result : Test Duration (in minutes)<br />"
-							$testCycle.emailSummary += "----------------------------------------------------<br />"
+							$testCycle.emailSummary += "{0,5} {1,-50} {2,20} {3,20} <br />" -f "ID", "TestCaseName", "TestResult", "TestDuration(in minutes)"
+							$testCycle.emailSummary += "------------------------------------------------------------------------------------------------------<br />"
 							$SummaryHeaderAdded = $true
 						}
-						$testCycle.emailSummary += "$executionCount. $($currentTestData.testName) : $($testResult) : $testRunDuration<br />"
+						$testCycle.emailSummary += "{0,5} {1,-50} {2,20} {3,20} <br />" -f "$executionCount", "$($currentTestData.testName)", "$testResult", "$testRunDuration"
 						if ( $testSummary ) {
 							$testCycle.emailSummary += "$($testSummary)"
 						}
@@ -279,7 +274,6 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
 							LogMsg "$($job.Name) is running."
 						}
 					}
-					Set-Variable -Name LogDir -Value $RootLogDir -Scope Global
 				} else {
 					LogMsg "Skipping $($currentTestData.Priority) test : $($currentTestData.testName)"
 				}
@@ -311,20 +305,20 @@ Function RunTestsOnCycle ($cycleName , $xmlConfig, $Distro, $TestIterations ) {
 			}
 		}
 		if ($runningJobsCount -gt 0) {
-			Write-Output "$runningJobsCount background cleanup jobs still running. Waiting 30 seconds..."
+			LogMsg "$runningJobsCount background cleanup jobs still running. Waiting 30 seconds..."
 			Start-Sleep -Seconds 30
 		}
 	}
-	Write-Output "All background cleanup jobs finished."
+	LogMsg "All background cleanup jobs finished."
 	$azureContextFiles = Get-Item "$env:TEMP\*.azurecontext"
 	$azureContextFiles | Remove-Item -Force | Out-Null
 	LogMsg "Removed $($azureContextFiles.Count) context files."
 	LogMsg "Cycle Finished.. $($CycleName.ToUpper())"
 
 	FinishLogTestSuite($testsuite)
-	FinishLogReport
+	FinishLogReport $True
 
 	$testSuiteResultDetails
 }
 
-RunTestsOnCycle -cycleName $cycleName -xmlConfig $xmlConfig -Distro $Distro -TestIterations $TestIterations
+RunTestsOnCycle -cycleName $cycleName -xmlConfig $xmlConfig -Distro $Distro -TestIterations $TestIterations -DeployVMPerEachTest $deployVMPerEachTest

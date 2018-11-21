@@ -7,7 +7,6 @@ def RunTest(command):
     UpdateState("TestRunning")
     RunLog.info("Checking WALinuxAgent in running processes")
     temp = Run(command)
-    timeout = 0
     output = temp
     if ("waagent" in output) :
                     RunLog.info('waagent service present in running processes')

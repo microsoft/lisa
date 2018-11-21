@@ -1,4 +1,4 @@
-﻿##############################################################################################
+##############################################################################################
 # ExtensionLibrary.psm1
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
@@ -15,8 +15,8 @@
 
 
 .NOTES
-    Creation Date:  
-    Purpose/Change: 
+    Creation Date:
+    Purpose/Change:
 
 .EXAMPLE
 
@@ -29,51 +29,20 @@ Function VerifyExtensionFromAzure ([string]$ExtensionName, [string]$ServiceName,
 	$retryCount = 1
 	do
 	{
-		if ( $UseAzureResourceManager )
+		LogMsg "Verifying $ExtensionName from Azure Using Get-AzureRmResource command ..."
+		$ExtensionStatus = Get-AzureRmResource -ResourceGroupName $ResourceGroupName  -ResourceType "Microsoft.Compute/virtualMachines/extensions" -ExpandProperties
+		if ( ($ExtensionStatus.Properties.ProvisioningState -eq "Succeeded") -and ( $ExtensionStatus.Properties.Type -eq $ExtensionName ) )
 		{
-			LogMsg "Verifying $ExtensionName from Azure Using Get-AzureRmResource command ..."
-			$ExtensionStatus = Get-AzureRmResource -ResourceGroupName $ResourceGroupName  -ResourceType "Microsoft.Compute/virtualMachines/extensions" -ExpandProperties
-			if ( ($ExtensionStatus.Properties.ProvisioningState -eq "Succeeded") -and ( $ExtensionStatus.Properties.Type -eq $ExtensionName ) )
-			{
-				LogMsg "$ExtensionName extension status is Succeeded in Properties.ProvisioningState"
-				$retValue = $true
-				$waitForExtension = $false
-			}
-			else
-			{
-				LogErr "$ExtensionName extension status is Failed in Properties.ProvisioningState"
-				$retValue = $false
-				$waitForExtension = $true
-				WaitFor -Seconds 30
-			}
+			LogMsg "$ExtensionName extension status is Succeeded in Properties.ProvisioningState"
+			$retValue = $true
+			$waitForExtension = $false
 		}
 		else
 		{
-			LogMsg "Verifying $ExtensionName from Azure Using Get-AzureVM command ..."
-			$vmDetails = Get-AzureVM -ServiceName $ServiceName
-			if ($ExtensionName -imatch "DockerExtension")
-			{
-				LogMsg "Verifying docker extension status using `$vmDetails.ResourceExtensionStatusList.ExtensionSettingStatus.Operation."
-				$extAzureStatus = ( $vmDetails.ResourceExtensionStatusList.ExtensionSettingStatus.Status -eq "Success" ) -and ($vmDetails.ResourceExtensionStatusList.ExtensionSettingStatus.Operation -imatch "Enable Docker" )
-			}
-			else
-			{
-				$extAzureStatus = ( $vmDetails.ResourceExtensionStatusList.ExtensionSettingStatus.Status -eq "Success" ) -and ($vmDetails.ResourceExtensionStatusList.ExtensionSettingStatus.Name -imatch $ExtensionName )
-			}
- 			if ( $extAzureStatus )
-			{
-				
-				LogMsg "$ExtensionName extension status is SUCCESS in (Get-AzureVM).ResourceExtensionStatusList.ExtensionSettingStatus"
-				$retValue = $true
-				$waitForExtension = $false
-			}
-			else
-			{
-				LogErr "$ExtensionName extension status is FAILED in (Get-AzureVM).ResourceExtensionStatusList.ExtensionSettingStatus"
-				$retValue = $false
-				$waitForExtension = $true
-				WaitFor -Seconds 30
-			}
+			LogErr "$ExtensionName extension status is Failed in Properties.ProvisioningState"
+			$retValue = $false
+			$waitForExtension = $true
+			WaitFor -Seconds 30
 		}
 		$retryCount += 1
 		if ( ($retryCount -le $maxRetryCount) -and $waitForExtension )
@@ -125,7 +94,7 @@ Function GetExtensionStatusFromStatusFile ( $statusFilePaths, $ExtensionName, $v
 			LogMsg "Verifying $ExtensionName from $file ..."
 			if($fileName -imatch "\d.status")
 			{
-				if ( $file -imatch $ExtensionName ) 
+				if ( $file -imatch $ExtensionName )
 				{
 					$extensionErrorCount = 0
 					$null = RunLinuxCmd -username $user -password $password -ip $vmData.PublicIP -port $vmData.SSHPort -command "cat $file > $fileName" -runAsSudo
@@ -173,7 +142,7 @@ Function GetExtensionStatusFromStatusFile ( $statusFilePaths, $ExtensionName, $v
 			$waitForExtension = $true
 			WaitFor -Seconds 30
 
-		}		
+		}
 		$retryCount += 1
 		if ( ($retryCount -le $maxRetryCount) -and $waitForExtension )
 		{
@@ -201,73 +170,36 @@ Function SetAzureVMExtension ( $publicConfigString, $privateConfigString, $Exten
 	{
 		LogMsg "attempt [$retryCount/$maxRetryCount] : Setting $ExtensionName for $($vmData.RoleName) ..."
 
-		if ( $UseAzureResourceManager )
+		$RGName = $vmData.ResourceGroupName
+		$VMName = $vmData.RoleName
+		$Location = (Get-AzureRmResourceGroup -Name $RGName).Location
+		if ( $publicConfigString -and $privateConfigString )
 		{
-			$RGName = $vmData.ResourceGroupName
-			$VMName = $vmData.RoleName
-			$Location = (Get-AzureRmResourceGroup -Name $RGName).Location
-			if ( $publicConfigString -and $privateConfigString )
-			{
-				LogMsg "Public Config : $publicConfigString"
-				LogMsg "Private Config : $privateConfigString"
-				$ExtStatus = Set-AzureRmVMExtension -ResourceGroupName $RGName -VMName $VMName -Location $Location -Name $ExtensionName -Publisher $Publisher -ExtensionType $ExtensionName -TypeHandlerVersion $LatestExtensionVersion -Settingstring $publicConfigString -ProtectedSettingString $privateConfigString -Verbose
-			}
-			else
-			{
-				if ($publicConfigString)
-				{
-					LogMsg "Public Config : $publicConfigString"
-					$ExtStatus = Set-AzureRmVMExtension -ResourceGroupName $RGName -VMName $VMName -Location $Location -Name $ExtensionName -Publisher $Publisher -ExtensionType $ExtensionName -TypeHandlerVersion $LatestExtensionVersion -Settingstring $publicConfigString -Verbose
-				}
-				if ($privateConfigString)
-				{
-					LogMsg "Private Config : $privateConfigString"
-					$ExtStatus = Set-AzureRmVMExtension -ResourceGroupName $RGName -VMName $VMName -Location $Location -Name $ExtensionName -Publisher $Publisher -ExtensionType $ExtensionName -TypeHandlerVersion $LatestExtensionVersion -ProtectedSettingString $privateConfigString -Verbose
-				}
-			}
-			if ( ![string]::IsNullOrEmpty($ExtStatus.StatusCode) -and $ExtStatus.StatusCode.ToString() -eq "OK" )
-			{
-				$retValue = $true
-				$waitForExtension = $false
-			}
-			else
-			{
-				WaitFor -Seconds 30
-			}			
-
+			LogMsg "Public Config : $publicConfigString"
+			LogMsg "Private Config : $privateConfigString"
+			$ExtStatus = Set-AzureRmVMExtension -ResourceGroupName $RGName -VMName $VMName -Location $Location -Name $ExtensionName -Publisher $Publisher -ExtensionType $ExtensionName -TypeHandlerVersion $LatestExtensionVersion -Settingstring $publicConfigString -ProtectedSettingString $privateConfigString -Verbose
 		}
 		else
 		{
-
-			if ( $publicConfigString -and $privateConfigString )
+			if ($publicConfigString)
 			{
 				LogMsg "Public Config : $publicConfigString"
+				$ExtStatus = Set-AzureRmVMExtension -ResourceGroupName $RGName -VMName $VMName -Location $Location -Name $ExtensionName -Publisher $Publisher -ExtensionType $ExtensionName -TypeHandlerVersion $LatestExtensionVersion -Settingstring $publicConfigString -Verbose
+			}
+			if ($privateConfigString)
+			{
 				LogMsg "Private Config : $privateConfigString"
-				$ExtStatus = Get-AzureVM -ServiceName $vmData.ServiceName -Name $vmData.RoleName | Set-AzureVMExtension -ExtensionName $ExtensionName -Publisher $Publisher -Version $ExtensionVersion -PrivateConfiguration $privateConfigString -PublicConfiguration $publicConfigString | Update-AzureVM -Verbose
+				$ExtStatus = Set-AzureRmVMExtension -ResourceGroupName $RGName -VMName $VMName -Location $Location -Name $ExtensionName -Publisher $Publisher -ExtensionType $ExtensionName -TypeHandlerVersion $LatestExtensionVersion -ProtectedSettingString $privateConfigString -Verbose
 			}
-			else
-			{
-				if ($publicConfigString)
-				{
-					LogMsg "Public Config : $publicConfigString"
-					$ExtStatus = Get-AzureVM -ServiceName $vmData.ServiceName -Name $vmData.RoleName | Set-AzureVMExtension -ExtensionName $ExtensionName  -Publisher $Publisher -Version $ExtensionVersion -PublicConfiguration $publicConfigString | Update-AzureVM -Verbose
-				}
-				if ($privateConfigString )
-				{
-					LogMsg "Private Config : $privateConfigString"
-					$ExtStatus = Get-AzureVM -ServiceName $vmData.ServiceName -Name $vmData.RoleName | Set-AzureVMExtension -ExtensionName $ExtensionName -Publisher $Publisher -Version $ExtensionVersion -PrivateConfiguration $privateConfigString | Update-AzureVM -Verbose
-				}
-			}
-
-			if ( $ExtStatus.OperationStatus -eq "Succeeded" )
-			{
-				$retValue = $true
-				$waitForExtension = $false
-			}
-			else
-			{
-				WaitFor -Seconds 30
-			}
+		}
+		if ( ![string]::IsNullOrEmpty($ExtStatus.StatusCode) -and $ExtStatus.StatusCode.ToString() -eq "OK" )
+		{
+			$retValue = $true
+			$waitForExtension = $false
+		}
+		else
+		{
+			WaitFor -Seconds 30
 		}
 
 		$retryCount += 1
@@ -293,7 +225,7 @@ Function GetStatusFileNameToVerfiy ($vmData, $expectedExtensionName, [switch]$up
 	LogMsg "Getting current *.status file info..."
 	do
 		{
-		$retryCount += 1		
+		$retryCount += 1
 		$currentExtFiles = GetFilePathsFromLinuxFolder -folderToSearch "/var/lib/waagent" -IpAddress $vmData.PublicIP -SSHPort $vmData.SSHPort -username $user -password $password -maxRetryCount 5
 		foreach ($line in $currentExtFiles[0].Split(","))
 		{
@@ -301,7 +233,7 @@ Function GetStatusFileNameToVerfiy ($vmData, $expectedExtensionName, [switch]$up
 			if ( ($tempFileName -imatch "\d.status") -and ($line -imatch $expectedExtensionName))
 			{
 				LogMsg "Found : $line."
-				$statusFileCounter += 1 
+				$statusFileCounter += 1
 			}
 		}
 		if ( $upcoming )
@@ -334,6 +266,6 @@ Function GetStatusFileNameToVerfiy ($vmData, $expectedExtensionName, [switch]$up
 		}
 	}
 	while (($retryCount -le $maxRetryCount) -and $waitForStatusFile )
-	
+
 	return $statusFileToVerfiy
 }

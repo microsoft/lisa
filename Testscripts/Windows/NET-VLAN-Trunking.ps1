@@ -150,7 +150,7 @@ function Main {
         LogErr "Couldn't configure the test interface on $VMName"
         return "FAIL"
     }
-    
+
     # Try to ping. If it fails, restart the vm & try again
     $retVal = Test-GuestInterface $guestUsername $vm2StaticIP $ipv4 $VMPort $VMPassword `
         $vm1MacAddress $pingVersion $packetNumber "yes"

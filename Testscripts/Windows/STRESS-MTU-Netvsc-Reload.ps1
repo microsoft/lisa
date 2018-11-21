@@ -30,9 +30,9 @@ function Main {
         $VMPassword,
         $RootDir
     )
-    
+
     $rootUser = "root"
-    
+
     # Start changing MTU on VM
     $mtu_values = 1505, 2048, 4096, 8192, 16384
     $iteration = 1
@@ -67,7 +67,7 @@ function Main {
     Start-Sleep -s 600
     Get-IPv4AndWaitForSSHStart -VmName $VMName -HvServer $HvServer -Vmport $VMPort `
         -Password $VMPassword -username $VMUserName -StepTimeout 1000
-     
+
     if (-not $?) {
         LogErr "VM became unresponsive after reloading hv_netvsc"
         return "FAIL"

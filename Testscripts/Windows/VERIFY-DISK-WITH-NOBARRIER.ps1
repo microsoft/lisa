@@ -1,4 +1,4 @@
-﻿# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 function Main {
 
@@ -61,7 +61,7 @@ function Main {
         $ErrorMessage = $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
         LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
-    } 
+    }
     finally {
         if (!$testResult) {
             $testResult = "Aborted"
@@ -69,9 +69,9 @@ function Main {
                 -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
         }
         $resultArr += $testResult
-    }   	
+    }
     $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
-    return $currentTestResult.TestResult	
+    return $currentTestResult.TestResult
 }
 
 Main

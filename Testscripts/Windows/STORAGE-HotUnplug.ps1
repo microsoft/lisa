@@ -17,14 +17,14 @@ param([string] $vmName, [string] $hvServer, [string] $testParams)
 
 function Add-VHDxDiskDrive {
     param (
-        [string] $vmName, 
+        [string] $vmName,
         [string] $hvServer,
-        [string] $vhdxPath, 
+        [string] $vhdxPath,
         [string] $controllerType,
         [string] $controllerID,
         [string] $lun
     )
-    
+
     $error.Clear()
     Add-VMHardDiskDrive -VMName $vmName `
                         -ComputerName $hvServer `
@@ -47,7 +47,7 @@ function Remove-VHDxDiskDrive {
         [string] $controllerID,
         [string] $lun
     )
-    
+
     Remove-VMHardDiskDrive -VMName $vmName `
                            -ComputerName $hvServer `
                            -ControllerType $controllerType `
@@ -71,7 +71,7 @@ function Main {
         $RootDir,
         $TestParams
     )
-    
+
     $scsi=$true
     $REMOTE_SCRIPT="STORAGE-HotRemove.sh"
     $rootUser="root"

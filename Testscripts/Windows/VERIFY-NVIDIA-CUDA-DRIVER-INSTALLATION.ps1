@@ -2,7 +2,7 @@
 # Licensed under the Apache License.
 
 function Main {
-    # Create test result 
+    # Create test result
     $resultArr = @()
 
     try {
@@ -13,8 +13,8 @@ function Main {
         LogMsg "  Public IP : $($clientVMData.PublicIP)"
         LogMsg "  SSH Port : $($clientVMData.SSHPort)"
 
-        # PROVISION VMS FOR LISA WILL ENABLE ROOT USER AND WILL MAKE ENABLE PASSWORDLESS AUTHENTICATION ACROSS ALL VMS IN SAME HOSTED SERVICE.  
-        ProvisionVMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"    
+        # PROVISION VMS FOR LISA WILL ENABLE ROOT USER AND WILL MAKE ENABLE PASSWORDLESS AUTHENTICATION ACROSS ALL VMS IN SAME HOSTED SERVICE.
+        ProvisionVMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
         #endregion
 
         #region Install N-Vidia Drivers and reboot.
@@ -50,26 +50,26 @@ collect_VM_properties
             LogMsg "*********************************************************"
             $restartStatus = RestartAllDeployments -allVMData $clientVMData
             if ($restartStatus -eq "True") {
-                if (($clientVMData.InstanceSize.Contains("Standard_NC6")) -or 
-                        ($clientVMData.InstanceSize.Contains("Standard_NC6s_v2")) -or 
+                if (($clientVMData.InstanceSize.Contains("Standard_NC6")) -or
+                        ($clientVMData.InstanceSize.Contains("Standard_NC6s_v2")) -or
                         ($clientVMData.InstanceSize.Contains("Standard_NV6"))) {
                     $expectedCount = 1
                 }
-                elseif (($clientVMData.InstanceSize.Contains("Standard_NC12")) -or 
-                        ($clientVMData.InstanceSize.Contains("Standard_NC12s_v2")) -or 
+                elseif (($clientVMData.InstanceSize.Contains("Standard_NC12")) -or
+                        ($clientVMData.InstanceSize.Contains("Standard_NC12s_v2")) -or
                         ($clientVMData.InstanceSize.Contains("Standard_NV12"))) {
                     $expectedCount = 2
                 }
-                elseif (($clientVMData.InstanceSize.Contains("Standard_NC24")) -or 
-                        ($clientVMData.InstanceSize.Contains("Standard_NC24s_v2")) -or 
+                elseif (($clientVMData.InstanceSize.Contains("Standard_NC24")) -or
+                        ($clientVMData.InstanceSize.Contains("Standard_NC24s_v2")) -or
                         ($clientVMData.InstanceSize.Contains("Standard_NV24"))) {
                     $expectedCount = 4
                 }
-                elseif (($clientVMData.InstanceSize.Contains("Standard_NC24r")) -or 
+                elseif (($clientVMData.InstanceSize.Contains("Standard_NC24r")) -or
                         ($clientVMData.InstanceSize.Contains("Standard_NC24rs_v2"))) {
                     $expectedCount = 4
-                }   
-                LogMsg "Test VM Size: $($clientVMData.InstanceSize). Expected GPU Adapters : $expectedCount"    
+                }
+                LogMsg "Test VM Size: $($clientVMData.InstanceSize). Expected GPU Adapters : $expectedCount"
                 $errorCount = 0
                 #Adding sleep of 180 seconds, giving time to load nvidia drivers.
                 LogMsg "Waiting 3 minutes. (giving time to load nvidia drivers)"
@@ -133,7 +133,7 @@ collect_VM_properties
                 LogErr "Unable to connect to test VM after restart"
                 $testResult = "FAIL"
             }
-        } 
+        }
         #endregion
 
         if ( ($errorCount -ne 0)) {

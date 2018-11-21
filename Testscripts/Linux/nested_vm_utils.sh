@@ -189,7 +189,7 @@ Enable_Root()
         Update_Test_State $ICA_TESTABORTED
         exit 0
     fi
-
+    remote_copy -host localhost -user $user -passwd $passwd -port $port -filename ./utils.sh -remote_path /home/$user -cmd put
     remote_copy -host localhost -user $user -passwd $passwd -port $port -filename ./enableRoot.sh -remote_path /home/$user -cmd put
     remote_exec -host localhost -user $user -passwd $passwd -port $port "chmod a+x /home/$user/*.sh"
     remote_exec -host localhost -user $user -passwd $passwd -port $port "echo $passwd | sudo -S /home/$user/enableRoot.sh -password $passwd"

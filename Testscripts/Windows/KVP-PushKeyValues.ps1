@@ -1,4 +1,4 @@
-﻿# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 
 <#
@@ -49,7 +49,7 @@ function Main {
             continue
         }
         $rValue = $fields[1].Trim()
-        switch ($fields[0].Trim()) {      
+        switch ($fields[0].Trim()) {
             "key"        { $key       = $rValue }
             "value"      { $value     = $rValue }
             default      {}
@@ -86,7 +86,7 @@ function Main {
     # The kvp_client file should be listed in the <files> tab of
     # the test case definition, which tells the stateEngine to
     # copy the file to the test VM.  Set the x bit on the kvp_client
-    # image, then run kvp_client to add a non-intrinsic kvp item 
+    # image, then run kvp_client to add a non-intrinsic kvp item
     LogMsg "Info: Trying to detect OS architecture"
     $kvpClient = $null
     $retVal = RunLinuxCmd -username "root" -password $VMPassword -ip $Ipv4 -port $VMPort `
@@ -104,7 +104,7 @@ function Main {
     } else {
         LogMsg "Info: 64 bit architecture detected"
         $kvpClient = "kvp_client64"
-    }  
+    }
 
     LogMsg "Info: chmod 755 $kvpClient"
     $retVal = RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `

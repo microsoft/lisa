@@ -2,7 +2,7 @@
 # Licensed under the Apache License.
 
 function Main {
-    # Create test result 
+    # Create test result
     $currentTestResult = CreateTestResultObject
     $resultArr = @()
 
@@ -24,7 +24,7 @@ function Main {
         }
         LogMsg "constanst.sh created successfully..."
         #endregion
-        
+
         #region EXECUTE TEST
         $myString = @"
 chmod +x perf_fio.sh
@@ -41,7 +41,7 @@ cp perf_fio.csv /root
 chmod 666 /root/perf_fio.csv
 "@
         Set-Content "$LogDir\StartFioTest.sh" $myString
-        Set-Content "$LogDir\ParseFioTestLogs.sh" $myString2        
+        Set-Content "$LogDir\ParseFioTestLogs.sh" $myString2
         RemoteCopy -uploadTo $testVMData.PublicIP -port $testVMData.SSHPort -files ".\$constantsFile,.\$LogDir\StartFioTest.sh,.\$LogDir\ParseFioTestLogs.sh" -username "root" -password $password -upload
         RemoteCopy -uploadTo $testVMData.PublicIP -port $testVMData.SSHPort -files $currentTestData.files -username "root" -password $password -upload
         $null = RunLinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -command "chmod +x *.sh" -runAsSudo
@@ -58,7 +58,7 @@ chmod 666 /root/perf_fio.csv
         $finalStatus = RunLinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -command "cat state.txt"
         RemoteCopy -downloadFrom $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "FIOTest-*.tar.gz"
         RemoteCopy -downloadFrom $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "VM_properties.csv"
-        
+
         $testSummary = $null
         #endregion
 
@@ -84,7 +84,7 @@ chmod 666 /root/perf_fio.csv
         LogMsg "Test result : $testResult"
         LogMsg "Test Completed"
         $currentTestResult.TestSummary += CreateResultSummary -testResult $testResult -metaData "" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
-        
+
         try {
             foreach ($line in (Get-Content "$LogDir\perf_fio.csv")) {
                 if ($line -imatch "Max IOPS of each mode" ) {
@@ -122,22 +122,17 @@ chmod 666 /root/perf_fio.csv
             $dataTableName = $xmlConfig.config.$TestPlatform.database.dbtable
             $TestCaseName = $xmlConfig.config.$TestPlatform.database.testTag
             if ($dataSource -And $DBuser -And $DBpassword -And $database -And $dataTableName) {
-                $GuestDistro    = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
-                if ($UseAzureResourceManager) {
-                    $HostType   = "Azure-ARM"
-                } else {
-                    $HostType   = "Azure"
-                }
-                
+                $GuestDistro = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
+                $HostType = "Azure"
                 $HostBy = ($xmlConfig.config.$TestPlatform.General.Location).Replace('"','')
                 $HostOS = cat "$LogDir\VM_properties.csv" | Select-String "Host Version"| %{$_ -replace ",Host Version,",""}
                 $GuestOSType    = "Linux"
                 $GuestDistro    = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
                 $GuestSize = $testVMData.InstanceSize
                 $KernelVersion  = cat "$LogDir\VM_properties.csv" | Select-String "Kernel version"| %{$_ -replace ",Kernel version,",""}
-                
+
                 $connectionString = "Server=$dataSource;uid=$DBuser; pwd=$DBpassword;Database=$database;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
-                
+
                 $SQLQuery = "INSERT INTO $dataTableName (TestCaseName,TestDate,HostType,HostBy,HostOS,GuestOSType,GuestDistro,GuestSize,KernelVersion,DiskSetup,BlockSize_KB,QDepth,seq_read_iops,seq_read_lat_usec,rand_read_iops,rand_read_lat_usec,seq_write_iops,seq_write_lat_usec,rand_write_iops,rand_write_lat_usec) VALUES "
 
                 for ($QDepth = $startThread; $QDepth -le $maxThread; $QDepth *= 2) {
@@ -146,16 +141,16 @@ chmod 666 /root/perf_fio.csv
 
                     $rand_read_iops = ($fioDataCsv |  where { $_.TestType -eq "randread" -and  $_.Threads -eq "$QDepth"} | Select ReadIOPS).ReadIOPS
                     $rand_read_lat_usec = ($fioDataCsv |  where { $_.TestType -eq "randread" -and  $_.Threads -eq "$QDepth"} | Select MaxOfReadMeanLatency).MaxOfReadMeanLatency
-                    
+
                     $seq_write_iops = ($fioDataCsv |  where { $_.TestType -eq "write" -and  $_.Threads -eq "$QDepth"} | Select WriteIOPS).WriteIOPS
                     $seq_write_lat_usec = ($fioDataCsv |  where { $_.TestType -eq "write" -and  $_.Threads -eq "$QDepth"} | Select MaxOfWriteMeanLatency).MaxOfWriteMeanLatency
-                    
+
                     $rand_write_iops = ($fioDataCsv |  where { $_.TestType -eq "randwrite" -and  $_.Threads -eq "$QDepth"} | Select WriteIOPS).WriteIOPS
                     $rand_write_lat_usec= ($fioDataCsv |  where { $_.TestType -eq "randwrite" -and  $_.Threads -eq "$QDepth"} | Select MaxOfWriteMeanLatency).MaxOfWriteMeanLatency
 
                     $BlockSize_KB= (($fioDataCsv |  where { $_.Threads -eq "$QDepth"} | Select BlockSize)[0].BlockSize).Replace("K","")
-                    
-                    $SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$HostType','$HostBy','$HostOS','$GuestOSType','$GuestDistro','$GuestSize','$KernelVersion','RAID0:12xP30','$BlockSize_KB','$QDepth','$seq_read_iops','$seq_read_lat_usec','$rand_read_iops','$rand_read_lat_usec','$seq_write_iops','$seq_write_lat_usec','$rand_write_iops','$rand_write_lat_usec')," 
+
+                    $SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$HostType','$HostBy','$HostOS','$GuestOSType','$GuestDistro','$GuestSize','$KernelVersion','RAID0:12xP30','$BlockSize_KB','$QDepth','$seq_read_iops','$seq_read_lat_usec','$rand_read_iops','$rand_read_lat_usec','$seq_write_iops','$seq_write_lat_usec','$rand_write_iops','$rand_write_lat_usec'),"
                     LogMsg "Collected performace data for $QDepth QDepth."
                 }
 
@@ -167,13 +162,13 @@ chmod 666 /root/perf_fio.csv
 
                 $command = $connection.CreateCommand()
                 $command.CommandText = $SQLQuery
-                
+
                 $null = $command.executenonquery()
                 $connection.Close()
                 LogMsg "Uploading the test results done!!"
             } else {
                 LogMsg "Invalid database details. Failed to upload result to database!"
-            } 
+            }
         } catch {
             $ErrorMessage =  $_.Exception.Message
             $ErrorLine = $_.InvocationInfo.ScriptLineNumber
@@ -188,10 +183,10 @@ chmod 666 /root/perf_fio.csv
             $testResult = "Aborted"
         }
         $resultArr += $testResult
-    }   
+    }
 
     $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
-    return $currentTestResult.TestResult  
+    return $currentTestResult.TestResult
 }
 
 Main

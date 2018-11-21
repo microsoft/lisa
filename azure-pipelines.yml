@@ -30,12 +30,42 @@ jobs:
     - powershell: Install-Module -Name PSScriptAnalyzer -Scope CurrentUser -Force -SkipPublisherCheck -AllowClobber
     - powershell:
         $rules = @(
-                 "PSUseDeclaredVarsMoreThanAssignments"
+                 "PSUseDeclaredVarsMoreThanAssignments", "PSAvoidTrailingWhitespace", "PSAvoidUsingEmptyCatchBlock"
                 );
         $errors = Invoke-ScriptAnalyzer -Path . -Recurse -IncludeRule $rules;
         if ($errors.Count -gt 0) {
             echo $errors;
             exit 1;
         } else {
-            echo "PSScriptAnalyzer checks have passed."
+            echo "PSScriptAnalyzer checks successfully passed."
         }
+  - job: 'PythonCodeCheck_Flake8'
+    timeoutInMinutes: 10
+    cancelTimeoutInMinutes: 12
+    strategy:
+      parallel: 1
+    pool:
+      vmImage: 'Ubuntu 16.04'
+    steps:
+    - task: UsePythonVersion@0
+    - powershell:
+        python -m pip install --upgrade flake8;
+        flake8 --select=W291,F841,F401,H306;
+        if ($LASTEXITCODE) {
+            echo "Flake8 style errors have been found."
+            exit 1;
+        } else {
+            echo "Flake8 style checks successfully passed."
+        }
+  - job: 'BashCodeCheck_ShellCheck'
+    timeoutInMinutes: 10
+    cancelTimeoutInMinutes: 12
+    strategy:
+      parallel: 1
+    pool:
+      vmImage: 'Ubuntu 16.04'
+    steps:
+    - script:
+        sudo apt update > /dev/null && sudo apt install -y shellcheck > /dev/null
+        # TBD
+        # shellcheck -e SC1009,SC1017,SC1072,SC1073,SC1083,SC1091,SC2001,SC2002,SC2003,SC2004,SC2006,SC2009,SC2010,SC2016,SC2024,SC2029,SC2035,SC2046,SC2053,SC2062,SC2063,SC2062,SC2068,SC2076,SC2086,SC2103,SC2124,SC2125,SC2126,SC2128,SC2129,SC2140,SC2143,SC2144,SC2145,SC2153,SC2154,SC2155,SC2181 ./Testscripts/Linux/*.sh

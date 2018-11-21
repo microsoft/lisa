@@ -47,7 +47,7 @@ function Main {
     }
 
     # Test if the VM is running
-    $vm = Get-VM $VMName -ComputerName $HvServer 
+    $vm = Get-VM $VMName -ComputerName $HvServer
     $hvState = $vm.State
 
     if ($hvState -ne "Running") {

@@ -54,12 +54,12 @@ def RemoveIgnorableMessages(messages, keywords_xml_node):
         for keywords in keywords_xml_node:
             if keywords.text in msg:
                 RunLog.info('Ignorable ERROR/WARNING/FAILURE message: ' + msg)
-                break 
+                break
         else:
             valid_list.append(msg)
     if len(valid_list) > 0:
         return valid_list
     else:
-        return None                
+        return None
 
 RunTest()

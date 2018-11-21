@@ -21,9 +21,9 @@ function Main {
         $RootDir,
         $TestParams
     )
-    
+
     $intrinsic = $True
-    
+
     if (-not $RootDir) {
         LogErr "Warn : no RootDir was specified"
     } else {
@@ -77,7 +77,7 @@ function Main {
         LogErr "Error: Unable to retrieve KVP Exchange object for VM '${VMName}'"
         return "FAIL"
     }
-    
+
     if ($Intrinsic) {
         LogMsg "Intrinsic Data"
         $kvpData = $kvp.GuestIntrinsicExchangeItems
@@ -86,7 +86,7 @@ function Main {
         $kvpData = $kvp.GuestExchangeItems
     }
     $dict = Convert-KvpToDict $kvpData
-    
+
     # Write out the kvp data so it appears in the log file
     foreach ($key in $dict.Keys) {
         $value = $dict[$key]
@@ -120,7 +120,7 @@ function Main {
     } else {
         $result = "FAIL"
     }
-    
+
     return $result
 }
 

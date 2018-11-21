@@ -99,13 +99,14 @@ function Main {
         {
             LogErr "Error: Unable to convert minMem to int64."
         }
-
+        $maxMem_xmlValue = $TestParams.maxMem
         $dmMaxMem = Convert-ToMemSize $TestParams.maxMem $HvServer
 
         if ($dmMaxMem -le 0)
         {
            LogErr "Error: Unable to convert maxMem to int64."
         }
+        $startupMem_xmlValue = $TestParams.startupMem
         $dmStartupMem = Convert-ToMemSize $TestParams.startupMem $HvServer
         if ($dmStartupMem -le 0)
         {

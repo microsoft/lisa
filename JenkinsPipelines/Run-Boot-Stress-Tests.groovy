@@ -65,7 +65,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                                 " -EnableAcceleratedNetworking"
                                 )
                                 archiveArtifacts '*-buildlogs.zip'
-                                junit "report\\*-junit.xml"
+                                junit "Report\\*-junit.xml"
                                 emailext body: '${SCRIPT, template="groovy-html.template"}', replyTo: '$DEFAULT_REPLYTO', subject: "${ImageSource}", to: "${Email}"
                             }                                
                         }
@@ -108,7 +108,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                                 " -OverrideVMSize '${VMSize}'"
                                 )
                                 archiveArtifacts '*-buildlogs.zip'
-                                junit "report\\*-junit.xml"
+                                junit "Report\\*-junit.xml"
                                 emailext body: '${SCRIPT, template="groovy-html.template"}', replyTo: '$DEFAULT_REPLYTO', subject: "${ImageSource}", to: "${Email}"
                             }                                
                         }

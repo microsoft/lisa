@@ -36,17 +36,17 @@ def RunTest():
         else:
             ResultLog.info('PASS')
         UpdateState("TestCompleted")
-		
+
 def RemoveIgnorableMessages(messages, keywords):
     matchstring = re.findall(keywords,messages,re.M)
-    matchcount = 0 
-    index = 0 
+    matchcount = 0
+    index = 0
 
-    if(matchstring):			
+    if(matchstring):
         for msg in matchstring:
             RunLog.info('Ignorable ERROR message:\n' + msg)
             matchcount += 1
-			
+
         while matchcount > 0:
             matchcount -= 1
             messages = messages.replace(matchstring[index],'')
@@ -58,7 +58,7 @@ def RemoveIgnorableMessages(messages, keywords):
         if len(valid_list) > 0:
             return valid_list
         else:
-            return None             
+            return None
     else:
         return messages
 

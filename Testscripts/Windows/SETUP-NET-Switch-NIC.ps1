@@ -19,8 +19,8 @@ function Main {
     )
     $retVal = $null
     $CurrentDir= "$pwd\"
-    $testfile = "macAddress.file" 
-    $pathToFile="$CurrentDir"+"$testfile" 
+    $testfile = "macAddress.file"
+    $pathToFile="$CurrentDir"+"$testfile"
     $streamReader = [System.IO.StreamReader] $pathToFile
     $macAddress = $null
 
@@ -39,7 +39,7 @@ function Main {
                 LogErr "Error: Incorrect number of arguments for SWITCH test parameter: $p"
                 return $False
             }
-            
+
             $nicType = $nicArgs[0].Trim()
             $networkType = $nicArgs[1].Trim()
             $networkName = $nicArgs[2].Trim()
@@ -49,14 +49,14 @@ function Main {
                 $macAddress = $streamReader.ReadLine()
             }
             $legacy = $False
-            
+
             # Validate the network adapter type
             if (@("NetworkAdapter", "LegacyNetworkAdapter") -notcontains $nicType) {
                 LogErr "Error: Invalid NIC type: $nicType"
                 LogErr "Must be either 'NetworkAdapter' or 'LegacyNetworkAdapter'"
                 return $False
             }
-            
+
             if ($nicType -eq "LegacyNetworkAdapter") {
                 $legacy = $true
             }
@@ -77,7 +77,7 @@ function Main {
                     return $False
                 }
             }
-            
+
             # Get NIC with given MAC Address
             $nic = Get-VMNetworkAdapter -VMName $vmName -ComputerName $hvServer -IsLegacy:$legacy | where {$_.MacAddress -eq $macAddress }
             if ($nic) {
@@ -86,14 +86,14 @@ function Main {
                 } else {
                     Connect-VMNetworkAdapter -VMNetworkAdapter $nic -SwitchName $networkName -Confirm:$False
                 }
-                
+
                 $retVal = $?
             } else {
                 LogErr "Error: $vmName - No NIC found with MAC $macAddress ."
             }
         }
     }
-     
+
     $streamReader.close()
     return $retVal
 }

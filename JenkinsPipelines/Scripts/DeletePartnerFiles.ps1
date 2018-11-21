@@ -12,11 +12,11 @@
 	<Parameters>
 
 .INPUTS
-	
+
 
 .NOTES
-    Creation Date:  
-    Purpose/Change: 
+    Creation Date:
+    Purpose/Change:
 
 .EXAMPLE
 
@@ -24,7 +24,7 @@
 #>
 ###############################################################################################
 
-param 
+param
 (
     $JenkinsUser,
     $RemoteReceivedFolder = "J:\ReceivedFiles",
@@ -42,49 +42,49 @@ try
             $allFiles = Get-ChildItem "$folderToQuery"
             foreach ( $file in $allFiles.Name)
             {
-                LogMsg "Removing $file..." -NoNewline
+                LogMsg "Removing $file..."
                 $null = Remove-Item -Path "$folderToQuery\$file" -Force
                 if ($?)
                 {
                     LogMsg " SUCCESS"
                 }
-                else 
+                else
                 {
-                    LogMsg " Error"    
-                }            
+                    LogMsg " Error"
+                }
             }
         }
-        else 
+        else
         {
             foreach ($file in $fileNames.split(","))
             {
                 if ( ( Test-Path -Path "$folderToQuery\$file"))
                 {
-                    LogMsg "Removing $file..." -NoNewline
+                    LogMsg "Removing $file..."
                     $null = Remove-Item -Path "$folderToQuery\$file" -Force
                     if ($?)
                     {
                         LogMsg " SUCCESS"
                     }
-                    else 
+                    else
                     {
-                        LogMsg " Error"    
+                        LogMsg " Error"
                     }
                 }
-                else 
+                else
                 {
                     LogMsg "$folderToQuery\$file does not exeists."
                 }
-            }        
+            }
         }
     }
-    else 
+    else
     {
-        LogMsg "Please select at leat one file."    
+        LogMsg "Please select at leat one file."
     }
-    $ExitCode = 0   
+    $ExitCode = 0
 }
-catch 
+catch
 {
     $ExitCode = 1
     ThrowExcpetion($_)
@@ -92,5 +92,5 @@ catch
 finally
 {
     LogMsg "Exiting with ExitCode = $ExitCode"
-    exit $ExitCode 
+    exit $ExitCode
 }

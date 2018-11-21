@@ -20,7 +20,7 @@ function Stop-KVP {
         [String] $VMPassword,
         [String] $RootDir
     )
-    
+
     $cmdToVM = @"
 #!/bin/bash
     ps aux | grep kvp
@@ -74,9 +74,9 @@ function Main {
         $RootDir,
         $TestParams
     )
-    
+
     $intrinsic = $True
-    
+
     # Debug - display the test parameters so they are captured in the log file
     LogMsg "TestParams : '${TestParams}'"
 
@@ -145,14 +145,14 @@ function Main {
         LogMsg "Non-Intrinsic Data"
         $kvpData = $kvp.GuestExchangeItems
     }
-    
+
     #after disable KVP on vm, $kvpData is empty on hyper-v 2012 host
     if (-not $kvpData -and $buildNumber -lt 9600 ) {
         return "FAIL"
     }
 
     $dict = Convert-KvpToDict $kvpData
-    
+
     # Write out the kvp data so it appears in the log file
     foreach ($key in $dict.Keys) {
         $value = $dict[$key]
@@ -164,10 +164,10 @@ function Main {
         $osSpecificKeyNames = $null
 
         if ($buildNumber -ge 9600) {
-            $osSpecificKeyNames = @("OSDistributionName", "OSDistributionData", 
+            $osSpecificKeyNames = @("OSDistributionName", "OSDistributionData",
                                     "OSPlatformId","OSKernelVersion")
         } else {
-            $osSpecificKeyNames = @("OSBuildNumber", "ServicePackMajor", "OSVendor", 
+            $osSpecificKeyNames = @("OSBuildNumber", "ServicePackMajor", "OSVendor",
                                     "OSMajorVersion", "OSMinorVersion", "OSSignature")
         }
         foreach ($key in $osSpecificKeyNames) {

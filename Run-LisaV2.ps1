@@ -82,6 +82,7 @@ Param(
 	[switch] $ForceDeleteResources,
 	[switch] $UseManagedDisks,
 	[switch] $DoNotDeleteVMs,
+	[switch] $DeployVMPerEachTest,
 	[string] $VMGeneration = "",
 
 	[string] $ResultDBTable = "",
@@ -90,35 +91,38 @@ Param(
 	[switch] $ExitWithZero
 )
 
-#Import the Functions from Library Files.
+# Import the Functions from Library Files.
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | `
 	ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
 
 try {
+	$TestID = "{0}{1}" -f $(-join ((65..90) | Get-Random -Count 4 | ForEach-Object {[char]$_})), $(Get-Random -Maximum 99999 -Minimum 11111)
+	Write-Output "Test ID generated for this test run: $TestID"
+	Set-Variable -Name "TestID" -Value $TestID -Scope Global -Force
 
-	#region Prepare / Clean the powershell console.
+	# Prepare the workspace
 	$MaxDirLength = 32
 	$WorkingDirectory = Split-Path -parent $MyInvocation.MyCommand.Definition
-	Set-Variable -Name shortRandomNumber -Value $(Get-Random -Maximum 99999 -Minimum 11111) -Scope Global
-	Set-Variable -Name shortRandomWord -Value $(-join ((65..90) | Get-Random -Count 4 | ForEach-Object {[char]$_})) -Scope Global
 	if ( $WorkingDirectory.Length -gt $MaxDirLength) {
 		$OriginalWorkingDirectory = $WorkingDirectory
 		Write-Output "Current working directory '$WorkingDirectory' length is greater than $MaxDirLength."
-		$TempWorkspace = "$(Split-Path $OriginalWorkingDirectory -Qualifier)"
-		New-Item -ItemType Directory -Path "$TempWorkspace\LISAv2" -Force -ErrorAction SilentlyContinue | Out-Null
-		New-Item -ItemType Directory -Path "$TempWorkspace\LISAv2\$shortRandomWord$shortRandomNumber" -Force -ErrorAction SilentlyContinue | Out-Null
-		$finalWorkingDirectory = "$TempWorkspace\LISAv2\$shortRandomWord$shortRandomNumber"
-		$tmpSource = '\\?\' + "$OriginalWorkingDirectory\*"
-		Write-Output "Copying current workspace to $finalWorkingDirectory"
-		$excludedDirectories = @(".git", ".github", "TestResults",
-			"VHDs_Destination_Path", "*.zip", "report")
-		Copy-Item -Path $tmpSource -Destination $finalWorkingDirectory `
-			-Recurse -Force -Exclude $excludedDirectories | Out-Null
-		Set-Location -Path $finalWorkingDirectory | Out-Null
-		Write-Output "Working directory has been changed to $finalWorkingDirectory"
-		$WorkingDirectory = $finalWorkingDirectory
-	}
+		$tempWorkspace    = "$(Split-Path $OriginalWorkingDirectory -Qualifier)"
+		$tempParentFolder = "$tempWorkspace\LISAv2"
+		$tempWorkingDir   = "$tempWorkspace\LISAv2\$TestID"
 
+		New-Item -ItemType Directory -Path $tempParentFolder -Force -ErrorAction SilentlyContinue | Out-Null
+		New-Item -ItemType Directory -Path $tempWorkingDir    -Force -ErrorAction SilentlyContinue | Out-Null
+		$tmpSource = '\\?\' + "$OriginalWorkingDirectory\*"
+		Write-Output "Copying current workspace to $tempWorkingDir"
+		$excludedDirectories = @(".git", "Documents", ".github", "Report", "TestResults", "VHDs_Destination_Path", "*.zip")
+		Copy-Item -Path $tmpSource -Destination $tempWorkingDir -Recurse -Force -Exclude $excludedDirectories | Out-Null
+		Set-Location -Path $tempWorkingDir | Out-Null
+		Write-Output "Working directory has been changed to $tempWorkingDir"
+		$WorkingDirectory = $tempWorkingDir
+	}
+	Set-Variable -Name WorkingDirectory -Value $WorkingDirectory  -Scope Global
+
+	# Load test parameters as PS objects
 	$ParameterList = (Get-Command -Name $PSCmdlet.MyInvocation.InvocationName).Parameters;
 	$ScriptVariables = New-Object PSObject
 	foreach ($key in $ParameterList.keys) {
@@ -127,12 +131,11 @@ try {
 			$ScriptVariables | add-member -MemberType Noteproperty -Name $($var.name) -Value $($var.value)
 		}
 	}
-
 	# Import parameters from file if -ParametersFile is given
 	if ($ParametersFile) {
 		Import-LISAv2ParametersFromXMLFile -ParametersFile $ParametersFile
 	}
-
+	# Set all parameters as Global Variables
 	foreach ($key in $ParameterList.keys) {
 		if($ScriptVariables.$Key) {
 			if ($ParametersFile) {
@@ -149,260 +152,73 @@ try {
 			}
 		}
 	}
-		
 	$GlobalVariables = Get-Variable -Scope Global
 	foreach ($var in $GlobalVariables) {
-		[void](Set-Variable -Name $var.Name -Value $var.Value -Scope Local -ErrorAction SilentlyContinue) 
+		[void](Set-Variable -Name $var.Name -Value $var.Value -Scope Local -ErrorAction SilentlyContinue)
 	}
-	
+
+	# Prepare log folder
 	$LogDir = ".\TestResults\$(Get-Date -Format 'yyyy-dd-MM-HH-mm-ss-ffff')"
-	Set-Variable -Name LogDir -Value $LogDir -Scope Global -Force
-	Set-Variable -Name RootLogDir -Value $LogDir -Scope Global -Force
+	$LogFileName = "LISAv2-Test-$TestID.log"
+	Set-Variable -Name LogDir      -Value $LogDir      -Scope Global -Force
+	Set-Variable -Name LogFileName -Value $LogFileName -Scope Global -Force
 	New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
-	New-Item -ItemType Directory -Path Temp -Force -ErrorAction SilentlyContinue | Out-Null
 	LogMsg "Created LogDir: $LogDir"
-	#endregion
-
-	#region Static Global Variables
-	Set-Variable -Name WorkingDirectory -Value $WorkingDirectory  -Scope Global
-	#endregion
-
-	#region Runtime Global Variables
-	$VerboseCommand = "-Verbose"
-	if ( $Verbose ) {
-		Set-Variable -Name $VerboseCommand -Value "-Verbose" -Scope Global
-	} else {
-		Set-Variable -Name $VerboseCommand -Value "" -Scope Global
-	}
-	#endregion
 
 	# Validate the test parameters.
 	Validate-Parameters
 
+	# Handle the Secrets file
+	if ($env:Azure_Secrets_File) {
+		$XMLSecretFile = $env:Azure_Secrets_File
+		LogMsg "Found Secrets file from environment."
+	}
 	if ($XMLSecretFile -ne [string]::Empty) {
 		if ((Test-Path -Path $XMLSecretFile) -eq $true) {
-	        #Download the tools required for LISAv2 execution.
-	        Get-LISAv2Tools -XMLSecretFile $XMLSecretFile
+			$xmlSecrets = ([xml](Get-Content $XMLSecretFile))
+			Set-Variable -Value $xmlSecrets -Name XmlSecrets -Scope Global -Force
 
+			# Download the tools required for LISAv2 execution.
+			Get-LISAv2Tools -XMLSecretFile $XMLSecretFile
+
+			# Update the configuration files based on the settings in the XMLSecretFile
 			UpdateGlobalConfigurationXML $XMLSecretFile
 			UpdateXMLStringsFromSecretsFile $XMLSecretFile
+
+			if ($TestPlatform -eq "Azure") {
+				.\Utilities\AddAzureRmAccountFromSecretsFile.ps1 -customSecretsFilePath $XMLSecretFile
+			}
 		} else {
-			LogErr "The Secret File provided: $XMLSecretFile does not exist"
+			LogErr "The Secret file provided: $XMLSecretFile does not exist"
 		}
 	} else {
 		LogErr "Failed to update configuration files. '-XMLSecretFile [FilePath]' is not provided."
 	}
 
-	ValidateXmlFiles -ParentFolder $WorkingDirectory
+	Validate-XmlFiles -ParentFolder $WorkingDirectory
 
-	#region Local Variables
-	$TestXMLs = Get-ChildItem -Path "$WorkingDirectory\XML\TestCases\*.xml"
-	$SetupTypeXMLs = Get-ChildItem -Path "$WorkingDirectory\XML\VMConfigurations\*.xml"
-	$allTests = @()
-	$ARMImage = $ARMImageName.Trim().Split(" ")
-	$xmlFile = "$WorkingDirectory\TestConfiguration.xml"
-	if ( $TestCategory -eq "All") { $TestCategory = "" }
-	if ( $TestArea -eq "All") {	$TestArea = "" }
-	if ( $TestNames -eq "All") { $TestNames = "" }
-	if ( $TestTag -eq "All") { $TestTag = "" }
-	#endregion
-
-	#Validate all XML files in working directory.
-	$allTests = CollectTestCases -TestXMLs $TestXMLs
-
-	if( !$allTests.innerXML ) {
-		Throw "Specified -TestNames or -TestCategory not found"
-	}
-
-	#region Create Test XML
-	$SetupTypes = $allTests.SetupType | Sort-Object | Get-Unique
-
-	$tab = CreateArrayOfTabs
-
-	$TestCycle = "TC-$shortRandomNumber"
-
-	$GlobalConfiguration = [xml](Get-content .\XML\GlobalConfigurations.xml)
-	<##########################################################################
-	We're following the Indentation of the XML file to make XML creation easier.
-	##########################################################################>
-	$xmlContent =  ("$($tab[0])" + '<?xml version="1.0" encoding="utf-8"?>')
-	$xmlContent += ("$($tab[0])" + "<config>`n")
-	$xmlContent += ("$($tab[0])" + "<CurrentTestPlatform>$TestPlatform</CurrentTestPlatform>`n")
-	if ($TestPlatform -eq "Azure") {
-		$xmlContent += ("$($tab[1])" + "<Azure>`n")
-
-			#region Add Subscription Details
-			$xmlContent += ("$($tab[2])" + "<General>`n")
-
-			foreach ( $line in $GlobalConfiguration.Global.$TestPlatform.Subscription.InnerXml.Replace("><",">`n<").Split("`n")) {
-				$xmlContent += ("$($tab[3])" + "$line`n")
-			}
-			$xmlContent += ("$($tab[2])" + "<Location>$TestLocation</Location>`n")
-			$xmlContent += ("$($tab[2])" + "</General>`n")
-			#endregion
-
-			#region Database details
-			$xmlContent += ("$($tab[2])" + "<database>`n")
-			foreach ( $line in $GlobalConfiguration.Global.$TestPlatform.ResultsDatabase.InnerXml.Replace("><",">`n<").Split("`n")) {
-				$xmlContent += ("$($tab[3])" + "$line`n")
-			}
-			$xmlContent += ("$($tab[2])" + "</database>`n")
-			#endregion
-
-			#region Deployment details
-			$xmlContent += ("$($tab[2])" + "<Deployment>`n")
-				$xmlContent += ("$($tab[3])" + "<Data>`n")
-					$xmlContent += ("$($tab[4])" + "<Distro>`n")
-						$xmlContent += ("$($tab[5])" + "<Name>$RGIdentifier</Name>`n")
-						$xmlContent += ("$($tab[5])" + "<ARMImage>`n")
-							$xmlContent += ("$($tab[6])" + "<Publisher>" + "$($ARMImage[0])" + "</Publisher>`n")
-							$xmlContent += ("$($tab[6])" + "<Offer>" + "$($ARMImage[1])" + "</Offer>`n")
-							$xmlContent += ("$($tab[6])" + "<Sku>" + "$($ARMImage[2])" + "</Sku>`n")
-							$xmlContent += ("$($tab[6])" + "<Version>" + "$($ARMImage[3])" + "</Version>`n")
-						$xmlContent += ("$($tab[5])" + "</ARMImage>`n")
-						$xmlContent += ("$($tab[5])" + "<OsVHD>" + "$OsVHD" + "</OsVHD>`n")
-						$xmlContent += ("$($tab[5])" + "<VMGeneration>" + "$VMGeneration" + "</VMGeneration>`n")
-					$xmlContent += ("$($tab[4])" + "</Distro>`n")
-					$xmlContent += ("$($tab[4])" + "<UserName>" + "$($GlobalConfiguration.Global.$TestPlatform.TestCredentials.LinuxUsername)" + "</UserName>`n")
-					$xmlContent += ("$($tab[4])" + "<Password>" + "$($GlobalConfiguration.Global.$TestPlatform.TestCredentials.LinuxPassword)" + "</Password>`n")
-				$xmlContent += ("$($tab[3])" + "</Data>`n")
-
-				foreach ( $file in $SetupTypeXMLs.FullName)	{
-					foreach ( $SetupType in $SetupTypes ) {
-						$CurrentSetupType = ([xml]( Get-Content -Path $file)).TestSetup
-						if ($null -ne $CurrentSetupType.$SetupType) {
-							$SetupTypeElement = $CurrentSetupType.$SetupType
-							$xmlContent += ("$($tab[3])" + "<$SetupType>`n")
-								#$xmlContent += ("$($tab[4])" + "$($SetupTypeElement.InnerXml)`n")
-								foreach ( $line in $SetupTypeElement.InnerXml.Replace("><",">`n<").Split("`n")) {
-									$xmlContent += ("$($tab[4])" + "$line`n")
-								}
-							$xmlContent += ("$($tab[3])" + "</$SetupType>`n")
-						}
-					}
-				}
-			$xmlContent += ("$($tab[2])" + "</Deployment>`n")
-			#endregion
-		$xmlContent += ("$($tab[1])" + "</Azure>`n")
-	} elseif ($TestPlatform -eq "Hyperv") {
-		$xmlContent += ("$($tab[1])" + "<Hyperv>`n")
-
-			#region Add Hosts Details
-			$xmlContent += ("$($tab[2])" + "<Hosts>`n")
-				$xmlContent += ("$($tab[3])" + "<Host>`n")
-				foreach ( $line in $GlobalConfiguration.Global.HyperV.Hosts.FirstChild.InnerXml.Replace("><",">`n<").Split("`n")) {
-					$xmlContent += ("$($tab[4])" + "$line`n")
-				}
-				$xmlContent += ("$($tab[3])" + "</Host>`n")
-
-				if($TestLocation -and $TestLocation.split(',').Length -eq 2){
-					$xmlContent += ("$($tab[3])" + "<Host>`n")
-					foreach ( $line in $GlobalConfiguration.Global.HyperV.Hosts.LastChild.InnerXml.Replace("><",">`n<").Split("`n")) {
-						$xmlContent += ("$($tab[4])" + "$line`n")
-					}
-					$xmlContent += ("$($tab[3])" + "</Host>`n")
-				}
-			$xmlContent += ("$($tab[2])" + "</Hosts>`n")
-			#endregion
-
-			#region Database details
-			$xmlContent += ("$($tab[2])" + "<database>`n")
-				foreach ( $line in $GlobalConfiguration.Global.HyperV.ResultsDatabase.InnerXml.Replace("><",">`n<").Split("`n")) {
-					$xmlContent += ("$($tab[3])" + "$line`n")
-				}
-			$xmlContent += ("$($tab[2])" + "</database>`n")
-			#endregion
-
-			#region Deployment details
-			$xmlContent += ("$($tab[2])" + "<Deployment>`n")
-				$xmlContent += ("$($tab[3])" + "<Data>`n")
-					$xmlContent += ("$($tab[4])" + "<Distro>`n")
-						$xmlContent += ("$($tab[5])" + "<Name>$RGIdentifier</Name>`n")
-						$xmlContent += ("$($tab[5])" + "<ARMImage>`n")
-							$xmlContent += ("$($tab[6])" + "<Publisher>" + "$($ARMImage[0])" + "</Publisher>`n")
-							$xmlContent += ("$($tab[6])" + "<Offer>" + "$($ARMImage[1])" + "</Offer>`n")
-							$xmlContent += ("$($tab[6])" + "<Sku>" + "$($ARMImage[2])" + "</Sku>`n")
-							$xmlContent += ("$($tab[6])" + "<Version>" + "$($ARMImage[3])" + "</Version>`n")
-						$xmlContent += ("$($tab[5])" + "</ARMImage>`n")
-						$xmlContent += ("$($tab[5])" + "<OsVHD>" + "$OsVHD" + "</OsVHD>`n")
-					$xmlContent += ("$($tab[4])" + "</Distro>`n")
-					$xmlContent += ("$($tab[4])" + "<UserName>" + "$($GlobalConfiguration.Global.$TestPlatform.TestCredentials.LinuxUsername)" + "</UserName>`n")
-					$xmlContent += ("$($tab[4])" + "<Password>" + "$($GlobalConfiguration.Global.$TestPlatform.TestCredentials.LinuxPassword)" + "</Password>`n")
-				$xmlContent += ("$($tab[3])" + "</Data>`n")
-
-				foreach ( $file in $SetupTypeXMLs.FullName)	{
-					foreach ( $SetupType in $SetupTypes ) {
-						$CurrentSetupType = ([xml]( Get-Content -Path $file)).TestSetup
-						if ($null -ne $CurrentSetupType.$SetupType) {
-							$SetupTypeElement = $CurrentSetupType.$SetupType
-							$xmlContent += ("$($tab[3])" + "<$SetupType>`n")
-								#$xmlContent += ("$($tab[4])" + "$($SetupTypeElement.InnerXml)`n")
-								foreach ( $line in $SetupTypeElement.InnerXml.Replace("><",">`n<").Split("`n")) {
-									$xmlContent += ("$($tab[4])" + "$line`n")
-								}
-
-							$xmlContent += ("$($tab[3])" + "</$SetupType>`n")
-						}
-					}
-				}
-			$xmlContent += ("$($tab[2])" + "</Deployment>`n")
-			#endregion
-		$xmlContent += ("$($tab[1])" + "</Hyperv>`n")
-	}
-		#region TestDefinition
-		$xmlContent += ("$($tab[1])" + "<testsDefinition>`n")
-		foreach ( $currentTest in $allTests) {
-			if ($currentTest.Platform.Contains($TestPlatform)) {
-				$xmlContent += ("$($tab[2])" + "<test>`n")
-				foreach ( $line in $currentTest.InnerXml.Replace("><",">`n<").Split("`n")) {
-					$xmlContent += ("$($tab[3])" + "$line`n")
-				}
-				$xmlContent += ("$($tab[2])" + "</test>`n")
-			} else {
-				LogErr "*** UNSUPPORTED TEST *** : $currentTest. Skipped."
-			}
-		}
-		$xmlContent += ("$($tab[1])" + "</testsDefinition>`n")
-		#endregion
-
-		#region TestCycle
-		$xmlContent += ("$($tab[1])" + "<testCycles>`n")
-			$xmlContent += ("$($tab[2])" + "<Cycle>`n")
-				$xmlContent += ("$($tab[3])" + "<cycleName>$TestCycle</cycleName>`n")
-				foreach ( $currentTest in $allTests) {
-					$line = $currentTest.TestName
-					$xmlContent += ("$($tab[3])" + "<test>`n")
-						$xmlContent += ("$($tab[4])" + "<Name>$line</Name>`n")
-					$xmlContent += ("$($tab[3])" + "</test>`n")
-				}
-			$xmlContent += ("$($tab[2])" + "</Cycle>`n")
-		$xmlContent += ("$($tab[1])" + "</testCycles>`n")
-		#endregion
-	$xmlContent += ("$($tab[0])" + "</config>`n")
-	Set-Content -Value $xmlContent -Path $xmlFile -Force
+	$TestConfigurationXmlFile = "$WorkingDirectory\TestConfiguration.xml"
+	Import-TestCases $WorkingDirectory $TestConfigurationXmlFile
 
 	#This function will inject default / custom replaceable test parameters to TestConfiguration.xml
-	Add-ReplaceableTestParameters -XmlConfigFilePath $xmlFile
+	$ReplaceableTestParameters = [xml](Get-Content -Path "$WorkingDirectory\XML\Other\ReplaceableTestParameters.xml")
+	Inject-CustomTestParameters $CustomParameters $ReplaceableTestParameters $TestConfigurationXmlFile
 
 	try {
-		$xmlConfig = [xml](Get-Content $xmlFile)
-		$xmlConfig.Save("$xmlFile")
-		LogMsg "Auto created $xmlFile validated successfully."
+		$xmlConfig = [xml](Get-Content $TestConfigurationXmlFile)
+		$xmlConfig.Save("$TestConfigurationXmlFile")
+		LogMsg "Auto created $TestConfigurationXmlFile validated successfully."
 	} catch {
-		Throw "Framework error: $xmlFile is not valid. Please report to lisasupport@microsoft.com"
+		Throw "Framework error: $TestConfigurationXmlFile is not valid."
 	}
 
-	#endregion
-
-	#region Prepare execution command
-
-	$command = ".\AutomationManager.ps1 -xmlConfigFile '$xmlFile' -cycleName 'TC-$shortRandomNumber' -RGIdentifier '$RGIdentifier' -runtests -UseAzureResourceManager"
-
+	$command = ".\AutomationManager.ps1 -xmlConfigFile '$TestConfigurationXmlFile' -cycleName 'TC-$TestID' -RGIdentifier '$RGIdentifier' -runtests"
 	if ( $CustomKernel) { $command += " -CustomKernel '$CustomKernel'" }
 	if ( $OverrideVMSize ) { $command += " -OverrideVMSize $OverrideVMSize" }
 	if ( $EnableAcceleratedNetworking ) { $command += " -EnableAcceleratedNetworking" }
 	if ( $ForceDeleteResources ) { $command += " -ForceDeleteResources" }
 	if ( $DoNotDeleteVMs ) { $command += " -DoNotDeleteVMs" }
+	if ( $DeployVMPerEachTest ) { $command += " -DeployVMPerEachTest" }
 	if ( $CustomLIS) { $command += " -CustomLIS $CustomLIS" }
 	if ( $CoreCountExceededTimeout ) { $command += " -CoreCountExceededTimeout $CoreCountExceededTimeout" }
 	if ( $TestIterations -gt 1 ) { $command += " -TestIterations $TestIterations" }
@@ -410,27 +226,24 @@ try {
 	if ( $TiPCluster) { $command += " -TiPCluster $TiPCluster" }
 	if ($UseManagedDisks) {	$command += " -UseManagedDisks" }
 	if ($XMLSecretFile) { $command += " -XMLSecretFile '$XMLSecretFile'" }
-
 	LogMsg $command
+
 	Invoke-Expression -Command $command
+
 	$zipFile = "$TestPlatform"
 	if ( $TestCategory ) { $zipFile += "-$TestCategory"	}
 	if ( $TestArea ) { $zipFile += "-$TestArea" }
 	if ( $TestTag ) { $zipFile += "-$($TestTag)" }
-
-	$zipFile += "-$shortRandomNumber-buildlogs.zip"
-	$out = ZipFiles -zipfilename $zipFile -sourcedir $LogDir
-
-	if ($out -match "Everything is Ok") {
-		LogMsg "$WorkingDirectory\$zipfilename created successfully."
-	}
+	$zipFile += "-$TestID-TestLogs.zip"
+	New-ZipFile -zipFileName $zipFile -sourceDir $LogDir
 
 	try {
-		if (Test-Path -Path ".\report\report_$(($TestCycle).Trim()).xml" ) {
-			$resultXML = [xml](Get-Content ".\report\report_$(($TestCycle).Trim()).xml" -ErrorAction SilentlyContinue)
-			Copy-Item -Path ".\report\report_$(($TestCycle).Trim()).xml" -Destination ".\report\report_$(($TestCycle).Trim())-junit.xml" -Force -ErrorAction SilentlyContinue
-			LogMsg "Copied : .\report\report_$(($TestCycle).Trim()).xml --> .\report\report_$(($TestCycle).Trim())-junit.xml"
+		$reportXmlJUnit = $TestReportXml.Replace(".xml", "-junit.xml")
+		if (Test-Path -Path $TestReportXml ) {
+			Copy-Item -Path $TestReportXml -Destination $reportXmlJUnit -Force -ErrorAction SilentlyContinue
+			LogMsg "Copied : $TestReportXml --> $reportXmlJUnit"
 			LogMsg "Analyzing results.."
+			$resultXML = [xml](Get-Content $TestReportXml -ErrorAction SilentlyContinue)
 			LogMsg "PASS  : $($resultXML.testsuites.testsuite.tests - $resultXML.testsuites.testsuite.errors - $resultXML.testsuites.testsuite.failures)"
 			LogMsg "FAIL  : $($resultXML.testsuites.testsuite.failures)"
 			LogMsg "ABORT : $($resultXML.testsuites.testsuite.errors)"
@@ -440,17 +253,17 @@ try {
 				$ExitCode = 1
 			}
 		} else {
-			LogMsg "Summary file: .\report\report_$(($TestCycle).Trim()).xml does not exist. Exiting with 1."
+			LogErr "Summary file: $TestReportXml does not exist. Exiting with ErrorCode 1."
 			$ExitCode = 1
 		}
 	}
 	catch {
-		LogMsg "$($_.Exception.GetType().FullName, " : ",$_.Exception.Message)"
+		LogErr "$($_.Exception.GetType().FullName, " : ",$_.Exception.Message)"
 		$ExitCode = 1
 	}
 	finally {
 		if ( $ExitWithZero -and ($ExitCode -ne 0) ) {
-			LogMsg "Changed exit code from 1 --> 0. (-ExitWithZero mentioned.)"
+			LogMsg "Suppress the exit code from 1 to 0. (-ExitWithZero specified in command line)"
 			$ExitCode = 0
 		}
 	}
@@ -462,17 +275,17 @@ try {
 	if ( $_.FullyQualifiedErrorId -eq "InvokeMethodOnNull") {
 		Write-Error "WebClient failed to download required tools from blob Storage Location. Those files should be placed in Tools folder before next execution."
 	}
-	LogMsg "EXCEPTION : $ErrorMessage"
-	LogMsg "Source : Line $line in script $script_name."
+	LogErr "EXCEPTION : $ErrorMessage"
+	LogErr "Source : Line $line in script $script_name."
 	$ExitCode = 1
 } finally {
-	if ( $finalWorkingDirectory ) {
+	if ( $tempWorkingDir ) {
 		Write-Host "Copying all files back to original working directory: $originalWorkingDirectory."
 		$tmpDest = '\\?\' + $originalWorkingDirectory
-		Copy-Item -Path "$finalWorkingDirectory\*" -Destination $tmpDest -Force -Recurse | Out-Null
+		Copy-Item -Path "$tempWorkingDir\*" -Destination $tmpDest -Force -Recurse | Out-Null
 		Set-Location ..
-		Write-Host "Cleaning up $finalWorkingDirectory"
-		Remove-Item -Path $finalWorkingDirectory -Force -Recurse -ErrorAction SilentlyContinue
+		Write-Host "Cleaning up $tempWorkingDir"
+		Remove-Item -Path $tempWorkingDir -Force -Recurse -ErrorAction SilentlyContinue
 		Write-Host "Setting workspace back to original location: $originalWorkingDirectory"
 		Set-Location $originalWorkingDirectory
 	}
@@ -481,4 +294,3 @@ try {
 
 	exit $ExitCode
 }
-

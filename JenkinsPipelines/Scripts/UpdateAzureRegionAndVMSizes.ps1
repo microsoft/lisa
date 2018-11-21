@@ -12,11 +12,11 @@
     <Parameters>
 
 .INPUTS
-	
+
 
 .NOTES
-    Creation Date:  
-    Purpose/Change: 
+    Creation Date:
+    Purpose/Change:
 
 .EXAMPLE
 
@@ -24,7 +24,7 @@
 #>
 ###############################################################################################
 
-Param 
+Param
 (
     $OutputFilePath = "J:\Jenkins_Shared_Do_Not_Delete\userContent\common\VMSizes-ARM.txt"
 )
@@ -43,7 +43,7 @@ try
     foreach ( $NewRegion in $allRegions  )
     {
         $currentRegionSizes = (Get-AzureRmVMSize -Location $NewRegion).Name | Sort-Object
-        if ($currentRegionSizes) 
+        if ($currentRegionSizes)
         {
             LogMsg "Found $($currentRegionSizes.Count) sizes for $($NewRegion)..."
             $CurrentSizeCount = 1
@@ -60,7 +60,7 @@ try
     $ExitCode = 0
     #endregion
 }
-catch 
+catch
 {
     $ExitCode = 1
     ThrowException ($_)

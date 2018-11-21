@@ -23,17 +23,17 @@ $vmGeneration = $null
 
 function DeleteHardDrive {
     param (
-        [string] $vmName, 
-        [string] $hvServer, 
-        [string] $controllerType, 
-        [string] $arguments, 
+        [string] $vmName,
+        [string] $hvServer,
+        [string] $controllerType,
+        [string] $arguments,
         [int] $diskCount,
         [int] $vmGeneration
     )
 
     $scsi = $false
     $ide = $true
-    
+
     if ($controllerType -eq "scsi") {
         $scsi = $true
         $ide = $false
@@ -114,11 +114,11 @@ function DeleteHardDrive {
             $startLun = $lun
             $endLun = $lun
         }
-        
+
         for ($lun=$startLun; $lun -le $endLun; $lun++) {
             $drive = Get-VMHardDiskDrive -VMName $vmName -ComputerName $hvServer `
                 -ControllerType $controllerType -ControllerNumber $controllerID -ControllerLocation $lun
-            if ($drive) {    
+            if ($drive) {
                 LogMsg $drive.Path
                 LogMsg "Removing $controllerType $controllerID $lun"
                 $vhdxPath = $drive.Path
@@ -203,7 +203,7 @@ function Main {
         DeleteHardDrive -vmName $vmName -hvServer $hvServer -controllerType $controllertype `
             -arguments $Matches[2] -diskCount $diskCount -vmGeneration $vmGeneration
     }
-    
+
     LogMsg "Vhdx Hard Drive Removed"
     return "PASS"
 }

@@ -3,8 +3,8 @@
 
 # Description: This script creates an HTML report of our subscription usage details at .\SubscriptionUsage.html and .\ShowSubscriptionUsageEmailSubject.txt
 
-param 
-( 
+param
+(
     [switch] $UseSecretsFile,
     [switch] $UploadToDB,
     $AzureSecretsFile
@@ -21,11 +21,11 @@ if( $UseSecretsFile -or $AzureSecretsFile )
     {
         $secretsFile = $AzureSecretsFile
     }
-    elseif ($env:Azure_Secrets_File) 
+    elseif ($env:Azure_Secrets_File)
     {
         $secretsFile = $env:Azure_Secrets_File
     }
-    else 
+    else
     {
         LogMsg "-AzureSecretsFile and env:Azure_Secrets_File are empty. Exiting."
         exit 1
@@ -43,13 +43,13 @@ if( $UseSecretsFile -or $AzureSecretsFile )
     }
 }
 
-try 
+try
 {
     $EmailSubjectTextFile =  ".\ShowSubscriptionUsageEmailSubject.txt"
     $FinalHtmlFile = ".\SubscriptionUsage.html"
     $pstzone = [System.TimeZoneInfo]::FindSystemTimeZoneById("Pacific Standard Time")
     $psttime = [System.TimeZoneInfo]::ConvertTimeFromUtc((Get-Date).ToUniversalTime(),$pstzone)
-    
+
     $subscription = Get-AzureRmSubscription
     LogMsg "Running: Get-AzureRmResource..."
     $allResources = Get-AzureRmResource
@@ -58,7 +58,7 @@ try
     LogMsg "Running: Get-AzureRmLocation..."
     $allRegions = (Get-AzureRmLocation | Where-Object { $_.Providers -imatch "Microsoft.Compute" }).Location | Sort-Object
 }
-catch 
+catch
 {
     LogMsg "Error while fetching data. Please try again."
     Set-Content -Path $FinalHtmlFile -Value "There was some error in fetching data from Azure today."
@@ -88,7 +88,7 @@ $htmlFileStart = '
 
 <p style="text-align: left;"><em>Last refreshed&nbsp;<strong>DATE_TIME. </strong></em> <a href="https://msit.powerbi.com/groups/a765920a-87fb-4668-bf25-780ff25639be/reports/9e04d866-5c5b-4020-aa63-f61d952c5b75/ReportSection" target="_blank" rel="noopener"><em><strong>Click Here</strong></em></a> to see the report in PowerBI.</p>
 '
-  
+
 $htmlFileStart = $htmlFileStart.Replace("DATE_TIME","$($psttime.DateTime) PST")
 #endregion
 
@@ -166,7 +166,7 @@ if ($UploadToDB)
 }
 foreach ($region in $allRegions)
 {
- 
+
     $currentHTMLNode = $htmlFileRow
     $currentVMs = 0
     $currentVNETs = 0
@@ -178,8 +178,8 @@ foreach ($region in $allRegions)
     LogMsg "Get-AzureRmVMSize -Location $region"
     $currentRegionUsage =  Get-AzureRmVMUsage -Location $region
     LogMsg "Get-AzureRmVMUsage -Location $region"
-    $currentRegionAllowedCores = ($currentRegionUsage | Where-Object { $_.Name.Value -eq "cores"}).Limit 
-    
+    $currentRegionAllowedCores = ($currentRegionUsage | Where-Object { $_.Name.Value -eq "cores"}).Limit
+
     $regionCounter+= 1
     LogMsg "[$regionCounter/$($allRegions.Count)]. $($region)"
 
@@ -189,7 +189,7 @@ foreach ($region in $allRegions)
         {
             $currentVMs += 1
             LogMsg "+1 : $($resource.ResourceType) : $($resource.Name)"
-            $currentVMStatus = $allVMStatus | Where-Object { $_.ResourceGroupName -eq $resource.ResourceGroupName -and $_.Name -eq $resource.Name }            
+            $currentVMStatus = $allVMStatus | Where-Object { $_.ResourceGroupName -eq $resource.ResourceGroupName -and $_.Name -eq $resource.Name }
             $currentUsedCores += ($currentRegionSizes | Where-Object { $_.Name -eq $($currentVMStatus.HardwareProfile.VmSize)}).NumberOfCores
             if ( $($currentVMStatus.PowerState) -imatch "VM deallocated")
             {
@@ -240,7 +240,7 @@ foreach ($region in $allRegions)
     $currentHTMLNode = $currentHTMLNode.Replace("Region_VNET","$currentVNETs")
     #Add-Content -Path $FinalHtmlFile -Value $currentHTMLNode
     $UsageReport += $currentHTMLNode
-    
+
     $totalVMs += $currentVMs
     $totalVNETs += $currentVNETs
     $totalPublicIPs += $currentPublicIPs
@@ -250,7 +250,7 @@ foreach ($region in $allRegions)
     $totalStorageAccounts += $currentStorageAccounts
     $SubscriptionID = $subscription.Id
     $SubscriptionName = $subscription.Name
-    $currentRegion = $region 
+    $currentRegion = $region
     $PremiumStorages = "NULL"
     $StanardStorages = "NULL"
     $TimeStamp = "$($psttime.Year)-$($psttime.Month)-$($psttime.Day) $($psttime.Hour):$($psttime.Minute):$($psttime.Second)"

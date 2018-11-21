@@ -7,7 +7,7 @@
 
 .Description
     Disable, then re-enable the LIS Shutdown service.  Then verify that
-    a shutdown request still works. 
+    a shutdown request still works.
 #>
 
 param([String] $TestParams)

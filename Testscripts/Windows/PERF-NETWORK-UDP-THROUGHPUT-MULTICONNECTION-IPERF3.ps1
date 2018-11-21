@@ -2,7 +2,7 @@
 # Licensed under the Apache License.
 
 function Main {
-    # Create test result 
+    # Create test result
     $currentTestResult = CreateTestResultObject
     $resultArr = @()
 
@@ -288,18 +288,14 @@ collect_VM_properties
         $dataTableName = $xmlConfig.config.$TestPlatform.database.dbtable
         $TestCaseName = $xmlConfig.config.$TestPlatform.database.testTag
         if ($dataSource -And $dbuser -And $dbpassword -And $database -And $dataTableName) {
-            $GuestDistro    = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
-            if ( $UseAzureResourceManager ) {
-                $HostType   = "Azure-ARM"
-            } else {
-                $HostType   = "Azure"
-            }
+            $GuestDistro = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
+            $HostType = "Azure"
             $HostBy = ($xmlConfig.config.$TestPlatform.General.Location).Replace('"','')
             $HostOS = cat "$LogDir\VM_properties.csv" | Select-String "Host Version"| %{$_ -replace ",Host Version,",""}
-            $GuestOSType    = "Linux"
-            $GuestDistro    = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
+            $GuestOSType = "Linux"
+            $GuestDistro = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
             $GuestSize = $clientVMData.InstanceSize
-            $KernelVersion  = cat "$LogDir\VM_properties.csv" | Select-String "Kernel version"| %{$_ -replace ",Kernel version,",""}
+            $KernelVersion = cat "$LogDir\VM_properties.csv" | Select-String "Kernel version"| %{$_ -replace ",Kernel version,",""}
             $IPVersion = "IPv4"
             $ProtocolType = $($currentTestData.TestType)
 
@@ -337,7 +333,7 @@ collect_VM_properties
     }
 
     $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
-    return $currentTestResult.TestResult  
+    return $currentTestResult.TestResult
 }
 
 Main

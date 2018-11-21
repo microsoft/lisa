@@ -95,7 +95,7 @@ function Main {
         $VMPassword,
         $RootDir
     )
-    
+
     $params = $testParams.Split(';')
     foreach ($p in $params) {
         if ($p.Trim().Length -eq 0) {

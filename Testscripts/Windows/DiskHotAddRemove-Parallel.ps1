@@ -26,7 +26,7 @@ try
                 $VHDUri = $VHDUri.Replace("osdisk",$diskName)
                 LogMsg "Adding an empty data disk of size $diskSizeinGB GB"
                 $null = Add-AzureRMVMDataDisk -VM $VirtualMachine -Name $diskName -DiskSizeInGB $diskSizeinGB -LUN $count -VhdUri $VHDuri.ToString() -CreateOption Empty
-                LogMsg "Successfully created an empty data disk of size $diskSizeinGB GB"                
+                LogMsg "Successfully created an empty data disk of size $diskSizeinGB GB"
             }
             LogMsg "Number of data disks added to the VM $count"
             $null = Update-AzureRMVM -VM $VirtualMachine -ResourceGroupName $ResourceGroupUnderTest
@@ -91,7 +91,7 @@ Finally
             $testResult = "Aborted"
         }
         $resultArr += $testResult
-    }   
+    }
 $CurrentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
 
 #Clean up the setup

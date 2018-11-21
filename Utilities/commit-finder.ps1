@@ -35,7 +35,7 @@ if ( -not $before -and -not $after -and $From -and $Till )
         }
     }
     #endregion
-    
+
     #region Get 'Till' Commits
     Write-Host "Checking out $Till"
     git checkout --force $till
@@ -65,7 +65,7 @@ if ( -not $before -and -not $after -and $From -and $Till )
                         $CommitSubject = ($line -split ' -=- ')[1]
                         $CommitAuthor = ($line -split ' -=- ')[2]
                         $CommitDate = ($line -split ' -=- ')[3]
-    
+
                         if ($Detailed){
                             $GitOut = git log -1 $CommitID
                             Write-Host "$CommitCounter." -NoNewline
@@ -78,15 +78,14 @@ if ( -not $before -and -not $after -and $From -and $Till )
                             Write-Host "`tFile:    $file"
                             Write-Host "`tSubject: $CommitSubject"
                             Write-Host "`tAuthor:  $CommitAuthor"
-                            Write-Host "`tDate:    $CommitDate"                            
+                            Write-Host "`tDate:    $CommitDate"
                         }
                         Write-Host ""
-                        $CommitCounter += 1                    
+                        $CommitCounter += 1
                     }
                 }
-            }
-            catch {
-
+            } catch {
+                $()
             }
         }
     }
@@ -109,18 +108,18 @@ if ( $before -and $after -and  -not $From -and -not $Till )
         if ($file)
         {
             try {
-                
+
                 $FileName = $file | Split-Path -Leaf
                 $FileContents = $null
                 $FileContents = Get-Content "..\$FileName-$before-$after.txt"
                 if ($FileContents)
                 {
-                    foreach ($line in $FileContents) { 
+                    foreach ($line in $FileContents) {
                         $CommitID =  ($line -split ' -=- ')[0]
                         $CommitSubject = ($line -split ' -=- ')[1]
                         $CommitAuthor = ($line -split ' -=- ')[2]
                         $CommitDate = ($line -split ' -=- ')[3]
-    
+
                         if ($Detailed){
                             $GitOut = git log -1 $CommitID
                             Write-Host "$CommitCounter." -NoNewline
@@ -133,14 +132,14 @@ if ( $before -and $after -and  -not $From -and -not $Till )
                             Write-Host "`tFile:    $file"
                             Write-Host "`tSubject: $CommitSubject"
                             Write-Host "`tAuthor:  $CommitAuthor"
-                            Write-Host "`tDate:    $CommitDate"                         
+                            Write-Host "`tDate:    $CommitDate"
                         }
                         Write-Host ""
                         $CommitCounter += 1
                     }
                 }
-            }
-            catch {
+            } catch {
+                $()
             }
         }
     }

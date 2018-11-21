@@ -102,7 +102,7 @@ try {
         -VMUserName $user -VMPassword $password `
         -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n")) `
         -LogDir $LogDir
-    
+
 } catch {
     LogErr "Error triggering VMBus panic event with error message: $_"
     return "FAIL"

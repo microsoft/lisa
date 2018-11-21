@@ -15,8 +15,8 @@
 
 
 .NOTES
-    Creation Date:  
-    Purpose/Change: 
+    Creation Date:
+    Purpose/Change:
 
 .EXAMPLE
 
@@ -152,7 +152,7 @@ function Run-TestScript {
     Supports python, shell and powershell scripts.
     Python and shell scripts will be executed remotely.
     Powershell scripts will be executed host side.
-    After the test completion, the method will collect logs 
+    After the test completion, the method will collect logs
     (for shell and python) and return the relevant test result.
     #>
 
@@ -408,10 +408,10 @@ function Run-Test {
 
     .DESCRIPTION
     The Run-Test function implements the existing LISAv2 methods into a common
-    framework used to run tests. 
+    framework used to run tests.
     The function is comprised of the next steps:
 
-    - Test resource deployment step: 
+    - Test resource deployment step:
         Deploys VMs and other necessary resources (network interfaces, virtual networks).
         Enables root user for all VMs in deployment.
         For Hyper-V it creates one snapshot for each VM in deployment.
@@ -444,17 +444,11 @@ function Run-Test {
     .PARAMETER VMPassword
         Password used in all VMs in deployment.
 
-    .PARAMETER DeployVMPerEachTest
-        Bool variable that specifies if the framework should create a new deployment for
-        each test (and clean the deployment after each test).
-
     .PARAMETER ExecuteSetup
         Switch variable that specifies if the framework should create a new deployment
-        (Used if DeployVMPerEachTest is False).
 
     .PARAMETER ExecuteTeardown
         Switch variable that specifies if the framework should clean the deployment
-        (Used if DeployVMPerEachTest is False).
     #>
 
     param(
@@ -464,9 +458,8 @@ function Run-Test {
         [string]$LogDir,
         [string]$VMUser,
         [string]$VMPassword,
-        [bool]$DeployVMPerEachTest,
-        [switch]$ExecuteSetup,
-        [switch]$ExecuteTeardown
+        [bool]$ExecuteSetup,
+        [bool]$ExecuteTeardown
     )
 
     $currentTestResult = CreateTestResultObject
@@ -486,10 +479,9 @@ function Run-Test {
         }
     }
 
-    if ($DeployVMPerEachTest -or $ExecuteSetup) {
-        # Note: This method will create $AllVMData global variable
-        $isDeployed = DeployVMS -setupType $CurrentTestData.setupType `
-             -Distro $Distro -XMLConfig $XmlConfig -VMGeneration $VMGeneration
+    if ($ExecuteSetup -or -not $isDeployed) {
+        $global:isDeployed = DeployVMS -setupType $CurrentTestData.setupType `
+            -Distro $Distro -XMLConfig $XmlConfig -VMGeneration $VMGeneration
         if (!$isDeployed) {
             throw "Could not deploy VMs."
         }
@@ -499,9 +491,7 @@ function Run-Test {
         }
         if ($testPlatform.ToUpper() -eq "HYPERV") {
             Create-HyperVCheckpoint -VMData $AllVMData -CheckpointName "ICAbase"
-            $AllVMData = Check-IP -VMData $AllVMData
-            Set-Variable -Name AllVMData -Value $AllVMData -Scope Global
-            Set-Variable -Name isDeployed -Value $isDeployed -Scope Global
+            $global:AllVMData = Check-IP -VMData $AllVMData
         }
     } else {
         if ($testPlatform.ToUpper() -eq "HYPERV") {
@@ -510,11 +500,14 @@ function Run-Test {
                 LogMsg "Removed all files from home directory."
             } else  {
                 Apply-HyperVCheckpoint -VMData $AllVMData -CheckpointName "ICAbase"
-                $AllVMData = Check-IP -VMData $AllVMData
-                Set-Variable -Name AllVMData -Value $AllVMData -Scope Global
+                $global:AllVMData = Check-IP -VMData $AllVMData
                 LogMsg "Public IP found for all VMs in deployment after checkpoint restore"
             }
         }
+    }
+
+    if (!$IsWindows) {
+        $null = GetAndCheckKernelLogs -allDeployedVMs $allVMData -status "Initial"
     }
 
     if ($CurrentTestData.TestParameters) {
@@ -566,7 +559,7 @@ function Run-Test {
              -Timeout $timeout
         $resultArr += $testResult
     }
-    
+
     if ($testPlatform -eq "Hyperv" -and $CurrentTestData.CleanupScript) {
         foreach ($VM in $AllVMData) {
             if (Get-VM -Name $VM.RoleName -ComputerName `
@@ -587,15 +580,13 @@ function Run-Test {
     }
 
     $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
-    if ($DeployVMPerEachTest -or $ExecuteTeardown) {
-        LogMsg "VM CLEANUP ~~~~~~~~~~~~~~~~~~~~~~~"
-        $optionalParams = @{}
-        if ($testParameters["SkipVerifyKernelLogs"] -eq "True" -or (-not $DeployVMPerEachTest)) {
-            $optionalParams["SkipVerifyKernelLogs"] = $True
-        }
-        DoTestCleanUp -CurrentTestResult $CurrentTestResult -TestName $currentTestData.testName `
-             -ResourceGroups $isDeployed @optionalParams
+    LogMsg "VM CLEANUP ~~~~~~~~~~~~~~~~~~~~~~~"
+    $optionalParams = @{}
+    if ($testParameters["SkipVerifyKernelLogs"] -eq "True") {
+        $optionalParams["SkipVerifyKernelLogs"] = $True
     }
-  
+    DoTestCleanUp -CurrentTestResult $CurrentTestResult -TestName $currentTestData.testName `
+    -ResourceGroups $isDeployed @optionalParams -DeleteRG $ExecuteTeardown
+
     return $currentTestResult
 }

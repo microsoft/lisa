@@ -1,8 +1,8 @@
-﻿# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 
 function Main {
-    # Create test result 
+    # Create test result
     $currentTestResult = CreateTestResultObject
     $resultArr = @()
 
@@ -18,6 +18,11 @@ function Main {
         # region Deprovision the VM.
         LogMsg "Deprovisioning $($captureVMData.RoleName)"
         $null = RunLinuxCmd -ip $captureVMData.PublicIP -port $captureVMData.SSHPort -username $user -password $password -command "waagent -deprovision --force" -runAsSudo
+        # Note(v-asofro): required for Ubuntu Bionic
+        # Similar issue: https://github.com/Azure/WALinuxAgent/issues/1359
+        $null = RunLinuxCmd -ip $captureVMData.PublicIP -port $captureVMData.SSHPort -username $user -password $password `
+                -command " lsb_release --codename | grep bionic && sed -i 's/Provisioning.Enabled=n/Provisioning.Enabled=y/g' /etc/waagent.conf | sed -i 's/Provisioning.UseCloudInit=y/Provisioning.UseCloudInit=n/g' /etc/waagent.conf " `
+                -ignoreLinuxExitCode -runAsSudo
         LogMsg "Deprovisioning done."
         # endregion
         LogMsg "Shutting down VM.."
@@ -88,7 +93,7 @@ function Main {
     }
 
     $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
-    return $currentTestResult.TestResult  
+    return $currentTestResult.TestResult
 }
 
 Main

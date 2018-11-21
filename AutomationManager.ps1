@@ -1,4 +1,4 @@
-﻿##############################################################################################
+##############################################################################################
 # AutomationManager.ps1
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
@@ -35,9 +35,8 @@ param (
 [string] $RunSelectedTests,
 [string] $TestPriority,
 [string] $osImage,
-[switch] $EconomyMode,
+[switch] $DeployVMPerEachTest,
 [switch] $DoNotDeleteVMs,
-[switch] $UseAzureResourceManager,
 [string] $OverrideVMSize,
 [switch] $EnableAcceleratedNetworking,
 [string] $CustomKernel,
@@ -79,12 +78,14 @@ Set-Variable -Name preserveKeyword -Value "preserving" -Scope Global
 Set-Variable -Name TiPSessionId -Value $TiPSessionId -Scope Global
 Set-Variable -Name TiPCluster -Value $TiPCluster -Scope Global
 
-Set-Variable -Name global4digitRandom -Value $(Get-Random -SetSeed $(Get-Random) -Maximum 9999 -Minimum 1111) -Scope Global
 Set-Variable -Name CoreCountExceededTimeout -Value $CoreCountExceededTimeout -Scope Global
 
 Set-Variable -Name resultPass -Value "PASS" -Scope Global
 Set-Variable -Name resultFail -Value "FAIL" -Scope Global
 Set-Variable -Name resultAborted -Value "ABORTED" -Scope Global
+
+Set-Variable -Name AllVMData -Value @() -Scope Global
+Set-Variable -Name isDeployed -Value @() -Scope Global
 
 if($EnableAcceleratedNetworking) {
 	Set-Variable -Name EnableAcceleratedNetworking -Value $true -Scope Global
@@ -134,48 +135,32 @@ if ($UseManagedDisks) {
 	Set-Variable -Name UseManagedDisks -Value $false -Scope Global
 }
 
-if ( $XMLSecretFile ) {
-	$xmlSecrets = ([xml](Get-Content $XMLSecretFile))
-	Set-Variable -Value $xmlSecrets -Name xmlSecrets -Scope Global -Force
-	LogMsg "XmlSecrets set as global variable."
-} elseif ($env:Azure_Secrets_File) {
-	$xmlSecrets = ([xml](Get-Content $env:Azure_Secrets_File))
-	Set-Variable -Value $xmlSecrets -Name xmlSecrets -Scope Global -Force
-	LogMsg "XmlSecrets set as global variable."
-}
-
 try {
 	$TestResultsDir = "TestResults"
 	if (! (test-path $TestResultsDir)) {
 		mkdir $TestResultsDir | out-null
 	}
 
-	if (! (test-path ".\report")) {
-		mkdir ".\report" | out-null
+	if (! (test-path ".\Report")) {
+		mkdir ".\Report" | out-null
 	}
 
 	$testStartTime = [DateTime]::Now.ToUniversalTime()
 	Set-Variable -Name testStartTime -Value $testStartTime -Scope Global
-	Set-Content -Value "" -Path .\report\testSummary.html -Force -ErrorAction SilentlyContinue | Out-Null
-	Set-Content -Value "" -Path .\report\AdditionalInfo.html -Force -ErrorAction SilentlyContinue | Out-Null
+	Set-Content -Value "" -Path .\Report\testSummary.html -Force -ErrorAction SilentlyContinue | Out-Null
+	Set-Content -Value "" -Path .\Report\AdditionalInfo.html -Force -ErrorAction SilentlyContinue | Out-Null
 	Set-Variable -Name LogFile -Value $LogFile -Scope Global
 	Set-Variable -Name Distro -Value $RGIdentifier -Scope Global
 	Set-Variable -Name onCloud -Value $onCloud -Scope Global
 	Set-Variable -Name xmlConfig -Value $xmlConfig -Scope Global
-	LogMsg "'$LogDir' saved to .\report\lastLogDirectory.txt"
-	Set-Content -Path .\report\lastLogDirectory.txt -Value $LogDir -Force
+	LogMsg "'$LogDir' saved to .\Report\lastLogDirectory.txt"
+	Set-Content -Path .\Report\lastLogDirectory.txt -Value $LogDir -Force
 	Set-Variable -Name vnetIsAllConfigured -Value $false -Scope Global
 
-	if($EconomyMode) {
-		Set-Variable -Name EconomyMode -Value $true -Scope Global
-		Set-Variable -Name DoNotDeleteVMs -Value $DoNotDeleteVMs -Scope Global
+	if($DoNotDeleteVMs) {
+		Set-Variable -Name DoNotDeleteVMs -Value $true -Scope Global
 	} else {
-		Set-Variable -Name EconomyMode -Value $false -Scope Global
-		if($DoNotDeleteVMs) {
-			Set-Variable -Name DoNotDeleteVMs -Value $true -Scope Global
-		} else {
-			Set-Variable -Name DoNotDeleteVMs -Value $false -Scope Global
-		}
+		Set-Variable -Name DoNotDeleteVMs -Value $false -Scope Global
 	}
 
 	Set-Variable -Name IsWindows -Value $false -Scope Global
@@ -186,8 +171,6 @@ try {
 	}
 
 	$AzureSetup = $xmlConfig.config.$TestPlatform.General
-	LogMsg  ("Info : AzureAutomationManager.ps1 - LIS on Azure Automation")
-	LogMsg  ("Info : Created test results directory:$LogDir" )
 	LogMsg  ("Info : Using config file $xmlConfigFile")
 	if ( ( $xmlConfig.config.$TestPlatform.General.ARMStorageAccount -imatch "ExistingStorage" ) -or ($xmlConfig.config.$TestPlatform.General.StorageAccount -imatch "ExistingStorage" )) {
 		$regionName = $xmlConfig.config.$TestPlatform.General.Location.Replace(" ","").Replace('"',"").ToLower()
@@ -204,8 +187,7 @@ try {
 		}
 	}
 
-	Set-Variable -Name UseAzureResourceManager -Value $true -Scope Global
-
+	LogMsg "------------------------------------------------------------------"
 	if ( $TestPlatform -eq "Azure") {
 		$SelectedSubscription = Select-AzureRmSubscription -SubscriptionId $AzureSetup.SubscriptionID
 		$subIDSplitted = ($SelectedSubscription.Subscription.SubscriptionId).Split("-")
@@ -222,18 +204,20 @@ try {
 			LogMsg "Destination VHD Path   : $($xmlConfig.config.Hyperv.Hosts.ChildNodes[$($index)].DestinationOsVHDPath)"
 		}
 	}
+	LogMsg "------------------------------------------------------------------"
 
 	if($DoNotDeleteVMs) {
 		LogMsg "PLEASE NOTE: DoNotDeleteVMs is set. VMs will not be deleted after test is finished even if, test gets PASS."
 	}
 
 	$testCycle =  GetCurrentCycleData -xmlConfig $xmlConfig -cycleName $cycleName
-	$testSuiteResultDetails=.\AzureTestSuite.ps1 $xmlConfig -Distro $Distro -cycleName $cycleName -TestIterations $TestIterations
+	$testSuiteResultDetails=.\AzureTestSuite.ps1 $xmlConfig -Distro $Distro -cycleName $cycleName -TestIterations $TestIterations  -DeployVMPerEachTest $DeployVMPerEachTest
+	$testSuiteResultDetails = $testSuiteResultDetails | Select-Object -Last 1
 	$logDirFilename = [System.IO.Path]::GetFilenameWithoutExtension($xmlConfigFile)
 	$summaryAll = GetTestSummary -testCycle $testCycle -StartTime $testStartTime -xmlFileName $logDirFilename -distro $Distro -testSuiteResultDetails $testSuiteResultDetails
 	$PlainTextSummary += $summaryAll[0]
 	$HtmlTextSummary += $summaryAll[1]
-	Set-Content -Value $HtmlTextSummary -Path .\report\testSummary.html -Force | Out-Null
+	Set-Content -Value $HtmlTextSummary -Path .\Report\testSummary.html -Force | Out-Null
 	$PlainTextSummary = $PlainTextSummary.Replace("<br />", "`r`n")
 	$PlainTextSummary = $PlainTextSummary.Replace("<pre>", "")
 	$PlainTextSummary = $PlainTextSummary.Replace("</pre>", "")
