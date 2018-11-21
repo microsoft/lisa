@@ -747,7 +747,7 @@ Function GetAndCheckKernelLogs($allDeployedVMs, $status, $vmUser, $vmPassword) {
 			$finalBootLogFile = "FinalBootLogs.txt"
 			$initialBootLog = Join-Path $BootLogDir $initialBootLogFile
 			$finalBootLog = Join-Path $BootLogDir $finalBootLogFile
-			$currenBootLogFile = $initialBootLog
+			$currenBootLogFile = $initialBootLogFile
 			$currenBootLog = $initialBootLog
 			$kernelLogStatus = Join-Path $BootLogDir "KernelLogStatus.txt"
 
@@ -757,7 +757,7 @@ Function GetAndCheckKernelLogs($allDeployedVMs, $status, $vmUser, $vmPassword) {
 			}
 
 			if ($status -imatch "Initial") {
-				$checkConnectivityFile = Join-Path $LogDir ([System.IO.Path]::GetcheckConnectivityFile())
+				$checkConnectivityFile = Join-Path $LogDir ([System.IO.Path]::GetRandomFileName())
 				Set-Content -Value "Test connectivity." -Path $checkConnectivityFile
 				RemoteCopy -uploadTo $VM.PublicIP -port $VM.SSHPort  -files $checkConnectivityFile `
 					-username $vmUser -password $vmPassword -upload | Out-Null
@@ -844,6 +844,7 @@ Function GetAndCheckKernelLogs($allDeployedVMs, $status, $vmUser, $vmPassword) {
 			}
 		}
 	} catch {
+		LogMsg $_
 		$retValue = $false
 	}
 
