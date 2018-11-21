@@ -747,7 +747,7 @@ Function GetAndCheckKernelLogs($allDeployedVMs, $status, $vmUser, $vmPassword) {
 			$finalBootLogFile = "FinalBootLogs.txt"
 			$initialBootLog = Join-Path $BootLogDir $initialBootLogFile
 			$finalBootLog = Join-Path $BootLogDir $finalBootLogFile
-			$currenBootLogFile = $finalBootLogFile
+			$currenBootLogFile = $initialBootLog
 			$currenBootLog = $initialBootLog
 			$kernelLogStatus = Join-Path $BootLogDir "KernelLogStatus.txt"
 
