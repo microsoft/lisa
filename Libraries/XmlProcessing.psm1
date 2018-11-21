@@ -6,7 +6,8 @@
 #
 <#
 .SYNOPSIS
-	PS modules for Azure test automation
+	PS modules for LISAv2 test automation.
+	This module defines a set of functions to process XML file for LISAv2.
 
 .PARAMETER
 	<Parameters>
