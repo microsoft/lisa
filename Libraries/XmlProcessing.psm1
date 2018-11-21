@@ -229,11 +229,11 @@ Function Import-TestParameters($ParametersFile)
 		foreach ($ParameterName in $ParameterNames) {
 			if ($LISAv2Parameters.TestParameters.$ParameterName) {
 				if ($LISAv2Parameters.TestParameters.$ParameterName -eq "true") {
-					LogMsg "Setting boolean parameter $ParameterName -> $true"
+					LogMsg ">>> Setting boolean parameter: $ParameterName = true"
 					Set-Variable -Name $ParameterName -Value $true -Scope Global -Force
 				}
 				else {
-					LogMsg "Setting parameter $ParameterName -> $($LISAv2Parameters.TestParameters.$ParameterName)"
+					LogMsg ">>> Setting parameter: $ParameterName = $($LISAv2Parameters.TestParameters.$ParameterName)"
 					Set-Variable -Name $ParameterName -Value $LISAv2Parameters.TestParameters.$ParameterName -Scope Global -Force
 				}
 			}

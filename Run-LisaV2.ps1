@@ -117,39 +117,25 @@ try {
 	New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
 	LogMsg "Created LogDir: $LogDir"
 
-	# Load test parameters as PS objects
-	$ParameterList = (Get-Command -Name $PSCmdlet.MyInvocation.InvocationName).Parameters;
-	$ScriptVariables = New-Object PSObject
-	foreach ($key in $ParameterList.keys) {
-		$var = Get-Variable -Name $key -Scope Script -ErrorAction SilentlyContinue
-		if($var) {
-			$ScriptVariables | add-member -MemberType Noteproperty -Name $($var.name) -Value $($var.value)
-		}
-	}
-	# Import parameters from file if -ParametersFile is given
+	# Import parameters from file if -ParametersFile is given, and set them as global variables
 	if ($ParametersFile) {
 		Import-TestParameters -ParametersFile $ParametersFile
 	}
-	# Set all parameters as Global Variables
-	foreach ($key in $ParameterList.keys) {
-		if($ScriptVariables.$Key) {
-			if ($ParametersFile) {
-				$IgnoredParameterNames = ("ParametersFile")
-				if ($ScriptVariables.$Key) {
-					if (-not $IgnoredParameterNames.Contains($Key)) {
-						LogMsg "Overriding specified parameter $Key = $($ScriptVariables.$Key)"
-					}
-					Set-Variable -Name $Key -Value $ScriptVariables.$Key -Scope Global -Force
+	# Processing parameters provided in the command runtime
+	$paramList = (Get-Command -Name $PSCmdlet.MyInvocation.InvocationName).Parameters;
+	foreach ($paramName in $paramList.Keys) {
+		$paramObject = Get-Variable -Name $paramName -Scope Script -ErrorAction SilentlyContinue
+		$paramValue = $paramObject.Value
+		if (($null -ne $paramValue) -and ("" -ne $paramValue)) {
+			$paramExistingObject = Get-Variable -Name $paramName -Scope Global -ErrorAction SilentlyContinue
+			if ($null -ne $paramExistingObject) {
+				$paramExistingValue = $paramExistingObject.Value
+				if (($null -ne $paramExistingValue) -and ("" -ne $paramExistingValue) -and ($paramValue -ne $paramExistingValue)) {
+					LogMsg "Overriding: $paramName = $paramValue (was $paramExistingValue)"
 				}
 			}
-			else {
-				Set-Variable -Name $Key -Value $ScriptVariables.$Key -Scope Global -Force
-			}
+			Set-Variable -Name $paramName -Value $paramValue -Scope Global -Force
 		}
-	}
-	$GlobalVariables = Get-Variable -Scope Global
-	foreach ($var in $GlobalVariables) {
-		[void](Set-Variable -Name $var.Name -Value $var.Value -Scope Local -ErrorAction SilentlyContinue)
 	}
 
 	# Validate the test parameters.
