@@ -105,20 +105,7 @@ try {
 	$WorkingDirectory = Split-Path -parent $MyInvocation.MyCommand.Definition
 	if ( $WorkingDirectory.Length -gt $MaxDirLength) {
 		$OriginalWorkingDirectory = $WorkingDirectory
-		Write-Output "Current working directory '$WorkingDirectory' length is greater than $MaxDirLength."
-		$tempWorkspace    = "$(Split-Path $OriginalWorkingDirectory -Qualifier)"
-		$tempParentFolder = "$tempWorkspace\LISAv2"
-		$tempWorkingDir   = "$tempWorkspace\LISAv2\$TestID"
-
-		New-Item -ItemType Directory -Path $tempParentFolder -Force -ErrorAction SilentlyContinue | Out-Null
-		New-Item -ItemType Directory -Path $tempWorkingDir    -Force -ErrorAction SilentlyContinue | Out-Null
-		$tmpSource = '\\?\' + "$OriginalWorkingDirectory\*"
-		Write-Output "Copying current workspace to $tempWorkingDir"
-		$excludedDirectories = @(".git", "Documents", ".github", "Report", "TestResults", "VHDs_Destination_Path", "*.zip")
-		Copy-Item -Path $tmpSource -Destination $tempWorkingDir -Recurse -Force -Exclude $excludedDirectories | Out-Null
-		Set-Location -Path $tempWorkingDir | Out-Null
-		Write-Output "Working directory has been changed to $tempWorkingDir"
-		$WorkingDirectory = $tempWorkingDir
+		$WorkingDirectory = Move-ToNewWorkingSpace $OriginalWorkingDirectory | Select-Object -Last 1
 	}
 	Set-Variable -Name WorkingDirectory -Value $WorkingDirectory  -Scope Global
 
@@ -158,7 +145,7 @@ try {
 	}
 
 	# Prepare log folder
-	$LogDir = ".\TestResults\$(Get-Date -Format 'yyyy-dd-MM-HH-mm-ss-ffff')"
+	$LogDir = Join-Path $WorkingDirectory "TestResults\$(Get-Date -Format 'yyyy-dd-MM-HH-mm-ss-ffff')"
 	$LogFileName = "LISAv2-Test-$TestID.log"
 	Set-Variable -Name LogDir      -Value $LogDir      -Scope Global -Force
 	Set-Variable -Name LogFileName -Value $LogFileName -Scope Global -Force
@@ -171,7 +158,7 @@ try {
 	# Handle the Secrets file
 	if ($env:Azure_Secrets_File) {
 		$XMLSecretFile = $env:Azure_Secrets_File
-		LogMsg "Found Secrets file from environment."
+		LogMsg "The Secrets file is defined by an environment variable."
 	}
 	if ($XMLSecretFile -ne [string]::Empty) {
 		if ((Test-Path -Path $XMLSecretFile) -eq $true) {
@@ -204,13 +191,9 @@ try {
 	$ReplaceableTestParameters = [xml](Get-Content -Path "$WorkingDirectory\XML\Other\ReplaceableTestParameters.xml")
 	Inject-CustomTestParameters $CustomParameters $ReplaceableTestParameters $TestConfigurationXmlFile
 
-	try {
-		$xmlConfig = [xml](Get-Content $TestConfigurationXmlFile)
-		$xmlConfig.Save("$TestConfigurationXmlFile")
-		LogMsg "Auto created $TestConfigurationXmlFile validated successfully."
-	} catch {
-		Throw "Framework error: $TestConfigurationXmlFile is not valid."
-	}
+	$xmlConfig = [xml](Get-Content $TestConfigurationXmlFile)
+	$xmlConfig.Save("$TestConfigurationXmlFile")
+	LogMsg "The auto created $TestConfigurationXmlFile has been validated successfully."
 
 	$command = ".\AutomationManager.ps1 -xmlConfigFile '$TestConfigurationXmlFile' -cycleName 'TC-$TestID' -RGIdentifier '$RGIdentifier' -runtests"
 	if ( $CustomKernel) { $command += " -CustomKernel '$CustomKernel'" }
@@ -228,7 +211,7 @@ try {
 	if ($XMLSecretFile) { $command += " -XMLSecretFile '$XMLSecretFile'" }
 	LogMsg $command
 
-	Invoke-Expression -Command $command
+	#Invoke-Expression -Command $command
 
 	$zipFile = "$TestPlatform"
 	if ( $TestCategory ) { $zipFile += "-$TestCategory"	}
@@ -237,35 +220,23 @@ try {
 	$zipFile += "-$TestID-TestLogs.zip"
 	New-ZipFile -zipFileName $zipFile -sourceDir $LogDir
 
-	try {
-		$reportXmlJUnit = $TestReportXml.Replace(".xml", "-junit.xml")
-		if (Test-Path -Path $TestReportXml ) {
-			Copy-Item -Path $TestReportXml -Destination $reportXmlJUnit -Force -ErrorAction SilentlyContinue
-			LogMsg "Copied : $TestReportXml --> $reportXmlJUnit"
-			LogMsg "Analyzing results.."
-			$resultXML = [xml](Get-Content $TestReportXml -ErrorAction SilentlyContinue)
-			LogMsg "PASS  : $($resultXML.testsuites.testsuite.tests - $resultXML.testsuites.testsuite.errors - $resultXML.testsuites.testsuite.failures)"
-			LogMsg "FAIL  : $($resultXML.testsuites.testsuite.failures)"
-			LogMsg "ABORT : $($resultXML.testsuites.testsuite.errors)"
-			if ( ( $resultXML.testsuites.testsuite.failures -eq 0 ) -and ( $resultXML.testsuites.testsuite.errors -eq 0 ) -and ( $resultXML.testsuites.testsuite.tests -gt 0 )) {
-				$ExitCode = 0
-			} else {
-				$ExitCode = 1
-			}
+	$reportXmlJUnit = $TestReportXml.Replace(".xml", "-junit.xml")
+	if (Test-Path -Path $TestReportXml ) {
+		Copy-Item -Path $TestReportXml -Destination $reportXmlJUnit -Force -ErrorAction SilentlyContinue
+		LogMsg "Copied : $TestReportXml --> $reportXmlJUnit"
+		LogMsg "Analyzing results.."
+		$resultXML = [xml](Get-Content $TestReportXml -ErrorAction SilentlyContinue)
+		LogMsg "PASS  : $($resultXML.testsuites.testsuite.tests - $resultXML.testsuites.testsuite.errors - $resultXML.testsuites.testsuite.failures)"
+		LogMsg "FAIL  : $($resultXML.testsuites.testsuite.failures)"
+		LogMsg "ABORT : $($resultXML.testsuites.testsuite.errors)"
+		if ( ( $resultXML.testsuites.testsuite.failures -eq 0 ) -and ( $resultXML.testsuites.testsuite.errors -eq 0 ) -and ( $resultXML.testsuites.testsuite.tests -gt 0 )) {
+			$ExitCode = 0
 		} else {
-			LogErr "Summary file: $TestReportXml does not exist. Exiting with ErrorCode 1."
 			$ExitCode = 1
 		}
-	}
-	catch {
-		LogErr "$($_.Exception.GetType().FullName, " : ",$_.Exception.Message)"
+	} else {
+		LogErr "Summary file: $TestReportXml does not exist. Exiting with ErrorCode 1."
 		$ExitCode = 1
-	}
-	finally {
-		if ( $ExitWithZero -and ($ExitCode -ne 0) ) {
-			LogMsg "Suppress the exit code from 1 to 0. (-ExitWithZero specified in command line)"
-			$ExitCode = 0
-		}
 	}
 } catch {
 	$line = $_.InvocationInfo.ScriptLineNumber
@@ -279,15 +250,13 @@ try {
 	LogErr "Source : Line $line in script $script_name."
 	$ExitCode = 1
 } finally {
-	if ( $tempWorkingDir ) {
-		Write-Host "Copying all files back to original working directory: $originalWorkingDirectory."
-		$tmpDest = '\\?\' + $originalWorkingDirectory
-		Copy-Item -Path "$tempWorkingDir\*" -Destination $tmpDest -Force -Recurse | Out-Null
-		Set-Location ..
-		Write-Host "Cleaning up $tempWorkingDir"
-		Remove-Item -Path $tempWorkingDir -Force -Recurse -ErrorAction SilentlyContinue
-		Write-Host "Setting workspace back to original location: $originalWorkingDirectory"
-		Set-Location $originalWorkingDirectory
+	if ( $ExitWithZero -and ($ExitCode -ne 0) ) {
+		LogMsg "Suppress the exit code from $ExitWithZero to 0. (-ExitWithZero specified in command line)"
+		$ExitCode = 0
+	}
+
+	if ( $OriginalWorkingDirectory ) {
+		Move-BackToOriginalWorkingSpace $WorkingDirectory $OriginalWorkingDirectory
 	}
 	Get-Variable -Exclude PWD,*Preference,ExitCode | Remove-Variable -Force -ErrorAction SilentlyContinue
 	LogMsg "LISAv2 exits with code: $ExitCode"
