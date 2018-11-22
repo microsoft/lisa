@@ -126,9 +126,9 @@ collect_VM_properties
 		Set-content "$LogDir\StartDpdkTest.sh" $startTestCmd
 		# upload updated constants file to all VMs
 		foreach ($vmData in $allVMData) {
-			RemoteCopy -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files ".\$constantsFile,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkUtils.sh," -username "root" -password $password -upload
+			RemoteCopy -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files "$constantsFile,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkUtils.sh," -username "root" -password $password -upload
 		}
-		RemoteCopy -uploadTo $masterVM.PublicIP -port $masterVM.SSHPort -files ".\Testscripts\Linux\dpdkSetupAndRunTest.sh,.\$LogDir\StartDpdkTest.sh" -username "root" -password $password -upload
+		RemoteCopy -uploadTo $masterVM.PublicIP -port $masterVM.SSHPort -files ".\Testscripts\Linux\dpdkSetupAndRunTest.sh,$LogDir\StartDpdkTest.sh" -username "root" -password $password -upload
 		# upload user specified file from Testcase.xml to root's home
 		RemoteCopy -uploadTo $masterVM.PublicIP -port $masterVM.SSHPort -files $bashFilePaths -username "root" -password $password -upload
 

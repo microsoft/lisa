@@ -99,7 +99,7 @@ cd /root/
 collect_VM_properties
 "@
         Set-Content "$LogDir\Startiperf3tcpTest.sh" $myString
-        RemoteCopy -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files ".\$constantsFile,.\$LogDir\Startiperf3tcpTest.sh" -username "root" -password $password -upload
+        RemoteCopy -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files "$constantsFile,$LogDir\Startiperf3tcpTest.sh" -username "root" -password $password -upload
         $null = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "chmod +x *.sh"
         $testJob = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "/root/Startiperf3tcpTest.sh" -RunInBackground
         #endregion
@@ -121,11 +121,11 @@ collect_VM_properties
         $testSummary = $null
         foreach ($BufferSize_Bytes in $testBuffers) {
             # remove extra warnings
-            $serverContent = Get-Content .\$iperf3LogDir\iperf-server-tcp-IPv4-buffer-$BufferSize_Bytes-conn-1-instance-1.txt
+            $serverContent = Get-Content $iperf3LogDir\iperf-server-tcp-IPv4-buffer-$BufferSize_Bytes-conn-1-instance-1.txt
             while(!$serverContent[0].ToString().Contains("{")) {
                 $serverContent=$serverContent[1..($serverContent.Length-1)]
             }
-            $clientContent = Get-Content .\$iperf3LogDir\iperf-client-tcp-IPv4-buffer-$BufferSize_Bytes-conn-1-instance-1.txt
+            $clientContent = Get-Content $iperf3LogDir\iperf-client-tcp-IPv4-buffer-$BufferSize_Bytes-conn-1-instance-1.txt
             while(!$clientContent[0].ToString().Contains("{")) {
                 $clientContent=$clientContent[1..($clientContent.Length-1)]
             }
@@ -189,11 +189,11 @@ collect_VM_properties
         $SQLQuery = "INSERT INTO $dataTableName (TestCaseName,DataPath,TestDate,HostBy,HostOS,HostType,GuestSize,GuestOSType,GuestDistro,KernelVersion,IPVersion,ProtocolType,BufferSize_Bytes,RxThroughput_Gbps,TxThroughput_Gbps,RetransmittedSegments,CongestionWindowSize_KB) VALUES"
         foreach ($BufferSize_Bytes in $testBuffers) {
             # remove extra warnings
-            $serverContent = Get-Content .\$iperf3LogDir\iperf-server-tcp-IPv4-buffer-$BufferSize_Bytes-conn-1-instance-1.txt
+            $serverContent = Get-Content $iperf3LogDir\iperf-server-tcp-IPv4-buffer-$BufferSize_Bytes-conn-1-instance-1.txt
             while(!$serverContent[0].ToString().Contains("{")) {
                 $serverContent=$serverContent[1..($serverContent.Length-1)]
             }
-            $clientContent = Get-Content .\$iperf3LogDir\iperf-client-tcp-IPv4-buffer-$BufferSize_Bytes-conn-1-instance-1.txt
+            $clientContent = Get-Content $iperf3LogDir\iperf-client-tcp-IPv4-buffer-$BufferSize_Bytes-conn-1-instance-1.txt
             while(!$clientContent[0].ToString().Contains("{")) {
                 $clientContent=$clientContent[1..($clientContent.Length-1)]
             }

@@ -165,7 +165,7 @@ function Main()
 		$hs1vm1sshport = $AllVMData.SSHPort
 
 		New-ShellScriptFiles -logDir $LogDir
-		RemoteCopy -uploadTo $hs1VIP -port $hs1vm1sshport -files ".\$LogDir\StartFioTest.sh,.\$LogDir\ParseFioTestLogs.sh" -username $user -password $password -upload
+		RemoteCopy -uploadTo $hs1VIP -port $hs1vm1sshport -files "$LogDir\StartFioTest.sh,$LogDir\ParseFioTestLogs.sh" -username $user -password $password -upload
 
 		Start-TestExecution -ip $hs1VIP -port $hs1vm1sshport
 

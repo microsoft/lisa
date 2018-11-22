@@ -517,7 +517,7 @@ function Main()
 		LogMsg "The nested VM public IP: $nestedVmPublicIP"
 
 		New-ShellScriptFile -logDir $LogDir  -username $nestedVmUser
-		RemoteCopy -uploadTo $nestedVmPublicIP -port $nestedVmSSHPort -files ".\$LogDir\StartFioTest.sh,.\$LogDir\ParseFioTestLogs.sh" -username $nestedVmUser -password $nestedVmPassword -upload
+		RemoteCopy -uploadTo $nestedVmPublicIP -port $nestedVmSSHPort -files "$LogDir\StartFioTest.sh,$LogDir\ParseFioTestLogs.sh" -username $nestedVmUser -password $nestedVmPassword -upload
 
 		$constantsFile = "$PWD\constants.sh"
         RemoteCopy -uploadTo $nestedVmPublicIP -port $nestedVmSSHPort -files "$constantsFile" -username $nestedVmUser -password $nestedVmPassword -upload

@@ -62,7 +62,7 @@ function Main {
         # Hence, we are generating constants.sh file again in test script.
 
         LogMsg "Generating constansts.sh ..."
-        $constantsFile = ".\$LogDir\constants.sh"
+        $constantsFile = "$LogDir\constants.sh"
         foreach ($TestParam in $CurrentTestData.TestParameters.param ) {
             Add-Content -Value "$TestParam" -Path $constantsFile
             LogMsg "$TestParam added to constansts.sh"

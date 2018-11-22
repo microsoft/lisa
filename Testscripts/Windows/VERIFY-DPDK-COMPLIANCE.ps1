@@ -51,7 +51,7 @@ cd /root/
 collect_VM_properties
 "@
         Set-Content "$LogDir\StartDpdkSetup.sh" $myString
-        RemoteCopy -uploadTo $allVMData.PublicIP -port $allVMData.SSHPort -files ".\$constantsFile,.\$LogDir\StartDpdkSetup.sh" -username $superUser -password $password -upload
+        RemoteCopy -uploadTo $allVMData.PublicIP -port $allVMData.SSHPort -files "$constantsFile,$LogDir\StartDpdkSetup.sh" -username $superUser -password $password -upload
 
         $null = RunLinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superUser -password $password -command "chmod +x *.sh" | Out-Null
         $testJob = RunLinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superUser -password $password -command "./StartDpdkSetup.sh" -RunInBackground
