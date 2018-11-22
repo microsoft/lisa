@@ -26,8 +26,11 @@
 
 param (
     [string]$SharedParentDirectory = "J:\ReceivedFiles",
+    [string]$LogFileName = "ReceivePartnerFiles.log",
     [string]$PartnerUsername
 )
+
+Set-Variable -Name LogFileName -Value $LogFileName -Scope Global -Force
 
 #Import Libraries
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
