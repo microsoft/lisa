@@ -54,9 +54,8 @@ function Main {
         }
     }
 
-    $staticMemory = Convert-StringToDecimal $mem
     if ($numCPUs -eq 0) {
-        LogErr "Error: VCPU test parameter not found in TestParams"
+        LogErr "VCPU test parameter not found in TestParams"
         return $retVal
     }
 
@@ -96,27 +95,27 @@ function Main {
     }
 
     if ($numCPUs -lt 1 -or $numCPUs -gt $maxCPUs) {
-        LogErr "Error: Incorrect VCPU value: $numCPUs (max CPUs = $maxCPUs)"
+        LogErr "Incorrect VCPU value: $numCPUs (max CPUs = $maxCPUs)"
     }
 
     # Update the CPU count on the VM
     Set-VM -Name $VMName -ComputerName $HvServer -ProcessorCount $numCPUs
 
     if ($? -eq "True") {
-        LogMsg "Info: CPU count updated to $numCPUs"
+        LogMsg "CPU count updated to $numCPUs"
         $retVal = $true
     } else {
-        LogErr "Error: Unable to update CPU count to $numCPUs"
+        LogErr "Unable to update CPU count to $numCPUs"
         return $retVal
     }
 
     Set-VMProcessor -VMName $VMName -ComputerName $HvServer -MaximumCountPerNumaNode $numaNodes -MaximumCountPerNumaSocket $sockets
     if ($? -eq "True") {
-        LogMsg "Info: NUMA Nodes updated"
+        LogMsg "NUMA Nodes updated"
         $retVal = $true
     } else {
         $retVal = $false
-        LogErr "Error: Unable to update NUMA nodes!"
+        LogErr "Unable to update NUMA nodes!"
     }
 
     if ($null -ne $memWeight) {
@@ -128,12 +127,13 @@ function Main {
     }
 
     if ($null -ne $mem) {
+        $staticMemory = Convert-StringToDecimal $mem
         Set-VMMemory $VMName -ComputerName $HvServer -MaximumAmountPerNumaNodeBytes $staticMemory -Priority $memWeight
         if ($? -eq "True") {
-            LogMsg "Info: NUMA memory updated"
+            LogMsg "NUMA memory updated"
             $retVal = $true
         } else {
-            LogErr "Error: Unable to update NUMA memory $mem"
+            LogErr "Unable to update NUMA memory $mem"
             $retVal = $false
         }
     }
