@@ -132,7 +132,7 @@ Function ProvisionVMsForLisa($allVMData, $installPackagesOnRoleNames)
 		$Null = RunLinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username "root" -password $password -command "cp -ar /home/$user/*.sh ."
 		if ( $keysGenerated )
 		{
-			RemoteCopy -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files ".\$LogDir\sshFix.tar" -username "root" -password $password -upload
+			RemoteCopy -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files "$LogDir\sshFix.tar" -username "root" -password $password -upload
 			$keyCopyOut = RunLinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username "root" -password $password -command "./enablePasswordLessRoot.sh"
 			LogMsg $keyCopyOut
 			if ( $keyCopyOut -imatch "KEY_COPIED_SUCCESSFULLY" )
@@ -1356,7 +1356,7 @@ Function WrapperCommandsToFile([string] $username,[string] $password,[string] $i
 		Set-Variable -Name lastPort -Value $port -Scope Global
 		Set-Variable -Name lastUser -Value $username -Scope Global
 		$command | out-file -encoding ASCII -filepath "$LogDir\runtest.sh"
-		RemoteCopy -upload -uploadTo $ip -username $username -port $port -password $password -files ".\$LogDir\runtest.sh"
+		RemoteCopy -upload -uploadTo $ip -username $username -port $port -password $password -files "$LogDir\runtest.sh"
 		Remove-Item "$LogDir\runtest.sh"
 	}
 }

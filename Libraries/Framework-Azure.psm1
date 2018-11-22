@@ -1050,28 +1050,3 @@ Function Get-LISAv2Tools($XMLSecretFile)
         }
 	}
 }
-
-Function Import-LISAv2ParametersFromXMLFile ($ParametersFile)
-{
-	try {
-		$LISAv2Parameters = [xml](Get-Content -Path $ParametersFile)
-		$ParameterNames = ($LISAv2Parameters.TestParameters.ChildNodes | Where-Object {$_.NodeType -eq "Element"}).Name
-		foreach ($ParameterName in $ParameterNames) {
-			if ($LISAv2Parameters.TestParameters.$ParameterName) {
-				if ($LISAv2Parameters.TestParameters.$ParameterName -eq "true") {
-					LogMsg "Setting boolean parameter $ParameterName -> $true"
-					Set-Variable -Name $ParameterName -Value $true -Scope Global -Force
-				}
-				else {
-					LogMsg "Setting parameter $ParameterName -> $($LISAv2Parameters.TestParameters.$ParameterName)"
-					Set-Variable -Name $ParameterName -Value $LISAv2Parameters.TestParameters.$ParameterName -Scope Global -Force
-				}
-			}
-		}
-	}
-	catch  {
-		$ErrorMessage = $_.Exception.Message
-		$ErrorLine = $_.InvocationInfo.ScriptLineNumber
-		LogErr "EXCEPTION in Import-LISAv2ParametersFromXMLFile() : $ErrorMessage at line: $ErrorLine"
-	}
-}
