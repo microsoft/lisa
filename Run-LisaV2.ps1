@@ -137,7 +137,11 @@ try {
 			Set-Variable -Name $paramName -Value $paramValue -Scope Global -Force
 		}
 	}
-
+	# Change the value of Local variable to the same value of the the corresponding Global variable
+	$GlobalVariables = Get-Variable -Scope Global -ErrorAction SilentlyContinue
+	foreach ($var in $GlobalVariables) {
+		[void](Set-Variable -Name $var.Name -Value $var.Value -Scope Local -ErrorAction SilentlyContinue)
+	}
 	# Validate the test parameters.
 	Validate-Parameters
 
