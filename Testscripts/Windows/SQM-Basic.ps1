@@ -86,12 +86,9 @@ function Main {
         $fields = $p.Split("=")
         switch ($fields[0].Trim()) {
             "nonintrinsic" { $intrinsic = $False }
-            "TC_COVERED"   { $tcCovered = $fields[1].Trim() }
             default  {}
         }
     }
-
-    LogMsg "Covers: ${tcCovered}"
 
     # Get host build number
     $buildNumber = Get-HostBuildNumber $HvServer

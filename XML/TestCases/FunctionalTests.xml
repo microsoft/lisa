@@ -4,9 +4,6 @@
         <testScript>SQM-Basic.ps1</testScript>
         <files></files>
         <setupType>SingleVM</setupType>
-        <testParameters>
-            <param>TC_COVERED=SQM-01</param>
-        </testParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>KVP</Area>
@@ -18,9 +15,6 @@
         <testScript>KVP-Intrinsic.ps1</testScript>
         <files></files>
         <setupType>SingleVM</setupType>
-        <testParameters>
-            <param>TC_COVERED=KVP-01b</param>
-        </testParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>KVP</Area>
@@ -33,7 +27,6 @@
         <files>.\Testscripts\Linux\KVP-BasicChecks.sh,.\Testscripts\Linux\utils.sh,.\Tools\kvp_client64,.\Tools\kvp_client32</files>
         <setupType>SingleVM</setupType>
         <testParameters>
-            <param>TC_COVERED=KVP-01</param>
             <param>kvp_pool=3</param>
             <!-- minimum number of items expected in KVP pool 3 -->
             <param>kvp_items=11</param>
@@ -51,7 +44,6 @@
         <files>.\Testscripts\Linux\KVP-AddKeyValues.sh,.\Testscripts\Linux\utils.sh,.\Tools\kvp_client64,.\Tools\kvp_client32</files>
         <setupType>SingleVM</setupType>
         <testParameters>
-            <param>TC_COVERED=KVP-02</param>
             <param>Key=EEE</param>
             <param>Value=555</param>
             <param>Pool=0</param>
@@ -72,7 +64,6 @@
         </AdditionalHWConfig>
         <setupType>SingleVM</setupType>
         <testParameters>
-            <param>TC_COVERED=KVP-03</param>
             <param>Key=EEE</param>
             <param>Value=999</param>
             <param>Pool=0</param>
@@ -92,7 +83,6 @@
         </AdditionalHWConfig>
         <setupType>SingleVM</setupType>
         <testParameters>
-            <param>TC_COVERED=KVP-04</param>
             <param>Key=EEE</param>
             <param>Value=999</param>
             <param>Pool=0</param>
@@ -109,7 +99,6 @@
         <files>.\Tools\kvp_client64,.\Tools\kvp_client32</files>
         <setupType>SingleVM</setupType>
         <testParameters>
-            <param>TC_COVERED=KVP-05</param>
             <param>Key=BBB</param>
             <param>Value=111</param>
         </testParameters>
@@ -125,7 +114,6 @@
         <files></files>
         <setupType>SingleVM</setupType>
         <testParameters>
-            <param>TC_COVERED=KVP-06</param>
             <param>Key=AAA</param>
             <param>Value=000</param>
             <param>Pool=0</param>
@@ -142,7 +130,6 @@
         <files></files>
         <setupType>SingleVM</setupType>
         <testParameters>
-            <param>TC_COVERED=KVP-07</param>
             <param>Key=AAA</param>
             <param>Value=000</param>
             <param>Pool=0</param>
@@ -159,7 +146,6 @@
         <files></files>
         <setupType>SingleVM</setupType>
         <testParameters>
-            <param>TC_COVERED=KVP-11</param>
             <param>CycleCount=20</param>
         </testParameters>
         <Platform>HyperV</Platform>
@@ -174,7 +160,6 @@
         <files>.\Tools\kvp_client32,.\Tools\kvp_client64</files>
         <setupType>SingleVM</setupType>
         <TestParameters>
-            <param>TC_COVERED=KVP-12</param>
             <param>Pool=1</param>
             <!-- Number of key pairs to be added in the kvp pool -->
             <param>Entries=250</param>
@@ -365,7 +350,6 @@
         <testScript>Max-vCPU.ps1</testScript>
         <setupType>SingleVM</setupType>
         <TestParameters>
-            <param>TC_COVERED=CORE-11</param>
             <param>vmMemory=4GB</param>
         </TestParameters>
         <Platform>HyperV</Platform>
@@ -378,9 +362,6 @@
         <testName>PAUSED-CRITICAL-HEARTBEAT</testName>
         <testScript>Heartbeat-PausedCritical.ps1</testScript>
         <setupType>SingleVM</setupType>
-        <TestParameters>
-            <param>TC_COVERED=CORE-32</param>
-        </TestParameters>
         <cleanupScript>.\TestScripts\Windows\CLEANUP-Heartbeat-PausedCritical.ps1</cleanupScript>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
@@ -395,7 +376,6 @@
         <files>.\Testscripts\Linux\NUMA_check.sh,.\Testscripts\Linux\utils.sh</files>
         <setupType>SingleVM</setupType>
         <TestParameters>
-            <param>TC_COVERED=CORE-22</param>
             <param>memWeight=0</param>
             <param>VCPU=4</param>
             <param>NumaNodes=1</param>
@@ -414,7 +394,6 @@
         <files>.\Testscripts\Linux\NUMA_check.sh,.\Testscripts\Linux\utils.sh</files>
         <setupType>SingleVM</setupType>
         <TestParameters>
-            <param>TC_COVERED=CORE-23</param>
             <param>VCPU=8</param>
             <param>NumaNodes=4</param>
             <param>Sockets=2</param>
@@ -816,7 +795,6 @@
         <TestParameters>
             <param>NIC_1=NetworkAdapter,External,External</param>
             <param>SWITCH=NetworkAdapter,Private,Private</param>
-            <param>TC_COVERED=NET-09</param>
             <param>STATIC_IP=10.10.10.3</param>
             <param>STATIC_IP2=10.10.10.4</param>
             <param>NETMASK=255.255.255.0</param>

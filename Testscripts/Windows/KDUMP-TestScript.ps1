@@ -163,9 +163,8 @@ function Main {
     }
     $result = RunLinuxCmd -username "root" -password $VMPassword -ip $Ipv4 -port $VMPort `
                 -command "find /var/crash/ -name vmcore -type f -size +10M" -runAsSudo
-	LogMsg "Files found: $result"
+    LogMsg "Files found: $result"
     LogMsg "Test passed: crash file $result is present"
-    # bin\pscp -q -i ssh\${sshKey} root@${ipv4}:summary.log $logdir/${TC_COVERED}_results_pass_summary.log
 
     # Stop NFS server VM
     if ($vm2Name) {

@@ -15,12 +15,6 @@
 #
 #   No parameters required.
 #
-#   Optional parameters:
-#       TC_COVERED
-#
-#   Parameter explanation:
-#   TC_COVERED is the LIS testcase number
-#
 #############################################################################################################
 declare __synth_iface
 declare -a ETHTOOL_KEYS

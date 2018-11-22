@@ -49,7 +49,6 @@
 #        <onError>Abort</onError>
 #        <noReboot>False</noReboot>
 #        <testparams>
-#            <param>TC_COVERED=Provisioning</param>
 #            <param>publicKey=demo_id_rsa.pub</param>
 #        </testparams>
 #    </test>
