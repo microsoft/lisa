@@ -42,7 +42,7 @@ chmod 666 /root/perf_fio.csv
 "@
         Set-Content "$LogDir\StartFioTest.sh" $myString
         Set-Content "$LogDir\ParseFioTestLogs.sh" $myString2
-        RemoteCopy -uploadTo $testVMData.PublicIP -port $testVMData.SSHPort -files ".\$constantsFile,.\$LogDir\StartFioTest.sh,.\$LogDir\ParseFioTestLogs.sh" -username "root" -password $password -upload
+        RemoteCopy -uploadTo $testVMData.PublicIP -port $testVMData.SSHPort -files "$constantsFile,$LogDir\StartFioTest.sh,$LogDir\ParseFioTestLogs.sh" -username "root" -password $password -upload
         RemoteCopy -uploadTo $testVMData.PublicIP -port $testVMData.SSHPort -files $currentTestData.files -username "root" -password $password -upload
         $null = RunLinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -command "chmod +x *.sh" -runAsSudo
         $testJob = RunLinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -command "bash StartFioTest.sh" -RunInBackground -runAsSudo

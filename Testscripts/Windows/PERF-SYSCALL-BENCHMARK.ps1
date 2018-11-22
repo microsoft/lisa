@@ -29,7 +29,7 @@ collect_VM_properties
 "@
 
         Set-Content "$LogDir\StartSysCallBenchmark.sh" $myString
-        RemoteCopy -uploadTo $testVMData.PublicIP -port $testVMData.SSHPort -files ".\$LogDir\StartSysCallBenchmark.sh" -username $superUser -password $password -upload
+        RemoteCopy -uploadTo $testVMData.PublicIP -port $testVMData.SSHPort -files "$LogDir\StartSysCallBenchmark.sh" -username $superUser -password $password -upload
         RunLinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username $superUser -password $password -command "chmod +x *.sh" | Out-Null
         $testJob = RunLinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username $superUser -password $password -command "./StartSysCallBenchmark.sh" -RunInBackground
         #endregion

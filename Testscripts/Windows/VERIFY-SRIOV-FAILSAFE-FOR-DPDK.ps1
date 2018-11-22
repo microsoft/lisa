@@ -125,7 +125,7 @@ cd /root/
 collect_VM_properties
 "@
         Set-Content "$LogDir\StartDpdkTestPmd.sh" $myString
-        RemoteCopy -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files ".\$constantsFile,.\$LogDir\StartDpdkTestPmd.sh" -username $superUser -password $password -upload
+        RemoteCopy -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files "$constantsFile,$LogDir\StartDpdkTestPmd.sh" -username $superUser -password $password -upload
 		$null = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -command "chmod +x *.sh" | Out-Null
 
 		$currentDir = "$LogDir\initialSRIOVTest"

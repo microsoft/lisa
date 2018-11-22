@@ -110,7 +110,7 @@ function Main {
 
         $constantsFile = "$LogDir\constants.sh"
         New-ConstantsFile -filePath $constantsFile
-        RemoteCopy -uploadTo $hs1VIP -port $hs1vm1sshport -files ".\$constantsFile" -username $user -password $password -upload
+        RemoteCopy -uploadTo $hs1VIP -port $hs1vm1sshport -files "$constantsFile" -username $user -password $password -upload
 
         Start-TestExecution -ip $hs1VIP -port $hs1vm1sshport
 
