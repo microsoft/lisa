@@ -108,14 +108,21 @@ function Create-HardDrive( [string] $vmName, [string] $server, [System.Boolean] 
     #
     # Create the .vhd file if it does not already exist, then create the drive and mount the .vhdx
     #
-    $hostInfo = Get-VMHost -ComputerName $server
-    if (-not $hostInfo)
-    {
-        "Error: Unable to collect Hyper-V settings for ${server}"
-        return $False
+    $cluster_vm = Get-ClusterGroup -Name $vmName -ErrorAction SilentlyContinue
+    if ($cluster_vm) {
+        $clusterDir = Get-ClusterSharedVolume
+        $defaultVhdPath = $clusterDir.SharedVolumeInfo.FriendlyVolumeName
+    }
+    else {
+        $hostInfo = Get-VMHost -ComputerName $server
+        if (-not $hostInfo)
+        {
+            LogErr "Unable to collect Hyper-V settings for ${server}"
+            return $False
+        }
+        $defaultVhdPath = $hostInfo.VirtualHardDiskPath
     }
 
-    $defaultVhdPath = $hostInfo.VirtualHardDiskPath
     if (-not $defaultVhdPath.EndsWith("\"))
     {
         $defaultVhdPath += "\"
