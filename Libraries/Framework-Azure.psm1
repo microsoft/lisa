@@ -541,7 +541,7 @@ function SendEmail([XML] $xmlConfig, $body)
 function Usage()
 {
     write-host
-    write-host "  Start automation: AzureAutomationManager.ps1 -xmlConfigFile <xmlConfigFile> -runTests -email -Distro <DistroName> -cycleName <TestCycle>"
+    write-host "  Start automation: AzureAutomationManager.ps1 -xmlConfigFile <xmlConfigFile> -email -Distro <DistroName> -cycleName <TestCycle>"
     write-host
     write-host "         xmlConfigFile : Specifies the configuration for the test environment."
     write-host "         DistroName    : Run tests on the distribution OS image defined in Azure->Deployment->Data->Distro"

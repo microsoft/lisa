@@ -185,7 +185,7 @@ try {
 	$xmlConfig.Save("$TestConfigurationXmlFile")
 	LogMsg "The auto created $TestConfigurationXmlFile has been validated successfully."
 
-	$command = ".\AutomationManager.ps1 -xmlConfigFile '$TestConfigurationXmlFile' -cycleName 'TC-$TestID' -RGIdentifier '$RGIdentifier' -runtests"
+	$command = ".\AutomationManager.ps1 -xmlConfigFile '$TestConfigurationXmlFile' -cycleName 'TC-$TestID' -RGIdentifier '$RGIdentifier'"
 	if ( $CustomKernel) { $command += " -CustomKernel '$CustomKernel'" }
 	if ( $OverrideVMSize ) { $command += " -OverrideVMSize $OverrideVMSize" }
 	if ( $EnableAcceleratedNetworking ) { $command += " -EnableAcceleratedNetworking" }
