@@ -581,6 +581,12 @@ function Run-Test {
 
     $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
     LogMsg "VM CLEANUP ~~~~~~~~~~~~~~~~~~~~~~~"
+    if ($xmlConfig.config.HyperV.Deployment.($CurrentTestData.setupType).ClusteredVM) {
+        foreach ($VM in $AllVMData) {
+            Add-VMGroupMember -Name $VM.HyperVGroupName -VM (Get-VM -name $VM.RoleName -ComputerName $VM.HyperVHost) `
+                -ComputerName $VM.HyperVHost
+        }
+    }
     $optionalParams = @{}
     if ($testParameters["SkipVerifyKernelLogs"] -eq "True") {
         $optionalParams["SkipVerifyKernelLogs"] = $True

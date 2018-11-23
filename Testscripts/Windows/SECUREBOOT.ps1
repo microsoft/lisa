@@ -68,7 +68,7 @@ function Enable-VMMigration([String] $vmName)
     #
     # Check if Secure Boot is enabled
     #
-    $firmwareSettings = Get-VMFirmware -VMName $vmName
+    $firmwareSettings = Get-VMFirmware -VMName $vmName -ComputerName $destinationNode
     if ($firmwareSettings.SecureBoot -ne "On") {
         LogErr "Secure boot settings changed"
         return $False

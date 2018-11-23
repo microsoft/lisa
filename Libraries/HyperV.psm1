@@ -60,6 +60,11 @@ Function DeployHyperVGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFailed =
                     $retValue = $NULL
                 }
             }
+            if ($xmlConfig.config.HyperV.Deployment.($CurrentTestData.setupType).ClusteredVM) {
+                foreach ($VM in $allVMData) {
+                    Remove-VMGroupMember -Name $VM.HyperVGroupName -VM $(Get-VM -name $VM.RoleName -ComputerName $VM.HyperVHost)
+                }
+            }
         }
         else
         {
@@ -114,7 +119,12 @@ Function CreateAllHyperVGroupDeployments($setupType, $xmlConfig, $Distro, $Debug
             }
 
             $SourceOsVHDPath = $xmlConfig.config.HyperV.Hosts.ChildNodes[$index].SourceOsVHDPath
-            $DestinationOsVHDPath = $xmlConfig.config.HyperV.Hosts.ChildNodes[$index].DestinationOsVHDPath
+            if ($setupTypeData.ClusteredVM) {
+                $ClusterVolume = Get-ClusterSharedVolume
+                $DestinationOsVHDPath = $ClusterVolume.SharedVolumeInfo.FriendlyVolumeName
+            } else {
+                $DestinationOsVHDPath = $xmlConfig.config.HyperV.Hosts.ChildNodes[$index].DestinationOsVHDPath
+            }
             $index++
             $readyToDeploy = $false
             while (!$readyToDeploy)
@@ -281,6 +291,35 @@ Function DeleteHyperVGroup([string]$HyperVGroupName, [string]$HyperVHost) {
         }
         Remove-VM -Name $vm.Name -ComputerName $HyperVHost -Force
         LogMsg "Hyper-V VM $($vm.Name) removed!"
+        if ($xmlConfig.config.HyperV.Deployment.($CurrentTestData.setupType).ClusteredVM) {
+            LogMsg "Deleting VM on Cluster"
+            Get-Command "Get-ClusterResource" -ErrorAction SilentlyContinue
+            if ($?) {
+                $group = Get-ClusterGroup -ErrorAction SilentlyContinue
+                $MatchedVM = $group -match $vm.Name
+                foreach ($vm in $MatchedVM) {
+                    Remove-ClusterGroup -Name $vm.name -RemoveResources -Force
+                    if (-not $?) {
+                        LogErr "Failed to remove Cluster Role for VM $vm"
+                        return $False
+                    }
+                    LogMsg "Cleanup was successful for $vm on Cluster"
+                }
+                # Also remove VM from other node if it's located there
+                if (Get-ClusterGroup -ErrorAction SilentlyContinue){
+                    $currentNode = (Get-Clusternode -Name $env:computername).Name.ToLower()
+                    $clusterNodes = Get-ClusterNode
+                    foreach ( $Node in $clusterNodes) {
+	                    if ($currentNode -ne $Node.Name.ToLower()) {
+		                    $destinationNode = $Node.Name.ToLower()
+		                    if (Get-VM -Name $vm.Name -ComputerName $destinationNode -ErrorAction SilentlyContinue) {
+			                    Remove-VM $vm.Name -ComputerName $destinationNode -Force
+				    }
+	                    }
+                    }
+                }
+            }
+        }
     }
 
     LogMsg "Hyper-V VM group ${HyperVGroupName} is being removed!"
@@ -336,7 +375,12 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML, 
                 $hostNumber = $HyperVGroupXML.VirtualMachine.indexOf($VirtualMachine)
                 $HyperVHost = $xmlConfig.config.HyperV.Hosts.ChildNodes[$hostNumber].ServerName
                 $SourceOsVHDPath = $xmlConfig.config.HyperV.Hosts.ChildNodes[$hostNumber].SourceOsVHDPath
-                $DestinationOsVHDPath = $xmlConfig.config.HyperV.Hosts.ChildNodes[$hostNumber].DestinationOsVHDPath
+                if ($xmlConfig.config.HyperV.Deployment.($CurrentTestData.setupType).ClusteredVM) {
+                    $ClusterVolume = Get-ClusterSharedVolume
+                    $DestinationOsVHDPath = $ClusterVolume.SharedVolumeInfo.FriendlyVolumeName
+                } else {
+                    $DestinationOsVHDPath = $xmlConfig.config.HyperV.Hosts.ChildNodes[$hostNumber].DestinationOsVHDPath
+                }
             }
             $vhdSuffix = [System.IO.Path]::GetExtension($OsVHD)
             $InterfaceAliasWithInternet = (Get-NetIPConfiguration -ComputerName $HyperVHost | Where-Object {$_.NetProfile.Name -ne 'Unidentified network'}).InterfaceAlias
@@ -460,6 +504,14 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML, 
             } else {
                 LogMsg "Prerequiste: Prepare OS Disk $CurrentVMOsVHDPath - Failed."
                 $ErrorCount += 1
+            }
+            if ($xmlConfig.config.HyperV.Deployment.($CurrentTestData.setupType).ClusteredVM) {
+                Move-VMStorage $CurrentVMName -DestinationStoragePath $DestinationOsVHDPath
+                Add-ClusterVirtualMachineRole -VirtualMachine $CurrentVMName
+                if ($? -eq $False) {
+                    LogErr "High Availability configure for VM ${CurrentVMName} could not be added to the Hyper-V cluster"
+                    $ErrorCount += 1
+                }
             }
         }
     }
