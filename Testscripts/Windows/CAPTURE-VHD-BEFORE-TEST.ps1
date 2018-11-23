@@ -10,21 +10,36 @@ function Main {
         $testResult = $null
         $captureVMData = $allVMData
         # region CONFIGURE VM FOR N SERIES GPU TEST
-        LogMsg "Test VM details :"
-        LogMsg "  RoleName : $($captureVMData.RoleName)"
-        LogMsg "  Public IP : $($captureVMData.PublicIP)"
-        LogMsg "  SSH Port : $($captureVMData.SSHPort)"
+        LogMsg "Test VM details:"
+        LogMsg "    RoleName: $($captureVMData.RoleName)"
+        LogMsg "    Public IP: $($captureVMData.PublicIP)"
+        LogMsg "    SSH Port: $($captureVMData.SSHPort)"
         # endregion
+
         # region Deprovision the VM.
         LogMsg "Deprovisioning $($captureVMData.RoleName)"
-        $null = RunLinuxCmd -ip $captureVMData.PublicIP -port $captureVMData.SSHPort -username $user -password $password -command "waagent -deprovision --force" -runAsSudo
+        # Note(v-advlad): Running remote commands might not work after deprovision,
+        # so we need to detect the distro vefore deprovisioning
+        $detectedDistro = DetectLinuxDistro -VIP $captureVMData.PublicIP -SSHport $captureVMData.SSHPort `
+            -testVMUser $user -testVMPassword $password
+        RunLinuxCmd -ip $captureVMData.PublicIP -port $captureVMData.SSHPort `
+            -username $user -password $password -command "waagent -deprovision --force" `
+            -runAsSudo | Out-Null
+
         # Note(v-asofro): required for Ubuntu Bionic
         # Similar issue: https://github.com/Azure/WALinuxAgent/issues/1359
-        $null = RunLinuxCmd -ip $captureVMData.PublicIP -port $captureVMData.SSHPort -username $user -password $password `
-                -command " lsb_release --codename | grep bionic && sed -i 's/Provisioning.Enabled=n/Provisioning.Enabled=y/g' /etc/waagent.conf | sed -i 's/Provisioning.UseCloudInit=y/Provisioning.UseCloudInit=n/g' /etc/waagent.conf " `
-                -ignoreLinuxExitCode -runAsSudo
+        if ($detectedDistro -eq "UBUNTU") {
+            try {
+                RunLinuxCmd -ip $captureVMData.PublicIP -port $captureVMData.SSHPort -username $user -password $password `
+                    -command " lsb_release --codename | grep bionic && sed -i 's/Provisioning.Enabled=n/Provisioning.Enabled=y/g' /etc/waagent.conf | sed -i 's/Provisioning.UseCloudInit=y/Provisioning.UseCloudInit=n/g' /etc/waagent.conf " `
+                    -ignoreLinuxExitCode -runAsSudo | Out-Null
+            } catch {
+                LogInfo "Could not potentialy fix Ubuntu Bionic waagent. Continue execution..."
+            }
+        }
         LogMsg "Deprovisioning done."
         # endregion
+
         LogMsg "Shutting down VM.."
         $null = Stop-AzureRmVM -Name $captureVMData.RoleName -ResourceGroupName $captureVMData.ResourceGroupName -Force -Verbose
         LogMsg "Shutdown successful."
