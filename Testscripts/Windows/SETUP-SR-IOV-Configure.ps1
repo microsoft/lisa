@@ -32,16 +32,16 @@ function Set-VFInGuest {
         return $False
     }
     RunLinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort -command "cp sriov_constants.sh constants.sh"
-    # Configure VF
-    RunLinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort -command ". SR-IOV-Utils.sh; ConfigureVF $VMNumber"
-    if (-not $?) {
-        LogErr "Failed to configure VF on $VMName"
-        return $False
-    }
     # Install dependencies
     RunLinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort -command ". SR-IOV-Utils.sh; InstallDependencies"
     if (-not $?) {
         LogErr "Failed to install dependencies on $VMName"
+        return $False
+    }
+    # Configure VF
+    RunLinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort -command ". SR-IOV-Utils.sh; ConfigureVF $VMNumber"
+    if (-not $?) {
+        LogErr "Failed to configure VF on $VMName"
         return $False
     }
     # Check VF

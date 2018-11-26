@@ -155,7 +155,9 @@ ConfigureVF()
             echo "iface eth$__iterator inet static" >> $__file_path
             echo "address $staticIP" >> $__file_path
             echo "netmask $NETMASK" >> $__file_path
-            ifup eth$__iterator
+
+            ip link set eth$__iterator up
+            ip addr add ${staticIP}/$NETMASK dev eth$__iterator
 
         elif is_suse ; then
             __file_path="/etc/sysconfig/network/ifcfg-eth$__iterator"
@@ -169,7 +171,8 @@ ConfigureVF()
             echo "NETMASK=$NETMASK" >> $__file_path
             echo "STARTMODE=auto" >> $__file_path
 
-            ifup eth$__iterator
+            ip link set eth$__iterator up
+            ip addr add ${staticIP}/$NETMASK dev eth$__iterator
 
         elif is_fedora ; then
             __file_path="/etc/sysconfig/network-scripts/ifcfg-eth$__iterator"
@@ -183,7 +186,8 @@ ConfigureVF()
             echo "NETMASK=$NETMASK" >> $__file_path
             echo "ONBOOT=yes" >> $__file_path
 
-            ifup eth$__iterator
+            ip link set eth$__iterator up
+            ip addr add ${staticIP}/$NETMASK dev eth$__iterator
         fi
         LogMsg "Network config file path: $__file_path"
 
