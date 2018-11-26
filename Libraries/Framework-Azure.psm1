@@ -276,8 +276,31 @@ Function UpdateXMLStringsFromSecretsFile($XmlSecretsFilePath)
 	LogMsg "Updated Test Case xml files."
 }
 
+Function Match-TestPriority($currentTest)
+{
+    if( -not $TestPriority ) {
+        return $True
+    }
+
+    $priorityInXml = $currentTest.Priority
+    if (-not $priorityInXml) {
+        LogMsg "Warning: Priority of $($currentTest.TestName) is not defined, set its priority 1 by default."
+        $priorityInXml = 1
+    }
+    foreach( $priority in $TestPriority.Split(",") ) {
+        if ($priorityInXml -eq $priority) {
+            return $True
+        }
+    }
+    return $False
+}
+
 Function CollectTestCases($TestXMLs)
 {
+    if ( $TestCategory -eq "All") { $TestCategory = "" }
+    if ( $TestArea -eq "All") { $TestArea = "" }
+    if ( $TestNames -eq "All") { $TestNames = "" }
+    if ( $TestTag -eq "All") { $TestTag = "" }
     $AllLisaTests = @()
     if ( $TestPlatform -and !$TestCategory -and !$TestArea -and !$TestNames -and !$TestTag)
     {
@@ -290,8 +313,11 @@ Function CollectTestCases($TestXMLs)
                 {
                     if ($test.Platform.Split(",").Contains($TestPlatform) )
                     {
-                        LogMsg "Collected $($test.TestName)"
-                        $AllLisaTests += $test
+                        $status = Match-TestPriority -currentTest $test
+                        if ($status) {
+                            LogMsg "Collected $($test.TestName)"
+                            $AllLisaTests += $test
+                        }
                     }
                 }
             }
@@ -309,8 +335,11 @@ Function CollectTestCases($TestXMLs)
                 {
                     if ( ($test.Platform.Split(",").Contains($TestPlatform) ) -and $($TestCategory -eq $test.Category) )
                     {
-                        LogMsg "Collected $($test.TestName)"
-                        $AllLisaTests += $test
+                        $status = Match-TestPriority -currentTest $test
+                        if ($status) {
+                            LogMsg "Collected $($test.TestName)"
+                            $AllLisaTests += $test
+                        }
                     }
                 }
             }
@@ -329,8 +358,11 @@ Function CollectTestCases($TestXMLs)
                     if (($test.Platform.Split(",").Contains($TestPlatform) ) -and $($TestCategory -eq $test.Category) `
                         -and $($TestArea.Split(",").Contains($test.Area)))
                     {
-                        LogMsg "Collected $($test.TestName)"
-                        $AllLisaTests += $test
+                        $status = Match-TestPriority -currentTest $test
+                        if ($status) {
+                            LogMsg "Collected $($test.TestName)"
+                            $AllLisaTests += $test
+                        }
                     }
                 }
             }
@@ -348,8 +380,11 @@ Function CollectTestCases($TestXMLs)
                 {
                     if ( ($test.Platform.Split(",").Contains($TestPlatform) ) -and $($TestCategory -eq $test.Category) -and $($TestArea -eq $test.Area) -and ($TestNames.Split(",").Contains($test.TestName) ) )
                     {
-                        LogMsg "Collected $($test.TestName)"
-                        $AllLisaTests += $test
+                        $status = Match-TestPriority -currentTest $test
+                        if ($status) {
+                            LogMsg "Collected $($test.TestName)"
+                            $AllLisaTests += $test
+                        }
                     }
                 }
             }
@@ -366,8 +401,11 @@ Function CollectTestCases($TestXMLs)
                 {
                     if ( ($test.Platform.Split(",").Contains($TestPlatform) ) -and ($TestNames.Split(",").Contains($test.TestName) ) )
                     {
-                        LogMsg "Collected $($test.TestName)"
-                        $AllLisaTests += $test
+                        $status = Match-TestPriority -currentTest $test
+                        if ($status) {
+                            LogMsg "Collected $($test.TestName)"
+                            $AllLisaTests += $test
+                        }
                     }
                 }
             }
@@ -385,8 +423,11 @@ Function CollectTestCases($TestXMLs)
                 {
                     if ( ($test.Platform.Split(",").Contains($TestPlatform) ) -and ( $test.Tags.Split(",").Contains($TestTag) ) )
                     {
-                        LogMsg "Collected $($test.TestName)"
-                        $AllLisaTests += $test
+                        $status = Match-TestPriority -currentTest $test
+                        if ($status) {
+                            LogMsg "Collected $($test.TestName)"
+                            $AllLisaTests += $test
+                        }
                     }
                 }
             }
@@ -399,6 +440,7 @@ Function CollectTestCases($TestXMLs)
         LogError "TestArea : $TestArea"
         LogError "TestNames : $TestNames"
         LogError "TestTag : $TestTag"
+        LogError "TestPriority : $TestPriority"
         Throw "Invalid Test Selection"
     }
     return $AllLisaTests
