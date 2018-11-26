@@ -4,7 +4,7 @@
 
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-$moduleName = "Framework-HyperV"
+$moduleName = "LISAV2-Framework"
 $modulePath = Join-Path $here "../../Libraries/${moduleName}.psm1"
 
 if (Get-Module $moduleName -ErrorAction SilentlyContinue) {

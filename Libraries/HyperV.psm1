@@ -925,3 +925,112 @@ Function Get-VMDemandMemory {
     LogErr "Get-VMDemandMemory: VM ${VMName} did not get demand within timeout period ($Timeout)"
     return $False
 }
+
+function Create-HyperVCheckpoint {
+    <#
+    .DESCRIPTION
+    Creates new checkpoint for each VM in deployment.
+    Supports Hyper-V only.
+    #>
+
+    param(
+        $VMData,
+        [string]$CheckpointName
+    )
+
+    foreach ($VM in $VMData) {
+        Stop-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -TurnOff -Force
+        Set-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -CheckpointType Standard
+        Checkpoint-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -SnapshotName $CheckpointName
+        $msg = ("Checkpoint:{0} created for VM:{1}" `
+                 -f @($CheckpointName,$VM.RoleName))
+        LogMsg $msg
+        Start-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost
+    }
+}
+
+function Apply-HyperVCheckpoint {
+    <#
+    .DESCRIPTION
+    Applies existing checkpoint to each VM in deployment.
+    Supports Hyper-V only.
+    #>
+
+    param(
+        $VMData,
+        [string]$CheckpointName
+    )
+
+    foreach ($VM in $VMData) {
+        Stop-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -TurnOff -Force
+        Restore-VMSnapshot -Name $CheckpointName -VMName $VM.RoleName -ComputerName $VM.HyperVHost -Confirm:$false
+        $msg = ("VM:{0} restored to checkpoint: {1}" `
+                 -f ($VM.RoleName,$CheckpointName))
+        LogMsg $msg
+        Start-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost
+    }
+}
+
+function Check-IP {
+    <#
+    .DESCRIPTION
+    Checks if the IP exists (and SSH port is open) for each VM in deployment.
+    Return a structure (similar to AllVMData) with updated information.
+    Supports Hyper-V only.
+    #>
+
+    param(
+        $VMData,
+        [string]$SSHPort,
+        [int]$Timeout = 300
+    )
+
+    $newVMData = @()
+    $runTime = 0
+
+    while ($runTime -le $Timeout) {
+        foreach ($VM in $VMData) {
+            if ($VM.RoleName -match "dependency") {
+                Set-Variable -Name DependencyVmName -Value $VM.RoleName -Scope Global
+                Set-Variable -Name DependencyVmHost -Value $VM.HyperVHost -Scope Global
+                continue
+            }
+            $publicIP = ""
+            while (-not $publicIP) {
+                LogMsg "$($VM.RoleName) : Waiting for IP address..."
+                $vmNic = Get-VM -Name $VM.RoleName -ComputerName `
+                    $VM.HyperVHost | Get-VMNetworkAdapter
+                if ($vmNic.Length -gt 1){
+                   $vmNic = $vmNic[0]
+                }
+                $vmIP = $vmNic.IPAddresses[0]
+                if ($vmIP) {
+                    $vmIP = $([ipaddress]$vmIP.trim()).IPAddressToString
+                    if($IsWindows){
+                        $port = $($VM.RDPPort)
+                    } else {
+                        $port = $($VM.SSHPort)
+                    }
+                    $sshConnected = Test-TCP -testIP $($vmIP) -testport $port
+                    if ($sshConnected -eq "True") {
+                        $publicIP = $vmIP
+                    }
+                }
+                if (-not $publicIP) {
+                    Start-Sleep 5
+                    $runTime += 5
+                }
+            }
+            $VM.PublicIP = $publicIP
+            $newVMData += $VM
+        }
+        break
+    }
+
+    if ($runTime -gt $Timeout) {
+        LogMsg "Cannot find IP for one or more VMs"
+        throw "Cannot find IP for one or more VMs"
+    } else {
+        return $newVMData
+    }
+}
