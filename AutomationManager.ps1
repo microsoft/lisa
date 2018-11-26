@@ -21,6 +21,8 @@
 	Azure login
 #>
 ###############################################################################################
+using Module .\Libraries\LogProcessing.psm1
+
 param (
 [CmdletBinding()]
 [string] $xmlConfigFile,
@@ -37,6 +39,7 @@ param (
 [string] $ExistingResourceGroup,
 [switch] $CleanupExistingRG,
 [string] $XMLSecretFile,
+[string] $TestReportXmlPath,
 
 # Experimental Feature
 [switch] $UseManagedDisks,
@@ -48,7 +51,7 @@ param (
 [switch] $ForceDeleteResources
 )
 
-Function Run-TestsOnCycle ([string] $cycleName, [xml] $xmlConfig, [string] $Distro, [int] $TestIterations, [bool] $deployVMPerEachTest) {
+Function Run-TestsOnCycle ([string] $cycleName, [xml] $xmlConfig, [string] $Distro, [int] $TestIterations, [bool] $deployVMPerEachTest, [string] $TestReportXmlPath) {
 	LogMsg "Starting the Cycle - $($CycleName.ToUpper())"
 	$executionCount = 0
 
@@ -112,16 +115,8 @@ Function Run-TestsOnCycle ([string] $cycleName, [xml] $xmlConfig, [string] $Dist
 	$testSuiteResultDetails = @{"totalTc"=0;"totalPassTc"=0;"totalFailTc"=0;"totalAbortedTc"=0}
 
 	# Start JUnit XML report logger.
-	$reportFolder = "$pwd/Report"
-	if(!(Test-Path $reportFolder)) {
-		New-Item -ItemType "Directory" $reportFolder
-	}
-
-	$TestReportXml = Join-Path "$reportFolder" "LISAv2_TestReport_$TestID.xml"
-	Set-Variable -Name TestReportXml -Value $TestReportXml -Scope Global -Force
-
-	StartLogReport($TestReportXml)
-	$testsuite = StartLogTestSuite "CloudTesting"
+	$junitReport = [JUnitReportGenerator]::New($TestReportXmlPath)
+	$junitReport.StartLogTestSuite("LISAv2Test")
 
 	$VmSetup = @()
 	$overrideVmSizeList = @()
@@ -172,7 +167,6 @@ Function Run-TestsOnCycle ([string] $cycleName, [xml] $xmlConfig, [string] $Dist
 		for ( $testIterationCount = 1; $testIterationCount -le $TestIterations; $testIterationCount ++ ) {
 			if ( $TestIterations -ne 1 ) {
 				$currentTestData.testName = "$($originalTestName)-$testIterationCount"
-				$test.Name = "$($originalTestName)-$testIterationCount"
 			}
 
 			if ($deployVMPerEachTest) {
@@ -190,26 +184,23 @@ Function Run-TestsOnCycle ([string] $cycleName, [xml] $xmlConfig, [string] $Dist
 			}
 
 			if ($currentTestData) {
+				$currentTestName = $currentTestData.testName
 				if (!( $currentTestData.Platform.Contains($xmlConfig.config.CurrentTestPlatform))) {
-					LogMsg "$($currentTestData.testName) does not support $($xmlConfig.config.CurrentTestPlatform) platform."
+					LogMsg "$currentTestName does not support $($xmlConfig.config.CurrentTestPlatform) platform."
 					continue;
 				}
 
 				if(($testPriority -imatch $currentTestData.Priority ) -or (!$testPriority))	{
-					$CurrentTestLogDir = "$LogDir\$($currentTestData.testName)"
+					$CurrentTestLogDir = "$LogDir\$currentTestName"
 					New-Item -Type Directory -Path $CurrentTestLogDir -ErrorAction SilentlyContinue | Out-Null
 					Set-Variable -Name "CurrentTestLogDir" -Value $CurrentTestLogDir -Scope Global
 					Set-Variable -Name "LogDir" -Value $CurrentTestLogDir -Scope Global
-					$TestCaseLogFile = "$CurrentTestLogDir\$LogFileName"
-					$testcase = StartLogTestCase $testsuite "$($test.Name)" "CloudTesting.$($testCycle.cycleName)"
-					$testSuiteResultDetails.totalTc = $testSuiteResultDetails.totalTc +1
-					$stopWatch = SetStopWatch
+					$junitReport.StartLogTestCase("LISAv2Test","$currentTestName","$($testCycle.cycleName)")
 
 					Set-Variable -Name currentTestData -Value $currentTestData -Scope Global
 					try	{
 						$testResult = @()
-						LogMsg "~~~~~~~~~~~~~~~TEST STARTED : $($currentTestData.testName)~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-						LogMsg "Starting multiple tests : $($currentTestData.testName)"
+						LogMsg "~~~~~~~~~~~~~~~TEST STARTED : $currentTestName~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
 						$CurrentTestResult = Run-Test -CurrentTestData $currentTestData -XmlConfig $xmlConfig `
 							-Distro $Distro -LogDir $CurrentTestLogDir -VMUser $user -VMPassword $password `
@@ -226,59 +217,18 @@ Function Run-TestsOnCycle ([string] $cycleName, [xml] $xmlConfig, [string] $Dist
 						LogErr "Source : Line $line in script $script_name."
 					}
 					finally	{
-						try {
-							$tempHtmlText = ($testSummary).Substring(0,((($testSummary).Length)-6))
-						}
-						catch {
-							$tempHtmlText = "Unable to parse the results."
-						}
-						$executionCount += 1
-						$testRunDuration = GetStopWatchElapasedTime $stopWatch "mm"
-						$testRunDuration = $testRunDuration.ToString()
-						if ( -not $SummaryHeaderAdded ) {
-							$testCycle.emailSummary += "{0,5} {1,-50} {2,20} {3,20} <br />" -f "ID", "TestCaseName", "TestResult", "TestDuration(in minutes)"
-							$testCycle.emailSummary += "------------------------------------------------------------------------------------------------------<br />"
-							$SummaryHeaderAdded = $true
-						}
-						$testCycle.emailSummary += "{0,5} {1,-50} {2,20} {3,20} <br />" -f "$executionCount", "$($currentTestData.testName)", "$testResult", "$testRunDuration"
-						if ( $testSummary ) {
-							$testCycle.emailSummary += "$($testSummary)"
-						}
-						LogMsg "~~~~~~~~~~~~~~~TEST END : $($currentTestData.testName)~~~~~~~~~~"
-						$CurrentTestLogDir = $null
-						Set-Variable -Name CurrentTestLogDir -Value $null -Scope Global -Force
+						LogMsg "~~~~~~~~~~~~~~~TEST END : $currentTestName~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 					}
-					if($testResult -imatch "PASS") {
-						$testSuiteResultDetails.totalPassTc = $testSuiteResultDetails.totalPassTc +1
-						$testResultRow = "<span style='color:green;font-weight:bolder'>PASS</span>"
-						FinishLogTestCase $testcase
-						$testCycle.htmlSummary += "<tr><td><font size=`"3`">$executionCount</font></td><td>$tempHtmlText</td><td>$testRunDuration min</td><td>$testResultRow</td></tr>"
-					}
-					elseif($testResult -imatch "FAIL") {
-						$testSuiteResultDetails.totalFailTc = $testSuiteResultDetails.totalFailTc +1
-						$caseLog = Get-Content -Raw $TestCaseLogFile
-						$testResultRow = "<span style='color:red;font-weight:bolder'>FAIL</span>"
-						FinishLogTestCase $testcase "FAIL" "$($test.Name) failed." $caseLog
-						$testCycle.htmlSummary += "<tr><td><font size=`"3`">$executionCount</font></td><td>$tempHtmlText$(AddReproVMDetailsToHtmlReport)</td><td>$testRunDuration min</td><td>$testResultRow</td></tr>"
-					}
-					elseif($testResult -imatch "ABORTED") {
-						$testSuiteResultDetails.totalAbortedTc = $testSuiteResultDetails.totalAbortedTc +1
-						$caseLog = Get-Content -Raw $TestCaseLogFile
-						$testResultRow = "<span style='background-color:yellow;font-weight:bolder'>ABORT</span>"
-						FinishLogTestCase $testcase "ERROR" "$($test.Name) is aborted." $caseLog
-						$testCycle.htmlSummary += "<tr><td><font size=`"3`">$executionCount</font></td><td>$tempHtmlText$(AddReproVMDetailsToHtmlReport)</td><td>$testRunDuration min</td><td>$testResultRow</td></tr>"
-					}
-					else {
-						LogErr "Test Result is empty."
-						$testSuiteResultDetails.totalAbortedTc = $testSuiteResultDetails.totalAbortedTc +1
-						$caseLog = Get-Content -Raw $TestCaseLogFile
-						$testResultRow = "<span style='background-color:yellow;font-weight:bolder'>ABORT</span>"
-						FinishLogTestCase $testcase "ERROR" "$($test.Name) is aborted." $caseLog
-						$testCycle.htmlSummary += "<tr><td><font size=`"3`">$executionCount</font></td><td>$tempHtmlText$(AddReproVMDetailsToHtmlReport)</td><td>$testRunDuration min</td><td>$testResultRow</td></tr>"
-					}
-					LogMsg "CURRENT - PASS    - $($testSuiteResultDetails.totalPassTc)"
-					LogMsg "CURRENT - FAIL    - $($testSuiteResultDetails.totalFailTc)"
-					LogMsg "CURRENT - ABORTED - $($testSuiteResultDetails.totalAbortedTc)"
+					$executionCount += 1
+					$testRunDuration = $junitReport.GetTestCaseElapsedTime("LISAv2Test","$currentTestName","mm")
+					Update-TestSummaryForCase -TestName $currentTestName -ExecutionCount $executionCount -TestResult $testResult -TestCycle $testCycle -TestCase $testcase `
+						-ResultDetails $testSuiteResultDetails -Duration $testRunDuration.ToString() -TestSummary $testSummary -AddHeader (-not $SummaryHeaderAdded)
+					$SummaryHeaderAdded = $true
+
+					$TestCaseLogFile = "$CurrentTestLogDir\$LogFileName"
+					$caseLog = Get-Content -Raw $TestCaseLogFile
+					$junitReport.CompleteLogTestCase("LISAv2Test","$currentTestName",$testResult,$caseLog)
+
 					#Back to Test Suite Main Logging
 					$global:LogFile = $testSuiteLogFile
 					$currentJobs = Get-Job
@@ -294,10 +244,10 @@ Function Run-TestsOnCycle ([string] $cycleName, [xml] $xmlConfig, [string] $Dist
 						}
 					}
 				} else {
-					LogMsg "Skipping $($currentTestData.Priority) test : $($currentTestData.testName)"
+					LogMsg "Skipping $($currentTestData.Priority) test : $currentTestName"
 				}
 			} else {
-				LogErr "No Test Data found for $($test.Name).."
+				LogErr "No Test Data found for $currentTestName.."
 			}
 		}
 	}
@@ -334,8 +284,8 @@ Function Run-TestsOnCycle ([string] $cycleName, [xml] $xmlConfig, [string] $Dist
 	LogMsg "Removed $($azureContextFiles.Count) context files."
 	LogMsg "Cycle Finished.. $($CycleName.ToUpper())"
 
-	FinishLogTestSuite($testsuite)
-	FinishLogReport $True
+	$junitReport.CompleteLogTestSuite("LISAv2Test")
+	$junitReport.SaveLogReport()
 
 	$testSuiteResultDetails
 }
@@ -484,7 +434,7 @@ try {
 	}
 
 	$testCycle = GetCurrentCycleData -xmlConfig $xmlConfig -cycleName $cycleName
-	$testSuiteResultDetails = Run-TestsOnCycle -xmlConfig $xmlConfig -Distro $Distro -cycleName $cycleName -TestIterations $TestIterations  -DeployVMPerEachTest $DeployVMPerEachTest
+	$testSuiteResultDetails = Run-TestsOnCycle -xmlConfig $xmlConfig -Distro $Distro -cycleName $cycleName -TestIterations $TestIterations  -DeployVMPerEachTest $DeployVMPerEachTest -TestReportXmlPath $TestReportXmlPath
 	$testSuiteResultDetails = $testSuiteResultDetails | Select-Object -Last 1
 	$logDirFilename = [System.IO.Path]::GetFilenameWithoutExtension($xmlConfigFile)
 	$summaryAll = GetTestSummary -testCycle $testCycle -StartTime $testStartTime -xmlFileName $logDirFilename -distro $Distro -testSuiteResultDetails $testSuiteResultDetails
