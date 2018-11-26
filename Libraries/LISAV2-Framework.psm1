@@ -1371,6 +1371,10 @@ Function Do-TestCleanUp($CurrentTestResult, $testName, $DeployedServices, $Resou
 							Get-VMLogs -allVMData $allVMData
 						}
 						$isVMLogsCollected = $true
+						if ($TestPlatform -eq "HyperV") {
+							Create-HyperVCheckpoint -VMData $AllVMData -CheckpointName "${testName}-$($CurrentTestResult.TestResult)" `
+								-ShouldTurnOffVMBeforeCheckpoint $false -ShouldTurnOnVMAfterCheckpoint $false
+						}
 					}
 				}
 			}
