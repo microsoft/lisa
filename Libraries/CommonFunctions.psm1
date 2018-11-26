@@ -987,15 +987,6 @@ Function DeployVMs ($xmlConfig, $setupType, $Distro, $getLogsIfFailed = $false, 
 			$retValue = ""
 		}
 	}
-	if ( $retValue -and $resizeVMsAfterDeployment)
-	{
-		$SRIOVStatus = EnableSRIOVInAllVMs -allVMData $allVMData
-		if ( $SRIOVStatus -ne "True" )
-		{
-			LogError "Failed to enable Accelerated Networking. Aborting tests."
-			$retValue = ""
-		}
-	}
 	return $retValue
 }
 
