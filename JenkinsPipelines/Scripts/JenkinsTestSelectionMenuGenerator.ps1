@@ -154,7 +154,8 @@ LogMsg "Validating TestByTestnameQuick.txt..."
 LogMsg "Done"
 
 $TestByTestnameDetailed =  "platform`tcategory`tarea`ttestname`tregion`n"
-#Generate Jenkins File
+
+# Generate Jenkins file
 foreach ( $platform in $Platforms )
 {
     $CurrentCategories = ($xmlData.test | Where-Object { $_.Platform.Contains($platform) }).Category | Sort-Object | Get-Unique

@@ -41,14 +41,14 @@ $ExitCode = 0
 try
 {
 
-    #Prerequisites:
+    # Prerequisites check
     if (!(Test-Path $CurrentLocalFolder))
     {
         New-Item -Path $CurrentLocalFolder -ItemType Directory -Force | Out-Null
     }
     LogMsg "Directory : $CurrentLocalFolder is available."
 
-    #region VALIDATE ARGUMENTS
+    # region VALIDATE ARGUMENTS
     if ( $env:CustomKernelFile -and $env:CustomKernelURL )
     {
         LogError "Please provide either 'CustomKernelFile' or 'CustomKernelURL'."
@@ -156,7 +156,7 @@ try
     }
     else
     {
-        LogError "No value provided for paramter 'CustomKernelFile' or 'CustomKernelURL'."
+        LogError "No value provided for parameter 'CustomKernelFile' or 'CustomKernelURL'."
         $ExitCode = 1
     }
 }
