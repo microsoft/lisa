@@ -24,7 +24,6 @@
 param (
 [CmdletBinding()]
 [string] $xmlConfigFile,
-[switch] $eMail,
 [string] $RGIdentifier,
 [string] $cycleName,
 [string] $TestPriority,
@@ -497,9 +496,6 @@ try {
 	$PlainTextSummary = $PlainTextSummary.Replace("</pre>", "")
 	LogMsg  "$PlainTextSummary"
 
-	if($eMail){
-		SendEmail $xmlConfig -body $HtmlTextSummary
-	}
 } catch {
 	ThrowException($_)
 } Finally {

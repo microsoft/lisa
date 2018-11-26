@@ -538,16 +538,6 @@ function SendEmail([XML] $xmlConfig, $body)
 	Send-mailMessage -to $to -from $from -subject $subject -body $body -smtpserver $smtpServer -BodyAsHtml
 }
 
-function Usage()
-{
-    write-host
-    write-host "  Start automation: AzureAutomationManager.ps1 -xmlConfigFile <xmlConfigFile> -email -Distro <DistroName> -cycleName <TestCycle>"
-    write-host
-    write-host "         xmlConfigFile : Specifies the configuration for the test environment."
-    write-host "         DistroName    : Run tests on the distribution OS image defined in Azure->Deployment->Data->Distro"
-    write-host "         -help         : Displays this help message."
-    write-host
-}
 Function GetCurrentCycleData($xmlConfig, $cycleName)
 {
     foreach ($Cycle in $xmlConfig.config.testCycles.Cycle )
