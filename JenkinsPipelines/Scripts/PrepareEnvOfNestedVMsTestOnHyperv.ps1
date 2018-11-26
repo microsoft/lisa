@@ -21,10 +21,13 @@ param(
 	[string]$vmNamesToBeRemoved,
 	[string]$srcPath = "",
 	[string]$dstPath = "",
+	[switch]$enable_Network,
+	$LogFileName = "PrepareEnvOfNestedVMsTestOnHyperv.log",
 	$user,
-	$passwd,
-	[switch]$enable_Network
+	$passwd
 )
+
+Set-Variable -Name LogFileName -Value $LogFileName -Scope Global -Force
 
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | `
      ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
@@ -83,7 +86,7 @@ Function Get-OSvhd ([string]$computerName, [string]$srcPath, [string]$dstPath, $
 	else {
 		Copy-Item $srcPath -Destination $dstPath -ToSession $session
 	}
-	LogMsg "Copy $srcPath to $dstPath on $computerName Done."
+	LogMsg "Copy $srcPath to $dstPath on $computerName done."
 }
 
 function Main()

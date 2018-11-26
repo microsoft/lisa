@@ -26,8 +26,12 @@
 
 Param
 (
-    $OutputFilePath = "J:\Jenkins_Shared_Do_Not_Delete\userContent\common\VMSizes-ARM.txt"
+    $OutputFilePath = "J:\Jenkins_Shared_Do_Not_Delete\userContent\common\VMSizes-ARM.txt",
+    $LogFileName = "UpdateAzureRegionAndVMSizes.log"
 )
+
+Set-Variable -Name LogFileName -Value $LogFileName -Scope Global -Force
+
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
 try
 {

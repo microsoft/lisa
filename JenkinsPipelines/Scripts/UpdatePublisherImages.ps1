@@ -26,8 +26,12 @@
 Param
 (
     $OutputFilePath = "J:\Jenkins_Shared_Do_Not_Delete\userContent\common\VMImages-ARM.txt",
-    $Publishers = "Canonical,SUSE,Oracle,CoreOS,RedHat,OpenLogic,credativ,kali-linux,clear-linux-project"
+    $Publishers = "Canonical,SUSE,Oracle,CoreOS,RedHat,OpenLogic,credativ,kali-linux,clear-linux-project",
+    $LogFileName = "UpdatePublisherImages.log"
 )
+
+Set-Variable -Name LogFileName -Value $LogFileName -Scope Global -Force
+
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
 try
 {
@@ -82,7 +86,7 @@ try
     $ARMImages = $ARMImages.TrimEnd("`n")
     LogMsg "Creating file $OutputFilePath..."
     Set-Content -Value $ARMImages -Path $OutputFilePath -Force -NoNewline
-    LogMsg "$OutputFilePath Saved successfully."
+    LogMsg "$OutputFilePath saved successfully."
     $ExitCode = 0
     #endregion
 }

@@ -27,9 +27,13 @@
 param
 (
     $JenkinsUser,
+    $fileNames,
     $RemoteReceivedFolder = "J:\ReceivedFiles",
-    $fileNames
+    $LogFileName = "DeletePartnerFiles.log"
 )
+
+Set-Variable -Name LogFileName -Value $LogFileName -Scope Global -Force
+
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
 
 try
@@ -73,14 +77,14 @@ try
                 }
                 else
                 {
-                    LogMsg "$folderToQuery\$file does not exeists."
+                    LogMsg "$folderToQuery\$file does not exist."
                 }
             }
         }
     }
     else
     {
-        LogMsg "Please select at leat one file."
+        LogMsg "Please select at least one file."
     }
     $ExitCode = 0
 }

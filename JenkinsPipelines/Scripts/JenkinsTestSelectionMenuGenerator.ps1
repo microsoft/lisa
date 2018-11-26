@@ -25,8 +25,12 @@
 ###############################################################################################
 
 Param(
+    $LogFileName = "JenkinsTestSelectionMenuGenerator.log",
     $DestinationPath = ".\"
 )
+
+Set-Variable -Name LogFileName -Value $LogFileName -Scope Global -Force
+
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
 Validate-XmlFiles -ParentFolder ".\"
 
@@ -36,8 +40,8 @@ foreach ( $file in (Get-ChildItem -Path .\XML\TestCases\*.xml ))
     $xmlData += ([xml](Get-Content -Path $file.FullName)).TestCases
 }
 $TestToRegionMapping = ([xml](Get-Content .\XML\TestToRegionMapping.xml))
-#Get Unique Platforms
 
+#Get Unique Platforms
 $Platforms = $xmlData.test.Platform.Split(',')  | Sort-Object | Get-Unique
 LogMsg "ALL TEST PLATFORMS"
 LogMsg "--------------"
@@ -63,9 +67,9 @@ LogMsg "TEST TAGS"
 LogMsg "---------"
 $i = 1; $Tags | ForEach-Object { LogMsg "$i. $($_)"; $i++ }
 
-
 $TestByCategory =  "platform`tcategory`tarea`tregion`n"
-#Generate Jenkins File
+
+# Generate Jenkins File
 foreach ( $platform in $Platforms )
 {
     $CurrentCategories = ($xmlData.test | Where-Object { $_.Platform.Contains($platform) }).Category | Sort-Object | Get-Unique
@@ -115,12 +119,12 @@ foreach ( $platform in $Platforms )
         }
     }
 }
+
 LogMsg "Saving TestsByTag.txt..."
 Set-Content -Value $TestsByTag -Path "$DestinationPath\TestsByTag.txt" -Force
 LogMsg "Validating TestsByTag.txt..."
 (Get-Content "$DestinationPath\TestsByTag.txt") | Where-Object {$_.trim() -ne "" } | set-content "$DestinationPath\TestsByTag.txt"
 LogMsg "Done"
-
 
 $TestByTestnameQuick = "platform`ttestname`tregion`n"
 foreach ( $platform in $Platforms )
@@ -149,9 +153,9 @@ LogMsg "Validating TestByTestnameQuick.txt..."
 (Get-Content "$DestinationPath\TestByTestnameQuick.txt") | Where-Object {$_.trim() -ne "" } | set-content "$DestinationPath\TestByTestnameQuick.txt"
 LogMsg "Done"
 
-
 $TestByTestnameDetailed =  "platform`tcategory`tarea`ttestname`tregion`n"
-#Generate Jenkins File
+
+# Generate Jenkins file
 foreach ( $platform in $Platforms )
 {
     $CurrentCategories = ($xmlData.test | Where-Object { $_.Platform.Contains($platform) }).Category | Sort-Object | Get-Unique

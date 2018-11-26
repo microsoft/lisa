@@ -26,8 +26,11 @@
 
 Param (
     $RemoteFolder = "J:\ReceivedFiles",
-    $LocalFolder = "."
+    $LocalFolder = ".",
+    $LogFileName = "InspectCustomKernel.log"
 )
+
+Set-Variable -Name LogFileName -Value $LogFileName -Scope Global -Force
 
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
 
@@ -38,18 +41,17 @@ $ExitCode = 0
 try
 {
 
-    #Prerequisites:
+    # Prerequisites check
     if (!(Test-Path $CurrentLocalFolder))
     {
         New-Item -Path $CurrentLocalFolder -ItemType Directory -Force | Out-Null
     }
     LogMsg "Directory : $CurrentLocalFolder is available."
 
-    #region VALIDATE ARGUMENTS
+    # region VALIDATE ARGUMENTS
     if ( $env:CustomKernelFile -and $env:CustomKernelURL )
     {
-        LogMsg "Please provide either 'CustomKernelFile' or 'CustomKernelURL'."
-        LogMsg "Aborting."
+        LogError "Please provide either 'CustomKernelFile' or 'CustomKernelURL'."
         $ExitCode = 1
     }
     elseif ( $env:CustomKernelFile)
@@ -101,7 +103,7 @@ try
             }
             else
             {
-                #Import down module.
+                # Import BITS module for download
                 Import-Module BitsTransfer -Force
 
                 LogMsg "Downloading $env:CustomKernelURL to '$CurrentLocalFolder\$SourceKernelName'"
@@ -154,7 +156,7 @@ try
     }
     else
     {
-        LogError "Did you forgot to provide value for 'CustomKernelFile' or 'CustomKernelURL' parameter?"
+        LogError "No value provided for parameter 'CustomKernelFile' or 'CustomKernelURL'."
         $ExitCode = 1
     }
 }
