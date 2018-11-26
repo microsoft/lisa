@@ -50,5 +50,5 @@
         <Area>GPU</Area>
         <Tags>gpu,pci_hyperv</Tags>
         <Priority>1</Priority>
-    </test>		
+    </test>
 </TestCases>

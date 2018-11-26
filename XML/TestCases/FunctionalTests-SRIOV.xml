@@ -12,7 +12,7 @@
         <TestParameters>
             <param>Remote_Script=SRIOV-Verify-lspci.sh</param>
             <param>NIC_1=NetworkAdapter,External,SRIOV_MLNX</param>
-        </TestParameters>   
+        </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Functional</Category>
         <Area>SRIOV</Area>
@@ -73,6 +73,7 @@
         <Category>Functional</Category>
         <Area>SRIOV</Area>
         <Tags>sriov,network</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>SRIOV-VERIFY-VF-BASIC-CONNECTION-ONE-VCPU</testName>
@@ -93,6 +94,7 @@
         <Category>Functional</Category>
         <Area>SRIOV</Area>
         <Tags>sriov,network</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>SRIOV-VERIFY-VF-BASIC-CONNECTION-MAX-VCPU</testName>
@@ -119,6 +121,7 @@
         <Category>Functional</Category>
         <Area>SRIOV</Area>
         <Tags>sriov,network</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>SRIOV-VERIFY-VF-MULTIPLE-CONNECTION</testName>
@@ -145,6 +148,7 @@
         <Category>Functional</Category>
         <Area>SRIOV</Area>
         <Tags>sriov,network</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>SRIOV-VERIFY-VF-MAX-CONNECTION</testName>
@@ -169,6 +173,7 @@
         <Category>Functional</Category>
         <Area>SRIOV</Area>
         <Tags>sriov,network</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>SRIOV-VERIFY-VF-MAX-CONNECTION-MAX-VCPU</testName>
@@ -194,6 +199,7 @@
         <Category>Functional</Category>
         <Area>SRIOV</Area>
         <Tags>sriov,network</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>SRIOV-IPERF-STRESS</testName>
@@ -220,6 +226,7 @@
         <Category>Functional</Category>
         <Area>SRIOV</Area>
         <Tags>sriov,network</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>SRIOV-DISABLEVF-ON-GUEST</testName>
@@ -244,6 +251,7 @@
         <Category>Functional</Category>
         <Area>SRIOV</Area>
         <Tags>sriov,network</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>SRIOV-RELOAD-MODULE</testName>
@@ -268,6 +276,7 @@
         <Category>Functional</Category>
         <Area>SRIOV</Area>
         <Tags>sriov,network</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>SRIOV-DISABLEVF-PING</testName>
@@ -538,5 +547,5 @@
         <Area>SRIOV</Area>
         <Tags>sriov,network</Tags>
         <Priority>1</Priority>
-    </test>   
+    </test>
 </TestCases>

@@ -677,7 +677,7 @@
         <Category>Functional</Category>
         <Area>NETWORK</Area>
         <Tags>network</Tags>
-        <Priority>1</Priority>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>NET-MAX-LEGACY-NICS</testName>
@@ -746,7 +746,7 @@
         <Category>Functional</Category>
         <Area>NETWORK</Area>
         <Tags>network</Tags>
-        <Priority>2</Priority>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>NET-TCP-CORRUPTION</testName>
@@ -828,7 +828,7 @@
         <Category>Functional</Category>
         <Area>NETWORK</Area>
         <Tags>network</Tags>
-        <Priority>2</Priority>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>NET-COPY-LARGE-FILE</testName>
@@ -914,7 +914,7 @@
         <Category>Functional</Category>
         <Area>NETWORK</Area>
         <Tags>network</Tags>
-        <Priority>2</Priority>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>NET-VLAN-TRUNKING</testName>
@@ -936,7 +936,7 @@
         <Category>Functional</Category>
         <Area>NETWORK</Area>
         <Tags>network</Tags>
-        <Priority>2</Priority>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>NET-VXLAN</testName>
@@ -1018,7 +1018,7 @@
         <Category>Functional</Category>
         <Area>LIS</Area>
         <Tags>lis,vmbus</Tags>
-        <Priority>1</Priority>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>VMBUS_PANIC_NOTIFIER</testName>
@@ -1082,7 +1082,7 @@
         <Category>Functional</Category>
         <Area>KDUMP</Area>
         <Tags>kdump</Tags>
-        <Priority>1</Priority>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>KDUMP-CRASH-SMP</testName>
@@ -1099,7 +1099,7 @@
         <Category>Functional</Category>
         <Area>KDUMP</Area>
         <Tags>kdump</Tags>
-        <Priority>1</Priority>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>KDUMP-CRASH-NMI</testName>
@@ -1242,6 +1242,7 @@
         <Category>Functional</Category>
         <Area>SECUREBOOT</Area>
         <Tags>secureboot</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>SECUREBOOT-UPDATE-KERNEL</testName>
@@ -1258,6 +1259,7 @@
         <Category>Functional</Category>
         <Area>SECUREBOOT</Area>
         <Tags>secureboot</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>SECUREBOOT-VSS</testName>
@@ -1273,6 +1275,7 @@
         <Category>Functional</Category>
         <Area>SECUREBOOT</Area>
         <Tags>secureboot</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>PRODUCTION-CHECKPOINT-FAILBACK</testName>
@@ -1296,6 +1299,7 @@
         <Category>Functional</Category>
         <Area>PROD_CHECKPOINT</Area>
         <Tags>prod_checkpoint</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>PRODUCTION-CHECKPOINT-EXT4</testName>
@@ -1349,6 +1353,7 @@
         <Category>Functional</Category>
         <Area>PROD_CHECKPOINT</Area>
         <Tags>prod_checkpoint</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>PRODUCTION-CHECKPOINT-VHDX_XFS</testName>
@@ -1380,6 +1385,7 @@
         <Category>Functional</Category>
         <Area>PROD_CHECKPOINT</Area>
         <Tags>prod_checkpoint</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>PRODUCTION-CHECKPOINT-3CHAIN-VHD</testName>
@@ -1390,6 +1396,7 @@
         <Category>Functional</Category>
         <Area>PROD_CHECKPOINT</Area>
         <Tags>prod_checkpoint</Tags>
+        <Priority>2</Priority>
      </test>
      <test>
         <testName>PRODUCTION-CHECKPOINT-iSCSI</testName>
@@ -1406,6 +1413,7 @@
         <Category>Functional</Category>
         <Area>PROD_CHECKPOINT</Area>
         <Tags>prod_checkpoint</Tags>
+        <Priority>2</Priority>
      </test>
     <test>
         <testName>VHDX-RESIZE-TO-BIGGER512</testName>
@@ -1528,6 +1536,7 @@
         <Category>Functional</Category>
         <Area>DYNAMIC_MEMORY</Area>
         <Tags>memory</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>DYNAMIC-MEMORY-HOT-ADD</testName>
@@ -1550,6 +1559,7 @@
         <Category>Functional</Category>
         <Area>DYNAMIC_MEMORY</Area>
         <Tags>memory</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>VHDX-RESIZE-GROWSHRINK-SCSI</testName>
@@ -1567,6 +1577,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>VHDX-RESIZE-GROWSHRINK-SCSI-OFFLINE</testName>
@@ -1585,6 +1596,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>VHDX-RESIZE-OVER2TB-SCSI</testName>
@@ -1601,6 +1613,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>VHDX-RESIZE-OVER2TB-IDE</testName>
@@ -1617,6 +1630,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>VHDX-RESIZE-GROWOVER2TB-SHRINK-SCSI-ONLINE</testName>
@@ -1634,6 +1648,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>VHDX-RESIZE-GROWOVER2TB-SHRINK-SCSI-OFFLINE</testName>
@@ -1652,6 +1667,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>VHDX-RESIZE-GROWSHRINK-IDE</testName>
@@ -1669,6 +1685,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>VHDX-RESIZE-GROWOVER2TB-SHRINK-IDE</testName>
@@ -1686,6 +1703,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>RUNTIME_MEM_HOTADD</testName>
@@ -1703,6 +1721,7 @@
         <Category>Functional</Category>
         <Area>RUNTIME_MEMORY</Area>
         <Tags>memory</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>RUNTIME_MEM_HOTREMOVE</testName>
@@ -1720,6 +1739,7 @@
         <Category>Functional</Category>
         <Area>RUNTIME_MEMORY</Area>
         <Tags>memory</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>RUNTIME_MEM_SMALLINCREASE128</testName>
@@ -1738,6 +1758,7 @@
         <Category>Functional</Category>
         <Area>RUNTIME_MEMORY</Area>
         <Tags>memory</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>RUNTIME_MEM_SMALLDECREASE128</testName>
@@ -1756,6 +1777,7 @@
         <Category>Functional</Category>
         <Area>RUNTIME_MEMORY</Area>
         <Tags>memory</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>RUNTIME_MEM_SMALLINCREASE100</testName>
@@ -1774,6 +1796,7 @@
         <Category>Functional</Category>
         <Area>RUNTIME_MEMORY</Area>
         <Tags>memory</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>RUNTIME_MEM_SMALLDECREASE100</testName>
@@ -1792,6 +1815,7 @@
         <Category>Functional</Category>
         <Area>RUNTIME_MEMORY</Area>
         <Tags>memory</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>RUNTIME_MEM_MULTIPLEADDREMOVE</testName>
@@ -1808,6 +1832,7 @@
         <Category>Functional</Category>
         <Area>RUNTIME_MEMORY</Area>
         <Tags>memory</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>RUNTIME_MEM_STRESSHOTREMOVE</testName>
@@ -1824,6 +1849,7 @@
         <Category>Functional</Category>
         <Area>RUNTIME_MEMORY</Area>
         <Tags>memory</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>RUNTIME_MEM_HOTADD_REBOOT</testName>
@@ -1838,6 +1864,7 @@
         <Category>Functional</Category>
         <Area>RUNTIME_MEMORY</Area>
         <Tags>memory</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>STORAGE-VHD-IDE-DYNAMIC</testName>
@@ -1854,6 +1881,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>STORAGE-VHD-IDE-FIXED</testName>
@@ -1870,6 +1898,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>STORAGE-VHD-ADD-DIFF-DISK-IDE</testName>
@@ -1886,6 +1915,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>STORAGE-VHD-ADD-DIFF-DISK-SCSI</testName>
@@ -1902,6 +1932,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>STORAGE-VHD-MULTI-DISC-SCSI</testName>
@@ -1920,6 +1951,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>STORAGE-VHD-HOT-ADD-MULTI-DYNAMIC-SCSI</testName>
@@ -1935,6 +1967,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>STORAGE-VHD-HOT-REMOVE-MULTI-DYNAMIC-SCSI</testName>
@@ -1950,6 +1983,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>STORAGE-SCSI-DYNAMIC-LARGE-DISK</testName>
@@ -1966,6 +2000,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>STORAGE-VHDX-IDE-DYNAMIC</testName>
@@ -1983,6 +2018,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>STORAGE-VHDX-IDE-FIXED</testName>
@@ -2000,6 +2036,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>STORAGE-VHDX-ADD-DIFF-DISK-IDE</testName>
@@ -2016,6 +2053,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>STORAGE-VHDX-ADD-DIFF-DISK-SCSI</testName>
@@ -2032,6 +2070,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>STORAGE-VHDX-MULTI-DISC-SCSI</testName>
@@ -2051,6 +2090,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>STORAGE-VHDX-HOT-ADD-MULTI-DYNAMIC-SCSI</testName>
@@ -2067,6 +2107,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>STORAGE-VHDX-HOT-REMOVE-MULTI-DYNAMIC-SCSI</testName>
@@ -2082,6 +2123,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>STORAGE-VHDX-HOT-PLUG-UNPLUG-SCSI</testName>
@@ -2099,6 +2141,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>STORAGE-VHDX-4k-MULTI-DYNAMIC-SCSI</testName>
@@ -2116,6 +2159,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>STORAGE-VHDX-4K-HOT-ADD-MULTI-DYNAMIC-SCSI</testName>
@@ -2132,6 +2176,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
      <test>
         <testName>STORAGE-VHDX-4K-HOT-REMOVE-MULTI-DYNAMIC-SCSI</testName>
@@ -2147,6 +2192,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>STORAGE-VHDX-SCSI-DYNAMIC-LARGE-16TB</testName>
@@ -2163,6 +2209,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>STORAGE-VHDX-SCSI-DYNAMIC-LARGE-64TB</testName>
@@ -2179,6 +2226,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>STORAGE-VHDX-SCSI-DYNAMIC-LOCAL-COPY-FILE</testName>
@@ -2196,6 +2244,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>STORAGE-VHDX-VERIFY-SECTORSIZE</testName>
@@ -2210,6 +2259,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>VHDX-RESIZE-GROW-FILESYSTEM-512</testName>
@@ -2226,6 +2276,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>VHDX-RESIZE-GROW-FILESYSTEM-4096</testName>
@@ -2242,6 +2293,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>0</Priority>
     </test>
         <test>
         <testName>NET-HOT-ADD-MULTINIC</testName>
@@ -2255,6 +2307,7 @@
         <Category>Functional</Category>
         <Area>NETWORK</Area>
         <Tags>network</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>NET-HOT-REMOVE-MULTINIC</testName>
@@ -2268,6 +2321,7 @@
         <Category>Functional</Category>
         <Area>NETWORK</Area>
         <Tags>network</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>NET-BOOT-NONIC-HOT-ADD-NIC</testName>
@@ -2278,6 +2332,7 @@
         <Category>Functional</Category>
         <Area>NETWORK</Area>
         <Tags>network</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>NET-HOT-ADD-REMOVE-MAXNIC</testName>
@@ -2292,6 +2347,7 @@
         <Category>Functional</Category>
         <Area>NETWORK</Area>
         <Tags>network</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>DYNAMIC-MEMORY-HOTADD-STRESS-APP</testName>
@@ -2312,6 +2368,7 @@
         <Category>Functional</Category>
         <Area>DYNAMIC_MEMORY</Area>
         <Tags>memory</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>DYNAMIC-MEMORY-STRESS-HOTADD-5SECONDS</testName>
@@ -2334,6 +2391,7 @@
         <Category>Functional</Category>
         <Area>DYNAMIC_MEMORY</Area>
         <Tags>memory</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>DYNAMIC-MEMORY-STRESS-HOTADD-1SECOND</testName>
@@ -2356,6 +2414,7 @@
         <Category>Functional</Category>
         <Area>DYNAMIC_MEMORY</Area>
         <Tags>memory</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>DYNAMIC-MEMORY-STRESS-LARGE-CHUNK</testName>
@@ -2378,6 +2437,7 @@
         <Category>Functional</Category>
         <Area>DYNAMIC_MEMORY</Area>
         <Tags>memory</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>STOR-VSS-BACKUPRESTORE-ISO-NONETWORK</testName>
@@ -2393,6 +2453,7 @@
         <Category>Functional</Category>
         <Area>BACKUP</Area>
         <Tags>backup</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>STOR-VSS-BACKUPRESTORE-MULTIFS-VHDX</testName>
@@ -2412,6 +2473,7 @@
         <Category>Functional</Category>
         <Area>BACKUP</Area>
         <Tags>backup</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>STOR-VSS-3CHAIN-VHD-BACKUP</testName>
@@ -2424,6 +2486,7 @@
         <Category>Functional</Category>
         <Area>BACKUP</Area>
         <Tags>backup</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>STOR-VSS-BACKUP-PRESTORE-STATE-PAUSED</testName>
@@ -2439,6 +2502,7 @@
         <Category>Functional</Category>
         <Area>BACKUP</Area>
         <Tags>backup</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>STOR-VSS-BACKUP-RESTORE-MOUNT-MULTI-PATHS</testName>
@@ -2456,6 +2520,7 @@
         <Category>Functional</Category>
         <Area>BACKUP</Area>
         <Tags>backup</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>STOR-VSS-BACKUP-RESTORE-MOUNT-SQUASHFS</testName>
@@ -2468,6 +2533,7 @@
         <Category>Functional</Category>
         <Area>BACKUP</Area>
         <Tags>backup</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>STOR-VSS-BACKUP-CHANGE-HYPERVVSSD</testName>
@@ -2480,6 +2546,7 @@
         <Category>Functional</Category>
         <Area>BACKUP</Area>
         <Tags>backup</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>STOR-VSS-BACKUP-RESTORE-DISKSTRESS</testName>
@@ -2496,6 +2563,7 @@
         <Category>Functional</Category>
         <Area>BACKUP</Area>
         <Tags>backup</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>STOR-VSS-BACKUP-DISABLE-ENABLE-VSS</testName>
@@ -2508,6 +2576,7 @@
         <Category>Functional</Category>
         <Area>BACKUP</Area>
         <Tags>backup</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>STOR-VSS-BACKUP-RESTORE-FAIL</testName>
@@ -2524,6 +2593,7 @@
         <Category>Functional</Category>
         <Area>BACKUP</Area>
         <Tags>backup</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>DYNAMIC-MEMORY-SAVE-RESTORE</testName>
@@ -2698,6 +2768,7 @@
         <Category>Functional</Category>
         <Area>Dynamic_Memory</Area>
         <Tags>memory</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>DYNAMIC-MEMORY-MAX-MEMORY-HONORED</testName>
@@ -2723,6 +2794,7 @@
         <Category>Functional</Category>
         <Area>Dynamic_Memory</Area>
         <Tags>memory</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>DYNAMIC-MEMORY-MIN-MEMORY-HONORED</testName>
@@ -2746,6 +2818,7 @@
         <Category>Functional</Category>
         <Area>Dynamic_Memory</Area>
         <Tags>memory</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>VHDX-RESIZE-LIVE-MIGRATION</testName>
@@ -2762,6 +2835,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>LIVEMIGRATE</testName>
@@ -2775,6 +2849,7 @@
         <Category>Functional</Category>
         <Area>MIGRATION</Area>
         <Tags>migration</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>QUICKMIGRATE</testName>
@@ -2788,6 +2863,7 @@
         <Category>Functional</Category>
         <Area>MIGRATION</Area>
         <Tags>migration</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>COPYFILE-DURING-MIGRATION</testName>
@@ -2802,6 +2878,7 @@
         <Category>Functional</Category>
         <Area>MIGRATION</Area>
         <Tags>migration</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>LIVEMIGRATE-FAILOVER</testName>
@@ -2816,6 +2893,7 @@
         <Category>Functional</Category>
         <Area>MIGRATION</Area>
         <Tags>migration</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>LIVEMIGRATE-MEM4GB-CORE8</testName>
@@ -2837,6 +2915,7 @@
         <Category>Functional</Category>
         <Area>MIGRATION</Area>
         <Tags>migration</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>QUICKMIG_MEM4GB_CORE8</testName>
@@ -2857,6 +2936,7 @@
         <Category>Functional</Category>
         <Area>MIGRATION</Area>
         <Tags>migration</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>LIVEMIG_MEM8GB_CORE16</testName>
@@ -2878,6 +2958,7 @@
         <Category>Functional</Category>
         <Area>MIGRATION</Area>
         <Tags>migration</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>QUICKMIG_MEM8GB_CORE16</testName>
@@ -2898,6 +2979,7 @@
         <Category>Functional</Category>
         <Area>MIGRATION</Area>
         <Tags>migration</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>LIVEMIG_MEM16GB_CORE32</testName>
@@ -2919,6 +3001,7 @@
         <Category>Functional</Category>
         <Area>MIGRATION</Area>
         <Tags>migration</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>QUICKMIG_MEM16GB_CORE32</testName>
@@ -2939,6 +3022,7 @@
         <Category>Functional</Category>
         <Area>MIGRATION</Area>
         <Tags>migration</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>SECUREBOOT-MIGRATEVM</testName>
@@ -2953,5 +3037,6 @@
         <Category>Functional</Category>
         <Area>SECUREBOOT</Area>
         <Tags>secureboot</Tags>
+        <Priority>2</Priority>
     </test>
 </TestCases>

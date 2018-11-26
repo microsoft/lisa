@@ -29,7 +29,7 @@
         <Category>Stress</Category>
         <Area>stress</Area>
         <Tags>stress,boot,network,sriov</Tags>
-        <Priority>1</Priority>
+        <Priority>0</Priority>
     </test>
         <test>
         <testName>STRESSTEST-RELOAD-MODULES-UP</testName>
@@ -67,7 +67,7 @@
         <Category>Stress</Category>
         <Area>stress</Area>
         <Tags>stress</Tags>
-        <Priority>1</Priority>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>STRESSTEST-BOOT-VM-LARGE-MEMORY</testName>
@@ -96,7 +96,7 @@
         <Category>Stress</Category>
         <Area>stress</Area>
         <Tags>stress</Tags>
-        <Priority>1</Priority>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>STRESSTEST-WEB-PARALLEL-ACCESS</testName>

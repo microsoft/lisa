@@ -310,7 +310,7 @@
         <Category>BVT</Category>
         <Area>NETWORK</Area>
         <Tags>network</Tags>
-        <Priority>1</Priority>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>BVT-NET-ETHTOOL-CHANGE-RINGBUFFER</testName>
