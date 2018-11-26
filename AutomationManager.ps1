@@ -103,7 +103,7 @@ Function Run-TestsOnCycle ([string] $cycleName, [xml] $xmlConfig, [string] $Dist
 
 	$currentCycleData = GetCurrentCycleData -xmlConfig $xmlConfig -cycleName $cycleName
 
-	$xmlElementsToAdd = @("currentTest", "stateTimeStamp", "state", "emailSummary", "htmlSummary", "jobID", "testCaseResults")
+	$xmlElementsToAdd = @("currentTest", "stateTimeStamp", "state", "textSummary", "htmlSummary", "jobID", "testCaseResults")
 	foreach($element in $xmlElementsToAdd) {
 		if (! $testCycle.${element}) {
 			$newElement = $xmlConfig.CreateElement($element)
@@ -434,18 +434,17 @@ try {
 	}
 
 	$testCycle = GetCurrentCycleData -xmlConfig $xmlConfig -cycleName $cycleName
-	$testSuiteResultDetails = Run-TestsOnCycle -xmlConfig $xmlConfig -Distro $Distro -cycleName $cycleName -TestIterations $TestIterations  -DeployVMPerEachTest $DeployVMPerEachTest -TestReportXmlPath $TestReportXmlPath
+	$testSuiteResultDetails = Run-TestsOnCycle -xmlConfig $xmlConfig -Distro $Distro -cycleName $cycleName -TestIterations $TestIterations `
+		-DeployVMPerEachTest $DeployVMPerEachTest -TestReportXmlPath $TestReportXmlPath
 	$testSuiteResultDetails = $testSuiteResultDetails | Select-Object -Last 1
 	$logDirFilename = [System.IO.Path]::GetFilenameWithoutExtension($xmlConfigFile)
-	$summaryAll = GetTestSummary -testCycle $testCycle -StartTime $testStartTime -xmlFileName $logDirFilename -distro $Distro -testSuiteResultDetails $testSuiteResultDetails
-	$PlainTextSummary += $summaryAll[0]
-	$HtmlTextSummary += $summaryAll[1]
-	Set-Content -Value $HtmlTextSummary -Path .\Report\testSummary.html -Force | Out-Null
-	$PlainTextSummary = $PlainTextSummary.Replace("<br />", "`r`n")
-	$PlainTextSummary = $PlainTextSummary.Replace("<pre>", "")
-	$PlainTextSummary = $PlainTextSummary.Replace("</pre>", "")
-	LogMsg  "$PlainTextSummary"
 
+	$testDuration= [Datetime]::Now.ToUniversalTime() - $testStartTime
+	$htmlTextSummary = Get-HtmlTestSummary -testCycle $testCycle -startTime $testStartTime -testDuration $testDuration -xmlFileName $logDirFilename -testSuiteResultDetails $testSuiteResultDetails
+	Set-Content -Value $htmlTextSummary -Path .\Report\testSummary.html -Force | Out-Null
+
+	$plainTextSummary = Get-PlainTextSummary -testCycle $testCycle -startTime $testStartTime -testDuration $testDuration -xmlFileName $logDirFilename -testSuiteResultDetails $testSuiteResultDetails
+	LogMsg  "$PlainTextSummary"
 } catch {
 	ThrowException($_)
 } Finally {

@@ -345,74 +345,46 @@ Class JUnitReportGenerator
 	}
 }
 
-Function GetTestSummary($testCycle, [DateTime] $StartTime, [string] $xmlFilename, [string] $distro, $testSuiteResultDetails)
+Function Get-PlainTextSummary([object] $testCycle, [DateTime] $startTime, [System.TimeSpan] $testDuration, [string] $xmlFilename, $testSuiteResultDetails)
 {
-	<#
-	.Synopsis
-		Append the summary text from each VM into a single string.
-
-	.Description
-		Append the summary text from each VM one long string. The
-		string includes line breaks so it can be display on a
-		console or included in an e-mail message.
-
-	.Parameter xmlConfig
-		The parsed xml from the $xmlFilename file.
-		Type : [System.Xml]
-
-	.Parameter startTime
-		The date/time the ICA test run was started
-		Type : [DateTime]
-
-	.Parameter xmlFilename
-		The name of the xml file for the current test run.
-		Type : [String]
-
-	.ReturnValue
-		A string containing all the summary message from all
-		VMs in the current test run.
-
-	.Example
-		GetTestSummary $testCycle $myStartTime $myXmlTestFile
-
-#>
-
-	$endTime = [Datetime]::Now.ToUniversalTime()
-	$testSuiteRunDuration= $endTime - $StartTime
-	$testSuiteRunDuration=$testSuiteRunDuration.Days.ToString() + ":" +  $testSuiteRunDuration.hours.ToString() + ":" + $testSuiteRunDuration.minutes.ToString()
-	$str = "<br />[LISAv2 Test Results Summary]<br />"
+	$durationStr=$testDuration.Days.ToString() + ":" +  $testDuration.hours.ToString() + ":" + $testDuration.minutes.ToString()
+	$str = "`r`n[LISAv2 Test Results Summary]`r`n"
 	$str += "Test Run On           : " + $startTime
 	if ( $BaseOsImage )
 	{
-		$str += "<br />Image Under Test      : " + $BaseOsImage
+		$str += "`r`nImage Under Test      : " + $BaseOsImage
 	}
 	if ( $BaseOSVHD )
 	{
-		$str += "<br />VHD Under Test        : " + $BaseOSVHD
+		$str += "`r`nVHD Under Test        : " + $BaseOSVHD
 	}
 	if ( $ARMImage )
 	{
-		$str += "<br />ARM Image Under Test  : " + "$($ARMImage.Publisher) : $($ARMImage.Offer) : $($ARMImage.Sku) : $($ARMImage.Version)"
+		$str += "`r`nARM Image Under Test  : " + "$($ARMImage.Publisher) : $($ARMImage.Offer) : $($ARMImage.Sku) : $($ARMImage.Version)"
 	}
-	$str += "<br />Total Test Cases      : " + $testSuiteResultDetails.totalTc + " (" + $testSuiteResultDetails.totalPassTc + " Pass" + ", " + $testSuiteResultDetails.totalFailTc + " Fail" + ", " + $testSuiteResultDetails.totalAbortedTc + " Abort)"
-	$str += "<br />Total Time (dd:hh:mm) : " + $testSuiteRunDuration.ToString()
-	$str += "<br />XML File              : $xmlFilename<br /><br />"
+	$str += "`r`nTotal Test Cases      : " + $testSuiteResultDetails.totalTc + " (" + $testSuiteResultDetails.totalPassTc + " Pass, " + `
+		$testSuiteResultDetails.totalFailTc + " Fail, " + $testSuiteResultDetails.totalAbortedTc + " Abort)"
+	$str += "`r`nTotal Time (dd:hh:mm) : " + $durationStr
+	$str += "`r`nXML File              : $xmlFilename`r`n`r`n"
 
-	# Add information about the host running ICA to the e-mail summary
-	$str += "<pre>"
-	$str += $testCycle.emailSummary + "<br />"
-	$str += "<br />Logs can be found at $LogDir" + "<br /><br />"
-	$str += "</pre>"
-	$plainTextSummary = $str
+	$str += $testCycle.textSummary.Replace("<br />", "`r`n")
+	$str += "`r`n`r`nLogs can be found at $LogDir" + "`r`n`r`n"
+
+	return $str
+}
+
+Function Get-HtmlTestSummary([object] $testCycle, [DateTime] $startTime, [System.TimeSpan] $testDuration, [string] $xmlFilename, $testSuiteResultDetails)
+{
+	$durationStr=$testDuration.Days.ToString() + ":" +  $testDuration.hours.ToString() + ":" + $testDuration.minutes.ToString()
 	$strHtml =  "<style type='text/css'>" +
-			".TFtable{width:1024px; border-collapse:collapse; }" +
-			".TFtable td{ padding:7px; border:#4e95f4 1px solid;}" +
-			".TFtable tr{ background: #b8d1f3;}" +
-			".TFtable tr:nth-child(odd){ background: #dbe1e9;}" +
-			".TFtable tr:nth-child(even){background: #ffffff;}</style>" +
-			"<Html><head><title>Test Results Summary</title></head>" +
-			"<body style = 'font-family:sans-serif;font-size:13px;color:#000000;margin:0px;padding:30px'>" +
-			"<br/><h1 style='background-color:lightblue;width:1024'>Test Results Summary</h1>"
+		".TFtable{width:1024px; border-collapse:collapse; }" +
+		".TFtable td{ padding:7px; border:#4e95f4 1px solid;}" +
+		".TFtable tr{ background: #b8d1f3;}" +
+		".TFtable tr:nth-child(odd){ background: #dbe1e9;}" +
+		".TFtable tr:nth-child(even){background: #ffffff;}</style>" +
+		"<Html><head><title>Test Results Summary</title></head>" +
+		"<body style = 'font-family:sans-serif;font-size:13px;color:#000000;margin:0px;padding:30px'>" +
+		"<br/><h1 style='background-color:lightblue;width:1024'>Test Results Summary</h1>"
 	$strHtml += "<h2 style='background-color:lightblue;width:1024'>ICA test run on - " + $startTime + "</h2><span style='font-size: medium'>"
 	if ( $BaseOsImage )
 	{
@@ -427,23 +399,20 @@ Function GetTestSummary($testCycle, [DateTime] $StartTime, [string] $xmlFilename
 		$strHtml += '<p>ARM Image under test - <span style="font-family:courier new,courier,monospace;">' + "$($ARMImage.Publisher) : $($ARMImage.Offer) : $($ARMImage.Sku) : $($ARMImage.Version)</span></p>"
 	}
 
-	$strHtml += '<p>Total Executed TestCases - <strong><span style="font-size:16px;">' + "$($testSuiteResultDetails.totalTc)" + '</span></strong><br />' + '[&nbsp;<span style="font-size:16px;"><span style="color:#008000;"><strong>' +  $testSuiteResultDetails.totalPassTc + ' </strong></span></span> - PASS, <span style="font-size:16px;"><span style="color:#ff0000;"><strong>' + "$($testSuiteResultDetails.totalFailTc)" + '</strong></span></span>- FAIL, <span style="font-size:16px;"><span style="color:#ff0000;"><strong><span style="background-color:#ffff00;">' + "$($testSuiteResultDetails.totalAbortedTc)" +'</span></strong></span></span> - ABORTED ]</p>'
-	$strHtml += "<br /><br/>Total Execution Time(dd:hh:mm) " + $testSuiteRunDuration.ToString()
+	$strHtml += '<p>Total Executed TestCases - <strong><span style="font-size:16px;">' + "$($testSuiteResultDetails.totalTc)" + '</span></strong><br />' + `
+		'[&nbsp;<span style="font-size:16px;"><span style="color:#008000;"><strong>' +  $testSuiteResultDetails.totalPassTc + `
+		' </strong></span></span> - PASS, <span style="font-size:16px;"><span style="color:#ff0000;"><strong>' + "$($testSuiteResultDetails.totalFailTc)" + `
+		'</strong></span></span>- FAIL, <span style="font-size:16px;"><span style="color:#ff0000;"><strong><span style="background-color:#ffff00;">' + `
+		"$($testSuiteResultDetails.totalAbortedTc)" +'</span></strong></span></span> - ABORTED ]</p>'
+	$strHtml += "<br /><br/>Total Execution Time(dd:hh:mm) " + $durationStr
 	$strHtml += "<br /><br/>XML file: $xmlFilename<br /><br /></span>"
 
 	# Add information about the host running ICA to the e-mail summary
 	$strHtml += "<table border='0' class='TFtable'>"
 	$strHtml += $testCycle.htmlSummary
-	$strHtml += "</table>"
+	$strHtml += "</table></body></Html>"
 
-	$strHtml += "</body></Html>"
-
-	if (-not (Test-Path(".\temp\CI"))) {
-		mkdir ".\temp\CI" | Out-Null
-	}
-
-	Set-Content ".\temp\CI\index.html" $strHtml
-	return $plainTextSummary, $strHtml
+	return $strHtml
 }
 
 Function Add-ReproVMDetailsToHtmlReport()
@@ -460,12 +429,12 @@ Function Add-ReproVMDetailsToHtmlReport()
 Function Update-TestSummaryForCase ([string]$TestName, [int]$ExecutionCount, [string]$TestResult, [object]$TestCycle, [object]$ResultDetails, [string]$Duration, [string]$TestSummary, [bool]$AddHeader)
 {
 	if ( $AddHeader ) {
-		$TestCycle.emailSummary += "{0,5} {1,-50} {2,20} {3,20} <br />" -f "ID", "TestCaseName", "TestResult", "TestDuration(in minutes)"
-		$TestCycle.emailSummary += "------------------------------------------------------------------------------------------------------<br />"
+		$TestCycle.textSummary += "{0,5} {1,-50} {2,20} {3,20} `r`n" -f "ID", "TestCaseName", "TestResult", "TestDuration(in minutes)"
+		$TestCycle.textSummary += "------------------------------------------------------------------------------------------------------`r`n"
 	}
-	$TestCycle.emailSummary += "{0,5} {1,-50} {2,20} {3,20} <br />" -f "$ExecutionCount", "$TestName", "$TestResult", "$Duration"
+	$TestCycle.textSummary += "{0,5} {1,-50} {2,20} {3,20} `r`n" -f "$ExecutionCount", "$TestName", "$TestResult", "$Duration"
 	if ( $TestSummary ) {
-		$TestCycle.emailSummary += "$TestSummary"
+		$TestCycle.textSummary += "$TestSummary"
 	}
 
 	$ResultDetails.totalTc += 1
