@@ -29,8 +29,12 @@ param
     $TestByTestName="",
     $TestByCategorizedTestName="",
     $TestByCategory="",
-    $TestByTag=""
+    $TestByTag="",
+    $LogFileName = "DetectTestRegions.log"
 )
+
+Set-Variable -Name LogFileName -Value $LogFileName -Scope Global -Force
+
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
 
 $TestRegions = @()
