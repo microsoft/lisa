@@ -7,6 +7,7 @@
 <#
 .SYNOPSIS
 	PS modules for LISAv2 test automation
+	This module handles logging, test summary, and test reports.
 
 .PARAMETER
 	<Parameters>
@@ -179,7 +180,7 @@ Class ReportNode
 
 	[string] StopTimer()
 	{
-		if ($null -eq $this.Timer) 
+		if ($null -eq $this.Timer)
 		{
 			return ""
 		}
