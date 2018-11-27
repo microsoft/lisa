@@ -6,8 +6,10 @@
 
 param
 (
-    [int]$TopVMsCount=20
+    [int]$TopVMsCount=20,
+    [string] $LogFileName = "GetSubscriptionUsageTopVMs.log"
 )
+
 Get-ChildItem ..\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
 #region HTML File structure
 $htmlHeader = '
@@ -129,7 +131,7 @@ foreach( $vm in $allVMStatus )
 
     $storageKind = "blob"
 
-    $foo = $sas | where {  $($_.StorageAccountName -eq $storageAccount) -and $($_.Location -eq $vm.Location) }
+    $foo = $sas | Where-Object {  $($_.StorageAccountName -eq $storageAccount) -and $($_.Location -eq $vm.Location) }
     Set-AzureRmCurrentStorageAccount -ResourceGroupName $foo.ResourceGroupName -Name $storageAccount > $null
     $blobDetails = Get-AzureStorageBlob -Container $container -Blob $blob
     $copyCompletion = $blobDetails.ICloudBlob.CopyState.CompletionTime
@@ -153,7 +155,7 @@ foreach( $vm in $allVMStatus )
       Write-LogInfo " Age = $($age.Days)"
     }
   }
-  $coreCount = $allSizes[ $vm.Location ] | where { $_.Name -eq $($vm.HardwareProfile.VmSize) }
+  $coreCount = $allSizes[ $vm.Location ] | Where-Object { $_.Name -eq $($vm.HardwareProfile.VmSize) }
   $newEntry = @{
     Name=$vm.Name
     resourceGroup=$vm.ResourceGroupName

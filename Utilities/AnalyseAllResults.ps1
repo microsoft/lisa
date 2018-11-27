@@ -21,8 +21,9 @@
 .EXAMPLE
 #>
 ###############################################################################################
-
+$LogFileName = "AnalyseAllResults.log"
 #Import Libraries.
+Set-Variable -Name LogFileName -Value $LogFileName -Scope Global -Force
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
 
 $allReports = Get-ChildItem .\Report | Where-Object {($_.FullName).EndsWith("-junit.xml") -and ($_.FullName -imatch "\d\d\d\d\d\d")}
