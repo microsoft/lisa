@@ -978,7 +978,7 @@ function Collect-TestLogs {
         $filesTocopy = "{0}/state.txt, {0}/summary.log, {0}/TestExecution.log, {0}/TestExecutionError.log" `
             -f @("/home/${Username}")
         Copy-RemoteFiles -download -downloadFrom $PublicIP -downloadTo $LogsDestination `
-             -Port $SSHPort -Username "root" -password $Password `
+             -Port $SSHPort -Username $Username -password $Password `
              -files $filesTocopy
         $summary = Get-Content (Join-Path $LogDir "summary.log")
         $testState = Get-Content (Join-Path $LogDir "state.txt")
@@ -987,7 +987,7 @@ function Collect-TestLogs {
         $filesTocopy = "{0}/state.txt, {0}/Summary.log, {0}/${TestName}_summary.log" `
             -f @("/home/${Username}")
         Copy-RemoteFiles -download -downloadFrom $PublicIP -downloadTo $LogsDestination `
-             -Port $SSHPort -Username "root" -password $Password `
+             -Port $SSHPort -Username $Username -password $Password `
              -files $filesTocopy
         $summary = Get-Content (Join-Path $LogDir "Summary.log")
         $testResult = $summary
@@ -1086,7 +1086,7 @@ function Run-Test {
         if (!$isDeployed) {
             throw "Could not deploy VMs."
         }
-        if(!$IsWindows){
+        if(!$IsWindows -and ($testPlatform.ToUpper() -eq "HYPERV")){
             Enable-RootUser -RootPassword $VMPassword -VMData $AllVMData `
                 -Username $VMUser -password $VMPassword
         }
