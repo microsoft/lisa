@@ -30,11 +30,11 @@ function Main {
         $VMIpv4 = $captureVMData.PublicIP
         $VMPort = $captureVMData.SSHPort
         #region CONFIGURE VM FOR N SERIES GPU TEST
-        LogMsg "Test VM details :"
-        LogMsg "  RoleName : $($captureVMData.RoleName)"
-        LogMsg "  Public IP : $($captureVMData.PublicIP)"
-        LogMsg "  SSH Port : $($captureVMData.SSHPort)"
-        LogMsg "  HostName : $($captureVMData.HyperVhost)"
+        Write-LogInfo "Test VM details :"
+        Write-LogInfo "  RoleName : $($captureVMData.RoleName)"
+        Write-LogInfo "  Public IP : $($captureVMData.PublicIP)"
+        Write-LogInfo "  SSH Port : $($captureVMData.SSHPort)"
+        Write-LogInfo "  HostName : $($captureVMData.HyperVhost)"
         # Change the working directory to where we need to be
         Set-Location $WorkingDirectory
         $sts = New-BackupSetup $VMName $HvServer
@@ -47,7 +47,7 @@ function Main {
             throw "VSS Daemon is not running"
         }
         # Create a file on the VM before backup
-        RunLinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMPort -command "touch /home/$user/1" -runAsSudo
+        Run-LinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMPort -command "touch /home/$user/1" -runAsSudo
         if (-not $?) {
             throw "Cannot create test file"
         }
@@ -62,11 +62,11 @@ function Main {
         for ($i = 0; $i -le 1; $i++ ) {
             $serviceAction = $setAction[$i]
             $serviceCommand = "echo serviceAction=$serviceAction  >> constants.sh"
-            RunLinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMPort $serviceCommand -runAsSudo
+            Run-LinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMPort $serviceCommand -runAsSudo
             if (-not $sts[-1]) {
                 throw "Could not echo serviceAction to vm's constants.sh."
             }
-            LogMsg "$serviceAction hyperv backup service"
+            Write-LogInfo "$serviceAction hyperv backup service"
             # Run the remote script
             $sts = Invoke-RemoteScriptAndCheckStateFile $remoteScript $user $password $VMIpv4 $VMPort
             if (-not $sts[-1]) {
@@ -88,7 +88,7 @@ function Main {
                     throw "Failed: Not get expected backup type as $temp"
                 }
                 else {
-                     LogMsg "Got expected backup type $temp"
+                     Write-LogInfo "Got expected backup type $temp"
                 }
                 Remove-Backup $backupLocation
             }
@@ -98,7 +98,7 @@ function Main {
     catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "$ErrorMessage at line: $ErrorLine"
+        Write-LogErr "$ErrorMessage at line: $ErrorLine"
     }
     finally {
         if (!$testResult) {
@@ -106,7 +106,7 @@ function Main {
         }
         $resultArr += $testResult
     }
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
 Main

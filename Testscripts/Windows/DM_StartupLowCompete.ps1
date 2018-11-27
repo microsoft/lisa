@@ -30,7 +30,7 @@ function Main {
         $VM2,
         $TestParams
     )
-    $currentTestResult = CreateTestResultObject
+    $currentTestResult = Create-TestResultObject
     $resultArr = @()
     try {
         $testResult = $null
@@ -44,9 +44,9 @@ function Main {
         $VMPort=$VM2.SSHPort
         Set-VMDynamicMemory -VM $VM1 -minMem $TestParams.minMem1 -maxMem $TestParams.maxMem1 -startupMem $TestParams.startupMem1 -memWeight $memweight1
         Set-VMDynamicMemory -VM $VM2 -minMem $TestParams.minMem2 -maxMem $TestParams.maxMem2 -startupMem $TestParams.startupMem2 -memWeight $memweight2
-        LogMsg "Starting VM1 $VM1Name"
+        Write-LogInfo "Starting VM1 $VM1Name"
         $VM1Ipv4=Start-VMandGetIP $VM1Name $HvServer $VMPort $user $password
-        LogMsg "IP of $VM1Name is $VM1Ipv4"
+        Write-LogInfo "IP of $VM1Name is $VM1Ipv4"
         # Change working directory to root dir
         Set-Location $WorkingDirectory
         $vm1 = Get-VM -Name $VM1Name -ComputerName $HvServer -ErrorAction SilentlyContinue
@@ -63,8 +63,8 @@ function Main {
             $sleepPeriod -= 5
             Start-Sleep -s 5
         }
-        LogMsg "VM1 $VM1Name before assigned memory : $vm1BeforeAssigned"
-        LogMsg "VM1 $VM1Name before memory demand: $vm1BeforeDemand"
+        Write-LogInfo "VM1 $VM1Name before assigned memory : $vm1BeforeAssigned"
+        Write-LogInfo "VM1 $VM1Name before memory demand: $vm1BeforeDemand"
         if ($vm1BeforeAssigned -le 0) {
             throw "$VM1Name Assigned memory is 0"
         }
@@ -72,14 +72,14 @@ function Main {
             throw "$VM1Name Memory demand is 0"
         }
         Start-Sleep -s 100
-        LogMsg "Starting VM2 $VM2Name"
+        Write-LogInfo "Starting VM2 $VM2Name"
         $VM1Ipv4=Start-VMandGetIP $VM2Name $HvServer $VMPort $user $password
-        LogMsg "IP of $VM2Name is $VM2Ipv4"
+        Write-LogInfo "IP of $VM2Name is $VM2Ipv4"
         # get VM1's Memory
         [int64]$vm1AfterAssigned = ($vm1.MemoryAssigned/[int64]1048576)
         [int64]$vm1AfterDemand = ($vm1.MemoryDemand/[int64]1048576)
-        LogMsg "VM1 $VM1Name after assigned memory : $vm1AfterAssigned"
-        LogMsg "VM1 $VM1Name after memory demand: $vm1AfterDemand"
+        Write-LogInfo "VM1 $VM1Name after assigned memory : $vm1AfterAssigned"
+        Write-LogInfo "VM1 $VM1Name after memory demand: $vm1AfterDemand"
         if ($vm1AfterAssigned -le 0) {
             throw "$VM1Name Assigned memory is 0 after $VM2Name started"
         }
@@ -89,9 +89,9 @@ function Main {
         # Compute deltas
         [int64]$vm1AssignedDelta = [int64]$vm1BeforeAssigned - [int64]$vm1AfterAssigned
         [int64]$vm1DemandDelta = [int64]$vm1BeforeDemand - [int64]$vm1AfterDemand
-        LogMsg "Deltas after vm2 $VM2Name started"
-        LogMsg "VM1 $VM1Name Assigned : ${vm1AssignedDelta}"
-        LogMsg "VM1 $VM1Name Demand   : ${vm1DemandDelta}"
+        Write-LogInfo "Deltas after vm2 $VM2Name started"
+        Write-LogInfo "VM1 $VM1Name Assigned : ${vm1AssignedDelta}"
+        Write-LogInfo "VM1 $VM1Name Demand   : ${vm1DemandDelta}"
         # Assigned memory needs to have lowered after VM2 starts.
         if ($vm1AssignedDelta -le 0) {
             throw "VM1 $VM1Name did not lower its assigned Memory after VM2 $VM2Name started."
@@ -108,8 +108,8 @@ function Main {
             $sleepPeriod-= 5
             Start-Sleep -s 5
         }
-        LogMsg "VM2 $VM2Name before assigned memory : $vm2BeforeAssigned"
-        LogMsg "VM2 $VM2Name before memory demand: $vm2BeforeDemand"
+        Write-LogInfo "VM2 $VM2Name before assigned memory : $vm2BeforeAssigned"
+        Write-LogInfo "VM2 $VM2Name before memory demand: $vm2BeforeDemand"
         if ($vm2BeforeAssigned -le 0) {
             throw "$VM2Name Assigned memory is 0"
         }
@@ -121,8 +121,8 @@ function Main {
         # get VM2's Memory
         [int64]$vm2AfterAssigned = ($vm2.MemoryAssigned/[int64]1048576)
         [int64]$vm2AfterDemand = ($vm2.MemoryDemand/[int64]1048576)
-        LogMsg "VM2 $VM2Name after assigned memory : $vm2AfterAssigned"
-        LogMsg "VM2 $VM2Name after memory demand: $vm2AfterDemand"
+        Write-LogInfo "VM2 $VM2Name after assigned memory : $vm2AfterAssigned"
+        Write-LogInfo "VM2 $VM2Name after memory demand: $vm2AfterDemand"
         if ($vm2AfterAssigned -le 0) {
             throw "$VM2Name Assigned memory is 0 after it stabilized"
         }
@@ -132,14 +132,14 @@ function Main {
         # Compute deltas
         [int64]$vm2AssignedDelta = [int64]$vm2BeforeAssigned - [int64]$vm2AfterAssigned
         [int64]$vm2DemandDelta = [int64]$vm2BeforeDemand - [int64]$vm2AfterDemand
-        LogMsg "Deltas VM2 $VM2Name after it stabilized"
-        LogMsg "VM2 $VM2Name Assigned : ${vm2AssignedDelta}"
-        LogMsg "VM2 $VM2Name Demand   : ${vm2DemandDelta}"
+        Write-LogInfo "Deltas VM2 $VM2Name after it stabilized"
+        Write-LogInfo "VM2 $VM2Name Assigned : ${vm2AssignedDelta}"
+        Write-LogInfo "VM2 $VM2Name Demand   : ${vm2DemandDelta}"
         # get VM1's Memory
         [int64]$vm1EndAssigned = ($vm1.MemoryAssigned/[int64]1048576)
         [int64]$vm1EndDemand = ($vm1.MemoryDemand/[int64]1048576)
-        LogMsg "VM1 $VM1Name end assigned memory : $vm1EndAssigned"
-        LogMsg "VM1 $VM1Name end memory demand: $vm1EndDemand"
+        Write-LogInfo "VM1 $VM1Name end assigned memory : $vm1EndAssigned"
+        Write-LogInfo "VM1 $VM1Name end memory demand: $vm1EndDemand"
         if ($vm1EndAssigned -le 0) {
             throw "$VM1Name Assigned memory is 0 after VM2 $VM1Name stabilized"
         }
@@ -149,15 +149,15 @@ function Main {
         # Compute deltas
         [int64]$vm1AssignedDelta = [int64]$vm1EndAssigned - [int64]$vm1AfterAssigned
         [int64]$vm1DemandDelta =  [int64]$vm1EndDemand - [int64]$vm1AfterDemand
-        LogMsg "Deltas VM1 $VM1Name after it stabilized"
-        LogMsg "VM1 $VM1Name Assigned : ${vm1AssignedDelta}"
-        LogMsg "VM1 $VM1Name Demand   : ${vm1DemandDelta}"
+        Write-LogInfo "Deltas VM1 $VM1Name after it stabilized"
+        Write-LogInfo "VM1 $VM1Name Assigned : ${vm1AssignedDelta}"
+        Write-LogInfo "VM1 $VM1Name Demand   : ${vm1DemandDelta}"
         $testResult = $resultPass
     }
     catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "$ErrorMessage at line: $ErrorLine"
+        Write-LogErr "$ErrorMessage at line: $ErrorLine"
     }
     finally {
         if (!$testResult) {
@@ -165,7 +165,7 @@ function Main {
         }
             $resultArr += $testResult
     }
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
 	return $currentTestResult.TestResult
 
 }

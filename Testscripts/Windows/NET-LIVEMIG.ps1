@@ -33,7 +33,7 @@ function Main {
         }
         # Change the working directory to where we need to be
         Set-Location $WorkingDirectory
-        LogMsg "Trying to ping the VM before starting migration"
+        Write-LogInfo "Trying to ping the VM before starting migration"
         $timeout = 600
         while ($timeout -gt 0) {
             if ( (Test-TCP $Ipv4 $VMPort) -eq "True" ) {
@@ -45,17 +45,17 @@ function Main {
         if ($timeout -eq 0) {
             throw "Test case timed out waiting for VM to boot"
         }
-        LogMsg "Starting migration job"
+        Write-LogInfo "Starting migration job"
         $job = Start-Job -FilePath "$WorkingDirectory\Testscripts\Windows\Migrate-VM.ps1" -ArgumentList $VMName,$HvServer,$MigrationType,$StopClusterNode,$VMMemory,$WorkingDirectory
         if (-not $job) {
             throw "Migration job not started"
         }
-        LogMsg "Checking if the migration job is actually running"
+        Write-LogInfo "Checking if the migration job is actually running"
         $jobInfo = Get-Job -Id $job.Id
         if($jobInfo.State -ne "Running") {
             throw "Migration job did not start or terminated immediately"
         }
-        LogMsg "Test TCP port during the migration"
+        Write-LogInfo "Test TCP port during the migration"
         $migrateJobRunning = $true
         while ($migrateJobRunning) {
             $timeout = 600
@@ -71,7 +71,7 @@ function Main {
             }
             # Copying file during migration
             if($TestParams.CopyFile) {
-                LogMsg "Creating a 256MB temp file"
+                Write-LogInfo "Creating a 256MB temp file"
                 $random = Get-Random -minimum 1024 -maximum 4096
                 $filesize=256MB
                 $testfile = "TestFile_$random"
@@ -79,8 +79,8 @@ function Main {
                 if ($createfile -notlike "File *TestFile_* is created") {
                     throw "Could not create $testfile in the working directory!"
                 }
-                LogMsg "Copying temp file to VM"
-                RemoteCopy -upload -uploadTo $Ipv4 -Port $VMPort `
+                Write-LogInfo "Copying temp file to VM"
+                Copy-RemoteFiles -upload -uploadTo $Ipv4 -Port $VMPort `
                     -files $testfile -Username $user -password $password
                 $TestParams.CopyFile = $False
             }
@@ -110,14 +110,14 @@ function Main {
     } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "$ErrorMessage at line: $ErrorLine"
+        Write-LogErr "$ErrorMessage at line: $ErrorLine"
     } finally {
         if (!$testResult) {
             $testResult = $resultAborted
         }
         $resultArr += $testResult
     }
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
 Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))

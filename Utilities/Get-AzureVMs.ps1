@@ -17,7 +17,7 @@ Get-ChildItem ..\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1
 #When given -UseSecretsFile or an AzureSecretsFile path, we will attempt to search the path or the environment variable.
 if( $UseSecretsFile -or $AzureSecretsFile )
 {
-    LogMsg "Evaluating Secrets File"
+    Write-LogInfo "Evaluating Secrets File"
     #Read secrets file and terminate if not present.
     if ($AzureSecretsFile)
     {
@@ -29,17 +29,17 @@ if( $UseSecretsFile -or $AzureSecretsFile )
     }
     else
     {
-        LogMsg "-AzureSecretsFile and env:Azure_Secrets_File are empty. Exiting."
+        Write-LogInfo "-AzureSecretsFile and env:Azure_Secrets_File are empty. Exiting."
         exit 1
     }
     if ( Test-Path $secretsFile)
     {
-        LogMsg "Secrets file found."
+        Write-LogInfo "Secrets file found."
         .\AddAzureRmAccountFromSecretsFile.ps1 -customSecretsFilePath $secretsFile
     }
     else
     {
-        LogMsg "Secrets file not found. Exiting."
+        Write-LogInfo "Secrets file not found. Exiting."
         exit 1
     }
 }
@@ -70,7 +70,7 @@ function Get-VMAgeFromDisk()
             if( $blobDetails )
             {
                 $copyCompletion = $blobDetails.ICloudBlob.CopyState.CompletionTime
-                $age = $($(get-Date)-$copyCompletion.DateTime)
+                $age = $($(Get-Date)-$copyCompletion.DateTime)
                 $ageDays = $age.Days
             }
         }

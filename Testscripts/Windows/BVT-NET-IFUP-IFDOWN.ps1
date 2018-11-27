@@ -19,7 +19,7 @@ function Main {
     #
     $stateFile = "${LogDir}\state.txt"
     $bvtCmd = "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;bash ${remoteScript} > BVT-NET-IFUP-IFDOWN.log`""
-    RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort $bvtCmd -RunInBackground -runAsSudo
+    Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort $bvtCmd -RunInBackground -runAsSudo
     # Wait for the test to finish running on VM
     do {
         if ($TestPlatform -eq "HyperV") {
@@ -29,20 +29,20 @@ function Main {
         else {
             $newIp = $allVmData.PublicIP
         }
-        RemoteCopy -download -downloadFrom $newIp -files "/home/${VMUserName}/state.txt" `
+        Copy-RemoteFiles -download -downloadFrom $newIp -files "/home/${VMUserName}/state.txt" `
             -downloadTo $LogDir -port $VMPort -username $VMUserName -password $VMPassword
         $contents = Get-Content -Path $stateFile
         Start-Sleep -Seconds 30
     } until (($contents -eq "TestCompleted") -or ($contents -eq "TestAborted") `
      -or ($contents -eq "TestFailed") -or ((Get-Date) -gt $expiration))
-    RemoteCopy -download -downloadFrom $newIp -files "/home/${VMUserName}/BVT-NET-IFUP-IFDOWN.log" `
+    Copy-RemoteFiles -download -downloadFrom $newIp -files "/home/${VMUserName}/BVT-NET-IFUP-IFDOWN.log" `
         -downloadTo $LogDir -port $VMPort -username $VMUserName -password $VMPassword
     if (($contents -eq "TestAborted") -or ($contents -eq "TestFailed") -or ((Get-Date) -gt $expiration)) {
-        LogErr "Error: Running $remoteScript script failed on VM!"
+        Write-LogErr "Error: Running $remoteScript script failed on VM!"
         return "FAIL"
     }
     else {
-        LogMsg "Test BVT-NET-IFUP-IFDOWN PASSED !"
+        Write-LogInfo "Test BVT-NET-IFUP-IFDOWN PASSED !"
     }
 }
 Main -VMName $AllVMData.RoleName -HvServer $TestLocation `

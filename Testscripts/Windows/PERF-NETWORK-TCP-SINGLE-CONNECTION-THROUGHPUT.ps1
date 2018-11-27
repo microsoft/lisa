@@ -3,7 +3,7 @@
 
 function Main {
     # Create test result
-    $currentTestResult = CreateTestResultObject
+    $currentTestResult = Create-TestResultObject
     $resultArr = @()
 
     try {
@@ -26,19 +26,19 @@ function Main {
             Throw "No any slave VM defined. Be sure that, Server machine role names matches with pattern `"*slave*`" Aborting Test."
         }
         #region CONFIGURE VM FOR TERASORT TEST
-        LogMsg "CLIENT VM details :"
-        LogMsg "  RoleName  : $($clientVMData.RoleName)"
-        LogMsg "  Public IP : $($clientVMData.PublicIP)"
-        LogMsg "  SSH Port  : $($clientVMData.SSHPort)"
-        LogMsg "  Location  : $($clientVMData.Location)"
-        LogMsg "SERVER VM details :"
-        LogMsg "  RoleName  : $($serverVMData.RoleName)"
-        LogMsg "  Public IP : $($serverVMData.PublicIP)"
-        LogMsg "  SSH Port  : $($serverVMData.SSHPort)"
-        LogMsg "  Location  : $($serverVMData.Location)"
+        Write-LogInfo "CLIENT VM details :"
+        Write-LogInfo "  RoleName  : $($clientVMData.RoleName)"
+        Write-LogInfo "  Public IP : $($clientVMData.PublicIP)"
+        Write-LogInfo "  SSH Port  : $($clientVMData.SSHPort)"
+        Write-LogInfo "  Location  : $($clientVMData.Location)"
+        Write-LogInfo "SERVER VM details :"
+        Write-LogInfo "  RoleName  : $($serverVMData.RoleName)"
+        Write-LogInfo "  Public IP : $($serverVMData.PublicIP)"
+        Write-LogInfo "  SSH Port  : $($serverVMData.SSHPort)"
+        Write-LogInfo "  Location  : $($serverVMData.Location)"
 
         # PROVISION VMS FOR LISA WILL ENABLE ROOT USER AND WILL MAKE ENABLE PASSWORDLESS AUTHENTICATION ACROSS ALL VMS IN SAME HOSTED SERVICE.
-        ProvisionVMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
+        Provision-VMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
         #endregion
 
         if ($EnableAcceleratedNetworking -or $currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
@@ -46,19 +46,19 @@ function Main {
         } else {
             $DataPath = "Synthetic"
         }
-        LogMsg "Getting $DataPath NIC Name."
+        Write-LogInfo "Getting $DataPath NIC Name."
         $getNicCmd = ". ./utils.sh &> /dev/null && get_active_nic_name"
-        $clientNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command $getNicCmd).Trim()
-        $serverNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username "root" -password $password -command $getNicCmd).Trim()
-        LogMsg "CLIENT $DataPath NIC: $clientNicName"
-        LogMsg "SERVER $DataPath NIC: $serverNicName"
+        $clientNicName = (Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command $getNicCmd).Trim()
+        $serverNicName = (Run-LinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username "root" -password $password -command $getNicCmd).Trim()
+        Write-LogInfo "CLIENT $DataPath NIC: $clientNicName"
+        Write-LogInfo "SERVER $DataPath NIC: $serverNicName"
         if ( $serverNicName -eq $clientNicName) {
-            LogMsg "Server and client SRIOV NICs are the same."
+            Write-LogInfo "Server and client SRIOV NICs are the same."
         } else {
             Throw "Server and client SRIOV NICs are not same."
         }
 
-        LogMsg "Generating constansts.sh ..."
+        Write-LogInfo "Generating constansts.sh ..."
         $constantsFile = "$LogDir\constants.sh"
 
         #region Check if VMs share same Public IP
@@ -87,8 +87,8 @@ function Main {
                 }
             }
         }
-        LogMsg "constanst.sh created successfully..."
-        LogMsg (Get-Content -Path $constantsFile)
+        Write-LogInfo "constanst.sh created successfully..."
+        Write-LogInfo (Get-Content -Path $constantsFile)
         #endregion
 
         #region EXECUTE TEST
@@ -99,25 +99,25 @@ cd /root/
 collect_VM_properties
 "@
         Set-Content "$LogDir\Startiperf3tcpTest.sh" $myString
-        RemoteCopy -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files "$constantsFile,$LogDir\Startiperf3tcpTest.sh" -username "root" -password $password -upload
-        $null = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "chmod +x *.sh"
-        $testJob = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "/root/Startiperf3tcpTest.sh" -RunInBackground
+        Copy-RemoteFiles -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files "$constantsFile,$LogDir\Startiperf3tcpTest.sh" -username "root" -password $password -upload
+        $null = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "chmod +x *.sh"
+        $testJob = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "/root/Startiperf3tcpTest.sh" -RunInBackground
         #endregion
 
         #region MONITOR TEST
         while ((Get-Job -Id $testJob).State -eq "Running") {
-            $currentStatus = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "tail -1 iperf3tcpConsoleLogs.txt"
-            LogMsg "Current Test Status : $currentStatus"
-            WaitFor -seconds 20
+            $currentStatus = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "tail -1 iperf3tcpConsoleLogs.txt"
+            Write-LogInfo "Current Test Status : $currentStatus"
+            Wait-Time -seconds 20
         }
 
-        $finalStatus = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "cat /root/state.txt"
-        RemoteCopy -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "/root/iperf3tcpConsoleLogs.txt"
+        $finalStatus = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "cat /root/state.txt"
+        Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "/root/iperf3tcpConsoleLogs.txt"
         $iperf3LogDir = "$LogDir\iperf3Data"
         New-Item -itemtype directory -path $iperf3LogDir -Force -ErrorAction SilentlyContinue | Out-Null
-        RemoteCopy -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $iperf3LogDir -files "iperf-client-tcp*"
-        RemoteCopy -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $iperf3LogDir -files "iperf-server-tcp*"
-        RemoteCopy -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "VM_properties.csv"
+        Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $iperf3LogDir -files "iperf-client-tcp*"
+        Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $iperf3LogDir -files "iperf-server-tcp*"
+        Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "VM_properties.csv"
         $testSummary = $null
         foreach ($BufferSize_Bytes in $testBuffers) {
             # remove extra warnings
@@ -141,30 +141,30 @@ collect_VM_properties
             $CongestionWindowSize_KB = [math]::Round($CongestionWindowSize_KB_Total / $clientJson.intervals.Count / 1024 )
             $connResult="ClientTxGbps=$TxThroughput_Gbps"
             $metaData = "Buffer=$BufferSize_Bytes Bytes Connections=1"
-            $resultSummary +=  CreateResultSummary -testResult $connResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+            $resultSummary +=  Create-ResultSummary -testResult $connResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
         }
 
         if ($finalStatus -imatch "TestFailed") {
-            LogErr "Test failed. Last known status : $currentStatus."
+            Write-LogErr "Test failed. Last known status : $currentStatus."
             $testResult = "FAIL"
         }
         elseif ($finalStatus -imatch "TestAborted") {
-            LogErr "Test Aborted. Last known status : $currentStatus."
+            Write-LogErr "Test Aborted. Last known status : $currentStatus."
             $testResult = "ABORTED"
         }
         elseif ($finalStatus -imatch "TestCompleted") {
-            LogMsg "Test Completed."
+            Write-LogInfo "Test Completed."
             $testResult = "PASS"
         }
         elseif ($finalStatus -imatch "TestRunning") {
-            LogMsg "Powershell backgroud job for test is completed but VM is reporting that test is still running. Please check $LogDir\zkConsoleLogs.txt"
-            LogMsg "Contests of summary.log : $testSummary"
+            Write-LogInfo "Powershell backgroud job for test is completed but VM is reporting that test is still running. Please check $LogDir\zkConsoleLogs.txt"
+            Write-LogInfo "Contests of summary.log : $testSummary"
             $testResult = "PASS"
         }
-        LogMsg "Test result : $testResult"
-        LogMsg "Test Completed"
+        Write-LogInfo "Test result : $testResult"
+        Write-LogInfo "Test Completed"
 
-        LogMsg "Analyzing the test results.."
+        Write-LogInfo "Analyzing the test results.."
         $dataSource = $xmlConfig.config.$TestPlatform.database.server
         $user = $xmlConfig.config.$TestPlatform.database.user
         $password = $xmlConfig.config.$TestPlatform.database.password
@@ -208,12 +208,12 @@ collect_VM_properties
             }
             $CongestionWindowSize_KB = [math]::Round($CongestionWindowSize_KB_Total / $clientJson.intervals.Count / 1024 )
             $SQLQuery += "('$TestCaseName','$DataPath','$TestDate','$HostBy','$HostOS','$HostType','$GuestSize','$GuestOSType','$GuestDistro','$KernelVersion','$IPVersion','$ProtocolType','$BufferSize_Bytes','$RxThroughput_Gbps','$TxThroughput_Gbps','$RetransmittedSegments','$CongestionWindowSize_KB'),"
-            $currentTestResult.TestSummary += CreateResultSummary -testResult $RxThroughput_Gbps -metaData "Buffer : $BufferSize_Bytes Bytes, Rx ThroughputGbps" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+            $currentTestResult.TestSummary += Create-ResultSummary -testResult $RxThroughput_Gbps -metaData "Buffer : $BufferSize_Bytes Bytes, Rx ThroughputGbps" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
         }
         if ($dataSource -And $user -And $password -And $database -And $dataTableName) {
-            LogMsg "Uploading the test results.."
+            Write-LogInfo "Uploading the test results.."
             $SQLQuery = $SQLQuery.TrimEnd(',')
-            LogMsg $SQLQuery
+            Write-LogInfo $SQLQuery
             $connection = New-Object System.Data.SqlClient.SqlConnection
             $connection.ConnectionString = $connectionString
             $connection.Open()
@@ -222,16 +222,16 @@ collect_VM_properties
             $command.CommandText = $SQLQuery
             $null = $command.executenonquery()
             $connection.Close()
-            LogMsg "Uploading the test results done!!"
+            Write-LogInfo "Uploading the test results done!!"
         } else {
-            LogMsg "Invalid database details. Failed to upload result to database!"
+            Write-LogInfo "Invalid database details. Failed to upload result to database!"
         }
     } catch {
         $line = $_.InvocationInfo.ScriptLineNumber
         $script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
         $ErrorMessage =  $_.Exception.Message
-        LogMsg "EXCEPTION : $ErrorMessage"
-        LogMsg "Source : Line $line in script $script_name."
+        Write-LogInfo "EXCEPTION : $ErrorMessage"
+        Write-LogInfo "Source : Line $line in script $script_name."
     } finally {
         $metaData = "iperf3tcp RESULT"
         if (!$testResult) {
@@ -240,7 +240,7 @@ collect_VM_properties
         $resultArr += $testResult
     }
 
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
 

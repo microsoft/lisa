@@ -58,32 +58,32 @@ function Main {
     # Check VM state
     $currentState = Check-VMState -vmName $VMName -hvServer $HvServer
     if ($? -ne "True") {
-        LogErr "Cannot check VM state"
+        Write-LogErr "Cannot check VM state"
         return "FAIL"
     }
 
     # If the VM is in any state other than running power it ON
     if ($currentState -ne "Running") {
-        LogMsg "Found $VMName in $currentState state. Powering ON ... "
+        Write-LogInfo "Found $VMName in $currentState state. Powering ON ... "
         Start-VM -vmName $VMName -ComputerName $HvServer
         if ($? -ne "True") {
-            LogErr "Unable to Power ON the VM"
+            Write-LogErr "Unable to Power ON the VM"
             return "FAIL"
         }
-        LogMsg "Waiting 60 secs for VM $VMName to start ..."
+        Write-LogInfo "Waiting 60 secs for VM $VMName to start ..."
         Start-Sleep 60
     }
 
     $null = Check-Systemd -Ipv4 $Ipv4 -SSHPort $VMPort -Username $VMUserName -Password $VMPassword
     if ( -not $True) {
-        LogErr "Systemd is not being used. Test Skipped"
+        Write-LogErr "Systemd is not being used. Test Skipped"
         return "FAIL"
     }
 
     # Get Integration Services status
     $gsi = Get-VMIntegrationService -vmName $VMName -ComputerName $HvServer -Name "Guest Service Interface"
     if ($? -ne "True") {
-        LogErr "Unable to run Get-VMIntegrationService on $VMName ($HvServer)"
+        Write-LogErr "Unable to run Get-VMIntegrationService on $VMName ($HvServer)"
         return "FAIL"
     }
 
@@ -91,7 +91,7 @@ function Main {
     if ($gsi.Enabled -ne "True") {
         Enable-VMIntegrationService -Name "Guest Service Interface" -vmName $VMName -ComputerName $HvServer
         if ($? -ne "True") {
-            LogErr "Unable to enable VMIntegrationService on $VMName ($HvServer)"
+            Write-LogErr "Unable to enable VMIntegrationService on $VMName ($HvServer)"
             return "FAIL"
         }
     }
@@ -101,25 +101,25 @@ function Main {
     while ($counter -lt $CycleCount) {
         Disable-VMIntegrationService -Name "Guest Service Interface" -vmName $VMName -ComputerName $HvServer
         if ($? -ne "True") {
-            LogErr "Unable to disable VMIntegrationService on $VMName ($HvServer) on $counter run"
+            Write-LogErr "Unable to disable VMIntegrationService on $VMName ($HvServer) on $counter run"
             return "FAIL"
         }
         Start-Sleep 5
 
         Enable-VMIntegrationService -Name "Guest Service Interface" -vmName $VMName -ComputerName $HvServer
         if ($? -ne "True") {
-            LogErr "Unable to enable VMIntegrationService on $VMName ($HvServer) on $counter run"
+            Write-LogErr "Unable to enable VMIntegrationService on $VMName ($HvServer) on $counter run"
             return "FAIL"
         }
         Start-Sleep 5
         $counter += 1
     }
-    LogMsg "Disabled and Enabled Guest Services $counter times"
+    Write-LogInfo "Disabled and Enabled Guest Services $counter times"
 
     # Get VHD path of tested server; file will be copied there
     $hvPath = Get-VMHost -ComputerName $HvServer | Select-Object -ExpandProperty VirtualHardDiskPath
     if ($? -ne "True") {
-        LogErr "Unable to get VM host"
+        Write-LogErr "Unable to get VM host"
         return "FAIL"
     }
 
@@ -139,7 +139,7 @@ function Main {
     $timer = 0
     while ((Get-VMIntegrationService $VMName | Where-Object {$_.name -eq "Guest Service Interface"}).PrimaryStatusDescription -ne "OK") {
         Start-Sleep -Seconds 5
-        LogMsg "Waiting for VM Integration Services $timer"
+        Write-LogInfo "Waiting for VM Integration Services $timer"
         $timer += 1
         if ($timer -gt 20) {
             break
@@ -147,9 +147,9 @@ function Main {
     }
 
     $operStatus = (Get-VMIntegrationService -vmName $VMName -ComputerName $HvServer -Name "Guest Service Interface").PrimaryStatusDescription
-    LogMsg "Current Integration Services PrimaryStatusDescription is: $operStatus"
+    Write-LogInfo "Current Integration Services PrimaryStatusDescription is: $operStatus"
     if ($operStatus -ne "Ok") {
-        LogErr "The Guest services are not working properly for VM $VMName!"
+        Write-LogErr "The Guest services are not working properly for VM $VMName!"
         return "FAIL"
     }
     else {
@@ -158,7 +158,7 @@ function Main {
         # Create a 5GB sample file
         $createFile = fsutil file createnew \\$HvServer\$filePathFormatted $fileToCopySize
         if ($createFile -notlike "File *testfile-*.file is created") {
-            LogErr "Could not create the sample test file in the working directory!"
+            Write-LogErr "Could not create the sample test file in the working directory!"
             return "FAIL"
         }
     }
@@ -166,7 +166,7 @@ function Main {
     # Mount attached VHDX
     $sts = Mount-Disk -vmPassword $VMPassword -vmPort $VMPort -ipv4 $Ipv4
     if (-not $sts[-1]) {
-        LogErr "FAIL to mount the disk in the VM."
+        Write-LogErr "FAIL to mount the disk in the VM."
         return "FAIL"
     }
 
@@ -176,20 +176,20 @@ function Main {
 
     $checkProcess = .\Tools\plink.exe -C -pw $VMPassword -P $VMPort root@$Ipv4 "systemctl is-active $daemonName"
     if ($checkProcess -ne "active") {
-        LogErr "Warning: $daemonName was not automatically started by systemd. Will start it manually."
+        Write-LogErr "Warning: $daemonName was not automatically started by systemd. Will start it manually."
         $null = .\Tools\plink.exe -C -pw $VMPassword -P $VMPort root@$Ipv4 "systemctl start $daemonName"
     }
 
     $gsi = Get-VMIntegrationService -vmName $VMName -ComputerName $HvServer -Name "Guest Service Interface"
     if ($gsi.Enabled -ne "True") {
-        LogErr "FCopy Integration Service is not enabled"
+        Write-LogErr "FCopy Integration Service is not enabled"
         return "FAIL"
     }
 
     # Check for the file to be copied
     Test-Path $filePathFormatted
     if ($? -ne "True") {
-        LogErr "File to be copied not found."
+        Write-LogErr "File to be copied not found."
         return "FAIL"
     }
 
@@ -198,35 +198,35 @@ function Main {
                 "/mnt/" -FileSource host -ErrorAction SilentlyContinue }).totalseconds
 
     if ($Error.Count -eq 0) {
-        LogMsg "File has been successfully copied to guest VM '${vmName}'"
+        Write-LogInfo "File has been successfully copied to guest VM '${vmName}'"
     }
     else {
-        LogErr "File could not be copied!"
+        Write-LogErr "File could not be copied!"
         return "FAIL"
     }
 
     [int]$copyDuration = [math]::floor($copyDuration)
-    LogMsg "The file copy process took ${copyDuration} seconds"
+    Write-LogInfo "The file copy process took ${copyDuration} seconds"
 
     # Checking if the file is present on the guest and file size is matching
     $sts = Check-FileInLinuxGuest -vmUserName $VMUserName -vmPassword $VMPassword -vmPort $VMPort -ipv4 $Ipv4 -fileName "/mnt/$testfile"  -checkSize $True  -checkContent $False
     if (-not $sts[-1]) {
-        LogErr "File is not present on the guest VM"
+        Write-LogErr "File is not present on the guest VM"
         return "FAIL"
     }
     elseif ($sts[0] -eq $fileToCopySize) {
-        LogMsg "The file copied matches the $FcopyFileSize size."
+        Write-LogInfo "The file copied matches the $FcopyFileSize size."
         return "PASS"
     }
     else {
-        LogErr "The file copied doesn't match the $FcopyFileSize size!"
+        Write-LogErr "The file copied doesn't match the $FcopyFileSize size!"
         return "FAIL"
     }
 
     # Removing the temporary test file
     Remove-Item -Path \\$HvServer\$filePathFormatted -Force
     if (-not $?) {
-        LogErr "Cannot remove the test file '${testfile}'!"
+        Write-LogErr "Cannot remove the test file '${testfile}'!"
         return "FAIL"
     }
 
@@ -236,10 +236,10 @@ function Main {
     Start-Sleep 6
     $sts = .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$Ipv4 "cat ~/check_traces.log | grep ERROR"
     if ($sts.Contains("ERROR")) {
-        LogMsg "Warning: Call traces have been found on VM"
+        Write-LogInfo "Warning: Call traces have been found on VM"
     }
     if ($sts -eq $NULL) {
-        LogMsg " No Call traces have been found on VM"
+        Write-LogInfo " No Call traces have been found on VM"
     }
     return "PASS"
 }

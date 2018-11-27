@@ -38,7 +38,7 @@ function Main {
         $ipv4 = $captureVMData.PublicIP
         $port= $captureVMData.SSHPort
 
-        LogMsg "Covers Production Checkpoint Testing"
+        Write-LogInfo "Covers Production Checkpoint Testing"
         # Change the working directory to where we need to be
         Set-Location $WorkingDirectory
         # if host build number lower than 10500, skip test
@@ -57,7 +57,7 @@ function Main {
         if ($retval -eq $False) {
             throw "Running $remoteScript script failed on VM!"
         }
-        LogMsg "VSS Daemon is running"
+        Write-LogInfo "VSS Daemon is running"
 
         # Run the remote iSCSI partition script
         $remoteScript = "STOR_VSS_ISCSI_PartitionDisks.sh"
@@ -65,15 +65,15 @@ function Main {
         if ($retval -eq $False) {
             throw "Running $remoteScript script failed on VM!"
         }
-        LogMsg "$remoteScript execution on VM: Success"
+        Write-LogInfo "$remoteScript execution on VM: Success"
 
         # Create a file on the VM
-        RunLinuxCmd -username $user -password $password -ip $ipv4 -port $port -command "touch /mnt/1/TestFile1" -runAsSudo
+        Run-LinuxCmd -username $user -password $password -ip $ipv4 -port $port -command "touch /mnt/1/TestFile1" -runAsSudo
         if (-not $?) {
             throw "Can not create file /mnt/1/TestFile1"
         }
 
-        RunLinuxCmd -username $user -password $password -ip $ipv4 -port $port -command "touch /mnt/2/TestFile1" -runAsSudo
+        Run-LinuxCmd -username $user -password $password -ip $ipv4 -port $port -command "touch /mnt/2/TestFile1" -runAsSudo
         if (-not $?) {
             throw "Can not create file /mnt/2/TestFile1"
         }
@@ -94,29 +94,29 @@ function Main {
         }
 
         # Create another file on the VM
-        RunLinuxCmd -username $user -password $password -ip $ipv4 -port $port -command "touch /mnt/1/TestFile2" -runAsSudo
+        Run-LinuxCmd -username $user -password $password -ip $ipv4 -port $port -command "touch /mnt/1/TestFile2" -runAsSudo
         if (-not $?) {
             throw "Can not create file /mnt/1/TestFile2"
         }
-        RunLinuxCmd -username $user -password $password -ip $ipv4 -port $port -command "touch /mnt/2/TestFile2" -runAsSudo
+        Run-LinuxCmd -username $user -password $password -ip $ipv4 -port $port -command "touch /mnt/2/TestFile2" -runAsSudo
         if (-not $?) {
             throw "Can not create file /mnt/2/TestFile2"
         }
 
-        LogMsg "Restore the VM snapshot"
+        Write-LogInfo "Restore the VM snapshot"
         Restore-VMSnapshot -VMName $vmName -Name $snapshot -ComputerName $hvServer -Confirm:$false
         if (-not $?)
         {
             throw "Could not restore checkpoint"
         }
 
-        LogMsg "Start the VM after restoring the snapshot"
+        Write-LogInfo "Start the VM after restoring the snapshot"
         #
         # Starting the VM
         #
         Start-VM $vmName -ComputerName $hvServer
 
-        LogMsg "Wait for VM to run again"
+        Write-LogInfo "Wait for VM to run again"
         #
         # Waiting for the VM to run again and respond to SSH - port 22
         #
@@ -126,51 +126,51 @@ function Main {
             throw "Error: Test case timed out waiting for VM to boot"
         }
 
-        LogMsg "Mount the partitions"
+        Write-LogInfo "Mount the partitions"
         # Mount the partitions
-        RunLinuxCmd -username $user -password $password -ip $ipv4 -port $port -command "mount /dev/sdc1 /mnt/1; mount /dev/sdc2 /mnt/2" -runAsSudo
+        Run-LinuxCmd -username $user -password $password -ip $ipv4 -port $port -command "mount /dev/sdc1 /mnt/1; mount /dev/sdc2 /mnt/2" -runAsSudo
 
-        LogMsg "Check TestFile1 and TestFile2 in VM"
+        Write-LogInfo "Check TestFile1 and TestFile2 in VM"
         # Check the files
         $sts1 = Check-FileInLinuxGuest -VMPassword $password -VMPort $port -VMUserName $user -Ipv4 $ipv4 -fileName "/mnt/1/TestFile1"
         $sts2 = Check-FileInLinuxGuest -VMPassword $password -VMPort $port -VMUserName $user -Ipv4 $ipv4 -fileName "/mnt/2/TestFile1"
         if (-not $sts1 -or -not $sts2) {
-            LogErr "TestFile1 is not present, it should be present on the VM"
+            Write-LogErr "TestFile1 is not present, it should be present on the VM"
             $testResult = $resultFail
         }
         $sts1 = Check-FileInLinuxGuest -VMPassword $password -VMPort $port -VMUserName $user -Ipv4 $ipv4 -fileName "/mnt/1/TestFile2"
         $sts2 = Check-FileInLinuxGuest -VMPassword $password -VMPort $port -VMUserName $user -Ipv4 $ipv4 -fileName "/mnt/2/TestFile2"
         if ($sts1 -or $sts2)
         {
-            LogErr "TestFile2 is present,it should not be present on the VM"
+            Write-LogErr "TestFile2 is present,it should not be present on the VM"
             $testResult = $resultFail
         }
-        LogMsg "Only the first file is present. Test succeeded"
+        Write-LogInfo "Only the first file is present. Test succeeded"
 
         #
         # Delete the snapshot
         #
-        LogMsg "Deleting Snapshot ${Snapshot} of VM ${vmName}"
+        Write-LogInfo "Deleting Snapshot ${Snapshot} of VM ${vmName}"
 
         # First, unmount the partitions
-        RunLinuxCmd -username $user -password $password -ip $ipv4 -port $port -command "umount /dev/sdc1; umount /dev/sdc2" -runAsSudo
+        Run-LinuxCmd -username $user -password $password -ip $ipv4 -port $port -command "umount /dev/sdc1; umount /dev/sdc2" -runAsSudo
 
         Remove-VMSnapshot -VMName $vmName -Name $snapshot -ComputerName $hvServer
         if( $testResult -ne $resultFail) {
-            LogMsg "Only the first file is present. Test succeeded"
+            Write-LogInfo "Only the first file is present. Test succeeded"
             $testResult=$resultPass
         }
     } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+        Write-LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     } finally {
         if (!$testResult) {
             $testResult = $resultAborted
         }
         $resultArr += $testResult
     }
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
 

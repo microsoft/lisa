@@ -52,7 +52,7 @@ param (
 )
 
 Function Run-TestsOnCycle ([string] $cycleName, [xml] $xmlConfig, [string] $Distro, [int] $TestIterations, [bool] $deployVMPerEachTest, [string] $TestReportXmlPath) {
-	LogMsg "Starting the Cycle - $($CycleName.ToUpper())"
+	Write-LogInfo "Starting the Cycle - $($CycleName.ToUpper())"
 	$executionCount = 0
 
 	foreach ( $tempDistro in $xmlConfig.config.$TestPlatform.Deployment.Data.Distro ) {
@@ -60,12 +60,12 @@ Function Run-TestsOnCycle ([string] $cycleName, [xml] $xmlConfig, [string] $Dist
 			if ( ($null -ne $tempDistro.ARMImage.Publisher) -and ($null -ne $tempDistro.ARMImage.Offer) -and ($null -ne $tempDistro.ARMImage.Sku) -and ($null -ne $tempDistro.ARMImage.Version)) {
 				$ARMImage = $tempDistro.ARMImage
 				Set-Variable -Name ARMImage -Value $ARMImage -Scope Global
-				LogMsg "ARMImage name - $($ARMImage.Publisher) : $($ARMImage.Offer) : $($ARMImage.Sku) : $($ARMImage.Version)"
+				Write-LogInfo "ARMImage name - $($ARMImage.Publisher) : $($ARMImage.Offer) : $($ARMImage.Sku) : $($ARMImage.Version)"
 			}
 			if ( $tempDistro.OsVHD ) {
 				$BaseOsVHD = $tempDistro.OsVHD.Trim()
 				Set-Variable -Name BaseOsVHD -Value $BaseOsVHD -Scope Global
-				LogMsg "Base VHD name - $BaseOsVHD"
+				Write-LogInfo "Base VHD name - $BaseOsVHD"
 			}
 		}
 	}
@@ -80,18 +80,18 @@ Function Run-TestsOnCycle ([string] $cycleName, [xml] $xmlConfig, [string] $Dist
 		$ARMStorageAccount = $xmlConfig.config.$TestPlatform.General.ARMStorageAccount
 
 		if ($givenVHDStorageAccount -ne $ARMStorageAccount ) {
-			LogMsg "Your test VHD is not in target storage account ($ARMStorageAccount)."
-			LogMsg "Your VHD will be copied to $ARMStorageAccount now."
+			Write-LogInfo "Your test VHD is not in target storage account ($ARMStorageAccount)."
+			Write-LogInfo "Your VHD will be copied to $ARMStorageAccount now."
 			$sourceContainer =  $BaseOsVHD.Split("/")[$BaseOsVHD.Split("/").Count - 2]
 			$vhdName =  $BaseOsVHD.Split("/")[$BaseOsVHD.Split("/").Count - 1]
 			if ($ARMStorageAccount -inotmatch "NewStorage_") {
 				#Copy the VHD to current storage account.
-				$copyStatus = CopyVHDToAnotherStorageAccount -sourceStorageAccount $givenVHDStorageAccount -sourceStorageContainer $sourceContainer -destinationStorageAccount $ARMStorageAccount -destinationStorageContainer "vhds" -vhdName $vhdName
+				$copyStatus = Copy-VHDToAnotherStorageAccount -sourceStorageAccount $givenVHDStorageAccount -sourceStorageContainer $sourceContainer -destinationStorageAccount $ARMStorageAccount -destinationStorageContainer "vhds" -vhdName $vhdName
 				if (!$copyStatus) {
 					Throw "Failed to copy the VHD to $ARMStorageAccount"
 				} else {
 					Set-Variable -Name BaseOsVHD -Value $vhdName -Scope Global
-					LogMsg "New Base VHD name - $vhdName"
+					Write-LogInfo "New Base VHD name - $vhdName"
 				}
 			} else {
 				Throw "Automation only supports copying VHDs to existing storage account."
@@ -99,9 +99,9 @@ Function Run-TestsOnCycle ([string] $cycleName, [xml] $xmlConfig, [string] $Dist
 		}
 	}
 
-	LogMsg "Loading the test cycle data ..."
+	Write-LogInfo "Loading the test cycle data ..."
 
-	$currentCycleData = GetCurrentCycleData -xmlConfig $xmlConfig -cycleName $cycleName
+	$currentCycleData = Get-CurrentCycleData -xmlConfig $xmlConfig -cycleName $cycleName
 
 	$xmlElementsToAdd = @("currentTest", "stateTimeStamp", "state", "textSummary", "htmlSummary", "jobID", "testCaseResults")
 	foreach($element in $xmlElementsToAdd) {
@@ -121,7 +121,7 @@ Function Run-TestsOnCycle ([string] $cycleName, [xml] $xmlConfig, [string] $Dist
 	$VmSetup = @()
 	$overrideVmSizeList = @()
 	foreach ($test in $currentCycleData.test) {
-		$currentTestData = GetCurrentTestData -xmlConfig $xmlConfig -testName $test.Name
+		$currentTestData = Get-CurrentTestData -xmlConfig $xmlConfig -testName $test.Name
 		$VmSetup += $currentTestData.setupType
 		if ($currentTestData.OverrideVMSize) {
 			$overrideVmSizeList += $currentTestData.OverrideVMSize
@@ -139,7 +139,7 @@ Function Run-TestsOnCycle ([string] $cycleName, [xml] $xmlConfig, [string] $Dist
 
 	foreach ($test in $currentCycleData.test) {
 		$testIndex ++
-		$currentTestData = GetCurrentTestData -xmlConfig $xmlConfig -testName $test.Name
+		$currentTestData = Get-CurrentTestData -xmlConfig $xmlConfig -testName $test.Name
 		$originalTestName = $currentTestData.testName
 		if ( $currentTestData.AdditionalCustomization.Networking -eq "SRIOV" ) {
 			Set-Variable -Name EnableAcceleratedNetworking -Value $true -Scope Global
@@ -186,7 +186,7 @@ Function Run-TestsOnCycle ([string] $cycleName, [xml] $xmlConfig, [string] $Dist
 			if ($currentTestData) {
 				$currentTestName = $currentTestData.testName
 				if (!( $currentTestData.Platform.Contains($xmlConfig.config.CurrentTestPlatform))) {
-					LogMsg "$currentTestName does not support $($xmlConfig.config.CurrentTestPlatform) platform."
+					Write-LogInfo "$currentTestName does not support $($xmlConfig.config.CurrentTestPlatform) platform."
 					continue;
 				}
 
@@ -200,7 +200,7 @@ Function Run-TestsOnCycle ([string] $cycleName, [xml] $xmlConfig, [string] $Dist
 					Set-Variable -Name currentTestData -Value $currentTestData -Scope Global
 					try	{
 						$testResult = @()
-						LogMsg "~~~~~~~~~~~~~~~TEST STARTED : $currentTestName~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+						Write-LogInfo "~~~~~~~~~~~~~~~TEST STARTED : $currentTestName~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
 						$CurrentTestResult = Run-Test -CurrentTestData $currentTestData -XmlConfig $xmlConfig `
 							-Distro $Distro -LogDir $CurrentTestLogDir -VMUser $user -VMPassword $password `
@@ -213,11 +213,11 @@ Function Run-TestsOnCycle ([string] $cycleName, [xml] $xmlConfig, [string] $Dist
 						$ErrorMessage =  $_.Exception.Message
 						$line = $_.InvocationInfo.ScriptLineNumber
 						$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
-						LogErr "EXCEPTION : $ErrorMessage"
-						LogErr "Source : Line $line in script $script_name."
+						Write-LogErr "EXCEPTION : $ErrorMessage"
+						Write-LogErr "Source : Line $line in script $script_name."
 					}
 					finally	{
-						LogMsg "~~~~~~~~~~~~~~~TEST END : $currentTestName~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+						Write-LogInfo "~~~~~~~~~~~~~~~TEST END : $currentTestName~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 					}
 					$executionCount += 1
 					$testRunDuration = $junitReport.GetTestCaseElapsedTime("LISAv2Test","$currentTestName","mm")
@@ -237,22 +237,22 @@ Function Run-TestsOnCycle ([string] $cycleName, [xml] $xmlConfig, [string] $Dist
 						if ( $jobStatus.State -ne "Running" ) {
 							Remove-Job -Id $job.ID -Force
 							if ( $? ) {
-								LogMsg "Removed $($job.State) background job ID $($job.Id)."
+								Write-LogInfo "Removed $($job.State) background job ID $($job.Id)."
 							}
 						} else {
-							LogMsg "$($job.Name) is running."
+							Write-LogInfo "$($job.Name) is running."
 						}
 					}
 				} else {
-					LogMsg "Skipping $($currentTestData.Priority) test : $currentTestName"
+					Write-LogInfo "Skipping $($currentTestData.Priority) test : $currentTestName"
 				}
 			} else {
-				LogErr "No Test Data found for $currentTestName.."
+				Write-LogInfo "No Test Data found for $currentTestName.."
 			}
 		}
 	}
 
-	LogMsg "Checking background cleanup jobs.."
+	Write-LogInfo "Checking background cleanup jobs.."
 	$cleanupJobList = Get-Job | Where-Object { $_.Name -imatch "DeleteResourceGroup"}
 	$isAllCleaned = $false
 	while(!$isAllCleaned) {
@@ -265,24 +265,24 @@ Function Run-TestsOnCycle ([string] $cycleName, [xml] $xmlConfig, [string] $Dist
 			if ( $jobStatus.State -ne "Running" ) {
 
 				$tempRG = $($cleanupJob.Name).Replace("DeleteResourceGroup-","")
-				LogMsg "$tempRG : Delete : $($jobStatus.State)"
+				Write-LogInfo "$tempRG : Delete : $($jobStatus.State)"
 				Remove-Job -Id $cleanupJob.ID -Force
 			} else  {
-				LogMsg "$($cleanupJob.Name) is running."
+				Write-LogInfo "$($cleanupJob.Name) is running."
 				$isAllCleaned = $false
 				$runningJobsCount += 1
 			}
 		}
 		if ($runningJobsCount -gt 0) {
-			LogMsg "$runningJobsCount background cleanup jobs still running. Waiting 30 seconds..."
+			Write-LogInfo "$runningJobsCount background cleanup jobs still running. Waiting 30 seconds..."
 			Start-Sleep -Seconds 30
 		}
 	}
-	LogMsg "All background cleanup jobs finished."
+	Write-LogInfo "All background cleanup jobs finished."
 	$azureContextFiles = Get-Item "$env:TEMP\*.azurecontext"
 	$azureContextFiles | Remove-Item -Force | Out-Null
-	LogMsg "Removed $($azureContextFiles.Count) context files."
-	LogMsg "Cycle Finished.. $($CycleName.ToUpper())"
+	Write-LogInfo "Removed $($azureContextFiles.Count) context files."
+	Write-LogInfo "Cycle Finished.. $($CycleName.ToUpper())"
 
 	$junitReport.CompleteLogTestSuite("LISAv2Test")
 	$junitReport.SaveLogReport()
@@ -362,12 +362,12 @@ if ($UseManagedDisks) {
 
 try {
 	$TestResultsDir = "TestResults"
-	if (! (test-path $TestResultsDir)) {
-		mkdir $TestResultsDir | out-null
+	if (! (Test-Path $TestResultsDir)) {
+		mkdir $TestResultsDir | Out-Null
 	}
 
-	if (! (test-path ".\Report")) {
-		mkdir ".\Report" | out-null
+	if (! (Test-Path ".\Report")) {
+		mkdir ".\Report" | Out-Null
 	}
 
 	$testStartTime = [DateTime]::Now.ToUniversalTime()
@@ -377,7 +377,7 @@ try {
 	Set-Variable -Name LogFile -Value $LogFile -Scope Global
 	Set-Variable -Name Distro -Value $RGIdentifier -Scope Global
 	Set-Variable -Name xmlConfig -Value $xmlConfig -Scope Global
-	LogMsg "'$LogDir' saved to .\Report\lastLogDirectory.txt"
+	Write-LogInfo "'$LogDir' saved to .\Report\lastLogDirectory.txt"
 	Set-Content -Path .\Report\lastLogDirectory.txt -Value $LogDir -Force
 	Set-Variable -Name vnetIsAllConfigured -Value $false -Scope Global
 
@@ -394,46 +394,46 @@ try {
 	}
 
 	$AzureSetup = $xmlConfig.config.$TestPlatform.General
-	LogMsg  ("Info : Using config file $xmlConfigFile")
+	Write-LogInfo  ("Info : Using config file $xmlConfigFile")
 	if ( ( $xmlConfig.config.$TestPlatform.General.ARMStorageAccount -imatch "ExistingStorage" ) -or ($xmlConfig.config.$TestPlatform.General.StorageAccount -imatch "ExistingStorage" )) {
 		$regionName = $xmlConfig.config.$TestPlatform.General.Location.Replace(" ","").Replace('"',"").ToLower()
 		$regionStorageMapping = [xml](Get-Content .\XML\RegionAndStorageAccounts.xml)
 
 		if ( $xmlConfig.config.$TestPlatform.General.ARMStorageAccount -imatch "standard") {
 			$xmlConfig.config.$TestPlatform.General.ARMStorageAccount = $regionStorageMapping.AllRegions.$regionName.StandardStorage
-			LogMsg "Info : Selecting existing standard storage account in $regionName - $($regionStorageMapping.AllRegions.$regionName.StandardStorage)"
+			Write-LogInfo "Info : Selecting existing standard storage account in $regionName - $($regionStorageMapping.AllRegions.$regionName.StandardStorage)"
 		}
 
 		if ( $xmlConfig.config.$TestPlatform.General.ARMStorageAccount -imatch "premium") {
 			$xmlConfig.config.$TestPlatform.General.ARMStorageAccount = $regionStorageMapping.AllRegions.$regionName.PremiumStorage
-			LogMsg "Info : Selecting existing premium storage account in $regionName - $($regionStorageMapping.AllRegions.$regionName.PremiumStorage)"
+			Write-LogInfo "Info : Selecting existing premium storage account in $regionName - $($regionStorageMapping.AllRegions.$regionName.PremiumStorage)"
 		}
 	}
 
-	LogMsg "------------------------------------------------------------------"
+	Write-LogInfo "------------------------------------------------------------------"
 	if ( $TestPlatform -eq "Azure") {
 		$SelectedSubscription = Select-AzureRmSubscription -SubscriptionId $AzureSetup.SubscriptionID
 		$subIDSplitted = ($SelectedSubscription.Subscription.SubscriptionId).Split("-")
 		$userIDSplitted = ($SelectedSubscription.Account.Id).Split("-")
-		LogMsg "SubscriptionName       : $($SelectedSubscription.Subscription.Name)"
-		LogMsg "SubscriptionId         : $($subIDSplitted[0])-xxxx-xxxx-xxxx-$($subIDSplitted[4])"
-		LogMsg "User                   : $($userIDSplitted[0])-xxxx-xxxx-xxxx-$($userIDSplitted[4])"
-		LogMsg "ServiceEndpoint        : $($SelectedSubscription.Environment.ActiveDirectoryServiceEndpointResourceId)"
-		LogMsg "CurrentStorageAccount  : $($AzureSetup.ARMStorageAccount)"
-	} elseif ( $TestPlatform -eq "HyperV") {
+		Write-LogInfo "SubscriptionName       : $($SelectedSubscription.Subscription.Name)"
+		Write-LogInfo "SubscriptionId         : $($subIDSplitted[0])-xxxx-xxxx-xxxx-$($subIDSplitted[4])"
+		Write-LogInfo "User                   : $($userIDSplitted[0])-xxxx-xxxx-xxxx-$($userIDSplitted[4])"
+		Write-LogInfo "ServiceEndpoint        : $($SelectedSubscription.Environment.ActiveDirectoryServiceEndpointResourceId)"
+		Write-LogInfo "CurrentStorageAccount  : $($AzureSetup.ARMStorageAccount)"
+	} elseif  ( $TestPlatform -eq "HyperV") {
 		for( $index=0 ; $index -lt $xmlConfig.config.Hyperv.Hosts.ChildNodes.Count ; $index++ ) {
-			LogMsg "HyperV Host            : $($xmlConfig.config.Hyperv.Hosts.ChildNodes[$($index)].ServerName)"
-			LogMsg "Source VHD Path        : $($xmlConfig.config.Hyperv.Hosts.ChildNodes[$($index)].SourceOsVHDPath)"
-			LogMsg "Destination VHD Path   : $($xmlConfig.config.Hyperv.Hosts.ChildNodes[$($index)].DestinationOsVHDPath)"
+			Write-LogInfo "HyperV Host            : $($xmlConfig.config.Hyperv.Hosts.ChildNodes[$($index)].ServerName)"
+			Write-LogInfo "Source VHD Path        : $($xmlConfig.config.Hyperv.Hosts.ChildNodes[$($index)].SourceOsVHDPath)"
+			Write-LogInfo "Destination VHD Path   : $($xmlConfig.config.Hyperv.Hosts.ChildNodes[$($index)].DestinationOsVHDPath)"
 		}
 	}
-	LogMsg "------------------------------------------------------------------"
+	Write-LogInfo "------------------------------------------------------------------"
 
 	if($DoNotDeleteVMs) {
-		LogMsg "PLEASE NOTE: DoNotDeleteVMs is set. VMs will not be deleted after test is finished even if, test gets PASS."
+		Write-LogInfo "PLEASE NOTE: DoNotDeleteVMs is set. VMs will not be deleted after test is finished even if, test gets PASS."
 	}
 
-	$testCycle = GetCurrentCycleData -xmlConfig $xmlConfig -cycleName $cycleName
+	$testCycle = Get-CurrentCycleData -xmlConfig $xmlConfig -cycleName $cycleName
 	$testSuiteResultDetails = Run-TestsOnCycle -xmlConfig $xmlConfig -Distro $Distro -cycleName $cycleName -TestIterations $TestIterations `
 		-DeployVMPerEachTest $DeployVMPerEachTest -TestReportXmlPath $TestReportXmlPath
 	$testSuiteResultDetails = $testSuiteResultDetails | Select-Object -Last 1
@@ -444,9 +444,9 @@ try {
 	Set-Content -Value $htmlTextSummary -Path .\Report\testSummary.html -Force | Out-Null
 
 	$plainTextSummary = Get-PlainTextSummary -testCycle $testCycle -startTime $testStartTime -testDuration $testDuration -xmlFileName $logDirFilename -testSuiteResultDetails $testSuiteResultDetails
-	LogMsg  "$PlainTextSummary"
+	Write-LogInfo  "$PlainTextSummary"
 } catch {
-	ThrowException($_)
+	Raise-Exception($_)
 } Finally {
 	exit
 }

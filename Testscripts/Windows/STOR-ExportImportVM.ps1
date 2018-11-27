@@ -31,18 +31,18 @@ function Main {
 
     # Check input arguments
     if ($VMName -eq $null) {
-        LogErr "VM name is null"
+        Write-LogErr "VM name is null"
         return "FAIL"
     }
 
     if ($HvServer -eq $null) {
-        LogErr "hvServer is null"
+        Write-LogErr "hvServer is null"
         return "FAIL"
     }
 
     # Change the working directory for the log files
     if (-not (Test-Path $RootDir)) {
-        LogErr  "The directory `"${rootDir}`" does not exist"
+        Write-LogErr  "The directory `"${rootDir}`" does not exist"
         return "FAIL"
     }
     Set-Location $RootDir
@@ -51,7 +51,7 @@ function Main {
     #
     $vm = Get-VM -Name $VMName -ComputerName $HvServer
     if (-not $vm) {
-        LogErr "Cannot find VM ${vmName} on server ${hvServer}"
+        Write-LogErr "Cannot find VM ${vmName} on server ${hvServer}"
         return "FAIL"
     }
 
@@ -70,7 +70,7 @@ function Main {
     }
 
     if ($testCaseTimeout -eq 0) {
-        LogErr "Test case timed out waiting for VM to stop"
+        Write-LogErr "Test case timed out waiting for VM to stop"
         return "FAIL"
     }
 
@@ -79,11 +79,11 @@ function Main {
     #
     Checkpoint-VM -Name $VMName -ComputerName $HvServer -SnapshotName "TestExport" -Confirm:$False
     if ($? -ne "True") {
-        LogErr "Error while creating the snapshot"
+        Write-LogErr "Error while creating the snapshot"
         return "FAIL"
     }
 
-    LogMsg "Successfully created a new snapshot before exporting the VM"
+    Write-LogInfo "Successfully created a new snapshot before exporting the VM"
 
     $exportPath = (Get-VMHost).VirtualMachinePath + "\ExportTest\"
     $vmPath = $exportPath + $VMName + "\"
@@ -98,11 +98,11 @@ function Main {
     #
     Export-VM -Name $VMName -ComputerName $HvServer -Path $exportPath -Confirm:$False -Verbose
     if ($? -ne "True") {
-        LogErr "Error while exporting the VM"
+        Write-LogErr "Error while exporting the VM"
         return "FAIL"
     }
 
-    LogMsg "VM ${vmName} exported successfully"
+    Write-LogInfo "VM ${vmName} exported successfully"
 
     #
     # Before importing the VM from exported folder, Delete the created snapshot from the orignal VM.
@@ -120,7 +120,7 @@ function Main {
     #
     $osInfo = Get-WmiObject Win32_OperatingSystem -ComputerName $HvServer
     if (-not $osInfo) {
-        LogErr "Unable to collect Operating System information"
+        Write-LogErr "Unable to collect Operating System information"
         return "FAIL"
     }
 
@@ -141,15 +141,15 @@ function Main {
         }
     }
 
-    LogMsg $vmConfig.fullname
+    Write-LogInfo $vmConfig.fullname
 
     Import-VM -Path $vmConfig -ComputerName $HvServer -Copy "${vmPath}\Virtual Hard Disks" -Verbose -Confirm:$False -GenerateNewId
     if ($? -ne "True") {
-        LogErr "Error while importing the VM"
+        Write-LogErr "Error while importing the VM"
         return "FAIL"
     }
 
-    LogMsg "VM ${vmName} has been imported back successfully"
+    Write-LogInfo "VM ${vmName} has been imported back successfully"
 
     #
     # Check that the imported VM has a snapshot 'TestExport', apply the snapshot and start the VM.
@@ -168,14 +168,14 @@ function Main {
 
     Get-VMSnapshot -VMName $newName -ComputerName $HvServer -Name "TestExport" | Restore-VMSnapshot -Confirm:$False -Verbose
     if ($? -ne "True") {
-        LogErr "Error while applying the snapshot to imported VM $ImportedVM"
+        Write-LogErr "Error while applying the snapshot to imported VM $ImportedVM"
         return "FAIL"
     }
 
     #
     # Verify that the imported VM has started successfully
     #
-    LogMsg "Starting the VM $newName and waiting for the heartbeat..."
+    Write-LogInfo "Starting the VM $newName and waiting for the heartbeat..."
 
     if ((Get-VM -ComputerName $HvServer -Name $newName).State -eq "Off") {
         Start-VM -ComputerName $HvServer -Name $newName
@@ -189,29 +189,29 @@ function Main {
         Start-Sleep -Seconds 5
     } until ((Get-VMIntegrationService $newName | Where-Object {$_.name -eq "Heartbeat"}).PrimaryStatusDescription -eq "OK")
 
-    LogMsg "Imported VM ${newName} has a snapshot TestExport, applied the snapshot and VM started successfully"
+    Write-LogInfo "Imported VM ${newName} has a snapshot TestExport, applied the snapshot and VM started successfully"
     Stop-VM -Name $newName -ComputerName $HvServer -Force -TurnOff
     if ($? -ne "True") {
-        LogErr "Error while stopping the VM"
+        Write-LogErr "Error while stopping the VM"
         return "FAIL"
 
-        LogMsg "VM exported with a new snapshot and imported back successfully"
+        Write-LogInfo "VM exported with a new snapshot and imported back successfully"
         #
         # Cleanup - stop the imported VM, remove it and delete the export folder.
         #
         Remove-VM -Name $newName -ComputerName $HvServer -Force -Verbose
         if ($? -ne "True") {
-            LogErr "Error while removing the Imported VM"
+            Write-LogErr "Error while removing the Imported VM"
             return "FAIL"
         }
         else {
-            LogMsg "Imported VM removed, test completed"
+            Write-LogInfo "Imported VM removed, test completed"
             return "PASS"
         }
 
         Remove-Item -Path "${vmPath}" -Recurse -Force
         if ($? -ne "True") {
-            LogErr "Error while deleting the export folder, trying again..."
+            Write-LogErr "Error while deleting the export folder, trying again..."
             Remove-Item -Recurse -Path "${vmPath}" -Force
         }
 

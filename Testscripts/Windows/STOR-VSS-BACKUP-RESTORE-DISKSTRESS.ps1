@@ -30,7 +30,7 @@ function Main {
             throw "VSS Daemon is not running"
         }
         # Create a file on the VM before backup
-        RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command "touch /home/$user/1" -runAsSudo
+        Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command "touch /home/$user/1" -runAsSudo
         $BackupDriveLetter = $global:driveletter
         if ($null -eq $BackupDriveLetter) {
             $testResult = $resultFail
@@ -65,14 +65,14 @@ function Main {
     } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "$ErrorMessage at line: $ErrorLine"
+        Write-LogErr "$ErrorMessage at line: $ErrorLine"
     } finally {
         if (!$testResult) {
             $testResult = $resultAborted
         }
         $resultArr += $testResult
     }
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
 Main

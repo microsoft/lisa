@@ -53,24 +53,24 @@ elseif ($BuildNumber -lt 9600)
 #
 $gsi = Get-VMIntegrationService -vmName $VMName -ComputerName $HvServer -Name "Guest Service Interface"
 if (-not $gsi) {
-    LogErr "Unable to retrieve Integration Service status from VM '${vmName}'"
+    Write-LogErr "Unable to retrieve Integration Service status from VM '${vmName}'"
     return "ABORTED"
 }
 
 if (-not $gsi.Enabled) {
-    LogWarn "The Guest services are not enabled for VM '${vmName}'"
+    Write-LogWarn "The Guest services are not enabled for VM '${vmName}'"
 	if ((Get-VM -ComputerName $HvServer -Name $VMName).State -ne "Off") {
 		Stop-VM -ComputerName $HvServer -Name $VMName -Force -Confirm:$false
 	}
 
 	# Waiting until the VM is off
 	while ((Get-VM -ComputerName $HvServer -Name $VMName).State -ne "Off") {
-        LogMsg "Turning off VM:'${vmName}'"
+        Write-LogInfo "Turning off VM:'${vmName}'"
         Start-Sleep -Seconds 5
 	}
-    LogMsg "Enabling  Guest services on VM:'${vmName}'"
+    Write-LogInfo "Enabling  Guest services on VM:'${vmName}'"
     Enable-VMIntegrationService -Name "Guest Service Interface" -vmName $VMName -ComputerName $HvServer
-    LogMsg "Starting VM:'${vmName}'"
+    Write-LogInfo "Starting VM:'${vmName}'"
 	Start-VM -Name $VMName -ComputerName $HvServer
 
 	# Waiting for the VM to run again and respond to SSH - port 22
@@ -82,7 +82,7 @@ if (-not $gsi.Enabled) {
 # Verifying if /tmp folder on guest exists; if not, it will be created
 .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$Ipv4 "[ -d /tmp ]"
 if (-not $?){
-     LogMsg "Folder /tmp not present on guest. It will be created"
+     Write-LogInfo "Folder /tmp not present on guest. It will be created"
     .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$Ipv4 "mkdir /tmp"
 }
 #
@@ -90,11 +90,11 @@ if (-not $?){
 #
 $sts = Check-FcopyDaemon  -vmPassword $VMPassword -VmPort $VMPort -vmUserName $VMUserName -ipv4 $Ipv4
 if (-not $sts[-1]) {
-   LogErr "File copy daemon is not running inside the Linux guest VM!"
+   Write-LogErr "File copy daemon is not running inside the Linux guest VM!"
    return "FAIL"
 }
 # Define the file-name to use with the current time-stamp
-$testfile = "testfile-$(get-date -uformat '%H-%M-%S-%Y-%m-%d').file"
+$testfile = "testfile-$(Get-Date -uformat '%H-%M-%S-%Y-%m-%d').file"
 
 # Removing previous test files on the VM
 .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$Ipv4 "rm -f /tmp/testfile-*"
@@ -115,11 +115,11 @@ $file_path_formatted = $vhd_path_formatted + $testfile
 
 $sts = Copy-CheckFileInLinuxGuest -vmUserName $VMUserName -vmPassword $VMPassword -ipv4 $Ipv4 -vmPort $VMPort -vmName $VMName -hvServer $HvServer  -testfile $testfile -overwrite $False -contentlength 20 -filePath $filePath -vhd_path_formatted $vhd_path_formatted
 if (-not $sts) {
-    LogErr "FAIL to initially copy the file '${testfile}' to the VM."
+    Write-LogErr "FAIL to initially copy the file '${testfile}' to the VM."
     return "FAIL"
 }
 else {
-    LogMsg "The file has been initially copied to the VM '${vmName}'."
+    Write-LogInfo "The file has been initially copied to the VM '${vmName}'."
     return "PASS"
 }
 #
@@ -127,18 +127,18 @@ else {
 #
 $sts = Copy-CheckFileInLinuxGuest -vmUserName $VMUserName -vmPassword $VMPassword -ipv4 $Ipv4 -vmPort $VMPort -vmName $VMName -hvServer $HvServer -testfile $testfile -overwrite $True -contentlength 15 -filePath $filePath -vhd_path_formatted $vhd_path_formatted
 if (-not $sts[-1]) {
-    LogErr "FAIL to overwrite the file '${testfile}' to the VM."
+    Write-LogErr "FAIL to overwrite the file '${testfile}' to the VM."
     return "FAIL"
 }
 else {
-    LogMsg "The file has been overwritten to the VM '${vmName}'."
+    Write-LogInfo "The file has been overwritten to the VM '${vmName}'."
     return "PASS"
 }
 
 # Removing the temporary test file
 Remove-Item -Path \\$HvServer\$file_path_formatted -Force
 if ($? -ne "True") {
-    LogErr "Cannot remove the test file '${testfile}'!"
+    Write-LogErr "Cannot remove the test file '${testfile}'!"
     return "FAIL"
 }
 }

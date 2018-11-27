@@ -29,59 +29,59 @@ function Main {
     $vm2ipv4 = Get-IPv4ViaKVP $DependencyVmName $DependencyVmHost
 
     # Get VF name from vm1
-    $vfName = RunLinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+    $vfName = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
         $VMPassword -command "ls /sys/class/net | grep -v 'eth0\|eth1\|lo'"
 
     # Start client on dependency VM
-    RunLinuxCmd -ip $vm2ipv4 -port $VMPort -username $VMRootUser -password `
+    Run-LinuxCmd -ip $vm2ipv4 -port $VMPort -username $VMRootUser -password `
         $VMPassword -command "iperf3 -s > client.out" -RunInBackGround
     Start-Sleep -s 5
     # Run iPerf on client side for 30 seconds and get the throughput
-    RunLinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+    Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
         $VMPassword -command "source sriov_constants.sh ; iperf3 -t 30 -c `$VF_IP2 --logfile PerfResults.log"
-    [decimal]$initialThroughput = RunLinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+    [decimal]$initialThroughput = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
         $VMPassword -command "tail -4 PerfResults.log | head -1 | awk '{print `$7}'" `
         -ignoreLinuxExitCode:$true
     if (-not $initialThroughput){
-        LogErr "No result was logged! Check if iPerf was executed!"
+        Write-LogErr "No result was logged! Check if iPerf was executed!"
         return "FAIL"
     }
-    LogMsg "The throughput before restarting VM is $initialThroughput Gbits/sec"
-    [int]$txValueBeforeReboot = RunLinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+    Write-LogInfo "The throughput before restarting VM is $initialThroughput Gbits/sec"
+    [int]$txValueBeforeReboot = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
         $VMPassword -command "cat /sys/class/net/${vfName}/statistics/tx_packets"
-    LogMsg "TX packet count before reboot is $txValueBeforeReboot"
+    Write-LogInfo "TX packet count before reboot is $txValueBeforeReboot"
 
     # Reboot VM1
     Restart-VM -VMName $VMName -ComputerName $HvServer -Force
     $newIpv4 = Get-Ipv4AndWaitForSSHStart $VMName $HvServer $VMPort $VMRootUser `
         $VMPassword $timeout
     if ($null -eq $newIpv4) {
-        LogErr "Failed to get IP of $VMName on $HvServer"
+        Write-LogErr "Failed to get IP of $VMName on $HvServer"
         return "FAIL"
     }
     # Get the VF name again. In some cases it changes after reboot
-    $vfName = RunLinuxCmd -ip $newIpv4 -port $VMPort -username $VMRootUser -password `
+    $vfName = Run-LinuxCmd -ip $newIpv4 -port $VMPort -username $VMRootUser -password `
         $VMPassword -command "ls /sys/class/net | grep -v 'eth0\|eth1\|lo'"
     # Get TX packets. The value should be close to 0
-    [int]$txValueAfterReboot = RunLinuxCmd -ip $newIpv4 -port $VMPort -username $VMRootUser -password `
+    [int]$txValueAfterReboot = Run-LinuxCmd -ip $newIpv4 -port $VMPort -username $VMRootUser -password `
         $VMPassword -command "cat /sys/class/net/${vfName}/statistics/tx_packets"
     if ($txValueAfterReboot -ge $txValueBeforeReboot){
-        LogErr "TX packet count didn't decrease after reboot"
+        Write-LogErr "TX packet count didn't decrease after reboot"
         return "FAIL"
     } else {
-        LogMsg "TX packet count after reboot is $txValueAfterReboot"
+        Write-LogInfo "TX packet count after reboot is $txValueAfterReboot"
     }
 
     # Read the throughput again, it should be similar to previous read
-    RunLinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+    Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
         $VMPassword -command "source sriov_constants.sh ; iperf3 -t 30 -c `$VF_IP2 --logfile PerfResults.log"
     [decimal]$initialThroughput = $initialThroughput * 0.7
-    [decimal]$finalThroughput = RunLinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+    [decimal]$finalThroughput = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
         $VMPassword -command "tail -4 PerfResults.log | head -1 | awk '{print `$7}'" `
         -ignoreLinuxExitCode:$true
-    LogMsg "The throughput after restarting the VM is $finalThroughput Gbits/sec"
+    Write-LogInfo "The throughput after restarting the VM is $finalThroughput Gbits/sec"
     if ($initialThroughput -gt $finalThroughput) {
-        LogErr "After restarting the VM, the throughput has decreased"
+        Write-LogErr "After restarting the VM, the throughput has decreased"
         return "FAIL"
     }
 

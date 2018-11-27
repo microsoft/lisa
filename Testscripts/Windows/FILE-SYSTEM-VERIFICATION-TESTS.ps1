@@ -3,38 +3,38 @@
 
 function Main {
     # Create test result
-    $currentTestResult = CreateTestResultObject
+    $currentTestResult = Create-TestResultObject
     $resultArr = @()
 
     try {
-        ProvisionVMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
-        RemoteCopy -uploadTo $allVMData.PublicIP -port $allVMData.SSHPort -files $currentTestData.files -username "root" -password $password -upload
+        Provision-VMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
+        Copy-RemoteFiles -uploadTo $allVMData.PublicIP -port $allVMData.SSHPort -files $currentTestData.files -username "root" -password $password -upload
 
         $constantsFile = Join-Path $env:TEMP "xfstests-config-$TestID.config"
-        LogMsg "Generating $constantsFile ..."
+        Write-LogInfo "Generating $constantsFile ..."
         Set-Content -Value "" -Path $constantsFile -NoNewline
         foreach ($param in $currentTestData.TestParameters.param) {
             if ($param -imatch "FSTYP=") {
                 $TestFileSystem = ($param.Replace("FSTYP=",""))
                 Add-Content -Value "[$TestFileSystem]" -Path $constantsFile
-                LogMsg "[$TestFileSystem] added to constants.sh"
+                Write-LogInfo "[$TestFileSystem] added to constants.sh"
             }
             Add-Content -Value "$param" -Path $constantsFile
-            LogMsg "$param added to constants.sh"
+            Write-LogInfo "$param added to constants.sh"
         }
-        LogMsg "$constantsFile created successfully..."
-        RemoteCopy -uploadTo $allVMData.PublicIP -port $allVMData.SSHPort -files $constantsFile -username "root" -password $password -upload
+        Write-LogInfo "$constantsFile created successfully..."
+        Copy-RemoteFiles -uploadTo $allVMData.PublicIP -port $allVMData.SSHPort -files $constantsFile -username "root" -password $password -upload
 
-        $null = RunLinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "chmod +x *.sh"
-        $testJob = RunLinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "/root/perf_xfstesting.sh -TestFileSystem $TestFileSystem" -RunInBackground
+        $null = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "chmod +x *.sh"
+        $testJob = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "/root/perf_xfstesting.sh -TestFileSystem $TestFileSystem" -RunInBackground
 
         # region MONITOR TEST
         while ((Get-Job -Id $testJob).State -eq "Running") {
-            $currentStatus = RunLinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "tail -1 XFSTestingConsole.log"
-            LogMsg "Current Test Status : $currentStatus"
-            WaitFor -seconds 20
+            $currentStatus = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "tail -1 XFSTestingConsole.log"
+            Write-LogInfo "Current Test Status : $currentStatus"
+            Wait-Time -seconds 20
         }
-        RemoteCopy -download -downloadFrom $allVMData.PublicIP -files "XFSTestingConsole.log" -downloadTo $LogDir -port $allVMData.SSHPort -username "root" -password $password
+        Copy-RemoteFiles -download -downloadFrom $allVMData.PublicIP -files "XFSTestingConsole.log" -downloadTo $LogDir -port $allVMData.SSHPort -username "root" -password $password
         $XFSTestingConsole = Get-Content "$LogDir\XFSTestingConsole.log"
 
         if ($XFSTestingConsole -imatch "Passed all") {
@@ -44,12 +44,12 @@ function Main {
         }
 
         foreach ( $line in $XFSTestingConsole.Split("`n")) {
-            LogMsg "$line"
+            Write-LogInfo "$line"
         }
     } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+        Write-LogInfo "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     } finally {
         if (!$testResult) {
             $testResult = "Aborted"
@@ -57,6 +57,6 @@ function Main {
         $resultArr += $testResult
     }
 
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }

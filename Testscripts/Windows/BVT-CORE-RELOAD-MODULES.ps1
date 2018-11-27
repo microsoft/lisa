@@ -39,22 +39,22 @@ function Check-Result {
     $attempts = 200
 
     while ($attempts -ne 0 ){
-        RemoteCopy -download -downloadFrom $VmIp -files "/home/${User}/state.txt" -downloadTo $LogDir -port $VMPort -username $User -password $Password
+        Copy-RemoteFiles -download -downloadFrom $VmIp -files "/home/${User}/state.txt" -downloadTo $LogDir -port $VMPort -username $User -password $Password
             if (Test-Path $stateFile){
                 $contents = Get-Content -Path $stateFile
                 if ($null -ne $contents){
                     if (($contents -eq $testCompleted) -or ($contents -eq $testSkipped)) {
-                        LogMsg "Info: state file contains ${contents}"
+                        Write-LogInfo "Info: state file contains ${contents}"
                         $retVal = $True
                         break
                     }
                     if (($contents -eq $testAborted) -or ($contents -eq $testFailed)) {
-                        LogErr "Info: State file contains TestAborted or TestFailed"
+                        Write-LogErr "Info: State file contains TestAborted or TestFailed"
                         break
                     }
                 }
                 else {
-                    LogMsg "Warning: state file is empty!"
+                    Write-LogInfo "Warning: state file is empty!"
                     break
                 }
             }
@@ -62,18 +62,18 @@ function Check-Result {
         else {
             Start-Sleep -s 10
             $attempts--
-            LogMsg "Info : Attempt number ${attempts}"
-            LogMsg "LogDir: ${LogDir}"
-            LogMsg "StateFile: ${stateFile}"
+            Write-LogInfo "Info : Attempt number ${attempts}"
+            Write-LogInfo "LogDir: ${LogDir}"
+            Write-LogInfo "StateFile: ${stateFile}"
             if ($TestPlatform -eq "HyperV") {
                 if ((Get-VMIntegrationService $VMName -ComputerName $HvServer | ?{$_.name -eq "Heartbeat"}).PrimaryStatusDescription -match "No Contact|Lost Communication") {
                     Stop-VM -Name $VMName -ComputerName $HvServer -Force -TurnOff
-                    LogErr "Error : Lost Communication or No Contact to VM, maybe vm reboots"
+                    Write-LogErr "Error : Lost Communication or No Contact to VM, maybe vm reboots"
                     break
                 }
             }
             if ($attempts -eq 0) {
-                LogErr "Error : Reached max number of attempts to extract state file"
+                Write-LogErr "Error : Reached max number of attempts to extract state file"
             }
         }
 
@@ -104,21 +104,21 @@ function Main {
     # Start pinging the VM while the netvsc driver is being stress reloaded
     $pingJob = Start-Job -ScriptBlock { param($Ipv4) ping -t $Ipv4 } -ArgumentList ($Ipv4)
     if (-not $?) {
-        LogErr "Error: Unable to start job for pinging the VM while stress reloading the netvsc driver."
+        Write-LogErr "Error: Unable to start job for pinging the VM while stress reloading the netvsc driver."
         return "FAIL"
     }
 
     # Run test script in background
-    RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort -command "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;bash ${testScript} > BVT-CORE-RELOAD-MODULES_summary.log`"" -RunInBackGround
+    Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort -command "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;bash ${testScript} > BVT-CORE-RELOAD-MODULES_summary.log`"" -RunInBackGround
 
     Stop-Job $pingJob
 
     $sts = Check-Result -VmIp $Ipv4 -VmPort $VMPort -User $VMUserName -Password $VMPassword
     if (-not $($sts[-1])) {
-        LogErr "Error: Something went wrong during execution of BVT-CORE-RELOAD-MODULES.sh script!"
+        Write-LogErr "Error: Something went wrong during execution of BVT-CORE-RELOAD-MODULES.sh script!"
         return "FAIL"
     } else {
-        LogMsg "Info : Test Stress Reload Modules ${results}"
+        Write-LogInfo "Info : Test Stress Reload Modules ${results}"
         return "PASS"
     }
 }

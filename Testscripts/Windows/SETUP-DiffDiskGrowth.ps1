@@ -44,7 +44,7 @@ function New-ParentVhd {
 
     $hostInfo = Get-VMHost -ComputerName $server
     if (-not $hostInfo) {
-            LogErr "Unable to collect Hyper-V settings for ${server}"
+            Write-LogErr "Unable to collect Hyper-V settings for ${server}"
             return $False
     }
     $defaultVhdPath = $hostInfo.VirtualHardDiskPath
@@ -61,7 +61,7 @@ function New-ParentVhd {
     if (-not $fileInfo) {
         $nv = New-Vhd -Path $parentVhdName -SizeBytes 2GB -Dynamic -ComputerName $server
         if ($null -eq $nv) {
-            LogErr "New-VHD failed to create the new .vhd file: $parentVhdName"
+            Write-LogErr "New-VHD failed to create the new .vhd file: $parentVhdName"
             return $False
         }
     }
@@ -116,7 +116,7 @@ function Main {
             $diskArgs = $rValue.Split(',')
 
             if ($diskArgs.Length -ne 3) {
-                LogErr "Incorrect number of disk arguments: $p"
+                Write-LogErr "Incorrect number of disk arguments: $p"
                 return $False
             }
 
@@ -128,42 +128,42 @@ function Main {
             # If we are asked to create a disk other than a differencing disk,
             # then the wrong setup script was specified.
             if ($vhdType -ne "Diff") {
-                LogErr "The differencing disk test requires a differencing disk"
+                Write-LogErr "The differencing disk test requires a differencing disk"
                 return $False
             }
         }
     }
 
     if (-not $rootDir) {
-        LogErr "no rootdir was specified"
+        Write-LogErr "no rootdir was specified"
     } else {
         Set-Location $rootDir
     }
 
     # Make sure we have all the required data
     if (-not $controllerType) {
-        LogErr "No controller type specified in the test parameters"
+        Write-LogErr "No controller type specified in the test parameters"
         return $False
     }
 
     $vmGeneration = Get-VMGeneration $vmName $hvServer
     if ( $controllerType -eq "IDE" -and $vmGeneration -eq 2 ) {
-        LogMsg "Generation 2 VM does not support IDE disk, please skip this case in the test script"
+        Write-LogInfo "Generation 2 VM does not support IDE disk, please skip this case in the test script"
         return $True
     }
 
     if (-not $controllerID) {
-        LogErr "No controller ID specified in the test parameters"
+        Write-LogErr "No controller ID specified in the test parameters"
         return $False
     }
 
     if (-not $lun) {
-        LogErr "No LUN specified in the test parameters"
+        Write-LogErr "No LUN specified in the test parameters"
         return $False
     }
 
     if (-not $vhdFormat) {
-        LogErr "No vhdFormat specified in the test parameters"
+        Write-LogErr "No vhdFormat specified in the test parameters"
         return $False
     }
 
@@ -171,28 +171,28 @@ function Main {
         # Create a new ParentVHD
         $parentVhd = New-ParentVhd $vhdFormat $hvServer
         if ($parentVhd -eq $False) {
-            LogErr "Failed to create parent $vhdFormat on $hvServer"
+            Write-LogErr "Failed to create parent $vhdFormat on $hvServer"
             return $False
         } else {
-            LogMsg "Parent disk $parentVhd created"
+            Write-LogInfo "Parent disk $parentVhd created"
         }
     }
 
     # Make sure the disk does not already exist
     if ($SCSI) {
         if ($ControllerID -lt 0 -or $ControllerID -gt 3) {
-            LogErr "CreateHardDrive was passed a bad SCSI Controller ID: $ControllerID"
+            Write-LogErr "Create-HardDrive was passed a bad SCSI Controller ID: $ControllerID"
             return $false
         }
         # Create the SCSI controller if needed
         $sts = Create-Controller $vmName $hvServer $controllerID
         if (-not $sts[$sts.Length-1]) {
-            LogErr "Unable to create SCSI controller $controllerID"
+            Write-LogErr "Unable to create SCSI controller $controllerID"
             return $false
         }
     } else {
         if ($ControllerID -lt 0 -or $ControllerID -gt 1) {
-            LogErr "CreateHardDrive was passed an invalid IDE Controller ID: $ControllerID"
+            Write-LogErr "Create-HardDrive was passed an invalid IDE Controller ID: $ControllerID"
             return $False
         }
     }
@@ -212,13 +212,13 @@ function Main {
     $drives = Get-VMHardDiskDrive -VMName $vmName -ComputerName $hvServer -ControllerType $controllerType `
         -ControllerNumber $controllerID -ControllerLocation $lun
     if ($drives) {
-        LogErr "drive $controllerType $controllerID $Lun already exists"
+        Write-LogErr "drive $controllerType $controllerID $Lun already exists"
         return $False
     }
 
     $hostInfo = Get-VMHost -ComputerName $hvServer
     if (-not $hostInfo) {
-        LogErr "Unable to collect Hyper-V settings for ${hvServer}"
+        Write-LogErr "Unable to collect Hyper-V settings for ${hvServer}"
         return $False
     }
 
@@ -253,20 +253,20 @@ function Main {
 
     $parentFileInfo = Get-RemoteFileInfo $parentVhdFilename $hvServer
     if (-not $parentFileInfo) {
-        LogErr "Cannot find parent VHD file: ${parentVhdFilename}"
+        Write-LogErr "Cannot find parent VHD file: ${parentVhdFilename}"
         return $False
     }
 
     # Create the .vhd file
     $newVhd = New-Vhd -Path $vhdName -ParentPath $parentVhdFilename -ComputerName $hvServer -Differencing
     if (-not $newVhd) {
-        LogErr "unable to create a new .vhd file"
+        Write-LogErr "unable to create a new .vhd file"
         return $False
     }
 
     # Just double check to make sure the .vhd file is a differencing disk
     if ($newVhd.ParentPath -ne $parentVhdFilename) {
-        LogErr "the VHDs parent does not match the provided parent vhd path"
+        Write-LogErr "the VHDs parent does not match the provided parent vhd path"
         return $False
     }
 
@@ -275,10 +275,10 @@ function Main {
     Add-VMHardDiskDrive -VMName $vmName -ComputerName $hvServer -ControllerType $controllerType `
         -ControllerNumber $controllerID -ControllerLocation $lun -Path $vhdName
     if ($error.Count -gt 0) {
-        LogErr "Add-VMHardDiskDrive failed to add drive on ${controllerType} ${controllerID} ${Lun}s"
+        Write-LogErr "Add-VMHardDiskDrive failed to add drive on ${controllerType} ${controllerID} ${Lun}s"
         return $False
     } else {
-        LogMsg "Child disk $vhdName created and attached to ${controllerType} : ${controllerID} : ${Lun}"
+        Write-LogInfo "Child disk $vhdName created and attached to ${controllerType} : ${controllerID} : ${Lun}"
         return $True
     }
 }

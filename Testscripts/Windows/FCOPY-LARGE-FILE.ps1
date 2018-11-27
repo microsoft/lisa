@@ -53,24 +53,24 @@ elseif ($BuildNumber -lt 9600)
 #
 $gsi = Get-VMIntegrationService -vmName $VMName -ComputerName $HvServer -Name "Guest Service Interface"
 if (-not $gsi) {
-    LogErr "Unable to retrieve Integration Service status from VM '${vmName}'"
+    Write-LogErr "Unable to retrieve Integration Service status from VM '${vmName}'"
     return "ABORTED"
 }
 
 if (-not $gsi.Enabled) {
-    LogWarn "The Guest services are not enabled for VM '${vmName}'"
+    Write-LogWarn "The Guest services are not enabled for VM '${vmName}'"
 	if ((Get-VM -ComputerName $HvServer -Name $VMName).State -ne "Off") {
 		Stop-VM -ComputerName $HvServer -Name $VMName -Force -Confirm:$false
 	}
 
 	# Waiting until the VM is off
 	while ((Get-VM -ComputerName $HvServer -Name $VMName).State -ne "Off") {
-        LogMsg "Turning off VM:'${vmName}'"
+        Write-LogInfo "Turning off VM:'${vmName}'"
         Start-Sleep -Seconds 5
 	}
-    LogMsg "Enabling  Guest services on VM:'${vmName}'"
+    Write-LogInfo "Enabling  Guest services on VM:'${vmName}'"
     Enable-VMIntegrationService -Name "Guest Service Interface" -vmName $VMName -ComputerName $HvServer
-    LogMsg "Starting VM:'${vmName}'"
+    Write-LogInfo "Starting VM:'${vmName}'"
 	Start-VM -Name $VMName -ComputerName $HvServer
 
 	# Waiting for the VM to run again and respond
@@ -80,7 +80,7 @@ if (-not $gsi.Enabled) {
 }
 
 if ($gsi.OperationalStatus -ne "OK") {
-	LogErr "The Guest services are not working properly for VM '${vmName}'!"
+	Write-LogErr "The Guest services are not working properly for VM '${vmName}'!"
 	return  "FAIL"
 }
 #
@@ -88,7 +88,7 @@ if ($gsi.OperationalStatus -ne "OK") {
 #
 $sts = Check-FcopyDaemon  -vmPassword $VMPassword -VmPort $VMPort -vmUserName $VMUserName -ipv4 $Ipv4
 if (-not $sts[-1]) {
-	 LogErr "File copy daemon is not running inside the Linux guest VM!"
+	 Write-LogErr "File copy daemon is not running inside the Linux guest VM!"
 	 return  "FAIL"
  }
 # Get VHD path of tested server; file will be copied there
@@ -101,7 +101,7 @@ if ($vhd_path.Substring($vhd_path.Length - 1, 1) -ne "\"){
 $vhd_path_formatted = $vhd_path.Replace(':','$')
 
 # Define the file-name to use with the current time-stamp
-$testfile = "testfile-$(get-date -uformat '%H-%M-%S-%Y-%m-%d').file"
+$testfile = "testfile-$(Get-Date -uformat '%H-%M-%S-%Y-%m-%d').file"
 
 $filePath = $vhd_path + $testfile
 $file_path_formatted = $vhd_path_formatted + $testfile
@@ -110,19 +110,19 @@ $file_path_formatted = $vhd_path_formatted + $testfile
 $createfile = fsutil file createnew \\$HvServer\$file_path_formatted $filesize
 
 if ($createfile -notlike "File *testfile-*.file is created") {
-	LogErr "Could not create the sample test file in the working directory!"
+	Write-LogErr "Could not create the sample test file in the working directory!"
 	return "FAIL"
 }
 # Verifying if /mnt folder on guest exists; if not, it will be created
 .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$Ipv4 "[ -d /mnt ]"
 if (-not $?){
-    LogMsg "Folder /mnt not present on guest. It will be created"
+    Write-LogInfo "Folder /mnt not present on guest. It will be created"
     .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$Ipv4 "mkdir /mnt"
 }
 
 $sts = Mount-Disk -vmPassword $VMPassword -vmPort $VMPort -ipv4 $Ipv4
 if (-not $sts[-1]) {
-    LogErr "FAIL to mount the disk in the VM."
+    Write-LogErr "FAIL to mount the disk in the VM."
     return "FAIL"
 }
 #
@@ -133,31 +133,31 @@ $Error.Clear()
 $copyDuration = (Measure-Command { Copy-VMFile -vmName $VMName -ComputerName $HvServer -SourcePath $filePath -DestinationPath `
     "/mnt/" -FileSource Host }).totalseconds
 if ($Error.Count -eq 0) {
-	LogMsg "File has been successfully copied to guest VM '${vmName}'"
+	Write-LogInfo "File has been successfully copied to guest VM '${vmName}'"
 }
 else {
-	LogErr "File could not be copied!"
+	Write-LogErr "File could not be copied!"
 	return "FAIL"
 }
 
 [int]$copyDuration = [math]::floor($copyDuration)
 
-LogMsg "The file copy process took ${copyDuration} seconds"
+Write-LogInfo "The file copy process took ${copyDuration} seconds"
 
 #
 # Checking if the file is present on the guest and file size is matching
 #
 $sts = Check-FileInLinuxGuest -vmUserName $VMUserName -vmPassword $VMPassword -vmPort $VMPort -ipv4 $Ipv4 -fileName "/mnt/$testfile"  -checkSize $True  -checkContent $False
 if  (-not $sts[-1]) {
-	LogMsg "File is not present on the guest VM '${vmName}'!"
+	Write-LogInfo "File is not present on the guest VM '${vmName}'!"
 	return "FAIL"
 }
 elseif ($sts[0] -eq $filesize) {
-    LogMsg "The file copied matches the size: $filesize bytes."
+    Write-LogInfo "The file copied matches the size: $filesize bytes."
     return "PASS"
 }
 else {
-	LogErr "The file copied doesn't match the size: $filesize bytes!"
+	Write-LogErr "The file copied doesn't match the size: $filesize bytes!"
 	return "FAIL"
 }
 #
@@ -165,7 +165,7 @@ else {
 #
 Remove-Item -Path \\$HvServer\$file_path_formatted -Force
 if (-not $?) {
-    LogErr "ERROR: Cannot remove the test file '${testfile}'!"
+    Write-LogErr "ERROR: Cannot remove the test file '${testfile}'!"
     return "FAIL"
 }
 }

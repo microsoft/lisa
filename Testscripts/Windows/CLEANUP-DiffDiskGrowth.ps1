@@ -89,7 +89,7 @@ function Main {
             $diskArgs = $rValue.Split(',')
 
             if ($diskArgs.Length -ne 3) {
-                LogErr "Incorrect number of disk arguments: $p"
+                Write-LogErr "Incorrect number of disk arguments: $p"
                 return $False
             }
 
@@ -98,7 +98,7 @@ function Main {
             $vhdType = $diskArgs[2].Trim()
 
             if ($vhdType -ne "Diff") {
-                LogErr "The differencing disk test requires a differencing disk"
+                Write-LogErr "The differencing disk test requires a differencing disk"
                 return $False
             }
         }
@@ -106,30 +106,30 @@ function Main {
 
     # Make sure we have all the parameters
     if (-not $controllerType) {
-        LogErr "No controller type specified in the test parameters"
+        Write-LogErr "No controller type specified in the test parameters"
         return $False
     }
     if (-not $controllerID) {
-        LogErr "No controller ID specified in the test parameters"
+        Write-LogErr "No controller ID specified in the test parameters"
         return $False
     }
     if (-not $lun) {
-        LogErr "No LUN specified in the test parameters"
+        Write-LogErr "No LUN specified in the test parameters"
         return $False
     }
     if (-not $vhdFormat) {
-        LogErr "No vhdFormat specified in the test parameters"
+        Write-LogErr "No vhdFormat specified in the test parameters"
         return $False
     }
     if (-not $rootDir) {
-        LogErr "no rootdir was specified"
+        Write-LogErr "no rootdir was specified"
     } else {
         Set-Location $rootDir
     }
 
     $vmGeneration = Get-VMGeneration $vmName $hvServer
     if ( $controllerType -eq "IDE" -and $vmGeneration -eq 2 ) {
-        LogMsg "Generation 2 VM does not support IDE disk, please skip this case in the test script"
+        Write-LogInfo "Generation 2 VM does not support IDE disk, please skip this case in the test script"
         return $True
     }
     #
@@ -152,18 +152,18 @@ function Main {
     if ($controller) {
         $drive = Get-VMHardDiskDrive $controller -ControllerLocation $lun
         if ($drive) {
-            LogErr "Removing $controllerType $controllerID $lun"
+            Write-LogErr "Removing $controllerType $controllerID $lun"
             Remove-VMHardDiskDrive $drive
         } else {
-            LogMsg "Drive $controllerType $controllerID,$Lun does not exist"
+            Write-LogInfo "Drive $controllerType $controllerID,$Lun does not exist"
         }
     } else {
-        LogMsg "the controller $controllerType $controllerID does not exist"
+        Write-LogInfo "the controller $controllerType $controllerID does not exist"
     }
 
     $hostInfo = Get-VMHost -ComputerName $hvServer
     if (-not $hostInfo) {
-        LogErr "Unable to collect Hyper-V settings for ${hvServer}"
+        Write-LogErr "Unable to collect Hyper-V settings for ${hvServer}"
         return $False
     }
 
@@ -179,7 +179,7 @@ function Main {
     if ($vhdFileInfo) {
         $delSts = $vhdFileInfo.Delete()
         if (-not $delSts -or $delSts.ReturnValue -ne 0) {
-            LogErr "unable to delete the existing $vhdFormat file: ${vhdFilename}"
+            Write-LogErr "unable to delete the existing $vhdFormat file: ${vhdFilename}"
             return $False
         }
     }
@@ -191,7 +191,7 @@ function Main {
         if ($parentVhdFileInfo) {
             $delSts = $parentVhdFileInfo.Delete()
             if (-not $delSts -or $delSts.ReturnValue -ne 0) {
-                LogErr "unable to delete the existing $vhdFormat file: ${parentVhdFilename}"
+                Write-LogErr "unable to delete the existing $vhdFormat file: ${parentVhdFilename}"
                 return $False
             }
         }

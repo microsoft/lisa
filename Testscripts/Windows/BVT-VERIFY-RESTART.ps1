@@ -3,35 +3,35 @@
 
 function Main {
     # Create test result
-    $currentTestResult = CreateTestResultObject
+    $currentTestResult = Create-TestResultObject
     $resultArr = @()
 
     try {
-        LogMsg "Trying to restart $($AllVMData.RoleName)..."
+        Write-LogInfo "Trying to restart $($AllVMData.RoleName)..."
         $restartVM = Restart-AzureRmVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName -Verbose
         if ( $restartVM.Status -eq "Succeeded" ) {
-            $isSSHOpened = isAllSSHPortsEnabledRG -AllVMDataObject $AllVMData
+            $isSSHOpened = Check-SSHPortsEnabled -AllVMDataObject $AllVMData
             if ($isSSHOpened -eq "True") {
                 $isRestarted = $true
             } else {
-                LogErr "VM is not available after restart"
+                Write-LogErr "VM is not available after restart"
                 $isRestarted = $false
             }
         } else {
             $isRestarted = $false
-            LogErr "Restart Failed. Operation ID : $($restartVM.OperationId)"
+            Write-LogErr "Restart Failed. Operation ID : $($restartVM.OperationId)"
         }
         if ($isRestarted) {
-            LogMsg "Virtual machine restart successful."
+            Write-LogInfo "Virtual machine restart successful."
             $testResult = "PASS"
         } else {
-            LogErr "Virtual machine restart failed."
+            Write-LogErr "Virtual machine restart failed."
             $testResult = "FAIL"
         }
     } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+        Write-LogInfo "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     } finally {
         if (!$testResult) {
             $testResult = "Aborted"
@@ -39,7 +39,7 @@ function Main {
         $resultArr += $testResult
     }
 
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
 

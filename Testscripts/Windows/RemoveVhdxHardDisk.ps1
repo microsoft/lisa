@@ -21,7 +21,7 @@ $IDECount = 0
 $diskCount =$null
 $vmGeneration = $null
 
-function DeleteHardDrive {
+function Delete-HardDrive {
     param (
         [string] $vmName,
         [string] $hvServer,
@@ -44,7 +44,7 @@ function DeleteHardDrive {
     $lun = -1
     $fields = $arguments.Trim().Split(',')
     if (($fields.Length -lt 4) -or ($fields.Length -gt 5)) {
-        LogErr "Incorrect number of arguments: $arguments"
+        Write-LogErr "Incorrect number of arguments: $arguments"
         return $false
     }
 
@@ -58,32 +58,32 @@ function DeleteHardDrive {
     if ($scsi) {
         # Hyper-V only allows 4 SCSI controllers
         if ($controllerID -lt 0 -or $controllerID -gt 3) {
-            LogErr "bad SCSI controllerID: $controllerID"
+            Write-LogErr "bad SCSI controllerID: $controllerID"
             return $false
         }
         # We will limit SCSI LUNs to 4 (1-64)
         if ($lun -lt 0 -or $lun -gt 64) {
-            LogErr "bad SCSI Lun: $Lun"
+            Write-LogErr "bad SCSI Lun: $Lun"
             return $false
         }
     } elseif ($ide) {
         # Hyper-V creates 2 IDE controllers and we cannot add any more
         if ($controllerID -lt 0 -or $controllerID -gt 1) {
-            LogErr "bad IDE controller ID: $controllerID"
+            Write-LogErr "bad IDE controller ID: $controllerID"
             return $false
         }
         if ($lun -lt 0 -or $lun -gt 1) {
-            LogErr "bad IDE Lun: $Lun"
+            Write-LogErr "bad IDE Lun: $Lun"
             return $false
         }
 
         # Make sure we are not deleting IDE 0 0
         if ($Lun -eq 0 -and $controllerID -eq 0) {
-            LogErr "Cannot delete IDE 0,0"
+            Write-LogErr "Cannot delete IDE 0,0"
             return $false
         }
     } else {
-        LogErr "Undefined controller type!"
+        Write-LogErr "Undefined controller type!"
         return $false
     }
 
@@ -119,19 +119,19 @@ function DeleteHardDrive {
             $drive = Get-VMHardDiskDrive -VMName $vmName -ComputerName $hvServer `
                 -ControllerType $controllerType -ControllerNumber $controllerID -ControllerLocation $lun
             if ($drive) {
-                LogMsg $drive.Path
-                LogMsg "Removing $controllerType $controllerID $lun"
+                Write-LogInfo $drive.Path
+                Write-LogInfo "Removing $controllerType $controllerID $lun"
                 $vhdxPath = $drive.Path
                 $vhdxPathFormated = ("\\$hvServer\$vhdxPath").Replace(':','$')
                 Remove-VMHardDiskDrive $drive
-                LogMsg "Removing file $drive.path"
+                Write-LogInfo "Removing file $drive.path"
                 Remove-Item $vhdxPathFormated
             } else {
-                LogMsg "Drive $controllerType $controllerID,$Lun does not exist"
+                Write-LogInfo "Drive $controllerType $controllerID,$Lun does not exist"
             }
         }
     } else {
-        LogMsg "The controller $controllerType $controllerID does not exist"
+        Write-LogInfo "The controller $controllerType $controllerID does not exist"
     }
 
     return $retVal
@@ -146,8 +146,8 @@ function Main {
 
     if ($null -eq $testParams -or $testParams.Length -lt 13) {
         # The minimum length testParams string is "IDE=1,1,Fixed
-        LogErr "Error: No testParams provided"
-        LogErr "The script $MyInvocation.InvocationName requires test parameters"
+        Write-LogErr "Error: No testParams provided"
+        Write-LogErr "The script $MyInvocation.InvocationName requires test parameters"
         return $false
     }
 
@@ -167,14 +167,14 @@ function Main {
 
     $vmGeneration = Get-VMGeneration $vmName $hvServer
     if ($IDECount -ge 1 -and $vmGeneration -eq 2 ) {
-         LogErr "Generation 2 VM does not support IDE disk, please skip this case in the test script"
+         Write-LogErr "Generation 2 VM does not support IDE disk, please skip this case in the test script"
          return $false
     }
 
     # if define diskCount number, only support one SCSI parameter
     if ($null -ne $diskCount) {
         if ($SCSICount -gt 1 -or $IDECount -gt 0) {
-            LogErr "Invalid SCSI/IDE arguments, only support to define one SCSI disk"
+            Write-LogErr "Invalid SCSI/IDE arguments, only support to define one SCSI disk"
             return $false
         }
     }
@@ -186,7 +186,7 @@ function Main {
 
         $p -match '^([^=]+)=(.+)' | Out-Null
         if ($Matches[1,2].Length -ne 2) {
-            LogErr "bad test parameter: $p"
+            Write-LogErr "bad test parameter: $p"
             return $false
             continue
         }
@@ -199,12 +199,12 @@ function Main {
             continue
         }
 
-        LogMsg "DeleteHardDrive $vmName $hvServer $controllerType $($Matches[2])"
-        DeleteHardDrive -vmName $vmName -hvServer $hvServer -controllerType $controllertype `
+        Write-LogInfo "Delete-HardDrive $vmName $hvServer $controllerType $($Matches[2])"
+        Delete-HardDrive -vmName $vmName -hvServer $hvServer -controllerType $controllertype `
             -arguments $Matches[2] -diskCount $diskCount -vmGeneration $vmGeneration
     }
 
-    LogMsg "Vhdx Hard Drive Removed"
+    Write-LogInfo "Vhdx Hard Drive Removed"
     return "PASS"
 }
 

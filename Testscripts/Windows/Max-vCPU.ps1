@@ -25,7 +25,7 @@ function Main {
 
     # Change the working directory for the log files
     if (-not (Test-Path $rootDir)) {
-        LogErr "Error: The directory `"${rootDir}`" does not exist"
+        Write-LogErr "Error: The directory `"${rootDir}`" does not exist"
         return "FAIL"
     }
     Set-Location $rootDir
@@ -36,7 +36,7 @@ function Main {
             $guestMaxCPUs = 4
         } else {
             # Check VM OS architecture and set max CPU allowed
-            $linuxArch = RunLinuxCmd -username "root" -password $VMPassword -ip `
+            $linuxArch = Run-LinuxCmd -username "root" -password $VMPassword -ip `
                             $Ipv4 -port $VMPort -command "uname -m"
             if ($linuxArch -eq "i686") {
                 $guestMaxCPUs = 32
@@ -54,7 +54,7 @@ function Main {
         $maxCPUs =  Get-WmiObject -Class Win32_ComputerSystem -ComputerName $HvServer | `
                     Select-Object -ExpandProperty "NumberOfLogicalProcessors"
         if ($guestMaxCPUs -gt $maxCPUs) {
-            LogMsg "VM maximum cores is limited by the number of Logical cores: $maxCPUs"
+            Write-LogInfo "VM maximum cores is limited by the number of Logical cores: $maxCPUs"
             $guestMaxCPUs = $maxCPUs
         }
     }
@@ -63,22 +63,22 @@ function Main {
     try {
         Stop-VM -Name $VMName -ComputerName $HvServer
     } catch [system.exception] {
-        LogErr "Error: Unable to stop VM $VMName!"
+        Write-LogErr "Error: Unable to stop VM $VMName!"
         return "FAIL"
     }
 
     try {
         Wait-ForVMToStop $VMName $HvServer 200
     } catch [system.exception] {
-        LogErr "Error: Timed out while stopping VM $VMName!"
+        Write-LogErr "Error: Timed out while stopping VM $VMName!"
         return "FAIL"
     }
 
     Set-VM -Name $VMName -ComputerName $HvServer -ProcessorCount $guestMaxCPUs
     if ($? -eq "True") {
-        LogMsg "CPU cores count updated to $guestMaxCPUs"
+        Write-LogInfo "CPU cores count updated to $guestMaxCPUs"
     } else {
-        LogErr "Error: Unable to update CPU count to $guestMaxCPUs!"
+        Write-LogErr "Error: Unable to update CPU count to $guestMaxCPUs!"
         return "FAIL"
     }
 
@@ -90,19 +90,19 @@ function Main {
         # In some cases the IP changes after a reboot
         Set-Variable -Name "Ipv4" -Value $newIpv4
     } else {
-        LogErr "Error: VM $VMName failed to start after setting $guestMaxCPUs vCPUs"
+        Write-LogErr "Error: VM $VMName failed to start after setting $guestMaxCPUs vCPUs"
         return "FAIL"
     }
 
     # Determine how many cores the VM has detected
-    $vCPU = RunLinuxCmd -username "root" -password $VMPassword -ip $Ipv4 -port $VMPort `
+    $vCPU = Run-LinuxCmd -username "root" -password $VMPassword -ip $Ipv4 -port $VMPort `
             -command "cat /proc/cpuinfo | grep processor | wc -l"
     if ($vCPU -eq $guestMaxCPUs) {
-        LogMsg "CPU count inside VM is $guestMaxCPUs"
-        LogMsg "VM $VMName successfully started with $guestMaxCPUs cores."
+        Write-LogInfo "CPU count inside VM is $guestMaxCPUs"
+        Write-LogInfo "VM $VMName successfully started with $guestMaxCPUs cores."
         return "PASS"
     } else {
-        LogErr "Error: Wrong vCPU count of $vCPU detected on the VM, expected $guestMaxCPUs!"
+        Write-LogErr "Error: Wrong vCPU count of $vCPU detected on the VM, expected $guestMaxCPUs!"
         return "FAIL"
     }
 }

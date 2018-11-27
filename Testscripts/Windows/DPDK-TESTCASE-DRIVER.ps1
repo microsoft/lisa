@@ -33,7 +33,7 @@ function Get-NonManagementNics() {
 		}
 	}
 
-	LogMsg "Found $($nics.count) non-management NIC(s)"
+	Write-LogInfo "Found $($nics.count) non-management NIC(s)"
 	return $nics
 }
 
@@ -43,8 +43,8 @@ function Change-Phase() {
 	)
 
 	Set-Content "$LogDir\phase.txt" $phase_msg
-	LogMsg "Changing phase to $phase_msg"
-	RunLinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "echo $phase_msg > phase.txt"
+	Write-LogInfo "Changing phase to $phase_msg"
+	Run-LinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "echo $phase_msg > phase.txt"
 }
 
 function Main {
@@ -53,9 +53,9 @@ function Main {
 
 	try {
 		# enables root access and key auth
-		ProvisionVMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
+		Provision-VMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
 
-		LogMsg "Generating constansts.sh ..."
+		Write-LogInfo "Generating constansts.sh ..."
 		$constantsFile = "$LogDir\constants.sh"
 
 		$ipAddrs = ""
@@ -68,10 +68,10 @@ function Main {
 			$roleName = $vmData.RoleName
 			$internalIp = $vmData.InternalIP
 
-			LogMsg "VM $roleName details :"
-			LogMsg "  Public IP : $($vmData.PublicIP)"
-			LogMsg "  SSH Port : $($vmData.SSHPort)"
-			LogMsg "  Internal IP : $internalIp"
+			Write-LogInfo "VM $roleName details :"
+			Write-LogInfo "  Public IP : $($vmData.PublicIP)"
+			Write-LogInfo "  SSH Port : $($vmData.SSHPort)"
+			Write-LogInfo "  Internal IP : $internalIp"
 
 			$vmNames = "$vmNames $roleName"
 			$ipAddrs = "$ipAddrs $internalIp"
@@ -108,8 +108,8 @@ function Main {
 
 		Add-Content -Value "USER_FILES='$bashFileNames'" -Path $constantsFile
 
-		LogMsg "constanst.sh created successfully..."
-		LogMsg (Get-Content -Path $constantsFile)
+		Write-LogInfo "constanst.sh created successfully..."
+		Write-LogInfo (Get-Content -Path $constantsFile)
 		foreach ($param in $currentTestData.TestParameters.param) {
 			Add-Content -Value "$param" -Path $constantsFile
 		}
@@ -126,62 +126,62 @@ collect_VM_properties
 		Set-content "$LogDir\StartDpdkTest.sh" $startTestCmd
 		# upload updated constants file to all VMs
 		foreach ($vmData in $allVMData) {
-			RemoteCopy -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files "$constantsFile,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkUtils.sh," -username "root" -password $password -upload
+			Copy-RemoteFiles -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files "$constantsFile,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkUtils.sh," -username "root" -password $password -upload
 		}
-		RemoteCopy -uploadTo $masterVM.PublicIP -port $masterVM.SSHPort -files ".\Testscripts\Linux\dpdkSetupAndRunTest.sh,$LogDir\StartDpdkTest.sh" -username "root" -password $password -upload
+		Copy-RemoteFiles -uploadTo $masterVM.PublicIP -port $masterVM.SSHPort -files ".\Testscripts\Linux\dpdkSetupAndRunTest.sh,$LogDir\StartDpdkTest.sh" -username "root" -password $password -upload
 		# upload user specified file from Testcase.xml to root's home
-		RemoteCopy -uploadTo $masterVM.PublicIP -port $masterVM.SSHPort -files $bashFilePaths -username "root" -password $password -upload
+		Copy-RemoteFiles -uploadTo $masterVM.PublicIP -port $masterVM.SSHPort -files $bashFilePaths -username "root" -password $password -upload
 
-		RunLinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "chmod +x *.sh"
-		$testJob = RunLinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "./StartDpdkTest.sh" -RunInBackground
+		Run-LinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "chmod +x *.sh"
+		$testJob = Run-LinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "./StartDpdkTest.sh" -RunInBackground
 
 		# monitor test
 		$outputCounter = 0
 		$oldPhase = ""
 		while ((Get-Job -Id $testJob).State -eq "Running") {
 			if ($outputCounter -eq 5) {
-				$currentOutput = RunLinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "tail -2 dpdkConsoleLogs.txt | head -1"
-				LogMsg "Current Test Output: $currentOutput"
+				$currentOutput = Run-LinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "tail -2 dpdkConsoleLogs.txt | head -1"
+				Write-LogInfo "Current Test Output: $currentOutput"
 
 				$outputCounter = 0
 			}
 
-			$currentPhase = RunLinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "cat phase.txt"
+			$currentPhase = Run-LinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "cat phase.txt"
 			if ($currentPhase -ne $oldPhase) {
-				LogMsg "Read new phase: $currentPhase"
+				Write-LogInfo "Read new phase: $currentPhase"
 				$oldPhase = $currentPhase
 			}
 			Alter-Runtime
 
 			++$outputCounter
-			WaitFor -seconds 5
+			Wait-Time -seconds 5
 		}
-		$finalState = RunLinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "cat /root/state.txt"
-		RemoteCopy -downloadFrom $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "*.csv, *.txt, *.log"
+		$finalState = Run-LinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "cat /root/state.txt"
+		Copy-RemoteFiles -downloadFrom $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "*.csv, *.txt, *.log"
 
 		$testDataCsv = Import-Csv -Path $LogDir\dpdk_test.csv
 		if ($finalState -imatch "TestFailed") {
-			LogErr "Test failed. Last known output: $currentOutput."
+			Write-LogErr "Test failed. Last known output: $currentOutput."
 			$testResult = "FAIL"
 		}
 		elseif ($finalState -imatch "TestAborted") {
-			LogErr "Test Aborted. Last known output: $currentOutput."
+			Write-LogErr "Test Aborted. Last known output: $currentOutput."
 			$testResult = "ABORTED"
 		}
 		elseif ($finalState -imatch "TestCompleted") {
-			LogMsg "Test Completed."
-			RemoteCopy -downloadFrom $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "*.tar.gz"
+			Write-LogInfo "Test Completed."
+			Copy-RemoteFiles -downloadFrom $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "*.tar.gz"
 			$testResult = (Verify-Performance)
 		}
 		elseif ($finalState -imatch "TestRunning") {
-			LogWarn "Powershell backgroud job for test is completed but VM is reporting that test is still running. Please check $LogDir\zkConsoleLogs.txt"
-			LogWarn "Contests of summary.log : $testSummary"
+			Write-LogWarn "Powershell backgroud job for test is completed but VM is reporting that test is still running. Please check $LogDir\zkConsoleLogs.txt"
+			Write-LogWarn "Contests of summary.log : $testSummary"
 			$testResult = "ABORTED"
 		}
 
-		LogMsg "Test result : $testResult"
+		Write-LogInfo "Test result : $testResult"
 		try {
-			LogMsg "Uploading the test results.."
+			Write-LogInfo "Uploading the test results.."
 			$dataSource = $xmlConfig.config.Azure.database.server
 			$DBuser = $xmlConfig.config.Azure.database.user
 			$DBpassword = $xmlConfig.config.Azure.database.password
@@ -205,10 +205,10 @@ collect_VM_properties
 				$SQLQuery = "INSERT INTO $dataTableName (TestPlatFrom,TestCaseName,TestDate,HostType,HostBy,HostOS,GuestOSType,GuestDistro,GuestSize,KernelVersion,LISVersion,IPVersion,ProtocolType,DataPath,DPDKVersion,TestMode,Cores,Max_Rxpps,Txpps,Rxpps,Fwdpps,Txbytes,Rxbytes,Fwdbytes,Txpackets,Rxpackets,Fwdpackets,Tx_PacketSize_KBytes,Rx_PacketSize_KBytes) VALUES "
 				foreach ($mode in $testDataCsv) {
 					$SQLQuery += "('$TestPlatform','$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$HostType','$HostBy','$HostOS','$GuestOSType','$GuestDistro','$GuestSize','$KernelVersion','Inbuilt','$IPVersion','$ProtocolType','$DataPath','$($mode.dpdk_version)','$($mode.test_mode)','$($mode.core)','$($mode.max_rx_pps)','$($mode.tx_pps_avg)','$($mode.rx_pps_avg)','$($mode.fwdtx_pps_avg)','$($mode.tx_bytes)','$($mode.rx_bytes)','$($mode.fwd_bytes)','$($mode.tx_packets)','$($mode.rx_packets)','$($mode.fwd_packets)','$($mode.tx_packet_size)','$($mode.rx_packet_size)'),"
-					LogMsg "Collected performace data for $($mode.TestMode) mode."
+					Write-LogInfo "Collected performace data for $($mode.TestMode) mode."
 				}
 				$SQLQuery = $SQLQuery.TrimEnd(',')
-				LogMsg $SQLQuery
+				Write-LogInfo $SQLQuery
 				$connection = New-Object System.Data.SqlClient.SqlConnection
 				$connection.ConnectionString = $connectionString
 				$connection.Open()
@@ -218,34 +218,34 @@ collect_VM_properties
 
 				$command.executenonquery() | Out-Null
 				$connection.Close()
-				LogMsg "Uploading the test results done!!"
+				Write-LogInfo "Uploading the test results done!!"
 			} else {
-				LogErr "Invalid database details. Failed to upload result to database!"
+				Write-LogErr "Invalid database details. Failed to upload result to database!"
 				$ErrorMessage =  $_.Exception.Message
 				$ErrorLine = $_.InvocationInfo.ScriptLineNumber
-				LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+				Write-LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
 			}
 		} catch {
 			$ErrorMessage =  $_.Exception.Message
 			throw "$ErrorMessage"
 			$testResult = "FAIL"
 		}
-		LogMsg "Test result : $testResult"
-		LogMsg ($testDataCsv | Format-Table | Out-String)
+		Write-LogInfo "Test result : $testResult"
+		Write-LogInfo ($testDataCsv | Format-Table | Out-String)
 	}
 	catch {
 		$ErrorMessage =  $_.Exception.Message
 		$ErrorLine = $_.InvocationInfo.ScriptLineNumber
-		LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+		Write-LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
 	} finally {
 		if (!$testResult) {
 			$testResult = "Aborted"
 		}
 		$resultArr += $testResult
-		$currentTestResult.TestSummary +=  CreateResultSummary -testResult $testResult -metaData "DPDK-TEST" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+		$currentTestResult.TestSummary +=  Create-ResultSummary -testResult $testResult -metaData "DPDK-TEST" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 	}
 
-	$currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+	$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
 	return $currentTestResult.TestResult
 }
 

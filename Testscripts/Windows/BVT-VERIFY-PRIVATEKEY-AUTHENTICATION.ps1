@@ -3,7 +3,7 @@
 
 function Main {
     # Create test result
-    $currentTestResult = CreateTestResultObject
+    $currentTestResult = Create-TestResultObject
     $resultArr = @()
 
     try {
@@ -17,20 +17,20 @@ function Main {
         $hs1ServiceUrl = $hs1vm1.DNSName
         $hs1ServiceUrl = $hs1ServiceUrl.Replace("http://","")
         $hs1ServiceUrl = $hs1ServiceUrl.Replace("/","")
-        LogMsg "Uploading $testFile to $uploadTo, port $port using PrivateKey authentication"
+        Write-LogInfo "Uploading $testFile to $uploadTo, port $port using PrivateKey authentication"
         $successCount = 0
         for ($i = 0; $i -lt 16; $i++) {
             try {
-                LogMsg "Privatekey Authentication Verification loop : $i : STARTED"
+                Write-LogInfo "Privatekey Authentication Verification loop : $i : STARTED"
                 Set-Content -Value "PrivateKey Test" -Path "$logDir\test-file-$i.txt" | Out-Null
-                RemoteCopy -uploadTo $hs1VIP -port $hs1vm1sshport -username $user -password $password -files "$logDir\test-file-$i.txt" -upload -usePrivateKey
+                Copy-RemoteFiles -uploadTo $hs1VIP -port $hs1vm1sshport -username $user -password $password -files "$logDir\test-file-$i.txt" -upload -usePrivateKey
                 Remove-Item -Path "$logDir\test-file-$i.txt" | Out-Null
-                RemoteCopy -downloadFrom $hs1VIP -port $hs1vm1sshport -username $user -password $password -downloadTo $logDir -files "/home/$user/test-file-$i.txt" -download -usePrivateKey
-                LogMsg "Privatekey Authentication Verification loop : $i : SuCCESS"
+                Copy-RemoteFiles -downloadFrom $hs1VIP -port $hs1vm1sshport -username $user -password $password -downloadTo $logDir -files "/home/$user/test-file-$i.txt" -download -usePrivateKey
+                Write-LogInfo "Privatekey Authentication Verification loop : $i : SuCCESS"
                 $successCount += 1
             } catch {
                 $testResult = "FAIL"
-                LogMsg "Privatekey Authentication Verification loop : $i : FAILED"
+                Write-LogInfo "Privatekey Authentication Verification loop : $i : FAILED"
             }
         }
 
@@ -42,7 +42,7 @@ function Main {
     } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+        Write-LogInfo "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     } finally {
         if (!$testResult) {
             $testResult = "Aborted"
@@ -50,7 +50,7 @@ function Main {
         $resultArr += $testResult
     }
 
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
 

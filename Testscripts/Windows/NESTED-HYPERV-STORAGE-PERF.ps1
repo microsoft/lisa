@@ -2,7 +2,7 @@
 # Licensed under the Apache License.
 
 function New-RaidOnL1 ($session, $interleave) {
-	LogMsg "Create raid0 on level 1 with $interleave Interleave"
+	Write-LogInfo "Create raid0 on level 1 with $interleave Interleave"
 	Invoke-Command -Session $session -ScriptBlock {
 		param($interleave)
 
@@ -12,7 +12,7 @@ function New-RaidOnL1 ($session, $interleave) {
 		$diskNumbers = (Get-Disk | Where-Object {$_.FriendlyName -eq 'Msft Virtual Disk'}).Number
 		foreach ( $number in $diskNumbers )
 		{
-			set-disk $number -isOffline $true
+			Set-Disk $number -isOffline $true
 		}
 
 		$disks = Get-PhysicalDisk -CanPool  $true
@@ -24,7 +24,7 @@ function New-RaidOnL1 ($session, $interleave) {
 }
 
 function New-NestedVM ($session, $vmMem, $osVHD, $vmName, $processors, $switchName) {
-	LogMsg "Create the $vmName VM with mem:$vmMem, processors:$processors"
+	Write-LogInfo "Create the $vmName VM with mem:$vmMem, processors:$processors"
 	Invoke-Command -Session $session -ScriptBlock {
 			param($vmMem,$osVHD,$vmName,$processors,$switchName)
 
@@ -41,7 +41,7 @@ function New-NestedVM ($session, $vmMem, $osVHD, $vmName, $processors, $switchNa
 				$diskNumbers = (Get-Disk | Where-Object {$_.FriendlyName -eq 'Msft Virtual Disk'}).Number
 				foreach ( $number in $diskNumbers )
 				{
-					set-disk $number -isOffline $true
+					Set-Disk $number -isOffline $true
 				}
 
 				$diskNumbers = (Get-Disk | Where-Object {$_.OperationalStatus -eq 'offline'}).Number
@@ -59,7 +59,7 @@ function New-NestedVM ($session, $vmMem, $osVHD, $vmName, $processors, $switchNa
 
 function Get-NestedVMIPAdress ($session, $vmName) {
 	#Start the nested vm if it's not running
-	LogMsg "Get the IPv4 address of the nested VM $vmName"
+	Write-LogInfo "Get the IPv4 address of the nested VM $vmName"
 	Invoke-Command -Session $session -ScriptBlock {
 		param($vmName)
 
@@ -115,31 +115,31 @@ chmod 666 perf_fio.csv
 
 function Start-TestExecution ($ip, $port, $username, $passwd)
 {
-	RemoteCopy -uploadTo $ip -port $port -files $currentTestData.files -username $username -password $passwd -upload
-	RunLinuxCmd -ip $ip -port $port -username $username -password $passwd -command "rm -f /home/$username/*.txt;rm -f /home/$username/*.log" -runAsSudo
-	RunLinuxCmd -ip $ip -port $port -username $username -password $passwd -command "cp *.sh /root;touch /home/$username/state.txt" -runAsSudo
-	RunLinuxCmd -ip $ip -port $port -username $username -password $passwd -command "chmod +x *.sh;chmod +x /root/*.sh" -runAsSudo
-	LogMsg "Executing : StartFioTest.sh"
+	Copy-RemoteFiles -uploadTo $ip -port $port -files $currentTestData.files -username $username -password $passwd -upload
+	Run-LinuxCmd -ip $ip -port $port -username $username -password $passwd -command "rm -f /home/$username/*.txt;rm -f /home/$username/*.log" -runAsSudo
+	Run-LinuxCmd -ip $ip -port $port -username $username -password $passwd -command "cp *.sh /root;touch /home/$username/state.txt" -runAsSudo
+	Run-LinuxCmd -ip $ip -port $port -username $username -password $passwd -command "chmod +x *.sh;chmod +x /root/*.sh" -runAsSudo
+	Write-LogInfo "Executing : StartFioTest.sh"
 	$cmd = "/home/$username/StartFioTest.sh"
-	RunLinuxCmd -ip $ip -port  $port -username $username -password $passwd -command $cmd -runAsSudo  -runMaxAllowedTime  24000  -RunInBackground
-	$currentStatus = RunLinuxCmd -ip $ip -port  $port -username $username -password $passwd -command "cat /home/$username/state.txt"  -runAsSudo
+	Run-LinuxCmd -ip $ip -port  $port -username $username -password $passwd -command $cmd -runAsSudo  -runMaxAllowedTime  24000  -RunInBackground
+	$currentStatus = Run-LinuxCmd -ip $ip -port  $port -username $username -password $passwd -command "cat /home/$username/state.txt"  -runAsSudo
 	while ( $currentStatus -like "*TestRunning*" -or -not $currentStatus )
 	{
-		$currentStatus = RunLinuxCmd -ip $ip -port  $port -username $username -password $passwd -command "cat /home/$username/state.txt"  -runAsSudo
-		LogMsg "Current test status : $currentStatus"
-		WaitFor -seconds 30
+		$currentStatus = Run-LinuxCmd -ip $ip -port  $port -username $username -password $passwd -command "cat /home/$username/state.txt"  -runAsSudo
+		Write-LogInfo "Current test status : $currentStatus"
+		Wait-Time -seconds 30
 	}
 
-	LogMsg "Executing : ParseFioTestLogs.sh"
+	Write-LogInfo "Executing : ParseFioTestLogs.sh"
 	$cmd = "/home/$username/ParseFioTestLogs.sh > /home/$username/TestExecutionConsole.log"
-	RunLinuxCmd -ip $ip -port  $port -username $username -password $passwd -command $cmd -runAsSudo
+	Run-LinuxCmd -ip $ip -port  $port -username $username -password $passwd -command $cmd -runAsSudo
 }
 
 function Get-SQLQueryOfNestedHyperv ($xmlConfig, $logDir, $session)
 {
 	try
 	{
-		LogMsg "Getting the SQL query of test results.."
+		Write-LogInfo "Getting the SQL query of test results.."
 		$dataTableName = $xmlConfig.config.$TestPlatform.database.dbtable
 		$TestCaseName = $xmlConfig.config.$TestPlatform.database.testTag
 		Import-Csv -Path $LogDir\maxIOPSforMode.csv
@@ -233,21 +233,21 @@ function Get-SQLQueryOfNestedHyperv ($xmlConfig, $logDir, $session)
 			$SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$HostType','$HostBy','$HostOS','$L1GuestOSType','$L1GuestDistro','$L1GuestSize','$L1GuestKernelVersion','$L2GuestDistro','$L2GuestKernelVersion','$L2GuestCpuNum','$L2GuestMemMB','$DiskSetup','$RaidOption','$BlockSize_KB','$QDepth','$seq_read_iops','$seq_read_lat_usec','$rand_read_iops','$rand_read_lat_usec','$seq_write_iops','$seq_write_lat_usec','$rand_write_iops','$rand_write_lat_usec'),"
 		}
 		$SQLQuery = $SQLQuery.TrimEnd(',')
-		LogMsg "Getting the SQL query of test results:  done"
+		Write-LogInfo "Getting the SQL query of test results:  done"
 		return $SQLQuery
 	}
 	catch
 	{
-		LogErr "Getting the SQL query of test results:  ERROR"
+		Write-LogErr "Getting the SQL query of test results:  ERROR"
 		$errorMessage =  $_.Exception.Message
 		$ErrorLine = $_.InvocationInfo.ScriptLineNumber
-		LogMsg "EXCEPTION : $errorMessage at line: $ErrorLine"
+		Write-LogInfo "EXCEPTION : $errorMessage at line: $ErrorLine"
 	}
 }
 
 function New-CustomScript( )
 {
-	LogMsg "Create the content of custom script"
+	Write-LogInfo "Create the content of custom script"
 	$customScriptName = "myCustomScript.ps1"
 	$customScriptContent = @"
 netsh advfirewall firewall add rule name="WinRM HTTP" dir=in action=allow protocol=TCP localport=5985 profile=public
@@ -269,13 +269,13 @@ netsh advfirewall firewall add rule name="WinRM HTTP" dir=in action=allow protoc
 	$blobContainer = Get-AzureStorageContainer -Name $containerName -Context $sourceContext 2>$null
 	if( $null -eq $blobContainer )
 	{
-		LogMsg "The container $containerName doesn't exist, so create it."
+		Write-LogInfo "The container $containerName doesn't exist, so create it."
 		New-AzureStorageContainer -Name $containerName -Context $sourceContext   | Out-Null
 		Start-Sleep 3
 		$blobContainer = Get-AzureStorageContainer -Name $containerName -Context $sourceContext
 	}
 
-	LogMsg "Upload the custom script to $blobContainer"
+	Write-LogInfo "Upload the custom script to $blobContainer"
 	Set-AzureStorageBlobContent -File "$LogDir\$customScriptName" -Container $containerName  -Context $sourceContext   | Out-Null
 
 	$customScriptURI = $blobContainer.CloudBlobContainer.Uri.ToString() + "/" + $customScriptName
@@ -284,7 +284,7 @@ netsh advfirewall firewall add rule name="WinRM HTTP" dir=in action=allow protoc
 
 function Invoke-CustomScript($fileUri)
 {
-	LogMsg "Run custom script: $fileUri"
+	Write-LogInfo "Run custom script: $fileUri"
 	$myVM = $AllVMData.RoleName
 	$rgName = $AllVMData.ResourceGroupName
 	$cutomeFile = $fileUri.Split("/")[-1]
@@ -302,16 +302,16 @@ function Invoke-CustomScript($fileUri)
 	$sts=Set-AzureRmVMExtension -ResourceGroupName $rgName -Location $location -VMName $myVM  -Name $name -Publisher $publisher -ExtensionType $type  -TypeHandlerVersion "1.9"  -Settings $settings  -ProtectedSettings $proSettings
 	if( $sts.IsSuccessStatusCode )
 	{
-	  LogMsg "Run custom script successfully."
+	  Write-LogInfo "Run custom script successfully."
 	}
 	else
 	{
-	  LogErr "Run custom script failed."
+	  Write-LogErr "Run custom script failed."
 	}
 }
 
 function Get-OSvhd ($session, $srcPath, $dstPath) {
-	LogMsg "Downloading vhd from $srcPath to $dstPath ..."
+	Write-LogInfo "Downloading vhd from $srcPath to $dstPath ..."
 	if( $srcPath.Trim().StartsWith("http") ){
 		Invoke-Command -Session $session -ScriptBlock {
 			param($srcPath, $dstPath)
@@ -352,19 +352,19 @@ function Get-OSvhd ($session, $srcPath, $dstPath) {
 }
 
 function Install-Hyperv ($session) {
-	LogMsg "Install Hyper-V and restart the host"
+	Write-LogInfo "Install Hyper-V and restart the host"
 	Invoke-Command -Session $session -ScriptBlock { Install-WindowsFeature -Name Hyper-V -IncludeManagementTools -Restart }
 	Start-Sleep 100
 }
 
 function New-NetworkSwitch ($session, $switchName)  {
-	LogMsg "Start to create a network switch named $switchName"
+	Write-LogInfo "Start to create a network switch named $switchName"
 	Invoke-Command -Session $session -ScriptBlock {
 		param($switchName)
 		$switchNames = (Get-VMSwitch).name
 		foreach ( $vmswitchName in $switchNames )
 		{
-			remove-VMSwitch $vmswitchName -Force
+			Remove-VMSwitch $vmswitchName -Force
 		}
 
 		$netAdapterNames  = (Get-NetAdapter).name
@@ -385,7 +385,7 @@ function New-NetworkSwitch ($session, $switchName)  {
 }
 
 function New-NAT ($session, $switchName, $natName) {
-	LogMsg "Start to create a network NAT named $natName"
+	Write-LogInfo "Start to create a network NAT named $natName"
 	Invoke-Command -Session $session -ScriptBlock {
 		param($switchName, $natName)
 		New-VMSwitch -Name $switchName -SwitchType Internal
@@ -394,11 +394,11 @@ function New-NAT ($session, $switchName, $natName) {
 		New-NetNat -Name $natName -InternalIPInterfaceAddressPrefix "192.168.0.0/24"
 	} -ArgumentList $switchName, $natName
 
-	LogMsg "Create the network NAT named $natName completes."
+	Write-LogInfo "Create the network NAT named $natName completes."
 }
 
 function Add-NestedNatStaticMapping ($session, $natName, $ip_addr, $internalPort, $externalPort) {
-	LogMsg "Mapping $ip_addr internal port $internalPort external port $externalPort "
+	Write-LogInfo "Mapping $ip_addr internal port $internalPort external port $externalPort "
 	Invoke-Command -Session $session -ScriptBlock {
 		param($natName, $ip_addr, $internalPort, $externalPort)
 		Add-NetNatStaticMapping -NatName $natName -Protocol TCP -ExternalIPAddress "0.0.0.0" -InternalIPAddress $ip_addr -InternalPort $internalPort -ExternalPort $externalPort
@@ -407,7 +407,7 @@ function Add-NestedNatStaticMapping ($session, $natName, $ip_addr, $internalPort
 
 function Main()
 {
-	$currentTestResult = CreateTestResultObject
+	$currentTestResult = Create-TestResultObject
 	$resultArr = @()
 	$testResult = $resultAborted
 	try
@@ -458,7 +458,7 @@ function Main()
 		if ($testPlatform -eq "Azure") {
 			$sessionPort = 5985
 			$connectionURL = "http://${hs1VIP}:${sessionPort}"
-			LogMsg "Session connection URL: $connectionURL"
+			Write-LogInfo "Session connection URL: $connectionURL"
 			$session = New-PSSession -ConnectionUri $connectionURL -Credential $cred -SessionOption (New-PSSessionOption -SkipCACheck -SkipCNCheck -SkipRevocationCheck)
 		}
 		else {
@@ -513,28 +513,28 @@ function Main()
 			$nestedVmSSHPort = 22
 			$nestedVmPublicIP = $nestedVmIP
 		}
-		LogMsg "The nested VM SSH port: $nestedVmSSHPort"
-		LogMsg "The nested VM public IP: $nestedVmPublicIP"
+		Write-LogInfo "The nested VM SSH port: $nestedVmSSHPort"
+		Write-LogInfo "The nested VM public IP: $nestedVmPublicIP"
 
 		New-ShellScriptFile -logDir $LogDir  -username $nestedVmUser
-		RemoteCopy -uploadTo $nestedVmPublicIP -port $nestedVmSSHPort -files "$LogDir\StartFioTest.sh,$LogDir\ParseFioTestLogs.sh" -username $nestedVmUser -password $nestedVmPassword -upload
+		Copy-RemoteFiles -uploadTo $nestedVmPublicIP -port $nestedVmSSHPort -files "$LogDir\StartFioTest.sh,$LogDir\ParseFioTestLogs.sh" -username $nestedVmUser -password $nestedVmPassword -upload
 
 		$constantsFile = "$PWD\constants.sh"
-        RemoteCopy -uploadTo $nestedVmPublicIP -port $nestedVmSSHPort -files "$constantsFile" -username $nestedVmUser -password $nestedVmPassword -upload
+        Copy-RemoteFiles -uploadTo $nestedVmPublicIP -port $nestedVmSSHPort -files "$constantsFile" -username $nestedVmUser -password $nestedVmPassword -upload
 
 		Start-TestExecution -ip $nestedVmPublicIP -port $nestedVmSSHPort -username $nestedVmUser  -passwd $nestedVmPassword
 
 		$files = "/home/$nestedVmUser/state.txt, /home/$nestedVmUser/TestExecutionConsole.log"
-		RemoteCopy -download -downloadFrom $nestedVmPublicIP -port  $nestedVmSSHPort -username $nestedVmUser -password $nestedVmPassword -downloadTo $LogDir -files $files
+		Copy-RemoteFiles -download -downloadFrom $nestedVmPublicIP -port  $nestedVmSSHPort -username $nestedVmUser -password $nestedVmPassword -downloadTo $LogDir -files $files
 		$finalStatus = Get-Content $LogDir\state.txt
 		if ( $finalStatus -imatch "TestFailed")
 		{
-			LogErr "Test failed. Last known status : $currentStatus."
+			Write-LogErr "Test failed. Last known status : $currentStatus."
 			$testResult = $resultFail
 		}
 		elseif ( $finalStatus -imatch "TestAborted")
 		{
-			LogErr "Test Aborted. Last known status : $currentStatus."
+			Write-LogErr "Test Aborted. Last known status : $currentStatus."
 			$testResult = $resultAborted
 		}
 		elseif ( $finalStatus -imatch "TestCompleted")
@@ -543,20 +543,20 @@ function Main()
 		}
 		elseif ( $finalStatus -imatch "TestRunning")
 		{
-			LogMsg "Powershell background job for test is completed but VM is reporting that test is still running. Please check $LogDir\TestExecutionConsole.txt"
+			Write-LogInfo "Powershell background job for test is completed but VM is reporting that test is still running. Please check $LogDir\TestExecutionConsole.txt"
 			$testResult = $resultAborted
 		}
 
 		$files = "fioConsoleLogs.txt"
-		RemoteCopy -download -downloadFrom  $nestedVmPublicIP -port $nestedVmSSHPort -username $nestedVmUser -password $nestedVmPassword  -downloadTo $LogDir -files $files
-		$CurrentTestResult.TestSummary += CreateResultSummary -testResult $testResult -metaData "" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+		Copy-RemoteFiles -download -downloadFrom  $nestedVmPublicIP -port $nestedVmSSHPort -username $nestedVmUser -password $nestedVmPassword  -downloadTo $LogDir -files $files
+		$CurrentTestResult.TestSummary += Create-ResultSummary -testResult $testResult -metaData "" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 		if ($testResult -imatch $resultPass)
 		{
 			Remove-Item "$LogDir\*.csv" -Force
 			$remoteFiles = "FIOTest-*.tar.gz,perf_fio.csv,nested_properties.csv,runlog.txt"
-			RemoteCopy -download -downloadFrom $nestedVmPublicIP -files $remoteFiles -downloadTo $LogDir -port $nestedVmSSHPort -username $nestedVmUser -password $nestedVmPassword
+			Copy-RemoteFiles -download -downloadFrom $nestedVmPublicIP -files $remoteFiles -downloadTo $LogDir -port $nestedVmSSHPort -username $nestedVmUser -password $nestedVmPassword
 			$checkValues = "$resultPass,$resultFail,$resultAborted"
-			$CurrentTestResult.TestSummary += CreateResultSummary -testResult $testResult -metaData "" -checkValues $checkValues -testName $currentTestData.testName
+			$CurrentTestResult.TestSummary += Create-ResultSummary -testResult $testResult -metaData "" -checkValues $checkValues -testName $currentTestData.testName
 			foreach($line in (Get-Content "$LogDir\perf_fio.csv"))
 			{
 				if ( $line -imatch "Max IOPS of each mode" )
@@ -594,7 +594,7 @@ function Main()
 			$nestedHypervSQLQuery = Get-SQLQueryOfNestedHyperv -xmlConfig $xmlConfig -logDir $LogDir -session $session
 			if($nestedHypervSQLQuery)
 			{
-				UploadTestResultToDatabase -SQLQuery $nestedHypervSQLQuery
+				Upload-TestResultToDatabas -SQLQuery $nestedHypervSQLQuery
 			}
 		}
 	}
@@ -602,7 +602,7 @@ function Main()
 	{
 		$errorMessage =  $_.Exception.Message
 		$ErrorLine = $_.InvocationInfo.ScriptLineNumber
-		LogMsg "EXCEPTION : $errorMessage at line: $ErrorLine"
+		Write-LogInfo "EXCEPTION : $errorMessage at line: $ErrorLine"
 	}
 	Finally
 	{
@@ -615,8 +615,8 @@ function Main()
 	}
 
 	$resultArr += $testResult
-	LogMsg "Test result : $testResult"
-	$currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+	Write-LogInfo "Test result : $testResult"
+	$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
 	return $currentTestResult.TestResult
 }
 

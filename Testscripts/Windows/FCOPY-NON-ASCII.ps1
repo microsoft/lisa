@@ -46,23 +46,23 @@ function Main {
     #
     $gsi = Get-VMIntegrationService -vmName $VMName -ComputerName $HvServer -Name "Guest Service Interface"
     if (-not $gsi) {
-        LogErr "Unable to retrieve Integration Service status from VM '${vmName}'"
+        Write-LogErr "Unable to retrieve Integration Service status from VM '${vmName}'"
         return "ABORTED"
     }
 
     if (-not $gsi.Enabled) {
-        LogWarn "Warning: The Guest services are not enabled for VM '${vmName}'"
+        Write-LogWarn "Warning: The Guest services are not enabled for VM '${vmName}'"
         if ((Get-VM -ComputerName $HvServer -Name $VMName).State -ne "Off") {
             Stop-VM -ComputerName $HvServer -Name $VMName -Force -Confirm:$false
         }
         # Waiting until the VM is off
         while ((Get-VM -ComputerName $HvServer -Name $VMName).State -ne "Off") {
-            LogMsg "Turning off VM:'${vmName}'"
+            Write-LogInfo "Turning off VM:'${vmName}'"
             Start-Sleep -Seconds 5
         }
-        LogMsg "Enabling  Guest services on VM:'${vmName}'"
+        Write-LogInfo "Enabling  Guest services on VM:'${vmName}'"
         Enable-VMIntegrationService -Name "Guest Service Interface" -vmName $VMName -ComputerName $HvServer
-        LogMsg "Starting VM:'${vmName}'"
+        Write-LogInfo "Starting VM:'${vmName}'"
         Start-VM -Name $VMName -ComputerName $HvServer
 
         # Waiting for the VM to run again and respond to SSH - port 22
@@ -74,7 +74,7 @@ function Main {
     # Check to see if the fcopy daemon is running on the VM
     $sts = Check-FcopyDaemon  -vmPassword $VMPassword -VmPort $VMPort -vmUserName $VMUserName -ipv4 $Ipv4
     if (-not $sts[-1]) {
-        LogErr "File copy daemon is not running inside the Linux guest VM!"
+        Write-LogErr "File copy daemon is not running inside the Linux guest VM!"
         return "FAIL"
         exit 1
     }
@@ -82,13 +82,13 @@ function Main {
     # Creating the test file for sending on VM
     #
     if ($gsi.OperationalStatus -ne "OK") {
-        LogErr "The Guest services are not working properly for VM '${vmName}'!"
+        Write-LogErr "The Guest services are not working properly for VM '${vmName}'!"
         return  "FAIL"
     }
     else {
         # Define the file-name to use with the current time-stamp
         $CurrentDir = "$pwd\"
-        $testfile = "testfile-$(get-date -uformat '%H-%M-%S-%Y-%m-%d').file"
+        $testfile = "testfile-$(Get-Date -uformat '%H-%M-%S-%Y-%m-%d').file"
         $pathToFile = "$CurrentDir" + "$testfile"
 
         # Sample string with non-ascii chars
@@ -103,11 +103,11 @@ function Main {
 
         # Checking if sample file was successfully created
         if (-not $?) {
-            LogErr "Unable to create the 2MB sample file"
+            Write-LogErr "Unable to create the 2MB sample file"
             return "FAIL"
         }
         else {
-            LogMsg "Info: initial 2MB sample file $testfile successfully created"
+            Write-LogInfo "Info: initial 2MB sample file $testfile successfully created"
         }
 
         # Multiply the contents of the sample file up to an 100MB auxiliary file
@@ -119,7 +119,7 @@ function Main {
 
         # Checking if auxiliary file was successfully created
         if (-not $?) {
-            LogErr " Unable to create the extended auxiliary file!"
+            Write-LogErr " Unable to create the extended auxiliary file!"
             return "FAIL"
         }
 
@@ -129,28 +129,28 @@ function Main {
         # Checking file size. It must be over 85MB
         $testfileSize = (Get-Item $pathToFile).Length
         if ($testfileSize -le 85mb) {
-            LogErr "File not big enough. File size: $testfileSize MB"
+            Write-LogErr "File not big enough. File size: $testfileSize MB"
             $testfileSize = $testfileSize / 1MB
             $testfileSize = [math]::round($testfileSize, 2)
-            LogErr "File not big enough (over 85MB)! File size: $testfileSize MB"
-            RemoveTestFile -pathToFile $pathToFile -tesfile $testfile
+            Write-LogErr "File not big enough (over 85MB)! File size: $testfileSize MB"
+            Remove-TestFile -pathToFile $pathToFile -tesfile $testfile
             return "FAIL"
         }
         else {
             $testfileSize = $testfileSize / 1MB
             $testfileSize = [math]::round($testfileSize, 2)
-            LogMsg "Info: $testfileSize MB auxiliary file successfully created"
+            Write-LogInfo "Info: $testfileSize MB auxiliary file successfully created"
         }
 
         # Getting MD5 checksum of the file
         $local_chksum = Get-FileHash .\$testfile -Algorithm MD5 | Select-Object -ExpandProperty hash
         if (-not $?) {
-            LogErr "Unable to get MD5 checksum!"
-            RemoveTestFile -pathToFile $pathToFile -tesfile $testfile
+            Write-LogErr "Unable to get MD5 checksum!"
+            Remove-TestFile -pathToFile $pathToFile -tesfile $testfile
             return "FAIL"
         }
         else {
-            LogMsg "MD5 file checksum on the host-side: $local_chksum"
+            Write-LogInfo "MD5 file checksum on the host-side: $local_chksum"
             return "PASS"
         }
 
@@ -181,12 +181,12 @@ function Main {
     Copy-VMFile -vmName $VMName -ComputerName $HvServer -SourcePath $filePath -DestinationPath "/tmp/" `
         -FileSource host -ErrorAction SilentlyContinue
     if ($Error.Count -eq 0) {
-        LogMsg "File has been successfully copied to guest VM '${vmName}'"
+        Write-LogInfo "File has been successfully copied to guest VM '${vmName}'"
         return "PASS"
     }
     elseif (($Error.Count -gt 0) -and ($Error[0].Exception.Message  `
                 -like "*FAIL to initiate copying files to the guest: The file exists. (0x80070050)*")) {
-        LogErr "Test FAIL! File could not be copied as it already exists on guest VM '${vmName}'"
+        Write-LogErr "Test FAIL! File could not be copied as it already exists on guest VM '${vmName}'"
         return "FAIL"
     }
     Remove-TestFile -pathToFile $pathToFile -tesfile $testfile
@@ -196,7 +196,7 @@ function Main {
     #
     .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$Ipv4 "stat /tmp/testfile-* > /dev/null" 2> $null
     if (-not $?) {
-        LogErr "Test file is not present on the guest VM!"
+        Write-LogErr "Test file is not present on the guest VM!"
         return "FAIL"
     }
 
@@ -205,33 +205,33 @@ function Main {
     #
     $remote_chksum = .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$Ipv4 "openssl MD5 /tmp/testfile-* | cut -f2 -d' '"
     if (-not $?) {
-        LogErr "Could not extract the MD5 checksum from the VM!"
+        Write-LogErr "Could not extract the MD5 checksum from the VM!"
         return "FAIL"
     }
 
-    LogMsg "MD5 file checksum on guest VM: $remote_chksum"
+    Write-LogInfo "MD5 file checksum on guest VM: $remote_chksum"
 
     #
     # Check if checksums are matching
     #
     $MD5IsMatching = @(Compare-Object $local_chksum $remote_chksum -SyncWindow 0).Length -eq 0
     if ( -not $MD5IsMatching) {
-        LogErr "MD5 checksum missmatch between host and VM test file!"
+        Write-LogErr "MD5 checksum missmatch between host and VM test file!"
         return "FAIL"
     }
 
-    LogMsg "Info: MD5 checksums are matching between the host-side and guest VM file."
+    Write-LogInfo "Info: MD5 checksums are matching between the host-side and guest VM file."
 
     # Removing the temporary test file
     Remove-Item -Path \\$HvServer\$file_path_formatted -Force
     if ($? -ne "True") {
-        LogErr "Cannot remove the test file '${testfile}'!"
+        Write-LogErr "Cannot remove the test file '${testfile}'!"
         return "FAIL"
     }
     #
     # If we made it here, everything worked
     #
-    LogMsg "Test completed successfully"
+    Write-LogInfo "Test completed successfully"
     return "PASS"
 }
 

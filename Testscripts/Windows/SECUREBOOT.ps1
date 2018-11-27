@@ -17,7 +17,7 @@ function Enable-VMMigration([String] $vmName)
     #
     Import-module FailoverClusters
     if (-not $?) {
-        LogErr "Unable to load FailoverClusters module"
+        Write-LogErr "Unable to load FailoverClusters module"
         return $False
     }
     #
@@ -25,18 +25,18 @@ function Enable-VMMigration([String] $vmName)
     #
     $migrationNetworks = Get-ClusterNetwork
     if (-not $migrationNetworks) {
-        LogErr "$vmName - There are no Live Migration Networks configured"
+        Write-LogErr "$vmName - There are no Live Migration Networks configured"
         return $False
     }
-    LogMsg "Get the VMs current node"
-    $vmResource =  Get-ClusterResource | where-object {$_.OwnerGroup.name -eq "$vmName" -and $_.ResourceType.Name -eq "Virtual Machine"}
+    Write-LogInfo "Get the VMs current node"
+    $vmResource =  Get-ClusterResource | Where-Object {$_.OwnerGroup.name -eq "$vmName" -and $_.ResourceType.Name -eq "Virtual Machine"}
     if (-not $vmResource) {
-        LogErr "$vmName - Unable to find cluster resource for current node"
+        Write-LogErr "$vmName - Unable to find cluster resource for current node"
         return $False
     }
     $currentNode = $vmResource.OwnerNode.Name
     if (-not $currentNode) {
-        LogErr "$vmName - Unable to set currentNode"
+        Write-LogErr "$vmName - Unable to set currentNode"
         return $False
     }
     #
@@ -44,7 +44,7 @@ function Enable-VMMigration([String] $vmName)
     #
     $clusterNodes = Get-ClusterNode
     if (-not $clusterNodes -and $clusterNodes -isnot [array]) {
-        LogErr "$vmName - There is only one cluster node in the cluster."
+        Write-LogErr "$vmName - There is only one cluster node in the cluster."
         return $False
     }
     #
@@ -56,13 +56,13 @@ function Enable-VMMigration([String] $vmName)
         $destinationNode = $clusterNodes[1].Name.ToLower()
     }
     if (-not $destinationNode) {
-        LogErr "$vmName - Unable to set destination node"
+        Write-LogErr "$vmName - Unable to set destination node"
         return $False
     }
-    LogMsg "Migrating VM $vmName from $currentNode to $destinationNode"
+    Write-LogInfo "Migrating VM $vmName from $currentNode to $destinationNode"
     $sts = Move-ClusterVirtualMachineRole -name $vmName -node $destinationNode
     if (-not $sts) {
-        LogErr "$vmName - Unable to move the VM"
+        Write-LogErr "$vmName - Unable to move the VM"
         return $False
     }
     #
@@ -70,12 +70,12 @@ function Enable-VMMigration([String] $vmName)
     #
     $firmwareSettings = Get-VMFirmware -VMName $vmName -ComputerName $destinationNode
     if ($firmwareSettings.SecureBoot -ne "On") {
-        LogErr "Secure boot settings changed"
+        Write-LogErr "Secure boot settings changed"
         return $False
     }
     $sts = Move-ClusterVirtualMachineRole -name $vmName -node $currentNode
     if (-not $sts) {
-        LogErr "$vmName - Unable to move the VM"
+        Write-LogErr "$vmName - Unable to move the VM"
         return $False
     }
     return $True
@@ -103,7 +103,7 @@ function Main {
         #
         $heartbeat = Get-VMIntegrationService -VMName $VMName -Name "HeartBeat"
         if ($heartbeat.Enabled) {
-            LogMsg "$VMName heartbeat detected"
+            Write-LogInfo "$VMName heartbeat detected"
         }
         else {
             throw "$VMName heartbeat not detected"
@@ -122,7 +122,7 @@ function Main {
         if ($timeout -eq 0) {
             throw "Test case timed out waiting for VM to boot"
         }
-        LogMsg "SSH port opened"
+        Write-LogInfo "SSH port opened"
         if ($TestParams.Migrate) {
             $migrateResult= Enable-VMMigration $VMName
             if (-not $migrateResult) {
@@ -151,16 +151,16 @@ function Main {
             if ($timeout -eq 0) {
                 throw "Test case timed out waiting for VM to boot"
             }
-            LogMsg "SSH port opened"
+            Write-LogInfo "SSH port opened"
 
         }
         if ($TestParams.updateKernel) {
             # Getting kernel version before upgrade
-            $kernel_beforeupgrade=RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command "uname -a" -runAsSudo
+            $kernel_beforeupgrade=Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command "uname -a" -runAsSudo
             # Upgrading kernel to latest
             $Upgradecheck = "echo '${password}' | sudo -S -s eval `"export HOME=``pwd``;. utils.sh && UtilsInit && Update_Kernel`""
-            RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command $Upgradecheck -runAsSudo
-            LogMsg "Shutdown VM ${VMName}"
+            Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command $Upgradecheck -runAsSudo
+            Write-LogInfo "Shutdown VM ${VMName}"
             Stop-VM -ComputerName $HvServer -Name $VMName -Confirm:$false
             if (-not $?) {
                 throw "Unable to Shut Down VM"
@@ -168,9 +168,9 @@ function Main {
             $timeout = 180
             $sts = Wait-ForVMToStop $VMName $HvServer $timeout
             if (-not $sts) {
-                throw "WaitForVMToStop fail"
+                throw "Wait-ForVMToStop fail"
             }
-            LogMsg "Starting VM ${VMName}"
+            Write-LogInfo "Starting VM ${VMName}"
             Start-VM -Name $VMName -ComputerName $HvServer -ErrorAction SilentlyContinue
             if (-not $?) {
                 throw "unable to start the VM"
@@ -182,7 +182,7 @@ function Main {
             #
             $heartbeat = Get-VMIntegrationService -VMName $VMName -Name "HeartBeat"
             if ($heartbeat.Enabled) {
-                LogMsg "$VMName heartbeat detected"
+                Write-LogInfo "$VMName heartbeat detected"
             }
             else {
                 throw "$VMName heartbeat not detected"
@@ -195,15 +195,15 @@ function Main {
             if ($retval -eq $False) {
                 throw "Error: Test case timed out waiting for VM to boot"
             }
-            LogMsg "SSH port opened"
+            Write-LogInfo "SSH port opened"
             # Getting kernel version after upgrade
-            $kernel_afterupgrade=RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command "uname -a" -runAsSudo
+            $kernel_afterupgrade=Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command "uname -a" -runAsSudo
             # check whether kernel has upgraded to latest version
             if (-not (Compare-Object $kernel_afterupgrade $kernel_beforeupgrade)) {
                 $testResult = $resultFail
                 throw "Update_Kernel failed"
             }
-            LogMsg "Success: Updated kerenl"
+            Write-LogInfo "Success: Updated kerenl"
         }
         if( $testResult -ne $resultFail) {
             $testResult=$resultPass
@@ -211,14 +211,14 @@ function Main {
     } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "$ErrorMessage at line: $ErrorLine"
+        Write-LogErr "$ErrorMessage at line: $ErrorLine"
     } finally {
         if (!$testResult) {
             $testResult = $resultAborted
         }
         $resultArr += $testResult
     }
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
 Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))

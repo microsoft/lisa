@@ -86,7 +86,7 @@ try
     $SR = 1
     $htmlData = ""
 
-    function GetFileObject()
+    function Get-FileObject()
     {
         $object = New-Object -TypeName PSObject
         $object | Add-Member -MemberType NoteProperty -Name SR -Value $null
@@ -111,7 +111,7 @@ try
         $currentHTMLRow = $currentHTMLRow.Replace("CURRENT_SIZE","$currentFileSize GB")
         $totalSize += $file.Length
         $htmlData += $currentHTMLRow
-        $fileObject = GetFileObject
+        $fileObject = Get-FileObject
         $fileObject.SR = $SR
         $fileObject.FileName = $($file.Name)
         $fileObject.LastWriteTime = $file.LastWriteTime
@@ -155,10 +155,10 @@ try
 catch
 {
     $ExitCode = 1
-    ThrowExcpetion($_)
+    Raise-Exception($_)
 }
 finally
 {
-    LogMsg "Exiting with ExitCode = $ExitCode"
+    Write-LogInfo "Exiting with ExitCode = $ExitCode"
     exit $ExitCode
 }

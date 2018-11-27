@@ -22,17 +22,17 @@ Param
 
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
 
-$StorageAccountName = GetStorageAccountFromRegion -Region $Region -StorageAccount $StorageAccount
+$StorageAccountName = Get-StorageAccountFromRegion -Region $Region -StorageAccount $StorageAccount
 
 $ExitCode = 1
 try
 {
-    LogMsg "Target storage account: $StorageAccountName"
-    LogMsg "Gettting Resource group name of the Storage account - $StorageAccountName"
+    Write-LogInfo "Target storage account: $StorageAccountName"
+    Write-LogInfo "Gettting Resource group name of the Storage account - $StorageAccountName"
     $StorageAccountNameRG = (Get-AzureRmResource | Where { $_.Name -eq $StorageAccountName}).ResourceGroupName
     $UploadLink  = "https://$StorageAccountName.blob.core.windows.net/vhds"
 
-    LogMsg "WARNING: If a VHD is present in storage account with same name, it will be overwritten."
+    Write-LogInfo "WARNING: If a VHD is present in storage account with same name, it will be overwritten."
 
     $RetryUpload = $true
     $retryCount = 0
@@ -40,30 +40,30 @@ try
     while($RetryUpload -and ($retryCount -le 10))
     {
         $retryCount += 1
-        LogMsg "Initiating '$VHDPath' upload to $UploadLink. Please wait..."
+        Write-LogInfo "Initiating '$VHDPath' upload to $UploadLink. Please wait..."
         $out = Add-AzureRmVhd -ResourceGroupName $StorageAccountNameRG -Destination "$UploadLink/$VHDName" -LocalFilePath "$VHDPath" -NumberOfUploaderThreads $NumberOfUploaderThreads -OverWrite -Verbose
         $uploadStatus = $?
         if ( $uploadStatus )
         {
-            LogMsg "Upload successful."
-            LogMsg "$($out.DestinationUri)"
+            Write-LogInfo "Upload successful."
+            Write-LogInfo "$($out.DestinationUri)"
             $ExitCode = 0
             $RetryUpload = $false
             if ($DeleteVHDAfterUpload)
             {
-                LogMsg "Deleting $VHDPath"
+                Write-LogInfo "Deleting $VHDPath"
                 $out = Remove-Item -Path $VHDPath -Force | Out-Null
             }
             else
             {
-                LogMsg "Skipping cleanup of $VHDPath"
+                Write-LogInfo "Skipping cleanup of $VHDPath"
             }
-            LogMsg "Saving VHD URL to .\UploadedVHDLink.azure.env"
+            Write-LogInfo "Saving VHD URL to .\UploadedVHDLink.azure.env"
             Set-Content -Value $($out.DestinationUri) -Path .\UploadedVHDLink.azure.env -Force -Verbose -NoNewline
         }
         else
         {
-            LogMsg "ERROR: Something went wrong in upload. Retrying..."
+            Write-LogInfo "ERROR: Something went wrong in upload. Retrying..."
             $RetryUpload = $true
             Start-Sleep 10
         }
@@ -72,11 +72,11 @@ try
 
 catch
 {
-    ThrowException($_)
+    Raise-Exception($_)
 }
 finally
 {
-    LogMsg "Exiting with code : $ExitCode"
+    Write-LogInfo "Exiting with code : $ExitCode"
     exit $ExitCode
 }
 

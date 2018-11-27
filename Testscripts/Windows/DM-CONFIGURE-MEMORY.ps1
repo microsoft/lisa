@@ -77,7 +77,7 @@ function Main {
           throw "Error: TestParams is null"
         }
         $vm_mem = (Get-VMMemory $VMName -ComputerName $HvServer).Startup
-        LogMsg "VM Memory $vm_mem"
+        Write-LogInfo "VM Memory $vm_mem"
         $tpEnabled = $null
         [int64]$dmMinMem = 0
         [int64]$dmMaxMem = 0
@@ -97,20 +97,20 @@ function Main {
 
         if ($dmMinMem -le 0)
         {
-            LogErr "Error: Unable to convert minMem to int64."
+            Write-LogErr "Error: Unable to convert minMem to int64."
         }
         $maxMem_xmlValue = $TestParams.maxMem
         $dmMaxMem = Convert-ToMemSize $TestParams.maxMem $HvServer
 
         if ($dmMaxMem -le 0)
         {
-           LogErr "Error: Unable to convert maxMem to int64."
+           Write-LogErr "Error: Unable to convert maxMem to int64."
         }
         $startupMem_xmlValue = $TestParams.startupMem
         $dmStartupMem = Convert-ToMemSize $TestParams.startupMem $HvServer
         if ($dmStartupMem -le 0)
         {
-            LogErr "Error: Unable to convert minMem to int64."
+            Write-LogErr "Error: Unable to convert minMem to int64."
         }
         $dmMemWeight = [Convert]::ToInt32($TestParams.memWeight)
 
@@ -118,17 +118,17 @@ function Main {
         {
            throw "Error: Memory weight needs to be between 0 and 100."
         }
-        LogMsg "dmmemWeight $dmMemWeight"
+        Write-LogInfo "dmmemWeight $dmMemWeight"
 
         if ($TestParams.bootLargeMem -ilike "yes")
         {
 		    $bootLargeMem = $true
         }
-        LogMsg "BootLargeMemory: $bootLargeMem"
+        Write-LogInfo "BootLargeMemory: $bootLargeMem"
         $dmStaticMem = Convert-ToMemSize $TestParams.staticMem $HvServer
         if ($dmStaticMem -le 0)
         {
-           LogErr "Error: Unable to convert staticMem to int64."
+           Write-LogErr "Error: Unable to convert staticMem to int64."
         }
         # check if we have all variables set
         if ( $VMName -and ($tpEnabled -eq $false -or $tpEnabled -eq $true) -and $dmStartupMem -and ([int64]$dmMemWeight -ge [int64]0) )
@@ -136,7 +136,7 @@ function Main {
             # make sure VM is off
             if (Get-VM -Name $VMName -ComputerName $HvServer |  Where-Object { $_.State -like "Running" })
             {
-                LogMsg "Stopping VM $VMName"
+                Write-LogInfo "Stopping VM $VMName"
                 Stop-VM -Name $VMName -ComputerName $HvServer -force
 
                 if (-not $?)
@@ -180,7 +180,7 @@ function Main {
             $vm_mem = (Get-VMMemory $VMName -ComputerName $HvServer).Startup
             if( $vm_mem -eq $dmStartupMem )
             {
-                LogMSG "Set VM Startup Memory for $VMName to $dmStartupMem"
+                Write-LogInfo "Set VM Startup Memory for $VMName to $dmStartupMem"
                 $testResult = "PASS"
             }
             else
@@ -192,7 +192,7 @@ function Main {
     catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+        Write-LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     }
     finally {
         if (!$testResult) {
@@ -201,7 +201,7 @@ function Main {
             $resultArr += $testResult
     }
 
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
 

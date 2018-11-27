@@ -44,7 +44,7 @@ function Main {
         $VM2,
         $TestParams
     )
-    $currentTestResult = CreateTestResultObject
+    $currentTestResult = Create-TestResultObject
     $resultArr = @()
     try {
         $testResult = $null
@@ -61,19 +61,19 @@ function Main {
         Set-Location $WorkingDirectory
         Set-VMDynamicMemory -VM $VM1 -minMem $TestParams.minMem1 -maxMem $TestParams.maxMem1 -startupMem $TestParams.startupMem1 -memWeight $memweight1
         Set-VMDynamicMemory -VM $VM2 -minMem $TestParams.minMem2 -maxMem $TestParams.maxMem2 -startupMem $TestParams.startupMem2 -memWeight $memweight2
-        LogMsg "Starting VM1 $VM1Name"
+        Write-LogInfo "Starting VM1 $VM1Name"
         $VM1Ipv4=Start-VMandGetIP $VM1Name $HvServer $VMPort $user $password
         $vm1 = Get-VM -Name $VM1Name -ComputerName $HvServer -ErrorAction SilentlyContinue
         $vm2 = Get-VM -Name $VM2Name -ComputerName $HvServer -ErrorAction SilentlyContinue
         # Check if stress-ng is installed
-        LogMsg "Checking if stress-ng is installed"
+        Write-LogInfo "Checking if stress-ng is installed"
         $retVal1 = Publish-App "stress-ng" $VM1Ipv4 $appGitURL $appGitTag $VMPort
         if (-not $retVal1) {
             throw "stress-ng is not installed for VM1! Please install it before running the memory stress tests."
         }
-        LogMsg "stress-ng is installed! Will begin running memory stress tests shortly."
+        Write-LogInfo "stress-ng is installed! Will begin running memory stress tests shortly."
         $timeoutStress = 0
-        LogMsg "Starting VM2 $VM2Name"
+        Write-LogInfo "Starting VM2 $VM2Name"
         Start-VMandGetIP $VM2Name $HvServer $VMPort $user $password
         # get memory stats from vm1 and vm2
         # wait up to 2 min for it
@@ -90,9 +90,9 @@ function Main {
             $sleepPeriod-= 5
             Start-Sleep -s 5
         }
-        LogMsg "Memory stats after both $VM1Name and $VM2Name started reporting "
-        LogMsg "$VM1Name : assigned - $vm1BeforeAssigned | demand - $vm1BeforeDemand"
-        LogMsg "$VM2Name : assigned - $vm2BeforeAssigned | demand - $vm2BeforeDemand"
+        Write-LogInfo "Memory stats after both $VM1Name and $VM2Name started reporting "
+        Write-LogInfo "$VM1Name : assigned - $vm1BeforeAssigned | demand - $vm1BeforeDemand"
+        Write-LogInfo "$VM2Name : assigned - $vm2BeforeAssigned | demand - $vm2BeforeDemand"
         if (($vm1BeforeAssigned -le 0) -or ($vm1BeforeDemand -le 0) -or ($vm2BeforeAssigned -le 0) -or ($vm2BeforeDemand -le 0)) {
             throw "VM1 or VM2 reported 0 memory (assigned or demand)."
         }
@@ -104,9 +104,9 @@ function Main {
         $chunks=0
         # Send Command to consume
         $cmdAddConstants = "echo -e `"timeoutStress=$($timeoutStress)\nmemMB=$($vm1ConsumeMem)\nduration=$($duration)\nchunk=$($chunks)`" > /home/$user/constants.sh"
-        RunLinuxCmd -username $user -password $password -ip $VM1Ipv4 -port $VMPort -command $cmdAddConstants -runAsSudo
+        Run-LinuxCmd -username $user -password $password -ip $VM1Ipv4 -port $VMPort -command $cmdAddConstants -runAsSudo
         $Memcheck = "echo '${password}' | sudo -S -s eval `"export HOME=``pwd``;. utils.sh && UtilsInit && ConsumeMemory`""
-        $job1=RunLinuxCmd -username $user -password $password -ip $VM1Ipv4 -port $VMPort -command $Memcheck -runAsSudo -RunInBackGround
+        $job1=Run-LinuxCmd -username $user -password $password -ip $VM1Ipv4 -port $VMPort -command $Memcheck -runAsSudo -RunInBackGround
         if (-not $?) {
             throw "Unable to start job for creating pressure on $VM1Name"
         }
@@ -117,9 +117,9 @@ function Main {
         [int64]$vm1Demand = ($vm1.MemoryDemand/1MB)
         [int64]$vm2Assigned = ($vm2.MemoryAssigned/1MB)
         [int64]$vm2Demand = ($vm2.MemoryDemand/1MB)
-        LogMsg "Memory stats after $VM1Name started stress-ng"
-        LogMsg "$VM1Name : assigned - $vm1Assigned | demand - $vm1Demand"
-        LogMsg "$VM2Name : assigned - $vm2Assigned | demand - $vm2Demand"
+        Write-LogInfo "Memory stats after $VM1Name started stress-ng"
+        Write-LogInfo "$VM1Name : assigned - $vm1Assigned | demand - $vm1Demand"
+        Write-LogInfo "$VM2Name : assigned - $vm2Assigned | demand - $vm2Demand"
         if (($vm1Demand -le $vm1BeforeDemand) -or ($vm1Assigned -le $vm1BeforeAssigned)) {
             throw "Memory Demand or Assignation on $VM1Name did not increase after starting stress-ng"
         }
@@ -137,7 +137,7 @@ function Main {
                     throw "Consume Memory script returned false on VM1 $VM1Name"
                 }
                 $diff = $totalTimeout - $timeout
-                LogMsg "Job finished in $diff seconds"
+                Write-LogInfo "Job finished in $diff seconds"
             }
             if ($firstJobStatus) {
                 break
@@ -153,13 +153,13 @@ function Main {
             throw "VM $VM2Name is unresponsive after running the memory stress test"
         }
         # Everything ok
-        LogMsg  "Memory Hot Add/Remove completed successfully"
+        Write-LogInfo  "Memory Hot Add/Remove completed successfully"
         $testResult = $resultPass
     }
     catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "$ErrorMessage at line: $ErrorLine"
+        Write-LogErr "$ErrorMessage at line: $ErrorLine"
     }
     finally {
         if (!$testResult) {
@@ -167,7 +167,7 @@ function Main {
         }
             $resultArr += $testResult
     }
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
 	return $currentTestResult.TestResult
 
 }

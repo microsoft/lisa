@@ -43,29 +43,29 @@ $TestToRegionMapping = ([xml](Get-Content .\XML\TestToRegionMapping.xml))
 
 #Get Unique Platforms
 $Platforms = $xmlData.test.Platform.Split(',')  | Sort-Object | Get-Unique
-LogMsg "ALL TEST PLATFORMS"
-LogMsg "--------------"
-$i = 1; $Platforms | ForEach-Object { LogMsg "$i. $($_)"; $i++ }
+Write-LogInfo "ALL TEST PLATFORMS"
+Write-LogInfo "--------------"
+$i = 1; $Platforms | ForEach-Object { Write-LogInfo "$i. $($_)"; $i++ }
 
 $Categories = $xmlData.test.Category | Sort-Object | Get-Unique
-LogMsg "ALL TEST CATEGORIES"
-LogMsg "----------------"
-$i = 1; $Categories | ForEach-Object { LogMsg "$i. $($_)"; $i++ }
+Write-LogInfo "ALL TEST CATEGORIES"
+Write-LogInfo "----------------"
+$i = 1; $Categories | ForEach-Object { Write-LogInfo "$i. $($_)"; $i++ }
 
 $Areas =$xmlData.test.Area | Sort-Object | Get-Unique
-LogMsg "ALL TEST AREAS"
-LogMsg "----------"
-$i = 1; $Areas | ForEach-Object { LogMsg "$i. $($_)"; $i++ }
+Write-LogInfo "ALL TEST AREAS"
+Write-LogInfo "----------"
+$i = 1; $Areas | ForEach-Object { Write-LogInfo "$i. $($_)"; $i++ }
 
 $TestNames = $xmlData.test.testName | Sort-Object | Get-Unique
-LogMsg "ALL TEST NAMES"
-LogMsg "----------"
-$i = 1; $TestNames | ForEach-Object { LogMsg "$i. $($_)"; $i++ }
+Write-LogInfo "ALL TEST NAMES"
+Write-LogInfo "----------"
+$i = 1; $TestNames | ForEach-Object { Write-LogInfo "$i. $($_)"; $i++ }
 
 $Tags =$xmlData.test.Tags.Split(",") | Sort-Object | Get-Unique
-LogMsg "TEST TAGS"
-LogMsg "---------"
-$i = 1; $Tags | ForEach-Object { LogMsg "$i. $($_)"; $i++ }
+Write-LogInfo "TEST TAGS"
+Write-LogInfo "---------"
+$i = 1; $Tags | ForEach-Object { Write-LogInfo "$i. $($_)"; $i++ }
 
 $TestByCategory =  "platform`tcategory`tarea`tregion`n"
 
@@ -94,11 +94,11 @@ foreach ( $platform in $Platforms )
     }
 }
 
-LogMsg "Saving TestByCategory.txt..."
+Write-LogInfo "Saving TestByCategory.txt..."
 Set-Content -Value $TestByCategory -Path "$DestinationPath\TestByCategory.txt" -Force
-LogMsg "Validating TestByCategory.txt..."
-(Get-Content "$DestinationPath\TestByCategory.txt") | Where-Object {$_.trim() -ne "" } | set-content "$DestinationPath\TestByCategory.txt"
-LogMsg "Done"
+Write-LogInfo "Validating TestByCategory.txt..."
+(Get-Content "$DestinationPath\TestByCategory.txt") | Where-Object {$_.trim() -ne "" } | Set-Content "$DestinationPath\TestByCategory.txt"
+Write-LogInfo "Done"
 
 $TestsByTag = "platform`ttag`tregion`n"
 foreach ( $platform in $Platforms )
@@ -120,11 +120,11 @@ foreach ( $platform in $Platforms )
     }
 }
 
-LogMsg "Saving TestsByTag.txt..."
+Write-LogInfo "Saving TestsByTag.txt..."
 Set-Content -Value $TestsByTag -Path "$DestinationPath\TestsByTag.txt" -Force
-LogMsg "Validating TestsByTag.txt..."
-(Get-Content "$DestinationPath\TestsByTag.txt") | Where-Object {$_.trim() -ne "" } | set-content "$DestinationPath\TestsByTag.txt"
-LogMsg "Done"
+Write-LogInfo "Validating TestsByTag.txt..."
+(Get-Content "$DestinationPath\TestsByTag.txt") | Where-Object {$_.trim() -ne "" } | Set-Content "$DestinationPath\TestsByTag.txt"
+Write-LogInfo "Done"
 
 $TestByTestnameQuick = "platform`ttestname`tregion`n"
 foreach ( $platform in $Platforms )
@@ -147,11 +147,11 @@ foreach ( $platform in $Platforms )
     }
 }
 
-LogMsg "Saving TestByTestnameQuick.txt..."
+Write-LogInfo "Saving TestByTestnameQuick.txt..."
 Set-Content -Value $TestByTestnameQuick -Path "$DestinationPath\TestByTestnameQuick.txt" -Force
-LogMsg "Validating TestByTestnameQuick.txt..."
-(Get-Content "$DestinationPath\TestByTestnameQuick.txt") | Where-Object {$_.trim() -ne "" } | set-content "$DestinationPath\TestByTestnameQuick.txt"
-LogMsg "Done"
+Write-LogInfo "Validating TestByTestnameQuick.txt..."
+(Get-Content "$DestinationPath\TestByTestnameQuick.txt") | Where-Object {$_.trim() -ne "" } | Set-Content "$DestinationPath\TestByTestnameQuick.txt"
+Write-LogInfo "Done"
 
 $TestByTestnameDetailed =  "platform`tcategory`tarea`ttestname`tregion`n"
 
@@ -184,16 +184,16 @@ foreach ( $platform in $Platforms )
     }
 }
 
-LogMsg "Saving TestByTestnameDetailed.txt..."
+Write-LogInfo "Saving TestByTestnameDetailed.txt..."
 Set-Content -Value $TestByTestnameDetailed -Path "$DestinationPath\TestByTestnameDetailed.txt" -Force
-LogMsg "Validating TestByTestnameDetailed.txt..."
-(Get-Content "$DestinationPath\TestByTestnameDetailed.txt") | Where-Object {$_.trim() -ne "" } | set-content "$DestinationPath\TestByTestnameDetailed.txt"
-LogMsg "Done"
+Write-LogInfo "Validating TestByTestnameDetailed.txt..."
+(Get-Content "$DestinationPath\TestByTestnameDetailed.txt") | Where-Object {$_.trim() -ne "" } | Set-Content "$DestinationPath\TestByTestnameDetailed.txt"
+Write-LogInfo "Done"
 
-LogMsg "Saving '$($env:GitRepo)' to DefaultGitRepo.txt..."
+Write-LogInfo "Saving '$($env:GitRepo)' to DefaultGitRepo.txt..."
 Set-Content -Value "DefaultGitRepo=$($env:GitRepo)"  -Path "$DestinationPath\DefaultGitRepo.txt" -Force -NoNewline
 
-LogMsg "Saving '$($env:GitBranch)' to DefaultGitBranch.txt..."
+Write-LogInfo "Saving '$($env:GitBranch)' to DefaultGitBranch.txt..."
 Set-Content -Value "DefaultGitBranch=$($env:GitBranch)"  -Path "$DestinationPath\DefaultGitBranch.txt" -Force -NoNewline
 
 exit 0

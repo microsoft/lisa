@@ -32,35 +32,35 @@ function Trigger-NmiInterrupt {
         Debug-VM -Name $VMName -InjectNonMaskableInterrupt `
                  -ComputerName $HvServer -Confirm:$False -Force `
                  -ErrorAction "Stop"
-        LogMsg "Successfully triggered an NMI on VM ${vmName}"
+        Write-LogInfo "Successfully triggered an NMI on VM ${vmName}"
 
         $nmiCheckScript = "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;bash ${remoteScript} > nmicheck.log`""
         $includeBuildNumberScript = "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;echo 'BuildNumber=${buildNumber}' >> `$HOME/constants.sh`""
         $nmiCheckLog = "/home/${VMUserName}/nmicheck.log"
         $nmiCheckState = "/home/${VMUserName}/state.txt"
 
-        RunLinuxCmd -username $VMUserName -password $VMPassword `
+        Run-LinuxCmd -username $VMUserName -password $VMPassword `
                     -ip $Ipv4 -port $VMPort $includeBuildNumberScript
 
-        RunLinuxCmd -username $VMUserName -password $VMPassword `
+        Run-LinuxCmd -username $VMUserName -password $VMPassword `
                     -ip $Ipv4 -port $VMPort $nmiCheckScript -runAsSudo
 
-        RemoteCopy -download -downloadFrom $Ipv4 -files $nmiCheckLog `
+        Copy-RemoteFiles -download -downloadFrom $Ipv4 -files $nmiCheckLog `
                    -downloadTo $LogDir -port $VMPort -username $VMUserName `
                    -password $VMPassword
-        RemoteCopy -download -downloadFrom $Ipv4 -files $nmiCheckState `
+        Copy-RemoteFiles -download -downloadFrom $Ipv4 -files $nmiCheckState `
                    -downloadTo $LogDir -port $VMPort -username $VMUserName `
                    -password $VMPassword
         $stateFile = "${LogDir}\state.txt"
         $contents = Get-Content -Path $stateFile
         if (($contents -eq "TestAborted") -or ($contents -eq "TestFailed")) {
-            LogErr "Running ${remoteScript} script failed."
+            Write-LogErr "Running ${remoteScript} script failed."
             return "FAIL"
         }
         return "PASS"
     } catch {
-        LogErr "Failed to trigger an NMI on VM ${VMName}"
-        LogErr "Internal error message: $_"
+        Write-LogErr "Failed to trigger an NMI on VM ${VMName}"
+        Write-LogErr "Internal error message: $_"
         return "FAIL"
     }
 }

@@ -24,33 +24,33 @@ function Main {
         if ($global:driveletter) {
             Dismount-VHD -Path $backupDiskPath -ErrorAction SilentlyContinue
             if (-not $?) {
-                LogErr "Dismounting VHD has failed"
+                Write-LogErr "Dismounting VHD has failed"
             }
             Remove-Item $backupdiskpath -Force -ErrorAction SilentlyContinue
             if (-not $?) {
-                LogErr "Could not remove backup disk"
+                Write-LogErr "Could not remove backup disk"
             }
             Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
             if (-not $?) {
-                LogErr "Could not remove temporary file"
+                Write-LogErr "Could not remove temporary file"
             }
-            LogMsg "Cleanup completed!"
+            Write-LogInfo "Cleanup completed!"
             $testResult=$resultPass
         }
         else {
-            LogErr "Drive letter isn't set"
+            Write-LogErr "Drive letter isn't set"
         }
     } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "$ErrorMessage at line: $ErrorLine"
+        Write-LogErr "$ErrorMessage at line: $ErrorLine"
     } finally {
         if (!$testResult) {
             $testResult = $resultAborted
         }
         $resultArr += $testResult
     }
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
 Main

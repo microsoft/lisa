@@ -40,20 +40,20 @@ function Main {
 
     # Change the working directory to where we need to be
     if (-not (Test-Path $RootDir)) {
-        LogErr "Error: The directory `"${RootDir}`" does not exist!"
+        Write-LogErr "Error: The directory `"${RootDir}`" does not exist!"
         return "FAIL"
     }
     Set-Location $rootDir
 
-    $kernel = RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 `
+    $kernel = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 `
         -port $VMPort -command "uname -r" -runAsSudo
     if ($? -eq $false){
-        LogWarn "WARNING: Could not get kernel version of $VMName"
+        Write-LogWarn "WARNING: Could not get kernel version of $VMName"
     }
 
     $numaVal = Get-NumaSupportStatus $kernel
     if (-not $numaVal) {
-        LogWarn "WARNING: NUMA not suported for kernel:`n $kernel"
+        Write-LogWarn "WARNING: NUMA not suported for kernel:`n $kernel"
         return "ABORTED"
     }
 
@@ -63,31 +63,31 @@ function Main {
 
     # Send the Numa Nodes value to the guest if it matches with the number of CPUs
     if ($GetNumaNodes -eq $numCPUs/$vcpuOnNode) {
-        LogMsg "Info: NumaNodes and the number of CPU are matched."
+        Write-LogInfo "Info: NumaNodes and the number of CPU are matched."
     } else {
-        LogErr "Error: NumaNodes and the number of CPU does not match."
+        Write-LogErr "Error: NumaNodes and the number of CPU does not match."
         return "FAIL"
     }
     $cmdAddConstants = "echo `"expected_number=$($numCPUs/$vcpuOnNode)`" >> /home/${VMUserName}/constants.sh"
-    RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port `
+    Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port `
         $VMPort -command $cmdAddConstants -runAsSudo
     if (-not $?) {
-        LogErr "Error: Unable to submit command ${cmd} to VM!"
+        Write-LogErr "Error: Unable to submit command ${cmd} to VM!"
         return "FAIL"
     }
 
     $cmdRunNuma = "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;bash ${remoteScript} > NUMA-Test.log`""
-    RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort $cmdRunNuma -runAsSudo
-    RemoteCopy -download -downloadFrom $Ipv4 -files "/home/${VMUserName}/state.txt" `
+    Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort $cmdRunNuma -runAsSudo
+    Copy-RemoteFiles -download -downloadFrom $Ipv4 -files "/home/${VMUserName}/state.txt" `
         -downloadTo $LogDir -port $VmPort -username $VMUserName -password $VMPassword
-    RemoteCopy -download -downloadFrom $Ipv4 -files "/home/${VMUserName}/NUMA-Test.log" `
+    Copy-RemoteFiles -download -downloadFrom $Ipv4 -files "/home/${VMUserName}/NUMA-Test.log" `
         -downloadTo $LogDir -port $VmPort -username $VMUserName -password $VMPassword
     $contents = Get-Content -Path $stateFile
     if (($contents -eq "TestAborted") -or ($contents -eq "TestFailed")) {
-        LogErr "Error: Running $remoteScript script failed on VM!"
+        Write-LogErr "Error: Running $remoteScript script failed on VM!"
         return "FAIL"
     } else {
-        LogMsg "Matching values for NumaNodes: $vcpuOnNode has been found on the VM!"
+        Write-LogInfo "Matching values for NumaNodes: $vcpuOnNode has been found on the VM!"
     }
 
     return "PASS"

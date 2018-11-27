@@ -16,9 +16,9 @@ function Main {
         $VMName = $captureVMData.RoleName
         # Change the working directory to where we need to be
         Set-Location $WorkingDirectory
-        $backupdisksize = 2*$(Get-VMHardDiskDrive -VMName $VMName |get-vhd)[0].size
+        $backupdisksize = 2*$(Get-VMHardDiskDrive -VMName $VMName |Get-Vhd)[0].size
         $backupdiskpath = (Get-VMHost).VirtualHardDiskPath + "\" + $VMName + "_VSS_DISK.vhdx"
-        $driveletter = Get-ChildItem function:[g-y]: -n | Where-Object { !(test-path $_) } | Get-random
+        $driveletter = Get-ChildItem function:[g-y]: -n | Where-Object { !(Test-Path $_) } | Get-Random
         $originaldriveletter = $driveletter
         [char]$driveletter = $driveletter.Replace(":","")
         if ([string]::IsNullOrEmpty($driveletter)) {
@@ -28,7 +28,7 @@ function Main {
         $currentRetryCount = 0
         while ($currentRetryCount -lt $maxRetryCount){
             if (Test-Path ($backupdiskpath)) {
-                LogMsg "Disk already exists. Deleting old disk and creating new disk."
+                Write-LogInfo "Disk already exists. Deleting old disk and creating new disk."
                 Dismount-VHD $backupdiskpath
                 Remove-Item $backupdiskpath
             }
@@ -42,15 +42,15 @@ function Main {
         if ($currentRetryCount -eq $maxRetryCount) {
             throw "Mounting VHD Failed"
         }
-        $backupdisk = Get-VHD -Path $backupdiskpath
+        $backupdisk = Get-Vhd -Path $backupdiskpath
         Initialize-Disk $backupdisk.DiskNumber
         $diskpartition = New-Partition -DriveLetter $driveletter -DiskNumber $backupdisk.DiskNumber -UseMaximumSize
         $volume = Format-Volume -FileSystem NTFS -Confirm:$False -Force -Partition $diskpartition
-        LogMsg "Disk initialized with volume $volume $diskpartition"
+        Write-LogInfo "Disk initialized with volume $volume $diskpartition"
         New-PSDrive -Name $driveletter -PSProvider FileSystem -Root $originaldriveletter -Description "VSS"
         $filePath = (Get-VMHost).VirtualHardDiskPath + "\" + "$VMName" + "_DRIVE_LETTER.txt"
         if(Test-Path ($filePath)) {
-            LogMsg "Removing existing file."
+            Write-LogInfo "Removing existing file."
             Remove-Item $filePath
         }
         Write-Output "$originaldriveletter" >> $filePath
@@ -58,14 +58,14 @@ function Main {
     } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "$ErrorMessage at line: $ErrorLine"
+        Write-LogErr "$ErrorMessage at line: $ErrorLine"
     } finally {
         if (!$testResult) {
             $testResult = $resultAborted
         }
         $resultArr += $testResult
     }
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
 Main

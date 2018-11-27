@@ -24,12 +24,12 @@ function Main {
     $value = $null
 
     if (-not $TestParams) {
-        LogErr "Error: No TestParams provided"
-        LogErr "       This script requires the Key & value test parameters"
+        Write-LogErr "Error: No TestParams provided"
+        Write-LogErr "       This script requires the Key & value test parameters"
         return "Aborted"
     }
     if (-not $RootDir) {
-        LogErr "Warn : no RootDir test parameter was supplied"
+        Write-LogErr "Warn : no RootDir test parameter was supplied"
     } else {
         Set-Location $RootDir
     }
@@ -47,11 +47,11 @@ function Main {
     }
 
     if (-not $key) {
-        LogErr "Error: Missing testParam Key to be added"
+        Write-LogErr "Error: Missing testParam Key to be added"
         return "FAIL"
     }
     if (-not $value) {
-        LogErr "Error: Missing testParam Value to be added"
+        Write-LogErr "Error: Missing testParam Value to be added"
         return "FAIL"
     }
 
@@ -59,33 +59,33 @@ function Main {
     $vmManagementService = Get-WmiObject -ComputerName $HvServer -class "Msvm_VirtualSystemManagementService" `
         -namespace "root\virtualization\v2"
     if (-not $vmManagementService) {
-        LogErr "Error: Unable to create a VMManagementService object"
+        Write-LogErr "Error: Unable to create a VMManagementService object"
         return "FAIL"
     }
 
     $vmGuest = Get-WmiObject -ComputerName $HvServer -Namespace root\virtualization\v2 `
         -Query "Select * From Msvm_ComputerSystem Where ElementName='$VMName'"
     if (-not $vmGuest) {
-        LogErr "Error: Unable to create VMGuest object"
+        Write-LogErr "Error: Unable to create VMGuest object"
         return "FAIL"
     }
 
     $msvmKvpExchangeDataItemPath = "\\$HvServer\root\virtualization\v2:Msvm_KvpExchangeDataItem"
     $msvmKvpExchangeDataItem = ([WmiClass]$msvmKvpExchangeDataItemPath).CreateInstance()
     if (-not $msvmKvpExchangeDataItem) {
-        LogErr "Error: Unable to create Msvm_KvpExchangeDataItem object"
+        Write-LogErr "Error: Unable to create Msvm_KvpExchangeDataItem object"
         return "FAIL"
     }
 
-    LogMsg "Info : Detecting Host version of Windows Server"
+    Write-LogInfo "Info : Detecting Host version of Windows Server"
     $osInfo = GWMI Win32_OperatingSystem -ComputerName $HvServer
     if (-not $osInfo) {
-        LogErr "Error: Unable to collect Operating System information"
+        Write-LogErr "Error: Unable to collect Operating System information"
         return "FAIL"
     }
     [System.Int32]$buildNR = $osInfo.BuildNumber
 
-    LogMsg "Info : Modifying Key '${key}'to '${Value}'"
+    Write-LogInfo "Info : Modifying Key '${key}'to '${Value}'"
 
     $msvmKvpExchangeDataItem.Source = 0
     $msvmKvpExchangeDataItem.Name = $key
@@ -99,17 +99,17 @@ function Main {
     }
 
     if ($job.ErrorCode -ne 0) {
-        LogErr "Error: while modifying the key value pair"
-        LogErr "Error: Job error code = $($Job.ErrorCode)"
+        Write-LogErr "Error: while modifying the key value pair"
+        Write-LogErr "Error: Job error code = $($Job.ErrorCode)"
 
         if ($job.ErrorCode -eq 32773) {
-            LogErr "Error (as expected): Key = '${key} ,Non-existing key cannot be modified Error Code-' $($Job.ErrorCode) "
+            Write-LogErr "Error (as expected): Key = '${key} ,Non-existing key cannot be modified Error Code-' $($Job.ErrorCode) "
             return "PASS"
         } elseIf ($job.ErrorCode -eq 32779 -And $buildNR -ge 10000) {
-            LogErr "Error (as expected): Key = '${key} ,Non-existing key cannot be modified Error Code-' $($Job.ErrorCode) "
+            Write-LogErr "Error (as expected): Key = '${key} ,Non-existing key cannot be modified Error Code-' $($Job.ErrorCode) "
             return "PASS"
         } else {
-            LogErr "Error: Unable to modify key"
+            Write-LogErr "Error: Unable to modify key"
             return "FAIL"
         }
     }

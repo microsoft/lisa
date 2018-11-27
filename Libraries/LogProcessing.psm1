@@ -71,27 +71,22 @@ Function Write-Log()
 	}
 }
 
-Function LogMsg($text)
+Function Write-LogInfo($text)
 {
 	Write-Log "INFO" $text
 }
 
-Function LogErr($text)
+Function Write-LogErr($text)
 {
 	Write-Log "ERROR" $text
 }
 
-Function LogError($text)
-{
-	Write-Log "ERROR" $text
-}
-
-Function LogWarn($text)
+Function Write-LogWarn($text)
 {
 	Write-Log "WARN" $text
 }
 
-Function CreateResultSummary($testResult, $checkValues, $testName, $metaData)
+Function Create-ResultSummary($testResult, $checkValues, $testName, $metaData)
 {
 	if ( $metaData )
 	{
@@ -104,7 +99,7 @@ Function CreateResultSummary($testResult, $checkValues, $testName, $metaData)
 	return $resultString
 }
 
-Function GetFinalResultHeader($resultArr){
+Function Get-FinalResultHeader($resultArr){
 	if(($resultArr -imatch "FAIL" ) -or ($resultArr -imatch "Aborted"))
 	{
 		$result = "FAIL"
@@ -205,7 +200,7 @@ Class ReportNode
 		}
 		else
 		{
-			LogError "Invalid format for GetTimerElapasedTime: $Format"
+			Write-LogErr "Invalid format for Get-TimerElapasedTime: $Format"
 		}
 		return [System.Math]::Round($num, 2).ToString()
 	}
@@ -328,7 +323,7 @@ Class JUnitReportGenerator
 		if($null -eq $this.JunitReport -or $null -eq $testsuiteName -or $null -eq $this.TestSuiteLogTable[$testsuiteName] `
 			-or $null -eq $caseName -or $null -eq $this.TestSuiteCaseLogTable["$testsuiteName$caseName"])
 		{
-			LogErr "Failed to get the elapsed time of test case $CaseName."
+			Write-LogErr "Failed to get the elapsed time of test case $CaseName."
 			return ""
 		}
 		return $this.TestSuiteCaseLogTable["$testsuiteName$caseName"].GetTimerElapasedTime($Format)
@@ -338,7 +333,7 @@ Class JUnitReportGenerator
 	{
 		if($null -eq $this.JunitReport -or $null -eq $testsuiteName -or $null -eq $this.TestSuiteLogTable[$testsuiteName])
 		{
-			LogErr "Failed to get the elapsed time of test suite $TestSuiteName."
+			Write-LogErr "Failed to get the elapsed time of test suite $TestSuiteName."
 			return ""
 		}
 		return $this.TestSuiteLogTable[$testsuiteName].GetTimerElapasedTime($Format)
@@ -454,13 +449,13 @@ Function Update-TestSummaryForCase ([string]$TestName, [int]$ExecutionCount, [st
 		$TestCycle.htmlSummary += "<tr><td><font size=`"3`">$ExecutionCount</font></td><td>$TestName$(Add-ReproVMDetailsToHtmlReport)</td><td>$Duration min</td><td>$testResultRow</td></tr>"
 	}
 	else {
-		LogErr "Test Result is empty."
+		Write-LogErr "Test Result is empty."
 		$ResultDetails.totalAbortedTc += 1
 		$testResultRow = "<span style='background-color:yellow;font-weight:bolder'>ABORT</span>"
 		$TestCycle.htmlSummary += "<tr><td><font size=`"3`">$ExecutionCount</font></td><td>$TestName$(Add-ReproVMDetailsToHtmlReport)</td><td>$Duration min</td><td>$testResultRow</td></tr>"
 	}
 
-	LogMsg "CURRENT - PASS    - $($ResultDetails.totalPassTc)"
-	LogMsg "CURRENT - FAIL    - $($ResultDetails.totalFailTc)"
-	LogMsg "CURRENT - ABORTED - $($ResultDetails.totalAbortedTc)"
+	Write-LogInfo "CURRENT - PASS    - $($ResultDetails.totalPassTc)"
+	Write-LogInfo "CURRENT - FAIL    - $($ResultDetails.totalFailTc)"
+	Write-LogInfo "CURRENT - ABORTED - $($ResultDetails.totalAbortedTc)"
 }

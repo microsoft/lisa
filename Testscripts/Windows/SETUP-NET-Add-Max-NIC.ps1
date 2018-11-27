@@ -8,7 +8,7 @@ This test script will add the maximum amount of synthetic and legacy NICs suppor
 
 param([String] $TestParams)
 
-function AddNICs {
+function Add-NICs {
     param (
         [string] $VMName,
         [string] $HvServer,
@@ -23,7 +23,7 @@ function AddNICs {
     }
 
     for ($i=0; $i -lt $nicsAmount; $i++) {
-        LogMsg "Info : Attaching NIC '${network_type}' to '${VMName}'"
+        Write-LogInfo "Info : Attaching NIC '${network_type}' to '${VMName}'"
         Add-VMNetworkAdapter -VMName $VMName -SwitchName $network_type -ComputerName $HvServer -IsLegacy $isLegacy
     }
 }
@@ -45,7 +45,7 @@ function Main {
         if ($temp[0].Trim() -eq "NETWORK_TYPE") {
             $network_type = $temp[1]
             if (@("External", "Internal", "Private", "None") -notcontains $network_type) {
-                LogErr "Error: Invalid netowrk type"
+                Write-LogErr "Error: Invalid netowrk type"
                 return $false
             }
         }
@@ -54,16 +54,16 @@ function Main {
             $test_type = $temp[1].Split(',')
             if ($test_type.Length -eq 2) {
                 if ($test_type[0] -notlike 'legacy' -and $test_type[0] -notlike 'synthetic') {
-                    LogErr "Error: Incorrect test type - $test_type[0]"
+                    Write-LogErr "Error: Incorrect test type - $test_type[0]"
                     return $false
                 }
 
                 if ($test_type[1] -notlike 'legacy' -and $test_type[1] -notlike 'synthetic') {
-                    LogErr "Error: Incorrect test type - $test_type[1]"
+                    Write-LogErr "Error: Incorrect test type - $test_type[1]"
                     return $false
                 }
             } elseif ($test_type -notlike 'legacy' -and $test_type -notlike 'synthetic') {
-                LogErr "Error: Incorrect test type - $test_type"
+                Write-LogErr "Error: Incorrect test type - $test_type"
                 return $false
             }
         }
@@ -86,21 +86,21 @@ function Main {
     if ($test_type.Length -eq 2) {
         foreach ($test in $test_type) {
             if ($test -eq "legacy") {
-                AddNICs $VMName $HvServer $test $network_type $legacyNICs
+                Add-NICs $VMName $HvServer $test $network_type $legacyNICs
             } else {
-                AddNICs $VMName $HvServer $test $network_type $syntheticNICs
+                Add-NICs $VMName $HvServer $test $network_type $syntheticNICs
             }
         }
     } else {
         if ($test_type -eq "legacy") {
-            AddNICs $VMName $HvServer $test_type $network_type $legacyNICs
+            Add-NICs $VMName $HvServer $test_type $network_type $legacyNICs
         } else {
-            AddNICs $VMName $HvServer $test_type $network_type $syntheticNICs
+            Add-NICs $VMName $HvServer $test_type $network_type $syntheticNICs
         }
     }
 
     if (-not $?) {
-        LogErr 0 "Error: Unable to add multiple NICs on VM '${VMName}' on server '${HvServer}'"
+        Write-LogErr 0 "Error: Unable to add multiple NICs on VM '${VMName}' on server '${HvServer}'"
         return $false
     }
 

@@ -41,14 +41,14 @@ function Main {
         }
     }
     if (-not $vmState) {
-        LogErr "Error: testParams is missing the vmState parameter"
+        Write-LogErr "Error: testParams is missing the vmState parameter"
         return "FAIL"
     }
-    LogMsg "Info: testDelay = $testDelay; chrony_state = $chrony_state;"
+    Write-LogInfo "Info: testDelay = $testDelay; chrony_state = $chrony_state;"
 
     # Change the working directory
     if (-not (Test-Path $RootDir)) {
-        LogErr "Error: The directory `"${RootDir}`" does not exist"
+        Write-LogErr "Error: The directory `"${RootDir}`" does not exist"
         return "FAIL"
     }
     Set-Location $RootDir
@@ -57,7 +57,7 @@ function Main {
     $retVal = Optimize-TimeSync -Ipv4 $Ipv4 -Port $VMPort -Username $VMUserName `
                 -Password $VMPassword
     if (-not $retVal) {
-        LogErr "Error: Failed to config time sync."
+        Write-LogErr "Error: Failed to config time sync."
         return "FAIL"
     }
 
@@ -65,14 +65,14 @@ function Main {
     $diffInSeconds = Get-TimeSync -Ipv4 $Ipv4 -Port $VMPort `
          -Username $VMUserName -Password $VMPassword
     if ($diffInSeconds -and $diffInSeconds -lt 5) {
-        LogMsg "Info: Time is properly synced"
+        Write-LogInfo "Info: Time is properly synced"
     } else {
-        LogErr "Error: Time is out of sync before pause/save action!"
+        Write-LogErr "Error: Time is out of sync before pause/save action!"
         return "FAIL"
     }
 
     if ($chrony_state -eq "off") {
-        LogMsg "Info: Chrony has been turned off by shell script."
+        Write-LogInfo "Info: Chrony has been turned off by shell script."
     }
 
     Start-Sleep -S 10
@@ -82,23 +82,23 @@ function Main {
     } elseif ($vmState -eq "save") {
         Save-VM -Name $VMName -ComputerName $HvServer -Confirm:$False
     } else {
-        LogErr "Error: Invalid VM state - ${vmState}"
+        Write-LogErr "Error: Invalid VM state - ${vmState}"
     }
 
     if ($? -ne "True") {
-      LogErr "Error while suspending the VM state"
+      Write-LogErr "Error while suspending the VM state"
       return "FAIL"
     }
 
     # If the test delay was specified, sleep for a bit
-    LogMsg "Sleeping for ${testDelay} seconds"
+    Write-LogInfo "Sleeping for ${testDelay} seconds"
     Start-Sleep -S $testDelay
 
     # After 10 mins resume the VM and check the time sync.
     Start-VM -Name $VMName -ComputerName $HvServer -Confirm:$False `
         -WarningAction SilentlyContinue
     if ($? -ne "True") {
-      LogErr "Error while changing VM state"
+      Write-LogErr "Error while changing VM state"
       return "FAIL"
     }
 
@@ -106,10 +106,10 @@ function Main {
     $diffInSeconds = Get-TimeSync -Ipv4 $Ipv4 -Port $VMPort `
          -Username $VMUserName -Password $VMPassword
     if ($diffInSeconds -and $diffInSeconds -lt 5) {
-        LogMsg "Info: Time is properly synced after start action"
+        Write-LogInfo "Info: Time is properly synced after start action"
         return "PASS"
     } else {
-        LogErr "Error: Time is out of sync after start action!"
+        Write-LogErr "Error: Time is out of sync after start action!"
         return "FAIL"
     }
 }

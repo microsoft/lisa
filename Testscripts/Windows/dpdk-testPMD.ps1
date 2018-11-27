@@ -35,29 +35,29 @@ function Verify-Performance() {
 
 	foreach($testRun in $testDataCsv) {
 		$coreData = Select-Xml -Xml $sizeData -XPath "core$($testRun.core)" | Select-Object -ExpandProperty Node
-		LogMsg "Comparing $($testRun.core) core(s) data"
-		LogMsg "  compare tx pps $($testRun.tx_pps_avg) with lowerbound $($coreData.tx)"
+		Write-LogInfo "Comparing $($testRun.core) core(s) data"
+		Write-LogInfo "  compare tx pps $($testRun.tx_pps_avg) with lowerbound $($coreData.tx)"
 		if ([int]$testRun.tx_pps_avg -lt [int]$coreData.tx) {
-			LogErr "  Perf Failure in $($testRun.test_mode) mode; $($testRun.tx_pps_avg) must be > $($coreData.tx)"
+			Write-LogErr "  Perf Failure in $($testRun.test_mode) mode; $($testRun.tx_pps_avg) must be > $($coreData.tx)"
 			$tempResult = "FAIL"
 		}
 
 		if ($testRun.test_mode -eq "rxonly") {
-			LogMsg "  compare rx pps $($testRun.rx_pps_avg) with lowerbound $($coreData.rx)"
+			Write-LogInfo "  compare rx pps $($testRun.rx_pps_avg) with lowerbound $($coreData.rx)"
 			if ([int]$testRun.rx_pps_avg -lt [int]$coreData.rx) {
-				LogErr "  Perf Failure in $($testRun.test_mode) mode; $($testRun.rx_pps_avg) must be > $($coreData.rx)"
+				Write-LogErr "  Perf Failure in $($testRun.test_mode) mode; $($testRun.rx_pps_avg) must be > $($coreData.rx)"
 				$tempResult = "FAIL"
 			}
 		} elseif ($testRun.test_mode -eq "io") {
-			LogMsg "  compare rx pps $($testRun.rx_pps_avg) with lowerbound $($coreData.fwdrx)"
-			LogMsg "  compare fwdtx pps $($testRun.fwdtx_pps_avg) with lowerbound $($coreData.fwdtx)"
+			Write-LogInfo "  compare rx pps $($testRun.rx_pps_avg) with lowerbound $($coreData.fwdrx)"
+			Write-LogInfo "  compare fwdtx pps $($testRun.fwdtx_pps_avg) with lowerbound $($coreData.fwdtx)"
 			if ([int]$testRun.rx_pps_avg -lt [int]$coreData.fwdrx) {
-				LogErr "  Perf Failure in $($testRun.test_mode) mode; $($testRun.rx_pps_avg) must be > $($coreData.fwdrx)"
+				Write-LogErr "  Perf Failure in $($testRun.test_mode) mode; $($testRun.rx_pps_avg) must be > $($coreData.fwdrx)"
 				$tempResult = "FAIL"
 			}
 
 			if ([int]$testRun.fwdtx_pps_avg -lt [int]$coreData.fwdtx) {
-				LogErr "  Perf Failure in $($testRun.test_mode) mode; $($testRun.fwdtx_pps_avg) must be > $($coreData.fwdtx)"
+				Write-LogErr "  Perf Failure in $($testRun.test_mode) mode; $($testRun.fwdtx_pps_avg) must be > $($coreData.fwdtx)"
 				$tempResult = "FAIL"
 			}
 		} else {

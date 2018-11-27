@@ -24,7 +24,7 @@ function Main {
 
     # Change the working directory
     if (-not (Test-Path $RootDir)) {
-        LogErr "Error: The directory `"${RootDir}`" does not exist"
+        Write-LogErr "Error: The directory `"${RootDir}`" does not exist"
         return "ABORTED"
     }
     Set-Location $RootDir
@@ -35,36 +35,36 @@ function Main {
         $VMPassword $supportedKernel
 
     if ($kernelSupport -ne $True) {
-        LogMsg "Info: Current VM Linux kernel version does not support vDSO feature."
+        Write-LogInfo "Info: Current VM Linux kernel version does not support vDSO feature."
         return "ABORTED"
     }
 
     # Compile gettime.c
     $compileCmd = "gcc /home/${VMUserName}/gettime.c -o /home/${VMUserName}/gettime"
-    RunLinuxCmd -ip $Ipv4 -port $VMPort -username $VMUserName -password `
+    Run-LinuxCmd -ip $Ipv4 -port $VMPort -username $VMUserName -password `
         $VMPassword -command $compileCmd -runAsSudo
     if ($? -ne $True) {
-        LogErr "Error: Unable to compile gettime.c"
+        Write-LogErr "Error: Unable to compile gettime.c"
         return "ABORTED"
     }
 
     # Get time
     $timeCmd = "time -p (/home/${VMUserName}/gettime) 2>&1 1>/dev/null"
-    $result = RunLinuxCmd -ip $Ipv4 -port $VMPort -username "root" -password `
+    $result = Run-LinuxCmd -ip $Ipv4 -port $VMPort -username "root" -password `
              $VMPassword -command $timeCmd
     $result = $result.Trim()
-    LogMsg $result
+    Write-LogInfo $result
     #real 3.14 user 3.14 sys 0.00
     $real = $result.split("")[1]  # get real time: 3.14
     $sys = $result.split("")[5]   # get sys time: 0.00
 
-    LogMsg "real time: $real :: sys time: $sys"
+    Write-LogInfo "real time: $real :: sys time: $sys"
     # Support VDSO, sys time should be shorter than 1.0 second
     if (([float]$real -gt 5.0) -or ([float]$sys -gt 1.0)) {
-        LogErr "Error: Check real time is $real(>5.0s), sys time is $sys(>1.0s)"
+        Write-LogErr "Error: Check real time is $real(>5.0s), sys time is $sys(>1.0s)"
         return "FAIL"
     } else {
-        LogMsg "Check real time is $real(<5.0s), sys time is $sys(<1.0s)"
+        Write-LogInfo "Check real time is $real(<5.0s), sys time is $sys(<1.0s)"
         return "PASS"
     }
 }

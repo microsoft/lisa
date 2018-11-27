@@ -29,7 +29,7 @@ $allReports = Get-ChildItem .\Report | Where-Object {($_.FullName).EndsWith("-ju
 $retValue = 0
 foreach ( $report in $allReports )
 {
-    LogMsg "Analyzing $($report.FullName).."
+    Write-LogInfo "Analyzing $($report.FullName).."
     $resultXML = [xml](Get-Content "$($report.FullName)" -ErrorAction SilentlyContinue)
     if ( ( $resultXML.testsuites.testsuite.failures -eq 0 ) -and ( $resultXML.testsuites.testsuite.errors -eq 0 ) -and ( $resultXML.testsuites.testsuite.tests -gt 0 ))
     {
@@ -42,14 +42,14 @@ foreach ( $report in $allReports )
     {
         if ($testcase.failure)
         {
-            LogMsg "$($testcase.name) : FAIL"
+            Write-LogInfo "$($testcase.name) : FAIL"
         }
         else
         {
-            LogMsg "$($testcase.name) : PASS"
+            Write-LogInfo "$($testcase.name) : PASS"
         }
     }
-    LogMsg "----------------------------------------------"
+    Write-LogInfo "----------------------------------------------"
 }
-LogMsg "Exiting with Code : $retValue"
+Write-LogInfo "Exiting with Code : $retValue"
 exit $retValue

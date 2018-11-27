@@ -26,17 +26,17 @@ function Main {
     )
 
     if (-not $TestParams) {
-        LogErr "Error: No test parameters specified"
+        Write-LogErr "Error: No test parameters specified"
         return "Aborted"
     }
     if (-not $RootDir) {
-        LogMsg "Warn : no rootdir was specified"
+        Write-LogInfo "Warn : no rootdir was specified"
     } else {
         Set-Location $RootDir
     }
 
     # Debug - display the test parameters so they are captured in the log file
-    LogMsg "TestParams : '${TestParams}'"
+    Write-LogInfo "TestParams : '${TestParams}'"
 
     # Parse the test parameters
     $params = $TestParams.Split(";")
@@ -52,14 +52,14 @@ function Main {
     $checkVM = Check-Systemd -Ipv4 $Ipv4 -SSHPort $VMPort -Username $VMUserName `
                     -Password $VmPassword
     if ( -not $checkVM[-1]) {
-        LogMsg "Systemd is not being used. Test Skipped"
+        Write-LogInfo "Systemd is not being used. Test Skipped"
         return "FAIL"
     }
 
     # Get KVP Service status
     $gsi = Get-VMIntegrationService -Name "Key-Value Pair Exchange" -VMName $VMName -ComputerName $hvServer
     if ($? -ne "True") {
-        LogMsg "Error: Unable to get Key-Value Pair status on $VMName ($hvServer)"
+        Write-LogInfo "Error: Unable to get Key-Value Pair status on $VMName ($hvServer)"
         return "FAIL"
     }
 
@@ -70,11 +70,11 @@ function Main {
         $kernelSupport = Get-VMFeatureSupportStatus -VmIp $ipv4 -VmPort $VMPort -UserName $VMUserName `
                             -Password $VMPassword -SupportKernel $supportkernel
         if ($kernelSupport -ne "True") {
-            LogMsg "Info: Kernels older than 3.10.0-514 require LIS-4.x drivers."
+            Write-LogInfo "Info: Kernels older than 3.10.0-514 require LIS-4.x drivers."
             $null = .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$ipv4 `
                                 "rpm -qa | grep kmod-microsoft-hyper-v && rpm -qa | grep microsoft-hyper-v"
             if ($? -ne "True") {
-                LogMsg "Error: No LIS-4.x drivers detected. Skipping test."
+                Write-LogInfo "Error: No LIS-4.x drivers detected. Skipping test."
                 return "FAIL"
             }
         }
@@ -84,7 +84,7 @@ function Main {
     if ($gsi.Enabled -ne "True") {
         Enable-VMIntegrationService -Name "Key-Value Pair Exchange" -VMName $VMName -ComputerName $hvServer
         if ($? -ne "True") {
-            LogErr "Error: Unable to enable Key-Value Pair on $VMName ($hvServer)"
+            Write-LogErr "Error: Unable to enable Key-Value Pair on $VMName ($hvServer)"
             return "FAIL"
         }
     }
@@ -94,26 +94,26 @@ function Main {
     while ($counter -lt $CycleCount) {
         Disable-VMIntegrationService -Name "Key-Value Pair Exchange" -VMName $VMName -ComputerName $hvServer
         if ($? -ne "True") {
-            LogErr "Error: Unable to disable VMIntegrationService on $VMName ($hvServer) on $counter run"
+            Write-LogErr "Error: Unable to disable VMIntegrationService on $VMName ($hvServer) on $counter run"
             return "FAIL"
         }
         Start-Sleep 5
 
         Enable-VMIntegrationService -Name "Key-Value Pair Exchange" -VMName $VMName -ComputerName $hvServer
         if ($? -ne "True") {
-            LogMsg "Error: Unable to enable VMIntegrationService on $VMName ($hvServer) on $counter run"
+            Write-LogInfo "Error: Unable to enable VMIntegrationService on $VMName ($hvServer) on $counter run"
             return "FAIL"
         }
         Start-Sleep 5
         $counter += 1
     }
 
-    LogMsg "Disabled and Enabled KVP Exchange $counter times"
+    Write-LogInfo "Disabled and Enabled KVP Exchange $counter times"
 
     #Check KVP service status after disable/enable
     $gsi = Get-VMIntegrationService -Name "Key-Value Pair Exchange" -VMName $VMName -ComputerName $hvServer
     if ($gsi.PrimaryOperationalStatus -ne "OK") {
-        LogMsg "Error: Key-Value Pair service is not operational after disable/enable cycle. `
+        Write-LogInfo "Error: Key-Value Pair service is not operational after disable/enable cycle. `
         Current status: $gsi.PrimaryOperationalStatus"
         return "FAIL"
     } else {
@@ -124,9 +124,9 @@ function Main {
         #If the KVP service is OK, check the KVP daemon on the VM
         $checkProcess = .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$ipv4 "systemctl is-active $daemonName"
         if ($checkProcess -ne "active") {
-             LogErr "Error: $daemonName is not running on $VMName after disable/enable cycle"
+             Write-LogErr "Error: $daemonName is not running on $VMName after disable/enable cycle"
         } else {
-            LogMsg "Info: KVP service and $daemonName are operational after disable/enable cycle"
+            Write-LogInfo "Info: KVP service and $daemonName are operational after disable/enable cycle"
         }
     }
 

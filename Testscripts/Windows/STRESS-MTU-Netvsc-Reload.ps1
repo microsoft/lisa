@@ -37,20 +37,20 @@ function Main {
     $mtu_values = 1505, 2048, 4096, 8192, 16384
     $iteration = 1
     foreach ($i in $mtu_values) {
-        LogMsg "Changing MTU on VM to $i"
+        Write-LogInfo "Changing MTU on VM to $i"
 
-        $null = RunLinuxCmd -username $rootUser -password $VMPassword -ip $Ipv4 -port $VMPort `
+        $null = Run-LinuxCmd -username $rootUser -password $VMPassword -ip $Ipv4 -port $VMPort `
             -command "sleep 5 && ip link set dev eth0 mtu $i"
 
         Start-Sleep -s 30
         Test-Connection -ComputerName $ipv4
         if (-not $?) {
-            LogErr "VM became unresponsive after changing MTU on VM to $i on iteration $iteration "
+            Write-LogErr "VM became unresponsive after changing MTU on VM to $i on iteration $iteration "
             return "FAIL"
         }
         $iteration++
     }
-    LogMsg "Successfully changed MTU for $iteration times"
+    Write-LogInfo "Successfully changed MTU for $iteration times"
 
     $scriptPath = Join-Path $LogDir "reload_netvsc.sh"
 
@@ -59,9 +59,9 @@ function Main {
     }
 
     Add-Content $scriptPath "$RELOAD_COMMAND"
-    RemoteCopy -uploadTo $Ipv4 -port $VMPort -password $VMPassword -username $rootUser `
+    Copy-RemoteFiles -uploadTo $Ipv4 -port $VMPort -password $VMPassword -username $rootUser `
         -files $scriptPath -upload
-    $null = RunLinuxCmd -username $rootUser -password $VMPassword -ip $Ipv4 -port $VMPort `
+    $null = Run-LinuxCmd -username $rootUser -password $VMPassword -ip $Ipv4 -port $VMPort `
         -command "dos2unix reload_netvsc.sh && sleep 5 && bash ~/reload_netvsc.sh" -RunInBackGround
 
     Start-Sleep -s 600
@@ -69,11 +69,11 @@ function Main {
         -Password $VMPassword -username $VMUserName -StepTimeout 1000
 
     if (-not $?) {
-        LogErr "VM became unresponsive after reloading hv_netvsc"
+        Write-LogErr "VM became unresponsive after reloading hv_netvsc"
         return "FAIL"
     }
     else {
-        LogMsg "Successfully reloaded hv_netvsc for 25 times"
+        Write-LogInfo "Successfully reloaded hv_netvsc for 25 times"
         return "PASS"
     }
 }

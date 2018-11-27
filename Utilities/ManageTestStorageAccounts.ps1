@@ -39,18 +39,18 @@ try
         if ( $Delete )
         {
             $Passphrase = Get-Random -Minimum 11111 -Maximum 999999
-            LogMsg "*****************************************CAUTION*****************************************"
-            LogMsg "You will be cleaniup all storage account mentioned in .\XML\RegionAndStorageAccounts.xml"
-            LogMsg "There is no way to recover the data from deleted storage accounts."
-            LogMsg "****************************************************************************************"
+            Write-LogInfo "*****************************************CAUTION*****************************************"
+            Write-LogInfo "You will be cleaniup all storage account mentioned in .\XML\RegionAndStorageAccounts.xml"
+            Write-LogInfo "There is no way to recover the data from deleted storage accounts."
+            Write-LogInfo "****************************************************************************************"
             $Choice = Read-Host -Prompt "Type $Passphrase to confirm"
             if ( $Choice -eq $Passphrase)
             {
-                LogMsg "Proceeding for cleanup..."
+                Write-LogInfo "Proceeding for cleanup..."
             }
             else
             {
-                LogMsg "You entered wrong number. Exiting."
+                Write-LogInfo "You entered wrong number. Exiting."
                 exit 0
             }
         }
@@ -66,41 +66,41 @@ try
                     $Out = Get-AzureRmResourceGroup -Name $ResourceGroupName -ErrorAction SilentlyContinue
                     if ( ! $Out.ResourceGroupName )
                     {
-                        LogMsg "$ResourceGroupName creating..."
+                        Write-LogInfo "$ResourceGroupName creating..."
                         $Out = New-AzureRmResourceGroup -Name $ResourceGroupName -Location $Region -ErrorAction SilentlyContinue
                         if ($Out.ProvisioningState -eq "Succeeded")
                         {
-                            LogMsg "$ResourceGroupName created successfully."
+                            Write-LogInfo "$ResourceGroupName created successfully."
                         }
                     }
                     else
                     {
-                        LogMsg "$ResourceGroupName exists."
+                        Write-LogInfo "$ResourceGroupName exists."
                     }
                     if ($RegionStorageMapping.AllRegions.$Region.StandardStorage)
                     {
-                        LogMsg "Creating Standard_LRS storage account : $($RegionStorageMapping.AllRegions.$Region.StandardStorage)"
+                        Write-LogInfo "Creating Standard_LRS storage account : $($RegionStorageMapping.AllRegions.$Region.StandardStorage)"
                         $Out = New-AzureRmStorageAccount -ResourceGroupName $ResourceGroupName -Name $RegionStorageMapping.AllRegions.$Region.StandardStorage -SkuName Standard_LRS  -Location $Region
                         if ($out.ProvisioningState -eq "Succeeded")
                         {
-                            LogMsg "Creating Standard_LRS storage account : $($RegionStorageMapping.AllRegions.$Region.StandardStorage) : Succeeded"
+                            Write-LogInfo "Creating Standard_LRS storage account : $($RegionStorageMapping.AllRegions.$Region.StandardStorage) : Succeeded"
                         }
                         else
                         {
-                            LogMsg "Creating Standard_LRS storage account : $($RegionStorageMapping.AllRegions.$Region.StandardStorage) : Failed"
+                            Write-LogInfo "Creating Standard_LRS storage account : $($RegionStorageMapping.AllRegions.$Region.StandardStorage) : Failed"
                         }
                     }
                     if ($RegionStorageMapping.AllRegions.$Region.PremiumStorage)
                     {
-                        LogMsg "Creating Premium_LRS storage account : $($RegionStorageMapping.AllRegions.$Region.PremiumStorage)"
+                        Write-LogInfo "Creating Premium_LRS storage account : $($RegionStorageMapping.AllRegions.$Region.PremiumStorage)"
                         $Out = New-AzureRmStorageAccount -ResourceGroupName $ResourceGroupName -Name $RegionStorageMapping.AllRegions.$Region.PremiumStorage -SkuName Premium_LRS -Location $Region
                         if ($out.ProvisioningState -eq "Succeeded")
                         {
-                            LogMsg "Creating Premium_LRS storage account : $($RegionStorageMapping.AllRegions.$Region.PremiumStorage) : Succeeded"
+                            Write-LogInfo "Creating Premium_LRS storage account : $($RegionStorageMapping.AllRegions.$Region.PremiumStorage) : Succeeded"
                         }
                         else
                         {
-                            LogMsg "Creating Premium_LRS storage account : $($RegionStorageMapping.AllRegions.$Region.StandardStorage) : Failed"
+                            Write-LogInfo "Creating Premium_LRS storage account : $($RegionStorageMapping.AllRegions.$Region.StandardStorage) : Failed"
                         }
                     }
                 }
@@ -108,15 +108,15 @@ try
                 {
                     if ($RegionStorageMapping.AllRegions.$Region.StandardStorage)
                     {
-                        LogMsg "Removing Standard_LRS storage account : $($RegionStorageMapping.AllRegions.$Region.StandardStorage)"
+                        Write-LogInfo "Removing Standard_LRS storage account : $($RegionStorageMapping.AllRegions.$Region.StandardStorage)"
                         Remove-AzureRmStorageAccount -ResourceGroupName $ResourceGroupName -Name $RegionStorageMapping.AllRegions.$Region.StandardStorage -Force  -Verbose
                     }
                     if ($RegionStorageMapping.AllRegions.$Region.PremiumStorage)
                     {
-                        LogMsg "Removing Premium_LRS storage account : $($RegionStorageMapping.AllRegions.$Region.PremiumStorage)"
+                        Write-LogInfo "Removing Premium_LRS storage account : $($RegionStorageMapping.AllRegions.$Region.PremiumStorage)"
                         Remove-AzureRmStorageAccount -ResourceGroupName $ResourceGroupName -Name $RegionStorageMapping.AllRegions.$Region.PremiumStorage -Force -Verbose
                     }
-                    LogMsg "Removing $ResourceGroupName"
+                    Write-LogInfo "Removing $ResourceGroupName"
                     Remove-AzureRMResourceGroup -Name $ResourceGroupName -Force -Verbose
                     $ExitCode = 0
                 }
@@ -125,18 +125,18 @@ try
     }
     else
     {
-        LogMsg "Please provide either -Create or -Delete option."
+        Write-LogInfo "Please provide either -Create or -Delete option."
     }
 
 }
 catch
 {
     $ExitCode = 1
-    ThrowExcpetion ($_)
+    Raise-Exception ($_)
 }
 finally
 {
-    LogMsg "Exiting with code: $ExitCode"
+    Write-LogInfo "Exiting with code: $ExitCode"
     exit $ExitCode
 }
 #endregion

@@ -10,7 +10,7 @@ function Main {
         $vmRootUser = "root"
         $timeout = 600
         if ($testPlatform -eq "Azure") {
-            LogMsg "Setting Azure constants"
+            Write-LogInfo "Setting Azure constants"
             Remove-Item sriov_constants.sh -Force -EA SilentlyContinue
             $TestParams.NIC_COUNT
             foreach ($vmData in $allVMData) {
@@ -31,13 +31,13 @@ function Main {
             $publicIp = $testVmData.PublicIP
 
             # Clean unnecessary variables from constants.sh
-            RunLinuxCmd -ip $publicIp -port $vmPort -username $user -password $password -command `
+            Run-LinuxCmd -ip $publicIp -port $vmPort -username $user -password $password -command `
                 "sed -i '/VF_/d' constants.sh ; sed -i '/MAX_/d' constants.sh ; sed -i '/NIC_/d' constants.sh ;" `
                 -ignoreLinuxExitCode:$true
 
-            LogMsg "Will add VF_IP1=$($testVmData.InternalIP) to constants"
+            Write-LogInfo "Will add VF_IP1=$($testVmData.InternalIP) to constants"
             "VF_IP1=$($testVmData.InternalIP)" | Out-File sriov_constants.sh
-            LogMsg "Will add VF_IP2=$($dependencyVmData.InternalIP) to constants"
+            Write-LogInfo "Will add VF_IP2=$($dependencyVmData.InternalIP) to constants"
             "VF_IP2=$($dependencyVmData.InternalIP)" | Out-File sriov_constants.sh -Append
 
             # Extract IP addresses from both VMs
@@ -57,10 +57,10 @@ function Main {
                     $dependencyVmData.ResourceGroupName | Get-AzureRmNetworkInterfaceIpConfig `
                     | Select-Object PrivateIpAddress).PrivateIpAddress
 
-                LogMsg "Will add VF_IP${ipIndex}=${testIPaddr} to constants"
+                Write-LogInfo "Will add VF_IP${ipIndex}=${testIPaddr} to constants"
                 "VF_IP${ipIndex}=${testIPaddr}" | Out-File sriov_constants.sh -Append
                 $ipIndex++
-                LogMsg "Will add VF_IP${ipIndex}=${dependencyIPaddr} to constants"
+                Write-LogInfo "Will add VF_IP${ipIndex}=${dependencyIPaddr} to constants"
                 "VF_IP${ipIndex}=${dependencyIPaddr}" | Out-File sriov_constants.sh -Append
                 $ipIndex++
             }
@@ -72,55 +72,55 @@ function Main {
 
             "SSH_PRIVATE_KEY=id_rsa" | Out-File sriov_constants.sh -Append
             # Send sriov_constants.sh to VM
-            RemoteCopy -upload -uploadTo $publicIp -Port $vmPort `
+            Copy-RemoteFiles -upload -uploadTo $publicIp -Port $vmPort `
                 -files "sriov_constants.sh" -Username $user -password $password
             if (-not $?) {
-                LogErr "Failed to send sriov_constants.sh to VM1!"
+                Write-LogErr "Failed to send sriov_constants.sh to VM1!"
                 return $False
             }
 
             if ($TestParams.Set_SSH -eq "yes") {
-                LogMsg "Setting SSH keys for both VMs"
-                RemoteCopy -uploadTo $publicIp -port $vmPort -files `
+                Write-LogInfo "Setting SSH keys for both VMs"
+                Copy-RemoteFiles -uploadTo $publicIp -port $vmPort -files `
                     ".\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SR-IOV-Utils.sh" `
                     -username $vmRootUser -password $password -upload
-                RemoteCopy -uploadTo $publicIp -port $dependencyVmData.SSHPort -files `
+                Copy-RemoteFiles -uploadTo $publicIp -port $dependencyVmData.SSHPort -files `
                     ".\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SR-IOV-Utils.sh" `
                     -username $vmRootUser -password $password -upload
-                RunLinuxCmd -ip $publicIp -port $vmPort -username $vmRootUser -password `
+                Run-LinuxCmd -ip $publicIp -port $vmPort -username $vmRootUser -password `
                     $password -command "chmod +x ~/*.sh"
-                RunLinuxCmd -ip $publicIp -port $dependencyVmData.SSHPort -username $vmRootUser -password `
+                Run-LinuxCmd -ip $publicIp -port $dependencyVmData.SSHPort -username $vmRootUser -password `
                     $password -command "chmod +x ~/*.sh"
-                RunLinuxCmd -ip $publicIp -port $vmPort -username $vmRootUser -password `
+                Run-LinuxCmd -ip $publicIp -port $vmPort -username $vmRootUser -password `
                     $password -command "./enablePasswordLessRoot.sh ; cp -rf /root/.ssh /home/$VMUsername"
 
                 # Copy keys from VM1 and setup VM2
-                RemoteCopy -download -downloadFrom $publicIp -port $vmPort -files `
+                Copy-RemoteFiles -download -downloadFrom $publicIp -port $vmPort -files `
                     "/root/sshFix.tar" -username $vmRootUser -password $password -downloadTo $LogDir
-                RemoteCopy -uploadTo $publicIp -port $dependencyVmData.SSHPort -files "$LogDir\sshFix.tar" `
+                Copy-RemoteFiles -uploadTo $publicIp -port $dependencyVmData.SSHPort -files "$LogDir\sshFix.tar" `
                     -username $vmRootUser -password $password -upload
-                RunLinuxCmd -ip $publicIp -port $dependencyVmData.SSHPort -username $vmRootUser -password `
+                Run-LinuxCmd -ip $publicIp -port $dependencyVmData.SSHPort -username $vmRootUser -password `
                     $password -command "./enablePasswordLessRoot.sh ; cp -rf /root/.ssh /home/$VMUsername"
             }
 
             # Install dependencies on both VMs
             if ($TestParams.Install_Dependencies -eq "yes") {
-                RunLinuxCmd -username $vmRootUser -password $password -ip $publicIp -port $vmPort `
+                Run-LinuxCmd -username $vmRootUser -password $password -ip $publicIp -port $vmPort `
                     -command "cp /home/$user/sriov_constants.sh . ; . SR-IOV-Utils.sh; InstallDependencies"
                 if (-not $?) {
-                    LogErr "Failed to install dependencies on $($testVmData.RoleName)"
+                    Write-LogErr "Failed to install dependencies on $($testVmData.RoleName)"
                     return $False
                 }
-                RemoteCopy -upload -uploadTo $publicIp -Port $dependencyVmData.SSHPort `
+                Copy-RemoteFiles -upload -uploadTo $publicIp -Port $dependencyVmData.SSHPort `
                     -files "sriov_constants.sh" -Username $user -password $password
                 if (-not $?) {
-                    LogErr "Failed to send sriov_constants.sh to VM1!"
+                    Write-LogErr "Failed to send sriov_constants.sh to VM1!"
                     return $False
                 }
-                RunLinuxCmd -username $vmRootUser -password $password -ip $publicIp -port $dependencyVmData.SSHPort `
+                Run-LinuxCmd -username $vmRootUser -password $password -ip $publicIp -port $dependencyVmData.SSHPort `
                     -command "cp /home/$user/sriov_constants.sh . ; . SR-IOV-Utils.sh; InstallDependencies"
                 if (-not $?) {
-                    LogErr "Failed to install dependencies on $($dependencyVmData.RoleName)"
+                    Write-LogErr "Failed to install dependencies on $($dependencyVmData.RoleName)"
                     return $False
                 }
             }
@@ -134,7 +134,7 @@ function Main {
             $timeout = $CurrentTestData.Timeout
         }
         $cmdToSend = "echo '${password}' | sudo -S -s eval `"export HOME=``pwd``;bash $($TestParams.Remote_Script) > $($TestParams.Remote_Script)_summary.log 2>&1`""
-        RunLinuxCmd -ip $publicIp -port $vmPort -username $user -password `
+        Run-LinuxCmd -ip $publicIp -port $vmPort -username $user -password `
             $password -command $cmdToSend -runMaxAllowedTime $timeout
 
         $testResult = Collect-TestLogs -LogsDestination $LogDir -ScriptName $TestParams.Remote_Script.Split('.')[0] -TestType "sh" `
@@ -142,13 +142,13 @@ function Main {
             -TestName $currentTestData.testName
 
         $resultArr += $testResult
-        LogMsg "Test Completed."
-        LogMsg "Test Result: $testResult"
+        Write-LogInfo "Test Completed."
+        Write-LogInfo "Test Result: $testResult"
     }
     catch {
         $ErrorMessage = $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+        Write-LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     }
     Finally {
         if (!$testResult) {
@@ -157,7 +157,7 @@ function Main {
         $resultArr += $testResult
     }
 
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
 

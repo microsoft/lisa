@@ -116,7 +116,7 @@ try {
 	Set-Variable -Name LogDir      -Value $LogDir      -Scope Global -Force
 	Set-Variable -Name LogFileName -Value $LogFileName -Scope Global -Force
 	New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
-	LogMsg "Created LogDir: $LogDir"
+	Write-LogInfo "Created LogDir: $LogDir"
 
 	# Import parameters from file if -ParametersFile is given, and set them as global variables
 	if ($ParametersFile) {
@@ -132,7 +132,7 @@ try {
 			if ($null -ne $paramExistingObject) {
 				$paramExistingValue = $paramExistingObject.Value
 				if (($null -ne $paramExistingValue) -and ("" -ne $paramExistingValue) -and ($paramValue -ne $paramExistingValue)) {
-					LogMsg "Overriding: $paramName = $paramValue (was $paramExistingValue)"
+					Write-LogInfo "Overriding: $paramName = $paramValue (was $paramExistingValue)"
 				}
 			}
 			Set-Variable -Name $paramName -Value $paramValue -Scope Global -Force
@@ -149,7 +149,7 @@ try {
 	# Handle the Secrets file
 	if ($env:Azure_Secrets_File) {
 		$XMLSecretFile = $env:Azure_Secrets_File
-		LogMsg "The Secrets file is defined by an environment variable."
+		Write-LogInfo "The Secrets file is defined by an environment variable."
 	}
 	if ($XMLSecretFile -ne [string]::Empty) {
 		if ((Test-Path -Path $XMLSecretFile) -eq $true) {
@@ -160,17 +160,17 @@ try {
 			Get-LISAv2Tools -XMLSecretFile $XMLSecretFile
 
 			# Update the configuration files based on the settings in the XMLSecretFile
-			UpdateGlobalConfigurationXML $XMLSecretFile
-			UpdateXMLStringsFromSecretsFile $XMLSecretFile
+			Update-GlobalConfigurationXML $XMLSecretFile
+			Update-XMLStringsFromSecretsFile $XMLSecretFile
 
 			if ($TestPlatform -eq "Azure") {
 				.\Utilities\AddAzureRmAccountFromSecretsFile.ps1 -customSecretsFilePath $XMLSecretFile
 			}
 		} else {
-			LogErr "The Secret file provided: $XMLSecretFile does not exist"
+			Write-LogErr "The Secret file provided: $XMLSecretFile does not exist"
 		}
 	} else {
-		LogErr "Failed to update configuration files. '-XMLSecretFile [FilePath]' is not provided."
+		Write-LogErr "Failed to update configuration files. '-XMLSecretFile [FilePath]' is not provided."
 	}
 
 	Validate-XmlFiles -ParentFolder $WorkingDirectory
@@ -184,7 +184,7 @@ try {
 
 	$xmlConfig = [xml](Get-Content $TestConfigurationXmlFile)
 	$xmlConfig.Save("$TestConfigurationXmlFile")
-	LogMsg "The auto created $TestConfigurationXmlFile has been validated successfully."
+	Write-LogInfo "The auto created $TestConfigurationXmlFile has been validated successfully."
 
 	# Create report folder
 	$reportFolder = "$pwd/Report"
@@ -207,7 +207,7 @@ try {
 	if ( $TiPCluster) { $command += " -TiPCluster $TiPCluster" }
 	if ($UseManagedDisks) {	$command += " -UseManagedDisks" }
 	if ($XMLSecretFile) { $command += " -XMLSecretFile '$XMLSecretFile'" }
-	LogMsg $command
+	Write-LogInfo $command
 
 	Invoke-Expression -Command $command
 
@@ -221,19 +221,19 @@ try {
 	$reportXmlJUnit = $TestReportXml.Replace(".xml", "-junit.xml")
 	if (Test-Path -Path $TestReportXml ) {
 		Copy-Item -Path $TestReportXml -Destination $reportXmlJUnit -Force -ErrorAction SilentlyContinue
-		LogMsg "Copied : $TestReportXml --> $reportXmlJUnit"
-		LogMsg "Analyzing results.."
+		Write-LogInfo "Copied : $TestReportXml --> $reportXmlJUnit"
+		Write-LogInfo "Analyzing results.."
 		$resultXML = [xml](Get-Content $TestReportXml -ErrorAction SilentlyContinue)
-		LogMsg "PASS  : $($resultXML.testsuites.testsuite.tests - $resultXML.testsuites.testsuite.errors - $resultXML.testsuites.testsuite.failures)"
-		LogMsg "FAIL  : $($resultXML.testsuites.testsuite.failures)"
-		LogMsg "ABORT : $($resultXML.testsuites.testsuite.errors)"
+		Write-LogInfo "PASS  : $($resultXML.testsuites.testsuite.tests - $resultXML.testsuites.testsuite.errors - $resultXML.testsuites.testsuite.failures)"
+		Write-LogInfo "FAIL  : $($resultXML.testsuites.testsuite.failures)"
+		Write-LogInfo "ABORT : $($resultXML.testsuites.testsuite.errors)"
 		if ( ( $resultXML.testsuites.testsuite.failures -eq 0 ) -and ( $resultXML.testsuites.testsuite.errors -eq 0 ) -and ( $resultXML.testsuites.testsuite.tests -gt 0 )) {
 			$ExitCode = 0
 		} else {
 			$ExitCode = 1
 		}
 	} else {
-		LogErr "Summary file: $TestReportXml does not exist. Exiting with ErrorCode 1."
+		Write-LogErr "Summary file: $TestReportXml does not exist. Exiting with ErrorCode 1."
 		$ExitCode = 1
 	}
 } catch {
@@ -241,12 +241,12 @@ try {
 	$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
 	$ErrorMessage =  $_.Exception.Message
 
-	LogErr "EXCEPTION : $ErrorMessage"
-	LogErr "Source : Line $line in script $script_name."
+	Write-LogErr "EXCEPTION : $ErrorMessage"
+	Write-LogErr "Source : Line $line in script $script_name."
 	$ExitCode = 1
 } finally {
 	if ( $ExitWithZero -and ($ExitCode -ne 0) ) {
-		LogMsg "Suppress the exit code from $ExitWithZero to 0. (-ExitWithZero specified in command line)"
+		Write-LogInfo "Suppress the exit code from $ExitWithZero to 0. (-ExitWithZero specified in command line)"
 		$ExitCode = 0
 	}
 
@@ -254,7 +254,7 @@ try {
 		Move-BackToOriginalWorkingSpace $WorkingDirectory $OriginalWorkingDirectory
 	}
 	Get-Variable -Exclude PWD,*Preference,ExitCode | Remove-Variable -Force -ErrorAction SilentlyContinue
-	LogMsg "LISAv2 exits with code: $ExitCode"
+	Write-LogInfo "LISAv2 exits with code: $ExitCode"
 
 	exit $ExitCode
 }

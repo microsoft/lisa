@@ -4,17 +4,17 @@
 $testScript = "nested_kvm_lagscope_different_l1_public_bridge.sh"
 
 function Start-TestExecution ($ip, $port, $cmd) {
-	LogMsg "Executing : ${cmd}"
-	$testJob = RunLinuxCmd -username $user -password $password -ip $ip -port $port -command $cmd -runAsSudo -RunInBackground
+	Write-LogInfo "Executing : ${cmd}"
+	$testJob = Run-LinuxCmd -username $user -password $password -ip $ip -port $port -command $cmd -runAsSudo -RunInBackground
 	while ((Get-Job -Id $testJob).State -eq "Running" ) {
-		$currentStatus = RunLinuxCmd -username $user -password $password -ip $ip -port $port -command "cat /home/$user/state.txt"
-		LogMsg "Current Test Status : $currentStatus"
-		WaitFor -seconds 20
+		$currentStatus = Run-LinuxCmd -username $user -password $password -ip $ip -port $port -command "cat /home/$user/state.txt"
+		Write-LogInfo "Current Test Status : $currentStatus"
+		Wait-Time -seconds 20
 	}
 }
 
 function Send-ResultToDatabase ($xmlConfig, $logDir) {
-	LogMsg "Uploading the test results.."
+	Write-LogInfo "Uploading the test results.."
 	$dataSource = $xmlConfig.config.$TestPlatform.database.server
 	$user = $xmlConfig.config.$TestPlatform.database.user
 	$password = $xmlConfig.config.$TestPlatform.database.password
@@ -74,7 +74,7 @@ function Send-ResultToDatabase ($xmlConfig, $logDir) {
 			$SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$HostType','$HostBy','$HostOS','$L1GuestOSType','$L1GuestDistro','$L1GuestSize','$L1GuestKernelVersion','$L2GuestDistro','$L2GuestKernelVersion','$L2GuestMemMB','$L2GuestCpuNum','$KvmNetDevice','$IPVersion','$ProtocolType',$($Line[0]),$($Line[1]),$($Line[2]),'$HostType','Synthetic','$flag'),"
 		}
 		$SQLQuery = $SQLQuery.TrimEnd(',')
-		LogMsg $SQLQuery
+		Write-LogInfo $SQLQuery
 
 		$connection = New-Object System.Data.SqlClient.SqlConnection
 		$connection.ConnectionString = $connectionString
@@ -84,16 +84,16 @@ function Send-ResultToDatabase ($xmlConfig, $logDir) {
 		$command.CommandText = $SQLQuery
 		$command.executenonquery()
 		$connection.Close()
-		LogMsg "Uploading the test results done!!"
+		Write-LogInfo "Uploading the test results done!!"
 	}
 	else
 	{
-		LogMsg "Database details are not provided. Results will not be uploaded to database!"
+		Write-LogInfo "Database details are not provided. Results will not be uploaded to database!"
 	}
 }
 
 function Main () {
-	$currentTestResult = CreateTestResultObject
+	$currentTestResult = Create-TestResultObject
 	$resultArr = @()
 	$testResult = $resultAborted
 	try
@@ -125,15 +125,15 @@ function Main () {
 		Start-TestExecution -ip $hs2VIP -port $hs2vm1sshport -cmd $cmd
 
 		# Download test logs
-		RemoteCopy -download -downloadFrom $hs2VIP -files "/home/$user/state.txt, /home/$user/${testScript}.log, /home/$user/TestExecutionConsole.log" -downloadTo $LogDir -port $hs2vm1sshport -username $user -password $password
+		Copy-RemoteFiles -download -downloadFrom $hs2VIP -files "/home/$user/state.txt, /home/$user/${testScript}.log, /home/$user/TestExecutionConsole.log" -downloadTo $LogDir -port $hs2vm1sshport -username $user -password $password
 		$finalStatus = Get-Content $LogDir\state.txt
 
-		RunLinuxCmd -username $user -password $password -ip $hs2VIP -port $hs2vm1sshport -command ". utils.sh && collect_VM_properties" -runAsSudo
-		RemoteCopy -downloadFrom $hs2VIP -port $hs2vm1sshport -username $user -password $password -download -downloadTo $LogDir -files "/home/$user/lagscope-n$pingIteration-output.txt,/home/$user/nested_properties.csv,/home/$user/VM_properties.csv"
+		Run-LinuxCmd -username $user -password $password -ip $hs2VIP -port $hs2vm1sshport -command ". utils.sh && collect_VM_properties" -runAsSudo
+		Copy-RemoteFiles -downloadFrom $hs2VIP -port $hs2vm1sshport -username $user -password $password -download -downloadTo $LogDir -files "/home/$user/lagscope-n$pingIteration-output.txt,/home/$user/nested_properties.csv,/home/$user/VM_properties.csv"
 
 		$testSummary = $null
 		$lagscopeReportLog = Get-Content -Path "$LogDir\lagscope-n$pingIteration-output.txt"
-		LogMsg $lagscopeReportLog
+		Write-LogInfo $lagscopeReportLog
 		#endregion
 
 		try {
@@ -142,36 +142,36 @@ function Main () {
 			$maximumLat = $matchLine.Split(",").Split("=").Trim().Replace("us","")[3]
 			$averageLat = $matchLine.Split(",").Split("=").Trim().Replace("us","")[5]
 
-			$currentTestResult.TestSummary += CreateResultSummary -testResult $minimumLat -metaData "Minimum Latency" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
-			$currentTestResult.TestSummary += CreateResultSummary -testResult $maximumLat -metaData "Maximum Latency" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
-			$currentTestResult.TestSummary += CreateResultSummary -testResult $averageLat -metaData "Average Latency" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+			$currentTestResult.TestSummary += Create-ResultSummary -testResult $minimumLat -metaData "Minimum Latency" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+			$currentTestResult.TestSummary += Create-ResultSummary -testResult $maximumLat -metaData "Maximum Latency" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+			$currentTestResult.TestSummary += Create-ResultSummary -testResult $averageLat -metaData "Average Latency" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 		} catch {
-			$currentTestResult.TestSummary += CreateResultSummary -testResult "Error in parsing logs." -metaData "LAGSCOPE" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+			$currentTestResult.TestSummary += Create-ResultSummary -testResult "Error in parsing logs." -metaData "LAGSCOPE" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 		}
 
 		if ($finalStatus -imatch "TestFailed") {
-			LogErr "Test failed. Last known status : $currentStatus."
+			Write-LogErr "Test failed. Last known status : $currentStatus."
 			$testResult = "FAIL"
 		}
 		elseif ($finalStatus -imatch "TestAborted") {
-			LogErr "Test Aborted. Last known status : $currentStatus."
+			Write-LogErr "Test Aborted. Last known status : $currentStatus."
 			$testResult = "ABORTED"
 		}
 		elseif ($finalStatus -imatch "TestCompleted") {
-			LogMsg "Test Completed."
+			Write-LogInfo "Test Completed."
 			$testResult = "PASS"
 		}
 		elseif ($finalStatus -imatch "TestRunning") {
-			LogMsg "Powershell backgroud job for test is completed but VM is reporting that test is still running. Please check $LogDir\zkConsoleLogs.txt"
-			LogMsg "Contests of summary.log : $testSummary"
+			Write-LogInfo "Powershell backgroud job for test is completed but VM is reporting that test is still running. Please check $LogDir\zkConsoleLogs.txt"
+			Write-LogInfo "Contests of summary.log : $testSummary"
 			$testResult = "PASS"
 		}
-		LogMsg "Test result : $testResult"
-		LogMsg "Test Completed"
+		Write-LogInfo "Test result : $testResult"
+		Write-LogInfo "Test Completed"
 
-		LogMsg $currentTestResult.TestSummary
+		Write-LogInfo $currentTestResult.TestSummary
 		if (!$uploadResults) {
-			LogMsg "Zero throughput for some connections, results will not be uploaded to database!"
+			Write-LogInfo "Zero throughput for some connections, results will not be uploaded to database!"
 		}
 		else {
 			Send-ResultToDatabase -xmlConfig $xmlConfig -logDir $LogDir
@@ -179,7 +179,7 @@ function Main () {
 	} catch {
 		$ErrorMessage =  $_.Exception.Message
 		$ErrorLine = $_.InvocationInfo.ScriptLineNumber
-		LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+		Write-LogInfo "EXCEPTION : $ErrorMessage at line: $ErrorLine"
 	} finally {
 		if (!$testResult) {
 			$testResult = "Aborted"
@@ -187,7 +187,7 @@ function Main () {
 		$resultArr += $testResult
 	}
 
-	$currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+	$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
 	return $currentTestResult.TestResult
 }
 

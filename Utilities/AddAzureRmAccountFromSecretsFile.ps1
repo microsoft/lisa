@@ -38,23 +38,23 @@ Get-ChildItem (Join-Path $rootPath "Libraries") -Recurse | `
 
 if ( $customSecretsFilePath ) {
     $secretsFile = $customSecretsFilePath
-    LogMsg "Using provided secrets file: $secretsFile"
+    Write-LogInfo "Using provided secrets file: $secretsFile"
 }
 if ($env:Azure_Secrets_File) {
     $secretsFile = $env:Azure_Secrets_File
-    LogMsg "Using secrets file: $secretsFile, defined in environments."
+    Write-LogInfo "Using secrets file: $secretsFile, defined in environments."
 }
 if ( ($null -eq $secretsFile) -or ($secretsFile -eq [string]::Empty)) {
-    LogErr "ERROR: The Secrets file is not being set."
-    ThrowException ("XML Secrets file not provided")
+    Write-LogErr "ERROR: The Secrets file is not being set."
+    Raise-Exception ("XML Secrets file not provided")
 }
 
 #---------------------------------------------------------[Script Start]--------------------------------------------------------
 
 if ( Test-Path $secretsFile ) {
-    LogMsg "$secretsFile found."
-    LogMsg "------------------------------------------------------------------"
-    LogMsg "Authenticating Azure PS session.."
+    Write-LogInfo "$secretsFile found."
+    Write-LogInfo "------------------------------------------------------------------"
+    Write-LogInfo "Authenticating Azure PS session.."
     $XmlSecrets = [xml](Get-Content $secretsFile)
     $ClientID = $XmlSecrets.secrets.SubscriptionServicePrincipalClientID
     $TenantID = $XmlSecrets.secrets.SubscriptionServicePrincipalTenantID
@@ -67,13 +67,13 @@ if ( Test-Path $secretsFile ) {
     $null = Add-AzureRmAccount -ServicePrincipal -Tenant $TenantID -Credential $mycred
     $selectedSubscription = Select-AzureRmSubscription -SubscriptionId $XmlSecrets.secrets.SubscriptionID
     if ( $selectedSubscription.Subscription.Id -eq $XmlSecrets.secrets.SubscriptionID ) {
-        LogMsg "Current Subscription : $subIDMasked."
+        Write-LogInfo "Current Subscription : $subIDMasked."
     } else {
-        LogMsg "There was an error when selecting $subIDMasked."
+        Write-LogInfo "There was an error when selecting $subIDMasked."
     }
-    LogMsg "------------------------------------------------------------------"
+    Write-LogInfo "------------------------------------------------------------------"
 }
 else {
-    LogErr "Secret file $secretsFile does not exist"
-    ThrowException ("XML Secrets file not provided")
+    Write-LogErr "Secret file $secretsFile does not exist"
+    Raise-Exception ("XML Secrets file not provided")
 }

@@ -24,7 +24,7 @@ function New-SCSIController {
     )
 
     if ($ControllerID -lt 0 -or $ControllerID -gt 3) {
-        LogErr "Bad SCSI controller ID: $controllerID"
+        Write-LogErr "Bad SCSI controller ID: $controllerID"
         return $False
     }
 
@@ -45,7 +45,7 @@ function New-SCSIController {
             $maxControllerID = 1
         }
         if ($ControllerID -lt $maxControllerID) {
-            LogMsg "Controller exists - controller not created"
+            Write-LogInfo "Controller exists - controller not created"
             $CreateSCSIController = $false
         }
     }
@@ -54,10 +54,10 @@ function New-SCSIController {
     if ($CreateSCSIController) {
         Add-VMSCSIController -VMName $VMName -ComputerName $Server -Confirm:$false
         if($? -ne $true) {
-            LogErr "Add-VMSCSIController failed to add 'SCSI Controller $ControllerID'"
+            Write-LogErr "Add-VMSCSIController failed to add 'SCSI Controller $ControllerID'"
             return $False
         } else {
-            LogMsg "SCSI Controller successfully added"
+            Write-LogInfo "SCSI Controller successfully added"
             return $True
         }
     }
@@ -78,7 +78,7 @@ function New-PassThruDrive {
         $controllertype = "SCSI"
 
         if ($ControllerID -lt 0 -or $ControllerID -gt 3) {
-            LogErr "New-HardDrive was passed a bad SCSI Controller ID: $ControllerID"
+            Write-LogErr "New-HardDrive was passed a bad SCSI Controller ID: $ControllerID"
             return $False
         }
 
@@ -86,7 +86,7 @@ function New-PassThruDrive {
         $sts = New-SCSIController $vmName $server $controllerID
 
         if (-not $sts[$sts.Length-1]) {
-            LogErr "Unable to create SCSI controller $controllerID"
+            Write-LogErr "Unable to create SCSI controller $controllerID"
             return $False
         }
 
@@ -99,7 +99,7 @@ function New-PassThruDrive {
 
     if ($drive) {
         if ($controllerID -eq 0 -and $Lun -eq 0 ) {
-            LogErr "drive $controllerType $controllerID $Lun already exists"
+            Write-LogErr "drive $controllerType $controllerID $Lun already exists"
             return $False
         } else {
             Remove-VMHardDiskDrive $drive
@@ -116,7 +116,7 @@ function New-PassThruDrive {
     # Create the .vhd file if it does not already exist, then create the drive and mount the .vhdx
     $hostInfo = Get-VMHost -ComputerName $server
     if (-not $hostInfo) {
-        LogErr "Unable to collect Hyper-V settings for ${server}"
+        Write-LogErr "Unable to collect Hyper-V settings for ${server}"
         return $False
     }
 
@@ -135,7 +135,7 @@ function New-PassThruDrive {
 
     $newVhd = New-VHD -Path $vhdName -size 1GB -ComputerName $server -Fixed
     if ($null -eq $newVhd) {
-        LogErr "New-VHD failed to create the new .vhd file: $($vhdName)"
+        Write-LogErr "New-VHD failed to create the new .vhd file: $($vhdName)"
         return $False
     }
 
@@ -147,11 +147,11 @@ function New-PassThruDrive {
     $physDisk | Add-VMHardDiskDrive -VMName $vmName -ControllerNumber $controllerID `
                     -ControllerLocation $Lun -ControllerType $controllerType -ComputerName $server
     if ($ERROR.Count -gt 0) {
-            LogErr "Add-VMHardDiskDrive failed to add drive on ${controllerType} ${controllerID} ${Lun}s"
+            Write-LogErr "Add-VMHardDiskDrive failed to add drive on ${controllerType} ${controllerID} ${Lun}s"
             return $False
     }
 
-    LogMsg "Successfully attached passthrough drive"
+    Write-LogInfo "Successfully attached passthrough drive"
     return $True
 }
 
@@ -168,7 +168,7 @@ function New-HardDrive
         [int] $vmGen
     )
 
-    LogMsg "Enter New-HardDrive $vmName $server $scsi $controllerID $lun $vhdType"
+    Write-LogInfo "Enter New-HardDrive $vmName $server $scsi $controllerID $lun $vhdType"
 
     $controllerType = "IDE"
 
@@ -177,21 +177,21 @@ function New-HardDrive
 
     if ($SCSI) {
         if ($ControllerID -lt 0 -or $ControllerID -gt 3) {
-            LogMsg "New-HardDrive was passed a bad SCSI Controller ID: $ControllerID"
+            Write-LogInfo "New-HardDrive was passed a bad SCSI Controller ID: $ControllerID"
             return $False
         }
 
         # Create the SCSI controller if needed
         $sts = New-SCSIController $vmName $server $controllerID
         if (-not $sts) {
-            LogErr "Unable to create SCSI controller $controllerID"
+            Write-LogErr "Unable to create SCSI controller $controllerID"
             return $False
         }
 
         $controllerType = "SCSI"
     } else {
         if ($ControllerID -lt 0 -or $ControllerID -gt 1) {
-            LogErr "New-HardDrive was passed an invalid IDE Controller ID: $ControllerID"
+            Write-LogErr "New-HardDrive was passed an invalid IDE Controller ID: $ControllerID"
             return $False
         }
     }
@@ -201,7 +201,7 @@ function New-HardDrive
         -ControllerType $controllerType -ControllerNumber $controllerID -ControllerLocation $Lun
     if ($drive) {
         if ( $controllerID -eq 0 -and $Lun -eq 0 ) {
-            LogErr "drive $controllerType $controllerID $Lun already exists"
+            Write-LogErr "drive $controllerType $controllerID $Lun already exists"
             return $False
         } else {
             Remove-VMHardDiskDrive $drive
@@ -246,31 +246,31 @@ function New-HardDrive
                     -Fixed -ErrorAction SilentlyContinue
             }
             "Physical" {
-                LogMsg "Searching for physical drive..."
+                Write-LogInfo "Searching for physical drive..."
                 $newVhd = (Get-Disk | Where-Object {
                     ($_.OperationalStatus -eq "Offline") -and ($_.Number -eq "$PhyNumber")
                 }).Number
-                LogMsg "Physical drive found: $newVhd"
+                Write-LogInfo "Physical drive found: $newVhd"
             }
             "RAID" {
-                LogMsg "Searching for RAID disks..."
+                Write-LogInfo "Searching for RAID disks..."
                 $newVhd = (Get-Disk | Where-Object {
                     ($_.OperationalStatus -eq "Offline" -and $_.Number -gt "$PhyNumber")
                 }).Number
-                LogMsg "Physical drive found: $newVhd"
+                Write-LogInfo "Physical drive found: $newVhd"
                 Start-Sleep 5
             }
             "Diff" {
                 $parentVhdName = $defaultVhdPath + "icaDiffParent.vhd"
                 $parentInfo = Get-RemoteFileInfo -filename $parentVhdName -server $hvServer
                 if (-not $parentInfo) {
-                    LogErr "parent VHD does not exist: ${parentVhdName}"
+                    Write-LogErr "parent VHD does not exist: ${parentVhdName}"
                     return $False
                 }
                 $newVhd = New-VHD -Path $vhdName -ParentPath $parentVhdName -ComputerName $server -Differencing
             }
             default {
-                LogErr "unknow vhd type of ${vhdType}"
+                Write-LogErr "unknow vhd type of ${vhdType}"
                 return $False
             }
         }
@@ -279,7 +279,7 @@ function New-HardDrive
             #so re-checking if the VHD available on the server or not
             $newVhdInfo = Get-RemoteFileInfo -filename $vhdName -server $hvServer
             if ($null -eq $newVhdInfo) {
-                LogErr "New-VHD failed to create the new .vhd file: $($vhdName)"
+                Write-LogErr "New-VHD failed to create the new .vhd file: $($vhdName)"
                 return $False
             }
         }
@@ -287,23 +287,23 @@ function New-HardDrive
 
     # Attach the .vhd file to the new drive
     if ($vhdType -eq "RAID") {
-        LogMsg "Attaching physical drive for RAID..."
+        Write-LogInfo "Attaching physical drive for RAID..."
         $ERROR.Clear()
         foreach ($i in $newvhd) {
             $disk = Add-VMHardDiskDrive -VMName $vmName -ComputerName $server `
                 -ControllerType $controllerType -ControllerNumber $controllerID -DiskNumber $i
             if ($ERROR.Count -gt 0) {
-                LogErr "Unable to attach physical drive: $i."
+                Write-LogErr "Unable to attach physical drive: $i."
                 return $False
             }
         }
     } elseif ($vhdType -eq "Physical") {
-        LogMsg "Attaching physical drive..."
+        Write-LogInfo "Attaching physical drive..."
         $ERROR.Clear()
         $disk = Add-VMHardDiskDrive -VMName $vmName -ComputerName $server `
             -ControllerType $controllerType -ControllerNumber $controllerID -DiskNumber $newVhd
         if ($ERROR.Count -gt 0) {
-            LogErr "Unable to attach physical drive."
+            Write-LogErr "Unable to attach physical drive."
             return $False
         }
     } else {
@@ -313,11 +313,11 @@ function New-HardDrive
     }
 
     if ($disk -contains "Exception") {
-        LogErr "Add-VMHardDiskDrive failed to add $($vhdName) to $controllerType $controllerID $Lun $vhdType"
+        Write-LogErr "Add-VMHardDiskDrive failed to add $($vhdName) to $controllerType $controllerID $Lun $vhdType"
         return $False
     }
 
-    LogMsg "Success"
+    Write-LogInfo "Success"
     return $retVal
 }
 
@@ -330,8 +330,8 @@ function Main {
     )
 
     if ($null -eq $testParams) {
-        LogErr "No testParams provided"
-        LogErr "AddHardDisk.ps1 requires test params"
+        Write-LogErr "No testParams provided"
+        Write-LogErr "AddHardDisk.ps1 requires test params"
         return $False
     }
 
@@ -349,7 +349,7 @@ function Main {
 
         $temp = $p.Trim().Split('=')
         if ($temp.Length -ne 2) {
-            LogErr "test parameter '$p' is being ignored because it appears to be malformed"
+            Write-LogErr "test parameter '$p' is being ignored because it appears to be malformed"
             continue
         }
         $controllerType = $temp[0]
@@ -363,7 +363,7 @@ function Main {
 
         $diskArgs = $temp[1].Trim().Split(',')
         if ($diskArgs.Length -ne 4 -and $diskArgs.Length -ne 3) {
-            LogErr "Incorrect number of arguments: $p"
+            Write-LogErr "Incorrect number of arguments: $p"
             return $False
         }
 
@@ -377,20 +377,20 @@ function Main {
         }
 
         if (@("Fixed", "Dynamic", "PassThrough", "Diff", "Physical", "RAID") -notcontains $vhdType) {
-            LogErr "Unknown disk type: $p"
+            Write-LogErr "Unknown disk type: $p"
             return $False
         }
 
         if ($vhdType -eq "PassThrough") {
-            LogMsg "New-PassThruDrive $vmName $hvServer $scsi $controllerID $Lun"
+            Write-LogInfo "New-PassThruDrive $vmName $hvServer $scsi $controllerID $Lun"
             $sts = New-PassThruDrive $vmName $hvServer -SCSI:$scsi $controllerID $Lun $vmGen
             $results = [array]$sts
             if (-not $results[$results.Length-1]) {
-                LogErr "Failed to create PassThrough drive"
+                Write-LogErr "Failed to create PassThrough drive"
                 return $False
             }
         } else {
-            LogMsg "New-HardDrive $vmName $hvServer $scsi $controllerID $Lun $vhdType"
+            Write-LogInfo "New-HardDrive $vmName $hvServer $scsi $controllerID $Lun $vhdType"
             $sts = New-HardDrive -vmName $vmName -server $hvServer -SCSI:$SCSI `
                 -ControllerID $controllerID -Lun $Lun -vhdType $vhdType -newSize $VHDSize
         }

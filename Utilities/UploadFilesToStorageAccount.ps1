@@ -38,11 +38,11 @@ try
 {
     if ($destinationStorageKey)
     {
-        LogMsg "Using user provided storage account key."
+        Write-LogInfo "Using user provided storage account key."
     }
     else
     {
-        LogMsg "Getting $destinationStorageAccount storage account key..."
+        Write-LogInfo "Getting $destinationStorageAccount storage account key..."
         $allResources = Get-AzureRmResource
         $destSARG = ($allResources | Where { $_.ResourceType -imatch "storageAccounts" -and $_.Name -eq "$destinationStorageAccount" }).ResourceGroupName
         $keyObj = Get-AzureRmStorageAccountKey -ResourceGroupName $destSARG -Name $destinationStorageAccount
@@ -64,16 +64,16 @@ try
             $blobName = "$($fileName | Split-Path -Leaf)"
         }
         $LocalFileProperties = Get-Item -Path $fileName
-        LogMsg "Uploading $([math]::Round($LocalFileProperties.Length/1024,2))KB $filename --> $($blobContext.BlobEndPoint)$containerName/$blobName"
+        Write-LogInfo "Uploading $([math]::Round($LocalFileProperties.Length/1024,2))KB $filename --> $($blobContext.BlobEndPoint)$containerName/$blobName"
         $UploadedFileProperties = Set-AzureStorageBlobContent -File $filename -Container $containerName -Blob $blobName -Context $blobContext -Force -ErrorAction Stop
         if ( $LocalFileProperties.Length -eq $UploadedFileProperties.Length )
         {
-            LogMsg "Succeeded."
+            Write-LogInfo "Succeeded."
             $UploadedFileURLs += "$($blobContext.BlobEndPoint)$containerName/$blobName"
         }
         else
         {
-            LogErr "Failed."
+            Write-LogErr "Failed."
         }
     }
     return $UploadedFileURLs
@@ -83,7 +83,7 @@ catch
     $line = $_.InvocationInfo.ScriptLineNumber
     $script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
     $ErrorMessage =  $_.Exception.Message
-    LogErr "EXCEPTION : $ErrorMessage"
-    LogErr "Source : Line $line in script $script_name."
-    LogErr "ERROR : $($blobContext.BlobEndPoint)$containerName/$blobName : Failed"
+    Write-LogErr "EXCEPTION : $ErrorMessage"
+    Write-LogErr "Source : Line $line in script $script_name."
+    Write-LogErr "ERROR : $($blobContext.BlobEndPoint)$containerName/$blobName : Failed"
 }

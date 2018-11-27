@@ -42,7 +42,7 @@ function Main {
         $VM2,
         $TestParams
     )
-    $currentTestResult = CreateTestResultObject
+    $currentTestResult = Create-TestResultObject
     $resultArr = @()
     try {
         $testResult = $null
@@ -79,12 +79,12 @@ function Main {
         Remove-Item $summaryLog -ErrorAction SilentlyContinue
         $vm2 = Get-VM -Name $VM2Name -ComputerName $HvServer -ErrorAction SilentlyContinue
         #Install stress-ng if not installed
-        LogMsg "Checking if stress-ng is installed"
+        Write-LogInfo "Checking if stress-ng is installed"
         $retVal = Publish-App "stress-ng" $VM1Ipv4 $appGitURL $appGitTag $VMPort
         if (-not $retVal) {
             throw "stress-ng is not installed! Please install it before running the memory stress tests." | Tee-Object -Append -file $summaryLog
         }
-        LogMsg "stress-ng is installed on $VM1Name. Will begin running memory stress tests shortly."
+        Write-LogInfo "stress-ng is installed on $VM1Name. Will begin running memory stress tests shortly."
         #
         # LIS Started VM1, so start VM2
         #
@@ -106,16 +106,16 @@ function Main {
         if (($vm1BeforeAssigned -le 0) -or ($vm1BeforeDemand -le 0) -or ($vm2BeforeAssigned -le 0) -or ($vm2BeforeDemand -le 0)) {
             throw "vm1 or vm2 reported 0 memory (assigned or demand)." | Tee-Object -Append -file $summaryLog
         }
-        LogMsg "Memory stats after both $VM1Name and $VM2Name started reporting"
-        LogMsg "${VM1Name}: assigned - $vm1BeforeAssigned | demand - $vm1BeforeDemand"
-        LogMsg "${VM2Name}: assigned - $vm2BeforeAssigned | demand - $vm2BeforeDemand"
+        Write-LogInfo "Memory stats after both $VM1Name and $VM2Name started reporting"
+        Write-LogInfo "${VM1Name}: assigned - $vm1BeforeAssigned | demand - $vm1BeforeDemand"
+        Write-LogInfo "${VM2Name}: assigned - $vm2BeforeAssigned | demand - $vm2BeforeDemand"
         # Install stress-ng if not installed
-        LogMsg "Checking if stress-ng is installed on other VM"
+        Write-LogInfo "Checking if stress-ng is installed on other VM"
         $retVal = Publish-App "stress-ng" $vm2ipv4 $appGitURL $appGitTag $VMPort
         if (-not $retVal) {
             throw "stress-ng is not installed on $VM2Name! Please install it before running the memory stress tests." | Tee-Object -Append -file $summaryLog
         }
-        LogMsg "stress-ng is installed on $VM2Name! Will begin running memory stress tests shortly."
+        Write-LogInfo "stress-ng is installed on $VM2Name! Will begin running memory stress tests shortly."
         $timeoutStress=0
         # Calculate the amount of memory to be consumed on VM1 and VM2 with stress-ng
         [int64]$vm1ConsumeMem = (Get-VMMemory -VMName $VM1Name -ComputerName $HvServer).Maximum
@@ -132,15 +132,15 @@ function Main {
         [int]$vm2Duration = 380 #seconds
         # Send Command to consume
         $cmdAddConstants = "echo -e `"timeoutStress=$($timeoutStress)\nmemMB=$($vm1ConsumeMem)\nduration=$($vm1Duration)\nchunk=$($chunks)`" > /home/$user/constants.sh"
-        RunLinuxCmd -username $user -password $password -ip $VM1Ipv4 -port $VMPort -command $cmdAddConstants -runAsSudo
+        Run-LinuxCmd -username $user -password $password -ip $VM1Ipv4 -port $VMPort -command $cmdAddConstants -runAsSudo
         $Memcheck = "echo '${password}' | sudo -S -s eval `"export HOME=``pwd``;. utils.sh && UtilsInit && ConsumeMemory`""
-        $job1=RunLinuxCmd -username $user -password $password -ip $VM1Ipv4 -port $VMPort -command $Memcheck -runAsSudo -RunInBackGround
+        $job1=Run-LinuxCmd -username $user -password $password -ip $VM1Ipv4 -port $VMPort -command $Memcheck -runAsSudo -RunInBackGround
         if (-not $?) {
             throw "Unable to start job for creating pressure on $VM1Name" | Tee-Object -Append -file $summaryLog
         }
         $cmdAddConstants = "echo -e `"timeoutStress=$($timeoutStress)\nmemMB=$($vm2ConsumeMem)\nduration=$($vm2Duration)\nchunk=$($chunks)`" > /home/$user/constants.sh"
-        RunLinuxCmd -username $user -password $password -ip $vm2Ipv4 -port $VMPort -command $cmdAddConstants -runAsSudo
-        $job2=RunLinuxCmd -username $user -password $password -ip $vm2Ipv4 -port $VMPort -command $Memcheck -runAsSudo -RunInBackGround
+        Run-LinuxCmd -username $user -password $password -ip $vm2Ipv4 -port $VMPort -command $cmdAddConstants -runAsSudo
+        $job2=Run-LinuxCmd -username $user -password $password -ip $vm2Ipv4 -port $VMPort -command $Memcheck -runAsSudo -RunInBackGround
         if (-not $?) {
             throw "Unable to start job for creating pressure on $VM2Name" | Tee-Object -Append -file $summaryLog
         }
@@ -164,7 +164,7 @@ function Main {
                     throw "Consume Memory script returned false on VM1 $VM1Name" | Tee-Object -Append -file $summaryLog
                 }
                 $diff = $totalTimeout - $timeout
-                LogMsg "Job1 finished in $diff seconds."
+                Write-LogInfo "Job1 finished in $diff seconds."
             }
             if ($job2.State -like "Completed" -and -not $secondJobState) {
                 $secondJobState = $true
@@ -173,7 +173,7 @@ function Main {
                     throw "Consume Memory script returned false on VM2 $VM2Name" | Tee-Object -Append -file $summaryLog
                 }
                 $diff = $totalTimeout - $timeout
-                LogMsg "Job2 finished in $diff seconds."
+                Write-LogInfo "Job2 finished in $diff seconds."
             }
             if ($firstJobState -and $secondJobState) {
                 break
@@ -194,7 +194,7 @@ function Main {
         if ($samples -le 0) {
             throw "No data has been sampled." | Tee-Object -Append -file $summaryLog
         }
-        LogMsg "Got $samples samples"
+        Write-LogInfo "Got $samples samples"
         $vm1bigger = $vm2bigger = 0
         # count the number of times vm1 had higher assigned memory
         for ($i = 0; $i -lt $samples; $i++) {
@@ -204,7 +204,7 @@ function Main {
             else {
                 $vm2bigger += 1
             }
-            LogMsg "sample ${i}: vm1 = $vm1Assigned[$i] - vm2 = $vm2Assigned[$i]"
+            Write-LogInfo "sample ${i}: vm1 = $vm1Assigned[$i] - vm2 = $vm2Assigned[$i]"
         }
         if ($vm1bigger -le $vm2bigger) {
             throw "$VM1Name didn't grow faster than $VM2Name" | Tee-Object -Append -file $summaryLog
@@ -218,13 +218,13 @@ function Main {
             throw "VM is unresponsive after running the memory stress test" | Tee-Object -Append -file $summaryLog
         }
         # Everything ok
-        LogMsg "Success High priority VM received more memory under same pressure" | Tee-Object -Append -file $summaryLog
+        Write-LogInfo "Success High priority VM received more memory under same pressure" | Tee-Object -Append -file $summaryLog
         $testResult = $resultPass
     }
     catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "$ErrorMessage at line: $ErrorLine"
+        Write-LogErr "$ErrorMessage at line: $ErrorLine"
     }
     finally {
         if (!$testResult) {
@@ -232,7 +232,7 @@ function Main {
         }
         $resultArr += $testResult
     }
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
 Main -VM1 $allVMData[0] -VM2 $allVMData[1] -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))

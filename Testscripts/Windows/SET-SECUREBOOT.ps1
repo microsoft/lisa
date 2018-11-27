@@ -9,7 +9,7 @@
 #>
 $ErrorActionPreference = "Stop"
 function Main {
-    $currentTestResult = CreateTestResultObject
+    $currentTestResult = Create-TestResultObject
     $resultArr = @()
     try
     {
@@ -28,33 +28,33 @@ function Main {
         #
         # Check if Secure Boot is enabled
         #
-        LogMsg "Checking SecureBoot is enabled or not"
+        Write-LogInfo "Checking SecureBoot is enabled or not"
         $firmwareSettings = Get-VMFirmware -VMName $VMName -ComputerName $HvServer
         if ($firmwareSettings.SecureBoot -ne "On") {
             Set-VMFirmware -VMName $VMName -EnableSecureBoot On
             if (-not $?) {
                 throw "Unable to enable secure boot!"
             }
-            LogMsg "Successfully Enabled SecureBoot"
+            Write-LogInfo "Successfully Enabled SecureBoot"
         }
-        LogMsg "Setting SecureBoot template"
+        Write-LogInfo "Setting SecureBoot template"
         Set-VMFirmware -VMName $VMName -ComputerName $HvServer -SecureBootTemplate MicrosoftUEFICertificateAuthority
         if (-not $?) {
             throw "Unable to set secure boot template!"
         }
-        LogMsg "Secure Boot: $($firmwareSettings.SecureBoot), Secure Boot Template: $($firmwareSettings.SecureBootTemplate)"
+        Write-LogInfo "Secure Boot: $($firmwareSettings.SecureBoot), Secure Boot Template: $($firmwareSettings.SecureBootTemplate)"
         $testResult = $resultPass
     } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "$ErrorMessage at line: $ErrorLine"
+        Write-LogErr "$ErrorMessage at line: $ErrorLine"
     } finally {
         if (!$testResult) {
             $testResult = $resultAborted
         }
         $resultArr += $testResult
     }
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
 Main

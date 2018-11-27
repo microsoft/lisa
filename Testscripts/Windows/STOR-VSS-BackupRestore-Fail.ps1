@@ -30,7 +30,7 @@ function Main {
             throw "VSS Daemon is not running"
         }
         # Create a file on the VM before backup
-        RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command "touch /home/$user/1" -runAsSudo
+        Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command "touch /home/$user/1" -runAsSudo
         $BackupDriveLetter = $global:driveletter
         if ($null -eq $BackupDriveLetter) {
             throw "Test parameter BackupDriveLetter was not specified."
@@ -48,23 +48,23 @@ function Main {
         else {
             $backupLocation = $sts[-1]
         }
-        LogMsg "Going through event logs for Warning ID 10107"
+        Write-LogInfo "Going through event logs for Warning ID 10107"
         # Now Check if Warning related Error is present in Event Log ? Backup should fail .
-        $EventLog = Get-WinEvent -ProviderName Microsoft-Windows-Hyper-V-VMMS | where-object {  $_.TimeCreated -gt $Date}
+        $EventLog = Get-WinEvent -ProviderName Microsoft-Windows-Hyper-V-VMMS | Where-Object {  $_.TimeCreated -gt $Date}
         if(-not $EventLog) {
             throw "Cannot get Event log."
         }
         # Event ID 10107 is what we looking here, it will be always be 10107.
         foreach ($event in $EventLog) {
-            LogMsg "VSS Backup Error in Event Log number is $($event.ID)"
+            Write-LogInfo "VSS Backup Error in Event Log number is $($event.ID)"
             if ($event.Id -eq 10150) {
                 $found_eventid = $True
-                LogMsg $event.Message
-                LogMSg "VSS Backup Error in Event Log : Success"
+                Write-LogInfo $event.Message
+                Write-LogInfo "VSS Backup Error in Event Log : Success"
             }
         }
         if (-not $found_eventid) {
-            LogWarn "VSS Backup Error not in Event Log"
+            Write-LogWarn "VSS Backup Error not in Event Log"
         }
         Remove-Backup $backupLocation
         if( $testResult -ne $resultFail) {
@@ -74,14 +74,14 @@ function Main {
     catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "$ErrorMessage at line: $ErrorLine"
+        Write-LogErr "$ErrorMessage at line: $ErrorLine"
     } finally {
         if (!$testResult) {
             $testResult = $resultAborted
         }
         $resultArr += $testResult
     }
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
 Main

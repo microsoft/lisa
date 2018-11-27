@@ -44,12 +44,12 @@ function Main {
 
     $ipv4 = Start-VMandGetIP $VMName $HvServer $VMPort $VMUserName $VMPassword
     if (-not $ipv4) {
-        LogErr "Could not retrieve test VM's test IP address"
+        Write-LogErr "Could not retrieve test VM's test IP address"
         return $False
     }
 
     if (-not $addressFamily) {
-        LogErr "AddressFamily variable not defined"
+        Write-LogErr "AddressFamily variable not defined"
         return $False
     }
 
@@ -137,9 +137,9 @@ function Main {
         $cmd+="echo `'MAC=$($macAddress)`' >> /home/$VMUserName/net_constants.sh;";
     }
 
-    LogMsg "PING_SUCC=$PING_SUCC"
-    LogMsg "PING_FAIL=$PING_FAIL"
-    LogMsg "PING_FAIL2=$PING_FAIL2"
+    Write-LogInfo "PING_SUCC=$PING_SUCC"
+    Write-LogInfo "PING_FAIL=$PING_FAIL"
+    Write-LogInfo "PING_FAIL2=$PING_FAIL2"
 
     if ($testType -eq "Internal") {
         "STATIC_IP=$STATIC_IP"
@@ -157,34 +157,34 @@ function Main {
         $cmd+="echo `'SSH_PRIVATE_KEY=id_rsa`' >> /home/$VMUserName/net_constants.sh;";
         $vm2ipv4 = Get-IPv4ViaKVP $VM2Name $HvServer
         # Setup ssh on VM1
-        RemoteCopy -uploadTo $Ipv4 -port $VMPort -files `
+        Copy-RemoteFiles -uploadTo $Ipv4 -port $VMPort -files `
             ".\Testscripts\Linux\enablePasswordLessRoot.sh" `
             -username "root" -password $VMPassword -upload
-        RemoteCopy -uploadTo $vm2ipv4 -port $VMPort -files `
+        Copy-RemoteFiles -uploadTo $vm2ipv4 -port $VMPort -files `
             ".\Testscripts\Linux\enablePasswordLessRoot.sh" `
             -username "root" -password $VMPassword -upload
-        RunLinuxCmd -ip $Ipv4 -port $VMPort -username "root" -password `
+        Run-LinuxCmd -ip $Ipv4 -port $VMPort -username "root" -password `
             $VMPassword -command "chmod +x ~/*.sh"
-        RunLinuxCmd -ip $vm2ipv4 -port $VMPort -username "root" -password `
+        Run-LinuxCmd -ip $vm2ipv4 -port $VMPort -username "root" -password `
             $VMPassword -command "chmod +x ~/*.sh"
-        $null = RunLinuxCmd -ip $Ipv4 -port $VMPort -username "root" -password `
+        $null = Run-LinuxCmd -ip $Ipv4 -port $VMPort -username "root" -password `
             $VMPassword -command "./enablePasswordLessRoot.sh ; cp -rf /root/.ssh /home/$VMUserName"
         # Copy keys from VM1 and setup VM2
-        RemoteCopy -download -downloadFrom $Ipv4 -port $VMPort -files `
+        Copy-RemoteFiles -download -downloadFrom $Ipv4 -port $VMPort -files `
             "/root/sshFix.tar" -username "root" -password $VMPassword -downloadTo $LogDir
-        RemoteCopy -uploadTo $vm2ipv4 -port $VMPort -files "$LogDir\sshFix.tar" `
+        Copy-RemoteFiles -uploadTo $vm2ipv4 -port $VMPort -files "$LogDir\sshFix.tar" `
             -username "root" -password $VMPassword -upload
-        $null = RunLinuxCmd -ip $vm2ipv4 -port $VMPort -username "root" -password `
+        $null = Run-LinuxCmd -ip $vm2ipv4 -port $VMPort -username "root" -password `
             $VMPassword -command "./enablePasswordLessRoot.sh ; cp -rf /root/.ssh /home/$VMUserName"
     }
 
-    RunLinuxCmd -username $VMUserName -password $VMPassword -ip $ipv4 -port $VMPort `
+    Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $ipv4 -port $VMPort `
         -command $cmd -runAsSudo
     if (-not $?) {
-        LogErr "Unable to submit ${cmd} to vm"
+        Write-LogErr "Unable to submit ${cmd} to vm"
         return $False
     }
-    LogMsg "Test IP parameters successfully added to constants file"
+    Write-LogInfo "Test IP parameters successfully added to constants file"
     return $true
 }
 

@@ -44,14 +44,14 @@ function Main {
         return "FAIL"
     }
     elseif ($BuildNumber -lt 9600) {
-        LogMsg "Hyper-v host version $BuildNumber does not support fcopy, skipping test."
+        Write-LogInfo "Hyper-v host version $BuildNumber does not support fcopy, skipping test."
         return "ABORTED"
     }
 
     # If vm does not support systemd, skip test.
     $null = Check-Systemd -Ipv4 $Ipv4 -SSHPort $VMPort -Username $VMUserName -Password $VMPassword
     if ( -not $True) {
-        LogMsg "Systemd is not being used. Test Skipped"
+        Write-LogInfo "Systemd is not being used. Test Skipped"
         return "FAIL"
     }
 
@@ -70,16 +70,16 @@ function Main {
     }
     $vhd_path_formatted = $vhd_path.Replace(':', '$')
     # Define the file-name to use with the current time-stamp
-    $testfile = "testfile-$(get-date -uformat '%H-%M-%S-%Y-%m-%d').file"
+    $testfile = "testfile-$(Get-Date -uformat '%H-%M-%S-%Y-%m-%d').file"
     $filePath = $vhd_path + $testfile
     $file_path_formatted = $vhd_path_formatted + $testfile
 
     # Create a 10MB sample file
-    LogMsg "Creating a 10MB sample file..."
+    Write-LogInfo "Creating a 10MB sample file..."
     $createfile = fsutil file createnew \\$HvServer\$file_path_formatted 10485760
 
     if ($createfile -notlike "File *testfile-*.file is created") {
-        LogErr "Could not create the sample test file in the working directory!"
+        Write-LogErr "Could not create the sample test file in the working directory!"
         return "FAIL"
     }
 
@@ -88,66 +88,66 @@ function Main {
     #
     $gsi = Get-VMIntegrationService -VMname $VMName -ComputerName $HvServer -Name "Guest Service Interface"
     if (-not $gsi) {
-        LogErr "Unable to retrieve Integration Service status from VM '${VMname}'"
+        Write-LogErr "Unable to retrieve Integration Service status from VM '${VMname}'"
         return "ABORTED"
     }
     if (-not $gsi.Enabled) {
-        LogWarn "The Guest services are not enabled for VM '${VMname}'"
+        Write-LogWarn "The Guest services are not enabled for VM '${VMname}'"
         if ((Get-VM -ComputerName $HvServer -Name $VMName).State -ne "Off") {
             Stop-VM -ComputerName $HvServer -Name $VMName -Force -Confirm:$false
         }
         # Waiting until the VM is off
         while ((Get-VM -ComputerName $HvServer -Name $VMName).State -ne "Off") {
-            LogMsg "Turning off VM:'${VMname}'"
+            Write-LogInfo "Turning off VM:'${VMname}'"
             Start-Sleep -Seconds 5
         }
-        LogMsg "Enabling  Guest services on VM:'${VMname}'"
+        Write-LogInfo "Enabling  Guest services on VM:'${VMname}'"
         Enable-VMIntegrationService -Name "Guest Service Interface" -VMname $VMName -ComputerName $HvServer
-        LogMsg "Starting VM:'${VMname}'"
+        Write-LogInfo "Starting VM:'${VMname}'"
         Start-VM -Name $VMName -ComputerName $HvServer
         # Waiting for the VM to run again and respond
-        LogMsg "Waiting for the VM to run again and respond ..."
+        Write-LogInfo "Waiting for the VM to run again and respond ..."
         if (-not (Wait-ForVMToStartSSH -Ipv4addr $Ipv4 -StepTimeout 200)) {
-            LogErr  "Test case timed out waiting for VM to be running again!"
+            Write-LogErr  "Test case timed out waiting for VM to be running again!"
             return "FAIL"
         }
     }
     # The fcopy daemon must be running on the Linux guest VM
     $sts = Check-FcopyDaemon  -VMPassword $VMPassword -VMPort $VMPort -VMUserName $VMUserName -Ipv4 $Ipv4
     if (-not $sts[-1]) {
-        LogErr "File copy daemon is not running inside the Linux guest VM!"
+        Write-LogErr "File copy daemon is not running inside the Linux guest VM!"
         return "FAIL"
     }
     #
     # Step 1: verify the file cannot copy to vm when target folder is immutable
     #
-    LogMsg "Info: Step 1: fcopy file to vm when target folder is immutable"
+    Write-LogInfo "Info: Step 1: fcopy file to vm when target folder is immutable"
 
     # Verifying if /tmp folder on guest exists; if not, it will be created
     .\Tools\plink.exe -C -pw $VMPassword -P $VMPort root@$ipv4 "[ -d /test ] || mkdir /test ; chattr +i /test"
 
     if (-not $?) {
-        LogErr "Fail to change the permission for /test"
+        Write-LogErr "Fail to change the permission for /test"
     }
 
     $Error.Clear()
     Copy-VMFile -vmName $VMName -ComputerName $HvServer -SourcePath $filePath -DestinationPath "/test" -FileSource host -ErrorAction SilentlyContinue
 
     if ( $? -eq $true ) {
-        LogErr  "File has been copied to guest VM even  target folder immutable"
+        Write-LogErr  "File has been copied to guest VM even  target folder immutable"
         return "FAIL"
     }
     elseif (($Error.Count -gt 0) -and ($Error[0].Exception.Message -like "*FAIL to initiate copying files to the guest*")) {
-        LogMsg  "Info: File could not be copied to VM as expected since target folder immutable"
+        Write-LogInfo  "Info: File could not be copied to VM as expected since target folder immutable"
     }
 
     #
     # Step 2: verify the file cannot copy to vm when "Guest Service Interface" is disabled
     #
-    LogMsg "Info: Step 2: fcopy file to vm when 'Guest Service Interface' is disabled"
+    Write-LogInfo "Info: Step 2: fcopy file to vm when 'Guest Service Interface' is disabled"
     Disable-VMIntegrationService -Name "Guest Service Interface" -vmName $VMName -ComputerName $HvServer
     if ( $? -eq $false) {
-        LogErr "Fail to disable 'Guest Service Interface'"
+        Write-LogErr "Fail to disable 'Guest Service Interface'"
         return "FAIL"
     }
 
@@ -155,26 +155,26 @@ function Main {
     Copy-VMFile -vmName $VMName -ComputerName $HvServer -SourcePath $filePath -DestinationPath "/tmp/" -FileSource host -ErrorAction SilentlyContinue
 
     if ( $? -eq $true ) {
-        LogErr "File has been copied to guest VM even 'Guest Service Interface' disabled"
+        Write-LogErr "File has been copied to guest VM even 'Guest Service Interface' disabled"
         return "FAIL"
     }
     elseif (($Error.Count -gt 0) -and ($Error[0].Exception.Message -like "*FAIL to initiate copying files to the guest*")) {
-        LogMsg "Info: File could not be copied to VM as expected since 'Guest Service Interface' disabled"
+        Write-LogInfo "Info: File could not be copied to VM as expected since 'Guest Service Interface' disabled"
 
         #
         # Step 3: verify the file cannot copy to vm when hypervfcopyd is stopped
         #
-        LogMsg "Info: Step 3: fcopy file to vm when hypervfcopyd stopped"
+        Write-LogInfo "Info: Step 3: fcopy file to vm when hypervfcopyd stopped"
         Enable-VMIntegrationService -Name "Guest Service Interface" -vmName $VMName -ComputerName $HvServer
         if ( $? -ne $true) {
-            LogErr "Fail to enable 'Guest Service Interface'"
+            Write-LogErr "Fail to enable 'Guest Service Interface'"
             return "FAIL"
         }
 
         # Stop fcopy daemon to do negative test
         $sts = Stop-FcopyDaemon -VmPassword $VMPassword -vmPort $VMPort -vmUserName $VMUserName -ipv4 $Ipv4
         if (-not $sts[-1]) {
-            LogErr "FAIL to stop hypervfcopyd inside the VM!"
+            Write-LogErr "FAIL to stop hypervfcopyd inside the VM!"
             return "FAIL"
         }
 
@@ -182,27 +182,27 @@ function Main {
         Copy-VMFile -vmName $VMName -ComputerName $HvServer -SourcePath $filePath -DestinationPath "/tmp/" -FileSource host -ErrorAction SilentlyContinue
 
         if ( $? -eq $true ) {
-            LogErr "File has been copied to guest VM even hypervfcopyd stopped"
+            Write-LogErr "File has been copied to guest VM even hypervfcopyd stopped"
             return "FAIL"
         }
         elseif (($Error.Count -gt 0) -and ($Error[0].Exception.Message -like "*FAIL to initiate copying files to the guest*")) {
-            LogMsg "Info: File could not be copied to VM as expected since hypervfcopyd stopped "
+            Write-LogInfo "Info: File could not be copied to VM as expected since hypervfcopyd stopped "
         }
 
         # Verify the file does not exist after hypervfcopyd start
         $daemonName = .\Tools\plink.exe -C -pw $vmPassword -P $vmPort root@$Ipv4 "systemctl list-unit-files | grep fcopy"
         $daemonName = $daemonName.Split(".")[0]
         .\Tools\plink.exe -C -pw $VMPassword -P $VMPort root@$Ipv4 "systemctl start $daemonName"
-        start-sleep -s 2
+        Start-Sleep -s 2
         .\Tools\plink.exe -C -pw $vmPassword -P $vmPort root@$Ipv4 "ls /tmp/testfile-*"
         if ($? -eq $true) {
-            LogErr "File has been copied to guest vm after restart hypervfcopyd"
+            Write-LogErr "File has been copied to guest vm after restart hypervfcopyd"
             return "FAIL"
         }
         # Removing the temporary test file
         Remove-Item -Path \\$hvServer\$file_path_formatted -Force
         if ($? -ne "True") {
-            LogErr "Cannot remove the test file '${testfile}'!"
+            Write-LogErr "Cannot remove the test file '${testfile}'!"
         }
 
         return "PASS"

@@ -32,28 +32,28 @@ function Main {
         $cmd_StateChange = "Save-VM -Name `$VMName -ComputerName `$HvServer -Confirm:`$False"
         $cmd_StateResume = "Start-VM -Name `$VMName -ComputerName `$HvServer -Confirm:`$False"
     } else {
-        LogErr "Check the parameters! It should have VM_STATE=pause or VM_STATE=save"
+        Write-LogErr "Check the parameters! It should have VM_STATE=pause or VM_STATE=save"
         return "FAIL"
     }
 
     # Start client on dependency VM
-    RunLinuxCmd -ip $vm2ipv4 -port $VMPort -username $VMRootUser -password `
+    Run-LinuxCmd -ip $vm2ipv4 -port $VMPort -username $VMRootUser -password `
         $VMPassword -command "iperf3 -s > client.out" -RunInBackGround
     Start-Sleep -s 5
 
     # Run iPerf on client side for 30 seconds with SR-IOV enabled
-    RunLinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+    Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
         $VMPassword -command "source sriov_constants.sh ; iperf3 -t 2400 -c `$VF_IP2 --logfile PerfResults.log" `
         -RunInBackGround
     Start-Sleep -s 30
-    [decimal]$initialThroughput = RunLinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+    [decimal]$initialThroughput = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
         $VMPassword -command "tail -4 PerfResults.log | head -1 | awk '{print `$7}'" `
         -ignoreLinuxExitCode:$true
     if (-not $initialThroughput){
-        LogErr "No result was logged! Check if iPerf was executed!"
+        Write-LogErr "No result was logged! Check if iPerf was executed!"
         return "FAIL"
     }
-    LogMsg "The throughput before starting the stress test is $initialThroughput Gbits/sec"
+    Write-LogInfo "The throughput before starting the stress test is $initialThroughput Gbits/sec"
     [decimal]$initialThroughput = $initialThroughput * 0.7
 
     $isDone = $False
@@ -65,7 +65,7 @@ function Main {
         $hasSwitched = $false
 
         # Read the throughput before changing VM state
-        [decimal]$vfBeforeThroughput = RunLinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+        [decimal]$vfBeforeThroughput = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
         $VMPassword -command "tail -4 PerfResults.log | head -1 | awk '{print `$7}'"
 
         # Change state
@@ -86,7 +86,7 @@ function Main {
                 break
             }
             # Get the throughput
-            [decimal]$vfAfterThroughput = RunLinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+            [decimal]$vfAfterThroughput = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
                 $VMPassword -command "tail -4 PerfResults.log | head -1 | awk '{print `$7}'"
 
             # Compare results with the ones taken before the stress test
@@ -98,11 +98,11 @@ function Main {
                 # If it's bigger than 5 seconds, make an additional check, to see if the VF is running
                 # If more than 5 seconds passed and also VF is not running, fail the test
                 if ($timeToSwitch -gt 5){
-                    $vfCount = RunLinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+                    $vfCount = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
                         $VMPassword -command "find /sys/devices -name net -a -ipath '*vmbus*' | grep -c pci" `
                         -ignoreLinuxExitCode:$true
                     if ($vfCount -lt 1) {
-                        LogErr "On run ${counter}, VF is not present"
+                        Write-LogErr "On run ${counter}, VF is not present"
                         return "FAIL"
                     } else {
                         $hasSwitched = $true
@@ -112,7 +112,7 @@ function Main {
             }
             $timeToSwitch++
         }
-        LogMsg "Run $counter :: Time to switch between netvsc and VF was $timeToSwitch seconds. Throughput was $vfAfterThroughput gbps"
+        Write-LogInfo "Run $counter :: Time to switch between netvsc and VF was $timeToSwitch seconds. Throughput was $vfAfterThroughput gbps"
     }
 
     return "PASS"

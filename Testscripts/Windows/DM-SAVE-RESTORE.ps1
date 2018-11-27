@@ -44,7 +44,7 @@ function Main {
         $VM2,
         $TestParams
     )
-    $currentTestResult = CreateTestResultObject
+    $currentTestResult = Create-TestResultObject
     $resultArr = @()
     try {
         $testResult = $null
@@ -69,7 +69,7 @@ function Main {
         Set-VMDynamicMemory -VM $VM2 -minMem $TestParams.minMem2 -maxMem $TestParams.maxMem2 `
             -startupMem $TestParams.startupMem2 -memWeight $memweight2
         $VM1Ipv4=Start-VMandGetIP $VM1Name $HvServer $VMPort $user $password
-        LogMsg "IP of $VM1Name is $VM1Ipv4"
+        Write-LogInfo "IP of $VM1Name is $VM1Ipv4"
         # change working directory to root dir
         Set-Location $WorkingDirectory
         if (-not $WorkingDirectory) {
@@ -99,13 +99,13 @@ function Main {
             $testResult = $resultFail
             throw "$VM1Name Memory demand is 0" | Tee-Object -Append -file $summaryLog
         }
-        LogMsg "VM1 $VM1Name before assigned memory : $vm1BeforeAssigned"
-        LogMsg "VM1 $VM1Name before memory demand: $vm1BeforeDemand"
+        Write-LogInfo "VM1 $VM1Name before assigned memory : $vm1BeforeAssigned"
+        Write-LogInfo "VM1 $VM1Name before memory demand: $vm1BeforeDemand"
         #
         # LIS Started VM1, so start VM2
         #
         $VM2Ipv4=Start-VMandGetIP $VM2Name $HvServer $VMPort $user $password
-        LogMsg "IP of $VM2Name is $VM2Ipv4"
+        Write-LogInfo "IP of $VM2Name is $VM2Ipv4"
         # sleep another 2 minute trying to get VM2's memory demand
         $sleepPeriod = 120 #seconds
         # get VM2's Memory
@@ -126,8 +126,8 @@ function Main {
             $testResult = $resultFail
             throw "$VM2Name Memory demand is 0" | Tee-Object -Append -file $summaryLog
         }
-        LogMsg "VM2 $VM2Name before assigned memory : $vm2BeforeAssigned"
-        LogMsg "VM2 $VM2Name before memory demand: $vm2BeforeDemand"
+        Write-LogInfo "VM2 $VM2Name before assigned memory : $vm2BeforeAssigned"
+        Write-LogInfo "VM2 $VM2Name before memory demand: $vm2BeforeDemand"
         # Save VM2
         Save-VM $VM2Name -ComputerName $HvServer -ErrorAction SilentlyContinue
         if (-not $?) {
@@ -149,8 +149,8 @@ function Main {
             $testResult = $resultFail
             throw "$VM2Name Memory demand is $vm2AfterDemand after it started from save." | Tee-Object -Append -file $summaryLog
         }
-        LogMsg "VM2 $VM2Name after assigned memory : $vm2AfterAssigned"
-        LogMsg "VM2 $VM2Name after memory demand: $vm2AfterDemand"
+        Write-LogInfo "VM2 $VM2Name after assigned memory : $vm2AfterAssigned"
+        Write-LogInfo "VM2 $VM2Name after memory demand: $vm2AfterDemand"
         # Save VM1
         Save-VM $VM1Name -ComputerName $HvServer -ErrorAction SilentlyContinue
         if (-not $?) {
@@ -172,8 +172,8 @@ function Main {
             $testResult = $resultFail
             throw "$VM1Name Memory demand is 0 after it started from save" | Tee-Object -Append -file $summaryLog
         }
-        LogMsg "VM1 $VM1Name after assigned memory : $vm1AfterAssigned"
-        LogMsg "VM1 $VM1Name after memory demand: $vm1AfterDemand"
+        Write-LogInfo "VM1 $VM1Name after assigned memory : $vm1AfterAssigned"
+        Write-LogInfo "VM1 $VM1Name after memory demand: $vm1AfterDemand"
         # save VM1 and VM2
         Save-VM $VM1Name -ComputerName $HvServer -ErrorAction SilentlyContinue
         if (-not $?) {
@@ -203,8 +203,8 @@ function Main {
             $testResult = $resultFail
             throw "$VM1Name Memory demand is 0 after last round of saving" | Tee-Object -Append -file $summaryLog
         }
-        LogMsg "VM1 $VM1Name end assigned memory : $vm1EndAssigned"
-        LogMsg "VM1 $VM1Name end memory demand: $vm1EndDemand"
+        Write-LogInfo "VM1 $VM1Name end assigned memory : $vm1EndAssigned"
+        Write-LogInfo "VM1 $VM1Name end memory demand: $vm1EndDemand"
         # get VM2's Memory after saving the VM2
         [int64]$vm2EndAssigned = ($vm2.MemoryAssigned/[int64]1048576)
         [int64]$vm2EndDemand = ($vm2.MemoryDemand/[int64]1048576)
@@ -216,15 +216,15 @@ function Main {
             $testResult = $resultFail
             throw "$VM2Name Memory demand is 0 after last round of saving" | Tee-Object -Append -file $summaryLog
         }
-        LogMsg "VM2 $VM2Name end assigned memory : $vm2EndAssigned"
-        LogMsg "VM2 $VM2Name end memory demand: $vm2EndDemand"
-        LogMsg " DM SaveRestore completed successfully"
+        Write-LogInfo "VM2 $VM2Name end assigned memory : $vm2EndAssigned"
+        Write-LogInfo "VM2 $VM2Name end memory demand: $vm2EndDemand"
+        Write-LogInfo " DM SaveRestore completed successfully"
         $testResult = $resultPass
     }
     catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "$ErrorMessage at line: $ErrorLine"
+        Write-LogErr "$ErrorMessage at line: $ErrorLine"
     }
     finally {
         if (!$testResult) {
@@ -232,7 +232,7 @@ function Main {
         }
         $resultArr += $testResult
     }
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
 

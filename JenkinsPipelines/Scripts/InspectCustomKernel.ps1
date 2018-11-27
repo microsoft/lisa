@@ -46,12 +46,12 @@ try
     {
         New-Item -Path $CurrentLocalFolder -ItemType Directory -Force | Out-Null
     }
-    LogMsg "Directory : $CurrentLocalFolder is available."
+    Write-LogInfo "Directory : $CurrentLocalFolder is available."
 
     # region VALIDATE ARGUMENTS
     if ( $env:CustomKernelFile -and $env:CustomKernelURL )
     {
-        LogError "Please provide either 'CustomKernelFile' or 'CustomKernelURL'."
+        Write-LogErr "Please provide either 'CustomKernelFile' or 'CustomKernelURL'."
         $ExitCode = 1
     }
     elseif ( $env:CustomKernelFile)
@@ -62,24 +62,24 @@ try
             $ReceivedKernel = "$CurrentRemoteFolder\$env:CustomKernelFile"
             if (Test-Path $ReceivedKernel)
             {
-                LogMsg "Copying $ReceivedKernel --> $CurrentKernel for current use..."
+                Write-LogInfo "Copying $ReceivedKernel --> $CurrentKernel for current use..."
                 $null = Copy-Item -Path $ReceivedKernel -Destination "$CurrentKernel" -Force
                 $KernelFile = Split-Path $CurrentKernel -Leaf
 
-                LogMsg "Saving $KernelFile to CustomKernel.azure.env"
+                Write-LogInfo "Saving $KernelFile to CustomKernel.azure.env"
                 $null = Set-Content -Value "$KernelFile" -Path CustomKernel.azure.env -Force -NoNewline
                 $ExitCode = 0
             }
             else
             {
                 $ExitCode = 1
-                LogError "$ReceivedKernel is not present. Did you forgot to upload it?"
+                Write-LogErr "$ReceivedKernel is not present. Did you forgot to upload it?"
             }
         }
         else
         {
             $FileExtension = [System.IO.Path]::GetExtension("$env:CustomKernelFile")
-            LogError "Unsupported file type: *$FileExtension"
+            Write-LogErr "Unsupported file type: *$FileExtension"
             $ExitCode += 1
         }
     }
@@ -93,11 +93,11 @@ try
 
             if (Test-Path $ReceivedKernel)
             {
-                LogMsg "$SourceKernelName File was already downloaded."
-                LogMsg "Copying $ReceivedKernel --> $CurrentKernel for current use..."
+                Write-LogInfo "$SourceKernelName File was already downloaded."
+                Write-LogInfo "Copying $ReceivedKernel --> $CurrentKernel for current use..."
                 Copy-Item -Path "$ReceivedKernel" -Destination $CurrentKernel -Force
                 $KernelFile = $CurrentKernel  | Split-Path -Leaf
-                LogMsg "Saving $KernelFile to CustomKernel.azure.env"
+                Write-LogInfo "Saving $KernelFile to CustomKernel.azure.env"
                 $null = Set-Content -Value "$KernelFile" -Path CustomKernel.azure.env -Force -NoNewline
                 $ExitCode = 0
             }
@@ -106,66 +106,66 @@ try
                 # Import BITS module for download
                 Import-Module BitsTransfer -Force
 
-                LogMsg "Downloading $env:CustomKernelURL to '$CurrentLocalFolder\$SourceKernelName'"
+                Write-LogInfo "Downloading $env:CustomKernelURL to '$CurrentLocalFolder\$SourceKernelName'"
                 $DownloadJob = Start-BitsTransfer -Source "$env:CustomKernelURL" -Asynchronous -Destination "$CurrentLocalFolder\$SourceKernelName" -TransferPolicy Unrestricted -TransferType Download -Priority High
                 $DownloadJobStatus = Get-BitsTransfer -JobId $DownloadJob.JobId
                 Start-Sleep -Seconds 1
-                LogMsg "JobID: $($DownloadJob.JobId)"
+                Write-LogInfo "JobID: $($DownloadJob.JobId)"
                 while ($DownloadJobStatus.JobState -eq "Connecting" -or $DownloadJobStatus.JobState -eq "Transferring" -or $DownloadJobStatus.JobState -eq "Queued" )
                 {
                     $DownloadProgress = 100 - ((($DownloadJobStatus.BytesTotal - $DownloadJobStatus.BytesTransferred) / $DownloadJobStatus.BytesTotal) * 100)
                     $DownloadProgress = [math]::Round($DownloadProgress,2)
-                    LogMsg "Download '$($DownloadJobStatus.JobState)': $DownloadProgress%"
+                    Write-LogInfo "Download '$($DownloadJobStatus.JobState)': $DownloadProgress%"
                     Start-Sleep -Seconds 2
                 }
                 if ($DownloadJobStatus.JobState -eq "Transferred")
                 {
-                    LogMsg "Finalizing downloaded file..."
+                    Write-LogInfo "Finalizing downloaded file..."
                     Complete-BitsTransfer -BitsJob $DownloadJob
-                    LogMsg "Download progress: Completed"
+                    Write-LogInfo "Download progress: Completed"
                 }
                 else
                 {
-                    LogMsg "Download status : $($DownloadJobStatus.JobState)"
+                    Write-LogInfo "Download status : $($DownloadJobStatus.JobState)"
                 }
                 if (Test-Path "$CurrentLocalFolder\$SourceKernelName")
                 {
-                    LogMsg "Copying $CurrentLocalFolder\$SourceKernelName --> $ReceivedKernel for future use..."
+                    Write-LogInfo "Copying $CurrentLocalFolder\$SourceKernelName --> $ReceivedKernel for future use..."
                     Copy-Item -Path "$CurrentLocalFolder\$SourceKernelName" -Destination $ReceivedKernel -Force
 
-                    LogMsg "Moving $CurrentLocalFolder\$SourceKernelName --> $CurrentKernel for current use..."
+                    Write-LogInfo "Moving $CurrentLocalFolder\$SourceKernelName --> $CurrentKernel for current use..."
                     Move-Item -Path "$CurrentLocalFolder\$SourceKernelName" -Destination $CurrentKernel -Force
                     $KernelFile = $CurrentKernel  | Split-Path -Leaf
-                    LogMsg "Saving $KernelFile to CustomKernel.azure.env"
+                    Write-LogInfo "Saving $KernelFile to CustomKernel.azure.env"
                     $null = Set-Content -Value "$KernelFile" -Path CustomKernel.azure.env -Force -NoNewline
                     $ExitCode = 0
                 }
                 else
                 {
                     $ExitCode = 1
-                    LogError "$SourceKernelName is not present. Is the CustomKernelURL a valid link?"
+                    Write-LogErr "$SourceKernelName is not present. Is the CustomKernelURL a valid link?"
                 }
             }
         }
         else
         {
             $FileExtension = [System.IO.Path]::GetExtension("$env:CustomKernelFile")
-            LogError "Unsupported file type: *$FileExtension"
+            Write-LogErr "Unsupported file type: *$FileExtension"
             $ExitCode += 1
         }
     }
     else
     {
-        LogError "No value provided for parameter 'CustomKernelFile' or 'CustomKernelURL'."
+        Write-LogErr "No value provided for parameter 'CustomKernelFile' or 'CustomKernelURL'."
         $ExitCode = 1
     }
 }
 catch
 {
-    ThrowException($_)
+    Raise-Exception($_)
 }
 finally
 {
-    LogMsg "Exiting with code : $ExitCode"
+    Write-LogInfo "Exiting with code : $ExitCode"
     exit $ExitCode
 }

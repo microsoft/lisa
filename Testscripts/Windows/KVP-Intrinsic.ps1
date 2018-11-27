@@ -25,13 +25,13 @@ function Main {
     $intrinsic = $True
 
     if (-not $RootDir) {
-        LogErr "Warn : no RootDir was specified"
+        Write-LogErr "Warn : no RootDir was specified"
     } else {
         Set-Location $RootDir
     }
 
     # Debug - display the test parameters so they are captured in the log file
-    LogMsg "TestParams : '${TestParams}'"
+    Write-LogInfo "TestParams : '${TestParams}'"
 
     # Parse the test parameters
     $params = $TestParams.Split(";")
@@ -46,7 +46,7 @@ function Main {
     # Verify the Data Exchange Service is enabled for this VM
     $des = Get-VMIntegrationService -VMName $VMName -ComputerName $HvServer
     if (-not $des) {
-        LogErr "Error: Unable to retrieve Integration Service status from VM '${VMName}'"
+        Write-LogErr "Error: Unable to retrieve Integration Service status from VM '${VMName}'"
         return "FAIL"
     }
 
@@ -59,7 +59,7 @@ function Main {
     }
 
     if (-not $serviceEnabled) {
-        LogErr "Error: The Data Exchange Service is not enabled for VM '${VMName}'"
+        Write-LogErr "Error: The Data Exchange Service is not enabled for VM '${VMName}'"
         return "FAIL"
     }
 
@@ -67,22 +67,22 @@ function Main {
     $vm = Get-WmiObject -ComputerName $HvServer -Namespace root\virtualization\v2 `
         -Query "Select * From Msvm_ComputerSystem Where ElementName=`'$VMName`'"
     if (-not $vm) {
-        LogErr "Error: Unable to the VM '${VMName}' on the local host"
+        Write-LogErr "Error: Unable to the VM '${VMName}' on the local host"
         return "FAIL"
     }
 
     $kvp = Get-WmiObject -ComputerName $HvServer -Namespace root\virtualization\v2 `
         -Query "Associators of {$vm} Where AssocClass=Msvm_SystemDevice ResultClass=Msvm_KvpExchangeComponent"
     if (-not $kvp) {
-        LogErr "Error: Unable to retrieve KVP Exchange object for VM '${VMName}'"
+        Write-LogErr "Error: Unable to retrieve KVP Exchange object for VM '${VMName}'"
         return "FAIL"
     }
 
     if ($Intrinsic) {
-        LogMsg "Intrinsic Data"
+        Write-LogInfo "Intrinsic Data"
         $kvpData = $kvp.GuestIntrinsicExchangeItems
     } else {
-        LogMsg "Non-Intrinsic Data"
+        Write-LogInfo "Non-Intrinsic Data"
         $kvpData = $kvp.GuestExchangeItems
     }
     $dict = Convert-KvpToDict $kvpData
@@ -90,7 +90,7 @@ function Main {
     # Write out the kvp data so it appears in the log file
     foreach ($key in $dict.Keys) {
         $value = $dict[$key]
-        LogMsg ("  {0,-27} : {1}" -f $key, $value)
+        Write-LogInfo ("  {0,-27} : {1}" -f $key, $value)
     }
 
     if ($Intrinsic) {
@@ -101,17 +101,17 @@ function Main {
         $testPassed = $True
         foreach ($key in $keyName) {
             if (-not $dict.ContainsKey($key)) {
-                LogErr "Error: The key '${key}' does not exist"
+                Write-LogErr "Error: The key '${key}' does not exist"
                 $testPassed = $False
                 break
             }
         }
     } else {
         if ($dict.length -gt 0) {
-            LogMsg "Info: $($dict.length) non-intrinsic KVP items found"
+            Write-LogInfo "Info: $($dict.length) non-intrinsic KVP items found"
             $testPassed = $True
         } else {
-            LogErr "Error: No non-intrinsic KVP items found"
+            Write-LogErr "Error: No non-intrinsic KVP items found"
             $testPassed = $False
         }
     }

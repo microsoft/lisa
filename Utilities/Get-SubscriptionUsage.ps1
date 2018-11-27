@@ -27,18 +27,18 @@ if( $UseSecretsFile -or $AzureSecretsFile )
     }
     else
     {
-        LogMsg "-AzureSecretsFile and env:Azure_Secrets_File are empty. Exiting."
+        Write-LogInfo "-AzureSecretsFile and env:Azure_Secrets_File are empty. Exiting."
         exit 1
     }
     if ( Test-Path $secretsFile)
     {
-        LogMsg "Secrets file found."
+        Write-LogInfo "Secrets file found."
         .\AddAzureRmAccountFromSecretsFile.ps1 -customSecretsFilePath $secretsFile
         $xmlSecrets = [xml](Get-Content $secretsFile)
     }
     else
     {
-        LogMsg "Secrets file not found. Exiting."
+        Write-LogInfo "Secrets file not found. Exiting."
         exit 1
     }
 }
@@ -51,16 +51,16 @@ try
     $psttime = [System.TimeZoneInfo]::ConvertTimeFromUtc((Get-Date).ToUniversalTime(),$pstzone)
 
     $subscription = Get-AzureRmSubscription
-    LogMsg "Running: Get-AzureRmResource..."
+    Write-LogInfo "Running: Get-AzureRmResource..."
     $allResources = Get-AzureRmResource
-    LogMsg "Running: Get-AzureRmVM -Status..."
+    Write-LogInfo "Running: Get-AzureRmVM -Status..."
     $allVMStatus = Get-AzureRmVM -Status
-    LogMsg "Running: Get-AzureRmLocation..."
+    Write-LogInfo "Running: Get-AzureRmLocation..."
     $allRegions = (Get-AzureRmLocation | Where-Object { $_.Providers -imatch "Microsoft.Compute" }).Location | Sort-Object
 }
 catch
 {
-    LogMsg "Error while fetching data. Please try again."
+    Write-LogInfo "Error while fetching data. Please try again."
     Set-Content -Path $FinalHtmlFile -Value "There was some error in fetching data from Azure today."
     Set-Content -Path $EmailSubjectTextFile -Value "Azure Subscription Daily Utilization Report: $($psttime.Year)/$($psttime.Month)/$($psttime.Day)"
     exit 1
@@ -175,20 +175,20 @@ foreach ($region in $allRegions)
     $currentDeallocatedCores = 0
     $currentStorageAccounts = 0
     $currentRegionSizes = Get-AzureRmVMSize -Location $region
-    LogMsg "Get-AzureRmVMSize -Location $region"
+    Write-LogInfo "Get-AzureRmVMSize -Location $region"
     $currentRegionUsage =  Get-AzureRmVMUsage -Location $region
-    LogMsg "Get-AzureRmVMUsage -Location $region"
+    Write-LogInfo "Get-AzureRmVMUsage -Location $region"
     $currentRegionAllowedCores = ($currentRegionUsage | Where-Object { $_.Name.Value -eq "cores"}).Limit
 
     $regionCounter+= 1
-    LogMsg "[$regionCounter/$($allRegions.Count)]. $($region)"
+    Write-LogInfo "[$regionCounter/$($allRegions.Count)]. $($region)"
 
     foreach ($resource in $allResources)
     {
         if ( $resource.Location -eq $region -and $resource.ResourceType -eq $VM_String)
         {
             $currentVMs += 1
-            LogMsg "+1 : $($resource.ResourceType) : $($resource.Name)"
+            Write-LogInfo "+1 : $($resource.ResourceType) : $($resource.Name)"
             $currentVMStatus = $allVMStatus | Where-Object { $_.ResourceGroupName -eq $resource.ResourceGroupName -and $_.Name -eq $resource.Name }
             $currentUsedCores += ($currentRegionSizes | Where-Object { $_.Name -eq $($currentVMStatus.HardwareProfile.VmSize)}).NumberOfCores
             if ( $($currentVMStatus.PowerState) -imatch "VM deallocated")
@@ -198,28 +198,28 @@ foreach ($region in $allRegions)
         }
         if ( $resource.Location -eq $region -and $resource.ResourceType -eq $storage_String)
         {
-            LogMsg "+1 : $($resource.ResourceType) : $($resource.Name)"
+            Write-LogInfo "+1 : $($resource.ResourceType) : $($resource.Name)"
             $currentStorageAccounts += 1
         }
         if ( $resource.Location -eq $region -and $resource.ResourceType -eq $VNET_String)
         {
-            LogMsg "+1 : $($resource.ResourceType) : $($resource.Name)"
+            Write-LogInfo "+1 : $($resource.ResourceType) : $($resource.Name)"
             $currentVNETs += 1
         }
         if ( $resource.Location -eq $region -and $resource.ResourceType -eq $PublicIP_String)
         {
-            LogMsg "+1 : $($resource.ResourceType) : $($resource.Name)"
+            Write-LogInfo "+1 : $($resource.ResourceType) : $($resource.Name)"
             $currentPublicIPs += 1
         }
     }
-    LogMsg "|--Current VMs: $currentVMs"
-    LogMsg "|--Current Storages: $currentStorageAccounts"
-    LogMsg "|--Current VNETs: $currentVNETs"
-    LogMsg "|--Current PublicIPs: $currentPublicIPs"
-    LogMsg "|--Current Used Cores: $currentUsedCores"
-    LogMsg "|--Current Allowed Cores: $currentRegionAllowedCores"
-    LogMsg "|--Current Deallocated Cores: $currentDeallocatedCores"
-    LogMsg "------------------------------------------------------"
+    Write-LogInfo "|--Current VMs: $currentVMs"
+    Write-LogInfo "|--Current Storages: $currentStorageAccounts"
+    Write-LogInfo "|--Current VNETs: $currentVNETs"
+    Write-LogInfo "|--Current PublicIPs: $currentPublicIPs"
+    Write-LogInfo "|--Current Used Cores: $currentUsedCores"
+    Write-LogInfo "|--Current Allowed Cores: $currentRegionAllowedCores"
+    Write-LogInfo "|--Current Deallocated Cores: $currentDeallocatedCores"
+    Write-LogInfo "------------------------------------------------------"
     $currentHTMLNode = $currentHTMLNode.Replace("Current_Serial","$regionCounter")
     $currentHTMLNode = $currentHTMLNode.Replace("Current_Region","$($region)")
     $currentHTMLNode = $currentHTMLNode.Replace("Region_VMs","$currentVMs")
@@ -288,7 +288,7 @@ if ($UploadToDB)
     $SQLQuery += "('$SubscriptionID','$SubscriptionName','Total','$TimeStamp',$totalVMs,$totalUsedCores,$totalDeallocatedCores,$($totalUsedCores+$totalDeallocatedCores),$totalAllowedCores,$([math]::Round($totalUsedCores*100/$totalAllowedCores,1)),$PremiumStorages,$StanardStorages,$totalStorageAccounts,$totalPublicIPs,$totalVNETs)"
     try
     {
-        LogMsg $SQLQuery
+        Write-LogInfo $SQLQuery
         $connection = New-Object System.Data.SqlClient.SqlConnection
         $connection.ConnectionString = $connectionString
         $connection.Open()
@@ -297,17 +297,17 @@ if ($UploadToDB)
         $command.CommandText = $SQLQuery
         $null = $command.executenonquery()
         $connection.Close()
-        LogMsg "Uploading data to DB done!!"
+        Write-LogInfo "Uploading data to DB done!!"
     }
     catch
     {
-        LogMsg $_.Exception | format-list -force
+        Write-LogInfo $_.Exception | format-list -force
     }
 }
 
 #endregion
 
-LogMsg "Getting top 20 VMs."
+Write-LogInfo "Getting top 20 VMs."
 .\Get-SubscriptionUsageTopVMs.ps1 -TopVMsCount 20
 
 $TopVMsHTMLReport = (Get-Content -Path .\vmAge.html)
@@ -328,4 +328,4 @@ $FinalEmailSummary += '<p style="text-align: right;"><em><span style="font-size:
 
 Set-Content -Path $FinalHtmlFile -Value $FinalEmailSummary
 Set-Content -Path $EmailSubjectTextFile -Value "Azure Subscription Daily Utilization Report: $($psttime.Year)/$($psttime.Month)/$($psttime.Day)"
-LogMsg "Usage summary is ready. Click Here to see - https://linuxpipeline.westus2.cloudapp.azure.com/view/Utilities/job/tool-monitor-subscription-usage/"
+Write-LogInfo "Usage summary is ready. Click Here to see - https://linuxpipeline.westus2.cloudapp.azure.com/view/Utilities/job/tool-monitor-subscription-usage/"

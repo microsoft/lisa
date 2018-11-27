@@ -30,7 +30,7 @@ function Main {
     }
 
     if ($vmCpuNumber -ne 0) {
-        LogMsg "CPU: $vmCpuNumber"
+        Write-LogInfo "CPU: $vmCpuNumber"
         Set-VM -ComputerName $HvServer -VMName $VMName -ProcessorCount $vmCpuNumber
         Set-VMProcessor -ComputerName $HvServer -VMName $VMName -Reserve 100
     }
@@ -49,15 +49,15 @@ function Main {
                 $memorySize = $memorySize * $num
             }
 
-            LogMsg "Memory: $memorySize Bytes ($($num+$mg+$b))"
+            Write-LogInfo "Memory: $memorySize Bytes ($($num+$mg+$b))"
             if ($memorySize -gt 32 * 1024 * 1024) {
                 Set-VM -ComputerName $HvServer -VMName $VMName -MemoryStartupBytes $memorySize
             } else {
-                LogMsg"Memory size is provided but it is too small (should greater than 32MB): $vmMemory"
+                Write-LogInfo"Memory size is provided but it is too small (should greater than 32MB): $vmMemory"
                 return $false
             }
         } else {
-            LogMsg "Memory size is provided but it is not recognized: $vmMemory. Example: 2GB or 200MB"
+            Write-LogInfo "Memory size is provided but it is not recognized: $vmMemory. Example: 2GB or 200MB"
             return $false
         }
     }

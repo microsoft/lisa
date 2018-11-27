@@ -33,12 +33,12 @@ function Main {
 
     # Checking the input arguments
     if (-not $VMName) {
-        LogErr  "VM name is null!"
+        Write-LogErr  "VM name is null!"
         return "FAIL"
     }
 
     if (-not $HvServer) {
-        LogErr "hvServer is null!"
+        Write-LogErr "hvServer is null!"
         return "FAIL"
     }
     #
@@ -46,7 +46,7 @@ function Main {
     # Delete any previous summary.log file, then create a new one
     #
     if (-not (Test-Path $RootDir)) {
-        LogErr "The directory `"$RootDir}`" does not exist"
+        Write-LogErr "The directory `"$RootDir}`" does not exist"
         return "FAIL"
     }
     Set-Location $RootDir
@@ -63,29 +63,29 @@ function Main {
         #
         $gsi = Get-VMIntegrationService -vmName $VMName -ComputerName $HvServer -Name "Guest Service Interface"
         if (-not $gsi) {
-            LogErr "Unable to retrieve Integration Service status from VM '${VMName}'"
+            Write-LogErr "Unable to retrieve Integration Service status from VM '${VMName}'"
             return "FAIL"
         }
 
         if (-not $gsi.Enabled) {
-            LogWarn "The Guest services are not enabled for VM '${VMName}'"
+            Write-LogWarn "The Guest services are not enabled for VM '${VMName}'"
             if ((Get-VM -ComputerName $HvServer -Name $VMName).State -ne "Off") {
                 Stop-VM -ComputerName $HvServer -Name $VMName -Force -Confirm:$False
             }
 
             # Waiting until the VM is off
-            LogMsg "Turning off VM:'${VMname}'"
+            Write-LogInfo "Turning off VM:'${VMname}'"
             while ((Get-VM -ComputerName $HvServer -Name $VMName).State -ne "Off") {
                 Start-Sleep -Seconds 5
             }
-            LogMsg "Enabling  Guest services on VM:'${VMname}'"
+            Write-LogInfo "Enabling  Guest services on VM:'${VMname}'"
             Enable-VMIntegrationService -Name "Guest Service Interface" -vmName $VMName -ComputerName $HvServer
-            LogMsg "Starting VM:'${VMname}'"
+            Write-LogInfo "Starting VM:'${VMname}'"
             Start-VM -Name $VMName -ComputerName $HvServer
 
-            LogMsg "Waiting for the VM to run again and respond to SSH - port"
+            Write-LogInfo "Waiting for the VM to run again and respond to SSH - port"
             if (-not (Wait-ForVMToStartSSH -Ipv4addr $Ipv4 -StepTimeout 200)) {
-                LogErr  "Test case timed out for VM to be running again!"
+                Write-LogErr  "Test case timed out for VM to be running again!"
                 return "FAIL"
             }
         }
@@ -95,14 +95,14 @@ function Main {
     #
     $stateFile = "${LogDir}\state.txt"
     $Hypervcheck = "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;bash ${remoteScript} > Hypervcheck.log`""
-    RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort $Hypervcheck -runAsSudo
-    RemoteCopy -download -downloadFrom $Ipv4 -files "/home/${VMUserName}/state.txt" `
+    Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort $Hypervcheck -runAsSudo
+    Copy-RemoteFiles -download -downloadFrom $Ipv4 -files "/home/${VMUserName}/state.txt" `
         -downloadTo $LogDir -port $VMPort -username $VMUserName -password $VMPassword
-    RemoteCopy -download -downloadFrom $Ipv4 -files "/home/${VMUserName}/Hypervcheck.log" `
+    Copy-RemoteFiles -download -downloadFrom $Ipv4 -files "/home/${VMUserName}/Hypervcheck.log" `
         -downloadTo $LogDir -port $VMPort -username $VMUserName -password $VMPassword
     $contents = Get-Content -Path $stateFile
     if (($contents -eq "TestAborted") -or ($contents -eq "TestFailed")) {
-        LogErr "Error: Running $remoteScript script failed on VM!"
+        Write-LogErr "Error: Running $remoteScript script failed on VM!"
         return "FAIL"
     }
 }

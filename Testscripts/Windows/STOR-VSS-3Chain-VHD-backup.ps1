@@ -35,13 +35,13 @@ function Main {
         $VMIpv4 = $captureVMData.PublicIP
         $VMPort = $captureVMData.SSHPort
         $HypervGroupName=$captureVMData.HyperVGroupName
-        LogMsg "Test VM details :"
-        LogMsg "  RoleName : $($captureVMData.RoleName)"
-        LogMsg "  Public IP : $($captureVMData.PublicIP)"
-        LogMsg "  SSH Port : $($captureVMData.SSHPort)"
-        LogMsg "  HostName : $($captureVMData.HyperVhost)"
+        Write-LogInfo "Test VM details :"
+        Write-LogInfo "  RoleName : $($captureVMData.RoleName)"
+        Write-LogInfo "  Public IP : $($captureVMData.PublicIP)"
+        Write-LogInfo "  SSH Port : $($captureVMData.SSHPort)"
+        Write-LogInfo "  HostName : $($captureVMData.HyperVhost)"
         $vmName1 = "${vmName}_ChildVM"
-        LogMsg "vmName1 Name is $vmName1"
+        Write-LogInfo "vmName1 Name is $vmName1"
         Set-Location $WorkingDirectory
         $sts = New-BackupSetup $VMName $HvServer
         if (-not $sts[-1]) {
@@ -53,7 +53,7 @@ function Main {
             throw "VSS Daemon is not running"
         }
         # Create a file on the VM before backup
-        RunLinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMPort -command "touch /home/$user/1" -runAsSudo
+        Run-LinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMPort -command "touch /home/$user/1" -runAsSudo
         if (-not $?) {
             throw "Cannot create test file"
         }
@@ -74,7 +74,7 @@ function Main {
             throw "Unable to Shut Down VM"
         }
         # Clean snapshots
-        logMsg "INFO:  Cleaning up snapshots"
+        Write-LogInfo "INFO:  Cleaning up snapshots"
         $sts = Restore-LatestVMSnapshot $VMName $HvServer
         if (-not $sts[-1]) {
             throw "Cleaning snapshots on $VMName failed."
@@ -84,14 +84,14 @@ function Main {
         if(-not $ParentVHD) {
             throw "Unable to get parent VHD of VM $VMName"
         }
-        LogMsg "Successfully Got Parent VHD"
+        Write-LogInfo "Successfully Got Parent VHD"
         # Create Child and Grand-Child VHD, use temp path to avoid using same disk with backup drive
         $childVhd = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(),"vssVhd")
         $CreateVHD = Create-ChildVHD $ParentVHD $childVhd $HvServer
         if(-not $CreateVHD) {
             throw "Unable to create Child and Grand Child VHD of VM $VMName"
         }
-        LogMsg "Successfully created GrandChild VHD"
+        Write-LogInfo "Successfully created GrandChild VHD"
         # Now create New VM out of this VHD.
         # New VM is static hardcoded since we do not need it to be dynamic
         $GChildVHD = $CreateVHD
@@ -116,9 +116,9 @@ function Main {
                 throw "Unable to disable secure boot"
             }
         }
-        LogMsg "New 3 Chain VHD VM $vmName1 created"
+        Write-LogInfo "New 3 Chain VHD VM $vmName1 created"
         $newIpv4 = Start-VMandGetIP $vmName1 $HvServer $VMPort $user $password
-        LogMsg "New VM $vmName1 started having IP $newIpv4"
+        Write-LogInfo "New VM $vmName1 started having IP $newIpv4"
         $sts = New-Backup $vmName1 $driveletter $HvServer $VMIpv4 $VMPort
         if (-not $sts[-1]) {
             throw "Failed to backup the VM"
@@ -141,19 +141,19 @@ function Main {
         if(-not $?) {
             throw "Cleanup is not properly done"
         }
-        LogMsg "Cleanup is completed"
+        Write-LogInfo "Cleanup is completed"
         # Clean Delete New VM created
         $sts = Remove-VM -Name $vmName1 -ComputerName $HvServer -Confirm:$false -Force
         if (-not $?) {
             throw "Unable to delete New VM $vmName1"
         }
-        LogMsg "Deleted VM $vmName1"
+        Write-LogInfo "Deleted VM $vmName1"
         $testResult=$resultPass
     }
     catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+        Write-LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     }
     finally {
         if (!$testResult) {
@@ -161,7 +161,7 @@ function Main {
         }
         $resultArr += $testResult
     }
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
 Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))

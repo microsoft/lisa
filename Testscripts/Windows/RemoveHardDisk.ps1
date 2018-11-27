@@ -25,7 +25,7 @@ function Main {
 
     if ($null -eq $TestParams -or $TestParams.Length -lt 13) {
         # The minimum length testParams string is "IDE=1,1,Fixed"
-        LogErr "No testParams provided"
+        Write-LogErr "No testParams provided"
         return $False
     }
 
@@ -37,7 +37,7 @@ function Main {
 
         $fields = $p.Split('=')
         if ($fields.Length -ne 2) {
-            LogErr "Invalid test parameter: $p"
+            Write-LogErr "Invalid test parameter: $p"
             return $False
         }
 
@@ -56,13 +56,13 @@ function Main {
         $vhdPath = $vhd.Path
         if ($vhdPath.Contains($vhdName) -or $vhdPath.Contains('Target')){
             $error.Clear()
-            LogMsg "Removing drive $vhdName"
+            Write-LogInfo "Removing drive $vhdName"
 
             Remove-VMHardDiskDrive -VMName $VMName -ControllerType $vhd.controllerType `
                 -ControllerNumber $vhd.controllerNumber -ControllerLocation $vhd.ControllerLocation `
                 -ComputerName $hvServer
             if ($error.Count -gt 0) {
-                LogErr "Remove-VMHardDiskDrive failed to delete drive on SCSI controller "
+                Write-LogErr "Remove-VMHardDiskDrive failed to delete drive on SCSI controller "
                 return $False
             }
         }
@@ -70,7 +70,7 @@ function Main {
 
     $hostInfo = Get-VMHost -ComputerName $hvServer
     if (-not $hostInfo) {
-        LogErr "Unable to collect Hyper-V settings for ${hvServer}"
+        Write-LogErr "Unable to collect Hyper-V settings for ${hvServer}"
         return $False
     }
 
@@ -82,7 +82,7 @@ function Main {
 
     Set-Item WSMan:\localhost\Client\TrustedHosts $hvServer -force
     if (-not $?) {
-        LogErr "Failed to add $hvServer to the trusted hosts list"
+        Write-LogErr "Failed to add $hvServer to the trusted hosts list"
         return $False
     }
 
@@ -95,12 +95,12 @@ function Main {
             $error.Clear()
             Remove-Item -Path $_.FullName
             if ($error.Count -gt 0) {
-                LogErr "Failed to delete VHDx File "
+                Write-LogErr "Failed to delete VHDx File "
                 return $False
             }
         }
 
-    LogMsg "RemoveHardDisk returning $retVal"
+    Write-LogInfo "RemoveHardDisk returning $retVal"
 
     return $True
 }

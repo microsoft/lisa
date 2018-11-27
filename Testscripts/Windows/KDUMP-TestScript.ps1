@@ -20,11 +20,11 @@ function Main {
     $useNFS = $null
 
     if (-not $TestParams) {
-        LogErr "No test parameters specified"
+        Write-LogErr "No test parameters specified"
         return "Aborted"
     }
     if (-not $RootDir) {
-        LogMsg "Warn: no rootdir was specified"
+        Write-LogInfo "Warn: no rootdir was specified"
     } else {
         Set-Location $RootDir
     }
@@ -45,7 +45,7 @@ function Main {
     }
 
     if (-not $crashKernel) {
-        LogErr "Test parameter crashkernel was not specified"
+        Write-LogErr "Test parameter crashkernel was not specified"
         return "FAIL"
     }
 
@@ -56,7 +56,7 @@ function Main {
         $RHEL7_Above = $True
         # WS2012 does not support Debug-VM NMI injection, skipping
         if ( ($buildNumber -le "9200") -and ($nmi -eq 1) ) {
-            LogErr "WS2012 does not support Debug-VM NMI injection"
+            Write-LogErr "WS2012 does not support Debug-VM NMI injection"
             return "FAIL"
         }
         # Confirm the second VM and NFS
@@ -66,10 +66,10 @@ function Main {
             if ($checkState.State -notlike "Running") {
                 Start-VM -Name $vm2Name -ComputerName $HvServer
                 if (-not $LASTEXITCODE) {
-                    LogErr "Unable to start VM ${vm2Name}"
+                    Write-LogErr "Unable to start VM ${vm2Name}"
                     return "FAIL"
                 }
-                LogMsg "Succesfully started dependency VM ${vm2Name}"
+                Write-LogInfo "Succesfully started dependency VM ${vm2Name}"
             }
 
             $newIP = Get-IPv4AndWaitForSSHStart -VMName $VMName -HvServer $HvServer `
@@ -77,65 +77,65 @@ function Main {
             if ($newIP) {
                 $vm2ipv4 = $newIP
             } else {
-                LogErr "Failed to boot up NFS Server $vm2Name"
+                Write-LogErr "Failed to boot up NFS Server $vm2Name"
                 return "FAIL"
             }
 
-            $retVal = RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+            $retVal = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
                 -command "echo 'vm2ipv4=${vm2ipv4}' >> ~/constants.sh"
             if ($retVal -eq $false) {
-                LogErr "Failed to echo ${vm2ipv4} to constants.sh"
+                Write-LogErr "Failed to echo ${vm2ipv4} to constants.sh"
                 return "FAIL"
             }
 
-            $retVal = RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+            $retVal = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
                 -command "chmod u+x KDUMP-NFSConfig.sh && ./KDUMP-NFSConfig.sh"
             if ($retVal -eq $false) {
-                LogErr "Failed to configure the NFS server!"
+                Write-LogErr "Failed to configure the NFS server!"
                 return "FAIL"
             }
         }
         # Append host build number to constants.sh
-        $retVal = RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+        $retVal = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
                 -command "echo BuildNumber=$BuildNumber >> ./constants.sh"
     }
 
     # Configure kdump on the VM
-    $retVal = RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+    $retVal = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
         -command "export HOME=``pwd``;chmod u+x KDUMP-Config.sh && ./KDUMP-Config.sh" -runAsSudo
 
     # Rebooting the VM in order to apply the kdump settings
     .\Tools\plink.exe -C -pw $VMPassword -P $VMPort root@$Ipv4 "reboot"
-    LogMsg "Rebooting VM $VMName after kdump configuration..."
+    Write-LogInfo "Rebooting VM $VMName after kdump configuration..."
     Start-Sleep 10 # Wait for kvp & ssh services stop
 
     # Wait for VM boot up and update ip address
     Wait-ForVMToStartSSH -Ipv4addr $Ipv4 -StepTimeout 360
 
     # Prepare the kdump related
-    $retVal = RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+    $retVal = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
                 -command "export HOME=``pwd``;chmod u+x KDUMP-Execute.sh && ./KDUMP-Execute.sh" -runAsSudo
 
     # Trigger the kernel panic
-    LogMsg "Trigger the kernel panic..."
+    Write-LogInfo "Trigger the kernel panic..."
     if ($nmi -eq 1) {
         # Waiting to kdump_execute.sh to finish execution.
         Start-Sleep -S 100
         Debug-VM -Name $VMName -InjectNonMaskableInterrupt -ComputerName $HvServer -Force
     } else {
         if ($vcpu -eq 4){
-            LogMsg "Kdump will be triggered on VCPU 3 of 4"
-            $retVal = RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+            Write-LogInfo "Kdump will be triggered on VCPU 3 of 4"
+            $retVal = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
                 -command "taskset -c 2 echo c > /proc/sysrq-trigger"
         } else {
             # If directly use plink to trigger kdump, command fails to exit, so use start-process
-            RunLinuxCmd -username "root" -password $VMPassword -ip $Ipv4 -port $VMPort `
+            Run-LinuxCmd -username "root" -password $VMPassword -ip $Ipv4 -port $VMPort `
                 -command "echo c > /proc/sysrq-trigger" -RunInBackGround
         }
     }
 
     # Give the host a few seconds to record the event
-    LogMsg "Waiting seconds to record the event..."
+    Write-LogInfo "Waiting seconds to record the event..."
     Start-Sleep 10
 
     if ($TestPlatform -eq "HyperV") {
@@ -150,10 +150,10 @@ function Main {
     Wait-ForVMToStartSSH -Ipv4addr $Ipv4 -StepTimeout 600
 
     # Verifying if the kernel panic process creates a vmcore file of size 10M+
-    $retVal = RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+    $retVal = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
                 -command "export HOME=``pwd``;chmod u+x KDUMP-Results.sh && ./KDUMP-Results.sh $vm2ipv4" -runAsSudo
     if (-not $retVal) {
-        LogErr "Results are not as expected. Check logs for details."
+        Write-LogErr "Results are not as expected. Check logs for details."
 
         # Stop NFS server VM
         if ($vm2Name) {
@@ -161,10 +161,10 @@ function Main {
         }
         return "FAIL"
     }
-    $result = RunLinuxCmd -username "root" -password $VMPassword -ip $Ipv4 -port $VMPort `
+    $result = Run-LinuxCmd -username "root" -password $VMPassword -ip $Ipv4 -port $VMPort `
                 -command "find /var/crash/ -name vmcore -type f -size +10M" -runAsSudo
-    LogMsg "Files found: $result"
-    LogMsg "Test passed: crash file $result is present"
+    Write-LogInfo "Files found: $result"
+    Write-LogInfo "Test passed: crash file $result is present"
 
     # Stop NFS server VM
     if ($vm2Name) {

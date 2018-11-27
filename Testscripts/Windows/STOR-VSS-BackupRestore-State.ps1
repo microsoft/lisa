@@ -19,7 +19,7 @@ $ErrorActionPreference = "Stop"
 #######################################################################
 # Channge the VM state
 #######################################################################
-function ChangeVMState($vmState,$vmName,$hvServer)
+function Change-VMState($vmState,$vmName,$hvServer)
 {
     $vm = Get-VM -Name $vmName -ComputerName $hvServer
     if ($vmState -eq "Off") {
@@ -57,15 +57,15 @@ function Main
         $VMPort=$captureVMData.SSHPort
         $vmState=$TestParams.vmState
         $HypervGroupName=$captureVMData.HyperVGroupName
-        LogMsg "Test VM details :"
-        LogMsg "  RoleName : $($captureVMData.RoleName)"
-        LogMsg "  Public IP : $($captureVMData.PublicIP)"
-        LogMsg "  SSH Port : $($captureVMData.SSHPort)"
-        LogMsg "  HostName : $($captureVMData.HyperVhost)"
-        LogMsg "vmstate from params  is $vmState"
+        Write-LogInfo "Test VM details :"
+        Write-LogInfo "  RoleName : $($captureVMData.RoleName)"
+        Write-LogInfo "  Public IP : $($captureVMData.PublicIP)"
+        Write-LogInfo "  SSH Port : $($captureVMData.SSHPort)"
+        Write-LogInfo "  HostName : $($captureVMData.HyperVhost)"
+        Write-LogInfo "vmstate from params  is $vmState"
         # Change the working directory to where we need to be
         Set-Location $WorkingDirectory
-        LogMsg "WorkingDirectory"
+        Write-LogInfo "WorkingDirectory"
         $sts = New-BackupSetup $VMName $HvServer
         if (-not $sts[-1]) {
             throw "Failed to create a Backup Setup"
@@ -76,32 +76,32 @@ function Main
             throw "VSS Daemon is not running"
         }
         # Create a file on the VM before backup
-        RunLinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMPort -command "touch /home/$user/1" -runAsSudo
+        Run-LinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMPort -command "touch /home/$user/1" -runAsSudo
         if (-not $?) {
             throw "Cannot create test file"
         }
         $driveletter = $global:driveletter
         if ($null -eq $driveletter) {
-            LogErr "Backup driveletter is not specified."
+            Write-LogErr "Backup driveletter is not specified."
         }
-        LogMsg "Driveletter is $driveletter"
+        Write-LogInfo "Driveletter is $driveletter"
         # Check if VM is Started
         $vm = Get-VM -Name $VMName
         $currentState=$vm.state
-        LogMsg "current vm state is $currentState "
+        Write-LogInfo "current vm state is $currentState "
         if ( $currentState -ne "Running" ) {
-            LogErr "$vmName is not started."
+            Write-LogErr "$vmName is not started."
         }
         # Change the VM state
-        $sts = ChangeVMState $vmState $VMName $HvServer
-        LogMsg "VM state changed to $vmstate :  $sts"
+        $sts = Change-VMState $vmState $VMName $HvServer
+        Write-LogInfo "VM state changed to $vmstate :  $sts"
         if (-not $sts[-1]) {
             throw "vmState param: $vmState is wrong. Available options are `'Off`', `'Saved`'' and `'Paused`'."
         }
         elseif ( $sts -ne $vmState ) {
             throw "Failed to put $vmName in $vmState state $sts."
         }
-        LogMsg "State change of $vmName to $vmState : Success."
+        Write-LogInfo "State change of $vmName to $vmState : Success."
         $sts = New-Backup $VMName $driveletter $HvServer $VMIpv4 $VMPort
         if (-not $sts[-1]) {
             throw "Could not create a Backup Location"
@@ -125,7 +125,7 @@ function Main
     catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "$ErrorMessage at line: $ErrorLine"
+        Write-LogErr "$ErrorMessage at line: $ErrorLine"
     }
     finally {
         if (!$testResult) {
@@ -133,7 +133,7 @@ function Main
         }
         $resultArr += $testResult
     }
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
 Main -TestParams  (ConvertFrom-StringData $TestParams.Replace(";","`n"))

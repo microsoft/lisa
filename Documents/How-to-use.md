@@ -126,13 +126,13 @@ Per Category, each XML file has VM name, Resource Group name, etc. We do not rec
     4. Test design may have two ways;
         a. A single PowerShell script execution: A single PowerShell script imports builtin library 
             modules and posts the result. For example, 'BVT-VERIFY-DEPLOYMENT-PROVISION.ps1' shows 
-            this script calls 'DeployVMs' function for its testing and collect the result 
-            by 'CheckKernelLogs'. 'DeployVMs' and 'CheckKernelLogs' are functions definded 
+            this script calls 'Deploy-VMs' function for its testing and collect the result
+            by 'Check-KernelLogs'. 'Deploy-VMs' and 'Check-KernelLogs' are functions definded
             in ./Libraries/CommonFunctions.psm1 module. 
             You can add new module or update existing ones for further development.
         b. PowerShell script wraps multiple non-PowerShell script like Bash or Python scripts: 
             Like 'VERIFY-TEST-SCRIPT-IN-LINUX-GUEST.ps1', the PowerShell script wraps the multiple 
-            Bash or Python script as a parameter of 'RunLinuxCmd' function.
+            Bash or Python script as a parameter of 'Run-LinuxCmd' function.
     5. Before PR review, we recommend you run script testing in cmdline/API mode. See above instruction.
     6. Current tags in the Repo: bvt, network, nested, hv_storvsc, stress, disk, dpdk,
         sriov, kvm, smb, storage, boot, pci_hyperv, core, wala, lsvmbus, synthetic, kvp,

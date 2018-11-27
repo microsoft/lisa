@@ -37,7 +37,7 @@ function Main {
     param (
         $TestParams
     )
-    $currentTestResult = CreateTestResultObject
+    $currentTestResult = Create-TestResultObject
     $resultArr = @()
     try {
         $testResult = $null
@@ -50,7 +50,7 @@ function Main {
         if (-not $VMName) {
             throw "VM name is null. "
         }
-        LogMsg "VMName $VMName"
+        Write-LogInfo "VMName $VMName"
         if (-not $HvServer) {
             throw "hvServer name is null. "
         }
@@ -58,7 +58,7 @@ function Main {
             throw "TestParams is null. "
         }
         # Write out test Params
-        LogMsg "Test Param $TestParams"
+        Write-LogInfo "Test Param $TestParams"
         # Name of first VM
         $VM1Name = $VMName
         # Number of tries
@@ -72,9 +72,9 @@ function Main {
         $timeoutStress = $TestParams.Stress_Level
         $appGitURL = $TestParams.appGitURL
         $appGitTag = $TestParams.appGitTag
-        #LogMsg "Tries $tries"
-        LogMsg "appGitURL $appGitURL"
-        LogMsg "Git tag is $appGitTag"
+        #Write-LogInfo "Tries $tries"
+        Write-LogInfo "appGitURL $appGitURL"
+        Write-LogInfo "Git tag is $appGitTag"
         $summaryLog = "${vmName}_summary.log"
         Remove-Item $summaryLog -ErrorAction SilentlyContinue
         $vmInfo = Get-VM -Name $vm1Name -ComputerName $hvServer -ErrorAction SilentlyContinue
@@ -83,13 +83,13 @@ function Main {
         }
         # Install stress-ng if not installed
         if($appGitURL) {
-            LogMsg "Stress-ng installation started"
+            Write-LogInfo "Stress-ng installation started"
             $retVal = Publish-App "stress-ng" $Ipv4 $appGitURL $appGitTag $VMPort
             if (-not $retVal)
             {
                 Throw "stress-ng could not be installed! Please install it before running the memory stress tests." | Tee-Object -Append -file $summaryLog
             }
-            LogMsg "Stress-ng is installed"
+            Write-LogInfo "Stress-ng is installed"
         }
         Start-Sleep -s 40
         $sleepPeriod = 120 #seconds
@@ -108,8 +108,8 @@ function Main {
             $testResult = $resultFail
             Throw "vm1 $vm1Name reported 0 memory (assigned or demand)." | Tee-Object -Append -file $summaryLog
         }
-        LogMsg "Memory stats after $vm1Name started reporting"
-        LogMsg "${vm1Name}: assigned - $vm1BeforeAssigned | demand - $vm1BeforeDemand"
+        Write-LogInfo "Memory stats after $vm1Name started reporting"
+        Write-LogInfo "${vm1Name}: assigned - $vm1BeforeAssigned | demand - $vm1BeforeDemand"
         # Set the amount of sleep time needed
         if ($timeoutStress -eq 0) {
             $sleepTime = 20
@@ -150,9 +150,9 @@ function Main {
         Start-Sleep -s $sleepTime
         # Get memory stats for vm1 after stress-ng starts
         [int64]$vm1Assigned = ($vmInfo.MemoryAssigned/1MB)
-        LogMsg "Memory stats for $vm1Name after stress-ng started"
-        LogMsg "${vm1Name}: assigned - $vm1Assigned | demand - $vm1Demand"
-        LogMsg "vm1BeforeDemand $vm1BeforeDemand vm1Demand  $vm1Demand"
+        Write-LogInfo "Memory stats for $vm1Name after stress-ng started"
+        Write-LogInfo "${vm1Name}: assigned - $vm1Assigned | demand - $vm1Demand"
+        Write-LogInfo "vm1BeforeDemand $vm1BeforeDemand vm1Demand  $vm1Demand"
         if ($vm1Demand -le $vm1BeforeDemand) {
             $testResult = $resultFail
             Throw "Memory Demand did not increase after starting stress-ng" | Tee-Object -Append -file $summaryLog
@@ -174,20 +174,20 @@ function Main {
         # Get memory stats after stress-ng finished
         [int64]$vm1AfterAssigned = ($vmInfo.MemoryAssigned/1MB)
         [int64]$vm1AfterDemand = ($vmInfo.MemoryDemand/1MB)
-        LogMsg "Memory stats after stress-ng finished: "
-        LogMsg "  ${vm1Name}: assigned - $vm1AfterAssigned | demand - $vm1AfterDemand"
-        LogMsg "vm1AfterDemand $vm1AfterDemand vm1Demand $vm1Demand"
+        Write-LogInfo "Memory stats after stress-ng finished: "
+        Write-LogInfo "  ${vm1Name}: assigned - $vm1AfterAssigned | demand - $vm1AfterDemand"
+        Write-LogInfo "vm1AfterDemand $vm1AfterDemand vm1Demand $vm1Demand"
         if ($vm1AfterDemand -ge $vm1Demand) {
             $testResult = $resultFail
             Throw "Demand did not go down after stress-ng finished." | Tee-Object -Append -file $summaryLog
         }
-        LogMsg "Memory Hot Add (using stress-ng) completed successfully!" | Tee-Object -Append -file $summaryLog
+        Write-LogInfo "Memory Hot Add (using stress-ng) completed successfully!" | Tee-Object -Append -file $summaryLog
         $testResult = $resultPass
     }
     catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "$ErrorMessage at line: $ErrorLine"
+        Write-LogErr "$ErrorMessage at line: $ErrorLine"
     }
     finally {
         if (!$testResult) {
@@ -195,7 +195,7 @@ function Main {
         }
         $resultArr += $testResult
     }
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
 

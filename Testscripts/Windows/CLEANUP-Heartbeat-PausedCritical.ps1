@@ -12,13 +12,13 @@ function Main {
         Write-Output "Info: Starting cleanup for the child VM"
         Stop-VM -Name $params.vm_name -ComputerName $params.hvServer -TurnOff
         if (-not $?) {
-            LogErr "Error: Unable to Shut Down VM $vmName1"
+            Write-LogErr "Error: Unable to Shut Down VM $vmName1"
         }
 
         # Delete the child VM created
         Remove-VM -Name $params.vm_name -ComputerName $params.hvServer -Confirm:$false -Force
         if (-not $?) {
-            LogErr "Error: Cannot remove the child VM $vmName1"
+            Write-LogErr "Error: Cannot remove the child VM $vmName1"
         }
     }
 

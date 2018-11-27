@@ -58,32 +58,32 @@ function Main {
         $VM2,
         $TestParams
     )
-    $currentTestResult = CreateTestResultObject
+    $currentTestResult = Create-TestResultObject
     $resultArr = @()
     try {
         $testResult = $null
         $vm1name=$VM1.RoleName
         $vm2name=$VM2.RoleName
         $HvServer=$VM1.HyperVHost
-        LogMsg "VM1name is $vm1name"
-        LogMsg "VM2name is $vm2name"
-        LogMsg "Hvserver is $HvServer"
-        LogMsg "Param vm1 Details are -VM $VM1 -minMem $TestParams.minMem -maxMem $TestParams.maxMem -startupMem $TestParams.startupMem -memWeight $TestParams.memWeight"
-        LogMsg "Param vm2 Details are -VM $VM2 -minMem $TestParams.minMem1 -maxMem $TestParams.maxMem1 -startupMem $TestParams.startupMem1 -memWeight $TestParams.memWeight1"
+        Write-LogInfo "VM1name is $vm1name"
+        Write-LogInfo "VM2name is $vm2name"
+        Write-LogInfo "Hvserver is $HvServer"
+        Write-LogInfo "Param vm1 Details are -VM $VM1 -minMem $TestParams.minMem -maxMem $TestParams.maxMem -startupMem $TestParams.startupMem -memWeight $TestParams.memWeight"
+        Write-LogInfo "Param vm2 Details are -VM $VM2 -minMem $TestParams.minMem1 -maxMem $TestParams.maxMem1 -startupMem $TestParams.startupMem1 -memWeight $TestParams.memWeight1"
         Set-VMDynamicMemory -VM $VM1 -minMem $TestParams.minMem -maxMem $TestParams.maxMem `
             -startupMem $TestParams.startupMem -memWeight $TestParams.memWeight
         Set-VMDynamicMemory -VM $VM2 -minMem $TestParams.minMem1 -maxMem $TestParams.maxMem1 `
             -startupMem $TestParams.startupMem1 -memWeight $TestParams.memWeight1
-        LogMsg "Starting VM1 $vm1name"
+        Write-LogInfo "Starting VM1 $vm1name"
         $VM1Ipv4=Start-VMandGetIP $vm1name $HvServer $VMPort $user $password
-        LogMsg "IP address of the VM $vm1name is  $VM1Ipv4"
+        Write-LogInfo "IP address of the VM $vm1name is  $VM1Ipv4"
         # change working directory to root dir
         Set-Location $WorkingDirectory
         $vm1 = Get-VM -Name $vm1name -ComputerName $HvServer -ErrorAction SilentlyContinue
         $vm2 = Get-VM -Name $vm2name -ComputerName $HvServer -ErrorAction SilentlyContinue
-        LogMsg "Starting VM2 $vm2name"
+        Write-LogInfo "Starting VM2 $vm2name"
         $VM2Ipv4=Start-VMandGetIP $vm2name $HvServer $VMPort $user $password
-        LogMsg "IP address of the VM $vm2name is  $VM2Ipv4"
+        Write-LogInfo "IP address of the VM $vm2name is  $VM2Ipv4"
         # Get VM's minimum memory setting
         [int64]$vm1MinMem = ($vm1.MemoryMinimum/1MB)
         # get memory stats from vm1 and vm2
@@ -96,11 +96,11 @@ function Main {
             [int64]$vm1Demand = ($vm1.MemoryDemand/1MB)
             [int64]$vm2Assigned = ($vm2.MemoryAssigned/1MB)
             [int64]$vm2Demand = ($vm2.MemoryDemand/1MB)
-            LogMsg "VM Name ${vm1Name} vm1assigned is $vm1Assigned"
-            LogMsg "Minimum memory for $vm1Name is $vm1MinMem MB"
-            LogMsg "${vm1Name} vm1Demand is $vm1Demand"
-            LogMsg "${vm2Name} vm2Assigned is $vm2Assigned"
-            LogMsg "${vm2Name} vm2Demand is $vm2Demand"
+            Write-LogInfo "VM Name ${vm1Name} vm1assigned is $vm1Assigned"
+            Write-LogInfo "Minimum memory for $vm1Name is $vm1MinMem MB"
+            Write-LogInfo "${vm1Name} vm1Demand is $vm1Demand"
+            Write-LogInfo "${vm2Name} vm2Assigned is $vm2Assigned"
+            Write-LogInfo "${vm2Name} vm2Demand is $vm2Demand"
             if (($vm1Assigned -gt 0) -and ($vm1Demand -gt 0) -and ($vm2Assigned -gt 0) -and ($vm2Demand -gt 0)){
                 break
             }
@@ -109,23 +109,23 @@ function Main {
                 Throw "Error: $vm1Name assigned memory drops below minimum memory set, $vm1MinMem MB"
             }
             $sleepPeriod-= 5
-            start-sleep -s 5
+            Start-Sleep -s 5
         }
         if (($vm1Assigned -le 0) -or ($vm1Demand -le 0) -or ($vm2Assigned -le 0) -or ($vm2Demand -le 0)) {
             Stop-VM -VMName $vm2name -ComputerName $HvServer -force
             Throw "Error: vm1 or vm2 reported 0 memory (assigned or demand)."
         }
-        LogMsg "Memory stats after both $vm1Name and $vm2Name started reporting "
-        LogMsg "  ${vm1Name}: assigned - $vm1Assigned | demand - $vm1Demand"
-        LogMsg "  ${vm2Name}: assigned - $vm2Assigned | demand - $vm2Demand"
+        Write-LogInfo "Memory stats after both $vm1Name and $vm2Name started reporting "
+        Write-LogInfo "  ${vm1Name}: assigned - $vm1Assigned | demand - $vm1Demand"
+        Write-LogInfo "  ${vm2Name}: assigned - $vm2Assigned | demand - $vm2Demand"
         Stop-VM -VMName $vm2name -ComputerName $HvServer -force
-        LogMsg  "$vm1Name assigned memory never drops below the VMs Minimum Memory setting, $vm1MinMem MB"
+        Write-LogInfo  "$vm1Name assigned memory never drops below the VMs Minimum Memory setting, $vm1MinMem MB"
         $testResult = $resultPass
     }
     catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "$ErrorMessage at line: $ErrorLine"
+        Write-LogErr "$ErrorMessage at line: $ErrorLine"
     }
     finally {
         if (!$testResult) {
@@ -133,7 +133,7 @@ function Main {
         }
             $resultArr += $testResult
     }
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
 Main -VM1 $allVMData[0] -VM2 $allVMData[1] -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))

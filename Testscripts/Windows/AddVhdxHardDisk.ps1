@@ -35,7 +35,7 @@ $vmGeneration=$null
 
 ############################################################################
 #
-# CreateHardDrive
+# Create-HardDrive
 #
 # Description
 #     If the -SCSI options is false, an IDE drive is created
@@ -46,7 +46,7 @@ function Create-HardDrive( [string] $vmName, [string] $server, [System.Boolean] 
 {
     $retVal = $false
 
-   LogMsg "CreateHardDrive $vmName $server $scsi $controllerID $lun $vhdType"
+   Write-LogInfo "Create-HardDrive $vmName $server $scsi $controllerID $lun $vhdType"
 
     #
     # Make sure it's a valid IDE ControllerID.  For IDE, it must 0 or 1.
@@ -59,7 +59,7 @@ function Create-HardDrive( [string] $vmName, [string] $server, [System.Boolean] 
 
         if ($ControllerID -lt 0 -or $ControllerID -gt 3)
         {
-           LogErr "Error: CreateHardDrive was passed an bad SCSI Controller ID: $ControllerID"
+           Write-LogErr "Error: Create-HardDrive was passed an bad SCSI Controller ID: $ControllerID"
             return $false
         }
 
@@ -69,7 +69,7 @@ function Create-HardDrive( [string] $vmName, [string] $server, [System.Boolean] 
         $sts = Create-Controller -vmName $vmName -server $server -controllerID $controllerID
         if (-not $sts[$sts.Length-1])
         {
-            LogErr  "Error: Unable to create SCSI controller $controllerID"
+            Write-LogErr  "Error: Unable to create SCSI controller $controllerID"
             return $false
         }
     }
@@ -77,7 +77,7 @@ function Create-HardDrive( [string] $vmName, [string] $server, [System.Boolean] 
     {
         if ($ControllerID -lt 0 -or $ControllerID -gt 1)
         {
-            LogErr "Error: CreateHardDrive was passed an invalid IDE Controller ID: $ControllerID"
+            Write-LogErr "Error: Create-HardDrive was passed an invalid IDE Controller ID: $ControllerID"
             return $False
         }
     }
@@ -90,7 +90,7 @@ function Create-HardDrive( [string] $vmName, [string] $server, [System.Boolean] 
     {
         if ( $controllerID -eq 0 -and $Lun -eq 0 )
         {
-            LogErr "Error: drive $controllerType $controllerID $Lun already exists"
+            Write-LogErr "Error: drive $controllerType $controllerID $Lun already exists"
             return $retVal
         }
         else
@@ -117,7 +117,7 @@ function Create-HardDrive( [string] $vmName, [string] $server, [System.Boolean] 
         $hostInfo = Get-VMHost -ComputerName $server
         if (-not $hostInfo)
         {
-            LogErr "Unable to collect Hyper-V settings for ${server}"
+            Write-LogErr "Unable to collect Hyper-V settings for ${server}"
             return $False
         }
         $defaultVhdPath = $hostInfo.VirtualHardDiskPath
@@ -152,13 +152,13 @@ function Create-HardDrive( [string] $vmName, [string] $server, [System.Boolean] 
 
           default
               {
-                LogErr "Error: unknow vhd type of ${vhdType}"
+                Write-LogErr "Error: unknow vhd type of ${vhdType}"
                   return $False
               }
        }
         if ($nv -eq $null)
         {
-            LogErr  "Error: New-VHD failed to create the new .vhd file: $($vhdName)"
+            Write-LogErr  "Error: New-VHD failed to create the new .vhd file: $($vhdName)"
             return $False
         }
     }
@@ -168,7 +168,7 @@ function Create-HardDrive( [string] $vmName, [string] $server, [System.Boolean] 
      -ControllerLocation $Lun -ControllerType $controllerType -ComputerName $server
     if ($error.Count -gt 0)
     {
-        LogErr "Error: Add-VMHardDiskDrive failed to add drive on ${controllerType} ${controllerID} ${Lun}s"
+        Write-LogErr "Error: Add-VMHardDiskDrive failed to add drive on ${controllerType} ${controllerID} ${Lun}s"
         $error[0].Exception
         return $retVal
     }
@@ -204,13 +204,13 @@ function Main {
 
     if ($hvServer -eq $null -or $hvServer.Length -eq 0)
     {
-        LogErr "Error: hvServer is null"
+        Write-LogErr "Error: hvServer is null"
         return $False
     }
 
     if ($testParams -eq $null -or $testParams.Length -lt 3)
     {
-        LogErr "Error: No testParams provided"
+        Write-LogErr "Error: No testParams provided"
         return $False
     }
 
@@ -239,7 +239,7 @@ function Main {
 
     if (-not $rootDir)
     {
-        LogErr "Error: no rootdir was specified"
+        Write-LogErr "Error: no rootdir was specified"
         return $False
     }
 
@@ -248,7 +248,7 @@ function Main {
     $vmGeneration = Get-VMGeneration -vmName $vmName -hvServer $hvServer
     if ($IDECount -ge 1 -and $vmGeneration -eq 2)
     {
-        LogMsg "Generation 2 VM does not support IDE disk, please skip this case in the test script"
+        Write-LogInfo "Generation 2 VM does not support IDE disk, please skip this case in the test script"
         return $True
     }
     # if define diskCount number, only support one SCSI parameter
@@ -256,14 +256,14 @@ function Main {
     {
     if ($SCSICount -gt 1 -or $IDECount -gt 0)
     {
-        LogErr "Error: Invalid SCSI/IDE arguments, only support to define one SCSI disk"
+        Write-LogErr "Error: Invalid SCSI/IDE arguments, only support to define one SCSI disk"
         return $False
     }
 
     # We will limit SCSI disk number <= 64
     if ($diskCount -lt 0 -or $diskCount -gt 64)
     {
-        LogErr "Error - only support less than 64 SCSI disks"
+        Write-LogErr "Error - only support less than 64 SCSI disks"
         return $false
     }
 
@@ -281,7 +281,7 @@ function Main {
         $p -match '^([^=]+)=(.+)' | Out-Null
         if ($Matches[1,2].Length -ne 2)
         {
-        LogMsg "Warn : test parameter '$p' is being ignored because it appears to be malformed"
+        Write-LogInfo "Warn : test parameter '$p' is being ignored because it appears to be malformed"
             continue
         }
 
@@ -313,7 +313,7 @@ function Main {
 
         if ($diskArgs.Length -lt 3 -or $diskArgs.Length -gt 5)
         {
-            LogErr "Error: Incorrect number of arguments: $p"
+            Write-LogErr "Error: Incorrect number of arguments: $p"
             $retVal = $false
             continue
         }
@@ -335,7 +335,7 @@ function Main {
             $sectorSize = $diskArgs[3].Trim()
             if ($sectorSize -ne "4096" -and $sectorSize -ne "512")
             {
-                LogErr  "Error: bad sector size: ${sectorSize}"
+                Write-LogErr  "Error: bad sector size: ${sectorSize}"
                 return $False
             }
         }
@@ -345,12 +345,12 @@ function Main {
         {
             $global:MinDiskSize = Convert-StringToDecimal -str ($diskArgs[4].Trim())
             # To avoid PSUseDeclaredVarsMoreThanAssignments warning when run PS Analyzer
-            LogMsg "global parameter MinDiskSize is set to $global:MinDiskSize"
+            Write-LogInfo "global parameter MinDiskSize is set to $global:MinDiskSize"
         }
 
         if (@("Fixed", "Dynamic") -notcontains $vhdType)
         {
-            LogErr "Error: Unknown disk type: $p"
+            Write-LogErr "Error: Unknown disk type: $p"
             $retVal = $false
             continue
         }
@@ -381,7 +381,7 @@ function Main {
             -Lun $Lun -vhdType $vhdType -sectorSize $sectorSize
             if (-not $sts[$sts.Length-1])
             {
-                LogErr "Error: Failed to create hard drive!"
+                Write-LogErr "Error: Failed to create hard drive!"
                 $sts
                 $retVal = $false
                 continue

@@ -24,12 +24,12 @@ function Main {
     $value = $null
 
     if (-not $TestParams) {
-        LogErr "Error: No TestParams provided"
-        LogErr "This script requires the Key & value as the test parameters"
+        Write-LogErr "Error: No TestParams provided"
+        Write-LogErr "This script requires the Key & value as the test parameters"
         return "Aborted"
     }
     if (-not $RootDir) {
-        LogMsg "Warn : No RootDir test parameter was provided"
+        Write-LogInfo "Warn : No RootDir test parameter was provided"
     } else {
         Set-Location $RootDir
     }
@@ -47,35 +47,35 @@ function Main {
     }
 
     if (-not $key) {
-        LogErr "Error: Missing testParam Key to be added"
+        Write-LogErr "Error: Missing testParam Key to be added"
         return "FAIL"
     }
     if (-not $value) {
-        LogErr "Error: Missing testParam Value to be added"
+        Write-LogErr "Error: Missing testParam Value to be added"
         return "FAIL"
     }
 
-    LogMsg "Info : Adding Key=value of: ${key}=${value}"
+    Write-LogInfo "Info : Adding Key=value of: ${key}=${value}"
 
     # Add the Key Value pair to the Pool 0 on guest OS.
     $vmManagementService = Get-WmiObject -class "Msvm_VirtualSystemManagementService" `
         -namespace "root\virtualization\v2" -ComputerName $HvServer
     if (-not $vmManagementService) {
-        LogErr "Error: Unable to create a VMManagementService object"
+        Write-LogErr "Error: Unable to create a VMManagementService object"
         return "FAIL"
     }
 
     $vmGuest = Get-WmiObject -Namespace root\virtualization\v2 -ComputerName $HvServer `
         -Query "Select * From Msvm_ComputerSystem Where ElementName='$VMName'"
     if (-not $vmGuest) {
-        LogErr "Error: Unable to create VMGuest object"
+        Write-LogErr "Error: Unable to create VMGuest object"
         return "FAIL"
     }
 
     $msvmKvpExchangeDataItemPath = "\\$HvServer\root\virtualization\v2:Msvm_KvpExchangeDataItem"
     $msvmKvpExchangeDataItem = ([WmiClass]$msvmKvpExchangeDataItemPath).CreateInstance()
     if (-not $msvmKvpExchangeDataItem) {
-        LogErr "Error: Unable to create Msvm_KvpExchangeDataItem object"
+        Write-LogErr "Error: Unable to create Msvm_KvpExchangeDataItem object"
         return "FAIL"
     }
 
@@ -91,16 +91,16 @@ function Main {
         $job.get()
     }
     if ($job.ErrorCode -ne 0) {
-        LogErr "Error: Unable to add KVP value to guest"
-        LogErr "       error code $($job.ErrorCode)"
+        Write-LogErr "Error: Unable to add KVP value to guest"
+        Write-LogErr "       error code $($job.ErrorCode)"
         return "FAIL"
     }
     if ($job.Status -ne "OK") {
-        LogErr "Error: KVP add job did not complete with status OK"
+        Write-LogErr "Error: KVP add job did not complete with status OK"
         return "FAIL"
     }
 
-    LogMsg "Info : KVP item added successfully on guest"
+    Write-LogInfo "Info : KVP item added successfully on guest"
     return "PASS"
 }
 

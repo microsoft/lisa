@@ -24,13 +24,13 @@ function Main {
 
     # Change the working directory to where we need to be
     if (-not (Test-Path $rootDir)) {
-        LogErr "Error: The directory `"${rootDir}`" does not exist"
+        Write-LogErr "Error: The directory `"${rootDir}`" does not exist"
         return "FAIL"
     }
     Set-Location $rootDir
 
     # Get free memory from server
-    $osInfo = Get-WMIObject Win32_OperatingSystem -ComputerName $HvServer
+    $osInfo = Get-WmiObject Win32_OperatingSystem -ComputerName $HvServer
     $freeMem = [int]$($OSInfo.FreePhysicalMemory) / 1MB
 
     # Array of memory size to boot( total available memory, 70% of available memory, 40% of available memory)
@@ -45,7 +45,7 @@ function Main {
         if ($vm.State -ne "Off") {
             Stop-VM -Name $VMName -ComputerName $HvServer -Force
             if (-not $?) {
-               LogErr "Error: Unable to Shut Down VM"
+               Write-LogErr "Error: Unable to Shut Down VM"
                $retVal = "FAIL"
                break
             }
@@ -53,7 +53,7 @@ function Main {
             $timeout = 180
             $sts = Wait-ForVMToStop $VMName $HvServer $timeout
             if (-not $sts) {
-               LogErr "Error: WaitForVMToStop fail"
+               Write-LogErr "Error: Wait-ForVMToStop fail"
                $retVal = "FAIL"
                break
             }
@@ -62,9 +62,9 @@ function Main {
         $memoryParam = "VMMemory = ${memory}GB"
         $sts = .\Testscripts\Windows\Set-VM-Memory.ps1 -vmName $VMName -hvServer $HvServer -testParams $memoryParam
         if ($sts[-1] -eq "True") {
-            LogMsg "VM memory count updated to $memory GB RAM"
+            Write-LogInfo "VM memory count updated to $memory GB RAM"
         } else {
-            LogErr "Error: Unable to update VM memory to $memory GB RAM. Consider changing the value."
+            Write-LogErr "Error: Unable to update VM memory to $memory GB RAM. Consider changing the value."
             $retVal = "FAIL"
             break
         }
@@ -72,7 +72,7 @@ function Main {
         $Error.Clear()
         Start-VM -Name $VMName -ComputerName $HvServer  -ErrorAction SilentlyContinue
         if ($Error[0] -and $Error[0].Exception.Message.Contains("Not enough memory")) {
-            LogErr "Error: Not enough memory ($memory) GB to start VM. Consider changing the value."
+            Write-LogErr "Error: Not enough memory ($memory) GB to start VM. Consider changing the value."
             $retVal = "FAIL"
             break
         }
@@ -82,10 +82,10 @@ function Main {
         $new_ipv4 = Get-IPv4AndWaitForSSHStart $VMName $HvServer $VMPort $VMUserName $VMPassword 300
         if ($new_ipv4) {
             # In some cases the IP changes after a reboot
-            LogMsg "${VMName} IP Address after reboot: ${new_ipv4}"
+            Write-LogInfo "${VMName} IP Address after reboot: ${new_ipv4}"
             Set-Variable -Name "Ipv4" -Value $new_ipv4 -Scope Global
         } else {
-            LogErr "Error: VM $VMName failed to start after setting $numCPUs vCPUs"
+            Write-LogErr "Error: VM $VMName failed to start after setting $numCPUs vCPUs"
             $retVal = "FAIL"
             break
         }

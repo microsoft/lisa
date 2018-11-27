@@ -26,7 +26,7 @@ function Main {
 
     # Check input arguments
     if ($null -eq $TestParams -or $TestParams.Length -lt 3) {
-        LogErr "The script $MyInvocation.InvocationName requires the VCPU test parameter"
+        Write-LogErr "The script $MyInvocation.InvocationName requires the VCPU test parameter"
         return $retVal
     }
 
@@ -55,12 +55,12 @@ function Main {
     }
 
     if ($numCPUs -eq 0) {
-        LogErr "VCPU test parameter not found in TestParams"
+        Write-LogErr "VCPU test parameter not found in TestParams"
         return $retVal
     }
 
     # Do a sanity check on the value provided in the TestParams
-    $procs = get-wmiobject -computername $HvServer win32_processor
+    $procs = Get-WmiObject -computername $HvServer win32_processor
     if ($procs) {
         if ($procs -is [array]) {
             foreach ($n in $procs) {
@@ -95,27 +95,27 @@ function Main {
     }
 
     if ($numCPUs -lt 1 -or $numCPUs -gt $maxCPUs) {
-        LogErr "Incorrect VCPU value: $numCPUs (max CPUs = $maxCPUs)"
+        Write-LogErr "Incorrect VCPU value: $numCPUs (max CPUs = $maxCPUs)"
     }
 
     # Update the CPU count on the VM
     Set-VM -Name $VMName -ComputerName $HvServer -ProcessorCount $numCPUs
 
     if ($? -eq "True") {
-        LogMsg "CPU count updated to $numCPUs"
+        Write-LogInfo "CPU count updated to $numCPUs"
         $retVal = $true
     } else {
-        LogErr "Unable to update CPU count to $numCPUs"
+        Write-LogErr "Unable to update CPU count to $numCPUs"
         return $retVal
     }
 
     Set-VMProcessor -VMName $VMName -ComputerName $HvServer -MaximumCountPerNumaNode $numaNodes -MaximumCountPerNumaSocket $sockets
     if ($? -eq "True") {
-        LogMsg "NUMA Nodes updated"
+        Write-LogInfo "NUMA Nodes updated"
         $retVal = $true
     } else {
         $retVal = $false
-        LogErr "Unable to update NUMA nodes!"
+        Write-LogErr "Unable to update NUMA nodes!"
     }
 
     if ($null -ne $memWeight) {
@@ -130,10 +130,10 @@ function Main {
         $staticMemory = Convert-StringToDecimal $mem
         Set-VMMemory $VMName -ComputerName $HvServer -MaximumAmountPerNumaNodeBytes $staticMemory -Priority $memWeight
         if ($? -eq "True") {
-            LogMsg "NUMA memory updated"
+            Write-LogInfo "NUMA memory updated"
             $retVal = $true
         } else {
-            LogErr "Unable to update NUMA memory $mem"
+            Write-LogErr "Unable to update NUMA memory $mem"
             $retVal = $false
         }
     }

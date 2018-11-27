@@ -31,16 +31,16 @@ Function Import-TestCases($WorkingDirectory, $TestConfigurationXmlFile) {
 	$SetupTypeXMLs = Get-ChildItem -Path "$WorkingDirectory\XML\VMConfigurations\*.xml"
 	$AllLisaTests = @()
 
-	$AllLisaTests = CollectTestCases -TestXMLs $TestXMLs
+	$AllLisaTests = Collect-TestCases -TestXMLs $TestXMLs
 	if( !$AllLisaTests.innerXML ) {
 		Throw "Specified -TestNames or -TestCategory not found"
 	}
 
 	$SetupTypes = $AllLisaTests.SetupType | Sort-Object | Get-Unique
 
-	$tab = CreateArrayOfTabs
+	$tab = Create-ArrayOfTabs
 	$TestCycle = "TC-$TestID"
-	$GlobalConfiguration = [xml](Get-content .\XML\GlobalConfigurations.xml)
+	$GlobalConfiguration = [xml](Get-Content .\XML\GlobalConfigurations.xml)
 	<##########################################################################
 	We're following the Indentation of the XML file to make XML creation easier.
 	##########################################################################>
@@ -167,7 +167,7 @@ Function Import-TestCases($WorkingDirectory, $TestConfigurationXmlFile) {
 				}
 				$xmlContent += ("$($tab[2])" + "</test>`n")
 			} else {
-				LogErr "*** UNSUPPORTED TEST *** : $currentTest. Skipped."
+				Write-LogErr "*** UNSUPPORTED TEST *** : $currentTest. Skipped."
 			}
 		}
 		$xmlContent += ("$($tab[1])" + "</testsDefinition>`n")
@@ -186,12 +186,12 @@ Function Import-TestCases($WorkingDirectory, $TestConfigurationXmlFile) {
 		$xmlContent += ("$($tab[1])" + "</testCycles>`n")
 	$xmlContent += ("$($tab[0])" + "</config>`n")
   	Set-Content -Value $xmlContent -Path $TestConfigurationXmlFile -Force
-  	LogMsg "Test cases are scanned and imported to $TestConfigurationXmlFile"
+  	Write-LogInfo "Test cases are scanned and imported to $TestConfigurationXmlFile"
 }
 
 Function Validate-XmlFiles( [string]$ParentFolder )
 {
-	LogMsg "Validating XML Files from $ParentFolder folder recursively..."
+	Write-LogInfo "Validating XML Files from $ParentFolder folder recursively..."
 	$allXmls = Get-ChildItem "$ParentFolder\*.xml" -Recurse
 	$xmlErrorFiles = @()
 	foreach ($file in $allXmls)
@@ -202,31 +202,31 @@ Function Validate-XmlFiles( [string]$ParentFolder )
 		}
 		catch
 		{
-			LogError -text "$($file.FullName) validation failed."
+			Write-LogErr -text "$($file.FullName) validation failed."
 			$xmlErrorFiles += $file.FullName
 		}
 	}
 	if ( $xmlErrorFiles.Count -gt 0 )
 	{
-		$xmlErrorFiles | ForEach-Object -Process {LogMsg $_}
+		$xmlErrorFiles | ForEach-Object -Process {Write-LogInfo $_}
 		Throw "Please fix above ($($xmlErrorFiles.Count)) XML files."
 	}
 }
 
 Function Import-TestParameters($ParametersFile)
 {
-	LogMsg "Import test parameters from provided XML file $ParametersFile ..."
+	Write-LogInfo "Import test parameters from provided XML file $ParametersFile ..."
 	try {
 		$LISAv2Parameters = [xml](Get-Content -Path $ParametersFile)
 		$ParameterNames = ($LISAv2Parameters.TestParameters.ChildNodes | Where-Object {$_.NodeType -eq "Element"}).Name
 		foreach ($ParameterName in $ParameterNames) {
 			if ($LISAv2Parameters.TestParameters.$ParameterName) {
 				if ($LISAv2Parameters.TestParameters.$ParameterName -eq "true") {
-					LogMsg ">>> Setting boolean parameter: $ParameterName = true"
+					Write-LogInfo ">>> Setting boolean parameter: $ParameterName = true"
 					Set-Variable -Name $ParameterName -Value $true -Scope Global -Force
 				}
 				else {
-					LogMsg ">>> Setting parameter: $ParameterName = $($LISAv2Parameters.TestParameters.$ParameterName)"
+					Write-LogInfo ">>> Setting parameter: $ParameterName = $($LISAv2Parameters.TestParameters.$ParameterName)"
 					Set-Variable -Name $ParameterName -Value $LISAv2Parameters.TestParameters.$ParameterName -Scope Global -Force
 				}
 			}
@@ -236,7 +236,7 @@ Function Import-TestParameters($ParametersFile)
 		$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
 		$ErrorMessage =  $_.Exception.Message
 
-		LogErr "EXCEPTION : $ErrorMessage"
-		LogErr "Source : Line $line in script $script_name."
+		Write-LogErr "EXCEPTION : $ErrorMessage"
+		Write-LogErr "Source : Line $line in script $script_name."
 	}
 }

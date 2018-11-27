@@ -69,9 +69,9 @@ if ( $TestByTag )
 }
 
 $UniqueTestRegions = $TestRegions | Sort-Object |  Get-Unique
-LogMsg "Selected test regions:"
+Write-LogInfo "Selected test regions:"
 $i = 1
 $CurrentTestRegions = ""
 Set-Content -Value "" -Path .\CurrentTestRegions.azure.env -Force -NoNewline
-$UniqueTestRegions | ForEach-Object { LogMsg "$i. $_"; $i += 1; $CurrentTestRegions += "$_," }
+$UniqueTestRegions | ForEach-Object { Write-LogInfo "$i. $_"; $i += 1; $CurrentTestRegions += "$_," }
 Set-Content -Value $CurrentTestRegions.TrimEnd(",") -Path .\CurrentTestRegions.azure.env -Force -NoNewline -Verbose

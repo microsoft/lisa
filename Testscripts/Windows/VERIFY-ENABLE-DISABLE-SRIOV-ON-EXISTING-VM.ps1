@@ -15,25 +15,25 @@ Function Run-CurrentTest ( [switch]$Enable, [switch]$Disable) {
         $IsSriovVerified = Test-SRIOVInLinuxGuest -username "root" -password $password `
             -IpAddress $AllVMData.PublicIP -SSHPort $AllVMData.SSHPort -ExpectedSriovNics $ExpectedNics
         if ( $IsSriovVerified ) {
-            LogMsg "$DesiredState Accelerated networking : verified successfully."
+            Write-LogInfo "$DesiredState Accelerated networking : verified successfully."
             $StageResult = $true
             $resultArr += "PASS"
-            $CurrentTestResult.TestSummary += CreateResultSummary -testResult "PASS" -metaData "$DesiredState`SRIOV : Test Iteration - $TestIteration" `
+            $CurrentTestResult.TestSummary += Create-ResultSummary -testResult "PASS" -metaData "$DesiredState`SRIOV : Test Iteration - $TestIteration" `
                 -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
         }
         else {
-            LogMsg "$DesiredState Accelerated networking : Failed."
+            Write-LogInfo "$DesiredState Accelerated networking : Failed."
             $StageResult = $false
             $resultArr += "FAIL"
-            $CurrentTestResult.TestSummary += CreateResultSummary -testResult "FAIL" -metaData "$DesiredState`SRIOV : Test Iteration - $TestIteration" `
+            $CurrentTestResult.TestSummary += Create-ResultSummary -testResult "FAIL" -metaData "$DesiredState`SRIOV : Test Iteration - $TestIteration" `
                 -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
             $FailureCount += 1
         }
     }
     else {
-        LogMsg "Test Accelerated networking : Failed."
+        Write-LogInfo "Test Accelerated networking : Failed."
         $resultArr += "FAIL"
-        $CurrentTestResult.TestSummary += CreateResultSummary -testResult "FAIL" -metaData "$DesiredState`SRIOV : Test Iteration - $TestIteration" `
+        $CurrentTestResult.TestSummary += Create-ResultSummary -testResult "FAIL" -metaData "$DesiredState`SRIOV : Test Iteration - $TestIteration" `
             -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
         $FailureCount += 1
         $StageResult = $false
@@ -49,7 +49,7 @@ function Main {
         #Enable SRIOV
         for ($TestIteration = 1 ; $TestIteration -le [int]$CurrentTestData.TestIterations; $TestIteration ++ ) {
             if ($Stage2Result) {
-                LogMsg "[Iteration : $TestIteration/$($CurrentTestData.TestIterations)] Stage 1: Enable SRIOV on Non-SRIOV Azure VM."
+                Write-LogInfo "[Iteration : $TestIteration/$($CurrentTestData.TestIterations)] Stage 1: Enable SRIOV on Non-SRIOV Azure VM."
                 $Stage1Result = $false
                 $Stage1Result = Run-CurrentTest -Enable
             }
@@ -61,7 +61,7 @@ function Main {
             }
 
             if ($Stage1Result) {
-                LogMsg "[Iteration : $TestIteration/$($CurrentTestData.TestIterations)] Stage 2: Disable SRIOV on SRIOV Azure VM."
+                Write-LogInfo "[Iteration : $TestIteration/$($CurrentTestData.TestIterations)] Stage 2: Disable SRIOV on SRIOV Azure VM."
                 $Stage2Result = $false
                 $Stage2Result = Run-CurrentTest -Disable
             }
@@ -80,14 +80,14 @@ function Main {
             $testResult = "FAIL"
         }
 
-        LogMsg "Test Completed."
-        LogMsg "Test Result: $testResult"
+        Write-LogInfo "Test Completed."
+        Write-LogInfo "Test Result: $testResult"
 
     }
     catch {
         $ErrorMessage = $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+        Write-LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     }
     Finally {
         if (!$testResult) {
@@ -96,7 +96,7 @@ function Main {
         $resultArr += $testResult
     }
 
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
 

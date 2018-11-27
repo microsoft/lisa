@@ -55,7 +55,7 @@ try
         try
         {
             $retryCount += 1
-            LogMsg "[Attempt $retryCount/$maxRetryCount] : Getting Storage Account details ..."
+            Write-LogInfo "[Attempt $retryCount/$maxRetryCount] : Getting Storage Account details ..."
             $GetAzureRMStorageAccount = $null
             $GetAzureRMStorageAccount = Get-AzureRmStorageAccount
             if ($GetAzureRMStorageAccount -eq $null)
@@ -69,7 +69,7 @@ try
         }
         catch
         {
-            LogErr "Error in fetching Storage Account info. Retrying in 10 seconds."
+            Write-LogErr "Error in fetching Storage Account info. Retrying in 10 seconds."
             sleep -Seconds 10
             $saInfoCollected = $false
         }
@@ -131,11 +131,11 @@ try
         # Start the Copy
         if (($SrcStorageAccount -eq $DestAccountName) -and ($SrcStorageBlob -eq $DestBlob))
         {
-            LogMsg "Skipping copy for : $DestAccountName as source storage account and VHD name is same."
+            Write-LogInfo "Skipping copy for : $DestAccountName as source storage account and VHD name is same."
         }
         else
         {
-            LogMsg "Copying $SrcStorageBlob as $DestBlob from and to storage account $DestAccountName/$DestContainer"
+            Write-LogInfo "Copying $SrcStorageBlob as $DestBlob from and to storage account $DestAccountName/$DestContainer"
             $null = Start-AzureStorageBlobCopy -AbsoluteUri $SasUrl  -DestContainer $destContainer -DestContext $destContext -DestBlob $destBlob -Force
             $destContextArr += $destContext
         }
@@ -153,11 +153,11 @@ try
             $status = Get-AzureStorageBlobCopyState -Container $destContainer -Blob $destBlob -Context $destContext
             if ($status.Status -eq "Success")
             {
-                LogMsg "$DestBlob : $($destContext.StorageAccountName) : Done : 100 %"
+                Write-LogInfo "$DestBlob : $($destContext.StorageAccountName) : Done : 100 %"
             }
             elseif ($status.Status -eq "Failed")
             {
-                LogMsg "$DestBlob : $($destContext.StorageAccountName) : Failed."
+                Write-LogInfo "$DestBlob : $($destContext.StorageAccountName) : Failed."
             }
             elseif ($status.Status -eq "Pending")
             {
@@ -165,27 +165,27 @@ try
                 $CopyingInProgress = $true
                 $newDestContextArr += $destContext
                 $copyPercent = [math]::Round((($status.BytesCopied/$status.TotalBytes) * 100),2)
-                LogMsg "$DestBlob : $($destContext.StorageAccountName) : Running : $copyPercent %"
+                Write-LogInfo "$DestBlob : $($destContext.StorageAccountName) : Running : $copyPercent %"
             }
         }
         if ($CopyingInProgress)
         {
-            LogMsg "--------$($newDestContextArr.Count) copy operations still in progress.-------"
+            Write-LogInfo "--------$($newDestContextArr.Count) copy operations still in progress.-------"
             $destContextArr = $newDestContextArr
             Sleep -Seconds 10
         }
         $ExitCode = 0
     }
-    LogMsg "All Copy Operations completed successfully."
+    Write-LogInfo "All Copy Operations completed successfully."
 }
 catch
 {
     $ExitCode = 1
-    ThrowExcpetion ($_)
+    Raise-Exception ($_)
 }
 finally
 {
-    LogMsg "Exiting with code: $ExitCode"
+    Write-LogInfo "Exiting with code: $ExitCode"
     exit $ExitCode
 }
 #endregion

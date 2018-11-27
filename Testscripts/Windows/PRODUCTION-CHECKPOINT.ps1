@@ -16,7 +16,7 @@
 $ErrorActionPreference = "Stop"
 
 function Main {
-    $currentTestResult = CreateTestResultObject
+    $currentTestResult = Create-TestResultObject
     $resultArr = @()
 
     try{
@@ -29,13 +29,13 @@ function Main {
 
         # Change the working directory to where we need to be
         Set-Location $WorkingDirectory
-        LogMsg "Check host version and skip TC in case of older than WS2016"
+        Write-LogInfo "Check host version and skip TC in case of older than WS2016"
         $BuildNumber =  Get-HostBuildNumber $HvServer
         if ($BuildNumber -eq 0) {
             throw "Invalid Windows build number"
         }
         elseif ($BuildNumber -lt 10500) {
-	        LogMsg "Feature supported only on WS2016 and newer"
+	        Write-LogInfo "Feature supported only on WS2016 and newer"
         }
         # Check if the VM VHD in not on the same drive as the backup destination
         $vm = Get-VM -Name $VMName -ComputerName $HvServer
@@ -47,13 +47,13 @@ function Main {
             throw "Running $remoteScript script failed on VM!"
         }
 
-        LogMsg "VSS Daemon is running"
+        Write-LogInfo "VSS Daemon is running"
 
         # Create a file on the VM
         $testfile1="Testfile_$(Get-Random -minimum 1 -maximum 1000)"
-        LogMsg "Creating ${testfile1}"
-        New-Item -type file -name $testfile1 -force | out-null
-        RemoteCopy -upload -uploadTo $Ipv4 -Port $VMPort `
+        Write-LogInfo "Creating ${testfile1}"
+        New-Item -type file -name $testfile1 -force | Out-Null
+        Copy-RemoteFiles -upload -uploadTo $Ipv4 -Port $VMPort `
                     -files $testfile1 -Username $user -password $password
         #Check if we can set the Production Checkpoint as default
         if ($vm.CheckpointType -ne "ProductionOnly"){
@@ -63,7 +63,7 @@ function Main {
         $random = Get-Random -minimum 1024 -maximum 4096
         $snapshot = "TestSnapshot_$random"
 
-        LogMsg "creating Production Checkpoint ${snapshot} of VM ${VMName}"
+        Write-LogInfo "creating Production Checkpoint ${snapshot} of VM ${VMName}"
         Checkpoint-VM -Name $VMName -SnapshotName $snapshot -ComputerName $HvServer
         if (-not $?) {
             throw "Could not create Production checkpoint with $snapshot"
@@ -71,11 +71,11 @@ function Main {
 
         # Create another file on the VM
         $testfile2="Testfile_$(Get-Random -minimum 1 -maximum 1000)"
-        LogMsg "Creating ${testfile2}"
-        New-Item -type file -name $testfile2 -force | out-null
-        RemoteCopy -upload -uploadTo $Ipv4 -Port $VMPort `
+        Write-LogInfo "Creating ${testfile2}"
+        New-Item -type file -name $testfile2 -force | Out-Null
+        Copy-RemoteFiles -upload -uploadTo $Ipv4 -Port $VMPort `
                     -files $testfile2 -Username $user -password $password
-        LogMsg "Restoring Production Checkpoint ${snapshot}"
+        Write-LogInfo "Restoring Production Checkpoint ${snapshot}"
         Restore-VMSnapshot -VMName $VMName -Name $snapshot -ComputerName $HvServer -Confirm:$false
 
         #
@@ -94,38 +94,38 @@ function Main {
 
         $sts = Check-FileInLinuxGuest -VMPassword $password -VMPort $VMPort -VMUserName $user -Ipv4 $Ipv4 -fileName $testfile1
         if (-not $sts) {
-            LogErr "${testfile1} is not present, it should be present on the VM"
+            Write-LogErr "${testfile1} is not present, it should be present on the VM"
             $testResult = $resultFail
 
         }
 
         $sts = Check-FileInLinuxGuest -VMPassword $password -VMPort $VMPort -VMUserName $user -Ipv4 $Ipv4 -fileName $testfile2
         if ($sts) {
-            LogErr "${testfile2} is present,it should not be present on the VM"
+            Write-LogErr "${testfile2} is present,it should not be present on the VM"
             $testResult = $resultFail
         }
         #
         # Delete the snapshot
         #
-        LogMsg "Deleting Snapshot ${snapshot} of VM ${VMName}"
+        Write-LogInfo "Deleting Snapshot ${snapshot} of VM ${VMName}"
         Remove-VMSnapshot -VMName $VMName -Name $snapshot -ComputerName $HvServer
 
         if( $testResult -ne $resultFail) {
-            LogMsg "Only the first file is present. Test succeeded"
+            Write-LogInfo "Only the first file is present. Test succeeded"
             $testResult=$resultPass
         }
 
     } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "$ErrorMessage at line: $ErrorLine"
+        Write-LogErr "$ErrorMessage at line: $ErrorLine"
     } finally {
         if (!$testResult) {
             $testResult = $resultAborted
         }
         $resultArr += $testResult
     }
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
 	return $currentTestResult.TestResult
 }
 

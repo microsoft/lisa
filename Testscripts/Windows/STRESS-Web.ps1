@@ -5,14 +5,14 @@ $testScript = "stress_web.sh"
 
 function Start-TestExecution ($ip, $port)
 {
-    RunLinuxCmd -username $username -password $password -ip $ip -port $port -command "chmod +x *;touch /home/$username/state.txt" -runAsSudo
-    LogMsg "Executing : ${testScript}"
+    Run-LinuxCmd -username $username -password $password -ip $ip -port $port -command "chmod +x *;touch /home/$username/state.txt" -runAsSudo
+    Write-LogInfo "Executing : ${testScript}"
     $cmd = "/home/$username/${testScript}"
-    $testJob = RunLinuxCmd -username $username -password $password -ip $ip -port $port -command $cmd -runAsSudo -RunInBackground
+    $testJob = Run-LinuxCmd -username $username -password $password -ip $ip -port $port -command $cmd -runAsSudo -RunInBackground
     while ((Get-Job -Id $testJob).State -eq "Running") {
-        $currentStatus = RunLinuxCmd -username $username -password $password -ip $ip -port $port -command "cat /home/$username/state.txt"  -runAsSudo
-        LogMsg "Current test status : $currentStatus"
-        WaitFor -seconds 30
+        $currentStatus = Run-LinuxCmd -username $username -password $password -ip $ip -port $port -command "cat /home/$username/state.txt"  -runAsSudo
+        Write-LogInfo "Current test status : $currentStatus"
+        Wait-Time -seconds 30
     }
     return $currentStatus
 }
@@ -20,7 +20,7 @@ function Start-TestExecution ($ip, $port)
 function Get-SQLQueryOfWebStress ($xmlConfig, $logDir)
 {
     try {
-        LogMsg "Getting the SQL query of test results..."
+        Write-LogInfo "Getting the SQL query of test results..."
         $dataTableName = $xmlConfig.config.$TestPlatform.database.dbtable
         $TestCaseName = $currentTestData.testName
         $HostType = "$TestPlatform"
@@ -57,19 +57,19 @@ function Get-SQLQueryOfWebStress ($xmlConfig, $logDir)
             $SQLQuery += "('$TestCaseName','$testDate','$HostType','$HostBy','$HostOS','$GuestOSType','$GuestDistro','$GuestKernelVersion','$GuestSize','$paralle','$numQuery','$accuracy','$query_per_sec','$msecs_per_connec','$runtime'),"
         }
         $SQLQuery = $SQLQuery.TrimEnd(',')
-        LogMsg "Getting the SQL query of test results:  done"
+        Write-LogInfo "Getting the SQL query of test results:  done"
         return $SQLQuery
     } catch {
-        LogErr "Getting the SQL query of test results:  ERROR"
+        Write-LogErr "Getting the SQL query of test results:  ERROR"
         $errorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "EXCEPTION : $errorMessage at line: $ErrorLine"
+        Write-LogErr "EXCEPTION : $errorMessage at line: $ErrorLine"
     }
 }
 
 function Main()
 {
-    $currentTestResult = CreateTestResultObject
+    $currentTestResult = Create-TestResultObject
     $resultArr = @()
     $testResult = $resultAborted
     try
@@ -108,28 +108,28 @@ function Main()
             $serverPublicIP = Get-IPv4ViaKVP $VM2Name $DependencyVmHost
         }
 
-        LogMsg "CLIENT VM details :"
-        LogMsg "  Public IP : $clientPublicIP "
-        LogMsg "  Second Internal IP : $clientSecondInternalIP"
-        LogMsg "  SSH Port : $clientSSHPort"
+        Write-LogInfo "CLIENT VM details :"
+        Write-LogInfo "  Public IP : $clientPublicIP "
+        Write-LogInfo "  Second Internal IP : $clientSecondInternalIP"
+        Write-LogInfo "  SSH Port : $clientSSHPort"
 
-        LogMsg "SERVER VM details :"
-        LogMsg "  Public IP : $serverPublicIP"
-        LogMsg "  Second Internal IP : $serverSecondInternalIP"
-        LogMsg "  SSH Port : $serverSSHPort"
+        Write-LogInfo "SERVER VM details :"
+        Write-LogInfo "  Public IP : $serverPublicIP"
+        Write-LogInfo "  Second Internal IP : $serverSecondInternalIP"
+        Write-LogInfo "  SSH Port : $serverSSHPort"
 
-        LogMsg "Install nginx on server vm: $serverPublicIP"
+        Write-LogInfo "Install nginx on server vm: $serverPublicIP"
         $cmd = ". utils.sh && update_repos && install_package nginx"
-        RunLinuxCmd -ip $serverPublicIP -port $serverSSHPort -username $username -password $password -command $cmd -runAsSudo
+        Run-LinuxCmd -ip $serverPublicIP -port $serverSSHPort -username $username -password $password -command $cmd -runAsSudo
 
         foreach ($fileSize in ($fileSizeList -replace '\s{2,}', ' ').Trim().Split(" ") ) {
             $fileSize = [int]$fileSize
             $fileName = "file_${fileSize}K"
-            LogMsg "Prepare file: /var/www/html/$fileName "
+            Write-LogInfo "Prepare file: /var/www/html/$fileName "
             $cmd = "dd if=/dev/zero of=/var/www/html/$fileName bs=1024 count=$fileSize"
-            RunLinuxCmd -ip $serverPublicIP -port $serverSSHPort -username $username -password $password -command $cmd -runAsSudo
+            Run-LinuxCmd -ip $serverPublicIP -port $serverSSHPort -username $username -password $password -command $cmd -runAsSudo
             $cmd = "echo http://${serverSecondInternalIP}/${fileName}  >> /home/${username}/urls"
-            RunLinuxCmd -ip $clientPublicIP  -port $clientSSHPort -username $username -password $password -command $cmd -runAsSudo
+            Run-LinuxCmd -ip $clientPublicIP  -port $clientSSHPort -username $username -password $password -command $cmd -runAsSudo
         }
 
         Start-TestExecution -ip $clientPublicIP -port $clientSSHPort
@@ -139,19 +139,19 @@ function Main()
         if ($testResult -imatch $resultPass) {
             Remove-Item "$LogDir\*.csv" -Force
             $remoteFiles = "nginxStress.csv,VM_properties.csv,TestExecution.log,web_test_results.tar.gz"
-            RemoteCopy -download -downloadFrom $clientPublicIP -files $remoteFiles -downloadTo $LogDir -port $clientSSHPort -username $username -password $password
+            Copy-RemoteFiles -download -downloadFrom $clientPublicIP -files $remoteFiles -downloadTo $LogDir -port $clientSSHPort -username $username -password $password
             $checkValues = "$resultPass,$resultFail,$resultAborted"
-            $CurrentTestResult.TestSummary += CreateResultSummary -testResult $testResult -metaData "" -checkValues $checkValues -testName $currentTestData.testName
+            $CurrentTestResult.TestSummary += Create-ResultSummary -testResult $testResult -metaData "" -checkValues $checkValues -testName $currentTestData.testName
             $webStressSQLQuery = Get-SQLQueryOfWebStress -xmlConfig $xmlConfig -logDir $LogDir
             if ($webStressSQLQuery) {
-                UploadTestResultToDatabase -SQLQuery $webStressSQLQuery
+                Upload-TestResultToDatabase -SQLQuery $webStressSQLQuery
             }
         }
     } catch {
         $testResult = $resultAborted
         $errorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "EXCEPTION : $errorMessage at line: $ErrorLine"
+        Write-LogErr "EXCEPTION : $errorMessage at line: $ErrorLine"
     } finally {
         if (!$testResult) {
             $testResult = $resultAborted
@@ -159,8 +159,8 @@ function Main()
     }
 
     $resultArr += $testResult
-    LogMsg "Test result : $testResult"
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    Write-LogInfo "Test result : $testResult"
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
 

@@ -37,11 +37,11 @@ try
 {
     $ExitCode = 1
     #region Update VM sizes
-    LogMsg "Getting 'Microsoft.Compute' supported region list..."
+    Write-LogInfo "Getting 'Microsoft.Compute' supported region list..."
     $allRegions = (Get-AzureRmLocation | Where-Object { $_.Providers.Contains("Microsoft.Compute")} | Sort-Object).Location
     $allRegions = $allRegions | Sort-Object
     $i = 1
-    $allRegions | ForEach-Object { LogMsg "$i. $_"; $i++ }
+    $allRegions | ForEach-Object { Write-LogInfo "$i. $_"; $i++ }
     $tab = "	"
     $RegionAndVMSize = "Region$tab`Size`n"
     foreach ( $NewRegion in $allRegions  )
@@ -49,29 +49,29 @@ try
         $currentRegionSizes = (Get-AzureRmVMSize -Location $NewRegion).Name | Sort-Object
         if ($currentRegionSizes)
         {
-            LogMsg "Found $($currentRegionSizes.Count) sizes for $($NewRegion)..."
+            Write-LogInfo "Found $($currentRegionSizes.Count) sizes for $($NewRegion)..."
             $CurrentSizeCount = 1
             foreach ( $size in $currentRegionSizes )
             {
-                LogMsg "|--Added $NewRegion : $CurrentSizeCount. $($size)..."
+                Write-LogInfo "|--Added $NewRegion : $CurrentSizeCount. $($size)..."
                 $RegionAndVMSize += $NewRegion + $tab + $NewRegion + " " + $size + "`n"
                 $CurrentSizeCount += 1
             }
         }
     }
     Set-Content -Value $RegionAndVMSize -Path $OutputFilePath -Force -NoNewline
-    LogMsg "$OutputFilePath saved successfully."
+    Write-LogInfo "$OutputFilePath saved successfully."
     $ExitCode = 0
     #endregion
 }
 catch
 {
     $ExitCode = 1
-    ThrowException ($_)
+    Raise-Exception ($_)
 }
 finally
 {
-    LogMsg "Exiting with code: $ExitCode"
+    Write-LogInfo "Exiting with code: $ExitCode"
     exit $ExitCode
 }
 #endregion

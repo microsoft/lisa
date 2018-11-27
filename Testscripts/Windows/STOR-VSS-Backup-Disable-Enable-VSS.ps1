@@ -42,7 +42,7 @@ function Main {
             if (-not $sts[-1]) {
                 throw "${VMName} failed to set Integration Service"
             }
-            LogMsg "SetIntegrationService has been set"
+            Write-LogInfo "Set-IntegrationServic has been set"
             #  Restart the VM to make VSS service change take effect
             if (-not $supportStatus[-1]) {
                 $timeout = 300
@@ -64,7 +64,7 @@ function Main {
                 }
             }
             # Create a file on the VM before backup
-            RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command "touch /home/$user/1" -runAsSudo
+            Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command "touch /home/$user/1" -runAsSudo
             $BackupDriveLetter = $global:driveletter
             if ($null -eq $BackupDriveLetter) {
                 throw "Backup driveletter is not specified."
@@ -85,7 +85,7 @@ function Main {
                 throw "Didn't get expected backup type"
             }
             else {
-                LogMsg "Received expected backup type $temp"
+                Write-LogInfo "Received expected backup type $temp"
             }
             Remove-Backup $backupLocation
         }
@@ -96,7 +96,7 @@ function Main {
     catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "$ErrorMessage at line: $ErrorLine"
+        Write-LogErr "$ErrorMessage at line: $ErrorLine"
     }
     finally {
         if (!$testResult) {
@@ -104,7 +104,7 @@ function Main {
         }
         $resultArr += $testResult
     }
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
 Main

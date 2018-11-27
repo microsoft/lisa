@@ -34,26 +34,26 @@ function Main {
             client machine role names matches with pattern `"*client*`" Aborting Test."
         }
         if ($ServerVMData.InstanceSize -imatch "Standard_NC") {
-            LogMsg "Waiting 5 minutes to finish RDMA update for NC series VMs."
+            Write-LogInfo "Waiting 5 minutes to finish RDMA update for NC series VMs."
             Start-Sleep -Seconds 300
         }
         #region CONFIGURE VMs for TEST
 
-        LogMsg "SERVER VM details :"
-        LogMsg "  RoleName : $($ServerVMData.RoleName)"
-        LogMsg "  Public IP : $($ServerVMData.PublicIP)"
-        LogMsg "  SSH Port : $($ServerVMData.SSHPort)"
+        Write-LogInfo "SERVER VM details :"
+        Write-LogInfo "  RoleName : $($ServerVMData.RoleName)"
+        Write-LogInfo "  Public IP : $($ServerVMData.PublicIP)"
+        Write-LogInfo "  SSH Port : $($ServerVMData.SSHPort)"
         $i = 1
         foreach ( $ClientVMData in $ClientMachines ) {
-            LogMsg "CLIENT VM #$i details :"
-            LogMsg "  RoleName : $($ClientVMData.RoleName)"
-            LogMsg "  Public IP : $($ClientVMData.PublicIP)"
-            LogMsg "  SSH Port : $($ClientVMData.SSHPort)"
+            Write-LogInfo "CLIENT VM #$i details :"
+            Write-LogInfo "  RoleName : $($ClientVMData.RoleName)"
+            Write-LogInfo "  Public IP : $($ClientVMData.PublicIP)"
+            Write-LogInfo "  SSH Port : $($ClientVMData.SSHPort)"
             $i += 1
         }
         $FirstRun = $true
 
-        ProvisionVMsForLisa -AllVMData $AllVMData -installPackagesOnRoleNames "none"
+        Provision-VMsForLisa -AllVMData $AllVMData -installPackagesOnRoleNames "none"
 
         #endregion
 
@@ -61,11 +61,11 @@ function Main {
         # We need to add extra parameters to constants.sh file apart from parameter properties defined in XML.
         # Hence, we are generating constants.sh file again in test script.
 
-        LogMsg "Generating constansts.sh ..."
+        Write-LogInfo "Generating constansts.sh ..."
         $constantsFile = "$LogDir\constants.sh"
         foreach ($TestParam in $CurrentTestData.TestParameters.param ) {
             Add-Content -Value "$TestParam" -Path $constantsFile
-            LogMsg "$TestParam added to constansts.sh"
+            Write-LogInfo "$TestParam added to constansts.sh"
             if ($TestParam -imatch "imb_mpi1_tests_iterations") {
                 $ImbMpiTestIterations = [int]($TestParam.Replace("imb_mpi1_tests_iterations=", "").Trim('"'))
             }
@@ -81,22 +81,22 @@ function Main {
         }
 
         Add-Content -Value "master=`"$($ServerVMData.InternalIP)`"" -Path $constantsFile
-        LogMsg "master=$($ServerVMData.InternalIP) added to constansts.sh"
+        Write-LogInfo "master=$($ServerVMData.InternalIP) added to constansts.sh"
 
         Add-Content -Value "slaves=`"$SlaveInternalIPs`"" -Path $constantsFile
-        LogMsg "slaves=$SlaveInternalIPs added to constansts.sh"
+        Write-LogInfo "slaves=$SlaveInternalIPs added to constansts.sh"
 
-        LogMsg "constanst.sh created successfully..."
+        Write-LogInfo "constanst.sh created successfully..."
         #endregion
 
         #region Upload files to master VM...
-        RemoteCopy -uploadTo $ServerVMData.PublicIP -port $ServerVMData.SSHPort `
+        Copy-RemoteFiles -uploadTo $ServerVMData.PublicIP -port $ServerVMData.SSHPort `
             -files "$constantsFile,$($CurrentTestData.files)" -username "root" -password $password -upload
         #endregion
 
-        RemoteCopy -uploadTo $ServerVMData.PublicIP -port $ServerVMData.SSHPort `
+        Copy-RemoteFiles -uploadTo $ServerVMData.PublicIP -port $ServerVMData.SSHPort `
             -files "$constantsFile" -username "root" -password $password -upload
-        $null = RunLinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort `
+        $null = Run-LinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort `
         -username "root" -password $password -command "chmod +x *.sh"
         $RemainingRebootIterations = $CurrentTestData.NumberOfReboots
         $ExpectedSuccessCount = [int]($CurrentTestData.NumberOfReboots) + 1
@@ -107,24 +107,24 @@ function Main {
                 $FirstRun = $false
                 $ContinueMPITest = $true
                 foreach ( $ClientVMData in $ClientMachines ) {
-                    LogMsg "Getting initial MAC address info from $($ClientVMData.RoleName)"
-                    RunLinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
+                    Write-LogInfo "Getting initial MAC address info from $($ClientVMData.RoleName)"
+                    Run-LinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
                         -password $password "ifconfig $InfinibandNic | grep ether | awk '{print `$2}' > InitialInfiniBandMAC.txt"
                 }
             }
             else {
                 $ContinueMPITest = $true
                 foreach ( $ClientVMData in $ClientMachines ) {
-                    LogMsg "Step 1/2: Getting current MAC address info from $($ClientVMData.RoleName)"
-                    $CurrentMAC = RunLinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
+                    Write-LogInfo "Step 1/2: Getting current MAC address info from $($ClientVMData.RoleName)"
+                    $CurrentMAC = Run-LinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
                         -password $password "ifconfig $InfinibandNic | grep ether | awk '{print `$2}'"
-                    $InitialMAC = RunLinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
+                    $InitialMAC = Run-LinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
                         -password $password "cat InitialInfiniBandMAC.txt"
                     if ($CurrentMAC -eq $InitialMAC) {
-                        LogMsg "Step 2/2: MAC address verified in $($ClientVMData.RoleName)."
+                        Write-LogInfo "Step 2/2: MAC address verified in $($ClientVMData.RoleName)."
                     }
                     else {
-                        LogErr "Step 2/2: MAC address swapped / changed in $($ClientVMData.RoleName)."
+                        Write-LogErr "Step 2/2: MAC address swapped / changed in $($ClientVMData.RoleName)."
                         $ContinueMPITest = $false
                     }
                 }
@@ -133,31 +133,31 @@ function Main {
             if ($ContinueMPITest) {
                 #region EXECUTE TEST
                 $Iteration += 1
-                LogMsg "******************Iteration - $Iteration/$ExpectedSuccessCount*******************"
-                $TestJob = RunLinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
+                Write-LogInfo "******************Iteration - $Iteration/$ExpectedSuccessCount*******************"
+                $TestJob = Run-LinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
                     -password $password -command "/root/TestRDMA_MultiVM.sh" -RunInBackground
                 #endregion
 
                 #region MONITOR TEST
                 while ( (Get-Job -Id $TestJob).State -eq "Running" ) {
-                    $CurrentStatus = RunLinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
+                    $CurrentStatus = Run-LinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
                         -password $password -command "tail -n 1 /root/TestExecution.log"
-                    LogMsg "Current Test Status : $CurrentStatus"
-                    WaitFor -seconds 10
+                    Write-LogInfo "Current Test Status : $CurrentStatus"
+                    Wait-Time -seconds 10
                 }
 
-                RemoteCopy -downloadFrom $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
+                Copy-RemoteFiles -downloadFrom $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
                     -password $password -download -downloadTo $LogDir -files "/root/$InfinibandNic-status*"
-                RemoteCopy -downloadFrom $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
+                Copy-RemoteFiles -downloadFrom $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
                     -password $password -download -downloadTo $LogDir -files "/root/IMB-*"
-                RemoteCopy -downloadFrom $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
+                Copy-RemoteFiles -downloadFrom $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
                     -password $password -download -downloadTo $LogDir -files "/root/kernel-logs-*"
-                RemoteCopy -downloadFrom $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
+                Copy-RemoteFiles -downloadFrom $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
                     -password $password -download -downloadTo $LogDir -files "/root/TestExecution.log"
-                RemoteCopy -downloadFrom $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
+                Copy-RemoteFiles -downloadFrom $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
                     -password $password -download -downloadTo $LogDir -files "/root/state.txt"
                 $ConsoleOutput = ( Get-Content -Path "$LogDir\TestExecution.log" | Out-String )
-                $FinalStatus = RunLinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
+                $FinalStatus = Run-LinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
                     -password $password -command "cat /root/state.txt"
                 if ($Iteration -eq 1) {
                     $TempName = "FirstBoot"
@@ -175,7 +175,7 @@ function Main {
                 #region Check if $InfinibandNic got IP address
                 $logFileName = "$LogDir\InfiniBand-Verification-$Iteration-$TempName\TestExecution.log"
                 $pattern = "INFINIBAND_VERIFICATION_SUCCESS_$InfinibandNic"
-                LogMsg "Analysing $logFileName"
+                Write-LogInfo "Analysing $logFileName"
                 $metaData = "InfiniBand-Verification-$Iteration-$TempName : $InfinibandNic IP"
                 $SucessLogs = Select-String -Path $logFileName -Pattern $pattern
                 if ($SucessLogs.Count -eq 1) {
@@ -184,16 +184,16 @@ function Main {
                 else {
                     $currentResult = "FAIL"
                 }
-                LogMsg "$pattern : $currentResult"
+                Write-LogInfo "$pattern : $currentResult"
                 $resultArr += $currentResult
-                $CurrentTestResult.TestSummary += CreateResultSummary -testResult $currentResult -metaData $metaData `
+                $CurrentTestResult.TestSummary += Create-ResultSummary -testResult $currentResult -metaData $metaData `
                     -checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
                 #endregion
 
                 #region Check MPI pingpong intranode tests
                 $logFileName = "$LogDir\InfiniBand-Verification-$Iteration-$TempName\TestExecution.log"
                 $pattern = "INFINIBAND_VERIFICATION_SUCCESS_MPI1_INTRANODE"
-                LogMsg "Analysing $logFileName"
+                Write-LogInfo "Analysing $logFileName"
                 $metaData = "InfiniBand-Verification-$Iteration-$TempName : PingPong Intranode"
                 $SucessLogs = Select-String -Path $logFileName -Pattern $pattern
                 if ($SucessLogs.Count -eq 1) {
@@ -202,16 +202,16 @@ function Main {
                 else {
                     $currentResult = "FAIL"
                 }
-                LogMsg "$pattern : $currentResult"
+                Write-LogInfo "$pattern : $currentResult"
                 $resultArr += $currentResult
-                $CurrentTestResult.TestSummary += CreateResultSummary -testResult $currentResult -metaData $metaData `
+                $CurrentTestResult.TestSummary += Create-ResultSummary -testResult $currentResult -metaData $metaData `
                     -checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
                 #endregion
 
                 #region Check MPI pingpong internode tests
                 $logFileName = "$LogDir\InfiniBand-Verification-$Iteration-$TempName\TestExecution.log"
                 $pattern = "INFINIBAND_VERIFICATION_SUCCESS_MPI1_INTERNODE"
-                LogMsg "Analysing $logFileName"
+                Write-LogInfo "Analysing $logFileName"
                 $metaData = "InfiniBand-Verification-$Iteration-$TempName : PingPong Internode"
                 $SucessLogs = Select-String -Path $logFileName -Pattern $pattern
                 if ($SucessLogs.Count -eq 1) {
@@ -220,9 +220,9 @@ function Main {
                 else {
                     $currentResult = "FAIL"
                 }
-                LogMsg "$pattern : $currentResult"
+                Write-LogInfo "$pattern : $currentResult"
                 $resultArr += $currentResult
-                $CurrentTestResult.TestSummary += CreateResultSummary -testResult $currentResult -metaData $metaData `
+                $CurrentTestResult.TestSummary += Create-ResultSummary -testResult $currentResult -metaData $metaData `
                 -checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
                 #endregion
 
@@ -230,7 +230,7 @@ function Main {
                 if ( $ImbMpiTestIterations -ge 1) {
                     $logFileName = "$LogDir\InfiniBand-Verification-$Iteration-$TempName\TestExecution.log"
                     $pattern = "INFINIBAND_VERIFICATION_SUCCESS_MPI1_ALLNODES"
-                    LogMsg "Analysing $logFileName"
+                    Write-LogInfo "Analysing $logFileName"
                     $metaData = "InfiniBand-Verification-$Iteration-$TempName : IMB-MPI1"
                     $SucessLogs = Select-String -Path $logFileName -Pattern $pattern
                     if ($SucessLogs.Count -eq 1) {
@@ -239,9 +239,9 @@ function Main {
                     else {
                         $currentResult = "FAIL"
                     }
-                    LogMsg "$pattern : $currentResult"
+                    Write-LogInfo "$pattern : $currentResult"
                     $resultArr += $currentResult
-                    $CurrentTestResult.TestSummary += CreateResultSummary -testResult $currentResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
+                    $CurrentTestResult.TestSummary += Create-ResultSummary -testResult $currentResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
                 }
                 #endregion
 
@@ -249,7 +249,7 @@ function Main {
                 if ( $ImbRmaTestIterations -ge 1) {
                     $logFileName = "$LogDir\InfiniBand-Verification-$Iteration-$TempName\TestExecution.log"
                     $pattern = "INFINIBAND_VERIFICATION_SUCCESS_RMA_ALLNODES"
-                    LogMsg "Analysing $logFileName"
+                    Write-LogInfo "Analysing $logFileName"
                     $metaData = "InfiniBand-Verification-$Iteration-$TempName : IMB-RMA"
                     $SucessLogs = Select-String -Path $logFileName -Pattern $pattern
                     if ($SucessLogs.Count -eq 1) {
@@ -258,9 +258,9 @@ function Main {
                     else {
                         $currentResult = "FAIL"
                     }
-                    LogMsg "$pattern : $currentResult"
+                    Write-LogInfo "$pattern : $currentResult"
                     $resultArr += $currentResult
-                    $CurrentTestResult.TestSummary += CreateResultSummary -testResult $currentResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
+                    $CurrentTestResult.TestSummary += Create-ResultSummary -testResult $currentResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
                 }
                 #endregion
 
@@ -268,7 +268,7 @@ function Main {
                 if ( $ImbNbcTestIterations -ge 1) {
                     $logFileName = "$LogDir\InfiniBand-Verification-$Iteration-$TempName\TestExecution.log"
                     $pattern = "INFINIBAND_VERIFICATION_SUCCESS_RMA_ALLNODES"
-                    LogMsg "Analysing $logFileName"
+                    Write-LogInfo "Analysing $logFileName"
                     $metaData = "InfiniBand-Verification-$Iteration-$TempName : IMB-NBC"
                     $SucessLogs = Select-String -Path $logFileName -Pattern $pattern
                     if ($SucessLogs.Count -eq 1) {
@@ -277,19 +277,19 @@ function Main {
                     else {
                         $currentResult = "FAIL"
                     }
-                    LogMsg "$pattern : $currentResult"
+                    Write-LogInfo "$pattern : $currentResult"
                     $resultArr += $currentResult
-                    $CurrentTestResult.TestSummary += CreateResultSummary -testResult $currentResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
+                    $CurrentTestResult.TestSummary += Create-ResultSummary -testResult $currentResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
                 }
                 #endregion
 
                 if ($FinalStatus -imatch "TestCompleted") {
-                    LogMsg "Test finished successfully."
-                    LogMsg $ConsoleOutput
+                    Write-LogInfo "Test finished successfully."
+                    Write-LogInfo $ConsoleOutput
                 }
                 else {
-                    LogErr "Test failed."
-                    LogErr $ConsoleOutput
+                    Write-LogErr "Test failed."
+                    Write-LogErr $ConsoleOutput
                 }
                 #endregion
             }
@@ -298,31 +298,31 @@ function Main {
             }
 
             if ( $FinalStatus -imatch "TestFailed") {
-                LogErr "Test failed. Last known status : $CurrentStatus."
+                Write-LogErr "Test failed. Last known status : $CurrentStatus."
                 $testResult = "FAIL"
             }
             elseif ( $FinalStatus -imatch "TestAborted") {
-                LogErr "Test ABORTED. Last known status : $CurrentStatus."
+                Write-LogErr "Test ABORTED. Last known status : $CurrentStatus."
                 $testResult = "ABORTED"
             }
             elseif ( $FinalStatus -imatch "TestCompleted") {
-                LogMsg "Test Completed. Result : $FinalStatus."
+                Write-LogInfo "Test Completed. Result : $FinalStatus."
                 $testResult = "PASS"
                 $TotalSuccessCount += 1
             }
             elseif ( $FinalStatus -imatch "TestRunning") {
-                LogMsg "Powershell backgroud job for test is completed but VM is reporting that test is still running. Please check $LogDir\mdConsoleLogs.txt"
-                LogMsg "Contests of state.txt : $FinalStatus"
+                Write-LogInfo "Powershell backgroud job for test is completed but VM is reporting that test is still running. Please check $LogDir\mdConsoleLogs.txt"
+                Write-LogInfo "Contests of state.txt : $FinalStatus"
                 $testResult = "FAIL"
             }
-            LogMsg "**********************************************"
+            Write-LogInfo "**********************************************"
             if ($RemainingRebootIterations -gt 0) {
                 if ($testResult -eq "PASS") {
-                    $RestartStatus = RestartAllDeployments -AllVMData $AllVMData
+                    $RestartStatus = Restart-AllDeployments -AllVMData $AllVMData
                     $RemainingRebootIterations -= 1
                 }
                 else {
-                    LogErr "Stopping the test due to failures."
+                    Write-LogErr "Stopping the test due to failures."
                 }
             }
         }
@@ -334,13 +334,13 @@ function Main {
         else {
             $testResult = "FAIL"
         }
-        LogMsg "Test result : $testResult"
-        LogMsg "Test Completed"
+        Write-LogInfo "Test result : $testResult"
+        Write-LogInfo "Test Completed"
     }
     catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+        Write-LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     }
     Finally {
         if (!$testResult) {
@@ -348,7 +348,7 @@ function Main {
         }
         $resultArr += $testResult
     }
-    $CurrentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $CurrentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $CurrentTestResult.TestResult
 }
 

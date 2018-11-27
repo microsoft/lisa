@@ -47,7 +47,7 @@ function Main {
     $macFileTestVM = "$currentDir"+"$macFileTestVM"
     $streamReaderTestVM = [System.IO.StreamReader] $macFileTestVM
     $vm1MacAddress = $streamReaderTestVM.ReadLine()
-    LogMsg "vm1 MAC: $vm1MacAddress"
+    Write-LogInfo "vm1 MAC: $vm1MacAddress"
     $streamReaderTestVM.close()
 
     # Get MAC for dependency VM
@@ -55,7 +55,7 @@ function Main {
     $macFileDependencyVM ="$currentDir"+"$macFileDependencyVM"
     $streamReaderDependencyVM = [System.IO.StreamReader] $macFileDependencyVM
     $vm2MacAddress = $streamReaderDependencyVM.ReadLine()
-    LogMsg "vm2 MAC: $vm2MacAddress"
+    Write-LogInfo "vm2 MAC: $vm2MacAddress"
     $streamReaderDependencyVM.close()
 
     $params = $TestParams.Split(';')
@@ -71,7 +71,7 @@ function Main {
             "NIC" {
                 $nicArgs = $fields[1].Split(',')
                 if ($nicArgs.Length -lt 3) {
-                    LogErr "Incorrect number of arguments for NIC test parameter: $p"
+                    Write-LogErr "Incorrect number of arguments for NIC test parameter: $p"
                     return "FAIL"
                 }
                 $nicType = $nicArgs[0].Trim()
@@ -82,18 +82,18 @@ function Main {
                 }
                 # Validate the network adapter type
                 if ("NetworkAdapter" -notcontains $nicType) {
-                    LogErr "Invalid NIC type: $nicType . Must be 'NetworkAdapter'"
+                    Write-LogErr "Invalid NIC type: $nicType . Must be 'NetworkAdapter'"
                     return "FAIL"
                 }
                 # Validate the Network type
                 if (@("External", "Internal", "Private") -notcontains $networkType) {
-                    LogErr "Invalid network type: $networkType . Network type must be either: External, Internal or Private"
+                    Write-LogErr "Invalid network type: $networkType . Network type must be either: External, Internal or Private"
                     return "FAIL"
                 }
                 # Make sure the network exists
                 $vmSwitch = Get-VMSwitch -Name $networkName -ComputerName $HvServer
                 if (-not $vmSwitch) {
-                    LogErr "Invalid network name: $networkName . The network does not exist."
+                    Write-LogErr "Invalid network name: $networkName . The network does not exist."
                     return "FAIL"
                 }
             }
@@ -113,7 +113,7 @@ function Main {
         "$VMName found NIC with MAC $vm1MacAddress"
         Set-VMNetworkAdapterVlan -VMNetworkAdapter $vm1nic -Untagged
     } else {
-        LogErr "$VMName - No NIC found with MAC $vm1MacAddress"
+        Write-LogErr "$VMName - No NIC found with MAC $vm1MacAddress"
         return "FAIL"
     }
     $vm2nic =  Get-VMNetworkAdapter -VMName $VM2Name -ComputerName $HvServer -IsLegacy:$false | Where-Object {$_.MacAddress -eq $vm2MacAddress }
@@ -121,7 +121,7 @@ function Main {
         "$VM2Name found NIC with MAC $vm1MacAddress"
         Set-VMNetworkAdapterVlan -VMNetworkAdapter $vm2nic -Untagged
     } else {
-        LogErr "$VM2Name - No NIC found with MAC $vm1MacAddress"
+        Write-LogErr "$VM2Name - No NIC found with MAC $vm1MacAddress"
         return "FAIL"
     }
 
@@ -147,7 +147,7 @@ function Main {
         -VMPassword $VMPassword -InterfaceMAC $vm1MacAddress -VMStaticIP $vm1StaticIP `
         -Netmask $netmask -VMName $VMName -VlanID $vlanID
     if (-not $?) {
-        LogErr "Couldn't configure the test interface on $VMName"
+        Write-LogErr "Couldn't configure the test interface on $VMName"
         return "FAIL"
     }
 
@@ -155,56 +155,56 @@ function Main {
     $retVal = Test-GuestInterface $guestUsername $vm2StaticIP $ipv4 $VMPort $VMPassword `
         $vm1MacAddress $pingVersion $packetNumber "yes"
     if ($retVal -eq $True) {
-        LogErr "$pingVersion should have failed from $vm1StaticIP to $vm2StaticIP"
+        Write-LogErr "$pingVersion should have failed from $vm1StaticIP to $vm2StaticIP"
         return "FAIL"
     } else {
-        LogMsg "$pingVersion from $vm1StaticIP to $vm2StaticIP failed - AS EXPECTED -"
+        Write-LogInfo "$pingVersion from $vm1StaticIP to $vm2StaticIP failed - AS EXPECTED -"
     }
 
     # Set trunk mode on both NICs. Ping should start working
     Set-VMNetworkAdapterVlan -VMNetworkAdapter $vm1nic -Trunk -AllowedVlanIdList $vlanID -NativeVlanId $nativeVlanId
     if (-not $?) {
-        LogErr "Failed to put $vm1nic in trunk mode"
+        Write-LogErr "Failed to put $vm1nic in trunk mode"
         return "FAIL"
     }
     Set-VMNetworkAdapterVlan -VMNetworkAdapter $vm2nic -Trunk -AllowedVlanIdList $vlanID -NativeVlanId $nativeVlanId
     if (-not $?) {
-        LogErr "Failed to put $vm2nic in trunk mode"
+        Write-LogErr "Failed to put $vm2nic in trunk mode"
         return "FAIL"
     }
 
     $retVal = Test-GuestInterface $guestUsername $vm2StaticIP $ipv4 $VMPort $VMPassword `
         $vm1MacAddress $pingVersion $packetNumber "yes"
     if ($retVal -eq $False) {
-        LogErr "Could not $pingVersion from $vm1StaticIP to $vm2StaticIP"
+        Write-LogErr "Could not $pingVersion from $vm1StaticIP to $vm2StaticIP"
         return "FAIL"
     } else {
-        LogMsg "$pingVersion from $vm1StaticIP to $vm2StaticIP was successful"
+        Write-LogInfo "$pingVersion from $vm1StaticIP to $vm2StaticIP was successful"
     }
 
     # Change vlan ID. Ping Should fail
     $badVlanId = [int]$vlanID + [int]1
     Set-VMNetworkAdapterVlan -VMNetworkAdapter $vm1nic -Trunk -AllowedVlanIdList $badVlanId -NativeVlanId $nativeVlanId
     if (-not $?) {
-        LogErr "Failed to put $vm1nic in trunk mode"
+        Write-LogErr "Failed to put $vm1nic in trunk mode"
         return "FAIL"
     }
     Set-VMNetworkAdapterVlan -VMNetworkAdapter $vm2nic -Trunk -AllowedVlanIdList $badVlanId -NativeVlanId $nativeVlanId
     if (-not $?) {
-        LogErr "Failed to put $vm2nic in trunk mode"
+        Write-LogErr "Failed to put $vm2nic in trunk mode"
         return "FAIL"
     }
 
     $retVal = Test-GuestInterface $guestUsername $vm2StaticIP $ipv4 $VMPort $VMPassword `
         $vm1MacAddress $pingVersion $packetNumber "yes"
     if ($retVal -eq $True) {
-        LogErr "$pingVersion should have failed from $vm1StaticIP to $vm2StaticIP"
+        Write-LogErr "$pingVersion should have failed from $vm1StaticIP to $vm2StaticIP"
         return "FAIL"
     } else {
-        LogMsg "$pingVersion from $vm1StaticIP to $vm2StaticIP failed - AS EXPECTED -"
+        Write-LogInfo "$pingVersion from $vm1StaticIP to $vm2StaticIP failed - AS EXPECTED -"
     }
 
-    LogMsg "SUCCESS: Test Passed"
+    Write-LogInfo "SUCCESS: Test Passed"
     return "PASS"
 }
 

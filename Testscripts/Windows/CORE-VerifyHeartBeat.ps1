@@ -30,17 +30,17 @@ function Main {
         }
         $tokens = $p.Trim().Split('=')
         if ($tokens.Length -ne 2) {
-            LogMsg "Warn: test parameter '$p' is being ignored because it appears to be malformed"
+            Write-LogInfo "Warn: test parameter '$p' is being ignored because it appears to be malformed"
             continue
         }
     }
 
     if (-not $Ipv4) {
-        LogErr " The IPv4 test parameter was not provided."
+        Write-LogErr " The IPv4 test parameter was not provided."
         return "FAIL"
     }
     if (-not $RootDir) {
-        LogErr " The RootDir test parameter is not defined."
+        Write-LogErr " The RootDir test parameter is not defined."
         return "FAIL"
     } else {
         Set-Location $RootDir
@@ -66,17 +66,17 @@ function Main {
     }
 
     if ($heartbeatTimeout -eq 0) {
-        LogErr " Test case timed out for VM to enter in the Running state"
+        Write-LogErr " Test case timed out for VM to enter in the Running state"
         return "FAIL"
     }
 
     # Check the VMs heartbeat
     $hb = Get-VMIntegrationService -VMName $VMName -ComputerName $HvServer -Name "Heartbeat"
     if ($($hb.Enabled) -eq "True" -And $($vm.Heartbeat) -eq "OkApplicationsUnknown") {
-        LogMsg "Heartbeat detected"
+        Write-LogInfo "Heartbeat detected"
     } else {
-        LogErr "Test Failed: VM heartbeat not detected!"
-        LogErr "Heartbeat not detected while the Heartbeat service is enabled"
+        Write-LogErr "Test Failed: VM heartbeat not detected!"
+        Write-LogErr "Heartbeat not detected while the Heartbeat service is enabled"
         return "FAIL"
     }
 
@@ -84,9 +84,9 @@ function Main {
     Disable-VMIntegrationService -ComputerName $HvServer -VMName $VMName -Name "Heartbeat"
     $status = Get-VMIntegrationService -VMName $VMName -ComputerName $HvServer -Name "Heartbeat"
     if ($status.Enabled -eq $False -And $vm.Heartbeat -eq "Disabled") {
-        LogErr "Heartbeat disabled successfully"
+        Write-LogErr "Heartbeat disabled successfully"
     } else {
-        LogErr "Unable to disable the Heartbeat service"
+        Write-LogErr "Unable to disable the Heartbeat service"
         return "FAIL"
     }
 
@@ -94,11 +94,11 @@ function Main {
     Enable-VMIntegrationService -ComputerName $HvServer -VMName $VMName -Name "Heartbeat"
     $hb = Get-VMIntegrationService -VMName $VMName -ComputerName $HvServer -Name "Heartbeat"
     if ($($hb.Enabled) -eq "True" -And $($vm.Heartbeat) -eq "OkApplicationsUnknown") {
-        LogMsg "Heartbeat detected again"
+        Write-LogInfo "Heartbeat detected again"
         return "PASS"
     } else {
-        LogErr "Test Failed: VM heartbeat not detected again!"
-        LogErr " Heartbeat not detected after re-enabling the Heartbeat service"
+        Write-LogErr "Test Failed: VM heartbeat not detected again!"
+        Write-LogErr " Heartbeat not detected after re-enabling the Heartbeat service"
         return "FAIL"
     }
 }

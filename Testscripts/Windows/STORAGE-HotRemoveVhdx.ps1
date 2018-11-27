@@ -23,7 +23,7 @@ function Main {
 
     Run-SetupScript -Script $SETUP_SCRIPT -Parameters $params
 
-    RunLinuxCmd -Command "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;bash ${TEST_SCRIPT} > ${testName}_summary.log 2>&1`"" `
+    Run-LinuxCmd -Command "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;bash ${TEST_SCRIPT} > ${testName}_summary.log 2>&1`"" `
         -Username $VMUserName -password $VMPassword -ip $Ipv4 -Port $VMPort `
 
     $testResult = Collect-TestLogs -LogsDestination $LogDir -ScriptName "STORAGE-HotRemove" -TestType "sh" `

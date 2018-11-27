@@ -73,7 +73,7 @@ function Validate-Parameters {
         }
         if (!$VMGeneration) {
 			# Set VM Generation default value to 1, if not specified.
-			LogMsg "-VMGeneration not specified. Using default VMGeneration = 1"
+			Write-LogInfo "-VMGeneration not specified. Using default VMGeneration = 1"
 			Set-Variable -Name VMGeneration -Value 1 -Scope Global
         } else {
             $supportedVMGenerations = @("1","2")
@@ -97,10 +97,10 @@ function Validate-Parameters {
         }
     }
     if ($parameterErrors.Count -gt 0) {
-        $parameterErrors | ForEach-Object { LogError $_ }
+        $parameterErrors | ForEach-Object { Write-LogErr $_ }
         throw "Failed to validate the test parameters provided. Please fix above issues and retry."
     } else {
-        LogMsg "Test parameters have been validated successfully. Continue running the test."
+        Write-LogInfo "Test parameters have been validated successfully. Continue running the test."
     }
 }
 
@@ -108,7 +108,7 @@ Function Inject-CustomTestParameters($CustomParameters, $ReplaceableTestParamete
 {
 	if ($CustomParameters)
 	{
-		LogMsg "Checking custom parameters ..."
+		Write-LogInfo "Checking custom parameters ..."
 		$CustomParameters = $CustomParameters.Trim().Trim(";").Split(";")
 		foreach ($CustomParameter in $CustomParameters)
 		{
@@ -119,9 +119,9 @@ Function Inject-CustomTestParameters($CustomParameters, $ReplaceableTestParamete
 				{ $_.ReplaceThis -eq $ReplaceThis }).ReplaceWith
 			($ReplaceableTestParameters.ReplaceableTestParameters.Parameter | Where-Object `
 				{ $_.ReplaceThis -eq $ReplaceThis }).ReplaceWith = $ReplaceWith
-			LogMsg "Custom Parameter: $ReplaceThis=$OldValue --> $ReplaceWith"
+			Write-LogInfo "Custom Parameter: $ReplaceThis=$OldValue --> $ReplaceWith"
 		}
-		LogMsg "Custom parameter(s) are ready to be injected along with default parameters, if any."
+		Write-LogInfo "Custom parameter(s) are ready to be injected along with default parameters, if any."
 	}
 
 	$XmlConfigContents = (Get-Content -Path $TestConfigurationXmlFile)
@@ -130,13 +130,13 @@ Function Inject-CustomTestParameters($CustomParameters, $ReplaceableTestParamete
 		if ($XmlConfigContents -match $ReplaceableParameter.ReplaceThis)
 		{
 			$XmlConfigContents = $XmlConfigContents.Replace($ReplaceableParameter.ReplaceThis,$ReplaceableParameter.ReplaceWith)
-			LogMsg "$($ReplaceableParameter.ReplaceThis)=$($ReplaceableParameter.ReplaceWith) injected into $TestConfigurationXmlFile"
+			Write-LogInfo "$($ReplaceableParameter.ReplaceThis)=$($ReplaceableParameter.ReplaceWith) injected into $TestConfigurationXmlFile"
 		}
 	}
 	Set-Content -Value $XmlConfigContents -Path $TestConfigurationXmlFile -Force
 }
 
-Function UpdateGlobalConfigurationXML($XmlSecretsFilePath)
+Function Update-GlobalConfigurationXML($XmlSecretsFilePath)
 {
 	# The file $XmlSecretsFilePath has been validated before calling this function
 	Get-ChildItem (Join-Path "." "Libraries") -Recurse | `
@@ -184,12 +184,12 @@ Function UpdateGlobalConfigurationXML($XmlSecretsFilePath)
 		elseif ($StorageAccount -eq "")
 		{
 			$GlobalXML.Global.$TestPlatform.Subscription.ARMStorageAccount = $RegionStorageMapping.AllRegions.$TestLocation.StandardStorage
-			LogMsg "Auto selecting storage account : $($GlobalXML.Global.$TestPlatform.Subscription.ARMStorageAccount) as per your test region."
+			Write-LogInfo "Auto selecting storage account : $($GlobalXML.Global.$TestPlatform.Subscription.ARMStorageAccount) as per your test region."
 		}
 		elseif ($StorageAccount)
 		{
 			$GlobalXML.Global.$TestPlatform.Subscription.ARMStorageAccount = $StorageAccount.Trim()
-			LogMsg "Selecting custom storage account : $($GlobalXML.Global.$TestPlatform.Subscription.ARMStorageAccount) as per your test region."
+			Write-LogInfo "Selecting custom storage account : $($GlobalXML.Global.$TestPlatform.Subscription.ARMStorageAccount) as per your test region."
 		}
 	}
 	if ($TestPlatform -eq "HyperV")
@@ -216,12 +216,12 @@ Function UpdateGlobalConfigurationXML($XmlSecretsFilePath)
 				Get-VM -ComputerName $GlobalXML.Global.$TestPlatform.Hosts.ChildNodes[$index].ServerName | Out-Null
 				if ($?)
 				{
-					LogMsg "Set '$($Location)' to As GlobalConfiguration.Global.HyperV.Hosts.ChildNodes[$($index)].ServerName"
+					Write-LogInfo "Set '$($Location)' to As GlobalConfiguration.Global.HyperV.Hosts.ChildNodes[$($index)].ServerName"
 				}
 				else
 				{
-					LogErr "Did you used -TestLocation XXXXXXX. In HyperV mode, -TestLocation can be used to Override HyperV server mentioned in GlobalConfiguration XML file."
-					LogErr "In HyperV mode, -TestLocation can be used to Override HyperV server mentioned in GlobalConfiguration XML file."
+					Write-LogErr "Did you used -TestLocation XXXXXXX. In HyperV mode, -TestLocation can be used to Override HyperV server mentioned in GlobalConfiguration XML file."
+					Write-LogErr "In HyperV mode, -TestLocation can be used to Override HyperV server mentioned in GlobalConfiguration XML file."
 					Throw "Unable to access HyperV server - '$($Location)'"
 				}
 				$index++
@@ -230,7 +230,7 @@ Function UpdateGlobalConfigurationXML($XmlSecretsFilePath)
 		else
 		{
 			$TestLocation = $GlobalXML.Global.$TestPlatform.Hosts.ChildNodes[0].ServerName
-			LogMsg "Read Test Location from GlobalConfiguration.Global.HyperV.Hosts.ChildNodes[0].ServerName"
+			Write-LogInfo "Read Test Location from GlobalConfiguration.Global.HyperV.Hosts.ChildNodes[0].ServerName"
 			Get-VM -ComputerName $TestLocation | Out-Null
 		}
 	}
@@ -240,20 +240,20 @@ Function UpdateGlobalConfigurationXML($XmlSecretsFilePath)
 		if( $ResultDBTable )
 		{
 			$GlobalXML.Global.$TestPlatform.ResultsDatabase.dbtable = ($ResultDBTable).Trim()
-			LogMsg "ResultDBTable : $ResultDBTable added to .\XML\GlobalConfigurations.xml"
+			Write-LogInfo "ResultDBTable : $ResultDBTable added to .\XML\GlobalConfigurations.xml"
 		}
 		if( $ResultDBTestTag )
 		{
 			$GlobalXML.Global.$TestPlatform.ResultsDatabase.testTag = ($ResultDBTestTag).Trim()
-			LogMsg "ResultDBTestTag: $ResultDBTestTag added to .\XML\GlobalConfigurations.xml"
+			Write-LogInfo "ResultDBTestTag: $ResultDBTestTag added to .\XML\GlobalConfigurations.xml"
 		}
 	}
 	#$GlobalConfiguration.Save("$WorkingDirectory\XML\GlobalConfigurations.xml")
 	$GlobalXML.Save($GlobalConfigurationXMLFilePath )
-	LogMsg "Updated GlobalConfigurations.xml file."
+	Write-LogInfo "Updated GlobalConfigurations.xml file."
 }
 
-Function UpdateXMLStringsFromSecretsFile($XmlSecretsFilePath)
+Function Update-XMLStringsFromSecretsFile($XmlSecretsFilePath)
 {
 	# The file $XmlSecretsFilePath has been validated before calling this function
 	$TestXMLs = Get-ChildItem -Path ".\XML\TestCases\*.xml"
@@ -269,11 +269,11 @@ Function UpdateXMLStringsFromSecretsFile($XmlSecretsFilePath)
 			{
 				$content = [System.IO.File]::ReadAllText($file.FullName).Replace($ReplaceString,$ReplaceWith)
 				[System.IO.File]::WriteAllText($file.FullName, $content)
-				LogMsg "$ReplaceString replaced in $($file.FullName)"
+				Write-LogInfo "$ReplaceString replaced in $($file.FullName)"
 			}
 		}
 	}
-	LogMsg "Updated Test Case xml files."
+	Write-LogInfo "Updated Test Case xml files."
 }
 
 Function Match-TestPriority($currentTest)
@@ -284,7 +284,7 @@ Function Match-TestPriority($currentTest)
 
     $priorityInXml = $currentTest.Priority
     if (-not $priorityInXml) {
-        LogMsg "Warning: Priority of $($currentTest.TestName) is not defined, set its priority 1 by default."
+        Write-LogInfo "Warning: Priority of $($currentTest.TestName) is not defined, set its priority 1 by default."
         $priorityInXml = 1
     }
     foreach( $priority in $TestPriority.Split(",") ) {
@@ -295,7 +295,7 @@ Function Match-TestPriority($currentTest)
     return $False
 }
 
-Function CollectTestCases($TestXMLs)
+Function Collect-TestCases($TestXMLs)
 {
     if ( $TestCategory -eq "All") { $TestCategory = "" }
     if ( $TestArea -eq "All") { $TestArea = "" }
@@ -315,7 +315,7 @@ Function CollectTestCases($TestXMLs)
                     {
                         $status = Match-TestPriority -currentTest $test
                         if ($status) {
-                            LogMsg "Collected $($test.TestName)"
+                            Write-LogInfo "Collected $($test.TestName)"
                             $AllLisaTests += $test
                         }
                     }
@@ -337,7 +337,7 @@ Function CollectTestCases($TestXMLs)
                     {
                         $status = Match-TestPriority -currentTest $test
                         if ($status) {
-                            LogMsg "Collected $($test.TestName)"
+                            Write-LogInfo "Collected $($test.TestName)"
                             $AllLisaTests += $test
                         }
                     }
@@ -360,7 +360,7 @@ Function CollectTestCases($TestXMLs)
                     {
                         $status = Match-TestPriority -currentTest $test
                         if ($status) {
-                            LogMsg "Collected $($test.TestName)"
+                            Write-LogInfo "Collected $($test.TestName)"
                             $AllLisaTests += $test
                         }
                     }
@@ -382,7 +382,7 @@ Function CollectTestCases($TestXMLs)
                     {
                         $status = Match-TestPriority -currentTest $test
                         if ($status) {
-                            LogMsg "Collected $($test.TestName)"
+                            Write-LogInfo "Collected $($test.TestName)"
                             $AllLisaTests += $test
                         }
                     }
@@ -403,7 +403,7 @@ Function CollectTestCases($TestXMLs)
                     {
                         $status = Match-TestPriority -currentTest $test
                         if ($status) {
-                            LogMsg "Collected $($test.TestName)"
+                            Write-LogInfo "Collected $($test.TestName)"
                             $AllLisaTests += $test
                         }
                     }
@@ -425,7 +425,7 @@ Function CollectTestCases($TestXMLs)
                     {
                         $status = Match-TestPriority -currentTest $test
                         if ($status) {
-                            LogMsg "Collected $($test.TestName)"
+                            Write-LogInfo "Collected $($test.TestName)"
                             $AllLisaTests += $test
                         }
                     }
@@ -435,12 +435,11 @@ Function CollectTestCases($TestXMLs)
     }
     else
     {
-        LogError "TestPlatform : $TestPlatform"
-        LogError "TestCategory : $TestCategory"
-        LogError "TestArea : $TestArea"
-        LogError "TestNames : $TestNames"
-        LogError "TestTag : $TestTag"
-        LogError "TestPriority : $TestPriority"
+        Write-LogErr "TestPlatform : $TestPlatform"
+        Write-LogErr "TestCategory : $TestCategory"
+        Write-LogErr "TestArea : $TestArea"
+        Write-LogErr "TestNames : $TestNames"
+        Write-LogErr "TestTag : $TestTag"
         Throw "Invalid Test Selection"
     }
     return $AllLisaTests
@@ -448,7 +447,7 @@ Function CollectTestCases($TestXMLs)
 
 
 
-function SendEmail([XML] $xmlConfig, $body)
+function Send-Email([XML] $xmlConfig, $body)
 {
     <#
 	.Synopsis
@@ -467,7 +466,7 @@ function SendEmail([XML] $xmlConfig, $body)
         none
 
     .Example
-        SendEmail $myConfig
+        Send-Email $myConfig
 	#>
 
     $to = $xmlConfig.config.global.emailList.split(",")
@@ -481,7 +480,7 @@ function SendEmail([XML] $xmlConfig, $body)
 	Send-mailMessage -to $to -from $from -subject $subject -body $body -smtpserver $smtpServer -BodyAsHtml
 }
 
-Function GetCurrentCycleData($xmlConfig, $cycleName)
+Function Get-CurrentCycleData($xmlConfig, $cycleName)
 {
     foreach ($Cycle in $xmlConfig.config.testCycles.Cycle )
     {
@@ -494,7 +493,7 @@ Function GetCurrentCycleData($xmlConfig, $cycleName)
 
 }
 
-Function GetCurrentCycleData($xmlConfig, $cycleName)
+Function Get-CurrentCycleData($xmlConfig, $cycleName)
 {
 	foreach ($Cycle in $xmlConfig.config.testCycles.Cycle )
 	{
@@ -507,13 +506,13 @@ Function GetCurrentCycleData($xmlConfig, $cycleName)
 
 }
 
-Function GetCurrentTestData($xmlConfig, $testName)
+Function Get-CurrentTestData($xmlConfig, $testName)
 {
 	foreach ($test in $xmlConfig.config.testsDefinition.test)
 	{
 		if ($test.testName -eq $testName)
 		{
-		LogMsg "Loading the test data for $($test.testName)"
+		Write-LogInfo "Loading the test data for $($test.testName)"
 		Set-Variable -Name CurrentTestData -Value $test -Scope Global -Force
 		return $test
 		break
@@ -521,7 +520,7 @@ Function GetCurrentTestData($xmlConfig, $testName)
 	}
 }
 
-Function RefineTestResult2 ($testResult)
+Function Refine-TestResult2 ($testResult)
 {
 	$i=0
 	$tempResult = @()
@@ -539,7 +538,7 @@ Function RefineTestResult2 ($testResult)
 	return $testResult
 }
 
-Function RefineTestResult1 ($tempResult)
+Function Refine-TestResult1 ($tempResult)
 {
 	foreach ($new in $tempResult)
 	{
@@ -555,37 +554,37 @@ Function RefineTestResult1 ($tempResult)
 	return $tempResultSplitted[$lastWord]
 }
 
-Function ValidateVHD($vhdPath)
+Function Validate-VHD($vhdPath)
 {
     try
     {
         $tempVHDName = Split-Path $vhdPath -leaf
-        LogMsg "Inspecting '$tempVHDName'. Please wait..."
+        Write-LogInfo "Inspecting '$tempVHDName'. Please wait..."
         $VHDInfo = Get-VHD -Path $vhdPath -ErrorAction Stop
-        LogMsg "  VhdFormat            :$($VHDInfo.VhdFormat)"
-        LogMsg "  VhdType              :$($VHDInfo.VhdType)"
-        LogMsg "  FileSize             :$($VHDInfo.FileSize)"
-        LogMsg "  Size                 :$($VHDInfo.Size)"
-        LogMsg "  LogicalSectorSize    :$($VHDInfo.LogicalSectorSize)"
-        LogMsg "  PhysicalSectorSize   :$($VHDInfo.PhysicalSectorSize)"
-        LogMsg "  BlockSize            :$($VHDInfo.BlockSize)"
-        LogMsg "Validation successful."
+        Write-LogInfo "  VhdFormat            :$($VHDInfo.VhdFormat)"
+        Write-LogInfo "  VhdType              :$($VHDInfo.VhdType)"
+        Write-LogInfo "  FileSize             :$($VHDInfo.FileSize)"
+        Write-LogInfo "  Size                 :$($VHDInfo.Size)"
+        Write-LogInfo "  LogicalSectorSize    :$($VHDInfo.LogicalSectorSize)"
+        Write-LogInfo "  PhysicalSectorSize   :$($VHDInfo.PhysicalSectorSize)"
+        Write-LogInfo "  BlockSize            :$($VHDInfo.BlockSize)"
+        Write-LogInfo "Validation successful."
     }
     catch
     {
-        LogMsg "Failed: Get-VHD -Path $vhdPath"
+        Write-LogInfo "Failed: Get-VHD -Path $vhdPath"
         Throw "INVALID_VHD_EXCEPTION"
     }
 }
 
-Function ValidateMD5($filePath, $expectedMD5hash)
+Function Validate-MD5($filePath, $expectedMD5hash)
 {
-    LogMsg "Expected MD5 hash for $filePath : $($expectedMD5hash.ToUpper())"
+    Write-LogInfo "Expected MD5 hash for $filePath : $($expectedMD5hash.ToUpper())"
     $hash = Get-FileHash -Path $filePath -Algorithm MD5
-    LogMsg "Calculated MD5 hash for $filePath : $($hash.Hash.ToUpper())"
+    Write-LogInfo "Calculated MD5 hash for $filePath : $($hash.Hash.ToUpper())"
     if ($hash.Hash.ToUpper() -eq  $expectedMD5hash.ToUpper())
     {
-        LogMsg "MD5 checksum verified successfully."
+        Write-LogInfo "MD5 checksum verified successfully."
     }
     else
     {
@@ -620,7 +619,7 @@ Function Test-FileLock
 	}
 }
 
-Function CreateArrayOfTabs()
+Function Create-ArrayOfTabs()
 {
 	$tab = @()
     for ( $i = 0; $i -lt 30; $i++)
@@ -680,24 +679,24 @@ Function Get-SQLQueryOfTelemetryData ($TestPlatform,$TestLocation,$TestCategory,
 				}
 			}
 			$SQLQuery = $SQLQuery.TrimEnd(',')
-			LogMsg "Get the SQL query of test results:  done"
+			Write-LogInfo "Get the SQL query of test results:  done"
 			return $SQLQuery
 		}
 		catch
 		{
-			LogErr "Get the SQL query of test results:  ERROR"
+			Write-LogErr "Get the SQL query of test results:  ERROR"
 			$line = $_.InvocationInfo.ScriptLineNumber
 			$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
 			$ErrorMessage =  $_.Exception.Message
-			LogMsg "EXCEPTION : $ErrorMessage"
-			LogMsg "Source : Line $line in script $script_name."
+			Write-LogInfo "EXCEPTION : $ErrorMessage"
+			Write-LogInfo "Source : Line $line in script $script_name."
 		}
 	} else {
 		return $null
 	}
 }
 
-Function UploadTestResultToDatabase ($SQLQuery)
+Function Upload-TestResultToDatabase ($SQLQuery)
 {
 	if ($XmlSecrets) {
 		$dataSource = $XmlSecrets.secrets.DatabaseServer
@@ -708,7 +707,7 @@ Function UploadTestResultToDatabase ($SQLQuery)
 		if ($dataSource -and $dbuser -and $dbpassword -and $database) {
 			try
 			{
-				LogMsg "SQLQuery:  $SQLQuery"
+				Write-LogInfo "SQLQuery:  $SQLQuery"
 				$connectionString = "Server=$dataSource;uid=$dbuser; pwd=$dbpassword;Database=$database;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
 				$connection = New-Object System.Data.SqlClient.SqlConnection
 				$connection.ConnectionString = $connectionString
@@ -717,22 +716,22 @@ Function UploadTestResultToDatabase ($SQLQuery)
 				$command.CommandText = $SQLQuery
 				$null = $command.executenonquery()
 				$connection.Close()
-				LogMsg "Uploading test results to database :  done!!"
+				Write-LogInfo "Uploading test results to database :  done!!"
 			}
 			catch
 			{
-				LogErr "Uploading test results to database :  ERROR"
+				Write-LogErr "Uploading test results to database :  ERROR"
 				$line = $_.InvocationInfo.ScriptLineNumber
 				$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
 				$ErrorMessage =  $_.Exception.Message
-				LogMsg "EXCEPTION : $ErrorMessage"
-				LogMsg "Source : Line $line in script $script_name."
+				Write-LogInfo "EXCEPTION : $ErrorMessage"
+				Write-LogInfo "Source : Line $line in script $script_name."
 			}
 		} else {
-			LogErr "Database details are not provided. Results will not be uploaded to database!!"
+			Write-LogErr "Database details are not provided. Results will not be uploaded to database!!"
 		}
 	} else {
-		LogErr "Unable to send telemetry data to Azure. XML Secrets file not provided."
+		Write-LogErr "Unable to send telemetry data to Azure. XML Secrets file not provided."
 	}
 }
 
@@ -752,10 +751,10 @@ Function Get-LISAv2Tools($XMLSecretFile)
 	$CmdArray | ForEach-Object {
 		# Verify the binary file in Tools location
 		if (! (Test-Path $CurrentDirectory/Tools/$_) ) {
-			LogErr "$_ file is not found in Tools folder."
+			Write-LogErr "$_ file is not found in Tools folder."
 		    if ($toolFileAccessLocation) {
 		        $WebClient.DownloadFile("$toolFileAccessLocation/$_","$CurrentDirectory\Tools\$_")
-		        LogMsg "File $_ successfully downloaded in Tools folder: $CurrentDirectory\Tools."
+		        Write-LogInfo "File $_ successfully downloaded in Tools folder: $CurrentDirectory\Tools."
 		    } else {
 		        Throw "$_ file is not found, please either download the file to Tools folder, or specify the blobStorageLocation in XMLSecretFile"
             }
@@ -859,7 +858,7 @@ function Run-SetupScript {
     }
     $msg = ("Test setup/cleanup started using script:{0} with parameters:{1}" `
              -f @($Script,$scriptParameters))
-    LogMsg $msg
+    Write-LogInfo $msg
     $result = & "${scriptLocation}" -TestParams $scriptParameters
     return $result
 }
@@ -881,7 +880,7 @@ function Create-ConstantsFile {
                  -f @($param,$($Parameters[$param]))) -Path $FilePath -Force
         $msg = ("{0}={1} added to constants.sh file" `
                  -f @($param,$($Parameters[$param])))
-        LogMsg $msg
+        Write-LogInfo $msg
     }
 }
 
@@ -918,14 +917,14 @@ function Run-TestScript {
     Create-ConstantsFile -FilePath $constantsPath -Parameters $Parameters
     if(!$IsWindows){
         foreach ($VM in $VMData) {
-            RemoteCopy -upload -uploadTo $VM.PublicIP -Port $VM.SSHPort `
+            Copy-RemoteFiles -upload -uploadTo $VM.PublicIP -Port $VM.SSHPort `
                 -files $constantsPath -Username $Username -password $Password
-            LogMsg "Constants file uploaded to: $($VM.RoleName)"
+            Write-LogInfo "Constants file uploaded to: $($VM.RoleName)"
         }
     }
-    LogMsg "Test script: ${Script} started."
+    Write-LogInfo "Test script: ${Script} started."
     if ($scriptExtension -eq "sh") {
-        RunLinuxCmd -Command "echo '${Password}' | sudo -S -s eval `"export HOME=``pwd``;bash ${Script} > ${TestName}_summary.log 2>&1`"" `
+        Run-LinuxCmd -Command "echo '${Password}' | sudo -S -s eval `"export HOME=``pwd``;bash ${Script} > ${TestName}_summary.log 2>&1`"" `
              -Username $Username -password $Password -ip $VMData.PublicIP -Port $VMData.SSHPort `
              -runMaxAllowedTime $Timeout
     } elseif ($scriptExtension -eq "ps1") {
@@ -934,12 +933,12 @@ function Run-TestScript {
         foreach ($param in $Parameters.Keys) {
             $scriptParameters += (";{0}={1}" -f ($param,$($Parameters[$param])))
         }
-        LogMsg "${scriptLoc} -TestParams $scriptParameters"
+        Write-LogInfo "${scriptLoc} -TestParams $scriptParameters"
         $testResult = & "${scriptLoc}" -TestParams $scriptParameters
     } elseif ($scriptExtension -eq "py") {
-        RunLinuxCmd -Username $Username -password $Password -ip $VMData.PublicIP -Port $VMData.SSHPort `
+        Run-LinuxCmd -Username $Username -password $Password -ip $VMData.PublicIP -Port $VMData.SSHPort `
              -Command "python ${Script}" -runMaxAllowedTime $Timeout -runAsSudo
-        RunLinuxCmd -Username $Username -password $Password -ip $VMData.PublicIP -Port $VMData.SSHPort `
+        Run-LinuxCmd -Username $Username -password $Password -ip $VMData.PublicIP -Port $VMData.SSHPort `
              -Command "mv Runtime.log ${TestName}_summary.log" -runAsSudo
     }
 
@@ -978,7 +977,7 @@ function Collect-TestLogs {
     if ($TestType -eq "sh") {
         $filesTocopy = "{0}/state.txt, {0}/summary.log, {0}/TestExecution.log, {0}/TestExecutionError.log" `
             -f @("/home/${Username}")
-        RemoteCopy -download -downloadFrom $PublicIP -downloadTo $LogsDestination `
+        Copy-RemoteFiles -download -downloadFrom $PublicIP -downloadTo $LogsDestination `
              -Port $SSHPort -Username "root" -password $Password `
              -files $filesTocopy
         $summary = Get-Content (Join-Path $LogDir "summary.log")
@@ -987,18 +986,18 @@ function Collect-TestLogs {
     } elseif ($TestType -eq "py") {
         $filesTocopy = "{0}/state.txt, {0}/Summary.log, {0}/${TestName}_summary.log" `
             -f @("/home/${Username}")
-        RemoteCopy -download -downloadFrom $PublicIP -downloadTo $LogsDestination `
+        Copy-RemoteFiles -download -downloadFrom $PublicIP -downloadTo $LogsDestination `
              -Port $SSHPort -Username "root" -password $Password `
              -files $filesTocopy
         $summary = Get-Content (Join-Path $LogDir "Summary.log")
         $testResult = $summary
     }
 
-    LogMsg "TEST SCRIPT SUMMARY ~~~~~~~~~~~~~~~"
+    Write-LogInfo "TEST SCRIPT SUMMARY ~~~~~~~~~~~~~~~"
     $summary | ForEach-Object {
         Write-Host $_ -ForegroundColor Gray -BackgroundColor White
     }
-    LogMsg "END OF TEST SCRIPT SUMMARY ~~~~~~~~~~~~~~~"
+    Write-LogInfo "END OF TEST SCRIPT SUMMARY ~~~~~~~~~~~~~~~"
 
     return $testResult
 }
@@ -1064,7 +1063,7 @@ function Run-Test {
         [bool]$ExecuteTeardown
     )
 
-    $currentTestResult = CreateTestResultObject
+    $currentTestResult = Create-TestResultObject
     $resultArr = @()
     $testParameters = @{}
     $testPlatform = $XmlConfig.config.CurrentTestPlatform
@@ -1082,7 +1081,7 @@ function Run-Test {
     }
 
     if ($ExecuteSetup -or -not $isDeployed) {
-        $global:isDeployed = DeployVMS -setupType $CurrentTestData.setupType `
+        $global:isDeployed = Deploy-VMS -setupType $CurrentTestData.setupType `
             -Distro $Distro -XMLConfig $XmlConfig -VMGeneration $VMGeneration
         if (!$isDeployed) {
             throw "Could not deploy VMs."
@@ -1098,18 +1097,18 @@ function Run-Test {
     } else {
         if ($testPlatform.ToUpper() -eq "HYPERV") {
             if ($CurrentTestData.AdditionalHWConfig.HyperVApplyCheckpoint -eq "False") {
-                RemoveAllFilesFromHomeDirectory -allDeployedVMs $AllVMData
-                LogMsg "Removed all files from home directory."
+                Remove-AllFilesFromHomeDirectory -allDeployedVMs $AllVMData
+                Write-LogInfo "Removed all files from home directory."
             } else  {
                 Apply-HyperVCheckpoint -VMData $AllVMData -CheckpointName "ICAbase"
                 $global:AllVMData = Check-IP -VMData $AllVMData
-                LogMsg "Public IP found for all VMs in deployment after checkpoint restore"
+                Write-LogInfo "Public IP found for all VMs in deployment after checkpoint restore"
             }
         }
     }
 
     if (!$IsWindows) {
-        $null = GetAndCheckKernelLogs -allDeployedVMs $allVMData -status "Initial"
+        $null = GetAndCheck-KernelLogs -allDeployedVMs $allVMData -status "Initial"
     }
 
     if ($CurrentTestData.TestParameters) {
@@ -1142,9 +1141,9 @@ function Run-Test {
         # This command uploads test dependencies in the home directory for the $vmUsername user
         if(!$IsWindows){
             foreach ($VMData in $AllVMData) {
-                RemoteCopy -upload -uploadTo $VMData.PublicIP -Port $VMData.SSHPort `
+                Copy-RemoteFiles -upload -uploadTo $VMData.PublicIP -Port $VMData.SSHPort `
                     -files $CurrentTestData.files -Username $VMUser -password $VMPassword
-                LogMsg "Test files uploaded to VM $($VMData.RoleName)"
+                Write-LogInfo "Test files uploaded to VM $($VMData.RoleName)"
             }
         }
     }
@@ -1181,8 +1180,8 @@ function Run-Test {
         }
     }
 
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
-    LogMsg "VM CLEANUP ~~~~~~~~~~~~~~~~~~~~~~~"
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
+    Write-LogInfo "VM CLEANUP ~~~~~~~~~~~~~~~~~~~~~~~"
     if ($xmlConfig.config.HyperV.Deployment.($CurrentTestData.setupType).ClusteredVM) {
         foreach ($VM in $AllVMData) {
             Add-VMGroupMember -Name $VM.HyperVGroupName -VM (Get-VM -name $VM.RoleName -ComputerName $VM.HyperVHost) `
@@ -1193,7 +1192,7 @@ function Run-Test {
     if ($testParameters["SkipVerifyKernelLogs"] -eq "True") {
         $optionalParams["SkipVerifyKernelLogs"] = $True
     }
-    DoTestCleanUp -CurrentTestResult $CurrentTestResult -TestName $currentTestData.testName `
+    Do-TestCleanUp -CurrentTestResult $CurrentTestResult -TestName $currentTestData.testName `
     -ResourceGroups $isDeployed @optionalParams -DeleteRG $ExecuteTeardown
 
     return $currentTestResult

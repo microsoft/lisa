@@ -19,7 +19,7 @@ param([string] $TestParams)
 # we need a scriptblock in order to pass the function to start-job
 # The script block is not part of the common function, so the script block is present here
 $scriptBlock = {
-   function ConsumeMemory([String]$WorkingDirectory, [String]$VMIpv4, [String]$VMSSHPort, [int]$timeoutStress, [String]$user, [String]$password)
+   function Consume-Memory([String]$WorkingDirectory, [String]$VMIpv4, [String]$VMSSHPort, [int]$timeoutStress, [String]$user, [String]$password)
    {
         Set-Location $WorkingDirectory
         $cmdToVM = @"
@@ -53,7 +53,7 @@ $scriptBlock = {
         if ([string]::Compare($leaveTrail, "yes", $true) -ne 0) {
             Remove-Item ".\${FILE_NAME}"
         }
-        # The RunLinuxCmd did not work on Scrip block so plink is used to execute the command
+        # The Run-LinuxCmd did not work on Scrip block so plink is used to execute the command
         $command = "echo $password | chmod u+x ${FILE_NAME} && sed -i 's/\r//g' ${FILE_NAME} && ./${FILE_NAME}"
         .\tools\plink.exe -t -pw $password -P $VMSSHPort $user@$VMIpv4 $command
         return $retVal
@@ -70,7 +70,7 @@ function Main {
     param (
         $TestParams
     )
-    $currentTestResult = CreateTestResultObject
+    $currentTestResult = Create-TestResultObject
     $resultArr = @()
     try {
         $testResult = $null
@@ -107,12 +107,12 @@ function Main {
         if (-not $vm1) {
             Throw "VM $vm1Name does not exist" | Tee-Object -Append -file $summaryLog
         }
-        LogMsg "Checking if Stressapptest is installed"
+        Write-LogInfo "Checking if Stressapptest is installed"
         $retVal = Publish-App "stressapptest" $Ipv4 $appGitURL $appGitTag $VMPort
         if (-not $retVal) {
             Throw "Stressapptest is not installed! Please install it before running the memory stress tests." | Tee-Object -Append -file $summaryLog
         }
-        LogMsg "Stressapptest is installed! Will begin running memory stress tests shortly."
+        Write-LogInfo "Stressapptest is installed! Will begin running memory stress tests shortly."
         $timeoutStress = 10
         # get memory stats from vm1
         # wait up to 2 min for it
@@ -133,9 +133,9 @@ function Main {
             $testResult = $resultFail
             Throw "vm1 $vm1Name reported 0 memory (assigned or demand)." | Tee-Object -Append -file $summaryLog
         }
-        LogMsg "  ${vm1Name}: assigned - $vm1BeforeAssigned | demand - $vm1BeforeDemand"
+        Write-LogInfo "  ${vm1Name}: assigned - $vm1BeforeAssigned | demand - $vm1BeforeDemand"
         # Send Command to consume
-        $job1 = Start-Job -ScriptBlock { param($WorkingDirectory,$Ipv4,$VMPort,$timeoutStress,$user,$password ) ConsumeMemory $WorkingDirectory $Ipv4 $VMPort $timeoutStress $user $password } -InitializationScript $scriptBlock -ArgumentList($WorkingDirectory,$Ipv4, $VMPort,$timeoutStress,$user,$password)
+        $job1 = Start-Job -ScriptBlock { param($WorkingDirectory,$Ipv4,$VMPort,$timeoutStress,$user,$password ) Consume-Memory $WorkingDirectory $Ipv4 $VMPort $timeoutStress $user $password } -InitializationScript $scriptBlock -ArgumentList($WorkingDirectory,$Ipv4, $VMPort,$timeoutStress,$user,$password)
         if (-not $?) {
             $testResult = $resultFail
             Throw "Unable to start job for creating pressure on $vm1Name" | Tee-Object -Append -file $summaryLog
@@ -145,9 +145,9 @@ function Main {
         # get memory stats for vm1 after stresstestapp starts
         [int64]$vm1Assigned = ($vm1.MemoryAssigned/1MB)
         [int64]$vm1Demand = ($vm1.MemoryDemand/1MB)
-        LogMsg "Memory stats after $vm1Name started stresstestapp"
-        LogMsg "${vm1Name}: assigned - $vm1Assigned | demand - $vm1Demand"
-        LogMsg "vm1BeforeDemand value $vm1BeforeDemand"
+        Write-LogInfo "Memory stats after $vm1Name started stresstestapp"
+        Write-LogInfo "${vm1Name}: assigned - $vm1Assigned | demand - $vm1Demand"
+        Write-LogInfo "vm1BeforeDemand value $vm1BeforeDemand"
         if ($vm1Demand -le $vm1BeforeDemand) {
             Throw "Memory Demand did not increase after starting stresstestapp" | Tee-Object -Append -file $summaryLog
         }
@@ -163,7 +163,7 @@ function Main {
                     Throw "Consume Memory script returned false on VM1 $vm1Name" | Tee-Object -Append -file $summaryLog
                 }
                 $diff = $totalTimeout - $timeout
-                LogMsg "Job finished in $diff seconds."
+                Write-LogInfo "Job finished in $diff seconds."
             }
             if ($firstJobStatus) {
                 break
@@ -180,19 +180,19 @@ function Main {
         # get memory stats after stresstestapp finished
         [int64]$vm1AfterAssigned = ($vm1.MemoryAssigned/1MB)
         [int64]$vm1AfterDemand = ($vm1.MemoryDemand/1MB)
-        LogMsg "Memory stats after stresstestapp finished: "
-        LogMsg "  ${vm1Name}: assigned - $vm1AfterAssigned | demand - $vm1AfterDemand"
+        Write-LogInfo "Memory stats after stresstestapp finished: "
+        Write-LogInfo "  ${vm1Name}: assigned - $vm1AfterAssigned | demand - $vm1AfterDemand"
         if ($vm1AfterDemand -ge $vm1Demand) {
             $testResult = $resultFail
             Throw "Demand did not go down after stresstestapp finished." | Tee-Object -Append -file $summaryLog
         }
-        LogMsg "Memory Hot Add (using stressapptest) completed successfully!"
+        Write-LogInfo "Memory Hot Add (using stressapptest) completed successfully!"
         $testResult = $resultPass
     }
     catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "$ErrorMessage at line: $ErrorLine"
+        Write-LogErr "$ErrorMessage at line: $ErrorLine"
     }
     finally {
         if (!$testResult) {
@@ -200,7 +200,7 @@ function Main {
         }
         $resultArr += $testResult
     }
-        $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+        $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
         return $currentTestResult.TestResult
 }
 

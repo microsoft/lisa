@@ -47,7 +47,7 @@ function Main {
         $VM2,
         $TestParams
     )
-    $currentTestResult = CreateTestResultObject
+    $currentTestResult = Create-TestResultObject
     $resultArr = @()
     try {
         $testResult = $null
@@ -66,16 +66,16 @@ function Main {
         $HvServer=$VM1.HyperVHost
         $appGitURL = $TestParams.appGitURL
         $appGitTag = $TestParams.appGitTag
-        LogMsg "VM1name is $vm1name"
-        LogMsg "VM2name is $vm2name"
-        LogMsg "Hvserver is $HvServer"
-        LogMsg "appGitURL is  $appGitURL"
-        LogMsg "appGitTag is  $appGitTag"
-        LogMsg "Param vm1 Details are -VM $VM1 -minMem $minMem -maxMem $TestParams.maxMem -startupMem $TestParams.startupMem -memWeight $memWeight"
-        LogMsg "Param vm2 Details are -VM $VM2 -minMem $minMem1 -maxMem $maxMem1 -startupMem $TestParams.startupMem1 -memWeight $memWeight1"
+        Write-LogInfo "VM1name is $vm1name"
+        Write-LogInfo "VM2name is $vm2name"
+        Write-LogInfo "Hvserver is $HvServer"
+        Write-LogInfo "appGitURL is  $appGitURL"
+        Write-LogInfo "appGitTag is  $appGitTag"
+        Write-LogInfo "Param vm1 Details are -VM $VM1 -minMem $minMem -maxMem $TestParams.maxMem -startupMem $TestParams.startupMem -memWeight $memWeight"
+        Write-LogInfo "Param vm2 Details are -VM $VM2 -minMem $minMem1 -maxMem $maxMem1 -startupMem $TestParams.startupMem1 -memWeight $memWeight1"
         Set-VMDynamicMemory -VM $VM1 -minMem $minMem -maxMem $maxMem -startupMem $startupMem -memWeight $TestParams.memWeight
         Set-VMDynamicMemory -VM $VM2 -minMem $minMem1 -maxMem $maxMem1 -startupMem $startupMem1 -memWeight $TestParams.memWeight1
-        LogMsg "Starting VM1 $vm1name"
+        Write-LogInfo "Starting VM1 $vm1name"
         $VM1Ipv4=Start-VMandGetIP $vm1name $HvServer $VMPort $user $password
         # change working directory to root dir
         Set-Location $WorkingDirectory
@@ -85,16 +85,16 @@ function Main {
         $vm1 = Get-VM -Name $vm1name -ComputerName $HvServer -ErrorAction SilentlyContinue
         $vm2 = Get-VM -Name $vm2name -ComputerName $HvServer -ErrorAction SilentlyContinue
         # Check if stress-ng is installed
-        LogMsg "Checking if stress-ng is installed"
+        Write-LogInfo "Checking if stress-ng is installed"
         $retVal1 = Publish-App "stress-ng" $VM1Ipv4 $appGitURL $appGitTag $VMPort
         if (-not $retVal1) {
             throw "stress-ng is not installed for VM1! Please install it before running the memory stress tests."
         }
-        LogMsg "stress-ng is installed! Will begin running memory stress tests shortly."
+        Write-LogInfo "stress-ng is installed! Will begin running memory stress tests shortly."
         $timeoutStress = 0
-        LogMsg "Starting VM2 $vm2Name"
+        Write-LogInfo "Starting VM2 $vm2Name"
         $VM2Ipv4=Start-VMandGetIP $vm2name $HvServer $VMPort $user $password
-        LogMsg "IP for the VM $vm2name is $VM2Ipv4"
+        Write-LogInfo "IP for the VM $vm2name is $VM2Ipv4"
         # get memory stats from vm1 and vm2
         # wait up to 2 min for it
         $sleepPeriod = 120 #seconds
@@ -114,9 +114,9 @@ function Main {
         {
             throw "vm1 or vm2 reported 0 memory (assigned or demand)."
         }
-        LogMsg "Memory stats after both $vm1name and $vm2name started reporting"
-        LogMsg "$vm1name : assigned - $vm1BeforeAssigned | demand - $vm1BeforeDemand"
-        LogMsg "$vm2name : assigned - $vm2BeforeAssigned | demand - $vm2BeforeDemand"
+        Write-LogInfo "Memory stats after both $vm1name and $vm2name started reporting"
+        Write-LogInfo "$vm1name : assigned - $vm1BeforeAssigned | demand - $vm1BeforeDemand"
+        Write-LogInfo "$vm2name : assigned - $vm2BeforeAssigned | demand - $vm2BeforeDemand"
         # Calculate the amount of memory to be consumed on VM2 with stress-ng
         [int64]$vm2ConsumeMem = (Get-VMMemory -VMName $vm1name -ComputerName $HvServer).Maximum
         # only consume 75% of max memory
@@ -128,15 +128,15 @@ function Main {
         [int]$vm2Duration = 420 #seconds
         # Send Command to consume
         $cmdAddConstants = "echo -e `"timeoutStress=$($timeoutStress)\nmemMB=$($vm2ConsumeMem)\nduration=$($vm2Duration)\nchunk=$($chunks)`" > /home/$user/constants.sh"
-        RunLinuxCmd -username $user -password $password -ip $VM1Ipv4 -port $VMPort -command $cmdAddConstants -runAsSudo
+        Run-LinuxCmd -username $user -password $password -ip $VM1Ipv4 -port $VMPort -command $cmdAddConstants -runAsSudo
         $Memcheck = "echo '${password}' | sudo -S -s eval `"export HOME=``pwd``;. utils.sh && UtilsInit && ConsumeMemory`""
-        $job1=RunLinuxCmd -username $user -password $password -ip $VM1Ipv4 -port $VMPort -command $Memcheck -runAsSudo -RunInBackGround
+        $job1=Run-LinuxCmd -username $user -password $password -ip $VM1Ipv4 -port $VMPort -command $Memcheck -runAsSudo -RunInBackGround
         if (-not $?) {
             throw "Unable to start job for creating pressure on $vm1name" | Tee-Object -Append -file $summaryLog
         }
         # sleep a few seconds so all stresstestapp processes start and the memory assigned/demand gets updated
         Start-Sleep -S 200
-        LogMsg $job1.State
+        Write-LogInfo $job1.State
         # get memory stats for vm1 and vm2
         [int64[]]$vm2Assigned = @()
         [int64[]]$vm2Demand = @()
@@ -153,7 +153,7 @@ function Main {
                     Throw "Consume Memory script returned false on VM2 $vm2Name"
                 }
                 $diff = $totalTimeout - $timeout
-                LogMsg "Job1 finished in $diff seconds."
+                Write-LogInfo "Job1 finished in $diff seconds."
             }
             if ($jobState) {
                 break
@@ -172,7 +172,7 @@ function Main {
         if ($samples -le 0) {
             Throw "No data has been sampled."
         }
-        LogMsg "Got $samples samples"
+        Write-LogInfo "Got $samples samples"
         # Get VM's Maximum memory setting
         [int64]$vm2MaxMem = ($vm1.MemoryMaximum/1MB)
         # $vm1bigger = $vm2bigger = 0
@@ -187,14 +187,14 @@ function Main {
     } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "$ErrorMessage at line: $ErrorLine"
+        Write-LogErr "$ErrorMessage at line: $ErrorLine"
     } finally {
         if (!$testResult) {
             $testResult = "ABORTED"
         }
         $resultArr += $testResult
     }
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
 Main -VM1 $allVMData[0] -VM2 $allVMData[1] -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))

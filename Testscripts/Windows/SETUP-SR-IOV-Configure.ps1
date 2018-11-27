@@ -25,17 +25,17 @@ function Set-VFInGuest {
         $VfIPToCheck
     )
     # Upload sriov_constants.sh
-    RemoteCopy -upload -uploadTo $VMIp -Port $VMPort `
+    Copy-RemoteFiles -upload -uploadTo $VMIp -Port $VMPort `
         -files "sriov_constants.sh" -Username $VMUser -password $VMPass
     if (-not $?) {
-        LogErr "Failed to send sriov_constants.sh to VM1!"
+        Write-LogErr "Failed to send sriov_constants.sh to VM1!"
         return $False
     }
     RunLinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort -command "cp sriov_constants.sh constants.sh"
     # Install dependencies
-    RunLinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort -command ". SR-IOV-Utils.sh; InstallDependencies"
+    Run-LinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort -command ". SR-IOV-Utils.sh; InstallDependencies"
     if (-not $?) {
-        LogErr "Failed to install dependencies on $VMName"
+        Write-LogErr "Failed to install dependencies on $VMName"
         return $False
     }
     # Configure VF
@@ -45,12 +45,12 @@ function Set-VFInGuest {
         return $False
     }
     # Check VF
-    $retVal = RunLinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort -command "ip a | grep -c $VfIPToCheck" -ignoreLinuxExitCode:$true
+    $retVal = Run-LinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort -command "ip a | grep -c $VfIPToCheck" -ignoreLinuxExitCode:$true
     if ($retVal -ne 1) {
-        LogErr "IP is not set on $VMName"
+        Write-LogErr "IP is not set on $VMName"
         return $False
     }
-    RunLinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort -command "rm -f constants.sh"
+    Run-LinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort -command "rm -f constants.sh"
     return $True
 }
 
@@ -106,26 +106,26 @@ function Main {
     }
 
     if (-not $VM2Name) {
-        LogErr "Test parameter vm2Name was not specified"
+        Write-LogErr "Test parameter vm2Name was not specified"
         return $False
     }
 
     if (-not $networkName) {
-        LogErr "Test parameter Switch_Name was not specified"
+        Write-LogErr "Test parameter Switch_Name was not specified"
         return $False
     }
 
     # Verify VM2 exists & restore the snapshot
     $vm2 = Get-VM -Name $VM2Name -ComputerName $DependencyVmHost -EA SilentlyContinue
     if (-not $vm2) {
-        LogErr "VM ${vm2Name} does not exist"
+        Write-LogErr "VM ${vm2Name} does not exist"
         return $False
     }
 
     if (Get-VM -Name $VM2Name -ComputerName $DependencyVmHost | Where-Object { $_.State -like "Running" }) {
         Stop-VM $VM2Name -ComputerName $DependencyVmHost -Force -TurnOff
         if (-not $?) {
-            LogErr "Unable to shut $VM2Name down (in order to add a new network Adapter)"
+            Write-LogErr "Unable to shut $VM2Name down (in order to add a new network Adapter)"
             return $False
         }
     }
@@ -133,7 +133,7 @@ function Main {
         Restore-VMSnapshot -Name $checkpointName -VMName $VM2Name -Confirm:$false `
             -ComputerName $DependencyVmHost
         if (-not $?) {
-            LogErr "Unable to restore checkpoint $checkpointName on $VM2Name"
+            Write-LogErr "Unable to restore checkpoint $checkpointName on $VM2Name"
             return $False
         }
     }
@@ -142,13 +142,13 @@ function Main {
     for ($i=0; $i -lt $nicIterator; $i++){
         Add-VMNetworkAdapter -VMName $VMName -SwitchName $networkName -IsLegacy:$false -ComputerName $HvServer
         if ($? -ne "True") {
-            LogErr "Add-VmNic to $VMName failed"
+            Write-LogErr "Add-VmNic to $VMName failed"
             return $False
         }
 
         Add-VMNetworkAdapter -VMName $VM2Name -SwitchName $networkName -IsLegacy:$false -ComputerName $DependencyVmHost
         if ($? -ne "True") {
-            LogErr "Add-VmNic to $VM2Name failed"
+            Write-LogErr "Add-VmNic to $VM2Name failed"
             return $False
         }
     }
@@ -156,12 +156,12 @@ function Main {
     # Enable SR-IOV on both VMs
     Set-VMNetworkAdapter -VMName $VMName -ComputerName $HvServer -IovWeight 1
     if ($? -ne "True") {
-        LogErr "Failed to enable SR-IOV on $VMName!"
+        Write-LogErr "Failed to enable SR-IOV on $VMName!"
         return $False
     }
     Set-VMNetworkAdapter -VMName $VM2Name -ComputerName $DependencyVmHost -IovWeight 1
     if ($? -ne "True") {
-        LogErr "Failed to enable SR-IOV on $VMName!"
+        Write-LogErr "Failed to enable SR-IOV on $VMName!"
         return $False
     }
 
@@ -171,25 +171,25 @@ function Main {
 
     # Set SSH key for both VMs
     # Setup ssh on VM1
-    RemoteCopy -uploadTo $ipv4 -port $VMPort -files `
+    Copy-RemoteFiles -uploadTo $ipv4 -port $VMPort -files `
         ".\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SR-IOV-Utils.sh" `
         -username $VMRootUser -password $VMPassword -upload
-    RemoteCopy -uploadTo $vm2ipv4 -port $VMPort -files `
+    Copy-RemoteFiles -uploadTo $vm2ipv4 -port $VMPort -files `
         ".\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SR-IOV-Utils.sh" `
         -username $VMRootUser -password $VMPassword -upload
-    RunLinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+    Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
         $VMPassword -command "chmod +x ~/*.sh"
-    RunLinuxCmd -ip $vm2ipv4 -port $VMPort -username $VMRootUser -password `
+    Run-LinuxCmd -ip $vm2ipv4 -port $VMPort -username $VMRootUser -password `
         $VMPassword -command "chmod +x ~/*.sh"
-    RunLinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+    Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
         $VMPassword -command "./enablePasswordLessRoot.sh ; cp -rf /root/.ssh /home/$VMUsername"
 
     # Copy keys from VM1 and setup VM2
-    RemoteCopy -download -downloadFrom $ipv4 -port $VMPort -files `
+    Copy-RemoteFiles -download -downloadFrom $ipv4 -port $VMPort -files `
         "/root/sshFix.tar" -username $VMRootUser -password $VMPassword -downloadTo $LogDir
-    RemoteCopy -uploadTo $vm2ipv4 -port $VMPort -files "$LogDir\sshFix.tar" `
+    Copy-RemoteFiles -uploadTo $vm2ipv4 -port $VMPort -files "$LogDir\sshFix.tar" `
         -username $VMRootUser -password $VMPassword -upload
-    RunLinuxCmd -ip $vm2ipv4 -port $VMPort -username $VMRootUser -password `
+    Run-LinuxCmd -ip $vm2ipv4 -port $VMPort -username $VMRootUser -password `
             $VMPassword -command "./enablePasswordLessRoot.sh ; cp -rf /root/.ssh /home/$VMUsername"
 
     # Construct and send sriov_constants.sh
@@ -209,19 +209,19 @@ function Main {
         else {
             $ipToSend = $vfIP[$i]
         }
-        LogMsg "Will append VF_IP$j=$ipToSend to sriov_constants.sh"
+        Write-LogInfo "Will append VF_IP$j=$ipToSend to sriov_constants.sh"
         "VF_IP$j=$ipToSend" | Out-File sriov_constants.sh -Append
     }
 
     # Configure VF on both VMs
     Set-VFInGuest $VMRootUser $ipv4 $VMPassword $VMPort $VMName "1" $vfIP1
     if (-not $?) {
-        LogErr "Failed to configure VF on $VMName"
+        Write-LogErr "Failed to configure VF on $VMName"
         return $False
     }
     Set-VFInGuest $VMRootUser $vm2ipv4 $VMPassword $VMPort $VM2Name "2" $vfIP2
     if (-not $?) {
-        LogErr "Failed to configure VF on $VM2Name"
+        Write-LogErr "Failed to configure VF on $VM2Name"
         return $False
     }
     return $True

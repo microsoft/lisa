@@ -78,30 +78,30 @@ $cacheFilePath = "cache.results-$tick.json"
 
 #region Get VM Age
 $then = Get-Date
-LogMsg "Elapsed Time: $($(Get-Date) - $then)"
+Write-LogInfo "Elapsed Time: $($(Get-Date) - $then)"
 $allSizes = @{}
-LogMsg "Running: Get-AzureRmLocation..."
+Write-LogInfo "Running: Get-AzureRmLocation..."
 $allRegions = (Get-AzureRmLocation | Where-Object { $_.Providers -imatch "Microsoft.Compute" }).Location | Sort-Object
 foreach( $region in $allRegions )
 {
-    LogMsg "Running:  Get-AzureRmVMSize -Location $($region)"
+    Write-LogInfo "Running:  Get-AzureRmVMSize -Location $($region)"
     $allSizes[ $region ] = Get-AzureRmVMSize -Location $region
 }
 try
 {
-	LogMsg "Running: Get-AzureRmVM -Status"
+	Write-LogInfo "Running: Get-AzureRmVM -Status"
 	$allVMStatus = Get-AzureRmVM -Status
-	LogMsg "Running: Get-AzureRmStorageAccount"
+	Write-LogInfo "Running: Get-AzureRmStorageAccount"
 	$sas = Get-AzureRmStorageAccount
 }
 catch {
-    LogMsg "Error while fetching data. Please try again."
+    Write-LogInfo "Error while fetching data. Please try again."
     Set-Content -Path $VMAgeHTMLFile -Value "There was some error in fetching data from Azure today."
     exit 1
 }
 
 
-LogMsg "Elapsed Time: $($(Get-Date) - $then)"
+Write-LogInfo "Elapsed Time: $($(Get-Date) - $then)"
 $finalResults = @()
 foreach( $vm in $allVMStatus )
 {
@@ -115,7 +115,7 @@ foreach( $vm in $allVMStatus )
   {
         $PowerStatusString = " [ON] "
   }
-  LogMsg "[$($(Get-Date) - $then)] $PowerStatusString -Name $($vm.Name) -ResourceGroup $($vm.ResourceGroupName) Size=$($vm.HardwareProfile.VmSize)"
+  Write-LogInfo "[$($(Get-Date) - $then)] $PowerStatusString -Name $($vm.Name) -ResourceGroup $($vm.ResourceGroupName) Size=$($vm.HardwareProfile.VmSize)"
   $storageKind = "None"
   $ageDays = -1
   $idleDays = -1
@@ -134,23 +134,23 @@ foreach( $vm in $allVMStatus )
     $blobDetails = Get-AzureStorageBlob -Container $container -Blob $blob
     $copyCompletion = $blobDetails.ICloudBlob.CopyState.CompletionTime
     $lastWriteTime = $blobDetails.LastModified
-    $age = $($(get-Date)-$copyCompletion.DateTime)
+    $age = $($(Get-Date)-$copyCompletion.DateTime)
     $idle = $($(Get-Date)-$lastWriteTime.DateTime)
     $ageDays = $age.Days
     $idleDays = $idle.Days
 
-    LogMsg " Age = $ageDays  Idle = $idleDays"
+    Write-LogInfo " Age = $ageDays  Idle = $idleDays"
   }
   else
   {
     $storageKind = "disk"
-	LogMsg "Running:  Get-AzureRmDisk -ResourceGroupName $($vm.ResourceGroupName) -DiskName $($vm.StorageProfile.OsDisk.Name)"
+	Write-LogInfo "Running:  Get-AzureRmDisk -ResourceGroupName $($vm.ResourceGroupName) -DiskName $($vm.StorageProfile.OsDisk.Name)"
     $osdisk = Get-AzureRmDisk -ResourceGroupName $vm.ResourceGroupName -DiskName $vm.StorageProfile.OsDisk.Name
     if( $osdisk.TimeCreated )
     {
       $age = $($(Get-Date) - $osDisk.TimeCreated)
       $ageDays = $($age.Days)
-      LogMsg " Age = $($age.Days)"
+      Write-LogInfo " Age = $($age.Days)"
     }
   }
   $coreCount = $allSizes[ $vm.Location ] | where { $_.Name -eq $($vm.HardwareProfile.VmSize) }
@@ -169,7 +169,7 @@ foreach( $vm in $allVMStatus )
 
   $finalResults += $newEntry
 }
-LogMsg "FinalResults.Count = $($finalResults.Count)"
+Write-LogInfo "FinalResults.Count = $($finalResults.Count)"
 $finalResults | ConvertTo-Json -Depth 10 | Set-Content "$cacheFilePath"
 #endregion
 

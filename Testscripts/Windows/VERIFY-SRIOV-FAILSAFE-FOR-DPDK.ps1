@@ -1,34 +1,34 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 
-function Run_Dpdk_TestPmd {
-	$testJob = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -command "./StartDpdkTestPmd.sh" -RunInBackground
+function Run-DpdkTestPmd {
+	$testJob = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -command "./StartDpdkTestPmd.sh" -RunInBackground
 
 	#region MONITOR TEST
 	while ((Get-Job -Id $testJob).State -eq "Running") {
-		$currentStatus = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -command "tail -2 dpdkConsoleLogs.txt | head -1"
-		LogMsg "Current Test Status : $currentStatus"
-		WaitFor -seconds 20
+		$currentStatus = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -command "tail -2 dpdkConsoleLogs.txt | head -1"
+		Write-LogInfo "Current Test Status : $currentStatus"
+		Wait-Time -seconds 20
 	}
-	$finalStatus = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -command "cat /root/state.txt"
-	RemoteCopy -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -download -downloadTo $currentDir -files "*.csv, *.txt, *.log"
+	$finalStatus = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -command "cat /root/state.txt"
+	Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -download -downloadTo $currentDir -files "*.csv, *.txt, *.log"
 
 	if ($finalStatus -imatch "TestFailed") {
-		LogErr "Test failed. Last known status : $currentStatus."
+		Write-LogErr "Test failed. Last known status : $currentStatus."
 		$testResult = "FAIL"
 	}
 	elseif ($finalStatus -imatch "TestAborted") {
-		LogErr "Test Aborted. Last known status : $currentStatus."
+		Write-LogErr "Test Aborted. Last known status : $currentStatus."
 		$testResult = "ABORTED"
 	}
 	elseif ($finalStatus -imatch "TestCompleted") {
-		LogMsg "Test Completed."
+		Write-LogInfo "Test Completed."
 		$testResult = "PASS"
-		RemoteCopy -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -download -downloadTo $currentDir -files "*.tar.gz"
+		Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -download -downloadTo $currentDir -files "*.tar.gz"
 	}
 	elseif ($finalStatus -imatch "TestRunning") {
-		LogMsg "Powershell backgroud job for test is completed but VM is reporting that test is still running. Please check $LogDir\zkConsoleLogs.txt"
-		LogMsg "Contests of summary.log : $testSummary"
+		Write-LogInfo "Powershell backgroud job for test is completed but VM is reporting that test is still running. Please check $LogDir\zkConsoleLogs.txt"
+		Write-LogInfo "Contests of summary.log : $testSummary"
 		$testResult = "PASS"
     }
 
@@ -55,7 +55,7 @@ function Main {
                 $noServer = $false
                 $serverVMData = $vmData
             } else {
-                LogErr "VM role name is not matched with server or client"
+                Write-LogErr "VM role name is not matched with server or client"
             }
         }
         if ($noClient) {
@@ -65,27 +65,27 @@ function Main {
             Throw "No any slave VM defined. Be sure that, Server machine role names matches with pattern `"*slave*`" Aborting Test."
         }
         #region CONFIGURE VM FOR TERASORT TEST
-        LogMsg "CLIENT VM details :"
-        LogMsg "  RoleName : $($clientVMData.RoleName)"
-        LogMsg "  Public IP : $($clientVMData.PublicIP)"
-        LogMsg "  SSH Port : $($clientVMData.SSHPort)"
-        LogMsg "  Internal IP : $($clientVMData.InternalIP)"
-        LogMsg "SERVER VM details :"
-        LogMsg "  RoleName : $($serverVMData.RoleName)"
-        LogMsg "  Public IP : $($serverVMData.PublicIP)"
-        LogMsg "  SSH Port : $($serverVMData.SSHPort)"
-        LogMsg "  Internal IP : $($serverVMData.InternalIP)"
+        Write-LogInfo "CLIENT VM details :"
+        Write-LogInfo "  RoleName : $($clientVMData.RoleName)"
+        Write-LogInfo "  Public IP : $($clientVMData.PublicIP)"
+        Write-LogInfo "  SSH Port : $($clientVMData.SSHPort)"
+        Write-LogInfo "  Internal IP : $($clientVMData.InternalIP)"
+        Write-LogInfo "SERVER VM details :"
+        Write-LogInfo "  RoleName : $($serverVMData.RoleName)"
+        Write-LogInfo "  Public IP : $($serverVMData.PublicIP)"
+        Write-LogInfo "  SSH Port : $($serverVMData.SSHPort)"
+        Write-LogInfo "  Internal IP : $($serverVMData.InternalIP)"
 
         # PROVISION VMS FOR LISA WILL ENABLE ROOT USER AND WILL MAKE ENABLE PASSWORDLESS AUTHENTICATION ACROSS ALL VMS IN SAME HOSTED SERVICE.
-        ProvisionVMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
+        Provision-VMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
         #endregion
 
-        LogMsg "Getting Active NIC Name."
+        Write-LogInfo "Getting Active NIC Name."
         $getNicCmd = ". ./utils.sh &> /dev/null && get_active_nic_name"
-        $clientNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -command $getNicCmd).Trim()
-        $serverNicName = (RunLinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username $superUser -password $password -command $getNicCmd).Trim()
+        $clientNicName = (Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -command $getNicCmd).Trim()
+        $serverNicName = (Run-LinuxCmd -ip $clientVMData.PublicIP -port $serverVMData.SSHPort -username $superUser -password $password -command $getNicCmd).Trim()
         if ($serverNicName -eq $clientNicName) {
-            LogMsg "Client and Server VMs have same nic name: $clientNicName"
+            Write-LogInfo "Client and Server VMs have same nic name: $clientNicName"
         } else {
             Throw "Server and client SRIOV NICs are not same."
         }
@@ -94,10 +94,10 @@ function Main {
         } else {
             $DataPath = "Synthetic"
         }
-        LogMsg "CLIENT $DataPath NIC: $clientNicName"
-        LogMsg "SERVER $DataPath NIC: $serverNicName"
+        Write-LogInfo "CLIENT $DataPath NIC: $clientNicName"
+        Write-LogInfo "SERVER $DataPath NIC: $serverNicName"
 
-        LogMsg "Generating constansts.sh ..."
+        Write-LogInfo "Generating constansts.sh ..."
         $constantsFile = "$LogDir\constants.sh"
         Set-Content -Value "#Generated by Azure Automation." -Path $constantsFile
         Add-Content -Value "vms=$($serverVMData.RoleName),$($clientVMData.RoleName)" -Path $constantsFile
@@ -112,9 +112,9 @@ function Main {
                 $modes = ($param.Replace("modes=",""))
             }
         }
-        LogMsg "constanst.sh created successfully..."
-        LogMsg "test modes : $modes"
-        LogMsg (Get-Content -Path $constantsFile)
+        Write-LogInfo "constanst.sh created successfully..."
+        Write-LogInfo "test modes : $modes"
+        Write-LogInfo (Get-Content -Path $constantsFile)
         #endregion
 
         #region EXECUTE TEST
@@ -125,22 +125,22 @@ cd /root/
 collect_VM_properties
 "@
         Set-Content "$LogDir\StartDpdkTestPmd.sh" $myString
-        RemoteCopy -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files "$constantsFile,$LogDir\StartDpdkTestPmd.sh" -username $superUser -password $password -upload
-		$null = RunLinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -command "chmod +x *.sh" | Out-Null
+        Copy-RemoteFiles -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files "$constantsFile,$LogDir\StartDpdkTestPmd.sh" -username $superUser -password $password -upload
+		$null = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -command "chmod +x *.sh" | Out-Null
 
 		$currentDir = "$LogDir\initialSRIOVTest"
 		New-Item -Path $currentDir -ItemType Directory | Out-Null
-        $initailTest = Run_Dpdk_TestPmd
+        $initailTest = Run-DpdkTestPmd
 		if ($initailTest -eq $true) {
             $initialSriovResult = Import-Csv -Path $currentDir\dpdkTestPmd.csv
-			LogMsg ($initialSriovResult | Format-Table | Out-String)
+			Write-LogInfo ($initialSriovResult | Format-Table | Out-String)
 			$testResult = "PASS"
 		} else {
 			$testResult = "FAIL"
-			LogErr "Initial DPDK test execution failed"
+			Write-LogErr "Initial DPDK test execution failed"
 		}
 		$resultArr += $testResult
-		$currentTestResult.TestSummary +=  CreateResultSummary -testResult "$($initialSriovResult.DpdkVersion) : TxPPS : $($initialSriovResult.TxPps) : RxPPS : $($initialSriovResult.RxPps)" -metaData "DPDK-TESTPMD : Initial SRIOV" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+		$currentTestResult.TestSummary +=  Create-ResultSummary -testResult "$($initialSriovResult.DpdkVersion) : TxPPS : $($initialSriovResult.TxPps) : RxPPS : $($initialSriovResult.RxPps)" -metaData "DPDK-TESTPMD : Initial SRIOV" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 
         #disable SRIOV
         $sriovStatus = $false
@@ -149,22 +149,22 @@ collect_VM_properties
         $sriovStatus = Set-SRIOVInVMs -VirtualMachinesGroupName $AllVMData.ResourceGroupName[0] -Disable
 		$clientVMData.PublicIP = $AllVMData.PublicIP[0]
 		if ($sriovStatus -eq $true) {
-			LogMsg "SRIOV is disabaled"
-			$syntheticTest = Run_Dpdk_TestPmd
+			Write-LogInfo "SRIOV is disabaled"
+			$syntheticTest = Run-DpdkTestPmd
 			if ($syntheticTest -eq $true){
                 $syntheticResult = Import-Csv -Path $currentDir\dpdkTestPmd.csv
-				LogMsg ($syntheticResult | Format-Table | Out-String)
+				Write-LogInfo ($syntheticResult | Format-Table | Out-String)
 				$testResult = "PASS"
 			} else {
 				$testResult = "FAIL"
-				LogErr "Synthetic DPDK test execution failed"
+				Write-LogErr "Synthetic DPDK test execution failed"
 			}
 		} else {
 			$testResult = "FAIL"
-			LogErr "Disable SRIOV is failed"
+			Write-LogErr "Disable SRIOV is failed"
 		}
 		$resultArr += $testResult
-		$currentTestResult.TestSummary +=  CreateResultSummary -testResult "$($syntheticResult.DpdkVersion) : TxPPS : $($syntheticResult.TxPps) : RxPPS : $($syntheticResult.RxPps)" -metaData "DPDK-TESTPMD : Synthetic" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+		$currentTestResult.TestSummary +=  Create-ResultSummary -testResult "$($syntheticResult.DpdkVersion) : TxPPS : $($syntheticResult.TxPps) : RxPPS : $($syntheticResult.RxPps)" -metaData "DPDK-TESTPMD : Synthetic" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 
         #enable SRIOV
         $currentDir = "$LogDir\finallSRIOVTest"
@@ -172,44 +172,44 @@ collect_VM_properties
         $sriovStatus = Set-SRIOVInVMs -VirtualMachinesGroupName $AllVMData.ResourceGroupName[0] -Enable
 		$clientVMData.PublicIP = $AllVMData.PublicIP[0]
 		if ($sriovStatus -eq $true) {
-			LogMsg "SRIOV is enabled"
-			$finalSriovTest = Run_Dpdk_TestPmd
+			Write-LogInfo "SRIOV is enabled"
+			$finalSriovTest = Run-DpdkTestPmd
 			if ($finalSriovTest -eq $true) {
 				$finalSriovResult = Import-Csv -Path $currentDir\dpdkTestPmd.csv
-				LogMsg ($finalSriovResult | Format-Table | Out-String)
+				Write-LogInfo ($finalSriovResult | Format-Table | Out-String)
 				$testResult = "PASS"
 			} else {
 				$testResult = "FAIL"
-				LogErr "Re-Enabled SRIOV DPDK test execution failed"
+				Write-LogErr "Re-Enabled SRIOV DPDK test execution failed"
 			}
 		} else {
 			$testResult = "FAIL"
-			LogErr "Enable SRIOV is failed"
+			Write-LogErr "Enable SRIOV is failed"
 		}
 		$resultArr += $testResult
-		$currentTestResult.TestSummary +=  CreateResultSummary -testResult "$($finalSriovResult.DpdkVersion) : TxPps : $($finalSriovResult.TxPps) : RxPps : $($finalSriovResult.RxPps)" -metaData "DPDK-TESTPMD : Re-Enable SRIOV" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
-		LogMsg "Comparison of DPDK RxPPS between Initial and Re-Enabled SRIOV"
+		$currentTestResult.TestSummary +=  Create-ResultSummary -testResult "$($finalSriovResult.DpdkVersion) : TxPps : $($finalSriovResult.TxPps) : RxPps : $($finalSriovResult.RxPps)" -metaData "DPDK-TESTPMD : Re-Enable SRIOV" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+		Write-LogInfo "Comparison of DPDK RxPPS between Initial and Re-Enabled SRIOV"
 		if (($null -ne $initialSriovResult.RxPps) -and ($null -ne $finalSriovResult.RxPps)) {
 			$loss = [Math]::Round([Math]::Abs($initialSriovResult.RxPps - $finalSriovResult.RxPps)/$initialSriovResult.RxPps*100, 2)
 			$lossinpercentage = "$loss"+" %"
 			if (($loss -le 5) -or ($initialSriovResult.RxPps -ge $lowerbound -and $finalSriovResult.RxPps -ge $lowerbound)){
 				$testResult = "PASS"
-				LogMsg "Initial and Re-Enabled SRIOV DPDK RxPPS is greater than $lowerbound (lower bound limit) and difference is : $lossinpercentage"
+				Write-LogInfo "Initial and Re-Enabled SRIOV DPDK RxPPS is greater than $lowerbound (lower bound limit) and difference is : $lossinpercentage"
 			} else {
 				$testResult = "FAIL"
-				LogErr "Initial and Re-Enabled SRIOV DPDK RxPPS is less than $lowerbound (lower bound limit) and difference is : $lossinpercentage"
+				Write-LogErr "Initial and Re-Enabled SRIOV DPDK RxPPS is less than $lowerbound (lower bound limit) and difference is : $lossinpercentage"
 			}
 		} else {
-			LogErr "DPDK RxPPS of Initial or Re-Enabled SRIOV is zero."
+			Write-LogErr "DPDK RxPPS of Initial or Re-Enabled SRIOV is zero."
 			$testResult = "FAIL"
 		}
 		$resultArr += $testResult
-		$currentTestResult.TestSummary +=  CreateResultSummary -testResult "$($initialSriovResult.RxPps) : $($finalSriovResult.RxPps) : $($lossinpercentage)" -metaData "DPDK RxPPS : Difference between Initial and Re-Enabled SRIOV" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
-        LogMsg "Test result : $testResult"
+		$currentTestResult.TestSummary +=  Create-ResultSummary -testResult "$($initialSriovResult.RxPps) : $($finalSriovResult.RxPps) : $($lossinpercentage)" -metaData "DPDK RxPPS : Difference between Initial and Re-Enabled SRIOV" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+        Write-LogInfo "Test result : $testResult"
     } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+        Write-LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
         $testResult = "FAIL"
     } finally {
         if (!$testResult) {
@@ -217,7 +217,7 @@ collect_VM_properties
         }
         $resultArr += $testResult
     }
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
 

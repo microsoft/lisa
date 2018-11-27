@@ -8,17 +8,17 @@ if(($($currentTestData.TestName)).Contains("AZURE-NESTED-KVM-NETPERF-PPS")) {
 }
 
 function Start-TestExecution ($ip, $port, $cmd) {
-	LogMsg "Executing : ${cmd}"
-	$testJob = RunLinuxCmd -username $user -password $password -ip $ip -port $port -command $cmd -runAsSudo -RunInBackground
+	Write-LogInfo "Executing : ${cmd}"
+	$testJob = Run-LinuxCmd -username $user -password $password -ip $ip -port $port -command $cmd -runAsSudo -RunInBackground
 	while ((Get-Job -Id $testJob).State -eq "Running" ) {
-		$currentStatus = RunLinuxCmd -username $user -password $password -ip $ip -port $port -command "cat /home/$user/state.txt"
-		LogMsg "Current Test Staus : $currentStatus"
-		WaitFor -seconds 20
+		$currentStatus = Run-LinuxCmd -username $user -password $password -ip $ip -port $port -command "cat /home/$user/state.txt"
+		Write-LogInfo "Current Test Staus : $currentStatus"
+		Wait-Time -seconds 20
 	}
 }
 
 function Send-ResultToDatabase ($xmlConfig, $logDir, $ParseResultArray) {
-	LogMsg "Uploading the test results.."
+	Write-LogInfo "Uploading the test results.."
 	$dataSource = $xmlConfig.config.$TestPlatform.database.server
 	$user = $xmlConfig.config.$TestPlatform.database.user
 	$password = $xmlConfig.config.$TestPlatform.database.password
@@ -77,7 +77,7 @@ function Send-ResultToDatabase ($xmlConfig, $logDir, $ParseResultArray) {
 		$connectionString = "Server=$dataSource;uid=$user; pwd=$password;Database=$database;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
 		$SQLQuery = "INSERT INTO $dataTableName (TestCaseName,TestDate,HostType,HostBy,HostOS,L1GuestOSType,L1GuestDistro,L1GuestSize,L1GuestKernelVersion,L2GuestDistro,L2GuestKernelVersion,L2GuestMemMB,L2GuestCpuNum,KvmNetDevice,IPVersion,ProtocolType,TestPlatform,DataPath,SameHost,TestType,RxPpsMinimum,RxPpsMaximum,RxPpsAverage,TxPpsMinimum,TxPpsMaximum,TxPpsAverage,RxTxPpsMinimum,RxTxPpsMaximum,RxTxPpsAverage, ImageName) VALUES "
 		$SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$HostType','$HostBy','$HostOS','$L1GuestOSType','$L1GuestDistro','$L1GuestSize','$L1GuestKernelVersion','$L2GuestDistro','$L2GuestKernelVersion','$L2GuestMemMB','$L2GuestCpuNum','$KvmNetDevice','$IPVersion','$ProtocolType','$HostType','Synthetic','$flag','$test_type',$($ParseResultArray[0]),$($ParseResultArray[1]),$($ParseResultArray[2]),$($ParseResultArray[3]),$($ParseResultArray[4]),$($ParseResultArray[5]),$($ParseResultArray[6]),$($ParseResultArray[7]),$($ParseResultArray[8]),'$imageName')"
-		LogMsg $SQLQuery
+		Write-LogInfo $SQLQuery
 
 		$connection = New-Object System.Data.SqlClient.SqlConnection
 		$connection.ConnectionString = $connectionString
@@ -87,14 +87,14 @@ function Send-ResultToDatabase ($xmlConfig, $logDir, $ParseResultArray) {
 		$command.CommandText = $SQLQuery
 		$command.executenonquery()
 		$connection.Close()
-		LogMsg "Uploading the test results done!!"
+		Write-LogInfo "Uploading the test results done!!"
 	} else {
-		LogMsg "Database details are not provided. Results will not be uploaded to database!"
+		Write-LogInfo "Database details are not provided. Results will not be uploaded to database!"
 	}
 }
 
 function Main () {
-	$currentTestResult = CreateTestResultObject
+	$currentTestResult = Create-TestResultObject
 	$resultArr = @()
 	$testResult = $resultAborted
 	try {
@@ -126,34 +126,34 @@ function Main () {
 		}
 
 		# Download test logs
-		RemoteCopy -download -downloadFrom $hs2VIP -files "/home/$user/state.txt, /home/$user/${testScript}.log, /home/$user/TestExecutionConsole.log" -downloadTo $LogDir -port $hs2vm1sshport -username $user -password $password
+		Copy-RemoteFiles -download -downloadFrom $hs2VIP -files "/home/$user/state.txt, /home/$user/${testScript}.log, /home/$user/TestExecutionConsole.log" -downloadTo $LogDir -port $hs2vm1sshport -username $user -password $password
 
 		$finalStatus = Get-Content $LogDir\state.txt
 		if ($finalStatus -imatch "TestFailed") {
-			LogErr "Test failed. Last known status : $currentStatus."
+			Write-LogErr "Test failed. Last known status : $currentStatus."
 			$testResult = $resultFail
 		}
 		elseif ($finalStatus -imatch "TestAborted") {
-			LogErr "Test Aborted. Last known status : $currentStatus."
+			Write-LogErr "Test Aborted. Last known status : $currentStatus."
 			$testResult = $resultAborted
 		}
 		elseif ($finalStatus -imatch "TestCompleted") {
 			$testResult = $resultPass
 		}
 		elseif ($finalStatus -imatch "TestRunning") {
-			LogMsg "Powershell backgroud job for test is completed but VM is reporting that test is still running. Please check $LogDir\zkConsoleLogs.txt"
+			Write-LogInfo "Powershell backgroud job for test is completed but VM is reporting that test is still running. Please check $LogDir\zkConsoleLogs.txt"
 			$testResult = $resultAborted
 		}
 		if ($testResult -imatch $resultPass) {
 			$nicName = "ens4"
-			RemoteCopy -downloadFrom $hs2VIP -port $hs2vm1sshport -username $user -password $password -download -downloadTo $LogDir -files "netperfConsoleLogs.txt"
-			RemoteCopy -downloadFrom $hs2VIP -port $hs2vm1sshport -username $user -password $password -download -downloadTo $LogDir -files "TestExecution.log"
-			RemoteCopy -downloadFrom $hs2VIP -port $hs2vm1sshport -username $user -password $password -download -downloadTo $LogDir -files "netperf-client-sar-output.txt"
-			RemoteCopy -downloadFrom $hs2VIP -port $hs2vm1sshport -username $user -password $password -download -downloadTo $LogDir -files "netperf-client-output.txt"
-			RemoteCopy -downloadFrom $hs2VIP -port $hs2vm1sshport -username $user -password $password -download -downloadTo $LogDir -files "netperf-server-sar-output.txt"
-			RemoteCopy -downloadFrom $hs2VIP -port $hs2vm1sshport -username $user -password $password -download -downloadTo $LogDir -files "netperf-server-output.txt"
-			RemoteCopy -downloadFrom $hs2VIP -port $hs2vm1sshport -username $user -password $password -download -downloadTo $LogDir -files "VM_properties.csv"
-			RemoteCopy -downloadFrom $hs2VIP -port $hs2vm1sshport -username $user -password $password -download -downloadTo $LogDir -files "nested_properties.csv"
+			Copy-RemoteFiles -downloadFrom $hs2VIP -port $hs2vm1sshport -username $user -password $password -download -downloadTo $LogDir -files "netperfConsoleLogs.txt"
+			Copy-RemoteFiles -downloadFrom $hs2VIP -port $hs2vm1sshport -username $user -password $password -download -downloadTo $LogDir -files "TestExecution.log"
+			Copy-RemoteFiles -downloadFrom $hs2VIP -port $hs2vm1sshport -username $user -password $password -download -downloadTo $LogDir -files "netperf-client-sar-output.txt"
+			Copy-RemoteFiles -downloadFrom $hs2VIP -port $hs2vm1sshport -username $user -password $password -download -downloadTo $LogDir -files "netperf-client-output.txt"
+			Copy-RemoteFiles -downloadFrom $hs2VIP -port $hs2vm1sshport -username $user -password $password -download -downloadTo $LogDir -files "netperf-server-sar-output.txt"
+			Copy-RemoteFiles -downloadFrom $hs2VIP -port $hs2vm1sshport -username $user -password $password -download -downloadTo $LogDir -files "netperf-server-output.txt"
+			Copy-RemoteFiles -downloadFrom $hs2VIP -port $hs2vm1sshport -username $user -password $password -download -downloadTo $LogDir -files "VM_properties.csv"
+			Copy-RemoteFiles -downloadFrom $hs2VIP -port $hs2vm1sshport -username $user -password $password -download -downloadTo $LogDir -files "nested_properties.csv"
 			$NetperfReportLog = Get-Content -Path "$LogDir\netperf-client-sar-output.txt"
 			if (!$NetperfReportLog) {
 				$testResult = $resultFail
@@ -170,7 +170,7 @@ function Main () {
 
 				foreach ($line in $NetperfReportLog) {
 					if ($line -imatch "$nicName" -and $line -inotmatch "Average") {
-						LogMsg "Collecting data from '$line'"
+						Write-LogInfo "Collecting data from '$line'"
 						$line = $line.Replace("  ", " ").Replace("  ", " ").Replace("  ", " ").Replace("  ", " ").Replace("  ", " ")
 						for ($i = 0; $i -lt $line.split(' ').Count; $i++) {
 							if ($line.split(" ")[$i] -eq "$nicName") {
@@ -188,59 +188,59 @@ function Main () {
 				$RxPpsMinimum = $RxData.Minimum
 				$RxPpsMaximum = $RxData.Maximum
 				$RxPpsAverage = [math]::Round($RxData.Average,0)
-				LogMsg "RxPpsMinimum = $RxPpsMinimum"
+				Write-LogInfo "RxPpsMinimum = $RxPpsMinimum"
 				$ParseResultArray+=$RxPpsMinimum
-				LogMsg "RxPpsMaximum = $RxPpsMaximum"
+				Write-LogInfo "RxPpsMaximum = $RxPpsMaximum"
 				$ParseResultArray+=$RxPpsMaximum
-				LogMsg "RxPpsAverage = $RxPpsAverage"
+				Write-LogInfo "RxPpsAverage = $RxPpsAverage"
 				$ParseResultArray+=$RxPpsAverage
 
 				$TxData = $TxPpsArray | Measure-Object -Maximum -Minimum -Average
 				$TxPpsMinimum = $TxData.Minimum
 				$TxPpsMaximum = $TxData.Maximum
 				$TxPpsAverage = [math]::Round($TxData.Average,0)
-				LogMsg "TxPpsMinimum = $TxPpsMinimum"
+				Write-LogInfo "TxPpsMinimum = $TxPpsMinimum"
 				$ParseResultArray+=$TxPpsMinimum
-				LogMsg "TxPpsMaximum = $TxPpsMaximum"
+				Write-LogInfo "TxPpsMaximum = $TxPpsMaximum"
 				$ParseResultArray+=$TxPpsMaximum
-				LogMsg "TxPpsAverage = $TxPpsAverage"
+				Write-LogInfo "TxPpsAverage = $TxPpsAverage"
 				$ParseResultArray+=$TxPpsAverage
 
 				$RxTxTotalData = $TxRxTotalPpsArray | Measure-Object -Maximum -Minimum -Average
 				$RxTxPpsMinimum = $RxTxTotalData.Minimum
 				$RxTxPpsMaximum = $RxTxTotalData.Maximum
 				$RxTxPpsAverage = [math]::Round($RxTxTotalData.Average,0)
-				LogMsg "RxTxPpsMinimum = $RxTxPpsMinimum"
+				Write-LogInfo "RxTxPpsMinimum = $RxTxPpsMinimum"
 				$ParseResultArray+=$RxTxPpsMinimum
-				LogMsg "RxTxPpsMaximum = $RxTxPpsMaximum"
+				Write-LogInfo "RxTxPpsMaximum = $RxTxPpsMaximum"
 				$ParseResultArray+=$RxTxPpsMaximum
-				LogMsg "RxTxPpsAverage = $RxTxPpsAverage"
+				Write-LogInfo "RxTxPpsAverage = $RxTxPpsAverage"
 				$ParseResultArray+=$RxTxPpsMaximum
 
-				$CurrentTestResult.TestSummary += CreateResultSummary -testResult "$RxPpsAverage" -metaData "Rx Average PPS" `
+				$CurrentTestResult.TestSummary += Create-ResultSummary -testResult "$RxPpsAverage" -metaData "Rx Average PPS" `
 					-checkValues $checkValues -testName $currentTestData.testName
-				$CurrentTestResult.TestSummary += CreateResultSummary -testResult "$RxPpsMinimum" -metaData "Rx Minimum PPS" `
+				$CurrentTestResult.TestSummary += Create-ResultSummary -testResult "$RxPpsMinimum" -metaData "Rx Minimum PPS" `
 					-checkValues $checkValues -testName $currentTestData.testName
-				$CurrentTestResult.TestSummary += CreateResultSummary -testResult "$RxPpsMaximum" -metaData "Rx Maximum PPS" `
+				$CurrentTestResult.TestSummary += Create-ResultSummary -testResult "$RxPpsMaximum" -metaData "Rx Maximum PPS" `
 					-checkValues $checkValues -testName $currentTestData.testName
 			} catch {
 				$ErrorMessage = $_.Exception.Message
 				$ErrorLine = $_.InvocationInfo.ScriptLineNumber
-				LogErr "EXCEPTION in Netperf log parsing : $ErrorMessage at line: $ErrorLine"
+				Write-LogErr "EXCEPTION in Netperf log parsing : $ErrorMessage at line: $ErrorLine"
 			}
 			#endregion
 		}
 
-		LogMsg $currentTestResult.TestSummary
+		Write-LogInfo $currentTestResult.TestSummary
 		if (!$uploadResults) {
-			LogMsg "Zero throughput for some connections, results will not be uploaded to database!"
+			Write-LogInfo "Zero throughput for some connections, results will not be uploaded to database!"
 		} else {
 			Send-ResultToDatabase -xmlConfig $xmlConfig -logDir $LogDir -ParseResultArray $ParseResultArray
 		}
 	} catch {
 		$ErrorMessage =  $_.Exception.Message
 		$ErrorLine = $_.InvocationInfo.ScriptLineNumber
-		LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+		Write-LogInfo "EXCEPTION : $ErrorMessage at line: $ErrorLine"
 	} finally {
 		if (!$testResult) {
 			$testResult = "Aborted"
@@ -248,7 +248,7 @@ function Main () {
 		$resultArr += $testResult
 	}
 
-	$currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+	$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
 	return $currentTestResult.TestResult
 }
 

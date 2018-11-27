@@ -1,9 +1,9 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
-$currentTestResult = CreateTestResultObject
+$currentTestResult = Create-TestResultObject
 $resultArr = @()
 
-$isDeployed = DeployVMS -setupType $currentTestData.setupType -Distro $Distro -xmlConfig $xmlConfig
+$isDeployed = Deploy-VMs -setupType $currentTestData.setupType -Distro $Distro -xmlConfig $xmlConfig
 if ($isDeployed) {
     try {
         $hs1VIP = $AllVMData.PublicIP
@@ -12,24 +12,24 @@ if ($isDeployed) {
         $OsImageSize = Get-AzureVMImage | where {$_.ImageName -eq $BaseOsImage} | % {$_.LogicalSizeInGB}
         $OsImageSizeByte = $OsImageSize*1024*1024*1024
 
-        RemoteCopy -uploadTo $hs1VIP -port $hs1vm1sshport -files $currentTestData.files -username $user -password $password -upload
-        RunLinuxCmd -username $user -password $password -ip $hs1VIP -port $hs1vm1sshport -command "chmod +x *" -runAsSudo
+        Copy-RemoteFiles -uploadTo $hs1VIP -port $hs1vm1sshport -files $currentTestData.files -username $user -password $password -upload
+        Run-LinuxCmd -username $user -password $password -ip $hs1VIP -port $hs1vm1sshport -command "chmod +x *" -runAsSudo
 
-        LogMsg "Executing : $($currentTestData.testScript)"
-        RunLinuxCmd -username $user -password $password -ip $hs1VIP -port $hs1vm1sshport -command "$python_cmd $($currentTestData.testScript) -e $OsImageSizeByte" -runAsSudo
-        RunLinuxCmd -username $user -password $password -ip $hs1VIP -port $hs1vm1sshport -command "mv Runtime.log $($currentTestData.testScript).log" -runAsSudo
-        RemoteCopy -download -downloadFrom $hs1VIP -files "/home/$user/state.txt, /home/$user/Summary.log, /home/$user/$($currentTestData.testScript).log" -downloadTo $LogDir -port $hs1vm1sshport -username $user -password $password
+        Write-LogInfo "Executing : $($currentTestData.testScript)"
+        Run-LinuxCmd -username $user -password $password -ip $hs1VIP -port $hs1vm1sshport -command "$python_cmd $($currentTestData.testScript) -e $OsImageSizeByte" -runAsSudo
+        Run-LinuxCmd -username $user -password $password -ip $hs1VIP -port $hs1vm1sshport -command "mv Runtime.log $($currentTestData.testScript).log" -runAsSudo
+        Copy-RemoteFiles -download -downloadFrom $hs1VIP -files "/home/$user/state.txt, /home/$user/Summary.log, /home/$user/$($currentTestData.testScript).log" -downloadTo $LogDir -port $hs1vm1sshport -username $user -password $password
         $testResult = Get-Content $LogDir\Summary.log
         $testStatus = Get-Content $LogDir\state.txt
-        LogMsg "Test result : $testResult"
+        Write-LogInfo "Test result : $testResult"
 
         if ($testStatus -eq "TestCompleted") {
-            LogMsg "Test Completed"
+            Write-LogInfo "Test Completed"
         }
     } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+        Write-LogInfo "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     } finally {
         if (!$testResult) {
             $testResult = "Aborted"
@@ -41,10 +41,10 @@ if ($isDeployed) {
     $resultArr += $testResult
 }
 
-$currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
 
 #Clean up the setup
-DoTestCleanUp -currentTestResult $currentTestResult -testName $currentTestData.testName -deployedServices $isDeployed
+Do-TestCleanUp -currentTestResult $currentTestResult -testName $currentTestData.testName -deployedServices $isDeployed
 
 #Return the result and summery to the test suite script..
 return $currentTestResult

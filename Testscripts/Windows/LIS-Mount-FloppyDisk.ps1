@@ -35,22 +35,22 @@ function Main {
     #############################################################
     # Change the working directory to where we need to be
     if (-not (Test-Path $RootDir)) {
-        LogErr "Error: The directory `"${RootDir}`" does not exist!"
+        Write-LogErr "Error: The directory `"${RootDir}`" does not exist!"
         return "FAIL"
     }
     Set-Location $RootDir
     # Collect Hyper-v settings info
     $hostInfo = Get-VMHost -ComputerName $HvServer
     if (-not $hostInfo) {
-        LogErr "Unable to collect Hyper-V settings for ${HvServer}"
+        Write-LogErr "Unable to collect Hyper-V settings for ${HvServer}"
         return "FAIL"
     }
 
     # Check for floppy support. If it's not present, test will be skipped
 
-    $null = RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort -command "cat /boot/config-`$(uname -r) | grep -e CONFIG_BLK_DEV_FD=y -e CONFIG_BLK_DEV_FD=m" -runAsSudo
+    $null = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort -command "cat /boot/config-`$(uname -r) | grep -e CONFIG_BLK_DEV_FD=y -e CONFIG_BLK_DEV_FD=m" -runAsSudo
     if (-not $?) {
-        LogWarn "Support for floppy does not exist! Test skipped!"
+        Write-LogWarn "Support for floppy does not exist! Test skipped!"
         return "Aborted"
     }
 
@@ -58,7 +58,7 @@ function Main {
 
     $vmGeneration = Get-VMGeneration -vmName $VMName -hvServer $HvServer
     if ( $vmGeneration -eq 2 ) {
-        LogMsg "Generation 2 VM does not support floppy disks."
+        Write-LogInfo "Generation 2 VM does not support floppy disks."
         return "Aborted"
     }
 
@@ -76,22 +76,22 @@ function Main {
     #
         $newVfd = New-VFD -Path $vfdPath -ComputerName $HvServer
         if (-not $newVfd) {
-            LogErr "Unable to create VFD file ${vfdPath}"
+            Write-LogErr "Unable to create VFD file ${vfdPath}"
             return "FAIL"
         }
     }
     else {
-        LogMSg "Info: The file ${vfdPath} already exists"
+        Write-LogInfo "Info: The file ${vfdPath} already exists"
     }
     #
     # Add the vfd
     #
     Set-VMFloppyDiskDrive -Path $vfdPath -VMName $VMName -ComputerName $HvServer
     if ($? -eq "True") {
-        LogMsg "Mounted the floppy file!"
+        Write-LogInfo "Mounted the floppy file!"
     }
     else {
-        LogErr "Unable to mount the floppy file!"
+        Write-LogErr "Unable to mount the floppy file!"
         return "FAIL"
     }
     #
@@ -99,18 +99,18 @@ function Main {
     #
     $stateFile = "${LogDir}\state.txt"
     $MountFloppy = "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;bash ${remoteScript} > MountFloppy.log`""
-    RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort $MountFloppy -runAsSudo
-    RemoteCopy -download -downloadFrom $Ipv4 -files "/home/${VMUserName}/state.txt" `
+    Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort $MountFloppy -runAsSudo
+    Copy-RemoteFiles -download -downloadFrom $Ipv4 -files "/home/${VMUserName}/state.txt" `
         -downloadTo $LogDir -port $VMPort -username $VMUserName -password $VMPassword
-    RemoteCopy -download -downloadFrom $Ipv4 -files "/home/${VMUserName}/MountFloppy.log" `
+    Copy-RemoteFiles -download -downloadFrom $Ipv4 -files "/home/${VMUserName}/MountFloppy.log" `
         -downloadTo $LogDir -port $VMPort -username $VMUserName -password $VMPassword
     $contents = Get-Content -Path $stateFile
     if (($contents -eq "TestAborted") -or ($contents -eq "TestFailed")) {
-        LogErr "Error: Running $remoteScript script failed on VM!"
+        Write-LogErr "Error: Running $remoteScript script failed on VM!"
         return "FAIL"
     }
     else {
-        LogMsg "Test PASSED , Floppy Mounted on  VM!"
+        Write-LogInfo "Test PASSED , Floppy Mounted on  VM!"
     }
 
 }

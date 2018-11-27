@@ -24,13 +24,13 @@
 #>
 ###############################################################################################
 
-Function DeployHyperVGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFailed = $false, $GetDeploymentStatistics = $false, $VMGeneration = "1")
+Function Deploy-HyperVGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFailed = $false, $GetDeploymentStatistics = $false, $VMGeneration = "1")
 {
     try
     {
         $VerifiedGroups =  $NULL
         $retValue = $NULL
-        $isAllDeployed = CreateAllHyperVGroupDeployments -setupType $setupType -xmlConfig $xmlConfig `
+        $isAllDeployed = Create-AllHyperVGroupDeployments -setupType $setupType -xmlConfig $xmlConfig `
             -Distro $Distro -VMGeneration $VMGeneration
         $isAllConnected = "False"
 
@@ -38,15 +38,15 @@ Function DeployHyperVGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFailed =
         {
             $DeployedHyperVGroup = $isAllDeployed[1]
             $DeploymentElapsedTime = $isAllDeployed[3]
-            $global:allVMData = GetAllHyperVDeployementData -HyperVGroupNames $DeployedHyperVGroup
+            $global:allVMData = Get-AllHyperVDeployementData -HyperVGroupNames $DeployedHyperVGroup
             if (!$allVMData) {
-                LogErr "One or more deployments failed..!"
+                Write-LogErr "One or more deployments failed..!"
                 $retValue = $NULL
             } else {
-                $isAllConnected = isAllSSHPortsEnabledRG -AllVMDataObject $allVMData
+                $isAllConnected = Check-SSHPortsEnabled -AllVMDataObject $allVMData
                 if ($isAllConnected -eq "True")
                 {
-                    InjectHostnamesInHyperVVMs -allVMData $allVMData | Out-Null
+                    Inject-HostnamesInHyperVVMs -allVMData $allVMData | Out-Null
                     $VerifiedGroups = $DeployedHyperVGroup
                     $retValue = $VerifiedGroups
                     if ( Test-Path -Path  .\Extras\UploadDeploymentDataToDB.ps1 )
@@ -56,7 +56,7 @@ Function DeployHyperVGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFailed =
                 }
                 else
                 {
-                    LogErr "Unable to connect SSH ports.."
+                    Write-LogErr "Unable to connect SSH ports.."
                     $retValue = $NULL
                 }
             }
@@ -68,18 +68,18 @@ Function DeployHyperVGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFailed =
         }
         else
         {
-            LogErr "One or More Deployments are Failed..!"
+            Write-LogErr "One or More Deployments are Failed..!"
             $retValue = $NULL
         }
     }
     catch
     {
-        LogMsg "Exception detected. Source : DeployHyperVGroups()"
+        Write-LogInfo "Exception detected. Source : Deploy-HyperVGroups()"
         $line = $_.InvocationInfo.ScriptLineNumber
         $script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
         $ErrorMessage =  $_.Exception.Message
-        LogErr "EXCEPTION : $ErrorMessage"
-        LogErr "Source : Line $line in script $script_name."
+        Write-LogErr "EXCEPTION : $ErrorMessage"
+        Write-LogErr "Source : Line $line in script $script_name."
         $retValue = $NULL
     }
 
@@ -93,7 +93,7 @@ Function DeployHyperVGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFailed =
     }
 }
 
-Function CreateAllHyperVGroupDeployments($setupType, $xmlConfig, $Distro, $DebugRG = "", $VMGeneration = "1")
+Function Create-AllHyperVGroupDeployments($setupType, $xmlConfig, $Distro, $DebugRG = "", $VMGeneration = "1")
 {
     $DeployedHyperVGroup = @()
     if ($DebugRG)
@@ -103,7 +103,7 @@ Function CreateAllHyperVGroupDeployments($setupType, $xmlConfig, $Distro, $Debug
     else
     {
         $HyperVGroupCount = 0
-        LogMsg "Current test setup: $setupType"
+        Write-LogInfo "Current test setup: $setupType"
         $setupTypeData = $xmlConfig.config.HyperV.Deployment.$setupType
         $index = 0
         foreach ($HyperVGroupXML in $setupTypeData.ResourceGroup )
@@ -154,23 +154,23 @@ Function CreateAllHyperVGroupDeployments($setupType, $xmlConfig, $Distro, $Debug
                     }
                     else
                     {
-                        LogMsg "Creating HyperV Group : $HyperVGroupName."
-                        LogMsg "Verifying that HyperV Group name is not in use."
+                        Write-LogInfo "Creating HyperV Group : $HyperVGroupName."
+                        Write-LogInfo "Verifying that HyperV Group name is not in use."
                         foreach ($HyperVHost in $HyperVHostArray){
-                            $isHyperVGroupDeleted = DeleteHyperVGroup -HyperVGroupName $HyperVGroupName -HyperVHost $HyperVHost
+                            $isHyperVGroupDeleted = Delete-HyperVGroup -HyperVGroupName $HyperVGroupName -HyperVHost $HyperVHost
                         }
                     }
                     if ($isHyperVGroupDeleted)
                     {
                         foreach ($HyperVHost in $HyperVHostArray){
-                            $CreatedHyperVGroup = CreateHyperVGroup -HyperVGroupName $HyperVGroupName -HyperVHost $HyperVHost
+                            $CreatedHyperVGroup = Create-HyperVGroup -HyperVGroupName $HyperVGroupName -HyperVHost $HyperVHost
                         }
                         if ($CreatedHyperVGroup)
                         {
                             $DeploymentStartTime = (Get-Date)
                             $ExpectedVMs = 0
                             $HyperVGroupXML.VirtualMachine | ForEach-Object {$ExpectedVMs += 1}
-                            $VMCreationStatus = CreateHyperVGroupDeployment -HyperVGroupName $HyperVGroupName -HyperVGroupXML $HyperVGroupXML `
+                            $VMCreationStatus = Create-HyperVGroupDeployment -HyperVGroupName $HyperVGroupName -HyperVGroupXML $HyperVGroupXML `
                                 -HyperVHost $HyperVHostArray -SourceOsVHDPath $SourceOsVHDPath -DestinationOsVHDPath $DestinationOsVHDPath `
                                 -VMGeneration $VMGeneration
                             $DeploymentEndTime = (Get-Date)
@@ -180,11 +180,11 @@ Function CreateAllHyperVGroupDeployments($setupType, $xmlConfig, $Distro, $Debug
                                 if($xmlconfig.config.testsDefinition.test.Tags `
                                     -and $xmlconfig.config.testsDefinition.test.Tags.ToString().Contains("nested"))
                                 {
-                                    LogMsg "Test Platform is $TestPlatform and nested VMs will be created, need to enable nested virtualization"
-                                    $null = EnableHyperVNestedVirtualization -HyperVGroupName $HyperVGroupName -HyperVHost $HyperVHost
+                                    Write-LogInfo "Test Platform is $TestPlatform and nested VMs will be created, need to enable nested virtualization"
+                                    $null = Enable-HyperVNestedVirtualization -HyperVGroupName $HyperVGroupName -HyperVHost $HyperVHost
                                 }
                                 foreach ($HyperVHost in $HyperVHostArray){
-                                    $StartVMStatus = StartHyperVGroupVMs -HyperVGroupName $HyperVGroupName -HyperVHost $HyperVHost
+                                    $StartVMStatus = Start-HyperVGroupVMs -HyperVGroupName $HyperVGroupName -HyperVHost $HyperVHost
                                     if ($StartVMStatus)
                                     {
                                         $retValue = "True"
@@ -194,7 +194,7 @@ Function CreateAllHyperVGroupDeployments($setupType, $xmlConfig, $Distro, $Debug
                                     }
                                     else
                                     {
-                                        LogErr "Unable to start one or more VM's"
+                                        Write-LogErr "Unable to start one or more VM's"
                                         $retryDeployment = $retryDeployment + 1
                                         $retValue = "False"
                                         $isHyperVGroupDeployed = "False"
@@ -203,7 +203,7 @@ Function CreateAllHyperVGroupDeployments($setupType, $xmlConfig, $Distro, $Debug
                             }
                             else
                             {
-                                LogErr "Unable to Deploy one or more VM's"
+                                Write-LogErr "Unable to Deploy one or more VM's"
                                 $retryDeployment = $retryDeployment + 1
                                 $retValue = "False"
                                 $isHyperVGroupDeployed = "False"
@@ -211,7 +211,7 @@ Function CreateAllHyperVGroupDeployments($setupType, $xmlConfig, $Distro, $Debug
                         }
                         else
                         {
-                            LogErr "Unable to create $HyperVGroupName"
+                            Write-LogErr "Unable to create $HyperVGroupName"
                             $retryDeployment = $retryDeployment + 1
                             $retValue = "False"
                             $isHyperVGroupDeployed = "False"
@@ -219,7 +219,7 @@ Function CreateAllHyperVGroupDeployments($setupType, $xmlConfig, $Distro, $Debug
                     }
                     else
                     {
-                        LogErr "Unable to delete existing HyperV Group - $HyperVGroupName"
+                        Write-LogErr "Unable to delete existing HyperV Group - $HyperVGroupName"
                         $retryDeployment += 1
                         $retValue = "False"
                         $isHyperVGroupDeployed = "False"
@@ -228,7 +228,7 @@ Function CreateAllHyperVGroupDeployments($setupType, $xmlConfig, $Distro, $Debug
             }
             else
             {
-                LogErr "HyperV server is not ready to deploy."
+                Write-LogErr "HyperV server is not ready to deploy."
                 $retValue = "False"
                 $isHyperVGroupDeployed = "False"
             }
@@ -237,29 +237,29 @@ Function CreateAllHyperVGroupDeployments($setupType, $xmlConfig, $Distro, $Debug
     }
 }
 
-Function DeleteHyperVGroup([string]$HyperVGroupName, [string]$HyperVHost) {
+Function Delete-HyperVGroup([string]$HyperVGroupName, [string]$HyperVHost) {
     if ($ExistingRG) {
-        LogMsg "Skipping removal of Hyper-V VM group ${HyperVGroupName}"
+        Write-LogInfo "Skipping removal of Hyper-V VM group ${HyperVGroupName}"
         return $true
     }
 
     $vmGroup = $null
-    LogMsg "Checking if Hyper-V VM group '$HyperVGroupName' exists on $HyperVHost..."
+    Write-LogInfo "Checking if Hyper-V VM group '$HyperVGroupName' exists on $HyperVHost..."
     $vmGroup = Get-VMGroup -Name $HyperVGroupName -ErrorAction SilentlyContinue `
                            -ComputerName $HyperVHost
     if (!$vmGroup) {
-        LogWarn "Hyper-V VM group ${HyperVGroupName} does not exist"
+        Write-LogWarn "Hyper-V VM group ${HyperVGroupName} does not exist"
         return $true
     }
 
     $vmGroup.VMMembers | ForEach-Object {
-        LogMsg "Stop-VM -Name $($_.Name) -Force -TurnOff "
+        Write-LogInfo "Stop-VM -Name $($_.Name) -Force -TurnOff "
         $vm = $_
         Stop-VM -Name $vm.Name -Force -TurnOff -ComputerName $HyperVHost
         Remove-VMSnapshot -VMName $vm.Name -ComputerName $HyperVHost `
             -IncludeAllChildCheckpoints -Confirm:$false
         if (!$?) {
-            LogErr ("Failed to remove snapshots for VM {0}" -f @($vm.Name))
+            Write-LogErr ("Failed to remove snapshots for VM {0}" -f @($vm.Name))
             return $false
         }
         Wait-VMStatus -VMName $vm.Name -VMStatus "Operating Normally" -RetryInterval 2 `
@@ -278,21 +278,21 @@ Function DeleteHyperVGroup([string]$HyperVGroupName, [string]$HyperVHost) {
             }
             Invoke-Command @invokeCommandParams
             if (!$?) {
-                LogMsg "Failed to remove ${vhdPath} using Invoke-Command"
+                Write-LogInfo "Failed to remove ${vhdPath} using Invoke-Command"
                 $vhdUncPath = $vhdPath -replace '^(.):', "\\$(HyperVHost)\`$1$"
-                LogMsg "Removing ${vhdUncPath} ..."
+                Write-LogInfo "Removing ${vhdUncPath} ..."
                 Remove-Item -Path $vhdUncPath -Force
                 if (!$? -or (Test-Path $vhdUncPath)) {
-                    LogErr "Failed to remove ${vhdPath} using UNC paths"
+                    Write-LogErr "Failed to remove ${vhdPath} using UNC paths"
                     return $false
                 }
             }
-            LogMsg "VHD ${vhdPath} removed!"
+            Write-LogInfo "VHD ${vhdPath} removed!"
         }
         Remove-VM -Name $vm.Name -ComputerName $HyperVHost -Force
-        LogMsg "Hyper-V VM $($vm.Name) removed!"
+        Write-LogInfo "Hyper-V VM $($vm.Name) removed!"
         if ($xmlConfig.config.HyperV.Deployment.($CurrentTestData.setupType).ClusteredVM) {
-            LogMsg "Deleting VM on Cluster"
+            Write-LogInfo "Deleting VM on Cluster"
             Get-Command "Get-ClusterResource" -ErrorAction SilentlyContinue
             if ($?) {
                 $group = Get-ClusterGroup -ErrorAction SilentlyContinue
@@ -300,10 +300,10 @@ Function DeleteHyperVGroup([string]$HyperVGroupName, [string]$HyperVHost) {
                 foreach ($vm in $MatchedVM) {
                     Remove-ClusterGroup -Name $vm.name -RemoveResources -Force
                     if (-not $?) {
-                        LogErr "Failed to remove Cluster Role for VM $vm"
+                        Write-LogErr "Failed to remove Cluster Role for VM $vm"
                         return $False
                     }
-                    LogMsg "Cleanup was successful for $vm on Cluster"
+                    Write-LogInfo "Cleanup was successful for $vm on Cluster"
                 }
                 # Also remove VM from other node if it's located there
                 if (Get-ClusterGroup -ErrorAction SilentlyContinue){
@@ -322,13 +322,13 @@ Function DeleteHyperVGroup([string]$HyperVGroupName, [string]$HyperVHost) {
         }
     }
 
-    LogMsg "Hyper-V VM group ${HyperVGroupName} is being removed!"
+    Write-LogInfo "Hyper-V VM group ${HyperVGroupName} is being removed!"
     Remove-VMGroup -Name $HyperVGroupName -ComputerName $HyperVHost -Force
-    LogMsg "Hyper-V VM group ${HyperVGroupName} removed!"
+    Write-LogInfo "Hyper-V VM group ${HyperVGroupName} removed!"
     return $true
 }
 
-Function CreateHyperVGroup([string]$HyperVGroupName, [string]$HyperVHost)
+Function Create-HyperVGroup([string]$HyperVGroupName, [string]$HyperVHost)
 {
     $FailCounter = 0
     $retValue = "False"
@@ -337,16 +337,16 @@ Function CreateHyperVGroup([string]$HyperVGroupName, [string]$HyperVHost)
         try
         {
             $FailCounter++
-            LogMsg "Using HyperV server : $HyperVHost"
+            Write-LogInfo "Using HyperV server : $HyperVHost"
             $CreatedHyperVGroup = New-VMGroup -Name $HyperVGroupName -ComputerName $HyperVHost -GroupType VMCollectionType
             if ($?)
             {
-                LogMsg "HyperV Group $HyperVGroupName Created with Instance ID: $($CreatedHyperVGroup.InstanceId)."
+                Write-LogInfo "HyperV Group $HyperVGroupName Created with Instance ID: $($CreatedHyperVGroup.InstanceId)."
                 $retValue = $CreatedHyperVGroup
             }
             else
             {
-                LogErr "Failed to HyperV Group $HyperVGroupName."
+                Write-LogErr "Failed to HyperV Group $HyperVGroupName."
                 $retValue = $false
                 $FailCounter += 1
             }
@@ -359,7 +359,7 @@ Function CreateHyperVGroup([string]$HyperVGroupName, [string]$HyperVHost)
     return $retValue
 }
 
-Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML, $HyperVHost, $SourceOsVHDPath, $DestinationOsVHDPath, $VMGeneration)
+Function Create-HyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML, $HyperVHost, $SourceOsVHDPath, $DestinationOsVHDPath, $VMGeneration)
 {
     $HyperVMappedSizes = [xml](Get-Content .\XML\AzureVMSizeToHyperVMapping.xml)
     $OsVHD = $BaseOsVHD
@@ -408,21 +408,21 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML, 
             $infoParentOsVHD = Get-VHD $parentOsVHDPath -ComputerName $HyperVHost
             $uriParentOsVHDPath = [System.Uri]$parentOsVHDPath
             if ($uriParentOsVHDPath -and $uriParentOsVHDPath.isUnc) {
-                LogMsg "Parent VHD path ${parentOsVHDPath} is on an SMB share."
+                Write-LogInfo "Parent VHD path ${parentOsVHDPath} is on an SMB share."
                 if ($infoParentOsVHD.VhdType -eq "Differencing") {
-                    LogErr "Unsupported differencing disk on the share."
+                    Write-LogErr "Unsupported differencing disk on the share."
                     $ErrorCount += 1
                     return $false
                 }
-                LogMsg "Checking if we have a local VHD with the same disk identifier on the host"
+                Write-LogInfo "Checking if we have a local VHD with the same disk identifier on the host"
                 $hypervVHDLocalPath = (Get-VMHost -ComputerName $HyperVHost).VirtualHardDiskPath
                 $vhdName = [System.IO.Path]::GetFileNameWithoutExtension($(Split-Path -Leaf $parentOsVHDPath))
                 $newVhdName = "{0}-{1}{2}" -f @($vhdName, $infoParentOsVHD.DiskIdentifier.Replace("-", ""),$vhdSuffix)
                 $localVHDPath = Join-Path $hypervVHDLocalPath $newVhdName
                 if ((Test-Path $localVHDPath)) {
-                    LogMsg "${parentOsVHDPath} is already found at path ${localVHDPath}"
+                    Write-LogInfo "${parentOsVHDPath} is already found at path ${localVHDPath}"
                 } else {
-                    LogMsg "${parentOsVHDPath} will be copied at path ${localVHDPath}"
+                    Write-LogInfo "${parentOsVHDPath} will be copied at path ${localVHDPath}"
                     Copy-Item -Force $parentOsVHDPath $localVHDPath
                 }
                 $parentOsVHDPath = $localVHDPath
@@ -430,7 +430,7 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML, 
 
             $Out = New-VHD -ParentPath $parentOsVHDPath -Path $CurrentVMOsVHDPath -ComputerName $HyperVHost
             if ($Out) {
-                LogMsg "Prerequiste: Prepare OS Disk $CurrentVMOsVHDPath - Succeeded."
+                Write-LogInfo "Prerequiste: Prepare OS Disk $CurrentVMOsVHDPath - Succeeded."
                 if ($OverrideVMSize)
                 {
                     $CurrentVMSize = $OverrideVMSize
@@ -443,11 +443,11 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML, 
                 $CurrentVMCpu = $HyperVMappedSizes.HyperV.$CurrentVMSize.NumberOfCores
                 $CurrentVMMemory = $HyperVMappedSizes.HyperV.$CurrentVMSize.MemoryInMB
                 $CurrentVMMemory = [int]$CurrentVMMemory * 1024 * 1024
-                LogMsg "New-VM -Name $CurrentVMName -MemoryStartupBytes $CurrentVMMemory -BootDevice VHD -VHDPath $CurrentVMOsVHDPath -Generation $VMGeneration -Switch $($VMSwitches.Name) -ComputerName $HyperVHost"
+                Write-LogInfo "New-VM -Name $CurrentVMName -MemoryStartupBytes $CurrentVMMemory -BootDevice VHD -VHDPath $CurrentVMOsVHDPath -Generation $VMGeneration -Switch $($VMSwitches.Name) -ComputerName $HyperVHost"
                 $NewVM = New-VM -Name $CurrentVMName -MemoryStartupBytes $CurrentVMMemory -BootDevice VHD `
                     -VHDPath $CurrentVMOsVHDPath -Generation $VMGeneration -Switch $($VMSwitches.Name) -ComputerName $HyperVHost
                 if ([string]$VMGeneration -eq "2") {
-                    LogMsg "Set-VMFirmware -VMName $CurrentVMName -EnableSecureBoot Off"
+                    Write-LogInfo "Set-VMFirmware -VMName $CurrentVMName -EnableSecureBoot Off"
                     Set-VMFirmware -VMName $CurrentVMName -EnableSecureBoot Off
                 }
                 if($currentTestData.AdditionalHWConfig.SwitchName)
@@ -456,53 +456,53 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML, 
                 }
                 if ($?)
                 {
-                    LogMsg "Set-VM -VM $($NewVM.Name) -ProcessorCount $CurrentVMCpu -StaticMemory -CheckpointType Disabled -Notes $HyperVGroupName"
+                    Write-LogInfo "Set-VM -VM $($NewVM.Name) -ProcessorCount $CurrentVMCpu -StaticMemory -CheckpointType Disabled -Notes $HyperVGroupName"
 
                     $Out = Set-VM -VM $NewVM -ProcessorCount $CurrentVMCpu -StaticMemory  -CheckpointType Disabled -Notes "$HyperVGroupName"
-                    LogMsg "Add-VMGroupMember -Name $HyperVGroupName -VM $($NewVM.Name)"
+                    Write-LogInfo "Add-VMGroupMember -Name $HyperVGroupName -VM $($NewVM.Name)"
                     $Out = Add-VMGroupMember -Name "$HyperVGroupName" -VM $NewVM -ComputerName $HyperVHost
                     $ResourceDiskPath = Join-Path $env:TEMP "ResourceDisk-$((Get-Date).Ticks)-sdb${vhdSuffix}"
                     if($DestinationOsVHDPath -ne "VHDs_Destination_Path")
                     {
                         $ResourceDiskPath = "$DestinationOsVHDPath\ResourceDisk-$((Get-Date).Ticks)-sdb${vhdSuffix}"
                     }
-                    LogMsg "New-VHD -Path $ResourceDiskPath -SizeBytes 1GB -Dynamic -ComputerName $HyperVHost"
+                    Write-LogInfo "New-VHD -Path $ResourceDiskPath -SizeBytes 1GB -Dynamic -ComputerName $HyperVHost"
                     New-VHD -Path $ResourceDiskPath -SizeBytes 1GB -Dynamic -ComputerName $HyperVHost
-                    LogMsg "Add-VMHardDiskDrive -ControllerType SCSI -Path $ResourceDiskPath -VM $($NewVM.Name)"
+                    Write-LogInfo "Add-VMHardDiskDrive -ControllerType SCSI -Path $ResourceDiskPath -VM $($NewVM.Name)"
                     Add-VMHardDiskDrive -ControllerType SCSI -Path $ResourceDiskPath -VM $NewVM
                     $LUNs = $VirtualMachine.DataDisk.LUN
                     if($LUNs.count -gt 0)
                     {
-                        LogMsg "check the offline physical disks on host $HyperVHost"
+                        Write-LogInfo "check the offline physical disks on host $HyperVHost"
                         $DiskNumbers = (Get-Disk | Where-Object {$_.OperationalStatus -eq 'offline'}).Number
                         if($DiskNumbers.count -ge $LUNs.count)
                         {
-                            LogMsg "The offline physical disks are enough for use"
+                            Write-LogInfo "The offline physical disks are enough for use"
                             $ControllerType = 'SCSI'
                             $count = 0
                             foreach ( $LUN in $LUNs )
                             {
-                                LogMsg "Add physical disk $($DiskNumbers[$count]) to $ControllerType controller on virtual machine $CurrentVMName."
+                                Write-LogInfo "Add physical disk $($DiskNumbers[$count]) to $ControllerType controller on virtual machine $CurrentVMName."
                                 $NewVM | Add-VMHardDiskDrive -DiskNumber $($DiskNumbers[$count]) -ControllerType $ControllerType
                                 $count ++
                             }
                         }
                         else
                         {
-                            LogErr "The offline physical disks are not enough for use"
+                            Write-LogErr "The offline physical disks are not enough for use"
                             $ErrorCount += 1
                         }
                     }
                 }
                 else
                 {
-                    LogErr "Failed to create VM."
-                    LogErr "Removing OS Disk : $CurrentVMOsVHDPath"
+                    Write-LogErr "Failed to create VM."
+                    Write-LogErr "Removing OS Disk : $CurrentVMOsVHDPath"
                     $Out = Remove-Item -Path $CurrentVMOsVHDPath -Force
                     $ErrorCount += 1
                 }
             } else {
-                LogMsg "Prerequiste: Prepare OS Disk $CurrentVMOsVHDPath - Failed."
+                Write-LogInfo "Prerequiste: Prepare OS Disk $CurrentVMOsVHDPath - Failed."
                 $ErrorCount += 1
             }
             if ($xmlConfig.config.HyperV.Deployment.($CurrentTestData.setupType).ClusteredVM) {
@@ -517,7 +517,7 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML, 
     }
     else
     {
-        LogErr "There are $($CurrentHyperVGroup.Count) HyperV groups. We need 1 HyperV group."
+        Write-LogErr "There are $($CurrentHyperVGroup.Count) HyperV groups. We need 1 HyperV group."
         $ErrorCount += 1
     }
     if ( $ErrorCount -eq 0 )
@@ -531,29 +531,29 @@ Function CreateHyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML, 
     return $ReturnValue
 }
 
-Function EnableHyperVNestedVirtualization($HyperVGroupName, $HyperVHost)
+Function Enable-HyperVNestedVirtualization($HyperVGroupName, $HyperVHost)
 {
     $AllVMs = Get-VMGroup -Name $HyperVGroupName -ComputerName $HyperVHost
     $CurrentErrors = @()
     foreach ( $VM in $AllVMs.VMMembers)
     {
-        LogMsg "Enable nested virtualization for $($VM.Name) from $HyperVGroupName..."
+        Write-LogInfo "Enable nested virtualization for $($VM.Name) from $HyperVGroupName..."
         Set-VMProcessor -VMName $($VM.Name) -ExposeVirtualizationExtensions $true -ComputerName $HyperVHost
         Set-VMNetworkAdapter -VMName $($VM.Name) -MacAddressSpoofing on -ComputerName $HyperVHost
         if ( $? )
         {
-            LogMsg "Succeeded."
+            Write-LogInfo "Succeeded."
         }
         else
         {
-            LogErr "Failed"
+            Write-LogErr "Failed"
             $CurrentErrors += "Enable nested virtualization for $($VM.Name) from $HyperVGroupName failed."
         }
     }
     if($CurrentErrors.Count -eq 0)
     {
         $ReturnValue = $true
-        $CurrentErrors | ForEach-Object { LogErr "$_" }
+        $CurrentErrors | ForEach-Object { Write-LogErr "$_" }
     }
     else
     {
@@ -562,30 +562,30 @@ Function EnableHyperVNestedVirtualization($HyperVGroupName, $HyperVHost)
     return $ReturnValue
 }
 
-Function StartHyperVGroupVMs($HyperVGroupName,$HyperVHost)
+Function Start-HyperVGroupVMs($HyperVGroupName,$HyperVHost)
 {
     $AllVMs = Get-VMGroup -Name $HyperVGroupName -ComputerName $HyperVHost
     $CurrentErrors = @()
     foreach ( $VM in $AllVMs.VMMembers)
     {
-        LogMsg "Starting $($VM.Name) from $HyperVGroupName..."
+        Write-LogInfo "Starting $($VM.Name) from $HyperVGroupName..."
         # ComputerName is inherited here from line 530. Don't add it
         # because Start-VM will fail
         Start-VM -VM $VM
         if ( $? )
         {
-            LogMsg "Succeeded."
+            Write-LogInfo "Succeeded."
         }
         else
         {
-            LogErr "Failed"
+            Write-LogErr "Failed"
             $CurrentErrors += "Starting $($VM.Name) from $HyperVGroupName failed."
         }
     }
     if($CurrentErrors.Count -eq 0)
     {
         $ReturnValue = $true
-        $CurrentErrors | ForEach-Object { LogErr "$_" }
+        $CurrentErrors | ForEach-Object { Write-LogErr "$_" }
     }
     else
     {
@@ -594,31 +594,31 @@ Function StartHyperVGroupVMs($HyperVGroupName,$HyperVHost)
     return $ReturnValue
 }
 
-Function StopHyperVGroupVMs($HyperVGroupName, $HyperVHost)
+Function Stop-HyperVGroupVMs($HyperVGroupName, $HyperVHost)
 {
     $AllVMs = Get-VMGroup -Name $HyperVGroupName -ComputerName $HyperVHost
     $CurrentErrors = @()
     foreach ( $VM in $AllVMs.VMMembers)
     {
-        LogMsg "Shutting down $($VM.Name) from $HyperVGroupName..."
+        Write-LogInfo "Shutting down $($VM.Name) from $HyperVGroupName..."
         # ComputerName is inherited here from line 562. Don't add it
         # because Stop-VM will fail
         Stop-VM -VM $VM
         if ( $? )
         {
-            LogMsg "Succeeded."
+            Write-LogInfo "Succeeded."
         }
         else
         {
-            LogErr "Shutdown failed. Turning off.."
+            Write-LogErr "Shutdown failed. Turning off.."
             Stop-VM -VM $VM  -Force -TurnOff -ComputerName $HyperVHost
             if ( $? )
             {
-                LogMsg "Succeeded."
+                Write-LogInfo "Succeeded."
             }
             else
             {
-                LogErr "Failed"
+                Write-LogErr "Failed"
                 $CurrentErrors += "Stopping $($VM.Name) from $HyperVGroupName failed."
             }
         }
@@ -626,7 +626,7 @@ Function StopHyperVGroupVMs($HyperVGroupName, $HyperVHost)
     if($CurrentErrors.Count -eq 0)
     {
         $ReturnValue = $true
-        $CurrentErrors | ForEach-Object { LogErr "$_" }
+        $CurrentErrors | ForEach-Object { Write-LogErr "$_" }
     }
     else
     {
@@ -634,10 +634,10 @@ Function StopHyperVGroupVMs($HyperVGroupName, $HyperVHost)
     }
     return $ReturnValue
 }
-Function GetAllHyperVDeployementData($HyperVGroupNames,$RetryCount = 100)
+Function Get-AllHyperVDeployementData($HyperVGroupNames,$RetryCount = 100)
 {
     $allDeployedVMs = @()
-    function CreateQuickVMNode()
+    function Create-QuickVMNode()
     {
         $objNode = New-Object -TypeName PSObject
         Add-Member -InputObject $objNode -MemberType NoteProperty -Name HyperVHost -Value $HyperVHost -Force
@@ -660,7 +660,7 @@ Function GetAllHyperVDeployementData($HyperVGroupNames,$RetryCount = 100)
     {
         $HyperVHost = $xmlConfig.config.Hyperv.Hosts.ChildNodes[$index].ServerName
         $index++
-        LogMsg "Collecting $HyperVGroupName data.."
+        Write-LogInfo "Collecting $HyperVGroupName data.."
         $CurrentGroupData = Get-VMGroup -Name $HyperVGroupName -ComputerName $HyperVHost
         $ALLVMs.Add($CurrentGroupData.ComputerName, $CurrentGroupData.VMMembers)
     }
@@ -673,12 +673,12 @@ Function GetAllHyperVDeployementData($HyperVGroupNames,$RetryCount = 100)
 
             $RetryCount = 50
             $CurrentRetryAttempt=0
-            $QuickVMNode = CreateQuickVMNode
+            $QuickVMNode = Create-QuickVMNode
             do
             {
                 $CurrentRetryAttempt++
                 Start-Sleep 5
-                LogMsg "    [$CurrentRetryAttempt/$RetryCount] : $($property.Name) : Waiting for IP address ..."
+                Write-LogInfo "    [$CurrentRetryAttempt/$RetryCount] : $($property.Name) : Waiting for IP address ..."
                 $QuickVMNode.PublicIP = $VMNicProperties.IPAddresses | Where-Object {$_ -imatch "\b(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}\b"}
             }while(($CurrentRetryAttempt -lt $RetryCount) -and (!$QuickVMNode.PublicIP))
 
@@ -691,45 +691,45 @@ Function GetAllHyperVDeployementData($HyperVGroupNames,$RetryCount = 100)
             $QuickVMNode.HyperVHost = $ComputerName
             if ($QuickVMNode.PublicIP -notmatch "\b(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}\b")
             {
-                LogMsg ("Cannot collect public IP for VM {0}" -f @($VM.Name))
+                Write-LogInfo ("Cannot collect public IP for VM {0}" -f @($VM.Name))
             }
             else
             {
                 $QuickVMNode.RoleName = $VM.Name
                 $QuickVMNode.HyperVGroupName = $VM.Groups.Name
                 $allDeployedVMs += $QuickVMNode
-                LogMsg "Collected $($QuickVMNode.RoleName) from $($QuickVMNode.HyperVGroupName) data!"
+                Write-LogInfo "Collected $($QuickVMNode.RoleName) from $($QuickVMNode.HyperVGroupName) data!"
             }
         }
     }
     return $allDeployedVMs
 }
 
-Function RestartAllHyperVDeployments($allVMData)
+Function Restart-AllHyperVDeployments($allVMData)
 {
     foreach ( $VM in $allVMData )
     {
-        StopHyperVGroupVMs -HyperVGroupName $VM.HyperVGroupName -HyperVHost $VM.HyperVHost
+        Stop-HyperVGroupVMs -HyperVGroupName $VM.HyperVGroupName -HyperVHost $VM.HyperVHost
     }
     foreach ( $VM in $allVMData )
     {
-        StartHyperVGroupVMs -HyperVGroupName $VM.HyperVGroupName -HyperVHost $VM.HyperVHost
+        Start-HyperVGroupVMs -HyperVGroupName $VM.HyperVGroupName -HyperVHost $VM.HyperVHost
     }
-	$isSSHOpened = isAllSSHPortsEnabledRG -AllVMDataObject $AllVMData
+	$isSSHOpened = Check-SSHPortsEnabled -AllVMDataObject $AllVMData
 	return $isSSHOpened
 }
 
-Function InjectHostnamesInHyperVVMs($allVMData)
+Function Inject-HostnamesInHyperVVMs($allVMData)
 {
     $ErrorCount = 0
     try
     {
         foreach ( $VM in $allVMData )
         {
-            LogMsg "Injecting hostname '$($VM.RoleName)' in HyperV VM..."
+            Write-LogInfo "Injecting hostname '$($VM.RoleName)' in HyperV VM..."
             if(!$IsWindows)
             {
-               RunLinuxCmd -username $user -password $password -ip $VM.PublicIP -port $VM.SSHPort -command "echo $($VM.RoleName) > /etc/hostname" -runAsSudo -maxRetryCount 5
+               Run-LinuxCmd -username $user -password $password -ip $VM.PublicIP -port $VM.SSHPort -command "echo $($VM.RoleName) > /etc/hostname" -runAsSudo -maxRetryCount 5
             }
             else
             {
@@ -737,7 +737,7 @@ Function InjectHostnamesInHyperVVMs($allVMData)
                 Invoke-Command -ComputerName $VM.PublicIP -ScriptBlock {$computerInfo=Get-ComputerInfo;if($computerInfo.CsDNSHostName -ne $args[0]){Rename-computer -computername $computerInfo.CsDNSHostName -newname $args[0] -force}} -ArgumentList $VM.RoleName -Credential $cred
             }
         }
-        $RestartStatus = RestartAllHyperVDeployments -allVMData $allVMData
+        $RestartStatus = Restart-AllHyperVDeployments -allVMData $allVMData
     }
     catch
     {
@@ -747,11 +747,11 @@ Function InjectHostnamesInHyperVVMs($allVMData)
     {
         if ( ($ErrorCount -eq 0) -and ($RestartStatus -eq "True"))
         {
-            LogMsg "Hostnames are injected successfully."
+            Write-LogInfo "Hostnames are injected successfully."
         }
         else
         {
-            LogErr "Failed to inject $ErrorCount hostnames in HyperV VMs. Continuing the tests..."
+            Write-LogErr "Failed to inject $ErrorCount hostnames in HyperV VMs. Continuing the tests..."
         }
     }
 }
@@ -760,7 +760,7 @@ Function Get-Cred($user, $password)
 {
     $secstr = New-Object -TypeName System.Security.SecureString
     $password.ToCharArray() | ForEach-Object {$secstr.AppendChar($_)}
-    $cred = new-object -typename System.Management.Automation.PSCredential -argumentlist $user, $secstr
+    $cred = New-Object -typename System.Management.Automation.PSCredential -argumentlist $user, $secstr
     Set-Item WSMan:\localhost\Client\TrustedHosts * -Force
     return $cred
 }
@@ -777,7 +777,7 @@ function Get-VMPanicEvent {
     $currentRetryCount = 0
     $testPassed = $false
     while ($currentRetryCount -lt $RetryCount -and !$testPassed) {
-        LogMsg "Checking eventlog for 18590 event sent by VM ${VMName}"
+        Write-LogInfo "Checking eventlog for 18590 event sent by VM ${VMName}"
         $currentRetryCount++
         $events = @(Get-WinEvent -FilterHashTable `
             @{LogName = "Microsoft-Windows-Hyper-V-Worker-Admin";
@@ -806,7 +806,7 @@ function Wait-VMState {
     $currentRetryCount = 0
     while ($currentRetryCount -lt $RetryCount -and `
               (Get-VM -ComputerName $HvServer -Name $VMName).State -ne $VMState) {
-        LogMsg "Waiting for VM ${VMName} to enter ${VMState} state"
+        Write-LogInfo "Waiting for VM ${VMName} to enter ${VMState} state"
         Start-Sleep -Seconds $RetryInterval
         $currentRetryCount++
     }
@@ -827,7 +827,7 @@ function Wait-VMStatus {
     $currentRetryCount = 0
     while ($currentRetryCount -lt $RetryCount -and `
               (Get-VM -ComputerName $HvServer -Name $VMName).Status -ne $VMStatus) {
-        LogMsg "Waiting for VM ${VMName} to enter '${VMStatus}' status"
+        Write-LogInfo "Waiting for VM ${VMName} to enter '${VMStatus}' status"
         Start-Sleep -Seconds $RetryInterval
         $currentRetryCount++
     }
@@ -848,7 +848,7 @@ function Wait-VMHeartbeatOK {
     do {
         $currentRetryCount++
         Start-Sleep -Seconds $RetryInterval
-        LogMsg "Waiting for VM ${VMName} to enter Heartbeat OK state"
+        Write-LogInfo "Waiting for VM ${VMName} to enter Heartbeat OK state"
     } until ($currentRetryCount -ge $RetryCount -or `
                  (Get-VMIntegrationService -VMName $vmName -ComputerName $hvServer | `
                   Where-Object  { $_.name -eq "Heartbeat" }
@@ -860,7 +860,7 @@ function Wait-VMHeartbeatOK {
 
 Function Wait-ForHyperVVMShutdown($HvServer,$VMNames)
 {
-    LogMsg "Waiting for VM Shutting Down"
+    Write-LogInfo "Waiting for VM Shutting Down"
     if ($VMNames -and $HvServer)
     {
         foreach ($VMName in $VMNames.split(","))
@@ -870,7 +870,7 @@ Function Wait-ForHyperVVMShutdown($HvServer,$VMNames)
     }
     else
     {
-        LogError "Please provide HvServer and VMNames."
+        Write-LogErr "Please provide HvServer and VMNames."
         throw "Wait-ForHyperVVMShutdown Missing Mandatory Paramters"
     }
 }
@@ -893,11 +893,11 @@ Function Set-VMDynamicMemory
     # check if mem is set correctly
     $vmMem = (Get-VMMemory -vmName $VM.RoleName -ComputerName $VM.HyperVHost).Startup
     if( $vmMem -eq $StartupMem ) {
-        LogMsg "Set VM Startup Memory for $($VM.RoleName) to $StartupMem"
+        Write-LogInfo "Set VM Startup Memory for $($VM.RoleName) to $StartupMem"
         return $True
     }
     else {
-        LogErr "Unable to set VM Startup Memory for $($VM.RoleName) to $StartupMem"
+        Write-LogErr "Unable to set VM Startup Memory for $($VM.RoleName) to $StartupMem"
         return $False
     }
 
@@ -913,7 +913,7 @@ Function Get-VMDemandMemory {
     while($waitTimeOut -gt 0) {
         $vm = Get-VM -Name $VMName -ComputerName $Server
         if (-not $vm) {
-            LogErr "Get-VMDemandMemory: Unable to find VM ${VMName}"
+            Write-LogErr "Get-VMDemandMemory: Unable to find VM ${VMName}"
             return $false
         }
         if ($vm.MemoryDemand -and $vm.MemoryDemand -gt 0) {
@@ -922,7 +922,7 @@ Function Get-VMDemandMemory {
         $waitTimeOut -= 5  # Note - Test Port will sleep for 5 seconds
         Start-Sleep -s 5
     }
-    LogErr "Get-VMDemandMemory: VM ${VMName} did not get demand within timeout period ($Timeout)"
+    Write-LogErr "Get-VMDemandMemory: VM ${VMName} did not get demand within timeout period ($Timeout)"
     return $False
 }
 
@@ -944,7 +944,7 @@ function Create-HyperVCheckpoint {
         Checkpoint-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -SnapshotName $CheckpointName
         $msg = ("Checkpoint:{0} created for VM:{1}" `
                  -f @($CheckpointName,$VM.RoleName))
-        LogMsg $msg
+        Write-LogInfo $msg
         Start-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost
     }
 }
@@ -966,7 +966,7 @@ function Apply-HyperVCheckpoint {
         Restore-VMSnapshot -Name $CheckpointName -VMName $VM.RoleName -ComputerName $VM.HyperVHost -Confirm:$false
         $msg = ("VM:{0} restored to checkpoint: {1}" `
                  -f ($VM.RoleName,$CheckpointName))
-        LogMsg $msg
+        Write-LogInfo $msg
         Start-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost
     }
 }
@@ -997,7 +997,7 @@ function Check-IP {
             }
             $publicIP = ""
             while (-not $publicIP) {
-                LogMsg "$($VM.RoleName) : Waiting for IP address..."
+                Write-LogInfo "$($VM.RoleName) : Waiting for IP address..."
                 $vmNic = Get-VM -Name $VM.RoleName -ComputerName `
                     $VM.HyperVHost | Get-VMNetworkAdapter
                 if ($vmNic.Length -gt 1){
@@ -1028,7 +1028,7 @@ function Check-IP {
     }
 
     if ($runTime -gt $Timeout) {
-        LogMsg "Cannot find IP for one or more VMs"
+        Write-LogInfo "Cannot find IP for one or more VMs"
         throw "Cannot find IP for one or more VMs"
     } else {
         return $newVMData

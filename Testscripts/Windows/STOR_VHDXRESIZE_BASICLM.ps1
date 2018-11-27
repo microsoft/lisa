@@ -21,7 +21,7 @@ function Move-VMClusterNode([String] $vmName)
     #
     Import-module FailoverClusters
     if (-not $?) {
-        LogErr "Unable to load FailoverClusters module"
+        Write-LogErr "Unable to load FailoverClusters module"
         return $False
     }
     #
@@ -29,18 +29,18 @@ function Move-VMClusterNode([String] $vmName)
     #
     $migrationNetworks = Get-ClusterNetwork
     if (-not $migrationNetworks) {
-        LogErr "$vmName - There are no Live Migration Networks configured"
+        Write-LogErr "$vmName - There are no Live Migration Networks configured"
         return $False
     }
-    LogMsg "Get the VMs current node"
-    $vmResource =  Get-ClusterResource | where-object {$_.OwnerGroup.name -eq "$vmName" -and $_.ResourceType.Name -eq "Virtual Machine"}
+    Write-LogInfo "Get the VMs current node"
+    $vmResource =  Get-ClusterResource | Where-Object {$_.OwnerGroup.name -eq "$vmName" -and $_.ResourceType.Name -eq "Virtual Machine"}
     if (-not $vmResource) {
-        LogErr "$vmName - Unable to find cluster resource for current node"
+        Write-LogErr "$vmName - Unable to find cluster resource for current node"
         return $False
     }
     $currentNode = $vmResource.OwnerNode.Name
     if (-not $currentNode) {
-        LogErr "$vmName - Unable to set currentNode"
+        Write-LogErr "$vmName - Unable to set currentNode"
         return $False
     }
     #
@@ -48,7 +48,7 @@ function Move-VMClusterNode([String] $vmName)
     #
     $clusterNodes = Get-ClusterNode
     if (-not $clusterNodes -and $clusterNodes -isnot [array]) {
-        LogErr "$vmName - There is only one cluster node in the cluster."
+        Write-LogErr "$vmName - There is only one cluster node in the cluster."
         return $False
     }
     #
@@ -60,13 +60,13 @@ function Move-VMClusterNode([String] $vmName)
         $destinationNode = $clusterNodes[1].Name.ToLower()
     }
     if (-not $destinationNode) {
-        LogErr "$vmName - Unable to set destination node"
+        Write-LogErr "$vmName - Unable to set destination node"
         return $False
     }
-    LogMsg "Migrating VM $vmName from $currentNode to $destinationNode"
+    Write-LogInfo "Migrating VM $vmName from $currentNode to $destinationNode"
     $sts = Move-ClusterVirtualMachineRole -name $vmName -node $destinationNode
     if (-not $sts) {
-        LogErr "$vmName - Unable to move the VM"
+        Write-LogErr "$vmName - Unable to move the VM"
         return $False
     }
     return $True
@@ -122,7 +122,7 @@ function Main {
         # Make sure the VM has a SCSI 1 controller, and that
         # Lun 1 on the controller has a .vhdx file attached.
         #
-        LogMsg "Check if VM ${VMName} has a SCSI 1 Lun 1 drive"
+        Write-LogInfo "Check if VM ${VMName} has a SCSI 1 Lun 1 drive"
         $vhdxName = $VMName + "-" + $controllerType
         $vhdxDisks = Get-VMHardDiskDrive -VMName $VMName -ComputerName $HvServer
         foreach ($vhdx in $vhdxDisks) {
@@ -135,14 +135,14 @@ function Main {
         if (-not $vhdxDrive) {
             throw "VM ${VMName} does not have a SCSI 0 Lun 0 drive"
         }
-        LogMsg "Check if the virtual disk file exists"
+        Write-LogInfo "Check if the virtual disk file exists"
         $vhdPath = $vhdxDrive.Path
         $vhdxInfo = Get-RemoteFileInfo $vhdPath $HvServer
         if (-not $vhdxInfo) {
             $testResult = "FAIL"
             throw "The vhdx file (${vhdPath} does not exist on server ${HvServer}"
         }
-        LogMsg "Verify the file is a .vhdx"
+        Write-LogInfo "Verify the file is a .vhdx"
         if (-not $vhdPath.EndsWith(".vhdx") -and -not $vhdPath.EndsWith(".avhdx")) {
             $testResult = "FAIL"
             throw "$controllerType $vhdxDrive.ControllerNumber $vhdxDrive.ControllerLocation virtual disk is not a .vhdx file."
@@ -156,14 +156,14 @@ function Main {
         if ($diskInfo.FreeSpace -le $newVhdxSize + 10MB) {
             throw "Insufficent disk free space, This test case requires ${testParameters.NewSize} free, Current free space is $($diskInfo.FreeSpace)"
         }
-        RunLinuxCmd -ip $Ipv4 -port $VMPort -username $user -password $password -command "echo 'deviceName=/dev/sdc' >> constants.sh" -runAsSudo
+        Run-LinuxCmd -ip $Ipv4 -port $VMPort -username $user -password $password -command "echo 'deviceName=/dev/sdc' >> constants.sh" -runAsSudo
         $remoteScript="STOR_VHDXResize_PartitionDisk.sh"
         $retval = Invoke-RemoteScriptAndCheckStateFile $remoteScript $user $Password $Ipv4 $VMPort
-        #$retval=RunLinuxCmd -ip $Ipv4 -port $VMPort -username $user -password $password -command "./$remoteScript" -runAsSudo
+        #$retval=Run-LinuxCmd -ip $Ipv4 -port $VMPort -username $user -password $password -command "./$remoteScript" -runAsSudo
         if ($retval -eq $False) {
             throw "Running $remoteScript script failed on VM!"
         }
-        LogMsg "Resizing the VHDX to $newVhdxSize"
+        Write-LogInfo "Resizing the VHDX to $newVhdxSize"
         Resize-VHD -Path $vhdPath -SizeBytes ($newVhdxSize) -ComputerName $HvServer -ErrorAction SilentlyContinue
         if (-not $?) {
             throw "Unable to grow VHDX file ${vhdPath}"
@@ -171,9 +171,9 @@ function Main {
         #
         # Check if the guest sees the added space
         #
-        LogMsg "Check if the guest sees the new space"
-        RunLinuxCmd -ip $Ipv4 -port $VMPort -username $user -password $password -command "echo 1 > /sys/block/sdc/device/rescan" -runAsSudo
-        $diskSize = RunLinuxCmd -ip $Ipv4 -port $VMPort -username $user -password $password -command "fdisk -l /dev/sdc  2> /dev/null | grep Disk | grep sdc | cut -f 5 -d ' '" -runAsSudo
+        Write-LogInfo "Check if the guest sees the new space"
+        Run-LinuxCmd -ip $Ipv4 -port $VMPort -username $user -password $password -command "echo 1 > /sys/block/sdc/device/rescan" -runAsSudo
+        $diskSize = Run-LinuxCmd -ip $Ipv4 -port $VMPort -username $user -password $password -command "fdisk -l /dev/sdc  2> /dev/null | grep Disk | grep sdc | cut -f 5 -d ' '" -runAsSudo
         #
         # Let system have some time for the volume change to be indicated
         #
@@ -184,7 +184,7 @@ function Main {
         #
         # Make sure if we can perform Read/Write operations on the guest VM
         #
-        RunLinuxCmd -ip $Ipv4 -port $VMPort -username $user -password $password -command "sed -i '/rerun=yes/d' constants.sh" -runAsSudo
+        Run-LinuxCmd -ip $Ipv4 -port $VMPort -username $user -password $password -command "sed -i '/rerun=yes/d' constants.sh" -runAsSudo
         $retval = Invoke-RemoteScriptAndCheckStateFile $remoteScript $user $password $Ipv4 $VMPort
         if ($retval -eq $False) {
             throw "Running $remoteScript script failed on VM!"
@@ -198,7 +198,7 @@ function Main {
         #
         # Make sure if we can perform Read/Write operations on the guest VM
         #
-        RunLinuxCmd -ip $Ipv4 -port $VMPort -username $user -password $password -command "sed -i '/rerun=yes/d' constants.sh" -runAsSudo
+        Run-LinuxCmd -ip $Ipv4 -port $VMPort -username $user -password $password -command "sed -i '/rerun=yes/d' constants.sh" -runAsSudo
         $retval = Invoke-RemoteScriptAndCheckStateFile $remoteScript $user $password $Ipv4 $VMPort
         if ($retval -eq $False) {
             throw "Running $remoteScript script failed on VM!"
@@ -217,14 +217,14 @@ function Main {
     } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "$ErrorMessage at line: $ErrorLine"
+        Write-LogErr "$ErrorMessage at line: $ErrorLine"
     } finally {
         if (!$testResult) {
             $testResult = $resultAborted
         }
         $resultArr += $testResult
     }
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
 Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))

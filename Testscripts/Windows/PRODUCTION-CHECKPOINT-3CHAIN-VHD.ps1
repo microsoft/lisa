@@ -35,7 +35,7 @@ function Get-GChildVHD($ParentVHD)
 
     $hostInfo = Get-VMHost -ComputerName $hvServer
     if (-not $hostInfo) {
-        LogErr "Unable to collect Hyper-V settings for ${hvServer}"
+        Write-LogErr "Unable to collect Hyper-V settings for ${hvServer}"
         return $False
     }
 
@@ -55,26 +55,26 @@ function Get-GChildVHD($ParentVHD)
     }
 
     if ( Test-Path  $ChildVHD ) {
-        LogMsg "Deleting existing VHD $ChildVHD"
+        Write-LogInfo "Deleting existing VHD $ChildVHD"
         Remove-Item $ChildVHD
     }
 
     if ( Test-Path  $GChildVHD ) {
-        LogMsg "Deleting existing VHD $GChildVHD"
+        Write-LogInfo "Deleting existing VHD $GChildVHD"
         Remove-Item $GChildVHD
     }
 
     # Create Child VHD
     New-VHD -ParentPath:$ParentVHD -Path:$ChildVHD
     if (-not $?) {
-       LogErr "Error: Unable to create child VHD"
+       Write-LogErr "Error: Unable to create child VHD"
        return $False
     }
 
     # Create Grand Child VHD
     New-VHD -ParentPath:$ChildVHD -Path:$GChildVHD
     if (-not $?) {
-       LogErr "Error: Unable to create Grand child VHD"
+       Write-LogErr "Error: Unable to create Grand child VHD"
        return $False
     }
 
@@ -123,7 +123,7 @@ function Main {
         if ($retval -eq $False) {
             throw "Running $remoteScript script failed on VM!"
         }
-        LogMsg "VSS Daemon is running"
+        Write-LogInfo "VSS Daemon is running"
 
         # Stop the running VM so we can create New VM from this parent disk.
         Stop-VM -ComputerName $hvServer -Name $vmName -Force -Confirm:$false
@@ -135,11 +135,11 @@ function Main {
         $timeout = 180
         $sts = Wait-ForVMToStop $vmName $hvServer $timeout
         if (-not $sts) {
-            throw "WaitForVMToStop fail"
+            throw "Wait-ForVMToStop fail"
         }
 
         # Clean snapshots
-        LogMsg "Cleaning up snapshots..."
+        Write-LogInfo "Cleaning up snapshots..."
         $sts = Restore-LatestVMSnapshot $vmName $hvServer
         if (-not $sts[-1]) {
             throw "Error: Cleaning snapshots on $vmname failed."
@@ -151,7 +151,7 @@ function Main {
             throw "Error getting Parent VHD of VM $vmName"
         }
 
-        LogMsg "Successfully Got Parent VHD"
+        Write-LogInfo "Successfully Got Parent VHD"
 
         # Create Child and Grand Child VHD
         $CreateVHD = Get-GChildVHD $ParentVHD
@@ -159,7 +159,7 @@ function Main {
             throw  "Error Creating Child and Grand Child VHD of VM $vmName"
         }
 
-        LogMsg "Successfully Created GrandChild VHD"
+        Write-LogInfo "Successfully Created GrandChild VHD"
 
         # Now create New VM out of this VHD.
         # New VM is static hardcoded since we do not need it to be dynamic
@@ -191,7 +191,7 @@ function Main {
             }
         }
 
-        LogMsg "New 3 Chain VHD VM $vmNameChild Created"
+        Write-LogInfo "New 3 Chain VHD VM $vmNameChild Created"
 
         $timeout = 500
         $sts = Start-VM -Name $vmNameChild -ComputerName $hvServer
@@ -199,7 +199,7 @@ function Main {
             throw "${vmNameChild} failed to start"
         }
 
-        LogMsg "New VM $vmNameChild started"
+        Write-LogInfo "New VM $vmNameChild started"
 
         #Check if we can set the Production Checkpoint as default
         $vmChild = Get-VM -Name $vmNameChild -ComputerName $hvServer
@@ -210,7 +210,7 @@ function Main {
             }
         }
 
-        LogMsg "Get the new IPv4 for $vmNameChild"
+        Write-LogInfo "Get the new IPv4 for $vmNameChild"
         # Get new IPV4
         $newIP = Get-IPv4AndWaitForSSHStart -VMName $vmNameChild -HvServer $hvServer `
                 -VmPort $port -User $user -Password $password -StepTimeout 360
@@ -220,10 +220,10 @@ function Main {
             throw "Failed to boot up NFS Server $vm2Name"
         }
 
-        LogMsg "IPv4 $newIP for $vmNameChild"
+        Write-LogInfo "IPv4 $newIP for $vmNameChild"
 
         # Create a file on the child VM
-        RunLinuxCmd -username $user -password $password -ip $vm2ipv4 -port $port -command "touch TestFile1" -runAsSudo
+        Run-LinuxCmd -username $user -password $password -ip $vm2ipv4 -port $port -command "touch TestFile1" -runAsSudo
         if (-not $?) {
              throw "Cannot create file TestFile1"
         }
@@ -237,7 +237,7 @@ function Main {
         }
 
         # Create another file on the VM
-        RunLinuxCmd -username $user -password $password -ip $vm2ipv4 -port $port -command "touch TestFile2" -runAsSudo
+        Run-LinuxCmd -username $user -password $password -ip $vm2ipv4 -port $port -command "touch TestFile2" -runAsSudo
         if (-not $?) {
              throw "Cannot create file TestFile2"
         }
@@ -255,7 +255,7 @@ function Main {
             throw  "${vmNameChild} failed to start"
         }
 
-        LogMSg "New VM ${vmNameChild} started"
+        Write-LogInfo "New VM ${vmNameChild} started"
 
         # Check the files created earlier. The first one should be present, the second one shouldn't
         $sts1 = Check-FileInLinuxGuest -VMPassword $password -VMPort $port -VMUserName $user -Ipv4 $vm2ipv4 -fileName "TestFile1"
@@ -270,11 +270,11 @@ function Main {
             throw "TestFile2 is present,it should not be present on the VM"
         }
 
-        LogMsg "Only the first file is present. Test succeeded"
+        Write-LogInfo "Only the first file is present. Test succeeded"
         #
         # Delete the snapshot
         #
-        LogMsg "Deleting Snapshot ${Snapshot} of VM ${vmName}"
+        Write-LogInfo "Deleting Snapshot ${Snapshot} of VM ${vmName}"
         Remove-VMSnapshot -VMName $vmNameChild -Name $snapshot -ComputerName $hvServer
         if ( -not $?) {
             throw "Could not delete snapshot"
@@ -290,7 +290,7 @@ function Main {
         $timeout = 180
         $sts = Wait-ForVMToStop $vmNameChild $hvServer $timeout
         if (-not $sts) {
-                throw "WaitForVMToStop fail"
+                throw "Wait-ForVMToStop fail"
         }
 
         # Clean Delete New VM created
@@ -299,19 +299,19 @@ function Main {
             throw "Deleting New VM $vmNameChild"
         }
 
-        LogMSg "Deleted VM $vmNameChild"
+        Write-LogInfo "Deleted VM $vmNameChild"
         $testResult = "PASS"
     } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+        Write-LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     } finally {
         if (!$testResult) {
             $testResult = $resultAborted
         }
         $resultArr += $testResult
     }
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
 

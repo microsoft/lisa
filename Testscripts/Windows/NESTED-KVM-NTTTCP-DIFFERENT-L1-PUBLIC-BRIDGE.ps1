@@ -8,17 +8,17 @@ if(($($currentTestData.TestName)).Contains("NESTED-KVM-NTTTCP-DIFFERENT-L1-NAT")
 }
 
 function Start-TestExecution ($ip, $port, $cmd) {
-	LogMsg "Executing : ${cmd}"
-	$testJob = RunLinuxCmd -username $user -password $password -ip $ip -port $port -command $cmd -runAsSudo -RunInBackground
+	Write-LogInfo "Executing : ${cmd}"
+	$testJob = Run-LinuxCmd -username $user -password $password -ip $ip -port $port -command $cmd -runAsSudo -RunInBackground
 	while ((Get-Job -Id $testJob).State -eq "Running" ) {
-		$currentStatus = RunLinuxCmd -username $user -password $password -ip $ip -port $port -command "cat /home/$user/state.txt"
-		LogMsg "Current Test Status : $currentStatus"
-		WaitFor -seconds 20
+		$currentStatus = Run-LinuxCmd -username $user -password $password -ip $ip -port $port -command "cat /home/$user/state.txt"
+		Write-LogInfo "Current Test Status : $currentStatus"
+		Wait-Time -seconds 20
 	}
 }
 
 function Send-ResultToDatabase ($xmlConfig, $logDir) {
-	LogMsg "Uploading the test results.."
+	Write-LogInfo "Uploading the test results.."
 	$dataSource = $xmlConfig.config.$TestPlatform.database.server
 	$user = $xmlConfig.config.$TestPlatform.database.user
 	$password = $xmlConfig.config.$TestPlatform.database.password
@@ -84,7 +84,7 @@ function Send-ResultToDatabase ($xmlConfig, $logDir) {
 			$SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$HostType','$HostBy','$HostOS','$imageName','$L1GuestOSType','$L1GuestDistro','$L1GuestSize','$L1GuestKernelVersion','$L2GuestDistro','$L2GuestKernelVersion','$L2GuestMemMB','$L2GuestCpuNum','$KvmNetDevice','$IPVersion','$ProtocolType',$($Line[0]),$($Line[1]),$($Line[2]),'$HostType','Synthetic','$flag'),"
 		}
 		$SQLQuery = $SQLQuery.TrimEnd(',')
-		LogMsg $SQLQuery
+		Write-LogInfo $SQLQuery
 
 		$connection = New-Object System.Data.SqlClient.SqlConnection
 		$connection.ConnectionString = $connectionString
@@ -94,16 +94,16 @@ function Send-ResultToDatabase ($xmlConfig, $logDir) {
 		$command.CommandText = $SQLQuery
 		$command.executenonquery()
 		$connection.Close()
-		LogMsg "Uploading the test results done!!"
+		Write-LogInfo "Uploading the test results done!!"
 	}
 	else
 	{
-		LogMsg "Database details are not provided. Results will not be uploaded to database!"
+		Write-LogInfo "Database details are not provided. Results will not be uploaded to database!"
 	}
 }
 
 function Main () {
-	$currentTestResult = CreateTestResultObject
+	$currentTestResult = Create-TestResultObject
 	$resultArr = @()
 	$testResult = $resultAborted
 	try
@@ -141,16 +141,16 @@ function Main () {
 		}
 
 		# Download test logs
-		RemoteCopy -download -downloadFrom $hs2VIP -files "/home/$user/state.txt, /home/$user/${testScript}.log, /home/$user/TestExecutionConsole.log" -downloadTo $LogDir -port $hs2vm1sshport -username $user -password $password
+		Copy-RemoteFiles -download -downloadFrom $hs2VIP -files "/home/$user/state.txt, /home/$user/${testScript}.log, /home/$user/TestExecutionConsole.log" -downloadTo $LogDir -port $hs2vm1sshport -username $user -password $password
 		$finalStatus = Get-Content $LogDir\state.txt
 		if ($finalStatus -imatch "TestFailed")
 		{
-			LogErr "Test failed. Last known status : $currentStatus."
+			Write-LogErr "Test failed. Last known status : $currentStatus."
 			$testResult = $resultFail
 		}
 		elseif ($finalStatus -imatch "TestAborted")
 		{
-			LogErr "Test Aborted. Last known status : $currentStatus."
+			Write-LogErr "Test Aborted. Last known status : $currentStatus."
 			$testResult = $resultAborted
 		}
 		elseif ($finalStatus -imatch "TestCompleted")
@@ -159,18 +159,18 @@ function Main () {
 		}
 		elseif ($finalStatus -imatch "TestRunning")
 		{
-			LogMsg "Powershell backgroud job for test is completed but VM is reporting that test is still running. Please check $LogDir\zkConsoleLogs.txt"
+			Write-LogInfo "Powershell backgroud job for test is completed but VM is reporting that test is still running. Please check $LogDir\zkConsoleLogs.txt"
 			$testResult = $resultAborted
 		}
 
-		RunLinuxCmd -username $user -password $password -ip $hs2VIP -port $hs2vm1sshport -command ". utils.sh && collect_VM_properties" -runAsSudo
-		RemoteCopy -download -downloadFrom $hs2VIP -files "/home/$user/VM_properties.csv" -downloadTo $LogDir -port $hs2vm1sshport -username $user -password $password
+		Run-LinuxCmd -username $user -password $password -ip $hs2VIP -port $hs2vm1sshport -command ". utils.sh && collect_VM_properties" -runAsSudo
+		Copy-RemoteFiles -download -downloadFrom $hs2VIP -files "/home/$user/VM_properties.csv" -downloadTo $LogDir -port $hs2vm1sshport -username $user -password $password
 
 		if ($testResult -imatch $resultPass)
 		{
-			RemoteCopy -download -downloadFrom $hs2VIP -files "/home/$user/ntttcpConsoleLogs, /home/$user/ntttcpTest.log" -downloadTo $LogDir -port $hs2vm1sshport -username $user -password $password
-			RemoteCopy -download -downloadFrom $hs2VIP -files "/home/$user/nested_properties.csv, /home/$user/report.log" -downloadTo $LogDir -port $hs2vm1sshport -username $user -password $password
-			RemoteCopy -download -downloadFrom $hs2VIP -files "/home/$user/ntttcp-test-logs-receiver.tar, /home/$user/ntttcp-test-logs-sender.tar" -downloadTo $LogDir -port $hs2vm1sshport -username $user -password $password
+			Copy-RemoteFiles -download -downloadFrom $hs2VIP -files "/home/$user/ntttcpConsoleLogs, /home/$user/ntttcpTest.log" -downloadTo $LogDir -port $hs2vm1sshport -username $user -password $password
+			Copy-RemoteFiles -download -downloadFrom $hs2VIP -files "/home/$user/nested_properties.csv, /home/$user/report.log" -downloadTo $LogDir -port $hs2vm1sshport -username $user -password $password
+			Copy-RemoteFiles -download -downloadFrom $hs2VIP -files "/home/$user/ntttcp-test-logs-receiver.tar, /home/$user/ntttcp-test-logs-sender.tar" -downloadTo $LogDir -port $hs2vm1sshport -username $user -password $password
 
 			$ntttcpReportLog = Get-Content -Path "$LogDir\report.log"
 			if (!$ntttcpReportLog)
@@ -193,7 +193,7 @@ function Main () {
 					$averageTcpLatency = $splits[3]
 					$metadata = "Connections=$testConnections"
 					$connResult = "throughput=$throughputGbps`Gbps cyclePerBytet=$cyclePerByte Avg_TCP_lat=$averageTcpLatency"
-					$currentTestResult.TestSummary +=  CreateResultSummary -testResult $connResult -metaData $metaData -checkValues $checkValues -testName $currentTestData.testName
+					$currentTestResult.TestSummary +=  Create-ResultSummary -testResult $connResult -metaData $metaData -checkValues $checkValues -testName $currentTestData.testName
 					if ([string]$throughputGbps -imatch "0.00")
 					{
 						$testResult = $resultFail
@@ -202,13 +202,13 @@ function Main () {
 				}
 				catch
 				{
-					$currentTestResult.TestSummary +=  CreateResultSummary -testResult "Error in parsing logs." -metaData "NTTTCP" -checkValues $checkValues -testName $currentTestData.testName
+					$currentTestResult.TestSummary +=  Create-ResultSummary -testResult "Error in parsing logs." -metaData "NTTTCP" -checkValues $checkValues -testName $currentTestData.testName
 				}
 			}
 
-			LogMsg $currentTestResult.TestSummary
+			Write-LogInfo $currentTestResult.TestSummary
 			if (!$uploadResults) {
-				LogMsg "Zero throughput for some connections, results will not be uploaded to database!"
+				Write-LogInfo "Zero throughput for some connections, results will not be uploaded to database!"
 			}
 			else {
 				Send-ResultToDatabase -xmlConfig $xmlConfig -logDir $LogDir
@@ -218,12 +218,12 @@ function Main () {
 	catch
 	{
 		$errorMessage =  $_.Exception.Message
-		LogMsg "EXCEPTION : $errorMessage"
+		Write-LogInfo "EXCEPTION : $errorMessage"
 	}
 
 	$resultArr += $testResult
-	LogMsg "Test result : $testResult"
-	$currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+	Write-LogInfo "Test result : $testResult"
+	$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
 	return $currentTestResult.TestResult
 }
 

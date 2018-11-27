@@ -46,15 +46,15 @@ try
         $offers = Get-AzureRmVMImageOffer -PublisherName $newPub -Location $Location
         if ($offers)
         {
-            LogMsg "Found $($offers.Count) offers for $($newPub)..."
+            Write-LogInfo "Found $($offers.Count) offers for $($newPub)..."
             foreach ( $offer in $offers )
             {
                 $SKUs = Get-AzureRmVMImageSku -Location $Location -PublisherName $newPub -Offer $offer.Offer -ErrorAction SilentlyContinue
-                LogMsg "|--Found $($SKUs.Count) SKUs for $($offer.Offer)..."
+                Write-LogInfo "|--Found $($SKUs.Count) SKUs for $($offer.Offer)..."
                 foreach ( $SKU in $SKUs )
                 {
                     $rmImages = Get-AzureRmVMImage -Location $Location -PublisherName $newPub -Offer $offer.Offer -Skus $SKU.Skus
-                    LogMsg "|--|--Found $($rmImages.Count) Images for $($SKU.Skus)..."
+                    Write-LogInfo "|--|--Found $($rmImages.Count) Images for $($SKU.Skus)..."
                     if ( $rmImages.Count -gt 1 )
                     {
                         $isLatestAdded = $false
@@ -67,14 +67,14 @@ try
                     {
                         if ( $isLatestAdded )
                         {
-                            LogMsg "|--|--|--Added Version $($rmImage.Version)..."
+                            Write-LogInfo "|--|--|--Added Version $($rmImage.Version)..."
                             $ARMImages += $newPub + $tab + $offer.Offer + $tab + $SKU.Skus + $tab + $newPub + " " + $offer.Offer + " " + $SKU.Skus + " " + $rmImage.Version + "`n"
                         }
                         else
                         {
-                            LogMsg "|--|--|--Added Generalized version: latest..."
+                            Write-LogInfo "|--|--|--Added Generalized version: latest..."
                             $ARMImages += $newPub + $tab + $offer.Offer + $tab + $SKU.Skus + $tab + $newPub + " " + $offer.Offer + " " + $SKU.Skus + " " + "latest" + "`n"
-                            LogMsg "|--|--|--Added Version $($rmImage.Version)..."
+                            Write-LogInfo "|--|--|--Added Version $($rmImage.Version)..."
                             $ARMImages += $newPub + $tab + $offer.Offer + $tab + $SKU.Skus + $tab + $newPub + " " + $offer.Offer + " " + $SKU.Skus + " " + $rmImage.Version + "`n"
                             $isLatestAdded = $true
                         }
@@ -84,20 +84,20 @@ try
         }
     }
     $ARMImages = $ARMImages.TrimEnd("`n")
-    LogMsg "Creating file $OutputFilePath..."
+    Write-LogInfo "Creating file $OutputFilePath..."
     Set-Content -Value $ARMImages -Path $OutputFilePath -Force -NoNewline
-    LogMsg "$OutputFilePath saved successfully."
+    Write-LogInfo "$OutputFilePath saved successfully."
     $ExitCode = 0
     #endregion
 }
 catch
 {
     $ExitCode = 1
-    ThrowException ($_)
+    Raise-Exception ($_)
 }
 finally
 {
-    LogMsg "Exiting with code: $ExitCode"
+    Write-LogInfo "Exiting with code: $ExitCode"
     exit $ExitCode
 }
 #endregion

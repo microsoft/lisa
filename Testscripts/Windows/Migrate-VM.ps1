@@ -31,7 +31,7 @@ try {
     #
     # Get the VMs current node
     #
-    $vmResource =  Get-ClusterResource | where-object {$_.OwnerGroup.name -eq "$vmName" -and $_.ResourceType.Name -eq "Virtual Machine"}
+    $vmResource =  Get-ClusterResource | Where-Object {$_.OwnerGroup.name -eq "$vmName" -and $_.ResourceType.Name -eq "Virtual Machine"}
     if (-not $vmResource) {
         throw "Unable to find cluster resource for current node"
     }
@@ -63,7 +63,7 @@ try {
             throw "Not enough available memory on the destination node. startupMemory: $startupMemory, free space: $availableMemory"
         }
     }
-    LogMsg "Migrating VM $vmName from $currentNode to $destinationNode"
+    Write-LogInfo "Migrating VM $vmName from $currentNode to $destinationNode"
     $sts = Move-ClusterVirtualMachineRole -name $vmName -node $destinationNode -MigrationType $migrationType
     if (-not $sts) {
         throw "Unable to move the VM"
@@ -72,38 +72,38 @@ try {
     if($stopClusterNode) {
         $clusterNodeStopped = $False
         $stoppedNode = Get-ClusterNode -Name $destinationNode
-        LogMsg "Stoping cluster service for node ${destinationNode}"
+        Write-LogInfo "Stoping cluster service for node ${destinationNode}"
         Stop-ClusterNode -Name $destinationNode
         $stopClusterNode = $False
-        LogMsg "Waiting for ${destinationNode}'s cluster service to stop"
+        Write-LogInfo "Waiting for ${destinationNode}'s cluster service to stop"
         while(-not $clusterNodeStopped) {
             if($stoppedNode.State -eq "Down") {
                 $clusterNodeStopped = $True
             }
         }
-        LogMsg "Cluster service for node ${destinationNode} is stopped"
-        LogMsg "Sleep for 30 sec."
+        Write-LogInfo "Cluster service for node ${destinationNode} is stopped"
+        Write-LogInfo "Sleep for 30 sec."
         Start-Sleep -s 30
-        LogMsg "Starting cluster service for node ${destinationNode}"
+        Write-LogInfo "Starting cluster service for node ${destinationNode}"
         Start-ClusterNode -Name $destinationNode
-        LogMsg "Waiting for ${destinationNode}'s cluster service to be up and running"
+        Write-LogInfo "Waiting for ${destinationNode}'s cluster service to be up and running"
         while($clusterNodeStopped) {
             if($stoppedNode.State -eq "Up") {
                 $clusterNodeStopped = $False
             }
         }
-        LogMsg "${destinationNode}'s cluster service is up and running"
-        LogMsg "checking if VM went back to ${currentNode}"
+        Write-LogInfo "${destinationNode}'s cluster service is up and running"
+        Write-LogInfo "checking if VM went back to ${currentNode}"
         $vms = Get-VM -ComputerName $currentNode
         foreach($vm in $vms) {
             if($vm.ComputerName.ToLower() -eq $currentNode.ToLower()) {
-                LogMsg "Success: ${vmName} went back to ${currentNode}"
+                Write-LogInfo "Success: ${vmName} went back to ${currentNode}"
                 return $True
             }
         }
         throw "VM has not moved back to ${currentNode}"
     }
-    LogMsg "Migrating VM $vmName back from $destinationNode to $currentNode"
+    Write-LogInfo "Migrating VM $vmName back from $destinationNode to $currentNode"
     $sts= Move-ClusterVirtualMachineRole -name $vmName -node $currentNode -MigrationType $migrationType
     if (-not $sts) {
         throw "$vmName - Unable to move the VM"
@@ -113,7 +113,7 @@ try {
 catch {
     $ErrorMessage =  $_.Exception.Message
     $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-    LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+    Write-LogInfo "EXCEPTION : $ErrorMessage at line: $ErrorLine"
 }
 Finally {
     if (!$testResult) {

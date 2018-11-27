@@ -30,32 +30,32 @@ function Main {
     $peakFaultMem = [int]67700
 
     #Get VM available memory
-    $guestReadableMem = RunLinuxCmd -username $rootUser -password $VMPassword -ip $Ipv4 -port $VMPort `
+    $guestReadableMem = Run-LinuxCmd -username $rootUser -password $VMPassword -ip $Ipv4 -port $VMPort `
         -command "free -m | grep Mem | xargs | cut -d ' ' -f 2"
     if ($? -ne "True") {
-        LogErr "Unable to send command to VM."
+        Write-LogErr "Unable to send command to VM."
         return "FAIL"
     }
 
-    $memInfo = RunLinuxCmd -username $rootUser -password $VMPassword -ip $Ipv4 -port $VMPort `
+    $memInfo = Run-LinuxCmd -username $rootUser -password $VMPassword -ip $Ipv4 -port $VMPort `
         -command "cat /proc/meminfo | grep MemTotal | xargs | cut -d ' ' -f 2"
     if ($? -ne "True") {
-        LogErr "Unable to send command to VM."
+        Write-LogErr "Unable to send command to VM."
         return "FAIL"
     }
     $memInfo = [math]::floor($memInfo/1024)
 
     #Check if free binary and /proc/meminfo return the same value
     if ($guestReadableMem -ne $memInfo) {
-        LogWarn "Free and proc/meminfo return different values"
+        Write-LogWarn "Free and proc/meminfo return different values"
     }
 
     if ($guestReadableMem -gt $peakFaultMem) {
-        LogMsg "VM is able to use all the assigned memory"
+        Write-LogInfo "VM is able to use all the assigned memory"
         return "PASS"
     } else {
-        LogErr "VM cannot access all assigned memory."
-        LogErr "Assigned: $startupMem MB| VM addressable: $guestReadableMem MB"
+        Write-LogErr "VM cannot access all assigned memory."
+        Write-LogErr "Assigned: $startupMem MB| VM addressable: $guestReadableMem MB"
         return "FAIL"
     }
 }

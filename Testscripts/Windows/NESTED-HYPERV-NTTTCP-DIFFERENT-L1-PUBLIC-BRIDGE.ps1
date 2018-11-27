@@ -4,19 +4,19 @@
 $testScript = "nested_hyperv_ntttcp_different_l1_public_bridge.sh"
 
 function Start-TestExecution ($ip, $port, $cmd) {
-	RemoteCopy -uploadTo $ip -port $port -files $currentTestData.files -username $nestedUser -password $nestedPassword -upload
-	RunLinuxCmd -username $nestedUser -password $nestedPassword -ip $ip -port $port -command "chmod +x *" -runAsSudo
-	LogMsg "Executing : ${cmd}"
-	$testJob = RunLinuxCmd -username $nestedUser -password $nestedPassword -ip $ip -port $port -command $cmd -runAsSudo -RunInBackground
+	Copy-RemoteFiles -uploadTo $ip -port $port -files $currentTestData.files -username $nestedUser -password $nestedPassword -upload
+	Run-LinuxCmd -username $nestedUser -password $nestedPassword -ip $ip -port $port -command "chmod +x *" -runAsSudo
+	Write-LogInfo "Executing : ${cmd}"
+	$testJob = Run-LinuxCmd -username $nestedUser -password $nestedPassword -ip $ip -port $port -command $cmd -runAsSudo -RunInBackground
 	while ( (Get-Job -Id $testJob).State -eq "Running" ) {
-		$currentStatus = RunLinuxCmd -username $nestedUser -password $nestedPassword -ip $ip -port $port -command "cat /home/$nestedUser/state.txt"
-		LogMsg "Current Test Status : $currentStatus"
-		WaitFor -seconds 20
+		$currentStatus = Run-LinuxCmd -username $nestedUser -password $nestedPassword -ip $ip -port $port -command "cat /home/$nestedUser/state.txt"
+		Write-LogInfo "Current Test Status : $currentStatus"
+		Wait-Time -seconds 20
 	}
 }
 
 function Download-OSvhd ($session, $srcPath, $dstPath) {
-	LogMsg "Downloading vhd from $srcPath to $dstPath ..."
+	Write-LogInfo "Downloading vhd from $srcPath to $dstPath ..."
 	Invoke-Command -Session $session -ScriptBlock {
 		param($srcPath, $dstPath)
 		Import-Module BitsTransfer
@@ -51,7 +51,7 @@ function Download-OSvhd ($session, $srcPath, $dstPath) {
 }
 
 function Send-ResultToDatabase ($xmlConfig, $logDir) {
-	LogMsg "Uploading the test results.."
+	Write-LogInfo "Uploading the test results.."
 	$dataSource = $xmlConfig.config.$TestPlatform.database.server
 	$user = $xmlConfig.config.$TestPlatform.database.user
 	$password = $xmlConfig.config.$TestPlatform.database.password
@@ -109,7 +109,7 @@ function Send-ResultToDatabase ($xmlConfig, $logDir) {
 			$SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$HostType','$HostBy','$HostOS','$L1GuestOSType','$L1GuestDistro','$L1GuestSize','$L1GuestKernelVersion','$L2GuestDistro','$L2GuestKernelVersion','$L2GuestMemMB','$L2GuestCpuNum','$IPVersion','$ProtocolType',$($Line[0]),$($Line[1]),$($Line[2]),'$HostType','Synthetic','$flag'),"
 		}
 		$SQLQuery = $SQLQuery.TrimEnd(',')
-		LogMsg $SQLQuery
+		Write-LogInfo $SQLQuery
 
 		$connection = New-Object System.Data.SqlClient.SqlConnection
 		$connection.ConnectionString = $connectionString
@@ -119,15 +119,15 @@ function Send-ResultToDatabase ($xmlConfig, $logDir) {
 		$command.CommandText = $SQLQuery
 		$command.executenonquery()
 		$connection.Close()
-		LogMsg "Uploading the test results done!!"
+		Write-LogInfo "Uploading the test results done!!"
 	}
 	else
 	{
-		LogMsg "Database details are not provided. Results will not be uploaded to database!"
+		Write-LogInfo "Database details are not provided. Results will not be uploaded to database!"
 	}
 }
 
-function CreateNestedVMNode()
+function Create-NestedVMNode()
 {
 	$objNode = New-Object -TypeName PSObject
 	Add-Member -InputObject $objNode -MemberType NoteProperty -Name PublicIP -Value $null -Force
@@ -137,7 +137,7 @@ function CreateNestedVMNode()
 }
 
 function Main () {
-	$CurrentTestResult = CreateTestResultObject
+	$CurrentTestResult = Create-TestResultObject
 	$testResult = $resultAborted
 	$resultArr = @()
 	$IP_MATCH = "\b(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}\b"
@@ -154,16 +154,16 @@ function Main () {
 			{
 				$hs2VIP = $vm.PublicIP
 			}
-			LogMsg "Install Hyper-V role on $($vm.RoleName), IP - $($vm.PublicIP)"
+			Write-LogInfo "Install Hyper-V role on $($vm.RoleName), IP - $($vm.PublicIP)"
 			Invoke-Command -ComputerName $vm.PublicIP -ScriptBlock {Install-WindowsFeature -Name Hyper-V -ComputerName localhost -IncludeManagementTools} -Credential $cred
-			LogMsg "Turn off firewall for $($vm.RoleName), IP - $($vm.PublicIP) to prepare running test"
+			Write-LogInfo "Turn off firewall for $($vm.RoleName), IP - $($vm.PublicIP) to prepare running test"
 			Invoke-Command -ComputerName $vm.PublicIP -ScriptBlock {Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False} -Credential $cred
 		}
 
-		LogMsg "Restart VMs to make sure Hyper-V install completely"
-		RestartAllHyperVDeployments -allVMData $AllVMData
+		Write-LogInfo "Restart VMs to make sure Hyper-V install completely"
+		Restart-AllHyperVDeployments -allVMData $AllVMData
 
-		start-sleep 20
+		Start-Sleep 20
 		$serverSession = New-PSSession -ComputerName $hs1VIP -Credential $cred
 		$clientSession = New-PSSession -ComputerName $hs2VIP -Credential $cred
 
@@ -251,9 +251,9 @@ function Main () {
 
 			$IPAddresses = $output.IPAddresses | Where-Object {$_ -imatch $IP_MATCH}
 
-			RunLinuxCmd -username $nestedUser -password $nestedPassword -ip $IPAddresses -port $nestVMSSHPort -command "echo $($vm.RoleName) > /etc/hostname" -runAsSudo -maxRetryCount 5
-			RemoteCopy -uploadTo $IPAddresses -port $nestVMSSHPort -files "$constantsFile" -username $nestedUser -password $nestedPassword -upload
-			RunLinuxCmd -username $nestedUser -password $nestedPassword -ip $IPAddresses -port $nestVMSSHPort -command "reboot" -runAsSudo -RunInBackGround
+			Run-LinuxCmd -username $nestedUser -password $nestedPassword -ip $IPAddresses -port $nestVMSSHPort -command "echo $($vm.RoleName) > /etc/hostname" -runAsSudo -maxRetryCount 5
+			Copy-RemoteFiles -uploadTo $IPAddresses -port $nestVMSSHPort -files "$constantsFile" -username $nestedUser -password $nestedPassword -upload
+			Run-LinuxCmd -username $nestedUser -password $nestedPassword -ip $IPAddresses -port $nestVMSSHPort -command "reboot" -runAsSudo -RunInBackGround
 		}
 
 		foreach($vm in $AllVMData)
@@ -266,7 +266,7 @@ function Main () {
 			{
 				$CurrentRetryAttempt++
 				Start-Sleep 5
-				LogMsg "    [$CurrentRetryAttempt/$RetryCount] : nested vm on $($vm.RoleName) : Waiting for IP address ..."
+				Write-LogInfo "    [$CurrentRetryAttempt/$RetryCount] : nested vm on $($vm.RoleName) : Waiting for IP address ..."
 				$output = Invoke-Command -ComputerName $vm.PublicIP -ScriptBlock {
 				$vmName = "test"
 				Get-VMNetworkAdapter -VMName $vmName
@@ -274,7 +274,7 @@ function Main () {
 				$IPAddresses = $output.IPAddresses | Where-Object {$_ -imatch $IP_MATCH}
 			}while(($CurrentRetryAttempt -lt $RetryCount) -and (!$IPAddresses))
 
-			$NestedVMNode = CreateNestedVMNode
+			$NestedVMNode = Create-NestedVMNode
 			$NestedVMNode.PublicIP = $IPAddresses
 			if($vm.RoleName.Contains("server"))
 			{
@@ -290,32 +290,32 @@ function Main () {
 			$NestedVMNode = ""
 		}
 		Set-Variable -Name IsWindows -Value $false -Scope Global
-		isAllSSHPortsEnabledRG $allDeployedNestedVMs
+		Check-SSHPortsEnabled $allDeployedNestedVMs
 		Set-Variable -Name IsWindows -Value $true -Scope Global
 
 		Remove-PSSession -Session $serverSession
 		Remove-PSSession -Session $clientSession
 
-		RemoteCopy -uploadTo $nttcpServerIP -port $nestVMSSHPort -files $currentTestData.files -username $nestedUser -password $nestedPassword -upload
-		RunLinuxCmd -username $nestedUser -password $nestedPassword -ip $nttcpServerIP -port $nestVMSSHPort -command "chmod +x *" -runAsSudo
+		Copy-RemoteFiles -uploadTo $nttcpServerIP -port $nestVMSSHPort -files $currentTestData.files -username $nestedUser -password $nestedPassword -upload
+		Run-LinuxCmd -username $nestedUser -password $nestedPassword -ip $nttcpServerIP -port $nestVMSSHPort -command "chmod +x *" -runAsSudo
 		$cmd = "/home/$nestedUser/${testScript} -role server -logFolder /home/$nestedUser > /home/$nestedUser/TestExecutionConsole.log"
-		LogMsg "Executing : $($cmd)"
-		RunLinuxCmd -username $nestedUser -password $nestedPassword -ip $nttcpServerIP -port $nestVMSSHPort -command $cmd -runAsSudo
+		Write-LogInfo "Executing : $($cmd)"
+		Run-LinuxCmd -username $nestedUser -password $nestedPassword -ip $nttcpServerIP -port $nestVMSSHPort -command $cmd -runAsSudo
 
 		$cmd = "/home/$nestedUser/${testScript} -role client -logFolder /home/$nestedUser > /home/$nestedUser/TestExecutionConsole.log"
 		Start-TestExecution -ip $nttcpClientIP -port $nestVMSSHPort -cmd $cmd
 
 		# Download test logs
-		RemoteCopy -download -downloadFrom $nttcpClientIP -files "/home/$nestedUser/state.txt, /home/$nestedUser/TestExecutionConsole.log" -downloadTo $LogDir -port $nestVMSSHPort -username $nestedUser -password $nestedPassword
+		Copy-RemoteFiles -download -downloadFrom $nttcpClientIP -files "/home/$nestedUser/state.txt, /home/$nestedUser/TestExecutionConsole.log" -downloadTo $LogDir -port $nestVMSSHPort -username $nestedUser -password $nestedPassword
 		$finalStatus = Get-Content $LogDir\state.txt
 		if ($finalStatus -imatch "TestFailed")
 		{
-			LogErr "Test failed. Last known status : $currentStatus."
+			Write-LogErr "Test failed. Last known status : $currentStatus."
 			$testResult = $resultFail
 		}
 		elseif ($finalStatus -imatch "TestAborted")
 		{
-			LogErr "Test Aborted. Last known status : $currentStatus."
+			Write-LogErr "Test Aborted. Last known status : $currentStatus."
 			$testResult = $resultAborted
 		}
 		elseif ($finalStatus -imatch "TestCompleted")
@@ -324,17 +324,17 @@ function Main () {
 		}
 		elseif ($finalStatus -imatch "TestRunning")
 		{
-			LogMsg "Powershell backgroud job for test is completed but VM is reporting that test is still running. Please check $LogDir\zkConsoleLogs.txt"
+			Write-LogInfo "Powershell backgroud job for test is completed but VM is reporting that test is still running. Please check $LogDir\zkConsoleLogs.txt"
 			$testResult = $resultAborted
 		}
 
-		RemoteCopy -download -downloadFrom $nttcpClientIP -files "/home/$nestedUser/nested_properties.csv" -downloadTo $LogDir -port $nestVMSSHPort -username $nestedUser -password $nestedPassword
+		Copy-RemoteFiles -download -downloadFrom $nttcpClientIP -files "/home/$nestedUser/nested_properties.csv" -downloadTo $LogDir -port $nestVMSSHPort -username $nestedUser -password $nestedPassword
 
 		if ($testResult -imatch $resultPass)
 		{
-			RemoteCopy -download -downloadFrom $nttcpClientIP -files "/home/$nestedUser/ntttcpConsoleLogs, /home/$nestedUser/ntttcpTest.log" -downloadTo $LogDir -port $nestVMSSHPort -username $nestedUser -password $nestedPassword
-			RemoteCopy -download -downloadFrom $nttcpClientIP -files "/home/$nestedUser/nested_properties.csv, /home/$nestedUser/report.log" -downloadTo $LogDir -port $nestVMSSHPort -username $nestedUser -password $nestedPassword
-			RemoteCopy -download -downloadFrom $nttcpClientIP -files "/home/$nestedUser/ntttcp-test-logs-receiver.tar, /home/$nestedUser/ntttcp-test-logs-sender.tar" -downloadTo $LogDir -port $nestVMSSHPort -username $nestedUser -password $nestedPassword
+			Copy-RemoteFiles -download -downloadFrom $nttcpClientIP -files "/home/$nestedUser/ntttcpConsoleLogs, /home/$nestedUser/ntttcpTest.log" -downloadTo $LogDir -port $nestVMSSHPort -username $nestedUser -password $nestedPassword
+			Copy-RemoteFiles -download -downloadFrom $nttcpClientIP -files "/home/$nestedUser/nested_properties.csv, /home/$nestedUser/report.log" -downloadTo $LogDir -port $nestVMSSHPort -username $nestedUser -password $nestedPassword
+			Copy-RemoteFiles -download -downloadFrom $nttcpClientIP -files "/home/$nestedUser/ntttcp-test-logs-receiver.tar, /home/$nestedUser/ntttcp-test-logs-sender.tar" -downloadTo $LogDir -port $nestVMSSHPort -username $nestedUser -password $nestedPassword
 
 			$ntttcpReportLog = Get-Content -Path "$LogDir\report.log"
 			if (!$ntttcpReportLog)
@@ -357,7 +357,7 @@ function Main () {
 					$averageTcpLatency = $splits[3]
 					$metadata = "Connections=$testConnections"
 					$connResult = "throughput=$throughputGbps`Gbps cyclePerBytet=$cyclePerByte Avg_TCP_lat=$averageTcpLatency"
-					$currentTestResult.TestSummary +=  CreateResultSummary -testResult $connResult -metaData $metaData -checkValues $checkValues -testName $currentTestData.testName
+					$currentTestResult.TestSummary +=  Create-ResultSummary -testResult $connResult -metaData $metaData -checkValues $checkValues -testName $currentTestData.testName
 					if ([string]$throughputGbps -eq "0.00")
 					{
 						$testResult = $resultFail
@@ -366,13 +366,13 @@ function Main () {
 				}
 				catch
 				{
-					$currentTestResult.TestSummary +=  CreateResultSummary -testResult "Error in parsing logs." -metaData "NTTTCP" -checkValues $checkValues -testName $currentTestData.testName
+					$currentTestResult.TestSummary +=  Create-ResultSummary -testResult "Error in parsing logs." -metaData "NTTTCP" -checkValues $checkValues -testName $currentTestData.testName
 				}
 			}
 
-			LogMsg $currentTestResult.TestSummary
+			Write-LogInfo $currentTestResult.TestSummary
 			if (!$uploadResults) {
-				LogMsg "Zero throughput for some connections, results will not be uploaded to database!"
+				Write-LogInfo "Zero throughput for some connections, results will not be uploaded to database!"
 			}
 			else {
 				Send-ResultToDatabase -xmlConfig $xmlConfig -logDir $LogDir
@@ -382,12 +382,12 @@ function Main () {
 	catch
 	{
 		$errorMessage =  $_.Exception.Message
-		LogMsg "EXCEPTION : $errorMessage"
+		Write-LogInfo "EXCEPTION : $errorMessage"
 	}
 
 	$resultArr += $testResult
-	LogMsg "Test result : $testResult"
-	$currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+	Write-LogInfo "Test result : $testResult"
+	$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
 	return $currentTestResult.TestResult
 }
 

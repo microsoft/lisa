@@ -50,24 +50,24 @@ function Main {
     #
     $gsi = Get-VMIntegrationService -vmName $VMName -ComputerName $hvServer -Name "Guest Service Interface"
     if (-not $gsi) {
-        LogErr " Unable to retrieve Integration Service status from VM '${vmName}'"
+        Write-LogErr " Unable to retrieve Integration Service status from VM '${vmName}'"
         return "ABORTED"
     }
 
     if (-not $gsi.Enabled) {
-        LogWarn "The Guest services are not enabled for VM '${vmName}'"
+        Write-LogWarn "The Guest services are not enabled for VM '${vmName}'"
         if ((Get-VM -ComputerName $hvServer -Name $VMName).State -ne "Off") {
             Stop-VM -ComputerName $hvServer -Name $VMName -Force -Confirm:$false
         }
 
         # Waiting until the VM is off
         while ((Get-VM -ComputerName $hvServer -Name $VMName).State -ne "Off") {
-            LogMsg "Turning off VM:'${vmName}'"
+            Write-LogInfo "Turning off VM:'${vmName}'"
             Start-Sleep -Seconds 5
         }
-        LogMsg "Enabling  Guest services on VM:'${vmName}'"
+        Write-LogInfo "Enabling  Guest services on VM:'${vmName}'"
         Enable-VMIntegrationService -Name "Guest Service Interface" -vmName $VMName -ComputerName $hvServer
-        LogMsg "Starting VM:'${vmName}'"
+        Write-LogInfo "Starting VM:'${vmName}'"
         Start-VM -Name $VMName -ComputerName $hvServer
 
         # Waiting for the VM to run again and respond
@@ -95,7 +95,7 @@ function Main {
 
 
     if ($gsi.OperationalStatus -ne "OK") {
-        LogErr "The Guest services are not working properly for VM '${vmName}'!"
+        Write-LogErr "The Guest services are not working properly for VM '${vmName}'!"
         return "FAIL"
     }
     else {
@@ -103,7 +103,7 @@ function Main {
         $createfile = fsutil file createnew \\$hvServer\$file_path_formatted 10485760
 
         if ($createfile -notlike "File *testfile-*.file is created") {
-            LogErr	"Could not create the sample test file in the working directory!"
+            Write-LogErr	"Could not create the sample test file in the working directory!"
             return "FAIL"
         }
     }
@@ -111,13 +111,13 @@ function Main {
     # Verifying if /tmp folder on guest exists; if not, it will be created
     .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$Ipv4 "[ -d /tmp ]"
     if (-not $?) {
-        LogMsg "Folder /tmp not present on guest. It will be created"
+        Write-LogInfo "Folder /tmp not present on guest. It will be created"
         .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$Ipv4 "mkdir /tmp"
     }
     # The fcopy daemon must be running on the Linux guest VM
     $sts = Check-FcopyDaemon  -vmPassword $VMPassword -VmPort $VMPort -vmUserName $VMUserName -ipv4 $Ipv4
     if (-not $sts[-1]) {
-        LogErr "File copy daemon is not running inside the Linux guest VM!"
+        Write-LogErr "File copy daemon is not running inside the Linux guest VM!"
         return "FAIL"
     }
     # Removing previous test files on the VM
@@ -132,20 +132,20 @@ function Main {
         $sts = Check-FileInLinuxGuest -vmPassword $VMPassword -vmPort $VMPort -vmUserName $VMUserName -ipv4 $Ipv4 -filename "/tmp/$testfile" -checkSize $true
 
         if (-not $sts[-1]) {
-            LogErr "File is not present on the guest VM '${vmName}'!"
+            Write-LogErr "File is not present on the guest VM '${vmName}'!"
             return "FAIL"
         }
         elseif ($sts[0] -eq 10485760) {
-            LogMsg "Info: The file copied matches the 10MB size."
+            Write-LogInfo "Info: The file copied matches the 10MB size."
             return "PASS"
         }
         else {
-            LogErr "The file copied doesn't match the 10MB size!"
+            Write-LogErr "The file copied doesn't match the 10MB size!"
             return "FAIL"
         }
     }
     elseif ($Error.Count -gt 0) {
-        LogErr "Test FAIL. An error has occurred while copying the file to guest VM '${vmName}'!"
+        Write-LogErr "Test FAIL. An error has occurred while copying the file to guest VM '${vmName}'!"
         $error[0]
         return "FAIL"
     }
@@ -154,17 +154,17 @@ function Main {
     # Second copy file attempt must fail with the below error code pattern
     Copy-VMFile -vmName $VMName -ComputerName $hvServer -SourcePath $filePath -DestinationPath "/tmp/" -FileSource host -ErrorAction SilentlyContinue
     if ($error.Count -eq 0) {
-        LogMsg "Test PASS! File could not be copied as it already exists on guest VM '${vmName}'"
+        Write-LogInfo "Test PASS! File could not be copied as it already exists on guest VM '${vmName}'"
         return "PASS"
     }
     elseif ($error.Count -eq 1) {
-        LogErr "File '${testfile}' has been copied twice to guest VM '${vmName}'!"
+        Write-LogErr "File '${testfile}' has been copied twice to guest VM '${vmName}'!"
         return "FAIL"
     }
     # Removing the temporary test file
     Remove-Item -Path \\$HvServer\$file_path_formatted -Force
     if ($LASTEXITCODE -ne "0") {
-        LogErr "cannot remove the test file '${testfile}'!"
+        Write-LogErr "cannot remove the test file '${testfile}'!"
         return "FAIL"
     }
 }

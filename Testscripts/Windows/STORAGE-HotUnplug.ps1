@@ -33,7 +33,7 @@ function Add-VHDxDiskDrive {
                         -ControllerNumber $controllerID `
                         -ControllerLocation $lun
     if ($error.Count -gt 0) {
-        LogErr "Add-VMHardDiskDrive failed to add drive on SCSI controller $error[0].Exception"
+        Write-LogErr "Add-VMHardDiskDrive failed to add drive on SCSI controller $error[0].Exception"
         return $False
     }
     return $True
@@ -54,7 +54,7 @@ function Remove-VHDxDiskDrive {
                            -ControllerLocation $lun `
                            -ControllerNumber $controllerID
     if ($error.Count -gt 0) {
-        LogErr "Remove-VMHardDiskDrive failed to remove drive on SCSI controller $error[0].Exception"
+        Write-LogErr "Remove-VMHardDiskDrive failed to remove drive on SCSI controller $error[0].Exception"
         return $False
     }
     return $True
@@ -77,7 +77,7 @@ function Main {
     $rootUser="root"
 
     if ($null -eq $testParams -or $testParams.Length -lt 3) {
-        LogErr "setupScript requires test params"
+        Write-LogErr "setupScript requires test params"
         return "FAIL"
     }
 
@@ -93,7 +93,7 @@ function Main {
     }
 
     if (-not (Test-Path $rootDir)) {
-        LogErr "The directory `"${rootDir}`" does not exist"
+        Write-LogErr "The directory `"${rootDir}`" does not exist"
         return "FAIL"
     } else {
         Set-Location $rootDir
@@ -110,7 +110,7 @@ function Main {
         $controllerType=$controller
         $diskArgs = $fields[1].Trim().Split(',')
         if ($diskArgs.Length -lt 3 -or $diskArgs.Length -gt 5) {
-            LogErr "Incorrect number of arguments: $p"
+            Write-LogErr "Incorrect number of arguments: $p"
             return "FAIL"
         }
         $vmGeneration = Get-VMGeneration $vmName $hvServer
@@ -130,31 +130,31 @@ function Main {
 
     for ($i=0; $i -lt $loopCount; $i++) {
         #Remove the 1st VHDx
-        LogMsg "Current loop number is $i."
+        Write-LogInfo "Current loop number is $i."
         $retVal = Remove-VHDxDiskDrive $vmName $hvServer $controllerType $controllerID1 $lun1
         if (-not $retVal[-1]) {
-            LogErr "Failed to remove first VHDx with path $path1!"
+            Write-LogErr "Failed to remove first VHDx with path $path1!"
             return "FAIL"
         }
-        LogMsg "Removed first VHDx with path $path1"
+        Write-LogInfo "Removed first VHDx with path $path1"
 
         #verify if vm sees that disks were dettached
-        $retVal = RunLinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+        $retVal = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
             -command "bash ~/${REMOTE_SCRIPT}"
 
         #Attaching the 1st VHDx again
         $retVal = Add-VHDxDiskDrive $vmName $hvServer $path1 $controllerType $controllerID1 $lun1
         if (-not $retVal[-1]) {
-            LogErr "Failed to attach first VHDx with path $path1!"
+            Write-LogErr "Failed to attach first VHDx with path $path1!"
             return "FAIL"
         }
-        LogErr "Attached first VHDx with path $path1"
+        Write-LogErr "Attached first VHDx with path $path1"
         #wait for vm to see the disks
         Start-Sleep 5
-        $diskNumber = RunLinuxCmd -username $rootUser -password $VMPassword -ip $Ipv4 -port $VMPort `
+        $diskNumber = Run-LinuxCmd -username $rootUser -password $VMPassword -ip $Ipv4 -port $VMPort `
             -command "fdisk -l | grep 'Disk /dev/sd*' | grep -v 'Disk /dev/sda' | wc -l"
         if ( $diskNumber -ne 2) {
-            LogErr "Failed to attach VHDx "
+            Write-LogErr "Failed to attach VHDx "
             return "FAIL"
         }
     }

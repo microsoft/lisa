@@ -77,7 +77,7 @@ function Main {
             $diskArgs = $rValue.Trim().Split(',')
 
             if ($diskArgs.Length -ne 3) {
-                LogErr "Incorrect number of arguments: $p"
+                Write-LogErr "Incorrect number of arguments: $p"
                 Continue
             }
 
@@ -93,46 +93,46 @@ function Main {
     }
 
     if ($null -eq $rootdir) {
-        LogErr "Test parameter rootdir was not specified"
+        Write-LogErr "Test parameter rootdir was not specified"
         return "FAIL"
     } else {
         Set-Location $rootdir
     }
 
     if (-not $controllerType) {
-        LogErr "Missing controller type in test parameters"
+        Write-LogErr "Missing controller type in test parameters"
         return "FAIL"
     }
 
     $vmGeneration = Get-VMGeneration $vmName $hvServer
     if ( $controllerType -eq "IDE" -and $vmGeneration -eq 2 ) {
-        LogErr "Generation 2 VM does not support IDE disk, skip test"
+        Write-LogErr "Generation 2 VM does not support IDE disk, skip test"
         return "FAIL"
     }
     if (-not $controllerID) {
-        LogErr "Missing controller index in test parameters"
+        Write-LogErr "Missing controller index in test parameters"
         return "FAIL"
     }
     if (-not $lun) {
-        LogErr "Missing lun in test parameters"
+        Write-LogErr "Missing lun in test parameters"
         return "FAIL"
     }
     if (-not $vhdType) {
-        LogErr "Missing vhdType in test parameters"
+        Write-LogErr "Missing vhdType in test parameters"
         return "FAIL"
     }
     if (-not $vhdFormat) {
-        LogErr "No vhdFormat specified in the test parameters"
+        Write-LogErr "No vhdFormat specified in the test parameters"
         return "FAIL"
     }
     if (-not $FILESYS) {
-        LogErr "Test parameter FILESYS was not specified"
+        Write-LogErr "Test parameter FILESYS was not specified"
         return "FAIL"
     }
 
     $hostInfo = Get-VMHost -ComputerName $hvServer
     if (-not $hostInfo) {
-        LogErr "Unable to collect Hyper-V settings for ${hvServer}"
+        Write-LogErr "Unable to collect Hyper-V settings for ${hvServer}"
         return "FAIL"
     }
 
@@ -152,22 +152,22 @@ function Main {
 
     # The .vhd file should have been created by our
     # setup script. Make sure the .vhd file exists.
-    $vhdFileInfo = GetRemoteFileInfo $vhdName $hvServer
+    $vhdFileInfo = Get-RemoteFileInfo $vhdName $hvServer
     if (-not $vhdFileInfo) {
-        LogErr "VHD file does not exist: ${vhdFilename}"
+        Write-LogErr "VHD file does not exist: ${vhdFilename}"
         return "FAIL"
     }
 
     $vhdInitialSize = $vhdFileInfo.FileSize
 
     # Make sure the .vhd file is a differencing disk
-    $vhdInfo = Get-VHD -path $vhdName -ComputerName $hvServer
+    $vhdInfo = Get-Vhd -path $vhdName -ComputerName $hvServer
     if (-not $vhdInfo) {
-        LogErr "Unable to retrieve VHD information on VHD file: ${vhdFilename}"
+        Write-LogErr "Unable to retrieve VHD information on VHD file: ${vhdFilename}"
         return "FAIL"
     }
     if ($vhdInfo.VhdType -ne "Differencing") {
-        LogErr "VHD `"${vhdName}`" is not a Differencing disk"
+        Write-LogErr "VHD `"${vhdName}`" is not a Differencing disk"
         return "FAIL"
     }
 
@@ -176,7 +176,7 @@ function Main {
 
     $parentFileInfo = Get-RemoteFileInfo $parentVhdFilename $hvServer
     if (-not $parentFileInfo) {
-        LogErr"Unable to collect file information on parent VHD `"${parentVhd}`""
+        Write-LogErr"Unable to collect file information on parent VHD `"${parentVhd}`""
         return "FAIL"
     }
 
@@ -185,36 +185,36 @@ function Main {
 
     # Format the disk
     $scriptPath = Join-Path ".\Testscripts\Linux" $REMOTE_SCRIPT
-    RemoteCopy -uploadTo $Ipv4 -port $VMPort -password $VMPassword -username $rootUser `
+    Copy-RemoteFiles -uploadTo $Ipv4 -port $VMPort -password $VMPassword -username $rootUser `
         -files $scriptPath -upload
-    $retVal = RunLinuxCmd -username $rootUser -password $VMPassword -ip $Ipv4 -port $VMPort `
+    $retVal = Run-LinuxCmd -username $rootUser -password $VMPassword -ip $Ipv4 -port $VMPort `
         -command "bash ~/${REMOTE_SCRIPT}"
     if (-not $retVal) {
-        LogErr "ERROR executing $REMOTE_SCRIPT on VM. Exiting test case!"
+        Write-LogErr "ERROR executing $REMOTE_SCRIPT on VM. Exiting test case!"
         return "FAIL"
     }
 
     # Tell the guest OS on the VM to mount the differencing disk
-    $retVal = RunLinuxCmd -username $rootUser -password $VMPassword -ip $Ipv4 -port $VMPort `
+    $retVal = Run-LinuxCmd -username $rootUser -password $VMPassword -ip $Ipv4 -port $VMPort `
         -command "mkdir -p /mnt/2/DiffDiskGrowthTestCase"
     if (-not $retVal) {
-        LogErr "Unable to send mkdir request to VM"
+        Write-LogErr "Unable to send mkdir request to VM"
         return "FAIL"
     }
 
     # Tell the guest OS to write a few MB to the differencing disk
-    $retVal = RunLinuxCmd -username $rootUser -password $VMPassword -ip $Ipv4 -port $VMPort `
+    $retVal = Run-LinuxCmd -username $rootUser -password $VMPassword -ip $Ipv4 -port $VMPort `
         -command "dd if=/dev/sdb1 of=/mnt/2/DiffDiskGrowthTestCase/test.dat count=2048 > /dev/null 2>&1"
     if (-not $retVal) {
-        LogErr "Unable to send command to VM to grow the .vhd"
+        Write-LogErr "Unable to send command to VM to grow the .vhd"
         return "FAIL"
     }
 
     # Tell the guest OS on the VM to unmount the differencing disk
-    $retVal = RunLinuxCmd -username $rootUser -password $VMPassword -ip $Ipv4 -port $VMPort `
+    $retVal = Run-LinuxCmd -username $rootUser -password $VMPassword -ip $Ipv4 -port $VMPort `
         -command "umount /mnt/1 | umount /mnt/2"
     if (-not $retVal) {
-        LogErr "Unable to send umount request to VM"
+        Write-LogErr "Unable to send umount request to VM"
         return "FAIL"
     }
 
@@ -227,15 +227,15 @@ function Main {
 
     # Make sure the parent matches its initial size
     if ($parentFinalSize -eq $parentInitialSize) {
-        LogMsg "The parent .vhd file did not change in size"
+        Write-LogInfo "The parent .vhd file did not change in size"
     }
 
     if ($vhdFinalSize -gt $vhdInitialSize)
     {
-        LogMsg "The differencing disk grew in size from ${vhdInitialSize} to ${vhdFinalSize}"
+        Write-LogInfo "The differencing disk grew in size from ${vhdInitialSize} to ${vhdFinalSize}"
     }
 
-    LogMsg "Test finished with result: PASS"
+    Write-LogInfo "Test finished with result: PASS"
 
     return "PASS"
 }

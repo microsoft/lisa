@@ -51,10 +51,10 @@ function Main {
     param (
         $TestParams
     )
-    $currentTestResult = CreateTestResultObject
+    $currentTestResult = Create-TestResultObject
     $resultArr = @()
     try {
-        LogMsg "In DMpressure changes demand"
+        Write-LogInfo "In DMpressure changes demand"
         $testResult = $null
         $captureVMData = $allVMData
         $VMName = $captureVMData.RoleName
@@ -89,13 +89,13 @@ function Main {
         $appGitURL = $TestParams.appGitURL
         $appGitTag = $TestParams.appGitTag
         # Install stress-ng if not installed
-        LogMsg "Checking if stress-ng is installed"
+        Write-LogInfo "Checking if stress-ng is installed"
         if($appGitURL){
             $retVal = Publish-App "stress-ng" $Ipv4 $appGitURL $appGitTag $VMPort
             if (-not $retVal){
                 Throw "stress-ng is not installed! Please install it before running the memory stress tests." | Tee-Object -Append -file $summaryLog
             }
-            LogMsg "stress-ng is installed! Will begin running memory stress tests shortly."
+            Write-LogInfo "stress-ng is installed! Will begin running memory stress tests shortly."
         }
         # get memory stats from vm1
         # wait up to 2 min for it
@@ -122,13 +122,13 @@ function Main {
         [int64]$vm1ConsumeMem = (Get-VMMemory -VMName $VMName -ComputerName $HvServer).Maximum
         # Transform to MB
         $vm1ConsumeMem /= 1MB
-        LogMsg "Memory stats before start-ng started reporting "
-        LogMsg "$vm1 assigned - $vm1BeforeAssigned | demand - $vm1BeforeDemand"
+        Write-LogInfo "Memory stats before start-ng started reporting "
+        Write-LogInfo "$vm1 assigned - $vm1BeforeAssigned | demand - $vm1BeforeDemand"
         # Send Command to consume
         $cmdAddConstants = "echo -e `"timeoutStress=$($timeoutStress)\nmemMB=$($vm1ConsumeMem)\nduration=$($duration)\nchunk=$($chunk)`" > /home/$user/constants.sh"
-        RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command $cmdAddConstants -runAsSudo
+        Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command $cmdAddConstants -runAsSudo
         $Memcheck = "echo '${password}' | sudo -S -s eval `"export HOME=``pwd``;. utils.sh && UtilsInit && ConsumeMemory`""
-        $job1=RunLinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command $Memcheck -runAsSudo -RunInBackGround
+        $job1=Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command $Memcheck -runAsSudo -RunInBackGround
         if (-not $?) {
             throw "Unable to start job for creating pressure on $VM1Name" | Tee-Object -Append -file $summaryLog
         }
@@ -136,8 +136,8 @@ function Main {
         # get memory stats for vm1 after stress-ng starts
         [int64]$vm1Assigned = ($vm1.MemoryAssigned/1MB)
         [int64]$vm1Demand = ($vm1.MemoryDemand/1MB)
-        LogMsg "Memory stats after $vm1 started stress-ng"
-        LogMsg "$vm1 assigned - $vm1Assigned | demand - $vm1Demand"
+        Write-LogInfo "Memory stats after $vm1 started stress-ng"
+        Write-LogInfo "$vm1 assigned - $vm1Assigned | demand - $vm1Demand"
         if($vm1Demand -le $vm1BeforeDemand){
             $testResult = $resultFail
             Throw "Memory Demand did not increase after starting stress-ng" | Tee-Object -Append -file $summaryLog
@@ -167,13 +167,13 @@ function Main {
             Throw "VM is unresponsive after running the memory stress test" | Tee-Object -Append -file $summaryLog
         }
         # Everything ok
-        LogMsg "Memory Demand changed with pressure on Linux guest" | Tee-Object -Append -file $summaryLog
+        Write-LogInfo "Memory Demand changed with pressure on Linux guest" | Tee-Object -Append -file $summaryLog
         $testResult = $resultPass
     }
     catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "$ErrorMessage at line: $ErrorLine"
+        Write-LogErr "$ErrorMessage at line: $ErrorLine"
     }
     finally {
         if (!$testResult) {
@@ -181,7 +181,7 @@ function Main {
         }
             $resultArr += $testResult
     }
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
 

@@ -46,15 +46,15 @@ try
             $allFiles = Get-ChildItem "$folderToQuery"
             foreach ( $file in $allFiles.Name)
             {
-                LogMsg "Removing $file..."
+                Write-LogInfo "Removing $file..."
                 $null = Remove-Item -Path "$folderToQuery\$file" -Force
                 if ($?)
                 {
-                    LogMsg " SUCCESS"
+                    Write-LogInfo " SUCCESS"
                 }
                 else
                 {
-                    LogMsg " Error"
+                    Write-LogInfo " Error"
                 }
             }
         }
@@ -64,37 +64,37 @@ try
             {
                 if ( ( Test-Path -Path "$folderToQuery\$file"))
                 {
-                    LogMsg "Removing $file..."
+                    Write-LogInfo "Removing $file..."
                     $null = Remove-Item -Path "$folderToQuery\$file" -Force
                     if ($?)
                     {
-                        LogMsg " SUCCESS"
+                        Write-LogInfo " SUCCESS"
                     }
                     else
                     {
-                        LogMsg " Error"
+                        Write-LogInfo " Error"
                     }
                 }
                 else
                 {
-                    LogMsg "$folderToQuery\$file does not exist."
+                    Write-LogInfo "$folderToQuery\$file does not exist."
                 }
             }
         }
     }
     else
     {
-        LogMsg "Please select at least one file."
+        Write-LogInfo "Please select at least one file."
     }
     $ExitCode = 0
 }
 catch
 {
     $ExitCode = 1
-    ThrowExcpetion($_)
+    Raise-Exception($_)
 }
 finally
 {
-    LogMsg "Exiting with ExitCode = $ExitCode"
+    Write-LogInfo "Exiting with ExitCode = $ExitCode"
     exit $ExitCode
 }

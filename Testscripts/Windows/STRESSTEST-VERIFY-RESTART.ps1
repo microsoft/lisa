@@ -26,32 +26,32 @@ function Main {
     }
     for ($rebootNr = 1; $rebootNr -le $rebootNumber; $rebootNr++) {
         try {
-            LogMsg ("Trying to restart {0}: {1} / {2} ..." `
+            Write-LogInfo ("Trying to restart {0}: {1} / {2} ..." `
                 -f @($AllVMData.RoleName, $rebootNr, $rebootNumber))
-            $RestartStatus = RestartAllDeployments -allVMData $AllVMData
+            $RestartStatus = Restart-AllDeployments -allVMData $AllVMData
             if ($RestartStatus -eq "True") {
-                $isSSHOpened = isAllSSHPortsEnabledRG -AllVMDataObject $AllVMData
+                $isSSHOpened = Check-SSHPortsEnabled -AllVMDataObject $AllVMData
                 if ($isSSHOpened -eq "True") {
                     $isRestarted = $true
                 } else {
-                    LogErr "VM is not available after restart"
+                    Write-LogErr "VM is not available after restart"
                     $isRestarted = $false
                 }
             } else {
                 $isRestarted = $false
             }
             if ($isRestarted) {
-                LogMsg "Virtual machine restart successful."
+                Write-LogInfo "Virtual machine restart successful."
                 $testResult = "PASS"
             } else {
-                LogErr "Virtual machine restart failed."
+                Write-LogErr "Virtual machine restart failed."
                 $testResult = "FAIL"
                 break
             }
         } catch {
             $ErrorMessage =  $_.Exception.Message
             $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-            LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+            Write-LogInfo "EXCEPTION : $ErrorMessage at line: $ErrorLine"
             break
         } finally {
             if (-not $testResult) {
@@ -60,12 +60,12 @@ function Main {
             $resultArr += $testResult
         }
     }
-    LogMsg "Reboot Stress Test Result: $rebootNr/$rebootNumber"
+    Write-LogInfo "Reboot Stress Test Result: $rebootNr/$rebootNumber"
     if (($rebootNr - 1) -lt $rebootNumber) {
         $testResult = "FAIL"
     }
 
-    $result = GetFinalResultHeader -resultarr $resultArr
+    $result = Get-FinalResultHeader -resultarr $resultArr
     # Return the result and summary to the test suite script..
     return $result
 }

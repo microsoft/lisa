@@ -3,13 +3,13 @@
 
 function Main {
     # Create test result
-    $currentTestResult = CreateTestResultObject
+    $currentTestResult = Create-TestResultObject
     $resultArr = @()
 
     try {
         $testScript = "BVT-VERIFY-VHD-PREREQUISITES.py"
 
-        $detectedDistro = DetectLinuxDistro -VIP $AllVMData.PublicIP -SSHport $AllVMData.SSHPort -testVMUser $user -testVMPassword $password
+        $detectedDistro = Detect-LinuxDistro -VIP $AllVMData.PublicIP -SSHport $AllVMData.SSHPort -testVMUser $user -testVMPassword $password
         if ($detectedDistro -imatch "UBUNTU") {
             $matchstrings = @("_TEST_SUDOERS_VERIFICATION_SUCCESS","_TEST_GRUB_VERIFICATION_SUCCESS", "_TEST_REPOSITORIES_AVAILABLE")
         }
@@ -40,19 +40,19 @@ function Main {
             $matchstrings = @("_TEST_UDEV_RULES_SUCCESS")
         }
 
-        RemoteCopy -uploadTo $AllVMData.PublicIP -port $AllVMData.SSHPort -files $currentTestData.files -username $user -password $password -upload
-        RunLinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "chmod +x *.py" -runAsSudo
+        Copy-RemoteFiles -uploadTo $AllVMData.PublicIP -port $AllVMData.SSHPort -files $currentTestData.files -username $user -password $password -upload
+        Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "chmod +x *.py" -runAsSudo
 
-        LogMsg "Executing : ${testScript}"
-        $consoleOut = RunLinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "$python_cmd ${testScript} -d $detectedDistro" -runAsSudo
-        RunLinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "mv Runtime.log ${testScript}.log" -runAsSudo
-        RemoteCopy -download -downloadFrom $AllVMData.PublicIP -files "/home/$user/${testScript}.log" -downloadTo $LogDir -port $AllVMData.SSHPort -username $user -password $password
+        Write-LogInfo "Executing : ${testScript}"
+        $consoleOut = Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "$python_cmd ${testScript} -d $detectedDistro" -runAsSudo
+        Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "mv Runtime.log ${testScript}.log" -runAsSudo
+        Copy-RemoteFiles -download -downloadFrom $AllVMData.PublicIP -files "/home/$user/${testScript}.log" -downloadTo $LogDir -port $AllVMData.SSHPort -username $user -password $password
         $errorCount = 0
         foreach ($testString in $matchstrings) {
             if( $consoleOut -imatch $testString) {
-                LogMsg "$detectedDistro$testString"
+                Write-LogInfo "$detectedDistro$testString"
             } else {
-                LogErr "Expected String : $detectedDistro$testString not present. Please check logs."
+                Write-LogErr "Expected String : $detectedDistro$testString not present. Please check logs."
                 $errorCount += 1
             }
         }
@@ -61,12 +61,12 @@ function Main {
         } else {
             $testResult = "FAIL"
         }
-        LogMsg "Test Status : Completed"
-        Logmsg "Test Resullt : $testResult"
+        Write-LogInfo "Test Status : Completed"
+        Write-LogInfo "Test Resullt : $testResult"
     } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogMsg "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+        Write-LogInfo "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     } finally {
         if (!$testResult) {
             $testResult = "Aborted"
@@ -74,7 +74,7 @@ function Main {
         $resultArr += $testResult
     }
 
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
 

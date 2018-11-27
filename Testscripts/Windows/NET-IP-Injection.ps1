@@ -11,13 +11,13 @@ $NamespaceV2 = "root\virtualization\v2"
 
 # Checks if hv_set_ifconfig is present in the VM
 function Get-HvSetConfig() {
-    $sts = RunLinuxCmd -username "root" -password $VMPassword -ip $Ipv4 -port $VMPort `
+    $sts = Run-LinuxCmd -username "root" -password $VMPassword -ip $Ipv4 -port $VMPort `
         -command "find /usr/|grep hv_set_ifconfig" -ignoreLinuxExitCode:$true
     if (-not $sts) {
-        LogErr "hv_set_ifconfig is not present or verification failed"
+        Write-LogErr "hv_set_ifconfig is not present or verification failed"
         break
     }
-    LogMsg "hv_set_ifconfig is present in the VM"
+    Write-LogInfo "hv_set_ifconfig is present in the VM"
 }
 
 # Monitors Msvm_ConcreteJob.
@@ -25,7 +25,7 @@ function Watch-Job($opresult) {
     if ($opresult.ReturnValue -eq 0) {
         return
     } elseif ($opresult.ReturnValue -ne 4096) {
-        LogMsg "Error code: $(($opresult).ReturnValue)"
+        Write-LogInfo "Error code: $(($opresult).ReturnValue)"
         return
     } else {
         # Find the job to monitor status
@@ -41,7 +41,7 @@ function Watch-Job($opresult) {
             ) {
             Start-Sleep -Milliseconds 500
             # Following is to show progress on same position for powershell cmdline host
-            if (!(get-variable  -erroraction silentlycontinue "psISE")) {
+            if (!(Get-Variable  -erroraction silentlycontinue "psISE")) {
                 [Console]::SetCursorPosition($left, $top)
             }
             Watch-Job $opresult
@@ -51,7 +51,7 @@ function Watch-Job($opresult) {
 
 function Get-NullAndExit([System.Object[]] $object, [string] $message) {
     if ($null -eq $object) {
-        LogErr $message
+        Write-LogErr $message
         exit 1
     }
     return
@@ -59,7 +59,7 @@ function Get-NullAndExit([System.Object[]] $object, [string] $message) {
 
 function Get-SingleObject([System.Object[]] $objects, [string] $message) {
     if ($objects.Length -gt 1) {
-        LogErr $message
+        Write-LogErr $message
         exit 1
     }
     return
@@ -69,15 +69,15 @@ function Get-SingleObject([System.Object[]] $objects, [string] $message) {
 function Get-VirtualMachine([string] $VMName) {
     $objects = Get-WmiObject -Namespace $NamespaceV2 -Query "Select * From Msvm_ComputerSystem Where ElementName = '$VMName' OR Name = '$VMName'" -computername $HvServer
     if ($null -eq $objects) {
-        LogMsg "Erorr: Virtual Machine not found"
+        Write-LogInfo "Erorr: Virtual Machine not found"
         exit 1
     }
 
     Get-NullAndExit $objects "Failed to find VM object for $VMName"
     if ($objects.Length -gt 1) {
         foreach ($objItem in $objects) {
-            LogMsg "ElementName: $(($objItem).ElementName)"
-            LogMsg "Name: $(($objItem).Name)"
+            Write-LogInfo "ElementName: $(($objItem).ElementName)"
+            Write-LogInfo "Name: $(($objItem).Name)"
         }
         Get-SingleObject $objects "Multiple VM objects found for name $VMName. This script doesn't support this. Use Name GUID as VmName parameter."
     }
@@ -107,7 +107,7 @@ function Get-GuestNetworkAdapterConfiguration($VMName) {
     $nwconfig = ($nwadapters.GetRelated("Msvm_GuestNetworkAdapterConfiguration", "Msvm_SettingDataComponent", $null, $null, "PartComponent", "GroupComponent", $false, $null) | ForEach-Object {$_})
 
     if ($null -eq $nwconfig) {
-        LogMsg "Failed to find Msvm_GuestNetworkAdapterConfiguration instance. Creating new instance."
+        Write-LogInfo "Failed to find Msvm_GuestNetworkAdapterConfiguration instance. Creating new instance."
     }
     return $nwconfig;
 }
@@ -124,7 +124,7 @@ function Set-IpOnVM {
     $colItems = Get-WmiObject -class "Win32_NetworkAdapterConfiguration" -namespace "root\CIMV2" -ComputerName $HvServer
     foreach ($objItem in $colItems) {
         if ($null -ne $objItem.DNSHostName) {
-            $netAdp = get-wmiobject -class "Win32_NetworkAdapter" -Filter "GUID=`'$($objItem.SettingID)`'" -namespace "root\CIMV2" -ComputerName $HvServer
+            $netAdp = Get-WmiObject -class "Win32_NetworkAdapter" -Filter "GUID=`'$($objItem.SettingID)`'" -namespace "root\CIMV2" -ComputerName $HvServer
             if ($netAdp.NetConnectionID -like '*External*'){
                 $IPv4subnet = $objItem.IPSubnet[0]
                 $IPv4Gateway = $objItem.DefaultIPGateway[0]
@@ -144,10 +144,10 @@ function Set-IpOnVM {
     }
 
     if ($ipAddrs -contains $IPv4Address) {
-        LogErr "The VM is already assigned address '${IPv4Address}'"
+        Write-LogErr "The VM is already assigned address '${IPv4Address}'"
         exit 1
     }
-    LogMsg "IP $IPv4Address will be injected in place of $IPv4"
+    Write-LogInfo "IP $IPv4Address will be injected in place of $IPv4"
 
     # Collect WMI objects for the virtual machine we are interested in
     # so we can inject some IP setting into the VM.
@@ -187,7 +187,7 @@ function Main {
     $DHCPEnabled = $False
     $ProtocolIFType = 4096
 
-    LogMsg "Test parameters: $TestParams"
+    Write-LogInfo "Test parameters: $TestParams"
     $params = $TestParams.Split(';')
     foreach ($p in $params) {
         $fields = $p.Split("=")
@@ -221,20 +221,20 @@ function Main {
         }
 
         if ($ipAddrs -notcontains $IPv4Address) {
-            LogMsg "The address '${IPv4Address}' was not injected into the VM. `n"
+            Write-LogInfo "The address '${IPv4Address}' was not injected into the VM. `n"
         } else{
-            LogMsg "The address '${IPv4Address}' was successfully injected into the VM. `n"
+            Write-LogInfo "The address '${IPv4Address}' was successfully injected into the VM. `n"
             $isPassed = $true
             break
         }
     }
 
     if ($isPassed -eq $false) {
-        LogErr "All attempts failed"
+        Write-LogErr "All attempts failed"
         return "FAIL"
     }
 
-    LogMsg "IP Injection test passed"
+    Write-LogInfo "IP Injection test passed"
     return "PASS"
 }
 

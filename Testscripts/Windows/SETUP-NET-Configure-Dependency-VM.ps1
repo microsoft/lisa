@@ -42,7 +42,7 @@ function Main {
             "NIC_1" {
                 $nicArgs = $fields[1].Split(',')
                 if ($nicArgs.Length -lt 3) {
-                    LogErr "Incorrect number of arguments for NIC test parameter: $p"
+                    Write-LogErr "Incorrect number of arguments for NIC test parameter: $p"
                     return $False
                 }
 
@@ -52,20 +52,20 @@ function Main {
 
                 # Validate the network adapter type
                 if ("NetworkAdapter" -notcontains $nicType) {
-                    LogErr "Invalid NIC type: $nicType . Must be 'NetworkAdapter'"
+                    Write-LogErr "Invalid NIC type: $nicType . Must be 'NetworkAdapter'"
                     return $False
                 }
 
                 # Validate the Network type
                 if (@("External", "Internal", "Private") -notcontains $networkType) {
-                    LogErr "Invalid netowrk type: $networkType .  Network type must be either: External, Internal, Private"
+                    Write-LogErr "Invalid netowrk type: $networkType .  Network type must be either: External, Internal, Private"
                     return $False
                 }
 
                 # Make sure the network exists
                 $vmSwitch = Get-VMSwitch -Name $networkName -ComputerName $HvServer
                 if (-not $vmSwitch) {
-                    LogErr "Invalid network name: $networkName . The network does not exist."
+                    Write-LogErr "Invalid network name: $networkName . The network does not exist."
                     return $False
                 }
             }
@@ -74,7 +74,7 @@ function Main {
     }
 
     if (-not $VM2Name) {
-        LogErr "Test parameter VM2Name was not specified"
+        Write-LogErr "Test parameter VM2Name was not specified"
         return $False
     }
 
@@ -91,7 +91,7 @@ function Main {
     # Verify the VMs exists
     $vm2 = Get-VM -Name $VM2Name -ComputerName $HvServer -ErrorAction SilentlyContinue
     if (-not $vm2) {
-        LogErr "VM ${VM2Name} does not exist"
+        Write-LogErr "VM ${VM2Name} does not exist"
         return $False
     }
 
@@ -106,13 +106,13 @@ function Main {
 
     # Construct SETUP-NET-Add-NIC Parameter
     $vm2NicAddParam = "NIC_1=NetworkAdapter,$networkType,$networkName,$vm2MacAddress"
-    LogMsg $vm2NicAddParam
+    Write-LogInfo $vm2NicAddParam
     if (Test-Path ".\Testscripts\Windows\SETUP-NET-Add-NIC.ps1") {
         # Make sure VM2 is shutdown
         if (Get-VM -Name $VM2Name -ComputerName $HvServer | Where-Object { $_.State -like "Running" }) {
             Stop-VM $VM2Name -ComputerName $HvServer -Force
             if (-not $?) {
-                LogErr "Unable to shut $VM2Name down (in order to add a new network Adapter)"
+                Write-LogErr "Unable to shut $VM2Name down (in order to add a new network Adapter)"
                 return $False
             }
 
@@ -120,7 +120,7 @@ function Main {
                 Restore-VMSnapshot -Name $checkpointName -VMName $VM2Name -Confirm:$false `
                     -ComputerName $HvServer
                 if (-not $?) {
-                    LogErr "Unable to restore checkpoint $checkpointName on $VM2Name"
+                    Write-LogErr "Unable to restore checkpoint $checkpointName on $VM2Name"
                     return $False
                 }
             }
@@ -128,18 +128,18 @@ function Main {
 
         .\Testscripts\Windows\SETUP-NET-Add-NIC.ps1 -TestParams $vm2NicAddParam -VMName $VM2Name
         if (-not $?) {
-            LogErr "Cannot add new NIC to $VM2Name"
+            Write-LogErr "Cannot add new NIC to $VM2Name"
             return $False
         }
     } else {
-        LogErr "Could not find Testscripts\Windows\SETUP-NET-Add-NIC.ps1 ."
+        Write-LogErr "Could not find Testscripts\Windows\SETUP-NET-Add-NIC.ps1 ."
         return $False
     }
 
     # Get the newly added NIC
     $vm2nic = Get-VMNetworkAdapter -VMName $VM2Name -ComputerName $HvServer -IsLegacy:$False | Where-Object { $_.MacAddress -like "$vm2MacAddress" }
     if (-not $vm2nic) {
-        LogErr "Could not retrieve the newly added NIC to VM2"
+        Write-LogErr "Could not retrieve the newly added NIC to VM2"
         return $False
     }
 

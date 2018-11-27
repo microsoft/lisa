@@ -1,23 +1,23 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 
-Function Get_Syscall_Result_Object ()
+Function Get-SyscallResultObject ()
 {
     $Object = New-Object PSObject
-    $Object | add-member -MemberType NoteProperty -Name test -Value $null
-    $Object | add-member -MemberType NoteProperty -Name avgReal -Value $null
-    $Object | add-member -MemberType NoteProperty -Name avgUser -Value $null
-    $Object | add-member -MemberType NoteProperty -Name avgSystem -Value $null
+    $Object | Add-Member -MemberType NoteProperty -Name test -Value $null
+    $Object | Add-Member -MemberType NoteProperty -Name avgReal -Value $null
+    $Object | Add-Member -MemberType NoteProperty -Name avgUser -Value $null
+    $Object | Add-Member -MemberType NoteProperty -Name avgSystem -Value $null
     return $Object
 }
 function Main {
     # Create test result
-    $currentTestResult = CreateTestResultObject
+    $currentTestResult = Create-TestResultObject
     $resultArr = @()
 
     try {
         $testVMData = $allVMData
-        ProvisionVMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
+        Provision-VMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
         $superUser = "root"
 
         $myString = @"
@@ -29,34 +29,34 @@ collect_VM_properties
 "@
 
         Set-Content "$LogDir\StartSysCallBenchmark.sh" $myString
-        RemoteCopy -uploadTo $testVMData.PublicIP -port $testVMData.SSHPort -files "$LogDir\StartSysCallBenchmark.sh" -username $superUser -password $password -upload
-        RunLinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username $superUser -password $password -command "chmod +x *.sh" | Out-Null
-        $testJob = RunLinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username $superUser -password $password -command "./StartSysCallBenchmark.sh" -RunInBackground
+        Copy-RemoteFiles -uploadTo $testVMData.PublicIP -port $testVMData.SSHPort -files "$LogDir\StartSysCallBenchmark.sh" -username $superUser -password $password -upload
+        Run-LinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username $superUser -password $password -command "chmod +x *.sh" | Out-Null
+        $testJob = Run-LinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username $superUser -password $password -command "./StartSysCallBenchmark.sh" -RunInBackground
         #endregion
 
         #region MONITOR TEST
         while ((Get-Job -Id $testJob).State -eq "Running") {
-            $currentStatus = RunLinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username $superUser -password $password -command "tail -1 syscallConsoleLogs.txt"
-            LogMsg "Current Test Status : $currentStatus"
-            WaitFor -seconds 20
+            $currentStatus = Run-LinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username $superUser -password $password -command "tail -1 syscallConsoleLogs.txt"
+            Write-LogInfo "Current Test Status : $currentStatus"
+            Wait-Time -seconds 20
         }
 
-        $finalStatus = RunLinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username $superUser -password $password -command "cat state.txt"
-        RemoteCopy -downloadFrom $testVMData.PublicIP -port $testVMData.SSHPort -username $superUser -password $password -download -downloadTo $LogDir -files "*.txt,*.log,*.csv"
+        $finalStatus = Run-LinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username $superUser -password $password -command "cat state.txt"
+        Copy-RemoteFiles -downloadFrom $testVMData.PublicIP -port $testVMData.SSHPort -username $superUser -password $password -download -downloadTo $LogDir -files "*.txt,*.log,*.csv"
         $testSummary = $null
         #endregion
 
         if ($finalStatus -imatch "TestFailed") {
-            LogErr "Test failed. Last known status : $currentStatus."
+            Write-LogErr "Test failed. Last known status : $currentStatus."
             $testResult = "FAIL"
         }
         elseif ($finalStatus -imatch "TestAborted") {
-            LogErr "Test Aborted. Last known status : $currentStatus."
+            Write-LogErr "Test Aborted. Last known status : $currentStatus."
             $testResult = "ABORTED"
         }
         elseif ($finalStatus -imatch "TestCompleted") {
-            RemoteCopy -downloadFrom $testVMData.PublicIP -port $testVMData.SSHPort -username $superUser -password $password -download -downloadTo $LogDir -files "syscall-benchmark-*.tar.gz"
-            LogMsg "Test Completed."
+            Copy-RemoteFiles -downloadFrom $testVMData.PublicIP -port $testVMData.SSHPort -username $superUser -password $password -download -downloadTo $LogDir -files "syscall-benchmark-*.tar.gz"
+            Write-LogInfo "Test Completed."
             $testResult = "PASS"
             try {
                 $logFilePath = "$LogDir\results.log"
@@ -68,7 +68,7 @@ collect_VM_properties
                 $finalResult += " 	SYSCALL BENCHMARK TEST RESULTS 	"
                 $finalResult += "************************************************************************"
                 $finalResult += $vmInfo
-                $currentResult = Get_Syscall_Result_Object
+                $currentResult = Get-SyscallResultObject
 
                 foreach ($line in $logs)
                 {
@@ -115,12 +115,12 @@ collect_VM_properties
                             $finalResult += $currentResult
                             $metadata = "test=$testType"
                             $syscallResult = "AverageReal=$avgReal AverageUser=$avgUser AverageSystem=$avgSystem"
-                            $resultSummary +=  CreateResultSummary -testResult "$syscallResult : Completed" -metaData $metadata -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+                            $resultSummary +=  Create-ResultSummary -testResult "$syscallResult : Completed" -metaData $metadata -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
                             if ( $currentResult.test -imatch "bench_22_write_stdio") {
-                                LogMsg "Syscall results parsing is Done..."
+                                Write-LogInfo "Syscall results parsing is Done..."
                                 break
                             }
-                            $currentResult = Get_Syscall_Result_Object
+                            $currentResult = Get-SyscallResultObject
                         }
                         default {
                             continue
@@ -130,7 +130,7 @@ collect_VM_properties
                 Set-Content -Value ($finalResult | Format-Table | Out-String) -Path "$LogDir\syscalResults.txt"
                 Write-Host ($finalResult | Format-Table | Out-String)
 
-                LogMsg "Uploading test results to Database.."
+                Write-LogInfo "Uploading test results to Database.."
                 $dataTableName = $xmlConfig.config.$TestPlatform.database.dbtable
                 $TestCaseName = $xmlConfig.config.$TestPlatform.database.testTag
                 $GuestDistro    = Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object{$_ -replace ",OS type,",""}
@@ -152,25 +152,25 @@ collect_VM_properties
                     }
                 }
                 $SQLQuery = $SQLQuery.TrimEnd(',')
-                UploadTestResultToDatabase ($SQLQuery)
+                Upload-TestResultToDatabas ($SQLQuery)
             } catch {
                 $ErrorMessage =  $_.Exception.Message
                 $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-                LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+                Write-LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
             }
         }
         elseif ($finalStatus -imatch "TestRunning") {
-            LogMsg "Powershell background job for test is completed but VM is reporting that test is still running. Please check $LogDir\zkConsoleLogs.txt"
-            LogMsg "Contents of summary.log : $testSummary"
+            Write-LogInfo "Powershell background job for test is completed but VM is reporting that test is still running. Please check $LogDir\zkConsoleLogs.txt"
+            Write-LogInfo "Contents of summary.log : $testSummary"
             $testResult = "PASS"
         }
-        LogMsg "Test result : $testResult"
-        LogMsg "Test Completed"
-        $currentTestResult.TestSummary += CreateResultSummary -testResult $testResult -metaData "" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+        Write-LogInfo "Test result : $testResult"
+        Write-LogInfo "Test Completed"
+        $currentTestResult.TestSummary += Create-ResultSummary -testResult $testResult -metaData "" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
     } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
-        LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+        Write-LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     } finally {
         $metaData = "SYSCALL RESULT"
         if (!$testResult) {
@@ -179,7 +179,7 @@ collect_VM_properties
         $resultArr += $testResult
     }
 
-    $currentTestResult.TestResult = GetFinalResultHeader -resultarr $resultArr
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
 

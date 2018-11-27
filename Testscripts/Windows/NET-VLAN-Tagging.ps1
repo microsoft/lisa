@@ -28,14 +28,14 @@ function Main {
     $macFileTestVM = "$currentDir"+"$macFileTestVM"
     $streamReaderTestVM = [System.IO.StreamReader] $macFileTestVM
     $vm1MacAddress = $streamReaderTestVM.ReadLine()
-    LogMsg "vm1 MAC: $vm1MacAddress"
+    Write-LogInfo "vm1 MAC: $vm1MacAddress"
     $streamReaderTestVM.close()
     # Get MAC for dependency VM
     $macFileDependencyVM = "macAddressDependency.file"
     $macFileDependencyVM ="$currentDir"+"$macFileDependencyVM"
     $streamReaderDependencyVM = [System.IO.StreamReader] $macFileDependencyVM
     $vm2MacAddress = $streamReaderDependencyVM.ReadLine()
-    LogMsg "vm2 MAC: $vm2MacAddress"
+    Write-LogInfo "vm2 MAC: $vm2MacAddress"
     $streamReaderDependencyVM.close()
 
     $params = $TestParams.Split(';')
@@ -51,7 +51,7 @@ function Main {
         "NIC_1" {
             $nicArgs = $fields[1].Split(',')
             if ($nicArgs.Length -lt 3) {
-                LogErr "Incorrect number of arguments for NIC test parameter: $p"
+                Write-LogErr "Incorrect number of arguments for NIC test parameter: $p"
                 return "FAIL"
             }
             $nicType = $nicArgs[0].Trim()
@@ -60,20 +60,20 @@ function Main {
 
             # Validate the network adapter type
             if ("NetworkAdapter" -notcontains $nicType) {
-                LogErr "Invalid NIC type: $nicType . Must be 'NetworkAdapter'"
+                Write-LogErr "Invalid NIC type: $nicType . Must be 'NetworkAdapter'"
                 return "FAIL"
             }
 
             # Validate the Network type
             if (@("External", "Internal", "Private") -notcontains $networkType) {
-                LogErr "Invalid netowrk type: $networkType .  Network type must be either: External, Internal, Private"
+                Write-LogErr "Invalid netowrk type: $networkType .  Network type must be either: External, Internal, Private"
                 return "FAIL"
             }
 
             # Make sure the network exists
             $vmSwitch = Get-VMSwitch -Name $networkName -ComputerName $HvServer
             if (-not $vmSwitch) {
-                LogErr "Invalid network name: $networkName . The network does not exist."
+                Write-LogErr "Invalid network name: $networkName . The network does not exist."
                 return "FAIL"
             }
         }
@@ -92,20 +92,20 @@ function Main {
     if ($vm1nic) {
         "$VMName found NIC with MAC $vm1MacAddress ."
     } else {
-        LogErr "$VMName - No NIC found with MAC $vm1MacAddress ."
+        Write-LogErr "$VMName - No NIC found with MAC $vm1MacAddress ."
         return "FAIL"
     }
     $vm2nic =  Get-VMNetworkAdapter -VMName $VM2Name -ComputerName $HvServer -IsLegacy:$false | Where-Object {$_.MacAddress -eq $vm2MacAddress }
     if ($vm2nic) {
         "$VM2Name found NIC with MAC $vm1MacAddress ."
     } else {
-        LogErr "$VM2Name - No NIC found with MAC $vm1MacAddress ."
+        Write-LogErr "$VM2Name - No NIC found with MAC $vm1MacAddress ."
         return "FAIL"
     }
 
     # VM 2 NIC was configred by the setupscript. We need to configure
     # the test VM NIC
-    LogMsg "Setting up the net adapter on guest $VMName"
+    Write-LogInfo "Setting up the net adapter on guest $VMName"
     if (-not $vm1MacAddress.Contains(":")) {
         for ($i=2; $i -lt 16; $i=$i+2) {
             $vm1MacAddress = $vm1MacAddress.Insert($i,':')
@@ -116,7 +116,7 @@ function Main {
     $retVal = Set-GuestInterface $guestUsername $IPv4 $VMPort $VMPassword $vm1MacAddress `
         $vm1StaticIP $bootproto $netmask $VMName
     if (-not $?) {
-        LogErr "Couldn't configure the test interface on $VMName"
+        Write-LogErr "Couldn't configure the test interface on $VMName"
         return "FAIL"
     }
 
@@ -124,69 +124,69 @@ function Main {
     $retVal = Test-GuestInterface $guestUsername $vm2StaticIP $IPv4 $VMPort $VMPassword `
         $vm1MacAddress $pingVersion $packetNumber
     if ($retVal -eq $False) {
-        LogErr "Could not $pingVersion from $vm1StaticIP to $vm2StaticIP"
+        Write-LogErr "Could not $pingVersion from $vm1StaticIP to $vm2StaticIP"
         return "FAIL"
     } else {
-        LogMsg "$pingVersion from $vm1StaticIP to $vm2StaticIP was successful"
+        Write-LogInfo "$pingVersion from $vm1StaticIP to $vm2StaticIP was successful"
     }
 
     # Set vlan only on first VM. Ping between VMs should fail
-    LogMsg "Setting $VMName test NIC to access mode with vlanID $vlanID"
+    Write-LogInfo "Setting $VMName test NIC to access mode with vlanID $vlanID"
     Set-VMNetworkAdapterVlan -VMNetworkAdapter $vm1Nic -Access -VlanID $vlanID
     if (-not $?) {
-        LogErr "Failed to set $vm1Nic to Access Mode with a VlanID of $vlanID"
+        Write-LogErr "Failed to set $vm1Nic to Access Mode with a VlanID of $vlanID"
         return "FAIL"
     }
-    LogMsg "Successfully configured $vm1Nic"
-    Start-sleep -s 10
+    Write-LogInfo "Successfully configured $vm1Nic"
+    Start-Sleep -s 10
 
     $retVal = Test-GuestInterface $guestUsername $vm2StaticIP $IPv4 $VMPort $VMPassword `
         $vm1MacAddress $pingVersion $packetNumber
     if ($retVal -eq $True) {
-        LogErr "$pingVersion should have failed from $vm1StaticIP to $vm2StaticIP"
+        Write-LogErr "$pingVersion should have failed from $vm1StaticIP to $vm2StaticIP"
         return "FAIL"
     } else {
-        LogMsg "$pingVersion from $vm1StaticIP to $vm2StaticIP failed - AS EXPECTED -"
+        Write-LogInfo "$pingVersion from $vm1StaticIP to $vm2StaticIP failed - AS EXPECTED -"
     }
 
     # Set same vlan on dependency VM. Ping between VMs should work again
-    LogMsg "Setting $vm2Name test NIC to access mode with vlanID $vlanID"
+    Write-LogInfo "Setting $vm2Name test NIC to access mode with vlanID $vlanID"
     Set-VMNetworkAdapterVlan -VMNetworkAdapter $vm2nic -Access -VlanID $vlanID
     if (-not $?) {
-        LogErr "Failed to set $vm2nic to Access Mode with an VlanID of $vlanID"
+        Write-LogErr "Failed to set $vm2nic to Access Mode with an VlanID of $vlanID"
         return "FAIL"
     }
-    LogMsg "Successfully configured $vm2nic"
-    Start-sleep -s 10
+    Write-LogInfo "Successfully configured $vm2nic"
+    Start-Sleep -s 10
 
     $retVal = Test-GuestInterface $guestUsername $vm2StaticIP $IPv4 $VMPort $VMPassword `
         $vm1MacAddress $pingVersion $packetNumber
     if ($retVal -eq $False) {
-        LogErr "Could not $pingVersion from $vm1StaticIP to $vm2StaticIP"
+        Write-LogErr "Could not $pingVersion from $vm1StaticIP to $vm2StaticIP"
         return "FAIL"
     } else {
-        LogMsg "$pingVersion from $vm1StaticIP to $vm2StaticIP was successful"
+        Write-LogInfo "$pingVersion from $vm1StaticIP to $vm2StaticIP was successful"
     }
 
     # Change vlan on test VM. Ping between VMs should fail
-    LogMsg "Setting $VMName test NIC to access mode with vlanID $vlanID"
+    Write-LogInfo "Setting $VMName test NIC to access mode with vlanID $vlanID"
     Set-VMNetworkAdapterVlan -VMNetworkAdapter $vm1Nic -Access -VlanID "1"
     if (-not $?) {
-        LogErr "Failed to set $vm1Nic to Access Mode with a VlanID of $vlanID"
+        Write-LogErr "Failed to set $vm1Nic to Access Mode with a VlanID of $vlanID"
         return "FAIL"
     }
-    LogMsg "Successfully configured $vm1Nic"
-    Start-sleep -s 10
+    Write-LogInfo "Successfully configured $vm1Nic"
+    Start-Sleep -s 10
     $retVal = Test-GuestInterface $guestUsername $vm2StaticIP $IPv4 $VMPort $VMPassword `
         $vm1MacAddress $pingVersion $packetNumber
     if ($retVal -eq $True) {
-        LogErr "$pingVersion should have failed from $vm1StaticIP to $vm2StaticIP"
+        Write-LogErr "$pingVersion should have failed from $vm1StaticIP to $vm2StaticIP"
         return "FAIL"
     } else {
-        LogMsg "$pingVersion from $vm1StaticIP to $vm2StaticIP failed - AS EXPECTED -"
+        Write-LogInfo "$pingVersion from $vm1StaticIP to $vm2StaticIP failed - AS EXPECTED -"
     }
 
-    LogMsg "Test successful! Ping worked as expected in every case"
+    Write-LogInfo "Test successful! Ping worked as expected in every case"
     return "PASS"
 }
 

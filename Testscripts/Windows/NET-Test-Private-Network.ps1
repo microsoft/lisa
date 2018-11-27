@@ -34,14 +34,14 @@ function Main {
     $macFileTestVM = "$currentDir"+"$macFileTestVM"
     $streamReaderTestVM = [System.IO.StreamReader] $macFileTestVM
     $vm1MacAddress = $streamReaderTestVM.ReadLine()
-    LogMsg "vm1 MAC: $vm1MacAddress"
+    Write-LogInfo "vm1 MAC: $vm1MacAddress"
     $streamReaderTestVM.close()
     # Get MAC for dependency VM
     $macFileDependencyVM = "macAddressDependency.file"
     $macFileDependencyVM ="$currentDir"+"$macFileDependencyVM"
     $streamReaderDependencyVM = [System.IO.StreamReader] $macFileDependencyVM
     $vm2MacAddress = $streamReaderDependencyVM.ReadLine()
-    LogMsg "vm2 MAC: $vm2MacAddress"
+    Write-LogInfo "vm2 MAC: $vm2MacAddress"
     $streamReaderDependencyVM.close()
 
     $params = $TestParams.Split(';')
@@ -70,7 +70,7 @@ function Main {
         # Switch the NIC on test VM from External to Private
         $retVal = .\Testscripts\Windows\SETUP-NET-Switch-NIC.ps1 -VMName $VMName -testParams "SWITCH=$switchNic"
         if (-not $retVal) {
-            LogErr "Failed to switch connection type for $VMName on $HvServer"
+            Write-LogErr "Failed to switch connection type for $VMName on $HvServer"
             return "FAIL"
         }
 
@@ -78,12 +78,12 @@ function Main {
         $switchNic = $switchNic+","+$vm2MacAddress
         $retVal = .\Testscripts\Windows\SETUP-NET-Switch-NIC.ps1 -VMName $VM2Name -testParams "SWITCH=$switchNic"
         if (-not $retVal) {
-            LogErr "Failed to switch connection type for $VM2Name on $HvServer"
+            Write-LogErr "Failed to switch connection type for $VM2Name on $HvServer"
             return "FAIL"
         }
     }
 
-    LogMsg "Setting up the net adapter on guest $VMName"
+    Write-LogInfo "Setting up the net adapter on guest $VMName"
     if (-not $vm1MacAddress.Contains(":")) {
         for ($i=2; $i -lt 16; $i=$i+2) {
             $vm1MacAddress = $vm1MacAddress.Insert($i,':')
@@ -93,7 +93,7 @@ function Main {
     $retVal = Set-GuestInterface $guestUsername $IPv4 $VMPort $VMPassword $vm1MacAddress `
         $vm1StaticIP $bootproto $netmask $VMName
     if (-not $?) {
-        LogErr "Couldn't configure the test interface on $VMName"
+        Write-LogErr "Couldn't configure the test interface on $VMName"
         return "FAIL"
     }
 
@@ -101,29 +101,29 @@ function Main {
     $retVal = Test-GuestInterface $guestUsername $vm2StaticIP $IPv4 $VMPort $VMPassword `
         $vm1MacAddress $pingVersion $packetNumber
     if ($retVal -eq $False) {
-        LogErr "Could not $pingVersion from $vm1StaticIP to $vm2StaticIP"
+        Write-LogErr "Could not $pingVersion from $vm1StaticIP to $vm2StaticIP"
         return "FAIL"
     } else {
-        LogMsg "$pingVersion from $vm1StaticIP to $vm2StaticIP was successful"
+        Write-LogInfo "$pingVersion from $vm1StaticIP to $vm2StaticIP was successful"
     }
 
     # Try to ping a wrong IP
     $retVal = Test-GuestInterface $guestUsername $failIP1 $IPv4 $VMPort $VMPassword `
         $vm1MacAddress $pingVersion $packetNumber
     if ($retVal -eq $True) {
-        LogErr "$pingVersion from $vm1StaticIP to $failIP1 shouldn't have worked"
+        Write-LogErr "$pingVersion from $vm1StaticIP to $failIP1 shouldn't have worked"
         return "FAIL"
     } else {
-        LogMsg "$pingVersion from $vm1StaticIP to $failIP1 failed - AS EXPECTED -"
+        Write-LogInfo "$pingVersion from $vm1StaticIP to $failIP1 failed - AS EXPECTED -"
     }
 
     $retVal = Test-GuestInterface $guestUsername $failIP2 $IPv4 $VMPort $VMPassword `
         $vm1MacAddress $pingVersion $packetNumber
     if ($retVal -eq $True) {
-        LogErr "$pingVersion from $vm1StaticIP to $failIP2 shouldn't have worked"
+        Write-LogErr "$pingVersion from $vm1StaticIP to $failIP2 shouldn't have worked"
         return "FAIL"
     } else {
-        LogMsg "$pingVersion from $vm1StaticIP to $failIP1 failed - AS EXPECTED -"
+        Write-LogInfo "$pingVersion from $vm1StaticIP to $failIP1 failed - AS EXPECTED -"
     }
     return "PASS"
 }

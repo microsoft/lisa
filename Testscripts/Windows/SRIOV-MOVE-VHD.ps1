@@ -46,17 +46,17 @@ function Main {
     # Get IP
     $ipv4 = Get-IPv4ViaKVP $VMName $HvServer
     # Run Ping with SR-IOV enabled
-    RunLinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+    Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
         $VMPassword -command "source sriov_constants.sh ; ping -c 20 -I eth1 `$VF_IP2 > PingResults.log"
 
-    [decimal]$initialRTT = RunLinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+    [decimal]$initialRTT = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
         $VMPassword -command "tail -1 PingResults.log | sed 's/\// /g' | awk '{print `$8}'" `
         -ignoreLinuxExitCode:$true
     if (-not $initialRTT){
-        LogErr "No result was logged! Check if Ping was executed!"
+        Write-LogErr "No result was logged! Check if Ping was executed!"
         return "FAIL"
     }
-    LogMsg "The RTT on the parent VM is $initialRTT ms"
+    Write-LogInfo "The RTT on the parent VM is $initialRTT ms"
 
     # Stop VM and get the vhd
     Stop-VM $VMName -ComputerName $HvServer -Force
@@ -65,7 +65,7 @@ function Main {
     $childVhdPath = $vhdLocation + $extension
     xcopy $vhdLocation $childVhdPath* /Y
     if (-not $?) {
-        LogErr "Failed to make a copy of the parent vhd"
+        Write-LogErr "Failed to make a copy of the parent vhd"
         return "FAIL"
     }
 
@@ -74,47 +74,47 @@ function Main {
     New-VM -Name $childVMName -ComputerName $HvServer -VHDPath $childVhdPath `
         -MemoryStartupBytes 4096MB -SwitchName $managementNIC -Generation $vmGen
     if (-not $?) {
-        LogErr "Failed to create a SRIOV Child VM on $HvServer"
+        Write-LogErr "Failed to create a SRIOV Child VM on $HvServer"
         return "FAIL"
     }
     # Disable secure boot if Gen2
     if ($vmGen -eq 2) {
         Set-VMFirmware -VMName $childVMName -ComputerName $hvServer -EnableSecureBoot Off
         if (-not $?) {
-            LogErr "Unable to disable secure boot"
+            Write-LogErr "Unable to disable secure boot"
             Remove-Data $childVMName $HvServer $childVhdPath
             return "FAIL"
         }
     }
     Add-VMNetworkAdapter -VMName $childVMName  -SwitchName $sriovNIC.SwitchName -IsLegacy:$false -ComputerName $HvServer
     if (-not $?) {
-        LogErr "Failed to attach SRIOV NIC"
+        Write-LogErr "Failed to attach SRIOV NIC"
         Remove-Data $childVMName $HvServer $childVhdPath
         return "FAIL"
     }
     Set-VMNetworkAdapter -VMName $childVMName -ComputerName $HvServer -IovWeight 1
     if ($? -ne "True") {
-        LogErr "Failed to enable SR-IOV on $VMName!"
+        Write-LogErr "Failed to enable SR-IOV on $VMName!"
         Remove-Data $childVMName $HvServer $childVhdPath
         return "FAIL"
     }
 
     $initialRTT = $initialRTT * 1.4
     $newIpv4 = Start-VMandGetIP $childVMName $HvServer $VMPort $VMRootUser $VMPassword
-    RunLinuxCmd -ip $newIpv4 -port $VMPort -username $VMRootUser -password `
+    Run-LinuxCmd -ip $newIpv4 -port $VMPort -username $VMRootUser -password `
         $VMPassword -command "source sriov_constants.sh ; ping -c 20 -I eth1 `$VF_IP2 > PingResults.log"
 
-    [decimal]$finalRTT = RunLinuxCmd -ip  $newIpv4 -port $VMPort -username $VMRootUser -password `
+    [decimal]$finalRTT = Run-LinuxCmd -ip  $newIpv4 -port $VMPort -username $VMRootUser -password `
         $VMPassword -command "tail -1 PingResults.log | sed 's/\// /g' | awk '{print `$8}'" `
         -ignoreLinuxExitCode:$true
     if (-not $finalRTT){
-        LogErr "No result was logged! Check if Ping was executed!"
+        Write-LogErr "No result was logged! Check if Ping was executed!"
         Remove-Data $childVMName $HvServer $childVhdPath
         return "FAIL"
     }
-    LogMsg "The RTT on the child VM is $finalRTT ms"
+    Write-LogInfo "The RTT on the child VM is $finalRTT ms"
     if ($finalRTT -gt $initialRTT) {
-        LogErr "After re-enabling SR-IOV, the RTT value has not lowered enough"
+        Write-LogErr "After re-enabling SR-IOV, the RTT value has not lowered enough"
         Remove-Data $childVMName $HvServer $childVhdPath
         return "FAIL"
     }
