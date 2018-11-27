@@ -186,7 +186,14 @@ try {
 	$xmlConfig.Save("$TestConfigurationXmlFile")
 	LogMsg "The auto created $TestConfigurationXmlFile has been validated successfully."
 
-	$command = ".\AutomationManager.ps1 -xmlConfigFile '$TestConfigurationXmlFile' -cycleName 'TC-$TestID' -RGIdentifier '$RGIdentifier'"
+	# Create report folder
+	$reportFolder = "$pwd/Report"
+	if(!(Test-Path $reportFolder)) {
+		New-Item -ItemType "Directory" $reportFolder | Out-Null
+	}
+	$TestReportXml = Join-Path "$reportFolder" "LISAv2_TestReport_$TestID.xml"
+
+	$command = ".\AutomationManager.ps1 -xmlConfigFile '$TestConfigurationXmlFile' -cycleName 'TC-$TestID' -RGIdentifier '$RGIdentifier' -TestReportXmlPath $TestReportXml"
 	if ( $CustomKernel) { $command += " -CustomKernel '$CustomKernel'" }
 	if ( $OverrideVMSize ) { $command += " -OverrideVMSize $OverrideVMSize" }
 	if ( $EnableAcceleratedNetworking ) { $command += " -EnableAcceleratedNetworking" }
