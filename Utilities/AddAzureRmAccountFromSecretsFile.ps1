@@ -25,11 +25,13 @@
 
 param
 (
-    [string]$customSecretsFilePath
+    [string]$customSecretsFilePath,
+    [string]$LogFileName = "AddAzureRmAccountFromSecretsFile.log"
 )
 
 $ErrorActionPreference = "Stop"
 #---------------------------------------------------------[Initializations]--------------------------------------------------------
+Set-Variable -Name LogFileName -Value $LogFileName -Scope Global -Force
 $scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $rootPath = Split-Path -Parent $scriptPath
 Get-ChildItem (Join-Path $rootPath "Libraries") -Recurse | `
