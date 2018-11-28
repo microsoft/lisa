@@ -253,18 +253,18 @@ Function Run-TestsOnCycle ([string] $cycleName, [xml] $xmlConfig, [string] $Dist
 	}
 
 	Write-LogInfo "Checking background cleanup jobs.."
-	$cleanupJobList = Get-Job | Where-Object { $_.Name -imatch "DeleteResourceGroup"}
+	$cleanupJobList = Get-Job | Where-Object { $_.Name -imatch "Delete-ResourceGroup"}
 	$isAllCleaned = $false
 	while(!$isAllCleaned) {
 		$runningJobsCount = 0
 		$isAllCleaned = $true
-		$cleanupJobList = Get-Job | Where-Object { $_.Name -imatch "DeleteResourceGroup"}
+		$cleanupJobList = Get-Job | Where-Object { $_.Name -imatch "Delete-ResourceGroup"}
 		foreach ( $cleanupJob in $cleanupJobList ) {
 
 			$jobStatus = Get-Job -Id $cleanupJob.ID
 			if ( $jobStatus.State -ne "Running" ) {
 
-				$tempRG = $($cleanupJob.Name).Replace("DeleteResourceGroup-","")
+				$tempRG = $($cleanupJob.Name).Replace("Delete-ResourceGroup-","")
 				Write-LogInfo "$tempRG : Delete : $($jobStatus.State)"
 				Remove-Job -Id $cleanupJob.ID -Force
 			} else  {
