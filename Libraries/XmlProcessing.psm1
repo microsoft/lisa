@@ -33,8 +33,9 @@ Function Import-TestCases($WorkingDirectory, $TestConfigurationXmlFile) {
 
 	$AllLisaTests = Collect-TestCases -TestXMLs $TestXMLs
 	if( !$AllLisaTests.innerXML ) {
-		Throw "Specified -TestNames or -TestCategory not found"
+		Throw "Not able to collect any test cases from XML files"
 	}
+	Write-LogInfo "$($AllLisaTests.Count) Test Cases have been collected"
 
 	$SetupTypes = $AllLisaTests.SetupType | Sort-Object | Get-Unique
 

@@ -276,15 +276,19 @@ Function Update-XMLStringsFromSecretsFile($XmlSecretsFilePath)
 	Write-LogInfo "Updated Test Case xml files."
 }
 
-Function Match-TestPriority($currentTest)
+Function Match-TestPriority($currentTest, $TestPriority)
 {
     if( -not $TestPriority ) {
         return $True
     }
 
+    if( $TestPriority -eq "*") {
+        return $True
+    }
+
     $priorityInXml = $currentTest.Priority
     if (-not $priorityInXml) {
-        Write-LogInfo "Warning: Priority of $($currentTest.TestName) is not defined, set its priority 1 by default."
+        Write-LogWarn "Priority of $($currentTest.TestName) is not defined, set it to 1 (default)."
         $priorityInXml = 1
     }
     foreach( $priority in $TestPriority.Split(",") ) {
@@ -295,157 +299,95 @@ Function Match-TestPriority($currentTest)
     return $False
 }
 
+Function Match-TestTag($currentTest, $TestTag)
+{
+    if( -not $TestTag ) {
+        return $True
+    }
+
+    if( $TestTag -eq "*") {
+        return $True
+    }
+
+    $tagsInXml = $currentTest.Tags
+    if (-not $tagsInXml) {
+        Write-LogWarn "Test Tags of $($currentTest.TestName) is not defined; include this test case by default."
+        return $True
+    }
+    foreach( $tagInTestRun in $TestTag.Split(",") ) {
+        foreach( $tagInTestXml in $tagsInXml.Split(",") ) {
+            if ($tagInTestRun -eq $tagInTestXml) {
+                return $True
+            }
+        }
+    }
+    return $False
+}
+
+#
+# This function will filter and collect all qualified test cases from XML files.
+#
+# TestCases will be filtered by (see definition in the test case XML file):
+# 1) TestCase "Scope", which is defined by the TestCase hierarchy of:
+#    "Platform", "Category", "Area", "TestNames"
+# 2) TestCase "Attribute", which can be "Tags", or "Priority"
+#
+# Before entering this function, $TestPlatform has been verified as "valid" in Run-LISAv2.ps1.
+# So, here we don't need to check $TestPlatform
+#
 Function Collect-TestCases($TestXMLs)
 {
-    if ( $TestCategory -eq "All") { $TestCategory = "" }
-    if ( $TestArea -eq "All") { $TestArea = "" }
-    if ( $TestNames -eq "All") { $TestNames = "" }
-    if ( $TestTag -eq "All") { $TestTag = "" }
     $AllLisaTests = @()
-    if ( $TestPlatform -and !$TestCategory -and !$TestArea -and !$TestNames -and !$TestTag)
-    {
-        foreach ( $file in $TestXMLs.FullName)
-        {
-            $currentTests = ([xml]( Get-Content -Path $file)).TestCases
-            if ( $TestPlatform )
-            {
-                foreach ( $test in $currentTests.test )
-                {
-                    if ($test.Platform.Split(",").Contains($TestPlatform) )
-                    {
-                        $status = Match-TestPriority -currentTest $test
-                        if ($status) {
-                            Write-LogInfo "Collected $($test.TestName)"
-                            $AllLisaTests += $test
-                        }
-                    }
-                }
-            }
-        }
-    }
-    elseif ( $TestPlatform -and $TestCategory -and (!$TestArea -or $TestArea -eq "default") -and !$TestNames -and !$TestTag)
-    {
-        foreach ( $file in $TestXMLs.FullName)
-        {
 
-            $currentTests = ([xml]( Get-Content -Path $file)).TestCases
-            if ( $TestPlatform )
-            {
-                foreach ( $test in $currentTests.test )
-                {
-                    if ( ($test.Platform.Split(",").Contains($TestPlatform) ) -and $($TestCategory -eq $test.Category) )
-                    {
-                        $status = Match-TestPriority -currentTest $test
-                        if ($status) {
-                            Write-LogInfo "Collected $($test.TestName)"
-                            $AllLisaTests += $test
-                        }
-                    }
-                }
-            }
-        }
-    }
-    elseif ( $TestPlatform -and $TestCategory -and ($TestArea -and $TestArea -ne "default") -and !$TestNames -and !$TestTag)
-    {
-        foreach ( $file in $TestXMLs.FullName)
-        {
+    # Check and cleanup the parameters
+    if ( $TestCategory -eq "All")   { $TestCategory = "*" }
+    if ( $TestArea -eq "All")       { $TestArea = "*" }
+    if ( $TestNames -eq "All")      { $TestNames = "*" }
+    if ( $TestTag -eq "All")        { $TestTag = "*" }
+    if ( $TestPriority -eq "All")   { $TestPriority = "*" }
 
-            $currentTests = ([xml]( Get-Content -Path $file)).TestCases
-            if ( $TestPlatform )
-            {
-                foreach ( $test in $currentTests.test )
-                {
-                    if (($test.Platform.Split(",").Contains($TestPlatform) ) -and $($TestCategory -eq $test.Category) `
-                        -and $($TestArea.Split(",").Contains($test.Area)))
-                    {
-                        $status = Match-TestPriority -currentTest $test
-                        if ($status) {
-                            Write-LogInfo "Collected $($test.TestName)"
-                            $AllLisaTests += $test
-                        }
-                    }
-                }
-            }
-        }
-    }
-    elseif ( $TestPlatform -and $TestCategory  -and $TestNames -and !$TestTag)
-    {
-        foreach ( $file in $TestXMLs.FullName)
-        {
+    if (!$TestCategory) { $TestCategory = "*" }
+    if (!$TestArea)     { $TestArea = "*" }
+    if (!$TestNames)    { $TestNames = "*" }
+    if (!$TestTag)      { $TestTag = "*" }
+    if (!$TestPriority) { $TestPriority = "*" }
 
-            $currentTests = ([xml]( Get-Content -Path $file)).TestCases
-            if ( $TestPlatform )
-            {
-                foreach ( $test in $currentTests.test )
-                {
-                    if ( ($test.Platform.Split(",").Contains($TestPlatform) ) -and $($TestCategory -eq $test.Category) -and $($TestArea -eq $test.Area) -and ($TestNames.Split(",").Contains($test.TestName) ) )
-                    {
-                        $status = Match-TestPriority -currentTest $test
-                        if ($status) {
-                            Write-LogInfo "Collected $($test.TestName)"
-                            $AllLisaTests += $test
-                        }
-                    }
-                }
+    # Filter test cases based on the criteria
+    foreach ($file in $TestXMLs.FullName) {
+        $currentTests = ([xml]( Get-Content -Path $file)).TestCases
+        foreach ($test in $currentTests.test){
+            if (!($test.Platform.Split(",").Contains($TestPlatform))) {
+                continue
             }
-        }
-    }
-    elseif ( $TestPlatform -and !$TestCategory -and !$TestArea -and $TestNames -and !$TestTag)
-    {
-        foreach ( $file in $TestXMLs.FullName)
-        {
-            $currentTests = ([xml]( Get-Content -Path $file)).TestCases
-            if ( $TestPlatform )
-            {
-                foreach ( $test in $currentTests.test )
-                {
-                    if ( ($test.Platform.Split(",").Contains($TestPlatform) ) -and ($TestNames.Split(",").Contains($test.TestName) ) )
-                    {
-                        $status = Match-TestPriority -currentTest $test
-                        if ($status) {
-                            Write-LogInfo "Collected $($test.TestName)"
-                            $AllLisaTests += $test
-                        }
-                    }
-                }
-            }
-        }
-    }
-    elseif ( $TestPlatform -and !$TestCategory -and !$TestArea -and !$TestNames -and $TestTag)
-    {
-        foreach ( $file in $TestXMLs.FullName)
-        {
 
-            $currentTests = ([xml]( Get-Content -Path $file)).TestCases
-            if ( $TestPlatform )
-            {
-                foreach ( $test in $currentTests.test )
-                {
-                    if ( ($test.Platform.Split(",").Contains($TestPlatform) ) -and ( $test.Tags.Split(",").Contains($TestTag) ) )
-                    {
-                        $status = Match-TestPriority -currentTest $test
-                        if ($status) {
-                            Write-LogInfo "Collected $($test.TestName)"
-                            $AllLisaTests += $test
-                        }
-                    }
-                }
+            if (($test.Category -ne $TestCategory) -and ($TestCategory -ne "*")) {
+                continue
             }
+
+            if (($test.Area -ne $TestArea) -and ($TestArea -ne "*")) {
+                continue
+            }
+
+            if (!($TestNames.Split(",").Contains($test.testName)) -and ($TestNames -ne "*")) {
+                continue
+            }
+
+            $testTagMatched = Match-TestTag -currentTest $test -TestTag $TestTag
+            if ($testTagMatched -eq $false) {
+                continue
+            }
+
+            $testPriorityMatched = Match-TestPriority -currentTest $test -TestPriority $TestPriority
+            if ($testPriorityMatched -eq $false) {
+                continue
+            }
+
+            Write-LogInfo "Collected: $($test.TestName)"
+            $AllLisaTests += $test
         }
-    }
-    else
-    {
-        Write-LogErr "TestPlatform : $TestPlatform"
-        Write-LogErr "TestCategory : $TestCategory"
-        Write-LogErr "TestArea : $TestArea"
-        Write-LogErr "TestNames : $TestNames"
-        Write-LogErr "TestTag : $TestTag"
-        Throw "Invalid Test Selection"
     }
     return $AllLisaTests
 }
-
-
 
 function Send-Email([XML] $xmlConfig, $body)
 {

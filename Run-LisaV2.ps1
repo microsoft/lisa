@@ -215,7 +215,9 @@ try {
 	if ( $TestCategory ) { $zipFile += "-$TestCategory"	}
 	if ( $TestArea ) { $zipFile += "-$TestArea" }
 	if ( $TestTag ) { $zipFile += "-$($TestTag)" }
+	if ( $TestPriority ) { $zipFile += "-$($TestPriority)" }
 	$zipFile += "-$TestID-TestLogs.zip"
+	$zipFile = $zipFile.Replace("*", "All")
 	New-ZipFile -zipFileName $zipFile -sourceDir $LogDir
 
 	$reportXmlJUnit = $TestReportXml.Replace(".xml", "-junit.xml")
