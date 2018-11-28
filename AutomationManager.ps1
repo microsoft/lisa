@@ -63,7 +63,7 @@ Function Run-TestsOnCycle ([string] $cycleName, [xml] $xmlConfig, [string] $Dist
 				Write-LogInfo "ARMImage name - $($ARMImage.Publisher) : $($ARMImage.Offer) : $($ARMImage.Sku) : $($ARMImage.Version)"
 			}
 			if ( $tempDistro.OsVHD ) {
-				$BaseOsVHD = $tempDistro.OsVHD.Trim()
+				$BaseOsVHD = $tempDistro.OsVHD.InnerText.Trim()
 				Set-Variable -Name BaseOsVHD -Value $BaseOsVHD -Scope Global
 				Write-LogInfo "Base VHD name - $BaseOsVHD"
 			}
@@ -83,10 +83,15 @@ Function Run-TestsOnCycle ([string] $cycleName, [xml] $xmlConfig, [string] $Dist
 			Write-LogInfo "Your test VHD is not in target storage account ($ARMStorageAccount)."
 			Write-LogInfo "Your VHD will be copied to $ARMStorageAccount now."
 			$sourceContainer =  $BaseOsVHD.Split("/")[$BaseOsVHD.Split("/").Count - 2]
-			$vhdName =  $BaseOsVHD.Split("/")[$BaseOsVHD.Split("/").Count - 1]
+			$vhdName = $BaseOsVHD.Split("?")[0].split('/')[-1]
 			if ($ARMStorageAccount -inotmatch "NewStorage_") {
 				#Copy the VHD to current storage account.
-				$copyStatus = Copy-VHDToAnotherStorageAccount -sourceStorageAccount $givenVHDStorageAccount -sourceStorageContainer $sourceContainer -destinationStorageAccount $ARMStorageAccount -destinationStorageContainer "vhds" -vhdName $vhdName
+				#Check if the BaseOsVHD is a SasUrl
+				if ( ($BaseOsVHD -imatch 'sp=') -and ($BaseOsVHD -imatch 'sig=') ) {
+					$copyStatus = Copy-VHDToAnotherStorageAccount -SasUrl $BaseOsVHD -destinationStorageAccount $ARMStorageAccount -destinationStorageContainer "vhds" -vhdName $vhdName
+				} else {
+					$copyStatus = Copy-VHDToAnotherStorageAccount -sourceStorageAccount $givenVHDStorageAccount -sourceStorageContainer $sourceContainer -destinationStorageAccount $ARMStorageAccount -destinationStorageContainer "vhds" -vhdName $vhdName
+				}
 				if (!$copyStatus) {
 					Throw "Failed to copy the VHD to $ARMStorageAccount"
 				} else {
@@ -420,7 +425,7 @@ try {
 		Write-LogInfo "User                   : $($userIDSplitted[0])-xxxx-xxxx-xxxx-$($userIDSplitted[4])"
 		Write-LogInfo "ServiceEndpoint        : $($SelectedSubscription.Environment.ActiveDirectoryServiceEndpointResourceId)"
 		Write-LogInfo "CurrentStorageAccount  : $($AzureSetup.ARMStorageAccount)"
-	} elseif  ( $TestPlatform -eq "HyperV") {
+	} elseif ( $TestPlatform -eq "HyperV") {
 		for( $index=0 ; $index -lt $xmlConfig.config.Hyperv.Hosts.ChildNodes.Count ; $index++ ) {
 			Write-LogInfo "HyperV Host            : $($xmlConfig.config.Hyperv.Hosts.ChildNodes[$($index)].ServerName)"
 			Write-LogInfo "Source VHD Path        : $($xmlConfig.config.Hyperv.Hosts.ChildNodes[$($index)].SourceOsVHDPath)"

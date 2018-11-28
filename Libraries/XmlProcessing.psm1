@@ -80,7 +80,7 @@ Function Import-TestCases($WorkingDirectory, $TestConfigurationXmlFile) {
 								$xmlContent += ("$($tab[6])" + "<Version>" + "$($ARMImage[3])" + "</Version>`n")
 							$xmlContent += ("$($tab[5])" + "</ARMImage>`n")
 						}
-						$xmlContent += ("$($tab[5])" + "<OsVHD>" + "$OsVHD" + "</OsVHD>`n")
+						$xmlContent += ("$($tab[5])" + "<OsVHD><![CDATA[" + "$OsVHD" + "]]></OsVHD>`n")
 						$xmlContent += ("$($tab[5])" + "<VMGeneration>" + "$VMGeneration" + "</VMGeneration>`n")
 					$xmlContent += ("$($tab[4])" + "</Distro>`n")
 					$xmlContent += ("$($tab[4])" + "<UserName>" + "$($GlobalConfiguration.Global.$TestPlatform.TestCredentials.LinuxUsername)" + "</UserName>`n")
@@ -134,7 +134,7 @@ Function Import-TestCases($WorkingDirectory, $TestConfigurationXmlFile) {
 				$xmlContent += ("$($tab[3])" + "<Data>`n")
 					$xmlContent += ("$($tab[4])" + "<Distro>`n")
 						$xmlContent += ("$($tab[5])" + "<Name>$RGIdentifier</Name>`n")
-						$xmlContent += ("$($tab[5])" + "<OsVHD>" + "$OsVHD" + "</OsVHD>`n")
+						$xmlContent += ("$($tab[5])" + "<OsVHD><![CDATA[" + "$OsVHD" + "]]></OsVHD>`n")
 					$xmlContent += ("$($tab[4])" + "</Distro>`n")
 					$xmlContent += ("$($tab[4])" + "<UserName>" + "$($GlobalConfiguration.Global.$TestPlatform.TestCredentials.LinuxUsername)" + "</UserName>`n")
 					$xmlContent += ("$($tab[4])" + "<Password>" + "$($GlobalConfiguration.Global.$TestPlatform.TestCredentials.LinuxPassword)" + "</Password>`n")

@@ -37,7 +37,7 @@ function Validate-AzureParameters {
     }
 
     if (!$ARMImageName) {
-        if ($OsVHD -and [System.IO.Path]::GetExtension($OsVHD) -ne ".vhd") {
+        if ($OsVHD -and [System.IO.Path]::GetExtension($OsVHD) -ne ".vhd" -and !$OsVHD.Contains("vhd")) {
             $parameterErrors += "-OsVHD $OsVHD does not have .vhd extension required by Platform Azure."
         }
     }

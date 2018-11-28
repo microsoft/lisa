@@ -371,36 +371,61 @@ Function Get-PlainTextSummary([object] $testCycle, [DateTime] $startTime, [Syste
 Function Get-HtmlTestSummary([object] $testCycle, [DateTime] $startTime, [System.TimeSpan] $testDuration, [string] $xmlFilename, $testSuiteResultDetails)
 {
 	$durationStr=$testDuration.Days.ToString() + ":" +  $testDuration.hours.ToString() + ":" + $testDuration.minutes.ToString()
-	$strHtml =  "<style type='text/css'>" +
+	$strHtml =  "<STYLE>" +
+		"BODY, TABLE, TD, TH, P {" +
+		"  font-family:Verdana,Helvetica,sans serif;" +
+		"  font-size:11px;" +
+		"  color:black;" +
+		"}" +
+		"TD.bg1 { color:black; background-color:#99CCFF; font-size:180% }" +
+		"TD.bg2 { color:black; font-size:130% }" +
+		"TD.bg3 { color:black; font-size:110% }" +
 		".TFtable{width:1024px; border-collapse:collapse; }" +
 		".TFtable td{ padding:7px; border:#4e95f4 1px solid;}" +
 		".TFtable tr{ background: #b8d1f3;}" +
 		".TFtable tr:nth-child(odd){ background: #dbe1e9;}" +
-		".TFtable tr:nth-child(even){background: #ffffff;}</style>" +
-		"<Html><head><title>Test Results Summary</title></head>" +
-		"<body style = 'font-family:sans-serif;font-size:13px;color:#000000;margin:0px;padding:30px'>" +
-		"<br/><h1 style='background-color:lightblue;width:1024'>Test Results Summary</h1>"
-	$strHtml += "<h2 style='background-color:lightblue;width:1024'>ICA test run on - " + $startTime + "</h2><span style='font-size: medium'>"
-	if ( $BaseOsImage )
-	{
-		$strHtml += '<p>Image under test - <span style="font-family:courier new,courier,monospace;">' + "$BaseOsImage</span></p>"
+		".TFtable tr:nth-child(even){background: #ffffff;}" +
+		"</STYLE>" +
+		"<table>" +
+		"<TR><TD class=`"bg1`" colspan=`"2`"><B>Test Complete</B></TD></TR>" +
+		"</table>" +
+		"<BR/>"
+
+	if ( $BaseOsImage ) {
+		$strHtml += "<table>" +
+		"<TR><TD class=`"bg2`" colspan=`"2`"><B>LISAv2 test run on - $startTime</B></TD></TR>" +
+		"<TR><TD class=`"bg3`" colspan=`"2`">Build URL: <A href=`"${BUILD_URL}`">${BUILD_URL}</A></TD></TR>" +
+		"<TR><TD class=`"bg3`" colspan=`"2`">Image under test - $BaseOsImage</TD></TR>" +
+		"</table>" +
+		"<BR/>"
 	}
-	if ( $BaseOSVHD )
-	{
-		$strHtml += '<p>VHD under test - <span style="font-family:courier new,courier,monospace;">' + "$BaseOsVHD</span></p>"
+	if ( $BaseOSVHD ) {
+		$tempDistro = $xmlConfig.config.$TestPlatform.Deployment.Data.Distro
+		$rawVhd = $tempDistro.OsVHD.InnerText.Trim()
+		$rawVhd = $rawVhd.split("?")[0]
+		$strHtml += "<table>" +
+		"<TR><TD class=`"bg2`" colspan=`"2`"><B>LISAv2  test run on - $startTime</B></TD></TR>" +
+		"<TR><TD class=`"bg3`" colspan=`"2`">Build URL: <A href=`"`${BUILD_URL}`">`${BUILD_URL}</A></TD></TR>" +
+		"<TR><TD class=`"bg3`" colspan=`"2`">VHD under test - $rawVhd</TD></TR>" +
+		"<TR><TD class=`"bg3`" colspan=`"2`">Test category - $TestCategory</TD></TR>" +
+		"</table>" +
+		"<BR/>"
 	}
-	if ( $ARMImage )
-	{
-		$strHtml += '<p>ARM Image under test - <span style="font-family:courier new,courier,monospace;">' + "$($ARMImage.Publisher) : $($ARMImage.Offer) : $($ARMImage.Sku) : $($ARMImage.Version)</span></p>"
+	if ( $ARMImage ) {
+		$strHtml += "<table>" +
+		"<TR><TD class=`"bg2`" colspan=`"2`"><B>LISAv2  test run on - $startTime</B></TD></TR>" +
+		"<TR><TD class=`"bg3`" colspan=`"2`">Build URL: <A href=`"`${BUILD_URL}`">`${BUILD_URL}</A></TD></TR>" +
+		"<TR><TD class=`"bg3`" colspan=`"2`">ARM Image under test - $($ARMImage.Publisher) : $($ARMImage.Offer) : $($ARMImage.Sku) : $($ARMImage.Version)</TD></TR>" +
+		"</table>" +
+		"<BR/>"
 	}
 
-	$strHtml += '<p>Total Executed TestCases - <strong><span style="font-size:16px;">' + "$($testSuiteResultDetails.totalTc)" + '</span></strong><br />' + `
-		'[&nbsp;<span style="font-size:16px;"><span style="color:#008000;"><strong>' +  $testSuiteResultDetails.totalPassTc + `
-		' </strong></span></span> - PASS, <span style="font-size:16px;"><span style="color:#ff0000;"><strong>' + "$($testSuiteResultDetails.totalFailTc)" + `
-		'</strong></span></span>- FAIL, <span style="font-size:16px;"><span style="color:#ff0000;"><strong><span style="background-color:#ffff00;">' + `
-		"$($testSuiteResultDetails.totalAbortedTc)" +'</span></strong></span></span> - ABORTED ]</p>'
-	$strHtml += "<br /><br/>Total Execution Time(dd:hh:mm) " + $durationStr
-	$strHtml += "<br /><br/>XML file: $xmlFilename<br /><br /></span>"
+	$strHtml += "<table>"
+	$strHtml += "<TR><TD class=`"bg3`" colspan=`"2`">Total Executed TestCases - $($testSuiteResultDetails.totalTc)</TD></TR>"
+	$strHtml += "<TR><TD class=`"bg3`" colspan=`"2`">[&nbsp;<span><span style=`"color:#008000;`"><strong>$($testSuiteResultDetails.totalPassTc)</strong></span></span> - PASS, <span ><span style=`"color:#ff0000;`"><strong>$($testSuiteResultDetails.totalFailTc)</strong></span></span> - FAIL, <span><span style=`"color:#ff0000;`"><strong><span style=`"background-color:#ffff00;`">$($testSuiteResultDetails.totalAbortedTc)</span></strong></span></span> - ABORTED ]</TD></TR>"
+	$strHtml += "<TR><TD class=`"bg3`" colspan=`"2`">Total Execution Time(dd:hh:mm) $durationStr</TD></TR>"
+	$strHtml += "</table>"
+	$strHtml += "<BR/>"
 
 	# Add information about the host running ICA to the e-mail summary
 	$strHtml += "<table border='0' class='TFtable'>"
@@ -436,23 +461,23 @@ Function Update-TestSummaryForCase ([string]$TestName, [int]$ExecutionCount, [st
 	if ( $TestResult -imatch "PASS" ) {
 		$ResultDetails.totalPassTc += 1
 		$testResultRow = "<span style='color:green;font-weight:bolder'>PASS</span>"
-		$TestCycle.htmlSummary += "<tr><td><font size=`"3`">$ExecutionCount</font></td><td>$TestName</td><td>$Duration min</td><td>$testResultRow</td></tr>"
+		$TestCycle.htmlSummary += "<tr><td>$ExecutionCount</td><td>$TestName</td><td>$Duration min</td><td>$testResultRow</td></tr>"
 	}
 	elseif ( $TestResult -imatch "FAIL" ) {
 		$ResultDetails.totalFailTc += 1
 		$testResultRow = "<span style='color:red;font-weight:bolder'>FAIL</span>"
-		$TestCycle.htmlSummary += "<tr><td><font size=`"3`">$ExecutionCount</font></td><td>$TestName$(Add-ReproVMDetailsToHtmlReport)</td><td>$Duration min</td><td>$testResultRow</td></tr>"
+		$TestCycle.htmlSummary += "<tr><td>$ExecutionCount</td><td>$TestName$(Add-ReproVMDetailsToHtmlReport)</td><td>$Duration min</td><td>$testResultRow</td></tr>"
 	}
 	elseif ( $TestResult -imatch "ABORTED" ) {
 		$ResultDetails.totalAbortedTc += 1
 		$testResultRow = "<span style='background-color:yellow;font-weight:bolder'>ABORT</span>"
-		$TestCycle.htmlSummary += "<tr><td><font size=`"3`">$ExecutionCount</font></td><td>$TestName$(Add-ReproVMDetailsToHtmlReport)</td><td>$Duration min</td><td>$testResultRow</td></tr>"
+		$TestCycle.htmlSummary += "<tr><td>$ExecutionCount</td><td>$TestName$(Add-ReproVMDetailsToHtmlReport)</td><td>$Duration min</td><td>$testResultRow</td></tr>"
 	}
 	else {
 		Write-LogErr "Test Result is empty."
 		$ResultDetails.totalAbortedTc += 1
 		$testResultRow = "<span style='background-color:yellow;font-weight:bolder'>ABORT</span>"
-		$TestCycle.htmlSummary += "<tr><td><font size=`"3`">$ExecutionCount</font></td><td>$TestName$(Add-ReproVMDetailsToHtmlReport)</td><td>$Duration min</td><td>$testResultRow</td></tr>"
+		$TestCycle.htmlSummary += "<tr><td>$ExecutionCount</td><td>$TestName$(Add-ReproVMDetailsToHtmlReport)</td><td>$Duration min</td><td>$testResultRow</td></tr>"
 	}
 
 	Write-LogInfo "CURRENT - PASS    - $($ResultDetails.totalPassTc)"
