@@ -83,18 +83,4 @@
         <Tags>ltp</Tags>
         <Priority>2</Priority>
     </test>
-    <test>
-        <TestName>LSVMBUS</TestName>
-        <TestScript>LSVMBUS.sh</TestScript>
-        <files>.\TestScripts\Linux\LSVMBUS.sh,.\TestScripts\Linux\utils.sh</files>
-        <setupType>Stress</setupType>
-        <TestParameters>
-            <param>VCPU=8</param>
-        </TestParameters>
-        <Platform>Azure,HyperV</Platform>
-        <Category>Community</Category>
-        <Area>LSVMBUS</Area>
-        <Tags>lsvmbus</Tags>
-        <Priority>1</Priority>
-    </test>
 </TestCases>

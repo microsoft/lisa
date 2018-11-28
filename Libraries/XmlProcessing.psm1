@@ -35,7 +35,7 @@ Function Import-TestCases($WorkingDirectory, $TestConfigurationXmlFile) {
 	if( !$AllLisaTests.innerXML ) {
 		Throw "Not able to collect any test cases from XML files"
 	}
-	Write-LogInfo "$($AllLisaTests.Count) Test Cases have been collected"
+	Write-LogInfo "$(@($AllLisaTests).Length) Test Cases have been collected"
 
 	$SetupTypes = $AllLisaTests.SetupType | Sort-Object | Get-Unique
 

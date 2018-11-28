@@ -248,6 +248,17 @@
         <Priority>0</Priority>
     </test>
     <test>
+        <TestName>LSVMBUS</TestName>
+        <TestScript>LSVMBUS.sh</TestScript>
+        <files>.\TestScripts\Linux\LSVMBUS.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>Stress</setupType>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>lsvmbus</Tags>
+        <Priority>1</Priority>
+    </test>
+    <test>
         <testName>FCOPY-BASIC</testName>
         <testScript>FCOPY-BASIC.ps1</testScript>
         <setupType>SingleVM</setupType>
