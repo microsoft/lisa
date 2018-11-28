@@ -12,7 +12,9 @@ param
 )
 
 #Load libraries
-Set-Variable -Name LogFileName -Value $LogFileName -Scope Global -Force
+if (!$global:LogFileName){
+    Set-Variable -Name LogFileName -Value $LogFileName -Scope Global -Force
+}
 Get-ChildItem ..\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
 
 #When given -UseSecretsFile or an AzureSecretsFile path, we will attempt to search the path or the environment variable.

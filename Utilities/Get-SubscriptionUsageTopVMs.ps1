@@ -9,7 +9,9 @@ param
     [int]$TopVMsCount=20,
     [string] $LogFileName = "GetSubscriptionUsageTopVMs.log"
 )
-
+if (!$global:LogFileName){
+  Set-Variable -Name LogFileName -Value $LogFileName -Scope Global -Force
+}
 Get-ChildItem ..\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
 #region HTML File structure
 $htmlHeader = '
