@@ -110,7 +110,7 @@
         <ResourceGroup>
             <VirtualMachine>
                 <ARMInstanceSize>Standard_D15_v2</ARMInstanceSize>
-                <RoleName>server-vm</RoleName>
+                <RoleName></RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
                     <Protocol>tcp</Protocol>
@@ -120,8 +120,9 @@
                 <DataDisk></DataDisk>
             </VirtualMachine>
             <VirtualMachine>
+                <DeployOnDifferentHyperVHost>yes</DeployOnDifferentHyperVHost>
                 <ARMInstanceSize>Standard_D15_v2</ARMInstanceSize>
-                <RoleName>client-vm</RoleName>
+                <RoleName></RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
                     <Protocol>tcp</Protocol>
@@ -129,7 +130,7 @@
                     <PublicPort>1112</PublicPort>
                 </EndPoints>
                 <DataDisk></DataDisk>
-            </VirtualMachine>					
+            </VirtualMachine>
         </ResourceGroup>
     </M1S1>
     <S1C15>

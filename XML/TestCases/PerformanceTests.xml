@@ -6,9 +6,13 @@
         <AdditionalHWConfig>
             <Networking>Synthetic</Networking>
         </AdditionalHWConfig>
-        <SubtestValues>This-tag-will-be-removed</SubtestValues>
+        <setupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\SETUP-PERF-Add-NIC.ps1</setupScript>
+        <runSetupScriptOnlyOnce>yes</runSetupScriptOnlyOnce>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
         <TestParameters>
+            <param>PERF_NIC=HYPERV_PERF_NIC_NAME</param>
+            <param>STATIC_IP_1=10.10.10.10</param>
+            <param>STATIC_IP_2=10.10.10.30</param>
             <param>testDuration=NTTTCP_RUNTIME_IN_SECONDS</param>
             <param>testType=tcp</param>
             <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024 2048 4096 6144 8192 10240"</param>
@@ -26,13 +30,18 @@
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
+        <setupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\SETUP-PERF-Add-NIC.ps1</setupScript>
+        <runSetupScriptOnlyOnce>yes</runSetupScriptOnlyOnce>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
         <TestParameters>
+            <param>PERF_NIC=HYPERV_PERF_NIC_NAME</param>
+            <param>STATIC_IP_1=10.10.10.11</param>
+            <param>STATIC_IP_2=10.10.10.31</param>
             <param>testDuration=NTTTCP_RUNTIME_IN_SECONDS</param>
             <param>testType=tcp</param>
             <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024 2048 4096 6144 8192 10240"</param>
         </TestParameters>
-        <Platform>Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
         <Area>Network</Area>
         <Tags>network,hv_netvsc,sriov</Tags>
@@ -45,15 +54,19 @@
         <AdditionalHWConfig>
             <Networking>Synthetic</Networking>
         </AdditionalHWConfig>
-        <SubtestValues>This-tag-will-be-removed</SubtestValues>
+        <setupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\SETUP-PERF-Add-NIC.ps1</setupScript>
+        <runSetupScriptOnlyOnce>yes</runSetupScriptOnlyOnce>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
         <TestParameters>
+            <param>PERF_NIC=HYPERV_PERF_NIC_NAME</param>
+            <param>STATIC_IP_1=10.10.10.12</param>
+            <param>STATIC_IP_2=10.10.10.32</param>
             <param>testDuration=NTTTCP_RUNTIME_IN_SECONDS</param>
             <param>testType=udp</param>
             <param>bufferLength=1024</param>
             <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024"</param>
         </TestParameters>
-        <Platform>Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
         <Area>Network</Area>
         <Tags>network,hv_netvsc</Tags>
@@ -66,15 +79,19 @@
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
-        <SubtestValues>This-tag-will-be-removed</SubtestValues>
+        <setupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\SETUP-PERF-Add-NIC.ps1</setupScript>
+        <runSetupScriptOnlyOnce>yes</runSetupScriptOnlyOnce>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
         <TestParameters>
+            <param>PERF_NIC=HYPERV_PERF_NIC_NAME</param>
+            <param>STATIC_IP_1=10.10.10.13</param>
+            <param>STATIC_IP_2=10.10.10.33</param>
             <param>testDuration=NTTTCP_RUNTIME_IN_SECONDS</param>
             <param>testType=udp</param>
             <param>bufferLength=1024</param>
             <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024"</param>
         </TestParameters>
-        <Platform>Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
         <Area>Network</Area>
         <Tags>network,hv_netvsc,sriov</Tags>
@@ -84,8 +101,13 @@
         <testName>PERF-NETWORK-TCP-LATENCY-MULTICONNECTION-Synthetic</testName>
         <testScript>PERF-NETWORK-TCP-LATENCY-MULTICONNECTION-LAGSCOPE.ps1</testScript>
         <setupType>M1S1</setupType>
+        <setupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\SETUP-PERF-Add-NIC.ps1</setupScript>
+        <runSetupScriptOnlyOnce>yes</runSetupScriptOnlyOnce>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_lagscope.sh</files>
         <TestParameters>
+            <param>PERF_NIC=HYPERV_PERF_NIC_NAME</param>
+            <param>STATIC_IP_1=10.10.10.14</param>
+            <param>STATIC_IP_2=10.10.10.34</param>
             <param>pingIteration=1000000</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
@@ -101,12 +123,16 @@
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
-        <SubtestValues>This-tag-will-be-removed</SubtestValues>
+        <setupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\SETUP-PERF-Add-NIC.ps1</setupScript>
+        <runSetupScriptOnlyOnce>yes</runSetupScriptOnlyOnce>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_lagscope.sh</files>
         <TestParameters>
+            <param>PERF_NIC=HYPERV_PERF_NIC_NAME</param>
+            <param>STATIC_IP_1=10.10.10.15</param>
+            <param>STATIC_IP_2=10.10.10.35</param>
             <param>pingIteration=1000000</param>
         </TestParameters>
-        <Platform>Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
         <Area>Network</Area>
         <Tags>network,hv_netvsc,sriov</Tags>
@@ -116,9 +142,13 @@
         <testName>PERF-NETWORK-UDP-THROUGHPUT-MULTICONNECTION-Synthetic</testName>
         <testScript>PERF-NETWORK-UDP-THROUGHPUT-MULTICONNECTION-IPERF3.ps1</testScript>
         <setupType>M1S1</setupType>
-        <SubtestValues>This-tag-will-be-removed</SubtestValues>
+        <setupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\SETUP-PERF-Add-NIC.ps1</setupScript>
+        <runSetupScriptOnlyOnce>yes</runSetupScriptOnlyOnce>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_iperf3.sh</files>
         <TestParameters>
+            <param>PERF_NIC=HYPERV_PERF_NIC_NAME</param>
+            <param>STATIC_IP_1=10.10.10.16</param>
+            <param>STATIC_IP_2=10.10.10.36</param>
             <param>testDuration=IPERF3_RUNTIME_IN_SECONDS</param>
             <param>testType=udp</param>
             <param>max_parallel_connections_per_instance=64</param>
@@ -139,9 +169,13 @@
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
-        <SubtestValues>This-tag-will-be-removed</SubtestValues>
+        <setupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\SETUP-PERF-Add-NIC.ps1</setupScript>
+        <runSetupScriptOnlyOnce>yes</runSetupScriptOnlyOnce>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_iperf3.sh</files>
         <TestParameters>
+            <param>PERF_NIC=HYPERV_PERF_NIC_NAME</param>
+            <param>STATIC_IP_1=10.10.10.17</param>
+            <param>STATIC_IP_2=10.10.10.37</param>
             <param>testDuration=IPERF3_RUNTIME_IN_SECONDS</param>
             <param>testType=udp</param>
             <param>max_parallel_connections_per_instance=64</param>
@@ -149,7 +183,7 @@
             <param>bufferLengths=(1024 8192)</param>
             <param>IPversion=4</param>
         </TestParameters>
-        <Platform>Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
         <Area>Network</Area>
         <Tags>network,hv_netvsc,sriov</Tags>
@@ -162,7 +196,6 @@
         <AdditionalHWConfig>
             <DiskType>Managed</DiskType>
         </AdditionalHWConfig>
-        <SubtestValues>This-tag-will-be-removed</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <TestParameters>
             <param>modes='randread randwrite read write'</param>
@@ -187,7 +220,6 @@
         <AdditionalHWConfig>
             <DiskType>Managed</DiskType>
         </AdditionalHWConfig>
-        <SubtestValues>This-tag-will-be-removed</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <TestParameters>
             <param>modes='randread randwrite read write'</param>
@@ -209,7 +241,6 @@
         <testName>PERF-STORAGE-OVER-NFS-Synthetic-TCP-4K</testName>
         <testScript>PERF-STORAGE-OVER-NFS.ps1</testScript>
         <setupType>DS14DISK12NFS</setupType>
-        <SubtestValues>This-tag-will-be-removed</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh</files>
         <TestParameters>
             <param>modes='randread randwrite read write'</param>
@@ -232,7 +263,6 @@
         <testName>PERF-STORAGE-OVER-NFS-Synthetic-UDP-4K</testName>
         <testScript>PERF-STORAGE-OVER-NFS.ps1</testScript>
         <setupType>DS14DISK12NFS</setupType>
-        <SubtestValues>This-tag-will-be-removed</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh</files>
         <TestParameters>
             <param>modes='randread randwrite read write'</param>
@@ -258,7 +288,6 @@
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
-        <SubtestValues>This-tag-will-be-removed</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh</files>
         <TestParameters>
             <param>modes='randread randwrite read write'</param>
@@ -284,7 +313,6 @@
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
-        <SubtestValues>This-tag-will-be-removed</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh</files>
         <TestParameters>
             <param>modes='randread randwrite read write'</param>
@@ -310,8 +338,13 @@
         <AdditionalHWConfig>
             <Networking>Synthetic</Networking>
         </AdditionalHWConfig>
+        <setupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\SETUP-PERF-Add-NIC.ps1</setupScript>
+        <runSetupScriptOnlyOnce>yes</runSetupScriptOnlyOnce>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_iperf3.sh</files>
         <TestParameters>
+            <param>PERF_NIC=HYPERV_PERF_NIC_NAME</param>
+            <param>STATIC_IP_1=10.10.10.18</param>
+            <param>STATIC_IP_2=10.10.10.38</param>
             <param>testDuration=IPERF3_RUNTIME_IN_SECONDS</param>
             <param>testType=tcp</param>
             <param>max_parallel_connections_per_instance=64</param>
@@ -332,8 +365,13 @@
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
+        <setupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\SETUP-PERF-Add-NIC.ps1</setupScript>
+        <runSetupScriptOnlyOnce>yes</runSetupScriptOnlyOnce>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_iperf3.sh</files>
         <TestParameters>
+            <param>PERF_NIC=HYPERV_PERF_NIC_NAME</param>
+            <param>STATIC_IP_1=10.10.10.19</param>
+            <param>STATIC_IP_2=10.10.10.39</param>
             <param>testDuration=IPERF3_RUNTIME_IN_SECONDS</param>
             <param>testType=tcp</param>
             <param>max_parallel_connections_per_instance=64</param>
@@ -365,6 +403,8 @@
     <test>
         <testName>PERF-NETWORK-TCP-NETPERF-SINGLE-PPS-Synthetic</testName>
         <testScript>PERF-NETWORK-TCP-NETPERF.ps1</testScript>
+        <setupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\SETUP-PERF-Add-NIC.ps1</setupScript>
+        <runSetupScriptOnlyOnce>yes</runSetupScriptOnlyOnce>
         <setupType>M1S1</setupType>
         <AdditionalHWConfig>
             <Networking>Synthetic</Networking>
@@ -372,10 +412,13 @@
         <OverrideVMSize>Standard_F32s_v2</OverrideVMSize>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_netperf.sh</files>
         <TestParameters>
+            <param>PERF_NIC=HYPERV_PERF_NIC_NAME</param>
+            <param>STATIC_IP_1=10.10.10.20</param>
+            <param>STATIC_IP_2=10.10.10.40</param>
             <param>test_duration=NETPERF_RUNTIME_IN_SECONDS</param>
             <param>test_type="singlepps"</param>
         </TestParameters>
-        <Platform>Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
         <Area>Network</Area>
         <Tags>network,hv_netvsc</Tags>
@@ -384,6 +427,8 @@
     <test>
         <testName>PERF-NETWORK-TCP-NETPERF-SINGLE-PPS-SRIOV</testName>
         <testScript>PERF-NETWORK-TCP-NETPERF.ps1</testScript>
+        <setupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\SETUP-PERF-Add-NIC.ps1</setupScript>
+        <runSetupScriptOnlyOnce>yes</runSetupScriptOnlyOnce>
         <setupType>M1S1</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
@@ -391,10 +436,13 @@
         <OverrideVMSize>Standard_F32s_v2</OverrideVMSize>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_netperf.sh</files>
         <TestParameters>
+            <param>PERF_NIC=HYPERV_PERF_NIC_NAME</param>
+            <param>STATIC_IP_1=10.10.10.21</param>
+            <param>STATIC_IP_2=10.10.10.41</param>
             <param>test_duration=NETPERF_RUNTIME_IN_SECONDS</param>
             <param>test_type="singlepps"</param>
         </TestParameters>
-        <Platform>Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
         <Area>Network</Area>
         <Tags>network,hv_netvsc</Tags>
@@ -403,6 +451,8 @@
     <test>
         <testName>PERF-NETWORK-TCP-NETPERF-MAX-PPS-Synthetic</testName>
         <testScript>PERF-NETWORK-TCP-NETPERF.ps1</testScript>
+        <setupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\SETUP-PERF-Add-NIC.ps1</setupScript>
+        <runSetupScriptOnlyOnce>yes</runSetupScriptOnlyOnce>
         <setupType>M1S1</setupType>
         <AdditionalHWConfig>
             <Networking>Synthetic</Networking>
@@ -410,10 +460,13 @@
         <OverrideVMSize>Standard_F32s_v2</OverrideVMSize>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_netperf.sh</files>
         <TestParameters>
+            <param>PERF_NIC=HYPERV_PERF_NIC_NAME</param>
+            <param>STATIC_IP_1=10.10.10.22</param>
+            <param>STATIC_IP_2=10.10.10.42</param>
             <param>test_duration=NETPERF_RUNTIME_IN_SECONDS</param>
             <param>test_type="maxpps"</param>
         </TestParameters>
-        <Platform>Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
         <Area>Network</Area>
         <Tags>network,hv_netvsc</Tags>
@@ -422,6 +475,8 @@
     <test>
         <testName>PERF-NETWORK-TCP-NETPERF-MAX-PPS-SRIOV</testName>
         <testScript>PERF-NETWORK-TCP-NETPERF.ps1</testScript>
+        <setupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\SETUP-PERF-Add-NIC.ps1</setupScript>
+        <runSetupScriptOnlyOnce>yes</runSetupScriptOnlyOnce>
         <setupType>M1S1</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
@@ -429,10 +484,13 @@
         <OverrideVMSize>Standard_F32s_v2</OverrideVMSize>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_netperf.sh</files>
         <TestParameters>
+            <param>PERF_NIC=HYPERV_PERF_NIC_NAME</param>
+            <param>STATIC_IP_1=10.10.10.23</param>
+            <param>STATIC_IP_2=10.10.10.43</param>
             <param>test_duration=NETPERF_RUNTIME_IN_SECONDS</param>
             <param>test_type="maxpps"</param>
         </TestParameters>
-        <Platform>Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
         <Area>Network</Area>
         <Tags>network,hv_netvsc</Tags>

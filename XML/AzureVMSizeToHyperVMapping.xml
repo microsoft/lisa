@@ -90,8 +90,8 @@
         <MemoryInMB>114688</MemoryInMB>
     </Standard_D14_v2>
     <Standard_D15_v2>
-        <NumberOfCores>20</NumberOfCores>
-        <MemoryInMB>143360</MemoryInMB>
+        <NumberOfCores>8</NumberOfCores>
+        <MemoryInMB>8196</MemoryInMB>
     </Standard_D15_v2>
     <Standard_D2_v2_Promo>
         <NumberOfCores>2</NumberOfCores>
@@ -759,8 +759,8 @@
         <MemoryInMB>32768</MemoryInMB>
     </Standard_F16s_v2>
     <Standard_F32s_v2>
-        <NumberOfCores>32</NumberOfCores>
-        <MemoryInMB>65536</MemoryInMB>
+        <NumberOfCores>8</NumberOfCores>
+        <MemoryInMB>8196</MemoryInMB>
     </Standard_F32s_v2>
     <Standard_F64s_v2>
         <NumberOfCores>64</NumberOfCores>

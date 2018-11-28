@@ -1034,3 +1034,35 @@ function Check-IP {
         return $newVMData
     }
 }
+
+Function Get-GuestInterfaceByVSwitch {
+    param (
+        [String] $VSwitchName,
+        [String] $VMName,
+        [String] $HvServer,
+        [String] $GuestUser,
+        [String] $GuestIP,
+        [String] $GuestPassword,
+        [String] $GuestPort
+    )
+
+    $testNic = $(Get-VM -Name $VMName -ComputerName $HvServer).NetworkAdapters `
+                | Where-Object { $_.SwitchName -imatch $VSwitchName }
+    $testMac = $testNic.MacAddress
+    # The above $testMac doesn't have any separators - e.g. AABBCCDDEEFF
+    for ($i=2; $i -lt 16; $i=$i+3) {
+        $testMac = $testMac.Insert($i,':')
+    }
+    # We added ':' separators and now the MAC is in this format: AA:BB:CC:DD:EE:FF
+    # Get the interface name that corresponds to the MAC address
+    $cmdToSend = "testInterface=`$(grep -il ${testMac} /sys/class/net/*/address) ; basename `"`$(dirname `$testInterface)`""
+    $testInterfaceName = Run-LinuxCmd -username $GuestUser -password $GuestPassword -ip $GuestIP -port $GuestPort `
+        -command $cmdToSend -runAsSudo
+    if (-not $testInterfaceName) {
+        Write-LogErr "Failed to get the interface name that has $testMac MAC address"
+        return $False
+    }
+
+    Write-LogInfo "The interface that will be configured on $VMName is $testInterfaceName"
+    return $testInterfaceName
+}
