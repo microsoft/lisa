@@ -252,12 +252,19 @@ Function Delete-HyperVGroup([string]$HyperVGroupName, [string]$HyperVHost) {
         return $true
     }
 
+    $cleanupDone = 0
     $vmGroup.VMMembers | ForEach-Object {
-        Write-LogInfo "Stop-VM -Name $($_.Name) -Force -TurnOff "
         $vm = $_
+        Write-LogInfo "Stop-VM -Name $($vm.Name) -Force -TurnOff"
         Stop-VM -Name $vm.Name -Force -TurnOff -ComputerName $HyperVHost
+        $snapshots = Get-VMSnapshot -VMName $vm.Name -ComputerName $HyperVHost
+        if ($snapshots.Count -gt 1) {
+            LogMsg "VM $($vm.Name) cannot be cleaned up as it has failed test cases snapshots."
+            $cleanupDone--
+            return
+        }
         Remove-VMSnapshot -VMName $vm.Name -ComputerName $HyperVHost `
-            -IncludeAllChildCheckpoints -Confirm:$false
+            -IncludeAllChildCheckpoints -Confirm:$false -ErrorAction SilentlyContinue
         if (!$?) {
             Write-LogErr ("Failed to remove snapshots for VM {0}" -f @($vm.Name))
             return $false
@@ -322,9 +329,10 @@ Function Delete-HyperVGroup([string]$HyperVGroupName, [string]$HyperVHost) {
         }
     }
 
-    Write-LogInfo "Hyper-V VM group ${HyperVGroupName} is being removed!"
-    Remove-VMGroup -Name $HyperVGroupName -ComputerName $HyperVHost -Force
-    Write-LogInfo "Hyper-V VM group ${HyperVGroupName} removed!"
+    if ($cleanupDone -eq 0) {
+        Remove-VMGroup -Name $HyperVGroupName -ComputerName $HyperVHost -Force
+        Write-LogInfo "Hyper-V VM group ${HyperVGroupName} removed!"
+    }
     return $true
 }
 
@@ -934,18 +942,29 @@ function Create-HyperVCheckpoint {
     #>
 
     param(
-        $VMData,
-        [string]$CheckpointName
+        [array]   $VMData,
+        [string]  $CheckpointName,
+        [boolean] $ShouldTurnOffVMBeforeCheckpoint = $true,
+        [boolean] $ShouldTurnOnVMAfterCheckpoint = $true,
+        [string]  $CheckpointType = "Standard"
     )
 
     foreach ($VM in $VMData) {
-        Stop-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -TurnOff -Force
-        Set-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -CheckpointType Standard
+        if ($ShouldTurnOffVMBeforeCheckpoint) {
+            Stop-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -TurnOff -Force
+        } else {
+            Start-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost
+        }
+        Set-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -CheckpointType $CheckpointType
         Checkpoint-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -SnapshotName $CheckpointName
-        $msg = ("Checkpoint:{0} created for VM:{1}" `
+        $msg = ("Checkpoint {0} created for VM {1}." `
                  -f @($CheckpointName,$VM.RoleName))
         Write-LogInfo $msg
-        Start-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost
+        if ($ShouldTurnOnVMAfterCheckpoint) {
+            Start-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost
+        } else {
+            Stop-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -TurnOff -Force
+        }
     }
 }
 

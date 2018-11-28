@@ -28,7 +28,7 @@
 ###############################################################################################
 
 Function Move-ToNewWorkingSpace($originalFolder) {
-	Write-Host "Current working directory '$originalFolder' path length is too long."
+	Write-LogInfo "Path length is too long for current working directory '$originalFolder'"
 	$tempWorkspace    = "$(Split-Path $originalFolder -Qualifier)"
 	$tempParentFolder = "$tempWorkspace\LISAv2"
 	$tempWorkingDir   = "$tempWorkspace\LISAv2\$TestID"
@@ -36,21 +36,23 @@ Function Move-ToNewWorkingSpace($originalFolder) {
 	New-Item -ItemType Directory -Path $tempParentFolder -Force -ErrorAction SilentlyContinue | Out-Null
 	New-Item -ItemType Directory -Path $tempWorkingDir   -Force -ErrorAction SilentlyContinue | Out-Null
 	$tmpSource = '\\?\' + "$originalFolder\*"
-	Write-Host "Copying current workspace to $tempWorkingDir"
+	Write-LogInfo "Copying current workspace to $tempWorkingDir"
 	$excludedDirectories = @(".git", "Documents", ".github", "Report", "TestResults", "VHDs_Destination_Path", "*.zip")
 	Copy-Item -Path $tmpSource -Destination $tempWorkingDir -Recurse -Force -Exclude $excludedDirectories | Out-Null
 	Set-Location -Path $tempWorkingDir | Out-Null
-	Write-Host "Working directory has been changed to $tempWorkingDir"
+	Write-LogInfo "Working directory has been changed to $tempWorkingDir"
 	return $tempWorkingDir
 }
 
-Function Move-BackToOriginalWorkingSpace($currentWorkingDirectory, $OriginalWorkingDirectory){
-	Write-Host "Copying all files back to original working directory: $OriginalWorkingDirectory."
+Function Move-BackToOriginalWorkingSpace($currentWorkingDirectory, $OriginalWorkingDirectory, $ExitCode = 0){
+	Write-LogInfo "Copying all files back to original working directory: $OriginalWorkingDirectory."
 	$tmpDest = '\\?\' + $OriginalWorkingDirectory
 	Copy-Item -Path "$currentWorkingDirectory\*" -Destination $tmpDest -Force -Recurse | Out-Null
 	Set-Location ..
-	Write-Host "Cleaning up $currentWorkingDirectory"
-	Remove-Item -Path $currentWorkingDirectory -Force -Recurse -ErrorAction SilentlyContinue
-	Write-Host "Setting workspace back to original location: $originalWorkingDirectory"
+	if (!$ExitCode) {
+		Write-LogInfo "Cleaning up $currentWorkingDirectory"
+		Remove-Item -Path $currentWorkingDirectory -Force -Recurse -ErrorAction SilentlyContinue
+	}
+	Write-LogInfo "Setting workspace back to original location: $originalWorkingDirectory"
 	Set-Location $originalWorkingDirectory
 }
