@@ -18,7 +18,7 @@
         <testScript></testScript>
         <PowershellScript>STRESSTEST-VERIFY-RESTART.ps1</PowershellScript>
         <files></files>
-        <setupType>SingleVMMaxNetwork</setupType>
+        <setupType>1VM8NIC</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
@@ -103,7 +103,7 @@
         <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>STRESS-Web.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SR-IOV-Utils.sh,.\Testscripts\Linux\stress_web.sh</files>
-        <setupType>SRIOVVMsTwoNICs</setupType>
+        <setupType>SRIOV2NIC</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>

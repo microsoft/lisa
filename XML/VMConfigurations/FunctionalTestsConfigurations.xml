@@ -539,7 +539,7 @@
             </VirtualMachine>
         </ResourceGroup>
     </SRIOVVMs>
-    <SRIOVVMsTwoNICs>
+    <SRIOV2NIC>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
             <VirtualMachine>
@@ -572,8 +572,8 @@
                 <ExtraNICs>1</ExtraNICs>
             </VirtualMachine>
         </ResourceGroup>
-    </SRIOVVMsTwoNICs>
-    <SRIOVVMsMaxNICs>
+    </SRIOV2NIC>
+    <SRIOV8NIC>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
             <VirtualMachine>
@@ -606,7 +606,7 @@
                 <ExtraNICs>7</ExtraNICs>
             </VirtualMachine>
         </ResourceGroup>
-    </SRIOVVMsMaxNICs>
+    </SRIOV8NIC>
     <TwoVMsDM>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>

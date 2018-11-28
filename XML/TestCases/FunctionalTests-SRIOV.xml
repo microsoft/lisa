@@ -21,7 +21,7 @@
     </test>
     <test>
         <testName>VERIFY-IFUP-NICS-SRIOV</testName>
-        <setupType>SingleVMMaxNetwork</setupType>
+        <setupType>1VM8NIC</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
@@ -127,7 +127,7 @@
         <testName>SRIOV-VERIFY-VF-MULTIPLE-CONNECTION</testName>
         <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-RUN-COMMON-TEST.ps1</testScript>
-        <setupType>SRIOVVMsTwoNICs</setupType>
+        <setupType>SRIOV2NIC</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
@@ -154,7 +154,7 @@
         <testName>SRIOV-VERIFY-VF-MAX-CONNECTION</testName>
         <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-RUN-COMMON-TEST.ps1</testScript>
-        <setupType>SRIOVVMsMaxNICs</setupType>
+        <setupType>SRIOV8NIC</setupType>
         <OverrideVMSize>Standard_D14_v2</OverrideVMSize>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
@@ -179,7 +179,7 @@
         <testName>SRIOV-VERIFY-VF-MAX-CONNECTION-MAX-VCPU</testName>
         <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1,.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-RUN-COMMON-TEST.ps1</testScript>
-        <setupType>SRIOVVMsMaxNICs</setupType>
+        <setupType>SRIOV8NIC</setupType>
         <OverrideVMSize>Standard_D64_v3</OverrideVMSize>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>

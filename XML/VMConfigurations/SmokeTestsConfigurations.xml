@@ -17,7 +17,7 @@
             </VirtualMachine>
         </ResourceGroup>
     </SingleVM>
-    <SingleVMMaxNetwork>
+    <1VM8NIC>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
             <VirtualMachine>
@@ -35,5 +35,5 @@
                 <ExtraNICs>7</ExtraNICs>
             </VirtualMachine>
         </ResourceGroup>
-    </SingleVMMaxNetwork>
+    </1VM8NIC>
 </TestSetup>
