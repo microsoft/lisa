@@ -39,6 +39,9 @@ if [[ "$DISTRO" =~ "redhat" ]] || [[ "$DISTRO" =~ "centos" ]]; then
     fi
 fi
 
+VCPU=$(nproc)
+LogMsg "Number of CPUs detected from this VM: $VCPU"
+
 # check if lsvmbus exists
 lsvmbus_path=$(which lsvmbus)
 if [ -z "$lsvmbus_path" ]; then
