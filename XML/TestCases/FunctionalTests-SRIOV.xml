@@ -21,7 +21,7 @@
     </test>
     <test>
         <testName>VERIFY-IFUP-NICS-SRIOV</testName>
-        <setupType>1VM8NIC</setupType>
+        <setupType>OneVM8NIC</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
