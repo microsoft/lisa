@@ -286,7 +286,7 @@ Function Delete-HyperVGroup([string]$HyperVGroupName, [string]$HyperVHost) {
             Invoke-Command @invokeCommandParams
             if (!$?) {
                 Write-LogInfo "Failed to remove ${vhdPath} using Invoke-Command"
-                $vhdUncPath = $vhdPath -replace '^(.):', "\\$(HyperVHost)\`$1$"
+                $vhdUncPath = $vhdPath -replace '^(.):', "\\${HyperVHost}\`$1$"
                 Write-LogInfo "Removing ${vhdUncPath} ..."
                 Remove-Item -Path $vhdUncPath -Force
                 if (!$? -or (Test-Path $vhdUncPath)) {
@@ -413,10 +413,10 @@ Function Create-HyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML,
             if ($SourceOsVHDPath) {
                 $parentOsVHDPath = Join-Path $SourceOsVHDPath $OsVHD
             }
-            $infoParentOsVHD = Get-VHD $parentOsVHDPath -ComputerName $HyperVHost
             $uriParentOsVHDPath = [System.Uri]$parentOsVHDPath
             if ($uriParentOsVHDPath -and $uriParentOsVHDPath.isUnc) {
                 Write-LogInfo "Parent VHD path ${parentOsVHDPath} is on an SMB share."
+                $infoParentOsVHD = Get-VHD $parentOsVHDPath
                 if ($infoParentOsVHD.VhdType -eq "Differencing") {
                     Write-LogErr "Unsupported differencing disk on the share."
                     $ErrorCount += 1
@@ -427,11 +427,12 @@ Function Create-HyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML,
                 $vhdName = [System.IO.Path]::GetFileNameWithoutExtension($(Split-Path -Leaf $parentOsVHDPath))
                 $newVhdName = "{0}-{1}{2}" -f @($vhdName, $infoParentOsVHD.DiskIdentifier.Replace("-", ""),$vhdSuffix)
                 $localVHDPath = Join-Path $hypervVHDLocalPath $newVhdName
-                if ((Test-Path $localVHDPath)) {
+                $localVHDUncPath = $localVHDPath -replace '^(.):', "\\${HyperVHost}\`$1$"
+                if ((Test-Path $localVHDUncPath)) {
                     Write-LogInfo "${parentOsVHDPath} is already found at path ${localVHDPath}"
                 } else {
                     Write-LogInfo "${parentOsVHDPath} will be copied at path ${localVHDPath}"
-                    Copy-Item -Force $parentOsVHDPath $localVHDPath
+                    Copy-Item -Force $parentOsVHDPath $localVHDUncPath
                 }
                 $parentOsVHDPath = $localVHDPath
             }
