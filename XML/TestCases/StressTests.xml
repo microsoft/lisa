@@ -40,7 +40,7 @@
             <param>LoopCount=1000</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
-        <Category>BVT</Category>
+        <Category>Stress</Category>
         <Area>Stress</Area>
         <Tags>stress</Tags>
         <Priority>1</Priority>
