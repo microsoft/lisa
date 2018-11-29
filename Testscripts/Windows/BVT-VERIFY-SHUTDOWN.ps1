@@ -17,7 +17,7 @@ function Main {
             Write-LogInfo "Trying to start $($AllVMData.RoleName) to collect logs..."
             $null = Start-AzureRmVM -ResourceGroup $AllVMData.ResourceGroupName -name $AllVMData.RoleName
             # Refresh the data in case public IP address changes
-            $global:AllVMData = Get-AllDeployementData -ResourceGroups $AllVMData.ResourceGroupName
+            $global:AllVMData = Get-AllDeploymentData -ResourceGroups $AllVMData.ResourceGroupName
 
             $isSSHOpened = Check-SSHPortsEnabled -AllVMDataObject $AllVMData
             if (!$isSSHOpened) {
