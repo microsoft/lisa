@@ -234,20 +234,6 @@
         <Priority>2</Priority>
     </test>
     <test>
-        <testName>CORE-VERIFY-LIS-MODULES-VERSION</testName>
-        <testScript>CORE-VerifyLISModulesVersion.sh</testScript>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\CORE-VerifyLISModulesVersion.sh</files>
-        <setupType>SingleVM</setupType>
-        <TestParameters>
-            <param>HYPERV_MODULES=(hv_vmbus hv_netvsc hv_storvsc hv_utils hv_balloon hid_hyperv hyperv_keyboard hyperv_fb)</param>
-        </TestParameters>
-        <Platform>HyperV,Azure</Platform>
-        <Category>Functional</Category>
-        <Area>CORE</Area>
-        <Tags>core</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
         <TestName>LSVMBUS</TestName>
         <TestScript>LSVMBUS.sh</TestScript>
         <files>.\TestScripts\Linux\LSVMBUS.sh,.\TestScripts\Linux\utils.sh</files>
