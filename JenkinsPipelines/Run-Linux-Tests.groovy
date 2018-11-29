@@ -28,11 +28,11 @@ def GetFinalVHDName (CustomVHD)
     return FinalVHDName
 }
 
-def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, CustomVHDURL, Kernel, CustomKernelFile, CustomKernelURL, GitUrlForAutomation, GitBranchForAutomation, TestByTestname, TestByCategorisedTestname, TestByCategory, TestByTag, Email, debug )
+def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, CustomVHDURL, Kernel, CustomKernelFile, CustomKernelURL, StorageAccount, GitUrlForAutomation, GitBranchForAutomation, TestByTestname, TestByCategorisedTestname, TestByCategory, TestByTag, Email, debug )
 {
     if( (TestByTestname != "" && TestByTestname != null) || (TestByCategorisedTestname != "" && TestByCategorisedTestname != null) || (TestByCategory != "" && TestByCategory != null) || (TestByTag != "" && TestByTag != null) )
     {
-        node('azure') 
+        node('azure')
         {
             //Define Varialbles
             def FinalVHDName = ""
@@ -74,16 +74,16 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                         {
                             timeout (10800)
                             {
-                                stage ("${CurrentExecutionName}") 
+                                stage ("${CurrentExecutionName}")
                                 {
-                                    node('azure') 
+                                    node('azure')
                                     {
                                         println(CurrentExecution)
                                         def TestPlatform = CurrentExecution.split(">>")[0]
                                         def Testname = CurrentExecution.split(">>")[1]
                                         def TestRegion = CurrentExecution.split(">>")[2]
                                         Prepare()
-                                        withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')]) 
+                                        withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')])
                                         {
                                             RunPowershellCommand(".\\Run-LisaV2.ps1" +
                                             " -ExitWithZero" +
@@ -91,13 +91,14 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                                             " -TestLocation '${TestRegion}'" +
                                             " -RGIdentifier '${JenkinsUser}'" +
                                             " -TestPlatform '${TestPlatform}'" +
+                                            " -StorageAccount '${StorageAccount}'" +
                                             FinalImageSource +
                                             " -TestNames '${Testname}'"
                                             )
                                             archiveArtifacts '*-buildlogs.zip'
                                             junit "Report\\*-junit.xml"
                                             emailext body: '${SCRIPT, template="groovy-html.template"}', replyTo: '$DEFAULT_REPLYTO', subject: "${ImageSource}", to: "${Email}"
-                                        }                                
+                                        }
                                     }
                                 }
                             }
@@ -110,7 +111,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                         finally
                         {
                         
-                        }    			
+                        }
                     }
                 }
                 parallel CurrentTests
@@ -129,9 +130,9 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                         {
                             timeout (10800)
                             {
-                                stage ("${CurrentExecutionName}") 
+                                stage ("${CurrentExecutionName}")
                                 {
-                                    node('azure') 
+                                    node('azure')
                                     {
                                         println(CurrentExecution)
                                         def TestPlatform = CurrentExecution.split(">>")[0]
@@ -140,7 +141,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                                         def TestName = CurrentExecution.split(">>")[3]
                                         def TestRegion = CurrentExecution.split(">>")[4]
                                         Prepare()
-                                        withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')]) 
+                                        withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')])
                                         {
                                             RunPowershellCommand(".\\Run-LisaV2.ps1" +
                                             " -ExitWithZero" +
@@ -148,13 +149,14 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                                             " -TestLocation '${TestRegion}'" +
                                             " -RGIdentifier '${JenkinsUser}'" +
                                             " -TestPlatform '${TestPlatform}'" +
+                                            " -StorageAccount '${StorageAccount}'" +
                                             FinalImageSource +
                                             " -TestNames '${TestName}'"
                                             )
                                             archiveArtifacts '*-buildlogs.zip'
                                             junit "Report\\*-junit.xml"
                                             emailext body: '${SCRIPT, template="groovy-html.template"}', replyTo: '$DEFAULT_REPLYTO', subject: "${ImageSource}", to: "${Email}"
-                                        }                                
+                                        }
                                     }
                                 }
                             }
@@ -167,7 +169,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                         finally
                         {
                         
-                        }    			
+                        }
                     }
                 }
                 parallel CurrentTests
@@ -186,9 +188,9 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                         {
                             timeout (10800)
                             {
-                                stage ("${CurrentExecutionName}") 
+                                stage ("${CurrentExecutionName}")
                                 {
-                                    node('azure') 
+                                    node('azure')
                                     {
                                         println(CurrentExecution)
                                         def TestPlatform = CurrentExecution.split(">>")[0]
@@ -196,7 +198,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                                         def TestArea = CurrentExecution.split(">>")[2]
                                         def TestRegion = CurrentExecution.split(">>")[3]
                                         Prepare()
-                                        withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')]) 
+                                        withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')])
                                         {
                                             RunPowershellCommand(".\\Run-LisaV2.ps1" +
                                             " -ExitWithZero" +
@@ -206,12 +208,13 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                                             " -TestPlatform '${TestPlatform}'" +
                                             " -TestCategory '${TestCategory}'" +
                                             " -TestArea '${TestArea}'" +
+                                            " -StorageAccount '${StorageAccount}'" +
                                             FinalImageSource
                                             )
                                             archiveArtifacts '*-buildlogs.zip'
                                             junit "Report\\*-junit.xml"
                                             emailext body: '${SCRIPT, template="groovy-html.template"}', replyTo: '$DEFAULT_REPLYTO', subject: "${ImageSource}", to: "${Email}"
-                                        }                                
+                                        }
                                     }
                                 }
                             }
@@ -224,10 +227,10 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                         finally
                         {
                         
-                        }    			
+                        }
                     }
                 }
-                parallel CurrentTests        
+                parallel CurrentTests
             }
             if (TestByTag != "" && TestByTag != null)
             {
@@ -243,16 +246,16 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                         {
                             timeout (10800)
                             {
-                                stage ("${CurrentExecutionName}") 
+                                stage ("${CurrentExecutionName}")
                                 {
-                                    node('azure') 
+                                    node('azure')
                                     {
                                         println(CurrentExecution)
                                         def TestPlatform = CurrentExecution.split(">>")[0]
                                         def TestTag = CurrentExecution.split(">>")[1]
                                         def TestRegion = CurrentExecution.split(">>")[2]
                                         Prepare()
-                                        withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')]) 
+                                        withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')])
                                         {
                                             RunPowershellCommand(".\\Run-LisaV2.ps1" +
                                             " -ExitWithZero" +
@@ -261,12 +264,13 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                                             " -RGIdentifier '${JenkinsUser}'" +
                                             " -TestPlatform '${TestPlatform}'" +
                                             " -TestTag '${TestTag}'" +
+                                            " -StorageAccount '${StorageAccount}'" +
                                             FinalImageSource
                                             )
                                             archiveArtifacts '*-buildlogs.zip'
                                             junit "Report\\*-junit.xml"
                                             emailext body: '${SCRIPT, template="groovy-html.template"}', replyTo: '$DEFAULT_REPLYTO', subject: "${ImageSource}", to: "${Email}"
-                                        }                                
+                                        }
                                     }
                                 }
                             }
@@ -279,13 +283,13 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                         finally
                         {
                         
-                        }    			
+                        }
                     }
                 }
-                parallel CurrentTests          
+                parallel CurrentTests
             }
         }
-    }  
+    }
 }
 
 def Prepare()
@@ -317,7 +321,7 @@ stage ("Inspect VHD")
             Prepare()
             println "Running Inspect file"
             withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')])
-            {            
+            {
                 RunPowershellCommand (".\\JenkinsPipelines\\Scripts\\InspectVHD.ps1 -XMLSecretFile '${Azure_Secrets_File}'")
             }
             stash includes: 'CustomVHD.azure.env', name: 'CustomVHD'
@@ -340,21 +344,20 @@ stage('Upload VHD to Azure')
                 RunPowershellCommand (".\\Utilities\\AddAzureRmAccountFromSecretsFile.ps1 -customSecretsFilePath '${Azure_Secrets_File}';" +
                 ".\\Utilities\\UploadVHDtoAzureStorage.ps1 -Region westus2 -VHDPath 'Q:\\Temp\\${FinalVHDName}' -DeleteVHDAfterUpload -NumberOfUploaderThreads 64"
                 )
-            }    
+            }
         }
     }
 }
 
 stage('Capture VHD with Custom Kernel')
 {
-
     def KernelFile = ""
     def FinalImageSource = ""
     //Inspect the kernel
     if ( (CustomKernelFile != "" && CustomKernelFile != null) || (CustomKernelURL != "" && CustomKernelURL != null) )
     {
         node("azure")
-        {        
+        {
             if ((CustomVHD != "" && CustomVHD != null) || (CustomVHDURL != "" && CustomVHDURL != null))
             {
                 unstash 'CustomVHD'
@@ -364,7 +367,7 @@ stage('Capture VHD with Custom Kernel')
             else
             {
                 FinalImageSource = " -ARMImageName '${ImageSource}'"
-            }    
+            }
             Prepare()
             withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')])
             {
@@ -379,11 +382,12 @@ stage('Capture VHD with Custom Kernel')
                 " -RGIdentifier '${JenkinsUser}'" +
                 " -TestPlatform 'Azure'" +
                 " -CustomKernel 'localfile:${KernelFile}'" +
+                " -StorageAccount '${StorageAccount}'" +
                 FinalImageSource +
                 " -TestNames 'CAPTURE-VHD-BEFORE-TEST'"
                 )
                 CapturedVHD = readFile 'CapturedVHD.azure.env'
-                stash includes: 'CapturedVHD.azure.env', name: 'CapturedVHD.azure.env'           
+                stash includes: 'CapturedVHD.azure.env', name: 'CapturedVHD.azure.env'
             }
             println("Captured VHD : ${CapturedVHD}")
         }
@@ -415,7 +419,7 @@ stage('Copy VHD to other regions')
                 CurrentTestRegions = readFile 'CurrentTestRegions.azure.env'
                 RunPowershellCommand (".\\Utilities\\AddAzureRmAccountFromSecretsFile.ps1  customSecretsFilePath '${Azure_Secrets_File}';" +
                 ".\\Utilities\\CopyVHDtoOtherStorageAccount.ps1 -SourceLocation westus2 -destinationLocations '${CurrentTestRegions}' -sourceVHDName '${FinalVHDName}' -DestinationAccountType Standard"
-                )             
+                )
             }
         }
     }
@@ -424,17 +428,17 @@ stage('Copy VHD to other regions')
 
 stage("TestByTestname")
 {
-    ExecuteTest ( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, CustomVHDURL, Kernel, CustomKernelFile, CustomKernelURL, GitUrlForAutomation, GitBranchForAutomation, TestByTestname, null, null, null, Email, debug )
+    ExecuteTest ( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, CustomVHDURL, Kernel, CustomKernelFile, CustomKernelURL, StorageAccount, GitUrlForAutomation, GitBranchForAutomation, TestByTestname, null, null, null, Email, debug )
 }
 stage("TestByCategorisedTestname")
 {
-    ExecuteTest ( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, CustomVHDURL, Kernel, CustomKernelFile, CustomKernelURL, GitUrlForAutomation, GitBranchForAutomation, null, TestByCategorisedTestname, null, null, Email, debug )
+    ExecuteTest ( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, CustomVHDURL, Kernel, CustomKernelFile, CustomKernelURL, StorageAccount, GitUrlForAutomation, GitBranchForAutomation, null, TestByCategorisedTestname, null, null, Email, debug )
 }
 stage("TestByCategory")
 {
-    ExecuteTest ( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, CustomVHDURL, Kernel, CustomKernelFile, CustomKernelURL, GitUrlForAutomation, GitBranchForAutomation, null, null, TestByCategory, null, Email, debug )
+    ExecuteTest ( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, CustomVHDURL, Kernel, CustomKernelFile, CustomKernelURL, StorageAccount, GitUrlForAutomation, GitBranchForAutomation, null, null, TestByCategory, null, Email, debug )
 }
 stage("TestByTag")
 {
-    ExecuteTest ( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, CustomVHDURL, Kernel, CustomKernelFile, CustomKernelURL, GitUrlForAutomation, GitBranchForAutomation, null, null, null, TestByTag, Email, debug )
+    ExecuteTest ( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, CustomVHDURL, Kernel, CustomKernelFile, CustomKernelURL, StorageAccount, GitUrlForAutomation, GitBranchForAutomation, null, null, null, TestByTag, Email, debug )
 }
