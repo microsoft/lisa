@@ -6,6 +6,7 @@ import os
 
 white_list_xml = "ignorable-walalog-errors.xml"
 
+
 def RunTest():
     UpdateState("TestRunning")
     RunLog.info("Checking for ERROR messages in waagent.log...")
@@ -37,8 +38,9 @@ def RunTest():
             ResultLog.info('PASS')
         UpdateState("TestCompleted")
 
+
 def RemoveIgnorableMessages(messages, keywords):
-    matchstring = re.findall(keywords,messages,re.M)
+    matchstring = re.findall(keywords, messages, re.M)
     matchcount = 0
     index = 0
 
@@ -49,7 +51,7 @@ def RemoveIgnorableMessages(messages, keywords):
 
         while matchcount > 0:
             matchcount -= 1
-            messages = messages.replace(matchstring[index],'')
+            messages = messages.replace(matchstring[index], '')
             index += 1
 
         valid_list = []

@@ -3,6 +3,7 @@
 # Licensed under the Apache License.
 from azuremodules import *
 
+
 def RunTest(command):
     UpdateState("TestRunning")
     RunLog.info("Checking root device timeout...")

@@ -8,6 +8,7 @@ import os.path
 root_bash_hist_file = '/root/.bash_history'
 root_bash_hist_file_default = '/root/default_bash_history'
 
+
 def RunTest():
 	UpdateState("TestRunning")
 	if os.path.exists(root_bash_hist_file_default):
@@ -30,11 +31,12 @@ def RunTest():
 
 	UpdateState("TestCompleted")
 
+
 def IsBashHistFileEmpty(file):
 	if os.stat(file).st_size == 0:
 		return True, ''
 	else:
-		with open(file,'r') as f:
+		with open(file, 'r') as f:
 			return False, f.read()
 
 RunTest()

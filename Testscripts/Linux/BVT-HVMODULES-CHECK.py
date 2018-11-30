@@ -3,9 +3,10 @@
 # Licensed under the Apache License.
 from azuremodules import *
 
+
 def RunTest(command):
     UpdateState("TestStarted")
-    hvModules=["hv_storvsc","hv_netvsc","hv_vmbus","hv_utils","hid_hyperv",]
+    hvModules=["hv_storvsc", "hv_netvsc", "hv_vmbus", "hv_utils", "hid_hyperv", ]
 
     output = Run('grep CONFIG_HYPERV_STORAGE=y /boot/config-$(uname -r)')
     if output:

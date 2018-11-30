@@ -3,6 +3,7 @@
 # Licensed under the Apache License.
 from azuremodules import *
 
+
 def RunTest():
     UpdateState("TestRunning")
     if (IsUbuntu()) :

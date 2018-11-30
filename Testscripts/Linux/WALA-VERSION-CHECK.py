@@ -9,6 +9,7 @@ constants_path = os.path.join(file_path, "constants.sh")
 params = GetParams(constants_path)
 distro = params["DETECTED_DISTRO"]
 
+
 def RunTest(command):
     UpdateState("TestRunning")
     RunLog.info("Checking WALinuxAgent Version")

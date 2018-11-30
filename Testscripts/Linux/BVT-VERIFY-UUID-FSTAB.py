@@ -4,6 +4,7 @@
 from azuremodules import *
 import re
 
+
 def RunTest():
     UpdateState("TestRunning")
     uuid_from_demesg = 0

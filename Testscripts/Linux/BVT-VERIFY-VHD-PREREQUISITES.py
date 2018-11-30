@@ -12,6 +12,7 @@ parser.add_argument('-d', '--distro', help='Please mention which distro you are 
 args = parser.parse_args()
 distro = args.distro
 
+
 def verify_default_targetpw(distro):
     RunLog.info("Checking Defaults targetpw is commented or not..")
     sudoers_out = Run("cat /etc/sudoers")
@@ -28,6 +29,7 @@ def verify_default_targetpw(distro):
         RunLog.info("Defaults targetpw is not present in /etc/sudoers")
         print(distro+"_TEST_SUDOERS_VERIFICATION_SUCCESS")
         return True
+
 
 def verify_grub(distro):
     import os.path
@@ -84,6 +86,7 @@ def verify_grub(distro):
             RunLog.error("reserve=0x1f0,0x8 is present")
         return False
 
+
 def verify_network_manager(distro):
     RunLog.info("Verifying that network manager is not installed")
     n_out = Run ("rpm -q NetworkManager")
@@ -108,6 +111,7 @@ def verify_network_manager(distro):
             print(distro+"_TEST_NETWORK_MANAGER_INSTALLED")
             return False
 
+
 def verify_network_file_in_sysconfig(distro):
     import os.path
     RunLog.info("Checking if network file exists in /etc/sysconfig")
@@ -128,11 +132,12 @@ def verify_network_file_in_sysconfig(distro):
             print(distro+"_TEST_NETWORK_FILE_ERROR")
             return False
 
+
 def verify_ifcfg_eth0(distro):
     RunLog.info("Verifying contents of ifcfg-eth0 file")
     if distro == "CENTOS" or distro == "ORACLELINUX" or distro == "REDHAT" or distro == "FEDORA":
         i_out = Run("cat /etc/sysconfig/network-scripts/ifcfg-eth0")
-        i_out = i_out.replace('"','')
+        i_out = i_out.replace('"', '')
         #if "DEVICE=eth0" in i_out and "ONBOOT=yes" in i_out and "BOOTPROTO=dhcp" in i_out and "DHCP=yes" in i_out:
         if "DEVICE=eth0" in i_out and "ONBOOT=yes" in i_out and "BOOTPROTO=dhcp" in i_out  :
             RunLog.info("all required parameters exists.")
@@ -149,6 +154,7 @@ def verify_ifcfg_eth0(distro):
             #    RunLog.error("DHCP=yes not present in ifcfg-eth0")
             print(distro+"_TEST_IFCFG_ETH0_FILE_ERROR")
             return False
+
 
 def verify_udev_rules(distro):
     import os.path

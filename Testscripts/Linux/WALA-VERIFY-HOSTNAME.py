@@ -10,6 +10,7 @@ constants_path = os.path.join(file_path, "constants.sh")
 params = GetParams(constants_path)
 expectedHostname = params["ROLENAME"]
 
+
 def RunTest(expectedHost):
     UpdateState("TestRunning")
     if CheckHostName(expectedHost) and CheckFQDN(expectedHost):
@@ -18,6 +19,7 @@ def RunTest(expectedHost):
     else:
         ResultLog.error('FAIL')
         UpdateState("TestCompleted")
+
 
 def CheckHostName(expectedHost):
     RunLog.info("Checking hostname...")
@@ -28,6 +30,7 @@ def CheckHostName(expectedHost):
     else:
         RunLog.error('Hostname change failed. Current hostname : {0} Expected hostname : {1}'.format(output, expectedHost))
         return False
+
 
 def CheckFQDN(expectedHost):
     RunLog.info("Checking fqdn...")

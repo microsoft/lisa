@@ -47,6 +47,7 @@ def RunTest():
             ResultLog.info('PASS')
     UpdateState("TestCompleted")
 
+
 def RemoveIgnorableMessages(messages, keywords_xml_node):
     message_list = messages.strip().split('\n')
     valid_list = []

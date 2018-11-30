@@ -10,6 +10,7 @@ expectedString = "ClientAliveInterval"
 commentedLine = "#ClientAliveInterval"
 '''
 
+
 def RunTest():
     UpdateState("TestRunning")
     RunLog.info("Checking ClientAliveInterval is into the /etc/ssh/sshd_config file")

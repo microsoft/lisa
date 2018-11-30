@@ -17,6 +17,7 @@ passwd = params["PASSWORD"]
 
 distro = platform.dist()
 
+
 def RunTest():
     UpdateState("TestRunning")
     if(distro[0] == "CoreOS"):
@@ -44,6 +45,7 @@ def RunTest():
         RunLog.error('Verify waagent.log fail, the log file does not contain the verbose logs')
         ResultLog.error('FAIL')
         UpdateState("TestCompleted")
+
 
 def Restartwaagent():
     if (distro[0] == "CoreOS"):

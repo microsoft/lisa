@@ -4,6 +4,7 @@
 from azuremodules import *
 import os.path
 
+
 def RunTest(command):
     UpdateState("TestRunning")
     RunLog.info("Checking if swap disk is enable or not..")

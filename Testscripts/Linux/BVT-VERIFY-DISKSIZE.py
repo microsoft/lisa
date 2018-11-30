@@ -13,6 +13,7 @@ args = parser.parse_args()
 # if no value specified then stop
 expectedDiskSize = args.expected
 
+
 def RunTest(expectedSize):
     UpdateState("TestRunning")
     RunLog.info("Checking DiskSize...")

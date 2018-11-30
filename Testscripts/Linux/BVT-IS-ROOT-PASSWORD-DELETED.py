@@ -3,6 +3,7 @@
 # Licensed under the Apache License.
 from azuremodules import *
 
+
 def RunTest():
     UpdateState("TestRunning")
     RunLog.info("Checking if root password is deleted or not...")

@@ -23,7 +23,7 @@ print(sys.version)
 
 #THIS LOG WILL COLLECT ALL THE LOGS THAT ARE RUN WHILE THE TEST IS GOING ON...
 RunLog = logging.getLogger("RuntimeLog : ")
-WRunLog = logging.FileHandler('Runtime.log','w')
+WRunLog = logging.FileHandler('Runtime.log', 'w')
 RunFormatter = logging.Formatter('%(asctime)s : %(levelname)s : %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
 WRunLog.setFormatter(RunFormatter)
 RunLog.setLevel(logging.DEBUG)
@@ -34,7 +34,7 @@ RunLog.addHandler(WRunLog)
 
 #This will collect Result from every test case :
 ResultLog = logging.getLogger("Result : ")
-WResultLog = logging.FileHandler('Summary.log','w')
+WResultLog = logging.FileHandler('Summary.log', 'w')
 #ResultFormatter = logging.Formatter('%(asctime)s : %(levelname)s : %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
 ResultFormatter = logging.Formatter('%(message)s')
 WResultLog.setFormatter(ResultFormatter)
@@ -43,6 +43,7 @@ ResultScreen = logging.StreamHandler()
 ResultScreen.setFormatter(ResultFormatter)
 #ResultLog.addHandler(ResultScreen)
 ResultLog.addHandler(WResultLog)
+
 
 def UpdateRepos(current_distro):
     RunLog.info ("\nUpdating the repositoriy information...")
@@ -60,6 +61,7 @@ def UpdateRepos(current_distro):
     RunLog.info ("Updating the repositoriy information... [done]")
     return True
 
+
 def GetParams(file_path):
     params = dict()
 
@@ -71,7 +73,8 @@ def GetParams(file_path):
                 param_value = line.split("=")[1].strip().strip('"')
                 params[param_name] = param_value
     return params
-    
+ 
+ 
 def DownloadUrl(url, destination_folder, output_file=None):
     cmd = "wget -P "+destination_folder+" "+url+ " 2>&1"
     if output_file is not None:
@@ -89,6 +92,7 @@ def DownloadUrl(url, destination_folder, output_file=None):
         RunLog.info (rtrn)
         return False
 
+
 def DetectDistro():
     distribution = 'unknown'
     version = 'unknown'
@@ -101,10 +105,10 @@ def DetectDistro():
 
     for line in outputlist:
         line = re.sub('"', '', line)
-        if (re.match(r'^ID=(.*)',line,re.M|re.I) ):
+        if (re.match(r'^ID=(.*)', line, re.M|re.I) ):
             matchObj = re.match( r'^ID=(.*)', line, re.M|re.I)
             distribution  = matchObj.group(1)
-        elif (re.match(r'^VERSION_ID=(.*)',line,re.M|re.I) ):
+        elif (re.match(r'^VERSION_ID=(.*)', line, re.M|re.I) ):
             matchObj = re.match( r'^VERSION_ID=(.*)', line, re.M|re.I)
             version = matchObj.group(1)
 
@@ -114,41 +118,44 @@ def DetectDistro():
     if(distribution == 'unknown'):
         # Finding the Distro
         for line in outputlist:
-            if (re.match(r'.*Ubuntu.*',line,re.M|re.I) ):
+            if (re.match(r'.*Ubuntu.*', line, re.M|re.I) ):
                 distribution = 'ubuntu'
                 break
-            elif (re.match(r'.*SUSE Linux.*',line,re.M|re.I)):
+            elif (re.match(r'.*SUSE Linux.*', line, re.M|re.I)):
                 distribution = 'SUSE'
                 break
-            elif (re.match(r'.*openSUSE.*',line,re.M|re.I)):
+            elif (re.match(r'.*openSUSE.*', line, re.M|re.I)):
                 distribution = 'opensuse'
                 break
-            elif (re.match(r'.*centos.*',line,re.M|re.I)):
+            elif (re.match(r'.*centos.*', line, re.M|re.I)):
                 distribution = 'centos'
                 break
-            elif (re.match(r'.*Oracle.*',line,re.M|re.I)):
+            elif (re.match(r'.*Oracle.*', line, re.M|re.I)):
                 distribution = 'Oracle'
                 break
-            elif (re.match(r'.*Red Hat.*',line,re.M|re.I)):
+            elif (re.match(r'.*Red Hat.*', line, re.M|re.I)):
                 distribution = 'rhel'
                 break
-            elif (re.match(r'.*Fedora.*',line,re.M|re.I)):
+            elif (re.match(r'.*Fedora.*', line, re.M|re.I)):
                 distribution = 'fedora'
                 break
     return [distribution, version]
+
 
 def FileGetContents(filename):
     with open(filename) as f:
         return f.read()
 
+
 def ExecMultiCmdsLocalSudo(cmd_list):
-    f = open('/tmp/temp_script.sh','w')
+    f = open('/tmp/temp_script.sh', 'w')
     for line in cmd_list:
             f.write(line+'\n')
     f.close()
     Run ("chmod +x /tmp/temp_script.sh")
     Run ("/tmp/temp_script.sh 2>&1 > /tmp/exec_multi_cmds_local_sudo.log")
     return FileGetContents("/tmp/exec_multi_cmds_local_sudo.log")
+
 
 def DetectLinuxDistro():
     if os.path.isfile("/etc/redhat-release"):
@@ -163,12 +170,14 @@ def DetectLinuxDistro():
         return (True, "ClearOS")
     return (False, "Unknown")
 
+
 def IsUbuntu():
         cmd = "cat /etc/issue"
         tmp = Run(cmd)
         if type(tmp) == bytes:
             tmp = tmp.decode("utf-8")
         return ("Ubuntu" in tmp)
+
 
 def ParseWalaConf2Dict(walaconfpath):
     d = None
@@ -178,13 +187,14 @@ def ParseWalaConf2Dict(walaconfpath):
         configs_list = [x.strip().split()[0] for x in lines if not x.startswith('#') and not x.startswith('\n')]
         for x in configs_list:
             try:
-                k,v=x.split('=')
-                d.setdefault(k,v)
+                k, v=x.split('=')
+                d.setdefault(k, v)
             except Exception:
                 pass
     else:
         RunLog.error("%s is not exists, please check." % walaconfpath)
     return d
+
 
 def GetWalaConfPath():
     if os.path.exists("/etc/lsb-release") and int(Run("cat /etc/lsb-release | grep -i coreos | wc -l")) > 0:
@@ -193,6 +203,7 @@ def GetWalaConfPath():
         return "/usr/share/defaults/waagent/waagent.conf"
     else:
         return "/etc/waagent.conf"
+
 
 def GetResourceDiskMountPoint():
     walacfg_path = GetWalaConfPath()
@@ -204,6 +215,7 @@ def GetResourceDiskMountPoint():
     else:
         RunLog.info("ResourceDisk handled by waagent.")
         return walacfg_dict['ResourceDisk.MountPoint']
+
 
 def RunGetOutput(cmd):
     try:
@@ -220,6 +232,7 @@ def RunGetOutput(cmd):
                          errors="backslashreplace")
         return e.returncode, output
     return 0, output
+
 
 def Run(cmd):
         proc=subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)
@@ -239,6 +252,8 @@ def Run(cmd):
 #use method communicate() instead of wait()
 #This will deadlock when using stdout=PIPE and/or stderr=PIPE and the child process generates enough output to a pipe
 #such that it blocks waiting for the OS pipe buffer to accept more data. Use communicate() to avoid that.
+
+
 def RunUpdate(cmd):
         proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)
         retval = proc.communicate()
@@ -254,13 +269,16 @@ def RunUpdate(cmd):
         if exception == 1:
             return op
 
+
 def JustRun(cmd):
     return commands.getoutput(cmd)
+
 
 def UpdateState(testState):
     stateFile = open('state.txt', 'w')
     stateFile.write(testState)
     stateFile.close()
+
 
 def GetFileContents(filepath):
     file = None
@@ -307,13 +325,14 @@ def YumPackageInstall(package):
     RunLog.error((package + ": package installation failed!\n" +output))
     return False
 
-def AptgetPackageInstall(package,dbpasswd = "root"):
+
+def AptgetPackageInstall(package, dbpasswd = "root"):
     RunLog.info("Installing Package: " + package)
     # Identify the package for Ubuntu
     # We Haven't installed mysql-secure_installation for Ubuntu Distro
     if (package == 'mysql-server'):
         RunLog.info( "apt-get function package:" + package)
-        cmds = ("export DEBIAN_FRONTEND=noninteractive","echo mysql-server mysql-server/root_password select " + dbpasswd + " | debconf-set-selections", "echo mysql-server mysql-server/root_password_again select " + dbpasswd  + "| debconf-set-selections", "apt-get install -y mysql-server")
+        cmds = ("export DEBIAN_FRONTEND=noninteractive", "echo mysql-server mysql-server/root_password select " + dbpasswd + " | debconf-set-selections", "echo mysql-server mysql-server/root_password_again select " + dbpasswd  + "| debconf-set-selections", "apt-get install -y mysql-server")
         output = ExecMultiCmdsLocalSudo(cmds)
     else:
         cmds = ("export DEBIAN_FRONTEND=noninteractive", "apt-get install -y "+package)
@@ -351,6 +370,7 @@ def AptgetPackageInstall(package,dbpasswd = "root"):
     RunLog.info("Error log: "+output)
     return False
 
+
 def ZypperPackageInstall(package):
     RunLog.info( "\nzypper_package_install: " + package)
 
@@ -374,6 +394,7 @@ def ZypperPackageInstall(package):
     RunLog.error((package + ": package installation failed!\n"+output))
     return False
 
+
 def ZypperPackageRemove(package):
     RunLog.info( "\nzypper_package_remove: " + package)
 
@@ -396,7 +417,8 @@ def ZypperPackageRemove(package):
     #Consider package remove failed if non of the above matches.
     RunLog.error((package + ": package remove failed!\n"+output))
     return False
-    
+ 
+ 
 def InstallPackage(package):
     RunLog.info( "\nInstall_package: "+package)
     [current_distro, distro_version] = DetectDistro()
@@ -410,6 +432,7 @@ def InstallPackage(package):
         RunLog.error((package + ": package installation failed!"))
         RunLog.info((current_distro + ": Unrecognised Distribution OS Linux found!"))
         return False
+
 
 def InstallDeb(file_path):
     RunLog.info( "\nInstalling package: "+file_path)
@@ -425,6 +448,7 @@ def InstallDeb(file_path):
             
     RunLog.info(file_path+": Installation failed"+output)
     return False
+
 
 def InstallRpm(file_path, package_name):
     RunLog.info( "\nInstalling package: "+file_path)
@@ -454,6 +478,7 @@ def InstallRpm(file_path, package_name):
 
 # iperf server
 
+
 def GetServerCommand():
         #for error checking
         parser = argparse.ArgumentParser()
@@ -478,9 +503,11 @@ def GetServerCommand():
 
 #_________________________________________________________________________________________________________________________________________________
 
+
 def StopServer():
     RunLog.info("Killing iperf server if running ..")
     Run("killall iperf")
+
 
 def StartServer(server):
     StopServer()
@@ -506,6 +533,7 @@ def StartServer(server):
         UpdateState('Aborted')
 
 #_______________________________________________________________________________________________________________________________________________
+
 
 def AnalyseClientUpdateResult():
         iperfstatus = open('iperf-client.txt', 'r')
@@ -588,13 +616,15 @@ vnetDomain_rev_filepath = ''
 dns_server_ip = ''
 resolv_conf_filepath = ''
 hosts_filepath = ''
+
+
 def SetVnetGlobalParameters():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', '--dns_server_ip', help='DNS server IP address',required=True)
+    parser.add_argument('-d', '--dns_server_ip', help='DNS server IP address', required=True)
     parser.add_argument('-D', '--vnetDomain_db_filepath', help='VNET Domain db filepath', required=True)
-    parser.add_argument('-r', '--vnetDomain_rev_filepath', help='VNET rev filepath',required=True)
+    parser.add_argument('-r', '--vnetDomain_rev_filepath', help='VNET rev filepath', required=True)
     parser.add_argument('-R', '--resolv_conf_filepath', help='resolv.conf filepath', required=True)
-    parser.add_argument('-h', '--hosts_filepath', help='hosts filepath',required = True)
+    parser.add_argument('-h', '--hosts_filepath', help='hosts filepath', required = True)
     args = parser.parse_args()
     global dns_server_ip
     global vnetDomain_db_filepath
@@ -606,6 +636,7 @@ def SetVnetGlobalParameters():
     dns_server_ip = str(args.dns_server_ip)
     resolv_conf_filepath = str(args.resolv_conf_filepath)
     hosts_filepath = str(args.hosts_filepath)
+
 
 def GetFileContentsByLines(filepath):
     file = None
@@ -621,24 +652,26 @@ def GetFileContentsByLines(filepath):
     finally:
         file.close()
 
+
 def RemoveStringMatchLinesFromFile(filepath, matchString):
     try:
         old_file_lines = GetFileContentsByLines(filepath)
-        NewFile =  open(filepath,'w')
+        NewFile =  open(filepath, 'w')
         for eachLine in old_file_lines:
             if not matchString in eachLine :
                 NewFile.writelines(eachLine)
 #By the end of this for loop, Selected lines will be removed.
             else:
-                print("removed %s from %s" % ( eachLine.replace('\n',''), filepath))
+                print("removed %s from %s" % ( eachLine.replace('\n', ''), filepath))
         NewFile.close()
     except:
         print ('File : %s not found.' % filepath)
 
+
 def ReplaceStringMatchLinesFromFile(filepath, matchString, newLine):
     try:
         old_file_lines = GetFileContentsByLines(filepath)
-        NewFile =  open(filepath,'w')
+        NewFile =  open(filepath, 'w')
         for eachLine in old_file_lines:
             if matchString in eachLine :
                 if '\n' in newLine:
@@ -651,9 +684,10 @@ def ReplaceStringMatchLinesFromFile(filepath, matchString, newLine):
     except:
         print ('File : %s not found.' % filepath)
 
+
 def GetStringMatchCount(filepath, matchString):
     #try:
-        NewFile =  open(filepath,'r')
+        NewFile =  open(filepath, 'r')
         NewFile.close()
         matchCount = 0
         file_lines = GetFileContentsByLines(filepath)
@@ -664,13 +698,15 @@ def GetStringMatchCount(filepath, matchString):
     #except:
         print ('File : %s not found.' % filepath)
 
+
 def RemoveICAVMsFromDBfile(vnetDomain_db_filepath):
     matchString = 'ICA-'
-    RemoveStringMatchLinesFromFile(vnetDomain_db_filepath,matchString)
+    RemoveStringMatchLinesFromFile(vnetDomain_db_filepath, matchString)
+
 
 def RemoveICAVMsFromREVfile(vnetDomain_rev_filepath):
     matchString = 'ICA-'
-    RemoveStringMatchLinesFromFile(vnetDomain_rev_filepath,matchString)
+    RemoveStringMatchLinesFromFile(vnetDomain_rev_filepath, matchString)
 
 
 def RetryOperation(operation, description, expectResult=None, maxRetryCount=18, retryInterval=10):
@@ -695,7 +731,8 @@ def RetryOperation(operation, description, expectResult=None, maxRetryCount=18, 
         return ret
     return None
 
-def AppendTextToFile(filepath,textString):
+
+def AppendTextToFile(filepath, textString):
     #THIS FUNCTION DONES NOT CREATES ANY FILE. THE FILE MUST PRESENT AT THE SPECIFIED LOCATION.
     try:
         fileToEdit = open ( filepath , 'r' )
@@ -710,9 +747,9 @@ def AppendTextToFile(filepath,textString):
         print('File %s not found' % filepath)
 
 
-def AddICAVMsToDnsServer(HostnameDIP,vnetDomain_db_filepath,vnetDomain_rev_filepath):
+def AddICAVMsToDnsServer(HostnameDIP, vnetDomain_db_filepath, vnetDomain_rev_filepath):
     #SetVnetGlobalParameters()
-    vnetDomain=(vnetDomain_db_filepath.split("/"))[len((vnetDomain_db_filepath.split("/")))-1].replace(".db","")
+    vnetDomain=(vnetDomain_db_filepath.split("/"))[len((vnetDomain_db_filepath.split("/")))-1].replace(".db", "")
     #PARSE THE VM DETAILS FIRST.
     separatedVMs = HostnameDIP.split('^')
     vmCounter = 0
@@ -723,14 +760,14 @@ def AddICAVMsToDnsServer(HostnameDIP,vnetDomain_db_filepath,vnetDomain_rev_filep
         eachVMHostname = eachVMdata[0]
         eachVMDIP = eachVMdata[1]
         lastDigitofVMDIP = eachVMDIP.split('.')[3]
-        vnetDomainDBstring = '%s\tIN\tA\t%s\n' % (eachVMHostname,eachVMDIP)
-        print(vnetDomainDBstring.replace('\n',''))
-        AppendTextToFile(vnetDomain_db_filepath,vnetDomainDBstring)
-        vnetDomainREVstring = '%s\tIN\tPTR\t%s.%s.\n' % (lastDigitofVMDIP,eachVMHostname,vnetDomain)
-        AppendTextToFile(vnetDomain_rev_filepath,vnetDomainREVstring)
-        print(vnetDomainREVstring.replace('\n',''))
-        isDBFileEntry =  GetStringMatchCount(vnetDomain_db_filepath,vnetDomainDBstring)
-        isREVFileEntry =  GetStringMatchCount(vnetDomain_rev_filepath,vnetDomainREVstring)
+        vnetDomainDBstring = '%s\tIN\tA\t%s\n' % (eachVMHostname, eachVMDIP)
+        print(vnetDomainDBstring.replace('\n', ''))
+        AppendTextToFile(vnetDomain_db_filepath, vnetDomainDBstring)
+        vnetDomainREVstring = '%s\tIN\tPTR\t%s.%s.\n' % (lastDigitofVMDIP, eachVMHostname, vnetDomain)
+        AppendTextToFile(vnetDomain_rev_filepath, vnetDomainREVstring)
+        print(vnetDomainREVstring.replace('\n', ''))
+        isDBFileEntry =  GetStringMatchCount(vnetDomain_db_filepath, vnetDomainDBstring)
+        isREVFileEntry =  GetStringMatchCount(vnetDomain_rev_filepath, vnetDomainREVstring)
         if isDBFileEntry >= 1 and isREVFileEntry >= 1:
             print (vnetDomain_db_filepath + " file edited for " + eachVMDIP + " : " + eachVMHostname)
             print (vnetDomain_rev_filepath + " file edited for " + eachVMDIP + " : " + eachVMHostname)
@@ -745,10 +782,11 @@ def AddICAVMsToDnsServer(HostnameDIP,vnetDomain_db_filepath,vnetDomain_rev_filep
     else:
         return 1
 
+
 def RemoteUpload(hostIP, hostPassword, hostUsername, hostPort, filesToUpload, remoteLocation):
     import paramiko
 #    print ('%s %s' % (hostIP,hostPort))
-    transport = paramiko.Transport((hostIP,int(hostPort)))
+    transport = paramiko.Transport((hostIP, int(hostPort)))
     try:
         print('Connecting to %s'% hostIP),
         transport.connect(username = hostUsername, password = hostPassword)
@@ -764,9 +802,9 @@ def RemoteUpload(hostIP, hostPassword, hostUsername, hostPort, filesToUpload, re
                 exactFileName = eachFileName[eachFileNameLength-1]
 #                print exactFileName
                 if remoteLocation[-1] == '/':
-                    newFile = "%s%s" % (remoteLocation,exactFileName)
+                    newFile = "%s%s" % (remoteLocation, exactFileName)
                 else:
-                    newFile = "%s/%s" % (remoteLocation,exactFileName)
+                    newFile = "%s/%s" % (remoteLocation, exactFileName)
 #                print ("%s - %s" % (eachFile, newFile))
                 try:
                     print ("Uploading %s to %s" % (eachFile, newFile)),
@@ -781,10 +819,11 @@ def RemoteUpload(hostIP, hostPassword, hostUsername, hostPort, filesToUpload, re
     except:
         print("...Failed!")
 
+
 def RemoteDownload(hostIP, hostPassword, hostUsername, hostPort, filesToDownload, localLocation):
     import paramiko
 #    print ('%s %s' % (hostIP,hostPort))
-    transport = paramiko.Transport((hostIP,int(hostPort)))
+    transport = paramiko.Transport((hostIP, int(hostPort)))
     try:
         print('Connecting to %s'% hostIP),
         transport.connect(username = hostUsername, password = hostPassword)
@@ -800,9 +839,9 @@ def RemoteDownload(hostIP, hostPassword, hostUsername, hostPort, filesToDownload
                 exactFileName = eachFileName[eachFileNameLength-1]
 #                print exactFileName
                 if localLocation[-1] == '/':
-                    newFile = "%s%s" % (localLocation,exactFileName)
+                    newFile = "%s%s" % (localLocation, exactFileName)
                 else:
-                    newFile = "%s/%s" % (localLocation,exactFileName)
+                    newFile = "%s/%s" % (localLocation, exactFileName)
 #                print ("%s - %s" % (eachFile, newFile))
                 try:
                     print ("Downloading %s to %s" % (eachFile, newFile)),
@@ -818,12 +857,12 @@ def RemoteDownload(hostIP, hostPassword, hostUsername, hostPort, filesToDownload
         print("...Failed!")
 
 
-def ConfigureResolvConf(resolv_conf_filepath,dns_server_ip,vnetDomain):
-    isDnsEntry =  GetStringMatchCount(resolv_conf_filepath,dns_server_ip)
+def ConfigureResolvConf(resolv_conf_filepath, dns_server_ip, vnetDomain):
+    isDnsEntry =  GetStringMatchCount(resolv_conf_filepath, dns_server_ip)
     if isDnsEntry == 1:
         domainReplaceString="search " + vnetDomain
-        ReplaceStringMatchLinesFromFile(resolv_conf_filepath,'search',domainReplaceString)
-        isDnsNameEntry =  GetStringMatchCount(resolv_conf_filepath,domainReplaceString)
+        ReplaceStringMatchLinesFromFile(resolv_conf_filepath, 'search', domainReplaceString)
+        isDnsNameEntry =  GetStringMatchCount(resolv_conf_filepath, domainReplaceString)
         if isDnsNameEntry == 1:
             print('Added string "search ' + vnetDomain + '" to ' + resolv_conf_filepath)
             return 0
@@ -834,9 +873,10 @@ def ConfigureResolvConf(resolv_conf_filepath,dns_server_ip,vnetDomain):
         print('DNS server IP is not present in ' + resolv_conf_filepath + ' file')
         return 2
 
+
 def ConfigureHostsFile(hosts_filepath):
     hostName = JustRun('hostname')
-    AppendTextToFile(hosts_filepath,"127.0.0.1 %s\n" % hostName)
+    AppendTextToFile(hosts_filepath, "127.0.0.1 %s\n" % hostName)
     isHostsEdited = GetStringMatchCount(hosts_filepath, hostName)
     if isHostsEdited >= 1:
         print('Added string "127.0.0.1 ' + hostName + '" to ' + hosts_filepath)
@@ -844,6 +884,7 @@ def ConfigureHostsFile(hosts_filepath):
     else :
         print('Failed to Add string "127.0.0.1 ' + hostName + '" to ' + hosts_filepath)
         return 1
+
 
 def GetOSDisk():
     resourceDiskPartition = JustRun("grep -i '%s' /etc/mtab | awk '{print $1;}' | tr -d '\n'" % GetResourceDiskMountPoint())
