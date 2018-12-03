@@ -7,7 +7,7 @@
         <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt,boot</Tags>
+        <Tags>provision</Tags>
         <Priority>0</Priority>
     </test>
     <test>
@@ -18,7 +18,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt</Tags>
+        <Tags>password</Tags>
         <Priority>0</Priority>
     </test>
     <test>
@@ -29,7 +29,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt</Tags>
+        <Tags>linux_setting</Tags>
         <Priority>0</Priority>
     </test>
     <test>
@@ -40,7 +40,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt</Tags>
+        <Tags>hv_module</Tags>
         <Priority>0</Priority>
     </test>
     <test>
@@ -51,7 +51,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt</Tags>
+        <Tags>swap</Tags>
         <Priority>0</Priority>
     </test>
     <test>
@@ -62,7 +62,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt</Tags>
+        <Tags>mtab</Tags>
         <Priority>0</Priority>
     </test>
     <test>
@@ -73,7 +73,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt</Tags>
+        <Tags>linux_setting</Tags>
         <Priority>0</Priority>
     </test>
     <test>
@@ -84,7 +84,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt</Tags>
+        <Tags>provision</Tags>
         <Priority>0</Priority>
     </test>
     <test>
@@ -92,13 +92,13 @@
         <testScript>BVT-VERIFY-SHUTDOWN.ps1</testScript>
         <files></files>
         <setupType>SingleVM</setupType>
-        <Platform>Azure</Platform>
         <TestParameters>
             <param>SkipVerifyKernelLogs=true</param>
         </TestParameters>
+        <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt</Tags>
+        <Tags>shutdown</Tags>
         <Priority>0</Priority>
     </test>
     <test>
@@ -109,7 +109,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt</Tags>
+        <Tags>restart</Tags>
         <Priority>0</Priority>
     </test>
     <test>
@@ -120,7 +120,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt</Tags>
+        <Tags>fstab</Tags>
         <Priority>0</Priority>
     </test>
     <test>
@@ -131,7 +131,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt</Tags>
+        <Tags>linux_setting</Tags>
         <Priority>0</Priority>
     </test>
     <test>
@@ -142,7 +142,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt</Tags>
+        <Tags>linux_setting</Tags>
         <Priority>0</Priority>
     </test>
     <test>
@@ -153,7 +153,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt</Tags>
+        <Tags>provision</Tags>
         <Priority>0</Priority>
     </test>
     <test>
@@ -167,7 +167,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt</Tags>
+        <Tags>wala</Tags>
         <Priority>0</Priority>
     </test>
     <test>
@@ -178,7 +178,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt</Tags>
+        <Tags>linux_setting</Tags>
         <Priority>0</Priority>
     </test>
     <test>
@@ -192,7 +192,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt</Tags>
+        <Tags>password</Tags>
         <Priority>0</Priority>
     </test>
     <test>
@@ -203,7 +203,7 @@
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
-        <Tags>bvt</Tags>
+        <Tags>kvp</Tags>
         <Priority>0</Priority>
     </test>
     <test>
@@ -214,7 +214,7 @@
         <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>CORE</Area>
-        <Tags>core</Tags>
+        <Tags>timesync</Tags>
         <Priority>0</Priority>
     </test>
     <test>
@@ -228,7 +228,7 @@
         <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>CORE</Area>
-        <Tags>core</Tags>
+        <Tags>hv_module</Tags>
         <Priority>0</Priority>
     </test>
     <test>
@@ -242,7 +242,7 @@
         <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>CORE</Area>
-        <Tags>core</Tags>
+        <Tags>hv_module</Tags>
         <Priority>0</Priority>
     </test>
     <test>
@@ -258,7 +258,7 @@
         <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>CORE</Area>
-        <Tags>core</Tags>
+        <Tags>hv_module</Tags>
         <Priority>0</Priority>
     </test>
     <test>
@@ -269,7 +269,7 @@
         <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>CORE</Area>
-        <Tags>core</Tags>
+        <Tags>time</Tags>
         <Priority>1</Priority>
     </test>
     <test>
@@ -283,7 +283,7 @@
         <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>CORE</Area>
-        <Tags>core</Tags>
+        <Tags>time</Tags>
         <Priority>1</Priority>
     </test>
     <test>
@@ -298,7 +298,7 @@
         <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>CORE</Area>
-        <Tags>core</Tags>
+        <Tags>time</Tags>
         <Priority>1</Priority>
     </test>
     <test>
@@ -309,7 +309,7 @@
         <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>NETWORK</Area>
-        <Tags>network</Tags>
+        <Tags>ethtool</Tags>
         <Priority>0</Priority>
     </test>
     <test>
@@ -324,7 +324,7 @@
         <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>NETWORK</Area>
-        <Tags>network</Tags>
+        <Tags>ethtool</Tags>
         <Priority>1</Priority>
     </test>
     <test>
@@ -338,7 +338,7 @@
         <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>NETWORK</Area>
-        <Tags>network</Tags>
+        <Tags>ethtool</Tags>
         <Priority>1</Priority>
     </test>
     <test>
@@ -352,7 +352,7 @@
         <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>NETWORK</Area>
-        <Tags>network</Tags>
+        <Tags>ethtool</Tags>
         <Priority>1</Priority>
     </test>
     <test>
@@ -363,7 +363,7 @@
         <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>NETWORK</Area>
-        <Tags>network</Tags>
+        <Tags>ethtool</Tags>
         <Priority>1</Priority>
     </test>
     <test>
@@ -374,7 +374,7 @@
         <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>NETWORK</Area>
-        <Tags>network</Tags>
+        <Tags>ethtool</Tags>
         <Priority>1</Priority>
     </test>
     <test>
@@ -386,6 +386,62 @@
         <Category>BVT</Category>
         <Area>NETWORK</Area>
         <Tags>network</Tags>
+        <Priority>0</Priority>
+    </test>
+    <test>
+        <TestName>VERIFY-DEPLOYMENT-PROVISION</TestName>
+        <testScript>BVT-VERIFY-DEPLOYMENT-PROVISION.ps1</testScript>
+        <files></files>
+        <setupType>SingleVM</setupType>
+        <Platform>Azure,HyperV</Platform>
+        <Category>BVT</Category>
+        <Area>BVT</Area>
+        <Tags>provision</Tags>
+        <Priority>0</Priority>
+    </test>
+    <test>
+        <TestName>VERIFY-DEPLOYMENT-PROVISION-EPHEMERAL-MANAGED-DISK</TestName>
+        <testScript>BVT-VERIFY-DEPLOYMENT-PROVISION.ps1</testScript>
+        <files></files>
+        <setupType>SingleVM</setupType>
+        <OverrideVMSize>Standard_DS1_v2</OverrideVMSize>
+        <AdditionalHWConfig>
+            <DiskType>Managed</DiskType>
+            <OSDiskType>Ephemeral</OSDiskType>
+        </AdditionalHWConfig>
+        <Platform>Azure</Platform>
+        <Category>BVT</Category>
+        <Area>BVT</Area>
+        <Tags>provision</Tags>
+        <Priority>0</Priority>
+    </test>
+    <test>
+        <TestName>VERIFY-DEPLOYMENT-PROVISION-SRIOV</TestName>
+        <testScript>BVT-VERIFY-DEPLOYMENT-PROVISION.ps1</testScript>
+        <files></files>
+        <setupType>SingleVM</setupType>
+        <OverrideVMSize>Standard_D13_v2</OverrideVMSize>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <Platform>Azure</Platform>
+        <Category>BVT</Category>
+        <Area>BVT</Area>
+        <Tags>provision,sriov</Tags>
+        <Priority>0</Priority>
+    </test>
+    <test>
+        <TestName>VERIFY-HOSTNAME</TestName>
+        <testScript>WALA-VERIFY-HOSTNAME.py</testScript>
+        <files>.\Testscripts\Linux\nslookup.py,.\Testscripts\Linux\WALA-VERIFY-HOSTNAME.py,.\Testscripts\Linux\azuremodules.py</files>
+        <setupType>SingleVM</setupType>
+        <Platform>Azure</Platform>
+        <TestParameters>
+            <param>SECRET_PARAMS=(RoleName)</param>
+        </TestParameters>
+        <Category>BVT</Category>
+        <Area>BVT</Area>
+        <Tags>wala</Tags>
         <Priority>0</Priority>
     </test>
 </TestCases>
