@@ -1,16 +1,16 @@
 <TestCases>
     <test>
-        <testName>CORE-VERIFY-HEART-BEAT</testName>
+        <testName>VERIFY-HEARTBEAT</testName>
         <testScript>CORE-VerifyHeartBeat.ps1</testScript>
         <setupType>SingleVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>CORE</Area>
-        <Tags>heart_beat</Tags>
+        <Tags>heartbeat</Tags>
         <Priority>0</Priority>
     </test>
     <test>
-        <testName>CORE-VERIFY-SHUTDOWN</testName>
+        <testName>VERIFY-VM-SHUTDOWN</testName>
         <testScript>CORE-VerifyShutdown.ps1</testScript>
         <setupType>SingleVM</setupType>
         <Platform>HyperV</Platform>
@@ -20,7 +20,7 @@
         <Priority>0</Priority>
     </test>
     <test>
-        <testName>CORE-VERIFY-TIME-SYNC</testName>
+        <testName>VERIFY-TIME-SYNC</testName>
         <testScript>CORE-VerifyTimeSync.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\CORE-ConfigTimeSync.sh</files>
         <setupType>SingleVM</setupType>
@@ -34,7 +34,7 @@
         <Priority>0</Priority>
     </test>
     <test>
-        <testName>CORE-INITRD-MODULES-CHECK</testName>
+        <testName>INITRD-MODULES-CHECK</testName>
         <testScript>CORE-InitrdModulesCheck.sh</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\CORE-InitrdModulesCheck.sh</files>
         <setupType>SingleVM</setupType>
@@ -49,7 +49,7 @@
         <Priority>2</Priority>
     </test>
     <test>
-        <testName>CORE-CPU-VERIFY-ONLINE</testName>
+        <testName>CPU-VERIFY-ONLINE</testName>
         <testScript>CORE-CPUVerifyOnline.sh</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\CORE-CPUVerifyOnline.sh</files>
         <setupType>SingleVM</setupType>
@@ -192,7 +192,7 @@
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>CORE</Area>
-        <Tags>vm_paused,heart_beat</Tags>
+        <Tags>vm_paused,heartbeat</Tags>
         <Priority>0</Priority>
     </test>
     <test>
