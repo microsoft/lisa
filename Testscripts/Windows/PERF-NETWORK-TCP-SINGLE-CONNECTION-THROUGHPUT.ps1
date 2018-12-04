@@ -4,54 +4,151 @@ param(
     [String] $TestParams
 )
 
+function Write-TestInformation {
+    param(
+        $clientVMData,
+        $serverVMData
+    )
+
+    Write-LogInfo "CLIENT VM details :"
+    Write-LogInfo "  RoleName  : $($clientVMData.RoleName)"
+    Write-LogInfo "  Public IP : $($clientVMData.PublicIP)"
+    Write-LogInfo "  SSH Port  : $($clientVMData.SSHPort)"
+    Write-LogInfo "  Location  : $($clientVMData.Location)"
+    Write-LogInfo "SERVER VM details :"
+    Write-LogInfo "  RoleName  : $($serverVMData.RoleName)"
+    Write-LogInfo "  Public IP : $($serverVMData.PublicIP)"
+    Write-LogInfo "  SSH Port  : $($serverVMData.SSHPort)"
+    Write-LogInfo "  Location  : $($serverVMData.Location)"
+}
+
+function Get-Iperf3PerformanceResults {
+    param(
+        $BufferLengths,
+        $Iperf3ResultDir,
+        $ProtocolType = "TCP",
+        $IPVersion = "IPv4",
+        $Connections = "1"
+    )
+
+    $Iperf3Results = @()
+    $iperfResultObject = @{
+        "RxThroughput_Gbps" = $null;
+        "TxThroughput_Gbps" = $null;
+        "CongestionWindowSize_KB" = $null;
+        "RetransmittedSegments" = $null;
+    }
+
+    foreach ($bufferLength in $BufferLengths) {
+        # remove extra warnings from the iperf results
+        $fileFormat = "{0}\iperf-{1}-{2}-{3}-buffer-{4}-conn-{5}-instance-1.txt"
+        $serverContent = Get-Content ($fileFormat -f @($Iperf3ResultDir, "server", $ProtocolType, $IPVersion, $bufferLength, $Connections))
+        while(!$serverContent[0].ToString().Contains("{")) {
+            $serverContent = $serverContent[1..($serverContent.Length-1)]
+        }
+        $clientContent = Get-Content ($fileFormat -f @($Iperf3ResultDir, "client", $ProtocolType, $IPVersion, $bufferLength, $Connections))
+        while(!$clientContent[0].ToString().Contains("{")) {
+            $clientContent = $clientContent[1..($clientContent.Length-1)]
+        }
+
+        $serverJson = ConvertFrom-Json -InputObject ([string]($serverContent))
+        $clientJson = ConvertFrom-Json -InputObject ([string]($clientContent))
+
+        $RxThroughput_Gbps = [math]::Round($serverJson.end.sum_received.bits_per_second/1000000000,2)
+        $TxThroughput_Gbps = [math]::Round($clientJson.end.sum_received.bits_per_second/1000000000,2)
+        $RetransmittedSegments = $clientJson.end.streams.sender.retransmits
+        $CongestionWindowSize_KB_Total = 0
+        foreach ($interval in $clientJson.intervals) {
+            $CongestionWindowSize_KB_Total += $interval.streams.snd_cwnd
+        }
+        $CongestionWindowSize_KB = [math]::Round($CongestionWindowSize_KB_Total / $clientJson.intervals.Count / 1024 )
+
+        $currentIperfResultObject = $iperfResultObject.Clone()
+        $currentIperfResultObject["Id"] = "BufferLength_" + $bufferLength
+
+        $currentIperfResultObject["RxThroughput_Gbps"] = $RxThroughput_Gbps
+        $currentIperfResultObject["TxThroughput_Gbps"] = $TxThroughput_Gbps
+        $currentIperfResultObject["CongestionWindowSize_KB"] = $CongestionWindowSize_KB
+        $currentIperfResultObject["RetransmittedSegments"] = $RetransmittedSegments
+        $Iperf3Results += $currentIperfResultObject
+    }
+
+    return $Iperf3Results
+}
+
+function Consume-Iperf3Results {
+    param($Iperf3Results)
+
+    $dataSource = $xmlConfig.config.$TestPlatform.database.server
+    $user = $xmlConfig.config.$TestPlatform.database.user
+    $password = $xmlConfig.config.$TestPlatform.database.password
+    $database = $xmlConfig.config.$TestPlatform.database.dbname
+    $dataTableName = $xmlConfig.config.$TestPlatform.database.dbtable
+    $TestCaseName = $xmlConfig.config.$TestPlatform.database.testTag
+
+    if (!($dataSource -and $user -and $password -and $database -and $dataTableName -and $TestCaseName)) {
+        Write-LogInfo "Invalid database details. Failed to upload result to database!"
+        return
+    }
+
+    $TestDate = Get-Date -Format 'yyyy/MM/dd HH:mm:ss'
+    $GuestDistro = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
+    $HostOS = cat "$LogDir\VM_properties.csv" | Select-String "Host Version"| %{$_ -replace ",Host Version,",""}
+    $GuestOSType = "Linux"
+    $GuestDistro = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
+    $GuestSize = $clientVMData.InstanceSize
+    $KernelVersion = cat "$LogDir\VM_properties.csv" | Select-String "Kernel version"| %{$_ -replace ",Kernel version,",""}
+    if ($KernelVersion.Length -ge 28) {
+        $KernelVersion = $KernelVersion.Trim().Substring(0,28)
+    }
+    $ProtocolType = "TCP"
+
+    $SQLQuery = "INSERT INTO $dataTableName (TestCaseName,DataPath,TestDate,HostBy,HostOS,HostType,GuestSize,GuestOSType,GuestDistro,KernelVersion,IPVersion,ProtocolType,BufferSize_Bytes,RxThroughput_Gbps,TxThroughput_Gbps,RetransmittedSegments,CongestionWindowSize_KB) VALUES"
+    foreach ($perfResult in $Iperf3Results) {
+        $SQLQuery += "('$TestCaseName','$DataPath','$TestDate','$TestLocation','$HostOS','$TestPlatform','$GuestSize','$GuestOSType','$GuestDistro','$KernelVersion','$IPVersion','$ProtocolType','$BufferSize_Bytes','$RxThroughput_Gbps','$TxThroughput_Gbps','$RetransmittedSegments','$CongestionWindowSize_KB'),"
+    }
+
+    Write-LogInfo "Uploading the test results.."
+    $SQLQuery = $SQLQuery.TrimEnd(',')
+    Upload-TestResultToDatabase $SQLQuery
+}
+
+
 function Main {
     param (
         $TestParams
     )
-    # Create test result
-    $currentTestResult = Create-TestResultObject
-    $resultArr = @()
 
     try {
-        $noClient = $true
-        $noServer = $true
+
+        # Validate test setup
+        $clientVMExists = $false
+        $serverVMExists = $false
         # role-0 vm is considered as the client-vm
         # role-1 vm is considered as the server-vm
         foreach ($vmData in $allVMData) {
             if ($vmData.RoleName -imatch "role-0") {
                 $clientVMData = $vmData
-                $noClient = $false
+                $clientVMExists = $true
             }
             elseif ($vmData.RoleName -imatch "role-1") {
-                $noServer = $false
                 $serverVMData = $vmData
+                $serverVMExists = $true
             }
         }
-        if ($noClient -or $noServer) {
-            Throw "Client or Server VM not defined. Be sure that the SetupType has 2 VMs defined"
+        if (!$clientVMExists -or !$serverVMExists) {
+            Throw "Client or Server VM not present. Make sure that the SetupType has 2 VMs defined."
         }
-        #region CONFIGURE VM FOR TERASORT TEST
-        Write-LogInfo "CLIENT VM details :"
-        Write-LogInfo "  RoleName  : $($clientVMData.RoleName)"
-        Write-LogInfo "  Public IP : $($clientVMData.PublicIP)"
-        Write-LogInfo "  SSH Port  : $($clientVMData.SSHPort)"
-        Write-LogInfo "  Location  : $($clientVMData.Location)"
-        Write-LogInfo "SERVER VM details :"
-        Write-LogInfo "  RoleName  : $($serverVMData.RoleName)"
-        Write-LogInfo "  Public IP : $($serverVMData.PublicIP)"
-        Write-LogInfo "  SSH Port  : $($serverVMData.SSHPort)"
-        Write-LogInfo "  Location  : $($serverVMData.Location)"
 
-        # PROVISION VMS FOR LISA WILL ENABLE ROOT USER AND WILL MAKE ENABLE PASSWORDLESS AUTHENTICATION ACROSS ALL VMS IN SAME HOSTED SERVICE.
+        Write-TestInformation $clientVMData $serverVMData
         Provision-VMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
-        #endregion
 
         if ($EnableAcceleratedNetworking -or $currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
             $DataPath = "SRIOV"
         } else {
             $DataPath = "Synthetic"
         }
-        Write-LogInfo "Getting $DataPath NIC Name."
+        Write-LogInfo "Getting ${DataPath} NIC Name."
         if ($TestPlatform -eq "Azure") {
             $getNicCmd = ". ./utils.sh &> /dev/null && get_active_nic_name"
             $clientNicName = (Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort `
@@ -63,20 +160,19 @@ function Main {
                 $clientVMData.HypervHost $user $clientVMData.PublicIP $password $clientVMData.SSHPort
             $serverNicName = Get-GuestInterfaceByVSwitch $TestParams.PERF_NIC $serverVMData.RoleName `
                 $serverVMData.HypervHost $user $serverVMData.PublicIP $password $serverVMData.SSHPort
+        } else {
+            Throw "Test platform ${TestPlatform} not supported."
         }
-
         Write-LogInfo "CLIENT $DataPath NIC: $clientNicName"
         Write-LogInfo "SERVER $DataPath NIC: $serverNicName"
         if ( $serverNicName -eq $clientNicName) {
             Write-LogInfo "Server and client SRIOV NICs are the same."
         } else {
-            Throw "Server and client SRIOV NICs are not same."
+            Throw "Server and client SRIOV NICs are not the same."
         }
 
-        Write-LogInfo "Generating constants.sh ..."
+        # region GenerateConstants file
         $constantsFile = "$LogDir\constants.sh"
-
-        #region Check if VMs share same Public IP
         Set-Content -Value "#Generated by LISAv2 Automation" -Path $constantsFile
         if ($clientVMData.PublicIP -eq $serverVMData.PublicIP) {
             Add-Content -Value "server=$($serverVMData.InternalIP)" -Path $constantsFile
@@ -85,12 +181,10 @@ function Main {
             Add-Content -Value "server=$($serverVMData.PublicIP)" -Path $constantsFile
             Add-Content -Value "client=$($clientVMData.PublicIP)" -Path $constantsFile
         }
-        #endregion
-
         foreach ($param in $currentTestData.TestParameters.param) {
             Add-Content -Value "$param" -Path $constantsFile
             if ($param -imatch "bufferLengths=") {
-                $testBuffers= $param.Replace("bufferLengths=(","").Replace(")","").Split(" ")
+                $bufferLengths= $param.Replace("bufferLengths=(","").Replace(")","").Split(" ")
             }
             if ( $param -imatch "IPversion" ) {
                 if ( $param -imatch "IPversion=6" ) {
@@ -107,13 +201,13 @@ function Main {
         #endregion
 
         #region EXECUTE TEST
-        $myString = @"
+        $runIperfCmd = @"
 cd /root/
 ./perf_iperf3.sh &> iperf3tcpConsoleLogs.txt
 . utils.sh
 collect_VM_properties
 "@
-        Set-Content "$LogDir\Startiperf3tcpTest.sh" $myString
+        Set-Content "$LogDir\Startiperf3tcpTest.sh" $runIperfCmd
         Copy-RemoteFiles -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files "$constantsFile,$LogDir\Startiperf3tcpTest.sh" -username "root" -password $password -upload
         $null = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "chmod +x *.sh"
         $testJob = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "/root/Startiperf3tcpTest.sh" -RunInBackground
@@ -122,7 +216,7 @@ collect_VM_properties
         #region MONITOR TEST
         while ((Get-Job -Id $testJob).State -eq "Running") {
             $currentStatus = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "tail -1 iperf3tcpConsoleLogs.txt"
-            Write-LogInfo "Current Test Status : $currentStatus"
+            Write-LogInfo "Current Test Status: $currentStatus"
             Wait-Time -seconds 20
         }
 
@@ -133,118 +227,40 @@ collect_VM_properties
         Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $iperf3LogDir -files "iperf-client-tcp*"
         Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $iperf3LogDir -files "iperf-server-tcp*"
         Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "VM_properties.csv"
-        $testSummary = $null
-        foreach ($BufferSize_Bytes in $testBuffers) {
-            # remove extra warnings
-            $serverContent = Get-Content $iperf3LogDir\iperf-server-tcp-IPv4-buffer-$BufferSize_Bytes-conn-1-instance-1.txt
-            while(!$serverContent[0].ToString().Contains("{")) {
-                $serverContent=$serverContent[1..($serverContent.Length-1)]
-            }
-            $clientContent = Get-Content $iperf3LogDir\iperf-client-tcp-IPv4-buffer-$BufferSize_Bytes-conn-1-instance-1.txt
-            while(!$clientContent[0].ToString().Contains("{")) {
-                $clientContent=$clientContent[1..($clientContent.Length-1)]
-            }
-            $serverJson = ConvertFrom-Json -InputObject ([string]($serverContent))
-            $clientJson = ConvertFrom-Json -InputObject ([string]($clientContent))
-            $RxThroughput_Gbps = [math]::Round($serverJson.end.sum_received.bits_per_second/1000000000,2)
-            $TxThroughput_Gbps = [math]::Round($clientJson.end.sum_received.bits_per_second/1000000000,2)
-            $RetransmittedSegments = $clientJson.end.streams.sender.retransmits
-            $CongestionWindowSize_KB_Total = 0
-            foreach ($interval in $clientJson.intervals) {
-                $CongestionWindowSize_KB_Total += $interval.streams.snd_cwnd
-            }
-            $CongestionWindowSize_KB = [math]::Round($CongestionWindowSize_KB_Total / $clientJson.intervals.Count / 1024 )
-            $connResult="ClientTxGbps=$TxThroughput_Gbps"
-            $metaData = "Buffer=$BufferSize_Bytes Bytes Connections=1"
-            $resultSummary +=  Create-ResultSummary -testResult $connResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
-        }
 
         if ($finalStatus -imatch "TestFailed") {
             Write-LogErr "Test failed. Last known status : $currentStatus."
             $testResult = "FAIL"
-        }
-        elseif ($finalStatus -imatch "TestAborted") {
+        } elseif ($finalStatus -imatch "TestAborted") {
             Write-LogErr "Test Aborted. Last known status : $currentStatus."
             $testResult = "ABORTED"
-        }
-        elseif ($finalStatus -imatch "TestCompleted") {
+        } elseif ($finalStatus -imatch "TestCompleted") {
             Write-LogInfo "Test Completed."
             $testResult = "PASS"
-        }
-        elseif ($finalStatus -imatch "TestRunning") {
+            $iperf3Results = Get-Iperf3PerformanceResults -BufferLengths $bufferLengths `
+                -Iperf3ResultDir $iperf3LogDir -IPVersion $IPVersion
+            $iperf3ResutsFile = "${LogDir}\$($currentTestData.testName)_perf_results.json"
+            $iperf3Results | ConvertTo-Json | Out-File $iperf3ResutsFile -Encoding "ascii"
+            Write-LogInfo "Perf results in json format saved at: ${iperf3ResutsFile}"
+            Consume-Iperf3Results $iperf3Results
+        } elseif ($finalStatus -imatch "TestRunning") {
             Write-LogInfo "Powershell background job is completed but VM is reporting that test is still running. Please check $LogDir\ConsoleLogs.txt"
-            Write-LogInfo "Contents of summary.log : $testSummary"
-            $testResult = "PASS"
+            $testResult = "FAIL"
         }
-        Write-LogInfo "Test result : $testResult"
-        Write-LogInfo "Test Completed"
-
-        Write-LogInfo "Analyzing the test results.."
-        $dataSource = $xmlConfig.config.$TestPlatform.database.server
-        $user = $xmlConfig.config.$TestPlatform.database.user
-        $password = $xmlConfig.config.$TestPlatform.database.password
-        $database = $xmlConfig.config.$TestPlatform.database.dbname
-        $dataTableName = $xmlConfig.config.$TestPlatform.database.dbtable
-        $TestCaseName = $xmlConfig.config.$TestPlatform.database.testTag
-        $TestDate = "$(Get-Date -Format 'yyyy/MM/dd HH:mm:ss')"
-        $GuestDistro = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
-        $HostOS = cat "$LogDir\VM_properties.csv" | Select-String "Host Version"| %{$_ -replace ",Host Version,",""}
-        $GuestOSType = "Linux"
-        $GuestDistro = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
-        $GuestSize = $clientVMData.InstanceSize
-        $KernelVersion = cat "$LogDir\VM_properties.csv" | Select-String "Kernel version"| %{$_ -replace ",Kernel version,",""}
-        if ($KernelVersion.Length -ge 28) {
-            $KernelVersion = $KernelVersion.Trim().Substring(0,28)
-        }
-        $ProtocolType = "TCP"
-
-        $SQLQuery = "INSERT INTO $dataTableName (TestCaseName,DataPath,TestDate,HostBy,HostOS,HostType,GuestSize,GuestOSType,GuestDistro,KernelVersion,IPVersion,ProtocolType,BufferSize_Bytes,RxThroughput_Gbps,TxThroughput_Gbps,RetransmittedSegments,CongestionWindowSize_KB) VALUES"
-        foreach ($BufferSize_Bytes in $testBuffers) {
-            # remove extra warnings
-            $serverContent = Get-Content $iperf3LogDir\iperf-server-tcp-IPv4-buffer-$BufferSize_Bytes-conn-1-instance-1.txt
-            while(!$serverContent[0].ToString().Contains("{")) {
-                $serverContent=$serverContent[1..($serverContent.Length-1)]
-            }
-            $clientContent = Get-Content $iperf3LogDir\iperf-client-tcp-IPv4-buffer-$BufferSize_Bytes-conn-1-instance-1.txt
-            while(!$clientContent[0].ToString().Contains("{")) {
-                $clientContent=$clientContent[1..($clientContent.Length-1)]
-            }
-            $serverJson = ConvertFrom-Json -InputObject ([string]($serverContent))
-            $clientJson = ConvertFrom-Json -InputObject ([string]($clientContent))
-            $RxThroughput_Gbps = [math]::Round($serverJson.end.sum_received.bits_per_second/1000000000,2)
-            $TxThroughput_Gbps = [math]::Round($clientJson.end.sum_received.bits_per_second/1000000000,2)
-            $RetransmittedSegments = $clientJson.end.streams.sender.retransmits
-            $CongestionWindowSize_KB_Total = 0
-            foreach ($interval in $clientJson.intervals) {
-                $CongestionWindowSize_KB_Total += $interval.streams.snd_cwnd
-            }
-            $CongestionWindowSize_KB = [math]::Round($CongestionWindowSize_KB_Total / $clientJson.intervals.Count / 1024 )
-            $SQLQuery += "('$TestCaseName','$DataPath','$TestDate','$TestLocation','$HostOS','$TestPlatform','$GuestSize','$GuestOSType','$GuestDistro','$KernelVersion','$IPVersion','$ProtocolType','$BufferSize_Bytes','$RxThroughput_Gbps','$TxThroughput_Gbps','$RetransmittedSegments','$CongestionWindowSize_KB'),"
-            $currentTestResult.TestSummary += Create-ResultSummary -testResult $RxThroughput_Gbps -metaData "Buffer : $BufferSize_Bytes Bytes, Rx ThroughputGbps" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
-        }
-        if ($dataSource -And $user -And $password -And $database -And $dataTableName) {
-            Write-LogInfo "Uploading the test results.."
-            $SQLQuery = $SQLQuery.TrimEnd(',')
-            Upload-TestResultToDatabase $SQLQuery
-        } else {
-            Write-LogInfo "Invalid database details. Failed to upload result to database!"
-        }
+        Write-LogInfo "Test result: $testResult"
     } catch {
         $line = $_.InvocationInfo.ScriptLineNumber
         $script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
         $ErrorMessage = $_.Exception.Message
-        Write-LogInfo "EXCEPTION : $ErrorMessage"
-        Write-LogInfo "Source : Line $line in script $script_name."
+        Write-LogInfo "EXCEPTION: $ErrorMessage"
+        Write-LogInfo "Source: Line $line in script $script_name."
     } finally {
-        $metaData = "iperf3tcp RESULT"
         if (!$testResult) {
             $testResult = "Aborted"
         }
-        $resultArr += $testResult
     }
 
-    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
-    return $currentTestResult.TestResult
+    return $testResult
 }
 
 Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))
