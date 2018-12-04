@@ -31,7 +31,7 @@ function Set-VFInGuest {
         Write-LogErr "Failed to send sriov_constants.sh to VM1!"
         return $False
     }
-    RunLinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort -command "cp sriov_constants.sh constants.sh"
+    Run-LinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort -command "cp sriov_constants.sh constants.sh"
     # Install dependencies
     Run-LinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort -command ". SR-IOV-Utils.sh; InstallDependencies"
     if (-not $?) {
@@ -39,7 +39,7 @@ function Set-VFInGuest {
         return $False
     }
     # Configure VF
-    RunLinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort -command ". SR-IOV-Utils.sh; ConfigureVF $VMNumber"
+    Run-LinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort -command ". SR-IOV-Utils.sh; ConfigureVF $VMNumber"
     if (-not $?) {
         LogErr "Failed to configure VF on $VMName"
         return $False
