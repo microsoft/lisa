@@ -363,7 +363,7 @@ Function Collect-TestCases($TestXMLs)
                 continue
             }
 
-            if (($test.Area -ne $TestArea) -and ($TestArea -ne "*")) {
+            if (!($TestArea.Split(",").Contains($test.Area)) -and ($TestArea -ne "*")) {
                 continue
             }
 
