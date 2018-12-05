@@ -376,7 +376,7 @@
             <param>testType=tcp</param>
             <param>max_parallel_connections_per_instance=64</param>
             <param>connections=(1)</param>
-            <param>bufferLengths=(32 64 128 256 512 1024 2048 4096 8192 16384 32768 65536)</param>
+            <param>bufferLengths=PERF-NETWORK-TCP-SINGLE-CONNECTION-THROUGHPUT-SRIOV-BUFFER-LENGTHS</param>
             <param>IPversion=4</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
