@@ -2075,7 +2075,7 @@ Function Create-AllRGDeploymentsWithTempParameters($templateName, $location, $Te
     return $retValue, $deployedGroups, $resourceGroupCount, $DeploymentElapsedTime
 }
 
-Function Copy-VHDToAnotherStorageAccount ($sourceStorageAccount, $sourceStorageContainer, $destinationStorageAccount, $destinationStorageContainer, $vhdName, $destVHDName) {
+Function Copy-VHDToAnotherStorageAccount ($sourceStorageAccount, $sourceStorageContainer, $destinationStorageAccount, $destinationStorageContainer, $vhdName, $destVHDName, $SasUrl) {
     $retValue = $false
     if (!$destVHDName) {
         $destVHDName = $vhdName
@@ -2101,23 +2101,23 @@ Function Copy-VHDToAnotherStorageAccount ($sourceStorageAccount, $sourceStorageC
         }
     }
 
-    Write-LogInfo "Retrieving $sourceStorageAccount storage account key"
-    $SrcStorageAccountKey = (Get-AzureRmStorageAccountKey -ResourceGroupName $(($GetAzureRmStorageAccount  | Where {$_.StorageAccountName -eq "$sourceStorageAccount"}).ResourceGroupName) -Name $sourceStorageAccount)[0].Value
-    [string]$SrcStorageAccount = $sourceStorageAccount
-    [string]$SrcStorageBlob = $vhdName
-    $SrcStorageContainer = $sourceStorageContainer
-
+    if ( !$SasUrl ) {
+        Write-LogInfo "Retrieving $sourceStorageAccount storage account key"
+        $SrcStorageAccountKey = (Get-AzureRmStorageAccountKey -ResourceGroupName $(($GetAzureRmStorageAccount  | Where {$_.StorageAccountName -eq "$sourceStorageAccount"}).ResourceGroupName) -Name $sourceStorageAccount)[0].Value
+        [string]$SrcStorageAccount = $sourceStorageAccount
+        [string]$SrcStorageBlob = $vhdName
+        $SrcStorageContainer = $sourceStorageContainer
+        $context = New-AzureStorageContext -StorageAccountName $srcStorageAccount -StorageAccountKey $srcStorageAccountKey
+        $expireTime = Get-Date
+        $expireTime = $expireTime.AddYears(1)
+        $SasUrl = New-AzureStorageBlobSASToken -container $srcStorageContainer -Blob $srcStorageBlob -Permission R -ExpiryTime $expireTime -FullUri -Context $Context
+}
 
     Write-LogInfo "Retrieving $destinationStorageAccount storage account key"
     $DestAccountKey = (Get-AzureRmStorageAccountKey -ResourceGroupName $(($GetAzureRmStorageAccount  | Where {$_.StorageAccountName -eq "$destinationStorageAccount"}).ResourceGroupName) -Name $destinationStorageAccount)[0].Value
     [string]$DestAccountName = $destinationStorageAccount
     [string]$DestBlob = $destVHDName
     $DestContainer = $destinationStorageContainer
-
-    $context = New-AzureStorageContext -StorageAccountName $srcStorageAccount -StorageAccountKey $srcStorageAccountKey
-    $expireTime = Get-Date
-    $expireTime = $expireTime.AddYears(1)
-    $SasUrl = New-AzureStorageBlobSASToken -container $srcStorageContainer -Blob $srcStorageBlob -Permission R -ExpiryTime $expireTime -FullUri -Context $Context
 
     $destContext = New-AzureStorageContext -StorageAccountName $destAccountName -StorageAccountKey $destAccountKey
     $testContainer = Get-AzureStorageContainer -Name $destContainer -Context $destContext -ErrorAction Ignore
