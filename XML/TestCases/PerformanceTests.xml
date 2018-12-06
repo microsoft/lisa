@@ -198,7 +198,7 @@
         </AdditionalHWConfig>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <TestParameters>
-            <param>modes='randread randwrite read write'</param>
+            <param>modes=PERF-STORAGE-4K-IO-MODES</param>
             <param>startThread=1</param>
             <param>maxThread=1024</param>
             <param>startIO=4</param>
@@ -222,7 +222,7 @@
         </AdditionalHWConfig>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <TestParameters>
-            <param>modes='randread randwrite read write'</param>
+            <param>modes=PERF-STORAGE-1024K-IO-MODES</param>
             <param>startThread=1</param>
             <param>maxThread=1024</param>
             <param>startIO=1024</param>
