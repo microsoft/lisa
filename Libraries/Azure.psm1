@@ -2182,17 +2182,34 @@ Function Restart-AllAzureDeployments($allVMData) {
     $restartJobs = @()
     foreach ( $vmData in $AllVMData ) {
         Write-LogInfo "Triggering Restart-$($vmData.RoleName)..."
-        $restartJobs += Start-Job -ScriptBlock { $vmData = $args[0]
+        $restartJobs += Start-Job -ScriptBlock {
+            $vmData = $args[0]
             $currentGUID = $args[1]
+            $retries = 0
+            $maxRetryCount = 3
+            $vmRestarted = $false
+
             Import-AzureRmContext -AzureContext "$env:TEMP\$($currentGUID).azurecontext"
-            $null = Restart-AzureRmVM -ResourceGroupName $vmData.ResourceGroupName -Name $vmData.RoleName -Verbose
+            # Note(v-advlad): Azure API can sometimes fail on burst requests, we have to retry
+            while (!$vmRestarted -and $retries -lt $maxRetryCount) {
+                $null = Restart-AzureRmVM -ResourceGroupName $vmData.ResourceGroupName -Name $vmData.RoleName -Verbose
+                if (!$?) {
+                    Start-Sleep -Seconds 0.5
+                    $retries++
+                } else {
+                    $vmRestarted = $true
+                }
+            }
+            if (!$vmRestarted) {
+                throw "Failed to restart Azure VM $($vmData.RoleName)"
+            }
         } -ArgumentList $vmData, $currentGUID -Name "Restart-$($vmData.RoleName)"
     }
     $recheckAgain = $true
     Write-LogInfo "Waiting until VMs restart..."
     $jobCount = $restartJobs.Count
     $completedJobsCount = 0
-    While ($recheckAgain) {
+    while ($recheckAgain) {
         $recheckAgain = $false
         $tempJobs = @()
         foreach ($restartJob in $restartJobs) {
@@ -2200,8 +2217,11 @@ Function Restart-AllAzureDeployments($allVMData) {
                 $completedJobsCount += 1
                 Write-LogInfo "[$completedJobsCount/$jobCount] $($restartJob.Name) is done."
                 $null = Remove-Job -Id $restartJob.ID -Force -ErrorAction SilentlyContinue
-            }
-            else {
+            } elseif ($restartJob.State -eq "Failed") {
+                $jobError = Get-Job -Name $restartJob.Name | Receive-Job 2>&1
+                Write-LogErr "$($restartJob.Name) failed with error: ${jobError}"
+                return $false
+            } else {
                 $tempJobs += $restartJob
                 $recheckAgain = $true
             }
