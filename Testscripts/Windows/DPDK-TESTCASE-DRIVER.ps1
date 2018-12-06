@@ -7,9 +7,9 @@
 # Testcases supply their own XML testcase, VM configuration (with one vm named
 # "sender"), one powershell file, and one bash script file.
 # The testcase provides 3 functions in its ps1 file:
-#   1. Configure-Test
-#   2. Alter-Runtime
-#   3. Verify-Performance
+#   1. Set-Test
+#   2. Set-Runtime
+#   3. Confirm-Performance
 # The testcase provides 2 functions in its bash file:
 #   1. Dpdk_Configure
 #   2. Run_Testcase
@@ -17,13 +17,13 @@
 # DPDK is automatically installed on all VMs and all their IPs are listed in the
 # contants.sh file.
 
-function Get-NonManagementNics() {
+function Get-NonManagementNic() {
 	param (
 		[string] $vmName
 	)
 
 	$rg = $allVMData[0].ResourceGroupName
-	$allNics = Get-AzureRmNetworkInterface -ResourceGroupName $rg | Where-Object {($_.VirtualMachine.Id -ne $null) `
+	$allNics = Get-AzureRmNetworkInterface -ResourceGroupName $rg | Where-Object {($null -ne $_.VirtualMachine.Id) `
 		-and (($_.VirtualMachine.Id | Split-Path -leaf) -eq $vmName)}
 
 	$nics = @()
@@ -37,17 +37,21 @@ function Get-NonManagementNics() {
 	return $nics
 }
 
-function Change-Phase() {
+function Set-Phase() {
+	[CmdletBinding(SupportsShouldProcess)]
+
 	param (
 		[string] $phase_msg
 	)
 
 	Set-Content "$LogDir\phase.txt" $phase_msg
 	Write-LogInfo "Changing phase to $phase_msg"
-	Run-LinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "echo $phase_msg > phase.txt"
+	Run-LinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username $user -password $password -command "echo $phase_msg > phase.txt"
 }
 
 function Main {
+	Write-LogInfo "DPDK-TESTCASE-DRIVER starting..."
+
 	# Create test result
 	$resultArr = @()
 
@@ -72,13 +76,74 @@ function Main {
 			Write-LogInfo "  Public IP : $($vmData.PublicIP)"
 			Write-LogInfo "  SSH Port : $($vmData.SSHPort)"
 			Write-LogInfo "  Internal IP : $internalIp"
+			Write-LogInfo ""
 
 			$vmNames = "$vmNames $roleName"
 			$ipAddrs = "$ipAddrs $internalIp"
 			Add-Content -Value "$roleName=$internalIp" -Path $constantsFile
+
+			# Validate if supported Distro and kernel version
+			# https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk
+			$supportedDistro = "UBUNTU", "SLES", "SUSE", "REDHAT", "CENTOS"
+			$UbuntuSupportKernelVersion = "4.15.0-1015-azure"
+			$SLESSupportKernelVersion = "4.12.14-5.5-azure"
+			$RHELSuppportKernelVersion = "3.10.0-862.9.1.el7"
+			$CentOSSupportKernelVersion = "3.10.0-862.3.3.el7"
+
+			$detectedDistro = Detect-LinuxDistro -VIP $vmData.PublicIP -SSHport $vmData.SSHPort `
+					-testVMUser $user -testVMPassword $password
+
+			if ( $supportedDistro.Contains($detectedDistro)) {
+				Write-LogInfo "Confirmed Distro support: $detectedDistro"
+
+				$currentKernelVersion = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort `
+					-username $user -password $password -command "uname -r"
+
+				switch ( $detectedDistro ) {
+					"UBUNTU" {
+						if ($currentKernelVersion -ge $UbuntuSupportKernelVersion) {
+							Write-LogInfo "Confirmed Kernel version supported: $currentKernelVersion"
+						} else {
+							Write-LogErr "Unsupported Kernel version: $currentKernelVersion"
+							throw "Unsupported Kernel version: $currentKernelVersion"
+						}
+					}
+
+					{($_ -eq "SLES") -or ($_ -eq "SUSE")} {
+						if ($currentKernelVersion -ge $SLESSupportKernelVersion) {
+							Write-LogInfo "Confirmed Kernel version supported: $currentKernelVersion"
+						} else {
+							Write-LogErr "Unsupported Kernel version: $currentKernelVersion"
+							throw "Unsupported Kernel version: $currentKernelVersion"
+						}
+					}
+
+					"REDHAT" {
+						if ($currentKernelVersion -ge $RHELSuppportKernelVersion) {
+							Write-LogInfo "Confirmed Kernel version supported: $currentKernelVersion"
+						} else {
+							Write-LogErr "Unsupported Kernel version: $currentKernelVersion"
+							throw "Unsupported Kernel version: $currentKernelVersion"
+						}
+					}
+
+					"CENTOS" {
+						if ($currentKernelVersion -ge $CentOSSupportKernelVersion) {
+							Write-LogInfo "Confirmed Kernel version supported: $currentKernelVersion"
+						} else {
+							Write-LogErr "Unsupported Kernel version: $currentKernelVersion"
+							throw "Unsupported Kernel version: $currentKernelVersion"
+						}
+					}
+				}
+
+			} else {
+				Write-LogErr "Unsupported Distro: $detectedDistro"
+				throw "Unsupported Distro: $detectedDistro"
+			}
 		}
 
-		if ($masterVM -eq $null) {
+		if ($null -eq $masterVM) {
 			throw "DPDK-TESTCASE-DRIVER requires at least one VM with RoleName of sender"
 		}
 
@@ -96,7 +161,7 @@ function Main {
 				$fileName = $filePath.Split("\")[$filePath.Split("\").count - 1]
 				$bashFileNames = "$bashFileNames$fileName "
 			} elseif ($fileExt -eq "ps1") {
-				# source user provided file for `Verify-Performance`
+				# source user provided file for `Confirm-Performance`
 				. $filePath
 			} else {
 				throw "user provided unsupported file type"
@@ -114,7 +179,7 @@ function Main {
 			Add-Content -Value "$param" -Path $constantsFile
 		}
 
-		Configure-Test
+		Set-Test
 
 		# start test
 		$startTestCmd = @"
@@ -151,7 +216,7 @@ collect_VM_properties
 				Write-LogInfo "Read new phase: $currentPhase"
 				$oldPhase = $currentPhase
 			}
-			Alter-Runtime
+			Set-Runtime
 
 			++$outputCounter
 			Wait-Time -seconds 5
@@ -171,7 +236,7 @@ collect_VM_properties
 		elseif ($finalState -imatch "TestCompleted") {
 			Write-LogInfo "Test Completed."
 			Copy-RemoteFiles -downloadFrom $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "*.tar.gz"
-			$testResult = (Verify-Performance)
+			$testResult = (Confirm-Performance)
 		}
 		elseif ($finalState -imatch "TestRunning") {
 			Write-LogWarn "Powershell backgroud job for test is completed but VM is reporting that test is still running. Please check $LogDir\zkConsoleLogs.txt"

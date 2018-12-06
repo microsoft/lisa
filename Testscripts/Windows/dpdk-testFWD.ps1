@@ -1,20 +1,16 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 
-function Configure-Test() {
+function Set-Test() {
 	$vm = "forwarder"
-	$nics = Get-NonManagementNics $vm
+	$nics = Get-NonManagementNic $vm
 	$nics[0].EnableIPForwarding = $true
 	$nics[0] | Set-AzureRmNetworkInterface
 
 	Write-LogInfo "Enabled ip forwarding on $vm's non management nic"
 }
 
-function Alter-Runtime() {
-	return
-}
-
-function Verify-Performance() {
+function Confirm-Performance() {
 	$vmSizes = @()
 
 	foreach ($vm in $allVMData) {
