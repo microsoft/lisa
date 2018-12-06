@@ -84,7 +84,7 @@ RunFIO()
 	#
 
 	#All possible values for file-test-mode are randread randwrite read write
-	#modes='randread randwrite read write'
+	#modes=(randread randwrite read write)
 	iteration=0
 	#startThread=1
 	#startIO=8
@@ -116,7 +116,7 @@ RunFIO()
 	fio --cpuclock-test >> $LOGFILE
 	####################################
 	#Trigger run from here
-	for testmode in $modes; do
+	for testmode in "${modes[@]}"; do
 		io=$startIO
 		while [ $io -le $maxIO ]
 		do
