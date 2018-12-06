@@ -193,7 +193,7 @@ Run_Ntttcp()
 		echo "test_connections,throughput_in_Gbps,cycles/byte,avglatency_in_us" > $result_file
 	fi
 
-	for current_test_threads in $testConnections; do
+	for current_test_threads in "${testConnections[@]}"; do
 		if [[ $current_test_threads -lt $max_server_threads ]];
 		then
 			num_threads_P=$current_test_threads
@@ -251,7 +251,7 @@ Run_Ntttcp()
 		tx_cyclesperbytes=$(Get_Cyclesperbytes "$tx_ntttcp_log_file")
 		avg_latency=$(Get_Average_Latency "$tx_lagscope_log_file")
 		rx_cyclesperbytes=$(Get_Cyclesperbytes "$rx_ntttcp_log_file")
-		if [[ $tx_throughput == 0 ]];
+		if [[ $tx_throughput == "0.00" ]];
 		then
 			data_loss=`printf %.2f 0`
 		else
