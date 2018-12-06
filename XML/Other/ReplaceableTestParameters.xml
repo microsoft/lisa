@@ -155,4 +155,12 @@ Scenario 2 : You need to run all the performance tests quickly.
         <ReplaceThis>PERF-STORAGE-4K-IO-MODES</ReplaceThis>
         <ReplaceWith>(randread randwrite read write)</ReplaceWith>
     </Parameter>
+    <Parameter>
+        <ReplaceThis>NTTTCP_TCP_CONNECTIONS</ReplaceThis>
+        <ReplaceWith>(1 2 4 8 16 32 64 128 256 512 1024 2048 4096 6144 8192 10240)</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>NTTTCP_UDP_CONNECTIONS</ReplaceThis>
+        <ReplaceWith>(1 2 4 8 16 32 64 128 256 512 1024)</ReplaceWith>
+    </Parameter>
 </ReplaceableTestParameters>

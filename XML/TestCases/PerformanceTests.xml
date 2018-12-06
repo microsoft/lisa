@@ -15,7 +15,7 @@
             <param>STATIC_IP_2=10.10.10.30</param>
             <param>testDuration=NTTTCP_RUNTIME_IN_SECONDS</param>
             <param>testType=tcp</param>
-            <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024 2048 4096 6144 8192 10240"</param>
+            <param>testConnections=NTTTCP_TCP_CONNECTIONS</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
@@ -39,7 +39,7 @@
             <param>STATIC_IP_2=10.10.10.31</param>
             <param>testDuration=NTTTCP_RUNTIME_IN_SECONDS</param>
             <param>testType=tcp</param>
-            <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024 2048 4096 6144 8192 10240"</param>
+            <param>testConnections=NTTTCP_TCP_CONNECTIONS</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
@@ -64,7 +64,7 @@
             <param>testDuration=NTTTCP_RUNTIME_IN_SECONDS</param>
             <param>testType=udp</param>
             <param>bufferLength=1024</param>
-            <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024"</param>
+            <param>testConnections=NTTTCP_UDP_CONNECTIONS</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
@@ -89,7 +89,7 @@
             <param>testDuration=NTTTCP_RUNTIME_IN_SECONDS</param>
             <param>testType=udp</param>
             <param>bufferLength=1024</param>
-            <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024"</param>
+            <param>testConnections=NTTTCP_UDP_CONNECTIONS</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
