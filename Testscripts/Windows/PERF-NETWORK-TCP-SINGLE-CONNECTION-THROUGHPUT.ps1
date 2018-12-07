@@ -33,10 +33,13 @@ function Get-Iperf3PerformanceResults {
 
     $Iperf3Results = @()
     $iperfResultObject = @{
-        "RxThroughput_Gbps" = $null;
-        "TxThroughput_Gbps" = $null;
-        "CongestionWindowSize_KB" = $null;
-        "RetransmittedSegments" = $null;
+        "meta_data" = @{
+            "buffer_length" = $null;
+        };
+        "rx_txhroughput_gbps" = $null;
+        "tx_throughput_gbps" = $null;
+        "congestion_windowSize_kb" = $null;
+        "retransmitted_segments" = $null;
     }
 
     foreach ($bufferLength in $BufferLengths) {
@@ -64,12 +67,13 @@ function Get-Iperf3PerformanceResults {
         $CongestionWindowSize_KB = [math]::Round($CongestionWindowSize_KB_Total / $clientJson.intervals.Count / 1024 )
 
         $currentIperfResultObject = $iperfResultObject.Clone()
-        $currentIperfResultObject["Id"] = "BufferLength_" + $bufferLength
+        $currentIperfResultObject["meta_data"] = $iperfResultObject["meta_data"].Clone()
+        $currentIperfResultObject["meta_data"]["buffer_length"] = $bufferLength
+        $currentIperfResultObject["rx_txhroughput_gbps"] = $RxThroughput_Gbps
+        $currentIperfResultObject["tx_throughput_gbps"] = $TxThroughput_Gbps
+        $currentIperfResultObject["congestion_windowSize_kB"] = $CongestionWindowSize_KB
+        $currentIperfResultObject["retransmitted_segments"] = $RetransmittedSegments
 
-        $currentIperfResultObject["RxThroughput_Gbps"] = $RxThroughput_Gbps
-        $currentIperfResultObject["TxThroughput_Gbps"] = $TxThroughput_Gbps
-        $currentIperfResultObject["CongestionWindowSize_KB"] = $CongestionWindowSize_KB
-        $currentIperfResultObject["RetransmittedSegments"] = $RetransmittedSegments
         $Iperf3Results += $currentIperfResultObject
     }
 
