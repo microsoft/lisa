@@ -51,7 +51,7 @@ If you add a custom test menu, you will need to re-build the Jenkins menu, and t
                'CustomVHDURL' text box.
             b. Leave 'Kernel' unchanged unless you would like to use customized kernel code or linux-next.
             c. Update the 3 options regarding how to select test cases; TestName, Category and Tag.
-                i. Supported platform: Azure, etc.
+                i. Supported platform: Azure, HyperV, etc.
                 ii. Available Category: BVT, Community, Functional, Performance, and Smoke.
                 iii. Available Tags: boot, bvt, disk, ext4, gpu, hv_netvsc, etc.
         6. Enter partner's email address for report notification.
@@ -90,13 +90,13 @@ This XML file defines the regions per Category. It may require specific region o
     for each maintenance / sharing.
         1. BVT.xml: BVT (Build Validation Test) test cases
         2. CommunityTests.xml: Tests from Open Source Community.
-        3. FunctionalTests.xml: Feature tests for SR-IOV, GPU, DPDK, etc.
+        3. FunctionalTests-[FEATURE NAME].xml: Tests specific to a certain feature.
+        4. FunctionalTests.xml: Miscellaneous feature tests for other areas.
+        4. NestedVmTests.xml: Nested KVM and nested Hyper-V tests.
         4. Other.xml: If any does not fall into existing Category, add to here.
-        5. PerformanceTests.xml: Performance test cases
-        6. RegressionTests.xml: Add any tests for regression cycle.
+        5. PerformanceTests.xml: Performance test cases.
         7. SmokeTests.xml: It will run before BVT test runs.
-        8. StressTests.xml: Under development. Network traffic and stroage IO testing 
-        under heavy CPU and Memory stress.
+        8. StressTests.xml: Network traffic and storage IO testing under heavy CPU and Memory stress.
 
     Here is the format inside of TestCases.xml file. TODO: Revise the definition, and required field or not.
     [Req] Required
@@ -136,7 +136,7 @@ Per Category, each XML file has VM name, Resource Group name, etc. We do not rec
     5. Before PR review, we recommend you run script testing in cmdline/API mode. See above instruction.
     6. Current tags in the Repo: bvt, network, nested, hv_storvsc, stress, disk, dpdk,
         sriov, kvm, smb, storage, boot, pci_hyperv, core, wala, lsvmbus, synthetic, kvp,
-        gpu, hv_netvsc, ltp, lis, fcopy, memory, backup. They are all lowercases.
+        gpu, hv_netvsc, ltp, lis, fcopy, memory, backup, gen2vm. They are all lowercases.
 
 ## Coding Style
 
@@ -174,6 +174,7 @@ Per Category, each XML file has VM name, Resource Group name, etc. We do not rec
             CentOS release 6.7 (Final)
             CentOS release 6.8 (Final)
             CentOS release 6.9 (Final)
+            CentOS release 6.10 (Final)
         b. ClearLinux
             Clear Linux OS for Intel Architecture 1
         c. Debian
@@ -191,6 +192,7 @@ Per Category, each XML file has VM name, Resource Group name, etc. We do not rec
             Red Hat Enterprise Linux Server release 6.7 (Santiago)
             Red Hat Enterprise Linux Server release 6.8 (Santiago)
             Red Hat Enterprise Linux Server release 6.9 (Santiago)
+            Red Hat Enterprise Linux Server release 6.10 (Santiago)
             Red Hat Enterprise Linux Server release 7.2 (Maipo)
             Red Hat Enterprise Linux Server release 7.3 (Maipo)
             Red Hat Enterprise Linux Server release 7.4 (Maipo)
@@ -199,6 +201,7 @@ Per Category, each XML file has VM name, Resource Group name, etc. We do not rec
             SUSE Linux Enterprise Server 11 SP4
             SUSE Linux Enterprise Server 12 SP2
             SUSE Linux Enterprise Server 12 SP3
+            SUSE Linux Enterprise Server 15
         h. Ubuntu
             Ubuntu 12.04.5 LTS, Precise Pangolin
             Ubuntu 14.04.5 LTS, Trusty Tahr

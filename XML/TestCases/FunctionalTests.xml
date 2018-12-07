@@ -561,7 +561,7 @@
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>SECUREBOOT</Area>
-        <Tags>secureboot</Tags>
+        <Tags>secureboot,gen2vm</Tags>
         <Priority>0</Priority>
     </test>
     <test>
@@ -578,7 +578,7 @@
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>SECUREBOOT</Area>
-        <Tags>secureboot</Tags>
+        <Tags>secureboot,gen2vm</Tags>
         <Priority>1</Priority>
     </test>
     <test>
@@ -594,7 +594,22 @@
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>SECUREBOOT</Area>
-        <Tags>secureboot</Tags>
+        <Tags>secureboot,gen2vm</Tags>
+        <Priority>2</Priority>
+    </test>
+    <test>
+        <testName>SECUREBOOT-MIGRATEVM</testName>
+        <setupScript>.\TestScripts\Windows\SET-SECUREBOOT.ps1</setupScript>
+        <testScript>SECUREBOOT.ps1</testScript>
+        <Timeout>900</Timeout>
+        <setupType>ClusteredSingleVM</setupType>
+        <TestParameters>
+            <param>Migrate=True</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>SECUREBOOT</Area>
+        <Tags>secureboot,gen2vm</Tags>
         <Priority>2</Priority>
     </test>
     <test>
@@ -894,21 +909,6 @@
         <Category>Functional</Category>
         <Area>RUNTIME_MEMORY</Area>
         <Tags>memory</Tags>
-        <Priority>2</Priority>
-    </test>
-    <test>
-        <testName>SECUREBOOT-MIGRATEVM</testName>
-        <setupScript>.\TestScripts\Windows\SET-SECUREBOOT.ps1</setupScript>
-        <testScript>SECUREBOOT.ps1</testScript>
-        <Timeout>900</Timeout>
-        <setupType>ClusteredSingleVM</setupType>
-        <TestParameters>
-            <param>Migrate=True</param>
-        </TestParameters>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>SECUREBOOT</Area>
-        <Tags>secureboot</Tags>
         <Priority>2</Priority>
     </test>
 </TestCases>

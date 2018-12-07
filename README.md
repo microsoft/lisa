@@ -61,7 +61,7 @@ Refer to this URL [here](https://docs.microsoft.com/en-us/azure/azure-resource-m
 
 > Applicable if you are uploading your own Linux VHD to Azure for test.
 
-A VHD with Linux OS must be made compatible to work in HyperV environment. This includes:
+A VHD with Linux OS must be made compatible to work in Hyper-V environment. This includes:
 
 * Linux Integration Services. If not available, at least KVP daemon must be running. Without KVP daemon running, the framework will not be able to obtain an IP address from the guest.
 * Windows Azure Linux Agent (for testing in Azure environment only)
@@ -78,7 +78,7 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
 
           git clone https://github.com/LIS/LISAv2.git
 
-2. Update the .\XML\GlobalConfigurations.xml file with your Azure subscription information or HyperV host information:
+2. Update the .\XML\GlobalConfigurations.xml file with your Azure subscription information or Hyper-V host information:
 
    Go to Global > Azure/HyperV and update following fields :
 
@@ -104,7 +104,7 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
   <HyperV>
         <Hosts>
             <Host>
-                <!--ServerName can be localhost or HyperV host name-->
+                <!--ServerName can be localhost or Hyper-V host name-->
                 <ServerName>localhost</ServerName>
                 <SourceOsVHDPath></SourceOsVHDPath>
                 <DestinationOsVHDPath>VHDs_Destination_Path</DestinationOsVHDPath>
