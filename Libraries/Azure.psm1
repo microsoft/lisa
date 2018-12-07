@@ -522,18 +522,12 @@ Function Delete-ResourceGroup([string]$RGName, [switch]$KeepDisks) {
                 $retValue = $true
             }
             else {
-                $currentGUID = ([guid]::newguid()).Guid
-                $null = Save-AzureRmContext -Path "$env:TEMP\$($currentGUID).azurecontext" -Force
                 $cleanupRGScriptBlock = {
                     $RGName = $args[0]
-                    $currentGUID = $args[1]
-                    Import-AzureRmContext -AzureContext "$env:TEMP\$($currentGUID).azurecontext"
                     Remove-AzureRmResourceGroup -Name $RGName -Verbose -Force
                 }
-                $currentGUID = ([guid]::newguid()).Guid
-                $null = Save-AzureRmContext -Path "$env:TEMP\$($currentGUID).azurecontext" -Force
                 Write-LogInfo "Triggering : Delete-ResourceGroup-$RGName..."
-                $null = Start-Job -ScriptBlock $cleanupRGScriptBlock -ArgumentList $RGName, $currentGUID -Name "Delete-ResourceGroup-$RGName"
+                $null = Start-Job -ScriptBlock $cleanupRGScriptBlock -ArgumentList @($RGName) -Name "Delete-ResourceGroup-$RGName"
                 $retValue = $true
             }
         }
@@ -2177,19 +2171,15 @@ Function Set-ResourceGroupLock ([string]$ResourceGroup, [string]$LockNote, [stri
 }
 
 Function Restart-AllAzureDeployments($allVMData) {
-    $currentGUID = ([guid]::newguid()).Guid
-    $null = Save-AzureRmContext -Path "$env:TEMP\$($currentGUID).azurecontext" -Force
     $restartJobs = @()
     foreach ( $vmData in $AllVMData ) {
         Write-LogInfo "Triggering Restart-$($vmData.RoleName)..."
         $restartJobs += Start-Job -ScriptBlock {
             $vmData = $args[0]
-            $currentGUID = $args[1]
             $retries = 0
             $maxRetryCount = 3
             $vmRestarted = $false
 
-            Import-AzureRmContext -AzureContext "$env:TEMP\$($currentGUID).azurecontext"
             # Note(v-advlad): Azure API can sometimes fail on burst requests, we have to retry
             while (!$vmRestarted -and $retries -lt $maxRetryCount) {
                 $null = Restart-AzureRmVM -ResourceGroupName $vmData.ResourceGroupName -Name $vmData.RoleName -Verbose
@@ -2203,7 +2193,7 @@ Function Restart-AllAzureDeployments($allVMData) {
             if (!$vmRestarted) {
                 throw "Failed to restart Azure VM $($vmData.RoleName)"
             }
-        } -ArgumentList $vmData, $currentGUID -Name "Restart-$($vmData.RoleName)"
+        } -ArgumentList @($vmData) -Name "Restart-$($vmData.RoleName)"
     }
     $recheckAgain = $true
     Write-LogInfo "Waiting until VMs restart..."
@@ -2230,7 +2220,6 @@ Function Restart-AllAzureDeployments($allVMData) {
         Start-Sleep -Seconds 1
     }
 
-    Remove-Item -Path "$env:TEMP\$($currentGUID).azurecontext" -Force -ErrorAction SilentlyContinue | Out-Null
     $isSSHOpened = Check-SSHPortsEnabled -AllVMDataObject $AllVMData
     return $isSSHOpened
 }

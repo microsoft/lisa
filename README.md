@@ -43,7 +43,7 @@ LISAv2 includes below test suite categories:
 ### Download Latest Azure PowerShell
 
 1. Download Web Platform Installer from [here](http://go.microsoft.com/fwlink/p/?linkid=320376&clcid=0x409)
-2. Start Web Platform Installer and select Azure PowerShell (Recommend 6.0.0 or above) and proceed for Azure PowerShell Installation.
+2. Start Web Platform Installer and select Azure PowerShell (required 6.3.0 or above) and proceed for Azure PowerShell Installation.
 
 ### Authenticate Your Test Driver Machine with Your Azure Subscription
 
