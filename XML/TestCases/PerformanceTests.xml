@@ -196,18 +196,21 @@
         <AdditionalHWConfig>
             <DiskType>Managed</DiskType>
         </AdditionalHWConfig>
+        <setupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\AddHardDisk.ps1</setupScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <TestParameters>
             <param>modes=PERF-STORAGE-4K-IO-MODES</param>
-            <param>startThread=1</param>
-            <param>maxThread=1024</param>
+            <param>startQDepth=1</param>
+            <param>maxQDepth=2048</param>
             <param>startIO=4</param>
-            <param>numjobs=1</param>
             <param>ioruntime=FIO_RUNTIME_IN_SECONDS</param>
             <param>maxIO=4</param>
             <param>fileSize=1023G</param>
+            <param>PHYSICAL_NUMBER=1</param>
+            <param>SCSI=1,1,RAID</param>
         </TestParameters>
-        <Platform>Azure</Platform>
+        <cleanupScript>.\Testscripts\Windows\RemoveHardDisk.ps1</cleanupScript>
+        <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
         <Area>Storage</Area>
         <Tags>hv_storvsc,storage</Tags>
@@ -223,10 +226,9 @@
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <TestParameters>
             <param>modes=PERF-STORAGE-1024K-IO-MODES</param>
-            <param>startThread=1</param>
-            <param>maxThread=1024</param>
+            <param>startQDepth=1</param>
+            <param>maxQDepth=2048</param>
             <param>startIO=1024</param>
-            <param>numjobs=1</param>
             <param>ioruntime=FIO_RUNTIME_IN_SECONDS</param>
             <param>maxIO=1024</param>
             <param>fileSize=1023G</param>

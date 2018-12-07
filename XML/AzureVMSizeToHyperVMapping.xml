@@ -311,8 +311,8 @@
         <MemoryInMB>114688</MemoryInMB>
     </Standard_DS14-8_v2>
     <Standard_DS14_v2>
-        <NumberOfCores>16</NumberOfCores>
-        <MemoryInMB>114688</MemoryInMB>
+        <NumberOfCores>8</NumberOfCores>
+        <MemoryInMB>8196</MemoryInMB>
     </Standard_DS14_v2>
     <Standard_DS15_v2>
         <NumberOfCores>20</NumberOfCores>

@@ -479,29 +479,6 @@ Function Create-HyperVGroupDeployment([string]$HyperVGroup, $HyperVGroupNameXML,
                     New-VHD -Path $ResourceDiskPath -SizeBytes 1GB -Dynamic -ComputerName $HyperVHost
                     Write-LogInfo "Add-VMHardDiskDrive -ControllerType SCSI -Path $ResourceDiskPath -VM $($NewVM.Name)"
                     Add-VMHardDiskDrive -ControllerType SCSI -Path $ResourceDiskPath -VM $NewVM
-                    $LUNs = $VirtualMachine.DataDisk.LUN
-                    if($LUNs.count -gt 0)
-                    {
-                        Write-LogInfo "check the offline physical disks on host $HyperVHost"
-                        $DiskNumbers = (Get-Disk | Where-Object {$_.OperationalStatus -eq 'offline'}).Number
-                        if($DiskNumbers.count -ge $LUNs.count)
-                        {
-                            Write-LogInfo "The offline physical disks are enough for use"
-                            $ControllerType = 'SCSI'
-                            $count = 0
-                            foreach ( $LUN in $LUNs )
-                            {
-                                Write-LogInfo "Add physical disk $($DiskNumbers[$count]) to $ControllerType controller on virtual machine $CurrentVMName."
-                                $NewVM | Add-VMHardDiskDrive -DiskNumber $($DiskNumbers[$count]) -ControllerType $ControllerType
-                                $count ++
-                            }
-                        }
-                        else
-                        {
-                            Write-LogErr "The offline physical disks are not enough for use"
-                            $ErrorCount += 1
-                        }
-                    }
                 }
                 else
                 {

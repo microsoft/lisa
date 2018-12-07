@@ -13,7 +13,6 @@
 # You can adapt this script to other situations easily like for stripe disks as RAID0.
 # The only thing to keep in mind is that each different configuration you're testing
 # must log its output to a different directory.
-#
 
 HOMEDIR="/root"
 LogMsg()
@@ -55,46 +54,26 @@ UpdateTestState()
 RunFIO()
 {
 	UpdateTestState $ICA_TESTRUNNING
-	FILEIO="--size=${fileSize} --direct=1 --ioengine=libaio --filename=${mdVolume} --overwrite=1  "
+	FILEIO="--size=${fileSize} --direct=1 --ioengine=libaio --filename=${mdVolume} --overwrite=1 "
+	iteration=0
+	io_increment=128
+	NUM_JOBS=(1 1 2 2 4 4 8 8 8 8 8 8)
 
-	####################################
-	#All run config set here
-	#
-
-	#Log Config
-	
+	# Log Config
 	mkdir $HOMEDIR/FIOLog/jsonLog
 	mkdir $HOMEDIR/FIOLog/iostatLog
 	mkdir $HOMEDIR/FIOLog/blktraceLog
 
-	#LOGDIR="${HOMEDIR}/FIOLog"
+	# LOGDIR="${HOMEDIR}/FIOLog"
 	JSONFILELOG="${LOGDIR}/jsonLog"
 	IOSTATLOGDIR="${LOGDIR}/iostatLog"
 	BLKTRACELOGDIR="${LOGDIR}/blktraceLog"
 	LOGFILE="${LOGDIR}/fio-test.log.txt"	
 
-	#redirect blktrace files directory
+	# redirect blktrace files directory
 	Resource_mount=$(mount -l | grep /sdb1 | awk '{print$3}')
 	blk_base="${Resource_mount}/blk-$(date +"%m%d%Y-%H%M%S")"
 	mkdir $blk_base
-	#
-	#
-	#Test config
-	#
-	#
-
-	#All possible values for file-test-mode are randread randwrite read write
-	#modes=(randread randwrite read write)
-	iteration=0
-	#startThread=1
-	#startIO=8
-	#numjobs=1
-
-	#Max run config
-	#ioruntime=300
-	#maxThread=1024
-	#maxIO=8
-	io_increment=128
 
 	####################################
 	LogMsg "Test log created at: ${LOGFILE}"
@@ -115,43 +94,43 @@ RunFIO()
 	df -h >> $LOGFILE
 	fio --cpuclock-test >> $LOGFILE
 	####################################
-	#Trigger run from here
+	# Trigger run from here
 	for testmode in "${modes[@]}"; do
 		io=$startIO
 		while [ $io -le $maxIO ]
 		do
-			Thread=$startThread
-			while [ $Thread -le $maxThread ]
+			numJobIterator=0
+			qDepth=$startQDepth
+			while [ $qDepth -le $maxQDepth ]
 			do
-				if [ $Thread -ge 8 ]
-				then
-					numjobs=8
-				else
-					numjobs=$Thread
+				numJob=${NUM_JOBS[$numJobIterator]}
+				if [ -z "$numJob" ]; then
+					numJob=${NUM_JOBS[-1]}	
 				fi
-				iostatfilename="${IOSTATLOGDIR}/iostat-fio-${testmode}-${io}K-${Thread}td.txt"
+				thread=$((qDepth/numJob))
+
+				iostatfilename="${IOSTATLOGDIR}/iostat-fio-${testmode}-${io}K-${thread}td.txt"
 				nohup $iostat_cmd -x 5 -t -y > $iostatfilename &
-				#capture blktrace output during test
-				#LogMsg "INFO: start blktrace for 40 sec on device sdd and sdf"				
-				#blk_operation="${blk_base}/blktrace-fio-${testmode}-${io}K-${Thread}td/"							
-				#mkdir $blk_operation
-				#blktrace -w 40 -d /dev/sdf -D $blk_operation &
-				#blktrace -w 40 -d /dev/sdm -D $blk_operation &
-				LogMsg "-- iteration ${iteration} ----------------------------- ${testmode} test, ${io}K bs, ${Thread} threads, ${numjobs} jobs, 5 minutes ------------------ $(date +"%x %r %Z") ---"
-				LogMsg "Running ${testmode} test, ${io}K bs, ${Thread} threads ..."
-				jsonfilename="${JSONFILELOG}/fio-result-${testmode}-${io}K-${Thread}td.json"
-				LogMsg "${fio_cmd} $FILEIO --readwrite=${testmode} --bs=${io}K --runtime=${ioruntime} --iodepth=${Thread} --numjobs=${numjobs} --output-format=json --output=${jsonfilename} --name='iteration'${iteration}"
-				$fio_cmd $FILEIO --readwrite=$testmode --bs=${io}K --runtime=$ioruntime --iodepth=$Thread --numjobs=$numjobs --output-format=json --output=$jsonfilename --name="iteration"${iteration} >> $LOGFILE
-				#fio $FILEIO --readwrite=$testmode --bs=${io}K --runtime=$ioruntime --iodepth=$Thread --numjobs=$numjobs --name="iteration"${iteration} --group_reporting >> $LOGFILE
+				LogMsg "-- iteration ${iteration} ----------------------------- ${testmode} test, ${io}K bs, ${thread} threads, ${numJob} jobs, 5 minutes ------------------ $(date +"%x %r %Z") ---"
+				LogMsg "Running ${testmode} test, ${io}K bs, ${qDepth} qdepth (${thread} X ${numJob})..."
+				jsonfilename="${JSONFILELOG}/fio-result-${testmode}-${io}K-${qDepth}td.json"
+				LogMsg "${fio_cmd} $FILEIO --readwrite=${testmode} --bs=${io}K --runtime=${ioruntime} --iodepth=${thread} --numjob=${numJob} --output-format=json --output=${jsonfilename} --name='iteration'${iteration}"
+				$fio_cmd $FILEIO --readwrite=$testmode --bs=${io}K --runtime=$ioruntime --iodepth=$thread --numjob=$numJob --output-format=json --output=$jsonfilename --name="iteration"${iteration} >> $LOGFILE
+				if [ $? -ne 0 ]; then
+					LogMsg "Error: Failed to run fio"
+					UpdateTestState $ICA_TESTFAILED
+					exit 1
+				fi
 				iostatPID=`ps -ef | awk '/iostat/ && !/awk/ { print $2 }'`
 				kill -9 $iostatPID
-				Thread=$(( Thread*2 ))
-				iteration=$(( iteration+1 ))
+				qDepth=$((qDepth*2))
+				iteration=$((iteration+1))
+				numJobIterator=$((numJobIterator+1))
 				if [[ $(detect_linux_distribution) == coreos ]]; then
 					Kill_Process 127.0.0.1 fio
 				fi
 			done
-		io=$(( io * io_increment ))
+		io=$((io * io_increment))
 		done
 	done
 	####################################
@@ -162,14 +141,12 @@ RunFIO()
 	tar -cvzf $compressedFileName $LOGDIR/
 
 	LogMsg "Test logs are located at ${LOGDIR}"
-	UpdateTestState ICA_TESTCOMPLETED
+	UpdateTestState $ICA_TESTCOMPLETED
 }
-
 
 CreateRAID0()
 {	
 	disks=$(ls -l /dev | grep sd[c-z]$ | awk '{print $10}')
-	#disks=(`fdisk -l | grep 'Disk.*/dev/sd[a-z]' |awk  '{print $2}' | sed s/://| sort| grep -v "/dev/sd[ab]$" `)
 	
 	LogMsg "INFO: Check and remove RAID first"
 	mdvol=$(cat /proc/mdstat | grep "active raid" | awk {'print $1'})
@@ -198,9 +175,6 @@ CreateRAID0()
 CreateLVM()
 {	
 	disks=$(ls -l /dev | grep sd[c-z]$ | awk '{print $10}')
-	#disks=(`fdisk -l | grep 'Disk.*/dev/sd[a-z]' |awk  '{print $2}' | sed s/://| sort| grep -v "/dev/sd[ab]$" `)
-	
-	#LogMsg "INFO: Check and remove LVM first"
 	vgExist=$(vgdisplay)
 	if [ -n "$vgExist" ]; then
 		umount ${mountDir}
@@ -257,11 +231,10 @@ else
 	iostat_cmd="iostat"
 fi
 
-#Creating RAID before triggering test
+# Creating RAID before triggering test
 CreateRAID0
-#CreateLVM
 
-#Run test from here
+# Run test from here
 LogMsg "*********INFO: Starting test execution*********"
 RunFIO
 LogMsg "*********INFO: Script execution reach END. Completed !!!*********"

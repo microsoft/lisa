@@ -289,13 +289,18 @@ function New-HardDrive
     if ($vhdType -eq "RAID") {
         Write-LogInfo "Attaching physical drive for RAID..."
         $ERROR.Clear()
-        foreach ($i in $newvhd) {
-            $disk = Add-VMHardDiskDrive -VMName $vmName -ComputerName $server `
-                -ControllerType $controllerType -ControllerNumber $controllerID -DiskNumber $i
-            if ($ERROR.Count -gt 0) {
-                Write-LogErr "Unable to attach physical drive: $i."
-                return $False
+        if (($newvhd.Count -eq 4) -or ($newvhd.Count -eq 8)) {
+            foreach ($i in $newvhd) {
+                $disk = Add-VMHardDiskDrive -VMName $vmName -ComputerName $server `
+                    -ControllerType $controllerType -ControllerNumber $controllerID -DiskNumber $i
+                if ($ERROR.Count -gt 0) {
+                    Write-LogErr "Unable to attach physical drive: $i."
+                    return $False
+                }
             }
+        } else {
+            Write-LogErr "We must test either 4 or 8 disks. The actual count is $($newvhd.Count)"
+            return $False
         }
     } elseif ($vhdType -eq "Physical") {
         Write-LogInfo "Attaching physical drive..."
