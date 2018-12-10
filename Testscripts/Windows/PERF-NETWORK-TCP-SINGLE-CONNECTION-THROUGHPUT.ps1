@@ -36,7 +36,7 @@ function Get-Iperf3PerformanceResults {
         "meta_data" = @{
             "buffer_length" = $null;
         };
-        "rx_txhroughput_gbps" = $null;
+        "rx_throughput_gbps" = $null;
         "tx_throughput_gbps" = $null;
         "congestion_windowsize_kb" = $null;
         "retransmitted_segments" = $null;
@@ -69,7 +69,7 @@ function Get-Iperf3PerformanceResults {
         $currentIperfResultObject = $iperfResultObject.Clone()
         $currentIperfResultObject["meta_data"] = $iperfResultObject["meta_data"].Clone()
         $currentIperfResultObject["meta_data"]["buffer_length"] = $bufferLength
-        $currentIperfResultObject["rx_txhroughput_gbps"] = $RxThroughput_Gbps
+        $currentIperfResultObject["rx_throughput_gbps"] = $RxThroughput_Gbps
         $currentIperfResultObject["tx_throughput_gbps"] = $TxThroughput_Gbps
         $currentIperfResultObject["congestion_windowsize_kb"] = $CongestionWindowSize_KB
         $currentIperfResultObject["retransmitted_segments"] = $RetransmittedSegments
@@ -81,7 +81,12 @@ function Get-Iperf3PerformanceResults {
 }
 
 function Consume-Iperf3Results {
-    param($Iperf3Results)
+    param(
+        $Iperf3Results,
+        $DataPath,
+        $IPVersion,
+        $ClientVMData
+    )
 
     $dataSource = $xmlConfig.config.$TestPlatform.database.server
     $user = $xmlConfig.config.$TestPlatform.database.user
@@ -90,7 +95,7 @@ function Consume-Iperf3Results {
     $dataTableName = $xmlConfig.config.$TestPlatform.database.dbtable
     $TestCaseName = $xmlConfig.config.$TestPlatform.database.testTag
 
-    if (!($dataSource -and $user -and $password -and $database -and $dataTableName -and $TestCaseName)) {
+    if (!($dataSource -and $user -and $password -and $database -and $dataTableName)) {
         Write-LogInfo "Invalid database details. Failed to upload result to database!"
         return
     }
@@ -100,7 +105,7 @@ function Consume-Iperf3Results {
     $HostOS = cat "$LogDir\VM_properties.csv" | Select-String "Host Version"| %{$_ -replace ",Host Version,",""}
     $GuestOSType = "Linux"
     $GuestDistro = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
-    $GuestSize = $clientVMData.InstanceSize
+    $GuestSize = $ClientVMData.InstanceSize
     $KernelVersion = cat "$LogDir\VM_properties.csv" | Select-String "Kernel version"| %{$_ -replace ",Kernel version,",""}
     if ($KernelVersion.Length -ge 28) {
         $KernelVersion = $KernelVersion.Trim().Substring(0,28)
@@ -109,6 +114,12 @@ function Consume-Iperf3Results {
 
     $SQLQuery = "INSERT INTO $dataTableName (TestCaseName,DataPath,TestDate,HostBy,HostOS,HostType,GuestSize,GuestOSType,GuestDistro,KernelVersion,IPVersion,ProtocolType,BufferSize_Bytes,RxThroughput_Gbps,TxThroughput_Gbps,RetransmittedSegments,CongestionWindowSize_KB) VALUES"
     foreach ($perfResult in $Iperf3Results) {
+        $BufferSize_Bytes = $perfResult["meta_data"]["buffer_length"]
+        $RxThroughput_Gbps = $perfResult["rx_throughput_gbps"]
+        $TxThroughput_Gbps = $perfResult["tx_throughput_gbps"]
+        $RetransmittedSegments = $perfResult["retransmitted_segments"]
+        $CongestionWindowSize_KB = $perfResult["congestion_windowsize_kb"]
+
         $SQLQuery += "('$TestCaseName','$DataPath','$TestDate','$TestLocation','$HostOS','$TestPlatform','$GuestSize','$GuestOSType','$GuestDistro','$KernelVersion','$IPVersion','$ProtocolType','$BufferSize_Bytes','$RxThroughput_Gbps','$TxThroughput_Gbps','$RetransmittedSegments','$CongestionWindowSize_KB'),"
     }
 
@@ -246,7 +257,8 @@ collect_VM_properties
             $iperf3ResutsFile = "${LogDir}\$($currentTestData.testName)_perf_results.json"
             $iperf3Results | ConvertTo-Json | Out-File $iperf3ResutsFile -Encoding "ascii"
             Write-LogInfo "Perf results in json format saved at: ${iperf3ResutsFile}"
-            Consume-Iperf3Results $iperf3Results
+            Consume-Iperf3Results -Iperf3Results $iperf3Results -DataPath $DataPath -IPVersion $IPVersion `
+                -ClientVMData $clientVMData
         } elseif ($finalStatus -imatch "TestRunning") {
             Write-LogInfo "Powershell background job is completed but VM is reporting that test is still running. Please check $LogDir\ConsoleLogs.txt"
             $testResult = "FAIL"
