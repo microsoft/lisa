@@ -20,7 +20,7 @@ function dpdk_setup() {
 
 	local ip
 	for ip in $IP_ADDRS; do
-		Install_Dpdk ${ip} &
+		Install_Dpdk ${ip} > ${LIS_HOME}/dpdk_${ip}_install.log 2>&1 &
 		local pids="$pids $!"
 	done
 	wait $pids
@@ -51,9 +51,10 @@ source_script "dpdkUtils.sh"
 # Source constants file and initialize most common variables
 UtilsInit
 LOG_DIR="${LIS_HOME}/logdir"
+rm -rf ${LOG_DIR} # LISA Pipelines don't always wipe old state
 mkdir -p ${LOG_DIR}
 PHASE_FILE="${LIS_HOME}/phase.txt"
-touch ${PHASE_FILE}
+> ${PHASE_FILE}
 
 # constants.sh is now loaded; load user provided scripts
 for file in ${USER_FILES}; do

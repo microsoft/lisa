@@ -551,74 +551,30 @@ function Enable-SRIOVInAllVMs($allVMData)
 	}
 }
 
-Function Detect-LinuxDistro($VIP, $SSHport, $testVMUser, $testVMPassword)
-{
-	if ( !$detectedDistro )
-	{
-		$null = Copy-RemoteFiles  -upload -uploadTo $VIP -port $SSHport -files ".\Testscripts\Linux\DetectLinuxDistro.sh" -username $testVMUser -password $testVMPassword 2>&1 | Out-Null
-		$null = Run-LinuxCmd -username $testVMUser -password $testVMPassword -ip $VIP -port $SSHport -command "chmod +x *.sh" -runAsSudo 2>&1 | Out-Null
-		$DistroName = Run-LinuxCmd -username $testVMUser -password $testVMPassword -ip $VIP -port $SSHport -command "/home/$user/DetectLinuxDistro.sh" -runAsSudo
-		if(($DistroName -imatch "Unknown") -or (!$DistroName))
-		{
-			Write-LogErr "Linux distro detected : $DistroName"
-			Throw "Calling function - $($MyInvocation.MyCommand). Unable to detect distro."
-		}
-		else
-		{
-			if ($DistroName -imatch "UBUNTU")
-			{
-				$CleanedDistroName = "UBUNTU"
-			}
-			elseif ($DistroName -imatch "DEBIAN")
-			{
-				$CleanedDistroName = "DEBIAN"
-			}
-			elseif ($DistroName -imatch "CENTOS")
-			{
-				$CleanedDistroName = "CENTOS"
-			}
-			elseif ($DistroName -imatch "SLES")
-			{
-				$CleanedDistroName = $DistroName
-			}
-			elseif ($DistroName -imatch "SUSE")
-			{
-				$CleanedDistroName = "SUSE"
-			}
-			elseif ($DistroName -imatch "ORACLELINUX")
-			{
-				$CleanedDistroName = "ORACLELINUX"
-			}
-			elseif ($DistroName -imatch "REDHAT")
-			{
-				$CleanedDistroName = "REDHAT"
-			}
-			elseif ($DistroName -imatch "FEDORA")
-			{
-				$CleanedDistroName = "FEDORA"
-			}
-			elseif ($DistroName -imatch "COREOS")
-			{
-				$CleanedDistroName = "COREOS"
-			}
-			elseif ($DistroName -imatch "CLEARLINUX")
-			{
-				$CleanedDistroName = "CLEARLINUX"
-			}
-			else
-			{
-				$CleanedDistroName = "UNKNOWN"
-			}
-			Set-Variable -Name detectedDistro -Value $CleanedDistroName -Scope Global
-			Set-DistroSpecificVariables -detectedDistro $detectedDistro
-			Write-LogInfo "Linux distro detected : $CleanedDistroName"
-		}
+Function Detect-LinuxDistro() {
+	param(
+		[Parameter(Mandatory=$true)][string]$VIP,
+		[Parameter(Mandatory=$true)][string]$SSHPort,
+		[Parameter(Mandatory=$true)][string]$testVMUser,
+		[Parameter(Mandatory=$true)][string]$testVMPassword
+	)
+
+	$null = Copy-RemoteFiles  -upload -uploadTo $VIP -port $SSHport -files ".\Testscripts\Linux\DetectLinuxDistro.sh" -username $testVMUser -password $testVMPassword 2>&1 | Out-Null
+	$null = Run-LinuxCmd -username $testVMUser -password $testVMPassword -ip $VIP -port $SSHport -command "chmod +x *.sh" -runAsSudo 2>&1 | Out-Null
+
+	$DistroName = Run-LinuxCmd -username $testVMUser -password $testVMPassword -ip $VIP -port $SSHport -command "/home/$user/DetectLinuxDistro.sh" -runAsSudo
+
+	if(($DistroName -imatch "Unknown") -or (!$DistroName)) {
+		Write-LogErr "Linux distro detected : $DistroName"
+		# Instead of throw, it sets 'Unknown' if it does not exist
+		$CleanedDistroName = "Unknown"
+	} else {
+		$CleanedDistroName = $DistroName
+		Set-Variable -Name detectedDistro -Value $CleanedDistroName -Scope Global
+		Set-DistroSpecificVariables -detectedDistro $detectedDistro
+		Write-LogInfo "Linux distro detected : $CleanedDistroName"
 	}
-	else
-	{
-		Write-LogInfo "Distro Already Detected as : $detectedDistro"
-		$CleanedDistroName = $detectedDistro
-	}
+
 	return $CleanedDistroName
 }
 

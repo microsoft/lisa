@@ -6,13 +6,28 @@
 #
 # Testcases supply their own XML testcase, VM configuration (with one vm named
 # "sender"), one powershell file, and one bash script file.
-# The testcase provides 3 functions in its ps1 file:
+# The testcase may provide 3 functions in its ps1 file (none are required):
 #   1. Set-Test
+#		To change any state before the test begins. For example, enable
+#		IP forwarding on a VM's NIC. Get-NonManagementNic function is provided,
+#		see this file for other variables that are available.
 #   2. Set-Runtime
+#		To change any state during the test's runtime. Same functions and
+#		variables available to Set-Test are available for Set-Runtime plus one
+#		more: "currentPhase". When the bash script side uses "Update_Phase" the
+#		Set-Runtime function can get that phase by reading "currentPhase". This
+#		allows both sides of the test to syncrhonize.
 #   3. Confirm-Performance
+#		To parse and finalize and data collected during the test run.
+#
 # The testcase provides 2 functions in its bash file:
 #   1. Dpdk_Configure
-#   2. Run_Testcase
+#		To do any auxiliary configuration on DPDK before compilation. For
+#		example, change testpmd ip's.
+#   2. Run_Testcase	(required)
+#		The function that the DPDK framework calls to actually run the testcase.
+#		Many functions and variables are provided to both Dpdk_Configure and
+#		Run_Testcase. Please see dpdkUtils.sh for more information.
 #
 # DPDK is automatically installed on all VMs and all their IPs are listed in the
 # contants.sh file.
@@ -37,16 +52,40 @@ function Get-NonManagementNic() {
 	return $nics
 }
 
+function Get-FunctionAndWarn() {
+	param (
+		[string] $funcName
+	)
+
+	if (Get-Command $funcName -ErrorAction SilentlyContinue) {
+		return $true
+	} else {
+		Write-LogWarn "Testcase did not provide $funcName. If function is not necessary this warning may be ignored."
+		return $false
+	}
+}
+
+function Get-FunctionAndInvoke() {
+	param (
+		[string] $funcName
+	)
+
+	if (Get-Command $funcName -ErrorAction SilentlyContinue) {
+		return & $funcName
+	}
+}
+
 function Set-Phase() {
 	[CmdletBinding(SupportsShouldProcess)]
 
 	param (
 		[string] $phase_msg
 	)
+	$superUser = "root"
 
 	Set-Content "$LogDir\phase.txt" $phase_msg
 	Write-LogInfo "Changing phase to $phase_msg"
-	Run-LinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username $user -password $password -command "echo $phase_msg > phase.txt"
+	Run-LinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username $superUser -password $password -command "echo $phase_msg > phase.txt"
 }
 
 function Main {
@@ -54,6 +93,8 @@ function Main {
 
 	# Create test result
 	$resultArr = @()
+
+	$superUser = "root"
 
 	try {
 		# enables root access and key auth
@@ -179,7 +220,12 @@ function Main {
 			Add-Content -Value "$param" -Path $constantsFile
 		}
 
-		Set-Test
+		$settestCMD = "Set-Test"
+		if (Get-FunctionAndWarn($settestCMD)) {
+			& $settestCMD
+		}
+		Get-FunctionAndWarn("Set-Runtime")
+		Get-FunctionAndWarn("Confirm-Performance")
 
 		# start test
 		$startTestCmd = @"
@@ -191,38 +237,38 @@ collect_VM_properties
 		Set-content "$LogDir\StartDpdkTest.sh" $startTestCmd
 		# upload updated constants file to all VMs
 		foreach ($vmData in $allVMData) {
-			Copy-RemoteFiles -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files "$constantsFile,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkUtils.sh," -username "root" -password $password -upload
+			Copy-RemoteFiles -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files "$constantsFile,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkUtils.sh," -username $superUser -password $password -upload
 		}
-		Copy-RemoteFiles -uploadTo $masterVM.PublicIP -port $masterVM.SSHPort -files ".\Testscripts\Linux\dpdkSetupAndRunTest.sh,$LogDir\StartDpdkTest.sh" -username "root" -password $password -upload
+		Copy-RemoteFiles -uploadTo $masterVM.PublicIP -port $masterVM.SSHPort -files ".\Testscripts\Linux\dpdkSetupAndRunTest.sh,$LogDir\StartDpdkTest.sh" -username $superUser -password $password -upload
 		# upload user specified file from Testcase.xml to root's home
-		Copy-RemoteFiles -uploadTo $masterVM.PublicIP -port $masterVM.SSHPort -files $bashFilePaths -username "root" -password $password -upload
+		Copy-RemoteFiles -uploadTo $masterVM.PublicIP -port $masterVM.SSHPort -files $bashFilePaths -username $superUser -password $password -upload
 
-		Run-LinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "chmod +x *.sh"
-		$testJob = Run-LinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "./StartDpdkTest.sh" -RunInBackground
+		Run-LinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username $superUser -password $password -command "chmod +x *.sh"
+		$testJob = Run-LinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username $superUser -password $password -command "./StartDpdkTest.sh" -RunInBackground
 
 		# monitor test
 		$outputCounter = 0
 		$oldPhase = ""
 		while ((Get-Job -Id $testJob).State -eq "Running") {
 			if ($outputCounter -eq 5) {
-				$currentOutput = Run-LinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "tail -2 dpdkConsoleLogs.txt | head -1"
+				$currentOutput = Run-LinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username $superUser -password $password -command "tail -2 dpdkConsoleLogs.txt | head -1"
 				Write-LogInfo "Current Test Output: $currentOutput"
 
 				$outputCounter = 0
 			}
 
-			$currentPhase = Run-LinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "cat phase.txt"
+			$currentPhase = Run-LinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username $superUser -password $password -command "cat phase.txt"
 			if ($currentPhase -ne $oldPhase) {
 				Write-LogInfo "Read new phase: $currentPhase"
 				$oldPhase = $currentPhase
 			}
-			Set-Runtime
+			Get-FunctionAndInvoke("Set-Runtime")
 
 			++$outputCounter
 			Wait-Time -seconds 5
 		}
-		$finalState = Run-LinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -command "cat /root/state.txt"
-		Copy-RemoteFiles -downloadFrom $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "*.csv, *.txt, *.log"
+		$finalState = Run-LinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username $superUser -password $password -command "cat /root/state.txt"
+		Copy-RemoteFiles -downloadFrom $masterVM.PublicIP -port $masterVM.SSHPort -username $superUser -password $password -download -downloadTo $LogDir -files "*.csv, *.txt, *.log"
 
 		$testDataCsv = Import-Csv -Path $LogDir\dpdk_test.csv
 		if ($finalState -imatch "TestFailed") {
@@ -235,8 +281,9 @@ collect_VM_properties
 		}
 		elseif ($finalState -imatch "TestCompleted") {
 			Write-LogInfo "Test Completed."
-			Copy-RemoteFiles -downloadFrom $masterVM.PublicIP -port $masterVM.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "*.tar.gz"
-			$testResult = (Confirm-Performance)
+			Copy-RemoteFiles -downloadFrom $masterVM.PublicIP -port $masterVM.SSHPort -username $superUser -password $password -download -downloadTo $LogDir -files "*.tar.gz"
+			$testResult = "PASS"
+			$testResult = (Get-FunctionAndInvoke("Confirm-Performance"))
 		}
 		elseif ($finalState -imatch "TestRunning") {
 			Write-LogWarn "Powershell backgroud job for test is completed but VM is reporting that test is still running. Please check $LogDir\zkConsoleLogs.txt"

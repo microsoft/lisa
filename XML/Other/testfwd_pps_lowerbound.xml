@@ -1,34 +1,34 @@
 <testfwdpps>
 	<Standard_DS15_v2>
 		<core1>
-			<tx>15000000</tx>
+			<tx>10000000</tx>
 			<fwdrx>9500000</fwdrx>
-			<fwdtx>9500000</fwdtx>
-			<rx>9200000</rx>
+			<fwdtx>8500000</fwdtx>
+			<rx>8200000</rx>
 		</core1>
 		<core2>
-			<tx>16000000</tx>
+			<tx>10000000</tx>
 			<fwdrx>9500000</fwdrx>
-			<fwdtx>9500000</fwdtx>
-			<rx>9500000</rx>
+			<fwdtx>8500000</fwdtx>
+			<rx>8200000</rx>
 		</core2>
 		<core4>
-			<tx>16000000</tx>
+			<tx>10000000</tx>
 			<fwdrx>9500000</fwdrx>
-			<fwdtx>9500000</fwdtx>
-			<rx>9500000</rx>
+			<fwdtx>8500000</fwdtx>
+			<rx>8200000</rx>
 		</core4>
 		<core8>
-			<tx>17000000</tx>
+			<tx>10000000</tx>
 			<fwdrx>10000000</fwdrx>
-			<fwdtx>10000000</fwdtx>
-			<rx>9800000</rx>
+			<fwdtx>8000000</fwdtx>
+			<rx>800000</rx>
 		</core8>
 		<core16>
-			<tx>8500000</tx>
-			<fwdrx>8500000</fwdrx>
-			<fwdtx>8500000</fwdtx>
-			<rx>8500000</rx>
+			<tx>6500000</tx>
+			<fwdrx>6500000</fwdrx>
+			<fwdtx>6500000</fwdtx>
+			<rx>6500000</rx>
 		</core16>
 	</Standard_DS15_v2>
 </testfwdpps>

@@ -172,6 +172,7 @@ function Install_Dpdk() {
 		ssh ${install_ip} "mkdir ${DPDK_DIR}"
 		ssh ${install_ip} "wget -O - ${DPDK_LINK} | tar -xJ -C ${DPDK_DIR} --strip-components=1"
 	elif [[ $DPDK_LINK =~ ".git" ]] || [[ $DPDK_LINK =~ "git:" ]]; then
+		ssh ${install_ip} "rm -rf ${DPDK_DIR}" # LISA Pipelines don't always wipe old state
 		ssh ${install_ip} "git clone ${DPDK_LINK} ${DPDK_DIR}"
 	fi
 	LogMsg "dpdk source on ${install_ip} at ${DPDK_DIR}"
