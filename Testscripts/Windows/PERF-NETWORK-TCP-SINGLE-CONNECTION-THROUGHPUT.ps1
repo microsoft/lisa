@@ -38,7 +38,7 @@ function Get-Iperf3PerformanceResults {
         };
         "rx_txhroughput_gbps" = $null;
         "tx_throughput_gbps" = $null;
-        "congestion_windowSize_kb" = $null;
+        "congestion_windowsize_kb" = $null;
         "retransmitted_segments" = $null;
     }
 
@@ -71,7 +71,7 @@ function Get-Iperf3PerformanceResults {
         $currentIperfResultObject["meta_data"]["buffer_length"] = $bufferLength
         $currentIperfResultObject["rx_txhroughput_gbps"] = $RxThroughput_Gbps
         $currentIperfResultObject["tx_throughput_gbps"] = $TxThroughput_Gbps
-        $currentIperfResultObject["congestion_windowSize_kB"] = $CongestionWindowSize_KB
+        $currentIperfResultObject["congestion_windowsize_kb"] = $CongestionWindowSize_KB
         $currentIperfResultObject["retransmitted_segments"] = $RetransmittedSegments
 
         $Iperf3Results += $currentIperfResultObject
