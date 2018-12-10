@@ -201,7 +201,7 @@
         <TestParameters>
             <param>modes=PERF-STORAGE-4K-IO-MODES</param>
             <param>startQDepth=1</param>
-            <param>maxQDepth=2048</param>
+            <param>maxQDepth=256</param>
             <param>startIO=4</param>
             <param>ioruntime=FIO_RUNTIME_IN_SECONDS</param>
             <param>maxIO=4</param>
@@ -227,7 +227,7 @@
         <TestParameters>
             <param>modes=PERF-STORAGE-1024K-IO-MODES</param>
             <param>startQDepth=1</param>
-            <param>maxQDepth=2048</param>
+            <param>maxQDepth=256</param>
             <param>startIO=1024</param>
             <param>ioruntime=FIO_RUNTIME_IN_SECONDS</param>
             <param>maxIO=1024</param>
