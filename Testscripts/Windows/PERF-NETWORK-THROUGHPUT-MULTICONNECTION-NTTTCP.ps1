@@ -120,11 +120,24 @@ collect_VM_properties
         $testSummary = $null
         $uploadResults = $true
         $ntttcpReportLog = Get-Content -Path "$LogDir\report.log"
+
+        $ntttcpResults = @()
+        $ntttcpResultObject = @{
+            "meta_data" = @{
+                "connections" = $null;
+                "type" = $null;
+            };
+            "tx_throughput_gbps" = $null;
+        }
+
         foreach ($line in $ntttcpReportLog) {
             if ($line -imatch "test_connections") {
                 continue;
             }
             try {
+                $currentNtttcpResultObject = $ntttcpResultObject.Clone()
+                $currentNtttcpResultObject["meta_data"] = $ntttcpResultObject["meta_data"].Clone()
+
                 if ($CurrentTestData.testName -imatch "udp") {
                     $testType = "UDP"
                     $test_connections = $line.Trim().Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Split(" ")[0]
@@ -132,6 +145,11 @@ collect_VM_properties
                     $rx_throughput_gbps = $line.Trim().Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Split(" ")[2]
                     $datagram_loss = $line.Trim().Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Split(" ")[3]
                     $connResult = "tx_throughput=$tx_throughput_gbps`Gbps rx_throughput=$rx_throughput_gbps`Gbps datagram_loss=$datagram_loss"
+                    $currentNtttcpResultObject["meta_data"]["connections"] = $test_connections
+                    $currentNtttcpResultObject["meta_data"]["type"] = $testType
+                    $currentNtttcpResultObject["rx_txhroughput_gbps"] = $rx_throughput_gbps
+                    $currentNtttcpResultObject["tx_throughput_gbps"] = $tx_throughput_gbps
+                    $currentNtttcpResultObject["datagram_loss"] = $datagram_loss
                 } else {
                     $testType = "TCP"
                     $test_connections = $line.Trim().Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Split(" ")[0]
@@ -139,7 +157,13 @@ collect_VM_properties
                     $cycle_per_byte = $line.Trim().Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Split(" ")[2]
                     $average_tcp_latency = $line.Trim().Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Split(" ")[3]
                     $connResult = "throughput=$throughput_gbps`Gbps cyclePerBytet=$cycle_per_byte Avg_TCP_lat=$average_tcp_latency"
+                    $currentNtttcpResultObject["meta_data"]["connections"] = $test_connections
+                    $currentNtttcpResultObject["meta_data"]["type"] = $testType
+                    $currentNtttcpResultObject["cycle_per_byte"] = $cycle_per_byte
+                    $currentNtttcpResultObject["tx_throughput_gbps"] = $throughput_gbps
+                    $currentNtttcpResultObject["average_tcp_latency"] = $average_tcp_latency
                 }
+                $ntttcpResults += $currentNtttcpResultObject
                 $metadata = "Connections=$test_connections"
                 $currentTestResult.TestSummary += Create-ResultSummary -testResult $connResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
                 if ([string]$throughput_gbps -imatch "0.00" -or [string]$tx_throughput_gbps -imatch "0.00" -or [string]$rx_throughput_gbps -imatch "0.00") {
@@ -151,6 +175,9 @@ collect_VM_properties
             }
         }
         #endregion
+        $ntttcpResultsFile = "${LogDir}\$($currentTestData.testName)_perf_results.json"
+        $ntttcpResults | ConvertTo-Json | Out-File $ntttcpResultsFile -Encoding "ascii"
+        Write-LogInfo "Perf results in json format saved at: ${ntttcpResultsFile}"
 
         if ($finalStatus -imatch "TestFailed") {
             Write-LogErr "Test failed. Last known status : $currentStatus."
