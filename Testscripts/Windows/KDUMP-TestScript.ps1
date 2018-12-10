@@ -175,7 +175,7 @@ function Main {
 }
 
 
-Main -VMName $AllVMData.RoleName -HvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
+Main -VMName $AllVMData.RoleName -HvServer $TestLocation `
          -ipv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort `
          -VMUserName $user -VMPassword $password -rootDir $WorkingDirectory `
          -testParams $testParams -TestPlatform $XmlConfig.config.CurrentTestPlatform
