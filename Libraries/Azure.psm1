@@ -1958,7 +1958,7 @@ Function Check-SSHPortsEnabled($AllVMDataObject) {
         if ($WaitingForConnect -gt 0) {
             $timeout = $timeout + 1
             Write-LogInfo "$WaitingForConnect VM(s) still awaiting to open port $port .."
-            Write-LogInfo "Retry $timeout/100"
+            Write-LogInfo "Retry $timeout/20"
             sleep 3
             $retValue = "False"
         } else {
