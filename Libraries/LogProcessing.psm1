@@ -86,7 +86,7 @@ Function Write-LogWarn($text)
 	Write-Log "WARN" $text
 }
 
-Function Create-ResultSummary($testResult, $checkValues, $testName, $metaData)
+Function New-ResultSummary($testResult, $checkValues, $testName, $metaData)
 {
 	if ( $metaData )
 	{

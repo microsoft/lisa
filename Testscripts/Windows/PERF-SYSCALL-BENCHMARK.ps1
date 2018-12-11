@@ -115,7 +115,7 @@ collect_VM_properties
                             $finalResult += $currentResult
                             $metadata = "test=$testType"
                             $syscallResult = "AverageReal=$avgReal AverageUser=$avgUser AverageSystem=$avgSystem"
-                            $resultSummary +=  Create-ResultSummary -testResult "$syscallResult : Completed" -metaData $metadata -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+                            $resultSummary +=  New-ResultSummary -testResult "$syscallResult : Completed" -metaData $metadata -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
                             if ( $currentResult.test -imatch "bench_22_write_stdio") {
                                 Write-LogInfo "Syscall results parsing is Done..."
                                 break
@@ -166,7 +166,7 @@ collect_VM_properties
         }
         Write-LogInfo "Test result : $testResult"
         Write-LogInfo "Test Completed"
-        $currentTestResult.TestSummary += Create-ResultSummary -testResult $testResult -metaData "" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+        $currentTestResult.TestSummary += New-ResultSummary -testResult $testResult -metaData "" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
     } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber

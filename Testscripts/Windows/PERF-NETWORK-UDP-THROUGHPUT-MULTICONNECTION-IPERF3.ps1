@@ -269,7 +269,7 @@ collect_VM_properties
         foreach ($udpResultObject in $FinalServerClientUDPResultObjArr) {
             $connResult="ClientTxGbps=$($udpResultObject.ClientTxGbps) ServerRxGbps=$($udpResultObject.ServerRxGbps) UDPLoss=$($udpResultObject.ClientUDPLoss)%"
             $metaData = "Buffer=$($udpResultObject.BufferSize)K Connections=$($udpResultObject.Connections)"
-            $currentTestResult.TestSummary += Create-ResultSummary -testResult $connResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+            $currentTestResult.TestSummary += New-ResultSummary -testResult $connResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
         }
         if ($finalStatus -imatch "TestFailed") {
             Write-LogErr "Test failed. Last known status : $currentStatus."

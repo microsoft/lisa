@@ -44,7 +44,6 @@ param (
 # Experimental Feature
 [switch] $UseManagedDisks,
 
-[int] $CoreCountExceededTimeout = 3600,
 [int] $TestIterations = 1,
 [string] $TiPSessionId="",
 [string] $TiPCluster="",
@@ -315,8 +314,6 @@ Set-Variable -Name CurrentTestData -Value $CurrentTestData -Scope Global
 Set-Variable -Name preserveKeyword -Value "preserving" -Scope Global
 Set-Variable -Name TiPSessionId -Value $TiPSessionId -Scope Global
 Set-Variable -Name TiPCluster -Value $TiPCluster -Scope Global
-
-Set-Variable -Name CoreCountExceededTimeout -Value $CoreCountExceededTimeout -Scope Global
 
 Set-Variable -Name resultPass -Value "PASS" -Scope Global
 Set-Variable -Name resultFail -Value "FAIL" -Scope Global

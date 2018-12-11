@@ -165,13 +165,13 @@ collect_VM_properties
                 }
                 $ntttcpResults += $currentNtttcpResultObject
                 $metadata = "Connections=$test_connections"
-                $currentTestResult.TestSummary += Create-ResultSummary -testResult $connResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+                $currentTestResult.TestSummary += New-ResultSummary -testResult $connResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
                 if ([string]$throughput_gbps -imatch "0.00" -or [string]$tx_throughput_gbps -imatch "0.00" -or [string]$rx_throughput_gbps -imatch "0.00") {
                     $uploadResults = $false
                     $testResult = "FAIL"
                 }
             } catch {
-                $currentTestResult.TestSummary += Create-ResultSummary -testResult "Error in parsing logs." -metaData "NTTTCP" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+                $currentTestResult.TestSummary += New-ResultSummary -testResult "Error in parsing logs." -metaData "NTTTCP" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
             }
         }
         #endregion

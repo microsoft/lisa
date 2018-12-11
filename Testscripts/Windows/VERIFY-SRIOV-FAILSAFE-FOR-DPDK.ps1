@@ -200,7 +200,7 @@ collect_VM_properties
 			Write-LogErr "Initial DPDK test execution failed"
 		}
 		$resultArr += $testResult
-		$currentTestResult.TestSummary +=  Create-ResultSummary -testResult "$($initialSriovResult.DpdkVersion) : TxPPS : $($initialSriovResult.TxPps) : RxPPS : $($initialSriovResult.RxPps)" -metaData "DPDK-TESTPMD : Initial SRIOV" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+		$currentTestResult.TestSummary +=  New-ResultSummary -testResult "$($initialSriovResult.DpdkVersion) : TxPPS : $($initialSriovResult.TxPps) : RxPPS : $($initialSriovResult.RxPps)" -metaData "DPDK-TESTPMD : Initial SRIOV" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 
 		#disable SRIOV
 		$sriovStatus = $false
@@ -224,7 +224,7 @@ collect_VM_properties
 			Write-LogErr "Disable SRIOV is failed"
 		}
 		$resultArr += $testResult
-		$currentTestResult.TestSummary +=  Create-ResultSummary -testResult "$($syntheticResult.DpdkVersion) : TxPPS : $($syntheticResult.TxPps) : RxPPS : $($syntheticResult.RxPps)" -metaData "DPDK-TESTPMD : Synthetic" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+		$currentTestResult.TestSummary +=  New-ResultSummary -testResult "$($syntheticResult.DpdkVersion) : TxPPS : $($syntheticResult.TxPps) : RxPPS : $($syntheticResult.RxPps)" -metaData "DPDK-TESTPMD : Synthetic" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 
 		#enable SRIOV
 		$currentDir = "$LogDir\finallSRIOVTest"
@@ -247,7 +247,7 @@ collect_VM_properties
 			Write-LogErr "Enable SRIOV is failed"
 		}
 		$resultArr += $testResult
-		$currentTestResult.TestSummary +=  Create-ResultSummary -testResult "$($finalSriovResult.DpdkVersion) : TxPps : $($finalSriovResult.TxPps) : RxPps : $($finalSriovResult.RxPps)" -metaData "DPDK-TESTPMD : Re-Enable SRIOV" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+		$currentTestResult.TestSummary +=  New-ResultSummary -testResult "$($finalSriovResult.DpdkVersion) : TxPps : $($finalSriovResult.TxPps) : RxPps : $($finalSriovResult.RxPps)" -metaData "DPDK-TESTPMD : Re-Enable SRIOV" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 		Write-LogInfo "Comparison of DPDK RxPPS between Initial and Re-Enabled SRIOV"
 		if (($null -ne $initialSriovResult.RxPps) -and ($null -ne $finalSriovResult.RxPps)) {
 			$loss = [Math]::Round([Math]::Abs($initialSriovResult.RxPps - $finalSriovResult.RxPps)/$initialSriovResult.RxPps*100, 2)
@@ -264,7 +264,7 @@ collect_VM_properties
 			$testResult = "FAIL"
 		}
 		$resultArr += $testResult
-		$currentTestResult.TestSummary +=  Create-ResultSummary -testResult "$($initialSriovResult.RxPps) : $($finalSriovResult.RxPps) : $($lossinpercentage)" -metaData "DPDK RxPPS : Difference between Initial and Re-Enabled SRIOV" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+		$currentTestResult.TestSummary +=  New-ResultSummary -testResult "$($initialSriovResult.RxPps) : $($finalSriovResult.RxPps) : $($lossinpercentage)" -metaData "DPDK RxPPS : Difference between Initial and Re-Enabled SRIOV" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 		Write-LogInfo "Test result : $testResult"
 	} catch {
 		$ErrorMessage =  $_.Exception.Message

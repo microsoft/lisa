@@ -192,14 +192,14 @@ function Main()
 			$testResult = $resultAborted
 		}
 		Copy-RemoteFiles -download -downloadFrom $hs1VIP -files "fioConsoleLogs.txt" -downloadTo $LogDir -port $hs1vm1sshport -username $user -password $password
-		$CurrentTestResult.TestSummary += Create-ResultSummary -testResult $testResult -metaData "" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+		$CurrentTestResult.TestSummary += New-ResultSummary -testResult $testResult -metaData "" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 		if ($testResult -imatch $resultPass)
 		{
 			Remove-Item "$LogDir\*.csv" -Force
 			$remoteFiles = "FIOTest-*.tar.gz,perf_fio.csv,nested_properties.csv,VM_properties.csv,runlog.txt"
 			Copy-RemoteFiles -download -downloadFrom $hs1VIP -files $remoteFiles -downloadTo $LogDir -port $hs1vm1sshport -username $user -password $password
 			$checkValues = "$resultPass,$resultFail,$resultAborted"
-			$CurrentTestResult.TestSummary += Create-ResultSummary -testResult $testResult -metaData "" -checkValues $checkValues -testName $currentTestData.testName
+			$CurrentTestResult.TestSummary += New-ResultSummary -testResult $testResult -metaData "" -checkValues $checkValues -testName $currentTestData.testName
 			foreach($line in (Get-Content "$LogDir\perf_fio.csv"))
 			{
 				if ( $line -imatch "Max IOPS of each mode" )

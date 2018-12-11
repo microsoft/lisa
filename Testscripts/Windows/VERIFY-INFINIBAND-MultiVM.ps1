@@ -186,7 +186,7 @@ function Main {
                 }
                 Write-LogInfo "$pattern : $currentResult"
                 $resultArr += $currentResult
-                $CurrentTestResult.TestSummary += Create-ResultSummary -testResult $currentResult -metaData $metaData `
+                $CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
                     -checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
                 #endregion
 
@@ -204,7 +204,7 @@ function Main {
                 }
                 Write-LogInfo "$pattern : $currentResult"
                 $resultArr += $currentResult
-                $CurrentTestResult.TestSummary += Create-ResultSummary -testResult $currentResult -metaData $metaData `
+                $CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
                     -checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
                 #endregion
 
@@ -222,7 +222,7 @@ function Main {
                 }
                 Write-LogInfo "$pattern : $currentResult"
                 $resultArr += $currentResult
-                $CurrentTestResult.TestSummary += Create-ResultSummary -testResult $currentResult -metaData $metaData `
+                $CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
                 -checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
                 #endregion
 
@@ -241,7 +241,7 @@ function Main {
                     }
                     Write-LogInfo "$pattern : $currentResult"
                     $resultArr += $currentResult
-                    $CurrentTestResult.TestSummary += Create-ResultSummary -testResult $currentResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
+                    $CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
                 }
                 #endregion
 
@@ -260,7 +260,7 @@ function Main {
                     }
                     Write-LogInfo "$pattern : $currentResult"
                     $resultArr += $currentResult
-                    $CurrentTestResult.TestSummary += Create-ResultSummary -testResult $currentResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
+                    $CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
                 }
                 #endregion
 
@@ -279,7 +279,7 @@ function Main {
                     }
                     Write-LogInfo "$pattern : $currentResult"
                     $resultArr += $currentResult
-                    $CurrentTestResult.TestSummary += Create-ResultSummary -testResult $currentResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
+                    $CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
                 }
                 #endregion
 

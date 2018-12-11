@@ -54,7 +54,7 @@ function Main {
             Write-LogInfo "Test Completed."
             $testResult = "PASS"
         }
-        $CurrentTestResult.TestSummary += Create-ResultSummary -testResult $testResult -metaData "$($allVMData.InstanceSize) : Number of Disk Attached - $diskCount" `
+        $CurrentTestResult.TestSummary += New-ResultSummary -testResult $testResult -metaData "$($allVMData.InstanceSize) : Number of Disk Attached - $diskCount" `
             -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
     }
     catch {
@@ -65,7 +65,7 @@ function Main {
     finally {
         if (!$testResult) {
             $testResult = "Aborted"
-            $CurrentTestResult.TestSummary += Create-ResultSummary -testResult $testResult -metaData "$($allVMData.InstanceSize) : Number of Disk Attached - $diskCount" `
+            $CurrentTestResult.TestSummary += New-ResultSummary -testResult $testResult -metaData "$($allVMData.InstanceSize) : Number of Disk Attached - $diskCount" `
                 -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
         }
         $resultArr += $testResult

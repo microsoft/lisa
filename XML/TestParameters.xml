@@ -63,7 +63,6 @@
 	<CustomLIS></CustomLIS>
 
 	<!-- [Optional] Parameters for changing framework behavior. -->
-	<CoreCountExceededTimeout></CoreCountExceededTimeout>
 	<TestIterations></TestIterations>
 	<TiPSessionId></TiPSessionId>
 	<TiPCluster></TiPCluster>

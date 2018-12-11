@@ -18,14 +18,14 @@ Function Run-CurrentTest ( [switch]$Enable, [switch]$Disable) {
             Write-LogInfo "$DesiredState Accelerated networking : verified successfully."
             $StageResult = $true
             $resultArr += "PASS"
-            $CurrentTestResult.TestSummary += Create-ResultSummary -testResult "PASS" -metaData "$DesiredState`SRIOV : Test Iteration - $TestIteration" `
+            $CurrentTestResult.TestSummary += New-ResultSummary -testResult "PASS" -metaData "$DesiredState`SRIOV : Test Iteration - $TestIteration" `
                 -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
         }
         else {
             Write-LogInfo "$DesiredState Accelerated networking : Failed."
             $StageResult = $false
             $resultArr += "FAIL"
-            $CurrentTestResult.TestSummary += Create-ResultSummary -testResult "FAIL" -metaData "$DesiredState`SRIOV : Test Iteration - $TestIteration" `
+            $CurrentTestResult.TestSummary += New-ResultSummary -testResult "FAIL" -metaData "$DesiredState`SRIOV : Test Iteration - $TestIteration" `
                 -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
             $FailureCount += 1
         }
@@ -33,7 +33,7 @@ Function Run-CurrentTest ( [switch]$Enable, [switch]$Disable) {
     else {
         Write-LogInfo "Test Accelerated networking : Failed."
         $resultArr += "FAIL"
-        $CurrentTestResult.TestSummary += Create-ResultSummary -testResult "FAIL" -metaData "$DesiredState`SRIOV : Test Iteration - $TestIteration" `
+        $CurrentTestResult.TestSummary += New-ResultSummary -testResult "FAIL" -metaData "$DesiredState`SRIOV : Test Iteration - $TestIteration" `
             -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
         $FailureCount += 1
         $StageResult = $false

@@ -118,7 +118,7 @@ chmod 666 /root/perf_fio.csv
         }
         Write-LogInfo "Test result : $testResult"
         Write-LogInfo "Test Completed"
-        $currentTestResult.TestSummary += Create-ResultSummary -testResult $testResult -metaData "" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+        $currentTestResult.TestSummary += New-ResultSummary -testResult $testResult -metaData "" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 
         try {
             foreach ($line in (Get-Content "$LogDir\perf_fio.csv")) {

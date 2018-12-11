@@ -629,13 +629,13 @@ function Main () {
 					$averageTcpLatency = $splits[3]
 					$metadata = "Connections=$testConnections"
 					$connResult = "throughput=$throughputGbps`Gbps cyclePerBytet=$cyclePerByte Avg_TCP_lat=$averageTcpLatency"
-					$currentTestResult.TestSummary +=  Create-ResultSummary -testResult $connResult -metaData $metaData -checkValues $checkValues -testName $currentTestData.testName
+					$currentTestResult.TestSummary +=  New-ResultSummary -testResult $connResult -metaData $metaData -checkValues $checkValues -testName $currentTestData.testName
 					if ([string]$throughputGbps -eq "0.00") {
 						$testResult = $resultFail
 						$uploadResults = $false
 					}
 				} catch {
-					$currentTestResult.TestSummary +=  Create-ResultSummary -testResult "Error in parsing logs." -metaData "NTTTCP" -checkValues $checkValues -testName $currentTestData.testName
+					$currentTestResult.TestSummary +=  New-ResultSummary -testResult "Error in parsing logs." -metaData "NTTTCP" -checkValues $checkValues -testName $currentTestData.testName
 				}
 			}
 

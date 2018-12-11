@@ -90,11 +90,11 @@ collect_VM_properties
             $maximumLat = $matchLine.Split(",").Split("=").Trim().Replace("us","")[3]
             $averageLat = $matchLine.Split(",").Split("=").Trim().Replace("us","")[5]
 
-            $currentTestResult.TestSummary += Create-ResultSummary -testResult $minimumLat -metaData "Minimum Latency" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
-            $currentTestResult.TestSummary += Create-ResultSummary -testResult $maximumLat -metaData "Maximum Latency" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
-            $currentTestResult.TestSummary += Create-ResultSummary -testResult $averageLat -metaData "Average Latency" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+            $currentTestResult.TestSummary += New-ResultSummary -testResult $minimumLat -metaData "Minimum Latency" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+            $currentTestResult.TestSummary += New-ResultSummary -testResult $maximumLat -metaData "Maximum Latency" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+            $currentTestResult.TestSummary += New-ResultSummary -testResult $averageLat -metaData "Average Latency" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
         } catch {
-            $currentTestResult.TestSummary += Create-ResultSummary -testResult "Error in parsing logs." -metaData "LAGSCOPE" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+            $currentTestResult.TestSummary += New-ResultSummary -testResult "Error in parsing logs." -metaData "LAGSCOPE" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
         }
 
         if ($finalStatus -imatch "TestFailed") {

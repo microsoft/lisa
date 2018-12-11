@@ -68,7 +68,6 @@ Param(
 	[string] $CustomLIS,
 
 	#[Optional] Parameters for changing framework behavior.
-	[string] $CoreCountExceededTimeout,
 	[int]    $TestIterations,
 	[string] $TiPSessionId,
 	[string] $TiPCluster,
@@ -146,6 +145,14 @@ try {
 	# Validate the test parameters.
 	Validate-Parameters
 
+	# Validate all the XML files and then import test cases from them for test
+	Validate-XmlFiles -ParentFolder $WorkingDirectory
+	$TestConfigurationXmlFile = "$WorkingDirectory\TestConfiguration.xml"
+	Import-TestCases $WorkingDirectory $TestConfigurationXmlFile
+	# Inject default / custom replaceable test parameters to TestConfiguration.xml
+	$ReplaceableTestParameters = [xml](Get-Content -Path "$WorkingDirectory\XML\Other\ReplaceableTestParameters.xml")
+	Inject-CustomTestParameters $CustomParameters $ReplaceableTestParameters $TestConfigurationXmlFile
+
 	# Handle the Secrets file
 	if ($env:Azure_Secrets_File) {
 		$XMLSecretFile = $env:Azure_Secrets_File
@@ -173,18 +180,6 @@ try {
 		Write-LogErr "Failed to update configuration files. '-XMLSecretFile [FilePath]' is not provided."
 	}
 
-	Validate-XmlFiles -ParentFolder $WorkingDirectory
-
-	$TestConfigurationXmlFile = "$WorkingDirectory\TestConfiguration.xml"
-	Import-TestCases $WorkingDirectory $TestConfigurationXmlFile
-
-	#This function will inject default / custom replaceable test parameters to TestConfiguration.xml
-	$ReplaceableTestParameters = [xml](Get-Content -Path "$WorkingDirectory\XML\Other\ReplaceableTestParameters.xml")
-	Inject-CustomTestParameters $CustomParameters $ReplaceableTestParameters $TestConfigurationXmlFile
-
-	$xmlConfig = [xml](Get-Content $TestConfigurationXmlFile)
-	$xmlConfig.Save("$TestConfigurationXmlFile")
-
 	# Create report folder
 	$reportFolder = "$pwd/Report"
 	if(!(Test-Path $reportFolder)) {
@@ -193,19 +188,24 @@ try {
 	$TestReportXml = Join-Path "$reportFolder" "LISAv2_TestReport_$TestID.xml"
 
 	$command = ".\AutomationManager.ps1 -xmlConfigFile '$TestConfigurationXmlFile' -cycleName 'TC-$TestID' -RGIdentifier '$RGIdentifier' -TestReportXmlPath $TestReportXml"
-	if ( $CustomKernel) { $command += " -CustomKernel '$CustomKernel'" }
+	# Override VM #
 	if ( $OverrideVMSize ) { $command += " -OverrideVMSize $OverrideVMSize" }
 	if ( $EnableAcceleratedNetworking ) { $command += " -EnableAcceleratedNetworking" }
+	if ( $UseManagedDisks ) {	$command += " -UseManagedDisks" }
+	# Override Kernel or LIS #
+	if ( $CustomKernel) { $command += " -CustomKernel '$CustomKernel'" }
+	if ( $CustomLIS) { $command += " -CustomLIS $CustomLIS" }
+	# Override Test Behaviors #
+	if ( $TestIterations -gt 1 ) { $command += " -TestIterations $TestIterations" }
 	if ( $ForceDeleteResources ) { $command += " -ForceDeleteResources" }
 	if ( $DoNotDeleteVMs ) { $command += " -DoNotDeleteVMs" }
 	if ( $DeployVMPerEachTest ) { $command += " -DeployVMPerEachTest" }
-	if ( $CustomLIS) { $command += " -CustomLIS $CustomLIS" }
-	if ( $CoreCountExceededTimeout ) { $command += " -CoreCountExceededTimeout $CoreCountExceededTimeout" }
-	if ( $TestIterations -gt 1 ) { $command += " -TestIterations $TestIterations" }
+	# Override for TiP #
 	if ( $TiPSessionId) { $command += " -TiPSessionId $TiPSessionId" }
 	if ( $TiPCluster) { $command += " -TiPCluster $TiPCluster" }
-	if ($UseManagedDisks) {	$command += " -UseManagedDisks" }
-	if ($XMLSecretFile) { $command += " -XMLSecretFile '$XMLSecretFile'" }
+	# Attaching Secret file if provided #
+	if ( $XMLSecretFile ) { $command += " -XMLSecretFile '$XMLSecretFile'" }
+
 	Write-LogInfo $command
 
 	Invoke-Expression -Command $command

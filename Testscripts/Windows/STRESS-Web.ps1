@@ -141,7 +141,7 @@ function Main()
             $remoteFiles = "nginxStress.csv,VM_properties.csv,TestExecution.log,web_test_results.tar.gz"
             Copy-RemoteFiles -download -downloadFrom $clientPublicIP -files $remoteFiles -downloadTo $LogDir -port $clientSSHPort -username $username -password $password
             $checkValues = "$resultPass,$resultFail,$resultAborted"
-            $CurrentTestResult.TestSummary += Create-ResultSummary -testResult $testResult -metaData "" -checkValues $checkValues -testName $currentTestData.testName
+            $CurrentTestResult.TestSummary += New-ResultSummary -testResult $testResult -metaData "" -checkValues $checkValues -testName $currentTestData.testName
             $webStressSQLQuery = Get-SQLQueryOfWebStress -xmlConfig $xmlConfig -logDir $LogDir
             if ($webStressSQLQuery) {
                 Upload-TestResultToDatabase -SQLQuery $webStressSQLQuery

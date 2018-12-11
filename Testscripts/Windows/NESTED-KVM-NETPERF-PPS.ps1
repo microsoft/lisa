@@ -217,11 +217,11 @@ function Main () {
 				Write-LogInfo "RxTxPpsAverage = $RxTxPpsAverage"
 				$ParseResultArray+=$RxTxPpsMaximum
 
-				$CurrentTestResult.TestSummary += Create-ResultSummary -testResult "$RxPpsAverage" -metaData "Rx Average PPS" `
+				$CurrentTestResult.TestSummary += New-ResultSummary -testResult "$RxPpsAverage" -metaData "Rx Average PPS" `
 					-checkValues $checkValues -testName $currentTestData.testName
-				$CurrentTestResult.TestSummary += Create-ResultSummary -testResult "$RxPpsMinimum" -metaData "Rx Minimum PPS" `
+				$CurrentTestResult.TestSummary += New-ResultSummary -testResult "$RxPpsMinimum" -metaData "Rx Minimum PPS" `
 					-checkValues $checkValues -testName $currentTestData.testName
-				$CurrentTestResult.TestSummary += Create-ResultSummary -testResult "$RxPpsMaximum" -metaData "Rx Maximum PPS" `
+				$CurrentTestResult.TestSummary += New-ResultSummary -testResult "$RxPpsMaximum" -metaData "Rx Maximum PPS" `
 					-checkValues $checkValues -testName $currentTestData.testName
 			} catch {
 				$ErrorMessage = $_.Exception.Message

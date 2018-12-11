@@ -364,17 +364,18 @@ Function Create-AllResourceGroupDeployments($setupType, $xmlConfig, $Distro, [st
             $validateStartTime = Get-Date
             Write-LogInfo "Checking the subscription usage..."
             $readyToDeploy = $false
+            $coreCountExceededTimeout = 3600
             while (!$readyToDeploy) {
                 $readyToDeploy = Validate-SubscriptionUsage -subscriptionID $xmlConfig.config.$TestPlatform.General.SubscriptionID -RGXMLData $RG
                 $validateCurrentTime = Get-Date
                 $elapsedWaitTime = ($validateCurrentTime - $validateStartTime).TotalSeconds
-                if ( (!$readyToDeploy) -and ($elapsedWaitTime -lt $CoreCountExceededTimeout)) {
+                if ( (!$readyToDeploy) -and ($elapsedWaitTime -lt $coreCountExceededTimeout)) {
                     $waitPeriod = Get-Random -Minimum 1 -Maximum 10 -SetSeed (Get-Random)
-                    Write-LogInfo "Timeout in approx. $($CoreCountExceededTimeout - $elapsedWaitTime) seconds..."
+                    Write-LogInfo "Timeout in approx. $($coreCountExceededTimeout - $elapsedWaitTime) seconds..."
                     Write-LogInfo "Waiting $waitPeriod minutes..."
                     sleep -Seconds ($waitPeriod * 60)
                 }
-                if ( $elapsedWaitTime -gt $CoreCountExceededTimeout ) {
+                if ( $elapsedWaitTime -gt $coreCountExceededTimeout ) {
                     break
                 }
             }

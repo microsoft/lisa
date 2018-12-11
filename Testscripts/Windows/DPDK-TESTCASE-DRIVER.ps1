@@ -354,7 +354,7 @@ collect_VM_properties
 			$testResult = "Aborted"
 		}
 		$resultArr += $testResult
-		$currentTestResult.TestSummary +=  Create-ResultSummary -testResult $testResult -metaData "DPDK-TEST" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+		$currentTestResult.TestSummary +=  New-ResultSummary -testResult $testResult -metaData "DPDK-TEST" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 	}
 
 	$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
