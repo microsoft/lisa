@@ -90,7 +90,7 @@ $htmlFileStart = '
 .tg .tg-l2ozgreen{color:#036400;font-weight:bold;text-align:right;vertical-align:top}
 </style>
 
-<p style="text-align: left;"><em>Last refreshed&nbsp;<strong>DATE_TIME. </strong></em> <a href="https://msit.powerbi.com/groups/a765920a-87fb-4668-bf25-780ff25639be/reports/9e04d866-5c5b-4020-aa63-f61d952c5b75/ReportSection" target="_blank" rel="noopener"><em><strong>Click Here</strong></em></a> to see the report in PowerBI.</p>
+<p style="text-align: left;"><em>Last refreshed&nbsp;<strong>DATE_TIME. </strong></em> <a href="https://msit.powerbi.com/groups/bf12e64a-dd80-4fa8-8297-6607ea85f687/reports/251e1a2b-1568-4d4d-9daa-0ca47a20162b/ReportSection" target="_blank" rel="noopener"><em><strong>Click Here</strong></em></a> to see the report in PowerBI.</p>
 '
 
 $htmlFileStart = $htmlFileStart.Replace("DATE_TIME","$($psttime.DateTime) PST")
