@@ -142,16 +142,9 @@ try {
 	foreach ($var in $GlobalVariables) {
 		[void](Set-Variable -Name $var.Name -Value $var.Value -Scope Local -ErrorAction SilentlyContinue)
 	}
+
 	# Validate the test parameters.
 	Validate-Parameters
-
-	# Validate all the XML files and then import test cases from them for test
-	Validate-XmlFiles -ParentFolder $WorkingDirectory
-	$TestConfigurationXmlFile = "$WorkingDirectory\TestConfiguration.xml"
-	Import-TestCases $WorkingDirectory $TestConfigurationXmlFile
-	# Inject default / custom replaceable test parameters to TestConfiguration.xml
-	$ReplaceableTestParameters = [xml](Get-Content -Path "$WorkingDirectory\XML\Other\ReplaceableTestParameters.xml")
-	Inject-CustomTestParameters $CustomParameters $ReplaceableTestParameters $TestConfigurationXmlFile
 
 	# Handle the Secrets file
 	if ($env:Azure_Secrets_File) {
@@ -179,6 +172,14 @@ try {
 	} else {
 		Write-LogErr "Failed to update configuration files. '-XMLSecretFile [FilePath]' is not provided."
 	}
+
+	# Validate all the XML files and then import test cases from them for test
+	Validate-XmlFiles -ParentFolder $WorkingDirectory
+	$TestConfigurationXmlFile = "$WorkingDirectory\TestConfiguration.xml"
+	Import-TestCases $WorkingDirectory $TestConfigurationXmlFile
+	# Inject default / custom replaceable test parameters to TestConfiguration.xml
+	$ReplaceableTestParameters = [xml](Get-Content -Path "$WorkingDirectory\XML\Other\ReplaceableTestParameters.xml")
+	Inject-CustomTestParameters $CustomParameters $ReplaceableTestParameters $TestConfigurationXmlFile
 
 	# Create report folder
 	$reportFolder = "$pwd/Report"
