@@ -73,17 +73,23 @@ function Install_Build_Deps {
     update_repos
     case "$DISTRO" in
     redhat_7|centos_7)
+        install_epel
         LogMsg "Installing package Development Tools"
         yum -y groupinstall "Development Tools"  >> $LOG_FILE 2>&1
         check_exit_status "Install Development Tools" "exit"
-        LogMsg "Installing package elfutils-libelf-devel openssl-devel"
-        yum_install "elfutils-libelf-devel openssl-devel"  >> $LOG_FILE 2>&1
+        LogMsg "Installing package elfutils-libelf-devel openssl-devel ccache"
+        yum_install "elfutils-libelf-devel openssl-devel ccache"  >> $LOG_FILE 2>&1
+
+        # Use ccache to speed up recompilation
+        PATH="/usr/lib64/ccache:"$PATH
         ;;
 
     ubuntu*|debian*)
         CheckInstallLockUbuntu
-        LogMsg "Installing package git build-essential bison flex libelf-dev libncurses5-dev xz-utils libssl-dev bc"
-        apt_get_install "git build-essential bison flex libelf-dev libncurses5-dev xz-utils libssl-dev bc"  >> $LOG_FILE 2>&1
+        LogMsg "Installing package git build-essential bison flex libelf-dev libncurses5-dev xz-utils libssl-dev bc ccache"
+        apt_get_install "git build-essential bison flex libelf-dev libncurses5-dev xz-utils libssl-dev bc ccache"  >> $LOG_FILE 2>&1
+
+        PATH="/usr/lib/ccache:"$PATH
         ;;
 
      *)
@@ -127,7 +133,7 @@ function Build_Kernel (){
     # Building the kernel
     #
     source="$1"
-    thread_number=4
+    thread_number=$(grep -c ^processor /proc/cpuinfo)
 
     pushd "$source"
     LogMsg "Start to make old config"
