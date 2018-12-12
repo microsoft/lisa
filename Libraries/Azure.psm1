@@ -1936,6 +1936,7 @@ Function Deploy-ResourceGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFaile
 Function Check-SSHPortsEnabled($AllVMDataObject) {
     Write-LogInfo "Trying to Connect to deployed VM(s)"
     $timeout = 0
+    $retryCount = 20
     do {
         $WaitingForConnect = 0
         foreach ( $vm in $AllVMDataObject) {
@@ -1959,7 +1960,7 @@ Function Check-SSHPortsEnabled($AllVMDataObject) {
         if ($WaitingForConnect -gt 0) {
             $timeout = $timeout + 1
             Write-LogInfo "$WaitingForConnect VM(s) still awaiting to open port $port .."
-            Write-LogInfo "Retry $timeout/100"
+            Write-LogInfo "Retry $timeout/$retryCount"
             sleep 3
             $retValue = "False"
         } else {
@@ -1967,7 +1968,7 @@ Function Check-SSHPortsEnabled($AllVMDataObject) {
             $retValue = "True"
         }
 
-    } While (($timeout -lt 20) -and ($WaitingForConnect -gt 0))
+    } While (($timeout -lt $retryCount) -and ($WaitingForConnect -gt 0))
 
 	if ($retValue -eq "False") {
 		foreach ($vm in $AllVMDataObject) {

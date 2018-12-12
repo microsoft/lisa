@@ -2643,7 +2643,7 @@ function install_iperf3 () {
 				which iperf3
 				if [ $? -ne 0 ]; then
 					LogMsg "Error: Unable to install iperf3 from source/rpm"
-					UpdateTestState "TestAborted"
+					SetTestStateAborted
 					return 1
 				fi
 			else
