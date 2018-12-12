@@ -202,10 +202,10 @@ Function Run-TestsOnCycle ([string] $cycleName, [xml] $xmlConfig, [string] $Dist
 					$junitReport.StartLogTestCase("LISAv2Test","$currentTestName","$($testCycle.cycleName)")
 
 					Set-Variable -Name currentTestData -Value $currentTestData -Scope Global
+					$testResult = ""
+					$testSummary = ""
+					Write-LogInfo "~~~~~~~~~~~~~~~TEST STARTED : $currentTestName~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 					try	{
-						$testResult = @()
-						Write-LogInfo "~~~~~~~~~~~~~~~TEST STARTED : $currentTestName~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-
 						$CurrentTestResult = Run-Test -CurrentTestData $currentTestData -XmlConfig $xmlConfig `
 							-Distro $Distro -LogDir $CurrentTestLogDir -VMUser $user -VMPassword $password `
 							-ExecuteSetup $shouldRunSetupForIteration -ExecuteTeardown $shouldRunTeardownForIteration
