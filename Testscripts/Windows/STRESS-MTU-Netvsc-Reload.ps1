@@ -31,7 +31,7 @@ function Main {
         $RootDir
     )
 
-    $rootUser = "root"
+    $rootUser = "$VMUserName"
 
     # Start changing MTU on VM
     $mtu_values = 1505, 2048, 4096, 8192, 16384
@@ -40,7 +40,7 @@ function Main {
         Write-LogInfo "Changing MTU on VM to $i"
 
         $null = Run-LinuxCmd -username $rootUser -password $VMPassword -ip $Ipv4 -port $VMPort `
-            -command "sleep 5 && ip link set dev eth0 mtu $i"
+            -command "sleep 5 && ip link set dev eth0 mtu $i" -RunAsSudo
 
         Start-Sleep -s 30
         Test-Connection -ComputerName $ipv4
@@ -62,7 +62,7 @@ function Main {
     Copy-RemoteFiles -uploadTo $Ipv4 -port $VMPort -password $VMPassword -username $rootUser `
         -files $scriptPath -upload
     $null = Run-LinuxCmd -username $rootUser -password $VMPassword -ip $Ipv4 -port $VMPort `
-        -command "dos2unix reload_netvsc.sh && sleep 5 && bash ~/reload_netvsc.sh" -RunInBackGround
+        -command "dos2unix reload_netvsc.sh && sleep 5 && bash ~/reload_netvsc.sh" -RunInBackGround  -RunAsSudo
 
     Start-Sleep -s 600
     Get-IPv4AndWaitForSSHStart -VmName $VMName -HvServer $HvServer -Vmport $VMPort `

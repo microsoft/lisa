@@ -114,10 +114,10 @@ if ($createfile -notlike "File *testfile-*.file is created") {
 	return "FAIL"
 }
 # Verifying if /mnt folder on guest exists; if not, it will be created
-.\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$Ipv4 "[ -d /mnt ]"
+Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort "[ -d /mnt ]" -runAsSudo
 if (-not $?){
     Write-LogInfo "Folder /mnt not present on guest. It will be created"
-    .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$Ipv4 "mkdir /mnt"
+    Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort "mkdir /mnt" -runAsSudo
 }
 
 $sts = Mount-Disk -vmPassword $VMPassword -vmPort $VMPort -ipv4 $Ipv4

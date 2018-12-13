@@ -25,19 +25,19 @@ function Stop-KVP {
 #!/bin/bash
     ps aux | grep kvp
     if [ `$? -ne 0 ]; then
-      echo "KVP is already disabled" >> /root/StopKVP.log 2>&1
+      echo "KVP is already disabled" >> /home/$VMUser/StopKVP.log 2>&1
       exit 0
     fi
 
     kvpPID=`$(ps aux | grep kvp | awk 'NR==1{print `$2}')
     if [ `$? -ne 0 ]; then
-        echo "Could not get PID of KVP" >> /root/StopKVP.log 2>&1
+        echo "Could not get PID of KVP" >> /home/$VMUser/StopKVP.log 2>&1
         exit 0
     fi
 
     kill `$kvpPID
     if [ `$? -ne 0 ]; then
-        echo "Could not stop KVP process" >> /root/StopKVP.log 2>&1
+        echo "Could not stop KVP process" >> /home/$VMUser/StopKVP.log 2>&1
         exit 0
     fi
 
@@ -55,10 +55,10 @@ function Stop-KVP {
 
     # send file
     Copy-RemoteFiles -uploadTo $VMIpv4 -port $VMSSHPort -files $FILE_NAME `
-        -username "root" -password $VMPassword -upload
+        -username $VMUser -password $VMPassword -upload
 
-    $retVal = Run-LinuxCmd -username "root" -password $VMPassword -ip $VMIpv4 -port $VMSSHPort `
-        -command "cd /root && chmod u+x ${FILE_NAME} && sed -i 's/\r//g' ${FILE_NAME} && ./${FILE_NAME}"
+    $retVal = Run-LinuxCmd -username $VMUser -password $VMPassword -ip $VMIpv4 -port $VMSSHPort `
+        -command "cd /home/$VMUser/ && chmod u+x ${FILE_NAME} && sed -i 's/\r//g' ${FILE_NAME} && ./${FILE_NAME}" -RunAsSudo
 
     return $retVal
 }

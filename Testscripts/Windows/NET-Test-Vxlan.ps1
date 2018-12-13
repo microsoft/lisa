@@ -15,7 +15,7 @@ function Main {
     )
     $bootproto = "static"
     $currentDir = "$((Get-Location).Path)\"
-    $guestUsername = "root"
+    $guestUsername = "$VMUserName"
     # Get MAC for test VM NIC
     $macFileTestVM = "macAddress.file"
     $macFileTestVM = "$currentDir"+"$macFileTestVM"
@@ -98,7 +98,7 @@ function Main {
     # Run NET-Configure-Vxlan.sh on both VMs
     $cmdToSendVM1 = "chmod u+x NET-Configure-Vxlan.sh && ./NET-Configure-Vxlan.sh $vm1StaticIP local"
     Run-LinuxCmd -username $guestUsername -password $VMPassword -ip $IPv4 -port $VMPort -command $cmdToSendVM1 `
-        -ignoreLinuxExitCode:$true
+        -ignoreLinuxExitCode:$true -RunAsSudo
     if (-not $?) {
         Write-LogErr "Failed to configure vxlan on vm $VMName"
         return "FAIL"
@@ -108,7 +108,7 @@ function Main {
 
     $cmdToSendVM2 = "chmod u+x NET-Configure-Vxlan.sh && ./NET-Configure-Vxlan.sh $vm2StaticIP remote"
     Run-LinuxCmd -username $guestUsername -password $VMPassword -ip $vm2ipv4 -port $VMPort -command $cmdToSendVM2 `
-        -ignoreLinuxExitCode:$true
+        -ignoreLinuxExitCode:$true -RunAsSudo
     if (-not $?) {
         Write-LogErr "Failed to configure vxlan on vm $VM2Name"
         return "FAIL"
@@ -117,9 +117,9 @@ function Main {
     }
 
     # Send rsync command on the first VM
-    Run-LinuxCmd -username $guestUsername -password $VMPassword -ip $IPv4 -port $VMPort -command "cp /home/${VMUsername}/net_constants.sh ." -ignoreLinuxExitCode:$true
-    Run-LinuxCmd -username $guestUsername -password $VMPassword -ip $IPv4 -port $VMPort -command ". utils.sh; test_rsync" -ignoreLinuxExitCode:$true
-    $state = Run-LinuxCmd -username $guestUsername -password $VMPassword -ip $IPv4 -port $VMPort -command "cat state.txt" -ignoreLinuxExitCode:$true
+    Run-LinuxCmd -username $guestUsername -password $VMPassword -ip $IPv4 -port $VMPort -command "cp /home/${VMUsername}/net_constants.sh ." -ignoreLinuxExitCode:$true -RunAsSudo
+    Run-LinuxCmd -username $guestUsername -password $VMPassword -ip $IPv4 -port $VMPort -command ". utils.sh; test_rsync" -ignoreLinuxExitCode:$true -RunAsSudo
+    $state = Run-LinuxCmd -username $guestUsername -password $VMPassword -ip $IPv4 -port $VMPort -command "cat state.txt" -ignoreLinuxExitCode:$true -RunAsSudo
     Write-LogInfo "State file on VM1 has the following content $state"
     if ($state -notMatch "Completed") {
         Write-LogErr "Failed to ping from $VMName to VM2 using vxlan"

@@ -28,7 +28,7 @@ function Main {
     $netmask = $null
     $bootproto = $null
     $checkpointName = $null
-    $guestUsername = "root"
+    $guestUsername = "$VMUserName"
 
     $params = $TestParams.Split(';')
     foreach ($p in $params) {

@@ -73,24 +73,24 @@ chmod 666 /root/perf_fio.csv
 "@
         Set-Content "$LogDir\StartFioTest.sh" $myString
         Set-Content "$LogDir\ParseFioTestLogs.sh" $myString2
-        Copy-RemoteFiles -uploadTo $testVMData.PublicIP -port $testVMData.SSHPort -files $currentTestData.files -username "root" -password $password -upload
+        Copy-RemoteFiles -uploadTo $testVMData.PublicIP -port $testVMData.SSHPort -files $currentTestData.files -username $user -password $password -upload
 
-        Copy-RemoteFiles -uploadTo $testVMData.PublicIP -port $testVMData.SSHPort -files "$constantsFile,$LogDir\StartFioTest.sh,$LogDir\ParseFioTestLogs.sh" -username "root" -password $password -upload
+        Copy-RemoteFiles -uploadTo $testVMData.PublicIP -port $testVMData.SSHPort -files "$constantsFile,$LogDir\StartFioTest.sh,$LogDir\ParseFioTestLogs.sh" -username $user -password $password -upload
 
-        $null = Run-LinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -command "chmod +x *.sh" -runAsSudo
-        $testJob = Run-LinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -command "./StartFioTest.sh" -RunInBackground -runAsSudo
+        $null = Run-LinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username $user -password $password -command "chmod +x *.sh" -runAsSudo
+        $testJob = Run-LinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username $user -password $password -command "./StartFioTest.sh" -RunInBackground -runAsSudo
         #endregion
 
         #region MONITOR TEST
         while ((Get-Job -Id $testJob).State -eq "Running") {
-            $currentStatus = Run-LinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -command "tail -1 runlog.txt"-runAsSudo
+            $currentStatus = Run-LinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username $user -password $password -command "tail -1 runlog.txt"-runAsSudo
             Write-LogInfo "Current Test Status : $currentStatus"
             Wait-Time -seconds 20
         }
 
-        $finalStatus = Run-LinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -command "cat state.txt"
-        Copy-RemoteFiles -downloadFrom $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "FIOTest-*.tar.gz"
-        Copy-RemoteFiles -downloadFrom $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "VM_properties.csv"
+        $finalStatus = Run-LinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username $user -password $password -command "cat state.txt"
+        Copy-RemoteFiles -downloadFrom $testVMData.PublicIP -port $testVMData.SSHPort -username $user -password $password -download -downloadTo $LogDir -files "FIOTest-*.tar.gz"
+        Copy-RemoteFiles -downloadFrom $testVMData.PublicIP -port $testVMData.SSHPort -username $user -password $password -download -downloadTo $LogDir -files "VM_properties.csv"
 
         $testSummary = $null
         #endregion
@@ -106,8 +106,8 @@ chmod 666 /root/perf_fio.csv
             $testResult = "ABORTED"
         }
         elseif ($finalStatus -imatch "TestCompleted") {
-            $null = Run-LinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -command "/root/ParseFioTestLogs.sh"
-            Copy-RemoteFiles -downloadFrom $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "perf_fio.csv"
+            $null = Run-LinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username $user -password $password -command "/home/$user/ParseFioTestLogs.sh" -runAsSudo
+            Copy-RemoteFiles -downloadFrom $testVMData.PublicIP -port $testVMData.SSHPort -username $user -password $password -download -downloadTo $LogDir -files "perf_fio.csv"
             Write-LogInfo "Test Completed."
             $testResult = "PASS"
         }

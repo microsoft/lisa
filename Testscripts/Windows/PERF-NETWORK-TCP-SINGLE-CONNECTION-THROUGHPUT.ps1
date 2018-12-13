@@ -167,9 +167,9 @@ function Main {
         if ($TestPlatform -eq "Azure") {
             $getNicCmd = ". ./utils.sh &> /dev/null && get_active_nic_name"
             $clientNicName = (Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort `
-                -username "root" -password $password -command $getNicCmd).Trim()
+                -username $user -password $password -command $getNicCmd).Trim() -RunAsSudo
             $serverNicName = (Run-LinuxCmd -ip $serverVMData.PublicIP -port $serverVMData.SSHPort `
-                -username "root" -password $password -command $getNicCmd).Trim()
+                -username $user -password $password -command $getNicCmd).Trim() -RunAsSudo
         } elseif ($TestPlatform -eq "HyperV") {
             $clientNicName = Get-GuestInterfaceByVSwitch $TestParams.PERF_NIC $clientVMData.RoleName `
                 $clientVMData.HypervHost $user $clientVMData.PublicIP $password $clientVMData.SSHPort
@@ -222,26 +222,52 @@ cd /root/
 . utils.sh
 collect_VM_properties
 "@
-        Set-Content "$LogDir\Startiperf3tcpTest.sh" $runIperfCmd
-        Copy-RemoteFiles -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files "$constantsFile,$LogDir\Startiperf3tcpTest.sh" -username "root" -password $password -upload
-        $null = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "chmod +x *.sh"
-        $testJob = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "/root/Startiperf3tcpTest.sh" -RunInBackground
+        Set-Content "$LogDir\Startiperf3tcpTest.sh" $myString
+        Copy-RemoteFiles -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files "$constantsFile,$LogDir\Startiperf3tcpTest.sh" -username $user -password $password -upload
+        $null = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $user -password $password -command "chmod +x *.sh" -RunAsSudo
+        $testJob = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $user -password $password -command "/home/$user/Startiperf3tcpTest.sh" -RunInBackground -RunAsSudo
         #endregion
 
         #region MONITOR TEST
         while ((Get-Job -Id $testJob).State -eq "Running") {
-            $currentStatus = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "tail -1 iperf3tcpConsoleLogs.txt"
-            Write-LogInfo "Current Test Status: $currentStatus"
+            $currentStatus = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $user -password $password -command "tail -1 iperf3tcpConsoleLogs.txt" -RunAsSudo
+            Write-LogInfo "Current Test Status : $currentStatus"
             Wait-Time -seconds 20
         }
 
-        $finalStatus = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "cat /root/state.txt"
-        Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "/root/iperf3tcpConsoleLogs.txt"
+        foreach ($BufferSize_Bytes in $testBuffers) {
+        $finalStatus = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $user -password $password -command "cat /home/$user/state.txt" -RunAsSudo
+        Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username $user -password $password -download -downloadTo $LogDir -files "/home/$user/iperf3tcpConsoleLogs.txt"
         $iperf3LogDir = "$LogDir\iperf3Data"
         New-Item -itemtype directory -path $iperf3LogDir -Force -ErrorAction SilentlyContinue | Out-Null
-        Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $iperf3LogDir -files "iperf-client-tcp*"
-        Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $iperf3LogDir -files "iperf-server-tcp*"
-        Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "VM_properties.csv"
+        Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username $user -password $password -download -downloadTo $iperf3LogDir -files "iperf-client-tcp*"
+        Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username $user -password $password -download -downloadTo $iperf3LogDir -files "iperf-server-tcp*"
+        Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username $user -password $password -download -downloadTo $LogDir -files "VM_properties.csv"
+        $testSummary = $null
+        foreach ($BufferSize_Bytes in $testBuffers) {
+            # remove extra warnings
+            $serverContent = Get-Content $iperf3LogDir\iperf-server-tcp-IPv4-buffer-$BufferSize_Bytes-conn-1-instance-1.txt
+            while(!$serverContent[0].ToString().Contains("{")) {
+                $serverContent=$serverContent[1..($serverContent.Length-1)]
+            }
+            $clientContent = Get-Content $iperf3LogDir\iperf-client-tcp-IPv4-buffer-$BufferSize_Bytes-conn-1-instance-1.txt
+            while(!$clientContent[0].ToString().Contains("{")) {
+                $clientContent=$clientContent[1..($clientContent.Length-1)]
+            }
+            $serverJson = ConvertFrom-Json -InputObject ([string]($serverContent))
+            $clientJson = ConvertFrom-Json -InputObject ([string]($clientContent))
+            $RxThroughput_Gbps = [math]::Round($serverJson.end.sum_received.bits_per_second/1000000000,2)
+            $TxThroughput_Gbps = [math]::Round($clientJson.end.sum_received.bits_per_second/1000000000,2)
+            $RetransmittedSegments = $clientJson.end.streams.sender.retransmits
+            $CongestionWindowSize_KB_Total = 0
+            foreach ($interval in $clientJson.intervals) {
+                $CongestionWindowSize_KB_Total += $interval.streams.snd_cwnd
+            }
+            $CongestionWindowSize_KB = [math]::Round($CongestionWindowSize_KB_Total / $clientJson.intervals.Count / 1024 )
+            $connResult="ClientTxGbps=$TxThroughput_Gbps"
+            $metaData = "Buffer=$BufferSize_Bytes Bytes Connections=1"
+            $resultSummary +=  Create-ResultSummary -testResult $connResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+        }
 
         if ($finalStatus -imatch "TestFailed") {
             Write-LogErr "Test failed. Last known status : $currentStatus."

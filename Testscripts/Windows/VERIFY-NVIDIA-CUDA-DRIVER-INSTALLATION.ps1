@@ -26,22 +26,22 @@ collect_VM_properties
 "@
         $StartScriptName = "StartGPUDriverInstall.sh"
         Set-Content "$LogDir\$StartScriptName" $myString
-        Copy-RemoteFiles -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files "$LogDir\$StartScriptName" -username "root" -password $password -upload
-        Copy-RemoteFiles -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files "$($currentTestData.files)" -username "root" -password $password -upload
-        $null = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "chmod +x *.sh"
-        $testJob = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "/root/$StartScriptName" -RunInBackground
+        Copy-RemoteFiles -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files "$LogDir\$StartScriptName" -username $user -password $password -upload
+        Copy-RemoteFiles -uploadTo $clientVMData.PublicIP -port $clientVMData.SSHPort -files "$($currentTestData.files)" -username $user -password $password -upload
+        $null = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $user -password $password -command "chmod +x *.sh" -RunAsSudo
+        $testJob = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $user -password $password -command "/home/$user/$StartScriptName" -RunInBackground -RunAsSudo
         #endregion
 
         #region MONITOR TEST
         while ((Get-Job -Id $testJob).State -eq "Running") {
-            $currentStatus = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "tail -n 1 GPUConsoleLogs.txt"
+            $currentStatus = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $user -password $password -command "tail -n 1 GPUConsoleLogs.txt"
             Write-LogInfo "Current Test Status : $currentStatus"
             Wait-Time -seconds 20
         }
 
-        Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "VM_properties.csv"
-        Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "GPUConsoleLogs.txt"
-        $GPUDriverInstallLogs = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "cat GPU_Test_Logs.txt"
+        Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username $user -password $password -download -downloadTo $LogDir -files "VM_properties.csv"
+        Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username $user -password $password -download -downloadTo $LogDir -files "GPUConsoleLogs.txt"
+        $GPUDriverInstallLogs = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $user -password $password -command "cat GPU_Test_Logs.txt"
 
         if ($GPUDriverInstallLogs -imatch "GPU_DRIVER_INSTALLATION_SUCCESSFUL") {
             #Reboot VM.
@@ -75,7 +75,7 @@ collect_VM_properties
                 Write-LogInfo "Waiting 3 minutes. (giving time to load nvidia drivers)"
                 Start-Sleep -Seconds 180
                 #region PCI Express pass-through
-                $PCIExpress = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "lsvmbus" -ignoreLinuxExitCode
+                $PCIExpress = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $user -password $password -command "lsvmbus" -ignoreLinuxExitCode -RunAsSudo
                 Set-Content -Value $PCIExpress -Path $LogDir\PIC-Express-pass-through.txt -Force
                 if ((Select-String -Path $LogDir\PIC-Express-pass-through.txt -Pattern "PCI Express pass-through").Matches.Count -eq $expectedCount) {
                     Write-LogInfo "Expected `"PCI Express pass-through`" count: $expectedCount. Observed Count: $expectedCount"
@@ -89,7 +89,7 @@ collect_VM_properties
                 #endregion
 
                 #region lspci
-                $lspci = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "lspci" -ignoreLinuxExitCode
+                $lspci = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $user -password $password -command "lspci" -ignoreLinuxExitCode -RunAsSudo
                 Set-Content -Value $lspci -Path $LogDir\lspci.txt -Force
                 if ((Select-String -Path $LogDir\lspci.txt -Pattern "NVIDIA Corporation").Matches.Count -eq $expectedCount) {
                     Write-LogInfo "Expected `"3D controller: NVIDIA Corporation`" count: $expectedCount. Observed Count: $expectedCount"
@@ -103,7 +103,7 @@ collect_VM_properties
                 #endregion
 
                 #region PCI lshw -c video
-                $lshw = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "lshw -c video" -ignoreLinuxExitCode
+                $lshw = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $user -password $password -command "lshw -c video" -ignoreLinuxExitCode -RunAsSudo
                 Set-Content -Value $lshw -Path $LogDir\lshw-c-video.txt -Force
                 if (((Select-String -Path $LogDir\lshw-c-video.txt -Pattern "product: NVIDIA Corporation").Matches.Count -eq $expectedCount) -or ((Select-String -Path $LogDir\lshw-c-video.txt -Pattern "vendor: NVIDIA Corporation").Matches.Count -eq $expectedCount)) {
                     Write-LogInfo "Expected Display adapters: $expectedCount. Observed adapters: $expectedCount"
@@ -117,7 +117,7 @@ collect_VM_properties
                 #endregion
 
                 #region PCI nvidia-smi
-                $nvidiasmi = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "nvidia-smi" -ignoreLinuxExitCode
+                $nvidiasmi = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $user -password $password -command "nvidia-smi" -ignoreLinuxExitCode -RunAsSudo
                 Set-Content -Value $nvidiasmi -Path $LogDir\nvidia-smi.txt -Force
                 if ((Select-String -Path $LogDir\nvidia-smi.txt -Pattern "Tesla ").Matches.Count -eq $expectedCount) {
                     Write-LogInfo "Expected Tesla count: $expectedCount. Observed count: $expectedCount"

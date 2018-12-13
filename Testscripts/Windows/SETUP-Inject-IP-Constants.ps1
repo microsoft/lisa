@@ -159,22 +159,22 @@ function Main {
         # Setup ssh on VM1
         Copy-RemoteFiles -uploadTo $Ipv4 -port $VMPort -files `
             ".\Testscripts\Linux\enablePasswordLessRoot.sh" `
-            -username "root" -password $VMPassword -upload
+            -username $user -password $VMPassword -upload
         Copy-RemoteFiles -uploadTo $vm2ipv4 -port $VMPort -files `
             ".\Testscripts\Linux\enablePasswordLessRoot.sh" `
-            -username "root" -password $VMPassword -upload
-        Run-LinuxCmd -ip $Ipv4 -port $VMPort -username "root" -password `
-            $VMPassword -command "chmod +x ~/*.sh"
-        Run-LinuxCmd -ip $vm2ipv4 -port $VMPort -username "root" -password `
-            $VMPassword -command "chmod +x ~/*.sh"
-        $null = Run-LinuxCmd -ip $Ipv4 -port $VMPort -username "root" -password `
+            -username $user -password $VMPassword -upload
+        Run-LinuxCmd -ip $Ipv4 -port $VMPort -username $user -password `
+            $VMPassword -command "chmod +x ~/*.sh" -runAsSudo
+        Run-LinuxCmd -ip $vm2ipv4 -port $VMPort -username $user -password `
+            $VMPassword -command "chmod +x ~/*.sh" -runAsSudo
+        $null = Run-LinuxCmd -ip $Ipv4 -port $VMPort -username $user -password `
             $VMPassword -command "./enablePasswordLessRoot.sh ; cp -rf /root/.ssh /home/$VMUserName"
         # Copy keys from VM1 and setup VM2
         Copy-RemoteFiles -download -downloadFrom $Ipv4 -port $VMPort -files `
-            "/root/sshFix.tar" -username "root" -password $VMPassword -downloadTo $LogDir
+            "/root/sshFix.tar" -username $user -password $VMPassword -downloadTo $LogDir
         Copy-RemoteFiles -uploadTo $vm2ipv4 -port $VMPort -files "$LogDir\sshFix.tar" `
-            -username "root" -password $VMPassword -upload
-        $null = Run-LinuxCmd -ip $vm2ipv4 -port $VMPort -username "root" -password `
+            -username $user -password $VMPassword -upload
+        $null = Run-LinuxCmd -ip $vm2ipv4 -port $VMPort -username $user -password `
             $VMPassword -command "./enablePasswordLessRoot.sh ; cp -rf /root/.ssh /home/$VMUserName"
     }
 
