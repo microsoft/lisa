@@ -15,13 +15,12 @@ param(
 
 function Main {
     param (
-        $TestParams,
-        $user
+        $TestParams
     )
 
     try {
         $testResult = $null
-        $sudoUser = "$user"
+        $sudoUser = "root"
         $bootproto = "static"
         $netmask = "255.255.255.0"
         $newVMData = @()
@@ -97,4 +96,4 @@ function Main {
     return $currentTestResult.TestResult
 }
 
-Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n")) -user $user
+Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))

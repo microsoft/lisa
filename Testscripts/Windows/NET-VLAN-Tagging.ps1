@@ -21,7 +21,7 @@ function Main {
     $testIPv6 = "no"
     $bootproto = "static"
     $currentDir = "$pwd\"
-    $guestUsername = "$VMUserName"
+    $guestUsername = "root"
 
     # Get MAC for test VM NIC
     $macFileTestVM = "macAddress.file"

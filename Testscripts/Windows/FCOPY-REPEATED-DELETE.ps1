@@ -102,7 +102,7 @@ else {
 }
 
 # Verifying if /tmp folder on guest exists; if not, it will be created
-Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort "[ -d /tmp ]" -runAsSudo
+.\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$Ipv4 "[ -d /tmp ]"
 if (-not $?){
     Write-LogInfo "Folder /tmp not present on guest. It will be created"
     .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$Ipv4 "mkdir /tmp"

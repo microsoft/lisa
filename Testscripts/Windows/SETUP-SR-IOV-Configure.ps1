@@ -68,7 +68,7 @@ function Main {
     $nicIterator = 0
     $vfIP = @()
     $vfIterator = 0
-    $VMRootUser = "$VMUsername"
+    $VMRootUser = "root"
 
     $params = $TestParams.Split(';')
     foreach ($p in $params) {
@@ -178,11 +178,11 @@ function Main {
         ".\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SR-IOV-Utils.sh" `
         -username $VMRootUser -password $VMPassword -upload
     Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
-        $VMPassword -command "chmod +x ~/*.sh" -RunAsSudo
+        $VMPassword -command "chmod +x ~/*.sh"
     Run-LinuxCmd -ip $vm2ipv4 -port $VMPort -username $VMRootUser -password `
-        $VMPassword -command "chmod +x ~/*.sh" -RunAsSudo
+        $VMPassword -command "chmod +x ~/*.sh"
     Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
-        $VMPassword -command "./enablePasswordLessRoot.sh ; cp -rf /root/.ssh /home/$VMUsername" -RunAsSudo
+        $VMPassword -command "./enablePasswordLessRoot.sh ; cp -rf /root/.ssh /home/$VMUsername"
 
     # Copy keys from VM1 and setup VM2
     Copy-RemoteFiles -download -downloadFrom $ipv4 -port $VMPort -files `
@@ -190,7 +190,7 @@ function Main {
     Copy-RemoteFiles -uploadTo $vm2ipv4 -port $VMPort -files "$LogDir\sshFix.tar" `
         -username $VMRootUser -password $VMPassword -upload
     Run-LinuxCmd -ip $vm2ipv4 -port $VMPort -username $VMRootUser -password `
-            $VMPassword -command "./enablePasswordLessRoot.sh ; cp -rf /root/.ssh /home/$VMUsername" -RunAsSudo
+            $VMPassword -command "./enablePasswordLessRoot.sh ; cp -rf /root/.ssh /home/$VMUsername"
 
     # Construct and send sriov_constants.sh
     Remove-Item sriov_constants.sh -Force -EA SilentlyContinue

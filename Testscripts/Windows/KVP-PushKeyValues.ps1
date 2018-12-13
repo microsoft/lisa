@@ -89,11 +89,11 @@ function Main {
     # image, then run kvp_client to add a non-intrinsic kvp item
     Write-LogInfo "Info: Trying to detect OS architecture"
     $kvpClient = $null
-    $retVal = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
-                -command "uname -a | grep x86_64" -runAsSudo
+    $retVal = Run-LinuxCmd -username "root" -password $VMPassword -ip $Ipv4 -port $VMPort `
+                -command "uname -a | grep x86_64"
     if (-not $retVal) {
-        $retVal = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
-                    -command "uname -a | grep i686" -runAsSudo
+        $retVal = Run-LinuxCmd -username "root" -password $VMPassword -ip $Ipv4 -port $VMPort `
+                    -command "uname -a | grep i686"
         if (-not ($retVal)) {
             Write-LogErr "Error: Could not determine OS architecture"
             return "FAIL"
