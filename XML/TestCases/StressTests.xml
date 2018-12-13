@@ -5,7 +5,7 @@
         <files></files>
         <setupType>SingleVM</setupType>
         <TestParameters>
-            <param>rebootNumber=100</param>
+            <param>rebootNumber=STRESS_REBOOT_NUMBER</param>
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Stress</Category>
