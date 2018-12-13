@@ -12,7 +12,7 @@ Function Run-CurrentTest ( [switch]$Enable, [switch]$Disable) {
         $DesiredState = "Disable"
     }
     if ($SRIOVChangeState) {
-        $IsSriovVerified = Test-SRIOVInLinuxGuest -username $user -password $password `
+        $IsSriovVerified = Test-SRIOVInLinuxGuest -username "root" -password $password `
             -IpAddress $AllVMData.PublicIP -SSHPort $AllVMData.SSHPort -ExpectedSriovNics $ExpectedNics
         if ( $IsSriovVerified ) {
             Write-LogInfo "$DesiredState Accelerated networking : verified successfully."

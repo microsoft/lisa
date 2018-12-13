@@ -124,7 +124,7 @@ function Main {
     Write-LogInfo "Info: Step 1: fcopy file to vm when target folder is immutable"
 
     # Verifying if /tmp folder on guest exists; if not, it will be created
-    .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$ipv4 "sudo [ -d /test ] || mkdir /test ; chattr +i /test"
+    .\Tools\plink.exe -C -pw $VMPassword -P $VMPort root@$ipv4 "[ -d /test ] || mkdir /test ; chattr +i /test"
 
     if (-not $?) {
         Write-LogErr "Fail to change the permission for /test"
@@ -190,11 +190,11 @@ function Main {
         }
 
         # Verify the file does not exist after hypervfcopyd start
-        $daemonName = .\Tools\plink.exe -C -pw $vmPassword -P $vmPort $VMUserName@$Ipv4 "sudo systemctl list-unit-files | grep fcopy"
+        $daemonName = .\Tools\plink.exe -C -pw $vmPassword -P $vmPort root@$Ipv4 "systemctl list-unit-files | grep fcopy"
         $daemonName = $daemonName.Split(".")[0]
-        .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$Ipv4 "sudo systemctl start $daemonName"
+        .\Tools\plink.exe -C -pw $VMPassword -P $VMPort root@$Ipv4 "systemctl start $daemonName"
         Start-Sleep -s 2
-        .\Tools\plink.exe -C -pw $vmPassword -P $vmPort $VMUserName@$Ipv4 "sudo ls /tmp/testfile-*"
+        .\Tools\plink.exe -C -pw $vmPassword -P $vmPort root@$Ipv4 "ls /tmp/testfile-*"
         if ($? -eq $true) {
             Write-LogErr "File has been copied to guest vm after restart hypervfcopyd"
             return "FAIL"

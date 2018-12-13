@@ -13,7 +13,7 @@ function Main {
         Write-LogInfo "Executing : $($currentTestData.testScriptPs1)"
         Set-Content -Value "**************$($currentTestData.testName)******************" -Path "$logDir\$($currentTestData.testName)_Log.txt"
         Write-LogInfo "Verifcation of KVP Daemon status is started.."
-        $kvpStatus = Run-LinuxCmd -username  $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "pgrep -lf 'hypervkvpd|hv_kvp_daemon'" -RunAsSudo
+        $kvpStatus = Run-LinuxCmd -username "root" -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "pgrep -lf 'hypervkvpd|hv_kvp_daemon'"
         Add-Content -Value "KVP Daemon Status : $kvpStatus " -Path "$logDir\$($currentTestData.testName)_Log.txt"
         if ($kvpStatus -imatch "kvp") {
             Write-LogInfo "KVP daemon is present in remote VM and KVP DAEMON STATUS : $kvpStatus"

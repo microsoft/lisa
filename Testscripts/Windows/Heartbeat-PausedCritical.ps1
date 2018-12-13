@@ -197,7 +197,7 @@ function Main {
     Write-LogInfo "Info: Writing data on the VM disk in order to hit the disk limit"
 
     # Get the used space reported by the VM on the root partition
-    $usedSpaceVM = Run-LinuxCmd -username  $VMUserName -password $VMPassword -ip $ipv4vm1 -port $VMPort -command "df -B1 /home/${VMUserName} |  awk '{print `$3}' | tail -1" -RunAsSudo
+    $usedSpaceVM = Run-LinuxCmd -username "root"-password $VMPassword -ip $ipv4vm1 -port $VMPort -command "df -B1 /root |  awk '{print `$3}' | tail -1"
     Write-LogInfo "Used space: $usedSpaceVM"
 
     # Divide by 1 to convert string to double
@@ -215,7 +215,7 @@ function Main {
     }
 
     Write-LogInfo "Info: Filling $VMName with $ddFileSize MB of data."
-    Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $ipv4vm1 -port $VMPort -command "nohup dd if=/dev/urandom of=/home/${VMUserName}/data2 bs=1M count=$ddFileSize" -RunInBackGround -RunAsSudo
+    Run-LinuxCmd -username "root" -password $VMPassword -ip $ipv4vm1 -port $VMPort -command "nohup dd if=/dev/urandom of=/root/data2 bs=1M count=$ddFileSize" -RunInBackGround
     Start-Sleep 90
 
     $vm1 = Get-VM -Name $VMName1 -ComputerName $HvServer

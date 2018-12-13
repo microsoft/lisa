@@ -50,8 +50,8 @@ function Main {
 
     # Get time
     $timeCmd = "time -p (/home/${VMUserName}/gettime) 2>&1 1>/dev/null"
-    $result = Run-LinuxCmd -ip $Ipv4 -port $VMPort -username $VMUserName -password `
-             $VMPassword -command $timeCmd -runAsSudo
+    $result = Run-LinuxCmd -ip $Ipv4 -port $VMPort -username "root" -password `
+             $VMPassword -command $timeCmd
     $result = $result.Trim()
     Write-LogInfo $result
     #real 3.14 user 3.14 sys 0.00

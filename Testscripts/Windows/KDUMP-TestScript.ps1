@@ -129,8 +129,8 @@ function Main {
                 -command "taskset -c 2 echo c > /proc/sysrq-trigger"
         } else {
             # If directly use plink to trigger kdump, command fails to exit, so use start-process
-            Run-LinuxCmd -username  $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
-                -command "echo c > /proc/sysrq-trigger" -RunInBackGround -runAsSudo
+            Run-LinuxCmd -username "root" -password $VMPassword -ip $Ipv4 -port $VMPort `
+                -command "echo c > /proc/sysrq-trigger" -RunInBackGround
         }
     }
 
@@ -161,7 +161,7 @@ function Main {
         }
         return "FAIL"
     }
-    $result = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+    $result = Run-LinuxCmd -username "root" -password $VMPassword -ip $Ipv4 -port $VMPort `
                 -command "find /var/crash/ -name vmcore -type f -size +10M" -runAsSudo
     Write-LogInfo "Files found: $result"
     Write-LogInfo "Test passed: crash file $result is present"

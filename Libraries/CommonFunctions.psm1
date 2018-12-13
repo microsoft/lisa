@@ -335,11 +335,11 @@ function Install-CustomLIS ($CustomLIS, $customLISBranch, $allVMData, [switch]$R
 			$packageInstallJobs = @()
 			foreach ( $vmData in $allVMData )
 			{
-				Copy-RemoteFiles -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files ".\Testscripts\Linux\$scriptName,.\Testscripts\Linux\DetectLinuxDistro.sh" -username $user -password $password -upload
-				$Null = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -command "chmod +x *.sh" -runAsSudo
-				$currentlisVersion = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -command "modinfo hv_vmbus" -runAsSudo
+				Copy-RemoteFiles -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files ".\Testscripts\Linux\$scriptName,.\Testscripts\Linux\DetectLinuxDistro.sh" -username "root" -password $password -upload
+				$Null = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username "root" -password $password -command "chmod +x *.sh" -runAsSudo
+				$currentlisVersion = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus"
 				Write-LogInfo "Executing $scriptName ..."
-				$jobID = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -command "/home/$user/$scriptName -CustomLIS $CustomLIS -LISbranch $customLISBranch" -RunInBackground -runAsSudo
+				$jobID = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username "root" -password $password -command "/root/$scriptName -CustomLIS $CustomLIS -LISbranch $customLISBranch" -RunInBackground -runAsSudo
 				$packageInstallObj = New-Object PSObject
 				Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name ID -Value $jobID
 				Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name RoleName -Value $vmData.RoleName
@@ -358,7 +358,7 @@ function Install-CustomLIS ($CustomLIS, $customLISBranch, $allVMData, [switch]$R
 				{
 					if ( (Get-Job -Id $($job.ID)).State -eq "Running" )
 					{
-						$currentStatus = Run-LinuxCmd -ip $job.PublicIP -port $job.SSHPort -username $user -password $password -command "tail -n 1 build-CustomLIS.txt"
+						$currentStatus = Run-LinuxCmd -ip $job.PublicIP -port $job.SSHPort -username "root" -password $password -command "tail -n 1 build-CustomLIS.txt"
 						Write-LogInfo "Package Installation Status for $($job.RoleName) : $currentStatus"
 						$packageInstallJobsRunning = $true
 					}
@@ -366,7 +366,7 @@ function Install-CustomLIS ($CustomLIS, $customLISBranch, $allVMData, [switch]$R
 					{
 						if ( !(Test-Path -Path "$LogDir\$($job.RoleName)-build-CustomLIS.txt" ) )
 						{
-							Copy-RemoteFiles -download -downloadFrom $job.PublicIP -port $job.SSHPort -files "build-CustomLIS.txt" -username $user -password $password -downloadTo $LogDir
+							Copy-RemoteFiles -download -downloadFrom $job.PublicIP -port $job.SSHPort -files "build-CustomLIS.txt" -username "root" -password $password -downloadTo $LogDir
 							if ( ( Get-Content "$LogDir\build-CustomLIS.txt" ) -imatch "CUSTOM_LIS_SUCCESS" )
 							{
 								$lisSuccess += 1
@@ -390,7 +390,8 @@ function Install-CustomLIS ($CustomLIS, $customLISBranch, $allVMData, [switch]$R
 					$restartStatus = Restart-AllDeployments -allVMData $allVMData
 					if ( $restartStatus -eq "True")
 					{
-						$upgradedlisVersion = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -command "modinfo hv_vmbus" -runAsSudo
+						$upgradedlisVersion = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus"
+						Write-LogInfo "Old lis: $currentlisVersion"
 						Write-LogInfo "New lis: $upgradedlisVersion"
 						Add-Content -Value "Old lis: $currentlisVersion" -Path .\Report\AdditionalInfo.html -Force
 						Add-Content -Value "New lis: $upgradedlisVersion" -Path .\Report\AdditionalInfo.html -Force
@@ -2438,7 +2439,10 @@ function Send-CommandToVM {
 		Write-LogErr "command is null"
 		return $False
 	}
-	$process = Run-LinuxCmd -ip $ipv4 -port $vmPort -username $user -password $VMPassword -command ${command} -runAsSudo -RunInBackground
+
+	# get around plink questions
+	Write-Output "yes" | .\Tools\plink.exe -C -pw ${vmPassword} -P ${vmPort} root@$ipv4 'exit 0'
+	$process = Start-Process .\Tools\plink.exe -ArgumentList "-C -pw ${vmPassword} -P ${vmPort} root@$ipv4 ${command}" -PassThru -NoNewWindow -Wait
 	if ($process.ExitCode -eq 0)
 	{
 		$retVal = $True
@@ -2735,7 +2739,7 @@ function Check-Result{
 
 	while ($timeout -ne 0 )
 	{
-		Write-Output "yes" | .\tools\pscp.exe  -v -2 -unsafe -pw $vmPassword -q -P ${vmPort} $user@${ipv4}:${stateFile} ${localStateFile} #| out-null
+		Write-Output "yes" | .\tools\pscp.exe  -v -2 -unsafe -pw $vmPassword -q -P ${vmPort} root@${ipv4}:${stateFile} ${localStateFile} #| out-null
 		$sts = $?
 		if ($sts)
 		{
@@ -3903,7 +3907,7 @@ Function Check-VMStateAndFileStatus {
     }
     Write-LogInfo "${VMName} IP is $ip_address"
     # check selinux denied log after IP injection
-    $sts=Get-SelinuxAVCLog -ipv4 $VMIpv4 -SSHPort $VMPort -Username $user -Password $password
+    $sts=Get-SelinuxAVCLog -ipv4 $VMIpv4 -SSHPort $VMPort -Username "root" -Password $password
     if (-not $sts) {
         return $False
     }
@@ -4003,7 +4007,7 @@ Function Is-StressNgInstalled {
     Copy-RemoteFiles -uploadTo $VMIpv4 -port $VMSSHPort -files $FILE_NAME -username $user -password $password -upload
     # execute command
     $retVal = Run-LinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMSSHPort `
-        -command "echo $password | sudo -S cd /home/${user} && chmod u+x ${FILE_NAME} && sed -i 's/\r//g' ${FILE_NAME} && ./${FILE_NAME}"
+        -command "echo $password | sudo -S cd /root && chmod u+x ${FILE_NAME} && sed -i 's/\r//g' ${FILE_NAME} && ./${FILE_NAME}"
     return $retVal
 }
 
@@ -4019,12 +4023,12 @@ Function Start-StressNg {
 #!/bin/bash
         __freeMem=`$(cat /proc/meminfo | grep -i MemFree | awk '{ print `$2 }')
         __freeMem=`$((__freeMem/1024))
-        echo ConsumeMemory: Free Memory found `$__freeMem MB >> /home/${user}/HotAdd.log 2>&1
+        echo ConsumeMemory: Free Memory found `$__freeMem MB >> /root/HotAdd.log 2>&1
         __threads=32
         __chunks=`$((`$__freeMem / `$__threads))
-        echo "Going to start `$__threads instance(s) of stress-ng every 2 seconds, each consuming 128MB memory" >> /home/${user}/HotAdd.log 2>&1
+        echo "Going to start `$__threads instance(s) of stress-ng every 2 seconds, each consuming 128MB memory" >> /root/HotAdd.log 2>&1
         stress-ng -m `$__threads --vm-bytes `${__chunks}M -t 120 --backoff 1500000
-        echo "Waiting for jobs to finish" >> /home/${user}/HotAdd.log 2>&1
+        echo "Waiting for jobs to finish" >> /root/HotAdd.log 2>&1
         wait
         exit 0
 "@
@@ -4036,7 +4040,7 @@ Function Start-StressNg {
         -username $user -password $password -upload
     # execute command as job
     $retVal = Run-LinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMSSHPort `
-        -command "echo $password | sudo -S cd /home/${user} && chmod u+x ${FILE_NAME} && sed -i 's/\r//g' ${FILE_NAME} && ./${FILE_NAME}"
+        -command "echo $password | sudo -S cd /root && chmod u+x ${FILE_NAME} && sed -i 's/\r//g' ${FILE_NAME} && ./${FILE_NAME}"
     return $retVal
 }
 # This function runs the remote script on VM.
@@ -4173,14 +4177,14 @@ function Get-MemoryStressNG([String]$VMIpv4, [String]$VMSSHPort, [int]$timeoutSt
     $cmdToVM = @"
 #!/bin/bash
         if [ ! -e /proc/meminfo ]; then
-          echo "ConsumeMemory: no meminfo found. Make sure /proc is mounted" >> /home/${user}/HotAdd.log 2>&1
+          echo "ConsumeMemory: no meminfo found. Make sure /proc is mounted" >> /root/HotAdd.log 2>&1
           exit 100
         fi
 
         rm ~/HotAddErrors.log -f
         __totalMem=`$(cat /proc/meminfo | grep -i MemTotal | awk '{ print `$2 }')
         __totalMem=`$((__totalMem/1024))
-        echo "ConsumeMemory: Total Memory found `$__totalMem MB" >> /home/${user}/HotAdd.log 2>&1
+        echo "ConsumeMemory: Total Memory found `$__totalMem MB" >> /root/HotAdd.log 2>&1
         declare -i __chunks
         declare -i __threads
         declare -i duration
@@ -4212,7 +4216,7 @@ function Get-MemoryStressNG([String]$VMIpv4, [String]$VMSSHPort, [int]$timeoutSt
         fi
         echo "Stress-ng info: `$__threads threads :: `$__chunks MB chunk size :: `$((`$timeout/1000000)) seconds between chunks :: `$duration seconds total stress time" >> /root/HotAdd.log 2>&1
         stress-ng -m `$__threads --vm-bytes `${__chunks}M -t `$duration --backoff `$timeout
-        echo "Waiting for jobs to finish" >> /home/${user}/HotAdd.log 2>&1
+        echo "Waiting for jobs to finish" >> /root/HotAdd.log 2>&1
         wait
         exit 0
 "@
@@ -4223,7 +4227,7 @@ function Get-MemoryStressNG([String]$VMIpv4, [String]$VMSSHPort, [int]$timeoutSt
     Copy-RemoteFiles -uploadTo $VMIpv4 -port $VMSSHPort -files $FILE_NAME -username $user -password $password -upload
     Write-LogInfo "Copy-RemoteFiles done"
     # execute command
-    $sendCommand = "echo $password | sudo -S cd /home/${user}/ && chmod u+x ${FILE_NAME} && sed -i 's/\r//g' ${FILE_NAME} && ./${FILE_NAME}"
+    $sendCommand = "echo $password | sudo -S cd /root && chmod u+x ${FILE_NAME} && sed -i 's/\r//g' ${FILE_NAME} && ./${FILE_NAME}"
     $retVal = Run-LinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMSSHPort -command $sendCommand  -runAsSudo
     return $retVal
 }
@@ -4237,10 +4241,10 @@ Function Publish-App([string]$appName, [string]$customIP, [string]$appGitURL, [s
         return $False
     }
     $retVal = Run-LinuxCmd -username $user -password $password -ip $customIP -port $VMSSHPort `
-        -command "echo $password | sudo -S cd /home/${user}/ ; git clone $appGitURL $appName > /dev/null 2>&1" -runAsSudo
+        -command "echo $password | sudo -S cd /root; git clone $appGitURL $appName > /dev/null 2>&1"
     if ($appGitTag) {
         $retVal = Run-LinuxCmd -username $user -password $password -ip $customIP -port $VMSSHPort `
-        -command "cd $appName; git checkout tags/$appGitTag > /dev/null 2>&1" -runAsSudo
+        -command "cd $appName; git checkout tags/$appGitTag > /dev/null 2>&1"
     }
     if ($appName -eq "stress-ng") {
         $appInstall = "cd $appName; echo '${password}' | sudo -S make install"
@@ -4250,7 +4254,7 @@ Function Publish-App([string]$appName, [string]$customIP, [string]$appGitURL, [s
     else {
     $appInstall = "cd $appName;./configure;make;echo '${password}' | sudo -S make install"
     $retVal = Run-LinuxCmd -username $user -password $password -ip $customIP -port $VMSSHPort `
-        -command $appInstall -runAsSudo
+        -command $appInstall
     }
     Write-LogInfo "App $appName Installation is completed"
     return $retVal

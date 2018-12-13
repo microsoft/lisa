@@ -11,8 +11,8 @@ $NamespaceV2 = "root\virtualization\v2"
 
 # Checks if hv_set_ifconfig is present in the VM
 function Get-HvSetConfig() {
-    $sts = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
-        -command "find /usr/|grep hv_set_ifconfig" -ignoreLinuxExitCode:$true -RunAsSudo
+    $sts = Run-LinuxCmd -username "root" -password $VMPassword -ip $Ipv4 -port $VMPort `
+        -command "find /usr/|grep hv_set_ifconfig" -ignoreLinuxExitCode:$true
     if (-not $sts) {
         Write-LogErr "hv_set_ifconfig is not present or verification failed"
         break
