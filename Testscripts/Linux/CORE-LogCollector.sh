@@ -32,7 +32,7 @@ Collect_Waagent_Logs() {
     Log "Root Device Timeout" 'cat /sys/block/sda/device/timeout' $dirname/Waagent.txt
     if [[ $dist == *Debian* ]] || [[  $dist == *Ubuntu* ]]
     then
-        Log "Waagent Package Details" 'dpkg -p walinuxagent' $dirname/Waagent.txt
+        Log "Waagent Package Details" 'dpkg-query -l walinuxagent' $dirname/Waagent.txt
     else
         Log "Waagent Package Details" 'rpm -qil WALinuxAgent' $dirname/Waagent.txt
     fi
@@ -43,8 +43,12 @@ Collect_OS_Logs() {
     echo "Collecting Operating System Logs....."
     Log "Collecting Operating System Details at" 'date' $dirname/OS.log
     Log "Kernel Version" 'uname -a' $dirname/OS.log
-    Log "Distro Release Details" 'cat /etc/issue' $dirname/OS.log
-    Log "Additional Kernel Details" 'cat /proc/version' $dirname/OS.log
+    if [ -f "/etc/issue" ]; then
+        Log "Distro Release Details" 'cat /etc/issue' $dirname/OS.log
+    else
+        return
+    fi
+    Log "Additional Kernel Details" 'sudo cat /proc/version' $dirname/OS.log
     Log "Mount Points" 'mount' $dirname/OS.log
     Log "System Limits" 'ulimit -a' $dirname/OS.log
     #Log "NFS Shares on System" 'showmount -e' $dirname/OS.log
@@ -76,8 +80,41 @@ Collect_OS_Logs() {
 
 Collect_LIS() {
     echo "Collecting Microsoft Linux Integration Service Data..."
-    vsc_modules=$(lsmod | grep vsc | cut -d' ' -f1)
-    for module in "${vsc_modules[@]}"; do
+    HYPERV_MODULES=()
+    HYPERV_MODULES+=$(lsmod | grep vsc | cut -d' ' -f1)
+    skip_modules=()
+    vmbus_included=`grep CONFIG_HYPERV=y /boot/config-$(uname -r)`
+    if [ $vmbus_included ]; then
+        skip_modules+=("hv_vmbus")
+        echo "Info: Skipping hv_vmbus module as it is built-in."
+    fi
+    storvsc_included=`grep CONFIG_HYPERV_STORAGE=y /boot/config-$(uname -r)`
+    if [ $storvsc_included ]; then
+        skip_modules+=("hv_storvsc")
+        echo "Info: Skipping hv_storvsc module as it is built-in."
+    fi
+    # Remove each module in HYPERV_MODULES from skip_modules
+    for mod in "${HYPERV_MODULES[@]}"; do
+        TEMP_HYPERV_MODULES=()
+        for remove in "${skip_modules[@]}"; do
+            KEEP=true
+            if [[ ${mod} == ${remove} ]]; then
+                KEEP=false
+                break
+            fi
+        done
+        if ${KEEP}; then
+            TEMP_HYPERV_MODULES+=(${mod})
+        fi
+    done
+    HYPERV_MODULES=("${TEMP_HYPERV_MODULES[@]}")
+    # SLES has all modules built in to the  kernel
+    if [ -z "$HYPERV_MODULES" ]; then
+        echo "All modules built-in ..."
+    else
+        unset TEMP_HYPERV_MODULES
+    fi
+    for module in "${HYPERV_MODULES[@]}"; do
         version=$(modinfo "$module" | grep vermagic: | head -1 | awk '{print $2}')
         echo "$module module: ${version}"
         continue
@@ -111,13 +148,28 @@ Collect_Processor() {
 }
 
 Collect_Network() {
+    ip=$(command -v ip )
+    netstat=$(command -v netstat)
+    route=$(command -v netstat)
     echo "Collecting Network Data..."
-    Log "Network Interface Details" 'ifconfig -a' $dirname/Network.txt
-    Log "Network Status Details by interface" 'netstat -i' $dirname/Network.txt
-    Log "Network Status Details of all sockets" 'netstat -a' $dirname/Network.txt
-    Log "Network Status Details Source and Destinations ips and ports" 'netstat -lan' $dirname/Network.txt
+    if ! [ "$ip" ]; then
+        echo "ip is not installed"
+    else
+        Log "Network Interface Details" 'ip a' $dirname/Network.txt
+    fi
+    if ! [ "$netstat" ]; then
+        echo "netstat is not installed"
+    else
+        Log "Network Status Details by interface" 'netstat -i' $dirname/Network.txt
+        Log "Network Status Details of all sockets" 'netstat -a' $dirname/Network.txt
+        Log "Network Status Details Source and Destinations ips and ports" 'netstat -lan' $dirname/Network.txt
+    fi
+    if ! [ "$route" ]; then
+        echo "route is not installed"
+    else
     Log "Routing Table Details" 'route' $dirname/Route.txt
     echo "Collecting Network Data Finished..."
+    fi
 }
 
 Create_Compr_Logs() {
@@ -128,6 +180,7 @@ Create_Compr_Logs() {
 Upload_Logs() {
     return;
 }
+
 intro
 Collect_OS_Logs
 Collect_Waagent_Logs
