@@ -308,8 +308,6 @@ Set-Variable -Name password -Value $password -Scope Global
 Set-Variable -Name sshKey -Value $sshKey -Scope Global
 Set-Variable -Name sshPublicKey -Value $sshPublicKey -Scope Global
 Set-Variable -Name sshPublicKeyThumbprint -Value $sshPublicKeyThumbprint -Scope Global
-Set-Variable -Name PublicConfiguration -Value @() -Scope Global
-Set-Variable -Name PrivateConfiguration -Value @() -Scope Global
 Set-Variable -Name CurrentTestData -Value $CurrentTestData -Scope Global
 Set-Variable -Name preserveKeyword -Value "preserving" -Scope Global
 Set-Variable -Name TiPSessionId -Value $TiPSessionId -Scope Global
@@ -381,7 +379,6 @@ try {
 	Set-Variable -Name xmlConfig -Value $xmlConfig -Scope Global
 	Write-LogInfo "'$LogDir' saved to .\Report\lastLogDirectory.txt"
 	Set-Content -Path .\Report\lastLogDirectory.txt -Value $LogDir -Force
-	Set-Variable -Name vnetIsAllConfigured -Value $false -Scope Global
 
 	if($DoNotDeleteVMs) {
 		Set-Variable -Name DoNotDeleteVMs -Value $true -Scope Global

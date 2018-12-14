@@ -752,7 +752,6 @@ Function Generate-AzureDeployJSONFile ($RGName, $osImage, $osVHD, $RGXMLData, $L
             $StorageAccountType = "Standard_LRS"
         }
         Write-LogInfo "Storage Account Type : $StorageAccountType"
-        Set-Variable -Name StorageAccountTypeGlobal -Value $StorageAccountType -Scope Global
     }
 
     #Condition Existing Storage - Managed Disks
@@ -764,14 +763,12 @@ Function Generate-AzureDeployJSONFile ($RGName, $osImage, $osVHD, $RGXMLData, $L
         else {
             $StorageAccountType = "Standard_LRS"
         }
-        Set-Variable -Name StorageAccountTypeGlobal -Value $StorageAccountType -Scope Global
     }
 
 
     #Condition New Storage - NonManaged disk
     if ( $StorageAccountName -imatch "NewStorage" -and !$UseManagedDisks -and !$UseManageDiskForCurrentTest) {
         $NewARMStorageAccountType = ($StorageAccountName).Replace("NewStorage_", "")
-        Set-Variable -Name StorageAccountTypeGlobal -Value $NewARMStorageAccountType  -Scope Global
         $StorageAccountName = $($NewARMStorageAccountType.ToLower().Replace("_", "")) + "$RGRandomNumber"
         $NewStorageAccountName = $StorageAccountName
         Write-LogInfo "Using New ARM Storage Account : $StorageAccountName"
@@ -780,7 +777,6 @@ Function Generate-AzureDeployJSONFile ($RGName, $osImage, $osVHD, $RGXMLData, $L
 
     #Condition New Storage - Managed disk
     if ( $StorageAccountName -imatch "NewStorage" -and ($UseManagedDisks -or $UseManageDiskForCurrentTest)) {
-        Set-Variable -Name StorageAccountTypeGlobal -Value ($StorageAccountName).Replace("NewStorage_", "")  -Scope Global
         Write-LogInfo "Conflicting parameters - NewStorage and UseManagedDisks. Storage account will not be created."
     }
     #Region Define all Variables.

@@ -816,9 +816,6 @@ Function Check-KernelLogs($allVMData, $vmUser, $vmPassword)
 
 Function Set-DistroSpecificVariables($detectedDistro)
 {
-	$python_cmd = "python"
-	Write-LogInfo "Set `$python_cmd > $python_cmd"
-	Set-Variable -Name python_cmd -Value $python_cmd -Scope Global
 	Set-Variable -Name ifconfig_cmd -Value "ifconfig" -Scope Global
 	if(($detectedDistro -eq "SLES") -or ($detectedDistro -eq "SUSE"))
 	{
@@ -1445,7 +1442,7 @@ Function Run-LinuxCmd([string] $username,[string] $password,[string] $ip,[string
 				$jobOut = Receive-Job $runLinuxCmdJob 2> $LogDir\$randomFileName
 				if($jobOut)
 				{
-					$jobOut = $jobOut.Replace("[sudo] password for $username`: ","")
+					$jobOut = $jobOut.Replace("[sudo] password for $username`: ","").Replace("Password: ","")
 					foreach ($outLine in $jobOut)
 					{
 						if($outLine -imatch "AZURE-LINUX-EXIT-CODE-")

@@ -16,7 +16,7 @@ if ($isDeployed) {
         Run-LinuxCmd -username $user -password $password -ip $hs1VIP -port $hs1vm1sshport -command "chmod +x *" -runAsSudo
 
         Write-LogInfo "Executing : $($currentTestData.testScript)"
-        Run-LinuxCmd -username $user -password $password -ip $hs1VIP -port $hs1vm1sshport -command "$python_cmd $($currentTestData.testScript) -e $OsImageSizeByte" -runAsSudo
+        Run-LinuxCmd -username $user -password $password -ip $hs1VIP -port $hs1vm1sshport -command "python $($currentTestData.testScript) -e $OsImageSizeByte" -runAsSudo
         Run-LinuxCmd -username $user -password $password -ip $hs1VIP -port $hs1vm1sshport -command "mv Runtime.log $($currentTestData.testScript).log" -runAsSudo
         Copy-RemoteFiles -download -downloadFrom $hs1VIP -files "/home/$user/state.txt, /home/$user/Summary.log, /home/$user/$($currentTestData.testScript).log" -downloadTo $LogDir -port $hs1vm1sshport -username $user -password $password
         $testResult = Get-Content $LogDir\Summary.log
