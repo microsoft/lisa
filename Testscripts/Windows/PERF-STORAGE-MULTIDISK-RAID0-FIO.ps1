@@ -132,10 +132,18 @@ function Consume-FioPerformanceResults {
         $GuestDistro = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
         $GuestSize = $allVMData.InstanceSize
         $KernelVersion  = cat "$LogDir\VM_properties.csv" | Select-String "Kernel version"| %{$_ -replace ",Kernel version,",""}
-
         $SQLQuery = "INSERT INTO $dataTableName (TestCaseName,TestDate,HostType,HostBy,HostOS,GuestOSType,GuestDistro,GuestSize,KernelVersion,DiskSetup,BlockSize_KB,qDepth,seq_read_iops,seq_read_lat_usec,rand_read_iops,rand_read_lat_usec,seq_write_iops,seq_write_lat_usec,rand_write_iops,rand_write_lat_usec) VALUES "
 
-        foreach ($fioPerfResult in $FioPerformanceResults) {
+        # Note(v-advlad): aggregate fio results by qDepth
+        $perfResultsByQdepth = @{}
+        $FioPerformanceResults | ForEach-Object {
+             if (!$perfResultsByQdepth[$_.meta_data.q_depth]) {
+                 $perfResultsByQdepth[$_.meta_data.q_depth] = @()
+             }
+            $perfResultsByQdepth[$_.meta_data.q_depth] += $_
+        }
+        $sortedQdepths = $perfResultsByQdepth.Keys | Sort-Object @{e={$_ -as [int]}}
+        foreach ($qDepth in $sortedQdepths) {
             $seq_read_iops = 0
             $seq_read_lat_usec = 0
             $rand_read_iops = 0
@@ -144,34 +152,38 @@ function Consume-FioPerformanceResults {
             $seq_write_lat_usec = 0
             $rand_write_iops = 0
             $rand_write_lat_usec = 0
+            $BlockSize_KB = 0
 
-            if ($fioPerfResult["meta_data"]["mode"] -eq "read") {
-                $seq_read_iops = $fioPerfResult["io_per_second"]
-                $seq_read_lat_usec = $fioPerfResult["latency_usecond"]
+            foreach ($fioPerfResult in $perfResultsByQdepth[$qDepth]) {
+                if ($fioPerfResult.meta_data.mode -eq "read") {
+                    $seq_read_iops = $fioPerfResult.io_per_second
+                    $seq_read_lat_usec = $fioPerfResult.latency_usecond
+                }
+
+                if ($fioPerfResult.meta_data.mode -eq "randread") {
+                    $rand_read_iops = $fioPerfResult.io_per_second
+                    $rand_read_lat_usec = $fioPerfResult.latency_usecond
+                }
+
+                if ($fioPerfResult.meta_data.mode -eq "write") {
+                    $seq_write_iops = $fioPerfResult.io_per_second
+                    $seq_write_lat_usec = $fioPerfResult.latency_usecond
+                }
+
+                if ($fioPerfResult.meta_data.mode -eq "randwrite") {
+                    $rand_write_iops = $fioPerfResult.io_per_second
+                    $rand_write_lat_usec = $fioPerfResult.latency_usecond
+                }
+
+                $BlockSize_KB = $fioPerfResult.block_size
             }
 
-            if ($fioPerfResult["meta_data"]["mode"] -eq "randread") {
-                $rand_read_iops = $fioPerfResult["io_per_second"]
-                $rand_read_lat_usec = $fioPerfResult["latency_usecond"]
+            if ($BlockSize_KB) {
+                $SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$TestPlatform','$TestLocation','$HostOS','$GuestOSType','$GuestDistro','$GuestSize','$KernelVersion','RAID0:12xP30','$BlockSize_KB','$QDepth','$seq_read_iops','$seq_read_lat_usec','$rand_read_iops','$rand_read_lat_usec','$seq_write_iops','$seq_write_lat_usec','$rand_write_iops','$rand_write_lat_usec'),"
+                Write-LogInfo "Collected performace data for $qDepth qDepth."
             }
-
-            if ($fioPerfResult["meta_data"]["mode"] -eq "write") {
-                $seq_write_iops = $fioPerfResult["io_per_second"]
-                $seq_write_lat_usec = $fioPerfResult["latency_usecond"]
-            }
-
-            if ($fioPerfResult["meta_data"]["mode"] -eq "randwrite") {
-                $rand_write_iops = $fioPerfResult["io_per_second"]
-                $rand_write_lat_usec = $fioPerfResult["latency_usecond"]
-            }
-
-            $BlockSize_KB = $fioPerfResult["block_size"]
-            $qDepth = $fioPerfResult["meta_data"]["q_depth"]
-            $SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$TestPlatform','$TestLocation','$HostOS','$GuestOSType','$GuestDistro','$GuestSize','$KernelVersion','RAID0:12xP30','$BlockSize_KB','$QDepth','$seq_read_iops','$seq_read_lat_usec','$rand_read_iops','$rand_read_lat_usec','$seq_write_iops','$seq_write_lat_usec','$rand_write_iops','$rand_write_lat_usec'),"
-            Write-LogInfo "Collected performace data for $qDepth qDepth."
         }
         Write-LogInfo "Uploading the test results to database.."
-
         $SQLQuery = $SQLQuery.TrimEnd(',')
         Upload-TestResultToDatabase $SQLQuery
     } else {
