@@ -96,7 +96,7 @@ Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1"
 	ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
 
 try {
-	$TestID = "{0}{1}" -f $(-join ((65..90) | Get-Random -Count 4 | ForEach-Object {[char]$_})), $(Get-Random -Maximum 99999 -Minimum 11111)
+	$TestID = New-TestID
 	$LogFileName = "LISAv2-Test-$TestID.log"
 	Set-Variable -Name LogFileName -Value $LogFileName -Scope Global -Force
 	Set-Variable -Name "TestID" -Value $TestID -Scope Global -Force
@@ -113,8 +113,8 @@ try {
 
 	# Prepare log folder
 	$LogDir = Join-Path $WorkingDirectory "TestResults\$(Get-Date -Format 'yyyy-dd-MM-HH-mm-ss-ffff')"
-	Set-Variable -Name LogDir      -Value $LogDir      -Scope Global -Force
-	New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
+	Set-Variable -Name LogDir        -Value $LogDir -Scope Global -Force
+	New-Item     -ItemType Directory -Path $LogDir  -Force | Out-Null
 	Write-LogInfo "Logging directory: $LogDir"
 
 	# Import parameters from file if -ParametersFile is given, and set them as global variables

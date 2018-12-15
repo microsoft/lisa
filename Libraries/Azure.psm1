@@ -380,14 +380,14 @@ Function Create-AllResourceGroupDeployments($setupType, $xmlConfig, $Distro, [st
                 }
             }
             if ($readyToDeploy) {
-                $curtime = ([string]((Get-Date).Ticks / 1000000)).Split(".")[0]
+                $uniqueId = New-TimeBasedUniqueId
                 $isServiceDeployed = "False"
                 $retryDeployment = 0
                 if ( $null -ne $RG.Tag ) {
-                    $groupName = "ICA-RG-" + $RG.Tag + "-" + $Distro + "-" + "$TestID-" + "$curtime"
+                    $groupName = "LISAv2-" + $RG.Tag + "-" + $Distro + "-" + "$TestID-" + "$uniqueId"
                 }
                 else {
-                    $groupName = "ICA-RG-" + $setupType + "-" + $Distro + "-" + "$TestID-" + "$curtime"
+                    $groupName = "LISAv2-" + $setupType + "-" + $Distro + "-" + "$TestID-" + "$uniqueId"
                 }
                 if ($isMultiple -eq "True") {
                     $groupName = $groupName + "-" + $resourceGroupCount
@@ -2020,10 +2020,10 @@ Function Create-RGDeploymentWithTempParameters([string]$RGName, $TemplateFile, $
 
 Function Create-AllRGDeploymentsWithTempParameters($templateName, $location, $TemplateFile, $TemplateParameterFile) {
     $resourceGroupCount = 0
-    $curtime = Get-Date
     $isServiceDeployed = "False"
     $retryDeployment = 0
-    $groupName = "ICA-RG-" + $templateName + "-" + $curtime.Month + "-" + $curtime.Day + "-" + $curtime.Hour + "-" + $curtime.Minute + "-" + $curtime.Second
+    $uniqueId = New-TimeBasedUniqueId
+    $groupName = "LISAv2-" + $templateName + "-" + $uniqueId
 
     while (($isServiceDeployed -eq "False") -and ($retryDeployment -lt 3)) {
         Write-LogInfo "Creating Resource Group : $groupName."
