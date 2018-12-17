@@ -5,7 +5,7 @@
         <testScript>STOR-VSS-BackupRestore-ISO-NoNetwork.ps1</testScript>
         <cleanupScript>.\TestScripts\Windows\CLEANUP-Backup-DISK.ps1</cleanupScript>
         <files>.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh,.\Testscripts\Linux\STOR_VSS_StopNetwork.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>CDISO=VSS_BACKUP_MINI_ISO</param>
         </TestParameters>
@@ -22,7 +22,7 @@
         <testScript>STOR-VSS-BACKUP-RESTORE-PARTITION.ps1</testScript>
         <cleanupScript>.\TestScripts\Windows\CLEANUP-Backup-DISK.ps1</cleanupScript>
         <files>.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\PartitionMultipleDisks.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>SCSI_1=3,1,Dynamic</param>
             <param>SCSI_2=2,1,Dynamic</param>
@@ -40,7 +40,7 @@
         <setupScript>.\Testscripts\Windows\SETUP-Backup-DISK.ps1</setupScript>
         <testScript>STOR-VSS-3Chain-VHD-backup.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <cleanupScript>.\TestScripts\Windows\CLEANUP-Backup-DISK.ps1</cleanupScript>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
@@ -53,7 +53,7 @@
         <setupScript>.\Testscripts\Windows\SETUP-Backup-DISK.ps1</setupScript>
         <testScript>STOR-VSS-BackupRestore-State.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>vmState=Paused</param>
         </TestParameters>
@@ -70,7 +70,7 @@
         <setupScript>.\TestScripts\Windows\AddHardDisk.ps1</setupScript>
         <testScript>STOR-VSS-BackupRestore-Mount-Multi-Paths.ps1</testScript>
         <files>.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Disk_Mount_Multi_Paths.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
                 <param>IDE=1,1,Dynamic</param>
                 <param>FILESYS=ext4</param>
@@ -87,7 +87,7 @@
         <setupScript>.\Testscripts\Windows\SETUP-Backup-DISK.ps1</setupScript>
         <testScript>STOR-VSS-BackupRestore-Mount-Squashfs.ps1</testScript>
         <files>.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Disk_Mount_Squashfs.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <cleanupScript>.\TestScripts\Windows\CLEANUP-Backup-DISK.ps1</cleanupScript>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
@@ -100,7 +100,7 @@
         <setupScript>.\Testscripts\Windows\SETUP-Backup-DISK.ps1</setupScript>
         <testScript>STOR-VSS-Backup-Change-Hypervvssd.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh,.\Testscripts\Linux\STOR_VSS_Set_VSS_Daemon.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <cleanupScript>.\TestScripts\Windows\CLEANUP-Backup-DISK.ps1</cleanupScript>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
@@ -114,7 +114,7 @@
         <testScript>STOR-VSS-BACKUP-RESTORE-DISKSTRESS.ps1</testScript>
         <cleanupScript>.\TestScripts\Windows\CLEANUP-Backup-DISK.ps1</cleanupScript>
         <files>.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh,.\Testscripts\Linux\STOR_VSS_Disk_Stress.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>iozoneVers=3_424</param>
             <param>iozonesrclink="IOZONE_SRC_URL"</param>
@@ -131,7 +131,7 @@
         <testScript>STOR-VSS-Backup-Disable-Enable-VSS.ps1</testScript>
         <cleanupScript>.\TestScripts\Windows\CLEANUP-Backup-DISK.ps1</cleanupScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>BACKUP</Area>
@@ -144,7 +144,7 @@
         <testScript>STOR-VSS-BackupRestore-Fail.ps1</testScript>
         <cleanupScript>.\TestScripts\Windows\CLEANUP-Backup-DISK.ps1</cleanupScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh,.\Testscripts\Linux\STOR_VSS_Disk_Fail.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>IDE=1,1,Dynamic</param>
             <param>FILESYS=ext4</param>

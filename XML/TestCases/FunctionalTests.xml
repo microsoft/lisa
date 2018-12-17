@@ -2,7 +2,7 @@
     <test>
         <testName>VERIFY-HEARTBEAT</testName>
         <testScript>CORE-VerifyHeartBeat.ps1</testScript>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>CORE</Area>
@@ -12,7 +12,7 @@
     <test>
         <testName>VERIFY-VM-SHUTDOWN</testName>
         <testScript>CORE-VerifyShutdown.ps1</testScript>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>CORE</Area>
@@ -23,7 +23,7 @@
         <testName>VERIFY-TIME-SYNC</testName>
         <testScript>CORE-VerifyTimeSync.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\CORE-ConfigTimeSync.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>MaxTimeDiff=5</param>
         </TestParameters>
@@ -37,7 +37,7 @@
         <testName>INITRD-MODULES-CHECK</testName>
         <testScript>CORE-InitrdModulesCheck.sh</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\CORE-InitrdModulesCheck.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>gen1_hv_modules=(hv_vmbus.ko hv_storvsc.ko hv_netvsc.ko)</param>
             <param>gen2_hv_modules=(hv_vmbus.ko hv_storvsc.ko hv_netvsc.ko hyperv-keyboard.ko)</param>
@@ -52,7 +52,7 @@
         <testName>CPU-VERIFY-ONLINE</testName>
         <testScript>CORE-CPUVerifyOnline.sh</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\CORE-CPUVerifyOnline.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>vCPU=4</param>
         </TestParameters>
@@ -66,7 +66,8 @@
         <TestName>LSVMBUS</TestName>
         <TestScript>LSVMBUS.sh</TestScript>
         <files>.\TestScripts\Linux\LSVMBUS.sh,.\TestScripts\Linux\utils.sh</files>
-        <setupType>Stress</setupType>
+        <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_DS4_v2</OverrideVMSize>
         <Platform>Azure,HyperV</Platform>
         <Category>Functional</Category>
         <Area>CORE</Area>
@@ -76,7 +77,7 @@
     <test>
         <testName>FCOPY-BASIC</testName>
         <testScript>FCOPY-BASIC.ps1</testScript>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>FCOPY</Area>
@@ -86,7 +87,7 @@
     <test>
         <testName>FCOPY-FILE-EXISTS</testName>
         <testScript>FCOPY-FILE-EXISTS.ps1</testScript>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>FCOPY</Area>
@@ -96,7 +97,7 @@
     <test>
         <testName>FCOPY-OVERWRITE</testName>
         <testScript>FCOPY-OVERWRITE.ps1</testScript>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>FCOPY</Area>
@@ -107,7 +108,7 @@
         <testName>FCOPY-LARGE-FILE</testName>
         <setupScript>.\Testscripts\Windows\AddVhdxHardDisk.ps1</setupScript>
         <testScript>FCOPY-LARGE-FILE.ps1</testScript>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <testParameters>
             <param>SCSI=1,0,Fixed,512,15GB</param>
         </testParameters>
@@ -121,7 +122,7 @@
         <testName>FCOPY-NON-ASCII</testName>
         <testScript>FCOPY-NON-ASCII.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>FCOPY</Area>
@@ -132,7 +133,7 @@
         <testName>FCOPY-REPEATED-DELETE</testName>
         <setupScript>.\Testscripts\Windows\AddVhdxHardDisk.ps1</setupScript>
         <testScript>FCOPY-REPEATED-DELETE.ps1</testScript>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <testParameters>
             <param>SCSI=1,0,Fixed,512,3GB</param>
             <param>FileSize=2GB</param>
@@ -148,7 +149,7 @@
         <setupScript>.\Testscripts\Windows\AddVhdxHardDisk.ps1</setupScript>
         <testScript>FCOPY-DISABLE-ENABLE.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\check_traces.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <testParameters>
             <param>SCSI=1,0,Fixed,512,7GB</param>
             <param>FcopyFileSize=5GB</param>
@@ -163,7 +164,7 @@
     <test>
         <testName>FCOPY-NEGATIVE</testName>
         <testScript>FCOPY-NEGATIVE.ps1</testScript>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>FCOPY</Area>
@@ -174,7 +175,7 @@
         <testName>MAX-VCPU</testName>
         <setupScript>.\TestScripts\Windows\SETUP-Config-VM.ps1</setupScript>
         <testScript>Max-vCPU.ps1</testScript>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>vmMemory=4GB</param>
         </TestParameters>
@@ -187,7 +188,7 @@
     <test>
         <testName>PAUSED-CRITICAL-HEARTBEAT</testName>
         <testScript>Heartbeat-PausedCritical.ps1</testScript>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <cleanupScript>.\TestScripts\Windows\CLEANUP-Heartbeat-PausedCritical.ps1</cleanupScript>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
@@ -200,7 +201,7 @@
         <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1</setupScript>
         <testScript>NUMA-Test.ps1</testScript>
         <files>.\Testscripts\Linux\NUMA_check.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>memWeight=0</param>
             <param>VCPU=4</param>
@@ -218,7 +219,7 @@
         <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1</setupScript>
         <testScript>NUMA-Test.ps1</testScript>
         <files>.\Testscripts\Linux\NUMA_check.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>VCPU=8</param>
             <param>NumaNodes=4</param>
@@ -236,7 +237,7 @@
     <test>
         <testName>REBOOT-DIFFERENT-MEMORY-SETTINGS</testName>
         <testScript>Reboot-Diff-Memory-Settings.ps1</testScript>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>CORE</Area>
@@ -247,7 +248,7 @@
         <testName>TIMESYNC-BASIC</testName>
         <testScript>Timesync-Basic.ps1</testScript>
         <files>.\Testscripts\Linux\timesync_config.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>TestDelay=10</param>
             <param>MaxTimeDiff=1.0</param>
@@ -262,7 +263,7 @@
         <testName>TIMESYNC-SAVEDVM</testName>
         <testScript>Timesync-Change-State.ps1</testScript>
         <files>.\Testscripts\Linux\timesync_config.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>vmState=Save</param>
             <param>TestDelay=600</param>
@@ -277,7 +278,7 @@
         <testName>TIMESYNC-PAUSEDVM</testName>
         <testScript>Timesync-Change-State.ps1</testScript>
         <files>.\Testscripts\Linux\timesync_config.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>vmState=Pause</param>
             <param>TestDelay=600</param>
@@ -292,7 +293,7 @@
         <testName>TIMESYNC-SAVEDVM-CHRONYOFF</testName>
         <testScript>Timesync-Change-State.ps1</testScript>
         <files>.\Testscripts\Linux\timesync_config.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>vmState=Save</param>
             <param>TestDelay=120</param>
@@ -308,7 +309,7 @@
         <testName>TIMESYNC-PAUSEDVM-CHRONYOFF</testName>
         <testScript>Timesync-Change-State.ps1</testScript>
         <files>.\Testscripts\Linux\timesync_config.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>vmState=Pause</param>
             <param>TestDelay=120</param>
@@ -324,7 +325,7 @@
         <testName>TIMESYNC-VDSO</testName>
         <testScript>Timesync-VDSO.ps1</testScript>
         <files>.\Tools\gettime.c</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>CORE</Area>
@@ -335,7 +336,7 @@
         <testName>LIS-CHECK-HYPERVDAEMONS-FILES-STATUS</testName>
         <testScript>LIS-Check-HypervDaemons-Files-Status.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\LIS-Check-HypervDaemons-Files-Status.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>LIS</Area>
@@ -346,7 +347,7 @@
         <testName>LIS-MOUNT-FLOPPYDISK</testName>
         <testScript>LIS-Mount-FloppyDisk.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\LIS-Mount-FloppyDisk.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>LIS</Area>
@@ -358,7 +359,7 @@
         <setupScript>.\TestScripts\Windows\LIS-Mount-CD.ps1</setupScript>
         <testScript>LIS-Mount-CD.sh</testScript>
         <files>.\Testscripts\Linux\LIS-Mount-CD.sh,.\Testscripts\Linux\check_traces.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>LIS</Area>
@@ -373,7 +374,7 @@
         <TestParameters>
             <param>HotAdd=True</param>
         </TestParameters>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>LIS</Area>
@@ -384,7 +385,7 @@
         <testName>VMBUS_VERIFY_PROTOCOL_VERSION</testName>
         <testScript>verify_vmbus_protocol_version.sh</testScript>
         <files>.\Testscripts\Linux\verify_vmbus_protocol_version.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>LIS</Area>
@@ -395,7 +396,8 @@
         <testName>VMBUS_VERIFY_INTERRUPTS</testName>
         <testScript>verify_vmbus_interrupts.sh</testScript>
         <files>.\Testscripts\Linux\verify_vmbus_interrupts.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>VMBUS</setupType>
+        <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_A3</OverrideVMSize>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>LIS</Area>
@@ -406,7 +408,7 @@
         <testName>VMBUS_PANIC_NOTIFIER</testName>
         <testScript>Check-VMBUSPanicEvent.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>LIS</Area>
@@ -421,7 +423,7 @@
             <param>ENABLE_KDUMP=true</param>
             <param>crashkernel=384M@128M</param>
         </TestParameters>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>LIS</Area>
@@ -432,7 +434,7 @@
         <testName>NMI_VERIFY_INTERRUPT</testName>
         <testScript>Trigger-NmiInterrupt.ps1</testScript>
         <files>.\Testscripts\Linux\check_triggered_nmi.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>LIS</Area>
@@ -442,7 +444,7 @@
     <test>
         <testName>NMI_VERIFY_FAILED_INTERRUPT</testName>
         <testScript>Trigger-FailedNmiInterrupt.ps1</testScript>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>LIS</Area>
@@ -454,7 +456,7 @@
         <setupScript>.\TestScripts\Windows\SETUP-Config-VM.ps1</setupScript>
         <testScript>KDUMP-TestScript.ps1</testScript>
         <files>.\Testscripts\Linux\KDUMP-Execute.sh,.\Testscripts\Linux\KDUMP-Config.sh,.\Testscripts\Linux\KDUMP-Results.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>vmCpuNumber=1</param>
             <param>vmMemory=4GB</param>
@@ -471,7 +473,7 @@
         <setupScript>.\TestScripts\Windows\SETUP-Config-VM.ps1</setupScript>
         <testScript>KDUMP-TestScript.ps1</testScript>
         <files>.\Testscripts\Linux\KDUMP-Execute.sh,.\Testscripts\Linux\KDUMP-Config.sh,.\Testscripts\Linux\KDUMP-Results.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>vmCpuNumber=2</param>
             <param>vmMemory=2GB</param>
@@ -488,7 +490,7 @@
         <setupScript>.\TestScripts\Windows\SETUP-Config-VM.ps1</setupScript>
         <testScript>KDUMP-TestScript.ps1</testScript>
         <files>.\Testscripts\Linux\KDUMP-Execute.sh,.\Testscripts\Linux\KDUMP-Config.sh,.\Testscripts\Linux\KDUMP-Results.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>vmCpuNumber=3</param>
             <param>vmMemory=3GB</param>
@@ -506,7 +508,7 @@
         <setupScript>.\TestScripts\Windows\SETUP-Config-VM.ps1</setupScript>
         <testScript>KDUMP-TestScript.ps1</testScript>
         <files>.\Testscripts\Linux\KDUMP-Execute.sh,.\Testscripts\Linux\KDUMP-Config.sh,.\Testscripts\Linux\KDUMP-Results.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>vmCpuNumber=2</param>
             <param>vmMemory=2GB</param>
@@ -523,7 +525,7 @@
         <setupScript>.\TestScripts\Windows\SETUP-Config-VM.ps1</setupScript>
         <testScript>KDUMP-TestScript.ps1</testScript>
         <files>.\Testscripts\Linux\KDUMP-Execute.sh,.\Testscripts\Linux\KDUMP-Config.sh,.\Testscripts\Linux\KDUMP-Results.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>vmCpuNumber=4</param>
             <param>vmMemory=2GB</param>
@@ -540,7 +542,7 @@
         <setupScript>.\TestScripts\Windows\SETUP-Config-VM.ps1</setupScript>
         <testScript>KDUMP-TestScript.ps1</testScript>
         <files>.\Testscripts\Linux\KDUMP-Execute.sh,.\Testscripts\Linux\KDUMP-Config.sh,.\Testscripts\Linux\KDUMP-Results.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>vmCpuNumber=16</param>
             <param>vmMemory=4GB</param>
@@ -557,7 +559,7 @@
         <setupScript>.\TestScripts\Windows\SET-SECUREBOOT.ps1</setupScript>
         <testScript>SECUREBOOT.ps1</testScript>
         <Timeout>600</Timeout>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>SECUREBOOT</Area>
@@ -570,7 +572,7 @@
         <testScript>SECUREBOOT.ps1</testScript>
         <files>.\TestScripts\Linux\utils.sh</files>
         <Timeout>1800</Timeout>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>updateKernel=True</param>
             <param>opensuselink="OPENSUSE_DOWNLOAD_URL"</param>
@@ -586,7 +588,7 @@
         <setupScript>.\TestScripts\Windows\SET-SECUREBOOT.ps1,.\Testscripts\Windows\SETUP-Backup-DISK.ps1</setupScript>
         <testScript>STOR-VSS-BACKUP-RESTORE-PARTITION.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>secureBootVM=True</param>
         </TestParameters>
@@ -602,7 +604,7 @@
         <setupScript>.\TestScripts\Windows\SET-SECUREBOOT.ps1</setupScript>
         <testScript>SECUREBOOT.ps1</testScript>
         <Timeout>900</Timeout>
-        <setupType>ClusteredSingleVM</setupType>
+        <setupType>OneVMCluster</setupType>
         <TestParameters>
             <param>Migrate=True</param>
         </TestParameters>
@@ -617,7 +619,7 @@
         <testScript>PRODUCTION-CHECKPOINT-FAILBACK.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
         <files>.\Testscripts\Linux\PC_Stop_VSS_Daemon.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>PROD_CHECKPOINT</Area>
@@ -629,7 +631,7 @@
         <testScript>PRODUCTION-CHECKPOINT.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
         <Timeout>2400</Timeout>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>PROD_CHECKPOINT</Area>
@@ -642,7 +644,7 @@
         <testScript>PRODUCTION-CHECKPOINT-PARTITION.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
         <files>.\Testscripts\Linux\PartitionDisks.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>SCSI=1,1,Dynamic,512</param>
             <param>FILESYS=ext4</param>
@@ -659,7 +661,7 @@
         <testScript>PRODUCTION-CHECKPOINT-PARTITION.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
         <files>.\Testscripts\Linux\PartitionDisks.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>SCSI=1,1,Dynamic,512</param>
             <param>FILESYS=btrfs</param>
@@ -676,7 +678,7 @@
         <testScript>PRODUCTION-CHECKPOINT-PARTITION.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
         <files>.\Testscripts\Linux\PartitionDisks.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <!-- Param required to specify multiple disk mount or umount needed -->
             <param>DUALMOUNT=true</param> 
@@ -696,7 +698,7 @@
         <testScript>PRODUCTION-CHECKPOINT-PARTITION.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
         <files>.\Testscripts\Linux\PartitionDisks.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>SCSI=1,1,Dynamic,512</param>
             <param>FILESYS=xfs</param>
@@ -712,7 +714,7 @@
         <testScript>PRODUCTION-CHECKPOINT-ISO-NONETWORK.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
         <files>.\Testscripts\Linux\STOR_VSS_StopNetwork.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>CDISO=PROD_CHECKPOINT_MINI_ISO</param>
         </TestParameters>
@@ -726,7 +728,7 @@
         <testName>PRODUCTION-CHECKPOINT-3CHAIN-VHD</testName>
         <testScript>PRODUCTION-CHECKPOINT-3CHAIN-VHD.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>PROD_CHECKPOINT</Area>
@@ -738,7 +740,7 @@
         <testScript>PRODUCTION-CHECKPOINT-iSCSI.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
         <files>.\Testscripts\Linux\STOR_VSS_ISCSI_PartitionDisks.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>TargetIP=TARGET_IP</param>
             <param>IQN=TARGET_IQN</param>
@@ -754,7 +756,7 @@
         <testName>RUNTIME_MEM_HOTADD</testName>
         <setupScript>.\Testscripts\Windows\RUNTIME-MEM-CONFIGURE.ps1</setupScript>
         <testScript>RUNTIME-MEM-HOTADD.ps1</testScript>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>appGitURL=STRESSNG</param>
             <param>appGitTag=STRESS-NG_TAG</param>
@@ -772,7 +774,7 @@
         <testName>RUNTIME_MEM_HOTREMOVE</testName>
         <setupScript>.\Testscripts\Windows\RUNTIME-MEM-CONFIGURE.ps1</setupScript>
         <testScript>RUNTIME-MEM-HOTADD.ps1</testScript>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>appGitURL=STRESSNG</param>
             <param>appGitTag=STRESS-NG_TAG</param>
@@ -790,7 +792,7 @@
         <testName>RUNTIME_MEM_SMALLINCREASE128</testName>
         <setupScript>.\Testscripts\Windows\RUNTIME-MEM-CONFIGURE.ps1</setupScript>
         <testScript>RUNTIME_MEM_HOTADD_CHUNKS.ps1</testScript>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>appGitURL=STRESSNG</param>
             <param>appGitTag=STRESS-NG_TAG</param>
@@ -809,7 +811,7 @@
         <testName>RUNTIME_MEM_SMALLDECREASE128</testName>
         <setupScript>.\Testscripts\Windows\RUNTIME-MEM-CONFIGURE.ps1</setupScript>
         <testScript>RUNTIME_MEM_HOTADD_CHUNKS.ps1</testScript>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>appGitURL=STRESSNG</param>
             <param>appGitTag=STRESS-NG_TAG</param>
@@ -828,7 +830,7 @@
         <testName>RUNTIME_MEM_SMALLINCREASE100</testName>
         <setupScript>.\Testscripts\Windows\RUNTIME-MEM-CONFIGURE.ps1</setupScript>
         <testScript>RUNTIME_MEM_HOTADD_CHUNKS.ps1</testScript>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>appGitURL=STRESSNG</param>
             <param>appGitTag=STRESS-NG_TAG</param>
@@ -847,7 +849,7 @@
         <testName>RUNTIME_MEM_SMALLDECREASE100</testName>
         <setupScript>.\Testscripts\Windows\RUNTIME-MEM-CONFIGURE.ps1</setupScript>
         <testScript>RUNTIME_MEM_HOTADD_CHUNKS.ps1</testScript>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>appGitURL=STRESSNG</param>
             <param>appGitTag=STRESS-NG_TAG</param>
@@ -866,7 +868,7 @@
         <testName>RUNTIME_MEM_MULTIPLEADDREMOVE</testName>
         <setupScript>.\Testscripts\Windows\RUNTIME-MEM-CONFIGURE.ps1</setupScript>
         <testScript>RUNTIME_MEM_MULTIPLEADDREMOVE.ps1</testScript>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>appGitURL=STRESSNG</param>
             <param>appGitTag=STRESS-NG_TAG</param>
@@ -883,7 +885,7 @@
         <testName>RUNTIME_MEM_STRESSHOTREMOVE</testName>
         <setupScript>.\Testscripts\Windows\RUNTIME-MEM-CONFIGURE.ps1</setupScript>
         <testScript>RUNTIME_MEM_STRESSHOTREMOVE.ps1</testScript>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>appGitURL=STRESSNG</param>
             <param>appGitTag=STRESS-NG_TAG</param>
@@ -900,7 +902,7 @@
         <testName>RUNTIME_MEM_HOTADD_REBOOT</testName>
         <setupScript>.\Testscripts\Windows\RUNTIME-MEM-CONFIGURE.ps1</setupScript>
         <testScript>RUNTIME_MEM_HOTADD_REBOOT.ps1</testScript>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>startupMem=5000MB</param>
         </TestParameters>

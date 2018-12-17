@@ -1,5 +1,5 @@
 <TestSetup>
-    <SingleVM>
+    <OneVM>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
             <VirtualMachine>
@@ -16,8 +16,8 @@
                 <DataDisk></DataDisk>
             </VirtualMachine>
         </ResourceGroup>
-    </SingleVM>
-    <OneVM8NIC>
+    </OneVM>
+    <OneVM8NICs>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
             <VirtualMachine>
@@ -35,5 +35,5 @@
                 <ExtraNICs>7</ExtraNICs>
             </VirtualMachine>
         </ResourceGroup>
-    </OneVM8NIC>
+    </OneVM8NICs>
 </TestSetup>

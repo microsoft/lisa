@@ -3,7 +3,7 @@
         <testName>BVT-VERIFY-DEPLOYMENT-PROVISION</testName>
         <testScript>BVT-VERIFY-DEPLOYMENT-PROVISION.ps1</testScript>
         <files></files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
@@ -14,7 +14,7 @@
         <testName>BVT-IS-ROOT-PASSWORD-DELETED</testName>
         <testScript>BVT-IS-ROOT-PASSWORD-DELETED.py</testScript>
         <files>.\Testscripts\Linux\BVT-IS-ROOT-PASSWORD-DELETED.py,.\Testscripts\Linux\azuremodules.py</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
@@ -25,7 +25,7 @@
         <testName>BVT-ROOT-DEVICE-TIMEOUT-CHECK</testName>
         <testScript>BVT-ROOT-DEVICE-TIMEOUT-CHECK.py</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-ROOT-DEVICE-TIMEOUT-CHECK.py</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
@@ -36,7 +36,7 @@
         <testName>BVT-HVMODULES-CHECK</testName>
         <testScript>BVT-HVMODULES-CHECK.py</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-HVMODULES-CHECK.py</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
@@ -47,7 +47,7 @@
         <testName>BVT-SWAP-CHECK</testName>
         <testScript>BVT-SWAP-CHECK.py</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-SWAP-CHECK.py</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
@@ -58,7 +58,7 @@
         <testName>BVT-MTAB-ENTRY-CHECK</testName>
         <testScript>BVT-MTAB-ENTRY-CHECK.py</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-MTAB-ENTRY-CHECK.py</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
@@ -69,7 +69,7 @@
         <testName>BVT-LAST-CONSOLE-CHECK</testName>
         <testScript>BVT-LAST-CONSOLE-CHECK.py</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-LAST-CONSOLE-CHECK.py</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
@@ -80,7 +80,7 @@
         <testName>BVT-VERIFY-BOOT-ERROR-WARNINGS</testName>
         <testScript>BVT-VERIFY-BOOT-ERROR-WARNINGS.py</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-BOOT-ERROR-WARNINGS.py,.\XML\Other\ignorable-boot-errors.xml</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
@@ -91,7 +91,7 @@
         <testName>BVT-VERIFY-SHUTDOWN</testName>
         <testScript>BVT-VERIFY-SHUTDOWN.ps1</testScript>
         <files></files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>SkipVerifyKernelLogs=true</param>
         </TestParameters>
@@ -105,7 +105,7 @@
         <testName>BVT-VERIFY-RESTART</testName>
         <testScript>BVT-VERIFY-RESTART.ps1</testScript>
         <files></files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
@@ -116,7 +116,7 @@
         <testName>BVT-VERIFY-UUID-FSTAB</testName>
         <testScript>BVT-VERIFY-UUID-FSTAB.py</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-UUID-FSTAB.py</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
@@ -127,7 +127,7 @@
         <testName>BVT-VERIFY-SSHD-CONFIG</testName>
         <testScript>BVT-VERIFY-SSHD-CONFIG.ps1</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-SSHD-CONFIG.py</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
@@ -138,7 +138,7 @@
         <testName>BVT-VERIFY-VHD-PREREQUISITES</testName>
         <testScript>BVT-VERIFY-VHD-PREREQUISITES.ps1</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-VHD-PREREQUISITES.py</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
@@ -149,7 +149,7 @@
         <testName>BVT-VERIFY-NO-ERROR-IN-LOGS</testName>
         <testScript>BVT-VERIFY-NO-ERROR-IN-LOGS.py</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-NO-ERROR-IN-LOGS.py,.\XML\Other\ignorable-walalog-errors.xml</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
@@ -160,7 +160,7 @@
         <testName>BVT-VERIFY-VERBOSE-ENABLED-LOGS</testName>
         <testScript>BVT-VERIFY-VERBOSE-ENABLED-LOGS.py</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-VERBOSE-ENABLED-LOGS.py</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <testParameters>
             <param>SECRET_PARAMS=(Password)</param>
         </testParameters>
@@ -174,7 +174,7 @@
         <testName>BVT-VERIFY-BASH-HISTORY</testName>
         <testScript>BVT-VERIFY-BASH-HISTORY.py</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-BASH-HISTORY.py</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
@@ -185,7 +185,7 @@
         <testName>BVT-PASSWD-POLICY-TEST</testName>
         <testScript>BVT-PASSWD-POLICY-TEST.py</testScript>
         <files>.\Testscripts\Linux\BVT-PASSWD-POLICY-TEST.py,.\Testscripts\Linux\azuremodules.py</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <testParameters>
             <param>SECRET_PARAMS=(Password)</param>
         </testParameters>
@@ -199,7 +199,7 @@
         <testName>BVT-VERIFY-KVP-DAEMON-STATUS</testName>
         <testScript>BVT-VERIFY-KVP-DAEMON-STATUS.ps1</testScript>
         <files></files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>Azure</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
@@ -210,7 +210,7 @@
         <testName>BVT-CORE-TIMESYNC-NTP</testName>
         <testScript>BVT-CORE-TIMESYNC-NTP.sh</testScript>
         <files>.\TestScripts\Linux\BVT-CORE-TIMESYNC-NTP.sh,.\TestScripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>CORE</Area>
@@ -221,7 +221,7 @@
         <testName>BVT-CORE-VERIFY-LIS-MODULES</testName>
         <testScript>BVT-CORE-VERIFY-LIS-MODULES.sh</testScript>
         <files>.\TestScripts\Linux\BVT-CORE-VERIFY-LIS-MODULES.sh,.\TestScripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>HYPERV_MODULES=(hyperv_keyboard hv_netvsc hid_hyperv hv_util hv_storvsc)</param>
         </TestParameters>
@@ -235,7 +235,7 @@
         <testName>BVT-CORE-VERIFY-LIS-MODULES-VERSION</testName>
         <testScript>BVT-CORE-VERIFY-LIS-MODULES-VERSION.sh</testScript>
         <files>.\TestScripts\Linux\BVT-CORE-VERIFY-LIS-MODULES-VERSION.sh,.\TestScripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>HYPERV_MODULES=(hv_vmbus hyperv_keyboard hv_netvsc hid_hyperv hv_utils hv_storvsc hv_balloon)</param>
         </TestParameters>
@@ -250,7 +250,8 @@
         <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1</setupScript>
         <testScript>BVT-CORE-RELOAD-MODULES.ps1</testScript>
         <files>.\TestScripts\Linux\BVT-CORE-RELOAD-MODULES.sh,.\TestScripts\Linux\utils.sh</files>
-        <setupType>Stress</setupType>
+        <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_DS4_v2</OverrideVMSize>
         <TestParameters>
             <param>VCPU=8</param>
             <param>LoopCount=100</param>
@@ -265,7 +266,7 @@
         <testName>BVT-CORE-TIME-CLOCKSOURCE</testName>
         <testScript>BVT-CORE-TIME-CLOCKSOURCE.sh</testScript>
         <files>.\TestScripts\Linux\BVT-CORE-TIME-CLOCKSOURCE.sh,.\TestScripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>CORE</Area>
@@ -276,7 +277,7 @@
         <testName>BVT-CORE-TIME-CLOCKEVENT-UP</testName>
         <testScript>BVT-CORE-TIME-CLOCKEVENT.sh</testScript>
         <files>.\TestScripts\Linux\BVT-CORE-TIME-CLOCKEVENT.sh,.\TestScripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>VCPU=1</param>
         </TestParameters>
@@ -291,7 +292,8 @@
         <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1</setupScript>
         <testScript>BVT-CORE-TIME-CLOCKEVENT.sh</testScript>
         <files>.\TestScripts\Linux\BVT-CORE-TIME-CLOCKEVENT.sh,.\TestScripts\Linux\utils.sh</files>
-        <setupType>Stress</setupType>
+        <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_DS4_v2</OverrideVMSize>
         <TestParameters>
             <param>VCPU=8</param>
         </TestParameters>
@@ -305,7 +307,7 @@
         <testName>BVT-NET-ETHTOOL-CHECK-KEYS</testName>
         <testScript>BVT-NET-ETHTOOL-CHECK-KEYS.sh</testScript>
         <files>.\TestScripts\Linux\BVT-NET-ETHTOOL-CHECK-KEYS.sh,.\TestScripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>NETWORK</Area>
@@ -316,7 +318,7 @@
         <testName>BVT-NET-ETHTOOL-CHANGE-RINGBUFFER</testName>
         <testScript>BVT-NET-ETHTOOL-CHANGE-RINGBUFFER.sh</testScript>
         <files>.\TestScripts\Linux\BVT-NET-ETHTOOL-CHANGE-RINGBUFFER.sh,.\TestScripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>rx=10000</param>
             <param>tx=200</param>
@@ -331,7 +333,7 @@
         <testName>BVT-NET-ETHTOOL-TCP-HASHLEVELS</testName>
         <testScript>BVT-NET-ETHTOOL-HANDLER-HASH-LEVELS.sh</testScript>
         <files>.\TestScripts\Linux\BVT-NET-ETHTOOL-HANDLER-HASH-LEVELS.sh,.\TestScripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>protocol=tcp4</param>
         </TestParameters>
@@ -345,7 +347,7 @@
         <testName>BVT-NET-ETHTOOL-UDP-HASHLEVELS</testName>
         <testScript>BVT-NET-ETHTOOL-HANDLER-HASH-LEVELS.sh</testScript>
         <files>.\TestScripts\Linux\BVT-NET-ETHTOOL-HANDLER-HASH-LEVELS.sh,.\TestScripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>protocol=udp4</param>
         </TestParameters>
@@ -359,7 +361,7 @@
         <testName>BVT-NET-ETHTOOL-GRO-LRO</testName>
         <testScript>BVT-NET-ETHTOOL-GRO-LRO.sh</testScript>
         <files>.\TestScripts\Linux\BVT-NET-ETHTOOL-GRO-LRO.sh,.\TestScripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>NETWORK</Area>
@@ -370,7 +372,7 @@
         <testName>BVT-NET-ETHTOOL-CHECK-CHANNEL</testName>
         <testScript>BVT-NET-ETHTOOL-CHECK-CHANNEL.sh</testScript>
         <files>.\TestScripts\Linux\BVT-NET-ETHTOOL-CHECK-CHANNEL.sh,.\TestScripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>NETWORK</Area>
@@ -381,7 +383,7 @@
         <testName>BVT-NET-IFUP-IFDOWN</testName>
         <testScript>BVT-NET-IFUP-IFDOWN.ps1</testScript>
         <files>.\TestScripts\Linux\BVT-NET-IFUP-IFDOWN.sh,.\TestScripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>NETWORK</Area>
@@ -392,7 +394,7 @@
         <TestName>VERIFY-DEPLOYMENT-PROVISION</TestName>
         <testScript>BVT-VERIFY-DEPLOYMENT-PROVISION.ps1</testScript>
         <files></files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>Azure,HyperV</Platform>
         <Category>BVT</Category>
         <Area>BVT</Area>
@@ -403,7 +405,7 @@
         <TestName>VERIFY-DEPLOYMENT-PROVISION-EPHEMERAL-MANAGED-DISK</TestName>
         <testScript>BVT-VERIFY-DEPLOYMENT-PROVISION.ps1</testScript>
         <files></files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <OverrideVMSize>Standard_DS1_v2</OverrideVMSize>
         <AdditionalHWConfig>
             <DiskType>Managed</DiskType>
@@ -419,7 +421,7 @@
         <TestName>VERIFY-DEPLOYMENT-PROVISION-SRIOV</TestName>
         <testScript>BVT-VERIFY-DEPLOYMENT-PROVISION.ps1</testScript>
         <files></files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <OverrideVMSize>Standard_D13_v2</OverrideVMSize>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
@@ -434,7 +436,7 @@
         <TestName>VERIFY-HOSTNAME</TestName>
         <testScript>WALA-VERIFY-HOSTNAME.py</testScript>
         <files>.\Testscripts\Linux\nslookup.py,.\Testscripts\Linux\WALA-VERIFY-HOSTNAME.py,.\Testscripts\Linux\azuremodules.py</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>Azure</Platform>
         <TestParameters>
             <param>SECRET_PARAMS=(RoleName)</param>

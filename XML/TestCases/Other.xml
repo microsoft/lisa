@@ -2,7 +2,7 @@
     <test>
         <testName>CAPTURE-VHD-BEFORE-TEST</testName>
         <TestScript>CAPTURE-VHD-BEFORE-TEST.ps1</TestScript>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <OverrideVMSize>Standard_DS14_v2</OverrideVMSize>
         <files></files>
         <Platform>Azure</Platform>

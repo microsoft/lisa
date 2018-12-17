@@ -58,7 +58,7 @@
     <test>
         <testName>VERIFY-DPDK-COMPLIANCE</testName>
         <testScript>VERIFY-DPDK-COMPLIANCE.ps1</testScript>
-        <setupType>DPDK1VM3NICs</setupType>
+        <setupType>OneVM3NICs</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>

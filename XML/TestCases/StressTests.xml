@@ -3,7 +3,7 @@
         <testName>STRESSTEST-VERIFY-RESTART</testName>
         <testScript>STRESSTEST-VERIFY-RESTART.ps1</testScript>
         <files></files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>rebootNumber=STRESS_REBOOT_NUMBER</param>
         </TestParameters>
@@ -18,7 +18,7 @@
         <testScript></testScript>
         <PowershellScript>STRESSTEST-VERIFY-RESTART.ps1</PowershellScript>
         <files></files>
-        <setupType>OneVM8NIC</setupType>
+        <setupType>OneVM8NICs</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
@@ -35,7 +35,7 @@
         <testName>STRESSTEST-RELOAD-MODULES-UP</testName>
         <testScript>BVT-CORE-RELOAD-MODULES.ps1</testScript>
         <files>.\TestScripts\Linux\BVT-CORE-RELOAD-MODULES.sh,.\TestScripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>LoopCount=1000</param>
         </TestParameters>
@@ -49,7 +49,7 @@
         <testName>STRESSTEST-SYSBENCH</testName>
         <testScript>Sysbench.sh</testScript>
         <files>.\TestScripts\Linux\Sysbench.sh,.\TestScripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>TEST_FILE=(seqwr seqrewr seqrd rndrd rndwr rndrw)</param>
         </TestParameters>
@@ -62,7 +62,7 @@
     <test>
         <testName>STRESSTEST-CHANGE-MTU-RELOAD-NETVSC</testName>
         <testScript>STRESS-MTU-Netvsc-Reload.ps1</testScript>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Stress</Category>
         <Area>stress</Area>
@@ -73,7 +73,7 @@
         <testName>STRESSTEST-BOOT-VM-LARGE-MEMORY</testName>
         <setupScript>.\TestScripts\Windows\Set-VM-Memory.ps1</setupScript>
         <testScript>STRESS-BootLargeMemory.ps1</testScript>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>staticMem=true</param>
             <param>memWeight=100</param>
@@ -88,7 +88,7 @@
     <test>
         <testName>STRESSTEST-EventId-18602-Regression</testName>
         <testScript>STRESS-EventID-18602-Regression.ps1</testScript>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>count=100</param>
         </TestParameters>

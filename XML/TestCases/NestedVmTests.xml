@@ -3,7 +3,7 @@
         <TestName>NESTED-KVM-BASIC-VERIFICATION</TestName>
         <testScript>nested_kvm_basic_test.sh</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_basic_test.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <OverrideVMSize>Standard_E4_v3</OverrideVMSize>
         <TestParameters>
             <!--The nested image should be qcow2 format, and accessible from a public URL-->
@@ -23,7 +23,7 @@
         <TestName>NESTED-KVM-NTTTCP-PRIVATE-BRIDGE</TestName>
         <testScript>NESTED-KVM-NTTTCP-PRIVATE-BRIDGE.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_ntttcp_private_bridge.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <OverrideVMSize>Standard_E16_v3</OverrideVMSize>
         <TestParameters>
             <!--The nested image should be qcow2 format, and accessible from a public URL-->
@@ -47,7 +47,8 @@
         <TestName>HYPERV-NESTED-KVM-STORAGE-SINGLE-DISK</TestName>
         <testScript>NESTED-KVM-STORAGE-PERF.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_storage_perf.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh</files>
-        <setupType>HYPERVDISK1</setupType>
+        <setupType>OneVM1Disk</setupType>
+        <OverrideVMSize>Standard_F16</OverrideVMSize>
         <TestParameters>
             <!--The nested image should be qcow2 format, and accessible from a public URL-->
             <param>NestedImageUrl=NESTED_IMAGE_URL</param>
@@ -76,7 +77,7 @@
         <TestName>AZURE-NESTED-KVM-STORAGE-SINGLE-DISK</TestName>
         <testScript>NESTED-KVM-STORAGE-PERF.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_storage_perf.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh</files>
-        <setupType>D16SV3DISK1</setupType>
+        <setupType>OneVM1DiskNested</setupType>
         <AdditionalHWConfig>
             <DiskType>Managed</DiskType>
         </AdditionalHWConfig>
@@ -108,7 +109,7 @@
         <TestName>HYPERV-NESTED-KVM-STORAGE-MULTIDISK</TestName>
         <testScript>NESTED-KVM-STORAGE-PERF.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_storage_perf.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh</files>
-        <setupType>HYPERVDISK4</setupType>
+        <setupType>OneVM4Disks</setupType>
         <TestParameters>
             <!--The nested image should be qcow2 format, and accessible from a public URL-->
             <param>NestedImageUrl=NESTED_IMAGE_URL</param>
@@ -138,7 +139,7 @@
         <TestName>AZURE-NESTED-KVM-STORAGE-MULTIDISK</TestName>
         <testScript>NESTED-KVM-STORAGE-PERF.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_storage_perf.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh</files>
-        <setupType>D16SV3DISK6</setupType>
+        <setupType>OneVM6DisksNested</setupType>
         <AdditionalHWConfig>
             <DiskType>Managed</DiskType>
         </AdditionalHWConfig>
@@ -303,7 +304,8 @@
         <TestName>HYPERV-WINDOWS-NESTED-HYPERV-STORAGE-SINGLE-DISK</TestName>
         <testScript>NESTED-HYPERV-STORAGE-PERF.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
-        <setupType>HYPERVDISK1</setupType>
+        <setupType>OneVM1Disk</setupType>
+        <OverrideVMSize>Standard_F16</OverrideVMSize>
         <TestParameters>
             <!-- The nested image should be vhd format, it's a local path, a SMB path, or a public URL  -->
             <param>NestedImageUrl=NESTED_VHD_PATH</param>
@@ -333,7 +335,7 @@
         <TestName>HYPERV-WINDOWS-NESTED-HYPERV-STORAGE-MULTIDISK</TestName>
         <testScript>NESTED-HYPERV-STORAGE-PERF.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
-        <setupType>HYPERVDISK4</setupType>
+        <setupType>OneVM4Disks</setupType>
         <TestParameters>
             <!-- The nested image should be vhd format, it's a local path, a SMB path, or a public URL  -->
             <param>NestedImageUrl=NESTED_VHD_PATH</param>
@@ -365,7 +367,7 @@
         <TestName>AZURE-WINDOWS-NESTED-HYPERV-STORAGE-SINGLE-DISK</TestName>
         <testScript>NESTED-HYPERV-STORAGE-PERF.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
-        <setupType>D16SV3DISK1</setupType>
+        <setupType>OneVM1DiskNested</setupType>
         <AdditionalHWConfig>
             <DiskType>Managed</DiskType>
         </AdditionalHWConfig>
@@ -398,7 +400,7 @@
         <TestName>AZURE-WINDOWS-NESTED-HYPERV-STORAGE-MULTIDISK</TestName>
         <testScript>NESTED-HYPERV-STORAGE-PERF.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
-        <setupType>D16SV3DISK6</setupType>
+        <setupType>OneVM6DisksNested</setupType>
         <AdditionalHWConfig>
             <DiskType>Managed</DiskType>
         </AdditionalHWConfig>

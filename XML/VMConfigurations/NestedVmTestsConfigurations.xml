@@ -1,27 +1,5 @@
 <TestSetup>        
-    <HYPERVDISK1>
-        <isDeployed>NO</isDeployed>
-        <ResourceGroup>
-            <VirtualMachine>
-                <state></state>
-                <InstanceSize>Standard_F16</InstanceSize>
-                <ARMInstanceSize>Standard_F16</ARMInstanceSize>
-                <RoleName></RoleName>
-                <EndPoints>
-                    <Name>SSH</Name>
-                    <Protocol>tcp</Protocol>
-                    <LocalPort>22</LocalPort>
-                    <PublicPort>22</PublicPort>
-                </EndPoints>
-                <DataDisk>
-                    <LUN>0</LUN>
-                    <DiskSizeInGB>1863</DiskSizeInGB>
-                    <HostCaching>None</HostCaching>
-                </DataDisk>
-            </VirtualMachine>
-        </ResourceGroup>
-    </HYPERVDISK1> 
-    <HYPERVDISK4>
+    <OneVM4Disks>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
             <VirtualMachine>
@@ -57,8 +35,8 @@
                 </DataDisk>
             </VirtualMachine>
         </ResourceGroup>
-    </HYPERVDISK4> 
-    <D16SV3DISK1>
+    </OneVM4Disks>
+    <OneVM1DiskNested>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
             <VirtualMachine>
@@ -97,8 +75,8 @@
                 </DataDisk>
             </VirtualMachine>
         </ResourceGroup>
-    </D16SV3DISK1> 
-    <D16SV3DISK6>
+    </OneVM1DiskNested>
+    <OneVM6DisksNested>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
             <VirtualMachine>
@@ -162,8 +140,8 @@
                 </DataDisk>
             </VirtualMachine>
         </ResourceGroup>
-    </D16SV3DISK6> 
-    <D32SV3DISK12>
+    </OneVM6DisksNested>
+    <OneVM12DisksNested>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
             <VirtualMachine>
@@ -257,7 +235,7 @@
                 </DataDisk>
             </VirtualMachine>
         </ResourceGroup>
-    </D32SV3DISK12>
+    </OneVM12DisksNested>
     <M2S2>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>

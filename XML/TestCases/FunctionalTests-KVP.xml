@@ -3,7 +3,7 @@
         <testName>SQM-BASIC</testName>
         <testScript>SQM-Basic.ps1</testScript>
         <files></files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>KVP</Area>
@@ -14,7 +14,7 @@
         <testName>KVP-INTRINSIC</testName>
         <testScript>KVP-Intrinsic.ps1</testScript>
         <files></files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>KVP</Area>
@@ -25,7 +25,7 @@
         <testName>KVP-BASIC-CHECKS</testName>
         <testScript>KVP-BasicChecks.sh</testScript>
         <files>.\Testscripts\Linux\KVP-BasicChecks.sh,.\Testscripts\Linux\utils.sh,.\Tools\kvp_client64,.\Tools\kvp_client32</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <testParameters>
             <param>kvp_pool=3</param>
             <!-- minimum number of items expected in KVP pool 3 -->
@@ -42,7 +42,7 @@
         <setupScript>.\Testscripts\Windows\KVP-AddKeyValues.ps1</setupScript>
         <testScript>KVP-AddKeyValues.sh</testScript>
         <files>.\Testscripts\Linux\KVP-AddKeyValues.sh,.\Testscripts\Linux\utils.sh,.\Tools\kvp_client64,.\Tools\kvp_client32</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <testParameters>
             <param>Key=EEE</param>
             <param>Value=555</param>
@@ -62,7 +62,7 @@
         <AdditionalHWConfig>
             <HyperVApplyCheckpoint>False</HyperVApplyCheckpoint>
         </AdditionalHWConfig>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <testParameters>
             <param>Key=EEE</param>
             <param>Value=999</param>
@@ -81,7 +81,7 @@
         <AdditionalHWConfig>
             <HyperVApplyCheckpoint>False</HyperVApplyCheckpoint>
         </AdditionalHWConfig>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <testParameters>
             <param>Key=EEE</param>
             <param>Value=999</param>
@@ -97,7 +97,7 @@
         <testName>KVP-PUSH-KEY-VALUES</testName>
         <testScript>KVP-PushKeyValues.ps1</testScript>
         <files>.\Tools\kvp_client64,.\Tools\kvp_client32</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <testParameters>
             <param>Key=BBB</param>
             <param>Value=111</param>
@@ -112,7 +112,7 @@
         <testName>KVP-DELETE-NON-EXIST-KVP-ON-GUEST</testName>
         <testScript>KVP-DeleteNonExistKVPOnGuest.ps1</testScript>
         <files></files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <testParameters>
             <param>Key=AAA</param>
             <param>Value=000</param>
@@ -128,7 +128,7 @@
         <testName>KVP-MODIFY-NON-EXIST-KVP-ON-GUEST</testName>
         <testScript>KVP-ModifyNonExistKVPOnGuest.ps1</testScript>
         <files></files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <testParameters>
             <param>Key=AAA</param>
             <param>Value=000</param>
@@ -144,7 +144,7 @@
         <testName>KVP-TEST-RESCIND</testName>
         <testScript>KVP-TestRescind.ps1</testScript>
         <files></files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <testParameters>
             <param>CycleCount=20</param>
         </testParameters>
@@ -158,7 +158,7 @@
         <testName>KVP-MAX-READ</testName>
         <testScript>KVP-MaxRead.ps1</testScript>
         <files>.\Tools\kvp_client32,.\Tools\kvp_client64</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>Pool=1</param>
             <!-- Number of key pairs to be added in the kvp pool -->

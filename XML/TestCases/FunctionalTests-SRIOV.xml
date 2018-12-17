@@ -1,7 +1,7 @@
 <TestCases>
     <test>
         <testName>VERIFY-SRIOV-LSPCI</testName>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <OverrideVMSize>Standard_D15_v2</OverrideVMSize>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
@@ -21,7 +21,7 @@
     </test>
     <test>
         <testName>VERIFY-IFUP-NICS-SRIOV</testName>
-        <setupType>OneVM8NIC</setupType>
+        <setupType>OneVM8NICs</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
@@ -39,7 +39,7 @@
     </test>
     <test>
         <testName>VERIFY-ENABLE-DISABLE-SRIOV-ON-EXISTING-VM</testName>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <OverrideVMSize>Standard_D3_v2</OverrideVMSize>
         <testScript>VERIFY-ENABLE-DISABLE-SRIOV-ON-EXISTING-VM.ps1</testScript>
         <files></files>

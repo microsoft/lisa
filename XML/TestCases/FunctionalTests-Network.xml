@@ -4,7 +4,7 @@
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1,.\Testscripts\Windows\SETUP-Inject-IP-Constants.ps1</setupScript>
         <testScript>NET-Test-Network.sh</testScript>
         <files>.\Testscripts\Linux\NET-Test-Network.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>NIC_1=NetworkAdapter,External,External</param>
             <param>TestMAC=yes</param>
@@ -22,7 +22,7 @@
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1,.\Testscripts\Windows\SETUP-Inject-IP-Constants.ps1</setupScript>
         <testScript>NET-Test-Network.sh</testScript>
         <files>.\Testscripts\Linux\NET-Test-Network.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>NIC_1=NetworkAdapter,Internal,Internal</param>
             <param>REMOTE_SERVER=8.8.4.4</param>
@@ -39,7 +39,7 @@
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1,.\TestScripts\Windows\SETUP-Change-CPU.ps1</setupScript>
         <testScript>NET-Test-Legacy.sh</testScript>
         <files>.\Testscripts\Linux\NET-Test-Legacy.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>NIC_1=LegacyNetworkAdapter,External,External</param>
             <param>NIC_2=NetworkAdapter,External,External</param>
@@ -60,7 +60,7 @@
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1</setupScript>
         <testScript>NET-Test-Promiscuous.sh</testScript>
         <files>.\Testscripts\Linux\NET-Test-Promiscuous.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>NIC_1=NetworkAdapter,External,External</param>
             <param>REMOTE_SERVER=8.8.4.4</param>
@@ -77,7 +77,7 @@
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1</setupScript>
         <testScript>NET-Operstate.sh</testScript>
         <files>.\Testscripts\Linux\NET-Operstate.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>NIC_1=NetworkAdapter,None,None</param>
             <param>SECRET_PARAMS=(Ipv4)</param>
@@ -93,7 +93,7 @@
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1,.\Testscripts\Windows\SETUP-Inject-IP-Constants.ps1,.\Testscripts\Windows\SETUP-NET-Switch-NIC.ps1</setupScript>
         <testScript>NET-Test-Network.sh</testScript>
         <files>.\Testscripts\Linux\NET-Test-Network.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>NIC_1=NetworkAdapter,External,External</param>
             <param>SWITCH=NetworkAdapter,Internal,Internal</param>
@@ -111,7 +111,7 @@
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-Max-NIC.ps1</setupScript>
         <testScript>NET-Max-NICs.sh</testScript>
         <files>.\Testscripts\Linux\NET-Max-NICs.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>TEST_TYPE=synthetic</param>
             <param>SYNTHETIC_NICS=7</param>
@@ -129,7 +129,7 @@
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-Max-NIC.ps1,.\TestScripts\Windows\SETUP-Change-CPU.ps1</setupScript>
         <testScript>NET-Max-NICs.sh</testScript>
         <files>.\Testscripts\Linux\NET-Max-NICs.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>TEST_TYPE=legacy</param>
             <param>VCPU=1</param>
@@ -148,7 +148,7 @@
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-Max-NIC.ps1,.\TestScripts\Windows\SETUP-Change-CPU.ps1</setupScript>
         <testScript>NET-Max-NICs.sh</testScript>
         <files>.\Testscripts\Linux\NET-Max-NICs.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>TEST_TYPE=synthetic,legacy</param>
             <param>VCPU=1</param>
@@ -167,7 +167,7 @@
         <testName>NET-FILE-COPY-SCP</testName>
         <setupScript>.\Testscripts\Windows\AddVhdxHardDisk.ps1</setupScript>
         <testScript>NET-File-Copy-SCP.ps1</testScript>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>SCSI=0,1,Dynamic,512,25GB</param>
         </TestParameters>
@@ -180,7 +180,7 @@
     <test>
         <testName>NET-IP-INJECTION</testName>
         <testScript>NET-IP-Injection.ps1</testScript>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>ipv4address=192.168.1.14</param>
             <param>ipv4subnet=255.255.255.0</param>
@@ -197,7 +197,7 @@
         <testName>NET-TCP-CORRUPTION</testName>
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1</setupScript>
         <testScript>NET-TCP-Corruption.ps1</testScript>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>NIC_1=NetworkAdapter,External,External</param>
             <param>CORRUPTION=3%</param>
@@ -445,7 +445,7 @@
     </test>
     <test>
         <testName>VERIFY-IFUP-IFDOWN-RELOAD-HV_NETVSC-Synthetic</testName>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <OverrideVMSize>Standard_D2_v2</OverrideVMSize>
         <AdditionalHWConfig>
             <Networking>Synthetic</Networking>
@@ -465,7 +465,7 @@
         <testName>NET-HOT-ADD-MULTINIC</testName>
         <testScript>NET-HotAdd-MultiNIC.ps1</testScript>
         <files>.\Testscripts\Linux\NET-Verify-HotAdd-MultiNIC.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
          <TestParameters>
             <param>nic_action=add</param>
         </TestParameters>
@@ -479,7 +479,7 @@
         <testName>NET-HOT-REMOVE-MULTINIC</testName>
         <testScript>NET-HotAdd-MultiNIC.ps1</testScript>
         <files>.\Testscripts\Linux\NET-Verify-HotAdd-MultiNIC.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
          <TestParameters>
             <param>nic_action=remove</param>
         </TestParameters>
@@ -493,7 +493,7 @@
         <testName>NET-BOOT-NONIC-HOT-ADD-NIC</testName>
         <testScript>NET-Boot-NoNIC-HotAdd-NIC.ps1</testScript>
         <files>.\Testscripts\Linux\NET-Verify-Boot-NoNIC.sh,.\Testscripts\Linux\utils.sh,.\Tools\kvp_client64</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>NETWORK</Area>
@@ -504,7 +504,7 @@
         <testName>NET-HOT-ADD-REMOVE-MAXNIC</testName>
         <testScript>NET-HotAddRemove-Max-NIC.ps1</testScript>
         <files>.\Testscripts\Linux\NET-MAX-NICs.sh,.\Testscripts\Linux\NET-Verify-HotAdd-MultiNIC.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <TestParameters>
             <param>TEST_TYPE=synthetic</param>
             <param>SYNTHETIC_NICS=7</param>

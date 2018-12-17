@@ -3,7 +3,7 @@
         <TestName>FILE-SYSTEM-VERIFICATION-TESTS-CIFS</TestName>
         <TestScript>FILE-SYSTEM-VERIFICATION-TESTS.ps1</TestScript>
         <files>.\Testscripts\Linux\perf_xfstesting.sh</files>
-        <setupType>M1Disk1</setupType>
+        <setupType>OneVM1Disk</setupType>
         <TestParameters>
             <param>FSTYP=cifs</param>
             <param>TEST_DEV=//localhost/share</param>
@@ -20,7 +20,7 @@
         <TestName>FILE-SYSTEM-VERIFICATION-TESTS-XFS</TestName>
         <TestScript>FILE-SYSTEM-VERIFICATION-TESTS.ps1</TestScript>
         <files>.\Testscripts\Linux\perf_xfstesting.sh</files>
-        <setupType>M1Disk1</setupType>
+        <setupType>OneVM1Disk</setupType>
         <TestParameters>
             <param>FSTYP=xfs</param>
             <param>TEST_DEV=/dev/sdc</param>
@@ -37,7 +37,7 @@
         <TestName>FILE-SYSTEM-VERIFICATION-TESTS-EXT4</TestName>
         <TestScript>FILE-SYSTEM-VERIFICATION-TESTS.ps1</TestScript>
         <files>.\Testscripts\Linux\perf_xfstesting.sh</files>
-        <setupType>M1Disk1</setupType>
+        <setupType>OneVM1Disk</setupType>
         <TestParameters>
             <param>FSTYP=ext4</param>
             <param>TEST_DEV=/dev/sdc</param>
@@ -54,7 +54,7 @@
         <TestName>FILE-SYSTEM-VERIFICATION-TESTS-BTRFS</TestName>
         <TestScript>FILE-SYSTEM-VERIFICATION-TESTS.ps1</TestScript>
         <files>.\Testscripts\Linux\perf_xfstesting.sh</files>
-        <setupType>M1Disk1</setupType>
+        <setupType>OneVM1Disk</setupType>
         <TestParameters>
             <param>FSTYP=btrfs</param>
             <param>TEST_DEV=/dev/sdc</param>
@@ -71,7 +71,8 @@
         <TestName>LINUX-TEST-PROJECT-TESTS</TestName>
         <TestScript>Linux-Test-Project-Tests.sh</TestScript>
         <files>.\Testscripts\Linux\utils.sh,.\TestScripts\Linux\Linux-Test-Project-Tests.sh</files>
-        <setupType>LTP</setupType>
+        <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_DS14_v2</OverrideVMSize>
         <TestParameters>
             <param>ltp_version_git_tag="LTP_TESTS_GIT_TAG"</param>
         </TestParameters>

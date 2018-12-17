@@ -346,7 +346,7 @@
             </VirtualMachine>
         </ResourceGroup>					
     </S1C15>
-    <DS14DISK12>
+    <OneVM12Disks>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
             <VirtualMachine>
@@ -421,7 +421,7 @@
                 </DataDisk>
             </VirtualMachine>
         </ResourceGroup>
-    </DS14DISK12>
+    </OneVM12Disks>
     <DS14DISK12NFS>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>

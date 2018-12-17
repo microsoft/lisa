@@ -3,7 +3,7 @@
         <testName>LIVEMIGRATE</testName>
         <testScript>NET-LIVEMIG.ps1</testScript>
         <timeout>600</timeout>
-        <setupType>ClusteredSingleVM</setupType>
+        <setupType>OneVMCluster</setupType>
         <TestParameters>
             <param>MigrationType=Live</param>
         </TestParameters>
@@ -17,7 +17,7 @@
         <testName>LIVEMIGRATE-FAILOVER</testName>
         <testScript>NET-LIVEMIG.ps1</testScript>
         <Timeout>1800</Timeout>
-        <setupType>ClusteredSingleVM</setupType>
+        <setupType>OneVMCluster</setupType>
         <TestParameters>
             <param>stopClusterNode=True</param>
             <param>MigrationType=Live</param>
@@ -33,7 +33,7 @@
         <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1,.\TestScripts\Windows\Set-VM-Memory.ps1</setupScript>
         <testScript>NET-LIVEMIG.ps1</testScript>
         <Timeout>600</Timeout>
-        <setupType>ClusteredSingleVM</setupType>
+        <setupType>OneVMCluster</setupType>
         <TestParameters>
             <param>VMMemory=4GB</param>
             <param>VCPU=8</param>
@@ -55,7 +55,7 @@
         <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1,.\TestScripts\Windows\Set-VM-Memory.ps1</setupScript>
         <testScript>NET-LIVEMIG.ps1</testScript>
         <Timeout>600</Timeout>
-        <setupType>ClusteredSingleVM</setupType>
+        <setupType>OneVMCluster</setupType>
         <TestParameters>
             <param>VMMemory=8GB</param>
             <param>VCPU=16</param>
@@ -77,7 +77,7 @@
         <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1,.\TestScripts\Windows\Set-VM-Memory.ps1</setupScript>
         <testScript>NET-LIVEMIG.ps1</testScript>
         <Timeout>600</Timeout>
-        <setupType>ClusteredSingleVM</setupType>
+        <setupType>OneVMCluster</setupType>
         <TestParameters>
             <param>VMMemory=16GB</param>
             <param>VCPU=32</param>
@@ -98,7 +98,7 @@
         <testName>QUICKMIGRATE</testName>
         <testScript>NET-LIVEMIG.ps1</testScript>
         <timeout>600</timeout>
-        <setupType>ClusteredSingleVM</setupType>
+        <setupType>OneVMCluster</setupType>
         <TestParameters>
             <param>MigrationType=Quick</param>
         </TestParameters>
@@ -112,7 +112,7 @@
         <testName>COPYFILE-DURING-MIGRATION</testName>
         <testScript>NET-LIVEMIG.ps1</testScript>
         <Timeout>600</Timeout>
-        <setupType>ClusteredSingleVM</setupType>
+        <setupType>OneVMCluster</setupType>
         <TestParameters>
             <param>CopyFile=True</param>
             <param>MigrationType=Live</param>
@@ -128,7 +128,7 @@
         <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1,.\TestScripts\Windows\Set-VM-Memory.ps1</setupScript>
         <testScript>NET-LIVEMIG.ps1</testScript>
         <Timeout>600</Timeout>
-        <setupType>ClusteredSingleVM</setupType>
+        <setupType>OneVMCluster</setupType>
         <TestParameters>
             <param>VMMemory=4GB</param>
             <param>VCPU=8</param>
@@ -149,7 +149,7 @@
         <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1,.\TestScripts\Windows\Set-VM-Memory.ps1</setupScript>
         <testScript>NET-LIVEMIG.ps1</testScript>
         <Timeout>600</Timeout>
-        <setupType>ClusteredSingleVM</setupType>
+        <setupType>OneVMCluster</setupType>
         <TestParameters>
             <param>VMMemory=8GB</param>
             <param>VCPU=16</param>
@@ -170,7 +170,7 @@
         <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1,.\TestScripts\Windows\Set-VM-Memory.ps1</setupScript>
         <testScript>NET-LIVEMIG.ps1</testScript>
         <Timeout>600</Timeout>
-        <setupType>ClusteredSingleVM</setupType>
+        <setupType>OneVMCluster</setupType>
         <TestParameters>
             <param>VMMemory=16GB</param>
             <param>VCPU=32</param>

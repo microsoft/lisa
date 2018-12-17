@@ -192,7 +192,7 @@
     <test>
         <testName>PERF-STORAGE-4K-IO</testName>
         <testScript>PERF-STORAGE-MULTIDISK-RAID0-FIO.ps1</testScript>
-        <setupType>DS14DISK12</setupType>
+        <setupType>OneVM12Disks</setupType>
         <AdditionalHWConfig>
             <DiskType>Managed</DiskType>
         </AdditionalHWConfig>
@@ -219,7 +219,7 @@
     <test>
         <testName>PERF-STORAGE-1024K-IO</testName>
         <testScript>PERF-STORAGE-MULTIDISK-RAID0-FIO.ps1</testScript>
-        <setupType>DS14DISK12</setupType>
+        <setupType>OneVM12Disks</setupType>
         <AdditionalHWConfig>
             <DiskType>Managed</DiskType>
         </AdditionalHWConfig>
@@ -390,7 +390,7 @@
     <test>
         <testName>PERF-SYSCALL-BENCHMARK</testName>
         <testScript>PERF-SYSCALL-BENCHMARK.ps1</testScript>
-        <setupType>SingleVM</setupType>
+        <setupType>OneVM</setupType>
         <OverrideVMSize>Standard_D15_v2</OverrideVMSize>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_syscallbenchmark.sh</files>
         <TestParameters>
