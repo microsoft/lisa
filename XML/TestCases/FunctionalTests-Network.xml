@@ -444,7 +444,7 @@
         <Priority>2</Priority>
     </test>
     <test>
-        <testName>VERIFY-IFUP-IFDOW-ETH0-RMMOD-MODPROBE-HV_NETVSC-Synthetic</testName>
+        <testName>VERIFY-IFUP-IFDOWN-RELOAD-HV_NETVSC-Synthetic</testName>
         <setupType>SingleVM</setupType>
         <OverrideVMSize>Standard_D2_v2</OverrideVMSize>
         <AdditionalHWConfig>
@@ -457,8 +457,8 @@
         <files>.\Testscripts\Linux\verify-ifdown-ifup-eth0-rmmod-modprobe-hv-netvsc.sh,.\TestScripts\Linux\utils.sh</files>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
-        <Area>Synthetic</Area>
-        <Tags>hv_netvsc</Tags>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
         <Priority>0</Priority>
     </test>
     <test>
