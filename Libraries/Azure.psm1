@@ -267,7 +267,7 @@ Function Validate-SubscriptionUsage($subscriptionID, $RGXMLData) {
 
     #region Storage Accounts
     Write-LogInfo "Estimating storage account usage..."
-    $currentStorageStatus = Get-AzureRmStorageUsage
+    $currentStorageStatus = Get-AzureRmStorageUsage -Location $Location
     if ( ($premiumVMs -gt 0 ) -and ($xmlConfig.config.$TestPlatform.General.StorageAccount -imatch "NewStorage_")) {
         $requiredStorageAccounts = 1
     }
