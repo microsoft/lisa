@@ -700,8 +700,7 @@ Function Restart-AllHyperVDeployments($allVMData)
     {
         Start-HyperVGroupVMs -HyperVGroupName $VM.HyperVGroupName -HyperVHost $VM.HyperVHost
     }
-	$isSSHOpened = Is-VmAlive -AllVMDataObject $AllVMData
-	return $isSSHOpened
+    return (Is-VmAlive -AllVMDataObject $AllVMData)
 }
 
 Function Inject-HostnamesInHyperVVMs($allVMData)

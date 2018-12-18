@@ -4348,3 +4348,4 @@ function Enable-RootUser {
 
     return $deploymentResult
 }
+

@@ -1893,8 +1893,8 @@ Function Deploy-ResourceGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFaile
             $deployedGroups = $isAllDeployed[1]
             $DeploymentElapsedTime = $isAllDeployed[3]
             $global:allVMData = Get-AllDeploymentData -ResourceGroups $deployedGroups
-            $isVMAlive = Is-VmAlive -AllVMDataObject $allVMData
-            if ($isVMAlive -eq "True") {
+            $isVmAlive = Is-VmAlive -AllVMDataObject $allVMData
+            if ($isVmAlive -eq "True") {
                 $VerifiedGroups = $deployedGroups
                 $retValue = $VerifiedGroups
                 if ( Test-Path -Path  .\Extras\UploadDeploymentDataToDB.ps1 ) {
@@ -2287,8 +2287,8 @@ Function Set-SRIOVinAzureVMs {
                         -and $_.RoleName -eq $TargetVM.Name }
                 #Start the VM..
             }
-            $isVMAlive = Is-VmAlive -AllVMDataObject $TestVMData
-            if ($isVMAlive -eq "True") {
+            $isVmAlive = Is-VmAlive -AllVMDataObject $TestVMData
+            if ($isVmAlive -eq "True") {
                 $isRestarted = $true
             }
             else {
@@ -2421,4 +2421,59 @@ Function Add-DefaultTagsToResourceGroup {
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
         Write-LogErr "EXCEPTION in Add-DefaultTagsToResourceGroup() : $ErrorMessage at line: $ErrorLine"
     }
+}
+
+function Get-AzureBootDiagnostics {
+    <#
+    .SYNOPSIS
+        Downloads the associated serial console boot logs for an Azure VM (if any).
+    #>
+    param(
+        $Vm,
+        $BootDiagnosticFile
+    )
+
+    Write-LogInfo "Getting Azure boot diagnostic data of VM $($Vm.RoleName)"
+    $vmStatus = Get-AzureRmVm -ResourceGroupName $Vm.ResourceGroupName -VMName $Vm.RoleName -Status
+    if ($vmStatus -and $vmStatus.BootDiagnostics) {
+        if ($vmStatus.BootDiagnostics.SerialConsoleLogBlobUri) {
+            Write-LogInfo "Getting serial boot logs of VM $($Vm.RoleName)"
+            try {
+                $uri = [System.Uri]$vmStatus.BootDiagnostics.SerialConsoleLogBlobUri
+                $storageAccountName = $uri.Host.Split(".")[0]
+                $diagnosticRG = ((Get-AzureRmStorageAccount) | where {$_.StorageAccountName -eq $storageAccountName}).ResourceGroupName.ToString()
+                $key = (Get-AzureRmStorageAccountKey -ResourceGroupName $diagnosticRG -Name $storageAccountName)[0].value
+                $diagContext = New-AzureStorageContext -StorageAccountName $storageAccountName -StorageAccountKey $key
+                Get-AzureStorageBlobContent -Blob $uri.LocalPath.Split("/")[2] `
+                    -Context $diagContext -Container $uri.LocalPath.Split("/")[1] `
+                    -Destination $BootDiagnosticFile -Force | Out-Null
+            } catch {
+                Write-LogInfo $_
+                return $false
+            }
+            return $true
+        }
+    }
+    return $false
+}
+
+
+function Check-AzureVmKernelPanic {
+    <#
+    .SYNOPSIS
+        Downloads the Azure Boot diagnostics and checks if they contain kernel panic or RIPs.
+    #>
+    param(
+        $Vm
+    )
+
+    $bootDiagnosticFile = "$LogDir\$($vm.RoleName)-SSH-Fail-Boot-Logs.txt"
+    $diagStatus = Get-AzureBootDiagnostics -Vm $vm -BootDiagnosticFile $bootDiagnosticFile
+    if ($diagStatus -and (Test-Path $bootDiagnosticFile)) {
+        $diagFileContent = Get-Content $bootDiagnosticFile
+        if ($diagFileContent -like "*Kernel panic - not syncing:*" -or $diagFileContent -like "*RIP:*") {
+            return $true
+        }
+    }
+    return $false
 }

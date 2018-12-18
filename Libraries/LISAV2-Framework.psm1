@@ -1400,65 +1400,59 @@ Function Do-TestCleanUp($CurrentTestResult, $testName, $DeployedServices, $Resou
 	}
 }
 
-Function Is-VmAlive($AllVMDataObject) {
-    Write-LogInfo "Trying to Connect to deployed VM(s)"
-    $timeout = 0
-    $retryCount = 20
+function Is-VmAlive {
+    <#
+    .SYNOPSIS
+        Checks if a VM responds to TCP connections to the SSH or RDP port.
+        If the VM is a Linux on Azure, it also checks the serial console log for kernel panics.
+
+    .OUTPUTS
+        Returns "True" or "False"
+    #>
+    param(
+        $AllVMDataObject,
+        $MaxRetryCount = 20
+    )
+
+    Write-LogInfo "Trying to connect to deployed VMs."
+
+    $retryCount = 0
+    $kernelPanicPeriod = 3
+
     do {
-        $WaitingForConnect = 0
+        $deadVms = 0
+        $retryCount += 1
         foreach ( $vm in $AllVMDataObject) {
             if ($IsWindows) {
-                $port = $($vm.RDPPort)
-            }
-            else {
-                $port = $($vm.SSHPort)
+                $port = $vm.RDPPort
+            } else {
+                $port = $vm.SSHPort
             }
 
-            $out = Test-TCP  -testIP $($vm.PublicIP) -testport $port
+            $out = Test-TCP -testIP $vm.PublicIP -testport $port
             if ($out -ne "True") {
-                Write-LogInfo "Connecting to  $($vm.PublicIP) : $port : Failed"
-                $WaitingForConnect = $WaitingForConnect + 1
-            }
-            else {
-                Write-LogInfo "Connecting to  $($vm.PublicIP) : $port : Connected"
-            }
-        }
-
-        if ($WaitingForConnect -gt 0) {
-            $timeout = $timeout + 1
-            Write-LogInfo "$WaitingForConnect VM(s) still awaiting to open port $port .."
-            Write-LogInfo "Retry $timeout/$retryCount"
-            sleep 3
-            $retValue = "False"
-        } else {
-            Write-LogInfo "ALL VM's port $port is/are open now.."
-            $retValue = "True"
-        }
-
-    } While (($timeout -lt $retryCount) -and ($WaitingForConnect -gt 0))
-
-    if ($retValue -eq "False") {
-        foreach ($vm in $AllVMDataObject) {
-            $out = Test-TCP -testIP $($vm.PublicIP) -testport $port
-            if ($out -ne "True" -and $TestPlatform -eq "Azure") {
-                Write-LogInfo "Getting Azure boot diagnostic data of VM $($vm.RoleName)"
-                $vmStatus = Get-AzureRmVm -ResourceGroupName $vm.ResourceGroupName -VMName $vm.RoleName -Status
-                if ($vmStatus -and $vmStatus.BootDiagnostics) {
-                    if ($vmStatus.BootDiagnostics.SerialConsoleLogBlobUri) {
-                        Write-LogInfo "Getting serial boot logs of VM $($vm.RoleName)"
-                        $uri = [System.Uri]$vmStatus.BootDiagnostics.SerialConsoleLogBlobUri
-                        $storageAccountName = $uri.Host.Split(".")[0]
-                        $diagnosticRG = ((Get-AzureRmStorageAccount) | where {$_.StorageAccountName -eq $storageAccountName}).ResourceGroupName.ToString()
-                        $key = (Get-AzureRmStorageAccountKey -ResourceGroupName $diagnosticRG -Name $storageAccountName)[0].value
-                        $diagContext = New-AzureStorageContext -StorageAccountName $storageAccountName -StorageAccountKey $key
-                        Get-AzureStorageBlobContent -Blob $uri.LocalPath.Split("/")[2] `
-                            -Context $diagContext -Container $uri.LocalPath.Split("/")[1] `
-                            -Destination "$LogDir\$($vm.RoleName)-SSH-Fail-Boot-Logs.txt"
-                    }
+                Write-LogInfo "Connecting to $($vm.PublicIP) and port $port failed."
+                $deadVms += 1
+                # Note(v-advlad): Check for kernel panic once every ${kernelPanicPeriod} retries on Linux Azure
+                if (($retryCount % $kernelPanicPeriod -eq 0) -and ($TestPlatform -eq "Azure") `
+                    -and (!$IsWindows) -and (Check-AzureVmKernelPanic $vm)) {
+                    Write-LogErr "Linux VM $($vm.RoleName) failed to boot because of a kernel panic."
+                    return "False"
                 }
+            } else {
+                Write-LogInfo "Connecting to $($vm.PublicIP):$port succeeded."
             }
         }
-    }
 
-    return $retValue
+        if ($deadVms -gt 0) {
+            Write-LogInfo "$deadVms VM(s) still waiting to open port $port."
+            Write-LogInfo "Retrying $retryCount/$MaxRetryCount in 3 seconds."
+            Start-Sleep -Seconds 3
+        } else {
+            Write-LogInfo "All VM ports are open."
+            return "True"
+        }
+    } While (($retryCount -lt $MaxRetryCount) -and ($deadVms -gt 0))
+
+    return "False"
 }

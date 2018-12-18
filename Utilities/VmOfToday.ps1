@@ -135,7 +135,7 @@ Function Lock-LatestResourceGroup($UserName, $AzureSecretsFile, $RgPattern, $Tag
 			Write-LogInfo "Start to validate the deployments in resource group $($rg.ResourceGroupName)"
 			$vmData = Get-AllDeploymentData -ResourceGroups $rg.ResourceGroupName
 			$isVmAlive = Is-VmAlive -AllVMDataObject $vmData
-			if (!$isVmAlive) {
+			if ($isVmAlive -eq "False") {
 				Write-LogErr "Failed to connect to $($vmData.RoleName), trying to find previous VM"
 			} else {
 				if ($UserName -ne $timerUser) {

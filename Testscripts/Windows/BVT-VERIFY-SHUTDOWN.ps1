@@ -20,7 +20,7 @@ function Main {
             $global:AllVMData = Get-AllDeploymentData -ResourceGroups $AllVMData.ResourceGroupName
 
             $isVmAlive = Is-VmAlive -AllVMDataObject $AllVMData
-            if (!$isVmAlive) {
+            if ($isVmAlive -eq "False") {
                 $global:isDeployed = $null
                 Write-LogInfo "Failed to connect to $($AllVMData.RoleName), set global variable isDeployed to null $global:isDeployed"
             }
