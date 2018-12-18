@@ -10,8 +10,8 @@ function Main {
         Write-LogInfo "Trying to restart $($AllVMData.RoleName)..."
         $restartVM = Restart-AzureRmVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName -Verbose
         if ( $restartVM.Status -eq "Succeeded" ) {
-            $isSSHOpened = Check-SSHPortsEnabled -AllVMDataObject $AllVMData
-            if ($isSSHOpened -eq "True") {
+            $isVmAlive = Is-VmAlive -AllVMDataObject $AllVMData
+            if ($isVmAlive -eq "True") {
                 $isRestarted = $true
             } else {
                 Write-LogErr "VM is not available after restart"

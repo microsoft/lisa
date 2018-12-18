@@ -1889,13 +1889,12 @@ Function Deploy-ResourceGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFaile
         $VerifiedGroups = $NULL
         $retValue = $NULL
         $isAllDeployed = Create-AllResourceGroupDeployments -setupType $setupType -xmlConfig $xmlConfig -Distro $Distro -region $region
-        $isAllConnected = "False"
         if ($isAllDeployed[0] -eq "True") {
             $deployedGroups = $isAllDeployed[1]
             $DeploymentElapsedTime = $isAllDeployed[3]
             $global:allVMData = Get-AllDeploymentData -ResourceGroups $deployedGroups
-            $isAllConnected = Check-SSHPortsEnabled -AllVMDataObject $allVMData
-            if ($isAllConnected -eq "True") {
+            $isVMAlive = Is-VmAlive -AllVMDataObject $allVMData
+            if ($isVMAlive -eq "True") {
                 $VerifiedGroups = $deployedGroups
                 $retValue = $VerifiedGroups
                 if ( Test-Path -Path  .\Extras\UploadDeploymentDataToDB.ps1 ) {
@@ -1927,69 +1926,6 @@ Function Deploy-ResourceGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFaile
     else {
         return $retValue
     }
-}
-
-Function Check-SSHPortsEnabled($AllVMDataObject) {
-    Write-LogInfo "Trying to Connect to deployed VM(s)"
-    $timeout = 0
-    $retryCount = 20
-    do {
-        $WaitingForConnect = 0
-        foreach ( $vm in $AllVMDataObject) {
-            if ($IsWindows) {
-                $port = $($vm.RDPPort)
-            }
-            else {
-                $port = $($vm.SSHPort)
-            }
-
-            $out = Test-TCP  -testIP $($vm.PublicIP) -testport $port
-            if ($out -ne "True") {
-                Write-LogInfo "Connecting to  $($vm.PublicIP) : $port : Failed"
-                $WaitingForConnect = $WaitingForConnect + 1
-            }
-            else {
-                Write-LogInfo "Connecting to  $($vm.PublicIP) : $port : Connected"
-            }
-        }
-
-        if ($WaitingForConnect -gt 0) {
-            $timeout = $timeout + 1
-            Write-LogInfo "$WaitingForConnect VM(s) still awaiting to open port $port .."
-            Write-LogInfo "Retry $timeout/$retryCount"
-            sleep 3
-            $retValue = "False"
-        } else {
-            Write-LogInfo "ALL VM's port $port is/are open now.."
-            $retValue = "True"
-        }
-
-    } While (($timeout -lt $retryCount) -and ($WaitingForConnect -gt 0))
-
-	if ($retValue -eq "False") {
-		foreach ($vm in $AllVMDataObject) {
-			$out = Test-TCP -testIP $($vm.PublicIP) -testport $port
-			if ($out -ne "True") {
-				Write-LogInfo "Getting boot diagnostic data of VM $($vm.RoleName)"
-				$vmStatus = Get-AzureRmVm -ResourceGroupName $vm.ResourceGroupName -VMName $vm.RoleName -Status
-				if ($vmStatus -and $vmStatus.BootDiagnostics) {
-					if ($vmStatus.BootDiagnostics.SerialConsoleLogBlobUri) {
-						Write-LogInfo "Getting serial boot logs of VM $($vm.RoleName)"
-						$uri = [System.Uri]$vmStatus.BootDiagnostics.SerialConsoleLogBlobUri
-						$storageAccountName = $uri.Host.Split(".")[0]
-						$diagnosticRG = ((Get-AzureRmStorageAccount) | where {$_.StorageAccountName -eq $storageAccountName}).ResourceGroupName.ToString()
-						$key = (Get-AzureRmStorageAccountKey -ResourceGroupName $diagnosticRG -Name $storageAccountName)[0].value
-						$diagContext = New-AzureStorageContext -StorageAccountName $storageAccountName -StorageAccountKey $key
-						Get-AzureStorageBlobContent -Blob $uri.LocalPath.Split("/")[2] `
-							-Context $diagContext -Container $uri.LocalPath.Split("/")[1] `
-							-Destination "$LogDir\$($vm.RoleName)-SSH-Fail-Boot-Logs.txt"
-					}
-				}
-			}
-		}
-    }
-
-    return $retValue
 }
 
 Function Create-RGDeploymentWithTempParameters([string]$RGName, $TemplateFile, $TemplateParameterFile) {
@@ -2218,8 +2154,7 @@ Function Restart-AllAzureDeployments($allVMData) {
         Start-Sleep -Seconds 1
     }
 
-    $isSSHOpened = Check-SSHPortsEnabled -AllVMDataObject $AllVMData
-    return $isSSHOpened
+    return (Is-VmAlive -AllVMDataObject $AllVMData)
 }
 
 Function Set-SRIOVinAzureVMs {
@@ -2352,8 +2287,8 @@ Function Set-SRIOVinAzureVMs {
                         -and $_.RoleName -eq $TargetVM.Name }
                 #Start the VM..
             }
-            $isSSHOpened = Check-SSHPortsEnabled -AllVMDataObject $TestVMData
-            if ($isSSHOpened -eq "True") {
+            $isVMAlive = Is-VmAlive -AllVMDataObject $TestVMData
+            if ($isVMAlive -eq "True") {
                 $isRestarted = $true
             }
             else {

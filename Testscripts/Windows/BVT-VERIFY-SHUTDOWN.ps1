@@ -19,8 +19,8 @@ function Main {
             # Refresh the data in case public IP address changes
             $global:AllVMData = Get-AllDeploymentData -ResourceGroups $AllVMData.ResourceGroupName
 
-            $isSSHOpened = Check-SSHPortsEnabled -AllVMDataObject $AllVMData
-            if (!$isSSHOpened) {
+            $isVmAlive = Is-VmAlive -AllVMDataObject $AllVMData
+            if (!$isVmAlive) {
                 $global:isDeployed = $null
                 Write-LogInfo "Failed to connect to $($AllVMData.RoleName), set global variable isDeployed to null $global:isDeployed"
             }
