@@ -2,7 +2,7 @@
     <test>
         <testName>VERIFY-DPDK-FAILSAFE-DURING-TRAFFIC</testName>
         <testScript>DPDK-TESTCASE-DRIVER.ps1</testScript>
-        <setupType>DS15v2_2NIC_x3</setupType>
+        <setupType>ThreeVMs2NICs</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>

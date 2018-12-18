@@ -188,7 +188,7 @@
         <testName>DYNAMIC-MEMORY-START-HIGH-COMPETE</testName>
         <testScript>DM_REMOVE-UNDER-PRESSURE.ps1</testScript>
         <files>.\Testscripts\Linux\check_traces.sh</files>
-        <setupType>ThreeVMsDM</setupType>
+        <setupType>ThreeVMs</setupType>
         <TestParameters>
             <param>appGitURL=DYNAMIC_MEMORY_STRESSNG</param>
             <param>appGitTag=APP_GIT_TAG</param>

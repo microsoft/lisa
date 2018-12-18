@@ -2,7 +2,7 @@
     <test>
         <testName>PERF-DPDK-FWD-PPS-DS15</testName>
         <testScript>DPDK-TESTCASE-DRIVER.ps1</testScript>
-        <setupType>DS15v2_2NIC_x3</setupType>
+        <setupType>ThreeVMs2NICs</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
