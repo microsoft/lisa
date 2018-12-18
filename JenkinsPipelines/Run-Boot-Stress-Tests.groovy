@@ -64,10 +64,10 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                                 " -TestIterations ${TestIterations}" +
                                 " -EnableAcceleratedNetworking"
                                 )
-                                archiveArtifacts '*-buildlogs.zip'
+                                archiveArtifacts '*-TestLogs.zip'
                                 junit "Report\\*-junit.xml"
                                 emailext body: '${SCRIPT, template="groovy-html.template"}', replyTo: '$DEFAULT_REPLYTO', subject: "${ImageSource}", to: "${Email}"
-                            }                                
+                            }
                         }
                     }
 
@@ -93,24 +93,24 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                     {
                         node('azure') 
                         {
-                            Prepare()                                
+                            Prepare()
                             withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')]) 
                             {
                                 RunPowershellCommand(".\\Run-LisaV2.ps1" +
-                                " -RGIdentifier '${JenkinsUser}'" +                                    
+                                " -RGIdentifier '${JenkinsUser}'" +
                                 " -ExitWithZero" +
-                                FinalImageSource +                                    
+                                FinalImageSource +
                                 " -XMLSecretFile '${Azure_Secrets_File}'" +
                                 " -TestPlatform 'Azure'" +
                                 " -TestNames 'VERIFY-DEPLOYMENT-PROVISION'" +
                                 " -TestLocation '${TestRegion}'" +
-                                " -TestIterations ${TestIterations}" +                                    
+                                " -TestIterations ${TestIterations}" +
                                 " -OverrideVMSize '${VMSize}'"
                                 )
-                                archiveArtifacts '*-buildlogs.zip'
+                                archiveArtifacts '*-TestLogs.zip'
                                 junit "Report\\*-junit.xml"
                                 emailext body: '${SCRIPT, template="groovy-html.template"}', replyTo: '$DEFAULT_REPLYTO', subject: "${ImageSource}", to: "${Email}"
-                            }                                
+                            }
                         }
                     }
                 }
@@ -122,8 +122,8 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                 finally
                 {
                 
-                }    			
-            }                 
+                }
+            }
         }
         parallel CurrentTests
     }  

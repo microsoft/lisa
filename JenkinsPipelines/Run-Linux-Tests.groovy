@@ -95,7 +95,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                                             FinalImageSource +
                                             " -TestNames '${Testname}'"
                                             )
-                                            archiveArtifacts '*-buildlogs.zip'
+                                            archiveArtifacts '*-TestLogs.zip'
                                             junit "Report\\*-junit.xml"
                                             emailext body: '${SCRIPT, template="groovy-html.template"}', replyTo: '$DEFAULT_REPLYTO', subject: "${ImageSource}", to: "${Email}"
                                         }
@@ -153,7 +153,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                                             FinalImageSource +
                                             " -TestNames '${TestName}'"
                                             )
-                                            archiveArtifacts '*-buildlogs.zip'
+                                            archiveArtifacts '*-TestLogs.zip'
                                             junit "Report\\*-junit.xml"
                                             emailext body: '${SCRIPT, template="groovy-html.template"}', replyTo: '$DEFAULT_REPLYTO', subject: "${ImageSource}", to: "${Email}"
                                         }
@@ -211,7 +211,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                                             " -StorageAccount '${StorageAccount}'" +
                                             FinalImageSource
                                             )
-                                            archiveArtifacts '*-buildlogs.zip'
+                                            archiveArtifacts '*-TestLogs.zip'
                                             junit "Report\\*-junit.xml"
                                             emailext body: '${SCRIPT, template="groovy-html.template"}', replyTo: '$DEFAULT_REPLYTO', subject: "${ImageSource}", to: "${Email}"
                                         }
@@ -267,7 +267,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                                             " -StorageAccount '${StorageAccount}'" +
                                             FinalImageSource
                                             )
-                                            archiveArtifacts '*-buildlogs.zip'
+                                            archiveArtifacts '*-TestLogs.zip'
                                             junit "Report\\*-junit.xml"
                                             emailext body: '${SCRIPT, template="groovy-html.template"}', replyTo: '$DEFAULT_REPLYTO', subject: "${ImageSource}", to: "${Email}"
                                         }
