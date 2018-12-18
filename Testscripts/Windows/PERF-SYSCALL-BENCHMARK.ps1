@@ -152,7 +152,7 @@ collect_VM_properties
                     }
                 }
                 $SQLQuery = $SQLQuery.TrimEnd(',')
-                Upload-TestResultToDatabas ($SQLQuery)
+                Upload-TestResultToDatabase ($SQLQuery)
             } catch {
                 $ErrorMessage =  $_.Exception.Message
                 $ErrorLine = $_.InvocationInfo.ScriptLineNumber

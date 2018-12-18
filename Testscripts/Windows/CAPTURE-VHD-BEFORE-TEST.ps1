@@ -29,7 +29,7 @@ function Main {
         if ($detectedDistro -eq "UBUNTU") {
             try {
                 Run-LinuxCmd -ip $captureVMData.PublicIP -port $captureVMData.SSHPort -username $user -password $password `
-                    -command " lsb_release --codename | grep bionic && sed -i 's/Provisioning.Enabled=n/Provisioning.Enabled=y/g' /etc/waagent.conf | sed -i 's/Provisioning.UseCloudInit=y/Provisioning.UseCloudInit=n/g' /etc/waagent.conf " `
+                    -command " lsb_release --codename | grep bionic && sed -i 's/Provisioning.Enabled=n/Provisioning.Enabled=y/g' /etc/waagent.conf && sed -i 's/Provisioning.UseCloudInit=y/Provisioning.UseCloudInit=n/g' /etc/waagent.conf " `
                     -ignoreLinuxExitCode -runAsSudo | Out-Null
             } catch {
                 Write-LogInfo "Could not potentially fix Ubuntu Bionic waagent. Continue execution..."

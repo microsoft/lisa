@@ -594,7 +594,7 @@ function Main()
 			$nestedHypervSQLQuery = Get-SQLQueryOfNestedHyperv -xmlConfig $xmlConfig -logDir $LogDir -session $session
 			if($nestedHypervSQLQuery)
 			{
-				Upload-TestResultToDatabas -SQLQuery $nestedHypervSQLQuery
+				Upload-TestResultToDatabase -SQLQuery $nestedHypervSQLQuery
 			}
 		}
 	}
