@@ -359,7 +359,7 @@ Function Collect-TestCases($TestXMLs)
                 continue
             }
 
-            if (($test.Category -ne $TestCategory) -and ($TestCategory -ne "*")) {
+            if (!($TestCategory.Split(",").Contains($test.Category)) -and ($TestCategory -ne "*")) {
                 continue
             }
 
