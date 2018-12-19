@@ -1997,12 +1997,12 @@ function New-ZipFile( $zipFileName, $sourceDir )
 	$7z = (Get-ChildItem .\Tools\7za.exe).FullName
 	$sourceDir = $sourceDir.Trim('\')
 	Set-Location $sourceDir
-	$out = Invoke-Expression "$7z a -mx5 $currentDir\$zipFileName * -r"
+	$out = Invoke-Expression "$7z a -mx5 $zipFileName * -r"
 	Set-Location $currentDir
 	if ($out -match "Everything is Ok") {
-		Write-LogInfo "$currentDir\$zipFileName created successfully."
+		Write-LogInfo "$zipFileName created successfully."
 	} else {
-		Write-LogErr "Unexpected output from 7za.exe when creating $currentDir\$zipFileName :"
+		Write-LogErr "Unexpected output from 7za.exe when creating $zipFileName :"
 		Write-LogErr $out
 	}
 }
