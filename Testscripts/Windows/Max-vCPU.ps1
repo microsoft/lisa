@@ -36,8 +36,8 @@ function Main {
             $guestMaxCPUs = 4
         } else {
             # Check VM OS architecture and set max CPU allowed
-            $linuxArch = Run-LinuxCmd -username "root" -password $VMPassword -ip `
-                            $Ipv4 -port $VMPort -command "uname -m"
+            $linuxArch = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip `
+                            $Ipv4 -port $VMPort -command "uname -m" -RunAsSudo
             if ($linuxArch -eq "i686") {
                 $guestMaxCPUs = 32
             }
@@ -95,8 +95,8 @@ function Main {
     }
 
     # Determine how many cores the VM has detected
-    $vCPU = Run-LinuxCmd -username "root" -password $VMPassword -ip $Ipv4 -port $VMPort `
-            -command "cat /proc/cpuinfo | grep processor | wc -l"
+    $vCPU = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+            -command "cat /proc/cpuinfo | grep processor | wc -l" -RunAsSudo
     if ($vCPU -eq $guestMaxCPUs) {
         Write-LogInfo "CPU count inside VM is $guestMaxCPUs"
         Write-LogInfo "VM $VMName successfully started with $guestMaxCPUs cores."

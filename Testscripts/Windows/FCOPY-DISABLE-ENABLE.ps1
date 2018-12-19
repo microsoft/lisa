@@ -171,13 +171,16 @@ function Main {
     }
 
     # Daemon name might vary. Get the correct daemon name based on systemctl output
-    $daemonName = .\Tools\plink.exe -C -pw $VMPassword -P $VMPort root@$Ipv4 "systemctl list-unit-files | grep fcopy"
+    $daemonName = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort "systemctl list-unit-files | grep fcopy" -runAsSudo
     $daemonName = $daemonName.Split(".")[0]
 
-    $checkProcess = .\Tools\plink.exe -C -pw $VMPassword -P $VMPort root@$Ipv4 "systemctl is-active $daemonName"
-    if ($checkProcess -ne "active") {
+    $checkProcess = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+        "systemctl is-active $daemonName --quiet" -runAsSudo -ignoreLinuxExitCode
+    #will exit with status zero if service is active
+    if ( $checkProcess -ne "0" ) {
         Write-LogErr "Warning: $daemonName was not automatically started by systemd. Will start it manually."
-        $null = .\Tools\plink.exe -C -pw $VMPassword -P $VMPort root@$Ipv4 "systemctl start $daemonName"
+        $null = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+        " systemctl start $daemonName" -runAsSudo
     }
 
     $gsi = Get-VMIntegrationService -vmName $VMName -ComputerName $HvServer -Name "Guest Service Interface"
@@ -230,11 +233,12 @@ function Main {
         return "FAIL"
     }
 
-    $sts = .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$Ipv4 "echo 'sleep 5 && bash ~/check_traces.sh ~/check_traces.log &' > runtest.sh"
-    $sts = .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$Ipv4 "chmod +x ~/runtest.sh"
-    $sts = .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$Ipv4 "./runtest.sh > check_traces.log 2>&1"
+    $sts = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort "echo 'sleep 5 && bash ~/check_traces.sh ~/check_traces.log &' > runtest.sh" -runAsSudo
+    $sts = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort "chmod +x ~/runtest.sh" -runAsSudo
+    $sts = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort "./runtest.sh > check_traces.log 2>&1" -runAsSudo
     Start-Sleep 6
-    $sts = .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$Ipv4 "cat ~/check_traces.log | grep ERROR"
+    $sts = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort "cat ~/check_traces.log | grep ERROR" -runAsSudo
+    Start-Sleep 6
     if ($sts.Contains("ERROR")) {
         Write-LogInfo "Warning: Call traces have been found on VM"
     }

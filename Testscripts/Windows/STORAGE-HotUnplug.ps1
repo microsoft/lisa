@@ -74,7 +74,6 @@ function Main {
 
     $scsi=$true
     $REMOTE_SCRIPT="STORAGE-HotRemove.sh"
-    $rootUser="root"
 
     if ($null -eq $testParams -or $testParams.Length -lt 3) {
         Write-LogErr "setupScript requires test params"
@@ -140,7 +139,7 @@ function Main {
 
         #verify if vm sees that disks were dettached
         $retVal = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
-            -command "bash ~/${REMOTE_SCRIPT}"
+            -command "bash ~/${REMOTE_SCRIPT}" -RunAsSudo
 
         #Attaching the 1st VHDx again
         $retVal = Add-VHDxDiskDrive $vmName $hvServer $path1 $controllerType $controllerID1 $lun1
@@ -151,8 +150,8 @@ function Main {
         Write-LogErr "Attached first VHDx with path $path1"
         #wait for vm to see the disks
         Start-Sleep 5
-        $diskNumber = Run-LinuxCmd -username $rootUser -password $VMPassword -ip $Ipv4 -port $VMPort `
-            -command "fdisk -l | grep 'Disk /dev/sd*' | grep -v 'Disk /dev/sda' | wc -l"
+        $diskNumber = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+            -command "fdisk -l | grep 'Disk /dev/sd*' | grep -v 'Disk /dev/sda' | wc -l" -RunAsSudo
         if ( $diskNumber -ne 2) {
             Write-LogErr "Failed to attach VHDx "
             return "FAIL"

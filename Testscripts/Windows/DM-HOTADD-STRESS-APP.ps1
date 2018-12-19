@@ -25,7 +25,7 @@ $scriptBlock = {
         $cmdToVM = @"
 #!/bin/bash
         if [ ! -e /proc/meminfo ]; then
-            echo ConsumeMemory: no meminfo found. Make sure /proc is mounted >> /root/HotAdd.log 2>&1
+            echo ConsumeMemory: no meminfo found. Make sure /proc is mounted >> /home/$user/HotAdd.log 2>&1
             exit 100
         fi
         rm ~/HotAddErrors.log -f

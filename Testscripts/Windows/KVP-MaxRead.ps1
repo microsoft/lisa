@@ -16,7 +16,7 @@ function Add-KVPEntries {
     #!/bin/bash
     ps aux | grep "[k]vp"
     if [ `$? -ne 0 ]; then
-      echo "KVP is disabled" >> /root/KVP.log 2>&1
+      echo "KVP is disabled" >> /home/$user/KVP.log 2>&1
       exit 1
     fi
 
@@ -33,7 +33,7 @@ function Add-KVPEntries {
             echo "32 bit architecture was detected"
             kvp_client="kvp_client32"
         else
-            echo "Error: Unable to detect OS architecture" >> /root/KVP.log 2>&1
+            echo "Error: Unable to detect OS architecture" >> /home/$user/KVP.log 2>&1
             exit 60
         fi
     fi
@@ -47,13 +47,13 @@ function Add-KVPEntries {
     done
 
     if [ `$? -ne 0 ]; then
-        echo "Failed to append new entries" >> /root/KVP.log 2>&1
+        echo "Failed to append new entries" >> /home/$user/KVP.log 2>&1
         exit 100
     fi
 
     ps aux | grep "[k]vp"
     if [ `$? -ne 0 ]; then
-        echo "KVP daemon failed after append" >> /root/KVP.log 2>&1
+        echo "KVP daemon failed after append" >> /home/$user/KVP.log 2>&1
         exit 100
     fi
 
