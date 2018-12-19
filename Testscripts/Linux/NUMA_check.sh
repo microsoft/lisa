@@ -67,7 +67,7 @@ case $DISTRO in
 esac
 
 # Check Numa nodes
-NumaNodes=`numactl -H | grep cpu | wc -l`
+NumaNodes=$(numactl -H | grep cpu | wc -l)
 LogMsg "Info : Detected NUMA nodes = ${NumaNodes}"
 LogMsg "Info : Expected NUMA nodes = ${expected_number}"
 
@@ -84,10 +84,10 @@ fi
 # configured in VM if MemSize test params configured.
 if [ -n "$MaxMemSizeEachNode" ]; then
     LogMsg "Info: Max memory size of every node has been set to $MaxMemSizeEachNode MB"
-    MemSizeArr=`numactl -H | grep size | awk '{ print $4 }'`
+    MemSizeArr=$(numactl -H | grep size | awk '{ print $4 }')
     for i in ${MemSizeArr}; do
         LogMsg "Info: Start checking memory size for node: $i MB"
-        if [ $i -gt $MaxMemSizeEachNode ]; then
+        if [ "$i" -gt "$MaxMemSizeEachNode" ]; then
             LogErr "Error: The maximum memory size of each NUMA node was $i , which is greater than $MaxMemSizeEachNode MB. Test Failed!"
             SetTestStateFailed
             exit 30

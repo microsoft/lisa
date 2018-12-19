@@ -36,7 +36,7 @@ fi
 
 # Check if the VF count inside the VM is the same as the expected count
 vf_count=$(find /sys/devices -name net -a -ipath '*vmbus*' | grep -c pci)
-if [ $vf_count -ne $NIC_COUNT ]; then
+if [ "$vf_count" -ne "$NIC_COUNT" ]; then
     LogErr "Expected VF count: $NIC_COUNT. Actual VF count: $vf_count"
     SetTestStateFailed
     exit 0
@@ -44,7 +44,7 @@ fi
 UpdateSummary "Expected VF count: $NIC_COUNT. Actual VF count: $vf_count"
 
 # Extract VF name
-synthetic_interface=$(ip addr | grep $VF_IP1 | awk '{print $NF}')
+synthetic_interface=$(ip addr | grep "$VF_IP1" | awk '{print $NF}')
 LogMsg  "Synthetic interface found: $synthetic_interface"
 vf_interface=$(find /sys/devices/* -name "*${synthetic_interface}*" | grep "pci" | sed 's/\// /g' | awk '{print $12}')
 LogMsg "Virtual function found: $vf_interface"
@@ -52,21 +52,21 @@ LogMsg "Virtual function found: $vf_interface"
 module_name_in_use=$(lspci -vvv | grep -i kernel | tail -1 | awk '{print $NF}')
 mlnx_sts=$(echo "$module_name_in_use" | grep -c mlx)
 # If it's a Mellanox module, we first need to put down mlx_en module
-if [ $mlnx_sts -eq 1 ]; then
-    module_version=$(echo $module_name_in_use | sed  's/_/ /g' | awk '{print $1}')
+if [ "$mlnx_sts" -eq 1 ]; then
+    module_version=$(echo "$module_name_in_use" | sed  's/_/ /g' | awk '{print $1}')
     primary_module="${module_version}_en"
 fi
 
 # Unload modules
 LogMsg "Unloading the modules"
-if [ $mlnx_sts -eq 1 ]; then
-    modprobe -r $primary_module
+if [ "$mlnx_sts" -eq 1 ]; then
+    modprobe -r "$primary_module"
 fi
-modprobe -r $module_name_in_use
+modprobe -r "$module_name_in_use"
 
 # Check if the VF count inside the VM is the same as the expected count
 vf_count=$(find /sys/devices -name net -a -ipath '*vmbus*' | grep -c pci)
-if [ $vf_count -eq $NIC_COUNT ]; then
+if [ "$vf_count" -eq "$NIC_COUNT" ]; then
     LogErr "VF is still up! Expected VF count: $NIC_COUNT. Actual VF count: $vf_count"
     SetTestStateFailed
     exit 0
@@ -89,22 +89,22 @@ else
     LogMsg "Successfully sent $output_file to $VF_IP2"
 fi
 # Get TX value for synthetic interface after sending the file
-tx_value=$(cat /sys/class/net/${synthetic_interface}/statistics/tx_packets)
+tx_value=$(cat /sys/class/net/"${synthetic_interface}"/statistics/tx_packets)
 LogMsg "TX value after sending the file: $tx_value"
-if [ $tx_value -lt 10000 ]; then
+if [ "$tx_value" -lt 10000 ]; then
     LogErr "Insufficient TX packets sent on ${synthetic_interface}"
     SetTestStateFailed
     exit 0
 fi
 
 # Load the module again
-if [ $mlnx_sts -eq 1 ]; then
-    modprobe $primary_module
+if [ "$mlnx_sts" -eq 1 ]; then
+    modprobe "$primary_module"
 fi
-modprobe $module_name_in_use
+modprobe "$module_name_in_use"
 # Check if the VF count inside the VM is the same as the expected count
 vf_count=$(find /sys/devices -name net -a -ipath '*vmbus*' | grep -c pci)
-if [ $vf_count -ne $NIC_COUNT ]; then
+if [ "$vf_count" -ne "$NIC_COUNT" ]; then
     LogErr "Expected VF count: $NIC_COUNT. Actual VF count: $vf_count"
     SetTestStateFailed
     exit 0
@@ -125,9 +125,9 @@ else
     LogMsg "Successfully sent $output_file to $VF_IP2"
 fi
 # Get TX value for VF after sending the file
-tx_value=$(cat /sys/class/net/${vf_interface}/statistics/tx_packets)
+tx_value=$(cat /sys/class/net/"${vf_interface}"/statistics/tx_packets)
 LogMsg "TX value after sending the file: $tx_value"
-if [ $tx_value -lt 10000 ]; then
+if [ "$tx_value" -lt 10000 ]; then
     LogErr "insufficient TX packets sent on ${vf_interface}"
     SetTestStateFailed
     exit 0

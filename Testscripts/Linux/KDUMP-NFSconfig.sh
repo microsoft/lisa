@@ -111,7 +111,7 @@ Config_NFS_Debian()
 #
 GetDistro
 
-Config_NFS_${OS_FAMILY}
+Config_NFS_"${OS_FAMILY}"
 
 rm -rf /mnt/*
 SetTestStateCompleted

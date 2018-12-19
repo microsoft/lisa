@@ -89,7 +89,7 @@ fi
 #
 # 1. verify that the KVP Daemon is running
 #
-pid=`pgrep "hypervkvpd|hv_kvp_daemon"`
+pid=$(pgrep "hypervkvpd|hv_kvp_daemon")
 if [ $? -ne 0 ]; then
     LogMsg "KVP Daemon is not running by default"
     UpdateSummary "KVP daemon not running by default, basic test: Failed"
@@ -132,12 +132,12 @@ if [ ! -e ~/${kvp_client} ]; then
     exit 0
 fi
 
-chmod +x $HOME/kvp_client*
-poolCount=`$HOME/$kvp_client | grep -i pool | wc -l`
-if [ $poolCount -ne 5 ]; then
+chmod +x "$HOME"/kvp_client*
+poolCount=$("$HOME"/$kvp_client | grep -i pool | wc -l)
+if [ "$poolCount" -ne 5 ]; then
     msg="Error: Could not find a total of 5 KVP data pools"
-    LogMsg $msg
-    UpdateSummary $msg
+    LogMsg "$msg"
+    UpdateSummary "$msg"
     SetTestStateFailed
     exit 0
 fi
@@ -147,8 +147,8 @@ UpdateSummary "Verified that all 5 KVP data pools are listed properly"
 #
 # 3. check kvp_pool file permission is 644
 #
-permCount=`stat -c %a /var/lib/hyperv/.kvp_pool* | grep 644 | wc -l`
-if [ $permCount -ne 5 ]; then
+permCount=$(stat -c %a /var/lib/hyperv/.kvp_pool* | grep 644 | wc -l)
+if [ "$permCount" -ne 5 ]; then
     LogMsg ".kvp_pool file permission is incorrect "
     UpdateSummary ".kvp_pool file permission is incorrect"
     SetTestStateFailed
@@ -162,7 +162,7 @@ UpdateSummary "Verified that .kvp_pool files permission is 644"
 #
 CheckVMFeatureSupportStatus "3.10.0-514"
 if [ $? -eq 0 ]; then
-    ls -la /proc/$pid/fd | grep /dev/vmbus/hv_kvp
+    ls -la /proc/"$pid"/fd | grep /dev/vmbus/hv_kvp
     if [ $? -ne 0 ]; then
         LogMsg "ERROR: there is no hv_kvp in the /proc/$pid/fd "
         UpdateSummary "ERROR: there is no hv_kvp in the /proc/$pid/fd"
@@ -182,10 +182,10 @@ if [ $? -ne 0 ]; then
     InstallLsof
 fi
 
-lsofCountBegin=`lsof | grep -c kvp`
+lsofCountBegin=$(lsof | grep -c kvp)
 sleep 120
-lsofCountEnd=`lsof | grep -c kvp`
-if [ $lsofCountBegin -ne $lsofCountEnd ]; then
+lsofCountEnd=$(lsof | grep -c kvp)
+if [ "$lsofCountBegin" -ne "$lsofCountEnd" ]; then
     msg="ERROR: hypervkvp opened file number has changed from $lsofCountBegin to $lsofCountEnd"
     LogMsg "${msg}"
     UpdateSummary "${msg}"
@@ -198,8 +198,8 @@ UpdateSummary "Verified that lsof for kvp is $lsofCountBegin, after 2 minutes is
 #
 # 6. Check if KVP pool 3 file has a size greater than zero
 #
-poolFileSize=$(ls -l /var/lib/hyperv/.kvp_pool_${kvp_pool} | awk '{print $5}')
-if [ $poolFileSize -eq 0 ]; then
+poolFileSize=$(ls -l /var/lib/hyperv/.kvp_pool_"${kvp_pool}" | awk '{print $5}')
+if [ "$poolFileSize" -eq 0 ]; then
     msg="Error: the kvp_pool_${kvp_pool} file size is zero"
     LogMsg "$msg"
     UpdateSummary "$msg"
@@ -211,8 +211,8 @@ fi
 # 7. Check the number of records in Pool 3.
 # Below 11 entries (default value) the test will fail
 #
-pool_records=$(~/${kvp_client} $kvp_pool | wc -l)
-if [ $pool_records -eq 0 ]; then
+pool_records=$(~/${kvp_client} "$kvp_pool" | wc -l)
+if [ "$pool_records" -eq 0 ]; then
     msg="Error: Could not list the KVP Items in pool ${kvp_pool}"
     LogMsg "$msg"
     echo "$msg" >> ~/summary.log
@@ -222,8 +222,8 @@ fi
 LogMsg "KVP items in pool ${kvp_pool}: ${pool_records}"
 UpdateSummary "KVP items in pool ${kvp_pool}: ${pool_records}"
 
-poolItemNumber=$(~/${kvp_client} $kvp_pool | awk 'FNR==2 {print $4}')
-if [ $poolItemNumber -lt $kvp_items ]; then
+poolItemNumber=$(~/${kvp_client} "$kvp_pool" | awk 'FNR==2 {print $4}')
+if [ "$poolItemNumber" -lt "$kvp_items" ]; then
     msg="Error: Pool $kvp_pool has only $poolItemNumber items. We need $kvp_items items or more"
     LogMsg "$msg"
     UpdateSummary "$msg"
@@ -231,8 +231,8 @@ if [ $poolItemNumber -lt $kvp_items ]; then
     exit 0
 fi
 
-actualPoolItemNumber=$(~/${kvp_client} $kvp_pool | grep Key | wc -l)
-if [ $poolItemNumber -ne $actualPoolItemNumber ]; then
+actualPoolItemNumber=$(~/${kvp_client} "$kvp_pool" | grep Key | wc -l)
+if [ "$poolItemNumber" -ne "$actualPoolItemNumber" ]; then
     msg="Error: Pool $kvp_pool reported $poolItemNumber items but actually has $actualPoolItemNumber items"
     LogMsg "$msg"
     UpdateSummary "$msg"

@@ -20,15 +20,13 @@
 
 CONSTANTS_FILE="./constants.sh"
 UTIL_FILE="./utils.sh"
-ICA_TESTRUNNING="TestRunning"		# The test is running
 ICA_TESTCOMPLETED="TestCompleted"	# The test completed successfully
 ICA_TESTABORTED="TestAborted"		# Error during the setup of the test
-ICA_TESTFAILED="TestFailed"			# Error occurred during the test
 touch ./lagscopeTest.log
 
 LogMsg()
 {
-	echo `date "+%b %d %Y %T"` : "${1}"    # Add the time stamp to the log message
+	echo $(date "+%b %d %Y %T") : "${1}"    # Add the time stamp to the log message
 	echo "${1}" >> ./ntttcpTest.log
 }
 
@@ -50,14 +48,14 @@ UpdateTestState()
 	exit 10
 }
 
-if [ ! ${server} ]; then
+if [ ! "${server}" ]; then
 	errMsg="Please add/provide value for server in constants.sh. server=<server ip>"
 	LogMsg "${errMsg}"
 	echo "${errMsg}" >> ./summary.log
 	UpdateTestState $ICA_TESTABORTED
 	exit 1
 fi
-if [ ! ${client} ]; then
+if [ ! "${client}" ]; then
 	errMsg="Please add/provide value for client in constants.sh. client=<client ip>"
 	LogMsg "${errMsg}"
 	echo "${errMsg}" >> ./summary.log
@@ -65,7 +63,7 @@ if [ ! ${client} ]; then
 	exit 1
 fi
 
-if [ ! ${pingIteration} ]; then
+if [ ! "${pingIteration}" ]; then
 	errMsg="Please add/provide value for pingIteration in constants.sh. pingIteration=1000000"
 	LogMsg "${errMsg}"
 	echo "${errMsg}" >> ./summary.log
@@ -76,7 +74,7 @@ fi
 #Make & build ntttcp on client and server Machine
 
 LogMsg "Configuring client ${client}..."
-ssh ${client} ". $UTIL_FILE && install_lagscope"
+ssh "${client}" ". $UTIL_FILE && install_lagscope"
 if [ $? -ne 0 ]; then
 	LogMsg "Error: lagscope installation failed in ${client}.."
 	UpdateTestState "TestAborted"
@@ -84,7 +82,7 @@ if [ $? -ne 0 ]; then
 fi
 
 LogMsg "Configuring server ${server}..."
-ssh ${server} ". $UTIL_FILE && install_lagscope"
+ssh "${server}" ". $UTIL_FILE && install_lagscope"
 if [ $? -ne 0 ]; then
 	LogMsg "Error: lagscope installation failed in ${server}.."
 	UpdateTestState "TestAborted"
@@ -93,8 +91,8 @@ fi
 
 if [[ $(detect_linux_distribution) == coreos ]]; then
 	cmd="docker run --network host lisms/lagscope"
-	ssh root@${server} ". $UTIL_FILE && Delete_Containers"
-	ssh root@${client} ". $UTIL_FILE && Delete_Containers"
+	ssh root@"${server}" ". $UTIL_FILE && Delete_Containers"
+	ssh root@"${client}" ". $UTIL_FILE && Delete_Containers"
 else
 	cmd="lagscope"
 fi
@@ -103,10 +101,10 @@ fi
 
 LogMsg "Now running Lagscope test"
 LogMsg "Starting server."
-ssh root@${server} "${cmd} -r" &
+ssh root@"${server}" "${cmd} -r" &
 sleep 20
 LogMsg "lagscope client running..."
-ssh root@${client} "${cmd} -s${server} -i0 -n${pingIteration} -H > lagscope-n${pingIteration}-output.txt"
+ssh root@"${client}" "${cmd} -s${server} -i0 -n${pingIteration} -H > lagscope-n${pingIteration}-output.txt"
 LogMsg "Test finsished."
-UpdateTestState ICA_TESTCOMPLETED
+UpdateTestState $ICA_TESTCOMPLETED
 

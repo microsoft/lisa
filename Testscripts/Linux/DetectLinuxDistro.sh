@@ -11,13 +11,13 @@
 #  FEDORA
 DetectDistro()
 {
-while echo $1 | grep ^- > /dev/null; do
-    eval $( echo $1 | sed 's/-//g' | tr -d '\012')=$2
+while echo "$1" | grep ^- > /dev/null; do
+    eval $( echo "$1" | sed 's/-//g' | tr -d '\012')="$2"
     shift
     shift
 done
         if [ -e /etc/debian_version ]; then
-		        tmp=`cat /etc/*-release`
+		        tmp=$(cat /etc/*-release)
                 if [[ "$tmp" == *Ubuntu* ]]; then
                     echo "UBUNTU"
                     exitVal=0
@@ -26,9 +26,9 @@ done
                     exitVal=0
                 fi
         elif [ -e /etc/redhat-release ]; then
-                tmp=`cat /etc/redhat-release`
+                tmp=$(cat /etc/redhat-release)
                 if [ -e /etc/oracle-release ]; then
-                    tmp=`cat /etc/oracle-release`
+                    tmp=$(cat /etc/oracle-release)
                     if [[ "$tmp" == *Oracle* ]]; then
                         echo "ORACLELINUX"
                         exitVal=0
@@ -50,7 +50,7 @@ done
                     exitVal=1
                 fi
         elif [ -e /etc/SuSE-release ]; then
-                tmp=`cat /etc/SuSE-release`
+                tmp=$(cat /etc/SuSE-release)
                 if [[ "$tmp" == *Enterprise* ]]; then
                     echo "SLES"
                     exitVal=0
@@ -61,7 +61,7 @@ done
                     echo "Unknown"
                 fi
         elif [ -e /etc/os-release ]; then
-                tmp=`cat /etc/os-release`
+                tmp=$(cat /etc/os-release)
                 if [[ "$tmp" == *coreos* ]]; then
                     echo "COREOS"
                     exitVal=0
@@ -72,7 +72,7 @@ done
                     echo "Unknown"         
                 fi
         elif [ -e /usr/share/clear/version ]; then
-                tmp=`cat /usr/share/clear/version`
+                tmp=$(cat /usr/share/clear/version)
                 echo "CLEARLINUX"
                 exitVal=0
         fi

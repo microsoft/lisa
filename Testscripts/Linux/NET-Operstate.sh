@@ -58,7 +58,7 @@ else
             exit 0
         fi
 
-        __state=`cat /sys/class/net/${__synth_iface}/operstate`
+        __state=$(cat /sys/class/net/"${__synth_iface}"/operstate)
         if [ "$__state" != "down" ]; then
             LogErr "Error: Operstate of $__synth_iface is not down. It is $__state"
             SetTestStateFailed
@@ -92,7 +92,7 @@ else
                     exit 0
                 fi
 
-                __state=`cat /sys/class/net/${__legacy_iface}/operstate`
+                __state=$(cat /sys/class/net/"${__legacy_iface}"/operstate)
                 if [ "$__state" != "down" ]; then
                     LogErr "Error: Operstate of $__legacy_iface is not down. It is $__state"
                     SetTestStateFailed

@@ -48,12 +48,12 @@ function main() {
         if [[ $line = *NMI* ]]; then
             for ((  i=0 ;  i<=$cpu_count-1;  i++ ))
             do
-                nmiCount=`echo $line | cut -f $(( $i+2 )) -d ' '`
+                nmiCount=$(echo "$line" | xargs echo | cut -f $(( $i+2 )) -d ' ')
                 LogMsg "CPU ${i} interrupt count = ${nmiCount}"
 
                 # CPU0 or 2012R2(14393 > BuildNumber >= 9600) all CPUs should receive NMI
-                if [ $i -eq 0 ] || ([ $BuildNumber -lt 14393 ] && [ $BuildNumber -ge 9600 ]); then
-                    if [ $nmiCount -ne 0 ]; then
+                if [ $i -eq 0 ] || ([ "$BuildNumber" -lt 14393 ] && [ "$BuildNumber" -ge 9600 ]); then
+                    if [ "$nmiCount" -ne 0 ]; then
                         LogMsg "NMI received at CPU ${i}"
                     else
                         LogMsg "CPU {$i} did not receive a NMI!"
@@ -61,8 +61,8 @@ function main() {
                         exit 1
                     fi
                 # only not CPU0 and 2016 (BuildNumber >= 14393) should not receive NMI
-                elif [ $BuildNumber -ge 14393 ]; then
-                    if [ $nmiCount -eq 0 ]; then
+                elif [ "$BuildNumber" -ge 14393 ]; then
+                    if [ "$nmiCount" -eq 0 ]; then
                         LogMsg "CPU {$i} did not receive a NMI, this is expected"
                     else
                         LogMsg "CPU {$i} received a NMI!"

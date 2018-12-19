@@ -36,7 +36,7 @@ fi
 
 # Check if the VF count inside the VM is the same as the expected count
 vf_count=$(find /sys/devices -name net -a -ipath '*vmbus*' | grep -c pci)
-if [ $vf_count -ne $NIC_COUNT ]; then
+if [ "$vf_count" -ne "$NIC_COUNT" ]; then
     LogErr "Expected VF count: $NIC_COUNT. Actual VF count: $vf_count"
     SetTestStateFailed
     exit 0
@@ -44,13 +44,13 @@ fi
 UpdateSummary "Expected VF count: $NIC_COUNT. Actual VF count: $vf_count"
 
 # Extract VF name
-synthetic_interface=$(ip addr | grep $VF_IP1 | awk '{print $NF}')
+synthetic_interface=$(ip addr | grep "$VF_IP1" | awk '{print $NF}')
 LogMsg  "Synthetic interface found: $synthetic_interface"
 vf_interface=$(find /sys/devices/* -name "*${synthetic_interface}*" | grep "pci" | sed 's/\// /g' | awk '{print $12}')
 LogMsg "Virtual function found: $vf_interface"
 
 # Put VF down
-ip link set dev $vf_interface down
+ip link set dev "$vf_interface" down
 ping -c 11 "$VF_IP2" >/dev/null 2>&1
 if [ 0 -eq $? ]; then
     LogMsg "Successfully pinged $VF_IP2 with VF down"
@@ -69,16 +69,16 @@ else
     LogMsg "Successfully sent $output_file to $VF_IP2"
 fi
 # Get TX value for synthetic interface after sending the file
-tx_value=$(cat /sys/class/net/${synthetic_interface}/statistics/tx_packets)
+tx_value=$(cat /sys/class/net/"${synthetic_interface}"/statistics/tx_packets)
 LogMsg "TX value after sending the file: $tx_value"
-if [ $tx_value -lt 10000 ]; then
+if [ "$tx_value" -lt 10000 ]; then
     LogErr "Insufficient TX packets sent on ${synthetic_interface}"
     SetTestStateFailed
     exit 0
 fi
 
 # Put VF up
-ip link set dev $vf_interface up
+ip link set dev "$vf_interface" up
 ping -c 11 "$VF_IP2" >/dev/null 2>&1
 if [ 0 -ne $? ]; then
     LogErr "Unable to ping $VF_IP2 with VF down"
@@ -95,9 +95,9 @@ else
     LogMsg "Successfully sent $output_file to $VF_IP2"
 fi
 # Get TX value for VF after sending the file
-tx_value=$(cat /sys/class/net/${vf_interface}/statistics/tx_packets)
+tx_value=$(cat /sys/class/net/"${vf_interface}"/statistics/tx_packets)
 LogMsg "TX value after sending the file: $tx_value"
-if [ $tx_value -lt 10000 ]; then
+if [ "$tx_value" -lt 10000 ]; then
     LogErr "Insufficient TX packets sent on ${vf_interface}"
     SetTestStateFailed
     exit 0

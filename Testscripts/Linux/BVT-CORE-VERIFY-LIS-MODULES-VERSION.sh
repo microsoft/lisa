@@ -36,20 +36,18 @@ if [[ ( $hv_string == "" ) || ! ( $hv_string == *"hv_vmbus:"*"Vmbus version:"* )
 fi
 
 skip_modules=()
-vmbus_included=`grep CONFIG_HYPERV=y /boot/config-$(uname -r)`
-if [ $vmbus_included ]; then
+vmbus_included=$(grep CONFIG_HYPERV=y /boot/config-$(uname -r))
+if [ "$vmbus_included" ]; then
     skip_modules+=("hv_vmbus")
     LogMsg "Info: Skiping hv_vmbus module as it is built-in."
 fi
 
-storvsc_included=`grep CONFIG_HYPERV_STORAGE=y /boot/config-$(uname -r)`
-if [ $storvsc_included ]; then
+storvsc_included=$(grep CONFIG_HYPERV_STORAGE=y /boot/config-$(uname -r))
+if [ "$storvsc_included" ]; then
     skip_modules+=("hv_storvsc")
     LogMsg "Info: Skiping hv_storvsc module as it is built-in."
 fi
 
-# Declare temporary array
-temp_list=()
 # Remove each module in HYPERV_MODULES from skip_modules
 for module in "${HYPERV_MODULES[@]}"; do
     skip=""

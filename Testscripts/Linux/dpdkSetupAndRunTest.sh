@@ -20,29 +20,35 @@ function dpdk_setup() {
 
 	local ip
 	for ip in $IP_ADDRS; do
-		Install_Dpdk ${ip} > ${LIS_HOME}/dpdk_${ip}_install.log 2>&1 &
+		Install_Dpdk "${ip}" > "${LIS_HOME}"/dpdk_"${ip}"_install.log 2>&1 &
 		local pids="$pids $!"
 	done
-	wait $pids
+	for pid in $(echo "$pids");do
+		wait "$pid"
+	done
 
 	for ip in $IP_ADDRS; do
-		Hugepage_Setup ${ip} &
+		Hugepage_Setup "${ip}" &
 		local pids="$pids $!"
 	done
-	wait $pids
+	for pid in $(echo "$pids");do
+		wait "$pid"
+	done
 
 	for ip in $IP_ADDRS; do
-		Modprobe_Setup ${ip} &
+		Modprobe_Setup "${ip}" &
 		local pids="$pids $!"
 	done
-	wait $pids
+	for pid in $(echo "$pids");do
+		wait "$pid"
+	done
 	sleep 2
 }
 
 # Source utils.sh
 . utils.sh || {
-	echo "ERROR: unable to source utils.sh!" | tee ${HOME}/TestExecutionError.log
-	echo "TestAborted" > ${HOME}/state.txt
+	echo "ERROR: unable to source utils.sh!" | tee "${HOME}"/TestExecutionError.log
+	echo "TestAborted" > "${HOME}"/state.txt
 	exit 1
 }
 
@@ -51,10 +57,10 @@ source_script "dpdkUtils.sh"
 # Source constants file and initialize most common variables
 UtilsInit
 LOG_DIR="${LIS_HOME}/logdir"
-rm -rf ${LOG_DIR} # LISA Pipelines don't always wipe old state
-mkdir -p ${LOG_DIR}
+rm -rf "${LOG_DIR}" # LISA Pipelines don't always wipe old state
+mkdir -p "${LOG_DIR}"
 PHASE_FILE="${LIS_HOME}/phase.txt"
-> ${PHASE_FILE}
+> "${PHASE_FILE}"
 
 # constants.sh is now loaded; load user provided scripts
 for file in ${USER_FILES}; do
@@ -80,6 +86,7 @@ if [[ $DPDK_LINK =~ .tar ]]; then
 	DPDK_DIR="dpdk-$(echo ${DPDK_LINK} | grep -Po "(\d+\.)+\d+")"
 elif [[ $DPDK_LINK =~ ".git" ]] || [[ $DPDK_LINK =~ "git:" ]]; then
 	DPDK_DIR="${DPDK_LINK##*/}"
+	echo "$DPDK_DIR"
 fi
 dpdk_setup
 
@@ -87,7 +94,7 @@ LogMsg "Calling testcase provided run function"
 Run_Testcase
 
 LogMsg "tar -cvzf ${LIS_HOME}/vmTestcaseLogs.tar.gz ${LOG_DIR}"
-tar -cvzf ${LIS_HOME}/vmTestcaseLogs.tar.gz ${LOG_DIR}
+tar -cvzf "${LIS_HOME}"/vmTestcaseLogs.tar.gz "${LOG_DIR}"
 
 LogMsg "dpdkSetupAndRunTest completed!"
 SetTestStateCompleted

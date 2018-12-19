@@ -30,13 +30,13 @@ for udevfile in $(find /etc/udev/ /lib/udev/ -name "*.rules*"); do # search for 
     match_count=0
     for i in "${items[@]}"
     do
-        grep $i $udevfile > /dev/null # grep for the udev rule
+        grep "$i" "$udevfile" > /dev/null # grep for the udev rule
         sts=$?
         if [ 0 -eq ${sts} ]; then
-             match_count=`expr $match_count + 1`
+             match_count=$(expr $match_count + 1)
         fi
     done
-    if [ ${#items[@]} -eq $match_count ]; then
+    if [ ${#items[@]} -eq "$match_count" ]; then
         filelist=("${filelist[@]}" $udevfile) # populate an array with the results
     fi
 done
@@ -48,7 +48,7 @@ if [ ${#filelist[@]} -gt 0 ]; then # check if we found anything
         LogMsg "Following DM udev files were found:"
         # list the files
         for rulefile in "${filelist[@]}"; do
-            LogMsg $rulefile
+            LogMsg "$rulefile"
         done
     else
         UpdateSummary "Hot-Add udev rule present: Success"

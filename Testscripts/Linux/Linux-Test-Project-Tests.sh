@@ -97,7 +97,7 @@ git clone https://github.com/linux-test-project/ltp.git
 TOP_SRCDIR="${HOME}/src/ltp"
 
 cd "$TOP_SRCDIR"
-git checkout tags/$ltp_version_git_tag
+git checkout tags/"$ltp_version_git_tag"
 
 LogMsg "Configuring LTP..."
 # use autoreconf to match the installed package versions
@@ -136,10 +136,10 @@ if grep FAIL "$LTP_OUTPUT" ; then
     grep FAIL "$LTP_OUTPUT" | cut -d':' -f 2- >> ~/summary.log
 fi
 echo "-----------LTP RESULTS----------------"
-cat $LTP_RESULTS >> ~/TestExecution.log
+cat "$LTP_RESULTS" >> ~/TestExecution.log
 echo "--------------------------------------"
 echo "-----------LTP OUTPUT----------------"
-cat $LTP_OUTPUT >> ~/TestExecution.log
+cat "$LTP_OUTPUT" >> ~/TestExecution.log
 echo "--------------------------------------"
 SetTestStateCompleted
 exit 0

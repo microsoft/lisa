@@ -32,55 +32,54 @@ HYPERV_MODULES=(hv_vmbus hv_netvsc hv_storvsc hv_utils hv_balloon hid_hyperv hyp
 skip_modules=()
 config_path="/boot/config-$(uname -r)"
 
-vmbus_included=`grep CONFIG_HYPERV=y $config_path`
-if [ $vmbus_included ]; then
+vmbus_included=$(grep CONFIG_HYPERV=y "$config_path")
+if [ "$vmbus_included" ]; then
     skip_modules+=("hv_vmbus")
     LogMsg "Info: Skiping hv_vmbus module as it is built-in."
 fi
 
-netvsc_includes=`grep CONFIG_HYPERV_NET=y $config_path`
-if [ $netvsc_includes ]; then
+netvsc_includes=$(grep CONFIG_HYPERV_NET=y "$config_path")
+if [ "$netvsc_includes" ]; then
     skip_modules+=("hv_netvsc")
     LogMsg "Info: Skiping hv_netvsc module as it is built-in."
 fi
 
-storvsc_included=`grep CONFIG_HYPERV_STORAGE=y $config_path`
-if [ $storvsc_included ]; then
+storvsc_included=$(grep CONFIG_HYPERV_STORAGE=y "$config_path")
+if [ "$storvsc_included" ]; then
     skip_modules+=("hv_storvsc")
     LogMsg "Info: Skiping hv_storvsc module as it is built-in."
 fi
 
-utils_includes=`grep CONFIG_HYPERV_UTILS=y $config_path`
-if [ $utils_includes ]; then
+utils_includes=$(grep CONFIG_HYPERV_UTILS=y "$config_path")
+if [ "$utils_includes" ]; then
     skip_modules+=("hv_utils")
     LogMsg "Info: Skiping hv_utils module as it is built-in."
 fi
 
-balloon_includes=`grep CONFIG_HYPERV_BALLOON=y $config_path`
-if [ $balloon_includes ]; then
+balloon_includes=$(grep CONFIG_HYPERV_BALLOON=y "$config_path")
+if [ "$balloon_includes" ]; then
     skip_modules+=("hv_balloon")
     LogMsg "Info: Skiping hv_balloon module as it is built-in."
 fi
 
-hid_includes=`grep CONFIG_HID_HYPERV_MOUSE=y $config_path`
-if [ $hid_includes ]; then
+hid_includes=$(grep CONFIG_HID_HYPERV_MOUSE=y "$config_path")
+if [ "$hid_includes" ]; then
     skip_modules+=("hid_hyperv")
     LogMsg "Info: Skiping hid_hyperv module as it is built-in."
 fi
 
-keyboard_includes=`grep CONFIG_HYPERV_KEYBOARD=y $config_path`
-if [ $keyboard_includes ]; then
+keyboard_includes=$(grep CONFIG_HYPERV_KEYBOARD=y "$config_path")
+if [ "$keyboard_includes" ]; then
     skip_modules+=("hyperv_keyboard")
     LogMsg "Info: Skiping hyperv_keyboard module as it is built-in."
 fi
 
-fb_includes=`grep CONFIG_FB_HYPERV=y $config_path`
-if [ $fb_includes ]; then
+fb_includes=$(grep CONFIG_FB_HYPERV=y "$config_path")
+if [ "$fb_includes" ]; then
     skip_modules+=("hyperv_fb")
     LogMsg "Info: Skiping hyperv_fb module as it is built-in."
 fi
 
-temp_list=()
 # Remove each module in HYPERV_MODULES from skip_modules
 for module in "${HYPERV_MODULES[@]}"; do
     skip=""
@@ -103,7 +102,7 @@ VerifyModules()
         MODULES=~/modules.txt
         lsmod | grep "hv_*" > $MODULES
         lsmod | grep "hyperv" >> $MODULES
-        if ! grep -q $module $MODULES; then
+        if ! grep -q "$module" "$MODULES"; then
             msg="Error: $module not loaded"
             LogErr "${msg}"
             SetTestStateFailed

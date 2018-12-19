@@ -4,7 +4,6 @@
 
 kdump_conf=/etc/kdump.conf
 dump_path=/var/crash
-sys_kexec_crash=/sys/kernel/kexec_crash_loaded
 kdump_sysconfig=/etc/sysconfig/kdump
 boot_filepath=""
 
@@ -89,7 +88,7 @@ Rhel_Extra_Settings(){
     for (( item=0; item<${#kdump_commandline[@]-1}; item++))
     do
         if [ $? -eq 0 ]; then
-            kdump_commandline_arguments=$(echo ${kdump_commandline_arguments} | sed "s/${kdump_commandline[item]}\S*//g")
+            kdump_commandline_arguments=$(echo "${kdump_commandline_arguments}" | sed "s/${kdump_commandline[item]}\S*//g")
         fi
         kdump_commandline_arguments="$kdump_commandline_arguments ${kdump_commandline[item]}${value_kdump[item]}"
     done
@@ -145,16 +144,16 @@ Config_Rhel()
 
     GetGuestGeneration
 
-    if [ $os_GENERATION -eq 2 ] && [[ $os_RELEASE =~ 6.* ]]; then
+    if [ "$os_GENERATION" -eq 2 ] && [[ $os_RELEASE =~ 6.* ]]; then
         boot_filepath=/boot/efi/EFI/BOOT/bootx64.conf
-    elif [ $os_GENERATION -eq 1 ] && [[ $os_RELEASE =~ 6.* ]]; then
+    elif [ "$os_GENERATION" -eq 1 ] && [[ $os_RELEASE =~ 6.* ]]; then
         boot_filepath=/boot/grub/grub.conf
-    elif [ $os_GENERATION -eq 1 ] && [[ $os_RELEASE =~ 7.* || $os_RELEASE =~ 8.* ]]; then
+    elif [ "$os_GENERATION" -eq 1 ] && [[ $os_RELEASE =~ 7.* || $os_RELEASE =~ 8.* ]]; then
         boot_filepath=/boot/grub2/grub.cfg
-    elif [ $os_GENERATION -eq 2 ] && [[ $os_RELEASE =~ 7.* || $os_RELEASE =~ 8.* ]]; then
+    elif [ "$os_GENERATION" -eq 2 ] && [[ $os_RELEASE =~ 7.* || $os_RELEASE =~ 8.* ]]; then
         boot_filepath=/boot/efi/EFI/redhat/grub.cfg
     else
-        boot_filepath=`find /boot -name grub.cfg`
+        boot_filepath=$(find /boot -name grub.cfg)
     fi
 
     # Enable kdump service
@@ -170,7 +169,7 @@ Config_Rhel()
     fi
 
     # Configure to dump file on nfs server if it is the case
-    if [ $vm2ipv4 ] && [ $vm2ipv4 != "" ]; then
+    if [ "$vm2ipv4" ] && [ "$vm2ipv4" != "" ]; then
         yum_install nfs-utils
         if [ $? -ne 0 ]; then
             LogErr "Failed to install nfs."
@@ -178,7 +177,7 @@ Config_Rhel()
             exit 0
         fi
         # Kdump configuration differs from RHEL 6 to RHEL 7
-        if [ $os_RELEASE -le 6 ]; then
+        if [ "$os_RELEASE" -le 6 ]; then
             echo "nfs $vm2ipv4:/mnt" >> /etc/kdump.conf
             if [ $? -ne 0 ]; then
                 LogErr "Failed to configure kdump to use nfs."
@@ -229,7 +228,7 @@ Config_Sles()
         UpdateSummary "Success: kdump enabled."
     fi
 
-    if [ $vm2ipv4 ] && [ $vm2ipv4 != "" ]; then
+    if [ "$vm2ipv4" ] && [ "$vm2ipv4" != "" ]; then
         zypper_install nfs-client
         if [ $? -ne 0 ]; then
             LogErr "Failed to install nfs."
@@ -261,7 +260,7 @@ Config_Debian()
     apt-get update -y
     sleep 10
 
-    if [ $vm2ipv4 ] && [ $vm2ipv4 != "" ]; then
+    if [ "$vm2ipv4" ] && [ "$vm2ipv4" != "" ]; then
         apt_get_install nfs-kernel-server
         if [ $? -ne 0 ]; then
             LogErr "Failed to install nfs."
@@ -295,7 +294,7 @@ LogMsg "INFO: crashkernel=$crashkernel; vm2ipv4=$vm2ipv4"
 #
 # Checking the negotiated VMBus version
 #
-vmbus_string=`dmesg | grep "Vmbus version:"`
+vmbus_string=$(dmesg | grep "Vmbus version:")
 
 if [ "$vmbus_string" = "" ]; then
     LogMsg "WARNING: Negotiated VMBus version is not 3.0. Kernel might be old or patches not included."
@@ -317,7 +316,7 @@ if [[ "$OS_FAMILY" == "Debian" ]] || [[ "$OS_FAMILY" == "Sles" ]] || \
     exit 0
 fi
 
-Config_${OS_FAMILY}
+Config_"${OS_FAMILY}"
 
 # Remove old crashkernel params
 sed -i "s/crashkernel=\S*//g" $boot_filepath
@@ -326,7 +325,7 @@ sed -i "s/crashkernel=\S*//g" $boot_filepath
 sed -i "s/console=\S*//g" $boot_filepath
 
 # Add the crashkernel param
-sed -i "/vmlinuz-`uname -r`/ s/$/ crashkernel=$crashkernel/" $boot_filepath
+sed -i "/vmlinuz-$(uname -r)/ s/$/ crashkernel=$crashkernel/" $boot_filepath
 if [ $? -ne 0 ]; then
     LogErr "Could not set the new crashkernel value in $boot_filepath"
     SetTestStateAborted

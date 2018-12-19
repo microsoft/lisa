@@ -43,7 +43,7 @@ fi
 
 # Check if the VF count inside the VM is the same as the expected count
 vf_count=$(find /sys/devices -name net -a -ipath '*vmbus*' | grep pci | wc -l)
-if [ $vf_count -ne $NIC_COUNT ]; then
+if [ "$vf_count" -ne "$NIC_COUNT" ]; then
     LogErr "Expected VF count: $NIC_COUNT. Actual VF count: $vf_count"
     SetTestStateFailed
     exit 0
@@ -54,7 +54,7 @@ __iterator=1
 __ip_iterator_1=1
 __ip_iterator_2=2
 # Ping and send file from VM1 to VM2
-while [ $__iterator -le $vf_count ]; do
+while [ $__iterator -le "$vf_count" ]; do
     # Extract VF_IP values
     ip_variable_name="VF_IP$__ip_iterator_1"
     static_IP_1="${!ip_variable_name}"
@@ -86,9 +86,9 @@ while [ $__iterator -le $vf_count ]; do
         LogMsg "Successfully sent $output_file to $VF_IP2"
     fi
 
-    tx_value=$(cat /sys/class/net/${vf_interface_vm_1}/statistics/tx_packets)
+    tx_value=$(cat /sys/class/net/"${vf_interface_vm_1}"/statistics/tx_packets)
     LogMsg "TX value after sending the file: $tx_value"
-    if [ $tx_value -lt 400000 ]; then
+    if [ "$tx_value" -lt 400000 ]; then
         LogErr "insufficient TX packets sent"
         SetTestStateFailed
         exit 0
@@ -96,13 +96,13 @@ while [ $__iterator -le $vf_count ]; do
 
     # Get the VF name from VM2
     cmd_to_send="ip addr | grep \"$static_IP_2\" | awk '{print \$NF}'"
-    synthetic_interface_vm_2=$(ssh -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$remote_user"@"$static_IP_2" $cmd_to_send)
+    synthetic_interface_vm_2=$(ssh -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$remote_user"@"$static_IP_2" "$cmd_to_send")
     cmd_to_send="find /sys/devices/* -name "*${synthetic_interface_vm_2}*" | grep pci | sed 's/\// /g' | awk '{print \$12}'"
-    vf_interface_vm_2=$(ssh -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$remote_user"@"$static_IP_2" $cmd_to_send)
+    vf_interface_vm_2=$(ssh -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$remote_user"@"$static_IP_2" "$cmd_to_send")
     
-    rx_value=$(ssh -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$remote_user"@"$static_IP_2" cat /sys/class/net/${vf_interface_vm_2}/statistics/rx_packets)
+    rx_value=$(ssh -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$remote_user"@"$static_IP_2" cat /sys/class/net/"${vf_interface_vm_2}"/statistics/rx_packets)
     LogMsg "RX value after sending the file: $rx_value"
-    if [ $rx_value -lt 400000 ]; then
+    if [ "$rx_value" -lt 400000 ]; then
         LogErr "insufficient RX packets received"
         SetTestStateFailed
         exit 0

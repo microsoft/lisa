@@ -63,8 +63,8 @@ for token in "${tokens[@]}"; do
     fi
 done
 for optional_token in "${optional_tokens[@]}"; do
-    if ! $lsvmbus_path | grep "$token"; then
-        LogMsg "INFO: $token not found in lsvmbus information."
+    if ! $lsvmbus_path | grep "$optional_token"; then
+        LogMsg "INFO: $optional_token not found in lsvmbus information."
     fi
 done
 
@@ -88,7 +88,7 @@ while IFS='' read -r line || [[ -n "$line" ]]; do
         fi
     fi
 done < "lsvmbus.log"
-expected_scsi_counter=$(expr $VCPU / 4)
+expected_scsi_counter=$(expr "$VCPU" / 4)
 
 if [ "$network_counter" != "$VCPU" ] && [ "$scsi_counter" != "$expected_scsi_counter" ]; then
     error_msg="Error: values are wrong. Expected for network adapter: $VCPU and actual: $network_counter;

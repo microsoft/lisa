@@ -33,7 +33,7 @@ Verify_RemoteStatus()
 {
     array_status=( $status )
     exit_code=${array_status[-1]}
-    if [ $exit_code -eq 0 ]; then
+    if [ "$exit_code" -eq 0 ]; then
         UpdateSummary "Test Successful. Proper file was found on nfs server."
         SetTestStateCompleted
     else
@@ -57,7 +57,7 @@ GetDistro
 case $DISTRO in
     centos* | redhat* | fedora*)
         if [[ $vm2ipv4 != "" ]]; then
-            status=`ssh -i /root/.ssh/${SSH_PRIVATE_KEY} -o StrictHostKeyChecking=no root@${vm2ipv4} "find /mnt/var/crash/*/vmcore -type f -size +10M; echo $?"`
+            status=$(ssh -i /root/.ssh/"${SSH_PRIVATE_KEY}" -o StrictHostKeyChecking=no root@"${vm2ipv4}" "find /mnt/var/crash/*/vmcore -type f -size +10M; echo $?")
             Verify_RemoteStatus
         else
             Check_VMcore
@@ -65,7 +65,7 @@ case $DISTRO in
     ;;
     ubuntu*|debian*)
         if [[ $vm2ipv4 != "" ]]; then
-            status=`ssh -i /root/.ssh/${SSH_PRIVATE_KEY} -o StrictHostKeyChecking=no root@${vm2ipv4} "find /mnt/* -type f -size +10M; echo $?"`
+            status=$(ssh -i /root/.ssh/"${SSH_PRIVATE_KEY}" -o StrictHostKeyChecking=no root@"${vm2ipv4}" "find /mnt/* -type f -size +10M; echo $?")
             Verify_RemoteStatus
         else
             if ! [[ $(find /var/crash/2* -type f -size +10M) ]]; then
@@ -80,7 +80,7 @@ case $DISTRO in
     ;;
     suse*)
         if [[ $vm2ipv4 != "" ]]; then
-            status=`ssh -i /root/.ssh/${SSH_PRIVATE_KEY} -o StrictHostKeyChecking=no root@${vm2ipv4} "find /mnt/* -type f -size +10M; echo $?"`
+            status=$(ssh -i /root/.ssh/"${SSH_PRIVATE_KEY}" -o StrictHostKeyChecking=no root@"${vm2ipv4}" "find /mnt/* -type f -size +10M; echo $?")
             Verify_RemoteStatus
         else
             Check_VMcore

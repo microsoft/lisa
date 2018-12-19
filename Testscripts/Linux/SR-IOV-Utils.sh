@@ -73,14 +73,14 @@ VerifyVF()
         exit 1
     fi
 
-    if [ -z $VF_IP1 ]; then
+    if [ -z "$VF_IP1" ]; then
         vf_interface=$(ls /sys/class/net/ | grep -v 'eth0\|eth1\|lo' | head -1)
     else
-        synthetic_interface=$(ip addr | grep $VF_IP1 | awk '{print $NF}')
+        synthetic_interface=$(ip addr | grep "$VF_IP1" | awk '{print $NF}')
         vf_interface=$(find /sys/devices/* -name "*${synthetic_interface}*" | grep "pci" | sed 's/\// /g' | awk '{print $12}')
     fi
 
-    ip addr show $vf_interface
+    ip addr show "$vf_interface"
     if [ $? -ne 0 ]; then
         LogErr "VF device, $vf_interface , was not found!"
         SetTestStateFailed
@@ -130,7 +130,7 @@ Create1Gfile()
 ConfigureVF()
 {
     vfCount=$(find /sys/devices -name net -a -ipath '*vmbus*' | grep pci | wc -l)
-    if [ $vfCount -eq 0 ]; then
+    if [ "$vfCount" -eq 0 ]; then
         LogErr "No VFs are present in the Guest VM!"
         SetTestStateFailed
         exit 1
@@ -142,11 +142,11 @@ ConfigureVF()
     # LogMsg "vfCount: $vfCount"
 
     # Set static IPs for each vf created
-    while [ $__iterator -le $vfCount ]; do
+    while [ $__iterator -le "$vfCount" ]; do
         LogMsg "Network config will start"
 
         # Extract vfIP value from constants.sh
-        staticIP=$(cat sriov_constants.sh | grep IP$__ipIterator | head -1 | tr = " " | awk '{print $2}')
+        staticIP=$(cat sriov_constants.sh | grep IP"$__ipIterator" | head -1 | tr "=" " " | awk '{print $2}')
 
         if is_ubuntu ; then
             __file_path="/etc/network/interfaces"
@@ -157,7 +157,7 @@ ConfigureVF()
             echo "netmask $NETMASK" >> $__file_path
 
             ip link set eth$__iterator up
-            ip addr add ${staticIP}/$NETMASK dev eth$__iterator
+            ip addr add "${staticIP}"/"$NETMASK" dev eth$__iterator
 
         elif is_suse ; then
             __file_path="/etc/sysconfig/network/ifcfg-eth$__iterator"
@@ -172,7 +172,7 @@ ConfigureVF()
             echo "STARTMODE=auto" >> $__file_path
 
             ip link set eth$__iterator up
-            ip addr add ${staticIP}/$NETMASK dev eth$__iterator
+            ip addr add "${staticIP}"/"$NETMASK" dev eth$__iterator
 
         elif is_fedora ; then
             __file_path="/etc/sysconfig/network-scripts/ifcfg-eth$__iterator"
@@ -187,7 +187,7 @@ ConfigureVF()
             echo "ONBOOT=yes" >> $__file_path
 
             ip link set eth$__iterator up
-            ip addr add ${staticIP}/$NETMASK dev eth$__iterator
+            ip addr add "${staticIP}"/"$NETMASK" dev eth$__iterator
         fi
         LogMsg "Network config file path: $__file_path"
 

@@ -27,7 +27,7 @@ fi
 ./check_traces.sh &
 
 # Count the number of SCSI= and IDE= entries in constants
-if [ -z $diskCount ];  then
+if [ -z "$diskCount" ];  then
     diskCount=0
     for entry in $(cat ./constants.sh)
     do
@@ -51,6 +51,7 @@ LogMsg "constants disk count = $diskCount"
 
 ### do fdisk to rescan the scsi bus
 for i in {1..4};do 
+    echo $i
     fdisk -l > /dev/null
 done
 

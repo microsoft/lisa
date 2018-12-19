@@ -19,8 +19,8 @@
 
 #######################################################################
 
-while echo $1 | grep ^- > /dev/null; do
-    eval $( echo $1 | sed 's/-//g' | tr -d '\012')=$2
+while echo "$1" | grep ^- > /dev/null; do
+    eval $( echo "$1" | sed 's/-//g' | tr -d '\012')="$2"
     shift
     shift
 done
@@ -30,13 +30,13 @@ touch /root/XFSTestingConsole.log
 
 LogMsg()
 {
-        echo `date "+%b %d %Y %T"` : "${1}"     # Add the time stamp to the log message
+        echo $(date "+%b %d %Y %T") : "${1}"     # Add the time stamp to the log message
         echo "${1}" >> /root/XFSTestingConsole.log
 }
 
 InstallXFSTestTools()
 {
-    DISTRO=`grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os" /etc/{issue,*release,*version} /usr/lib/os-release`
+    DISTRO=$(grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os" /etc/{issue,*release,*version} /usr/lib/os-release)
     if [[ $DISTRO =~ "Ubuntu" ]] || [[ $DISTRO =~ "Debian" ]];
     then
         LogMsg "Detected Ubuntu/Debian. Installing required packages..."
@@ -90,21 +90,21 @@ then
     echo 'path = /root/sdc' >> /etc/samba/smb.conf
     echo 'valid users = root' >> /etc/samba/smb.conf
     echo 'read only = no' >> /etc/samba/smb.conf
-    ./check -s $TestFileSystem -E tests/cifs/exclude.incompatible-smb3 >> /root/XFSTestingConsole.log
+    ./check -s "$TestFileSystem" -E tests/cifs/exclude.incompatible-smb3 >> /root/XFSTestingConsole.log
     cd ..
 elif [[ $TestFileSystem == "ext4" ]] || [[ $TestFileSystem == "xfs" ]] || [[ $TestFileSystem == "btrfs" ]];
 then
     LogMsg "Formatting /dev/sdc with ${TestFileSystem}"
     if [[ $TestFileSystem == "xfs" ]] || [[ $TestFileSystem == "btrfs" ]];
     then
-        mkfs.$TestFileSystem -f /dev/sdc
+        mkfs."$TestFileSystem" -f /dev/sdc
     else
-        echo y | mkfs -t $TestFileSystem /dev/sdc
+        echo y | mkfs -t "$TestFileSystem" /dev/sdc
     fi
     mkdir -p /test2
     cd xfstests
     LogMsg "Runnint tests for $TestFileSystem file system"
-    ./check -s $TestFileSystem >> /root/XFSTestingConsole.log
+    ./check -s "$TestFileSystem" >> /root/XFSTestingConsole.log
     cd ..
 else
     LogMsg "$TestFileSystem is not supported."

@@ -9,7 +9,6 @@
 # Supported Distros:
 #    Ubuntu, SUSE, RedHat, CentOS
 #######################################################################
-HOMEDIR=`pwd`
 CONSTANTS_FILE="./constants.sh"
 . ${CONSTANTS_FILE} || {
 	echo "ERROR: unable to source constants.sh!"
@@ -43,7 +42,7 @@ case "$DISTRO_NAME" in
 esac
 install_package "${packages[@]}"
 # Raid Creation
-create_raid_and_mount $deviceName $mountDir $diskformat $mount_option
+create_raid_and_mount "$deviceName" "$mountDir" "$diskformat" "$mount_option"
 mount -l | grep "$mountDir"
 if [ $? -ne 0 ]; then
 	LogErr "Error: ${deviceName} not mounted with ${mount_option}"

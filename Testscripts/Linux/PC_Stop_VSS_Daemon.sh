@@ -17,9 +17,9 @@ systemctl --version
 if [ $? -eq 0 ]; then
     vss_service_name=$(systemctl | grep vss | awk '{print $1}' | tail -1)
     
-    if [ "$(systemctl is-active ${vss_service_name})" == "active" ]; then
+    if [ "$(systemctl is-active "${vss_service_name}")" == "active" ]; then
         LogMsg "VSS Daemon is running, we will try to stop it gracefully"
-        systemctl stop $vss_service_name
+        systemctl stop "$vss_service_name"
         if [ $? -ne 0 ]; then
             LogErr "ERROR: Failed to stop VSS Daemon"
             SetTestStateAborted
@@ -28,7 +28,7 @@ if [ $? -eq 0 ]; then
         LogMsg "Successfully stopped the VSS Daemon"
         SetTestStateCompleted
 
-    elif [ "$(systemctl is-active ${vss_service_name})" == "unknown" ]; then
+    elif [ "$(systemctl is-active "${vss_service_name}")" == "unknown" ]; then
         LogErr "ERROR: VSS Daemon not installed, test aborted"
         SetTestStateAborted
 
@@ -43,7 +43,7 @@ else
 
         LogMsg "VSS Daemon is running"
         vss_pid=$(ps aux | grep vss | head -1 | awk '{print $2}')
-        kill $vss_pid
+        kill "$vss_pid"
         
         if [ $? -ne 0 ]; then
             LogErr "ERROR: Failed to stop VSS Daemon"

@@ -2,8 +2,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 
-kdump_conf=/etc/kdump.conf
-dump_path=/var/crash
 sys_kexec_crash=/sys/kernel/kexec_crash_loaded
 
 #
@@ -97,7 +95,7 @@ Exec_Debian()
     LogMsg "Waiting 50 seconds for kdump to become active."
     sleep 50
 
-    if [ -e $sys_kexec_crash -a `cat $sys_kexec_crash` -eq 1 ]; then
+    if [ -e $sys_kexec_crash -a $(cat $sys_kexec_crash) -eq 1 ]; then
         UpdateSummary "Success: kdump service is active after reboot."
     else
         LogErr "ERROR: kdump service is not active after reboot!"
@@ -109,7 +107,7 @@ Exec_Debian()
 Check_KDUMP()
 {
     LogMsg "Checking if kdump is loaded after reboot..."
-    CRASHKERNEL=`grep -i crashkernel= /proc/cmdline`;
+    CRASHKERNEL=$(grep -i crashkernel= /proc/cmdline);
 
     if [ ! -e $sys_kexec_crash ] && [ -z "$CRASHKERNEL" ] ; then
         LogErr "FAILED: Verify the configuration settings for kdump and grub. Kdump is not enabled after reboot."
@@ -151,7 +149,7 @@ if [[ "$OS_FAMILY" == "Sles" ]];then
 fi
 Check_KDUMP
 
-Exec_${OS_FAMILY}
+Exec_"${OS_FAMILY}"
 
 #
 # Preparing for the kernel panic

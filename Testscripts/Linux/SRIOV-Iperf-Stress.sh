@@ -31,7 +31,7 @@ fi
 
 # Check if the VF count inside the VM is the same as the expected count
 vf_count=$(find /sys/devices -name net -a -ipath '*vmbus*' | grep pci | wc -l)
-if [ $vf_count -ne $NIC_COUNT ]; then
+if [ "$vf_count" -ne "$NIC_COUNT" ]; then
     LogErr "Expected VF count: $NIC_COUNT. Actual VF count: $vf_count"
     SetTestStateFailed
     exit 0
@@ -47,7 +47,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # Start iPerf client
-iperf3 -t 1800 -c ${VF_IP2} --logfile perfResults.log
+iperf3 -t 1800 -c "${VF_IP2}" --logfile perfResults.log
 if [ $? -ne 0 ]; then
     LogErr "Could not start iPerf3 on VM1 (VF_IP: ${VF_IP1})"
     SetTestStateFailed
@@ -64,7 +64,7 @@ fi
 iperf_errors=$(cat perfResults.log | grep -i error)
 if [ $? -eq 0 ]; then
     LogErr "iPerf3 had errors while running"
-    LogErr $iperf_errors
+    LogErr "$iperf_errors"
     SetTestStateFailed
     exit 0
 fi
@@ -74,7 +74,7 @@ throughput=$(tail -4 perfResults.log | head -1 | awk '{print $7}')
 UpdateSummary "iPerf3 throughput is $throughput gbps"
 
 # Check the connection again
-ping -c 11 ${VF_IP2} > pingResults.log
+ping -c 11 "${VF_IP2}" > pingResults.log
 if [ $? -ne 0 ]; then
     LogErr "Could not ping from VM1 to VM2 after iPerf3 finished the run"
     SetTestStateFailed

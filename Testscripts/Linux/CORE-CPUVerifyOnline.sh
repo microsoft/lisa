@@ -10,7 +10,6 @@
 #	as each core can't be offline except vcpu0 for a successful test pass.
 
 CONSTANTS_FILE="constants.sh"
-nonCPU0inter=0
 
 . utils.sh || {
     echo "unable to source utils.sh!"
@@ -41,8 +40,8 @@ for ((cpu=1 ; cpu<=$cpu_count ; cpu++)) ;do
     __file_path="/sys/devices/system/cpu/cpu$cpu/online"
     if [ -e "$__file_path" ]; then
         echo 0 > $__file_path > /dev/null 2>&1
-        val=`cat $__file_path`
-        if [ $val -ne 0 ]; then
+        val=$(cat $__file_path)
+        if [ "$val" -ne 0 ]; then
             LogMsg "CPU core ${cpu} can't be offline."
         else
             LogErr "CPU ${cpu} can be offline!"

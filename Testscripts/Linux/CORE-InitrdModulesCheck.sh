@@ -10,10 +10,10 @@ CopyImage()
     fi
 
     mkdir /root/initr
-    cp $1 /root/initr/boot.img
+    cp "$1" /root/initr/boot.img
     cd /root/initr/
 
-    img_type=`file boot.img`
+    img_type=$(file boot.img)
     LogMsg "The image type is: $img_type"
 }
 
@@ -22,14 +22,14 @@ SearchModules()
     LogMsg "Searching for modules..."
     [[ -d "/root/initr/usr/lib/modules" ]] && abs_path="/root/initr/usr/lib/modules/" || abs_path="/root/initr/lib/modules/"
     for module in "${hv_modules[@]}"; do
-        grep -i $module $abs_path*/modules.dep
+        grep -i "$module" $abs_path*/modules.dep
         if [ $? -eq 0 ]; then
             LogMsg "Module $module was found in initrd."
             echo "Module $module was found in initrd." >> /root/summary.log
         else
             LogMsg "Module $module was NOT found."
             echo "Module $module was NOT found." >> /root/summary.log
-            grep -i $module $abs_path*/modules.dep >> /root/summary.log
+            grep -i "$module" $abs_path*/modules.dep >> /root/summary.log
             SetTestStateFailed
             exit 1
         fi
@@ -65,18 +65,18 @@ fi
 # Rebuild array to exclude built-in modules
 skip_modules=()
 
-vmbusIncluded=`grep CONFIG_HYPERV=y /boot/config-$(uname -r)`
-if [ $vmbusIncluded ]; then
+vmbusIncluded=$(grep CONFIG_HYPERV=y /boot/config-$(uname -r))
+if [ "$vmbusIncluded" ]; then
     skip_modules+=("hv_vmbus.ko")
     LogMsg "hv_vmbus module is built-in. Skipping module. "
 fi
-storvscIncluded=`grep CONFIG_HYPERV_STORAGE=y /boot/config-$(uname -r)`
-if [ $storvscIncluded ]; then
+storvscIncluded=$(grep CONFIG_HYPERV_STORAGE=y /boot/config-$(uname -r))
+if [ "$storvscIncluded" ]; then
     skip_modules+=("hv_storvsc.ko")
     LogMsg "hv_storvsc module is built-in. Skipping module. "
 fi
-netvscIncluded=`grep CONFIG_HYPERV_NET=y /boot/config-$(uname -r)`
-if [ $netvscIncluded ]; then
+netvscIncluded=$(grep CONFIG_HYPERV_NET=y /boot/config-$(uname -r))
+if [ "$netvscIncluded" ]; then
     skip_modules+=("hv_netvsc.ko")
     LogMsg "hv_netvsc module is built-in. Skipping module. "
 fi
@@ -124,22 +124,22 @@ esac
 if [ -f /boot/initramfs-0-rescue* ]; then
     img=/boot/initramfs-0-rescue*
 else
-  if [ -f "/boot/initrd-`uname -r`" ]; then
-    img="/boot/initrd-`uname -r`"
+  if [ -f "/boot/initrd-$(uname -r)" ]; then
+    img="/boot/initrd-$(uname -r)"
   fi
 
-  if [ -f "/boot/initramfs-`uname -r`.img" ]; then
-    img="/boot/initramfs-`uname -r`.img"
+  if [ -f "/boot/initramfs-$(uname -r).img" ]; then
+    img="/boot/initramfs-$(uname -r).img"
   fi
 
-  if [ -f "/boot/initrd.img-`uname -r`" ]; then
-    img="/boot/initrd.img-`uname -r`"
+  if [ -f "/boot/initrd.img-$(uname -r)" ]; then
+    img="/boot/initrd.img-$(uname -r)"
   fi
 fi
 
 UpdateSummary "The initrd test image is: $img"
 
-CopyImage $img
+CopyImage "$img"
 
 LogMsg "Unpacking the image..."
 
@@ -147,7 +147,7 @@ case $img_type in
     *ASCII*cpio*)
         cpio -id -F boot.img &> out.file
         skip_block_size=$(cat out.file | awk '{print $1}')
-        dd if=boot.img of=finalInitrd.img bs=512 skip=$skip_block_size
+        dd if=boot.img of=finalInitrd.img bs=512 skip="$skip_block_size"
         /usr/lib/dracut/skipcpio finalInitrd.img |zcat| cpio -id --no-absolute-filenames
         if [ $? -eq 0 ]; then
             LogMsg "Successfully unpacked the image."

@@ -21,7 +21,7 @@ UtilsInit
 Check_Hyper_Daemons() {
     BuildNumber=$(dmesg | grep -oP '(?<=Build:).*' | cut -d "-" -f1)
     LogMsg "BuildNumber is: $BuildNumber"
-    if [ $BuildNumber -lt 9600 ]; then
+    if [ "$BuildNumber" -lt 9600 ]; then
         hv=('hypervkvpd')
         hv_alias=('[h]v_kvp_daemon')
         hv_service=("hypervkvpd.service")
@@ -36,19 +36,19 @@ Check_Hyper_Daemons() {
     case $DISTRO in
     "redhat_6" | "centos_6")
         for ((i = 0; i < $len_hv; i++)); do
-            Check_Daemons_Files ${hv[$i]}
-            Check_Daemons_Status ${hv[$i]} ${hv_alias[$i]}
+            Check_Daemons_Files "${hv[$i]}"
+            Check_Daemons_Status "${hv[$i]}" "${hv_alias[$i]}"
         done
         ;;
     "redhat_7" | "centos_7")
         for ((i = 0; i < $len_hv; i++)); do
-            Check_Daemons_Files ${hv_service[$i]}
-            Check_Daemons_Status_RHEL7 ${hv_service[$i]}
+            Check_Daemons_Files "${hv_service[$i]}"
+            Check_Daemons_Status_RHEL7 "${hv_service[$i]}"
         done
         ;;
     "Fedora")
         for ((i = 0; i < $len_hv; i++)); do
-            Check_Daemons_Status_RHEL7 ${hv_service[$i]}
+            Check_Daemons_Status_RHEL7 "${hv_service[$i]}"
         done
         ;;
     *)
@@ -66,7 +66,7 @@ Check_Daemons_Files() {
     GetDistro
     case $DISTRO in
     "redhat_6" | "centos_6")
-        dameonFile=$(ls /etc/rc.d/init.d | grep -i $1)
+        dameonFile=$(ls /etc/rc.d/init.d | grep -i "$1")
         if [[ "$dameonFile" != $1 ]]; then
             LogMsg "ERROR: $1 is not in /etc/rc.d/init.d , test failed"
             SetTestStateFailed
@@ -74,7 +74,7 @@ Check_Daemons_Files() {
         fi
         ;;
     "redhat_7" | "centos_7")
-        dameonFile=$(ls /usr/lib/systemd/system | grep -i $1)
+        dameonFile=$(ls /usr/lib/systemd/system | grep -i "$1")
         if [[ "$dameonFile" != $1 ]]; then
             LogMsg "ERROR: $1 is not in /usr/lib/systemd/system, test failed"
             SetTestStateFailed
@@ -85,7 +85,7 @@ Check_Daemons_Files() {
         CheckVMFeatureSupportStatus "3.10.0-514"
         if [ $? -ne 0 ]; then
             LogMsg "INFO: Check 90-default.preset for $kernel"
-            dameonPreset=$(cat /lib/systemd/system-preset/90-default.preset | grep -i $1)
+            dameonPreset=$(cat /lib/systemd/system-preset/90-default.preset | grep -i "$1")
             if [ "$dameonPreset" != "enable $1" ]; then
                 LogMsg "ERROR: $1 is not in 90-default.preset, test failed"
                 SetTestStateFailed
@@ -106,8 +106,8 @@ Check_Daemons_Files() {
 # Check hyper-v daemons service status is active for rhel7
 #######################################################################
 Check_Daemons_Status_RHEL7() {
-    dameonStatus=$(systemctl is-active $1)
-    if [ $dameonStatus != "active" ]; then
+    dameonStatus=$(systemctl is-active "$1")
+    if [ "$dameonStatus" != "active" ]; then
         LogMsg "ERROR: $1 is not in running state, test aborted"
         SetTestStateAborted
         exit 0
@@ -118,8 +118,8 @@ Check_Daemons_Status_RHEL7() {
 #######################################################################
 Check_Daemons_Status() {
     if
-        [[ $(ps -ef | grep $1 | grep -v grep) ]] || \
-        [[ $(ps -ef | grep $2 | grep -v grep) ]]
+        [[ $(ps -ef | grep "$1" | grep -v grep) ]] || \
+        [[ $(ps -ef | grep "$2" | grep -v grep) ]]
     then
         LogMsg "$1 Daemon is running"
     else

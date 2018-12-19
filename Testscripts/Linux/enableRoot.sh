@@ -4,8 +4,8 @@
 # Description : Enables root user and sets password. Needs to run with sudo permissions.
 # How to use : ./enableRoot.sh -password <new_root_password>
 
-while echo $1 | grep ^- > /dev/null; do
-    eval $( echo $1 | sed 's/-//g' | tr -d '\012')=$2
+while echo "$1" | grep ^- > /dev/null; do
+    eval $( echo "$1" | sed 's/-//g' | tr -d '\012')="$2"
     shift
     shift
 done
@@ -18,7 +18,7 @@ done
 password=$password
 sshd_configFilePath="/etc/ssh/sshd_config"
 sshdServiceName="sshd"
-usermod --password $(echo $password | openssl passwd -1 -stdin) root
+usermod --password $(echo "$password" | openssl passwd -1 -stdin) root
 if [ ! -f $sshd_configFilePath ]; then
     echo "File not found! Create one."
     touch $sshd_configFilePath

@@ -8,7 +8,6 @@
 # if VF is present in /sys/devices
 #
 ######################################################################
-remoteUser="root"
 echo "NIC_COUNT=1" >> sriov_constants.sh
 
 # Source SR-IOV_Utils.sh. This is the script that contains all the 

@@ -34,8 +34,8 @@
 # Source constants file and initialize most common variables
 UtilsInit
 
-while echo $1 | grep -q ^-; do
-	declare $( echo $1 | sed 's/^-//' )=$2
+while echo "$1" | grep -q ^-; do
+	declare $( echo "$1" | sed 's/^-//' )=$2
 	shift
 	shift
 done
@@ -70,13 +70,13 @@ Test_Nested_VM()
 	#Prepare command for start nested kvm
 	cmd="qemu-system-x86_64 -smp 2 -m 2048 -hda $ImageName -display none -device e1000,netdev=user.0 -netdev user,id=user.0,hostfwd=tcp::$HostFwdPort-:22 -enable-kvm -daemonize"
 	#Start nested kvm
-	Start_Nested_VM -user $NestedUser -passwd $NestedUserPassword -port $HostFwdPort $cmd
+	Start_Nested_VM -user "$NestedUser" -passwd "$NestedUserPassword" -port "$HostFwdPort" "$cmd"
 }
 
 
 
 Install_KVM_Dependencies
-Download_Image_Files -destination_image_name $ImageName -source_image_url $NestedImageUrl
+Download_Image_Files -destination_image_name $ImageName -source_image_url "$NestedImageUrl"
 
 #Prepare nested kvm
 Test_Nested_VM

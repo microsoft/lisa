@@ -26,7 +26,7 @@ function Integrity_Check() {
     testFile="/dev/shm/testsource"
     blockSize=$((32*1024*1024))
     _gb=$((1*1024*1024*1024))
-    targetSize="$(blockdev --getsize64 $targetDevice)"
+    targetSize="$(blockdev --getsize64 "$targetDevice")"
     let "blocks=$targetSize / $blockSize"
 
     if [ "$targetSize" -gt "$_gb" ] ; then

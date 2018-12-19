@@ -23,7 +23,7 @@
 UtilsInit
 
 GetGuestGeneration
-if [ $os_GENERATION -eq 1 ] && [ $HotAdd = "True" ]; then
+if [ "$os_GENERATION" -eq 1 ] && [ "$HotAdd" = "True" ]; then
     SetTestStateSkipped
     exit 0
 fi
@@ -34,15 +34,15 @@ fi
 if [[ -x $(which lsb_release 2>/dev/null) ]]; then
     os_VENDOR=$(lsb_release -i -s)
 fi
-if [ $os_VENDOR != "Ubuntu" ] && [ $os_VENDOR != "Debian" ]; then
-    CD=`lsmod | grep 'ata_piix\|isofs'`
+if [ "$os_VENDOR" != "Ubuntu" ] && [ "$os_VENDOR" != "Debian" ]; then
+    CD=$(lsmod | grep 'ata_piix\|isofs')
     if [[ $CD != "" ]] ; then
-        module=`echo $CD | cut -d ' ' -f1`
+        module=$(echo "$CD" | cut -d ' ' -f1)
         LogMsg "${module} module is present."
     else
         LogMsg "ata_piix module is not present in VM"
         LogMsg "Loading ata_piix module "
-        insmod /lib/modules/`uname -r`/kernel/drivers/ata/ata_piix.ko
+        insmod /lib/modules/$(uname -r)/kernel/drivers/ata/ata_piix.ko
         sts=$?
         if [ 0 -ne ${sts} ]; then
             LogMsg "Unable to load ata_piix module"
@@ -58,9 +58,9 @@ sleep 1
 LogMsg "Mount the CDROM"
 for drive in $(ls /dev/sr*)
 do
-    blkid $drive
+    blkid "$drive"
     if [ $? -eq 0 ]; then
-        mount -o loop $drive /mnt/
+        mount -o loop "$drive" /mnt/
         LogMsg "Mount the CDROM ${drive}"
         break
     fi
@@ -107,8 +107,8 @@ fi
 # Check without multiple "medium not present" in dmesg log
 # Refer to https://lkml.org/lkml/2016/5/23/332
 #
-logNum=`dmesg | grep -i "Medium not present" | wc -l`
-if [ $logNum -gt 1 ];then
+logNum=$(dmesg | grep -i "Medium not present" | wc -l)
+if [ "$logNum" -gt 1 ];then
     LogMsg  "Error: Multiple 'medium not present' messages found in dmesg"
     SetTestStateFailed
     exit 0
