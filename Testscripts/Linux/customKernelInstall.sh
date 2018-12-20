@@ -336,11 +336,11 @@ InstallKernel()
             LogMsg "Installing ${customKernelFilesUnExpanded}"
             eval "yum -y install $customKernelFilesUnExpanded >> $LOG_FILE 2>&1"
             kernelInstallStatus=$?
-
-            LogMsg "Configuring the correct kernel boot order"
-            sed -i 's%GRUB_DEFAULT=.*%GRUB_DEFAULT=0%' /etc/default/grub
-            grub2-mkconfig -o /boot/grub2/grub.cfg
         fi
+        LogMsg "Configuring the correct kernel boot order"
+        sed -i 's%GRUB_DEFAULT=.*%GRUB_DEFAULT=0%' /etc/default/grub
+        grub2-mkconfig -o /boot/grub2/grub.cfg
+
         SetTestStateCompleted
         if [ $kernelInstallStatus -ne 0 ]; then
             LogMsg "CUSTOM_KERNEL_FAIL"
