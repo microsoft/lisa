@@ -2453,6 +2453,20 @@ function install_epel () {
 	check_exit_status "install_epel"
 }
 
+function enable_nfs_rhel() {
+    if [[ $DISTRO_NAME == "rhel" ]];then
+        firewall-cmd --permanent --add-port=111/tcp
+        firewall-cmd --permanent --add-port=54302/tcp
+        firewall-cmd --permanent --add-port=20048/tcp
+        firewall-cmd --permanent --add-port=2049/tcp
+        firewall-cmd --permanent --add-port=46666/tcp
+        firewall-cmd --permanent --add-port=42955/tcp
+        firewall-cmd --permanent --add-port=875/tcp
+
+        firewall-cmd --reload
+    fi
+}
+
 # Install sshpass
 function install_sshpass () {
 	which sshpass

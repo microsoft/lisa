@@ -158,21 +158,42 @@ if [ $? -eq 0 ]; then
 	mkdir $HOMEDIR/FIOLog
 	LOGDIR="${HOMEDIR}/FIOLog"
 
+	GetDistro
+
 	if [ $DISTRO_NAME == "sles" ] && [[ $DISTRO_VERSION =~ 12 ]]; then
 		mdVolume="/dev/md/mdauto0"
 	else
 		mdVolume="/dev/md0"
 	fi
+
+	if [[ $OS_FAMILY == "Rhel" ]];then
+		nfsServerPackage="nfs-utils"
+		nfsService="nfs"
+		install_package "nfs-utils"
+	elif [[ $OS_FAMILY == "Sles" ]]; then
+		nfsServerPackage="nfs-kernel-server"
+		nfsService="nfsserver"
+	elif [[ $OS_FAMILY == "Debian" ]];then
+		nfsServerPackage="nfs-kernel-server"
+		nfsService="nfs-kernel-server"
+		install_package "nfs-common"
+	else
+		LogMsg "Distro not supported"
+		UpdateTestState $ICA_TESTABORTED
+		exit 10
+	fi
+
 	mountDir="/data"
 	cd ${HOMEDIR}
 	install_fio
-	install_package "nfs-common"
+	install_package $nfsClientPackage
 
 	#Start NFS Server
-	ssh root@nfs-server-vm "apt update"
-	ssh root@nfs-server-vm "apt install -y nfs-kernel-server"
+	ssh root@nfs-server-vm ". utils.sh; update_repos"
+	ssh root@nfs-server-vm ". utils.sh; install_package ${nfsServerPackage}"
 	ssh root@nfs-server-vm "echo '/data nfs-client-vm(rw,sync,no_root_squash)' >> /etc/exports"
-	ssh root@nfs-server-vm "service nfs-kernel-server restart"
+	ssh root@nfs-server-vm "service ${nfsService} restart"
+	ssh root@nfs-server-vm ". utils.sh; enable_nfs_rhel"
 	#Mount NFS Directory.
 	mkdir -p ${mountDir}
 	mount -t nfs -o proto=${nfsprotocol},vers=3  nfs-server-vm:${mountDir} ${mountDir}
@@ -191,5 +212,3 @@ else
 	LogMsg "Error: Unable to Create RAID on NSF server"
 	exit 1
 fi
-
-
