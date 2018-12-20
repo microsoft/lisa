@@ -218,7 +218,8 @@ try {
 	if ( $TestPriority ) { $zipFile += "-$($TestPriority)" }
 	$zipFile += "-$TestID-TestLogs.zip"
 	$zipFile = $zipFile.Replace("*", "All")
-	New-ZipFile -zipFileName $CurrentTestLogDir\$zipFile -sourceDir $LogDir
+	$zipFilePath = Join-Path (Get-Location).Path $zipFile
+	New-ZipFile -zipFileName $zipFilePath -sourceDir $LogDir
 
 	$reportXmlJUnit = $TestReportXml.Replace(".xml", "-junit.xml")
 	if (Test-Path -Path $TestReportXml ) {
