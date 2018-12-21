@@ -278,10 +278,11 @@ InstallKernel()
             CheckInstallLockUbuntu
             LogMsg "Debian package web link detected. Downloading $CustomKernel"
             apt-get install -y wget
+            apt-get remove -y linux-cloud-tools-common
             wget $CustomKernel
             LogMsg "Installing ${CustomKernel##*/}"
             dpkg -i "${CustomKernel##*/}"  >> $LOG_FILE 2>&1
-            kernelInstallStatus=$?
+            image_file=$(ls -1 *.deb* | grep -v "dbg" | sed -n 1p)
         else
             CheckInstallLockUbuntu
             customKernelFilesUnExpanded="${CustomKernel#$LOCAL_FILE_PREFIX}"
@@ -291,20 +292,21 @@ InstallKernel()
 
             LogMsg "Installing ${customKernelFilesUnExpanded}"
             eval "dpkg -i $customKernelFilesUnExpanded >> $LOG_FILE 2>&1"
-
-            LogMsg "Configuring the correct kernel boot order"
             image_file=$(ls -1 *image* | grep -v "dbg" | sed -n 1p)
-                if [[ "${image_file}" != '' ]]; then
-                kernel_identifier=$(dpkg-deb --info "${image_file}" | grep 'Package: ' | grep -o "image.*")
-                kernel_identifier=${kernel_identifier#image-}
-                sed -i.bak 's/GRUB_DEFAULT=.*/GRUB_DEFAULT="Advanced options for Ubuntu>Ubuntu, with Linux '$kernel_identifier'"/g' /etc/default/grub
-                update-grub
-            else
-                msg="Kernel correct boot order could not be set."
-                LogErr "$msg"
-            fi
-            kernelInstallStatus=$?
         fi
+
+        LogMsg "Configuring the correct kernel boot order"
+
+        if [[ "${image_file}" != '' ]]; then
+            kernel_identifier=$(dpkg-deb --info "${image_file}" | grep 'Package: ' | grep -o "image.*")
+            kernel_identifier=${kernel_identifier#image-}
+            sed -i.bak 's/GRUB_DEFAULT=.*/GRUB_DEFAULT="Advanced options for Ubuntu>Ubuntu, with Linux '$kernel_identifier'"/g' /etc/default/grub
+            update-grub
+        else
+            msg="Kernel correct boot order could not be set."
+            LogErr "$msg"
+        fi
+        kernelInstallStatus=$?
 
         SetTestStateCompleted
         if [ $kernelInstallStatus -ne 0 ]; then
