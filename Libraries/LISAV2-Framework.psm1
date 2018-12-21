@@ -1399,3 +1399,60 @@ Function Do-TestCleanUp($CurrentTestResult, $testName, $DeployedServices, $Resou
 		Write-Output "EXCEPTION in Do-TestCleanUp : $ErrorMessage"
 	}
 }
+
+function Is-VmAlive {
+    <#
+    .SYNOPSIS
+        Checks if a VM responds to TCP connections to the SSH or RDP port.
+        If the VM is a Linux on Azure, it also checks the serial console log for kernel panics.
+
+    .OUTPUTS
+        Returns "True" or "False"
+    #>
+    param(
+        $AllVMDataObject,
+        $MaxRetryCount = 20
+    )
+
+    Write-LogInfo "Trying to connect to deployed VMs."
+
+    $retryCount = 0
+    $kernelPanicPeriod = 3
+
+    do {
+        $deadVms = 0
+        $retryCount += 1
+        foreach ( $vm in $AllVMDataObject) {
+            if ($IsWindows) {
+                $port = $vm.RDPPort
+            } else {
+                $port = $vm.SSHPort
+            }
+
+            $out = Test-TCP -testIP $vm.PublicIP -testport $port
+            if ($out -ne "True") {
+                Write-LogInfo "Connecting to $($vm.PublicIP) and port $port failed."
+                $deadVms += 1
+                # Note(v-advlad): Check for kernel panic once every ${kernelPanicPeriod} retries on Linux Azure
+                if (($retryCount % $kernelPanicPeriod -eq 0) -and ($TestPlatform -eq "Azure") `
+                    -and (!$IsWindows) -and (Check-AzureVmKernelPanic $vm)) {
+                    Write-LogErr "Linux VM $($vm.RoleName) failed to boot because of a kernel panic."
+                    return "False"
+                }
+            } else {
+                Write-LogInfo "Connecting to $($vm.PublicIP):$port succeeded."
+            }
+        }
+
+        if ($deadVms -gt 0) {
+            Write-LogInfo "$deadVms VM(s) still waiting to open port $port."
+            Write-LogInfo "Retrying $retryCount/$MaxRetryCount in 3 seconds."
+            Start-Sleep -Seconds 3
+        } else {
+            Write-LogInfo "All VM ports are open."
+            return "True"
+        }
+    } While (($retryCount -lt $MaxRetryCount) -and ($deadVms -gt 0))
+
+    return "False"
+}

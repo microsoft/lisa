@@ -32,7 +32,6 @@ Function Deploy-HyperVGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFailed 
         $retValue = $NULL
         $isAllDeployed = Create-AllHyperVGroupDeployments -setupType $setupType -xmlConfig $xmlConfig `
             -Distro $Distro -VMGeneration $VMGeneration
-        $isAllConnected = "False"
 
         if($isAllDeployed[0] -eq "True")
         {
@@ -43,8 +42,8 @@ Function Deploy-HyperVGroups ($xmlConfig, $setupType, $Distro, $getLogsIfFailed 
                 Write-LogErr "One or more deployments failed..!"
                 $retValue = $NULL
             } else {
-                $isAllConnected = Check-SSHPortsEnabled -AllVMDataObject $allVMData
-                if ($isAllConnected -eq "True")
+                $isVmAlive = Is-VmAlive -AllVMDataObject $allVMData
+                if ($isVmAlive -eq "True")
                 {
                     Inject-HostnamesInHyperVVMs -allVMData $allVMData | Out-Null
                     $VerifiedGroups = $DeployedHyperVGroup
@@ -701,8 +700,7 @@ Function Restart-AllHyperVDeployments($allVMData)
     {
         Start-HyperVGroupVMs -HyperVGroupName $VM.HyperVGroupName -HyperVHost $VM.HyperVHost
     }
-	$isSSHOpened = Check-SSHPortsEnabled -AllVMDataObject $AllVMData
-	return $isSSHOpened
+    return (Is-VmAlive -AllVMDataObject $AllVMData)
 }
 
 Function Inject-HostnamesInHyperVVMs($allVMData)

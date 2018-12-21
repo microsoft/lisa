@@ -30,8 +30,8 @@ function Main {
                 -f @($AllVMData.RoleName, $rebootNr, $rebootNumber))
             $RestartStatus = Restart-AllDeployments -allVMData $AllVMData
             if ($RestartStatus -eq "True") {
-                $isSSHOpened = Check-SSHPortsEnabled -AllVMDataObject $AllVMData
-                if ($isSSHOpened -eq "True") {
+                $isVmAlive = Is-VmAlive -AllVMDataObject $AllVMData
+                if ($isVmAlive -eq "True") {
                     $isRestarted = $true
                 } else {
                     Write-LogErr "VM is not available after restart"
