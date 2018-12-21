@@ -50,9 +50,9 @@ then
     rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
     yum -y --nogpgcheck install mdadm
 
-elif [[ $DISTRO =~ "SUSE Linux Enterprise Server 12" ]];
+elif [[ $DISTRO =~ "SUSE Linux Enterprise Server" ]];
 then
-    echo "Detected SLES12. Installing required packages"
+    echo "Detected SLES. Installing required packages"
     zypper addrepo http://download.opensuse.org/repositories/benchmark/SLE_12_SP2_Backports/benchmark.repo
     zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys refresh
     zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys remove gettext-runtime-mini-0.19.2-1.103.x86_64
