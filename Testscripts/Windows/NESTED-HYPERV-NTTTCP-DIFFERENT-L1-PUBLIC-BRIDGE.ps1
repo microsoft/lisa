@@ -146,11 +146,11 @@ function Main () {
 		$cred = Get-Cred $user $password
 		foreach($vm in $AllVMData)
 		{
-			if($vm.RoleName.Contains("server"))
+			if($vm.RoleName.Contains("role-0"))
 			{
 				$hs1VIP = $vm.PublicIP
 			}
-			if($vm.RoleName.Contains("client"))
+			if($vm.RoleName.Contains("role-1"))
 			{
 				$hs2VIP = $vm.PublicIP
 			}
@@ -276,12 +276,12 @@ function Main () {
 
 			$NestedVMNode = Create-NestedVMNode
 			$NestedVMNode.PublicIP = $IPAddresses
-			if($vm.RoleName.Contains("server"))
+			if($vm.RoleName.Contains("role-0"))
 			{
 				$NestedVMNode.RoleName = "ntttcp-server"
 				$nttcpServerIP = $IPAddresses
 			}
-			if($vm.RoleName.Contains("client"))
+			if($vm.RoleName.Contains("role-1"))
 			{
 				$NestedVMNode.RoleName = "ntttcp-client"
 				$nttcpClientIP = $IPAddresses

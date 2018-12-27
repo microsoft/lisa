@@ -14,7 +14,7 @@ function Main {
                 $ServerVMData = $VmData
                 $NoServer = $false
             }
-            elseif ( $VmData.RoleName -imatch "Client" ) {
+            elseif ( $VmData.RoleName -imatch "Client" -or $VmData.RoleName -imatch "dependency" ) {
                 $ClientMachines += $VmData
                 $NoClient = $fase
                 if ( $SlaveInternalIPs ) {

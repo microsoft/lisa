@@ -172,7 +172,7 @@
         <TestName>NESTED-KVM-NTTTCP-DIFFERENT-L1-PUBLIC-BRIDGE</TestName>
         <testScript>NESTED-KVM-NTTTCP-DIFFERENT-L1-PUBLIC-BRIDGE.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_ntttcp_different_l1_public_bridge.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
-        <setupType>M2S2</setupType>
+        <setupType>M1S1</setupType>
         <OverrideVMSize>Standard_F16</OverrideVMSize>
         <AdditionalHWConfig>
             <SwitchName>NonSRIOV</SwitchName>
@@ -199,7 +199,7 @@
         <TestName>NESTED-HYPERV-NTTTCP-DIFFERENT-L1-PUBLIC-BRIDGE</TestName>
         <testScript>NESTED-HYPERV-NTTTCP-DIFFERENT-L1-PUBLIC-BRIDGE.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_hyperv_ntttcp_different_l1_public_bridge.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
-        <setupType>M2S2</setupType>
+        <setupType>M1S1</setupType>
         <OverrideVMSize>Standard_F16</OverrideVMSize>
         <AdditionalHWConfig>
             <SwitchName>NonSRIOV</SwitchName>
@@ -225,7 +225,7 @@
         <TestName>NESTED-KVM-NTTTCP-DIFFERENT-L1-NAT</TestName>
         <testScript>NESTED-KVM-NTTTCP-DIFFERENT-L1-PUBLIC-BRIDGE.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_ntttcp_different_l1_nat.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_ntttcp.sh,.\Testscripts\Linux\nat_qemu_ifup.sh,</files>
-        <setupType>M2S2</setupType>
+        <setupType>M1S1</setupType>
         <OverrideVMSize>Standard_F16</OverrideVMSize>
         <AdditionalHWConfig>
             <SwitchName>NonSRIOV</SwitchName>
@@ -252,7 +252,7 @@
         <TestName>NESTED-KVM-LAGSCOPE-DIFFERENT-L1-PUBLIC-BRIDGE</TestName>
         <testScript>NESTED-KVM-LAGSCOPE-DIFFERENT-L1-PUBLIC-BRIDGE.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_lagscope_different_l1_public_bridge.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_lagscope.sh</files>
-        <setupType>M2S2</setupType>
+        <setupType>M1S1</setupType>
         <OverrideVMSize>Standard_F16</OverrideVMSize>
         <AdditionalHWConfig>
             <SwitchName>NonSRIOV</SwitchName>
@@ -277,7 +277,7 @@
         <TestName>AZURE-NESTED-KVM-NTTTCP-DIFFERENT-L1-NAT</TestName>
         <testScript>NESTED-KVM-NTTTCP-DIFFERENT-L1-PUBLIC-BRIDGE.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_ntttcp_different_l1_nat.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_ntttcp.sh,.\Testscripts\Linux\nat_qemu_ifup.sh,</files>
-        <setupType>M1S1NESTED</setupType>
+        <setupType>TwoVMs2NICs</setupType>
         <OverrideVMSize>Standard_E16_v3</OverrideVMSize>
         <AdditionalHWConfig>
             <DiskType>Managed</DiskType>
@@ -435,7 +435,7 @@
         <TestName>NESTED-KVM-NETPERF-PPS</TestName>
         <testScript>NESTED-KVM-NETPERF-PPS.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_netperf_pps.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_netperf.sh</files>
-        <setupType>M2S2</setupType>
+        <setupType>M1S1</setupType>
         <OverrideVMSize>Standard_F16</OverrideVMSize>
         <AdditionalHWConfig>
             <SwitchName>NonSRIOV</SwitchName>
@@ -462,7 +462,7 @@
         <TestName>AZURE-NESTED-KVM-NETPERF-PPS</TestName>
         <testScript>NESTED-KVM-NETPERF-PPS.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_netperf_pps_nat.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_netperf.sh,.\Testscripts\Linux\nat_qemu_ifup.sh</files>
-        <setupType>M1S1NESTED</setupType>
+        <setupType>TwoVMs2NICs</setupType>
         <OverrideVMSize>Standard_F16</OverrideVMSize>
         <TestParameters>
             <!--The nested image should be qcow2 format, and accessible from a public URL-->
@@ -486,7 +486,7 @@
         <TestName>NESTED-HYPERV-NTTTCP-DIFFERENT-L1-NAT</TestName>
         <testScript>NESTED-HYPERV-NTTTCP-DIFFERENT-L1-NAT.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_hyperv_ntttcp_different_l1_nat.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
-        <setupType>M2S2</setupType>
+        <setupType>M1S1</setupType>
         <OverrideVMSize>Standard_F16</OverrideVMSize>
         <TestParameters>
             <!--The nested image should be vhd format, and accessible from a public URL-->
@@ -511,7 +511,7 @@
         <TestName>AZURE-NESTED-HYPERV-NTTTCP-DIFFERENT-L1-NAT</TestName>
         <testScript>NESTED-HYPERV-NTTTCP-DIFFERENT-L1-NAT.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_hyperv_ntttcp_different_l1_nat.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
-        <setupType>M1S1NESTEDNAT</setupType>
+        <setupType>TwoVMsNested</setupType>
         <OverrideVMSize>Standard_F16</OverrideVMSize>
         <TestParameters>
             <!--The nested image should be vhd format, and accessible from a public URL-->

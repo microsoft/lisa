@@ -19,7 +19,7 @@
     <test>
         <testName>VERIFY-DPDK-BUILD-AND-TESTPMD-TEST</testName>
         <testScript>VERIFY-DPDK-BUILD-AND-TESTPMD-TEST.ps1</testScript>
-        <setupType>DPDK</setupType>
+        <setupType>TwoVMs3NICs</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
@@ -39,7 +39,7 @@
     <test>
         <testName>VERIFY-SRIOV-FAILSAFE-FOR-DPDK</testName>
         <testScript>VERIFY-SRIOV-FAILSAFE-FOR-DPDK.ps1</testScript>
-        <setupType>DPDK</setupType>
+        <setupType>TwoVMs3NICs</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>

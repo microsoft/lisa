@@ -16,7 +16,7 @@
                     <DiskSizeInGB>1023</DiskSizeInGB>
                     <HostCaching>None</HostCaching>
                 </DataDisk>
-            </VirtualMachine>				
+            </VirtualMachine>
         </ResourceGroup>
-    </OneVM1Disk>   
+    </OneVM1Disk>
 </TestSetup>

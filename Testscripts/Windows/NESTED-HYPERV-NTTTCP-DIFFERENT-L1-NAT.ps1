@@ -381,7 +381,7 @@ function Main () {
 					Start-Sleep 20
 					$connectionURL = "http://$($vm.PublicIP):$($vm.SessionPort)"
 					Write-LogInfo "Session connection URL: $connectionURL"
-					if($vm.RoleName.Contains("server")) {
+					if($vm.RoleName.Contains("role-0")) {
 						$hs1VIP = $vm.PublicIP
 						$serverSession = New-PSSession -ConnectionUri $connectionURL -Credential $cred -SessionOption (New-PSSessionOption -SkipCACheck -SkipCNCheck -SkipRevocationCheck)
 						$serverInnerIP = $vm.InternalIP
@@ -400,11 +400,11 @@ function Main () {
 			foreach($vm in $AllVMData) {
 				Write-LogInfo "Install Hyper-V role on $($vm.RoleName), IP - $($vm.PublicIP)"
 				$session=$null
-				if($vm.RoleName.Contains("server")) {
+				if($vm.RoleName.Contains("role-0")) {
 					$hs1VIP = $vm.PublicIP
 					$session = New-PSSession -ComputerName $hs1VIP -Credential $cred
 				}
-				if($vm.RoleName.Contains("client")) {
+				if($vm.RoleName.Contains("role-1")) {
 					$hs2VIP = $vm.PublicIP
 					$session = New-PSSession -ComputerName $hs2VIP -Credential $cred
 				}
@@ -460,7 +460,7 @@ function Main () {
 		$nestVMClientSSHPort = 22
 		foreach($vm in $AllVMData) {
 			$IPAddresses = ""
-			if($vm.RoleName.Contains("server")) {
+			if($vm.RoleName.Contains("role-0")) {
 				New-NAT -session $serverSession -switchName $nestedVMSwithName -natName $nestedNATName
 				if ($testPlatform -ne "Azure") {
 					New-NestedVMNetPerf -session $serverSession -vmMem $L2GuestMemMB -osVHD $nestOSVHD -processors $L2GuestCpuNum
@@ -474,7 +474,7 @@ function Main () {
 					New-NestedVMNetPerf -session $serverSession -vmMem $L2GuestMemMB -osVHD $nestOSVHD -processors $L2GuestCpuNum -switchName $nestedVMSwithName
 				}
 			}
-			if($vm.RoleName.Contains("client")) {
+			if($vm.RoleName.Contains("role-1")) {
 				New-NAT -session $clientSession -switchName $nestedVMSwithName -natName $nestedNATName
 				if ($testPlatform -ne "Azure") {
 					New-NestedVMNetPerf -session $clientSession -vmMem $L2GuestMemMB -osVHD $nestOSVHD -processors $L2GuestCpuNum
@@ -497,7 +497,7 @@ function Main () {
 
 		foreach($vm in $AllVMData) {
 			$NestedVMNode = Create-NestedVMNode
-			if($vm.RoleName.Contains("server")) {
+			if($vm.RoleName.Contains("role-0")) {
 				$IPAddresses = Get-NestedVMIPAdress -session $serverSession
 				$NestedVMNode.PublicIP = $IPAddresses
 				$NestedVMNode.RoleName = "ntttcp-server"
@@ -509,7 +509,7 @@ function Main () {
 					$nestVMServerSSHPort = $vm.NestedSSHPort
 				}
 			}
-			if($vm.RoleName.Contains("client")) {
+			if($vm.RoleName.Contains("role-1")) {
 				$IPAddresses = Get-NestedVMIPAdress -session $clientSession
 				$NestedVMNode.PublicIP = $IPAddresses
 				$NestedVMNode.RoleName = "ntttcp-client"

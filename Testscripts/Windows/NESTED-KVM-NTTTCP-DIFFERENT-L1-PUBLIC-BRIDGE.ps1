@@ -110,13 +110,13 @@ function Main () {
 	{
 		foreach($vm in $AllVMData)
 		{
-			if($vm.RoleName.Contains("server"))
+			if($vm.RoleName.Contains("role-0") -or $vm.RoleName.Contains("receiver"))
 			{
 				$hs1VIP = $vm.PublicIP
 				$hs1vm1sshport = $vm.SSHPort
 				$hs1secondip = $vm.SecondInternalIP
 			}
-			if($vm.RoleName.Contains("client"))
+			if($vm.RoleName.Contains("role-1") -or $vm.RoleName.Contains("sender"))
 			{
 				$hs2VIP = $vm.PublicIP
 				$hs2vm1sshport = $vm.SSHPort

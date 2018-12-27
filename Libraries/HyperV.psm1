@@ -176,13 +176,13 @@ Function Create-AllHyperVGroupDeployments($setupType, $xmlConfig, $Distro, $Debu
                             $DeploymentElapsedTime = $DeploymentEndTime - $DeploymentStartTime
                             if ( $VMCreationStatus )
                             {
-                                if($xmlconfig.config.testsDefinition.test.Tags `
-                                    -and $xmlconfig.config.testsDefinition.test.Tags.ToString().Contains("nested"))
-                                {
-                                    Write-LogInfo "Test Platform is $TestPlatform and nested VMs will be created, need to enable nested virtualization"
-                                    $null = Enable-HyperVNestedVirtualization -HyperVGroupName $HyperVGroupName -HyperVHost $HyperVHost
-                                }
                                 foreach ($HyperVHost in $HyperVHostArray){
+                                    if($xmlconfig.config.testsDefinition.test.Tags `
+                                        -and $xmlconfig.config.testsDefinition.test.Tags.ToString().Contains("nested"))
+                                    {
+                                        Write-LogInfo "Test Platform is $TestPlatform and nested VMs will be created, need to enable nested virtualization"
+                                        $null = Enable-HyperVNestedVirtualization -HyperVGroupName $HyperVGroupName -HyperVHost $HyperVHost
+                                    }
                                     $StartVMStatus = Start-HyperVGroupVMs -HyperVGroupName $HyperVGroupName -HyperVHost $HyperVHost
                                     if ($StartVMStatus)
                                     {

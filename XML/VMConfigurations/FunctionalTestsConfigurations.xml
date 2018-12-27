@@ -17,7 +17,7 @@
             </VirtualMachine>
         </ResourceGroup>
     </OneVM3NICs>
-    <DPDK>
+    <TwoVMs3NICs>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
             <VirtualMachine>
@@ -47,38 +47,7 @@
                 <ExtraNICs>2</ExtraNICs>
             </VirtualMachine>
         </ResourceGroup>
-    </DPDK>
-    <RDMA2VMs>
-        <isDeployed>NO</isDeployed>
-        <ResourceGroup>
-            <VirtualMachine>
-                <state></state>
-                <InstanceSize>Standard_A8</InstanceSize>
-                <ARMInstanceSize>Standard_A8</ARMInstanceSize>
-                <RoleName>controller-vm</RoleName>
-                <EndPoints>
-                    <Name>SSH</Name>
-                    <Protocol>tcp</Protocol>
-                    <LocalPort>22</LocalPort>
-                    <PublicPort>1110</PublicPort>
-                </EndPoints>
-                <DataDisk></DataDisk>
-            </VirtualMachine>
-            <VirtualMachine>
-                <state></state>
-                <InstanceSize>Standard_A8</InstanceSize>
-                <ARMInstanceSize>Standard_A8</ARMInstanceSize>
-                <RoleName>client-vm-1</RoleName>
-                <EndPoints>
-                    <Name>SSH</Name>
-                    <Protocol>tcp</Protocol>
-                    <LocalPort>22</LocalPort>
-                    <PublicPort>1111</PublicPort>
-                </EndPoints>
-                <DataDisk></DataDisk>
-            </VirtualMachine>
-        </ResourceGroup>
-    </RDMA2VMs>
+    </TwoVMs3NICs>
     <FourVMs>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
@@ -465,12 +434,12 @@
                 <state></state>
                 <InstanceSize>Standard_DS1_v2</InstanceSize>
                 <ARMInstanceSize>Standard_DS1_v2</ARMInstanceSize>
-                <RoleName></RoleName>
+                <RoleName>controller-vm</RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
                     <Protocol>tcp</Protocol>
                     <LocalPort>22</LocalPort>
-                    <PublicPort>22</PublicPort>
+                    <PublicPort>1110</PublicPort>
                 </EndPoints>
                 <DataDisk></DataDisk>
             </VirtualMachine>
@@ -483,7 +452,7 @@
                     <Name>SSH</Name>
                     <Protocol>tcp</Protocol>
                     <LocalPort>22</LocalPort>
-                    <PublicPort>22</PublicPort>
+                    <PublicPort>1111</PublicPort>
                 </EndPoints>
                 <DataDisk></DataDisk>
             </VirtualMachine>
@@ -555,7 +524,7 @@
             </VirtualMachine>
         </ResourceGroup>
     </SRIOV2NIC>
-    <SRIOV8NIC>
+    <TwoVMs8NICs>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
             <VirtualMachine>
@@ -588,7 +557,7 @@
                 <ExtraNICs>7</ExtraNICs>
             </VirtualMachine>
         </ResourceGroup>
-    </SRIOV8NIC>
+    </TwoVMs8NICs>
     <TwoVMsDM>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>

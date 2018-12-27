@@ -236,70 +236,12 @@
             </VirtualMachine>
         </ResourceGroup>
     </OneVM12DisksNested>
-    <M2S2>
+    <TwoVMsNested>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
             <VirtualMachine>
                 <ARMInstanceSize>Standard_D15_v2</ARMInstanceSize>
-                <RoleName>server-vm</RoleName>
-                <EndPoints>
-                    <Name>SSH</Name>
-                    <Protocol>tcp</Protocol>
-                    <LocalPort>22</LocalPort>
-                    <PublicPort>1111</PublicPort>
-                </EndPoints>
-                <DataDisk></DataDisk>
-            </VirtualMachine>
-        </ResourceGroup>
-        <ResourceGroup>
-            <VirtualMachine>
-                <ARMInstanceSize>Standard_D15_v2</ARMInstanceSize>
-                <RoleName>client-vm</RoleName>
-                <EndPoints>
-                    <Name>SSH</Name>
-                    <Protocol>tcp</Protocol>
-                    <LocalPort>22</LocalPort>
-                    <PublicPort>1112</PublicPort>
-                </EndPoints>
-                <DataDisk></DataDisk>
-            </VirtualMachine>
-        </ResourceGroup>
-    </M2S2>
-    <M1S1NESTED>
-        <isDeployed>NO</isDeployed>
-        <ResourceGroup>
-            <VirtualMachine>
-                <ARMInstanceSize>Standard_D15_v2</ARMInstanceSize>
-                <RoleName>server-vm</RoleName>
-                <EndPoints>
-                    <Name>SSH</Name>
-                    <Protocol>tcp</Protocol>
-                    <LocalPort>22</LocalPort>
-                    <PublicPort>1111</PublicPort>
-                </EndPoints>
-                <DataDisk></DataDisk>
-                <ExtraNICs>1</ExtraNICs>
-            </VirtualMachine>
-            <VirtualMachine>
-                <ARMInstanceSize>Standard_D15_v2</ARMInstanceSize>
-                <RoleName>client-vm</RoleName>
-                <EndPoints>
-                    <Name>SSH</Name>
-                    <Protocol>tcp</Protocol>
-                    <LocalPort>22</LocalPort>
-                    <PublicPort>1112</PublicPort>
-                </EndPoints>
-                <DataDisk></DataDisk>
-                <ExtraNICs>1</ExtraNICs>
-            </VirtualMachine>
-        </ResourceGroup>
-    </M1S1NESTED>
-    <M1S1NESTEDNAT>
-        <isDeployed>NO</isDeployed>
-        <ResourceGroup>
-            <VirtualMachine>
-                <ARMInstanceSize>Standard_D15_v2</ARMInstanceSize>
-                <RoleName>server-vm</RoleName>
+                <RoleName></RoleName>
                 <EndPoints>
                     <Name>RDP</Name>
                     <Protocol>tcp</Protocol>
@@ -323,7 +265,7 @@
             </VirtualMachine>
             <VirtualMachine>
                 <ARMInstanceSize>Standard_D15_v2</ARMInstanceSize>
-                <RoleName>client-vm</RoleName>
+                <RoleName></RoleName>
                 <EndPoints>
                     <Name>RDP</Name>
                     <Protocol>tcp</Protocol>
@@ -346,5 +288,5 @@
                 <ExtraNICs>1</ExtraNICs>
             </VirtualMachine>
         </ResourceGroup>
-    </M1S1NESTEDNAT>
+    </TwoVMsNested>
 </TestSetup>

@@ -2,7 +2,7 @@
     <test>
         <testName>VERIFY-INFINIBAND-INTEL-MPI-2VM-STANDARD-A8</testName>
         <testScript>VERIFY-INFINIBAND-MultiVM.ps1</testScript>
-        <setupType>RDMA2VMs</setupType>
+        <setupType>TwoVMs</setupType>
         <OverrideVMSize>Standard_A8</OverrideVMSize>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh</files>
@@ -29,7 +29,7 @@
     <test>
         <testName>VERIFY-INFINIBAND-INTEL-MPI-2VM-STANDARD-A9</testName>
         <testScript>VERIFY-INFINIBAND-MultiVM.ps1</testScript>
-        <setupType>RDMA2VMs</setupType>
+        <setupType>TwoVMs</setupType>
         <OverrideVMSize>Standard_A9</OverrideVMSize>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh</files>
@@ -56,7 +56,7 @@
     <test>
         <testName>VERIFY-INFINIBAND-INTEL-MPI-2VM-STANDARD-H16r</testName>
         <testScript>VERIFY-INFINIBAND-MultiVM.ps1</testScript>
-        <setupType>RDMA2VMs</setupType>
+        <setupType>TwoVMs</setupType>
         <OverrideVMSize>Standard_H16r</OverrideVMSize>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh</files>
@@ -83,7 +83,7 @@
     <test>
         <testName>VERIFY-INFINIBAND-INTEL-MPI-2VM-STANDARD-H16mr</testName>
         <testScript>VERIFY-INFINIBAND-MultiVM.ps1</testScript>
-        <setupType>RDMA2VMs</setupType>
+        <setupType>TwoVMs</setupType>
         <OverrideVMSize>Standard_H16mr</OverrideVMSize>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh</files>
@@ -110,7 +110,7 @@
     <test>
         <testName>VERIFY-INFINIBAND-INTEL-MPI-2VM-STANDARD-NC24r</testName>
         <testScript>VERIFY-INFINIBAND-MultiVM.ps1</testScript>
-        <setupType>RDMA2VMs</setupType>
+        <setupType>TwoVMs</setupType>
         <OverrideVMSize>Standard_NC24r</OverrideVMSize>
         <SupportedExecutionModes>AzureServiceManagement,AzureResourceManager</SupportedExecutionModes>
         <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>

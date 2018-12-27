@@ -43,38 +43,7 @@
             </VirtualMachine>
         </ResourceGroup>
     </ThreeVMs2NICs>
-    <DS4v2_2NIC_x2>
-        <isDeployed>NO</isDeployed>
-        <ResourceGroup>
-            <VirtualMachine>
-                <state></state>
-                <ARMInstanceSize>Standard_DS4_v2</ARMInstanceSize>
-                <RoleName>sender</RoleName>
-                <EndPoints>
-                    <Name>SSH</Name>
-                    <Protocol>tcp</Protocol>
-                    <LocalPort>22</LocalPort>
-                    <PublicPort>1111</PublicPort>
-                </EndPoints>
-                <DataDisk></DataDisk>
-                <ExtraNICs>1</ExtraNICs>
-            </VirtualMachine>
-            <VirtualMachine>
-                <state></state>
-                <ARMInstanceSize>Standard_DS4_v2</ARMInstanceSize>
-                <RoleName>receiver</RoleName>
-                <EndPoints>
-                    <Name>SSH</Name>
-                    <Protocol>tcp</Protocol>
-                    <LocalPort>22</LocalPort>
-                    <PublicPort>1112</PublicPort>
-                </EndPoints>
-                <DataDisk></DataDisk>
-                <ExtraNICs>1</ExtraNICs>
-            </VirtualMachine>
-        </ResourceGroup>
-    </DS4v2_2NIC_x2>
-    <DS15v2_2NIC_x2>
+    <TwoVMs2NICs>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
             <VirtualMachine>
@@ -104,7 +73,7 @@
                 <ExtraNICs>1</ExtraNICs>
             </VirtualMachine>
         </ResourceGroup>
-    </DS15v2_2NIC_x2>
+    </TwoVMs2NICs>
     <M1S1>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
@@ -209,7 +178,7 @@
             </VirtualMachine>
         </ResourceGroup>
     </OneVM12Disks>
-    <DS14DISK12NFS>
+    <TwoVMs12Disks>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
             <VirtualMachine>
@@ -296,7 +265,7 @@
                     <PublicPort>1112</PublicPort>
                 </EndPoints>
                 <DataDisk></DataDisk>
-            </VirtualMachine>            
+            </VirtualMachine>
         </ResourceGroup>
-    </DS14DISK12NFS>        
+    </TwoVMs12Disks>
 </TestSetup>

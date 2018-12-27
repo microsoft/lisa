@@ -242,7 +242,7 @@
     <test>
         <testName>PERF-STORAGE-OVER-NFS-Synthetic-TCP-4K</testName>
         <testScript>PERF-STORAGE-OVER-NFS.ps1</testScript>
-        <setupType>DS14DISK12NFS</setupType>
+        <setupType>TwoVMs12Disks</setupType>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh</files>
         <TestParameters>
             <param>modes='randread randwrite read write'</param>
@@ -264,7 +264,7 @@
     <test>
         <testName>PERF-STORAGE-OVER-NFS-Synthetic-UDP-4K</testName>
         <testScript>PERF-STORAGE-OVER-NFS.ps1</testScript>
-        <setupType>DS14DISK12NFS</setupType>
+        <setupType>TwoVMs12Disks</setupType>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh</files>
         <TestParameters>
             <param>modes='randread randwrite read write'</param>
@@ -286,7 +286,7 @@
     <test>
         <testName>PERF-STORAGE-OVER-NFS-SRIOV-TCP-4K</testName>
         <testScript>PERF-STORAGE-OVER-NFS.ps1</testScript>
-        <setupType>DS14DISK12NFS</setupType>
+        <setupType>TwoVMs12Disks</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
@@ -311,7 +311,7 @@
     <test>
         <testName>PERF-STORAGE-OVER-NFS-SRIOV-UDP-4K</testName>
         <testScript>PERF-STORAGE-OVER-NFS.ps1</testScript>
-        <setupType>DS14DISK12NFS</setupType>
+        <setupType>TwoVMs12Disks</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
