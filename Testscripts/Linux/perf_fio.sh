@@ -8,7 +8,6 @@
 # GNU General Public License for more details.
 #
 #
-# Sample script to run sysbench.
 # In this script, we want to bench-mark device IO performance on a mounted folder.
 # You can adapt this script to other situations easily like for stripe disks as RAID0.
 # The only thing to keep in mind is that each different configuration you're testing
@@ -20,8 +19,6 @@ LogMsg()
 	echo "[$(date +"%x %r %Z")] ${1}"
 	echo "[$(date +"%x %r %Z")] ${1}" >> "${HOMEDIR}/runlog.txt"
 }
-LogMsg "Sleeping 10 seconds.."
-sleep 10
 
 CONSTANTS_FILE="$HOMEDIR/constants.sh"
 UTIL_FILE="$HOMEDIR/utils.sh"
@@ -78,15 +75,14 @@ RunFIO()
 	####################################
 	LogMsg "Test log created at: ${LOGFILE}"
 	LogMsg "===================================== Starting Run $(date +"%x %r %Z") ================================"
-	LogMsg "===================================== Starting Run $(date +"%x %r %Z") script generated 2/9/2015 4:24:44 PM ================================"
-
+	
 	chmod 666 $LOGFILE
 	LogMsg "--- Kernel Version Information ---"
 	uname -a >> $LOGFILE
 	cat /proc/version >> $LOGFILE
 	if [ -f /usr/share/clear/version ]; then
 		cat /usr/share/clear/version >> $LOGFILE
-	elif [ -f /etc/*-release ]; then
+	elif [[ -n `ls /etc/*-release` ]]; then
 		cat /etc/*-release >> $LOGFILE
 	fi
 	LogMsg "--- PCI Bus Information ---"
@@ -134,7 +130,7 @@ RunFIO()
 		done
 	done
 	####################################
-	LogMsg "===================================== Completed Run $(date +"%x %r %Z") script generated 2/9/2015 4:24:44 PM ================================"
+	LogMsg "===================================== Completed Run at $(date +"%x %r %Z") ================================"
 
 	compressedFileName="${HOMEDIR}/FIOTest-$(date +"%m%d%Y-%H%M%S").tar.gz"
 	LogMsg "INFO: Please wait...Compressing all results to ${compressedFileName}..."
@@ -221,7 +217,7 @@ CreateLVM()
 }
 
 ############################################################
-#	Main body
+# Main body
 ############################################################
 
 HOMEDIR=$HOME
