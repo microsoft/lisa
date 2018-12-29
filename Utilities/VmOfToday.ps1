@@ -33,7 +33,7 @@
 
 param
 (
-	[ValidateSet('Release','GetAndLock', IgnoreCase = $false)]
+	[ValidateSet('Lock','Unlock', IgnoreCase = $false)]
 	[string]$Operation,
 	[string]$UserName,
 	[string]$AzureSecretsFile,
@@ -222,7 +222,7 @@ Function Unlock-LockedResourceGroup($UserName, $AzureSecretsFile, $RgPattern, $T
 					$rgLockedLong += $rg.ResourceGroupName
 				}
 			}
-			if ($locks.Count -gt 0)
+			if ($locks)
 			{
 				$isLatestLocked = $false
 			}
@@ -237,9 +237,9 @@ Function Unlock-LockedResourceGroup($UserName, $AzureSecretsFile, $RgPattern, $T
 	}
 }
 
-if ($Operation -eq "Release") {
+if ($Operation -eq "Unlock") {
 	Unlock-LockedResourceGroup -UserName $UserName -AzureSecretsFile $AzureSecretsFile -RgPattern $RgPattern -TagName $TagName -TagValue $TagValue
 }
-elseif ($Operation -eq "GetAndLock") {
+elseif ($Operation -eq "Lock") {
 	Lock-LatestResourceGroup -UserName $UserName -AzureSecretsFile $AzureSecretsFile -RgPattern $RgPattern -TagName $TagName -TagValue $TagValue
 }
