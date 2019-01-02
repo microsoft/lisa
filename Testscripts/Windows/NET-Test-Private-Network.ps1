@@ -27,7 +27,6 @@ function Main {
     $switchNic = $null
     $bootproto = "static"
     $currentDir = "$pwd\"
-    $guestUsername = "root"
 
     # Get MAC for test VM NIC
     $macFileTestVM = "macAddress.file"
@@ -90,7 +89,7 @@ function Main {
             $i++
         }
     }
-    $retVal = Set-GuestInterface $guestUsername $IPv4 $VMPort $VMPassword $vm1MacAddress `
+    $retVal = Set-GuestInterface $VMUserName $IPv4 $VMPort $VMPassword $vm1MacAddress `
         $vm1StaticIP $bootproto $netmask $VMName
     if (-not $?) {
         Write-LogErr "Couldn't configure the test interface on $VMName"
@@ -98,7 +97,7 @@ function Main {
     }
 
     # Try to ping with the private network interfaces. This should pass
-    $retVal = Test-GuestInterface $guestUsername $vm2StaticIP $IPv4 $VMPort $VMPassword `
+    $retVal = Test-GuestInterface $VMUserName $vm2StaticIP $IPv4 $VMPort $VMPassword `
         $vm1MacAddress $pingVersion $packetNumber
     if ($retVal -eq $False) {
         Write-LogErr "Could not $pingVersion from $vm1StaticIP to $vm2StaticIP"
@@ -108,7 +107,7 @@ function Main {
     }
 
     # Try to ping a wrong IP
-    $retVal = Test-GuestInterface $guestUsername $failIP1 $IPv4 $VMPort $VMPassword `
+    $retVal = Test-GuestInterface $VMUserName $failIP1 $IPv4 $VMPort $VMPassword `
         $vm1MacAddress $pingVersion $packetNumber
     if ($retVal -eq $True) {
         Write-LogErr "$pingVersion from $vm1StaticIP to $failIP1 shouldn't have worked"
@@ -117,7 +116,7 @@ function Main {
         Write-LogInfo "$pingVersion from $vm1StaticIP to $failIP1 failed - AS EXPECTED -"
     }
 
-    $retVal = Test-GuestInterface $guestUsername $failIP2 $IPv4 $VMPort $VMPassword `
+    $retVal = Test-GuestInterface $VMUserName $failIP2 $IPv4 $VMPort $VMPassword `
         $vm1MacAddress $pingVersion $packetNumber
     if ($retVal -eq $True) {
         Write-LogErr "$pingVersion from $vm1StaticIP to $failIP2 shouldn't have worked"

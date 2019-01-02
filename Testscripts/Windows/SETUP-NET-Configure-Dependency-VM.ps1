@@ -28,7 +28,6 @@ function Main {
     $netmask = $null
     $bootproto = $null
     $checkpointName = $null
-    $guestUsername = "root"
 
     $params = $TestParams.Split(';')
     foreach ($p in $params) {
@@ -154,11 +153,11 @@ function Main {
         }
     }
     if ($vlanId) {
-        $null = Set-GuestInterface -VMUser $guestUsername -VMIpv4 $vm2ipv4 -VMPort $VMPort `
+        $null = Set-GuestInterface -VMUser $VMUserName -VMIpv4 $vm2ipv4 -VMPort $VMPort `
             -VMPassword $VMPassword -InterfaceMAC $vm2MacAddress -VMStaticIP $vm2StaticIP `
             -Netmask $netmask -VMName $VM2Name -VlanID $vlanID
     } else {
-        $null = Set-GuestInterface $guestUsername $vm2ipv4 $VMPort $VMPassword $vm2MacAddress `
+        $null = Set-GuestInterface $VMUserName $vm2ipv4 $VMPort $VMPassword $vm2MacAddress `
             $vm2StaticIP $bootproto $netmask $VM2Name
     }
 

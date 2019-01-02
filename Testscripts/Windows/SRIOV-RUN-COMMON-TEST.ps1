@@ -4,10 +4,10 @@ param ([string] $TestParams)
 
 function Main {
     param (
+        $VMUsername,
         $TestParams
     )
     try {
-        $vmRootUser = "root"
         $timeout = 600
         if ($testPlatform -eq "Azure") {
             Write-LogInfo "Setting Azure constants"
@@ -31,7 +31,7 @@ function Main {
             $publicIp = $testVmData.PublicIP
 
             # Clean unnecessary variables from constants.sh
-            Run-LinuxCmd -ip $publicIp -port $vmPort -username $user -password $password -command `
+            Run-LinuxCmd -ip $publicIp -port $vmPort -username $VMUsername -password $password -command `
                 "sed -i '/VF_/d' constants.sh ; sed -i '/MAX_/d' constants.sh ; sed -i '/NIC_/d' constants.sh ;" `
                 -ignoreLinuxExitCode:$true
 
@@ -73,7 +73,7 @@ function Main {
             "SSH_PRIVATE_KEY=id_rsa" | Out-File sriov_constants.sh -Append
             # Send sriov_constants.sh to VM
             Copy-RemoteFiles -upload -uploadTo $publicIp -Port $vmPort `
-                -files "sriov_constants.sh" -Username $user -password $password
+                -files "sriov_constants.sh" -Username $VMUsername -password $password
             if (-not $?) {
                 Write-LogErr "Failed to send sriov_constants.sh to VM1!"
                 return $False
@@ -83,42 +83,42 @@ function Main {
                 Write-LogInfo "Setting SSH keys for both VMs"
                 Copy-RemoteFiles -uploadTo $publicIp -port $vmPort -files `
                     ".\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SR-IOV-Utils.sh" `
-                    -username $vmRootUser -password $password -upload
+                    -username $VMUsername -password $password -upload
                 Copy-RemoteFiles -uploadTo $publicIp -port $dependencyVmData.SSHPort -files `
                     ".\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SR-IOV-Utils.sh" `
-                    -username $vmRootUser -password $password -upload
-                Run-LinuxCmd -ip $publicIp -port $vmPort -username $vmRootUser -password `
-                    $password -command "chmod +x ~/*.sh"
-                Run-LinuxCmd -ip $publicIp -port $dependencyVmData.SSHPort -username $vmRootUser -password `
-                    $password -command "chmod +x ~/*.sh"
-                Run-LinuxCmd -ip $publicIp -port $vmPort -username $vmRootUser -password `
-                    $password -command "./enablePasswordLessRoot.sh ; cp -rf /root/.ssh /home/$VMUsername"
+                    -username $VMUsername -password $password -upload
+                Run-LinuxCmd -ip $publicIp -port $vmPort -username $VMUsername -password `
+                    $password -command "chmod +x /home/$VMUsername/*.sh" -RunAsSudo
+                Run-LinuxCmd -ip $publicIp -port $dependencyVmData.SSHPort -username $VMUsername -password `
+                    $password -command "chmod +x /home/$VMUsername/*.sh" -RunAsSudo
+                Run-LinuxCmd -ip $publicIp -port $vmPort -username $VMUsername -password `
+                    $password -command "./enablePasswordLessRoot.sh /home/$VMUsername ; cp -rf /root/.ssh /home/$VMUsername" -RunAsSudo
 
                 # Copy keys from VM1 and setup VM2
                 Copy-RemoteFiles -download -downloadFrom $publicIp -port $vmPort -files `
-                    "/root/sshFix.tar" -username $vmRootUser -password $password -downloadTo $LogDir
+                    "/home/$VMUsername/sshFix.tar" -username $VMUsername -password $password -downloadTo $LogDir
                 Copy-RemoteFiles -uploadTo $publicIp -port $dependencyVmData.SSHPort -files "$LogDir\sshFix.tar" `
-                    -username $vmRootUser -password $password -upload
-                Run-LinuxCmd -ip $publicIp -port $dependencyVmData.SSHPort -username $vmRootUser -password `
-                    $password -command "./enablePasswordLessRoot.sh ; cp -rf /root/.ssh /home/$VMUsername"
+                    -username $VMUsername -password $password -upload
+                Run-LinuxCmd -ip $publicIp -port $dependencyVmData.SSHPort -username $VMUsername -password `
+                    $password -command "./enablePasswordLessRoot.sh /home/$VMUsername ; cp -rf /root/.ssh /home/$VMUsername" -RunAsSudo
             }
 
             # Install dependencies on both VMs
             if ($TestParams.Install_Dependencies -eq "yes") {
-                Run-LinuxCmd -username $vmRootUser -password $password -ip $publicIp -port $vmPort `
-                    -command "cp /home/$user/sriov_constants.sh . ; . SR-IOV-Utils.sh; InstallDependencies"
+                Run-LinuxCmd -username $VMUsername -password $password -ip $publicIp -port $vmPort `
+                    -command "cp /home/$VMUsername/sriov_constants.sh . ; . SR-IOV-Utils.sh; InstallDependencies" -RunAsSudo
                 if (-not $?) {
                     Write-LogErr "Failed to install dependencies on $($testVmData.RoleName)"
                     return $False
                 }
                 Copy-RemoteFiles -upload -uploadTo $publicIp -Port $dependencyVmData.SSHPort `
-                    -files "sriov_constants.sh" -Username $user -password $password
+                    -files "sriov_constants.sh" -Username $VMUsername -password $password
                 if (-not $?) {
                     Write-LogErr "Failed to send sriov_constants.sh to VM1!"
                     return $False
                 }
-                Run-LinuxCmd -username $vmRootUser -password $password -ip $publicIp -port $dependencyVmData.SSHPort `
-                    -command "cp /home/$user/sriov_constants.sh . ; . SR-IOV-Utils.sh; InstallDependencies"
+                Run-LinuxCmd -username $VMUsername -password $password -ip $publicIp -port $dependencyVmData.SSHPort `
+                    -command "cp /home/$VMUsername/sriov_constants.sh . ; . SR-IOV-Utils.sh; InstallDependencies" -RunAsSudo
                 if (-not $?) {
                     Write-LogErr "Failed to install dependencies on $($dependencyVmData.RoleName)"
                     return $False
@@ -134,11 +134,11 @@ function Main {
             $timeout = $CurrentTestData.Timeout
         }
         $cmdToSend = "echo '${password}' | sudo -S -s eval `"export HOME=``pwd``;bash $($TestParams.Remote_Script) > $($TestParams.Remote_Script)_summary.log 2>&1`""
-        Run-LinuxCmd -ip $publicIp -port $vmPort -username $user -password `
+        Run-LinuxCmd -ip $publicIp -port $vmPort -username $VMUsername -password `
             $password -command $cmdToSend -runMaxAllowedTime $timeout
 
         $testResult = Collect-TestLogs -LogsDestination $LogDir -ScriptName $TestParams.Remote_Script.Split('.')[0] -TestType "sh" `
-            -PublicIP $publicIp -SSHPort $vmPort -Username $user -password $password `
+            -PublicIP $publicIp -SSHPort $vmPort -Username $VMUsername -password $password `
             -TestName $currentTestData.testName
 
         $resultArr += $testResult
@@ -161,4 +161,4 @@ function Main {
     return $currentTestResult.TestResult
 }
 
-Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))
+Main -VMUsername $user -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))

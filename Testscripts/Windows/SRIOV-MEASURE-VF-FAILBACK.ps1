@@ -46,24 +46,24 @@ function Measure-TimeToSwitch {
 
 function Main {
     param (
+        $VMUsername,
         $VMName,
         $HvServer,
         $VMPort,
         $VMPassword
     )
-    $VMRootUser = "root"
 
     # Get IP
     $ipv4 = Get-IPv4ViaKVP $VMName $HvServer
 
     # Run Ping with SR-IOV enabled
-    Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+    Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "source sriov_constants.sh ; ping -c 600 -I eth1 `$VF_IP2 > PingResults.log" `
         -RunInBackGround
 
     # Wait 30 seconds and read the RTT
     Start-Sleep -s 30
-    [decimal]$vfEnabledRTT = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+    [decimal]$vfEnabledRTT = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "tail -5 PingResults.log | head -1 | awk '{print `$7}' | sed 's/=/ /' | awk '{print `$2}'" `
         -ignoreLinuxExitCode:$true
     if (-not $vfEnabledRTT){
@@ -81,7 +81,7 @@ function Main {
         return "FAIL"
     }
     # Measure the failback time
-    Measure-TimeToSwitch "0" $VMRootUser $ipv4 $VMPassword $VMPort
+    Measure-TimeToSwitch "0" $VMUsername $ipv4 $VMPassword $VMPort
     if (-not $?) {
         Write-LogErr "Failback time is too high"
         return "FAIL"
@@ -94,7 +94,7 @@ function Main {
         return "FAIL"
     }
     # Measure the failback time
-    Measure-TimeToSwitch "1" $VMRootUser $ipv4 $VMPassword $VMPort
+    Measure-TimeToSwitch "1" $VMUsername $ipv4 $VMPassword $VMPort
     if (-not $?) {
         Write-LogErr "Failback time is too high"
         return "FAIL"
@@ -104,7 +104,7 @@ function Main {
     # We should see values to close to the initial RTT measured
     Start-Sleep 10
     [decimal]$vfEnabledRTT = $vfEnabledRTT * 1.3
-    [decimal]$vfFinalRTT = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+    [decimal]$vfFinalRTT = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "tail -5 PingResults.log | head -1 | awk '{print `$7}' | sed 's/=/ /' | awk '{print `$2}'" `
         -ignoreLinuxExitCode:$true
     Write-LogInfo "The RTT after re-enabling SR-IOV is $vfFinalRTT ms"
@@ -117,4 +117,4 @@ function Main {
 }
 
 Main -VMName $AllVMData.RoleName -hvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
-    -VMPort $AllVMData.SSHPort -VMPassword $password
+    -VMPort $AllVMData.SSHPort -VMUsername $user -VMPassword $password

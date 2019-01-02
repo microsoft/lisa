@@ -12,13 +12,13 @@ param ([string] $TestParams)
 
 function Main {
     param (
+        $VMUsername,
         $VMName,
         $HvServer,
         $VMPort,
         $VMPassword,
         $TestParams
     )
-    $VMRootUser = "root"
 
     # Get IP
     $ipv4 = Get-IPv4ViaKVP $VMName $HvServer
@@ -37,16 +37,16 @@ function Main {
     }
 
     # Start client on dependency VM
-    Run-LinuxCmd -ip $vm2ipv4 -port $VMPort -username $VMRootUser -password `
+    Run-LinuxCmd -ip $vm2ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "iperf3 -s > client.out" -RunInBackGround
     Start-Sleep -s 5
 
     # Run iPerf on client side for 30 seconds with SR-IOV enabled
-    Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+    Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "source sriov_constants.sh ; iperf3 -t 2400 -c `$VF_IP2 --logfile PerfResults.log" `
         -RunInBackGround
     Start-Sleep -s 30
-    [decimal]$initialThroughput = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+    [decimal]$initialThroughput = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "tail -4 PerfResults.log | head -1 | awk '{print `$7}'" `
         -ignoreLinuxExitCode:$true
     if (-not $initialThroughput){
@@ -65,7 +65,7 @@ function Main {
         $hasSwitched = $false
 
         # Read the throughput before changing VM state
-        [decimal]$vfBeforeThroughput = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+        [decimal]$vfBeforeThroughput = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "tail -4 PerfResults.log | head -1 | awk '{print `$7}'"
 
         # Change state
@@ -86,7 +86,7 @@ function Main {
                 break
             }
             # Get the throughput
-            [decimal]$vfAfterThroughput = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+            [decimal]$vfAfterThroughput = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
                 $VMPassword -command "tail -4 PerfResults.log | head -1 | awk '{print `$7}'"
 
             # Compare results with the ones taken before the stress test
@@ -98,7 +98,7 @@ function Main {
                 # If it's bigger than 5 seconds, make an additional check, to see if the VF is running
                 # If more than 5 seconds passed and also VF is not running, fail the test
                 if ($timeToSwitch -gt 5){
-                    $vfCount = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+                    $vfCount = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
                         $VMPassword -command "find /sys/devices -name net -a -ipath '*vmbus*' | grep -c pci" `
                         -ignoreLinuxExitCode:$true
                     if ($vfCount -lt 1) {
@@ -119,5 +119,5 @@ function Main {
 }
 
 Main -VMName $AllVMData.RoleName -hvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
-    -VMPort $AllVMData.SSHPort -VMPassword $password `
+    -VMPort $AllVMData.SSHPort -VMUsername $user -VMPassword $password `
     -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))

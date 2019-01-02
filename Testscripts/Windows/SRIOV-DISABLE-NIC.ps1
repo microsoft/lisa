@@ -17,12 +17,12 @@ param ([string] $TestParams)
 
 function Main {
     param (
+        $VMUsername,
         $VMName,
         $HvServer,
         $VMPort,
         $VMPassword
     )
-    $VMRootUser = "root"
     $moduleCheckCMD = "lspci -vvv | grep -c 'mlx4_core\|mlx4_en\|ixgbevf'"
     $vfCheckCMD = "find /sys/devices -name net -a -ipath '*vmbus*' | grep -c pci"
 
@@ -31,15 +31,15 @@ function Main {
     $vm2ipv4 = Get-IPv4ViaKVP $DependencyVmName $DependencyVmHost
 
     # Start client on dependency VM
-    Run-LinuxCmd -ip $vm2ipv4 -port $VMPort -username $VMRootUser -password `
+    Run-LinuxCmd -ip $vm2ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "iperf3 -s > client.out" -RunInBackGround
     Start-Sleep -s 5
 
     # Run iPerf on client side for 30 seconds with SR-IOV enabled
-    Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+    Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "source sriov_constants.sh ; iperf3 -t 30 -c `$VF_IP2 --logfile PerfResults.log"
 
-    [decimal]$vfEnabledThroughput = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+    [decimal]$vfEnabledThroughput = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "tail -4 PerfResults.log | head -1 | awk '{print `$7}'" `
         -ignoreLinuxExitCode:$true
     if (-not $vfEnabledThroughput){
@@ -63,7 +63,7 @@ function Main {
     Start-Sleep -s 60
 
     # Check if the SR-IOV module is still loaded
-    $moduleCount = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+    $moduleCount = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command $moduleCheckCMD -ignoreLinuxExitCode:$true
     if ($moduleCount -gt 0) {
         Write-LogErr "Module is still loaded"
@@ -71,7 +71,7 @@ function Main {
         return "FAIL"
     }
     # Check if the VF is still present
-    $vfCount = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+    $vfCount = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command $vfCheckCMD -ignoreLinuxExitCode:$true
     if ($vfCount -gt 0) {
         Write-LogErr "VF is still present"
@@ -90,10 +90,10 @@ function Main {
     Write-LogInfo "Wait 1 minute for VF to be put up"
     Start-Sleep -s 60
     # Read the throughput again, it should be higher than before
-    Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+    Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "source sriov_constants.sh ; iperf3 -t 30 -c `$VF_IP2 --logfile PerfResults.log"
     [decimal]$vfEnabledThroughput  = $vfEnabledThroughput * 0.7
-    [decimal]$vfFinalThroughput = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+    [decimal]$vfFinalThroughput = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "tail -4 PerfResults.log | head -1 | awk '{print `$7}'" `
         -ignoreLinuxExitCode:$true
     Write-LogInfo "The throughput after re-enabling NIC is $vfFinalThroughput Gbits/sec"
@@ -106,4 +106,4 @@ function Main {
 }
 
 Main -VMName $AllVMData.RoleName -hvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
-    -VMPort $AllVMData.SSHPort -VMPassword $password
+    -VMPort $AllVMData.SSHPort -VMUsername $user -VMPassword $password

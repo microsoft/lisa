@@ -3301,7 +3301,7 @@ Function Test-SRIOVInLinuxGuest {
 	$retValue = $false
 	while ($retValue -eq $false -and $Attempts -le $MaximumAttempts) {
 		Write-LogInfo "[Attempt $Attempts/$MaximumAttempts] Detecting Mellanox NICs..."
-		$DetectedSRIOVNics = Run-LinuxCmd -username $username -password $password -ip $IpAddress -port $SSHPort -command $VerificationCommand
+		$DetectedSRIOVNics = Run-LinuxCmd -username $username -password $password -ip $IpAddress -port $SSHPort -command $VerificationCommand -runAsSudo
 		$DetectedSRIOVNics = [int]$DetectedSRIOVNics
 		if ($ExpectedSriovNics -ge 0) {
 			if ($DetectedSRIOVNics -eq $ExpectedSriovNics) {
@@ -3587,7 +3587,7 @@ function Set-GuestInterface {
     # Get the interface name that corresponds to the MAC address
     $cmdToSend = "testInterface=`$(grep -il ${InterfaceMAC} /sys/class/net/*/address) ; basename `"`$(dirname `$testInterface)`""
     $testInterfaceName = Run-LinuxCmd -username $VMUser -password $VMPassword -ip $VMIpv4 -port $VMPort `
-        -command $cmdToSend
+        -command $cmdToSend -runAsSudo
     if (-not $testInterfaceName) {
         Write-LogErr "Failed to get the interface name that has $InterfaceMAC MAC address"
         return $False
@@ -3601,7 +3601,8 @@ function Set-GuestInterface {
 
     # Configure the interface
     $cmdToSend = ". utils.sh; $configFunction $testInterfaceName $Bootproto $VMStaticIP $Netmask $VlanID"
-    Run-LinuxCmd -username $VMUser -password $VMPassword -ip $VMIpv4 -port $VMPort -command $cmdToSend
+    Run-LinuxCmd -username $VMUser -password $VMPassword -ip $VMIpv4 -port $VMPort -command $cmdToSend `
+    -runAsSudo
     if (-not $?) {
         Write-LogErr "Failed to configure $testInterfaceName NIC on vm $VMName"
         return $False
@@ -3629,11 +3630,11 @@ function Test-GuestInterface {
     }
     $cmdToSend = "testInterface=`$(grep -il ${InterfaceMAC} ${nicPath}) ; basename `"`$(dirname `$testInterface)`""
     $testInterfaceName = Run-LinuxCmd -username $VMUser -password $VMPassword -ip $VMIpv4 -port $VMPort `
-        -command $cmdToSend
+        -command $cmdToSend -runAsSudo
 
     $cmdToSend = "$PingVersion -I $testInterfaceName $AddressToPing -c $PacketNumber -p `"cafed00d00766c616e0074616700`""
     $pingResult = Run-LinuxCmd -username $VMUser -password $VMPassword -ip $VMIpv4 -port $VMPort `
-        -command $cmdToSend -ignoreLinuxExitCode:$true
+        -command $cmdToSend -ignoreLinuxExitCode:$true -runAsSudo
 
     if ($pingResult -notMatch "$PacketNumber received") {
         return $False

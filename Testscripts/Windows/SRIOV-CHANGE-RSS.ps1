@@ -13,13 +13,13 @@ param ([string] $TestParams)
 
 function Main {
     param (
+        $VMUsername,
         $VMName,
         $HvServer,
         $VMPort,
         $VMPassword,
         $TestParams
     )
-    $VMRootUser = "root"
     $moduleCheckCMD = "lspci -vvv | grep -c 'mlx4_core\|mlx4_en\|ixgbevf'"
     $vfCheckCMD = "find /sys/devices -name net -a -ipath '*vmbus*' | grep -c pci"
 
@@ -28,15 +28,15 @@ function Main {
     $vm2ipv4 = Get-IPv4ViaKVP $DependencyVmName $DependencyVmHost
 
     # Start client on dependency VM
-    Run-LinuxCmd -ip $vm2ipv4 -port $VMPort -username $VMRootUser -password `
+    Run-LinuxCmd -ip $vm2ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "iperf3 -s > client.out" -RunInBackGround
     Start-Sleep -s 5
 
     # Run iPerf on client side for 30 seconds with SR-IOV enabled
-    Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+    Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "source sriov_constants.sh ; iperf3 -t 30 -c `$VF_IP2 --logfile PerfResults.log"
 
-    [decimal]$initialThroughput = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+    [decimal]$initialThroughput = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "tail -4 PerfResults.log | head -1 | awk '{print `$7}'" `
         -ignoreLinuxExitCode:$true
     if (-not $initialThroughput){
@@ -58,7 +58,7 @@ function Main {
     }
 
     # Check if the SR-IOV module is still loaded
-    $moduleCount = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+    $moduleCount = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command $moduleCheckCMD -ignoreLinuxExitCode:$true
     if ($moduleCount -lt 1) {
         Write-LogErr "Module is not loaded"
@@ -66,7 +66,7 @@ function Main {
         return "FAIL"
     }
     # Check if the VF is still present
-    $vfCount = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+    $vfCount = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command $vfCheckCMD -ignoreLinuxExitCode:$true
     if ($vfCount -lt 1) {
         Write-LogErr "VF is not present"
@@ -75,10 +75,10 @@ function Main {
     }
 
     # Read the throughput again and compare to the previous value
-    Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+    Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "source sriov_constants.sh ; iperf3 -t 30 -c `$VF_IP2 --logfile PerfResults.log"
     [decimal]$initialThroughput = $initialThroughput * 0.7
-    [decimal]$finalThroughput = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+    [decimal]$finalThroughput = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "tail -4 PerfResults.log | head -1 | awk '{print `$7}'" `
         -ignoreLinuxExitCode:$true
     Write-LogInfo "The throughput after changing rss profile is $finalThroughput Gbits/sec"
@@ -93,5 +93,5 @@ function Main {
 }
 
 Main -VMName $AllVMData.RoleName -hvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
-    -VMPort $AllVMData.SSHPort -VMPassword $password `
+    -VMPort $AllVMData.SSHPort -VMPassword $password -VMUsername $user `
     -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))

@@ -28,12 +28,12 @@ function Remove-Data {
 
 function Main {
     param (
+        $VMUsername,
         $VMName,
         $HvServer,
         $VMPort,
         $VMPassword
     )
-    $VMRootUser = "root"
     $childVMName = "SRIOV_Child"
     $sriovNIC = Get-VMNetworkAdapter -VMName $VMName -ComputerName $HvServer | Where-Object {$_.SwitchName -like 'SRIOV*'}
     $managementNIC = Get-VMNetworkAdapter -VMName $VMName -ComputerName $HvServer | Select-Object -First 1 | Select-Object -ExpandProperty SwitchName
@@ -46,10 +46,10 @@ function Main {
     # Get IP
     $ipv4 = Get-IPv4ViaKVP $VMName $HvServer
     # Run Ping with SR-IOV enabled
-    Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+    Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "source sriov_constants.sh ; ping -c 20 -I eth1 `$VF_IP2 > PingResults.log"
 
-    [decimal]$initialRTT = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
+    [decimal]$initialRTT = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "tail -1 PingResults.log | sed 's/\// /g' | awk '{print `$8}'" `
         -ignoreLinuxExitCode:$true
     if (-not $initialRTT){
@@ -100,11 +100,11 @@ function Main {
     }
 
     $initialRTT = $initialRTT * 1.4
-    $newIpv4 = Start-VMandGetIP $childVMName $HvServer $VMPort $VMRootUser $VMPassword
-    Run-LinuxCmd -ip $newIpv4 -port $VMPort -username $VMRootUser -password `
+    $newIpv4 = Start-VMandGetIP $childVMName $HvServer $VMPort $VMUsername $VMPassword
+    Run-LinuxCmd -ip $newIpv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "source sriov_constants.sh ; ping -c 20 -I eth1 `$VF_IP2 > PingResults.log"
 
-    [decimal]$finalRTT = Run-LinuxCmd -ip  $newIpv4 -port $VMPort -username $VMRootUser -password `
+    [decimal]$finalRTT = Run-LinuxCmd -ip  $newIpv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "tail -1 PingResults.log | sed 's/\// /g' | awk '{print `$8}'" `
         -ignoreLinuxExitCode:$true
     if (-not $finalRTT){
@@ -120,9 +120,9 @@ function Main {
     }
 
     Remove-Data $childVMName $HvServer $childVhdPath
-    Start-VMandGetIP $VMName $HvServer $VMPort $VMRootUser $VMPassword
+    Start-VMandGetIP $VMName $HvServer $VMPort $VMUsername $VMPassword
     return "PASS"
 }
 
 Main -VMName $AllVMData.RoleName -hvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
-    -VMPort $AllVMData.SSHPort -VMPassword $password
+    -VMPort $AllVMData.SSHPort -VMUsername $user -VMPassword $password

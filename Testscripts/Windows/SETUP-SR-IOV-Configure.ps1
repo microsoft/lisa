@@ -33,24 +33,24 @@ function Set-VFInGuest {
     }
     Run-LinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort -command "cp sriov_constants.sh constants.sh"
     # Install dependencies
-    Run-LinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort -command ". SR-IOV-Utils.sh; InstallDependencies"
+    Run-LinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort -command ". SR-IOV-Utils.sh; InstallDependencies" -RunAsSudo -ignoreLinuxExitCode:$true
     if (-not $?) {
         Write-LogErr "Failed to install dependencies on $VMName"
         return $False
     }
     # Configure VF
-    Run-LinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort -command ". SR-IOV-Utils.sh; ConfigureVF $VMNumber"
+    Run-LinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort -command ". SR-IOV-Utils.sh; ConfigureVF $VMNumber" -RunAsSudo
     if (-not $?) {
         LogErr "Failed to configure VF on $VMName"
         return $False
     }
     # Check VF
-    $retVal = Run-LinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort -command "ip a | grep -c $VfIPToCheck" -ignoreLinuxExitCode:$true
+    $retVal = Run-LinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort -command "ip a | grep -c $VfIPToCheck" -ignoreLinuxExitCode:$true -RunAsSudo
     if ($retVal -ne 1) {
         Write-LogErr "IP is not set on $VMName"
         return $False
     }
-    Run-LinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort -command "rm -f constants.sh"
+    Run-LinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort -command "rm -f constants.sh" -RunAsSudo
     return $True
 }
 
@@ -68,7 +68,6 @@ function Main {
     $nicIterator = 0
     $vfIP = @()
     $vfIterator = 0
-    $VMRootUser = "root"
 
     $params = $TestParams.Split(';')
     foreach ($p in $params) {
@@ -166,31 +165,31 @@ function Main {
     }
 
     # Start both VMs
-    $ipv4 = Start-VMandGetIP $VMName $HvServer $VMPort $VMRootUser $VMPassword
-    $vm2ipv4 = Start-VMandGetIP $VM2Name $DependencyVmHost $VMPort $VMRootUser $VMPassword
+    $ipv4 = Start-VMandGetIP $VMName $HvServer $VMPort $VMUsername $VMPassword
+    $vm2ipv4 = Start-VMandGetIP $VM2Name $DependencyVmHost $VMPort $VMUsername $VMPassword
 
     # Set SSH key for both VMs
     # Setup ssh on VM1
     Copy-RemoteFiles -uploadTo $ipv4 -port $VMPort -files `
         ".\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SR-IOV-Utils.sh" `
-        -username $VMRootUser -password $VMPassword -upload
+        -username $VMUsername -password $VMPassword -upload
     Copy-RemoteFiles -uploadTo $vm2ipv4 -port $VMPort -files `
         ".\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SR-IOV-Utils.sh" `
-        -username $VMRootUser -password $VMPassword -upload
-    Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
-        $VMPassword -command "chmod +x ~/*.sh"
-    Run-LinuxCmd -ip $vm2ipv4 -port $VMPort -username $VMRootUser -password `
-        $VMPassword -command "chmod +x ~/*.sh"
-    Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMRootUser -password `
-        $VMPassword -command "./enablePasswordLessRoot.sh ; cp -rf /root/.ssh /home/$VMUsername"
+        -username $VMUsername -password $VMPassword -upload
+    Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
+        $VMPassword -command "chmod +x /home/${VMUsername}/*.sh" -RunAsSudo -ignoreLinuxExitCode:$true
+    Run-LinuxCmd -ip $vm2ipv4 -port $VMPort -username $VMUsername -password `
+        $VMPassword -command "chmod +x /home/${VMUsername}/*.sh" -RunAsSudo -ignoreLinuxExitCode:$true
+    Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
+        $VMPassword -command "./enablePasswordLessRoot.sh  /home/$VMUsername ; cp -rf /root/.ssh /home/$VMUsername" -RunAsSudo
 
     # Copy keys from VM1 and setup VM2
     Copy-RemoteFiles -download -downloadFrom $ipv4 -port $VMPort -files `
-        "/root/sshFix.tar" -username $VMRootUser -password $VMPassword -downloadTo $LogDir
+        "/home/$VMUsername/sshFix.tar" -username $VMUsername -password $VMPassword -downloadTo $LogDir
     Copy-RemoteFiles -uploadTo $vm2ipv4 -port $VMPort -files "$LogDir\sshFix.tar" `
-        -username $VMRootUser -password $VMPassword -upload
-    Run-LinuxCmd -ip $vm2ipv4 -port $VMPort -username $VMRootUser -password `
-            $VMPassword -command "./enablePasswordLessRoot.sh ; cp -rf /root/.ssh /home/$VMUsername"
+        -username $VMUsername -password $VMPassword -upload
+    Run-LinuxCmd -ip $vm2ipv4 -port $VMPort -username $VMUsername -password `
+            $VMPassword -command "./enablePasswordLessRoot.sh  /home/$VMUsername ; cp -rf /root/.ssh /home/$VMUsername" -RunAsSudo
 
     # Construct and send sriov_constants.sh
     Remove-Item sriov_constants.sh -Force -EA SilentlyContinue
@@ -214,12 +213,12 @@ function Main {
     }
 
     # Configure VF on both VMs
-    Set-VFInGuest $VMRootUser $ipv4 $VMPassword $VMPort $VMName "1" $vfIP1
+    Set-VFInGuest $VMUsername $ipv4 $VMPassword $VMPort $VMName "1" $vfIP1
     if (-not $?) {
         Write-LogErr "Failed to configure VF on $VMName"
         return $False
     }
-    Set-VFInGuest $VMRootUser $vm2ipv4 $VMPassword $VMPort $VM2Name "2" $vfIP2
+    Set-VFInGuest $VMUsername $vm2ipv4 $VMPassword $VMPort $VM2Name "2" $vfIP2
     if (-not $?) {
         Write-LogErr "Failed to configure VF on $VM2Name"
         return $False

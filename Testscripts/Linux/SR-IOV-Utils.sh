@@ -133,7 +133,7 @@ ConfigureVF()
     if [ "$vfCount" -eq 0 ]; then
         LogErr "No VFs are present in the Guest VM!"
         SetTestStateFailed
-        exit 1
+        exit 0
     fi
 
     __iterator=1
@@ -269,7 +269,7 @@ InstallDependencies()
         # update shared libraries links
         ldconfig
         popd
-
+        PATH="$PATH:/usr/local/bin"
         iperf3 -v > /dev/null 2>&1
         if [ $? -ne 0 ]; then
             LogErr "Failed to install iperf3"
