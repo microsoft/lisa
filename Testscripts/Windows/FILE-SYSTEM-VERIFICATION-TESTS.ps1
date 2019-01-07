@@ -10,7 +10,7 @@ function Main {
         Provision-VMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
         Copy-RemoteFiles -uploadTo $allVMData.PublicIP -port $allVMData.SSHPort -files $currentTestData.files -username "root" -password $password -upload
 
-        $constantsFile = Join-Path $env:TEMP "xfstests-config-$TestID.config"
+        $constantsFile = Join-Path $env:TEMP "xfstests-config.config"
         Write-LogInfo "Generating $constantsFile ..."
         Set-Content -Value "" -Path $constantsFile -NoNewline
         foreach ($param in $currentTestData.TestParameters.param) {

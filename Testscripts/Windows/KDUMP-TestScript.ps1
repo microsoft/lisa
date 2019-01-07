@@ -105,7 +105,8 @@ function Main {
         -command "export HOME=``pwd``;chmod u+x KDUMP-Config.sh && ./KDUMP-Config.sh" -runAsSudo
 
     # Rebooting the VM in order to apply the kdump settings
-    .\Tools\plink.exe -C -pw $VMPassword -P $VMPort root@$Ipv4 "reboot"
+    Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+        -command "reboot" -runAsSudo -RunInBackGround
     Write-LogInfo "Rebooting VM $VMName after kdump configuration..."
     Start-Sleep 10 # Wait for kvp & ssh services stop
 
