@@ -2400,57 +2400,6 @@ function Check-FileInLinuxGuest{
 	}
 	return  $True
 }
-
-function Send-CommandToVM {
-	param  (
-		[string] $vmPassword,
-		[string] $vmPort,
-		[string] $ipv4,
-		[string] $command
-	)
-
-	<#
-	.Synopsis
-		Send a command to a Linux VM using SSH.
-	.Description
-		Send a command to a Linux VM using SSH.
-
-	#>
-
-	$retVal = $False
-
-	if (-not $ipv4)
-	{
-		Write-LogErr "ipv4 is null"
-		return $False
-	}
-
-	if (-not $vmPassword)
-	{
-		Write-LogErr "vmPassword is null"
-		return $False
-	}
-
-	if (-not $command)
-	{
-		Write-LogErr "command is null"
-		return $False
-	}
-
-	# get around plink questions
-	Write-Output "yes" | .\Tools\plink.exe -C -pw ${vmPassword} -P ${vmPort} root@$ipv4 'exit 0'
-	$process = Start-Process .\Tools\plink.exe -ArgumentList "-C -pw ${vmPassword} -P ${vmPort} root@$ipv4 ${command}" -PassThru -NoNewWindow -Wait
-	if ($process.ExitCode -eq 0)
-	{
-		$retVal = $True
-	}
-	else
-	{
-		Write-LogErr "Unable to send command to ${ipv4}. Command = '${command}'"
-	}
-	return $retVal
-}
-
 function Check-FcopyDaemon{
 	param (
 		[string] $vmPassword,
@@ -2492,6 +2441,7 @@ function Check-FcopyDaemon{
 
 function Mount-Disk{
 	param(
+		[string] $vmUsername,
 		[string] $vmPassword,
 		[string] $vmPort,
 		[string] $ipv4
@@ -2504,36 +2454,36 @@ function Mount-Disk{
 
 	#>
 
-	$driveName = "/dev/sdc"
-
-	$sts = Send-CommandToVM -vmPassword $vmPassword -vmPort $vmPort -ipv4 $ipv4 "(echo d;echo;echo w)|fdisk ${driveName}"
-	if (-not $sts) {
-		Write-LogErr "Failed to format the disk in the VM $vmName."
-		return $False
+	$cmdToVM = @"
+	#!/bin/bash
+	# /dev/sdc is used as /dev/sdb is the resource disk by default
+	(echo d;echo;echo w)|fdisk /dev/sdc
+	(echo n;echo p;echo 1;echo;echo;echo w)|fdisk /dev/sdc
+	if [ $? -ne 0 ];then
+		echo "Failed to create partition..."
+		exit 1
+	fi
+	mkfs.ext4 /dev/sdc1
+	mkdir -p /mnt/test
+	mount /dev/sdc1 /mnt/test
+	if [ $? -ne 0 ];then
+		echo "Failed to mount partition to /mnt/test..."
+		exit 1
+	fi
+"@
+	$filename = "MountDisk.sh"
+	if (Test-Path ".\${filename}") {
+		Remove-Item ".\${filename}"
 	}
-
-	$sts = Send-CommandToVM -vmPassword $vmPassword -vmPort $vmPort -ipv4 $ipv4  "(echo n;echo p;echo 1;echo;echo;echo w)|fdisk ${driveName}"
-	if (-not $sts) {
-		Write-LogErr "Failed to format the disk in the VM $vmName."
-		return $False
+		Add-Content $filename "$cmdToVM"
+		Copy-RemoteFiles -uploadTo $ipv4 -port $vmPort -files $filename -username $vmUsername -password $vmPassword -upload
+		$MountDisk = Run-LinuxCmd -username $vmUsername -password $vmPassword -ip $ipv4 -port $vmPort -command  `
+		"chmod u+x ${filename} && ./${filename}" -runAsSudo
+	if ($MountDisk){
+		Write-LogInfo "Mounted /dev/sdc1 to /mnt/test"
+		return $True
 	}
-
-	$sts = Send-CommandToVM -vmPassword $vmPassword -vmPort $vmPort -ipv4 $ipv4  "mkfs.ext4 ${driveName}1"
-	if (-not $sts) {
-		Write-LogErr "Failed to make file system in the VM $vmName."
-		return $False
-	}
-
-	$sts = Send-CommandToVM -vmPassword $vmPassword -vmPort $vmPort -ipv4 $ipv4  "mount ${driveName}1 /mnt"
-	if (-not $sts) {
-		Write-LogErr "Failed to mount the disk in the VM $vmName."
-		return $False
-	}
-
-	Write-LogInfo "$driveName has been mounted to /mnt in the VM $vmName."
-	return $True
 }
-
 function Copy-FileVM{
 	param(
 		[string] $vmName,
