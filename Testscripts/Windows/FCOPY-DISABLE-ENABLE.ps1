@@ -164,8 +164,8 @@ function Main {
     }
 
     # Mount attached VHDX
-    $sts = Mount-Disk -vmPassword $VMPassword -vmPort $VMPort -ipv4 $Ipv4
-    if (-not $sts[-1]) {
+    $sts = Mount-Disk -vmUsername $VMUserName -vmPassword $VMPassword -vmPort $VMPort -ipv4 $Ipv4
+    if (-not $sts) {
         Write-LogErr "FAIL to mount the disk in the VM."
         return "FAIL"
     }
@@ -198,7 +198,7 @@ function Main {
 
     $Error.Clear()
     $copyDuration = (Measure-Command { Copy-VMFile -vmName $VMName -ComputerName $HvServer -SourcePath $filePath -DestinationPath `
-                "/mnt/" -FileSource host -ErrorAction SilentlyContinue }).totalseconds
+                "/mnt/test/" -FileSource host -ErrorAction SilentlyContinue }).totalseconds
 
     if ($Error.Count -eq 0) {
         Write-LogInfo "File has been successfully copied to guest VM '${vmName}'"
@@ -212,7 +212,7 @@ function Main {
     Write-LogInfo "The file copy process took ${copyDuration} seconds"
 
     # Checking if the file is present on the guest and file size is matching
-    $sts = Check-FileInLinuxGuest -vmUserName $VMUserName -vmPassword $VMPassword -vmPort $VMPort -ipv4 $Ipv4 -fileName "/mnt/$testfile"  -checkSize $True  -checkContent $False
+    $sts = Check-FileInLinuxGuest -vmUserName $VMUserName -vmPassword $VMPassword -vmPort $VMPort -ipv4 $Ipv4 -fileName "/mnt/test/$testfile"  -checkSize $True  -checkContent $False
     if (-not $sts[-1]) {
         Write-LogErr "File is not present on the guest VM"
         return "FAIL"
