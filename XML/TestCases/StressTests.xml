@@ -41,7 +41,7 @@
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Stress</Category>
-        <Area>Stress</Area>
+        <Area>stress</Area>
         <Tags>stress</Tags>
         <Priority>1</Priority>
     </test>
