@@ -60,6 +60,7 @@ function Main {
             $resultArr += $testResult
         }
     }
+    $rebootNr--
     Write-LogInfo "Reboot Stress Test Result: $rebootNr/$rebootNumber"
     if (($rebootNr - 1) -lt $rebootNumber) {
         $testResult = "FAIL"

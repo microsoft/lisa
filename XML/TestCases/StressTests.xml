@@ -15,8 +15,7 @@
     </test>
     <test>
         <testName>STRESSTEST-VERIFY-RESTART-MAX-SRIOV-NICS</testName>
-        <testScript></testScript>
-        <PowershellScript>STRESSTEST-VERIFY-RESTART.ps1</PowershellScript>
+        <testScript>STRESSTEST-VERIFY-RESTART.ps1</testScript>
         <files></files>
         <setupType>OneVM8NICs</setupType>
         <AdditionalHWConfig>

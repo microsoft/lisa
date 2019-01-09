@@ -28,7 +28,6 @@
         <TestParameters>
             <param>network_interface_count=8</param>
         </TestParameters>
-        <PowershellScript>VERIFY-TEST-SCRIPT-IN-LINUX-GUEST.ps1</PowershellScript>
         <testScript>verify-ifup-nics.sh</testScript>
         <files>.\Testscripts\Linux\verify-ifup-nics.sh,.\TestScripts\Linux\utils.sh</files>
         <Platform>Azure</Platform>
