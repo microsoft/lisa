@@ -5,7 +5,7 @@
 ########################################################################
 #
 # Synopsis
-#     This script tests NTP time syncronization.
+#     This script tests NTP time synchronization.
 #
 # Description
 #     This script was created to automate the testing of a Linux
@@ -67,7 +67,7 @@ if is_fedora ; then
             SetTestStateAborted
             exit 0
         fi
-        LogMsg "Info: NTPD has been installed succesfully!"
+        LogMsg "Info: NTPD has been installed successfully!"
     fi
 
     # set rtc clock to system time & restart NTPD
@@ -97,7 +97,7 @@ elif is_ubuntu ; then
             SetTestStateAborted
             exit 0
         fi
-        LogMsg "Info: NTPD has been installed succesfully!"
+        LogMsg "Info: NTPD has been installed successfully!"
     fi
 
     # set rtc clock to system time & restart NTPD
@@ -135,7 +135,7 @@ elif is_suse ; then
             SetTestStateAborted
             exit 0
         fi
-        LogErr "NTP installed succesfully!"
+        LogErr "NTP installed successfully!"
     fi
 
     service $srv stop
@@ -173,8 +173,8 @@ elif is_suse ; then
     fi
 
 else # other distro
-    LogMsg "Warning: Distro not suported. Aborting"
-    UpdateSummary "Warning: Distro not suported. Aborting"
+    LogMsg "Warning: Distro not supported. Aborting"
+    UpdateSummary "Warning: Distro not supported. Aborting"
     SetTestStateAborted
     exit 0
 fi

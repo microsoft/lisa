@@ -25,20 +25,20 @@ Install_Kexec(){
     GetDistro
     case $DISTRO in
         centos* | redhat* | fedora*)
-            yum_install kexec-tools kdump-tools makedumpfile
+            yum_install "kexec-tools kdump-tools makedumpfile"
             if [ $? -ne 0 ]; then
                 UpdateSummary "Warning: Kexec-tools failed to install."
             fi
         ;;
         ubuntu* | debian*)
             export DEBIAN_FRONTEND=noninteractive
-            apt-get update; apt_get_install kexec-tools kdump-tools makedumpfile
+            apt-get update; apt_get_install "kexec-tools kdump-tools makedumpfile"
             if [ $? -ne 0 ]; then
                 UpdateSummary "Warning: Kexec-tools failed to install."
             fi
         ;;
         suse*)
-            zypper refresh; zypper_install kexec-tools kdump makedumpfile
+            zypper refresh; zypper_install "kexec-tools kdump makedumpfile"
             if [ $? -ne 0 ]; then
                 UpdateSummary "Warning: Kexec-tools failed to install."
             fi
