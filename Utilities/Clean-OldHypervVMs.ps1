@@ -63,7 +63,7 @@ function Main
             }
 
             # Remove snapshots first
-            Remove-VMSnapshot -VMName $vm.VMName -ComputerName $HvServer –IncludeAllChildSnapshots `
+            Remove-VMSnapshot -VMName $vm.VMName -ComputerName $HvServer â€“IncludeAllChildSnapshots `
                 -EA SilentlyContinue -Confirm:$false
             Wait-VMStatus -VMName $vm.VMName -VMStatus "Operating Normally" -HvServer $HvServer `
                 -RetryInterval 2
