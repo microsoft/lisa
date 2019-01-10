@@ -30,6 +30,7 @@ TOP_BUILDDIR="/opt/ltp"
 TOP_SRCDIR="$HOME/src"
 LTP_RESULTS="$HOME/ltp-results.log"
 LTP_OUTPUT="$HOME/ltp-output.log"
+LTP_LITE_TESTS="math,fsx,ipc,mm,sched,pty,fs"
 
 proc_count=$(grep -c processor < /proc/cpuinfo)
 
@@ -97,7 +98,9 @@ git clone https://github.com/linux-test-project/ltp.git
 TOP_SRCDIR="${HOME}/src/ltp"
 
 cd "$TOP_SRCDIR"
-git checkout tags/"$ltp_version_git_tag"
+if [[ "$ltp_version_git_tag" != "" || "$ltp_version_git_tag" != "master" ]]; then
+    git checkout tags/"$ltp_version_git_tag"
+fi
 
 LogMsg "Configuring LTP..."
 # use autoreconf to match the installed package versions
@@ -128,7 +131,19 @@ fi
 cd "$TOP_BUILDDIR"
 
 LogMsg "Running LTP..."
-./runltplite.sh -c 4 -p -q -l "$LTP_RESULTS" -o "$LTP_OUTPUT" 2>/dev/null
+
+LTP_PARAMS="-p -q -l $LTP_RESULTS -o $LTP_OUTPUT"
+
+# LTP_TEST_SUITE is passed from the Test Definition xml or from command line when running LISAv2
+# if the parameter is null, the test suite defaults to "lite"
+if [[ "$LTP_TEST_SUITE" == "lite" || "$LTP_TEST_SUITE" == "" ]];then
+    LTP_PARAMS="-f $LTP_LITE_TESTS $LTP_PARAMS"
+    echo "Running ltp lite suite" >> ~/summary.log
+elif [[ "$LTP_TEST_SUITE" == "full" ]];then
+    echo "Running ltp full suite" >> ~/summary.log
+fi
+
+./runltp $LTP_PARAMS 2>/dev/null
 
 grep -A 5 "Total Tests" "$LTP_RESULTS" >> ~/summary.log
 if grep FAIL "$LTP_OUTPUT" ; then

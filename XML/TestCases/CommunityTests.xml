@@ -75,9 +75,9 @@
         <OverrideVMSize>Standard_DS14_v2</OverrideVMSize>
         <TestParameters>
             <param>ltp_version_git_tag="LTP_TESTS_GIT_TAG"</param>
+            <param>LTP_TEST_SUITE="LTP_SUITE"</param>
         </TestParameters>
-        <SubtestValues>This-tag-will-be-removed</SubtestValues>
-        <Timeout>7200</Timeout>
+        <Timeout>20000</Timeout>
         <Platform>Azure,HyperV</Platform>
         <Category>Community</Category>
         <Area>LTP</Area>
