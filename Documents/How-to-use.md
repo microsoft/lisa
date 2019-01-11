@@ -31,6 +31,37 @@ If you add a custom test menu, you will need to re-build the Jenkins menu, and t
             iv.  Add ‘LisaSupport@microsoft.com’ to ‘Reviewers’, or send email to 'lisasupport@microsoft.com'.
             v.   Once it is approved, you can merge the Pull Request to master branch. In this case, you will need 
                  to rebuild the menu by ‘<Partner name>-Refresh-Test-Selection-Menus’.
+    5. LISAv2 has defined some global variables. Test cases can use them as needed.
+        a. Read-only global variables
+            i. Common
+                $TestID : The unique ID of the test run
+                $WorkingDirectory: The current working directory of test run
+                $LogDir: The logging directory
+                $detectedDistro: The distro name of the test VM
+                $BaseOsVHD : The VHD name if the test runs with a VHD
+                $RGIdentifier: The ID included in the resource group name or HyperV group name
+                $TestLocation: The Azure region or HyperV servers
+                $TestPlatform: Azure or HyperV
+                $user: The user name of the VM
+                $password: The password of the VM
+                $GlobalConfig: The global configuration xml
+                $XmlSecrets: The secret file xml
+                $resultPass: PASS
+                $resultFail: FAIL
+                $resultAborted: ABORTED
+                $IsWindows: Whether the test image is Windows
+
+            ii. For Azure
+                $ARMImageName: The ARM image name
+
+            iii. For HyperV
+                $HyperVInstanceSize: The VM size of VM on HyperV
+                $DependencyVmName: The name of the dependency VM for test on HyperV
+                $DependencyVmHost: The host name of the dependency VM for test on HyperV
+                $VMGeneration: VM generation, 1 or 2
+
+        b. Writeable global variables
+                $LogFileName: The name of the log file
 
 ## Verify a published image on Azure
 
