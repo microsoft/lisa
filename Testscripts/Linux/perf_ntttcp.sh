@@ -269,7 +269,7 @@ Run_Ntttcp()
 			echo "$current_test_threads,$tx_throughput,$tx_cyclesperbytes,$avg_latency" >> "$result_file"
 		fi
 		LogMsg "current test finished. wait for next one... "
-		i=$(("$i" + 1))
+		i=$(($i + 1))
 		sleep 5
 	done
 }
