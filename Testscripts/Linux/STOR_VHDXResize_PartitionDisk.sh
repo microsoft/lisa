@@ -66,7 +66,7 @@ for fs in "${fileSystems[@]}"; do
     # to rm partition, still can show in fdisk -l even it does not exist in fact.
     (echo d; echo w) | fdisk "$deviceName" 2> /dev/null
     (echo n; echo p; echo $fdiskOption; echo ; echo ;echo w) | fdisk "$deviceName" 2> /dev/null
-	check_exit_status "Create partition" "LogMsg"
+	check_exit_status "Create partition" "exit"
     sync
 
     # Format the partition
@@ -82,7 +82,7 @@ for fs in "${fileSystems[@]}"; do
             option="-f"
         fi
         mkfs -t $fs $option $testPartition
-		check_exit_status "Format partition with $fs" "LogMsg"
+		check_exit_status "Format partition with $fs" "exit"
     fi
 
     if [ $count -eq ${#fileSystems[@]} ]; then
@@ -91,23 +91,23 @@ for fs in "${fileSystems[@]}"; do
         exit 1
     fi
 
-	$mntDir="/mnt"
+    mntDir="/mnt"
     if [ ! -e $mntDir ]; then
         mkdir $mntDir
-		check_exit_status "Create mount point" "LogMsg"
+		check_exit_status "Create mount point" "exit"
     fi
 
     mount $testPartition $mntDir
-	check_exit_status "Mount partition" "LogMsg"
+	check_exit_status "Mount partition" "exit"
 
     # Read/Write mount point
     ./STOR_VHDXResize_ReadWrite.sh
 
     umount $mntDir
-	check_exit_status "Unmount partition" "LogMsg"
+	check_exit_status "Unmount partition" "exit"
 
     (echo d; echo w) | fdisk "$deviceName" 2> /dev/null
-	check_exit_status "Delete partition" "LogMsg"
+	check_exit_status "Delete partition" "exit"
 
 done
 

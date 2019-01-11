@@ -73,7 +73,7 @@ for fs in "${fileSystems[@]}"; do
         count=`expr $count + 1`
     else
         mkfs -t $fs "$deviceName"1
-        check_exit_status "Format partition with $fs" "LogMsg"
+        check_exit_status "Format partition with $fs" "exit"
         break
     fi
 done
@@ -87,20 +87,20 @@ fi
 # Mount partition
 if [ ! -e "/mnt" ]; then
     mkdir /mnt
-    check_exit_status "Create mount point" "LogMsg"
+    check_exit_status "Create mount point" "exit"
 fi
 
 mount "$deviceName"1 /mnt
-check_exit_status "Partition mount" "LogMsg"
+check_exit_status "Partition mount" "exit"
 
 # Read/Write mount point
 chmod +x STOR_VHDXResize_ReadWrite.sh
 ./STOR_VHDXResize_ReadWrite.sh
 
 umount /mnt
-check_exit_status "Unmount partition" "LogMsg"
+check_exit_status "Unmount partition" "exit"
 
 parted "$deviceName" -s rm 1
-check_exit_status "Delete partition" "LogMsg"
+check_exit_status "Delete partition" "exit"
 
 SetTestStateCompleted

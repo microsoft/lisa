@@ -54,7 +54,7 @@ if ! [ "$rerun" = "yes" ]; then
 	# Create the partition
 	LogMsg "Info: Creating the partition on initial size of VHD."
 	(echo n; echo p; echo 1; echo ; echo ;echo w) | fdisk "$deviceName" 2> /dev/null
-	check_exit_status "Create partition" "LogMsg"
+	check_exit_status "Create partition" "exit"
 
 	partprobe
 	sync
@@ -70,17 +70,17 @@ if ! [ "$rerun" = "yes" ]; then
 			option="-f"
 		fi
 		mkfs -t $fs $option "$deviceName"1
-		check_exit_status "Format partition with $fs" "LogMsg"
+		check_exit_status "Format partition with $fs" "exit"
 	fi
 
 	# Mount partition
 	if [ ! -e "$mntDir" ]; then
 		mkdir $mntDir
-	check_exit_status "Create mount point" "LogMsg"
+	check_exit_status "Create mount point" "exit"
 	fi
 
 	mount "$deviceName"1 $mntDir
-	check_exit_status "Mount partition" "LogMsg"
+	check_exit_status "Mount partition" "exit"
 
 	mount | grep "$deviceName"1
 
@@ -89,7 +89,7 @@ if ! [ "$rerun" = "yes" ]; then
 
 	# Umount partition
 	umount $mntDir
-	check_exit_status "Unmount partition" "LogMsg"
+	check_exit_status "Unmount partition" "exit"
 else
 	LogMsg "Continue testing $fs."
 	LogMsg "Expand partition to the new size"
@@ -98,7 +98,7 @@ else
 	(echo d; echo w) | fdisk "$deviceName" 2> /dev/null
 	partprobe
 	(echo n; echo p; echo 1; echo ; echo ;echo w) | fdisk "$deviceName" 2> /dev/null
-	check_exit_status "Expand partition" "LogMsg"
+	check_exit_status "Expand partition" "exit"
 
 	partprobe
 	sync
@@ -108,30 +108,30 @@ else
 	# we need to skip xfs for now
 	if [ ! "$fs" = "xfs" ]; then
 		e2fsck -y -v -f "$deviceName"1
-	check_exit_status "Check filesystem" "LogMsg"
+	check_exit_status "Check filesystem" "exit"
 	fi
 
 	# Resizing the filesystem
 	if [ ! "$fs" = "xfs" ]; then
 		resize2fs "$deviceName"1
-	check_exit_status "Resize filesystem" "LogMsg"
+	check_exit_status "Resize filesystem" "exit"
 	fi
 
 	# Mount partition
 	if [ ! -e "$mntDir" ]; then
 		mkdir $mntDir
-		check_exit_status "Create mount point" "LogMsg"
+		check_exit_status "Create mount point" "exit"
 	fi
 
 	mount "$deviceName"1 $mntDir
-	check_exit_status "Mount partition" "LogMsg"
+	check_exit_status "Mount partition" "exit"
 	mount | grep "$deviceName"1
 
 	# If the partition was successfully mounted we can use xfs_growsfs to
 	# check the XFS filesystem also
 	if [ "$fs" = "xfs" ]; then
 		xfs_growfs -d $mntDir
-		check_exit_status "Resize filesystem $fs" "LogMsg"
+		check_exit_status "Resize filesystem $fs" "exit"
 	fi
 
 	# Read/Write mount point
@@ -139,13 +139,13 @@ else
 
 	# Umount partition
 	umount $mntDir
-	check_exit_status "Unmount partition" "LogMsg"
+	check_exit_status "Unmount partition" "exit"
 
 	# Delete partition
 	(echo d; echo w) | fdisk "$deviceName"
 	partprobe
 	lsblk | grep ${mntDir#"/dev/"}"1"
-	check_exit_status "Delete partition" "LogMsg"
+	check_exit_status "Delete partition" "exit"
 	partprobe
 fi
 
