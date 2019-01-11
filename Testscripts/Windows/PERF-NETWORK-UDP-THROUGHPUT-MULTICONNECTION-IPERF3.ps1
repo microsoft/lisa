@@ -7,6 +7,10 @@ param(
 )
 
 function Main {
+    param (
+        $TestParams
+    )
+
     # Create test result
     $currentTestResult = Create-TestResultObject
     $resultArr = @()
