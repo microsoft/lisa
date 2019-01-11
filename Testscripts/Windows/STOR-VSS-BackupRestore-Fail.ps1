@@ -9,8 +9,11 @@
     of failure.
     It uses a second partition as target.
 #>
+param([object] $AllVMData)
+
 $ErrorActionPreference = "Stop"
 function Main {
+    $currentTestResult = Create-TestResultObject
     try {
         $testResult = $null
         $captureVMData = $allVMData

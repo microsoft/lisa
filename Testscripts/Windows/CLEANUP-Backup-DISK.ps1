@@ -8,8 +8,12 @@
     given vm. The VHD will be mounted to a new partiton, initialized and
     formatted with NTFS
 #>
+param([object] $AllVmData)
+
 $ErrorActionPreference = "Stop"
 function Main {
+    param([object] $AllVMData)
+    $currentTestResult = Create-TestResultObject
     try {
         $testResult = $null
         $captureVMData = $allVMData
@@ -53,4 +57,4 @@ function Main {
     $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
-Main
+Main -AllVMData $AllVmData

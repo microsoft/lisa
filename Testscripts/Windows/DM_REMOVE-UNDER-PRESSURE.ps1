@@ -21,7 +21,8 @@
  .Parameter testParams
 	Test data for this test case
 #>
-param([string] $TestParams)
+param([String] $TestParams,
+      [object] $AllVmData)
 Function Main
 {
     param (
@@ -30,6 +31,7 @@ Function Main
         $VM3,
         $TestParams
     )
+    $currentTestResult = Create-TestResultObject
 	try{
         $testResult = $null
         $memweight1=$TestParams.memWeight1

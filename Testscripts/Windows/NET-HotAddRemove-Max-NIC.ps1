@@ -9,7 +9,8 @@
     This test script will hot add 7 synthetic NICs to a running Gen 2 VM.
 #>
 
-param([String] $TestParams)
+param([String] $TestParams,
+      [object] $AllVmData)
 
 function Main {
     param (
@@ -139,6 +140,6 @@ function Main {
     return "PASS"
 }
 
-Main -VMName $AllVMData.RoleName -HvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
+Main -VMName $AllVMData.RoleName -HvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
     -Ipv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort -TestParams $TestParams `
     -VMUserName $user -VMPassword $password -RootDir $WorkingDirectory

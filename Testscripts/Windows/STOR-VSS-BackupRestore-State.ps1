@@ -13,7 +13,8 @@
           different from the Hyper-V one has to be available.
 
 #>
-param([String] $TestParams)
+param([string] $TestParams, [object] $AllVMData)
+
 $ErrorActionPreference = "Stop"
 
 #######################################################################
@@ -46,8 +47,9 @@ function Change-VMState($vmState,$vmName,$hvServer)
 function Main
 {
     param (
-        $TestParams
+        $TestParams, $AllVMData
     )
+    $currentTestResult = Create-TestResultObject
     try {
         $testResult = $null
         $captureVMData = $allVMData
@@ -136,5 +138,5 @@ function Main
     $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
-Main -TestParams  (ConvertFrom-StringData $TestParams.Replace(";","`n"))
+Main -TestParams  (ConvertFrom-StringData $TestParams.Replace(";","`n")) -AllVMData $AllVMData
 

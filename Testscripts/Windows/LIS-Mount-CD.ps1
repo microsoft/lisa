@@ -9,7 +9,8 @@
     Mount a .iso in the default DVD drive.
 #>
 
-param([String] $TestParams)
+param([String] $TestParams,
+      [object] $AllVmData)
 
 function Main {
     param (
@@ -131,5 +132,5 @@ function Main {
 
     return $retVal
 }
-Main -VMName $AllVMData.RoleName -HvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
+Main -VMName $AllVMData.RoleName -HvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
     -RootDir $WorkingDirectory  -TestParams $TestParams `

@@ -6,7 +6,7 @@ $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 $moduleName = "Azure"
 $modulePath = Join-Path $here "../../Libraries/${moduleName}.psm1"
-$logProcessingModulePath = Join-Path $here "../../Libraries/LogProcessing.psm1"
+$logModulePath = Join-Path $here "../../Libraries/TestLogs.psm1"
 
 if (Get-Module $moduleName -ErrorAction SilentlyContinue) {
     Remove-Module $moduleName
@@ -22,7 +22,7 @@ function Get-AzureRmStorageAccountKey {}
 Describe "Test if module ${moduleName} is valid" {
     It "Should load a valid module" {
         { Import-Module $modulePath -DisableNameChecking } | Should Not Throw
-        { Import-Module $logProcessingModulePath -DisableNameChecking } | Should Not Throw
+        { Import-Module $logModulePath -DisableNameChecking } | Should Not Throw
     }
 }
 

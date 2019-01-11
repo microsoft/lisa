@@ -6,10 +6,7 @@
  Switch an existing NIC (with a certain MAC address) to a different network.
 #>
 
-param(
-    [String] $VMName=$AllVMData.RoleName,
-    [String] $TestParams
-)
+param([string] $TestParams, [object] $AllVMData)
 
 function Main {
     param (
@@ -98,5 +95,5 @@ function Main {
     return $retVal
 }
 
-Main -VMName $VMName -hvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
+Main -VMName $AllVMData.RoleName -hvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
          -TestParams $TestParams

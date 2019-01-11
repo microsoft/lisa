@@ -8,7 +8,7 @@
     It also test the feature after performing a Live Migration of the VM or
     after a kernel update.
 #>
-param([String] $TestParams)
+param([string] $TestParams, [object] $AllVMData)
 $ErrorActionPreference = "Stop"
 function Enable-VMMigration([String] $vmName)
 {
@@ -87,8 +87,9 @@ function Enable-VMMigration([String] $vmName)
 ##########################################################################
 function Main {
     param (
-        $TestParams
+        $TestParams, $AllVMData
     )
+    $currentTestResult = Create-TestResultObject
     try {
         $testResult = $null
         $captureVMData = $allVMData
@@ -221,4 +222,4 @@ function Main {
     $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
-Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))
+Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n")) -AllVMData $AllVMData

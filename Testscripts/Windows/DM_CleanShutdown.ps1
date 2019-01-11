@@ -22,7 +22,9 @@
        enable=yes;minMem2=512MB;maxMem2=80%;startupMem2=80%;memWeight2=100"
    All scripts must return a boolean to indicate if the script completed successfully or not.
 #>
-param([string] $TestParams)
+param([String] $TestParams,
+      [object] $AllVmData)
+
 function Main {
     param (
         $VM1,

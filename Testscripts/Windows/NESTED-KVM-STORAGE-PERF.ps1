@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
+param([object] $AllVmData, [object] $CurrentTestData)
 
 $testScript = "nested_kvm_storage_perf.sh"
 
@@ -45,15 +46,15 @@ function Start-TestExecution ($ip, $port)
 	}
 }
 
-function Send-ResultToDatabase ($xmlConfig, $logDir)
+function Send-ResultToDatabase ($GlobalConfig, $logDir)
 {
 	Write-LogInfo "Uploading the test results.."
-	$dataSource = $xmlConfig.config.$TestPlatform.database.server
-	$DBuser = $xmlConfig.config.$TestPlatform.database.user
-	$DBpassword = $xmlConfig.config.$TestPlatform.database.password
-	$database = $xmlConfig.config.$TestPlatform.database.dbname
-	$dataTableName = $xmlConfig.config.$TestPlatform.database.dbtable
-	$TestCaseName = $xmlConfig.config.$TestPlatform.database.testTag
+	$dataSource = $GlobalConfig.Global.$TestPlatform.database.server
+	$DBuser = $GlobalConfig.Global.$TestPlatform.database.user
+	$DBpassword = $GlobalConfig.Global.$TestPlatform.database.password
+	$database = $GlobalConfig.Global.$TestPlatform.database.dbname
+	$dataTableName = $GlobalConfig.Global.$TestPlatform.database.dbtable
+	$TestCaseName = $GlobalConfig.Global.$TestPlatform.database.testTag
 	if ($dataSource -And $DBuser -And $DBpassword -And $database -And $dataTableName)
 	{
 		$fioDataCsv = Import-Csv -Path $LogDir\fioData.csv
@@ -68,16 +69,18 @@ function Send-ResultToDatabase ($xmlConfig, $logDir)
 		}
 		else
 		{
-			$HostBy	= ($xmlConfig.config.$TestPlatform.General.Location).Replace('"','')
+			$HostBy	= ($global:TestLocation).Replace('"','')
 			$L1GuestSize = $AllVMData.InstanceSize
 		}
-		$setupType = $currentTestData.setupType
 		$count = 0
+
+		# TODO: Change to get the disk size from either host side or guest side
+		<#
 		foreach ($disk in $xmlConfig.config.$TestPlatform.Deployment.$setupType.ResourceGroup.VirtualMachine.DataDisk)
 		{
 			$disk_size = $disk.DiskSizeInGB
 			$count ++
-		}
+		} #>
 		$DiskSetup = "$count SSD: $($disk_size)G"
 		$HostOS = cat "$LogDir\VM_properties.csv" | Select-String "Host Version"| %{$_ -replace ",Host Version,",""}
 		# Get L1 guest info
@@ -233,7 +236,7 @@ function Main()
 					Add-Content -Value $line -Path $LogDir\fioData.csv
 				}
 			}
-			Send-ResultToDatabase -xmlConfig $xmlConfig -logDir $LogDir
+			Send-ResultToDatabase -GlobalConfig $GlobalConfig -logDir $LogDir
 		}
 	}
 	catch

@@ -1,5 +1,9 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
+
+param([String] $TestParams,
+      [object] $AllVmData)
+
 function Main {
     param (
         $VMName,

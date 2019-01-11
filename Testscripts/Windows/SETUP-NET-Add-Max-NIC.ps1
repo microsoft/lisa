@@ -6,7 +6,7 @@
 This test script will add the maximum amount of synthetic and legacy NICs supported by a linux VM
 #>
 
-param([String] $TestParams)
+param([string] $TestParams, [object] $AllVMData)
 
 function Add-NICs {
     param (
@@ -107,5 +107,5 @@ function Main {
     return $True
 }
 
-Main -VMName $AllVMData.RoleName -HvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
+Main -VMName $AllVMData.RoleName -HvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
          -TestParams $TestParams

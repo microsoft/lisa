@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
+param([object] $AllVmData, [object] $CurrentTestData)
 
 $testScript = "nested_kvm_netperf_pps.sh"
 
@@ -17,17 +18,17 @@ function Start-TestExecution ($ip, $port, $cmd) {
 	}
 }
 
-function Send-ResultToDatabase ($xmlConfig, $logDir, $ParseResultArray) {
+function Send-ResultToDatabase ($GlobalConfig, $logDir, $ParseResultArray) {
 	Write-LogInfo "Uploading the test results.."
-	$dataSource = $xmlConfig.config.$TestPlatform.database.server
-	$user = $xmlConfig.config.$TestPlatform.database.user
-	$password = $xmlConfig.config.$TestPlatform.database.password
-	$database = $xmlConfig.config.$TestPlatform.database.dbname
-	$dataTableName = $xmlConfig.config.$TestPlatform.database.dbtable
-	$TestCaseName = $xmlConfig.config.$TestPlatform.database.testTag
+	$dataSource = $GlobalConfig.Global.$TestPlatform.database.server
+	$user = $GlobalConfig.Global.$TestPlatform.database.user
+	$password = $GlobalConfig.Global.$TestPlatform.database.password
+	$database = $GlobalConfig.Global.$TestPlatform.database.dbname
+	$dataTableName = $GlobalConfig.Global.$TestPlatform.database.dbtable
+	$TestCaseName = $GlobalConfig.Global.$TestPlatform.database.testTag
 	if ($dataSource -And $user -And $password -And $database -And $dataTableName) {
 		# Get host info
-		$HostType = $xmlConfig.config.CurrentTestPlatform
+		$HostType = $global:TestPlatform
 		$HostBy = $TestLocation
 		$HostOS = Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version"| Foreach-Object{$_ -replace ",Host Version,",""}
 
@@ -51,11 +52,9 @@ function Send-ResultToDatabase ($xmlConfig, $logDir, $ParseResultArray) {
 		if($TestLocation.split(',').Length -eq 2) {
 			$flag=0
 		}
-		$imageName = " "
-		if($TestPlatform -eq "Azure") {
-			$imageInfo = $xmlConfig.config.Azure.Deployment.Data.Distro.ARMImage
-			$imageName = "$($imageInfo.Publisher) $($imageInfo.Offer) $($imageInfo.Sku) $($imageInfo.Version)"
-		}
+
+		$imageName = $global:ARMImageName
+
 		foreach ( $param in $currentTestData.TestParameters.param) {
 			if ($param -match "NestedCpuNum") {
 				$L2GuestCpuNum = [int]($param.split("=")[1])
@@ -235,7 +234,7 @@ function Main () {
 		if (!$uploadResults) {
 			Write-LogInfo "Zero throughput for some connections, results will not be uploaded to database!"
 		} else {
-			Send-ResultToDatabase -xmlConfig $xmlConfig -logDir $LogDir -ParseResultArray $ParseResultArray
+			Send-ResultToDatabase -GlobalConfig $GlobalConfig -logDir $LogDir -ParseResultArray $ParseResultArray
 		}
 	} catch {
 		$ErrorMessage =  $_.Exception.Message

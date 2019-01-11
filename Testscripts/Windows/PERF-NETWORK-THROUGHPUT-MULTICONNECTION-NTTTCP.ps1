@@ -1,14 +1,18 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 param(
-    [String] $TestParams
+    [String] $TestParams,
+    [object] $AllVMData,
+    [object] $CurrentTestData
 )
 
 function Main {
     param (
-        $TestParams
+        $TestParams,
+        $AllVMData
     )
     # Create test result
+    $CurrentTestResult = Create-TestResultObject
     $resultArr = @()
 
     try {
@@ -62,7 +66,7 @@ function Main {
         } else {
             Throw "Server and client SRIOV NICs are not same."
         }
-        if($EnableAcceleratedNetworking -or ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV")) {
+        if ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
             $DataPath = "SRIOV"
         } else {
             $DataPath = "Synthetic"
@@ -202,12 +206,12 @@ collect_VM_properties
         Write-Host ($ntttcpDataCsv | Format-Table * | Out-String)
 
         Write-LogInfo "Uploading the test results.."
-        $dataSource = $xmlConfig.config.$TestPlatform.database.server
-        $user = $xmlConfig.config.$TestPlatform.database.user
-        $password = $xmlConfig.config.$TestPlatform.database.password
-        $database = $xmlConfig.config.$TestPlatform.database.dbname
-        $dataTableName = $xmlConfig.config.$TestPlatform.database.dbtable
-        $TestCaseName = $xmlConfig.config.$TestPlatform.database.testTag
+        $dataSource = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.server
+        $user = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.user
+        $password = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.password
+        $database = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbname
+        $dataTableName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbtable
+        $TestCaseName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
         if ($dataSource -And $user -And $password -And $database -And $dataTableName) {
             $GuestDistro = Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object{$_ -replace ",OS type,",""}
             $HostOS = Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version"| ForEach-Object{$_ -replace ",Host Version,",""}
@@ -256,7 +260,7 @@ collect_VM_properties
     }
 
     $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
-    return $currentTestResult.TestResult
+    return $currentTestResult
 }
 
-Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))
+Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n")) -AllVMData $AllVmData

@@ -26,7 +26,8 @@
        There is a 30 second timeout between tries, so 3 tries is a conservative value.
 #>
 
-param([string] $TestParams)
+param([String] $TestParams,
+      [object] $AllVmData)
 #######################################################################
 #
 # Main script body
@@ -35,7 +36,7 @@ param([string] $TestParams)
 
 function Main {
     param (
-        $TestParams
+        $TestParams, $AllVmData
     )
     $currentTestResult = Create-TestResultObject
     $resultArr = @()
@@ -199,4 +200,4 @@ function Main {
     return $currentTestResult.TestResult
 }
 
-Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))
+Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n")) -AllVmData $AllVmData

@@ -6,7 +6,7 @@
     Check the PowerPlan of all servers. If it isn't set to High Performance,
     change it.
 #>
-
+param([object] $AllVMData)
 function Main {
     $retVal = $false
 

@@ -1,10 +1,14 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 
+param([object] $AllVmData,
+      [object] $CurrentTestData,
+      [object] $TestProvider)
+
 function Main {
     # Create test result
     $resultArr = @()
-
+    $currentTestResult = Create-TestResultObject
     try {
         $clientVMData = $allVMData
         #region CONFIGURE VM FOR N SERIES GPU TEST
@@ -48,8 +52,7 @@ collect_VM_properties
             Write-LogInfo "*********************************************************"
             Write-LogInfo "GPU Drivers installed successfully. Restarting VM now..."
             Write-LogInfo "*********************************************************"
-            $restartStatus = Restart-AllDeployments -allVMData $clientVMData
-            if ($restartStatus -eq "True") {
+            if ($TestProvider.RestartAllDeployments($clientVMData)) {
                 if (($clientVMData.InstanceSize.Contains("Standard_NC6")) -or
                         ($clientVMData.InstanceSize.Contains("Standard_NC6s_v2")) -or
                         ($clientVMData.InstanceSize.Contains("Standard_NV6"))) {
@@ -160,7 +163,7 @@ collect_VM_properties
     }
 
     $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
-    return $currentTestResult.TestResult
+    return $currentTestResult
 }
 
 Main

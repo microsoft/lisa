@@ -1,13 +1,16 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
-Function Run-CurrentTest ( [switch]$Enable, [switch]$Disable) {
+param([object] $AllVmData,
+      [object] $CurrentTestData)
+
+Function Run-CurrentTest ( [switch]$Enable, [switch]$Disable, [object]$CurrentTestResult, [object]$AllVmData) {
     if ($Enable) {
-        $SRIOVChangeState = Set-SRIOVInVMs -VirtualMachinesGroupName $AllVMData.ResourceGroupName -Enable
+        $SRIOVChangeState = Set-SRIOVInVMs -AllVMData $AllVMData -Enable
         $ExpectedNics = 1
         $DesiredState = "Enable"
     }
     elseif ($Disable) {
-        $SRIOVChangeState = Set-SRIOVInVMs -VirtualMachinesGroupName $AllVMData.ResourceGroupName -Disable
+        $SRIOVChangeState = Set-SRIOVInVMs -AllVMData $AllVMData -Disable
         $ExpectedNics = 0
         $DesiredState = "Disable"
     }
@@ -42,6 +45,8 @@ Function Run-CurrentTest ( [switch]$Enable, [switch]$Disable) {
 }
 
 function Main {
+    param( [object]$AllVmData, [object]$CurrentTestData )
+    $currentTestResult = Create-TestResultObject
     try {
         $resultArr = @()
         $Stage2Result = $true
@@ -51,7 +56,7 @@ function Main {
             if ($Stage2Result) {
                 Write-LogInfo "[Iteration : $TestIteration/$($CurrentTestData.TestIterations)] Stage 1: Enable SRIOV on Non-SRIOV Azure VM."
                 $Stage1Result = $false
-                $Stage1Result = Run-CurrentTest -Enable
+                $Stage1Result = Run-CurrentTest -Enable -CurrentTestResult $currentTestResult -AllVmData $AllVmData
             }
             else {
                 #Break the for loop.
@@ -63,7 +68,7 @@ function Main {
             if ($Stage1Result) {
                 Write-LogInfo "[Iteration : $TestIteration/$($CurrentTestData.TestIterations)] Stage 2: Disable SRIOV on SRIOV Azure VM."
                 $Stage2Result = $false
-                $Stage2Result = Run-CurrentTest -Disable
+                $Stage2Result = Run-CurrentTest -Disable -CurrentTestResult $currentTestResult -AllVmData $AllVmData
             }
             else {
                 #Break the for loop.
@@ -97,7 +102,7 @@ function Main {
     }
 
     $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
-    return $currentTestResult.TestResult
+    return $currentTestResult
 }
 
-Main
+Main -AllVmData $AllVmData -CurrentTestData $CurrentTestData

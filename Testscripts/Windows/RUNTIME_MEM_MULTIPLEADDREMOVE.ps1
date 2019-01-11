@@ -7,7 +7,7 @@
 	Verify that memory changes if multiple memory add/remove operations are done.
 	Only 1 VM is required for this test.
 #>
-param([string] $testParams)
+param([string] $testParams, [object] $AllVmData)
 #######################################################################
 #
 # Main script body
@@ -15,8 +15,9 @@ param([string] $testParams)
 #######################################################################
 function Main {
     param (
-        $testParams
+        $testParams, $allVMData
     )
+    $currentTestResult = Create-TestResultObject
     try {
         $testResult = $null
         $captureVMData = $allVMData
@@ -264,5 +265,5 @@ function Main {
     $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
 	return $currentTestResult.TestResult
 }
-Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))
+Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n")) -allVMData $AllVmData
 

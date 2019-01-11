@@ -4,7 +4,7 @@
 .Synopsis
  Trigger an NMI on a target VM
 #>
-param([String] $TestParams)
+param([string] $TestParams, [object] $AllVMData)
 
 $ErrorActionPreference = "Stop"
 
@@ -66,7 +66,7 @@ function Trigger-NmiInterrupt {
 }
 
 Trigger-NmiInterrupt -VMName $AllVMData.RoleName `
-     -HvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
+     -HvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
      -Ipv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort `
      -VMUserName $user -VMPassword $password -RootDir $WorkingDirectory
 

@@ -7,6 +7,8 @@
     This script will backup vm when vm has read-only file which
     is created by mksquashfs.
 #>
+param([object] $AllVMData)
+
 $ErrorActionPreference = "Stop"
 function Main {
     $currentTestResult = Create-TestResultObject

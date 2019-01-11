@@ -42,7 +42,8 @@
     Test data for this test case
 #>
 
-param([string] $testParams)
+param([String] $TestParams,
+      [object] $AllVmData)
 
 #######################################################################
 #

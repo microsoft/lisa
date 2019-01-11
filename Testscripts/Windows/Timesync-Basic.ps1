@@ -6,7 +6,7 @@
     Verify the time on the VM is in sync with the Hyper-V host.
 #>
 
-param([string] $TestParams)
+param([string] $TestParams, [object] $AllVMData)
 
 # Main script body
 function Main {

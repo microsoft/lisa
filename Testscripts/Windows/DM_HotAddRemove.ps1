@@ -32,7 +32,8 @@
 
    All scripts must return a boolean to indicate if the script completed successfully or not.
 #>
-param([string] $TestParams)
+param([String] $TestParams,
+      [object] $AllVmData)
 #######################################################################
 #
 # Main script body

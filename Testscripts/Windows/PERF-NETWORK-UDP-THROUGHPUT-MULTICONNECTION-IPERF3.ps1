@@ -1,7 +1,9 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 param(
-    [String] $TestParams
+    [String] $TestParams,
+    [object] $AllVmData,
+    [object] $CurrentTestData
 )
 
 function Main {
@@ -60,7 +62,7 @@ function Main {
         } else {
             Throw "Server and client SRIOV NICs are not same."
         }
-        if($EnableAcceleratedNetworking -or ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV")) {
+        if ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
             $DataPath = "SRIOV"
         } else {
             $DataPath = "Synthetic"
@@ -292,12 +294,12 @@ collect_VM_properties
         Write-LogInfo "Test Completed"
 
         Write-LogInfo "Uploading the test results to DB STARTED.."
-        $dataSource = $xmlConfig.config.$TestPlatform.database.server
-        $dbuser = $xmlConfig.config.$TestPlatform.database.user
-        $dbpassword = $xmlConfig.config.$TestPlatform.database.password
-        $database = $xmlConfig.config.$TestPlatform.database.dbname
-        $dataTableName = $xmlConfig.config.$TestPlatform.database.dbtable
-        $TestCaseName = $xmlConfig.config.$TestPlatform.database.testTag
+        $dataSource = $GlobalConfig.Global.$TestPlatform.database.server
+        $dbuser = $GlobalConfig.Global.$TestPlatform.database.user
+        $dbpassword = $GlobalConfig.Global.$TestPlatform.database.password
+        $database = $GlobalConfig.Global.$TestPlatform.database.dbname
+        $dataTableName = $GlobalConfig.Global.$TestPlatform.database.dbtable
+        $TestCaseName = $GlobalConfig.Global.$TestPlatform.database.testTag
         if ($dataSource -And $dbuser -And $dbpassword -And $database -And $dataTableName) {
             $GuestDistro = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
             $HostOS = cat "$LogDir\VM_properties.csv" | Select-String "Host Version"| %{$_ -replace ",Host Version,",""}
@@ -332,7 +334,7 @@ collect_VM_properties
     }
 
     $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
-    return $currentTestResult.TestResult
+    return $currentTestResult
 }
 
 Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))

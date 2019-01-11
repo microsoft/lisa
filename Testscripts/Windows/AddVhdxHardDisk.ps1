@@ -23,7 +23,8 @@
 .Example
     .\Testscripts\Windows\AddVhdxHardDisk.ps1 -vmName myVM -hvServer localhost -testParams "SCSI=1,0,Dynamic,4096;ipv4=IPaddress;RootDir="
 #>
-param([String] $TestParams)
+param([object] $AllVMData, [string] $TestParams)
+
 $retVal = $true
 $global:MinDiskSize = 1GB
 $global:DefaultDynamicSize = 127GB
@@ -392,5 +393,5 @@ function Main {
 
     return $retVal
 }
-Main -VmName $AllVMData.RoleName -hvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
+Main -VmName $AllVMData.RoleName -hvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
          -testParams $TestParams -rootDir $WorkingDirectory

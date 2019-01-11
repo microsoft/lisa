@@ -13,7 +13,7 @@
     Afterwards the main test is started together with the main VM.
 #>
 
-param([string] $TestParams)
+param([string] $TestParams, [object] $AllVMData)
 
 function Main {
     param (
@@ -125,7 +125,9 @@ function Main {
             }
         }
 
-        .\Testscripts\Windows\SETUP-NET-Add-NIC.ps1 -TestParams $vm2NicAddParam -VMName $VM2Name
+        $vm2Data = New-Object -TypeName PSObject
+        Add-Member -InputObject $vm2Data -MemberType NoteProperty -Name RoleName -Value $VM2Name -Force
+        .\Testscripts\Windows\SETUP-NET-Add-NIC.ps1 -TestParams $vm2NicAddParam -AllVMData $vm2Data
         if (-not $?) {
             Write-LogErr "Cannot add new NIC to $VM2Name"
             return $False
@@ -168,6 +170,6 @@ function Main {
     return $True
 }
 
-Main -VMName $AllVMData.RoleName -HvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
+Main -VMName $AllVMData.RoleName -HvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
      -VMPort $AllVMData.SSHPort -VMUserName $user -VMPassword $password `
      -TestParams $TestParams

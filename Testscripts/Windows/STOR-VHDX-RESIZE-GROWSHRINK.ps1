@@ -22,7 +22,7 @@ $testResult = "FAIL"
 
 Function Set-HardDiskSize
 {
-	param ($vhdPath, $newSize, $controllerType, $vmName, $hvServer, $ip, $port)
+	param ($vhdPath, $newSize, $controllerType, $vmName, $hvServer, $ip, $port, $testParameters)
 
 	# for IDE & offline need to stop VM before resize
 	if ( $controllerType -eq "IDE" -or $testParameters.Offline -eq "True") {
@@ -88,7 +88,7 @@ Function Set-HardDiskSize
 
 Function Main
 {
-	param ($vmName, $hvServer, $ip, $port)
+	param ($vmName, $hvServer, $ip, $port, $testParameters)
 	$resultArr = @()
 
 	try {
@@ -159,15 +159,15 @@ Function Main
 
 		if ($null -ne $testParameters.growSize) {
 			$newSize = $testParameters.growSize
-			Set-HardDiskSize $vhdPath $newSize $controllerType $vmName $hvServer $ip $port
+			Set-HardDiskSize $vhdPath $newSize $controllerType $vmName $hvServer $ip $port $testParameters
 		}
 		if ($null -ne $testParameters.shrinkSize) {
 			$newSize = $testParameters.shrinkSize
-			Set-HardDiskSize $vhdPath $newSize $controllerType $vmName $hvServer $ip $port
+			Set-HardDiskSize $vhdPath $newSize $controllerType $vmName $hvServer $ip $port $testParameters
 		}
 		if ($null -ne $testParameters.newSize) {
 			$newSize = $testParameters.newSize
-			Set-HardDiskSize $vhdPath $newSize $controllerType $vmName $hvServer $ip $port
+			Set-HardDiskSize $vhdPath $newSize $controllerType $vmName $hvServer $ip $port $testParameters
 		}
 		$testResult = "PASS"
 
@@ -188,4 +188,4 @@ Function Main
 	return Get-FinalResultHeader -resultarr $resultArr
 } # end Main
 
-Main -vmName $VM.RoleName -hvServer $VM.HyperVHost -ip $VM.PublicIP -port $VM.SSHPort
+Main -vmName $VM.RoleName -hvServer $VM.HyperVHost -ip $VM.PublicIP -port $VM.SSHPort -testParameters (ConvertFrom-StringData $TestParams.Replace(";","`n"))

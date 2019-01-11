@@ -1,13 +1,20 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
+
+param([object] $AllVmData,
+      [object] $CurrentTestData,
+      [object] $TestProvider)
+
 $ErrorActionPreference = "Continue"
 
 function Main {
     param(
         [parameter(Mandatory=$true)]
-        [String] $Distro,
+        [object] $AllVmData,
         [parameter(Mandatory=$true)]
-        [xml] $XmlConfig
+        [object] $CurrentTestData,
+        [parameter(Mandatory=$true)]
+        [object] $TestProvider
     )
 
     $result = ""
@@ -28,18 +35,7 @@ function Main {
         try {
             Write-LogInfo ("Trying to restart {0}: {1} / {2} ..." `
                 -f @($AllVMData.RoleName, $rebootNr, $rebootNumber))
-            $RestartStatus = Restart-AllDeployments -allVMData $AllVMData
-            if ($RestartStatus -eq "True") {
-                $isVmAlive = Is-VmAlive -AllVMDataObject $AllVMData
-                if ($isVmAlive -eq "True") {
-                    $isRestarted = $true
-                } else {
-                    Write-LogErr "VM is not available after restart"
-                    $isRestarted = $false
-                }
-            } else {
-                $isRestarted = $false
-            }
+            $isRestarted = $TestProvider.RestartAllDeployments($allVMData)
             if ($isRestarted) {
                 Write-LogInfo "Virtual machine restart successful."
                 $testResult = "PASS"
@@ -71,11 +67,4 @@ function Main {
     return $result
 }
 
-# Global Variables
-#
-# $currentTestData
-# $Distro
-# $XmlConfig
-# $AllVMData
-
-Main -Distro $Distro -XmlConfig $xmlConfig
+Main -AllVmData $AllVmData -CurrentTestData $CurrentTestData -TestProvider $TestProvider

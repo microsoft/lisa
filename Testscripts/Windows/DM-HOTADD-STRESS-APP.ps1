@@ -15,7 +15,8 @@
       startupMem=(decimal) [MB|GB|%], memWeight=(0 < decimal < 100)
 #>
 
-param([string] $TestParams)
+param([String] $TestParams,
+      [object] $AllVmData)
 # we need a scriptblock in order to pass the function to start-job
 # The script block is not part of the common function, so the script block is present here
 $scriptBlock = {
@@ -68,7 +69,7 @@ $scriptBlock = {
 
 function Main {
     param (
-        $TestParams
+        $TestParams, $AllVmData
     )
     $currentTestResult = Create-TestResultObject
     $resultArr = @()
@@ -204,4 +205,4 @@ function Main {
         return $currentTestResult.TestResult
 }
 
-Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))
+Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n")) -AllVmData $AllVmData

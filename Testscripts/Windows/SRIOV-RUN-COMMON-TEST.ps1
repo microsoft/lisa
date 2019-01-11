@@ -1,12 +1,17 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
-param ([string] $TestParams)
+param([String] $TestParams,
+      [object] $AllVmData,
+      [object] $CurrentTestData)
 
 function Main {
     param (
         $VMUsername,
-        $TestParams
+        $TestParams,
+        $AllVmData,
+        $CurrentTestData
     )
+    $currentTestResult = Create-TestResultObject
     try {
         $timeout = 600
         if ($testPlatform -eq "Azure") {
@@ -161,4 +166,4 @@ function Main {
     return $currentTestResult.TestResult
 }
 
-Main -VMUsername $user -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))
+Main -VMUsername $user -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n")) -AllVmData $AllVmData -CurrentTestData $CurrentTestData

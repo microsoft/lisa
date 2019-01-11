@@ -23,7 +23,7 @@
 
 #>
 
-param([string] $testParams)
+param([string] $testParams, [object] $AllVmData)
 
 #######################################################################
 # To Create Grand Child VHD from Parent VHD.
@@ -88,8 +88,9 @@ function Get-GChildVHD($ParentVHD)
 #######################################################################
 function Main {
     param (
-        $TestParams
+        $TestParams, $allVMData
     )
+    $currentTestResult = Create-TestResultObject
     try{
         $testResult = $null
         $captureVMData = $allVMData
@@ -315,4 +316,4 @@ function Main {
     return $currentTestResult.TestResult
 }
 
-Main -TestParams  (ConvertFrom-StringData $TestParams.Replace(";","`n"))
+Main -TestParams  (ConvertFrom-StringData $TestParams.Replace(";","`n")) -allVMData $AllVmData

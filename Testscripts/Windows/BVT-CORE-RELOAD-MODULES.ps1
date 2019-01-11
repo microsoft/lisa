@@ -22,6 +22,9 @@
 #########################################################################
 # Check test result
 ########################################################################
+param([String] $TestParams,
+      [object] $AllVmData)
+
 function Check-Result {
     param (
         [String] $VmIp,

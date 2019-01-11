@@ -8,8 +8,10 @@
     given vm. The VHD will be mounted to a new partiton, initialized and
     formatted with NTFS
 #>
+param([object] $AllVMData)
 $ErrorActionPreference = "Stop"
 function Main {
+    $currentTestResult = Create-TestResultObject
     try {
         $testResult = $null
         $captureVMData = $allVMData

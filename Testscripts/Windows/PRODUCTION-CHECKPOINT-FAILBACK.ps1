@@ -10,6 +10,7 @@
     to create a standard checkpoint in this case.
     The test will pass if a Standard Checkpoint will be made in this case.
 #>
+param([object] $AllVmData)
 function Main {
     $currentTestResult = Create-TestResultObject
     $resultArr = @()

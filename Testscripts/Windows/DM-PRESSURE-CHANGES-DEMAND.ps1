@@ -40,7 +40,8 @@
     .Parameter testParams
     Test data for this test case
 #>
-param([string] $TestParams)
+param([String] $TestParams,
+      [object] $AllVmData)
 Set-PSDebug -Strict
 #######################################################################
 #
@@ -49,7 +50,7 @@ Set-PSDebug -Strict
 #######################################################################
 function Main {
     param (
-        $TestParams
+        $TestParams, $AllVmData
     )
     $currentTestResult = Create-TestResultObject
     $resultArr = @()
@@ -185,4 +186,4 @@ function Main {
     return $currentTestResult.TestResult
 }
 
-Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))
+Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n")) -AllVmData $AllVmData

@@ -7,8 +7,11 @@
     This script will set Integration Services "Backup (volume checkpoint)" -VSS as disabled,
     then do offline backup, set VSS as enabled, then do online backup.
 #>
+param([object] $AllVMData)
+
 $ErrorActionPreference = "Stop"
 function Main {
+    $currentTestResult = Create-TestResultObject
     try {
         $testResult = $null
         $captureVMData = $allVMData

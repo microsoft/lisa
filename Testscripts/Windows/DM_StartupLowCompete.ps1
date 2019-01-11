@@ -23,7 +23,8 @@
        VM2Name=ICA-HG*-role-1;enable=yes;minMem2=1024MB;maxMem2=50%;startupMem2=40%;memWeight2=0"
    All scripts must return a boolean to indicate if the script completed successfully or not.
 #>
-param([string] $TestParams)
+param([String] $TestParams,
+      [object] $AllVmData)
 function Main {
     param (
         $VM1,

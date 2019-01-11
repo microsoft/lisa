@@ -10,6 +10,8 @@
           different from the Hyper-V one has to be available.
 
 #>
+param([object] $AllVMData)
+
 $ErrorActionPreference = "Stop"
 function Main {
     $currentTestResult = Create-TestResultObject

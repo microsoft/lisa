@@ -13,7 +13,7 @@
     3. Set up SR-IOV on VM2
     Optional: Set up an internal network on VM2
 #>
-param ([string] $TestParams)
+param([string] $TestParams, [object] $AllVMData)
 function Set-VFInGuest {
     param (
         $VMUser,
@@ -226,5 +226,5 @@ function Main {
     return $True
 }
 
-Main -VMName $AllVMData.RoleName -hvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
+Main -VMName $AllVMData.RoleName -hvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
     -VMPort $AllVMData.SSHPort -VMUserName $user -VMPassword $password -TestParams $TestParams

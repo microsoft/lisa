@@ -9,7 +9,7 @@
     It uses a second partition as target.
 #>
 
-param([String] $TestParams)
+param([string] $TestParams, [object] $AllVMData)
 $ErrorActionPreference = "Stop"
 $remoteScript = "STOR_VSS_StopNetwork.sh"
 
@@ -20,8 +20,9 @@ $remoteScript = "STOR_VSS_StopNetwork.sh"
 #######################################################################
 function Main {
     param (
-       $TestParams
+       $TestParams, $AllVMData
     )
+    $currentTestResult = Create-TestResultObject
     try {
         $testResult = $null
         $captureVMData = $allVMData
@@ -139,5 +140,5 @@ function Main {
     $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
-Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))
+Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n")) -AllVMData $AllVMData
 

@@ -1,7 +1,8 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 
-param([string] $TestParams)
+param([String] $TestParams,
+      [object] $AllVmData)
 
 function Add-KVPEntries {
     param (
@@ -157,5 +158,5 @@ function Main {
 }
 
 Main -VMName $AllVMData.RoleName -Ipv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort `
-        -VMLocation $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName -TestParams $TestParams
+        -VMLocation $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName -TestParams $TestParams
 

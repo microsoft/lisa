@@ -8,7 +8,7 @@
     Verify that memory changes while stress tool is running.
 	Only 1 VM is required for this test.
 #>
-param([string] $TestParams)
+param([string] $testParams, [object] $AllVmData)
 #######################################################################
 #
 # Main script body
@@ -16,8 +16,9 @@ param([string] $TestParams)
 #######################################################################
 function Main {
     param (
-        $testParams
+        $testParams, $allVMData
     )
+    $currentTestResult = Create-TestResultObject
     try {
         $testResult = $null
         $captureVMData = $allVMData
@@ -174,4 +175,4 @@ function Main {
 	$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
 	return $currentTestResult.TestResult
 }
-Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))
+Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n")) -allVMData $AllVmData

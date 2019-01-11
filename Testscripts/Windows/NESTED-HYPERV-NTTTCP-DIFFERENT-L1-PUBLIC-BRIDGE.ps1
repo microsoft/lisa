@@ -1,6 +1,8 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 
+param([object] $AllVmData, [object] $CurrentTestData, [object] $TestProvider)
+
 $testScript = "nested_hyperv_ntttcp_different_l1_public_bridge.sh"
 
 function Start-TestExecution ($ip, $port, $cmd) {
@@ -50,20 +52,20 @@ function Download-OSvhd ($session, $srcPath, $dstPath) {
 	}  -ArgumentList $srcPath, $dstPath
 }
 
-function Send-ResultToDatabase ($xmlConfig, $logDir) {
+function Send-ResultToDatabase ($GlobalConfig, $logDir) {
 	Write-LogInfo "Uploading the test results.."
-	$dataSource = $xmlConfig.config.$TestPlatform.database.server
-	$user = $xmlConfig.config.$TestPlatform.database.user
-	$password = $xmlConfig.config.$TestPlatform.database.password
-	$database = $xmlConfig.config.$TestPlatform.database.dbname
-	$dataTableName = $xmlConfig.config.$TestPlatform.database.dbtable
-	$TestCaseName = $xmlConfig.config.$TestPlatform.database.testTag
+	$dataSource = $GlobalConfig.Global.$TestPlatform.database.server
+	$user = $GlobalConfig.Global.$TestPlatform.database.user
+	$password = $GlobalConfig.Global.$TestPlatform.database.password
+	$database = $GlobalConfig.Global.$TestPlatform.database.dbname
+	$dataTableName = $GlobalConfig.Global.$TestPlatform.database.dbtable
+	$TestCaseName = $GlobalConfig.Global.$TestPlatform.database.testTag
 	if ($dataSource -And $user -And $password -And $database -And $dataTableName)
 	{
 		# Get host info
-		$HostType	= $xmlConfig.config.CurrentTestPlatform
+		$HostType	= $global:TestPlatform
 		$HostBy	= $TestLocation
-		$HostOS	= (Get-WmiObject -Class Win32_OperatingSystem -ComputerName $xmlConfig.config.$TestPlatform.Hosts.ChildNodes[0].ServerName).Version
+		$HostOS	= (Get-WmiObject -Class Win32_OperatingSystem -ComputerName $GlobalConfig.Global.$TestPlatform.Hosts.ChildNodes[0].ServerName).Version
 
 		# Get L1 guest info
 		$L1GuestKernelVersion = Get-Content "$LogDir\nested_properties.csv" | Select-String "Host Version"| ForEach-Object{$_ -replace ",Host Version,",""}
@@ -161,7 +163,7 @@ function Main () {
 		}
 
 		Write-LogInfo "Restart VMs to make sure Hyper-V install completely"
-		Restart-AllHyperVDeployments -allVMData $AllVMData
+		$TestProvider.RestartAllDeployments($AllVMData)
 
 		Start-Sleep 20
 		$serverSession = New-PSSession -ComputerName $hs1VIP -Credential $cred
@@ -375,7 +377,7 @@ function Main () {
 				Write-LogInfo "Zero throughput for some connections, results will not be uploaded to database!"
 			}
 			else {
-				Send-ResultToDatabase -xmlConfig $xmlConfig -logDir $LogDir
+				Send-ResultToDatabase -GlobalConfig $GlobalConfig -logDir $LogDir
 			}
 		}
 	}

@@ -7,7 +7,7 @@
     Verify that memory changes if a big chunk of memory is added or removed.
    Only 1 VM is required for this test.
 #>
-param([string] $TestParams)
+param([string] $TestParams, [object] $AllVMData)
 #######################################################################
 #
 # Main script body
@@ -15,8 +15,9 @@ param([string] $TestParams)
 #######################################################################
 function Main {
     param (
-        $TestParams
+        $TestParams, $AllVMData
     )
+    $currentTestResult = Create-TestResultObject
     try {
         $testResult = $null
         $captureVMData = $allVMData
@@ -179,4 +180,4 @@ function Main {
 	return $currentTestResult.TestResult
 }
 
-Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))
+Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n")) -AllVMData $AllVMData

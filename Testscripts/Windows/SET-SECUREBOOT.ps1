@@ -7,6 +7,8 @@
 .Description
     This setup script will enable the Secure Boot features of a Generation 2 VM.
 #>
+param([object] $AllVMData)
+
 $ErrorActionPreference = "Stop"
 function Main {
     $currentTestResult = Create-TestResultObject

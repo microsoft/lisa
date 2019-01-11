@@ -9,11 +9,11 @@
     After that it will proceed with making a Production Checkpoint on test VM.
 #>
 
-param([String] $TestParams)
+param([string] $testParams, [object] $AllVmData)
 
 function Main {
     param (
-        $TestParams
+        $TestParams, $allVMData
     )
 
     $currentTestResult = Create-TestResultObject
@@ -171,4 +171,4 @@ function Main {
 	return $currentTestResult.TestResult
 }
 
-Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))
+Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n")) -allVMData $AllVmData

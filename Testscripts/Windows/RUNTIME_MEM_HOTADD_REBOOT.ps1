@@ -10,7 +10,7 @@
     reboot the vm and hot add another 1000 MB. Test will pass if all hot add
     operations work.
 #>
-param([string] $TestParams)
+param([string] $testParams, [object] $AllVmData)
 #######################################################################
 #
 # Main script body
@@ -18,8 +18,9 @@ param([string] $TestParams)
 #######################################################################
 function Main {
     param (
-        $testParams
+        $testParams, $allVMData
     )
+    $currentTestResult = Create-TestResultObject
     try {
         $testResult = $null
         $captureVMData = $allVMData
@@ -156,4 +157,4 @@ function Main {
 	$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
 	return $currentTestResult.TestResult
 }
-Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))
+Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n")) -allVMData $AllVmData

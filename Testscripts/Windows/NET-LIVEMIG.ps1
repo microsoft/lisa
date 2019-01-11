@@ -9,14 +9,18 @@
     Keeps pinging the VM while migration is in progress, ensures that migration
     of VM is successful and the that the ping should not loose
 #>
-param([String] $TestParams)
+param([String] $TestParams,
+      [object] $AllVmData)
+
 $ErrorActionPreference = "Stop"
 $stopClusterNode= $False
 $VMMemory = $null
 function Main {
     param (
-        $TestParams
+        $TestParams,
+        $AllVmData
     )
+    $currentTestResult = Create-TestResultObject
     try {
         $testResult = $null
         $captureVMData = $allVMData
@@ -120,4 +124,4 @@ function Main {
     $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
-Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))
+Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n")) -AllVmData $AllVmData

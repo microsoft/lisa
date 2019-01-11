@@ -1,9 +1,13 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 
+param([object] $AllVmData,
+      [object] $CurrentTestData,
+      [object] $TestProvider)
+
 function Main {
     $resultArr = @()
-
+    $currentTestResult = Create-TestResultObject
     try {
         $NoServer = $true
         $NoClient = $true
@@ -318,7 +322,7 @@ function Main {
             Write-LogInfo "**********************************************"
             if ($RemainingRebootIterations -gt 0) {
                 if ($testResult -eq "PASS") {
-                    $RestartStatus = Restart-AllDeployments -AllVMData $AllVMData
+                    $RestartStatus = $TestProvider.RestartAllDeployments($allVMData)
                     $RemainingRebootIterations -= 1
                 }
                 else {
@@ -326,8 +330,7 @@ function Main {
                 }
             }
         }
-        while (($ExpectedSuccessCount -ne $Iteration) -and ($RestartStatus -eq "True") `
-        -and ($testResult -eq "PASS"))
+        while (($ExpectedSuccessCount -ne $Iteration) -and $RestartStatus -and ($testResult -eq "PASS"))
         if ( $ExpectedSuccessCount -eq $TotalSuccessCount ) {
             $testResult = "PASS"
         }
@@ -349,7 +352,7 @@ function Main {
         $resultArr += $testResult
     }
     $CurrentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
-    return $CurrentTestResult.TestResult
+    return $CurrentTestResult
 }
 
 Main

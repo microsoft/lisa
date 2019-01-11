@@ -13,7 +13,7 @@
     Test data for this test case
 #>
 
-param([string] $testParams)
+param([object] $AllVMData)
 $remoteScript = "STOR_VSS_Set_VSS_Daemon.sh"
 
 #######################################################################
@@ -22,6 +22,7 @@ $remoteScript = "STOR_VSS_Set_VSS_Daemon.sh"
 #
 #######################################################################
 function Main {
+    $currentTestResult = Create-TestResultObject
     try {
         $testResult = $null
         $captureVMData = $allVMData

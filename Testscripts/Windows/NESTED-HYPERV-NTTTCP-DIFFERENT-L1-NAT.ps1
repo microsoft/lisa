@@ -1,5 +1,8 @@
 ﻿# Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
+
+param([object] $AllVmData, [object] $CurrentTestData)
+
 $testScript = "nested_hyperv_ntttcp_different_l1_nat.sh"
 $IP_MATCH = "\b(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}\b"
 
@@ -16,7 +19,7 @@ netsh advfirewall firewall add rule name="WinRM HTTP" dir=in action=allow protoc
 	if(-not $storageName) {
 		$randomNum = Get-Random -Maximum 999 -Minimum 100
 		$storageName = "temp" + [string]$randomNum
-		$location = $xmlConfig.config.Azure.General.Location
+		$location = $global:TestLocation
 		New-AzureRmStorageAccount -ResourceGroupName $rgName -AccountName $storageName -Location $location -SkuName "Standard_GRS" | Out-Null
 	}
 	$StorageKey = (Get-AzurermStorageAccountKey  -Name $storageName -ResourceGroupName $rgName).Value[0]
@@ -49,7 +52,7 @@ function Invoke-CustomScript($fileUri)
 	$publisher = "Microsoft.Compute"
 	$type = "CustomScriptExtension"
 	$name = "CustomScriptExtension"
-	$location = $xmlConfig.config.Azure.General.Location
+	$location = $global:TestLocation
 	foreach($vm in $myVM) {
 		$sts=Set-AzureRmVMExtension -ResourceGroupName $rgName -Location $location -VMName $vm  -Name $name -Publisher $publisher -ExtensionType $type  -TypeHandlerVersion "1.9"  -Settings $settings  -ProtectedSettings $proSettings
 		if($sts.IsSuccessStatusCode) {
@@ -253,17 +256,17 @@ function Start-TestExecution ($ip, $port, $cmd) {
 	}
 }
 
-function Send-ResultToDatabase ($xmlConfig, $logDir, $session) {
+function Send-ResultToDatabase ($GlobalConfig, $logDir, $session) {
 	Write-LogInfo "Uploading the test results.."
-	$dataSource = $xmlConfig.config.$TestPlatform.database.server
-	$user = $xmlConfig.config.$TestPlatform.database.user
-	$password = $xmlConfig.config.$TestPlatform.database.password
-	$database = $xmlConfig.config.$TestPlatform.database.dbname
-	$dataTableName = $xmlConfig.config.$TestPlatform.database.dbtable
-	$TestCaseName = $xmlConfig.config.$TestPlatform.database.testTag
+	$dataSource = $GlobalConfig.Global.$TestPlatform.database.server
+	$user = $GlobalConfig.Global.$TestPlatform.database.user
+	$password = $GlobalConfig.Global.$TestPlatform.database.password
+	$database = $GlobalConfig.Global.$TestPlatform.database.dbname
+	$dataTableName = $GlobalConfig.Global.$TestPlatform.database.dbtable
+	$TestCaseName = $GlobalConfig.Global.$TestPlatform.database.testTag
 	if ($dataSource -And $user -And $password -And $database -And $dataTableName) {
 		# Get host info
-		$HostType	= $xmlConfig.config.CurrentTestPlatform
+		$HostType	= $global:TestPlatform
 		$HostBy	= $TestLocation
 
 		if ($TestPlatform -eq "hyperV") {
@@ -271,7 +274,7 @@ function Send-ResultToDatabase ($xmlConfig, $logDir, $session) {
 			$L1GuestCpuNum = $HyperVMappedSizes.HyperV.$HyperVInstanceSize.NumberOfCores
 			$L1GuestMemMB = $HyperVMappedSizes.HyperV.$HyperVInstanceSize.MemoryInMB
 			$L1GuestSize = $L1GuestCpuNum.ToString() +"Cores "+($L1GuestMemMB/1024).ToString()+"G"
-			$HostOS = (Get-WmiObject -Class Win32_OperatingSystem -ComputerName $xmlConfig.config.$TestPlatform.Hosts.ChildNodes[0].ServerName).Version
+			$HostOS = (Get-WmiObject -Class Win32_OperatingSystem -ComputerName $GlobalConfig.Global.$TestPlatform.Hosts.ChildNodes[0].ServerName).Version
 		} else {
 			$L1GuestSize = $AllVMData.InstanceSize
 			$keys = "HostingSystemOsMajor", "HostingSystemOsMinor", "HostingSystemEditionId"
@@ -643,7 +646,7 @@ function Main () {
 			if (!$uploadResults) {
 				Write-LogInfo "Zero throughput for some connections, results will not be uploaded to database!"
 			} else {
-				Send-ResultToDatabase -xmlConfig $xmlConfig -logDir $LogDir -session $serverSession
+				Send-ResultToDatabase -GlobalConfig $GlobalConfig -logDir $LogDir -session $serverSession
 			}
 			Remove-PSSession -Session $serverSession
 			Remove-PSSession -Session $clientSession

@@ -1,11 +1,13 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
+param([object] $AllVmData,
+	  [object] $CurrentTestData)
 
 function Main {
 	# Create test result
 	$superUser = "root"
 	$resultArr = @()
-
+	$currentTestResult = Create-TestResultObject
 	try {
 		#region CONFIGURE VM FOR DPDK TEST
 		Write-LogInfo "VM details :"
@@ -23,7 +25,7 @@ function Main {
 		$getNicCmd = ". ./utils.sh &> /dev/null && get_active_nic_name"
 		$vmNicName = (Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superUser -password $password -command $getNicCmd).Trim()
 
-		if($EnableAcceleratedNetworking -or ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV")) {
+		if ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
 			$DataPath = "SRIOV"
 		} else {
 			$DataPath = "Synthetic"

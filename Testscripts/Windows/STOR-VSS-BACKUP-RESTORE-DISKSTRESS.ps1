@@ -8,8 +8,11 @@
     While the script is running it will perform the backup/restore operation.
     It uses a second partition as target.
 #>
+param([object] $AllVMData)
+
 $ErrorActionPreference = "Stop"
 function Main {
+    $currentTestResult = Create-TestResultObject
     try {
         $testResult = $null
         $captureVMData = $allVMData

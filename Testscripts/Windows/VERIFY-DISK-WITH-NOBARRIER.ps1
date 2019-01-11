@@ -1,7 +1,10 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
-function Main {
+param([object] $AllVmData,
+      [object] $CurrentTestData)
 
+function Main {
+    $currentTestResult = Create-TestResultObject
     try {
         $count = 0
         $VM = $allVMData
@@ -71,7 +74,7 @@ function Main {
         $resultArr += $testResult
     }
     $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
-    return $currentTestResult.TestResult
+    return $currentTestResult
 }
 
 Main

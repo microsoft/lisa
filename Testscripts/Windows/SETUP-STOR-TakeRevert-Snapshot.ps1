@@ -9,7 +9,7 @@
     the revert snapshot operation.
 #>
 
-param([string] $testParams)
+param([string] $TestParams, [object] $AllVMData)
 
 function Main {
     param (
@@ -154,7 +154,7 @@ function Main {
     }
 }
 
-Main -VMName $AllVMData.RoleName -HvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
+Main -VMName $AllVMData.RoleName -HvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
     -Ipv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort `
     -VMUserName $user -VMPassword $password -RootDir $WorkingDirectory `
     -TestParams $TestParams

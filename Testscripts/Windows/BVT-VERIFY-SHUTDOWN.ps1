@@ -1,7 +1,9 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
+param([object] $AllVmData)
 
 function Main {
+    param([object] $AllVMData)
     # Create test result
     $currentTestResult = Create-TestResultObject
     $resultArr = @()
@@ -17,12 +19,13 @@ function Main {
             Write-LogInfo "Trying to start $($AllVMData.RoleName) to collect logs..."
             $null = Start-AzureRmVM -ResourceGroup $AllVMData.ResourceGroupName -name $AllVMData.RoleName
             # Refresh the data in case public IP address changes
-            $global:AllVMData = Get-AllDeploymentData -ResourceGroups $AllVMData.ResourceGroupName
+            $vmData = Get-AllDeploymentData -ResourceGroups $AllVMData.ResourceGroupName
+            $AllVMData.PublicIP = $vmData.PublicIP
 
             $isVmAlive = Is-VmAlive -AllVMDataObject $AllVMData
             if ($isVmAlive -eq "False") {
-                $global:isDeployed = $null
-                Write-LogInfo "Failed to connect to $($AllVMData.RoleName), set global variable isDeployed to null $global:isDeployed"
+                Write-LogInfo "Failed to connect to $($AllVMData.RoleName)"
+                $testResult = "FAIL"
             }
         }
     } catch {
@@ -40,4 +43,4 @@ function Main {
     return $currentTestResult.TestResult
 }
 
-Main
+Main -AllVMData $AllVmData

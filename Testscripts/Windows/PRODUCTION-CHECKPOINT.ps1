@@ -13,6 +13,8 @@
      - Revert to the Production Checkpoint
      - Boot the VM, only the first file should exist
 #>
+param([object] $AllVmData)
+
 $ErrorActionPreference = "Stop"
 
 function Main {

@@ -6,7 +6,9 @@
     This script tests ip injection from host to guest functionality
 #>
 
-param([string] $TestParams)
+param([String] $TestParams,
+      [object] $AllVmData)
+
 $NamespaceV2 = "root\virtualization\v2"
 
 # Checks if hv_set_ifconfig is present in the VM
@@ -238,6 +240,6 @@ function Main {
     return "PASS"
 }
 
-Main -VMName $AllVMData.RoleName -HvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
+Main -VMName $AllVMData.RoleName -HvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
     -IPv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort -VMUserName $user `
     -VMPassword $password -TestParams $TestParams

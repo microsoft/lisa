@@ -1,6 +1,13 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 
+param(
+    [String] $TestParams,
+    [object] $AllVmData,
+    [object] $CurrentTestData
+)
+
+
 ### HELPERS ###
 function New-ConstantsFile {
     param(
@@ -265,7 +272,7 @@ function Main {
         Write-LogInfo "Perf results in json format saved at: ${fioPerfResultsFile}"
 
         Consume-FioPerformanceResults -FioPerformanceResults $fioPerfResults `
-            -DBConfig $xmlConfig.config.$TestPlatform.database
+            -DBConfig $GlobalConfig.Global.$TestPlatform.database
 
         Write-LogInfo "Test Completed"
     } catch {

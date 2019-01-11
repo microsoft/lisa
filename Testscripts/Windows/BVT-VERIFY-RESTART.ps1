@@ -1,7 +1,9 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
+param([object] $AllVmData)
 
 function Main {
+    param([object] $AllVMData)
     # Create test result
     $currentTestResult = Create-TestResultObject
     $resultArr = @()
@@ -40,7 +42,7 @@ function Main {
     }
 
     $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
-    return $currentTestResult.TestResult
+    return $currentTestResult
 }
 
-Main
+Main -AllVMData $AllVmData

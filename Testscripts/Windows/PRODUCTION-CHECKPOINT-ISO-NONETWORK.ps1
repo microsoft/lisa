@@ -20,7 +20,7 @@
     A semicolon separated list of test parameters.
 #>
 
-param([string] $testParams)
+param([string] $testParams, [object] $AllVmData)
 
 # Define the guest side script
 $NetworkStopScript = "STOR_VSS_StopNetwork.sh"
@@ -32,8 +32,9 @@ $NetworkStopScript = "STOR_VSS_StopNetwork.sh"
 #######################################################################
 function Main {
     param (
-        $TestParams
+        $TestParams, $allVMData
     )
+    $currentTestResult = Create-TestResultObject
     try{
         $testResult = $null
         $url = $TestParams.CDISO
@@ -189,5 +190,5 @@ function Main {
     return $currentTestResult.TestResult
 }
 
-Main -TestParams  (ConvertFrom-StringData $TestParams.Replace(";","`n"))
+Main -TestParams  (ConvertFrom-StringData $TestParams.Replace(";","`n")) -allVMData $AllVmData
 

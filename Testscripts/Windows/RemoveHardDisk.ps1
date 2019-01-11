@@ -14,7 +14,7 @@
          IDE Lun 0 will not be removed.
 #>
 
-param([string] $TestParams)
+param([string] $testParams, [object] $AllVmData)
 
 function Main {
     param (
@@ -105,5 +105,5 @@ function Main {
     return $True
 }
 
-Main -VMName $AllVMData.RoleName -hvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
+Main -VMName $AllVMData.RoleName -hvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
          -TestParams $TestParams

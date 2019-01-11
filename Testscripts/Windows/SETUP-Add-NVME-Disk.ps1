@@ -10,14 +10,14 @@
 #>
 
 param(
-    [String] $TestParams
+    [String] $TestParams, [Object] $AllVMData
 )
 
 function Main {
     param (
-        $TestParams
+        $TestParams, $AllVMData
     )
-
+    $currentTestResult = Create-TestResultObject
     try {
         $testResult = $null
         $usableNvmeDiskCount = 0
@@ -111,4 +111,4 @@ function Main {
     return $currentTestResult.TestResult
 }
 
-Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))
+Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n")) -AllVMData $AllVMData

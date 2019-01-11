@@ -7,7 +7,8 @@
     the Linux VM, and then check if the sizes and checksums are matching.
 #>
 
-param([string] $TestParams)
+param([String] $TestParams,
+      [object] $AllVmData)
 
 #  Checks if test file is present
 function Get-FileCheck {
@@ -277,5 +278,5 @@ function Main {
     return "PASS"
 }
 
-Main -HvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName -IPv4 $AllVMData.PublicIP `
+Main -HvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName -IPv4 $AllVMData.PublicIP `
      -VMPort $AllVMData.SSHPort -VMPassword $password

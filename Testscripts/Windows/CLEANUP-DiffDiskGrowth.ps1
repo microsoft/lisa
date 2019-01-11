@@ -26,7 +26,8 @@
    Note: This setup script only adds differencing disks.
 #>
 
-param([String] $TestParams)
+param([String] $TestParams,
+      [object] $AllVmData)
 
 $controllerType = $null
 $controllerID = $null
@@ -200,5 +201,5 @@ function Main {
     return $True
 }
 
-Main -VMName $AllVMData.RoleName -hvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
+Main -VMName $AllVMData.RoleName -hvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
          -TestParams $TestParams

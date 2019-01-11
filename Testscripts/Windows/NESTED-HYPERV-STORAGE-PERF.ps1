@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
+param([object] $AllVmData, [object] $CurrentTestData)
 
 function New-RaidOnL1 ($session, $interleave) {
 	Write-LogInfo "Create raid0 on level 1 with $interleave Interleave"
@@ -135,13 +136,13 @@ function Start-TestExecution ($ip, $port, $username, $passwd)
 	Run-LinuxCmd -ip $ip -port  $port -username $username -password $passwd -command $cmd -runAsSudo
 }
 
-function Get-SQLQueryOfNestedHyperv ($xmlConfig, $logDir, $session)
+function Get-SQLQueryOfNestedHyperv ($GlobalConfig, $logDir, $session)
 {
 	try
 	{
 		Write-LogInfo "Getting the SQL query of test results.."
-		$dataTableName = $xmlConfig.config.$TestPlatform.database.dbtable
-		$TestCaseName = $xmlConfig.config.$TestPlatform.database.testTag
+		$dataTableName = $GlobalConfig.Global.$TestPlatform.database.dbtable
+		$TestCaseName = $GlobalConfig.Global.$TestPlatform.database.testTag
 		Import-Csv -Path $LogDir\maxIOPSforMode.csv
 		Import-Csv -Path $LogDir\maxIOPSforBlockSize.csv
 		$fioDataCsv = Import-Csv -Path $LogDir\fioData.csv
@@ -153,7 +154,7 @@ function Get-SQLQueryOfNestedHyperv ($xmlConfig, $logDir, $session)
 			$L1GuestCpuNum = $HyperVMappedSizes.HyperV.$HyperVInstanceSize.NumberOfCores
 			$L1GuestMemMB = [int]($HyperVMappedSizes.HyperV.$HyperVInstanceSize.MemoryInMB)
 			$L1GuestSize = "$($L1GuestCpuNum)Cores $($L1GuestMemMB/1024)G"
-			$HostOS = (Get-WmiObject -Class Win32_OperatingSystem -ComputerName $xmlConfig.config.$TestPlatform.Hosts.ChildNodes[0].ServerName).Version
+			$HostOS = (Get-WmiObject -Class Win32_OperatingSystem -ComputerName $GlobalConfig.Global.$TestPlatform.Hosts.ChildNodes[0].ServerName).Version
 		}
 		else
 		{
@@ -173,7 +174,7 @@ function Get-SQLQueryOfNestedHyperv ($xmlConfig, $logDir, $session)
 		}
 		$setupType = $currentTestData.setupType
 		$count = 0
-		foreach ($disk in $xmlConfig.config.$TestPlatform.Deployment.$setupType.ResourceGroup.VirtualMachine.DataDisk)
+		foreach ($disk in $GlobalConfig.Global.$TestPlatform.Deployment.$setupType.ResourceGroup.VirtualMachine.DataDisk)
 		{
 			$disk_size = $disk.DiskSizeInGB
 			$count ++
@@ -261,7 +262,7 @@ netsh advfirewall firewall add rule name="WinRM HTTP" dir=in action=allow protoc
 	if( -not $storageName ){
 		$randomNum = Get-Random -Maximum 999 -Minimum 100
 		$storageName = "temp" + [string]$randomNum
-		$location = $xmlConfig.config.Azure.General.Location
+		$location = $global:TestLocation
 		New-AzureRmStorageAccount -ResourceGroupName $rgName -AccountName $storageName -Location $location -SkuName "Standard_GRS"   | Out-Null
 	}
 	$StorageKey = (Get-AzurermStorageAccountKey  -Name $storageName -ResourceGroupName $rgName).Value[0]
@@ -298,7 +299,7 @@ function Invoke-CustomScript($fileUri)
 	$publisher = "Microsoft.Compute"
 	$type = "CustomScriptExtension"
 	$name = "CustomScriptExtension"
-	$location = $xmlConfig.config.Azure.General.Location
+	$location = $global:TestLocation
 	$sts=Set-AzureRmVMExtension -ResourceGroupName $rgName -Location $location -VMName $myVM  -Name $name -Publisher $publisher -ExtensionType $type  -TypeHandlerVersion "1.9"  -Settings $settings  -ProtectedSettings $proSettings
 	if( $sts.IsSuccessStatusCode )
 	{
@@ -591,7 +592,7 @@ function Main()
 				}
 			}
 
-			$nestedHypervSQLQuery = Get-SQLQueryOfNestedHyperv -xmlConfig $xmlConfig -logDir $LogDir -session $session
+			$nestedHypervSQLQuery = Get-SQLQueryOfNestedHyperv -GlobalConfig $GlobalConfig -logDir $LogDir -session $session
 			if($nestedHypervSQLQuery)
 			{
 				Upload-TestResultToDatabase -SQLQuery $nestedHypervSQLQuery

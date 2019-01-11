@@ -1,5 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
+param([object] $AllVmData,
+	  [object] $CurrentTestData)
 
 function Invoke-DpdkTestPmd {
 	$testJob = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -command "./StartDpdkTestPmd.sh" -RunInBackground
@@ -43,6 +45,7 @@ function Main {
 	$superUser = "root"
 	$resultArr = @()
 	$lowerbound = 1000000
+	$currentTestResult = Create-TestResultObject
 	try {
 		$noClient = $true
 		$noServer = $true
@@ -89,7 +92,7 @@ function Main {
 		} else {
 			Throw "Server and client SRIOV NICs are not same."
 		}
-		if($EnableAcceleratedNetworking -or ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV")) {
+		if($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
 			$DataPath = "SRIOV"
 		} else {
 			$DataPath = "Synthetic"
@@ -206,7 +209,7 @@ collect_VM_properties
 		$sriovStatus = $false
 		$currentDir = "$LogDir\syntheticTest"
 		New-Item -Path $currentDir -ItemType Directory | Out-Null
-		$sriovStatus = Set-SRIOVInVMs -VirtualMachinesGroupName $AllVMData.ResourceGroupName[0] -Disable
+		$sriovStatus = Set-SRIOVInVMs -AllVMData $AllVMData -Disable
 		$clientVMData.PublicIP = $AllVMData.PublicIP[0]
 		if ($sriovStatus -eq $true) {
 			Write-LogInfo "SRIOV is disabaled"
@@ -229,7 +232,7 @@ collect_VM_properties
 		#enable SRIOV
 		$currentDir = "$LogDir\finallSRIOVTest"
 		New-Item -Path $currentDir -ItemType Directory | Out-Null
-		$sriovStatus = Set-SRIOVInVMs -VirtualMachinesGroupName $AllVMData.ResourceGroupName[0] -Enable
+		$sriovStatus = Set-SRIOVInVMs -AllVMData $AllVMData -Enable
 		$clientVMData.PublicIP = $AllVMData.PublicIP[0]
 		if ($sriovStatus -eq $true) {
 			Write-LogInfo "SRIOV is enabled"
@@ -278,7 +281,7 @@ collect_VM_properties
 		$resultArr += $testResult
 	}
 	$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
-	return $currentTestResult.TestResult
+	return $currentTestResult
 }
 
 Main

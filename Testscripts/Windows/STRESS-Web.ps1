@@ -1,5 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
+param([object] $AllVmData,
+      [object] $CurrentTestData)
 
 $testScript = "stress_web.sh"
 
@@ -17,11 +19,11 @@ function Start-TestExecution ($ip, $port)
     return $currentStatus
 }
 
-function Get-SQLQueryOfWebStress ($xmlConfig, $logDir)
+function Get-SQLQueryOfWebStress ($GlobalConfig, $logDir)
 {
     try {
         Write-LogInfo "Getting the SQL query of test results..."
-        $dataTableName = $xmlConfig.config.$TestPlatform.database.dbtable
+        $dataTableName = $GlobalConfig.Global.$TestPlatform.database.dbtable
         $TestCaseName = $currentTestData.testName
         $HostType = "$TestPlatform"
         $HostBy    = $TestLocation
@@ -142,7 +144,7 @@ function Main()
             Copy-RemoteFiles -download -downloadFrom $clientPublicIP -files $remoteFiles -downloadTo $LogDir -port $clientSSHPort -username $username -password $password
             $checkValues = "$resultPass,$resultFail,$resultAborted"
             $CurrentTestResult.TestSummary += New-ResultSummary -testResult $testResult -metaData "" -checkValues $checkValues -testName $currentTestData.testName
-            $webStressSQLQuery = Get-SQLQueryOfWebStress -xmlConfig $xmlConfig -logDir $LogDir
+            $webStressSQLQuery = Get-SQLQueryOfWebStress -GlobalConfig $GlobalConfig -logDir $LogDir
             if ($webStressSQLQuery) {
                 Upload-TestResultToDatabase -SQLQuery $webStressSQLQuery
             }
@@ -161,7 +163,7 @@ function Main()
     $resultArr += $testResult
     Write-LogInfo "Test result : $testResult"
     $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
-    return $currentTestResult.TestResult
+    return $currentTestResult
 }
 
 # Main Body

@@ -12,7 +12,7 @@
      will be created.
 #>
 
-param([string] $vmName, [string] $hvServer, [string] $TestParams)
+param([object] $AllVMData, [string] $TestParams)
 
 $MinDiskSize = "1GB"
 
@@ -404,5 +404,5 @@ function Main {
     return $True
 }
 
-Main -VMName $AllVMData.RoleName -hvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
-         -TestParams $TestParams -vmGen $vmGen
+Main -VMName $AllVMData.RoleName -hvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
+         -TestParams $TestParams

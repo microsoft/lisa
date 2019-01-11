@@ -9,25 +9,31 @@
     static IPs will also be set in $allVmData for later use
 #>
 
-param(
-    [String] $TestParams
-)
+param([string] $TestParams,
+      [object] $AllVmData,
+      [object] $CurrentTestData)
 
 function Main {
     param (
-        $TestParams,
-        $user
+        [object] $TestParams,
+        [object] $AllVmData,
+        [object] $CurrentTestData
     )
 
+    $currentTestResult = Create-TestResultObject
     try {
         $testResult = $null
         $sudoUser = "$user"
         $bootproto = "static"
         $netmask = "255.255.255.0"
-        $newVMData = @()
 
-        # Loop through each VM
-        foreach ($vmData in $allVMData) {
+        $vmCount = 1
+        if ($allVMData.Count) {
+            $vmCount = $allVMData.Count
+        }
+        # Use for to loop through $allVMData, so that the object $allVMData will get refreshed out of this script
+        for ($index = 0; $index -lt $vmCount; $index ++) {
+            $vmData = $allVMData[$index]
             # Stopping VMs
             Stop-HyperVGroupVMs $vmData.HyperVGroupName $vmData.HypervHost
 
@@ -76,11 +82,9 @@ function Main {
             }
 
             # Set the static IP in allVMData
-            $vmData.InternalIP = $staticIP
-            $newVMData += $vmData
+            $allVMData[$index].InternalIP = $staticIP
         }
 
-        $global:AllVMData = $newVMData
         Write-LogInfo "Successfully configured VMs for Hyper-V Network Perf test"
         $testResult = "PASS"
     } catch {
@@ -97,4 +101,5 @@ function Main {
     return $currentTestResult.TestResult
 }
 
-Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n")) -user $user
+Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n")) -AllVmData $AllVmData -CurrentTestData $CurrentTestData
+

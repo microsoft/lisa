@@ -1,16 +1,5 @@
 <TestCases>
     <test>
-        <testName>BVT-VERIFY-DEPLOYMENT-PROVISION</testName>
-        <testScript>BVT-VERIFY-DEPLOYMENT-PROVISION.ps1</testScript>
-        <files></files>
-        <setupType>OneVM</setupType>
-        <Platform>Azure,HyperV</Platform>
-        <Category>BVT</Category>
-        <Area>BVT</Area>
-        <Tags>provision</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
         <testName>BVT-IS-ROOT-PASSWORD-DELETED</testName>
         <testScript>BVT-IS-ROOT-PASSWORD-DELETED.py</testScript>
         <files>.\Testscripts\Linux\BVT-IS-ROOT-PASSWORD-DELETED.py,.\Testscripts\Linux\azuremodules.py</files>
@@ -391,7 +380,7 @@
         <Priority>0</Priority>
     </test>
     <test>
-        <TestName>VERIFY-DEPLOYMENT-PROVISION</TestName>
+        <TestName>BVT-VERIFY-DEPLOYMENT-PROVISION</TestName>
         <testScript>BVT-VERIFY-DEPLOYMENT-PROVISION.ps1</testScript>
         <files></files>
         <setupType>OneVM</setupType>
@@ -402,7 +391,7 @@
         <Priority>0</Priority>
     </test>
     <test>
-        <TestName>VERIFY-DEPLOYMENT-PROVISION-EPHEMERAL-MANAGED-DISK</TestName>
+        <TestName>BVT-VERIFY-DEPLOYMENT-PROVISION-EPHEMERAL-MANAGED-DISK</TestName>
         <testScript>BVT-VERIFY-DEPLOYMENT-PROVISION.ps1</testScript>
         <files></files>
         <setupType>OneVM</setupType>
@@ -418,7 +407,7 @@
         <Priority>0</Priority>
     </test>
     <test>
-        <TestName>VERIFY-DEPLOYMENT-PROVISION-SRIOV</TestName>
+        <TestName>BVT-VERIFY-DEPLOYMENT-PROVISION-SRIOV</TestName>
         <testScript>BVT-VERIFY-DEPLOYMENT-PROVISION.ps1</testScript>
         <files></files>
         <setupType>OneVM</setupType>
@@ -433,7 +422,7 @@
         <Priority>0</Priority>
     </test>
     <test>
-        <TestName>VERIFY-HOSTNAME</TestName>
+        <TestName>BVT-VERIFY-HOSTNAME</TestName>
         <testScript>WALA-VERIFY-HOSTNAME.py</testScript>
         <files>.\Testscripts\Linux\nslookup.py,.\Testscripts\Linux\WALA-VERIFY-HOSTNAME.py,.\Testscripts\Linux\azuremodules.py</files>
         <setupType>OneVM</setupType>

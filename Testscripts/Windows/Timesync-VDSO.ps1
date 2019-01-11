@@ -9,7 +9,7 @@
        user-space applications.
 #>
 
-param([string] $TestParams)
+param([string] $TestParams, [object] $AllVMData)
 
 # Main script body
 function Main {

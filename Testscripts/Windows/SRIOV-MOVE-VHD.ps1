@@ -8,7 +8,7 @@
     when the new VM is booted.
 #>
 
-param ([string] $TestParams)
+param ([string] $TestParams, [object] $AllVMData)
 
 function Remove-Data {
     param (
@@ -124,5 +124,5 @@ function Main {
     return "PASS"
 }
 
-Main -VMName $AllVMData.RoleName -hvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
+Main -VMName $AllVMData.RoleName -hvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
     -VMPort $AllVMData.SSHPort -VMUsername $user -VMPassword $password

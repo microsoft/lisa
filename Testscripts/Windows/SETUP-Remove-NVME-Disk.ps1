@@ -7,15 +7,13 @@
     a VM.
 #>
 
-param(
-    [String] $TestParams
-)
+param([string] $TestParams, [object] $AllVMData)
 
 function Main {
     param (
-        $TestParams
+        $TestParams, $AllVMData
     )
-
+    $currentTestResult = Create-TestResultObject
     try {
         $testResult = $null
 
@@ -47,4 +45,4 @@ function Main {
     return $currentTestResult.TestResult
 }
 
-Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))
+Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n")) -AllVMData $AllVMData

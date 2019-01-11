@@ -83,7 +83,7 @@ if ($vmName) {
 if ($hvServer) {
    $server = $hvServer
 } else {
-    $server = $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName
+    $server = $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName
 }
 
 Main -vmName $vm -hvServer $server

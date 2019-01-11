@@ -1,10 +1,13 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
+param([object] $AllVmData,
+	  [object] $CurrentTestData)
 
 function Main {
 	# Create test result
 	$superUser = "root"
 	$resultArr = @()
+	$currentTestResult = Create-TestResultObject
 
 	try {
 		$noClient = $true
@@ -50,7 +53,7 @@ function Main {
 		} else {
 			Throw "Server and client SRIOV NICs are not same."
 		}
-		if($EnableAcceleratedNetworking -or ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV")) {
+		if ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
 			$DataPath = "SRIOV"
 		} else {
 			$DataPath = "Synthetic"
@@ -179,17 +182,17 @@ collect_VM_properties
 		try {
 			$testpmdDataCsv = Import-Csv -Path $LogDir\dpdkTestPmd.csv
 			Write-LogInfo "Uploading the test results.."
-			$dataSource = $xmlConfig.config.Azure.database.server
-			$DBuser = $xmlConfig.config.Azure.database.user
-			$DBpassword = $xmlConfig.config.Azure.database.password
-			$database = $xmlConfig.config.Azure.database.dbname
-			$dataTableName = $xmlConfig.config.Azure.database.dbtable
-			$TestCaseName = $xmlConfig.config.Azure.database.testTag
+			$dataSource = $GlobalConfig.Global.Azure.database.server
+			$DBuser = $GlobalConfig.Global.Azure.database.user
+			$DBpassword = $GlobalConfig.Global.Azure.database.password
+			$database = $GlobalConfig.Global.Azure.database.dbname
+			$dataTableName = $GlobalConfig.Global.Azure.database.dbtable
+			$TestCaseName = $GlobalConfig.Global.Azure.database.testTag
 
 			if ($dataSource -And $DBuser -And $DBpassword -And $database -And $dataTableName) {
 				$GuestDistro = Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object {$_ -replace ",OS type,",""}
 				$HostType = "Azure"
-				$HostBy = ($xmlConfig.config.Azure.General.Location).Replace('"','')
+				$HostBy = ($global:TestLocation).Replace('"','')
 				$HostOS = Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version"| ForEach-Object {$_ -replace ",Host Version,",""}
 				$GuestOSType = "Linux"
 				$GuestDistro = Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object {$_ -replace ",OS type,",""}

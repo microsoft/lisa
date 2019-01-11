@@ -9,7 +9,8 @@
     Test case for booting a Gen2 VM without a NIC, hot add a
     NIC, verify it works, then hot remove the NIC.
 #>
-
+param([String] $TestParams,
+      [object] $AllVmData)
 function Main {
     param (
         $VMName,
@@ -249,6 +250,6 @@ RemainAfterExit=yes
         return "PASS"
     }
 }
-Main -VMName $AllVMData.RoleName -HvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
+Main -VMName $AllVMData.RoleName -HvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
     -Ipv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort `
     -VMUserName $user -VMPassword $password -RootDir $WorkingDirectory

@@ -6,7 +6,7 @@
 #   This script will start/stop a VM as many times as specified in the
 #   count parameter and check that the VM reboots successfully.
 
-param([string] $testParams)
+param([string] $TestParams, [object] $AllVMData)
 
  function Wait-VMState {
     param(
@@ -174,6 +174,6 @@ function Main {
     return "PASS"
 }
 
-Main -VMName $AllVMData.RoleName -hvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
+Main -VMName $AllVMData.RoleName -hvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
          -ipv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort `
          -VMUserName $user -VMPassword $password -RootDir $WorkingDirectory

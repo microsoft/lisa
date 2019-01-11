@@ -10,7 +10,7 @@
 
    Only 1 VM is required for this test.
 #>
-param([string] $TestParams)
+param([string] $testParams, [object] $AllVmData)
 #######################################################################
 #
 # Main script body
@@ -18,10 +18,10 @@ param([string] $TestParams)
 #######################################################################
 function Main {
     param (
-        $TestParams
+        $TestParams, $allVMData
     )
+    $currentTestResult = Create-TestResultObject
     try {
-
         $testResult = $null
         $captureVMData = $allVMData
         $vmName = $captureVMData.RoleName
@@ -196,4 +196,4 @@ function Main {
     $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
-Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))
+Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n")) -allVMData $AllVmData

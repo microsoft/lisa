@@ -13,7 +13,7 @@
     Will do add/remove two disks based on LoopCount parameter.
 #>
 
-param([string] $vmName, [string] $hvServer, [string] $testParams)
+param([string] $TestParams, [object] $AllVMData)
 
 function Add-VHDxDiskDrive {
     param (
@@ -161,7 +161,7 @@ function Main {
     return "PASS"
 }
 
-Main -VMname $AllVMData.RoleName -HvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
+Main -VMname $AllVMData.RoleName -HvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
     -Ipv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort `
     -VMUserName $user -VMPassword $password -RootDir $WorkingDirectory `
     -TestParams $TestParams

@@ -32,6 +32,9 @@
 # DPDK is automatically installed on all VMs and all their IPs are listed in the
 # contants.sh file.
 
+param([object] $CurrentTestData,
+      [object] $AllVmData)
+
 function Get-NonManagementNic() {
 	param (
 		[string] $vmName
@@ -93,6 +96,7 @@ function Main {
 
 	# Create test result
 	$resultArr = @()
+	$currentTestResult = Create-TestResultObject
 
 	$superUser = "root"
 
@@ -294,17 +298,17 @@ collect_VM_properties
 		Write-LogInfo "Test result : $testResult"
 		try {
 			Write-LogInfo "Uploading the test results.."
-			$dataSource = $xmlConfig.config.Azure.database.server
-			$DBuser = $xmlConfig.config.Azure.database.user
-			$DBpassword = $xmlConfig.config.Azure.database.password
-			$database = $xmlConfig.config.Azure.database.dbname
-			$dataTableName = $xmlConfig.config.Azure.database.dbtable
-			$TestCaseName = $xmlConfig.config.Azure.database.testTag
+			$dataSource = $GlobalConfig.Global.Azure.database.server
+			$DBuser = $GlobalConfig.Global.Azure.database.user
+			$DBpassword = $GlobalConfig.Global.Azure.database.password
+			$database = $GlobalConfig.Global.Azure.database.dbname
+			$dataTableName = $GlobalConfig.Global.Azure.database.dbtable
+			$TestCaseName = $GlobalConfig.Global.Azure.database.testTag
 
 			if ($dataSource -And $DBuser -And $DBpassword -And $database -And $dataTableName) {
 				$GuestDistro = Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object {$_ -replace ",OS type,",""}
 				$HostType = "Azure"
-				$HostBy = ($xmlConfig.config.Azure.General.Location).Replace('"','')
+				$HostBy = ($GlobalConfig.Global.Azure.General.Location).Replace('"','')
 				$HostOS = Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version"| ForEach-Object {$_ -replace ",Host Version,",""}
 				$GuestOSType = "Linux"
 				$GuestDistro = Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object {$_ -replace ",OS type,",""}
@@ -358,7 +362,7 @@ collect_VM_properties
 	}
 
 	$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
-	return $currentTestResult.TestResult
+	return $currentTestResult
 }
 
 Main

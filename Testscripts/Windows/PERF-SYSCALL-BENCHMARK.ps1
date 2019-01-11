@@ -1,5 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
+param([object] $AllVmData,
+      [object] $CurrentTestData)
 
 Function Get-SyscallResultObject ()
 {
@@ -131,11 +133,11 @@ collect_VM_properties
                 Write-Host ($finalResult | Format-Table | Out-String)
 
                 Write-LogInfo "Uploading test results to Database.."
-                $dataTableName = $xmlConfig.config.$TestPlatform.database.dbtable
-                $TestCaseName = $xmlConfig.config.$TestPlatform.database.testTag
+                $dataTableName = $GlobalConfig.Global.$TestPlatform.database.dbtable
+                $TestCaseName = $GlobalConfig.Global.$TestPlatform.database.testTag
                 $GuestDistro    = Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object{$_ -replace ",OS type,",""}
                 $HostType = "$TestPlatform"
-                $HostBy = ($xmlConfig.config.$TestPlatform.General.Location).Replace('"','')
+                $HostBy = ($global:TestLocation).Replace('"','')
                 $HostOS = Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version"| ForEach-Object{$_ -replace ",Host Version,",""}
                 $GuestOSType    = "Linux"
                 $GuestDistro    = Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object{$_ -replace ",OS type,",""}

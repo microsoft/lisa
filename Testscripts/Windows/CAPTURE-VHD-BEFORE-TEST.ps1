@@ -1,7 +1,9 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
+param([object] $AllVmData)
 
 function Main {
+    param([object] $AllVMData)
     # Create test result
     $currentTestResult = Create-TestResultObject
     $resultArr = @()
@@ -49,11 +51,12 @@ function Main {
             $Append += "-$env:BUILD_NUMBER"
         }
         #Copy the OS VHD with different name.
-        if ($ARMImage) {
-            $newVHDName = "EOSG-AUTOBUILT-$($ARMImage.Publisher)-$($ARMImage.Offer)-$($ARMImage.Sku)-$($ARMImage.Version)-$Append"
+        if ($global:ARMImageName) {
+            $ARMImage = $global:ARMImageName.Split(" ")
+            $newVHDName = "EOSG-AUTOBUILT-$($ARMImage[0])-$($ARMImage[1])-$($ARMImage[2])-$($ARMImage[3])-$Append"
         }
-        if ($OsVHD) {
-            $newVHDName = "EOSG-AUTOBUILT-$($OsVHD.Replace('.vhd',''))-$Append"
+        if ($global:BaseOsVHD) {
+            $newVHDName = "EOSG-AUTOBUILT-$($global:BaseOsVHD).Replace('.vhd',''))-$Append"
         }
         $newVHDName = "$newVHDName.vhd"
         Write-LogInfo "Sleeping 30 seconds..."
@@ -109,4 +112,4 @@ function Main {
     return $currentTestResult.TestResult
 }
 
-Main
+Main -AllVMData $AllVmData

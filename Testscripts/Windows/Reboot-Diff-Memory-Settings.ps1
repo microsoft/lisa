@@ -6,7 +6,7 @@
     Test LIS and shutdown with different RAM settings
 #>
 
-param([string] $TestParams)
+param([string] $testParams, [object] $AllVmData)
 
 # Main script body
 function Main {
@@ -96,6 +96,6 @@ function Main {
     return $retVal
 }
 
-Main -VMName $AllVMData.RoleName -hvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
+Main -VMName $AllVMData.RoleName -hvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
          -ipv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort `
          -VMUserName $user -VMPassword $password -RootDir $WorkingDirectory

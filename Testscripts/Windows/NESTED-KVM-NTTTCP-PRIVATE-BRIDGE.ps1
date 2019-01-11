@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
+param([object] $AllVmData, [object] $CurrentTestData)
 
 $testScript = "nested_kvm_ntttcp_private_bridge.sh"
 
@@ -30,18 +31,18 @@ function Start-TestExecution ($ip, $port) {
     }
 }
 
-function Send-ResultToDatabase ($xmlConfig, $logDir) {
+function Send-ResultToDatabase ($GlobalConfig, $logDir) {
     Write-LogInfo "Uploading the test results.."
-    $dataSource = $xmlConfig.config.Azure.database.server
-    $user = $xmlConfig.config.Azure.database.user
-    $password = $xmlConfig.config.Azure.database.password
-    $database = $xmlConfig.config.Azure.database.dbname
-    $dataTableName = $xmlConfig.config.Azure.database.dbtable
-    $testCaseName = $xmlConfig.config.Azure.database.testTag
+    $dataSource = $GlobalConfig.Global.Azure.database.server
+    $user = $GlobalConfig.Global.Azure.database.user
+    $password = $GlobalConfig.Global.Azure.database.password
+    $database = $GlobalConfig.Global.Azure.database.dbname
+    $dataTableName = $GlobalConfig.Global.Azure.database.dbtable
+    $testCaseName = $GlobalConfig.Global.Azure.database.testTag
     if ($dataSource -And $user -And $password -And $database -And $dataTableName) {
         # Get host info
         $hostType    = "Azure"
-        $hostBy    = ($xmlConfig.config.Azure.General.Location).Replace('"','')
+        $hostBy    = ($global:TestLocation).Replace('"','')
         $hostOS    = Get-Content "$logDir\VM_properties.csv" | Select-String "Host Version"| ForEach-Object{$_ -replace ",Host Version,",""}
 
         # Get L1 guest info
@@ -49,8 +50,7 @@ function Send-ResultToDatabase ($xmlConfig, $logDir) {
         $l1GuestOSType    = "Linux"
         $l1GuestSize = $AllVMData.InstanceSize
         $l1GuestKernelVersion    = Get-Content "$logDir\VM_properties.csv" | Select-String "Kernel version"| ForEach-Object{$_ -replace ",Kernel version,",""}
-        $imageInfo = $xmlConfig.config.Azure.Deployment.Data.Distro.ARMImage
-        $imageName = "$($imageInfo.Publisher) $($imageInfo.Offer) $($imageInfo.Sku) $($imageInfo.Version)"
+        $imageName = $Global:ARMImageName
 
         # Get L2 guest info
         $l2GuestDistro    = Get-Content "$logDir\nested_properties.csv" | Select-String "OS type"| ForEach-Object{$_ -replace ",OS type,",""}
@@ -178,7 +178,7 @@ function Main {
                 Write-LogInfo "Zero throughput for some connections, results will not be uploaded to database!"
             }
             else {
-                Send-ResultToDatabase -xmlConfig $xmlConfig -logDir $LogDir
+                Send-ResultToDatabase -GlobalConfig $GlobalConfig -logDir $LogDir
             }
         }
     } catch {
@@ -194,7 +194,7 @@ function Main {
 }
 
 # Global Variables
-# $xmlConfig
+# $GlobalConfig
 # $AllVMData
 # $currentTestData
 # $Distro

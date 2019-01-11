@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
+param([object] $AllVmData, [object] $CurrentTestData)
 
 $testScript = "nested_kvm_lagscope_different_l1_public_bridge.sh"
 
@@ -13,18 +14,18 @@ function Start-TestExecution ($ip, $port, $cmd) {
 	}
 }
 
-function Send-ResultToDatabase ($xmlConfig, $logDir) {
+function Send-ResultToDatabase ($GlobalConfig, $logDir) {
 	Write-LogInfo "Uploading the test results.."
-	$dataSource = $xmlConfig.config.$TestPlatform.database.server
-	$user = $xmlConfig.config.$TestPlatform.database.user
-	$password = $xmlConfig.config.$TestPlatform.database.password
-	$database = $xmlConfig.config.$TestPlatform.database.dbname
-	$dataTableName = $xmlConfig.config.$TestPlatform.database.dbtable
-	$TestCaseName = $xmlConfig.config.$TestPlatform.database.testTag
+	$dataSource = $GlobalConfig.Global.$TestPlatform.database.server
+	$user = $GlobalConfig.Global.$TestPlatform.database.user
+	$password = $GlobalConfig.Global.$TestPlatform.database.password
+	$database = $GlobalConfig.Global.$TestPlatform.database.dbname
+	$dataTableName = $GlobalConfig.Global.$TestPlatform.database.dbtable
+	$TestCaseName = $GlobalConfig.Global.$TestPlatform.database.testTag
 	if ($dataSource -And $user -And $password -And $database -And $dataTableName)
 	{
 		# Get host info
-		$HostType	= $xmlConfig.config.CurrentTestPlatform
+		$HostType	= $global:TestPlatform
 		$HostBy	= $TestLocation
 		$HostOS	= Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version"| Foreach-Object{$_ -replace ",Host Version,",""}
 
@@ -174,7 +175,7 @@ function Main () {
 			Write-LogInfo "Zero throughput for some connections, results will not be uploaded to database!"
 		}
 		else {
-			Send-ResultToDatabase -xmlConfig $xmlConfig -logDir $LogDir
+			Send-ResultToDatabase -GlobalConfig $GlobalConfig -logDir $LogDir
 		}
 	} catch {
 		$ErrorMessage =  $_.Exception.Message

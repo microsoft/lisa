@@ -1,7 +1,8 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 
-param([string] $TestParams)
+param([String] $TestParams,
+      [object] $AllVmData)
 
 function Main {
     param (
@@ -175,8 +176,7 @@ function Main {
     return "PASS"
 }
 
-
-Main -VMName $AllVMData.RoleName -HvServer $TestLocation `
+Main -VMName $AllVMData.RoleName -HvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
          -ipv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort `
          -VMUserName $user -VMPassword $password -rootDir $WorkingDirectory `
-         -testParams $testParams -TestPlatform $XmlConfig.config.CurrentTestPlatform
+         -testParams $testParams -TestPlatform $global:TestPlatform

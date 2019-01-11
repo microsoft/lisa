@@ -4,12 +4,13 @@
 .Synopsis
 	Configure Runtime Memory Resize for a given VM.
 #>
-param([string] $TestParams)
+param([string] $testParams, [object] $AllVmData)
 function Main
 {
     param (
-        $testParams
+        $testParams, $allVMData
     )
+    $currentTestResult = Create-TestResultObject
     try {
         $testResult = $null
         $captureVMData = $allVMData
@@ -86,4 +87,4 @@ function Main
 	return $currentTestResult.TestResult
 }
 
-Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n")) `
+Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n")) -allVMData $AllVmData

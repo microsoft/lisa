@@ -26,7 +26,7 @@
 
 param(
     [String] $TestParams,
-    [String] $VMName = $AllVMData.RoleName
+    [object] $AllVMData
 )
 
 function Main {
@@ -165,5 +165,5 @@ function Main {
     return $retVal
 }
 
-Main -VMName $VMName -hvServer $xmlConfig.config.Hyperv.Hosts.ChildNodes[0].ServerName `
+Main -VMName $AllVMData.RoleName -hvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
          -TestParams $TestParams
