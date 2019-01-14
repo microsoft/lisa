@@ -144,10 +144,10 @@ collect_VM_properties
 
                 if ($CurrentTestData.testName -imatch "udp") {
                     $testType = "UDP"
-                    $test_connections = $line.Trim().Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Split(" ")[0]
-                    $tx_throughput_gbps = $line.Trim().Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Split(" ")[1]
-                    $rx_throughput_gbps = $line.Trim().Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Split(" ")[2]
-                    $datagram_loss = $line.Trim().Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Split(" ")[3]
+                    $test_connections = ($line.Trim() -Replace " +"," ").Split(" ")[0]
+                    $tx_throughput_gbps = ($line.Trim() -Replace " +"," ").Split(" ")[1]
+                    $rx_throughput_gbps = ($line.Trim() -Replace " +"," ").Split(" ")[2]
+                    $datagram_loss = ($line.Trim() -Replace " +"," ").Split(" ")[3]
                     $connResult = "tx_throughput=$tx_throughput_gbps`Gbps rx_throughput=$rx_throughput_gbps`Gbps datagram_loss=$datagram_loss"
                     $currentNtttcpResultObject["meta_data"]["connections"] = $test_connections
                     $currentNtttcpResultObject["meta_data"]["type"] = $testType
@@ -156,16 +156,22 @@ collect_VM_properties
                     $currentNtttcpResultObject["datagram_loss"] = $datagram_loss
                 } else {
                     $testType = "TCP"
-                    $test_connections = $line.Trim().Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Split(" ")[0]
-                    $throughput_gbps = $line.Trim().Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Split(" ")[1]
-                    $cycle_per_byte = $line.Trim().Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Split(" ")[2]
-                    $average_tcp_latency = $line.Trim().Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Replace("  "," ").Split(" ")[3]
+                    $test_connections = ($line.Trim() -Replace " +"," ").Split(" ")[0]
+                    $throughput_gbps = ($line.Trim() -Replace " +"," ").Split(" ")[1]
+                    $cycle_per_byte = ($line.Trim() -Replace " +"," ").Split(" ")[2]
+                    $average_tcp_latency = ($line.Trim() -Replace " +"," ").Split(" ")[3]
+                    $txpackets_sender = ($line.Trim() -Replace " +"," ").Split(" ")[4]
+                    $rxpackets_sender = ($line.Trim() -Replace " +"," ").Split(" ")[5]
+                    $pktsInterrupt_sender = ($line.Trim() -Replace " +"," ").Split(" ")[6]
                     $connResult = "throughput=$throughput_gbps`Gbps cyclePerBytet=$cycle_per_byte Avg_TCP_lat=$average_tcp_latency"
                     $currentNtttcpResultObject["meta_data"]["connections"] = $test_connections
                     $currentNtttcpResultObject["meta_data"]["type"] = $testType
                     $currentNtttcpResultObject["cycle_per_byte"] = $cycle_per_byte
                     $currentNtttcpResultObject["tx_throughput_gbps"] = $throughput_gbps
                     $currentNtttcpResultObject["average_tcp_latency"] = $average_tcp_latency
+                    $currentNtttcpResultObject["txpackets_sender"] = $txpackets_sender
+                    $currentNtttcpResultObject["rxpackets_sender"] = $rxpackets_sender
+                    $currentNtttcpResultObject["pktsInterrupt_sender"] = $pktsInterrupt_sender
                 }
                 $ntttcpResults += $currentNtttcpResultObject
                 $metadata = "Connections=$test_connections"
@@ -229,17 +235,17 @@ collect_VM_properties
                     $SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$TestPlatform','$TestLocation','$HostOS','$GuestOSType','$GuestDistro','$GuestSize','$KernelVersion','$IPVersion','$ProtocolType','$DataPath','$testBuffer',$($Line[0]),$($Line[1]),$($Line[2]),$($Line[3])),"
                 }
             } else {
-                $SQLQuery = "INSERT INTO $dataTableName (TestCaseName,TestDate,HostType,HostBy,HostOS,GuestOSType,GuestDistro,GuestSize,KernelVersion,IPVersion,ProtocolType,DataPath,NumberOfConnections,Throughput_Gbps,Latency_ms) VALUES "
+                $SQLQuery = "INSERT INTO $dataTableName (TestCaseName,TestDate,HostType,HostBy,HostOS,GuestOSType,GuestDistro,GuestSize,KernelVersion,IPVersion,ProtocolType,DataPath,NumberOfConnections,Throughput_Gbps,Latency_ms,TXpackets,RXpackets,PktsInterrupts) VALUES "
                 for ($i = 1; $i -lt $LogContents.Count; $i++) {
                     $Line = $LogContents[$i].Trim() -split '\s+'
-                    $SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$TestPlatform','$TestLocation','$HostOS','$GuestOSType','$GuestDistro','$GuestSize','$KernelVersion','$IPVersion','$ProtocolType','$DataPath',$($Line[0]),$($Line[1]),$($Line[2])),"
+                    $SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$TestPlatform','$TestLocation','$HostOS','$GuestOSType','$GuestDistro','$GuestSize','$KernelVersion','$IPVersion','$ProtocolType','$DataPath',$($Line[0]),$($Line[1]),$($Line[3]),$($Line[4]),$($Line[5]),$($Line[6])),"
                 }
             }
             $SQLQuery = $SQLQuery.TrimEnd(',')
             if ($uploadResults) {
                 Upload-TestResultToDatabase $SQLQuery
             } else {
-                Write-LogErr "Uploading the test results cancelled due to zero throughput for some connections!!"
+                Write-LogErr "Uploading the test results ignored due to zero throughput for some connections!!"
                 $testResult = "FAIL"
             }
 

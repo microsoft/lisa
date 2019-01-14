@@ -80,7 +80,7 @@ fi
 #Make & build ntttcp on client and server Machine
 
 LogMsg "Configuring client ${client}..."
-ssh "${client}" ". $UTIL_FILE && install_ntttcp"
+ssh "${client}" ". $UTIL_FILE && install_ntttcp ${ntttcpVersion}"
 if [ $? -ne 0 ]; then
 	LogMsg "Error: ntttcp installation failed in ${client}.."
 	UpdateTestState "TestAborted"
@@ -88,7 +88,7 @@ if [ $? -ne 0 ]; then
 fi
 
 LogMsg "Configuring server ${server}..."
-ssh "${server}" ". $UTIL_FILE && install_ntttcp"
+ssh "${server}" ". $UTIL_FILE && install_ntttcp ${ntttcpVersion}"
 if [ $? -ne 0 ]; then
 	LogMsg "Error: ntttcp installation failed in ${server}.."
 	UpdateTestState "TestAborted"
@@ -118,7 +118,7 @@ max_server_threads=64
 Get_Throughput()
 {
 	throughput=0
-	throughput=$(cat "${1}" | grep throughput | tail -1 | tr ":" " " | awk '{ print $NF }')
+	throughput=$(grep throughput "${1}" | tail -1 | tr ":" " " | awk '{ print $NF }')
 	if [[ $throughput =~ "Gbps" ]];
 	then
 		throughput=$(echo "$throughput" | sed 's/Gbps//')
@@ -141,7 +141,7 @@ Get_Throughput()
 Get_Average_Latency()
 {
 	avglatency=0
-	avglatency=$(cat "${1}" | grep Average | sed 's/.* //')
+	avglatency=$(grep Average "${1}" | sed 's/.* //')
 	if [[ $avglatency =~ "us" ]];
 	then
 		avglatency=$(echo "$avglatency" | sed 's/us//')
@@ -161,20 +161,43 @@ Get_Average_Latency()
 Get_Cyclesperbytes()
 {
 	cyclesperbytes=0
-	cyclesperbytes=$(cat "${1}" | grep cycles/byte | tr ":" " " | awk '{ print $NF }')
+	cyclesperbytes=$(grep "cycles/byte" "${1}" | tr ":" " " | awk '{ print $NF }')
 	if [[ ! $cyclesperbytes ]];
 	then
-        cyclesperbytes=0
+		cyclesperbytes=0
 	fi
 	cyclesperbytes=$(printf %.2f $cyclesperbytes)
 	echo "$cyclesperbytes"
+}
+
+Get_pktsInterrupts()
+{
+	pktsinterrupts=0
+	pktsinterrupts=$(grep "pkts/interrupt" "${1}" | tr ":" " " | awk '{ print $NF }')
+	if [[ ! $pktsinterrupts ]];
+	then
+		pktsinterrupts=0
+	fi
+	pktsinterrupts=$(printf %.2f $pktsinterrupts)
+	echo "$pktsinterrupts"
+}
+
+Get_packets()
+{
+	packets=0
+	packets=$(grep "${2}" "${1}" | tr ":" " " | awk '{ print $NF }')
+	if [[ ! $packets ]];
+	then
+		packets=0
+	fi
+	echo "$packets"
 }
 
 Run_Ntttcp()
 {
 	i=0
 	data_loss=0
-	
+
 	ssh "${server}" "mkdir -p $log_folder"
 	ssh "${client}" "mkdir -p $log_folder"
 	result_file="${log_folder}/report.csv"
@@ -187,7 +210,7 @@ Run_Ntttcp()
 		ssh "${client}" "${core_mem_set_cmd}"
 	else
 		testType="tcp"
-		echo "test_connections,throughput_in_Gbps,cycles/byte,avglatency_in_us" > "$result_file"
+		echo "test_connections,throughput_in_Gbps,cycles/byte,avglatency_in_us,txpackets_sender,rxpackets_sender,pktsInterrupt_sender" > "$result_file"
 	fi
 
 	for current_test_threads in "${testConnections[@]}"; do
@@ -214,7 +237,16 @@ Run_Ntttcp()
 			server_ntttcp_cmd="ulimit -n 204800 && ${ntttcp_cmd} -P ${num_threads_P} -t ${testDuration} -e -W 1 -C 1"
 			client_ntttcp_cmd="ulimit -n 204800 && ${ntttcp_cmd} -s${server} -P ${num_threads_P} -n ${num_threads_n} -t ${testDuration} -W 1 -C 1"
 			ssh "${server}" "for i in {1..$testDuration}; do ss -ta | grep ESTA | grep -v ssh | wc -l >> ./$log_folder/tcp-connections-p${num_threads_P}X${num_threads_n}.log; sleep 1; done" &
+		fi
 
+		# The -K and -I options are supported if the ntttcp version is greater than v1.3.5, or equal to v1.3.5 or master
+		if [ $ntttcpVersion ] && ( [ $ntttcpVersion \> "v1.3.5" ] || [ $ntttcpVersion == "v1.3.5" ] || [ $ntttcpVersion == "master" ] ); then
+			vf_interface=$(ls /sys/class/net/ | grep -v 'eth0\|eth1\|lo' | head -1)
+			if [ $vf_interface ]; then
+				LogMsg "The vf interface is $vf_interface"
+				server_ntttcp_cmd="$server_ntttcp_cmd -K $vf_interface -I mlx"
+				client_ntttcp_cmd="$client_ntttcp_cmd -K $vf_interface -I mlx"
+			fi
 		fi
 
 		LogMsg "============================================="
@@ -254,6 +286,12 @@ Run_Ntttcp()
 		else
 			data_loss=$(printf %.2f $(echo "scale=5; 100*(($tx_throughput-$rx_throughput)/$tx_throughput)" | ${bc_cmd}))
 		fi
+		txpackets_sender=$(Get_packets "$tx_ntttcp_log_file" "tx_packets")
+		rxpackets_sender=$(Get_packets "$tx_ntttcp_log_file" "rx_packets")
+		txpackets_receiver=$(Get_packets "$rx_ntttcp_log_file" "tx_packets")
+		rxpackets_receiver=$(Get_packets "$rx_ntttcp_log_file" "rx_packets")
+		pktsInterrupt_sender=$(Get_pktsInterrupts "$tx_ntttcp_log_file")
+		pktsInterrupt_receiver=$(Get_pktsInterrupts "$rx_ntttcp_log_file")
 
 		LogMsg "Test Results: "
 		LogMsg "---------------"
@@ -261,12 +299,15 @@ Run_Ntttcp()
 		LogMsg "Cycles/Byte: Tx: $tx_cyclesperbytes , Rx: $rx_cyclesperbytes"
 		LogMsg "AvgLatency in us: $avg_latency"
 		LogMsg "DataLoss in %: $data_loss"
+		LogMsg "tx_packets/rx_packets on sender: $txpackets_sender / $rxpackets_sender"
+		LogMsg "tx_packets/rx_packets on receiver: $txpackets_receiver / $rxpackets_receiver"
+		LogMsg "pkts/interrupt:  Tx: $pktsInterrupt_sender , Rx: $pktsInterrupt_receiver"
 		if [[ $testType == "udp" ]];
 		then
 			echo "$current_test_threads,$tx_throughput,$rx_throughput,$data_loss" >> "$result_file"
 		else
 			testType="tcp"
-			echo "$current_test_threads,$tx_throughput,$tx_cyclesperbytes,$avg_latency" >> "$result_file"
+			echo "$current_test_threads,$tx_throughput,$tx_cyclesperbytes,$avg_latency,$txpackets_sender,$rxpackets_sender,$pktsInterrupt_sender" >> "$result_file"
 		fi
 		LogMsg "current test finished. wait for next one... "
 		i=$(($i + 1))

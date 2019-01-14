@@ -2754,9 +2754,19 @@ function install_lagscope () {
 
 # Build and install ntttcp
 function build_ntttcp () {
-	wget https://github.com/Microsoft/ntttcp-for-linux/archive/v1.3.4.tar.gz
-	tar -zxvf v1.3.4.tar.gz
-	pushd ntttcp-for-linux-1.3.4/src/ && make && make install
+	ntttcp_version="v1.3.4"
+	# If the ntttcpVersion is provided in xml then it will go for that version, otherwise default to v1.3.4.
+	if [ "${1}" ]; then
+		ntttcp_version=${1}
+	fi
+	if [ $ntttcp_version == "master" ]; then
+		git clone https://github.com/Microsoft/ntttcp-for-linux.git
+		pushd ntttcp-for-linux/src/ && make && make install
+	else
+		wget https://github.com/Microsoft/ntttcp-for-linux/archive/${ntttcp_version}.tar.gz
+		tar -zxvf ${ntttcp_version}.tar.gz
+		pushd ntttcp-for-linux-${ntttcp_version/v/}/src/ && make && make install
+	fi
 	popd
 }
 
@@ -2768,7 +2778,7 @@ function install_ntttcp () {
 		rhel|centos)
 			install_epel
 			yum -y --nogpgcheck install wget libaio sysstat git bc make gcc dstat psmisc
-			build_ntttcp
+			build_ntttcp "${1}"
 			build_lagscope
 			iptables -F
 			;;
@@ -2776,7 +2786,7 @@ function install_ntttcp () {
 		ubuntu|debian)
 			dpkg_configure
 			apt-get -y install wget libaio1 sysstat git bc make gcc dstat psmisc
-			build_ntttcp
+			build_ntttcp "${1}"
 			build_lagscope
 			;;
 
@@ -2784,7 +2794,7 @@ function install_ntttcp () {
 			if [[ $DISTRO_VERSION =~ 12|15 ]]; then
 				add_sles_network_utilities_repo
 				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install wget sysstat git bc make gcc dstat psmisc
-				build_ntttcp
+				build_ntttcp "${1}"
 				build_lagscope
 				iptables -F
 			else
@@ -2795,7 +2805,7 @@ function install_ntttcp () {
 
 		clear-linux-os)
 			swupd_bundle_install "performance-tools os-core-dev"
-			build_ntttcp
+			build_ntttcp "${1}"
 			build_lagscope
 			iptables -F
 			;;
