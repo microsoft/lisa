@@ -5,8 +5,8 @@
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 $moduleName = "Azure"
-$modulePath = Join-Path $here "../../Libraries/${moduleName}.psm1"
-$logModulePath = Join-Path $here "../../Libraries/TestLogs.psm1"
+$modulePath = Join-Path $here "../../../Libraries/${moduleName}.psm1"
+$logModulePath = Join-Path $here "../../../Libraries/TestLogs.psm1"
 
 if (Get-Module $moduleName -ErrorAction SilentlyContinue) {
     Remove-Module $moduleName
