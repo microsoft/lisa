@@ -4,8 +4,8 @@
 
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-$moduleName = "WorkingSpaceManagement"
-$modulePath = Join-Path $here "../../Libraries/${moduleName}.psm1"
+$moduleName = "Database"
+$modulePath = Join-Path $here "../../../Libraries/${moduleName}.psm1"
 
 if (Get-Module $moduleName -ErrorAction SilentlyContinue) {
     Remove-Module $moduleName

@@ -4,8 +4,8 @@
 
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-$moduleName = "CommonFunctions"
-$modulePath = Join-Path $here "../../Libraries/${moduleName}.psm1"
+$moduleName = "TestHelpers"
+$modulePath = Join-Path $here "../../../Libraries/${moduleName}.psm1"
 
 if (Get-Module $moduleName -ErrorAction SilentlyContinue) {
     Remove-Module $moduleName
