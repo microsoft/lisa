@@ -89,11 +89,10 @@ Class AzureController : TestController
 			$azureConfig.ResultsDatabase.user = $secrets.DatabaseUser
 			$azureConfig.ResultsDatabase.password = $secrets.DatabasePassword
 			$azureConfig.ResultsDatabase.dbname = $secrets.DatabaseName
-			.\Utilities\AddAzureRmAccountFromSecretsFile.ps1 -customSecretsFilePath $XMLSecretFile
+			Add-AzureAccountFromSecretsFile -CustomSecretsFilePath $XMLSecretFile
 		}
 		$this.VmUsername = $azureConfig.TestCredentials.LinuxUsername
 		$this.VmPassword = $azureConfig.TestCredentials.LinuxPassword
-
 		# global variables: StorageAccount, TestLocation
 		if ( $this.StorageAccount -imatch "ExistingStorage_Standard" )
 		{
