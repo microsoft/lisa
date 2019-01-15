@@ -17,7 +17,7 @@ if [ ! -e sriov_constants.sh ]; then
     cp /${remote_user}/sriov_constants.sh .
 fi
 
-# Source SR-IOV_Utils.sh. This is the script that contains all the 
+# Source SR-IOV_Utils.sh. This is the script that contains all the
 # SR-IOV basic functions (checking drivers, checking VFs, assigning IPs)
 . SR-IOV-Utils.sh || {
     echo "ERROR: unable to source SR-IOV_Utils.sh!"
@@ -63,7 +63,7 @@ while [ $__iterator -le "$vf_count" ]; do
 
     synthetic_interface_vm_1=$(ip addr | grep $static_IP_1 | awk '{print $NF}')
     LogMsg  "Synthetic interface found: $synthetic_interface_vm_1"
-    vf_interface_vm_1=$(find /sys/devices/* -name "*${synthetic_interface_vm_1}*" | grep "pci" | sed 's/\// /g' | awk '{print $12}')
+    vf_interface_vm_1=$(find /sys/devices/* -name "*${synthetic_interface_vm_1}" | grep "pci" | sed 's/\// /g' | awk '{print $12}')
     LogMsg "Virtual function found: $vf_interface_vm_1"
 
     # Ping the remote host
@@ -97,9 +97,9 @@ while [ $__iterator -le "$vf_count" ]; do
     # Get the VF name from VM2
     cmd_to_send="ip addr | grep \"$static_IP_2\" | awk '{print \$NF}'"
     synthetic_interface_vm_2=$(ssh -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$remote_user"@"$static_IP_2" "$cmd_to_send")
-    cmd_to_send="find /sys/devices/* -name "*${synthetic_interface_vm_2}*" | grep pci | sed 's/\// /g' | awk '{print \$12}'"
+    cmd_to_send="find /sys/devices/* -name "*${synthetic_interface_vm_2}" | grep pci | sed 's/\// /g' | awk '{print \$12}'"
     vf_interface_vm_2=$(ssh -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$remote_user"@"$static_IP_2" "$cmd_to_send")
-    
+
     rx_value=$(ssh -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$remote_user"@"$static_IP_2" cat /sys/class/net/"${vf_interface_vm_2}"/statistics/rx_packets)
     LogMsg "RX value after sending the file: $rx_value"
     if [ "$rx_value" -lt 400000 ]; then
