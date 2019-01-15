@@ -48,7 +48,7 @@
             </VirtualMachine>
         </ResourceGroup>
     </TwoVMs3NICs>
-    <FourVMs>
+    <RDMA4VMs>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
             <VirtualMachine>
@@ -104,8 +104,8 @@
                 <DataDisk></DataDisk>
             </VirtualMachine>
         </ResourceGroup>
-    </FourVMs>
-    <EightVMs>
+    </RDMA4VMs>
+    <RDMA8VMs>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
             <VirtualMachine>
@@ -213,8 +213,8 @@
                 <DataDisk></DataDisk>
             </VirtualMachine>
         </ResourceGroup>
-    </EightVMs>
-    <SixteenVMs>
+    </RDMA8VMs>
+    <RDMA16VMs>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
             <VirtualMachine>
@@ -426,7 +426,7 @@
                 <DataDisk></DataDisk>
             </VirtualMachine>
         </ResourceGroup>
-    </SixteenVMs>
+    </RDMA16VMs>
     <TwoVMs>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
