@@ -194,40 +194,48 @@ function Get-IPv4ViaKVP {
 		return $null
 	}
 
-	$kvp = Get-WmiObject -Namespace root\virtualization\v2 -Query "Associators of {$vmObj} Where AssocClass=Msvm_SystemDevice ResultClass=Msvm_KvpExchangeComponent" -ComputerName $HvServer
-	if (-not $kvp) {
-		Write-LogWarn "Get-IPv4ViaKVP: Unable to create KVP exchange component"
-		return $null
-	}
+	$maxRetryTimes = 30
+	$retryTime = 1
+	while (($retryTime -lt $maxRetryTimes)) {
+		$kvp = Get-WmiObject -Namespace root\virtualization\v2 -Query "Associators of {$vmObj} Where AssocClass=Msvm_SystemDevice ResultClass=Msvm_KvpExchangeComponent" -ComputerName $HvServer
+		if (-not $kvp) {
+			Write-LogWarn "Get-IPv4ViaKVP: Unable to create KVP exchange component"
+			return $null
+		}
 
-	$rawData = $Kvp.GuestIntrinsicExchangeItems
-	if (-not $rawData) {
-		Write-LogWarn "Get-IPv4ViaKVP: No KVP Intrinsic data returned"
-		return $null
-	}
+		$rawData = $Kvp.GuestIntrinsicExchangeItems
+		if (-not $rawData) {
+			Write-LogWarn "Get-IPv4ViaKVP: No KVP Intrinsic data returned"
+			return $null
+		}
 
-	$addresses = $null
+		$addresses = $null
 
-	foreach ($dataItem in $rawData) {
-		$found = 0
-		$xmlData = [Xml] $dataItem
-		foreach ($p in $xmlData.INSTANCE.PROPERTY) {
-			if ($p.Name -eq "Name" -and $p.Value -eq "NetworkAddressIPv4") {
-				$found += 1
-			}
+		foreach ($dataItem in $rawData) {
+			$found = 0
+			$xmlData = [Xml] $dataItem
+			foreach ($p in $xmlData.INSTANCE.PROPERTY) {
+				if ($p.Name -eq "Name" -and $p.Value -eq "NetworkAddressIPv4") {
+					$found += 1
+				}
 
-			if ($p.Name -eq "Data") {
-				$addresses = $p.Value
-				$found += 1
-			}
+				if ($p.Name -eq "Data") {
+					$addresses = $p.Value
+					$found += 1
+				}
 
-			if ($found -eq 2) {
-				$addrs = $addresses.Split(";")
-				foreach ($addr in $addrs) {
-					if ($addr.StartsWith("127.")) {
-						Continue
+				if ($found -eq 2) {
+					$addrs = $addresses.Split(";")
+					foreach ($addr in $addrs) {
+						if ($addr.StartsWith("127.")) {
+							Continue
+						}
+						if ($addr) {
+							return $addr
+						}
+						$retryTime++
+						Start-Sleep -Seconds 10
 					}
-					return $addr
 				}
 			}
 		}
