@@ -25,7 +25,7 @@
 #>
 ###############################################################################################
 
-Function Create-AllHyperVGroupDeployments($SetupTypeData, $GlobalConfig, $TestLocation, $Distro, $VMGeneration = "1", $TestCaseData)
+Function Create-AllHyperVGroupDeployments($SetupTypeData, $GlobalConfig, $TestLocation, $Distro, $VMGeneration = "1", $TestCaseData, $UseExistingRG)
 {
     $DeployedHyperVGroup = @()
 
@@ -63,7 +63,12 @@ Function Create-AllHyperVGroupDeployments($SetupTypeData, $GlobalConfig, $TestLo
             $curtime = ([string]((Get-Date).Ticks / 1000000)).Split(".")[0]
             $isHyperVGroupDeployed = "False"
             $retryDeployment = 0
-            if ( $HyperVGroupXML.Tag -ne $null )
+            if ($UseExistingRG) {
+                $HyperVGroupName = $Distro
+                $isHyperVGroupDeleted = $true
+                $CreatedHyperVGroup = $true
+            }
+            elseif ( $HyperVGroupXML.Tag -ne $null )
             {
                 $HyperVGroupName = "LISAv2-" + $HyperVGroupXML.Tag + "-" + $Distro + "-" + "$TestID-" + "$curtime"
             }
@@ -73,12 +78,7 @@ Function Create-AllHyperVGroupDeployments($SetupTypeData, $GlobalConfig, $TestLo
             }
             while (($isHyperVGroupDeployed -eq "False") -and ($retryDeployment -lt 1))
             {
-                if ($ExistingRG)
-                {
-                    #TBD
-                    #Use existing HypeV group for test.
-                }
-                else
+                if (!$UseExistingRG)
                 {
                     Write-LogInfo "Creating HyperV Group : $HyperVGroupName."
                     Write-LogInfo "Verifying that HyperV Group name is not in use."
@@ -88,8 +88,10 @@ Function Create-AllHyperVGroupDeployments($SetupTypeData, $GlobalConfig, $TestLo
                 }
                 if ($isHyperVGroupDeleted)
                 {
-                    foreach ($HyperVHost in $HyperVHostArray){
-                        $CreatedHyperVGroup = Create-HyperVGroup -HyperVGroupName $HyperVGroupName -HyperVHost $HyperVHost
+                    if (!$UseExistingRG) {
+                        foreach ($HyperVHost in $HyperVHostArray){
+                            $CreatedHyperVGroup = Create-HyperVGroup -HyperVGroupName $HyperVGroupName -HyperVHost $HyperVHost
+                        }
                     }
                     if ($CreatedHyperVGroup)
                     {
@@ -162,12 +164,7 @@ Function Create-AllHyperVGroupDeployments($SetupTypeData, $GlobalConfig, $TestLo
     return $retValue, $DeployedHyperVGroup, $HyperVGroupCount, $DeploymentElapsedTime
 }
 
-Function Delete-HyperVGroup([string]$HyperVGroupName, [string]$HyperVHost, $SetupTypeData) {
-    if ($ExistingRG) {
-        Write-LogInfo "Skipping removal of Hyper-V VM group ${HyperVGroupName}"
-        return $true
-    }
-
+Function Delete-HyperVGroup([string]$HyperVGroupName, [string]$HyperVHost, $SetupTypeData, [bool]$UseExistingRG) {
     $vmGroup = $null
     Write-LogInfo "Checking if Hyper-V VM group '$HyperVGroupName' exists on $HyperVHost..."
     $vmGroup = Get-VMGroup -Name $HyperVGroupName -ErrorAction SilentlyContinue `
@@ -183,8 +180,8 @@ Function Delete-HyperVGroup([string]$HyperVGroupName, [string]$HyperVHost, $Setu
         Write-LogInfo "Stop-VM -Name $($vm.Name) -Force -TurnOff"
         Stop-VM -Name $vm.Name -Force -TurnOff -ComputerName $HyperVHost
         $snapshots = Get-VMSnapshot -VMName $vm.Name -ComputerName $HyperVHost
-        if ($snapshots.Count -gt 1) {
-            LogMsg "VM $($vm.Name) cannot be cleaned up as it has failed test cases snapshots."
+        if ($snapshots.Count -gt 1 -and ($snapshots.Name -join "") -imatch "fail") {
+            Write-LogWarn "VM $($vm.Name) cannot be cleaned up as it has failed test cases snapshots."
             $cleanupDone--
             return
         }
@@ -254,7 +251,7 @@ Function Delete-HyperVGroup([string]$HyperVGroupName, [string]$HyperVHost, $Setu
         }
     }
 
-    if ($cleanupDone -eq 0) {
+    if ($cleanupDone -eq 0 -and !$UseExistingRG) {
         Remove-VMGroup -Name $HyperVGroupName -ComputerName $HyperVHost -Force
         Write-LogInfo "Hyper-V VM group ${HyperVGroupName} removed!"
     }
@@ -577,6 +574,11 @@ Function Get-AllHyperVDeployementData($HyperVGroupNames,$GlobalConfig,$RetryCoun
     {
         foreach($property in $ALLVMs[$ComputerName]) {
             $VM = Get-VM -Name $property.Name -ComputerName $ComputerName
+            # Make sure the VM is started
+            if ((Check-VMState $property.Name $ComputerName) -eq "Off") {
+                Start-VM -ComputerName $ComputerName -Name $property.Name
+                Wait-VMState -VMName $property.Name -HvServer $ComputerName -VMState "Running"
+            }
             $VMNicProperties =  Get-VMNetworkAdapter -ComputerName $ComputerName -VMName $property.Name
 
             $RetryCount = 50

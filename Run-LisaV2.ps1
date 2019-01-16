@@ -75,6 +75,7 @@ Param(
 	[string] $TiPCluster,
 	[string] $XMLSecretFile = "",
 	[switch] $EnableTelemetry,
+	[switch] $UseExistingRG,
 
 	#[Optional] Parameters for Overriding VM Configuration.
 	[string] $CustomParameters = "",

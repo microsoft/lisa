@@ -30,54 +30,61 @@ Class HyperVProvider : TestProvider
 {
 	[string] $VMGeneration
 
-	[object] DeployVMs([xml] $GlobalConfig, [object] $SetupTypeData, [object] $TestCaseData, [string] $TestLocation) {
+	[object] DeployVMs([xml] $GlobalConfig, [object] $SetupTypeData, [object] $TestCaseData, [string] $TestLocation, [string] $RGIdentifier, [bool] $UseExistingRG) {
 		$allVMData = @()
+		$DeploymentElapsedTime = $null
 		try {
-			$isAllDeployed = Create-AllHyperVGroupDeployments -SetupTypeData $SetupTypeData -GlobalConfig $GlobalConfig -TestLocation $TestLocation `
-				-Distro $global:RGIdentifier -VMGeneration $this.VMGeneration -TestCaseData $TestCaseData
-			if($isAllDeployed[0] -eq "True")
-			{
-				$DeployedHyperVGroup = $isAllDeployed[1]
-				$DeploymentElapsedTime = $isAllDeployed[3]
-				$allVMData = Get-AllHyperVDeployementData -HyperVGroupNames $DeployedHyperVGroup -GlobalConfig $GlobalConfig
+			if ($UseExistingRG) {
+				Write-LogInfo "Running test against existing HyperV group: $RGIdentifier"
+				$allVMData = Get-AllHyperVDeployementData -HyperVGroupNames $RGIdentifier -GlobalConfig $GlobalConfig
 				if (!$allVMData) {
-					Write-LogErr "One or more deployments failed..!"
-				} else {
-					$isVmAlive = Is-VmAlive -AllVMDataObject $allVMData
-					if ($isVmAlive -eq "True") {
-						Inject-HostnamesInHyperVVMs -allVMData $allVMData
-						$this.RestartAllDeployments($allVMData)
-
-						if ( Test-Path -Path  .\Extras\UploadDeploymentDataToDB.ps1 )
-						{
-							.\Extras\UploadDeploymentDataToDB.ps1 -allVMData $allVMData -DeploymentTime $DeploymentElapsedTime.TotalSeconds
-						}
-
-						$customStatus = Set-CustomConfigInVMs -CustomKernel $this.CustomKernel -CustomLIS $this.CustomLIS `
-							-AllVMData $allVMData -TestProvider $this
-						if (!$customStatus) {
-							Write-LogErr "Failed to set custom config in VMs, abort the test"
-							return $null
-						}
-
-						# Create the initial checkpoint
-						Create-HyperVCheckpoint -VMData $AllVMData -CheckpointName "ICAbase"
-						$allVMData = Check-IP -VMData $AllVMData
-					}
-					else
-					{
-						Write-LogErr "Unable to connect SSH ports.."
-					}
+					Write-LogInfo "No VM is found in HyperV group $RGIdentifier, start to deploy VMs"
 				}
-				if ($SetupTypeData.ClusteredVM) {
-					foreach ($VM in $allVMData) {
-						Remove-VMGroupMember -Name $VM.HyperVGroupName -VM $(Get-VM -name $VM.RoleName -ComputerName $VM.HyperVHost)
-					}
+			}
+			if (!$allVMData) {
+				$isAllDeployed = Create-AllHyperVGroupDeployments -SetupTypeData $SetupTypeData -GlobalConfig $GlobalConfig -TestLocation $TestLocation `
+				-Distro $RGIdentifier -VMGeneration $this.VMGeneration -TestCaseData $TestCaseData -UseExistingRG $UseExistingRG
+
+				if ($isAllDeployed[0] -eq "True") {
+					$DeployedHyperVGroup = $isAllDeployed[1]
+					$DeploymentElapsedTime = $isAllDeployed[3]
+					$allVMData = Get-AllHyperVDeployementData -HyperVGroupNames $DeployedHyperVGroup -GlobalConfig $GlobalConfig
 				}
+				else {
+					Write-LogErr "One or More Deployments are Failed..!"
+					return $null
+				}
+			}
+
+			$isVmAlive = Is-VmAlive -AllVMDataObject $allVMData
+			if ($isVmAlive -eq "True") {
+				Inject-HostnamesInHyperVVMs -allVMData $allVMData
+				$this.RestartAllDeployments($allVMData)
+
+				if ((Test-Path -Path  .\Extras\UploadDeploymentDataToDB.ps1) -and !$UseExistingRG) {
+					.\Extras\UploadDeploymentDataToDB.ps1 -allVMData $allVMData -DeploymentTime $DeploymentElapsedTime.TotalSeconds
+				}
+
+				$customStatus = Set-CustomConfigInVMs -CustomKernel $this.CustomKernel -CustomLIS $this.CustomLIS `
+					-AllVMData $allVMData -TestProvider $this
+				if (!$customStatus) {
+					Write-LogErr "Failed to set custom config in VMs, abort the test"
+					return $null
+				}
+
+				# Create the initial checkpoint
+				Create-HyperVCheckpoint -VMData $AllVMData -CheckpointName "ICAbase"
+				$allVMData = Check-IP -VMData $AllVMData
 			}
 			else
 			{
-				Write-LogErr "One or More Deployments are Failed..!"
+				Write-LogErr "Unable to connect SSH ports.."
+			}
+
+			if ($SetupTypeData.ClusteredVM) {
+				foreach ($VM in $allVMData) {
+					Remove-VMGroupMember -Name $VM.HyperVGroupName -VM $(Get-VM -name $VM.RoleName -ComputerName $VM.HyperVHost)
+				}
 			}
 		}
 		catch
@@ -166,19 +173,19 @@ Class HyperVProvider : TestProvider
 		}
 	}
 
-	[void] DeleteTestVMs($allVMData, $SetupTypeData) {
+	[void] DeleteTestVMs($allVMData, $SetupTypeData, $UseExistingRG) {
 		foreach ($vmData in $AllVMData) {
-			$isCleaned = Delete-HyperVGroup -HyperVGroupName $vmData.HyperVGroupName -HyperVHost $vmData.HyperVHost -SetupTypeData $SetupTypeData
+			$isCleaned = Delete-HyperVGroup -HyperVGroupName $vmData.HyperVGroupName -HyperVHost $vmData.HyperVHost -SetupTypeData $SetupTypeData -UseExistingRG $UseExistingRG
 			if (Get-Variable 'DependencyVmHost' -Scope 'Global' -EA 'Ig') {
 				if ($global:DependencyVmHost -ne $vmData.HyperVHost) {
-					Delete-HyperVGroup -HyperVGroupName $vmData.HyperVGroupName -HyperVHost $global:DependencyVmHost
+					Delete-HyperVGroup -HyperVGroupName $vmData.HyperVGroupName -HyperVHost $global:DependencyVmHost -SetupTypeData $SetupTypeData -UseExistingRG $UseExistingRG
 				}
 			}
 			if (!$isCleaned)
 			{
 				Write-LogInfo "Failed to delete HyperV group $($vmData.HyperVGroupName).. Please delete it manually."
 			}
-			else
+			elseif (!$UseExistingRG)
 			{
 				Write-LogInfo "Successfully delete HyperV group $($vmData.HyperVGroupName).."
 			}

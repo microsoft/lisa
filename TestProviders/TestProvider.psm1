@@ -31,7 +31,9 @@ Class TestProvider
 	[string] $CustomKernel
 	[string] $CustomLIS
 
-	[object] DeployVMs([xml] $GlobalConfig, [object] $SetupTypeData, [object] $TestCaseData, [string] $TestLocation) { return $null }
+	[object] DeployVMs([xml] $GlobalConfig, [object] $SetupTypeData, [object] $TestCaseData, [string] $TestLocation, [string] $RGIdentifier, [bool] $UseExistingRG) {
+		return $null
+	}
 
 	[void] RunSetup($VmData, $CurrentTestData, $TestParameters) {}
 
@@ -56,7 +58,7 @@ Class TestProvider
 		}
 	}
 
-	[void] DeleteTestVMs($allVMData, $SetupTypeData) {}
+	[void] DeleteTestVMs($allVMData, $SetupTypeData, $UseExistingRG) {}
 
 	[void] RunTestCleanup() {}
 

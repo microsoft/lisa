@@ -67,6 +67,7 @@ Class TestController
 	[bool] $DeployVMPerEachTest
 	[string] $ResultDBTable
 	[string] $ResultDBTestTag
+	[bool] $UseExistingRG
 
 	[string[]] ParseAndValidateParameters([Hashtable]$ParamTable) {
 		$this.TestLocation = $ParamTable["TestLocation"]
@@ -87,6 +88,7 @@ Class TestController
 		$this.DeployVMPerEachTest = $ParamTable["DeployVMPerEachTest"]
 		$this.ResultDBTable = $ParamTable["ResultDBTable"]
 		$this.ResultDBTestTag = $ParamTable["ResultDBTestTag"]
+		$this.UseExistingRG = $ParamTable["UseExistingRG"]
 
 		$this.TestProvider.CustomKernel = $ParamTable["CustomKernel"]
 		$this.TestProvider.CustomLIS = $ParamTable["CustomLIS"]
@@ -392,7 +394,7 @@ Class TestController
 					if (!$vmData -or $this.DeployVMPerEachTest) {
 						# Deploy the VM for the setup
 						$vmData = $this.TestProvider.DeployVMs($this.GlobalConfig, $this.SetupTypeTable[$setupType], $this.SetupTypeToTestCases[$key][0], `
-							$this.TestLocation)
+							$this.TestLocation, $this.RGIdentifier, $this.UseExistingRG)
 						if (!$vmData) {
 							# Failed to deploy the VMs, Set the case to abort
 							$this.JunitReport.StartLogTestCase("LISAv2Test","$($case.testName)","$global:TestID")
@@ -411,14 +413,16 @@ Class TestController
 						}
 						$vmData = $null
 					} elseif ($this.DeployVMPerEachTest -and !$this.DoNotDeleteVMs) {
-						$this.TestProvider.DeleteTestVMS($vmData, $this.SetupTypeTable[$setupType])
+						# Delete the VM if DeployVMPerEachTest is set
+						# Do not delete the VMs if testing against existing resource group, or DoNotDeleteVMs is set
+						$this.TestProvider.DeleteTestVMS($vmData, $this.SetupTypeTable[$setupType], $this.UseExistingRG)
 					}
 				}
 			}
 
 			# Delete the VM after all the cases of same setup are run, if DeployVMPerEachTest is not set
 			if ($lastResult.TestResult -eq "PASS" -and !$this.DoNotDeleteVMs -and !$this.DeployVMPerEachTest) {
-				$this.TestProvider.DeleteTestVMS($vmData, $this.SetupTypeTable[$setupType])
+				$this.TestProvider.DeleteTestVMS($vmData, $this.SetupTypeTable[$setupType], $this.UseExistingRG)
 			}
 		}
 

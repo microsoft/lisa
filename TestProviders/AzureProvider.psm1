@@ -31,36 +31,48 @@ Class AzureProvider : TestProvider
 	[string] $TipSessionId
 	[string] $TipCluster
 
-	[object] DeployVMs([xml] $GlobalConfig, [object] $SetupTypeData, [object] $TestCaseData, [string] $TestLocation) {
+	[object] DeployVMs([xml] $GlobalConfig, [object] $SetupTypeData, [object] $TestCaseData, [string] $TestLocation, [string] $RGIdentifier, [bool] $UseExistingRG) {
 		$allVMData = @()
+		$DeploymentElapsedTime = $null
 		try {
-			$isAllDeployed = Create-AllResourceGroupDeployments -SetupTypeData $SetupTypeData -TestCaseData $TestCaseData -Distro $global:RGIdentifier `
-				-TestLocation $TestLocation -GlobalConfig $GlobalConfig -TipSessionId $this.TipSessionId -TipCluster $this.TipCluster
+			if ($UseExistingRG) {
+				Write-LogInfo "Running test against existing resource group: $RGIdentifier"
+				$allVMData = Get-AllDeploymentData -ResourceGroups $RGIdentifier
+				if (!$allVMData) {
+					Write-LogInfo "No VM is found in resource group $RGIdentifier, start to deploy VMs"
+				}
+			}
+			if (!$allVMData) {
+				$isAllDeployed = Create-AllResourceGroupDeployments -SetupTypeData $SetupTypeData -TestCaseData $TestCaseData -Distro $RGIdentifier `
+					-TestLocation $TestLocation -GlobalConfig $GlobalConfig -TipSessionId $this.TipSessionId -TipCluster $this.TipCluster `
+					-UseExistingRG $UseExistingRG
 
-			if ($isAllDeployed[0] -eq "True") {
-				$deployedGroups = $isAllDeployed[1]
-				$DeploymentElapsedTime = $isAllDeployed[3]
-				$allVMData = Get-AllDeploymentData -ResourceGroups $deployedGroups
-				$isVmAlive = Is-VmAlive -AllVMDataObject $allVMData
-				if ($isVmAlive -eq "True") {
-					if ( Test-Path -Path  .\Extras\UploadDeploymentDataToDB.ps1 ) {
-						$null = .\Extras\UploadDeploymentDataToDB.ps1 -allVMData $allVMData -DeploymentTime $DeploymentElapsedTime.TotalSeconds
-					}
-
-					$enableSRIOV = $TestCaseData.AdditionalHWConfig.Networking -imatch "SRIOV"
-					$customStatus = Set-CustomConfigInVMs -CustomKernel $this.CustomKernel -CustomLIS $this.CustomLIS -EnableSRIOV $enableSRIOV `
-						-AllVMData $allVMData -TestProvider $this
-					if (!$customStatus) {
-						Write-LogErr "Failed to set custom config in VMs, abort the test"
-						return $null
-					}
+				if ($isAllDeployed[0] -eq "True") {
+					$deployedGroups = $isAllDeployed[1]
+					$DeploymentElapsedTime = $isAllDeployed[3]
+					$allVMData = Get-AllDeploymentData -ResourceGroups $deployedGroups
 				}
 				else {
-					Write-LogErr "Unable to connect SSH ports.."
+					Write-LogErr "One or More Deployments are Failed..!"
+					return $null
+				}
+			}
+			$isVmAlive = Is-VmAlive -AllVMDataObject $allVMData
+			if ($isVmAlive -eq "True") {
+				if ((Test-Path -Path  .\Extras\UploadDeploymentDataToDB.ps1) -and !$UseExistingRG) {
+					$null = .\Extras\UploadDeploymentDataToDB.ps1 -allVMData $allVMData -DeploymentTime $DeploymentElapsedTime.TotalSeconds
+				}
+
+				$enableSRIOV = $TestCaseData.AdditionalHWConfig.Networking -imatch "SRIOV"
+				$customStatus = Set-CustomConfigInVMs -CustomKernel $this.CustomKernel -CustomLIS $this.CustomLIS -EnableSRIOV $enableSRIOV `
+					-AllVMData $allVMData -TestProvider $this
+				if (!$customStatus) {
+					Write-LogErr "Failed to set custom config in VMs, abort the test"
+					return $null
 				}
 			}
 			else {
-				Write-LogErr "One or More Deployments are Failed..!"
+				Write-LogErr "Unable to connect SSH ports.."
 			}
 		}
 		catch {
@@ -74,14 +86,14 @@ Class AzureProvider : TestProvider
 		return $allVMData
 	}
 
-	[void] DeleteTestVMs($allVMData, $SetupTypeData) {
+	[void] DeleteTestVMs($allVMData, $SetupTypeData, $UseExistingRG) {
 		$rgs = @()
 		foreach ($vmData in $AllVMData) {
 			$rgs += $vmData.ResourceGroupName
 		}
 		$uniqueRgs = $rgs | Select-Object -Unique
 		foreach ($rg in $uniqueRgs) {
-			$isCleaned = Delete-ResourceGroup -RGName $rg
+			$isCleaned = Delete-ResourceGroup -RGName $rg -UseExistingRG $UseExistingRG
 			if (!$isCleaned)
 			{
 				Write-LogInfo "Failed to delete resource group $rg.. Please delete it manually."

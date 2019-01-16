@@ -325,7 +325,7 @@ Function Validate-SubscriptionUsage($RGXMLData, $Location, $OverrideVMSize, $Sto
     }
 }
 
-Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Distro, [string]$TestLocation, $GlobalConfig, $TiPSessionId, $TipCluster) {
+Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Distro, [string]$TestLocation, $GlobalConfig, $TiPSessionId, $TipCluster, $UseExistingRG) {
     $resourceGroupCount = 0
 
     Write-LogInfo "Current test setup: $($SetupTypeData.Name)"
@@ -371,28 +371,15 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
             else {
                 $groupName = "LISAv2-" + $SetupTypeData.Name + "-" + $Distro + "-" + "$TestID-" + "$uniqueId"
             }
-            if ($isMultiple -eq "True") {
+            if ($SetupTypeData.ResourceGroup.Count -gt 1) {
                 $groupName = $groupName + "-" + $resourceGroupCount
             }
             while (($isServiceDeployed -eq "False") -and ($retryDeployment -lt 1)) {
-                if ($ExistingRG) {
+                if ($UseExistingRG) {
                     $isServiceCreated = "True"
-                    Write-LogInfo "Detecting $ExistingRG region..."
-                    $location = (Get-AzureRmResourceGroup -Name $ExistingRG).Location
-                    Write-LogInfo "Region: $location..."
-                    $groupName = $ExistingRG
-                    Write-LogInfo "Using existing Resource Group : $ExistingRG"
-                    if ($CleanupExistingRG) {
-                        Write-LogInfo "CleanupExistingRG flag is Set. All resources except availibility set will be cleaned."
-                        Write-LogInfo "If you do not wish to cleanup $ExistingRG, abort NOW. Sleeping 10 Seconds."
-                        Sleep 10
-                        $isRGDeleted = Delete-ResourceGroup -RGName $groupName
-                    }
-                    else {
-                        $isRGDeleted = $false
-                    }
-                }
-                else {
+                    $isRGDeleted = $true
+                    $groupName = $Distro
+                } else {
                     Write-LogInfo "Creating Resource Group : $groupName."
                     Write-LogInfo "Verifying that Resource group name is not in use."
                     $isRGDeleted = Delete-ResourceGroup -RGName $groupName
@@ -402,7 +389,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
                         $location = $xRegionLocations[$locationCounter]
                         $locationCounter += 1
                     }
-                    else {
+                    elseif (!$UseExistingRG) {
                         $isServiceCreated = Create-ResourceGroup -RGName $groupName -location $location -CurrentTestData $TestCaseData
                     }
                     if ($isServiceCreated -eq "True") {
@@ -411,7 +398,8 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
                             -azuredeployJSONFilePath $azureDeployJSONFilePath -CurrentTestData $TestCaseData -TiPSessionId $TiPSessionId -TipCluster $TipCluster `
                             -StorageAccountName $GlobalConfig.Global.Azure.Subscription.ARMStorageAccount
                         $DeploymentStartTime = (Get-Date)
-                        $CreateRGDeployments = Create-ResourceGroupDeployment -RGName $groupName -location $location -TemplateFile $azureDeployJSONFilePath
+                        $CreateRGDeployments = Create-ResourceGroupDeployment -RGName $groupName -location $location -TemplateFile $azureDeployJSONFilePath `
+                            -UseExistingRG $UseExistingRG
                         $DeploymentEndTime = (Get-Date)
                         $DeploymentElapsedTime = $DeploymentEndTime - $DeploymentStartTime
                         if ( $CreateRGDeployments ) {
@@ -424,7 +412,6 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
                             else {
                                 $deployedGroups = $deployedGroups + "^" + $groupName
                             }
-
                         }
                         else {
                             Write-LogErr "Unable to Deploy one or more VM's"
@@ -457,7 +444,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
     return $retValue, $deployedGroups, $resourceGroupCount, $DeploymentElapsedTime
 }
 
-Function Delete-ResourceGroup([string]$RGName, [switch]$KeepDisks) {
+Function Delete-ResourceGroup([string]$RGName, [switch]$KeepDisks, [bool]$UseExistingRG) {
     Write-LogInfo "Try to delete resource group $RGName ..."
     try {
         Write-LogInfo "Checking if $RGName exists ..."
@@ -467,31 +454,22 @@ Function Delete-ResourceGroup([string]$RGName, [switch]$KeepDisks) {
         Write-LogInfo "Failed to get resource group: $RGName; maybe this resource group does not exist."
     }
     if ($ResourceGroup) {
-        if ($ExistingRG) {
-            $CurrentResources = @()
-            $CurrentResources += Get-AzureRmResource | Where-Object {$_.ResourceGroupName -eq $ResourceGroup.ResourceGroupName}
-            while ( $CurrentResources.Count -ne 1 ) {
+        if ($UseExistingRG) {
+            $CurrentResources = Get-AzureRmResource -ResourceGroupName $RGName
+            while ($CurrentResources) {
                 foreach ($resource in $CurrentResources) {
-                    Write-Host $resource.ResourceType
-                    if ( $resource.ResourceType -imatch "availabilitySets" ) {
-                        Write-LogInfo "Skipping $($resource.ResourceName)"
+                    Write-LogInfo "Removing resource $($resource.Name), type $($resource.ResourceType)"
+                    try {
+                        $null = Remove-AzureRmResource -ResourceId $resource.ResourceId -Force -Verbose
                     }
-                    else {
-                        Write-LogInfo "Removing $($resource.ResourceName)"
-                        try {
-                            $null = Remove-AzureRmResource -ResourceId $resource.ResourceId -Force -Verbose
-                        }
-                        catch {
-                            Write-LogErr "Error. We will try to remove this in next attempt."
-                        }
-
+                    catch {
+                        Write-LogErr "Failed to delete resource $($resource.Name). We will try to remove it in next attempt."
                     }
                 }
-                $CurrentResources = @()
-                $CurrentResources += Get-AzureRmResource | Where {$_.ResourceGroupName -eq $ResourceGroup.ResourceGroupName}
+                $CurrentResources = Get-AzureRmResource -ResourceGroupName $RGName
             }
-            Write-LogInfo "$($ResourceGroup.ResourceGroupName) is cleaned."
-            $retValue = $?
+            Write-LogInfo "Resources in $RGName are all deleted."
+            $retValue = $true
         }
         else {
             if ( $XmlSecrets.secrets.AutomationRunbooks.CleanupResourceGroupRunBook ) {
@@ -555,7 +533,7 @@ Function Create-ResourceGroup([string]$RGName, $location, $CurrentTestData) {
     return $retValue
 }
 
-Function Create-ResourceGroupDeployment([string]$RGName, $location, $TemplateFile) {
+Function Create-ResourceGroupDeployment([string]$RGName, $location, $TemplateFile, $UseExistingRG) {
     $FailCounter = 0
     $retValue = "False"
     $ResourceGroupDeploymentName = "eosg" + (Get-Date).Ticks
@@ -591,7 +569,7 @@ Function Create-ResourceGroupDeployment([string]$RGName, $location, $TemplateFil
                     }
                     else {
                         Write-LogInfo "Removing Failed resource group, as we found 0 VM(s) deployed."
-                        $isCleaned = Delete-ResourceGroup -RGName $RGName
+                        $isCleaned = Delete-ResourceGroup -RGName $RGName -UseExistingRG
                         if (!$isCleaned) {
                             Write-LogInfo "Cleanup unsuccessful for $RGName.. Please delete the services manually."
                         }
