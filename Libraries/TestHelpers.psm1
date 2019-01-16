@@ -61,321 +61,234 @@ function Create-TestResultObject()
 	return $objNode
 }
 
-Function Copy-RemoteFiles($uploadTo, $downloadFrom, $downloadTo, $port, $files, $username, $password, [switch]$upload, [switch]$download, [switch]$usePrivateKey, [switch]$doNotCompress, $maxRetry=20) #Removed XML config
-{
+# Upload a single file
+function Upload-RemoteFile($uploadTo, $port, $file, $username, $password, $usePrivateKey, $maxRetry) {
 	$retry=1
-	if($upload)
+	if (!$maxRetry) {
+		$maxRetry = 10
+	}
+	while($retry -le $maxRetry)
 	{
-#Write-LogInfo "Uploading the files"
-		if ($files)
+		# TODO: $UsePrivateKey is not enabled yet
+		if($usePrivateKey)
 		{
-			$fileCounter = 0
-			$tarFileName = ($uploadTo+"@"+$port).Replace(".","-")+".tar"
-			foreach ($f in $files.Split(","))
-			{
-				if ( !$f )
-				{
-					continue
-				}
-				else
-				{
-					if ( ( $f.Split(".")[$f.Split(".").count-1] -eq "sh" ) -or ( $f.Split(".")[$f.Split(".").count-1] -eq "py" ) )
-					{
-						$out = .\tools\dos2unix.exe $f 2>&1
-						Write-LogInfo ([string]$out)
-					}
-					$fileCounter ++
-				}
-			}
-			if (($fileCounter -gt 2) -and (!($doNotCompress)))
-			{
-				$tarFileName = ($uploadTo+"@"+$port).Replace(".","-")+".tar"
-				foreach ($f in $files.Split(","))
-				{
-					if ( !$f )
-					{
-						continue
-					}
-					else
-					{
-						Write-LogInfo "Compressing $f and adding to $tarFileName"
-						$CompressFile = .\tools\7za.exe a $tarFileName $f
-						if ( $CompressFile -imatch "Everything is Ok" )
-						{
-							$CompressCount += 1
-						}
-					}
-				}
-				if ( $CompressCount -eq $fileCounter )
-				{
-					$retry=1
-					$maxRetry=10
-					while($retry -le $maxRetry)
-					{
-						if($usePrivateKey)
-						{
-							Write-LogInfo "Uploading $tarFileName to $username : $uploadTo, port $port using PrivateKey authentication"
-							Write-Output "yes" | .\tools\pscp -i .\ssh\$sshKey -q -P $port $tarFileName $username@${uploadTo}:
-							$returnCode = $LASTEXITCODE
-						}
-						else
-						{
-							Write-LogInfo "Uploading $tarFileName to $username : $uploadTo, port $port using Password authentication"
-							$curDir = $PWD
-							$uploadStatusRandomFileName = "UploadStatusFile" + (Get-Random -Maximum 9999 -Minimum 1111) + ".txt"
-							$uploadStatusRandomFile = Join-Path $env:TEMP $uploadStatusRandomFileName
-							$uploadStartTime = Get-Date
-							$uploadJob = Start-Job -ScriptBlock { Set-Location $args[0]; Write-Output $args; Set-Content -Value "1" -Path $args[6]; $username = $args[4]; $uploadTo = $args[5]; Write-Output "yes" | .\tools\pscp -v -pw $args[1] -q -P $args[2] $args[3] $username@${uploadTo}: ; Set-Content -Value $LASTEXITCODE -Path $args[6];} -ArgumentList $curDir,$password,$port,$tarFileName,$username,${uploadTo},$uploadStatusRandomFile
-							Start-Sleep -Milliseconds 100
-							$uploadJobStatus = Get-Job -Id $uploadJob.Id
-							$uploadTimout = $false
-							while (( $uploadJobStatus.State -eq "Running" ) -and ( !$uploadTimout ))
-							{
-								$now = Get-Date
-								if ( ($now - $uploadStartTime).TotalSeconds -gt 600 )
-								{
-									$uploadTimout = $true
-									Write-LogErr "Upload Timout!"
-								}
-								Start-Sleep -Seconds 1
-								$uploadJobStatus = Get-Job -Id $uploadJob.Id
-							}
-							$returnCode = Get-Content -Path $uploadStatusRandomFile
-							Remove-Item -Force $uploadStatusRandomFile | Out-Null
-							Remove-Job -Id $uploadJob.Id -Force | Out-Null
-						}
-						if(($returnCode -ne 0) -and ($retry -ne $maxRetry))
-						{
-							Write-LogWarn "Error in upload, Attempt $retry. Retrying for upload"
-							$retry=$retry+1
-							Wait-Time -seconds 10
-						}
-						elseif(($returnCode -ne 0) -and ($retry -eq $maxRetry))
-						{
-							Write-Output "Error in upload after $retry Attempt,Hence giving up"
-							$retry=$retry+1
-							Throw "Calling function - $($MyInvocation.MyCommand). Error in upload after $retry Attempt,Hence giving up"
-						}
-						elseif($returnCode -eq 0)
-						{
-							Write-LogInfo "Upload Success after $retry Attempt"
-							$retry=$maxRetry+1
-						}
-					}
-					Write-LogInfo "Removing compressed file : $tarFileName"
-					Remove-Item -Path $tarFileName -Force 2>&1 | Out-Null
-					Write-LogInfo "Decompressing files in VM ..."
-					if ( $username -eq "root" )
-					{
-						$out = Run-LinuxCmd -username $username -password $password -ip $uploadTo -port $port -command "tar -xf $tarFileName"
-					}
-					else
-					{
-						$out = Run-LinuxCmd -username $username -password $password -ip $uploadTo -port $port -command "tar -xf $tarFileName" -runAsSudo
-					}
-				}
-				else
-				{
-					Throw "Calling function - $($MyInvocation.MyCommand). Failed to compress $files"
-					Remove-Item -Path $tarFileName -Force 2>&1 | Out-Null
-				}
-			}
-			else
-			{
-				$files = $files.split(",")
-				foreach ($f in $files)
-				{
-					if ( !$f )
-					{
-						continue
-					}
-					$retry=1
-					$maxRetry=10
-					$testFile = $f.trim()
-					while($retry -le $maxRetry)
-					{
-						if($usePrivateKey)
-						{
-							Write-LogInfo "Uploading $testFile to $username : $uploadTo, port $port using PrivateKey authentication"
-							Write-Output "yes" | .\tools\pscp -i .\ssh\$sshKey -q -P $port $testFile $username@${uploadTo}:
-							$returnCode = $LASTEXITCODE
-						}
-						else
-						{
-							Write-LogInfo "Uploading $testFile to $username : $uploadTo, port $port using Password authentication"
-							$curDir = $PWD
-							$uploadStatusRandomFileName = "UploadStatusFile" + (Get-Random -Maximum 9999 -Minimum 1111) + ".txt"
-							$uploadStatusRandomFile = Join-Path $env:TEMP $uploadStatusRandomFileName
-							$uploadStartTime = Get-Date
-							$uploadJob = Start-Job -ScriptBlock { Set-Location $args[0]; Write-Output $args; Set-Content -Value "1" -Path $args[6]; $username = $args[4]; $uploadTo = $args[5]; Write-Output "yes" | .\tools\pscp -v -pw $args[1] -q -P $args[2] $args[3] $username@${uploadTo}: ; Set-Content -Value $LASTEXITCODE -Path $args[6];} -ArgumentList $curDir,$password,$port,$testFile,$username,${uploadTo},$uploadStatusRandomFile
-							Start-Sleep -Milliseconds 100
-							$uploadJobStatus = Get-Job -Id $uploadJob.Id
-							$uploadTimout = $false
-							while (( $uploadJobStatus.State -eq "Running" ) -and ( !$uploadTimout ))
-							{
-								$now = Get-Date
-								if ( ($now - $uploadStartTime).TotalSeconds -gt 600 )
-								{
-									$uploadTimout = $true
-									Write-LogErr "Upload Timout!"
-								}
-								Start-Sleep -Seconds 1
-								$uploadJobStatus = Get-Job -Id $uploadJob.Id
-							}
-							$returnCode = Get-Content -Path $uploadStatusRandomFile
-							Remove-Item -Force $uploadStatusRandomFile | Out-Null
-							Remove-Job -Id $uploadJob.Id -Force | Out-Null
-						}
-						if(($returnCode -ne 0) -and ($retry -ne $maxRetry))
-						{
-							Write-LogWarn "Error in upload, Attempt $retry. Retrying for upload"
-							$retry=$retry+1
-							Wait-Time -seconds 10
-						}
-						elseif(($returnCode -ne 0) -and ($retry -eq $maxRetry))
-						{
-							Write-Output "Error in upload after $retry Attempt,Hence giving up"
-							$retry=$retry+1
-							Throw "Calling function - $($MyInvocation.MyCommand). Error in upload after $retry Attempt,Hence giving up"
-						}
-						elseif($returnCode -eq 0)
-						{
-							Write-LogInfo "Upload Success after $retry Attempt"
-							$retry=$maxRetry+1
-						}
-					}
-				}
-			}
+			Write-LogInfo "Uploading $file to $username : $uploadTo, port $port using PrivateKey authentication"
+			Write-Output "yes" | .\tools\pscp -i .\ssh\$sshKey -q -P $port $file $username@${uploadTo}:
+			$returnCode = $LASTEXITCODE
 		}
 		else
 		{
-			Write-LogInfo "No Files to upload...!"
-			Throw "Calling function - $($MyInvocation.MyCommand). No Files to upload...!"
+			Write-LogInfo "Uploading $file to $username : $uploadTo, port $port using Password authentication"
+			$curDir = $PWD
+			$uploadStatusRandomFileName = "UploadStatusFile" + (Get-Random -Maximum 9999 -Minimum 1111) + ".txt"
+			$uploadStatusRandomFile = Join-Path $env:TEMP $uploadStatusRandomFileName
+			$uploadStartTime = Get-Date
+			$uploadJob = Start-Job -ScriptBlock {
+							Set-Location $args[0];
+							Write-Output $args;
+							Set-Content -Value "1" -Path $args[6];
+							$username = $args[4];
+							$uploadTo = $args[5];
+							Write-Output "yes" | .\tools\pscp -v -pw $args[1] -q -P $args[2] $args[3] $username@${uploadTo}: ;
+							Set-Content -Value $LASTEXITCODE -Path $args[6];
+						} -ArgumentList $curDir,$password,$port,$file,$username,${uploadTo},$uploadStatusRandomFile
+			Start-Sleep -Milliseconds 100
+			$uploadJobStatus = Get-Job -Id $uploadJob.Id
+			$uploadTimout = $false
+			while (( $uploadJobStatus.State -eq "Running" ) -and ( !$uploadTimout ))
+			{
+				$now = Get-Date
+				if ( ($now - $uploadStartTime).TotalSeconds -gt 600 )
+				{
+					$uploadTimout = $true
+					Write-LogErr "Upload Timout!"
+				}
+				Start-Sleep -Seconds 1
+				$uploadJobStatus = Get-Job -Id $uploadJob.Id
+			}
+			$returnCode = Get-Content -Path $uploadStatusRandomFile
+			Remove-Item -Force $uploadStatusRandomFile | Out-Null
+			Remove-Job -Id $uploadJob.Id -Force | Out-Null
+		}
+		if(($returnCode -ne 0) -and ($retry -ne $maxRetry))
+		{
+			Write-LogWarn "Error in upload, Attempt $retry. Retrying for upload"
+			Wait-Time -seconds 10
+		}
+		elseif(($returnCode -ne 0) -and ($retry -eq $maxRetry))
+		{
+			Write-Output "Error in upload after $retry Attempt,Hence giving up"
+			Throw "Calling function - $($MyInvocation.MyCommand). Error in upload after $retry Attempt,Hence giving up"
+		}
+		elseif($returnCode -eq 0)
+		{
+			Write-LogInfo "Upload Success after $retry Attempt"
+			break
+		}
+		$retry += 1
+	}
+}
+
+# Download a single file
+function Download-RemoteFile($downloadFrom, $downloadTo, $port, $file, $username, $password, $usePrivateKey, $maxRetry) {
+	$retry=1
+	if (!$maxRetry) {
+		$maxRetry = 20
+	}
+	while($retry -le $maxRetry)
+	{
+		if($usePrivateKey)
+		{
+			Write-LogInfo "Downloading $file from $username : $downloadFrom,port $port to $downloadTo using PrivateKey authentication"
+		} else {
+			Write-LogInfo "Downloading $file from $username : $downloadFrom,port $port to $downloadTo using Password authentication"
+		}
+		$curDir = $PWD
+		$downloadStatusRandomFileName = "DownloadStatusFile" + (Get-Random -Maximum 9999 -Minimum 1111) + ".txt"
+		$downloadStatusRandomFile = Join-Path $env:TEMP $downloadStatusRandomFileName
+		Set-Content -Value "1" -Path $downloadStatusRandomFile
+		$downloadStartTime = Get-Date
+		# TODO: $UsePrivateKey is not enabled yet
+		if ($UsePrivateKey) {
+			$downloadJob = Start-Job -ScriptBlock {
+				$curDir=$args[0];
+				$sshKey=$args[1];
+				$port=$args[2];
+				$testFile=$args[3];
+				$username=$args[4];
+				${downloadFrom}=$args[5];
+				$downloadTo=$args[6];
+				$downloadStatusRandomFile=$args[7];
+				Set-Location $curDir;
+				Set-Content -Value "1" -Path $args[6];
+				Write-Output "yes" | .\tools\pscp -i .\ssh\$sshKey -q -P $port $username@${downloadFrom}:$testFile $downloadTo;
+				Set-Content -Value $LASTEXITCODE -Path $downloadStatusRandomFile;
+			} -ArgumentList $curDir,$sshKey,$port,$file,$username,${downloadFrom},$downloadTo,$downloadStatusRandomFile
+		} else {
+			$downloadJob = Start-Job -ScriptBlock {
+				$curDir=$args[0];
+				$password=$args[1];
+				$port=$args[2];
+				$testFile=$args[3];
+				$username=$args[4];
+				${downloadFrom}=$args[5];
+				$downloadTo=$args[6];
+				$downloadStatusRandomFile=$args[7];
+				Set-Location $curDir;
+				Write-Output "yes" | .\tools\pscp.exe  -v -2 -unsafe -pw $password -q -P $port $username@${downloadFrom}:$testFile $downloadTo 2> $downloadStatusRandomFile;
+				Add-Content -Value "DownloadExtiCode_$LASTEXITCODE" -Path $downloadStatusRandomFile;
+			} -ArgumentList $curDir,$password,$port,$file,$username,${downloadFrom},$downloadTo,$downloadStatusRandomFile
+		}
+		Start-Sleep -Milliseconds 100
+		$downloadJobStatus = Get-Job -Id $downloadJob.Id
+		$downloadTimout = $false
+		while (( $downloadJobStatus.State -eq "Running" ) -and ( !$downloadTimout ))
+		{
+			$now = Get-Date
+			if ( ($now - $downloadStartTime).TotalSeconds -gt 600 )
+			{
+				$downloadTimout = $true
+				Write-LogErr "Download Timout!"
+			}
+			Start-Sleep -Seconds 1
+			$downloadJobStatus = Get-Job -Id $downloadJob.Id
+		}
+		$downloadExitCode = (Select-String -Path $downloadStatusRandomFile -Pattern "DownloadExtiCode_").Line
+		if ( $downloadExitCode )
+		{
+			$returnCode = $downloadExitCode.Replace("DownloadExtiCode_",'')
+		}
+		if ( $returnCode -eq 0)
+		{
+			Write-LogInfo "Download command returned exit code 0"
+		}
+		else
+		{
+			$receivedFiles = Select-String -Path "$downloadStatusRandomFile" -Pattern "Sending file"
+			if ($receivedFiles.Count -ge 1)
+			{
+				Write-LogInfo "Received $($receivedFiles.Count) file(s)"
+				$returnCode = 0
+			}
+			else
+			{
+				Write-LogInfo "Download command returned exit code $returnCode"
+				Write-LogInfo "$(Get-Content -Path $downloadStatusRandomFile)"
+			}
+		}
+		Remove-Item -Force $downloadStatusRandomFile | Out-Null
+		Remove-Job -Id $downloadJob.Id -Force | Out-Null
+
+		if(($returnCode -ne 0) -and ($retry -ne $maxRetry))
+		{
+			Write-LogWarn "Error in download, Attempt $retry. Retrying for download"
+		}
+		elseif(($returnCode -ne 0) -and ($retry -eq $maxRetry))
+		{
+			Write-Output "Error in download after $retry Attempt,Hence giving up"
+			Throw "Calling function - $($MyInvocation.MyCommand). Error in download after $retry Attempt,Hence giving up."
+		}
+		elseif($returnCode -eq 0)
+		{
+			Write-LogInfo "Download Success after $retry Attempt"
+			break
+		}
+		$retry += 1
+	}
+}
+
+# Upload or download files to/from remote VMs
+Function Copy-RemoteFiles($uploadTo, $downloadFrom, $downloadTo, $port, $files, $username, $password, [switch]$upload, [switch]$download, [switch]$usePrivateKey, [switch]$doNotCompress, $maxRetry)
+{
+	if (!$files) {
+		Write-LogInfo "Error: No file to copy."
+		return
+	}
+	$fileList = @()
+	foreach ($f in $files.Split(","))
+	{
+		if ($f)
+		{
+			$file = $f.Trim()
+			if ($file.EndsWith(".sh") -or $file.EndsWith(".py")) {
+				$out = .\tools\dos2unix.exe $file 2>&1
+				Write-LogInfo ([string]$out)
+			}
+			$fileList += $file
+		}
+	}
+	if($upload)
+	{
+		$doCompress = ($fileList.Count -gt 2) -and !$doNotCompress
+		if ($doCompress) {
+			$tarFileName = ($uploadTo+"@"+$port).Replace(".","-")+".tar"
+			foreach ($f in $fileList)
+			{
+				Write-LogInfo "Compressing $f and adding to $tarFileName"
+				$CompressFile = .\tools\7za.exe a $tarFileName $f
+				if ( ! $CompressFile -imatch "Everything is Ok" )
+				{
+					Remove-Item -Path $tarFileName -Force 2>&1 | Out-Null
+					Throw "Calling function - $($MyInvocation.MyCommand). Failed to compress $f"
+				}
+			}
+			$fileList = @($tarFileName)
+		}
+		foreach ($file in $fileList) {
+			Upload-RemoteFile -uploadTo $uploadTo -port $port -file $file -username $username -password $password -UsePrivateKey $UsePrivateKey $maxRetry
+		}
+		if ($doCompress) {
+			Write-LogInfo "Removing compressed file : $tarFileName"
+			Remove-Item -Path $tarFileName -Force 2>&1 | Out-Null
+			Write-LogInfo "Decompressing files in VM ..."
+			$out = Run-LinuxCmd -username $username -password $password -ip $uploadTo -port $port -command "tar -xf $tarFileName" -runAsSudo
 		}
 	}
 	elseif($download)
 	{
-#Downloading the files
-		if ($files)
-		{
-			$files = $files.split(",")
-			foreach ($f in $files)
-			{
-				$retry=1
-				$maxRetry=50
-				$testFile = $f.trim()
-				while($retry -le $maxRetry)
-				{
-					if($usePrivateKey)
-					{
-						Write-LogInfo "Downloading $testFile from $username : $downloadFrom,port $port to $downloadTo using PrivateKey authentication"
-						$curDir = $PWD
-						$downloadStatusRandomFileName = "DownloadStatusFile" + (Get-Random -Maximum 9999 -Minimum 1111) + ".txt"
-						$downloadStatusRandomFile = Join-Path $env:TEMP $downloadStatusRandomFileName
-						$downloadStartTime = Get-Date
-						$downloadJob = Start-Job -ScriptBlock { $curDir=$args[0];$sshKey=$args[1];$port=$args[2];$testFile=$args[3];$username=$args[4];${downloadFrom}=$args[5];$downloadTo=$args[6];$downloadStatusRandomFile=$args[7]; Set-Location $curDir; Set-Content -Value "1" -Path $args[6]; Write-Output "yes" | .\tools\pscp -i .\ssh\$sshKey -q -P $port $username@${downloadFrom}:$testFile $downloadTo; Set-Content -Value $LASTEXITCODE -Path $downloadStatusRandomFile;} -ArgumentList $curDir,$sshKey,$port,$testFile,$username,${downloadFrom},$downloadTo,$downloadStatusRandomFile
-						Start-Sleep -Milliseconds 100
-						$downloadJobStatus = Get-Job -Id $downloadJob.Id
-						$downloadTimout = $false
-						while (( $downloadJobStatus.State -eq "Running" ) -and ( !$downloadTimout ))
-						{
-							$now = Get-Date
-							if ( ($now - $downloadStartTime).TotalSeconds -gt 600 )
-							{
-								$downloadTimout = $true
-								Write-LogErr "Download Timout!"
-							}
-							Start-Sleep -Seconds 1
-							$downloadJobStatus = Get-Job -Id $downloadJob.Id
-						}
-						$returnCode = Get-Content -Path $downloadStatusRandomFile
-						Remove-Item -Force $downloadStatusRandomFile | Out-Null
-						Remove-Job -Id $downloadJob.Id -Force | Out-Null
-					}
-					else
-					{
-						Write-LogInfo "Downloading $testFile from $username : $downloadFrom,port $port to $downloadTo using Password authentication"
-						$curDir =  (Get-Item -Path ".\" -Verbose).FullName
-						$downloadStatusRandomFileName = "DownloadStatusFile" + (Get-Random -Maximum 9999 -Minimum 1111) + ".txt"
-						$downloadStatusRandomFile = Join-Path $env:TEMP $downloadStatusRandomFileName
-						Set-Content -Value "1" -Path $downloadStatusRandomFile
-						$downloadStartTime = Get-Date
-						$downloadJob = Start-Job -ScriptBlock {
-							$curDir=$args[0];
-							$password=$args[1];
-							$port=$args[2];
-							$testFile=$args[3];
-							$username=$args[4];
-							${downloadFrom}=$args[5];
-							$downloadTo=$args[6];
-							$downloadStatusRandomFile=$args[7];
-							Set-Location $curDir;
-							Write-Output "yes" | .\tools\pscp.exe  -v -2 -unsafe -pw $password -q -P $port $username@${downloadFrom}:$testFile $downloadTo 2> $downloadStatusRandomFile;
-							Add-Content -Value "DownloadExtiCode_$LASTEXITCODE" -Path $downloadStatusRandomFile;
-						} -ArgumentList $curDir,$password,$port,$testFile,$username,${downloadFrom},$downloadTo,$downloadStatusRandomFile
-						Start-Sleep -Milliseconds 100
-						$downloadJobStatus = Get-Job -Id $downloadJob.Id
-						$downloadTimout = $false
-						while (( $downloadJobStatus.State -eq "Running" ) -and ( !$downloadTimout ))
-						{
-							$now = Get-Date
-							if ( ($now - $downloadStartTime).TotalSeconds -gt 600 )
-							{
-								$downloadTimout = $true
-								Write-LogErr "Download Timout!"
-							}
-							Start-Sleep -Seconds 1
-							$downloadJobStatus = Get-Job -Id $downloadJob.Id
-						}
-						$downloadExitCode = (Select-String -Path $downloadStatusRandomFile -Pattern "DownloadExtiCode_").Line
-						if ( $downloadExitCode )
-						{
-							$returnCode = $downloadExitCode.Replace("DownloadExtiCode_",'')
-						}
-						if ( $returnCode -eq 0)
-						{
-							Write-LogInfo "Download command returned exit code 0"
-						}
-						else
-						{
-							$receivedFiles = Select-String -Path "$downloadStatusRandomFile" -Pattern "Sending file"
-							if ($receivedFiles.Count -ge 1)
-							{
-								Write-LogInfo "Received $($receivedFiles.Count) file(s)"
-								$returnCode = 0
-							}
-							else
-							{
-								Write-LogInfo "Download command returned exit code $returnCode"
-								Write-LogInfo "$(Get-Content -Path $downloadStatusRandomFile)"
-							}
-						}
-						Remove-Item -Force $downloadStatusRandomFile | Out-Null
-						Remove-Job -Id $downloadJob.Id -Force | Out-Null
-					}
-					if(($returnCode -ne 0) -and ($retry -ne $maxRetry))
-					{
-						Write-LogWarn "Error in download, Attempt $retry. Retrying for download"
-						$retry=$retry+1
-					}
-					elseif(($returnCode -ne 0) -and ($retry -eq $maxRetry))
-					{
-						Write-Output "Error in download after $retry Attempt,Hence giving up"
-						$retry=$retry+1
-						Throw "Calling function - $($MyInvocation.MyCommand). Error in download after $retry Attempt,Hence giving up."
-					}
-					elseif($returnCode -eq 0)
-					{
-						Write-LogInfo "Download Success after $retry Attempt"
-						$retry=$maxRetry+1
-					}
-				}
-			}
-		}
-		else
-		{
-			Write-LogInfo "No Files to download...!"
-			Throw "Calling function - $($MyInvocation.MyCommand). No Files to download...!"
+		foreach ($file in $fileList) {
+			Download-RemoteFile -downloadFrom $downloadFrom -downloadTo $downloadTo -port $port -file $file -username $username `
+				-password $password -usePrivateKey $usePrivateKey $maxRetry
 		}
 	}
 	else
