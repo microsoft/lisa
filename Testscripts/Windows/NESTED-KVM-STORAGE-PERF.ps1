@@ -49,12 +49,12 @@ function Start-TestExecution ($ip, $port)
 function Send-ResultToDatabase ($GlobalConfig, $logDir)
 {
 	Write-LogInfo "Uploading the test results.."
-	$dataSource = $GlobalConfig.Global.$TestPlatform.database.server
-	$DBuser = $GlobalConfig.Global.$TestPlatform.database.user
-	$DBpassword = $GlobalConfig.Global.$TestPlatform.database.password
-	$database = $GlobalConfig.Global.$TestPlatform.database.dbname
-	$dataTableName = $GlobalConfig.Global.$TestPlatform.database.dbtable
-	$TestCaseName = $GlobalConfig.Global.$TestPlatform.database.testTag
+	$dataSource = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.server
+	$DBuser = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.user
+	$DBpassword = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.password
+	$database = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbname
+	$dataTableName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbtable
+	$TestCaseName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
 	if ($dataSource -And $DBuser -And $DBpassword -And $database -And $dataTableName)
 	{
 		$fioDataCsv = Import-Csv -Path $LogDir\fioData.csv

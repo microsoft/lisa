@@ -185,12 +185,12 @@ collect_VM_properties
         #region Upload results to Netperf DB.
         try {
             Write-LogInfo "Uploading the test results.."
-            $dataSource = $GlobalConfig.Global.$TestPlatform.database.server
-            $user = $GlobalConfig.Global.$TestPlatform.database.user
-            $password = $GlobalConfig.Global.$TestPlatform.database.password
-            $database = $GlobalConfig.Global.$TestPlatform.database.dbname
-            $dataTableName = $GlobalConfig.Global.$TestPlatform.database.dbtable
-            $TestExecutionTag = $GlobalConfig.Global.$TestPlatform.database.testTag
+            $dataSource = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.server
+            $user = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.user
+            $password = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.password
+            $database = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbname
+            $dataTableName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbtable
+            $TestExecutionTag = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
             if ($dataSource -And $user -And $password -And $database -And $dataTableName) {
                 $GuestDistro = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
                 $HostOS = cat "$LogDir\VM_properties.csv" | Select-String "Host Version"| %{$_ -replace ",Host Version,",""}

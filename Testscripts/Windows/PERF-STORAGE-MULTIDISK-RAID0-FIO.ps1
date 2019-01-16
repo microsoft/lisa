@@ -272,7 +272,7 @@ function Main {
         Write-LogInfo "Perf results in json format saved at: ${fioPerfResultsFile}"
 
         Consume-FioPerformanceResults -FioPerformanceResults $fioPerfResults `
-            -DBConfig $GlobalConfig.Global.$TestPlatform.database
+            -DBConfig $GlobalConfig.Global.$TestPlatform.ResultsDatabase
 
         Write-LogInfo "Test Completed"
     } catch {

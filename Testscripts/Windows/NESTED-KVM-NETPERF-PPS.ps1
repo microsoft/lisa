@@ -20,12 +20,12 @@ function Start-TestExecution ($ip, $port, $cmd) {
 
 function Send-ResultToDatabase ($GlobalConfig, $logDir, $ParseResultArray) {
 	Write-LogInfo "Uploading the test results.."
-	$dataSource = $GlobalConfig.Global.$TestPlatform.database.server
-	$user = $GlobalConfig.Global.$TestPlatform.database.user
-	$password = $GlobalConfig.Global.$TestPlatform.database.password
-	$database = $GlobalConfig.Global.$TestPlatform.database.dbname
-	$dataTableName = $GlobalConfig.Global.$TestPlatform.database.dbtable
-	$TestCaseName = $GlobalConfig.Global.$TestPlatform.database.testTag
+	$dataSource = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.server
+	$user = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.user
+	$password = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.password
+	$database = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbname
+	$dataTableName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbtable
+	$TestCaseName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
 	if ($dataSource -And $user -And $password -And $database -And $dataTableName) {
 		# Get host info
 		$HostType = $global:TestPlatform

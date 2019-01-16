@@ -141,8 +141,8 @@ function Get-SQLQueryOfNestedHyperv ($GlobalConfig, $logDir, $session)
 	try
 	{
 		Write-LogInfo "Getting the SQL query of test results.."
-		$dataTableName = $GlobalConfig.Global.$TestPlatform.database.dbtable
-		$TestCaseName = $GlobalConfig.Global.$TestPlatform.database.testTag
+		$dataTableName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbtable
+		$TestCaseName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
 		Import-Csv -Path $LogDir\maxIOPSforMode.csv
 		Import-Csv -Path $LogDir\maxIOPSforBlockSize.csv
 		$fioDataCsv = Import-Csv -Path $LogDir\fioData.csv

@@ -298,12 +298,12 @@ collect_VM_properties
         Write-LogInfo "Test Completed"
 
         Write-LogInfo "Uploading the test results to DB STARTED.."
-        $dataSource = $GlobalConfig.Global.$TestPlatform.database.server
-        $dbuser = $GlobalConfig.Global.$TestPlatform.database.user
-        $dbpassword = $GlobalConfig.Global.$TestPlatform.database.password
-        $database = $GlobalConfig.Global.$TestPlatform.database.dbname
-        $dataTableName = $GlobalConfig.Global.$TestPlatform.database.dbtable
-        $TestCaseName = $GlobalConfig.Global.$TestPlatform.database.testTag
+        $dataSource = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.server
+        $dbuser = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.user
+        $dbpassword = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.password
+        $database = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbname
+        $dataTableName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbtable
+        $TestCaseName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
         if ($dataSource -And $dbuser -And $dbpassword -And $database -And $dataTableName) {
             $GuestDistro = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
             $HostOS = cat "$LogDir\VM_properties.csv" | Select-String "Host Version"| %{$_ -replace ",Host Version,",""}

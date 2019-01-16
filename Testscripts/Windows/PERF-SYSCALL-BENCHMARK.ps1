@@ -133,8 +133,8 @@ collect_VM_properties
                 Write-Host ($finalResult | Format-Table | Out-String)
 
                 Write-LogInfo "Uploading test results to Database.."
-                $dataTableName = $GlobalConfig.Global.$TestPlatform.database.dbtable
-                $TestCaseName = $GlobalConfig.Global.$TestPlatform.database.testTag
+                $dataTableName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbtable
+                $TestCaseName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
                 $GuestDistro    = Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object{$_ -replace ",OS type,",""}
                 $HostType = "$TestPlatform"
                 $HostBy = ($global:TestLocation).Replace('"','')

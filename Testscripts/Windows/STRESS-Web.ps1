@@ -23,7 +23,7 @@ function Get-SQLQueryOfWebStress ($GlobalConfig, $logDir)
 {
     try {
         Write-LogInfo "Getting the SQL query of test results..."
-        $dataTableName = $GlobalConfig.Global.$TestPlatform.database.dbtable
+        $dataTableName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbtable
         $TestCaseName = $currentTestData.testName
         $HostType = "$TestPlatform"
         $HostBy    = $TestLocation
