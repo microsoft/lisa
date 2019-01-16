@@ -753,4 +753,20 @@
         <Tags>storage</Tags>
         <Priority>2</Priority>
     </test>
+    <test>
+        <TestName>STORAGE-HOT-ADD-DISK-SERIAL</TestName>
+        <testScript>DiskHotAddRemove-Serial.ps1</testScript>
+        <setupType>OneVM</setupType>
+        <testParameters>
+            <param>DiskSize=30</param>
+        </testParameters>
+        <AdditionalHWConfig>
+            <DiskType>Managed</DiskType>
+        </AdditionalHWConfig>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>STORAGE</Area>
+        <Tags>storage</Tags>
+        <Priority>1</Priority>
+    </test>
 </TestCases>
