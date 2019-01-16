@@ -375,7 +375,12 @@ Class TestSummary
 		$strHtml += $this.HtmlSummary
 		$strHtml += "</table></body></Html>"
 
-		Set-Content -Value $strHtml -Path $FilePath -Force | Out-Null
+		# Note(v-advlad): the check is required for unit tests to pass
+		if (Test-Path (Split-Path $FilePath)) {
+			Set-Content -Value $strHtml -Path $FilePath -Force | Out-Null
+		} else {
+			Write-LogWarn "$FilePath directory does not exist."
+		}
 	}
 
 	[void] UpdateTestSummaryForCase([string]$TestName, [int]$ExecutionCount, [string]$TestResult, [string]$Duration, [string]$TestSummary, [object]$AllVMData)
