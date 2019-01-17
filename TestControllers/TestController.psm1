@@ -245,24 +245,9 @@ Class TestController
 			}
 
 			# Put test case to hashtable, per setupType,OverrideVMSize,networking,diskType,osDiskType,switchName
-			if ($test.AdditionalHWConfig) {
-				if ($test.AdditionalHWConfig.Networking) {
-					$networking = $test.AdditionalHWConfig.Networking
-				}
-				if ($test.AdditionalHWConfig.DiskType) {
-					$diskType = $test.AdditionalHWConfig.DiskType
-				}
-				if ($test.AdditionalHWConfig.OSDiskType) {
-					$osDiskType = $test.AdditionalHWConfig.OSDiskType
-				}
-				if ($test.AdditionalHWConfig.SwitchName) {
-					$switchName = $test.AdditionalHWConfig.SwitchName
-				}
-			}
-
-			# Add case to hashtable
 			if ($test.setupType) {
-				$key = "$($test.setupType),$($test.OverrideVMSize),$networking,$diskType,$osDiskType,$switchName"
+				$key = "$($test.setupType),$($test.OverrideVMSize),$($test.AdditionalHWConfig.Networking),$($test.AdditionalHWConfig.DiskType)," +
+					"$($test.AdditionalHWConfig.OSDiskType),$($test.AdditionalHWConfig.SwitchName)"
 				if ($this.SetupTypeToTestCases.ContainsKey($key)) {
 					$this.SetupTypeToTestCases[$key] += $test
 				} else {
