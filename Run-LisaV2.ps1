@@ -102,6 +102,7 @@ $params["Verbose"] = $PSCmdlet.MyInvocation.BoundParameters["Verbose"]
 
 try {
 	Start-LISAv2 @params
+	exit 0
 } catch {
 	exit 1
 }

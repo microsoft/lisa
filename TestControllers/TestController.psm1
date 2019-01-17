@@ -409,7 +409,7 @@ Class TestController
 					# and deploy a new VM for the next test
 					if ($lastResult.TestResult -ne "PASS") {
 						if ($this.ForceDeleteResources) {
-							$this.TestProvider.DeleteTestVMS($vmData, $this.SetupTypeTable[$setupType])
+							$this.TestProvider.DeleteTestVMS($vmData, $this.SetupTypeTable[$setupType], $this.UseExistingRG)
 						}
 						$vmData = $null
 					} elseif ($this.DeployVMPerEachTest -and !$this.DoNotDeleteVMs) {
