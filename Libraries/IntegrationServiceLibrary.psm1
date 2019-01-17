@@ -608,26 +608,26 @@ function Check-FcopyDaemon{
 
 	$filename = ".\fcopy_present"
 
-	Write-Output "yes" | .\Tools\plink.exe -C -pw $vmPassword -P $vmPort $vmUserName@$ipv4 "ps -ef | grep '[h]v_fcopy_daemon\|[h]ypervfcopyd' > /tmp/fcopy_present"
+	Run-LinuxCmd -username $vmUserName -password $vmPassword -port $vmPort -ip $ipv4  "ps -ef | grep '[h]v_fcopy_daemon\|[h]ypervfcopyd' > /tmp/fcopy_present" -runAsSudo
 	if (-not $?) {
 		Write-LogErr  "Unable to verify if the fcopy daemon is running"
 		return $False
 	}
 
-	Write-Output "yes" | .\tools\pscp.exe  -v -2 -unsafe -pw $vmPassword -q -P ${vmPort} $vmUserName@${ipv4}:/tmp/fcopy_present .
+	Copy-RemoteFiles -download -downloadFrom $Ipv4 -files "/tmp/fcopy_present" `
+	-downloadTo $LogDir -port $vmPort -username $vmUserName -password $vmPassword
 	if (-not $?) {
 		Write-LogErr "Unable to copy the confirmation file from the VM"
 		return $False
 	}
 
 	# When using grep on the process in file, it will return 1 line if the daemon is running
-	if ((Get-Content $filename  | Measure-Object -Line).Lines -eq  "1" ) {
+	if ((Get-Content -Path $LogDir\$filename  | Measure-Object -Line).Lines -eq  "1" ) {
 		Write-LogInfo "hv_fcopy_daemon process is running."
-		$retValue = $True
+		return $True
 	}
 
 	Remove-Item $filename
-	return $retValue
 }
 
 function Copy-FileVM{
@@ -645,7 +645,7 @@ function Copy-FileVM{
 	#>
 
 	$Error.Clear()
-	Copy-VMFile -vmName $vmName -ComputerName $hvServer -SourcePath $filePath -DestinationPath "/mnt/" -FileSource host -ErrorAction SilentlyContinue
+	Copy-VMFile -vmName $vmName -ComputerName $hvServer -SourcePath $filePath -DestinationPath "/mnt/test/" -FileSource host -ErrorAction SilentlyContinue
 	if ($Error.Count -ne 0) {
 		return $false
 	}

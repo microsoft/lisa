@@ -62,9 +62,8 @@ function Main {
         }
         Write-LogInfo "Checking if stress-ng is installed"
         $retVal = Publish-App "stress-ng" $Ipv4 $appGitURL $appGitTag $VMPort
-            -VMPassword $password
         if ( -not $retVal ) {
-            Throw "Dependency tool stress-ng is not installed."
+            Throw "Stress-ng is not installed! Please install it before running the memory stress tests."
         }
         Write-LogInfo "Stress-ng is installed! Will begin running memory stress tests shortly."
         # Get memory stats from VmInfo

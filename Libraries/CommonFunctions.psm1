@@ -1110,13 +1110,13 @@ function Check-FileInLinuxGuest{
 		Write-Output "yes" | .\Tools\plink.exe -C -pw $vmPassword -P $vmPort $vmUserName@$ipv4 "stat ${fileName} >/dev/null"
 	}
 
-	if (-not $?) {
+	if (-not $checkSize) {
 		return $False
 	}
 	if ($checkContent) {
 
 		Write-Output "yes" | .\Tools\plink.exe -C -pw $vmPassword -P $vmPort $vmUserName@$ipv4 "cat ${fileName}"
-		if (-not $?) {
+		if (-not $checkContent) {
 			return $False
 		}
 	}
@@ -1672,7 +1672,7 @@ Function Is-StressNgInstalled {
     Copy-RemoteFiles -uploadTo $VMIpv4 -port $VMSSHPort -files $FILE_NAME -username $user -password $password -upload
     # execute command
     $retVal = Run-LinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMSSHPort `
-        -command "echo $password | sudo -S cd /root && chmod u+x ${FILE_NAME} && sed -i 's/\r//g' ${FILE_NAME} && ./${FILE_NAME}"
+        -command "echo $password | cd /home/$user && chmod u+x ${FILE_NAME} && sed -i 's/\r//g' ${FILE_NAME} && ./${FILE_NAME}" -runAsSudo
     return $retVal
 }
 
@@ -1688,12 +1688,12 @@ Function Start-StressNg {
 #!/bin/bash
         __freeMem=`$(cat /proc/meminfo | grep -i MemFree | awk '{ print `$2 }')
         __freeMem=`$((__freeMem/1024))
-        echo ConsumeMemory: Free Memory found `$__freeMem MB >> /root/HotAdd.log 2>&1
+        echo ConsumeMemory: Free Memory found `$__freeMem MB >> /home/$user/HotAdd.log 2>&1
         __threads=32
         __chunks=`$((`$__freeMem / `$__threads))
-        echo "Going to start `$__threads instance(s) of stress-ng every 2 seconds, each consuming 128MB memory" >> /root/HotAdd.log 2>&1
+        echo "Going to start `$__threads instance(s) of stress-ng every 2 seconds, each consuming 128MB memory" >> /home/$user/HotAdd.log 2>&1
         stress-ng -m `$__threads --vm-bytes `${__chunks}M -t 120 --backoff 1500000
-        echo "Waiting for jobs to finish" >> /root/HotAdd.log 2>&1
+        echo "Waiting for jobs to finish" >> /home/$user/HotAdd.log 2>&1
         wait
         exit 0
 "@
@@ -1705,7 +1705,7 @@ Function Start-StressNg {
         -username $user -password $password -upload
     # execute command as job
     $retVal = Run-LinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMSSHPort `
-        -command "echo $password | sudo -S cd /root && chmod u+x ${FILE_NAME} && sed -i 's/\r//g' ${FILE_NAME} && ./${FILE_NAME}"
+        -command "echo $password | cd /home/$user && chmod u+x ${FILE_NAME} && sed -i 's/\r//g' ${FILE_NAME} && ./${FILE_NAME}" -runAsSudo
     return $retVal
 }
 # This function runs the remote script on VM.
@@ -1782,14 +1782,14 @@ function Get-MemoryStressNG([String]$VMIpv4, [String]$VMSSHPort, [int]$timeoutSt
     $cmdToVM = @"
 #!/bin/bash
         if [ ! -e /proc/meminfo ]; then
-          echo "ConsumeMemory: no meminfo found. Make sure /proc is mounted" >> /root/HotAdd.log 2>&1
+          echo "ConsumeMemory: no meminfo found. Make sure /proc is mounted" >> /home/$user/HotAdd.log 2>&1
           exit 100
         fi
 
         rm ~/HotAddErrors.log -f
         __totalMem=`$(cat /proc/meminfo | grep -i MemTotal | awk '{ print `$2 }')
         __totalMem=`$((__totalMem/1024))
-        echo "ConsumeMemory: Total Memory found `$__totalMem MB" >> /root/HotAdd.log 2>&1
+        echo "ConsumeMemory: Total Memory found `$__totalMem MB" >> /home/$user/HotAdd.log 2>&1
         declare -i __chunks
         declare -i __threads
         declare -i duration
@@ -1821,7 +1821,7 @@ function Get-MemoryStressNG([String]$VMIpv4, [String]$VMSSHPort, [int]$timeoutSt
         fi
         echo "Stress-ng info: `$__threads threads :: `$__chunks MB chunk size :: `$((`$timeout/1000000)) seconds between chunks :: `$duration seconds total stress time" >> /root/HotAdd.log 2>&1
         stress-ng -m `$__threads --vm-bytes `${__chunks}M -t `$duration --backoff `$timeout
-        echo "Waiting for jobs to finish" >> /root/HotAdd.log 2>&1
+        echo "Waiting for jobs to finish" >> /home/$user/HotAdd.log 2>&1
         wait
         exit 0
 "@
@@ -1832,7 +1832,7 @@ function Get-MemoryStressNG([String]$VMIpv4, [String]$VMSSHPort, [int]$timeoutSt
     Copy-RemoteFiles -uploadTo $VMIpv4 -port $VMSSHPort -files $FILE_NAME -username $user -password $password -upload
     Write-LogInfo "Copy-RemoteFiles done"
     # execute command
-    $sendCommand = "echo $password | sudo -S cd /root && chmod u+x ${FILE_NAME} && sed -i 's/\r//g' ${FILE_NAME} && ./${FILE_NAME}"
+    $sendCommand = "echo $password | cd /home/$user && chmod u+x ${FILE_NAME} && sed -i 's/\r//g' ${FILE_NAME} && ./${FILE_NAME}"
     $retVal = Run-LinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMSSHPort -command $sendCommand  -runAsSudo
     return $retVal
 }

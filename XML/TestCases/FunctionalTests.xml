@@ -889,7 +889,7 @@
         <TestParameters>
             <param>appGitURL=STRESSNG</param>
             <param>appGitTag=STRESS-NG_TAG</param>
-            <param>startupMem=4GB</param>
+            <param>startupMem=3GB</param>
         </TestParameters>
         <Timeout>2400</Timeout>
         <Platform>HyperV</Platform>
