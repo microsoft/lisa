@@ -274,7 +274,7 @@ Function GetAndCheck-KernelLogs($allDeployedVMs, $status, $vmUser, $vmPassword) 
 				}
 			}
 			if (!$callTraceFound) {
-				Write-LogInfo "No kernel call traces found."
+				Write-LogInfo "No kernel call traces found in the kernel log"
 			}
 
 			if ($status -imatch "Initial") {
@@ -291,15 +291,15 @@ Function GetAndCheck-KernelLogs($allDeployedVMs, $status, $vmUser, $vmPassword) 
 				# Removing final dmesg file from logs to reduce the size of logs.
 				# We can always see complete Final Logs as: Initial Kernel Logs + Difference in Kernel Logs
 				Remove-Item -Path $FinalBootLog -Force | Out-Null
+
 				if (!$KernelDiff) {
-					$msg = "** Initial and Final Kernel Logs have same content **"
+					$msg = "Initial and Final Kernel Logs have same content"
 					Write-LogInfo $msg
 					Set-Content -Value $msg -Path $KernelLogStatus
 					$retValue = $true
 				} else {
 					$errorCount = 0
 					$msg = "Following lines were added in the kernel log during execution of test."
-					Write-LogInfo $msg
 					Set-Content -Value $msg -Path $KernelLogStatus
 					Add-Content -Value "-------------------------------START----------------------------------" -Path $KernelLogStatus
 					foreach ($line in $KernelDiff) {
@@ -307,18 +307,21 @@ Function GetAndCheck-KernelLogs($allDeployedVMs, $status, $vmUser, $vmPassword) 
 						if ( ($line.InputObject -imatch "fail") -or ($line.InputObject -imatch "error") `
 								-or ($line.InputObject -imatch "warning")) {
 							$errorCount += 1
-							Write-LogErr $line.InputObject
-						} else {
-							Write-LogInfo $line.InputObject
+							if ($errorCount -eq 1) {
+								$warnMsg = "Following fail/error/warning messages were added in the kernel log during execution of test:"
+								Write-LogWarn $warnMsg
+							}
+							Write-LogWarn $line.InputObject
 						}
 					}
 					Add-Content -Value "--------------------------------EOF-----------------------------------" -Path $KernelLogStatus
+					if ($errorCount -gt 0) {
+						Write-LogWarn "Found $errorCount fail/error/warning messages in kernel logs during execution."
+						$retValue = $false
+					}
+					Write-LogInfo "$($VM.RoleName): $status Kernel logs collected and compared successfully"
 				}
-				Write-LogInfo "$($VM.RoleName): $status Kernel logs collected and compared SUCCESSFULLY"
-				if ($errorCount -gt 0) {
-					Write-LogErr "Found $errorCount fail/error/warning messages in kernel logs during execution."
-					$retValue = $false
-				}
+
 				if ($callTraceFound) {
 					Write-LogInfo "Preserving the Resource Group(s) $($VM.ResourceGroupName)"
 					Add-ResourceGroupTag -ResourceGroup $VM.ResourceGroupName -TagName $preserveKeyword -TagValue "yes"

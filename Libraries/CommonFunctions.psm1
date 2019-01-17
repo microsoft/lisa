@@ -957,10 +957,12 @@ Function Detect-LinuxDistro() {
 		# Instead of throw, it sets 'Unknown' if it does not exist
 		$CleanedDistroName = "Unknown"
 	} else {
-		$CleanedDistroName = $DistroName
+		# Note(v-advlad): DistroName must be cleaned of unwanted sudo output
+		# like 'sudo: unable to resolve host'
+		$CleanedDistroName = $DistroName.Split("`r`n").Trim() | Select-Object -Last 1
 		Set-Variable -Name detectedDistro -Value $CleanedDistroName -Scope Global
 		Set-DistroSpecificVariables -detectedDistro $detectedDistro
-		Write-LogInfo "Linux distro detected : $CleanedDistroName"
+		Write-LogInfo "Linux distro detected: $CleanedDistroName"
 	}
 
 	return $CleanedDistroName
