@@ -88,9 +88,9 @@ total_virtual_machines=0
 slaves_array=$(echo ${slaves} | tr ',' ' ')
 for vm in $master $slaves_array; do
 	LogMsg "Checking $ib_nic status in $vm"
-	temp=$(ssh root@${vm} "ifconfig $ib_nic | grep 'inet '")
+	temp=$(ssh root@${vm} "ip addr show $ib_nic | grep 'inet\b'")
 	ib_nic_status=$?
-	ssh root@${vm} "ifconfig $ib_nic > $ib_nic-status-${vm}.txt"
+	ssh root@${vm} "ip -o addr show $ib_nic > $ib_nic-status-${vm}.txt"
 	scp root@${vm}:${ib_nic}-status-${vm}.txt .
 	if [ $ib_nic_status -eq 0 ]; then
 		LogMsg "${ib_nic} IP detected for ${vm}."

@@ -27,25 +27,28 @@ function Configure_Interfaces
         # Get the specific nic name as seen by the VM
         LogMsg "Info : Configuring interface ${IFACE}"
         CreateIfupConfigFile $IFACE dhcp
-        if [ $? -eq 0 ]; then
-            ip_address=$(ip addr show $IFACE | grep "inet\b" | grep -v '127.0.0.1' | awk '{print $2}' | cut -d/ -f1)
-            LogMsg "Info : Successfully set IP address - ${ip_address}"
-        else
-            LogErr "Error: Unable to create ifcfg-file for $IFACE"
+        if [ $? -ne 0 ]; then
+            LogErr "Unable to create ifcfg-file for $IFACE"
             SetTestStateAborted
             return 1
         fi
 
-        ifdown $IFACE && ifup $IFACE
-        #sleep a while after ifup
-        sleep 10
+        dhclient $IFACE
+        # sleep to allow the interface to get configured
+        sleep 3
+
+        ip_address=$(ip addr show $IFACE | grep "inet\b" | grep -v '127.0.0.1' | awk '{print $2}' | cut -d/ -f1)
+        if [[ ! -z "$ip_address" ]]; then
+            LogMsg "Info : Successfully set IP address ${ip_address} on interface ${IFACE}"
+        fi
+
         # Chech for gateway
         LogMsg "Info : Checking if default gateway is set for ${IFACE}"
         Check_Gateway $IFACE
         if [ $? -ne 0 ];  then
             route add -net 0.0.0.0 gw ${DEFAULT_GATEWAY} netmask 0.0.0.0 dev ${IFACE}
             if [ $? -ne 0 ]; then
-                LogErr "Error: Unable to set ${DEFAULT_GATEWAY} as Default Gateway for $IFACE"
+                LogErr "Unable to set ${DEFAULT_GATEWAY} as Default Gateway for $IFACE"
                 return 1
             fi
         fi
@@ -61,15 +64,14 @@ function Configure_Interfaces
 UtilsInit
 
 if [ "${TEST_TYPE:-UNDEFINED}" = "UNDEFINED" ]; then
-    LogMsg "Error : Parameter TEST_TYPE was not found"
-    SetTestStateAborted
-    exit 0
+    LogMsg "Parameter TEST_TYPE was not found, defaulting to Synthetic NICs"
+    TEST_TYPE="synthetic"
 else
     IFS=',' read -a TYPE <<< "$TEST_TYPE"
 fi
 
 if [ "${SYNTHETIC_NICS:-UNDEFINED}" = "UNDEFINED" ] && [ "${LEGACY_NICS:-UNDEFINED}" = "UNDEFINED" ]; then
-    LogErr "Error : Parameters SYNTHETIC_NICS or LEGACY_NICS were not found"
+    LogErr "Parameters SYNTHETIC_NICS or LEGACY_NICS were not found"
     SetTestStateAborted
     exit 0
 fi
@@ -90,9 +92,7 @@ fi
 GetOSVersion
 DEFAULT_GATEWAY=($(route -n | grep 'UG[ \t]' | awk '{print $2}'))
 
-IFACES=($(ifconfig -s -a | awk '{print $1}'))
-# Delete first element from the list - iface
-IFACES=("${IFACES[@]:1}")
+IFACES=($(ls /sys/class/net/))
 # Check for interfaces with longer names - enp0s10f
 # Delete other interfaces - lo, virbr
 let COUNTER=0
@@ -110,7 +110,7 @@ done
 LogMsg "Info : Array of NICs - ${IFACES}"
 # Check how many interfaces are visible to the VM
 if [ ${#IFACES[@]} -ne ${EXPECTED_INTERFACES_NO} ]; then
-    LogErr "Error : Test expected ${EXPECTED_INTERFACES_NO} interfaces to be visible on VM. Found ${#IFACES[@]} interfaces"
+    LogErr "Test expected ${EXPECTED_INTERFACES_NO} interfaces to be visible on VM. Found ${#IFACES[@]} interfaces"
     SetTestStateFailed
     exit 0
 fi
@@ -134,7 +134,7 @@ if [ ${#GATEWAY_IF[@]} -ne $EXPECTED_INTERFACES_NO ]; then
             LogMsg "WARNING : No gateway found for interface ${IFACE}. Adding gateway."
             route add -net 0.0.0.0 gw ${DEFAULT_GATEWAY} netmask 0.0.0.0 dev ${IFACE}
             if [ $? -ne 0 ]; then
-                LogErr "Error : Unable to set default gateway - ${DEFAULT_GATEWAY} for ${IFACE}"
+                LogErr "Unable to set default gateway - ${DEFAULT_GATEWAY} for ${IFACE}"
                 SetTestStateFailed
                 exit 0
             fi

@@ -6,14 +6,7 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
-#
-#
-# Sample script to run sysbench.
-# In this script, we want to bench-mark device IO performance on a mounted folder.
-# You can adapt this script to other situations easily like for stripe disks as RAID0.
-# The only thing to keep in mind is that each different configuration you're testing
-# must log its output to a different directory.
-#
+
 # Source utils.sh
 . utils.sh || {
     echo "ERROR: unable to source utils.sh!"
@@ -45,7 +38,7 @@ Run()
 }
 
 ############################################################
-#       Main body
+# Main body
 ############################################################
 config_path="/boot/config-$(uname -r)"
 netvsc_includes=`grep CONFIG_HYPERV_NET=y $config_path`
@@ -71,10 +64,10 @@ while [[ $TestCount -lt $TestIterations ]];
 do
     TestCount=$(( TestCount + 1 ))
     LogMsg "Test Iteration : $TestCount"
-    Run "ifdown $NetworkInterface"
+    Run "ip link set $NetworkInterface down"
     if [[ "$?" == "0" ]];
     then
-        LogMsg "ifdown $NetworkInterface : SUCCESS"
+        LogMsg "Bringing down interface $NetworkInterface : SUCCESS"
         Run 'rmmod hv_netvsc'
         if [[ "$?" == "0" ]];
         then
@@ -83,24 +76,24 @@ do
             if [[ "$?" == "0" ]];
             then
                 LogMsg "modprobe hv_netvsc : SUCCESS"
-                Run "ifup $NetworkInterface"
+                Run "ip link set $NetworkInterface up"
                 if [[ "$?" == "0" ]];
                 then
-                        LogMsg "ifup $NetworkInterface : SUCCESS"
+                        LogMsg "Bringing up interface $NetworkInterface : SUCCESS"
                 else
-                        LogMsg "ifup $NetworkInterface : Failed."
+                        LogMsg "Bringing up interface $NetworkInterface : Failed."
                         ExitCode=$(( ExitCode + 1 ))
-                fi                          
+                fi
             else
                 LogMsg "modprobe hv_netvsc : Failed."
                 ExitCode=$(( ExitCode + 1 ))
-            fi                  
+            fi
         else
             LogMsg "rmmod hv_netvsc : Failed."
             ExitCode=$(( ExitCode + 1 ))
         fi
     else
-        LogMsg "ifdown $NetworkInterface : Failed."
+        LogMsg "Bringing down interface $NetworkInterface : Failed."
         ExitCode=$(( ExitCode + 1 ))
     fi
     LogMsg "Sleeping 5 seconds"

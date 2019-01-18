@@ -52,7 +52,7 @@ if [ $? -ne 0 ];then
 fi
 
 # Configure VM1
-ifconfig $test_iface allmulti
+ip link set dev $test_iface allmulticast on
 if [ $? -ne 0 ]; then
     LogMsg "Could not enable ALLMULTI on VM1"
     SetTestStateAborted
@@ -60,7 +60,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # Configure VM2
-Execute_Validate_Remote_Command "ifconfig $test_iface allmulti"
+Execute_Validate_Remote_Command "ip link set dev $test_iface allmulticast on"
 Execute_Validate_Remote_Command "echo '1' > /proc/sys/net/ipv4/ip_forward"
 Execute_Validate_Remote_Command "ip route add 224.0.0.0/4 dev $test_iface"
 Execute_Validate_Remote_Command "echo '0' > /proc/sys/net/ipv4/icmp_echo_ignore_broadcasts"
@@ -76,7 +76,7 @@ fi
 
 LogMsg "ping was started on both VMs. Results will be checked in a few seconds"
 sleep 5
- 
+
 # Check results - Summary must show a 0% loss of packets
 multicastSummary=$(cat out.client | grep 0%)
 if [ $? -ne 0 ]; then

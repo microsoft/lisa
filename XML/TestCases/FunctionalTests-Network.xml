@@ -444,7 +444,7 @@
         <Priority>2</Priority>
     </test>
     <test>
-        <testName>VERIFY-IFUP-IFDOWN-RELOAD-HV_NETVSC-Synthetic</testName>
+        <testName>VERIFY-RESTART-INTERFACE-RELOAD-NETVSC</testName>
         <setupType>OneVM</setupType>
         <OverrideVMSize>Standard_D2_v2</OverrideVMSize>
         <AdditionalHWConfig>
@@ -453,8 +453,8 @@
         <TestParameters>
             <param>TestIterations=10</param>
         </TestParameters>
-        <testScript>verify-ifdown-ifup-eth0-rmmod-modprobe-hv-netvsc.sh</testScript>
-        <files>.\Testscripts\Linux\verify-ifdown-ifup-eth0-rmmod-modprobe-hv-netvsc.sh,.\TestScripts\Linux\utils.sh</files>
+        <testScript>restart-interface-reload-netvsc.sh</testScript>
+        <files>.\Testscripts\Linux\restart-interface-reload-netvsc.sh,.\TestScripts\Linux\utils.sh</files>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>NETWORK</Area>
