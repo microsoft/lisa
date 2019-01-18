@@ -554,4 +554,20 @@
         <Tags>nvme,storage</Tags>
         <Priority>1</Priority>
     </test>
+    <test>
+        <testName>PERF-GOLANG-BENCHMARK</testName>
+        <TestScript>PERF-GOLANG-BENCHMARK.ps1</TestScript>
+        <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_D13_v2</OverrideVMSize>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\golang-benchmark.sh</files>
+        <Platform>Azure,HyperV</Platform>
+        <TestParameters>
+            <param>GOLANG_BENCHMARK_CODE=https://partnerpipelineshare.blob.core.windows.net/binarytools/golang_benchmark.tar.gz</param>
+            <param>GOLANG_INSTALL_PACKAGE=https://partnerpipelineshare.blob.core.windows.net/binarytools/go1.11.4.linux-amd64.tar.gz</param>
+        </TestParameters>
+        <Category>Performance</Category>
+        <Area>Golang</Area>
+        <Tags>golang</Tags>
+        <Priority>2</Priority>
+    </test>
 </TestCases>
