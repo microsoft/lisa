@@ -659,11 +659,11 @@ Function Get-AllDeploymentData($ResourceGroups)
 
 			foreach ( $nic in $NICdata )
 			{
-				if (( $nic.Name -imatch $testVM.ResourceName) -and ( $nic.Name -imatch "PrimaryNIC"))
+				if (($nic.Name.Replace("PrimaryNIC-","") -eq $testVM.ResourceName) -and ( $nic.Name -imatch "PrimaryNIC"))
 				{
 					$QuickVMNode.InternalIP = "$($nic.Properties.IpConfigurations[0].Properties.PrivateIPAddress)"
 				}
-				if (( $nic.Name -imatch $testVM.ResourceName) -and ( $nic.Name -imatch "ExtraNetworkCard-1"))
+				if (($nic.Name.Replace("ExtraNetworkCard-1-","") -eq $testVM.ResourceName) -and ($nic.Name -imatch "ExtraNetworkCard-1"))
 				{
 					$QuickVMNode.SecondInternalIP = "$($nic.Properties.IpConfigurations[0].Properties.PrivateIPAddress)"
 				}
