@@ -185,9 +185,19 @@ Function Delete-HyperVGroup([string]$HyperVGroupName, [string]$HyperVHost, $Setu
             $cleanupDone--
             return
         }
-        Remove-VMSnapshot -VMName $vm.Name -ComputerName $HyperVHost `
-            -IncludeAllChildCheckpoints -Confirm:$false -ErrorAction SilentlyContinue
-        if (!$?) {
+        $retriesCleanSnapshots = 0
+        $maxRetriesCleanSnapshots = 3
+        while ($retriesCleanSnapshots -lt $maxRetriesCleanSnapshots) {
+            Remove-VMSnapshot -VMName $vm.Name -ComputerName $HyperVHost `
+                -IncludeAllChildCheckpoints -Confirm:$false -ErrorAction SilentlyContinue
+            if ($?) {
+                Write-LogWarn ("Failed to remove snapshots for VM {0}. Retrying $($retriesCleanSnapshots+1)/${maxRetriesCleanSnapshots}..." -f @($vm.Name))
+                $retriesCleanSnapshots++
+            } else {
+                break
+            }
+        }
+        if ($retriesCleanSnapshots -eq $maxRetriesCleanSnapshots) {
             Write-LogErr ("Failed to remove snapshots for VM {0}" -f @($vm.Name))
             return $false
         }
