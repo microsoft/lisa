@@ -322,6 +322,16 @@ function Run-TestScript {
             Write-LogInfo "Constants file uploaded to: $($VM.RoleName)"
         }
     }
+    if($CurrentTestData.files -imatch ".py") {
+        $pythonPath = Run-LinuxCmd -Username $Username -password $Password -ip $VMData.PublicIP -Port $VMData.SSHPort `
+            -Command "which python || which python2 || which python3" -runAsSudo
+        if (($pythonPath -imatch "python2") -or ($pythonPath -imatch "python3")) {
+            $pythonPathSymlink  = $pythonPath.Substring(0, $pythonPath.LastIndexOf("/") + 1)
+            $pythonPathSymlink  += "python"
+            Run-LinuxCmd -Username $Username -password $Password -ip $VMData.PublicIP -Port $VMData.SSHPort `
+                 -Command "ln -s $pythonPath $pythonPathSymlink" -runAsSudo
+        }
+    }
     Write-LogInfo "Test script: ${Script} started."
     if ($scriptExtension -eq "sh") {
         Run-LinuxCmd -Command "echo '${Password}' | sudo -S -s eval `"export HOME=``pwd``;bash ${Script} > ${TestName}_summary.log 2>&1`"" `
