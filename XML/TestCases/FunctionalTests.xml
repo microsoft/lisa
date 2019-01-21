@@ -460,7 +460,7 @@
         <TestParameters>
             <param>vmCpuNumber=1</param>
             <param>vmMemory=4GB</param>
-            <param>crashkernel=384M@128M</param>
+            <param>crashkernel=512M</param>
         </TestParameters>
         <Platform>HyperV,Azure</Platform>
         <Category>Functional</Category>
@@ -494,7 +494,7 @@
         <TestParameters>
             <param>vmCpuNumber=3</param>
             <param>vmMemory=3GB</param>
-            <param>crashkernel=384M@128M</param>
+            <param>crashkernel=512M</param>
             <param>NMI=1</param>
         </TestParameters>
         <Platform>HyperV</Platform>
@@ -529,7 +529,7 @@
         <TestParameters>
             <param>vmCpuNumber=4</param>
             <param>vmMemory=2GB</param>
-            <param>crashkernel=384M@128M</param>
+            <param>crashkernel=512M</param>
         </TestParameters>
         <Platform>HyperV,Azure</Platform>
         <Category>Functional</Category>
@@ -546,7 +546,7 @@
         <TestParameters>
             <param>vmCpuNumber=16</param>
             <param>vmMemory=4GB</param>
-            <param>crashkernel=512M@128M</param>
+            <param>crashkernel=512M</param>
         </TestParameters>
         <Platform>HyperV,Azure</Platform>
         <Category>Functional</Category>
