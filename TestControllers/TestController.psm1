@@ -266,7 +266,7 @@ Class TestController
 
 	[void] PrepareTestImage() {}
 
-	[object] RunTestCase($VmData, $CurrentTestData, $ExecutionCount, $SetupTypeData) {
+	[object] RunTestCase($VmData, $CurrentTestData, $ExecutionCount, $SetupTypeData, $ApplyCheckpoint) {
 		# Prepare test case log folder
 		$currentTestName = $($CurrentTestData.testName)
 		$oldLogDir = $global:LogDir
@@ -291,7 +291,7 @@ Class TestController
 			}
 
 			# Run setup script if any
-			$this.TestProvider.RunSetup($VmData, $CurrentTestData, $testParameters)
+			$this.TestProvider.RunSetup($VmData, $CurrentTestData, $testParameters, $ApplyCheckpoint)
 
 			# Upload test files to VMs
 			if ($CurrentTestData.files) {
@@ -369,6 +369,7 @@ Class TestController
 
 			$vmData = $null
 			$lastResult = $null
+			$tests = 0
 			foreach ($case in $this.SetupTypeToTestCases[$key]) {
 				$originalTestName = $case.TestName
 				for ( $testIterationCount = 1; $testIterationCount -le $this.TestIterations; $testIterationCount ++ ) {
@@ -389,7 +390,8 @@ Class TestController
 						}
 					}
 					# Run test case
-					$lastResult = $this.RunTestCase($vmData, $case, $executionCount, $this.SetupTypeTable[$setupType])
+					$lastResult = $this.RunTestCase($vmData, $case, $executionCount, $this.SetupTypeTable[$setupType], ($tests -eq 0))
+					$tests++
 					# If the case doesn't pass, keep the VM for failed case except when ForceDeleteResources is set
 					# and deploy a new VM for the next test
 					if ($lastResult.TestResult -ne "PASS") {

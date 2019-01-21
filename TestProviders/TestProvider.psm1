@@ -35,7 +35,7 @@ Class TestProvider
 		return $null
 	}
 
-	[void] RunSetup($VmData, $CurrentTestData, $TestParameters) {}
+	[void] RunSetup($VmData, $CurrentTestData, $TestParameters, $ApplyCheckPoint) {}
 
 	[void] RunTestCaseCleanup ($AllVMData, $CurrentTestData, $CurrentTestResult, $CollectVMLogs, $RemoveFiles, $User, $Password, $SetupTypeData, $TestParameters){
 		# Remove running background jobs

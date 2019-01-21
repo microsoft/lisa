@@ -99,11 +99,11 @@ Class HyperVProvider : TestProvider
 		return $allVMData
 	}
 
-	[void] RunSetup($VmData, $CurrentTestData, $TestParameters) {
+	[void] RunSetup($VmData, $CurrentTestData, $TestParameters, $ApplyCheckPoint) {
 		if ($CurrentTestData.AdditionalHWConfig.HyperVApplyCheckpoint -eq "False") {
 			Remove-AllFilesFromHomeDirectory -allDeployedVMs $VmData
 			Write-LogInfo "Removed all files from home directory."
-		} else  {
+		} elseif ($ApplyCheckPoint) {
 			Apply-HyperVCheckpoint -VMData $VmData -CheckpointName "ICAbase"
 			$VmData = Check-IP -VMData $VmData
 			Write-LogInfo "Public IP found for all VMs in deployment after checkpoint restore"

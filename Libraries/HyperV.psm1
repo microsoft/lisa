@@ -191,15 +191,11 @@ Function Delete-HyperVGroup([string]$HyperVGroupName, [string]$HyperVHost, $Setu
             Remove-VMSnapshot -VMName $vm.Name -ComputerName $HyperVHost `
                 -IncludeAllChildCheckpoints -Confirm:$false -ErrorAction SilentlyContinue
             if ($?) {
-                Write-LogWarn ("Failed to remove snapshots for VM {0}. Retrying $($retriesCleanSnapshots+1)/${maxRetriesCleanSnapshots}..." -f @($vm.Name))
+                Write-LogWarn ("Failed to remove snapshots for VM {0}. Retrying..." -f @($vm.Name))
                 $retriesCleanSnapshots++
             } else {
                 break
             }
-        }
-        if ($retriesCleanSnapshots -eq $maxRetriesCleanSnapshots) {
-            Write-LogErr ("Failed to remove snapshots for VM {0}" -f @($vm.Name))
-            return $false
         }
         Wait-VMStatus -VMName $vm.Name -VMStatus "Operating Normally" -RetryInterval 2 `
             -HvServer $HyperVHost
@@ -217,13 +213,15 @@ Function Delete-HyperVGroup([string]$HyperVGroupName, [string]$HyperVHost, $Setu
             }
             Invoke-Command @invokeCommandParams
             if (!$?) {
-                Write-LogInfo "Failed to remove ${vhdPath} using Invoke-Command"
                 $vhdUncPath = $vhdPath -replace '^(.):', "\\${HyperVHost}\`$1$"
-                Write-LogInfo "Removing ${vhdUncPath} ..."
-                Remove-Item -Path $vhdUncPath -Force
-                if (!$? -or (Test-Path $vhdUncPath)) {
-                    Write-LogErr "Failed to remove ${vhdPath} using UNC paths"
-                    return $false
+                if ((Test-Path $vhdUncPath)) {
+                    Write-LogWarn "Failed to remove ${vhdPath} using Invoke-Command"
+                    Write-LogInfo "Removing ${vhdUncPath} ..."
+                    Remove-Item -Path $vhdUncPath -Force
+                    if (!$? -or (Test-Path $vhdUncPath)) {
+                        Write-LogErr "Failed to remove ${vhdPath} using UNC paths"
+                        return $false
+                    }
                 }
             }
             Write-LogInfo "VHD ${vhdPath} removed!"
