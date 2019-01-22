@@ -4,6 +4,17 @@
 
 param([string] $TestParams, [object] $AllVMData)
 
+function Main {
+    param (
+        $HvServer,
+        $VMName,
+        $Ipv4,
+        $VMPort,
+        $VMUserName,
+        $VMPassword,
+        $RootDir
+    )
+
 $RELOAD_COMMAND = @'
 #!/bin/bash
 
@@ -20,17 +31,6 @@ done
 ifdown eth0 && ifup eth0
 '@
 
-function Main {
-    param (
-        $HvServer,
-        $VMName,
-        $Ipv4,
-        $VMPort,
-        $VMUserName,
-        $VMPassword,
-        $RootDir
-    )
-
     # Start changing MTU on VM
     $mtu_values = 1505, 2048, 4096, 8192, 16384
     $iteration = 1
@@ -41,8 +41,8 @@ function Main {
             -command "sleep 5 && ip link set dev eth0 mtu $i" -RunAsSudo
 
         Start-Sleep -s 30
-        Test-Connection -ComputerName $ipv4
-        if (-not $?) {
+        $TestConnection = Test-Connection -ComputerName $ipv4
+        if (-not $TestConnection) {
             Write-LogErr "VM became unresponsive after changing MTU on VM to $i on iteration $iteration "
             return "FAIL"
         }
@@ -63,14 +63,13 @@ function Main {
         -command "dos2unix reload_netvsc.sh && sleep 5 && bash reload_netvsc.sh" -RunInBackGround  -RunAsSudo
 
     Start-Sleep -s 600
-    Get-IPv4AndWaitForSSHStart -VmName $VMName -HvServer $HvServer -Vmport $VMPort `
-        -Password $VMPassword -username $VMUserName -StepTimeout 1000
-
-    if (-not $?) {
+    $NewIP = Get-IPv4AndWaitForSSHStart -VmName $VMName -HvServer $HvServer -Vmport $VMPort `
+        -Password $VMPassword -User $VMUserName -StepTimeout 1000
+        $allVmData.PublicIP = $NewIP
+    if (-not $NewIP) {
         Write-LogErr "VM became unresponsive after reloading hv_netvsc"
         return "FAIL"
-    }
-    else {
+    } else {
         Write-LogInfo "Successfully reloaded hv_netvsc for 25 times"
         return "PASS"
     }
