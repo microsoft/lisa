@@ -101,6 +101,9 @@ def DetectDistro():
     output = Run("cat /etc/*-release")
     if output == "" and os.path.isfile("/usr/lib/os-release"):
         output = Run("cat /usr/lib/os-release")
+    if output == "" and os.path.exists("/etc/lsb-release") and int(Run("cat /etc/lsb-release | grep -i coreos | wc -l")) > 0:
+        output = Run("cat /etc/lsb-release")
+
     outputlist = re.split("\n", output)
 
     for line in outputlist:
@@ -239,16 +242,10 @@ def Run(cmd):
         proc.wait()
         op = proc.stdout.read()
         RunLog.debug(op)
-        code = proc.returncode
-        if int(code) !=0:
-            exception = 1
-        else:
-            #ensure type str return
-            if py_ver_str[0] == '3':
-                op = op.decode('utf-8')
-            return op
-        if exception == 1:
-            return op
+        #ensure type str return
+        if py_ver_str[0] == '3':
+            op = op.decode('utf-8')
+        return op
 #use method communicate() instead of wait()
 #This will deadlock when using stdout=PIPE and/or stderr=PIPE and the child process generates enough output to a pipe
 #such that it blocks waiting for the OS pipe buffer to accept more data. Use communicate() to avoid that.

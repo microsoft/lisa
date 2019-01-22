@@ -41,7 +41,7 @@ def DetectSLESServicePatch():
     return patchlevel
 
 
-def GenRandomPassword(pcomplexity, plength=6):
+def GenRandomPassword(pcomplexity, plength=10):
     passwd_length = int(plength)
     nums = range(0, 10)
     lowercases = tuple(string.ascii_lowercase)
@@ -62,8 +62,8 @@ def GenRandomPassword(pcomplexity, plength=6):
     return newpass
 
 
-def ResetPassword(currentpassword,):
-    proc = Popen(['passwd'], stdin=PIPE, stdout=PIPE, stderr=PIPE)
+def ResetPassword(currentpassword):
+    proc = Popen(['passwd'], stdin=PIPE, stdout=PIPE, stderr=PIPE, preexec_fn=run_with(1000, 1000))
     proc.communicate(currentpassword+'\n'+origin_password+'\n'+origin_password+'\n')
     rtc = proc.returncode
     if int(rtc) == 0:
@@ -111,7 +111,7 @@ def RunTest():
 
 
 def ChangePwd(newpassword):
-    proc = Popen(['passwd'], stdin=PIPE, stdout=PIPE, stderr=PIPE)
+    proc = Popen(['passwd'], stdin=PIPE, stdout=PIPE, stderr=PIPE, preexec_fn=run_with(1000, 1000))
     out = proc.communicate(origin_password+'\n'+newpassword+'\n'+newpassword+'\n')
     rtc = proc.returncode
     RunLog.info('Output Message:')
@@ -121,5 +121,12 @@ def ChangePwd(newpassword):
         return True
     else:
         return False
+
+
+def run_with(uid, gid):
+    def set_ids():
+        os.setgid(gid)
+        os.setuid(uid)
+    return set_ids
 
 RunTest()

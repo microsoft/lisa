@@ -31,7 +31,9 @@ fi
 HYPERV_MODULES=(hv_vmbus hv_netvsc hv_storvsc hv_utils hv_balloon hid_hyperv hyperv_keyboard hyperv_fb)
 skip_modules=()
 config_path="/boot/config-$(uname -r)"
-
+if [[ $(detect_linux_distribution) == clear-linux-os ]]; then
+    config_path="/usr/lib/kernel/config-$(uname -r)"
+fi
 vmbus_included=$(grep CONFIG_HYPERV=y "$config_path")
 if [ "$vmbus_included" ]; then
     skip_modules+=("hv_vmbus")

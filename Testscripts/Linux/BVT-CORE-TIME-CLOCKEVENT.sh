@@ -98,12 +98,17 @@ case $DISTRO in
         CheckTimerInfo
         UnbindClockEvent
         ;;
-    ubuntu* )
+    ubuntu*|debian*)
         CheckClockEvent
         CheckTimerInfo
         UnbindClockEvent
         ;;
     suse* )
+        CheckClockEvent
+        CheckTimerInfo
+        UnbindClockEvent
+        ;;
+    coreos* )
         CheckClockEvent
         CheckTimerInfo
         UnbindClockEvent

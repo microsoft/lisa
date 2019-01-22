@@ -334,9 +334,9 @@ function Run-TestScript {
     }
     Write-LogInfo "Test script: ${Script} started."
     if ($scriptExtension -eq "sh") {
-        Run-LinuxCmd -Command "echo '${Password}' | sudo -S -s eval `"export HOME=``pwd``;bash ${Script} > ${TestName}_summary.log 2>&1`"" `
+        Run-LinuxCmd -Command "bash ${Script} > ${TestName}_summary.log 2>&1" `
              -Username $Username -password $Password -ip $VMData.PublicIP -Port $VMData.SSHPort `
-             -runMaxAllowedTime $Timeout
+             -runMaxAllowedTime $Timeout -runAsSudo
     } elseif ($scriptExtension -eq "ps1") {
         $scriptDir = Join-Path $workDir "Testscripts\Windows"
         $scriptLoc = Join-Path $scriptDir $Script

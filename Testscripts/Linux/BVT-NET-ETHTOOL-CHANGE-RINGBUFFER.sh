@@ -18,7 +18,7 @@ declare -i __iterator=0
 # Source utils.sh
 . utils.sh || {
     echo "Error: unable to source utils.sh!"
-    echo "TestAborted" > state.txtz
+    echo "TestAborted" > state.txt
     exit 0
 }
 

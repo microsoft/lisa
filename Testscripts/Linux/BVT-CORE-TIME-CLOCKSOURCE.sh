@@ -101,11 +101,15 @@ case $DISTRO in
 		CheckSource
 		UnbindCurrentSource
 		;;
-	ubuntu* )
+	ubuntu*|debian*)
 		CheckSource
 		UnbindCurrentSource
 		;;
 	suse* )
+		CheckSource
+		UnbindCurrentSource
+		;;
+	coreos* )
 		CheckSource
 		UnbindCurrentSource
 		;;

@@ -236,7 +236,7 @@ GetDistro()
 	# Make sure we don't inherit anything
 	declare __DISTRO
 	#Get distro (snipper take from alsa-info.sh)
-	__DISTRO=$(grep -ihs "Ubuntu\|SUSE\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os" /{etc,usr/lib}/{issue,*release,*version})
+	__DISTRO=$(grep -ihs "Ubuntu\|SUSE\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os\|CoreOS" /{etc,usr/lib}/{issue,*release,*version})
 	case $__DISTRO in
 		*Ubuntu*12*)
 			DISTRO=ubuntu_12
@@ -316,6 +316,9 @@ GetDistro()
 			;;
 		*ID=clear-linux-os*)
 			DISTRO=clear-linux-os
+			;;
+		*ID=*CoreOS*)
+			DISTRO=coreos
 			;;
 		*)
 			DISTRO=unknown
