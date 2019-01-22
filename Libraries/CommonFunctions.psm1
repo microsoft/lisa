@@ -797,6 +797,9 @@ function Verify-MellanoxAdapter($vmData)
 	$mellanoxAdapterDetected = $false
 	while ( !$mellanoxAdapterDetected -and ($retryAttempts -lt $maxRetryAttemps))
 	{
+		Write-LogInfo "Install package pciutils to use lspci command."
+		Copy-RemoteFiles -uploadTo $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -file ".\Testscripts\Linux\utils.sh" -upload
+		Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -command ". ./utils.sh && install_package pciutils" -runAsSudo
 		$pciDevices = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -command "lspci" -runAsSudo
 		if ( $pciDevices -imatch "Mellanox")
 		{
