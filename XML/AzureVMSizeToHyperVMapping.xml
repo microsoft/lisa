@@ -63,7 +63,7 @@
     </Standard_D2_v2>
     <Standard_D3_v2>
         <NumberOfCores>4</NumberOfCores>
-        <MemoryInMB>14336</MemoryInMB>
+        <MemoryInMB>4096</MemoryInMB>
     </Standard_D3_v2>
     <Standard_D4_v2>
         <NumberOfCores>8</NumberOfCores>
@@ -83,7 +83,7 @@
     </Standard_D12_v2>
     <Standard_D13_v2>
         <NumberOfCores>8</NumberOfCores>
-        <MemoryInMB>57344</MemoryInMB>
+        <MemoryInMB>8192</MemoryInMB>
     </Standard_D13_v2>
     <Standard_D14_v2>
         <NumberOfCores>16</NumberOfCores>
@@ -91,7 +91,7 @@
     </Standard_D14_v2>
     <Standard_D15_v2>
         <NumberOfCores>8</NumberOfCores>
-        <MemoryInMB>8196</MemoryInMB>
+        <MemoryInMB>8192</MemoryInMB>
     </Standard_D15_v2>
     <Standard_D2_v2_Promo>
         <NumberOfCores>2</NumberOfCores>
@@ -122,8 +122,8 @@
         <MemoryInMB>57344</MemoryInMB>
     </Standard_D13_v2_Promo>
     <Standard_D14_v2_Promo>
-        <NumberOfCores>16</NumberOfCores>
-        <MemoryInMB>114688</MemoryInMB>
+        <NumberOfCores>8</NumberOfCores>
+        <MemoryInMB>8192</MemoryInMB>
     </Standard_D14_v2_Promo>
     <Standard_F1>
         <NumberOfCores>1</NumberOfCores>
@@ -312,7 +312,7 @@
     </Standard_DS14-8_v2>
     <Standard_DS14_v2>
         <NumberOfCores>8</NumberOfCores>
-        <MemoryInMB>8196</MemoryInMB>
+        <MemoryInMB>8192</MemoryInMB>
     </Standard_DS14_v2>
     <Standard_DS15_v2>
         <NumberOfCores>20</NumberOfCores>
@@ -391,8 +391,8 @@
         <MemoryInMB>131072</MemoryInMB>
     </Standard_D32s_v3>
     <Standard_D64_v3>
-        <NumberOfCores>64</NumberOfCores>
-        <MemoryInMB>262144</MemoryInMB>
+        <NumberOfCores>8</NumberOfCores>
+        <MemoryInMB>8192</MemoryInMB>
     </Standard_D64_v3>
     <Standard_D64s_v3>
         <NumberOfCores>64</NumberOfCores>
@@ -664,12 +664,16 @@
     </Standard_NC24s_v2>
     <Standard_L8s_v2>
         <NumberOfCores>8</NumberOfCores>
-        <MemoryInMB>65536</MemoryInMB>
+        <MemoryInMB>8192</MemoryInMB>
     </Standard_L8s_v2>
     <Standard_L16s_v2>
-        <NumberOfCores>16</NumberOfCores>
-        <MemoryInMB>131072</MemoryInMB>
+        <NumberOfCores>8</NumberOfCores>
+        <MemoryInMB>8192</MemoryInMB>
     </Standard_L16s_v2>
+    <Standard_L64s_v2>
+        <NumberOfCores>8</NumberOfCores>
+        <MemoryInMB>8192</MemoryInMB>
+    </Standard_L64s_v2>
     <Standard_G1>
         <NumberOfCores>2</NumberOfCores>
         <MemoryInMB>28672</MemoryInMB>
@@ -760,7 +764,7 @@
     </Standard_F16s_v2>
     <Standard_F32s_v2>
         <NumberOfCores>8</NumberOfCores>
-        <MemoryInMB>8196</MemoryInMB>
+        <MemoryInMB>8192</MemoryInMB>
     </Standard_F32s_v2>
     <Standard_F64s_v2>
         <NumberOfCores>64</NumberOfCores>
