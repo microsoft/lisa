@@ -216,6 +216,16 @@ Function Validate-SubscriptionUsage($RGXMLData, $Location, $OverrideVMSize, $Sto
                 $currentStatus = Set-Usage -currentStatus $currentStatus -text $identifierText  -usage $testVMUsage -AllowedUsagePercentage $AllowedUsagePercentage
                 $overFlowErrors += Test-Usage -currentStatus $currentStatus -text $identifierText -AllowedUsagePercentage $AllowedUsagePercentage
             }
+            elseif ( $testVMSize.StartsWith("HB")) {
+                $identifierText = "standardHBSFamily"
+                $currentStatus = Set-Usage -currentStatus $currentStatus -text $identifierText  -usage $testVMUsage -AllowedUsagePercentage $AllowedUsagePercentage
+                $overFlowErrors += Test-Usage -currentStatus $currentStatus -text $identifierText -AllowedUsagePercentage $AllowedUsagePercentage
+            }
+            elseif ( $testVMSize.StartsWith("HC")) {
+                $identifierText = "standardHCSFamily"
+                $currentStatus = Set-Usage -currentStatus $currentStatus -text $identifierText  -usage $testVMUsage -AllowedUsagePercentage $AllowedUsagePercentage
+                $overFlowErrors += Test-Usage -currentStatus $currentStatus -text $identifierText -AllowedUsagePercentage $AllowedUsagePercentage
+            }
             elseif ( $testVMSize.StartsWith("H")) {
                 $identifierText = "standardHFamily"
                 $currentStatus = Set-Usage -currentStatus $currentStatus -text $identifierText  -usage $testVMUsage -AllowedUsagePercentage $AllowedUsagePercentage
