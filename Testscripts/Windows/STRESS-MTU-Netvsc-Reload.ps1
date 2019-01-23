@@ -4,17 +4,6 @@
 
 param([string] $TestParams, [object] $AllVMData)
 
-function Main {
-    param (
-        $HvServer,
-        $VMName,
-        $Ipv4,
-        $VMPort,
-        $VMUserName,
-        $VMPassword,
-        $RootDir
-    )
-
 $RELOAD_COMMAND = @'
 #!/bin/bash
 
@@ -31,6 +20,17 @@ done
 ifdown eth0 && ifup eth0
 '@
 
+function Main {
+    param (
+        $HvServer,
+        $VMName,
+        $Ipv4,
+        $VMPort,
+        $VMUserName,
+        $VMPassword,
+        $RootDir
+    )
+
     # Start changing MTU on VM
     $mtu_values = 1505, 2048, 4096, 8192, 16384
     $iteration = 1
@@ -41,8 +41,8 @@ ifdown eth0 && ifup eth0
             -command "sleep 5 && ip link set dev eth0 mtu $i" -RunAsSudo
 
         Start-Sleep -s 30
-        $TestConnection = Test-Connection -ComputerName $ipv4
-        if (-not $TestConnection) {
+        Test-Connection -ComputerName $Ipv4 | Out-Null
+        if (-not $?) {
             Write-LogErr "VM became unresponsive after changing MTU on VM to $i on iteration $iteration "
             return "FAIL"
         }

@@ -279,14 +279,11 @@ function Get-IPv4AndWaitForSSHStart {
 	}
 
 	# Cache fingerprint, Check ssh is functional after reboot
-	$null = Write-Output "yes" | .\Tools\plink.exe -C -pw $Password -P $VmPort $User@$new_ip 'exit 0'
-	Write-LogInfo ".\Tools\plink.exe -C -pw $Password -P $VmPort $User@$new_ip"
+	Write-Output "yes" | .\Tools\plink.exe -C -pw $Password -P $VmPort $User@$new_ip 'exit 0'
 	$TestConnection = .\Tools\plink.exe -C -pw $Password -P $VmPort $User@$new_ip "echo Connected"
-	if (-not ($TestConnection)) {
+	if ($TestConnection -ne "Connected") {
 		Write-LogErr "Get-IPv4AndWaitForSSHStart: SSH is not working correctly after boot up"
 		return $False
-	} else {
-		Write-LogInfo "SSH connection returns : $TestConnection"
 	}
 	return $new_ip
 }
