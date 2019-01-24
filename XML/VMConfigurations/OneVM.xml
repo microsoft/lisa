@@ -93,6 +93,26 @@
             </VirtualMachine>
         </ResourceGroup>
     </OneVM1Disk>
+    <OneVM1Disk5G>
+        <isDeployed>NO</isDeployed>
+        <ResourceGroup>
+            <VirtualMachine>
+                <ARMInstanceSize>Standard_DS14_v2</ARMInstanceSize>
+                <RoleName></RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>22</PublicPort>
+                </EndPoints>
+                <DataDisk>
+                    <LUN>0</LUN>
+                    <DiskSizeInGB>5</DiskSizeInGB>
+                    <HostCaching>None</HostCaching>
+                </DataDisk>
+            </VirtualMachine>
+        </ResourceGroup>
+    </OneVM1Disk5G>
     <OneVM1DiskNested>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>

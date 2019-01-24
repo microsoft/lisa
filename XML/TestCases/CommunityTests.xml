@@ -70,12 +70,15 @@
     <test>
         <TestName>LINUX-TEST-PROJECT-TESTS</TestName>
         <TestScript>Linux-Test-Project-Tests.sh</TestScript>
-        <files>.\Testscripts\Linux\utils.sh,.\TestScripts\Linux\Linux-Test-Project-Tests.sh</files>
-        <setupType>OneVM</setupType>
+        <files>.\Testscripts\Linux\utils.sh,.\TestScripts\Linux\Linux-Test-Project-Tests.sh</files>\
+        <setupScript>.\TestScripts\Windows\AddHardDisk.ps1</setupScript>
+        <cleanupScript>.\TestScripts\Windows\RemoveHardDisk.ps1</cleanupScript>
+        <setupType>OneVM1Disk5G</setupType>
         <OverrideVMSize>Standard_DS14_v2</OverrideVMSize>
         <TestParameters>
             <param>ltp_version_git_tag="LTP_TESTS_GIT_TAG"</param>
             <param>LTP_TEST_SUITE="LTP_SUITE"</param>
+            <param>SCSI=1,1,Fixed,5GB</param>
         </TestParameters>
         <Timeout>20000</Timeout>
         <Platform>Azure,HyperV</Platform>

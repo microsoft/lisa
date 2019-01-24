@@ -45,6 +45,7 @@ function verify_install () {
 # Checks what Linux distro we are running on
 LogMsg "Installing dependencies"
 GetDistro
+update_repos
 case $DISTRO in
     "suse"*)
         suse_packages=(m4 libaio-devel libattr1 libcap-progs 'bison>=2.4.1' \
@@ -59,8 +60,9 @@ case $DISTRO in
         ;;
     "ubuntu"* | "debian"*)
         deb_packages=(autoconf automake m4 libaio-dev libattr1 libcap-dev \
-            bison db48-utils libdb4.8 libberkeleydb-perl flex make \
-            gcc git expect dh-autoreconf psmisc)
+            bison db48-utils libdb4.8 libberkeleydb-perl flex make gcc \
+            gcc git expect dh-autoreconf psmisc libnuma-dev quota genisoimage \
+            gdb unzip exfat-utils keyutils)
         for item in ${deb_packages[*]}
         do
             LogMsg "Starting to install ${item}... "
@@ -132,7 +134,7 @@ cd "$TOP_BUILDDIR"
 
 LogMsg "Running LTP..."
 
-LTP_PARAMS="-p -q -l $LTP_RESULTS -o $LTP_OUTPUT"
+LTP_PARAMS="-p -q -l $LTP_RESULTS -o $LTP_OUTPUT -z /dev/sdc"
 
 # LTP_TEST_SUITE is passed from the Test Definition xml or from command line when running LISAv2
 # if the parameter is null, the test suite defaults to "lite"
