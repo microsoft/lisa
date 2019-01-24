@@ -1,11 +1,83 @@
-<TestSetup>        
-    <OneVM4Disks>
+<TestSetup>
+    <OneVM>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
             <VirtualMachine>
                 <state></state>
-                <InstanceSize>Standard_F16</InstanceSize>
-                <ARMInstanceSize>Standard_F16</ARMInstanceSize>
+                <InstanceSize>Standard_DS1_v2</InstanceSize>
+                <ARMInstanceSize>Standard_DS1_v2</ARMInstanceSize>
+                <RoleName></RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>22</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+            </VirtualMachine>
+        </ResourceGroup>
+    </OneVM>
+    <OneVMCluster>
+        <isDeployed>NO</isDeployed>
+        <ClusteredVM>True</ClusteredVM>
+        <ResourceGroup>
+            <VirtualMachine>
+                <state></state>
+                <InstanceSize>Standard_DS1_v2</InstanceSize>
+                <ARMInstanceSize>Standard_DS1_v2</ARMInstanceSize>
+                <RoleName></RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>22</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+            </VirtualMachine>
+        </ResourceGroup>
+    </OneVMCluster>
+    <OneVM3NIC>
+        <isDeployed>NO</isDeployed>
+        <ResourceGroup>
+            <VirtualMachine>
+                <state></state>
+                <ARMInstanceSize>Standard_D5_v2</ARMInstanceSize>
+                <RoleName></RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>22</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+                <ExtraNICs>2</ExtraNICs>
+            </VirtualMachine>
+        </ResourceGroup>
+    </OneVM3NIC>
+    <OneVM8NIC>
+        <isDeployed>NO</isDeployed>
+        <ResourceGroup>
+            <VirtualMachine>
+                <state></state>
+                <InstanceSize>Standard_D14_v2</InstanceSize>
+                <ARMInstanceSize>Standard_D14_v2</ARMInstanceSize>
+                <RoleName></RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>22</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+                <ExtraNICs>7</ExtraNICs>
+            </VirtualMachine>
+        </ResourceGroup>
+    </OneVM8NIC>
+    <OneVM1Disk>
+        <isDeployed>NO</isDeployed>
+        <ResourceGroup>
+            <VirtualMachine>
+                <ARMInstanceSize>Standard_DS14_v2</ARMInstanceSize>
                 <RoleName></RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
@@ -15,27 +87,12 @@
                 </EndPoints>
                 <DataDisk>
                     <LUN>0</LUN>
-                    <DiskSizeInGB>1863</DiskSizeInGB>
-                    <HostCaching>None</HostCaching>
-                </DataDisk>
-                <DataDisk>
-                    <LUN>1</LUN>
-                    <DiskSizeInGB>1863</DiskSizeInGB>
-                    <HostCaching>None</HostCaching>
-                </DataDisk>
-                <DataDisk>
-                    <LUN>2</LUN>
-                    <DiskSizeInGB>1863</DiskSizeInGB>
-                    <HostCaching>None</HostCaching>
-                </DataDisk>
-                <DataDisk>
-                    <LUN>3</LUN>
-                    <DiskSizeInGB>1863</DiskSizeInGB>
+                    <DiskSizeInGB>1023</DiskSizeInGB>
                     <HostCaching>None</HostCaching>
                 </DataDisk>
             </VirtualMachine>
         </ResourceGroup>
-    </OneVM4Disks>
+    </OneVM1Disk>
     <OneVM1DiskNested>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
@@ -76,7 +133,44 @@
             </VirtualMachine>
         </ResourceGroup>
     </OneVM1DiskNested>
-    <OneVM6DisksNested>
+    <OneVM4Disk>
+        <isDeployed>NO</isDeployed>
+        <ResourceGroup>
+            <VirtualMachine>
+                <state></state>
+                <InstanceSize>Standard_F16</InstanceSize>
+                <ARMInstanceSize>Standard_F16</ARMInstanceSize>
+                <RoleName></RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>22</PublicPort>
+                </EndPoints>
+                <DataDisk>
+                    <LUN>0</LUN>
+                    <DiskSizeInGB>1863</DiskSizeInGB>
+                    <HostCaching>None</HostCaching>
+                </DataDisk>
+                <DataDisk>
+                    <LUN>1</LUN>
+                    <DiskSizeInGB>1863</DiskSizeInGB>
+                    <HostCaching>None</HostCaching>
+                </DataDisk>
+                <DataDisk>
+                    <LUN>2</LUN>
+                    <DiskSizeInGB>1863</DiskSizeInGB>
+                    <HostCaching>None</HostCaching>
+                </DataDisk>
+                <DataDisk>
+                    <LUN>3</LUN>
+                    <DiskSizeInGB>1863</DiskSizeInGB>
+                    <HostCaching>None</HostCaching>
+                </DataDisk>
+            </VirtualMachine>
+        </ResourceGroup>
+    </OneVM4Disk>
+    <OneVM6DiskNested>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
             <VirtualMachine>
@@ -140,8 +234,84 @@
                 </DataDisk>
             </VirtualMachine>
         </ResourceGroup>
-    </OneVM6DisksNested>
-    <OneVM12DisksNested>
+    </OneVM6DiskNested>
+    <OneVM12Disk>
+        <isDeployed>NO</isDeployed>
+        <ResourceGroup>
+            <VirtualMachine>
+                <state></state>
+                <InstanceSize>Standard_DS14_v2</InstanceSize>
+                <ARMInstanceSize>Standard_DS14_v2</ARMInstanceSize>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>22</PublicPort>
+                </EndPoints>
+                <DataDisk>
+                    <LUN>0</LUN>
+                    <DiskSizeInGB>1023</DiskSizeInGB>
+                    <HostCaching>None</HostCaching>
+                </DataDisk>
+                <DataDisk>
+                    <LUN>1</LUN>
+                    <DiskSizeInGB>1023</DiskSizeInGB>
+                    <HostCaching>None</HostCaching>
+                </DataDisk>
+                <DataDisk>
+                    <LUN>2</LUN>
+                    <DiskSizeInGB>1023</DiskSizeInGB>
+                    <HostCaching>None</HostCaching>
+                </DataDisk>
+                <DataDisk>
+                    <LUN>3</LUN>
+                    <DiskSizeInGB>1023</DiskSizeInGB>
+                    <HostCaching>None</HostCaching>
+                </DataDisk>
+                <DataDisk>
+                    <LUN>4</LUN>
+                    <DiskSizeInGB>1023</DiskSizeInGB>
+                    <HostCaching>None</HostCaching>
+                </DataDisk>
+                <DataDisk>
+                    <LUN>5</LUN>
+                    <DiskSizeInGB>1023</DiskSizeInGB>
+                    <HostCaching>None</HostCaching>
+                </DataDisk>
+                <DataDisk>
+                    <LUN>6</LUN>
+                    <DiskSizeInGB>1023</DiskSizeInGB>
+                    <HostCaching>None</HostCaching>
+                </DataDisk>
+                <DataDisk>
+                    <LUN>7</LUN>
+                    <DiskSizeInGB>1023</DiskSizeInGB>
+                    <HostCaching>None</HostCaching>
+                </DataDisk>
+                <DataDisk>
+                    <LUN>8</LUN>
+                    <DiskSizeInGB>1023</DiskSizeInGB>
+                    <HostCaching>None</HostCaching>
+                </DataDisk>
+                <DataDisk>
+                    <LUN>9</LUN>
+                    <DiskSizeInGB>1023</DiskSizeInGB>
+                    <HostCaching>None</HostCaching>
+                </DataDisk>
+                <DataDisk>
+                    <LUN>10</LUN>
+                    <DiskSizeInGB>1023</DiskSizeInGB>
+                    <HostCaching>None</HostCaching>
+                </DataDisk>
+                <DataDisk>
+                    <LUN>11</LUN>
+                    <DiskSizeInGB>1023</DiskSizeInGB>
+                    <HostCaching>None</HostCaching>
+                </DataDisk>
+            </VirtualMachine>
+        </ResourceGroup>
+    </OneVM12Disk>
+    <OneVM12DiskNested>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
             <VirtualMachine>
@@ -235,58 +405,5 @@
                 </DataDisk>
             </VirtualMachine>
         </ResourceGroup>
-    </OneVM12DisksNested>
-    <TwoVMsNested>
-        <isDeployed>NO</isDeployed>
-        <ResourceGroup>
-            <VirtualMachine>
-                <ARMInstanceSize>Standard_D15_v2</ARMInstanceSize>
-                <RoleName></RoleName>
-                <EndPoints>
-                    <Name>RDP</Name>
-                    <Protocol>tcp</Protocol>
-                    <LocalPort>3389</LocalPort>
-                    <PublicPort>1111</PublicPort>
-                </EndPoints>
-                <EndPoints>
-                    <Name>Session</Name>
-                    <Protocol>tcp</Protocol>
-                    <LocalPort>5985</LocalPort>
-                    <PublicPort>5983</PublicPort>
-                </EndPoints>
-                <EndPoints>
-                    <Name>NestedSSH</Name>
-                    <Protocol>tcp</Protocol>
-                    <LocalPort>22</LocalPort>
-                    <PublicPort>22</PublicPort>
-                </EndPoints>
-                <DataDisk></DataDisk>
-                <ExtraNICs>1</ExtraNICs>
-            </VirtualMachine>
-            <VirtualMachine>
-                <ARMInstanceSize>Standard_D15_v2</ARMInstanceSize>
-                <RoleName></RoleName>
-                <EndPoints>
-                    <Name>RDP</Name>
-                    <Protocol>tcp</Protocol>
-                    <LocalPort>3389</LocalPort>
-                    <PublicPort>1112</PublicPort>
-                </EndPoints>
-                <EndPoints>
-                    <Name>Session</Name>
-                    <Protocol>tcp</Protocol>
-                    <LocalPort>5985</LocalPort>
-                    <PublicPort>5984</PublicPort>
-                </EndPoints>
-                <EndPoints>
-                    <Name>NestedSSH</Name>
-                    <Protocol>tcp</Protocol>
-                    <LocalPort>222</LocalPort>
-                    <PublicPort>222</PublicPort>
-                </EndPoints>
-                <DataDisk></DataDisk>
-                <ExtraNICs>1</ExtraNICs>
-            </VirtualMachine>
-        </ResourceGroup>
-    </TwoVMsNested>
+    </OneVM12DiskNested>
 </TestSetup>

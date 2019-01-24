@@ -214,7 +214,7 @@
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1,.\Testscripts\Windows\SETUP-NET-Configure-Dependency-VM.ps1</setupScript>
         <testScript>NET-Test-Private-Network.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh</files>
-        <setupType>TwoVMs</setupType>
+        <setupType>TwoVM1Dep</setupType>
         <TestParameters>
             <param>NIC_1=NetworkAdapter,Private,Private</param>
             <param>STATIC_IP=10.10.10.1</param>
@@ -236,7 +236,7 @@
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1,.\Testscripts\Windows\SETUP-NET-Configure-Dependency-VM.ps1</setupScript>
         <testScript>NET-Test-Private-Network.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh</files>
-        <setupType>TwoVMs</setupType>
+        <setupType>TwoVM1Dep</setupType>
         <TestParameters>
             <param>NIC_1=NetworkAdapter,External,External</param>
             <param>SWITCH=NetworkAdapter,Private,Private</param>
@@ -259,7 +259,7 @@
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1,.\Testscripts\Windows\SETUP-NET-Configure-Dependency-VM.ps1,.\Testscripts\Windows\SETUP-Inject-IP-Constants.ps1</setupScript>
         <testScript>NET-Jumbo-Frames.sh</testScript>
         <files>.\Testscripts\Linux\NET-Jumbo-Frames.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>TwoVMs</setupType>
+        <setupType>TwoVM1Dep</setupType>
         <TestParameters>
             <param>NIC_1=NetworkAdapter,Private,Private</param>
             <param>STATIC_IP=10.10.10.10</param>
@@ -280,7 +280,7 @@
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1,.\Testscripts\Windows\SETUP-NET-Configure-Dependency-VM.ps1,.\Testscripts\Windows\SETUP-Inject-IP-Constants.ps1</setupScript>
         <testScript>NET-Copy-Large-File.sh</testScript>
         <files>.\Testscripts\Linux\NET-Copy-Large-File.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>TwoVMs</setupType>
+        <setupType>TwoVM1Dep</setupType>
         <TestParameters>
             <param>NIC_1=NetworkAdapter,Private,Private</param>
             <param>STATIC_IP=10.10.10.11</param>
@@ -303,7 +303,7 @@
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1,.\Testscripts\Windows\SETUP-NET-Configure-Dependency-VM.ps1,.\Testscripts\Windows\SETUP-Inject-IP-Constants.ps1</setupScript>
         <testScript>NET-Copy-Different-MTU.sh</testScript>
         <files>.\Testscripts\Linux\NET-Copy-Different-MTU.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>TwoVMs</setupType>
+        <setupType>TwoVM1Dep</setupType>
         <TestParameters>
             <param>NIC_1=NetworkAdapter,Private,Private</param>
             <param>STATIC_IP=10.10.10.12</param>
@@ -325,7 +325,7 @@
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1,.\Testscripts\Windows\SETUP-NET-Configure-Dependency-VM.ps1,.\Testscripts\Windows\SETUP-Inject-IP-Constants.ps1</setupScript>
         <testScript>NET-Copy-Both-Ways.sh</testScript>
         <files>.\Testscripts\Linux\NET-Copy-Both-Ways.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>TwoVMs</setupType>
+        <setupType>TwoVM1Dep</setupType>
         <TestParameters>
             <param>NIC_1=NetworkAdapter,Private,Private</param>
             <param>STATIC_IP=10.10.10.13</param>
@@ -345,7 +345,7 @@
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1,.\Testscripts\Windows\SETUP-NET-Configure-Dependency-VM.ps1</setupScript>
         <testScript>NET-VLAN-Tagging.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh</files>
-        <setupType>TwoVMs</setupType>
+        <setupType>TwoVM1Dep</setupType>
         <TestParameters>
             <param>NIC_1=NetworkAdapter,Private,Private</param>
             <param>STATIC_IP=10.10.10.14</param>
@@ -366,7 +366,7 @@
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1,.\Testscripts\Windows\SETUP-NET-Configure-Dependency-VM.ps1</setupScript>
         <testScript>NET-VLAN-Trunking.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh</files>
-        <setupType>TwoVMs</setupType>
+        <setupType>TwoVM1Dep</setupType>
         <TestParameters>
             <param>NIC_1=NetworkAdapter,Private,Private</param>
             <param>STATIC_IP=10.10.10.15</param>
@@ -388,7 +388,7 @@
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1,.\Testscripts\Windows\SETUP-NET-Configure-Dependency-VM.ps1,.\Testscripts\Windows\SETUP-Inject-IP-Constants.ps1</setupScript>
         <testScript>NET-Test-Vxlan.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh</files>
-        <setupType>TwoVMs</setupType>
+        <setupType>TwoVM1Dep</setupType>
         <TestParameters>
             <param>NIC_1=NetworkAdapter,Private,Private</param>
             <param>STATIC_IP=10.10.10.16</param>
@@ -408,7 +408,7 @@
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1,.\Testscripts\Windows\SETUP-NET-Configure-Dependency-VM.ps1,.\Testscripts\Windows\SETUP-Inject-IP-Constants.ps1</setupScript>
         <testScript>NET-Multicast.sh</testScript>
         <files>.\Testscripts\Linux\NET-Multicast.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>TwoVMs</setupType>
+        <setupType>TwoVM1Dep</setupType>
         <TestParameters>
             <param>NIC_1=NetworkAdapter,Private,Private</param>
             <param>STATIC_IP=10.10.10.17</param>
@@ -428,7 +428,7 @@
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1,.\Testscripts\Windows\SETUP-NET-Configure-Dependency-VM.ps1,.\Testscripts\Windows\SETUP-Inject-IP-Constants.ps1</setupScript>
         <testScript>NET-Ethtool-Check-Statistics.sh</testScript>
         <files>.\Testscripts\Linux\NET-Ethtool-Check-Statistics.sh,.\Testscripts\Linux\NET-Netperf-Server.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>TwoVMs</setupType>
+        <setupType>TwoVM1Dep</setupType>
         <TestParameters>
             <param>NIC_1=NetworkAdapter,Private,Private</param>
             <param>STATIC_IP=10.10.10.18</param>

@@ -17,7 +17,7 @@
         <testName>STRESSTEST-VERIFY-RESTART-MAX-SRIOV-NICS</testName>
         <testScript>STRESSTEST-VERIFY-RESTART.ps1</testScript>
         <files></files>
-        <setupType>OneVM8NICs</setupType>
+        <setupType>OneVM8NIC</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
@@ -102,7 +102,7 @@
         <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>STRESS-Web.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SR-IOV-Utils.sh,.\Testscripts\Linux\stress_web.sh</files>
-        <setupType>SRIOV2NIC</setupType>
+        <setupType>TwoVM2NIC2Host</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>

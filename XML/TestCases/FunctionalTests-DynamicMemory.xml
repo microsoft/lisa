@@ -137,7 +137,7 @@
         <testName>DYNAMIC-MEMORY-SAVE-RESTORE</testName>
         <testScript>DM-SAVE-RESTORE.ps1</testScript>
         <files>.\Testscripts\Linux\check_traces.sh</files>
-        <setupType>TwoVMsDM</setupType>
+        <setupType>TwoVM</setupType>
         <TestParameters>
             <param>enableDM1=yes</param>
             <param>minMem1=1024MB</param>
@@ -161,7 +161,7 @@
     <test>
         <testName>DYNAMIC-MEMORY-HIGH-PRIORITY</testName>
         <testScript>DM_HIGH-PRIORITY.ps1</testScript>
-        <setupType>TwoVMsDM</setupType>
+        <setupType>TwoVM</setupType>
         <TestParameters>
             <param>appGitURL=DYNAMIC_MEMORY_STRESSNG</param>
             <param>appGitTag=APP_GIT_TAG</param>
@@ -188,7 +188,7 @@
         <testName>DYNAMIC-MEMORY-START-HIGH-COMPETE</testName>
         <testScript>DM_REMOVE-UNDER-PRESSURE.ps1</testScript>
         <files>.\Testscripts\Linux\check_traces.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>ThreeVMs</setupType>
+        <setupType>ThreeVM</setupType>
         <TestParameters>
             <param>appGitURL=DYNAMIC_MEMORY_STRESSNG</param>
             <param>appGitTag=APP_GIT_TAG</param>
@@ -221,7 +221,7 @@
         <testName>HOT-REMOVE</testName>
         <testScript>DM_HotAddRemove.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh</files>
-        <setupType>TwoVMsDM</setupType>
+        <setupType>TwoVM</setupType>
         <TestParameters>
             <param>appGitURL=DYNAMIC_MEMORY_STRESSNG</param>
             <param>appGitTag=APP_GIT_TAG</param>
@@ -245,7 +245,7 @@
     <test>
         <testName>STARTUP-LOW-COMPETE</testName>
         <testScript>DM_StartupLowCompete.ps1</testScript>
-        <setupType>TwoVMsDM</setupType>
+        <setupType>TwoVM</setupType>
         <TestParameters>
             <param>minMem1=1024MB</param>
             <param>maxMem1=80%</param>
@@ -267,7 +267,7 @@
     <test>
         <testName>CLEAN-SHUTDOWN</testName>
         <testScript>DM_CleanShutdown.ps1</testScript>
-        <setupType>TwoVMsDM</setupType>
+        <setupType>TwoVM</setupType>
         <TestParameters>
             <param>minMem1=512MB</param>
             <param>maxMem1=20%</param>
@@ -312,7 +312,7 @@
         <testName>DYNAMIC-MEMORY-MAX-MEMORY-HONORED</testName>
         <testScript>DM-MAXMEMHONOR.ps1</testScript>
         <files>.\Testscripts\Linux\check_traces.sh</files>
-        <setupType>TwoVMsDM</setupType>
+        <setupType>TwoVM</setupType>
         <TestParameters>
             <param>appGitURL=DYNAMIC_MEMORY_STRESSNG</param>
             <param>appGitTag=APP_GIT_TAG</param>
@@ -338,7 +338,7 @@
         <testName>DYNAMIC-MEMORY-MIN-MEMORY-HONORED</testName>
         <testScript>DM-MINMEMHONOR.ps1</testScript>
         <files>.\Testscripts\Linux\check_traces.sh</files>
-        <setupType>TwoVMsDM</setupType>
+        <setupType>TwoVM</setupType>
         <TestParameters>
             <param>minMem=40%</param>
             <param>maxMem=80%</param>

@@ -2,7 +2,7 @@
     <test>
         <testName>PERF-DPDK-FWD-PPS-DS15</testName>
         <testScript>DPDK-TESTCASE-DRIVER.ps1</testScript>
-        <setupType>ThreeVMs2NICs</setupType>
+        <setupType>ThreeVM2NIC</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
@@ -21,7 +21,7 @@
     <test>
         <testName>PERF-DPDK-SINGLE-CORE-PPS-DS4</testName>
         <testScript>DPDK-TESTCASE-DRIVER.ps1</testScript>
-        <setupType>TwoVMs2NICs</setupType>
+        <setupType>TwoVM2NIC</setupType>
         <OverrideVMSize>Standard_DS4_v2</OverrideVMSize>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
@@ -41,7 +41,7 @@
     <test>
         <testName>PERF-DPDK-SINGLE-CORE-PPS-DS15</testName>
         <testScript>DPDK-TESTCASE-DRIVER.ps1</testScript>
-        <setupType>TwoVMs2NICs</setupType>
+        <setupType>TwoVM2NIC</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
@@ -60,7 +60,7 @@
     <test>
         <testName>PERF-DPDK-MULTICORE-PPS-DS15</testName>
         <testScript>DPDK-TESTCASE-DRIVER.ps1</testScript>
-        <setupType>TwoVMs2NICs</setupType>
+        <setupType>TwoVM2NIC</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>

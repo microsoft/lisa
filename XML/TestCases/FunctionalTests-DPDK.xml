@@ -2,7 +2,7 @@
     <test>
         <testName>VERIFY-DPDK-FAILSAFE-DURING-TRAFFIC</testName>
         <testScript>DPDK-TESTCASE-DRIVER.ps1</testScript>
-        <setupType>ThreeVMs2NICs</setupType>
+        <setupType>ThreeVM2NIC</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
@@ -19,7 +19,7 @@
     <test>
         <testName>VERIFY-DPDK-BUILD-AND-TESTPMD-TEST</testName>
         <testScript>VERIFY-DPDK-BUILD-AND-TESTPMD-TEST.ps1</testScript>
-        <setupType>TwoVMs3NICs</setupType>
+        <setupType>TwoVM3NIC</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
@@ -39,7 +39,7 @@
     <test>
         <testName>VERIFY-SRIOV-FAILSAFE-FOR-DPDK</testName>
         <testScript>VERIFY-SRIOV-FAILSAFE-FOR-DPDK.ps1</testScript>
-        <setupType>TwoVMs3NICs</setupType>
+        <setupType>TwoVM3NIC</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
@@ -58,7 +58,7 @@
     <test>
         <testName>VERIFY-DPDK-COMPLIANCE</testName>
         <testScript>VERIFY-DPDK-COMPLIANCE.ps1</testScript>
-        <setupType>OneVM3NICs</setupType>
+        <setupType>OneVM3NIC</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>

@@ -21,7 +21,7 @@
     </test>
     <test>
         <testName>VERIFY-IFUP-NICS-SRIOV</testName>
-        <setupType>OneVM8NICs</setupType>
+        <setupType>OneVM8NIC</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
@@ -53,7 +53,7 @@
         <testName>SRIOV-VERIFY-VF-BASIC-CONNECTION</testName>
         <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-RUN-COMMON-TEST.ps1</testScript>
-        <setupType>SRIOVVMs</setupType>
+        <setupType>TwoVM2Host1Dep</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
@@ -78,7 +78,7 @@
         <testName>SRIOV-VERIFY-VF-BASIC-CONNECTION-ONE-VCPU</testName>
         <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1,.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-VerifyVF-Connection.sh</testScript>
-        <setupType>SRIOVVMs</setupType>
+        <setupType>TwoVM2Host1Dep</setupType>
         <files>.\Testscripts\Linux\SRIOV-VerifyVF-Connection.sh,.\Testscripts\Linux\SR-IOV-Utils.sh,.\Testscripts\Linux\utils.sh</files>
         <TestParameters>
             <param>VCPU=1</param>
@@ -99,7 +99,7 @@
         <testName>SRIOV-VERIFY-VF-BASIC-CONNECTION-MAX-VCPU</testName>
         <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1,.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-RUN-COMMON-TEST.ps1</testScript>
-        <setupType>SRIOVVMs</setupType>
+        <setupType>TwoVM2Host1Dep</setupType>
         <OverrideVMSize>Standard_D64_v3</OverrideVMSize>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
@@ -126,7 +126,7 @@
         <testName>SRIOV-VERIFY-VF-MULTIPLE-CONNECTION</testName>
         <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-RUN-COMMON-TEST.ps1</testScript>
-        <setupType>SRIOV2NIC</setupType>
+        <setupType>TwoVM2NIC2Host</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
@@ -153,7 +153,7 @@
         <testName>SRIOV-VERIFY-VF-MAX-CONNECTION</testName>
         <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-RUN-COMMON-TEST.ps1</testScript>
-        <setupType>TwoVMs8NICs</setupType>
+        <setupType>TwoVM8NIC</setupType>
         <OverrideVMSize>Standard_D14_v2</OverrideVMSize>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
@@ -178,7 +178,7 @@
         <testName>SRIOV-VERIFY-VF-MAX-CONNECTION-MAX-VCPU</testName>
         <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1,.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-RUN-COMMON-TEST.ps1</testScript>
-        <setupType>TwoVMs8NICs</setupType>
+        <setupType>TwoVM8NIC</setupType>
         <OverrideVMSize>Standard_D64_v3</OverrideVMSize>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
@@ -204,7 +204,7 @@
         <testName>SRIOV-IPERF-STRESS</testName>
         <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-RUN-COMMON-TEST.ps1</testScript>
-        <setupType>SRIOVVMs</setupType>
+        <setupType>TwoVM2Host1Dep</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
@@ -231,7 +231,7 @@
         <testName>SRIOV-DISABLEVF-ON-GUEST</testName>
         <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-RUN-COMMON-TEST.ps1</testScript>
-        <setupType>SRIOVVMs</setupType>
+        <setupType>TwoVM2Host1Dep</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
@@ -256,7 +256,7 @@
         <testName>SRIOV-RELOAD-MODULE</testName>
         <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-RUN-COMMON-TEST.ps1</testScript>
-        <setupType>SRIOVVMs</setupType>
+        <setupType>TwoVM2Host1Dep</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
@@ -281,7 +281,7 @@
         <testName>SRIOV-DISABLEVF-PING</testName>
         <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-DISABLEVF-PING.ps1</testScript>
-        <setupType>SRIOVVMs</setupType>
+        <setupType>TwoVM2Host1Dep</setupType>
         <TestParameters>
             <param>NIC_COUNT=1</param>
             <param>VF_IP1=10.0.0.10</param>
@@ -300,7 +300,7 @@
         <testName>SRIOV-DISABLEVF-IPERF</testName>
         <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-DISABLEVF-IPERF.ps1</testScript>
-        <setupType>SRIOVVMs</setupType>
+        <setupType>TwoVM2Host1Dep</setupType>
         <TestParameters>
             <param>NIC_COUNT=1</param>
             <param>VF_IP1=10.0.0.11</param>
@@ -319,7 +319,7 @@
         <testName>SRIOV-DETACH-NIC</testName>
         <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-DETACH-NIC.ps1</testScript>
-        <setupType>SRIOVVMs</setupType>
+        <setupType>TwoVM2Host1Dep</setupType>
         <TestParameters>
             <param>NIC_COUNT=1</param>
             <param>VF_IP1=10.0.0.12</param>
@@ -338,7 +338,7 @@
         <testName>SRIOV-DISABLEVF-ONHOST</testName>
         <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-DISABLEVF-ONHOST.ps1</testScript>
-        <setupType>SRIOVVMs</setupType>
+        <setupType>TwoVM2Host1Dep</setupType>
         <TestParameters>
             <param>NIC_COUNT=1</param>
             <param>VF_IP1=10.0.0.13</param>
@@ -357,7 +357,7 @@
         <testName>SRIOV-DISABLE-NIC</testName>
         <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-DISABLE-NIC.ps1</testScript>
-        <setupType>SRIOVVMs</setupType>
+        <setupType>TwoVM2Host1Dep</setupType>
         <TestParameters>
             <param>NIC_COUNT=1</param>
             <param>VF_IP1=10.0.0.14</param>
@@ -376,7 +376,7 @@
         <testName>SRIOV-DISABLE-VMQ</testName>
         <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-DISABLE-VMQ.ps1</testScript>
-        <setupType>SRIOVVMs</setupType>
+        <setupType>TwoVM2Host1Dep</setupType>
         <TestParameters>
             <param>NIC_COUNT=1</param>
             <param>VF_IP1=10.0.0.15</param>
@@ -395,7 +395,7 @@
         <testName>SRIOV-CHANGE-RSS</testName>
         <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-CHANGE-RSS.ps1</testScript>
-        <setupType>SRIOVVMs</setupType>
+        <setupType>TwoVM2Host1Dep</setupType>
         <TestParameters>
             <param>NIC_COUNT=1</param>
             <param>VF_IP1=10.0.0.16</param>
@@ -414,7 +414,7 @@
         <testName>SRIOV-MEASURE-VF-FAILBACK</testName>
         <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-MEASURE-VF-FAILBACK.ps1</testScript>
-        <setupType>SRIOVVMs</setupType>
+        <setupType>TwoVM2Host1Dep</setupType>
         <TestParameters>
             <param>NIC_COUNT=1</param>
             <param>VF_IP1=10.0.0.17</param>
@@ -433,7 +433,7 @@
         <testName>SRIOV-REBOOT-VM</testName>
         <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-REBOOT-VM.ps1</testScript>
-        <setupType>SRIOVVMs</setupType>
+        <setupType>TwoVM2Host1Dep</setupType>
         <TestParameters>
             <param>NIC_COUNT=1</param>
             <param>VF_IP1=10.0.0.18</param>
@@ -452,7 +452,7 @@
         <testName>SRIOV-MOVE-VHD</testName>
         <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-MOVE-VHD.ps1</testScript>
-        <setupType>SRIOVVMs</setupType>
+        <setupType>TwoVM2Host1Dep</setupType>
         <TestParameters>
             <param>NIC_COUNT=1</param>
             <param>VF_IP1=10.0.0.19</param>
@@ -471,7 +471,7 @@
         <testName>SRIOV-STRESS-SAVE</testName>
         <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-STRESS-SAVE-PAUSE.ps1</testScript>
-        <setupType>SRIOVVMs</setupType>
+        <setupType>TwoVM2Host1Dep</setupType>
         <TestParameters>
             <param>NIC_COUNT=1</param>
             <param>VF_IP1=10.0.0.20</param>
@@ -491,7 +491,7 @@
         <testName>SRIOV-STRESS-PAUSE</testName>
         <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-STRESS-SAVE-PAUSE.ps1</testScript>
-        <setupType>SRIOVVMs</setupType>
+        <setupType>TwoVM2Host1Dep</setupType>
         <TestParameters>
             <param>NIC_COUNT=1</param>
             <param>VF_IP1=10.0.0.21</param>
@@ -512,7 +512,7 @@
         <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-Multicast.sh</testScript>
         <files>.\Testscripts\Linux\SRIOV-Multicast.sh,.\Testscripts\Linux\SR-IOV-Utils.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>SRIOVVMs</setupType>
+        <setupType>TwoVM2Host1Dep</setupType>
         <TestParameters>
             <param>NIC_COUNT=1</param>
             <param>VF_IP1=10.0.0.22</param>
@@ -532,7 +532,7 @@
         <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-Broadcast.sh</testScript>
         <files>.\Testscripts\Linux\SRIOV-Broadcast.sh,.\Testscripts\Linux\SR-IOV-Utils.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>SRIOVVMs</setupType>
+        <setupType>TwoVM2Host1Dep</setupType>
         <TestParameters>
             <param>NIC_COUNT=1</param>
             <param>VF_IP1=10.0.0.23</param>
