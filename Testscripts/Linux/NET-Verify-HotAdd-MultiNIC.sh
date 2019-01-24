@@ -52,7 +52,6 @@ function Add_Nic {
     sleep 5
     # Verify the new NIC received an IP v4 address
     LogMsg "Verify the new NIC has an IPv4 address"
-    #ifconfig ${eth_name} | grep -s "inet " > /dev/null
     ip addr show ${eth_name} | grep "inet\b" > /dev/null
     check_exit_status "${eth_name} is up"  "exit"
 }

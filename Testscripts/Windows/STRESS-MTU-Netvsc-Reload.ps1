@@ -15,9 +15,12 @@ do
     modprobe hv_netvsc
     sleep 1
     pass=$((pass+1))
-    echo $pass > reload_netvsc.log
+    echo $pass >> reload_netvsc.log
 done
-ifdown eth0 && ifup eth0
+# this should not be required, consider for removal
+ip link set eth0 up
+echo "Interfaces status after hv_netvsc reload loop" >> reload_netvsc.log
+ip addr show >> reload_netvsc.log
 '@
 
 function Main {

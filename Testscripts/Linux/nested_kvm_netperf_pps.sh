@@ -181,7 +181,7 @@ Prepare_Nested_VMs()
         Prepare_Client
     fi
     Reboot_Nested_VM -user "root" -passwd $NestedUserPassword -port $HOST_FWD_PORT
-    Remote_Exec_Wrapper "root" $HOST_FWD_PORT "ifconfig $NIC_NAME $IP_ADDR netmask 255.255.255.0 up"
+    Remote_Exec_Wrapper "root" $HOST_FWD_PORT "ip addr add $IP_ADDR/24 dev $NIC_NAME && ip link set $NIC_NAME up"
 }
 
 Run_Netperf_On_Client()

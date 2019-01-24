@@ -237,7 +237,8 @@ Setup_Public_Bridge() {
     ip link add $br_name type bridge
     ip link set dev $br_name up
     ip link set dev eth1 master $br_name
-    ifconfig $br_name $br_addr netmask 255.255.255.0 up
+    ip addr add $br_addr/24 dev $br_name
+    ip link set $br_name up
 }
 
 Setup_Tap() {

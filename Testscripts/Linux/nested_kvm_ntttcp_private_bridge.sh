@@ -102,8 +102,9 @@ Setup_Bridge() {
 		return
 	fi
 	Log_Msg "Setting up bridge $BR_NAME" $log_file
-	ip link add $BR_NAME type bridge
-	ifconfig $BR_NAME $BR_ADDR netmask 255.255.255.0 up
+	ip link add "$BR_NAME" type bridge
+	ip addr add "$BR_ADDR"/24 dev "$BR_NAME"
+	ip link set "$BR_NAME" up
 	check_exit_status "Setup bridge $BR_NAME"
 }
 
@@ -192,7 +193,7 @@ Bring_Up_Nic_With_Private_Ip() {
 		else
 			sleep 10
 			Log_Msg "Try to bring up the nested VM NIC with private IP, left retry times: $retry_times" $log_file
-			Remote_Exec_Wrapper "root" $host_fwd_port "ifconfig $NIC_NAME $ip_addr netmask 255.255.255.0 up"
+			Remote_Exec_Wrapper "root" $host_fwd_port "ip addr add $ip_addr/24 dev $NIC_NAME && ip link set $NIC_NAME up"
 			exit_status=$?
 		fi
 	done

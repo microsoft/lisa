@@ -65,11 +65,11 @@ function Main {
         # We need to add extra parameters to constants.sh file apart from parameter properties defined in XML.
         # Hence, we are generating constants.sh file again in test script.
 
-        Write-LogInfo "Generating constansts.sh ..."
+        Write-LogInfo "Generating constants.sh ..."
         $constantsFile = "$LogDir\constants.sh"
         foreach ($TestParam in $CurrentTestData.TestParameters.param ) {
             Add-Content -Value "$TestParam" -Path $constantsFile
-            Write-LogInfo "$TestParam added to constansts.sh"
+            Write-LogInfo "$TestParam added to constants.sh"
             if ($TestParam -imatch "imb_mpi1_tests_iterations") {
                 $ImbMpiTestIterations = [int]($TestParam.Replace("imb_mpi1_tests_iterations=", "").Trim('"'))
             }
@@ -85,12 +85,12 @@ function Main {
         }
 
         Add-Content -Value "master=`"$($ServerVMData.InternalIP)`"" -Path $constantsFile
-        Write-LogInfo "master=$($ServerVMData.InternalIP) added to constansts.sh"
+        Write-LogInfo "master=$($ServerVMData.InternalIP) added to constants.sh"
 
         Add-Content -Value "slaves=`"$SlaveInternalIPs`"" -Path $constantsFile
-        Write-LogInfo "slaves=$SlaveInternalIPs added to constansts.sh"
+        Write-LogInfo "slaves=$SlaveInternalIPs added to constants.sh"
 
-        Write-LogInfo "constanst.sh created successfully..."
+        Write-LogInfo "constants.sh created successfully..."
         #endregion
 
         #region Upload files to master VM...
@@ -113,7 +113,7 @@ function Main {
                 foreach ( $ClientVMData in $ClientMachines ) {
                     Write-LogInfo "Getting initial MAC address info from $($ClientVMData.RoleName)"
                     Run-LinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
-                        -password $password "ifconfig $InfinibandNic | grep ether | awk '{print `$2}' > InitialInfiniBandMAC.txt"
+                        -password $password "ip addr show $InfinibandNic | grep ether | awk '{print `$2}' > InitialInfiniBandMAC.txt"
                 }
             }
             else {
@@ -121,7 +121,7 @@ function Main {
                 foreach ( $ClientVMData in $ClientMachines ) {
                     Write-LogInfo "Step 1/2: Getting current MAC address info from $($ClientVMData.RoleName)"
                     $CurrentMAC = Run-LinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
-                        -password $password "ifconfig $InfinibandNic | grep ether | awk '{print `$2}'"
+                        -password $password "ip addr show $InfinibandNic | grep ether | awk '{print `$2}'"
                     $InitialMAC = Run-LinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username "root" `
                         -password $password "cat InitialInfiniBandMAC.txt"
                     if ($CurrentMAC -eq $InitialMAC) {

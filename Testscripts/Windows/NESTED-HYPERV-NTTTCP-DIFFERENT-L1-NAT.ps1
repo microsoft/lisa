@@ -562,8 +562,12 @@ function Main () {
 		}
 
 		if($testPlatform -ne "Azure") {
-			Run-LinuxCmd -username $nestedUser -password $nestedPassword -ip $nttcpServerIP -port $nestVMServerSSHPort -command "ifconfig eth1 up $nestedVmIP netmask 255.255.255.0 up && route add default gw 192.168.0.1 && ifconfig eth0 down" -runAsSudo -RunInBackGround
-			Run-LinuxCmd -username $nestedUser -password $nestedPassword -ip $nttcpClientIP -port $nestVMServerSSHPort -command "ifconfig eth1 up $nestedVmIP netmask 255.255.255.0 up && route add default gw 192.168.0.1 && ifconfig eth0 down" -runAsSudo -RunInBackGround
+			Run-LinuxCmd -username $nestedUser -password $nestedPassword -ip $nttcpServerIP -port $nestVMServerSSHPort `
+				-command "ip addr add $nestedVmIP/24 dev eth1 && ip link set eth1 up && route add default gw 192.168.0.1 && ip link set eth0 down" `
+				-runAsSudo -RunInBackGround
+			Run-LinuxCmd -username $nestedUser -password $nestedPassword -ip $nttcpClientIP -port $nestVMServerSSHPort `
+				-command "ip addr add $nestedVmIP/24 dev eth1 && ip link set eth1 up && route add default gw 192.168.0.1 && ip link set eth0 down" `
+				-runAsSudo -RunInBackGround
 		} else {
 			Add-Content $constantsFile "nicName=eth0"
 			Copy-RemoteFiles -uploadTo $hs1VIP -port $nestVMServerSSHPort -files "$constantsFile" -username $nestedUser -password $nestedPassword -upload

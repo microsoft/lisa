@@ -6,9 +6,9 @@
 #
 # Description:
 #
-# This script contains all distro-specific functions, as well as 
+# This script contains all distro-specific functions, as well as
 # other common functions used in the LISAv2 test scripts.
-# Private variables used in scripts should use the __VAR_NAME notation. 
+# Private variables used in scripts should use the __VAR_NAME notation.
 # Using the bash built-in `declare' statement also restricts the variable's scope.
 # Same for "private" functions.
 #
@@ -376,12 +376,12 @@ CheckVMFeatureSupportStatus()
 }
 
 # Function to get all synthetic network interfaces
-# Sets the $SYNTH_NET_INTERFACES array elements to an interface name suitable for ifconfig etc.
+# Sets the $SYNTH_NET_INTERFACES array elements to an interface name suitable for network tools use
 # Takes no arguments
 GetSynthNetInterfaces()
 {
-	#Check for distribuion version
-	case $DISTRO in
+    # Check for distribuion version
+    case $DISTRO in
         redhat_5)
             check="net:*"
             ;;
@@ -398,7 +398,7 @@ GetSynthNetInterfaces()
         *)
              SYNTH_NET_INTERFACES[$1]=$(ls "${__SYNTH_NET_ADAPTERS_PATHS[$1]}" | head -n 1)
             ;;
-    	esac
+        esac
     }
 
 
@@ -441,11 +441,10 @@ GetSynthNetInterfaces()
 }
 
 # Function to get all legacy network interfaces
-# Sets the $LEGACY_NET_INTERFACES array elements to an interface name suitable for ifconfig/ip commands.
+# Sets the $LEGACY_NET_INTERFACES array elements to an interface name suitable for network tools use
 # Takes no arguments
 GetLegacyNetInterfaces()
 {
-
 	# declare array
 	declare -a __LEGACY_NET_ADAPTERS_PATHS
 	# Add legacy netadapter paths into __LEGACY_NET_ADAPTERS_PATHS array
@@ -632,7 +631,7 @@ SetIPstatic()
 	__ip="$1"
 
 	echo "$__netmask" | grep '.' >/dev/null 2>&1
-	if [  0 -eq $? ]; then
+	if [ 0 -eq $? ]; then
 		__netmask=$(NetmaskToCidr "$__netmask")
 		if [ 0 -ne $? ]; then
 			LogMsg "SetIPstatic: $__netmask is not a valid netmask"
@@ -839,9 +838,8 @@ CreateVlanConfig()
 	fi
 
 	# check that vlan driver is loaded
-	lsmod | grep 8021q
-
-	if [ 0 -ne $? ]; then
+	if ! lsmod | grep 8021q
+	then
 		modprobe 8021q
 	fi
 
@@ -857,71 +855,37 @@ CreateVlanConfig()
 	__netmask="$3"
 	__vlanID="$4"
 
+	# consider a better cleanup of environment if an existing interfaces setup exists
+	__file_path="/etc/sysconfig/network-scripts/ifcfg-$__interface"
+	if [ -e "$__file_path" ]; then
+		LogMsg "CreateVlanConfig: warning, $__file_path already exists."
+		if [ -d "$__file_path" ]; then
+			rm -rf "$__file_path"
+		else
+			rm -f "$__file_path"
+		fi
+	fi
+
+	__vlan_file_path="/etc/sysconfig/network-scripts/ifcfg-$__interface.$__vlanID"
+	if [ -e "$__vlan_file_path" ]; then
+		LogMsg "CreateVlanConfig: warning, $__vlan_file_path already exists."
+		if [ -d "$__vlan_file_path" ]; then
+			rm -rf "$__vlan_file_path"
+		else
+			rm -f "$__vlan_file_path"
+		fi
+	fi
+
 	GetDistro
 	case $DISTRO in
-		redhat*|centos*|fedora*)
-			__file_path="/etc/sysconfig/network-scripts/ifcfg-$__interface"
-			if [ -e "$__file_path" ]; then
-				LogMsg "CreateVlanConfig: warning, $__file_path already exists."
-				if [ -d "$__file_path" ]; then
-					rm -rf "$__file_path"
-				else
-					rm -f "$__file_path"
-				fi
-			fi
-
-			__vlan_file_path="/etc/sysconfig/network-scripts/ifcfg-$__interface.$__vlanID"
-			if [ -e "$__vlan_file_path" ]; then
-				LogMsg "CreateVlanConfig: warning, $__vlan_file_path already exists."
-				if [ -d "$__vlan_file_path" ]; then
-					rm -rf "$__vlan_file_path"
-				else
-					rm -f "$__vlan_file_path"
-				fi
-			fi
-
-			cat <<-EOF > "$__file_path"
-				DEVICE=$__interface
-				TYPE=Ethernet
-				BOOTPROTO=none
-				ONBOOT=yes
-			EOF
-
-			cat <<-EOF > "$__vlan_file_path"
-				DEVICE=$__interface.$__vlanID
-				BOOTPROTO=none
-				$ipAddress=$__ip
-				$netmaskConf=$__netmask
-				ONBOOT=yes
-				VLAN=yes
-			EOF
-
-			ifdown "$__interface"
-			ifup "$__interface"
-			ifup "$__interface.$__vlanID"
+		redhat*|centos*|fedora*|debian*|ubuntu*)
+			ip link add link "$__interface" name "$__interface.$__vlanID" type vlan id "$__vlanID"
+			ip addr add "$__ip/$__netmask" dev "$__interface.$__vlanID"
+			ip link set dev "$__interface" up
+			ip link set dev "$__interface.$__vlanID" up
 
 			;;
 		suse_12*)
-			__file_path="/etc/sysconfig/network/ifcfg-$__interface"
-			if [ -e "$__file_path" ]; then
-				LogMsg "CreateVlanConfig: warning, $__file_path already exists."
-				if [ -d "$__file_path" ]; then
-					rm -rf "$__file_path"
-				else
-					rm -f "$__file_path"
-				fi
-			fi
-
-			__vlan_file_path="/etc/sysconfig/network/ifcfg-$__interface.$__vlanID"
-			if [ -e "$__vlan_file_path" ]; then
-				LogMsg "CreateVlanConfig: warning, $__vlan_file_path already exists."
-				if [ -d "$__vlan_file_path" ]; then
-					rm -rf "$__vlan_file_path"
-				else
-					rm -f "$__vlan_file_path"
-				fi
-			fi
-
 			cat <<-EOF > "$__file_path"
 				TYPE=Ethernet
 				BOOTPROTO=none
@@ -947,34 +911,14 @@ CreateVlanConfig()
 				EOF
 			fi
 
-
 			# bring real interface down and up again
 			wicked ifdown "$__interface"
 			wicked ifup "$__interface"
 			# bring also vlan interface up
 			wicked ifup "$__interface.$__vlanID"
+
 			;;
 		suse*)
-			__file_path="/etc/sysconfig/network/ifcfg-$__interface"
-			if [ -e "$__file_path" ]; then
-				LogMsg "CreateVlanConfig: warning, $__file_path already exists."
-				if [ -d "$__file_path" ]; then
-					rm -rf "$__file_path"
-				else
-					rm -f "$__file_path"
-				fi
-			fi
-
-			__vlan_file_path="/etc/sysconfig/network/ifcfg-$__interface.$__vlanID"
-			if [ -e "$__vlan_file_path" ]; then
-				LogMsg "CreateVlanConfig: warning, $__vlan_file_path already exists."
-				if [ -d "$__vlan_file_path" ]; then
-					rm -rf "$__vlan_file_path"
-				else
-					rm -f "$__vlan_file_path"
-				fi
-			fi
-
 			cat <<-EOF > "$__file_path"
 				BOOTPROTO=static
 				IPADDR=0.0.0.0
@@ -1000,96 +944,10 @@ CreateVlanConfig()
 				EOF
 			fi
 
-			ifdown "$__interface"
-			ifup "$__interface"
-			ifup "$__interface.$__vlanID"
-			;;
-		debian*|ubuntu*)
-			#Check for vlan package and install it in case of absence
-			dpkg -s vlan
-			if [ 0 -ne $? ]; then
-				apt -y install vlan
-				if [ 0 -ne $? ]; then
-					LogMsg "Failed to install VLAN package. Please try manually."
-					return 90
-				fi
-			fi
-			__file_path="/etc/network/interfaces"
-			if [ ! -e "$__file_path" ]; then
-				LogMsg "CreateVlanConfig: warning, $__file_path does not exist. Creating it..."
-				if [ -d "$(dirname $__file_path)" ]; then
-					touch "$__file_path"
-				else
-					rm -f "$(dirname $__file_path)"
-					LogMsg "CreateVlanConfig: Warning $(dirname $__file_path) is not a directory"
-					mkdir -p "$(dirname $__file_path)"
-					touch "$__file_path"
-				fi
-			fi
+			ip link set "$__interface" down
+			ip link set "$__interface" up
+			ip link set "$__interface.$__vlanID" up
 
-			declare __first_iface
-			declare __last_line
-			declare __second_iface
-			# delete any previously existing lines containing the desired vlan interface
-			# get first line number containing our interested interface
-			__first_iface=$(awk "/iface $__interface/ { print NR; exit }" "$__file_path")
-			# if there was any such line found, delete it and any related config lines
-			if [ -n "$__first_iface" ]; then
-				# get the last line of the file
-				__last_line=$(wc -l $__file_path | cut -d ' ' -f 1)
-				# sanity check
-				if [ "$__first_iface" -gt "$__last_line" ]; then
-					LogMsg "CreateVlanConfig: error while parsing $__file_path . First iface line is gt last line in file"
-					return 100
-				fi
-
-				# get the last x lines after __first_iface
-				__second_iface=$((__last_line-__first_iface))
-
-				# if the first_iface was also the last line in the file
-				if [ "$__second_iface" -eq 0 ]; then
-					__second_iface=$__last_line
-				else
-					# get the line number of the seconf iface line
-					__second_iface=$(tail -n $__second_iface $__file_path | awk "/iface/ { print NR; exit }")
-
-					if [ -z $__second_iface ]; then
-						__second_iface="$__last_line"
-					else
-						__second_iface=$((__first_iface+__second_iface-1))
-					fi
-
-
-					if [ "$__second_iface" -gt "$__last_line" ]; then
-						LogMsg "CreateVlanConfig: error while parsing $__file_path . Second iface line is gt last line in file"
-						return 100
-					fi
-
-					if [ "$__second_iface" -le "$__first_iface" ]; then
-						LogMsg "CreateVlanConfig: error while parsing $__file_path . Second iface line is gt last line in file"
-						return 100
-					fi
-				fi
-				# now delete all lines between the first iface and the second iface
-				sed -i "$__first_iface,${__second_iface}d" "$__file_path"
-			fi
-
-			sed -i "/auto $__interface/d" "$__file_path"
-			# now append our config to the end of the file
-			cat << EOF >> "$__file_path"
-auto $__interface
-iface $__interface inet static
-	address 0.0.0.0
-
-auto $__interface.$__vlanID
-iface $__interface.$__vlanID $ifaceConf static
-	address $__ip
-	netmask $__netmask
-EOF
-
-			ifdown "$__interface"
-			ifup $__interface
-			ifup $__interface.$__vlanID
 			;;
 		*)
 			LogMsg "Platform not supported yet!"
@@ -1100,8 +958,7 @@ EOF
 	sleep 5
 
 	# verify change took place
-	cat /proc/net/vlan/config | grep " $__vlanID "
-
+	grep "$__vlanID" /proc/net/vlan/config
 	if [ 0 -ne $? ]; then
 		LogMsg "/proc/net/vlan/config has no vlanID of $__vlanID"
 		return 5
@@ -1186,9 +1043,9 @@ RemoveVlanConfig()
 				fi
 			fi
 
-			ifdown $__interface.$__vlanID
-			ifdown $__interface
-			ifup $__interface
+			ip link set "$__interface.$__vlanID" down
+			ip link set "$__interface" down
+			ip link set "$__interface" up
 
 			# make sure the interface is down
 			ip link set "$__interface.$__vlanID" down
@@ -1332,7 +1189,6 @@ CreateIfupConfigFile()
 
 				wicked ifdown "$__interface_name"
 				wicked ifup "$__interface_name"
-
 				;;
 			suse*)
 				__file_path="/etc/sysconfig/network/ifcfg-$__interface_name"
@@ -1350,11 +1206,10 @@ CreateIfupConfigFile()
 					BOOTPROTO=dhcp
 				EOF
 
-				ifdown "$__interface_name"
-				ifup "$__interface_name"
-
+				ip link set "$__interface_name" down
+				ip link set "$__interface_name" up
 				;;
-			redhat_7|redhat_8|centos_7|centos_8|fedora*)
+			redhat_6|centos_6|redhat_7|redhat_8|centos_7|centos_8|fedora*)
 				__file_path="/etc/sysconfig/network-scripts/ifcfg-$__interface_name"
 				if [ ! -d "$(dirname $__file_path)" ]; then
 					LogMsg "CreateIfupConfigFile: $(dirname $__file_path) does not exist! Something is wrong with the network config!"
@@ -1370,29 +1225,8 @@ CreateIfupConfigFile()
 					BOOTPROTO=dhcp
 				EOF
 
-				ifdown "$__interface_name"
-				ifup "$__interface_name"
-
-				;;
-			redhat_6|centos_6)
-				__file_path="/etc/sysconfig/network-scripts/ifcfg-$__interface_name"
-				if [ ! -d "$(dirname $__file_path)" ]; then
-					LogMsg "CreateIfupConfigFile: $(dirname $__file_path) does not exist! Something is wrong with the network config!"
-					return 3
-				fi
-
-				if [ -e "$__file_path" ]; then
-					LogMsg "CreateIfupConfigFile: Warning will overwrite $__file_path ."
-				fi
-
-				cat <<-EOF > "$__file_path"
-					DEVICE="$__interface_name"
-					BOOTPROTO=dhcp
-					IPV6INIT=yes
-				EOF
-
-				ifdown "$__interface_name"
-				ifup "$__interface_name"
+				ip link set "$__interface_name" up
+				service network restart || service networking restart
 
 				;;
 			redhat_5|centos_5)
@@ -1416,8 +1250,7 @@ CreateIfupConfigFile()
 					NETWORKING_IPV6=yes
 				EOF
 
-				ifdown "$__interface_name"
-				ifup "$__interface_name"
+				ip link set "$__interface_name" up
 
 				;;
 			debian*|ubuntu*)
@@ -1443,10 +1276,8 @@ CreateIfupConfigFile()
 					iface $__interface_name inet dhcp
 				EOF
 
-				service network-manager restart
-				ifdown "$__interface_name"
-				ifup "$__interface_name"
-
+				ip link set "$__interface_name" up
+				service networking restart || service network restart
 				;;
 			*)
 				LogMsg "CreateIfupConfigFile: Platform not supported yet!"
@@ -1528,8 +1359,8 @@ CreateIfupConfigFile()
 					NETMASK="$__netmask"
 				EOF
 
-				ifdown "$__interface_name"
-				ifup "$__interface_name"
+				ip link set "$__interface_name" down
+				ip link set "$__interface_name" up
 				;;
 			redhat*|centos*|fedora*)
 				__file_path="/etc/sysconfig/network-scripts/ifcfg-$__interface_name"
@@ -1561,8 +1392,8 @@ CreateIfupConfigFile()
 					EOF
 				fi
 
-				ifdown "$__interface_name"
-				ifup "$__interface_name"
+				ip link set "$__interface_name" up
+				service network restart || service networking restart
 				;;
 
 			debian*|ubuntu*)
@@ -1604,13 +1435,11 @@ CreateIfupConfigFile()
 					EOF
 				fi
 
-				service network-manager restart
-				ifdown "$__interface_name"
-				ifup "$__interface_name"
-
+				ip link set "$__interface_name" up
+				service networking restart || service network restart
 				;;
 			*)
-				LogMsg "CreateIfupConfigFile: Platform not supported yet!"
+				LogMsg "CreateIfupConfigFile: Platform not supported!"
 				return 3
 				;;
 		esac
@@ -1706,7 +1535,7 @@ ControlNetworkManager()
 			fi
 			;;
 		*)
-			LogMsg "Platform not supported yet!"
+			LogMsg "Platform not supported!"
 			return 3
 			;;
 	esac
@@ -1909,7 +1738,6 @@ TearDownBridge()
 # $2 number of bytes to compare
 # return == 0 if total free space is greater than $2
 # return 1 otherwise
-
 IsFreeSpace()
 {
 	if [ 2 -ne $# ]; then
@@ -2148,7 +1976,8 @@ VerifyIsEthtool()
                 fi
                 ;;
             ubuntu*|debian*)
-                apt install ethtool -y
+                apt update -y
+		apt install ethtool -y
                 if [ $? -ne 0 ]; then
                     msg="ERROR: Failed to install Ethtool"
                     LogMsg "$msg"
@@ -2638,7 +2467,8 @@ function install_iperf3 () {
 				echo "iface $nic_name inet6 auto" >> /etc/network/interfaces.d/50-cloud-init.cfg
 				echo "up sleep 5" >> /etc/network/interfaces.d/50-cloud-init.cfg
 				echo "up dhclient -1 -6 -cf /etc/dhcp/dhclient6.conf -lf /var/lib/dhcp/dhclient6.$nic_name.leases -v $nic_name || true" >> /etc/network/interfaces.d/50-cloud-init.cfg
-				ifdown $nic_name && ifup $nic_name
+				ip link set $nic_name down
+				ip link set $nic_name up
 			fi
 			;;
 
@@ -3122,8 +2952,8 @@ function collect_VM_properties () {
 	echo ",Total Memory,"`free -h|grep Mem|awk '{print $2}'` >> $output_file
 	echo ",Resource disks size,"`lsblk|grep "^sdb"| awk '{print $4}'`  >> $output_file
 	echo ",Data disks attached,"`lsblk | grep "^sd" | awk '{print $1}' | sort | grep -v "sd[ab]$" | wc -l`  >> $output_file
-	echo ",eth0 MTU,"`ifconfig eth0|grep MTU|sed "s/.*MTU:\(.*\) .*/\1/"` >> $output_file
-	echo ",eth1 MTU,"`ifconfig eth1|grep MTU|sed "s/.*MTU:\(.*\) .*/\1/"` >> $output_file
+	echo ",eth0 MTU,"`cat /sys/class/net/eth0/mtu` >> $output_file
+	echo ",eth1 MTU,"`cat /sys/class/net/eth1/mtu` >> $output_file
 }
 
 # Add command in startup files

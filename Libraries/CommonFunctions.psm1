@@ -864,30 +864,24 @@ function Enable-SRIOVInAllVMs($allVMData, $TestProvider)
 				$vmCount += 1
 				if ($sriovOutput -imatch "DATAPATH_SWITCHED_TO_VF")
 				{
-					$AfterIfConfigStatus = $null
-					$AfterIfConfigStatus = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -command "dmesg" -runMaxAllowedTime 30 -runAsSudo
-					if ($AfterIfConfigStatus -imatch "Data path switched to VF")
+					$AfterInterfaceStatus = $null
+					$AfterInterfaceStatus = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -command "dmesg" -runMaxAllowedTime 30 -runAsSudo
+					if ($AfterInterfaceStatus -imatch "Data path switched to VF")
 					{
 						Write-LogInfo "Data path already switched to VF in $($vmData.RoleName)"
 						$bondSuccess += 1
-					}
-					else
-					{
+					} else {
 						Write-LogErr "Data path not switched to VF in $($vmData.RoleName)"
 						$bondError += 1
 					}
-				}
-				else
-				{
-					$AfterIfConfigStatus = $null
-					$AfterIfConfigStatus = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -command "/sbin/ifconfig -a" -runAsSudo
-					if ($AfterIfConfigStatus -imatch "bond")
+				} else {
+					$AfterInterfaceStatus = $null
+					$AfterInterfaceStatus = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -command "ip addr show" -runAsSudo
+					if ($AfterInterfaceStatus -imatch "bond")
 					{
 						Write-LogInfo "New bond detected in $($vmData.RoleName)"
 						$bondSuccess += 1
-					}
-					else
-					{
+					} else {
 						Write-LogErr "New bond not detected in $($vmData.RoleName)"
 						$bondError += 1
 					}
