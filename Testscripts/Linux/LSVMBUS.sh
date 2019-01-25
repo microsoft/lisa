@@ -45,6 +45,19 @@ LogMsg "Number of CPUs detected from this VM: $VCPU"
 # check if lsvmbus exists
 lsvmbus_path=$(which lsvmbus)
 if [ -z "$lsvmbus_path" ]; then
+    install_package wget
+    wget https://raw.githubusercontent.com/torvalds/linux/master/tools/hv/lsvmbus
+    chmod +x lsvmbus
+    if [[ "$DISTRO" =~ "coreos" ]]; then
+        export PATH=$PATH:/usr/share/oem/python/bin/
+        lsvmbus_path="./lsvmbus"
+    else
+        mv lsvmbus /usr/sbin
+        lsvmbus_path=$(which lsvmbus)
+    fi
+fi
+
+if [ -z "$lsvmbus_path" ]; then
     LogMsg "Error: lsvmbus tool not found!"
     SetTestStateFailed
     exit 0
