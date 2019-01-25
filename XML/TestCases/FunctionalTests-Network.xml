@@ -426,8 +426,8 @@
     <test>
         <testName>ETHTOOL-CHECK-STATISTICS</testName>
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1,.\Testscripts\Windows\SETUP-NET-Configure-Dependency-VM.ps1,.\Testscripts\Windows\SETUP-Inject-IP-Constants.ps1</setupScript>
-        <testScript>NET-Ethtool-Check-Statistics.sh</testScript>
-        <files>.\Testscripts\Linux\NET-Ethtool-Check-Statistics.sh,.\Testscripts\Linux\NET-Netperf-Server.sh,.\Testscripts\Linux\utils.sh</files>
+        <testScript>Ethtool-Check-Statistics.sh</testScript>
+        <files>.\Testscripts\Linux\Ethtool-Check-Statistics.sh,.\Testscripts\Linux\NET-Netperf-Server.sh,.\Testscripts\Linux\utils.sh</files>
         <setupType>TwoVM1Dep</setupType>
         <TestParameters>
             <param>NIC_1=NetworkAdapter,Private,Private</param>
@@ -514,5 +514,126 @@
         <Area>NETWORK</Area>
         <Tags>network,gen2vm</Tags>
         <Priority>2</Priority>
+    </test>
+    <test>
+        <testName>ETHTOOL-CHECK-FEATURES</testName>
+        <testScript>ETHTOOL-CHECK-FEATURES.sh</testScript>
+        <files>.\TestScripts\Linux\ETHTOOL-CHECK-FEATURES.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>OneVM</setupType>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>NETWORK</Area>
+        <Tags>ethtool</Tags>
+        <Priority>1</Priority>
+    </test>
+    <test>
+        <testName>ETHTOOL-CHANGE-RINGBUFFER</testName>
+        <testScript>ETHTOOL-CHANGE-RINGBUFFER.sh</testScript>
+        <files>.\TestScripts\Linux\ETHTOOL-CHANGE-RINGBUFFER.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>OneVM</setupType>
+        <TestParameters>
+            <param>rx=10000</param>
+            <param>tx=200</param>
+        </TestParameters>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>NETWORK</Area>
+        <Tags>ethtool</Tags>
+        <Priority>1</Priority>
+    </test>
+    <test>
+        <testName>ETHTOOL-TCP-HASHLEVELS</testName>
+        <testScript>ETHTOOL-HANDLER-HASH-LEVELS.sh</testScript>
+        <files>.\TestScripts\Linux\ETHTOOL-HANDLER-HASH-LEVELS.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>OneVM</setupType>
+        <TestParameters>
+            <param>protocol=tcp4</param>
+        </TestParameters>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>NETWORK</Area>
+        <Tags>ethtool</Tags>
+        <Priority>1</Priority>
+    </test>
+    <test>
+        <testName>ETHTOOL-UDP-HASHLEVELS</testName>
+        <testScript>ETHTOOL-HANDLER-HASH-LEVELS.sh</testScript>
+        <files>.\TestScripts\Linux\ETHTOOL-HANDLER-HASH-LEVELS.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>OneVM</setupType>
+        <TestParameters>
+            <param>protocol=udp4</param>
+        </TestParameters>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>NETWORK</Area>
+        <Tags>ethtool</Tags>
+        <Priority>1</Priority>
+    </test>
+    <test>
+        <testName>ETHTOOL-GRO-LRO</testName>
+        <testScript>ETHTOOL-GRO-LRO.sh</testScript>
+        <files>.\TestScripts\Linux\ETHTOOL-GRO-LRO.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>OneVM</setupType>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>NETWORK</Area>
+        <Tags>ethtool</Tags>
+        <Priority>1</Priority>
+    </test>
+    <test>
+        <testName>ETHTOOL-CHECK-CHANNEL</testName>
+        <testScript>ETHTOOL-CHECK-CHANNEL.sh</testScript>
+        <files>.\TestScripts\Linux\ETHTOOL-CHECK-CHANNEL.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_D4s_v3</OverrideVMSize>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>NETWORK</Area>
+        <Tags>ethtool</Tags>
+        <Priority>1</Priority>
+    </test>
+    <test>
+        <testName>ETHTOOL-MSG-LEVEL</testName>
+        <testScript>ETHTOOL-MSG-LEVEL.sh</testScript>
+        <files>.\TestScripts\Linux\ETHTOOL-MSG-LEVEL.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>OneVM</setupType>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>NETWORK</Area>
+        <Tags>ethtool</Tags>
+        <Priority>1</Priority>
+    </test>
+    <test>
+        <testName>ETHTOOL-RSS-HASH-KEY</testName>
+        <testScript>ETHTOOL-RSS-HASH-KEY.sh</testScript>
+        <files>.\TestScripts\Linux\ETHTOOL-RSS-HASH-KEY.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>OneVM</setupType>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>NETWORK</Area>
+        <Tags>ethtool</Tags>
+        <Priority>1</Priority>
+    </test>
+    <test>
+        <testName>ETHTOOL-LINK-KSETTING</testName>
+        <testScript>ETHTOOL-LINK-KSETTING.sh</testScript>
+        <files>.\TestScripts\Linux\ETHTOOL-LINK-KSETTING.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>OneVM</setupType>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>NETWORK</Area>
+        <Tags>ethtool</Tags>
+        <Priority>1</Priority>
+    </test>
+    <test>
+        <testName>ETHTOOL-MISC-INFO</testName>
+        <testScript>ETHTOOL-MISC-INFO.sh</testScript>
+        <files>.\TestScripts\Linux\ETHTOOL-MISC-INFO.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>OneVM</setupType>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>NETWORK</Area>
+        <Tags>ethtool</Tags>
+        <Priority>1</Priority>
     </test>
 </TestCases>

@@ -4,7 +4,7 @@
 # Licensed under the Apache License.
 
 #############################################################################
-# Ethtool_Check_Statistics.sh
+# Ethtool-Check-Statistics.sh
 # Description:
 #       1. Add new Private NIC and set static IP for test interface.
 #       2. Check for ethtool and netperf.

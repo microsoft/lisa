@@ -4,7 +4,7 @@
 
 #############################################################################
 #
-# Ethtool_Handler_HashLevels.sh
+# ETHTOOL-HANDLER-HASH-LEVELS.sh
 # Description:
 #   This script will first check the existence of ethtool on vm and that
 #   the network flow hashing options are supported from ethtool.

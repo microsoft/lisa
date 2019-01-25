@@ -4,7 +4,7 @@
 
 #####################################################################################
 #
-# Disable_enable_GRO_LRO.sh
+# ETHTOOL-GRO-LRO.sh
 # Description:
 #    This script will first check the existence of ethtool on vm and will 
 #   disable & enable generic-receive-offload and large-receive-offload from ethtool.
