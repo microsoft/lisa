@@ -110,23 +110,13 @@ function Main {
     #
     # Start the VM and wait up to 5 minutes for it to come up
     #
-    $timeout = 300
 
     Start-VM $VMName -ComputerName $HvServer
 
-    while ($timeout -gt 0) {
-        $newIpv4 = Get-Ipv4AndWaitForSSHStart $VMName $HvServer $VMPort $VMUserName `
-                   $VMPassword 300
-        if ($newIpv4 -ne $Null) {
-            break
-        }
-
-        Start-Sleep -S 6
-        $timeout -= 3
-    }
-
-    if ($timeout -eq 0) {
-        Write-LogErr "Test case timed out waiting for VM to boot!"
+    $newIpv4 = Get-Ipv4AndWaitForSSHStart -VmName $VMName -HvServer $HvServer -Vmport $VMPort -User $VMUserName `
+              -Password $VMPassword -StepTimeout 300
+    if (-not $newIpv4) {
+        Write-LogErr "Failed to retrive $VMName IP after snasphot restore"
         return "FAIL"
     }
     #

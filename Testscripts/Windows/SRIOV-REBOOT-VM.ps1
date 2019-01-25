@@ -56,7 +56,7 @@ function Main {
     Restart-VM -VMName $VMName -ComputerName $HvServer -Force
     $newIpv4 = Get-Ipv4AndWaitForSSHStart $VMName $HvServer $VMPort $VMUsername `
         $VMPassword $timeout
-    if ($null -eq $newIpv4) {
+    if (-not $newIpv4) {
         Write-LogErr "Failed to get IP of $VMName on $HvServer"
         return "FAIL"
     }
