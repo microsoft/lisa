@@ -32,8 +32,6 @@ CUDADriverVersion="10.0.130-1"
 
 ICA_TESTRUNNING="TestRunning"	  # The test is running
 ICA_TESTCOMPLETED="TestCompleted"  # The test completed successfully
-ICA_TESTABORTED="TestAborted"	  # Error during setup of test
-ICA_TESTFAILED="TestFailed"		# Error while performing the test"
 
 if [ ! ${logFolder} ]; then
 	logFolder="/root"
@@ -65,7 +63,7 @@ UpdateTestState() {
 # Install dependencies and GPU Driver
 #######################################################################
 InstallGPUDrivers() {
-		DISTRO=`grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux" /etc/{issue,*release,*version}`
+		DISTRO=$(grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux" /etc/{issue,*release,*version})
 
 		if [[ $DISTRO =~ "Ubuntu 16.04" ]];
 		then

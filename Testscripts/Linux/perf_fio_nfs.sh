@@ -27,7 +27,6 @@ UTIL_FILE="$HOMEDIR/utils.sh"
 ICA_TESTRUNNING="TestRunning"      # The test is running
 ICA_TESTCOMPLETED="TestCompleted"  # The test completed successfully
 ICA_TESTABORTED="TestAborted"      # Error during the setup of the test
-ICA_TESTFAILED="TestFailed"        # Error occurred during the test
 touch ./fioTest.log
 
 . ${CONSTANTS_FILE} || {
@@ -50,7 +49,7 @@ UpdateTestState()
 
 RunFIO()
 {
-	UpdateTestState ICA_TESTRUNNING
+	UpdateTestState $ICA_TESTRUNNING
 	FILEIO="--size=${fileSize} --direct=1 --ioengine=libaio --filename=fiodata --overwrite=1  "
 
 	####################################
@@ -66,7 +65,6 @@ RunFIO()
 	#LOGDIR="${HOMEDIR}/FIOLog"
 	JSONFILELOG="${LOGDIR}/jsonLog"
 	IOSTATLOGDIR="${LOGDIR}/iostatLog"
-	BLKTRACELOGDIR="${LOGDIR}/blktraceLog"
 	LOGFILE="${LOGDIR}/fio-test.log.txt"	
 
 	#redirect blktrace files directory
@@ -123,7 +121,7 @@ RunFIO()
 				LogMsg "Running ${testmode} test, ${io}K bs, ${Thread} threads ..."
 				jsonfilename="${JSONFILELOG}/fio-result-${testmode}-${io}K-${Thread}td.json"
 				fio $FILEIO --readwrite=$testmode --bs=${io}K --runtime=$ioruntime --iodepth=$Thread --numjobs=$numjobs --output-format=json --output=$jsonfilename --name="iteration"${iteration} >> $LOGFILE
-				iostatPID=`ps -ef | awk '/iostat/ && !/awk/ { print $2 }'`
+				iostatPID=$(ps -ef | awk '/iostat/ && !/awk/ { print $2 }')
 				kill -9 $iostatPID
 				Thread=$(( Thread*2 ))		
 				iteration=$(( iteration+1 ))
@@ -140,7 +138,7 @@ RunFIO()
 	tar -cvzf $compressedFileName $LOGDIR/
 
 	echo "Test logs are located at ${LOGDIR}"
-	UpdateTestState ICA_TESTCOMPLETED
+	UpdateTestState $ICA_TESTCOMPLETED
 }
 
 ############################################################
@@ -159,12 +157,6 @@ if [ $? -eq 0 ]; then
 	LOGDIR="${HOMEDIR}/FIOLog"
 
 	GetDistro
-
-	if [ $DISTRO_NAME == "sles" ] && [[ $DISTRO_VERSION =~ 12 ]]; then
-		mdVolume="/dev/md/mdauto0"
-	else
-		mdVolume="/dev/md0"
-	fi
 
 	if [[ $OS_FAMILY == "Rhel" ]];then
 		nfsServerPackage="nfs-utils"

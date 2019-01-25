@@ -34,7 +34,7 @@ function iScsi_Connect() {
         exit 1
     elif [ ! ${IQN} ]; then  # Check if IQN Variable is present in constants.sh, else select the first target.
         # We take the first IQN target
-        IQN=`iscsiadm -m discovery -t st -p ${TargetIP} | head -n 1 | cut -d ' ' -f 2`
+        IQN=$(iscsiadm -m discovery -t st -p ${TargetIP} | head -n 1 | cut -d ' ' -f 2)
     fi
 
     # Now we have all data necesary to connect to the iscsi target

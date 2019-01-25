@@ -20,7 +20,7 @@ fi
 
 # Get a list of existing interfaces
 # exclude lo loopback device
-interfaces=(`ip link | grep '^[0-9]\+:' | awk '{ print $2 }' | grep -v lo | tr -d ':'`)
+interfaces=($(ip link | grep '^[0-9]\+:' | awk '{ print $2 }' | grep -v lo | tr -d ':'))
 for int in ${interfaces[*]}; do
     ip link set $int down
     check_exit_status "Bring down interface $int"

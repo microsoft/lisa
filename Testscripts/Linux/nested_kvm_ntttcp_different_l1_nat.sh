@@ -115,7 +115,7 @@ if [ "$role" == "server" ]; then
 fi
 
 touch $logFolder/state.txt
-log_file=$logFolder/`basename "$0"`.log
+log_file=$logFolder/$(basename "$0").log
 touch $log_file
 
 IP_ADDR=$L1_CLIENT_IP_ADDR

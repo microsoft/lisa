@@ -28,6 +28,9 @@ ICA_TESTCOMPLETED="TestCompleted"  # The test completed successfully
 ICA_TESTABORTED="TestAborted"      # Error during the setup of the test
 ICA_TESTFAILED="TestFailed"        # Error occurred during the test
 
+# The below echo lines just to avoid the error of SC2034
+echo "$ICA_TESTRUNNING"
+
 Update_Test_State()
 {
     echo "${1}" > state.txt
@@ -251,12 +254,14 @@ Setup_Tap() {
         exit 0
     fi
     echo "Setting up tap $tap_name"
-    ip tuntap add $tap_name mode tap user `whoami` multi_queue
+    ip tuntap add $tap_name mode tap user $(whoami) multi_queue
     ip link set $tap_name up
     ip link set $tap_name master $br_name
 }
 
 Log_Msg()
 {
-    echo `date "+%b %d %Y %T"` : "$1" >> $2
+    echo $(date "+%b %d %Y %T") : "$1" >> $2
 }
+
+echo "$ICA_TESTCOMPLETED"

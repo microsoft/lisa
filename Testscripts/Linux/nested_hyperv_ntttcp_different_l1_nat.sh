@@ -82,7 +82,7 @@ CLIENT_IP_ADDR=$level1ClientIP
 SERVER_IP_ADDR=$level1ServerIP
 
 touch $logFolder/state.txt
-log_file=$logFolder/`basename "$0"`.log
+log_file=$logFolder/$(basename "$0").log
 touch $log_file
 
 Start_Test()

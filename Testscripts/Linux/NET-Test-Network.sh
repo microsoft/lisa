@@ -181,7 +181,7 @@ LogMsg "Found ${#SYNTH_NET_INTERFACES[@]} synthetic interface(s): ${SYNTH_NET_IN
 # Test interfaces
 # First, verify if an interface with a given MAC address exists on the VM
 if [ "${MAC:-UNDEFINED}" != "UNDEFINED" ]; then
-    __sys_interface=$(grep -il "$MAC" /sys/class/net/*/address)
+    grep -il "$MAC" /sys/class/net/*/address
     if [ 0 -ne $? ]; then
         LogMsg "MAC Address $MAC does not belong to any interface."
         SetTestStateFailed

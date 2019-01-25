@@ -80,10 +80,7 @@ LogMsg "constants disk count = $disk_count"
 #
 # Compute the number of sd* drives on the system.
 #
-sd_count=0
-for drive in /dev/sd*[^0-9]; do
-    sd_count=$((sd_count + 1))
-done
+sd_count=$(ls /dev/sd*[^0-9] | wc -l)
 
 #
 # Subtract the boot disk from the sd_count, then make

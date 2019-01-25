@@ -3,7 +3,7 @@
 # Licensed under the Apache License.
 
 #Reference:  https://docs.microsoft.com/en-us/azure/virtual-network/virtual-network-create-vm-accelerated-networking
-bootLogs=`dmesg`
+bootLogs=$(dmesg)
 if [[ $bootLogs =~ "Data path switched to VF" ]];
 then
 	echo "DATAPATH_SWITCHED_TO_VF"

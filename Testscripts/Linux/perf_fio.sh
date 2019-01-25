@@ -64,7 +64,6 @@ RunFIO()
 	# LOGDIR="${HOMEDIR}/FIOLog"
 	JSONFILELOG="${LOGDIR}/jsonLog"
 	IOSTATLOGDIR="${LOGDIR}/iostatLog"
-	BLKTRACELOGDIR="${LOGDIR}/blktraceLog"
 	LOGFILE="${LOGDIR}/fio-test.log.txt"
 
 	# redirect blktrace files directory
@@ -82,7 +81,7 @@ RunFIO()
 	cat /proc/version >> $LOGFILE
 	if [ -f /usr/share/clear/version ]; then
 		cat /usr/share/clear/version >> $LOGFILE
-	elif [[ -n `ls /etc/*-release` ]]; then
+	elif [[ -n $(ls /etc/*-release) ]]; then
 		cat /etc/*-release >> $LOGFILE
 	fi
 	LogMsg "--- PCI Bus Information ---"
@@ -117,7 +116,7 @@ RunFIO()
 					UpdateTestState $ICA_TESTFAILED
 					exit 1
 				fi
-				iostatPID=`ps -ef | awk '/iostat/ && !/awk/ { print $2 }'`
+				iostatPID=$(ps -ef | awk '/iostat/ && !/awk/ { print $2 }')
 				kill -9 $iostatPID
 				qDepth=$((qDepth*2))
 				iteration=$((iteration+1))

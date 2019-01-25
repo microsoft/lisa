@@ -81,7 +81,7 @@ else
 fi
 
 touch $logFolder/state.txt
-log_file=$logFolder/`basename "$0"`.log
+log_file=$logFolder/$(basename "$0").log
 touch $log_file
 
 Remove_Raid()
@@ -136,7 +136,7 @@ Collect_Logs()
     remote_copy -host localhost -user root -passwd $NestedUserPassword -port $HostFwdPort -filename fioConsoleLogs.txt -remote_path "/root" -cmd get
     remote_copy -host localhost -user root -passwd $NestedUserPassword -port $HostFwdPort -filename runlog.txt -remote_path "/root" -cmd get
     remote_copy -host localhost -user root -passwd $NestedUserPassword -port $HostFwdPort -filename state.txt -remote_path "/root" -cmd get
-    state=`cat state.txt`
+    state=$(cat state.txt)
     Log_Msg "FIO Test state: $state" $log_file
     if [ $state == 'TestCompleted' ]; then
         remote_exec -host localhost -user root -passwd $NestedUserPassword -port $HostFwdPort '/root/ParseFioTestLogs.sh'

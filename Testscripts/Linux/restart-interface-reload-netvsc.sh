@@ -41,7 +41,7 @@ Run()
 # Main body
 ############################################################
 config_path="/boot/config-$(uname -r)"
-netvsc_includes=`grep CONFIG_HYPERV_NET=y $config_path`
+netvsc_includes=$(grep CONFIG_HYPERV_NET=y $config_path)
 if [ $netvsc_includes ]; then
     LogMsg "Module hv_netvsc is builtin, skip the case."
     SetTestStateSkipped

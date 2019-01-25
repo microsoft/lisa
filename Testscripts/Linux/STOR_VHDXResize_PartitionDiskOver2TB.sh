@@ -70,7 +70,7 @@ for fs in "${fileSystems[@]}"; do
     command -v mkfs.$fs
     if [ $? -ne 0 ]; then
         LogMsg "File-system tools for $fs not present. Skipping filesystem $fs."
-        count=`expr $count + 1`
+        count=$(expr $count + 1)
     else
         mkfs -t $fs "$deviceName"1
         check_exit_status "Format partition with $fs" "exit"

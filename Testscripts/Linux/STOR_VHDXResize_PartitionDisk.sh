@@ -74,7 +74,7 @@ for fs in "${fileSystems[@]}"; do
     command -v mkfs.$fs
     if [ $? -ne 0 ]; then
         LogErr "File-system tools for $fs not present. Skipping filesystem $fs."
-        count=`expr $count + 1`
+        count=$(expr $count + 1)
     else
         # Use -f option for xfs filesystem, but ignore parameter for other filesystems
         option=""

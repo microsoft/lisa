@@ -135,7 +135,7 @@ if [ 0 -ne $? ]; then
     exit 0
 fi
 
-remote_home=$(ssh -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$remote_user"@"$STATIC_IP2" "
+ssh -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$remote_user"@"$STATIC_IP2" "
     . /tmp/utils.sh
     IsFreeSpace $tmp $total_space
     if [ 0 -ne \$? ]; then
@@ -143,8 +143,9 @@ remote_home=$(ssh -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no
     fi
     echo $tmp
     exit 0
-    ")
+    "
 sts=$?
+
 if [ 1 -eq $sts ]; then
     LogErr "Not enough free space on $STATIC_IP2 to create the test file"
     SetTestStateFailed

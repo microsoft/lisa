@@ -49,13 +49,13 @@ touch $LOG_FILE
 
 LogMsg()
 {
-    echo `date "+%b %d %Y %T"` : "${1}"    # Add the time stamp to the log message
+    echo $(date "+%b %d %Y %T") : "${1}"    # Add the time stamp to the log message
     echo "${1}" >> $LOG_FILE
 }
 
 CheckInstallLockUbuntu()
 {
-    dpkgPID=$(pidof dpkg)
+    pidof dpkg
     if [ $? -eq 0 ];then
         LogMsg "Another install is in progress. Waiting 10 seconds."
         sleep 10
@@ -223,7 +223,7 @@ InstallKernel()
             SetTestStateCompleted
         fi
     elif [ "${CustomKernel}" == "ppa" ]; then
-        DISTRO=`grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux" /etc/{issue,*release,*version}`
+        DISTRO=$(grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux" /etc/{issue,*release,*version})
         if [[ $DISTRO =~ "Ubuntu" ]];
         then
             LogMsg "Enabling ppa repositry..."
@@ -242,7 +242,7 @@ InstallKernel()
             SetTestStateCompleted
         fi
     elif [ "${CustomKernel}" == "latest" ]; then
-        DISTRO=`grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux" /etc/{issue,*release,*version}`
+        DISTRO=$(grep -ihs "buntu\|Suse\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux" /etc/{issue,*release,*version})
         if [[ $DISTRO =~ "Ubuntu" ]];
         then
             export DEBIAN_FRONTEND=noninteractive

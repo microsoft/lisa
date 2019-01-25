@@ -33,7 +33,7 @@ UtilsInit
 #
 LogMsg "Check if floppy module is loaded"
 
-FLOPPY=`lsmod | grep floppy`
+FLOPPY=$(lsmod | grep floppy)
 if [[ $FLOPPY != "" ]] ; then
     LogMsg "Floppy disk  module is present"
 else

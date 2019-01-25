@@ -27,7 +27,7 @@ function Cpu_Test ()
         SetTestStateAborted
     fi
 
-    PASS_VALUE_CPU=`cat /root/cpu.log |awk '/total time: / {print $3;}'`
+    PASS_VALUE_CPU=$(cat /root/cpu.log |awk '/total time: / {print $3;}')
     if [ $? -ne 0 ]; then
         LogErr "Cannot find cpu.log."
         SetTestStateAborted
@@ -42,7 +42,7 @@ function Cpu_Test ()
         SetTestStateFailed
     fi
 
-    LogMsg "`cat /root/cpu.log`"
+    LogMsg "$(cat /root/cpu.log)"
     return "$CPU_PASS"
 }
 
@@ -59,7 +59,7 @@ function File_Io ()
         LogMsg "Running $1 tests..."
     fi
 
-    PASS_VALUE_FILEIO=`cat /root/$1.log |awk '/sum/ {print $2;}' | cut -d. -f1`
+    PASS_VALUE_FILEIO=$(cat /root/$1.log |awk '/sum/ {print $2;}' | cut -d. -f1)
     if [ $? -ne 0 ]; then
         LogErr "Cannot find $1.log."
         SetTestStateFailed
@@ -75,7 +75,7 @@ function File_Io ()
     sysbench fileio --num-threads=1 --file-test-mode=$1 cleanup
     LogMsg "Cleaning up $1 test files."
 
-    LogMsg "`cat /root/$1.log`"
+    LogMsg "$(cat /root/$1.log)"
     cat /root/$1.log >> /root/fileio.log
     rm /root/$1.log
     return "$FILEIO_PASS"

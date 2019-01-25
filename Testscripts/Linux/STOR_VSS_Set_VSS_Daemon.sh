@@ -30,10 +30,10 @@ fi
 GetDistro
 case $DISTRO in
     "redhat_7" | "centos_7" | "Fedora" )
-        serviceName=`systemctl list-unit-files | grep -e 'hypervvssd\|[h]v-vss-daemon\|[h]v_vss_daemon'| cut -d " " -f 1`
+        serviceName=$(systemctl list-unit-files | grep -e 'hypervvssd\|[h]v-vss-daemon\|[h]v_vss_daemon'| cut -d " " -f 1)
     ;;
     "redhat_6" | "centos_6")
-        serviceName=`chkconfig list | grep -e 'hypervvssd\|[h]v-vss-daemon\|[h]v_vss_daemon'| cut -d " " -f 1`
+        serviceName=$(chkconfig list | grep -e 'hypervvssd\|[h]v-vss-daemon\|[h]v_vss_daemon'| cut -d " " -f 1)
     ;;
     *)
         LogMsg "Distro $DISTRO is not supported, skipping test."

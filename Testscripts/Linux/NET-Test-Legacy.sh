@@ -29,7 +29,7 @@ UtilsInit
 GetDistro
 
 # Check for tulip driver. If it's not present, test will be skipped
-cat /boot/config-`uname -r` | grep "CONFIG_NET_TULIP=y\|CONFIG_TULIP=m"
+cat /boot/config-$(uname -r) | grep "CONFIG_NET_TULIP=y\|CONFIG_TULIP=m"
 if [ $? -ne 0 ]; then
     LogErr "Warn: Tulip driver is not configured. Test skipped"
     SetTestStateAborted

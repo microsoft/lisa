@@ -340,7 +340,7 @@ GetDistro()
 			return 1
 		;;
 	esac
-
+	echo "OS family: $OS_FAMILY"
 	return 0
 }
 
@@ -357,8 +357,8 @@ CheckVMFeatureSupportStatus()
     fi
     # for example 3.10.0-514.el7.x86_64
     # get kernel version array is (3 10 0 514)
-    local kernel_array=(`uname -r | awk -F '[.-]' '{print $1,$2,$3,$4}'`)
-    local specifiedKernel_array=(`echo $specifiedKernel | awk -F '[.-]' '{print $1,$2,$3,$4}'`)
+    local kernel_array=($(uname -r | awk -F '[.-]' '{print $1,$2,$3,$4}'))
+    local specifiedKernel_array=($(echo $specifiedKernel | awk -F '[.-]' '{print $1,$2,$3,$4}'))
     local index=${!kernel_array[@]}
     local n=0
     for n in $index
@@ -393,7 +393,7 @@ GetSynthNetInterfaces()
     extraction() {
         case $DISTRO in
         redhat_5)
-             SYNTH_NET_INTERFACES[$1]=`echo "${__SYNTH_NET_ADAPTERS_PATHS[$1]}" | awk -F: '{print $2}'`
+             SYNTH_NET_INTERFACES[$1]=$(echo "${__SYNTH_NET_ADAPTERS_PATHS[$1]}" | awk -F: '{print $2}')
             ;;
         *)
              SYNTH_NET_INTERFACES[$1]=$(ls "${__SYNTH_NET_ADAPTERS_PATHS[$1]}" | head -n 1)
@@ -684,7 +684,6 @@ NetmaskToCidr()
 	fi
 
 	declare -i netbits=0
-	oldifs="$IFS"
 	IFS=.
 
 	for dec in $1; do
@@ -816,14 +815,10 @@ CreateVlanConfig()
 	CheckIP "$2"
 	if [[ $? -eq 0 ]]; then
 	    netmaskConf="NETMASK"
-	    ifaceConf="inet"
-	    ipAddress="IPADDR"
 	else
 		CheckIPV6 "$2"
 		if [[ $? -eq 0 ]]; then
 	    	netmaskConf="PREFIX"
-	    	ifaceConf="inet6"
-	    	ipAddress="IPV6ADDR"
 	    else
 	    	LogMsg "CreateVlanConfig: $2 is not a valid IP Address"
 			return 2
@@ -1761,10 +1756,10 @@ declare os_VENDOR os_RELEASE os_UPDATE os_PACKAGE os_CODENAME
 # GetOSVersion
 function GetOSVersion {
     # Figure out which vendor we are
-    if [[ -x "`which sw_vers 2>/dev/null`" ]]; then
+    if [[ -x "$(which sw_vers 2>/dev/null)" ]]; then
         # OS/X
-        os_VENDOR=`sw_vers -productName`
-        os_RELEASE=`sw_vers -productVersion`
+        os_VENDOR=$(sw_vers -productName)
+        os_RELEASE=$(sw_vers -productVersion)
         os_UPDATE=${os_RELEASE##*.}
         os_RELEASE=${os_RELEASE%.*}
         os_PACKAGE=""
@@ -1792,8 +1787,8 @@ function GetOSVersion {
         os_CODENAME=""
         for r in "Red Hat" CentOS Fedora XenServer; do
             os_VENDOR=$r
-            if [[ -n "`grep \"$r\" /etc/redhat-release`" ]]; then
-                ver=`sed -e 's/^.* \([0-9].*\) (\(.*\)).*$/\1\|\2/' /etc/redhat-release`
+            if [[ -n "$(grep \"$r\" /etc/redhat-release)" ]]; then
+                ver=$(sed -e 's/^.* \([0-9].*\) (\(.*\)).*$/\1\|\2/' /etc/redhat-release)
                 os_CODENAME=${ver#*|}
                 os_RELEASE=${ver%|*}
                 os_UPDATE=${os_RELEASE##*.}
@@ -1824,8 +1819,8 @@ function GetOSVersion {
         os_CODENAME=$(lsb_release -c -s)
 
     elif [[ -r /etc/SuSE-brand || -r /etc/SUSE-brand ]]; then
-        os_VENDOR=`head -1 /etc/S*SE-brand`
-        os_VERSION=`cat /etc/S*SE-brand | awk '/VERSION/ {print $NF}'`
+        os_VENDOR=$(head -1 /etc/S*SE-brand)
+        os_VERSION=$(cat /etc/S*SE-brand | awk '/VERSION/ {print $NF}')
         os_RELEASE=$os_VERSION
         os_PACKAGE="rpm"
 
@@ -1837,10 +1832,10 @@ function GetOSVersion {
                 os_VENDOR=$r
             fi
 
-            if [[ -n "`grep \"$r\" /etc/SuSE-release`" ]]; then
-                os_CODENAME=`grep "CODENAME = " /etc/SuSE-release | sed 's:.* = ::g'`
-                os_RELEASE=`grep "VERSION = " /etc/SuSE-release | sed 's:.* = ::g'`
-                os_UPDATE=`grep "PATCHLEVEL = " /etc/SuSE-release | sed 's:.* = ::g'`
+            if [[ -n "$(grep \"$r\" /etc/SuSE-release)" ]]; then
+                os_CODENAME=$(grep "CODENAME = " /etc/SuSE-release | sed 's:.* = ::g')
+                os_RELEASE=$(grep "VERSION = " /etc/SuSE-release | sed 's:.* = ::g')
+                os_UPDATE=$(grep "PATCHLEVEL = " /etc/SuSE-release | sed 's:.* = ::g')
                 break
             fi
             os_VENDOR=""
@@ -1920,6 +1915,7 @@ GetGuestGeneration()
     else
         os_GENERATION=1
     fi
+	echo "Generation: $os_GENERATION"
 }
 
 #######################################################################
@@ -2119,15 +2115,15 @@ function check_exit_status ()
 function detect_linux_distribution_version() {
 	local distro_version="Unknown"
 	if [ -f /etc/centos-release ]; then
-		distro_version=`cat /etc/centos-release | sed s/.*release\ // | sed s/\ .*//`
+		distro_version=$(cat /etc/centos-release | sed s/.*release\ // | sed s/\ .*//)
 	elif [ -f /etc/oracle-release ]; then
-		distro_version=`cat /etc/oracle-release | sed s/.*release\ // | sed s/\ .*//`
+		distro_version=$(cat /etc/oracle-release | sed s/.*release\ // | sed s/\ .*//)
 	elif [ -f /etc/redhat-release ]; then
-		distro_version=`cat /etc/redhat-release | sed s/.*release\ // | sed s/\ .*//`
+		distro_version=$(cat /etc/redhat-release | sed s/.*release\ // | sed s/\ .*//)
 	elif [ -f /etc/os-release ]; then
-		distro_version=`cat /etc/os-release|sed 's/"//g'|grep "VERSION_ID="| sed 's/VERSION_ID=//'| sed 's/\r//'`
+		distro_version=$(cat /etc/os-release|sed 's/"//g'|grep "VERSION_ID="| sed 's/VERSION_ID=//'| sed 's/\r//')
 	elif [ -f /usr/share/clear/version ]; then
-		distro_version=`cat /usr/share/clear/version`
+		distro_version=$(cat /usr/share/clear/version)
 	fi
 	echo $distro_version
 }
@@ -2135,11 +2131,11 @@ function detect_linux_distribution_version() {
 # Detect the Linux distribution name, it gets the name in lowercase
 function detect_linux_distribution() {
 	if ls /etc/*release* 1> /dev/null 2>&1; then
-		local linux_distribution=`cat /etc/*release*|sed 's/"//g'|grep "^ID="| sed 's/ID=//'`
-		local temp_text=`cat /etc/*release*`
+		local linux_distribution=$(cat /etc/*release*|sed 's/"//g'|grep "^ID="| sed 's/ID=//')
+		local temp_text=$(cat /etc/*release*)
 	elif [ -f "/usr/lib/os-release" ]; then
-		local linux_distribution=`cat /usr/lib/os-release|sed 's/"//g'|grep "^ID="| sed 's/ID=//'`
-		local temp_text=`cat /usr/lib/os-release`
+		local linux_distribution=$(cat /usr/lib/os-release|sed 's/"//g'|grep "^ID="| sed 's/ID=//')
+		local temp_text=$(cat /usr/lib/os-release)
 	fi
 	if [ "$linux_distribution" == "" ]; then
 		if echo "$temp_text" | grep -qi "ol"; then
@@ -2783,7 +2779,7 @@ function create_raid_and_mount() {
 	local list=""
 
 	echo "IO test setup started.."
-	list=(`fdisk -l | grep 'Disk.*/dev/sd[a-z]' |awk  '{print $2}' | sed s/://| sort| grep -v "/dev/sd[ab]$" `)
+	list=($(fdisk -l | grep 'Disk.*/dev/sd[a-z]' |awk  '{print $2}' | sed s/://| sort| grep -v "/dev/sd[ab]$" ))
 
 	lsblk
 	install_package mdadm
@@ -2795,7 +2791,7 @@ function create_raid_and_mount() {
 	check_exit_status "$deviceName Raid format"
 
 	mkdir $mountdir
-	uuid=`blkid $deviceName| sed "s/.*UUID=\"//"| sed "s/\".*\"//"`
+	uuid=$(blkid $deviceName| sed "s/.*UUID=\"//"| sed "s/\".*\"//")
 	echo "UUID=$uuid $mountdir $format defaults 0 2" >> /etc/fstab
 	if [ -z "$mount_option" ]
 	then
@@ -2867,7 +2863,7 @@ function remote_copy () {
 		destination_path=$user@$host:$remote_path/
 	fi
 
-	status=`sshpass -p $passwd scp -o StrictHostKeyChecking=no -P $port $source_path $destination_path 2>&1`
+	status=$(sshpass -p $passwd scp -o StrictHostKeyChecking=no -P $port $source_path $destination_path 2>&1)
 	exit_status=$?
 	echo $status
 	return $exit_status
@@ -2895,7 +2891,7 @@ function remote_exec () {
 		port=22
 	fi
 
-	status=`sshpass -p $passwd ssh -t -o StrictHostKeyChecking=no -p $port $user@$host $cmd 2>&1`
+	status=$(sshpass -p $passwd ssh -t -o StrictHostKeyChecking=no -p $port $user@$host $cmd 2>&1)
 	exit_status=$?
 	echo $status
 	return $exit_status
@@ -2914,7 +2910,7 @@ function set_user_password {
 
 	hash=$(openssl passwd -1 $user_password)
 
-	string=`echo $sudo_password | sudo -S cat /etc/shadow | grep $user`
+	string=$(echo $sudo_password | sudo -S cat /etc/shadow | grep $user)
 
 	if [ "x$string" == "x" ]; then
 		echo "$user not found in /etc/shadow"
@@ -2926,7 +2922,7 @@ function set_user_password {
 
 	echo $sudo_password | sudo -S sed -i "s#^${array[0]}.*#$line#" /etc/shadow
 
-	if [ `echo $sudo_password | sudo -S cat /etc/shadow| grep $line|wc -l` != "" ]; then
+	if [ $(echo $sudo_password | sudo -S cat /etc/shadow| grep $line|wc -l) != "" ]; then
 		echo "Password set succesfully"
 	else
 		echo "failed to set password"
@@ -2944,16 +2940,16 @@ function collect_VM_properties () {
 	fi
 
 	echo "" > $output_file
-	echo ",OS type,"`detect_linux_distribution` `detect_linux_distribution_version` >> $output_file
-	echo ",Kernel version,"`uname -r` >> $output_file
-	echo ",LIS Version,"`get_lis_version` >> $output_file
-	echo ",Host Version,"`get_host_version` >> $output_file
-	echo ",Total CPU cores,"`nproc` >> $output_file
-	echo ",Total Memory,"`free -h|grep Mem|awk '{print $2}'` >> $output_file
-	echo ",Resource disks size,"`lsblk|grep "^sdb"| awk '{print $4}'`  >> $output_file
-	echo ",Data disks attached,"`lsblk | grep "^sd" | awk '{print $1}' | sort | grep -v "sd[ab]$" | wc -l`  >> $output_file
-	echo ",eth0 MTU,"`cat /sys/class/net/eth0/mtu` >> $output_file
-	echo ",eth1 MTU,"`cat /sys/class/net/eth1/mtu` >> $output_file
+	echo ",OS type,"$(detect_linux_distribution) $(detect_linux_distribution_version) >> $output_file
+	echo ",Kernel version,"$(uname -r) >> $output_file
+	echo ",LIS Version,"$(get_lis_version) >> $output_file
+	echo ",Host Version,"$(get_host_version) >> $output_file
+	echo ",Total CPU cores,"$(nproc) >> $output_file
+	echo ",Total Memory,"$(free -h|grep Mem|awk '{print $2}') >> $output_file
+	echo ",Resource disks size,"$(lsblk|grep "^sdb"| awk '{print $4}')  >> $output_file
+	echo ",Data disks attached,"$(lsblk | grep "^sd" | awk '{print $1}' | sort | grep -v "sd[ab]$" | wc -l)  >> $output_file
+	echo ",eth0 MTU,"$(cat /sys/class/net/eth0/mtu) >> $output_file
+	echo ",eth1 MTU,"$(cat /sys/class/net/eth1/mtu) >> $output_file
 }
 
 # Add command in startup files
@@ -3116,7 +3112,7 @@ function test_rsync_files() {
 
 function change_mtu_increment() {
     test_iface=$1
-    ignore_iface=$2
+    iface_ignore=$2
 
     __iterator=0
     declare -i current_mtu=0
@@ -3161,7 +3157,7 @@ function stop_firewall() {
     GetDistro
     case "$DISTRO" in
         suse*)
-            status=`systemctl is-active rcSuSEfirewall2`
+            status=$(systemctl is-active rcSuSEfirewall2)
             if [ "$status" = "active" ]; then
                /sbin/rcSuSEfirewall2 stop
                 if [ $? -ne 0 ]; then    
@@ -3221,7 +3217,7 @@ Kill_Process()
     if [[ $(detect_linux_distribution) == coreos ]]; then
         output="default"
         while [[ ${#output} != 0 ]]; do
-            output=`ssh $ip "docker ps -a | grep $2 "`
+            output=$(ssh $ip "docker ps -a | grep $2 ")
             if [[ ${#output} == 0 ]]; then
                 break
             fi
@@ -3235,7 +3231,7 @@ Kill_Process()
 
 Delete_Containers()
 {
-    containers=`docker ps -a | grep -v 'CONTAINER ID' | awk '{print $1}'`
+    containers=$(docker ps -a | grep -v 'CONTAINER ID' | awk '{print $1}')
     for containerID in ${containers}
     do
         docker stop $containerID > /dev/null 2>&1
@@ -3251,7 +3247,7 @@ Get_BC_Command()
     else
         Delete_Containers
         docker run -t -d lisms/toolbox > /dev/null 2>&1
-        containerID=`docker ps | grep -v 'CONTAINER ID' | awk '{print $1}'`
+        containerID=$(docker ps | grep -v 'CONTAINER ID' | awk '{print $1}')
         bc_cmd="docker exec -i $containerID bc"
     fi
     echo $bc_cmd

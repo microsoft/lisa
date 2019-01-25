@@ -67,7 +67,6 @@ Run_Fio()
 
 	JSONFILELOG="${LOGDIR}/jsonLog"
 	IOSTATLOGDIR="${LOGDIR}/iostatLog"
-	BLKTRACELOGDIR="${LOGDIR}/blktraceLog"
 	LOGFILE="${LOGDIR}/fio-test.log.txt"	
 
 	#redirect blktrace files directory
@@ -105,7 +104,7 @@ Run_Fio()
 				Log_Msg "Running ${testmode} test, ${io}K bs, ${Thread} threads ..."
 				jsonfilename="${JSONFILELOG}/fio-result-${testmode}-${io}K-${Thread}td.json"
 				fio $FILEIO --readwrite=$testmode --bs=${io}K --runtime=$ioruntime --iodepth=$Thread --numjobs=$numjobs --output-format=json --output=$jsonfilename --name="iteration"${iteration} >> $LOGFILE
-				iostatPID=`ps -ef | awk '/iostat/ && !/awk/ { print $2 }'`
+				iostatPID=$(ps -ef | awk '/iostat/ && !/awk/ { print $2 }')
 				kill -9 $iostatPID
 				Thread=$(( Thread*2 ))		
 				iteration=$(( iteration+1 ))

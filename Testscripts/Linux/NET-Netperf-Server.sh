@@ -10,7 +10,6 @@
 #######################################################################
 cd ~
 
-remote_user="root"
 . net_constants.sh || {
     echo "unable to source net_constants.sh!"
     echo "TestAborted" > state.txt

@@ -19,9 +19,7 @@ done
 #
 # Constants/Globals
 #
-ICA_TESTRUNNING="TestRunning"      # The test is running
 ICA_TESTCOMPLETED="TestCompleted"  # The test completed successfully
-ICA_TESTABORTED="TestAborted"      # Error during the setup of the test
 ICA_TESTFAILED="TestFailed"        # Error occurred during the test
 
 #######################################################################
@@ -31,7 +29,7 @@ ICA_TESTFAILED="TestFailed"        # Error occurred during the test
 #######################################################################
 LogMsg()
 {
-    echo `date "+%b %d %Y %T"` : "${1}"    # Add the time stamp to the log message
+    echo $(date "+%b %d %Y %T") : "${1}"    # Add the time stamp to the log message
     echo "${1}" >> ~/build-CustomLIS.txt
 }
 
@@ -55,20 +53,20 @@ DistroName="Unknown"
 DistroVersion="Unknown"
 if [ -f /etc/redhat-release ] ; then
 	DistroName='REDHAT'
-	DistroVersion=`cat /etc/redhat-release | sed s/.*release\ // | sed s/\ .*//`
+	DistroVersion=$(cat /etc/redhat-release | sed s/.*release\ // | sed s/\ .*//)
 elif [ -f /etc/centos-release ] ; then
-	DistroName==`cat /etc/centos-release | sed s/^\ // |sed s/\ .*//`
+	DistroName==$(cat /etc/centos-release | sed s/^\ // |sed s/\ .*//)
 	DistroName='CENTOS'
-	DistroVersion=`cat /etc/centos-release | sed s/.*release\ // | sed s/\ .*//`
+	DistroVersion=$(cat /etc/centos-release | sed s/.*release\ // | sed s/\ .*//)
 elif [ -f /etc/SuSE-release ] ; then
-	DistroName=`cat /etc/SuSE-release | tr "\n" ' '| sed s/VERSION.*//`
-	DistroVersion=`cat /etc/SuSE-release | tr "\n" ' ' | sed s/.*=\ //`
+	DistroName=$(cat /etc/SuSE-release | tr "\n" ' '| sed s/VERSION.*//)
+	DistroVersion=$(cat /etc/SuSE-release | tr "\n" ' ' | sed s/.*=\ //)
 elif [ -f /etc/debian_version ] ; then
-	DistroName="Debian `cat /etc/debian_version`"
+	DistroName="Debian $(cat /etc/debian_version)"
 	DistroVersion=""
 fi
 if [ -f /etc/UnitedLinux-release ] ; then
-	DistroName="${DistroName}[`cat /etc/UnitedLinux-release | tr "\n" ' ' | sed s/VERSION.*//`]"
+	DistroName="${DistroName}[$(cat /etc/UnitedLinux-release | tr "\n" ' ' | sed s/VERSION.*//)]"
 fi
 LogMsg "*****OS Info*****"
 cat /etc/*-release >> ~/build-CustomLIS.txt 2>&1
@@ -76,7 +74,7 @@ LogMsg "*****Kernen Info*****"
 uname -r >> ~/build-CustomLIS.txt 2>&1
 LogMsg "*****LIS Info*****"
 modinfo hv_vmbus >> ~/build-CustomLIS.txt 2>&1
-kernel=`uname -r`
+kernel=$(uname -r)
 if [ "${CustomLIS}" == "lisnext" ]; then
 	LISSource="https://github.com/LIS/lis-next.git"
 	sourceDir="lis-next"
@@ -146,7 +144,7 @@ elif [ $DistroName == "CENTOS" -o $DistroName == "REDHAT" -o $DistroName == "FED
 		LISsourceDir=hv-rhel7.x/hv
 	fi
 	cd $LISsourceDir
-	LISDir=`pwd`
+	LISDir=$(pwd)
 	LogMsg "Installing kernel-devel-${kernel} for LIS..."
 	# TODO - code refactoring should fix non Microsoft blob access
 	yum install -y "https://partnerpipelineshare.blob.core.windows.net/kernel-devel-rpms/kernel-devel-${kernel}.rpm" ~/build-CustomLIS.txt 2>&1

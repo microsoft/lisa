@@ -5,7 +5,7 @@
 interface="eth1"
 ip_local=$1
 vm=$2
-ip_group=`ip maddress show $interface | grep inet | head -n1 | awk '{print $2}'`
+ip_group=$(ip maddress show $interface | grep inet | head -n1 | awk '{print $2}')
 # Source utils.sh
 . utils.sh || {
     echo "unable to source utils.sh!"

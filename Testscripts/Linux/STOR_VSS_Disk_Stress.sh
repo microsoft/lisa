@@ -38,7 +38,7 @@ then
     exit 1
 fi
 # Get Root Directory of tarball
-ROOTDIR=`tar -tvf ${IOZONE} | head -n 1 | awk -F " " '{print $6}' | awk -F "/" '{print $1}'`
+ROOTDIR=$(tar -tvf ${IOZONE} | head -n 1 | awk -F " " '{print $6}' | awk -F "/" '{print $1}')
 # Now Extract the Tar Ball.
 tar -xvf ${IOZONE}
 sts=$?

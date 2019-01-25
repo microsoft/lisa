@@ -66,8 +66,6 @@ UtilsInit
 if [ "${TEST_TYPE:-UNDEFINED}" = "UNDEFINED" ]; then
     LogMsg "Parameter TEST_TYPE was not found, defaulting to Synthetic NICs"
     TEST_TYPE="synthetic"
-else
-    IFS=',' read -a TYPE <<< "$TEST_TYPE"
 fi
 
 if [ "${SYNTHETIC_NICS:-UNDEFINED}" = "UNDEFINED" ] && [ "${LEGACY_NICS:-UNDEFINED}" = "UNDEFINED" ]; then
