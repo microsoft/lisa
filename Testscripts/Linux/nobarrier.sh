@@ -35,6 +35,8 @@ case "$DISTRO_NAME" in
 	suse|opensuse|sles)
 		add_sles_network_utilities_repo
 		;;
+	coreos|clear-linux-os)
+		;;
 	*)
 		echo "Unknown distribution"
 		SetTestStateAborted

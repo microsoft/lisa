@@ -229,6 +229,6 @@ function Start-LISAv2 {
 	}
 }
 
-New-Alias -Name Run-LISAv2 -Value Start-LISAv2
+New-Alias -Name Run-LISAv2 -Value Start-LISAv2 -Force
 
 Export-ModuleMember -Function * -Alias *
