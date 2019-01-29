@@ -13,8 +13,9 @@
 #       5. Check if results are as expected.
 #############################################################################
 remote_user="root"
+
 SendFile(){
-    #Download netperf 2.7.0
+    # Download netperf 2.7.0
     wget https://github.com/HewlettPackard/netperf/archive/netperf-2.7.0.tar.gz > /dev/null 2>&1
     if [ $? -ne 0 ]; then
         LogErr "Unable to download netperf."
@@ -22,13 +23,13 @@ SendFile(){
     fi
     tar -xvf netperf-2.7.0.tar.gz > /dev/null 2>&1
 
-    #Get the root directory of the tarball
+    # Get the root directory of the tarball
     downloadDir="/netperf-netperf-2.7.0"
-    rootDir=$(pwd)$downloadDir
-    LogMsg "rootDir = ${rootDir}"
+    homeDir="/home/${SUDO_USER}"
+    rootDir="${homeDir}/$downloadDir"
     cd ${rootDir}
 
-    #Distro specific setup
+    # Distro specific setup
     GetDistro
 
     case "$DISTRO" in
@@ -156,29 +157,29 @@ SendFile(){
     fi
 
     LogMsg "Copy files to dependency vm: ${STATIC_IP2}"
-    scp -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -v -o StrictHostKeyChecking=no ~/NET-Netperf-Server.sh ${remote_user}@[${STATIC_IP2}]: > /dev/null 2>&1
+    scp -i "$homeDir"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no ~/NET-Netperf-Server.sh ${remote_user}@[${STATIC_IP2}]: > /dev/null 2>&1
     if [ $? -ne 0 ]; then
         LogErr "Unable to copy test scripts to dependency VM: ${STATIC_IP2}. scp command failed."
         return 1
     fi
-    scp -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -v -o StrictHostKeyChecking=no ~/constants.sh ${remote_user}@[${STATIC_IP2}]: > /dev/null 2>&1
-    scp -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -v -o StrictHostKeyChecking=no ~/net_constants.sh ${remote_user}@[${STATIC_IP2}]: > /dev/null 2>&1
-    scp -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -v -o StrictHostKeyChecking=no ~/utils.sh ${remote_user}@[${STATIC_IP2}]: > /dev/null 2>&1
+    scp -i "$homeDir"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no ~/constants.sh ${remote_user}@[${STATIC_IP2}]: > /dev/null 2>&1
+    scp -i "$homeDir"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no ~/net_constants.sh ${remote_user}@[${STATIC_IP2}]: > /dev/null 2>&1
+    scp -i "$homeDir"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no ~/utils.sh ${remote_user}@[${STATIC_IP2}]: > /dev/null 2>&1
 
     #Start netperf in server mode on the dependency vm
     LogMsg "Starting netperf in server mode on ${STATIC_IP2}"
-    ssh -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -v -o StrictHostKeyChecking=no ${remote_user}@${STATIC_IP2} "echo '~/NET-Netperf-Server.sh > netperf_ServerScript.log' | at now" > /dev/null 2>&1
+    ssh -i "$homeDir"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no ${remote_user}@${STATIC_IP2} "echo '~/NET-Netperf-Server.sh > netperf_ServerScript.log' | at now" > /dev/null 2>&1
     if [ $? -ne 0 ]; then
         LogErr "Unable to start netperf server script on the dependency vm."
         return 1
     fi
 
-    #Wait for server to be ready
+    # Wait for server to be ready
     wait_for_server=600
     server_state_file=serverstate.txt
     while [ $wait_for_server -gt 0 ]; do
-        #Try to copy and understand server state
-        scp -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -v -o StrictHostKeyChecking=no ${remote_user}@[${STATIC_IP2}]:~/state.txt ~/${server_state_file} > /dev/null 2>&1
+        # Try to copy and understand server state
+        scp -i "$homeDir"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no ${remote_user}@[${STATIC_IP2}]:~/state.txt ~/${server_state_file} > /dev/null 2>&1
 
         if [ -f ~/${server_state_file} ]; then
             server_state=$(head -n 1 ~/${server_state_file})
@@ -202,7 +203,7 @@ SendFile(){
         LogMsg "SUCCESS: Netperf server is ready."
     fi
 
-    #create 4GB file test for TCP_SENDFILE test
+    # create 4GB file test for TCP_SENDFILE test
     dd if=/dev/zero of=test1 bs=1M count=4096
 
     LogMsg "Starting netperf .."
@@ -214,14 +215,14 @@ SendFile(){
     fi
     sleep 310
 
-    #Get the modified value of 'tx_send_full' param after netpef test 
+    # Get the modified value of 'tx_send_full' param after netpef test
     new_send_value=$(ethtool -S $test_iface | grep "tx_send_full" | cut -d ":" -f 2)
 
-    #LogMsg values
+    # LogMsg values
     LogMsg "Kernel: $(uname -r)."
     LogMsg "Tx_send_full before netperf test: $send_value."
     LogMsg "Tx_send_full after netperf test: $new_send_value."
-    #Check results
+    # Check results
     if [ $new_send_value -gt 10 ]; then
         LogMsg "Successfully test on tx_send_full param."
         return 0
@@ -331,7 +332,7 @@ if [ $? -ne 0 ]; then
     install_package "ethtool"
 fi
 
-#Check if Statistics from ethtool are available
+# Check if Statistics from ethtool are available
 sts=$(ethtool -S $test_iface 2>&1)
 if [[ $sts = *"no stats available"* ]]; then
     LogErr "$sts"
@@ -340,7 +341,7 @@ if [[ $sts = *"no stats available"* ]]; then
     exit 0
 fi
 
-#Make all bash scripts executable
+# Make all bash scripts executable
 cd ~
 
 #Start the first test on tx_send_full param with TCP_SENDFILE netperf
@@ -354,7 +355,7 @@ else
     sts_sendfile=2
 fi
 
-#Start the second test - on wake_queue param 
+#Start the second test - on wake_queue param
 #Get the started value of 'wake_queue' param from statistics if exist and if not skip the test.
 wake_value=$(ethtool -S $test_iface | grep "wake_queue" | cut -d ":" -f 2)
 if [ -n "$wake_value" ];then
@@ -366,10 +367,10 @@ else
 fi
 
 # Get logs from dependency vm
-scp -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -v -o StrictHostKeyChecking=no -r ${remote_user}@[${STATIC_IP2}]:~/netperf_ServerScript.log ~/netperf_ServerScript.log > /dev/null 2>&1
+scp -i "$homeDir"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no -r ${remote_user}@[${STATIC_IP2}]:~/netperf_ServerScript.log ~/netperf_ServerScript.log 
 
 # Shutdown dependency VM
-ssh -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -v -o StrictHostKeyChecking=no ${remote_user}@${STATIC_IP2} "init 0" > /dev/null 2>&1
+ssh -i "$homeDir"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no ${remote_user}@${STATIC_IP2} "init 0"
 
 if [[ $sts_sendfile -eq 1 || $sts_changemtu -eq 1 ]];then
     SetTestStateFailed
@@ -379,7 +380,7 @@ elif [[ $sts_sendfile -eq 2 && $sts_changemtu -eq 2 ]];then
     exit 0
 fi
 
-#If we made it here, everything worked
+# If we made it here, everything worked
 LogMsg "Test completed successfully"
 SetTestStateCompleted
 exit 0

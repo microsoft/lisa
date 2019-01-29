@@ -24,7 +24,7 @@
 #   were able to ping the STATIC_IP2 with all various packet-sizes.
 #
 #############################################################################################################
-remote_user="root"
+remote_user=$(whoami)
 . net_constants.sh || {
     echo "unable to source net_constants.sh!"
     echo "TestAborted" > state.txt

@@ -20,7 +20,7 @@
 #   9. Erase remote file after copy finished
 #   9. Make new md5sum of received file and compare to the one calculated earlier
 #############################################################################################################
-remote_user="root"
+remote_user=$(whoami)
 . net_constants.sh || {
     echo "unable to source net_constants.sh!"
     echo "TestAborted" > state.txt

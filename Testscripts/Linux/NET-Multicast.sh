@@ -27,7 +27,7 @@ function Execute_Validate_Remote_Command(){
         exit 0
     fi
 }
-remote_user="root"
+remote_user=$(whoami)
 . net_constants.sh || {
     echo "unable to source net_constants.sh!"
     echo "TestAborted" > state.txt
