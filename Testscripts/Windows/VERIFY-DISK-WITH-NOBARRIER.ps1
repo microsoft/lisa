@@ -30,7 +30,7 @@ function Main {
             Write-LogInfo "Verifying if data disk is added to the VM: Running fdisk on remote VM"
             $fdiskOutput = Run-LinuxCmd -username $user -password $password -ip $VM.PublicIP -port $VM.SSHPort -command "/sbin/fdisk -l | grep /dev/sd" -runAsSudo
             foreach ($line in ($fdiskOutput.Split([Environment]::NewLine))) {
-                if ($line -imatch "Disk /dev/sd[^ab]" -and ([int]($line.Split()[2]) -ge [int]$diskSizeinGB)) {
+                if ($line -imatch "Disk /dev/sd[^ab]:" -and ([int]($line.Split()[2]) -ge [int]$diskSizeinGB)) {
                     Write-LogInfo "Data disk is successfully mounted to the VM: $line"
                     $verifiedDiskCount += 1
                 }
