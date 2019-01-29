@@ -120,6 +120,11 @@ function Main()
         Write-LogInfo "  Second Internal IP : $serverSecondInternalIP"
         Write-LogInfo "  SSH Port : $serverSSHPort"
 
+        $linuxRelease = Detect-LinuxDistro -VIP $serverPublicIP -SSHPort $serverSSHPort -testVMuser $username -testVMPassword $password
+        if ($linuxRelease -ne "UBUNTU" -or $linuxRelease -ne "DEBIAN") {
+            Write-LogErr "Test is only supported on Debian based distributions ..."
+            return "FAIL"
+        }
         Write-LogInfo "Install nginx on server vm: $serverPublicIP"
         $cmd = ". utils.sh && update_repos && install_package nginx"
         Run-LinuxCmd -ip $serverPublicIP -port $serverSSHPort -username $username -password $password -command $cmd -runAsSudo
