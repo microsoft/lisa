@@ -45,9 +45,6 @@
 	<ARMImageName></ARMImageName>
 	<StorageAccount></StorageAccount>
 
-	<!-- [Required] for HyperV -->
-	<SourceOsVHDPath></SourceOsVHDPath>
-
 	<!-- [Required] for Two Hosts HyperV -->
 	<DestinationOsVHDPath></DestinationOsVHDPath>
 

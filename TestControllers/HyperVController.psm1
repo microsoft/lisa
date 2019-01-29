@@ -29,7 +29,6 @@ using Module "..\TestProviders\HyperVProvider.psm1"
 
 Class HyperVController : TestController
 {
-	[string] $SourceOsVhdPath
 	[string] $DestinationOsVhdPath
 
 	HyperVController() {
@@ -38,7 +37,6 @@ Class HyperVController : TestController
 	}
 
 	[void] ParseAndValidateParameters([Hashtable]$ParamTable) {
-		$this.SourceOsVhdPath = $ParamTable["SourceOsVhdPath"]
 		$this.DestinationOsVhdPath = $ParamTable["DestinationOsVhdPath"]
 		$vmGeneration = [string]($ParamTable["VMGeneration"])
 		$this.TestProvider.VMGeneration = $vmGeneration
@@ -86,12 +84,6 @@ Class HyperVController : TestController
 		}
 		$this.VmUsername = $hyperVConfig.TestCredentials.LinuxUsername
 		$this.VmPassword = $hyperVConfig.TestCredentials.LinuxPassword
-		if ( $this.SourceOsVHDPath )
-		{
-			for( $index=0 ; $index -lt $hyperVConfig.Hosts.ChildNodes.Count ; $index++ ) {
-				$hyperVConfig.Hosts.ChildNodes[$index].SourceOsVHDPath = $this.SourceOsVHDPath
-			}
-		}
 		if ( $this.DestinationOsVHDPath )
 		{
 			for( $index=0 ; $index -lt $hyperVConfig.Hosts.ChildNodes.Count ; $index++ ) {
@@ -144,7 +136,6 @@ Class HyperVController : TestController
 		$serverCount = $this.TestLocation.split(',').Count
 		for( $index=0 ; $index -lt $serverCount ; $index++ ) {
 			Write-LogInfo "HyperV Host            : $($hyperVConfig.Hosts.ChildNodes[$($index)].ServerName)"
-			Write-LogInfo "Source VHD Path        : $($hyperVConfig.Hosts.ChildNodes[$($index)].SourceOsVHDPath)"
 			Write-LogInfo "Destination VHD Path   : $($hyperVConfig.Hosts.ChildNodes[$($index)].DestinationOsVHDPath)"
 		}
 		Write-LogInfo "------------------------------------------------------------------"

@@ -44,7 +44,6 @@ Function Create-AllHyperVGroupDeployments($SetupTypeData, $GlobalConfig, $TestLo
             $HyperVHostArray += $GlobalConfig.Global.HyperV.Hosts.ChildNodes[$index].ServerName
         }
 
-        $SourceOsVHDPath = $GlobalConfig.Global.HyperV.Hosts.ChildNodes[$index].SourceOsVHDPath
         if ($SetupTypeData.ClusteredVM) {
             $ClusterVolume = Get-ClusterSharedVolume
             $DestinationOsVHDPath = $ClusterVolume.SharedVolumeInfo.FriendlyVolumeName
@@ -99,7 +98,7 @@ Function Create-AllHyperVGroupDeployments($SetupTypeData, $GlobalConfig, $TestLo
                         $ExpectedVMs = 0
                         $HyperVGroupXML.VirtualMachine | ForEach-Object {$ExpectedVMs += 1}
                         $VMCreationStatus = Create-HyperVGroupDeployment -HyperVGroupName $HyperVGroupName -HyperVGroupXML $HyperVGroupXML `
-                            -HyperVHost $HyperVHostArray -SourceOsVHDPath $SourceOsVHDPath -DestinationOsVHDPath $DestinationOsVHDPath `
+                            -HyperVHost $HyperVHostArray -DestinationOsVHDPath $DestinationOsVHDPath `
                             -VMGeneration $VMGeneration -GlobalConfig $GlobalConfig -SetupTypeData $SetupTypeData -CurrentTestData $TestCaseData
 
                         $DeploymentEndTime = (Get-Date)
@@ -297,7 +296,7 @@ Function Create-HyperVGroup([string]$HyperVGroupName, [string]$HyperVHost)
     return $retValue
 }
 
-Function Create-HyperVGroupDeployment([string]$HyperVGroupName, $HyperVGroupXML, $HyperVHost, $SourceOsVHDPath, $DestinationOsVHDPath, $VMGeneration,
+Function Create-HyperVGroupDeployment([string]$HyperVGroupName, $HyperVGroupXML, $HyperVHost, $DestinationOsVHDPath, $VMGeneration,
     $GlobalConfig, $SetupTypeData, $CurrentTestData)
 {
     $HyperVMappedSizes = [xml](Get-Content .\XML\AzureVMSizeToHyperVMapping.xml)
@@ -313,7 +312,6 @@ Function Create-HyperVGroupDeployment([string]$HyperVGroupName, $HyperVGroupXML,
             if ($VirtualMachine.DeployOnDifferentHyperVHost -and ($TestLocation -match ",")) {
                 $hostNumber = $HyperVGroupXML.VirtualMachine.indexOf($VirtualMachine)
                 $HyperVHost = $GlobalConfig.Global.HyperV.Hosts.ChildNodes[$hostNumber].ServerName
-                $SourceOsVHDPath = $GlobalConfig.Global.HyperV.Hosts.ChildNodes[$hostNumber].SourceOsVHDPath
                 if ($SetupTypeData.ClusteredVM) {
                     $ClusterVolume = Get-ClusterSharedVolume
                     $DestinationOsVHDPath = $ClusterVolume.SharedVolumeInfo.FriendlyVolumeName
@@ -337,9 +335,6 @@ Function Create-HyperVGroupDeployment([string]$HyperVGroupName, $HyperVGroupXML,
             }
 
             $parentOsVHDPath = $OsVHD
-            if ($SourceOsVHDPath) {
-                $parentOsVHDPath = Join-Path $SourceOsVHDPath $OsVHD
-            }
             $uriParentOsVHDPath = [System.Uri]$parentOsVHDPath
             if ($uriParentOsVHDPath -and $uriParentOsVHDPath.isUnc) {
                 Write-LogInfo "Parent VHD path ${parentOsVHDPath} is on an SMB share."
