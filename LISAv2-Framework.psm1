@@ -11,9 +11,6 @@ Get-ChildItem (Join-Path $here "Libraries") -Recurse | Where-Object { $_.FullNam
 function Start-LISAv2 {
 	[CmdletBinding()]
 	Param(
-		# Do not use. Reserved for Jenkins use.
-		$BuildNumber=$env:BUILD_NUMBER,
-
 		[string] $ParametersFile = "",
 
 		# [Required]
