@@ -492,7 +492,11 @@ Function Provision-VMsForLisa($allVMData, $installPackagesOnRoleNames)
 				$jobID = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username "root" -password $password -command "/root/$scriptName" -RunInBackground
 				$packageInstallObj = New-Object PSObject
 				Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name ID -Value $jobID
-				Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name RoleName -Value $vmData.RoleName
+				if($vmData.RoleName.Contains($vmData.ResourceGroupName)) {
+					Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name RoleName -Value $vmData.RoleName
+				} else {
+					Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name RoleName -Value $($($vmData.ResourceGroupName) + "-" + $($vmData.RoleName))
+				}
 				Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name PublicIP -Value $vmData.PublicIP
 				Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name SSHPort -Value $vmData.SSHPort
 				$packageInstallJobs += $packageInstallObj
@@ -509,7 +513,11 @@ Function Provision-VMsForLisa($allVMData, $installPackagesOnRoleNames)
 			$jobID = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username "root" -password $password -command "/root/$scriptName" -RunInBackground
 			$packageInstallObj = New-Object PSObject
 			Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name ID -Value $jobID
-			Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name RoleName -Value $vmData.RoleName
+			if($vmData.RoleName.Contains($vmData.ResourceGroupName)) {
+				Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name RoleName -Value $vmData.RoleName
+			} else {
+				Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name RoleName -Value $($($vmData.ResourceGroupName) + "-" + $($vmData.RoleName))
+			}
 			Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name PublicIP -Value $vmData.PublicIP
 			Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name SSHPort -Value $vmData.SSHPort
 			$packageInstallJobs += $packageInstallObj
@@ -590,7 +598,11 @@ function Install-CustomKernel ($CustomKernel, $allVMData, [switch]$RestartAfterU
 					-RunInBackground -runAsSudo
 				$packageInstallObj = New-Object PSObject
 				Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name ID -Value $jobID
-				Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name RoleName -Value $vmData.RoleName
+				if($vmData.RoleName.Contains($vmData.ResourceGroupName)) {
+					Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name RoleName -Value $vmData.RoleName
+				} else {
+					Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name RoleName -Value $($($vmData.ResourceGroupName) + "-" + $($vmData.RoleName))
+				}
 				Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name PublicIP -Value $vmData.PublicIP
 				Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name SSHPort -Value $vmData.SSHPort
 				$packageInstallJobs += $packageInstallObj
@@ -715,7 +727,11 @@ function Install-CustomLIS ($CustomLIS, $customLISBranch, $allVMData, [switch]$R
 				$jobID = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username "root" -password $password -command "/root/$scriptName -CustomLIS $CustomLIS -LISbranch $customLISBranch" -RunInBackground -runAsSudo
 				$packageInstallObj = New-Object PSObject
 				Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name ID -Value $jobID
-				Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name RoleName -Value $vmData.RoleName
+				if($vmData.RoleName.Contains($vmData.ResourceGroupName)) {
+					Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name RoleName -Value $vmData.RoleName
+				} else {
+					Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name RoleName -Value $($($vmData.ResourceGroupName) + "-" + $($vmData.RoleName))
+				}
 				Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name PublicIP -Value $vmData.PublicIP
 				Add-member -InputObject $packageInstallObj -MemberType NoteProperty -Name SSHPort -Value $vmData.SSHPort
 				$packageInstallJobs += $packageInstallObj
@@ -1327,7 +1343,7 @@ Function Test-SRIOVInLinuxGuest {
 	while ($retValue -eq $false -and $Attempts -le $MaximumAttempts) {
 		Write-LogInfo "[Attempt $Attempts/$MaximumAttempts] Detecting Mellanox NICs..."
 		$DetectedSRIOVNics = Run-LinuxCmd -username $username -password $password -ip $IpAddress -port $SSHPort -command $VerificationCommand -runAsSudo
-		$DetectedSRIOVNics = [int]$DetectedSRIOVNics
+		$DetectedSRIOVNics = [int]$DetectedSRIOVNics[-1].ToString()
 		if ($ExpectedSriovNics -ge 0) {
 			if ($DetectedSRIOVNics -eq $ExpectedSriovNics) {
 				$retValue = $true
