@@ -106,13 +106,11 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
             <Host>
                 <!--ServerName can be localhost or Hyper-V host name-->
                 <ServerName>localhost</ServerName>
-                <SourceOsVHDPath></SourceOsVHDPath>
                 <DestinationOsVHDPath>VHDs_Destination_Path</DestinationOsVHDPath>
             </Host>
             <Host>
                 <!--If run test against 2 hosts, set ServerName as another host computer name-->
                 <ServerName>lis-01</ServerName>
-                <SourceOsVHDPath></SourceOsVHDPath>
                 <!--If run test against 2 hosts, DestinationOsVHDPath is mandatory-->
                 <DestinationOsVHDPath>D:\vhd</DestinationOsVHDPath>
             </Host>
