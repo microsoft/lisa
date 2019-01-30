@@ -318,10 +318,7 @@ Function Wrap-CommandsToFile([string] $username,[string] $password,[string] $ip,
 
 Function Run-LinuxCmd([string] $username,[string] $password,[string] $ip,[string] $command, [int] $port, [switch]$runAsSudo, [Boolean]$WriteHostOnly, [Boolean]$NoLogsPlease, [switch]$ignoreLinuxExitCode, [int]$runMaxAllowedTime = 300, [switch]$RunInBackGround, [int]$maxRetryCount = 20)
 {
-	if ($detectedDistro -ne "COREOS" )
-	{
-		Wrap-CommandsToFile $username $password $ip $command $port
-	}
+	Wrap-CommandsToFile $username $password $ip $command $port
 	$randomFileName = [System.IO.Path]::GetRandomFileName()
 	if ( $maxRetryCount -eq 0)
 	{
@@ -335,7 +332,7 @@ Function Run-LinuxCmd([string] $username,[string] $password,[string] $ip,[string
 		$plainTextPassword = $password.Replace('"','');
 		if ( $detectedDistro -eq "COREOS" )
 		{
-			$linuxCommand = "`"export PATH=/usr/share/oem/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/oem/bin:/opt/bin && echo $plainTextPassword | sudo -S env `"PATH=`$PATH`" $command && echo AZURE-LINUX-EXIT-CODE-`$? || echo AZURE-LINUX-EXIT-CODE-`$?`""
+			$linuxCommand = "`"export PATH=/usr/share/oem/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/oem/bin:/opt/bin && echo $plainTextPassword | sudo -S env `"PATH=`$PATH`" bash -c `'bash runtest.sh ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
 			$logCommand = "`"export PATH=/usr/share/oem/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/oem/bin:/opt/bin && echo $plainTextPassword | sudo -S env `"PATH=`$PATH`" $command`""
 		}
 		else
@@ -348,7 +345,7 @@ Function Run-LinuxCmd([string] $username,[string] $password,[string] $ip,[string
 	{
 		if ( $detectedDistro -eq "COREOS" )
 		{
-			$linuxCommand = "`"export PATH=/usr/share/oem/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/oem/bin:/opt/bin && $command && echo AZURE-LINUX-EXIT-CODE-`$? || echo AZURE-LINUX-EXIT-CODE-`$?`""
+			$linuxCommand = "`"export PATH=/usr/share/oem/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/oem/bin:/opt/bin && bash -c `'bash runtest.sh ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
 			$logCommand = "`"export PATH=/usr/share/oem/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/oem/bin:/opt/bin && $command`""
 		}
 		else
@@ -561,7 +558,7 @@ Function Run-LinuxCmd([string] $username,[string] $password,[string] $ip,[string
 			$jobOut = Receive-Job $runLinuxCmdJob 2> $LogDir\$randomFileName
 			if($jobOut)
 			{
-				$jobOut = $jobOut.Replace("[sudo] password for $username`: ","")
+				$jobOut = $jobOut.Replace("[sudo] password for $username`: ","").Replace("Password: ","")
 				foreach ($outLine in $jobOut)
 				{
 					if($outLine -imatch "AZURE-LINUX-EXIT-CODE-")

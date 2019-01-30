@@ -5,16 +5,6 @@ param([object] $AllVmData,
 
 $SUPER_USER = "root"
 
-# Supported Distro and kernel version for DPDK on Azure
-# https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk
-$SUPPORTED_DISTRO_KERNEL = @{
-	"UBUNTU" = "4.15.0-1015-azure";
-	"SLES" = "4.12.14-5.5-azure";
-	"SUSE" = "4.12.14-5.5-azure";
-	"REDHAT" = "3.10.0-862.9.1.el7";
-	"CENTOS" = "3.10.0-862.3.3.el7";
-}
-
 function Check-DPDKCompliance {
 	Write-LogInfo "DPDK VM details:"
 	Write-LogInfo "  RoleName : $($allVMData.RoleName)"
@@ -22,23 +12,16 @@ function Check-DPDKCompliance {
 	Write-LogInfo "  SSH Port : $($allVMData.SSHPort)"
 	Write-LogInfo "  Internal IP : $($allVMData.InternalIP)"
 
-	if ($SUPPORTED_DISTRO_KERNEL.Keys.contains($detectedDistro)) {
-		$currentKernelVersion = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort `
+	$detectedDistro = Detect-LinuxDistro -VIP $vmData.PublicIP -SSHport $vmData.SSHPort `
+			-testVMUser $user -testVMPassword $password
+	$currentKernelVersion = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort `
 			-username $user -password $password -command "uname -r"
-
-		if ($currentKernelVersion -ge $UbuntuSupportKernelVersion) {
-			Write-LogInfo "Confirmed Kernel version supported for DPDK: $currentKernelVersion"
-		} else {
-			$msg = "Unsupported Kernel version for DPDK: $currentKernelVersion"
-			Write-LogErr $msg
-			throw $msg
-		}
+	if (IsGreaterKernelVersion -actualKernelVersion $currentKernelVersion -detectedDistro $detectedDistro) {
+			Write-LogInfo "Confirmed Kernel version supported: $currentKernelVersion"
 	} else {
-		$msg = "Unsupported distro for DPDK: $detectedDistro"
-		Write-LogErr $msg
-		throw $msg
+		Write-LogErr "Unsupported Kernel version: $currentKernelVersion"
+		throw "Unsupported Kernel version: $currentKernelVersion"
 	}
-
 	Provision-VMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
 
 	Write-LogInfo "Generating constants.sh ..."

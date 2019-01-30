@@ -799,7 +799,7 @@ function Verify-MellanoxAdapter($vmData)
 	{
 		Write-LogInfo "Install package pciutils to use lspci command."
 		Copy-RemoteFiles -uploadTo $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -file ".\Testscripts\Linux\utils.sh" -upload
-		Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -command ". ./utils.sh && install_package pciutils" -runAsSudo
+		Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -command "which lspci || (. ./utils.sh && install_package pciutils)" -runAsSudo
 		$pciDevices = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -command "lspci" -runAsSudo
 		if ( $pciDevices -imatch "Mellanox")
 		{
@@ -1937,4 +1937,61 @@ function Enable-RootUser {
     }
 
     return $deploymentResult
+}
+
+function IsGreaterKernelVersion() {
+    param (
+        [string] $actualKernelVersion,
+        [string] $detectedDistro
+    )
+
+    # Supported Distro and kernel version for DPDK on Azure
+    # https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk
+    $SUPPORTED_DISTRO_KERNEL = @{
+        "UBUNTU" = "4.15.0-1015-azure";
+        "SLES" = "4.12.14-5.5-azure";
+        "SLES 15" = "4.12.14-5.5-azure";
+        "SUSE" = "4.12.14-5.5-azure";
+        "REDHAT" = "3.10.0-862.9.1.el7";
+        "CENTOS" = "3.10.0-862.3.3.el7";
+    }
+
+    if($SUPPORTED_DISTRO_KERNEL.Keys -contains $detectedDistro) {
+        $supportKernelVersions = $SUPPORTED_DISTRO_KERNEL[$detectedDistro] -split "[\.\-]+"
+        $actualKernelVersions = $actualKernelVersion -split "[\.\-]+"
+        for($i=0; $i -lt $supportKernelVersions.Length;$i++) {
+            try {
+                    $supportKernelVersions[$i] = [int]$supportKernelVersions[$i]
+                } catch {
+                    $supportKernelVersions[$i] = 0
+                    continue
+                }
+        }
+        for($i=0; $i -lt $actualKernelVersions.Length;$i++) {
+            try {
+                    $actualKernelVersions[$i] = [int]$actualKernelVersions[$i]
+                } catch {
+                    $actualKernelVersions[$i] = 0
+                    continue
+                }
+        }
+
+        $array_count = $actualKernelVersions.Length
+        if($supportKernelVersions.Length -gt $actualKernelVersions.Length) {
+            $array_count = $supportKernelVersions.Length
+        }
+
+        for($i=0; $i -lt $array_count;$i++) {
+            if ([int]$actualKernelVersions[$i] -eq [int]$supportKernelVersions[$i]) {
+                continue
+            } elseif ([int]$actualKernelVersions[$i] -lt [int]$supportKernelVersions[$i]) {
+                return $false
+            }
+        }
+        return $true
+    }
+    else {
+            Write-LogErr "Unsupported Distro: $detectedDistro"
+            throw "Unsupported Distro: $detectedDistro"
+    }
 }

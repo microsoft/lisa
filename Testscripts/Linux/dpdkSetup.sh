@@ -42,6 +42,7 @@ function install_dpdk () {
 			ssh "${1}" ". ${UTIL_FILE} && install_epel"
 			ssh "${1}" "yum -y groupinstall 'Infiniband Support' && dracut --add-drivers 'mlx4_en mlx4_ib mlx5_ib' -f && systemctl enable rdma"
 			check_exit_status "Install Infiniband Support on ${1}"
+			ssh "${1}" "grep 7.5 /etc/redhat-release && curl https://partnerpipelineshare.blob.core.windows.net/kernel-devel-rpms/CentOS-Vault.repo > /etc/yum.repos.d/CentOS-Vault.repo"
 			packages+=(kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel) 
 			;;
 		ubuntu|debian)
@@ -59,6 +60,7 @@ function install_dpdk () {
 			local kernel=$(uname -r)
 			if [[ "${kernel}" == *azure ]];
 			then
+				ssh "${1}" "zypper install --oldpackage -y kernel-azure-devel=${kernel::-6}"
 				packages+=(kernel-devel-azure)
 			else
 				packages+=(kernel-default-devel)

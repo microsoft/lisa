@@ -115,64 +115,15 @@ function Main {
 				$modes = ($param.Replace("modes=",""))
 			}
 		}
-		# Validate if supported Distro and kernel version
-		# https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk
-		$supportedDistro = "UBUNTU", "SLES", "SUSE", "REDHAT", "CENTOS"
-		$UbuntuSupportKernelVersion = "4.15.0-1015-azure"
-		$SLESSupportKernelVersion = "4.12.14-5.5-azure"
-		$RHELSuppportKernelVersion = "3.10.0-862.9.1.el7"
-		$CentOSSupportKernelVersion = "3.10.0-862.3.3.el7"
-
 		$detectedDistro = Detect-LinuxDistro -VIP $vmData.PublicIP -SSHport $vmData.SSHPort `
 				-testVMUser $user -testVMPassword $password
-
-		if ( $supportedDistro.Contains($detectedDistro)) {
-			Write-LogInfo "Confirmed Distro support: $detectedDistro"
-
-			$currentKernelVersion = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort `
+		$currentKernelVersion = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort `
 				-username $user -password $password -command "uname -r"
-
-			switch ( $detectedDistro ) {
-				"UBUNTU" {
-					if ($currentKernelVersion -ge $UbuntuSupportKernelVersion) {
-						Write-LogInfo "Confirmed Kernel version supported: $currentKernelVersion"
-					} else {
-						Write-LogErr "Unsupported Kernel version: $currentKernelVersion"
-						throw "Unsupported Kernel version: $currentKernelVersion"
-					}
-				}
-
-				{($_ -eq "SLES") -or ($_ -eq "SUSE")} {
-					if ($currentKernelVersion -ge $SLESSupportKernelVersion) {
-						Write-LogInfo "Confirmed Kernel version supported: $currentKernelVersion"
-					} else {
-						Write-LogErr "Unsupported Kernel version: $currentKernelVersion"
-						throw "Unsupported Kernel version: $currentKernelVersion"
-					}
-				}
-
-				"REDHAT" {
-					if ($currentKernelVersion -ge $RHELSuppportKernelVersion) {
-						Write-LogInfo "Confirmed Kernel version supported: $currentKernelVersion"
-					} else {
-						Write-LogErr "Unsupported Kernel version: $currentKernelVersion"
-						throw "Unsupported Kernel version: $currentKernelVersion"
-					}
-				}
-
-				"CENTOS" {
-					if ($currentKernelVersion -ge $CentOSSupportKernelVersion) {
-						Write-LogInfo "Confirmed Kernel version supported: $currentKernelVersion"
-					} else {
-						Write-LogErr "Unsupported Kernel version: $currentKernelVersion"
-						throw "Unsupported Kernel version: $currentKernelVersion"
-					}
-				}
-			}
-
+		if (IsGreaterKernelVersion -actualKernelVersion $currentKernelVersion -detectedDistro $detectedDistro) {
+				Write-LogInfo "Confirmed Kernel version supported: $currentKernelVersion"
 		} else {
-			Write-LogErr "Unsupported Distro: $detectedDistro"
-			throw "Unsupported Distro: $detectedDistro"
+			Write-LogErr "Unsupported Kernel version: $currentKernelVersion"
+			throw "Unsupported Kernel version: $currentKernelVersion"
 		}
 
 		Write-LogInfo "constanst.sh created successfully..."
