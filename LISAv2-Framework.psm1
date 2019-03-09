@@ -1,10 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 
-using Module "TestControllers\AzureController.psm1"
-using Module "TestControllers\HyperVController.psm1"
-using Module "TestControllers\WSLController.psm1"
-
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 Get-ChildItem (Join-Path $here "Libraries") -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | `
 	ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
@@ -17,7 +13,7 @@ function Start-LISAv2 {
 	Param(
 		[string] $ParametersFile = "",
 
-		# [Required]		
+		# [Required]
 		[string] $TestPlatform = "",
 
 		# [Required] for Azure.
@@ -137,12 +133,13 @@ function Start-LISAv2 {
 			}
 
 			# Validate test platform, and select test controller of the platform
-			$supportedPlatforms = @("Azure", "HyperV", "WSL")
 			if ($paramTable.ContainsKey("TestPlatform")) {
 				$testPlatform = $paramTable["TestPlatform"]
 			}
 			if ($testPlatform) {
-				if ($supportedPlatforms.contains($testPlatform)) {
+				$moduleName = "TestControllers\$($testPlatform)Controller.psm1"
+				if ([System.IO.File]::Exists("$pwd\$moduleName")) {
+					. $([ScriptBlock]::Create("using module $moduleName"))
 					$testController = New-Object -TypeName $testPlatform"Controller"
 				} else {
 					throw "$testPlatform is not yet supported."
