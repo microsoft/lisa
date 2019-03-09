@@ -1,0 +1,21 @@
+Configure DNS server with newly deployed Virtual Machine details.
+	1.	Get the DIPs of all deployed VM's.
+	2.	Login to one of the deployed VM and from there, SSH into DNS SERVER.
+	3.	edit file : /etc/bind/zones/lisvnetlab.com.db
+		a.	Add (Append) each VM's DIP and HOSTNAME details here in following format.
+			VM1_hostname    IN      A       VM1_DIP
+			VM2_hostname    IN      A       VM2_DIP
+			VM3_hostname    IN      A       VM3_DIP
+			VM4_hostname    IN      A       VM4_DIP
+		b.	Save the file.
+	4.	edit file : /etc/bind/zones/rev.4.168.192.in-addr.arpa
+		a.	Add (Append) each VM's last part of DIP and HOSTNAME details here in following format.
+			If your DIP is aaa.bbb.ccc.ddd then, append lines as below :
+			ddd     IN      PTR     VM1_hostname.lisvnetlab.com.
+		*	Examples:
+			220     IN      PTR     ICA-VNETVMPR-Ubuntu1204-11-28-0-10-23-role-0.lisvnetlab.com.
+			156     IN      PTR     ICA-VNETVMPR-Ubuntu1204-11-28-0-10-23-role-1.lisvnetlab.com.
+			157     IN      PTR     ICA-VNETVMPR-Ubuntu1204-11-28-0-12-16-role-0.lisvnetlab.com.
+			221     IN      PTR     ICA-VNETVMPR-Ubuntu1204-11-28-0-12-16-role-1.lisvnetlab.com.
+	5.	Verify that you can ping DNS server from all VM's in VNET and vice versa. 
+	6.	If Point No.5 is verified successfully, then proceed for the tests otherwise ABORT the test.

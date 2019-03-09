@@ -1,0 +1,224 @@
+Deployment Configurations mentioned here, are already part of XML file. When you start automation cycle, appropriate deployment will done for each test case.
+
+Deployments:
+-----------
+
+	1.	Public Endpoint
+		---------------
+		Description : 
+		This deployment consist a hosted service and a VM inside it.
+		No. of hosted services : 1 [Alias : HS1]
+		No. of VMs inside each hosted service : 1 [Alias : HS1VM1]
+		Ports Open for HS1VM1:
+		1.	SSH 
+			Protocol - TCP
+			Local Port - 22
+			Public Port - 22
+			Load Balanced - No
+
+	2.	Input Endpoint
+		---------------
+		Description : 
+		This deployment consist a hosted service and a VM inside it.
+		One TCP port and One UDP port will be open for public access.
+		No. of hosted services : 1 [Alias : HS1]
+		No. of VMs inside each hosted service : 1 [Alias : HS1VM1]
+		Ports Open for HS1VM1:
+		1.	SSH 
+			Protocol - TCP
+			Local Port - 22
+			Public Port - 22
+			Load Balanced - No
+		2.	TCP test 
+			Protocol - TCP
+			Local Port - 750
+			Public Port - 750
+			Load Balanced - No
+		3.	UDP test
+			Protocol - UDP
+			Local Port - 990
+			Public Port - 990
+			Load Balanced - No
+
+	3.	Internel Endpoint Single Hosted Service
+		---------------------------------------
+		Description : 
+		This deployment consist a hosted service and two VMs inside it.
+		No. of hosted services : 1 [Alias : HS1]
+		No. of VMs inside each hosted service : 2 [Alias : HS1VM1, HS1VM2]
+		Ports Open for HS1VM1:
+		1.	SSH 
+			Protocol - TCP
+			Local Port - 22
+			Public Port - 22
+			Load Balanced - No
+		Ports Open for HS1VM2:
+		1.	SSH 
+			Protocol - TCP
+			Local Port - 22
+			Public Port - 222
+			Load Balanced - No
+
+	4.	Internel Endpoint Two Hosted Services
+		-------------------------------------
+		Description : 
+		This deployment consist two hosted services and two VMs inside each service.
+		No. of hosted services : 2 [Alias : HS1, HS2]
+		No. of VMs inside first hosted service : 2 [Alias : HS1VM1, HS1VM2]
+		No. of VMs inside second hosted service : 2 [Alias : HS2VM1, HS2VM2]
+		Ports Open for HS1VM1:
+		1.	SSH 
+			Protocol - TCP
+			Local Port - 22
+			Public Port - 22
+			Load Balanced - No
+		Ports Open for HS1VM2:
+		1.	SSH 
+			Protocol - TCP
+			Local Port - 22
+			Public Port - 222
+			Load Balanced - No
+		Ports Open for HS2VM1:
+		1.	SSH 
+			Protocol - TCP
+			Local Port - 22
+			Public Port - 22
+			Load Balanced - No
+		Ports Open for HS2VM2:
+		1.	SSH 
+			Protocol - TCP
+			Local Port - 22
+			Public Port - 222
+			Load Balanced - No
+
+	5.	Load Balanced - No Probe
+		------------------------
+		Description : 
+		This deployment consist a hosted service and two VM inside it.
+		One load balanced TCP port and One load balanced UDP port will be open publicly.
+		No. of hosted services : 1 [Alias : HS1]
+		No. of VMs inside each hosted service : 2 [Alias : HS1VM1, HS1VM2]
+		Ports Open for HS1VM1:
+		1.	SSH 
+			Protocol - TCP
+			Local Port - 22
+			Public Port - 22
+			Load Balanced - No
+		2.	TCP test 
+			Protocol - TCP
+			Local Port - 750
+			Public Port - 750
+			Load Balanced - Yes
+		3.	UDP test
+			Protocol - UDP
+			Local Port - 990
+			Public Port - 990
+			Load Balanced - Yes
+		Ports Open for HS1VM2:
+		1.	SSH 
+			Protocol - TCP
+			Local Port - 22
+			Public Port - 222
+			Load Balanced - No
+		2.	TCP test 
+			Protocol - TCP
+			Local Port - 750
+			Public Port - 750
+			Load Balanced - Yes
+		3.	UDP test
+			Protocol - UDP
+			Local Port - 990
+			Public Port - 990
+			Load Balanced - Yes
+
+	6.	Load Balanced - Probe Port on same port
+		---------------------------------------
+		Description : 
+		This deployment consist a hosted service and two VM inside it.
+		One load balanced TCP port and One load balanced UDP port will be open publicly.
+		Probe port will same as TCP test port.
+			Note : You do not need to add probe port exclusively as a extra port.
+				When you declare a port as Load Balanced, that time Azure will ask you to enable Probe Port or not.
+				If you choose to enable, then you need to mention a tcp port on which, probe messages will be redirected.
+		No. of hosted services : 1 [Alias : HS1]
+		No. of VMs inside each hosted service : 2 [Alias : HS1VM1, HS1VM2]
+		Ports Open for HS1VM1:
+		1.	SSH 
+			Protocol - TCP
+			Local Port - 22
+			Public Port - 22
+			Load Balanced - No
+		2.	TCP test 
+			Protocol - TCP
+			Local Port - 750
+			Public Port - 750
+			Load Balanced - Yes
+		3.	UDP test
+			Protocol - UDP
+			Local Port - 990
+			Public Port - 990
+			Load Balanced - Yes
+		4.	Probe Port : 750
+		Ports Open for HS1VM2:
+		1.	SSH 
+			Protocol - TCP
+			Local Port - 22
+			Public Port - 222
+			Load Balanced - No
+		2.	TCP test 
+			Protocol - TCP
+			Local Port - 750
+			Public Port - 750
+			Load Balanced - Yes
+		3.	UDP test
+			Protocol - UDP
+			Local Port - 990
+			Public Port - 990
+			Load Balanced - Yes
+		4.	Probe Port : 750
+
+	7.	Load Balanced - Probe Port on other port
+		---------------------------------------
+		Description : 
+		This deployment consist a hosted service and two VM inside it.
+		One load balanced TCP port and One load balanced UDP port will be open publicly.
+		Probe port will different than TCP test port.
+			Note : You do not need to add probe port exclusively as a extra port.
+				When you declare a port as Load Balanced, that time Azure will ask you to enable Probe Port or not.
+				If you choose to enable, then you need to mention a tcp port on which, probe messages will be redirected.
+		No. of hosted services : 1 [Alias : HS1]
+		No. of VMs inside each hosted service : 2 [Alias : HS1VM1, HS1VM2]
+		Ports Open for HS1VM1:
+		1.	SSH 
+			Protocol - TCP
+			Local Port - 22
+			Public Port - 22
+			Load Balanced - No
+		2.	TCP test 
+			Protocol - TCP
+			Local Port - 750
+			Public Port - 750
+			Load Balanced - Yes
+		3.	UDP test
+			Protocol - UDP
+			Local Port - 990
+			Public Port - 990
+			Load Balanced - Yes
+		4.	Probe Port : 500
+		Ports Open for HS1VM2:
+		1.	SSH 
+			Protocol - TCP
+			Local Port - 22
+			Public Port - 222
+			Load Balanced - No
+		2.	TCP test 
+			Protocol - TCP
+			Local Port - 750
+			Public Port - 750
+			Load Balanced - Yes
+		3.	UDP test
+			Protocol - UDP
+			Local Port - 990
+			Public Port - 990
+			Load Balanced - Yes
+		4.	Probe Port : 500

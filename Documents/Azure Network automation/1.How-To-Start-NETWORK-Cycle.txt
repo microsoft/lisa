@@ -1,0 +1,51 @@
+Login on your Automation Server/LISINTER785.
+
+Make sure that you have test environment ready to run Azure Automation.
+	If not, go through "SETUP-TEST-ENVIRONMENT.txt" and do as needed.
+
+Edit XML file :
+	Create (if not exists) a BVT cycle in XML file.
+		Path : XmlFile > config > testCycles
+		Syntax of test test cycle :
+			<testCycles>
+				<Cycle>
+					<cycleName>NETWORK</cycleName>
+					<test>
+						<Name>test-name-1/Name>
+					</test>
+					<test>
+						<Name>test-name-2</Name>
+					</test>
+					.
+					.
+					.
+					<test>
+						<Name>test-name-n</Name>
+					</test>				
+				</Cycle>
+				<Cycle>
+				.
+				.
+				</Cycle>
+				.
+				.
+			</testCycles>
+		Save file.
+	Add your VHD details in XML file.
+		1. Goto Config > Azure > Deployment > Data.
+		2. Make sure that your "VHD under test" should be present here in one of <Distro>..</Distro> entries.
+			If your VHD is not listed here. Create a new Distro element and add your VHD details.
+			Example.
+			<Distro>
+				<Name>Distro_Name</Name>
+				<OsImage>Distro_OS_Image_Name_As_Appearing_under_Azure_OS_Images</OsImage>
+			</Distro>
+		3.Save file.
+		
+Start Automation:
+	1.	On powershell in Administrator mode, go to automation parent folder.
+	2.	Execute following command
+	
+	.\AzureAutomationManager.ps1 -xmlConfigFile .\Azure_ICA_all.xml -cycleName NETWORK -Distro YourDistroName -runtests
+	
+Note : All test logs will be saved in Automation Parent Folder \ Test Results.
