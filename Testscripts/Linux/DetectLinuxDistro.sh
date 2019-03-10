@@ -68,6 +68,9 @@ done
                 elif [[ "$tmp" =~ "SUSE Linux Enterprise Server 15" ]]; then
                     echo "SLES 15"
                     exitVal=0
+                elif [[ "$tmp" =~ "Reference Distro" ]]; then
+                    echo "GeneralDistro"
+                    exitVal=0
                 else
                     echo "Unknown"
                 fi
