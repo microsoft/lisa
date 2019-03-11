@@ -163,7 +163,7 @@ function Download-RemoteFile($downloadFrom, $downloadTo, $port, $file, $username
 				$downloadStatusRandomFile=$args[7];
 				Set-Location $curDir;
 				Set-Content -Value "1" -Path $args[6];
-				Write-Output "yes" | .\Tools\pscp -scp -i .\ssh\$sshKey -q -P $port $username@${downloadFrom}:$testFile $downloadTo;
+				Write-Output "yes" | .\Tools\pscp -i .\ssh\$sshKey -q -P $port $username@${downloadFrom}:$testFile $downloadTo;
 				Set-Content -Value $LASTEXITCODE -Path $downloadStatusRandomFile;
 			} -ArgumentList $curDir,$sshKey,$port,$file,$username,${downloadFrom},$downloadTo,$downloadStatusRandomFile
 		} else {
@@ -177,7 +177,7 @@ function Download-RemoteFile($downloadFrom, $downloadTo, $port, $file, $username
 				$downloadTo=$args[6];
 				$downloadStatusRandomFile=$args[7];
 				Set-Location $curDir;
-				Write-Output "yes" | .\Tools\pscp.exe -scp -2 -unsafe -pw $password -q -P $port $username@${downloadFrom}:$testFile $downloadTo 2> $downloadStatusRandomFile;
+				Write-Output "yes" | .\Tools\pscp.exe -2 -unsafe -pw $password -q -P $port $username@${downloadFrom}:$testFile $downloadTo 2> $downloadStatusRandomFile;
 				Add-Content -Value "DownloadExitCode_$LASTEXITCODE" -Path $downloadStatusRandomFile;
 			} -ArgumentList $curDir,$password,$port,$file,$username,${downloadFrom},$downloadTo,$downloadStatusRandomFile
 		}
