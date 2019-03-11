@@ -91,23 +91,23 @@ Function Install-CustomScript($AzureSecretsFile, $FileUris, $CommandToRun, $Stor
 		$vms = Get-AzureRmVM | Where-Object {$_.StorageProfile.OsDisk.OsType -eq $OSType}
 	}
 	foreach ($vm in $VMs) {
-		$vmStatus = Get-AzureRmVM -ResourceGroupName $vm.ResourceGroupName -Name $vm.Name -Status
-		# Only install the extenstion on VMs running and has waagent installed
-		if ($vmStatus.Statuses[1].Code -imatch "running" -and $vmStatus.VMAgent.VmAgentVersion -notmatch "Unknown") {
-			$extension = Get-AzureRmVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name -Name CustomScript -ErrorAction SilentlyContinue
-			if ($extension -and $extension.PublicSettings -imatch $FileUris -and $extension.PublicSettings -imatch $CommandToRun) {
-				# CustomScript extension is already installed
-				Write-LogInfo "Custom script is already installed on VM $($vm.Name) in $($vm.ResourceGroupName)."
-				continue
-			}
-			try {
+		try {
+			$vmStatus = Get-AzureRmVM -ResourceGroupName $vm.ResourceGroupName -Name $vm.Name -Status
+			# Only install the extenstion on VMs running and has waagent installed
+			if ($vmStatus.Statuses[1].Code -imatch "running" -and $vmStatus.VMAgent.VmAgentVersion -notmatch "Unknown") {
+				$extension = Get-AzureRmVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name -Name CustomScript -ErrorAction SilentlyContinue
+				if ($extension -and $extension.PublicSettings -imatch $FileUris -and $extension.PublicSettings -imatch $CommandToRun) {
+					# CustomScript extension is already installed
+					Write-LogInfo "Custom script is already installed on VM $($vm.Name) in $($vm.ResourceGroupName)."
+					continue
+				}
 				Write-LogInfo "Start to install CustomScript extension on VM $($vm.Name) in resource group $($vm.ResourceGroupName)"
 				Set-AzureRmVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name -Location $vm.Location -Name CustomScript -Publisher "Microsoft.Azure.Extensions" `
 					-Type "CustomScript" -TypeHandlerVersion 2.0 -Settings $settings -ProtectedSettings $protectedSettings
-			} catch {
-				Write-LogErr "Exception occurred in when installing CustomScript extension on VM $($vm.Name)."
-				Write-LogErr $_.Exception
 			}
+		} catch {
+			Write-LogErr "Exception occurred in when installing CustomScript extension on VM $($vm.Name)."
+			Write-LogErr $_.Exception
 		}
 	}
 }
