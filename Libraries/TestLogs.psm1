@@ -120,7 +120,12 @@ function Collect-TestLogs {
 			 -files $filesTocopy
 		$summary = Get-Content (Join-Path $LogDir "summary.log")
 		$testState = Get-Content (Join-Path $LogDir "state.txt")
-		$currentTestResult.TestResult = $resultTranslation[$testState]
+		# If test has timed out state.txt will contain TestRunning
+		if ($testState -eq "TestRunning"){
+			$currentTestResult.TestResult = $global:ResultAborted
+		} else {
+			$currentTestResult.TestResult = $resultTranslation[$testState]
+		}
 	} elseif ($TestType -eq "py") {
 		$filesTocopy = "{0}/state.txt, {0}/Summary.log, {0}/${TestName}_summary.log" `
 			-f @("/home/${Username}")
