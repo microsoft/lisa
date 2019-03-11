@@ -664,16 +664,24 @@ function Apply-HyperVCheckpoint {
         $VMData,
         [string]$CheckpointName
     )
-
     foreach ($VM in $VMData) {
-        Stop-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -TurnOff -Force
-        Restore-VMSnapshot -Name $CheckpointName -VMName $VM.RoleName -ComputerName $VM.HyperVHost -Confirm:$false
-        $msg = ("VM:{0} restored to checkpoint: {1}" `
+        Get-VMSnapshot -Name $CheckpointName -VMName $VM.RoleName -ErrorAction Ignore | out-null
+        if ($?) {
+            Stop-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -TurnOff -Force
+            Restore-VMSnapshot -Name $CheckpointName -VMName $VM.RoleName -ComputerName $VM.HyperVHost -Confirm:$false
+            $msg = ("VM:{0} restored to checkpoint: {1}" `
                  -f ($VM.RoleName,$CheckpointName))
-        Write-LogInfo $msg
-        Start-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost
+            Write-LogInfo $msg
+            Start-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost
+        }
+        else {
+            Write-LogErr "Restoring to Checkpoint $CheckpointName Failed on VM $VM.RoleName due to checkpoint not found"
+            return $false
+        }
     }
+    return $true
 }
+
 
 function Check-IP {
     <#
