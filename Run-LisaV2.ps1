@@ -50,7 +50,7 @@
 Param(
 	[string] $ParametersFile = "",
 
-	# [Required]	
+	# [Required]
 	[string] $TestPlatform = "",
 
 	# [Required] for Azure.
