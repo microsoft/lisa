@@ -60,7 +60,7 @@ function Main() {
 			# install required packages regardless VM types.
 			LogMsg "Starting RHEL/CentOS setup"
 			LogMsg "Installing required packages ..."
-			Install_package "kernel-devel-3.10.0-862.9.1.el7.x86_64 python-devel valgrind-devel redhat-rpm-config rpm-build gcc-gfortran libdb-devel gcc-c++ glibc-devel zlib-devel numactl-devel libmnl-devel binutils-devel iptables-devel libstdc++-devel libselinux-devel gcc elfutils-devel libtool libnl3-devel git java libstdc++.i686 dapl python-setuptools gtk2 atk cairo tcl tk createrepo libibverbs-devel libibmad-devel byacc.x86_64 kernel-devel-3.10.0-862.11.6.el7.x86_64 zip"
+			Install_package "kernel-devel-3.10.0-862.9.1.el7.x86_64 python-devel valgrind-devel redhat-rpm-config rpm-build gcc-gfortran libdb-devel gcc-c++ glibc-devel zlib-devel numactl-devel libmnl-devel binutils-devel iptables-devel libstdc++-devel libselinux-devel gcc elfutils-devel libtool libnl3-devel git java libstdc++.i686 dapl python-setuptools gtk2 atk cairo tcl tk createrepo libibverbs-devel libibmad-devel byacc.x86_64 kernel-devel-3.10.0-862.11.6.el7.x86_64 zip net-tools"
 
 			yum -y groupinstall "InfiniBand Support"
 			Verify_Result
@@ -125,7 +125,7 @@ function Main() {
 			# install required packages
 			LogMsg "This is SUSE"
 			LogMsg "Installing required packages ..."
-			install_package "expect glibc-32bit glibc-devel libgcc_s1 libgcc_s1-32bit make gcc gcc-c++ gcc-fortran rdma-core libibverbs-devel librdmacm1 libibverbs-utils bison flex zip"
+			install_package "expect glibc-32bit glibc-devel libgcc_s1 libgcc_s1-32bit make gcc gcc-c++ gcc-fortran rdma-core libibverbs-devel librdmacm1 libibverbs-utils bison flex zip net-tools-deprecated"
 			# force install package that is known to have broken dependencies
 			zypper --non-interactive in libibmad-devel
 			# Enable mlx5_ib module on boot
@@ -143,7 +143,7 @@ function Main() {
 				exit 0
 			fi
 			LogMsg "Installing required packages ..."
-			install_package "gcc build-essential python-setuptools libibverbs-dev bison flex ibverbs-utils zip"
+			install_package "gcc build-essential python-setuptools libibverbs-dev bison flex ibverbs-utils zip net-tools"
 			;;
 		*)
 			LogErr "MPI type $mpi_type does not support on '$DISTRO' or not implement"
