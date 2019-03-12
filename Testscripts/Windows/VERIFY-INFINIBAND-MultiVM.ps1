@@ -5,6 +5,7 @@ param([object] $AllVmData,
 	[object] $TestProvider)
 
 function Resolve-UninitializedIB {
+	# SUSE, sometimes, needs to re-initializes IB port through rebooting
 	if(@("SUSE").contains($global:detectedDistro)) {
 		$cmd = "lsmod | grep -P '^(?=.*mlx5_ib)(?=.*rdma_cm)(?=.*rdma_ucm)(?=.*ib_ipoib)'"
 		foreach ($VmData in $AllVMData) {
