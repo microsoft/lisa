@@ -5,25 +5,27 @@ param([object] $AllVmData,
 	[object] $TestProvider)
 
 function Resolve-UninitializedIB {
-	$cmd = "lsmod | grep -P '^(?=.*mlx5_ib)(?=.*rdma_cm)(?=.*rdma_ucm)(?=.*ib_ipoib)'"
-	foreach ($VmData in $AllVMData) {
-		$ibvOutput = ""
-		$retries = 0
-		while ($retries -lt 4) {
-			$ibvOutput = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username `
-				$superUser -password $password $cmd -ignoreLinuxExitCode:$true
-			if (-not $ibvOutput) {
-				Write-LogWarn "IB is NOT initialized in $($VMData.RoleName)"
-				$TestProvider.RestartAllDeployments($VmData)
-				Start-Sleep -s 20
-				$retries++
-			} else {
-				Write-LogInfo "IB is initialized in $($VMData.RoleName)"
-				break
+	if(@("SUSE").contains($global:detectedDistro)) {
+		$cmd = "lsmod | grep -P '^(?=.*mlx5_ib)(?=.*rdma_cm)(?=.*rdma_ucm)(?=.*ib_ipoib)'"
+		foreach ($VmData in $AllVMData) {
+			$ibvOutput = ""
+			$retries = 0
+			while ($retries -lt 4) {
+				$ibvOutput = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username `
+					$superUser -password $password $cmd -ignoreLinuxExitCode:$true
+				if (-not $ibvOutput) {
+					Write-LogWarn "IB is NOT initialized in $($VMData.RoleName)"
+					$TestProvider.RestartAllDeployments($VmData)
+					Start-Sleep -s 20
+					$retries++
+				} else {
+					Write-LogInfo "IB is initialized in $($VMData.RoleName)"
+					break
+				}
 			}
-		}
-		if ($retries -eq 4) {
-			Throw "After 3 reboots IB has NOT been initialized on $($VMData.RoleName)"
+			if ($retries -eq 4) {
+				Throw "After 3 reboots IB has NOT been initialized on $($VMData.RoleName)"
+			}
 		}
 	}
 }
@@ -168,6 +170,8 @@ function Main {
 		Write-LogInfo "Rebooting All VMs!"
 		$TestProvider.RestartAllDeployments($AllVMData)
 
+		# In some cases, IB will not be initialized after reboot
+		Resolve-UninitializedIB
 		$TotalSuccessCount = 0
 		$Iteration = 0
 		do {
@@ -391,6 +395,8 @@ function Main {
 			if ($RemainingRebootIterations -gt 0) {
 				if ($testResult -eq "PASS") {
 					$TestProvider.RestartAllDeployments($AllVMData)
+					# In some cases, IB will not be initialized after reboot
+					Resolve-UninitializedIB
 					$RemainingRebootIterations -= 1
 				} else {
 					Write-LogErr "Stopping the test due to failures."
