@@ -416,3 +416,9 @@ function Testpmd_Macfwd_To_Dest() {
 	sed -i "90i ${offload_code}" app/test-pmd/macfwd.c
 	sed -i "101i ${dst_addr_code}" app/test-pmd/macfwd.c
 }
+
+function Get_DPDK_Version() {
+	meson_config_path="${1}/meson.build"
+	dpdk_version=$(grep -m 1 "version:" $meson_config_path | awk '{print $2}' | tr -d "\`'\,")
+	echo $dpdk_version
+}
