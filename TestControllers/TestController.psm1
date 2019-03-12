@@ -461,13 +461,15 @@ Class TestController
 		}
 
 		# Do log collecting and VM clean up
-		if (!$global:IsWindowsImage -and $testParameters["SkipVerifyKernelLogs"] -ne "True") {
+		$isVmAlive = Is-VmAlive -AllVMDataObject $VMData -MaxRetryCount 10
+		# Check if VM is running before collecting logs
+		if (!$global:IsWindowsImage -and $testParameters["SkipVerifyKernelLogs"] -ne "True" -and $isVmAlive -eq "True" ) {
 			GetAndCheck-KernelLogs -allDeployedVMs $VmData -status "Final" -EnableCodeCoverage $this.EnableCodeCoverage | Out-Null
 			Get-SystemBasicLogs -AllVMData $VmData -User $global:user -Password $global:password -CurrentTestData $CurrentTestData `
 				-CurrentTestResult $currentTestResult -enableTelemetry $this.EnableTelemetry
 		}
 
-		$collectDetailLogs = !$this.TestCasePassStatus.contains($currentTestResult.TestResult) -and !$global:IsWindowsImage -and $testParameters["SkipVerifyKernelLogs"] -ne "True"
+		$collectDetailLogs = !$this.TestCasePassStatus.contains($currentTestResult.TestResult) -and !$global:IsWindowsImage -and $testParameters["SkipVerifyKernelLogs"] -ne "True" -and $isVmAlive -eq "True"
 		$doRemoveFiles = $this.TestCasePassStatus.contains($currentTestResult.TestResult) -and !($this.ResourceCleanup -imatch "Keep") -and !$global:IsWindowsImage -and $testParameters["SkipVerifyKernelLogs"] -ne "True"
 		$this.TestProvider.RunTestCaseCleanup($vmData, $CurrentTestData, $currentTestResult, $collectDetailLogs, $doRemoveFiles, `
 			$global:user, $global:password, $SetupTypeData, $testParameters)
