@@ -82,6 +82,16 @@ Function Install-CustomScript($AzureSecretsFile, $FileUris, $CommandToRun, $Stor
 		$protectedSettings = @{"storageAccountName" = $StorageAccountName; "storageAccountKey" = $StorageAccountKey}
 	}
 
+	if ($OSType -eq "Linux") {
+		$extensionName = "CustomScript"
+		$extensionPublisher = "Microsoft.Azure.Extensions"
+		$extensionVersion = "2.0"
+	} else {
+		$extensionName = "CustomScriptExtension"
+		$extensionPublisher = "Microsoft.Compute"
+		$extensionVersion = "1.9"
+	}
+
 	$vms = @()
 	if ($ResourceGroupName -and $VmName) {
 		$vms += Get-AzureRmVM -ResourceGroupName $ResourceGroupName -Name $VmName
@@ -106,15 +116,15 @@ Function Install-CustomScript($AzureSecretsFile, $FileUris, $CommandToRun, $Stor
 				continue
 			}
 			# Only install the extenstion on VMs running and has waagent installed
-			$extension = Get-AzureRmVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name -Name CustomScript -ErrorAction SilentlyContinue
+			$extension = Get-AzureRmVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name -Name $extensionName -ErrorAction SilentlyContinue
 			if ($extension -and $extension.PublicSettings -imatch $FileUris -and $extension.PublicSettings -imatch $CommandToRun) {
 				# CustomScript extension is already installed
 				Write-LogInfo "Custom script is already installed on VM $($vm.Name) in $($vm.ResourceGroupName)."
 				continue
 			}
 			Write-LogInfo "Start to install CustomScript extension on VM $($vm.Name) in resource group $($vm.ResourceGroupName)"
-			$job = Set-AzureRmVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name -Location $vm.Location -Name CustomScript -Publisher "Microsoft.Azure.Extensions" `
-				-Type "CustomScript" -TypeHandlerVersion 2.0 -Settings $settings -ProtectedSettings $protectedSettings -AsJob
+			$job = Set-AzureRmVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name -Location $vm.Location -Name $extensionName -Publisher $extensionPublisher `
+				-Type $extensionName -TypeHandlerVersion $extensionVersion -Settings $settings -ProtectedSettings $protectedSettings -AsJob
 			$jobs += $job
 			$jobIdToVM[$job.Id] = $vm
 		} catch {
@@ -132,11 +142,15 @@ Function Install-CustomScript($AzureSecretsFile, $FileUris, $CommandToRun, $Stor
 		Write-LogInfo "Installation on VM $($jobIdToVM[$job.Id].Name) in resource group $($jobIdToVM[$job.Id].ResourceGroupName): $state"
 	}
 
-	Write-LogInfo "CustomScript extension is newly installed on $($jobs.Count) VMs among totally $($VMs.Count) VMs in the subscription`n"
-	Write-LogWarn "CustomScript extension is not installed on $($vmsNotRunning.Count) VMs due to VM not running`n"
-	Write-LogWarn "CustomScript extension is not installed on the following $($vmsAgentUnresponsive.Count) VMs due to VM agent is unresponsive:`n"
-	foreach ($vm in $vmsAgentUnresponsive) {
-		Write-LogInfo "VM $($vm.Name) in resource group $($vm.ResourceGroupName): VM agent unresponsive"
+	Write-LogInfo "CustomScript extension is newly installed on $($jobs.Count) VMs among $($VMs.Count) $OSType VMs in the subscription`n"
+	if ($vmsNotRunning.Count -gt 0) {
+		Write-LogWarn "CustomScript extension is not installed on $($vmsNotRunning.Count) $OSType VMs due to VM not running`n"
+	}
+	if ($vmsAgentUnresponsive.Count -gt 0) {
+		Write-LogWarn "CustomScript extension is not installed on the following $($vmsAgentUnresponsive.Count) $OSType VMs due to VM agent is unresponsive:`n"
+		foreach ($vm in $vmsAgentUnresponsive) {
+			Write-LogInfo "VM $($vm.Name) in resource group $($vm.ResourceGroupName): VM agent unresponsive"
+		}
 	}
 }
 
