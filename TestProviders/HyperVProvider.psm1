@@ -116,7 +116,7 @@ Class HyperVProvider : TestProvider
 						$null = Run-SetupScript -Script $script -Parameters $TestParameters -VMData $VM -CurrentTestData $CurrentTestData
 					}
 					if (Get-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -EA SilentlyContinue) {
-						Start-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost
+						Start-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -EA Stop
 					}
 				}
 			}
