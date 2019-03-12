@@ -709,8 +709,8 @@ function Check-IP {
                 if ($vmNic.Length -gt 1) {
                    $vmNic = $vmNic[0]
                 }
-                $vmIP = $vmNic.IPAddresses[0]
-                if ($vmIP) {
+                if ($vmNic.IPAddresses -and $vmNic.IPAddresses[0]) {
+                    $vmIP = $vmNic.IPAddresses[0]
                     $vmIP = $([ipaddress]$vmIP.trim()).IPAddressToString
                     if ($global:IsWindowsImage) {
                         $port = $($VM.RDPPort)
