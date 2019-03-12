@@ -120,7 +120,7 @@ function Testfwd_Parser() {
 
 	local core=${1}
 	local testfwd_csv_file=${2}
-	local dpdk_version=$(grep "Version:" "${LIS_HOME}"/"${DPDK_DIR}"/pkg/dpdk.spec | awk '{print $2}')
+	local dpdk_version=$(Get_DPDK_Version "${LIS_HOME}/${DPDK_DIR}")
 
 	local log_files=$(ls "${LOG_DIR}"/*.log | grep "dpdk-testfwd-.*-${core}-core")
 	LogMsg "Parsing test fwd ${core} core(s)"
