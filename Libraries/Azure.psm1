@@ -542,6 +542,7 @@ Function Get-AllDeploymentData($ResourceGroups)
         Add-Member -InputObject $objNode -MemberType NoteProperty -Name URLv6 -Value $URL -Force
         Add-Member -InputObject $objNode -MemberType NoteProperty -Name Status -Value $Status -Force
         Add-Member -InputObject $objNode -MemberType NoteProperty -Name InstanceSize -Value $InstanceSize -Force
+        Add-Member -InputObject $objNode -MemberType NoteProperty -Name VMGeneration -Value 1 -Force
         return $objNode
     }
 
