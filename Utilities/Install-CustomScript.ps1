@@ -114,7 +114,7 @@ Function Install-CustomScript($AzureSecretsFile, $FileUris, $CommandToRun, $Stor
 			Write-LogErr $_.Exception
 		}
 	}
-	$jobs | Wait-Job -Timeout 600
+	$jobs | Wait-Job -Timeout 360
 	foreach ($job in $jobs) {
         $state = $job.State
         if ($state -eq "Running") {
