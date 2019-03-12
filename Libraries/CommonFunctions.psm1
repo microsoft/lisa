@@ -194,7 +194,7 @@ Function Collect-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Tes
 }
 
 # This function set the AdditionalHWConfig of the test case data
-# Called when DiskType=Managed/Unmanaged or Networking=SRIOV/Synthetic set in -CustomParameters
+# Called when DiskType=Managed/Unmanaged or Networking=SRIOV/Synthetic or ImageType=Specialized/Generalized set in -CustomParameters
 function Set-AdditionalHWConfigInTestCaseData ($CurrentTestData, $ConfigName, $ConfigValue) {
 	Write-LogInfo "The AdditionalHWConfig $ConfigName of case $($CurrentTestData.testName) is set to $ConfigValue"
 	if (!$CurrentTestData.AdditionalHWConfig) {

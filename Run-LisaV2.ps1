@@ -88,7 +88,7 @@ Param(
 	[switch] $EnableTelemetry,
 	[switch] $UseExistingRG,
 
-	# [Optional] Parameters for setting TiPCluster, TipSessionId, DiskType=Managed/Unmanaged, Networking=SRIOV/Synthetic.
+	# [Optional] Parameters for setting TiPCluster, TipSessionId, DiskType=Managed/Unmanaged, Networking=SRIOV/Synthetic, ImageType=Specialized/Generalized.
 	[string] $CustomParameters = "",
 
 	# [Optional] Parameters for Overriding VM Configuration.
