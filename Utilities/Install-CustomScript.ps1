@@ -90,6 +90,8 @@ Function Install-CustomScript($AzureSecretsFile, $FileUris, $CommandToRun, $Stor
 	} else {
 		$vms = Get-AzureRmVM | Where-Object {$_.StorageProfile.OsDisk.OsType -eq $OSType}
 	}
+	$jobs = @()
+	$jobIdToVM = @{}
 	foreach ($vm in $VMs) {
 		try {
 			$vmStatus = Get-AzureRmVM -ResourceGroupName $vm.ResourceGroupName -Name $vm.Name -Status
@@ -102,13 +104,24 @@ Function Install-CustomScript($AzureSecretsFile, $FileUris, $CommandToRun, $Stor
 					continue
 				}
 				Write-LogInfo "Start to install CustomScript extension on VM $($vm.Name) in resource group $($vm.ResourceGroupName)"
-				Set-AzureRmVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name -Location $vm.Location -Name CustomScript -Publisher "Microsoft.Azure.Extensions" `
-					-Type "CustomScript" -TypeHandlerVersion 2.0 -Settings $settings -ProtectedSettings $protectedSettings
+				$job = Set-AzureRmVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name -Location $vm.Location -Name CustomScript -Publisher "Microsoft.Azure.Extensions" `
+					-Type "CustomScript" -TypeHandlerVersion 2.0 -Settings $settings -ProtectedSettings $protectedSettings -AsJob
+				$jobs += $job
+				$jobIdToVM[$job.Id] = $vm
 			}
 		} catch {
 			Write-LogErr "Exception occurred in when installing CustomScript extension on VM $($vm.Name)."
 			Write-LogErr $_.Exception
 		}
+	}
+	$jobs | Wait-Job -Timeout 600
+	foreach ($job in $jobs) {
+        $state = $job.State
+        if ($state -eq "Running") {
+            $state = "Timeout"
+            Stop-Job -Job $job
+        }
+		Write-LogInfo "Installation on VM $($jobIdToVM[$job.Id].Name) in resource group $($jobIdToVM[$job.Id].ResourceGroupName): $state"
 	}
 }
 
