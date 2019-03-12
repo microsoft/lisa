@@ -40,8 +40,8 @@ If you add a custom test menu, you will need to re-build the Jenkins menu, and t
                 $detectedDistro: The distro name of the test VM
                 $BaseOsVHD : The VHD name if the test runs with a VHD
                 $RGIdentifier: The ID included in the resource group name or HyperV group name
-                $TestLocation: The Azure region or HyperV servers
-                $TestPlatform: Azure or HyperV
+                $TestLocation: The Azure region, HyperV servers or WSL host
+                $TestPlatform: Azure, HyperV or WSL
                 $user: The user name of the VM
                 $password: The password of the VM
                 $GlobalConfig: The global configuration xml
@@ -83,7 +83,7 @@ If you add a custom test menu, you will need to re-build the Jenkins menu, and t
                'CustomVHDURL' text box.
             b. Leave 'Kernel' unchanged unless you would like to use customized kernel code or linux-next.
             c. Update the 3 options regarding how to select test cases; TestName, Category and Tag.
-                i. Supported platform: Azure, HyperV, etc.
+                i. Supported platform: Azure, HyperV, and WSL.
                 ii. Available Category: BVT, Community, Functional, Performance, and Smoke.
                 iii. Available Tags: boot, bvt, disk, ext4, gpu, hv_netvsc, etc.
         6. Enter partner's email address for report notification.
@@ -139,7 +139,7 @@ This XML file defines the regions per Category. It may require specific region o
         <files></files>: If test requires data files, add the file names here [Opt]
         <setupType></setupType>: The name represents VM definition in <Category name>TestsConfigurations xml file, 
             VMConfigurations folder. [Req]
-        <Platform></Platform>: Supported platform names. Azure, HyperV, etc. [Req]
+        <Platform></Platform>: Supported platform names. Azure, HyperV, and WSL. [Req]
         <Category></Category>: Available Test Category [Req]
         <Area></Area>: Test Area [Req]
         <Tags></Tags>: Tag information seperated by comma [Opt]
