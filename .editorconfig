@@ -1,0 +1,15 @@
+# top-most EditorConfig file
+root = true
+
+[*]
+# 4 tabs indentation
+indent_style = tab
+indent_size = 4
+# Set default charset
+charset = utf-8
+# remove any whitespace characters preceding newline characters
+trim_trailing_whitespace = true
+
+[*.{sh}]
+# ensure file ends with a newline when saving
+insert_final_newline = true
