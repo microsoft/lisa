@@ -117,7 +117,7 @@ Function Install-CustomScript($AzureSecretsFile, $FileUris, $CommandToRun, $Stor
 			}
 			# Only install the extenstion on VMs running and has waagent installed
 			$extension = Get-AzureRmVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name -Name $extensionName -ErrorAction SilentlyContinue
-			if ($extension -and $extension.PublicSettings -imatch $FileUris -and $extension.PublicSettings -imatch $CommandToRun) {
+			if ($extension -and $extension.PublicSettings -imatch $uriArray[0] -and $extension.PublicSettings -imatch $CommandToRun) {
 				# CustomScript extension is already installed
 				Write-LogInfo "Custom script is already installed on VM $($vm.Name) in $($vm.ResourceGroupName)."
 				continue
