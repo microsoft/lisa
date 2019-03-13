@@ -1091,7 +1091,7 @@ function Get-SelinuxAVCLog() {
 	return $False
 }
 
-function Check-FileInLinuxGuest{
+function Check-FileInLinuxGuest {
 	param (
 		[String] $vmPassword,
 		[String] $vmPort,
@@ -1101,32 +1101,26 @@ function Check-FileInLinuxGuest{
 		[boolean] $checkSize = $False ,
 		[boolean] $checkContent = $False
 	)
-<#
+	<#
 	.Synopsis
 		Checks if test file is present or not
 	.Description
 		Checks if test file is present or not, if set $checkSize as $True, return file size,
 		if set checkContent as $True, will return file content.
 #>
+	$check = Run-LinuxCmd -username $vmUserName -password $vmPassword -port $vmPort -ip $ipv4 -command "stat ${fileName} >/dev/null"
+	if ($check) {
+		Write-Loginfo "File $fileName exists"
+		return $true
+	}
 	if ($checkSize) {
-
-		Write-Output "yes" | .\Tools\plink.exe -C -pw $vmPassword -P $vmPort $vmUserName@$ipv4 "wc -c < $fileName"
-	}
-	else {
-		Write-Output "yes" | .\Tools\plink.exe -C -pw $vmPassword -P $vmPort $vmUserName@$ipv4 "stat ${fileName} >/dev/null"
-	}
-
-	if (-not $?) {
-		return $False
+		$size = Run-LinuxCmd -username $vmUserName -password $vmPassword -port $vmPort -ip $ipv4 -command "wc -c < $fileName"
+		return "$size"
 	}
 	if ($checkContent) {
-
-		Write-Output "yes" | .\Tools\plink.exe -C -pw $vmPassword -P $vmPort $vmUserName@$ipv4 "cat ${fileName}"
-		if (-not $?) {
-			return $False
-		}
+		$content = Run-LinuxCmd -username $vmUserName -password $vmPassword -port $vmPort -ip $ipv4 -command "cat ${fileName}"
+		return "$content"
 	}
-	return  $True
 }
 
 function Mount-Disk{

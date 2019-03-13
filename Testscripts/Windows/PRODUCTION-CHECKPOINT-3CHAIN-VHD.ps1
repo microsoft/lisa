@@ -259,14 +259,14 @@ function Main {
         Write-LogInfo "New VM ${vmNameChild} started"
 
         # Check the files created earlier. The first one should be present, the second one shouldn't
-        $sts1 = Check-FileInLinuxGuest -VMPassword $password -VMPort $port -VMUserName $user -Ipv4 $vm2ipv4 -fileName "TestFile1"
+        $sts1 = Check-FileInLinuxGuest -VMPassword $password -VMPort $port -VMUserName $user -Ipv4 $vm2ipv4 -fileName "/home/$user/TestFile1"
         if (-not $sts1) {
             $testResult = $resultFail
             throw "TestFile1 is not present, it should be present on the VM"
         }
 
-        $sts2 = Check-FileInLinuxGuest -VMPassword $password -VMPort $port -VMUserName $user -Ipv4 $vm2ipv4 -fileName "TestFile2"
-        if ($sts2) {
+        $sts2 = Check-FileInLinuxGuest -VMPassword $password -VMPort $port -VMUserName $user -Ipv4 $vm2ipv4 -fileName "/home/$user/TestFile2"
+        if (-not $sts2) {
             $testResult = $resultFail
             throw "TestFile2 is present,it should not be present on the VM"
         }
