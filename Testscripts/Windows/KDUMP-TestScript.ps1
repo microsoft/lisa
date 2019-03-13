@@ -119,11 +119,13 @@ function Main {
     Start-Sleep 10 # Wait for kvp & ssh services stop
 
     # Wait for VM boot up and update ip address
-    Wait-ForVMToStartSSH -Ipv4addr $Ipv4 -StepTimeout 360
+    Wait-ForVMToStartSSH -Ipv4addr $Ipv4 -StepTimeout 360 | Out-Null
 
     # Prepare the kdump related
-    $state = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+    $retVal = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
                 -command "export HOME=``pwd``;chmod u+x KDUMP-Execute.sh && ./KDUMP-Execute.sh" -runAsSudo
+    $state = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+        -command "cat state.txt" -runAsSudo
     if (($state -eq "TestAborted") -or ($state -eq "TestFailed")) {
         Write-LogErr "Running KDUMP-Execute.sh script failed on VM!"
         return "ABORTED"
@@ -160,7 +162,7 @@ function Main {
     }
 
     # Wait for VM boot up and update ip address
-    Wait-ForVMToStartSSH -Ipv4addr $Ipv4 -StepTimeout 600
+    Wait-ForVMToStartSSH -Ipv4addr $Ipv4 -StepTimeout 600 | Out-Null
 
     # Verifying if the kernel panic process creates a vmcore file of size 10M+
     $retVal = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
