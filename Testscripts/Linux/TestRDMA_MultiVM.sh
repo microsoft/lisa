@@ -339,6 +339,29 @@ function Main() {
 	fi
 
 	# ############################################################################################################
+	# ib kernel modules verification
+	# mlx5_ib, rdma_cm, rdma_ucm, ib_ipoib shall be loaded in kernel
+	final_module_load_status=0
+	kernel_modules="mlx5_ib rdma_cm rdma_ucm ib_ipoib"
+
+	for vm in $master $slaves_array; do
+	LogMsg "Checking kernel modules in $vm"
+		for k_mod in $kernel_modules; do
+			ssh root@${vm} "lsmod | grep ${k_mod}" > /dev/null
+			k_mod_status=$?
+			if [ $k_mod_status -eq 0 ]; then
+				# Verify ib kernel module is loaded in the system
+				LogMsg "${k_mod} module is loaded in ${vm}."
+			else
+				# Verify ib kernel module is not loaded in the system
+				LogErr "${k_mod} module is not loaded in ${vm}."
+				err_virtual_machines=$(($err_virtual_machines+1))
+			fi
+			final_module_load_status=$(($final_module_load_status + $k_mod_status))
+		done
+	done
+
+	# ############################################################################################################
 	# ibv_devinfo verifies PORT STATE
 	# PORT_ACTIVE (4) is expected. If PORT_DOWN (1), it fails
 	ib_port_state_down_cnt=0
