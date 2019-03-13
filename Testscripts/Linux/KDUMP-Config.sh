@@ -309,10 +309,9 @@ Install_Kexec
 #
 GetDistro
 
-if [[ "$OS_FAMILY" == "Debian" ]] || [[ "$OS_FAMILY" == "Sles" ]] || \
-    [[ "$DISTRO" == "fedora"* ]] && [[ "$crashkernel" == "auto" ]];then
+if ! grep CONFIG_KEXEC_AUTO_RESERVE=y /boot/config-$(uname -r) && [[ "$crashkernel" == "auto" ]];then
     LogErr "crashkernel=auto doesn't work for this distro. Please use this pattern: crashkernel=X@Y."
-    SetTestStateAborted
+    SetTestStateSkipped
     exit 0
 fi
 
