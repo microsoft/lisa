@@ -693,12 +693,12 @@ function Copy-CheckFileInLinuxGuest{
 		Copy-VMFile -vmName $vmName -ComputerName $hvServer -SourcePath $filePath -DestinationPath "/tmp/" -FileSource host -ErrorAction SilentlyContinue
 	}
 	if ($Error.Count -eq 0) {
-		$sts = Check-FileInLinuxGuest -vmUserName $vmUserName -vmPassword $vmPassword -vmPort $vmPort -ipv4 $ipv4 -fileName "/tmp/$testfile" -checkSize $True -checkContent  $True
-		if (-not $sts[-1]) {
+		$sts = Check-FileInLinuxGuest -vmUserName $vmUserName -vmPassword $vmPassword -vmPort $vmPort -ipv4 $ipv4 -fileName "/tmp/$testfile" -checkSize $True -checkContent $True
+		if (-not $sts) {
 			Write-LogErr "File is not present on the guest VM '${vmName}'!"
 			return $False
 		}
-		elseif ($sts[0] -ne $filesize) {
+		elseif ($sts -ne $filesize) {
 			Write-LogErr "The copied file doesn't match the $filesize size."
 			return $False
 		}
@@ -717,6 +717,7 @@ function Copy-CheckFileInLinuxGuest{
 	}
 	return $True
 }
+
 
 
 Function Check-VSSDemon {

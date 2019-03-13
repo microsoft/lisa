@@ -213,12 +213,12 @@ function Main {
     Write-LogInfo "The file copy process took ${copyDuration} seconds"
 
     # Checking if the file is present on the guest and file size is matching
-    $sts = Check-FileInLinuxGuest -vmUserName $VMUserName -vmPassword $VMPassword -vmPort $VMPort -ipv4 $Ipv4 -fileName "/mnt/test/$testfile"  -checkSize $True  -checkContent $False
-    if (-not $sts[-1]) {
+    $sts = Check-FileInLinuxGuest -vmUserName $VMUserName -vmPassword $VMPassword -vmPort $VMPort -ipv4 $Ipv4 -fileName "/mnt/test/$testfile" -checkSize $true
+    if (-not $sts) {
         Write-LogErr "File is not present on the guest VM"
         return "FAIL"
     }
-    elseif ($sts[0] -eq $fileToCopySize) {
+    elseif ($sts -eq $fileToCopySize) {
         Write-LogInfo "The file copied matches the $FcopyFileSize size."
         return "PASS"
     }
