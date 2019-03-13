@@ -3,6 +3,7 @@ param (
     [Parameter(Mandatory=$true)] [String] $ReportDestination,
     [String] $LogPath,
     [String] $TestCategory,
+    [String] $ReportName,
     [String] $TestArea,
     [String] $TestNames,
     [Switch] $OverallReport,
@@ -27,7 +28,9 @@ function Main {
     }
 
     $reportName = "report"
-    if ($TestArea) {
+    if ($ReportName) {
+        $reportName = $ReportName
+    }elseif ($TestArea) {
         $reportName = $TestArea.ToLower()
     } else {
         $reportName = $TestCategory.ToLower()
