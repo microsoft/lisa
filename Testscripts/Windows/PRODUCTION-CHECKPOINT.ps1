@@ -94,14 +94,14 @@ function Main {
             throw "Error: Test case timed out waiting for VM to boot"
         }
 
-        $sts = Check-FileInLinuxGuest -VMPassword $password -VMPort $VMPort -VMUserName $user -Ipv4 $Ipv4 -fileName $testfile1
+        $sts = Check-FileInLinuxGuest -VMPassword $password -VMPort $VMPort -VMUserName $user -Ipv4 $Ipv4 -fileName "/home/$user/$testfile1"
         if (-not $sts) {
             Write-LogErr "${testfile1} is not present, it should be present on the VM"
             $testResult = $resultFail
 
         }
 
-        $sts = Check-FileInLinuxGuest -VMPassword $password -VMPort $VMPort -VMUserName $user -Ipv4 $Ipv4 -fileName $testfile2
+        $sts = Check-FileInLinuxGuest -VMPassword $password -VMPort $VMPort -VMUserName $user -Ipv4 $Ipv4 -fileName "/home/$user/$testfile2"
         if ($sts) {
             Write-LogErr "${testfile2} is present,it should not be present on the VM"
             $testResult = $resultFail
