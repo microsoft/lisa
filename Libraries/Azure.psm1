@@ -645,6 +645,8 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
         $DiskType = "Unmanaged"
     }
 
+    $UseSpecializedImage = $CurrentTestData.AdditionalHWConfig.ImageType -contains "Specialized"
+
     if ( $CurrentTestData.AdditionalHWConfig.OSDiskType -eq "Ephemeral" ) {
         if ( $UseManagedDisks ) {
             $UseEphemeralOSDisk = $true
@@ -1580,7 +1582,7 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
         Add-Content -Value "$($indents[4])}," -Path $jsonFile
         #endregion
 
-        if ([string]::IsNullOrEmpty($hasWALA) -or $hasWALA -eq 'Yes') {
+        if ( !($UseSpecializedImage) ) {
             #region OSProfile
             Add-Content -Value "$($indents[4])^osProfile^: " -Path $jsonFile
             Add-Content -Value "$($indents[4]){" -Path $jsonFile
@@ -1651,7 +1653,7 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
             }
             else {
                 Write-LogInfo ">>> Using VHD : $osVHD"
-                if (![string]::IsNullOrEmpty($hasWALA) -and $hasWALA -eq 'No') {
+                if ($UseSpecializedImage) {
                     $vhduri = "https://$StorageAccountName.blob.core.windows.net/vhds/$OsVHD"
                     $sourceContainer = $vhduri.Split("/")[$vhduri.Split("/").Count - 2]
                     $destVHDName = "$vmName-$RGrandomWord-osdisk.vhd"

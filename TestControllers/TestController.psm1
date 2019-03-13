@@ -268,6 +268,9 @@ Class TestController
 			if ( $this.CustomParams["DiskType"] -eq "managed" -or $this.CustomParams["DiskType"] -eq "unmanaged") {
 				Set-AdditionalHWConfigInTestCaseData -CurrentTestData $test -ConfigName "DiskType" -ConfigValue $this.CustomParams["DiskType"]
 			}
+			if ( $this.CustomParams["ImageType"] -eq "Specialized" -or $this.CustomParams["ImageType"] -eq "Generalized") {
+				Set-AdditionalHWConfigInTestCaseData -CurrentTestData $test -ConfigName "ImageType" -ConfigValue $this.CustomParams["ImageType"]
+			}
 			if ($this.OverrideVMSize) {
 				Write-LogInfo "The OverrideVMSize of case $($test.testName) is set to $($this.OverrideVMSize)"
 				if ($test.OverrideVMSize) {
@@ -280,7 +283,7 @@ Class TestController
 			# Put test case to hashtable, per setupType,OverrideVMSize,networking,diskType,osDiskType,switchName
 			if ($test.setupType) {
 				$key = "$($test.setupType),$($test.OverrideVMSize),$($test.AdditionalHWConfig.Networking),$($test.AdditionalHWConfig.DiskType)," +
-					"$($test.AdditionalHWConfig.OSDiskType),$($test.AdditionalHWConfig.SwitchName)"
+					"$($test.AdditionalHWConfig.OSDiskType),$($test.AdditionalHWConfig.SwitchName),$($test.AdditionalHWConfig.ImageType)"
 				if ($this.SetupTypeToTestCases.ContainsKey($key)) {
 					$this.SetupTypeToTestCases[$key] += $test
 				} else {
