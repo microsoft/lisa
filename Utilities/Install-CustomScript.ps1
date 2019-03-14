@@ -45,26 +45,20 @@ param
 
 Function Initialize-Environment($AzureSecretsFile, $LogFileName) {
 	Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
-	if (!$global:LogFileName){
+	if (!$global:LogFileName) {
 		Set-Variable -Name LogFileName -Value $LogFileName -Scope Global -Force
 	}
 
 	#Read secrets file and terminate if not present.
-	if ($AzureSecretsFile)
-	{
+	if ($AzureSecretsFile) {
 		$secretsFile = $AzureSecretsFile
-	}
-	elseif ($env:Azure_Secrets_File)
-	{
+	} elseif ($env:Azure_Secrets_File) {
 		$secretsFile = $env:Azure_Secrets_File
-	}
-	else
-	{
+	} else {
 		Write-LogInfo "-AzureSecretsFile and env:Azure_Secrets_File are empty. Exiting."
 		exit 1
 	}
-	if ( -not (Test-Path $secretsFile))
-	{
+	if ( -not (Test-Path $secretsFile)) {
 		Write-LogInfo "Secrets file not found. Exiting."
 		exit 1
 	}
@@ -128,7 +122,7 @@ Function Install-CustomScript($AzureSecretsFile, $FileUris, $CommandToRun, $Stor
 					Write-LogInfo "Custom script is already installed on the following VMs:"
 					$alreadyInstalled = $true
 				}
-				Write-LogInfo "- VM $($vm.Name) in $($vm.ResourceGroupName)"
+				Write-LogInfo "- VM $($vm.Name) in resource group $($vm.ResourceGroupName)"
 				continue
 			}
 
@@ -147,7 +141,8 @@ Function Install-CustomScript($AzureSecretsFile, $FileUris, $CommandToRun, $Stor
 		if ($state -eq "Running") {
 			$state = "Timeout"
 			Stop-Job -Job $job
-		} elseif ($state -eq "Failed") {
+		}
+		if ($state -eq "Timeout" -or $state -eq "Failed") {
 			$vmsExtensionInstalledFailed += $jobIdToVM[$job.Id]
 		}
 		Write-LogInfo "Installation on VM $($jobIdToVM[$job.Id].Name) in resource group $($jobIdToVM[$job.Id].ResourceGroupName): $state"
