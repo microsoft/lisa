@@ -33,7 +33,7 @@ Function Upgrade-LIS ($LISTarballUrlOld, $LISTarballUrlCurrent, $allVMData , $Te
         $CurrentLISExtractCommand = "rm -rf LISISO^wget $($LISTarballUrlCurrent)^tar -xzf $($LISTarballUrlCurrent | Split-Path -Leaf)^cp -ar LISISO/* ."
         $LISExtractCommands = $CurrentLISExtractCommand.Split("^")
         foreach ( $LISExtractCommand in $LISExtractCommands ) {
-            Run-LinuxCmd -username "root" -password $password -ip $allVMData.PublicIP -port $allVMData.SSHPort -command $LISExtractCommand -runMaxAllowedTime 20000
+            Run-LinuxCmd -username "root" -password $password -ip $allVMData.PublicIP -port $allVMData.SSHPort -command $LISExtractCommand -runMaxAllowedTime 2000 -maxRetryCount 3
         }
         $UpgradelLISConsoleOutput=Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "./upgrade.sh"
         Write-LogInfo $UpgradelLISConsoleOutput
@@ -116,7 +116,7 @@ Function Uninstall-LIS ( $LISTarballUrlCurrent, $allVMData , $TestProvider) {
         $CurrentLISExtractCommand = "rm  -rf LISISO^wget $($LISTarballUrlCurrent)^tar -xzf $($LISTarballUrlCurrent | Split-Path -Leaf)^cp -ar LISISO/* ."
         $LISExtractCommands = $CurrentLISExtractCommand.Split("^")
         foreach ( $LISExtractCommand in $LISExtractCommands ) {
-            Run-LinuxCmd -username "root" -password $password -ip $allVMData.PublicIP -port $allVMData.SSHPort -command $LISExtractCommand -runMaxAllowedTime 20000
+            Run-LinuxCmd -username "root" -password $password -ip $allVMData.PublicIP -port $allVMData.SSHPort -command $LISExtractCommand -runMaxAllowedTime 2000 -maxRetryCount 3
         }
         $UninstallLISConsoleOutput=Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "./uninstall.sh"
         Write-LogInfo $UninstallLISConsoleOutput
@@ -382,7 +382,7 @@ Function Install-LIS-Scenario-7 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
         Write-LogInfo "Upgrading minor kernel"
         $kernel_version_before_upgrade = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "uname -r"
         Write-LogInfo "kernel version before upgrade: $kernel_version_before_upgrade"
-        $UpgradeKernelConsoleOutput=Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $user -password $password -command ". utils.sh && UpgradeMinorKernel" -runMaxAllowedTime 20000 -runAsSudo
+        $UpgradeKernelConsoleOutput=Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $user -password $password -command ". utils.sh && UpgradeMinorKernel" -runMaxAllowedTime 2000 -maxRetryCount 3 -runAsSudo
         Write-LogInfo $UpgradeKernelConsoleOutput
         Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "sync"
         if ($TestProvider.RestartAllDeployments($allVMData)) {
@@ -390,7 +390,7 @@ Function Install-LIS-Scenario-7 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
             Write-LogInfo "kernel version after upgrade: $kernel_version_after_upgrade"
             if ( $kernel_version_after_upgrade -eq $kernel_version_before_upgrade) {
                 Write-LogErr "Failed to Upgrade Minor kernel"
-                return "FAIL"
+                return "SKIPPED"
             }
             Write-LogInfo "Sucessfully Upgraded Minor Kernel"
             $UpgradeStatus=Upgrade-LIS -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent -allVMData $AllVMData -TestProvider $TestProvider -RestartAfterUpgrade

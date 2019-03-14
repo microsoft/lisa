@@ -667,7 +667,7 @@ function Apply-HyperVCheckpoint {
         [string]$CheckpointName
     )
     foreach ($VM in $VMData) {
-        Get-VMSnapshot -Name $CheckpointName -VMName $VM.RoleName -ErrorAction Ignore | out-null
+        Get-VMSnapshot -Name $CheckpointName -VMName $VM.RoleName -ComputerName $VM.HyperVHost -ErrorAction Ignore | out-null
         if ($?) {
             Stop-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -TurnOff -Force
             Restore-VMSnapshot -Name $CheckpointName -VMName $VM.RoleName -ComputerName $VM.HyperVHost -Confirm:$false
