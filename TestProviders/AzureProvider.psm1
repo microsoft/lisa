@@ -143,14 +143,14 @@ Class AzureProvider : TestProvider
 			$restartJobs += Start-Job -ScriptBlock {
 				$vmData = $args[0]
 				$retries = 0
-				$maxRetryCount = 3
+				$maxRetryCount = 10
 				$vmRestarted = $false
 
 				# Note(v-advlad): Azure API can sometimes fail on burst requests, we have to retry
 				while (!$vmRestarted -and $retries -lt $maxRetryCount) {
 					$null = Restart-AzureRmVM -ResourceGroupName $vmData.ResourceGroupName -Name $vmData.RoleName -Verbose
 					if (!$?) {
-						Start-Sleep -Seconds 0.5
+						Start-Sleep -Seconds 3
 						$retries++
 					} else {
 						$vmRestarted = $true
