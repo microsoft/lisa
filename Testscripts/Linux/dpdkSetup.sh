@@ -6,7 +6,9 @@
 # and DPDK installation on client and server machines.
 
 HOMEDIR=$(pwd)
-DPDK_BUILD="x86_64-native-linuxapp-gcc"
+export RTE_SDK="${HOMEDIR}/dpdk"
+export RTE_TARGET="x86_64-native-linuxapp-gcc"
+
 UTIL_FILE="./utils.sh"
 
 # Source utils.sh
@@ -33,6 +35,8 @@ function setup_huge_pages () {
 function install_dpdk () {
 	dpdk_server_ip=${2}
 	dpdk_client_ip=${3}
+	install_from_ppa=false
+	dpdk_version=""
 
 	SetTestStateRunning
 	LogMsg "Configuring ${1} ${DISTRO_NAME} ${DISTRO_VERSION} for DPDK test..."
@@ -53,7 +57,7 @@ function install_dpdk () {
 				ssh "${1}" "add-apt-repository ppa:canonical-server/dpdk-azure -y"
 			fi
 			ssh "${1}" ". ${UTIL_FILE} && update_repos"
-			packages+=(librdmacm-dev librdmacm1 build-essential libnuma-dev libelf-dev)
+			packages+=(librdmacm-dev librdmacm1 build-essential libnuma-dev libelf-dev rdma-core)
 			;;
 		suse|opensuse|sles)
 			ssh "${1}" ". ${UTIL_FILE} && add_sles_network_utilities_repo"
@@ -77,7 +81,7 @@ function install_dpdk () {
 	if [[ $dpdkSrcLink =~ .tar ]];
 	then
 		dpdkSrcTar="${dpdkSrcLink##*/}"
-		dpdkVersion=$(echo "$dpdkSrcTar" | grep -Po "(\d+\.)+\d+")
+		dpdk_version=$(echo "$dpdkSrcTar" | grep -Po "(\d+\.)+\d+")
 		LogMsg "Installing DPDK from source file $dpdkSrcTar"
 		ssh "${1}" "wget $dpdkSrcLink -P /tmp"
 		ssh "${1}" "tar xf /tmp/$dpdkSrcTar"
@@ -91,7 +95,6 @@ function install_dpdk () {
 		LogMsg "Installing DPDK from source file $dpdkSrcDir"
 		ssh "${1}" git clone "$dpdkSrcLink"
 		check_exit_status "git clone $dpdkSrcLink on ${1}" "exit"
-		cd "$dpdkSrcDir"
 		LogMsg "dpdk source on ${1} $dpdkSrcDir"
 	elif [[ $dpdkSrcLink =~ "ppa:" ]];
 	then
@@ -101,13 +104,9 @@ function install_dpdk () {
 			SetTestStateAborted
 			exit 1
 		fi
-		ssh "${1}" "add-apt-repository ${dpdkSrcLink} -y"
+		ssh "${1}" "add-apt-repository ${dpdkSrcLink} -y -s"
 		ssh "${1}" ". ${UTIL_FILE} && update_repos"
-		ssh "${1}" ". ${UTIL_FILE} && install_package dpdk dpdk-dev"
-		check_exit_status "Install DPDK from ppa ${dpdkSrcLink} on ${1}" "exit"
-		ssh "${1}" "ln -sf /usr/bin/dpdk-testpmd /usr/bin/testpmd"
-		LogMsg "*********Installed DPDK on ${1}********"
-		return
+		install_from_ppa=true
 	elif [[ $dpdkSrcLink =~ "native" || $dpdkSrcLink == "" ]];
 	then
 		if [[ $DISTRO_NAME != "ubuntu" && $DISTRO_NAME != "debian" ]];
@@ -116,23 +115,38 @@ function install_dpdk () {
 			SetTestStateAborted
 			exit 1
 		fi
-		ssh "${1}" ". ${UTIL_FILE} && install_package dpdk"
-		check_exit_status "Install DPDK native on ${1}" "exit"
-		ssh "${1}" "ln -sf /usr/bin/dpdk-testpmd /usr/bin/testpmd"
-		LogMsg "*********Installed DPDK on ${1}********"
-		return
+		ssh "${1}" "sed -i '/deb-src/s/^# //' /etc/apt/sources.list"
+		check_exit_status "Enable source repos on ${1}" "exit"
+		install_from_ppa=true
 	else
 		LogMsg "DPDK source link not supported: '${dpdkSrcLink}'"
 		SetTestStateAborted
 		exit 1
 	fi
 
+	if [[ $install_from_ppa == true ]];
+	then
+		ssh "${1}" ". ${UTIL_FILE} && install_package dpdk dpdk-dev"
+		check_exit_status "Install DPDK from ppa ${dpdkSrcLink} on ${1}" "exit"
+		ssh "${1}" "apt-get source dpdk"
+		check_exit_status "Get DPDK sources from ppa on ${1}" "exit"
+
+		dpdk_version=$(ssh "${1}" "dpkg -s 'dpdk' | grep 'Version' | head -1 | awk '{print \$2}' | awk -F- '{print \$1}'")
+		dpdk_source="dpdk_${dpdk_version}.orig.tar.xz"
+		dpdkSrcDir="dpdk-${dpdk_version}"
+
+		ssh "${1}" "tar xf $dpdk_source"
+		check_exit_status "Get DPDK sources from ppa on ${1}" "exit"
+	fi
+
+	ssh "${1}" "mv ${dpdkSrcDir} ${RTE_SDK}"
+
 	if [ ! -z "$dpdk_server_ip" -a "$dpdk_server_ip" != " " ];
 	then
 		LogMsg "dpdk build with NIC SRC IP $dpdk_server_ip ADDR on ${1}"
 		srcIpArry=( $(echo "$dpdk_server_ip" | sed "s/\./ /g") )
 		srcIpAddrs="define IP_SRC_ADDR ((${srcIpArry[0]}U << 24) | (${srcIpArry[1]} << 16) | ( ${srcIpArry[2]} << 8) | ${srcIpArry[3]})"
-		srcIpConfigCmd="sed -i 's/define IP_SRC_ADDR.*/$srcIpAddrs/' $HOMEDIR/$dpdkSrcDir/app/test-pmd/txonly.c"
+		srcIpConfigCmd="sed -i 's/define IP_SRC_ADDR.*/$srcIpAddrs/' $RTE_SDK/app/test-pmd/txonly.c"
 		LogMsg "ssh ${1} $srcIpConfigCmd"
 		ssh "${1}" "$srcIpConfigCmd"
 		check_exit_status "SRC IP configuration on ${1}" "exit"
@@ -144,20 +158,22 @@ function install_dpdk () {
 		LogMsg "dpdk build with NIC DST IP $dpdk_client_ip ADDR on ${1}"
 		dstIpArry=( $(echo "$dpdk_client_ip" | sed "s/\./ /g") )
 		dstIpAddrs="define IP_DST_ADDR ((${dstIpArry[0]}U << 24) | (${dstIpArry[1]} << 16) | (${dstIpArry[2]} << 8) | ${dstIpArry[3]})"
-		dstIpConfigCmd="sed -i 's/define IP_DST_ADDR.*/$dstIpAddrs/' $HOMEDIR/$dpdkSrcDir/app/test-pmd/txonly.c"
+		dstIpConfigCmd="sed -i 's/define IP_DST_ADDR.*/$dstIpAddrs/' $RTE_SDK/app/test-pmd/txonly.c"
 		LogMsg "ssh ${1} $dstIpConfigCmd"
 		ssh "${1}" "$dstIpConfigCmd"
 		check_exit_status "DST IP configuration on ${1}" "exit"
 	else
 		LogMsg "dpdk build with default DST IP ADDR on ${1}"
-	fi	
+	fi
+
 	LogMsg "MLX_PMD flag enabling on ${1}"
-	ssh "${1}" "sed -i 's/^CONFIG_RTE_LIBRTE_MLX4_PMD=n/CONFIG_RTE_LIBRTE_MLX4_PMD=y/g' $HOMEDIR/$dpdkSrcDir/config/common_base"
+	ssh "${1}" "sed -i 's/^CONFIG_RTE_LIBRTE_MLX4_PMD=n/CONFIG_RTE_LIBRTE_MLX4_PMD=y/g' $RTE_SDK/config/common_base"
 	check_exit_status "${1} CONFIG_RTE_LIBRTE_MLX4_PMD=y" "exit"
-	ssh "${1}" "cd $HOMEDIR/$dpdkSrcDir && make config O=$DPDK_BUILD T=$DPDK_BUILD"
+	ssh "${1}" "cd $RTE_SDK && make config O=$RTE_TARGET T=$RTE_TARGET"
 	LogMsg "Starting DPDK build make on ${1}"
-	ssh "${1}" "cd $HOMEDIR/$dpdkSrcDir/$DPDK_BUILD && make -j8 && make install"
+	ssh "${1}" "cd $RTE_SDK/$RTE_TARGET && make -j8 && make install"
 	check_exit_status "dpdk build on ${1}" "exit"
+
 	LogMsg "*********INFO: Installed DPDK version on ${1} is ${dpdkVersion} ********"
 }
 
@@ -179,11 +195,12 @@ install_dpdk "${client}" "${clientNIC1ip}" "${serverNIC1ip}"
 if [[ ${client} == ${server} ]];
 then
 	LogMsg "Skip DPDK setup on server"
-	SetTestStateCompleted
 else
 	LogMsg "INFO: Configuring huge pages on server ${server}..."
 	setup_huge_pages "${server}"
 	LogMsg "INFO: Installing DPDK on server ${server}..."
 	install_dpdk "${server}" "${serverNIC1ip}" "${clientNIC1ip}"
 fi
+
+SetTestStateCompleted
 LogMsg "*********INFO: DPDK setup completed*********"
