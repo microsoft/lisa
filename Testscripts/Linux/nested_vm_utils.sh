@@ -39,7 +39,6 @@ Update_Test_State()
 Install_KVM_Dependencies()
 {
     update_repos
-    install_package aria2
     install_package qemu-kvm
     install_package bridge-utils
     lsmod | grep kvm_intel
@@ -63,6 +62,10 @@ Install_KVM_Dependencies()
         Update_Test_State $ICA_TESTFAILED
         exit 0
     fi
+    if [ $DISTRO_NAME == "sles" ]; then
+        add_sles_network_utilities_repo
+    fi
+    install_package aria2
 }
 
 Download_Image_Files()
