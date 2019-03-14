@@ -51,4 +51,14 @@
         <Area></Area>
         <Tags>gcov</Tags>
     </test>
+    <test>
+        <testName>LONG-PERF-STRESS-TEST</testName>
+        <testScript>DEPLOY-LONG-TERM-VM.ps1</testScript>
+        <setupType>LPST</setupType>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\prepare_ltpt_vm.sh,.\Testscripts\Linux\CreateRaid.sh</files>
+        <Platform>Azure</Platform>
+        <Category></Category>
+        <Area></Area>
+        <Tags>LongPerfStress</Tags>
+    </test>
 </TestCases>
