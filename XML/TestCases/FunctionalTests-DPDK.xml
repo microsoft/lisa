@@ -80,7 +80,7 @@
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
         <OverrideVMSize>Standard_D16_v3</OverrideVMSize>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdk_generic_setup.sh,.\Testscripts\Linux\ovs_setup.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkSetup.sh,.\Testscripts\Linux\ovs_setup.sh</files>
         <TestParameters>
             <param>dpdkSrcLink="DPDK_SOURCE_URL"</param>
             <param>ovsSrcLink="OVS_SOURCE_URL"</param>
