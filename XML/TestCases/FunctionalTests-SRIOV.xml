@@ -123,6 +123,35 @@
         <Priority>0</Priority>
     </test>
     <test>
+        <testName>SRIOV-INTERRUPTS-CHANGE</testName>
+        <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1,.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
+        <testScript>SRIOV-RUN-COMMON-TEST.ps1</testScript>
+        <setupType>TwoVM2Host1Dep</setupType>
+        <OverrideVMSize>Standard_D64_v3</OverrideVMSize>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <files>.\Testscripts\Linux\SR-IOV_Interrupts_Change.sh,.\Testscripts\Linux\SR-IOV-Utils.sh,.\Testscripts\Linux\utils.sh</files>
+        <TestParameters>
+            <param>Remote_Script=SR-IOV_Interrupts_Change.sh</param>
+            <param>Install_Dependencies=yes</param>
+            <param>Set_SSH=yes</param>
+            <param>VCPU=max</param>
+            <param>NIC_COUNT=1</param>
+            <param>VF_IP1=10.0.0.47</param>
+            <param>VF_IP2=10.0.0.67</param>
+            <param>NETMASK=255.255.255.0</param>
+            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
+        </TestParameters>
+        <timeout>1200</timeout>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>SRIOV</Area>
+        <Tags>sriov,network</Tags>
+        <Priority>0</Priority>
+    </test>
+    <test>
         <testName>SRIOV-VERIFY-VF-MULTIPLE-CONNECTION</testName>
         <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-RUN-COMMON-TEST.ps1</testScript>
