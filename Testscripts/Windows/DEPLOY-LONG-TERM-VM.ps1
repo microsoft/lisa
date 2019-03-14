@@ -11,7 +11,6 @@ function Main {
     param (
         $TestParams
     )
-    $resultArr = "Aborted"
 
     $noClient = $true
     $noServer = $true
@@ -45,10 +44,10 @@ function Main {
 
     $null = Run-LinuxCmd -ip $serverVMData.PublicIP -port $serverVMData.SSHPort -username $user -password $password -runMaxAllowedTime 2000 `
         -command "bash $($REMOTE_SCRIPT) --log_dir '/root/LongPerfStressTest' --config 'server' --client_ip '$($clientVMData.InternalIP)'" -runAsSudo
-    
+
     $null = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $user -password $password -runMaxAllowedTime 600 `
         -command "bash $($REMOTE_SCRIPT) --log_dir '/root/LongPerfStressTest' --config 'client' --server_ip '$($serverVMData.InternalIP)'" -runAsSudo
-    
+
     Write-Output "SERVER_IP=$($serverVMData.PublicIP)" > ltpt_deployment_data.txt
     Write-Output "SERVER_PORT=$($serverVMData.SSHPort)" >> ltpt_deployment_data.txt
     Write-Output "CLIENT_IP=$($clientVMData.PublicIP)" >> ltpt_deployment_data.txt

@@ -14,7 +14,6 @@ HOMEDIR=$(pwd)
 	exit 0
 }
 
-NTTTCP_REPO="https://github.com/Microsoft/ntttcp-for-linux"
 RAID_SETUP_SCRIPT="./CreateRaid.sh"
 
 # Source constants file and initialize most common variables
@@ -27,38 +26,6 @@ function append_date {
     done < "${1:-/dev/stdin}"
 }
 
-function build_ntttcp {
-    if [[ ! $NTTTCP_REPO ]];then
-        LogErr "Missing NTTCP repo"
-        SetTestStateAborted
-        exit 0
-    fi
-    
-    ntttcp_temp_dir="ntttcp_temp"
-    ntttcp_source_dir="${ntttcp_temp_dir}/src"
-    
-    git clone "$NTTTCP_REPO" "$ntttcp_temp_dir"
-    if [[ ! -d $ntttcp_source_dir ]];then
-        LogErr "Cannot find ntttcp sources"
-        SetTestStateAborted
-        exit 0
-    fi
-    
-    pushd $ntttcp_source_dir
-    make
-    if [ $? -ne 0 ]; then
-        LogErr "Ntttcp build failed"
-        SetTestStateAborted
-        exit 0
-    fi
-    make install
-    if [ $? -ne 0 ]; then
-        LogErr "Ntttcp install failed"
-        SetTestStateAborted
-        exit 1
-    fi
-}
-
 function start_logging {
     config="$1"
     remote_ip="$2"
@@ -69,8 +36,8 @@ function start_logging {
     if [[ $config == "server" ]];then
         # Start sysbench
         pushd "/data"
-        sysbench --threads=20 fileio --file-test-mode=rndrw --file-total-size=10G prepare
-        nohup sysbench --report-interval=10 --threads=20 --test=fileio --file-test-mode=rndrw --file-total-size=10G --time=0 run | append_date > "${log_dir}/sysbench_run.log" &
+        sysbench --threads=20 fileio --file-test-mode=rndrw --file-total-size=100G prepare
+        nohup sysbench --report-interval=10 --threads=20 --test=fileio --file-test-mode=rndrw --file-total-size=100G --time=0 run | append_date > "${log_dir}/sysbench_run.log" &
         popd
         
         # Start ntttcp server
@@ -126,10 +93,9 @@ function main {
     mkdir $LOG_DIR
     
     update_repos
-    install_package make gcc
+    install_package make gcc sysbench sysstat
     
     build_ntttcp
-    install_package sysbench sysstat
     
     cd $HOMEDIR
     

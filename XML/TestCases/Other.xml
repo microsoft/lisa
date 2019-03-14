@@ -54,7 +54,7 @@
     <test>
         <testName>LONG-PERF-STRESS-TEST</testName>
         <testScript>DEPLOY-LONG-TERM-VM.ps1</testScript>
-        <setupType>LPST</setupType>
+        <setupType>long-term</setupType>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\prepare_ltpt_vm.sh,.\Testscripts\Linux\CreateRaid.sh</files>
         <Platform>Azure</Platform>
         <Category></Category>
