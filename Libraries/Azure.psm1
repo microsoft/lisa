@@ -645,6 +645,8 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
         $DiskType = "Unmanaged"
     }
 
+    $UseSpecializedImage = $CurrentTestData.AdditionalHWConfig.ImageType -contains "Specialized"
+
     if ( $CurrentTestData.AdditionalHWConfig.OSDiskType -eq "Ephemeral" ) {
         if ( $UseManagedDisks ) {
             $UseEphemeralOSDisk = $true
@@ -768,8 +770,7 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
     #$virtualNetworkName = $($RGName.ToUpper() -replace '[^a-z]') + "VNET"
     $virtualNetworkName = "VirtualNetwork"
     $defaultSubnetName = "SubnetForPrimaryNIC"
-    #$availabilitySetName = $($RGName.ToUpper() -replace '[^a-z]') + "AvSet"
-    $availibilitySetName = "AvailibilitySet"
+    $availabilitySetName = "AvailabilitySet"
     #$LoadBalancerName =  $($RGName.ToUpper() -replace '[^a-z]') + "LoadBalancer"
     $LoadBalancerName = "LoadBalancer"
     $apiVersion = "2018-04-01"
@@ -779,12 +780,8 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
     $PublicIPv6Name = "PublicIPv6"
     $sshPath = '/home/' + $user + '/.ssh/authorized_keys'
     $sshKeyData = ""
-    if ($ExistingRG) {
-        $customAVSetName = (Get-AzureRmResource | Where-Object { (( $_.ResourceGroupName -eq $RGName ) -and ( $_.ResourceType -imatch "availabilitySets" ))}).ResourceName
-    }
-    else {
-        $availibilitySetName = "AvailibilitySet"
-        $customAVSetName = $availibilitySetName
+    if ($UseExistingRG) {
+        $availabilitySetName = (Get-AzureRmResource | Where-Object { (( $_.ResourceGroupName -eq $RGName ) -and ( $_.ResourceType -imatch "availabilitySets" ))}).ResourceName
     }
     if ( $CurrentTestData.ProvisionTimeExtensions ) {
         $extensionString = (Get-Content .\XML\Extensions.xml)
@@ -871,12 +868,7 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
         Add-Content -Value "$($indents[2])^defaultSubnetID^: ^[concat(variables('vnetID'),'/subnets/', variables('defaultSubnet'))]^," -Path $jsonFile
         Add-Content -Value "$($indents[2])^vnetID^: ^[resourceId('Microsoft.Network/virtualNetworks',variables('virtualNetworkName'))]^," -Path $jsonFile
     }
-    if ($ExistingRG) {
-        Add-Content -Value "$($indents[2])^availabilitySetName^: ^$customAVSetName^," -Path $jsonFile
-    }
-    else {
-        Add-Content -Value "$($indents[2])^availabilitySetName^: ^$availibilitySetName^," -Path $jsonFile
-    }
+    Add-Content -Value "$($indents[2])^availabilitySetName^: ^$availabilitySetName^," -Path $jsonFile
     Add-Content -Value "$($indents[2])^lbName^: ^$LoadBalancerName^," -Path $jsonFile
     Add-Content -Value "$($indents[2])^lbID^: ^[resourceId('Microsoft.Network/loadBalancers',variables('lbName'))]^," -Path $jsonFile
     Add-Content -Value "$($indents[2])^frontEndIPv4ConfigID^: ^[concat(variables('lbID'),'/frontendIPConfigurations/LoadBalancerFrontEndIPv4')]^," -Path $jsonFile
@@ -897,8 +889,8 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
     #region Common Resources for all deployments..
 
     #region availabilitySets
-    if ($ExistingRG) {
-        Write-LogInfo "Using existing Availibility Set: $customAVSetName"
+    if ($UseExistingRG) {
+        Write-LogInfo "Using existing Availability Set: $availabilitySetName"
     }
     else {
         Add-Content -Value "$($indents[2]){" -Path $jsonFile
@@ -931,7 +923,7 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
         }
         Add-Content -Value "$($indents[3])}" -Path $jsonFile
         Add-Content -Value "$($indents[2])}," -Path $jsonFile
-        Write-LogInfo "Added availabilitySet $availibilitySetName.."
+        Write-LogInfo "Added availabilitySet $availabilitySetName.."
     }
     #endregion
 
@@ -1579,7 +1571,7 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
         #region availabilitySet
         Add-Content -Value "$($indents[4])^availabilitySet^: " -Path $jsonFile
         Add-Content -Value "$($indents[4]){" -Path $jsonFile
-        Add-Content -Value "$($indents[5])^id^: ^[resourceId('Microsoft.Compute/availabilitySets','$customAVSetName')]^" -Path $jsonFile
+        Add-Content -Value "$($indents[5])^id^: ^[resourceId('Microsoft.Compute/availabilitySets','$availabilitySetName')]^" -Path $jsonFile
         Add-Content -Value "$($indents[4])}," -Path $jsonFile
         #endregion
 
@@ -1590,7 +1582,7 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
         Add-Content -Value "$($indents[4])}," -Path $jsonFile
         #endregion
 
-        if ([string]::IsNullOrEmpty($hasWALA) -or $hasWALA -eq 'Yes') {
+        if ( !($UseSpecializedImage) ) {
             #region OSProfile
             Add-Content -Value "$($indents[4])^osProfile^: " -Path $jsonFile
             Add-Content -Value "$($indents[4]){" -Path $jsonFile
@@ -1661,7 +1653,7 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
             }
             else {
                 Write-LogInfo ">>> Using VHD : $osVHD"
-                if (![string]::IsNullOrEmpty($hasWALA) -and $hasWALA -eq 'No') {
+                if ($UseSpecializedImage) {
                     $vhduri = "https://$StorageAccountName.blob.core.windows.net/vhds/$OsVHD"
                     $sourceContainer = $vhduri.Split("/")[$vhduri.Split("/").Count - 2]
                     $destVHDName = "$vmName-$RGrandomWord-osdisk.vhd"

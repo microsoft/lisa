@@ -132,7 +132,7 @@ if (-not $sts) {
         }
         Write-LogInfo "File has been successfully copied to guest VM '${vmName}'"
 
-        $sts = Check-FileInLinuxGuest  -vmPassword $VMPassword -vmPort $VMPort -vmUserName $VMUserName -ipv4 $Ipv4   -fileName "/mnt/test/$testfile" -checkSize $true
+        $sts = Check-FileInLinuxGuest  -vmPassword $VMPassword -vmPort $VMPort -vmUserName $VMUserName -ipv4 $Ipv4   -fileName "/mnt/test/$testfile"
         if (-not $sts) {
             Write-LogErr "File check error on the guest VM '${vmName}'!"
             return "FAIL"

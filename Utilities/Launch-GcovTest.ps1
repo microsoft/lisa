@@ -3,6 +3,7 @@ param (
     [Parameter(Mandatory=$true)] [String] $ReportDestination,
     [String] $LogPath,
     [String] $TestCategory,
+    [String] $ReportName,
     [String] $TestArea,
     [String] $TestNames,
     [Switch] $OverallReport,
@@ -26,11 +27,13 @@ function Main {
         throw "Cannot find kernel source package"
     }
 
-    $reportName = "report"
-    if ($TestArea) {
-        $reportName = $TestArea.ToLower()
+    $reportType = "report"
+    if ($ReportName) {
+        $reportType = $ReportName
+    }elseif ($TestArea) {
+        $reportType = $TestArea.ToLower()
     } else {
-        $reportName = $TestCategory.ToLower()
+        $reportType = $TestCategory.ToLower()
     }
 
     $tests = @{}
@@ -86,7 +89,7 @@ function Main {
             Copy-Item -Recurse -Path ".\CodeCoverage\artifacts" -Destination "${LogPath}\" -Force
         }
     } else {
-        $reportName = "overall"
+        $reportType = "overall"
         if (-not (Test-Path $LogPath)) {
             throw "Cannot find logs dir"
         }
@@ -111,9 +114,9 @@ function Main {
         -ARMImageName $ARM_IMAGE_NAME `
         -TestIterations 1 -StorageAccount $StorageAccount `
         -XMLSecretFile $XMLSecretFile `
-        -CustomTestParameters "GCOV_REPORT_CATEGORY=${reportName}"
+        -CustomTestParameters "GCOV_REPORT_CATEGORY=${reportType}"
 
-    $reportsPath = ".\CodeCoverage\${reportName}.zip"
+    $reportsPath = ".\CodeCoverage\${reportType}.zip"
     if (-not (Test-Path $reportsPath)) {
         throw "Cannot find GCOV html report archive"
     }
@@ -121,7 +124,7 @@ function Main {
     if (-not (Test-Path $ReportDestination)) {
         New-Item -Path $ReportDestination -Type Directory
     }
-    $ReportDestination = Join-Path $ReportDestination $reportName
+    $ReportDestination = Join-Path $ReportDestination $reportType
     if (Test-Path $ReportDestination) {
         Remove-Item -Path $ReportDestination -Recurse -Force
     }

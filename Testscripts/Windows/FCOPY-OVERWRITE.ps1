@@ -127,7 +127,7 @@ else {
 # Second copy file overwrites the initial file. Re-write the text file with 15 characters, and then copy it with -Force parameter.
 #
 $sts = Copy-CheckFileInLinuxGuest -vmUserName $VMUserName -vmPassword $VMPassword -ipv4 $Ipv4 -vmPort $VMPort -vmName $VMName -hvServer $HvServer -testfile $testfile -overwrite $True -contentlength 15 -filePath $filePath -vhd_path_formatted $vhd_path_formatted
-if (-not $sts[-1]) {
+if (-not $sts) {
     Write-LogErr "FAIL to overwrite the file '${testfile}' to the VM."
     return "FAIL"
 }

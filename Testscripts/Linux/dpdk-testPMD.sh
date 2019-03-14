@@ -117,7 +117,7 @@ function Testpmd_Parser() {
 	local core=${1}
 	local test_mode=${2}
 	local testpmd_csv_file=${3}
-	local dpdk_version=$(grep "Version:" "${LIS_HOME}"/"${DPDK_DIR}"/pkg/dpdk.spec | awk '{print $2}')
+	local dpdk_version=$(Get_DPDK_Version "${LIS_HOME}/${DPDK_DIR}")
 
 	local log_files=$(ls "${LOG_DIR}"/*.log | grep "dpdk-testpmd-${test_mode}-.*-${core}-core")
 	LogMsg "Parsing test run ${test_mode} mode ${core} core(s)"

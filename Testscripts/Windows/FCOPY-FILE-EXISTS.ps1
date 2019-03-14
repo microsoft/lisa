@@ -130,12 +130,11 @@ function Main {
     if ($error.Count -eq 0) {
         # Checking if the file size is matching
         $sts = Check-FileInLinuxGuest -vmPassword $VMPassword -vmPort $VMPort -vmUserName $VMUserName -ipv4 $Ipv4 -filename "/tmp/$testfile" -checkSize $true
-
-        if (-not $sts[-1]) {
+        if (-not $sts) {
             Write-LogErr "File is not present on the guest VM '${vmName}'!"
             return "FAIL"
         }
-        elseif ($sts[0] -eq 10485760) {
+        elseif ($sts -eq 10485760) {
             Write-LogInfo "Info: The file copied matches the 10MB size."
             return "PASS"
         }

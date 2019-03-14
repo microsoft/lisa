@@ -130,7 +130,7 @@ function Testfailsafe_Parser() {
 
 	local csv_file=$(Create_Csv)
 	echo "dpdk_version,phase,fwdrx_pps_avg,fwdtx_pps_avg" > "${csv_file}"
-	local dpdk_version=$(grep "Version:" "${LIS_HOME}"/"${DPDK_DIR}"/pkg/dpdk.spec | awk '{print $2}')
+	local dpdk_version=$(Get_DPDK_Version "${LIS_HOME}/${DPDK_DIR}")
 
 	local trimmed_prefix="trimmed-forwarder"
 	local trimmed_log="${LOG_DIR}/${trimmed_prefix}.log"
