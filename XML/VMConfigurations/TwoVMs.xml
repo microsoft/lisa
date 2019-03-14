@@ -394,7 +394,7 @@
             </VirtualMachine>
         </ResourceGroup>
     </TwoVM12Disk>
-    <LPST>
+    <long-term>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
             <VirtualMachine>
@@ -479,5 +479,5 @@
                 </DataDisk>
             </VirtualMachine>
         </ResourceGroup>
-    </LPST>
+    </long-term>
 </TestSetup>
