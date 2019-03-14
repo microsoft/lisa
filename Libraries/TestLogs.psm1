@@ -120,7 +120,12 @@ function Collect-TestLogs {
 			 -files $filesTocopy
 		$summary = Get-Content (Join-Path $LogDir "summary.log")
 		$testState = Get-Content (Join-Path $LogDir "state.txt")
-		$currentTestResult.TestResult = $resultTranslation[$testState]
+		# If test has timed out state.txt will contain TestRunning
+		if ($testState -eq "TestRunning"){
+			$currentTestResult.TestResult = $global:ResultAborted
+		} else {
+			$currentTestResult.TestResult = $resultTranslation[$testState]
+		}
 	} elseif ($TestType -eq "py") {
 		$filesTocopy = "{0}/state.txt, {0}/Summary.log, {0}/${TestName}_summary.log" `
 			-f @("/home/${Username}")
@@ -196,12 +201,13 @@ Function Get-SystemBasicLogs($AllVMData, $User, $Password, $currentTestData, $Cu
 		{
 			$VMSize = $HyperVInstanceSize
 		}
+		$VMGeneration = $vmData.VMGeneration
 		#endregion
 		if ($enableTelemetry) {
 			$SQLQuery = Get-SQLQueryOfTelemetryData -TestPlatform $global:TestPlatform -TestLocation $global:TestLocation -TestCategory $CurrentTestData.Category `
 			-TestArea $CurrentTestData.Area -TestName $CurrentTestData.TestName -CurrentTestResult $CurrentTestResult `
-			-ExecutionTag $global:GlobalConfig.$TestPlatform.ResultsDatabase.testTag -GuestDistro $GuestDistro -KernelVersion $KernelVersion `
-			-LISVersion $LISVersion -HostVersion $HostVersion -VMSize $VMSize -Networking $Networking `
+			-ExecutionTag $global:GlobalConfig.Global.$global:TestPlatform.ResultsDatabase.testTag -GuestDistro $GuestDistro -KernelVersion $KernelVersion `
+			-LISVersion $LISVersion -HostVersion $HostVersion -VMSize $VMSize -VMGeneration $VMGeneration -Networking $Networking `
 			-ARMImageName $global:ARMImageName -OsVHD $global:BaseOsVHD -BuildURL $env:BUILD_URL
 
 			Upload-TestResultToDatabase -SQLQuery $SQLQuery

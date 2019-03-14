@@ -501,6 +501,7 @@ function Get-AllHyperVDeployementData($HyperVGroupNames,$GlobalConfig,$RetryCoun
         Add-Member -InputObject $objNode -MemberType NoteProperty -Name PublicIP -Value $null -Force
         Add-Member -InputObject $objNode -MemberType NoteProperty -Name InternalIP -Value $null -Force
         Add-Member -InputObject $objNode -MemberType NoteProperty -Name RoleName -Value $null -Force
+        Add-Member -InputObject $objNode -MemberType NoteProperty -Name VMGeneration -Value $null -Force
         if ($global:IsWindowsImage) {
             Add-Member -InputObject $objNode -MemberType NoteProperty -Name RDPPort -Value 3389 -Force
         } else {
@@ -546,6 +547,7 @@ function Get-AllHyperVDeployementData($HyperVGroupNames,$GlobalConfig,$RetryCoun
 
             $QuickVMNode.InternalIP = $QuickVMNode.PublicIP
             $QuickVMNode.HyperVHost = $ComputerName
+            $QuickVMNode.VMGeneration = $VM.Generation
             if ($QuickVMNode.PublicIP -notmatch "\b(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}\b") {
                 Write-LogInfo ("Cannot collect public IP for VM {0}" -f @($VM.Name))
             } else {
@@ -715,8 +717,8 @@ function Check-IP {
                 if ($vmNic.Length -gt 1) {
                    $vmNic = $vmNic[0]
                 }
-                $vmIP = $vmNic.IPAddresses[0]
-                if ($vmIP) {
+                if ($vmNic.IPAddresses -and $vmNic.IPAddresses[0]) {
+                    $vmIP = $vmNic.IPAddresses[0]
                     $vmIP = $([ipaddress]$vmIP.trim()).IPAddressToString
                     if ($global:IsWindowsImage) {
                         $port = $($VM.RDPPort)

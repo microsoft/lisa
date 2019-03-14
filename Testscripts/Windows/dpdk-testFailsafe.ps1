@@ -28,29 +28,6 @@ function Set-Runtime() {
 	}
 }
 
-function Confirm-WithinPercentage() {
-	param (
-		[double]$num0,
-		[double]$num1,
-		[double]$percent
-	)
-
-	$larger = $num0
-	$smaller = $num1
-	if ($smaller -gt $larger) {
-		$larger = $num1
-		$smaller = $num0
-	}
-
-	$difference = ($larger - $smaller) / $smaller * 100
-
-	if ($difference -gt $percent) {
-		return $false
-	}
-
-	return $true
-}
-
 function Confirm-Performance() {
 	# count is non header lines
 	$isEmpty = ($testDataCsv.Count -eq 0)

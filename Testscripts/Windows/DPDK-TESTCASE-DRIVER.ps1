@@ -91,6 +91,29 @@ function Set-Phase() {
 	Run-LinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username $superUser -password $password -command "echo $phase_msg > phase.txt"
 }
 
+function Confirm-WithinPercentage() {
+	param (
+		[double]$num0,
+		[double]$num1,
+		$percent = 20
+	)
+
+	$variation = ($num0 - $num1) / $num1 * 100
+	if ($variation -gt 0) {
+		Write-LogInfo "Positive variation ${variation} for the performance."
+		return $true
+	} else {
+		$variation = [math]::abs($variation)
+		if ($variation -gt $percent) {
+			Write-LogErr "Negative variation ${variation} for the performance greater than the threshold ${percent}."
+			return $false
+		} else {
+			Write-LogWarn "Negative variation ${variation} for the performance smaller than the threshold ${percent}."
+			return $true
+		}
+	}
+}
+
 function Main {
 	Write-LogInfo "DPDK-TESTCASE-DRIVER starting..."
 
