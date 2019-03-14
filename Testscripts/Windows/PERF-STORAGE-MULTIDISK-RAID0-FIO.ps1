@@ -268,6 +268,18 @@ function Main {
             -OutPerfResultFile $outPerfResultFile
 
         $fioPerfResults = Get-FioPerformanceResults $outPerfResultFile
+        # Get current run modes
+        $modes = $fioPerfResults | Sort-Object {$_.meta_data.mode} -Unique
+        # For each mode, sort by q_depth, add it into test summary
+        foreach($mode in $modes) {
+            $currentMode = $mode["meta_data"]["mode"]
+            $metadata = "Mode=$currentMode"
+            $iopsResults = $fioPerfResults | Where-Object {$_.meta_data.mode -eq $currentMode } | Sort-Object { [int]($_.meta_data.q_depth)}
+            foreach($iopsResult in $iopsResults) {
+                $summaryResult = "block_size=$($iopsResult["block_size"])`K q_depth=$($iopsResult["meta_data"]["q_depth"]) iops=$($iopsResult["io_per_second"])"
+                $currentTestResult.TestSummary += New-ResultSummary -testResult $summaryResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+            }
+        }
 
         $fioPerfResultsFile = "${LogDir}\$($currentTestData.testName)_perf_results.json"
         $fioPerfResults | ConvertTo-Json | Out-File $fioPerfResultsFile -Encoding "ascii"
