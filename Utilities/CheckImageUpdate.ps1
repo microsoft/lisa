@@ -72,24 +72,28 @@ Function Detect-NewVHDFromStorageContainer {
 
 		$configFileUrl = $Url.Insert($Url.IndexOf('?'), "/$configFile")
 		$mailReceviers = ""
-		Invoke-RestMethod $configFileUrl -Method Get -ErrorVariable restError -OutFile $configFile
+		try {
+			Invoke-RestMethod $configFileUrl -Method Get -ErrorVariable restError -OutFile $configFile
 
-		if ($?) {
-			$configXml = [xml](Get-Content $configFile)
-			if ($configXml.MailReceivers) {
-				$mailReceviers = $configXml.MailReceivers
+			if ($?) {
+				$configXml = [xml](Get-Content $configFile)
+				if ($configXml.MailReceivers) {
+					$mailReceviers = $configXml.MailReceivers
+				}
+				if ($configXml.Config) {
+					if ($configXml.Config.ImageMatch) {
+						$imageMatchRegex = $configXml.Config.ImageMatch
+					}
+					if ($configXml.Config.MailReceivers) {
+						$mailReceviers = $configXml.Config.MailReceivers
+					}
+					if ($configXml.Config.LogContainer -and $configXml.Config.LogContainer.SASL_URL) {
+						$logContainerSAS = $configXml.Config.LogContainer.SASL_URL
+					}
+				}
 			}
-			if ($configXml.Config) {
-				if ($configXml.Config.ImageMatch) {
-					$imageMatchRegex = $configXml.Config.ImageMatch
-				}
-				if ($configXml.Config.MailReceivers) {
-					$mailReceviers = $configXml.Config.MailReceivers
-				}
-				if ($configXml.Config.LogContainer -and $configXml.Config.LogContainer.SASL_URL) {
-					$logContainerSAS = $configXml.Config.LogContainer.SASL_URL
-				}
-			}
+		} catch {
+			Write-Host "No config file"
 		}
 
 		# Get the blob metadata
@@ -157,7 +161,7 @@ Info: Number # $index URL is $vhdurl
 				$DistroCategoryNode = $VhdInfoXml.CreateElement("DistroCategory")
 				$DistroCategoryNode.set_InnerXml($DistroCategory) | Out-Null
 				$VhdNode.AppendChild($DistroCategoryNode) | Out-Null
-				if ( !$mailReceviers ) {
+				if ( $mailReceviers ) {
 					$MailReceiversNode = $VhdInfoXml.CreateElement("MailReceivers")
 					$MailReceiversNode.set_InnerXml($mailReceviers)
 					$VhdNode.AppendChild($MailReceiversNode) | Out-Null

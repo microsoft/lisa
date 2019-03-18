@@ -479,7 +479,7 @@ Class TestController
 
 		# Update test summary
 		$testRunDuration = $this.JunitReport.GetTestCaseElapsedTime("LISAv2Test-$($this.TestPlatform)","$currentTestName","mm")
-		$this.TestSummary.UpdateTestSummaryForCase($currentTestName, $ExecutionCount, $currentTestResult.TestResult, $testRunDuration, $currentTestResult.testSummary, $VmData)
+		$this.TestSummary.UpdateTestSummaryForCase($CurrentTestData, $ExecutionCount, $currentTestResult.TestResult, $testRunDuration, $currentTestResult.testSummary, $VmData)
 
 		# Update junit report for current test case
 		$caseLog = Get-Content -Raw "$CurrentTestLogDir\$global:LogFileName"
@@ -516,7 +516,7 @@ Class TestController
 							# Failed to deploy the VMs, Set the case to abort
 							$this.JunitReport.StartLogTestCase("LISAv2Test-$($this.TestPlatform)","$($case.testName)","$($case.Category)-$($case.Area)")
 							$this.JunitReport.CompleteLogTestCase("LISAv2Test-$($this.TestPlatform)","$($case.testName)","Aborted","")
-							$this.TestSummary.UpdateTestSummaryForCase($case.testName, $executionCount, "Aborted", "0", "", $null)
+							$this.TestSummary.UpdateTestSummaryForCase($case, $executionCount, "Aborted", "0", "", $null)
 							continue
 						}
 					}
