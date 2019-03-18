@@ -20,7 +20,7 @@ function Main {
     # Create test result
     $currentTestResult = Create-TestResultObject
     $resultArr = @()
-    $superuser="root"
+    $superuser = "root"
 
     try {
         Provision-VMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
@@ -46,12 +46,12 @@ function Main {
         Copy-RemoteFiles -uploadTo $allVMData.PublicIP -port $allVMData.SSHPort `
             -files $xfstestsConfig -username $superuser -password $password -upload
         Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
-            -password $password -command "/$superuser/xfstesting.sh" -RunInBackground
+            -password $password -command "/$superuser/xfstesting.sh" -RunInBackground | Out-Null
         # Check the status of the run every minute
         # If the run is longer than 3 hours, abort the test
         $timeout = New-Timespan -Minutes 180
         $sw = [diagnostics.stopwatch]::StartNew()
-        while ($sw.elapsed -lt $timeout){
+        while ($sw.elapsed -lt $timeout) {
             Start-Sleep -s 60
             $state = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort `
                 -username $superuser -password $password "cat state.txt"
@@ -72,7 +72,7 @@ function Main {
         # We first need to move copy from root folder to user folder for
         # Collect-TestLogs function to work
         Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
-            -password $password -command "cp * /home/$user" -ignoreLinuxExitCode:$true
+            -password $password -command "cp * /home/$user" -ignoreLinuxExitCode:$true | Out-Null
         $testResult = Collect-TestLogs -LogsDestination $LogDir -ScriptName `
             $currentTestData.files.Split('\')[3].Split('.')[0] -TestType "sh"  -PublicIP `
             $allVMData.PublicIP -SSHPort $allVMData.SSHPort -Username $user `
