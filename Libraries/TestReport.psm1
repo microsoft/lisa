@@ -395,11 +395,11 @@ Class TestSummary
 	[void] UpdateTestSummaryForCase([object]$TestData, [int]$ExecutionCount, [string]$TestResult, [string]$Duration, [string]$TestSummary, [object]$AllVMData)
 	{
 		if ( $this.AddHeader ) {
-			$this.TextSummary += "{0,5} {1, -10} {2,-40} {3,20} {4,20} `r`n" -f "ID", "TestArea", "TestCaseName", "TestResult", "TestDuration(in minutes)"
-			$this.TextSummary += "---------------------------------------------------------------------------------------------------------------------`r`n"
+			$this.TextSummary += "{0,5} {1, -20} {2,-65} {3,20} {4,20} `r`n" -f "ID", "TestArea", "TestCaseName", "TestResult", "TestDuration(in minutes)"
+			$this.TextSummary += "-------------------------------------------------------------------------------------------------------------------------------------------`r`n"
 			$this.AddHeader = $false
 		}
-		$this.TextSummary += "{0,5} {1, -10} {2,-40} {3,20} {4,20} `r`n" -f "$ExecutionCount", "$($TestData.Area)", "$($TestData.testName)", "$TestResult", "$Duration"
+		$this.TextSummary += "{0,5} {1, -20} {2,-65} {3,20} {4,20} `r`n" -f "$ExecutionCount", "$($TestData.Area)", "$($TestData.testName)", "$TestResult", "$Duration"
 		if ( $TestSummary ) {
 			$this.TextSummary += "$TestSummary"
 		}
