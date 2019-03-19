@@ -8,27 +8,32 @@
     echo "TestAborted" > state.txt
     exit 0
 }
+
 # Source constants file and initialize most common variables
 UtilsInit
+
 net_interface=eth1
+
 # Verify the new NIC received an IP v4 address
 LogMsg "Verify the new NIC has an IPv4 address" >> ~/summary.log
 ip addr show ${net_interface} | grep "inet\b" > /dev/null
-check_exit_status "${net_interface} is up"  "exit"
+check_exit_status "${net_interface} is up" "exit"
 LogMsg "The network interface is ${net_interface}" >> ~/summary.log
+initial_address=$(ip a show $net_interface)
+LogMsg "Before MAC address change: $initial_address" >> ~/summary.log
+
 # Change MAC
-LogMsg "Changing MAC address to 02:01:02:03:04:08" >> ~/summary.log
-before=$(sudo ip a show $net_interface)
-LogMsg "Before MAC address change: $before" >> ~/summary.log
 ip link set $net_interface down
+LogMsg "Changing MAC address to 02:01:02:03:04:08" >> ~/summary.log
 ip link set $net_interface address 02:01:02:03:04:08
-ip link set $net_interface up
 if [ $? -ne 0 ]; then
-    LogErr "Unable to change mac" >> ~/summary.log
+    LogErr "Unable to set static MAC address" >> ~/summary.log
     SetTestStateFailed
     exit 0
 fi
-after=$(sudo ip a show $net_interface)
-LogMsg "After MAC address change: $after" >> ~/summary.log
+ip link set $net_interface up
+
+new_address=$(ip a show $net_interface)
+LogMsg "After MAC address change: $new_address" >> ~/summary.log
 SetTestStateCompleted
 exit 0
