@@ -47,7 +47,7 @@
         <TestName>HYPERV-NESTED-KVM-STORAGE-SINGLE-DISK</TestName>
         <testScript>NESTED-KVM-STORAGE-PERF.ps1</testScript>
         <setupScript>.\Testscripts\Windows\SETUP-Enable-NestedVirtualization.ps1</setupScript>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_storage_perf.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_storage_perf.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <setupType>OneVM1Disk</setupType>
         <OverrideVMSize>Standard_F16</OverrideVMSize>
         <TestParameters>
@@ -59,7 +59,7 @@
             <param>NestedMemMB=8192</param>
             <param>HostFwdPort=60022</param>
             <param>RaidOption='No RAID'</param>
-            <param>modes='randread randwrite read write'</param>
+            <param>modes=NESTED-PERF-STORAGE-IO-MODES</param>
             <param>startThread=1</param>
             <param>maxThread=1024</param>
             <param>startIO=4</param>
@@ -77,7 +77,7 @@
     <test>
         <TestName>AZURE-NESTED-KVM-STORAGE-SINGLE-DISK</TestName>
         <testScript>NESTED-KVM-STORAGE-PERF.ps1</testScript>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_storage_perf.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_storage_perf.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <setupType>OneVM1DiskNested</setupType>
         <AdditionalHWConfig>
             <DiskType>Managed</DiskType>
@@ -91,7 +91,7 @@
             <param>NestedMemMB=8192</param>
             <param>HostFwdPort=60022</param>
             <param>RaidOption='No RAID'</param>
-            <param>modes='randread randwrite read write'</param>
+            <param>modes=NESTED-PERF-STORAGE-IO-MODES</param>
             <param>startThread=1</param>
             <param>maxThread=1024</param>
             <param>startIO=4</param>
@@ -110,7 +110,7 @@
         <TestName>HYPERV-NESTED-KVM-STORAGE-MULTIDISK</TestName>
         <testScript>NESTED-KVM-STORAGE-PERF.ps1</testScript>
         <setupScript>.\Testscripts\Windows\SETUP-Enable-NestedVirtualization.ps1</setupScript>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_storage_perf.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_storage_perf.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <setupType>OneVM4Disk</setupType>
         <TestParameters>
             <!--The nested image should be qcow2 format, and accessible from a public URL-->
@@ -122,7 +122,7 @@
             <param>HostFwdPort=60022</param>
             <!--The raid option allowed values: 'No RAID','RAID in L1','RAID in L2'-->
             <param>RaidOption='RAID_OPTION'</param>
-            <param>modes='randread randwrite read write'</param>
+            <param>modes=NESTED-PERF-STORAGE-IO-MODES</param>
             <param>startThread=1</param>
             <param>maxThread=1024</param>
             <param>startIO=4</param>
@@ -140,7 +140,7 @@
     <test>
         <TestName>AZURE-NESTED-KVM-STORAGE-MULTIDISK</TestName>
         <testScript>NESTED-KVM-STORAGE-PERF.ps1</testScript>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_storage_perf.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_storage_perf.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <setupType>OneVM6DiskNested</setupType>
         <AdditionalHWConfig>
             <DiskType>Managed</DiskType>
@@ -155,7 +155,7 @@
             <param>HostFwdPort=60022</param>
             <!--The raid option allowed values: 'No RAID','RAID in L1','RAID in L2'-->
             <param>RaidOption='RAID_OPTION'</param>
-            <param>modes='randread randwrite read write'</param>
+            <param>modes=NESTED-PERF-STORAGE-IO-MODES</param>
             <param>startThread=1</param>
             <param>maxThread=1024</param>
             <param>startIO=4</param>
@@ -322,7 +322,7 @@
             <param>NestedMemMB=8192</param>
             <param>HostFwdPort=60022</param>
             <param>RaidOption='No RAID'</param>
-            <param>modes='randread randwrite read write'</param>
+            <param>modes=NESTED-PERF-STORAGE-IO-MODES</param>
             <param>startThread=1</param>
             <param>maxThread=1024</param>
             <param>startIO=4</param>
@@ -354,7 +354,7 @@
             <param>HostFwdPort=60022</param>
             <!--The raid option allowed values: 'No RAID','RAID in L1','RAID in L2'-->
             <param>RaidOption='RAID in L1'</param>
-            <param>modes='randread randwrite read write'</param>
+            <param>modes=NESTED-PERF-STORAGE-IO-MODES</param>
             <param>startThread=1</param>
             <param>maxThread=1024</param>
             <param>startIO=4</param>
@@ -388,7 +388,7 @@
             <param>NestedMemMB=8192</param>
             <param>HostFwdPort=60022</param>
             <param>RaidOption='No RAID'</param>
-            <param>modes='randread randwrite read write'</param>
+            <param>modes=NESTED-PERF-STORAGE-IO-MODES</param>
             <param>startThread=1</param>
             <param>maxThread=1024</param>
             <param>startIO=4</param>
@@ -422,7 +422,7 @@
             <param>HostFwdPort=60022</param>
             <!--The raid option allowed values: 'No RAID','RAID in L1','RAID in L2'-->
             <param>RaidOption='RAID in L1'</param>
-            <param>modes='randread randwrite read write'</param>
+            <param>modes=NESTED-PERF-STORAGE-IO-MODES</param>
             <param>startThread=1</param>
             <param>maxThread=1024</param>
             <param>startIO=4</param>
