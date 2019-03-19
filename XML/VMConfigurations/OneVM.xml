@@ -36,6 +36,24 @@
             </VirtualMachine>
         </ResourceGroup>
     </OneVMCluster>
+    <OneVM2NIC>
+        <isDeployed>NO</isDeployed>
+        <ResourceGroup>
+            <VirtualMachine>
+                <state></state>
+                <ARMInstanceSize>Standard_DS1_v2</ARMInstanceSize>
+                <RoleName></RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>22</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+                <ExtraNICs>1</ExtraNICs>
+            </VirtualMachine>
+        </ResourceGroup>
+    </OneVM2NIC>
     <OneVM3NIC>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
