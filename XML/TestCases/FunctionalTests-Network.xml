@@ -466,7 +466,7 @@
         <testScript>NET-HotAdd-MultiNIC.ps1</testScript>
         <files>.\Testscripts\Linux\NET-Verify-HotAdd-MultiNIC.sh,.\Testscripts\Linux\utils.sh</files>
         <setupType>OneVM</setupType>
-         <TestParameters>
+        <TestParameters>
             <param>nic_action=add</param>
         </TestParameters>
         <Platform>HyperV</Platform>
@@ -480,7 +480,7 @@
         <testScript>NET-HotAdd-MultiNIC.ps1</testScript>
         <files>.\Testscripts\Linux\NET-Verify-HotAdd-MultiNIC.sh,.\Testscripts\Linux\utils.sh</files>
         <setupType>OneVM</setupType>
-         <TestParameters>
+        <TestParameters>
             <param>nic_action=remove</param>
         </TestParameters>
         <Platform>HyperV</Platform>
@@ -634,6 +634,17 @@
         <Category>Functional</Category>
         <Area>NETWORK</Area>
         <Tags>ethtool</Tags>
+        <Priority>1</Priority>
+    </test>
+    <test>
+        <testName>NET-SET-STATIC-MAC</testName>
+        <testScript>NET-SET-STATIC-MAC.sh</testScript>
+        <files>.\TestScripts\Linux\NET-SET-STATIC-MAC.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>OneVM2NIC</setupType>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
         <Priority>1</Priority>
     </test>
 </TestCases>
