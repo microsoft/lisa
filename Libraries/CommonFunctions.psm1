@@ -860,7 +860,7 @@ Function Register-RhelSubscription {
 			$scriptName = "Register-Redhat.sh"
 			Copy-RemoteFiles -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files ".\Testscripts\Linux\$scriptName" -username $user -password $password -upload
 			$RegistrationStatus = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password `
-			-command "bash $scriptName -Username $RedhatNetworkUsername -Password $RedhatNetworkPassword" -runAsSudo `
+			-command "bash $scriptName -Username '$RedhatNetworkUsername' -Password '$RedhatNetworkPassword'" -runAsSudo `
 			-MaskStrings "$RedhatNetworkUsername,$RedhatNetworkPassword"
 			if ($RegistrationStatus -imatch "RHEL_REGISTERED") {
 				Write-LogInfo "$($vmData.Rolename): RHN Network Registration: Succeeded."
