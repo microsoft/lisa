@@ -207,6 +207,7 @@
         <OverrideVMSize>Standard_F16</OverrideVMSize>
         <AdditionalHWConfig>
             <SwitchName>NonSRIOV</SwitchName>
+            <OSType>Windows</OSType>
         </AdditionalHWConfig>
         <TestParameters>
             <!--The nested image should be vhd format, and accessible from a public URL-->
@@ -313,6 +314,9 @@
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <setupType>OneVM1Disk</setupType>
         <OverrideVMSize>Standard_F16</OverrideVMSize>
+        <AdditionalHWConfig>
+            <OSType>Windows</OSType>
+        </AdditionalHWConfig>
         <TestParameters>
             <!-- The nested image should be vhd format, it's a local path, a SMB path, or a public URL  -->
             <param>NestedImageUrl=NESTED_VHD_PATH</param>
@@ -344,6 +348,9 @@
         <setupScript>.\Testscripts\Windows\SETUP-Enable-NestedVirtualization.ps1</setupScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <setupType>OneVM4Disk</setupType>
+        <AdditionalHWConfig>
+            <OSType>Windows</OSType>
+        </AdditionalHWConfig>
         <TestParameters>
             <!-- The nested image should be vhd format, it's a local path, a SMB path, or a public URL  -->
             <param>NestedImageUrl=NESTED_VHD_PATH</param>
@@ -378,6 +385,7 @@
         <setupType>OneVM1DiskNested</setupType>
         <AdditionalHWConfig>
             <DiskType>Managed</DiskType>
+            <OSType>Windows</OSType>
         </AdditionalHWConfig>
         <TestParameters>
             <!--The nested image should be vhd format, and accessible from a public URL-->
@@ -411,6 +419,7 @@
         <setupType>OneVM6DiskNested</setupType>
         <AdditionalHWConfig>
             <DiskType>Managed</DiskType>
+            <OSType>Windows</OSType>
         </AdditionalHWConfig>
         <TestParameters>
             <!--The nested image should be vhd format, and accessible from a public URL-->
@@ -498,6 +507,9 @@
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_hyperv_ntttcp_different_l1_nat.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
         <setupType>TwoVM2Host</setupType>
         <OverrideVMSize>Standard_F16</OverrideVMSize>
+        <AdditionalHWConfig>
+            <OSType>Windows</OSType>
+        </AdditionalHWConfig>
         <TestParameters>
             <!--The nested image should be vhd format, and accessible from a public URL-->
             <param>NestedImageUrl=NESTED_VHD_URL</param>
@@ -522,6 +534,9 @@
         <testScript>NESTED-HYPERV-NTTTCP-DIFFERENT-L1-NAT.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_hyperv_ntttcp_different_l1_nat.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
         <setupType>TwoVMNested</setupType>
+        <AdditionalHWConfig>
+            <OSType>Windows</OSType>
+        </AdditionalHWConfig>
         <TestParameters>
             <!--The nested image should be vhd format, and accessible from a public URL-->
             <param>NestedImageUrl=NESTED_VHD_URL</param>

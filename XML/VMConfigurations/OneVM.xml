@@ -17,6 +17,30 @@
             </VirtualMachine>
         </ResourceGroup>
     </OneVM>
+    <OneVMWin>
+        <isDeployed>NO</isDeployed>
+        <ResourceGroup>
+            <VirtualMachine>
+                <state></state>
+                <InstanceSize>Standard_DS1_v2</InstanceSize>
+                <ARMInstanceSize>Standard_DS1_v2</ARMInstanceSize>
+                <RoleName></RoleName>
+                <EndPoints>
+                    <Name>RDP</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>3389</LocalPort>
+                    <PublicPort>3389</PublicPort>
+                </EndPoints>
+                <EndPoints>
+                    <Name>Session</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>5985</LocalPort>
+                    <PublicPort>5985</PublicPort>
+                </EndPoints>
+	        <DataDisk></DataDisk>
+            </VirtualMachine>
+        </ResourceGroup>
+    </OneVMWin> 
     <OneVMCluster>
         <isDeployed>NO</isDeployed>
         <ClusteredVM>True</ClusteredVM>

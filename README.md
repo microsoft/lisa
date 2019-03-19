@@ -197,6 +197,10 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
         Example:
         .\Run-LisaV2.ps1 -TestPlatform WSL -TestLocation "localhost" -RGIdentifier 'ubuntuwsl' -TestNames "BVT-VERIFY-BOOT-ERROR-WARNINGS" -OsVHD 'https://aka.ms/wsl-ubuntu-1804' -DestinationOsVHDPath "D:\test"
 
+	.\Run-LisaV2.ps1 -TestPlatform "Azure" -TestLocation "<Region location>" -RGIdentifier "<Identifier of the resource group>" [-ARMImageName "<publisher offer SKU version>" | -OsVHD "<VHD from storage account>" ] [[-TestCategory "<Test Catogry from Jenkins pipeline>" | -TestArea "<Test Area from Jenkins pipeline>"]* | -TestTag "<A Tag from Jenkins pipeline>" | -TestNames "<Test cases separated by comma>"] -CustomParameters "TiPCluster=<cluster name> | TipSessionId=<Test in Production ID> |  DiskType=Managed/Unmanaged | Networking=SRIOV/Synthetic | ImageType=Specialized/Generalized | OSType=Windows/Linux" 
+	Example:
+        .\Run-LisaV2.ps1 -TestPlatform "Azure" -TestLocation "westus" -RGIdentifier "deployment" -ARMImageName "MicrosoftWindowsServer WindowsServer 2016-Datacenter latest" -TestNames "NESTED-HYPERV-NTTTCP-DIFFERENT-L1-PUBLIC-BRIDGE" -CustomeParameters "OSType=Windows"
+
    b. Provide parameters in .\XML\TestParameters.xml.
 
         .\Run-LisaV2.ps1 -TestParameters .\XML\TestParameters.xml
