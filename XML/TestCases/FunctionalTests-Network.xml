@@ -647,4 +647,15 @@
         <Tags>network</Tags>
         <Priority>1</Priority>
     </test>
+    <test>
+        <testName>ETHTOOL-GET-STATISTICS</testName>
+        <testScript>ETHTOOL-GET-STATISTICS.sh</testScript>
+        <files>.\TestScripts\Linux\ETHTOOL-GET-STATISTICS.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>OneVM</setupType>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>NETWORK</Area>
+        <Tags>ethtool</Tags>
+        <Priority>0</Priority>
+    </test>
 </TestCases>
