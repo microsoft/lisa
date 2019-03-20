@@ -26,7 +26,7 @@
 ###############################################################################################
 
 Function Get-SQLQueryOfTelemetryData ($TestPlatform,$TestLocation,$TestCategory,$TestArea,$TestName,$CurrentTestResult, `
-									$ExecutionTag,$GuestDistro,$KernelVersion,$LISVersion,$HostVersion,$VMSize, $VMGeneration, `
+									$ExecutionTag,$GuestDistro,$KernelVersion,$HardwarePlatform,$LISVersion,$HostVersion,$VMSize, $VMGeneration, `
 									$Networking,$ARMImageName,$OsVHD,$LogFile,$BuildURL)
 {
 	try
@@ -50,15 +50,15 @@ Function Get-SQLQueryOfTelemetryData ($TestPlatform,$TestLocation,$TestCategory,
 			$BuildURL = ""
 		}
 		$dataTableName = "LISAv2Results"
-		$SQLQuery = "INSERT INTO $dataTableName (DateTimeUTC,TestPlatform,TestLocation,TestCategory,TestArea,TestName,TestResult,SubTestName,SubTestResult,ExecutionTag,GuestDistro,KernelVersion,LISVersion,HostVersion,VMSize,VMGeneration,Networking,ARMImage,OsVHD,LogFile,BuildURL) VALUES "
-		$SQLQuery += "('$DateTimeUTC','$TestPlatform','$TestLocation','$TestCategory','$TestArea','$TestName','$testResult','','','$ExecutionTag','$GuestDistro','$KernelVersion','$LISVersion','$HostVersion','$VMSize','$VMGeneration','$Networking','$ARMImageName','$OsVHD','$UploadedURL', '$BuildURL'),"
+		$SQLQuery = "INSERT INTO $dataTableName (DateTimeUTC,TestPlatform,TestLocation,TestCategory,TestArea,TestName,TestResult,SubTestName,SubTestResult,ExecutionTag,GuestDistro,KernelVersion,HardwarePlatform,LISVersion,HostVersion,VMSize,VMGeneration,Networking,ARMImage,OsVHD,LogFile,BuildURL) VALUES "
+		$SQLQuery += "('$DateTimeUTC','$TestPlatform','$TestLocation','$TestCategory','$TestArea','$TestName','$testResult','','','$ExecutionTag','$GuestDistro','$KernelVersion','$HardwarePlatform','$LISVersion','$HostVersion','$VMSize','$VMGeneration','$Networking','$ARMImageName','$OsVHD','$UploadedURL', '$BuildURL'),"
 		if ($TestSummary) {
 			foreach ($tempResult in $TestSummary.Split('>')) {
 				if ($tempResult) {
 					$tempResult = $tempResult.Trim().Replace("<br /","").Trim()
 					$subTestResult = $tempResult.Split(":")[$tempResult.Split(":").Count -1 ].Trim()
 					$subTestName = $tempResult.Replace("$subTestResult","").Trim().TrimEnd(":").Trim()
-					$SQLQuery += "('$DateTimeUTC','$TestPlatform','$TestLocation','$TestCategory','$TestArea','$TestName','$testResult','$subTestName','$subTestResult','$ExecutionTag','$GuestDistro','$KernelVersion','$LISVersion','$HostVersion','$VMSize','$VMGeneration','$Networking','$ARMImageName','$OsVHD','$UploadedURL', '$BuildURL'),"
+					$SQLQuery += "('$DateTimeUTC','$TestPlatform','$TestLocation','$TestCategory','$TestArea','$TestName','$testResult','$subTestName','$subTestResult','$ExecutionTag','$GuestDistro','$KernelVersion','$HardwarePlatform','$LISVersion','$HostVersion','$VMSize','$VMGeneration','$Networking','$ARMImageName','$OsVHD','$UploadedURL', '$BuildURL'),"
 				}
 			}
 		}
