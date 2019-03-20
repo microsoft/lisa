@@ -348,11 +348,22 @@ function Create-HyperVGroupDeployment([string]$HyperVGroupName, $HyperVGroupXML,
             $newVhdName = "{0}-{1}{2}" -f @($vhdName, $infoParentOsVHD.DiskIdentifier.Replace("-", ""),$vhdSuffix)
             $localVHDPath = "{0}{1}{2}" -f @($hypervVHDLocalPath,[System.IO.Path]::DirectorySeparatorChar,$newVhdName)
             $localVHDUncPath = $localVHDPath -replace '^(.):', "\\${HyperVHost}\`$1$"
+            $CopyVHD = $false
             if ((Test-Path $localVHDUncPath)) {
                 Write-LogInfo "${parentOsVHDPath} is already found at path ${localVHDUncPath}"
+                $TargetVHD = Get-Item -Path $localVHDUncPath
+                $SourceVHD = Get-Item -Path $parentOsVHDPath
+                if ( $TargetVHD.LastWriteTimeUtc -ne $SourceVHD.LastWriteTimeUtc ) {
+                    Write-LogInfo "Source and Destination VHD's 'LastWriteTimeUtc' property is different."
+                    $CopyVHD = $true
+                }
             } else {
+                Write-LogInfo "${parentOsVHDPath} is not found at path ${localVHDUncPath}"
+                $CopyVHD = $true
+            }
+            if ( $CopyVHD ) {
                 Write-LogInfo "${parentOsVHDPath} will be copied at path ${localVHDUncPath}"
-                Copy-Item -Path ${parentOsVHDPath} -Destination ${localVHDUncPath}
+                Copy-Item -Path ${parentOsVHDPath} -Destination ${localVHDUncPath} -Force
             }
             $parentOsVHDPath = $localVHDPath
 
