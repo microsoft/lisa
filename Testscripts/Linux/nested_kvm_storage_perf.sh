@@ -125,6 +125,9 @@ Run_Fio()
     remote_copy -host localhost -user root -passwd $NestedUserPassword -port $HostFwdPort -filename ./constants.sh -remote_path /root -cmd put
     remote_copy -host localhost -user root -passwd $NestedUserPassword -port $HostFwdPort -filename ./ParseFioTestLogs.sh -remote_path /root -cmd put
     remote_copy -host localhost -user root -passwd $NestedUserPassword -port $HostFwdPort -filename ./nested_kvm_perf_fio.sh -remote_path /root -cmd put
+    remote_copy -host localhost -user root -passwd $NestedUserPassword -port $HostFwdPort -filename ./fio_jason_parser.sh -remote_path /root -cmd put
+    remote_copy -host localhost -user root -passwd $NestedUserPassword -port $HostFwdPort -filename ./gawk -remote_path /root -cmd put
+    remote_copy -host localhost -user root -passwd $NestedUserPassword -port $HostFwdPort -filename ./JSON.awk -remote_path /root -cmd put
 
     Log_Msg "Start to run StartFioTest.sh on nested VM" $log_file
     remote_exec -host localhost -user root -passwd $NestedUserPassword -port $HostFwdPort '/root/StartFioTest.sh'

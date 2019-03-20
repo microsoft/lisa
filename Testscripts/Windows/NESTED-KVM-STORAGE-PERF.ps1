@@ -14,9 +14,6 @@ collect_VM_properties nested_properties.csv
 "@
 
 	$scriptContent2 = @"
-wget https://ciwestusv2.blob.core.windows.net/scriptfiles/JSON.awk
-wget https://ciwestusv2.blob.core.windows.net/scriptfiles/gawk
-wget https://ciwestusv2.blob.core.windows.net/scriptfiles/fio_jason_parser.sh
 chmod +x *.sh
 cp fio_jason_parser.sh gawk JSON.awk utils.sh /root/FIOLog/jsonLog/
 cd /root/FIOLog/jsonLog/
