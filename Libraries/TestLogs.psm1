@@ -164,6 +164,7 @@ Function Get-SystemBasicLogs($AllVMData, $User, $Password, $currentTestData, $Cu
 		$Null = Copy-RemoteFiles -downloadFrom $vmData.PublicIP -port $vmData.SSHPort `
 			-username $user -password $password -files "$FilesToDownload" -downloadTo "$LogDir" -download
 		$KernelVersion = Get-Content "$LogDir\$($vmData.RoleName)-kernelVersion.txt"
+		$HardwarePlatform = Get-Content "$LogDir\$($vmData.RoleName)-hardwarePlatform.txt"
 		$GuestDistro = Get-Content "$LogDir\$($vmData.RoleName)-distroVersion.txt"
 		$LISMatch = (Select-String -Path "$LogDir\$($vmData.RoleName)-lis.txt" -Pattern "^version:").Line
 		if ($LISMatch)
@@ -207,7 +208,7 @@ Function Get-SystemBasicLogs($AllVMData, $User, $Password, $currentTestData, $Cu
 			$SQLQuery = Get-SQLQueryOfTelemetryData -TestPlatform $global:TestPlatform -TestLocation $global:TestLocation -TestCategory $CurrentTestData.Category `
 			-TestArea $CurrentTestData.Area -TestName $CurrentTestData.TestName -CurrentTestResult $CurrentTestResult `
 			-ExecutionTag $global:GlobalConfig.Global.$global:TestPlatform.ResultsDatabase.testTag -GuestDistro $GuestDistro -KernelVersion $KernelVersion `
-			-LISVersion $LISVersion -HostVersion $HostVersion -VMSize $VMSize -VMGeneration $VMGeneration -Networking $Networking `
+			-HardwarePlatform $HardwarePlatform -LISVersion $LISVersion -HostVersion $HostVersion -VMSize $VMSize -VMGeneration $VMGeneration -Networking $Networking `
 			-ARMImageName $global:ARMImageName -OsVHD $global:BaseOsVHD -BuildURL $env:BUILD_URL
 
 			Upload-TestResultToDatabase -SQLQuery $SQLQuery
