@@ -20,7 +20,7 @@
 . utils.sh || {
     echo "Error: unable to source utils.sh!"
     echo "TestAborted" > state.txt
-    exit 0 
+    exit 0
 }
 
 # Source constants file and initialize most common variables
@@ -31,72 +31,49 @@ TOP_SRCDIR="$HOME/src"
 LTP_RESULTS="$HOME/ltp-results.log"
 LTP_OUTPUT="$HOME/ltp-output.log"
 LTP_LITE_TESTS="math,fsx,ipc,mm,sched,pty,fs"
-
-proc_count=$(grep -c processor < /proc/cpuinfo)
-
-function verify_install () {
-    if [ "$1" -eq "0" ]; then
-        LogMsg "${2} was successfully installed."
-    else
-        LogMsg "Error: failed to install $2"
-    fi
-}
+ltp_git_url="https://github.com/linux-test-project/ltp.git"
 
 # Checks what Linux distro we are running on
-LogMsg "Installing dependencies"
 GetDistro
 update_repos
+
+LogMsg "Installing dependencies"
+common_packages=(git m4 db48-utils bison flex make gcc psmisc autoconf automake)
+install_package "${common_packages[@]}"
+
 case $DISTRO in
     "suse"*)
-        suse_packages=(m4 libaio-devel libattr1 libcap-progs 'bison>=2.4.1' \
-            db48-utils libdb-4_8 perl-BerkeleyDB 'flex>=2.5.33' 'make>=3.81' \
-            'automake>=1.10.2' 'autoconf>=2.61' gcc git-core psmisc)
-        for item in ${suse_packages[*]}
-        do
-            LogMsg "Starting to install ${item}... "
-            zypper --non-interactive in "$item"
-            verify_install "$?" "$item"
-        done
+        suse_packages=(libaio-devel libattr1 libcap-progs \
+            libdb-4_8 perl-BerkeleyDB git-core)
+        install_package "${suse_packages[@]}"
         ;;
     "ubuntu"* | "debian"*)
-        deb_packages=(autoconf automake m4 libaio-dev libattr1 libcap-dev \
-            bison db48-utils libdb4.8 libberkeleydb-perl flex make gcc \
-            gcc git expect dh-autoreconf psmisc libnuma-dev quota genisoimage \
-            gdb unzip exfat-utils keyutils)
-        for item in ${deb_packages[*]}
-        do
-            LogMsg "Starting to install ${item}... "
-            apt install -y "$item"
-            verify_install "$?" "$item"
-        done
+        deb_packages=(libaio-dev libattr1 libcap-dev keyutils \
+            libdb4.8 libberkeleydb-perl expect dh-autoreconf \
+            libnuma-dev quota genisoimage gdb unzip exfat-utils)
+        install_package "${deb_packages[@]}"
         ;;
     "redhat"* | "centos"* | "fedora"*)
-        rpm_packages=(autoconf automake m4 libaio-devel libattr libcap-devel \
-            bison db48-utils libdb4.8 libberkeleydb-perl flex make gcc git psmisc)
-        for item in ${rpm_packages[*]}
-        do
-            LogMsg "Starting to install ${item}... "
-            yum -y install "$item"
-            verify_install "$?" "$item"
-        done
+        rpm_packages=(libaio-devel libattr libcap-devel libdb)
+        install_package "${rpm_packages[@]}"
         ;;
     *)
-        LogMsg "Unknown Distro, continuing to try for RPM installation"
+        LogMsg "Unknown distro $DISTRO, continuing to try for RPM installation"
         ;;
 esac
 
-test -d "$TOP_SRCDIR" || mkdir -p "$TOP_SRCDIR"
+rm -rf "$TOP_SRCDIR"
+mkdir -p "$TOP_SRCDIR"
 cd "$TOP_SRCDIR"
 
 # define regular stable releases in order to avoid unstable builds
 # https://github.com/linux-test-project/ltp/tags
-# 'ltp_version_git_tag' is passed from Test Definition in .\XML\TestCases\CommunityTests.xml. 
+# 'ltp_version_git_tag' is passed from Test Definition in .\XML\TestCases\CommunityTests.xml.
 # 'ltp_version_git_tag' default value is defined in .\XML\Other\ReplaceableTestParameters.xml
 # You can run the ltp test with any tag using LISAv2's Custom Parameters feature.
-
 if [[ $LTP_PACKAGE_URL == "" ]];then
     LogMsg "Cloning LTP"
-    git clone https://github.com/linux-test-project/ltp.git
+    git clone "$ltp_git_url"
     TOP_SRCDIR="${HOME}/src/ltp"
 
     cd "$TOP_SRCDIR"
@@ -115,35 +92,22 @@ if [[ $LTP_PACKAGE_URL == "" ]];then
     ./configure 2>/dev/null
 
     LogMsg "Compiling LTP..."
-    make -j "$proc_count" all 2>/dev/null
-    if [ $? -ne 0 ]; then
-        LogMsg "Error: Failed to compile LTP!"
-        SetTestStateFailed
-        exit 0
-    fi
+    make -j $(nproc) all 2>/dev/null
+    check_exit_status "Compile LTP" "exit"
 
     LogMsg "Installing LTP..."
-    make -j "$proc_count" install 2>/dev/null
-    if [ $? -ne 0 ]; then
-        LogMsg "Error: Failed to install LTP!"
-        SetTestStateFailed
-        exit 0
-    fi
+    make -j $(nproc) install SKIP_IDCHECK=1 2>/dev/null
+    check_exit_status "Install LTP" "exit"
 else
     LogMsg "Download ltp package from: $LTP_PACKAGE_URL"
-    curl $LTP_PACKAGE_URL --output "ltp.rpm"
+    curl "$LTP_PACKAGE_URL" --output "ltp.rpm"
     rpm --nodeps -ivh ltp.rpm
-    if [ $? -ne 0 ]; then
-        LogMsg "Error: Failed to install LTP rpm!"
-        SetTestStateFailed
-        exit 0
-    fi
+    check_exit_status "Install LTP RPM" "exit"
 fi
 
 cd "$TOP_BUILDDIR"
 
 LogMsg "Running LTP..."
-
 LTP_PARAMS="-p -q -l $LTP_RESULTS -o $LTP_OUTPUT -z /dev/sdc"
 
 # LTP_TEST_SUITE is passed from the Test Definition xml or from command line when running LISAv2
@@ -155,7 +119,9 @@ elif [[ "$LTP_TEST_SUITE" == "full" ]];then
     echo "Running ltp full suite" >> ~/summary.log
 fi
 
-./runltp $LTP_PARAMS 2>/dev/null
+# LTP can request input if missing users/groups
+# are detected, the yes command will handle the prompt.
+yes | ./runltp $LTP_PARAMS 2>/dev/null
 
 grep -A 5 "Total Tests" "$LTP_RESULTS" >> ~/summary.log
 if grep FAIL "$LTP_OUTPUT" ; then
