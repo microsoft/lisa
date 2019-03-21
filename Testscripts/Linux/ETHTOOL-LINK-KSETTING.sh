@@ -56,9 +56,13 @@ LogMsg "    Duplex:$duplex"
 LogMsg "    Speed:$speed"
 LogMsg "    Port:$port"
 
-# TODO: Change the link settings with the below command when the diver supports the option in future. 
-# ethtool --change eth0 speed xxx duplex yyy
-# where xxx = N and yyy = half or full.
+LogMsg "Attempting to change $net_interface settings using ethtool"
+autoneg=$(ethtool -s $net_interface autoneg off)
+LogMsg "Ethtool output for attempt to change auto-negotiation to off:$autoneg"
+duplex=$(ethtool -s $net_interface duplex half)
+LogMsg "Ethtool output for attempt to change duplex to half-duplex:$duplex"
+speed=$(ethtool -s $net_interface speed 100)
+LogMsg "Ethtool output for attempt to change speed to 100Mb/s:$speed"
 
 SetTestStateCompleted
 exit 0
