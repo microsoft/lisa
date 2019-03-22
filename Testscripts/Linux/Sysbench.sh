@@ -119,7 +119,7 @@ function Install_Deps() {
             apt_get_install "automake libtool pkg-config"
         ;;
         "Sles")
-            zypper_install "vim"
+            zypper_install "gcc make automake libtool vim"
         ;;
     esac
 
