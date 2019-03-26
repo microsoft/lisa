@@ -154,7 +154,7 @@ function Testpmd_Parser() {
 
 function Run_Testcase() {
 	if [ -z "${CORES}" ]; then
-		CORES="1"
+		CORES=(1)
 		LogMsg "CORES not found in environment; doing default single core test"
 	fi
 
@@ -170,14 +170,14 @@ function Run_Testcase() {
 
 	LogMsg "Starting testpmd"
 	Create_Vm_Synthetic_Vf_Pair_Mappings
-	for core in ${CORES}; do
+	for core in "${CORES[@]}"; do
 		Run_Testpmd ${core} "${MODES}" ${TEST_DURATION}
 	done
 
 	LogMsg "Starting testpmd parser"
 	local csv_file=$(Create_Csv)
 	echo "dpdk_version,test_mode,core,max_rx_pps,tx_pps_avg,rx_pps_avg,fwdtx_pps_avg,tx_bytes,rx_bytes,fwd_bytes,tx_packets,rx_packets,fwd_packets,tx_packet_size,rx_packet_size" > "${csv_file}"
-	for core in ${CORES}; do
+	for core in "${CORES[@]}"; do
 		for test_mode in ${MODES}; do
 			Testpmd_Parser ${core} "${test_mode}" "${csv_file}"
 		done
