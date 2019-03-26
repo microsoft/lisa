@@ -294,7 +294,7 @@ Scenario 2 : You need to run all the performance tests quickly.
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>NTTTCP_MULTICLIENTS_TCP_CONNECTIONS</ReplaceThis>
-		<ReplaceWith>(4 8 16 32 64 128 256 512 1024 2048 4096 6144 8192 10240)</ReplaceWith>
+		<ReplaceWith>(8 16 32 64 128 256 512 1024 2048 4096 6144 8192 10240)</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>NTTTCP_UDP_CONNECTIONS</ReplaceThis>
@@ -302,7 +302,7 @@ Scenario 2 : You need to run all the performance tests quickly.
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>NTTTCP_MULTICLIENTS_UDP_CONNECTIONS</ReplaceThis>
-		<ReplaceWith>(4 8 16 32 64 128 256 512 1024)</ReplaceWith>
+		<ReplaceWith>(8 16 32 64 128 256 512 1024)</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>STRESS_REBOOT_NUMBER</ReplaceThis>

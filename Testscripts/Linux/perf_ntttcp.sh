@@ -227,45 +227,43 @@ Run_Ntttcp()
 	fi
 
 	IFS=',' read -r -a array <<< "$client"
-	if [ "${#array[@]}" -gt 1 ];
+	client_count=${#array[@]}
+	if [ "$client_count" -gt 1 ];
 	then
 		mode="multi-clients"
 	fi
 	for current_test_threads in "${testConnections[@]}"; do
-		if [[ $current_test_threads -lt $max_server_threads ]];
+		test_threads=$(($current_test_threads/$client_count))
+		if [[ $test_threads -lt $max_server_threads ]];
 		then
-			num_threads_P=$current_test_threads
+			num_threads_P=$(($test_threads))
 			num_threads_n=1
 		else
 			num_threads_P=$max_server_threads
-			num_threads_n=$(($current_test_threads/$num_threads_P))
+			num_threads_n=$(($test_threads/$num_threads_P))
 		fi
 
 		if [[ $testType == "udp" ]];
 		then
 			tx_log_prefix="sender-${testType}-${bufferLength}k-p${num_threads_P}X${num_threads_n}.log"
 			rx_log_prefix="receiver-${testType}-${bufferLength}k-p${num_threads_P}X${num_threads_n}.log"
-			run_msg="Running ${testType} ${bufferLength}k Test: $current_test_threads connections : $num_threads_P X $num_threads_n"
+			run_msg="Running ${testType} ${bufferLength}k Test: $current_test_threads connections : $num_threads_P X $num_threads_n X $client_count clients"
 			server_ntttcp_cmd="ulimit -n 204800 && ${ntttcp_cmd} -u -b ${bufferLength}k -P ${num_threads_P} -t ${testDuration} -e -W 1 -C 1"
-			num_threads_client_P=$num_threads_P
 			if [[ "$mode" == "multi-clients" ]];
 			then
 				server_ntttcp_cmd+=" -M"
-				num_threads_client_P=$(($num_threads_client_P/4))
 			fi
-			client_ntttcp_cmd="ulimit -n 204800 && ${ntttcp_cmd} -s${server} -u -b ${bufferLength}k -P ${num_threads_client_P} -n ${num_threads_n} -t ${testDuration} -W 1 -C 1"
+			client_ntttcp_cmd="ulimit -n 204800 && ${ntttcp_cmd} -s${server} -u -b ${bufferLength}k -P ${num_threads_P} -n ${num_threads_n} -t ${testDuration} -W 1 -C 1"
 		else
 			tx_log_prefix="sender-${testType}-p${num_threads_P}X${num_threads_n}.log"
 			rx_log_prefix="receiver-${testType}-p${num_threads_P}X${num_threads_n}.log"
-			run_msg="Running ${testType} Test: $current_test_threads connections : $num_threads_P X $num_threads_n"
+			run_msg="Running ${testType} Test: $current_test_threads connections : $num_threads_P X $num_threads_n X $client_count clients"
 			server_ntttcp_cmd="ulimit -n 204800 && ${ntttcp_cmd} -P ${num_threads_P} -t ${testDuration} -e -W 1 -C 1"
-			num_threads_client_P=$num_threads_P
 			if [[ "$mode" == "multi-clients" ]];
 			then
 				server_ntttcp_cmd+=" -M"
-				num_threads_client_P=$(($num_threads_client_P/4))
 			fi
-			client_ntttcp_cmd="ulimit -n 204800 && ${ntttcp_cmd} -s${server} -P ${num_threads_client_P} -n ${num_threads_n} -t ${testDuration} -W 1 -C 1"
+			client_ntttcp_cmd="ulimit -n 204800 && ${ntttcp_cmd} -s${server} -P ${num_threads_P} -n ${num_threads_n} -t ${testDuration} -W 1 -C 1"
 			Run_SSHCommand "${server}" "for i in {1..$testDuration}; do ss -ta | grep ESTA | grep -v ssh | wc -l >> ./$log_folder/tcp-connections-p${num_threads_P}X${num_threads_n}.log; sleep 1; done" &
 		fi
 
@@ -316,7 +314,7 @@ Run_Ntttcp()
 		if [[ "$mode" == "multi-clients" ]];
 		then
 			IFS=',' read -r -a array <<< "${client}"
-			index=$((${#array[@]} -1))
+			index=$(($client_count -1))
 			for ip in "${array[@]:0:$index}"
 			do
 				LogMsg "Execute ${client_ntttcp_cmd} on ${ip}"
