@@ -350,9 +350,17 @@ function InstallKernel() {
         fi
     elif [[ $CustomKernel == *.rpm ]]; then
         LogMsg "Custom Kernel:$CustomKernel"
+        case "$DISTRO_NAME" in
+            oracle|rhel|centos)
+                KERNEL_CONFLICTING_PACKAGES="hypervvssd hypervkvpd hypervfcopyd hyperv-daemons hyperv-tools"
+                ;;
+            suse|opensuse|sles)
+                KERNEL_CONFLICTING_PACKAGES="hyper-v"
+                ;;
+        esac
 
         if [[ $CustomKernel =~ "http" ]];then
-            yum -y install wget
+            install_package wget
             LogMsg "RPM package web link detected. Downloading $CustomKernel"
             wget "$CustomKernel"
             LogMsg "Installing ${CustomKernel##*/}"
@@ -363,16 +371,30 @@ function InstallKernel() {
 
             LogMsg "Removing packages that do not allow the kernel to be installed"
             if [[ "${customKernelFilesUnExpanded}" == *'*.rpm'* ]]; then
-                yum remove -y hypervvssd hypervkvpd hypervfcopyd hyperv-daemons hyperv-tools
+                LogMsg "Removing: ${KERNEL_CONFLICTING_PACKAGES}"
+                remove_package "${KERNEL_CONFLICTING_PACKAGES}"
             fi
 
             LogMsg "Installing ${customKernelFilesUnExpanded}"
-            eval "yum -y install $customKernelFilesUnExpanded >> $LOG_FILE 2>&1"
+            eval "rpm -ivh $customKernelFilesUnExpanded >> $LOG_FILE 2>&1"
             kernelInstallStatus=$?
         fi
+
         LogMsg "Configuring the correct kernel boot order"
         sed -i 's%GRUB_DEFAULT=.*%GRUB_DEFAULT=0%' /etc/default/grub
-        grub2-mkconfig -o /boot/grub2/grub.cfg
+
+        GetGuestGeneration
+        if [ "$os_GENERATION" = "2" ]; then
+            NEW_GRUB_CFG_FILE="$(find /boot/efi -name 'grub.cfg')" || "/boot/efi/EFI/grub.cfg"
+        else
+            NEW_GRUB_CFG_FILE="$(find /boot/grub* -name 'grub.cfg')" || "/boot/grub2/grub.cfg"
+        fi
+        LogMsg "Updating grub config: $NEW_GRUB_CFG_FILE"
+        if [ ! -f "$NEW_GRUB_CFG_FILE" ]; then
+            check_exit_status "Grub config $NEW_GRUB_CFG_FILE does not exist." "exit"
+        fi
+
+        grub2-mkconfig -o "$NEW_GRUB_CFG_FILE"
 
         SetTestStateCompleted
         if [ $kernelInstallStatus -ne 0 ]; then
