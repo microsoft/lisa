@@ -2202,12 +2202,29 @@ function apt_get_install ()
 	check_exit_status "apt_get_install $package_name"
 }
 
+# Apt-get remove packages, parameter: package name
+function apt_get_remove ()
+{
+	package_name=$1
+	dpkg_configure
+	sudo DEBIAN_FRONTEND=noninteractive apt-get remove -y --force-yes $package_name
+	check_exit_status "apt_get_remove $package_name"
+}
+
 # Yum install packages, parameter: package name
 function yum_install ()
 {
 	package_name=$1
 	sudo yum -y --nogpgcheck install $package_name
 	check_exit_status "yum_install $package_name"
+}
+
+# Yum remove packages, parameter: package name
+function yum_remove ()
+{
+	package_name=$1
+	sudo yum -y remove $package_name
+	check_exit_status "yum_remove $package_name"
 }
 
 # Zypper install packages, parameter: package name
@@ -2218,12 +2235,28 @@ function zypper_install ()
 	check_exit_status "zypper_install $package_name"
 }
 
+# Zypper remove packages, parameter: package name
+function zypper_remove ()
+{
+	package_name=$1
+	sudo zypper --non-interactive rm $package_name
+	check_exit_status "zypper_remove $package_name"
+}
+
 # swupd bundle install packages, parameter: package name
 function swupd_bundle_install ()
 {
 	package_name=$1
 	sudo swupd bundle-add $package_name
 	check_exit_status "swupd_bundle_install $package_name"
+}
+
+# swupd bundle remove packages, parameter: package name
+function swupd_bundle_remove ()
+{
+	package_name=$1
+	sudo swupd bundle-remove $package_name
+	check_exit_status "swupd_bundle_remove $package_name"
 }
 
 # Install packages, parameter: package name
@@ -2246,6 +2279,34 @@ function install_package ()
 
 			clear-linux-os)
 				swupd_bundle_install "$package_name"
+				;;
+			*)
+				echo "Unknown distribution"
+				return 1
+		esac
+	done
+}
+
+# Remove packages, parameter: package name
+function remove_package ()
+{
+	local package_list=("$@")
+	for package_name in "${package_list[@]}"; do
+		case "$DISTRO_NAME" in
+			oracle|rhel|centos)
+				yum_remove "$package_name"
+				;;
+
+			ubuntu|debian)
+				apt_get_remove "$package_name"
+				;;
+
+			suse|opensuse|sles)
+				zypper_remove "$package_name"
+				;;
+
+			clear-linux-os)
+				swupd_bundle_remove "$package_name"
 				;;
 			*)
 				echo "Unknown distribution"
