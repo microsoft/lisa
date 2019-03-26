@@ -71,7 +71,7 @@ runTestPmd()
 	for testmode in $modes; do
 		LogMsg "Configure huge pages on ${server}"
 		LogMsg "TestPmd is starting on ${serverNIC1ip} with ${testmode} mode, duration ${testDuration} secs"
-		ssh "${server}" "echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages &&  mount -a && modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib;timeout ${testDuration} testpmd -l 1-3 -n 2 -w 0002:00:02.0 --vdev='net_vdev_netvsc0,iface=eth1,force=1' -- --port-topology=chained --nb-cores 1 --forward-mode=${testmode}  --stats-period 1" 2>&1 > "$HOMEDIR"/dpdkVersion.txt 
+		ssh "${server}" "echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages &&  mount -a && modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib;timeout 30 testpmd -l 1-3 -n 2 -w 0002:00:02.0 --vdev='net_vdev_netvsc0,iface=eth1,force=1' -- --port-topology=chained --nb-cores 1 --forward-mode=${testmode}  --stats-period 1" 2>&1 > "$HOMEDIR"/dpdkVersion.txt
 		ssh "${server}" "pkill testpmd"
 		sleep 60
 		ssh "${server}" "echo 0 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages"
@@ -92,8 +92,9 @@ runTestPmd()
 		ssh "${server}" "echo 0 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 0 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages && grep -i hug /proc/meminfo"
 		pkill testpmd
 		ssh "${server}" "pkill testpmd"
+		sleep 60
 		LogMsg "TestPmd execution for ${testmode} mode is COMPLETED"
-	done	
+	done
 }
 
 testPmdParser ()

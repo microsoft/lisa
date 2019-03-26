@@ -115,7 +115,7 @@ function Main {
 		#region INSTALL CONFIGURE DPDK
 		$install_configure_dpdk = @"
 cd /root/
-./dpdk_generic_setup.sh 2>&1 > dpdkConsoleLogs.txt
+./dpdkSetup.sh 2>&1 > dpdkConsoleLogs.txt
 . utils.sh
 collect_VM_properties
 "@
