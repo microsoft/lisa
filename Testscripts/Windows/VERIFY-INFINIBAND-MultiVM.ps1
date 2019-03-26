@@ -68,7 +68,7 @@ function Main {
 			Write-LogInfo "Waiting 5 minutes to finish RDMA update for NC series VMs."
 			Start-Sleep -Seconds 300
 		}
-		$VM_Size = $ServerVMData.InstanceSize -replace "[^0-9]",''
+		$VM_Size = ($ServerVMData.InstanceSize -split "_")[1] -replace "[^0-9]",''
 		Write-LogInfo "Getting VM instance size: $VM_Size"
 		#region CONFIGURE VMs for TEST
 
