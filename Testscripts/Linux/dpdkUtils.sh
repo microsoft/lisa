@@ -106,7 +106,7 @@ function Install_Dpdk_Dependencies() {
 		fi
 
 		ssh ${install_ip} "apt-get update"
-		ssh ${install_ip} "apt-get install -y librdmacm-dev librdmacm1 build-essential libnuma-dev libmnl-dev"
+		ssh ${install_ip} "apt-get install -y librdmacm-dev librdmacm1 build-essential libnuma-dev libmnl-dev libelf-dev rdma-core dpkg-dev"
 
 	elif [[ "${distro}" == "rhel7.5" || "${distro}" == centos7.5* ]]; then
 		LogMsg "Detected (rhel/centos)7.5"
@@ -168,13 +168,53 @@ function Install_Dpdk() {
 	local distro=$(detect_linux_distribution)$(detect_linux_distribution_version)
 	Install_Dpdk_Dependencies $install_ip $distro
 
+	install_from_ppa=false
+
 	if [[ $DPDK_LINK =~ .tar ]]; then
 		ssh ${install_ip} "mkdir ${DPDK_DIR}"
 		ssh ${install_ip} "wget -O - ${DPDK_LINK} | tar -xJ -C ${DPDK_DIR} --strip-components=1"
 	elif [[ $DPDK_LINK =~ ".git" ]] || [[ $DPDK_LINK =~ "git:" ]]; then
 		ssh ${install_ip} "rm -rf ${DPDK_DIR}" # LISA Pipelines don't always wipe old state
 		ssh ${install_ip} "git clone ${DPDK_LINK} ${DPDK_DIR}"
+	elif [[ $DPDK_LINK =~ "ppa:" ]]; then
+		if [[ $distro != "ubuntu16.04" && $distro != "ubuntu18.04" ]]; then
+			LogErr "PPAs are supported only on Debian based distros."
+			SetTestStateAborted
+			exit 1
+		fi
+		ssh "${install_ip}" "add-apt-repository ${DPDK_LINK} -y -s"
+		ssh "${install_ip}" "apt-get update"
+		install_from_ppa=true
+	elif [[ $DPDK_LINK =~ "native" || $DPDK_LINK == "" ]]; then
+		if [[ $distro != "ubuntu16.04" && $distro != "ubuntu18.04" ]]; then
+			LogErr "Native installs are supported only on Debian based distros."
+			SetTestStateAborted
+			exit 1
+		fi
+		ssh "${install_ip}" "sed -i '/deb-src/s/^# //' /etc/apt/sources.list"
+		check_exit_status "Enable source repos on ${install_ip}" "exit"
+		install_from_ppa=true
+	else
+		LogErr "DPDK source link not supported: '${DPDK_LINK}'"
+		SetTestStateAborted
+		exit 1
 	fi
+
+	if [[ $install_from_ppa == true ]]; then
+		ssh "${install_ip}" "apt install -y dpdk dpdk-dev"
+		check_exit_status "Install DPDK from ppa ${DPDK_LINK} on ${install_ip}" "exit"
+		ssh "${install_ip}" "apt-get source dpdk"
+		check_exit_status "Get DPDK sources from ppa on ${install_ip}" "exit"
+
+		dpdk_version=$(ssh "${install_ip}" "dpkg -s 'dpdk' | grep 'Version' | head -1 | awk '{print \$2}' | awk -F- '{print \$1}'")
+		dpdk_source="dpdk_${dpdk_version}.orig.tar.xz"
+		dpdkSrcDir="dpdk-${dpdk_version}"
+
+		ssh "${install_ip}" "tar xf $dpdk_source"
+		check_exit_status "Get DPDK sources from ppa on ${install_ip}" "exit"
+		ssh "${install_ip}" "mv ${dpdkSrcDir} ${DPDK_DIR}"
+	fi
+
 	LogMsg "dpdk source on ${install_ip} at ${DPDK_DIR}"
 
 	LogMsg "MLX_PMD flag enabling on ${install_ip}"
