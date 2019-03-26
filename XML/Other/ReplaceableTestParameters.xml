@@ -42,6 +42,10 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceWith>https://fast.dpdk.org/rel/dpdk-18.08.tar.xz</ReplaceWith>
 	</Parameter>
 	<Parameter>
+		<ReplaceThis>DPDK_PERF_CORES</ReplaceThis>
+		<ReplaceWith>(2 4 8 16)</ReplaceWith>
+	</Parameter>
+	<Parameter>
 		<ReplaceThis>OVS_SOURCE_URL</ReplaceThis>
 		<ReplaceWith>https://github.com/openvswitch/ovs.git</ReplaceWith>
 	</Parameter>
@@ -294,7 +298,7 @@ Scenario 2 : You need to run all the performance tests quickly.
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>NTTTCP_MULTICLIENTS_TCP_CONNECTIONS</ReplaceThis>
-		<ReplaceWith>(4 8 16 32 64 128 256 512 1024 2048 4096 6144 8192 10240)</ReplaceWith>
+		<ReplaceWith>(8 16 32 64 128 256 512 1024 2048 4096 6144 8192 10240)</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>NTTTCP_UDP_CONNECTIONS</ReplaceThis>
@@ -302,7 +306,7 @@ Scenario 2 : You need to run all the performance tests quickly.
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>NTTTCP_MULTICLIENTS_UDP_CONNECTIONS</ReplaceThis>
-		<ReplaceWith>(4 8 16 32 64 128 256 512 1024)</ReplaceWith>
+		<ReplaceWith>(8 16 32 64 128 256 512 1024)</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>STRESS_REBOOT_NUMBER</ReplaceThis>

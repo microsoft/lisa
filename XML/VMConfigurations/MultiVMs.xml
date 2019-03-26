@@ -87,7 +87,7 @@
             </VirtualMachine>
         </ResourceGroup>
     </ThreeVM2NIC>
-    <FiveVM>
+    <NineVM>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
             <VirtualMachine>
@@ -149,8 +149,56 @@
                 </EndPoints>
                 <DataDisk></DataDisk>
             </VirtualMachine>
+            <VirtualMachine>
+                <DeployOnDifferentHyperVHost>yes</DeployOnDifferentHyperVHost>
+                <ARMInstanceSize>Standard_D15_v2</ARMInstanceSize>
+                <RoleName>client-vm-5</RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>1116</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+            </VirtualMachine>
+            <VirtualMachine>
+                <DeployOnDifferentHyperVHost>yes</DeployOnDifferentHyperVHost>
+                <ARMInstanceSize>Standard_D15_v2</ARMInstanceSize>
+                <RoleName>client-vm-6</RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>1117</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+            </VirtualMachine>
+            <VirtualMachine>
+                <DeployOnDifferentHyperVHost>yes</DeployOnDifferentHyperVHost>
+                <ARMInstanceSize>Standard_D15_v2</ARMInstanceSize>
+                <RoleName>client-vm-7</RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>1118</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+            </VirtualMachine>
+            <VirtualMachine>
+                <DeployOnDifferentHyperVHost>yes</DeployOnDifferentHyperVHost>
+                <ARMInstanceSize>Standard_D15_v2</ARMInstanceSize>
+                <RoleName>client-vm-8</RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>1119</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+            </VirtualMachine>
         </ResourceGroup>
-    </FiveVM>
+    </NineVM>
     <RDMA32VMs>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>

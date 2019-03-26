@@ -146,7 +146,7 @@ function Testfwd_Parser() {
 
 function Run_Testcase() {
 	if [ -z "${CORES}" ]; then
-		CORES="1"
+		CORES=(1)
 		LogMsg "CORES not found in environment; doing default single core test"
 	fi
 
@@ -157,14 +157,14 @@ function Run_Testcase() {
 
 	LogMsg "Starting testfwd"
 	Create_Vm_Synthetic_Vf_Pair_Mappings
-	for core in ${CORES}; do
+	for core in "${CORES[@]}"; do
 		Run_Testfwd ${core} ${TEST_DURATION}
 	done
 
 	LogMsg "Starting testfwd parser"
 	local csv_file=$(Create_Csv)
 	echo "dpdk_version,core,tx_pps_avg,fwdrx_pps_avg,fwdtx_pps_avg,rx_pps_avg" > "${csv_file}"
-	for core in ${CORES}; do
+	for core in "${CORES[@]}"; do
 		Testfwd_Parser ${core} "${csv_file}"
 	done
 
