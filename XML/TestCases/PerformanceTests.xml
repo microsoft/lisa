@@ -16,6 +16,7 @@
             <param>testDuration=NTTTCP_RUNTIME_IN_SECONDS</param>
             <param>testType=tcp</param>
             <param>testConnections=NTTTCP_TCP_CONNECTIONS</param>
+            <param>ntttcpVersion=NTTTCP_VERSION</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
@@ -66,6 +67,7 @@
             <param>testType=udp</param>
             <param>bufferLength=1024</param>
             <param>testConnections=NTTTCP_UDP_CONNECTIONS</param>
+            <param>ntttcpVersion=NTTTCP_VERSION</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
@@ -91,6 +93,7 @@
             <param>testType=udp</param>
             <param>bufferLength=1024</param>
             <param>testConnections=NTTTCP_UDP_CONNECTIONS</param>
+            <param>ntttcpVersion=NTTTCP_VERSION</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
@@ -110,6 +113,7 @@
             <param>testDuration=NTTTCP_RUNTIME_IN_SECONDS</param>
             <param>testType=tcp</param>
             <param>testConnections=NTTTCP_MULTICLIENTS_TCP_CONNECTIONS</param>
+            <param>ntttcpVersion=NTTTCP_VERSION</param>
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Performance</Category>
@@ -150,6 +154,7 @@
             <param>testType=udp</param>
             <param>bufferLength=1024</param>
             <param>testConnections=NTTTCP_MULTICLIENTS_UDP_CONNECTIONS</param>
+            <param>ntttcpVersion=NTTTCP_VERSION</param>
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Performance</Category>
@@ -170,6 +175,7 @@
             <param>testType=udp</param>
             <param>bufferLength=1024</param>
             <param>testConnections=NTTTCP_MULTICLIENTS_UDP_CONNECTIONS</param>
+            <param>ntttcpVersion=NTTTCP_VERSION</param>
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Performance</Category>
