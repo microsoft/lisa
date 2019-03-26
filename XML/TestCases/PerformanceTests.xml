@@ -101,7 +101,7 @@
     <test>
         <testName>PERF-NETWORK-TCP-THROUGHPUT-MULTICLIENTS-NTTTCP-Synthetic</testName>
         <testScript>PERF-NETWORK-THROUGHPUT-MULTICONNECTION-NTTTCP.ps1</testScript>
-        <setupType>FiveVM</setupType>
+        <setupType>NineVM</setupType>
         <AdditionalHWConfig>
             <Networking>Synthetic</Networking>
         </AdditionalHWConfig>
@@ -120,7 +120,7 @@
     <test>
         <testName>PERF-NETWORK-TCP-THROUGHPUT-MULTICLIENTS-NTTTCP-SRIOV</testName>
         <testScript>PERF-NETWORK-THROUGHPUT-MULTICONNECTION-NTTTCP.ps1</testScript>
-        <setupType>FiveVM</setupType>
+        <setupType>NineVM</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
@@ -140,7 +140,7 @@
     <test>
         <testName>PERF-NETWORK-UDP-1K-THROUGHPUT-MULTICLIENTS-NTTTCP-Synthetic</testName>
         <testScript>PERF-NETWORK-THROUGHPUT-MULTICONNECTION-NTTTCP.ps1</testScript>
-        <setupType>FiveVM</setupType>
+        <setupType>NineVM</setupType>
         <AdditionalHWConfig>
             <Networking>Synthetic</Networking>
         </AdditionalHWConfig>
@@ -160,7 +160,7 @@
     <test>
         <testName>PERF-NETWORK-UDP-1K-THROUGHPUT-MULTICLIENTS-NTTTCP-SRIOV</testName>
         <testScript>PERF-NETWORK-THROUGHPUT-MULTICONNECTION-NTTTCP.ps1</testScript>
-        <setupType>FiveVM</setupType>
+        <setupType>NineVM</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
