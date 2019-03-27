@@ -14,7 +14,7 @@ function Main {
         $allDiskNames = @()
         $VirtualMachine = Get-AzureRmVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName
         $diskCount = (Get-AzureRmVMSize -Location $AllVMData.Location | Where-Object {$_.Name -eq $AllVMData.InstanceSize}).MaxDataDiskCount
-        Write-LogInfo "Parallel Addition of Data Disks to the VM "
+        Write-LogInfo "Parallel Addition of Data Disks to the VM"
         While ($count -lt $diskCount) {
             $count += 1
             $diskName = "disk"+ $count.ToString()
@@ -48,6 +48,14 @@ function Main {
         } else {
             $testResult=$resultFail
             throw "Data disks added to the VM failed to verify inside VM"
+        }
+        Write-LogInfo "Checking multichannel usage over multiple CPU"
+        $storvscChannelNr = Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "lsvmbus -v | grep -i 'Synthetic SCSI Controller' -A 2 | tail -2 | grep -i 'target' -c" -runAsSudo
+        $cpuCount = Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "grep -c ^processor /proc/cpuinfo" -runAsSudo
+        if ($storvscChannelNr -eq ($cpuCount / 4)) {
+            Write-LogInfo "Multichannel spread is correct over multiple CPU"
+        } else {
+            throw "Multichannel spread is not correct over multiple CPU. Expected spread: $($cpuCount / 4) versus actual spread: ${storvscChannelNr}"
         }
         Write-LogInfo "Parallel Removal of Data Disks from the VM"
         $sts = Remove-AzureRmVMDataDisk -VM $VirtualMachine -DataDiskNames $allDiskNames
