@@ -348,6 +348,10 @@ function Is-VmAlive {
                     Write-LogErr "Linux VM $($vm.RoleName) failed to boot because of a kernel panic."
                     return "False"
                 }
+                if ($TestPlatform -eq "HyperV") {
+                    Write-LogWarn "Checking if HyperV VM changed IP at boot."
+                    $AllVMDataObject = Check-IP -VMData $AllVMDataObject
+                }
             } else {
                 Write-LogInfo "Connecting to $($vm.PublicIP):$port succeeded."
             }
