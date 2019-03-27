@@ -39,4 +39,36 @@
 			<fwdtx>6000000</fwdtx>
 		</core16>
 	</Standard_DS15_v2>
+	<Standard_F32s_v2>
+		<core1>
+			<tx>10000000</tx>
+			<rx>10000000</rx>
+			<fwdrx>6000000</fwdrx>
+			<fwdtx>6000000</fwdtx>
+		</core1>
+		<core2>
+			<tx>14000000</tx>
+			<rx>14000000</rx>
+			<fwdrx>6000000</fwdrx>
+			<fwdtx>6000000</fwdtx>
+		</core2>
+		<core4>
+			<tx>15000000</tx>
+			<rx>15000000</rx>
+			<fwdrx>6000000</fwdrx>
+			<fwdtx>6000000</fwdtx>
+		</core4>
+		<core8>
+			<tx>15000000</tx>
+			<rx>15000000</rx>
+			<fwdrx>6000000</fwdrx>
+			<fwdtx>6000000</fwdtx>
+		</core8>
+		<core16>
+			<tx>18000000</tx>
+			<rx>18000000</rx>
+			<fwdrx>6000000</fwdrx>
+			<fwdtx>6000000</fwdtx>
+		</core16>
+	</Standard_F32s_v2>
 </testpmdpps>
