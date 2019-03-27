@@ -59,17 +59,29 @@ function Main {
 	# remote copy the config files to remote Virtual machine
         Copy-RemoteFiles -uploadTo $Ipv4 -port $VMPort -files $masterconfigPath -username $user -password $password -upload
 
-	Write-LogInfo "Invoke-Remote script for kernel config validation"
-
+	Write-LogInfo "Run remote script for kernel config validation"
         # Invoke the config verification remote script
         $remoteScript="kernel_config_verify_test.sh"
-        $retval = Invoke-RemoteScriptAndCheckStateFile $remoteScript $user $password $Ipv4 $VMPort
-        if ($retval -eq $False) {
+        $remoteLogFile = "${remoteScript}.Log.txt"
+        $ConfigTest = "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;bash ${remoteScript} > ${remoteScript}.log`""
+        Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -runMaxAllowedTime 500 $ConfigTest -runAsSudo
+        Copy-RemoteFiles -download -downloadFrom $Ipv4 -files "/home/${user}/state.txt" `
+        	-downloadTo $LogDir -port $VMPort -username $user -password $password
+        Copy-RemoteFiles -download -downloadFrom $Ipv4 -files "/home/${user}/${remoteScript}.log" `
+        	-downloadTo $LogDir -port $VMPort -username $user -password $password
+        Copy-RemoteFiles -download -downloadFrom $Ipv4 -files "/home/${user}/config.diff" `
+        	-downloadTo $LogDir -port $VMPort -username $user -password $password
+        rename-item -path "${LogDir}\${remoteScript}.log" -newname $remoteLogFile
+
+        #Check the Remote script Logs for different scenarios
+        $contents = Get-Content -Path $LogDir\$remoteLogFile
+        if($contents -imatch "KERNEL_CONFIG_EQUAL") {
+            $testResult = "PASS"
+        } else {
+            Write-LogErr "KERNEL-CONFIG-VERIFY-TEST Failed"
             $testResult = "FAIL"
-            throw "Running $remoteScript script failed on VM!"
         }
         Write-LogInfo "$remoteScript ran successfully"
-        $testResult = "PASS"
     } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
