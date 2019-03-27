@@ -2099,7 +2099,6 @@ function check_exit_status ()
 		$cmd "$message: Success"
 		UpdateSummary "$message: Success"
 	fi
-	return $exit_status
 }
 
 # Detect the version of Linux distribution, it gets the version only
