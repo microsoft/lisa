@@ -11,12 +11,18 @@ function Confirm-Performance() {
 
 	# use temp so when a case fails we still check the rest
 	$tempResult = "PASS"
+	$vmSizeFallback = $vmSize
 
 	$allPpsData = [Xml](Get-Content .\XML\Other\testpmd_pps_lowerbound.xml)
-	$sizeData = Select-Xml -Xml $allPpsData -XPath "testpmdpps/$vmSize" | Select-Object -ExpandProperty Node
+	$sizeData = Select-Xml -Xml $allPpsData -XPath "testpmdpps/$vmSizeFallback" | Select-Object -ExpandProperty Node
 
 	if ($null -eq $sizeData) {
-		throw "No pps data for VM size $vmSize"
+		$vmSizeFallback = "Standard_DS15_v2"
+		$sizeData = Select-Xml -Xml $allPpsData -XPath "testpmdpps/$vmSizeFallback" | Select-Object -ExpandProperty Node
+	}
+
+	if ($null -eq $sizeData) {
+		throw "No pps data for VM size $vmSizeFallback"
 	}
 
 	# count is non header lines
