@@ -5,8 +5,7 @@ param([object] $AllVmData, [object] $CurrentTestData)
 
 $testScript = "golang-benchmark.sh"
 
-function Start-TestExecution ($ip, $port)
-{
+function Start-TestExecution ($ip, $port) {
     Run-LinuxCmd -username $username -password $password -ip $ip -port $port -command "chmod a+x *.sh" -runAsSudo
     Write-LogInfo "Executing : ${testScript}"
     $cmd = "bash /home/$username/${testScript}"
@@ -18,15 +17,8 @@ function Start-TestExecution ($ip, $port)
     }
 }
 
-function Get-SQLQueryOfGolangBenchmark ( )
-{
+function Get-SQLQueryOfGolangBenchmark ($currentTestResult) {
     try {
-        Write-LogInfo "Getting the SQL query of test results..."
-        $dataTableName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbtable
-        $testCaseName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
-        $hostOS = Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version" | ForEach-Object {$_ -replace ",Host Version,",""}
-        $goVersion = Get-Content "$LogDir\VM_properties.csv" | Select-String "Go version" | ForEach-Object {$_ -replace ",Go Version,",""}
-        $guestDistro = Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type" | ForEach-Object {$_ -replace ",OS type,",""}
         $guestSize = $allVMData.InstanceSize
         if ($TestPlatform -eq "HyperV") {
             $hyperVMappedSize = [xml](Get-Content .\XML\AzureVMSizeToHyperVMapping.xml)
@@ -34,24 +26,33 @@ function Get-SQLQueryOfGolangBenchmark ( )
             $guestMemInMB = [int]($hyperVMappedSize.HyperV.$HyperVInstanceSize.MemoryInMB)
             $guestSize = "$($guestCPUNum)Cores $($guestMemInMB/1024)G"
         }
-        $GuestKernelVersion  = Get-Content "$LogDir\VM_properties.csv" | Select-String "Kernel version" | ForEach-Object {$_ -replace ",Kernel version,",""}
         $dataCsv = Import-Csv -Path $LogDir\golangBenchmark.csv
-        $testDate = Get-Date -Format yyyy-MM-dd
-        $SQLQuery = "INSERT INTO $dataTableName (TestCaseName,TestDate,HostType,HostBy,HostOS,GuestOSType,GuestDistro,GuestKernelVersion,GuestSize,GoVersion,Item,UserTimeInSeconds,WallClockTimeInSeconds,CPUUsage,MaximumResidentSetSizeInKbytes,VoluntaryContextSwitches,InvoluntaryContextSwitches,OperationsPerNs) VALUES "
         $testItems = "binarytree,fasta,fannkuch,mandel,knucleotide,revcomp,nbody,spectralnorm,pidigits"
+        $TestDate = $(Get-Date -Format yyyy-MM-dd)
+        Write-LogInfo "Generating the performance data for database insertion"
         foreach ( $item in  $testItems.Split(",") ) {
-            $userTime = [float] ( $dataCsv |  Where-Object { $_.Item -eq "$item"} | Select-Object UserTime ).UserTime
-            $wallClockTime = [float] ( $dataCsv |  Where-Object { $_.Item -eq "$item"} | Select-Object WallClockTime ).WallClockTime
-            $CPUUsage = [float] ( $dataCsv |  Where-Object { $_.Item -eq "$item"} | Select-Object CPUUsage ).CPUUsage.Replace("%","")
-            $maximumResidentSetSize =  [int] ( $dataCsv |  Where-Object { $_.Item -eq "$item"} | Select-Object MaximumResidentSetSize ).MaximumResidentSetSize
-            $voluntaryContextSwitches =  [int] ( $dataCsv  |  Where-Object { $_.Item -eq "$item"} | Select-Object VoluntaryContextSwitches ).VoluntaryContextSwitches
-            $involuntaryContextSwitches =  [int] ( $dataCsv  |  Where-Object { $_.Item -eq "$item"} | Select-Object InvoluntaryContextSwitches ).InvoluntaryContextSwitches
-            $operations =  [int64] ( $dataCsv  |  Where-Object { $_.Item -eq "$item"} | Select-Object Operations ).Operations
-            $SQLQuery += "('$testCaseName','$testDate','$TestPlatform','$TestLocation','$hostOS','Linux','$guestDistro','$GuestKernelVersion','$guestSize','$goVersion','$item','$userTime','$wallClockTime','$CPUUsage','$maximumResidentSetSize','$voluntaryContextSwitches','$involuntaryContextSwitches','$operations'),"
+            $resultMap = @{}
+            $resultMap["GuestDistro"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type" | ForEach-Object {$_ -replace ",OS type,",""})
+            $resultMap["HostOS"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version" | ForEach-Object {$_ -replace ",Host Version,",""})
+            $resultMap["TestCaseName"] = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
+            $resultMap["TestDate"] = $TestDate
+            $resultMap["HostType"] = $TestPlatform
+            $resultMap["HostBy"] = $TestLocation
+            $resultMap["GuestOSType"] = 'Linux'
+            $resultMap["GuestKernelVersion"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Kernel version" | ForEach-Object {$_ -replace ",Kernel version,",""})
+            $resultMap["GuestSize"] = $guestSize
+            $resultMap["GoVersion"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Go version" | ForEach-Object {$_ -replace ",Go Version,",""})
+            $resultMap["Item"] = $item
+            $resultMap["UserTimeInSeconds"] = [float] ( $dataCsv |  Where-Object { $_.Item -eq "$item"} | Select-Object UserTime ).UserTime
+            $resultMap["WallClockTimeInSeconds"] = [float] ( $dataCsv |  Where-Object { $_.Item -eq "$item"} | Select-Object WallClockTime ).WallClockTime
+            $resultMap["CPUUsage"] = [float] ( $dataCsv |  Where-Object { $_.Item -eq "$item"} | Select-Object CPUUsage ).CPUUsage.Replace("%","")
+            $resultMap["MaximumResidentSetSizeInKbytes"] = [int] ( $dataCsv |  Where-Object { $_.Item -eq "$item"} | Select-Object MaximumResidentSetSize ).MaximumResidentSetSize
+            $resultMap["VoluntaryContextSwitches"] = [int] ( $dataCsv  |  Where-Object { $_.Item -eq "$item"} | Select-Object VoluntaryContextSwitches ).VoluntaryContextSwitches
+            $resultMap["InvoluntaryContextSwitches"] = [int] ( $dataCsv  |  Where-Object { $_.Item -eq "$item"} | Select-Object InvoluntaryContextSwitches ).InvoluntaryContextSwitches
+            $resultMap["OperationsPerNs"] = [int64] ( $dataCsv  |  Where-Object { $_.Item -eq "$item"} | Select-Object Operations ).Operations
+            $currentTestResult.TestResultData += $resultMap
         }
-        $SQLQuery = $SQLQuery.TrimEnd(',')
-        Write-LogInfo "Getting the SQL query of test results: done"
-        return $SQLQuery
+        Write-LogInfo ($dataCsv | Format-Table | Out-String)
     } catch {
         Write-LogErr "Getting the SQL query of test results failed"
         $errorMessage =  $_.Exception.Message
@@ -60,13 +61,11 @@ function Get-SQLQueryOfGolangBenchmark ( )
     }
 }
 
-function Main()
-{
+function Main() {
     $currentTestResult = Create-TestResultObject
     $resultArr = @()
     $testResult = $resultAborted
-    try
-    {
+    try {
         $hs1VIP = $AllVMData.PublicIP
         $port = $AllVMData.SSHPort
         Start-TestExecution -ip $hs1VIP -port $port
@@ -77,22 +76,13 @@ function Main()
             Remove-Item "$LogDir\*.csv" -Force
             $remoteFiles = "golangBenchmark.csv,VM_properties.csv,TestExecution.log,test_results.tar.gz"
             Copy-RemoteFiles -download -downloadFrom $hs1VIP -files $remoteFiles -downloadTo $LogDir -port $port -username $username -password $password
-            $checkValues = "$resultPass,$resultFail,$resultAborted"
-            $CurrentTestResult.TestSummary += New-ResultSummary -testResult $testResult -metaData "" -checkValues $checkValues -testName $currentTestData.testName
-            $golangSQLQuery = Get-SQLQueryOfGolangBenchmark
-            if ($golangSQLQuery) {
-                Upload-TestResultToDatabase -SQLQuery $golangSQLQuery
-            }
+            Get-SQLQueryOfGolangBenchmark -currentTestResult  $currentTestResult
         }
-    }
-    catch
-    {
+    } catch {
         $errorMessage =  $_.Exception.Message
         $errorLine = $_.InvocationInfo.ScriptLineNumber
         Write-LogInfo "EXCEPTION : $errorMessage at line: $errorLine"
-    }
-    Finally
-    {
+    } Finally {
         if(!$testResult){
             $testResult = $resultAborted
         }
@@ -100,7 +90,7 @@ function Main()
     $resultArr += $testResult
     Write-LogInfo "Test result : $testResult"
     $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
-    return $currentTestResult.TestResult
+    return $currentTestResult
 }
 
 # Main Body

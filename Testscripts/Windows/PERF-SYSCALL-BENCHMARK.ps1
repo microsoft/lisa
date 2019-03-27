@@ -3,8 +3,7 @@
 param([object] $AllVmData,
       [object] $CurrentTestData)
 
-Function Get-SyscallResultObject ()
-{
+Function Get-SyscallResultObject () {
     $Object = New-Object PSObject
     $Object | Add-Member -MemberType NoteProperty -Name test -Value $null
     $Object | Add-Member -MemberType NoteProperty -Name avgReal -Value $null
@@ -51,12 +50,10 @@ collect_VM_properties
         if ($finalStatus -imatch "TestFailed") {
             Write-LogErr "Test failed. Last known status : $currentStatus."
             $testResult = "FAIL"
-        }
-        elseif ($finalStatus -imatch "TestAborted") {
+        } elseif ($finalStatus -imatch "TestAborted") {
             Write-LogErr "Test Aborted. Last known status : $currentStatus."
             $testResult = "ABORTED"
-        }
-        elseif ($finalStatus -imatch "TestCompleted") {
+        } elseif ($finalStatus -imatch "TestCompleted") {
             Copy-RemoteFiles -downloadFrom $testVMData.PublicIP -port $testVMData.SSHPort -username $superUser -password $password -download -downloadTo $LogDir -files "syscall-benchmark-*.tar.gz"
             Write-LogInfo "Test Completed."
             $testResult = "PASS"
@@ -72,10 +69,8 @@ collect_VM_properties
                 $finalResult += $vmInfo
                 $currentResult = Get-SyscallResultObject
 
-                foreach ($line in $logs)
-                {
-                    switch -Regex ($line)
-                    {
+                foreach ($line in $logs) {
+                    switch -Regex ($line) {
                         'bench_00_null_call_regs' {
                             $currentResult.test = "bench_00_null_call_regs"
                         }
@@ -117,64 +112,62 @@ collect_VM_properties
                             $finalResult += $currentResult
                             $metadata = "test=$testType"
                             $syscallResult = "AverageReal=$avgReal AverageUser=$avgUser AverageSystem=$avgSystem"
-                            $resultSummary +=  New-ResultSummary -testResult "$syscallResult : Completed" -metaData $metadata -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+                            $currentTestResult.TestSummary +=  New-ResultSummary -testResult "$syscallResult : Completed" -metaData $metadata -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
                             if ( $currentResult.test -imatch "bench_22_write_stdio") {
                                 Write-LogInfo "Syscall results parsing is Done..."
                                 break
                             }
                             $currentResult = Get-SyscallResultObject
-                        }
-                        default {
+                        } default {
                             continue
                         }
                     }
                 }
                 Set-Content -Value ($finalResult | Format-Table | Out-String) -Path "$LogDir\syscalResults.txt"
                 Write-Host ($finalResult | Format-Table | Out-String)
-
-                Write-LogInfo "Uploading test results to Database.."
-                $dataTableName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbtable
-                $TestCaseName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
-                $GuestDistro    = Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object{$_ -replace ",OS type,",""}
-                $HostType = "$TestPlatform"
-                $HostBy = ($global:TestLocation).Replace('"','')
-                $HostOS = Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version"| ForEach-Object{$_ -replace ",Host Version,",""}
-                $GuestOSType    = "Linux"
-                $GuestDistro    = Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object{$_ -replace ",OS type,",""}
-                $GuestSize = $testVMData.InstanceSize
-                $KernelVersion  = Get-Content "$LogDir\VM_properties.csv" | Select-String "Kernel version"| ForEach-Object{$_ -replace ",Kernel version,",""}
-                $LisVersion  = Get-Content "$LogDir\VM_properties.csv" | Select-String "LIS Version"| ForEach-Object{$_ -replace ",LIS Version,",""}
-                $cpuInfo = Get-Content -Path $logFilePath | Select-Object -First 1
-                $SQLQuery = "INSERT INTO $dataTableName (TestCaseName,TestDate,HostType,HostBy,HostOS,GuestOSType,GuestDistro,GuestSize,KernelVersion,LISVersion,CPU,SyscallTest,CpuUsageAvgReal,CpuUsageAvgUser,CpuUsageAvgSystem) VALUES "
+                $TestDate = $(Get-Date -Format yyyy-MM-dd)
+                Write-LogInfo "Generating the performance data for database insertion"
                 for ($i = 1; $i -lt $finalResult.Count; $i++) {
-                    if ($finalResult[$i].test){
-                        $SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$HostType','$HostBy','$HostOS','$GuestOSType','$GuestDistro','$GuestSize','$KernelVersion','$LisVersion','$cpuInfo','$($finalResult[$i].test)',$($finalResult[$i].avgReal),$($finalResult[$i].avgUser),$($finalResult[$i].avgSystem)),"
+                    if ($finalResult[$i].test) {
+                        if ($testResult -eq "PASS") {
+                            $resultMap = @{}
+                            $resultMap["GuestDistro"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object{$_ -replace ",OS type,",""})
+                            $resultMap["HostOS"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version"| ForEach-Object{$_ -replace ",Host Version,",""})
+                            $resultMap["KernelVersion"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Kernel version"| ForEach-Object{$_ -replace ",Kernel version,",""})
+                            $resultMap["TestCaseName"] = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
+                            $resultMap["TestDate"] = $TestDate
+                            $resultMap["HostType"] = "$TestPlatform"
+                            $resultMap["HostBy"] = ($global:TestLocation).Replace('"','')
+                            $resultMap["GuestOSType"] = "Linux"
+                            $resultMap["GuestSize"] = $testVMData.InstanceSize
+                            $resultMap["LISVersion"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "LIS Version"| ForEach-Object{$_ -replace ",LIS Version,",""})
+                            $resultMap["CPU"] = $(Get-Content -Path $logFilePath | Select-Object -First 1)
+                            $resultMap["SyscallTest"] = $($finalResult[$i].test)
+                            $resultMap["CpuUsageAvgReal"] = $($finalResult[$i].avgReal)
+                            $resultMap["CpuUsageAvgUser"] = $($finalResult[$i].avgUser)
+                            $resultMap["CpuUsageAvgSystem"] = $($finalResult[$i].avgSystem)
+                            $currentTestResult.TestResultData += $resultMap
+                        }
                     } else {
                         continue
                     }
                 }
-                $SQLQuery = $SQLQuery.TrimEnd(',')
-                Upload-TestResultToDatabase ($SQLQuery)
             } catch {
                 $ErrorMessage =  $_.Exception.Message
                 $ErrorLine = $_.InvocationInfo.ScriptLineNumber
                 Write-LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
             }
-        }
-        elseif ($finalStatus -imatch "TestRunning") {
+        } elseif ($finalStatus -imatch "TestRunning") {
             Write-LogInfo "Powershell background job for test is completed but VM is reporting that test is still running. Please check $LogDir\zkConsoleLogs.txt"
             Write-LogInfo "Contents of summary.log : $testSummary"
             $testResult = "PASS"
         }
         Write-LogInfo "Test result : $testResult"
-        Write-LogInfo "Test Completed"
-        $currentTestResult.TestSummary += New-ResultSummary -testResult $testResult -metaData "" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
     } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
         Write-LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     } finally {
-        $metaData = "SYSCALL RESULT"
         if (!$testResult) {
             $testResult = "Aborted"
         }
@@ -182,7 +175,7 @@ collect_VM_properties
     }
 
     $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
-    return $currentTestResult.TestResult
+    return $currentTestResult
 }
 
 Main
