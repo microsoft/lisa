@@ -5,8 +5,7 @@ param([object] $AllVmData,
 
 $testScript = "stress_web.sh"
 
-function Start-TestExecution ($ip, $port)
-{
+function Start-TestExecution ($ip, $port) {
     Run-LinuxCmd -username $username -password $password -ip $ip -port $port -command "chmod +x *;touch /home/$username/state.txt" -runAsSudo
     Write-LogInfo "Executing : ${testScript}"
     $cmd = "/home/$username/${testScript}"
@@ -19,17 +18,8 @@ function Start-TestExecution ($ip, $port)
     return $currentStatus
 }
 
-function Get-SQLQueryOfWebStress ($GlobalConfig, $logDir)
-{
+function Get-SQLQueryOfWebStress ($currentTestResult) {
     try {
-        Write-LogInfo "Getting the SQL query of test results..."
-        $dataTableName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbtable
-        $TestCaseName = $currentTestData.testName
-        $HostType = "$TestPlatform"
-        $HostBy = $TestLocation
-        $HostOS = Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version" | ForEach-Object {$_ -replace ",Host Version,",""}
-        $GuestOSType = "Linux"
-        $GuestDistro = Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type" | ForEach-Object {$_ -replace ",OS type,",""}
         $GuestSize = $allVMData[0].InstanceSize
         if ($TestPlatform -eq "HyperV") {
             $hyperVMappedSize = [xml](Get-Content .\XML\AzureVMSizeToHyperVMapping.xml)
@@ -37,7 +27,6 @@ function Get-SQLQueryOfWebStress ($GlobalConfig, $logDir)
             $guestMemInMB = [int]($hyperVMappedSize.HyperV.$HyperVInstanceSize.MemoryInMB)
             $GuestSize = "$($guestCPUNum)Cores $($guestMemInMB/1024)G"
         }
-        $GuestKernelVersion = Get-Content "$LogDir\VM_properties.csv" | Select-String "Kernel version" | ForEach-Object {$_ -replace ",Kernel version,",""}
 
         foreach ($param in $currentTestData.TestParameters.param) {
             if ($param -match "parallelConnections") {
@@ -46,21 +35,29 @@ function Get-SQLQueryOfWebStress ($GlobalConfig, $logDir)
         }
 
         $dataCsv = Import-Csv -Path $LogDir\nginxStress.csv
-        $testDate = Get-Date -Format yyyy-MM-dd
-        $SQLQuery = "INSERT INTO $dataTableName (TestCaseName,TestDate,HostType,HostBy,HostOS,GuestOSType,GuestDistro,GuestKernelVersion,GuestSize,NumThread,NumQuery,Accuracy,Query_per_sec,Msecs_per_connec,RuntimeSec) VALUES "
+        $TestDate = $(Get-Date -Format yyyy-MM-dd)
+        Write-LogInfo "Generating the performance data for database insertion"
         foreach ($paralle in ($parallelConnectionsList -replace '\s{2,}', ' ').Trim().Split(" ") ) {
             $numQuery = [int] ( $dataCsv | Where-Object { $_.max_parallel -eq "$paralle"} | Select-Object fetches ).fetches
-            $query_per_sec = [float] ( $dataCsv | Where-Object { $_.max_parallel -eq "$paralle"} | Select-Object fetches_per_sec ).fetches_per_sec
-            $msecs_per_connec = [float] ( $dataCsv | Where-Object { $_.max_parallel -eq "$paralle"} | Select-Object msecs_per_connec ).msecs_per_connec
-            $runtime = [float] ( $dataCsv | Where-Object { $_.max_parallel -eq "$paralle"} | Select-Object seconds ).seconds
             $success_fetches = [int] ( $dataCsv | Where-Object { $_.max_parallel -eq "$paralle"} | Select-Object success_fetches ).success_fetches
-            $accuracy = [float] ($success_fetches / $numQuery)
-
-            $SQLQuery += "('$TestCaseName','$testDate','$HostType','$HostBy','$HostOS','$GuestOSType','$GuestDistro','$GuestKernelVersion','$GuestSize','$paralle','$numQuery','$accuracy','$query_per_sec','$msecs_per_connec','$runtime'),"
+            $resultMap = @{}
+            $resultMap["GuestDistro"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type" | ForEach-Object {$_ -replace ",OS type,",""})
+            $resultMap["HostOS"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version" | ForEach-Object {$_ -replace ",Host Version,",""})
+            $resultMap["TestCaseName"] = $currentTestData.testName
+            $resultMap["TestDate"] = $TestDate
+            $resultMap["HostType"] = "$TestPlatform"
+            $resultMap["HostBy"] = $TestLocation
+            $resultMap["GuestOSType"] = "Linux"
+            $resultMap["GuestKernelVersion"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Kernel version" | ForEach-Object {$_ -replace ",Kernel version,",""})
+            $resultMap["GuestSize"] = $GuestSize
+            $resultMap["NumThread"] = $paralle
+            $resultMap["NumQuery"] = $numQuery
+            $resultMap["Accuracy"] = [float] ($success_fetches / $numQuery)
+            $resultMap["Query_per_sec"] = [float] ( $dataCsv | Where-Object { $_.max_parallel -eq "$paralle"} | Select-Object fetches_per_sec ).fetches_per_sec
+            $resultMap["Msecs_per_connec"] = [float] ( $dataCsv | Where-Object { $_.max_parallel -eq "$paralle"} | Select-Object msecs_per_connec ).msecs_per_connec
+            $resultMap["RuntimeSec"] = [float] ( $dataCsv | Where-Object { $_.max_parallel -eq "$paralle"} | Select-Object seconds ).seconds
+            $currentTestResult.TestResultData += $resultMap
         }
-        $SQLQuery = $SQLQuery.TrimEnd(',')
-        Write-LogInfo "Getting the SQL query of test results: done"
-        return $SQLQuery
     } catch {
         Write-LogErr "Getting the SQL query of test results: ERROR"
         $errorMessage = $_.Exception.Message
@@ -69,13 +66,11 @@ function Get-SQLQueryOfWebStress ($GlobalConfig, $logDir)
     }
 }
 
-function Main()
-{
+function Main() {
     $currentTestResult = Create-TestResultObject
     $resultArr = @()
     $testResult = $resultAborted
-    try
-    {
+    try {
         foreach ($param in $currentTestData.TestParameters.param) {
             if ($param -imatch "testFileSizeInKb") {
                 $fileSizeList = $param.Replace("testFileSizeInKb=","").Replace("'","")
@@ -131,7 +126,7 @@ function Main()
         Run-LinuxCmd -ip $serverPublicIP -port $serverSSHPort -username $username -password $password -command $cmd -runAsSudo
 
         foreach ($fileSize in ($fileSizeList -replace '\s{2,}', ' ').Trim().Split(" ") ) {
-            $fileSize = [int]$fileSize
+            $fileSize = [int] $fileSize
             $fileName = "file_${fileSize}K"
             Write-LogInfo "Prepare file: /var/www/html/$fileName "
             $cmd = "dd if=/dev/zero of=/var/www/html/$fileName bs=1024 count=$fileSize"
@@ -149,12 +144,7 @@ function Main()
             $remoteFiles = "nginxStress.csv,VM_properties.csv,TestExecution.log,web_test_results.tar.gz"
             Copy-RemoteFiles -download -downloadFrom $clientPublicIP -files $remoteFiles -downloadTo $LogDir `
                 -port $clientSSHPort -username $username -password $password
-            $checkValues = "$resultPass,$resultFail,$resultAborted"
-            $CurrentTestResult.TestSummary += New-ResultSummary -testResult $testResult -metaData "" -checkValues $checkValues -testName $currentTestData.testName
-            $webStressSQLQuery = Get-SQLQueryOfWebStress -GlobalConfig $GlobalConfig -logDir $LogDir
-            if ($webStressSQLQuery) {
-                Upload-TestResultToDatabase -SQLQuery $webStressSQLQuery
-            }
+            Get-SQLQueryOfWebStress -currentTestResult $currentTestResult
         }
     } catch {
         $testResult = $resultAborted
