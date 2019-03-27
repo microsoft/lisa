@@ -82,12 +82,15 @@ if [ -z "${DPDK_LINK}" ]; then
 fi
 
 # set DPDK_DIR global
+DPDK_DIR="dpdk"
 if [[ $DPDK_LINK =~ .tar ]]; then
 	DPDK_DIR="dpdk-$(echo ${DPDK_LINK} | grep -Po "(\d+\.)+\d+")"
 elif [[ $DPDK_LINK =~ ".git" ]] || [[ $DPDK_LINK =~ "git:" ]]; then
 	DPDK_DIR="${DPDK_LINK##*/}"
-	echo "$DPDK_DIR"
 fi
+
+LogMsg "DPDK source dir is: ${DPDK_DIR}"
+
 dpdk_setup
 
 LogMsg "Calling testcase provided run function"
