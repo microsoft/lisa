@@ -70,10 +70,10 @@ fi
 
 Compare_Kernel_Config
 if [ 0 -eq $? ]; then
-    LogMsg "Master and image config files are similar"
+    LogMsg "Master and image config files are similar: KERNEL_CONFIG_EQUAL"
     SetTestStateCompleted
 else
-    LogMsg "Master and image config files are different"
+    LogMsg "Master and image config files are different: KERNEL_CONFIG_DIFF"
     SetTestStateFailed
 fi
 

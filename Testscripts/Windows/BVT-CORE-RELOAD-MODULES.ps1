@@ -50,13 +50,15 @@ function Check-Result {
         $attempts++
         $state = Run-LinuxCmd -ip $VmIp -port $VMPort -username $User -password $Password "cat state.txt" -ignoreLinuxExitCode:$true
         if (-not $state) {
-            if ((Get-VMIntegrationService $VMName -ComputerName $HvServer | `
+            if ($TestPlatform -eq "HyperV" -and (Get-VMIntegrationService $VMName -ComputerName $HvServer | `
                 ?{$_.name -eq "Heartbeat"}).PrimaryStatusDescription `
                 -match "No Contact|Lost Communication") {
 
                 Stop-VM -Name $VMName -ComputerName $HvServer -Force -TurnOff
                 Write-LogErr "Lost Communication or No Contact to VM!"
                 break
+            } else {
+                Write-LogInfo "Current VM is inaccessible, please wait for a while."
             }
         } else {
             if ($state -eq $testRunning){
@@ -94,22 +96,10 @@ function Main {
     )
     $testScript = "BVT-CORE-RELOAD-MODULES.sh"
 
-    # Start pinging the VM while the netvsc driver is being stress reloaded
-    $pingJob = Start-Job -ScriptBlock { param($Ipv4) ping -t $Ipv4 } -ArgumentList ($Ipv4)
-    if (-not $?) {
-        Write-LogErr "Unable to start job for pinging the VM while stress reloading the netvsc driver."
-        return "FAIL"
-    }
-
     # Run test script in background
     Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
         -command "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;bash ${testScript} > BVT-CORE-RELOAD-MODULES_summary.log`"" -RunInBackGround | Out-Null
-    Stop-Job $pingJob
-    $isVmAlive = Is-VmAlive -AllVMDataObject $AllVmData -MaxRetryCount 40
-    if ($isVmAlive -eq "False") {
-        Write-LogErr "Failed to connect to test VM."
-        return "FAIL"
-    }
+
     $sts = Check-Result -VmIp $Ipv4 -VmPort $VMPort -User $VMUserName -Password $VMPassword
     if (-not $($sts[-1])) {
         Write-LogErr "Something went wrong during execution of BVT-CORE-RELOAD-MODULES.sh script!"
