@@ -91,11 +91,7 @@ elif is_ubuntu ; then
     then
         LogMsg "NTP is not installed. Trying to install..."
         update_repos
-        if ! install_package ntp; then
-            LogErr "Unable to install ntp. Aborting"
-            SetTestStateAborted
-            exit 0
-        fi
+        install_package ntp
         LogMsg "Info: NTPD has been installed successfully!"
     fi
 
