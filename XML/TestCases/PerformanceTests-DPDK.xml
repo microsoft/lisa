@@ -10,7 +10,7 @@
         <TestParameters>
             <param>DPDK_LINK="DPDK_SOURCE_URL"</param>
             <param>TEST_DURATION=DPDK_TEST_DURATION_IN_SECONDS</param>
-            <param>CORES=DPDK_PERF_CORES</param>
+            <param>CORES=(2 4 8)</param>
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Performance</Category>
@@ -61,6 +61,27 @@
         <testName>PERF-DPDK-MULTICORE-PPS-DS15</testName>
         <testScript>DPDK-TESTCASE-DRIVER.ps1</testScript>
         <setupType>TwoVM2NIC</setupType>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <files>.\Testscripts\Linux\dpdk-testPMD.sh,.\Testscripts\Windows\dpdk-testPMD.ps1</files>
+        <TestParameters>
+            <param>DPDK_LINK="DPDK_SOURCE_URL"</param>
+            <param>TEST_DURATION=DPDK_TEST_DURATION_IN_SECONDS</param>
+            <param>MODES="rxonly io"</param>
+            <param>CORES=(2 4 8)</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Performance</Category>
+        <Area>DPDK</Area>
+        <Tags>dpdk,network,hv_netvsc,sriov</Tags>
+        <Priority>2</Priority>
+    </test>
+    <test>
+        <testName>PERF-DPDK-MULTICORE-PPS-F32</testName>
+        <testScript>DPDK-TESTCASE-DRIVER.ps1</testScript>
+        <setupType>TwoVM2NIC</setupType>
+        <OverrideVMSize>Standard_F32s_v2</OverrideVMSize>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
