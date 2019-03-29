@@ -576,4 +576,30 @@
         <Tags>sriov,network</Tags>
         <Priority>1</Priority>
     </test>
+    <test>
+        <testName>SRIOV-HOTPLUG-VF-DEVICE</testName>
+        <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
+        <testScript>SRIOV-RUN-COMMON-TEST.ps1</testScript>
+        <setupType>TwoVM2Host1Dep</setupType>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <files>.\Testscripts\Linux\SRIOV-Hotplug-VF-Device.sh,.\Testscripts\Linux\SR-IOV-Utils.sh,.\Testscripts\Linux\utils.sh</files>
+        <TestParameters>
+            <param>Remote_Script=SRIOV-Hotplug-VF-Device.sh</param>
+            <param>Install_Dependencies=yes</param>
+            <param>Set_SSH=yes</param>
+            <param>NIC_COUNT=1</param>
+            <param>VF_IP1=10.0.0.34</param>
+            <param>VF_IP2=10.0.0.54</param>
+            <param>NETMASK=255.255.255.0</param>
+            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
+        </TestParameters>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>SRIOV</Area>
+        <Tags>sriov,network</Tags>
+        <Priority>1</Priority>
+    </test>
 </TestCases>
