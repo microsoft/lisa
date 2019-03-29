@@ -458,7 +458,12 @@ function Testpmd_Macfwd_To_Dest() {
 }
 
 function Get_DPDK_Version() {
+	version_file_path="${1}/VERSION"
 	meson_config_path="${1}/meson.build"
-	dpdk_version=$(grep -m 1 "version:" $meson_config_path | awk '{print $2}' | tr -d "\`'\,")
+	if [ -f "${version_file_path}" ]; then
+		dpdk_version=$(cat "${version_file_path}")
+	else
+		dpdk_version=$(grep -m 1 "version:" $meson_config_path | awk '{print $2}' | tr -d "\`'\,")
+	fi
 	echo $dpdk_version
 }
