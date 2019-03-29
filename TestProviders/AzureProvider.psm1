@@ -144,19 +144,16 @@ Class AzureProvider : TestProvider
 				$vmData = $args[0]
 				$retries = 0
 				$maxRetryCount = 10
-				$vmRestarted = $false
 
 				# Note(v-advlad): Azure API can sometimes fail on burst requests, we have to retry
-				while (!$vmRestarted -and $retries -lt $maxRetryCount) {
-					$null = Restart-AzureRmVM -ResourceGroupName $vmData.ResourceGroupName -Name $vmData.RoleName -Verbose
-					if (!$?) {
-						Start-Sleep -Seconds 3
-						$retries++
-					} else {
-						$vmRestarted = $true
-					}
+				$vm = $null
+				while (!$vm -and $retries -lt $maxRetryCount) {
+					Start-Sleep -Seconds 30
+					$vm = Get-AzureRmVM -ResourceGroupName $vmData.ResourceGroupName -Name $vmData.RoleName
+					$retries++
 				}
-				if (!$vmRestarted) {
+				$null = Restart-AzureRmVM -Id $vm.Id -Name $vm.Name -Verbose
+				if (!$?) {
 					throw "Failed to restart Azure VM $($vmData.RoleName)"
 				}
 			} -ArgumentList @($vmData) -Name "Restart-$($vmData.RoleName)"
