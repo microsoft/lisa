@@ -79,6 +79,7 @@
 	<OverrideVMSize></OverrideVMSize>
 	<OverrideHyperVDiskMode></OverrideHyperVDiskMode>
 	<ResourceCleanup></ResourceCleanup>
+	<DeployVMPerEachTest></DeployVMPerEachTest>
 	<VMGeneration></VMGeneration>
 
 	<!-- [Optional] Database details. -->
