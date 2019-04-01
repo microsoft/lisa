@@ -2178,7 +2178,7 @@ function update_repos() {
 function install_rpm () {
 	package_name=$1
 	sudo rpm -ivh --nodeps  $package_name
-	check_exit_status "install_rpm $package_name"
+	check_exit_status "install_rpm $package_name" "exit"
 }
 
 # Install DEB package
@@ -2187,7 +2187,7 @@ function install_deb () {
 	sudo dpkg -i $package_name
 	check_exit_status "dpkg -i $package_name"
 	sudo apt-get install -f
-	check_exit_status "install_deb $package_name"
+	check_exit_status "install_deb $package_name" "exit"
 }
 
 # Apt-get install packages, parameter: package name
@@ -2196,7 +2196,7 @@ function apt_get_install ()
 	package_name=$1
 	dpkg_configure
 	sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --force-yes $package_name
-	check_exit_status "apt_get_install $package_name"
+	check_exit_status "apt_get_install $package_name" "exit"
 }
 
 # Apt-get remove packages, parameter: package name
@@ -2205,7 +2205,7 @@ function apt_get_remove ()
 	package_name=$1
 	dpkg_configure
 	sudo DEBIAN_FRONTEND=noninteractive apt-get remove -y --force-yes $package_name
-	check_exit_status "apt_get_remove $package_name"
+	check_exit_status "apt_get_remove $package_name" "exit"
 }
 
 # Yum install packages, parameter: package name
@@ -2213,7 +2213,7 @@ function yum_install ()
 {
 	package_name=$1
 	sudo yum -y --nogpgcheck install $package_name
-	check_exit_status "yum_install $package_name"
+	check_exit_status "yum_install $package_name" "exit"
 }
 
 # Yum remove packages, parameter: package name
@@ -2221,7 +2221,7 @@ function yum_remove ()
 {
 	package_name=$1
 	sudo yum -y remove $package_name
-	check_exit_status "yum_remove $package_name"
+	check_exit_status "yum_remove $package_name" "exit"
 }
 
 # Zypper install packages, parameter: package name
@@ -2229,7 +2229,7 @@ function zypper_install ()
 {
 	package_name=$1
 	sudo zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys in $package_name
-	check_exit_status "zypper_install $package_name"
+	check_exit_status "zypper_install $package_name" "exit"
 }
 
 # Zypper remove packages, parameter: package name
@@ -2237,7 +2237,7 @@ function zypper_remove ()
 {
 	package_name=$1
 	sudo zypper --non-interactive rm $package_name
-	check_exit_status "zypper_remove $package_name"
+	check_exit_status "zypper_remove $package_name" "exit"
 }
 
 # swupd bundle install packages, parameter: package name
@@ -2245,7 +2245,7 @@ function swupd_bundle_install ()
 {
 	package_name=$1
 	sudo swupd bundle-add $package_name
-	check_exit_status "swupd_bundle_install $package_name"
+	check_exit_status "swupd_bundle_install $package_name" "exit"
 }
 
 # swupd bundle remove packages, parameter: package name
@@ -2253,7 +2253,7 @@ function swupd_bundle_remove ()
 {
 	package_name=$1
 	sudo swupd bundle-remove $package_name
-	check_exit_status "swupd_bundle_remove $package_name"
+	check_exit_status "swupd_bundle_remove $package_name" "exit"
 }
 
 # Install packages, parameter: package name
