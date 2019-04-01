@@ -366,10 +366,12 @@ Function Delete-ResourceGroup([string]$RGName, [switch]$KeepDisks, [bool]$UseExi
             # "Microsoft.Authorization/locks" is the standard ResourceType for RG locks
             $rgLock = (Get-AzureRmResourceLock -ResourceGroupName $RGName).ResourceType -eq "Microsoft.Authorization/locks"
             if (-not $rgLock) {
-                $CurrentResources = Get-AzureRmResource -ResourceGroupName $RGName
+                $CurrentResources = Get-AzureRmResource -ResourceGroupName $RGName | `
+                    Where-Object { (( $_.ResourceGroupName -eq $RGName ) -and ( !($_.ResourceType -imatch "availabilitySets" )))}
                 $attempts = 0
                 while (($CurrentResources) -and ($attempts -le 10)) {
-                    $CurrentResources = Get-AzureRmResource -ResourceGroupName $RGName
+                    $CurrentResources = Get-AzureRmResource -ResourceGroupName $RGName | `
+                        Where-Object { (( $_.ResourceGroupName -eq $RGName ) -and ( !($_.ResourceType -imatch "availabilitySets" )))}
                     $unlockedResources = @()
                     # Get the lock for each resource and compute a list of "unlocked" resources
                     foreach ($resource in $CurrentResources) {
@@ -383,7 +385,10 @@ Function Delete-ResourceGroup([string]$RGName, [switch]$KeepDisks, [bool]$UseExi
                     foreach ($resource in $unlockedResources) {
                         Write-LogInfo "Removing resource $($resource.Name), type $($resource.ResourceType)"
                         try {
-                            $null = Remove-AzureRmResource -ResourceId $resource.ResourceId -Force -Verbose
+                            $current_resource = Get-AzureRmResource -ResourceId $resource.ResourceId -ErrorAction Ignore
+                            if ($current_resource) {
+                                $null = Remove-AzureRmResource -ResourceId $resource.ResourceId -Force -Verbose
+                            }
                         }
                         catch {
                             Write-LogErr "Failed to delete resource $($resource.Name). We will try to remove it in next attempt."
@@ -551,7 +556,7 @@ Function Get-AllDeploymentData($ResourceGroups)
         Write-LogInfo "Collecting $ResourceGroup data.."
 
         Write-LogInfo "	Microsoft.Network/publicIPAddresses data collection in progress.."
-        $RGIPdata = Get-AzureRmResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Network/publicIPAddresses" -Verbose -ExpandProperties
+        $RGIPsdata = Get-AzureRmResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Network/publicIPAddresses" -Verbose -ExpandProperties
         Write-LogInfo "	Microsoft.Compute/virtualMachines data collection in progress.."
         $RGVMs = Get-AzureRmResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Compute/virtualMachines" -Verbose -ExpandProperties
         Write-LogInfo "	Microsoft.Network/networkInterfaces data collection in progress.."
@@ -559,6 +564,12 @@ Function Get-AllDeploymentData($ResourceGroups)
         $currentRGLocation = (Get-AzureRmResourceGroup -ResourceGroupName $ResourceGroup).Location
         Write-LogInfo "	Microsoft.Network/loadBalancers data collection in progress.."
         $LBdata = Get-AzureRmResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Network/loadBalancers" -ExpandProperties -Verbose
+        foreach($ipData in $RGIPsdata) {
+            if ((Get-AzureRmPublicIpAddress -Name $ipData.name -ResourceGroupName $ipData.ResourceGroupName).IpAddress -ne "Not Assigned") {
+                $RGIPdata = $ipData
+            }
+        }
+
         foreach ($testVM in $RGVMs)
         {
             $QuickVMNode = Create-QuickVMNode
@@ -780,9 +791,18 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
     $PublicIPv6Name = "PublicIPv6"
     $sshPath = '/home/' + $user + '/.ssh/authorized_keys'
     $sshKeyData = ""
+    $createAvailabilitySet = !$UseExistingRG
+
     if ($UseExistingRG) {
-        $availabilitySetName = (Get-AzureRmResource | Where-Object { (( $_.ResourceGroupName -eq $RGName ) -and ( $_.ResourceType -imatch "availabilitySets" ))}).ResourceName
+        $existentAvailabilitySet = Get-AzureRmResource | Where-Object { (( $_.ResourceGroupName -eq $RGName ) -and ( $_.ResourceType -imatch "availabilitySets" ))} | `
+            Select-Object -First 1
+        if ($existentAvailabilitySet) {
+            $availabilitySetName = $existentAvailabilitySet.Name
+        } else {
+            $createAvailabilitySet = $true
+        }
     }
+
     if ( $CurrentTestData.ProvisionTimeExtensions ) {
         $extensionString = (Get-Content .\XML\Extensions.xml)
         foreach ($line in $extensionString.Split("`n")) {
@@ -889,7 +909,7 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
     #region Common Resources for all deployments..
 
     #region availabilitySets
-    if ($UseExistingRG) {
+    if (!$createAvailabilitySet) {
         Write-LogInfo "Using existing Availability Set: $availabilitySetName"
     }
     else {
@@ -1544,7 +1564,7 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
         Add-Content -Value "$($indents[3])^tags^: {^TestID^: ^$TestID^}," -Path $jsonFile
         Add-Content -Value "$($indents[3])^dependsOn^: " -Path $jsonFile
         Add-Content -Value "$($indents[3])[" -Path $jsonFile
-        if ($ExistingRG) {
+        if (!$createAvailabilitySet) {
             #Add-Content -Value "$($indents[4])^[concat('Microsoft.Compute/availabilitySets/', variables('availabilitySetName'))]^," -Path $jsonFile
         }
         else {
