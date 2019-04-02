@@ -70,8 +70,8 @@
         <TestName>LINUX-TEST-PROJECT-TESTS</TestName>
         <TestScript>Linux-Test-Project-Tests.sh</TestScript>
         <files>.\Testscripts\Linux\utils.sh,.\TestScripts\Linux\Linux-Test-Project-Tests.sh</files>
-        <setupScript>.\TestScripts\Windows\AddHardDisk.ps1</setupScript>
-        <cleanupScript>.\TestScripts\Windows\RemoveHardDisk.ps1</cleanupScript>
+        <setupScript>.\TestScripts\Windows\AddVhdxHardDisk.ps1</setupScript>
+        <cleanupScript>.\TestScripts\Windows\RemoveVhdxHardDisk.ps1</cleanupScript>
         <setupType>OneVM1Disk5G</setupType>
         <OverrideVMSize>Standard_DS14_v2</OverrideVMSize>
         <TestParameters>
@@ -91,8 +91,8 @@
         <TestName>LINUX-TEST-PROJECT-TESTS-FULL-RUN</TestName>
         <TestScript>Linux-Test-Project-Tests.sh</TestScript>
         <files>.\Testscripts\Linux\utils.sh,.\TestScripts\Linux\Linux-Test-Project-Tests.sh</files>
-        <setupScript>.\TestScripts\Windows\AddHardDisk.ps1</setupScript>
-        <cleanupScript>.\TestScripts\Windows\RemoveHardDisk.ps1</cleanupScript>
+        <setupScript>.\TestScripts\Windows\AddVhdxHardDisk.ps1</setupScript>
+        <cleanupScript>.\TestScripts\Windows\RemoveVhdxHardDisk.ps1</cleanupScript>
         <setupType>OneVM1Disk5G</setupType>
         <OverrideVMSize>Standard_DS14_v2</OverrideVMSize>
         <TestParameters>
