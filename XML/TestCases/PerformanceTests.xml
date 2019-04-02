@@ -331,9 +331,9 @@
         <testName>PERF-STORAGE-OVER-NFS-Synthetic-TCP-4K</testName>
         <testScript>PERF-STORAGE-OVER-NFS.ps1</testScript>
         <setupType>TwoVM12Disk</setupType>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh,.\Tools\gawk</files>
         <TestParameters>
-            <param>modes='randread randwrite read write'</param>
+            <param>modes=PERF-STORAGE-4K-IO-MODES</param>
             <param>startThread=1</param>
             <param>maxThread=1024</param>
             <param>startIO=4</param>
@@ -355,7 +355,7 @@
         <setupType>TwoVM12Disk</setupType>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh</files>
         <TestParameters>
-            <param>modes='randread randwrite read write'</param>
+            <param>modes=PERF-STORAGE-4K-IO-MODES</param>
             <param>startThread=1</param>
             <param>maxThread=1024</param>
             <param>startIO=4</param>
@@ -380,7 +380,7 @@
         </AdditionalHWConfig>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh</files>
         <TestParameters>
-            <param>modes='randread randwrite read write'</param>
+            <param>modes=PERF-STORAGE-4K-IO-MODES</param>
             <param>startThread=1</param>
             <param>maxThread=1024</param>
             <param>startIO=4</param>
@@ -405,7 +405,7 @@
         </AdditionalHWConfig>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh</files>
         <TestParameters>
-            <param>modes='randread randwrite read write'</param>
+            <param>modes=PERF-STORAGE-4K-IO-MODES</param>
             <param>startThread=1</param>
             <param>maxThread=1024</param>
             <param>startIO=4</param>
