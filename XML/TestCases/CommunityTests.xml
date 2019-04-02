@@ -77,7 +77,7 @@
         <TestParameters>
             <param>ltp_version_git_tag="LTP_TESTS_GIT_TAG"</param>
             <param>LTP_TEST_SUITE="LTP_SUITE"</param>
-            <param>SCSI=1,1,Fixed,5GB</param>
+            <param>SCSI=1,1,Fixed,512,5GB</param>
             <param>LTP_PACKAGE_URL="LTP_BUILD_URL"</param>
         </TestParameters>
         <Timeout>20000</Timeout>
@@ -98,7 +98,7 @@
         <TestParameters>
             <param>ltp_version_git_tag="LTP_TESTS_GIT_TAG"</param>
             <param>LTP_TEST_SUITE="full"</param>
-            <param>SCSI=1,1,Fixed,5GB</param>
+            <param>SCSI=1,1,Fixed,512,5GB</param>
             <param>LTP_PACKAGE_URL="LTP_BUILD_URL"</param>
         </TestParameters>
         <Timeout>20000</Timeout>
