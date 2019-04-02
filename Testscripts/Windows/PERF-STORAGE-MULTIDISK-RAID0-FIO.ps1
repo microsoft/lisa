@@ -122,79 +122,76 @@ function Get-FioPerformanceResults {
 function Consume-FioPerformanceResults {
     param(
         $FioPerformanceResults,
-        $DBConfig
+        $currentTestResult
     )
-
-    $dataSource = $DBConfig.server
-    $DBuser = $DBConfig.user
-    $DBpassword = $DBConfig.password
-    $database = $DBConfig.dbname
-    $dataTableName = $DBConfig.dbtable
-    $TestCaseName = $DBConfig.testTag
-
-    if ($dataSource -And $DBuser -And $DBpassword -And $database -And $dataTableName) {
-        $GuestDistro = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
-        $HostOS = cat "$LogDir\VM_properties.csv" | Select-String "Host Version"| %{$_ -replace ",Host Version,",""}
-        $GuestOSType = "Linux"
-        $GuestDistro = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
-        $GuestSize = $allVMData.InstanceSize
-        $KernelVersion  = cat "$LogDir\VM_properties.csv" | Select-String "Kernel version"| %{$_ -replace ",Kernel version,",""}
-        $SQLQuery = "INSERT INTO $dataTableName (TestCaseName,TestDate,HostType,HostBy,HostOS,GuestOSType,GuestDistro,GuestSize,KernelVersion,DiskSetup,BlockSize_KB,qDepth,seq_read_iops,seq_read_lat_usec,rand_read_iops,rand_read_lat_usec,seq_write_iops,seq_write_lat_usec,rand_write_iops,rand_write_lat_usec) VALUES "
-
-        # Note(v-advlad): aggregate fio results by qDepth
-        $perfResultsByQdepth = @{}
-        $FioPerformanceResults | ForEach-Object {
-             if (!$perfResultsByQdepth[$_.meta_data.q_depth]) {
-                 $perfResultsByQdepth[$_.meta_data.q_depth] = @()
-             }
-            $perfResultsByQdepth[$_.meta_data.q_depth] += $_
+    # Note(v-advlad): aggregate fio results by qDepth
+    $perfResultsByQdepth = @{}
+    $TestDate = $(Get-Date -Format yyyy-MM-dd)
+    $FioPerformanceResults | ForEach-Object {
+        if (!$perfResultsByQdepth[$_.meta_data.q_depth]) {
+            $perfResultsByQdepth[$_.meta_data.q_depth] = @()
         }
-        $sortedQdepths = $perfResultsByQdepth.Keys | Sort-Object @{e={$_ -as [int]}}
-        foreach ($qDepth in $sortedQdepths) {
-            $seq_read_iops = 0
-            $seq_read_lat_usec = 0
-            $rand_read_iops = 0
-            $rand_read_lat_usec = 0
-            $seq_write_iops = 0
-            $seq_write_lat_usec = 0
-            $rand_write_iops = 0
-            $rand_write_lat_usec = 0
-            $BlockSize_KB = 0
+        $perfResultsByQdepth[$_.meta_data.q_depth] += $_
+    }
+    $sortedQdepths = $perfResultsByQdepth.Keys | Sort-Object @{e={$_ -as [int]}}
+    foreach ($qDepth in $sortedQdepths) {
+        $seq_read_iops = 0
+        $seq_read_lat_usec = 0
+        $rand_read_iops = 0
+        $rand_read_lat_usec = 0
+        $seq_write_iops = 0
+        $seq_write_lat_usec = 0
+        $rand_write_iops = 0
+        $rand_write_lat_usec = 0
+        $BlockSize_KB = 0
 
-            foreach ($fioPerfResult in $perfResultsByQdepth[$qDepth]) {
-                if ($fioPerfResult.meta_data.mode -eq "read") {
-                    $seq_read_iops = $fioPerfResult.io_per_second
-                    $seq_read_lat_usec = $fioPerfResult.latency_usecond
-                }
-
-                if ($fioPerfResult.meta_data.mode -eq "randread") {
-                    $rand_read_iops = $fioPerfResult.io_per_second
-                    $rand_read_lat_usec = $fioPerfResult.latency_usecond
-                }
-
-                if ($fioPerfResult.meta_data.mode -eq "write") {
-                    $seq_write_iops = $fioPerfResult.io_per_second
-                    $seq_write_lat_usec = $fioPerfResult.latency_usecond
-                }
-
-                if ($fioPerfResult.meta_data.mode -eq "randwrite") {
-                    $rand_write_iops = $fioPerfResult.io_per_second
-                    $rand_write_lat_usec = $fioPerfResult.latency_usecond
-                }
-
-                $BlockSize_KB = $fioPerfResult.block_size
+        foreach ($fioPerfResult in $perfResultsByQdepth[$qDepth]) {
+            if ($fioPerfResult.meta_data.mode -eq "read") {
+                $seq_read_iops = $fioPerfResult.io_per_second
+                $seq_read_lat_usec = $fioPerfResult.latency_usecond
             }
-
-            if ($BlockSize_KB) {
-                $SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$TestPlatform','$TestLocation','$HostOS','$GuestOSType','$GuestDistro','$GuestSize','$KernelVersion','RAID0:12xP30','$BlockSize_KB','$QDepth','$seq_read_iops','$seq_read_lat_usec','$rand_read_iops','$rand_read_lat_usec','$seq_write_iops','$seq_write_lat_usec','$rand_write_iops','$rand_write_lat_usec'),"
-                Write-LogInfo "Collected performance data for $qDepth qDepth."
+            if ($fioPerfResult.meta_data.mode -eq "randread") {
+                $rand_read_iops = $fioPerfResult.io_per_second
+                $rand_read_lat_usec = $fioPerfResult.latency_usecond
             }
+            if ($fioPerfResult.meta_data.mode -eq "write") {
+                $seq_write_iops = $fioPerfResult.io_per_second
+                $seq_write_lat_usec = $fioPerfResult.latency_usecond
+            }
+            if ($fioPerfResult.meta_data.mode -eq "randwrite") {
+                $rand_write_iops = $fioPerfResult.io_per_second
+                $rand_write_lat_usec = $fioPerfResult.latency_usecond
+            }
+            $BlockSize_KB = $fioPerfResult.block_size
         }
-        Write-LogInfo "Uploading the test results to database.."
-        $SQLQuery = $SQLQuery.TrimEnd(',')
-        Upload-TestResultToDatabase $SQLQuery
-    } else {
-        Write-LogInfo "Invalid database details."
+
+        if ($BlockSize_KB) {
+            if ($testResult -eq "PASS") {
+                $resultMap = @{}
+                $resultMap["GuestDistro"] = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
+                $resultMap["HostOS"] = cat "$LogDir\VM_properties.csv" | Select-String "Host Version"| %{$_ -replace ",Host Version,",""}
+                $resultMap["KernelVersion"] = cat "$LogDir\VM_properties.csv" | Select-String "Kernel version"| %{$_ -replace ",Kernel version,",""}
+                $resultMap["TestCaseName"] = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
+                $resultMap["TestDate"] = $TestDate
+                $resultMap["HostType"] = $TestPlatform
+                $resultMap["HostBy"] = $TestLocation
+                $resultMap["GuestOSType"] = "Linux"
+                $resultMap["GuestSize"] = $allVMData.InstanceSize
+                $resultMap["DiskSetup"] = 'RAID0:12xP30'
+                $resultMap["BlockSize_KB"] = $BlockSize_KB
+                $resultMap["qDepth"] = $QDepth
+                $resultMap["seq_read_iops"] = $seq_read_iops
+                $resultMap["seq_read_lat_usec"] = $seq_read_lat_usec
+                $resultMap["rand_read_iops"] = $rand_read_iops
+                $resultMap["rand_read_lat_usec"] = $rand_read_lat_usec
+                $resultMap["seq_write_iops"] = $seq_write_iops
+                $resultMap["seq_write_lat_usec"] = $seq_write_lat_usec
+                $resultMap["rand_write_iops"] = $rand_write_iops
+                $resultMap["rand_write_lat_usec"] = $rand_write_lat_usec
+                $currentTestResult.TestResultData += $resultMap
+            }
+            Write-LogInfo "Collected performance data for $qDepth qDepth."
+        }
     }
 }
 
@@ -271,11 +268,11 @@ function Main {
         # Get current run modes
         $modes = $fioPerfResults | Sort-Object {$_.meta_data.mode} -Unique
         # For each mode, sort by q_depth, add it into test summary
-        foreach($mode in $modes) {
+        foreach ($mode in $modes) {
             $currentMode = $mode["meta_data"]["mode"]
             $metadata = "Mode=$currentMode"
             $iopsResults = $fioPerfResults | Where-Object {$_.meta_data.mode -eq $currentMode } | Sort-Object { [int]($_.meta_data.q_depth)}
-            foreach($iopsResult in $iopsResults) {
+            foreach ($iopsResult in $iopsResults) {
                 $summaryResult = "block_size=$($iopsResult["block_size"])`K q_depth=$($iopsResult["meta_data"]["q_depth"]) iops=$($iopsResult["io_per_second"])"
                 $currentTestResult.TestSummary += New-ResultSummary -testResult $summaryResult -metaData $metaData -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
             }
@@ -285,10 +282,7 @@ function Main {
         $fioPerfResults | ConvertTo-Json | Out-File $fioPerfResultsFile -Encoding "ascii"
         Write-LogInfo "Perf results in json format saved at: ${fioPerfResultsFile}"
 
-        Consume-FioPerformanceResults -FioPerformanceResults $fioPerfResults `
-            -DBConfig $GlobalConfig.Global.$TestPlatform.ResultsDatabase
-
-        Write-LogInfo "Test Completed"
+        Consume-FioPerformanceResults -FioPerformanceResults $fioPerfResults -currentTestResult $currentTestResult
     } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber

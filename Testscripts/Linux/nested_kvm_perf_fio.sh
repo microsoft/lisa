@@ -85,7 +85,7 @@ Run_Fio()
 	chmod 666 $LOGFILE
 	####################################
 	#Trigger run from here
-	for testmode in $modes; do
+	for testmode in "${modes[@]}"; do
 		io=$startIO
 		while [ $io -le $maxIO ]
 		do

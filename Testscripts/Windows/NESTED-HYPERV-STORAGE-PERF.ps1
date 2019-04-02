@@ -11,8 +11,7 @@ function New-RaidOnL1 ($session, $interleave) {
 		$raidDiskName = "Raid0-Disk"
 
 		$diskNumbers = (Get-Disk | Where-Object {$_.FriendlyName -eq 'Msft Virtual Disk'}).Number
-		foreach ( $number in $diskNumbers )
-		{
+		foreach ( $number in $diskNumbers ) {
 			Set-Disk $number -isOffline $true
 		}
 
@@ -35,20 +34,17 @@ function New-NestedVM ($session, $vmMem, $osVHD, $vmName, $processors, $switchNa
 			New-VHD -ParentPath $osVHD -Path $currentVMOsVHDPath
 
 			$NewVM = New-VM -Name $vmName -MemoryStartupBytes $vmMem -BootDevice VHD -VHDPath $currentVMOsVHDPath -Path $savePath -Generation 1 -Switch $switchName
-			if ($?)
-			{
+			if ($?) {
 				Set-VM -VM $NewVM -ProcessorCount $processors -StaticMemory -CheckpointType Disabled
 
 				$diskNumbers = (Get-Disk | Where-Object {$_.FriendlyName -eq 'Msft Virtual Disk'}).Number
-				foreach ( $number in $diskNumbers )
-				{
+				foreach ( $number in $diskNumbers ) {
 					Set-Disk $number -isOffline $true
 				}
 
 				$diskNumbers = (Get-Disk | Where-Object {$_.OperationalStatus -eq 'offline'}).Number
 				$count = 0
-				foreach ( $lun in $diskNumbers )
-				{
+				foreach ( $lun in $diskNumbers ) {
 					"Add physical disk $($diskNumbers[$count]) to controller on virtual machine $vmName."
 					$NewVM | Add-VMHardDiskDrive -DiskNumber $($diskNumbers[$count]) -ControllerType 'SCSI'
 					$count ++
@@ -65,8 +61,7 @@ function Get-NestedVMIPAdress ($session, $vmName) {
 		param($vmName)
 
 		$status = Get-VM -Name $vmName
-		if ($($status.State) -ne "running")
-		{
+		if ($($status.State) -ne "running") {
 			Start-VM -Name $vmName
 			Start-Sleep 10
 		}
@@ -74,8 +69,7 @@ function Get-NestedVMIPAdress ($session, $vmName) {
 
 	$MaxCount = 20
 	$i=0
-	do
-	{
+	do {
 		$i++
 		Start-Sleep 30
 		$VMNicProperties = Invoke-Command -Session $session -ScriptBlock {
@@ -85,13 +79,12 @@ function Get-NestedVMIPAdress ($session, $vmName) {
 		}  -ArgumentList $vmName
 
 		$nestedVmIP = $VMNicProperties.IPAddresses | Where-Object {$_ -imatch "\b(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}\b"}
-	}while(($i -lt $MaxCount) -and (!$nestedVmIP))
+	} while (($i -lt $MaxCount) -and (!$nestedVmIP))
 
 	return $nestedVmIP
 }
 
-function New-ShellScriptFile($LogDir,$username)
-{
+function New-ShellScriptFile($username) {
 	$scriptContent = @"
 echo nameserver 8.8.8.8 >> /etc/resolv.conf
 chmod +x nested_kvm_perf_fio.sh
@@ -114,8 +107,7 @@ chmod 666 perf_fio.csv
 	Set-Content "$LogDir\ParseFioTestLogs.sh" $scriptContent2
 }
 
-function Start-TestExecution ($ip, $port, $username, $passwd)
-{
+function Start-TestExecution ($ip, $port, $username, $passwd) {
 	Copy-RemoteFiles -uploadTo $ip -port $port -files $currentTestData.files -username $username -password $passwd -upload
 	Run-LinuxCmd -ip $ip -port $port -username $username -password $passwd -command "rm -f /home/$username/*.txt;rm -f /home/$username/*.log" -runAsSudo
 	Run-LinuxCmd -ip $ip -port $port -username $username -password $passwd -command "cp *.sh /root;touch /home/$username/state.txt" -runAsSudo
@@ -124,8 +116,7 @@ function Start-TestExecution ($ip, $port, $username, $passwd)
 	$cmd = "/home/$username/StartFioTest.sh"
 	Run-LinuxCmd -ip $ip -port  $port -username $username -password $passwd -command $cmd -runAsSudo  -runMaxAllowedTime  24000  -RunInBackground
 	$currentStatus = Run-LinuxCmd -ip $ip -port  $port -username $username -password $passwd -command "cat /home/$username/state.txt"  -runAsSudo
-	while ( $currentStatus -like "*TestRunning*" -or -not $currentStatus )
-	{
+	while ( $currentStatus -like "*TestRunning*" -or -not $currentStatus ) {
 		$currentStatus = Run-LinuxCmd -ip $ip -port  $port -username $username -password $passwd -command "cat /home/$username/state.txt"  -runAsSudo
 		Write-LogInfo "Current test status : $currentStatus"
 		Wait-Time -seconds 30
@@ -136,34 +127,27 @@ function Start-TestExecution ($ip, $port, $username, $passwd)
 	Run-LinuxCmd -ip $ip -port  $port -username $username -password $passwd -command $cmd -runAsSudo
 }
 
-function Get-SQLQueryOfNestedHyperv ($GlobalConfig, $logDir, $session)
-{
-	try
-	{
-		Write-LogInfo "Getting the SQL query of test results.."
-		$dataTableName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbtable
-		$TestCaseName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
-		Import-Csv -Path $LogDir\maxIOPSforMode.csv
-		Import-Csv -Path $LogDir\maxIOPSforBlockSize.csv
+function Get-SQLQueryOfNestedHyperv ($currentTestResult, $session, $AllVMData) {
+	try {
+		$TestDate = $(Get-Date -Format yyyy-MM-dd)
 		$fioDataCsv = Import-Csv -Path $LogDir\fioData.csv
-		$HostType = $TestPlatform
-		$HostBy = $TestLocation
-		if ($TestPlatform -eq "hyperV")
-		{
+
+		if ($TestPlatform -eq "hyperV") {
 			$HyperVMappedSizes = [xml](Get-Content .\XML\AzureVMSizeToHyperVMapping.xml)
 			$L1GuestCpuNum = $HyperVMappedSizes.HyperV.$HyperVInstanceSize.NumberOfCores
 			$L1GuestMemMB = [int]($HyperVMappedSizes.HyperV.$HyperVInstanceSize.MemoryInMB)
 			$L1GuestSize = "$($L1GuestCpuNum)Cores $($L1GuestMemMB/1024)G"
 			$HostOS = (Get-WmiObject -Class Win32_OperatingSystem -ComputerName $GlobalConfig.Global.$TestPlatform.Hosts.ChildNodes[0].ServerName).Version
-		}
-		else
-		{
+			$vm = Get-VM -Name $AllVMData.RoleName -ComputerName $AllVMData.HyperVHost
+			$vhd = Get-VHD -Path $vm.HardDrives[1].Path
+			$count = $vm.HardDrives.count - 1
+			$disk_size = $vhd.PhysicalSectorSize
+		} else {
 			$L1GuestSize = $AllVMData.InstanceSize
 			$keys = "HostingSystemOsMajor", "HostingSystemOsMinor", "HostingSystemEditionId"
 			$registryEntry =  'HKLM:\SOFTWARE\Microsoft\Virtual Machine\Guest\Parameters'
 			$values = @()
-			foreach ( $key in  $keys)
-			{
+			foreach ( $key in $keys ) {
 				$val = Invoke-Command -Session $session -ScriptBlock {
 					param($registryEntry, $key)
 					(get-item $registryEntry).GetValue("$key")
@@ -171,74 +155,60 @@ function Get-SQLQueryOfNestedHyperv ($GlobalConfig, $logDir, $session)
 				$values += $val
 			}
 			$HostOS = [string]$values[0]+ "." + [string]$values[1] + "." + [string]$values[2]
+			$vm = (Get-AzureRmVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName)
+			$count = $vm.StorageProfile.DataDisks.Count
+			$disk_size = $vm.StorageProfile.DataDisks[0].DiskSizeGB
 		}
-		$setupType = $currentTestData.setupType
-		$count = 0
-		foreach ($disk in $GlobalConfig.Global.$TestPlatform.Deployment.$setupType.ResourceGroup.VirtualMachine.DataDisk)
-		{
-			$disk_size = $disk.DiskSizeInGB
-			$count ++
-		}
-		$DiskSetup = "$count SSD: $($disk_size)G"
-
-		# Get L1 guest info
 		$computerInfo = Invoke-Command -Session $session -ScriptBlock {Get-ComputerInfo}
-		$L1GuestDistro = $computerInfo.OsName
-		$L1GuestKernelVersion = Get-Content "$LogDir\nested_properties.csv" | Select-String "Host Version"| ForEach-Object {$_ -replace ",Host Version,",""}
-		$L1GuestOSType = "Windows"
 
-		# Get L2 guest info
-		$L2GuestDistro = Get-Content "$LogDir\nested_properties.csv" | Select-String "OS type"| ForEach-Object {$_ -replace ",OS type,",""}
-		$L2GuestKernelVersion = Get-Content "$LogDir\nested_properties.csv" | Select-String "Kernel version"| ForEach-Object {$_ -replace ",Kernel version,",""}
-		foreach ( $param in $currentTestData.TestParameters.param)
-		{
-			if ($param -match "NestedCpuNum")
-			{
+		foreach ( $param in $currentTestData.TestParameters.param ) {
+			if ($param -match "NestedCpuNum") {
 				$L2GuestCpuNum = [int]($param.split("=")[1])
 			}
-			if ($param -match "NestedMemMB")
-			{
+			if ($param -match "NestedMemMB") {
 				$L2GuestMemMB = [int]($param.split("=")[1])
 			}
-			if ( $param -match "startThread" )
-			{
+			if ($param -match "startThread") {
 				$startThread = [int]($param.split("=")[1])
 			}
-			if ( $param -match "maxThread" )
-			{
+			if ($param -match "maxThread") {
 				$maxThread = [int]($param.split("=")[1])
 			}
-			if ( $param -match "RaidOption" )
-			{
+			if ($param -match "RaidOption") {
 				$RaidOption = $param.Replace("RaidOption=","").Replace("'","")
 			}
 		}
 
-		$SQLQuery = "INSERT INTO $dataTableName (TestCaseName,TestDate,HostType,HostBy,HostOS,L1GuestOSType,L1GuestDistro,L1GuestSize,L1GuestKernelVersion,L2GuestDistro,L2GuestKernelVersion,L2GuestCpuNum,L2GuestMemMB,DiskSetup,RaidOption,BlockSize_KB,QDepth,seq_read_iops,seq_read_lat_usec,rand_read_iops,rand_read_lat_usec,seq_write_iops,seq_write_lat_usec,rand_write_iops,rand_write_lat_usec) VALUES "
-		for ( $QDepth = $startThread; $QDepth -le $maxThread; $QDepth *= 2 )
-		{
-			$seq_read_iops = [Float](($fioDataCsv |  Where-Object { $_.TestType -eq "read" -and  $_.Threads -eq "$QDepth"} | Select-Object ReadIOPS).ReadIOPS)
-			$seq_read_lat_usec = [Float](($fioDataCsv |  Where-Object { $_.TestType -eq "read" -and  $_.Threads -eq "$QDepth"} | Select-Object MaxOfReadMeanLatency).MaxOfReadMeanLatency)
-
-			$rand_read_iops = [Float](($fioDataCsv |  Where-Object { $_.TestType -eq "randread" -and  $_.Threads -eq "$QDepth"} | Select-Object ReadIOPS).ReadIOPS)
-			$rand_read_lat_usec = [Float](($fioDataCsv |  Where-Object { $_.TestType -eq "randread" -and  $_.Threads -eq "$QDepth"} | Select-Object MaxOfReadMeanLatency).MaxOfReadMeanLatency)
-
-			$seq_write_iops = [Float](($fioDataCsv |  Where-Object { $_.TestType -eq "write" -and  $_.Threads -eq "$QDepth"} | Select-Object WriteIOPS).WriteIOPS)
-			$seq_write_lat_usec = [Float](($fioDataCsv |  Where-Object { $_.TestType -eq "write" -and  $_.Threads -eq "$QDepth"} | Select-Object MaxOfWriteMeanLatency).MaxOfWriteMeanLatency)
-
-			$rand_write_iops = [Float](($fioDataCsv |  Where-Object { $_.TestType -eq "randwrite" -and  $_.Threads -eq "$QDepth"} | Select-Object WriteIOPS).WriteIOPS)
-			$rand_write_lat_usec= [Float](($fioDataCsv |  Where-Object { $_.TestType -eq "randwrite" -and  $_.Threads -eq "$QDepth"} | Select-Object MaxOfWriteMeanLatency).MaxOfWriteMeanLatency)
-
-			$BlockSize_KB= [Int]((($fioDataCsv |  Where-Object { $_.Threads -eq "$QDepth"} | Select-Object BlockSize)[0].BlockSize).Replace("K",""))
-
-			$SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$HostType','$HostBy','$HostOS','$L1GuestOSType','$L1GuestDistro','$L1GuestSize','$L1GuestKernelVersion','$L2GuestDistro','$L2GuestKernelVersion','$L2GuestCpuNum','$L2GuestMemMB','$DiskSetup','$RaidOption','$BlockSize_KB','$QDepth','$seq_read_iops','$seq_read_lat_usec','$rand_read_iops','$rand_read_lat_usec','$seq_write_iops','$seq_write_lat_usec','$rand_write_iops','$rand_write_lat_usec'),"
+		for ( $QDepth = $startThread; $QDepth -le $maxThread; $QDepth *= 2 ) {
+			$resultMap = @{}
+			$resultMap["TestCaseName"] = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
+			$resultMap["TestDate"] = $TestDate
+			$resultMap["HostType"] = $TestPlatform
+			$resultMap["HostBy"] = $TestLocation
+			$resultMap["HostOS"] = $HostOS
+			$resultMap["L1GuestOSType"] = "Windows"
+			$resultMap["L1GuestDistro"] = $computerInfo.OsName
+			$resultMap["L1GuestSize"] = $L1GuestSize
+			$resultMap["L1GuestKernelVersion"] = $(Get-Content "$LogDir\nested_properties.csv" | Select-String "Host Version"| ForEach-Object {$_ -replace ",Host Version,",""})
+			$resultMap["L2GuestDistro"] = $(Get-Content "$LogDir\nested_properties.csv" | Select-String "OS type"| ForEach-Object {$_ -replace ",OS type,",""})
+			$resultMap["L2GuestKernelVersion"] = $(Get-Content "$LogDir\nested_properties.csv" | Select-String "Kernel version"| ForEach-Object {$_ -replace ",Kernel version,",""})
+			$resultMap["L2GuestCpuNum"] = $L2GuestCpuNum
+			$resultMap["L2GuestMemMB"] = $L2GuestMemMB
+			$resultMap["DiskSetup"] = "$count SSD: $($disk_size)G"
+			$resultMap["RaidOption"] = $RaidOption
+			$resultMap["BlockSize_KB"] = [Int] ((($fioDataCsv |  Where-Object { $_.Threads -eq "$QDepth"} | Select-Object BlockSize)[0].BlockSize).Replace("K",""))
+			$resultMap["QDepth"] = $QDepth
+			$resultMap["seq_read_iops"] = [Float] (($fioDataCsv |  Where-Object { $_.TestType -eq "read" -and  $_.Threads -eq "$QDepth"} | Select-Object ReadIOPS).ReadIOPS)
+			$resultMap["seq_read_lat_usec"] = [Float] (($fioDataCsv |  Where-Object { $_.TestType -eq "read" -and  $_.Threads -eq "$QDepth"} | Select-Object MaxOfReadMeanLatency).MaxOfReadMeanLatency)
+			$resultMap["rand_read_iops"] = [Float] (($fioDataCsv |  Where-Object { $_.TestType -eq "randread" -and  $_.Threads -eq "$QDepth"} | Select-Object ReadIOPS).ReadIOPS)
+			$resultMap["rand_read_lat_usec"] = [Float] (($fioDataCsv |  Where-Object { $_.TestType -eq "randread" -and  $_.Threads -eq "$QDepth"} | Select-Object MaxOfReadMeanLatency).MaxOfReadMeanLatency)
+			$resultMap["seq_write_iops"] = [Float] (($fioDataCsv |  Where-Object { $_.TestType -eq "write" -and  $_.Threads -eq "$QDepth"} | Select-Object WriteIOPS).WriteIOPS)
+			$resultMap["seq_write_lat_usec"] = [Float] (($fioDataCsv |  Where-Object { $_.TestType -eq "write" -and  $_.Threads -eq "$QDepth"} | Select-Object MaxOfWriteMeanLatency).MaxOfWriteMeanLatency)
+			$resultMap["rand_write_iops"] = [Float] (($fioDataCsv |  Where-Object { $_.TestType -eq "randwrite" -and  $_.Threads -eq "$QDepth"} | Select-Object WriteIOPS).WriteIOPS)
+			$resultMap["rand_write_lat_usec"] = [Float] (($fioDataCsv |  Where-Object { $_.TestType -eq "randwrite" -and  $_.Threads -eq "$QDepth"} | Select-Object MaxOfWriteMeanLatency).MaxOfWriteMeanLatency)
+			$currentTestResult.TestResultData += $resultMap
 		}
-		$SQLQuery = $SQLQuery.TrimEnd(',')
-		Write-LogInfo "Getting the SQL query of test results:  done"
-		return $SQLQuery
-	}
-	catch
-	{
+	} catch {
 		Write-LogErr "Getting the SQL query of test results:  ERROR"
 		$errorMessage =  $_.Exception.Message
 		$ErrorLine = $_.InvocationInfo.ScriptLineNumber
@@ -246,8 +216,7 @@ function Get-SQLQueryOfNestedHyperv ($GlobalConfig, $logDir, $session)
 	}
 }
 
-function New-CustomScript( )
-{
+function New-CustomScript() {
 	Write-LogInfo "Create the content of custom script"
 	$customScriptName = "myCustomScript.ps1"
 	$customScriptContent = @"
@@ -259,7 +228,7 @@ netsh advfirewall firewall add rule name="WinRM HTTP" dir=in action=allow protoc
 	$rgName = $AllVMData.ResourceGroupName
 	$containerName = "vhds"
 	$storageName = (Get-AzureRmStorageAccount -ResourceGroupName $rgName).StorageAccountName
-	if( -not $storageName ){
+	if (-not $storageName) {
 		$randomNum = Get-Random -Maximum 999 -Minimum 100
 		$storageName = "temp" + [string]$randomNum
 		$location = $global:TestLocation
@@ -268,8 +237,7 @@ netsh advfirewall firewall add rule name="WinRM HTTP" dir=in action=allow protoc
 	$StorageKey = (Get-AzurermStorageAccountKey  -Name $storageName -ResourceGroupName $rgName).Value[0]
 	$sourceContext = New-AzureStorageContext -StorageAccountName $storageName -StorageAccountKey $StorageKey
 	$blobContainer = Get-AzureStorageContainer -Name $containerName -Context $sourceContext 2>$null
-	if( $null -eq $blobContainer )
-	{
+	if ($null -eq $blobContainer) {
 		Write-LogInfo "The container $containerName doesn't exist, so create it."
 		New-AzureStorageContainer -Name $containerName -Context $sourceContext   | Out-Null
 		Start-Sleep 3
@@ -283,8 +251,7 @@ netsh advfirewall firewall add rule name="WinRM HTTP" dir=in action=allow protoc
 	return $customScriptURI
 }
 
-function Invoke-CustomScript($fileUri)
-{
+function Invoke-CustomScript($fileUri) {
 	Write-LogInfo "Run custom script: $fileUri"
 	$myVM = $AllVMData.RoleName
 	$rgName = $AllVMData.ResourceGroupName
@@ -301,19 +268,16 @@ function Invoke-CustomScript($fileUri)
 	$name = "CustomScriptExtension"
 	$location = $global:TestLocation
 	$sts=Set-AzureRmVMExtension -ResourceGroupName $rgName -Location $location -VMName $myVM  -Name $name -Publisher $publisher -ExtensionType $type  -TypeHandlerVersion "1.9"  -Settings $settings  -ProtectedSettings $proSettings
-	if( $sts.IsSuccessStatusCode )
-	{
+	if ($sts.IsSuccessStatusCode) {
 	  Write-LogInfo "Run custom script successfully."
-	}
-	else
-	{
+	} else {
 	  Write-LogErr "Run custom script failed."
 	}
 }
 
 function Get-OSvhd ($session, $srcPath, $dstPath) {
 	Write-LogInfo "Downloading vhd from $srcPath to $dstPath ..."
-	if( $srcPath.Trim().StartsWith("http") ){
+	if ($srcPath.Trim().StartsWith("http")) {
 		Invoke-Command -Session $session -ScriptBlock {
 			param($srcPath, $dstPath)
 			Import-Module BitsTransfer
@@ -325,19 +289,19 @@ function Get-OSvhd ($session, $srcPath, $dstPath) {
 				-Asynchronous
 			$btjob = Get-BitsTransfer $displayName
 			$lastStatus = $btjob.JobState
-			do{
-				if($lastStatus -ne $btjob.JobState) {
+			do {
+				if ($lastStatus -ne $btjob.JobState) {
 					$lastStatus = $btjob.JobState
 				}
 
-				if($lastStatus -like "*Error*") {
+				if ($lastStatus -like "*Error*") {
 					Remove-BitsTransfer $btjob
 					Write-Output "Error connecting $srcPath to download."
 					return 1
 				}
 			} while ($lastStatus -ne "Transferring")
 
-			do{
+			do {
 				Write-Output (Get-Date) $btjob.BytesTransferred $btjob.BytesTotal ($btjob.BytesTransferred/$btjob.BytesTotal*100)
 				Start-Sleep -s 10
 			} while ($btjob.BytesTransferred -lt $btjob.BytesTotal)
@@ -345,9 +309,7 @@ function Get-OSvhd ($session, $srcPath, $dstPath) {
 			Write-Output (Get-Date) $btjob.BytesTransferred $btjob.BytesTotal ($btjob.BytesTransferred/$btjob.BytesTotal*100)
 			Complete-BitsTransfer $btjob
 		}  -ArgumentList $srcPath, $dstPath
-	}
-	else
-	{
+	} else {
 		Copy-Item $srcPath -Destination $dstPath -ToSession $session
 	}
 }
@@ -358,25 +320,20 @@ function Install-Hyperv ($session) {
 	Start-Sleep 100
 }
 
-function New-NetworkSwitch ($session, $switchName)  {
+function New-NetworkSwitch ($session, $switchName) {
 	Write-LogInfo "Start to create a network switch named $switchName"
 	Invoke-Command -Session $session -ScriptBlock {
 		param($switchName)
 		$switchNames = (Get-VMSwitch).name
-		foreach ( $vmswitchName in $switchNames )
-		{
+		foreach ( $vmswitchName in $switchNames ) {
 			Remove-VMSwitch $vmswitchName -Force
 		}
 
 		$netAdapterNames  = (Get-NetAdapter).name
-		foreach ( $netAdapterName in $netAdapterNames )
-		{
-			if( $netAdapterName -like "*vEthernet*" )
-			{
+		foreach ( $netAdapterName in $netAdapterNames ) {
+			if ($netAdapterName -like "*vEthernet*") {
 				continue
-			}
-			else
-			{
+			} else {
 				New-VMSwitch -name $switchName -NetAdapterName $netAdapterName -AllowManagementOS $true
 				break
 			}
@@ -406,52 +363,42 @@ function Add-NestedNatStaticMapping ($session, $natName, $ip_addr, $internalPort
 	} -ArgumentList $natName, $ip_addr, $internalPort, $externalPort
 }
 
-function Main()
-{
+function Main() {
 	$currentTestResult = Create-TestResultObject
 	$resultArr = @()
 	$testResult = $resultAborted
-	try
-	{
+	try {
 		$hs1VIP = $AllVMData.PublicIP
 
 		# Get the test parameters
-		foreach ( $param in $currentTestData.TestParameters.param)
-		{
+		foreach ( $param in $currentTestData.TestParameters.param ) {
 
-			if ( $param -imatch "RaidOption" )
-			{
+			if ($param -imatch "RaidOption") {
 				$RaidOption = $param.Replace("RaidOption=","").Replace("'","")
 			}
-			if ( $param -imatch "NestedCpuNum=" )
-			{
+			if ($param -imatch "NestedCpuNum=") {
 					$nestedCPUs = [int]$param.Replace("NestedCpuNum=","")
 			}
-			if ( $param -imatch "NestedMemMB=" )
-			{
+			if ($param -imatch "NestedMemMB=") {
 					$nestedMemMB = [int]$param.Replace("NestedMemMB=","")
 			}
-			if ( $param -imatch "NestedUser=" )
-			{
+			if ($param -imatch "NestedUser=") {
 					$nestedVmUser = $param.Replace("NestedUser=","").Replace("'","")
 			}
-			if ( $param -imatch "NestedUserPassword=" )
-			{
+			if ($param -imatch "NestedUserPassword=") {
 				$nestedVmPassword = $param.Replace("NestedUserPassword=","").Replace("'","")
 			}
-			if ( $param -imatch "NestedImageUrl=" )
-			{
+			if ($param -imatch "NestedImageUrl=") {
 				$nestedVhdPath = $param.Replace("NestedImageUrl=","").Replace("'","").Trim()
 			}
-			if ( $param -imatch "Interleave=" )
-			{
+			if ($param -imatch "Interleave=") {
 				$interleave = [int]$param.Replace("Interleave=","")
 			}
 		}
 
 		if ($testPlatform -eq "Azure") {
 			$customScriptUri = New-CustomScript
-			Invoke-CustomScript -fileUri $customScriptUri
+			Invoke-CustomScript -fileUri $customScriptUri | Out-Null
 		}
 
 		# Create remote session
@@ -461,24 +408,22 @@ function Main()
 			$connectionURL = "http://${hs1VIP}:${sessionPort}"
 			Write-LogInfo "Session connection URL: $connectionURL"
 			$session = New-PSSession -ConnectionUri $connectionURL -Credential $cred -SessionOption (New-PSSessionOption -SkipCACheck -SkipCNCheck -SkipRevocationCheck)
-		}
-		else {
+		} else {
 			$session = New-PSSession -ComputerName $hs1VIP -Credential $cred
 		}
 
-		if( $RaidOption -eq "RAID in L1" )
-		{
-			New-RaidOnL1  -session $session -interleave $interleave
+		if ($RaidOption -eq "RAID in L1") {
+			New-RaidOnL1  -session $session -interleave $interleave | Out-Null
 		}
 
 		# Download L2 OS vhd
 		$curtime = ([string]((Get-Date).Ticks / 1000000)).Split(".")[0]
 		$nestOSVHD = "C:\Users\test_" + "$curtime" +".vhd"
-		Get-OSvhd -session $session -srcPath $nestedVhdPath -dstPath $nestOSVHD
+		Get-OSvhd -session $session -srcPath $nestedVhdPath -dstPath $nestOSVHD | Out-Null
 
 		if ($testPlatform -eq "Azure") {
 			try {
-				Install-Hyperv -Session $session
+				Install-Hyperv -Session $session | Out-Null
 			} catch {
 				# Ignore the exception caused by Hyper-V is installation
 				$()
@@ -494,123 +439,94 @@ function Main()
 		$nestedNATName = "MyNATNet"
 
 		if ($testPlatform -eq "Azure") {
-			New-NAT -session $session -switchName $nestedVMSwithName -natName $nestedNATName
-		}
-		else {
-			New-NetworkSwitch -session $session -switchName $nestedVMSwithName
+			New-NAT -session $session -switchName $nestedVMSwithName -natName $nestedNATName | Out-Null
+		} else {
+			New-NetworkSwitch -session $session -switchName $nestedVMSwithName | Out-Null
 		}
 
-		New-NestedVM -session $session -vmMem  $nestedVMMemory  -osVHD $nestOSVHD -vmName $nestedVMName -processors $nestedCPUs -switchName $nestedVMSwithName
+		New-NestedVM -session $session -vmMem  $nestedVMMemory  -osVHD $nestOSVHD -vmName $nestedVMName -processors $nestedCPUs -switchName $nestedVMSwithName | Out-Null
 
 		$nestedVmIP = Get-NestedVMIPAdress -session $session  -vmName $nestedVMName
 
 		if ($testPlatform -eq "Azure") {
 			$nestedVmSSHPort = 222
-			Add-NestedNatStaticMapping  -session $session  -natName $nestedNATName -ip_addr $nestedVmIP  -internalPort 22 -externalPort $nestedVmSSHPort
+			Add-NestedNatStaticMapping  -session $session  -natName $nestedNATName -ip_addr $nestedVmIP  -internalPort 22 -externalPort $nestedVmSSHPort | Out-Null
 			$nestedVmPublicIP = $hs1VIP
-		}
-		else
-		{
+		} else {
 			$nestedVmSSHPort = 22
 			$nestedVmPublicIP = $nestedVmIP
 		}
 		Write-LogInfo "The nested VM SSH port: $nestedVmSSHPort"
 		Write-LogInfo "The nested VM public IP: $nestedVmPublicIP"
 
-		New-ShellScriptFile -logDir $LogDir  -username $nestedVmUser
+		New-ShellScriptFile -username $nestedVmUser | Out-Null
 		Copy-RemoteFiles -uploadTo $nestedVmPublicIP -port $nestedVmSSHPort -files "$LogDir\StartFioTest.sh,$LogDir\ParseFioTestLogs.sh" -username $nestedVmUser -password $nestedVmPassword -upload
 
 		$constantsFile = "$PWD\constants.sh"
-        Copy-RemoteFiles -uploadTo $nestedVmPublicIP -port $nestedVmSSHPort -files "$constantsFile" -username $nestedVmUser -password $nestedVmPassword -upload
+		Copy-RemoteFiles -uploadTo $nestedVmPublicIP -port $nestedVmSSHPort -files "$constantsFile" -username $nestedVmUser -password $nestedVmPassword -upload
 
-		Start-TestExecution -ip $nestedVmPublicIP -port $nestedVmSSHPort -username $nestedVmUser  -passwd $nestedVmPassword
+		Start-TestExecution -ip $nestedVmPublicIP -port $nestedVmSSHPort -username $nestedVmUser  -passwd $nestedVmPassword | Out-Null
 
 		$files = "/home/$nestedVmUser/state.txt, /home/$nestedVmUser/TestExecutionConsole.log"
 		Copy-RemoteFiles -download -downloadFrom $nestedVmPublicIP -port  $nestedVmSSHPort -username $nestedVmUser -password $nestedVmPassword -downloadTo $LogDir -files $files
 		$finalStatus = Get-Content $LogDir\state.txt
-		if ( $finalStatus -imatch "TestFailed")
-		{
+		if ($finalStatus -imatch "TestFailed") {
 			Write-LogErr "Test failed. Last known status : $currentStatus."
 			$testResult = $resultFail
-		}
-		elseif ( $finalStatus -imatch "TestAborted")
-		{
+		} elseif ($finalStatus -imatch "TestAborted") {
 			Write-LogErr "Test Aborted. Last known status : $currentStatus."
 			$testResult = $resultAborted
-		}
-		elseif ( $finalStatus -imatch "TestCompleted")
-		{
+		} elseif ($finalStatus -imatch "TestCompleted") {
 			$testResult = $resultPass
-		}
-		elseif ( $finalStatus -imatch "TestRunning")
-		{
+		} elseif ($finalStatus -imatch "TestRunning") {
 			Write-LogInfo "Powershell background job for test is completed but VM is reporting that test is still running. Please check $LogDir\TestExecutionConsole.txt"
 			$testResult = $resultAborted
 		}
 
 		$files = "fioConsoleLogs.txt"
 		Copy-RemoteFiles -download -downloadFrom  $nestedVmPublicIP -port $nestedVmSSHPort -username $nestedVmUser -password $nestedVmPassword  -downloadTo $LogDir -files $files
-		$CurrentTestResult.TestSummary += New-ResultSummary -testResult $testResult -metaData "" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
-		if ($testResult -imatch $resultPass)
-		{
-			Remove-Item "$LogDir\*.csv" -Force
+		if ($testResult -imatch $resultPass) {
+			Remove-Item "$LogDir\*.csv" -Force | Out-Null
 			$remoteFiles = "FIOTest-*.tar.gz,perf_fio.csv,nested_properties.csv,runlog.txt"
 			Copy-RemoteFiles -download -downloadFrom $nestedVmPublicIP -files $remoteFiles -downloadTo $LogDir -port $nestedVmSSHPort -username $nestedVmUser -password $nestedVmPassword
-			$checkValues = "$resultPass,$resultFail,$resultAborted"
-			$CurrentTestResult.TestSummary += New-ResultSummary -testResult $testResult -metaData "" -checkValues $checkValues -testName $currentTestData.testName
-			foreach($line in (Get-Content "$LogDir\perf_fio.csv"))
-			{
-				if ( $line -imatch "Max IOPS of each mode" )
-				{
+			foreach ( $line in (Get-Content "$LogDir\perf_fio.csv" )) {
+				if ($line -imatch "Max IOPS of each mode") {
 					$maxIOPSforMode = $true
 					$maxIOPSforBlockSize = $false
 					$fioData = $false
 				}
-				if ( $line -imatch "Max IOPS of each BlockSize" )
-				{
+				if ($line -imatch "Max IOPS of each BlockSize") {
 					$maxIOPSforMode = $false
 					$maxIOPSforBlockSize = $true
 					$fioData = $false
 				}
-				if ( $line -imatch "Iteration,TestType,BlockSize" )
-				{
+				if ($line -imatch "Iteration,TestType,BlockSize") {
 					$maxIOPSforMode = $false
 					$maxIOPSforBlockSize = $false
 					$fioData = $true
 				}
-				if ( $maxIOPSforMode )
-				{
+				if ($maxIOPSforMode) {
 					Add-Content -Value $line -Path $LogDir\maxIOPSforMode.csv
 				}
-				if ( $maxIOPSforBlockSize )
-				{
+				if ($maxIOPSforBlockSize) {
 					Add-Content -Value $line -Path $LogDir\maxIOPSforBlockSize.csv
 				}
-				if ( $fioData )
-				{
+				if ($fioData) {
 					Add-Content -Value $line -Path $LogDir\fioData.csv
 				}
 			}
 
-			$nestedHypervSQLQuery = Get-SQLQueryOfNestedHyperv -GlobalConfig $GlobalConfig -logDir $LogDir -session $session
-			if($nestedHypervSQLQuery)
-			{
-				Upload-TestResultToDatabase -SQLQuery $nestedHypervSQLQuery
-			}
+			Get-SQLQueryOfNestedHyperv -currentTestResult $currentTestResult -session $session -AllVMData $AllVMData
 		}
-	}
-	catch
-	{
+	} catch {
 		$errorMessage =  $_.Exception.Message
 		$ErrorLine = $_.InvocationInfo.ScriptLineNumber
 		Write-LogInfo "EXCEPTION : $errorMessage at line: $ErrorLine"
-	}
-	Finally
-	{
-		if($session){
-			Remove-PSSession -Session $session
+	} Finally {
+		if ($session) {
+			Remove-PSSession -Session $session | Out-Null
 		}
-		if(!$testResult){
+		if (!$testResult) {
 			$testResult = $resultAborted
 		}
 	}
@@ -618,7 +534,7 @@ function Main()
 	$resultArr += $testResult
 	Write-LogInfo "Test result : $testResult"
 	$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
-	return $currentTestResult.TestResult
+	return $currentTestResult
 }
 
 # Main Body

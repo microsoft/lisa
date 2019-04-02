@@ -47,7 +47,7 @@ function Main {
         Write-LogInfo "  Public IP : $($serverVMData.PublicIP)"
         Write-LogInfo "  SSH Port : $($serverVMData.SSHPort)"
         $i = 1
-        foreach ( $clientVMData in $clientMachines ) {
+        foreach ($clientVMData in $clientMachines) {
             Write-LogInfo "CLIENT VM #$i details :"
             Write-LogInfo "  RoleName : $($clientVMData.RoleName)"
             Write-LogInfo "  Public IP : $($clientVMData.PublicIP)"
@@ -73,7 +73,7 @@ function Main {
                 $serverVMData.HypervHost $user $serverVMData.PublicIP $password $serverVMData.SSHPort
         }
 
-        if ( $serverNicName -eq $clientNicName) {
+        if ($serverNicName -eq $clientNicName) {
             $nicName = $clientNicName
         } else {
             Throw "Server and client SRIOV NICs are not same."
@@ -199,16 +199,12 @@ collect_VM_properties
         if ($finalStatus -imatch "TestFailed") {
             Write-LogErr "Test failed. Last known status : $currentStatus."
             $testResult = "FAIL"
-        }
-        elseif ($finalStatus -imatch "TestAborted") {
+        } elseif ($finalStatus -imatch "TestAborted") {
             Write-LogErr "Test Aborted. Last known status : $currentStatus."
             $testResult = "ABORTED"
-        }
-        elseif (($finalStatus -imatch "TestCompleted") -and $uploadResults) {
-            Write-LogInfo "Test Completed."
+        } elseif (($finalStatus -imatch "TestCompleted") -and $uploadResults) {
             $testResult = "PASS"
-        }
-        elseif ($finalStatus -imatch "TestRunning") {
+        } elseif ($finalStatus -imatch "TestRunning") {
             Write-LogInfo "Powershell background job is completed but VM is reporting that test is still running. Please check $LogDir\ConsoleLogs.txt"
             Write-LogInfo "Contents of summary.log : $testSummary"
             $testResult = "PASS"
@@ -218,46 +214,40 @@ collect_VM_properties
         Write-LogInfo ("`n**************************************************************************`n"+$CurrentTestData.testName+" RESULTS...`n**************************************************************************")
         Write-Host ($ntttcpDataCsv | Format-Table * | Out-String)
 
-        Write-LogInfo "Uploading the test results.."
-        $dataSource = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.server
-        $user = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.user
-        $password = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.password
-        $database = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbname
-        $dataTableName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbtable
-        $TestCaseName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
-        if ($dataSource -And $user -And $password -And $database -And $dataTableName) {
-            $GuestDistro = Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object{$_ -replace ",OS type,",""}
-            $HostOS = Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version"| ForEach-Object{$_ -replace ",Host Version,",""}
-            $GuestOSType = "Linux"
-            $GuestDistro = Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object{$_ -replace ",OS type,",""}
-            $GuestSize = $clientVMData.InstanceSize
-            $KernelVersion = Get-Content "$LogDir\VM_properties.csv" | Select-String "Kernel version"| ForEach-Object{$_ -replace ",Kernel version,",""}
-            $IPVersion = "IPv4"
-            $ProtocolType = $testType
-            $LogContents = Get-Content -Path "$LogDir\report.log"
-            if ( $testType -imatch "UDP" ) {
-                $SQLQuery = "INSERT INTO $dataTableName (TestCaseName,TestDate,HostType,HostBy,HostOS,GuestOSType,GuestDistro,GuestSize,KernelVersion,IPVersion,ProtocolType,DataPath,SendBufSize_KBytes,NumberOfConnections,TxThroughput_Gbps,RxThroughput_Gbps,DatagramLoss) VALUES "
-                for ($i = 1; $i -lt $LogContents.Count; $i++) {
-                    $Line = $LogContents[$i].Trim() -split '\s+'
-                    $SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$TestPlatform','$TestLocation','$HostOS','$GuestOSType','$GuestDistro','$GuestSize','$KernelVersion','$IPVersion','$ProtocolType','$DataPath','$testBuffer',$($Line[0]),$($Line[1]),$($Line[2]),$($Line[3])),"
+        $LogContents = Get-Content -Path "$LogDir\report.log"
+        $TestDate = $(Get-Date -Format yyyy-MM-dd)
+        if ($testResult -eq "PASS") {
+            Write-LogInfo "Generating the performance data for database insertion"
+            for ($i = 1; $i -lt $LogContents.Count; $i++) {
+                $Line = $LogContents[$i].Trim() -split '\s+'
+                $resultMap = @{}
+                $resultMap["TestCaseName"] = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
+                $resultMap["TestDate"] = $TestDate
+                $resultMap["HostType"] = $TestPlatform
+                $resultMap["HostBy"] = $TestLocation
+                $resultMap["HostOS"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version"| ForEach-Object{$_ -replace ",Host Version,",""})
+                $resultMap["GuestOSType"] = "Linux"
+                $resultMap["GuestDistro"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object{$_ -replace ",OS type,",""})
+                $resultMap["GuestSize"] = $clientVMData.InstanceSize
+                $resultMap["KernelVersion"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Kernel version"| ForEach-Object{$_ -replace ",Kernel version,",""})
+                $resultMap["IPVersion"] = "IPv4"
+                $resultMap["ProtocolType"] = $testType
+                $resultMap["DataPath"] = $DataPath
+                $resultMap["NumberOfConnections"] = $($Line[0])
+                if ($testType -imatch "UDP") {
+                    $resultMap["SendBufSize_KBytes"] = $testBuffer
+                    $resultMap["TxThroughput_Gbps"] = $($Line[1])
+                    $resultMap["RxThroughput_Gbps"] = $($Line[2])
+                    $resultMap["DatagramLoss"] = $($Line[3])
+                } else {
+                    $resultMap["Throughput_Gbps"] = $($Line[1])
+                    $resultMap["Latency_ms"] = $($Line[3])
+                    $resultMap["TXpackets"] = $($Line[4])
+                    $resultMap["RXpackets"] = $($Line[5])
+                    $resultMap["PktsInterrupts"] = $($Line[6])
                 }
-            } else {
-                $SQLQuery = "INSERT INTO $dataTableName (TestCaseName,TestDate,HostType,HostBy,HostOS,GuestOSType,GuestDistro,GuestSize,KernelVersion,IPVersion,ProtocolType,DataPath,NumberOfConnections,Throughput_Gbps,Latency_ms,TXpackets,RXpackets,PktsInterrupts) VALUES "
-                for ($i = 1; $i -lt $LogContents.Count; $i++) {
-                    $Line = $LogContents[$i].Trim() -split '\s+'
-                    $SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$TestPlatform','$TestLocation','$HostOS','$GuestOSType','$GuestDistro','$GuestSize','$KernelVersion','$IPVersion','$ProtocolType','$DataPath',$($Line[0]),$($Line[1]),$($Line[3]),$($Line[4]),$($Line[5]),$($Line[6])),"
-                }
+                $currentTestResult.TestResultData += $resultMap
             }
-            $SQLQuery = $SQLQuery.TrimEnd(',')
-            if ($uploadResults) {
-                Upload-TestResultToDatabase $SQLQuery
-            } else {
-                Write-LogErr "Uploading the test results ignored due to zero throughput for some connections!!"
-                $testResult = "FAIL"
-            }
-
-        } else {
-            Write-LogInfo "Invalid database details. Failed to upload result to database!"
         }
         Write-LogInfo "Test result : $testResult"
     } catch {
