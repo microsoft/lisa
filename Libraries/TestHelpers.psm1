@@ -368,7 +368,8 @@ Function Run-LinuxCmd([string] $username,[string] $password,[string] $ip,[string
 			$logCommand = "`"$MaskedCommand`""
 		}
 	}
-	Write-LogInfo ".\Tools\plink.exe -t -pw $password -P $port $username@$ip $logCommand"
+	$output = Write-Output "yes" | & ".\Tools\plink.exe" -t -pw $password -P $port $username@$ip $logCommand
+	Write-LogInfo $output
 	$returnCode = 1
 	$attemptswt = 0
 	$attemptswot = 0
