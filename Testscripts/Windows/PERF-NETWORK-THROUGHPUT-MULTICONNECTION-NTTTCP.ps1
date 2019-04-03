@@ -20,23 +20,24 @@ function Main {
         $noServer = $true
         $clientMachines = @()
         $clientIPs = ""
+        $numberOfReceivers = 0
+        $numberOfSenders = 0
         # role-0 vm is considered as the server-vm
-        # role-1 vm is considered as the client-vm-01
-        # role-2 vm is considered as the client-vm-02
-        # role-3 vm is considered as the client-vm-03
-        # role-4 vm is considered as the client-vm-04
+        # role-1 to role-8 vm is considered as the client-vm-01 to client-vm-08
         foreach ($vmData in $allVMData) {
             if ($vmData.RoleName -imatch "server" -or $vmData.RoleName -imatch "role-0") {
                 $serverVMData = $VmData
                 $noServer = $false
+                $numberOfReceivers++
             } elseif ($vmData.RoleName -imatch "client" -or $vmData.RoleName -imatch "role-1") {
                 $clientMachines += $VmData
-                $noClient = $fase
+                $noClient = $false
                 if ($clientIPs) {
                     $clientIPs += "," + $vmData.InternalIP
                 } else {
                     $clientIPs = $vmData.InternalIP
                 }
+                $numberOfSenders++
             }
         }
         if ($noClient -or $noServer) {
@@ -245,6 +246,10 @@ collect_VM_properties
                     $resultMap["TXpackets"] = $($Line[4])
                     $resultMap["RXpackets"] = $($Line[5])
                     $resultMap["PktsInterrupts"] = $($Line[6])
+                }
+                if ($TestPlatform -eq "Azure") {
+                    $resultMap["NumberOfReceivers"] = $numberOfReceivers
+                    $resultMap["NumberOfSenders"] = $numberOfSenders
                 }
                 $currentTestResult.TestResultData += $resultMap
             }
