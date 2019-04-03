@@ -20,6 +20,9 @@ $ARM_IMAGE_NAME = "Canonical UbuntuServer 18.04-LTS latest"
 $TAR_PATH = "$($env:ProgramFiles)\Git\usr\bin\tar.exe"
 $CURRENT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 $WORK_DIR = $CURRENT_DIR.Directory.FullName
+# VM-HOT-RESIZE test takes a long time to run and it is
+# not relevant for coverage
+$EXCLUDED_TESTS = "VM-HOT-RESIZE"
 
 function Main {
     $SrcPackagePath = Resolve-Path $SrcPackagePath
@@ -75,7 +78,8 @@ function Main {
             -ARMImageName $ARM_IMAGE_NAME `
             -TestIterations 1 -StorageAccount $StorageAccount `
             -XMLSecretFile $XMLSecretFile `
-            -EnableCodeCoverage -CustomKernel "localfile:.\CodeCoverage\artifacts\*.deb"
+            -EnableCodeCoverage -CustomKernel "localfile:.\CodeCoverage\artifacts\*.deb" `
+            -ExcludeTests "${EXCLUDED_TESTS}"
 
         if ($LogPath) {
             if (-not (Test-Path $LogPath)) {
