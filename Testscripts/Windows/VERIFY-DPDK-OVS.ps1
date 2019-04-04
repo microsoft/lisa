@@ -38,7 +38,7 @@ function Main {
 				$noClient = $false
 			}
 			elseif ($vmData.RoleName -imatch "receiver") {
-				$noServer = $fase
+				$noServer = $false
 				$serverVMData = $vmData
 			}
 		}
