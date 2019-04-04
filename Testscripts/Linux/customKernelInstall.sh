@@ -264,7 +264,6 @@ function InstallKernel() {
             apt -y --fix-missing upgrade >> $LOG_FILE 2>&1
             kernelInstallStatus=$?
         fi
-        SetTestStateCompleted
         if [ $kernelInstallStatus -ne 0 ]; then
             LogMsg "CUSTOM_KERNEL_FAIL"
             SetTestStateFailed
@@ -285,7 +284,6 @@ function InstallKernel() {
             apt -y --fix-missing upgrade >> $LOG_FILE 2>&1
             kernelInstallStatus=$?
         fi
-        SetTestStateCompleted
         if [ $kernelInstallStatus -ne 0 ]; then
             LogMsg "CUSTOM_KERNEL_FAIL"
             SetTestStateFailed
@@ -313,6 +311,7 @@ function InstallKernel() {
             wget "$CustomKernel"
             LogMsg "Installing ${CustomKernel##*/}"
             dpkg -i "${CustomKernel##*/}"  >> $LOG_FILE 2>&1
+            kernelInstallStatus=$?
             image_file=$(ls -1 *.deb* | grep -v "dbg" | sed -n 1p)
         else
             CheckInstallLockUbuntu
@@ -323,23 +322,22 @@ function InstallKernel() {
 
             LogMsg "Installing ${customKernelFilesUnExpanded}"
             eval "dpkg -i $customKernelFilesUnExpanded >> $LOG_FILE 2>&1"
+            kernelInstallStatus=$?
             image_file=$(ls -1 *image* | grep -v "dbg" | sed -n 1p)
         fi
 
         LogMsg "Configuring the correct kernel boot order"
-
-        if [[ "${image_file}" != '' ]]; then
+        if [[ $kernelInstallStatus -eq 0 && "${image_file}" != '' ]]; then
             kernel_identifier=$(dpkg-deb --info "${image_file}" | grep 'Package: ' | grep -o "image.*")
             kernel_identifier=${kernel_identifier#image-}
             sed -i.bak 's/GRUB_DEFAULT=.*/GRUB_DEFAULT="Advanced options for Ubuntu>Ubuntu, with Linux '$kernel_identifier'"/g' /etc/default/grub
             update-grub
         else
             msg="Kernel correct boot order could not be set."
+            kernelInstallStatus=1
             LogErr "$msg"
         fi
-        kernelInstallStatus=$?
 
-        SetTestStateCompleted
         if [ $kernelInstallStatus -ne 0 ]; then
             LogMsg "CUSTOM_KERNEL_FAIL"
             SetTestStateFailed
