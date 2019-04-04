@@ -320,7 +320,7 @@ function Is-VmAlive {
     #>
     param(
         $AllVMDataObject,
-        $MaxRetryCount = 20
+        $MaxRetryCount = 50
     )
 
     Write-LogInfo "Trying to connect to deployed VMs."
@@ -920,7 +920,7 @@ Function Set-CustomConfigInVMs($CustomKernel, $CustomLIS, $EnableSRIOV, $AllVMDa
 			$retValue = $false
 		}
 	}
-	if ($CustomLIS) {
+	if ($retValue -and $CustomLIS) {
 		# LIS is only available Redhat, CentOS and Oracle image which uses Redhat kernel.
 		if(@("REDHAT", "ORACLELINUX", "CENTOS").contains($global:detectedDistro)) {
 			Write-LogInfo "Custom LIS: $CustomLIS will be installed on all machines..."
@@ -935,7 +935,7 @@ Function Set-CustomConfigInVMs($CustomKernel, $CustomLIS, $EnableSRIOV, $AllVMDa
 			$retValue = $false
 		}
 	}
-	if ($EnableSRIOV) {
+	if ($retValue -and $EnableSRIOV) {
 		$SRIOVStatus = Enable-SRIOVInAllVMs -allVMData $AllVMData -TestProvider $TestProvider
 		if (!$SRIOVStatus) {
 			Write-LogErr "Failed to enable Accelerated Networking. Aborting tests."
