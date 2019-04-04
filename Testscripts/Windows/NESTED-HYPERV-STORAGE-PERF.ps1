@@ -2,6 +2,48 @@
 # Licensed under the Apache License.
 param([object] $AllVmData, [object] $CurrentTestData)
 
+# For HyperV, disable the autoconfiguration IPv4 to avoid getting a private IP from the VM.
+function Disable-APIPA ($session) {
+	Write-LogInfo "Disable APIPA"
+	Invoke-Command -Session $session -ScriptBlock {
+		$path = 'HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters'
+		if (!(Test-Path $path)) {
+			New-Item -Path $path
+		}
+		$key = "IPAutoconfigurationEnabled"
+		$value = (Get-ItemProperty $path).$key
+		if ($null -eq $value) {
+			New-ItemProperty -Path $path -Name $key -Type "DWORD" -value "0"
+		} elseif (0 -ne $value) {
+			Set-ItemProperty -Path $path -Name $key -Type "DWORD" -Value "0"
+		}
+		Restart-Computer -Force
+	}
+	Start-Sleep -s 10
+	# Wait the VM really running
+	Test-TCP -testIP $AllVMData.PublicIP -testport $AllVmData.RDPPort
+}
+
+function New-TestSession ($remote) {
+	$retryTime = 1
+	$maxRetryTimes = 10
+	$session = ""
+	$cred = Get-Cred -user $user -password $password
+	while ($retryTime -le $maxRetryTimes) {
+		if ($TestPlatform -eq "hyperV") {
+			$session = New-PSSession -ComputerName $remote -Credential $cred
+		} else {
+			$session = New-PSSession -ConnectionUri $remote -Credential $cred -SessionOption (New-PSSessionOption -SkipCACheck -SkipCNCheck -SkipRevocationCheck)
+		}
+		if (($session) -and ($session.State -eq "Opened")) {
+			break
+		}
+		Start-Sleep -s 10
+		$retryTime += 1
+	}
+	return $session
+}
+
 function New-RaidOnL1 ($session, $interleave) {
 	Write-LogInfo "Create raid0 on level 1 with $interleave Interleave"
 	Invoke-Command -Session $session -ScriptBlock {
@@ -250,7 +292,6 @@ netsh advfirewall firewall add rule name="WinRM HTTP" dir=in action=allow protoc
 	$customScriptURI = $blobContainer.CloudBlobContainer.Uri.ToString() + "/" + $customScriptName
 	return $customScriptURI
 }
-
 function Invoke-CustomScript($fileUri) {
 	Write-LogInfo "Run custom script: $fileUri"
 	$myVM = $AllVMData.RoleName
@@ -402,14 +443,13 @@ function Main() {
 		}
 
 		# Create remote session
-		$cred = Get-Cred -user $user -password $password
 		if ($testPlatform -eq "Azure") {
 			$sessionPort = 5985
 			$connectionURL = "http://${hs1VIP}:${sessionPort}"
 			Write-LogInfo "Session connection URL: $connectionURL"
-			$session = New-PSSession -ConnectionUri $connectionURL -Credential $cred -SessionOption (New-PSSessionOption -SkipCACheck -SkipCNCheck -SkipRevocationCheck)
+			$session = New-TestSession -remote $connectionURL
 		} else {
-			$session = New-PSSession -ComputerName $hs1VIP -Credential $cred
+			$session = New-TestSession -remote $hs1VIP
 		}
 
 		if ($RaidOption -eq "RAID in L1") {
@@ -421,16 +461,18 @@ function Main() {
 		$nestOSVHD = "C:\Users\test_" + "$curtime" +".vhd"
 		Get-OSvhd -session $session -srcPath $nestedVhdPath -dstPath $nestOSVHD | Out-Null
 
-		if ($testPlatform -eq "Azure") {
-			try {
-				Install-Hyperv -Session $session | Out-Null
-			} catch {
-				# Ignore the exception caused by Hyper-V is installation
-				$()
-			}
+		try {
+			Install-Hyperv -Session $session | Out-Null
+		} catch {
+			# Ignore the exception caused by Hyper-V is installation
+			$()
+		}
 
-			#Installation of Hyper-v will restart the vm, so renew the session
-			$session = New-PSSession -ConnectionUri $connectionURL -Credential $cred -SessionOption (New-PSSessionOption -SkipCACheck -SkipCNCheck -SkipRevocationCheck)
+		#Installation of Hyper-v will restart the vm, so renew the session
+		if ($testPlatform -eq "Azure") {
+			$session = New-TestSession -remote $connectionURL
+		} else {
+			$session = New-TestSession -remote $hs1VIP
 		}
 
 		$nestedVMMemory = $nestedMemMB * 1024 * 1024
@@ -453,8 +495,12 @@ function Main() {
 			Add-NestedNatStaticMapping  -session $session  -natName $nestedNATName -ip_addr $nestedVmIP  -internalPort 22 -externalPort $nestedVmSSHPort | Out-Null
 			$nestedVmPublicIP = $hs1VIP
 		} else {
-			$nestedVmSSHPort = 22
+			Disable-APIPA -session $session | Out-Null
+			#For HyperV, disable APIPA need to restart the VM, so renew the session.
+			$session = New-TestSession -remote $hs1VIP
+			$nestedVmIP = Get-NestedVMIPAdress -session $session -vmName $nestedVMName
 			$nestedVmPublicIP = $nestedVmIP
+			$nestedVmSSHPort = 22
 		}
 		Write-LogInfo "The nested VM SSH port: $nestedVmSSHPort"
 		Write-LogInfo "The nested VM public IP: $nestedVmPublicIP"
