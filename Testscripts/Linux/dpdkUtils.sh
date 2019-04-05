@@ -93,22 +93,16 @@ function Install_Dpdk_Dependencies() {
 		exit 1
 	fi
 
-	LogMsg "Detected ${distro}"
+	LogMsg "Detected distro: ${distro}"
 	if [[ "${distro}" == ubuntu* ]]; then
 		if [[ "${distro}" == "ubuntu16.04" ]]; then
 			ssh ${install_ip} "add-apt-repository ppa:canonical-server/dpdk-azure -y"
-		elif [[ "${distro}" == "ubuntu18.04" ]]; then
-			LogMsg ""
-		else
-			LogErr "ERROR: unsupported ubuntu version for dpdk on Azure"
-			SetTestStateAborted
-			exit 1
 		fi
 
 		ssh ${install_ip} "apt-get update"
 		ssh ${install_ip} "apt-get install -y librdmacm-dev librdmacm1 build-essential libnuma-dev libmnl-dev libelf-dev rdma-core dpkg-dev"
 
-	elif [[ "${distro}" == "rhel7.5" || "${distro}" == centos7.5* || "${distro}" == "rhel7.6" || "${distro}" == centos7.6* ]]; then
+	elif [[ "${distro}" == rhel7* || "${distro}" == centos7* ]]; then
 		ssh ${install_ip} "yum -y groupinstall 'Infiniband Support'"
 		ssh ${install_ip} "dracut --add-drivers 'mlx4_en mlx4_ib mlx5_ib' -f"
 		ssh ${install_ip} "yum install -y gcc make git tar wget dos2unix psmisc kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel libmnl-devel"
