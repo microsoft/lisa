@@ -407,6 +407,14 @@ function Create-HyperVGroupDeployment([string]$HyperVGroupName, $HyperVGroupXML,
                     New-VHD -Path $ResourceDiskPath -SizeBytes 1GB -Dynamic -ComputerName $HyperVHost
                     Write-LogInfo "Add-VMHardDiskDrive -ControllerType SCSI -Path $ResourceDiskPath -VM $($NewVM.Name)"
                     Add-VMHardDiskDrive -ControllerType SCSI -Path $ResourceDiskPath -VM $NewVM
+                    if ($NewVM.AutomaticStopAction -ne "Shutdown") {
+                        Write-LogInfo "Set-VM -Name $CurrentVMName -ComputerName $HyperVHost -AutomaticStopAction Shutdown"
+                        try {
+                            Set-VM -Name $CurrentVMName -ComputerName $HyperVHost -AutomaticStopAction Shutdown
+                        } catch {
+                            Write-LogWarn "Could not set VM AutomaticStopAction to Shutdown, Continuing."
+                        }
+                    }
                 } else {
                     Write-LogErr "Failed to create VM."
                     Write-LogErr "Removing OS Disk : $CurrentVMOsVHDPath"
