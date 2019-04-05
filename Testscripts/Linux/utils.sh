@@ -3391,3 +3391,62 @@ function Format_Mount_NVME()
     return 0
 }
 
+
+# Remove and reattach PCI device inside the VM
+# @param1 DeviceType: supported "NVME", "SR-IOV"
+#                    ("GPU" may be supported in the future)
+# @return 0 the device was removed and reattached successfully
+function RescindPCI ()
+{
+    if [ "$1" = "SR-IOV" ]; then
+        vf_pci_type="Ethernet"
+        vf_pci_check_removed='mlx4_core\|mlx4_en\|ixgbevf'
+    elif [ "$1" = "NVME" ]; then
+        vf_pci_type="Non-Volatile"
+        vf_pci_check_removed="nvme"
+    elif [ "$1" = "GPU" ]; then
+        LogErr "$deviceType device type not supported yet."
+        return 1
+    else
+        LogErr "Invalid device type for RescindPCI."
+        return 1
+    fi
+
+    if ! lspci --version; then
+        update_repos
+        install_package "pciutils"
+    fi
+
+    LogMsg "Attempting to disable and enable the VF $vf_pci_type device."
+    # Get the VF address
+    vf_pci_address=$(lspci | grep -i $vf_pci_type | awk '{ print $1 }')
+    vf_pci_remove_path="/sys/bus/pci/devices/${vf_pci_address}/remove"
+    if [ ! -f $vf_pci_remove_path ]; then
+        LogErr "Unable to disable the VF, because the $vf_pci_remove_path doesn't exist."
+        SetTestStateFailed
+        exit 0
+    fi
+    # Remove the VF
+    echo 1 > $vf_pci_remove_path
+    sleep 5
+
+    # Check if the VF has been disabled.
+    if lspci -vvv | grep $vf_pci_check_removed; then
+        LogErr "Disable the VF $vf_pci_type device failed."
+        SetTestStateFailed
+        exit 0
+    fi
+
+    # Enable the VF
+    echo 1 > /sys/bus/pci/rescan
+    sleep 5
+
+    # Check if the VF has been re-enabled
+    if ! lspci | grep -i $vf_pci_type; then
+        LogErr "VF is not loaded! Enable the VF $vf_pci_type device failed."
+        SetTestStateFailed
+        exit 0
+    fi
+    return 0
+}
+

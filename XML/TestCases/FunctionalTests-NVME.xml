@@ -170,9 +170,9 @@
         <setupScript>.\Testscripts\Windows\SETUP-Add-NVME-Disk.ps1</setupScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nvme_basic_validation.sh</files>
         <setupType>OneVM</setupType>
-        <OverrideVMSize>Standard_L16s_v2</OverrideVMSize>
+        <OverrideVMSize>Standard_L8s_v2</OverrideVMSize>
         <testParameters>
-            <param>HYPERV_DISK_COUNT=2</param>
+            <param>HYPERV_DISK_COUNT=1</param>
             <param>rescind_pci=yes</param>
         </testParameters>
         <Timeout>1200</Timeout>
