@@ -408,9 +408,9 @@ function Create-HyperVGroupDeployment([string]$HyperVGroupName, $HyperVGroupXML,
                     Write-LogInfo "Add-VMHardDiskDrive -ControllerType SCSI -Path $ResourceDiskPath -VM $($NewVM.Name)"
                     Add-VMHardDiskDrive -ControllerType SCSI -Path $ResourceDiskPath -VM $NewVM
                     if ($NewVM.AutomaticStopAction -ne "Shutdown") {
-                        Write-LogInfo "Set-VM -Name $CurrentVMName -AutomaticStopAction Shutdown"
+                        Write-LogInfo "Set-VM -Name $CurrentVMName -ComputerName $HyperVHost -AutomaticStopAction Shutdown"
                         try {
-                            Set-VM -Name $CurrentVMName -AutomaticStopAction Shutdown
+                            Set-VM -Name $CurrentVMName -ComputerName $HyperVHost -AutomaticStopAction Shutdown
                         } catch {
                             Write-LogWarn "Could not set VM AutomaticStopAction to Shutdown, Continuing."
                         }
