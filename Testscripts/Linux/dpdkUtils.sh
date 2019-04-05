@@ -93,12 +93,12 @@ function Install_Dpdk_Dependencies() {
 		exit 1
 	fi
 
+	LogMsg "Detected ${distro}"
 	if [[ "${distro}" == ubuntu* ]]; then
 		if [[ "${distro}" == "ubuntu16.04" ]]; then
-			LogMsg "Detected ubuntu16.04"
 			ssh ${install_ip} "add-apt-repository ppa:canonical-server/dpdk-azure -y"
 		elif [[ "${distro}" == "ubuntu18.04" ]]; then
-			LogMsg "Detected ubuntu18.04"
+			LogMsg ""
 		else
 			LogErr "ERROR: unsupported ubuntu version for dpdk on Azure"
 			SetTestStateAborted
@@ -108,16 +108,12 @@ function Install_Dpdk_Dependencies() {
 		ssh ${install_ip} "apt-get update"
 		ssh ${install_ip} "apt-get install -y librdmacm-dev librdmacm1 build-essential libnuma-dev libmnl-dev libelf-dev rdma-core dpkg-dev"
 
-	elif [[ "${distro}" == "rhel7.5" || "${distro}" == centos7.5* ]]; then
-		LogMsg "Detected (rhel/centos)7.5"
-
+	elif [[ "${distro}" == "rhel7.5" || "${distro}" == centos7.5* || "${distro}" == "rhel7.6" || "${distro}" == centos7.6* ]]; then
 		ssh ${install_ip} "yum -y groupinstall 'Infiniband Support'"
 		ssh ${install_ip} "dracut --add-drivers 'mlx4_en mlx4_ib mlx5_ib' -f"
 		ssh ${install_ip} "yum install -y gcc make git tar wget dos2unix psmisc kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel libmnl-devel"
 
 	elif [[ "${distro}" == "sles15" ]]; then
-		LogMsg "Detected sles15"
-
 		local kernel=$(uname -r)
 		if [[ "${kernel}" == *azure ]]; then
 			ssh ${install_ip} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install gcc make git tar wget dos2unix psmisc kernel-azure kernel-devel-azure libnuma-devel numactl librdmacm1 rdma-core-devel libmnl-devel"
@@ -127,7 +123,7 @@ function Install_Dpdk_Dependencies() {
 
 		ssh ${install_ip} "ln -s /usr/include/libmnl/libmnl/libmnl.h /usr/include/libmnl/libmnl.h"
 	else
-		LogErr "ERROR: unsupported distro for dpdk on Azure"
+		LogErr "ERROR: unsupported distro ${distro} for DPDK on Azure"
 		SetTestStateAborted
 		exit 1
 	fi

@@ -33,6 +33,11 @@ function dpdk_setup() {
 	done
 	for pid in $(echo "$pids");do
 		wait "$pid"
+		if [ $? -ne 0 ]; then
+			LogErr "DPDK setup failed."
+			SetTestStateAborted
+			exit 1
+		fi
 	done
 
 	for ip in $IP_ADDRS; do
@@ -41,6 +46,11 @@ function dpdk_setup() {
 	done
 	for pid in $(echo "$pids");do
 		wait "$pid"
+		if [ $? -ne 0 ]; then
+			LogErr "DPDK setup failed."
+			SetTestStateAborted
+			exit 1
+		fi
 	done
 	sleep 2
 }
@@ -92,6 +102,11 @@ fi
 LogMsg "DPDK source dir is: ${DPDK_DIR}"
 
 dpdk_setup
+if [ $? -ne 0 ]; then
+	LogErr "DPDK setup failed."
+	SetTestStateAborted
+	exit 1
+fi
 
 LogMsg "Calling testcase provided run function"
 Run_Testcase
