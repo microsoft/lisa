@@ -577,7 +577,7 @@
         <Priority>1</Priority>
     </test>
     <test>
-        <testName>SRIOV-HOTPLUG-VF-DEVICE</testName>
+        <testName>SRIOV-PCI-RESCIND</testName>
         <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-RUN-COMMON-TEST.ps1</testScript>
         <setupType>TwoVM2Host1Dep</setupType>

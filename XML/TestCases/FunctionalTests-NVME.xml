@@ -165,7 +165,7 @@
         <Priority>0</Priority>
     </test>
     <test>
-        <testName>NVME-BASIC-RESCIND</testName>
+        <testName>NVME-PCI-RESCIND</testName>
         <testScript>nvme_basic_validation.sh</testScript>
         <setupScript>.\Testscripts\Windows\SETUP-Add-NVME-Disk.ps1</setupScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nvme_basic_validation.sh</files>

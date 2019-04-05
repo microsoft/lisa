@@ -33,6 +33,15 @@ if [ $? -ne 0 ]; then
     exit 0
 fi
 
+if [ "$rescind_pci" = "yes" ]; then
+    # call rescind function with param SRIOV
+    if ! RescindPCI "SR-IOV"; then
+        LogErr "Could not rescind pci device."
+        SetTestStateFailed
+        exit 0
+    fi
+fi
+
 # Create an 1gb file to be sent from VM1 to VM2
 Create1Gfile
 if [ $? -ne 0 ]; then
