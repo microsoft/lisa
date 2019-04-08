@@ -18,7 +18,7 @@ scsi_counter=0
 . utils.sh || {
     echo "Error: unable to source utils.sh!"
     echo "TestAborted" > state.txt
-    exit 0 
+    exit 0
 }
 
 # Source constants file and initialize most common variables
@@ -58,7 +58,7 @@ if [ -z "$lsvmbus_path" ]; then
 fi
 
 if [ -z "$lsvmbus_path" ]; then
-    LogMsg "Error: lsvmbus tool not found!"
+    LogErr "lsvmbus tool not found!"
     SetTestStateFailed
     exit 0
 fi
@@ -76,7 +76,7 @@ fi
 
 for token in "${tokens[@]}"; do
     if ! $lsvmbus_path | grep "$token"; then
-        LogMsg "Error: $token not found in lsvmbus information."
+        LogErr "$token not found in lsvmbus information."
         SetTestStateFailed
         exit 0
     fi
@@ -88,7 +88,7 @@ for optional_token in "${optional_tokens[@]}"; do
 done
 
 # SECOND TEST CASE
-$lsvmbus_path -vvv >> lsvmbus.log
+$lsvmbus_path -vvv > lsvmbus.log
 
 while IFS='' read -r line || [[ -n "$line" ]]; do
     if [[ $line =~ "Synthetic network adapter" ]]; then
@@ -109,10 +109,10 @@ while IFS='' read -r line || [[ -n "$line" ]]; do
 done < "lsvmbus.log"
 expected_scsi_counter=$(expr "$VCPU" / 4)
 
-if [ "$network_counter" != "$VCPU" ] && [ "$scsi_counter" != "$expected_scsi_counter" ]; then
-    error_msg="Error: values are wrong. Expected for network adapter: $VCPU and actual: $network_counter;
+if [ "$network_counter" != "$VCPU" ] || [ "$scsi_counter" != "$expected_scsi_counter" ]; then
+    error_msg="Values are wrong. Expected for network adapter: $VCPU and actual: $network_counter;
     expected for scsi controller: ${expected_scsi_counter}, actual: $scsi_counter."
-    LogMsg "$error_msg"
+    LogErr "$error_msg"
     SetTestStateFailed
     exit 0
 fi
