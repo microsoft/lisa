@@ -316,7 +316,12 @@ collect_VM_properties
 			}
 		}
 		Write-LogInfo "Test result : $testResult"
-		Write-LogInfo ($testDataCsv | Format-Table | Out-String)
+		$perfData = $testDataCsv | Format-Table | Out-String
+		Write-LogInfo $perfData
+		if ($perfData) {
+			$currentTestResult.TestSummary +=  New-ResultSummary -testResult "Performance report" `
+				-metaData $perfData -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+		}
 	}
 	catch {
 		$ErrorMessage =  $_.Exception.Message
@@ -327,7 +332,8 @@ collect_VM_properties
 			$testResult = "Aborted"
 		}
 		$resultArr += $testResult
-		$currentTestResult.TestSummary +=  New-ResultSummary -testResult $testResult -metaData "DPDK-TEST" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+		$currentTestResult.TestSummary +=  New-ResultSummary -testResult $testResult `
+			-metaData "DPDK-TEST" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 	}
 
 	$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
