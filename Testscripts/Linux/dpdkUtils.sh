@@ -108,7 +108,7 @@ function Install_Dpdk_Dependencies() {
 	elif [[ "${distro}" == rhel7* || "${distro}" == centos7* ]]; then
 		ssh ${install_ip} "yum -y groupinstall 'Infiniband Support'"
 		ssh ${install_ip} "dracut --add-drivers 'mlx4_en mlx4_ib mlx5_ib' -f"
-		ssh ${install_ip} "yum install -y gcc make git tar wget dos2unix psmisc kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel libmnl-devel"
+		ssh ${install_ip} "yum install --setopt=skip_missing_names_on_install=False -y gcc make git tar wget dos2unix psmisc kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel libmnl-devel"
 
 	elif [[ "${distro}" == "sles15" ]]; then
 		local kernel=$(uname -r)
