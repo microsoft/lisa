@@ -95,12 +95,15 @@ function Install_Dpdk_Dependencies() {
 
 	LogMsg "Detected distro: ${distro}"
 	if [[ "${distro}" == ubuntu* ]]; then
+		apt_packages="librdmacm-dev librdmacm1 build-essential libnuma-dev libmnl-dev libelf-dev dpkg-dev"
 		if [[ "${distro}" == "ubuntu16.04" ]]; then
 			ssh ${install_ip} "add-apt-repository ppa:canonical-server/dpdk-azure -y"
+		else
+			apt_packages="${apt_packages} rdma-core"
 		fi
 
 		ssh ${install_ip} "apt-get update"
-		ssh ${install_ip} "apt-get install -y librdmacm-dev librdmacm1 build-essential libnuma-dev libmnl-dev libelf-dev rdma-core dpkg-dev"
+		ssh ${install_ip} "apt-get install -y ${apt_packages}"
 
 	elif [[ "${distro}" == rhel7* || "${distro}" == centos7* ]]; then
 		ssh ${install_ip} "yum -y groupinstall 'Infiniband Support'"
@@ -119,6 +122,11 @@ function Install_Dpdk_Dependencies() {
 	else
 		LogErr "ERROR: unsupported distro ${distro} for DPDK on Azure"
 		SetTestStateAborted
+		exit 1
+	fi
+	if [ $? -ne 0 ]; then
+		LogErr "ERROR: Failed to install required packages on distro ${distro}"
+		SetTestStateFailed
 		exit 1
 	fi
 }
