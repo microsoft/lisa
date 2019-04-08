@@ -68,7 +68,7 @@ function Main {
     $supportkernel = "3.10.0.514" #kernel version for RHEL 7.3
     $null = .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$ipv4 "yum --version 2> /dev/null"
     if ($? -eq "True") {
-        $kernelSupport = Get-VMFeatureSupportStatus -VmIp $ipv4 -VmPort $VMPort -UserName $VMUserName `
+        $kernelSupport = Get-VMFeatureSupportStatus -Ipv4 $ipv4 -SSHPort $VMPort -UserName $VMUserName `
                             -Password $VMPassword -SupportKernel $supportkernel
         if ($kernelSupport -ne "True") {
             Write-LogInfo "Info: Kernels older than 3.10.0-514 require LIS-4.x drivers."
