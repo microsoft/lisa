@@ -323,8 +323,8 @@ collect_VM_properties
 		$perfData = $testDataCsv | Format-Table | Out-String
 		Write-LogInfo $perfData
 		if ($perfData) {
-			$currentTestResult.TestSummary +=  New-ResultSummary -testResult "Performance report" `
-				-metaData $perfData -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+			$currentTestResult.TestSummary +=  New-ResultSummary -testResult $perfData `
+				-metaData "Performance report" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 		}
 	}
 	catch {
@@ -336,8 +336,6 @@ collect_VM_properties
 			$testResult = "Aborted"
 		}
 		$resultArr += $testResult
-		$currentTestResult.TestSummary +=  New-ResultSummary -testResult $testResult `
-			-metaData "DPDK-TEST" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 	}
 
 	$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
