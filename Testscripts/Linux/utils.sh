@@ -3442,7 +3442,7 @@ function RescindPCI ()
 
     # Check if the VF has been re-enabled
     retry=5
-    until [ lspci | grep -i "$vf_pci_type" ]; do
+    until lspci | grep -i "$vf_pci_type"; do
         # Enable the VF
         echo 1 > /sys/bus/pci/rescan
         sleep 2
