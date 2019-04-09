@@ -249,6 +249,10 @@ collect_VM_properties
 		Copy-RemoteFiles -downloadFrom $masterVM.PublicIP -port $masterVM.SSHPort -username $superUser -password $password -download -downloadTo $LogDir -files "*.csv, *.txt, *.log"
 
 		$testDataCsv = Import-Csv -Path "${LogDir}\dpdk_test.csv"
+		if (!$testDataCsv) {
+			Write-LogErr "Could not get performance data. Failing the test."
+			$finalState = "TestFailed"
+		}
 
 		if ($finalState -imatch "TestFailed") {
 			Write-LogErr "Test failed. Last known output: $currentOutput."
@@ -316,7 +320,12 @@ collect_VM_properties
 			}
 		}
 		Write-LogInfo "Test result : $testResult"
-		Write-LogInfo ($testDataCsv | Format-Table | Out-String)
+		$perfData = $testDataCsv | Format-Table | Out-String
+		Write-LogInfo $perfData
+		if ($perfData) {
+			$currentTestResult.TestSummary +=  New-ResultSummary -testResult $perfData `
+				-metaData "Performance report" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+		}
 	}
 	catch {
 		$ErrorMessage =  $_.Exception.Message
@@ -327,7 +336,6 @@ collect_VM_properties
 			$testResult = "Aborted"
 		}
 		$resultArr += $testResult
-		$currentTestResult.TestSummary +=  New-ResultSummary -testResult $testResult -metaData "DPDK-TEST" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
 	}
 
 	$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr

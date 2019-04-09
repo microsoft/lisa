@@ -1028,7 +1028,7 @@ function Get-VMFeatureSupportStatus {
 
 	Write-Output "yes" | .\Tools\plink.exe -C -pw $Password -P $SSHPort $Username@$Ipv4 'exit 0'
 	$currentKernel = Write-Output "yes" | .\Tools\plink.exe -C -pw $Password -P $SSHPort $Username@$Ipv4  "uname -r"
-	if ( $LASTEXITCODE -eq $false) {
+	if ( $LASTEXITCODE -ne 0 ) {
 		Write-LogInfo "Warning: Could not get kernel version".
 	}
 	$sKernel = $SupportKernel.split(".-")

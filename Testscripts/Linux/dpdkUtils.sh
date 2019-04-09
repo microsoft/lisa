@@ -95,17 +95,28 @@ function Install_Dpdk_Dependencies() {
 
 	LogMsg "Detected distro: ${distro}"
 	if [[ "${distro}" == ubuntu* ]]; then
+		apt_packages="librdmacm-dev librdmacm1 build-essential libnuma-dev libmnl-dev libelf-dev dpkg-dev"
 		if [[ "${distro}" == "ubuntu16.04" ]]; then
 			ssh ${install_ip} "add-apt-repository ppa:canonical-server/dpdk-azure -y"
+		else
+			apt_packages="${apt_packages} rdma-core"
 		fi
 
 		ssh ${install_ip} "apt-get update"
-		ssh ${install_ip} "apt-get install -y librdmacm-dev librdmacm1 build-essential libnuma-dev libmnl-dev libelf-dev rdma-core dpkg-dev"
+		ssh ${install_ip} "apt-get install -y ${apt_packages}"
 
 	elif [[ "${distro}" == rhel7* || "${distro}" == centos7* ]]; then
 		ssh ${install_ip} "yum -y groupinstall 'Infiniband Support'"
 		ssh ${install_ip} "dracut --add-drivers 'mlx4_en mlx4_ib mlx5_ib' -f"
-		ssh ${install_ip} "yum install -y gcc make git tar wget dos2unix psmisc kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel libmnl-devel"
+		yum_flags=""
+		if [[ "${distro}" == centos7* ]]; then
+			# for all releases that are moved into vault.centos.org
+			# we have to update the repositories first
+			ssh ${install_ip} "yum -y install centos-release"
+			ssh ${install_ip} "yum clean all"
+			yum_flags="--enablerepo=C*-base --enablerepo=C*-updates"
+		fi
+		ssh ${install_ip} "yum install ${yum_flags} --setopt=skip_missing_names_on_install=False -y gcc make git tar wget dos2unix psmisc kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel libmnl-devel"
 
 	elif [[ "${distro}" == "sles15" ]]; then
 		local kernel=$(uname -r)
@@ -119,6 +130,11 @@ function Install_Dpdk_Dependencies() {
 	else
 		LogErr "ERROR: unsupported distro ${distro} for DPDK on Azure"
 		SetTestStateAborted
+		exit 1
+	fi
+	if [ $? -ne 0 ]; then
+		LogErr "ERROR: Failed to install required packages on distro ${distro}"
+		SetTestStateFailed
 		exit 1
 	fi
 }
