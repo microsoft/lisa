@@ -27,6 +27,15 @@ if [ "$disk_count" -eq "0" ]; then
     exit 0
 fi
 
+if [ "$rescind_pci" = "yes" ]; then
+    # call rescind function with param NVMe
+    if ! RescindPCI "NVME"; then
+        LogErr "Could not rescind pci device."
+        SetTestStateFailed
+        exit 0
+    fi
+fi
+
 # Count NVME namespaces
 namespace_count=$(ls -l /dev | grep -w nvme[0-9]n[0-9]$ | awk '{print $10}' | wc -l)
 if [ "$namespace_count" -eq "0" ]; then

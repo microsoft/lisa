@@ -164,4 +164,23 @@
         <Tags>nvme,filesystem</Tags>
         <Priority>0</Priority>
     </test>
+    <test>
+        <testName>NVME-PCI-RESCIND</testName>
+        <testScript>nvme_basic_validation.sh</testScript>
+        <setupScript>.\Testscripts\Windows\SETUP-Add-NVME-Disk.ps1</setupScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nvme_basic_validation.sh</files>
+        <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_L8s_v2</OverrideVMSize>
+        <testParameters>
+            <param>HYPERV_DISK_COUNT=1</param>
+            <param>rescind_pci=yes</param>
+        </testParameters>
+        <Timeout>1200</Timeout>
+        <cleanupScript>.\Testscripts\Windows\SETUP-Remove-NVME-Disk.ps1</cleanupScript>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>NVME</Area>
+        <Tags>nvme</Tags>
+        <Priority>0</Priority>
+    </test>
 </TestCases>
