@@ -3447,7 +3447,7 @@ function RescindPCI ()
         echo 1 > /sys/bus/pci/rescan
         sleep 2
         if [ $retry -le 0 ]; then
-            LogInfo "VF is not loaded! Enable the VF $vf_pci_type device failed."
+            LogErr "VF is not loaded! Enable the VF $vf_pci_type device failed."
             return 1
         fi
         retry=$((retry - 1))
