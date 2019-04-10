@@ -494,6 +494,42 @@ Class TestController
 		return $currentTestResult
 	}
 
+	[array] GetMultiplexedTestConfigs($testName, $testOverrideVmSize) {
+		$multiplexedTestConfigs = @()
+		$testVmSizes = @("unknown")
+
+		if ($testOverrideVmSize) {
+			$testVmSizes = $testOverrideVmSize.Split(",").Trim()
+		}
+		if ($this.OverrideVMSize) {
+			$testVmSizes = $this.OverrideVMSize.Split(",").Trim()
+		}
+
+		if ($this.TestIterations -gt 1 -or $testVmSizes.Count -gt 1) {
+			foreach($testVmSize in $testVmSizes) {
+				for ($iteration = 1; $iteration -lt $this.TestIterations + 1; $iteration++) {
+					$multiplexedTestConfig = @{
+						"TestName" = $testName
+					}
+					if ($testVmSizes.Count -gt 1) {
+						$multiplexedTestConfig["TestName"] += "-${testVmSize}"
+						$multiplexedTestConfig["TestVmSize"] = $testVmSize
+					}
+					if ($this.TestIterations -gt 1) {
+						$multiplexedTestConfig["TestName"] += "-${iteration}"
+					}
+					$multiplexedTestConfigs += $multiplexedTestConfig
+				}
+			}
+		} else {
+			$multiplexedTestConfigs = @(@{
+				"TestName" = $testName
+			})
+		}
+
+		return $multiplexedTestConfigs
+	}
+
 	[void] RunTestInSequence([int]$TestIterations)
 	{
 		$executionCount = 0
@@ -504,15 +540,30 @@ Class TestController
 			$vmData = $null
 			$lastResult = $null
 			$tests = 0
+
 			foreach ($case in $this.SetupTypeToTestCases[$key]) {
-				$originalTestName = $case.TestName
-				for ( $testIterationCount = 1; $testIterationCount -le $this.TestIterations; $testIterationCount ++ ) {
-					if ( $this.TestIterations -ne 1 ) {
-						$case.testName = "$($originalTestName)-$testIterationCount"
+				$multiplexedTestConfigs = $this.GetMultiplexedTestConfigs($case.testName, $case.OverrideVMSize)
+				$tcDeployVM = $this.DeployVMPerEachTest
+				$tcRemoveVM = $this.DeployVMPerEachTest
+				for ($multiplexedTestIndex = 0; $multiplexedTestIndex -lt $multiplexedTestConfigs.Count; $multiplexedTestIndex++) {
+					$multiplexedTestConfig = $multiplexedTestConfigs[$multiplexedTestIndex]
+					$case.testName = $multiplexedTestConfig["TestName"]
+					if ($multiplexedTestIndex -lt ($multiplexedTestConfigs.Count - 1)) {
+						$tcRemoveVM = $this.DeployVMPerEachTest -or `
+							($multiplexedTestConfigs[$multiplexedTestIndex + 1]["TestVmSize"] -ne $multiplexedTestConfig["TestVmSize"])
 					}
+					if ($multiplexedTestIndex -gt 0) {
+						$tcDeployVM = $this.DeployVMPerEachTest -or `
+							($multiplexedTestConfigs[$multiplexedTestIndex - 1]["TestVmSize"] -ne $multiplexedTestConfig["TestVmSize"])
+					}
+					if ($multiplexedTestConfig["TestVmSize"]) {
+						$this.OverrideVMSize = $multiplexedTestConfig["TestVmSize"]
+						$case.OverrideVMSize = $multiplexedTestConfig["TestVmSize"]
+					}
+
 					Write-LogInfo "$($case.testName) started running."
 					$executionCount += 1
-					if (!$vmData -or $this.DeployVMPerEachTest) {
+					if (!$vmData -or $tcDeployVM) {
 						# Deploy the VM for the setup
 						$vmData = $this.TestProvider.DeployVMs($this.GlobalConfig, $this.SetupTypeTable[$setupType], $this.SetupTypeToTestCases[$key][0], `
 							$this.TestLocation, $this.RGIdentifier, $this.UseExistingRG, $this.ResourceCleanup)
@@ -536,12 +587,13 @@ Class TestController
 						} elseif (!$this.TestProvider.ReuseVmOnFailure) {
 							$vmData = $null
 						}
-					} elseif ($this.DeployVMPerEachTest -and !($this.ResourceCleanup -imatch "Keep")) {
-						# Delete the VM if DeployVMPerEachTest is set
+					} elseif ($tcRemoveVM -and !($this.ResourceCleanup -imatch "Keep")) {
+						# Delete the VM if tcRemoveVM is set
 						# Do not delete the VMs if testing against existing resource group, or -ResourceCleanup = Keep is set
 						$this.TestProvider.DeleteTestVMS($vmData, $this.SetupTypeTable[$setupType], $this.UseExistingRG)
 						$vmData = $null
 					}
+
 					Write-LogInfo "$($case.testName) ended running with status: $($lastResult.TestResult)."
 				}
 			}
