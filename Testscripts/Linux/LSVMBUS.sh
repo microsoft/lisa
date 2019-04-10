@@ -90,6 +90,24 @@ done
 # SECOND TEST CASE
 $lsvmbus_path -vvv > lsvmbus.log
 
+#Check number of NICs on VM
+nics=$( grep -o "Synthetic network adapter" lsvmbus.log | wc -l)
+if [ "$nics" -gt 1 ]; then
+  LogMsg "Counting the cores spread only for the first NIC.."
+  UpdateSummary "Counting the cores spread only for the first NIC..."
+  sed -i ':a;N;$!ba;s/Synthetic network adapter/ignored adapter/2' lsvmbus.log && \
+  sed -i '/ignored adapter/,$d' lsvmbus.log
+fi
+
+#Check number of SCSI Controllers on VM
+scsiAdapters=$( grep -o "Synthetic SCSI Controller" lsvmbus.log | wc -l)
+if [ "$scsiAdapters" -gt 1 ]; then
+  LogMsg "Counting the cores spread only for the first SCSI Adapter.."
+  UpdateSummary "Counting the cores spread only for the first SCSI Adapter..."
+  sed -i ':a;N;$!ba;s/Synthetic SCSI Controller/ignored controller/2' lsvmbus.log && \
+  sed -i '/ignored controller/,$d' lsvmbus.log
+fi
+
 while IFS='' read -r line || [[ -n "$line" ]]; do
     if [[ $line =~ "Synthetic network adapter" ]]; then
         token="adapter"
@@ -107,10 +125,23 @@ while IFS='' read -r line || [[ -n "$line" ]]; do
         fi
     fi
 done < "lsvmbus.log"
-expected_scsi_counter=$(expr "$VCPU" / 4)
 
-if [ "$network_counter" != "$VCPU" ] || [ "$scsi_counter" != "$expected_scsi_counter" ]; then
-    error_msg="Values are wrong. Expected for network adapter: $VCPU and actual: $network_counter;
+# the cpu count that attached to the network driver is MIN(the number of vCPUs, 8).
+if [ "$VCPU" -gt 8 ];then
+    expected_netwok_counter=8
+else
+    expected_netwok_counter=$VCPU
+fi
+
+# the cpu count that attached to the SCSI driver is MIN(the number of vCPUs/4, 64).
+if [ "$VCPU" -gt 64 ];then
+    expected_scsi_counter=64
+else
+    expected_scsi_counter=$(expr "$VCPU" / 4)
+fi
+
+if [ "$network_counter" != "$expected_netwok_counter" ] && [ "$scsi_counter" != "$expected_scsi_counter" ]; then
+    error_msg="Error: values are wrong. Expected for network adapter: $VCPU and actual: $network_counter;
     expected for scsi controller: ${expected_scsi_counter}, actual: $scsi_counter."
     LogErr "$error_msg"
     SetTestStateFailed
