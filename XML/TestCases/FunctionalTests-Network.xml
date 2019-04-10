@@ -658,4 +658,19 @@
         <Tags>ethtool</Tags>
         <Priority>0</Priority>
     </test>
+    <test>
+        <TestName>NET-ADD-NIC-AFTER-PROVISION</TestName>
+        <testScript>NET-Add-NIC-After-Provision.ps1</testScript>
+        <files></files>
+        <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_DS4_v2</OverrideVMSize>
+        <TestParameters>
+            <param>EXTRA_NICS=7</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
+        <Priority>0</Priority>
+    </test>
 </TestCases>
