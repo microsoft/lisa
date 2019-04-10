@@ -91,4 +91,24 @@
         <Tags>dpdk,ovs,network,hv_netvsc,sriov</Tags>
         <Priority>2</Priority>
     </test>
+    <test>
+        <testName>VERIFY-DPDK-RING-LATENCY</testName>
+        <testScript>VERIFY-DPDK-RING-LATENCY.ps1</testScript>
+        <setupType>OneVM3NIC</setupType>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkSetup.sh,.\Testscripts\Linux\run_dpdk_ring_latency.sh</files>
+        <TestParameters>
+            <param>dpdkSrcLink="DPDK_SOURCE_URL"</param>
+            <param>DPDK_RING_LATENCY_RUN_TIME=30</param>
+            <param>DPDK_RING_LATENCY_MAX=50000</param>
+            <param>DPDK_RING_LATENCY_SOURCE_URL=https://github.com/shemminger/dpdk-ring-ping.git</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>DPDK</Area>
+        <Tags>dpdk,network,hv_netvsc,sriov</Tags>
+        <Priority>2</Priority>
+    </test>
 </TestCases>
