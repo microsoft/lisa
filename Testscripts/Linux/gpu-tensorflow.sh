@@ -77,7 +77,7 @@ Prepare_Test_Dependencies()
 
     LogMsg "Install tensorflow-gpu $TensorflowVersion..."
     python -m pip install --upgrade pip
-    if [ $TensorflowVersion ]; then
+    if [ x"$TensorflowVersion" != "xlatest" ]; then
         pip install --upgrade "tensorflow-gpu==$TensorflowVersion"
     else
         pip install --upgrade tf-nightly-gpu
@@ -112,6 +112,18 @@ Prepare_Test_Dependencies()
         exit 1
     fi
     LogMsg "Install dependencies and tensorflow-gpu finished"
+
+    export PATH=$(ls -d /usr/local/cuda-*)/bin${PATH:+:${PATH}}
+    export LD_LIBRARY_PATH=/usr/local/cuda/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+
+    # Try to run the benchmarks test by default value.
+    python benchmarks/scripts/tf_cnn_benchmarks/tf_cnn_benchmarks.py
+    if [ $? -ne 0 ]; then
+        LogErr "Try to run benchmarks test failed"
+        LogErr "Please check the compatibility among the versions of CUDA Driver, CUDA Toolkit, Tensorflow and CudnnPackage"
+        SetTestStateAborted
+        exit 1
+    fi
 }
 
 Get_Average_Utilization()
@@ -169,8 +181,6 @@ Run_GPU_Benchmark_Test()
     if [ ! -e ${HOME}/test_results ]; then
         mkdir -p "${HOME}/test_results"
     fi
-    export PATH=$(ls -d /usr/local/cuda-*)/bin${PATH:+:${PATH}}
-    export LD_LIBRARY_PATH=/usr/local/cuda/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
     pushd benchmarks/scripts/tf_cnn_benchmarks
     gpucount=0
     count=$(nvidia-smi --query-gpu=count --id=0 --format=csv)

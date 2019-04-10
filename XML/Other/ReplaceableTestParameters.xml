@@ -387,7 +387,7 @@ Scenario 2 : You need to run all the performance tests quickly.
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>TENSORFLOW_VERSION</ReplaceThis>
-		<ReplaceWith>1.13.1</ReplaceWith>
+		<ReplaceWith>latest</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>CUDATOOLKIT_VERSION</ReplaceThis>
