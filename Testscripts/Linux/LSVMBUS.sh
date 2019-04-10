@@ -90,7 +90,7 @@ done
 # SECOND TEST CASE
 $lsvmbus_path -vvv > lsvmbus.log
 
-#Check number of NICs on VM
+# Check number of NICs on VM
 nics=$( grep -o "Synthetic network adapter" lsvmbus.log | wc -l)
 if [ "$nics" -gt 1 ]; then
   LogMsg "Counting the cores spread only for the first NIC.."
@@ -99,7 +99,7 @@ if [ "$nics" -gt 1 ]; then
   sed -i '/ignored adapter/,$d' lsvmbus.log
 fi
 
-#Check number of SCSI Controllers on VM
+# Check number of SCSI Controllers on VM
 scsiAdapters=$( grep -o "Synthetic SCSI Controller" lsvmbus.log | wc -l)
 if [ "$scsiAdapters" -gt 1 ]; then
   LogMsg "Counting the cores spread only for the first SCSI Adapter.."
