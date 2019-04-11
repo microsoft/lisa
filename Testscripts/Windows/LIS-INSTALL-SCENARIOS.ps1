@@ -33,7 +33,7 @@ Function Upgrade-LIS ($LISTarballUrlOld, $LISTarballUrlCurrent, $allVMData , $Te
         $CurrentLISExtractCommand = "rm -rf LISISO^wget $($LISTarballUrlCurrent)^tar -xzf $($LISTarballUrlCurrent | Split-Path -Leaf)^cp -ar LISISO/* ."
         $LISExtractCommands = $CurrentLISExtractCommand.Split("^")
         foreach ( $LISExtractCommand in $LISExtractCommands ) {
-            Run-LinuxCmd -username "root" -password $password -ip $allVMData.PublicIP -port $allVMData.SSHPort -command $LISExtractCommand
+            Run-LinuxCmd -username "root" -password $password -ip $allVMData.PublicIP -port $allVMData.SSHPort -command $LISExtractCommand -runMaxAllowedTime 2000 -maxRetryCount 3
         }
         $UpgradelLISConsoleOutput=Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "./upgrade.sh"
         Write-LogInfo $UpgradelLISConsoleOutput
@@ -83,7 +83,7 @@ Function Downgrade-LIS ($LISTarballUrlOld, $LISTarballUrlCurrent, $allVMData , $
         $LIS_version_before_downgrade = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus"
         Write-LogInfo "LIS version before Downgrade: $LIS_version_before_downgrade"
         $UninstallLISStatus=Uninstall-LIS -LISTarballUrlCurrent $LISTarballUrlCurrent -allVMData $AllVMData -TestProvider $TestProvider
-        if (-not $UninstallLISStatus) {
+        if (-not $UninstallLISStatus[-1]) {
             return $false
         }
         Write-LogInfo "Downgrade to OLD LIS : $LISTarballUrlOld"
@@ -116,7 +116,7 @@ Function Uninstall-LIS ( $LISTarballUrlCurrent, $allVMData , $TestProvider) {
         $CurrentLISExtractCommand = "rm  -rf LISISO^wget $($LISTarballUrlCurrent)^tar -xzf $($LISTarballUrlCurrent | Split-Path -Leaf)^cp -ar LISISO/* ."
         $LISExtractCommands = $CurrentLISExtractCommand.Split("^")
         foreach ( $LISExtractCommand in $LISExtractCommands ) {
-            Run-LinuxCmd -username "root" -password $password -ip $allVMData.PublicIP -port $allVMData.SSHPort -command $LISExtractCommand
+            Run-LinuxCmd -username "root" -password $password -ip $allVMData.PublicIP -port $allVMData.SSHPort -command $LISExtractCommand -runMaxAllowedTime 2000 -maxRetryCount 3
         }
         $UninstallLISConsoleOutput=Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "./uninstall.sh"
         Write-LogInfo $UninstallLISConsoleOutput
@@ -232,7 +232,7 @@ Function  Install-LIS-Scenario-1 ($PreviousTestResult, $LISTarballUrlOld, $LISTa
 Function Install-LIS-Scenario-2 ($PreviousTestResult, $LISTarballUrlOld, $LISTarballUrlCurrent) {
     if ($PreviousTestResult -eq "PASS") {
         $UpgradeStatus=Upgrade-LIS -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent -allVMData $AllVMData -TestProvider $TestProvider -RestartAfterUpgrade
-        if (-not $UpgradeStatus) {
+        if (-not $UpgradeStatus[-1]) {
             return "FAIL"
         }
         if ($TestPlatform -eq "HyperV") {
@@ -252,16 +252,19 @@ Function Install-LIS-Scenario-2 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
 Function Install-LIS-Scenario-3 ($PreviousTestResult, $LISTarballUrlOld, $LISTarballUrlCurrent) {
     if ($PreviousTestResult -eq "PASS") {
         if ($TestPlatform -eq "HyperV") {
-            Apply-HyperVCheckpoint -VMData $AllVMData -CheckpointName "CURRENT_LIS_UPGRADED"
+            $sts=Apply-HyperVCheckpoint -VMData $AllVMData -CheckpointName "CURRENT_LIS_UPGRADED"
+            if (-not $sts) {
+                return "ABORTED"
+            }
         }
         elseif ($TestPlatform -eq "Azure") {
             $UpgradeStatus=Upgrade-LIS -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent -allVMData $AllVMData -TestProvider $TestProvider -RestartAfterUpgrade
-            if (-not $UpgradeStatus) {
+            if (-not $UpgradeStatus[-1]) {
                 return "FAIL"
             }
         }
         $DowgradeStatus=Downgrade-LIS -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent -allVMData $AllVMData -TestProvider $TestProvider
-        if (-not $DowgradeStatus) {
+        if (-not $DowgradeStatus[-1]) {
             return "FAIL"
         }
         return "PASS"
@@ -280,7 +283,7 @@ Function Install-LIS-Scenario-4 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
             return "SKIPPED"
         }
         $LISInstallStatus=Install-LIS -LISTarballUrl $LISTarballUrlCurrent -allVMData $AllVMData
-        if ($LISInstallStatus -ne $false) {
+        if ($LISInstallStatus[-1] -ne $false) {
             Write-LogErr "LIS installation should fail but succeded"
             return "FAIL"
         }
@@ -296,7 +299,10 @@ Function Install-LIS-Scenario-4 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
 Function Install-LIS-Scenario-5 ($PreviousTestResult, $LISTarballUrlOld, $LISTarballUrlCurrent) {
     if ($PreviousTestResult -eq "PASS") {
         if ($TestPlatform -eq "HyperV") {
-            Apply-HyperVCheckpoint -VMData $AllVMData -CheckpointName "CURRENT_LIS_INSTALLED"
+            $sts=Apply-HyperVCheckpoint -VMData $AllVMData -CheckpointName "CURRENT_LIS_INSTALLED"
+            if (-not $sts) {
+                return "ABORTED"
+            }
         } elseif ($TestPlatform -eq "Azure") {
             $LISInstallStatus=Install-LIS -LISTarballUrl $LISTarballUrlCurrent -allVMData $AllVMData
             if (-not $LISInstallStatus[-1]) {
@@ -331,10 +337,13 @@ Function Install-LIS-Scenario-5 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
 Function Install-LIS-Scenario-6 ($PreviousTestResult, $LISTarballUrlOld, $LISTarballUrlCurrent) {
     if ($PreviousTestResult -eq "PASS") {
         if ($TestPlatform -eq "HyperV") {
-            Apply-HyperVCheckpoint -VMData $AllVMData -CheckpointName "CURRENT_LIS_UPGRADED"
+            $sts=Apply-HyperVCheckpoint -VMData $AllVMData -CheckpointName "CURRENT_LIS_UPGRADED"
+            if (-not $sts) {
+                return "ABORTED"
+            }
         } elseif ($TestPlatform -eq "Azure") {
             $UpgradeStatus=Upgrade-LIS -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent -allVMData $AllVMData -TestProvider $TestProvider -RestartAfterUpgrade
-            if (-not $UpgradeStatus) {
+            if (-not $UpgradeStatus[-1]) {
                 return "FAIL"
             }
         }
@@ -366,15 +375,14 @@ Function Install-LIS-Scenario-6 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
 # Expected result : Verify that LIS has upgraded to Current LIS successfully after kernel upgrade
 Function Install-LIS-Scenario-7 ($PreviousTestResult, $LISTarballUrlOld, $LISTarballUrlCurrent) {
     if ($PreviousTestResult -eq "PASS") {
-        $is_oracle = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "cat /etc/os-release | grep -i oracle" -ignoreLinuxExitCode:$true
-        if ($is_oracle) {
+        if ($detectedDistro -imatch "ORACLELINUX") {
             Write-LogErr "Skipped: Oracle not suported on this TC"
-            return "ABORTED"
+            return "SKIPPED"
         }
         Write-LogInfo "Upgrading minor kernel"
         $kernel_version_before_upgrade = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "uname -r"
         Write-LogInfo "kernel version before upgrade: $kernel_version_before_upgrade"
-        $UpgradeKernelConsoleOutput=Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $user -password $password -command ". utils.sh && UpgradeMinorKernel" -runMaxAllowedTime 20000 -runAsSudo
+        $UpgradeKernelConsoleOutput=Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $user -password $password -command ". utils.sh && UpgradeMinorKernel" -runMaxAllowedTime 2000 -maxRetryCount 3 -runAsSudo
         Write-LogInfo $UpgradeKernelConsoleOutput
         Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "sync"
         if ($TestProvider.RestartAllDeployments($allVMData)) {
@@ -382,11 +390,11 @@ Function Install-LIS-Scenario-7 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
             Write-LogInfo "kernel version after upgrade: $kernel_version_after_upgrade"
             if ( $kernel_version_after_upgrade -eq $kernel_version_before_upgrade) {
                 Write-LogErr "Failed to Upgrade Minor kernel"
-                return "FAIL"
+                return "SKIPPED"
             }
             Write-LogInfo "Sucessfully Upgraded Minor Kernel"
             $UpgradeStatus=Upgrade-LIS -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent -allVMData $AllVMData -TestProvider $TestProvider -RestartAfterUpgrade
-            if (-not $UpgradeStatus) {
+            if (-not $UpgradeStatus[-1]) {
                 return "FAIL"
             }
             return "PASS"
@@ -406,7 +414,10 @@ Function Install-LIS-Scenario-7 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
 Function Install-LIS-Scenario-8 ($PreviousTestResult, $LISTarballUrlOld, $LISTarballUrlCurrent) {
     if ($PreviousTestResult -eq "PASS") {
         if ($TestPlatform -eq "HyperV") {
-            Apply-HyperVCheckpoint -VMData $AllVMData -CheckpointName "CURRENT_LIS_INSTALLED"
+            $sts=Apply-HyperVCheckpoint -VMData $AllVMData -CheckpointName "CURRENT_LIS_INSTALLED"
+            if (-not $sts) {
+                return "ABORTED"
+            }
         } elseif ($TestPlatform -eq "Azure") {
             $LISInstallStatus=Install-LIS -LISTarballUrl $LISTarballUrlCurrent -allVMData $AllVMData
             if (-not $LISInstallStatus[-1]) {
@@ -414,7 +425,7 @@ Function Install-LIS-Scenario-8 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
             }
         }
         $UninstallLISStatus=Uninstall-LIS -LISTarballUrlCurrent $LISTarballUrlCurrent -allVMData $AllVMData -TestProvider $TestProvider
-        if (-not $UninstallLISStatus) {
+        if (-not $UninstallLISStatus[-1]) {
             return "FAIL"
         }
         return "PASS"
@@ -427,6 +438,10 @@ Function Main {
     $currentTestResult = Create-TestResultObject
     $resultArr = @()
     try {
+        if(! @("REDHAT", "ORACLELINUX", "CENTOS").contains($global:detectedDistro)) {
+                Write-LogInfo "Skip case for UNSUPPORTED distro - $global:detectedDistro"
+                return "SKIPPED"
+        }
         $PreviousTestResult="PASS"
         foreach ($param in $CurrentTestData.TestParameters.param) {
             if ($param -imatch "LIS_TARBALL_URL_CURRENT") {
@@ -444,49 +459,49 @@ Function Main {
                 "Install-LIS-Scenario-1" {
                     $testResult = Install-LIS-Scenario-1 -PreviousTestResult $PreviousTestResult -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent
                     $CurrentTestResult.TestSummary += New-ResultSummary -testResult $testResult -metaData "$Scenario" `
-                    -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+                    -checkValues "PASS,FAIL,ABORTED,SKIPPED" -testName $currentTestData.testName
                     break;
                 }
                 "Install-LIS-Scenario-2" {
                     $testResult = Install-LIS-Scenario-2 -PreviousTestResult $PreviousTestResult -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent
                     $CurrentTestResult.TestSummary += New-ResultSummary -testResult $testResult -metaData "$Scenario" `
-                    -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+                    -checkValues "PASS,FAIL,ABORTED,SKIPPED" -testName $currentTestData.testName
                     break;
                 }
                 "Install-LIS-Scenario-3" {
                     $testResult = Install-LIS-Scenario-3 -PreviousTestResult $PreviousTestResult -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent
                     $CurrentTestResult.TestSummary += New-ResultSummary -testResult $testResult -metaData "$Scenario" `
-                    -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+                    -checkValues "PASS,FAIL,ABORTED,SKIPPED" -testName $currentTestData.testName
                     break;
                 }
                 "Install-LIS-Scenario-4" {
                     $testResult = Install-LIS-Scenario-4 -PreviousTestResult $PreviousTestResult -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent
                     $CurrentTestResult.TestSummary += New-ResultSummary -testResult $testResult -metaData "$Scenario" `
-                    -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+                    -checkValues "PASS,FAIL,ABORTED,SKIPPED" -testName $currentTestData.testName
                     break;
                 }
                 "Install-LIS-Scenario-5" {
                     $testResult = Install-LIS-Scenario-5 -PreviousTestResult $PreviousTestResult -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent
                     $CurrentTestResult.TestSummary += New-ResultSummary -testResult $testResult -metaData "$Scenario" `
-                    -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+                    -checkValues "PASS,FAIL,ABORTED,SKIPPED" -testName $currentTestData.testName
                     break;
                 }
                 "Install-LIS-Scenario-6" {
                     $testResult = Install-LIS-Scenario-6 -PreviousTestResult $PreviousTestResult -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent
                     $CurrentTestResult.TestSummary += New-ResultSummary -testResult $testResult -metaData "$Scenario" `
-                    -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+                    -checkValues "PASS,FAIL,ABORTED,SKIPPED" -testName $currentTestData.testName
                     break;
                 }
                 "Install-LIS-Scenario-7" {
                     $testResult = Install-LIS-Scenario-7 -PreviousTestResult $PreviousTestResult -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent
                     $CurrentTestResult.TestSummary += New-ResultSummary -testResult $testResult -metaData "$Scenario" `
-                    -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+                    -checkValues "PASS,FAIL,ABORTED,SKIPPED" -testName $currentTestData.testName
                     break;
                 }
                 "Install-LIS-Scenario-8" {
                     $testResult = Install-LIS-Scenario-8 -PreviousTestResult $PreviousTestResult -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent
                     $CurrentTestResult.TestSummary += New-ResultSummary -testResult $testResult -metaData "$Scenario" `
-                    -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+                    -checkValues "PASS,FAIL,ABORTED,SKIPPED" -testName $currentTestData.testName
                     break;
                 }
                 default {
@@ -505,7 +520,7 @@ Function Main {
         if (!$testResult) {
             $testResult = "ABORTED"
             $CurrentTestResult.TestSummary += New-ResultSummary -testResult $testResult -metaData "LIS-INSTALL-SCENARIOS" `
-                -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+                -checkValues "PASS,FAIL,ABORTED,SKIPPED" -testName $currentTestData.testName
         }
         $resultArr += $testResult
     }

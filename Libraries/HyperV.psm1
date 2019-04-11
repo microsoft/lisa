@@ -348,11 +348,22 @@ function Create-HyperVGroupDeployment([string]$HyperVGroupName, $HyperVGroupXML,
             $newVhdName = "{0}-{1}{2}" -f @($vhdName, $infoParentOsVHD.DiskIdentifier.Replace("-", ""),$vhdSuffix)
             $localVHDPath = "{0}{1}{2}" -f @($hypervVHDLocalPath,[System.IO.Path]::DirectorySeparatorChar,$newVhdName)
             $localVHDUncPath = $localVHDPath -replace '^(.):', "\\${HyperVHost}\`$1$"
+            $CopyVHD = $false
             if ((Test-Path $localVHDUncPath)) {
                 Write-LogInfo "${parentOsVHDPath} is already found at path ${localVHDUncPath}"
+                $TargetVHD = Get-Item -Path $localVHDUncPath
+                $SourceVHD = Get-Item -Path $parentOsVHDPath
+                if ( $TargetVHD.LastWriteTimeUtc -ne $SourceVHD.LastWriteTimeUtc ) {
+                    Write-LogInfo "Source and Destination VHD's 'LastWriteTimeUtc' property is different."
+                    $CopyVHD = $true
+                }
             } else {
+                Write-LogInfo "${parentOsVHDPath} is not found at path ${localVHDUncPath}"
+                $CopyVHD = $true
+            }
+            if ( $CopyVHD ) {
                 Write-LogInfo "${parentOsVHDPath} will be copied at path ${localVHDUncPath}"
-                Copy-Item -Path ${parentOsVHDPath} -Destination ${localVHDUncPath}
+                Copy-Item -Path ${parentOsVHDPath} -Destination ${localVHDUncPath} -Force
             }
             $parentOsVHDPath = $localVHDPath
 
@@ -396,6 +407,14 @@ function Create-HyperVGroupDeployment([string]$HyperVGroupName, $HyperVGroupXML,
                     New-VHD -Path $ResourceDiskPath -SizeBytes 1GB -Dynamic -ComputerName $HyperVHost
                     Write-LogInfo "Add-VMHardDiskDrive -ControllerType SCSI -Path $ResourceDiskPath -VM $($NewVM.Name)"
                     Add-VMHardDiskDrive -ControllerType SCSI -Path $ResourceDiskPath -VM $NewVM
+                    if ($NewVM.AutomaticStopAction -ne "Shutdown") {
+                        Write-LogInfo "Set-VM -Name $CurrentVMName -ComputerName $HyperVHost -AutomaticStopAction Shutdown"
+                        try {
+                            Set-VM -Name $CurrentVMName -ComputerName $HyperVHost -AutomaticStopAction Shutdown
+                        } catch {
+                            Write-LogWarn "Could not set VM AutomaticStopAction to Shutdown, Continuing."
+                        }
+                    }
                 } else {
                     Write-LogErr "Failed to create VM."
                     Write-LogErr "Removing OS Disk : $CurrentVMOsVHDPath"
@@ -666,16 +685,24 @@ function Apply-HyperVCheckpoint {
         $VMData,
         [string]$CheckpointName
     )
-
     foreach ($VM in $VMData) {
-        Stop-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -TurnOff -Force
-        Restore-VMSnapshot -Name $CheckpointName -VMName $VM.RoleName -ComputerName $VM.HyperVHost -Confirm:$false
-        $msg = ("VM:{0} restored to checkpoint: {1}" `
+        Get-VMSnapshot -Name $CheckpointName -VMName $VM.RoleName -ComputerName $VM.HyperVHost -ErrorAction Ignore | out-null
+        if ($?) {
+            Stop-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -TurnOff -Force
+            Restore-VMSnapshot -Name $CheckpointName -VMName $VM.RoleName -ComputerName $VM.HyperVHost -Confirm:$false
+            $msg = ("VM:{0} restored to checkpoint: {1}" `
                  -f ($VM.RoleName,$CheckpointName))
-        Write-LogInfo $msg
-        Start-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost
+            Write-LogInfo $msg
+            Start-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost
+        }
+        else {
+            Write-LogErr "Restoring to Checkpoint $CheckpointName Failed on VM $VM.RoleName due to checkpoint not found"
+            return $false
+        }
     }
+    return $true
 }
+
 
 function Check-IP {
     <#

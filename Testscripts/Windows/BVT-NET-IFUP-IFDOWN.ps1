@@ -37,15 +37,17 @@ function Main {
         Write-LogInfo "Current status:$state"
         Start-Sleep -Seconds 30
     } until (($state -eq "TestCompleted") -or ($state -eq "TestAborted") `
-     -or ($state -eq "TestFailed") -or ((Get-Date) -gt $expiration))
+     -or ($state -eq "TestFailed") -or ($state -eq "TestSkipped") -or ((Get-Date) -gt $expiration))
     Copy-RemoteFiles -download -downloadFrom $newIp -files "/home/${VMUserName}/BVT-NET-IFUP-IFDOWN.log" `
         -downloadTo $LogDir -port $VMPort -username $VMUserName -password $VMPassword
     if (($state -eq "TestAborted") -or ($state -eq "TestFailed") -or ((Get-Date) -gt $expiration)) {
         Write-LogErr "Running $remoteScript script failed on VM!"
         return "FAIL"
-    }
-    else {
-        Write-LogInfo "Test BVT-NET-IFUP-IFDOWN PASSED !"
+    } elseif ($state -eq "TestSkipped") {
+        Write-LogInfo "Test BVT-NET-IFUP-IFDOWN SKIPPED!"
+        return "SKIPPED"
+    } else {
+        Write-LogInfo "Test BVT-NET-IFUP-IFDOWN PASSED!"
         return "PASS"
     }
 }

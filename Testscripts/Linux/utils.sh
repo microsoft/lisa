@@ -63,9 +63,6 @@ declare -a LEGACY_NET_INTERFACES
 # Location that package blobs are stored
 declare PACKAGE_BLOB_LOCATION="https://eosgpackages.blob.core.windows.net/testpackages/tools"
 
-# Link of sshpass RPM for SLES 12
-declare SLES_12_SSHPASS_LINK="https://download.opensuse.org/repositories/network/SLE_12_SP3/x86_64/sshpass-1.06-7.1.x86_64.rpm"
-
 ######################################## Functions ########################################
 
 # Convenience function used to set-up most common variables
@@ -2355,11 +2352,20 @@ function install_sshpass () {
 	which sshpass
 	if [ $? -ne 0 ]; then
 		echo "sshpass not installed\n Installing now..."
-		if [ $DISTRO_NAME == "sles" ] && [[ $DISTRO_VERSION =~ 12 ]]; then
-			rpm -ivh $SLES_12_SSHPASS_LINK
-		else
-			install_package "sshpass"
+		install_package sshpass
+		which sshpass
+		if [ $? -ne 0 ]; then
+			echo "sshpass not installed\n Build it from source code now..."
+			package_name="sshpass-1.06"
+			source_url="https://sourceforge.net/projects/sshpass/files/sshpass/1.06/$package_name.tar.gz"
+			wget $source_url
+			tar -xvf "$package_name.tar.gz"
+			cd $package_name
+			install_package "gcc make"
+			./configure --prefix=/usr/ && make && make install
+			cd ..
 		fi
+		which sshpass
 		check_exit_status "install_sshpass"
 	fi
 }
@@ -2379,6 +2385,7 @@ function add_sles_benchmark_repo () {
 				return 1
 		esac
 		zypper addrepo $repo_url
+		zypper --no-gpg-checks refresh
 	else
 		echo "Unsupported distribution for add_sles_benchmark_repo"
 		return 1
@@ -2403,6 +2410,7 @@ function add_sles_network_utilities_repo () {
 				return 1
 		esac
 		zypper addrepo $repo_url
+		zypper --no-gpg-checks refresh
 	else
 		echo "Unsupported distribution for add_sles_network_utilities_repo"
 		return 1

@@ -90,13 +90,8 @@ elif is_ubuntu ; then
     if ! service ntp restart
     then
         LogMsg "NTP is not installed. Trying to install..."
-        apt-get update
-        if ! apt-get install ntp -y
-        then
-            LogErr "Unable to install ntp. Aborting"
-            SetTestStateAborted
-            exit 0
-        fi
+        update_repos
+        install_package ntp
         LogMsg "Info: NTPD has been installed successfully!"
     fi
 
