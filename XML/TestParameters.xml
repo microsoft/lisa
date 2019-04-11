@@ -59,21 +59,26 @@
 	<CustomKernel></CustomKernel>
 	<CustomLIS></CustomLIS>
 
+	<!-- [Optional] Enable kernel code coverage. -->
+	<EnableCodeCoverage></EnableCodeCoverage>
+
 	<!-- [Optional] Parameters for changing framework behavior. -->
+	<ExcludeTests></ExcludeTests>
 	<TestIterations></TestIterations>
-	<TiPSessionId></TiPSessionId>
-	<TiPCluster></TiPCluster>
 	<XMLSecretFile></XMLSecretFile>
 	<EnableTelemetry></EnableTelemetry>
+	<UseExistingRG></UseExistingRG>
+
+	<!-- [Optional] Parameters for setting TiPCluster, TipSessionId, DiskType=Managed/Unmanaged, Networking=SRIOV/Synthetic.
+	format is -CustomParameters "TiPCluster=ClusterId;TipSessionId=SessionId;DiskType=Managed;Networking=SRIOV"
+	-->
+	<CustomParameters></CustomParameters>
 
 	<!-- [Optional] Parameters for Overriding VM Configuration. -->
-	<CustomParameters></CustomParameters>
+	<CustomTestParameters></CustomTestParameters>
 	<OverrideVMSize></OverrideVMSize>
-	<EnableAcceleratedNetworking></EnableAcceleratedNetworking>
 	<OverrideHyperVDiskMode></OverrideHyperVDiskMode>
-	<ForceDeleteResources></ForceDeleteResources>
-	<UseManagedDisks></UseManagedDisks>
-	<DoNotDeleteVMs></DoNotDeleteVMs>
+	<ResourceCleanup></ResourceCleanup>
 	<VMGeneration></VMGeneration>
 
 	<!-- [Optional] Database details. -->

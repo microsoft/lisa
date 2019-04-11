@@ -58,7 +58,7 @@ function Main {
 
         # Run the Partition Disk script
         $remoteScript="PartitionDisks.sh"
-        $retval = Invoke-RemoteScriptAndCheckStateFile $remoteScript $user $VMPassword $Ipv4 $VMPort
+        $retval = Invoke-RemoteScriptAndCheckStateFile $remoteScript $user $password $Ipv4 $VMPort
         if ($retval -eq $False) {
             throw "Running $remoteScript script failed on VM!"
         }

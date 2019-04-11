@@ -77,7 +77,7 @@ Function Get-SQLQueryOfTelemetryData ($TestPlatform,$TestLocation,$TestCategory,
 	}
 }
 
-Function Upload-TestResultToDatabase ($SQLQuery)
+Function Upload-TestResultToDatabase ([String]$SQLQuery)
 {
 	if ($XmlSecrets) {
 		$dataSource = $XmlSecrets.secrets.DatabaseServer
@@ -115,3 +115,66 @@ Function Upload-TestResultToDatabase ($SQLQuery)
 		Write-LogErr "Unable to send telemetry data to Azure. XML Secrets file not provided."
 	}
 }
+
+Function Upload-TestResultDataToDatabase ([Array] $TestResultData, [Object] $DatabaseConfig) {
+	$server = $DatabaseConfig.server
+	$dbUser = $DatabaseConfig.user
+	$dbPassword = $DatabaseConfig.password
+	$dbName = $DatabaseConfig.dbname
+	$tableName = $DatabaseConfig.dbtable
+
+	if ($server -and $dbUser -and $dbPassword -and $dbName -and $tableName) {
+		try {
+			$connectionString = "Server=$server;uid=$dbuser; pwd=$dbpassword;Database=$dbName;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
+			$connection = New-Object System.Data.SqlClient.SqlConnection
+			$connection.ConnectionString = $connectionString
+			$connection.Open()
+			foreach ($map in $TestResultData) {
+				$queryKey = "INSERT INTO $tableName ("
+				$queryValue = "VALUES ("
+				foreach ($key in $map.Keys) {
+					$queryKey += "$key,"
+					if ($map[$key] -ne $null -and $map[$key].GetType().Name -eq "String") {
+						$queryValue += "'$($map[$key])',"
+					} else {
+						$queryValue += "$($map[$key]),"
+					}
+				}
+				$query = $queryKey.TrimEnd(",") + ") " + $queryValue.TrimEnd(",") + ")"
+				Write-LogInfo "SQLQuery:  $query"
+				$command = $connection.CreateCommand()
+				$command.CommandText = $query
+				$null = $command.executenonquery()
+			}
+			$connection.Close()
+			Write-LogInfo "Succeed to upload test results to database"
+		} catch {
+			Write-LogErr "Fail to upload test results to database"
+			$line = $_.InvocationInfo.ScriptLineNumber
+			$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
+			$ErrorMessage =  $_.Exception.Message
+			Write-LogInfo "EXCEPTION : $ErrorMessage"
+			Write-LogInfo "Source : Line $line in script $script_name."
+		}
+	} else {
+		Write-LogErr "Database details are not provided. Results will not be uploaded to database."
+	}
+}
+
+Function Get-VMProperties ($PropertyFilePath) {
+	if (Test-Path $PropertyFilePath) {
+		$GuestDistro = Get-Content $PropertyFilePath | Select-String "OS type"| ForEach-Object {$_ -replace ",OS type,",""}
+		$HostOS = Get-Content $PropertyFilePath | Select-String "Host Version"| ForEach-Object {$_ -replace ",Host Version,",""}
+		$KernelVersion = Get-Content $PropertyFilePath | Select-String "Kernel version"| ForEach-Object {$_ -replace ",Kernel version,",""}
+
+		$objNode = New-Object -TypeName PSObject
+		Add-Member -InputObject $objNode -MemberType NoteProperty -Name GuestDistro -Value $GuestDistro -Force
+		Add-Member -InputObject $objNode -MemberType NoteProperty -Name HostOS -Value $HostOS -Force
+		Add-Member -InputObject $objNode -MemberType NoteProperty -Name KernelVersion -Value $KernelVersion -Force
+		return $objNode
+	} else {
+		Write-LogErr "The property file doesn't exist: $PropertyFilePath"
+		return $null
+	}
+}
+

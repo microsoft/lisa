@@ -43,7 +43,7 @@ function ConfigInterface {
     #Check if ethtool exist and install it if not
     ethtool --version
     if [ $? -ne 0 ]; then
-        install_package "ethtool"  
+        install_package "ethtool"
     fi
 
     # Disable tcp segmentation offload

@@ -77,10 +77,22 @@ if [ ! "${nicName}" ]; then
 	UpdateTestState $ICA_TESTABORTED
 	exit 1
 fi
-#Make & build ntttcp on client and server Machine
 
+Run_SSHCommand()
+{
+	ips="$1"
+	cmd="$2"
+	IFS=',' read -r -a array <<< "$ips"
+	for ip in "${array[@]}"
+	do
+		LogMsg "Execute ${cmd} on ${ip}"
+		ssh "${ip}" "${cmd}"
+	done
+}
+
+#Make & build ntttcp on client and server Machine
 LogMsg "Configuring client ${client}..."
-ssh "${client}" ". $UTIL_FILE && install_ntttcp ${ntttcpVersion}"
+Run_SSHCommand "${client}" ". $UTIL_FILE && install_ntttcp ${ntttcpVersion}"
 if [ $? -ne 0 ]; then
 	LogMsg "Error: ntttcp installation failed in ${client}.."
 	UpdateTestState "TestAborted"
@@ -88,7 +100,7 @@ if [ $? -ne 0 ]; then
 fi
 
 LogMsg "Configuring server ${server}..."
-ssh "${server}" ". $UTIL_FILE && install_ntttcp ${ntttcpVersion}"
+Run_SSHCommand "${server}" ". $UTIL_FILE && install_ntttcp ${ntttcpVersion}"
 if [ $? -ne 0 ]; then
 	LogMsg "Error: ntttcp installation failed in ${server}.."
 	UpdateTestState "TestAborted"
@@ -197,22 +209,28 @@ Run_Ntttcp()
 {
 	i=0
 	data_loss=0
-
-	ssh "${server}" "mkdir -p $log_folder"
-	ssh "${client}" "mkdir -p $log_folder"
+	Kill_Process "${server}" ntttcp
+	Kill_Process "${client}" ntttcp
+	Run_SSHCommand "${server}" "mkdir -p $log_folder"
+	Run_SSHCommand "${client}" "mkdir -p $log_folder"
 	result_file="${log_folder}/report.csv"
 	if [[ $testType == "udp" ]];
 	then
 		bufferLength=$(($bufferLength/1024))
 		echo "test_connections,tx_throughput_in_Gbps,rx_throughput_in_Gbps,datagram_loss_in_%" > "$result_file"
 		core_mem_set_cmd="sysctl -w net.core.rmem_max=67108864; sysctl -w net.core.rmem_default=67108864; sysctl -w net.core.wmem_default=67108864; sysctl -w net.core.wmem_max=67108864"
-		ssh "${server}" "${core_mem_set_cmd}"
-		ssh "${client}" "${core_mem_set_cmd}"
+		Run_SSHCommand "${server}" "${core_mem_set_cmd}"
+		Run_SSHCommand "${client}" "${core_mem_set_cmd}"
 	else
 		testType="tcp"
 		echo "test_connections,throughput_in_Gbps,cycles/byte,avglatency_in_us,txpackets_sender,rxpackets_sender,pktsInterrupt_sender" > "$result_file"
 	fi
 
+	IFS=',' read -r -a array <<< "$client"
+	if [ "${#array[@]}" -gt 1 ];
+	then
+		mode="multi-clients"
+	fi
 	for current_test_threads in "${testConnections[@]}"; do
 		if [[ $current_test_threads -lt $max_server_threads ]];
 		then
@@ -229,14 +247,26 @@ Run_Ntttcp()
 			rx_log_prefix="receiver-${testType}-${bufferLength}k-p${num_threads_P}X${num_threads_n}.log"
 			run_msg="Running ${testType} ${bufferLength}k Test: $current_test_threads connections : $num_threads_P X $num_threads_n"
 			server_ntttcp_cmd="ulimit -n 204800 && ${ntttcp_cmd} -u -b ${bufferLength}k -P ${num_threads_P} -t ${testDuration} -e -W 1 -C 1"
-			client_ntttcp_cmd="ulimit -n 204800 && ${ntttcp_cmd} -s${server} -u -b ${bufferLength}k -P ${num_threads_P} -n ${num_threads_n} -t ${testDuration} -W 1 -C 1"
+			num_threads_client_P=$num_threads_P
+			if [[ "$mode" == "multi-clients" ]];
+			then
+				server_ntttcp_cmd+=" -M"
+				num_threads_client_P=$(($num_threads_client_P/4))
+			fi
+			client_ntttcp_cmd="ulimit -n 204800 && ${ntttcp_cmd} -s${server} -u -b ${bufferLength}k -P ${num_threads_client_P} -n ${num_threads_n} -t ${testDuration} -W 1 -C 1"
 		else
 			tx_log_prefix="sender-${testType}-p${num_threads_P}X${num_threads_n}.log"
 			rx_log_prefix="receiver-${testType}-p${num_threads_P}X${num_threads_n}.log"
 			run_msg="Running ${testType} Test: $current_test_threads connections : $num_threads_P X $num_threads_n"
 			server_ntttcp_cmd="ulimit -n 204800 && ${ntttcp_cmd} -P ${num_threads_P} -t ${testDuration} -e -W 1 -C 1"
-			client_ntttcp_cmd="ulimit -n 204800 && ${ntttcp_cmd} -s${server} -P ${num_threads_P} -n ${num_threads_n} -t ${testDuration} -W 1 -C 1"
-			ssh "${server}" "for i in {1..$testDuration}; do ss -ta | grep ESTA | grep -v ssh | wc -l >> ./$log_folder/tcp-connections-p${num_threads_P}X${num_threads_n}.log; sleep 1; done" &
+			num_threads_client_P=$num_threads_P
+			if [[ "$mode" == "multi-clients" ]];
+			then
+				server_ntttcp_cmd+=" -M"
+				num_threads_client_P=$(($num_threads_client_P/4))
+			fi
+			client_ntttcp_cmd="ulimit -n 204800 && ${ntttcp_cmd} -s${server} -P ${num_threads_client_P} -n ${num_threads_n} -t ${testDuration} -W 1 -C 1"
+			Run_SSHCommand "${server}" "for i in {1..$testDuration}; do ss -ta | grep ESTA | grep -v ssh | wc -l >> ./$log_folder/tcp-connections-p${num_threads_P}X${num_threads_n}.log; sleep 1; done" &
 		fi
 
 		# The -K and -I options are supported if the ntttcp version is greater than v1.3.5, or equal to v1.3.5 or master
@@ -255,30 +285,84 @@ Run_Ntttcp()
 		tx_ntttcp_log_file="$log_folder/ntttcp-${tx_log_prefix}"
 		tx_lagscope_log_file="$log_folder/lagscope-${tx_log_prefix}"
 		rx_ntttcp_log_file="$log_folder/ntttcp-${rx_log_prefix}"
+		tx_ntttcp_log_files=()
+		tx_lagscope_log_files=()
 		Kill_Process "${server}" ntttcp
+		Kill_Process "${client}" ntttcp
 		LogMsg "ServerCmd: $server_ntttcp_cmd > ./$log_folder/ntttcp-${rx_log_prefix}"
 		ssh "${server}" "${server_ntttcp_cmd}" > "./$log_folder/ntttcp-${rx_log_prefix}" &
 		Kill_Process "${server}" lagscope
-		ssh "${server}" "${lagscope_cmd} -r" &
+		Run_SSHCommand "${server}" "${lagscope_cmd} -r" &
 		Kill_Process "${server}" dstat
-		ssh "${server}" "${dstat_cmd} -dam" > "./$log_folder/dstat-${rx_log_prefix}" &
+		Run_SSHCommand "${server}" "${dstat_cmd} -dam" > "./$log_folder/dstat-${rx_log_prefix}" &
 		Kill_Process "${server}" mpstat
-		ssh "${server}" "${mpstat_cmd} -P ALL 1 ${testDuration}" > "./$log_folder/mpstat-${rx_log_prefix}" &
+		Run_SSHCommand "${server}" "${mpstat_cmd} -P ALL 1 ${testDuration}" > "./$log_folder/mpstat-${rx_log_prefix}" &
 
 		sleep 2
-		${sar_cmd} -n DEV 1 "${testDuration}" > "./$log_folder/sar-${tx_log_prefix}" &
-		${dstat_cmd} -dam > "./$log_folder/dstat-${tx_log_prefix}" &
-		${mpstat_cmd} -P ALL 1 "${testDuration}" > "./$log_folder/mpstat-${tx_log_prefix}" &
-		${lagscope_cmd} -s"${server}" -t "${testDuration}" -V > "./$log_folder/lagscope-${tx_log_prefix}" &
-		LogMsg "ClientCmd: ${client_ntttcp_cmd} > ./${log_folder}/ntttcp-${tx_log_prefix}"
-		ssh "${client}" "${client_ntttcp_cmd}" > "./${log_folder}/ntttcp-${tx_log_prefix}"
+		IFS=',' read -r -a array <<< "${client}"
+		for ip in "${array[@]}"
+		do
+			Kill_Process "${ip}" sar
+			Kill_Process "${ip}" dstat
+			Kill_Process "${ip}" mpstat
+			Kill_Process "${ip}" lagscope
+			ssh "${ip}" "${sar_cmd} -n DEV 1 ${testDuration}" > "./$log_folder/sar-${ip}-${tx_log_prefix}" &
+			ssh "${ip}" "${dstat_cmd} -dam" > "./$log_folder/dstat-${ip}-${tx_log_prefix}" &
+			ssh "${ip}" "${mpstat_cmd} -P ALL 1 ${testDuration}" > "./$log_folder/mpstat-${ip}-${tx_log_prefix}" &
+			ssh "${ip}" "${lagscope_cmd} -s${server} -t ${testDuration}" -V > "./$log_folder/lagscope-${ip}-${tx_log_prefix}" &
+			tx_lagscope_log_files+=("./$log_folder/lagscope-${ip}-${tx_log_prefix}")
+		done
 
+		if [[ "$mode" == "multi-clients" ]];
+		then
+			IFS=',' read -r -a array <<< "${client}"
+			index=$((${#array[@]} -1))
+			for ip in "${array[@]:0:$index}"
+			do
+				LogMsg "Execute ${client_ntttcp_cmd} on ${ip}"
+				ssh "${ip}" "${client_ntttcp_cmd}" > "./${log_folder}/ntttcp-${ip}-${tx_log_prefix}" &
+				tx_ntttcp_log_files+=("./${log_folder}/ntttcp-${ip}-${tx_log_prefix}")
+				sleep 5
+			done
+			client_ntttcp_cmd+=" -L"
+			LogMsg "Execute ${client_ntttcp_cmd} on ${array[$(($index))]}"
+			ssh "${array[$(($index))]}" "${client_ntttcp_cmd}"  > "./${log_folder}/ntttcp-${array[$(($index))]}-${tx_log_prefix}"
+			tx_ntttcp_log_files+=("./${log_folder}/ntttcp-${array[$(($index))]}-${tx_log_prefix}")
+		else
+			LogMsg "Execute ${client_ntttcp_cmd} on ${client}"
+			ssh "${client}" "${client_ntttcp_cmd}" > "./${log_folder}/ntttcp-${tx_log_prefix}"
+			tx_ntttcp_log_files="./${log_folder}/ntttcp-${tx_log_prefix}"
+		fi
 		LogMsg "Parsing results for $current_test_threads connections"
 		sleep 10
-		tx_throughput=$(Get_Throughput "$tx_ntttcp_log_file")
+		tx_throughput_value=0.0
+		tx_cyclesperbytes_value=0.0
+		txpackets_sender_value=0.0
+		rxpackets_sender_value=0.0
+		pktsInterrupt_sender_value=0.0
+		avg_latency_value=0.0
+		for tx_ntttcp_log_file in "${tx_ntttcp_log_files[@]}";
+		do
+			tx_throughput=$(Get_Throughput "$tx_ntttcp_log_file")
+			tx_throughput_value=$(echo "$tx_throughput + $tx_throughput_value" | ${bc_cmd})
+			tx_cyclesperbytes=$(Get_Cyclesperbytes "$tx_ntttcp_log_file")
+			tx_cyclesperbytes_value=$(echo "$tx_cyclesperbytes + $tx_cyclesperbytes_value" | ${bc_cmd})
+			txpackets_sender=$(Get_packets "$tx_ntttcp_log_file" "tx_packets")
+			txpackets_sender_value=$(echo "$txpackets_sender + $txpackets_sender_value" | ${bc_cmd})
+			rxpackets_sender=$(Get_packets "$tx_ntttcp_log_file" "rx_packets")
+			rxpackets_sender_value=$(echo "$rxpackets_sender + $rxpackets_sender_value" | ${bc_cmd})
+			pktsInterrupt_sender=$(Get_pktsInterrupts "$tx_ntttcp_log_file")
+			pktsInterrupt_sender_value=$(echo "$pktsInterrupt_sender + $pktsInterrupt_sender_value" | ${bc_cmd})
+		done
+		tx_throughput=$tx_throughput_value
 		rx_throughput=$(Get_Throughput "$rx_ntttcp_log_file")
-		tx_cyclesperbytes=$(Get_Cyclesperbytes "$tx_ntttcp_log_file")
-		avg_latency=$(Get_Average_Latency "$tx_lagscope_log_file")
+		tx_cyclesperbytes=$tx_cyclesperbytes_value
+		for tx_lagscope_log_file in "${tx_lagscope_log_files[@]}";
+		do
+			avg_latency=$(Get_Average_Latency "$tx_lagscope_log_file")
+			avg_latency_value=$(echo "$avg_latency + $avg_latency_value" | ${bc_cmd})
+		done
+		avg_latency=$avg_latency_value
 		rx_cyclesperbytes=$(Get_Cyclesperbytes "$rx_ntttcp_log_file")
 		if [[ $tx_throughput == "0.00" ]];
 		then
@@ -286,11 +370,11 @@ Run_Ntttcp()
 		else
 			data_loss=$(printf %.2f $(echo "scale=5; 100*(($tx_throughput-$rx_throughput)/$tx_throughput)" | ${bc_cmd}))
 		fi
-		txpackets_sender=$(Get_packets "$tx_ntttcp_log_file" "tx_packets")
-		rxpackets_sender=$(Get_packets "$tx_ntttcp_log_file" "rx_packets")
+		txpackets_sender=$txpackets_sender_value
+		rxpackets_sender=$rxpackets_sender_value
 		txpackets_receiver=$(Get_packets "$rx_ntttcp_log_file" "tx_packets")
 		rxpackets_receiver=$(Get_packets "$rx_ntttcp_log_file" "rx_packets")
-		pktsInterrupt_sender=$(Get_pktsInterrupts "$tx_ntttcp_log_file")
+		pktsInterrupt_sender=$pktsInterrupt_sender_value
 		pktsInterrupt_receiver=$(Get_pktsInterrupts "$rx_ntttcp_log_file")
 
 		LogMsg "Test Results: "

@@ -23,11 +23,11 @@ function setup_huge_pages () {
 	LogMsg "Huge page setup is running"
 	ssh "${1}" "mkdir -p /mnt/huge && mkdir -p /mnt/huge-1G"
 	ssh "${1}" "mount -t hugetlbfs nodev /mnt/huge && mount -t hugetlbfs nodev /mnt/huge-1G -o 'pagesize=1G'"
-	check_exit_status "Huge pages are mounted on ${1}"
+	check_exit_status "Huge pages are mounted on ${1}" "exit"
 	ssh "${1}" "echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages"
-	check_exit_status "4KB huge pages are configured on ${1}"
+	check_exit_status "4KB huge pages are configured on ${1}" "exit"
 	ssh "${1}" "echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages"
-	check_exit_status "1GB huge pages are configured on ${1}"
+	check_exit_status "1GB huge pages are configured on ${1}" "exit"
 }
 
 function install_dpdk () {
@@ -41,7 +41,7 @@ function install_dpdk () {
 		oracle|rhel|centos)
 			ssh "${1}" ". ${UTIL_FILE} && install_epel"
 			ssh "${1}" "yum -y groupinstall 'Infiniband Support' && dracut --add-drivers 'mlx4_en mlx4_ib mlx5_ib' -f && systemctl enable rdma"
-			check_exit_status "Install Infiniband Support on ${1}"
+			check_exit_status "Install Infiniband Support on ${1}" "exit"
 			ssh "${1}" "grep 7.5 /etc/redhat-release && curl https://partnerpipelineshare.blob.core.windows.net/kernel-devel-rpms/CentOS-Vault.repo > /etc/yum.repos.d/CentOS-Vault.repo"
 			packages+=(kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel) 
 			;;
@@ -81,15 +81,16 @@ function install_dpdk () {
 		LogMsg "Installing DPDK from source file $dpdkSrcTar"
 		ssh "${1}" "wget $dpdkSrcLink -P /tmp"
 		ssh "${1}" "tar xf /tmp/$dpdkSrcTar"
-		check_exit_status "tar xf /tmp/$dpdkSrcTar on ${1}"
+		check_exit_status "tar xf /tmp/$dpdkSrcTar on ${1}" "exit"
 		dpdkSrcDir="${dpdkSrcTar%%".tar"*}"
 		LogMsg "dpdk source on ${1} $dpdkSrcDir"
 	elif [[ $dpdkSrcLink =~ ".git" ]] || [[ $dpdkSrcLink =~ "git:" ]];
 	then
 		dpdkSrcDir="${dpdkSrcLink##*/}"
+		dpdkSrcDir="${dpdkSrcDir%.git/}"
 		LogMsg "Installing DPDK from source file $dpdkSrcDir"
 		ssh "${1}" git clone "$dpdkSrcLink"
-		check_exit_status "git clone $dpdkSrcLink on ${1}"
+		check_exit_status "git clone $dpdkSrcLink on ${1}" "exit"
 		cd "$dpdkSrcDir"
 		LogMsg "dpdk source on ${1} $dpdkSrcDir"
 	else
@@ -104,7 +105,7 @@ function install_dpdk () {
 		srcIpConfigCmd="sed -i 's/define IP_SRC_ADDR.*/$srcIpAddrs/' $HOMEDIR/$dpdkSrcDir/app/test-pmd/txonly.c"
 		LogMsg "ssh ${1} $srcIpConfigCmd"
 		ssh "${1}" "$srcIpConfigCmd"
-		check_exit_status "SRC IP configuration on ${1}"
+		check_exit_status "SRC IP configuration on ${1}" "exit"
 	else
 		LogMsg "dpdk build with default DST IP ADDR on ${1}"
 	fi
@@ -116,17 +117,17 @@ function install_dpdk () {
 		dstIpConfigCmd="sed -i 's/define IP_DST_ADDR.*/$dstIpAddrs/' $HOMEDIR/$dpdkSrcDir/app/test-pmd/txonly.c"
 		LogMsg "ssh ${1} $dstIpConfigCmd"
 		ssh "${1}" "$dstIpConfigCmd"
-		check_exit_status "DST IP configuration on ${1}"
+		check_exit_status "DST IP configuration on ${1}" "exit"
 	else
 		LogMsg "dpdk build with default DST IP ADDR on ${1}"
 	fi	
 	LogMsg "MLX_PMD flag enabling on ${1}"
 	ssh "${1}" "sed -i 's/^CONFIG_RTE_LIBRTE_MLX4_PMD=n/CONFIG_RTE_LIBRTE_MLX4_PMD=y/g' $HOMEDIR/$dpdkSrcDir/config/common_base"
-	check_exit_status "${1} CONFIG_RTE_LIBRTE_MLX4_PMD=y"
+	check_exit_status "${1} CONFIG_RTE_LIBRTE_MLX4_PMD=y" "exit"
 	ssh "${1}" "cd $HOMEDIR/$dpdkSrcDir && make config O=$DPDK_BUILD T=$DPDK_BUILD"
 	LogMsg "Starting DPDK build make on ${1}"
 	ssh "${1}" "cd $HOMEDIR/$dpdkSrcDir/$DPDK_BUILD && make -j8 && make install"
-	check_exit_status "dpdk build on ${1}"
+	check_exit_status "dpdk build on ${1}" "exit"
 	LogMsg "*********INFO: Installed DPDK version on ${1} is ${dpdkVersion} ********"
 }
 

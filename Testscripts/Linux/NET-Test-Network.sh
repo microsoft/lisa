@@ -5,9 +5,9 @@
 
 # Description:
 #    This script verifies that all synthetic interfaces can ping an IP
-# Address and cannot ping at least one IP Address. Usually there is one 
+# Address and cannot ping at least one IP Address. Usually there is one
 # ping-able address specified, that is on the same network as the interface(s)
-# and two for the other two network adapter types, which should not be 
+# and two for the other two network adapter types, which should not be
 # ping-able.
 #
 #    Steps:
@@ -20,13 +20,13 @@
 ###############################################################################
 # Source utils.sh
 . utils.sh || {
-    echo "Error: unable to source utils.sh!"
+    echo "unable to source utils.sh!"
     echo "TestAborted" > state.txt
     exit 0
 }
 # Source net_constants.sh file
 . net_constants.sh || {
-    echo "Error: unable to source net_constants.sh!"
+    echo "unable to source net_constants.sh!"
     echo "TestAborted" > state.txt
     exit 0
 }
@@ -42,7 +42,7 @@ else
     # Split (if necessary) IP Adddresses based on , (comma)
     IFS=',' read -a STATIC_IPS <<< "$STATIC_IP"
     declare -i __iterator
-    
+
     # Validate that $STATIC_IP is the correct format
     for __iterator in ${!STATIC_IPS[@]}; do
         CheckIP "${STATIC_IPS[$__iterator]}"
@@ -51,7 +51,6 @@ else
             SetTestStateAborted
             exit 0
         fi
-
     done
     unset __iterator
 fi
@@ -65,13 +64,13 @@ if [ "${NETMASK:-UNDEFINED}" = "UNDEFINED" ]; then
 fi
 
 if [ "${PING_SUCC:-UNDEFINED}" = "UNDEFINED" ]; then
-    LogMsg "The test parameter PING_SUCC is not defined in constants file"
+    LogErr "The test parameter PING_SUCC is not defined in constants file"
     SetTestStateAborted
     exit 0
 fi
 
 if [ "${PING_FAIL:-UNDEFINED}" = "UNDEFINED" ]; then
-    LogMsg "The test parameter PING_FAIL is not defined in constants file"
+    LogErr "The test parameter PING_FAIL is not defined in constants file"
     SetTestStateAborted
     exit 0
 fi
@@ -85,7 +84,7 @@ if [[ $? -eq 0 ]]; then
     if [[ $? -eq 0 ]]; then
         pingVersion="ping6"
     else
-        LogMsg "Error: Not both test IPs are IPV6"
+        LogErr "Not both test IPs are IPV6"
         SetTestStateFailed
         exit 0
     fi
@@ -121,13 +120,13 @@ declare __iface_ignore
 #    it is not touched during this test (no dhcp or static ip assigned to it)
 
 if [ "${ipv4:-UNDEFINED}" = "UNDEFINED" ]; then
-    LogMsg "The test parameter ipv4 is not defined in constants file! Make sure you are using the latest LIS code."
+    LogErr "The test parameter ipv4 is not defined in constants file! Make sure you are using the latest LIS code."
     SetTestStateAborted
     exit 0
 else
     CheckIP "$ipv4"
     if [ 0 -ne $? ]; then
-        LogMsg "Test parameter ipv4 = $ipv4 is not a valid IP Address"
+        LogErr "Test parameter ipv4 = $ipv4 is not a valid IP Address"
         SetTestStateAborted
         exit 0
     fi
@@ -164,7 +163,7 @@ fi
 # Retrieve synthetic network interfaces
 GetSynthNetInterfaces
 if [ 0 -ne $? ]; then
-    LogMsg "No synthetic network interfaces found"
+    LogErr "No synthetic network interfaces found"
     SetTestStateFailed
     exit 0
 fi
@@ -172,7 +171,7 @@ fi
 # Remove interface if present
 SYNTH_NET_INTERFACES=(${SYNTH_NET_INTERFACES[@]/$__iface_ignore/})
 if [ ${#SYNTH_NET_INTERFACES[@]} -eq 0 ]; then
-    LogMsg "The only synthetic interface is the one which LIS uses to send files/commands to the VM."
+    LogErr "The only synthetic interface is the one which LIS uses to send files/commands to the VM."
     SetTestStateAborted
     exit 0
 fi
@@ -183,11 +182,11 @@ LogMsg "Found ${#SYNTH_NET_INTERFACES[@]} synthetic interface(s): ${SYNTH_NET_IN
 if [ "${MAC:-UNDEFINED}" != "UNDEFINED" ]; then
     grep -il "$MAC" /sys/class/net/*/address
     if [ 0 -ne $? ]; then
-        LogMsg "MAC Address $MAC does not belong to any interface."
+        LogErr "MAC Address $MAC does not belong to any interface."
         SetTestStateFailed
         exit 0
     else
-        LogMsg "MAC Address $MAC was found on the VM"   
+        LogMsg "MAC Address $MAC was found on the VM"
     fi
 fi
 
@@ -195,7 +194,7 @@ declare -i __iterator
 for __iterator in "${!SYNTH_NET_INTERFACES[@]}"; do
     ip link show "${SYNTH_NET_INTERFACES[$__iterator]}" >/dev/null 2>&1
     if [ 0 -ne $? ]; then
-        LogMsg "Invalid synthetic interface ${SYNTH_NET_INTERFACES[$__iterator]}"
+        LogErr "Invalid synthetic interface ${SYNTH_NET_INTERFACES[$__iterator]}"
         SetTestStateFailed
         exit 0
     fi
@@ -218,7 +217,7 @@ for __iterator in ${!STATIC_IPS[@]} ; do
     SetIPstatic "${STATIC_IPS[$__iterator]}" "${SYNTH_NET_INTERFACES[$__iterator]}" "$NETMASK"
     # if failed to assigned address
     if [ 0 -ne $? ]; then
-        LogMsg "Failed to assign static ip ${STATIC_IPS[$__iterator]} netmask $NETMASK on interface ${SYNTH_NET_INTERFACES[$__iterator]}"
+        LogErr "Failed to assign static ip ${STATIC_IPS[$__iterator]} netmask $NETMASK on interface ${SYNTH_NET_INTERFACES[$__iterator]}"
         SetTestStateFailed
         exit 0
     fi
@@ -235,7 +234,7 @@ while [ $__iterator -lt ${#SYNTH_NET_INTERFACES[@]} ]; do
     LogMsg "Trying to get an IP Address via DHCP on interface ${SYNTH_NET_INTERFACES[$__iterator]}"
     CreateIfupConfigFile "${SYNTH_NET_INTERFACES[$__iterator]}" "dhcp"
     if [ 0 -ne $? ]; then
-        LogMsg "Unable to get address for ${SYNTH_NET_INTERFACES[$__iterator]} through DHCP"
+        LogErr "Unable to get address for ${SYNTH_NET_INTERFACES[$__iterator]} through DHCP"
         SetTestStateFailed
         exit 0
     fi
@@ -253,7 +252,7 @@ for __iterator in ${!SYNTH_NET_INTERFACES[@]}; do
         LogMsg "Setting $GATEWAY as default gateway on dev ${SYNTH_NET_INTERFACES[$__iterator]}"
         CreateDefaultGateway "$GATEWAY" "${SYNTH_NET_INTERFACES[$__iterator]}"
         if [ 0 -ne $? ]; then
-            LogMsg "Warning! Failed to set default gateway!"
+            LogWarn "Failed to set default gateway!"
         fi
     fi
 
@@ -275,7 +274,7 @@ for __iterator in ${!SYNTH_NET_INTERFACES[@]}; do
     # ping the right address with pattern 0xcafed00d`null`test`null`dhcp`null`
     "$pingVersion" -I ${SYNTH_NET_INTERFACES[$__iterator]} -c 10 -p "cafed00d007465737400${__hex_interface_name}00" "$PING_SUCC"
     if [ 0 -ne $? ]; then
-        LogMsg "Failed to ping $PING_SUCC on synthetic interface ${SYNTH_NET_INTERFACES[$__iterator]}"
+        LogErr "Failed to ping $PING_SUCC on synthetic interface ${SYNTH_NET_INTERFACES[$__iterator]}"
         SetTestStateFailed
         exit 0
     fi
@@ -285,7 +284,7 @@ for __iterator in ${!SYNTH_NET_INTERFACES[@]}; do
     LogMsg "Trying to ping $PING_FAIL on interface ${SYNTH_NET_INTERFACES[$__iterator]}"
     "$pingVersion" -I ${SYNTH_NET_INTERFACES[$__iterator]} -c 10 "$PING_FAIL"
     if [ 0 -eq $? ]; then
-        LogMsg "Succeeded to ping $PING_FAIL on synthetic interface ${SYNTH_NET_INTERFACES[$__iterator]} . Make sure you have the right PING_FAIL constant set"
+        LogErr "Succeeded to ping $PING_FAIL on synthetic interface ${SYNTH_NET_INTERFACES[$__iterator]} . Make sure you have the right PING_FAIL constant set"
         SetTestStateFailed
         exit 0
     fi
@@ -296,7 +295,7 @@ for __iterator in ${!SYNTH_NET_INTERFACES[@]}; do
         LogMsg "Trying to ping $PING_FAIL on interface ${SYNTH_NET_INTERFACES[$__iterator]}"
         "$pingVersion" -I ${SYNTH_NET_INTERFACES[$__iterator]} -c 10 "$PING_FAIL2"
         if [ 0 -eq $? ]; then
-            LogMsg "Succeeded to ping $PING_FAIL2 on synthetic interface ${SYNTH_NET_INTERFACES[$__iterator]} . Make sure you have the right PING_FAIL2 constant set"
+            LogErr "Succeeded to ping $PING_FAIL2 on synthetic interface ${SYNTH_NET_INTERFACES[$__iterator]} . Make sure you have the right PING_FAIL2 constant set"
             SetTestStateFailed
             exit 0
         fi

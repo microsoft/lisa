@@ -13,75 +13,24 @@
 # 6. Check if KVP pool 3 file has a size greater than zero.
 # 7. At least 11 (default value, can be changed in xml) items are present in pool 3.
 
-CONSTANTS_FILE="constants.sh"
-
-InstallLsof() {
-    case $DISTRO in
-        redhat* | centos* | fedora*)
-            yum install lsof -y
-            ;;
-        ubuntu* | debian*)
-            apt update; apt install -y lsof
-            ;;
-        suse* )
-            zypper install -y lsof
-                ;;
-        *)
-            msg="ERROR: Distro '$DISTRO' not supported"
-            LogMsg "${msg}"
-            UpdateSummary "${msg}"
-            SetTestStateAborted
-            exit 0
-            ;;
-    esac
-
-    if [ $? -ne 0 ]; then
-        LogMsg "ERROR: Failed to install lsof"
-        UpdateSummary "ERROR: Failed to install lsof"
-        SetTestStateAborted
-        exit 0
-    fi
-}
-
 . utils.sh || {
     echo "Error: unable to source utils.sh!"
     exit 0
 }
-
-#
 # Source constants file and initialize most common variables
-#
 UtilsInit
-
-#
-# Source the constants.sh file to pickup definitions
-# from the ICA automation
-#
-if [ -e ./${CONSTANTS_FILE} ]; then
-    source ${CONSTANTS_FILE}
-else
-    msg="Error: no ${CONSTANTS_FILE} file"
-    LogMsg "$msg"
-    echo "$msg" >> ~/summary.log
-    SetTestStateAborted
-    exit 0
-fi
 
 #
 # Make sure constants.sh contains the variables we expect
 #
 if [ "${kvp_pool:-UNDEFINED}" = "UNDEFINED" ]; then
-    msg="The test parameter kvp_pool number is not defined in ${CONSTANTS_FILE}"
-    LogMsg "$msg"
-    UpdateSummary "$msg"
+    LogErr "The test parameter kvp_pool number is not defined in constants.sh"
     SetTestStateAborted
     exit 0
 fi
 
 if [ "${kvp_items:-UNDEFINED}" = "UNDEFINED" ]; then
-    msg="The test parameter kvp_items is not defined in ${CONSTANTS_FILE}"
-    LogMsg "$msg"
-    UpdateSummary "$msg"
+    LogErr "The test parameter kvp_items is not defined in constants.sh"
     SetTestStateAborted
     exit 0
 fi
@@ -91,8 +40,7 @@ fi
 #
 pid=$(pgrep "hypervkvpd|hv_kvp_daemon")
 if [ $? -ne 0 ]; then
-    LogMsg "KVP Daemon is not running by default"
-    UpdateSummary "KVP daemon not running by default, basic test: Failed"
+    LogErr "KVP Daemon is not running by default"
     SetTestStateFailed
     exit 0
 fi
@@ -104,18 +52,15 @@ UpdateSummary "KVP Daemon is running"
 #
 uname -a | grep x86_64
 if [ $? -eq 0 ]; then
-    msg="64 bit architecture was detected"
-    LogMsg "$msg"
+    LogMsg "64 bit architecture was detected"
     kvp_client="kvp_client64"
 else
     uname -a | grep i686
     if [ $? -eq 0 ]; then
-        msg="32 bit architecture was detected"
-        LogMsg "$msg"
-        kvp_client="kvp_client32" 
-    else 
-        msg="Error: Unable to detect OS architecture"
-        LogMsg "$msg"
+        LogMsg "32 bit architecture was detected"
+        kvp_client="kvp_client32"
+    else
+        LogErr "Unable to detect OS architecture"
         SetTestStateAborted
         exit 0
     fi
@@ -124,20 +69,16 @@ fi
 #
 # Make sure we have the kvp_client tool
 #
-if [ ! -e ~/${kvp_client} ]; then
-    msg="Error: ${kvp_client} tool is not on the system"
-    LogMsg "$msg"
-    UpdateSummary "$msg"
+if [ ! -e /home/${SUDO_USER}/${kvp_client} ]; then
+    LogErr "${kvp_client} tool is not on the system"
     SetTestStateAborted
     exit 0
 fi
 
-chmod +x "$HOME"/kvp_client*
-poolCount=$("$HOME"/$kvp_client | grep -i pool | wc -l)
+chmod +x /home/${SUDO_USER}/kvp_client*
+poolCount=$(/home/${SUDO_USER}/$kvp_client | grep -i pool | wc -l)
 if [ "$poolCount" -ne 5 ]; then
-    msg="Error: Could not find a total of 5 KVP data pools"
-    LogMsg "$msg"
-    UpdateSummary "$msg"
+    LogErr "Could not find a total of 5 KVP data pools"
     SetTestStateFailed
     exit 0
 fi
@@ -149,8 +90,7 @@ UpdateSummary "Verified that all 5 KVP data pools are listed properly"
 #
 permCount=$(stat -c %a /var/lib/hyperv/.kvp_pool* | grep 644 | wc -l)
 if [ "$permCount" -ne 5 ]; then
-    LogMsg ".kvp_pool file permission is incorrect "
-    UpdateSummary ".kvp_pool file permission is incorrect"
+    LogErr ".kvp_pool file permission is incorrect "
     SetTestStateFailed
     exit 0
 fi
@@ -164,8 +104,7 @@ CheckVMFeatureSupportStatus "3.10.0-514"
 if [ $? -eq 0 ]; then
     ls -la /proc/"$pid"/fd | grep /dev/vmbus/hv_kvp
     if [ $? -ne 0 ]; then
-        LogMsg "ERROR: there is no hv_kvp in the /proc/$pid/fd "
-        UpdateSummary "ERROR: there is no hv_kvp in the /proc/$pid/fd"
+        LogErr "There is no hv_kvp in the /proc/$pid/fd"
         SetTestStateFailed
         exit 0
     fi
@@ -179,16 +118,14 @@ fi
 GetDistro
 command -v lsof > /dev/null
 if [ $? -ne 0 ]; then
-    InstallLsof
+    install_package lsof
 fi
 
 lsofCountBegin=$(lsof | grep -c kvp)
 sleep 120
 lsofCountEnd=$(lsof | grep -c kvp)
 if [ "$lsofCountBegin" -ne "$lsofCountEnd" ]; then
-    msg="ERROR: hypervkvp opened file number has changed from $lsofCountBegin to $lsofCountEnd"
-    LogMsg "${msg}"
-    UpdateSummary "${msg}"
+    LogErr "hypervkvp opened file number has changed from $lsofCountBegin to $lsofCountEnd"
     SetTestStateFailed
     exit 0
 fi
@@ -200,9 +137,7 @@ UpdateSummary "Verified that lsof for kvp is $lsofCountBegin, after 2 minutes is
 #
 poolFileSize=$(ls -l /var/lib/hyperv/.kvp_pool_"${kvp_pool}" | awk '{print $5}')
 if [ "$poolFileSize" -eq 0 ]; then
-    msg="Error: the kvp_pool_${kvp_pool} file size is zero"
-    LogMsg "$msg"
-    UpdateSummary "$msg"
+    LogErr "The kvp_pool_${kvp_pool} file size is zero"
     SetTestStateFailed
     exit 0
 fi
@@ -211,31 +146,25 @@ fi
 # 7. Check the number of records in Pool 3.
 # Below 11 entries (default value) the test will fail
 #
-pool_records=$(~/${kvp_client} "$kvp_pool" | wc -l)
+pool_records=$(/home/${SUDO_USER}/${kvp_client} "$kvp_pool" | wc -l)
 if [ "$pool_records" -eq 0 ]; then
-    msg="Error: Could not list the KVP Items in pool ${kvp_pool}"
-    LogMsg "$msg"
-    echo "$msg" >> ~/summary.log
+    LogErr "Could not list the KVP Items in pool ${kvp_pool}"
     SetTestStateFailed
     exit 0
 fi
 LogMsg "KVP items in pool ${kvp_pool}: ${pool_records}"
 UpdateSummary "KVP items in pool ${kvp_pool}: ${pool_records}"
 
-poolItemNumber=$(~/${kvp_client} "$kvp_pool" | awk 'FNR==2 {print $4}')
+poolItemNumber=$(/home/${SUDO_USER}/${kvp_client} "$kvp_pool" | awk 'FNR==2 {print $4}')
 if [ "$poolItemNumber" -lt "$kvp_items" ]; then
-    msg="Error: Pool $kvp_pool has only $poolItemNumber items. We need $kvp_items items or more"
-    LogMsg "$msg"
-    UpdateSummary "$msg"
+    LogErr "Pool $kvp_pool has only $poolItemNumber items. We need $kvp_items items or more"
     SetTestStateFailed
     exit 0
 fi
 
-actualPoolItemNumber=$(~/${kvp_client} "$kvp_pool" | grep Key | wc -l)
+actualPoolItemNumber=$(/home/${SUDO_USER}/${kvp_client} "$kvp_pool" | grep Key | wc -l)
 if [ "$poolItemNumber" -ne "$actualPoolItemNumber" ]; then
-    msg="Error: Pool $kvp_pool reported $poolItemNumber items but actually has $actualPoolItemNumber items"
-    LogMsg "$msg"
-    UpdateSummary "$msg"
+    LogErr "Pool $kvp_pool reported $poolItemNumber items but actually has $actualPoolItemNumber items"
     SetTestStateFailed
     exit 0
 fi

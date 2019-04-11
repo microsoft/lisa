@@ -28,7 +28,7 @@ def GetFinalVHDName (CustomVHD)
     return FinalVHDName
 }
 
-def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, CustomVHDURL, Kernel, CustomKernelFile, CustomKernelURL, StorageAccount, GitUrlForAutomation, GitBranchForAutomation, TestByTestname, TestByCategorisedTestname, TestByCategory, TestByTag, Email, debug )
+def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, CustomVHD, CustomVHDURL, Kernel, CustomKernelFile, CustomKernelURL, StorageAccount, GitUrlForAutomation, GitBranchForAutomation, TestByTestname, TestByCategorisedTestname, TestByCategory, TestByTag, Email, debug )
 {
     if( (TestByTestname != "" && TestByTestname != null) || (TestByCategorisedTestname != "" && TestByCategorisedTestname != null) || (TestByCategory != "" && TestByCategory != null) || (TestByTag != "" && TestByTag != null) )
     {
@@ -60,6 +60,12 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                 FinalImageSource = " -OsVHD ${FinalImageSource}"
             }
 
+            if ((OverrideVMSize != "" && OverrideVMSize != null)) {
+                FinalVMSize = " -OverrideVMSize '${OverrideVMSize}'"
+            } else {
+                FinalVMSize = " -OverrideVMSize ''"
+            }
+
             if (TestByTestname != "" && TestByTestname != null)
             {
                 def CurrentTests = [failFast: false]
@@ -68,7 +74,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                     def CurrentCounter = i
                     def CurrentExecution = TestByTestname.split(",")[CurrentCounter]
                     def CurrentExecutionName = CurrentExecution.replace(">>"," ")
-                    CurrentTests["${CurrentExecutionName}"] = 
+                    CurrentTests["${CurrentExecutionName}"] =
                     {
                         try
                         {
@@ -93,6 +99,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                                             " -TestPlatform '${TestPlatform}'" +
                                             " -StorageAccount '${StorageAccount}'" +
                                             FinalImageSource +
+                                            FinalVMSize +
                                             " -TestNames '${Testname}'"
                                             )
                                             archiveArtifacts '*-TestLogs.zip'
@@ -110,7 +117,6 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                         }
                         finally
                         {
-                        
                         }
                     }
                 }
@@ -124,7 +130,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                     def CurrentCounter = i
                     def CurrentExecution = TestByCategorisedTestname.split(",")[CurrentCounter]
                     def CurrentExecutionName = CurrentExecution.replace(">>"," ")
-                    CurrentTests["${CurrentExecutionName}"] = 
+                    CurrentTests["${CurrentExecutionName}"] =
                     {
                         try
                         {
@@ -151,6 +157,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                                             " -TestPlatform '${TestPlatform}'" +
                                             " -StorageAccount '${StorageAccount}'" +
                                             FinalImageSource +
+                                            FinalVMSize +
                                             " -TestNames '${TestName}'"
                                             )
                                             archiveArtifacts '*-TestLogs.zip'
@@ -168,7 +175,6 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                         }
                         finally
                         {
-                        
                         }
                     }
                 }
@@ -182,7 +188,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                     def CurrentCounter = i
                     def CurrentExecution = TestByCategory.split(",")[CurrentCounter]
                     def CurrentExecutionName = CurrentExecution.replace(">>"," ")
-                    CurrentTests["${CurrentExecutionName}"] = 
+                    CurrentTests["${CurrentExecutionName}"] =
                     {
                         try
                         {
@@ -209,7 +215,8 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                                             " -TestCategory '${TestCategory}'" +
                                             " -TestArea '${TestArea}'" +
                                             " -StorageAccount '${StorageAccount}'" +
-                                            FinalImageSource
+                                            FinalImageSource +
+                                            FinalVMSize
                                             )
                                             archiveArtifacts '*-TestLogs.zip'
                                             junit "Report\\*-junit.xml"
@@ -226,7 +233,6 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                         }
                         finally
                         {
-                        
                         }
                     }
                 }
@@ -240,7 +246,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                     def CurrentCounter = i
                     def CurrentExecution = TestByTag.split(",")[CurrentCounter]
                     def CurrentExecutionName = CurrentExecution.replace(">>"," ")
-                    CurrentTests["${CurrentExecutionName}"] = 
+                    CurrentTests["${CurrentExecutionName}"] =
                     {
                         try
                         {
@@ -265,7 +271,8 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                                             " -TestPlatform '${TestPlatform}'" +
                                             " -TestTag '${TestTag}'" +
                                             " -StorageAccount '${StorageAccount}'" +
-                                            FinalImageSource
+                                            FinalImageSource +
+                                            FinalVMSize
                                             )
                                             archiveArtifacts '*-TestLogs.zip'
                                             junit "Report\\*-junit.xml"
@@ -282,7 +289,6 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                         }
                         finally
                         {
-                        
                         }
                     }
                 }
@@ -428,17 +434,17 @@ stage('Copy VHD to other regions')
 
 stage("TestByTestname")
 {
-    ExecuteTest ( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, CustomVHDURL, Kernel, CustomKernelFile, CustomKernelURL, StorageAccount, GitUrlForAutomation, GitBranchForAutomation, TestByTestname, null, null, null, Email, debug )
+    ExecuteTest ( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, CustomVHD, CustomVHDURL, Kernel, CustomKernelFile, CustomKernelURL, StorageAccount, GitUrlForAutomation, GitBranchForAutomation, TestByTestname, null, null, null, Email, debug )
 }
 stage("TestByCategorisedTestname")
 {
-    ExecuteTest ( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, CustomVHDURL, Kernel, CustomKernelFile, CustomKernelURL, StorageAccount, GitUrlForAutomation, GitBranchForAutomation, null, TestByCategorisedTestname, null, null, Email, debug )
+    ExecuteTest ( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, CustomVHD, CustomVHDURL, Kernel, CustomKernelFile, CustomKernelURL, StorageAccount, GitUrlForAutomation, GitBranchForAutomation, null, TestByCategorisedTestname, null, null, Email, debug )
 }
 stage("TestByCategory")
 {
-    ExecuteTest ( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, CustomVHDURL, Kernel, CustomKernelFile, CustomKernelURL, StorageAccount, GitUrlForAutomation, GitBranchForAutomation, null, null, TestByCategory, null, Email, debug )
+    ExecuteTest ( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, CustomVHD, CustomVHDURL, Kernel, CustomKernelFile, CustomKernelURL, StorageAccount, GitUrlForAutomation, GitBranchForAutomation, null, null, TestByCategory, null, Email, debug )
 }
 stage("TestByTag")
 {
-    ExecuteTest ( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, CustomVHDURL, Kernel, CustomKernelFile, CustomKernelURL, StorageAccount, GitUrlForAutomation, GitBranchForAutomation, null, null, null, TestByTag, Email, debug )
+    ExecuteTest ( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, CustomVHD, CustomVHDURL, Kernel, CustomKernelFile, CustomKernelURL, StorageAccount, GitUrlForAutomation, GitBranchForAutomation, null, null, null, TestByTag, Email, debug )
 }

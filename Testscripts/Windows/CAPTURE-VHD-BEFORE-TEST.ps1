@@ -18,28 +18,11 @@ function Main {
 
         # region Deprovision the VM.
         Write-LogInfo "Deprovisioning $($captureVMData.RoleName)"
-        # Note(v-advlad): Running remote commands might not work after deprovision,
-        # so we need to detect the distro before deprovisioning
-        $detectedDistro = Detect-LinuxDistro -VIP $captureVMData.PublicIP -SSHport $captureVMData.SSHPort `
-            -testVMUser $user -testVMPassword $password
         Run-LinuxCmd -ip $captureVMData.PublicIP -port $captureVMData.SSHPort `
             -username $user -password $password -command "waagent -deprovision --force && export HISTSIZE=0" `
             -runAsSudo | Out-Null
-
-        # Note(v-asofro): required for Ubuntu Bionic
-        # Similar issue: https://github.com/Azure/WALinuxAgent/issues/1359
-        if ($detectedDistro -eq "UBUNTU") {
-            try {
-                Run-LinuxCmd -ip $captureVMData.PublicIP -port $captureVMData.SSHPort -username $user -password $password `
-                    -command " lsb_release --codename | grep bionic && sed -i 's/Provisioning.Enabled=n/Provisioning.Enabled=y/g' /etc/waagent.conf && sed -i 's/Provisioning.UseCloudInit=y/Provisioning.UseCloudInit=n/g' /etc/waagent.conf && touch /etc/cloud/cloud-init.disabled " `
-                    -ignoreLinuxExitCode -runAsSudo | Out-Null
-            } catch {
-                Write-LogInfo "Could not potentially fix Ubuntu Bionic waagent. Continue execution..."
-            }
-        }
         Write-LogInfo "Deprovisioning done."
         # endregion
-
         Write-LogInfo "Shutting down VM..."
         $null = Stop-AzureRmVM -Name $captureVMData.RoleName -ResourceGroupName $captureVMData.ResourceGroupName -Force
         Write-LogInfo "VM shutdown successful."
@@ -56,7 +39,8 @@ function Main {
             $newVHDName = "EOSG-AUTOBUILT-$($ARMImage[0])-$($ARMImage[1])-$($ARMImage[2])-$($ARMImage[3])-$Append"
         }
         if ($global:BaseOsVHD) {
-            $newVHDName = "EOSG-AUTOBUILT-$($global:BaseOsVHD).Replace('.vhd',''))-$Append"
+            $OSVhd = $global:BaseOsVHD.Split('/')[-1]
+            $newVHDName = "EOSG-AUTOBUILT-$($OSVhd.Replace('.vhd',''))-$Append"
         }
         $newVHDName = "$newVHDName.vhd"
         Write-LogInfo "Sleeping 30 seconds..."

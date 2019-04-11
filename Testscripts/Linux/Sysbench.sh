@@ -12,7 +12,6 @@
 #
 #   No optional parameters needed
 
-CONSTANTS_FILE="constants.sh"
 ROOT_DIR="/root"
 
 # For changing Sysbench version only the following parameter has to be changed
@@ -50,7 +49,7 @@ function File_Io ()
 {
     sysbench fileio --num-threads=1 --file-test-mode=$1 prepare > /dev/null 2>&1
     LogMsg "Preparing files to test $1..."
-    
+
     sysbench fileio --num-threads=1 --file-test-mode=$1 run > /root/$1.log
     if [ $? -ne 0 ]; then
         LogErr "Unable to execute sysbench fileio mode $1. Aborting..."
@@ -100,7 +99,7 @@ function Download_Sysbench() {
 
 function Install_Deps() {
     GetDistro
-    
+
     case $OS_FAMILY in
         "Rhel")
             mkdir autoconf
@@ -112,7 +111,7 @@ function Install_Deps() {
             make
             make install
             popd
-            
+
             yum_install "devtoolset-2-binutils automake libtool vim"
             popd
         ;;
@@ -123,7 +122,7 @@ function Install_Deps() {
             zypper_install "vim"
         ;;
     esac
-    
+
     pushd "$ROOT_DIR/sysbench-$SYSBENCH_VERSION"
     bash ./autogen.sh
     bash ./configure --without-mysql
@@ -147,17 +146,6 @@ function Install_Deps() {
 }
 
 UtilsInit
-
-LogMsg "Updating test case state to running"
-SetTestStateRunning
-
-if [ -e ./${CONSTANTS_FILE} ]; then
-    source ${CONSTANTS_FILE}
-else
-    LogErr "Error: no ${CONSTANTS_FILE} file"
-    SetTestStateAborted
-    exit 0
-fi
 
 pushd $ROOT_DIR
 

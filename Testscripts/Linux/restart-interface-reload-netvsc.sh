@@ -80,6 +80,8 @@ do
                 if [[ "$?" == "0" ]];
                 then
                         LogMsg "Bringing up interface $NetworkInterface : SUCCESS"
+                        Run "dhclient -r"
+                        Run "dhclient"
                 else
                         LogMsg "Bringing up interface $NetworkInterface : Failed."
                         ExitCode=$(( ExitCode + 1 ))

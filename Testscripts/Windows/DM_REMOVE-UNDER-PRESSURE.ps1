@@ -48,11 +48,11 @@ Function Main
         # Change working directory to root dir
         Set-Location $WorkingDirectory
         Set-VMDynamicMemory -VM $VM1 -minMem $TestParams.minMem1 -maxMem $TestParams.maxMem1 `
-            -startupMem $TestParams.startupMem1 -memWeight $memweight1
+            -startupMem $TestParams.startupMem1 -memWeight $memweight1 | Out-Null
         Set-VMDynamicMemory -VM $VM2 -minMem $TestParams.minMem2 -maxMem $TestParams.maxMem2 `
-            -startupMem $TestParams.startupMem2 -memWeight $memweight2
+            -startupMem $TestParams.startupMem2 -memWeight $memweight2 | Out-Null
         Set-VMDynamicMemory -VM $VM3 -minMem $TestParams.minMem3 -maxMem $TestParams.maxMem3 `
-            -startupMem $TestParams.startupMem3 -memWeight $memweight3
+            -startupMem $TestParams.startupMem3 -memWeight $memweight3 | Out-Null
         Write-LogInfo "Starting VM1 $VM1Name"
         $VM1Ipv4=Start-VMandGetIP $VM1Name $HvServer $VMPort $user $password
         $vm1 = Get-VM -Name $VM1Name -ComputerName $HvServer -ErrorAction SilentlyContinue
@@ -92,7 +92,7 @@ Function Main
         }
         Write-LogInfo "stress-ng is installed on $VM1Name ! Will begin running memory stress tests shortly."
         # LIS Started VM1, so start VM2
-        $VM2Ipv4=Start-VMandGetIP $VM2Name $HvServer $VMPort $user $password
+        $VM2Ipv4 = Start-VMandGetIP $VM2Name $HvServer $VMPort $user $password
         $timeoutStress = 1
         $sleepPeriod = 120 #seconds
         # get VM1 and VM2's Memory
@@ -136,14 +136,14 @@ Function Main
         $cmdAddConstants = "echo -e `"timeoutStress=$($timeoutStress)\nmemMB=$($vm1ConsumeMem)\nduration=$($vm1Duration)\nchunk=$($chunks)`" > /home/$user/constants.sh"
         Run-LinuxCmd -username $user -password $password -ip $VM1Ipv4 -port $VMPort -command $cmdAddConstants -runAsSudo
         $Memcheck = "echo '${password}' | sudo -S -s eval `"export HOME=``pwd``;. utils.sh && UtilsInit && ConsumeMemory`""
-        $job1=Run-LinuxCmd -username $user -password $password -ip $VM1Ipv4 -port $VMPort -command $Memcheck -runAsSudo -RunInBackGround
-        if (-not $?) {
+        $job1 = Run-LinuxCmd -username $user -password $password -ip $VM1Ipv4 -port $VMPort -command $Memcheck -runAsSudo -RunInBackGround
+        if (-not $job1) {
             throw "Unable to start job for creating pressure on $VM1Name" | Tee-Object -Append -file $summaryLog
         }
         $cmdAddConstants = "echo -e `"timeoutStress=$($timeoutStress)\nmemMB=$($vm2ConsumeMem)\nduration=$($vm2Duration)\nchunk=$($chunks)`" > /home/$user/constants.sh"
         Run-LinuxCmd -username $user -password $password -ip $vm2Ipv4 -port $VMPort -command $cmdAddConstants -runAsSudo
-        $job2=Run-LinuxCmd -username $user -password $password -ip $vm2Ipv4 -port $VMPort -command $Memcheck -runAsSudo -RunInBackGround
-        if (-not $?) {
+        $job2 = Run-LinuxCmd -username $user -password $password -ip $vm2Ipv4 -port $VMPort -command $Memcheck -runAsSudo -RunInBackGround
+        if (-not $job2) {
             throw "Unable to start job for creating pressure on $VM2Name" | Tee-Object -Append -file $summaryLog
         }
         # sleep a few seconds so all stress-ng processes start and the memory assigned/demand gets updated
@@ -238,11 +238,12 @@ Function Main
         $isAlive = Wait-ForVMToStartKVP $VM1Name $HvServer 10
         if (-not $isAlive) {
             Write-LogErr "VM is unresponsive after running the memory stress test"
-            return $false
+            $testResult = $resultFail
+        } else {
+            # Everything ok
+            Write-LogInfo "Success: Memory was removed from a low priority VM with minimal memory pressure to a VM with high memory pressure!"
+            $testResult = $resultPass
         }
-        # Everything ok
-        Write-LogInfo "Success: Memory was removed from a low priority VM with minimal memory pressure to a VM with high memory pressure!"
-        $testResult = $resultPass
     }
     catch {
         $ErrorMessage =  $_.Exception.Message

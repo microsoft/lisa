@@ -104,10 +104,13 @@ function Collect-TestLogs {
 	)
 	# Note: This is a temporary solution until a standard is decided
 	# for what string py/sh scripts return
-	$resultTranslation = @{ "TestAborted" = "Aborted";
-							"TestFailed" = "FAIL";
-							"TestCompleted" = "PASS"
-						  }
+	$resultTranslation = @{"TestCompleted" = $global:ResultPass;
+							"TestSkipped" = $global:ResultSkipped;
+							"TestFailed" = $global:ResultFail;
+							"TestAborted" = $global:ResultAborted;
+						}
+
+	$currentTestResult = Create-TestResultObject
 
 	if ($TestType -eq "sh") {
 		$filesTocopy = "{0}/state.txt, {0}/summary.log, {0}/TestExecution.log, {0}/TestExecutionError.log" `
@@ -117,7 +120,7 @@ function Collect-TestLogs {
 			 -files $filesTocopy
 		$summary = Get-Content (Join-Path $LogDir "summary.log")
 		$testState = Get-Content (Join-Path $LogDir "state.txt")
-		$testResult = $resultTranslation[$testState]
+		$currentTestResult.TestResult = $resultTranslation[$testState]
 	} elseif ($TestType -eq "py") {
 		$filesTocopy = "{0}/state.txt, {0}/Summary.log, {0}/${TestName}_summary.log" `
 			-f @("/home/${Username}")
@@ -125,7 +128,7 @@ function Collect-TestLogs {
 			 -Port $SSHPort -Username $Username -password $Password `
 			 -files $filesTocopy
 		$summary = Get-Content (Join-Path $LogDir "Summary.log")
-		$testResult = $summary
+		$currentTestResult.TestResult = $summary
 	}
 
 	Write-LogInfo "TEST SCRIPT SUMMARY ~~~~~~~~~~~~~~~"
@@ -133,7 +136,7 @@ function Collect-TestLogs {
 		Write-Host $_ -ForegroundColor Gray -BackgroundColor White
 	}
 	Write-LogInfo "END OF TEST SCRIPT SUMMARY ~~~~~~~~~~~~~~~"
-	return $TestResult
+	return $currentTestResult
 }
 
 Function Get-SystemBasicLogs($AllVMData, $User, $Password, $currentTestData, $CurrentTestResult, $enableTelemetry) {
@@ -151,8 +154,10 @@ Function Get-SystemBasicLogs($AllVMData, $User, $Password, $currentTestData, $Cu
 		Copy-RemoteFiles -upload -uploadTo $vmData.PublicIP -port $vmData.SSHPort `
 			-files .\Testscripts\Linux\CollectLogFile.sh `
 			-username $user -password $password -maxRetry 5 | Out-Null
-		$Null = Run-LinuxCmd -username $user -password $password -ip $vmData.PublicIP -port $vmData.SSHPort -command "bash CollectLogFile.sh" -ignoreLinuxExitCode -runAsSudo
-		$Null = Copy-RemoteFiles -downloadFrom $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -files "$FilesToDownload" -downloadTo "$LogDir" -download
+		$Null = Run-LinuxCmd -username $user -password $password -ip $vmData.PublicIP -port $vmData.SSHPort `
+			-command "bash CollectLogFile.sh -hostname $($vmData.RoleName)" -ignoreLinuxExitCode -runAsSudo
+		$Null = Copy-RemoteFiles -downloadFrom $vmData.PublicIP -port $vmData.SSHPort `
+			-username $user -password $password -files "$FilesToDownload" -downloadTo "$LogDir" -download
 		$KernelVersion = Get-Content "$LogDir\$($vmData.RoleName)-kernelVersion.txt"
 		$GuestDistro = Get-Content "$LogDir\$($vmData.RoleName)-distroVersion.txt"
 		$LISMatch = (Select-String -Path "$LogDir\$($vmData.RoleName)-lis.txt" -Pattern "^version:").Line
@@ -166,11 +171,13 @@ Function Get-SystemBasicLogs($AllVMData, $User, $Password, $currentTestData, $Cu
 		}
 		#region Host Version checking
 		$FoundLineNumber = (Select-String -Path "$LogDir\$($vmData.RoleName)-dmesg.txt" -Pattern "Hyper-V Host Build").LineNumber
-		$ActualLineNumber = $FoundLineNumber - 1
-		$FinalLine = (Get-Content -Path "$LogDir\$($vmData.RoleName)-dmesg.txt")[$ActualLineNumber]
-		$FinalLine = $FinalLine.Replace('; Vmbus version:4.0','')
-		$FinalLine = $FinalLine.Replace('; Vmbus version:3.0','')
-		$HostVersion = ($FinalLine.Split(":")[$FinalLine.Split(":").Count -1 ]).Trim().TrimEnd(";")
+		if (![string]::IsNullOrEmpty($FoundLineNumber)) {
+			$ActualLineNumber = $FoundLineNumber[-1] - 1
+			$FinalLine = [string]((Get-Content -Path "$LogDir\$($vmData.RoleName)-dmesg.txt")[$ActualLineNumber])
+			$FinalLine = $FinalLine.Replace('; Vmbus version:4.0','')
+			$FinalLine = $FinalLine.Replace('; Vmbus version:3.0','')
+			$HostVersion = ($FinalLine.Split(":")[$FinalLine.Split(":").Count -1 ]).Trim().TrimEnd(";")
+		}
 		#endregion
 
 		if ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV")
@@ -211,7 +218,7 @@ Function Get-SystemBasicLogs($AllVMData, $User, $Password, $currentTestData, $Cu
 	}
 }
 
-Function GetAndCheck-KernelLogs($allDeployedVMs, $status, $vmUser, $vmPassword) {
+Function GetAndCheck-KernelLogs($allDeployedVMs, $status, $vmUser, $vmPassword, $EnableCodeCoverage) {
 	try	{
 		if (!($status -imatch "Initial" -or $status -imatch "Final")) {
 			Write-LogInfo "Status value should be either final or initial"
@@ -252,6 +259,18 @@ Function GetAndCheck-KernelLogs($allDeployedVMs, $status, $vmUser, $vmPassword) 
 				Remove-Item -Path $checkConnectivityFile -Force
 			}
 
+			if ($EnableCodeCoverage -and ($status -imatch "Final")) {
+				Write-LogInfo "Collecting coverage debug files from VM $($VM.RoleName)"
+
+				$gcovCollected = Collect-GcovData -ip $VM.PublicIP -port $VM.SSHPort `
+					-username $vmUser -password $vmPassword -logDir $LogDir
+
+				if ($gcovCollected) {
+					Write-LogInfo "GCOV data collected successfully"
+				} else {
+					Write-LogErr "Failed to collect GCOV data from VM: $($VM.RoleName)"
+				}
+			}
 			Run-LinuxCmd -ip $VM.PublicIP -port $VM.SSHPort -runAsSudo `
 				-username $vmUser -password $vmPassword `
 				-command "dmesg > /home/$vmUser/${currenBootLogFile}" | Out-Null
@@ -278,8 +297,10 @@ Function GetAndCheck-KernelLogs($allDeployedVMs, $status, $vmUser, $vmPassword) 
 			}
 
 			if ($status -imatch "Initial") {
-				$detectedDistro = Detect-LinuxDistro -VIP $VM.PublicIP -SSHport $VM.SSHPort `
-					-testVMUser $vmUser -testVMPassword $vmPassword
+				if (!$global:detectedDistro) {
+					$detectedDistro = Detect-LinuxDistro -VIP $VM.PublicIP -SSHport $VM.SSHPort `
+						-testVMUser $vmUser -testVMPassword $vmPassword
+				}
 				Set-DistroSpecificVariables -detectedDistro $detectedDistro
 				$retValue = $true
 			}

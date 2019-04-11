@@ -103,7 +103,7 @@ Function Main
 			$controllerType = "IDE"
 			$vmGeneration = Get-VMGeneration $vmName $hvServer
 			if ($vmGeneration -eq 2 ) {
-				$testResult = "ABORTED"
+				$testResult = "SKIPPED"
 				Throw "Generation 2 VM does not support IDE disk, skip test"
 			}
 		}
@@ -178,10 +178,6 @@ Function Main
 		Write-LogErr "$ErrorMessage at line: $ErrorLine"
 
 	} finally {
-		Stop-VM -VMName $vmName -ComputerName $hvServer -force
-		Remove-VMHardDiskDrive -VMHardDiskDrive $vhdxDrive
-		Remove-Item $vhdPath
-		Start-VM -Name $vmName -ComputerName $hvServer
 		$resultArr += $testResult
 	}
 

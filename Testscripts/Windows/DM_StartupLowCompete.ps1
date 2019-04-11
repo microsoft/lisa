@@ -43,8 +43,8 @@ function Main {
         $VM2Ipv4=$VM2.PublicIP
         $HvServer=$VM1.HyperVHost
         $VMPort=$VM2.SSHPort
-        Set-VMDynamicMemory -VM $VM1 -minMem $TestParams.minMem1 -maxMem $TestParams.maxMem1 -startupMem $TestParams.startupMem1 -memWeight $memweight1
-        Set-VMDynamicMemory -VM $VM2 -minMem $TestParams.minMem2 -maxMem $TestParams.maxMem2 -startupMem $TestParams.startupMem2 -memWeight $memweight2
+        Set-VMDynamicMemory -VM $VM1 -minMem $TestParams.minMem1 -maxMem $TestParams.maxMem1 -startupMem $TestParams.startupMem1 -memWeight $memweight1 | Out-Null
+        Set-VMDynamicMemory -VM $VM2 -minMem $TestParams.minMem2 -maxMem $TestParams.maxMem2 -startupMem $TestParams.startupMem2 -memWeight $memweight2 | Out-Null
         Write-LogInfo "Starting VM1 $VM1Name"
         $VM1Ipv4=Start-VMandGetIP $VM1Name $HvServer $VMPort $user $password
         Write-LogInfo "IP of $VM1Name is $VM1Ipv4"
@@ -74,7 +74,7 @@ function Main {
         }
         Start-Sleep -s 100
         Write-LogInfo "Starting VM2 $VM2Name"
-        $VM1Ipv4=Start-VMandGetIP $VM2Name $HvServer $VMPort $user $password
+        $VM1Ipv4 = Start-VMandGetIP $VM2Name $HvServer $VMPort $user $password
         Write-LogInfo "IP of $VM2Name is $VM2Ipv4"
         # get VM1's Memory
         [int64]$vm1AfterAssigned = ($vm1.MemoryAssigned/[int64]1048576)

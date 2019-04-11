@@ -19,7 +19,7 @@
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
-        <Area>Network</Area>
+        <Area>NETWORK</Area>
         <Tags>network,hv_netvsc</Tags>
         <Priority>1</Priority>
     </test>
@@ -44,7 +44,7 @@
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
-        <Area>Network</Area>
+        <Area>NETWORK</Area>
         <Tags>network,hv_netvsc,sriov</Tags>
         <Priority>1</Priority>
     </test>
@@ -69,7 +69,7 @@
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
-        <Area>Network</Area>
+        <Area>NETWORK</Area>
         <Tags>network,hv_netvsc</Tags>
         <Priority>1</Priority>
     </test>
@@ -94,10 +94,89 @@
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
-        <Area>Network</Area>
+        <Area>NETWORK</Area>
         <Tags>network,hv_netvsc,sriov</Tags>
         <Priority>1</Priority>
-    </test>    
+    </test>
+    <test>
+        <testName>PERF-NETWORK-TCP-THROUGHPUT-MULTICLIENTS-NTTTCP-Synthetic</testName>
+        <testScript>PERF-NETWORK-THROUGHPUT-MULTICONNECTION-NTTTCP.ps1</testScript>
+        <setupType>FiveVM</setupType>
+        <AdditionalHWConfig>
+            <Networking>Synthetic</Networking>
+        </AdditionalHWConfig>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
+        <TestParameters>
+            <param>testDuration=NTTTCP_RUNTIME_IN_SECONDS</param>
+            <param>testType=tcp</param>
+            <param>testConnections=NTTTCP_MULTICLIENTS_TCP_CONNECTIONS</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Performance</Category>
+        <Area>NETWORK</Area>
+        <Tags>network,hv_netvsc</Tags>
+        <Priority>2</Priority>
+    </test>
+    <test>
+        <testName>PERF-NETWORK-TCP-THROUGHPUT-MULTICLIENTS-NTTTCP-SRIOV</testName>
+        <testScript>PERF-NETWORK-THROUGHPUT-MULTICONNECTION-NTTTCP.ps1</testScript>
+        <setupType>FiveVM</setupType>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
+        <TestParameters>
+            <param>testDuration=NTTTCP_RUNTIME_IN_SECONDS</param>
+            <param>testType=tcp</param>
+            <param>testConnections=NTTTCP_MULTICLIENTS_TCP_CONNECTIONS</param>
+            <param>ntttcpVersion=NTTTCP_VERSION</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Performance</Category>
+        <Area>NETWORK</Area>
+        <Tags>network,hv_netvsc,sriov</Tags>
+        <Priority>2</Priority>
+    </test>
+    <test>
+        <testName>PERF-NETWORK-UDP-1K-THROUGHPUT-MULTICLIENTS-NTTTCP-Synthetic</testName>
+        <testScript>PERF-NETWORK-THROUGHPUT-MULTICONNECTION-NTTTCP.ps1</testScript>
+        <setupType>FiveVM</setupType>
+        <AdditionalHWConfig>
+            <Networking>Synthetic</Networking>
+        </AdditionalHWConfig>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
+        <TestParameters>
+            <param>testDuration=NTTTCP_RUNTIME_IN_SECONDS</param>
+            <param>testType=udp</param>
+            <param>bufferLength=1024</param>
+            <param>testConnections=NTTTCP_MULTICLIENTS_UDP_CONNECTIONS</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Performance</Category>
+        <Area>NETWORK</Area>
+        <Tags>network,hv_netvsc</Tags>
+        <Priority>2</Priority>
+    </test>
+    <test>
+        <testName>PERF-NETWORK-UDP-1K-THROUGHPUT-MULTICLIENTS-NTTTCP-SRIOV</testName>
+        <testScript>PERF-NETWORK-THROUGHPUT-MULTICONNECTION-NTTTCP.ps1</testScript>
+        <setupType>FiveVM</setupType>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
+        <TestParameters>
+            <param>testDuration=NTTTCP_RUNTIME_IN_SECONDS</param>
+            <param>testType=udp</param>
+            <param>bufferLength=1024</param>
+            <param>testConnections=NTTTCP_MULTICLIENTS_UDP_CONNECTIONS</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Performance</Category>
+        <Area>NETWORK</Area>
+        <Tags>network,hv_netvsc,sriov</Tags>
+        <Priority>2</Priority>
+    </test>
     <test>
         <testName>PERF-NETWORK-TCP-LATENCY-MULTICONNECTION-Synthetic</testName>
         <testScript>PERF-NETWORK-TCP-LATENCY-MULTICONNECTION-LAGSCOPE.ps1</testScript>
@@ -113,7 +192,7 @@
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
-        <Area>Network</Area>
+        <Area>NETWORK</Area>
         <Tags>network,hv_netvsc</Tags>
         <Priority>1</Priority>
     </test>
@@ -135,7 +214,7 @@
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
-        <Area>Network</Area>
+        <Area>NETWORK</Area>
         <Tags>network,hv_netvsc,sriov</Tags>
         <Priority>1</Priority>
     </test>
@@ -159,7 +238,7 @@
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
-        <Area>Network</Area>
+        <Area>NETWORK</Area>
         <Tags>network,hv_netvsc</Tags>
         <Priority>1</Priority>
     </test>
@@ -186,7 +265,7 @@
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
-        <Area>Network</Area>
+        <Area>NETWORK</Area>
         <Tags>network,hv_netvsc,sriov</Tags>
         <Priority>1</Priority>
     </test>
@@ -209,11 +288,12 @@
             <param>fileSize=1023G</param>
             <param>PHYSICAL_NUMBER=1</param>
             <param>SCSI=1,1,RAID</param>
+            <param>parseTimeout=FIO_LOG_PARSE_TIMEOUT</param>
         </TestParameters>
         <cleanupScript>.\Testscripts\Windows\RemoveHardDisk.ps1</cleanupScript>
         <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
-        <Area>Storage</Area>
+        <Area>STORAGE</Area>
         <Tags>hv_storvsc,storage</Tags>
         <Priority>1</Priority>
     </test>
@@ -233,10 +313,11 @@
             <param>ioruntime=FIO_RUNTIME_IN_SECONDS</param>
             <param>maxIO=1024</param>
             <param>fileSize=1023G</param>
+            <param>parseTimeout=FIO_LOG_PARSE_TIMEOUT</param>
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Performance</Category>
-        <Area>Storage</Area>
+        <Area>STORAGE</Area>
         <Tags>hv_storvsc,storage</Tags>
         <Priority>1</Priority>
     </test>
@@ -258,7 +339,7 @@
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Performance</Category>
-        <Area>Storage</Area>
+        <Area>STORAGE</Area>
         <Tags>hv_storvsc,storage</Tags>
         <Priority>2</Priority>
     </test>
@@ -280,7 +361,7 @@
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Performance</Category>
-        <Area>Storage</Area>
+        <Area>STORAGE</Area>
         <Tags>hv_storvsc,storage</Tags>
         <Priority>2</Priority>
     </test>
@@ -305,7 +386,7 @@
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Performance</Category>
-        <Area>Storage</Area>
+        <Area>STORAGE</Area>
         <Tags>hv_storvsc,storage</Tags>
         <Priority>2</Priority>
     </test>
@@ -330,7 +411,7 @@
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Performance</Category>
-        <Area>Storage</Area>
+        <Area>STORAGE</Area>
         <Tags>hv_storvsc,storage</Tags>
         <Priority>2</Priority>
     </test>
@@ -357,7 +438,7 @@
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
-        <Area>Network</Area>
+        <Area>NETWORK</Area>
         <Tags>hv_netvsc,network</Tags>
         <Priority>1</Priority>
     </test>
@@ -384,7 +465,7 @@
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
-        <Area>Network</Area>
+        <Area>NETWORK</Area>
         <Tags>hv_netvsc,network,sriov</Tags>
         <Priority>1</Priority>
     </test>
@@ -423,7 +504,7 @@
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
-        <Area>Network</Area>
+        <Area>NETWORK</Area>
         <Tags>network,hv_netvsc</Tags>
         <Priority>1</Priority>
     </test>
@@ -447,7 +528,7 @@
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
-        <Area>Network</Area>
+        <Area>NETWORK</Area>
         <Tags>network,hv_netvsc</Tags>
         <Priority>1</Priority>
     </test>
@@ -471,7 +552,7 @@
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
-        <Area>Network</Area>
+        <Area>NETWORK</Area>
         <Tags>network,hv_netvsc</Tags>
         <Priority>1</Priority>
     </test>
@@ -495,40 +576,12 @@
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Performance</Category>
-        <Area>Network</Area>
+        <Area>NETWORK</Area>
         <Tags>network,hv_netvsc</Tags>
         <Priority>1</Priority>
     </test>
     <test>
-        <testName>PERF-NVME-4K-IO-SINGLE</testName>
-        <testScript>PERF-STORAGE-MULTIDISK-RAID0-FIO.ps1</testScript>
-        <setupType>OneVM</setupType>
-        <OverrideVMSize>Standard_L8s_v2</OverrideVMSize>
-        <setupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\TestScripts\Windows\SETUP-Config-VM.ps1,.\Testscripts\Windows\SETUP-Add-NVME-Disk.ps1</setupScript>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
-        <TestParameters>
-            <param>vmCpuNumber=8</param>
-            <param>vmMemory=8GB</param>
-            <param>SINGLE_DISK=yes</param>
-            <param>HYPERV_DISK_COUNT=1</param>
-            <param>modes=PERF-STORAGE-4K-IO-MODES</param>
-            <param>startQDepth=1</param>
-            <param>maxQDepth=256</param>
-            <param>startIO=4</param>
-            <param>ioruntime=FIO_RUNTIME_IN_SECONDS</param>
-            <param>maxIO=4</param>
-            <param>fileSize=1023G</param>
-            <param>PHYSICAL_NUMBER=1</param>
-        </TestParameters>
-        <cleanupScript>.\Testscripts\Windows\SETUP-Remove-NVME-Disk.ps1</cleanupScript>
-        <Platform>Azure,HyperV</Platform>
-        <Category>Performance</Category>
-        <Area>NVME</Area>
-        <Tags>nvme,storage</Tags>
-        <Priority>1</Priority>
-    </test>
-    <test>
-        <testName>PERF-NVME-4K-IO-MULTI</testName>
+        <testName>PERF-NVME-4K-IO</testName>
         <testScript>PERF-STORAGE-MULTIDISK-RAID0-FIO.ps1</testScript>
         <setupType>OneVM</setupType>
         <OverrideVMSize>Standard_L64s_v2</OverrideVMSize>
@@ -539,13 +592,13 @@
             <param>vmMemory=8GB</param>
             <param>NVME=yes</param>
             <param>modes=PERF-STORAGE-4K-IO-MODES</param>
-            <param>startQDepth=1</param>
-            <param>maxQDepth=256</param>
+            <param>startQDepth=64</param>
+            <param>maxQDepth=16384</param>
             <param>startIO=4</param>
             <param>ioruntime=FIO_RUNTIME_IN_SECONDS</param>
             <param>maxIO=4</param>
-            <param>fileSize=1023G</param>
             <param>PHYSICAL_NUMBER=1</param>
+            <param>parseTimeout=FIO_LOG_PARSE_TIMEOUT</param>
         </TestParameters>
         <cleanupScript>.\Testscripts\Windows\SETUP-Remove-NVME-Disk.ps1</cleanupScript>
         <Platform>Azure,HyperV</Platform>
@@ -560,13 +613,13 @@
         <setupType>OneVM</setupType>
         <OverrideVMSize>Standard_D13_v2</OverrideVMSize>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\golang-benchmark.sh</files>
-        <Platform>Azure,HyperV</Platform>
+        <Platform>Azure,HyperV,WSL</Platform>
         <TestParameters>
             <param>GOLANG_BENCHMARK_CODE=https://partnerpipelineshare.blob.core.windows.net/binarytools/golang_benchmark.tar.gz</param>
             <param>GOLANG_INSTALL_PACKAGE=https://partnerpipelineshare.blob.core.windows.net/binarytools/go1.11.4.linux-amd64.tar.gz</param>
         </TestParameters>
         <Category>Performance</Category>
-        <Area>Golang</Area>
+        <Area>GOLANG</Area>
         <Tags>golang</Tags>
         <Priority>2</Priority>
     </test>

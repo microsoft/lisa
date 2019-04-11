@@ -44,7 +44,7 @@ function Main {
 
         # Check to see Linux VM is running VSS backup daemon
         $remoteScript="STOR_VSS_Check_VSS_Daemon.sh"
-        $retval = Invoke-RemoteScriptAndCheckStateFile $remoteScript $user $VMPassword $Ipv4 $VMPort
+        $retval = Invoke-RemoteScriptAndCheckStateFile $remoteScript $user $password $Ipv4 $VMPort
         if ($retval -eq $False) {
             throw "Running $remoteScript script failed on VM!"
         }

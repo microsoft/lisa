@@ -1,6 +1,6 @@
 <TestCases>
     <test>
-        <testName>LIVEMIGRATE</testName>
+        <testName>LIVE-MIGRATE</testName>
         <testScript>NET-LIVEMIG.ps1</testScript>
         <timeout>600</timeout>
         <setupType>OneVMCluster</setupType>
@@ -14,7 +14,7 @@
         <Priority>0</Priority>
     </test>
     <test>
-        <testName>LIVEMIGRATE-FAILOVER</testName>
+        <testName>LIVE-MIGRATE-FAILOVER</testName>
         <testScript>NET-LIVEMIG.ps1</testScript>
         <Timeout>1800</Timeout>
         <setupType>OneVMCluster</setupType>
@@ -29,7 +29,7 @@
         <Priority>1</Priority>
     </test>
     <test>
-        <testName>LIVEMIGRATE-MEM4GB-CORE8</testName>
+        <testName>LIVE-MIGRATE-MEM4GB-CORE8</testName>
         <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1,.\TestScripts\Windows\Set-VM-Memory.ps1</setupScript>
         <testScript>NET-LIVEMIG.ps1</testScript>
         <Timeout>600</Timeout>
@@ -51,7 +51,7 @@
         <Priority>2</Priority>
     </test>
     <test>
-        <testName>LIVEMIG_MEM8GB_CORE16</testName>
+        <testName>LIVE-MIGRATE-MEM8GB-CORE16</testName>
         <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1,.\TestScripts\Windows\Set-VM-Memory.ps1</setupScript>
         <testScript>NET-LIVEMIG.ps1</testScript>
         <Timeout>600</Timeout>
@@ -73,7 +73,7 @@
         <Priority>2</Priority>
     </test>
     <test>
-        <testName>LIVEMIG_MEM16GB_CORE32</testName>
+        <testName>LIVE-MIGRATE-MEM16GB-CORE32</testName>
         <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1,.\TestScripts\Windows\Set-VM-Memory.ps1</setupScript>
         <testScript>NET-LIVEMIG.ps1</testScript>
         <Timeout>600</Timeout>
@@ -95,7 +95,7 @@
         <Priority>2</Priority>
     </test>
     <test>
-        <testName>QUICKMIGRATE</testName>
+        <testName>LIVE-MIGRATE-QUICK-MIGRATE</testName>
         <testScript>NET-LIVEMIG.ps1</testScript>
         <timeout>600</timeout>
         <setupType>OneVMCluster</setupType>
@@ -109,7 +109,7 @@
         <Priority>0</Priority>
     </test>
     <test>
-        <testName>COPYFILE-DURING-MIGRATION</testName>
+        <testName>LIVE-MIGRATE-COPYFILE-DURING-MIGRATION</testName>
         <testScript>NET-LIVEMIG.ps1</testScript>
         <Timeout>600</Timeout>
         <setupType>OneVMCluster</setupType>
@@ -124,7 +124,7 @@
         <Priority>2</Priority>
     </test>
     <test>
-        <testName>QUICKMIG_MEM4GB_CORE8</testName>
+        <testName>LIVE-MIGRATE-QUICKMIG-MEM4GB-CORE8</testName>
         <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1,.\TestScripts\Windows\Set-VM-Memory.ps1</setupScript>
         <testScript>NET-LIVEMIG.ps1</testScript>
         <Timeout>600</Timeout>
@@ -145,7 +145,7 @@
         <Priority>2</Priority>
     </test>
     <test>
-        <testName>QUICKMIG_MEM8GB_CORE16</testName>
+        <testName>LIVE-MIGRATE-QUICKMIG-MEM8GB-CORE16</testName>
         <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1,.\TestScripts\Windows\Set-VM-Memory.ps1</setupScript>
         <testScript>NET-LIVEMIG.ps1</testScript>
         <Timeout>600</Timeout>
@@ -166,7 +166,7 @@
         <Priority>2</Priority>
     </test>
     <test>
-        <testName>QUICKMIG_MEM16GB_CORE32</testName>
+        <testName>LIVE-MIGRATE-QUICKMIG-MEM16GB-CORE32</testName>
         <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1,.\TestScripts\Windows\Set-VM-Memory.ps1</setupScript>
         <testScript>NET-LIVEMIG.ps1</testScript>
         <Timeout>600</Timeout>

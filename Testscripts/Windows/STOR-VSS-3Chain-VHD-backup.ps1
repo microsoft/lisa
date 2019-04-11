@@ -54,7 +54,7 @@ function Main {
             throw "VSS Daemon is not running"
         }
         # Create a file on the VM before backup
-        Run-LinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMPort -command "touch /home/$user/1" -runAsSudo
+        $null = Run-LinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMPort -command "touch /home/$user/1" -runAsSudo
         if (-not $?) {
             throw "Cannot create test file"
         }
@@ -138,7 +138,7 @@ function Main {
         if (-not $?) {
             throw "Unable to Shut Down VM $vmName1"
         }
-        Remove-Backup $backupLocation
+        $null = Remove-Backup $backupLocation
         if(-not $?) {
             throw "Cleanup is not properly done"
         }

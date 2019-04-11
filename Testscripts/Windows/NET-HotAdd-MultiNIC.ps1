@@ -44,7 +44,7 @@ function Main {
     $vm = Get-VM -Name $VMName -ComputerName $HvServer -ErrorAction SilentlyContinue
     if ($vm.Generation -ne 2) {
         Write-LogWarn "This test requires a Gen2 VM."
-        return "ABORTED"
+        return "SKIPPED"
     }
 
     # Verify Windows Server version

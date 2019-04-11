@@ -169,7 +169,7 @@ function Main {
 
 		Add-Content -Value "USER_FILES='$bashFileNames'" -Path $constantsFile
 
-		Write-LogInfo "constanst.sh created successfully..."
+		Write-LogInfo "constants.sh created successfully..."
 		Write-LogInfo (Get-Content -Path $constantsFile)
 		foreach ($param in $currentTestData.TestParameters.param) {
 			Add-Content -Value "$param" -Path $constantsFile
@@ -241,61 +241,55 @@ collect_VM_properties
 			$testResult = (Get-FunctionAndInvoke("Confirm-Performance"))
 		}
 		elseif ($finalState -imatch "TestRunning") {
-			Write-LogWarn "Powershell backgroud job for test is completed but VM is reporting that test is still running. Please check $LogDir\zkConsoleLogs.txt"
-			Write-LogWarn "Contests of summary.log : $testSummary"
+			Write-LogWarn "Powershell background job for test is completed but VM is reporting that test is still running. Please check $LogDir\zkConsoleLogs.txt"
+			Write-LogWarn "Content of summary.log : $testSummary"
 			$testResult = "ABORTED"
 		}
 
-		Write-LogInfo "Test result : $testResult"
-		try {
-			Write-LogInfo "Uploading the test results.."
-			$dataSource = $GlobalConfig.Global.Azure.database.server
-			$DBuser = $GlobalConfig.Global.Azure.database.user
-			$DBpassword = $GlobalConfig.Global.Azure.database.password
-			$database = $GlobalConfig.Global.Azure.database.dbname
-			$dataTableName = $GlobalConfig.Global.Azure.database.dbtable
-			$TestCaseName = $GlobalConfig.Global.Azure.database.testTag
-
-			if ($dataSource -And $DBuser -And $DBpassword -And $database -And $dataTableName) {
-				$GuestDistro = Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object {$_ -replace ",OS type,",""}
-				$HostType = "Azure"
-				$HostBy = ($GlobalConfig.Global.Azure.General.Location).Replace('"','')
-				$HostOS = Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version"| ForEach-Object {$_ -replace ",Host Version,",""}
-				$GuestOSType = "Linux"
-				$GuestDistro = Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object {$_ -replace ",OS type,",""}
-				$GuestSize = $masterVM.InstanceSize
-				$KernelVersion = Get-Content "$LogDir\VM_properties.csv" | Select-String "Kernel version"| ForEach-Object {$_ -replace ",Kernel version,",""}
-				$IPVersion = "IPv4"
-				$ProtocolType = "TCP"
-				$connectionString = "Server=$dataSource;uid=$DBuser; pwd=$DBpassword;Database=$database;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
-
-				$SQLQuery = "INSERT INTO $dataTableName (TestPlatFrom,TestCaseName,TestDate,HostType,HostBy,HostOS,GuestOSType,GuestDistro,GuestSize,KernelVersion,LISVersion,IPVersion,ProtocolType,DataPath,DPDKVersion,TestMode,Cores,Max_Rxpps,Txpps,Rxpps,Fwdpps,Txbytes,Rxbytes,Fwdbytes,Txpackets,Rxpackets,Fwdpackets,Tx_PacketSize_KBytes,Rx_PacketSize_KBytes) VALUES "
-				foreach ($mode in $testDataCsv) {
-					$SQLQuery += "('$TestPlatform','$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$HostType','$HostBy','$HostOS','$GuestOSType','$GuestDistro','$GuestSize','$KernelVersion','Inbuilt','$IPVersion','$ProtocolType','$DataPath','$($mode.dpdk_version)','$($mode.test_mode)','$($mode.core)','$($mode.max_rx_pps)','$($mode.tx_pps_avg)','$($mode.rx_pps_avg)','$($mode.fwdtx_pps_avg)','$($mode.tx_bytes)','$($mode.rx_bytes)','$($mode.fwd_bytes)','$($mode.tx_packets)','$($mode.rx_packets)','$($mode.fwd_packets)','$($mode.tx_packet_size)','$($mode.rx_packet_size)'),"
-					Write-LogInfo "Collected performace data for $($mode.TestMode) mode."
+		if ($testResult -eq "PASS") {
+			Write-LogInfo "Generating the performance data for database insertion"
+			$properties = Get-VMProperties -PropertyFilePath "$LogDir\VM_properties.csv"
+			$testDate = $(Get-Date -Format yyyy-MM-dd)
+			foreach ($mode in $testDataCsv) {
+				$resultMap = @{}
+				if ($properties) {
+					$resultMap["GuestDistro"] = $properties.GuestDistro
+					$resultMap["HostOS"] = $properties.HostOS
+					$resultMap["KernelVersion"] = $properties.KernelVersion
 				}
-				$SQLQuery = $SQLQuery.TrimEnd(',')
-				Write-LogInfo $SQLQuery
-				$connection = New-Object System.Data.SqlClient.SqlConnection
-				$connection.ConnectionString = $connectionString
-				$connection.Open()
-
-				$command = $connection.CreateCommand()
-				$command.CommandText = $SQLQuery
-
-				$command.executenonquery() | Out-Null
-				$connection.Close()
-				Write-LogInfo "Uploading the test results done!!"
-			} else {
-				Write-LogErr "Invalid database details. Failed to upload result to database!"
-				$ErrorMessage =  $_.Exception.Message
-				$ErrorLine = $_.InvocationInfo.ScriptLineNumber
-				Write-LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+				$resultMap["HostType"] = "Azure"
+				$resultMap["HostBy"] = $global:TestLocation
+				$resultMap["GuestOSType"] = "Linux"
+				$resultMap["GuestSize"] = $masterVM.InstanceSize
+				$resultMap["IPVersion"] = "IPv4"
+				$resultMap["ProtocolType"] = "TCP"
+				$resultMap["TestPlatFrom"] = $global:TestPlatForm
+				$resultMap["TestCaseName"] = $global:GlobalConfig.Global.Azure.ResultsDatabase.testTag
+				$resultMap["TestDate"] = $testDate
+				$resultMap["LISVersion"] = "Inbuilt"
+				if ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
+					$resultMap["DataPath"] = "SRIOV"
+				} else {
+					$resultMap["DataPath"] = "Synthetic"
+				}
+				$resultMap["DPDKVersion"] = $mode.dpdk_version
+				$resultMap["TestMode"] = $mode.test_mode
+				$resultMap["Cores"] = [int32]($mode.core)
+				$resultMap["Max_Rxpps"] = [int64]($mode.max_rx_pps)
+				$resultMap["Txpps"] = [int64]($mode.tx_pps_avg)
+				$resultMap["Rxpps"] = [int64]($mode.rx_pps_avg)
+				$resultMap["Fwdpps"] = [int64]($mode.fwdtx_pps_avg)
+				$resultMap["Txbytes"] = [int64]($mode.tx_bytes)
+				$resultMap["Rxbytes"] = [int64]($mode.rx_bytes)
+				$resultMap["Fwdbytes"] = [int64]($mode.fwd_bytes)
+				$resultMap["Txpackets"] = [int64]($mode.tx_packets)
+				$resultMap["Rxpackets"] = [int64]($mode.rx_packets)
+				$resultMap["Fwdpackets"] = [int64]($mode.fwd_packets)
+				$resultMap["Tx_PacketSize_KBytes"] = [Decimal]($mode.tx_packet_size)
+				$resultMap["Rx_PacketSize_KBytes"] = [Decimal]($mode.rx_packet_size)
+				Write-LogInfo "Collected performance data for $($mode.test_mode) mode."
+				$currentTestResult.TestResultData += $resultMap
 			}
-		} catch {
-			$ErrorMessage =  $_.Exception.Message
-			throw "$ErrorMessage"
-			$testResult = "FAIL"
 		}
 		Write-LogInfo "Test result : $testResult"
 		Write-LogInfo ($testDataCsv | Format-Table | Out-String)

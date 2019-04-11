@@ -13,4 +13,42 @@
         <Area></Area>
         <Tags>disk</Tags>
     </test>
+    <test>
+        <testName>BUILD-GCOV-KERNEL</testName>
+        <TestScript>Build-GcovKernel.ps1</TestScript>
+        <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_DS14_v2</OverrideVMSize>
+        <files>.\TestScripts\Linux\build_gcov_kernel.sh,.\TestScripts\Linux\utils.sh</files>
+        <Platform>Azure</Platform>
+        <TestParameters>
+            <param>BUILD_DIR="GCOV_BUILD_DIR"</param>
+            <param>SOURCE_DEST="GCOV_BUILD_SOURCE_DEST"</param>
+            <param>PACKAGE_DEST="GCOV_BUILD_PACK_DEST"</param>
+            <param>SRC_PACKAGE_PATH=GCOV_BUILD_SRC_PATH</param>
+            <param>SRC_PACKAGE_NAME="GCOV_BUILD_SRC_NAME"</param>
+            <param>CONFIG_URL="GCOV_BUILD_CONFIG_URL"</param>
+            <param>SkipVerifyKernelLogs=true</param>
+        </TestParameters>
+        <Category></Category>
+        <Area></Area>
+        <Tags>gcov</Tags>
+    </test>
+    <test>
+        <testName>BUILD-GCOV-REPORT</testName>
+        <TestScript>Get-GcovReport.ps1</TestScript>
+        <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_DS14_v2</OverrideVMSize>
+        <files>.\TestScripts\Linux\generate_gcov.sh,.\TestScripts\Linux\generate_gcov_report.sh,.\TestScripts\Linux\utils.sh</files>
+        <Platform>Azure</Platform>
+        <TestParameters>
+            <param>BUILD_DIR="GCOV_BUILD_DIR"</param>
+            <param>LOCAL_LOGS_PATH=GCOV_REPORT_LOGS</param>
+            <param>TEST_CATEGORY=GCOV_REPORT_CATEGORY</param>
+            <param>LOCAL_SRC_PATH=GCOV_REPORT_SRC_PATH</param>
+            <param>SkipVerifyKernelLogs=true</param>
+        </TestParameters>
+        <Category></Category>
+        <Area></Area>
+        <Tags>gcov</Tags>
+    </test>
 </TestCases>

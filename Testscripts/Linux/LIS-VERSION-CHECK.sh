@@ -67,7 +67,7 @@ rpm -qa | grep "kmod-microsoft-hyper-v" && rpm -qa | grep "microsoft-hyper-v"
 if [ $? -ne 0 ]
 then
     LogMsg "No LIS RPM's are detected. Skipping test."
-    SetTestStateAborted
+    SetTestStateSkipped
     exit 0
 else
     version=$(modinfo "hv_vmbus" | grep version: | head -1 | awk '{print $2}')

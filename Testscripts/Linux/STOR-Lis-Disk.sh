@@ -59,8 +59,7 @@ Integrity_Check() {
 SetTestStateRunning
 # Count the number of SCSI= and IDE= entries in constants
 #
-disk_count=1
-# Set to 1 because of resource disk
+disk_count=0
 for entry in $(cat ./constants.sh); do
     # Convert to lower case
     lowStr="$(tr '[A-Z]' '[a-z' <<<"$entry")"
@@ -83,10 +82,10 @@ LogMsg "constants disk count = $disk_count"
 sd_count=$(ls /dev/sd*[^0-9] | wc -l)
 
 #
-# Subtract the boot disk from the sd_count, then make
+# Subtract the boot disk and resource from the sd_count, then make
 # sure the two disk counts match
 #
-sd_count=$((sd_count - 1))
+sd_count=$((sd_count - 2))
 LogMsg "/dev/sd* disk count = $sd_count"
 
 if [ $sd_count != $disk_count ]; then

@@ -19,7 +19,7 @@ declare __iface_ignore
 
 # Source utils.sh
 . utils.sh || {
-    echo "Error: unable to source utils.sh!"
+    echo "unable to source utils.sh!"
     echo "TestAborted" > state.txt
     exit 0
 }
@@ -29,10 +29,10 @@ UtilsInit
 GetDistro
 
 # Check for tulip driver. If it's not present, test will be skipped
-cat /boot/config-$(uname -r) | grep "CONFIG_NET_TULIP=y\|CONFIG_TULIP=m"
+grep "CONFIG_NET_TULIP=y\|CONFIG_TULIP=m" /boot/config-$(uname -r)
 if [ $? -ne 0 ]; then
-    LogErr "Warn: Tulip driver is not configured. Test skipped"
-    SetTestStateAborted
+    LogMsg "Warn: Tulip driver is not configured. Test skipped"
+    SetTestStateSkipped
     exit 0
 fi
 
@@ -43,7 +43,7 @@ else
     # Validate that $SYNTH_STATIC_IP is the correct format
     CheckIP "$SYNTH_STATIC_IP"
     if [ 0 -ne $? ]; then
-        LogErr "Error: Variable SYNTH_STATIC_IP: $SYNTH_STATIC_IP does not contain a valid IPv4 address"
+        LogErr "Variable SYNTH_STATIC_IP: $SYNTH_STATIC_IP does not contain a valid IPv4 address"
         SetTestStateAborted
         exit 0
     fi
@@ -56,7 +56,7 @@ else
     # Validate that $LEGACY_STATIC_IP is the correct format
     CheckIP "$LEGACY_STATIC_IP"
     if [ 0 -ne $? ]; then
-        LogErr "Error: Variable LEGACY_STATIC_IP: $LEGACY_STATIC_IP does not contain a valid IPv4 address"
+        LogErr "Variable LEGACY_STATIC_IP: $LEGACY_STATIC_IP does not contain a valid IPv4 address"
         SetTestStateAborted
         exit 0
     fi
@@ -64,7 +64,7 @@ fi
 
 IFS=',' read -a networkType <<< "$NIC_2"
 if [[ ${networkType[0]} == Legacy* ]] && [ -d /sys/firmware/efi ]; then
-    LogErr "Error: Generation 2 VM does not support LegacyNetworkAdapter, skip test"
+    LogErr "Generation 2 VM does not support LegacyNetworkAdapter, skip test"
     SetTestStateAborted
     exit 0
 fi
@@ -83,7 +83,7 @@ fi
 
 # Parameter provided in constants file
 if [ "${REMOTE_SERVER:-UNDEFINED}" = "UNDEFINED" ]; then
-    LogErr "Error: The mandatory test parameter REMOTE_SERVER is not defined in constants file!"
+    LogErr "The mandatory test parameter REMOTE_SERVER is not defined in constants file!"
     SetTestStateAborted
     exit 0
 fi
@@ -115,13 +115,13 @@ fi
 
 # Parameter provided in constants file
 if [ "${ipv4:-UNDEFINED}" = "UNDEFINED" ]; then
-    LogErr "Error: The test parameter ipv4 is not defined in constants file! Make sure you are using the latest LIS code."
+    LogErr "The test parameter ipv4 is not defined in constants file! Make sure you are using the latest LIS code."
     SetTestStateFailed
     exit 0
 else
     CheckIP "$ipv4"
     if [ 0 -ne $? ]; then
-        LogErr "Error: Test parameter ipv4 = $ipv4 is not a valid IP Address"
+        LogErr "Test parameter ipv4 = $ipv4 is not a valid IP Address"
         SetTestStateFailed
         exit 0
     fi
@@ -169,7 +169,7 @@ fi
 # Retrieve synthetic network interfaces
 GetSynthNetInterfaces
 if [ 0 -ne $? ]; then
-    LogErr "Error: No synthetic network interfaces found"
+    LogErr "No synthetic network interfaces found"
     SetTestStateFailed
     exit 0
 fi
@@ -177,7 +177,7 @@ fi
 # Remove interface if present
 SYNTH_NET_INTERFACES=(${SYNTH_NET_INTERFACES[@]/$__iface_ignore/})
 if [ ${#SYNTH_NET_INTERFACES[@]} -eq 0 ]; then
-    LogErr "Error: The only synthetic interface is the one which LIS uses to send files/commands to the VM."
+    LogErr "The only synthetic interface is the one which LIS uses to send files/commands to the VM."
     SetTestStateAborted
     exit 0
 fi
@@ -195,7 +195,7 @@ for __synth_iterator in "${!SYNTH_NET_INTERFACES[@]}"; do
 done
 
 if [ ${#SYNTH_NET_INTERFACES[@]} -eq  ${#__invalid_positions[@]} ]; then
-    LogErr "Error: No usable synthetic interface remains"
+    LogErr "No usable synthetic interface remains"
     SetTestStateFailed
     exit 0
 fi
@@ -210,7 +210,7 @@ done
 unset __invalid_positions
 
 if [ 0 -eq ${#SYNTH_NET_INTERFACES[@]} ]; then
-    LogErr "Error: This should not have happened. Probable internal error above line $LINENO"
+    LogErr "This should not have happened. Probable internal error above line $LINENO"
     SetTestStateFailed
     exit 0
 fi
@@ -218,7 +218,7 @@ fi
 # Get the legacy netadapter interface
 GetLegacyNetInterfaces
 if [ 0 -ne $? ]; then
-    LogErr "Error: No legacy network interfaces found"
+    LogErr "No legacy network interfaces found"
     SetTestStateFailed
     exit 0
 fi
@@ -226,7 +226,7 @@ fi
 # Remove loopback interface if LO_IGNORE is set
 LEGACY_NET_INTERFACES=(${LEGACY_NET_INTERFACES[@]/$__lo_ignore/})
 if [ ${#LEGACY_NET_INTERFACES[@]} -eq 0 ]; then
-    LogErr "Error: The only legacy interface is the loopback interface lo, which was set to be ignored."
+    LogErr "The only legacy interface is the loopback interface lo, which was set to be ignored."
     SetTestStateAborted
     exit 0
 fi
@@ -234,7 +234,7 @@ fi
 # Remove interface if present
 LEGACY_NET_INTERFACES=(${LEGACY_NET_INTERFACES[@]/$__iface_ignore/})
 if [ ${#LEGACY_NET_INTERFACES[@]} -eq 0 ]; then
-    LogErr "Error: The only legacy interface is the one which LIS uses to send files/commands to the VM."
+    LogErr "The only legacy interface is the one which LIS uses to send files/commands to the VM."
     SetTestStateAborted
     exit 0
 fi
@@ -253,7 +253,7 @@ for __legacy_iterator in "${!LEGACY_NET_INTERFACES[@]}"; do
 done
 
 if [ ${#LEGACY_NET_INTERFACES[@]} -eq  ${#__invalid_positions[@]} ]; then
-    LogErr "Error: No usable legacy interface remains"
+    LogErr "No usable legacy interface remains"
     SetTestStateFailed
     exit 0
 fi
@@ -267,7 +267,7 @@ done
 unset __invalid_positions
 
 if [ 0 -eq ${#LEGACY_NET_INTERFACES[@]} ]; then
-    LogErr "Error: This should not have happened. Probable internal error above line $LINENO"
+    LogErr "This should not have happened. Probable internal error above line $LINENO"
     SetTestStateFailed
     exit 0
 fi
@@ -316,7 +316,7 @@ done
 # If all dhcp requests or ping failed, try to set static ip.
 if [ ${#SYNTH_NET_INTERFACES[@]} -eq $__synth_iterator ]; then
     if [ -z "$SYNTH_STATIC_IP" ]; then
-        LogErr "Error: No static IP Address provided for synthetic interfaces. DHCP failed. Unable to continue..."
+        LogErr "No static IP Address provided for synthetic interfaces. DHCP failed. Unable to continue..."
         SetTestStateFailed
         exit 0
     else
@@ -357,7 +357,7 @@ if [ ${#SYNTH_NET_INTERFACES[@]} -eq $__synth_iterator ]; then
         done
 
         if [ ${#SYNTH_NET_INTERFACES[@]} -eq $__synth_iterator ]; then
-            LogErr "Error: Unable to set neither static address for synthetic interface(s) ${SYNTH_NET_INTERFACES[@]}"
+            LogErr "Unable to set neither static address for synthetic interface(s) ${SYNTH_NET_INTERFACES[@]}"
             SetTestStateFailed
             exit 0
         fi
@@ -411,7 +411,7 @@ done
 if [ ${#LEGACY_NET_INTERFACES[@]} -eq $__legacy_iterator ]; then
     LogMsg "Unable to get address for legacy interface(s) ${LEGACY_NET_INTERFACES[@]} through DHCP"
     if [ -z "$LEGACY_STATIC_IP" ]; then
-        LogErr "Error: No static IP Address provided for legacy interfaces. DHCP failed. Unable to continue..."
+        LogErr "No static IP Address provided for legacy interfaces. DHCP failed. Unable to continue..."
         SetTestStateFailed
         exit 0
     else
@@ -441,7 +441,7 @@ if [ ${#LEGACY_NET_INTERFACES[@]} -eq $__legacy_iterator ]; then
         done
 
         if [ ${#LEGACY_NET_INTERFACES[@]} -eq $__legacy_iterator ]; then
-            LogErr "Error: Unable to set neither static address for legacy interface(s) ${LEGACY_NET_INTERFACES[@]}"
+            LogErr "Unable to set neither static address for legacy interface(s) ${LEGACY_NET_INTERFACES[@]}"
             SetTestStateFailed
             exit 0
         fi

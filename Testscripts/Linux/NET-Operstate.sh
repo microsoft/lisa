@@ -14,7 +14,7 @@
 ##############################################################################
 # Source utils.sh
 . utils.sh || {
-    echo "Error: unable to source utils.sh!"
+    echo "unable to source utils.sh!"
     echo "TestAborted" > state.txt
     exit 0
 }
@@ -24,13 +24,13 @@ UtilsInit
 # Parameter provided in constants file
 declare __iface_ignore
 if [ "${ipv4:-UNDEFINED}" = "UNDEFINED" ]; then
-    LogErr "Error: The test parameter ipv4 is not defined in constants file! Make sure you are using the latest LIS code."
+    LogErr "The test parameter ipv4 is not defined in constants file! Make sure you are using the latest LIS code."
     SetTestStateFailed
     exit 0
 else
     CheckIP "$ipv4"
     if [ 0 -ne $? ]; then
-        LogErr "Error: Test parameter ipv4 = $ipv4 is not a valid IP Address"
+        LogErr "Test parameter ipv4 = $ipv4 is not a valid IP Address"
         SetTestStateFailed
         exit 0
     fi
@@ -49,18 +49,18 @@ else
         LogMsg "The only synthetic interface is the one which LIS uses to send files/commands to the VM."
     fi
     LogMsg "Found ${#SYNTH_NET_INTERFACES[@]} synthetic interface(s): ${SYNTH_NET_INTERFACES[*]} in VM"
-   
+
     declare __synth_iface
     for __synth_iface in ${SYNTH_NET_INTERFACES[@]}; do
         if [ ! -e /sys/class/net/"$__synth_iface"/operstate ]; then
-            LogErr "Error: Could not find /sys/class/net/$__synth_iface/operstate ."
+            LogErr "Could not find /sys/class/net/$__synth_iface/operstate ."
             SetTestStateFailed
             exit 0
         fi
 
         __state=$(cat /sys/class/net/"${__synth_iface}"/operstate)
         if [ "$__state" != "down" ]; then
-            LogErr "Error: Operstate of $__synth_iface is not down. It is $__state"
+            LogErr "Operstate of $__synth_iface is not down. It is $__state"
             SetTestStateFailed
             exit 0
         fi
@@ -87,14 +87,14 @@ else
             declare __legacy_iface
             for __legacy_iface in ${LEGACY_NET_INTERFACES[@]}; do
                 if [ ! -e /sys/class/net/"$__legacy_iface"/operstate ]; then
-                    LogErr "Error: Could not find /sys/class/net/$__legacy_iface/operstate ."
+                    LogErr "Could not find /sys/class/net/$__legacy_iface/operstate ."
                     SetTestStateFailed
                     exit 0
                 fi
 
                 __state=$(cat /sys/class/net/"${__legacy_iface}"/operstate)
                 if [ "$__state" != "down" ]; then
-                    LogErr "Error: Operstate of $__legacy_iface is not down. It is $__state"
+                    LogErr "Operstate of $__legacy_iface is not down. It is $__state"
                     SetTestStateFailed
                     exit 0
                 fi
@@ -105,7 +105,7 @@ fi
 
 # test if there was any "check"-able interface at all
 if [ ${#SYNTH_NET_INTERFACES[@]} -eq 0 -a ${#LEGACY_NET_INTERFACES[@]} -eq 0 ]; then
-    LogErr "Error: No suitable test interface found."
+    LogErr "No suitable test interface found."
     SetTestStateFailed
     exit 0
 fi

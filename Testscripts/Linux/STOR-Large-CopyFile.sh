@@ -152,18 +152,6 @@ function Test_File_System_Copy() {
     fi
 }
 
-# Source the constants file
-if [ -e ~/${CONSTANTS_FILE} ]; then
-    source ~/${CONSTANTS_FILE}
-else
-    LogErr "Error: in ${CONSTANTS_FILE} file"
-    SetTestStateFailed
-    exit 0
-fi
-
-# Create the state.txt file so ICA knows we are running
-SetTestStateRunning
-
 # Check for call trace log
 ./check_traces.sh &
 

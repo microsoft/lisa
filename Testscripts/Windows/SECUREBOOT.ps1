@@ -157,10 +157,10 @@ function Main {
         }
         if ($TestParams.updateKernel) {
             # Getting kernel version before upgrade
-            $kernel_beforeupgrade=Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command "uname -a" -runAsSudo
+            $kernel_beforeupgrade = Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command "uname -a" -runAsSudo
             # Upgrading kernel to latest
             $Upgradecheck = "echo '${password}' | sudo -S -s eval `"export HOME=``pwd``;. utils.sh && UtilsInit && Update_Kernel`""
-            Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command $Upgradecheck -runAsSudo
+            $null = Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command $Upgradecheck -runAsSudo
             Write-LogInfo "Shutdown VM ${VMName}"
             Stop-VM -ComputerName $HvServer -Name $VMName -Confirm:$false
             if (-not $?) {
@@ -198,7 +198,7 @@ function Main {
             }
             Write-LogInfo "SSH port opened"
             # Getting kernel version after upgrade
-            $kernel_afterupgrade=Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command "uname -a" -runAsSudo
+            $kernel_afterupgrade = Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command "uname -a" -runAsSudo
             # check whether kernel has upgraded to latest version
             if (-not (Compare-Object $kernel_afterupgrade $kernel_beforeupgrade)) {
                 $testResult = $resultFail

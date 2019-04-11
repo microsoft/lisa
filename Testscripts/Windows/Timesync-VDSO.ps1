@@ -60,11 +60,11 @@ function Main {
 
     Write-LogInfo "real time: $real :: sys time: $sys"
     # Support VDSO, sys time should be shorter than 1.0 second
-    if (([float]$real -gt 5.0) -or ([float]$sys -gt 1.0)) {
-        Write-LogErr "Error: Check real time is $real(>5.0s), sys time is $sys(>1.0s)"
+    if (([float]$real -gt 10.0) -or ([float]$sys -gt 1.0)) {
+        Write-LogErr "Error: Check real time is $real(>10.0s), sys time is $sys(>1.0s)"
         return "FAIL"
     } else {
-        Write-LogInfo "Check real time is $real(<5.0s), sys time is $sys(<1.0s)"
+        Write-LogInfo "Check real time is $real(<10.0s), sys time is $sys(<1.0s)"
         return "PASS"
     }
 }

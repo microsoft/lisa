@@ -1,70 +1,69 @@
 <TestCases>
     <test>
-        <TestName>FILE-SYSTEM-VERIFICATION-TESTS-CIFS</TestName>
+        <TestName>FILE-SYSTEM-VERIFICATION-TESTS-GENERIC</TestName>
         <TestScript>FILE-SYSTEM-VERIFICATION-TESTS.ps1</TestScript>
-        <files>.\Testscripts\Linux\perf_xfstesting.sh</files>
+        <files>.\Testscripts\Linux\xfstesting.sh</files>
         <setupType>OneVM1Disk</setupType>
         <TestParameters>
-            <param>FSTYP=cifs</param>
-            <param>TEST_DEV=//localhost/share</param>
-            <param>TEST_DIR=/root/cifs</param>
-            <param>TEST_FS_MOUNT_OPTS=-o user=root,password=abcdefghijklmnopqrstuvwxyz</param>
+            <param>FSTYP=xfs</param>
+            <param>TEST_DEV=/dev/sdc1</param>
+            <param>TEST_DIR=/root/test</param>
+            <param>GENERIC=yes</param>
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Community</Category>
-        <Area>Xfstesting-cifs</Area>
-        <Tags>smb</Tags>
+        <Area>STORAGE</Area>
+        <Tags>storage,filesystem</Tags>
         <Priority>2</Priority>
     </test>
     <test>
         <TestName>FILE-SYSTEM-VERIFICATION-TESTS-XFS</TestName>
         <TestScript>FILE-SYSTEM-VERIFICATION-TESTS.ps1</TestScript>
-        <files>.\Testscripts\Linux\perf_xfstesting.sh</files>
+        <files>.\Testscripts\Linux\xfstesting.sh</files>
         <setupType>OneVM1Disk</setupType>
         <TestParameters>
             <param>FSTYP=xfs</param>
-            <param>TEST_DEV=/dev/sdc</param>
-            <param>TEST_DIR=/root/xfs</param>
-            <param>TEST_FS_MOUNT_OPTS='-o nobarrier'</param>
+            <param>TEST_DEV=/dev/sdc1</param>
+            <param>TEST_DIR=/root/test</param>
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Community</Category>
-        <Area>Xfstesting-cifs</Area>
-        <Tags>disk</Tags>
+        <Area>STORAGE</Area>
+        <Tags>storage,filesystem</Tags>
         <Priority>2</Priority>
     </test>
     <test>
         <TestName>FILE-SYSTEM-VERIFICATION-TESTS-EXT4</TestName>
         <TestScript>FILE-SYSTEM-VERIFICATION-TESTS.ps1</TestScript>
-        <files>.\Testscripts\Linux\perf_xfstesting.sh</files>
+        <files>.\Testscripts\Linux\xfstesting.sh</files>
         <setupType>OneVM1Disk</setupType>
         <TestParameters>
             <param>FSTYP=ext4</param>
-            <param>TEST_DEV=/dev/sdc</param>
-            <param>TEST_DIR=/root/ext4</param>
+            <param>TEST_DEV=/dev/sdc1</param>
+            <param>TEST_DIR=/root/test</param>
             <param>TEST_FS_MOUNT_OPTS='-o nobarrier'</param>
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Community</Category>
-        <Area>Xfstesting-cifs</Area>
-        <Tags>disk</Tags>
+        <Area>STORAGE</Area>
+        <Tags>storage,filesystem</Tags>
         <Priority>2</Priority>
     </test>
     <test>
         <TestName>FILE-SYSTEM-VERIFICATION-TESTS-BTRFS</TestName>
         <TestScript>FILE-SYSTEM-VERIFICATION-TESTS.ps1</TestScript>
-        <files>.\Testscripts\Linux\perf_xfstesting.sh</files>
+        <files>.\Testscripts\Linux\xfstesting.sh</files>
         <setupType>OneVM1Disk</setupType>
         <TestParameters>
             <param>FSTYP=btrfs</param>
-            <param>TEST_DEV=/dev/sdc</param>
-            <param>TEST_DIR=/root/btrfs</param>
+            <param>TEST_DEV=/dev/sdc1</param>
+            <param>TEST_DIR=/root/test</param>
             <param>TEST_FS_MOUNT_OPTS='-o nobarrier'</param>
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Community</Category>
-        <Area>Xfstesting-cifs</Area>
-        <Tags>disk</Tags>
+        <Area>STORAGE</Area>
+        <Tags>storage,filesystem</Tags>
         <Priority>2</Priority>
     </test>
     <test>
@@ -79,6 +78,7 @@
             <param>ltp_version_git_tag="LTP_TESTS_GIT_TAG"</param>
             <param>LTP_TEST_SUITE="LTP_SUITE"</param>
             <param>SCSI=1,1,Fixed,5GB</param>
+            <param>LTP_PACKAGE_URL="LTP_BUILD_URL"</param>
         </TestParameters>
         <Timeout>20000</Timeout>
         <Platform>Azure,HyperV</Platform>
@@ -99,6 +99,7 @@
             <param>ltp_version_git_tag="LTP_TESTS_GIT_TAG"</param>
             <param>LTP_TEST_SUITE="full"</param>
             <param>SCSI=1,1,Fixed,5GB</param>
+            <param>LTP_PACKAGE_URL="LTP_BUILD_URL"</param>
         </TestParameters>
         <Timeout>20000</Timeout>
         <Platform>Azure,HyperV</Platform>

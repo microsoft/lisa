@@ -31,10 +31,26 @@ Function Move-ToNewWorkingSpace($originalFolder) {
 	Write-LogInfo "Path length is too long for current working directory '$originalFolder'"
 	$tempWorkspace    = "$(Split-Path $originalFolder -Qualifier)"
 	$tempParentFolder = "$tempWorkspace\LISAv2"
-	$tempWorkingDir   = "$tempWorkspace\LISAv2\$TestID"
-
+	$tempWorkingDir   = "${tempParentFolder}\$TestID"
 	New-Item -ItemType Directory -Path $tempParentFolder -Force -ErrorAction SilentlyContinue | Out-Null
-	New-Item -ItemType Directory -Path $tempWorkingDir   -Force -ErrorAction SilentlyContinue | Out-Null
+
+	$collisionChecks = 0
+	$maxcollisionChecks = 10
+	do {
+		if (!(Test-Path $tempWorkingDir)) {
+			New-Item -ItemType Directory -Path $tempWorkingDir -Force `
+				-ErrorAction SilentlyContinue | Out-Null
+			break
+		}
+		$tempWorkingDir = "${tempParentFolder}\$TestID-{0}" -f @(Get-Date -Format "yyyyMMddHHmmss")
+		Start-Sleep -S 1
+		$collisionChecks++
+	} while ($collisionChecks -lt $maxcollisionChecks)
+
+	if ($collisionChecks -eq $maxcollisionChecks) {
+		throw "Failed to find an unused workspace."
+	}
+
 	$tmpSource = '\\?\' + "$originalFolder\*"
 	Write-LogInfo "Copying current workspace to $tempWorkingDir"
 	$excludedDirectories = @(".git", "Documents", ".github", "Report", "TestResults", "VHDs_Destination_Path", "*.zip")
@@ -44,7 +60,10 @@ Function Move-ToNewWorkingSpace($originalFolder) {
 	return $tempWorkingDir
 }
 
-Function Move-BackToOriginalWorkingSpace($currentWorkingDirectory, $OriginalWorkingDirectory, $ExitCode = 0){
+Function Move-BackToOriginalWorkingSpace($currentWorkingDirectory, $OriginalWorkingDirectory, $ExitCode = 0) {
+	if ($currentWorkingDirectory -eq $OriginalWorkingDirectory) {
+		return
+	}
 	Write-LogInfo "Copying all files back to original working directory: $OriginalWorkingDirectory."
 	$tmpDest = '\\?\' + $OriginalWorkingDirectory
 	Copy-Item -Path "$currentWorkingDirectory\*" -Destination $tmpDest -Force -Recurse | Out-Null

@@ -72,4 +72,23 @@
         <Tags>dpdk,network,hv_netvsc,sriov</Tags>
         <Priority>2</Priority>
     </test>
+    <test>
+        <testName>VERIFY-DPDK-OVS</testName>
+        <testScript>VERIFY-DPDK-OVS.ps1</testScript>
+        <setupType>TwoVM2NIC</setupType>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <OverrideVMSize>Standard_D16_v3</OverrideVMSize>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdk_generic_setup.sh,.\Testscripts\Linux\ovs_setup.sh</files>
+        <TestParameters>
+            <param>dpdkSrcLink="DPDK_SOURCE_URL"</param>
+            <param>ovsSrcLink="OVS_SOURCE_URL"</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>DPDK</Area>
+        <Tags>dpdk,ovs,network,hv_netvsc,sriov</Tags>
+        <Priority>2</Priority>
+    </test>
 </TestCases>

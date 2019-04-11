@@ -14,7 +14,7 @@
 RootModule = 'LISAv2-Framework.psm1'
 
 # Version number of this module.
-ModuleVersion = '1.19.01'
+ModuleVersion = '1.19.02'
 
 # ID used to uniquely identify this module
 GUID = '16c783d9-e853-40d3-8bf8-cf13b73ade3c'

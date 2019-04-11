@@ -166,6 +166,7 @@
     <test>
         <testName>VHDX-RESIZE-GROWSHRINK-SCSI</testName>
         <setupScript>.\Testscripts\Windows\AddVhdxHardDisk.ps1</setupScript>
+        <cleanupScript>.\TestScripts\Windows\RemoveHardDisk.ps1</cleanupScript>
         <testScript>STOR-VHDX-RESIZE-GROWSHRINK.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VHDXResize_ReadWrite.sh,.\Testscripts\Linux\STOR_VHDXResize_PartitionDisk.sh,.\Testscripts\Linux\check_traces.sh</files>
         <setupType>OneVM</setupType>
@@ -315,7 +316,7 @@
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR-Lis-Disk.sh,.\Testscripts\Linux\check_traces.sh</files>
         <setupType>OneVM</setupType>
         <TestParameters>
-            <param>IDE=1,1,Dynamic</param>
+            <param>IDE=1,0,Dynamic</param>
             <param>IDE=0,1,Dynamic</param>
         </TestParameters>
         <Platform>HyperV</Platform>
@@ -332,7 +333,7 @@
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR-Lis-Disk.sh,.\Testscripts\Linux\check_traces.sh</files>
         <setupType>OneVM</setupType>
         <TestParameters>
-            <param>IDE=0,1,Fixed</param>
+            <param>IDE=1,0,Fixed</param>
             <param>IDE=1,1,Fixed</param>
         </TestParameters>
         <Platform>HyperV</Platform>
@@ -383,10 +384,10 @@
         <files>.\Testscripts\Linux\STOR-Lis-Disk.sh,.\Testscripts\Linux\check_traces.sh,.\Testscripts\Linux\utils.sh</files>
         <setupType>OneVM</setupType>
         <TestParameters>
+            <param>SCSI=1,0,Dynamic</param>
             <param>SCSI=1,1,Dynamic</param>
-            <param>SCSI=1,2,Dynamic</param>
+            <param>SCSI=1,2,Fixed</param>
             <param>SCSI=1,3,Fixed</param>
-            <param>SCSI=1,4,Fixed</param>
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
@@ -401,8 +402,8 @@
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR-Lis-Disk.sh,.\Testscripts\Linux\check_traces.sh</files>
         <setupType>OneVM</setupType>
         <TestParameters>
-            <param>SCSI=1,1,Dynamic</param>
-            <param>SCSI=1,2,Dynamic</param>
+            <param>SCSI=0,1,Dynamic</param>
+            <param>SCSI=0,2,Dynamic</param>
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
@@ -417,8 +418,8 @@
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STORAGE-HotRemove.sh,.\Testscripts\Linux\check_traces.sh</files>
         <setupType>OneVM</setupType>
         <TestParameters>
+            <param>SCSI=1,0,Dynamic</param>
             <param>SCSI=1,1,Dynamic</param>
-            <param>SCSI=1,2,Dynamic</param>
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
@@ -434,7 +435,7 @@
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STORAGE-LargeDisk.sh</files>
         <setupType>OneVM</setupType>
         <TestParameters>
-            <param>SCSI=1,2,Dynamic,2039GB</param>
+            <param>SCSI=1,0,Dynamic,2039GB</param>
             <param>fileSystems=(xfs btrfs)</param>
         </TestParameters>
         <Platform>HyperV</Platform>
@@ -541,8 +542,8 @@
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR-Lis-Disk.sh,.\Testscripts\Linux\check_traces.sh</files>
         <setupType>OneVM</setupType>
         <TestParameters>
-            <param>SCSI=1,1,Dynamic,512</param>
-            <param>SCSI=1,2,Dynamic,512</param>
+            <param>SCSI=0,1,Dynamic,512</param>
+            <param>SCSI=0,2,Dynamic,512</param>
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
@@ -610,8 +611,8 @@
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR-Lis-Disk.sh,.\Testscripts\Linux\check_traces.sh</files>
         <setupType>OneVM</setupType>
         <TestParameters>
-            <param>SCSI=1,1,Dynamic,4096</param>
-            <param>SCSI=1,2,Dynamic,4096</param>
+            <param>SCSI=0,1,Dynamic,4096</param>
+            <param>SCSI=0,2,Dynamic,4096</param>
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>

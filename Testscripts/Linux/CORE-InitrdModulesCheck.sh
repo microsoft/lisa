@@ -21,6 +21,9 @@ SearchModules()
 {
     LogMsg "Searching for modules..."
     [[ -d "/root/initr/usr/lib/modules" ]] && abs_path="/root/initr/usr/lib/modules/" || abs_path="/root/initr/lib/modules/"
+    if [[ $DISTRO == "suse_12" ]]; then
+        abs_path="/lib/modules/"
+    fi
     for module in "${hv_modules[@]}"; do
         grep -i "$module" $abs_path*/modules.dep
         if [ $? -eq 0 ]; then
@@ -95,8 +98,8 @@ done
 hv_modules=("${tempList[@]}")
 
 if [ "${hv_modules:-UNDEFINED}" = "UNDEFINED" ]; then
-    LogErr "The test parameter hv_modules is not defined in constants file."
-    SetTestStateAborted
+    LogMsg "hv_vmbus.ko, hv_storvsc.ko and hv_netvsc.ko modules are built-in, skip test"
+    SetTestStateSkipped
     exit 0
 fi
 
@@ -122,7 +125,7 @@ case $DISTRO in
 esac
 
 if [ -f /boot/initramfs-0-rescue* ]; then
-    img=/boot/initramfs-0-rescue*
+    img=$(find /boot -name "initramfs-0-rescue*" | head -1)
 else
   if [ -f "/boot/initrd-$(uname -r)" ]; then
     img="/boot/initrd-$(uname -r)"

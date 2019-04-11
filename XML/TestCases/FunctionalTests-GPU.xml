@@ -1,54 +1,69 @@
 <TestCases>
     <test>
-        <testName>VERIFY-NVIDIA-CUDA-DRIVER-FOR-NC6-VM</testName>
-        <testScript>VERIFY-NVIDIA-CUDA-DRIVER-INSTALLATION.ps1</testScript>
+        <testName>NVIDIA-CUDA-DRIVER-VALIDATION</testName>
+        <testScript>GPU-DRIVER-INSTALL.ps1</testScript>
         <setupType>OneVM</setupType>
         <OverrideVMSize>Standard_NC6</OverrideVMSize>
-        <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\InstallCUDADrivers.sh</files>
+        <files>.\Testscripts\Linux\gpu-driver-install.sh,.\Testscripts\Linux\utils.sh</files>
+        <TestParameters>
+            <param>CUDADriverVersion="CUDA_DRIVER"</param>
+        </TestParameters>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>GPU</Area>
         <Tags>gpu,pci_hyperv</Tags>
+        <Priority>0</Priority>
+    </test>
+    <test>
+        <testName>NVIDIA-GRID-DRIVER-VALIDATION</testName>
+        <testScript>GPU-DRIVER-INSTALL.ps1</testScript>
+        <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_NV6</OverrideVMSize>
+        <files>.\Testscripts\Linux\gpu-driver-install.sh,.\Testscripts\Linux\utils.sh</files>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>GPU</Area>
+        <Tags>gpu,pci_hyperv</Tags>
+        <Priority>0</Priority>
+    </test>
+    <test>
+        <testName>NVIDIA-CUDA-DRIVER-TENSORFLOW</testName>
+        <preTestScript>GPU-DRIVER-INSTALL.ps1</preTestScript>
+        <testScript>GPU-TENSORFLOW.ps1</testScript>
+        <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_NC6</OverrideVMSize>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\gpu-driver-install.sh,.\Testscripts\Linux\gpu-tensorflow.sh</files>
+        <TestParameters>
+            <param>CUDADriverVersion="CUDA_DRIVER"</param>
+            <param>CudaToolkitVersion="CUDATOOLKIT_VERSION"</param>
+            <param>TensorflowVersion="TENSORFLOW_VERSION"</param>
+            <param>CudnnPackage="CUDNN_LINUX_PACKAGE"</param>
+            <param>BenchmarkTool="TENSORFLOW_BENCHMARK"</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>GPU</Area>
+        <Tags>gpu,benchmark</Tags>
         <Priority>1</Priority>
     </test>
     <test>
-        <testName>VERIFY-NVIDIA-CUDA-DRIVER-FOR-NC12-VM</testName>
-        <testScript>VERIFY-NVIDIA-CUDA-DRIVER-INSTALLATION.ps1</testScript>
+        <testName>NVIDIA-GRID-DRIVER-TENSORFLOW</testName>
+        <preTestScript>GPU-DRIVER-INSTALL.ps1</preTestScript>
+        <testScript>GPU-TENSORFLOW.ps1</testScript>
         <setupType>OneVM</setupType>
-        <OverrideVMSize>Standard_NC12</OverrideVMSize>
-        <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\InstallCUDADrivers.sh</files>
+        <OverrideVMSize>Standard_NV6</OverrideVMSize>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\gpu-driver-install.sh,.\Testscripts\Linux\gpu-tensorflow.sh</files>
+        <TestParameters>
+            <param>CUDADriverVersion="CUDA_DRIVER"</param>
+            <param>CudaToolkitVersion="CUDATOOLKIT_VERSION"</param>
+            <param>TensorflowVersion="TENSORFLOW_VERSION"</param>
+            <param>CudnnPackage="CUDNN_LINUX_PACKAGE"</param>
+            <param>BenchmarkTool="TENSORFLOW_BENCHMARK"</param>
+        </TestParameters>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>GPU</Area>
-        <Tags>gpu,pci_hyperv</Tags>
-        <Priority>1</Priority>
-    </test>
-    <test>
-        <testName>VERIFY-NVIDIA-CUDA-DRIVER-FOR-NC24-VM</testName>
-        <testScript>VERIFY-NVIDIA-CUDA-DRIVER-INSTALLATION.ps1</testScript>
-        <setupType>OneVM</setupType>
-        <OverrideVMSize>Standard_NC24</OverrideVMSize>
-        <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\InstallCUDADrivers.sh</files>
-        <Platform>Azure</Platform>
-        <Category>Functional</Category>
-        <Area>GPU</Area>
-        <Tags>gpu,pci_hyperv</Tags>
-        <Priority>1</Priority>
-    </test>
-    <test>
-        <testName>VERIFY-NVIDIA-CUDA-DRIVER-FOR-NC24r-VM</testName>
-        <testScript>VERIFY-NVIDIA-CUDA-DRIVER-INSTALLATION.ps1</testScript>
-        <setupType>OneVM</setupType>
-        <OverrideVMSize>Standard_NC24r</OverrideVMSize>
-        <SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\InstallCUDADrivers.sh</files>
-        <Platform>Azure</Platform>
-        <Category>Functional</Category>
-        <Area>GPU</Area>
-        <Tags>gpu,pci_hyperv</Tags>
+        <Tags>gpu,benchmark</Tags>
         <Priority>1</Priority>
     </test>
 </TestCases>

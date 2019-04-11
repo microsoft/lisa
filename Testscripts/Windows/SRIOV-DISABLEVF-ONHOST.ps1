@@ -46,9 +46,16 @@ function Main {
     }
     Write-LogInfo "The throughput before disabling SR-IOV is $vfEnabledThroughput Gbits/sec"
 
-    # Disable SR-IOV on test VM
-    $switchName = Get-VMNetworkAdapter -VMName $VMName -ComputerName $HvServer | Where-Object {$_.SwitchName -like 'SRIOV*'} | Select-Object -ExpandProperty SwitchName
-    $hostNICName = Get-VMSwitch -Name $switchName -ComputerName $HvServer| Select-Object -ExpandProperty NetAdapterInterfaceDescription
+    # Disable SR-IOV on test host and dependency host
+    $switchName = Get-VMNetworkAdapter -VMName $VMName -ComputerName $HvServer | `
+        Where-Object {$_.SwitchName -like 'SRIOV*'} | Select-Object -ExpandProperty SwitchName
+    $hostNICName = Get-VMSwitch -Name $switchName -ComputerName $HvServer | `
+        Select-Object -ExpandProperty NetAdapterInterfaceDescription
+    $dependencySwitchName = Get-VMNetworkAdapter -VMName $DependencyVmName -ComputerName $DependencyVmHost `
+        | Where-Object {$_.SwitchName -like 'SRIOV*'} | Select-Object -ExpandProperty SwitchName
+    $dependencyHostNICName = Get-VMSwitch -Name $dependencySwitchName -ComputerName $DependencyVmHost `
+        | Select-Object -ExpandProperty NetAdapterInterfaceDescription
+
     Write-LogInfo "Disabling VF on $hostNICName"
     Disable-NetAdapterSriov -InterfaceDescription $hostNICName -CIMsession $HvServer
     if (-not $?) {
@@ -56,6 +63,13 @@ function Main {
         Enable-NetAdapterSriov -InterfaceDescription $hostNICName -CIMsession $hvServer
         return "FAIL"
     }
+    Disable-NetAdapterSriov -InterfaceDescription $dependencyHostNICName -CIMsession $DependencyVmHost
+    if (-not $?) {
+        Write-LogErr "Failed to disable SR-IOV on $dependencyHostNICName!"
+        Enable-NetAdapterSriov -InterfaceDescription $dependencyHostNICName -CIMsession $DependencyVmHost
+        return "FAIL"
+    }
+
     # Wait 1 minute to make sure VF has changed. It is an expected behavior
     Write-LogInfo "Wait 1 minute for VF to be put down"
     Start-Sleep -s 60
@@ -79,25 +93,31 @@ function Main {
         return "FAIL"
     }
 
-    # Enable SR-IOV on test VM
+    # Enable SR-IOV on test host and dependency host
     Write-LogInfo "Enable VF on on $hostNICName"
     Enable-NetAdapterSriov -InterfaceDescription $hostNICName -CIMsession $hvServer
     if (-not $?) {
-        Write-LogErr "Failed to enable SR-IOV on $hostNIC_name! Please try to manually enable it"
+        Write-LogErr "Failed to enable SR-IOV on $hostNICName! Please try to manually enable it"
         return "FAIL"
     }
+    Enable-NetAdapterSriov -InterfaceDescription $dependencyHostNICName -CIMsession $DependencyVmHost
+    if (-not $?) {
+        Write-LogErr "Failed to enable SR-IOV on $dependencyHostNICName!"
+        return "FAIL"
+    }
+
     # Wait 1 minute to make sure VF has changed. It is an expected behavior
     Write-LogInfo "Wait 1 minute for VF to be put up"
     Start-Sleep -s 60
     # Read the throughput again, it should be higher than before
     Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "source sriov_constants.sh ; iperf3 -t 30 -c `$VF_IP2 --logfile PerfResults.log"
-    [decimal]$vfEnabledThroughput  = $vfEnabledThroughput * 0.7
+    [decimal]$vfDisabledThroughput = $vfDisabledThroughput * 1.5
     [decimal]$vfFinalThroughput = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "tail -4 PerfResults.log | head -1 | awk '{print `$7}'" `
         -ignoreLinuxExitCode:$true
     Write-LogInfo "The throughput after re-enabling SR-IOV is $vfFinalThroughput Gbits/sec"
-    if ($vfEnabledThroughput -gt $vfFinalThroughput) {
+    if ($vfDisabledThroughput -gt $vfFinalThroughput) {
         Write-LogErr "After re-enabling SR-IOV, the throughput has not increased enough"
         return "FAIL"
     }

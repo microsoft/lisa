@@ -8,24 +8,35 @@ import re
 def RunTest():
     UpdateState("TestRunning")
     uuid_from_demesg = 0
+    uuid_from_blkid = 0
     dmsg_dev_count = 0
     output = JustRun("dmesg")
     output = output.lower()
-    filter_condition_dmesg = r'.*root=UUID=(.*?) .*'
-    filter_condition_fstab = r'.*UUID=(.*?)[ \t]+\/[ \t]+'
-    if (DetectDistro()[0] == 'opensuse' or DetectDistro()[0] == 'SUSE' or (DetectDistro()[0] == 'sles' and DetectDistro()[1] != '15')):
-        filter_condition_dmesg = r'.*root=/dev/disk/by-uuid/(.*?) .*'
-        filter_condition_fstab = r'.*/dev/disk/by-uuid/(.*?)[ \t]+\/[ \t]+'
+    filter_condition_dmesg = r'uuid(=|/|-)(.*?)([ \t]|[\.])'
+    filter_condition_blkid = r'(LABEL=\"(.*?)\"|)[ \t]uuid=\"(.*?)\"[ \t]'
+    filter_condition_fstab = r'uuid(/|=)(\S+)[ \t]+\/(.*?)[ \t]+(.*?)[ \t]'
 
     dmsg_dev_count = output.count('command line:.*root=/dev/sd')
 
     outputlist = re.split("\n", output)
     for line in outputlist:
-        matchObj = re.match(filter_condition_dmesg, line, re.M|re.I)
+        matchObj = re.search(filter_condition_dmesg, line, re.IGNORECASE)
 
         if matchObj:
-           uuid_from_demesg = matchObj.group(1)
-           
+           uuid_from_demesg = matchObj.groups()[-2]
+
+    uuid_from_demesg = uuid_from_demesg.replace("\\x2d", "-")
+
+    output = JustRun("blkid")
+    output = output.lower()
+
+    outputlist = re.split("\n", output)
+    for line in outputlist:
+        matchObj = re.search(filter_condition_blkid, line, re.IGNORECASE)
+
+        if (matchObj and uuid_from_demesg == matchObj.groups()[-1]):
+            uuid_from_blkid = matchObj.groups()[-1]
+
     uuid_from_fstab = 0
     fstab_dev_count = 0
     fstab_dev_count = output = JustRun("cat /etc/fstab")
@@ -33,11 +44,11 @@ def RunTest():
 
     outputlist = re.split("\n", output)
     for line in outputlist:
-        matchObj = re.match(filter_condition_fstab, line, re.M|re.I)
-        #matchObj = re.match( r'.*UUID=(.*?)[ \t]*/ .*', line, re.M|re.I)
+        matchObj = re.search(filter_condition_fstab, line, re.IGNORECASE)
 
         if matchObj:
-           uuid_from_fstab = matchObj.group(1)
+            if (uuid_from_blkid == matchObj.groups()[-3]):
+                uuid_from_fstab = matchObj.groups()[-3]
 
     if(uuid_from_demesg and uuid_from_fstab and (uuid_from_demesg == uuid_from_fstab) and (dmsg_dev_count == 0) and (fstab_dev_count == 0)):
         ResultLog.info('PASS')

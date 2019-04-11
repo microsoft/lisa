@@ -81,9 +81,7 @@ case $DISTRO in
         done
         ;;
     *)
-        LogMsg "Unknown Distro"
-        SetTestStateAborted
-        exit 0
+        LogMsg "Unknown Distro, continuing to try for RPM installation"
         ;;
 esac
 
@@ -95,39 +93,51 @@ cd "$TOP_SRCDIR"
 # 'ltp_version_git_tag' is passed from Test Definition in .\XML\TestCases\CommunityTests.xml. 
 # 'ltp_version_git_tag' default value is defined in .\XML\Other\ReplaceableTestParameters.xml
 # You can run the ltp test with any tag using LISAv2's Custom Parameters feature.
-LogMsg "Cloning LTP"
-git clone https://github.com/linux-test-project/ltp.git
-TOP_SRCDIR="${HOME}/src/ltp"
 
-cd "$TOP_SRCDIR"
-if [[ "$ltp_version_git_tag" != "" || "$ltp_version_git_tag" != "master" ]]; then
-    git checkout tags/"$ltp_version_git_tag"
-fi
+if [[ $LTP_PACKAGE_URL == "" ]];then
+    LogMsg "Cloning LTP"
+    git clone https://github.com/linux-test-project/ltp.git
+    TOP_SRCDIR="${HOME}/src/ltp"
 
-LogMsg "Configuring LTP..."
-# use autoreconf to match the installed package versions
-autoreconf -f 2>/dev/null
-make autotools 2>/dev/null
+    cd "$TOP_SRCDIR"
+    if [[ "$ltp_version_git_tag" != "" || "$ltp_version_git_tag" != "master" ]]; then
+        git checkout tags/"$ltp_version_git_tag"
+    fi
 
-test -d "$TOP_BUILDDIR" || mkdir -p "$TOP_BUILDDIR"
-cd "$TOP_BUILDDIR" && "$TOP_SRCDIR/configure"
-cd "$TOP_SRCDIR"
-./configure 2>/dev/null
+    LogMsg "Configuring LTP..."
+    # use autoreconf to match the installed package versions
+    autoreconf -f 2>/dev/null
+    make autotools 2>/dev/null
 
-LogMsg "Compiling LTP..."
-make -j "$proc_count" all 2>/dev/null
-if [ $? -ne 0 ]; then
-    LogMsg "Error: Failed to compile LTP!"
-    SetTestStateFailed
-    exit 0
-fi
+    test -d "$TOP_BUILDDIR" || mkdir -p "$TOP_BUILDDIR"
+    cd "$TOP_BUILDDIR" && "$TOP_SRCDIR/configure"
+    cd "$TOP_SRCDIR"
+    ./configure 2>/dev/null
 
-LogMsg "Installing LTP..."
-make -j "$proc_count" install 2>/dev/null
-if [ $? -ne 0 ]; then
-    LogMsg "Error: Failed to install LTP!"
-    SetTestStateFailed
-    exit 0
+    LogMsg "Compiling LTP..."
+    make -j "$proc_count" all 2>/dev/null
+    if [ $? -ne 0 ]; then
+        LogMsg "Error: Failed to compile LTP!"
+        SetTestStateFailed
+        exit 0
+    fi
+
+    LogMsg "Installing LTP..."
+    make -j "$proc_count" install 2>/dev/null
+    if [ $? -ne 0 ]; then
+        LogMsg "Error: Failed to install LTP!"
+        SetTestStateFailed
+        exit 0
+    fi
+else
+    LogMsg "Download ltp package from: $LTP_PACKAGE_URL"
+    curl $LTP_PACKAGE_URL --output "ltp.rpm"
+    rpm --nodeps -ivh ltp.rpm
+    if [ $? -ne 0 ]; then
+        LogMsg "Error: Failed to install LTP rpm!"
+        SetTestStateFailed
+        exit 0
+    fi
 fi
 
 cd "$TOP_BUILDDIR"

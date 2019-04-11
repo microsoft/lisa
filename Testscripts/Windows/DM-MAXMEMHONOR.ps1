@@ -52,19 +52,19 @@ function Main {
     $resultArr = @()
     try {
         $testResult = $null
-        $memweight=$TestParams.memWeight
-        $memweight1=$TestParams.memWeight1
-        $minMem=$TestParams.minMem
-        $minMem1=$TestParams.minMem1
-        $maxMem=$TestParams.maxMem
-        $maxMem1=$TestParams.maxMem1
-        $startupMem=$TestParams.startupMem
-        $startupMem1=$TestParams.startupMem1
-        $VM1Ipv4=$VM1.PublicIP
-        $VMPort=$VM2.SSHPort
-        $vm1name=$VM1.RoleName
-        $vm2name=$VM2.RoleName
-        $HvServer=$VM1.HyperVHost
+        $memweight = $TestParams.memWeight
+        $memweight1 = $TestParams.memWeight1
+        $minMem = $TestParams.minMem
+        $minMem1 = $TestParams.minMem1
+        $maxMem = $TestParams.maxMem
+        $maxMem1 = $TestParams.maxMem1
+        $startupMem = $TestParams.startupMem
+        $startupMem1 = $TestParams.startupMem1
+        $VM1Ipv4 = $VM1.PublicIP
+        $VMPort = $VM2.SSHPort
+        $vm1name = $VM1.RoleName
+        $vm2name = $VM2.RoleName
+        $HvServer = $VM1.HyperVHost
         $appGitURL = $TestParams.appGitURL
         $appGitTag = $TestParams.appGitTag
         Write-LogInfo "VM1name is $vm1name"
@@ -74,10 +74,10 @@ function Main {
         Write-LogInfo "appGitTag is  $appGitTag"
         Write-LogInfo "Param vm1 Details are -VM $VM1 -minMem $minMem -maxMem $TestParams.maxMem -startupMem $TestParams.startupMem -memWeight $memWeight"
         Write-LogInfo "Param vm2 Details are -VM $VM2 -minMem $minMem1 -maxMem $maxMem1 -startupMem $TestParams.startupMem1 -memWeight $memWeight1"
-        Set-VMDynamicMemory -VM $VM1 -minMem $minMem -maxMem $maxMem -startupMem $startupMem -memWeight $TestParams.memWeight
-        Set-VMDynamicMemory -VM $VM2 -minMem $minMem1 -maxMem $maxMem1 -startupMem $startupMem1 -memWeight $TestParams.memWeight1
+        Set-VMDynamicMemory -VM $VM1 -minMem $minMem -maxMem $maxMem -startupMem $startupMem -memWeight $TestParams.memWeight | Out-Null
+        Set-VMDynamicMemory -VM $VM2 -minMem $minMem1 -maxMem $maxMem1 -startupMem $startupMem1 -memWeight $TestParams.memWeight1 | Out-Null
         Write-LogInfo "Starting VM1 $vm1name"
-        $VM1Ipv4=Start-VMandGetIP $vm1name $HvServer $VMPort $user $password
+        $VM1Ipv4 = Start-VMandGetIP $vm1name $HvServer $VMPort $user $password
         # change working directory to root dir
         Set-Location $WorkingDirectory
         if (-not $WorkingDirectory) {
@@ -94,7 +94,7 @@ function Main {
         Write-LogInfo "stress-ng is installed! Will begin running memory stress tests shortly."
         $timeoutStress = 0
         Write-LogInfo "Starting VM2 $vm2Name"
-        $VM2Ipv4=Start-VMandGetIP $vm2name $HvServer $VMPort $user $password
+        $VM2Ipv4 = Start-VMandGetIP $vm2name $HvServer $VMPort $user $password
         Write-LogInfo "IP for the VM $vm2name is $VM2Ipv4"
         # get memory stats from vm1 and vm2
         # wait up to 2 min for it
@@ -130,8 +130,8 @@ function Main {
         # Send Command to consume
         $cmdAddConstants = "echo -e `"timeoutStress=$($timeoutStress)\nmemMB=$($vm2ConsumeMem)\nduration=$($vm2Duration)\nchunk=$($chunks)`" > /home/$user/constants.sh"
         Run-LinuxCmd -username $user -password $password -ip $VM1Ipv4 -port $VMPort -command $cmdAddConstants -runAsSudo
-        $Memcheck = "echo '${password}' | sudo -S -s eval `"export HOME=``pwd``;. utils.sh && UtilsInit && ConsumeMemory`""
-        $job1=Run-LinuxCmd -username $user -password $password -ip $VM1Ipv4 -port $VMPort -command $Memcheck -runAsSudo -RunInBackGround
+        $Memcheck = ". utils.sh && UtilsInit && ConsumeMemory"
+        $job1 = Run-LinuxCmd -username $user -password $password -ip $VM1Ipv4 -port $VMPort -command $Memcheck -runAsSudo -RunInBackGround
         if (-not $?) {
             throw "Unable to start job for creating pressure on $vm1name" | Tee-Object -Append -file $summaryLog
         }

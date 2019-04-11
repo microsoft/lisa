@@ -13,3 +13,4 @@ UploadStatusFile*
 Tools/kvp_*
 Tools/jq
 Tools/gawk
+DownloadedFiles*

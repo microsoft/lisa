@@ -87,27 +87,12 @@
             </VirtualMachine>
         </ResourceGroup>
     </ThreeVM2NIC>
-    <RDMA4VMs>
+    <FiveVM>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
             <VirtualMachine>
-                <state></state>
-                <InstanceSize>Standard_A8</InstanceSize>
-                <ARMInstanceSize>Standard_A8</ARMInstanceSize>
-                <RoleName>controller-vm</RoleName>
-                <EndPoints>
-                    <Name>SSH</Name>
-                    <Protocol>tcp</Protocol>
-                    <LocalPort>22</LocalPort>
-                    <PublicPort>1110</PublicPort>
-                </EndPoints>
-                <DataDisk></DataDisk>
-            </VirtualMachine>
-            <VirtualMachine>
-                <state></state>
-                <InstanceSize>Standard_A8</InstanceSize>
-                <ARMInstanceSize>Standard_A8</ARMInstanceSize>
-                <RoleName>client-vm-1</RoleName>
+                <ARMInstanceSize>Standard_D15_v2</ARMInstanceSize>
+                <RoleName>server</RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
                     <Protocol>tcp</Protocol>
@@ -117,10 +102,9 @@
                 <DataDisk></DataDisk>
             </VirtualMachine>
             <VirtualMachine>
-                <state></state>
-                <InstanceSize>Standard_A8</InstanceSize>
-                <ARMInstanceSize>Standard_A8</ARMInstanceSize>
-                <RoleName>client-vm-2</RoleName>
+                <DeployOnDifferentHyperVHost>yes</DeployOnDifferentHyperVHost>
+                <ARMInstanceSize>Standard_D15_v2</ARMInstanceSize>
+                <RoleName>client-vm-1</RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
                     <Protocol>tcp</Protocol>
@@ -130,27 +114,50 @@
                 <DataDisk></DataDisk>
             </VirtualMachine>
             <VirtualMachine>
-                <state></state>
-                <InstanceSize>Standard_A8</InstanceSize>
-                <ARMInstanceSize>Standard_A8</ARMInstanceSize>
-                <RoleName>client-vm-3</RoleName>
+                <DeployOnDifferentHyperVHost>yes</DeployOnDifferentHyperVHost>
+                <ARMInstanceSize>Standard_D15_v2</ARMInstanceSize>
+                <RoleName>client-vm-2</RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
                     <Protocol>tcp</Protocol>
                     <LocalPort>22</LocalPort>
                     <PublicPort>1113</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+            </VirtualMachine>
+            <VirtualMachine>
+                <DeployOnDifferentHyperVHost>yes</DeployOnDifferentHyperVHost>
+                <ARMInstanceSize>Standard_D15_v2</ARMInstanceSize>
+                <RoleName>client-vm-3</RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>1114</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+            </VirtualMachine>
+            <VirtualMachine>
+                <DeployOnDifferentHyperVHost>yes</DeployOnDifferentHyperVHost>
+                <ARMInstanceSize>Standard_D15_v2</ARMInstanceSize>
+                <RoleName>client-vm-4</RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>1115</PublicPort>
                 </EndPoints>
                 <DataDisk></DataDisk>
             </VirtualMachine>
         </ResourceGroup>
-    </RDMA4VMs>
-    <RDMA8VMs>
+    </FiveVM>
+    <RDMA32VMs>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
             <VirtualMachine>
                 <state></state>
-                <InstanceSize>Standard_A8</InstanceSize>
-                <ARMInstanceSize>Standard_A8</ARMInstanceSize>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
                 <RoleName>controller-vm</RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
@@ -162,8 +169,8 @@
             </VirtualMachine>
             <VirtualMachine>
                 <state></state>
-                <InstanceSize>Standard_A8</InstanceSize>
-                <ARMInstanceSize>Standard_A8</ARMInstanceSize>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
                 <RoleName>client-vm-1</RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
@@ -175,8 +182,8 @@
             </VirtualMachine>
             <VirtualMachine>
                 <state></state>
-                <InstanceSize>Standard_A8</InstanceSize>
-                <ARMInstanceSize>Standard_A8</ARMInstanceSize>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
                 <RoleName>client-vm-2</RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
@@ -188,8 +195,8 @@
             </VirtualMachine>
             <VirtualMachine>
                 <state></state>
-                <InstanceSize>Standard_A8</InstanceSize>
-                <ARMInstanceSize>Standard_A8</ARMInstanceSize>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
                 <RoleName>client-vm-3</RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
@@ -201,8 +208,8 @@
             </VirtualMachine>
             <VirtualMachine>
                 <state></state>
-                <InstanceSize>Standard_A8</InstanceSize>
-                <ARMInstanceSize>Standard_A8</ARMInstanceSize>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
                 <RoleName>client-vm-4</RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
@@ -214,8 +221,8 @@
             </VirtualMachine>
             <VirtualMachine>
                 <state></state>
-                <InstanceSize>Standard_A8</InstanceSize>
-                <ARMInstanceSize>Standard_A8</ARMInstanceSize>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
                 <RoleName>client-vm-5</RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
@@ -227,8 +234,8 @@
             </VirtualMachine>
             <VirtualMachine>
                 <state></state>
-                <InstanceSize>Standard_A8</InstanceSize>
-                <ARMInstanceSize>Standard_A8</ARMInstanceSize>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
                 <RoleName>client-vm-6</RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
@@ -240,117 +247,8 @@
             </VirtualMachine>
             <VirtualMachine>
                 <state></state>
-                <InstanceSize>Standard_A8</InstanceSize>
-                <ARMInstanceSize>Standard_A8</ARMInstanceSize>
-                <RoleName>client-vm-7</RoleName>
-                <EndPoints>
-                    <Name>SSH</Name>
-                    <Protocol>tcp</Protocol>
-                    <LocalPort>22</LocalPort>
-                    <PublicPort>1117</PublicPort>
-                </EndPoints>
-                <DataDisk></DataDisk>
-            </VirtualMachine>
-        </ResourceGroup>
-    </RDMA8VMs>
-    <RDMA16VMs>
-        <isDeployed>NO</isDeployed>
-        <ResourceGroup>
-            <VirtualMachine>
-                <state></state>
-                <InstanceSize>Standard_A8</InstanceSize>
-                <ARMInstanceSize>Standard_A8</ARMInstanceSize>
-                <RoleName>controller-vm</RoleName>
-                <EndPoints>
-                    <Name>SSH</Name>
-                    <Protocol>tcp</Protocol>
-                    <LocalPort>22</LocalPort>
-                    <PublicPort>1110</PublicPort>
-                </EndPoints>
-                <DataDisk></DataDisk>
-            </VirtualMachine>
-            <VirtualMachine>
-                <state></state>
-                <InstanceSize>Standard_A8</InstanceSize>
-                <ARMInstanceSize>Standard_A8</ARMInstanceSize>
-                <RoleName>client-vm-1</RoleName>
-                <EndPoints>
-                    <Name>SSH</Name>
-                    <Protocol>tcp</Protocol>
-                    <LocalPort>22</LocalPort>
-                    <PublicPort>1111</PublicPort>
-                </EndPoints>
-                <DataDisk></DataDisk>
-            </VirtualMachine>
-            <VirtualMachine>
-                <state></state>
-                <InstanceSize>Standard_A8</InstanceSize>
-                <ARMInstanceSize>Standard_A8</ARMInstanceSize>
-                <RoleName>client-vm-2</RoleName>
-                <EndPoints>
-                    <Name>SSH</Name>
-                    <Protocol>tcp</Protocol>
-                    <LocalPort>22</LocalPort>
-                    <PublicPort>1112</PublicPort>
-                </EndPoints>
-                <DataDisk></DataDisk>
-            </VirtualMachine>
-            <VirtualMachine>
-                <state></state>
-                <InstanceSize>Standard_A8</InstanceSize>
-                <ARMInstanceSize>Standard_A8</ARMInstanceSize>
-                <RoleName>client-vm-3</RoleName>
-                <EndPoints>
-                    <Name>SSH</Name>
-                    <Protocol>tcp</Protocol>
-                    <LocalPort>22</LocalPort>
-                    <PublicPort>1113</PublicPort>
-                </EndPoints>
-                <DataDisk></DataDisk>
-            </VirtualMachine>
-            <VirtualMachine>
-                <state></state>
-                <InstanceSize>Standard_A8</InstanceSize>
-                <ARMInstanceSize>Standard_A8</ARMInstanceSize>
-                <RoleName>client-vm-4</RoleName>
-                <EndPoints>
-                    <Name>SSH</Name>
-                    <Protocol>tcp</Protocol>
-                    <LocalPort>22</LocalPort>
-                    <PublicPort>1114</PublicPort>
-                </EndPoints>
-                <DataDisk></DataDisk>
-            </VirtualMachine>
-            <VirtualMachine>
-                <state></state>
-                <InstanceSize>Standard_A8</InstanceSize>
-                <ARMInstanceSize>Standard_A8</ARMInstanceSize>
-                <RoleName>client-vm-5</RoleName>
-                <EndPoints>
-                    <Name>SSH</Name>
-                    <Protocol>tcp</Protocol>
-                    <LocalPort>22</LocalPort>
-                    <PublicPort>1115</PublicPort>
-                </EndPoints>
-                <DataDisk></DataDisk>
-            </VirtualMachine>
-            <VirtualMachine>
-                <state></state>
-                <InstanceSize>Standard_A8</InstanceSize>
-                <ARMInstanceSize>Standard_A8</ARMInstanceSize>
-                <RoleName>client-vm-6</RoleName>
-                <EndPoints>
-                    <Name>SSH</Name>
-                    <Protocol>tcp</Protocol>
-                    <LocalPort>22</LocalPort>
-                    <PublicPort>1116</PublicPort>
-                </EndPoints>
-                <DataDisk></DataDisk>
-            </VirtualMachine>
-            <VirtualMachine>
-                <state></state>
-                <InstanceSize>Standard_A8</InstanceSize>
-                <ARMInstanceSize>Standard_A8</ARMInstanceSize>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
                 <RoleName>client-vm-7</RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
@@ -362,8 +260,8 @@
             </VirtualMachine>
             <VirtualMachine>
                 <state></state>
-                <InstanceSize>Standard_A8</InstanceSize>
-                <ARMInstanceSize>Standard_A8</ARMInstanceSize>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
                 <RoleName>client-vm-8</RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
@@ -375,8 +273,8 @@
             </VirtualMachine>
             <VirtualMachine>
                 <state></state>
-                <InstanceSize>Standard_A8</InstanceSize>
-                <ARMInstanceSize>Standard_A8</ARMInstanceSize>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
                 <RoleName>client-vm-9</RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
@@ -388,8 +286,8 @@
             </VirtualMachine>
             <VirtualMachine>
                 <state></state>
-                <InstanceSize>Standard_A8</InstanceSize>
-                <ARMInstanceSize>Standard_A8</ARMInstanceSize>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
                 <RoleName>client-vm-10</RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
@@ -401,8 +299,8 @@
             </VirtualMachine>
             <VirtualMachine>
                 <state></state>
-                <InstanceSize>Standard_A8</InstanceSize>
-                <ARMInstanceSize>Standard_A8</ARMInstanceSize>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
                 <RoleName>client-vm-11</RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
@@ -414,8 +312,8 @@
             </VirtualMachine>
             <VirtualMachine>
                 <state></state>
-                <InstanceSize>Standard_A8</InstanceSize>
-                <ARMInstanceSize>Standard_A8</ARMInstanceSize>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
                 <RoleName>client-vm-12</RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
@@ -427,8 +325,8 @@
             </VirtualMachine>
             <VirtualMachine>
                 <state></state>
-                <InstanceSize>Standard_A8</InstanceSize>
-                <ARMInstanceSize>Standard_A8</ARMInstanceSize>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
                 <RoleName>client-vm-13</RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
@@ -440,8 +338,8 @@
             </VirtualMachine>
             <VirtualMachine>
                 <state></state>
-                <InstanceSize>Standard_A8</InstanceSize>
-                <ARMInstanceSize>Standard_A8</ARMInstanceSize>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
                 <RoleName>client-vm-14</RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
@@ -453,8 +351,8 @@
             </VirtualMachine>
             <VirtualMachine>
                 <state></state>
-                <InstanceSize>Standard_A8</InstanceSize>
-                <ARMInstanceSize>Standard_A8</ARMInstanceSize>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
                 <RoleName>client-vm-15</RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
@@ -464,6 +362,227 @@
                 </EndPoints>
                 <DataDisk></DataDisk>
             </VirtualMachine>
+            <VirtualMachine>
+                <state></state>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
+                <RoleName>client-vm-16</RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>1126</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+            </VirtualMachine>
+            <VirtualMachine>
+                <state></state>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
+                <RoleName>client-vm-17</RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>1127</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+            </VirtualMachine>
+            <VirtualMachine>
+                <state></state>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
+                <RoleName>client-vm-18</RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>1128</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+            </VirtualMachine>
+            <VirtualMachine>
+                <state></state>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
+                <RoleName>client-vm-19</RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>1129</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+            </VirtualMachine>
+            <VirtualMachine>
+                <state></state>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
+                <RoleName>client-vm-20</RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>1130</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+            </VirtualMachine>
+            <VirtualMachine>
+                <state></state>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
+                <RoleName>client-vm-21</RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>1131</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+            </VirtualMachine>
+            <VirtualMachine>
+                <state></state>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
+                <RoleName>client-vm-22</RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>1132</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+            </VirtualMachine>
+            <VirtualMachine>
+                <state></state>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
+                <RoleName>client-vm-23</RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>1133</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+            </VirtualMachine>
+            <VirtualMachine>
+                <state></state>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
+                <RoleName>client-vm-24</RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>1134</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+            </VirtualMachine>
+            <VirtualMachine>
+                <state></state>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
+                <RoleName>client-vm-25</RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>1135</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+            </VirtualMachine>
+            <VirtualMachine>
+                <state></state>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
+                <RoleName>client-vm-26</RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>1136</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+            </VirtualMachine>
+            <VirtualMachine>
+                <state></state>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
+                <RoleName>client-vm-27</RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>1137</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+            </VirtualMachine>
+            <VirtualMachine>
+                <state></state>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
+                <RoleName>client-vm-28</RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>1138</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+            </VirtualMachine>
+            <VirtualMachine>
+                <state></state>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
+                <RoleName>client-vm-29</RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>1139</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+            </VirtualMachine>
+            <VirtualMachine>
+                <state></state>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
+                <RoleName>client-vm-30</RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>1140</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+            </VirtualMachine>
+            <VirtualMachine>
+                <state></state>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
+                <RoleName>client-vm-31</RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>1141</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+            </VirtualMachine>
+            <VirtualMachine>
+                <state></state>
+                <InstanceSize>Standard_A9</InstanceSize>
+                <ARMInstanceSize>Standard_A9</ARMInstanceSize>
+                <RoleName>client-vm-32</RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>1142</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+            </VirtualMachine>
         </ResourceGroup>
-    </RDMA16VMs>
+    </RDMA32VMs>
 </TestSetup>

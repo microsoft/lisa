@@ -4,56 +4,76 @@
 # Description: This script displays the LISav2 test case statistics and list of available tags.
 
 # Read all test case xml files
-$currentPath = Split-Path -Parent $MyInvocation.MyCommand.Path
-
-$files = Get-ChildItem (Join-Path $currentPath "..\XML\TestCases\*.xml") -Exclude Other.xml
-
-$azure_only = 0
-$hyperv_only = 0
-$both_platforms = 0
+param (
+    [string] $Platform,
+    [string] $Tags,
+    [ValidateSet("0", "1", "2", "3")]
+    [string] $Priority,
+    [string] $Category,
+    [string] $Area
+)
 
 # Hashtable for tag info collection
-$tags = @{}
+$numTags = @{}
 
-Write-Output ""
-"{0,-70} {1,20} {2,15} {3,15} {4,40} {5,5}" -f "TestCase", "Platform", "Category", "Area", "Tags", "Priority"
-Write-Output "------------------------------------------------------------------------------------------------------------------------------------------------------------------------------"
+$currentPath = Split-Path -Parent $MyInvocation.MyCommand.Path
+$files = Get-ChildItem (Join-Path $currentPath "..\XML\TestCases\*.xml") -Exclude Other.xml
 
+$all_test_cases = @()
+$platform_info = @{}
 foreach ($fname in $files) {
     $xml = [xml](Get-Content $fname)
     foreach ($item in $xml.TestCases.test) {
-        "{0,-70} {1,20} {2,15} {3,15} {4,40} {5,5}" -f $item.testName, $item.Platform, $item.Category, $item.Area, $item.Tags, $item.Priority
+
+        $all_test_cases += $item
 
         # Group per platform type
-        if ($item.Platform -eq "HyperV") {
-            $hyperv_only++
-        } elseif ($item.Platform -eq "Azure") {
-            $azure_only++
+        if ($item.Platform -like "*,*") {
+            $platforms = $item.Platform.Split(",") | Sort-Object
+            $platforms = $platforms -join ', '
+            $platform_info[$platforms + ':']++
         } else {
-            $both_platforms++
+            $platform_info[$item.Platform + " only:"]++
         }
-
         # Update tag hashtable
-        foreach ($single_tag in $item.Tags.Split(",")) {
-            if ($tags.ContainsKey($single_tag)) {
-                $tags[$single_tag]++
+        foreach ($singleTag in $item.Tags.Split(",")) {
+            if ($numTags.ContainsKey($singleTag)) {
+                $numTags[$singleTag]++
             } else {
-                $tags.Add($single_tag, 1)
+                $numTags.Add($singleTag, 1)
             }
-
         }
     }
 }
 
-# Show the statistics information
-Write-Output ""
-Write-Output "===== Test Cases Number per platform ====="
-Write-Output ""
-Write-Output "Azure only: $azure_only"
-Write-Output "Hyper-V only: $hyperv_only"
-Write-Output "Both platforms: $both_platforms"
-Write-Output ""
-Write-Output "===== Tag Details ====="
+if ($Platform) {
+    $all_test_cases = @($all_test_cases | Where-Object {$_.Platform -imatch $Platform})
+}
 
-# Show tag information
-$tags
+if ($Priority) {
+    $all_test_cases = @($all_test_cases | Where-Object {$_.Priority -imatch $Priority})
+}
+
+if ($Tags) {
+    $all_test_cases = @($all_test_cases | Where-Object {$_.Tags -imatch $Tags})
+}
+
+if ($Category) {
+    $all_test_cases = @($all_test_cases | Where-Object {$_.Category -imatch $Category})
+}
+
+if ($Area) {
+    $all_test_cases = @($all_test_cases | Where-Object {$_.Area -imatch $Area})
+}
+
+
+$all_test_cases | Format-Table TestName,Platform,Category,Area,Tags,Priority -AutoSize
+Write-Output "TestCases Count: $($all_test_cases.count)"
+
+if (!$Platform -and !$Priority -and !$Tags -and !$Category -and !$Area) {
+    Write-Output "===== Test Cases Number per platform ====="
+    $platform_info | Format-Table -hide
+    Write-Output "===== Tag Details ====="
+    #Show tag information
+    Write-Output ($numTags | Out-String)
+}

@@ -11,20 +11,20 @@ fi
 chmod 755 ./kvp_client64
 
 # Verify there are no eth devices
-echo "Info : Check count of eth devices"
+echo "Check count of eth devices"
 ethCount=$(ls -d /sys/class/net/eth* | wc -l)
-echo "Info : ethCount = ${ethCount}"
+echo "ethCount = ${ethCount}"
 if [ $ethCount -ne 0 ]; then
     echo "eth device count is not zero: ${ethCount}"
     exit 0
 fi
 
 # Create a nonintrinsic HotAddTest KVP item with a value of 'NoNICs'
-echo "Info : Creating HotAddTest key with value of 'NoNICS'"
+echo "Creating HotAddTest key with value of 'NoNICS'"
 ./kvp_client64 append 1 'HotAddTest' 'NoNICs'
 
 # Loop waiting for an eth device to appear
-echo "Info : Waiting for an eth device to appear"
+echo "Waiting for an eth device to appear"
 timeout=300
 noEthDevice=1
 while [ $noEthDevice -eq 1 ]
@@ -48,28 +48,28 @@ ifup eth0
 sleep 60
 
 # Verify the eth device received an IP address
-echo "Info : Verify the new NIC received an IPv4 address"
+echo "Verify the new NIC received an IPv4 address"
 ip addr show eth0 | grep "inet\b"
 if [ $? -ne 0 ]; then
     echo "eth0 was not assigned an IPv4 address"
     exit 0
 fi
 
-echo "Info : eth0 is up"
+echo "eth0 is up"
 
 # Modify the KVP HotAddTest value to 'NICUp'
-echo "Info : Updating HotAddTest KVP item to 'NICUp'"
+echo "Updating HotAddTest KVP item to 'NICUp'"
 ./kvp_client64 append 1 'HotAddTest' 'NICUp'
 
 # Loop waiting for the eth device to be removed
-echo "Info : Waiting for the eth device to be deleted"
+echo "Waiting for the eth device to be deleted"
 timeout=300
 noEthDevice=1
 while [ $noEthDevice -eq 1 ]
 do
     ethCount=$(ls -d /sys/class/net/eth* | wc -l)
     if [ $ethCount -eq 0 ]; then
-        echo "Info : eth count is zero"
+        echo "eth count is zero"
         break
     fi
 
@@ -82,7 +82,7 @@ do
 done
 
 # Modify the KVP HotAddTest value to 'NoNICs'
-echo "Info : Setting HotAddTest value to 'NoNICs'"
+echo "Setting HotAddTest value to 'NoNICs'"
 ./kvp_client64 append 1 'HotAddTest' 'NoNICs'
-echo "Info : Test complete - exiting"
+echo "Test complete - exiting"
 exit 0

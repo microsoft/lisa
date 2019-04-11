@@ -15,7 +15,7 @@
         <Timeout>720</Timeout>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
-        <Area>Nested</Area>
+        <Area>NESTED</Area>
         <Tags>nested,nested-kvm</Tags>
         <Priority>1</Priority>
     </test>
@@ -39,13 +39,14 @@
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Performance</Category>
-        <Area>Nested</Area>
+        <Area>NESTED</Area>
         <Tags>nested,nested-kvm</Tags>
         <Priority>2</Priority>
     </test>
     <test>
         <TestName>HYPERV-NESTED-KVM-STORAGE-SINGLE-DISK</TestName>
         <testScript>NESTED-KVM-STORAGE-PERF.ps1</testScript>
+        <setupScript>.\Testscripts\Windows\SETUP-Enable-NestedVirtualization.ps1</setupScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_storage_perf.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh</files>
         <setupType>OneVM1Disk</setupType>
         <OverrideVMSize>Standard_F16</OverrideVMSize>
@@ -69,7 +70,7 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Performance</Category>
-        <Area>Nested</Area>
+        <Area>NESTED</Area>
         <Tags>nested,nested-kvm</Tags>
         <Priority>2</Priority>
     </test>
@@ -101,13 +102,14 @@
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Performance</Category>
-        <Area>Nested</Area>
+        <Area>NESTED</Area>
         <Tags>nested,nested-kvm</Tags>
         <Priority>2</Priority>
     </test>
     <test>
         <TestName>HYPERV-NESTED-KVM-STORAGE-MULTIDISK</TestName>
         <testScript>NESTED-KVM-STORAGE-PERF.ps1</testScript>
+        <setupScript>.\Testscripts\Windows\SETUP-Enable-NestedVirtualization.ps1</setupScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_storage_perf.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh</files>
         <setupType>OneVM4Disk</setupType>
         <TestParameters>
@@ -131,7 +133,7 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Performance</Category>
-        <Area>Nested</Area>
+        <Area>NESTED</Area>
         <Tags>nested,nested-kvm</Tags>
         <Priority>2</Priority>
     </test>
@@ -164,13 +166,14 @@
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Performance</Category>
-        <Area>Nested</Area>
+        <Area>NESTED</Area>
         <Tags>nested,nested-kvm</Tags>
         <Priority>2</Priority>
     </test>
     <test>
         <TestName>NESTED-KVM-NTTTCP-DIFFERENT-L1-PUBLIC-BRIDGE</TestName>
         <testScript>NESTED-KVM-NTTTCP-DIFFERENT-L1-PUBLIC-BRIDGE.ps1</testScript>
+        <setupScript>.\Testscripts\Windows\SETUP-Enable-NestedVirtualization.ps1</setupScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_ntttcp_different_l1_public_bridge.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
         <setupType>TwoVM2Host</setupType>
         <OverrideVMSize>Standard_F16</OverrideVMSize>
@@ -191,13 +194,14 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Performance</Category>
-        <Area>Nested</Area>
+        <Area>NESTED</Area>
         <Tags>nested,nested-kvm</Tags>
         <Priority>2</Priority>
     </test>
     <test>
         <TestName>NESTED-HYPERV-NTTTCP-DIFFERENT-L1-PUBLIC-BRIDGE</TestName>
         <testScript>NESTED-HYPERV-NTTTCP-DIFFERENT-L1-PUBLIC-BRIDGE.ps1</testScript>
+        <setupScript>.\Testscripts\Windows\SETUP-Enable-NestedVirtualization.ps1</setupScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_hyperv_ntttcp_different_l1_public_bridge.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
         <setupType>TwoVM2Host</setupType>
         <OverrideVMSize>Standard_F16</OverrideVMSize>
@@ -217,13 +221,14 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Performance</Category>
-        <Area>Nested</Area>
+        <Area>NESTED</Area>
         <Tags>nested,nested-hyperv</Tags>
         <Priority>2</Priority>
     </test>
     <test>
         <TestName>NESTED-KVM-NTTTCP-DIFFERENT-L1-NAT</TestName>
         <testScript>NESTED-KVM-NTTTCP-DIFFERENT-L1-PUBLIC-BRIDGE.ps1</testScript>
+        <setupScript>.\Testscripts\Windows\SETUP-Enable-NestedVirtualization.ps1</setupScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_ntttcp_different_l1_nat.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_ntttcp.sh,.\Testscripts\Linux\nat_qemu_ifup.sh,</files>
         <setupType>TwoVM2Host</setupType>
         <OverrideVMSize>Standard_F16</OverrideVMSize>
@@ -244,13 +249,14 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Performance</Category>
-        <Area>Nested</Area>
+        <Area>NESTED</Area>
         <Tags>nested,nested-kvm</Tags>
         <Priority>2</Priority>
     </test>
     <test>
         <TestName>NESTED-KVM-LAGSCOPE-DIFFERENT-L1-PUBLIC-BRIDGE</TestName>
         <testScript>NESTED-KVM-LAGSCOPE-DIFFERENT-L1-PUBLIC-BRIDGE.ps1</testScript>
+        <setupScript>.\Testscripts\Windows\SETUP-Enable-NestedVirtualization.ps1</setupScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_lagscope_different_l1_public_bridge.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_lagscope.sh</files>
         <setupType>TwoVM2Host</setupType>
         <OverrideVMSize>Standard_F16</OverrideVMSize>
@@ -269,7 +275,7 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Performance</Category>
-        <Area>Nested</Area>
+        <Area>NESTED</Area>
         <Tags>nested,nested-kvm</Tags>
         <Priority>2</Priority>
     </test>
@@ -296,13 +302,14 @@
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Performance</Category>
-        <Area>Nested</Area>
+        <Area>NESTED</Area>
         <Tags>nested,nested-kvm</Tags>
         <Priority>2</Priority>
     </test>
     <test>
         <TestName>HYPERV-WINDOWS-NESTED-HYPERV-STORAGE-SINGLE-DISK</TestName>
         <testScript>NESTED-HYPERV-STORAGE-PERF.ps1</testScript>
+        <setupScript>.\Testscripts\Windows\SETUP-Enable-NestedVirtualization.ps1</setupScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <setupType>OneVM1Disk</setupType>
         <OverrideVMSize>Standard_F16</OverrideVMSize>
@@ -327,13 +334,14 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Performance</Category>
-        <Area>Storage</Area>
+        <Area>STORAGE</Area>
         <Tags>nested,nested-hyperv</Tags>
         <Priority>2</Priority>
     </test>
     <test>
         <TestName>HYPERV-WINDOWS-NESTED-HYPERV-STORAGE-MULTIDISK</TestName>
         <testScript>NESTED-HYPERV-STORAGE-PERF.ps1</testScript>
+        <setupScript>.\Testscripts\Windows\SETUP-Enable-NestedVirtualization.ps1</setupScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <setupType>OneVM4Disk</setupType>
         <TestParameters>
@@ -359,7 +367,7 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Performance</Category>
-        <Area>Storage</Area>
+        <Area>STORAGE</Area>
         <Tags>nested,nested-hyperv</Tags>
         <Priority>2</Priority>
     </test>
@@ -392,7 +400,7 @@
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Performance</Category>
-        <Area>Storage</Area>
+        <Area>STORAGE</Area>
         <Tags>nested,nested-hyperv</Tags>
         <Priority>2</Priority>
     </test>
@@ -427,13 +435,14 @@
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Performance</Category>
-        <Area>Storage</Area>
+        <Area>STORAGE</Area>
         <Tags>nested,nested-hyperv</Tags>
         <Priority>2</Priority>
     </test>
     <test>
         <TestName>NESTED-KVM-NETPERF-PPS</TestName>
         <testScript>NESTED-KVM-NETPERF-PPS.ps1</testScript>
+        <setupScript>.\Testscripts\Windows\SETUP-Enable-NestedVirtualization.ps1</setupScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_netperf_pps.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_netperf.sh</files>
         <setupType>TwoVM2Host</setupType>
         <OverrideVMSize>Standard_F16</OverrideVMSize>
@@ -454,7 +463,7 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Performance</Category>
-        <Area>Nested</Area>
+        <Area>NESTED</Area>
         <Tags>nested,nested-kvm</Tags>
         <Priority>2</Priority>
     </test>
@@ -478,13 +487,14 @@
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Performance</Category>
-        <Area>Nested</Area>
+        <Area>NESTED</Area>
         <Tags>nested,nested-kvm</Tags>
         <Priority>2</Priority>
     </test>
     <test>
         <TestName>NESTED-HYPERV-NTTTCP-DIFFERENT-L1-NAT</TestName>
         <testScript>NESTED-HYPERV-NTTTCP-DIFFERENT-L1-NAT.ps1</testScript>
+        <setupScript>.\Testscripts\Windows\SETUP-Enable-NestedVirtualization.ps1</setupScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_hyperv_ntttcp_different_l1_nat.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
         <setupType>TwoVM2Host</setupType>
         <OverrideVMSize>Standard_F16</OverrideVMSize>
@@ -503,7 +513,7 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Performance</Category>
-        <Area>Nested</Area>
+        <Area>NESTED</Area>
         <Tags>nested,nested-hyperv</Tags>
         <Priority>2</Priority>
     </test>
@@ -527,7 +537,7 @@
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Performance</Category>
-        <Area>Nested</Area>
+        <Area>NESTED</Area>
         <Tags>nested,nested-hyperv</Tags>
         <Priority>2</Priority>
     </test>

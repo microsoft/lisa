@@ -27,44 +27,12 @@ UtilsInit
 # Get distro
 GetDistro
 
-case $DISTRO in
-    redhat* | centos* | fedora*)
-        numactl -s
-        if [ $? -ne 0 ]; then
-            yum -y install numactl
-            if [ $? -ne 0 ]; then
-                LogErr "Error: numactl cannot be installed.."
-                SetTestStateAborted
-                exit 0
-            fi
-        fi
-    ;;
-   ubuntu* | debian*)
-        numactl -s
-        if [ $? -ne 0 ]; then
-            apt -y install numactl
-            if [ $? -ne 0 ]; then
-                LogErr "Error: numactl cannot be installed."
-                SetTestStateAborted
-                exit 0
-            fi
-        fi
-    ;;
-    suse*)
-        numactl -s
-        if [ $? -ne 0 ]; then
-            zypper -y install numactl
-            if [ $? -ne 0 ]; then
-                LogErr "Error: numactl cannot be installed."
-                SetTestStateAborted
-                exit 0
-            fi
-        fi
-     ;;
-     *)
-        LogWarn "WARNING: Distro '${DISTRO}' not supported."
-    ;;
-esac
+if ! numactl -s; then
+    if ! install_package numactl; then
+        LogMsg "Error: unable to instal numactl"
+        exit 1
+    fi
+fi
 
 # Check Numa nodes
 NumaNodes=$(numactl -H | grep cpu | wc -l)

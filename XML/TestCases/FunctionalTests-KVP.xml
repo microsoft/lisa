@@ -38,53 +38,15 @@
         <Priority>0</Priority>
     </test>
     <test>
-        <testName>KVP-ADD-KEY-VALUES</testName>
-        <setupScript>.\Testscripts\Windows\KVP-AddKeyValues.ps1</setupScript>
-        <testScript>KVP-AddKeyValues.sh</testScript>
-        <files>.\Testscripts\Linux\KVP-AddKeyValues.sh,.\Testscripts\Linux\utils.sh,.\Tools\kvp_client64,.\Tools\kvp_client32</files>
+        <testName>KVP-KEY-VALUES-OPERATIONS</testName>
+        <testScript>KVP-KEY-VALUES-OPERATIONS.ps1</testScript>
+        <files>.\Tools\kvp_client64,.\Tools\kvp_client32</files>
         <setupType>OneVM</setupType>
         <testParameters>
             <param>Key=EEE</param>
-            <param>Value=555</param>
-            <param>Pool=0</param>
-        </testParameters>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>KVP</Area>
-        <Tags>kvp</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
-        <testName>KVP-MODIFY-KEY-VALUES</testName>
-        <setupScript>.\Testscripts\Windows\KVP-ModifyKeyValues.ps1</setupScript>
-        <testScript>KVP-AddKeyValues.sh</testScript>
-        <files>.\Testscripts\Linux\KVP-AddKeyValues.sh,.\Testscripts\Linux\utils.sh,.\Tools\kvp_client64,.\Tools\kvp_client32</files>
-        <AdditionalHWConfig>
-            <HyperVApplyCheckpoint>False</HyperVApplyCheckpoint>
-        </AdditionalHWConfig>
-        <setupType>OneVM</setupType>
-        <testParameters>
-            <param>Key=EEE</param>
-            <param>Value=999</param>
-            <param>Pool=0</param>
-        </testParameters>
-        <applyCheckpoint>False</applyCheckpoint>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>KVP</Area>
-        <Tags>kvp</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
-        <testName>KVP-REMOVE-KEY-VALUES</testName>
-        <testScript>KVP-RemoveKeyValues.ps1</testScript>
-        <AdditionalHWConfig>
-            <HyperVApplyCheckpoint>False</HyperVApplyCheckpoint>
-        </AdditionalHWConfig>
-        <setupType>OneVM</setupType>
-        <testParameters>
-            <param>Key=EEE</param>
-            <param>Value=999</param>
+            <param>AddValue=555</param>
+            <param>ModValue=999</param>
+            <param>DelValue=999</param>
             <param>Pool=0</param>
         </testParameters>
         <Platform>HyperV</Platform>

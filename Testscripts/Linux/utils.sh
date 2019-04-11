@@ -238,19 +238,6 @@ GetDistro()
 	#Get distro (snipper take from alsa-info.sh)
 	__DISTRO=$(grep -ihs "Ubuntu\|SUSE\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os\|CoreOS" /{etc,usr/lib}/{issue,*release,*version})
 	case $__DISTRO in
-		*Ubuntu*12*)
-			DISTRO=ubuntu_12
-			;;
-		*Ubuntu*13*)
-			DISTRO=ubuntu_13
-			;;
-		*Ubuntu*14*)
-			DISTRO=ubuntu_14
-			;;
-		# ubuntu 14 in current beta state does not use the number 14 in its description
-		*Ubuntu*Trusty*)
-			DISTRO=ubuntu_14
-			;;
 		*Ubuntu*)
 			DISTRO=ubuntu_x
 			;;
@@ -278,10 +265,10 @@ GetDistro()
 		*CentOS*release*5.*Final)
 			DISTRO=centos_5
 			;;
-		*CentOS*release*6.*)
+		*CentOS*release*6\.*Final*)
 			DISTRO=centos_6
 			;;
-		*CentOS*Linux*7.*)
+		*CentOS*release*7\.*\.*)
 			DISTRO=centos_7
 			;;
 		*CentOS*)
@@ -302,10 +289,10 @@ GetDistro()
 		*Red*5.*)
 			DISTRO=redhat_5
 			;;
-		*Red*6.*)
+		*Red*6\.*)
 			DISTRO=redhat_6
 			;;
-		*Red*7.*)
+		*Red*7\.*)
 			DISTRO=redhat_7
 			;;
 		*Red*8.*)
@@ -1273,6 +1260,9 @@ CreateIfupConfigFile()
 
 				ip link set "$__interface_name" up
 				service networking restart || service network restart
+				if $(ifup --help > /dev/null 2>&1) ; then
+					ifup "$__interface_name"
+				fi
 				;;
 			*)
 				LogMsg "CreateIfupConfigFile: Platform not supported yet!"
@@ -1432,6 +1422,9 @@ CreateIfupConfigFile()
 
 				ip link set "$__interface_name" up
 				service networking restart || service network restart
+				if $(ifup --help > /dev/null 2>&1) ; then
+					ifup "$__interface_name"
+				fi
 				;;
 			*)
 				LogMsg "CreateIfupConfigFile: Platform not supported!"
@@ -1787,7 +1780,7 @@ function GetOSVersion {
         os_CODENAME=""
         for r in "Red Hat" CentOS Fedora XenServer; do
             os_VENDOR=$r
-            if [[ -n "$(grep \"$r\" /etc/redhat-release)" ]]; then
+            if [[ -n $(grep "${r}" "/etc/redhat-release") ]]; then
                 ver=$(sed -e 's/^.* \([0-9].*\) (\(.*\)).*$/\1\|\2/' /etc/redhat-release)
                 os_CODENAME=${ver#*|}
                 os_RELEASE=${ver%|*}
@@ -2204,7 +2197,8 @@ function install_deb () {
 function apt_get_install ()
 {
 	package_name=$1
-	sudo DEBIAN_FRONTEND=noninteractive apt-get install -y  --force-yes $package_name
+	dpkg_configure
+	sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --force-yes $package_name
 	check_exit_status "apt_get_install $package_name"
 }
 
@@ -2369,7 +2363,7 @@ function install_fio () {
 	echo "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of fio"
 	update_repos
 	case "$DISTRO_NAME" in
-		rhel|centos)
+		oracle|rhel|centos)
 			install_epel
 			yum -y --nogpgcheck install wget sysstat mdadm blktrace libaio fio
 			check_exit_status "install_fio"
@@ -2377,6 +2371,7 @@ function install_fio () {
 			;;
 
 		ubuntu|debian)
+			export DEBIAN_FRONTEND=noninteractive
 			dpkg_configure
 			apt-get install -y pciutils gawk mdadm wget sysstat blktrace bc fio
 			check_exit_status "install_fio"
@@ -2441,9 +2436,9 @@ function install_iperf3 () {
 	echo "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of iperf3"
 	update_repos
 	case "$DISTRO_NAME" in
-		rhel|centos)
+		oracle|rhel|centos)
 			install_epel
-			yum -y --nogpgcheck install iperf3 sysstat bc psmisc
+			yum -y --nogpgcheck install iperf3 sysstat bc psmisc wget
 			iptables -F
 			;;
 
@@ -2532,9 +2527,9 @@ function install_lagscope () {
 	echo "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of lagscope"
 	update_repos
 	case "$DISTRO_NAME" in
-		rhel|centos)
+		oracle|rhel|centos)
 			install_epel
-			yum -y --nogpgcheck install libaio sysstat git bc make gcc
+			yum -y --nogpgcheck install libaio sysstat git bc make gcc wget
 			build_lagscope
 			iptables -F
 			;;
@@ -2604,7 +2599,7 @@ function install_ntttcp () {
 	echo "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of ntttcp"
 	update_repos
 	case "$DISTRO_NAME" in
-		rhel|centos)
+		oracle|rhel|centos)
 			install_epel
 			yum -y --nogpgcheck install wget libaio sysstat git bc make gcc dstat psmisc
 			build_ntttcp "${1}"
@@ -2672,9 +2667,9 @@ function install_netperf () {
 	echo "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of netperf"
 	update_repos
 	case "$DISTRO_NAME" in
-		rhel|centos)
+		oracle|rhel|centos)
 			install_epel
-			yum -y --nogpgcheck install sysstat make gcc
+			yum -y --nogpgcheck install sysstat make gcc wget
 			build_netperf
 			iptables -F
 			;;
@@ -3213,20 +3208,24 @@ function Update_Kernel() {
 
 Kill_Process()
 {
-    ip=$1
-    if [[ $(detect_linux_distribution) == coreos ]]; then
-        output="default"
-        while [[ ${#output} != 0 ]]; do
-            output=$(ssh $ip "docker ps -a | grep $2 ")
-            if [[ ${#output} == 0 ]]; then
-                break
-            fi
-            pid=$(echo $output | awk '{print $1}')
-            ssh $ip "docker stop $pid; docker rm $pid"
-        done
-    else
-        ssh $ip "killall $2"
-    fi
+    ips=$1
+    IFS=',' read -r -a array <<< "$ips"
+    for ip in "${array[@]}"
+    do
+        if [[ $(detect_linux_distribution) == coreos ]]; then
+            output="default"
+            while [[ ${#output} != 0 ]]; do
+                output=$(ssh $ip "docker ps -a | grep $2 ")
+                if [[ ${#output} == 0 ]]; then
+                    break
+                fi
+                pid=$(echo $output | awk '{print $1}')
+                ssh $ip "docker stop $pid; docker rm $pid"
+            done
+        else
+            ssh $ip "killall $2"
+        fi
+    done
 }
 
 Delete_Containers()
@@ -3295,3 +3294,31 @@ function ConsumeMemory() {
     wait
     return 0
 }
+
+function Format_Mount_NVME()
+{
+    if [[ $# == 2 ]]; then
+        local namespace=$1
+        local filesystem=$2
+    else
+        return 1
+    fi
+    # Partition disk
+    echo "Creating  partition on ${namespace} disk "
+    (echo n; echo p; echo 1; echo ; echo; echo ; echo w) | fdisk /dev/"${namespace}"
+    check_exit_status "${namespace} partition creation"
+    sleep 1
+    # Create fileSystem
+    echo "Creating ${filesystem} filesystem on ${namespace} disk "
+    echo "y" | mkfs."${filesystem}" -f "/dev/${namespace}p1"
+    check_exit_status "${filesystem} filesystem creation"
+    sleep 1
+    # Mount the disk
+    LogMsg "Mounting ${namespace}p1 disk "
+    mkdir "$namespace"
+    mount "/dev/${namespace}p1" "$namespace"
+    check_exit_status "${filesystem} filesystem Mount"
+    sleep 1
+    return 0
+}
+

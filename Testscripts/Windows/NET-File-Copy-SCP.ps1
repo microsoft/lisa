@@ -39,7 +39,7 @@ function Connect-Disk {
     $driveName = "/dev/sdc"
 
     $null = Run-LinuxCmd -username $VMUser -password $VMPassword -ip $IPv4 `
-        -port $VMPort -command "(echo d;echo;echo w)|fdisk ${driveName}"
+        -port $VMPort -command "(echo d;echo;echo w)|fdisk ${driveName}" -ignoreLinuxExitCode:$true
     if (-not $?) {
         Write-LogErr "Failed to format the disk in the VM"
         return $False
@@ -143,6 +143,8 @@ function Main {
         $VMPassword
     )
     $guestUsername = "root"
+
+    Provision-VMsForLisa -allVMData $AllVMData -installPackagesOnRoleNames none
     # 10GB file size
     $filesize1 = 10737418240
     # 10GB file size

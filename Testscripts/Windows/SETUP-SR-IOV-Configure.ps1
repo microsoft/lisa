@@ -41,7 +41,7 @@ function Set-VFInGuest {
     # Configure VF
     Run-LinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort -command ". SR-IOV-Utils.sh; ConfigureVF $VMNumber" -RunAsSudo
     if (-not $?) {
-        LogErr "Failed to configure VF on $VMName"
+        Write-LogErr "Failed to configure VF on $VMName"
         return $False
     }
     # Check VF

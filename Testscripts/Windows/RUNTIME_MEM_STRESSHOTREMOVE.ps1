@@ -90,8 +90,8 @@ function Main {
         Write-LogInfo "Memory stats after $vmName started reporting"
         Write-LogInfo "${vmName}: assigned - $vm1BeforeAssigned | demand - $vm1BeforeDemand"
         # Send Command to consume
-        Start-StressNg -vmIpv4 $Ipv4 -VMSSHPort $VMPort
-        if ( -not $? ) {
+        $run = Start-StressNg -vmIpv4 $Ipv4 -VMSSHPort $VMPort
+        if ( -not $run ) {
             Throw "Unable to start stress-ng for creating pressure on $vmName"
         }
         [int64]$vm1Demand = ($VmInfo.MemoryDemand/1MB)

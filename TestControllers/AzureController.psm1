@@ -40,11 +40,11 @@ Class AzureController : TestController
 	[void] ParseAndValidateParameters([Hashtable]$ParamTable) {
 		$this.ARMImageName = $ParamTable["ARMImageName"]
 		$this.StorageAccount = $ParamTable["StorageAccount"]
-		$this.TestProvider.TipSessionId = $ParamTable["TipSessionId"]
-		$this.TestProvider.TipCluster = $ParamTable["TipCluster"]
 
 		$parameterErrors = ([TestController]$this).ParseAndValidateParameters($ParamTable)
 
+		$this.TestProvider.TipSessionId = $this.CustomParams["TipSessionId"]
+		$this.TestProvider.TipCluster = $this.CustomParams["TipCluster"]
 		if ( !$this.ARMImageName -and !$this.OsVHD ) {
 			$parameterErrors += "-ARMImageName '<Publisher> <Offer> <Sku> <Version>', or -OsVHD <'VHD_Name.vhd'> is required."
 		}

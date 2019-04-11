@@ -62,7 +62,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                                 " -TestLocation '${TestRegion}'" +
                                 " -OverrideVMSize '${VMSize}'" +
                                 " -TestIterations ${TestIterations}" +
-                                " -EnableAcceleratedNetworking"
+                                " -CustomParameters 'Networking=SRIOV'"
                                 )
                                 archiveArtifacts '*-TestLogs.zip'
                                 junit "Report\\*-junit.xml"

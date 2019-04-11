@@ -44,4 +44,30 @@
             <LinuxPassword>xxxxxxxxxxxxxxxxxxxxxxxxx</LinuxPassword>
         </TestCredentials>
     </HyperV>
+    <WSL>
+        <Hosts>
+            <Host>
+                <!--The name of the WSL host-->
+                <ServerName>localhost</ServerName>
+                <!--The destination path to extract the distro package on the WSL host-->
+                <DestinationOsVHDPath></DestinationOsVHDPath>
+            </Host>
+            <Host>
+                <ServerName>localhost</ServerName>
+                <DestinationOsVHDPath></DestinationOsVHDPath>
+            </Host>
+        </Hosts>
+        <ResultsDatabase>
+            <server></server>
+            <user></user>
+            <password></password>
+            <dbname></dbname>
+            <dbtable></dbtable>
+            <testTag></testTag>
+        </ResultsDatabase>
+        <TestCredentials>
+            <LinuxUsername>YOUR_USERNAME</LinuxUsername>
+            <LinuxPassword>xxxxxxxxxxxxxxxxxxxxxxxxx</LinuxPassword>
+        </TestCredentials>
+    </WSL>
 </Global>

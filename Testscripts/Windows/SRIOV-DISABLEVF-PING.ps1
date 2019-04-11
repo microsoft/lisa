@@ -41,12 +41,17 @@ function Main {
     }
     Write-LogInfo "The RTT before disabling SR-IOV is $vfEnabledRTT ms"
 
-    # Disable SR-IOV on test VM
+    # Disable SR-IOV on test VM and dependency VM
     Start-Sleep -s 5
     Write-LogInfo "Disabling VF on vm1"
     Set-VMNetworkAdapter -VMName $VMName -ComputerName $HvServer -IovWeight 0
     if (-not $?) {
         Write-LogErr "Failed to disable SR-IOV on $VMName!"
+        return "FAIL"
+    }
+    Set-VMNetworkAdapter -VMName $DependencyVmName -ComputerName $DependencyVmHost -IovWeight 0
+    if (-not $?) {
+        Write-LogErr "Failed to disable SR-IOV on $DependencyVmName!"
         return "FAIL"
     }
 
@@ -66,10 +71,15 @@ function Main {
         return "FAIL"
     }
 
-    # Enable SR-IOV on test VM
+    # Enable SR-IOV on test VM and dependency VM
     Set-VMNetworkAdapter -VMName $VMName -ComputerName $HvServer -IovWeight 1
     if (-not $?) {
         Write-LogErr "Failed to enable SR-IOV on $VMName!"
+        return "FAIL"
+    }
+    Set-VMNetworkAdapter -VMName $DependencyVmName -ComputerName $DependencyVmHost -IovWeight 1
+    if (-not $?) {
+        Write-LogErr "Failed to enable SR-IOV on $DependencyVmName!"
         return "FAIL"
     }
 

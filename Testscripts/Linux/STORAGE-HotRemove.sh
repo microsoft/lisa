@@ -2,8 +2,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 
-CONSTANTS_FILE="constants.sh"
-
 . utils.sh || {
     echo "Error: unable to source utils.sh!"
     exit 0
@@ -11,23 +9,10 @@ CONSTANTS_FILE="constants.sh"
 
 UtilsInit
 
-# Create the state.txt file so ICA knows we are running
-LogMsg "Updating test case state to running"
-SetTestStateRunning
-
-# Source the constants file
-if [ -e ./${CONSTANTS_FILE} ]; then
-    source ${CONSTANTS_FILE}
-else
-    LogErr "no ${CONSTANTS_FILE} file"
-    SetTestStateAborted
-    exit 0
-fi
-
 ./check_traces.sh &
 
 # Count the number of SCSI= and IDE= entries in constants
-if [ -z "$diskCount" ];  then
+if [ -z "$diskCount" ]; then
     diskCount=0
     for entry in $(cat ./constants.sh)
     do
@@ -50,7 +35,7 @@ fi
 LogMsg "constants disk count = $diskCount"
 
 ### do fdisk to rescan the scsi bus
-for i in {1..4};do 
+for i in {1..4}; do
     echo $i
     fdisk -l > /dev/null
 done

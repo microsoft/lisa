@@ -4,7 +4,7 @@
 # Licensed under the Apache License.
 
 . utils.sh || {
-    echo "Error: unable to source utils.sh!"
+    echo "unable to source utils.sh!"
     exit 0
 }
 
@@ -17,7 +17,7 @@ function Add_Nic {
     eth_count=$1
     eth_name=$2
 
-    LogMsg "Info : Checking the eth_count"
+    LogMsg "Checking the eth_count"
     if [ $eth_count -ne 2 ]; then
         LogErr "VM should have two NICs now"
         SetTestStateAborted

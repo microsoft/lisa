@@ -74,7 +74,7 @@ function Main {
             [int64]$vm1BeforeAssigned = ($VmInfo.MemoryAssigned/1MB)
             [int64]$vm1BeforeDemand = ($VmInfo.MemoryDemand/1MB)
             $lisDriversCmd = "cat /proc/meminfo | grep -i MemFree | awk '{ print `$2 }'"
-            [int64]$vm1BeforeIncrease =Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command $lisDriversCmd -runAsSudo
+            [int64]$vm1BeforeIncrease = Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command $lisDriversCmd -runAsSudo
             Write-LogInfo "Free memory reported by guest VM before increase: $vm1BeforeIncrease"
             if ( $vm1BeforeAssigned -gt 0 -and $vm1BeforeDemand -gt 0 -and $vm1BeforeIncrease -gt 0 ) {
                 break
@@ -97,7 +97,7 @@ function Main {
                 [int64]$vm1AfterAssigned = ($VmInfo.MemoryAssigned/1MB)
                 [int64]$vm1AfterDemand = ($VmInfo.MemoryDemand/1MB)
                 $lisDriversCmd = "cat /proc/meminfo | grep -i MemFree | awk '{ print `$2 }'"
-                [int64]$vm1AfterIncrease =Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command $lisDriversCmd -runAsSudo
+                [int64]$vm1AfterIncrease = Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command $lisDriversCmd -runAsSudo
                 Write-LogInfo "Free memory reported by guest VM after increase: $vm1AfterIncrease KB"
                 break
             }
@@ -222,8 +222,8 @@ function Main {
         Write-LogInfo "Memory stats after $vmName memory was decreased by 2GB"
         Write-LogInfo "${vmName}: assigned - $vm1AfterAssigned | demand - $vm1AfterDemand"
         # Send Command to consume
-        Start-StressNg -vmIpv4 $Ipv4 -VMSSHPort $VMPort
-        if (-not $?) {
+        $run = Start-StressNg -vmIpv4 $Ipv4 -VMSSHPort $VMPort
+        if (-not $run) {
             Throw "Unable to start stress-ng for creating pressure on $vmName"
         }
 

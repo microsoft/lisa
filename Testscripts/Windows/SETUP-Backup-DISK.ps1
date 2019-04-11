@@ -16,10 +16,12 @@ function Main {
         $testResult = $null
         $captureVMData = $allVMData
         $VMName = $captureVMData.RoleName
+        $HvServer = $captureVMData.HyperVhost
         # Change the working directory to where we need to be
         Set-Location $WorkingDirectory
-        $backupdisksize = 2*$(Get-VMHardDiskDrive -VMName $VMName |Get-Vhd)[0].size
-        $backupdiskpath = (Get-VMHost).VirtualHardDiskPath + "\" + $VMName + "_VSS_DISK.vhdx"
+        $backupdisksize = 2*$(Get-VMHardDiskDrive -ComputerName $HvServer -VMName $VMName | Get-Vhd -ComputerName $HvServer)[0].size
+        Write-LogInfo "backupdisksize = $backupdisksize"
+        $backupdiskpath = (Get-VMHost).VirtualHardDiskPath + $VMName + "_VSS_DISK.vhdx"
         $driveletter = Get-ChildItem function:[g-y]: -n | Where-Object { !(Test-Path $_) } | Get-Random
         $originaldriveletter = $driveletter
         [char]$driveletter = $driveletter.Replace(":","")
@@ -44,7 +46,7 @@ function Main {
         if ($currentRetryCount -eq $maxRetryCount) {
             throw "Mounting VHD Failed"
         }
-        $backupdisk = Get-Vhd -Path $backupdiskpath
+        $backupdisk = Get-Vhd -ComputerName $HvServer -Path $backupdiskpath
         Initialize-Disk $backupdisk.DiskNumber
         $diskpartition = New-Partition -DriveLetter $driveletter -DiskNumber $backupdisk.DiskNumber -UseMaximumSize
         $volume = Format-Volume -FileSystem NTFS -Confirm:$False -Force -Partition $diskpartition
@@ -70,4 +72,4 @@ function Main {
     $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult.TestResult
 }
-Main
+Main -AllVMData $AllVMData

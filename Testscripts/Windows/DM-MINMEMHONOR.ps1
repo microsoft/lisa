@@ -63,27 +63,29 @@ function Main {
     $resultArr = @()
     try {
         $testResult = $null
-        $vm1name=$VM1.RoleName
-        $vm2name=$VM2.RoleName
-        $HvServer=$VM1.HyperVHost
+        $vm1name = $VM1.RoleName
+        $vm2name = $VM2.RoleName
+        $HvServer = $VM1.HyperVHost
+        $VM1Ipv4 = $VM1.PublicIP
+        $VM2Ipv4 = $VM2.PublicIP
         Write-LogInfo "VM1name is $vm1name"
         Write-LogInfo "VM2name is $vm2name"
         Write-LogInfo "Hvserver is $HvServer"
         Write-LogInfo "Param vm1 Details are -VM $VM1 -minMem $TestParams.minMem -maxMem $TestParams.maxMem -startupMem $TestParams.startupMem -memWeight $TestParams.memWeight"
         Write-LogInfo "Param vm2 Details are -VM $VM2 -minMem $TestParams.minMem1 -maxMem $TestParams.maxMem1 -startupMem $TestParams.startupMem1 -memWeight $TestParams.memWeight1"
         Set-VMDynamicMemory -VM $VM1 -minMem $TestParams.minMem -maxMem $TestParams.maxMem `
-            -startupMem $TestParams.startupMem -memWeight $TestParams.memWeight
+            -startupMem $TestParams.startupMem -memWeight $TestParams.memWeight | Out-Null
         Set-VMDynamicMemory -VM $VM2 -minMem $TestParams.minMem1 -maxMem $TestParams.maxMem1 `
-            -startupMem $TestParams.startupMem1 -memWeight $TestParams.memWeight1
+            -startupMem $TestParams.startupMem1 -memWeight $TestParams.memWeight1 | Out-Null
         Write-LogInfo "Starting VM1 $vm1name"
-        $VM1Ipv4=Start-VMandGetIP $vm1name $HvServer $VMPort $user $password
+        $VM1Ipv4 = Start-VMandGetIP $vm1name $HvServer $VMPort $user $password
         Write-LogInfo "IP address of the VM $vm1name is  $VM1Ipv4"
         # change working directory to root dir
         Set-Location $WorkingDirectory
         $vm1 = Get-VM -Name $vm1name -ComputerName $HvServer -ErrorAction SilentlyContinue
         $vm2 = Get-VM -Name $vm2name -ComputerName $HvServer -ErrorAction SilentlyContinue
         Write-LogInfo "Starting VM2 $vm2name"
-        $VM2Ipv4=Start-VMandGetIP $vm2name $HvServer $VMPort $user $password
+        $VM2Ipv4 = Start-VMandGetIP $vm2name $HvServer $VMPort $user $password
         Write-LogInfo "IP address of the VM $vm2name is  $VM2Ipv4"
         # Get VM's minimum memory setting
         [int64]$vm1MinMem = ($vm1.MemoryMinimum/1MB)

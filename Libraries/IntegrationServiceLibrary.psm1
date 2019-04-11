@@ -905,7 +905,7 @@ Function Check-VMStateAndFileStatus {
 	# only check restore file when IP available
 	$stsipv4 = Test-NetConnection $VMIpv4 -Port 22 -WarningAction SilentlyContinue
 	if ($stsipv4.TcpTestSucceeded) {
-		$sts=Check-FileInLinuxGuest -VMPassword $password -VMPort $VMPort -VMUserName $user -Ipv4 $VMIpv4 -fileName "/home/$user/1"
+		$sts = Run-LinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMPort -command "stat /home/$user/1"
 		if (-not $sts) {
 			Write-LogErr "No /home/$user/1 file after restore"
 			return $False

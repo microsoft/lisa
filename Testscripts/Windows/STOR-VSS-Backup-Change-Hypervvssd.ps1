@@ -48,7 +48,7 @@ function Main {
             throw "VSS Daemon is not running"
         }
         # Create a file on the VM before backup
-        Run-LinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMPort -command "touch /home/$user/1" -runAsSudo
+        $null = Run-LinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMPort -command "touch /home/$user/1" -runAsSudo
         if (-not $?) {
             throw "Cannot create test file"
         }
@@ -63,7 +63,7 @@ function Main {
         for ($i = 0; $i -le 1; $i++ ) {
             $serviceAction = $setAction[$i]
             $serviceCommand = "echo serviceAction=$serviceAction  >> constants.sh"
-            Run-LinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMPort $serviceCommand -runAsSudo
+            $null = Run-LinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMPort $serviceCommand -runAsSudo
             if (-not $sts[-1]) {
                 throw "Could not echo serviceAction to vm's constants.sh."
             }
@@ -91,7 +91,7 @@ function Main {
                 else {
                      Write-LogInfo "Got expected backup type $temp"
                 }
-                Remove-Backup $backupLocation
+              $null = Remove-Backup $backupLocation
             }
         }
         $testResult = "PASS"

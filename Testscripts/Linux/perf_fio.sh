@@ -52,6 +52,9 @@ RunFIO()
 {
 	UpdateTestState $ICA_TESTRUNNING
 	FILEIO="--size=${fileSize} --direct=1 --ioengine=libaio --filename=${mdVolume} --overwrite=1 "
+	if [ -n "${NVME}" ]; then
+		FILEIO="--direct=1 --ioengine=libaio --filename=${nvme_namespaces} --gtod_reduce=1"
+	fi
 	iteration=0
 	io_increment=128
 	NUM_JOBS=(1 1 2 2 4 4 8 8 8 8 8 8)
@@ -74,7 +77,7 @@ RunFIO()
 	####################################
 	LogMsg "Test log created at: ${LOGFILE}"
 	LogMsg "===================================== Starting Run $(date +"%x %r %Z") ================================"
-	
+
 	chmod 666 $LOGFILE
 	LogMsg "--- Kernel Version Information ---"
 	uname -a >> $LOGFILE
@@ -101,6 +104,10 @@ RunFIO()
 				numJob=${NUM_JOBS[$numJobIterator]}
 				if [ -z "$numJob" ]; then
 					numJob=${NUM_JOBS[-1]}
+				fi
+				if [ -n "${NVME}" ]; then
+					# NVMe perf tests requires that numJob param should match the vCPU number
+					numJob=$(nproc)
 				fi
 				thread=$((qDepth/numJob))
 
@@ -141,17 +148,8 @@ RunFIO()
 
 CreateRAID0()
 {
-	if [ -n "${NVME}" ]; then
-		disk_location="nvme[0-9]n[0-9]"
-		partition_location="nvme[0-9]n[0-9]p[0-9]"
-		update_repos
-		install_package "nvme-cli"
-	else
-		disk_location="sd[c-z]"
-		partition_location="sd[c-z][1-5]"
-	fi
+	disks=$(ls -l /dev | grep sd[c-z]$ | awk '{print $10}')
 
-	disks=$(ls -l /dev | grep ${disk_location}$ | awk '{print $10}')
 	LogMsg "INFO: Check and remove RAID first"
 	mdvol=$(cat /proc/mdstat | grep active | awk {'print $1'})
 	if [ -n "$mdvol" ]; then
@@ -159,7 +157,7 @@ CreateRAID0()
 		umount /dev/${mdvol}
 		mdadm --stop /dev/${mdvol}
 		mdadm --remove /dev/${mdvol}
-		mdadm --zero-superblock /dev/${partition_location}
+		mdadm --zero-superblock /dev/sd[c-z][1-5]
 	fi
 
 	LogMsg "INFO: Creating Partitions"
@@ -167,27 +165,37 @@ CreateRAID0()
 	for disk in ${disks}
 	do
 		LogMsg "formatting disk /dev/${disk}"
-		if [ -n "${NVME}" ]; then
-			nvme format /dev/${disk}
-		fi
 		(echo d; echo n; echo p; echo 1; echo; echo; echo t; echo fd; echo w;) | fdisk /dev/${disk}
 		count=$(($count + 1))
 		sleep 1
 	done
 	LogMsg "INFO: Creating RAID of ${count} devices."
 	sleep 1
-	mdadm --create ${mdVolume} --level 0 --raid-devices ${count} /dev/${partition_location}
+	mdadm --create ${mdVolume} --level 0 --raid-devices ${count} /dev/sd[c-z][1-5]
 }
 
-CreateSinglePartition()
+ConfigNVME()
 {
-	namespace=$(ls -l /dev | grep -w nvme[0-9]n[0-9]$ | awk '{print $10}' | head -1)
-	# Format disk
-	nvme format /dev/${namespace}
-	sleep 1
-	(echo d; echo n; echo p; echo 1; echo ; echo; echo ; echo w) | fdisk /dev/${namespace}
-	sleep 1
-	mdVolume="/dev/${namespace}"
+	install_package "nvme-cli"
+	namespace_list=$(ls -l /dev | grep -w nvme[0-9]n[0-9]$ | awk '{print $10}')
+	nvme_namespaces=""
+	for namespace in ${namespace_list}; do
+		nvme format /dev/${namespace}
+		sleep 1
+		(echo d; echo w) | fdisk /dev/${namespace}
+		sleep 1
+		echo 0 > /sys/block/${namespace}/queue/rq_affinity
+		sleep 1
+		nvme_namespaces="${nvme_namespaces}/dev/${namespace}:"
+	done
+	# Deleting last char of string (:)
+	nvme_namespaces=${nvme_namespaces%?}
+
+	# Set the remaining variables
+	# NVMe perf tests will have a starting qdepth equal to vCPU number
+	startQDepth=$(nproc)
+	# NVMe perf tests will have a max qdepth equal to vCPU number x 256
+	maxQDepth=$(($(nproc) * 256))
 }
 
 CreateLVM()
@@ -250,8 +258,8 @@ else
 fi
 
 # Creating RAID before triggering test
-if [ -n "${SINGLE_DISK}" ]; then
-	CreateSinglePartition
+if [ -n "${NVME}" ]; then
+	ConfigNVME
 else
 	CreateRAID0
 fi

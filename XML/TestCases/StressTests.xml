@@ -9,7 +9,7 @@
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Stress</Category>
-        <Area>stress</Area>
+        <Area>STRESS</Area>
         <Tags>stress,boot</Tags>
         <Priority>1</Priority>
     </test>
@@ -26,7 +26,7 @@
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Stress</Category>
-        <Area>stress</Area>
+        <Area>STRESS</Area>
         <Tags>stress,boot,network,sriov</Tags>
         <Priority>0</Priority>
     </test>
@@ -40,7 +40,7 @@
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Stress</Category>
-        <Area>stress</Area>
+        <Area>STRESS</Area>
         <Tags>stress</Tags>
         <Priority>1</Priority>
     </test>
@@ -54,7 +54,7 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Stress</Category>
-        <Area>stress</Area>
+        <Area>STRESS</Area>
         <Tags>stress</Tags>
         <Priority>1</Priority>
     </test>
@@ -64,7 +64,7 @@
         <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Stress</Category>
-        <Area>stress</Area>
+        <Area>STRESS</Area>
         <Tags>stress</Tags>
         <Priority>0</Priority>
     </test>
@@ -80,7 +80,7 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Stress</Category>
-        <Area>stress</Area>
+        <Area>STRESS</Area>
         <Tags>stress</Tags>
         <Priority>1</Priority>
     </test>
@@ -93,7 +93,7 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Stress</Category>
-        <Area>stress</Area>
+        <Area>STRESS</Area>
         <Tags>stress</Tags>
         <Priority>0</Priority>
     </test>
@@ -120,7 +120,7 @@
         </TestParameters>
         <Platform>HyperV,Azure</Platform>
         <Category>Stress</Category>
-        <Area>stress</Area>
+        <Area>STRESS</Area>
         <Tags>stress,network,sriov</Tags>
     </test>
 </TestCases>

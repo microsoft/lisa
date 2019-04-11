@@ -135,7 +135,7 @@ function Send-ResultToDatabase ($GlobalConfig, $logDir)
 			$BlockSize_KB= [Int]((($fioDataCsv |  where { $_.Threads -eq "$QDepth"} | Select BlockSize)[0].BlockSize).Replace("K",""))
 
 			$SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$HostType','$HostBy','$HostOS','$L1GuestOSType','$L1GuestDistro','$L1GuestSize','$L1GuestKernelVersion','$L2GuestDistro','$L2GuestKernelVersion','$L2GuestCpuNum','$L2GuestMemMB','$DiskSetup','$RaidOption','$BlockSize_KB','$QDepth','$seq_read_iops','$seq_read_lat_usec','$rand_read_iops','$rand_read_lat_usec','$seq_write_iops','$seq_write_lat_usec','$rand_write_iops','$rand_write_lat_usec'),"
-			Write-LogInfo "Collected performace data for $QDepth QDepth."
+			Write-LogInfo "Collected performance data for $QDepth QDepth."
 		}
 
 		$SQLQuery = $SQLQuery.TrimEnd(',')
@@ -149,7 +149,7 @@ function Send-ResultToDatabase ($GlobalConfig, $logDir)
 
 		$null = $command.executenonquery()
 		$connection.Close()
-		Write-LogInfo "Uploading the test results done!!"
+		Write-LogInfo "Uploading the test results done."
 	}
 	else
 	{
@@ -191,7 +191,7 @@ function Main()
 		}
 		elseif ( $finalStatus -imatch "TestRunning")
 		{
-			Write-LogInfo "Powershell backgroud job for test is completed but VM is reporting that test is still running. Please check $LogDir\TestExecutionConsole.txt"
+			Write-LogInfo "Powershell background job for test is completed but VM is reporting that test is still running. Please check $LogDir\TestExecutionConsole.txt"
 			$testResult = $resultAborted
 		}
 		Copy-RemoteFiles -download -downloadFrom $hs1VIP -files "fioConsoleLogs.txt" -downloadTo $LogDir -port $hs1vm1sshport -username $user -password $password

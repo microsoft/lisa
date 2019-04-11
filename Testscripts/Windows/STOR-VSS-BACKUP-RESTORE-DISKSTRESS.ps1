@@ -33,7 +33,7 @@ function Main {
             throw "VSS Daemon is not running"
         }
         # Create a file on the VM before backup
-        Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command "touch /home/$user/1" -runAsSudo
+        $null = Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command "touch /home/$user/1" -runAsSudo
         $BackupDriveLetter = $global:driveletter
         if ($null -eq $BackupDriveLetter) {
             $testResult = $resultFail
@@ -61,7 +61,7 @@ function Main {
         if (-not $sts) {
             throw "Backup evaluation failed"
         }
-        Remove-Backup $backupLocation
+        $null = Remove-Backup $backupLocation
         if( $testResult -ne $resultFail) {
             $testResult=$resultPass
         }

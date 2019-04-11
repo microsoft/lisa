@@ -1,4 +1,4 @@
-<!-- 
+<!--
 
 Parameters mentioned in this XML are replaceable using commandline.
 We can convert any hardcoded test parameter in LISAv2 test definition to a "Replaceable Parameter" using this file.
@@ -6,27 +6,33 @@ We can convert any hardcoded test parameter in LISAv2 test definition to a "Repl
 Syntax :
 
 There are two ways to start the tests -
-1.  Provide '-CustomParameters' to commandline.
+1.  Provide '-CustomTestParameters' to commandline.
     Run-LisaV2.ps1 -Platform <Platform> `
              -Area <Area> `
              .
              .
              .
-             -CustomParameters "ReplaceThis1=ReplaceWith1;ReplaceThis2=ReplaceWith2"
+             -CustomTestParameters "ReplaceThis1=ReplaceWith1;ReplaceThis2=ReplaceWith2"
 
-2.  Provide 'CustomParameters' in .\XML\TestParameters.xml
+2.  Provide 'CustomTestParameters' in .\XML\TestParameters.xml
     a. Edit TestParameters.xml file as follows:
-    <CustomParameters>ReplaceThis1=ReplaceWith1;ReplaceThis2=ReplaceWith2</CustomParameters>
+    <CustomTestParameters>ReplaceThis1=ReplaceWith1;ReplaceThis2=ReplaceWith2</CustomTestParameters>
     Run-LisaV2.ps1 -TestParameters .\XML\TestParameters.xml
 
-Note: Multiple replace operations can be done using sign - semicolumn (";").
+Note:   1. Multiple replace operations can be done using sign - semicolumn (";").
+        2. LISAv2 supports replacing parameters,
+            ...if parameter is assigned in one of the following format
+            ...in Test Definition -
+            a.  <ParameterName>REPLACEABLE_PARAMETER1</ParameterName>
+            b.  <param>ParameterName=REPLACEABLE_PARAMETER2</param>
+            c.  <param>ParameterName="REPLACEABLE_PARAMETER3"</param>
 
 Scenario 1 : You need to run the DPDK test with "git://dpdk.org/next/dpdk-next-net", instead of default.
-    -CustomParameters "DPDK_SOURCE_URL=git://dpdk.org/next/dpdk-next-net"
+    -CustomTestParameters "DPDK_SOURCE_URL=git://dpdk.org/next/dpdk-next-net"
 
-Scenario 2 : You need to run all the performance tests quickly. 
+Scenario 2 : You need to run all the performance tests quickly.
     The default test duration is 300 seconds for each scenario.
--CustomParameters "NTTTCP_RUNTIME_IN_SECONDS=120;IPERF3_RUNTIME_IN_SECONDS=120;FIO_RUNTIME_IN_SECONDS=120;DPDK_TEST_DURATION_IN_SECONDS=60"
+-CustomTestParameters "NTTTCP_RUNTIME_IN_SECONDS=120;IPERF3_RUNTIME_IN_SECONDS=120;FIO_RUNTIME_IN_SECONDS=120;DPDK_TEST_DURATION_IN_SECONDS=60"
 
 -->
 
@@ -34,6 +40,10 @@ Scenario 2 : You need to run all the performance tests quickly.
     <Parameter>
         <ReplaceThis>DPDK_SOURCE_URL</ReplaceThis>
         <ReplaceWith>https://fast.dpdk.org/rel/dpdk-18.08.tar.xz</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>OVS_SOURCE_URL</ReplaceThis>
+        <ReplaceWith>https://github.com/openvswitch/ovs.git</ReplaceWith>
     </Parameter>
     <Parameter>
         <ReplaceThis>NTTTCP_RUNTIME_IN_SECONDS</ReplaceThis>
@@ -64,39 +74,154 @@ Scenario 2 : You need to run all the performance tests quickly.
         <ReplaceWith>1</ReplaceWith>
     </Parameter>
     <Parameter>
-        <ReplaceThis>INFINIBAND_INTEL_MPI_SETTINGS</ReplaceThis>
-        <ReplaceWith>-env I_MPI_FABRICS shm:dapl -env I_MPI_DAPL_PROVIDER=ofa-v2-ib0 -env SECS_PER_SAMPLE=600</ReplaceWith>
+        <ReplaceThis>INFINIBAND_IBM_TOTAL_REBOOT_COUNT</ReplaceThis>
+        <ReplaceWith>1</ReplaceWith>
     </Parameter>
     <Parameter>
-        <ReplaceThis>INFINIBAND_INTEL_IB_NIC</ReplaceThis>
-        <ReplaceWith>eth1</ReplaceWith>
+        <ReplaceThis>INFINIBAND_OPEN_TOTAL_REBOOT_COUNT</ReplaceThis>
+        <ReplaceWith>1</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>INFINIBAND_MVAPICH_TOTAL_REBOOT_COUNT</ReplaceThis>
+        <ReplaceWith>1</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>INFINIBAND_INTEL_MPI_SETTINGS_TCP</ReplaceThis>
+        <ReplaceWith>-env I_MPI_DEBUG=2 -env I_MPI_FABRICS tcp</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>INFINIBAND_INTEL_MPI_SETTINGS_IB</ReplaceThis>
+        <ReplaceWith>-env I_MPI_FABRICS ofa -env I_MPI_DAPL_PROVIDER=ofa-v2-ib0 -env SECS_PER_SAMPLE=600</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>INFINIBAND_IBM_MPI_SETTINGS_TCP</ReplaceThis>
+        <ReplaceWith>-TCP</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>INFINIBAND_IBM_MPI_SETTINGS_IB</ReplaceThis>
+        <ReplaceWith>-ibv -udapl -mxm</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>INFINIBAND_OPEN_MPI_SETTINGS_TCP</ReplaceThis>
+        <ReplaceWith>--mca btl self,vader,tcp --mca btl_openib_cq_size 4096</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>INFINIBAND_OPEN_MPI_SETTINGS_IB</ReplaceThis>
+        <ReplaceWith>--mca btl self,vader,openib --mca btl_openib_cq_size 4096</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>INFINIBAND_MVAPICH_MPI_SETTINGS_TCP</ReplaceThis>
+        <ReplaceWith></ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>INFINIBAND_MVAPICH_MPI_SETTINGS_IB</ReplaceThis>
+        <ReplaceWith></ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>INFINIBAND_IB_NIC</ReplaceThis>
+        <ReplaceWith>eth0</ReplaceWith>
     </Parameter>
     <Parameter>
         <ReplaceThis>INFINIBAND_INTEL_MPI_TESTNAMES</ReplaceThis>
-        <ReplaceWith>pingpong allreduce</ReplaceWith>
+        <ReplaceWith>allreduce</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>INFINIBAND_IBM_MPI_TESTNAMES</ReplaceThis>
+        <ReplaceWith>allreduce</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>INFINIBAND_OPEN_MPI_TESTNAMES</ReplaceThis>
+        <ReplaceWith>allreduce</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>INFINIBAND_MVAPICH_MPI_TESTNAMES</ReplaceThis>
+        <ReplaceWith>allreduce</ReplaceWith>
     </Parameter>
     <Parameter>
         <ReplaceThis>INFINIBAND_INTEL_PPN</ReplaceThis>
         <ReplaceWith>2</ReplaceWith>
     </Parameter>
     <Parameter>
-        <ReplaceThis>INFINIBAND_INTEL_MPI_TEST_COUNT</ReplaceThis>
-        <ReplaceWith>1000</ReplaceWith>
+        <ReplaceThis>INFINIBAND_IBM_PPN</ReplaceThis>
+        <ReplaceWith>2</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>INFINIBAND_OPEN_PPN</ReplaceThis>
+        <ReplaceWith>1</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>INFINIBAND_MVAPICH_PPN</ReplaceThis>
+        <ReplaceWith>1</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>INFINIBAND_MPI_TEST_COUNT</ReplaceThis>
+        <ReplaceWith>1</ReplaceWith>
     </Parameter>
     <Parameter>
         <ReplaceThis>INFINIBAND_INTEL_RMA_TESTNAMES</ReplaceThis>
         <ReplaceWith>all</ReplaceWith>
     </Parameter>
     <Parameter>
+        <ReplaceThis>INFINIBAND_IBM_RMA_TESTNAMES</ReplaceThis>
+        <ReplaceWith>all</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <!-- 12/01/2019 - 'Accumulate' and 'Get_accumulate' not working - removing them for now -->
+        <ReplaceThis>INFINIBAND_OPEN_RMA_TESTNAMES</ReplaceThis>
+        <ReplaceWith>Unidir_put Unidir_get Bidir_put Bidir_get One_put_all One_get_all All_put_all All_get_all Put_local Put_all_local Exchange_put Exchange_get Fetch_and_op Compare_and_swap</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <!-- 08/02/2019 - 'Accumulate' and 'Get_accumulate' not working - removing them for now -->
+        <ReplaceThis>INFINIBAND_MVAPICH_RMA_TESTNAMES</ReplaceThis>
+        <ReplaceWith>Unidir_put Unidir_get Bidir_put Bidir_get One_put_all One_get_all All_put_all All_get_all Put_local Put_all_local Exchange_put Exchange_get Fetch_and_op Compare_and_swap</ReplaceWith>
+    </Parameter>
+    <Parameter>
         <ReplaceThis>INFINIBAND_INTEL_RMA_TEST_COUNT</ReplaceThis>
         <ReplaceWith>1</ReplaceWith>
     </Parameter>
     <Parameter>
+        <ReplaceThis>INFINIBAND_IBM_RMA_TEST_COUNT</ReplaceThis>
+        <ReplaceWith>0</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>INFINIBAND_OPEN_RMA_TEST_COUNT</ReplaceThis>
+        <ReplaceWith>1</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>INFINIBAND_MVAPICH_RMA_TEST_COUNT</ReplaceThis>
+        <ReplaceWith>1</ReplaceWith>
+    </Parameter>
+    <Parameter>
         <ReplaceThis>INFINIBAND_INTEL_NBC_TESTNAMES</ReplaceThis>
-        <ReplaceWith>all</ReplaceWith>
+        <ReplaceWith>allreduce</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>INFINIBAND_IBM_NBC_TESTNAMES</ReplaceThis>
+        <ReplaceWith>allreduce</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <!-- 11/02/2019 - 'Iallgather' & 'Iallgatherv' not working - removing them for now -->
+        <ReplaceThis>INFINIBAND_OPEN_NBC_TESTNAMES</ReplaceThis>
+        <ReplaceWith>Ibcast Igather Igatherv Iscatter Iscatterv Ialltoall Ialltoallv Ireduce Ireduce_scatter Iallreduce Ibarrier</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>INFINIBAND_MVAPICH_NBC_TESTNAMES</ReplaceThis>
+        <ReplaceWith>allreduce</ReplaceWith>
     </Parameter>
     <Parameter>
         <ReplaceThis>INFINIBAND_INTEL_NBC_TEST_COUNT</ReplaceThis>
+        <ReplaceWith>1</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>INFINIBAND_IBM_NBC_TEST_COUNT</ReplaceThis>
+        <ReplaceWith>1</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>INFINIBAND_OPEN_NBC_TEST_COUNT</ReplaceThis>
+        <ReplaceWith>1</ReplaceWith>
+    </Parameter>
+        <Parameter>
+        <ReplaceThis>INFINIBAND_MVAPICH_NBC_TEST_COUNT</ReplaceThis>
         <ReplaceWith>1</ReplaceWith>
     </Parameter>
     <Parameter>
@@ -164,8 +289,16 @@ Scenario 2 : You need to run all the performance tests quickly.
         <ReplaceWith>(1 2 4 8 16 32 64 128 256 512 1024 2048 4096 6144 8192 10240)</ReplaceWith>
     </Parameter>
     <Parameter>
+        <ReplaceThis>NTTTCP_MULTICLIENTS_TCP_CONNECTIONS</ReplaceThis>
+        <ReplaceWith>(4 8 16 32 64 128 256 512 1024 2048 4096 6144 8192 10240)</ReplaceWith>
+    </Parameter>
+    <Parameter>
         <ReplaceThis>NTTTCP_UDP_CONNECTIONS</ReplaceThis>
         <ReplaceWith>(1 2 4 8 16 32 64 128 256 512 1024)</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>NTTTCP_MULTICLIENTS_UDP_CONNECTIONS</ReplaceThis>
+        <ReplaceWith>(4 8 16 32 64 128 256 512 1024)</ReplaceWith>
     </Parameter>
     <Parameter>
         <ReplaceThis>STRESS_REBOOT_NUMBER</ReplaceThis>
@@ -174,5 +307,86 @@ Scenario 2 : You need to run all the performance tests quickly.
     <Parameter>
         <ReplaceThis>NTTTCP_VERSION</ReplaceThis>
         <ReplaceWith>v1.3.4</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>FIO_LOG_PARSE_TIMEOUT</ReplaceThis>
+        <ReplaceWith>600</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>MASTER_KERNEL_CONFIG_URL</ReplaceThis>
+        <ReplaceWith></ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>LIS_CURRENT_URL</ReplaceThis>
+        <ReplaceWith>http://download.microsoft.com/download/6/8/F/68FE11B8-FAA4-4F8D-8C7D-74DA7F2CFC8C/lis-rpms-4.2.8.tar.gz</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>LIS_OLD_URL</ReplaceThis>
+        <ReplaceWith>http://download.microsoft.com/download/6/8/F/68FE11B8-FAA4-4F8D-8C7D-74DA7F2CFC8C/lis-rpms-4.2.7.tar.gz</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>GCOV_BUILD_DIR</ReplaceThis>
+        <ReplaceWith>/build/linux</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>GCOV_BUILD_SOURCE_DEST</ReplaceThis>
+        <ReplaceWith>sources.tar.gz</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>GCOV_BUILD_PACK_DEST</ReplaceThis>
+        <ReplaceWith>packages.tar</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>GCOV_BUILD_SRC_PATH</ReplaceThis>
+        <ReplaceWith>.\linux-source.deb</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>GCOV_BUILD_SRC_NAME</ReplaceThis>
+        <ReplaceWith>linux-source.deb</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>GCOV_BUILD_CONFIG_URL</ReplaceThis>
+        <ReplaceWith>https://raw.githubusercontent.com/LIS/lis-pipeline/master/scripts/package_building/deps-lis/kernel_config/Microsoft/config-azure</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>GCOV_REPORT_LOGS</ReplaceThis>
+        <ReplaceWith>.\CodeCoverage\logs</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>GCOV_REPORT_CATEGORY</ReplaceThis>
+        <ReplaceWith>CORE</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>GCOV_REPORT_SRC_PATH</ReplaceThis>
+        <ReplaceWith>.\CodeCoverage\artifacts\sources.tar.gz</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>DM_EATMEMORY</ReplaceThis>
+        <ReplaceWith>https://github.com/julman99/eatmemory.git</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>CUDA_DRIVER</ReplaceThis>
+        <!-- Reference: https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/index.html -->
+        <ReplaceWith>10.0.130-1</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>LTP_BUILD_URL</ReplaceThis>
+        <ReplaceWith></ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>TENSORFLOW_VERSION</ReplaceThis>
+        <ReplaceWith>1.13.1</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>CUDATOOLKIT_VERSION</ReplaceThis>
+        <ReplaceWith>cuda-toolkit-10-0</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>CUDNN_LINUX_PACKAGE</ReplaceThis>
+        <ReplaceWith>https://partnerpipelineshare.blob.core.windows.net/packages/cudnn-10.0-linux-x64-v7.5.0.56.tgz</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>TENSORFLOW_BENCHMARK</ReplaceThis>
+        <ReplaceWith>https://github.com/tensorflow/benchmarks.git</ReplaceWith>
     </Parameter>
 </ReplaceableTestParameters>

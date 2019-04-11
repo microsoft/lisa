@@ -19,7 +19,7 @@
 #############################################################################################################
 # Source utils.sh
 . utils.sh || {
-    echo "Error: unable to source utils.sh!"
+    echo "unable to source utils.sh!"
     echo "TestAborted" > state.txt
     exit 0
 }
@@ -55,7 +55,7 @@ if [ "${NETMASK:-UNDEFINED}" = "UNDEFINED" ]; then
 fi
 
 if [ "${REMOTE_SERVER:-UNDEFINED}" = "UNDEFINED" ]; then
-    LogMsg "Error: The test parameter REMOTE_SERVER is not defined in constants file. No network connectivity test will be performed."
+    LogMsg "The test parameter REMOTE_SERVER is not defined in constants file. No network connectivity test will be performed."
     SetTestStateAborted
     exit 0
 fi
@@ -233,7 +233,7 @@ for __iterator in ${!SYNTH_NET_INTERFACES[@]}; do
             LogMsg "Warning! Failed to set default gateway!"
         fi
     fi
-    
+
     # ping the remote server
     LogMsg "Trying to ping $REMOTE_SERVER"
     "$pingVersion" -I ${SYNTH_NET_INTERFACES[$__iterator]} -c 10 "$REMOTE_SERVER"

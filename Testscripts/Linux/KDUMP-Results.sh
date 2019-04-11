@@ -48,11 +48,6 @@ Verify_RemoteStatus()
 # Main script body
 #
 #######################################################################
-
-#
-# As $DISTRO from utils.sh get the DETAILED Disro. eg. redhat_6, redhat_7, ubuntu_13, ubuntu_14
-# So, redhat* / ubuntu* / suse*
-#
 GetDistro
 case $DISTRO in
     centos* | redhat* | fedora*)

@@ -32,7 +32,7 @@ function Main {
     $vm = Get-VM -Name $VMName -ComputerName $HvServer -ErrorAction SilentlyContinue
     if ($vm.Generation -ne 2) {
         Write-LogWarn "This test requires a Gen2 VM."
-        return "ABORTED"
+        return "SKIPPED"
     }
 
     # Verify Windows Server version
@@ -62,7 +62,7 @@ function Main {
     # Configure the NET-Verify-Boot-NoNIC.sh script to be run automatically
     # on boot
     $linuxRelease = Detect-LinuxDistro
-    if ($linuxRelease -eq "CENTOS" -or $linuxRelease -eq "FEDORA" -or $linuxRelease -eq "RHEL") {
+    if ($linuxRelease -eq "CENTOS" -or $linuxRelease -eq "FEDORA" -or $linuxRelease -eq "REDHAT") {
         Run-LinuxCmd -Command "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;chmod +x /etc/rc.d/rc.local`"" `
             -Username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
             -runMaxAllowedTime $Timeout
@@ -130,7 +130,7 @@ RemainAfterExit=yes
     Write-LogInfo "Removing the original NIC from the VM..."
     Remove-VMNetworkAdapter -VMName $VMName -ComputerName $HvServer -ErrorAction SilentlyContinue
     if (-not $?) {
-        Write-LogErr  "Unable to Remove the original NIC"
+        Write-LogErr "Unable to Remove the original NIC"
         return "FAIL"
     }
 
@@ -150,7 +150,7 @@ RemainAfterExit=yes
     }
 
     #    This code runs in lock step with the KVP_VerifyBootNoNIC.sh script,
-    #    which is running on the Linux VM.  KVP values are used to keep this
+    #    which is running on the Linux VM. KVP values are used to keep this
     #    script in sync with the Bash script on the VM.
     #
     #    Wait for the Bash script to create the HotAddTest KVP item.
@@ -184,7 +184,7 @@ RemainAfterExit=yes
     Write-LogInfo "Hot add a synthetic NIC"
     Add-VMNetworkAdapter -VMName $VMName -SwitchName $Switch_Name -ComputerName $HvServer -ErrorAction SilentlyContinue
     if (-not $?) {
-        Write-LogErr  "Unable to Hot Add NIC to VM '${VMName}' on server '${HvServer}'"
+        Write-LogErr "Unable to Hot Add NIC to VM '${VMName}' on server '${HvServer}'"
         return "FAIL"
     }
 
@@ -193,7 +193,7 @@ RemainAfterExit=yes
     $tmo = 1000
     $value = $null
     while ($tmo -gt 0) {
-        $value = Get-KVPItem  $VMName  $HvServer  ${KVP_KEY}
+        $value = Get-KVPItem $VMName $HvServer ${KVP_KEY}
         Write-LogInfo "Trying to get KVP Item value..."
         if ($value -eq "NICUp") {
             break
@@ -246,10 +246,11 @@ RemainAfterExit=yes
         return "FAIL"
     }
     else {
-        Write-LogInfo "The VM  detected the Hot Remove of the NIC"
+        Write-LogInfo "The VM detected the Hot Remove of the NIC"
         return "PASS"
     }
 }
+
 Main -VMName $AllVMData.RoleName -HvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
     -Ipv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort `
     -VMUserName $user -VMPassword $password -RootDir $WorkingDirectory

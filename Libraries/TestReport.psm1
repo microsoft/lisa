@@ -154,6 +154,7 @@ Class JUnitReportGenerator
 		$newElement.SetAttribute("tests", 0)
 		$newElement.SetAttribute("failures", 0)
 		$newElement.SetAttribute("errors", 0)
+		$newElement.SetAttribute("skipped", 0)
 		$newElement.SetAttribute("time", 0)
 		$testsuiteNode = $this.ReportRootNode.AppendChild($newElement)
 
@@ -205,25 +206,26 @@ Class JUnitReportGenerator
 
 		$testSuiteNode = $this.TestSuiteLogTable[$testsuiteName].XmlNode
 		[int]$testSuiteNode.Attributes["tests"].Value += 1
-		if ($result -imatch "FAIL")
-		{
+		if ($result -imatch "FAIL") {
 			$newChildElement = $this.JunitReport.CreateElement("failure")
 			$newChildElement.InnerText = $detail
 			$newChildElement.SetAttribute("message", "$caseName failed.")
 			$testCaseNode.AppendChild($newChildElement)
 
 			[int]$testSuiteNode.Attributes["failures"].Value += 1
-		}
-
-		if ($result -imatch "ABORTED")
-		{
+		} elseif ($result -imatch "ABORTED") {
 			$newChildElement = $this.JunitReport.CreateElement("error")
 			$newChildElement.InnerText = $detail
 			$newChildElement.SetAttribute("message", "$caseName aborted.")
 			$testCaseNode.AppendChild($newChildElement)
 
 			[int]$testSuiteNode.Attributes["errors"].Value += 1
+		} elseif ($result -imatch "SKIPPED") {
+			$newChildElement = $this.JunitReport.CreateElement("skipped")
+			$testCaseNode.AppendChild($newChildElement)
+			[int]$testSuiteNode.Attributes["skipped"].Value += 1
 		}
+
 		$this.SaveLogReport()
 		$this.TestSuiteCaseLogTable["$testsuiteName$caseName"] = $null
 	}
@@ -259,6 +261,7 @@ Class TestSummary
 	[int] $TotalPassTc
 	[int] $TotalFailTc
 	[int] $TotalAbortedTc
+	[int] $TotalSkippedTc
 	[DateTime] $TestStartTime
 	[string] $TestCategory
 	[string] $TestArea
@@ -270,9 +273,10 @@ Class TestSummary
 		$this.TextSummary = ""
 		$this.HtmlSummary = ""
 		$this.AddHeader = $true
-		$this.TotalAbortedTc = 0
-		$this.TotalFailTc = 0
 		$this.TotalPassTc = 0
+		$this.TotalFailTc = 0
+		$this.TotalAbortedTc = 0
+		$this.TotalSkippedTc = 0
 		$this.TotalTc = $TotalCaseNum
 		$this.TestStartTime = [DateTime]::Now.ToUniversalTime()
 		$this.TestCategory = $TestCategory
@@ -307,8 +311,8 @@ Class TestSummary
 		if ($this.TestPriority) {
 			$str += "`r`nTest Priority         : $($this.TestPriority)"
 		}
-		$str += "`r`nTotal Test Cases      : " + $this.TotalTc + " (" + $this.TotalPassTc + " Pass, " + `
-			$this.TotalFailTc + " Fail, " + $this.TotalAbortedTc + " Abort)"
+		$str += "`r`nTotal Test Cases      : " + $this.TotalTc + " (" + $this.TotalPassTc + " Passed, " + `
+			$this.TotalFailTc + " Failed, " + $this.TotalAbortedTc + " Aborted, " + $this.TotalSkippedTc + " Skipped)"
 		$str += "`r`nTotal Time (dd:hh:mm) : $durationStr`r`n`r`n"
 
 		$str += $this.TextSummary.Replace("<br />", "`r`n")
@@ -365,7 +369,12 @@ Class TestSummary
 		$strHtml += "</table><BR/>"
 		$strHtml += "<table>"
 		$strHtml += "<TR><TD class=`"bg3`" colspan=`"2`">Total Executed TestCases - $($this.TotalTc)</TD></TR>"
-		$strHtml += "<TR><TD class=`"bg3`" colspan=`"2`">[&nbsp;<span><span style=`"color:#008000;`"><strong>$($this.TotalPassTc)</strong></span></span> - PASS, <span ><span style=`"color:#ff0000;`"><strong>$($this.TotalFailTc)</strong></span></span> - FAIL, <span><span style=`"color:#ff0000;`"><strong><span style=`"background-color:#ffff00;`">$($this.TotalAbortedTc)</span></strong></span></span> - ABORTED ]</TD></TR>"
+		$strHtml += "<TR><TD class=`"bg3`" colspan=`"2`">[&nbsp;" + `
+			"<span> <span style=`"color:#008000;`"><strong>$($this.TotalPassTc)</strong></span></span> - $($global:ResultPass), " + `
+			"<span> <span style=`"color:#cccccc;`"><strong>$($this.TotalSkippedTc)</strong></span></span> - $($global:ResultSkipped), " + `
+			"<span> <span style=`"color:#ff0000;`"><strong>$($this.TotalFailTc)</strong></span></span> - $($global:ResultFail), " + `
+			"<span> <span style=`"color:#ff0000;`"><strong><span style=`"background-color:#ffff00;`">$($this.TotalAbortedTc)</span></strong></span></span> - $($global:ResultAborted) " + `
+			"]</TD></TR>"
 		$strHtml += "<TR><TD class=`"bg3`" colspan=`"2`">Total Execution Time(dd:hh:mm) $durationStr</TD></TR>"
 		$strHtml += "</table>"
 		$strHtml += "<BR/>"
@@ -395,31 +404,35 @@ Class TestSummary
 			$this.TextSummary += "$TestSummary"
 		}
 
-		if ( $TestResult -imatch "PASS" ) {
+		$testSummaryLinePassSkip = "<tr><td>$ExecutionCount</td><td>$TestName</td><td>$Duration min</td><td>" + '{0}' + "</td></tr>"
+		$testSummaryLineFailAbort = "<tr><td>$ExecutionCount</td><td>$TestName$($this.GetReproVMDetails($AllVMData))</td><td>$Duration min</td><td>" + '{0}' + "</td></tr>"
+		if ($TestResult -imatch $global:ResultPass) {
 			$this.TotalPassTc += 1
-			$testResultRow = "<span style='color:green;font-weight:bolder'>PASS</span>"
-			$this.HtmlSummary += "<tr><td>$ExecutionCount</td><td>$TestName</td><td>$Duration min</td><td>$testResultRow</td></tr>"
-		}
-		elseif ( $TestResult -imatch "FAIL" ) {
+			$testResultRow = "<span style='color:green;font-weight:bolder'>$($global:ResultPass)</span>"
+			$this.HtmlSummary += $testSummaryLinePassSkip -f @($testResultRow)
+		} elseif ($TestResult -imatch $global:ResultSkipped) {
+			$this.TotalSkippedTc += 1
+			$testResultRow = "<span style='background-color:gray;font-weight:bolder'>$($global:ResultSkipped)</span>"
+			$this.HtmlSummary += $testSummaryLinePassSkip -f @($testResultRow)
+		} elseif ($TestResult -imatch $global:ResultFail) {
 			$this.TotalFailTc += 1
-			$testResultRow = "<span style='color:red;font-weight:bolder'>FAIL</span>"
-			$this.HtmlSummary += "<tr><td>$ExecutionCount</td><td>$TestName$($this.GetReproVMDetails($AllVMData))</td><td>$Duration min</td><td>$testResultRow</td></tr>"
-		}
-		elseif ( $TestResult -imatch "ABORTED" ) {
+			$testResultRow = "<span style='color:red;font-weight:bolder'>$($global:ResultFail)</span>"
+			$this.HtmlSummary += $testSummaryLineFailAbort -f @($testResultRow)
+		} elseif ($TestResult -imatch $global:ResultAborted) {
 			$this.TotalAbortedTc += 1
-			$testResultRow = "<span style='background-color:yellow;font-weight:bolder'>ABORT</span>"
-			$this.HtmlSummary += "<tr><td>$ExecutionCount</td><td>$TestName$($this.GetReproVMDetails($AllVMData))</td><td>$Duration min</td><td>$testResultRow</td></tr>"
-		}
-		else {
+			$testResultRow = "<span style='background-color:yellow;font-weight:bolder'>$($global:ResultAborted)</span>"
+			$this.HtmlSummary += $testSummaryLineFailAbort -f @($testResultRow)
+		} else {
 			Write-LogErr "Test Result is empty."
 			$this.TotalAbortedTc += 1
-			$testResultRow = "<span style='background-color:yellow;font-weight:bolder'>ABORT</span>"
-			$this.HtmlSummary += "<tr><td>$ExecutionCount</td><td>$TestName$($this.GetReproVMDetails($AllVMData))</td><td>$Duration min</td><td>$testResultRow</td></tr>"
+			$testResultRow = "<span style='background-color:yellow;font-weight:bolder'>$($global:ResultAborted)</span>"
+			$this.HtmlSummary += $testSummaryLineFailAbort -f @($testResultRow)
 		}
 
-		Write-LogInfo "CURRENT - PASS    - $($this.TotalPassTc)"
-		Write-LogInfo "CURRENT - FAIL    - $($this.TotalFailTc)"
-		Write-LogInfo "CURRENT - ABORTED - $($this.TotalAbortedTc)"
+		Write-LogInfo "CURRENT - $($global:ResultPass)    - $($this.TotalPassTc)"
+		Write-LogInfo "CURRENT - $($global:ResultSkipped) - $($this.TotalSkippedTc)"
+		Write-LogInfo "CURRENT - $($global:ResultFail)    - $($this.TotalFailTc)"
+		Write-LogInfo "CURRENT - $($global:ResultAborted) - $($this.TotalAbortedTc)"
 	}
 
 	[string] GetReproVMDetails($allVMData) {

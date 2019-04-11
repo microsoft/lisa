@@ -60,10 +60,10 @@ function Main {
         $appGitTag = $TestParams.appGitTag
         # Change working directory to root dir
         Set-Location $WorkingDirectory
-        Set-VMDynamicMemory -VM $VM1 -minMem $TestParams.minMem1 -maxMem $TestParams.maxMem1 -startupMem $TestParams.startupMem1 -memWeight $memweight1
-        Set-VMDynamicMemory -VM $VM2 -minMem $TestParams.minMem2 -maxMem $TestParams.maxMem2 -startupMem $TestParams.startupMem2 -memWeight $memweight2
+        Set-VMDynamicMemory -VM $VM1 -minMem $TestParams.minMem1 -maxMem $TestParams.maxMem1 -startupMem $TestParams.startupMem1 -memWeight $memweight1 | Out-Null
+        Set-VMDynamicMemory -VM $VM2 -minMem $TestParams.minMem2 -maxMem $TestParams.maxMem2 -startupMem $TestParams.startupMem2 -memWeight $memweight2 | Out-Null
         Write-LogInfo "Starting VM1 $VM1Name"
-        $VM1Ipv4=Start-VMandGetIP $VM1Name $HvServer $VMPort $user $password
+        $VM1Ipv4 = Start-VMandGetIP $VM1Name $HvServer $VMPort $user $password
         $vm1 = Get-VM -Name $VM1Name -ComputerName $HvServer -ErrorAction SilentlyContinue
         $vm2 = Get-VM -Name $VM2Name -ComputerName $HvServer -ErrorAction SilentlyContinue
         # Check if stress-ng is installed

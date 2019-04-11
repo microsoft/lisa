@@ -253,7 +253,7 @@
             <param>TestDelay=10</param>
             <param>MaxTimeDiff=1.0</param>
         </TestParameters>
-        <Platform>HyperV</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>timesync</Tags>
@@ -398,7 +398,7 @@
         <files>.\Testscripts\Linux\verify_vmbus_interrupts.sh,.\Testscripts\Linux\utils.sh</files>
         <setupType>OneVM</setupType>
         <OverrideVMSize>Standard_A3</OverrideVMSize>
-        <Platform>HyperV</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>Functional</Category>
         <Area>LIS</Area>
         <Tags>vmbus</Tags>
@@ -907,10 +907,21 @@
             <param>startupMem=5000MB</param>
         </TestParameters>
         <Timeout>2400</Timeout>
-        <Platform>HyperV</Platform>s
+        <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>RUNTIME_MEMORY</Area>
         <Tags>memory</Tags>
         <Priority>2</Priority>
+    </test>
+    <test>
+        <testName>VM-HOT-RESIZE</testName>
+        <testScript>VM-HOT-RESIZE.ps1</testScript>
+        <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_A4</OverrideVMSize>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>hot_resize,memory</Tags>
+        <Priority>1</Priority>
     </test>
 </TestCases>

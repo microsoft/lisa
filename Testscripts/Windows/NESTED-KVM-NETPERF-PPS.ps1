@@ -140,7 +140,7 @@ function Main () {
 			$testResult = $resultPass
 		}
 		elseif ($finalStatus -imatch "TestRunning") {
-			Write-LogInfo "Powershell backgroud job for test is completed but VM is reporting that test is still running. Please check $LogDir\zkConsoleLogs.txt"
+			Write-LogInfo "Powershell background job for test is completed but VM is reporting that test is still running. Please check $LogDir\zkConsoleLogs.txt"
 			$testResult = $resultAborted
 		}
 		if ($testResult -imatch $resultPass) {

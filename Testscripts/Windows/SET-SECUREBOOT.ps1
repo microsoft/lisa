@@ -40,7 +40,7 @@ function Main {
             Write-LogInfo "Successfully Enabled SecureBoot"
         }
         Write-LogInfo "Setting SecureBoot template"
-        Set-VMFirmware -VMName $VMName -ComputerName $HvServer -SecureBootTemplate MicrosoftUEFICertificateAuthority
+        $null = Set-VMFirmware -VMName $VMName -ComputerName $HvServer -SecureBootTemplate MicrosoftUEFICertificateAuthority
         if (-not $?) {
             throw "Unable to set secure boot template!"
         }

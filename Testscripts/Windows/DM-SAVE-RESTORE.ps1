@@ -46,8 +46,8 @@ function Main {
         $TestParams
     )
     $currentTestResult = Create-TestResultObject
-    $resultArr = @()
     try {
+        $resultArr = @()
         $testResult = $null
         $VM1Name = $VM1.RoleName
         $VM2Name = $VM2.RoleName
@@ -66,9 +66,9 @@ function Main {
         $memWeight1=$TestParams.memweight1
         $memWeight2=$TestParams.memweight2
         Set-VMDynamicMemory -VM $VM1 -minMem $TestParams.minMem1 -maxMem $TestParams.maxMem1 `
-            -startupMem $TestParams.startupMem1 -memWeight $memweight1
+            -startupMem $TestParams.startupMem1 -memWeight $memweight1 | Out-Null
         Set-VMDynamicMemory -VM $VM2 -minMem $TestParams.minMem2 -maxMem $TestParams.maxMem2 `
-            -startupMem $TestParams.startupMem2 -memWeight $memweight2
+            -startupMem $TestParams.startupMem2 -memWeight $memweight2 | Out-Null
         $VM1Ipv4=Start-VMandGetIP $VM1Name $HvServer $VMPort $user $password
         Write-LogInfo "IP of $VM1Name is $VM1Ipv4"
         # change working directory to root dir
@@ -105,7 +105,7 @@ function Main {
         #
         # LIS Started VM1, so start VM2
         #
-        $VM2Ipv4=Start-VMandGetIP $VM2Name $HvServer $VMPort $user $password
+        $VM2Ipv4 = Start-VMandGetIP $VM2Name $HvServer $VMPort $user $password
         Write-LogInfo "IP of $VM2Name is $VM2Ipv4"
         # sleep another 2 minute trying to get VM2's memory demand
         $sleepPeriod = 120 #seconds

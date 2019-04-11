@@ -30,7 +30,7 @@ function Main {
         $HvServer= $captureVMData.HyperVhost
         $VMIpv4 = $captureVMData.PublicIP
         $VMPort = $captureVMData.SSHPort
-        $HypervGroupName=$captureVMData.HyperVGroupName
+        $HypervGroupName = $captureVMData.HyperVGroupName
         $url = $TestParams.CDISO
         Write-LogInfo "Test VM details :"
         Write-LogInfo "  RoleName : $($captureVMData.RoleName)"
@@ -92,7 +92,7 @@ function Main {
         $remoteTest = "echo '${password}' | sudo -S -s eval `"export HOME=``pwd``;bash ${RemoteScript} > remotescript.log`""
         Write-LogInfo "Run the remotescript $remoteScript"
         #Run the test on VM
-        Run-LinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMPort $remoteTest -runAsSudo
+        $null = Run-LinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMPort $remoteTest -runAsSudo
         Start-Sleep -Seconds 3
         # Make sure network is down.
         $sts = ping $VMIpv4
@@ -123,7 +123,7 @@ function Main {
         if (-not $sts) {
             throw "Backup evaluation failed"
         }
-        Remove-Backup $backupLocation
+        $null = Remove-Backup $backupLocation
         if( $testResult -ne $resultFail) {
             $testResult=$resultPass
         }

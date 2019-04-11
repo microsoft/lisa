@@ -68,7 +68,7 @@ function Main {
     # Switch network connection type in case is needed
     if ($switchNic) {
         # Switch the NIC on test VM from External to Private
-        $retVal = .\Testscripts\Windows\SETUP-NET-Switch-NIC.ps1 -AllVMData $AllVMData -testParams "SWITCH=$switchNic"
+        $retVal = .\Testscripts\Windows\SETUP-NET-Switch-NIC.ps1 -VMName $VMName -testParams "SWITCH=$switchNic"
         if (-not $retVal) {
             Write-LogErr "Failed to switch connection type for $VMName on $HvServer"
             return "FAIL"
@@ -76,7 +76,7 @@ function Main {
 
         # Switch the NIC on dependency VM from External to Private
         $switchNic = $switchNic+","+$vm2MacAddress
-        $retVal = .\Testscripts\Windows\SETUP-NET-Switch-NIC.ps1 -AllVMData $AllVMData -testParams "SWITCH=$switchNic"
+        $retVal = .\Testscripts\Windows\SETUP-NET-Switch-NIC.ps1 -VMName $VM2Name -testParams "SWITCH=$switchNic"
         if (-not $retVal) {
             Write-LogErr "Failed to switch connection type for $VM2Name on $HvServer"
             return "FAIL"

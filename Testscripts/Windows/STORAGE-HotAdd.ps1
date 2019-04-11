@@ -5,7 +5,7 @@ param([String] $TestParams,
       [object] $AllVmData,
       [object] $CurrentTestData)
 
-$SETUP_SCRIPT = ".\TestScripts\Windows\AddHardDisk.ps1"
+$SETUP_SCRIPT = ".\TestScripts\Windows\AddVhdxHardDisk.ps1"
 $TEST_SCRIPT = "STOR-Lis-Disk.sh"
 
 function Main {

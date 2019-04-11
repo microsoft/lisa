@@ -29,7 +29,6 @@ case $DISTRO in
         if [[ $os_RELEASE.$os_UPDATE =~ ^5.* ]] || [[ $os_RELEASE.$os_UPDATE =~ ^6.* ]] ; then
             LogMsg "INFO: Skipped config step"
         else
-            package_manager="yum"
             chrony_config_path="/etc/chrony.conf"
             chrony_service_name="chronyd"
             ntp_service_name="ntpd"
@@ -38,13 +37,11 @@ case $DISTRO in
     ubuntu* | debian*)
         #Update required before install
         apt-get update
-        package_manager="apt"
         chrony_config_path="/etc/chrony/chrony.conf"
         chrony_service_name="chrony"
         ntp_service_name="ntp"
     ;;
     suse*)
-        package_manager="zypper"
         chrony_config_path="/etc/chrony.conf"
         chrony_service_name="chronyd"
         ntp_service_name="ntpd"
@@ -54,14 +51,8 @@ case $DISTRO in
     ;;
 esac
 
-chronyd -v
-if [ $? -ne 0 ]; then
-    $package_manager install -y chrony
-    if [ $? -ne 0 ]; then
-        LogMsg "ERROR: Failed to install chrony"
-        SetTestStateFailed
-        exit 1
-    fi
+if ! chronyd -v; then
+    install_package chrony
 fi
 
 CheckPTPSupport

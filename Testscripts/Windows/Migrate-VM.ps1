@@ -73,7 +73,7 @@ try {
         $clusterNodeStopped = $False
         $stoppedNode = Get-ClusterNode -Name $destinationNode
         Write-LogInfo "Stoping cluster service for node ${destinationNode}"
-        Stop-ClusterNode -Name $destinationNode
+        $null = Stop-ClusterNode -Name $destinationNode
         $stopClusterNode = $False
         Write-LogInfo "Waiting for ${destinationNode}'s cluster service to stop"
         while(-not $clusterNodeStopped) {
@@ -85,7 +85,7 @@ try {
         Write-LogInfo "Sleep for 30 sec."
         Start-Sleep -s 30
         Write-LogInfo "Starting cluster service for node ${destinationNode}"
-        Start-ClusterNode -Name $destinationNode
+        $null = Start-ClusterNode -Name $destinationNode
         Write-LogInfo "Waiting for ${destinationNode}'s cluster service to be up and running"
         while($clusterNodeStopped) {
             if($stoppedNode.State -eq "Up") {

@@ -46,11 +46,16 @@ function Main {
     }
     Write-LogInfo "The throughput before disabling SR-IOV is $vfEnabledThroughput Gbits/sec"
 
-    # Disable SR-IOV on test VM
-    Write-LogInfo "Disabling VF on vm1"
+    # Disable SR-IOV on test VM & dependency VM
+    Write-LogInfo "Disabling VF on vm1 and vm2"
     Set-VMNetworkAdapter -VMName $VMName -ComputerName $HvServer -IovWeight 0
     if (-not $?) {
         Write-LogErr "Failed to disable SR-IOV on $VMName!"
+        return "FAIL"
+    }
+    Set-VMNetworkAdapter -VMName $DependencyVmName -ComputerName $DependencyVmHost -IovWeight 0
+    if (-not $?) {
+        Write-LogErr "Failed to disable SR-IOV on $DependencyVmName!"
         return "FAIL"
     }
 
@@ -72,22 +77,27 @@ function Main {
         return "FAIL"
     }
 
-    # Enable SR-IOV on test VM
+    # Enable SR-IOV on test VM & dependency VM
     Set-VMNetworkAdapter -VMName $VMName -ComputerName $HvServer -IovWeight 1
     if (-not $?) {
         Write-LogErr "Failed to enable SR-IOV on $VMName!"
+        return "FAIL"
+    }
+    Set-VMNetworkAdapter -VMName $DependencyVmName -ComputerName $DependencyVmHost -IovWeight 1
+    if (-not $?) {
+        Write-LogErr "Failed to enable SR-IOV on $DependencyVmName!"
         return "FAIL"
     }
 
     # Read the throughput again, it should be higher than before
     Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "source sriov_constants.sh ; iperf3 -t 30 -c `$VF_IP2 --logfile PerfResults.log"
-    [decimal]$vfEnabledThroughput  = $vfEnabledThroughput * 0.7
+    [decimal]$vfDisabledThroughput = $vfDisabledThroughput * 1.5
     [decimal]$vfFinalThroughput = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "tail -4 PerfResults.log | head -1 | awk '{print `$7}'" `
         -ignoreLinuxExitCode:$true
     Write-LogInfo "The throughput after re-enabling SR-IOV is $vfFinalThroughput Gbits/sec"
-    if ($vfEnabledThroughput -gt $vfFinalThroughput) {
+    if ($vfDisabledThroughput -gt $vfFinalThroughput) {
         Write-LogErr "After re-enabling SR-IOV, the throughput has not increased enough"
         return "FAIL"
     }

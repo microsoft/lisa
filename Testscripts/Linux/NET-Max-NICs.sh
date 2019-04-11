@@ -25,7 +25,7 @@ function Configure_Interfaces
         fi
 
         # Get the specific nic name as seen by the VM
-        LogMsg "Info : Configuring interface ${IFACE}"
+        LogMsg "Configuring interface ${IFACE}"
         CreateIfupConfigFile $IFACE dhcp
         if [ $? -ne 0 ]; then
             LogErr "Unable to create ifcfg-file for $IFACE"
@@ -39,11 +39,11 @@ function Configure_Interfaces
 
         ip_address=$(ip addr show $IFACE | grep "inet\b" | grep -v '127.0.0.1' | awk '{print $2}' | cut -d/ -f1)
         if [[ ! -z "$ip_address" ]]; then
-            LogMsg "Info : Successfully set IP address ${ip_address} on interface ${IFACE}"
+            LogMsg "Successfully set IP address ${ip_address} on interface ${IFACE}"
         fi
 
         # Chech for gateway
-        LogMsg "Info : Checking if default gateway is set for ${IFACE}"
+        LogMsg "Checking if default gateway is set for ${IFACE}"
         Check_Gateway $IFACE
         if [ $? -ne 0 ];  then
             route add -net 0.0.0.0 gw ${DEFAULT_GATEWAY} netmask 0.0.0.0 dev ${IFACE}
@@ -58,7 +58,7 @@ function Configure_Interfaces
 
 # Source utils.sh
 . utils.sh || {
-    echo "Error: unable to source utils.sh!"
+    echo "unable to source utils.sh!"
     exit 0
 }
 UtilsInit
@@ -84,6 +84,12 @@ fi
 if [ -z "${LEGACY_NICS+x}" ]; then
     LogMsg "Parameter LEGACY_NICS was not found"
 else
+    grep "CONFIG_NET_TULIP=y\|CONFIG_TULIP=m" /boot/config-$(uname -r)
+    if [ $? -ne 0 ]; then
+        LogErr "Tulip driver is not configured. Test skipped"
+        SetTestStateSkipped
+        exit 0
+    fi
     let EXPECTED_INTERFACES_NO=$EXPECTED_INTERFACES_NO+$LEGACY_NICS
 fi
 
@@ -105,7 +111,7 @@ for i in "${!IFACES[@]}"; do
     fi
 done
 
-LogMsg "Info : Array of NICs - ${IFACES}"
+LogMsg "Array of NICs - ${IFACES}"
 # Check how many interfaces are visible to the VM
 if [ ${#IFACES[@]} -ne ${EXPECTED_INTERFACES_NO} ]; then
     LogErr "Test expected ${EXPECTED_INTERFACES_NO} interfaces to be visible on VM. Found ${#IFACES[@]} interfaces"
@@ -114,7 +120,7 @@ if [ ${#IFACES[@]} -ne ${EXPECTED_INTERFACES_NO} ]; then
 fi
 
 # Bring interfaces up, using dhcp
-LogMsg "Info : Bringing up interfaces using DHCP"
+LogMsg "Bringing up interfaces using DHCP"
 Configure_Interfaces
 if [ $? -ne 0 ]; then
     SetTestStateFailed
@@ -123,9 +129,9 @@ fi
 
 # Check if all interfaces have a default gateway
 GATEWAY_IF=($(route -n | grep 'UG[ \t]' | awk '{print $8}'))
-LogMsg "Info : Gateway setup for each NIC - ${GATEWAY_IF}"
+LogMsg "Gateway setup for each NIC - ${GATEWAY_IF}"
 if [ ${#GATEWAY_IF[@]} -ne $EXPECTED_INTERFACES_NO ]; then
-    LogMsg "Info : Checking interfaces with missing gateway address"
+    LogMsg "Checking interfaces with missing gateway address"
     for IFACE in ${IFACES[@]}; do
         Check_Gateway $IFACE
         if [ $? -ne 0 ]; then

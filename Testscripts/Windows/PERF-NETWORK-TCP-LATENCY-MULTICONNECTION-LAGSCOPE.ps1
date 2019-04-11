@@ -118,37 +118,36 @@ collect_VM_properties
         Write-LogInfo "Test result : $testResult"
         Write-LogInfo "Test Completed"
 
-        Write-LogInfo "Uploading the test results.."
-        $dataSource = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.server
-        $user = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.user
-        $password = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.password
-        $database = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbname
-        $dataTableName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbtable
-        $TestCaseName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
-        if ($dataSource -And $user -And $password -And $database -And $dataTableName)  {
-            $GuestDistro = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object {$_ -replace ",OS type,",""}
-            $HostOS = cat "$LogDir\VM_properties.csv" | Select-String "Host Version"| %{$_ -replace ",Host Version,",""}
-            $GuestOSType = "Linux"
-            $GuestDistro = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
-            $GuestSize = $clientVMData.InstanceSize
-            $KernelVersion = cat "$LogDir\VM_properties.csv" | Select-String "Kernel version"| %{$_ -replace ",Kernel version,",""}
-            $IPVersion = "IPv4"
-            $ProtocolType = "TCP"
-            if ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
-                $DataPath = "SRIOV"
-            } else {
-                $DataPath = "Synthetic"
+        if ($testResult -eq "PASS") {
+            Write-LogInfo "Generating the performance data for database insertion"
+            $properties = Get-VMProperties -PropertyFilePath "$LogDir\VM_properties.csv"
+            $resultMap = @{}
+            if ($properties) {
+                $resultMap["GuestDistro"] = $properties.GuestDistro
+                $resultMap["HostOS"] = $properties.HostOS
+                $resultMap["KernelVersion"] = $properties.KernelVersion
             }
-            $SQLQuery = "INSERT INTO $dataTableName (TestCaseName,TestDate,HostType,HostBy,HostOS,GuestOSType,GuestDistro,GuestSize,KernelVersion,IPVersion,ProtocolType,DataPath,MaxLatency_us,AverageLatency_us,MinLatency_us,Latency95Percentile_us,Latency99Percentile_us) VALUES "
-
-            #Percentile Values are not calculated yet. will be added in future.
-            $Latency95Percentile_us = 0
-            $Latency99Percentile_us = 0
-
-            $SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$TestPlatform','$TestLocation','$HostOS','$GuestOSType','$GuestDistro','$GuestSize','$KernelVersion','$IPVersion','$ProtocolType','$DataPath','$maximumLat','$averageLat','$minimumLat','$Latency95Percentile_us','$Latency99Percentile_us'),"
-
-            $SQLQuery = $SQLQuery.TrimEnd(',')
-            Upload-TestResultToDatabase $SQLQuery
+            $resultMap["HostType"] = "Azure"
+            $resultMap["HostBy"] = $global:TestLocation
+            $resultMap["GuestOSType"] = "Linux"
+            $resultMap["GuestSize"] = $clientVMData.InstanceSize
+            $resultMap["IPVersion"] = "IPv4"
+            $resultMap["ProtocolType"] = "TCP"
+            $resultMap["TestCaseName"] = $global:GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
+            $resultMap["TestDate"] = $(Get-Date -Format yyyy-MM-dd)
+            $resultMap["LISVersion"] = "Inbuilt"
+            if ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
+                $resultMap["DataPath"] = "SRIOV"
+            } else {
+                $resultMap["DataPath"] = "Synthetic"
+            }
+            $resultMap["MaxLatency_us"] = $maximumLat
+            $resultMap["AverageLatency_us"] = $averageLat
+            $resultMap["MinLatency_us"] = $minimumLat
+            #Percentile Values are not calculated yet. will be added in future
+            $resultMap["Latency95Percentile_us"] = 0
+            $resultMap["Latency99Percentile_us"] = 0
+            $currentTestResult.TestResultData += $resultMap
         }
     } catch {
         $ErrorMessage = $_.Exception.Message

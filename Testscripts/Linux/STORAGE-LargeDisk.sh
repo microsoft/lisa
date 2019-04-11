@@ -2,8 +2,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 
-CONSTANTS_FILE="constants.sh"
-
 function Check_For_Error() {
     distro=$(grep -ihs "Ubuntu\|SUSE\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux" /etc/{issue,*release,*version})
     if [[ $distro = *"ubuntu"* || $distro = *"debian"* ]]; then
@@ -37,7 +35,7 @@ function Integrity_Check() {
     blocks=$((blocks-1))
     mount "$targetDevice" /mnt/
     targetDevice="/mnt/1"
-    
+
     LogMsg "Creating test data file $testfile with size $blockSize"
     LogMsg "Creating test source file... ($blockSize)"
 
@@ -52,7 +50,7 @@ function Integrity_Check() {
     for ((y=0 ; y<blocks ; y++)) ; do
         LogMsg "Writing block $y to device $targetDevice ..."
         dd if=$testFile of=$targetDevice bs=$blockSize count=1 seek=$y status=noxfer 2> /dev/null
-        
+
         LogMsg "Checking block $y ..."
         testChecksum=$(dd if=$targetDevice bs=$blockSize count=1 skip=$y status=noxfer 2> /dev/null | sha1sum | cut -d " " -f 1)
         if [ "$checksum" == "$testChecksum" ] ; then
@@ -63,7 +61,7 @@ function Integrity_Check() {
             exit 0
         fi
     done
-    
+
     UpdateSummary "Data integrity test on ${blocks} blocks on drive $1 : success"
     umount /mnt/
     rm -f $testFile
@@ -75,12 +73,12 @@ function Test_File_System() {
     fs=$2
     parted -s -- "$drive" mklabel gpt
     parted -s -- "$drive" mkpart primary 64s -64s
-    
+
     if [ "$?" = "0" ]; then
         sleep 5
         wipefs -a "${driveName}1"
         Check_For_Error "${driveName}1" &
-        
+
         # Integrity_Check $driveName
         mkfs."$fs" "${driveName}1"
         if [ "$?" = "0" ]; then
@@ -127,18 +125,6 @@ function Test_File_System() {
 }
 
 UtilsInit
-
-# Source the constants file
-if [ -e ~/${CONSTANTS_FILE} ]; then
-    source ~/${CONSTANTS_FILE}
-else
-    LogErr "in ${CONSTANTS_FILE} file"
-    SetTestStateAborted
-    exit 0
-fi
-
-# Create the state.txt file so ICA knows we are running
-SetTestStateRunning
 
 # Count the number of SCSI= and IDE= entries in constants
 diskCount=0
@@ -194,7 +180,7 @@ do
     if [ "${driveName}" = "/dev/sda" ] || [ "${driveName}" = "/dev/sdb" ]; then
         continue
     fi
-    
+
     for fs in "${fileSystems[@]}"; do
         LogMsg "Start testing filesystem: $fs"
         StartTst=$(date +%s.%N)

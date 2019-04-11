@@ -69,7 +69,7 @@ done
                     echo "SLES 15"
                     exitVal=0
                 else
-                    echo "Unknown"         
+                    echo "Unknown"
                 fi
         elif [ -e /usr/share/clear/version ]; then
                 tmp=$(cat /usr/share/clear/version)

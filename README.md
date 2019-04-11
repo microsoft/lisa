@@ -22,7 +22,7 @@ LISAv2 includes below test suite categories:
 
 2. You must be connected to Internet.
 
-3. You download 3rd party software in Tools folder. If you are using secure blob in Azure Storage Account or UNC path, you can add a tag <blobStorageLocation>https://myownsecretlocation.blob.core.windows.net/binarytools</blobStorageLocation> in any secret xml file.
+3. You download 3rd party software in Tools folder. If you are using secure blob in Azure Storage Account or UNC path, you can add a tag <blobStorageLocation>https://myownsecretlocation.blob.core.windows.net/binarytools</blobStorageLocation> in the secret xml file.
 * 7za.exe
 * dos2unix.exe
 * gawk
@@ -39,6 +39,14 @@ LISAv2 includes below test suite categories:
 - Hyper-V role enabled
 - At least 8 GB of memory on the Host - Most of lisav2 tests will create and start Virtual Machines (Guests) with 3.5 GB of memory assigned
 - 1 External vSwitch in Hyper-V Manager/Virtual Switch Manager. This vSwitch will be named 'External' and must have an internet connection. For Hyper-V NETWORK tests you need 2 more vSwitch types created: Internal and Private. These 2 vSwitches will have the naming also 'Internal' and 'Private'.
+
+6. For running WSL tests, you must enable WSL on the test server
+
+    a. Open Powershell as Administrator and run:
+    ```
+    Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux
+    ```
+    b. Restart your computer when prompted.
 
 ### Download Latest Azure PowerShell
 
@@ -78,44 +86,97 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
 
           git clone https://github.com/LIS/LISAv2.git
 
-2. Update the .\XML\GlobalConfigurations.xml file with your Azure subscription information or Hyper-V host information:
+2. Use a secret file or update the .\XML\GlobalConfigurations.xml manually for preparatory work:
 
-   Go to Global > Azure/HyperV and update following fields :
+    2.1 Update below subscription info using created service principal, can use [this script](https://github.com/LIS/LISAv2/blob/master/Utilities/CreateServicePrincipal.ps1) to create service principal
+        If run test case in location eastasia, create a standard and premium storage account under the test subscription in eastasia, and replace storage account names in secrets file
+        if run against other region, add new sections like <eastasia></eastasia>
+    ```xml
+        <secrets>
+            <!--Not mandatory-->
+            <SubscriptionName></SubscriptionName>
+            <!--Below four sections are mandatory when test against Azure platform-->
+            <SubscriptionID></SubscriptionID>
+            <SubscriptionServicePrincipalTenantID></SubscriptionServicePrincipalTenantID>
+            <SubscriptionServicePrincipalClientID></SubscriptionServicePrincipalClientID>
+            <SubscriptionServicePrincipalKey><SubscriptionServicePrincipalKey>
+            <!--Download needed tools from the blob-->
+            <blobStorageLocation> </blobStorageLocation>
+            <!--VMs Credential-->
+            <linuxTestUsername></linuxTestUsername>
+            <linuxTestPassword></linuxTestPassword>
+            <!--Database info for upload results-->
+            <DatabaseServer></DatabaseServer>
+            <DatabaseUser></DatabaseUser>
+            <DatabasePassword></DatabasePassword>
+            <DatabaseName></DatabaseName>
+            <RegionAndStorageAccounts>
+                <eastasia>
+                    <StandardStorage>HERE</StandardStorage>
+                    <PremiumStorage>HERE</PremiumStorage>
+                </eastasia>
+                <westus>
+                    <StandardStorage>HERE</StandardStorage>
+                    <PremiumStorage>HERE</PremiumStorage>
+                </westus>
+                <!--Other locations sections-->
+            </RegionAndStorageAccounts>
+        </secrets>
+    ```
 
-        a. SubscriptionID
-        b. SubscriptionName (Optional)
-        c. ManagementEndpoint
-        d. Environment (For Azure PublicCloud, use `AzureCloud`)
-        e. ARMStorageAccount
+    2.2 Update the .\XML\GlobalConfigurations.xml file with your Azure subscription information or Hyper-V host information:
 
-   Example :
+        Go to Global > Azure/HyperV and update following fields:
 
-```xml
+            a. SubscriptionID
+            b. SubscriptionName (Optional)
+            c. ManagementEndpoint
+            d. Environment (For Azure PublicCloud, use `AzureCloud`)
+            e. ARMStorageAccount
 
-  <Azure>
-        <Subscription>
-            <SubscriptionID>2cd20493-0000-1111-2222-0123456789ab</SubscriptionID>
-            <SubscriptionName>YOUR_SUBSCRIPTION_NAME</SubscriptionName>
-            <ManagementEndpoint>https://management.core.windows.net</ManagementEndpoint>
-            <Environment>AzureCloud</Environment>
-            <ARMStorageAccount>ExistingStorage_Standard</ARMStorageAccount>
-        </Subscription>
+        Example:
 
-  <HyperV>
-        <Hosts>
-            <Host>
-                <!--ServerName can be localhost or Hyper-V host name-->
-                <ServerName>localhost</ServerName>
-                <DestinationOsVHDPath>VHDs_Destination_Path</DestinationOsVHDPath>
-            </Host>
-            <Host>
-                <!--If run test against 2 hosts, set ServerName as another host computer name-->
-                <ServerName>lis-01</ServerName>
-                <!--If run test against 2 hosts, DestinationOsVHDPath is mandatory-->
-                <DestinationOsVHDPath>D:\vhd</DestinationOsVHDPath>
-            </Host>
-        </Hosts>
-```
+    ```xml
+
+        <Azure>
+            <Subscription>
+                <SubscriptionID>2cd20493-0000-1111-2222-0123456789ab</SubscriptionID>
+                <SubscriptionName>YOUR_SUBSCRIPTION_NAME</SubscriptionName>
+                <ManagementEndpoint>https://management.core.windows.net</ManagementEndpoint>
+                <Environment>AzureCloud</Environment>
+                <ARMStorageAccount>ExistingStorage_Standard</ARMStorageAccount>
+            </Subscription>
+        </Azure>
+        <HyperV>
+            <Hosts>
+                <Host>
+                    <!--ServerName can be localhost or Hyper-V host name-->
+                    <ServerName>localhost</ServerName>
+                    <DestinationOsVHDPath>VHDs_Destination_Path</DestinationOsVHDPath>
+                </Host>
+                <Host>
+                    <!--If run test against 2 hosts, set ServerName as another host computer name-->
+                    <ServerName>lis-01</ServerName>
+                    <!--If run test against 2 hosts, DestinationOsVHDPath is mandatory-->
+                    <DestinationOsVHDPath>D:\vhd</DestinationOsVHDPath>
+                </Host>
+            </Hosts>
+        </HyperV>
+        <WSL>
+            <Hosts>
+                <Host>
+                    <!--The name of the WSL host, which can be local or remote -->
+                    <ServerName>localhost</ServerName>
+                    <!--The destination path to extract the distro package on the WSL host-->
+                    <DestinationOsVHDPath></DestinationOsVHDPath>
+                </Host>
+                <Host>
+                    <ServerName>localhost</ServerName>
+                    <DestinationOsVHDPath></DestinationOsVHDPath>
+                </Host>
+            </Hosts>
+        </WSL>
+    ```
 
 3. There are two ways to run LISAv2 tests:
 
@@ -124,10 +185,17 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
         .\Run-LisaV2.ps1 -TestPlatform "Azure" -TestLocation "<Region location>" -RGIdentifier "<Identifier of the resource group>" [-ARMImageName "<publisher offer SKU version>" | -OsVHD "<VHD from storage account>" ] [[-TestCategory "<Test Catogry from Jenkins pipeline>" | -TestArea "<Test Area from Jenkins pipeline>"]* | -TestTag "<A Tag from Jenkins pipeline>" | -TestNames "<Test cases separated by comma>"]
         Example:
         .\Run-LisaV2.ps1 -TestPlatform "Azure" -TestLocation "westus" -RGIdentifier "deployment" -ARMImageName "canonical ubuntuserver 18.04-lts Latest" -TestNames "BVT-VERIFY-DEPLOYMENT-PROVISION"
+        Using secret file
+        .\Run-LisaV2.ps1 -TestPlatform "Azure" -TestLocation "westus" -RGIdentifier "deployment" -ARMImageName "canonical ubuntuserver 18.04-lts Latest" -TestNames "BVT-VERIFY-DEPLOYMENT-PROVISION" -XMLSecretFile "E:\AzureCredential.xml"
 
-        .\Run-LisaV2.ps1 -TestPlatform "HyperV" [-TestLocation "ServerName"] -RGIdentifier "<Identifier of the vm group>" -OsVHD "<local or UNC path>" [[-TestCategory "<Test Catogry from Jenkins pipeline>" | -TestArea "<Test Area from Jenkins pipeline>"]* | -TestTag "<A Tag from Jenkins pipeline>" | -TestNames "<Test cases separated by comma>"]
+        .\Run-LisaV2.ps1 -TestPlatform "HyperV" [-TestLocation "ServerName"] -RGIdentifier "<Identifier of the vm group>" -OsVHD "<local or UNC path or downloadable URL of VHD>" [[-TestCategory "<Test Catogry from Jenkins pipeline>" | -TestArea "<Test Area from Jenkins pipeline>"]* | -TestTag "<A Tag from Jenkins pipeline>" | -TestNames "<Test cases separated by comma>"]
         Example:
         .\Run-LisaV2.ps1 -TestPlatform "HyperV" -RGIdentifier "ntp" -OsVHD 'E:\vhd\ubuntu_18_04.vhd' -TestNames "BVT-CORE-TIMESYNC-NTP"
+        .\Run-LisaV2.ps1 -TestPlatform "HyperV" -RGIdentifier "ntp" -OsVHD 'http://www.somewebsite.com/vhds/ubuntu_18_04.vhd' -TestNames "BVT-CORE-TIMESYNC-NTP"
+
+        .\Run-LisaV2.ps1 -TestPlatform "WSL" [-TestLocation "<WSL host name>"] -RGIdentifier "<Identifier for the test run>" -OsVHD "<local path or public URL>" [-DestinationOsVHDPath "<destination path on WSL host>"] [[-TestCategory "<Test Catogry from Jenkins pipeline>" | -TestArea "<Test Area from Jenkins pipeline>"]* | -TestTag "<A Tag from Jenkins pipeline>" | -TestNames "<Test cases separated by comma>"]
+        Example:
+        .\Run-LisaV2.ps1 -TestPlatform WSL -TestLocation "localhost" -RGIdentifier 'ubuntuwsl' -TestNames "BVT-VERIFY-BOOT-ERROR-WARNINGS" -OsVHD 'https://aka.ms/wsl-ubuntu-1804' -DestinationOsVHDPath "D:\test"
 
    b. Provide parameters in .\XML\TestParameters.xml.
 

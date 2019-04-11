@@ -301,6 +301,12 @@ function Main {
         }
 
         Write-LogInfo "Deleted VM $vmNameChild"
+
+        # Now start the Parent VM so the automation scripts can do what they need to do
+        $sts = Start-VM -Name $vmName -ComputerName $hvServer
+        if (-not (Wait-ForVMToStartKVP $vmName $hvServer $timeout )) {
+            throw "${vmName} failed to start"
+        }
         $testResult = "PASS"
     } catch {
         $ErrorMessage =  $_.Exception.Message

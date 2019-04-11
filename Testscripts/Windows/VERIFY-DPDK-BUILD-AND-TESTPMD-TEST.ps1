@@ -129,61 +129,52 @@ collect_VM_properties
 			Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username $superUser -password $password -download -downloadTo $LogDir -files "*.tar.gz"
 		}
 		elseif ($finalStatus -imatch "TestRunning") {
-			Write-LogInfo "Powershell backgroud job for test is completed but VM is reporting that test is still running. Please check $LogDir\zkConsoleLogs.txt"
-			Write-LogInfo "Contests of summary.log : $testSummary"
+			Write-LogInfo "Powershell background job for test is completed but VM is reporting that test is still running. Please check $LogDir\dpdkConsoleLogs.txt"
+			Write-LogInfo "Content of summary.log : $testSummary"
 			$testResult = "PASS"
 		}
 
-		try {
-			$testpmdDataCsv = Import-Csv -Path $LogDir\dpdkTestPmd.csv
-			Write-LogInfo "Uploading the test results.."
-			$dataSource = $GlobalConfig.Global.Azure.database.server
-			$DBuser = $GlobalConfig.Global.Azure.database.user
-			$DBpassword = $GlobalConfig.Global.Azure.database.password
-			$database = $GlobalConfig.Global.Azure.database.dbname
-			$dataTableName = $GlobalConfig.Global.Azure.database.dbtable
-			$TestCaseName = $GlobalConfig.Global.Azure.database.testTag
-
-			if ($dataSource -And $DBuser -And $DBpassword -And $database -And $dataTableName) {
-				$GuestDistro = Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object {$_ -replace ",OS type,",""}
-				$HostType = "Azure"
-				$HostBy = ($global:TestLocation).Replace('"','')
-				$HostOS = Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version"| ForEach-Object {$_ -replace ",Host Version,",""}
-				$GuestOSType = "Linux"
-				$GuestDistro = Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object {$_ -replace ",OS type,",""}
-				$GuestSize = $clientVMData.InstanceSize
-				$KernelVersion = Get-Content "$LogDir\VM_properties.csv" | Select-String "Kernel version"| ForEach-Object {$_ -replace ",Kernel version,",""}
-				$IPVersion = "IPv4"
-				$ProtocolType = "TCP"
-				$connectionString = "Server=$dataSource;uid=$DBuser; pwd=$DBpassword;Database=$database;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
-
-				$SQLQuery = "INSERT INTO $dataTableName (TestPlatFrom,TestCaseName,TestDate,HostType,HostBy,HostOS,GuestOSType,GuestDistro,GuestSize,KernelVersion,LISVersion,IPVersion,ProtocolType,DataPath,DPDKVersion,TestMode,Cores,Max_Rxpps,Txpps,Rxpps,Fwdpps,Txbytes,Rxbytes,Fwdbytes,Txpackets,Rxpackets,Fwdpackets,Tx_PacketSize_KBytes,Rx_PacketSize_KBytes) VALUES "
-				foreach ($mode in $testpmdDataCsv) {
-					$SQLQuery += "('$TestPlatform','$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$HostType','$HostBy','$HostOS','$GuestOSType','$GuestDistro','$GuestSize','$KernelVersion','Inbuilt','$IPVersion','$ProtocolType','$DataPath','$($mode.DpdkVersion)','$($mode.TestMode)','$($mode.Cores)','$($mode.MaxRxPps)','$($mode.TxPps)','$($mode.RxPps)','$($mode.FwdPps)','$($mode.TxBytes)','$($mode.RxBytes)','$($mode.FwdBytes)','$($mode.TxPackets)','$($mode.RxPackets)','$($mode.FwdPackets)','$($mode.TxPacketSize)','$($mode.RxPacketSize)'),"
-					Write-LogInfo "Collected performace data for $($mode.TestMode) mode."
+		$testpmdDataCsv = Import-Csv -Path $LogDir\dpdkTestPmd.csv
+		if ($testResult -eq "PASS") {
+			Write-LogInfo "Generating the performance data for database insertion"
+			$properties = Get-VMProperties -PropertyFilePath "$LogDir\VM_properties.csv"
+			$testDate = $(Get-Date -Format yyyy-MM-dd)
+			foreach ($mode in $testpmdDataCsv) {
+				$resultMap = @{}
+				if ($properties) {
+					$resultMap["GuestDistro"] = $properties.GuestDistro
+					$resultMap["HostOS"] = $properties.HostOS
+					$resultMap["KernelVersion"] = $properties.KernelVersion
 				}
-				$SQLQuery = $SQLQuery.TrimEnd(',')
-				Write-LogInfo $SQLQuery
-				$connection = New-Object System.Data.SqlClient.SqlConnection
-				$connection.ConnectionString = $connectionString
-				$connection.Open()
-
-				$command = $connection.CreateCommand()
-				$command.CommandText = $SQLQuery
-
-				$command.executenonquery() | Out-Null
-				$connection.Close()
-				Write-LogInfo "Uploading the test results done!!"
-			} else {
-				Write-LogErr "Invalid database details. Failed to upload result to database!"
-				$ErrorMessage =  $_.Exception.Message
-				$ErrorLine = $_.InvocationInfo.ScriptLineNumber
-				Write-LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
+				$resultMap["HostType"] = "Azure"
+				$resultMap["HostBy"] = $global:TestLocation
+				$resultMap["GuestOSType"] = "Linux"
+				$resultMap["GuestSize"] = $clientVMData.InstanceSize
+				$resultMap["IPVersion"] = "IPv4"
+				$resultMap["ProtocolType"] = "TCP"
+				$resultMap["TestPlatFrom"] = $global:TestPlatForm
+				$resultMap["TestCaseName"] = $global:GlobalConfig.Global.Azure.ResultsDatabase.testTag
+				$resultMap["TestDate"] = $testDate
+				$resultMap["LISVersion"] = "Inbuilt"
+				$resultMap["DataPath"] = $DataPath
+				$resultMap["DPDKVersion"] = $mode.DpdkVersion
+				$resultMap["TestMode"] = $mode.TestMode
+				$resultMap["Cores"] = [int32]($mode.Cores)
+				$resultMap["Max_Rxpps"] = [int64]($mode.MaxRxPps)
+				$resultMap["Txpps"] = [int64]($mode.TxPps)
+				$resultMap["Rxpps"] = [int64]($mode.RxPps)
+				$resultMap["Fwdpps"] = [int64]($mode.FwdPps)
+				$resultMap["Txbytes"] = [int64]($mode.TxBytes)
+				$resultMap["Rxbytes"] = [int64]($mode.RxBytes)
+				$resultMap["Fwdbytes"] = [int64]($mode.FwdBytes)
+				$resultMap["Txpackets"] = [int64]($mode.TxPackets)
+				$resultMap["Rxpackets"] = [int64]($mode.RxPackets)
+				$resultMap["Fwdpackets"] = [int64]($mode.FwdPackets)
+				$resultMap["Tx_PacketSize_KBytes"] = [Decimal]($mode.TxPacketSize)
+				$resultMap["Rx_PacketSize_KBytes"] = [Decimal]($mode.RxPacketSize)
+				Write-LogInfo "Collected performance data for $($mode.TestMode) mode."
+				$currentTestResult.TestResultData += $resultMap
 			}
-		} catch {
-			$ErrorMessage =  $_.Exception.Message
-			throw "$ErrorMessage"
-			$testResult = "FAIL"
 		}
 		Write-LogInfo "Test result : $testResult"
 		Write-LogInfo ($testpmdDataCsv | Format-Table | Out-String)
@@ -199,7 +190,7 @@ collect_VM_properties
 		$resultArr += $testResult
 	}
 	$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
-	return $currentTestResult.TestResult
+	return $currentTestResult
 }
 
 Main

@@ -84,47 +84,37 @@ Class HyperVController : TestController
 		}
 		$this.VmUsername = $hyperVConfig.TestCredentials.LinuxUsername
 		$this.VmPassword = $hyperVConfig.TestCredentials.LinuxPassword
-		if ( $this.DestinationOsVHDPath )
-		{
+		if ( $this.DestinationOsVHDPath ) {
 			for( $index=0 ; $index -lt $hyperVConfig.Hosts.ChildNodes.Count ; $index++ ) {
 				$hyperVConfig.Hosts.ChildNodes[$index].DestinationOsVHDPath = $this.DestinationOsVHDPath
 			}
 		}
-		if ($this.TestLocation)
-		{
+		if ($this.TestLocation) {
 			$Locations = $this.TestLocation.split(',')
 			$index = 0
-			foreach($Location in $Locations)
-			{
+			foreach($Location in $Locations) {
 				$hyperVConfig.Hosts.ChildNodes[$index].ServerName = $Location
 				Get-VM -ComputerName $Location | Out-Null
-				if ($?)
-				{
+				if ($?) {
 					Write-LogInfo "Set GlobalConfiguration.Global.HyperV.Hosts.ChildNodes[$($index)].ServerName to $Location"
-				}
-				else
-				{
+				} else {
 					Write-LogErr "Did you use -TestLocation XXXXXXX?"
 					Write-LogErr "In HyperV mode, -TestLocation can be used to Override HyperV server mentioned in GlobalConfiguration XML file."
 					Throw "Unable to access HyperV server - '$($Location)'"
 				}
 				$index++
 			}
-		}
-		else
-		{
+		} else {
 			$this.TestLocation = $hyperVConfig.Hosts.ChildNodes[0].ServerName
 			Write-LogInfo "Set Test Location to GlobalConfiguration.Global.HyperV.Hosts.ChildNodes[0].ServerName"
 			Get-VM -ComputerName $this.TestLocation | Out-Null
 		}
 
-		if( $this.ResultDBTable )
-		{
+		if( $this.ResultDBTable ) {
 			$hyperVConfig.ResultsDatabase.dbtable = ($this.ResultDBTable).Trim()
 			Write-LogInfo "ResultDBTable : $this.ResultDBTable added to $($this.GlobalConfigurationFilePath)"
 		}
-		if( $this.ResultDBTestTag )
-		{
+		if( $this.ResultDBTestTag ) {
 			$hyperVConfig.ResultsDatabase.testTag = ($this.ResultDBTestTag).Trim()
 			Write-LogInfo "ResultDBTestTag: $this.ResultDBTestTag added to $($this.GlobalConfigurationFilePath)"
 		}

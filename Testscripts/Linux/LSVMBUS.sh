@@ -68,6 +68,12 @@ if [ "$os_GENERATION" -eq "1" ]; then
     tokens+=("Synthetic IDE Controller")
 fi
 
+# python required for lsvmbus
+if ! which python; then
+    update_repos
+    install_package python
+fi
+
 for token in "${tokens[@]}"; do
     if ! $lsvmbus_path | grep "$token"; then
         LogMsg "Error: $token not found in lsvmbus information."
