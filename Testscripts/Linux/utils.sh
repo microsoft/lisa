@@ -3408,7 +3408,7 @@ function RescindPCI ()
             vf_pci_check_removed="nvme"
             ;;
         "GPU")
-            vf_pci_type="3D Controller"
+            vf_pci_type="NVIDIA"
             vf_pci_check_removed="$vf_pci_type"
             ;;
         *)
@@ -3417,17 +3417,17 @@ function RescindPCI ()
             ;;
     esac
 
-    if ! lspci --version; then
+    if ! lspci --version > /dev/null 2>&1; then
         update_repos
         install_package "pciutils"
     fi
 
-    LogMsg "Attempting to disable and enable the VF $vf_pci_type device."
+    LogMsg "Attempting to disable and enable the $vf_pci_type device."
     # Get the VF address
     vf_pci_address=$(lspci | grep -i "$vf_pci_type" | awk '{ print $1 }')
     vf_pci_remove_path="/sys/bus/pci/devices/${vf_pci_address}/remove"
     if [ ! -f "$vf_pci_remove_path" ]; then
-        LogErr "Unable to disable the VF, because the $vf_pci_remove_path doesn't exist."
+        LogErr "Unable to disable the PCI device, because the $vf_pci_remove_path doesn't exist."
         return 1
     fi
     # Remove the VF
@@ -3436,7 +3436,7 @@ function RescindPCI ()
 
     # Check if the VF has been disabled.
     if lspci -vvv | grep "$vf_pci_check_removed"; then
-        LogErr "Disable the VF $vf_pci_type device failed."
+        LogErr "Disabling the $vf_pci_type device failed."
         return 1
     fi
 
@@ -3447,7 +3447,7 @@ function RescindPCI ()
         echo 1 > /sys/bus/pci/rescan
         sleep 2
         if [ $retry -le 0 ]; then
-            LogErr "VF is not loaded! Enable the VF $vf_pci_type device failed."
+            LogErr "PCI device is not present, enabling the $vf_pci_type device failed."
             return 1
         fi
         retry=$((retry - 1))
