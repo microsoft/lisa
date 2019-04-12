@@ -66,4 +66,20 @@
         <Tags>gpu,benchmark</Tags>
         <Priority>1</Priority>
     </test>
+    <test>
+        <testName>GPU-PCI-RESCIND</testName>
+        <testScript>GPU-DRIVER-INSTALL.ps1</testScript>
+        <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_NC6</OverrideVMSize>
+        <files>.\Testscripts\Linux\gpu-driver-install.sh,.\Testscripts\Linux\utils.sh</files>
+        <TestParameters>
+            <param>CUDADriverVersion="CUDA_DRIVER"</param>
+            <param>rescind_pci=yes</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>GPU</Area>
+        <Tags>gpu,pci_hyperv</Tags>
+        <Priority>1</Priority>
+    </test>
 </TestCases>

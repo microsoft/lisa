@@ -3424,18 +3424,18 @@ function RescindPCI ()
 
     LogMsg "Attempting to disable and enable the VF $vf_pci_type device."
     # Get the VF address
-    vf_pci_address=$(lspci | grep -i $vf_pci_type | awk '{ print $1 }')
+    vf_pci_address=$(lspci | grep -i "$vf_pci_type" | awk '{ print $1 }')
     vf_pci_remove_path="/sys/bus/pci/devices/${vf_pci_address}/remove"
-    if [ ! -f $vf_pci_remove_path ]; then
+    if [ ! -f "$vf_pci_remove_path" ]; then
         LogErr "Unable to disable the VF, because the $vf_pci_remove_path doesn't exist."
         return 1
     fi
     # Remove the VF
-    echo 1 > $vf_pci_remove_path
+    echo 1 > "$vf_pci_remove_path"
     sleep 5
 
     # Check if the VF has been disabled.
-    if lspci -vvv | grep $vf_pci_check_removed; then
+    if lspci -vvv | grep "$vf_pci_check_removed"; then
         LogErr "Disable the VF $vf_pci_type device failed."
         return 1
     fi
@@ -3454,4 +3454,3 @@ function RescindPCI ()
     done
     return 0
 }
-
