@@ -188,7 +188,7 @@ function Main {
         [int]$expectedGPUCount = $($vmCPUCount/6)
 
         Write-LogInfo "Azure VM Size: $($allVMData.InstanceSize), expected GPU Adapters total: $expectedGPUCount"
-        
+
         # rescind the PCI device first if the parameter is given
         if ($TestParams.rescind_pci -eq "yes") {
             Run-LinuxCmd -username $user -password $password -ip $allVMData.PublicIP -port $allVMData.SSHPort `
@@ -200,9 +200,7 @@ function Main {
                 $metaData = "Successfully rescinded the PCI device."
                 Write-LogInfo "$metaData"
             }
-            $resultArr += $currentResult
-            $CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
-                -checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
+            $CurrentTestResult.TestSummary += New-ResultSummary -metaData "$metaData" -testName $CurrentTestData.testName
         }
 
         # run the tools
