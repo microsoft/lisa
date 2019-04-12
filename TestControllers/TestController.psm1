@@ -557,7 +557,6 @@ Class TestController
 							($multiplexedTestConfigs[$multiplexedTestIndex - 1]["TestVmSize"] -ne $multiplexedTestConfig["TestVmSize"])
 					}
 					if ($multiplexedTestConfig["TestVmSize"]) {
-						$this.OverrideVMSize = $multiplexedTestConfig["TestVmSize"]
 						$case.OverrideVMSize = $multiplexedTestConfig["TestVmSize"]
 					}
 
