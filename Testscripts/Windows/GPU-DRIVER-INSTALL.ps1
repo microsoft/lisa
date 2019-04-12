@@ -14,12 +14,15 @@
     4. Check if the nVidia driver is loaded
     5. Compare number of expected GPU adapters with the actual count.
     6. The following tools are used for validation: lsvmbus, lspci, lshw and nvidia-smi
+    7. If test parameter "rescind_pci=yes" is provided, the 3D controller PCI device
+    will be rescinded first.
 
 #>
 
 param([object] $AllVmData,
       [object] $CurrentTestData,
-      [object] $TestProvider
+      [object] $TestProvider,
+      [object] $TestParams
     )
 
 function Start-Validation {
@@ -96,7 +99,8 @@ function Main {
     param (
         [object] $AllVmData,
         [object] $CurrentTestData,
-        [object] $TestProvider
+        [object] $TestProvider,
+        [object] $TestParams
     )
     # Create test result
     $currentTestResult = Create-TestResultObject
@@ -185,6 +189,20 @@ function Main {
 
         Write-LogInfo "Azure VM Size: $($allVMData.InstanceSize), expected GPU Adapters total: $expectedGPUCount"
 
+        # rescind the PCI device first if the parameter is given
+        if ($TestParams.rescind_pci -eq "yes") {
+            Run-LinuxCmd -username $user -password $password -ip $allVMData.PublicIP -port $allVMData.SSHPort `
+                -command ". utils.sh && RescindPCI GPU" -RunAsSudo -ignoreLinuxExitCode | Out-Null
+            if (-not $?) {
+                $metaData = "Could not rescind PCI device."
+                Write-LogErr "$metaData"
+            } else {
+                $metaData = "Successfully rescinded the PCI device."
+                Write-LogInfo "$metaData"
+            }
+            $CurrentTestResult.TestSummary += New-ResultSummary -metaData "$metaData" -testName $CurrentTestData.testName
+        }
+
         # run the tools
         Start-Validation
         if ($failureCount -eq 0) {
@@ -223,4 +241,5 @@ function Main {
     return $currentTestResult
 }
 
-Main -AllVmData $AllVmData -CurrentTestData $CurrentTestData -TestProvider $TestProvider
+Main -AllVmData $AllVmData -CurrentTestData $CurrentTestData -TestProvider $TestProvider `
+    -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))
