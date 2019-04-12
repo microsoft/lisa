@@ -4,19 +4,14 @@
 
 ########################################################################
 #
-#   core_verify_lis_version
-#
 #   Description:
 #       This script was created to automate the testing of a Linux
 #   Integration services. The script will verify the list of given
-#   LIS kernel modules and verify if the version matches with the 
+#   LIS kernel modules and verify if the version matches with the
 #   Linux kernel release number.
 #
-#       To pass test parameters into test cases, the host will create
-#   a file named constants.sh. This file contains one or more
-#   variable definition.
-#
 ########################################################################
+
 # Source utils.sh
 . utils.sh || {
     echo "ERROR: unable to source utils.sh!"
