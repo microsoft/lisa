@@ -233,7 +233,10 @@ function Install_Dpdk() {
 	fi
 
 	ssh ${install_ip} "cd ${LIS_HOME}/${DPDK_DIR} && make -j"
+	check_exit_status "cd ${LIS_HOME}/${DPDK_DIR} && make -j" "exit"
+
 	ssh ${install_ip} "cd ${LIS_HOME}/${DPDK_DIR} && make install"
+	check_exit_status "cd ${LIS_HOME}/${DPDK_DIR} && make install" "exit"
 
 	LogMsg "Finished installing dpdk on ${install_ip}"
 }
