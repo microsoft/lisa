@@ -969,4 +969,16 @@
         <Tags>hot_resize,memory</Tags>
         <Priority>1</Priority>
     </test>
+    <test>
+        <testName>L3-CACHE-CHECK</testName>
+        <testScript>L3Cache-Verify.sh</testScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\L3Cache-Verify.sh</files>
+        <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_D32s_v3</OverrideVMSize>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>cpu</Tags>
+        <Priority>1</Priority>
+    </test>
 </TestCases>
