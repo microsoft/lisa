@@ -1,8 +1,6 @@
 #!/usr/bin/python
-#####################################################################################################################################
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
-#####################################################################################################################################
 
 import argparse
 import logging
@@ -46,7 +44,7 @@ ResultLog.addHandler(WResultLog)
 
 
 def UpdateRepos(current_distro):
-    RunLog.info ("\nUpdating the repositoriy information...")
+    RunLog.info ("\nUpdating the repository information...")
     if (current_distro.find("ubuntu") != -1) or (current_distro.find("debian") != -1):
         #method 'RunUpdate': fix deadlock when using stdout=PIPE and/or stderr=PIPE and the child process generates enough output to a pipe
         RunUpdate("apt-get update")
@@ -55,10 +53,10 @@ def UpdateRepos(current_distro):
     elif (current_distro.find("opensuse") != -1) or (current_distro.find("SUSE") != -1) or (current_distro.find("sles") != -1):
         RunUpdate("zypper --non-interactive --gpg-auto-import-keys update")
     else:
-        RunLog.info("Repo upgradation failed on:"+current_distro)
+        RunLog.info("Repo update failed on:"+current_distro)
         return False
 
-    RunLog.info ("Updating the repositoriy information... [done]")
+    RunLog.info ("Updating the repository information... [done]")
     return True
 
 
@@ -290,10 +288,7 @@ def GetFileContents(filepath):
     finally:
         file.close()
 
-
-#-----------------------------------------------------------------------------------------------------------------------------------------------------
-# Instlaltion routines
-
+# Installation routines
 def YumPackageInstall(package):
     RunLog.info(("\nyum_package_install: " + package))
     output = Run("yum install -y "+package)
@@ -318,7 +313,7 @@ def YumPackageInstall(package):
         elif (re.match(r'^No package '+ re.escape(package)+ r' available', line, re.M|re.I)):
             break
 
-    #Consider package installation failed if non of the above matches.
+    # Consider package installation failed if none of the above matches.
     RunLog.error((package + ": package installation failed!\n" +output))
     return False
 
@@ -362,7 +357,7 @@ def AptgetPackageInstall(package, dbpasswd = "root"):
         elif (re.match(r'E: Unable to fetch some archives', line, re.M|re.I)):
             break
         
-    #Consider package installation failed if non of the above matches.
+    # Consider package installation failed if none of the above matches.
     RunLog.info(package + ": package installation failed!\n")
     RunLog.info("Error log: "+output)
     return False
@@ -387,7 +382,7 @@ def ZypperPackageInstall(package):
         elif (re.match(r'^No provider of \''+ re.escape(package) + r'\' found', line, re.M|re.I)):
             break
 
-    #Consider package installation failed if non of the above matches.
+    # Consider package installation failed if none of the above matches.
     RunLog.error((package + ": package installation failed!\n"+output))
     return False
 
@@ -411,7 +406,7 @@ def ZypperPackageRemove(package):
         elif (re.match(r'\''+re.escape(package)+r'\' not found in package names', line, re.M|re.I)):
             return True
 
-    #Consider package remove failed if non of the above matches.
+    # Consider package remove failed if non of the above matches.
     RunLog.error((package + ": package remove failed!\n"+output))
     return False
  
