@@ -79,6 +79,7 @@
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
+        <SupportedVmSize>Standard_D*</SupportedVmSize>
         <OverrideVMSize>Standard_D16_v3</OverrideVMSize>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkSetup.sh,.\Testscripts\Linux\ovs_setup.sh</files>
         <TestParameters>
