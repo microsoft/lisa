@@ -3392,8 +3392,8 @@ function Format_Mount_NVME()
 }
 
 
-# Remove and reattach PCI devices of a certan type inside the VM
-# @param1 DeviceType: supported "NVME", "SR-IOV", "GPU"
+# Remove and reattach PCI devices of a certain type inside the VM
+# @param1 DeviceType: supported values are "NVME", "SR-IOV", "GPU"
 # @return 0 if the devices were removed and reattached successfully
 function RescindPCI ()
 {
@@ -3401,7 +3401,7 @@ function RescindPCI ()
         "SR-IOV") vf_pci_type="Ethernet" ;;
         "NVME")   vf_pci_type="Non-Volatile" ;;
         "GPU")    vf_pci_type="NVIDIA" ;;
-        *)        LogErr "Invalid device type for RescindPCI." ; return 1 ;;
+        *)        LogErr "Unsupported device type for RescindPCI." ; return 1 ;;
     esac
 
     if ! lspci --version > /dev/null 2>&1; then
@@ -3421,7 +3421,7 @@ function RescindPCI ()
         LogMsg "Found the following $vf_pci_type devices: $vf_pci_addresses"
     fi
 
-    # Remove the VF for each address.
+    # Remove the VF for each address
     for addr in ${vf_pci_addresses[@]}; do
         vf_pci_remove_path="/sys/bus/pci/devices/${addr}/remove"
         if [ ! -f "$vf_pci_remove_path" ]; then
@@ -3433,7 +3433,7 @@ function RescindPCI ()
 
     sleep 5
 
-    # Check if all the VF have been disabled.
+    # Check if all VFs have been disabled
     for addr in ${vf_pci_addresses[@]}; do
         vf_pci_device_path="/sys/bus/pci/devices/${addr}"
         if [ -d "$vf_pci_device_path" ] || [ "$(lspci | grep -ic $addr)" -ne 0 ]; then
@@ -3442,7 +3442,7 @@ function RescindPCI ()
         fi
     done
 
-    # Check if all the VF has been re-enabled
+    # Check if all VFs has been re-enabled
     retry=1
     while [ $retry -le 5 ]; do
         # Enable the VF
