@@ -2113,7 +2113,7 @@ Function Set-SRIOVinAzureVMs {
                 $TestVMData = $VMData | Where-Object {$_.ResourceGroupName -eq $ResourceGroup `
                     -and $_.RoleName -eq $VMName }
 
-                $isVmAlive = Is-VmAlive -AllVMDataObject $TestVMData
+                $isVmAlive = Is-VmAlive -AllVMDataObject $TestVMData -MaxRetryCount 70
                 if ($isVmAlive -eq "True") {
                     $isRestarted = $true
                 }
