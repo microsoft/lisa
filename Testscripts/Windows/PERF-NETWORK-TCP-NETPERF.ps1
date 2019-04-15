@@ -191,6 +191,9 @@ collect_VM_properties
             $database = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbname
             $dataTableName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbtable
             $TestExecutionTag = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
+            if (!$TestExecutionTag) {
+                $TestExecutionTag = $CurrentTestData.testName
+            }
             if ($dataSource -And $user -And $password -And $database -And $dataTableName) {
                 $GuestDistro = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
                 $HostOS = cat "$LogDir\VM_properties.csv" | Select-String "Host Version"| %{$_ -replace ",Host Version,",""}
