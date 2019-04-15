@@ -52,7 +52,7 @@ function Download-OSvhd ($session, $srcPath, $dstPath) {
 	}  -ArgumentList $srcPath, $dstPath
 }
 
-function Send-ResultToDatabase ($GlobalConfig, $logDir) {
+function Send-ResultToDatabase ($GlobalConfig, $logDir, $CurrentTestData) {
 	Write-LogInfo "Uploading the test results.."
 	$dataSource = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.server
 	$user = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.user
@@ -60,19 +60,22 @@ function Send-ResultToDatabase ($GlobalConfig, $logDir) {
 	$database = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbname
 	$dataTableName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbtable
 	$TestCaseName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
+	if (!$TestCaseName) {
+		$TestCaseName = $CurrentTestData.testName
+	}
 	if ($dataSource -And $user -And $password -And $database -And $dataTableName)
 	{
 		# Get host info
-		$HostType	= $global:TestPlatform
-		$HostBy	= $TestLocation
-		$HostOS	= (Get-WmiObject -Class Win32_OperatingSystem -ComputerName $GlobalConfig.Global.$TestPlatform.Hosts.ChildNodes[0].ServerName).Version
+		$HostType = $global:TestPlatform
+		$HostBy = $TestLocation
+		$HostOS = (Get-WmiObject -Class Win32_OperatingSystem -ComputerName $GlobalConfig.Global.$TestPlatform.Hosts.ChildNodes[0].ServerName).Version
 
 		# Get L1 guest info
 		$L1GuestKernelVersion = Get-Content "$LogDir\nested_properties.csv" | Select-String "Host Version"| ForEach-Object{$_ -replace ",Host Version,",""}
 		$computerInfo = Invoke-Command -ComputerName $hs1VIP -ScriptBlock {Get-ComputerInfo} -Credential $cred
-		$L1GuestDistro	= $computerInfo.OsName
+		$L1GuestDistro = $computerInfo.OsName
 
-		$L1GuestOSType	= "Windows"
+		$L1GuestOSType = "Windows"
 		$HyperVMappedSizes = [xml](Get-Content .\XML\AzureVMSizeToHyperVMapping.xml)
 		$L1GuestCpuNum = $HyperVMappedSizes.HyperV.$HyperVInstanceSize.NumberOfCores
 		$L1GuestMemMB = $HyperVMappedSizes.HyperV.$HyperVInstanceSize.MemoryInMB
@@ -80,8 +83,8 @@ function Send-ResultToDatabase ($GlobalConfig, $logDir) {
 
 
 		# Get L2 guest info
-		$L2GuestDistro	= Get-Content "$LogDir\nested_properties.csv" | Select-String "OS type"| ForEach-Object{$_ -replace ",OS type,",""}
-		$L2GuestKernelVersion	= Get-Content "$LogDir\nested_properties.csv" | Select-String "Kernel version"| ForEach-Object{$_ -replace ",Kernel version,",""}
+		$L2GuestDistro = Get-Content "$LogDir\nested_properties.csv" | Select-String "OS type"| ForEach-Object{$_ -replace ",OS type,",""}
+		$L2GuestKernelVersion = Get-Content "$LogDir\nested_properties.csv" | Select-String "Kernel version"| ForEach-Object{$_ -replace ",Kernel version,",""}
 		$flag=1
 		if($TestLocation.split(',').Length -eq 2)
 		{
@@ -377,7 +380,7 @@ function Main () {
 				Write-LogInfo "Zero throughput for some connections, results will not be uploaded to database!"
 			}
 			else {
-				Send-ResultToDatabase -GlobalConfig $GlobalConfig -logDir $LogDir
+				Send-ResultToDatabase -GlobalConfig $GlobalConfig -logDir $LogDir -currentTestData $currentTestData
 			}
 		}
 	}

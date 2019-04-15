@@ -40,7 +40,7 @@ function Start-TestExecution ($ip, $port) {
 	}
 }
 
-function Send-ResultToDatabase ($currentTestResult, $AllVMData) {
+function Send-ResultToDatabase ($currentTestResult, $AllVMData, $currentTestData) {
 	$fioDataCsv = Import-Csv -Path $LogDir\fioData.csv
 
 	if ($TestPlatform -eq "hyperV") {
@@ -81,11 +81,14 @@ function Send-ResultToDatabase ($currentTestResult, $AllVMData) {
 
 	$TestDate = $(Get-Date -Format yyyy-MM-dd)
 	Write-LogInfo "Generating the performance data for database insertion"
-
+	$TestCaseName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
+	if (!$TestCaseName) {
+		$TestCaseName = $CurrentTestData.testName
+	}
 	for ( $QDepth = $startThread; $QDepth -le $maxThread; $QDepth *= 2 ) {
 		if ($testResult -imatch $resultPass) {
 			$resultMap = @{}
-			$resultMap["TestCaseName"] = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
+			$resultMap["TestCaseName"] = $TestCaseName
 			$resultMap["TestDate"] = $TestDate
 			$resultMap["HostType"] = $TestPlatform
 			$resultMap["HostBy"] = $HostBy
@@ -176,7 +179,7 @@ function Main() {
 					Add-Content -Value $line -Path $LogDir\fioData.csv
 				}
 			}
-			Send-ResultToDatabase -currentTestResult $currentTestResult -AllVMData $AllVMData
+			Send-ResultToDatabase -currentTestResult $currentTestResult -AllVMData $AllVMData -currentTestData $currentTestData
 		}
 	} catch {
 		$errorMessage =  $_.Exception.Message

@@ -127,6 +127,10 @@ collect_VM_properties
                 Write-Host ($finalResult | Format-Table | Out-String)
                 $TestDate = $(Get-Date -Format yyyy-MM-dd)
                 Write-LogInfo "Generating the performance data for database insertion"
+                $TestCaseName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
+                if (!$TestCaseName) {
+                    $TestCaseName = $CurrentTestData.testName
+                }
                 for ($i = 1; $i -lt $finalResult.Count; $i++) {
                     if ($finalResult[$i].test) {
                         if ($testResult -eq "PASS") {
@@ -134,7 +138,7 @@ collect_VM_properties
                             $resultMap["GuestDistro"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object{$_ -replace ",OS type,",""})
                             $resultMap["HostOS"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version"| ForEach-Object{$_ -replace ",Host Version,",""})
                             $resultMap["KernelVersion"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Kernel version"| ForEach-Object{$_ -replace ",Kernel version,",""})
-                            $resultMap["TestCaseName"] = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
+                            $resultMap["TestCaseName"] = $TestCaseName
                             $resultMap["TestDate"] = $TestDate
                             $resultMap["HostType"] = "$TestPlatform"
                             $resultMap["HostBy"] = ($global:TestLocation).Replace('"','')
