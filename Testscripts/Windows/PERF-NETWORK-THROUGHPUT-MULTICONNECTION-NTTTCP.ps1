@@ -218,11 +218,15 @@ collect_VM_properties
         $LogContents = Get-Content -Path "$LogDir\report.log"
         $TestDate = $(Get-Date -Format yyyy-MM-dd)
         if ($testResult -eq "PASS") {
+            $TestCaseName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
+            if (!$TestCaseName) {
+                $TestCaseName = $CurrentTestData.testName
+            }
             Write-LogInfo "Generating the performance data for database insertion"
             for ($i = 1; $i -lt $LogContents.Count; $i++) {
                 $Line = $LogContents[$i].Trim() -split '\s+'
                 $resultMap = @{}
-                $resultMap["TestCaseName"] = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
+                $resultMap["TestCaseName"] = $TestCaseName
                 $resultMap["TestDate"] = $TestDate
                 $resultMap["HostType"] = $TestPlatform
                 $resultMap["HostBy"] = $TestLocation

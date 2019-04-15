@@ -16,7 +16,7 @@ dmesg > ${hostname}-dmesg.txt
 cp /var/log/waagent.log ${hostname}-waagent.log.txt
 uname -r > ${hostname}-kernelVersion.txt
 uname -i > ${hostname}-hardwarePlatform.txt
-uptime -s > ${hostname}-uptime.txt || echo "UPTIME_COMMAND_ERROR" > ${hostname}-uptime.txt
+last reboot -F | head -1 | awk '{print $5,$6,$7,$8,$9}' > ${hostname}-uptime.txt || echo "UPTIME_COMMAND_ERROR" > ${hostname}-uptime.txt
 modinfo hv_netvsc > ${hostname}-lis.txt
 release=$(cat /etc/*release*)
 if [ -f /etc/redhat-release ] ; then
@@ -29,7 +29,7 @@ if [ -f /etc/redhat-release ] ; then
 elif [ -f /etc/SuSE-release ] ; then
         echo "/etc/SuSE-release detected"
         cat /etc/os-release | grep ^PRETTY_NAME | sed 's/"//g' | sed 's/PRETTY_NAME=//g' > ${hostname}-distroVersion.txt
-elif [[ "$release" =~ "UBUNTU" ]] || [[ "$release" =~ "Ubuntu" ]] || [[ "$release" =~ "Debian" ]]; then
+elif [[ "$release" =~ "UBUNTU" ]] || [[ "$release" =~ "Ubuntu" ]] || [[ "$release" =~ "Debian" ]] || [[ "$release" =~ "SUSE Linux Enterprise Server 15" ]]; then
         NAME=$(cat /etc/os-release | grep ^NAME= | sed 's/"//g' | sed 's/NAME=//g')
         VERSION=$(cat /etc/os-release | grep ^VERSION= | sed 's/"//g' | sed 's/VERSION=//g')
         echo "$NAME $VERSION" > ${hostname}-distroVersion.txt

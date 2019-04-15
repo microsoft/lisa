@@ -18,7 +18,7 @@ function Start-TestExecution ($ip, $port, $cmd) {
 	}
 }
 
-function Send-ResultToDatabase ($GlobalConfig, $logDir, $ParseResultArray) {
+function Send-ResultToDatabase ($GlobalConfig, $logDir, $ParseResultArray, $currentTestData) {
 	Write-LogInfo "Uploading the test results.."
 	$dataSource = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.server
 	$user = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.user
@@ -26,6 +26,9 @@ function Send-ResultToDatabase ($GlobalConfig, $logDir, $ParseResultArray) {
 	$database = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbname
 	$dataTableName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbtable
 	$TestCaseName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
+	if (!$TestCaseName) {
+		$TestCaseName = $CurrentTestData.testName
+	}
 	if ($dataSource -And $user -And $password -And $database -And $dataTableName) {
 		# Get host info
 		$HostType = $global:TestPlatform
@@ -234,7 +237,7 @@ function Main () {
 		if (!$uploadResults) {
 			Write-LogInfo "Zero throughput for some connections, results will not be uploaded to database!"
 		} else {
-			Send-ResultToDatabase -GlobalConfig $GlobalConfig -logDir $LogDir -ParseResultArray $ParseResultArray
+			Send-ResultToDatabase -GlobalConfig $GlobalConfig -logDir $LogDir -ParseResultArray $ParseResultArray -currentTestData $currentTestData
 		}
 	} catch {
 		$ErrorMessage =  $_.Exception.Message
