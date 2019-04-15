@@ -17,7 +17,7 @@ function Start-TestExecution ($ip, $port) {
     }
 }
 
-function Get-SQLQueryOfGolangBenchmark ($currentTestResult) {
+function Get-SQLQueryOfGolangBenchmark ($currentTestResult, $currentTestData) {
     try {
         $guestSize = $allVMData.InstanceSize
         if ($TestPlatform -eq "HyperV") {
@@ -30,11 +30,15 @@ function Get-SQLQueryOfGolangBenchmark ($currentTestResult) {
         $testItems = "binarytree,fasta,fannkuch,mandel,knucleotide,revcomp,nbody,spectralnorm,pidigits"
         $TestDate = $(Get-Date -Format yyyy-MM-dd)
         Write-LogInfo "Generating the performance data for database insertion"
+        $TestCaseName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
+        if (!$TestCaseName) {
+            $TestCaseName = $CurrentTestData.testName
+        }
         foreach ( $item in  $testItems.Split(",") ) {
             $resultMap = @{}
             $resultMap["GuestDistro"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type" | ForEach-Object {$_ -replace ",OS type,",""})
             $resultMap["HostOS"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version" | ForEach-Object {$_ -replace ",Host Version,",""})
-            $resultMap["TestCaseName"] = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
+            $resultMap["TestCaseName"] = $TestCaseName
             $resultMap["TestDate"] = $TestDate
             $resultMap["HostType"] = $TestPlatform
             $resultMap["HostBy"] = $TestLocation
@@ -76,7 +80,7 @@ function Main() {
             Remove-Item "$LogDir\*.csv" -Force
             $remoteFiles = "golangBenchmark.csv,VM_properties.csv,TestExecution.log,test_results.tar.gz"
             Copy-RemoteFiles -download -downloadFrom $hs1VIP -files $remoteFiles -downloadTo $LogDir -port $port -username $username -password $password
-            Get-SQLQueryOfGolangBenchmark -currentTestResult  $currentTestResult
+            Get-SQLQueryOfGolangBenchmark -currentTestResult  $currentTestResult -currentTestData $currentTestData
         }
     } catch {
         $errorMessage =  $_.Exception.Message
