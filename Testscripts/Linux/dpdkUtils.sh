@@ -176,7 +176,7 @@ function Install_Dpdk() {
 
 	install_from_ppa=false
 
-	ssh ${install_ip} "if [[ -e ${DPDK_DIR} ]]; then rm -rf ${DPDK_DIR}; else exit 0; fi"
+	ssh ${install_ip} "if [[ -e '${DPDK_DIR}' ]]; then rm -rf '${DPDK_DIR}'; fi"
 	if [[ $DPDK_LINK =~ .tar ]]; then
 		ssh ${install_ip} "mkdir ${DPDK_DIR}"
 		ssh ${install_ip} "wget -O - ${DPDK_LINK} | tar -xJ -C ${DPDK_DIR} --strip-components=1"
