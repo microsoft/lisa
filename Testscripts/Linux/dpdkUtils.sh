@@ -176,11 +176,11 @@ function Install_Dpdk() {
 
 	install_from_ppa=false
 
+	ssh ${install_ip} "if [[ -e ${DPDK_DIR} ]]; then rm -rf ${DPDK_DIR}; else exit 0; fi"
 	if [[ $DPDK_LINK =~ .tar ]]; then
 		ssh ${install_ip} "mkdir ${DPDK_DIR}"
 		ssh ${install_ip} "wget -O - ${DPDK_LINK} | tar -xJ -C ${DPDK_DIR} --strip-components=1"
 	elif [[ $DPDK_LINK =~ ".git" ]] || [[ $DPDK_LINK =~ "git:" ]]; then
-		ssh ${install_ip} "rm -rf ${DPDK_DIR}" # LISA Pipelines don't always wipe old state
 		ssh ${install_ip} "git clone ${DPDK_LINK} ${DPDK_DIR}"
 	elif [[ $DPDK_LINK =~ "ppa:" ]]; then
 		if [[ $distro != "ubuntu16.04" && $distro != "ubuntu18.04" ]]; then
