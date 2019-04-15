@@ -68,7 +68,7 @@
     </test>
     <test>
         <TestName>LINUX-TEST-PROJECT-TESTS</TestName>
-        <TestScript>Linux-Test-Project-Tests.sh</TestScript>
+        <TestScript>Run-LtpSuite.ps1</TestScript>
         <files>.\Testscripts\Linux\utils.sh,.\TestScripts\Linux\Linux-Test-Project-Tests.sh</files>
         <setupScript>.\TestScripts\Windows\AddVhdxHardDisk.ps1</setupScript>
         <cleanupScript>.\TestScripts\Windows\RemoveVhdxHardDisk.ps1</cleanupScript>
@@ -89,7 +89,7 @@
     </test>
     <test>
         <TestName>LINUX-TEST-PROJECT-TESTS-FULL-RUN</TestName>
-        <TestScript>Linux-Test-Project-Tests.sh</TestScript>
+        <TestScript>Run-LtpSuite.ps1</TestScript>
         <files>.\Testscripts\Linux\utils.sh,.\TestScripts\Linux\Linux-Test-Project-Tests.sh</files>
         <setupScript>.\TestScripts\Windows\AddVhdxHardDisk.ps1</setupScript>
         <cleanupScript>.\TestScripts\Windows\RemoveVhdxHardDisk.ps1</cleanupScript>
