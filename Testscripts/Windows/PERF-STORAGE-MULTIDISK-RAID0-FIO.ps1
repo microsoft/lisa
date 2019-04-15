@@ -122,8 +122,17 @@ function Get-FioPerformanceResults {
 function Consume-FioPerformanceResults {
     param(
         $FioPerformanceResults,
-        $currentTestResult
+        $currentTestResult,
+        $CurrentTestData
     )
+    $testType ="Default"
+    if ($CurrentTestData.TestParameters.param.Contains("NVME=yes")) {
+        $testType ="NVME"
+    }
+    $TestCaseName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
+    if (!$TestCaseName) {
+        $TestCaseName = $CurrentTestData.testName
+    }
     # Note(v-advlad): aggregate fio results by qDepth
     $perfResultsByQdepth = @{}
     $TestDate = $(Get-Date -Format yyyy-MM-dd)
@@ -171,7 +180,7 @@ function Consume-FioPerformanceResults {
                 $resultMap["GuestDistro"] = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
                 $resultMap["HostOS"] = cat "$LogDir\VM_properties.csv" | Select-String "Host Version"| %{$_ -replace ",Host Version,",""}
                 $resultMap["KernelVersion"] = cat "$LogDir\VM_properties.csv" | Select-String "Kernel version"| %{$_ -replace ",Kernel version,",""}
-                $resultMap["TestCaseName"] = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
+                $resultMap["TestCaseName"] = $TestCaseName
                 $resultMap["TestDate"] = $TestDate
                 $resultMap["HostType"] = $TestPlatform
                 $resultMap["HostBy"] = $TestLocation
@@ -188,6 +197,7 @@ function Consume-FioPerformanceResults {
                 $resultMap["seq_write_lat_usec"] = $seq_write_lat_usec
                 $resultMap["rand_write_iops"] = $rand_write_iops
                 $resultMap["rand_write_lat_usec"] = $rand_write_lat_usec
+                $resultMap["TestType"] = $testType
                 $currentTestResult.TestResultData += $resultMap
             }
             Write-LogInfo "Collected performance data for $qDepth qDepth."
@@ -282,7 +292,7 @@ function Main {
         $fioPerfResults | ConvertTo-Json | Out-File $fioPerfResultsFile -Encoding "ascii"
         Write-LogInfo "Perf results in json format saved at: ${fioPerfResultsFile}"
 
-        Consume-FioPerformanceResults -FioPerformanceResults $fioPerfResults -currentTestResult $currentTestResult
+        Consume-FioPerformanceResults -FioPerformanceResults $fioPerfResults -currentTestResult $currentTestResult -CurrentTestData $CurrentTestData
     } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber

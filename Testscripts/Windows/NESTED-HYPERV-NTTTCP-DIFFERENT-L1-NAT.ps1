@@ -256,7 +256,7 @@ function Start-TestExecution ($ip, $port, $cmd) {
 	}
 }
 
-function Send-ResultToDatabase ($GlobalConfig, $logDir, $session) {
+function Send-ResultToDatabase ($GlobalConfig, $logDir, $session, $CurrentTestData) {
 	Write-LogInfo "Uploading the test results.."
 	$dataSource = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.server
 	$user = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.user
@@ -264,10 +264,13 @@ function Send-ResultToDatabase ($GlobalConfig, $logDir, $session) {
 	$database = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbname
 	$dataTableName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbtable
 	$TestCaseName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
+	if (!$TestCaseName) {
+		$TestCaseName = $CurrentTestData.testName
+	}
 	if ($dataSource -And $user -And $password -And $database -And $dataTableName) {
 		# Get host info
-		$HostType	= $global:TestPlatform
-		$HostBy	= $TestLocation
+		$HostType = $global:TestPlatform
+		$HostBy = $TestLocation
 
 		if ($TestPlatform -eq "hyperV") {
 			$HyperVMappedSizes = [xml](Get-Content .\XML\AzureVMSizeToHyperVMapping.xml)
@@ -293,12 +296,12 @@ function Send-ResultToDatabase ($GlobalConfig, $logDir, $session) {
 		# Get L1 guest info
 		$L1GuestKernelVersion = Get-Content "$LogDir\nested_properties.csv" | Select-String "Host Version"| ForEach-Object{$_ -replace ",Host Version,",""}
 		$computerInfo = Invoke-Command -Session $session -ScriptBlock {Get-ComputerInfo}
-		$L1GuestDistro	= $computerInfo.OsName
-		$L1GuestOSType	= "Windows"
+		$L1GuestDistro = $computerInfo.OsName
+		$L1GuestOSType = "Windows"
 
 		# Get L2 guest info
-		$L2GuestDistro	= Get-Content "$LogDir\nested_properties.csv" | Select-String "OS type"| ForEach-Object{$_ -replace ",OS type,",""}
-		$L2GuestKernelVersion	= Get-Content "$LogDir\nested_properties.csv" | Select-String "Kernel version"| ForEach-Object{$_ -replace ",Kernel version,",""}
+		$L2GuestDistro = Get-Content "$LogDir\nested_properties.csv" | Select-String "OS type"| ForEach-Object{$_ -replace ",OS type,",""}
+		$L2GuestKernelVersion = Get-Content "$LogDir\nested_properties.csv" | Select-String "Kernel version"| ForEach-Object{$_ -replace ",Kernel version,",""}
 		$flag=1
 		if($TestLocation.split(',').Length -eq 2) {
 			$flag=0
@@ -650,7 +653,7 @@ function Main () {
 			if (!$uploadResults) {
 				Write-LogInfo "Zero throughput for some connections, results will not be uploaded to database!"
 			} else {
-				Send-ResultToDatabase -GlobalConfig $GlobalConfig -logDir $LogDir -session $serverSession
+				Send-ResultToDatabase -GlobalConfig $GlobalConfig -logDir $LogDir -session $serverSession -currentTestData $currentTestData
 			}
 			Remove-PSSession -Session $serverSession
 			Remove-PSSession -Session $clientSession

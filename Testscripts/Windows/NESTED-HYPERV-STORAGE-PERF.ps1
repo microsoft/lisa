@@ -169,7 +169,7 @@ function Start-TestExecution ($ip, $port, $username, $passwd) {
 	Run-LinuxCmd -ip $ip -port  $port -username $username -password $passwd -command $cmd -runAsSudo
 }
 
-function Get-SQLQueryOfNestedHyperv ($currentTestResult, $session, $AllVMData) {
+function Get-SQLQueryOfNestedHyperv ($currentTestResult, $session, $AllVMData, $currentTestData) {
 	try {
 		$TestDate = $(Get-Date -Format yyyy-MM-dd)
 		$fioDataCsv = Import-Csv -Path $LogDir\fioData.csv
@@ -221,9 +221,13 @@ function Get-SQLQueryOfNestedHyperv ($currentTestResult, $session, $AllVMData) {
 			}
 		}
 
+		$TestCaseName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
+		if (!$TestCaseName) {
+			$TestCaseName = $CurrentTestData.testName
+		}
 		for ( $QDepth = $startThread; $QDepth -le $maxThread; $QDepth *= 2 ) {
 			$resultMap = @{}
-			$resultMap["TestCaseName"] = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
+			$resultMap["TestCaseName"] = $TestCaseName
 			$resultMap["TestDate"] = $TestDate
 			$resultMap["HostType"] = $TestPlatform
 			$resultMap["HostBy"] = $TestLocation
@@ -562,7 +566,7 @@ function Main() {
 				}
 			}
 
-			Get-SQLQueryOfNestedHyperv -currentTestResult $currentTestResult -session $session -AllVMData $AllVMData
+			Get-SQLQueryOfNestedHyperv -currentTestResult $currentTestResult -session $session -AllVMData $AllVMData -currentTestData $currentTestData
 		}
 	} catch {
 		$errorMessage =  $_.Exception.Message
