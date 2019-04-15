@@ -205,7 +205,8 @@ Class TestController
 		$ReplaceableTestParameters = [xml](Get-Content -Path "$WorkingDirectory\XML\Other\ReplaceableTestParameters.xml")
 
 		$allTests = Collect-TestCases -TestXMLs $TestXMLs -TestCategory $this.TestCategory -TestArea $this.TestArea `
-			-TestNames $this.TestNames -TestTag $this.TestTag -TestPriority $this.TestPriority -ExcludeTests $this.ExcludeTests
+			-TestNames $this.TestNames -TestTag $this.TestTag -TestPriority $this.TestPriority -ExcludeTests $this.ExcludeTests `
+			-OverrideVMSize $this.OverrideVMSize -SupportedVmSize $this.CustomParams["SupportedVmSize"]
 
 		if( !$allTests ) {
 			Throw "Not able to collect any test cases from XML files"

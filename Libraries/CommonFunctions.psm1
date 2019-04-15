@@ -112,85 +112,125 @@ Function Match-TestTag($currentTest, $TestTag)
 # Before entering this function, $TestPlatform has been verified as "valid" in Run-LISAv2.ps1.
 # So, here we don't need to check $TestPlatform
 #
-Function Collect-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $TestTag, $TestPriority, $ExcludeTests)
-{
-    $AllLisaTests = @()
-    $WildCards = @('^','.','[',']','?','+','*')
-    $ExcludedTestsCount = 0
+Function Collect-TestCases {
+	param($TestXMLs,
+		$TestCategory,
+		$TestArea,
+		$TestNames,
+		$TestTag,
+		$TestPriority,
+		$ExcludeTests,
+		$OverrideVMSize,
+		$SupportedVMSize
+	)
 
-    # Check and cleanup the parameters
-    if ( $TestCategory -eq "All")   { $TestCategory = "*" }
-    if ( $TestArea -eq "All")       { $TestArea = "*" }
-    if ( $TestNames -eq "All")      { $TestNames = "*" }
-    if ( $TestTag -eq "All")        { $TestTag = "*" }
-    if ( $TestPriority -eq "All")   { $TestPriority = "*" }
+	$AllLisaTests = @()
+	$WildCards = @('^','.','[',']','?','+','*')
+	$ExcludedTestsCount = 0
 
-    if (!$TestCategory) { $TestCategory = "*" }
-    if (!$TestArea)     { $TestArea = "*" }
-    if (!$TestNames)    { $TestNames = "*" }
-    if (!$TestTag)      { $TestTag = "*" }
-    if (!$TestPriority) { $TestPriority = "*" }
+	# Check and cleanup the parameters
+	if ( $TestCategory -eq "All") { $TestCategory = "*" }
+	if ( $TestArea -eq "All") { $TestArea = "*" }
+	if ( $TestNames -eq "All") { $TestNames = "*" }
+	if ( $TestTag -eq "All") { $TestTag = "*" }
+	if ( $TestPriority -eq "All") { $TestPriority = "*" }
 
-    # Filter test cases based on the criteria
-    foreach ($file in $TestXMLs.FullName) {
-        $currentTests = ([xml]( Get-Content -Path $file)).TestCases
-        foreach ($test in $currentTests.test) {
-            if (!($test.Platform.Split(",").Contains($TestPlatform))) {
-                continue
-            }
+	if (!$TestCategory) { $TestCategory = "*" }
+	if (!$TestArea) { $TestArea = "*" }
+	if (!$TestNames) { $TestNames = "*" }
+	if (!$TestTag) { $TestTag = "*" }
+	if (!$TestPriority) { $TestPriority = "*" }
 
-            if (!($TestCategory.Split(",").Contains($test.Category)) -and ($TestCategory -ne "*")) {
-                continue
-            }
+	# Filter test cases based on the criteria
+	foreach ($file in $TestXMLs.FullName) {
+		$currentTests = ([xml]( Get-Content -Path $file)).TestCases
+		foreach ($test in $currentTests.test) {
+			if (!($test.Platform.Split(",").Contains($TestPlatform))) {
+				continue
+			}
 
-            if (!($TestArea.Split(",").Contains($test.Area)) -and ($TestArea -ne "*")) {
-                continue
-            }
+			if (!($TestCategory.Split(",").Contains($test.Category)) -and ($TestCategory -ne "*")) {
+				continue
+			}
 
-            if (!($TestNames.Split(",").Contains($test.testName)) -and ($TestNames -ne "*")) {
-                continue
-            }
+			if (!($TestArea.Split(",").Contains($test.Area)) -and ($TestArea -ne "*")) {
+				continue
+			}
 
-            $testTagMatched = Match-TestTag -currentTest $test -TestTag $TestTag
-            if ($testTagMatched -eq $false) {
-                continue
-            }
+			if (!($TestNames.Split(",").Contains($test.testName)) -and ($TestNames -ne "*")) {
+				continue
+			}
 
-            $testPriorityMatched = Match-TestPriority -currentTest $test -TestPriority $TestPriority
-            if ($testPriorityMatched -eq $false) {
-                continue
-            }
+			$testTagMatched = Match-TestTag -currentTest $test -TestTag $TestTag
+			if ($testTagMatched -eq $false) {
+				continue
+			}
 
-            if ($ExcludeTests) {
-                $ExcludeTestMatched = $false
-                foreach ($TestString in $ExcludeTests.Split(",")) {
-                    if (($TestString.IndexOfAny($WildCards))-ge 0) {
-                        if ($TestString.StartsWith('*')) {
-                            $TestString = ".$TestString"
-                        }
-                        if ($test.TestName -match $TestString) {
-                            Write-LogInfo "Excluded Test  : $($test.TestName) [Wildcards match]"
-                            $ExcludeTestMatched = $true
-                        }
-                    } elseif ($TestString -eq $test.TestName) {
-                        Write-LogInfo "Excluded Test  : $($test.TestName) [Exact match]"
-                        $ExcludeTestMatched = $true
-                    }
-                }
-                if ($ExcludeTestMatched) {
-                    $ExcludedTestsCount += 1
-                    continue
-                }
-            }
+			$testPriorityMatched = Match-TestPriority -currentTest $test -TestPriority $TestPriority
+			if ($testPriorityMatched -eq $false) {
+				continue
+			}
 
-            Write-LogInfo "Collected Test : $($test.TestName)"
-            $AllLisaTests += $test
-        }
-    }
-    if ($ExcludeTests) {
-        Write-LogInfo "$ExcludedTestsCount Test Cases have been excluded"
-    }
-    return $AllLisaTests
+			if ($ExcludeTests) {
+				$ExcludeTestMatched = $false
+				foreach ($TestString in $ExcludeTests.Split(",")) {
+					if (($TestString.IndexOfAny($WildCards))-ge 0) {
+						if ($TestString.StartsWith('*')) {
+							$TestString = ".$TestString"
+						}
+						if ($test.TestName -match $TestString) {
+							Write-LogInfo "Excluded Test  : $($test.TestName) [Wildcards match]"
+							$ExcludeTestMatched = $true
+						}
+					} elseif ($TestString -eq $test.TestName) {
+						Write-LogInfo "Excluded Test  : $($test.TestName) [Exact match]"
+						$ExcludeTestMatched = $true
+					}
+				}
+				if ($ExcludeTestMatched) {
+					$ExcludedTestsCount += 1
+					continue
+				}
+			}
+
+			if ($OverrideVMSize) {
+				$OverrideVMSize = $OverrideVMSize.Split(",").Trim() | Sort-Object
+				if (!$SupportedVMSize) {
+					$SupportedVMSize = $test.SupportedVMSize
+				}
+				if ($SupportedVMSize) {
+					$SupportedVMSize = $SupportedVMSize.Split(",").Trim() | Sort-Object
+				}
+				$supportedTestCase = $true
+				foreach ($vmSize in $OverrideVMSize) {
+					$supported = $false
+					foreach ($sVmSize in $SupportedVMSize) {
+						if ($vmSize -like $sVmSize) {
+							$supported = $true
+							break
+						}
+					}
+					if (!$supported) {
+						Write-LogWarn "$($test.TestName): Size $vmSize not supported. Excluding test."
+						$supportedTestCase = $false
+						break
+					}
+				}
+
+				if (!$supportedTestCase) {
+					$ExcludedTestsCount += 1
+					continue
+				}
+			}
+
+			Write-LogInfo "Collected Test: $($test.TestName)"
+			$AllLisaTests += $test
+		}
+	}
+	if ($ExcludeTests) {
+		Write-LogInfo "$ExcludedTestsCount Test Cases have been excluded"
+	}
+	return $AllLisaTests
 }
 
 # This function set the AdditionalHWConfig of the test case data
