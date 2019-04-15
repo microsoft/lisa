@@ -102,7 +102,7 @@
         <TestParameters>
             <param>dpdkSrcLink="DPDK_SOURCE_URL"</param>
             <param>DPDK_RING_LATENCY_RUN_TIME=30</param>
-            <param>DPDK_RING_LATENCY_MAX=50000</param>
+            <param>DPDK_RING_LATENCY_MAX=200000</param>
             <param>DPDK_RING_LATENCY_SOURCE_URL=https://github.com/shemminger/dpdk-ring-ping.git</param>
         </TestParameters>
         <Platform>Azure</Platform>
