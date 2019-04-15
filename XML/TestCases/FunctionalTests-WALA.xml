@@ -1,5 +1,5 @@
 <TestCases>
-	<test>
+    <test>
         <testName>WALA-VERIFY-HOSTNAME</testName>
         <testScript>WALA-VERIFY-HOSTNAME.py</testScript>
         <files>.\Testscripts\Linux\nslookup.py,.\Testscripts\Linux\WALA-VERIFY-HOSTNAME.py,.\Testscripts\Linux\azuremodules.py</files>
