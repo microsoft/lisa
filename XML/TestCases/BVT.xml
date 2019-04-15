@@ -185,17 +185,6 @@
         <Priority>0</Priority>
     </test>
     <test>
-        <testName>BVT-VERIFY-KVP-DAEMON-STATUS</testName>
-        <testScript>BVT-VERIFY-KVP-DAEMON-STATUS.ps1</testScript>
-        <files></files>
-        <setupType>OneVM</setupType>
-        <Platform>Azure</Platform>
-        <Category>BVT</Category>
-        <Area>BVT</Area>
-        <Tags>kvp</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
         <testName>BVT-CORE-TIMESYNC-NTP</testName>
         <testScript>BVT-CORE-TIMESYNC-NTP.sh</testScript>
         <files>.\TestScripts\Linux\BVT-CORE-TIMESYNC-NTP.sh,.\TestScripts\Linux\utils.sh</files>
@@ -204,51 +193,6 @@
         <Category>BVT</Category>
         <Area>CORE</Area>
         <Tags>timesync</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
-        <testName>BVT-CORE-VERIFY-LIS-MODULES</testName>
-        <testScript>BVT-CORE-VERIFY-LIS-MODULES.sh</testScript>
-        <files>.\TestScripts\Linux\BVT-CORE-VERIFY-LIS-MODULES.sh,.\TestScripts\Linux\utils.sh</files>
-        <setupType>OneVM</setupType>
-        <TestParameters>
-            <param>HYPERV_MODULES=(hyperv_keyboard hv_netvsc hid_hyperv hv_util hv_storvsc)</param>
-        </TestParameters>
-        <Platform>Azure,HyperV</Platform>
-        <Category>BVT</Category>
-        <Area>CORE</Area>
-        <Tags>hv_module</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
-        <testName>BVT-CORE-VERIFY-LIS-MODULES-VERSION</testName>
-        <testScript>BVT-CORE-VERIFY-LIS-MODULES-VERSION.sh</testScript>
-        <files>.\TestScripts\Linux\BVT-CORE-VERIFY-LIS-MODULES-VERSION.sh,.\TestScripts\Linux\utils.sh</files>
-        <setupType>OneVM</setupType>
-        <TestParameters>
-            <param>HYPERV_MODULES=(hv_vmbus hyperv_keyboard hv_netvsc hid_hyperv hv_utils hv_storvsc hv_balloon)</param>
-        </TestParameters>
-        <Platform>Azure,HyperV</Platform>
-        <Category>BVT</Category>
-        <Area>CORE</Area>
-        <Tags>hv_module</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
-        <testName>BVT-CORE-RELOAD-MODULES-SMP</testName>
-        <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1</setupScript>
-        <testScript>BVT-CORE-RELOAD-MODULES.ps1</testScript>
-        <files>.\TestScripts\Linux\BVT-CORE-RELOAD-MODULES.sh,.\TestScripts\Linux\utils.sh</files>
-        <setupType>OneVM</setupType>
-        <OverrideVMSize>Standard_DS4_v2</OverrideVMSize>
-        <TestParameters>
-            <param>VCPU=8</param>
-            <param>LoopCount=100</param>
-        </TestParameters>
-        <Platform>Azure,HyperV</Platform>
-        <Category>BVT</Category>
-        <Area>CORE</Area>
-        <Tags>hv_module</Tags>
         <Priority>0</Priority>
     </test>
     <test>
@@ -293,17 +237,6 @@
         <Priority>1</Priority>
     </test>
     <test>
-        <testName>BVT-NET-IFUP-IFDOWN</testName>
-        <testScript>BVT-NET-IFUP-IFDOWN.ps1</testScript>
-        <files>.\TestScripts\Linux\BVT-NET-IFUP-IFDOWN.sh,.\TestScripts\Linux\utils.sh</files>
-        <setupType>OneVM</setupType>
-        <Platform>Azure,HyperV</Platform>
-        <Category>BVT</Category>
-        <Area>NETWORK</Area>
-        <Tags>network</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
         <TestName>BVT-VERIFY-DEPLOYMENT-PROVISION</TestName>
         <testScript>BVT-VERIFY-DEPLOYMENT-PROVISION.ps1</testScript>
         <files></files>
@@ -343,20 +276,6 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>provision,sriov</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
-        <TestName>BVT-VERIFY-HOSTNAME</TestName>
-        <testScript>WALA-VERIFY-HOSTNAME.py</testScript>
-        <files>.\Testscripts\Linux\nslookup.py,.\Testscripts\Linux\WALA-VERIFY-HOSTNAME.py,.\Testscripts\Linux\azuremodules.py</files>
-        <setupType>OneVM</setupType>
-        <Platform>Azure</Platform>
-        <TestParameters>
-            <param>SECRET_PARAMS=(RoleName)</param>
-        </TestParameters>
-        <Category>BVT</Category>
-        <Area>BVT</Area>
-        <Tags>wala</Tags>
         <Priority>0</Priority>
     </test>
 </TestCases>

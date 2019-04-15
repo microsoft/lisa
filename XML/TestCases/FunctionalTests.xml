@@ -1,5 +1,33 @@
 <TestCases>
     <test>
+        <testName>VERIFY-LIS-MODULES</testName>
+        <testScript>VERIFY-LIS-MODULES.sh</testScript>
+        <files>.\TestScripts\Linux\VERIFY-LIS-MODULES.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>OneVM</setupType>
+        <TestParameters>
+            <param>HYPERV_MODULES=(hyperv_keyboard hv_netvsc hid_hyperv hv_util hv_storvsc)</param>
+        </TestParameters>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>hv_module</Tags>
+        <Priority>0</Priority>
+    </test>
+    <test>
+        <testName>VERIFY-LIS-MODULES-VERSION</testName>
+        <testScript>VERIFY-LIS-MODULES-VERSION.sh</testScript>
+        <files>.\TestScripts\Linux\VERIFY-LIS-MODULES-VERSION.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>OneVM</setupType>
+        <TestParameters>
+            <param>HYPERV_MODULES=(hv_vmbus hyperv_keyboard hv_netvsc hid_hyperv hv_utils hv_storvsc hv_balloon)</param>
+        </TestParameters>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>hv_module</Tags>
+        <Priority>0</Priority>
+    </test>
+    <test>
         <testName>VERIFY-HEARTBEAT</testName>
         <testScript>CORE-VerifyHeartBeat.ps1</testScript>
         <setupType>OneVM</setupType>
@@ -42,7 +70,7 @@
             <param>gen1_hv_modules=(hv_vmbus.ko hv_storvsc.ko hv_netvsc.ko)</param>
             <param>gen2_hv_modules=(hv_vmbus.ko hv_storvsc.ko hv_netvsc.ko hyperv-keyboard.ko)</param>
         </TestParameters>
-        <Platform>HyperV,Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>hv_module</Tags>
@@ -56,11 +84,28 @@
         <TestParameters>
             <param>vCPU=4</param>
         </TestParameters>
-        <Platform>HyperV,Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>cpu</Tags>
         <Priority>2</Priority>
+    </test>
+    <test>
+        <testName>RELOAD-MODULES-SMP</testName>
+        <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1</setupScript>
+        <testScript>RELOAD-MODULES.ps1</testScript>
+        <files>.\TestScripts\Linux\RELOAD-MODULES.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_DS4_v2</OverrideVMSize>
+        <TestParameters>
+            <param>VCPU=8</param>
+            <param>LoopCount=100</param>
+        </TestParameters>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>hv_module</Tags>
+        <Priority>0</Priority>
     </test>
     <test>
         <TestName>LSVMBUS</TestName>
@@ -462,7 +507,7 @@
             <param>vmMemory=4GB</param>
             <param>crashkernel=512M</param>
         </TestParameters>
-        <Platform>HyperV,Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>Functional</Category>
         <Area>KDUMP</Area>
         <Tags>kdump</Tags>
@@ -479,7 +524,7 @@
             <param>vmMemory=2GB</param>
             <param>crashkernel=256M@128M</param>
         </TestParameters>
-        <Platform>HyperV,Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>Functional</Category>
         <Area>KDUMP</Area>
         <Tags>kdump</Tags>
@@ -514,7 +559,7 @@
             <param>vmMemory=2GB</param>
             <param>crashkernel=auto</param>
         </TestParameters>
-        <Platform>HyperV,Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>Functional</Category>
         <Area>KDUMP</Area>
         <Tags>kdump</Tags>
@@ -531,7 +576,7 @@
             <param>vmMemory=2GB</param>
             <param>crashkernel=512M</param>
         </TestParameters>
-        <Platform>HyperV,Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>Functional</Category>
         <Area>KDUMP</Area>
         <Tags>kdump</Tags>
@@ -548,7 +593,7 @@
             <param>vmMemory=4GB</param>
             <param>crashkernel=512M</param>
         </TestParameters>
-        <Platform>HyperV,Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>Functional</Category>
         <Area>KDUMP</Area>
         <Tags>kdump</Tags>
