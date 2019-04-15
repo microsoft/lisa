@@ -4,15 +4,15 @@
 
 ########################################################################
 #
-# CORE_StressReloadModules.sh
 # Description:
-#    This script will first check the existence of Hyper-V kernel modules.
+#    This script will first check the existence of LIS modules.
 #    Then it will reload the modules in a loop in order to stress the system.
 #    It also checks that hyperv_fb cannot be unloaded.
-#    When done it will bring up the eth0 interface and check again for
-#    the presence of Hyper-V modules.
+#    When done it will bring up the eth0 interface and check again
+#    for the presence of modules.
 #
 ################################################################
+
 # Source utils.sh
 . utils.sh || {
     echo "Error: unable to source utils.sh!"

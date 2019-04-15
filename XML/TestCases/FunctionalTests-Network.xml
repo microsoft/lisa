@@ -673,4 +673,15 @@
         <Tags>network</Tags>
         <Priority>0</Priority>
     </test>
+    <test>
+        <testName>NET-IFUP-IFDOWN</testName>
+        <testScript>NET-IFUP-IFDOWN.ps1</testScript>
+        <files>.\TestScripts\Linux\NET-IFUP-IFDOWN.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>OneVM</setupType>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
+        <Priority>0</Priority>
+    </test>
 </TestCases>
