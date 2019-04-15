@@ -88,17 +88,6 @@
         <Priority>0</Priority>
     </test>
     <test>
-        <testName>BVT-VERIFY-NO-ERROR-IN-LOGS</testName>
-        <testScript>BVT-VERIFY-NO-ERROR-IN-LOGS.py</testScript>
-        <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-NO-ERROR-IN-LOGS.py,.\XML\Other\ignorable-walalog-errors.xml</files>
-        <setupType>OneVM</setupType>
-        <Platform>Azure</Platform>
-        <Category>BVT</Category>
-        <Area>BVT</Area>
-        <Tags>provision</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
         <testName>BVT-VERIFY-VERBOSE-ENABLED-LOGS</testName>
         <testScript>BVT-VERIFY-VERBOSE-ENABLED-LOGS.py</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-VERBOSE-ENABLED-LOGS.py</files>

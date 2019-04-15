@@ -103,4 +103,15 @@
         <Tags>wala</Tags>
         <Priority>1</Priority>
     </test>
+    <test>
+        <testName>WALA-VERIFY-WAAGENT-LOG</testName>
+        <testScript>WALA-VERIFY-WAAGENT-LOG.py</testScript>
+        <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\WALA-VERIFY-WAAGENT-LOG.py,.\XML\Other\ignorable-walalog-errors.xml</files>
+        <setupType>OneVM</setupType>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>WALA</Area>
+        <Tags>wala</Tags>
+        <Priority>0</Priority>
+    </test>
 </TestCases>

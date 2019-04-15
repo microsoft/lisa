@@ -12,7 +12,7 @@ def RunTest():
     RunLog.info("Checking for ERROR messages in waagent.log...")
     errors = Run("grep ERROR /var/log/waagent.log")
     if (not errors) :
-        RunLog.info('There is no errors in the logs waagent.log')
+        RunLog.info('No errors found in waagent.log')
         ResultLog.info('PASS')
         UpdateState("TestCompleted")
     else :
@@ -31,7 +31,7 @@ def RunTest():
                         if(errors):
                             errors = RemoveIgnorableMessages(''.join(errors), keywords.text)
         if (errors):
-            RunLog.info('ERROR are  present in wala log.')
+            RunLog.info('Errors are present in wala log.')
             RunLog.info('Errors: ' + ''.join(errors))
             ResultLog.error('FAIL')
         else:
