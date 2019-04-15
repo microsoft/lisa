@@ -126,7 +126,7 @@ function Main {
             $currentTestResult.TestResult = Get-FinalResultHeader -resultarr "ABORTED"
             return $currentTestResult
         }
-        $CurrentTestResult.TestSummary += New-ResultSummary -metaData "Using nVidia driver: $driver" -testName $CurrentTestData.testName
+        $CurrentTestResult.TestSummary += New-ResultSummary -metaData "Using nVidia driver" -testName $CurrentTestData.testName -testResult $driver
 
         $cmdAddConstants = "echo -e `"driver=$($driver)`" >> constants.sh"
         Run-LinuxCmd -username $superuser -password $password -ip $allVMData.PublicIP -port $allVMData.SSHPort `
