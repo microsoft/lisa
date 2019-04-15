@@ -3392,29 +3392,16 @@ function Format_Mount_NVME()
 }
 
 
-# Remove and reattach PCI device inside the VM, only 1 must be present
-#  - only one device of [DeviceType] must be present on the PCI bus
-# @param1 DeviceType: supported "NVME", "SR-IOV", "GPU"
-# @return 0 if the device was removed and reattached successfully
+# Remove and reattach PCI devices of a certain type inside the VM
+# @param1 DeviceType: supported values are "NVME", "SR-IOV", "GPU"
+# @return 0 if the devices were removed and reattached successfully
 function RescindPCI ()
 {
     case "$1" in
-        "SR-IOV")
-            vf_pci_type="Ethernet"
-            vf_pci_check_removed='mlx4_core\|mlx4_en\|ixgbevf'
-            ;;
-        "NVME")
-            vf_pci_type="Non-Volatile"
-            vf_pci_check_removed="nvme"
-            ;;
-        "GPU")
-            vf_pci_type="NVIDIA"
-            vf_pci_check_removed="$vf_pci_type"
-            ;;
-        *)
-            LogErr "Invalid device type for RescindPCI."
-            return 1
-            ;;
+        "SR-IOV") vf_pci_type="Ethernet" ;;
+        "NVME")   vf_pci_type="Non-Volatile" ;;
+        "GPU")    vf_pci_type="NVIDIA" ;;
+        *)        LogErr "Unsupported device type for RescindPCI." ; return 1 ;;
     esac
 
     if ! lspci --version > /dev/null 2>&1; then
@@ -3422,35 +3409,61 @@ function RescindPCI ()
         install_package "pciutils"
     fi
 
-    LogMsg "Attempting to disable and enable the $vf_pci_type device."
+    LogMsg "Attempting to disable and enable the $vf_pci_type PCI devices."
     # Get the VF address
-    vf_pci_address=$(lspci | grep -i "$vf_pci_type" | awk '{ print $1 }')
-    vf_pci_remove_path="/sys/bus/pci/devices/${vf_pci_address}/remove"
-    if [ ! -f "$vf_pci_remove_path" ]; then
-        LogErr "Unable to disable the PCI device, because the $vf_pci_remove_path doesn't exist."
-        return 1
-    fi
-    # Remove the VF
-    echo 1 > "$vf_pci_remove_path"
-    sleep 5
+    vf_pci_addresses=$(lspci | grep -i "$vf_pci_type" | awk '{ print $1 }')
+    IFS=$'\n'; vf_pci_addresses=("$vf_pci_addresses"); unset IFS;
 
-    # Check if the VF has been disabled.
-    if lspci -vvv | grep "$vf_pci_check_removed"; then
-        LogErr "Disabling the $vf_pci_type device failed."
+    if [ -z "$vf_pci_addresses" ]; then
+        LogErr "No PCI devices of type $vf_pci_type were found."
         return 1
+    else
+        LogMsg "Found the following $vf_pci_type devices: $vf_pci_addresses"
     fi
 
-    # Check if the VF has been re-enabled
-    retry=5
-    until lspci | grep -i "$vf_pci_type"; do
-        # Enable the VF
-        echo 1 > /sys/bus/pci/rescan
-        sleep 2
-        if [ $retry -le 0 ]; then
-            LogErr "PCI device is not present, enabling the $vf_pci_type device failed."
+    # Remove the VF for each address
+    for addr in ${vf_pci_addresses[@]}; do
+        vf_pci_remove_path="/sys/bus/pci/devices/${addr}/remove"
+        if [ ! -f "$vf_pci_remove_path" ]; then
+            LogErr "Could not to disable the PCI device, because the $vf_pci_remove_path doesn't exist."
             return 1
         fi
-        retry=$((retry - 1))
+        echo 1 > "$vf_pci_remove_path"
     done
-    return 0
+
+    sleep 5
+
+    # Check if all VFs have been disabled
+    for addr in ${vf_pci_addresses[@]}; do
+        vf_pci_device_path="/sys/bus/pci/devices/${addr}"
+        if [ -d "$vf_pci_device_path" ] || [ "$(lspci | grep -ic $addr)" -ne 0 ]; then
+            LogErr "Could not disable the PCI device: $addr"
+            return 1
+        fi
+    done
+
+    # Check if all VFs has been re-enabled
+    retry=1
+    while [ $retry -le 5 ]; do
+        # Enable the VF
+        echo 1 > /sys/bus/pci/rescan
+        sleep 5
+        #Search for all addresses and folder structures
+        searchFor=$(echo "$vf_pci_addresses" | wc -l)
+        found=0
+        for addr in ${vf_pci_addresses[@]}; do
+            vf_pci_device_path="/sys/bus/pci/devices/${addr}"
+            if [ -d "$vf_pci_device_path" ] && [ "$(lspci | grep -ic $addr)" -ne 0 ]; then
+                LogMsg "Found PCI device addr: $addr on try: $retry"
+                found=$((found + 1))
+            fi
+        done
+        if [ "$found" -eq "$searchFor" ]; then
+            LogMsg "All $found PCI devices have been reattached."
+            return 0
+        fi
+        retry=$((retry + 1))
+    done
+    LogErr "PCI device is not present, enabling the $vf_pci_type device failed."
+    return 1
 }
