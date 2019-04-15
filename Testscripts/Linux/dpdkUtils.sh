@@ -233,7 +233,10 @@ function Install_Dpdk() {
 	fi
 
 	ssh ${install_ip} "cd ${LIS_HOME}/${DPDK_DIR} && make -j"
+	check_exit_status "cd ${LIS_HOME}/${DPDK_DIR} && make -j" "exit"
+
 	ssh ${install_ip} "cd ${LIS_HOME}/${DPDK_DIR} && make install"
+	check_exit_status "cd ${LIS_HOME}/${DPDK_DIR} && make install" "exit"
 
 	LogMsg "Finished installing dpdk on ${install_ip}"
 }
@@ -435,7 +438,22 @@ function Testpmd_Multiple_Tx_Flows_Setup() {
 
 	sed -i "54i ${num_port_code}" app/test-pmd/txonly.c
 	sed -i "55i ${port_arr_code}" app/test-pmd/txonly.c
-	sed -i "234i ${port_code}" app/test-pmd/txonly.c
+
+	# Note(v-advlad): we need to add port_code line after the nb_pkt is defined
+	lookup_line_nb_packet='for (nb_pkt = 0; nb_pkt < nb_pkt_per_burst; nb_pkt++) {'
+	local lines_to_be_replaced=$(grep -nir "${lookup_line_nb_packet}" app/test-pmd/txonly.c| awk '{print $1}' | tr -d ':''')
+	local line_index=1
+	for line in $lines_to_be_replaced
+	do
+		line_to_be_replaced=$(($line_index + $line))
+		sed -i "${line_to_be_replaced}i ${port_code}" app/test-pmd/txonly.c
+		line_index=$(($line_index + 1))
+	done
+
+	# Note(v-advlad): fallback to previous implementation
+	if [[ -z "${lines_to_be_replaced}" ]]; then
+		sed -i "234i ${port_arr_code}" app/test-pmd/txonly.c
+	fi
 }
 
 # Requires:
