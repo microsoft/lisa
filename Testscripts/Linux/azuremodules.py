@@ -288,6 +288,7 @@ def GetFileContents(filepath):
     finally:
         file.close()
 
+
 # Installation routines
 def YumPackageInstall(package):
     RunLog.info(("\nyum_package_install: " + package))
@@ -406,7 +407,7 @@ def ZypperPackageRemove(package):
         elif (re.match(r'\''+re.escape(package)+r'\' not found in package names', line, re.M|re.I)):
             return True
 
-    # Consider package remove failed if non of the above matches.
+    # Consider package remove failed if none of the above matches.
     RunLog.error((package + ": package remove failed!\n"+output))
     return False
  
