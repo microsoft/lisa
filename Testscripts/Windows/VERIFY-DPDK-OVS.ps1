@@ -115,7 +115,7 @@ function Main {
 		#region INSTALL CONFIGURE DPDK
 		$install_configure_dpdk = @"
 cd /root/
-./dpdkSetup.sh 2>&1 > dpdkConsoleLogs.txt
+./dpdkSetup.sh > dpdkConsoleLogs.txt 2>&1
 . utils.sh
 collect_VM_properties
 "@
@@ -146,7 +146,7 @@ collect_VM_properties
 		#region INSTALL CONFIGURE OVS
 		$install_configure_ovs = @"
 cd /root/
-./ovs_setup.sh 2>&1 > ovsConsoleLogs.txt
+./ovs_setup.sh > ovsConsoleLogs.txt 2>&1
 . utils.sh
 collect_VM_properties
 "@
