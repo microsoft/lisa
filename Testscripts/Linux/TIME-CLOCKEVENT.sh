@@ -7,7 +7,7 @@
 # Core_Time_Clockevent.sh
 #
 # Description:
-#	This script was created to check current clockevent device and unbind func.
+#	This script was created to check current clockevent device and unbind.
 #
 ################################################################
 # Source utils.sh

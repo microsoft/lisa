@@ -9,7 +9,7 @@
 #
 # Description
 #     This script was created to automate the testing of a Linux
-#     Integration services. It enables Network Time Protocol and 
+#     Integration services. It enables Network Time Protocol and
 #     checks if the time is in sync.
 #
 ########################################################################
