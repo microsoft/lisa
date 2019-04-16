@@ -7,7 +7,7 @@ import argparse
 # for error checking
 parser = argparse.ArgumentParser()
 
-parser.add_argument('-d', '--distro', help='Please mention which distro you are testing', required=True, type = str)
+parser.add_argument('-d', '--distro', help='Please mention distro to test', required=True, type = str)
 
 args = parser.parse_args()
 distro = args.distro
@@ -367,7 +367,7 @@ if distro == "SLES":
     result = verify_grub(distro)
     #Verify sudoers file
     result = verify_default_targetpw(distro)
-    #Vefiry : It is recommended that you set /etc/sysconfig/network/dhcp or equivalent from DHCLIENT_SET_HOSTNAME="yes" to DHCLIENT_SET_HOSTNAME="no"
+    #Verify : It is recommended that you set /etc/sysconfig/network/dhcp or equivalent from DHCLIENT_SET_HOSTNAME="yes" to DHCLIENT_SET_HOSTNAME="no"
     RunLog.info('Checking recommended setting if DHCLIENT_SET_HOSTNAME="no" present in /etc/sysconfig/network/dhcp')
     d_out = Run("cat /etc/sysconfig/network/dhcp")
     if 'DHCLIENT_SET_HOSTNAME="no"' in d_out:

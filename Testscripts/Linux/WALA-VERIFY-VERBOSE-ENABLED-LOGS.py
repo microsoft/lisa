@@ -23,7 +23,7 @@ def RunTest():
     if(distro[0] == "CoreOS"):
         versionOutPut = Run("waagent --version")
     else:
-        output = Run("ps aux | grep waagent | grep python | grep -v 'ps aux | grep waagent | grep python'")
+        output = Run("pgrep -fa python3.*waagent")
         if ("python3" in output) :
             versionOutPut = Run("/usr/bin/python3 /usr/sbin/waagent --version")
         else :

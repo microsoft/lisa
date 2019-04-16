@@ -9,7 +9,7 @@ function Main {
     $resultArr = @()
 
     try {
-        $testScript = "BVT-VERIFY-VHD-PREREQUISITES.py"
+        $testScript = "VERIFY-VHD-PREREQUISITES.py"
 
         $detectedDistro = Detect-LinuxDistro -VIP $AllVMData.PublicIP -SSHport $AllVMData.SSHPort -testVMUser $user -testVMPassword $password
         if ($detectedDistro -imatch "UBUNTU") {

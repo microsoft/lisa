@@ -1,13 +1,52 @@
 <TestCases>
     <test>
-        <testName>VERIFY-LIS-MODULES</testName>
-        <testScript>VERIFY-LIS-MODULES.sh</testScript>
-        <files>.\TestScripts\Linux\VERIFY-LIS-MODULES.sh,.\TestScripts\Linux\utils.sh</files>
+        <TestName>VERIFY-DEPLOYMENT-PROVISION</TestName>
+        <testScript>VERIFY-DEPLOYMENT-PROVISION.ps1</testScript>
+        <files></files>
         <setupType>OneVM</setupType>
-        <TestParameters>
-            <param>HYPERV_MODULES=(hyperv_keyboard hv_netvsc hid_hyperv hv_util hv_storvsc)</param>
-        </TestParameters>
         <Platform>Azure,HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>provision</Tags>
+        <Priority>0</Priority>
+    </test>
+    <test>
+        <TestName>VERIFY-DEPLOYMENT-PROVISION-EPHEMERAL-MANAGED-DISK</TestName>
+        <testScript>VERIFY-DEPLOYMENT-PROVISION.ps1</testScript>
+        <files></files>
+        <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_DS1_v2</OverrideVMSize>
+        <AdditionalHWConfig>
+            <DiskType>Managed</DiskType>
+            <OSDiskType>Ephemeral</OSDiskType>
+        </AdditionalHWConfig>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>provision</Tags>
+        <Priority>0</Priority>
+    </test>
+    <test>
+        <TestName>VERIFY-DEPLOYMENT-PROVISION-SRIOV</TestName>
+        <testScript>VERIFY-DEPLOYMENT-PROVISION.ps1</testScript>
+        <files></files>
+        <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_D13_v2</OverrideVMSize>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>provision,sriov</Tags>
+        <Priority>0</Priority>
+    </test>
+    <test>
+        <testName>LIS-MODULES-CHECK</testName>
+        <testScript>LIS-MODULES-CHECK.py</testScript>
+        <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\LIS-MODULES-CHECK.py</files>
+        <setupType>OneVM</setupType>
+        <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>hv_module</Tags>
@@ -48,7 +87,18 @@
         <Priority>0</Priority>
     </test>
     <test>
-        <testName>VERIFY-TIME-SYNC</testName>
+        <testName>VERIFY-VHD-PREREQUISITES</testName>
+        <testScript>VERIFY-VHD-PREREQUISITES.ps1</testScript>
+        <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\VERIFY-VHD-PREREQUISITES.py</files>
+        <setupType>OneVM</setupType>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>linux_setting</Tags>
+        <Priority>0</Priority>
+    </test>
+    <test>
+        <testName>TIMESYNC-HOST</testName>
         <testScript>CORE-VerifyTimeSync.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\CORE-ConfigTimeSync.sh</files>
         <setupType>OneVM</setupType>
@@ -60,6 +110,58 @@
         <Area>CORE</Area>
         <Tags>timesync</Tags>
         <Priority>0</Priority>
+    </test>
+    <test>
+        <testName>TIMESYNC-NTP</testName>
+        <testScript>TIMESYNC-NTP.sh</testScript>
+        <files>.\TestScripts\Linux\TIMESYNC-NTP.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>OneVM</setupType>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>timesync</Tags>
+        <Priority>0</Priority>
+    </test>
+    <test>
+        <testName>TIME-CLOCKSOURCE</testName>
+        <testScript>TIME-CLOCKSOURCE.sh</testScript>
+        <files>.\TestScripts\Linux\TIME-CLOCKSOURCE.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>OneVM</setupType>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>time</Tags>
+        <Priority>1</Priority>
+    </test>
+    <test>
+        <testName>TIME-CLOCKEVENT-UP</testName>
+        <testScript>TIME-CLOCKEVENT.sh</testScript>
+        <files>.\TestScripts\Linux\TIME-CLOCKEVENT.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>OneVM</setupType>
+        <TestParameters>
+            <param>VCPU=1</param>
+        </TestParameters>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>time</Tags>
+        <Priority>1</Priority>
+    </test>
+    <test>
+        <testName>TIME-CLOCKEVENT-SMP</testName>
+        <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1</setupScript>
+        <testScript>TIME-CLOCKEVENT.sh</testScript>
+        <files>.\TestScripts\Linux\TIME-CLOCKEVENT.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_DS4_v2</OverrideVMSize>
+        <TestParameters>
+            <param>VCPU=8</param>
+        </TestParameters>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>time</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>INITRD-MODULES-CHECK</testName>
@@ -726,7 +828,7 @@
         <setupType>OneVM</setupType>
         <TestParameters>
             <!-- Param required to specify multiple disk mount or umount needed -->
-            <param>DUALMOUNT=true</param> 
+            <param>DUALMOUNT=true</param>
             <param>IDE=1,1,Dynamic,512</param>
             <param>SCSI=1,1,Dynamic,512</param>
             <param>FILESYS=ext4</param>
