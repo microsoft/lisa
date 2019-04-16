@@ -45,7 +45,7 @@ function run_dpdk_ring_latency () {
 	ring_ping_max_latency=$(echo $ring_ping_result | awk '{print $1}')
 	if [[ $ring_ping_max_latency -gt $DPDK_RING_LATENCY_MAX ]];then
 		LogMsg "DPDK ring latency ${ring_ping_max_latency} higher than ${DPDK_RING_LATENCY_MAX}, failing test case."
-		SetTestStateAborted
+		SetTestStateFailed
 		exit 1
 	fi
 }

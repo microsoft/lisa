@@ -87,7 +87,8 @@ function Consume-Iperf3Results {
         $Iperf3Results,
         $DataPath,
         $IPVersion,
-        $ClientVMData
+        $ClientVMData,
+        $currentTestData
     )
 
     $dataSource = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.server
@@ -96,7 +97,9 @@ function Consume-Iperf3Results {
     $database = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbname
     $dataTableName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.dbtable
     $TestCaseName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
-
+    if (!$TestCaseName) {
+        $TestCaseName = $CurrentTestData.testName
+    }
     if (!($dataSource -and $user -and $password -and $database -and $dataTableName)) {
         Write-LogInfo "Invalid database details. Failed to upload result to database!"
         return
@@ -260,7 +263,7 @@ collect_VM_properties
             $iperf3Results | ConvertTo-Json | Out-File $iperf3ResutsFile -Encoding "ascii"
             Write-LogInfo "Perf results in json format saved at: ${iperf3ResutsFile}"
             Consume-Iperf3Results -Iperf3Results $iperf3Results -DataPath $DataPath -IPVersion $IPVersion `
-                -ClientVMData $clientVMData
+                -ClientVMData $clientVMData -currentTestData $currentTestData
         } elseif ($finalStatus -imatch "TestRunning") {
             Write-LogInfo "Powershell background job is completed but VM is reporting that test is still running. Please check $LogDir\ConsoleLogs.txt"
             $testResult = "FAIL"

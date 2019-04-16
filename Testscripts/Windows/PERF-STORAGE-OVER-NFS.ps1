@@ -144,12 +144,15 @@ chmod 666 /root/perf_fio.csv
             }
             $fioDataCsv = Import-Csv -Path $LogDir\fioData.csv
             $TestDate = $(Get-Date -Format yyyy-MM-dd)
-
+            $TestCaseName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
+            if (!$TestCaseName) {
+                $TestCaseName = $CurrentTestData.testName
+            }
             for ($QDepth = $startThread; $QDepth -le $maxThread; $QDepth *= 2) {
                 if ($testResult -eq "PASS") {
                     Write-LogInfo "Collected performance data for $QDepth QDepth."
                     $resultMap = @{}
-                    $resultMap["TestCaseName"] = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
+                    $resultMap["TestCaseName"] = $TestCaseName
                     $resultMap["TestDate"] = $TestDate
                     $resultMap["HostType"] = "Azure"
                     $resultMap["HostBy"] = ($global:TestLocation).Replace('"','')
@@ -169,6 +172,7 @@ chmod 666 /root/perf_fio.csv
                     $resultMap["seq_write_lat_usec"] = [Float](($fioDataCsv |  where { $_.TestType -eq "write" -and  $_.Threads -eq "$QDepth"} | Select MaxOfWriteMeanLatency).MaxOfWriteMeanLatency)
                     $resultMap["rand_write_iops"] = [Float](($fioDataCsv |  where { $_.TestType -eq "randwrite" -and  $_.Threads -eq "$QDepth"} | Select WriteIOPS).WriteIOPS)
                     $resultMap["rand_write_lat_usec"] = [Float](($fioDataCsv |  where { $_.TestType -eq "randwrite" -and  $_.Threads -eq "$QDepth"} | Select MaxOfWriteMeanLatency).MaxOfWriteMeanLatency)
+                    $resultMap["TestType"] = "NFS"
                     $currentTestResult.TestResultData += $resultMap
                 }
             }
