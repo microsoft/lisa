@@ -516,7 +516,7 @@
         <Priority>2</Priority>
     </test>
     <test>
-        <testName>ETHTOOL-CHECK-FEATURES</testName>
+        <testName>ETHTOOL-GET-FEATURES</testName>
         <testScript>ETHTOOL-CHECK-FEATURES.sh</testScript>
         <files>.\TestScripts\Linux\ETHTOOL-CHECK-FEATURES.sh,.\TestScripts\Linux\utils.sh</files>
         <setupType>OneVM</setupType>
@@ -527,7 +527,7 @@
         <Priority>1</Priority>
     </test>
     <test>
-        <testName>ETHTOOL-CHANGE-RINGBUFFER</testName>
+        <testName>ETHTOOL-GET-SET-RINGBUFFER</testName>
         <testScript>ETHTOOL-CHANGE-RINGBUFFER.sh</testScript>
         <files>.\TestScripts\Linux\ETHTOOL-CHANGE-RINGBUFFER.sh,.\TestScripts\Linux\utils.sh</files>
         <setupType>OneVM</setupType>
@@ -542,7 +542,7 @@
         <Priority>1</Priority>
     </test>
     <test>
-        <testName>ETHTOOL-TCP-HASHLEVELS</testName>
+        <testName>ETHTOOL-GET-SET-TCP-HASHLEVELS</testName>
         <testScript>ETHTOOL-HANDLER-HASH-LEVELS.sh</testScript>
         <files>.\TestScripts\Linux\ETHTOOL-HANDLER-HASH-LEVELS.sh,.\TestScripts\Linux\utils.sh</files>
         <setupType>OneVM</setupType>
@@ -556,7 +556,7 @@
         <Priority>1</Priority>
     </test>
     <test>
-        <testName>ETHTOOL-UDP-HASHLEVELS</testName>
+        <testName>ETHTOOL-GET-SET-UDP-HASHLEVELS</testName>
         <testScript>ETHTOOL-HANDLER-HASH-LEVELS.sh</testScript>
         <files>.\TestScripts\Linux\ETHTOOL-HANDLER-HASH-LEVELS.sh,.\TestScripts\Linux\utils.sh</files>
         <setupType>OneVM</setupType>
@@ -570,7 +570,7 @@
         <Priority>1</Priority>
     </test>
     <test>
-        <testName>ETHTOOL-GRO-LRO</testName>
+        <testName>ETHTOOL-GET-SET-GRO-LRO</testName>
         <testScript>ETHTOOL-GRO-LRO.sh</testScript>
         <files>.\TestScripts\Linux\ETHTOOL-GRO-LRO.sh,.\TestScripts\Linux\utils.sh</files>
         <setupType>OneVM</setupType>
@@ -581,7 +581,7 @@
         <Priority>1</Priority>
     </test>
     <test>
-        <testName>ETHTOOL-CHECK-CHANNEL</testName>
+        <testName>ETHTOOL-GET-SET-CHANNEL</testName>
         <testScript>ETHTOOL-CHECK-CHANNEL.sh</testScript>
         <files>.\TestScripts\Linux\ETHTOOL-CHECK-CHANNEL.sh,.\TestScripts\Linux\utils.sh</files>
         <setupType>OneVM</setupType>
@@ -593,7 +593,7 @@
         <Priority>1</Priority>
     </test>
     <test>
-        <testName>ETHTOOL-MSG-LEVEL</testName>
+        <testName>ETHTOOL-GET-SET-MSG-LEVEL</testName>
         <testScript>ETHTOOL-MSG-LEVEL.sh</testScript>
         <files>.\TestScripts\Linux\ETHTOOL-MSG-LEVEL.sh,.\TestScripts\Linux\utils.sh</files>
         <setupType>OneVM</setupType>
@@ -604,7 +604,7 @@
         <Priority>1</Priority>
     </test>
     <test>
-        <testName>ETHTOOL-RSS-HASH-KEY</testName>
+        <testName>ETHTOOL-GET-SET-RSS-HASH-KEY</testName>
         <testScript>ETHTOOL-RSS-HASH-KEY.sh</testScript>
         <files>.\TestScripts\Linux\ETHTOOL-RSS-HASH-KEY.sh,.\TestScripts\Linux\utils.sh</files>
         <setupType>OneVM</setupType>
@@ -615,7 +615,7 @@
         <Priority>1</Priority>
     </test>
     <test>
-        <testName>ETHTOOL-LINK-KSETTING</testName>
+        <testName>ETHTOOL-GET-SET-LINK-KSETTING</testName>
         <testScript>ETHTOOL-LINK-KSETTING.sh</testScript>
         <files>.\TestScripts\Linux\ETHTOOL-LINK-KSETTING.sh,.\TestScripts\Linux\utils.sh</files>
         <setupType>OneVM</setupType>
@@ -626,7 +626,7 @@
         <Priority>1</Priority>
     </test>
     <test>
-        <testName>ETHTOOL-MISC-INFO</testName>
+        <testName>ETHTOOL-GET-MISC-INFO</testName>
         <testScript>ETHTOOL-MISC-INFO.sh</testScript>
         <files>.\TestScripts\Linux\ETHTOOL-MISC-INFO.sh,.\TestScripts\Linux\utils.sh</files>
         <setupType>OneVM</setupType>
@@ -634,17 +634,6 @@
         <Category>Functional</Category>
         <Area>NETWORK</Area>
         <Tags>ethtool</Tags>
-        <Priority>1</Priority>
-    </test>
-    <test>
-        <testName>NET-SET-STATIC-MAC</testName>
-        <testScript>NET-SET-STATIC-MAC.sh</testScript>
-        <files>.\TestScripts\Linux\NET-SET-STATIC-MAC.sh,.\TestScripts\Linux\utils.sh</files>
-        <setupType>OneVM2NIC</setupType>
-        <Platform>Azure</Platform>
-        <Category>Functional</Category>
-        <Area>NETWORK</Area>
-        <Tags>network</Tags>
         <Priority>1</Priority>
     </test>
     <test>
@@ -683,5 +672,16 @@
         <Area>NETWORK</Area>
         <Tags>network</Tags>
         <Priority>0</Priority>
+    </test>
+    <test>
+        <testName>NET-SET-STATIC-MAC</testName>
+        <testScript>NET-SET-STATIC-MAC.sh</testScript>
+        <files>.\TestScripts\Linux\NET-SET-STATIC-MAC.sh,.\TestScripts\Linux\utils.sh</files>
+        <setupType>OneVM2NIC</setupType>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
+        <Priority>1</Priority>
     </test>
 </TestCases>
