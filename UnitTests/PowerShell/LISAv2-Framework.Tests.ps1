@@ -87,7 +87,7 @@ Describe "Test if ${moduleName} Run-LISAv2 fails to parse report results on Azur
 		Mock New-ZipFile -Verifiable -ModuleName $moduleName { return }
 
 		{ Run-LISAv2 -Verbose -TestPlatform "Azure" -RGIdentifier "test" -ARMImageName "one two three four" `
-			-TestLocation "westus2" -TestNames "ETHTOOL-CHANGE-RINGBUFFER"} | Should Throw
+			-TestLocation "westus2" -TestNames "VERIFY-DEPLOYMENT-PROVISION"} | Should Throw
 
 		Assert-VerifiableMock
 	}
