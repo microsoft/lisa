@@ -424,26 +424,6 @@
         <Priority>2</Priority>
     </test>
     <test>
-        <testName>ETHTOOL-CHECK-STATISTICS</testName>
-        <setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1,.\Testscripts\Windows\SETUP-NET-Configure-Dependency-VM.ps1,.\Testscripts\Windows\SETUP-Inject-IP-Constants.ps1</setupScript>
-        <testScript>Ethtool-Check-Statistics.sh</testScript>
-        <files>.\Testscripts\Linux\Ethtool-Check-Statistics.sh,.\Testscripts\Linux\NET-Netperf-Server.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>TwoVM1Dep</setupType>
-        <TestParameters>
-            <param>NIC_1=NetworkAdapter,Private,Private</param>
-            <param>STATIC_IP=10.10.10.18</param>
-            <param>STATIC_IP2=10.10.10.28</param>
-            <param>NETMASK=255.255.255.0</param>
-            <param>SECRET_PARAMS=(Ipv4,VM2Name,CheckpointName)</param>
-        </TestParameters>
-        <Timeout>1800</Timeout>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>NETWORK</Area>
-        <Tags>ethtool</Tags>
-        <Priority>2</Priority>
-    </test>
-    <test>
         <testName>VERIFY-RESTART-INTERFACE-RELOAD-NETVSC</testName>
         <setupType>OneVM</setupType>
         <OverrideVMSize>Standard_D2_v2</OverrideVMSize>
@@ -646,6 +626,26 @@
         <Area>NETWORK</Area>
         <Tags>ethtool</Tags>
         <Priority>0</Priority>
+    </test>
+    <test>
+        <testName>ETHTOOL-CHECK-STATISTICS</testName>
+        <setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1,.\Testscripts\Windows\SETUP-NET-Configure-Dependency-VM.ps1,.\Testscripts\Windows\SETUP-Inject-IP-Constants.ps1</setupScript>
+        <testScript>Ethtool-Check-Statistics.sh</testScript>
+        <files>.\Testscripts\Linux\Ethtool-Check-Statistics.sh,.\Testscripts\Linux\NET-Netperf-Server.sh,.\Testscripts\Linux\utils.sh</files>
+        <setupType>TwoVM1Dep</setupType>
+        <TestParameters>
+            <param>NIC_1=NetworkAdapter,Private,Private</param>
+            <param>STATIC_IP=10.10.10.18</param>
+            <param>STATIC_IP2=10.10.10.28</param>
+            <param>NETMASK=255.255.255.0</param>
+            <param>SECRET_PARAMS=(Ipv4,VM2Name,CheckpointName)</param>
+        </TestParameters>
+        <Timeout>1800</Timeout>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>NETWORK</Area>
+        <Tags>ethtool</Tags>
+        <Priority>2</Priority>
     </test>
     <test>
         <TestName>NET-ADD-NIC-AFTER-PROVISION</TestName>
