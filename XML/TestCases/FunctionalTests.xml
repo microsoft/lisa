@@ -1083,4 +1083,26 @@
         <Tags>cpu</Tags>
         <Priority>1</Priority>
     </test>
+    <test>
+        <testName>VERIFY-LINUX-CONFIGURATION</testName>
+        <testScript>VERIFY-LINUX-CONFIGURATION.py</testScript>
+        <files>.\Testscripts\Linux\VERIFY-LINUX-CONFIGURATION.py,.\Testscripts\Linux\azuremodules.py</files>
+        <setupType>OneVM</setupType>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>linux_setting</Tags>
+        <Priority>0</Priority>
+    </test>
+    <test>
+        <testName>VERIFY-LINUX-DISK-SETUP</testName>
+        <testScript>VERIFY-LINUX-DISK-SETUP.py</testScript>
+        <files>.\Testscripts\Linux\VERIFY-LINUX-DISK-SETUP.py,.\Testscripts\Linux\azuremodules.py</files>
+        <setupType>OneVM</setupType>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>linux_setting</Tags>
+        <Priority>0</Priority>
+    </test>
 </TestCases>
