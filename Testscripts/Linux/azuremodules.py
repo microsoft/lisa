@@ -2,7 +2,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 
-import argparse
 import logging
 import os
 import os.path
@@ -109,7 +108,10 @@ def DetectDistro():
         if (re.match(r'^ID=(.*)', line, re.M|re.I) ):
             matchObj = re.match( r'^ID=(.*)', line, re.M|re.I)
             distribution  = matchObj.group(1)
-        elif (re.match(r'^VERSION_ID=(.*)', line, re.M|re.I) ):
+        elif (re.match(r'.*release (.*) .*', line, re.M|re.I) ):
+            matchObj = re.match( r'.*release (.*) \(.*', line, re.M|re.I)
+            version = matchObj.group(1)
+        elif (version is None and re.match(r'^VERSION_ID=(.*)', line, re.M|re.I) ):
             matchObj = re.match( r'^VERSION_ID=(.*)', line, re.M|re.I)
             version = matchObj.group(1)
 
@@ -885,3 +887,9 @@ def GetOSDisk():
         return 'sdb'
     else :
         return 'sda'
+
+try:
+   import argparse
+except ImportError:
+   InstallPackage("python-argparse")
+   import argparse
