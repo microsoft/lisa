@@ -38,24 +38,24 @@ GetDistro
 update_repos
 
 LogMsg "Installing dependencies"
-common_packages=(git m4 bison flex make gcc psmisc autoconf automake)
+common_packages=(m4 bison flex make gcc psmisc autoconf automake)
 update_repos
 install_package "${common_packages[@]}"
 
 case $DISTRO in
     "suse"*)
-        suse_packages=(db48-utils libaio-devel libattr1 libcap-progs \
-            libdb-4_8 perl-BerkeleyDB git-core)
+        suse_packages=(git-core db48-utils libaio-devel libattr1 \
+            libcap-progs libdb-4_8 perl-BerkeleyDB)
         install_package "${suse_packages[@]}"
         ;;
     "ubuntu"* | "debian"*)
-        deb_packages=(db-util libaio-dev libattr1 libcap-dev keyutils \
-            libdb4.8 libberkeleydb-perl expect dh-autoreconf \
-            libnuma-dev quota genisoimage gdb unzip exfat-utils)
+        deb_packages=(git libaio-dev libattr1 libcap-dev keyutils \
+            libdb4.8 libberkeleydb-perl expect dh-autoreconf gdb \
+            libnuma-dev quota genisoimage db-util unzip exfat-utils)
         install_package "${deb_packages[@]}"
         ;;
     "redhat"* | "centos"* | "fedora"*)
-        rpm_packages=(db48-utils libaio-devel libattr libcap-devel libdb)
+        rpm_packages=(git db48-utils libaio-devel libattr libcap-devel libdb)
         install_package "${rpm_packages[@]}"
         ;;
     *)
