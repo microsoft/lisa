@@ -46,7 +46,7 @@
         <testScript>LIS-MODULES-CHECK.py</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\LIS-MODULES-CHECK.py</files>
         <setupType>OneVM</setupType>
-        <Platform>Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>hv_module</Tags>
@@ -59,6 +59,7 @@
         <setupType>OneVM</setupType>
         <TestParameters>
             <param>HYPERV_MODULES=(hv_vmbus hyperv_keyboard hv_netvsc hid_hyperv hv_utils hv_storvsc hv_balloon)</param>
+            <param>MLNX_VERSION=EXPECTED_MLNX_VERSION</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Functional</Category>

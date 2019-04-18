@@ -13,12 +13,14 @@
     <test>
         <testName>LIS-DEPLOY-SCENARIO-1</testName>
         <testScript>LIS-INSTALL-SCENARIOS.ps1</testScript>
-        <files>.\Testscripts\Linux\utils.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\TestScripts\Linux\VERIFY-LIS-MODULES-VERSION.sh,.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\LIS-MODULES-CHECK.py</files>
         <setupType>OneVM</setupType>
         <TestParameters>
             <param>Install-LIS-Scenario-1</param>
             <param>LIS_TARBALL_URL_CURRENT=LIS_CURRENT_URL</param>
             <param>LIS_TARBALL_URL_OLD=LIS_OLD_URL</param>
+            <param>MLNX_VERSION=EXPECTED_MLNX_VERSION</param>
+            <param>HYPERV_MODULES=(hv_vmbus hyperv_keyboard hv_netvsc hid_hyperv hv_utils hv_storvsc hv_balloon)</param>
         </TestParameters>
         <Timeout>2400</Timeout>
         <Platform>Azure,HyperV</Platform>
@@ -30,12 +32,14 @@
     <test>
         <testName>LIS-DEPLOY-SCENARIO-2</testName>
         <testScript>LIS-INSTALL-SCENARIOS.ps1</testScript>
-        <files>.\Testscripts\Linux\utils.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\TestScripts\Linux\VERIFY-LIS-MODULES-VERSION.sh,.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\LIS-MODULES-CHECK.py</files>
         <setupType>OneVM</setupType>
         <TestParameters>
             <param>Install-LIS-Scenario-2</param>
             <param>LIS_TARBALL_URL_CURRENT=LIS_CURRENT_URL</param>
             <param>LIS_TARBALL_URL_OLD=LIS_OLD_URL</param>
+            <param>MLNX_VERSION=EXPECTED_MLNX_VERSION</param>
+            <param>HYPERV_MODULES=(hv_vmbus hyperv_keyboard hv_netvsc hid_hyperv hv_utils hv_storvsc hv_balloon)</param>
         </TestParameters>
         <Timeout>2400</Timeout>
         <Platform>Azure,HyperV</Platform>
@@ -47,12 +51,14 @@
     <test>
         <testName>LIS-DEPLOY-SCENARIO-3</testName>
         <testScript>LIS-INSTALL-SCENARIOS.ps1</testScript>
-        <files>.\Testscripts\Linux\utils.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\TestScripts\Linux\VERIFY-LIS-MODULES-VERSION.sh,.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\LIS-MODULES-CHECK.py</files>
         <setupType>OneVM</setupType>
         <TestParameters>
             <param>Install-LIS-Scenario-3</param>
             <param>LIS_TARBALL_URL_CURRENT=LIS_CURRENT_URL</param>
             <param>LIS_TARBALL_URL_OLD=LIS_OLD_URL</param>
+            <param>MLNX_VERSION=EXPECTED_MLNX_VERSION</param>
+            <param>HYPERV_MODULES=(hv_vmbus hyperv_keyboard hv_netvsc hid_hyperv hv_utils hv_storvsc hv_balloon)</param>
         </TestParameters>
         <Timeout>2400</Timeout>
         <Platform>Azure,HyperV</Platform>
@@ -64,12 +70,14 @@
     <test>
         <testName>LIS-DEPLOY-SCENARIO-4</testName>
         <testScript>LIS-INSTALL-SCENARIOS.ps1</testScript>
-        <files>.\Testscripts\Linux\utils.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\TestScripts\Linux\VERIFY-LIS-MODULES-VERSION.sh,.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\LIS-MODULES-CHECK.py</files>
         <setupType>OneVM</setupType>
         <TestParameters>
             <param>Install-LIS-Scenario-4</param>
             <param>LIS_TARBALL_URL_CURRENT=LIS_CURRENT_URL</param>
             <param>LIS_TARBALL_URL_OLD=LIS_OLD_URL</param>
+            <param>MLNX_VERSION=EXPECTED_MLNX_VERSION</param>
+            <param>HYPERV_MODULES=(hv_vmbus hyperv_keyboard hv_netvsc hid_hyperv hv_utils hv_storvsc hv_balloon)</param>
         </TestParameters>
         <Timeout>2400</Timeout>
         <Platform>Azure,HyperV</Platform>
@@ -81,12 +89,14 @@
     <test>
         <testName>LIS-DEPLOY-SCENARIO-5</testName>
         <testScript>LIS-INSTALL-SCENARIOS.ps1</testScript>
-        <files>.\Testscripts\Linux\utils.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\TestScripts\Linux\VERIFY-LIS-MODULES-VERSION.sh,.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\LIS-MODULES-CHECK.py</files>
         <setupType>OneVM</setupType>
         <TestParameters>
             <param>Install-LIS-Scenario-5</param>
             <param>LIS_TARBALL_URL_CURRENT=LIS_CURRENT_URL</param>
             <param>LIS_TARBALL_URL_OLD=LIS_OLD_URL</param>
+            <param>MLNX_VERSION=EXPECTED_MLNX_VERSION</param>
+            <param>HYPERV_MODULES=(hv_vmbus hyperv_keyboard hv_netvsc hid_hyperv hv_utils hv_storvsc hv_balloon)</param>
         </TestParameters>
         <Timeout>2400</Timeout>
         <Platform>Azure,HyperV</Platform>
@@ -98,12 +108,14 @@
     <test>
         <testName>LIS-DEPLOY-SCENARIO-6</testName>
         <testScript>LIS-INSTALL-SCENARIOS.ps1</testScript>
-        <files>.\Testscripts\Linux\utils.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\TestScripts\Linux\VERIFY-LIS-MODULES-VERSION.sh,.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\LIS-MODULES-CHECK.py</files>
         <setupType>OneVM</setupType>
         <TestParameters>
             <param>Install-LIS-Scenario-6</param>
             <param>LIS_TARBALL_URL_CURRENT=LIS_CURRENT_URL</param>
             <param>LIS_TARBALL_URL_OLD=LIS_OLD_URL</param>
+            <param>MLNX_VERSION=EXPECTED_MLNX_VERSION</param>
+            <param>HYPERV_MODULES=(hv_vmbus hyperv_keyboard hv_netvsc hid_hyperv hv_utils hv_storvsc hv_balloon)</param>
         </TestParameters>
         <Timeout>2400</Timeout>
         <Platform>Azure,HyperV</Platform>
@@ -115,12 +127,14 @@
     <test>
         <testName>LIS-DEPLOY-SCENARIO-7</testName>
         <testScript>LIS-INSTALL-SCENARIOS.ps1</testScript>
-        <files>.\Testscripts\Linux\utils.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\TestScripts\Linux\VERIFY-LIS-MODULES-VERSION.sh,.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\LIS-MODULES-CHECK.py</files>
         <setupType>OneVM</setupType>
         <TestParameters>
             <param>Install-LIS-Scenario-7</param>
             <param>LIS_TARBALL_URL_CURRENT=LIS_CURRENT_URL</param>
             <param>LIS_TARBALL_URL_OLD=LIS_OLD_URL</param>
+            <param>MLNX_VERSION=EXPECTED_MLNX_VERSION</param>
+            <param>HYPERV_MODULES=(hv_vmbus hyperv_keyboard hv_netvsc hid_hyperv hv_utils hv_storvsc hv_balloon)</param>
         </TestParameters>
         <Timeout>2400</Timeout>
         <Platform>Azure,HyperV</Platform>
@@ -132,12 +146,14 @@
     <test>
         <testName>LIS-DEPLOY-SCENARIO-8</testName>
         <testScript>LIS-INSTALL-SCENARIOS.ps1</testScript>
-        <files>.\Testscripts\Linux\utils.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\TestScripts\Linux\VERIFY-LIS-MODULES-VERSION.sh,.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\LIS-MODULES-CHECK.py</files>
         <setupType>OneVM</setupType>
         <TestParameters>
             <param>Install-LIS-Scenario-8</param>
             <param>LIS_TARBALL_URL_CURRENT=LIS_CURRENT_URL</param>
             <param>LIS_TARBALL_URL_OLD=LIS_OLD_URL</param>
+            <param>MLNX_VERSION=EXPECTED_MLNX_VERSION</param>
+            <param>HYPERV_MODULES=(hv_vmbus hyperv_keyboard hv_netvsc hid_hyperv hv_utils hv_storvsc hv_balloon)</param>
         </TestParameters>
         <Timeout>2400</Timeout>
         <Platform>Azure,HyperV</Platform>

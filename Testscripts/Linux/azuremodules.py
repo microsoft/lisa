@@ -109,7 +109,10 @@ def DetectDistro():
         if (re.match(r'^ID=(.*)', line, re.M|re.I) ):
             matchObj = re.match( r'^ID=(.*)', line, re.M|re.I)
             distribution  = matchObj.group(1)
-        elif (re.match(r'^VERSION_ID=(.*)', line, re.M|re.I) ):
+        elif (re.match(r'.*release (.*) .*', line, re.M|re.I) ):
+            matchObj = re.match( r'.*release (.*) \(.*', line, re.M|re.I)
+            version = matchObj.group(1)
+        elif (version is None and re.match(r'^VERSION_ID=(.*)', line, re.M|re.I) ):
             matchObj = re.match( r'^VERSION_ID=(.*)', line, re.M|re.I)
             version = matchObj.group(1)
 
