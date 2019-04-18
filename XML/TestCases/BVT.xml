@@ -1,60 +1,5 @@
 <TestCases>
     <test>
-        <testName>BVT-IS-ROOT-PASSWORD-DELETED</testName>
-        <testScript>BVT-IS-ROOT-PASSWORD-DELETED.py</testScript>
-        <files>.\Testscripts\Linux\BVT-IS-ROOT-PASSWORD-DELETED.py,.\Testscripts\Linux\azuremodules.py</files>
-        <setupType>OneVM</setupType>
-        <Platform>Azure</Platform>
-        <Category>BVT</Category>
-        <Area>BVT</Area>
-        <Tags>password</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
-        <testName>BVT-ROOT-DEVICE-TIMEOUT-CHECK</testName>
-        <testScript>BVT-ROOT-DEVICE-TIMEOUT-CHECK.py</testScript>
-        <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-ROOT-DEVICE-TIMEOUT-CHECK.py</files>
-        <setupType>OneVM</setupType>
-        <Platform>Azure</Platform>
-        <Category>BVT</Category>
-        <Area>BVT</Area>
-        <Tags>linux_setting</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
-        <testName>BVT-SWAP-CHECK</testName>
-        <testScript>BVT-SWAP-CHECK.py</testScript>
-        <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-SWAP-CHECK.py</files>
-        <setupType>OneVM</setupType>
-        <Platform>Azure</Platform>
-        <Category>BVT</Category>
-        <Area>BVT</Area>
-        <Tags>swap</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
-        <testName>BVT-MTAB-ENTRY-CHECK</testName>
-        <testScript>BVT-MTAB-ENTRY-CHECK.py</testScript>
-        <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-MTAB-ENTRY-CHECK.py</files>
-        <setupType>OneVM</setupType>
-        <Platform>Azure</Platform>
-        <Category>BVT</Category>
-        <Area>BVT</Area>
-        <Tags>mtab</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
-        <testName>BVT-LAST-CONSOLE-CHECK</testName>
-        <testScript>BVT-LAST-CONSOLE-CHECK.py</testScript>
-        <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-LAST-CONSOLE-CHECK.py</files>
-        <setupType>OneVM</setupType>
-        <Platform>Azure</Platform>
-        <Category>BVT</Category>
-        <Area>BVT</Area>
-        <Tags>linux_setting</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
         <testName>BVT-VERIFY-BOOT-ERROR-WARNINGS</testName>
         <testScript>BVT-VERIFY-BOOT-ERROR-WARNINGS.py</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-BOOT-ERROR-WARNINGS.py,.\XML\Other\ignorable-boot-errors.xml</files>
@@ -63,39 +8,6 @@
         <Category>BVT</Category>
         <Area>BVT</Area>
         <Tags>provision</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
-        <testName>BVT-VERIFY-UUID-FSTAB</testName>
-        <testScript>BVT-VERIFY-UUID-FSTAB.py</testScript>
-        <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-UUID-FSTAB.py</files>
-        <setupType>OneVM</setupType>
-        <Platform>Azure</Platform>
-        <Category>BVT</Category>
-        <Area>BVT</Area>
-        <Tags>fstab</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
-        <testName>BVT-VERIFY-SSHD-CONFIG</testName>
-        <testScript>BVT-VERIFY-SSHD-CONFIG.ps1</testScript>
-        <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-SSHD-CONFIG.py</files>
-        <setupType>OneVM</setupType>
-        <Platform>Azure</Platform>
-        <Category>BVT</Category>
-        <Area>BVT</Area>
-        <Tags>linux_setting</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
-        <testName>BVT-VERIFY-BASH-HISTORY</testName>
-        <testScript>BVT-VERIFY-BASH-HISTORY.py</testScript>
-        <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\BVT-VERIFY-BASH-HISTORY.py</files>
-        <setupType>OneVM</setupType>
-        <Platform>Azure</Platform>
-        <Category>BVT</Category>
-        <Area>BVT</Area>
-        <Tags>linux_setting</Tags>
         <Priority>0</Priority>
     </test>
     <test>
