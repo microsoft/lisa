@@ -54,15 +54,20 @@ function Verify_Result {
 function Main() {
 	LogMsg "Starting RDMA required packages and software setup in VM"
 	update_repos
-
 	# Install common packages
-	install_package "gcc zip"
+	install_package "gcc git zip"
+	# Change memory limits
+	echo "* soft memlock unlimited" >> /etc/security/limits.conf
+	echo "* hard memlock unlimited" >> /etc/security/limits.conf
 	case $DISTRO in
 		redhat_7|centos_7)
 			# install required packages regardless VM types.
 			LogMsg "Starting RHEL/CentOS setup"
 			LogMsg "Installing required packages ..."
-			install_package "kernel-devel-3.10.0-862.9.1.el7.x86_64 python-devel valgrind-devel redhat-rpm-config rpm-build gcc-gfortran libdb-devel gcc-c++ glibc-devel zlib-devel numactl-devel libmnl-devel binutils-devel iptables-devel libstdc++-devel libselinux-devel elfutils-devel libtool libnl3-devel git java libstdc++.i686 dapl python-setuptools gtk2 atk cairo tcl tk createrepo libibverbs-devel libibmad-devel byacc.x86_64 kernel-devel-3.10.0-862.11.6.el7.x86_64 net-tools"
+			install_package "kernel-devel-$(uname -r) python-devel valgrind-devel redhat-rpm-config rpm-build gcc-gfortran libdb-devel gcc-c++ glibc-devel zlib-devel numactl-devel libmnl-devel binutils-devel iptables-devel libstdc++-devel libselinux-devel elfutils-devel libtool libnl3-devel java libstdc++.i686 dapl python-setuptools gtk2 atk cairo tcl tk createrepo byacc.x86_64 net-tools"
+			# libibverbs-devel and libibmad-devel have broken dependecies on Centos 7.6
+			# Switching to direct install instead of using the function
+			yum install -y libibverbs-devel libibmad-devel
 
 			yum -y groupinstall "InfiniBand Support"
 			Verify_Result
@@ -75,14 +80,19 @@ function Main() {
 			LogMsg "Enabled rdma service"
 
 			# This is required for new HPC VM HB- and HC- size deployment, Dec/2018
+			# Get redhat/centos version. Using custom commands instead of utils.sh function
+			# because we have seen some inconsistencies in getting the exact OS version.
+			distro_version=$(sed 's/[^.0-9]//g' /etc/redhat-release)
+			distro_version=$(echo ${distro_version:0:3})
+			mlx5_ofed_link="$mlx_ofed_partial_link$distro_version-x86_64.tgz"
 			cd
 			LogMsg "Downloading MLX driver"
-			wget $mlx_ofed75_rhel75
+			wget $mlx5_ofed_link
 			Verify_Result
-			LogMsg "Downloaded MLNX_OFED_LINUX driver, $mlx_ofed75_rhel75"
+			LogMsg "Downloaded MLNX_OFED_LINUX driver, $mlx5_ofed_link"
 
 			LogMsg "Opening MLX OFED driver tar ball file"
-			file_nm=${mlx_ofed75_rhel75##*/}
+			file_nm=${mlx5_ofed_link##*/}
 			tar zxvf $file_nm
 			Verify_Result
 			LogMsg "Untar MLX driver tar ball file, $file_nm"
@@ -127,14 +137,11 @@ function Main() {
 			# install required packages
 			LogMsg "This is SUSE"
 			LogMsg "Installing required packages ..."
-			install_package "expect glibc-32bit glibc-devel libgcc_s1 libgcc_s1-32bit make gcc-c++ gcc-fortran rdma-core libibverbs-devel librdmacm1 libibverbs-utils bison flex net-tools-deprecated"
+			install_package "expect glibc-32bit glibc-devel libgcc_s1 libgcc_s1-32bit make gcc-c++ gcc-fortran rdma-core libibverbs-devel librdmacm1 libibverbs-utils bison flex"
 			# force install package that is known to have broken dependencies
 			zypper --non-interactive in libibmad-devel
 			# Enable mlx5_ib module on boot
 			echo "mlx5_ib" >> /etc/modules-load.d/mlx5_ib.conf
-			# Change memory limits
-			echo "* soft memlock unlimited" >> /etc/security/limits.conf
-			echo "* hard memlock unlimited" >> /etc/security/limits.conf
 			;;
 		ubuntu*)
 			LogMsg "This is Ubuntu"
@@ -201,7 +208,7 @@ function Main() {
 		LogMsg "Compiling ping_pong binary in Platform help directory"
 		make -j $(nproc)
 		if [ $? -ne 0 ]; then
-			pkey=$(cat /sys/class/infiniband/mlx5_0/ports/1/pkeys/0)
+			pkey=$(cat /sys/class/infiniband/*/ports/1/pkeys/0)
 			export MPI_IB_PKEY=${pkey}
 			make -j $(nproc)
 		fi
@@ -242,12 +249,12 @@ function Main() {
 			LogMsg "Intel MPI installation running ..."
 			LogMsg "Downloading Intel MPI source code, $intel_mpi"
 			wget $intel_mpi
-			
+
 			tar xvzf $(echo $intel_mpi | cut -d'/' -f5)
 			cd $(echo "${intel_mpi%.*}" | cut -d'/' -f5)
 
 			LogMsg "Executing silent installation"
-			sed -i -e 's/ACCEPT_EULA=decline/ACCEPT_EULA=accept/g' silent.cfg 
+			sed -i -e 's/ACCEPT_EULA=decline/ACCEPT_EULA=accept/g' silent.cfg
 			./install.sh -s silent.cfg
 			Verify_Result
 			LogMsg "Completed Intel MPI installation"
@@ -266,7 +273,7 @@ function Main() {
 
 		LogMsg "Completed Intel MPI installation"
 
-	elif [ $mpi_type == "open" ]; then 
+	elif [ $mpi_type == "open" ]; then
 		# Open MPI installation
 		LogMsg "Open MPI installation running ..."
 		LogMsg "Downloading the target openmpi source code, $open_mpi"
@@ -307,7 +314,12 @@ function Main() {
 		LogMsg "Downloading the target MVAPICH source code, $mvapich_mpi"
 		wget $mvapich_mpi
 		Verify_Result
-
+		# in newer kernels, mad.h is missing from /usr/include/infiniband
+		ls /usr/include/infiniband/ | grep -w mad.h
+		if [[ $? -ne 0 ]]; then
+			madh_location=$(find / -name "mad.h" | tail -1)
+			cp $madh_location /usr/include/infiniband/
+		fi
 		tar xvzf $(echo $mvapich_mpi | cut -d'/' -f5)
 		cd $(echo "${mvapich_mpi%.*}" | cut -d'/' -f5 | sed -n '/\.tar$/s///p')
 

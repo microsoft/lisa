@@ -6,7 +6,7 @@ param([object] $AllVmData,
 
 function Resolve-UninitializedIB {
 	# SUSE, sometimes, needs to re-initializes IB port through rebooting
-	if(@("SUSE").contains($global:detectedDistro)) {
+	if (-not @("UBUNTU").contains($global:detectedDistro)) {
 		$cmd = "lsmod | grep -P '^(?=.*mlx5_ib)(?=.*rdma_cm)(?=.*rdma_ucm)(?=.*ib_ipoib)'"
 		foreach ($VmData in $AllVMData) {
 			$ibvOutput = ""
@@ -86,6 +86,12 @@ function Main {
 		}
 		$FirstRun = $true
 		Provision-VMsForLisa -AllVMData $AllVMData -installPackagesOnRoleNames "none"
+		foreach ($VmData in $AllVMData) {
+			Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $superUser -password $password "echo $($VmData.RoleName) > /etc/hostname"
+			if ($VmData.RoleName -imatch "Client" -or $VmData.RoleName -imatch "dependency"){
+				Run-LinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username $superUser -password $password "echo '$($VmData.RoleName) $($VmData.InternalIP)' >> /etc/hosts"
+			}
+		}
 		#endregion
 
 		#region Generate constants.sh
