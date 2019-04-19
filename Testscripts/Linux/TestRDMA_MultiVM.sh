@@ -126,8 +126,8 @@ function Run_IMB_MPI1() {
 				$mpi_run_path --allow-run-as-root --host $master,$slaves -n $(($mpi1_ppn * $total_virtual_machines)) $mpi_settings $imb_mpi1_path $extra_params > IMB-MPI1-AllNodes-output-Attempt-${attempt}.txt
 			;;
 			intel)
-				LogMsg "$mpi_run_path -hosts $master,$modified_slaves -ppn $mpi1_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $extra_params"
-				$mpi_run_path -hosts $master,$modified_slaves -ppn $mpi1_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_mpi1_path $extra_params > IMB-MPI1-AllNodes-output-Attempt-${attempt}.txt
+				LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $mpi1_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $extra_params"
+				$mpi_run_path -hosts $master,$slaves -ppn $mpi1_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_mpi1_path $extra_params > IMB-MPI1-AllNodes-output-Attempt-${attempt}.txt
 			;;
 			mvapich)
 				LogMsg "$mpi_run_path -n $(($mpi1_ppn * $total_virtual_machines)) $master $slaves_array $mpi_settings $imb_mpi1_path $extra_params"
@@ -177,8 +177,8 @@ function Run_IMB_RMA() {
 				$mpi_run_path --allow-run-as-root --host $master,$slaves -n $(($rma_ppn * $total_virtual_machines)) $mpi_settings $imb_rma_path $extra_params > IMB-RMA-AllNodes-output-Attempt-${attempt}.txt
 			;;
 			intel)
-				LogMsg "$mpi_run_path -hosts $master,$modified_slaves -ppn $mpi1_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_rma_path $extra_params"
-				$mpi_run_path -hosts $master,$modified_slaves -ppn $mpi1_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_rma_path $extra_params > IMB-RMA-AllNodes-output-Attempt-${attempt}.txt
+				LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $mpi1_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_rma_path $extra_params"
+				$mpi_run_path -hosts $master,$slaves -ppn $mpi1_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_rma_path $extra_params > IMB-RMA-AllNodes-output-Attempt-${attempt}.txt
 			;;
 			mvapich)
 				LogMsg "$mpi_run_path -n $(($rma_ppn * $total_virtual_machines)) $master $slaves_array $mpi_settings $imb_rma_path $extra_params"
@@ -228,8 +228,8 @@ function Run_IMB_NBC() {
 					$mpi_run_path --allow-run-as-root --host $master,$slaves -n $(($nbc_ppn * $total_virtual_machines)) $mpi_settings $imb_nbc_path $extra_params > IMB-NBC-AllNodes-output-Attempt-${attempt}.txt
 				;;
 				intel)
-					LogMsg "$mpi_run_path -hosts $master,$modified_slaves -ppn $nbc_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_nbc_path $extra_params"
-					$mpi_run_path -hosts $master,$modified_slaves -ppn $nbc_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_nbc_path $extra_params > IMB-NBC-AllNodes-output-Attempt-${attempt}.txt
+					LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $nbc_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_nbc_path $extra_params"
+					$mpi_run_path -hosts $master,$slaves -ppn $nbc_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_nbc_path $extra_params > IMB-NBC-AllNodes-output-Attempt-${attempt}.txt
 				;;
 				mvapich)
 					LogMsg "$mpi_run_path -n $(($nbc_ppn * $total_virtual_machines)) $master $slaves_array $mpi_settings $imb_nbc_path $extra_params"
@@ -309,9 +309,9 @@ function Main() {
 	for vm in $master $slaves_array; do
 		LogMsg "Checking $ib_nic status in $vm"
 		# Verify ib_nic exists or not.
-		ssh root@${vm} "ifconfig $ib_nic | grep 'inet '" > /dev/null
+		ssh root@${vm} "ip addr show $ib_nic | grep 'inet '" > /dev/null
 		ib_nic_status=$?
-		ssh root@${vm} "ifconfig $ib_nic > $ib_nic-status-${vm}.txt"
+		ssh root@${vm} "ip addr show $ib_nic > $ib_nic-status-${vm}.txt"
 		scp root@${vm}:${ib_nic}-status-${vm}.txt .
 		if [ $ib_nic_status -eq 0 ]; then
 			# Verify ib_nic has IP address, which means IB setup is ready

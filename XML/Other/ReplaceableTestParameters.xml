@@ -402,8 +402,8 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceWith>https://github.com/tensorflow/benchmarks.git</ReplaceWith>
 	</Parameter>
 	<Parameter>
-		<ReplaceThis>MLX_OFED45_RHEL75</ReplaceThis>
-		<ReplaceWith>http://content.mellanox.com/ofed/MLNX_OFED-4.5-1.0.1.0/MLNX_OFED_LINUX-4.5-1.0.1.0-rhel7.5-x86_64.tgz</ReplaceWith>
+		<ReplaceThis>MLX_OFED_PARTIAL_LINK</ReplaceThis>
+		<ReplaceWith>http://content.mellanox.com/ofed/MLNX_OFED-4.5-1.0.1.0/MLNX_OFED_LINUX-4.5-1.0.1.0-rhel</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>IBM_PLATFORM_MPI_DOWNLOAD</ReplaceThis>
