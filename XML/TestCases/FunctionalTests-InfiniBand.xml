@@ -21,6 +21,8 @@
 			<param>imb_nbc_tests="INFINIBAND_INTEL_NBC_TESTNAMES"</param>
 			<param>nbc_ppn=INFINIBAND_INTEL_PPN</param>
 			<param>imb_nbc_tests_iterations=INFINIBAND_INTEL_NBC_TEST_COUNT</param>
+			<param>p2p_ppn=INFINIBAND_INTEL_PPN</param>
+			<param>imb_p2p_tests_iterations=INFINIBAND_INTEL_P2P_TEST_COUNT</param>
 			<param>mpi_type="intel"</param>
 			<param>mlx_ofed_partial_link=MLX_OFED_PARTIAL_LINK</param>
 			<param>ibm_platform_mpi=IBM_PLATFORM_MPI_DOWNLOAD</param>
@@ -56,6 +58,8 @@
 			<param>imb_nbc_tests="INFINIBAND_INTEL_NBC_TESTNAMES"</param>
 			<param>nbc_ppn=INFINIBAND_INTEL_PPN</param>
 			<param>imb_nbc_tests_iterations=INFINIBAND_INTEL_NBC_TEST_COUNT</param>
+			<param>p2p_ppn=INFINIBAND_INTEL_PPN</param>
+			<param>imb_p2p_tests_iterations=INFINIBAND_INTEL_P2P_TEST_COUNT</param>
 			<param>mpi_type="intel"</param>
 			<param>mlx_ofed_partial_link=MLX_OFED_PARTIAL_LINK</param>
 			<param>ibm_platform_mpi=IBM_PLATFORM_MPI_DOWNLOAD</param>
@@ -92,6 +96,8 @@
 			<param>imb_nbc_tests="INFINIBAND_OPEN_NBC_TESTNAMES"</param>
 			<param>nbc_ppn=INFINIBAND_OPEN_PPN</param>
 			<param>imb_nbc_tests_iterations=INFINIBAND_OPEN_NBC_TEST_COUNT</param>
+			<param>p2p_ppn=INFINIBAND_OPEN_PPN</param>
+			<param>imb_p2p_tests_iterations=INFINIBAND_OPEN_P2P_TEST_COUNT</param>
 			<param>mpi_type="open"</param>
 			<param>mlx_ofed_partial_link=MLX_OFED_PARTIAL_LINK</param>
 			<param>ibm_platform_mpi=IBM_PLATFORM_MPI_DOWNLOAD</param>
@@ -127,6 +133,8 @@
 			<param>imb_nbc_tests="INFINIBAND_OPEN_NBC_TESTNAMES"</param>
 			<param>nbc_ppn=INFINIBAND_OPEN_PPN</param>
 			<param>imb_nbc_tests_iterations=INFINIBAND_OPEN_NBC_TEST_COUNT</param>
+			<param>p2p_ppn=INFINIBAND_OPEN_PPN</param>
+			<param>imb_p2p_tests_iterations=INFINIBAND_OPEN_P2P_TEST_COUNT</param>
 			<param>mpi_type="open"</param>
 			<param>mlx_ofed_partial_link=MLX_OFED_PARTIAL_LINK</param>
 			<param>ibm_platform_mpi=IBM_PLATFORM_MPI_DOWNLOAD</param>
@@ -163,6 +171,8 @@
 			<param>imb_nbc_tests="INFINIBAND_IBM_NBC_TESTNAMES"</param>
 			<param>nbc_ppn=INFINIBAND_IBM_PPN</param>
 			<param>imb_nbc_tests_iterations=INFINIBAND_IBM_NBC_TEST_COUNT</param>
+			<param>p2p_ppn=INFINIBAND_IBM_PPN</param>
+			<param>imb_p2p_tests_iterations=INFINIBAND_IBM_P2P_TEST_COUNT</param>
 			<param>mpi_type="ibm"</param>
 			<param>mlx_ofed_partial_link=MLX_OFED_PARTIAL_LINK</param>
 			<param>ibm_platform_mpi=IBM_PLATFORM_MPI_DOWNLOAD</param>
@@ -198,6 +208,8 @@
 			<param>imb_nbc_tests="INFINIBAND_IBM_NBC_TESTNAMES"</param>
 			<param>nbc_ppn=INFINIBAND_IBM_PPN</param>
 			<param>imb_nbc_tests_iterations=INFINIBAND_IBM_NBC_TEST_COUNT</param>
+			<param>p2p_ppn=INFINIBAND_IBM_PPN</param>
+			<param>imb_p2p_tests_iterations=INFINIBAND_IBM_P2P_TEST_COUNT</param>
 			<param>mpi_type="ibm"</param>
 			<param>mlx_ofed_partial_link=MLX_OFED_PARTIAL_LINK</param>
 			<param>ibm_platform_mpi=IBM_PLATFORM_MPI_DOWNLOAD</param>
@@ -234,6 +246,8 @@
 			<param>imb_nbc_tests="INFINIBAND_MVAPICH_NBC_TESTNAMES"</param>
 			<param>nbc_ppn=INFINIBAND_MVAPICH_PPN</param>
 			<param>imb_nbc_tests_iterations=INFINIBAND_MVAPICH_NBC_TEST_COUNT</param>
+			<param>p2p_ppn=INFINIBAND_MVAPICH_PPN</param>
+			<param>imb_p2p_tests_iterations=INFINIBAND_MVAPICH_P2P_TEST_COUNT</param>
 			<param>mpi_type="mvapich"</param>
 			<param>mlx_ofed_partial_link=MLX_OFED_PARTIAL_LINK</param>
 			<param>ibm_platform_mpi=IBM_PLATFORM_MPI_DOWNLOAD</param>
@@ -269,6 +283,8 @@
 			<param>imb_nbc_tests="INFINIBAND_MVAPICH_NBC_TESTNAMES"</param>
 			<param>nbc_ppn=INFINIBAND_MVAPICH_PPN</param>
 			<param>imb_nbc_tests_iterations=INFINIBAND_MVAPICH_NBC_TEST_COUNT</param>
+			<param>p2p_ppn=INFINIBAND_MVAPICH_PPN</param>
+			<param>imb_p2p_tests_iterations=INFINIBAND_MVAPICH_P2P_TEST_COUNT</param>
 			<param>mpi_type="mvapich"</param>
 			<param>mlx_ofed_partial_link=MLX_OFED_PARTIAL_LINK</param>
 			<param>ibm_platform_mpi=IBM_PLATFORM_MPI_DOWNLOAD</param>

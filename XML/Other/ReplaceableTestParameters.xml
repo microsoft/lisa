@@ -229,6 +229,22 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceWith>1</ReplaceWith>
 	</Parameter>
 	<Parameter>
+		<ReplaceThis>INFINIBAND_INTEL_P2P_TEST_COUNT</ReplaceThis>
+		<ReplaceWith>1</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>INFINIBAND_IBM_P2P_TEST_COUNT</ReplaceThis>
+		<ReplaceWith>1</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>INFINIBAND_OPEN_P2P_TEST_COUNT</ReplaceThis>
+		<ReplaceWith>1</ReplaceWith>
+	</Parameter>
+		<Parameter>
+		<ReplaceThis>INFINIBAND_MVAPICH_P2P_TEST_COUNT</ReplaceThis>
+		<ReplaceWith>1</ReplaceWith>
+	</Parameter>
+	<Parameter>
 		<ReplaceThis>NESTED-PERF-STORAGE-IO-MODES</ReplaceThis>
 		<ReplaceWith>(randread randwrite read write)</ReplaceWith>
 	</Parameter>
