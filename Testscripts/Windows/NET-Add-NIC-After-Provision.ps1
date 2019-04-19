@@ -57,7 +57,7 @@ function Main {
 				return "FAIL"
 			}
 			Start-Sleep -s 5
-			Write-LogInfo "Succesfully added extra NIC #${nicNr}!"
+			Write-LogInfo "Successfully added extra NIC #${nicNr}!"
 		}
 		Update-AzureRmVM -ResourceGroupName $AllVMData.ResourceGroupName -VM $vm | Out-Null
 		if (-not $?) {
@@ -72,6 +72,13 @@ function Main {
 		}
 		$vmData = Get-AllDeploymentData -ResourceGroups $AllVMData.ResourceGroupName
 		$AllVMData.PublicIP = $vmData.PublicIP
+
+		# Waiting for the VM to run again and respond to SSH - port 22
+		$retval = Wait-ForVMToStartSSH -Ipv4addr $AllVMData.PublicIP -StepTimeout 600
+		if ($retval -eq $False) {
+			Write-LogErr "Test case timed out waiting for VM to boot"
+			return "FAIL"
+		}
 
 		# Verify if each extra NIC gets IP
 		for ($nicNr = 1; $nicNr -le $extraNICs; $nicNr++) {
