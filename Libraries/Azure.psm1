@@ -404,26 +404,9 @@ Function Delete-ResourceGroup([string]$RGName, [switch]$KeepDisks, [bool]$UseExi
             }
         }
         else {
-            if ( $XmlSecrets.secrets.AutomationRunbooks.CleanupResourceGroupRunBook ) {
-                $parameters = $parameters = @{"NAMEFILTER" = "$RGName"; "PREVIEWMODE" = $false};
-                $CleanupRG = Get-AzureRmResourceGroup  -Name $XmlSecrets.secrets.AutomationRunbooks.ResourceGroupName -ErrorAction SilentlyContinue
-            }
-            if ($CleanupRG) {
-                $rubookJob = Start-AzureRmAutomationRunbook -Name $XmlSecrets.secrets.AutomationRunbooks.CleanupResourceGroupRunBook `
-                                -Parameters $parameters -AutomationAccountName $XmlSecrets.secrets.AutomationRunbooks.AutomationAccountName `
-                                -ResourceGroupName $XmlSecrets.secrets.AutomationRunbooks.ResourceGroupName
-                Write-LogInfo "Cleanup job ID: '$($rubookJob.JobId)' for '$RGName' started using runbooks."
-                $retValue = $true
-            }
-            else {
-                $cleanupRGScriptBlock = {
-                    $RGName = $args[0]
-                    Remove-AzureRmResourceGroup -Name $RGName -Verbose -Force
-                }
-                Write-LogInfo "Triggering : Delete-ResourceGroup-$RGName..."
-                $null = Start-Job -ScriptBlock $cleanupRGScriptBlock -ArgumentList @($RGName) -Name "Delete-ResourceGroup-$RGName"
-                $retValue = $true
-            }
+            Write-LogInfo "Triggering delete operation for Resource Group ${RGName}"
+            $null = Remove-AzureRmResourceGroup -Name $RGName -Force -AsJob
+            $retValue = $true
         }
     }
     else {
