@@ -558,6 +558,7 @@ Class TestController
 					}
 					if ($multiplexedTestConfig["TestVmSize"]) {
 						$case.OverrideVMSize = $multiplexedTestConfig["TestVmSize"]
+						$this.SetupTypeToTestCases[$key][0].OverrideVMSize = $multiplexedTestConfig["TestVmSize"]
 					}
 
 					Write-LogInfo "$($case.testName) started running."
