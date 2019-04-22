@@ -334,6 +334,69 @@ function Run_IMB_P2P() {
 	fi
 }
 
+function Run_IMB_EXT() {
+	total_attempts=$(seq 1 1 $imb_ext_tests_iterations)
+	imb_ext_final_status=0
+	if [[ $imb_ext_tests == "all" ]]; then
+		extra_params=""
+	else
+		extra_params=$imb_ext_tests
+	fi
+	for attempt in $total_attempts; do
+		retries=0
+		while [ $retries -lt 3 ]; do
+			case "$mpi_type" in
+				ibm)
+					LogMsg "$mpi_run_path -hostlist $modified_slaves:$VM_Size -np $(($VM_Size * $total_virtual_machines)) -e MPI_IB_PKEY=$MPI_IB_PKEY $imb_ext_path $extra_params"
+					$mpi_run_path -hostlist $modified_slaves:$VM_Size -np $(($VM_Size * $total_virtual_machines)) -e MPI_IB_PKEY=$MPI_IB_PKEY $imb_ext_path $extra_params > IMB-EXT-AllNodes-output-Attempt-${attempt}.txt
+				;;
+				open)
+					LogMsg "$mpi_run_path --allow-run-as-root --host $master,$slaves -n $(($ext_ppn * $total_virtual_machines)) $mpi_settings $imb_ext_path $extra_params"
+					$mpi_run_path --allow-run-as-root --host $master,$slaves -n $(($ext_ppn * $total_virtual_machines)) $mpi_settings $imb_ext_path $extra_params > IMB-EXT-AllNodes-output-Attempt-${attempt}.txt
+				;;
+				intel)
+					LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $ext_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_ext_path $extra_params"
+					$mpi_run_path -hosts $master,$slaves -ppn $ext_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_ext_path $extra_params > IMB-EXT-AllNodes-output-Attempt-${attempt}.txt
+				;;
+				mvapich)
+					LogMsg "$mpi_run_path -n $(($ext_ppn * $total_virtual_machines)) $master $slaves_array $mpi_settings $imb_ext_path $extra_params"
+					$mpi_run_path -n $(($ext_ppn * $total_virtual_machines)) $master $slaves_array $mpi_settings $imb_ext_path $extra_params > IMB-EXT-AllNodes-output-Attempt-${attempt}.txt
+				;;
+			esac
+			ext_status=$?
+			if [ $ext_status -eq 0 ]; then
+				LogMsg "IMB-EXT test iteration $attempt - Succeeded."
+				sleep 1
+				retries=4
+			else
+				sleep 10
+				let retries=retries+1
+				failed_ext=$(cat IMB-EXT-AllNodes-output-Attempt-${attempt}.txt | grep Benchmarking | tail -1| awk '{print $NF}')
+				ext_benchmarks=$(echo $ext_benchmarks | sed "s/^.*${failed_ext}//")
+				extra_params=$ext_benchmarks
+			fi
+		done
+		if [ $ext_status -eq 0 ]; then
+			LogMsg "IMB-EXT test iteration $attempt - Succeeded."
+			sleep 1
+		else
+			LogErr "IMB-EXT test iteration $attempt - Failed."
+			imb_ext_final_status=$(($imb_ext_final_status + $ext_status))
+			sleep 1
+		fi
+	done
+
+	if [ $imb_ext_final_status -ne 0 ]; then
+		LogErr "IMB-EXT tests returned non-zero exit code. Aborting further tests."
+		SetTestStateFailed
+		Collect_Logs
+		LogErr "INFINIBAND_VERIFICATION_FAILED_EXT_ALLNODES"
+		exit 0
+	else
+		LogMsg "INFINIBAND_VERIFICATION_SUCCESS_EXT_ALLNODES"
+	fi
+}
+
 function Main() {
 	LogMsg "Starting $mpi_type MPI tests..."
 
