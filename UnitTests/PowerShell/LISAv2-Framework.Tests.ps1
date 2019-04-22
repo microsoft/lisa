@@ -70,7 +70,6 @@ Describe "Test if ${moduleName} Run-LISAv2 fails to parse report results on Azur
 			}
 		}
 
-		Mock Write-LogInfo -Verifiable -ModuleName "AzureProvider" {}
 		Mock Write-LogErr -Verifiable -ModuleName "AzureProvider" {}
 		Mock Create-AllResourceGroupDeployments -Verifiable -ModuleName "AzureProvider" { return }
 
