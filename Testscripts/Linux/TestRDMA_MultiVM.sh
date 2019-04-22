@@ -292,8 +292,8 @@ function Run_IMB_P2P() {
 					$mpi_run_path --allow-run-as-root --host $master,$slaves -n $(($p2p_ppn * $total_virtual_machines)) $mpi_settings $imb_p2p_path $extra_params > IMB-P2P-AllNodes-output-Attempt-${attempt}.txt
 				;;
 				intel)
-					LogMsg "$mpi_run_path -hosts $master,$modified_slaves -ppn $p2p_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_p2p_path $extra_params"
-					$mpi_run_path -hosts $master,$modified_slaves -ppn $p2p_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_p2p_path $extra_params > IMB-P2P-AllNodes-output-Attempt-${attempt}.txt
+					LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $p2p_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_p2p_path $extra_params"
+					$mpi_run_path -hosts $master,$slaves -ppn $p2p_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_p2p_path $extra_params > IMB-P2P-AllNodes-output-Attempt-${attempt}.txt
 				;;
 				mvapich)
 					LogMsg "$mpi_run_path -n $(($p2p_ppn * $total_virtual_machines)) $master $slaves_array $mpi_settings $imb_p2p_path $extra_params"
