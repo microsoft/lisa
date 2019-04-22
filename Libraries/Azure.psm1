@@ -406,7 +406,21 @@ Function Delete-ResourceGroup([string]$RGName, [switch]$KeepDisks, [bool]$UseExi
         else {
             Write-LogInfo "Triggering delete operation for Resource Group ${RGName}"
             $null = Remove-AzureRmResourceGroup -Name $RGName -Force -AsJob
-            $retValue = $true
+            $maxRgDeletingRetries = 3
+			$rgDeletingRetries = 0
+			$isRgDeleting = $false
+			while (!$isRGDeleting -and $rgDeletingRetries -lt $maxRgDeletingRetries) {
+				$rgStatus = Get-AzureRmResourceGroup -Name $RGName -ErrorAction SilentlyContinue
+				if (!$rgStatus -or $rgStatus.ProvisioningState -eq 'Deleting') {
+					Write-LogInfo "Successfully triggered delete operation for Resource Group ${RGName}"
+					$isRGDeleting = $true
+				} else {
+					Write-LogWarn "RG ${RGName} status is $($ProvisioningState)"
+					$maxRgDeletingRetries++
+					Start-Sleep 1
+				}
+			}
+            $retValue = $isRgDeleting
         }
     }
     else {
