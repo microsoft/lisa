@@ -399,7 +399,7 @@ function Main() {
 	sed -i -e 's/CC=mpiicc/CC=mpicc/g' Makefile
 	LogMsg "Building P2P binary"
 	make -j $(nproc)
-	LogMsg "Completed P2P2 binary compilation"
+	LogMsg "Completed P2P binary compilation"
 	Verify_Result
 	LogMsg "Intel MPI Benchmark test installation completed"
 
