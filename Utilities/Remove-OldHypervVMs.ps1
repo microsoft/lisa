@@ -4,8 +4,8 @@
 <#
 .Description
         This is a script that performs a cleanup on LISAv2 Hyper-V VMs:
-    -If the VMs are more than 2 days old, they will be stopped.
-    -If the VMs are more than 5 days old, the VM/VHD files
+    -If the VMs are more than 1 day old, they will be stopped.
+    -If the VMs are more than 2 days old, the VM/VHD files
     will be removed.
     -If empty VM groups are detected on the Hyper-V host, they will be
     deleted
@@ -34,11 +34,11 @@ function Main
 
     foreach ($vm in $vmList) {
         # Check the running VM(s) creation time: if it is greater than 48 hours, stop it
-        $dateComparison = (Get-Date).AddDays(-2)
+        $dateComparison = (Get-Date).AddDays(-1)
         if (($vm.CreationTime -lt $dateComparison) -and (Get-VM -Name $vm.VMName `
             -ComputerName $HvServer | Where-Object { $_.State -like "Running" })) {
             $stoppedVMsCount++
-            $msg = "$($vm.VMName) was created more than 2 days ago" `
+            $msg = "$($vm.VMName) was created more than 1 day ago" `
                 + " and it will be shut down`n"
             Write-Host $msg
             if (Stop-VM -VMName $vm.VMName -ComputerName $HvServer -Force -TurnOff) {
@@ -48,11 +48,11 @@ function Main
 
         # Check the creation time of each Hyper-V VM.
         # Remove VM and VHD files if it is older than 5 days
-        $dateComparison = (Get-Date).AddDays(-5)
+        $dateComparison = (Get-Date).AddDays(-2)
         if ($vm.CreationTime -lt $dateComparison) {
             $deletedVMsCount++
             $msg = "$($vm.VMName) has been created on $($vm.CreationTime). " `
-                + "It is older than 5 days and it will be removed`n"
+                + "It is older than 2 days and it will be removed`n"
             Write-Host $msg
 
             # Stop VM in case it is running

@@ -3,6 +3,7 @@
 # Licensed under the Apache License.
 
 from azuremodules import *
+from distutils.version import LooseVersion
 
 
 def RunTest(command):
@@ -31,6 +32,23 @@ def RunTest(command):
     output = Run('grep CONFIG_HID_HYPERV_MOUSE=y ' + configPath)
     if output:
         hvModules.remove("hid_hyperv")
+
+    [current_distro, distro_version] = DetectDistro()
+    lis_exists=Run("rpm -qa | grep hyper-v 2>/dev/null")
+
+    if distro_version.startswith("7") and lis_exists:
+        hvModules.append("pci_hyperv")
+        output = Run(command)
+        if not ("pci_hyperv" in output):
+            Run("modprobe pci_hyperv")
+
+    if (distro_version.startswith("7.3") or distro_version.startswith("7.4")) and lis_exists:
+        lis_version=Run("dmesg | grep 'Vmbus LIS version' | awk -F ':' '{print $3}' | tr -d [:blank:]")
+        if LooseVersion(lis_version) >= LooseVersion('4.3.0'):
+            hvModules.append("mlx4_en")
+            output = Run(command)
+            if not ("mlx4_en" in output):
+                Run("modprobe mlx4_en")
 
     totalModules = len(hvModules)
     presentModules = 0

@@ -700,6 +700,7 @@ function Main() {
 	imb_p2p_path=$(find / -name IMB-P2P | head -n 1)
 	imb_ext_path=$(find / -name IMB-EXT | head -n 1)
 	imb_io_path=$(find / -name IMB-IO | head -n 1)
+
 	case "$mpi_type" in
 		ibm)
 			modified_slaves=${slaves//,/:$VM_Size,}

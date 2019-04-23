@@ -350,7 +350,7 @@ function InstallKernel() {
         LogMsg "Custom Kernel:$CustomKernel"
         case "$DISTRO_NAME" in
             oracle|rhel|centos)
-                KERNEL_CONFLICTING_PACKAGES="hypervvssd hypervkvpd hypervfcopyd hyperv-daemons hyperv-tools"
+                KERNEL_CONFLICTING_PACKAGES="hypervvssd hypervkvpd hypervfcopyd hyperv-daemons hyperv-tools kernel-headers"
                 ;;
             suse|opensuse|sles)
                 KERNEL_CONFLICTING_PACKAGES="hyper-v"

@@ -5,7 +5,7 @@ PS /Utilities> ./Get-LISAv2Statistics.ps1
 TestCase                                                      Platform        Category            Area                                     Tags
 -----------------------------------------------------------------------------------------------------------------------------------------------
 STRESSTEST-VERIFY-RESTART-MAX-SRIOV-NICS                         Azure          Stress          stress                stress,boot,network,sriov
-STRESSTEST-RELOAD-MODULES-UP                              Azure,HyperV             BVT          Stress                                   stress
+STRESSTEST-RELOAD-LIS-MODULES                              Azure,HyperV         Stress          stress                                   stress
 STRESSTEST-SYSBENCH                                             HyperV          Stress          stress                                   stress
 STRESSTEST-CHANGE-MTU-RELOAD-NETVSC                             HyperV          Stress          stress                                   stress
 STRESSTEST-BOOT-VM-LARGE-MEMORY                                 HyperV          Stress          stress                                   stress

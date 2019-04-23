@@ -96,44 +96,13 @@ Class AzureProvider : TestProvider
 			$isCleaned = Delete-ResourceGroup -RGName $rg -UseExistingRG $UseExistingRG
 			if (!$isCleaned)
 			{
-				Write-LogInfo "Failed to delete resource group $rg.. Please delete it manually."
+				Write-LogInfo "Failed to trigger delete resource group $rg.. Please delete it manually."
 			}
 			else
 			{
-				Write-LogInfo "Successfully delete resource group $rg.."
+				Write-LogInfo "Successfully cleaned up RG ${rg}.."
 			}
 		}
-	}
-
-	[void] RunTestCleanup() {
-		Write-LogInfo "Checking background cleanup jobs.."
-		$cleanupJobList = Get-Job | Where-Object { $_.Name -imatch "Delete-ResourceGroup"}
-		$isAllCleaned = $false
-		while(!$isAllCleaned) {
-			$runningJobsCount = 0
-			$isAllCleaned = $true
-			$cleanupJobList = Get-Job | Where-Object { $_.Name -imatch "Delete-ResourceGroup"}
-			foreach ( $cleanupJob in $cleanupJobList ) {
-				$jobStatus = Get-Job -Id $cleanupJob.ID
-				if ( $jobStatus.State -ne "Running" ) {
-					$tempRG = $($cleanupJob.Name).Replace("Delete-ResourceGroup-","")
-					Write-LogInfo "$tempRG : Delete : $($jobStatus.State)"
-					Remove-Job -Id $cleanupJob.ID -Force
-				} else  {
-					Write-LogInfo "$($cleanupJob.Name) is running."
-					$isAllCleaned = $false
-					$runningJobsCount += 1
-				}
-			}
-			if ($runningJobsCount -gt 0) {
-				Write-LogInfo "$runningJobsCount background cleanup jobs still running. Waiting 30 seconds..."
-				Start-Sleep -Seconds 30
-			}
-		}
-		Write-LogInfo "All background cleanup jobs finished."
-		$azureContextFiles = Get-Item "$env:TEMP\*.azurecontext"
-		$azureContextFiles | Remove-Item -Force | Out-Null
-		Write-LogInfo "Removed $($azureContextFiles.Count) context files."
 	}
 
 	[bool] RestartAllDeployments($AllVMData) {

@@ -179,7 +179,10 @@ function Install_Dpdk() {
 	ssh ${install_ip} "if [[ -e '${DPDK_DIR}' ]]; then rm -rf '${DPDK_DIR}'; fi"
 	if [[ $DPDK_LINK =~ .tar ]]; then
 		ssh ${install_ip} "mkdir ${DPDK_DIR}"
-		ssh ${install_ip} "wget -O - ${DPDK_LINK} | tar -xJ -C ${DPDK_DIR} --strip-components=1"
+		dpdk_download_file="${DPDK_LINK##*/}"
+		ssh "${install_ip}" "wget '${DPDK_LINK}' -P /tmp"
+		ssh "${install_ip}" "tar -xf '/tmp/${dpdk_download_file}' -C ${DPDK_DIR} --strip-components=1"
+		check_exit_status "Get DPDK sources from '${DPDK_LINK}' on ${install_ip}" "exit"
 	elif [[ $DPDK_LINK =~ ".git" ]] || [[ $DPDK_LINK =~ "git:" ]]; then
 		ssh ${install_ip} "git clone ${DPDK_LINK} ${DPDK_DIR}"
 	elif [[ $DPDK_LINK =~ "ppa:" ]]; then
