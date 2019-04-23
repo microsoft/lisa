@@ -25,6 +25,7 @@ UtilsInit
 imb_mpi1_final_status=0
 imb_rma_final_status=0
 imb_nbc_final_status=0
+imb_p2p_final_status=0
 
 # Get all the Kernel-Logs from all VMs.
 function Collect_Logs() {
@@ -270,6 +271,69 @@ function Run_IMB_NBC() {
 	fi
 }
 
+function Run_IMB_P2P() {
+	total_attempts=$(seq 1 1 $imb_p2p_tests_iterations)
+	imb_p2p_final_status=0
+	if [[ $imb_p2p_tests == "all" ]]; then
+		extra_params=""
+	else
+		extra_params=$imb_p2p_tests
+	fi
+	for attempt in $total_attempts; do
+		retries=0
+		while [ $retries -lt 3 ]; do
+			case "$mpi_type" in
+				ibm)
+					LogMsg "$mpi_run_path -hostlist $modified_slaves:$VM_Size -np $(($VM_Size * $total_virtual_machines)) -e MPI_IB_PKEY=$MPI_IB_PKEY $imb_p2p_path $extra_params"
+					$mpi_run_path -hostlist $modified_slaves:$VM_Size -np $(($VM_Size * $total_virtual_machines)) -e MPI_IB_PKEY=$MPI_IB_PKEY $imb_p2p_path $extra_params > IMB-P2P-AllNodes-output-Attempt-${attempt}.txt
+				;;
+				open)
+					LogMsg "$mpi_run_path --allow-run-as-root --host $master,$slaves -n $(($p2p_ppn * $total_virtual_machines)) $mpi_settings $imb_p2p_path $extra_params"
+					$mpi_run_path --allow-run-as-root --host $master,$slaves -n $(($p2p_ppn * $total_virtual_machines)) $mpi_settings $imb_p2p_path $extra_params > IMB-P2P-AllNodes-output-Attempt-${attempt}.txt
+				;;
+				intel)
+					LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $p2p_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_p2p_path $extra_params"
+					$mpi_run_path -hosts $master,$slaves -ppn $p2p_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_p2p_path $extra_params > IMB-P2P-AllNodes-output-Attempt-${attempt}.txt
+				;;
+				mvapich)
+					LogMsg "$mpi_run_path -n $(($p2p_ppn * $total_virtual_machines)) $master $slaves_array $mpi_settings $imb_p2p_path $extra_params"
+					$mpi_run_path -n $(($p2p_ppn * $total_virtual_machines)) $master $slaves_array $mpi_settings $imb_p2p_path $extra_params > IMB-P2P-AllNodes-output-Attempt-${attempt}.txt
+				;;
+			esac
+			p2p_status=$?
+			if [ $p2p_status -eq 0 ]; then
+				LogMsg "IMB-P2P test iteration $attempt - Succeeded."
+				sleep 1
+				retries=4
+			else
+				sleep 10
+				let retries=retries+1
+				failed_p2p=$(cat IMB-P2P-AllNodes-output-Attempt-${attempt}.txt | grep Benchmarking | tail -1| awk '{print $NF}')
+				p2p_benchmarks=$(echo $p2p_benchmarks | sed "s/^.*${failed_p2p}//")
+				extra_params=$p2p_benchmarks
+			fi
+		done
+		if [ $p2p_status -eq 0 ]; then
+			LogMsg "IMB-P2P test iteration $attempt - Succeeded."
+			sleep 1
+		else
+			LogErr "IMB-P2P test iteration $attempt - Failed."
+			imb_p2p_final_status=$(($imb_p2p_final_status + $p2p_status))
+			sleep 1
+		fi
+	done
+
+	if [ $imb_p2p_final_status -ne 0 ]; then
+		LogErr "IMB-P2P tests returned non-zero exit code. Aborting further tests."
+		SetTestStateFailed
+		Collect_Logs
+		LogErr "INFINIBAND_VERIFICATION_FAILED_P2P_ALLNODES"
+		exit 0
+	else
+		LogMsg "INFINIBAND_VERIFICATION_SUCCESS_P2P_ALLNODES"
+	fi
+}
+
 function Main() {
 	LogMsg "Starting $mpi_type MPI tests..."
 
@@ -505,6 +569,7 @@ function Main() {
 	imb_mpi1_path=$(find / -name IMB-MPI1 | head -n 1)
 	imb_rma_path=$(find / -name IMB-RMA | head -n 1)
 	imb_nbc_path=$(find / -name IMB-NBC | head -n 1)
+	imb_p2p_path=$(find / -name IMB-P2P | head -n 1)
 	case "$mpi_type" in
 		ibm)
 			modified_slaves=${slaves//,/:$VM_Size,}
@@ -531,12 +596,14 @@ function Main() {
 	LogMsg "IMB-MPI1 Path: $imb_mpi1_path"
 	LogMsg "IMB-RMA Path: $imb_rma_path"
 	LogMsg "IMB-NBC Path: $imb_nbc_path"
+	LogMsg "IMB-P2P Path: $imb_p2p_path"
 
 	# Run all benchmarks
 	Run_IMB_Intranode
 	Run_IMB_MPI1
 	Run_IMB_RMA
 	Run_IMB_NBC
+	Run_IMB_P2P
 
 	# Get all results and finish the test
 	Collect_Logs
@@ -549,6 +616,7 @@ function Main() {
 		LogMsg "imb_mpi1_final_status: $imb_mpi1_final_status"
 		LogMsg "imb_rma_final_status: $imb_rma_final_status"
 		LogMsg "imb_nbc_final_status: $imb_nbc_final_status"
+		LogMsg "imb_p2p_final_status: $imb_p2p_final_status"
 		LogErr "INFINIBAND_VERIFICATION_FAILED"
 		SetTestStateFailed
 	else

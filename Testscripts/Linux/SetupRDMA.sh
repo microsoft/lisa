@@ -224,7 +224,7 @@ function Main() {
 	elif [ $mpi_type == "intel" ]; then
 		# if HPC images comes with MPI binary pre-installed, (CentOS HPC)
 		#   there is no action required except binary verification
-		mpirun_path=$(find / -name mpirun | grep intel64)       # $mpirun_path is not empty or null and file path should exists
+		mpirun_path=$(find / -name mpirun | grep intel64)		# $mpirun_path is not empty or null and file path should exists
 		if [[ -f $mpirun_path && ! -z "$mpirun_path" ]]; then
 			LogMsg "Found pre-installed mpirun binary"
 
@@ -390,9 +390,18 @@ function Main() {
 	cd mpi-benchmarks/src_c
 	LogMsg "Building Intel MPI Benchmarks tests"
 	make -j $(nproc)
-	LogMsg "Completed Intel MPI Benchmarks"
 	Verify_Result
-	LogMsg "Intel Benchmark test installation completed"
+
+	# install P2P test
+	LogMsg "Change directory to P2P"
+	cd P2P
+	LogMsg "Renaming from mpiicc to mpicc in Makefile"
+	sed -i -e 's/CC=mpiicc/CC=mpicc/g' Makefile
+	LogMsg "Building P2P binary"
+	make -j $(nproc)
+	LogMsg "Completed P2P2 binary compilation"
+	Verify_Result
+	LogMsg "Intel MPI Benchmark test installation completed"
 
 	# set string to verify Intel Benchmark binary
 	benchmark_bin=$HOMEDIR/mpi-benchmarks/src_c/IMB-MPI1

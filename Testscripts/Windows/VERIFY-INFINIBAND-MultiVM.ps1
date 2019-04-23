@@ -112,6 +112,9 @@ function Main {
 			if ($TestParam -imatch "imb_nbc_tests_iterations") {
 				$ImbNbcTestIterations = [int]($TestParam.Replace("imb_nbc_tests_iterations=", "").Trim('"'))
 			}
+			if ($TestParam -imatch "imb_p2p_tests_iterations") {
+				$ImbP2pTestIterations = [int]($TestParam.Replace("imb_p2p_tests_iterations=", "").Trim('"'))
+			}
 			if ($TestParam -imatch "ib_nic") {
 				$InfinibandNic = [string]($TestParam.Replace("ib_nic=", "").Trim('"'))
 			}
@@ -320,6 +323,25 @@ function Main {
 					$pattern = "INFINIBAND_VERIFICATION_SUCCESS_MPI1_ALLNODES"
 					Write-LogInfo "Analyzing $logFileName"
 					$metaData = "InfiniBand-Verification-$Iteration-$TempName : IMB-MPI1"
+					$SucessLogs = Select-String -Path $logFileName -Pattern $pattern
+					if ($SucessLogs.Count -eq 1) {
+						$currentResult = "PASS"
+					} else {
+						$currentResult = "FAIL"
+					}
+					Write-LogInfo "$pattern : $currentResult"
+					$resultArr += $currentResult
+					$CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
+						-checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
+				}
+				#endregion
+
+				#region Check P2P all nodes tests
+				if ($ImbP2pTestIterations -ge 1) {
+					$logFileName = "$LogDir\InfiniBand-Verification-$Iteration-$TempName\TestExecution.log"
+					$pattern = "INFINIBAND_VERIFICATION_SUCCESS_P2P_ALLNODES"
+					Write-LogInfo "Analyzing $logFileName"
+					$metaData = "InfiniBand-Verification-$Iteration-$TempName : IMB-P2P"
 					$SucessLogs = Select-String -Path $logFileName -Pattern $pattern
 					if ($SucessLogs.Count -eq 1) {
 						$currentResult = "PASS"
