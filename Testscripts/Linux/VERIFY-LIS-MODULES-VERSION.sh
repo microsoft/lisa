@@ -12,6 +12,9 @@
 #
 ########################################################################
 
+exit_code="0"
+expected_lis_version=''
+
 # Source utils.sh
 . utils.sh || {
     echo "ERROR: unable to source utils.sh!"
@@ -21,6 +24,9 @@
 
 # Source constants file and initialize most common variables
 UtilsInit
+
+# Check if expected LIS version is greater than 4.3.0
+function version_ge() { test "$(echo "$@" | tr " " "\n" | sort -rV | head -n 1)" == "$1"; }
 
 # Check if vmbus string is recorded in dmesg
 hv_string=$(dmesg | grep "Vmbus version:")
@@ -53,16 +59,55 @@ for module in "${HYPERV_MODULES[@]}"; do
 done
 HYPERV_MODULES=("${tempList[@]}")
 
+if which rpm 2>/dev/null;then
+    rpmAvailable=true
+else
+    rpmAvailable=false
+fi
+
+isLISInstalled=$(rpm -qa | grep hyper-v 2>/dev/null)
+
+if [ ! -z "$isLISInstalled" ]; then
+    expected_lis_version=$(dmesg | grep 'Vmbus LIS version' | awk -F ':' '{print $3}' | tr -d [:blank:])
+    if [[ $DISTRO_VERSION =~ 7\. ]]; then
+        HYPERV_MODULES+=('pci_hyperv')
+        pci_module=$(lsmod | grep pci_hyperv)
+        if [ -z $pci_module ]; then
+            modprobe pci_hyperv
+        fi
+    fi
+    if [[ $DISTRO_VERSION =~ 7\.3 ]] || [[ $DISTRO_VERSION =~ 7\.4 ]] ; then
+        if version_ge $expected_lis_version "4.3.0" ; then
+            HYPERV_MODULES+=('mlx4_en')
+            mlx4_module=$(lsmod | grep mlx4_en)
+            if [ -z $mlx4_module ]; then
+                modprobe mlx4_en
+            fi
+        fi
+    fi
+fi
+
 # Verifies first if the modules are loaded
 for module in "${HYPERV_MODULES[@]}"; do
     load_status=$(lsmod | grep "$module" 2>&1)
 
     # Check to see if the module is loaded
     if [[ $load_status =~ $module ]]; then
-        if rpm --help 2>/dev/null; then
-            if rpm -qa | grep hyper-v 2>/dev/null; then
+        if [ "$rpmAvailable" = true ] ; then
+            if [ ! -z "$isLISInstalled" ]; then
                 version=$(modinfo "$module" | grep version: | head -1 | awk '{print $2}')
                 LogMsg "$module module: ${version}"
+                if [ "$module" == "mlx4_en" ] ;then
+                    if [ "$MLNX_VERSION" != "$version" ] ;then
+                        LogErr "ERROR: Status: $module $version doesnot match with build version $MLNX_VERSION"
+                        exit_code="1"
+                    fi
+                    continue
+                fi
+                if [ "$expected_lis_version" != "$version" ] ;then
+                    LogErr "ERROR: Status: $module $version doesnot match with build version $expected_lis_version"
+                    exit_code="1"
+                fi
                 continue
             fi
         fi
@@ -72,11 +117,20 @@ for module in "${HYPERV_MODULES[@]}"; do
             LogMsg "Found a kernel matching version for $module module: ${version}"
         else
             LogErr "Error: LIS module $module doesn't match the kernel build version!"
-            SetTestStateAborted
-            exit 0
+            exit_code="1"
         fi
+    else
+         LogErr "Error: LIS module $module is not loaded"
+         exit_code="1"
     fi
 done
 
-SetTestStateCompleted
+if [ "1" -eq "$exit_code" ]; then
+    LogMsg "Exiting with state: TestAborted."
+    SetTestStateAborted
+else
+    LogMsg "Exiting with state: TestCompleted."
+    SetTestStateCompleted
+fi
+
 exit 0

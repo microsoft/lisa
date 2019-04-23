@@ -8,12 +8,42 @@ param(
 )
 $ErrorActionPreference = "Stop"
 
+Function Check-modules() {
+    Write-LogInfo "Check if module are loaded after LIS installation"
+    $remoteScript = "LIS-MODULES-CHECK.py"
+    # Run the remote script
+    Run-LinuxCmd -username $user -password $password -ip $allVMData.PublicIP -port $allVMData.SSHPort -command "python ${remoteScript}" -runAsSudo
+    Run-LinuxCmd -username $user -password $password -ip $allVMData.PublicIP -port $allVMData.SSHPort -command "mv Runtime.log ${remoteScript}.log" -runAsSudo
+    Copy-RemoteFiles -download -downloadFrom $allVMData.PublicIP -files "/home/$user/state.txt,/home/${user}/${remoteScript}.log" `
+        -downloadTo $LogDir -port $allVMData.SSHPort -username $user -password $password
+    $testStatus = Get-Content $LogDir\state.txt
+    if ($testStatus -ne "TestCompleted") {
+        Write-LogErr "Running $remoteScript script failed on VM!"
+        return $false
+    }
+    Write-LogInfo "Check if module version matches with the expected LIS version"
+    $remoteScript = "VERIFY-LIS-MODULES-VERSION.sh"
+    # Run the remote script
+    $sts = Invoke-RemoteScriptAndCheckStateFile $remoteScript $user $password $allVMData.PublicIP $allVMData.SSHPort -runAsSudo
+    if (-not $sts[-1]) {
+        Write-LogErr "Running $remoteScript script failed on VM!"
+        return $false
+    }
+    return $true
+}
+
+
 Function Install-LIS ($LISTarballUrl, $allVMData) {
     # Removing LISISO folder to avoid conflicts
     Run-LinuxCmd -username "root" -password $password -ip $allVMData.PublicIP -port $allVMData.SSHPort -command "rm -rf LISISO build-CustomLIS.txt"
     $LISInstallStatus = Install-CustomLIS -CustomLIS $LISTarballUrl -allVMData $allVMData -customLISBranch $customLISBranch -RestartAfterUpgrade -TestProvider $TestProvider
     if (-not $LISInstallStatus) {
         Write-LogErr "Custom LIS installation FAILED. Aborting tests."
+        return $false
+    }
+    $sts=Check-modules
+    if( -not $sts[-1]) {
+        Write-LogErr "Failed due to either modules are not loaded or version mismatch"
         return $false
     }
     return $true
@@ -56,6 +86,11 @@ Function Upgrade-LIS ($LISTarballUrlOld, $LISTarballUrlCurrent, $allVMData , $Te
                         Write-LogInfo "New lis: $upgradedlisVersion"
                         Add-Content -Value "Old lis: $OldlisVersion" -Path ".\Report\AdditionalInfo-$TestID.html" -Force
                         Add-Content -Value "New lis: $upgradedlisVersion" -Path ".\Report\AdditionalInfo-$TestID.html" -Force
+                        $sts=Check-modules
+                        if( -not $sts[-1]) {
+                            Write-LogErr "Failed due to either modules are not loaded or version mismatch"
+                            return $false
+                        }
                         return $true
                     }
                     else {
@@ -279,7 +314,7 @@ Function Install-LIS-Scenario-3 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
 Function Install-LIS-Scenario-4 ($PreviousTestResult, $LISTarballUrlOld, $LISTarballUrlCurrent) {
     if ($PreviousTestResult -eq "PASS") {
         $UpgradekernelStatus=Upgrade-Kernel -allVMData $AllVMData -TestProvider $TestProvider
-        if (-not $UpgradekernelStatus) {
+        if (-not $UpgradekernelStatus[-1]) {
             return "SKIPPED"
         }
         $LISInstallStatus=Install-LIS -LISTarballUrl $LISTarballUrlCurrent -allVMData $AllVMData
@@ -312,7 +347,7 @@ Function Install-LIS-Scenario-5 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
         $LIS_version_before_upgrade_kernel = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus"
         Write-LogInfo "LIS version before upgrading kernel: $LIS_version_before_upgrade_kernel"
         $UpgradekernelStatus=Upgrade-Kernel -allVMData $AllVMData -TestProvider $TestProvider -RestartAfterUpgrade
-        if (-not $UpgradekernelStatus) {
+        if (-not $UpgradekernelStatus[-1]) {
             return "SKIPPED"
         }
         $LIS_version_after_upgrade_kernel = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus"
@@ -350,7 +385,7 @@ Function Install-LIS-Scenario-6 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
         $LIS_version_before_upgrade_kernel = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus"
         Write-LogInfo "LIS version before upgrading kernel: $LIS_version_before_upgrade_kernel"
         $UpgradekernelStatus=Upgrade-Kernel -allVMData $AllVMData -TestProvider $TestProvider -RestartAfterUpgrade
-        if (-not $UpgradekernelStatus) {
+        if (-not $UpgradekernelStatus[-1]) {
             return "SKIPPED"
         }
         $LIS_version_after_upgrade_kernel = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus"
