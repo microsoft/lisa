@@ -58,15 +58,15 @@ VerifyVF()
     fi
 
     # Using lsmod command, verify if driver is loaded
-    lsmod | grep 'mlx4_core\|mlx4_en\|ixgbevf'
+    lsmod | grep 'mlx[4-5]_core\|mlx4_en\|ixgbevf'
     if [ $? -ne 0 ]; then
-        LogErr "Neither mlx4_core\mlx4_en or ixgbevf drivers are in use!"
+        LogErr "Neither mlx[4-5]_core\mlx4_en or ixgbevf drivers are in use!"
         SetTestStateFailed
         exit 1
     fi
 
     # Using the lspci command, verify if NIC has SR-IOV support
-    lspci -vvv | grep 'mlx4_core\|mlx4_en\|ixgbevf'
+    lspci -vvv | grep 'mlx[4-5]_core\|mlx4_en\|ixgbevf'
     if [ $? -ne 0 ]; then
         LogMsg "No NIC with SR-IOV support found!"
         SetTestStateFailed

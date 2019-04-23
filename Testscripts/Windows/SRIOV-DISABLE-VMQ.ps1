@@ -50,7 +50,7 @@ function Main {
 
     # Check if the SR-IOV module is still loaded
     $moduleCount = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
-        $VMPassword -command "lspci -vvv | grep -c 'mlx4_core\|mlx4_en\|ixgbevf'" `
+        $VMPassword -command "lspci -vvv | grep -c 'mlx[4-5]_core\|mlx4_en\|ixgbevf'" `
         -ignoreLinuxExitCode:$true
     if ($moduleCount -lt 1) {
         Write-LogErr "Module is not loaded"
