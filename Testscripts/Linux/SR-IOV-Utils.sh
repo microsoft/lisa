@@ -213,7 +213,7 @@ InstallDependencies()
     case "$DISTRO" in
         suse*)
             # Disable firewall
-            rcSuSEfirewall2 stop
+            service SuSEfirewall2 stop
         ;;
 
         ubuntu*|debian*)
