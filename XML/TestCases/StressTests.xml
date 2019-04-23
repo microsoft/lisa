@@ -31,9 +31,9 @@
 		<Priority>0</Priority>
 	</test>
 		<test>
-		<testName>STRESSTEST-RELOAD-MODULES-UP</testName>
-		<testScript>BVT-CORE-RELOAD-MODULES.ps1</testScript>
-		<files>.\TestScripts\Linux\BVT-CORE-RELOAD-MODULES.sh,.\TestScripts\Linux\utils.sh</files>
+		<testName>STRESSTEST-RELOAD-LIS-MODULES</testName>
+		<testScript>RELOAD-MODULES.ps1</testScript>
+		<files>.\TestScripts\Linux\RELOAD-MODULES.sh,.\TestScripts\Linux\utils.sh</files>
 		<setupType>OneVM</setupType>
 		<TestParameters>
 			<param>LoopCount=1000</param>
