@@ -27,7 +27,7 @@ touch ./lagscopeTest.log
 LogMsg()
 {
 	echo $(date "+%b %d %Y %T") : "${1}"    # Add the time stamp to the log message
-	echo "${1}" >> ./ntttcpTest.log
+	echo "${1}" >> ./lagscopeTest.log
 }
 
 UpdateTestState()
@@ -71,7 +71,7 @@ if [ ! "${pingIteration}" ]; then
 	exit 1
 fi
 
-#Make & build ntttcp on client and server Machine
+#Make & build lagscope on client and server VMs
 
 LogMsg "Configuring client ${client}..."
 ssh "${client}" ". $UTIL_FILE && install_lagscope"
@@ -97,7 +97,7 @@ else
 	cmd="lagscope"
 fi
 
-#Now, start the ntttcp client on client VM.
+#Now, start lagscope on server and client VMs.
 
 LogMsg "Now running Lagscope test"
 LogMsg "Starting server."
