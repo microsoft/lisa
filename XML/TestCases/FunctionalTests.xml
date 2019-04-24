@@ -68,6 +68,17 @@
         <Priority>0</Priority>
     </test>
     <test>
+        <testName>VERIFY-BOOT-ERROR-WARNINGS</testName>
+        <testScript>VERIFY-BOOT-ERROR-WARNINGS.py</testScript>
+        <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\VERIFY-BOOT-ERROR-WARNINGS.py,.\XML\Other\ignorable-boot-errors.xml</files>
+        <setupType>OneVM</setupType>
+        <Platform>Azure,WSL</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>provision</Tags>
+        <Priority>0</Priority>
+    </test>
+    <test>
         <testName>VERIFY-HEARTBEAT</testName>
         <testScript>CORE-VerifyHeartBeat.ps1</testScript>
         <setupType>OneVM</setupType>
