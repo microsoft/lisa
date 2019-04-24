@@ -22,7 +22,7 @@
         <Category>Performance</Category>
         <Area>NETWORK</Area>
         <Tags>network,hv_netvsc</Tags>
-        <Priority>1</Priority>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>PERF-NETWORK-TCP-THROUGHPUT-MULTICONNECTION-NTTTCP-SRIOV</testName>
@@ -47,7 +47,7 @@
         <Category>Performance</Category>
         <Area>NETWORK</Area>
         <Tags>network,hv_netvsc,sriov</Tags>
-        <Priority>1</Priority>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>PERF-NETWORK-UDP-1K-THROUGHPUT-MULTICONNECTION-NTTTCP-Synthetic</testName>
@@ -73,7 +73,7 @@
         <Category>Performance</Category>
         <Area>NETWORK</Area>
         <Tags>network,hv_netvsc</Tags>
-        <Priority>1</Priority>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>PERF-NETWORK-UDP-1K-THROUGHPUT-MULTICONNECTION-NTTTCP-SRIOV</testName>
@@ -99,7 +99,7 @@
         <Category>Performance</Category>
         <Area>NETWORK</Area>
         <Tags>network,hv_netvsc,sriov</Tags>
-        <Priority>1</Priority>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>PERF-NETWORK-TCP-THROUGHPUT-MULTICLIENTS-NTTTCP-Synthetic</testName>
@@ -246,7 +246,7 @@
         <Category>Performance</Category>
         <Area>NETWORK</Area>
         <Tags>network,hv_netvsc</Tags>
-        <Priority>1</Priority>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>PERF-NETWORK-UDP-THROUGHPUT-MULTICONNECTION-SRIOV</testName>
@@ -273,7 +273,7 @@
         <Category>Performance</Category>
         <Area>NETWORK</Area>
         <Tags>network,hv_netvsc,sriov</Tags>
-        <Priority>1</Priority>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>PERF-STORAGE-4K-IO</testName>
@@ -512,7 +512,7 @@
         <Category>Performance</Category>
         <Area>NETWORK</Area>
         <Tags>network,hv_netvsc</Tags>
-        <Priority>1</Priority>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>PERF-NETWORK-TCP-NETPERF-SINGLE-PPS-SRIOV</testName>
@@ -536,7 +536,7 @@
         <Category>Performance</Category>
         <Area>NETWORK</Area>
         <Tags>network,hv_netvsc</Tags>
-        <Priority>1</Priority>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>PERF-NETWORK-TCP-NETPERF-MAX-PPS-Synthetic</testName>
@@ -560,7 +560,7 @@
         <Category>Performance</Category>
         <Area>NETWORK</Area>
         <Tags>network,hv_netvsc</Tags>
-        <Priority>1</Priority>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>PERF-NETWORK-TCP-NETPERF-MAX-PPS-SRIOV</testName>
@@ -584,7 +584,7 @@
         <Category>Performance</Category>
         <Area>NETWORK</Area>
         <Tags>network,hv_netvsc</Tags>
-        <Priority>1</Priority>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>PERF-NVME-4K-IO</testName>

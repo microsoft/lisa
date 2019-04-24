@@ -682,6 +682,6 @@
         <Category>Functional</Category>
         <Area>NETWORK</Area>
         <Tags>network</Tags>
-        <Priority>1</Priority>
+        <Priority>2</Priority>
     </test>
 </TestCases>

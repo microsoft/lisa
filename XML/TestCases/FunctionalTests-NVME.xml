@@ -137,7 +137,7 @@
         <Category>Functional</Category>
         <Area>NVME</Area>
         <Tags>nvme,filesystem</Tags>
-        <Priority>0</Priority>
+        <Priority>2</Priority>
     </test>
     <test>
         <TestName>NVME-FILE-SYSTEM-VERIFICATION-EXT4</TestName>
@@ -156,7 +156,7 @@
         <Category>Functional</Category>
         <Area>NVME</Area>
         <Tags>nvme,filesystem</Tags>
-        <Priority>0</Priority>
+        <Priority>2</Priority>
     </test>
     <test>
         <TestName>NVME-FILE-SYSTEM-VERIFICATION-BTRFS</TestName>
@@ -175,7 +175,7 @@
         <Category>Functional</Category>
         <Area>NVME</Area>
         <Tags>nvme,filesystem</Tags>
-        <Priority>0</Priority>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>NVME-PCI-RESCIND</testName>

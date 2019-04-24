@@ -7,7 +7,7 @@
 		<OverrideVMSize>Standard_HB60rs</OverrideVMSize>
 		<SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh,.\Testscripts\Linux\SetupRDMA.sh</files>
-		<Priority>0</Priority>
+		<Priority>3</Priority>
 		<TestParameters>
 			<param>num_reboot="INFINIBAND_INTEL_TOTAL_REBOOT_COUNT"</param>
 			<param>mpi_settings="INFINIBAND_INTEL_MPI_SETTINGS_IB"</param>
@@ -44,7 +44,7 @@
 		<OverrideVMSize>Standard_HB60rs</OverrideVMSize>
 		<SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh,.\Testscripts\Linux\SetupRDMA.sh</files>
-		<Priority>0</Priority>
+		<Priority>3</Priority>
 		<TestParameters>
 			<param>num_reboot="INFINIBAND_INTEL_TOTAL_REBOOT_COUNT"</param>
 			<param>mpi_settings="INFINIBAND_INTEL_MPI_SETTINGS_IB"</param>
@@ -119,7 +119,7 @@
 		<OverrideVMSize>Standard_HB60rs</OverrideVMSize>
 		<SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh,.\Testscripts\Linux\SetupRDMA.sh</files>
-		<Priority>0</Priority>
+		<Priority>3</Priority>
 		<TestParameters>
 			<param>num_reboot="INFINIBAND_OPEN_TOTAL_REBOOT_COUNT"</param>
 			<param>mpi_settings="INFINIBAND_OPEN_MPI_SETTINGS_IB"</param>
@@ -157,7 +157,7 @@
 		<OverrideVMSize>Standard_HB60rs</OverrideVMSize>
 		<SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh,.\Testscripts\Linux\SetupRDMA.sh</files>
-		<Priority>0</Priority>
+		<Priority>3</Priority>
 		<TestParameters>
 			<param>num_reboot="INFINIBAND_IBM_TOTAL_REBOOT_COUNT"</param>
 			<param>mpi_settings="INFINIBAND_IBM_MPI_SETTINGS_IB"</param>
@@ -194,7 +194,7 @@
 		<OverrideVMSize>Standard_HB60rs</OverrideVMSize>
 		<SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh,.\Testscripts\Linux\SetupRDMA.sh</files>
-		<Priority>0</Priority>
+		<Priority>3</Priority>
 		<TestParameters>
 			<param>num_reboot="INFINIBAND_IBM_TOTAL_REBOOT_COUNT"</param>
 			<param>mpi_settings="INFINIBAND_IBM_MPI_SETTINGS_IB"</param>
@@ -232,7 +232,7 @@
 		<OverrideVMSize>Standard_HB60rs</OverrideVMSize>
 		<SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh,.\Testscripts\Linux\SetupRDMA.sh</files>
-		<Priority>0</Priority>
+		<Priority>3</Priority>
 		<TestParameters>
 			<param>num_reboot="INFINIBAND_MVAPICH_TOTAL_REBOOT_COUNT"</param>
 			<param>mpi_settings="INFINIBAND_MVAPICH_MPI_SETTINGS_IB"</param>
@@ -269,7 +269,7 @@
 		<OverrideVMSize>Standard_HB60rs</OverrideVMSize>
 		<SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh,.\Testscripts\Linux\SetupRDMA.sh</files>
-		<Priority>0</Priority>
+		<Priority>3</Priority>
 		<TestParameters>
 			<param>num_reboot="INFINIBAND_MVAPICH_TOTAL_REBOOT_COUNT"</param>
 			<param>mpi_settings="INFINIBAND_MVAPICH_MPI_SETTINGS_IB"</param>

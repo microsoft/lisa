@@ -1081,7 +1081,7 @@
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>hot_resize,memory</Tags>
-        <Priority>1</Priority>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>L3-CACHE-CHECK</testName>

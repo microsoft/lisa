@@ -101,7 +101,7 @@
         <Category>Functional</Category>
         <Area>WALA</Area>
         <Tags>wala</Tags>
-        <Priority>1</Priority>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>WALA-VERIFY-WAAGENT-LOG</testName>
@@ -126,6 +126,6 @@
         <Category>Functional</Category>
         <Area>WALA</Area>
         <Tags>wala</Tags>
-        <Priority>0</Priority>
+        <Priority>2</Priority>
     </test>
 </TestCases>
