@@ -184,8 +184,8 @@
         <Priority>2</Priority>
     </test>
     <test>
-        <testName>PERF-NETWORK-TCP-LATENCY-MULTICONNECTION-Synthetic</testName>
-        <testScript>PERF-NETWORK-TCP-LATENCY-MULTICONNECTION-LAGSCOPE.ps1</testScript>
+        <testName>PERF-NETWORK-TCP-LATENCY-Synthetic</testName>
+        <testScript>PERF-NETWORK-TCP-LATENCY-LAGSCOPE.ps1</testScript>
         <setupType>TwoVM2Host</setupType>
         <setupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\SETUP-PERF-Add-NIC.ps1</setupScript>
         <runSetupScriptOnlyOnce>yes</runSetupScriptOnlyOnce>
@@ -203,8 +203,8 @@
         <Priority>1</Priority>
     </test>
     <test>
-        <testName>PERF-NETWORK-TCP-LATENCY-MULTICONNECTION-SRIOV</testName>
-        <testScript>PERF-NETWORK-TCP-LATENCY-MULTICONNECTION-LAGSCOPE.ps1</testScript>
+        <testName>PERF-NETWORK-TCP-LATENCY-SRIOV</testName>
+        <testScript>PERF-NETWORK-TCP-LATENCY-LAGSCOPE.ps1</testScript>
         <setupType>TwoVM2Host</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
