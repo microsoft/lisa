@@ -82,7 +82,7 @@
 		<OverrideVMSize>Standard_HB60rs</OverrideVMSize>
 		<SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh,.\Testscripts\Linux\SetupRDMA.sh</files>
-		<Priority>0</Priority>
+		<Priority>1</Priority>
 		<TestParameters>
 			<param>num_reboot="INFINIBAND_OPEN_TOTAL_REBOOT_COUNT"</param>
 			<param>mpi_settings="INFINIBAND_OPEN_MPI_SETTINGS_IB"</param>

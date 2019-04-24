@@ -14,7 +14,7 @@
         <Category>Functional</Category>
         <Area>WALA</Area>
         <Tags>wala</Tags>
-        <Priority>0</Priority>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>WALA-PROCESS-CHECK</testName>
@@ -28,7 +28,7 @@
         <Category>Functional</Category>
         <Area>WALA</Area>
         <Tags>wala</Tags>
-        <Priority>2</Priority>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>WALA-VERSION-CHECK</testName>
@@ -45,7 +45,7 @@
         <Category>Functional</Category>
         <Area>WALA</Area>
         <Tags>wala</Tags>
-        <Priority>2</Priority>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>WALA-RESOURCE-DISK-FILESYSTEM-CHECK</testName>
@@ -59,7 +59,7 @@
         <Category>Functional</Category>
         <Area>WALA</Area>
         <Tags>wala</Tags>
-        <Priority>0</Priority>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>WALA-VERIFY-MNT-RESOURCE-WRITABLE</testName>
@@ -73,7 +73,7 @@
         <Category>Functional</Category>
         <Area>WALA</Area>
         <Tags>wala</Tags>
-        <Priority>0</Priority>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>WALA-VERIFY-MNT-RESOURCE-README</testName>
@@ -112,7 +112,7 @@
         <Category>Functional</Category>
         <Area>WALA</Area>
         <Tags>wala</Tags>
-        <Priority>0</Priority>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>WALA-VERIFY-VERBOSE-ENABLED-LOGS</testName>

@@ -14,7 +14,7 @@
         <Category>Functional</Category>
         <Area>DPDK</Area>
         <Tags>dpdk,network,hv_netvsc,sriov</Tags>
-        <Priority>2</Priority>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>VERIFY-DPDK-BUILD-AND-TESTPMD-TEST</testName>
@@ -70,7 +70,7 @@
         <Category>Functional</Category>
         <Area>DPDK</Area>
         <Tags>dpdk,network,hv_netvsc,sriov</Tags>
-        <Priority>2</Priority>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>VERIFY-DPDK-OVS</testName>
@@ -109,6 +109,6 @@
         <Category>Functional</Category>
         <Area>DPDK</Area>
         <Tags>dpdk,network,hv_netvsc,sriov</Tags>
-        <Priority>2</Priority>
+        <Priority>1</Priority>
     </test>
 </TestCases>

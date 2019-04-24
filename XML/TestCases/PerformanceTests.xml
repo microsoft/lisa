@@ -119,7 +119,7 @@
         <Category>Performance</Category>
         <Area>NETWORK</Area>
         <Tags>network,hv_netvsc</Tags>
-        <Priority>2</Priority>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>PERF-NETWORK-TCP-THROUGHPUT-MULTICLIENTS-NTTTCP-SRIOV</testName>
@@ -139,7 +139,7 @@
         <Category>Performance</Category>
         <Area>NETWORK</Area>
         <Tags>network,hv_netvsc,sriov</Tags>
-        <Priority>2</Priority>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>PERF-NETWORK-UDP-1K-THROUGHPUT-MULTICLIENTS-NTTTCP-Synthetic</testName>
@@ -627,6 +627,46 @@
         <Category>Performance</Category>
         <Area>GOLANG</Area>
         <Tags>golang</Tags>
+        <Priority>2</Priority>
+    </test>
+    <test>
+        <testName>NVIDIA-CUDA-DRIVER-TENSORFLOW</testName>
+        <preTestScript>GPU-DRIVER-INSTALL.ps1</preTestScript>
+        <testScript>GPU-TENSORFLOW.ps1</testScript>
+        <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_NC6</OverrideVMSize>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\gpu-driver-install.sh,.\Testscripts\Linux\gpu-tensorflow.sh</files>
+        <TestParameters>
+            <param>CUDADriverVersion="CUDA_DRIVER"</param>
+            <param>CudaToolkitVersion="CUDATOOLKIT_VERSION"</param>
+            <param>TensorflowVersion="TENSORFLOW_VERSION"</param>
+            <param>CudnnPackage="CUDNN_LINUX_PACKAGE"</param>
+            <param>BenchmarkTool="TENSORFLOW_BENCHMARK"</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Performance</Category>
+        <Area>GPU</Area>
+        <Tags>gpu,benchmark</Tags>
+        <Priority>2</Priority>
+    </test>
+    <test>
+        <testName>NVIDIA-GRID-DRIVER-TENSORFLOW</testName>
+        <preTestScript>GPU-DRIVER-INSTALL.ps1</preTestScript>
+        <testScript>GPU-TENSORFLOW.ps1</testScript>
+        <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_NV6</OverrideVMSize>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\gpu-driver-install.sh,.\Testscripts\Linux\gpu-tensorflow.sh</files>
+        <TestParameters>
+            <param>CUDADriverVersion="CUDA_DRIVER"</param>
+            <param>CudaToolkitVersion="CUDATOOLKIT_VERSION"</param>
+            <param>TensorflowVersion="TENSORFLOW_VERSION"</param>
+            <param>CudnnPackage="CUDNN_LINUX_PACKAGE"</param>
+            <param>BenchmarkTool="TENSORFLOW_BENCHMARK"</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Performance</Category>
+        <Area>GPU</Area>
+        <Tags>gpu,benchmark</Tags>
         <Priority>2</Priority>
     </test>
 </TestCases>

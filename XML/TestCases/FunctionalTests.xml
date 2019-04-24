@@ -24,7 +24,7 @@
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>provision</Tags>
-        <Priority>0</Priority>
+        <Priority>1</Priority>
     </test>
     <test>
         <TestName>VERIFY-DEPLOYMENT-PROVISION-SRIOV</TestName>
@@ -143,7 +143,7 @@
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>time</Tags>
-        <Priority>1</Priority>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>TIME-CLOCKEVENT-UP</testName>
@@ -188,7 +188,7 @@
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>hv_module</Tags>
-        <Priority>2</Priority>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>CPU-VERIFY-ONLINE</testName>
@@ -202,7 +202,7 @@
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>cpu</Tags>
-        <Priority>2</Priority>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>RELOAD-MODULES-SMP</testName>
@@ -231,7 +231,7 @@
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>lsvmbus</Tags>
-        <Priority>1</Priority>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>FCOPY-BASIC</testName>
@@ -561,7 +561,7 @@
         <Category>Functional</Category>
         <Area>LIS</Area>
         <Tags>vmbus</Tags>
-        <Priority>2</Priority>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>VMBUS_PANIC_NOTIFIER</testName>
@@ -677,7 +677,7 @@
         <Category>Functional</Category>
         <Area>KDUMP</Area>
         <Tags>kdump</Tags>
-        <Priority>2</Priority>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>KDUMP-CRASH-DIFFERENT-VCPU</testName>
