@@ -382,32 +382,35 @@ function Main() {
 	cd ~
 	LogMsg "Proceeding Intel MPI Benchmark test installation"
 
-	# install Intel MPI benchmark package
-	LogMsg "Cloning mpi-benchmarks repo, $intel_mpi_benchmark"
-	git clone $intel_mpi_benchmark
-	Verify_Result
-	LogMsg "Cloned Intel MPI Benchmark gitHub repo"
-	cd mpi-benchmarks/src_c
-	LogMsg "Building Intel MPI Benchmarks tests"
-	make -j $(nproc)
-	Verify_Result
+	# Intel MPI has its own IMB-MPI1, IMB-NBC and IMB-RMA binaries
+	if [ $mpi_type != "intel" ]; then
+		# install Intel MPI benchmark package
+		LogMsg "Cloning mpi-benchmarks repo, $intel_mpi_benchmark"
+		git clone $intel_mpi_benchmark
+		Verify_Result
+		LogMsg "Cloned Intel MPI Benchmark gitHub repo"
+		cd mpi-benchmarks/src_c
+		LogMsg "Building Intel MPI Benchmarks tests"
+		make -j $(nproc)
+		Verify_Result
 
-	# install P2P test
-	LogMsg "Change directory to P2P"
-	cd P2P
-	LogMsg "Renaming from mpiicc to mpicc in Makefile"
-	sed -i -e 's/CC=mpiicc/CC=mpicc/g' Makefile
-	LogMsg "Building P2P binary"
-	make -j $(nproc)
-	LogMsg "Completed P2P binary compilation"
-	Verify_Result
-	LogMsg "Intel MPI Benchmark test installation completed"
+		# install P2P test
+		LogMsg "Change directory to P2P"
+		cd P2P
+		LogMsg "Renaming from mpiicc to mpicc in Makefile"
+		sed -i -e 's/CC=mpiicc/CC=mpicc/g' Makefile
+		LogMsg "Building P2P binary"
+		make -j $(nproc)
+		LogMsg "Completed P2P2 binary compilation"
+		Verify_Result
+		LogMsg "Intel MPI Benchmark test installation completed"
 
-	# set string to verify Intel Benchmark binary
-	benchmark_bin=$HOMEDIR/mpi-benchmarks/src_c/IMB-MPI1
+		# set string to verify Intel Benchmark binary
+		benchmark_bin=$HOMEDIR/mpi-benchmarks/src_c/IMB-MPI1
 
-	# verify benchmark binary
-	Verify_File $benchmark_bin
+		# verify benchmark binary
+		Verify_File $benchmark_bin
+	fi
 
 	echo "setup_completed=0" >> /root/constants.sh
 
