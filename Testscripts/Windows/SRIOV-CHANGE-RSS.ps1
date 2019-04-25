@@ -20,7 +20,7 @@ function Main {
         $VMPassword,
         $TestParams
     )
-    $moduleCheckCMD = "lspci -vvv | grep -c 'mlx4_core\|mlx4_en\|ixgbevf'"
+    $moduleCheckCMD = "lspci -vvv | grep -c 'mlx[4-5]_core\|mlx4_en\|ixgbevf'"
     $vfCheckCMD = "find /sys/devices -name net -a -ipath '*vmbus*' | grep -c pci"
 
     # Get IP

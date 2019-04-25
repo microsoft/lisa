@@ -3221,9 +3221,9 @@ function stop_firewall() {
     GetDistro
     case "$DISTRO" in
         suse*)
-            status=$(systemctl is-active rcSuSEfirewall2)
+            status=$(systemctl is-active SuSEfirewall2)
             if [ "$status" = "active" ]; then
-               /sbin/rcSuSEfirewall2 stop
+                service SuSEfirewall2 stop
                 if [ $? -ne 0 ]; then    
                     return 1
                 fi
