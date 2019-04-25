@@ -1,10 +1,10 @@
-Login on your Automation Server/LISINTER785.
+Login on your Automation Server.
 
 Make sure that you have test environment ready to run Azure Automation.
 	If not, go through "SETUP-TEST-ENVIRONMENT.txt" and do as needed.
 
 Edit XML file :
-	Create (if not exists) a BVT cycle in XML file.
+	Create (if not exists) a cycle in XML file.
 		Path : XmlFile > config > testCycles
 		Syntax of test test cycle :
 			<testCycles>
@@ -21,7 +21,7 @@ Edit XML file :
 					.
 					<test>
 						<Name>test-name-n</Name>
-					</test>				
+					</test>
 				</Cycle>
 				<Cycle>
 				.
@@ -41,11 +41,11 @@ Edit XML file :
 				<OsImage>Distro_OS_Image_Name_As_Appearing_under_Azure_OS_Images</OsImage>
 			</Distro>
 		3.Save file.
-		
+
 Start Automation:
 	1.	On powershell in Administrator mode, go to automation parent folder.
 	2.	Execute following command
-	
+
 	.\AzureAutomationManager.ps1 -xmlConfigFile .\Azure_ICA_all.xml -cycleName NETWORK -Distro YourDistroName -runtests
-	
+
 Note : All test logs will be saved in Automation Parent Folder \ Test Results.
