@@ -1,6 +1,6 @@
 <TestCases>
     <test>
-        <testName>VERIFY-SRIOV-LSPCI</testName>
+        <testName>SRIOV-VERIFY-LSPCI</testName>
         <setupType>OneVM</setupType>
         <OverrideVMSize>Standard_D15_v2</OverrideVMSize>
         <AdditionalHWConfig>
@@ -20,37 +20,7 @@
         <Priority>0</Priority>
     </test>
     <test>
-        <testName>VERIFY-IFUP-NICS-SRIOV</testName>
-        <setupType>OneVM8NIC</setupType>
-        <AdditionalHWConfig>
-            <Networking>SRIOV</Networking>
-        </AdditionalHWConfig>
-        <TestParameters>
-            <param>network_interface_count=8</param>
-        </TestParameters>
-        <testScript>verify-ifup-nics.sh</testScript>
-        <files>.\Testscripts\Linux\verify-ifup-nics.sh,.\TestScripts\Linux\utils.sh</files>
-        <Platform>Azure</Platform>
-        <Category>Functional</Category>
-        <Area>SRIOV</Area>
-        <Tags>sriov,network</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
-        <testName>VERIFY-ENABLE-DISABLE-SRIOV-ON-EXISTING-VM</testName>
-        <setupType>OneVM</setupType>
-        <OverrideVMSize>Standard_D3_v2</OverrideVMSize>
-        <testScript>VERIFY-ENABLE-DISABLE-SRIOV-ON-EXISTING-VM.ps1</testScript>
-        <files></files>
-        <TestIterations>5</TestIterations>
-        <Platform>Azure</Platform>
-        <Category>Functional</Category>
-        <Area>SRIOV</Area>
-        <Tags>sriov,network</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
-        <testName>SRIOV-VERIFY-VF-BASIC-CONNECTION</testName>
+        <testName>SRIOV-VERIFY-SINGLE-VF-CONNECTION</testName>
         <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-RUN-COMMON-TEST.ps1</testScript>
         <setupType>TwoVM2Host1Dep</setupType>
@@ -75,7 +45,7 @@
         <Priority>0</Priority>
     </test>
     <test>
-        <testName>SRIOV-VERIFY-VF-BASIC-CONNECTION-ONE-VCPU</testName>
+        <testName>SRIOV-VERIFY-SINGLE-VF-CONNECTION-ONE-VCPU</testName>
         <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1,.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-VerifyVF-Connection.sh</testScript>
         <setupType>TwoVM2Host1Dep</setupType>
@@ -93,10 +63,10 @@
         <Category>Functional</Category>
         <Area>SRIOV</Area>
         <Tags>sriov,network</Tags>
-        <Priority>0</Priority>
+        <Priority>1</Priority>
     </test>
     <test>
-        <testName>SRIOV-VERIFY-VF-BASIC-CONNECTION-MAX-VCPU</testName>
+        <testName>SRIOV-VERIFY-SINGLE-VF-CONNECTION-MAX-VCPU</testName>
         <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1,.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-RUN-COMMON-TEST.ps1</testScript>
         <setupType>TwoVM2Host1Dep</setupType>
@@ -120,7 +90,103 @@
         <Category>Functional</Category>
         <Area>SRIOV</Area>
         <Tags>sriov,network</Tags>
-        <Priority>0</Priority>
+        <Priority>1</Priority>
+    </test>
+    <test>
+        <testName>SRIOV-VERIFY-MAX-VF-CONNECTION</testName>
+        <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
+        <testScript>SRIOV-RUN-COMMON-TEST.ps1</testScript>
+        <setupType>TwoVM8NIC</setupType>
+        <OverrideVMSize>Standard_D14_v2</OverrideVMSize>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <files>.\Testscripts\Linux\SRIOV-VerifyVF-Connection.sh,.\Testscripts\Linux\SR-IOV-Utils.sh,.\Testscripts\Linux\utils.sh</files>
+        <TestParameters>
+            <param>Remote_Script=SRIOV-VerifyVF-Connection.sh</param>
+            <param>Set_SSH=yes</param>
+            <param>NIC_COUNT=7</param>
+            <param>MAX_NICS=yes</param>
+            <param>NETMASK=255.255.255.0</param>
+            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
+        </TestParameters>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>SRIOV</Area>
+        <Tags>sriov,network</Tags>
+        <Priority>1</Priority>
+    </test>
+    <test>
+        <testName>SRIOV-VERIFY-MAX-VF-CONNECTION-MAX-VCPU</testName>
+        <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1,.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
+        <testScript>SRIOV-RUN-COMMON-TEST.ps1</testScript>
+        <setupType>TwoVM8NIC</setupType>
+        <OverrideVMSize>Standard_D64_v3</OverrideVMSize>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <files>.\Testscripts\Linux\SRIOV-VerifyVF-Connection.sh,.\Testscripts\Linux\SR-IOV-Utils.sh,.\Testscripts\Linux\utils.sh</files>
+        <TestParameters>
+            <param>Remote_Script=SRIOV-VerifyVF-Connection.sh</param>
+            <param>Set_SSH=yes</param>
+            <param>VCPU=max</param>
+            <param>NIC_COUNT=7</param>
+            <param>MAX_NICS=yes</param>
+            <param>NETMASK=255.255.255.0</param>
+            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
+        </TestParameters>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>SRIOV</Area>
+        <Tags>sriov,network</Tags>
+        <Priority>1</Priority>
+    </test>
+    <test>
+        <testName>SRIOV-ADD-MAX-NICS-DURING-PROVISION</testName>
+        <setupType>OneVM8NIC</setupType>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <TestParameters>
+            <param>network_interface_count=8</param>
+        </TestParameters>
+        <testScript>NET-Max-NICs.sh</testScript>
+        <files>.\Testscripts\Linux\NET-Max-NICs.sh,.\TestScripts\Linux\utils.sh</files>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>SRIOV</Area>
+        <Tags>sriov,network</Tags>
+        <Priority>1</Priority>
+    </test>
+    <test>
+        <TestName>SRIOV-ADD-MAX-NICS-AFTER-PROVISION</TestName>
+        <testScript>NET-Add-NIC-After-Provision.ps1</testScript>
+        <files></files>
+        <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_DS4_v2</OverrideVMSize>
+        <TestParameters>
+            <param>EXTRA_NICS=7</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>SRIOV</Area>
+        <Tags>network</Tags>
+        <Priority>1</Priority>
+    </test>
+    <test>
+        <testName>SRIOV-DISABLE-ENABLE-AN</testName>
+        <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_D3_v2</OverrideVMSize>
+        <testScript>VERIFY-ENABLE-DISABLE-SRIOV-ON-EXISTING-VM.ps1</testScript>
+        <files></files>
+        <TestIterations>5</TestIterations>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>SRIOV</Area>
+        <Tags>sriov,network</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>SRIOV-INTERRUPTS-CHANGE</testName>
@@ -145,111 +211,6 @@
             <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
         </TestParameters>
         <timeout>1200</timeout>
-        <Platform>Azure,HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>SRIOV</Area>
-        <Tags>sriov,network</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
-        <testName>SRIOV-VERIFY-VF-MULTIPLE-CONNECTION</testName>
-        <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
-        <testScript>SRIOV-RUN-COMMON-TEST.ps1</testScript>
-        <setupType>TwoVM2NIC2Host</setupType>
-        <AdditionalHWConfig>
-            <Networking>SRIOV</Networking>
-        </AdditionalHWConfig>
-        <files>.\Testscripts\Linux\SRIOV-VerifyVF-Connection.sh,.\Testscripts\Linux\SR-IOV-Utils.sh,.\Testscripts\Linux\utils.sh</files>
-        <TestParameters>
-            <param>Remote_Script=SRIOV-VerifyVF-Connection.sh</param>
-            <param>Set_SSH=yes</param>
-            <param>NIC_COUNT=2</param>
-            <param>VF_IP1=10.0.0.43</param>
-            <param>VF_IP2=10.0.0.63</param>
-            <param>VF_IP3=10.0.1.43</param>
-            <param>VF_IP4=10.0.1.63</param>
-            <param>NETMASK=255.255.255.0</param>
-            <param>Switch_Name=SRIOV_MLNX</param>
-            <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
-        </TestParameters>
-        <Platform>Azure,HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>SRIOV</Area>
-        <Tags>sriov,network</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
-        <testName>SRIOV-VERIFY-VF-MAX-CONNECTION</testName>
-        <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
-        <testScript>SRIOV-RUN-COMMON-TEST.ps1</testScript>
-        <setupType>TwoVM8NIC</setupType>
-        <OverrideVMSize>Standard_D14_v2</OverrideVMSize>
-        <AdditionalHWConfig>
-            <Networking>SRIOV</Networking>
-        </AdditionalHWConfig>
-        <files>.\Testscripts\Linux\SRIOV-VerifyVF-Connection.sh,.\Testscripts\Linux\SR-IOV-Utils.sh,.\Testscripts\Linux\utils.sh</files>
-        <TestParameters>
-            <param>Remote_Script=SRIOV-VerifyVF-Connection.sh</param>
-            <param>Set_SSH=yes</param>
-            <param>NIC_COUNT=7</param>
-            <param>MAX_NICS=yes</param>
-            <param>NETMASK=255.255.255.0</param>
-            <param>Switch_Name=SRIOV_MLNX</param>
-            <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
-        </TestParameters>
-        <Platform>Azure,HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>SRIOV</Area>
-        <Tags>sriov,network</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
-        <testName>SRIOV-VERIFY-VF-MAX-CONNECTION-MAX-VCPU</testName>
-        <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1,.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
-        <testScript>SRIOV-RUN-COMMON-TEST.ps1</testScript>
-        <setupType>TwoVM8NIC</setupType>
-        <OverrideVMSize>Standard_D64_v3</OverrideVMSize>
-        <AdditionalHWConfig>
-            <Networking>SRIOV</Networking>
-        </AdditionalHWConfig>
-        <files>.\Testscripts\Linux\SRIOV-VerifyVF-Connection.sh,.\Testscripts\Linux\SR-IOV-Utils.sh,.\Testscripts\Linux\utils.sh</files>
-        <TestParameters>
-            <param>Remote_Script=SRIOV-VerifyVF-Connection.sh</param>
-            <param>Set_SSH=yes</param>
-            <param>VCPU=max</param>
-            <param>NIC_COUNT=7</param>
-            <param>MAX_NICS=yes</param>
-            <param>NETMASK=255.255.255.0</param>
-            <param>Switch_Name=SRIOV_MLNX</param>
-            <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
-        </TestParameters>
-        <Platform>Azure,HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>SRIOV</Area>
-        <Tags>sriov,network</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
-        <testName>SRIOV-IPERF-STRESS</testName>
-        <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
-        <testScript>SRIOV-RUN-COMMON-TEST.ps1</testScript>
-        <setupType>TwoVM2Host1Dep</setupType>
-        <AdditionalHWConfig>
-            <Networking>SRIOV</Networking>
-        </AdditionalHWConfig>
-        <files>.\Testscripts\Linux\SRIOV-Iperf-Stress.sh,.\Testscripts\Linux\SR-IOV-Utils.sh,.\Testscripts\Linux\utils.sh</files>
-        <TestParameters>
-            <param>Remote_Script=SRIOV-Iperf-Stress.sh</param>
-            <param>Set_SSH=yes</param>
-            <param>Install_Dependencies=yes</param>
-            <param>NIC_COUNT=1</param>
-            <param>VF_IP1=10.0.0.44</param>
-            <param>VF_IP2=10.0.0.64</param>
-            <param>NETMASK=255.255.255.0</param>
-            <param>Switch_Name=SRIOV_MLNX</param>
-            <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
-        </TestParameters>
-        <timeout>2400</timeout>
         <Platform>Azure,HyperV</Platform>
         <Category>Functional</Category>
         <Area>SRIOV</Area>
@@ -304,7 +265,7 @@
         <Category>Functional</Category>
         <Area>SRIOV</Area>
         <Tags>sriov,network</Tags>
-        <Priority>0</Priority>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>SRIOV-DISABLEVF-PING</testName>
@@ -459,14 +420,15 @@
         <Priority>1</Priority>
     </test>
     <test>
-        <testName>SRIOV-REBOOT-VM</testName>
+        <testName>SRIOV-MULTICAST</testName>
         <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
-        <testScript>SRIOV-REBOOT-VM.ps1</testScript>
+        <testScript>SRIOV-Multicast.sh</testScript>
+        <files>.\Testscripts\Linux\SRIOV-Multicast.sh,.\Testscripts\Linux\SR-IOV-Utils.sh,.\Testscripts\Linux\utils.sh</files>
         <setupType>TwoVM2Host1Dep</setupType>
         <TestParameters>
             <param>NIC_COUNT=1</param>
-            <param>VF_IP1=10.0.0.18</param>
-            <param>VF_IP2=10.0.0.38</param>
+            <param>VF_IP1=10.0.0.22</param>
+            <param>VF_IP2=10.0.0.42</param>
             <param>NETMASK=255.255.255.0</param>
             <param>Switch_Name=SRIOV_MLNX</param>
             <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
@@ -478,14 +440,34 @@
         <Priority>1</Priority>
     </test>
     <test>
-        <testName>SRIOV-MOVE-VHD</testName>
+        <testName>SRIOV-BROADCAST</testName>
         <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
-        <testScript>SRIOV-MOVE-VHD.ps1</testScript>
+        <testScript>SRIOV-Broadcast.sh</testScript>
+        <files>.\Testscripts\Linux\SRIOV-Broadcast.sh,.\Testscripts\Linux\SR-IOV-Utils.sh,.\Testscripts\Linux\utils.sh</files>
         <setupType>TwoVM2Host1Dep</setupType>
         <TestParameters>
             <param>NIC_COUNT=1</param>
-            <param>VF_IP1=10.0.0.19</param>
-            <param>VF_IP2=10.0.0.39</param>
+            <param>VF_IP1=10.0.0.23</param>
+            <param>VF_IP2=10.0.0.43</param>
+            <param>NETMASK=255.255.255.0</param>
+            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>SRIOV</Area>
+        <Tags>sriov,network</Tags>
+        <Priority>1</Priority>
+    </test>
+    <test>
+        <testName>SRIOV-REBOOT-VM</testName>
+        <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
+        <testScript>SRIOV-REBOOT-VM.ps1</testScript>
+        <setupType>TwoVM2Host1Dep</setupType>
+        <TestParameters>
+            <param>NIC_COUNT=1</param>
+            <param>VF_IP1=10.0.0.18</param>
+            <param>VF_IP2=10.0.0.38</param>
             <param>NETMASK=255.255.255.0</param>
             <param>Switch_Name=SRIOV_MLNX</param>
             <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
@@ -537,70 +519,49 @@
         <Priority>1</Priority>
     </test>
     <test>
-        <testName>SRIOV-MULTICAST</testName>
-        <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
-        <testScript>SRIOV-Multicast.sh</testScript>
-        <files>.\Testscripts\Linux\SRIOV-Multicast.sh,.\Testscripts\Linux\SR-IOV-Utils.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>TwoVM2Host1Dep</setupType>
-        <TestParameters>
-            <param>NIC_COUNT=1</param>
-            <param>VF_IP1=10.0.0.22</param>
-            <param>VF_IP2=10.0.0.42</param>
-            <param>NETMASK=255.255.255.0</param>
-            <param>Switch_Name=SRIOV_MLNX</param>
-            <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
-        </TestParameters>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>SRIOV</Area>
-        <Tags>sriov,network</Tags>
-        <Priority>1</Priority>
-    </test>
-    <test>
-        <testName>SRIOV-BROADCAST</testName>
-        <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
-        <testScript>SRIOV-Broadcast.sh</testScript>
-        <files>.\Testscripts\Linux\SRIOV-Broadcast.sh,.\Testscripts\Linux\SR-IOV-Utils.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>TwoVM2Host1Dep</setupType>
-        <TestParameters>
-            <param>NIC_COUNT=1</param>
-            <param>VF_IP1=10.0.0.23</param>
-            <param>VF_IP2=10.0.0.43</param>
-            <param>NETMASK=255.255.255.0</param>
-            <param>Switch_Name=SRIOV_MLNX</param>
-            <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
-        </TestParameters>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>SRIOV</Area>
-        <Tags>sriov,network</Tags>
-        <Priority>1</Priority>
-    </test>
-    <test>
-        <testName>SRIOV-PCI-RESCIND</testName>
+        <testName>SRIOV-IPERF-STRESS</testName>
         <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-RUN-COMMON-TEST.ps1</testScript>
         <setupType>TwoVM2Host1Dep</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
-        <files>.\Testscripts\Linux\SRIOV-VerifyVF-Connection.sh,.\Testscripts\Linux\SR-IOV-Utils.sh,.\Testscripts\Linux\utils.sh</files>
+        <files>.\Testscripts\Linux\SRIOV-Iperf-Stress.sh,.\Testscripts\Linux\SR-IOV-Utils.sh,.\Testscripts\Linux\utils.sh</files>
         <TestParameters>
-            <param>Remote_Script=SRIOV-VerifyVF-Connection.sh</param>
-            <param>Install_Dependencies=yes</param>
+            <param>Remote_Script=SRIOV-Iperf-Stress.sh</param>
             <param>Set_SSH=yes</param>
+            <param>Install_Dependencies=yes</param>
             <param>NIC_COUNT=1</param>
-            <param>VF_IP1=10.0.0.34</param>
-            <param>VF_IP2=10.0.0.54</param>
+            <param>VF_IP1=10.0.0.44</param>
+            <param>VF_IP2=10.0.0.64</param>
             <param>NETMASK=255.255.255.0</param>
             <param>Switch_Name=SRIOV_MLNX</param>
             <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
-            <param>rescind_pci=yes</param>
         </TestParameters>
+        <timeout>2400</timeout>
         <Platform>Azure,HyperV</Platform>
         <Category>Functional</Category>
         <Area>SRIOV</Area>
         <Tags>sriov,network</Tags>
-        <Priority>1</Priority>
+        <Priority>2</Priority>
+    </test>
+    <test>
+        <testName>SRIOV-MOVE-VHD</testName>
+        <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
+        <testScript>SRIOV-MOVE-VHD.ps1</testScript>
+        <setupType>TwoVM2Host1Dep</setupType>
+        <TestParameters>
+            <param>NIC_COUNT=1</param>
+            <param>VF_IP1=10.0.0.19</param>
+            <param>VF_IP2=10.0.0.39</param>
+            <param>NETMASK=255.255.255.0</param>
+            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>SRIOV</Area>
+        <Tags>sriov,network</Tags>
+        <Priority>2</Priority>
     </test>
 </TestCases>

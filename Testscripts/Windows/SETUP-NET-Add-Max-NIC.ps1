@@ -68,13 +68,13 @@ function Main {
             }
         }
 
-        if ($temp[0].Trim() -eq "SYNTHETIC_NICS") {
+        if ($temp[0].Trim() -eq "HV_SYNTHETIC_NICS") {
             $syntheticNICs = $temp[1] -as [int]
             [int]$hostBuildNumber = (Get-WmiObject -class Win32_OperatingSystem -ComputerName $HvServer).BuildNumber
             if ($hostBuildNumber -le 9200) {
                 [int]$syntheticNICs  = 2
             }
-        } elseif ($temp[0].Trim() -eq "LEGACY_NICS") {
+        } elseif ($temp[0].Trim() -eq "HV_LEGACY_NICS") {
             $legacyNICs = $temp[1] -as [int]
         }
     }
@@ -101,6 +101,24 @@ function Main {
 
     if (-not $?) {
         Write-LogErr 0 "Error: Unable to add multiple NICs on VM '${VMName}' on server '${HvServer}'"
+        return $false
+    }
+
+    # Start VM and get IP
+    $tempIpv4 = Start-VMandGetIP $allVMData.RoleName $allVMData.HypervHost $allVMData.SSHPort `
+        $user $password
+    if (-not $tempIpv4) {
+        Write-LogErr "Error: Unable to start $($allVMData.RoleName) and get an IPv4 address"
+        return $false
+    }
+
+    # Create a file, platform.txt for the test script to know if it runs
+    # on Azure or Hyper-V
+    $cmdToSend = 'echo "HyperV" > platform.txt'
+    Run-LinuxCmd -ip $tempIpv4 -port $allVMData.SSHPort -username $user -password `
+        $password -command $cmdToSend
+    if (-not $?) {
+        Write-LogErr "Error: Failed to create platform.txt file"
         return $false
     }
 

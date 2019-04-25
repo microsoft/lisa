@@ -107,24 +107,6 @@
         <Priority>2</Priority>
     </test>
     <test>
-        <testName>NET-MAX-SYNTHETIC-NICS</testName>
-        <setupScript>.\Testscripts\Windows\SETUP-NET-Add-Max-NIC.ps1</setupScript>
-        <testScript>NET-Max-NICs.sh</testScript>
-        <files>.\Testscripts\Linux\NET-Max-NICs.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>OneVM</setupType>
-        <TestParameters>
-            <param>TEST_TYPE=synthetic</param>
-            <param>SYNTHETIC_NICS=7</param>
-            <param>NETWORK_TYPE=external</param>
-            <param>SECRET_PARAMS=(Ipv4)</param>
-        </TestParameters>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>NETWORK</Area>
-        <Tags>network</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
         <testName>NET-MAX-LEGACY-NICS</testName>
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-Max-NIC.ps1,.\TestScripts\Windows\SETUP-Change-CPU.ps1</setupScript>
         <testScript>NET-Max-NICs.sh</testScript>
@@ -133,7 +115,7 @@
         <TestParameters>
             <param>TEST_TYPE=legacy</param>
             <param>VCPU=1</param>
-            <param>LEGACY_NICS=4</param>
+            <param>HV_LEGACY_NICS=4</param>
             <param>NETWORK_TYPE=external</param>
             <param>SECRET_PARAMS=(Ipv4)</param>
         </TestParameters>
@@ -152,8 +134,8 @@
         <TestParameters>
             <param>TEST_TYPE=synthetic,legacy</param>
             <param>VCPU=1</param>
-            <param>SYNTHETIC_NICS=7</param>
-            <param>LEGACY_NICS=4</param>
+            <param>HV_SYNTHETIC_NICS=7</param>
+            <param>HV_LEGACY_NICS=4</param>
             <param>NETWORK_TYPE=external</param>
             <param>SECRET_PARAMS=(Ipv4)</param>
         </TestParameters>
@@ -487,7 +469,7 @@
         <setupType>OneVM</setupType>
         <TestParameters>
             <param>TEST_TYPE=synthetic</param>
-            <param>SYNTHETIC_NICS=7</param>
+            <param>HV_SYNTHETIC_NICS=7</param>
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
@@ -648,11 +630,31 @@
         <Priority>2</Priority>
     </test>
     <test>
-        <TestName>NET-ADD-NIC-AFTER-PROVISION</TestName>
+        <testName>NETWORK-ADD-MAX-SYNTHETIC-NICS-DURING-PROVISION</testName>
+        <setupScript>.\Testscripts\Windows\SETUP-NET-Add-Max-NIC.ps1</setupScript>
+        <setupType>OneVM8NIC</setupType>
+        <OverrideVMSize>Standard_A8_v2</OverrideVMSize>
+        <TestParameters>
+            <param>network_interface_count=8</param>
+            <param>TEST_TYPE=synthetic</param>
+            <param>HV_SYNTHETIC_NICS=7</param>
+            <param>NETWORK_TYPE=external</param>
+            <param>SECRET_PARAMS=(Ipv4)</param>
+        </TestParameters>
+        <testScript>NET-Max-NICs.sh</testScript>
+        <files>.\Testscripts\Linux\NET-Max-NICs.sh,.\TestScripts\Linux\utils.sh</files>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>NETWORK</Area>
+        <Tags>network</Tags>
+        <Priority>1</Priority>
+    </test>
+    <test>
+        <TestName>NETWORK-ADD-MAX-SYNTHETIC-NICS-AFTER-PROVISION</TestName>
         <testScript>NET-Add-NIC-After-Provision.ps1</testScript>
         <files></files>
         <setupType>OneVM</setupType>
-        <OverrideVMSize>Standard_DS4_v2</OverrideVMSize>
+        <OverrideVMSize>Standard_A8_v2</OverrideVMSize>
         <TestParameters>
             <param>EXTRA_NICS=7</param>
         </TestParameters>
@@ -660,7 +662,7 @@
         <Category>Functional</Category>
         <Area>NETWORK</Area>
         <Tags>network</Tags>
-        <Priority>0</Priority>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>NET-IFUP-IFDOWN</testName>
