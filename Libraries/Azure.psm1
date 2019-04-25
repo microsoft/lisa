@@ -415,9 +415,9 @@ Function Delete-ResourceGroup([string]$RGName, [switch]$KeepDisks, [bool]$UseExi
 					Write-LogInfo "Successfully triggered delete operation for Resource Group ${RGName}"
 					$isRGDeleting = $true
 				} else {
-					Write-LogWarn "RG ${RGName} status is $($ProvisioningState)"
+					Write-LogWarn "RG ${RGName} status is $($rgStatus.ProvisioningState)"
 					$maxRgDeletingRetries++
-					Start-Sleep 1
+					Start-Sleep 5
 				}
 			}
             $retValue = $isRgDeleting
