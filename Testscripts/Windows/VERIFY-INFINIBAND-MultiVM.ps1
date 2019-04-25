@@ -115,9 +115,6 @@ function Main {
 			if ($TestParam -imatch "imb_p2p_tests_iterations") {
 				$ImbP2pTestIterations = [int]($TestParam.Replace("imb_p2p_tests_iterations=", "").Trim('"'))
 			}
-			if ($TestParam -imatch "imb_ext_tests_iterations") {
-				$ImbExtTestIterations = [int]($TestParam.Replace("imb_ext_tests_iterations=", "").Trim('"'))
-			}
 			if ($TestParam -imatch "imb_io_tests_iterations") {
 				$ImbIoTestIterations = [int]($TestParam.Replace("imb_io_tests_iterations=", "").Trim('"'))
 			}
@@ -348,25 +345,6 @@ function Main {
 					$pattern = "INFINIBAND_VERIFICATION_SUCCESS_P2P_ALLNODES"
 					Write-LogInfo "Analyzing $logFileName"
 					$metaData = "InfiniBand-Verification-$Iteration-$TempName : IMB-P2P"
-					$SucessLogs = Select-String -Path $logFileName -Pattern $pattern
-					if ($SucessLogs.Count -eq 1) {
-						$currentResult = "PASS"
-					} else {
-						$currentResult = "FAIL"
-					}
-					Write-LogInfo "$pattern : $currentResult"
-					$resultArr += $currentResult
-					$CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
-						-checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
-				}
-				#endregion
-
-				#region Check EXT all nodes tests
-				if ($ImbExtTestIterations -ge 1) {
-					$logFileName = "$LogDir\InfiniBand-Verification-$Iteration-$TempName\TestExecution.log"
-					$pattern = "INFINIBAND_VERIFICATION_SUCCESS_EXT_ALLNODES"
-					Write-LogInfo "Analyzing $logFileName"
-					$metaData = "InfiniBand-Verification-$Iteration-$TempName : IMB-EXT"
 					$SucessLogs = Select-String -Path $logFileName -Pattern $pattern
 					if ($SucessLogs.Count -eq 1) {
 						$currentResult = "PASS"
