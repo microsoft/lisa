@@ -32,8 +32,8 @@ Example:
 	$junitReport = [JUnitReportGenerator]::New($TestReportXml)
 	$junitReport.StartLogTestSuite("LISAv2")
 
-	$junitReport.StartLogTestCase("LISAv2", "BVT", "LISAv2.BVT")
-	$junitReport.CompleteLogTestCase("LISAv2", "BVT", "PASS")
+	$junitReport.StartLogTestCase("LISAv2", "VERIFY-DEPLOYMENT-PROVISION", "LISAv2.VERIFY-DEPLOYMENT-PROVISION")
+	$junitReport.CompleteLogTestCase("LISAv2", "VERIFY-DEPLOYMENT-PROVISION", "PASS")
 
 	$junitReport.StartLogTestCase("LISAv2", "NETWORK", "LISAv2.NETWORK")
 	$junitReport.CompleteLogTestCase("LISAv2","NETWORK", "FAIL", "Stack trace: XXX")
@@ -42,8 +42,8 @@ Example:
 
 	$junitReport.StartLogTestSuite("FCTesting")
 
-	$junitReport.StartLogTestCase("FCTesting", "BVT", "FCTesting.BVT")
-	$junitReport.CompleteLogTestCase("FCTesting", "BVT", "PASS")
+	$junitReport.StartLogTestCase("FCTesting", "Functional", "FCTesting.Functional")
+	$junitReport.CompleteLogTestCase("FCTesting", "Functional", "PASS")
 
 	$junitReport.StartLogTestCase("FCTesting", "NEGATIVE", "FCTesting.NEGATIVE")
 	$junitReport.CompleteLogTestCase("FCTesting", "NEGATIVE", "FAIL", "Stack trace: XXX")
@@ -55,7 +55,7 @@ Example:
 report.xml:
 	<testsuites>
 	  <testsuite name="LISAv2" timestamp="2014-07-11T06:37:24" tests="3" failures="1" errors="1" time="0.04">
-		<testcase name="BVT" classname="LISAv2.BVT" time="0" />
+		<testcase name="VERIFY-DEPLOYMENT-PROVISION" classname="LISAv2.Functional" time="0" />
 		<testcase name="NETWORK" classname="LISAv2.NETWORK" time="0">
 		  <failure message="NETWORK fail">Stack trace: XXX</failure>
 		</testcase>
@@ -64,7 +64,7 @@ report.xml:
 		</testcase>
 	  </testsuite>
 	  <testsuite name="FCTesting" timestamp="2014-07-11T06:37:24" tests="2" failures="1" errors="0" time="0.03">
-		<testcase name="BVT" classname="FCTesting.BVT" time="0" />
+		<testcase name="FCTesting" classname="FCTesting.Functional" time="0" />
 		<testcase name="NEGATIVE" classname="FCTesting.NEGATIVE" time="0">
 		  <failure message="NEGATIVE fail">Stack trace: XXX</failure>
 		</testcase>

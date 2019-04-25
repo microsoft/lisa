@@ -21,7 +21,7 @@
 	.\Run-LisaV2.ps1	-TestPlatform "Azure" -TestLocation "westus2" -RGIdentifier "mylisatest"
 					-ARMImageName "Canonical UbuntuServer 16.04-LTS latest"
 					-XMLSecretFile "C:\MySecrets.xml"
-					-TestNames "BVT-VERIFY-DEPLOYMENT-PROVISION"
+					-TestNames "VERIFY-DEPLOYMENT-PROVISION"
 
 	Example 2 : Run tests using predefined parameters in XML file.
 	.\Run-LisaV2.ps1 -ParametersFile .\XML\TestParameters.xml
@@ -31,13 +31,13 @@
 	.\Run-LisaV2.ps1 -TestPlatform "Azure" -TestLocation "westus2" -RGIdentifier "mylisatest"
 					-ARMImageName "Canonical UbuntuServer 16.04-LTS latest"
 					-XMLSecretFile "C:\MySecrets.xml"
-					-ExcludeTests "BVT-VERIFY-DEPLOYMENT-PROVISION,BVT-VERIFY-DEPLOYMENT-PROVISION-SRIOV"
+					-ExcludeTests "VERIFY-DEPLOYMENT-PROVISION,VERIFY-DEPLOYMENT-PROVISION-SRIOV"
 
-	Example 4 : Exclude some tests from BVT category, which has "DISK" keyword [Wildcards match]
+	Example 4 : Exclude some tests from Functional category, which has "DISK" keyword [Wildcards match]
 	.\Run-LisaV2.ps1 -TestPlatform "Azure" -TestLocation "westus2" -RGIdentifier "mylisatest"
 					-ARMImageName "Canonical UbuntuServer 16.04-LTS latest"
 					-XMLSecretFile "C:\MySecrets.xml"
-					-TestCategory BVT -ExcludeTests '*DISK*'
+					-TestCategory Functional -ExcludeTests '*DISK*'
 
 	Example 5 : Exclude some tests from Storage Area, which has 4 digit number [Regex match]
 	.\Run-LisaV2.ps1 -TestPlatform "Azure" -TestLocation "westus2" -RGIdentifier "mylisatest"
