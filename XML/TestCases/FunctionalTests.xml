@@ -515,6 +515,21 @@
         <Priority>2</Priority>
     </test>
     <test>
+        <testName>LIS-PREINSTALL-DISK-SIZE-VERIFICATION</testName>
+        <setupScript>.\TestScripts\Windows\LIS-Mount-CD.ps1</setupScript>
+        <testScript>Test_LIS_disk_check.sh</testScript>
+        <files>.\Testscripts\Linux\Test_LIS_disk_check.sh,.\Testscripts\Linux\check_traces.sh,.\Testscripts\Linux\utils.sh</files>
+        <setupType>OneVM</setupType>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Functional</Category>
+        <TestParameters>
+            <param>LIS_TARBALL_URL_CURRENT=LIS_CURRENT_URL</param>
+        </TestParameters>
+        <Area>LIS</Area>
+        <Tags>lis</Tags>
+        <Priority>1</Priority>
+    </test>
+    <test>
         <testName>LIS-MOUNT-CD-HOTADD</testName>
         <setupScript>.\TestScripts\Windows\LIS-Mount-CD.ps1</setupScript>
         <testScript>LIS-Mount-CD.sh</testScript>

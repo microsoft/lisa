@@ -3467,3 +3467,20 @@ function RescindPCI ()
     LogErr "PCI device is not present, enabling the $vf_pci_type device failed."
     return 1
 }
+
+# This function creates file using fallocate command
+# which is significantly faster than dd command.
+# Examples -
+# CreateFile 1G /root/abc.out
+# CreateFile 100M ./test.file
+function CreateFile()
+{
+	size=$1
+	file_path=$2
+	fallocate -l $size $file_path
+	if [ $? -eq 0 ]; then
+		LogMsg "$file_path created with size $size"
+	else
+		LogMsg "Error: $file_path failed to create with size $size"
+	fi
+}
