@@ -60,16 +60,14 @@ VerifyVF()
     # Using lsmod command, verify if driver is loaded
     lsmod | grep 'mlx[4-5]_core\|mlx4_en\|ixgbevf'
     if [ $? -ne 0 ]; then
-        LogErr "Neither mlx[4-5]_core\mlx4_en or ixgbevf drivers are in use!"
-        # note v-stlups: log the error but don't fail the test, mlx5_core doens't show up in lsmod
-        # SetTestStateFailed
-        # exit 1
+		# driver can be built-in, continuing to lspci
+		LogErr "Neither mlx[4-5]_core\mlx4_en or ixgbevf drivers are in use!"
     fi
 
     # Using the lspci command, verify if NIC has SR-IOV support
     lspci -vvv | grep 'mlx[4-5]_core\|mlx4_en\|ixgbevf'
     if [ $? -ne 0 ]; then
-        LogMsg "No NIC with SR-IOV support found!"
+        LogMsg "No Mellanox or Intel NIC with SR-IOV support found!"
         SetTestStateFailed
         exit 1
     fi
@@ -83,7 +81,7 @@ VerifyVF()
 
     ip addr show "$vf_interface"
     if [ $? -ne 0 ]; then
-        LogErr "VF device, $vf_interface , was not found!"
+        LogErr "VF device $vf_interface was not found!"
         SetTestStateFailed
         exit 1
     fi
@@ -140,7 +138,6 @@ ConfigureVF()
     __iterator=1
     __ipIterator=$1
     LogMsg "Iterator: $__iterator"
-    # LogMsg "vfCount: $vfCount"
 
     # Set static IPs for each vf created
     while [ $__iterator -le "$vfCount" ]; do
@@ -213,20 +210,14 @@ InstallDependencies()
     GetDistro
     case "$DISTRO" in
         suse*)
-            # Disable firewall
             service SuSEfirewall2 stop
         ;;
-
         ubuntu*|debian*)
-            # Disable firewall
             ufw disable
         ;;
-
         redhat*|centos*)
-            # Disable firewall
             service firewalld stop
         ;;
-
         *)
             LogErr "OS Version not supported in InstallDependencies!"
             SetTestStateFailed
@@ -244,6 +235,7 @@ InstallDependencies()
             exit 1
         fi  
     fi
+
     # Check if iPerf3 is already installed
     iperf3 -v > /dev/null 2>&1
     if [ $? -ne 0 ]; then
