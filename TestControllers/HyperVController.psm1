@@ -96,31 +96,28 @@ Class HyperVController : TestController
 				$hyperVConfig.Hosts.ChildNodes[$index].ServerName = $Location
 				Get-VM -ComputerName $Location | Out-Null
 				if ($?) {
-					Write-LogInfo "Set GlobalConfiguration.Global.HyperV.Hosts.ChildNodes[$($index)].ServerName to $Location"
+					Write-LogInfo "Set GlobalConfig.Global.HyperV.Hosts.ChildNodes[$($index)].ServerName to $Location"
 				} else {
 					Write-LogErr "Did you use -TestLocation XXXXXXX?"
-					Write-LogErr "In HyperV mode, -TestLocation can be used to Override HyperV server mentioned in GlobalConfiguration XML file."
+					Write-LogErr "In HyperV mode, -TestLocation can be used to Override HyperV server in GlobalConfig.Global.HyperV.Hosts.ChildNodes[$($index)].ServerName."
 					Throw "Unable to access HyperV server - '$($Location)'"
 				}
 				$index++
 			}
 		} else {
 			$this.TestLocation = $hyperVConfig.Hosts.ChildNodes[0].ServerName
-			Write-LogInfo "Set Test Location to GlobalConfiguration.Global.HyperV.Hosts.ChildNodes[0].ServerName"
+			Write-LogInfo "Set Test Location to GlobalConfig.Global.HyperV.Hosts.ChildNodes[0].ServerName"
 			Get-VM -ComputerName $this.TestLocation | Out-Null
 		}
 
 		if( $this.ResultDBTable ) {
 			$hyperVConfig.ResultsDatabase.dbtable = ($this.ResultDBTable).Trim()
-			Write-LogInfo "ResultDBTable : $this.ResultDBTable added to $($this.GlobalConfigurationFilePath)"
+			Write-LogInfo "ResultDBTable : $this.ResultDBTable added to GlobalConfig.Global.HyperV.ResultsDatabase.dbtable"
 		}
 		if( $this.ResultDBTestTag ) {
 			$hyperVConfig.ResultsDatabase.testTag = ($this.ResultDBTestTag).Trim()
-			Write-LogInfo "ResultDBTestTag: $this.ResultDBTestTag added to $($this.GlobalConfigurationFilePath)"
+			Write-LogInfo "ResultDBTestTag: $this.ResultDBTestTag added to GlobalConfig.Global.HyperV.ResultsDatabase.testTag"
 		}
-
-		$this.GlobalConfig.Save($this.GlobalConfigurationFilePath )
-		Write-LogInfo "Updated $($this.GlobalConfigurationFilePath) file."
 
 		Write-LogInfo "------------------------------------------------------------------"
 		$serverCount = $this.TestLocation.split(',').Count
