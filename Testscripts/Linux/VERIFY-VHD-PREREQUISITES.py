@@ -35,7 +35,7 @@ def verify_grub(distro):
     import os.path
     RunLog.info("Checking console=ttyS0 rootdelay=300..")
     if distro == "UBUNTU":
-        grub_out = Run("cat /etc/default/grub")
+        grub_out = Run("cat /boot/grub/grub.cfg")
     if distro == "SUSE":
         if os.path.exists("/boot/grub2/grub.cfg"):
             grub_out = Run("cat /boot/grub2/grub.cfg")
