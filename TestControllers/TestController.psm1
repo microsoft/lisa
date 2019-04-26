@@ -216,7 +216,7 @@ Class TestController
 
 		$SetupTypes = $allTests.setupType | Sort-Object | Get-Unique
 
-		foreach ( $file in $SetupTypeXMLs.FullName)	{
+		foreach ( $file in $SetupTypeXMLs.FullName) {
 			foreach ( $SetupType in $SetupTypes ) {
 				$CurrentSetupType = ([xml]( Get-Content -Path $file)).TestSetup
 				if ($CurrentSetupType.$SetupType) {

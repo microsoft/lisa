@@ -79,25 +79,25 @@ Class WSLController : TestController
 			foreach($Location in $Locations)
 			{
 				$wslConfig.Hosts.ChildNodes[$index].ServerName = $Location
-				Write-LogInfo "Set GlobalConfiguration.Global.WSL.Hosts.ChildNodes[$($index)].ServerName to $Location"
+				Write-LogInfo "Set GlobalConfig.Global.WSL.Hosts.ChildNodes[$($index)].ServerName to $Location"
 				$index++
 			}
 		}
 		else
 		{
 			$this.TestLocation = $wslConfig.Hosts.ChildNodes[0].ServerName
-			Write-LogInfo "Set Test Location to GlobalConfiguration.Global.WSL.Hosts.ChildNodes[0].ServerName"
+			Write-LogInfo "Set Test Location to GlobalConfig.Global.WSL.Hosts.ChildNodes[0].ServerName"
 		}
 
 		if( $this.ResultDBTable )
 		{
 			$wslConfig.ResultsDatabase.dbtable = ($this.ResultDBTable).Trim()
-			Write-LogInfo "ResultDBTable : $this.ResultDBTable added to $($this.GlobalConfigurationFilePath)"
+			Write-LogInfo "ResultDBTable : $this.ResultDBTable added to GlobalConfig.Global.HyperV.ResultsDatabase.dbtable"
 		}
 		if( $this.ResultDBTestTag )
 		{
 			$wslConfig.ResultsDatabase.testTag = ($this.ResultDBTestTag).Trim()
-			Write-LogInfo "ResultDBTestTag: $this.ResultDBTestTag added to $($this.GlobalConfigurationFilePath)"
+			Write-LogInfo "ResultDBTestTag: $this.ResultDBTestTag added to GlobalConfig.Global.HyperV.ResultsDatabase.testTag"
 		}
 
 		Write-LogInfo "------------------------------------------------------------------"
