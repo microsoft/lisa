@@ -100,9 +100,6 @@ Class WSLController : TestController
 			Write-LogInfo "ResultDBTestTag: $this.ResultDBTestTag added to $($this.GlobalConfigurationFilePath)"
 		}
 
-		$this.GlobalConfig.Save($this.GlobalConfigurationFilePath )
-		Write-LogInfo "Updated $($this.GlobalConfigurationFilePath) file."
-
 		Write-LogInfo "------------------------------------------------------------------"
 		$serverCount = $this.TestLocation.split(',').Count
 		for( $index=0 ; $index -lt $serverCount ; $index++ ) {
