@@ -17,7 +17,7 @@
         <Category>Functional</Category>
         <Area>NESTED</Area>
         <Tags>nested,nested-kvm</Tags>
-        <Priority>1</Priority>
+        <Priority>0</Priority>
     </test>
     <test>
         <TestName>NESTED-KVM-NTTTCP-PRIVATE-BRIDGE</TestName>

@@ -11,7 +11,7 @@
 		<Category>Stress</Category>
 		<Area>STRESS</Area>
 		<Tags>stress,boot</Tags>
-		<Priority>1</Priority>
+		<Priority>2</Priority>
 	</test>
 	<test>
 		<testName>STRESSTEST-VERIFY-RESTART-MAX-SRIOV-NICS</testName>
@@ -28,7 +28,7 @@
 		<Category>Stress</Category>
 		<Area>STRESS</Area>
 		<Tags>stress,boot,network,sriov</Tags>
-		<Priority>0</Priority>
+		<Priority>2</Priority>
 	</test>
 		<test>
 		<testName>STRESSTEST-RELOAD-LIS-MODULES</testName>
@@ -42,7 +42,7 @@
 		<Category>Stress</Category>
 		<Area>STRESS</Area>
 		<Tags>stress</Tags>
-		<Priority>1</Priority>
+		<Priority>2</Priority>
 	</test>
 	<test>
 		<testName>STRESSTEST-SYSBENCH</testName>
@@ -85,7 +85,7 @@
 		<Priority>1</Priority>
 	</test>
 	<test>
-		<testName>STRESSTEST-EventId-18602-Regression</testName>
+		<testName>STRESSTEST-CHECK-EVENTID-18602</testName>
 		<testScript>STRESS-EventID-18602-Regression.ps1</testScript>
 		<setupType>OneVM</setupType>
 		<TestParameters>
@@ -95,7 +95,7 @@
 		<Category>Stress</Category>
 		<Area>STRESS</Area>
 		<Tags>stress</Tags>
-		<Priority>0</Priority>
+		<Priority>1</Priority>
 	</test>
 	<test>
 		<testName>STRESSTEST-WEB-PARALLEL-ACCESS</testName>
@@ -122,6 +122,6 @@
 		<Category>Stress</Category>
 		<Area>STRESS</Area>
 		<Tags>stress,network,sriov</Tags>
-		<Priority>1</Priority>
+		<Priority>2</Priority>
 	</test>
 </TestCases>

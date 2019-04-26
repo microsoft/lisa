@@ -439,7 +439,7 @@
         <Category>Functional</Category>
         <Area>NETWORK</Area>
         <Tags>network</Tags>
-        <Priority>0</Priority>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>NET-HOT-ADD-MULTINIC</testName>
@@ -519,7 +519,7 @@
         <Category>Functional</Category>
         <Area>NETWORK</Area>
         <Tags>ethtool</Tags>
-        <Priority>1</Priority>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>ETHTOOL-GET-SET-TCP-HASHLEVELS</testName>
@@ -558,7 +558,7 @@
         <Category>Functional</Category>
         <Area>NETWORK</Area>
         <Tags>ethtool</Tags>
-        <Priority>1</Priority>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>ETHTOOL-GET-SET-CHANNEL</testName>
@@ -570,7 +570,7 @@
         <Category>Functional</Category>
         <Area>NETWORK</Area>
         <Tags>ethtool</Tags>
-        <Priority>1</Priority>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>ETHTOOL-GET-SET-MSG-LEVEL</testName>
@@ -625,7 +625,7 @@
         <Category>Functional</Category>
         <Area>NETWORK</Area>
         <Tags>ethtool</Tags>
-        <Priority>0</Priority>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>ETHTOOL-CHECK-STATISTICS</testName>
@@ -682,6 +682,6 @@
         <Category>Functional</Category>
         <Area>NETWORK</Area>
         <Tags>network</Tags>
-        <Priority>1</Priority>
+        <Priority>2</Priority>
     </test>
 </TestCases>
