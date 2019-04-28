@@ -636,7 +636,7 @@
         <TestParameters>
             <param>vmCpuNumber=2</param>
             <param>vmMemory=2GB</param>
-            <param>crashkernel=256M@128M</param>
+            <param>crashkernel=256M</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Functional</Category>
