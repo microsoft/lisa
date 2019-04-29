@@ -65,8 +65,7 @@ Function Match-TestPriority($currentTest, $TestPriority)
 
     $priorityInXml = $currentTest.Priority
     if (-not $priorityInXml) {
-        Write-LogWarn "Priority of $($currentTest.TestName) is not defined, set it to 1 (default)."
-        $priorityInXml = 1
+        Write-LogWarn "Priority of $($currentTest.TestName) is not defined."
     }
     foreach( $priority in $TestPriority.Split(",") ) {
         if ($priorityInXml -eq $priority) {
