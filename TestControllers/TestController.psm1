@@ -209,8 +209,6 @@ Class TestController
 
 		if( !$allTests ) {
 			Throw "Not able to collect any test cases from XML files"
-		} else {
-			$this.TotalCaseNum = @($allTests).Count
 		}
 		Write-LogInfo "$(@($allTests).Length) Test Cases have been collected"
 
@@ -275,6 +273,7 @@ Class TestController
 				Set-AdditionalHWConfigInTestCaseData -CurrentTestData $test -ConfigName "OSType" -ConfigValue $this.CustomParams["OSType"]
 			}
 			if ($this.OverrideVMSize) {
+				$this.OverrideVMSize = ($this.OverrideVMSize.Split(",") | select -Unique) -join ","
 				Write-LogInfo "The OverrideVMSize of case $($test.testName) is set to $($this.OverrideVMSize)"
 				if ($test.OverrideVMSize) {
 					$test.OverrideVMSize = $this.OverrideVMSize
@@ -301,7 +300,13 @@ Class TestController
 				$IsWindowsImage = $true
 			}
 			Set-Variable -Name IsWindowsImage -Value $IsWindowsImage -Scope Global
+			if ($test.OverrideVMSize) {
+				$this.TotalCaseNum += $test.OverrideVMSize.Split(",").Count
+			} else {
+				$this.TotalCaseNum++
+			}
 		}
+		$this.TotalCaseNum *= $this.TestIterations
 	}
 
 	[void] PrepareTestImage() {}
