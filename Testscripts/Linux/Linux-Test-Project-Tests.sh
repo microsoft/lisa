@@ -33,12 +33,15 @@ LTP_OUTPUT="$HOME/ltp-output.log"
 LTP_LITE_TESTS="math,fsx,ipc,mm,sched,pty,fs"
 ltp_git_url="https://github.com/linux-test-project/ltp.git"
 
+# The LTPROOT is used by some tests, e.g, block_dev test
+export LTPROOT="/opt/ltp"
+
 # Checks what Linux distro we are running on
 GetDistro
 update_repos
 
 LogMsg "Installing dependencies"
-common_packages=(m4 bison flex make gcc psmisc autoconf automake)
+common_packages=(m4 bison flex make gcc psmisc autoconf automake ntp)
 update_repos
 install_package "${common_packages[@]}"
 
@@ -55,7 +58,8 @@ case $DISTRO in
         install_package "${deb_packages[@]}"
         ;;
     "redhat"* | "centos"* | "fedora"*)
-        rpm_packages=(git db48-utils libaio-devel libattr libcap-devel libdb)
+        install_epel
+        rpm_packages=(git db4-utils libaio-devel libattr libcap-devel libdb)
         install_package "${rpm_packages[@]}"
         ;;
     *)
@@ -63,9 +67,34 @@ case $DISTRO in
         ;;
 esac
 
+# Some CPU time is assigned to set real-time scheduler and it affects all cgroup test cases.
+# The values for rt_period_us(1000000us or 1s) and rt_runtime_us (950000us or 0.95s).
+# This gives 0.05s to be used by non-RT tasks.
+rt_runtime_us=$(cat /sys/fs/cgroup/cpu/user.slice/cpu.rt_runtime_us)
+if [ $rt_runtime_us -eq 0 ]; then
+    echo "1000000" > /sys/fs/cgroup/cpu/cpu.rt_period_us
+    echo "950000" > /sys/fs/cgroup/cpu/cpu.rt_runtime_us
+    # Task-group setting
+    echo "1000000" > /sys/fs/cgroup/cpu/user.slice/cpu.rt_period_us
+    echo "950000" > /sys/fs/cgroup/cpu/user.slice/cpu.rt_runtime_us
+fi
+
+# Minimum 4M swap space is needed by some mmp test
+swap_size=$(free -m | grep -i swap | awk '{print $2}')
+if [ $swap_size -lt 4 ]; then
+    dd if=/dev/zero of=/tmp/swap bs=1M count=1024
+    mkswap /tmp/swap
+    swapon /tmp/swap
+fi
+
 rm -rf "$TOP_SRCDIR"
 mkdir -p "$TOP_SRCDIR"
 cd "$TOP_SRCDIR"
+
+# Fix hung_task_timeout_secs and blocked for more than 120 seconds problem
+sysctl -w vm.dirty_ratio=10
+sysctl -w vm.dirty_background_ratio=5
+sysctl -p
 
 # define regular stable releases in order to avoid unstable builds
 # https://github.com/linux-test-project/ltp/tags
