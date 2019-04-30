@@ -42,6 +42,17 @@
         <Priority>0</Priority>
     </test>
     <test>
+        <testName>VERIFY-LINUX-CONFIGURATION</testName>
+        <testScript>VERIFY-LINUX-CONFIGURATION.py</testScript>
+        <files>.\Testscripts\Linux\VERIFY-LINUX-CONFIGURATION.py,.\Testscripts\Linux\azuremodules.py</files>
+        <setupType>OneVM</setupType>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>linux_setting</Tags>
+        <Priority>0</Priority>
+    </test>
+    <test>
         <testName>LIS-MODULES-CHECK</testName>
         <testScript>LIS-MODULES-CHECK.py</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\LIS-MODULES-CHECK.py</files>
@@ -1094,17 +1105,6 @@
         <Area>CORE</Area>
         <Tags>cpu</Tags>
         <Priority>1</Priority>
-    </test>
-    <test>
-        <testName>VERIFY-LINUX-CONFIGURATION</testName>
-        <testScript>VERIFY-LINUX-CONFIGURATION.py</testScript>
-        <files>.\Testscripts\Linux\VERIFY-LINUX-CONFIGURATION.py,.\Testscripts\Linux\azuremodules.py</files>
-        <setupType>OneVM</setupType>
-        <Platform>Azure</Platform>
-        <Category>Functional</Category>
-        <Area>CORE</Area>
-        <Tags>linux_setting</Tags>
-        <Priority>0</Priority>
     </test>
     <test>
         <testName>VERIFY-LINUX-DISK-SETUP</testName>
