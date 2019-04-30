@@ -76,16 +76,15 @@ LogMsg "*****Kernel Info*****"
 uname -r >> ~/build-CustomLIS.txt 2>&1
 LogMsg "*****LIS Info*****"
 modinfo hv_vmbus >> ~/build-CustomLIS.txt 2>&1
-kernel=$(uname -r)
 
 if [ "${CustomLIS}" == "lisnext" ]; then
 	LISSource="https://github.com/LIS/lis-next.git"
 	sourceDir="lis-next"
 elif [[ $CustomLIS == *.rpm ]]; then
 	LogMsg "Custom LIS:$CustomLIS"
+	LogMsg "RPM package web link detected. Downloading $CustomLIS"
 	sed -i '/^exclude/c\#exclude' /etc/yum.conf
 	yum install -y wget tar
-	LogMsg "Debian package web link detected. Downloading $CustomLIS"
 	wget $CustomLIS
 	LogMsg "Installing ${CustomLIS##*/}"
 	rpm -ivh "${CustomLIS##*/}"  >> ~/build-CustomLIS.txt 2>&1
@@ -101,9 +100,9 @@ elif [[ $CustomLIS == *.rpm ]]; then
 	exit 0
 elif [[ $CustomLIS == *.tar.gz ]]; then
 	LogMsg "Custom LIS:$CustomLIS"
+	LogMsg "LIS tar file web link detected. Downloading $CustomLIS"
 	sed -i '/^exclude/c\#exclude' /etc/yum.conf
 	yum install -y git make tar gcc bc patch dos2unix wget xz >> ~/build-CustomLIS.txt 2>&1
-	LogMsg "LIS tar file web link detected. Downloading $CustomLIS"
 	wget $CustomLIS
 	LogMsg "Extracting ${CustomLIS##*/}"
 	tar -xvzf "${CustomLIS##*/}"
@@ -134,7 +133,7 @@ elif [ $DistroName == "CENTOS" -o $DistroName == "REDHAT" -o $DistroName == "FED
 	git clone ${LISSource} >> ~/build-CustomLIS.txt 2>&1
 	cd ${sourceDir}
 	git checkout ${LISbranch}
-	LogMsg "Downloaded LIS from this ${LISbranch} branch..."
+	LogMsg "Downloaded LIS from branch ${LISbranch}..."
 	if [[ $DistroVersion == *"5."* ]]; then
 		LISsourceDir=hv-rhel5.x/hv
 	elif [[ $DistroVersion == *"6\."* ]]; then
@@ -147,18 +146,21 @@ elif [ $DistroName == "CENTOS" -o $DistroName == "REDHAT" -o $DistroName == "FED
 		yum -y install --enablerepo=C*-base --enablerepo=C*-updates kernel-devel-"$(uname -r)" kernel-headers-"$(uname -r)"
 	fi
 
-	cd $LISsourceDir
-	LogMsg "LIS is installing from this $(pwd) branch..."
+	pushd $LISsourceDir
+	LogMsg "LIS is installing from branch $(pwd)..."
 	./*-hv-driver-install >> ~/build-CustomLIS.txt 2>&1
 	if [ $? -ne 0 ]; then
 		LogMsg "CUSTOM_LIS_FAIL"
 		UpdateTestState $ICA_TESTFAILED
 		exit 0
 	fi
+	popd
+	rm -rf "$HOME/${sourceDir}"
 fi
 
+# Allowing some time for all processes to finish running
+sleep 20
+
 UpdateTestState $ICA_TESTCOMPLETED
-sleep 10
 LogMsg "CUSTOM_LIS_SUCCESS"
-sleep 10
 exit 0
