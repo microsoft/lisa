@@ -134,7 +134,13 @@ Function Collect-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Tes
     foreach ($file in $TestXMLs.FullName) {
         $currentTests = ([xml]( Get-Content -Path $file)).TestCases
         foreach ($test in $currentTests.test) {
-            if (!($test.Platform.Split(",").Contains($TestPlatform))) {
+            $platformMatched = $false
+            $test.Platform.Split(",") | ForEach {
+                if ($TestPlatform.Contains($_) -or $_.Contains($TestPlatform)) {
+                    $platformMatched = $true
+                }
+            }
+            if (!$platformMatched) {
                 continue
             }
 
@@ -182,13 +188,24 @@ Function Collect-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Tes
                 }
             }
 
-            Write-LogInfo "Collected Test : $($test.TestName)"
-            $AllLisaTests += $test
+            $testExist = $false
+            $AllLisaTests | ForEach {
+                if ($_.TestName -eq $test.TestName) {
+                    $testExist = $true
+                }
+            }
+            if ( $testExist -eq $false ) {
+                Write-LogInfo "Collected test: $($test.TestName) from $file"
+                $AllLisaTests += $test
+            } else {
+                Write-LogWarn "Ignore duplicated test: $($test.TestName) from $file"
+            }
         }
     }
     if ($ExcludeTests) {
         Write-LogInfo "$ExcludedTestsCount Test Cases have been excluded"
     }
+
     return $AllLisaTests
 }
 
