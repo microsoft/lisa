@@ -26,6 +26,7 @@ imb_mpi1_final_status=0
 imb_rma_final_status=0
 imb_nbc_final_status=0
 imb_p2p_final_status=0
+imb_io_final_status=0
 
 # Get all the Kernel-Logs from all VMs.
 function Collect_Logs() {
@@ -334,6 +335,69 @@ function Run_IMB_P2P() {
 	fi
 }
 
+function Run_IMB_IO() {
+	total_attempts=$(seq 1 1 $imb_io_tests_iterations)
+	imb_io_final_status=0
+	if [[ $imb_io_tests == "all" ]]; then
+		extra_params=""
+	else
+		extra_params=$imb_io_tests
+	fi
+	for attempt in $total_attempts; do
+		retries=0
+		while [ $retries -lt 3 ]; do
+			case "$mpi_type" in
+				ibm)
+					LogMsg "$mpi_run_path -hostlist $modified_slaves:$VM_Size -np $(($VM_Size * $total_virtual_machines)) -e MPI_IB_PKEY=$MPI_IB_PKEY $imb_io_path $extra_params"
+					$mpi_run_path -hostlist $modified_slaves:$VM_Size -np $(($VM_Size * $total_virtual_machines)) -e MPI_IB_PKEY=$MPI_IB_PKEY $imb_io_path $extra_params > IMB-IO-AllNodes-output-Attempt-${attempt}.txt
+				;;
+				open)
+					LogMsg "$mpi_run_path --allow-run-as-root --host $master,$slaves -n $(($io_ppn * $total_virtual_machines)) $mpi_settings $imb_io_path $extra_params"
+					$mpi_run_path --allow-run-as-root --host $master,$slaves -n $(($io_ppn * $total_virtual_machines)) $mpi_settings $imb_io_path $extra_params > IMB-IO-AllNodes-output-Attempt-${attempt}.txt
+				;;
+				intel)
+					LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $io_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_io_path $extra_params"
+					$mpi_run_path -hosts $master,$slaves -ppn $io_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_io_path $extra_params > IMB-IO-AllNodes-output-Attempt-${attempt}.txt
+				;;
+				mvapich)
+					LogMsg "$mpi_run_path -n $(($io_ppn * $total_virtual_machines)) $master $slaves_array $mpi_settings $imb_io_path $extra_params"
+					$mpi_run_path -n $(($io_ppn * $total_virtual_machines)) $master $slaves_array $mpi_settings $imb_io_path $extra_params > IMB-IO-AllNodes-output-Attempt-${attempt}.txt
+				;;
+			esac
+			io_status=$?
+			if [ $io_status -eq 0 ]; then
+				LogMsg "IMB-IO test iteration $attempt - Succeeded."
+				sleep 1
+				retries=4
+			else
+				sleep 10
+				let retries=retries+1
+				failed_io=$(cat IMB-IO-AllNodes-output-Attempt-${attempt}.txt | grep Benchmarking | tail -1| awk '{print $NF}')
+				io_benchmarks=$(echo $io_benchmarks | sed "s/^.*${failed_io}//")
+				extra_params=$io_benchmarks
+			fi
+		done
+		if [ $io_status -eq 0 ]; then
+			LogMsg "IMB-IO test iteration $attempt - Succeeded."
+			sleep 1
+		else
+			LogErr "IMB-IO test iteration $attempt - Failed."
+			imb_io_final_status=$(($imb_io_final_status + $io_status))
+			sleep 1
+		fi
+	done
+
+	if [ $imb_io_final_status -ne 0 ]; then
+		LogErr "IMB-IO tests returned non-zero exit code. Aborting further tests."
+		SetTestStateFailed
+		Collect_Logs
+		LogErr "INFINIBAND_VERIFICATION_FAILED_IO_ALLNODES"
+		exit 0
+	else
+		LogMsg "INFINIBAND_VERIFICATION_SUCCESS_IO_ALLNODES"
+	fi
+}
+
 function Main() {
 	LogMsg "Starting $mpi_type MPI tests..."
 
@@ -570,6 +634,8 @@ function Main() {
 	imb_rma_path=$(find / -name IMB-RMA | head -n 1)
 	imb_nbc_path=$(find / -name IMB-NBC | head -n 1)
 	imb_p2p_path=$(find / -name IMB-P2P | head -n 1)
+	imb_io_path=$(find / -name IMB-IO | head -n 1)
+
 	case "$mpi_type" in
 		ibm)
 			modified_slaves=${slaves//,/:$VM_Size,}
@@ -602,6 +668,7 @@ function Main() {
 	LogMsg "IMB-RMA Path: $imb_rma_path"
 	LogMsg "IMB-NBC Path: $imb_nbc_path"
 	LogMsg "IMB-P2P Path: $imb_p2p_path"
+	LogMsg "IMB-IO Path: $imb_io_path"
 
 	# Run all benchmarks
 	Run_IMB_Intranode
@@ -609,6 +676,7 @@ function Main() {
 	Run_IMB_RMA
 	Run_IMB_NBC
 	Run_IMB_P2P
+	Run_IMB_IO
 
 	# Get all results and finish the test
 	Collect_Logs
@@ -622,6 +690,7 @@ function Main() {
 		LogMsg "imb_rma_final_status: $imb_rma_final_status"
 		LogMsg "imb_nbc_final_status: $imb_nbc_final_status"
 		LogMsg "imb_p2p_final_status: $imb_p2p_final_status"
+		LogMsg "imb_io_final_status: $imb_io_final_status"
 		LogErr "INFINIBAND_VERIFICATION_FAILED"
 		SetTestStateFailed
 	else

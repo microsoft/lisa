@@ -189,7 +189,7 @@ Scenario 2 : You need to run all the performance tests quickly.
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_OPEN_RMA_TEST_COUNT</ReplaceThis>
-		<ReplaceWith>1</ReplaceWith>
+		<ReplaceWith>0</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_MVAPICH_RMA_TEST_COUNT</ReplaceThis>
@@ -242,6 +242,22 @@ Scenario 2 : You need to run all the performance tests quickly.
 	</Parameter>
 		<Parameter>
 		<ReplaceThis>INFINIBAND_MVAPICH_P2P_TEST_COUNT</ReplaceThis>
+		<ReplaceWith>1</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>INFINIBAND_INTEL_IO_TEST_COUNT</ReplaceThis>
+		<ReplaceWith>1</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>INFINIBAND_IBM_IO_TEST_COUNT</ReplaceThis>
+		<ReplaceWith>1</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>INFINIBAND_OPEN_IO_TEST_COUNT</ReplaceThis>
+		<ReplaceWith>0</ReplaceWith>
+	</Parameter>
+		<Parameter>
+		<ReplaceThis>INFINIBAND_MVAPICH_IO_TEST_COUNT</ReplaceThis>
 		<ReplaceWith>1</ReplaceWith>
 	</Parameter>
 	<Parameter>
