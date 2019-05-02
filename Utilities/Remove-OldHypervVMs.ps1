@@ -33,6 +33,10 @@ function Main
     }
 
     foreach ($vm in $vmList) {
+		$vmState = $(Get-VM -Name $vm.VMName -ComputerName $HvServer).State
+		if (($vmState -notlike "Running") -or ($vmState -notlike "Off")) {
+			continue
+		}
         # Check the running VM(s) creation time: if it is greater than 48 hours, stop it
         $dateComparison = (Get-Date).AddDays(-1)
         if (($vm.CreationTime -lt $dateComparison) -and (Get-VM -Name $vm.VMName `
@@ -47,7 +51,7 @@ function Main
         }
 
         # Check the creation time of each Hyper-V VM.
-        # Remove VM and VHD files if it is older than 5 days
+        # Remove VM and VHD files if it is older than 2 days
         $dateComparison = (Get-Date).AddDays(-2)
         if ($vm.CreationTime -lt $dateComparison) {
             $deletedVMsCount++
