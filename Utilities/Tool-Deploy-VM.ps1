@@ -6,11 +6,11 @@ Param(
     $CustomVHD,
     $GuestOSType = "",
     $StorageAccountName = "",
-    $UseManagedDisk = "",
+    $DiskType = "",
     $VMName = "",
     $NumberOfVMs = 1,
     $NICsForEachVM = 1,
-    $AcceleratedNetworking_SRIOV = "",
+    $Networking = "",
     $DataDisks = 0,
     $DataDiskSizeGB = "",
     $DataDiskCaching = "",
@@ -139,7 +139,8 @@ try {
         -RGIdentifier $VMName `
         -TestNames "TOOL-DEPLOYMENT-PROVISION" `
         -XMLSecretFile $customSecretsFilePath `
-        -ResourceCleanup Keep
+        -ResourceCleanup Keep `
+        -CustomParameters "Networking=$Networking;DiskType=$DiskType"
 }
 catch {
     $ErrorMessage = $_.Exception.Message
