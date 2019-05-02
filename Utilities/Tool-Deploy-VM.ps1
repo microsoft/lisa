@@ -119,6 +119,12 @@ try {
     $FunctionalTests = (Get-Content .\XML\TestCases\FunctionalTests.xml)
     $FunctionalTests = $FunctionalTests.Replace('>OneVM<', ">$SetupTypeName<")
     $FunctionalTests = $FunctionalTests.Replace('VERIFY-DEPLOYMENT-PROVISION', "TOOL-DEPLOYMENT-PROVISION")
+    $TestParameters = "<testScript>TOOL-DEPLOYMENT-PROVISION.ps1</testScript>
+    <TestParameters>
+        <param>AutoCleanup=$AutoCleanup</param>
+    </TestParameters>"
+    $FunctionalTests = $FunctionalTests.Replace('<testScript>TOOL-DEPLOYMENT-PROVISION.ps1</testScript>', $TestParameters)
+
     Set-Content -Value $FunctionalTests -Path .\XML\TestCases\FunctionalTests.xml -Force
     $XmlSecrets = [xml](Get-Content -Path $customSecretsFilePath)
     $XmlSecrets.secrets.linuxTestUsername = $Username
