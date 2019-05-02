@@ -48,14 +48,12 @@ function Main {
             if ( $vm.SSHPort -gt 0 )
             {
                 Write-LogInfo "VM #$counter`: $($vm.PublicIP):$($vm.SSHPort)"
-                $currentTestResult.TestSummary +=  New-ResultSummary -testResult "$($vm.Status)" -metaData "VM #$counter` : $($vm.PublicIP) : $($vm.SSHPort) " -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
-                $currentTestResult.TestSummary +=  New-ResultSummary -testResult "ssh $($user)@$($vm.PublicIP) -p $($vm.SSHPort)" -metaData "VM #$counter` : $($vm.RoleName) Connection String" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+                $currentTestResult.TestSummary +=  New-ResultSummary -testResult "ssh $($user)@$($vm.PublicIP) -p $($vm.SSHPort)" -metaData "VM #$counter` : $($vm.RoleName)" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
             }
             elseif($vm.RDPPort -gt 0)
             {
                 Write-LogInfo "VM #$counter`: $($vm.PublicIP):$($vm.RDPPort)"
-                $currentTestResult.TestSummary +=  New-ResultSummary -testResult "$($vm.Status)" -metaData "VM #$counter` : $($vm.PublicIP) : $($vm.RDPPort) " -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
-                $currentTestResult.TestSummary +=  New-ResultSummary -testResult "RDP $($user)@$($vm.PublicIP):$($vm.RDPPort)" -metaData "VM #$counter` : $($vm.RoleName) Connection String" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+                $currentTestResult.TestSummary +=  New-ResultSummary -testResult "RDP $($user)@$($vm.PublicIP):$($vm.RDPPort)" -metaData "VM #$counter` : $($vm.RoleName)" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
             }
             $counter++
         }
