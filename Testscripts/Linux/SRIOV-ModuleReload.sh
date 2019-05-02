@@ -46,7 +46,12 @@ UpdateSummary "Expected VF count: $NIC_COUNT. Actual VF count: $vf_count"
 # Extract VF name
 synthetic_interface=$(ip addr | grep "$VF_IP1" | awk '{print $NF}')
 LogMsg  "Synthetic interface found: $synthetic_interface"
-vf_interface=$(find /sys/devices/* -name "*${synthetic_interface}*" | grep "pci" | sed 's/\// /g' | awk '{print $12}')
+if [[ $DISTRO_VERSION =~ ^6\. ]]; then
+    synthetic_MAC=$(ip link show ${synthetic_interface} | grep ether | awk '{print $2}')
+    vf_interface=$(grep -il ${synthetic_MAC} /sys/class/net/*/address | grep -v $synthetic_interface | sed 's/\// /g' | awk '{print $4}')
+else
+    vf_interface=$(find /sys/devices/* -name "*${synthetic_interface}*" | grep "pci" | sed 's/\// /g' | awk '{print $12}')
+fi
 LogMsg "Virtual function found: $vf_interface"
 # Extract module name
 module_name_in_use=$(lspci -vvv | grep -i kernel | tail -1 | awk '{print $NF}')
