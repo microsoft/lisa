@@ -135,9 +135,11 @@ Function Collect-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Tes
         $currentTests = ([xml]( Get-Content -Path $file)).TestCases
         foreach ($test in $currentTests.test) {
             $platformMatched = $false
-            $test.Platform.Split(",") | ForEach {
-                if ($TestPlatform.Contains($_) -or $_.Contains($TestPlatform)) {
+            $platforms = $test.Platform.Split(",")
+            for ($i=0; $i -lt $platforms.length; $i++) {
+                if ($TestPlatform.Contains($platforms[$i]) -or $platforms[$i].Contains($TestPlatform)) {
                     $platformMatched = $true
+                    break
                 }
             }
             if (!$platformMatched) {
@@ -189,9 +191,10 @@ Function Collect-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Tes
             }
 
             $testExist = $false
-            $AllLisaTests | ForEach {
-                if ($_.TestName -eq $test.TestName) {
+            for ($i=0; $i -lt $AllLisaTests.length; $i++) {
+                if ($AllLisaTests[$i].TestName -eq $test.TestName) {
                     $testExist = $true
+                    break
                 }
             }
             if ( $testExist -eq $false ) {
