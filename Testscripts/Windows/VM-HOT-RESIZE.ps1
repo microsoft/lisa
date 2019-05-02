@@ -20,6 +20,7 @@ function Main {
 
         $loadBalanceName = (Get-AzureRmLoadBalancer -ResourceGroupName $AllVMData.ResourceGroupName).Name
         $VirtualMachine = Get-AzureRmVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName
+        $ComputeSKUs = Get-AzComputeResourceSku
         for ( $i = 0; $i -le 30; $i++ ) {
             $vmSizes = (Get-AzureRmVMSize -ResourceGroupName $AllVMData.ResourceGroupName -VMName $AllVMData.RoleName).Name
             Write-LogInfo "The VM can be resized to the following sizes: $vmSizes"
@@ -35,6 +36,13 @@ function Main {
             if ($vmSize -in $testedVMSizes) {
                 break
             }
+            $Restrictions = ($ComputeSKUs | Where-Object { $_.Locations -eq $AllVMData.Location -and $_.ResourceType -eq "virtualMachines" `
+                -and $_.Name -eq $vmSize}).Restrictions
+            if ( ($Restrictions | Where-Object {$_.Type -eq "Location"}).ReasonCode -eq "NotAvailableForSubscription") {
+                $i--
+                Write-LogInfo "The $vmSize is not supported by current subscription. Skip it."
+                break
+            }
             $testedVMSizes += $vmSize
 
             Write-LogInfo "--------------------------------------------------------"
@@ -44,14 +52,9 @@ function Main {
             if ($?) {
                 Write-LogInfo "Resize the VM from $previousVMSize to $vmSize successfully"
             } else {
-                if ($error[0].ToString() -like "*SkuNotAvailable*") {
-                    $i--
-                    Write-LogInfo "The $vmSize is not supported by current subscription. Skip it."
-                } else {
-                    $resizeVMSizeFailures += "Resize the VM from $previousVMSize to $vmSize failed"
-                    $testResult = "FAIL"
-                    Write-LogErr "Resize the VM from $previousVMSize to $vmSize failed"
-                }
+                $resizeVMSizeFailures += "Resize the VM from $previousVMSize to $vmSize failed"
+                $testResult = "FAIL"
+                Write-LogErr "Resize the VM from $previousVMSize to $vmSize failed"
                 continue
             }
 
@@ -89,6 +92,12 @@ function Main {
         # Resize the VM with an unsupported size in the current hardware cluster
         $allVMSize = (Get-AzureRmVMSize -Location $AllVMData.Location).Name
         foreach ($vmSize in $allVMSize) {
+            $Restrictions = ($ComputeSKUs | Where-Object { $_.Locations -eq $AllVMData.Location -and $_.ResourceType -eq "virtualMachines" `
+                -and $_.Name -eq $vmSize}).Restrictions
+            if ( ($Restrictions | Where-Object {$_.Type -eq "Location"}).ReasonCode -eq "NotAvailableForSubscription") {
+                Write-LogInfo "The $vmSize is not supported by current subscription. Skip it."
+                break
+            }
             if (!($vmSize -in $vmSizes)) {
                 Write-LogInfo "--------------------------------------------------------"
                 Write-LogInfo "Resizing the VM to size: $vmSize"
