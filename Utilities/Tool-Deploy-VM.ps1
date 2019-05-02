@@ -11,8 +11,8 @@ Param(
     $NumberOfVMs = 1,
     $NICsForEachVM = 1,
     $AcceleratedNetworking_SRIOV = "",
-    $DataDisks = 1,
-    $DataDiskSize = "",
+    $DataDisks = 0,
+    $DataDiskSizeGB = "",
     $DataDiskCaching = "",
     $Username = "",
     $Password = "",
@@ -31,7 +31,7 @@ try {
 
     $Location = $RegionVMsize.Split(" ")[0]
     $VMSize = $RegionVMsize.Split(" ")[1]
-    $DiskSize = $DataDiskSize.Split(" ")[1].Trim("[").Trim("GB]")
+
     $SetupTypeName = "Deploy$NumberOfVMs`VM"
 
     $SingleDataDisk = '
@@ -79,7 +79,7 @@ try {
     if ($DataDisks -gt 0) {
         $CUSTOM_DISKS = $null
         for ( $i = 0; $i -lt $DataDisks; $i++ ) {
-            $CUSTOM_DISKS += $SingleDataDisk.Replace("DISK_NUMBER", "$i").Replace("DISK_SIZE", "$($DiskSize - 1)").Replace("DISK_CACHING", "$DataDiskCaching") + "`n"
+            $CUSTOM_DISKS += $SingleDataDisk.Replace("DISK_NUMBER", "$i").Replace("DISK_SIZE", "$($DataDiskSizeGB)").Replace("DISK_CACHING", "$DataDiskCaching") + "`n"
         }
     }
     else {
