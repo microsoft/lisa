@@ -1132,4 +1132,23 @@
         <Tags>linux_setting</Tags>
         <Priority>0</Priority>
     </test>
+    <test>
+        <testName>PCI-DEVICE-DISABLE-ENABLE-SRIOV-NVME</testName>
+        <testScript>disableEnablePci.sh</testScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\disableEnablePci.sh</files>
+        <setupType>OneVM8NIC</setupType>
+        <OverrideVMSize>Standard_L80s_v2</OverrideVMSize>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <TestParameters>
+            <param>expectedSriov=7</param>
+            <param>expectedNvme=10</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>pci_hyperv,nvme,sriov</Tags>
+        <Priority>1</Priority>
+    </test>
 </TestCases>

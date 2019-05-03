@@ -3420,7 +3420,11 @@ function DisableEnablePCI ()
         LogErr "No PCI devices of type $vf_pci_type were found."
         return 1
     else
-        LogMsg "Found the following $vf_pci_type devices: $vf_pci_addresses"
+        LogMsg "Found the following $vf_pci_type devices:"
+        # Remove the VF for each address
+        for addr in ${vf_pci_addresses[@]}; do
+            LogMsg "$(lspci | grep $addr)"
+        done
     fi
 
     # Remove the VF for each address
