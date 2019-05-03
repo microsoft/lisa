@@ -33,10 +33,10 @@ if [ $? -ne 0 ]; then
     exit 0
 fi
 
-if [ "$rescind_pci" = "yes" ]; then
-    # call rescind function with param SRIOV
-    if ! RescindPCI "SR-IOV"; then
-        LogErr "Could not rescind pci device."
+if [ "$disable_enable_pci" = "yes" ]; then
+    # call function with param SRIOV
+    if ! DisableEnablePCI "SR-IOV"; then
+        LogErr "Could not disable and reenable pci device."
         SetTestStateFailed
         exit 0
     fi

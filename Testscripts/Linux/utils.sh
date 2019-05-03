@@ -3394,14 +3394,16 @@ function Format_Mount_NVME()
 
 # Remove and reattach PCI devices of a certain type inside the VM
 # @param1 DeviceType: supported values are "NVME", "SR-IOV", "GPU"
+# and "ALL" for all 3 previous types
 # @return 0 if the devices were removed and reattached successfully
-function RescindPCI ()
+function DisableEnablePCI ()
 {
     case "$1" in
         "SR-IOV") vf_pci_type="Ethernet" ;;
         "NVME")   vf_pci_type="Non-Volatile" ;;
         "GPU")    vf_pci_type="NVIDIA" ;;
-        *)        LogErr "Unsupported device type for RescindPCI." ; return 1 ;;
+        "ALL")    vf_pci_type="NVIDIA\|Non-Volatile\|Ethernet" ;;
+        *)        LogErr "Unsupported device type for DisableEnablePCI." ; return 1 ;;
     esac
 
     if ! lspci --version > /dev/null 2>&1; then

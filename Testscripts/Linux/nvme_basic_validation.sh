@@ -27,10 +27,10 @@ if [ "$disk_count" -eq "0" ]; then
     exit 0
 fi
 
-if [ "$rescind_pci" = "yes" ]; then
-    # call rescind function with param NVMe
-    if ! RescindPCI "NVME"; then
-        LogErr "Could not rescind pci device."
+if [ "$disable_enable_pci" = "yes" ]; then
+    # call function with param NVMe
+    if ! DisableEnablePCI "NVME"; then
+        LogErr "Could not disable and reenable the pci device."
         SetTestStateFailed
         exit 0
     fi

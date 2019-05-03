@@ -583,7 +583,7 @@
             <param>NETMASK=255.255.255.0</param>
             <param>Switch_Name=SRIOV_MLNX</param>
             <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
-            <param>rescind_pci=yes</param>
+            <param>disable_enable_pci=yes</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Functional</Category>
