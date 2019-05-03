@@ -182,7 +182,7 @@
         <Category>Functional</Category>
         <Area>DYNAMIC_MEMORY</Area>
         <Tags>memory</Tags>
-        <Priority>0</Priority>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>DYNAMIC-MEMORY-START-HIGH-COMPETE</testName>
@@ -215,7 +215,7 @@
         <Category>Functional</Category>
         <Area>DYNAMIC_MEMORY</Area>
         <Tags>memory</Tags>
-        <Priority>0</Priority>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>DYNAMIC-MEMORY-HOT-REMOVE</testName>
@@ -262,7 +262,7 @@
         <Category>Functional</Category>
         <Area>DYNAMIC_MEMORY</Area>
         <Tags>memory</Tags>
-        <Priority>0</Priority>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>DYNAMIC-MEMORY-CLEAN-SHUTDOWN</testName>
@@ -284,7 +284,7 @@
         <Category>Functional</Category>
         <Area>DYNAMIC_MEMORY</Area>
         <Tags>memory</Tags>
-        <Priority>1</Priority>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>DYNAMIC-MEMORY-DEMAND-PRESSURE</testName>
@@ -399,7 +399,7 @@
         <Category>Functional</Category>
         <Area>DYNAMIC_MEMORY</Area>
         <Tags>memory</Tags>
-        <Priority>1</Priority>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>DYNAMIC-MEMORY-HOT-ADD-EAT-MEM-SMP</testName>
@@ -421,7 +421,7 @@
         <Category>Functional</Category>
         <Area>DYNAMIC_MEMORY</Area>
         <Tags>memory</Tags>
-        <Priority>1</Priority>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>DYNAMIC-MEMORY-HOT-ADD-EAT-MEM-UP</testName>
@@ -440,6 +440,6 @@
         <Category>Functional</Category>
         <Area>DYNAMIC_MEMORY</Area>
         <Tags>memory</Tags>
-        <Priority>1</Priority>
+        <Priority>2</Priority>
     </test>
 </TestCases>
