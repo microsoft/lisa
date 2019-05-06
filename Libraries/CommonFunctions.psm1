@@ -1126,11 +1126,12 @@ function Check-FileInLinuxGuest {
 	.Description
 		Checks if test file is present or not, if set $checkSize as $True, return file size,
 		if set checkContent as $True, will return file content.
-#>
-	$check = Run-LinuxCmd -username $vmUserName -password $vmPassword -port $vmPort -ip $ipv4 -command "stat ${fileName} >/dev/null"
-	if ($check) {
-		Write-Loginfo "File $fileName exists"
-		return $true
+   #>
+
+	$check = Run-LinuxCmd -username $vmUserName -password $vmPassword -port $vmPort -ip $ipv4 -command "[ -f ${fileName} ] && echo 1 || echo 0"
+	if (-not $check) {
+		Write-Loginfo "File $fileName does not exists"
+		return $False
 	}
 	if ($checkSize) {
 		$size = Run-LinuxCmd -username $vmUserName -password $vmPassword -port $vmPort -ip $ipv4 -command "wc -c < $fileName"
@@ -1140,6 +1141,7 @@ function Check-FileInLinuxGuest {
 		$content = Run-LinuxCmd -username $vmUserName -password $vmPassword -port $vmPort -ip $ipv4 -command "cat ${fileName}"
 		return "$content"
 	}
+	return $True
 }
 
 function Mount-Disk{

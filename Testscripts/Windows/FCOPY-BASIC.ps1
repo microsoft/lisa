@@ -125,7 +125,6 @@ function Main {
     Copy-VMFile -VMname $VMname -ComputerName $HvServer -SourcePath $filePath -DestinationPath "/tmp/" -FileSource host -ErrorAction SilentlyContinue
     if ($Error.Count -eq 0) {
         Write-LogInfo "File has been successfully copied to guest VM '${VMname}'"
-        return "PASS"
     }
     elseif (($Error.Count -gt 0) -and ($Error[0].Exception.Message  `
                 -like "*FAIL to initiate copying files to the guest: The file exists. (0x80070050)*")) {
@@ -134,14 +133,13 @@ function Main {
     }
 
     # Checking if the file size is matching
-    $sts = Check-FileInLinuxGuest -VMPassword $VMPassword -VMPort $VMPort -VMUserName $VMUserName -Ipv4 $Ipv4 -fileName "/tmp/$testfile"
-    if (-not $sts[-1]) {
-        Write-LogErr "File is not present on the guest VM '${VMname}'!"
+    $sts = Check-FileInLinuxGuest -VMPassword $VMPassword -VMPort $VMPort -VMUserName $VMUserName -Ipv4 $Ipv4 -fileName "/tmp/$testfile" -checkSize $true
+    if (-not $sts) {
+        Write-LogErr "File check error on the guest VM '${vmName}'!"
         return "FAIL"
     }
-    elseif ($sts[0] -eq 10485760) {
+    if ($sts -eq 10485760) {
         Write-LogInfo "The file copied matches the 10MB size."
-        return "PASS"
     }
     else {
         Write-LogErr " The file copied doesn't match the 10MB size!"
@@ -150,10 +148,10 @@ function Main {
 
     # Removing the temporary test file
     Remove-Item -Path \\$HvServer\$file_path_formatted -Force
-    if ($LASTEXITCODE -ne "0") {
+    if ($? -ne "True") {
         Write-LogErr "Cannot remove the test file '${testfile}'!"
-        return "FAIL"
     }
+    return "PASS"
 }
 
 Main -VMname $AllVMData.RoleName -HvServer $GlobalConfig.Global.HyperV.Hosts.ChildNodes[0].ServerName `
