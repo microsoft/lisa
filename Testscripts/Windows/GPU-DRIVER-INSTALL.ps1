@@ -14,8 +14,8 @@
     4. Check if the nVidia driver is loaded
     5. Compare number of expected GPU adapters with the actual count.
     6. The following tools are used for validation: lsvmbus, lspci, lshw and nvidia-smi
-    7. If test parameter "rescind_pci=yes" is provided, the 3D controller PCI device
-    will be rescinded first.
+    7. If test parameter "disable_enable_pci=yes" is provided, the 3D controller PCI device
+    will be disabled and reenabled first.
 
 #>
 
@@ -189,15 +189,15 @@ function Main {
 
         Write-LogInfo "Azure VM Size: $($allVMData.InstanceSize), expected GPU Adapters total: $expectedGPUCount"
 
-        # rescind the PCI device first if the parameter is given
-        if ($TestParams.rescind_pci -eq "yes") {
+        # Disable and enable the PCI device first if the parameter is given
+        if ($TestParams.disable_enable_pci -eq "yes") {
             Run-LinuxCmd -username $user -password $password -ip $allVMData.PublicIP -port $allVMData.SSHPort `
-                -command ". utils.sh && RescindPCI GPU" -RunAsSudo -ignoreLinuxExitCode | Out-Null
+                -command ". utils.sh && DisableEnablePCI GPU" -RunAsSudo -ignoreLinuxExitCode | Out-Null
             if (-not $?) {
-                $metaData = "Could not rescind PCI device."
+                $metaData = "Could not disable and reenable PCI device."
                 Write-LogErr "$metaData"
             } else {
-                $metaData = "Successfully rescinded the PCI device."
+                $metaData = "Successfully disabled and reenabled the PCI device."
                 Write-LogInfo "$metaData"
             }
             $CurrentTestResult.TestSummary += New-ResultSummary -metaData "$metaData" -testName $CurrentTestData.testName
