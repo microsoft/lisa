@@ -25,6 +25,51 @@ fi
     exit 0
 }
 
+function version_lt() { test "$(echo "$@" | tr " " "\n" | sort -rV | head -n 1)" != "$1"; }
+
+MIN_VERSION_SUPPORTED="6.7"
+
+if [ $DISTRO_NAME == "centos" ] || [ $DISTRO_NAME == "rhel" ] || [ $DISTRO_NAME == "oracle" ]; then
+    if version_lt $DISTRO_VERSION $MIN_VERSION_SUPPORTED ; then
+        LogErr "SRIOV is not supported for Distro's below $MIN_VERSION_SUPPORTED, Test skipped!"
+        SetTestStateSkipped
+        exit 0
+    fi
+fi
+
+# Check if Extra NICs have ips
+if [[ "$NIC_COUNT" -gt 1 ]];then
+    NIC_IPs=($(ip add show | grep -v SLAVE | grep BROADCAST | sed 's/:/ /g' | awk '{print $2}'))
+    for NIC in "${NIC_IPs[@]}"
+    do
+        server_ip_address=$(ip addr show $NIC | grep 'inet\b')
+        if [[ -z "$server_ip_address" ]] ; then
+            pkill dhclient
+            sleep 1
+            timeout 10 dhclient $NIC
+            server_ip_address=$(ip addr show $NIC | grep 'inet\b')
+            if [[  -z "$server_ip_address"  ]] ; then
+                LogMsg "NIC $NIC doesn't have ip even after running dhclinet"
+                SetTestStateFailed
+                exit 0
+            fi
+        fi
+        client_ip_address=$(ssh root@"$VF_IP2" "ip addr show $NIC | grep 'inet\b'")
+        if [[ -z "$client_ip_address" ]] ; then
+            ssh root@"${VF_IP2}" "pkill dhclient"
+            sleep 1
+            ssh root@"${VF_IP2}" "timeout 10 dhclient $NIC"
+            client_ip_address=$(ssh root@"$VF_IP2" "ip addr show $NIC | grep 'inet\b'")
+            if [[ -z "$client_ip_address" ]] ; then
+                LogMsg "NIC $NIC doesn't have ip even after running dhclinet"
+                SetTestStateFailed
+                exit 0
+            fi
+        fi
+    done
+    LogMsg "Extra NICs have ips"
+fi
+
 # Check if the SR-IOV driver is in use
 VerifyVF
 if [ $? -ne 0 ]; then
@@ -72,7 +117,12 @@ while [ $__iterator -le "$vf_count" ]; do
 
     synthetic_interface_vm_1=$(ip addr | grep $static_IP_1 | awk '{print $NF}')
     LogMsg  "Synthetic interface found: $synthetic_interface_vm_1"
-    vf_interface_vm_1=$(find /sys/devices/* -name "*${synthetic_interface_vm_1}" | grep "pci" | sed 's/\// /g' | awk '{print $12}')
+    if [[ $DISTRO_VERSION =~ ^6\. ]]; then
+        synthetic_MAC=$(ip link show ${synthetic_interface_vm_1} | grep ether | awk '{print $2}')
+        vf_interface_vm_1=$(grep -il ${synthetic_MAC} /sys/class/net/*/address | grep -v $synthetic_interface_vm_1 | sed 's/\// /g' | awk '{print $4}')
+    else
+        vf_interface_vm_1=$(find /sys/devices/* -name "*${synthetic_interface_vm_1}" | grep "pci" | sed 's/\// /g' | awk '{print $12}')
+    fi
     LogMsg "Virtual function found: $vf_interface_vm_1"
 
     # Ping the remote host
@@ -106,7 +156,13 @@ while [ $__iterator -le "$vf_count" ]; do
     # Get the VF name from VM2
     cmd_to_send="ip addr | grep \"$static_IP_2\" | awk '{print \$NF}'"
     synthetic_interface_vm_2=$(ssh -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$remote_user"@"$static_IP_2" "$cmd_to_send")
-    cmd_to_send="find /sys/devices/* -name "*${synthetic_interface_vm_2}" | grep pci | sed 's/\// /g' | awk '{print \$12}'"
+    if [[ $DISTRO_VERSION =~ ^6\. ]]; then
+        synthetic_MAC_command="ip link show "${synthetic_interface_vm_2}" | grep ether | awk '{print \$2}'"
+        synthetic_MAC=$(ssh -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$remote_user"@"$static_IP_2" "$synthetic_MAC_command")
+        cmd_to_send="grep -il ${synthetic_MAC} /sys/class/net/*/address | grep -v "${synthetic_interface_vm_2}" | sed 's/\// /g' | awk '{print \$4}'"
+    else
+        cmd_to_send="find /sys/devices/* -name "*${synthetic_interface_vm_2}" | grep pci | sed 's/\// /g' | awk '{print \$12}'"
+    fi
     vf_interface_vm_2=$(ssh -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$remote_user"@"$static_IP_2" "$cmd_to_send")
 
     rx_value=$(ssh -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$remote_user"@"$static_IP_2" cat /sys/class/net/"${vf_interface_vm_2}"/statistics/rx_packets)
