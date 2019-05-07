@@ -149,7 +149,8 @@ Function Validate-SubscriptionUsage($RGXMLData, $Location, $OverrideVMSize, $Sto
                 "standardHCSFamily" = @{ "Regexp" = "^HC"; "isPremium"= 0};
                 "standardHFamily" = @{ "Regexp" = "^H[^BC]"; "isPremium"= 0};
                 "basicAFamily" = @{ "Regexp" = "^Basic"; "isPremium"= 0};
-                "standardMSFamily" = @{ "Regexp" = "^M"; "isPremium"= 0}
+                "standardMSFamily" = @{ "Regexp" = "^M"; "isPremium"= 0};
+                "standardLSv2Family" = @{ "Regexp" = "^L.*S.*v2$"; "isPremium"= 0}
             }
             $identifierTest = ""
             foreach ($vmFamily in $regExpVmSize.Keys) {
@@ -249,23 +250,40 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
         $locationCounter = 0
         Write-LogInfo "$RGCount Resource groups will be deployed in $($xRegionLocations.Replace('-',' and '))"
     }
+    $testToLocationMapping = ([xml](Get-Content .\XML\TestToLocationMapping.xml))
+    $mappedLocations = $testToLocationMapping.TestAndLocationMapping.$($TestCaseData.Category).$($TestCaseData.Area)
+    if ($mappedLocations) {
+        $mappedLocations = $mappedLocations.split(",")
+        if($mappedLocations.Contains($location)) {
+            $mappedLocations = $location
+        }
+    } else {
+        $mappedLocations = $location
+    }
     foreach ($RG in $setupTypeData.ResourceGroup ) {
         $validateStartTime = Get-Date
         Write-LogInfo "Checking the subscription usage..."
         $readyToDeploy = $false
         $coreCountExceededTimeout = 3600
-        while (!$readyToDeploy) {
-            $readyToDeploy = Validate-SubscriptionUsage -RGXMLData $RG -Location $location -OverrideVMSize $TestCaseData.OverrideVMSize `
-                                -StorageAccount $GlobalConfig.Global.Azure.Subscription.ARMStorageAccount
-            $validateCurrentTime = Get-Date
-            $elapsedWaitTime = ($validateCurrentTime - $validateStartTime).TotalSeconds
-            if ( (!$readyToDeploy) -and ($elapsedWaitTime -lt $coreCountExceededTimeout)) {
-                $waitPeriod = Get-Random -Minimum 1 -Maximum 10 -SetSeed (Get-Random)
-                Write-LogInfo "Timeout in approx. $($coreCountExceededTimeout - $elapsedWaitTime) seconds..."
-                Write-LogInfo "Waiting $waitPeriod minutes..."
-                Start-Sleep -Seconds ($waitPeriod * 60)
+        foreach ($mappedLocation in $mappedLocations) {
+            while (!$readyToDeploy) {
+                $readyToDeploy = Validate-SubscriptionUsage -RGXMLData $RG -Location $mappedLocation -OverrideVMSize $TestCaseData.OverrideVMSize `
+                                    -StorageAccount $GlobalConfig.Global.Azure.Subscription.ARMStorageAccount
+                $validateCurrentTime = Get-Date
+                $elapsedWaitTime = ($validateCurrentTime - $validateStartTime).TotalSeconds
+                if ( (!$readyToDeploy) -and ($elapsedWaitTime -lt $coreCountExceededTimeout)) {
+                    $waitPeriod = Get-Random -Minimum 1 -Maximum 10 -SetSeed (Get-Random)
+                    Write-LogInfo "Timeout in approx. $($coreCountExceededTimeout - $elapsedWaitTime) seconds..."
+                    Write-LogInfo "Waiting $waitPeriod minutes..."
+                    Start-Sleep -Seconds ($waitPeriod * 60)
+                }
+                if ($elapsedWaitTime -gt $coreCountExceededTimeout) {
+                    break
+                }
             }
-            if ( $elapsedWaitTime -gt $coreCountExceededTimeout ) {
+            if ($readyToDeploy) {
+                Write-LogInfo "Using Location $mappedLocation"
+                $location = $mappedLocation
                 break
             }
         }
@@ -719,27 +737,56 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
         }
     }
 
+    $regionAndStorageMapFile = Resolve-Path ".\XML\RegionAndStorageAccounts.xml"
+    $regionAndStorageMap = [xml](Get-Content $regionAndStorageMapFile)
     #Condition Existing Storage - NonManaged disks
     if ( $StorageAccountName -inotmatch "NewStorage" -and !$UseManagedDisks ) {
-        $StorageAccountType = ($GetAzureRMStorageAccount | Where-Object {$_.StorageAccountName -eq $StorageAccountName}).Sku.Tier.ToString()
+        $StorageAccountType = (Get-AzureRmStorageAccount | Where-Object {$_.StorageAccountName -eq $StorageAccountName}).Sku.Tier.ToString()
         if ($StorageAccountType -match 'Premium') {
             $StorageAccountType = "Premium_LRS"
         }
         else {
             $StorageAccountType = "Standard_LRS"
+        }
+        if ($Location -ne $TestLocation) {
+            $StorageAccountName = $regionAndStorageMap.AllRegions.$($Location).StandardStorage
+            if ($StorageAccountType -eq "Premium_LRS") {
+                $StorageAccountName = $regionAndStorageMap.AllRegions.$($Location).PremiumStorage
+            }
         }
         Write-LogInfo "Storage Account Type : $StorageAccountType"
     }
 
-    #Condition Existing Storage - Managed Disks
-    if ( $StorageAccountName -inotmatch "NewStorage" -and $UseManagedDisks ) {
-        $StorageAccountType = ($GetAzureRMStorageAccount | Where-Object {$_.StorageAccountName -eq $StorageAccountName}).Sku.Tier.ToString()
-        if ($StorageAccountType -match 'Premium') {
-            $StorageAccountType = "Premium_LRS"
+    if ($osVHD -and ($StorageAccountName -inotmatch "NewStorage") -and ($Location -ne $TestLocation)) {
+        $destStorageAccount = $regionAndStorageMap.AllRegions.$($Location).StandardStorage
+        if ($StorageAccountName -imatch "ExistingStorage_Premium") {
+            $destStorageAccount = $regionAndStorageMap.AllRegions.$($Location).PremiumStorage
         }
-        else {
-            $StorageAccountType = "Standard_LRS"
+
+        $givenVHDStorageAccount = $osVHD.Replace("https://","").Replace("http://","").Split(".")[0]
+        $sourceContainer =  $osVHD.Split("/")[$osVHD.Split("/").Count - 2]
+        $vhdName = $osVHD.Split("?")[0].split('/')[-1]
+        if (!$global:CopiedVHDLocations -or !($global:CopiedVHDLocations.Contains($Location))) {
+            Write-LogInfo "Select $location is not the original location $TestLocation, copy VHD"
+            if(($OsVHD -imatch 'sp=') -and ($OsVHD -imatch 'sig=')) {
+                $copyStatus = Copy-VHDToAnotherStorageAccount -SasUrl $osVHD -destinationStorageAccount $destStorageAccount `
+                                                        -destinationStorageContainer "vhds" -vhdName $vhdName
+            } else {
+                $copyStatus = Copy-VHDToAnotherStorageAccount -sourceStorageAccount $givenVHDStorageAccount -sourceStorageContainer $sourceContainer `
+                                                        -destinationStorageAccount $destStorageAccount -destinationStorageContainer "vhds" -vhdName $vhdName
+            }
+            if (!$copyStatus) {
+                Throw "Failed to copy the VHD to $destStorageAccount"
+            }
+            $global:CopiedVHDLocations += $Location
+        } else {
+            Write-LogInfo "Select $location is not the original location $TestLocation, VHD already copied, skip copy"
         }
+        $StorageAccountName = $destStorageAccount
+    }
+    if ($global:BaseOsVHD) {
+        $osVHD = $osVHD.Split("?")[0].split('/')[-1]
+        $global:BaseOsVHD = $osVHD
     }
 
     #Condition New Storage - NonManaged disk
@@ -756,7 +803,6 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
         Write-LogInfo "Conflicting parameters - NewStorage and UseManagedDisks. Storage account will not be created."
     }
     #Region Define all Variables.
-
     Write-LogInfo "Generating Template : $azuredeployJSONFilePath"
     $jsonFile = $azuredeployJSONFilePath
 
@@ -1329,7 +1375,7 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
 
     Add-Content -Value "$($indents[3])}" -Path $jsonFile
     Add-Content -Value "$($indents[2])}," -Path $jsonFile
-    Write-LogInfo "Addded Load Balancer."
+    Write-LogInfo "Added Load Balancer."
     #endregion
 
     $vmAdded = $false
@@ -1955,7 +2001,7 @@ Function Copy-VHDToAnotherStorageAccount ($sourceStorageAccount, $sourceStorageC
         $expireTime = Get-Date
         $expireTime = $expireTime.AddYears(1)
         $SasUrl = New-AzureStorageBlobSASToken -container $srcStorageContainer -Blob $srcStorageBlob -Permission R -ExpiryTime $expireTime -FullUri -Context $Context
-}
+    }
 
     Write-LogInfo "Retrieving $destinationStorageAccount storage account key"
     $DestAccountKey = (Get-AzureRmStorageAccountKey -ResourceGroupName $(($GetAzureRmStorageAccount  | Where-Object {$_.StorageAccountName -eq "$destinationStorageAccount"}).ResourceGroupName) -Name $destinationStorageAccount)[0].Value

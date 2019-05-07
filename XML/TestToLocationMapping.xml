@@ -1,0 +1,8 @@
+<TestAndLocationMapping>
+    <Functional>
+        <NVME>eastus2</NVME>
+    </Functional>
+    <Performance>
+        <NVME>eastus2</NVME>
+    </Performance>
+</TestAndLocationMapping>

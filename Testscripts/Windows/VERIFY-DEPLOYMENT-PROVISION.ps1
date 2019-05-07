@@ -9,7 +9,7 @@ function Main {
 		$CurrentTestResult = Create-TestResultObject
 		$CurrentTestResult.TestSummary += New-ResultSummary -testResult "PASS" `
 			-metaData "FirstBoot" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
-		Write-LogInfo "Check 1: Checking call tracess again after 30 seconds sleep"
+		Write-LogInfo "Check 1: Checking call trace again after 30 seconds sleep"
 		Start-Sleep 30
 		$noIssues = Check-KernelLogs -allVMData $allVMData
 		if ($noIssues) {
@@ -20,7 +20,7 @@ function Main {
 			if ($RestartStatus -eq "True") {
 				$CurrentTestResult.TestSummary += New-ResultSummary -testResult "PASS" `
 					-metaData "Reboot" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
-				Write-LogInfo "Check 2: Checking call tracess again after Reboot > 30 seconds sleep"
+				Write-LogInfo "Check 2: Checking call trace again after Reboot > 30 seconds sleep"
 				Start-Sleep 30
 				$noIssues = Check-KernelLogs -allVMData $allVMData
 				if ($noIssues) {
