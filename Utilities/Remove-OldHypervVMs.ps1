@@ -29,14 +29,17 @@ function Main
         | ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
 
     foreach ($prefix in $vmNamePrefixes) {
-        $vmList += Get-VM -VMName $prefix -ComputerName $HvServer
+        $vm = Get-VM -VMName $prefix -ComputerName $HvServer
+        if ($vm -ne $null){
+            $vmList += $vm
+        }
     }
 
     foreach ($vm in $vmList) {
-		$vmState = $(Get-VM -Name $vm.VMName -ComputerName $HvServer).State
-		if (($vmState -notlike "Running") -or ($vmState -notlike "Off")) {
-			continue
-		}
+        $vmState = $(Get-VM -Name $vm.VMName -ComputerName $HvServer).State
+        if (($vmState -notlike "Running") -and ($vmState -notlike "Off")) {
+            continue
+        }
         # Check the running VM(s) creation time: if it is greater than 48 hours, stop it
         $dateComparison = (Get-Date).AddDays(-1)
         if (($vm.CreationTime -lt $dateComparison) -and (Get-VM -Name $vm.VMName `
@@ -70,7 +73,7 @@ function Main
             Remove-VMSnapshot -VMName $vm.VMName -ComputerName $HvServer -IncludeAllChildSnapshots `
                 -EA SilentlyContinue -Confirm:$false
             Wait-VMStatus -VMName $vm.VMName -VMStatus "Operating Normally" -HvServer $HvServer `
-                -RetryInterval 2
+                -RetryInterval 10 -RetryCount 60
 
             # Remove Hard Drives
             $vm.HardDrives | ForEach-Object {
