@@ -1,8 +1,8 @@
 [CmdletBinding()]
 Param(
-    # [Required]
     $ARMVMImage = "",
-    $RegionVMsize = "",
+    $Region = "",
+    $VMsize = "",
     $CustomVHD,
     $GuestOSType = "",
     $StorageAccountName = "",
@@ -25,14 +25,48 @@ Param(
 )
 try {
     #Make a backup of XML files.
-    Copy-Item -Path .\XML\TestCases\FunctionalTests.xml -Destination .\XML\TestCases\FunctionalTests.xml.backup -Force
-    Copy-Item -Path .\XML\VMConfigurations\OneVM.xml -Destination .\XML\VMConfigurations\OneVM.xml.backup -Force
-    Copy-Item -Path $customSecretsFilePath -Destination "$customSecretsFilePath.backup" -Force
 
-    $Location = $RegionVMsize.Split(" ")[0]
-    $VMSize = $RegionVMsize.Split(" ")[1]
+    if ($Username -and $Password) {
+        # Create a backup of secret file before injecting custom username and password.
+        Copy-Item -Path $customSecretsFilePath -Destination "$customSecretsFilePath.backup" -Force
+
+        $XmlSecrets = [xml](Get-Content -Path $customSecretsFilePath)
+        $XmlSecrets.secrets.linuxTestUsername = $Username
+        $XmlSecrets.secrets.linuxTestPassword = $Password
+        $XmlSecrets.Save($customSecretsFilePath)
+    } else {
+        Throw "Please provide -Username and -Password"
+    }
 
     $SetupTypeName = "Deploy$NumberOfVMs`VM"
+
+    $TestDefinition = '
+    <TestCases>
+        <test>
+            <TestName>TOOL-DEPLOYMENT-PROVISION</TestName>
+            <testScript>TOOL-DEPLOYMENT-PROVISION.ps1</testScript>
+            <files></files>
+            <setupType>SETUP_TYPE_NAME</setupType>
+            <Platform>Azure,HyperV</Platform>
+            <Category>Tool</Category>
+            <Area>DEPLOYVM</Area>
+            <TestParameters>
+                <param>AutoCleanup=AUTO_CLEANUP</param>
+            </TestParameters>"
+            <Tags>provision</Tags>
+            <Priority>0</Priority>
+        </test>
+    </TestCases>
+    '
+    $SetupTypeDefinition = '
+    <TestSetup>
+        <SETUP_TYPE_NAME>
+            <isDeployed>NO</isDeployed>
+            <ResourceGroup>
+                CUSTOM_VMS
+            </ResourceGroup>
+        </SETUP_TYPE_NAME>
+    </TestSetup>'
 
     $SingleDataDisk = '
                 <DataDisk>
@@ -58,14 +92,6 @@ try {
                 <ExtraNICs>EXTRA_NICS</ExtraNICs>
             </VirtualMachine>'
 
-    $SingleResourceGroup = '
-    <CUSTOM_RG>
-        <isDeployed>NO</isDeployed>
-        <ResourceGroup>
-            CUSTOM_VMS
-        </ResourceGroup>
-    </CUSTOM_RG>'
-
     $GuestOSType = "Linux"
     if ($GuestOSType -eq "Windows") {
         $ConnectionPort = 3389
@@ -85,7 +111,7 @@ try {
     else {
         $CUSTOM_DISKS = ""
     }
-    $VMSize = $RegionVMsize.Split(" ")[1]
+
     if ($NumberOfVMs -eq 1) {
         $CUSTOM_ENDPOINTS = $SinglePort.Replace("PORT_NAME", "$ConnectionPortName").Replace("PORT_TYPE", "tcp").Replace("LOCAL_PORT", "$ConnectionPort").Replace("PUBLIC_PORT", "$ConnectionPort")
         $CUSTOM_VMS = $SingleVM.Replace("CUSTOM_ENDPOINTS", "$CUSTOM_ENDPOINTS")
@@ -110,30 +136,20 @@ try {
         }
     }
 
-    $CUSTOM_RGS = $SingleResourceGroup.Replace("CUSTOM_VMS", "$CUSTOM_VMS")
-    $CUSTOM_RGS = $CUSTOM_RGS.Replace("CUSTOM_RG", $SetupTypeName)
-    $VMConfigurations = (Get-Content .\XML\VMConfigurations\OneVM.xml)
-    $VMConfigurations = $VMConfigurations.Replace('</OneVM>', "</OneVM>$CUSTOM_RGS")
-    Set-Content -Value $VMConfigurations -Path .\XML\VMConfigurations\OneVM.xml -Force
+    # Write the Tool-Deploy-VM TestDefition
+    $TestDefinition = $TestDefinition.Replace('SETUP_TYPE_NAME',$SetupTypeName)
+    $TestDefinition = $TestDefinition.Replace('AUTO_CLEANUP',$AutoCleanup)
+    Set-Content -Value $TestDefinition -Path .\XML\TestCases\Tool-Deploy-VM.xml -Force
 
-    $FunctionalTests = (Get-Content .\XML\TestCases\FunctionalTests.xml)
-    $FunctionalTests = $FunctionalTests.Replace('>OneVM<', ">$SetupTypeName<")
-    $FunctionalTests = $FunctionalTests.Replace('VERIFY-DEPLOYMENT-PROVISION', "TOOL-DEPLOYMENT-PROVISION")
-    $TestParameters = "<testScript>TOOL-DEPLOYMENT-PROVISION.ps1</testScript>
-    <TestParameters>
-        <param>AutoCleanup=$AutoCleanup</param>
-    </TestParameters>"
-    $FunctionalTests = $FunctionalTests.Replace('<testScript>TOOL-DEPLOYMENT-PROVISION.ps1</testScript>', $TestParameters)
+    # Write the Tool-Deploy-VM SetupTypeDefition
+    $SetupTypeDefinition = $SetupTypeDefinition.Replace("CUSTOM_VMS", "$CUSTOM_VMS")
+    $SetupTypeDefinition = $SetupTypeDefinition.Replace("SETUP_TYPE_NAME", $SetupTypeName)
+    Set-Content -Value $SetupTypeDefinition -Path .\XML\VMConfigurations\Tool-Deploy-VM.xml -Force
 
-    Set-Content -Value $FunctionalTests -Path .\XML\TestCases\FunctionalTests.xml -Force
-    $XmlSecrets = [xml](Get-Content -Path $customSecretsFilePath)
-    $XmlSecrets.secrets.linuxTestUsername = $Username
-    $XmlSecrets.secrets.linuxTestPassword = $Password
-    $XmlSecrets.Save($customSecretsFilePath)
-
+    # Start the LISAv2 Test with ResourceCleanup = Keep
     .\Run-LisaV2.ps1 `
         -TestPlatform Azure `
-        -TestLocation $Location `
+        -TestLocation $Region `
         -ARMImageName $ARMVMImage `
         -StorageAccount $StorageAccountName `
         -RGIdentifier $VMName `
@@ -147,7 +163,5 @@ catch {
     Write-Host "EXCEPTION : $ErrorMessage"
 }
 finally {
-    Copy-Item -Path .\XML\TestCases\FunctionalTests.xml.backup -Destination .\XML\TestCases\FunctionalTests.xml -Force
-    Copy-Item -Path .\XML\VMConfigurations\OneVM.xml.backup -Destination .\XML\VMConfigurations\OneVM.xml -Force
     Copy-Item -Path "$customSecretsFilePath.backup" -Destination "$customSecretsFilePath" -Force
 }
