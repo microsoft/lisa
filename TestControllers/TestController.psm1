@@ -409,7 +409,7 @@ Class TestController
 		New-Item -Type Directory -Path $CurrentTestLogDir -ErrorAction SilentlyContinue | Out-Null
 		Set-Variable -Name "LogDir" -Value $CurrentTestLogDir -Scope Global
 
-		$this.JunitReport.StartLogTestCase("LISAv2Test-$($this.TestPlatform)","$currentTestName","$($CurrentTestData.Category)-$($CurrentTestData.Area)")
+		$this.JunitReport.StartLogTestCase("LISAv2Test-$($this.TestPlatform)","$currentTestName","$($this.TestPlatform)-$($CurrentTestData.Category)-$($CurrentTestData.Area)")
 
 		try {
 			# Get test case parameters
@@ -574,7 +574,7 @@ Class TestController
 							$this.TestLocation, $this.RGIdentifier, $this.UseExistingRG, $this.ResourceCleanup)
 						if (!$vmData) {
 							# Failed to deploy the VMs, Set the case to abort
-							$this.JunitReport.StartLogTestCase("LISAv2Test-$($this.TestPlatform)","$($case.testName)","$($case.Category)-$($case.Area)")
+							$this.JunitReport.StartLogTestCase("LISAv2Test-$($this.TestPlatform)","$($case.testName)","$($this.TestPlatform)-$($case.Category)-$($case.Area)")
 							$this.JunitReport.CompleteLogTestCase("LISAv2Test-$($this.TestPlatform)","$($case.testName)","Aborted","")
 							$this.TestSummary.UpdateTestSummaryForCase($case, $executionCount, "Aborted", "0", "", $null)
 							continue
