@@ -36,6 +36,9 @@ ltp_git_url="https://github.com/linux-test-project/ltp.git"
 # The LTPROOT is used by some tests, e.g, block_dev test
 export LTPROOT="/opt/ltp"
 
+# Clear the old log
+rm -f $LTP_RESULTS $LTP_OUTPUT
+
 # Checks what Linux distro we are running on
 GetDistro
 update_repos
@@ -164,5 +167,6 @@ echo "--------------------------------------"
 echo "-----------LTP OUTPUT----------------"
 cat "$LTP_OUTPUT" >> ~/TestExecution.log
 echo "--------------------------------------"
+collect_VM_properties
 SetTestStateCompleted
 exit 0
