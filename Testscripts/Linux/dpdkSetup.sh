@@ -141,6 +141,9 @@ function install_dpdk () {
 
 	ssh "${1}" "mv ${dpdkSrcDir} ${RTE_SDK}"
 
+	DPDK_DIR="${dpdkSrcDir}"
+	LogMsg "DPDK source directory: ${DPDK_DIR}"
+
 	if [ ! -z "$dpdk_server_ip" -a "$dpdk_server_ip" != " " ];
 	then
 		LogMsg "dpdk build with NIC SRC IP $dpdk_server_ip ADDR on ${1}"

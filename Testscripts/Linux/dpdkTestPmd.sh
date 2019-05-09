@@ -11,6 +11,7 @@ HOMEDIR=$(pwd)
 LOGDIR="${HOMEDIR}/DpdkTestPmdLogs"
 CONSTANTS_FILE="./constants.sh"
 UTIL_FILE="./utils.sh"
+DPDK_UTIL_FILE="./dpdkUtils.sh"
 rxonly_mode=""
 io_mode=""
 
@@ -21,6 +22,11 @@ io_mode=""
 }
 . ${UTIL_FILE} || {
 	echo "ERROR: unable to source ${UTIL_FILE}!"
+	echo "TestAborted" > state.txt
+	exit 2
+}
+. ${DPDK_UTIL_FILE} || {
+	echo "ERROR: unable to source ${DPDK_UTIL_FILE}!"
 	echo "TestAborted" > state.txt
 	exit 2
 }
@@ -82,9 +88,9 @@ runTestPmd()
 		LogMsg "Configure huge pages on ${client}"
 		
 		LogMsg "TestPmd is starting on ${clientNIC1ip} with txonly mode, duration ${testDuration} secs"
-		echo "echo 0 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 0 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages && echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages &&  modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib;timeout ${testDuration} testpmd -l 0-1 -w 0002:00:02.0 --vdev='net_vdev_netvsc0,iface=eth1,force=1' -- --port-topology=chained --nb-cores 1 --txq 1 --rxq 1 --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=txonly  --stats-period 1 2>&1 >> $LOGDIR/dpdk-testpmd-${testmode}-sender.log &"
-
-		echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages &&  modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib;timeout "${testDuration}" testpmd -l 0-1 -w 0002:00:02.0 --vdev='net_vdev_netvsc0,iface=eth1,force=1' -- --port-topology=chained --nb-cores 1 --txq 1 --rxq 1 --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=txonly  --stats-period 1 2>&1 > "$LOGDIR"/dpdk-testpmd-"${testmode}"-sender-$(date +"%m%d%Y-%H%M%S").log &
+		trx_rx_ips=$(Get_Trx_Rx_Ip_Flags "${server}")
+		echo "echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 0 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages && echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages &&  modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib;timeout ${testDuration} testpmd -l 0-1 -w 0002:00:02.0 --vdev='net_vdev_netvsc0,iface=eth1,force=1' -- --port-topology=chained --nb-cores 1 --txq 1 --rxq 1 --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=txonly --stats-period 1 ${trx_rx_ips} 2>&1 >> $LOGDIR/dpdk-testpmd-${testmode}-sender.log &"
+		echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages &&  modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib;timeout "${testDuration}" testpmd -l 0-1 -w 0002:00:02.0 --vdev='net_vdev_netvsc0,iface=eth1,force=1' -- --port-topology=chained --nb-cores 1 --txq 1 --rxq 1 --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=txonly --stats-period 1 "${trx_rx_ips}" 2>&1 > "$LOGDIR"/dpdk-testpmd-"${testmode}"-sender-$(date +"%m%d%Y-%H%M%S").log &
 		checkCmdExitStatus "TestPmd started on ${clientNIC1ip} with txonly mode, duration ${testDuration} secs"
 		sleep "${testDuration}"
 		LogMsg "reset used huge pages"
@@ -215,6 +221,9 @@ testPmdParser ()
 }
 
 LogMsg "*********INFO: Starting DPDK Setup execution*********"
+DPDK_DIR="dpdk"
+LogMsg "Initial DPDK source directory: ${DPDK_DIR}"
+
 ./dpdkSetup.sh
 checkCmdExitStatus "DPDK Setup"
 LogMsg "*********INFO: Starting TestPmd test execution with DPDK ${dpdkVersion}*********"
