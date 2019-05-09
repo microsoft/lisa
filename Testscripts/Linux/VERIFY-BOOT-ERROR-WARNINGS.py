@@ -8,12 +8,12 @@ white_list_xml = "ignorable-boot-errors.xml"
 
 def RunTest():
     UpdateState("TestRunning")
-    RunLog.info("Checking for ERROR and WARNING messages in  kernel boot line.")
+    RunLog.info("Checking for ERROR and WARNING messages in system logs.")
     errors = Run("grep -nw '/var/log/syslog' -e 'error' --ignore-case && grep -nw '/var/log/messages' -e 'error' --ignore-case")
     warnings = Run("grep -nw '/var/log/syslog' -e 'warning' --ignore-case && grep -nw '/var/log/messages' -e 'warning' --ignore-case")
     failures = Run("grep -nw '/var/log/syslog' -e 'fail' --ignore-case && grep -nw '/var/log/messages' -e 'fail' --ignore-case")
     if (not errors and not warnings and not failures):
-        RunLog.error('ERROR/WARNING/FAILURE are not present in kernel boot line.')
+        RunLog.info('Could not find ERROR/WARNING/FAILURE messages in syslog/messages log file.')
         ResultLog.info('PASS')
     else:
         if white_list_xml and os.path.isfile(white_list_xml):
@@ -35,7 +35,7 @@ def RunTest():
                     warnings = RemoveIgnorableMessages(warnings, node)
 
         if (errors or warnings or failures):
-            RunLog.info('ERROR/WARNING/FAILURE are  present in kernel boot line.')
+            RunLog.error('Found ERROR/WARNING/FAILURE messages in logs.')
             if(errors):
                RunLog.info('Errors: ' + ''.join(errors))
             if(warnings):
