@@ -79,6 +79,8 @@
             <param>LTP_TEST_SUITE="LTP_SUITE"</param>
             <param>SCSI=1,1,Fixed,512,5GB</param>
             <param>LTP_PACKAGE_URL="LTP_BUILD_URL"</param>
+            <param>SKIP_LTP_TESTS="LTP_SKIP"</param>
+            <param>CUSTOM_LTP_SUITES="LTP_CUSTOM_SUITES"</param>
         </TestParameters>
         <Timeout>20000</Timeout>
         <Platform>Azure,HyperV</Platform>
@@ -100,6 +102,8 @@
             <param>LTP_TEST_SUITE="full"</param>
             <param>SCSI=1,1,Fixed,512,5GB</param>
             <param>LTP_PACKAGE_URL="LTP_BUILD_URL"</param>
+            <param>SKIP_LTP_TESTS="LTP_SKIP"</param>
+            <param>CUSTOM_LTP_SUITES="LTP_CUSTOM_SUITES"</param>
         </TestParameters>
         <Timeout>20000</Timeout>
         <Platform>Azure,HyperV</Platform>
