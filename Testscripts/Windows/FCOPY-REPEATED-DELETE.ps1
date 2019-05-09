@@ -27,6 +27,7 @@ function Main {
 
 $testfile = $null
 $gsi = $null
+
 #######################################################################
 #
 #   Main body script
@@ -48,8 +49,8 @@ elseif ($BuildNumber -lt 9600)
 #
 # Verify if the Guest services are enabled for this VM
 #
-$originalFileSize = $fileSize
-$fileSize = $fileSize/1
+
+$fileSize = $TestParams.fileSize/1
 
 $gsi = Get-VMIntegrationService -vmName $VMName -ComputerName $HvServer -Name "Guest Service Interface"
 if (-not $gsi) {
@@ -102,13 +103,6 @@ else {
     }
 }
 
-# Verifying if /tmp folder on guest exists; if not, it will be created
-$sts = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort -command "if [ -d /tmp ]; then echo tmp exists ; else mkdir /tmp; fi" -runAsSudo
-Write-LogInfo "Verifying if /tmp folder on guest exists"
-#
-# The fcopy daemon must be running on the Linux guest VM
-#
-
 $sts = Check-FcopyDaemon -vmPassword $VMPassword -VmPort $VMPort -vmUserName $VMUserName -ipv4 $Ipv4
 if (-not $sts) {
     Write-LogErr "File copy daemon is not running inside the Linux guest VM!"
@@ -124,6 +118,7 @@ if (-not $sts) {
 #
 # Run the test
 #
+for($i=0; $i -ne 3; $i++){
         $sts = Copy-FileVM -vmName $VMName -hvServer $HvServer  -filePath $filePath
         if (-not $sts) {
             Write-LogErr "File could not be copied!"
@@ -132,31 +127,41 @@ if (-not $sts) {
         }
         Write-LogInfo "File has been successfully copied to guest VM '${vmName}'"
 
-        $sts = Check-FileInLinuxGuest  -vmPassword $VMPassword -vmPort $VMPort -vmUserName $VMUserName -ipv4 $Ipv4   -fileName "/mnt/test/$testfile"
+        $sts = Check-FileInLinuxGuest  -vmPassword $VMPassword -vmPort $VMPort -vmUserName $VMUserName -ipv4 $Ipv4 -fileName "/mnt/test/$testfile" -checkSize $true
         if (-not $sts) {
             Write-LogErr "File check error on the guest VM '${vmName}'!"
             return "FAIL"
             break
         }
-        Write-LogInfo "The file copied matches the ${originalFileSize} size."
+        if (($sts/1gb) -eq ($fileSize/1gb) ) {
+            Write-LogInfo "The file copied matches the $fileSize size."
+        }
+        else {
+            Write-LogErr " The file copied doesn't match the $fileSize size!"
+            return "FAIL"
+            break
+        }
 
-        $sts = Run-LinuxCmd -username $VMUserName -password $VMPassword -port $VMPort -ip $Ipv4 "rm -f /mnt/test/$testfile" -runAsSudo
+        Write-LogInfo "The file copied matches the ${FileSize} size."
+
+        $sts = Run-LinuxCmd -username $VMUserName -password $VMPassword -port $VMPort -ip $Ipv4 "rm -f /mnt/test/$testfile && echo 1 || echo 0 " -runAsSudo
         if (-not $sts) {
             Write-LogErr "Failed to remove file from VM $VMName."
             return  "FAIL"
             break
         }
         Write-LogInfo "File has been successfully removed from guest VM '${vmName}'"
+    }
 #
 # Removing the temporary test file
 #
 Remove-Item -Path \\$HvServer\$file_path_formatted -Force
-if (-not $?) {
+if ($? -ne "True") {
     Write-LogErr "Cannot remove the test file '${testfile}'!"
-    return "FAIL"
 }
+return "PASS"
 }
 Main -VMName $AllVMData.RoleName -HvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
          -Ipv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort `
          -VMUserName $user -VMPassword $password -RootDir $WorkingDirectory `
-         -TestParams $TestParams
+         -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))

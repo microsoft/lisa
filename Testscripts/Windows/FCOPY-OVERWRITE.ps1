@@ -121,7 +121,6 @@ if (-not $sts) {
 }
 else {
     Write-LogInfo "The file has been initially copied to the VM '${vmName}'."
-    return "PASS"
 }
 #
 # Second copy file overwrites the initial file. Re-write the text file with 15 characters, and then copy it with -Force parameter.
@@ -133,15 +132,15 @@ if (-not $sts) {
 }
 else {
     Write-LogInfo "The file has been overwritten to the VM '${vmName}'."
-    return "PASS"
-}
 
+}
 # Removing the temporary test file
 Remove-Item -Path \\$HvServer\$file_path_formatted -Force
 if ($? -ne "True") {
     Write-LogErr "Cannot remove the test file '${testfile}'!"
-    return "FAIL"
 }
+
+return "PASS"
 }
 
 Main -VMName $AllVMData.RoleName -HvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `

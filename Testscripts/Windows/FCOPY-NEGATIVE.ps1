@@ -208,7 +208,6 @@ function Main {
 
         return "PASS"
     }
-
 }
 
 Main -VMName $AllVMData.RoleName -HvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `

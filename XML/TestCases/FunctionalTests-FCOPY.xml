@@ -73,7 +73,6 @@
 		<testName>FCOPY-DISABLE-ENABLE</testName>
 		<setupScript>.\Testscripts\Windows\AddVhdxHardDisk.ps1</setupScript>
 		<testScript>FCOPY-DISABLE-ENABLE.ps1</testScript>
-		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\check_traces.sh</files>
 		<setupType>OneVM</setupType>
 		<testParameters>
 			<param>SCSI=1,0,Fixed,512,7GB</param>
