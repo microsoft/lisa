@@ -477,8 +477,7 @@ Class TestController
 		# Check if VM is running before collecting logs
 		if (!$global:IsWindowsImage -and $testParameters["SkipVerifyKernelLogs"] -ne "True" -and $isVmAlive -eq "True" ) {
 			GetAndCheck-KernelLogs -allDeployedVMs $VmData -status "Final" -EnableCodeCoverage $this.EnableCodeCoverage | Out-Null
-			Get-SystemBasicLogs -AllVMData $VmData -User $global:user -Password $global:password -CurrentTestData $CurrentTestData `
-				-CurrentTestResult $currentTestResult -enableTelemetry $this.EnableTelemetry
+			$this.GetSystemBasicLogs($VmData, $global:user, $global:password, $CurrentTestData, $currentTestResult, $this.EnableTelemetry) | Out-Null
 		}
 
 		$collectDetailLogs = !$this.TestCasePassStatus.contains($currentTestResult.TestResult) -and !$global:IsWindowsImage -and $testParameters["SkipVerifyKernelLogs"] -ne "True" -and $isVmAlive -eq "True"
@@ -631,4 +630,72 @@ Class TestController
 		$this.JunitReport.SaveLogReport()
 		$this.TestSummary.SaveHtmlTestSummary(".\Report\TestSummary-$global:TestID.html")
 	}
+
+	[void] GetSystemBasicLogs($AllVMData, $User, $Password, $CurrentTestData, $CurrentTestResult, $enableTelemetry) {
+        if ($allVMData.Count -gt 1) {
+			$vmData = $allVMData[0]
+		} else {
+			$vmData = $allVMData
+		}
+		$FilesToDownload = "$($vmData.RoleName)-*.txt"
+		Copy-RemoteFiles -upload -uploadTo $vmData.PublicIP -port $vmData.SSHPort `
+			-files .\Testscripts\Linux\CollectLogFile.sh `
+			-username $user -password $password -maxRetry 5 | Out-Null
+		$Null = Run-LinuxCmd -username $user -password $password -ip $vmData.PublicIP -port $vmData.SSHPort `
+			-command "bash CollectLogFile.sh -hostname $($vmData.RoleName)" -ignoreLinuxExitCode -runAsSudo
+		$Null = Copy-RemoteFiles -downloadFrom $vmData.PublicIP -port $vmData.SSHPort `
+			-username $user -password $password -files "$FilesToDownload" -downloadTo $global:LogDir -download
+		$KernelVersion = Get-Content "$global:LogDir\$($vmData.RoleName)-kernelVersion.txt"
+		$HardwarePlatform = Get-Content "$global:LogDir\$($vmData.RoleName)-hardwarePlatform.txt"
+		$GuestDistro = Get-Content "$global:LogDir\$($vmData.RoleName)-distroVersion.txt"
+		$LISMatch = (Select-String -Path "$global:LogDir\$($vmData.RoleName)-lis.txt" -Pattern "^version:").Line
+		if ($LISMatch) {
+			$LISVersion = $LISMatch.Split(":").Trim()[1]
+		} else {
+			$LISVersion = "NA"
+		}
+		#region Host Version checking
+		$HostVersion = ""
+		$FoundLineNumber = (Select-String -Path "$global:LogDir\$($vmData.RoleName)-dmesg.txt" -Pattern "Hyper-V Host Build").LineNumber
+		if (![string]::IsNullOrEmpty($FoundLineNumber)) {
+			$ActualLineNumber = $FoundLineNumber[-1] - 1
+			$FinalLine = [string]((Get-Content -Path "$global:LogDir\$($vmData.RoleName)-dmesg.txt")[$ActualLineNumber])
+			$FinalLine = $FinalLine.Replace('; Vmbus version:4.0','')
+			$FinalLine = $FinalLine.Replace('; Vmbus version:3.0','')
+			$HostVersion = ($FinalLine.Split(":")[$FinalLine.Split(":").Count -1 ]).Trim().TrimEnd(";")
+		}
+		#endregion
+
+		if ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
+			$Networking = "SRIOV"
+		} else {
+			$Networking = "Synthetic"
+		}
+		$VMSize = ""
+		if ($global:TestPlatform -eq "Azure") {
+			$VMSize = $vmData.InstanceSize
+		}
+		if ($global:TestPlatform -eq "HyperV") {
+			$VMSize = $global:HyperVInstanceSize
+		}
+		$VMGeneration = $vmData.VMGeneration
+		#endregion
+		if ($enableTelemetry) {
+			$dataTableName = ""
+			if ($this.XmlSecrets.secrets.TableName) {
+				$dataTableName = $this.XmlSecrets.secrets.TableName
+				Write-LogInfo "Using table name from secrets: $dataTableName"
+			} else {
+				$dataTableName = "LISAv2Results"
+			}
+
+			$SQLQuery = Get-SQLQueryOfTelemetryData -TestPlatform $global:TestPlatform -TestLocation $global:TestLocation -TestCategory $CurrentTestData.Category `
+                -TestArea $CurrentTestData.Area -TestName $CurrentTestData.TestName -CurrentTestResult $CurrentTestResult `
+                -ExecutionTag $global:GlobalConfig.Global.$global:TestPlatform.ResultsDatabase.testTag -GuestDistro $GuestDistro -KernelVersion $KernelVersion `
+                -HardwarePlatform $HardwarePlatform -LISVersion $LISVersion -HostVersion $HostVersion -VMSize $VMSize -VMGeneration $VMGeneration -Networking $Networking `
+                -ARMImageName $global:ARMImageName -OsVHD $global:BaseOsVHD -BuildURL $env:BUILD_URL -TableName $dataTableName
+
+			Upload-TestResultToDatabase -SQLQuery $SQLQuery
+		}
+    }
 }

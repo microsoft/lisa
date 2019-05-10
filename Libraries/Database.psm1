@@ -27,7 +27,7 @@
 
 Function Get-SQLQueryOfTelemetryData ($TestPlatform,$TestLocation,$TestCategory,$TestArea,$TestName,$CurrentTestResult, `
 									$ExecutionTag,$GuestDistro,$KernelVersion,$HardwarePlatform,$LISVersion,$HostVersion,$VMSize, $VMGeneration, `
-									$Networking,$ARMImageName,$OsVHD,$LogFile,$BuildURL)
+									$Networking,$ARMImageName,$OsVHD,$LogFile,$BuildURL, $TableName)
 {
 	try
 	{
@@ -49,8 +49,7 @@ Function Get-SQLQueryOfTelemetryData ($TestPlatform,$TestLocation,$TestCategory,
 		} else {
 			$BuildURL = ""
 		}
-		$dataTableName = "LISAv2Results"
-		$SQLQuery = "INSERT INTO $dataTableName (DateTimeUTC,TestPlatform,TestLocation,TestCategory,TestArea,TestName,TestResult,SubTestName,SubTestResult,ExecutionTag,GuestDistro,KernelVersion,HardwarePlatform,LISVersion,HostVersion,VMSize,VMGeneration,Networking,ARMImage,OsVHD,LogFile,BuildURL) VALUES "
+		$SQLQuery = "INSERT INTO $TableName (DateTimeUTC,TestPlatform,TestLocation,TestCategory,TestArea,TestName,TestResult,SubTestName,SubTestResult,ExecutionTag,GuestDistro,KernelVersion,HardwarePlatform,LISVersion,HostVersion,VMSize,VMGeneration,Networking,ARMImage,OsVHD,LogFile,BuildURL) VALUES "
 		$SQLQuery += "('$DateTimeUTC','$TestPlatform','$TestLocation','$TestCategory','$TestArea','$TestName','$testResult','','','$ExecutionTag','$GuestDistro','$KernelVersion','$HardwarePlatform','$LISVersion','$HostVersion','$VMSize','$VMGeneration','$Networking','$ARMImageName','$OsVHD','$UploadedURL', '$BuildURL'),"
 		if ($TestSummary) {
 			foreach ($tempResult in $TestSummary.Split('>')) {
