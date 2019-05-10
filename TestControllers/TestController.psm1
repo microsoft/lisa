@@ -681,11 +681,19 @@ Class TestController
 		$VMGeneration = $vmData.VMGeneration
 		#endregion
 		if ($enableTelemetry) {
+			$dataTableName = ""
+			if ($this.XmlSecrets.secrets.TableName) {
+				$dataTableName = $this.XmlSecrets.secrets.TableName
+				Write-LogInfo "Using table name from secrets: $dataTableName"
+			} else {
+				$dataTableName = "LISAv2Results"
+			}
+
 			$SQLQuery = Get-SQLQueryOfTelemetryData -TestPlatform $global:TestPlatform -TestLocation $global:TestLocation -TestCategory $CurrentTestData.Category `
                 -TestArea $CurrentTestData.Area -TestName $CurrentTestData.TestName -CurrentTestResult $CurrentTestResult `
                 -ExecutionTag $global:GlobalConfig.Global.$global:TestPlatform.ResultsDatabase.testTag -GuestDistro $GuestDistro -KernelVersion $KernelVersion `
                 -HardwarePlatform $HardwarePlatform -LISVersion $LISVersion -HostVersion $HostVersion -VMSize $VMSize -VMGeneration $VMGeneration -Networking $Networking `
-                -ARMImageName $global:ARMImageName -OsVHD $global:BaseOsVHD -BuildURL $env:BUILD_URL
+                -ARMImageName $global:ARMImageName -OsVHD $global:BaseOsVHD -BuildURL $env:BUILD_URL -TableName $dataTableName
 
 			Upload-TestResultToDatabase -SQLQuery $SQLQuery
 		}
