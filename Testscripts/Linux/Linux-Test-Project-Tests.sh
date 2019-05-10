@@ -13,8 +13,6 @@
 #    3. Runs LTP in lite mode
 #    4. Collects results
 #
-#    No optional parameters are needed
-#
 ########################################################################
 # Source utils.sh
 . utils.sh || {
@@ -44,7 +42,11 @@ GetDistro
 update_repos
 
 LogMsg "Installing dependencies"
-common_packages=(m4 bison flex make gcc psmisc autoconf automake ntp)
+common_packages=(m4 bison flex make gcc psmisc autoconf automake)
+# RedHat 8 does no longer have the ntp package
+if [[ $DISTRO != redhat_8 ]]; then
+	common_packages+=(ntp)
+fi
 update_repos
 install_package "${common_packages[@]}"
 
@@ -61,8 +63,12 @@ case $DISTRO in
         install_package "${deb_packages[@]}"
         ;;
     "redhat"* | "centos"* | "fedora"*)
-        install_epel
-        rpm_packages=(git db4-utils libaio-devel libattr libcap-devel libdb)
+		rpm_packages=(git libaio-devel libattr libcap-devel libdb)
+		# this must be revised later once epel_8 is available
+		if [[ $DISTRO != redhat_8 ]]; then
+			rpm_packages+=(db4-utils)
+		fi
+		install_epel
         install_package "${rpm_packages[@]}"
         ;;
     *)
