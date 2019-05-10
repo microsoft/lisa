@@ -130,7 +130,7 @@ function Parse-LTP {
             $null = $element.appendChild($failure)
         }
 
-        $xmlChild = $xmlRoot.appendChild($element)
+        $null = $xmlRoot.appendChild($element)
     }
     $xmlDoc.Save($XmlDestination)
 }
