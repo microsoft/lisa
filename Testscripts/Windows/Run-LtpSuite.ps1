@@ -184,7 +184,8 @@ function Main {
             $CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
                 -checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
         } else {
-            $resultArr += Get-SQLQueryOfLTP -currentTestResult $CurrentTestResult -currentTestData $CurrentTestData
+            $null = Get-SQLQueryOfLTP -currentTestResult $CurrentTestResult -currentTestData $CurrentTestData
+            $resultArr += "PASS"
         }
     } catch {
         $errorMessage =  $_.Exception.Message
