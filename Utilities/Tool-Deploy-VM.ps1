@@ -124,7 +124,6 @@ try {
                 <ExtraNICs>EXTRA_NICS</ExtraNICs>
             </VirtualMachine>'
 
-    $GuestOSType = "Linux"
     if ($GuestOSType -eq "Windows") {
         $ConnectionPort = 3389
         $ConnectionPortName = "RDP"
@@ -188,7 +187,7 @@ try {
         -TestNames "TOOL-DEPLOYMENT-PROVISION" `
         -XMLSecretFile $customSecretsFilePath `
         -ResourceCleanup Keep `
-        -CustomParameters "Networking=$Networking;DiskType=$DiskType"
+        -CustomParameters "Networking=$Networking;DiskType=$DiskType;OSType=$GuestOSType"
 }
 catch {
     $ErrorMessage = $_.Exception.Message
