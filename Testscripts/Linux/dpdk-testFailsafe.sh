@@ -74,8 +74,8 @@ function Run_Testfailsafe() {
 	ssh "${forwarder}" "${forwarder_testfwd_cmd}" 2>&1 > "${LOG_DIR}"/dpdk-testfailsafe-forwarder.log &
 
 	sleep 5
-	
-	local sender_testfwd_cmd="$(Create_Testpmd_Cmd ${core} "${sender_busaddr}" "${sender_iface}" txonly)"
+	trx_rx_ips=$(Get_Trx_Rx_Ip_Flags "${forwarder}")
+	local sender_testfwd_cmd="$(Create_Testpmd_Cmd ${core} "${sender_busaddr}" "${sender_iface}" txonly "${trx_rx_ips}")"
 	# reduce txd so VF revoke doesn't kill forwarder
 	sender_testfwd_cmd=$(echo "${sender_testfwd_cmd}" | sed -r 's,(--.xd=)4096,\110,')
 	LogMsg "${sender_testfwd_cmd}"

@@ -80,7 +80,8 @@ function Run_Testpmd() {
 
 		sleep 5
 
-		local sender_testpmd_cmd="$(Create_Timed_Testpmd_Cmd "${test_duration}" "${core}" "${sender_busaddr}" "${sender_iface}" txonly)"
+		trx_rx_ips=$(Get_Trx_Rx_Ip_Flags "${receiver}")
+		local sender_testpmd_cmd="$(Create_Timed_Testpmd_Cmd "${test_duration}" "${core}" "${sender_busaddr}" "${sender_iface}" txonly "${trx_rx_ips}")"
 		LogMsg "${sender_testpmd_cmd}"
 		eval "${sender_testpmd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testpmd-${test_mode}-sender-${core}-core-$(date +"%m%d%Y-%H%M%S").log &"
 

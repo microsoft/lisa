@@ -90,7 +90,7 @@ Run_SSHCommand()
 	done
 }
 
-#Make & build ntttcp on client and server Machine
+# Make & build ntttcp on client and server Machine
 LogMsg "Configuring client ${client}..."
 Run_SSHCommand "${client}" ". $UTIL_FILE && install_ntttcp ${ntttcpVersion}"
 if [ $? -ne 0 ]; then
@@ -211,6 +211,11 @@ Run_Ntttcp()
 	data_loss=0
 	Kill_Process "${server}" ntttcp
 	Kill_Process "${client}" ntttcp
+	
+	# Disable firewalld
+	Run_SSHCommand "${client}" "service firewalld stop"
+	Run_SSHCommand "${server}" "service firewalld stop"
+	
 	Run_SSHCommand "${server}" "mkdir -p $log_folder"
 	Run_SSHCommand "${client}" "mkdir -p $log_folder"
 	result_file="${log_folder}/report.csv"
@@ -397,7 +402,7 @@ Run_Ntttcp()
 	done
 }
 
-#Now, start the ntttcp client on client VM.
+# Start the ntttcp client on client VM
 LogMsg "Now running ${testType} test using NTTTCP"
 Run_Ntttcp
 

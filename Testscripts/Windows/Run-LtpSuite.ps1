@@ -12,6 +12,79 @@ $TEST_SCRIPT = "Linux-Test-Project-Tests.sh"
 $LTP_RESULTS = "ltp-results.log"
 $LTP_OUPUT = "ltp-output.log"
 
+function Get-SQLQueryOfLTP ($currentTestResult, $currentTestData) {
+    try {
+        Write-LogInfo "Generating the test data for database insertion"
+        $TestDate = $(Get-Date -Format yyyy-MM-dd)
+        $TestCaseName = $GlobalConfig.Global.$TestPlatform.ResultsDatabase.testTag
+        if (!$TestCaseName) {
+            $TestCaseName = $currentTestData.testName
+        }
+
+        foreach ($param in $currentTestData.TestParameters.param) {
+            if ($param -match "ltp_version_git_tag") {
+                $LTPVersion = $param.Replace("ltp_version_git_tag=","").Replace('"',"")
+            }
+
+            if ($param -match "LTP_TEST_SUITE") {
+                $LTPTestSuite  = $param.Replace("LTP_TEST_SUITE=","").Replace('"',"")
+                if ($LTPTestSuite -ne "full") {
+                    $LTPTestSuite = "light"
+                }
+            }
+        }
+
+        $isAllTestPass = $True
+        $LogPath = Join-Path $LogDir $LTP_RESULTS
+        $content = Get-Content $LogPath
+        $content | ForEach-Object {
+            if ($_ -match "[\w]+\s+(PASS|FAIL|CONF)\s+[\d]+") {
+                $rezArray = ($_ -replace '\s+', ' ').Split(" ")
+                $currentResult = $rezArray[1]
+                $metaData = $rezArray[0]
+                if ($currentResult -eq "FAIL") {
+                    # Using the script scope modifier to avoid the warning "The variable is assigned but never used"
+                    # checked by PSScriptAnalyzer
+                    $script:isAllTestPass = $False
+                    $CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
+                        -checkValues "PASS,FAIL,CONF" -testName $CurrentTestData.testName
+                }
+
+                $resultMap = @{}
+                $resultMap["GuestDistro"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type" `
+                                            | ForEach-Object {$_ -replace ",OS type,",""})
+                $resultMap["HostOS"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version" `
+                                       | ForEach-Object {$_ -replace ",Host Version,",""})
+                $resultMap["TestCaseName"] = $TestCaseName
+                $resultMap["TestDate"] = $TestDate
+                $resultMap["HostType"] = $TestPlatform
+                $resultMap["HostBy"] = $TestLocation
+                $resultMap["GuestOSType"] = 'Linux'
+                $resultMap["GuestSize"] = $allVMData.InstanceSize
+                $resultMap["GuestKernelVersion"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Kernel version" `
+                                                   | ForEach-Object {$_ -replace ",Kernel version,",""})
+                $resultMap["LTPVersion"] = $LTPVersion
+                $resultMap["LTPTestItem"] = $metaData
+                $resultMap["LTPTestSuite"] = $LTPTestSuite
+                $resultMap["TestResult"] = $currentResult
+
+                $currentTestResult.TestResultData += $resultMap
+            }
+        }
+        if ($isAllTestPass) {
+            return "PASS"
+        } else {
+            return "FAIL"
+        }
+    } catch {
+        Write-LogErr "Getting the SQL query of test results failed"
+        $errorMessage =  $_.Exception.Message
+        $errorLine = $_.InvocationInfo.ScriptLineNumber
+        Write-LogErr "EXCEPTION : $errorMessage at line: $errorLine"
+        return "ABORTED"
+    }
+}
+
 function Main {
     param (
         [object] $AllVmData,
@@ -23,36 +96,50 @@ function Main {
     $currentTestResult = Create-TestResultObject
     $resultArr = @()
 
-    $null = Run-LinuxCmd -Command "bash ${TEST_SCRIPT} > LTP-summary.log 2>&1" `
-        -Username $user -password $password -ip $AllVmData.PublicIP -Port $AllVmData.SSHPort `
-        -maxRetryCount 1 -runMaxAllowedTime 10000 -runAsSudo
+    try {
+        $null = Run-LinuxCmd -Command "bash ${TEST_SCRIPT} > LTP-summary.log 2>&1" `
+            -Username $user -password $password -ip $AllVmData.PublicIP -Port $AllVmData.SSHPort `
+            -maxRetryCount 1 -runMaxAllowedTime 12600 -runAsSudo
 
-    $null = Collect-TestLogs -LogsDestination $LogDir -TestType "sh" `
-        -PublicIP $AllVmData.PublicIP -SSHPort $AllVmData.SSHPort `
-        -Username $user -password $password `
-        -TestName $currentTestData.testName
+        $null = Collect-TestLogs -LogsDestination $LogDir -TestType "sh" `
+            -PublicIP $AllVmData.PublicIP -SSHPort $AllVmData.SSHPort `
+            -Username $user -password $password `
+            -TestName $currentTestData.testName
 
-    $filesTocopy = "{0}/${LTP_RESULTS}, {0}/${LTP_OUPUT}" -f @("/home/${username}")
-    Copy-RemoteFiles -download -downloadFrom $AllVmData.PublicIP -downloadTo $LogDir `
-        -Port $AllVmData.SSHPort -Username $user -password $password `
-        -files $filesTocopy
+        # The LTP log will be placed under /root on SUSE and RedHat when running TEST_SCRIPT with runAsSudo
+        # The NULL.log makes sure cp always work on all distros
+        $null = Run-LinuxCmd -Command "touch /root/NULL.log && \cp -f /root/*.log /home/${user}" `
+                -Username $user -password $password -ip $AllVmData.PublicIP -Port $AllVmData.SSHPort `
+                -maxRetryCount 1 -runAsSudo
 
-    $LogPath = Join-Path $LogDir $LTP_RESULTS
-    $content = Get-Content $LogPath
+        $null = Run-LinuxCmd -Command "\cp -f /opt/ltp/VM_properties.csv /home/${user}" `
+                -Username $user -password $password -ip $AllVmData.PublicIP -Port $AllVmData.SSHPort `
+                -maxRetryCount 1 -runAsSudo
 
-    $content | ForEach-Object {
-                    if ($_ -match "[\w]+\s+(PASS|FAIL|CONF)\s+[\d]+") {
-                        $rezArray = ($_ -replace '\s+', ' ').Split(" ")
-                        $currentResult = $rezArray[1]
-                        $metaData = $rezArray[0]
+        $filesTocopy = "{0}/${LTP_RESULTS}, {0}/${LTP_OUPUT}, {0}/state.txt,{0}/VM_properties.csv" -f @("/home/${user}")
+        Copy-RemoteFiles -download -downloadFrom $AllVmData.PublicIP -downloadTo $LogDir `
+            -Port $AllVmData.SSHPort -Username $user -password $password `
+            -files $filesTocopy
 
-                        if ($currentResult -eq "FAIL") {
-                            $resultArr += $currentResult
-                            $CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
-                                -checkValues "PASS,FAIL,CONF" -testName $CurrentTestData.testName
-                        }
-                    }
-                }
+        $statusLogPath = Join-Path $LogDir "state.txt"
+        $currentResult = Get-Content $statusLogPath
+        if (($currentResult -imatch "TestAborted") -or ($currentResult -imatch "TestRunning")) {
+            Write-LogErr "Test aborted. Last known status : $currentResult"
+            $resultArr += "ABORTED"
+            $CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
+                -checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
+        } else {
+            $resultArr += Get-SQLQueryOfLTP -currentTestResult $CurrentTestResult -currentTestData $CurrentTestData
+        }
+    } catch {
+        $errorMessage =  $_.Exception.Message
+        $errorLine = $_.InvocationInfo.ScriptLineNumber
+        Write-LogInfo "EXCEPTION : $errorMessage at line: $errorLine"
+    } finally {
+        if (!$resultArr) {
+            $resultArr += "ABORTED"
+        }
+    }
 
     $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult

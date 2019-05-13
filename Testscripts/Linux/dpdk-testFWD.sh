@@ -84,8 +84,9 @@ function Run_Testfwd() {
 	ssh "${forwarder}" "${forwarder_testfwd_cmd}" 2>&1 > "${LOG_DIR}"/dpdk-testfwd-forwarder-"${core}"-core-$(date +"%m%d%Y-%H%M%S").log &
 
 	sleep 5
-	
-	local sender_testfwd_cmd="$(Create_Timed_Testpmd_Cmd "${test_duration}" "${core}" "${sender_busaddr}" "${sender_iface}" txonly)"
+
+	trx_rx_ips=$(Get_Trx_Rx_Ip_Flags "${forwarder}")
+	local sender_testfwd_cmd="$(Create_Timed_Testpmd_Cmd "${test_duration}" "${core}" "${sender_busaddr}" "${sender_iface}" txonly "${trx_rx_ips}")"
 	LogMsg "${sender_testfwd_cmd}"
 	eval "${sender_testfwd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testfwd-sender-${core}-core-$(date +"%m%d%Y-%H%M%S").log &"
 	

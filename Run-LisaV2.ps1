@@ -119,6 +119,7 @@ $MyInvocation.MyCommand.Parameters.Keys | ForEach-Object {
 	$value = (Get-Variable -Name $_ -Scope "Script" -ErrorAction "SilentlyContinue").Value
 	if ($value) {
 		$params[$_] = $value
+		Write-Host ($_ + " = " + $value)
 	}
 }
 $params["Verbose"] = $PSCmdlet.MyInvocation.BoundParameters["Verbose"]

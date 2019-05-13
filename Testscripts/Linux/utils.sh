@@ -3394,14 +3394,16 @@ function Format_Mount_NVME()
 
 # Remove and reattach PCI devices of a certain type inside the VM
 # @param1 DeviceType: supported values are "NVME", "SR-IOV", "GPU"
+# and "ALL" for all 3 previous types
 # @return 0 if the devices were removed and reattached successfully
-function RescindPCI ()
+function DisableEnablePCI ()
 {
     case "$1" in
         "SR-IOV") vf_pci_type="Ethernet" ;;
         "NVME")   vf_pci_type="Non-Volatile" ;;
         "GPU")    vf_pci_type="NVIDIA" ;;
-        *)        LogErr "Unsupported device type for RescindPCI." ; return 1 ;;
+        "ALL")    vf_pci_type="NVIDIA\|Non-Volatile\|Ethernet" ;;
+        *)        LogErr "Unsupported device type for DisableEnablePCI." ; return 1 ;;
     esac
 
     if ! lspci --version > /dev/null 2>&1; then
@@ -3418,7 +3420,11 @@ function RescindPCI ()
         LogErr "No PCI devices of type $vf_pci_type were found."
         return 1
     else
-        LogMsg "Found the following $vf_pci_type devices: $vf_pci_addresses"
+        LogMsg "Found the following $vf_pci_type devices:"
+        # Remove the VF for each address
+        for addr in ${vf_pci_addresses[@]}; do
+            LogMsg "$(lspci | grep $addr)"
+        done
     fi
 
     # Remove the VF for each address
@@ -3466,4 +3472,21 @@ function RescindPCI ()
     done
     LogErr "PCI device is not present, enabling the $vf_pci_type device failed."
     return 1
+}
+
+# This function creates file using fallocate command
+# which is significantly faster than dd command.
+# Examples -
+# CreateFile 1G /root/abc.out
+# CreateFile 100M ./test.file
+function CreateFile()
+{
+	size=$1
+	file_path=$2
+	fallocate -l $size $file_path
+	if [ $? -eq 0 ]; then
+		LogMsg "$file_path created with size $size"
+	else
+		LogMsg "Error: $file_path failed to create with size $size"
+	fi
 }
