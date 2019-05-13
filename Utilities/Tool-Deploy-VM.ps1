@@ -1,27 +1,59 @@
 [CmdletBinding()]
 Param(
-    $ARMVMImage = "",
-    $Region = "",
-    $VMsize = "",
-    $CustomVHD,
-    $GuestOSType = "",
-    $StorageAccountName = "",
-    $DiskType = "",
-    $VMName = "",
-    $NumberOfVMs = 1,
-    $NICsForEachVM = 1,
-    $Networking = "",
-    $DataDisks = 0,
-    $DataDiskSizeGB = "",
-    $DataDiskCaching = "",
-    $Username = "",
-    $Password = "",
-    $AutoCleanup = "",
-    $GuestVMOperations = "",
-    $ExecuteShellScript = "",
-    $TiPCluster = "",
-    $TipSessionID = "",
-    $customSecretsFilePath = ""
+    [Parameter(Mandatory=$true)]
+    [String] $customSecretsFilePath,
+
+    # Provide ARMVMImage / CustomVHD.
+    [String] $ARMVMImage,
+    [String] $CustomVHD,
+
+    [Parameter(Mandatory=$true)]
+    [String] $Region,
+    
+    [Parameter(Mandatory=$true)]
+    [String] $VMsize = "",
+    
+    [Parameter(Mandatory=$true)]
+    [ValidateSet("Linux","Windows")]
+    [String] $GuestOSType = "",
+
+    [String] $StorageAccountName = "",
+
+    [Parameter(Mandatory=$true)]
+    [ValidateSet("Managed","Unmanaged")]
+    [String] $DiskType,
+
+    [Parameter(Mandatory=$true)]
+    [String] $VMName,
+
+    [ValidateRange(1,1024)]
+    [Int] $NumberOfVMs,
+
+    [ValidateRange(1,8)]
+    [Int] $NICsForEachVM,
+
+    [Parameter(Mandatory=$true)]
+    [ValidateSet("Synthetic","SRIOV")]
+    [String] $Networking,
+
+    [ValidateRange(1,64)]
+    [Int] $DataDisks,
+
+    [ValidateRange(1,4096)]
+    [Int] $DataDiskSizeGB,
+
+    [ValidateSet("None","ReadWrite","SRIOV")]
+    [String] $DataDiskCaching,
+
+    # Guest VM Username and Password
+    [Parameter(Mandatory=$true)]
+    [String] $Username,
+    [Parameter(Mandatory=$true)]
+    [String] $Password,
+    
+    [String] $AutoCleanup,
+    [String] $TiPCluster,
+    [String] $TipSessionID
 )
 try {
     #Make a backup of XML files.
