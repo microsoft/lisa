@@ -191,8 +191,8 @@ function Main {
     }
 
     # Check for the file to be copied
-    Test-Path $filePathFormatted
-    if ($? -ne "True") {
+
+    if ( (Test-Path \\$HvServer\$filePathFormatted) -ne "True") {
         Write-LogErr "File to be copied not found."
         return "FAIL"
     }
@@ -220,7 +220,6 @@ function Main {
     }
     elseif ($sts -eq $fileToCopySize) {
         Write-LogInfo "The file copied matches the $FcopyFileSize size."
-        return "PASS"
     }
     else {
         Write-LogErr "The file copied doesn't match the $FcopyFileSize size!"
@@ -229,23 +228,10 @@ function Main {
 
     # Removing the temporary test file
     Remove-Item -Path \\$HvServer\$filePathFormatted -Force
-    if (-not $?) {
+    if ($? -ne "True") {
         Write-LogErr "Cannot remove the test file '${testfile}'!"
-        return "FAIL"
     }
 
-    $sts = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort "echo 'sleep 5 && bash ~/check_traces.sh ~/check_traces.log &' > runtest.sh" -runAsSudo
-    $sts = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort "chmod +x ~/runtest.sh" -runAsSudo
-    $sts = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort "./runtest.sh > check_traces.log 2>&1" -runAsSudo
-    Start-Sleep 6
-    $sts = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort "cat ~/check_traces.log | grep ERROR" -runAsSudo
-    Start-Sleep 6
-    if ($sts.Contains("ERROR")) {
-        Write-LogInfo "Warning: Call traces have been found on VM"
-    }
-    if ($sts -eq $NULL) {
-        Write-LogInfo " No Call traces have been found on VM"
-    }
     return "PASS"
 }
 

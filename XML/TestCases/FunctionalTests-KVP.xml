@@ -8,7 +8,7 @@
         <Category>Functional</Category>
         <Area>KVP</Area>
         <Tags>kvp</Tags>
-        <Priority>1</Priority>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>KVP-INTRINSIC</testName>
@@ -31,7 +31,7 @@
             <!-- minimum number of items expected in KVP pool 3 -->
             <param>kvp_items=11</param>
         </testParameters>
-        <Platform>HyperV,Azure</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>Functional</Category>
         <Area>KVP</Area>
         <Tags>kvp</Tags>
@@ -68,7 +68,7 @@
         <Category>Functional</Category>
         <Area>KVP</Area>
         <Tags>kvp</Tags>
-        <Priority>0</Priority>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>KVP-DELETE-NON-EXIST-KVP-ON-GUEST</testName>
@@ -84,7 +84,7 @@
         <Category>Functional</Category>
         <Area>KVP</Area>
         <Tags>kvp</Tags>
-        <Priority>0</Priority>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>KVP-MODIFY-NON-EXIST-KVP-ON-GUEST</testName>
@@ -100,7 +100,7 @@
         <Category>Functional</Category>
         <Area>KVP</Area>
         <Tags>kvp</Tags>
-        <Priority>0</Priority>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>KVP-TEST-RESCIND</testName>
@@ -114,7 +114,7 @@
         <Category>Functional</Category>
         <Area>KVP</Area>
         <Tags>kvp</Tags>
-        <Priority>1</Priority>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>KVP-MAX-READ</testName>
@@ -130,6 +130,6 @@
         <Category>Functional</Category>
         <Area>KVP</Area>
         <Tags>kvp</Tags>
-        <Priority>0</Priority>
+        <Priority>1</Priority>
     </test>
 </TestCases>

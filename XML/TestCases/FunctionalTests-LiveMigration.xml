@@ -121,7 +121,7 @@
         <Category>Functional</Category>
         <Area>MIGRATION</Area>
         <Tags>migration</Tags>
-        <Priority>2</Priority>
+        <Priority>3</Priority>
     </test>
     <test>
         <testName>LIVE-MIGRATE-QUICKMIG-MEM4GB-CORE8</testName>

@@ -352,7 +352,7 @@ function Create_Timed_Testpmd_Cmd() {
 	fi
 	local duration="${1}"
 
-	cmd="$(Create_Testpmd_Cmd ${2} ${3} ${4} ${5})"
+	cmd="$(Create_Testpmd_Cmd ${2} ${3} ${4} ${5} ${6})"
 	echo "timeout ${duration} ${cmd}"
 }
 
@@ -385,12 +385,13 @@ function Create_Testpmd_Cmd() {
 	local busaddr="${2}"
 	local iface="${3}"
 	local mode="${4}"
+	local additional_params="${5}"
 
 	# partial strings to concat
 	local testpmd="${LIS_HOME}/${DPDK_DIR}/build/app/testpmd"
 	local eal_opts="-l 0-${core} -w ${busaddr} --vdev='net_vdev_netvsc0,iface=${iface}' --"
 	local testpmd_opts0="--port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core}"
-	local testpmd_opts1="--mbcache=512 --txd=4096 --rxd=4096 --forward-mode=${mode} --stats-period 1 --tx-offloads=0x800e"
+	local testpmd_opts1="--mbcache=512 --txd=4096 --rxd=4096 --forward-mode=${mode} --stats-period 1 --tx-offloads=0x800e ${additional_params}"
 
 	echo "${testpmd} ${eal_opts} ${testpmd_opts0} ${testpmd_opts1}"
 }
@@ -493,4 +494,18 @@ function Get_DPDK_Version() {
 		dpdk_version=$(grep -m 1 "version:" $meson_config_path | awk '{print $2}' | tr -d "\`'\,")
 	fi
 	echo $dpdk_version
+}
+
+function Get_Trx_Rx_Ip_Flags() {
+	receiver="${1}"
+	local dpdk_version=$(Get_DPDK_Version "${LIS_HOME}/${DPDK_DIR}")
+	local dpdk_version_changed_tx_ips="19.05"
+	trx_rx_ips=""
+	if [[ ! $(printf "${dpdk_version_changed_tx_ips}\n${dpdk_version}" | sort -V | head -n1) == "${dpdk_version}" ]]; then
+		local dpdk_ips_cmd="hostname -I"
+		local sender_dpdk_ips=($(eval "${dpdk_ips_cmd}"))
+		local receiver_dpdk_ips=($(ssh "${receiver}" "${dpdk_ips_cmd}"))
+		trx_rx_ips="--tx-ip=${sender_dpdk_ips[1]},${receiver_dpdk_ips[1]}"
+	fi
+	echo "${trx_rx_ips}"
 }

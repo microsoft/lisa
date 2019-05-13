@@ -12,7 +12,7 @@
             <param>NestedUserPassword='NESTED_VM_PASSWORD'</param>
             <param>HostFwdPort=60022</param>
         </TestParameters>
-        <Timeout>720</Timeout>
+        <Timeout>1200</Timeout>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>NESTED</Area>

@@ -65,8 +65,7 @@ Function Match-TestPriority($currentTest, $TestPriority)
 
     $priorityInXml = $currentTest.Priority
     if (-not $priorityInXml) {
-        Write-LogWarn "Priority of $($currentTest.TestName) is not defined, set it to 1 (default)."
-        $priorityInXml = 1
+        Write-LogWarn "Priority of $($currentTest.TestName) is not defined."
     }
     foreach( $priority in $TestPriority.Split(",") ) {
         if ($priorityInXml -eq $priority) {
@@ -135,7 +134,15 @@ Function Collect-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Tes
     foreach ($file in $TestXMLs.FullName) {
         $currentTests = ([xml]( Get-Content -Path $file)).TestCases
         foreach ($test in $currentTests.test) {
-            if (!($test.Platform.Split(",").Contains($TestPlatform))) {
+            $platformMatched = $false
+            $platforms = $test.Platform.Split(",")
+            for ($i=0; $i -lt $platforms.length; $i++) {
+                if ($TestPlatform.Contains($platforms[$i]) -or $platforms[$i].Contains($TestPlatform)) {
+                    $platformMatched = $true
+                    break
+                }
+            }
+            if (!$platformMatched) {
                 continue
             }
 
@@ -183,13 +190,25 @@ Function Collect-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Tes
                 }
             }
 
-            Write-LogInfo "Collected Test : $($test.TestName)"
-            $AllLisaTests += $test
+            $testExist = $false
+            for ($i=0; $i -lt $AllLisaTests.length; $i++) {
+                if ($AllLisaTests[$i].TestName -eq $test.TestName) {
+                    $testExist = $true
+                    break
+                }
+            }
+            if ( $testExist -eq $false ) {
+                Write-LogInfo "Collected test: $($test.TestName) from $file"
+                $AllLisaTests += $test
+            } else {
+                Write-LogWarn "Ignore duplicated test: $($test.TestName) from $file"
+            }
         }
     }
     if ($ExcludeTests) {
         Write-LogInfo "$ExcludedTestsCount Test Cases have been excluded"
     }
+
     return $AllLisaTests
 }
 
@@ -1107,11 +1126,12 @@ function Check-FileInLinuxGuest {
 	.Description
 		Checks if test file is present or not, if set $checkSize as $True, return file size,
 		if set checkContent as $True, will return file content.
-#>
-	$check = Run-LinuxCmd -username $vmUserName -password $vmPassword -port $vmPort -ip $ipv4 -command "stat ${fileName} >/dev/null"
-	if ($check) {
-		Write-Loginfo "File $fileName exists"
-		return $true
+   #>
+
+	$check = Run-LinuxCmd -username $vmUserName -password $vmPassword -port $vmPort -ip $ipv4 -command "[ -f ${fileName} ] && echo 1 || echo 0"
+	if (-not $check) {
+		Write-Loginfo "File $fileName does not exists"
+		return $False
 	}
 	if ($checkSize) {
 		$size = Run-LinuxCmd -username $vmUserName -password $vmPassword -port $vmPort -ip $ipv4 -command "wc -c < $fileName"
@@ -1121,6 +1141,7 @@ function Check-FileInLinuxGuest {
 		$content = Run-LinuxCmd -username $vmUserName -password $vmPassword -port $vmPort -ip $ipv4 -command "cat ${fileName}"
 		return "$content"
 	}
+	return $True
 }
 
 function Mount-Disk{

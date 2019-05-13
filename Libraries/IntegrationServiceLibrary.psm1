@@ -669,7 +669,7 @@ function Copy-CheckFileInLinuxGuest{
 	# Write the file
 	$filecontent = Generate-RandomString -length $contentlength
 
-	$filecontent | Out-File $testfile
+	$filecontent | Out-File $testfile -Encoding UTF8
 	if (-not $?) {
 		Write-LogErr "Cannot create file $testfile'."
 		return $False
@@ -693,16 +693,17 @@ function Copy-CheckFileInLinuxGuest{
 		Copy-VMFile -vmName $vmName -ComputerName $hvServer -SourcePath $filePath -DestinationPath "/tmp/" -FileSource host -ErrorAction SilentlyContinue
 	}
 	if ($Error.Count -eq 0) {
-		$sts = Check-FileInLinuxGuest -vmUserName $vmUserName -vmPassword $vmPassword -vmPort $vmPort -ipv4 $ipv4 -fileName "/tmp/$testfile" -checkSize $True -checkContent $True
+		$sts = Check-FileInLinuxGuest -vmUserName $vmUserName -vmPassword $vmPassword -vmPort $vmPort -ipv4 $ipv4 -fileName "/tmp/$testfile" -checkSize $True
 		if (-not $sts) {
-			Write-LogErr "File is not present on the guest VM '${vmName}'!"
+			Write-LogErr "File check error on the guest VM '${vmName}'!"
 			return $False
 		}
 		elseif ($sts -ne $filesize) {
 			Write-LogErr "The copied file doesn't match the $filesize size."
 			return $False
 		}
-		elseif ($sts[1] -ne $filecontent) {
+		$sts = Check-FileInLinuxGuest -vmUserName $vmUserName -vmPassword $vmPassword -vmPort $vmPort -ipv4 $ipv4 -fileName "/tmp/$testfile" -checkContent $True
+		if ($sts -ne $filecontent) {
 			Write-LogErr "The copied file doesn't match the content '$filecontent'."
 			return $False
 		}

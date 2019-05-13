@@ -313,7 +313,7 @@ if distro == "REDHAT" or distro == "FEDORA":
             print(distro+"_TEST_REPOSITORIES_ERROR")
 
     if distro == "REDHAT":
-            ra_out = Run("yum repolist all | grep 'rhui-rhel-' | wc -l")
+            ra_out = int(Run("yum repolist all -q | grep -c 'rhui-rhel-'"))
             if(ra_out > 5):
                 RunLog.info("yum repolist all status: Success, repo count = %s", ra_out)
                 print(distro+"_TEST_RHUIREPOSITORIES_AVAILABLE")

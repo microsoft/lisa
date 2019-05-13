@@ -149,7 +149,6 @@ if  (-not $sts) {
 }
 elseif ($sts -eq $filesize) {
     Write-LogInfo "The file copied matches the size: $filesize bytes."
-    return "PASS"
 }
 else {
 	Write-LogErr "The file copied doesn't match the size: $filesize bytes!"
@@ -159,10 +158,11 @@ else {
 # Removing the temporary test file
 #
 Remove-Item -Path \\$HvServer\$file_path_formatted -Force
-if (-not $?) {
+if ($? -ne "True") {
     Write-LogErr "ERROR: Cannot remove the test file '${testfile}'!"
-    return "FAIL"
 }
+return "PASS"
+
 }
 
 Main -VMName $AllVMData.RoleName -HvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `

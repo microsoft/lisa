@@ -668,7 +668,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
-        <Priority>2</Priority>
+        <Priority>3</Priority>
     </test>
     <test>
         <testName>STORAGE-VHDX-SCSI-DYNAMIC-LOCAL-COPY-FILE</testName>
@@ -752,7 +752,7 @@
         <Category>Functional</Category>
         <Area>STORAGE</Area>
         <Tags>storage</Tags>
-        <Priority>2</Priority>
+        <Priority>3</Priority>
     </test>
     <test>
         <TestName>STORAGE-HOT-ADD-DISK-SERIAL</TestName>

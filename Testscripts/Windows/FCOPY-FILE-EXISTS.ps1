@@ -152,20 +152,21 @@ function Main {
     $Error.Clear()
     # Second copy file attempt must fail with the below error code pattern
     Copy-VMFile -vmName $VMName -ComputerName $hvServer -SourcePath $filePath -DestinationPath "/tmp/" -FileSource host -ErrorAction SilentlyContinue
+
     if ($error.Count -eq 0) {
         Write-LogInfo "Test PASS! File could not be copied as it already exists on guest VM '${vmName}'"
-        return "PASS"
     }
-    elseif ($error.Count -eq 1) {
+    else{
         Write-LogErr "File '${testfile}' has been copied twice to guest VM '${vmName}'!"
         return "FAIL"
     }
+
     # Removing the temporary test file
     Remove-Item -Path \\$HvServer\$file_path_formatted -Force
-    if ($LASTEXITCODE -ne "0") {
+    if ($? -ne "True") {
         Write-LogErr "cannot remove the test file '${testfile}'!"
-        return "FAIL"
     }
+    return "PASS"
 }
 Main -VMName $AllVMData.RoleName -HvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
     -Ipv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort `

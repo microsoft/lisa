@@ -42,6 +42,17 @@
         <Priority>0</Priority>
     </test>
     <test>
+        <testName>VERIFY-LINUX-CONFIGURATION</testName>
+        <testScript>VERIFY-LINUX-CONFIGURATION.py</testScript>
+        <files>.\Testscripts\Linux\VERIFY-LINUX-CONFIGURATION.py,.\Testscripts\Linux\azuremodules.py</files>
+        <setupType>OneVM</setupType>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>linux_setting</Tags>
+        <Priority>0</Priority>
+    </test>
+    <test>
         <testName>LIS-MODULES-CHECK</testName>
         <testScript>LIS-MODULES-CHECK.py</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\LIS-MODULES-CHECK.py</files>
@@ -234,103 +245,6 @@
         <Priority>0</Priority>
     </test>
     <test>
-        <testName>FCOPY-BASIC</testName>
-        <testScript>FCOPY-BASIC.ps1</testScript>
-        <setupType>OneVM</setupType>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>FCOPY</Area>
-        <Tags>fcopy</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
-        <testName>FCOPY-FILE-EXISTS</testName>
-        <testScript>FCOPY-FILE-EXISTS.ps1</testScript>
-        <setupType>OneVM</setupType>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>FCOPY</Area>
-        <Tags>fcopy</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
-        <testName>FCOPY-OVERWRITE</testName>
-        <testScript>FCOPY-OVERWRITE.ps1</testScript>
-        <setupType>OneVM</setupType>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>FCOPY</Area>
-        <Tags>fcopy</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
-        <testName>FCOPY-LARGE-FILE</testName>
-        <setupScript>.\Testscripts\Windows\AddVhdxHardDisk.ps1</setupScript>
-        <testScript>FCOPY-LARGE-FILE.ps1</testScript>
-        <setupType>OneVM</setupType>
-        <testParameters>
-            <param>SCSI=1,0,Fixed,512,15GB</param>
-        </testParameters>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>FCOPY</Area>
-        <Tags>fcopy</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
-        <testName>FCOPY-NON-ASCII</testName>
-        <testScript>FCOPY-NON-ASCII.ps1</testScript>
-        <files>.\Testscripts\Linux\utils.sh</files>
-        <setupType>OneVM</setupType>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>FCOPY</Area>
-        <Tags>fcopy</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
-        <testName>FCOPY-REPEATED-DELETE</testName>
-        <setupScript>.\Testscripts\Windows\AddVhdxHardDisk.ps1</setupScript>
-        <testScript>FCOPY-REPEATED-DELETE.ps1</testScript>
-        <setupType>OneVM</setupType>
-        <testParameters>
-            <param>SCSI=1,0,Fixed,512,3GB</param>
-            <param>FileSize=2GB</param>
-        </testParameters>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>FCOPY</Area>
-        <Tags>fcopy</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
-        <testName>FCOPY-DISABLE-ENABLE</testName>
-        <setupScript>.\Testscripts\Windows\AddVhdxHardDisk.ps1</setupScript>
-        <testScript>FCOPY-DISABLE-ENABLE.ps1</testScript>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\check_traces.sh</files>
-        <setupType>OneVM</setupType>
-        <testParameters>
-            <param>SCSI=1,0,Fixed,512,7GB</param>
-            <param>FcopyFileSize=5GB</param>
-            <param>CycleCount=20</param>
-        </testParameters>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>FCOPY</Area>
-        <Tags>fcopy</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
-        <testName>FCOPY-NEGATIVE</testName>
-        <testScript>FCOPY-NEGATIVE.ps1</testScript>
-        <setupType>OneVM</setupType>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>FCOPY</Area>
-        <Tags>fcopy</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
         <testName>MAX-VCPU</testName>
         <setupScript>.\TestScripts\Windows\SETUP-Config-VM.ps1</setupScript>
         <testScript>Max-vCPU.ps1</testScript>
@@ -342,7 +256,7 @@
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>cpu</Tags>
-        <Priority>1</Priority>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>PAUSED-CRITICAL-HEARTBEAT</testName>
@@ -353,7 +267,7 @@
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>vm_paused,heartbeat</Tags>
-        <Priority>0</Priority>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>CHECK-NUMA</testName>
@@ -371,7 +285,7 @@
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>memory</Tags>
-        <Priority>1</Priority>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>CHECK-NUMA-MAXIMUM</testName>
@@ -431,7 +345,7 @@
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>timesync</Tags>
-        <Priority>1</Priority>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>TIMESYNC-PAUSEDVM</testName>
@@ -446,7 +360,7 @@
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>timesync</Tags>
-        <Priority>1</Priority>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>TIMESYNC-SAVEDVM-CHRONYOFF</testName>
@@ -462,7 +376,7 @@
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>timesync</Tags>
-        <Priority>1</Priority>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>TIMESYNC-PAUSEDVM-CHRONYOFF</testName>
@@ -478,7 +392,7 @@
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>timesync</Tags>
-        <Priority>1</Priority>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>TIMESYNC-VDSO</testName>
@@ -511,7 +425,7 @@
         <Category>Functional</Category>
         <Area>LIS</Area>
         <Tags>floppy_disk</Tags>
-        <Priority>2</Priority>
+        <Priority>3</Priority>
     </test>
     <test>
         <testName>LIS-MOUNT-CD</testName>
@@ -523,7 +437,22 @@
         <Category>Functional</Category>
         <Area>LIS</Area>
         <Tags>cd</Tags>
-        <Priority>2</Priority>
+        <Priority>3</Priority>
+    </test>
+    <test>
+        <testName>LIS-PREINSTALL-DISK-SIZE-VERIFICATION</testName>
+        <setupScript>.\TestScripts\Windows\LIS-Mount-CD.ps1</setupScript>
+        <testScript>Test_LIS_disk_check.sh</testScript>
+        <files>.\Testscripts\Linux\Test_LIS_disk_check.sh,.\Testscripts\Linux\check_traces.sh,.\Testscripts\Linux\utils.sh</files>
+        <setupType>OneVM</setupType>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Functional</Category>
+        <TestParameters>
+            <param>LIS_TARBALL_URL_CURRENT=LIS_CURRENT_URL</param>
+        </TestParameters>
+        <Area>LIS</Area>
+        <Tags>lis</Tags>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>LIS-MOUNT-CD-HOTADD</testName>
@@ -538,7 +467,7 @@
         <Category>Functional</Category>
         <Area>LIS</Area>
         <Tags>cd</Tags>
-        <Priority>2</Priority>
+        <Priority>3</Priority>
     </test>
     <test>
         <testName>VMBUS_VERIFY_PROTOCOL_VERSION</testName>
@@ -598,7 +527,7 @@
         <Category>Functional</Category>
         <Area>LIS</Area>
         <Tags>nmi</Tags>
-        <Priority>1</Priority>
+        <Priority>0</Priority>
     </test>
     <test>
         <testName>NMI_VERIFY_FAILED_INTERRUPT</testName>
@@ -636,7 +565,7 @@
         <TestParameters>
             <param>vmCpuNumber=2</param>
             <param>vmMemory=2GB</param>
-            <param>crashkernel=256M@128M</param>
+            <param>crashkernel=256M</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Functional</Category>
@@ -771,306 +700,7 @@
         <Category>Functional</Category>
         <Area>SECUREBOOT</Area>
         <Tags>secureboot,gen2vm</Tags>
-        <Priority>2</Priority>
-    </test>
-    <test>
-        <testName>PRODUCTION-CHECKPOINT-FAILBACK</testName>
-        <testScript>PRODUCTION-CHECKPOINT-FAILBACK.ps1</testScript>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
-        <files>.\Testscripts\Linux\PC_Stop_VSS_Daemon.sh</files>
-        <setupType>OneVM</setupType>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>PROD_CHECKPOINT</Area>
-        <Tags>prod_checkpoint</Tags>
-        <Priority>2</Priority>
-    </test>
-    <test>
-        <testName>PRODUCTION-CHECKPOINT</testName>
-        <testScript>PRODUCTION-CHECKPOINT.ps1</testScript>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
-        <Timeout>2400</Timeout>
-        <setupType>OneVM</setupType>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>PROD_CHECKPOINT</Area>
-        <Tags>prod_checkpoint</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
-        <testName>PRODUCTION-CHECKPOINT-EXT4</testName>
-        <setupScript>.\Testscripts\Windows\AddVhdxHardDisk.ps1</setupScript>
-        <testScript>PRODUCTION-CHECKPOINT-PARTITION.ps1</testScript>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
-        <files>.\Testscripts\Linux\PartitionDisks.sh</files>
-        <setupType>OneVM</setupType>
-        <TestParameters>
-            <param>SCSI=1,1,Dynamic,512</param>
-            <param>FILESYS=ext4</param>
-        </TestParameters>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>PROD_CHECKPOINT</Area>
-        <Tags>prod_checkpoint</Tags>
-        <Priority>2</Priority>
-    </test>
-    <test>
-        <testName>PRODUCTION-CHECKPOINT-BTRFS</testName>
-        <setupScript>.\Testscripts\Windows\AddVhdxHardDisk.ps1</setupScript>
-        <testScript>PRODUCTION-CHECKPOINT-PARTITION.ps1</testScript>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
-        <files>.\Testscripts\Linux\PartitionDisks.sh</files>
-        <setupType>OneVM</setupType>
-        <TestParameters>
-            <param>SCSI=1,1,Dynamic,512</param>
-            <param>FILESYS=btrfs</param>
-        </TestParameters>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>PROD_CHECKPOINT</Area>
-        <Tags>prod_checkpoint</Tags>
-        <Priority>2</Priority>
-    </test>
-    <test>
-        <testName>PRODUCTION-CHECKPOINT-IDE_SCSI</testName>
-        <setupScript>.\Testscripts\Windows\AddVhdxHardDisk.ps1</setupScript>
-        <testScript>PRODUCTION-CHECKPOINT-PARTITION.ps1</testScript>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
-        <files>.\Testscripts\Linux\PartitionDisks.sh</files>
-        <setupType>OneVM</setupType>
-        <TestParameters>
-            <!-- Param required to specify multiple disk mount or umount needed -->
-            <param>DUALMOUNT=true</param>
-            <param>IDE=1,1,Dynamic,512</param>
-            <param>SCSI=1,1,Dynamic,512</param>
-            <param>FILESYS=ext4</param>
-        </TestParameters>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>PROD_CHECKPOINT</Area>
-        <Tags>prod_checkpoint</Tags>
-        <Priority>1</Priority>
-    </test>
-    <test>
-        <testName>PRODUCTION-CHECKPOINT-VHDX_XFS</testName>
-        <setupScript>.\Testscripts\Windows\AddVhdxHardDisk.ps1</setupScript>
-        <testScript>PRODUCTION-CHECKPOINT-PARTITION.ps1</testScript>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
-        <files>.\Testscripts\Linux\PartitionDisks.sh</files>
-        <setupType>OneVM</setupType>
-        <TestParameters>
-            <param>SCSI=1,1,Dynamic,512</param>
-            <param>FILESYS=xfs</param>
-        </TestParameters>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>PROD_CHECKPOINT</Area>
-        <Tags>prod_checkpoint</Tags>
-        <Priority>2</Priority>
-    </test>
-    <test>
-        <testName>PRODUCTION-CHECKPOINT-ISO-NONETWORK</testName>
-        <testScript>PRODUCTION-CHECKPOINT-ISO-NONETWORK.ps1</testScript>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
-        <files>.\Testscripts\Linux\STOR_VSS_StopNetwork.sh</files>
-        <setupType>OneVM</setupType>
-        <TestParameters>
-            <param>CDISO=PROD_CHECKPOINT_MINI_ISO</param>
-        </TestParameters>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>PROD_CHECKPOINT</Area>
-        <Tags>prod_checkpoint</Tags>
-        <Priority>2</Priority>
-    </test>
-    <test>
-        <testName>PRODUCTION-CHECKPOINT-3CHAIN-VHD</testName>
-        <testScript>PRODUCTION-CHECKPOINT-3CHAIN-VHD.ps1</testScript>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
-        <setupType>OneVM</setupType>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>PROD_CHECKPOINT</Area>
-        <Tags>prod_checkpoint</Tags>
-        <Priority>2</Priority>
-     </test>
-     <test>
-        <testName>PRODUCTION-CHECKPOINT-iSCSI</testName>
-        <testScript>PRODUCTION-CHECKPOINT-iSCSI.ps1</testScript>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\STOR_VSS_Check_VSS_Daemon.sh</files>
-        <files>.\Testscripts\Linux\STOR_VSS_ISCSI_PartitionDisks.sh</files>
-        <setupType>OneVM</setupType>
-        <TestParameters>
-            <param>TargetIP=TARGET_IP</param>
-            <param>IQN=TARGET_IQN</param>
-            <param>FILESYS=ext4</param>
-        </TestParameters>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>PROD_CHECKPOINT</Area>
-        <Tags>prod_checkpoint</Tags>
-        <Priority>2</Priority>
-     </test>
-    <test>
-        <testName>RUNTIME_MEM_HOTADD</testName>
-        <setupScript>.\Testscripts\Windows\RUNTIME-MEM-CONFIGURE.ps1</setupScript>
-        <testScript>RUNTIME-MEM-HOTADD.ps1</testScript>
-        <setupType>OneVM</setupType>
-        <TestParameters>
-            <param>appGitURL=STRESSNG</param>
-            <param>appGitTag=STRESS-NG_TAG</param>
-            <param>startupMem=2GB</param>
-            <param>testMem=4GB</param>
-        </TestParameters>
-        <Timeout>2400</Timeout>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>RUNTIME_MEMORY</Area>
-        <Tags>memory</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
-        <testName>RUNTIME_MEM_HOTREMOVE</testName>
-        <setupScript>.\Testscripts\Windows\RUNTIME-MEM-CONFIGURE.ps1</setupScript>
-        <testScript>RUNTIME-MEM-HOTADD.ps1</testScript>
-        <setupType>OneVM</setupType>
-        <TestParameters>
-            <param>appGitURL=STRESSNG</param>
-            <param>appGitTag=STRESS-NG_TAG</param>
-            <param>startupMem=4GB</param>
-            <param>testMem=2GB</param>
-        </TestParameters>
-        <Timeout>2400</Timeout>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>RUNTIME_MEMORY</Area>
-        <Tags>memory</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
-        <testName>RUNTIME_MEM_SMALLINCREASE128</testName>
-        <setupScript>.\Testscripts\Windows\RUNTIME-MEM-CONFIGURE.ps1</setupScript>
-        <testScript>RUNTIME_MEM_HOTADD_CHUNKS.ps1</testScript>
-        <setupType>OneVM</setupType>
-        <TestParameters>
-            <param>appGitURL=STRESSNG</param>
-            <param>appGitTag=STRESS-NG_TAG</param>
-            <param>startupMem=2048MB</param>
-            <param>chunkMem=128MB</param>
-            <param>decrease=no</param>
-        </TestParameters>
-        <Timeout>2400</Timeout>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>RUNTIME_MEMORY</Area>
-        <Tags>memory</Tags>
-        <Priority>2</Priority>
-    </test>
-    <test>
-        <testName>RUNTIME_MEM_SMALLDECREASE128</testName>
-        <setupScript>.\Testscripts\Windows\RUNTIME-MEM-CONFIGURE.ps1</setupScript>
-        <testScript>RUNTIME_MEM_HOTADD_CHUNKS.ps1</testScript>
-        <setupType>OneVM</setupType>
-        <TestParameters>
-            <param>appGitURL=STRESSNG</param>
-            <param>appGitTag=STRESS-NG_TAG</param>
-            <param>startupMem=3072MB</param>
-            <param>chunkMem=128MB</param>
-            <param>decrease=yes</param>
-        </TestParameters>
-        <Timeout>2400</Timeout>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>RUNTIME_MEMORY</Area>
-        <Tags>memory</Tags>
-        <Priority>2</Priority>
-    </test>
-    <test>
-        <testName>RUNTIME_MEM_SMALLINCREASE100</testName>
-        <setupScript>.\Testscripts\Windows\RUNTIME-MEM-CONFIGURE.ps1</setupScript>
-        <testScript>RUNTIME_MEM_HOTADD_CHUNKS.ps1</testScript>
-        <setupType>OneVM</setupType>
-        <TestParameters>
-            <param>appGitURL=STRESSNG</param>
-            <param>appGitTag=STRESS-NG_TAG</param>
-            <param>startupMem=2048MB</param>
-            <param>chunkMem=100MB</param>
-            <param>decrease=no</param>
-        </TestParameters>
-        <Timeout>2400</Timeout>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>RUNTIME_MEMORY</Area>
-        <Tags>memory</Tags>
-        <Priority>2</Priority>
-    </test>
-    <test>
-        <testName>RUNTIME_MEM_SMALLDECREASE100</testName>
-        <setupScript>.\Testscripts\Windows\RUNTIME-MEM-CONFIGURE.ps1</setupScript>
-        <testScript>RUNTIME_MEM_HOTADD_CHUNKS.ps1</testScript>
-        <setupType>OneVM</setupType>
-        <TestParameters>
-            <param>appGitURL=STRESSNG</param>
-            <param>appGitTag=STRESS-NG_TAG</param>
-            <param>startupMem=3072MB</param>
-            <param>chunkMem=100MB</param>
-            <param>decrease=yes</param>
-        </TestParameters>
-        <Timeout>2400</Timeout>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>RUNTIME_MEMORY</Area>
-        <Tags>memory</Tags>
-        <Priority>2</Priority>
-    </test>
-    <test>
-        <testName>RUNTIME_MEM_MULTIPLEADDREMOVE</testName>
-        <setupScript>.\Testscripts\Windows\RUNTIME-MEM-CONFIGURE.ps1</setupScript>
-        <testScript>RUNTIME_MEM_MULTIPLEADDREMOVE.ps1</testScript>
-        <setupType>OneVM</setupType>
-        <TestParameters>
-            <param>appGitURL=STRESSNG</param>
-            <param>appGitTag=STRESS-NG_TAG</param>
-            <param>startupMem=3GB</param>
-        </TestParameters>
-        <Timeout>2400</Timeout>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>RUNTIME_MEMORY</Area>
-        <Tags>memory</Tags>
-        <Priority>2</Priority>
-    </test>
-    <test>
-        <testName>RUNTIME_MEM_STRESSHOTREMOVE</testName>
-        <setupScript>.\Testscripts\Windows\RUNTIME-MEM-CONFIGURE.ps1</setupScript>
-        <testScript>RUNTIME_MEM_STRESSHOTREMOVE.ps1</testScript>
-        <setupType>OneVM</setupType>
-        <TestParameters>
-            <param>appGitURL=STRESSNG</param>
-            <param>appGitTag=STRESS-NG_TAG</param>
-            <param>startupMem=3GB</param>
-        </TestParameters>
-        <Timeout>2400</Timeout>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>RUNTIME_MEMORY</Area>
-        <Tags>memory</Tags>
-        <Priority>2</Priority>
-    </test>
-    <test>
-        <testName>RUNTIME_MEM_HOTADD_REBOOT</testName>
-        <setupScript>.\Testscripts\Windows\RUNTIME-MEM-CONFIGURE.ps1</setupScript>
-        <testScript>RUNTIME_MEM_HOTADD_REBOOT.ps1</testScript>
-        <setupType>OneVM</setupType>
-        <TestParameters>
-            <param>startupMem=5000MB</param>
-        </TestParameters>
-        <Timeout>2400</Timeout>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>RUNTIME_MEMORY</Area>
-        <Tags>memory</Tags>
-        <Priority>2</Priority>
+        <Priority>3</Priority>
     </test>
     <test>
         <testName>VM-HOT-RESIZE</testName>
@@ -1096,17 +726,6 @@
         <Priority>1</Priority>
     </test>
     <test>
-        <testName>VERIFY-LINUX-CONFIGURATION</testName>
-        <testScript>VERIFY-LINUX-CONFIGURATION.py</testScript>
-        <files>.\Testscripts\Linux\VERIFY-LINUX-CONFIGURATION.py,.\Testscripts\Linux\azuremodules.py</files>
-        <setupType>OneVM</setupType>
-        <Platform>Azure</Platform>
-        <Category>Functional</Category>
-        <Area>CORE</Area>
-        <Tags>linux_setting</Tags>
-        <Priority>0</Priority>
-    </test>
-    <test>
         <testName>VERIFY-LINUX-DISK-SETUP</testName>
         <testScript>VERIFY-LINUX-DISK-SETUP.py</testScript>
         <files>.\Testscripts\Linux\VERIFY-LINUX-DISK-SETUP.py,.\Testscripts\Linux\azuremodules.py</files>
@@ -1116,5 +735,24 @@
         <Area>CORE</Area>
         <Tags>linux_setting</Tags>
         <Priority>0</Priority>
+    </test>
+    <test>
+        <testName>PCI-DEVICE-DISABLE-ENABLE-SRIOV-NVME</testName>
+        <testScript>disableEnablePci.sh</testScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\disableEnablePci.sh</files>
+        <setupType>OneVM8NIC</setupType>
+        <OverrideVMSize>Standard_L80s_v2</OverrideVMSize>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <TestParameters>
+            <param>expectedSriov=7</param>
+            <param>expectedNvme=10</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>pci_hyperv,nvme,sriov</Tags>
+        <Priority>1</Priority>
     </test>
 </TestCases>

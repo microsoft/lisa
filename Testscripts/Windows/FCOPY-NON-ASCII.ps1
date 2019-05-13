@@ -112,10 +112,10 @@ function Main {
         }
 
         # Multiply the contents of the sample file up to an 100MB auxiliary file
-        New-Item $MyDir"auxFile" -type file | Out-Null
+        New-Item $CurrentDir"auxFile" -type file | Out-Null
         2..130| ForEach-Object {
             $testfileContent = Get-Content $pathToFile
-            Add-Content $MyDir"auxFile" $testfileContent
+            Add-Content $CurrentDir"auxFile" $testfileContent
         }
 
         # Checking if auxiliary file was successfully created
@@ -125,7 +125,7 @@ function Main {
         }
 
         # Move the auxiliary file to testfile
-        Move-Item -Path $MyDir"auxFile" -Destination $pathToFile -Force
+        Move-Item -Path $CurrentDir"auxFile" -Destination $pathToFile -Force
 
         # Checking file size. It must be over 85MB
         $testfileSize = (Get-Item $pathToFile).Length
@@ -134,7 +134,7 @@ function Main {
             $testfileSize = $testfileSize / 1MB
             $testfileSize = [math]::round($testfileSize, 2)
             Write-LogErr "File not big enough (over 85MB)! File size: $testfileSize MB"
-            Remove-TestFile -pathToFile $pathToFile -tesfile $testfile
+            Remove-TestFile -pathToFile $pathToFile -testfile $testfile
             return "FAIL"
         }
         else {
@@ -147,12 +147,11 @@ function Main {
         $local_chksum = Get-FileHash .\$testfile -Algorithm MD5 | Select-Object -ExpandProperty hash
         if (-not $?) {
             Write-LogErr "Unable to get MD5 checksum!"
-            Remove-TestFile -pathToFile $pathToFile -tesfile $testfile
+            Remove-TestFile -pathToFile $pathToFile -testfile $testfile
             return "FAIL"
         }
         else {
             Write-LogInfo "MD5 file checksum on the host-side: $local_chksum"
-            return "PASS"
         }
 
         # Get vhd folder
@@ -183,14 +182,13 @@ function Main {
         -FileSource host -ErrorAction SilentlyContinue
     if ($Error.Count -eq 0) {
         Write-LogInfo "File has been successfully copied to guest VM '${vmName}'"
-        return "PASS"
     }
     elseif (($Error.Count -gt 0) -and ($Error[0].Exception.Message  `
                 -like "*FAIL to initiate copying files to the guest: The file exists. (0x80070050)*")) {
         Write-LogErr "Test FAIL! File could not be copied as it already exists on guest VM '${vmName}'"
         return "FAIL"
     }
-    Remove-TestFile -pathToFile $pathToFile -tesfile $testfile
+    Remove-TestFile -pathToFile $pathToFile -testfile $testfile
 
     #
     # Verify if the file is present on the guest VM
@@ -227,7 +225,6 @@ function Main {
     Remove-Item -Path \\$HvServer\$file_path_formatted -Force
     if ($? -ne "True") {
         Write-LogErr "Cannot remove the test file '${testfile}'!"
-        return "FAIL"
     }
     #
     # If we made it here, everything worked
