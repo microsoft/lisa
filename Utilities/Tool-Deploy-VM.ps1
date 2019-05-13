@@ -9,10 +9,9 @@ Param(
 
     [Parameter(Mandatory=$true)]
     [String] $Region,
-    
     [Parameter(Mandatory=$true)]
     [String] $VMsize = "",
-    
+
     [Parameter(Mandatory=$true)]
     [ValidateSet("Linux","Windows")]
     [String] $GuestOSType = "",
@@ -50,7 +49,7 @@ Param(
     [String] $Username,
     [Parameter(Mandatory=$true)]
     [String] $Password,
-    
+
     [String] $AutoCleanup,
     [String] $TiPCluster,
     [String] $TipSessionID
@@ -134,19 +133,19 @@ try {
     }
 
     if ($DataDisks -gt 0) {
-        $CUSTOM_DISKS = $null
+        $CustomDisksXmlString = $null
         for ( $i = 0; $i -lt $DataDisks; $i++ ) {
-            $CUSTOM_DISKS += $SingleDataDisk.Replace("DISK_NUMBER", "$i").Replace("DISK_SIZE", "$($DataDiskSizeGB)").Replace("DISK_CACHING", "$DataDiskCaching") + "`n"
+            $CustomDisksXmlString += $SingleDataDisk.Replace("DISK_NUMBER", "$i").Replace("DISK_SIZE", "$($DataDiskSizeGB)").Replace("DISK_CACHING", "$DataDiskCaching") + "`n"
         }
     }
     else {
-        $CUSTOM_DISKS = ""
+        $CustomDisksXmlString = ""
     }
 
     if ($NumberOfVMs -eq 1) {
         $CUSTOM_ENDPOINTS = $SinglePort.Replace("PORT_NAME", "$ConnectionPortName").Replace("PORT_TYPE", "tcp").Replace("LOCAL_PORT", "$ConnectionPort").Replace("PUBLIC_PORT", "$ConnectionPort")
         $CUSTOM_VMS = $SingleVM.Replace("CUSTOM_ENDPOINTS", "$CUSTOM_ENDPOINTS")
-        $CUSTOM_VMS = $CUSTOM_VMS.Replace("CUSTOM_DISKS", "$CUSTOM_DISKS")
+        $CUSTOM_VMS = $CUSTOM_VMS.Replace("CUSTOM_DISKS", "$CustomDisksXmlString")
         $CUSTOM_VMS = $CUSTOM_VMS.Replace("EXTRA_NICS", "$($NICsForEachVM -1)")
         $CUSTOM_VMS = $CUSTOM_VMS.Replace("VM_NAME", "$VMName")
         $CUSTOM_VMS = $CUSTOM_VMS.Replace("VM_SIZE", "$VMSize")
@@ -158,7 +157,7 @@ try {
             $CurrentVM = $SingleVM
             $CUSTOM_ENDPOINTS = $SinglePort.Replace("PORT_NAME", "$ConnectionPortName").Replace("PORT_TYPE", "tcp").Replace("LOCAL_PORT", "$ConnectionPort").Replace("PUBLIC_PORT", "$StartPort")
             $StartPort += 1
-            $CurrentVM = $CurrentVM.Replace("CUSTOM_DISKS", "$CUSTOM_DISKS")
+            $CurrentVM = $CurrentVM.Replace("CUSTOM_DISKS", "$CustomDisksXmlString")
             $CurrentVM = $CurrentVM.Replace("EXTRA_NICS", "$($NICsForEachVM - 1)")
             $CurrentVM = $CurrentVM.Replace("VM_SIZE", "$VMSize")
             $CurrentVM = $CurrentVM.Replace("CUSTOM_ENDPOINTS", "$CUSTOM_ENDPOINTS")
@@ -191,8 +190,8 @@ try {
 }
 catch {
     $ErrorMessage = $_.Exception.Message
-    Write-Host "EXCEPTION : $ErrorMessage"
+    Write-Host "EXCEPTION (Tool-Deploy-VM) : $ErrorMessage"
 }
 finally {
-    Copy-Item -Path "$customSecretsFilePath.backup" -Destination "$customSecretsFilePath" -Force
+    Move-Item -Path "$customSecretsFilePath.backup" -Destination "$customSecretsFilePath" -Force
 }
