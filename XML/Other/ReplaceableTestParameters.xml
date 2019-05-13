@@ -418,6 +418,14 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceWith></ReplaceWith>
 	</Parameter>
 	<Parameter>
+		<ReplaceThis>LTP_SKIP</ReplaceThis>
+		<ReplaceWith></ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>LTP_CUSTOM_SUITES</ReplaceThis>
+		<ReplaceWith></ReplaceWith>
+	</Parameter>
+	<Parameter>
 		<ReplaceThis>TENSORFLOW_VERSION</ReplaceThis>
 		<ReplaceWith>latest</ReplaceWith>
 	</Parameter>
