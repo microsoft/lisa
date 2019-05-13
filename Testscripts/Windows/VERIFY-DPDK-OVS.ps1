@@ -46,10 +46,10 @@ function Main {
 			}
 		}
 		if ($noClient) {
-			Throw "No any master VM defined. Be sure that, Client VM role name matches with the pattern `"*master*`". Aborting Test."
+			Throw "No master VM defined. Be sure that, Client VM role name matches with the pattern `"*master*`". Aborting Test."
 		}
 		if ($noServer) {
-			Throw "No any slave VM defined. Be sure that, Server machine role names matches with pattern `"*slave*`" Aborting Test."
+			Throw "No slave VM defined. Be sure that, Server machine role names matches with pattern `"*slave*`". Aborting Test."
 		}
 
 		Write-LogInfo "CLIENT VM details :"
@@ -62,6 +62,26 @@ function Main {
 		Write-LogInfo "  Public IP : $($serverVMData.PublicIP)"
 		Write-LogInfo "  SSH Port : $($serverVMData.SSHPort)"
 		Write-LogInfo "  Internal IP : $($serverVMData.InternalIP)"
+
+		# Checking OVS DPDK compatibility
+		$detectedDistro = Detect-LinuxDistro -VIP $vmData.PublicIP -SSHport $vmData.SSHPort `
+			-testVMUser $user -testVMPassword $password
+		if ($detectedDistro -like "*debian*" -or $detectedDistro -like "*ubuntu*") {
+			Write-LogInfo "Confirmed supported distro: $detectedDistro"
+		} else {
+			$msg = "Unsupported distro: $detectedDistro"
+			Write-LogWarn $msg
+			return $global:ResultSkipped
+		}
+		$currentKernelVersion = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort `
+			-username $user -password $password -command "uname -r"
+		if (IsGreaterKernelVersion -actualKernelVersion $currentKernelVersion -detectedDistro $detectedDistro) {
+			Write-LogInfo "Confirmed Kernel version supported: $currentKernelVersion"
+		} else {
+			$msg = "Unsupported Kernel version: $currentKernelVersion"
+			Write-LogErr $msg
+			throw $msg
+		}
 
 		# PROVISION VMS FOR LISA WILL ENABLE ROOT USER AND WILL MAKE ENABLE PASSWORDLESS AUTHENTICATION ACROSS ALL VMS IN SAME HOSTED SERVICE.
 		Provision-VMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
@@ -97,24 +117,6 @@ function Main {
 			if ($param -imatch "modes") {
 				$modes = ($param.Replace("modes=",""))
 			}
-		}
-		$detectedDistro = Detect-LinuxDistro -VIP $vmData.PublicIP -SSHport $vmData.SSHPort `
-			-testVMUser $user -testVMPassword $password
-		if ($detectedDistro -like "*debian*" -or $detectedDistro -like "*ubuntu*") {
-			Write-LogInfo "Confirmed supported distro: $detectedDistro"
-		} else {
-			$msg = "Unsupported distro: $detectedDistro"
-			Write-LogWarn $msg
-			return $global:ResultSkipped
-		}
-		$currentKernelVersion = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort `
-			-username $user -password $password -command "uname -r"
-		if (IsGreaterKernelVersion -actualKernelVersion $currentKernelVersion -detectedDistro $detectedDistro) {
-			Write-LogInfo "Confirmed Kernel version supported: $currentKernelVersion"
-		} else {
-			$msg = "Unsupported Kernel version: $currentKernelVersion"
-			Write-LogErr $msg
-			throw $msg
 		}
 
 		Write-LogInfo "constants.sh created successfully..."
