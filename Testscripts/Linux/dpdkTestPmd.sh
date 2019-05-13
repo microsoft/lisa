@@ -73,9 +73,15 @@ runTestPmd()
 	ssh "${server}" "mkdir -p $LOGDIR"
 	ssh "${server}" "mkdir -p  /mnt/huge; mkdir -p  /mnt/huge-1G; mount -t hugetlbfs nodev /mnt/huge && mount -t hugetlbfs nodev /mnt/huge-1G -o 'pagesize=1G' && echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages && grep -i hug /proc/meminfo"
 	mkdir -p  /mnt/huge; mkdir -p  /mnt/huge-1G; mount -t hugetlbfs nodev /mnt/huge && mount -t hugetlbfs nodev /mnt/huge-1G -o 'pagesize=1G' && echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages && grep -i hug /proc/meminfo 
-	
+
+	# Check testpmd --no-pci if it triggers a kernel crash
+	echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages \
+		&& echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages \
+		&&  modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib; \
+		timeout 10 testpmd --no-pci -m 1024 -c 0x3 -- -i --total-num-mbufs=16384 --coremask=0x2 --rxq=1 --txq=1
+	checkCmdExitStatus "Check testpmd --no-pci if it triggers a kernel crash"
+
 	for testmode in $modes; do
-		LogMsg "Configure huge pages on ${server}"
 		LogMsg "TestPmd is starting on ${serverNIC1ip} with ${testmode} mode, duration ${testDuration} secs"
 		ssh "${server}" "echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages &&  mount -a && modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib;timeout 30 testpmd -l 1-3 -n 2 -w 0002:00:02.0 --vdev='net_vdev_netvsc0,iface=eth1,force=1' -- --port-topology=chained --nb-cores 1 --forward-mode=${testmode}  --stats-period 1" 2>&1 > "$HOMEDIR"/dpdkVersion.txt
 		ssh "${server}" "pkill testpmd"
