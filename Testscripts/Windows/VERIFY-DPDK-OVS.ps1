@@ -11,6 +11,9 @@ function Get-TestStatus {
 	}	elseif ($testStatus -imatch "TestAborted") {
 		Write-LogErr "Test Aborted. Last known status : $currentStatus."
 		$testResult = "ABORTED"
+	}	elseif ($testStatus -imatch "TestSkipped") {
+		Write-LogErr "Test SKIPPED. Last known status : $currentStatus."
+		$testResult = "SKIPPED"
 	}	elseif ($testStatus -imatch "TestCompleted") {
 		Write-LogInfo "Test Completed."
 		Write-LogInfo "DPDK build is Success"
@@ -97,6 +100,13 @@ function Main {
 		}
 		$detectedDistro = Detect-LinuxDistro -VIP $vmData.PublicIP -SSHport $vmData.SSHPort `
 			-testVMUser $user -testVMPassword $password
+		if ($detectedDistro -like "*debian*" -or $detectedDistro -like "*ubuntu*") {
+			Write-LogInfo "Confirmed supported distro: $detectedDistro"
+		} else {
+			$msg = "Unsupported distro: $detectedDistro"
+			Write-LogWarn $msg
+			return $global:ResultSkipped
+		}
 		$currentKernelVersion = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort `
 			-username $user -password $password -command "uname -r"
 		if (IsGreaterKernelVersion -actualKernelVersion $currentKernelVersion -detectedDistro $detectedDistro) {
@@ -170,9 +180,6 @@ collect_VM_properties
 		$ovsStatus = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort `
 			-username $superUser -password $password -command "cat /root/state.txt"
 		$testResult = Get-TestStatus $ovsStatus
-		if ($testResult -ne "PASS") {
-			return $testResult
-		}
 	} catch {
 		$ErrorMessage =  $_.Exception.Message
 		$ErrorLine = $_.InvocationInfo.ScriptLineNumber
