@@ -187,9 +187,9 @@ try {
     $Command += " -XMLSecretFile '$customSecretsFilePath'"
     $Command += " -ResourceCleanup Keep"
     if ($TiPCluster -and $TipSessionID) {
-        $Command += " -CustomParameters 'Networking=$Networking;DiskType=$DiskType;OSType=$GuestOSType'"
-    } else {
         $Command += " -CustomParameters 'Networking=$Networking;DiskType=$DiskType;OSType=$GuestOSType;TiPCluster=$TiPCluster;TipSessionId=$TipSessionID'"
+    } else {
+        $Command += " -CustomParameters 'Networking=$Networking;DiskType=$DiskType;OSType=$GuestOSType'"
     }
     Invoke-Expression -Command $Command
 }
@@ -200,5 +200,5 @@ catch {
 finally {
     Move-Item -Path "$customSecretsFilePath.backup" -Destination "$customSecretsFilePath" -Force
     Remove-Item -Path .\XML\TestCases\Tool-Deploy-VM.xml -Force -ErrorAction SilentlyContinue
-    Remove-Item -Path .\XML\VMConfigurations\Tool-Deploy-VM.xml -Force -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path .\XML\VMConfigurations\Tool-Deploy-VM.xml -Force -ErrorAction SilentlyContinue
 }
