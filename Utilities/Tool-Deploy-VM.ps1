@@ -177,16 +177,21 @@ try {
     Set-Content -Value $SetupTypeDefinition -Path .\XML\VMConfigurations\Tool-Deploy-VM.xml -Force
 
     # Start the LISAv2 Test with ResourceCleanup = Keep
-    .\Run-LisaV2.ps1 `
-        -TestPlatform Azure `
-        -TestLocation $Region `
-        -ARMImageName $ARMVMImage `
-        -StorageAccount $StorageAccountName `
-        -RGIdentifier $VMName `
-        -TestNames "TOOL-DEPLOYMENT-PROVISION" `
-        -XMLSecretFile $customSecretsFilePath `
-        -ResourceCleanup Keep `
-        -CustomParameters "Networking=$Networking;DiskType=$DiskType;OSType=$GuestOSType"
+    $Command = ".\Run-LisaV2.ps1"
+    $Command += " -TestPlatform Azure"
+    $Command += " -TestLocation '$Region'"
+    $Command += " -ARMImageName '$ARMVMImage'"
+    $Command += " -StorageAccount '$StorageAccountName'"
+    $Command += " -RGIdentifier '$VMName'"
+    $Command += " -TestNames 'TOOL-DEPLOYMENT-PROVISION'"
+    $Command += " -XMLSecretFile '$customSecretsFilePath'"
+    $Command += " -ResourceCleanup Keep"
+    if ($TiPCluster -and $TipSessionID) {
+        $Command += " -CustomParameters 'Networking=$Networking;DiskType=$DiskType;OSType=$GuestOSType'"
+    } else {
+        $Command += " -CustomParameters 'Networking=$Networking;DiskType=$DiskType;OSType=$GuestOSType;TiPCluster=$TiPCluster;TipSessionId=$TipSessionID'"
+    }
+    Invoke-Expression -Command $Command
 }
 catch {
     $ErrorMessage = $_.Exception.Message
