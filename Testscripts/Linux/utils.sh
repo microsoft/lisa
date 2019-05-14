@@ -3500,3 +3500,57 @@ function CreateFile()
 		LogMsg "Error: $file_path failed to create with size $size"
 	fi
 }
+
+# Check available packages
+function check_package ()
+{
+	local package_list=("$@")
+	for package_name in "${package_list[@]}"; do
+		case "$DISTRO_NAME" in
+			oracle|rhel|centos)
+				yum provides "$package_name" | grep -i Matched
+				return $?
+				;;
+
+			ubuntu|debian)
+				apt-cache policy "$package_name" | grep Candidate
+				return $?
+				;;
+
+			suse|opensuse|sles)
+				zypper search "$package_name"
+				return $?
+				;;
+
+			clear-linux-os)
+				swupd search "$package_name" | grep -v "failed"
+				return $?
+				;;
+			*)
+				echo "Unknown distribution"
+				return 1
+		esac
+	done
+}
+
+# Install nvme
+function install_nvme_cli()
+{
+    which nvme
+    if [ $? -ne 0 ]; then
+        echo "nvme is not installed\n Installing now..."
+        check_package "nvme-cli"
+        if [ $? -ne 0 ]; then
+            yum -y groupinstall "Development Tools"
+            wget https://github.com/linux-nvme/nvme-cli/archive/${nvme_version}.tar.gz
+            tar xvf ${nvme_version}.tar.gz
+            pushd nvme-cli-${nvme_version/v/} && make && make install
+            popd
+            yes | cp -f /usr/local/sbin/nvme /sbin
+        else
+            install_package "nvme-cli"
+        fi
+    fi
+    which nvme
+    check_exit_status "install_nvme"
+}

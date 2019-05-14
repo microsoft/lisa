@@ -20,7 +20,7 @@ UtilsInit
 Run_Blkdiscard() {
     # Install nvme-cli tool and parted
     update_repos
-    install_package "nvme-cli"
+    install_nvme_cli
     # Count NVME namespaces
     namespace_count=$(echo /dev/*nvme*n[0-9] | wc -w)
     if [ "$namespace_count" -eq "0" ]; then

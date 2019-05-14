@@ -47,7 +47,8 @@ ConfigureXFSTestTools() {
     # Install common & specific dependencies
     update_repos
     install_fio
-    install_package "acl attr automake bc dos2unix dump e2fsprogs gawk gcc git indent libtool lvm2 make nvme-cli parted python quota sed xfsdump xfsprogs"
+    install_package "acl attr automake bc dos2unix dump e2fsprogs gawk gcc git indent libtool lvm2 make parted python quota sed xfsdump xfsprogs"
+    install_nvme_cli
     install_package $pack_list
     LogMsg "Packages installation complete."
     # Install dbench
