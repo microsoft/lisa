@@ -150,6 +150,8 @@ collect_VM_properties
 			-username $superUser -password $password -command "cat /root/state.txt"
 		$testResult = Get-TestStatus $dpdkStatus
 		if ($testResult -ne "PASS") {
+			Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort `
+				-username $superUser -password $password -download -downloadTo $LogDir -files "*.txt, *.log"
 			return $testResult
 		}
 
@@ -180,6 +182,9 @@ collect_VM_properties
 		$ovsStatus = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort `
 			-username $superUser -password $password -command "cat /root/state.txt"
 		$testResult = Get-TestStatus $ovsStatus
+
+		Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort `
+			-username $superUser -password $password -download -downloadTo $LogDir -files "*.txt, *.log"
 	} catch {
 		$ErrorMessage =  $_.Exception.Message
 		$ErrorLine = $_.InvocationInfo.ScriptLineNumber
