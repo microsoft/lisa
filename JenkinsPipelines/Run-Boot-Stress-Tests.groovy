@@ -50,12 +50,12 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                         node('azure') 
                         {
                             Prepare()
-                            withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')]) 
+                            withCredentials([file(credentialsId: 'Azure_Secrets_TESTONLY_File', variable: 'Azure_Secrets_File')])
                             {
                                 RunPowershellCommand(".\\Run-LisaV2.ps1" +
                                 " -RGIdentifier '${JenkinsUser}'" +
                                 " -ExitWithZero" +
-                                FinalImageSource +                                    
+                                FinalImageSource +
                                 " -XMLSecretFile '${Azure_Secrets_File}'" + 
                                 " -TestPlatform 'Azure'" +
                                 " -TestNames 'VERIFY-DEPLOYMENT-PROVISION'" +
@@ -94,7 +94,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, CustomVHD, Custo
                         node('azure') 
                         {
                             Prepare()
-                            withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')]) 
+                            withCredentials([file(credentialsId: 'Azure_Secrets_TESTONLY_File', variable: 'Azure_Secrets_File')])
                             {
                                 RunPowershellCommand(".\\Run-LisaV2.ps1" +
                                 " -RGIdentifier '${JenkinsUser}'" +
@@ -157,8 +157,8 @@ stage ("Inspect VHD")
         {
             Prepare()
             println "Running Inspect file"
-            withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')])
-            {            
+            withCredentials([file(credentialsId: 'Azure_Secrets_TESTONLY_File', variable: 'Azure_Secrets_File')])
+            {
                 RunPowershellCommand (".\\JenkinsPipelines\\Scripts\\InspectVHD.ps1 -XMLSecretFile '${Azure_Secrets_File}'")
             }
             stash includes: 'CustomVHD.azure.env', name: 'CustomVHD'
@@ -176,12 +176,12 @@ stage('Upload VHD to Azure')
             Prepare()
             unstash 'CustomVHD'
             FinalVHDName = readFile 'CustomVHD.azure.env'
-            withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')])
+            withCredentials([file(credentialsId: 'Azure_Secrets_TESTONLY_File', variable: 'Azure_Secrets_File')])
             {
                 RunPowershellCommand (".\\Utilities\\AddAzureRmAccountFromSecretsFile.ps1 -customSecretsFilePath '${Azure_Secrets_File}';" +
                 ".\\Utilities\\UploadVHDtoAzureStorage.ps1 -Region westus2 -VHDPath 'Q:\\Temp\\${FinalVHDName}' -DeleteVHDAfterUpload -NumberOfUploaderThreads 64"
                 )
-            }    
+            }
         }
     }
 }
@@ -207,7 +207,7 @@ stage('Capture VHD with Custom Kernel')
                 FinalImageSource = " -ARMImageName '${ImageSource}'"
             }    
             Prepare()
-            withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')])
+            withCredentials([file(credentialsId: 'Azure_Secrets_TESTONLY_File', variable: 'Azure_Secrets_File')])
             {
                 RunPowershellCommand (".\\Utilities\\AddAzureRmAccountFromSecretsFile.ps1 -customSecretsFilePath '${Azure_Secrets_File}';" +
                 ".\\JenkinsPipelines\\Scripts\\InspectCustomKernel.ps1 -RemoteFolder 'J:\\ReceivedFiles' -LocalFolder '.'" 
@@ -251,12 +251,12 @@ stage('Copy VHD to other regions')
                 unstash 'CustomVHD'
                 FinalVHDName = readFile 'CustomVHD.azure.env'
             }
-            withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')])
+            withCredentials([file(credentialsId: 'Azure_Secrets_TESTONLY_File', variable: 'Azure_Secrets_File')])
             {
                 CurrentTestRegions = RegionAndVMSize.split(" ")[0]
                 RunPowershellCommand (".\\Utilities\\AddAzureRmAccountFromSecretsFile.ps1 -customSecretsFilePath '${Azure_Secrets_File}';" +
                 ".\\Utilities\\CopyVHDtoOtherStorageAccount.ps1 -SourceLocation westus2 -destinationLocations '${CurrentTestRegions}' -sourceVHDName '${FinalVHDName}' -DestinationAccountType Standard"
-                )             
+                )
             }
         }
     }
