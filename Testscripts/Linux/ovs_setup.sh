@@ -52,10 +52,9 @@ function install_ovs () {
 	elif [[ $ovsSrcLink =~ ".git" ]] || [[ $ovsSrcLink =~ "git:" ]];
 	then
 		ovsSrcDir="${ovsSrcLink##*/}"
-		LogMsg "Installing OVS from source file $ovsSrcDir"
-		ssh "${1}" git clone "$ovsSrcLink"
-		check_exit_status "git clone $ovsSrcLink on ${1}" "exit"
-		LogMsg "ovs source on ${1} $ovsSrcLink"
+		LogMsg "Installing OVS from git repo ${ovsSrcLink} to ${ovsSrcDir}"
+		ssh "${1}" git clone --single-branch --branch "${ovsSrcBranch}" "${ovsSrcLink}"
+		check_exit_status "git clone --single-branch --branch ${ovsSrcBranch} ${ovsSrcLink} on ${1}" "exit"
 	else
 		LogMsg "Provide proper link $ovsSrcLink"
 	fi
@@ -66,7 +65,7 @@ function install_ovs () {
 	ssh "${1}" "cd ${OVS_DIR} && ./configure --with-dpdk=${RTE_SDK}/${RTE_TARGET} --prefix=/usr --localstatedir=/var --sysconfdir=/etc"
 
 	LogMsg "Starting OVS build on ${1}"
-	ssh "${1}" "cd ${OVS_DIR} && make -j16 && make install"
+	ssh "${1}" "cd ${OVS_DIR} && make -j && make install"
 	check_exit_status "ovs build on ${1}" "exit"
 
 	vf_ip=$(ssh "${1}" "ip a | grep ${nicName} -A 2| grep inet | grep ${nicName} | awk '{print \$2}'")

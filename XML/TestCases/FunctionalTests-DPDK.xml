@@ -84,6 +84,7 @@
         <TestParameters>
             <param>dpdkSrcLink="DPDK_SOURCE_URL"</param>
             <param>ovsSrcLink="OVS_SOURCE_URL"</param>
+            <param>ovsSrcBranch="OVS_SOURCE_BRANCH"</param>
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Functional</Category>

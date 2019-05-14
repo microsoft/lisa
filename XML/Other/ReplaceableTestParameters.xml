@@ -39,7 +39,7 @@ Scenario 2 : You need to run all the performance tests quickly.
 <ReplaceableTestParameters>
 	<Parameter>
 		<ReplaceThis>DPDK_SOURCE_URL</ReplaceThis>
-		<ReplaceWith>https://fast.dpdk.org/rel/dpdk-18.08.tar.xz</ReplaceWith>
+		<ReplaceWith>https://fast.dpdk.org/rel/dpdk-18.11.tar.xz</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>DPDK_PERF_CORES</ReplaceThis>
@@ -48,6 +48,10 @@ Scenario 2 : You need to run all the performance tests quickly.
 	<Parameter>
 		<ReplaceThis>OVS_SOURCE_URL</ReplaceThis>
 		<ReplaceWith>https://github.com/openvswitch/ovs.git</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>OVS_SOURCE_BRANCH</ReplaceThis>
+		<ReplaceWith>dpdk-latest</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>NTTTCP_RUNTIME_IN_SECONDS</ReplaceThis>
