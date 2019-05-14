@@ -199,4 +199,6 @@ catch {
 }
 finally {
     Move-Item -Path "$customSecretsFilePath.backup" -Destination "$customSecretsFilePath" -Force
+    Remove-Item -Path .\XML\TestCases\Tool-Deploy-VM.xml -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path .\XML\VMConfigurations\Tool-Deploy-VM.xml -Force -Force -ErrorAction SilentlyContinue
 }
