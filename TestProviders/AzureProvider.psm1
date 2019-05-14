@@ -109,7 +109,7 @@ Class AzureProvider : TestProvider
 		$restartJobs = @()
 		foreach ( $vmData in $AllVMData ) {
 			Write-LogInfo "Triggering Restart-$($vmData.RoleName)..."
-			$restartJobs += Restart-AzureRmVM -ResourceGroupName $vmData.ResourceGroupName -Name $vmData.RoleName -Verbose -AsJob
+			$restartJobs += Restart-AzVM -ResourceGroupName $vmData.ResourceGroupName -Name $vmData.RoleName -Verbose -AsJob
 		}
 		$recheckAgain = $true
 		Write-LogInfo "Waiting until VMs restart..."

@@ -90,12 +90,12 @@ $Report = '
     <th class="tg-amwmleft">Age</th>
   </tr>
   '
-$allICARGs = Get-AzureRmResourceGroup | Where-Object { ($_.ResourceGroupName -imatch "ICA-RG-") -or ($_.ResourceGroupName -imatch "LISAv2-")}
+$allICARGs = Get-AzResourceGroup | Where-Object { ($_.ResourceGroupName -imatch "ICA-RG-") -or ($_.ResourceGroupName -imatch "LISAv2-")}
 $currentTimeStamp = Get-Date
 $counter = 0
 $lockcounter = 0
 $cleanupRGs = @()
-$allLocks = Get-AzureRmResourceLock
+$allLocks = Get-AzResourceLock
 foreach ($rg in $allICARGs) {
     $counter += 1
     $rgTimeStamp = $($rg.ResourceGroupName).Split("-")[$($rg.ResourceGroupName).Split("-").Count - 1]
@@ -134,7 +134,7 @@ foreach ($rg in $allICARGs) {
 
 $cleanupRGScriptBlock = {
     $RGName = $args[0]
-    Remove-AzureRmResourceGroup -Name $RGName -Verbose -Force
+    Remove-AzResourceGroup -Name $RGName -Verbose -Force
 }
 
 foreach ($RGName in $cleanupRGs) {

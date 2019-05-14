@@ -41,7 +41,7 @@ function Get-NonManagementNic() {
 	)
 
 	$rg = $allVMData[0].ResourceGroupName
-	$allNics = Get-AzureRmNetworkInterface -ResourceGroupName $rg | Where-Object {($null -ne $_.VirtualMachine.Id) `
+	$allNics = Get-AzNetworkInterface -ResourceGroupName $rg | Where-Object {($null -ne $_.VirtualMachine.Id) `
 		-and (($_.VirtualMachine.Id | Split-Path -leaf) -eq $vmName)}
 
 	$nics = @()

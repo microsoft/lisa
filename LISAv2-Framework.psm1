@@ -125,7 +125,7 @@ function Start-LISAv2 {
 					. $([ScriptBlock]::Create("using module $moduleName"))
 					$testController = New-Object -TypeName $testPlatform"Controller"
 				} else {
-					Write-LogErr "$testPlatform is not yet supported."
+					throw "$testPlatform is not yet supported."
 				}
 			} else {
 				throw "'TestPlatform' parameter is not provided."

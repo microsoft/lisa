@@ -18,11 +18,11 @@ function Main {
         $testedVMSizes += $AllVMData.InstanceSize
         $previousVMSize = $AllVMData.InstanceSize
 
-        $loadBalanceName = (Get-AzureRmLoadBalancer -ResourceGroupName $AllVMData.ResourceGroupName).Name
-        $VirtualMachine = Get-AzureRmVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName
+        $loadBalanceName = (Get-AzLoadBalancer -ResourceGroupName $AllVMData.ResourceGroupName).Name
+        $VirtualMachine = Get-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName
         $ComputeSKUs = Get-AzComputeResourceSku
         for ( $i = 0; $i -le 30; $i++ ) {
-            $vmSizes = (Get-AzureRmVMSize -ResourceGroupName $AllVMData.ResourceGroupName -VMName $AllVMData.RoleName).Name
+            $vmSizes = (Get-AzVMSize -ResourceGroupName $AllVMData.ResourceGroupName -VMName $AllVMData.RoleName).Name
             Write-LogInfo "The VM can be resized to the following sizes: $vmSizes"
             foreach ($vmSize in $vmSizes) {
                 # Load balancing is not supported for Basic VM sizes.
@@ -48,7 +48,7 @@ function Main {
             Write-LogInfo "--------------------------------------------------------"
             Write-LogInfo "Resizing the VM to size: $vmSize"
             $VirtualMachine.HardwareProfile.VmSize = $vmSize
-            Update-AzureRmVM -VM $VirtualMachine -ResourceGroupName $AllVMData.ResourceGroupName | Out-Null
+            Update-AzVM -VM $VirtualMachine -ResourceGroupName $AllVMData.ResourceGroupName | Out-Null
             if ($?) {
                 Write-LogInfo "Resize the VM from $previousVMSize to $vmSize successfully"
             } else {
@@ -59,7 +59,7 @@ function Main {
             }
 
             # Add CPU count and memory checks
-            $expectedVMSize = Get-AzureRmVMSize -Location $AllVMData.Location | Where-Object {$_.Name -eq $vmSize}
+            $expectedVMSize = Get-AzVMSize -Location $AllVMData.Location | Where-Object {$_.Name -eq $vmSize}
             $expectedCPUCount = $expectedVMSize.NumberOfCores
             $expectedMemorySizeInMB = $expectedVMSize.MemoryInMB
             $actualCPUCount = Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "nproc"
@@ -90,7 +90,7 @@ function Main {
         }
 
         # Resize the VM with an unsupported size in the current hardware cluster
-        $allVMSize = (Get-AzureRmVMSize -Location $AllVMData.Location).Name
+        $allVMSize = (Get-AzVMSize -Location $AllVMData.Location).Name
         foreach ($vmSize in $allVMSize) {
             $Restrictions = ($ComputeSKUs | Where-Object { $_.Locations -eq $AllVMData.Location -and $_.ResourceType -eq "virtualMachines" `
                 -and $_.Name -eq $vmSize}).Restrictions
@@ -102,7 +102,7 @@ function Main {
                 Write-LogInfo "--------------------------------------------------------"
                 Write-LogInfo "Resizing the VM to size: $vmSize"
                 $VirtualMachine.HardwareProfile.VmSize = $vmSize
-                Update-AzureRmVM -VM $VirtualMachine -ResourceGroupName $AllVMData.ResourceGroupName | Out-Null
+                Update-AzVM -VM $VirtualMachine -ResourceGroupName $AllVMData.ResourceGroupName | Out-Null
                 if ($?) {
                     $testResult = "FAIL"
                     $resizeVMSizeFailures += "The VM should fail to resize from $previousVMSize to $vmSize"

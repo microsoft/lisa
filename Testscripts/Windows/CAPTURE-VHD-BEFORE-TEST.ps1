@@ -24,7 +24,7 @@ function Main {
         Write-LogInfo "Deprovisioning done."
         # endregion
         Write-LogInfo "Shutting down VM..."
-        $null = Stop-AzureRmVM -Name $captureVMData.RoleName -ResourceGroupName $captureVMData.ResourceGroupName -Force
+        $null = Stop-AzVM -Name $captureVMData.RoleName -ResourceGroupName $captureVMData.ResourceGroupName -Force
         Write-LogInfo "VM shutdown successful."
         $Append = $Distro
         if ($env:BUILD_NAME){
@@ -56,7 +56,7 @@ function Main {
                 $retryCount += 1
                 Write-LogInfo "[Attempt $retryCount/$maxRetryCount] : Getting Storage Account details..."
                 $GetAzureRMStorageAccount = $null
-                $GetAzureRMStorageAccount = Get-AzureRmStorageAccount
+                $GetAzureRMStorageAccount = Get-AzStorageAccount
                 if (!$GetAzureRMStorageAccount) {
                     throw
                 }
@@ -67,7 +67,7 @@ function Main {
             }
         }
         Write-LogInfo "Collecting OS Disk VHD information."
-        $OSDiskVHD = (Get-AzureRmVM -ResourceGroupName $captureVMData.ResourceGroupName -Name $captureVMData.RoleName).StorageProfile.OsDisk.Vhd.Uri
+        $OSDiskVHD = (Get-AzVM -ResourceGroupName $captureVMData.ResourceGroupName -Name $captureVMData.RoleName).StorageProfile.OsDisk.Vhd.Uri
         $currentVHDName = $OSDiskVHD.Trim().Split("/")[($OSDiskVHD.Trim().Split("/").Count -1)]
         $testStorageAccount = $OSDiskVHD.Replace("http://","").Replace("https://","").Trim().Split(".")[0]
         $sourceRegion = $(($GetAzureRmStorageAccount  | Where-Object {$_.StorageAccountName -eq "$testStorageAccount"}).Location)

@@ -54,13 +54,13 @@ try
     $pstzone = [System.TimeZoneInfo]::FindSystemTimeZoneById("Pacific Standard Time")
     $psttime = [System.TimeZoneInfo]::ConvertTimeFromUtc((Get-Date).ToUniversalTime(),$pstzone)
 
-    $subscription = Get-AzureRmSubscription
-    Write-LogInfo "Running: Get-AzureRmResource..."
-    $allResources = Get-AzureRmResource
-    Write-LogInfo "Running: Get-AzureRmVM -Status..."
-    $allVMStatus = Get-AzureRmVM -Status
-    Write-LogInfo "Running: Get-AzureRmLocation..."
-    $allRegions = (Get-AzureRmLocation | Where-Object { $_.Providers -imatch "Microsoft.Compute" }).Location | Sort-Object
+    $subscription = Get-AzSubscription
+    Write-LogInfo "Running: Get-AzResource..."
+    $allResources = Get-AzResource
+    Write-LogInfo "Running: Get-AzVM -Status..."
+    $allVMStatus = Get-AzVM -Status
+    Write-LogInfo "Running: Get-AzLocation..."
+    $allRegions = (Get-AzLocation | Where-Object { $_.Providers -imatch "Microsoft.Compute" }).Location | Sort-Object
 }
 catch
 {
@@ -178,10 +178,10 @@ foreach ($region in $allRegions)
     $currentUsedCores = 0
     $currentDeallocatedCores = 0
     $currentStorageAccounts = 0
-    $currentRegionSizes = Get-AzureRmVMSize -Location $region
-    Write-LogInfo "Get-AzureRmVMSize -Location $region"
-    $currentRegionUsage =  Get-AzureRmVMUsage -Location $region
-    Write-LogInfo "Get-AzureRmVMUsage -Location $region"
+    $currentRegionSizes = Get-AzVMSize -Location $region
+    Write-LogInfo "Get-AzVMSize -Location $region"
+    $currentRegionUsage =  Get-AzVMUsage -Location $region
+    Write-LogInfo "Get-AzVMUsage -Location $region"
     $currentRegionAllowedCores = ($currentRegionUsage | Where-Object { $_.Name.Value -eq "cores"}).Limit
 
     $regionCounter+= 1

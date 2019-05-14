@@ -12,18 +12,18 @@ function Main {
         $testResult = $null
         $diskSizeinGB = $TestParams.DiskSize
         $allDiskNames = @()
-        $VirtualMachine = Get-AzureRmVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName
-        $diskCount = (Get-AzureRmVMSize -Location $AllVMData.Location | Where-Object {$_.Name -eq $AllVMData.InstanceSize}).MaxDataDiskCount
+        $VirtualMachine = Get-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName
+        $diskCount = (Get-AzVMSize -Location $AllVMData.Location | Where-Object {$_.Name -eq $AllVMData.InstanceSize}).MaxDataDiskCount
         Write-LogInfo "Parallel Addition of Data Disks to the VM "
         While ($count -lt $diskCount) {
             $count += 1
             $diskName = "disk"+ $count.ToString()
             $allDiskNames += $diskName
             $StorageType = 'Premium_LRS'
-            $diskConfig = New-AzureRmDiskConfig -SkuName $StorageType -Location $AllVMData.Location -CreateOption Empty -DiskSizeGB $diskSizeinGB
-            $dataDisk = New-AzureRmDisk -DiskName $diskName -Disk $diskConfig -ResourceGroupName $AllVMData.ResourceGroupName
+            $diskConfig = New-AzDiskConfig -SkuName $StorageType -Location $AllVMData.Location -CreateOption Empty -DiskSizeGB $diskSizeinGB
+            $dataDisk = New-AzDisk -DiskName $diskName -Disk $diskConfig -ResourceGroupName $AllVMData.ResourceGroupName
             Write-LogInfo "Adding an empty data disk of size $diskSizeinGB GB"
-            $sts = Add-AzureRmVMDataDisk -VM $VirtualMachine -Name $diskName -CreateOption Attach -ManagedDiskId $dataDisk.Id -Lun $count
+            $sts = Add-AzVMDataDisk -VM $VirtualMachine -Name $diskName -CreateOption Attach -ManagedDiskId $dataDisk.Id -Lun $count
             if ($sts.ProvisioningState -eq "Succeeded") {
                 Write-LogInfo "Successfully created an empty data disk of size $diskSizeinGB GB"
             } else {
@@ -32,7 +32,7 @@ function Main {
             }
         }
         Write-LogInfo "Number of data disks added to the VM $count"
-        Update-AzureRMVM -VM $VirtualMachine -ResourceGroupName $AllVMData.ResourceGroupName | Out-Null
+        Update-AzVM -VM $VirtualMachine -ResourceGroupName $AllVMData.ResourceGroupName | Out-Null
         Write-LogInfo "Successfully added $diskCount empty data disks to the VM"
         Write-LogInfo "Verifying if data disk is added to the VM: Running fdisk on remote VM"
         $fdiskOutput = Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "/sbin/fdisk -l | grep /dev/sd" -runAsSudo
@@ -50,13 +50,13 @@ function Main {
             throw "Data disks added to the VM failed to verify inside VM"
         }
         Write-LogInfo "Parallel Removal of Data Disks from the VM"
-        $sts = Remove-AzureRmVMDataDisk -VM $VirtualMachine -DataDiskNames $allDiskNames
+        $sts = Remove-AzVMDataDisk -VM $VirtualMachine -DataDiskNames $allDiskNames
         if ($sts.ProvisioningState -eq "Succeeded") {
             Write-LogInfo "Successfully removed the data disk from the VM"
         } else {
             throw "Failed to remove data disk"
         }
-        Update-AzureRMVM -VM $VirtualMachine -ResourceGroupName $AllVMData.ResourceGroupName | Out-Null
+        Update-AzVM -VM $VirtualMachine -ResourceGroupName $AllVMData.ResourceGroupName | Out-Null
         Write-LogInfo "Verifying if data disks are removed from the VM: Running fdisk on remote VM"
         $fdiskFinalOutput = Run-LinuxCmd -username $user -password $password -ip  $AllVMData.PublicIP -port $AllVMData.SSHPort -command "/sbin/fdisk -l | grep /dev/sd" -runAsSudo
         foreach ($line in ($fdiskFinalOutput.Split([Environment]::NewLine))) {

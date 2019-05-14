@@ -105,10 +105,10 @@ Function Get-FilteredResourceGroups($RgPattern, $TagName, $TagValue) {
 	try {
 		if ($TagName -and $TagValue) {
 			Write-LogInfo "Try to get the resource groups of pattern $RgPattern, with tag $TagName = $TagValue"
-			$rgs = Get-AzureRmResourceGroup -Tag @{ $TagName=$TagValue } | Where-Object ResourceGroupName -Like $RgPattern | Sort-Object {$_.Tags.CreationTime -as [DateTime] } -Descending
+			$rgs = Get-AzResourceGroup -Tag @{ $TagName=$TagValue } | Where-Object ResourceGroupName -Like $RgPattern | Sort-Object {$_.Tags.CreationTime -as [DateTime] } -Descending
 		} else {
 			Write-LogInfo "Try to get the resource groups of pattern $RgPattern"
-			$rgs = Get-AzureRmResourceGroup | Where-Object ResourceGroupName -Like $RgPattern | Sort-Object {$_.Tags.CreationTime -as [DateTime] } -Descending
+			$rgs = Get-AzResourceGroup | Where-Object ResourceGroupName -Like $RgPattern | Sort-Object {$_.Tags.CreationTime -as [DateTime] } -Descending
 		}
 	}
 	catch {
@@ -141,7 +141,7 @@ Function Lock-LatestResourceGroup($UserName, $AzureSecretsFile, $RgPattern, $Tag
 				if ($UserName -ne $timerUser) {
 					$usersToNotify += $UserName
 				}
-				$locks = Get-AzureRmResourceLock -ResourceGroupName $rg.ResourceGroupName
+				$locks = Get-AzResourceLock -ResourceGroupName $rg.ResourceGroupName
 				$shouldAddLock = $true
 				foreach ($lock in $locks) {
 					# Lock already exists
@@ -159,7 +159,7 @@ Function Lock-LatestResourceGroup($UserName, $AzureSecretsFile, $RgPattern, $Tag
 				}
 				if ($shouldAddLock) {
 					Write-LogInfo "Adding lock to the resource group $($rg.ResourceGroupName) for $UserName"
-					New-AzureRmResourceLock -LockName $UserName -LockLevel CanNotDelete -ResourceGroupName $rg.ResourceGroupName -Force | Out-Null
+					New-AzResourceLock -LockName $UserName -LockLevel CanNotDelete -ResourceGroupName $rg.ResourceGroupName -Force | Out-Null
 					if ($?) {
 						Write-LogInfo "Resource group is locked successfully"
 					} else {
@@ -203,17 +203,17 @@ Function Unlock-LockedResourceGroup($UserName, $AzureSecretsFile, $RgPattern, $T
 	{
 		try {
 			Write-LogInfo "Getting the lock on resource group $($rg.ResourceGroupName)"
-			$locks = Get-AzureRmResourceLock -ResourceGroupName $rg.ResourceGroupName
+			$locks = Get-AzResourceLock -ResourceGroupName $rg.ResourceGroupName
 			foreach ($lock in $locks) {
 				# Lock added by timer on old RGs should be removed
 				if (-not $isLatestLocked -and $lock.Name -eq $timerUser) {
 					Write-LogInfo "Removing the Timer RG lock on old RG $($rg.ResourceGroupName)..."
-					Remove-AzureRmResourceLock -LockName $lock.Name -ResourceGroupName $rg.ResourceGroupName -Force
+					Remove-AzResourceLock -LockName $lock.Name -ResourceGroupName $rg.ResourceGroupName -Force
 				}
 				# Lock added by the user should be released
 				elseif ($lock.Name -eq $UserName -and $UserName -ne $timerUser) {
 					Write-LogInfo "Removing the RG lock for $UserName on RG $($rg.ResourceGroupName)..."
-					Remove-AzureRmResourceLock -LockName $lock.Name -ResourceGroupName $rg.ResourceGroupName -Force
+					Remove-AzResourceLock -LockName $lock.Name -ResourceGroupName $rg.ResourceGroupName -Force
 				}
 				# RG locked for over 15 days, need to notify the users who locked it
 				elseif ($lock.Name.Contains('@') -and [DateTime]::Parse($rg.Tags.CreationTime) -le [DateTime]::Now.AddDays(-15))

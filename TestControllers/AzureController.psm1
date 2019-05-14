@@ -136,7 +136,7 @@ Class AzureController : TestController
 
 		Write-LogInfo "------------------------------------------------------------------"
 
-		$SelectedSubscription = Select-AzureRmSubscription -SubscriptionId $azureConfig.Subscription.SubscriptionID
+		$SelectedSubscription = Select-AzSubscription -SubscriptionId $azureConfig.Subscription.SubscriptionID
 		$subIDSplitted = ($SelectedSubscription.Subscription.SubscriptionId).Split("-")
 		$userIDSplitted = ($SelectedSubscription.Account.Id).Split("-")
 		Write-LogInfo "SubscriptionName       : $($SelectedSubscription.Subscription.Name)"

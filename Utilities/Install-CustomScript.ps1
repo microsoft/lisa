@@ -88,11 +88,11 @@ Function Install-CustomScript($AzureSecretsFile, $FileUris, $CommandToRun, $Stor
 
 	$vms = @()
 	if ($ResourceGroupName -and $VmName) {
-		$vms += Get-AzureRmVM -ResourceGroupName $ResourceGroupName -Name $VmName
+		$vms += Get-AzVM -ResourceGroupName $ResourceGroupName -Name $VmName
 	} elseif ($ResourceGroupName) {
-		$vms = Get-AzureRmVM -ResourceGroupName $ResourceGroupName | Where-Object {$_.StorageProfile.OsDisk.OsType -eq $OSType}
+		$vms = Get-AzVM -ResourceGroupName $ResourceGroupName | Where-Object {$_.StorageProfile.OsDisk.OsType -eq $OSType}
 	} else {
-		$vms = Get-AzureRmVM | Where-Object {$_.StorageProfile.OsDisk.OsType -eq $OSType}
+		$vms = Get-AzVM | Where-Object {$_.StorageProfile.OsDisk.OsType -eq $OSType}
 	}
 	$jobs = @()
 	$jobIdToVM = @{}
@@ -102,7 +102,7 @@ Function Install-CustomScript($AzureSecretsFile, $FileUris, $CommandToRun, $Stor
 	$alreadyInstalled = $false
 	foreach ($vm in $VMs) {
 		try {
-			$vmStatus = Get-AzureRmVM -ResourceGroupName $vm.ResourceGroupName -Name $vm.Name -Status
+			$vmStatus = Get-AzVM -ResourceGroupName $vm.ResourceGroupName -Name $vm.Name -Status
 			if ($vmStatus.Statuses[1].Code -inotmatch "running") {
 				$vmsNotRunning += $vm
 				continue
@@ -112,7 +112,7 @@ Function Install-CustomScript($AzureSecretsFile, $FileUris, $CommandToRun, $Stor
 				continue
 			}
 			# Only install the extenstion on VMs running and has waagent installed
-			$extension = Get-AzureRmVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name -Name $extensionName -ErrorAction SilentlyContinue
+			$extension = Get-AzVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name -Name $extensionName -ErrorAction SilentlyContinue
 			if ($extension -and $extension.PublicSettings -imatch $uriArray[0] -and $extension.PublicSettings -imatch $CommandToRun) {
 				if ($extension.ProvisioningState -eq "Failed") {
 					$vmsExtensionInstalledFailed += $vm
@@ -126,7 +126,7 @@ Function Install-CustomScript($AzureSecretsFile, $FileUris, $CommandToRun, $Stor
 				continue
 			}
 
-			$job = Set-AzureRmVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name -Location $vm.Location -Name $extensionName -Publisher $extensionPublisher `
+			$job = Set-AzVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name -Location $vm.Location -Name $extensionName -Publisher $extensionPublisher `
 				-Type $extensionName -TypeHandlerVersion $extensionVersion -Settings $settings -ProtectedSettings $protectedSettings -AsJob
 			$jobs += $job
 			$jobIdToVM[$job.Id] = $vm

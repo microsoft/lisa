@@ -60,7 +60,7 @@ try
             $retryCount += 1
             Write-LogInfo "[Attempt $retryCount/$maxRetryCount] : Getting Storage Account details ..."
             $GetAzureRMStorageAccount = $null
-            $GetAzureRMStorageAccount = Get-AzureRmStorageAccount
+            $GetAzureRMStorageAccount = Get-AzStorageAccount
             if ($GetAzureRMStorageAccount -eq $null)
             {
                 $saInfoCollected = $false
@@ -81,16 +81,16 @@ try
 
     $currentVHDName = $sourceVHDName
     $testStorageAccount = $SourceStorageAccountName
-    $testStorageAccountKey = (Get-AzureRmStorageAccountKey -ResourceGroupName $(($GetAzureRmStorageAccount  | Where {$_.StorageAccountName -eq "$testStorageAccount"}).ResourceGroupName) -Name $testStorageAccount)[0].Value
+    $testStorageAccountKey = (Get-AzStorageAccountKey -ResourceGroupName $(($GetAzureRmStorageAccount  | Where {$_.StorageAccountName -eq "$testStorageAccount"}).ResourceGroupName) -Name $testStorageAccount)[0].Value
 
-    $targetRegions = (Get-AzureRmLocation).Location
+    $targetRegions = (Get-AzLocation).Location
     if ($destinationLocations)
     {
         $targetRegions = $destinationLocations.Split(",")
     }
     else
     {
-        $targetRegions = (Get-AzureRmLocation).Location
+        $targetRegions = (Get-AzLocation).Location
     }
     $targetStorageAccounts = @()
     foreach ($newRegion in $targetRegions)
@@ -115,21 +115,21 @@ try
 
         [string]$DestAccountName =  $targetSA
         [string]$DestBlob = $destinationVHDName
-        $DestAccountKey= (Get-AzureRmStorageAccountKey -ResourceGroupName $(($GetAzureRmStorageAccount  | Where {$_.StorageAccountName -eq "$targetSA"}).ResourceGroupName) -Name $targetSA)[0].Value
+        $DestAccountKey= (Get-AzStorageAccountKey -ResourceGroupName $(($GetAzureRmStorageAccount  | Where {$_.StorageAccountName -eq "$targetSA"}).ResourceGroupName) -Name $targetSA)[0].Value
         $DestContainer = "vhds"
-        $context = New-AzureStorageContext -StorageAccountName $srcStorageAccount -StorageAccountKey $srcStorageAccountKey
+        $context = New-AzStorageContext -StorageAccountName $srcStorageAccount -StorageAccountKey $srcStorageAccountKey
         $expireTime = Get-Date
         $expireTime = $expireTime.AddYears(1)
-        $SasUrl = New-AzureStorageBlobSASToken -container $srcStorageContainer -Blob $srcStorageBlob -Permission R -ExpiryTime $expireTime -FullUri -Context $Context
+        $SasUrl = New-AzStorageBlobSASToken -container $srcStorageContainer -Blob $srcStorageBlob -Permission R -ExpiryTime $expireTime -FullUri -Context $Context
 
         #
         # Start Replication to DogFood
         #
 
-        $destContext = New-AzureStorageContext -StorageAccountName $destAccountName -StorageAccountKey $destAccountKey
-        $testContainer = Get-AzureStorageContainer -Name $destContainer -Context $destContext -ErrorAction Ignore
+        $destContext = New-AzStorageContext -StorageAccountName $destAccountName -StorageAccountKey $destAccountKey
+        $testContainer = Get-AzStorageContainer -Name $destContainer -Context $destContext -ErrorAction Ignore
         if ($testContainer -eq $null) {
-            New-AzureStorageContainer -Name $destContainer -context $destContext
+            New-AzStorageContainer -Name $destContainer -context $destContext
         }
         # Start the Copy
         if (($SrcStorageAccount -eq $DestAccountName) -and ($SrcStorageBlob -eq $DestBlob))
@@ -139,7 +139,7 @@ try
         else
         {
             Write-LogInfo "Copying $SrcStorageBlob as $DestBlob from and to storage account $DestAccountName/$DestContainer"
-            $null = Start-AzureStorageBlobCopy -AbsoluteUri $SasUrl  -DestContainer $destContainer -DestContext $destContext -DestBlob $destBlob -Force
+            $null = Start-AzStorageBlobCopy -AbsoluteUri $SasUrl  -DestContainer $destContainer -DestContext $destContext -DestBlob $destBlob -Force
             $destContextArr += $destContext
         }
     }
@@ -153,7 +153,7 @@ try
         $newDestContextArr = @()
         foreach ($destContext in $destContextArr)
         {
-            $status = Get-AzureStorageBlobCopyState -Container $destContainer -Blob $destBlob -Context $destContext
+            $status = Get-AzStorageBlobCopyState -Container $destContainer -Blob $destBlob -Context $destContext
             if ($status.Status -eq "Success")
             {
                 Write-LogInfo "$DestBlob : $($destContext.StorageAccountName) : Done : 100 %"
