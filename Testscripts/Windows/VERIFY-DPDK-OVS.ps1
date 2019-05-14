@@ -64,18 +64,16 @@ function Main {
 		Write-LogInfo "  Internal IP : $($serverVMData.InternalIP)"
 
 		# Checking OVS DPDK compatibility
-		$detectedDistro = Detect-LinuxDistro -VIP $vmData.PublicIP -SSHport $vmData.SSHPort `
-			-testVMUser $user -testVMPassword $password
-		if ($detectedDistro -like "*debian*" -or $detectedDistro -like "*ubuntu*") {
-			Write-LogInfo "Confirmed supported distro: $detectedDistro"
+		if (@("UBUNTU").contains($global:detectedDistro)) {
+			Write-LogInfo "Confirmed supported distro: ${global:detectedDistro}"
 		} else {
-			$msg = "Unsupported distro: $detectedDistro"
+			$msg = "Unsupported distro: ${global:detectedDistro}"
 			Write-LogWarn $msg
 			return $global:ResultSkipped
 		}
 		$currentKernelVersion = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort `
 			-username $user -password $password -command "uname -r"
-		if (IsGreaterKernelVersion -actualKernelVersion $currentKernelVersion -detectedDistro $detectedDistro) {
+		if (IsGreaterKernelVersion -actualKernelVersion $currentKernelVersion -detectedDistro $global:detectedDistro) {
 			Write-LogInfo "Confirmed Kernel version supported: $currentKernelVersion"
 		} else {
 			$msg = "Unsupported Kernel version: $currentKernelVersion"
