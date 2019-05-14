@@ -75,11 +75,12 @@ runTestPmd()
 	mkdir -p  /mnt/huge; mkdir -p  /mnt/huge-1G; mount -t hugetlbfs nodev /mnt/huge && mount -t hugetlbfs nodev /mnt/huge-1G -o 'pagesize=1G' && echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages && grep -i hug /proc/meminfo 
 
 	# Check testpmd --no-pci if it triggers a kernel crash
+	# NOTE(v-advlad): SIGKILL(9) is required, as the --no-pci makes testpmd hang
+	# although SIGINT is sent.
 	echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages \
 		&& echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages \
 		&&  modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib; \
-		timeout 10 testpmd --no-pci -m 1024 -c 0x3 -- -i --total-num-mbufs=16384 --coremask=0x2 --rxq=1 --txq=1
-	checkCmdExitStatus "Check testpmd --no-pci if it triggers a kernel crash"
+		timeout --kill-after 10 10 testpmd --no-pci -m 1024 -c 0x3 -- -i --total-num-mbufs=16384 --coremask=0x2 --rxq=1 --txq=1
 
 	for testmode in $modes; do
 		LogMsg "TestPmd is starting on ${serverNIC1ip} with ${testmode} mode, duration ${testDuration} secs"
