@@ -149,6 +149,18 @@ cd "$TOP_BUILDDIR"
 LogMsg "Running LTP..."
 LTP_PARAMS="-p -q -l $LTP_RESULTS -o $LTP_OUTPUT -z /dev/sdc"
 
+if [[ "$SKIP_LTP_TESTS" != "" ]];then
+    echo "Skipping tests: $SKIP_LTP_TESTS" >> ~/summary.log
+    echo "$SKIP_LTP_TESTS" | tr "," "\n" > SKIPFILE
+    LTP_PARAMS="-S ./SKIPFILE $LTP_PARAMS"
+fi
+
+if [[ "$CUSTOM_LTP_SUITES" != "" ]];then
+    echo "Running custom suites: $CUSTOM_LTP_SUITES" >> ~/summary.log
+    LTP_TEST_SUITE="lite"
+    LTP_LITE_TESTS="$CUSTOM_LTP_SUITES"
+fi
+
 # LTP_TEST_SUITE is passed from the Test Definition xml or from command line when running LISAv2
 # if the parameter is null, the test suite defaults to "lite"
 if [[ "$LTP_TEST_SUITE" == "lite" || "$LTP_TEST_SUITE" == "" ]];then

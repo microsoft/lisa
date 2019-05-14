@@ -11,13 +11,13 @@
 #  FEDORA
 DetectDistro()
 {
-while echo "$1" | grep ^- > /dev/null; do
-    eval $( echo "$1" | sed 's/-//g' | tr -d '\012')="$2"
-    shift
-    shift
-done
+        while echo "$1" | grep ^- > /dev/null; do
+                eval $( echo "$1" | sed 's/-//g' | tr -d '\012')="$2"
+                shift
+                shift
+        done
         if [ -e /etc/debian_version ]; then
-		        tmp=$(cat /etc/*-release)
+                tmp=$(cat /etc/*-release)
                 if [[ "$tmp" == *Ubuntu* ]]; then
                     echo "UBUNTU"
                     exitVal=0
@@ -60,6 +60,10 @@ done
                 else
                     echo "Unknown"
                 fi
+        elif [ -e /usr/share/clear/version ]; then
+                tmp=$(cat /usr/share/clear/version)
+                echo "CLEARLINUX"
+                exitVal=0
         elif [ -e /etc/os-release ]; then
                 tmp=$(cat /etc/os-release)
                 if [[ "$tmp" == *coreos* ]]; then
@@ -74,11 +78,7 @@ done
                 else
                     echo "Unknown"
                 fi
-        elif [ -e /usr/share/clear/version ]; then
-                tmp=$(cat /usr/share/clear/version)
-                echo "CLEARLINUX"
-                exitVal=0
         fi
-return $exitVal
+        return $exitVal
 }
 DetectDistro

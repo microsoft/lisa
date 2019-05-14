@@ -85,6 +85,56 @@ function Get-SQLQueryOfLTP ($currentTestResult, $currentTestData) {
     }
 }
 
+function Parse-LTP {
+    param (
+        [string] $LogPath,
+        [string] $XmlDestination,
+        [string] $SuiteName = "LTP"
+    )
+
+    $suiteName
+    $content = Get-Content $LogPath
+    $content = $content | Where-Object {$_ -match "[\w]+\s+(PASS|FAIL|CONF)\s+[\d]+"}
+
+    if (-not $content) {
+        Write-LogErr "Cannot find LTP test results"
+        return
+    }
+
+    $testResults = @{}
+    $content | ForEach-Object {
+                    if ($_ -match "[\w]+\s+(PASS|FAIL|CONF)\s+[\d]+") {
+                        $rezArray = ($_ -replace '\s+', ' ').Split(" ")
+                        $testResults[$rezArray[0]] = $rezArray[1]
+                    }
+                }
+    if (-not $testResults) {
+        Write-LogErr "Could not parse LTP log"
+        return
+    }
+
+    New-Item $XmlDestination -Force
+    $XmlDestination = Resolve-Path $XmlDestination
+    $xmlDoc = New-Object System.XML.XMLDocument
+    $xmlRoot = $xmlDoc.CreateElement("testsuite")
+    if ($SuiteName) {
+        $null = $xmlRoot.SetAttribute("name", $SuiteName)
+    }
+    $null = $xmlDoc.appendChild($xmlRoot)
+    foreach ($key in $testResults.Keys) {
+        $element = $xmlDoc.CreateElement("testcase")
+        $null = $element.SetAttribute("name", $key)
+
+        if ($testResults[$key] -ne "PASS") {
+            $failure = $xmlDoc.CreateElement("failure")
+            $null = $element.appendChild($failure)
+        }
+
+        $null = $xmlRoot.appendChild($element)
+    }
+    $xmlDoc.Save($XmlDestination)
+}
+
 function Main {
     param (
         [object] $AllVmData,
@@ -121,6 +171,11 @@ function Main {
             -Port $AllVmData.SSHPort -Username $user -password $password `
             -files $filesTocopy
 
+        $ltpLogPath = Join-Path $LogDir $LTP_RESULTS
+        $ltpJunitDest = Join-Path $LogDir "ltp-report.xml"
+        $null = Parse-LTP -LogPath $ltpLogPath -XmlDestination $ltpJunitDest
+        Copy-Item $ltpJunitDest . -Force
+
         $statusLogPath = Join-Path $LogDir "state.txt"
         $currentResult = Get-Content $statusLogPath
         if (($currentResult -imatch "TestAborted") -or ($currentResult -imatch "TestRunning")) {
@@ -129,7 +184,8 @@ function Main {
             $CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
                 -checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
         } else {
-            $resultArr += Get-SQLQueryOfLTP -currentTestResult $CurrentTestResult -currentTestData $CurrentTestData
+            $null = Get-SQLQueryOfLTP -currentTestResult $CurrentTestResult -currentTestData $CurrentTestData
+            $resultArr += "PASS"
         }
     } catch {
         $errorMessage =  $_.Exception.Message
