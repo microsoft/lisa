@@ -11,6 +11,17 @@ echo $csv_file
 rm -rf $csv_file
 echo "Iteration,TestType,BlockSize,Threads,Jobs,TotalIOPS,ReadIOPS,MaxOfReadMeanLatency,ReadMaxLatency,ReadBw,WriteIOPS,MaxOfWriteMeanLatency,WriteMaxLatency,WriteBw" > $csv_file_tmp
 
+if [ $DISTRO_NAME == "centos" ] || [ $DISTRO_NAME == "rhel" ] || [ $DISTRO_NAME == "oracle" ]; then
+    if [[ $DISTRO_VERSION =~ ^6\. ]]; then
+        yum -y groupinstall "Development Tools"
+        wget ftp://gnu.mirror.iweb.com/gawk/gawk-5.0.0.tar.xz
+        tar -xvf gawk-5.0.0.tar.xz
+        pushd gawk-5.0.0 && ./configure && make && make install > /dev/null 2>&1
+        popd
+        yes | cp -f /usr/local/bin/gawk /bin/
+    fi
+fi
+
 bc_cmd=$(echo $(Get_BC_Command))
 json_list=($(ls *.json))
 count=0
