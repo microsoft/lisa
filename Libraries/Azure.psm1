@@ -28,12 +28,12 @@
 Function Validate-SubscriptionUsage($RGXMLData, $Location, $OverrideVMSize, $StorageAccount, $ComputeSKU) {
     #region VM Cores...
     Try {
-        Function Set-Usage($currentStatus, $text, $usage, $AllowedUsagePercentage) {
+        Function Set-Usage($currentStatus, $VMFamily, $usage, $AllowedUsagePercentage) {
             $counter = 0
             foreach ($item in $currentStatus) {
-                if ($item.Name.Value -eq $text) {
+                if ($item.Name.Value -eq $VMFamily) {
                     $allowedCount = [int](($currentStatus[$counter].Limit) * ($AllowedUsagePercentage / 100))
-                    Write-LogInfo "  Current $text usage : $($currentStatus[$counter].CurrentValue) cores. Requested:$usage. Estimated usage=$($($currentStatus[$counter].CurrentValue) + $usage). Max Allowed cores:$allowedCount/$(($currentStatus[$counter].Limit))"
+                    Write-LogInfo "  Current $VMFamily usage : $($currentStatus[$counter].CurrentValue) cores. Requested:$usage. Estimated usage=$($($currentStatus[$counter].CurrentValue) + $usage). Max Allowed cores:$allowedCount/$(($currentStatus[$counter].Limit))"
                     $currentStatus[$counter].CurrentValue = $currentStatus[$counter].CurrentValue + $usage
                 }
                 if ($item.Name.Value -eq "cores") {
@@ -47,15 +47,15 @@ Function Validate-SubscriptionUsage($RGXMLData, $Location, $OverrideVMSize, $Sto
             return $currentStatus
         }
 
-        Function Test-Usage($currentStatus, $text, $AllowedUsagePercentage) {
+        Function Test-Usage($currentStatus, $VMFamily, $AllowedUsagePercentage) {
             $overFlowErrors = 0
             $counter = 0
             foreach ($item in $currentStatus) {
-                if ($item.Name.Value -eq $text) {
+                if ($item.Name.Value -eq $VMFamily) {
                     $allowedCount = [int](($currentStatus[$counter].Limit) * ($AllowedUsagePercentage / 100))
                     #Write-LogInfo "Max allowed $($item.Name.LocalizedValue) usage : $allowedCount out of $(($currentStatus[$counter].Limit))."
                     if ($currentStatus[$counter].CurrentValue -gt $allowedCount) {
-                        Write-LogErr "  Current $text Estimated use: $($currentStatus[$counter].CurrentValue)"
+                        Write-LogErr "  Current $VMFamily Estimated use: $($currentStatus[$counter].CurrentValue)"
                         $overFlowErrors += 1
                     }
                 }
@@ -131,15 +131,15 @@ Function Validate-SubscriptionUsage($RGXMLData, $Location, $OverrideVMSize, $Sto
                 $testVMUsage = (Get-AzureRmVMSize -Location $Location | Where-Object { $_.Name -eq $testVMSize}).NumberOfCores
             }
 
-            if ($PremiumStorageVMFamilies.Contains($identifierTest)){
-                $premiumVMs += 1
-            }
-            $identifierTest = ($ComputeSKU | Where-Object { $_.Name -eq $testVMSize }).Family | Get-Unique
-            if ($identifierTest) {
-                $currentStatus = Set-Usage -currentStatus $currentStatus -text $identifierTest  -usage $testVMUsage -AllowedUsagePercentage $AllowedUsagePercentage
-                $overFlowErrors += Test-Usage -currentStatus $currentStatus -text $identifierTest -AllowedUsagePercentage $AllowedUsagePercentage
+            $DetectedVMFamily = ($ComputeSKU | Where-Object { $_.Name -eq $testVMSize }).Family | Get-Unique
+            if ($DetectedVMFamily) {
+                $currentStatus = Set-Usage -currentStatus $currentStatus -VMFamily $DetectedVMFamily  -usage $testVMUsage -AllowedUsagePercentage $AllowedUsagePercentage
+                $overFlowErrors += Test-Usage -currentStatus $currentStatus -VMFamily $DetectedVMFamily -AllowedUsagePercentage $AllowedUsagePercentage
             } else {
                 Write-LogInfo "Requested VM size: $testVMSize is not yet registered to monitor. Usage simulation skipped."
+            }
+            if ($PremiumStorageVMFamilies.Contains($DetectedVMFamily)){
+                $premiumVMs += 1
             }
         }
     } catch {
