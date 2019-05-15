@@ -203,10 +203,14 @@ function Get-IPv4ViaKVP {
 			return $null
 		}
 
+		# The GuestIntrinsicExchangeItems is not empty until the VM boots up completely
 		$rawData = $Kvp.GuestIntrinsicExchangeItems
 		if (-not $rawData) {
 			Write-LogWarn "Get-IPv4ViaKVP: No KVP Intrinsic data returned"
-			return $null
+			Write-LogInfo "[$retryTime / $maxRetryTimes] Retrying after 10 seconds..."
+			$retryTime++
+			Start-Sleep -Seconds 10
+			continue
 		}
 
 		$addresses = $null
@@ -280,7 +284,8 @@ function Get-IPv4AndWaitForSSHStart {
 
 	# Cache fingerprint, Check ssh is functional after reboot
 	Write-Output "yes" | .\Tools\plink.exe -C -pw $Password -P $VmPort $User@$new_ip 'exit 0'
-	$TestConnection = .\Tools\plink.exe -C -pw $Password -P $VmPort $User@$new_ip "echo Connected"
+	# Running plink with -batch to avoid the interactive message: "Access granted. Press Return to begin session"
+	$TestConnection = .\Tools\plink.exe -C -batch -pw $Password -P $VmPort $User@$new_ip "echo Connected"
 	if ($TestConnection -ne "Connected") {
 		Write-LogErr "Get-IPv4AndWaitForSSHStart: SSH is not working correctly after boot up"
 		return $False
