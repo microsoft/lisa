@@ -25,7 +25,7 @@
 #>
 ###############################################################################################
 
-Function Validate-SubscriptionUsage($RGXMLData, $Location, $OverrideVMSize, $StorageAccount) {
+Function Validate-SubscriptionUsage($RGXMLData, $Location, $OverrideVMSize, $StorageAccount, $ComputeSKU) {
     #region VM Cores...
     Try {
         Function Set-Usage($currentStatus, $text, $usage, $AllowedUsagePercentage) {
@@ -104,6 +104,13 @@ Function Validate-SubscriptionUsage($RGXMLData, $Location, $OverrideVMSize, $Sto
         #    LISAv2 Network Security Groups usage limit: 25
         $AllowedUsagePercentage = 100
 
+        $PremiumStorageVMFamilies = @("standardDSFamily",
+        "standardDSv2Family",
+        "standardDSv2PromoFamily",
+        "standardDSv3Family",
+        "standardFSFamily"
+        )
+
         #Get the region
         $currentStatus = Get-AzureRmVMUsage -Location $Location
         $overFlowErrors = 0
@@ -124,41 +131,10 @@ Function Validate-SubscriptionUsage($RGXMLData, $Location, $OverrideVMSize, $Sto
                 $testVMUsage = (Get-AzureRmVMSize -Location $Location | Where-Object { $_.Name -eq $testVMSize}).NumberOfCores
             }
 
-            $testVMSize = $testVMSize.Replace("Standard_", "")
-            $regExpVmSize = @{
-                "standardDSv2Family" = @{ "Regexp" = "^DS.*v2$"; "isPremium"= 1};
-                "standardDSv3Family" = @{ "Regexp" = "^D.*s_v3$"; "isPremium"= 1};
-                "standardDSFamily" = @{ "Regexp" = "^DS((?!v2|s_v3).)*$"; "isPremium"= 1};
-                "standardDv2Family" = @{ "Regexp" = "^D[^S].*v2$"; "isPremium"= 0};
-                "standardDv3Family" = @{ "Regexp" = "^D[^S]((?!s_v3).)*v3$"; "isPremium"= 0};
-                "standardDFamily" = @{ "Regexp" = "^D[^S]((?!v2|v3).)*$"; "isPremium"= 0};
-                "standardESv3Family" = @{ "Regexp" = "^E.*s_v3$"; "isPremium"= 1};
-                "standardEv3Family" = @{ "Regexp" = "^E.*v3$"; "isPremium"= 0};
-                "standardA8_A11Family" = @{ "Regexp" = "A8|A9|A10|A11"; "isPremium"= 0};
-                "standardAv2Family"= @{ "Regexp" = "^A.*v2$"; "isPremium"= 0};
-                "standardA0_A7Family" = @{ "Regexp" = "A[0-7]$"; "isPremium"= 0};
-                "standardFSFamily" = @{ "Regexp" = "^FS"; "isPremium"= 1};
-                "standardFFamily" = @{ "Regexp" = '^F[^S]' ; "isPremium"= 0};
-                "standardGSFamily" = @{ "Regexp" = "^GS"; "isPremium"= 1};
-                "standardGFamily" = @{ "Regexp" = "^G[^S]"; "isPremium"= 0};
-                "standardNVFamily"= @{ "Regexp" = "^NV"; "isPremium"= 0};
-                "standardNCv2Family" = @{ "Regexp" = "^NC.*v2$"; "isPremium"= 0};
-                "standardNCFamily" = @{ "Regexp" = "^NC((?!v2).)*$"; "isPremium"= 0};
-                "standardNDFamily" = @{ "Regexp" = "^ND"; "isPremium"= 0};
-                "standardHBSFamily"= @{ "Regexp" = "^HB"; "isPremium"= 0};
-                "standardHCSFamily" = @{ "Regexp" = "^HC"; "isPremium"= 0};
-                "standardHFamily" = @{ "Regexp" = "^H[^BC]"; "isPremium"= 0};
-                "basicAFamily" = @{ "Regexp" = "^Basic"; "isPremium"= 0};
-                "standardMSFamily" = @{ "Regexp" = "^M"; "isPremium"= 0}
+            if ($PremiumStorageVMFamilies.Contains($identifierTest)){
+                $premiumVMs += 1
             }
-            $identifierTest = ""
-            foreach ($vmFamily in $regExpVmSize.Keys) {
-                if ($testVMSize -match $regExpVMsize[$vmFamily].RegExp) {
-                    $identifierTest = $vmFamily
-                    $premiumVMs += $regExpVMsize[$vmFamily].isPremium
-                    break
-                }
-            }
+            $identifierTest = ($ComputeSKU | Where-Object { $_.Name -eq $testVMSize }).Family | Get-Unique
             if ($identifierTest) {
                 $currentStatus = Set-Usage -currentStatus $currentStatus -text $identifierTest  -usage $testVMUsage -AllowedUsagePercentage $AllowedUsagePercentage
                 $overFlowErrors += Test-Usage -currentStatus $currentStatus -text $identifierTest -AllowedUsagePercentage $AllowedUsagePercentage
@@ -233,7 +209,7 @@ Function Validate-SubscriptionUsage($RGXMLData, $Location, $OverrideVMSize, $Sto
     }
 }
 
-Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Distro, [string]$TestLocation, $GlobalConfig, $TiPSessionId, $TipCluster, $UseExistingRG, $ResourceCleanup) {
+Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Distro, [string]$TestLocation, $GlobalConfig, $TiPSessionId, $TipCluster, $UseExistingRG, $ResourceCleanup, $ComputeSKU) {
     $resourceGroupCount = 0
 
     Write-LogInfo "Current test setup: $($SetupTypeData.Name)"
@@ -256,7 +232,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
         $coreCountExceededTimeout = 3600
         while (!$readyToDeploy) {
             $readyToDeploy = Validate-SubscriptionUsage -RGXMLData $RG -Location $location -OverrideVMSize $TestCaseData.OverrideVMSize `
-                                -StorageAccount $GlobalConfig.Global.Azure.Subscription.ARMStorageAccount
+                                -StorageAccount $GlobalConfig.Global.Azure.Subscription.ARMStorageAccount -ComputeSKU $ComputeSKU
             $validateCurrentTime = Get-Date
             $elapsedWaitTime = ($validateCurrentTime - $validateStartTime).TotalSeconds
             if ( (!$readyToDeploy) -and ($elapsedWaitTime -lt $coreCountExceededTimeout)) {

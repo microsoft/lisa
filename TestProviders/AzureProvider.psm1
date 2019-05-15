@@ -31,7 +31,7 @@ Class AzureProvider : TestProvider
 	[string] $TipSessionId
 	[string] $TipCluster
 
-	[object] DeployVMs([xml] $GlobalConfig, [object] $SetupTypeData, [object] $TestCaseData, [string] $TestLocation, [string] $RGIdentifier, [bool] $UseExistingRG, [string] $ResourceCleanup) {
+	[object] DeployVMs([xml] $GlobalConfig, [object] $SetupTypeData, [object] $TestCaseData, [string] $TestLocation, [string] $RGIdentifier, [bool] $UseExistingRG, [string] $ResourceCleanup, $ComputeSKU) {
 		$allVMData = @()
 		$DeploymentElapsedTime = $null
 		try {
@@ -45,7 +45,7 @@ Class AzureProvider : TestProvider
 			if (!$allVMData) {
 				$isAllDeployed = Create-AllResourceGroupDeployments -SetupTypeData $SetupTypeData -TestCaseData $TestCaseData -Distro $RGIdentifier `
 					-TestLocation $TestLocation -GlobalConfig $GlobalConfig -TipSessionId $this.TipSessionId -TipCluster $this.TipCluster `
-					-UseExistingRG $UseExistingRG -ResourceCleanup $ResourceCleanup
+					-UseExistingRG $UseExistingRG -ResourceCleanup $ResourceCleanup -ComputeSKU $ComputeSKU
 
 				if ($isAllDeployed[0] -eq "True") {
 					$deployedGroups = $isAllDeployed[1]

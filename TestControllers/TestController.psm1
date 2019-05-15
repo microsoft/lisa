@@ -537,6 +537,12 @@ Class TestController
 	[void] RunTestInSequence([int]$TestIterations)
 	{
 		$executionCount = 0
+		if ($global:TestPlatform -eq "Azure") {
+			Write-LogInfo "Getting Azure 'ComputeSKU' details..."
+			$ComputeSKU = Get-AzureRmComputeResourceSku
+		} else {
+			$ComputeSKU = $null
+		}
 
 		foreach ($key in $this.SetupTypeToTestCases.Keys) {
 			$setupType = $key.Split(',')[0]
@@ -570,7 +576,7 @@ Class TestController
 					if (!$vmData -or $tcDeployVM) {
 						# Deploy the VM for the setup
 						$vmData = $this.TestProvider.DeployVMs($this.GlobalConfig, $this.SetupTypeTable[$setupType], $this.SetupTypeToTestCases[$key][0], `
-							$this.TestLocation, $this.RGIdentifier, $this.UseExistingRG, $this.ResourceCleanup)
+							$this.TestLocation, $this.RGIdentifier, $this.UseExistingRG, $this.ResourceCleanup, $ComputeSKU)
 						if (!$vmData) {
 							# Failed to deploy the VMs, Set the case to abort
 							$this.JunitReport.StartLogTestCase("LISAv2Test-$($this.TestPlatform)","$($case.testName)","$($this.TestPlatform)-$($case.Category)-$($case.Area)")
