@@ -213,6 +213,59 @@ Function Validate-SubscriptionUsage($RGXMLData, $Location, $OverrideVMSize, $Sto
     }
 }
 
+Function Change-StorageAccountType($TestCaseData, [string]$Location, $GlobalConfig, $OsVHD) {
+    $storageAccount = $GlobalConfig.Global.Azure.Subscription.ARMStorageAccount
+    $changedSC = ""
+    $copyVHD = $false
+    if ($TestCaseData.AdditionalHWConfig.SCType -and $TestCaseData.AdditionalHWConfig.SCType.Contains("Premium")) {
+        # if SC is ExistingStorage_Standard, switch to ExistingStorage_Premium
+        if ($storageAccount -imatch "ExistingStorage_Standard") {
+            $changedSC = Get-StorageAccountFromRegion -Region $Location -StorageAccount "ExistingStorage_Premium"
+            # if it is OsVHD format, need copy VHD from standard to premium storage account
+            if ($OsVHD) {
+                $copyVHD = $true
+            }
+        # if SC is NewStorage_Standard, switch to NewStorage_Premium
+        } elseif ($storageAccount -imatch "NewStorage_Standard") {
+            $changedSC = "NewStorage_Premium_LRS"
+        } elseif (($storageAccount -imatch "NewStorage_Premium") -or ($storageAccount -imatch "ExistingStorage_Premium")) {
+            $changedSC = ""
+        } else {
+            $current_sc = Get-StorageAccountFromRegion -Region $Location -StorageAccount "ExistingStorage_Standard"
+            if ($current_sc -eq $storageAccount) {
+                $changedSC = Get-StorageAccountFromRegion -Region $Location -StorageAccount "ExistingStorage_Premium"
+                if ($OsVHD) {
+                    $copyVHD = $true
+                }
+            } else {
+                $storageAccountType = (Get-AzureRmStorageAccount | Where-Object {$_.StorageAccountName -eq $storageAccount}).Sku.Tier.ToString()
+                if ($storageAccountType -inotmatch "premium") {
+                    Write-LogErr "Provided storage account is not premium type, this case $($TestCaseData.testName) need run under premium type of storage account."
+                    Throw "Case $($TestCaseData.testName) need run under premium type of storage account."
+                }
+            }
+        }
+    }
+
+    if ($copyVHD) {
+        $sourceContainer =  $osVHD.Split("/")[$osVHD.Split("/").Count - 2]
+        $vhdName = $osVHD.Split("?")[0].split('/')[-1]
+        Write-LogInfo "Copy VHD from $storageAccount to $changedSC."
+        if(($OsVHD -imatch 'sp=') -and ($OsVHD -imatch 'sig=')) {
+            $copyStatus = Copy-VHDToAnotherStorageAccount -SasUrl $osVHD -destinationStorageAccount $changedSC `
+                -destinationStorageContainer "vhds" -vhdName $vhdName
+        } else {
+            $copyStatus = Copy-VHDToAnotherStorageAccount -sourceStorageAccount $storageAccount -sourceStorageContainer $sourceContainer `
+                -destinationStorageAccount $changedSC -destinationStorageContainer "vhds" -vhdName $vhdName
+        }
+        if (!$copyStatus) {
+            Throw "Failed to copy the VHD $storageAccount to $changedSC."
+        }
+    }
+
+    return $changedSC
+}
+
 Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Distro, [string]$TestLocation, $GlobalConfig, $TiPSessionId, $TipCluster, $UseExistingRG, $ResourceCleanup) {
     $resourceGroupCount = 0
 
@@ -229,6 +282,14 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
         $locationCounter = 0
         Write-LogInfo "$RGCount Resource groups will be deployed in $($xRegionLocations.Replace('-',' and '))"
     }
+    $storageAccount = Change-StorageAccountType -Location $location -TestCaseData $TestCaseData -GlobalConfig $GlobalConfig -OsVHD $OsVHD
+    if ($storageAccount) {
+        $used_SC = $storageAccount
+    } else {
+        $used_SC = $GlobalConfig.Global.Azure.Subscription.ARMStorageAccount
+    }
+    $OsVHD = $OsVHD.Split("?")[0].split('/')[-1]
+    $global:BaseOSVHD = $OsVHD
     foreach ($RG in $setupTypeData.ResourceGroup ) {
         $validateStartTime = Get-Date
         Write-LogInfo "Checking the subscription usage..."
@@ -236,7 +297,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
         $coreCountExceededTimeout = 3600
         while (!$readyToDeploy) {
             $readyToDeploy = Validate-SubscriptionUsage -RGXMLData $RG -Location $location -OverrideVMSize $TestCaseData.OverrideVMSize `
-                                -StorageAccount $GlobalConfig.Global.Azure.Subscription.ARMStorageAccount
+                                -StorageAccount $used_SC
             $validateCurrentTime = Get-Date
             $elapsedWaitTime = ($validateCurrentTime - $validateStartTime).TotalSeconds
             if ( (!$readyToDeploy) -and ($elapsedWaitTime -lt $coreCountExceededTimeout)) {
@@ -284,7 +345,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
                         $azureDeployJSONFilePath = Join-Path $env:TEMP "$groupName.json"
                         $null = Generate-AzureDeployJSONFile -RGName $groupName -ImageName $osImage -osVHD $osVHD -RGXMLData $RG -Location $location `
                                 -azuredeployJSONFilePath $azureDeployJSONFilePath -CurrentTestData $TestCaseData -TiPSessionId $TiPSessionId -TipCluster $TipCluster `
-                                -StorageAccountName $GlobalConfig.Global.Azure.Subscription.ARMStorageAccount
+                                -StorageAccountName $used_SC
 
                         $DeploymentStartTime = (Get-Date)
                         $CreateRGDeployments = Create-ResourceGroupDeployment -RGName $groupName -location $location -TemplateFile $azureDeployJSONFilePath `
