@@ -176,7 +176,7 @@ CreateRAID0()
 
 ConfigNVME()
 {
-	install_package "nvme-cli"
+	install_nvme_cli
 	namespace_list=$(ls -l /dev | grep -w nvme[0-9]n[0-9]$ | awk '{print $10}')
 	nvme_namespaces=""
 	for namespace in ${namespace_list}; do

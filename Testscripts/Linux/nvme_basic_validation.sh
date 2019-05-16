@@ -54,7 +54,7 @@ fi
 
 # Install nvme-cli tool
 update_repos
-install_package "nvme-cli"
+install_nvme_cli
 
 # Check namespaces in nvme cli
 namespace_list=$(ls -l /dev | grep -w nvme[0-9]n[0-9]$ | awk '{print $10}')

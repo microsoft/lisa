@@ -605,6 +605,7 @@
             <param>maxIO=4</param>
             <param>PHYSICAL_NUMBER=1</param>
             <param>parseTimeout=FIO_LOG_PARSE_TIMEOUT</param>
+            <param>nvme_version=NVME_VERSION</param>
         </TestParameters>
         <cleanupScript>.\Testscripts\Windows\SETUP-Remove-NVME-Disk.ps1</cleanupScript>
         <Platform>Azure,HyperV</Platform>

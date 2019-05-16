@@ -18,7 +18,7 @@ UtilsInit
 
 # Install nvme-cli tool
 update_repos
-install_package "nvme-cli"
+install_nvme_cli
 
 # Count NVME namespaces
 namespace_count=$(ls -l /dev | grep -w nvme[0-9]n[0-9]$ | awk '{print $10}' | wc -l)
