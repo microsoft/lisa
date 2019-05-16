@@ -89,7 +89,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, 
                                         def Testname = CurrentExecution.split(">>")[1]
                                         def TestRegion = CurrentExecution.split(">>")[2]
                                         Prepare()
-                                        withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')])
+                                        withCredentials([file(credentialsId: 'Azure_Secrets_TESTONLY_File', variable: 'Azure_Secrets_File')])
                                         {
                                             RunPowershellCommand(".\\Run-LisaV2.ps1" +
                                             " -ExitWithZero" +
@@ -147,7 +147,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, 
                                         def TestName = CurrentExecution.split(">>")[3]
                                         def TestRegion = CurrentExecution.split(">>")[4]
                                         Prepare()
-                                        withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')])
+                                        withCredentials([file(credentialsId: 'Azure_Secrets_TESTONLY_File', variable: 'Azure_Secrets_File')])
                                         {
                                             RunPowershellCommand(".\\Run-LisaV2.ps1" +
                                             " -ExitWithZero" +
@@ -204,7 +204,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, 
                                         def TestArea = CurrentExecution.split(">>")[2]
                                         def TestRegion = CurrentExecution.split(">>")[3]
                                         Prepare()
-                                        withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')])
+                                        withCredentials([file(credentialsId: 'Azure_Secrets_TESTONLY_File', variable: 'Azure_Secrets_File')])
                                         {
                                             RunPowershellCommand(".\\Run-LisaV2.ps1" +
                                             " -ExitWithZero" +
@@ -261,7 +261,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, 
                                         def TestTag = CurrentExecution.split(">>")[1]
                                         def TestRegion = CurrentExecution.split(">>")[2]
                                         Prepare()
-                                        withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')])
+                                        withCredentials([file(credentialsId: 'Azure_Secrets_TESTONLY_File', variable: 'Azure_Secrets_File')])
                                         {
                                             RunPowershellCommand(".\\Run-LisaV2.ps1" +
                                             " -ExitWithZero" +
@@ -326,7 +326,7 @@ stage ("Inspect VHD")
         {
             Prepare()
             println "Running Inspect file"
-            withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')])
+            withCredentials([file(credentialsId: 'Azure_Secrets_TESTONLY_File', variable: 'Azure_Secrets_File')])
             {
                 RunPowershellCommand (".\\JenkinsPipelines\\Scripts\\InspectVHD.ps1 -XMLSecretFile '${Azure_Secrets_File}'")
             }
@@ -345,7 +345,7 @@ stage('Upload VHD to Azure')
             Prepare()
             unstash 'CustomVHD'
             FinalVHDName = readFile 'CustomVHD.azure.env'
-            withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')])
+            withCredentials([file(credentialsId: 'Azure_Secrets_TESTONLY_File', variable: 'Azure_Secrets_File')])
             {
                 RunPowershellCommand (".\\Utilities\\AddAzureRmAccountFromSecretsFile.ps1 -customSecretsFilePath '${Azure_Secrets_File}';" +
                 ".\\Utilities\\UploadVHDtoAzureStorage.ps1 -Region westus2 -VHDPath 'Q:\\Temp\\${FinalVHDName}' -DeleteVHDAfterUpload -NumberOfUploaderThreads 64"
@@ -375,7 +375,7 @@ stage('Capture VHD with Custom Kernel')
                 FinalImageSource = " -ARMImageName '${ImageSource}'"
             }
             Prepare()
-            withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')])
+            withCredentials([file(credentialsId: 'Azure_Secrets_TESTONLY_File', variable: 'Azure_Secrets_File')])
             {
                 RunPowershellCommand (".\\Utilities\\AddAzureRmAccountFromSecretsFile.ps1 -customSecretsFilePath '${Azure_Secrets_File}';" +
                 ".\\JenkinsPipelines\\Scripts\\InspectCustomKernel.ps1 -RemoteFolder 'J:\\ReceivedFiles' -LocalFolder '.'" 
@@ -419,7 +419,7 @@ stage('Copy VHD to other regions')
                 unstash 'CustomVHD'
                 FinalVHDName = readFile 'CustomVHD.azure.env'
             }
-            withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')])
+            withCredentials([file(credentialsId: 'Azure_Secrets_TESTONLY_File', variable: 'Azure_Secrets_File')])
             {
                 RunPowershellCommand ( ".\\JenkinsPipelines\\Scripts\\DetectTestRegions.ps1 -TestByTestName '${TestByTestname}' -TestByCategorizedTestName '${TestByCategorisedTestname}' -TestByCategory '${TestByCategory}' -TestByTag '${TestByTag}'" )
                 CurrentTestRegions = readFile 'CurrentTestRegions.azure.env'
