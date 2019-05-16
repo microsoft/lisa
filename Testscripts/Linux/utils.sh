@@ -2434,7 +2434,17 @@ function install_fio () {
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos)
 			install_epel
-			yum -y --nogpgcheck install wget sysstat mdadm blktrace libaio fio bc
+			yum -y --nogpgcheck install wget sysstat mdadm blktrace libaio fio bc libaio-devel
+			if ! command -v fio; then
+				echo "fio is not installed\n Build it from source code now..."
+				fio_version="3.13"
+				yum -y groupinstall "Development Tools"
+				wget https://github.com/axboe/fio/archive/fio-${fio_version}.tar.gz
+				tar xvf fio-${fio_version}.tar.gz
+				pushd fio-fio-${fio_version} && ./configure && make && make install
+				popd
+				yes | cp -f /usr/local/bin/fio /bin/
+			fi
 			check_exit_status "install_fio"
 			mount -t debugfs none /sys/kernel/debug
 			;;
