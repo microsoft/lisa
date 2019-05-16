@@ -83,6 +83,7 @@
         <testScript>VERIFY-BOOT-ERROR-WARNINGS.py</testScript>
         <files>.\Testscripts\Linux\azuremodules.py,.\Testscripts\Linux\VERIFY-BOOT-ERROR-WARNINGS.py,.\XML\Other\ignorable-boot-errors.xml</files>
         <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_B4ms</OverrideVMSize>
         <Platform>Azure,WSL</Platform>
         <Category>Functional</Category>
         <Area>CORE</Area>
