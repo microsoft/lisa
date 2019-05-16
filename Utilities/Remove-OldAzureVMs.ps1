@@ -10,7 +10,9 @@
 param(
     [String] $customSecretsFilePath,
     [int] $CleanupAgeInDays,
-    [int] $LockedResourceAgeInDays
+    [int] $LockedResourceAgeInDays,
+    [switch] $RemoveAutoCleanupVMs,
+    [switch] $DryRun
 )
 
 if ( $customSecretsFilePath ) {
@@ -90,56 +92,88 @@ $Report = '
     <th class="tg-amwmleft">Age</th>
   </tr>
   '
-$allICARGs = Get-AzureRmResourceGroup | Where-Object { ($_.ResourceGroupName -imatch "ICA-RG-") -or ($_.ResourceGroupName -imatch "LISAv2-")}
+$AllResourceGroups = Get-AzureRmResourceGroup
+$AllLISAv2RGs = $AllResourceGroups | Where-Object { (($_.ResourceGroupName -imatch "ICA-RG-") -or `
+    ($_.ResourceGroupName -imatch "LISAv2-") -and ($_.ResourceGroupName -inotmatch "LISAv2-storage-"))}
+$AutoClenaupVMs = ($AllResourceGroups | Where-Object { $_.Tags.AutoCleanup })
 $currentTimeStamp = Get-Date
 $counter = 0
 $lockcounter = 0
 $cleanupRGs = @()
 $allLocks = Get-AzureRmResourceLock
-foreach ($rg in $allICARGs) {
+foreach ($rg in $AllLISAv2RGs) {
     $counter += 1
-    $rgTimeStamp = $($rg.ResourceGroupName).Split("-")[$($rg.ResourceGroupName).Split("-").Count - 1]
-    if ($rgTimeStamp) {
-        if ($rg.ResourceGroupName -imatch "ICA-RG-") {
-            $rgTimeStamp = [datetime]([long]($("$rgTimeStamp" + "000000")))
+    if ( $rg.Tags.AutoCleanup ) {
+        if ( -not $RemoveAutoCleanupVMs) {
+            Write-Host "$counter. $($rg.ResourceGroupName) - AutoCleanup tag detected. Use -RemoveAutoCleanupVMs to enalbe cleanup."
+        } else {
+            $counter -= 1
         }
-        if ($rg.ResourceGroupName -imatch "LISAv2-") {
-            $rgTimeStamp = [datetime]::ParseExact($rgTimeStamp, "yyyyMMddHHmmss", $null)
-        }
-        $elaplsedDays = ($($currentTimeStamp - $rgTimeStamp)).Days
-        if ($elaplsedDays -gt $CleanupAgeInDays) {
-            Write-Host "$counter. $($rg.ResourceGroupName) - $elaplsedDays days old. Will be removed."
-            $cleanupRGs += $rg.ResourceGroupName
-            $lock = $allLocks | Where-Object { $_.ResourceGroupName -eq $rg.ResourceGroupName }
-            if ($lock -and ($elaplsedDays -gt $LockedResourceAgeInDays)) {
-                $lockcounter = $lockcounter + 1
-                $currentHTMLNode = $htmlFileRow
-                $currentHTMLNode = $currentHTMLNode.Replace("Current_Serial", "$lockcounter")
-                $currentHTMLNode = $currentHTMLNode.Replace("ResourceGroupName", "$($rg.ResourceGroupName)")
-                $currentHTMLNode = $currentHTMLNode.Replace("LockName", "$($lock.name)")
-                $currentHTMLNode = $currentHTMLNode.Replace("LockLevel", "$($lock.Properties.level)")
-                $currentHTMLNode = $currentHTMLNode.Replace("Age", "$elaplsedDays")
-                $Report += $currentHTMLNode
+    } else {
+        $rgTimeStamp = $($rg.ResourceGroupName).Split("-")[$($rg.ResourceGroupName).Split("-").Count - 1]
+        if ($rgTimeStamp) {
+            if ($rg.ResourceGroupName -imatch "ICA-RG-") {
+                $rgTimeStamp = [datetime]([long]($("$rgTimeStamp" + "000000")))
+            }
+            if ($rg.ResourceGroupName -imatch "LISAv2-") {
+                $rgTimeStamp = [datetime]::ParseExact($rgTimeStamp, "yyyyMMddHHmmss", $null)
+            }
+            $elaplsedDays = ($($currentTimeStamp - $rgTimeStamp)).Days
+            if ($elaplsedDays -gt $CleanupAgeInDays) {
+                Write-Host "$counter. $($rg.ResourceGroupName) - $elaplsedDays days old. Will be removed."
+                $cleanupRGs += $rg.ResourceGroupName
+                $lock = $allLocks | Where-Object { $_.ResourceGroupName -eq $rg.ResourceGroupName }
+                if ($lock -and ($elaplsedDays -gt $LockedResourceAgeInDays)) {
+                    $lockcounter = $lockcounter + 1
+                    $currentHTMLNode = $htmlFileRow
+                    $currentHTMLNode = $currentHTMLNode.Replace("Current_Serial", "$lockcounter")
+                    $currentHTMLNode = $currentHTMLNode.Replace("ResourceGroupName", "$($rg.ResourceGroupName)")
+                    $currentHTMLNode = $currentHTMLNode.Replace("LockName", "$($lock.name)")
+                    $currentHTMLNode = $currentHTMLNode.Replace("LockLevel", "$($lock.Properties.level)")
+                    $currentHTMLNode = $currentHTMLNode.Replace("Age", "$elaplsedDays")
+                    $Report += $currentHTMLNode
+                }
+            }
+            else {
+                Write-Host "$counter. $($rg.ResourceGroupName) - $elaplsedDays days old. Will be kept."
             }
         }
         else {
-            Write-Host "$counter. $($rg.ResourceGroupName) - $elaplsedDays days old. Will be kept."
+            Write-Host "$counter. $($rg.ResourceGroupName) - more than 14 days old. Will be removed."
+            $cleanupRGs += $rg.ResourceGroupName
         }
     }
-    else {
-        Write-Host "$counter. $($rg.ResourceGroupName) - more than 14 days old. Will be removed."
-        $cleanupRGs += $rg.ResourceGroupName
+}
+
+if ($RemoveAutoCleanupVMs) {
+    foreach ($rg in $AutoClenaupVMs) {
+        $counter += 1
+        if ($rg.Tags.AutoCleanup -imatch "Disabled") {
+            Write-Host "$counter. $($rg.ResourceGroupName) - AutoCleanup is '$($rg.Tags.AutoCleanup)'. Will be skipped."
+        } else {
+            if ($currentTimeStamp -gt [datetime]$rg.Tags.AutoCleanup) {
+                Write-Host "$counter. $($rg.ResourceGroupName) - is beyond AutoCleanup date '$($rg.Tags.AutoCleanup)'. Will be removed."
+                $cleanupRGs += $rg.ResourceGroupName
+            } else {
+                Write-Host "$counter. $($rg.ResourceGroupName) - is under AutoCleanup date '$($rg.Tags.AutoCleanup)'. Will be skipped."
+            }
+        }
     }
 }
 
 $cleanupRGScriptBlock = {
     $RGName = $args[0]
-    Remove-AzureRmResourceGroup -Name $RGName -Verbose -Force
+    $DryRun = $args[1]
+    if (-not $DryRun) {
+        Remove-AzureRmResourceGroup -Name $RGName -Verbose -Force
+    } else {
+        Write-Host "DryRun Completed."
+    }
 }
 
 foreach ($RGName in $cleanupRGs) {
     Write-Host "Triggering : Delete-ResourceGroup-$RGName..."
-    $null = Start-Job -ScriptBlock $cleanupRGScriptBlock -ArgumentList @($RGName) -Name "Delete-ResourceGroup-$RGName"
+    $null = Start-Job -ScriptBlock $cleanupRGScriptBlock -ArgumentList @($RGName,$DryRun) -Name "Delete-ResourceGroup-$RGName"
 }
 Write-Host "$($cleanupRGs.Count) resource groups are being removed..."
 
@@ -155,6 +189,7 @@ while (!$isAllCleaned) {
         if ( $jobStatus.State -ne "Running" ) {
             $tempRG = $($cleanupJob.Name).Replace("Delete-ResourceGroup-", "")
             Write-Host "$tempRG : Delete : $($jobStatus.State)"
+            Receive-Job -Id $cleanupJob.ID
             Remove-Job -Id $cleanupJob.ID -Force
         }
         else {
