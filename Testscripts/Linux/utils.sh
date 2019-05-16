@@ -2434,7 +2434,7 @@ function install_fio () {
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos)
 			install_epel
-			yum -y --nogpgcheck install wget sysstat mdadm blktrace libaio fio
+			yum -y --nogpgcheck install wget sysstat mdadm blktrace libaio fio bc
 			check_exit_status "install_fio"
 			mount -t debugfs none /sys/kernel/debug
 			;;
@@ -2450,7 +2450,7 @@ function install_fio () {
 		sles)
 			if [[ $DISTRO_VERSION =~ 12|15 ]]; then
 				add_sles_benchmark_repo
-				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install wget mdadm blktrace libaio1 sysstat
+				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install wget mdadm blktrace libaio1 sysstat bc
 				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install fio
 			else
 				echo "Unsupported SLES version"
