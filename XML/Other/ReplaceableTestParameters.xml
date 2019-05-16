@@ -54,6 +54,18 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceWith>dpdk-latest</ReplaceWith>
 	</Parameter>
 	<Parameter>
+		<ReplaceThis>NFF_GO_SOURCE_URL</ReplaceThis>
+		<ReplaceWith>https://github.com/intel-go/nff-go.git</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>NFF_GO_SOURCE_BRANCH</ReplaceThis>
+		<ReplaceWith>master</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>NFF_GO_ENV_SOURCE_URL</ReplaceThis>
+		<ReplaceWith>https://dl.google.com/go/go1.11.5.linux-amd64.tar.gz</ReplaceWith>
+	</Parameter>
+	<Parameter>
 		<ReplaceThis>NTTTCP_RUNTIME_IN_SECONDS</ReplaceThis>
 		<ReplaceWith>300</ReplaceWith>
 	</Parameter>
