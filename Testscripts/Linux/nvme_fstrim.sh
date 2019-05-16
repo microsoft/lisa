@@ -27,7 +27,7 @@ Run_Fstrim() {
     update_repos
     install_nvme_cli
     # Count NVME namespaces
-    namespace_count=$(echo /dev/nvme*n[0-9] | wc -w)
+    namespace_count=$(ls /dev/ | grep -wc nvme[0-9]n[0-9]$)
     if [ "$namespace_count" -eq "0" ]; then
         LogErr "No NVME namespaces detected inside the VM"
         SetTestStateFailed
