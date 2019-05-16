@@ -21,6 +21,7 @@
             <keywords>Failed to access perfctr msr</keywords>
         </failures>
         <errors>
+            <keywords>Condition check resulted in Process error reports when automatic reporting is enabled (file watch) being skipped.</keywords>
             <keywords>error trying to compare the snap system key: system-key missing on disk</keywords>
             <keywords>open /dev/vmbus/hv_fcopy failed; error: 2 No such file or directory</keywords>
             <keywords>mitigating potential DNS violation DVE-2018-0001</keywords>
@@ -33,7 +34,7 @@
         <warnings>
             <keywords>Server preferred version:</keywords>
             <keywords>WARNING Hostname record does not exist,</keywords>
-            <keywords>WARNING Dhcp client is not running</keywords>
+            <keywords>Dhcp client is not running</keywords>
             <keywords>Starting Write warning to Azure ephemeral disk</keywords>
             <keywords>Added ephemeral disk warning to</keywords>
             <keywords>Started Write warning to Azure ephemeral disk</keywords>
