@@ -167,6 +167,28 @@ elif is_suse ; then
         exit 0
     fi
 
+elif [[ $(detect_linux_distribution) == coreos ]]; then
+    # Refer to https://github.com/coreos/docs/blob/6ecaa639f0dd2098de037310d97c192fc49fce17/os/configuring-date-and-timezone.md#time-synchronization
+    systemctl stop systemd-timesyncd
+    systemctl mask systemd-timesyncd
+    systemctl enable ntpd
+    systemctl start ntpd
+
+    # set rtc clock to system time & restart NTPD
+    if ! hwclock --systohc
+    then
+        LogErr "Unable to sync RTC clock to system time. Aborting"
+        SetTestStateAborted
+        exit 0
+    fi
+
+    if ! systemctl restart ntpd
+    then
+        LogErr "Unable to restart ntpd. Aborting"
+        SetTestStateAborted
+        exit 0
+    fi
+
 else # other distro
     LogMsg "Warning: Distro not supported. Aborting"
     UpdateSummary "Warning: Distro not supported. Aborting"

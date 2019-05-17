@@ -319,6 +319,9 @@ GetDistro()
 		suse*)
 			OS_FAMILY="Sles"
 		;;
+		coreos*)
+			OS_FAMILY="CoreOS"
+		;;
 		*)
 			OS_FAMILY="unknown"
 			return 1
