@@ -497,7 +497,6 @@
         <testScript>verify_vmbus_heartbeat_properties.sh</testScript>
         <files>.\Testscripts\Linux\verify_vmbus_heartbeat_properties.sh,.\Testscripts\Linux\utils.sh</files>
         <setupType>OneVM</setupType>
-        <OverrideVMSize>Standard_A3</OverrideVMSize>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>LIS</Area>
