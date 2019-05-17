@@ -64,21 +64,9 @@ function Main {
 		Write-LogInfo "  Internal IP : $($serverVMData.InternalIP)"
 
 		# Checking OVS DPDK compatibility
-		if (@("UBUNTU").contains($global:detectedDistro)) {
-			Write-LogInfo "Confirmed supported distro: ${global:detectedDistro}"
-		} else {
-			$msg = "Unsupported distro: ${global:detectedDistro}"
-			Write-LogWarn $msg
+		$compatibleDistro = @("UBUNTU")
+		if (!(Is-DpdkCompatible -CompatibleDistro $compatibleDistro -DetectedDistro $global:DetectedDistro)) {
 			return $global:ResultSkipped
-		}
-		$currentKernelVersion = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort `
-			-username $user -password $password -command "uname -r"
-		if (IsGreaterKernelVersion -actualKernelVersion $currentKernelVersion -detectedDistro $global:detectedDistro) {
-			Write-LogInfo "Confirmed Kernel version supported: $currentKernelVersion"
-		} else {
-			$msg = "Unsupported Kernel version: $currentKernelVersion"
-			Write-LogErr $msg
-			throw $msg
 		}
 
 		# PROVISION VMS FOR LISA WILL ENABLE ROOT USER AND WILL MAKE ENABLE PASSWORDLESS AUTHENTICATION ACROSS ALL VMS IN SAME HOSTED SERVICE.

@@ -115,15 +115,13 @@ function Main {
 				$modes = ($param.Replace("modes=",""))
 			}
 		}
-		$detectedDistro = Detect-LinuxDistro -VIP $vmData.PublicIP -SSHport $vmData.SSHPort `
-				-testVMUser $user -testVMPassword $password
 		$currentKernelVersion = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort `
 				-username $user -password $password -command "uname -r"
-		if (IsGreaterKernelVersion -actualKernelVersion $currentKernelVersion -detectedDistro $detectedDistro) {
-				Write-LogInfo "Confirmed Kernel version supported: $currentKernelVersion"
+		if (Is-DpdkCompatible -KernelVersion $currentKernelVersion -DetectedDistro $global:DetectedDistro) {
+			Write-LogInfo "Confirmed Kernel version supported: $currentKernelVersion"
 		} else {
-			Write-LogErr "Unsupported Kernel version: $currentKernelVersion"
-			throw "Unsupported Kernel version: $currentKernelVersion"
+			Write-LogWarn "Unsupported Kernel version: $currentKernelVersion or unsupported distro $($global:DetectedDistro)"
+			return $global:ResultSkipped
 		}
 
 		Write-LogInfo "constants.sh created successfully..."
