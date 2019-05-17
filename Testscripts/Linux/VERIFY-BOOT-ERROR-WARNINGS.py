@@ -37,15 +37,20 @@ def RunTest():
         if (errors or warnings or failures):
             RunLog.error('Found ERROR/WARNING/FAILURE messages in logs.')
             if(errors):
-               RunLog.info('Errors: ' + ''.join(errors))
+                SplitLog('Errors', errors)
             if(warnings):
-               RunLog.info('warnings: ' + ''.join(warnings))
+                SplitLog('warnings', warnings)
             if(failures):
-               RunLog.info('failures: ' + ''.join(failures))
+                SplitLog('failures', failures)
             ResultLog.error('FAIL')
         else:
             ResultLog.info('PASS')
     UpdateState("TestCompleted")
+
+
+def SplitLog(logType, logValues):
+    for logEntry in logValues:
+        RunLog.info(logType + ': ' + logEntry)
 
 
 def RemoveIgnorableMessages(messages, keywords_xml_node):

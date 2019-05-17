@@ -21,6 +21,11 @@
             <keywords>Failed to access perfctr msr</keywords>
         </failures>
         <errors>
+            <keywords>Error getting hardware address for "eth0": No such device</keywords>
+            <keywords>codec can't encode character</keywords>
+            <keywords>Failed to set certificate key file [gnutls error -64: Error while reading file.]</keywords>
+            <keywords>audispd: Error - /etc/audisp/plugins.d/wdgsmart-syslog.conf isn't owned by root</keywords>
+            <keywords>Condition check resulted in Process error reports when automatic reporting is enabled</keywords>
             <keywords>error trying to compare the snap system key: system-key missing on disk</keywords>
             <keywords>open /dev/vmbus/hv_fcopy failed; error: 2 No such file or directory</keywords>
             <keywords>mitigating potential DNS violation DVE-2018-0001</keywords>
@@ -31,9 +36,12 @@
             <keywords>errors=remount-ro</keywords>
         </errors>
         <warnings>
+            <keywords>Unconfined exec qualifier (ux) allows some dangerous environment variables</keywords>
+            <keywords>Stopped Write warning to Azure ephemeral disk</keywords>
+            <keywords>reloading interface list</keywords>
             <keywords>Server preferred version:</keywords>
             <keywords>WARNING Hostname record does not exist,</keywords>
-            <keywords>WARNING Dhcp client is not running</keywords>
+            <keywords>Dhcp client is not running</keywords>
             <keywords>Starting Write warning to Azure ephemeral disk</keywords>
             <keywords>Added ephemeral disk warning to</keywords>
             <keywords>Started Write warning to Azure ephemeral disk</keywords>
