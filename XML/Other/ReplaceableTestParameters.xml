@@ -285,6 +285,10 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceWith>300</ReplaceWith>
 	</Parameter>
 	<Parameter>
+		<ReplaceThis>NESTED_NTTTCP_TCP_CONNECTIONS</ReplaceThis>
+		<ReplaceWith>(1 2 4 8 16 32 64 128 256 512 1024 2048 4096)</ReplaceWith>
+	</Parameter>
+	<Parameter>
 		<ReplaceThis>OPENSUSE_DOWNLOAD_URL</ReplaceThis>
 		<ReplaceWith>http://download.opensuse.org/repositories/Kernel:/stable/standard/</ReplaceWith>
 	</Parameter>
