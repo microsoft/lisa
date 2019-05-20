@@ -326,7 +326,7 @@
             <param>TestDelay=10</param>
             <param>MaxTimeDiff=1.0</param>
         </TestParameters>
-        <Platform>Azure,HyperV</Platform>
+        <Platform>HyperV</Platform>
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>timesync</Tags>
