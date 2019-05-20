@@ -723,6 +723,10 @@ function Install-CustomLIS ($CustomLIS, $customLISBranch, $allVMData, [switch]$R
 						Write-LogInfo "New LIS: $upgradedlisVersion"
 						Add-Content -Value "Old LIS: $currentlisVersion" -Path ".\Report\AdditionalInfo-$TestID.html" -Force
 						Add-Content -Value "New LIS: $upgradedlisVersion" -Path ".\Report\AdditionalInfo-$TestID.html" -Force
+						if ($upgradedlisVersion -eq $currentlisVersion) {
+							Write-LogErr "LIS Version is not changed even after successful LIS RPMs installation."
+							return $false
+						}
 						return $true
 					}
 					else
