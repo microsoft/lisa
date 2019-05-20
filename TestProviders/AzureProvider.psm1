@@ -107,11 +107,20 @@ Class AzureProvider : TestProvider
 
 	[bool] RestartAllDeployments($AllVMData) {
 		$restartJobs = @()
+
+		Function Start-RestartAzureVMJob ($ResourceGroupName, $RoleName) {
+			Write-LogInfo "Triggering Restart-$($RoleName)..."
+			$Job = Restart-AzureRmVM -ResourceGroupName $ResourceGroupName -Name $RoleName -AsJob
+			$Job.Name = "Restart-$($ResourceGroupName):$($RoleName)"
+			return $Job
+		}
+
 		foreach ( $vmData in $AllVMData ) {
-			Write-LogInfo "Triggering Restart-$($vmData.RoleName)..."
-			$restartJobs += Restart-AzureRmVM -ResourceGroupName $vmData.ResourceGroupName -Name $vmData.RoleName -Verbose -AsJob
+			$restartJobs += Start-RestartAzureVMJob -ResourceGroupName $vmData.ResourceGroupName -RoleName $vmData.RoleName
 		}
 		$recheckAgain = $true
+		$TimeoutMinutes = 10
+		$Timeout = (Get-Date).AddMinutes($TimeoutMinutes)
 		Write-LogInfo "Waiting until VMs restart..."
 		$jobCount = $restartJobs.Count
 		$completedJobsCount = 0
@@ -128,8 +137,17 @@ Class AzureProvider : TestProvider
 					Write-LogErr "$($restartJob.Name) failed with error: ${jobError}"
 					return $false
 				} else {
-					$tempJobs += $restartJob
-					$recheckAgain = $true
+					if ((Get-Date) -gt $Timeout ) {
+						Write-LogErr "$($restartJob.Name) timed out after $TimeoutMinutes minutes. Removing the job."
+						$null = Remove-Job -Id $restartJob.ID -Force -ErrorAction SilentlyContinue
+						$TimedOutResourceGroup = $restartJob.Name.Replace("Restart-",'').Split(':')[0]
+						$TimedOutRoleName = $restartJob.Name.Replace("Restart-",'').Split(':')[1]
+						$TimedOutVM = $AllVMData | Where-Object {$_.ResourceGroupName -eq $TimedOutResourceGroup -and $_.RoleName -eq $TimedOutRoleName}
+						$Null = Restart-VMFromShell -VMData $TimedOutVM -SkipRestartCheck
+					} else {
+						$tempJobs += $restartJob
+						$recheckAgain = $true
+					}
 				}
 			}
 			$restartJobs = $tempJobs

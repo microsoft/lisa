@@ -2260,3 +2260,17 @@ function Collect-GcovData {
 
     return $status
 }
+
+Function Restart-VMFromShell($VMData, [switch]$SkipRestartCheck) {
+    Write-LogInfo "Restarting $($VMData.RoleName) from shell..."
+    $Null = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "sleep 5 && reboot" -runAsSudo -RunInBackground
+    if ($SkipRestartCheck) {
+        return $true
+    } else {
+        Start-Sleep -Seconds 5
+        if ((Is-VmAlive -AllVMDataObject $AllVMData) -eq "True") {
+            return $true
+        }
+        return $false
+    }
+}
