@@ -52,7 +52,7 @@ function Main {
         Write-LogInfo "VSS Daemon is running"
 
         # Create a file on the VM
-        $testfile1="Testfile_$(Get-Random -minimum 1 -maximum 1000)"
+        $testfile1="Testfile1_" + (Get-Date).ToString("yyyyMMddmmss")
         Write-LogInfo "Creating ${testfile1}"
         New-Item -type file -name $testfile1 -force | Out-Null
         Copy-RemoteFiles -upload -uploadTo $Ipv4 -Port $VMPort `
@@ -72,7 +72,7 @@ function Main {
         }
 
         # Create another file on the VM
-        $testfile2="Testfile_$(Get-Random -minimum 1 -maximum 1000)"
+        $testfile2="Testfile2_" + (Get-Date).ToString("yyyyMMddmmss")
         Write-LogInfo "Creating ${testfile2}"
         New-Item -type file -name $testfile2 -force | Out-Null
         Copy-RemoteFiles -upload -uploadTo $Ipv4 -Port $VMPort `
