@@ -168,12 +168,12 @@ elif is_suse ; then
     fi
 
 elif [[ $(detect_linux_distribution) == coreos ]]; then
-    # Refer to https://github.com/coreos/docs/blob/6ecaa639f0dd2098de037310d97c192fc49fce17/os/configuring-date-and-timezone.md#time-synchronization
+    # Refer to https://github.com/coreos/docs/blob/master/os/configuring-date-and-timezone.md#time-synchronization
     systemctl stop systemd-timesyncd
     systemctl mask systemd-timesyncd
     systemctl enable ntpd
     systemctl start ntpd
-
+    check_exit_status "Start ntpd service"
     # set rtc clock to system time & restart NTPD
     if ! hwclock --systohc
     then
