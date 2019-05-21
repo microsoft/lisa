@@ -64,10 +64,13 @@ if ! [ "$rerun" = "yes" ]; then
 	if [ $? -ne 0 ]; then
 		LogErr "File-system tools for $fs not present. Skipping filesystem $fs."
 	else
-		#Use -f option for xfs filesystem, but ignore parameter for other filesystems
+		# Use -f/-F option for xfs/ext4 filesystem, but ignore parameter for other filesystems
 		option=""
 		if [ "$fs" = "xfs" ]; then
 			option="-f"
+		fi
+		if [ "$fs" = "ext4" ]; then
+			option="-F"
 		fi
 		mkfs -t $fs $option "$deviceName"1
 		check_exit_status "Format partition with $fs" "exit"
