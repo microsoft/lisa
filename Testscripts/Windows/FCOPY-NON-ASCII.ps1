@@ -202,7 +202,7 @@ function Main {
     #
     # Verify if the file is present on the guest VM
     #
-    $remote_chksum = .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$Ipv4 "openssl MD5 /tmp/testfile-* | cut -f2 -d' '"
+    $remote_chksum = Run-LinuxCmd -username $VMUserName -password $VMPassword -port $VMPort -ip $Ipv4 -command "openssl MD5 /tmp/testfile-* | cut -f2 -d' '"
     if (-not $?) {
         Write-LogErr "Could not extract the MD5 checksum from the VM!"
         return "FAIL"
@@ -213,7 +213,7 @@ function Main {
     #
     # Check if checksums are matching
     #
-    $MD5IsMatching = @(Compare-Object $local_chksum $remote_chksum -SyncWindow 0).Length -eq 0
+    $MD5IsMatching = @(Compare-Object $local_chksum.ToLower() $remote_chksum.ToLower() -SyncWindow 0).Length -eq 0
     if ( -not $MD5IsMatching) {
         Write-LogErr "MD5 checksum missmatch between host and VM test file!"
         return "FAIL"
