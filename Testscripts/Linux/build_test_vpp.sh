@@ -1,0 +1,129 @@
+#!/bin/bash
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
+
+# This script will build and test VPP.
+
+HOMEDIR=$(pwd)
+export VPP_DIR="${HOMEDIR}/vpp"
+export RTE_SDK="${HOMEDIR}/dpdk"
+export RTE_TARGET="x86_64-native-linuxapp-gcc"
+UTIL_FILE="./utils.sh"
+DPDK_UTIL_FILE="./dpdkUtils.sh"
+
+# Source utils.sh
+. utils.sh || {
+	echo "ERROR: unable to source utils.sh!"
+	echo "TestAborted" > state.txt
+	exit 0
+}
+
+# Source constants file and initialize most common variables
+UtilsInit
+
+function build_test_vpp () {
+	SetTestStateRunning
+	LogMsg "Configuring ${1} ${DISTRO_NAME} ${DISTRO_VERSION} for VPP test..."
+	packages=(git)
+	package_manager=""
+	package_manager_install_flags=""
+	package_type=""
+	case "${DISTRO_NAME}" in
+		oracle|rhel|centos)
+			package_manager="rpm"
+			package_manager_install_flags="-ivh"
+			package_type="rpm"
+			ssh "${1}" ". ${UTIL_FILE} && install_epel"
+			ssh "${1}" "yum -y --nogpgcheck groupinstall 'Development Tools'"
+			check_exit_status "Install Development Tools on ${1}" "exit"
+			ssh "${1}" ". ${UTIL_FILE} && . ${DPDK_UTIL_FILE} && Install_Dpdk_Dependencies ${1} ${DISTRO_NAME}"
+			packages=(kernel-devel-$(uname -r) librdmacm-devel redhat-lsb glibc-static \
+				apr-devel numactl-devel.x86_64 libmnl-devel \
+				check check-devel boost boost-devel selinux-policy selinux-policy-devel \
+				ninja-build libuuid-devel mbedtls-devel yum-utils openssl-devel python-devel \
+				python36-ply python36-devel python36-pip python-virtualenv devtoolset-7 \
+				cmake3 asciidoc libffi-devel chrpath e2fsprogs-debuginfo glibc-debuginfo \
+				krb5-debuginfo nss-softokn-debuginfo openssl-debuginfo \
+				yum-plugin-auto-update-debug-info zlib-debuginfo python-ply java-1.8.0-openjdk-devel)
+			;;
+		ubuntu|debian)
+			package_manager="dpkg"
+			package_manager_install_flags="-i"
+			package_type="deb"
+			ssh "${1}" ". ${UTIL_FILE} && . ${DPDK_UTIL_FILE} && Install_Dpdk_Dependencies ${1} ${DISTRO_NAME}"
+			packages=(python-cffi python-pycparser)
+			;;
+		*)
+			echo "Unsupported distro ${DISTRO_NAME}"
+			SetTestStateSkipped
+			exit 1
+	esac
+	ssh "${1}" ". ${UTIL_FILE} && install_package ${packages[@]}"
+
+	if [[ $vppSrcLink =~ ".git" ]] || [[ $vppSrcLink =~ "git:" ]];
+	then
+		LogMsg "Installing from git repo ${vppSrcLink} to ${VPP_DIR}"
+		ssh "${1}" git clone --recurse-submodules --single-branch --branch "${vppSrcBranch}" "${vppSrcLink}" "${VPP_DIR}"
+		check_exit_status "git clone --recurse-submodules --single-branch --branch ${vppSrcBranch} ${vppSrcLink} on ${1}" "exit"
+	else
+		LogMsg "Provide proper link $vppSrcLink"
+	fi
+
+	# Build VPP using its own DPDK
+	ssh "${1}" "cd ${VPP_DIR} && sed -i '/[^#]/ s/\(^.*centos-release-scl-rh.*$\)/#\ \1/' Makefile"
+	ssh "${1}" "cd ${VPP_DIR} && UNATTENDED=y make install-dep"
+	check_exit_status "Installed dependencies on ${1}" "exit"
+
+	ssh "${1}" "cd ${VPP_DIR} && sed -i '/vpp_uses_dpdk_mlx5_pmd/s/^# //g' build-data/platforms/vpp.mk"
+	ssh "${1}" "cd ${VPP_DIR} && sed -i '/vpp_uses_dpdk_mlx4_pmd/s/^# //g' build-data/platforms/vpp.mk"
+
+	# VPP 18.10 or higher is supported for Azure
+	# VPP 19.04 or higher supports 18.11 or 19.02 dpdkVersion
+	# VPP 18.10 supports 18.05 or 18.08 dpdkVersion
+	ssh "${1}" "cd ${VPP_DIR} && make pkg-${package_type} DPDK_VERSION=${dpdkVersion} vpp_uses_dpdk_mlx4_pmd=yes vpp_uses_dpdk_mlx5_pmd=yes DPDK_MLX4_PMD=y DPDK_FAILSAFE_PMD=y DPDK_TAP_PMD=y DPDK_MLX5_PMD=y DPDK_MLX5_PMD_DLOPEN_DEPS=y"
+	check_exit_status "make -j pkg-{package_type} DPDK_MLX5_PMD=y DPDK_MLX4_PMD=y DPDK_FAILSAFE_PMD=y DPDK_TAP_PMD=y DPDK_MLX5_PMD_DLOPEN_DEPS=y on ${1}" "exit"
+
+	ssh "${1}" "cd ${VPP_DIR} && ${package_manager} ${package_manager_install_flags} build-root/vpp-sel*.${package_type}"
+	ssh "${1}" "cd ${VPP_DIR} && ${package_manager} ${package_manager_install_flags} build-root/vpp-lib*.${package_type}"
+	ssh "${1}" "cd ${VPP_DIR} && ${package_manager} ${package_manager_install_flags} build-root/vpp-17*.${package_type}"
+	ssh "${1}" "cd ${VPP_DIR} && ${package_manager} ${package_manager_install_flags} build-root/vpp-18*.${package_type}"
+	ssh "${1}" "cd ${VPP_DIR} && ${package_manager} ${package_manager_install_flags} build-root/vpp-19*.${package_type}"
+	ssh "${1}" "cd ${VPP_DIR} && ${package_manager} ${package_manager_install_flags} build-root/vpp_*.${package_type}"
+	ssh "${1}" "cd ${VPP_DIR} && ${package_manager} ${package_manager_install_flags} build-root/vpp-plug*.${package_type}"
+	check_exit_status "${package_manager} install packages on ${1}" "exit"
+
+	pci_whitelist=$(get_synthetic_vf_pairs | sed "s/.* /dev /g")
+
+	# Flush network interfaces
+	nics=$(get_synthetic_vf_pairs | awk '{print $1}')
+	for nic in $nics
+	do
+		ip addr flush "${nic}"
+	done
+
+	vpp_conf_file="/etc/vpp/startup.conf"
+	echo "dpdk { ${pci_whitelist[@]} }" >> $vpp_conf_file
+	ssh "${1}" "vpp -c ${vpp_conf_file}" &
+	# Wait for VPP process to initialize
+	sleep 10
+
+	# VPP Azure interfaces show as failsafe interfaces
+	vpp_hardware=$(ssh "${1}" vppctl show int | grep -iv 'local' | grep -i 'failsafe')
+	if [[ "${vpp_hardware}" != "" ]]; then
+		LogMsg "VPP interfaces found: ${vpp_hardware[@]}"
+		SetTestStateCompleted
+	else
+		LogErr "VPP interfaces not found."
+		SetTestStateFailed
+	fi
+
+	LogMsg "Built and ran tests for VPP on ${1}"
+}
+
+
+LogMsg "Script execution started"
+
+LogMsg "Starting build and tests for VPP"
+build_test_vpp "${client}"
+LogMsg "VPP build and test completed"
+
