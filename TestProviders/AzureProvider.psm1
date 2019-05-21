@@ -107,7 +107,7 @@ Class AzureProvider : TestProvider
 
 	[bool] RestartAllDeployments($AllVMData) {
 		$restartJobs = @()
-
+		$ShellRestart = 0
 		Function Start-RestartAzureVMJob ($ResourceGroupName, $RoleName) {
 			Write-LogInfo "Triggering Restart-$($RoleName)..."
 			$Job = Restart-AzureRmVM -ResourceGroupName $ResourceGroupName -Name $RoleName -AsJob
@@ -144,6 +144,7 @@ Class AzureProvider : TestProvider
 						$TimedOutRoleName = $restartJob.Name.Replace("Restart-",'').Split(':')[1]
 						$TimedOutVM = $AllVMData | Where-Object {$_.ResourceGroupName -eq $TimedOutResourceGroup -and $_.RoleName -eq $TimedOutRoleName}
 						$Null = Restart-VMFromShell -VMData $TimedOutVM -SkipRestartCheck
+						$ShellRestart += 1
 					} else {
 						$tempJobs += $restartJob
 						$recheckAgain = $true
@@ -152,6 +153,10 @@ Class AzureProvider : TestProvider
 			}
 			$restartJobs = $tempJobs
 			Start-Sleep -Seconds 1
+		}
+		if ($ShellRestart -gt 0) {
+			Write-LogInfo "$ShellRestart VMs were restarted from shell. Sleeping 5 seconds..."
+			Start-Sleep -Seconds 5
 		}
 		if ((Is-VmAlive -AllVMDataObject $AllVMData) -eq "True") {
 			return $true
