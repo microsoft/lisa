@@ -108,20 +108,30 @@ Class AzureProvider : TestProvider
 	[bool] RestartAllDeployments($AllVMData) {
 		$restartJobs = @()
 		$ShellRestart = 0
+		$VMCoresArray = @()
 		Function Start-RestartAzureVMJob ($ResourceGroupName, $RoleName) {
 			Write-LogInfo "Triggering Restart-$($RoleName)..."
 			$Job = Restart-AzureRmVM -ResourceGroupName $ResourceGroupName -Name $RoleName -AsJob
 			$Job.Name = "Restart-$($ResourceGroupName):$($RoleName)"
 			return $Job
 		}
-
+		$AzureVMSizeInfo = Get-AzureRmVMSize -Location $AllVMData[0].Location
 		foreach ( $vmData in $AllVMData ) {
 			$restartJobs += Start-RestartAzureVMJob -ResourceGroupName $vmData.ResourceGroupName -RoleName $vmData.RoleName
+			$VMCoresArray += ($AzureVMSizeInfo | Where-Object { $_.Name -eq $vmData.InstanceSize }).NumberOfCores
 		}
+		$MaximumCores = ($VMCoresArray | Measure-Object -Maximum).Maximum
+
+		# Calculate timeout depending on VM size.
+		# We're adding timeout of 10 minutes (default timeout) + 1 minute/10 cores (additional timeout).
+		# So For D64 VM, timeout = 10 + int[64/10] = 16 minutes.
+		# M128 VM, timeout = 10 + int[128/10] = 23 minutes.
+		$TimeoutMinutes = [int]($MaximumCores / 10) + 10
 		$recheckAgain = $true
-		$TimeoutMinutes = 10
+
+		# Timeout check is started after all the restart operations are triggered.
 		$Timeout = (Get-Date).AddMinutes($TimeoutMinutes)
-		Write-LogInfo "Waiting until VMs restart..."
+		Write-LogInfo "Waiting until VMs restart (Timeout = $TimeoutMinutes minutes)..."
 		$jobCount = $restartJobs.Count
 		$completedJobsCount = 0
 		while ($recheckAgain) {
