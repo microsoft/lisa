@@ -748,6 +748,18 @@ Function New-BackupSetup {
 		[String] $VMName,
 		[String] $HvServer
 	)
+	# Install the Windows Server Backup
+	$winFeatureName = "Windows-Server-Backup"
+	if ((Get-WindowsFeature $winFeatureName).InstallState -ne "Installed") {
+		Write-LogInfo "Installing the $winFeatureName ..."
+		if ( (Add-WindowsFeature $winFeatureName).Success -eq "True" ) {
+			Write-LogInfo "Install the $winFeatureName successfully"
+		} else {
+			Write-LogErr "Install the $winFeatureName failed"
+			return $False
+		}
+	}
+
 	Write-LogInfo "Removing old backups"
 	try {
 		Remove-WBBackupSet -MachineName $HvServer -Force -WarningAction SilentlyContinue
