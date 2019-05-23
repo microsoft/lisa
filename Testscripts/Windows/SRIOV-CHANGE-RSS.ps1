@@ -47,13 +47,13 @@ function Main {
 
 
     # Change Rss on test VM
-    $rssProfile = Get-NetAdapterRss -Name "*$($TestParams.Switch_Name)*"
+    $rssProfile = Get-NetAdapterRss -Name "*$($TestParams.Switch_Name)*" -CimSession $HvServer
     $rssProfile = $rssProfile.Profile
     Write-LogInfo "Changing rss on vSwitch"
-    Set-NetAdapterRss -Name "*$($TestParams.Switch_Name))*" -Profile ClosestStatic
+    Set-NetAdapterRss -Name "*$($TestParams.Switch_Name))*" -Profile ClosestStatic -CimSession $HvServer
     if (-not $?) {
         Write-LogErr "Failed to change rss on vSwitch!"
-        Set-NetAdapterRss -Name "*$($TestParams.Switch_Name)*" -Profile $rssProfile
+        Set-NetAdapterRss -Name "*$($TestParams.Switch_Name)*" -Profile $rssProfile -CimSession $HvServer
         return "FAIL"
     }
 
@@ -62,7 +62,7 @@ function Main {
         $VMPassword -command $moduleCheckCMD -ignoreLinuxExitCode:$true
     if ($moduleCount -lt 1) {
         Write-LogErr "Module is not loaded"
-        Set-NetAdapterRss -Name "*$($TestParams.Switch_Name)*" -Profile $rssProfile
+        Set-NetAdapterRss -Name "*$($TestParams.Switch_Name)*" -Profile $rssProfile -CimSession $HvServer
         return "FAIL"
     }
     # Check if the VF is still present
@@ -70,7 +70,7 @@ function Main {
         $VMPassword -command $vfCheckCMD -ignoreLinuxExitCode:$true
     if ($vfCount -lt 1) {
         Write-LogErr "VF is not present"
-        Set-NetAdapterRss -Name "*$($TestParams.Switch_Name)*" -Profile $rssProfile
+        Set-NetAdapterRss -Name "*$($TestParams.Switch_Name)*" -Profile $rssProfile -CimSession $HvServer
         return "FAIL"
     }
 
@@ -84,11 +84,11 @@ function Main {
     Write-LogInfo "The throughput after changing rss profile is $finalThroughput Gbits/sec"
     if ($initialThroughput -gt $finalThroughput) {
         Write-LogErr "After changing rss profile, the throughput decreased"
-        Set-NetAdapterRss -Name "*$($TestParams.Switch_Name)*" -Profile $rssProfile
+        Set-NetAdapterRss -Name "*$($TestParams.Switch_Name)*" -Profile $rssProfile -CimSession $HvServer
         return "FAIL"
     }
 
-    Set-NetAdapterRss -Name "*$($TestParams.Switch_Name)*" -Profile $rssProfile
+    Set-NetAdapterRss -Name "*$($TestParams.Switch_Name)*" -Profile $rssProfile -CimSession $HvServer
     return "PASS"
 }
 
