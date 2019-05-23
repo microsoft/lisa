@@ -286,7 +286,7 @@ Class TestController
 			if ($test.setupType) {
 				$key = "$($test.setupType),$($test.OverrideVMSize),$($test.AdditionalHWConfig.Networking),$($test.AdditionalHWConfig.DiskType)," +
 					"$($test.AdditionalHWConfig.OSDiskType),$($test.AdditionalHWConfig.SwitchName),$($test.AdditionalHWConfig.ImageType)," +
-					"$($test.AdditionalHWConfig.OSType)"
+					"$($test.AdditionalHWConfig.OSType),$($test.AdditionalHWConfig.StorageAccountType)"
 				if ($this.SetupTypeToTestCases.ContainsKey($key)) {
 					$this.SetupTypeToTestCases[$key] += $test
 				} else {
