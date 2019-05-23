@@ -9,7 +9,6 @@ LoopCount=10
 
 PingCheck()
 {
-    install_package wget
     if ! ping "$REMOTE_SERVER" -c 4; then
         # On azure ping is disabled so we need another test method
         if ! wget google.com; then
@@ -67,6 +66,11 @@ if [ $netvsc_includes ]; then
     LogMsg "Info: Skiping case since hv_netvsc module as it is built-in."
     SetTestStateSkipped
     exit 0
+fi
+
+if ! which wget; then
+    update_repos
+    install_package wget
 fi
 
 while [ "$TestCount" -lt "$LoopCount" ]
