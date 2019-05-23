@@ -2357,13 +2357,13 @@ function install_sshpass () {
 		echo "sshpass not installed\n Installing now..."
 		check_package "sshpass"
 		if [ $? -ne 0 ]; then
+			install_package "gcc make wget"
 			echo "sshpass not installed\n Build it from source code now..."
 			package_name="sshpass-1.06"
 			source_url="https://sourceforge.net/projects/sshpass/files/sshpass/1.06/$package_name.tar.gz"
 			wget $source_url
-			tar -xvf "$package_name.tar.gz"
+			tar -xf "$package_name.tar.gz"
 			cd $package_name
-			install_package "gcc make wget"
 			./configure --prefix=/usr/ && make && make install
 			cd ..
 		else
