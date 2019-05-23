@@ -217,7 +217,7 @@ Function Change-StorageAccountType($TestCaseData, [string]$Location, $GlobalConf
     $storageAccount = $GlobalConfig.Global.Azure.Subscription.ARMStorageAccount
     $changedSC = ""
     $copyVHD = $false
-    if ($TestCaseData.AdditionalHWConfig.SCType -and $TestCaseData.AdditionalHWConfig.SCType.Contains("Premium")) {
+    if ($TestCaseData.AdditionalHWConfig.StorageAccountType -and $TestCaseData.AdditionalHWConfig.StorageAccountType.Contains("Premium")) {
         # if SC is ExistingStorage_Standard, switch to ExistingStorage_Premium
         if ($storageAccount -imatch "ExistingStorage_Standard") {
             $changedSC = Get-StorageAccountFromRegion -Region $Location -StorageAccount "ExistingStorage_Premium"
@@ -288,8 +288,6 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
     } else {
         $used_SC = $GlobalConfig.Global.Azure.Subscription.ARMStorageAccount
     }
-    $OsVHD = $OsVHD.Split("?")[0].split('/')[-1]
-    $global:BaseOSVHD = $OsVHD
     foreach ($RG in $setupTypeData.ResourceGroup ) {
         $validateStartTime = Get-Date
         Write-LogInfo "Checking the subscription usage..."
@@ -807,6 +805,9 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
         $offer = $imageInfo[1]
         $sku = $imageInfo[2]
         $version = $imageInfo[3]
+    }
+    if($osVHD) {
+        $osVHD = $osVHD.Split("?")[0].split('/')[-1]
     }
 
     $vmCount = 0
@@ -1687,7 +1688,6 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
         Add-Content -Value "$($indents[5])^osDisk^ : " -Path $jsonFile
         Add-Content -Value "$($indents[5]){" -Path $jsonFile
         if ($osVHD) {
-            $osVHD = $osVHD.Split('/')[-1]
             if ($UseManagedDisks) {
                 Write-LogInfo ">>> Using VHD : $osVHD (Converted to Managed Image)"
                 Add-Content -Value "$($indents[6])^osType^: ^Linux^," -Path $jsonFile
