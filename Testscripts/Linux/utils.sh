@@ -3412,10 +3412,10 @@ function Format_Mount_NVME()
 function DisableEnablePCI ()
 {
     case "$1" in
-        "SR-IOV") vf_pci_type="Ethernet" ;;
+        "SR-IOV") vf_pci_type="Ethernet\|Network" ;;
         "NVME")   vf_pci_type="Non-Volatile" ;;
         "GPU")    vf_pci_type="NVIDIA" ;;
-        "ALL")    vf_pci_type="NVIDIA\|Non-Volatile\|Ethernet" ;;
+        "ALL")    vf_pci_type="NVIDIA\|Non-Volatile\|Ethernet\|Network" ;;
         *)        LogErr "Unsupported device type for DisableEnablePCI." ; return 1 ;;
     esac
 

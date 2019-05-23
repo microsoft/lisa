@@ -129,7 +129,7 @@ Create1Gfile()
 
 #
 # ConfigureVF - will set the given VF_IP(s) (from constants file)
-# for each vf present 
+# for each vf present
 #
 ConfigureVF()
 {
@@ -153,14 +153,15 @@ ConfigureVF()
 
         if is_ubuntu ; then
             __file_path="/etc/network/interfaces"
-            # Change /etc/network/interfaces 
+            # Change /etc/network/interfaces
             echo "auto eth$__iterator" >> $__file_path
             echo "iface eth$__iterator inet static" >> $__file_path
             echo "address $staticIP" >> $__file_path
             echo "netmask $NETMASK" >> $__file_path
 
             ip link set eth$__iterator up
-            ip addr add "${staticIP}"/"$NETMASK" dev eth$__iterator
+            broadcastAddress="${staticIP%.*}.255"
+            ip addr add "${staticIP}"/"$NETMASK" broadcast $broadcastAddress dev eth$__iterator
 
         elif is_suse ; then
             __file_path="/etc/sysconfig/network/ifcfg-eth$__iterator"
@@ -238,7 +239,7 @@ InstallDependencies()
             LogMsg "$msg"
             SetTestStateFailed
             exit 1
-        fi  
+        fi
     fi
 
     # Check if iPerf3 is already installed
