@@ -403,8 +403,11 @@ Class TestSummary
 		if ( $TestSummary ) {
 			$this.TextSummary += "$TestSummary"
 		}
-
-		$testSummaryLinePassSkip = "<tr><td>$ExecutionCount</td><td>$($TestData.Area)</td><td>$($TestData.testName)</td><td>$Duration min</td><td>" + '{0}' + "</td></tr>"
+		if ($TestSummary) {
+			$testSummaryLinePassSkip = "<tr><td>$ExecutionCount</td><td>$($TestData.Area)</td><td>$($TestData.testName)<br><br><font size=`"1`">$($TestSummary)</font></td><td>$Duration min</td><td>" + '{0}' + "</td></tr>"
+		} else {
+			$testSummaryLinePassSkip = "<tr><td>$ExecutionCount</td><td>$($TestData.Area)</td><td>$($TestData.testName)</td><td>$Duration min</td><td>" + '{0}' + "</td></tr>"
+		}
 		$testSummaryLineFailAbort = "<tr><td>$ExecutionCount</td><td>$($TestData.Area)</td><td>$($TestData.testName)$($this.GetReproVMDetails($AllVMData))</td><td>$Duration min</td><td>" + '{0}' + "</td></tr>"
 		if ($TestResult -imatch $global:ResultPass) {
 			$this.TotalPassTc += 1
