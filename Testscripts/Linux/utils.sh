@@ -2319,9 +2319,9 @@ function remove_package ()
 function install_epel () {
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos)
-			if [[ $DISTRO_VERSION =~ 6\. ]]; then
+			if [[ $DISTRO_VERSION =~ ^6\. ]]; then
 				epel_rpm_url="https://dl.fedoraproject.org/pub/epel/epel-release-latest-6.noarch.rpm"
-			elif [[ $DISTRO_VERSION =~ 7\. ]]; then
+			elif [[ $DISTRO_VERSION =~ ^7\. ]]; then
 				epel_rpm_url="https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm"
 			else
 				echo "Unsupported version to install epel repository"
@@ -2355,18 +2355,19 @@ function install_sshpass () {
 	which sshpass
 	if [ $? -ne 0 ]; then
 		echo "sshpass not installed\n Installing now..."
-		install_package sshpass
-		which sshpass
+		check_package "sshpass"
 		if [ $? -ne 0 ]; then
+			install_package "gcc make wget"
 			echo "sshpass not installed\n Build it from source code now..."
 			package_name="sshpass-1.06"
 			source_url="https://sourceforge.net/projects/sshpass/files/sshpass/1.06/$package_name.tar.gz"
 			wget $source_url
-			tar -xvf "$package_name.tar.gz"
+			tar -xf "$package_name.tar.gz"
 			cd $package_name
-			install_package "gcc make"
 			./configure --prefix=/usr/ && make && make install
 			cd ..
+		else
+			install_package sshpass
 		fi
 		which sshpass
 		check_exit_status "install_sshpass"
