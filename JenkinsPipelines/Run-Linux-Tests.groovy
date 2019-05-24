@@ -28,7 +28,10 @@ def GetFinalVHDName (CustomVHD)
     return FinalVHDName
 }
 
-def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, CustomVHD, CustomVHDURL, Kernel, CustomKernelFile, CustomKernelURL, StorageAccount, GitUrlForAutomation, GitBranchForAutomation, TestByTestname, TestByCategorisedTestname, TestByCategory, TestByTag, Email, debug )
+def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, CustomVHD, CustomVHDURL,
+                    Kernel, CustomKernelFile, CustomKernelURL, StorageAccount, DiskType, GitUrlForAutomation,
+                    GitBranchForAutomation, TestByTestname, TestByCategorisedTestname, TestByCategory, TestByTag,
+                    Email, debug, TiPCluster, TipSessionId )
 {
     if( (TestByTestname != "" && TestByTestname != null) || (TestByCategorisedTestname != "" && TestByCategorisedTestname != null) || (TestByCategory != "" && TestByCategory != null) || (TestByTag != "" && TestByTag != null) )
     {
@@ -98,6 +101,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, 
                                             " -RGIdentifier '${JenkinsUser}'" +
                                             " -TestPlatform '${TestPlatform}'" +
                                             " -StorageAccount '${StorageAccount}'" +
+                                            " -CustomParameters 'DiskType=${DiskType};TiPCluster=${TiPCluster};TipSessionId=${TipSessionId}'" +
                                             FinalImageSource +
                                             FinalVMSize +
                                             " -TestNames '${Testname}'"
@@ -156,6 +160,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, 
                                             " -RGIdentifier '${JenkinsUser}'" +
                                             " -TestPlatform '${TestPlatform}'" +
                                             " -StorageAccount '${StorageAccount}'" +
+                                            " -CustomParameters 'DiskType=${DiskType};TiPCluster=${TiPCluster};TipSessionId=${TipSessionId}'" +
                                             FinalImageSource +
                                             FinalVMSize +
                                             " -TestNames '${TestName}'"
@@ -215,6 +220,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, 
                                             " -TestCategory '${TestCategory}'" +
                                             " -TestArea '${TestArea}'" +
                                             " -StorageAccount '${StorageAccount}'" +
+                                            " -CustomParameters 'DiskType=${DiskType};TiPCluster=${TiPCluster};TipSessionId=${TipSessionId}'" +
                                             FinalImageSource +
                                             FinalVMSize
                                             )
@@ -271,6 +277,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, 
                                             " -TestPlatform '${TestPlatform}'" +
                                             " -TestTag '${TestTag}'" +
                                             " -StorageAccount '${StorageAccount}'" +
+                                            " -CustomParameters 'DiskType=${DiskType};TiPCluster=${TiPCluster};TipSessionId=${TipSessionId}'" +
                                             FinalImageSource +
                                             FinalVMSize
                                             )
@@ -378,7 +385,7 @@ stage('Capture VHD with Custom Kernel')
             withCredentials([file(credentialsId: 'Azure_Secrets_TESTONLY_File', variable: 'Azure_Secrets_File')])
             {
                 RunPowershellCommand (".\\Utilities\\AddAzureRmAccountFromSecretsFile.ps1 -customSecretsFilePath '${Azure_Secrets_File}';" +
-                ".\\JenkinsPipelines\\Scripts\\InspectCustomKernel.ps1 -RemoteFolder 'J:\\ReceivedFiles' -LocalFolder '.'" 
+                ".\\JenkinsPipelines\\Scripts\\InspectCustomKernel.ps1 -RemoteFolder 'J:\\ReceivedFiles' -LocalFolder '.'"
                 )
                 KernelFile = readFile 'CustomKernel.azure.env'
                 stash includes: KernelFile, name: 'CustomKernelStash'
@@ -434,17 +441,25 @@ stage('Copy VHD to other regions')
 
 stage("TestByTestname")
 {
-    ExecuteTest ( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, CustomVHD, CustomVHDURL, Kernel, CustomKernelFile, CustomKernelURL, StorageAccount, GitUrlForAutomation, GitBranchForAutomation, TestByTestname, null, null, null, Email, debug )
+    ExecuteTest ( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, CustomVHD, CustomVHDURL, Kernel,
+        CustomKernelFile, CustomKernelURL, StorageAccount, DiskType, GitUrlForAutomation, GitBranchForAutomation,
+        TestByTestname, null, null, null, Email, debug, TiPCluster, TipSessionId )
 }
 stage("TestByCategorisedTestname")
 {
-    ExecuteTest ( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, CustomVHD, CustomVHDURL, Kernel, CustomKernelFile, CustomKernelURL, StorageAccount, GitUrlForAutomation, GitBranchForAutomation, null, TestByCategorisedTestname, null, null, Email, debug )
+    ExecuteTest ( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, CustomVHD, CustomVHDURL, Kernel,
+        CustomKernelFile, CustomKernelURL, StorageAccount, DiskType, GitUrlForAutomation, GitBranchForAutomation,
+        null, TestByCategorisedTestname, null, null, Email, debug, TiPCluster, TipSessionId )
 }
 stage("TestByCategory")
 {
-    ExecuteTest ( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, CustomVHD, CustomVHDURL, Kernel, CustomKernelFile, CustomKernelURL, StorageAccount, GitUrlForAutomation, GitBranchForAutomation, null, null, TestByCategory, null, Email, debug )
+    ExecuteTest ( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, CustomVHD, CustomVHDURL, Kernel,
+        CustomKernelFile, CustomKernelURL, StorageAccount, DiskType, GitUrlForAutomation, GitBranchForAutomation,
+        null, null, TestByCategory, null, Email, debug, TiPCluster, TipSessionId )
 }
 stage("TestByTag")
 {
-    ExecuteTest ( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, CustomVHD, CustomVHDURL, Kernel, CustomKernelFile, CustomKernelURL, StorageAccount, GitUrlForAutomation, GitBranchForAutomation, null, null, null, TestByTag, Email, debug )
+    ExecuteTest ( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, CustomVHD, CustomVHDURL, Kernel,
+        CustomKernelFile, CustomKernelURL, StorageAccount, DiskType, GitUrlForAutomation, GitBranchForAutomation,
+        null, null, null, TestByTag, Email, debug, TiPCluster, TipSessionId )
 }
