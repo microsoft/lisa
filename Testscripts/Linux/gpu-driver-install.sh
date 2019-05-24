@@ -51,6 +51,16 @@ function InstallRequirements() {
     ubuntu*)
         apt -y install build-essential libelf-dev linux-tools-"$(uname -r)" linux-cloud-tools-"$(uname -r)"
     ;;
+
+    suse_15*)
+        kernel=$(uname -r)
+        if [[ "${kernel}" == *azure ]];
+        then
+            zypper install -y kernel-devel-azure
+        else
+            zypper install -y kernel-default-devel
+        fi
+    ;;
 esac
 }
 
