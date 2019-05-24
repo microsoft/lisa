@@ -75,8 +75,11 @@ function Get-Iperf3PerformanceResults {
         $currentIperfResultObject["tx_throughput_gbps"] = $TxThroughput_Gbps
         $currentIperfResultObject["congestion_windowsize_kb"] = $CongestionWindowSize_KB
         $currentIperfResultObject["retransmitted_segments"] = $RetransmittedSegments
+        $iperfResults = "tx_throughput=$TxThroughput_Gbps`Gbps rx_throughput=$RxThroughput_Gbps`Gbps retransmitted_segments=$RetransmittedSegments congestion_windowsize_kb=$CongestionWindowSize_KB"
 
         $Iperf3Results += $currentIperfResultObject
+        $Metadata = "BufferLengths=$bufferLength"
+        $currentTestResult.TestSummary += New-ResultSummary -testResult $iperfResults -metaData $Metadata -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
     }
 
     return $Iperf3Results
@@ -138,6 +141,7 @@ function Main {
     param (
         $TestParams, $AllVmData
     )
+    $resultArr = @()
 
     try {
 
@@ -273,15 +277,17 @@ collect_VM_properties
         $line = $_.InvocationInfo.ScriptLineNumber
         $script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
         $ErrorMessage = $_.Exception.Message
-        Write-LogInfo "EXCEPTION: $ErrorMessage"
-        Write-LogInfo "Source: Line $line in script $script_name."
+        Write-LogErr "EXCEPTION: $ErrorMessage"
+        Write-LogErr "Source: Line $line in script $script_name."
     } finally {
         if (!$testResult) {
             $testResult = "Aborted"
         }
+        $resultArr += $testResult
     }
 
-    return $testResult
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
+    return $currentTestResult
 }
 
 Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n")) -AllVmData $AllVmData
