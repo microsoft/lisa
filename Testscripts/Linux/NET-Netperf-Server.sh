@@ -30,6 +30,10 @@ if [ "${STATIC_IP2:-UNDEFINED}" = "UNDEFINED" ]; then
     exit 1
 fi
 
+# Install the dependencies
+update_repos
+install_package "wget make gcc"
+
 #Download NETPERF
 wget https://github.com/HewlettPackard/netperf/archive/netperf-2.7.0.tar.gz > /dev/null 2>&1
 if [ $? -ne 0 ]; then
@@ -150,7 +154,6 @@ suse_12)
         iptables -t nat -F
     fi;;
 esac
-
 ./configure > /dev/null 2>&1
 if [ $? -ne 0 ]; then
     LogMsg "Unable to configure make file for netperf."

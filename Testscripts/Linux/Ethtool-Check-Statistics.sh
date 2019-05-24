@@ -13,9 +13,12 @@
 #       5. Check if results are as expected.
 #############################################################################
 remote_user="root"
+remote_user_home="/root"
 
 SendFile(){
     # Download netperf 2.7.0
+    homeDir="/home/${SUDO_USER}"
+    cd ${homeDir}
     wget https://github.com/HewlettPackard/netperf/archive/netperf-2.7.0.tar.gz > /dev/null 2>&1
     if [ $? -ne 0 ]; then
         LogErr "Unable to download netperf."
@@ -25,7 +28,6 @@ SendFile(){
 
     # Get the root directory of the tarball
     downloadDir="/netperf-netperf-2.7.0"
-    homeDir="/home/${SUDO_USER}"
     rootDir="${homeDir}/$downloadDir"
     cd ${rootDir}
 
@@ -137,7 +139,6 @@ SendFile(){
             iptables -t nat -F
         fi;;
     esac
-
     ./configure > /dev/null 2>&1
     if [ $? -ne 0 ]; then
         LogErr "Unable to configure make file for netperf."
@@ -157,18 +158,23 @@ SendFile(){
     fi
 
     LogMsg "Copy files to dependency vm: ${STATIC_IP2}"
-    scp -i "$homeDir"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no ~/NET-Netperf-Server.sh ${remote_user}@[${STATIC_IP2}]: > /dev/null 2>&1
+    scp -i "$homeDir"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no ${homeDir}/NET-Netperf-Server.sh \
+        ${remote_user}@[${STATIC_IP2}]: > /dev/null 2>&1
     if [ $? -ne 0 ]; then
         LogErr "Unable to copy test scripts to dependency VM: ${STATIC_IP2}. scp command failed."
         return 1
     fi
-    scp -i "$homeDir"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no ~/constants.sh ${remote_user}@[${STATIC_IP2}]: > /dev/null 2>&1
-    scp -i "$homeDir"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no ~/net_constants.sh ${remote_user}@[${STATIC_IP2}]: > /dev/null 2>&1
-    scp -i "$homeDir"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no ~/utils.sh ${remote_user}@[${STATIC_IP2}]: > /dev/null 2>&1
+    scp -i "$homeDir"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no ${homeDir}/constants.sh \
+        ${remote_user}@[${STATIC_IP2}]: > /dev/null 2>&1
+    scp -i "$homeDir"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no ${homeDir}/net_constants.sh \
+        ${remote_user}@[${STATIC_IP2}]: > /dev/null 2>&1
+    scp -i "$homeDir"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no ${homeDir}/utils.sh \
+        ${remote_user}@[${STATIC_IP2}]: > /dev/null 2>&1
 
     #Start netperf in server mode on the dependency vm
     LogMsg "Starting netperf in server mode on ${STATIC_IP2}"
-    ssh -i "$homeDir"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no ${remote_user}@${STATIC_IP2} "echo '~/NET-Netperf-Server.sh > netperf_ServerScript.log' | at now" > /dev/null 2>&1
+    ssh -i "$homeDir"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no ${remote_user}@${STATIC_IP2} \
+        "echo '${remote_user_home}/NET-Netperf-Server.sh > netperf_ServerScript.log' | at now" > /dev/null 2>&1
     if [ $? -ne 0 ]; then
         LogErr "Unable to start netperf server script on the dependency vm."
         return 1
@@ -179,10 +185,11 @@ SendFile(){
     server_state_file=serverstate.txt
     while [ $wait_for_server -gt 0 ]; do
         # Try to copy and understand server state
-        scp -i "$homeDir"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no ${remote_user}@[${STATIC_IP2}]:~/state.txt ~/${server_state_file} > /dev/null 2>&1
+        scp -i "$homeDir"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no \
+        ${remote_user}@[${STATIC_IP2}]:${remote_user_home}/state.txt ${homeDir}/${server_state_file} > /dev/null 2>&1
 
-        if [ -f ~/${server_state_file} ]; then
-            server_state=$(head -n 1 ~/${server_state_file})
+        if [ -f ${homeDir}/${server_state_file} ]; then
+            server_state=$(head -n 1 ${homeDir}/${server_state_file})
             if [ "$server_state" == "netperfRunning" ]; then
                 break
             elif [[ "$server_state" == "TestFailed" || "$server_state" == "TestAborted" ]]; then
@@ -292,6 +299,10 @@ else
     iface_ignore=$(ip -o addr show| grep "$ipv4" | cut -d ' ' -f2)
 fi
 
+# Install the dependencies
+update_repos
+install_package "wget make gcc"
+
 # Retrieve synthetic network interfaces
 GetSynthNetInterfaces
 if [ 0 -ne $? ]; then
@@ -342,7 +353,7 @@ if [[ $sts = *"no stats available"* ]]; then
 fi
 
 # Make all bash scripts executable
-cd ~
+cd ${homeDir}
 
 #Start the first test on tx_send_full param with TCP_SENDFILE netperf
 #Get the started value of 'tx_send_full' param from statistics if exist and if not skip the test.
@@ -367,7 +378,8 @@ else
 fi
 
 # Get logs from dependency vm
-scp -i "$homeDir"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no -r ${remote_user}@[${STATIC_IP2}]:~/netperf_ServerScript.log ~/netperf_ServerScript.log 
+scp -i "$homeDir"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no -r \
+${remote_user}@[${STATIC_IP2}]:${remote_user_home}/netperf_ServerScript.log ${homeDir}/netperf_ServerScript.log
 
 # Shutdown dependency VM
 ssh -i "$homeDir"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no ${remote_user}@${STATIC_IP2} "init 0"
