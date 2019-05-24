@@ -19,9 +19,36 @@
 # Source constants file and initialize most common variables
 UtilsInit
 
+# check if lsvmbus exists
+lsvmbus_path=$(which lsvmbus)
+if [ -z "$lsvmbus_path" ]; then
+    install_package wget
+    wget https://raw.githubusercontent.com/torvalds/linux/master/tools/hv/lsvmbus
+    chmod +x lsvmbus
+    if [[ "$DISTRO" =~ "coreos" ]]; then
+        export PATH=$PATH:/usr/share/oem/python/bin/
+        lsvmbus_path="./lsvmbus"
+    else
+        mv lsvmbus /usr/sbin
+        lsvmbus_path=$(which lsvmbus)
+    fi
+fi
+
+if [ -z "$lsvmbus_path" ]; then
+    LogErr "lsvmbus tool not found!"
+    SetTestStateFailed
+    exit 0
+fi
+
 
 # Get the system path to the Heartbeat device on the VMBus
 sys_path=$(lsvmbus -vv | grep -A4 Heartbeat | grep path | awk '{ print $3 }')
+
+if [[ ! -d "$sys_path" ]] || [[ "$sys_path" != "/sys/bus/vmbus/devices/"* ]]; then
+    LogErr "Heartbeat device system path [$sys_path] does not exist or is not in the vmbus subsystem."
+    SetTestStateFailed
+    exit 0
+fi
 
 SetTestStateRunning
 
