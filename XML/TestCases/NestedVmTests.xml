@@ -121,7 +121,7 @@
             <param>NestedMemMB=8192</param>
             <param>HostFwdPort=60022</param>
             <!--The raid option allowed values: 'No RAID','RAID in L1','RAID in L2'-->
-            <param>RaidOption='RAID_OPTION'</param>
+            <param>RaidOption=NESTED_RAID_OPTION</param>
             <param>modes=NESTED-PERF-STORAGE-IO-MODES</param>
             <param>startThread=1</param>
             <param>maxThread=1024</param>
@@ -154,7 +154,7 @@
             <param>NestedMemMB=8192</param>
             <param>HostFwdPort=60022</param>
             <!--The raid option allowed values: 'No RAID','RAID in L1','RAID in L2'-->
-            <param>RaidOption='RAID_OPTION'</param>
+            <param>RaidOption=NESTED_RAID_OPTION</param>
             <param>modes=NESTED-PERF-STORAGE-IO-MODES</param>
             <param>startThread=1</param>
             <param>maxThread=1024</param>
