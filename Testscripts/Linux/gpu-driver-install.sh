@@ -20,7 +20,12 @@
 #       The driver type is injected in the constants.sh file, in this format:
 #       driver="CUDA" or driver="GRID"
 #
+#   Please check the below URL for any new versions of the GRID driver:
+#   https://docs.microsoft.com/en-us/azure/virtual-machines/linux/n-series-driver-setup
+#
 ########################################################################
+
+grid_driver="https://go.microsoft.com/fwlink/?linkid=874272"
 
 #######################################################################
 #
@@ -110,11 +115,11 @@ function InstallCUDADrivers() {
             return 1
         fi
     ;;
-esac
+    esac
 }
 
 function InstallGRIDdrivers() {
-    wget https://go.microsoft.com/fwlink/?linkid=874272 -O /tmp/NVIDIA-Linux-x86_64-grid.run
+    wget "$grid_driver" -O /tmp/NVIDIA-Linux-x86_64-grid.run
     if [ $? -ne 0 ]; then
         LogErr "Failed to download the GRID driver!"
         SetTestStateAborted
@@ -155,10 +160,10 @@ UtilsInit
 
 GetDistro
 update_repos
-install_package wget lshw gcc
+install_package "wget lshw gcc"
 
 InstallRequirements
-check_exit_status "Install requirements" "exit"
+check_exit_status "Install requirements"
 
 if [ "$driver" == "CUDA" ]; then
     InstallCUDADrivers
