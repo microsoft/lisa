@@ -224,9 +224,10 @@ function InstallKernel() {
         echo "deb http://archive.ubuntu.com/ubuntu/ ${release}-proposed restricted main multiverse universe" >> /etc/apt/sources.list
         rm -rf /etc/apt/preferences.d/proposed-updates
         LogMsg "Installing linux-azure kernel from $release proposed repository."
-        apt clean all
-        apt -y update >> $LOG_FILE 2>&1
-        apt install -yq linux-azure/"$release" >> $LOG_FILE 2>&1
+        apt-get clean all
+        apt-get -y update >> $LOG_FILE 2>&1
+        CheckInstallLockUbuntu
+        apt-get install -yq linux-azure/"$release" >> $LOG_FILE 2>&1
         kernelInstallStatus=$?
         if [ $kernelInstallStatus -ne 0 ]; then
             LogMsg "CUSTOM_KERNEL_FAIL"
@@ -242,9 +243,10 @@ function InstallKernel() {
         echo "deb http://archive.ubuntu.com/ubuntu/ ${release}-proposed restricted main multiverse universe" >> /etc/apt/sources.list
         rm -rf /etc/apt/preferences.d/proposed-updates
         LogMsg "Installing linux-azure-edge kernel from $release proposed repository."
-        apt clean all
-        apt -y update >> $LOG_FILE 2>&1
-        apt install -yq linux-azure-edge/"$release" >> $LOG_FILE 2>&1
+        apt-get clean all
+        apt-get -y update >> $LOG_FILE 2>&1
+        CheckInstallLockUbuntu
+        apt-get install -yq linux-azure-edge/"$release" >> $LOG_FILE 2>&1
         kernelInstallStatus=$?
         if [ $kernelInstallStatus -ne 0 ]; then
             LogMsg "CUSTOM_KERNEL_FAIL"
