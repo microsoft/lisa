@@ -718,6 +718,9 @@
         <testScript>VM-HOT-RESIZE.ps1</testScript>
         <setupType>OneVM</setupType>
         <OverrideVMSize>Standard_A4</OverrideVMSize>
+        <TestParameters>
+            <param>TestMode="VM_HOT_RESIZE_TEST_MODE"</param>
+        </TestParameters>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>CORE</Area>
