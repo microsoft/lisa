@@ -24,19 +24,23 @@ excluded_tests="generic/430 generic/431 generic/434 /xfs/438 xfs/490 btrfs/007 b
 UtilsInit
 
 ConfigureXFSTestTools() {
-    GetDistro
     case "$DISTRO" in
         ubuntu*|debian*)
             until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done
-            pack_list="libacl1-dev libaio-dev libattr1-dev libgdbm-dev libtool-bin libuuid1 libuuidm-ocaml-dev sqlite3 uuid-dev uuid-runtime xfslibs-dev zlib1g-dev"
+            pack_list=(libacl1-dev libaio-dev libattr1-dev libgdbm-dev libtool-bin libuuid1 libuuidm-ocaml-dev sqlite3 uuid-dev uuid-runtime xfslibs-dev zlib1g-dev)
         ;;
 
         redhat*|centos*|fedora*)
-            pack_list="btrfs-progs-devel libacl-devel libaio-devel libattr-devel libuuid-devel llvm-ocaml-devel sqlite uuid-devel xfsdump xfsprogs-devel xfsprogs-qa-devel zlib-devel"
+            pack_list=(libacl-devel libaio-devel libattr-devel libuuid-devel sqlite uuid-devel xfsdump xfsprogs-devel xfsprogs-qa-devel zlib-devel)
+            if [[ $DISTRO != "redhat_8" ]]; then
+                pack_list+=(btrfs-progs-devel llvm-ocaml-devel)
+            else
+                which python || ln -s /usr/libexec/platform-python /sbin/python
+            fi
         ;;
 
         suse*|sles*)
-            pack_list="btrfsprogs libacl-devel libaio-devel libattr-devel libuuid-devel sqlite xfsdump xfsprogs-devel zlib-devel"
+            pack_list=(btrfsprogs libacl-devel libaio-devel libattr-devel libuuid-devel sqlite xfsdump xfsprogs-devel zlib-devel)
         ;;
         *)
             LogErr "OS Version not supported in InstallDependencies!"
@@ -47,9 +51,12 @@ ConfigureXFSTestTools() {
     # Install common & specific dependencies
     update_repos
     install_fio
-    install_package "acl attr automake bc dos2unix dump e2fsprogs gawk gcc git indent libtool lvm2 make parted python quota sed xfsdump xfsprogs"
+    pack_list+=(acl attr automake bc dos2unix dump e2fsprogs gawk gcc git libtool lvm2 make parted quota sed xfsdump xfsprogs)
+    if [[ $DISTRO != "redhat_8" ]]; then
+        pack_list+=(indent python)
+    fi
+    install_package ${pack_list[@]}
     install_nvme_cli
-    install_package $pack_list
     LogMsg "Packages installation complete."
     # Install dbench
     git clone $dbench_git_url $dbench_folder
@@ -120,6 +127,13 @@ Main() {
         LogMsg "${XFSTestConfigFile} file is present."
     else
         LogErr "missing ${XFSTestConfigFile} file"
+        exit 0
+    fi
+    GetDistro
+    #Refer https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8/html/considerations_in_adopting_rhel_8/file-systems-and-storage_considerations-in-adopting-rhel-8
+    if [ $DISTRO == "redhat_8" ] && [ $FSTYP == "btrfs" ]; then
+        LogMsg "${DISTRO} doesn't support $FSTYP filesystem."
+        SetTestStateSkipped
         exit 0
     fi
     # Configure XFS Tools
