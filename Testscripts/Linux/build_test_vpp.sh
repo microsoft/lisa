@@ -79,26 +79,29 @@ function build_test_vpp () {
 
 	# VPP 18.10 or higher is supported for Azure
 	# VPP 19.04 or higher supports 18.11 or 19.02 dpdkVersion
+	# VPP 19.01 supports 18.08 or 18.11 dpdkVersion
 	# VPP 18.10 supports 18.05 or 18.08 dpdkVersion
-	ssh "${1}" "cd ${VPP_DIR} && make pkg-${package_type} DPDK_VERSION=${dpdkVersion} vpp_uses_dpdk_mlx4_pmd=yes vpp_uses_dpdk_mlx5_pmd=yes DPDK_MLX4_PMD=y DPDK_FAILSAFE_PMD=y DPDK_TAP_PMD=y DPDK_MLX5_PMD=y DPDK_MLX5_PMD_DLOPEN_DEPS=y"
-	check_exit_status "make -j pkg-{package_type} DPDK_MLX5_PMD=y DPDK_MLX4_PMD=y DPDK_FAILSAFE_PMD=y DPDK_TAP_PMD=y DPDK_MLX5_PMD_DLOPEN_DEPS=y on ${1}" "exit"
+	ssh "${1}" "cd ${VPP_DIR} && make pkg-${package_type} DPDK_VERSION=${dpdkVersion} vpp_uses_dpdk_mlx4_pmd=yes vpp_uses_dpdk_mlx5_pmd=yes DPDK_MLX4_PMD=y DPDK_MLX5_PMD=y DPDK_MLX5_PMD_DLOPEN_DEPS=y"
+	check_exit_status "make -j pkg-{package_type} DPDK_MLX5_PMD=y DPDK_MLX4_PMD=y DPDK_MLX5_PMD_DLOPEN_DEPS=y on ${1}" "exit"
 
 	ssh "${1}" "cd ${VPP_DIR} && ${package_manager} ${package_manager_install_flags} build-root/vpp-sel*.${package_type}"
 	ssh "${1}" "cd ${VPP_DIR} && ${package_manager} ${package_manager_install_flags} build-root/vpp-lib*.${package_type}"
-	ssh "${1}" "cd ${VPP_DIR} && ${package_manager} ${package_manager_install_flags} build-root/vpp-17*.${package_type}"
 	ssh "${1}" "cd ${VPP_DIR} && ${package_manager} ${package_manager_install_flags} build-root/vpp-18*.${package_type}"
 	ssh "${1}" "cd ${VPP_DIR} && ${package_manager} ${package_manager_install_flags} build-root/vpp-19*.${package_type}"
 	ssh "${1}" "cd ${VPP_DIR} && ${package_manager} ${package_manager_install_flags} build-root/vpp_*.${package_type}"
 	ssh "${1}" "cd ${VPP_DIR} && ${package_manager} ${package_manager_install_flags} build-root/vpp-plug*.${package_type}"
 	check_exit_status "${package_manager} install packages on ${1}" "exit"
 
+	ssh "${1}" "modprobe uio_hv_generic"
+	check_exit_status "modprobe uio_hv_generic on ${1}" "exit"
+
 	pci_whitelist=$(get_synthetic_vf_pairs | sed "s/.* /dev /g")
 
-	# Flush network interfaces
+	# Put down network interfaces, so that they can be bound to uio_hv_generic
 	nics=$(get_synthetic_vf_pairs | awk '{print $1}')
 	for nic in $nics
 	do
-		ip addr flush "${nic}"
+		ip link set dev "${nic}" down
 	done
 
 	vpp_conf_file="/etc/vpp/startup.conf"
@@ -107,8 +110,8 @@ function build_test_vpp () {
 	# Wait for VPP process to initialize
 	sleep 10
 
-	# VPP Azure interfaces show as failsafe interfaces
-	vpp_hardware=$(ssh "${1}" vppctl show int | grep -iv 'local' | grep -i 'failsafe')
+	# VPP Azure interfaces show as fortygigabit interfaces
+	vpp_hardware=$(ssh "${1}" vppctl show int | grep -iv 'local' | grep -i 'fortygigabit')
 	if [[ "${vpp_hardware}" != "" ]]; then
 		LogMsg "VPP interfaces found: ${vpp_hardware[@]}"
 		SetTestStateCompleted
