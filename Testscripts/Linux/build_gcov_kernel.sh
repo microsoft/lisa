@@ -19,11 +19,16 @@ function report_error {
     report_result "NO_CONSTANTS"
 }
 
+. utils.sh || {
+    report_result "NO_UTILS"
+}
+
 set -x
 
 function install_ubuntu_deps {
-    apt -y update
-    DEBIAN_FRONTEND=noninteractive apt install -y build-essential flex bison kernel-package libncurses-dev libelf-dev libssl-dev bzip2 git
+    apt-get -y update
+    CheckInstallLockUbuntu
+    DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential flex bison kernel-package libncurses-dev libelf-dev libssl-dev bzip2 git
     report_error $? "INSTALL_DEPS_ERROR"
 }
 
