@@ -97,13 +97,13 @@ function Install_Dpdk_Dependencies() {
 	if [[ "${distro}" == ubuntu* ]]; then
 		apt_packages="librdmacm-dev librdmacm1 build-essential libnuma-dev libmnl-dev libelf-dev dpkg-dev"
 		if [[ "${distro}" == "ubuntu16.04" ]]; then
-			ssh ${install_ip} "add-apt-repository ppa:canonical-server/dpdk-azure -y"
+			ssh ${install_ip} ". utils.sh && CheckInstallLockUbuntu && add-apt-repository ppa:canonical-server/dpdk-azure -y"
 		else
 			apt_packages="${apt_packages} rdma-core"
 		fi
 
-		ssh ${install_ip} "apt-get update"
-		ssh ${install_ip} "apt-get install -y ${apt_packages}"
+		ssh ${install_ip} ". utils.sh && CheckInstallLockUbuntu && apt-get update"
+		ssh ${install_ip} ". utils.sh && CheckInstallLockUbuntu && apt-get install -y ${apt_packages}"
 
 	elif [[ "${distro}" == rhel7* || "${distro}" == centos7* ]]; then
 		ssh ${install_ip} "yum -y --nogpgcheck groupinstall 'Infiniband Support'"
