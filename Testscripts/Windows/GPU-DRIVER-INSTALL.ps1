@@ -228,7 +228,7 @@ function Main {
 
         # Copy the dkms build log for the nvidia driver
         Copy-RemoteFiles -download -downloadFrom $allVMData.PublicIP -files "nvidia_dkms_make.log" `
-            -downloadTo $LogDir -port $allVMData.SSHPort -username $user -password $password
+            -downloadTo $LogDir -port $allVMData.SSHPort -username $superuser -password $password
 
         Write-LogInfo "Test Completed."
         Write-LogInfo "Test Result: $testResult"
