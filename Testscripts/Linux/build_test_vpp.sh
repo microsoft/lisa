@@ -58,7 +58,7 @@ function build_test_vpp () {
 			SetTestStateSkipped
 			exit 1
 	esac
-	ssh "${1}" ". ${UTIL_FILE} && install_package ${packages[@]}"
+	ssh "${1}" ". ${UTIL_FILE} && CheckInstallLockUbuntu && install_package ${packages[@]}"
 
 	if [[ $vppSrcLink =~ ".git" ]] || [[ $vppSrcLink =~ "git:" ]];
 	then
@@ -71,7 +71,7 @@ function build_test_vpp () {
 
 	# Build VPP using its own DPDK
 	ssh "${1}" "cd ${VPP_DIR} && sed -i '/[^#]/ s/\(^.*centos-release-scl-rh.*$\)/#\ \1/' Makefile"
-	ssh "${1}" "cd ${VPP_DIR} && UNATTENDED=y make install-dep"
+	ssh "${1}" ". ${UTIL_FILE} && cd ${VPP_DIR} && CheckInstallLockUbuntu && UNATTENDED=y make install-dep"
 	check_exit_status "Installed dependencies on ${1}" "exit"
 
 	ssh "${1}" "cd ${VPP_DIR} && sed -i '/vpp_uses_dpdk_mlx5_pmd/s/^# //g' build-data/platforms/vpp.mk"
@@ -84,12 +84,13 @@ function build_test_vpp () {
 	ssh "${1}" "cd ${VPP_DIR} && make pkg-${package_type} DPDK_VERSION=${dpdkVersion} vpp_uses_dpdk_mlx4_pmd=yes vpp_uses_dpdk_mlx5_pmd=yes DPDK_MLX4_PMD=y DPDK_MLX5_PMD=y DPDK_MLX5_PMD_DLOPEN_DEPS=y"
 	check_exit_status "make -j pkg-{package_type} DPDK_MLX5_PMD=y DPDK_MLX4_PMD=y DPDK_MLX5_PMD_DLOPEN_DEPS=y on ${1}" "exit"
 
-	ssh "${1}" "cd ${VPP_DIR} && ${package_manager} ${package_manager_install_flags} build-root/vpp-sel*.${package_type}"
-	ssh "${1}" "cd ${VPP_DIR} && ${package_manager} ${package_manager_install_flags} build-root/vpp-lib*.${package_type}"
-	ssh "${1}" "cd ${VPP_DIR} && ${package_manager} ${package_manager_install_flags} build-root/vpp-18*.${package_type}"
-	ssh "${1}" "cd ${VPP_DIR} && ${package_manager} ${package_manager_install_flags} build-root/vpp-19*.${package_type}"
-	ssh "${1}" "cd ${VPP_DIR} && ${package_manager} ${package_manager_install_flags} build-root/vpp_*.${package_type}"
-	ssh "${1}" "cd ${VPP_DIR} && ${package_manager} ${package_manager_install_flags} build-root/vpp-plug*.${package_type}"
+	prepare_install_command=". ${UTIL_FILE} && CheckInstallLockUbuntu && cd ${VPP_DIR} && ${package_manager} ${package_manager_install_flags}"
+	ssh "${1}" "${prepare_install_command} build-root/vpp-sel*.${package_type}"
+	ssh "${1}" "${prepare_install_command} build-root/vpp-lib*.${package_type}"
+	ssh "${1}" "${prepare_install_command} build-root/vpp-18*.${package_type}"
+	ssh "${1}" "${prepare_install_command} build-root/vpp-19*.${package_type}"
+	ssh "${1}" "${prepare_install_command} build-root/vpp_*.${package_type}"
+	ssh "${1}" "${prepare_install_command} build-root/vpp-plug*.${package_type}"
 	check_exit_status "${package_manager} install packages on ${1}" "exit"
 
 	ssh "${1}" "modprobe uio_hv_generic"
