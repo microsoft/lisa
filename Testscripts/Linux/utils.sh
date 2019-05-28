@@ -3557,3 +3557,13 @@ function install_nvme_cli()
     which nvme
     check_exit_status "install_nvme"
 }
+
+function CheckInstallLockUbuntu() {
+    if pidof dpkg;then
+        LogMsg "Another install is in progress. Waiting 10 seconds."
+        sleep 10
+        CheckInstallLockUbuntu
+    else
+        LogMsg "No lock on dpkg present."
+    fi
+}

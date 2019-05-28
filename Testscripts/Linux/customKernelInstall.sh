@@ -62,16 +62,6 @@ function LogMsg() {
     echo "${1}" >> $LOG_FILE
 }
 
-function CheckInstallLockUbuntu() {
-    if pidof dpkg;then
-        LogMsg "Another install is in progress. Waiting 10 seconds."
-        sleep 10
-        CheckInstallLockUbuntu
-    else
-        LogMsg "No lock on dpkg present."
-    fi
-}
-
 function Install_Build_Deps {
     #
     # Installing packages required for the build process
