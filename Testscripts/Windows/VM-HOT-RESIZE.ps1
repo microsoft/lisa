@@ -20,8 +20,28 @@ function Main {
 
         $loadBalanceName = (Get-AzureRmLoadBalancer -ResourceGroupName $AllVMData.ResourceGroupName).Name
         $VirtualMachine = Get-AzureRmVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName
-        for ( $i = 0; $i -le 30; $i++ ) {
+        foreach ($param in $currentTestData.TestParameters.param) {
+            if ($param -match "TestMode") {
+                $testMode = $param.Replace("TestMode=","").Replace('"',"")
+            }
+        }
+        if ($testMode -eq "economy") {
+            Write-LogInfo "The test mode is economy mode"
+            $totalTestTimes = 10
+        } else {
+            $totalTestTimes = (Get-AzureRmVMSize -Location $AllVMData.Location).Length
+        }
+
+        for ($i = 0; $i -le $totalTestTimes; $i++) {
             $vmSizes = (Get-AzureRmVMSize -ResourceGroupName $AllVMData.ResourceGroupName -VMName $AllVMData.RoleName).Name
+            # For economy mode, select a size by random in order to cover as many different serial sizes as possible
+            if ($testMode -eq "economy") {
+                $vmSizes = $vmSizes | Get-Random -Count 1
+                if ($loadBalanceName -and ($vmSizes -like "Basic*")) {
+                    continue
+                }
+            }
+
             Write-LogInfo "The VM can be resized to the following sizes: $vmSizes"
             foreach ($vmSize in $vmSizes) {
                 # Load balancing is not supported for Basic VM sizes.
@@ -33,7 +53,7 @@ function Main {
                 }
             }
             if ($vmSize -in $testedVMSizes) {
-                break
+                continue
             }
             $testedVMSizes += $vmSize
 
@@ -88,6 +108,7 @@ function Main {
 
         # Resize the VM with an unsupported size in the current hardware cluster
         $allVMSize = (Get-AzureRmVMSize -Location $AllVMData.Location).Name
+        $vmSizes = (Get-AzureRmVMSize -ResourceGroupName $AllVMData.ResourceGroupName -VMName $AllVMData.RoleName).Name
         foreach ($vmSize in $allVMSize) {
             if (!($vmSize -in $vmSizes)) {
                 Write-LogInfo "--------------------------------------------------------"
