@@ -111,6 +111,8 @@ function Main {
         Write-LogErr "Error: Unable to start $($allVMData.RoleName) and get an IPv4 address"
         return $false
     }
+    # Update the global public IP, otherwise, the collecting logs will fail if the IP is changed
+    $AllVMData.PublicIP = $tempIpv4
 
     # Create a file, platform.txt for the test script to know if it runs
     # on Azure or Hyper-V
