@@ -2684,7 +2684,7 @@ function install_ntttcp () {
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos)
 			install_epel
-			yum -y --nogpgcheck install wget libaio sysstat git bc make gcc dstat psmisc
+			yum -y --nogpgcheck install wget libaio sysstat git bc make gcc dstat psmisc lshw
 			build_ntttcp "${1}"
 			build_lagscope
 			iptables -F
@@ -2692,7 +2692,7 @@ function install_ntttcp () {
 
 		ubuntu|debian)
 			dpkg_configure
-			apt-get -y install wget libaio1 sysstat git bc make gcc dstat psmisc
+			apt-get -y install wget libaio1 sysstat git bc make gcc dstat psmisc lshw
 			build_ntttcp "${1}"
 			build_lagscope
 			;;
@@ -2700,7 +2700,7 @@ function install_ntttcp () {
 		sles)
 			if [[ $DISTRO_VERSION =~ 12|15 ]]; then
 				add_sles_network_utilities_repo
-				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install wget sysstat git bc make gcc dstat psmisc
+				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install wget sysstat git bc make gcc dstat psmisc lshw
 				build_ntttcp "${1}"
 				build_lagscope
 				iptables -F
