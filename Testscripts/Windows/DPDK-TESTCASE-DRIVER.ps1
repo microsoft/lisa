@@ -320,11 +320,11 @@ collect_VM_properties
 			}
 		}
 		Write-LogInfo "Test result : $testResult"
-		$perfData = $testDataCsv | Format-Table | Out-String
+		$perfData = ($testDataCsv | Format-Table | Out-String).Trim()
 		Write-LogInfo $perfData
 		if ($perfData) {
-			$currentTestResult.TestSummary +=  New-ResultSummary -testResult $perfData `
-				-metaData "Performance report" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+			$currentTestResult.TestSummary +=  (New-ResultSummary -testResult $perfData `
+				-checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName).Trim()
 		}
 	}
 	catch {
