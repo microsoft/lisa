@@ -116,6 +116,8 @@ function InstallCUDADrivers() {
         fi
     ;;
     esac
+
+    cp /var/lib/dkms/nvidia/*/build/make.log ${HOME}/nvidia_dkms_make.log
 }
 
 function InstallGRIDdrivers() {
