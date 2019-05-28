@@ -205,6 +205,21 @@ Get_packets()
 	echo "$packets"
 }
 
+Get_VFName()
+{
+	ntttcpVersion="${1}"
+	ip="${2}"
+	ntttcp_cmd="${3}"
+	# The -K and -I options are supported if the ntttcp version is greater than v1.3.5, or equal to v1.3.5 or master
+	if [ $ntttcpVersion ] && ( [ $ntttcpVersion \> "v1.3.5" ] || [ $ntttcpVersion == "v1.3.5" ] || [ $ntttcpVersion == "master" ] ); then
+		vf_interface=$(ssh "$ip" lshw -c network -businfo | grep -i "Virtual Function" | awk '{print $2}')
+		if [ $vf_interface ]; then
+			ntttcp_cmd="$ntttcp_cmd -K $vf_interface -I mlx4"
+		fi
+	fi
+	echo "$ntttcp_cmd"
+}
+
 Run_Ntttcp()
 {
 	i=0
@@ -272,19 +287,8 @@ Run_Ntttcp()
 			Run_SSHCommand "${server}" "for i in {1..$testDuration}; do ss -ta | grep ESTA | grep -v ssh | wc -l >> ./$log_folder/tcp-connections-p${num_threads_P}X${num_threads_n}.log; sleep 1; done" &
 		fi
 
-		# The -K and -I options are supported if the ntttcp version is greater than v1.3.5, or equal to v1.3.5 or master
-		support_ki=false
-		if [ $ntttcpVersion ] && ( [ $ntttcpVersion \> "v1.3.5" ] || [ $ntttcpVersion == "v1.3.5" ] || [ $ntttcpVersion == "master" ] ); then
-			support_ki=true
-		fi
 
-		if [[ $support_ki == true ]]; then
-			vf_interface=$(ssh "${server}" ls /sys/class/net/ | grep -v 'eth0\|eth1\|lo' | head -1)
-			if [ $vf_interface ]; then
-				LogMsg "The vf interface on ${server} is $vf_interface"
-				server_ntttcp_cmd="$server_ntttcp_cmd -K $vf_interface -I mlx"
-			fi
-		fi
+		server_ntttcp_cmd=$(Get_VFName "${ntttcpVersion}" "${server}" "${server_ntttcp_cmd}")
 
 		LogMsg "============================================="
 		LogMsg "${run_msg}"
@@ -327,38 +331,20 @@ Run_Ntttcp()
 			client_ntttcp_raw_cmd="$client_ntttcp_cmd"
 			for ip in "${array[@]:0:$index}"
 			do
-				if [[ $support_ki == true ]]; then
-					vf_interface=$(ssh "${ip}" ls /sys/class/net/ | grep -v 'eth0\|eth1\|lo' | head -1)
-					if [ $vf_interface ]; then
-						LogMsg "The vf interface on ${ip} is $vf_interface"
-						client_ntttcp_cmd="$client_ntttcp_raw_cmd -K $vf_interface -I mlx"
-					fi
-				fi
+				client_ntttcp_cmd=$(Get_VFName "${ntttcpVersion}" "${ip}" "${client_ntttcp_raw_cmd}")
 				LogMsg "Execute ${client_ntttcp_cmd} on ${ip}"
 				ssh "${ip}" "${client_ntttcp_cmd}" > "./${log_folder}/ntttcp-${ip}-${tx_log_prefix}" &
 				tx_ntttcp_log_files+=("./${log_folder}/ntttcp-${ip}-${tx_log_prefix}")
 				sleep 5
 			done
 
-			if [[ $support_ki == true ]]; then
-				vf_interface=$(ssh "${array[$(($index))]}" ls /sys/class/net/ | grep -v 'eth0\|eth1\|lo' | head -1)
-				if [ $vf_interface ]; then
-					LogMsg "The vf interface on ${array[$(($index))]} is $vf_interface"
-					client_ntttcp_cmd="$client_ntttcp_raw_cmd -K $vf_interface -I mlx"
-				fi
-			fi
+			client_ntttcp_cmd=$(Get_VFName "${ntttcpVersion}" "${array[$(($index))]}" "${client_ntttcp_raw_cmd}")
 			client_ntttcp_cmd+=" -L"
 			LogMsg "Execute ${client_ntttcp_cmd} on ${array[$(($index))]}"
 			ssh "${array[$(($index))]}" "${client_ntttcp_cmd}"  > "./${log_folder}/ntttcp-${array[$(($index))]}-${tx_log_prefix}"
 			tx_ntttcp_log_files+=("./${log_folder}/ntttcp-${array[$(($index))]}-${tx_log_prefix}")
 		else
-			if [[ $support_ki == true ]]; then
-				vf_interface=$(ssh "${client}" ls /sys/class/net/ | grep -v 'eth0\|eth1\|lo' | head -1)
-				if [ $vf_interface ]; then
-					LogMsg "The vf interface on ${client} is $vf_interface"
-					client_ntttcp_cmd="$client_ntttcp_cmd -K $vf_interface -I mlx"
-				fi
-			fi
+			client_ntttcp_cmd=$(Get_VFName "${ntttcpVersion}" "${client}" "${client_ntttcp_cmd}")
 			LogMsg "Execute ${client_ntttcp_cmd} on ${client}"
 			ssh "${client}" "${client_ntttcp_cmd}" > "./${log_folder}/ntttcp-${tx_log_prefix}"
 			tx_ntttcp_log_files="./${log_folder}/ntttcp-${tx_log_prefix}"
