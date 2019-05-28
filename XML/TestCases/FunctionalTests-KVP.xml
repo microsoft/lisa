@@ -118,15 +118,15 @@
     </test>
     <test>
         <testName>KVP-MAX-READ</testName>
-        <testScript>KVP-MaxRead.ps1</testScript>
-        <files>.\Tools\kvp_client32,.\Tools\kvp_client64</files>
+        <testScript>KVP-MaxRead.sh</testScript>
+        <files>.\Testscripts\Linux\KVP-MaxRead.sh,.\Testscripts\Linux\utils.sh,.\Tools\kvp_client64,.\Tools\kvp_client32</files>
         <setupType>OneVM</setupType>
         <TestParameters>
-            <param>Pool=1</param>
+            <param>Pool=4</param>
             <!-- Number of key pairs to be added in the kvp pool -->
             <param>Entries=250</param>
         </TestParameters>
-        <Platform>HyperV</Platform>
+        <Platform>Azure,HyperV</Platform>
         <Category>Functional</Category>
         <Area>KVP</Area>
         <Tags>kvp</Tags>
