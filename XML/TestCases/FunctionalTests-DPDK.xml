@@ -133,4 +133,24 @@
         <Tags>dpdk,nff-go,network,hv_netvsc,sriov</Tags>
         <Priority>2</Priority>
     </test>
+    <test>
+        <testName>VERIFY-DPDK-VPP</testName>
+        <testScript>VERIFY-DPDK-VPP.ps1</testScript>
+        <setupType>OneVM3NIC</setupType>
+        <OverrideVMSize>Standard_D16_v3</OverrideVMSize>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkUtils.sh,.\Testscripts\Linux\build_test_vpp.sh</files>
+        <TestParameters>
+            <param>dpdkVersion="VPP_DPDK_VERSION"</param>
+            <param>vppSrcLink="VPP_SOURCE_URL"</param>
+            <param>vppSrcBranch="VPP_SOURCE_BRANCH"</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>DPDK</Area>
+        <Tags>dpdk,vpp,network,hv_netvsc,sriov</Tags>
+        <Priority>2</Priority>
+    </test>
 </TestCases>

@@ -97,26 +97,26 @@ function Install_Dpdk_Dependencies() {
 	if [[ "${distro}" == ubuntu* ]]; then
 		apt_packages="librdmacm-dev librdmacm1 build-essential libnuma-dev libmnl-dev libelf-dev dpkg-dev"
 		if [[ "${distro}" == "ubuntu16.04" ]]; then
-			ssh ${install_ip} "add-apt-repository ppa:canonical-server/dpdk-azure -y"
+			ssh ${install_ip} ". utils.sh && CheckInstallLockUbuntu && add-apt-repository ppa:canonical-server/dpdk-azure -y"
 		else
 			apt_packages="${apt_packages} rdma-core"
 		fi
 
-		ssh ${install_ip} "apt-get update"
-		ssh ${install_ip} "apt-get install -y ${apt_packages}"
+		ssh ${install_ip} ". utils.sh && CheckInstallLockUbuntu && apt-get update"
+		ssh ${install_ip} ". utils.sh && CheckInstallLockUbuntu && apt-get install -y ${apt_packages}"
 
 	elif [[ "${distro}" == rhel7* || "${distro}" == centos7* ]]; then
-		ssh ${install_ip} "yum -y groupinstall 'Infiniband Support'"
+		ssh ${install_ip} "yum -y --nogpgcheck groupinstall 'Infiniband Support'"
 		ssh ${install_ip} "dracut --add-drivers 'mlx4_en mlx4_ib mlx5_ib' -f"
 		yum_flags=""
 		if [[ "${distro}" == centos7* ]]; then
 			# for all releases that are moved into vault.centos.org
 			# we have to update the repositories first
-			ssh ${install_ip} "yum -y install centos-release"
+			ssh ${install_ip} "yum -y --nogpgcheck install centos-release"
 			ssh ${install_ip} "yum clean all"
 			yum_flags="--enablerepo=C*-base --enablerepo=C*-updates"
 		fi
-		ssh ${install_ip} "yum install ${yum_flags} --setopt=skip_missing_names_on_install=False -y gcc make git tar wget dos2unix psmisc kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel libmnl-devel"
+		ssh ${install_ip} "yum install --nogpgcheck ${yum_flags} --setopt=skip_missing_names_on_install=False -y gcc make git tar wget dos2unix psmisc kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel libmnl-devel"
 
 	elif [[ "${distro}" == "sles15" ]]; then
 		local kernel=$(uname -r)
