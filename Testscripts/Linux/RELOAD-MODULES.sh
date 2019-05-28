@@ -164,12 +164,15 @@ LogMsg "Info: Finished testing, bringing up eth0"
 ip link set eth0 down
 ip link set eth0 up
 
-if ! (dhclient -r && dhclient)
-then
-    msg="Error: dhclient exited with an error"
-    LogMsg "${msg}"
-    SetTestStateFailed
-    exit 0
+ipAddress=$(ip addr show eth0 | grep "inet\b")
+if [ -z "$ipAddress" ]; then
+    if ! (dhclient -r && dhclient)
+    then
+        msg="Error: dhclient exited with an error"
+        LogMsg "${msg}"
+        SetTestStateFailed
+        exit 0
+    fi
 fi
 VerifyModules
 
