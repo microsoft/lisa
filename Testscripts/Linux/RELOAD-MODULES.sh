@@ -119,18 +119,16 @@ VerifyModules()
 #
 #######################################################################
 if (printf '%s\n' "${HYPERV_MODULES[@]}" | grep -xq "hv_utils"); then
-    if ! modprobe -r hv_utils; then
-        msg="Error: hv_utils could be disabled!"
-        LogMsg "${msg}"
+    if modprobe -r hv_utils; then
+        LogErr "hv_utils can be disabled, this is unexpected behavior."
         SetTestStateFailed
         exit 0
     fi
 fi
 
 if (printf '%s\n' "${HYPERV_MODULES[@]}" | grep -xq "hyperv_fb"); then
-    if ! modprobe -r hyperv_fb; then
-        msg="Error: hyperv_fb could be disabled!"
-        LogMsg "${msg}"
+    if modprobe -r hyperv_fb; then
+        LogErr "hyperv_fb can be disabled, this is unexpected behavior."
         SetTestStateFailed
         exit 0
     fi
