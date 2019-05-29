@@ -119,7 +119,7 @@ VerifyModules()
 #
 #######################################################################
 if (printf '%s\n' "${HYPERV_MODULES[@]}" | grep -xq "hv_utils"); then
-    if modprobe -r hv_utils; then
+    if ! modprobe -r hv_utils; then
         msg="Error: hv_utils could be disabled!"
         LogMsg "${msg}"
         SetTestStateFailed
@@ -128,7 +128,7 @@ if (printf '%s\n' "${HYPERV_MODULES[@]}" | grep -xq "hv_utils"); then
 fi
 
 if (printf '%s\n' "${HYPERV_MODULES[@]}" | grep -xq "hyperv_fb"); then
-    if modprobe -r hyperv_fb; then
+    if ! modprobe -r hyperv_fb; then
         msg="Error: hyperv_fb could be disabled!"
         LogMsg "${msg}"
         SetTestStateFailed
@@ -147,7 +147,7 @@ do
         sleep 1
     fi
     pass=$((pass+1))
-    LogMsg $pass
+    LogMsg "Reload iteration ${pass}"
 done
 
 END=$(date +%s)
