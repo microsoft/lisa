@@ -298,12 +298,12 @@ function Wait-ForVMToStartKVP {
 	param (
 		[String] $VmName,
 		[String] $HvServer,
-		[int] $StepTimeout
+		[int] $StepTimeout = 10
 	)
 	$ipv4 = $null
 	$retVal = $False
 
-	$waitTimeOut = $StepTimeout
+	$waitTimeOut = ($StepTimeout,10 | Measure -Min).Minimum
 	while ($waitTimeOut -gt 0) {
 		$ipv4 = Get-IPv4ViaKVP $VmName $HvServer
 		if ($ipv4) {
