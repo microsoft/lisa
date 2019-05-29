@@ -406,56 +406,41 @@
         <Priority>2</Priority>
     </test>
     <test>
-        <testName>LIS-CHECK-HYPERVDAEMONS-FILES-STATUS</testName>
+        <testName>CHECK-HYPERVDAEMONS-FILES-STATUS</testName>
         <testScript>LIS-Check-HypervDaemons-Files-Status.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\LIS-Check-HypervDaemons-Files-Status.sh</files>
         <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>LIS</Area>
+        <Area>CORE</Area>
         <Tags>hv_daemon</Tags>
         <Priority>2</Priority>
     </test>
     <test>
-        <testName>LIS-MOUNT-FLOPPYDISK</testName>
+        <testName>MOUNT-FLOPPYDISK</testName>
         <testScript>LIS-Mount-FloppyDisk.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\LIS-Mount-FloppyDisk.sh</files>
         <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>LIS</Area>
+        <Area>CORE</Area>
         <Tags>floppy_disk</Tags>
         <Priority>3</Priority>
     </test>
     <test>
-        <testName>LIS-MOUNT-CD</testName>
+        <testName>MOUNT-CD</testName>
         <setupScript>.\TestScripts\Windows\LIS-Mount-CD.ps1</setupScript>
         <testScript>LIS-Mount-CD.sh</testScript>
         <files>.\Testscripts\Linux\LIS-Mount-CD.sh,.\Testscripts\Linux\check_traces.sh,.\Testscripts\Linux\utils.sh</files>
         <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>LIS</Area>
+        <Area>CORE</Area>
         <Tags>cd</Tags>
         <Priority>3</Priority>
     </test>
     <test>
-        <testName>LIS-PREINSTALL-DISK-SIZE-VERIFICATION</testName>
-        <setupScript>.\TestScripts\Windows\LIS-Mount-CD.ps1</setupScript>
-        <testScript>Test_LIS_disk_check.sh</testScript>
-        <files>.\Testscripts\Linux\Test_LIS_disk_check.sh,.\Testscripts\Linux\check_traces.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>OneVM</setupType>
-        <Platform>Azure,HyperV</Platform>
-        <Category>Functional</Category>
-        <TestParameters>
-            <param>LIS_TARBALL_URL_CURRENT=LIS_CURRENT_URL</param>
-        </TestParameters>
-        <Area>LIS</Area>
-        <Tags>lis</Tags>
-        <Priority>1</Priority>
-    </test>
-    <test>
-        <testName>LIS-MOUNT-CD-HOTADD</testName>
+        <testName>MOUNT-CD-HOTADD</testName>
         <setupScript>.\TestScripts\Windows\LIS-Mount-CD.ps1</setupScript>
         <testScript>LIS-Mount-CD.sh</testScript>
         <files>.\Testscripts\Linux\LIS-Mount-CD.sh,.\Testscripts\Linux\check_traces.sh,.\Testscripts\Linux\utils.sh</files>
@@ -465,7 +450,7 @@
         <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>LIS</Area>
+        <Area>CORE</Area>
         <Tags>cd</Tags>
         <Priority>3</Priority>
     </test>
@@ -476,7 +461,7 @@
         <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>LIS</Area>
+        <Area>CORE</Area>
         <Tags>vmbus</Tags>
         <Priority>0</Priority>
     </test>
@@ -488,7 +473,7 @@
         <OverrideVMSize>Standard_A3</OverrideVMSize>
         <Platform>Azure,HyperV</Platform>
         <Category>Functional</Category>
-        <Area>LIS</Area>
+        <Area>CORE</Area>
         <Tags>vmbus</Tags>
         <Priority>1</Priority>
     </test>
@@ -499,7 +484,7 @@
         <setupType>OneVM</setupType>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
-        <Area>LIS</Area>
+        <Area>CORE</Area>
         <Tags>vmbus</Tags>
         <Priority>3</Priority>
     </test>
@@ -510,7 +495,7 @@
         <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>LIS</Area>
+        <Area>CORE</Area>
         <Tags>vmbus</Tags>
         <Priority>2</Priority>
     </test>
@@ -525,7 +510,7 @@
         <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>LIS</Area>
+        <Area>CORE</Area>
         <Tags>vmbus</Tags>
         <Priority>2</Priority>
     </test>
@@ -536,7 +521,7 @@
         <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>LIS</Area>
+        <Area>CORE</Area>
         <Tags>nmi</Tags>
         <Priority>0</Priority>
     </test>
@@ -546,7 +531,7 @@
         <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>LIS</Area>
+        <Area>CORE</Area>
         <Tags>nmi</Tags>
         <Priority>1</Priority>
     </test>
