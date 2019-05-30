@@ -20,7 +20,12 @@
 #       The driver type is injected in the constants.sh file, in this format:
 #       driver="CUDA" or driver="GRID"
 #
+#   Please check the below URL for any new versions of the GRID driver:
+#   https://docs.microsoft.com/en-us/azure/virtual-machines/linux/n-series-driver-setup
+#
 ########################################################################
+
+grid_driver="https://go.microsoft.com/fwlink/?linkid=874272"
 
 #######################################################################
 #
@@ -50,6 +55,16 @@ function InstallRequirements() {
 
     ubuntu*)
         apt -y install build-essential libelf-dev linux-tools-"$(uname -r)" linux-cloud-tools-"$(uname -r)"
+    ;;
+
+    suse_15*)
+        kernel=$(uname -r)
+        if [[ "${kernel}" == *azure ]];
+        then
+            zypper install -y kernel-devel-azure
+        else
+            zypper install -y kernel-default-devel
+        fi
     ;;
 esac
 }
@@ -100,11 +115,13 @@ function InstallCUDADrivers() {
             return 1
         fi
     ;;
-esac
+    esac
+
+    cp /var/lib/dkms/nvidia/*/build/make.log ${HOME}/nvidia_dkms_make.log
 }
 
 function InstallGRIDdrivers() {
-    wget https://go.microsoft.com/fwlink/?linkid=874272 -O /tmp/NVIDIA-Linux-x86_64-grid.run
+    wget "$grid_driver" -O /tmp/NVIDIA-Linux-x86_64-grid.run
     if [ $? -ne 0 ]; then
         LogErr "Failed to download the GRID driver!"
         SetTestStateAborted
@@ -145,10 +162,10 @@ UtilsInit
 
 GetDistro
 update_repos
-install_package wget lshw gcc
+install_package "wget lshw gcc"
 
 InstallRequirements
-check_exit_status "Install requirements" "exit"
+check_exit_status "Install requirements"
 
 if [ "$driver" == "CUDA" ]; then
     InstallCUDADrivers

@@ -49,29 +49,33 @@ if( $UseSecretsFile -or $AzureSecretsFile )
 
 try
 {
+    $allVMStatus = @()
     $EmailSubjectTextFile =  ".\ShowSubscriptionUsageEmailSubject.txt"
     $FinalHtmlFile = ".\SubscriptionUsage.html"
     $pstzone = [System.TimeZoneInfo]::FindSystemTimeZoneById("Pacific Standard Time")
     $psttime = [System.TimeZoneInfo]::ConvertTimeFromUtc((Get-Date).ToUniversalTime(),$pstzone)
+    Write-LogInfo "Running: Get-AzureRmLocation..."
+    $allRegions = (Get-AzureRmLocation | Where-Object { $_.Providers -imatch "Microsoft.Compute" }).Location | Sort-Object
+    foreach ($region in $allRegions) {
+      Write-LogInfo "Running: Get-AzureRmVM -Status -Location $region"
+      $allVMStatus += Get-AzureRmVM -Status -Location $region
+    }
+    Write-LogInfo "Running: Get-AzureRmSubscription..."
+    $subscription = Get-AzureRmSubscription
+    Write-LogInfo "Running: Get-AzureRmResource..."
+    $allResources = Get-AzureRmResource
 
-    $subscription = Get-AzSubscription
-    Write-LogInfo "Running: Get-AzResource..."
-    $allResources = Get-AzResource
-    Write-LogInfo "Running: Get-AzVM -Status..."
-    $allVMStatus = Get-AzVM -Status
-    Write-LogInfo "Running: Get-AzLocation..."
-    $allRegions = (Get-AzLocation | Where-Object { $_.Providers -imatch "Microsoft.Compute" }).Location | Sort-Object
 }
 catch
 {
     Write-LogInfo "Error while fetching data. Please try again."
-    Set-Content -Path $FinalHtmlFile -Value "There was some error in fetching data from Azure today."
+    Add-Content -Path $FinalHtmlFile -Value "There was some error in fetching data from Azure today."
     Set-Content -Path $EmailSubjectTextFile -Value "Azure Subscription Daily Utilization Report: $($psttime.Year)/$($psttime.Month)/$($psttime.Day)"
     exit 1
 }
 
 #region HTML file header
-$htmlFileStart = '
+$TableStyle = '
 <style type="text/css">
 .tg  {border-collapse:collapse;border-spacing:0;border-color:#999;}
 .tg td{font-family:Arial, sans-serif;font-size:14px;padding:10px 5px;border-style:solid;border-width:1px;overflow:hidden;word-break:normal;border-color:#999;color:#444;background-color:#F7FDFA;}
@@ -80,8 +84,10 @@ $htmlFileStart = '
 .tg .tg-lqy6{text-align:right;vertical-align:top}
 .tg .tg-lqy6bold{font-weight:bold;text-align:right;vertical-align:top}
 .tg .tg-yw4l{vertical-align:top}
-.tg .tg-amwm{font-weight:bold;text-align:right;vertical-align:top}
-.tg .tg-amwmleft{text-align:left;font-weight:bold;vertical-align:top}
+.tm .tm-7k3a{background-color:#D2E4FC;font-weight:bold;text-align:center;vertical-align:top}
+.tg .tg-amwm{color:#000000;;background-color:#D2E4FC;font-weight:bold;text-align:right;vertical-align:top}
+.tg .tg-amwmleft{color:#000000;background-color:#D2E4FC;text-align:left;font-weight:bold;vertical-align:top}
+.tg .tg-amwmcenter{text-align:center;font-weight:bold;vertical-align:top}
 .tg .tg-amwmred{color:#fe0000;font-weight:bold;text-align:right;vertical-align:top}
 .tg .tg-amwmgreen{color:#036400;font-weight:bold;text-align:right;vertical-align:top}
 .tg .tg-9hbo{font-weight:bold;vertical-align:top}
@@ -89,9 +95,16 @@ $htmlFileStart = '
 .tg .tg-l2ozred{color:#fe0000;font-weight:bold;text-align:right;vertical-align:top}
 .tg .tg-l2ozgreen{color:#036400;font-weight:bold;text-align:right;vertical-align:top}
 </style>
-
-<p style="text-align: left;"><em>Last refreshed&nbsp;<strong>DATE_TIME. </strong></em> <a href="https://msit.powerbi.com/groups/bf12e64a-dd80-4fa8-8297-6607ea85f687/reports/251e1a2b-1568-4d4d-9daa-0ca47a20162b/ReportSection" target="_blank" rel="noopener"><em><strong>Click Here</strong></em></a> to see the report in PowerBI.</p>
 '
+$htmlFileStart = '
+POWERBI_MESSAGE
+'
+if (!(Test-Path -Path ".\SubscriptionUsage.html")) {
+    $htmlFileStart = $TableStyle + $htmlFileStart
+    $htmlFileStart = $htmlFileStart.Replace("POWERBI_MESSAGE",'<p style="text-align: left;"><em>Last refreshed&nbsp;<strong>DATE_TIME. </strong></em> <a href="https://msit.powerbi.com/groups/bf12e64a-dd80-4fa8-8297-6607ea85f687/reports/251e1a2b-1568-4d4d-9daa-0ca47a20162b/ReportSection" target="_blank" rel="noopener"><em><strong>Click Here</strong></em></a> to see the report in PowerBI.</p>')
+} else {
+    $htmlFileStart = $htmlFileStart.Replace("POWERBI_MESSAGE",'<hr />')
+}
 
 $htmlFileStart = $htmlFileStart.Replace("DATE_TIME","$($psttime.DateTime) PST")
 #endregion
@@ -142,8 +155,11 @@ $totalStorageAccounts = 0
 
 #region Create HTML report
 
-$UsageReport = '
+$ReportHeader = '
 <table class="tg">
+  <tr>
+      <th class="tg-amwmcenter" colspan="9">Resource Usage</th>
+  </tr>
   <tr>
     <th class="tg-amwmleft">SR. #</th>
     <th class="tg-amwmleft">Region</th>
@@ -155,6 +171,10 @@ $UsageReport = '
     <th class="tg-amwm">Virtual Networks</th>
   </tr>
   '
+
+
+$ReportHeader = $ReportHeader.Replace("SUBSCRIPTION_IDENTIFIER","$($subscription.Name)[$($subscription.Id)]")
+$UsageReport = $ReportHeader
 
 $UsageReport += "FINAL_SUMMARY"
 
@@ -330,6 +350,6 @@ foreach ( $line in $UsageReport.Split("`n"))
 $FinalEmailSummary += '<p style="text-align: right;"><em><span style="font-size: 18px;"><span style="font-family: times new roman,times,serif;">&gt;</span></span></em></p>'
 #endregion
 
-Set-Content -Path $FinalHtmlFile -Value $FinalEmailSummary
+Add-Content -Path $FinalHtmlFile -Value $FinalEmailSummary -Verbose
 Set-Content -Path $EmailSubjectTextFile -Value "Azure Subscription Daily Utilization Report: $($psttime.Year)/$($psttime.Month)/$($psttime.Day)"
 Write-LogInfo "Usage summary is ready. Click Here to see - https://linuxpipeline.westus2.cloudapp.azure.com/view/Utilities/job/tool-monitor-subscription-usage/"

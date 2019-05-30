@@ -130,7 +130,7 @@ max_server_threads=64
 Get_Throughput()
 {
 	throughput=0
-	throughput=$(grep throughput "${1}" | tail -1 | tr ":" " " | awk '{ print $NF }')
+	throughput=$(grep 'INFO.*throughput' "${1}" | tail -1 | tr ":" " " | awk '{ print $NF }')
 	if [[ $throughput =~ "Gbps" ]];
 	then
 		throughput=$(echo "$throughput" | sed 's/Gbps//')
@@ -205,6 +205,21 @@ Get_packets()
 	echo "$packets"
 }
 
+Get_VFName()
+{
+	ntttcpVersion="${1}"
+	ip="${2}"
+	ntttcp_cmd="${3}"
+	# The -K and -I options are supported if the ntttcp version is greater than v1.3.5, or equal to v1.3.5 or master
+	if [ $ntttcpVersion ] && ( [ $ntttcpVersion \> "v1.3.5" ] || [ $ntttcpVersion == "v1.3.5" ] || [ $ntttcpVersion == "master" ] ); then
+		vf_interface=$(ssh "$ip" lshw -c network -businfo | grep -i "Virtual Function" | awk '{print $2}')
+		if [ $vf_interface ]; then
+			ntttcp_cmd="$ntttcp_cmd -K $vf_interface -I mlx4"
+		fi
+	fi
+	echo "$ntttcp_cmd"
+}
+
 Run_Ntttcp()
 {
 	i=0
@@ -272,15 +287,8 @@ Run_Ntttcp()
 			Run_SSHCommand "${server}" "for i in {1..$testDuration}; do ss -ta | grep ESTA | grep -v ssh | wc -l >> ./$log_folder/tcp-connections-p${num_threads_P}X${num_threads_n}.log; sleep 1; done" &
 		fi
 
-		# The -K and -I options are supported if the ntttcp version is greater than v1.3.5, or equal to v1.3.5 or master
-		if [ $ntttcpVersion ] && ( [ $ntttcpVersion \> "v1.3.5" ] || [ $ntttcpVersion == "v1.3.5" ] || [ $ntttcpVersion == "master" ] ); then
-			vf_interface=$(ls /sys/class/net/ | grep -v 'eth0\|eth1\|lo' | head -1)
-			if [ $vf_interface ]; then
-				LogMsg "The vf interface is $vf_interface"
-				server_ntttcp_cmd="$server_ntttcp_cmd -K $vf_interface -I mlx"
-				client_ntttcp_cmd="$client_ntttcp_cmd -K $vf_interface -I mlx"
-			fi
-		fi
+
+		server_ntttcp_cmd=$(Get_VFName "${ntttcpVersion}" "${server}" "${server_ntttcp_cmd}")
 
 		LogMsg "============================================="
 		LogMsg "${run_msg}"
@@ -293,7 +301,7 @@ Run_Ntttcp()
 		Kill_Process "${server}" ntttcp
 		Kill_Process "${client}" ntttcp
 		LogMsg "ServerCmd: $server_ntttcp_cmd > ./$log_folder/ntttcp-${rx_log_prefix}"
-		ssh "${server}" "${server_ntttcp_cmd}" > "./$log_folder/ntttcp-${rx_log_prefix}" &
+		ssh "${server}" "${server_ntttcp_cmd} > ./$log_folder/ntttcp-${rx_log_prefix} &" &
 		Kill_Process "${server}" lagscope
 		Run_SSHCommand "${server}" "${lagscope_cmd} -r" &
 		Kill_Process "${server}" dstat
@@ -320,22 +328,28 @@ Run_Ntttcp()
 		then
 			IFS=',' read -r -a array <<< "${client}"
 			index=$(($client_count -1))
+			client_ntttcp_raw_cmd="$client_ntttcp_cmd"
 			for ip in "${array[@]:0:$index}"
 			do
+				client_ntttcp_cmd=$(Get_VFName "${ntttcpVersion}" "${ip}" "${client_ntttcp_raw_cmd}")
 				LogMsg "Execute ${client_ntttcp_cmd} on ${ip}"
 				ssh "${ip}" "${client_ntttcp_cmd}" > "./${log_folder}/ntttcp-${ip}-${tx_log_prefix}" &
 				tx_ntttcp_log_files+=("./${log_folder}/ntttcp-${ip}-${tx_log_prefix}")
 				sleep 5
 			done
+
+			client_ntttcp_cmd=$(Get_VFName "${ntttcpVersion}" "${array[$(($index))]}" "${client_ntttcp_raw_cmd}")
 			client_ntttcp_cmd+=" -L"
 			LogMsg "Execute ${client_ntttcp_cmd} on ${array[$(($index))]}"
 			ssh "${array[$(($index))]}" "${client_ntttcp_cmd}"  > "./${log_folder}/ntttcp-${array[$(($index))]}-${tx_log_prefix}"
 			tx_ntttcp_log_files+=("./${log_folder}/ntttcp-${array[$(($index))]}-${tx_log_prefix}")
 		else
+			client_ntttcp_cmd=$(Get_VFName "${ntttcpVersion}" "${client}" "${client_ntttcp_cmd}")
 			LogMsg "Execute ${client_ntttcp_cmd} on ${client}"
 			ssh "${client}" "${client_ntttcp_cmd}" > "./${log_folder}/ntttcp-${tx_log_prefix}"
 			tx_ntttcp_log_files="./${log_folder}/ntttcp-${tx_log_prefix}"
 		fi
+		scp root@"${server}":"./$log_folder/ntttcp-${rx_log_prefix}" "./$log_folder/ntttcp-${rx_log_prefix}"
 		LogMsg "Parsing results for $current_test_threads connections"
 		sleep 10
 		tx_throughput_value=0.0

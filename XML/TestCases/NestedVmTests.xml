@@ -35,7 +35,7 @@
             <param>NestedNetDevice=virtio-net-pci</param>
             <param>testDuration=60</param>
             <param>testType=tcp</param>
-            <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024 2048 4096"</param>
+            <param>testConnections=NESTED_NTTTCP_TCP_CONNECTIONS</param>
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Performance</Category>
@@ -121,7 +121,7 @@
             <param>NestedMemMB=8192</param>
             <param>HostFwdPort=60022</param>
             <!--The raid option allowed values: 'No RAID','RAID in L1','RAID in L2'-->
-            <param>RaidOption='RAID_OPTION'</param>
+            <param>RaidOption=NESTED_RAID_OPTION</param>
             <param>modes=NESTED-PERF-STORAGE-IO-MODES</param>
             <param>startThread=1</param>
             <param>maxThread=1024</param>
@@ -154,7 +154,7 @@
             <param>NestedMemMB=8192</param>
             <param>HostFwdPort=60022</param>
             <!--The raid option allowed values: 'No RAID','RAID in L1','RAID in L2'-->
-            <param>RaidOption='RAID_OPTION'</param>
+            <param>RaidOption=NESTED_RAID_OPTION</param>
             <param>modes=NESTED-PERF-STORAGE-IO-MODES</param>
             <param>startThread=1</param>
             <param>maxThread=1024</param>
@@ -190,7 +190,7 @@
             <param>NestedNetDevice=virtio-net-pci</param>
             <param>testType=tcp</param>
             <param>testDuration=60</param>
-            <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024 2048 4096"</param>
+            <param>testConnections=NESTED_NTTTCP_TCP_CONNECTIONS</param>
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Performance</Category>
@@ -218,7 +218,7 @@
             <param>NestedMemMB=8192</param>
             <param>testDuration=60</param>
             <param>testType=tcp</param>
-            <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024 2048 4096"</param>
+            <param>testConnections=NESTED_NTTTCP_TCP_CONNECTIONS</param>
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Performance</Category>
@@ -246,7 +246,7 @@
             <param>NestedNetDevice=virtio-net-pci</param>
             <param>testDuration=60</param>
             <param>testType=tcp</param>
-            <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024 2048 4096"</param>
+            <param>testConnections=NESTED_NTTTCP_TCP_CONNECTIONS</param>
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Performance</Category>
@@ -299,7 +299,7 @@
             <param>NestedNetDevice=virtio-net-pci</param>
             <param>testDuration=60</param>
             <param>testType=tcp</param>
-            <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024 2048 4096"</param>
+            <param>testConnections=NESTED_NTTTCP_TCP_CONNECTIONS</param>
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Performance</Category>
@@ -520,7 +520,7 @@
             <param>NestedNetDevice=virtio-net-pci</param>
             <param>testDuration=60</param>
             <param>testType=tcp</param>
-            <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024 2048 4096"</param>
+            <param>testConnections=NESTED_NTTTCP_TCP_CONNECTIONS</param>
             <param>SkipVerifyKernelLogs=true</param>
         </TestParameters>
         <Platform>HyperV</Platform>
@@ -547,7 +547,7 @@
             <param>NestedNetDevice=virtio-net-pci</param>
             <param>testDuration=60</param>
             <param>testType=tcp</param>
-            <param>testConnections="1 2 4 8 16 32 64 128 256 512 1024 2048 4096"</param>
+            <param>testConnections=NESTED_NTTTCP_TCP_CONNECTIONS</param>
             <param>SkipVerifyKernelLogs=true</param>
         </TestParameters>
         <Platform>Azure</Platform>

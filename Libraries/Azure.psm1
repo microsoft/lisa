@@ -28,12 +28,12 @@
 Function Validate-SubscriptionUsage($RGXMLData, $Location, $OverrideVMSize, $StorageAccount) {
     #region VM Cores...
     Try {
-        Function Set-Usage($currentStatus, $text, $usage, $AllowedUsagePercentage) {
+        Function Set-Usage($currentStatus, $VMFamily, $usage, $AllowedUsagePercentage) {
             $counter = 0
             foreach ($item in $currentStatus) {
-                if ($item.Name.Value -eq $text) {
+                if ($item.Name.Value -eq $VMFamily) {
                     $allowedCount = [int](($currentStatus[$counter].Limit) * ($AllowedUsagePercentage / 100))
-                    Write-LogInfo "  Current $text usage : $($currentStatus[$counter].CurrentValue) cores. Requested:$usage. Estimated usage=$($($currentStatus[$counter].CurrentValue) + $usage). Max Allowed cores:$allowedCount/$(($currentStatus[$counter].Limit))"
+                    Write-LogInfo "  Current $VMFamily usage : $($currentStatus[$counter].CurrentValue) cores. Requested:$usage. Estimated usage=$($($currentStatus[$counter].CurrentValue) + $usage). Max Allowed cores:$allowedCount/$(($currentStatus[$counter].Limit))"
                     $currentStatus[$counter].CurrentValue = $currentStatus[$counter].CurrentValue + $usage
                 }
                 if ($item.Name.Value -eq "cores") {
@@ -47,15 +47,15 @@ Function Validate-SubscriptionUsage($RGXMLData, $Location, $OverrideVMSize, $Sto
             return $currentStatus
         }
 
-        Function Test-Usage($currentStatus, $text, $AllowedUsagePercentage) {
+        Function Test-Usage($currentStatus, $VMFamily, $AllowedUsagePercentage) {
             $overFlowErrors = 0
             $counter = 0
             foreach ($item in $currentStatus) {
-                if ($item.Name.Value -eq $text) {
+                if ($item.Name.Value -eq $VMFamily) {
                     $allowedCount = [int](($currentStatus[$counter].Limit) * ($AllowedUsagePercentage / 100))
                     #Write-LogInfo "Max allowed $($item.Name.LocalizedValue) usage : $allowedCount out of $(($currentStatus[$counter].Limit))."
                     if ($currentStatus[$counter].CurrentValue -gt $allowedCount) {
-                        Write-LogErr "  Current $text Estimated use: $($currentStatus[$counter].CurrentValue)"
+                        Write-LogErr "  Current $VMFamily Estimated use: $($currentStatus[$counter].CurrentValue)"
                         $overFlowErrors += 1
                     }
                 }
@@ -93,6 +93,10 @@ Function Validate-SubscriptionUsage($RGXMLData, $Location, $OverrideVMSize, $Sto
             }
         }
 
+        # Get the Azure Compute SKU details
+        Write-LogInfo "Getting Azure 'ComputeSKU' details..."
+        $ComputeSKU = Get-AzureRmComputeResourceSku
+
         #Define LISAv2's subscription usage limit. This is applicable for all the defined resources.
         #  e.g. If your subscription has below maximum limits:
         #    Resource Groups: 200
@@ -103,6 +107,13 @@ Function Validate-SubscriptionUsage($RGXMLData, $Location, $OverrideVMSize, $Sto
         #    LISAv2 Storage Accounts usage limit: 100
         #    LISAv2 Network Security Groups usage limit: 25
         $AllowedUsagePercentage = 100
+
+        $PremiumStorageVMFamilies = @("standardDSFamily",
+        "standardDSv2Family",
+        "standardDSv2PromoFamily",
+        "standardDSv3Family",
+        "standardFSFamily"
+        )
 
         #Get the region
         $currentStatus = Get-AzVMUsage -Location $Location
@@ -124,46 +135,15 @@ Function Validate-SubscriptionUsage($RGXMLData, $Location, $OverrideVMSize, $Sto
                 $testVMUsage = (Get-AzVMSize -Location $Location | Where-Object { $_.Name -eq $testVMSize}).NumberOfCores
             }
 
-            $testVMSize = $testVMSize.Replace("Standard_", "")
-            $regExpVmSize = @{
-                "standardDSv2Family" = @{ "Regexp" = "^DS.*v2$"; "isPremium"= 1};
-                "standardDSv3Family" = @{ "Regexp" = "^D.*s_v3$"; "isPremium"= 1};
-                "standardDSFamily" = @{ "Regexp" = "^DS((?!v2|s_v3).)*$"; "isPremium"= 1};
-                "standardDv2Family" = @{ "Regexp" = "^D[^S].*v2$"; "isPremium"= 0};
-                "standardDv3Family" = @{ "Regexp" = "^D[^S]((?!s_v3).)*v3$"; "isPremium"= 0};
-                "standardDFamily" = @{ "Regexp" = "^D[^S]((?!v2|v3).)*$"; "isPremium"= 0};
-                "standardESv3Family" = @{ "Regexp" = "^E.*s_v3$"; "isPremium"= 1};
-                "standardEv3Family" = @{ "Regexp" = "^E.*v3$"; "isPremium"= 0};
-                "standardA8_A11Family" = @{ "Regexp" = "A8|A9|A10|A11"; "isPremium"= 0};
-                "standardAv2Family"= @{ "Regexp" = "^A.*v2$"; "isPremium"= 0};
-                "standardA0_A7Family" = @{ "Regexp" = "A[0-7]$"; "isPremium"= 0};
-                "standardFSFamily" = @{ "Regexp" = "^FS"; "isPremium"= 1};
-                "standardFFamily" = @{ "Regexp" = '^F[^S]' ; "isPremium"= 0};
-                "standardGSFamily" = @{ "Regexp" = "^GS"; "isPremium"= 1};
-                "standardGFamily" = @{ "Regexp" = "^G[^S]"; "isPremium"= 0};
-                "standardNVFamily"= @{ "Regexp" = "^NV"; "isPremium"= 0};
-                "standardNCv2Family" = @{ "Regexp" = "^NC.*v2$"; "isPremium"= 0};
-                "standardNCFamily" = @{ "Regexp" = "^NC((?!v2).)*$"; "isPremium"= 0};
-                "standardNDFamily" = @{ "Regexp" = "^ND"; "isPremium"= 0};
-                "standardHBSFamily"= @{ "Regexp" = "^HB"; "isPremium"= 0};
-                "standardHCSFamily" = @{ "Regexp" = "^HC"; "isPremium"= 0};
-                "standardHFamily" = @{ "Regexp" = "^H[^BC]"; "isPremium"= 0};
-                "basicAFamily" = @{ "Regexp" = "^Basic"; "isPremium"= 0};
-                "standardMSFamily" = @{ "Regexp" = "^M"; "isPremium"= 0}
-            }
-            $identifierTest = ""
-            foreach ($vmFamily in $regExpVmSize.Keys) {
-                if ($testVMSize -match $regExpVMsize[$vmFamily].RegExp) {
-                    $identifierTest = $vmFamily
-                    $premiumVMs += $regExpVMsize[$vmFamily].isPremium
-                    break
-                }
-            }
-            if ($identifierTest) {
-                $currentStatus = Set-Usage -currentStatus $currentStatus -text $identifierTest  -usage $testVMUsage -AllowedUsagePercentage $AllowedUsagePercentage
-                $overFlowErrors += Test-Usage -currentStatus $currentStatus -text $identifierTest -AllowedUsagePercentage $AllowedUsagePercentage
+            $DetectedVMFamily = ($ComputeSKU | Where-Object { $_.Name -eq $testVMSize }).Family | Get-Unique
+            if ($DetectedVMFamily) {
+                $currentStatus = Set-Usage -currentStatus $currentStatus -VMFamily $DetectedVMFamily  -usage $testVMUsage -AllowedUsagePercentage $AllowedUsagePercentage
+                $overFlowErrors += Test-Usage -currentStatus $currentStatus -VMFamily $DetectedVMFamily -AllowedUsagePercentage $AllowedUsagePercentage
             } else {
                 Write-LogInfo "Requested VM size: $testVMSize is not yet registered to monitor. Usage simulation skipped."
+            }
+            if ($PremiumStorageVMFamilies.Contains($DetectedVMFamily)){
+                $premiumVMs += 1
             }
         }
     } catch {
@@ -233,6 +213,59 @@ Function Validate-SubscriptionUsage($RGXMLData, $Location, $OverrideVMSize, $Sto
     }
 }
 
+Function Change-StorageAccountType($TestCaseData, [string]$Location, $GlobalConfig, $OsVHD) {
+    $storageAccount = $GlobalConfig.Global.Azure.Subscription.ARMStorageAccount
+    $changedSC = ""
+    $copyVHD = $false
+    if ($TestCaseData.AdditionalHWConfig.StorageAccountType -and $TestCaseData.AdditionalHWConfig.StorageAccountType.Contains("Premium")) {
+        # if SC is ExistingStorage_Standard, switch to ExistingStorage_Premium
+        if ($storageAccount -imatch "ExistingStorage_Standard") {
+            $changedSC = Get-StorageAccountFromRegion -Region $Location -StorageAccount "ExistingStorage_Premium"
+            # if it is OsVHD format, need copy VHD from standard to premium storage account
+            if ($OsVHD) {
+                $copyVHD = $true
+            }
+        # if SC is NewStorage_Standard, switch to NewStorage_Premium
+        } elseif ($storageAccount -imatch "NewStorage_Standard") {
+            $changedSC = "NewStorage_Premium_LRS"
+        } elseif (($storageAccount -imatch "NewStorage_Premium") -or ($storageAccount -imatch "ExistingStorage_Premium")) {
+            $changedSC = ""
+        } else {
+            $current_sc = Get-StorageAccountFromRegion -Region $Location -StorageAccount "ExistingStorage_Standard"
+            if ($current_sc -eq $storageAccount) {
+                $changedSC = Get-StorageAccountFromRegion -Region $Location -StorageAccount "ExistingStorage_Premium"
+                if ($OsVHD) {
+                    $copyVHD = $true
+                }
+            } else {
+                $storageAccountType = (Get-AzureRmStorageAccount | Where-Object {$_.StorageAccountName -eq $storageAccount}).Sku.Tier.ToString()
+                if ($storageAccountType -inotmatch "premium") {
+                    Write-LogErr "Provided storage account is not premium type, this case $($TestCaseData.testName) need run under premium type of storage account."
+                    Throw "Case $($TestCaseData.testName) need run under premium type of storage account."
+                }
+            }
+        }
+    }
+
+    if ($copyVHD) {
+        $sourceContainer =  $osVHD.Split("/")[$osVHD.Split("/").Count - 2]
+        $vhdName = $osVHD.Split("?")[0].split('/')[-1]
+        Write-LogInfo "Copy VHD from $storageAccount to $changedSC."
+        if(($OsVHD -imatch 'sp=') -and ($OsVHD -imatch 'sig=')) {
+            $copyStatus = Copy-VHDToAnotherStorageAccount -SasUrl $osVHD -destinationStorageAccount $changedSC `
+                -destinationStorageContainer "vhds" -vhdName $vhdName
+        } else {
+            $copyStatus = Copy-VHDToAnotherStorageAccount -sourceStorageAccount $storageAccount -sourceStorageContainer $sourceContainer `
+                -destinationStorageAccount $changedSC -destinationStorageContainer "vhds" -vhdName $vhdName
+        }
+        if (!$copyStatus) {
+            Throw "Failed to copy the VHD $storageAccount to $changedSC."
+        }
+    }
+
+    return $changedSC
+}
+
 Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Distro, [string]$TestLocation, $GlobalConfig, $TiPSessionId, $TipCluster, $UseExistingRG, $ResourceCleanup) {
     $resourceGroupCount = 0
 
@@ -249,6 +282,12 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
         $locationCounter = 0
         Write-LogInfo "$RGCount Resource groups will be deployed in $($xRegionLocations.Replace('-',' and '))"
     }
+    $storageAccount = Change-StorageAccountType -Location $location -TestCaseData $TestCaseData -GlobalConfig $GlobalConfig -OsVHD $OsVHD
+    if ($storageAccount) {
+        $used_SC = $storageAccount
+    } else {
+        $used_SC = $GlobalConfig.Global.Azure.Subscription.ARMStorageAccount
+    }
     foreach ($RG in $setupTypeData.ResourceGroup ) {
         $validateStartTime = Get-Date
         Write-LogInfo "Checking the subscription usage..."
@@ -256,7 +295,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
         $coreCountExceededTimeout = 3600
         while (!$readyToDeploy) {
             $readyToDeploy = Validate-SubscriptionUsage -RGXMLData $RG -Location $location -OverrideVMSize $TestCaseData.OverrideVMSize `
-                                -StorageAccount $GlobalConfig.Global.Azure.Subscription.ARMStorageAccount
+                                -StorageAccount $used_SC
             $validateCurrentTime = Get-Date
             $elapsedWaitTime = ($validateCurrentTime - $validateStartTime).TotalSeconds
             if ( (!$readyToDeploy) -and ($elapsedWaitTime -lt $coreCountExceededTimeout)) {
@@ -304,7 +343,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
                         $azureDeployJSONFilePath = Join-Path $env:TEMP "$groupName.json"
                         $null = Generate-AzureDeployJSONFile -RGName $groupName -ImageName $osImage -osVHD $osVHD -RGXMLData $RG -Location $location `
                                 -azuredeployJSONFilePath $azureDeployJSONFilePath -CurrentTestData $TestCaseData -TiPSessionId $TiPSessionId -TipCluster $TipCluster `
-                                -StorageAccountName $GlobalConfig.Global.Azure.Subscription.ARMStorageAccount
+                                -StorageAccountName $used_SC
 
                         $DeploymentStartTime = (Get-Date)
                         $CreateRGDeployments = Create-ResourceGroupDeployment -RGName $groupName -location $location -TemplateFile $azureDeployJSONFilePath `
@@ -766,6 +805,9 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
         $offer = $imageInfo[1]
         $sku = $imageInfo[2]
         $version = $imageInfo[3]
+    }
+    if($osVHD) {
+        $osVHD = $osVHD.Split("?")[0].split('/')[-1]
     }
 
     $vmCount = 0
@@ -1646,7 +1688,6 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
         Add-Content -Value "$($indents[5])^osDisk^ : " -Path $jsonFile
         Add-Content -Value "$($indents[5]){" -Path $jsonFile
         if ($osVHD) {
-            $osVHD = $osVHD.Split('/')[-1]
             if ($UseManagedDisks) {
                 Write-LogInfo ">>> Using VHD : $osVHD (Converted to Managed Image)"
                 Add-Content -Value "$($indents[6])^osType^: ^Linux^," -Path $jsonFile

@@ -22,12 +22,13 @@ boot_filepath=""
 UtilsInit
 
 Install_Kexec(){
-    GetDistro
     case $DISTRO in
         centos* | redhat* | fedora*)
-            yum_install "kexec-tools kdump-tools makedumpfile"
-            if [ $? -ne 0 ]; then
-                UpdateSummary "Warning: Kexec-tools failed to install."
+            if [[ $DISTRO != "redhat_8" ]]; then
+                yum_install "kexec-tools kdump-tools makedumpfile"
+                if [ $? -ne 0 ]; then
+                    UpdateSummary "Warning: Kexec-tools failed to install."
+                fi
             fi
         ;;
         ubuntu* | debian*)
@@ -148,8 +149,10 @@ Config_Rhel()
         boot_filepath=/boot/efi/EFI/BOOT/bootx64.conf
     elif [ "$os_GENERATION" -eq 1 ] && [[ $os_RELEASE =~ 6.* ]]; then
         boot_filepath=/boot/grub/grub.conf
-    elif [ "$os_GENERATION" -eq 1 ] && [[ $os_RELEASE =~ 7.* || $os_RELEASE =~ 8.* ]]; then
+    elif [ "$os_GENERATION" -eq 1 ] && [[ $os_RELEASE =~ 7.* ]]; then
         boot_filepath=/boot/grub2/grub.cfg
+    elif [ "$os_GENERATION" -eq 1 ] && [[ $os_RELEASE =~ 8.* ]]; then
+        boot_filepath=/boot/grub2/grubenv
     elif [ "$os_GENERATION" -eq 2 ] && [[ $os_RELEASE =~ 7.* || $os_RELEASE =~ 8.* ]]; then
         boot_filepath=/boot/efi/EFI/redhat/grub.cfg
     else
@@ -302,13 +305,13 @@ if [ "$vmbus_string" = "" ]; then
     UpdateSummary "WARNING: Full support for kdump is not present, test execution might not work as expected"
 fi
 
+GetDistro
+
 Install_Kexec
 
 #
 # Configure kdump - this has distro specific behaviour
 #
-GetDistro
-
 if ! grep CONFIG_KEXEC_AUTO_RESERVE=y /boot/config-$(uname -r) && [[ "$crashkernel" == "auto" ]];then
     LogErr "crashkernel=auto doesn't work for this distro. Please use this pattern: crashkernel=X@Y."
     SetTestStateSkipped
@@ -324,7 +327,11 @@ sed -i "s/crashkernel=\S*//g" $boot_filepath
 sed -i "s/console=\S*//g" $boot_filepath
 
 # Add the crashkernel param
-sed -i "/vmlinuz-$(uname -r)/ s/$/ crashkernel=$crashkernel/" $boot_filepath
+if [[ $DISTRO != "redhat_8" ]]; then
+    sed -i "/vmlinuz-$(uname -r)/ s/$/ crashkernel=$crashkernel/" $boot_filepath
+else
+    sed -i "/kernelopts=root/s/$/ crashkernel=$crashkernel/" $boot_filepath
+fi
 if [ $? -ne 0 ]; then
     LogErr "Could not set the new crashkernel value in $boot_filepath"
     SetTestStateAborted

@@ -83,7 +83,7 @@
 		<testName>INFINIBAND-OPEN-MPI-2VM</testName>
 		<testScript>VERIFY-INFINIBAND-MultiVM.ps1</testScript>
 		<setupType>TwoVM1Dep</setupType>
-		<OverrideVMSize>Standard_HB60rs</OverrideVMSize>
+		<OverrideVMSize>Standard_HC44rs</OverrideVMSize>
 		<SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh,.\Testscripts\Linux\SetupRDMA.sh</files>
 		<Priority>1</Priority>

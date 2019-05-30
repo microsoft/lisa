@@ -60,16 +60,13 @@ function Main {
 			Add-Content -Value "$param" -Path $constantsFile
 		}
 
-		$detectedDistro = Detect-LinuxDistro -VIP $vmData.PublicIP -SSHport $vmData.SSHPort `
-			-testVMUser $user -testVMPassword $password
 		$currentKernelVersion = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort `
 			-username $user -password $password -command "uname -r"
-		if (IsGreaterKernelVersion -actualKernelVersion $currentKernelVersion -detectedDistro $detectedDistro) {
+		if (Is-DpdkCompatible -KernelVersion $currentKernelVersion -DetectedDistro $global:DetectedDistro) {
 			Write-LogInfo "Confirmed Kernel version supported: $currentKernelVersion"
 		} else {
-			$msg = "Unsupported Kernel version: $currentKernelVersion"
-			Write-LogErr $msg
-			throw $msg
+			Write-LogWarn "Unsupported Kernel version: $currentKernelVersion or unsupported distro $($global:DetectedDistro)"
+			return $global:ResultSkipped
 		}
 
 		Write-LogInfo "constants.sh created successfully..."

@@ -174,7 +174,7 @@ function install_dpdk () {
 	check_exit_status "${1} CONFIG_RTE_LIBRTE_MLX4_PMD=y" "exit"
 	ssh "${1}" "cd $RTE_SDK && make config O=$RTE_TARGET T=$RTE_TARGET"
 	LogMsg "Starting DPDK build make on ${1}"
-	ssh "${1}" "cd $RTE_SDK/$RTE_TARGET && make -j8 && make install"
+	ssh "${1}" "cd $RTE_SDK/$RTE_TARGET && make -j 2>&1 && make install 2>&1"
 	check_exit_status "dpdk build on ${1}" "exit"
 
 	LogMsg "*********INFO: Installed DPDK version on ${1} is ${dpdkVersion} ********"

@@ -7,7 +7,7 @@
 # Description:
 #    This script will first check the existence of LIS modules.
 #    Then it will reload the modules in a loop in order to stress the system.
-#    It also checks that hyperv_fb cannot be unloaded.
+#    It also checks that hv_utils and hyperv_fb cannot be unloaded.
 #    When done it will bring up the eth0 interface and check again
 #    for the presence of modules.
 #
@@ -118,11 +118,17 @@ VerifyModules()
 # Main script body
 #
 #######################################################################
+if (printf '%s\n' "${HYPERV_MODULES[@]}" | grep -xq "hv_utils"); then
+    if modprobe -r hv_utils; then
+        LogErr "hv_utils can be disabled, this is unexpected behavior."
+        SetTestStateFailed
+        exit 0
+    fi
+fi
+
 if (printf '%s\n' "${HYPERV_MODULES[@]}" | grep -xq "hyperv_fb"); then
-    modprobe -r hyperv_fb
-    if [[ $? -eq 0 ]]; then
-        msg="Error: hyperv_fb could be disabled!"
-        LogMsg "${msg}"
+    if modprobe -r hyperv_fb; then
+        LogErr "hyperv_fb can be disabled, this is unexpected behavior."
         SetTestStateFailed
         exit 0
     fi
@@ -138,23 +144,8 @@ do
         modprobe hv_netvsc
         sleep 1
     fi
-
-    if (printf '%s\n' "${HYPERV_MODULES[@]}" | grep -xq "hv_utils"); then
-        modprobe -r hv_utils
-        sleep 1
-        modprobe hv_utils
-        sleep 1
-    fi
-
-    if (printf '%s\n' "${HYPERV_MODULES[@]}" | grep -xq "hid_hyperv"); then
-        modprobe -r hid_hyperv
-        sleep 1
-        modprobe hid_hyperv
-        sleep 1
-    fi
-
     pass=$((pass+1))
-    LogMsg $pass
+    LogMsg "Reload iteration ${pass}"
 done
 
 END=$(date +%s)
@@ -164,12 +155,15 @@ LogMsg "Info: Finished testing, bringing up eth0"
 ip link set eth0 down
 ip link set eth0 up
 
-if ! (dhclient -r && dhclient)
-then
-    msg="Error: dhclient exited with an error"
-    LogMsg "${msg}"
-    SetTestStateFailed
-    exit 0
+ipAddress=$(ip addr show eth0 | grep "inet\b")
+if [ -z "$ipAddress" ]; then
+    if ! (dhclient -r && dhclient)
+    then
+        msg="Error: dhclient exited with an error"
+        LogMsg "${msg}"
+        SetTestStateFailed
+        exit 0
+    fi
 fi
 VerifyModules
 

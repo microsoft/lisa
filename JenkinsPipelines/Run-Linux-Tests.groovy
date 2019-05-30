@@ -28,7 +28,10 @@ def GetFinalVHDName (CustomVHD)
     return FinalVHDName
 }
 
-def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, CustomVHD, CustomVHDURL, Kernel, CustomKernelFile, CustomKernelURL, StorageAccount, GitUrlForAutomation, GitBranchForAutomation, TestByTestname, TestByCategorisedTestname, TestByCategory, TestByTag, Email, debug )
+def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, CustomVHD, CustomVHDURL,
+                    Kernel, CustomKernelFile, CustomKernelURL, StorageAccount, DiskType, GitUrlForAutomation,
+                    GitBranchForAutomation, TestByTestname, TestByCategorisedTestname, TestByCategory, TestByTag,
+                    Email, debug, TiPCluster, TipSessionId )
 {
     if( (TestByTestname != "" && TestByTestname != null) || (TestByCategorisedTestname != "" && TestByCategorisedTestname != null) || (TestByCategory != "" && TestByCategory != null) || (TestByTag != "" && TestByTag != null) )
     {
@@ -89,7 +92,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, 
                                         def Testname = CurrentExecution.split(">>")[1]
                                         def TestRegion = CurrentExecution.split(">>")[2]
                                         Prepare()
-                                        withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')])
+                                        withCredentials([file(credentialsId: 'Azure_Secrets_TESTONLY_File', variable: 'Azure_Secrets_File')])
                                         {
                                             RunPowershellCommand(".\\Run-LisaV2.ps1" +
                                             " -ExitWithZero" +
@@ -98,6 +101,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, 
                                             " -RGIdentifier '${JenkinsUser}'" +
                                             " -TestPlatform '${TestPlatform}'" +
                                             " -StorageAccount '${StorageAccount}'" +
+                                            " -CustomParameters 'DiskType=${DiskType};TiPCluster=${TiPCluster};TipSessionId=${TipSessionId}'" +
                                             FinalImageSource +
                                             FinalVMSize +
                                             " -TestNames '${Testname}'"
@@ -147,7 +151,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, 
                                         def TestName = CurrentExecution.split(">>")[3]
                                         def TestRegion = CurrentExecution.split(">>")[4]
                                         Prepare()
-                                        withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')])
+                                        withCredentials([file(credentialsId: 'Azure_Secrets_TESTONLY_File', variable: 'Azure_Secrets_File')])
                                         {
                                             RunPowershellCommand(".\\Run-LisaV2.ps1" +
                                             " -ExitWithZero" +
@@ -156,6 +160,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, 
                                             " -RGIdentifier '${JenkinsUser}'" +
                                             " -TestPlatform '${TestPlatform}'" +
                                             " -StorageAccount '${StorageAccount}'" +
+                                            " -CustomParameters 'DiskType=${DiskType};TiPCluster=${TiPCluster};TipSessionId=${TipSessionId}'" +
                                             FinalImageSource +
                                             FinalVMSize +
                                             " -TestNames '${TestName}'"
@@ -204,7 +209,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, 
                                         def TestArea = CurrentExecution.split(">>")[2]
                                         def TestRegion = CurrentExecution.split(">>")[3]
                                         Prepare()
-                                        withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')])
+                                        withCredentials([file(credentialsId: 'Azure_Secrets_TESTONLY_File', variable: 'Azure_Secrets_File')])
                                         {
                                             RunPowershellCommand(".\\Run-LisaV2.ps1" +
                                             " -ExitWithZero" +
@@ -215,6 +220,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, 
                                             " -TestCategory '${TestCategory}'" +
                                             " -TestArea '${TestArea}'" +
                                             " -StorageAccount '${StorageAccount}'" +
+                                            " -CustomParameters 'DiskType=${DiskType};TiPCluster=${TiPCluster};TipSessionId=${TipSessionId}'" +
                                             FinalImageSource +
                                             FinalVMSize
                                             )
@@ -261,7 +267,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, 
                                         def TestTag = CurrentExecution.split(">>")[1]
                                         def TestRegion = CurrentExecution.split(">>")[2]
                                         Prepare()
-                                        withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')])
+                                        withCredentials([file(credentialsId: 'Azure_Secrets_TESTONLY_File', variable: 'Azure_Secrets_File')])
                                         {
                                             RunPowershellCommand(".\\Run-LisaV2.ps1" +
                                             " -ExitWithZero" +
@@ -271,6 +277,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, 
                                             " -TestPlatform '${TestPlatform}'" +
                                             " -TestTag '${TestTag}'" +
                                             " -StorageAccount '${StorageAccount}'" +
+                                            " -CustomParameters 'DiskType=${DiskType};TiPCluster=${TiPCluster};TipSessionId=${TipSessionId}'" +
                                             FinalImageSource +
                                             FinalVMSize
                                             )
@@ -326,7 +333,7 @@ stage ("Inspect VHD")
         {
             Prepare()
             println "Running Inspect file"
-            withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')])
+            withCredentials([file(credentialsId: 'Azure_Secrets_TESTONLY_File', variable: 'Azure_Secrets_File')])
             {
                 RunPowershellCommand (".\\JenkinsPipelines\\Scripts\\InspectVHD.ps1 -XMLSecretFile '${Azure_Secrets_File}'")
             }
@@ -345,7 +352,7 @@ stage('Upload VHD to Azure')
             Prepare()
             unstash 'CustomVHD'
             FinalVHDName = readFile 'CustomVHD.azure.env'
-            withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')])
+            withCredentials([file(credentialsId: 'Azure_Secrets_TESTONLY_File', variable: 'Azure_Secrets_File')])
             {
                 RunPowershellCommand (".\\Utilities\\AddAzureRmAccountFromSecretsFile.ps1 -customSecretsFilePath '${Azure_Secrets_File}';" +
                 ".\\Utilities\\UploadVHDtoAzureStorage.ps1 -Region westus2 -VHDPath 'Q:\\Temp\\${FinalVHDName}' -DeleteVHDAfterUpload -NumberOfUploaderThreads 64"
@@ -375,10 +382,10 @@ stage('Capture VHD with Custom Kernel')
                 FinalImageSource = " -ARMImageName '${ImageSource}'"
             }
             Prepare()
-            withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')])
+            withCredentials([file(credentialsId: 'Azure_Secrets_TESTONLY_File', variable: 'Azure_Secrets_File')])
             {
                 RunPowershellCommand (".\\Utilities\\AddAzureRmAccountFromSecretsFile.ps1 -customSecretsFilePath '${Azure_Secrets_File}';" +
-                ".\\JenkinsPipelines\\Scripts\\InspectCustomKernel.ps1 -RemoteFolder 'J:\\ReceivedFiles' -LocalFolder '.'" 
+                ".\\JenkinsPipelines\\Scripts\\InspectCustomKernel.ps1 -RemoteFolder 'J:\\ReceivedFiles' -LocalFolder '.'"
                 )
                 KernelFile = readFile 'CustomKernel.azure.env'
                 stash includes: KernelFile, name: 'CustomKernelStash'
@@ -419,7 +426,7 @@ stage('Copy VHD to other regions')
                 unstash 'CustomVHD'
                 FinalVHDName = readFile 'CustomVHD.azure.env'
             }
-            withCredentials([file(credentialsId: 'Azure_Secrets_File', variable: 'Azure_Secrets_File')])
+            withCredentials([file(credentialsId: 'Azure_Secrets_TESTONLY_File', variable: 'Azure_Secrets_File')])
             {
                 RunPowershellCommand ( ".\\JenkinsPipelines\\Scripts\\DetectTestRegions.ps1 -TestByTestName '${TestByTestname}' -TestByCategorizedTestName '${TestByCategorisedTestname}' -TestByCategory '${TestByCategory}' -TestByTag '${TestByTag}'" )
                 CurrentTestRegions = readFile 'CurrentTestRegions.azure.env'
@@ -434,17 +441,25 @@ stage('Copy VHD to other regions')
 
 stage("TestByTestname")
 {
-    ExecuteTest ( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, CustomVHD, CustomVHDURL, Kernel, CustomKernelFile, CustomKernelURL, StorageAccount, GitUrlForAutomation, GitBranchForAutomation, TestByTestname, null, null, null, Email, debug )
+    ExecuteTest ( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, CustomVHD, CustomVHDURL, Kernel,
+        CustomKernelFile, CustomKernelURL, StorageAccount, DiskType, GitUrlForAutomation, GitBranchForAutomation,
+        TestByTestname, null, null, null, Email, debug, TiPCluster, TipSessionId )
 }
 stage("TestByCategorisedTestname")
 {
-    ExecuteTest ( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, CustomVHD, CustomVHDURL, Kernel, CustomKernelFile, CustomKernelURL, StorageAccount, GitUrlForAutomation, GitBranchForAutomation, null, TestByCategorisedTestname, null, null, Email, debug )
+    ExecuteTest ( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, CustomVHD, CustomVHDURL, Kernel,
+        CustomKernelFile, CustomKernelURL, StorageAccount, DiskType, GitUrlForAutomation, GitBranchForAutomation,
+        null, TestByCategorisedTestname, null, null, Email, debug, TiPCluster, TipSessionId )
 }
 stage("TestByCategory")
 {
-    ExecuteTest ( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, CustomVHD, CustomVHDURL, Kernel, CustomKernelFile, CustomKernelURL, StorageAccount, GitUrlForAutomation, GitBranchForAutomation, null, null, TestByCategory, null, Email, debug )
+    ExecuteTest ( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, CustomVHD, CustomVHDURL, Kernel,
+        CustomKernelFile, CustomKernelURL, StorageAccount, DiskType, GitUrlForAutomation, GitBranchForAutomation,
+        null, null, TestByCategory, null, Email, debug, TiPCluster, TipSessionId )
 }
 stage("TestByTag")
 {
-    ExecuteTest ( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, CustomVHD, CustomVHDURL, Kernel, CustomKernelFile, CustomKernelURL, StorageAccount, GitUrlForAutomation, GitBranchForAutomation, null, null, null, TestByTag, Email, debug )
+    ExecuteTest ( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, CustomVHD, CustomVHDURL, Kernel,
+        CustomKernelFile, CustomKernelURL, StorageAccount, DiskType, GitUrlForAutomation, GitBranchForAutomation,
+        null, null, null, TestByTag, Email, debug, TiPCluster, TipSessionId )
 }

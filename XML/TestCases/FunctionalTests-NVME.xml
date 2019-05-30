@@ -8,6 +8,7 @@
         <OverrideVMSize>Standard_L16s_v2</OverrideVMSize>
         <testParameters>
             <param>HYPERV_DISK_COUNT=2</param>
+            <param>nvme_version=NVME_VERSION</param>
         </testParameters>
         <Timeout>1200</Timeout>
         <cleanupScript>.\Testscripts\Windows\SETUP-Remove-NVME-Disk.ps1</cleanupScript>
@@ -23,6 +24,9 @@
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nvme_basic_validation.sh</files>
         <setupType>OneVM</setupType>
         <OverrideVMSize>Standard_L80s_v2</OverrideVMSize>
+        <testParameters>
+            <param>nvme_version=NVME_VERSION</param>
+        </testParameters>
         <Timeout>1200</Timeout>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
@@ -39,6 +43,7 @@
         <OverrideVMSize>Standard_L8s_v2</OverrideVMSize>
         <testParameters>
             <param>HYPERV_DISK_COUNT=1</param>
+            <param>nvme_version=NVME_VERSION</param>
         </testParameters>
         <Timeout>1200</Timeout>
         <cleanupScript>.\Testscripts\Windows\SETUP-Remove-NVME-Disk.ps1</cleanupScript>
@@ -57,6 +62,7 @@
         <OverrideVMSize>Standard_L8s_v2</OverrideVMSize>
         <testParameters>
             <param>HYPERV_DISK_COUNT=1</param>
+            <param>nvme_version=NVME_VERSION</param>
         </testParameters>
         <Timeout>1200</Timeout>
         <cleanupScript>.\Testscripts\Windows\SETUP-Remove-NVME-Disk.ps1</cleanupScript>
@@ -75,6 +81,7 @@
         <OverrideVMSize>Standard_L8s_v2</OverrideVMSize>
         <testParameters>
             <param>HYPERV_DISK_COUNT=1</param>
+            <param>nvme_version=NVME_VERSION</param>
         </testParameters>
         <Timeout>3600</Timeout>
         <cleanupScript>.\Testscripts\Windows\SETUP-Remove-NVME-Disk.ps1</cleanupScript>
@@ -93,6 +100,7 @@
         <OverrideVMSize>Standard_L8s_v2</OverrideVMSize>
         <testParameters>
             <param>HYPERV_DISK_COUNT=1</param>
+            <param>nvme_version=NVME_VERSION</param>
         </testParameters>
         <Timeout>3600</Timeout>
         <cleanupScript>.\Testscripts\Windows\SETUP-Remove-NVME-Disk.ps1</cleanupScript>
@@ -114,6 +122,7 @@
             <param>TEST_DIR=/root/test</param>
             <param>NVME=yes</param>
             <param>GENERIC=yes</param>
+            <param>nvme_version=NVME_VERSION</param>
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Functional</Category>

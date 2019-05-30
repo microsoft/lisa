@@ -7,6 +7,8 @@ param (
     [String] $TestArea,
     [String] $TestNames,
     [Switch] $OverallReport,
+    [bool] $RequiredTools = $True,
+    [bool] $RequiredDaemons = $True,
 
     # LISAv2 Params
     [Parameter(Mandatory=$true)] [String] $RGIdentifier,
@@ -22,7 +24,9 @@ $CURRENT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 $WORK_DIR = $CURRENT_DIR.Directory.FullName
 # VM-HOT-RESIZE test takes a long time to run and it is
 # not relevant for coverage
-$EXCLUDED_TESTS = "VM-HOT-RESIZE"
+# PCI-DEVICE-DISABLE-ENABLE-SRIOV-NVME is deployed on L80_v2,
+# uses too much quota and the same test is run on GPU and SRIOV
+$EXCLUDED_TESTS = "VM-HOT-RESIZE,PCI-DEVICE-DISABLE-ENABLE-SRIOV-NVME"
 
 function Main {
     $SrcPackagePath = Resolve-Path $SrcPackagePath
@@ -69,6 +73,21 @@ function Main {
             $packagesPath = Get-ChildItem $packagesPath
         }
 
+        # some tests require tools or daemons to be installed
+        if ($RequiredDaemons) {
+            $LisDebPath=(Get-Item $SrcPackagePath).DirectoryName
+            if (-not (Test-Path "$LisDebPath\hyperv-daemons*.deb")) {
+                throw "Cannot find daemons for kernel"
+            }
+            Copy-Item -path "$LisDebPath\hyperv-daemons*.deb"  .\CodeCoverage\artifacts
+        }
+        if ($RequiredTools) {
+            $LisDebPath=(Get-Item $SrcPackagePath).DirectoryName
+            if (-not (Test-Path "$LisDebPath\hyperv-tools*.deb")) {
+                throw "Cannot find tools for kernel"
+            }
+            Copy-Item -path "$LisDebPath\hyperv-tools*.deb"  .\CodeCoverage\artifacts
+        }
         Push-Location $packagesPath.Directory.FullName
         & $TAR_PATH xf $packagesPath.Name
         Pop-Location

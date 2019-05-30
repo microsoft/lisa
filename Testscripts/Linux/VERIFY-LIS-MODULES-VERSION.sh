@@ -14,6 +14,8 @@
 
 exit_code="0"
 expected_lis_version=''
+min_supported_distro_version="7.3"
+min_supported_LIS_version="4.3.0"
 
 # Source utils.sh
 . utils.sh || {
@@ -25,8 +27,8 @@ expected_lis_version=''
 # Source constants file and initialize most common variables
 UtilsInit
 
-# Check if expected LIS version is greater than 4.3.0
-function version_ge() { test "$(echo "$@" | tr " " "\n" | sort -rV | head -n 1)" == "$1"; }
+# Check if version is greater than or equal to supported version
+function check_version_greater_equal() { test "$(echo "$@" | tr " " "\n" | sort -rV | head -n 1)" == "$1"; }
 
 # Check if vmbus string is recorded in dmesg
 hv_string=$(dmesg | grep "Vmbus version:")
@@ -69,7 +71,7 @@ isLISInstalled=$(rpm -qa | grep hyper-v 2>/dev/null)
 
 if [ ! -z "$isLISInstalled" ]; then
     expected_lis_version=$(dmesg | grep 'Vmbus LIS version' | awk -F ':' '{print $3}' | tr -d [:blank:])
-    if [[ $DISTRO_VERSION =~ 7\. ]]; then
+    if check_version_greater_equal $DISTRO_VERSION $min_supported_distro_version ; then
         HYPERV_MODULES+=('pci_hyperv')
         pci_module=$(lsmod | grep pci_hyperv)
         if [ -z $pci_module ]; then
@@ -77,7 +79,7 @@ if [ ! -z "$isLISInstalled" ]; then
         fi
     fi
     if [[ $DISTRO_VERSION =~ 7\.3 ]] || [[ $DISTRO_VERSION =~ 7\.4 ]] ; then
-        if version_ge $expected_lis_version "4.3.0" ; then
+        if check_version_greater_equal $expected_lis_version $min_supported_LIS_version ; then
             HYPERV_MODULES+=('mlx4_en')
             mlx4_module=$(lsmod | grep mlx4_en)
             if [ -z $mlx4_module ]; then

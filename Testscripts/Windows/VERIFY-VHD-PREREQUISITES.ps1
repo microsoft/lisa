@@ -64,7 +64,7 @@ function Main {
             $testResult = "FAIL"
         }
         Write-LogInfo "Test Status : Completed"
-        Write-LogInfo "Test Resullt : $testResult"
+        Write-LogInfo "Test Result : $testResult"
     } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber

@@ -61,6 +61,12 @@ function Main {
             } elseif ($state -eq "TestFailed") {
                 Write-LogErr "xfstesting.sh failed on the VM!"
                 break
+            } elseif ($state -eq "TestAborted") {
+                Write-LogErr "xfstesting.sh aborted on the VM!"
+                break
+            } elseif ($state -eq "TestSkipped") {
+                Write-LogWarn "xfstesting.sh skipped on the VM!"
+                break
             }
             Write-LogInfo "xfstesting.sh is still running!"
         }

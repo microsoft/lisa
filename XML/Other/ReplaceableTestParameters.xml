@@ -39,7 +39,7 @@ Scenario 2 : You need to run all the performance tests quickly.
 <ReplaceableTestParameters>
 	<Parameter>
 		<ReplaceThis>DPDK_SOURCE_URL</ReplaceThis>
-		<ReplaceWith>https://fast.dpdk.org/rel/dpdk-18.08.tar.xz</ReplaceWith>
+		<ReplaceWith>https://fast.dpdk.org/rel/dpdk-18.11.tar.xz</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>DPDK_PERF_CORES</ReplaceThis>
@@ -48,6 +48,34 @@ Scenario 2 : You need to run all the performance tests quickly.
 	<Parameter>
 		<ReplaceThis>OVS_SOURCE_URL</ReplaceThis>
 		<ReplaceWith>https://github.com/openvswitch/ovs.git</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>OVS_SOURCE_BRANCH</ReplaceThis>
+		<ReplaceWith>dpdk-latest</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>NFF_GO_SOURCE_URL</ReplaceThis>
+		<ReplaceWith>https://github.com/intel-go/nff-go.git</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>NFF_GO_SOURCE_BRANCH</ReplaceThis>
+		<ReplaceWith>master</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>NFF_GO_ENV_SOURCE_URL</ReplaceThis>
+		<ReplaceWith>https://dl.google.com/go/go1.11.5.linux-amd64.tar.gz</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>VPP_SOURCE_URL</ReplaceThis>
+		<ReplaceWith>https://github.com/FDio/vpp.git</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>VPP_SOURCE_BRANCH</ReplaceThis>
+		<ReplaceWith>stable/1901</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>VPP_DPDK_VERSION</ReplaceThis>
+		<ReplaceWith>18.11</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>NTTTCP_RUNTIME_IN_SECONDS</ReplaceThis>
@@ -269,6 +297,10 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceWith>300</ReplaceWith>
 	</Parameter>
 	<Parameter>
+		<ReplaceThis>NESTED_NTTTCP_TCP_CONNECTIONS</ReplaceThis>
+		<ReplaceWith>(1 2 4 8 16 32 64 128 256 512 1024 2048 4096)</ReplaceWith>
+	</Parameter>
+	<Parameter>
 		<ReplaceThis>OPENSUSE_DOWNLOAD_URL</ReplaceThis>
 		<ReplaceWith>http://download.opensuse.org/repositories/Kernel:/stable/standard/</ReplaceWith>
 	</Parameter>
@@ -325,6 +357,10 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceWith>(randread randwrite read write)</ReplaceWith>
 	</Parameter>
 	<Parameter>
+		<ReplaceThis>NESTED_RAID_OPTION</ReplaceThis>
+		<ReplaceWith>'RAID in L1'</ReplaceWith>
+	</Parameter>
+	<Parameter>
 		<ReplaceThis>NTTTCP_TCP_CONNECTIONS</ReplaceThis>
 		<ReplaceWith>(1 2 4 8 16 32 64 128 256 512 1024 2048 4096 6144 8192 10240)</ReplaceWith>
 	</Parameter>
@@ -346,7 +382,7 @@ Scenario 2 : You need to run all the performance tests quickly.
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>NTTTCP_VERSION</ReplaceThis>
-		<ReplaceWith>v1.3.4</ReplaceWith>
+		<ReplaceWith>master</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>FIO_LOG_PARSE_TIMEOUT</ReplaceThis>
@@ -473,5 +509,17 @@ Scenario 2 : You need to run all the performance tests quickly.
         <!-- mlnxofed version which is installed from LIS for 7.3 and 7.4 -->
 		<ReplaceThis>EXPECTED_MLNX_VERSION</ReplaceThis>
 		<ReplaceWith>4.5-0.0.8</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>NVME_VERSION</ReplaceThis>
+		<ReplaceWith>v1.8.1</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>PERF_STORAGE_ACCOUNT_TYPE</ReplaceThis>
+		<ReplaceWith>Premium_LRS</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>VM_HOT_RESIZE_TEST_MODE</ReplaceThis>
+		<ReplaceWith>economy</ReplaceWith>
 	</Parameter>
 </ReplaceableTestParameters>

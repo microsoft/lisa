@@ -46,7 +46,13 @@ def verify_grub(distro):
             print(distro+"_TEST_GRUB_VERIFICATION_FAIL")
             return False
     if distro == "CENTOS" or distro == "ORACLELINUX" or distro == "REDHAT" or distro == "SLES" or distro == "FEDORA":
-        if os.path.isfile("/boot/grub2/grub.cfg"):
+        version_release = 0
+        if distro == "REDHAT":
+            version_release = Run("cat /etc/system-release | grep -Eo '[0-9].?[0-9]?' | head -1 | tr -d '\n'")
+        if float(version_release) == 8.0:
+            RunLog.info("Getting Contents of /boot/grub2/grubenv")
+            grub_out = Run("cat /boot/grub2/grubenv")
+        elif os.path.isfile("/boot/grub2/grub.cfg"):
             RunLog.info("Getting Contents of /boot/grub2/grub.cfg")
             grub_out = Run("cat /boot/grub2/grub.cfg")
         elif os.path.isfile("/boot/grub/menu.lst"):

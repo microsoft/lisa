@@ -114,6 +114,13 @@ Class AzureController : TestController
 		}
 		elseif ($this.StorageAccount)
 		{
+			$sc = Get-AzureRmStorageAccount | Where-Object {$_.StorageAccountName -eq $this.StorageAccount}
+			if (!$sc) {
+				Throw "Provided storage account $($this.StorageAccount) does not exist, abort testing."
+			}
+			if($sc.Location -ne $this.TestLocation) {
+				Throw "Provided storage account $($this.StorageAccount) location $($sc.Location) is different from test location $($this.TestLocation), abort testing."
+			}
 			$azureConfig.Subscription.ARMStorageAccount = $this.StorageAccount.Trim()
 			Write-LogInfo "Selecting custom storage account : $($azureConfig.Subscription.ARMStorageAccount) as per your test region."
 		}
@@ -160,34 +167,51 @@ Class AzureController : TestController
 
 	[void] PrepareTestImage() {
 		#If Base OS VHD is present in another storage account, then copy to test storage account first.
-		if ($this.OsVHD -imatch "/") {
+		if ($this.OsVHD) {
+			$useSASURL = $false
+			if (($this.OsVHD -imatch 'sp=') -and ($this.OsVHD -imatch 'sig=')) {
+				$useSASURL = $true
+			}
+			$ARMStorageAccount = $this.GlobalConfig.Global.Azure.Subscription.ARMStorageAccount
+			if ($ARMStorageAccount -imatch "NewStorage_") {
+				Throw "LISAv2 only supports copying VHDs to existing storage account."
+			}
+
+			if (!$useSASURL -and ($this.OsVHD -inotmatch "/")) {
+				$this.OsVHD = 'http://{0}.blob.core.windows.net/vhds/{1}' -f $ARMStorageAccount, $this.OsVHD
+			}
+
 			#Check if the test storage account is same as VHD's original storage account.
 			$givenVHDStorageAccount = $this.OsVHD.Replace("https://","").Replace("http://","").Split(".")[0]
-			$ARMStorageAccount = $this.GlobalConfig.Global.Azure.Subscription.ARMStorageAccount
+			$sourceContainer =  $this.OsVHD.Split("/")[$this.OsVHD.Split("/").Count - 2]
+			$vhdName = $this.OsVHD.Split("?")[0].split('/')[-1]
 
-			if ($givenVHDStorageAccount -ne $ARMStorageAccount ) {
+			if ($givenVHDStorageAccount -ne $ARMStorageAccount) {
 				Write-LogInfo "Your test VHD is not in target storage account ($ARMStorageAccount)."
 				Write-LogInfo "Your VHD will be copied to $ARMStorageAccount now."
-				$sourceContainer =  $this.OsVHD.Split("/")[$this.OsVHD.Split("/").Count - 2]
-				$vhdName = $this.OsVHD.Split("?")[0].split('/')[-1]
-				if ($ARMStorageAccount -inotmatch "NewStorage_") {
-					#Copy the VHD to current storage account.
-					#Check if the OsVHD is a SasUrl
-					if ( ($this.OsVHD -imatch 'sp=') -and ($this.OsVHD -imatch 'sig=') ) {
-						$copyStatus = Copy-VHDToAnotherStorageAccount -SasUrl $this.OsVHD -destinationStorageAccount $ARMStorageAccount -destinationStorageContainer "vhds" -vhdName $vhdName
-					} else {
-						$copyStatus = Copy-VHDToAnotherStorageAccount -sourceStorageAccount $givenVHDStorageAccount -sourceStorageContainer $sourceContainer -destinationStorageAccount $ARMStorageAccount -destinationStorageContainer "vhds" -vhdName $vhdName
-					}
-					if (!$copyStatus) {
-						Throw "Failed to copy the VHD to $ARMStorageAccount"
-					} else {
-						Set-Variable -Name BaseOsVHD -Value $vhdName -Scope Global
-						Write-LogInfo "New Base VHD name - $vhdName"
-					}
+
+				#Copy the VHD to current storage account.
+				#Check if the OsVHD is a SasUrl
+				if ($useSASURL) {
+					$copyStatus = Copy-VHDToAnotherStorageAccount -SasUrl $this.OsVHD -destinationStorageAccount $ARMStorageAccount -destinationStorageContainer "vhds" -vhdName $vhdName
+					$this.OsVHD = 'http://{0}.blob.core.windows.net/vhds/{1}' -f $ARMStorageAccount, $vhdName
 				} else {
-					Throw "LISAv2 only supports copying VHDs to existing storage account."
+					$copyStatus = Copy-VHDToAnotherStorageAccount -sourceStorageAccount $givenVHDStorageAccount -sourceStorageContainer $sourceContainer -destinationStorageAccount $ARMStorageAccount -destinationStorageContainer "vhds" -vhdName $vhdName
+				}
+				if (!$copyStatus) {
+					Throw "Failed to copy the VHD to $ARMStorageAccount"
+				}
+			} else {
+				$sc = Get-AzureRmStorageAccount | Where-Object {$_.StorageAccountName -eq $ARMStorageAccount}
+				$storageKey = (Get-AzureRmStorageAccountKey -ResourceGroupName $sc.ResourceGroupName -Name $ARMStorageAccount)[0].Value
+				$context = New-AzureStorageContext -StorageAccountName $ARMStorageAccount -StorageAccountKey $storageKey
+				$blob = Get-AzureStorageBlob -Blob $vhdName -Container $sourceContainer -Context $context -ErrorAction Ignore
+				if (!$blob) {
+					Throw "Provided VHD not existed, abort testing."
 				}
 			}
+			Set-Variable -Name BaseOsVHD -Value $this.OsVHD -Scope Global
+			Write-LogInfo "New Base VHD name - $($this.OsVHD)"
 		}
 	}
 }

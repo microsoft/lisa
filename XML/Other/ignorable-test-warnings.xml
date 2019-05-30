@@ -1,0 +1,7 @@
+﻿<!--#This list contains all the ignorable test warnings.-->
+<messages>
+    <warnings>
+        <keywords>warning: /etc/depmod.d/hyperv.conf saved as /etc/depmod.d/hyperv.conf.rpmsave</keywords>
+        <keywords>warning: waiting for transaction lock on /var/lib/rpm/.rpm.lock</keywords>
+    </warnings>
+</messages>

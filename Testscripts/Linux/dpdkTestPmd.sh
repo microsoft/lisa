@@ -73,9 +73,16 @@ runTestPmd()
 	ssh "${server}" "mkdir -p $LOGDIR"
 	ssh "${server}" "mkdir -p  /mnt/huge; mkdir -p  /mnt/huge-1G; mount -t hugetlbfs nodev /mnt/huge && mount -t hugetlbfs nodev /mnt/huge-1G -o 'pagesize=1G' && echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages && grep -i hug /proc/meminfo"
 	mkdir -p  /mnt/huge; mkdir -p  /mnt/huge-1G; mount -t hugetlbfs nodev /mnt/huge && mount -t hugetlbfs nodev /mnt/huge-1G -o 'pagesize=1G' && echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages && grep -i hug /proc/meminfo 
-	
+
+	# Check testpmd --no-pci if it triggers a kernel crash
+	# NOTE(v-advlad): SIGKILL(9) is required, as the --no-pci makes testpmd hang
+	# although SIGINT is sent.
+	echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages \
+		&& echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages \
+		&&  modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib; \
+		timeout --kill-after 10 10 testpmd --no-pci -m 1024 -c 0x3 -- -i --total-num-mbufs=16384 --coremask=0x2 --rxq=1 --txq=1
+
 	for testmode in $modes; do
-		LogMsg "Configure huge pages on ${server}"
 		LogMsg "TestPmd is starting on ${serverNIC1ip} with ${testmode} mode, duration ${testDuration} secs"
 		ssh "${server}" "echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages &&  mount -a && modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib;timeout 30 testpmd -l 1-3 -n 2 -w 0002:00:02.0 --vdev='net_vdev_netvsc0,iface=eth1,force=1' -- --port-topology=chained --nb-cores 1 --forward-mode=${testmode}  --stats-period 1" 2>&1 > "$HOMEDIR"/dpdkVersion.txt
 		ssh "${server}" "pkill testpmd"
@@ -89,12 +96,19 @@ runTestPmd()
 		
 		LogMsg "TestPmd is starting on ${clientNIC1ip} with txonly mode, duration ${testDuration} secs"
 		trx_rx_ips=$(Get_Trx_Rx_Ip_Flags "${server}")
-		echo "echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 0 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages && echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages &&  modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib;timeout ${testDuration} testpmd -l 0-1 -w 0002:00:02.0 --vdev='net_vdev_netvsc0,iface=eth1,force=1' -- --port-topology=chained --nb-cores 1 --txq 1 --rxq 1 --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=txonly --stats-period 1 ${trx_rx_ips} 2>&1 >> $LOGDIR/dpdk-testpmd-${testmode}-sender.log &"
-		echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages &&  modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib;timeout "${testDuration}" testpmd -l 0-1 -w 0002:00:02.0 --vdev='net_vdev_netvsc0,iface=eth1,force=1' -- --port-topology=chained --nb-cores 1 --txq 1 --rxq 1 --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=txonly --stats-period 1 "${trx_rx_ips}" 2>&1 > "$LOGDIR"/dpdk-testpmd-"${testmode}"-sender-$(date +"%m%d%Y-%H%M%S").log &
+		echo "timeout ${testDuration} testpmd -l 0-1 -w 0002:00:02.0 --vdev='net_vdev_netvsc0,iface=eth1,force=1' -- --port-topology=chained --nb-cores 1 --txq 1 --rxq 1 --mbcache=512 --txd=4096 --rxd=4096 --forward-mode=txonly --stats-period 1 ${trx_rx_ips} 2>&1 >> $LOGDIR/dpdk-testpmd-${testmode}-sender.log &"
+		echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages \
+			&& echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages \
+			&& modprobe -a ib_uverbs mlx4_en mlx4_core mlx4_ib
+		timeout "${testDuration}" testpmd -l 0-1 -w 0002:00:02.0 --vdev='net_vdev_netvsc0,iface=eth1,force=1' -- \
+			--port-topology=chained --nb-cores 1 --txq 1 --rxq 1 --mbcache=512 --txd=4096 --rxd=4096 \
+			--forward-mode=txonly --stats-period 1 "${trx_rx_ips}" 2>&1 > "$LOGDIR"/dpdk-testpmd-"${testmode}"-sender-$(date +"%m%d%Y-%H%M%S").log &
 		checkCmdExitStatus "TestPmd started on ${clientNIC1ip} with txonly mode, duration ${testDuration} secs"
 		sleep "${testDuration}"
 		LogMsg "reset used huge pages"
-		echo 0 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 0 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages && grep -i hug /proc/meminfo
+		echo 0 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages \
+			&& echo 0 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages \
+			&& grep -i hug /proc/meminfo
 		ssh "${server}" "echo 0 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 0 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages && grep -i hug /proc/meminfo"
 		pkill testpmd
 		ssh "${server}" "pkill testpmd"

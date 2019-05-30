@@ -14,21 +14,26 @@ if (!$global:LogFileName){
 }
 Get-ChildItem ..\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
 #region HTML File structure
-$htmlHeader = '
+
+$TableStyle = '
 <style type="text/css">
-.tm  {border-collapse:collapse;border-spacing:0;border-color:#999;}
-.tm td{font-family:Arial, sans-serif;font-size:14px;padding:10px 5px;border-style:solid;border-width:1px;overflow:hidden;word-break:normal;border-color:#999;color:#444;background-color:#F7FDFA;}
-.tm th{font-family:Arial, sans-serif;font-size:14px;font-weight:normal;padding:10px 5px;border-style:solid;border-width:1px;overflow:hidden;word-break:normal;border-color:#999;color:#fff;background-color:#26ADE4;}
-.tm .tm-dk6e{font-weight:bold;color:#ffffff;text-align:center;vertical-align:top}
-.tm .tm-xa7z{background-color:#ffccc9;vertical-align:top}
-.tm .tm-ys9u{background-color:#b3ffd9;vertical-align:top}
-.tm .tm-7k3a{background-color:#D2E4FC;font-weight:bold;text-align:center;vertical-align:top}
-.tm .tm-yw4l{vertical-align:top}
-.tm .tm-6k2t{background-color:#D2E4FC;vertical-align:top}
+  .tm  {border-collapse:collapse;border-spacing:0;border-color:#999;}
+  .tm td{font-family:Arial, sans-serif;font-size:14px;padding:10px 5px;border-style:solid;border-width:1px;overflow:hidden;word-break:normal;border-color:#999;color:#444;background-color:#F7FDFA;}
+  .tm th{font-family:Arial, sans-serif;font-size:14px;font-weight:normal;padding:10px 5px;border-style:solid;border-width:1px;overflow:hidden;word-break:normal;border-color:#999;color:#fff;background-color:#26ADE4;}
+  .tm .tm-dk6e{font-weight:bold;color:#ffffff;text-align:center;vertical-align:top}
+  .tm .tm-xa7z{background-color:#ffccc9;vertical-align:top}
+  .tm .tm-ys9u{background-color:#b3ffd9;vertical-align:top}
+  .tm .tm-7k3a{background-color:#D2E4FC;font-weight:bold;text-align:center;vertical-align:top}
+  .tm .tm-yw4l{vertical-align:top}
+  .tm .tm-6k2t{background-color:#D2E4FC;vertical-align:top}
 </style>
+'
+
+$htmlHeader = '
+<h2>&bull;&nbsp;SUBSCRIPTION_IDENTIFIER</h2>
 <table class="tm">
   <tr>
-    <th class="tm-dk6e" colspan="9">Top 20 VMs by their Weight (Age*CoreCount)</th>
+    <th class="tm-dk6e" colspan="9">Top TOP_VM_COUNT VMs by their Weight (Age*CoreCount)</th>
   </tr>
   <tr>
     <td class="tm-7k3a">Sr</td>
@@ -79,24 +84,36 @@ $htmlEnd =
 $tick = (Get-Date).Ticks
 $VMAgeHTMLFile = "vmAge.html"
 $cacheFilePath = "cache.results-$tick.json"
+if (!(Test-Path -Path ".\SubscriptionUsage.html")) {
+  $htmlHeader = $TableStyle + $htmlHeader
+}
+#region Get Subscription Details...
+Write-LogInfo "Running: Get-AzureRmSubscription..."
+$subscription = Get-AzureRmSubscription
+$htmlHeader = $htmlHeader.Replace("TOP_VM_COUNT",$TopVMsCount)
+$htmlHeader = $htmlHeader.Replace("SUBSCRIPTION_IDENTIFIER","$($subscription.Name) [$($subscription.Id)]")
+#endregion
 
 #region Get VM Age
 $then = Get-Date
 Write-LogInfo "Elapsed Time: $($(Get-Date) - $then)"
 $allSizes = @{}
-Write-LogInfo "Running: Get-AzLocation..."
-$allRegions = (Get-AzLocation | Where-Object { $_.Providers -imatch "Microsoft.Compute" }).Location | Sort-Object
-foreach( $region in $allRegions )
-{
-    Write-LogInfo "Running:  Get-AzVMSize -Location $($region)"
-    $allSizes[ $region ] = Get-AzVMSize -Location $region
-}
+Write-LogInfo "Running: Get-AzureRmLocation..."
+$allRegions = (Get-AzureRmLocation | Where-Object { $_.Providers -imatch "Microsoft.Compute" }).Location | Sort-Object
 try
 {
-	Write-LogInfo "Running: Get-AzVM -Status"
-	$allVMStatus = Get-AzVM -Status
-	Write-LogInfo "Running: Get-AzStorageAccount"
-	$sas = Get-AzStorageAccount
+  $allVMStatus = @()
+  foreach( $region in $allRegions )
+  {
+      Write-LogInfo "Running: Get-AzureRmVMSize -Location $($region)"
+      $allSizes[ $region ] = Get-AzureRmVMSize -Location $region
+  }
+  foreach ($region in $allRegions) {
+    Write-LogInfo "Running: Get-AzureRmVM -Status -Location $region"
+    $allVMStatus += Get-AzureRmVM -Status -Location $region
+  }
+	Write-LogInfo "Running: Get-AzureRmStorageAccount"
+	$sas = Get-AzureRmStorageAccount
 }
 catch {
     Write-LogInfo "Error while fetching data. Please try again."
@@ -174,17 +191,19 @@ foreach( $vm in $allVMStatus )
   $finalResults += $newEntry
 }
 Write-LogInfo "FinalResults.Count = $($finalResults.Count)"
-$finalResults | ConvertTo-Json -Depth 10 | Set-Content "$cacheFilePath"
+if ($finalResults) {
+  $finalResults | ConvertTo-Json -Depth 10 | Set-Content "$cacheFilePath"
+  $VMAges = ConvertFrom-Json -InputObject  ([string](Get-Content -Path "$cacheFilePath"))
+  $VMAges   = $VMAges | Sort-Object -Descending Weight
+}
+
 #endregion
 
 #region Build HTML Page
-
-$VMAges = ConvertFrom-Json -InputObject  ([string](Get-Content -Path "$cacheFilePath"))
-$VMAges   = $VMAges | Sort-Object -Descending Weight
 $finalHTMLString = $htmlHeader
 
-$RGLinkHtml = '<a href="https://ms.portal.azure.com/#resource/subscriptions/' + "$subscriptionID" + '/resourceGroups/RESOURCE_GROUP_NAME/overview" target="_blank" rel="noopener">RESOURCE_GROUP_NAME</a>'
-$VMLinkHtml = '<a href="https://ms.portal.azure.com/#resource/subscriptions/' + "$subscriptionID" + '/resourceGroups/RESOURCE_GROUP_NAME/providers/Microsoft.Compute/virtualMachines/INSTANCE_NAME/overview" target="_blank" rel="noopener">INSTANCE_NAME</a>'
+$RGLinkHtml = '<a href="https://ms.portal.azure.com/#resource/subscriptions/' + "$($subscription.Id)" + '/resourceGroups/RESOURCE_GROUP_NAME/overview" target="_blank" rel="noopener">RESOURCE_GROUP_NAME</a>'
+$VMLinkHtml = '<a href="https://ms.portal.azure.com/#resource/subscriptions/' + "$($subscription.Id)" + '/resourceGroups/RESOURCE_GROUP_NAME/providers/Microsoft.Compute/virtualMachines/INSTANCE_NAME/overview" target="_blank" rel="noopener">INSTANCE_NAME</a>'
 
 $maxCount = $TopVMsCount
 $i = 0

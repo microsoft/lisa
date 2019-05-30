@@ -723,6 +723,10 @@ function Install-CustomLIS ($CustomLIS, $customLISBranch, $allVMData, [switch]$R
 						Write-LogInfo "New LIS: $upgradedlisVersion"
 						Add-Content -Value "Old LIS: $currentlisVersion" -Path ".\Report\AdditionalInfo-$TestID.html" -Force
 						Add-Content -Value "New LIS: $upgradedlisVersion" -Path ".\Report\AdditionalInfo-$TestID.html" -Force
+						if ($upgradedlisVersion -eq $currentlisVersion) {
+							Write-LogErr "LIS Version is not changed even after successful LIS RPMs installation."
+							return $false
+						}
 						return $true
 					}
 					else
@@ -1129,7 +1133,7 @@ function Check-FileInLinuxGuest {
    #>
 
 	$check = Run-LinuxCmd -username $vmUserName -password $vmPassword -port $vmPort -ip $ipv4 -command "[ -f ${fileName} ] && echo 1 || echo 0"
-	if (-not $check) {
+	if (-not [convert]::ToInt32($check)) {
 		Write-Loginfo "File $fileName does not exists"
 		return $False
 	}
@@ -1952,61 +1956,72 @@ function Enable-RootUser {
     return $deploymentResult
 }
 
-function IsGreaterKernelVersion() {
+function Is-DpdkCompatible() {
     param (
-        [string] $actualKernelVersion,
-        [string] $detectedDistro
+        [string] $KernelVersion,
+        [string] $DetectedDistro,
+        [string] $CompatibleDistro
     )
 
-    # Supported Distro and kernel version for DPDK on Azure
-    # https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk
-    $SUPPORTED_DISTRO_KERNEL = @{
-        "UBUNTU" = "4.15.0-1015-azure";
-        "SLES" = "4.12.14-5.5-azure";
-        "SLES 15" = "4.12.14-5.5-azure";
-        "SUSE" = "4.12.14-5.5-azure";
-        "REDHAT" = "3.10.0-862.9.1.el7";
-        "CENTOS" = "3.10.0-862.3.3.el7";
-    }
-
-    if ($SUPPORTED_DISTRO_KERNEL.Keys -contains $detectedDistro) {
-        $supportKernelVersions = $SUPPORTED_DISTRO_KERNEL[$detectedDistro] -split "[\.\-]+"
-        $actualKernelVersions = $actualKernelVersion -split "[\.\-]+"
-        for($i=0; $i -lt $supportKernelVersions.Length;$i++) {
-            try {
-                    $supportKernelVersions[$i] = [int]$supportKernelVersions[$i]
-                } catch {
-                    $supportKernelVersions[$i] = 0
-                    continue
-                }
+    if ($CompatibleDistro) {
+        if ($CompatibleDistro.Contains($DetectedDistro)) {
+            Write-LogInfo "Confirmed supported distro: $DetectedDistro"
+            return $true
+        } else {
+            Write-LogWarn "Unsupported distro: $DetectedDistro"
+            return $false
         }
-        for($i=0; $i -lt $actualKernelVersions.Length;$i++) {
-            try {
-                    $actualKernelVersions[$i] = [int]$actualKernelVersions[$i]
-                } catch {
-                    $actualKernelVersions[$i] = 0
-                    continue
-                }
-        }
-
-        $array_count = $actualKernelVersions.Length
-        if ($supportKernelVersions.Length -gt $actualKernelVersions.Length) {
-            $array_count = $supportKernelVersions.Length
-        }
-
-        for($i=0; $i -lt $array_count;$i++) {
-            if ([int]$actualKernelVersions[$i] -eq [int]$supportKernelVersions[$i]) {
-                continue
-            } elseif ([int]$actualKernelVersions[$i] -lt [int]$supportKernelVersions[$i]) {
-                return $false
-            } else {
-                return $true
-            }
-        }
-        return $true
     } else {
-            Write-LogErr "Unsupported Distro: $detectedDistro"
-            throw "Unsupported Distro: $detectedDistro"
+        # Supported Distro and kernel version for DPDK on Azure
+        # https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk
+        $SUPPORTED_DISTRO_KERNEL = @{
+            "UBUNTU" = "4.15.0-1015-azure";
+            "SLES" = "4.12.14-5.5-azure";
+            "SLES 15" = "4.12.14-5.5-azure";
+            "SUSE" = "4.12.14-5.5-azure";
+            "REDHAT" = "3.10.0-862.9.1.el7";
+            "CENTOS" = "3.10.0-862.3.3.el7";
+        }
+
+        if ($SUPPORTED_DISTRO_KERNEL.Keys -contains $DetectedDistro) {
+            $supportKernelVersions = $SUPPORTED_DISTRO_KERNEL[$DetectedDistro] -split "[\.\-]+"
+            $KernelVersions = $KernelVersion -split "[\.\-]+"
+            for($i=0; $i -lt $supportKernelVersions.Length;$i++) {
+                try {
+                        $supportKernelVersions[$i] = [int]$supportKernelVersions[$i]
+                    } catch {
+                        $supportKernelVersions[$i] = 0
+                        continue
+                    }
+            }
+            for($i=0; $i -lt $KernelVersions.Length;$i++) {
+                try {
+                        $KernelVersions[$i] = [int]$KernelVersions[$i]
+                    } catch {
+                        $KernelVersions[$i] = 0
+                        continue
+                    }
+            }
+
+            $array_count = $KernelVersions.Length
+            if ($supportKernelVersions.Length -gt $KernelVersions.Length) {
+                $array_count = $supportKernelVersions.Length
+            }
+
+            for($i=0; $i -lt $array_count;$i++) {
+                if ([int]$KernelVersions[$i] -eq [int]$supportKernelVersions[$i]) {
+                    continue
+                } elseif ([int]$KernelVersions[$i] -lt [int]$supportKernelVersions[$i]) {
+                    return $false
+                } else {
+                    return $true
+                }
+            }
+            return $true
+        } else {
+            Write-LogWarn "Unsupported Distro: $DetectedDistro"
+            return $false
+        }
     }
 }
 

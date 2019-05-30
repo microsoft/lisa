@@ -160,7 +160,9 @@ function Main {
         # Start the test script
         Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
             -password $password -command "/$superuser/${testScript}" -runMaxAllowedTime 1800 | Out-Null
-        if (-not $?) {
+        $installState = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
+            -password $password -command "cat /$superuser/state.txt"
+        if ($installState -ne "TestCompleted") {
             Write-LogErr "Unable to install the CUDA drivers!"
             $currentTestResult.TestResult = Get-FinalResultHeader -resultarr "FAIL"
             return $currentTestResult
@@ -223,6 +225,10 @@ function Main {
             $currentTestData.files.Split('\')[3].Split('.')[0] -TestType "sh" -PublicIP `
             $allVMData.PublicIP -SSHPort $allVMData.SSHPort -Username $user `
             -password $password -TestName $currentTestData.testName
+
+        # Copy the dkms build log for the nvidia driver
+        Copy-RemoteFiles -download -downloadFrom $allVMData.PublicIP -files "nvidia_dkms_make.log" `
+            -downloadTo $LogDir -port $allVMData.SSHPort -username $superuser -password $password
 
         Write-LogInfo "Test Completed."
         Write-LogInfo "Test Result: $testResult"

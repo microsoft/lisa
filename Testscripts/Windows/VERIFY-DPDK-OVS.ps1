@@ -11,6 +11,9 @@ function Get-TestStatus {
 	}	elseif ($testStatus -imatch "TestAborted") {
 		Write-LogErr "Test Aborted. Last known status : $currentStatus."
 		$testResult = "ABORTED"
+	}	elseif ($testStatus -imatch "TestSkipped") {
+		Write-LogErr "Test SKIPPED. Last known status : $currentStatus."
+		$testResult = "SKIPPED"
 	}	elseif ($testStatus -imatch "TestCompleted") {
 		Write-LogInfo "Test Completed."
 		Write-LogInfo "DPDK build is Success"
@@ -43,10 +46,10 @@ function Main {
 			}
 		}
 		if ($noClient) {
-			Throw "No any master VM defined. Be sure that, Client VM role name matches with the pattern `"*master*`". Aborting Test."
+			Throw "No master VM defined. Be sure that, Client VM role name matches with the pattern `"*master*`". Aborting Test."
 		}
 		if ($noServer) {
-			Throw "No any slave VM defined. Be sure that, Server machine role names matches with pattern `"*slave*`" Aborting Test."
+			Throw "No slave VM defined. Be sure that, Server machine role names matches with pattern `"*slave*`". Aborting Test."
 		}
 
 		Write-LogInfo "CLIENT VM details :"
@@ -59,6 +62,12 @@ function Main {
 		Write-LogInfo "  Public IP : $($serverVMData.PublicIP)"
 		Write-LogInfo "  SSH Port : $($serverVMData.SSHPort)"
 		Write-LogInfo "  Internal IP : $($serverVMData.InternalIP)"
+
+		# Checking OVS DPDK compatibility
+		$compatibleDistro = @("UBUNTU")
+		if (!(Is-DpdkCompatible -CompatibleDistro $compatibleDistro -DetectedDistro $global:DetectedDistro)) {
+			return $global:ResultSkipped
+		}
 
 		# PROVISION VMS FOR LISA WILL ENABLE ROOT USER AND WILL MAKE ENABLE PASSWORDLESS AUTHENTICATION ACROSS ALL VMS IN SAME HOSTED SERVICE.
 		Provision-VMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
@@ -95,17 +104,6 @@ function Main {
 				$modes = ($param.Replace("modes=",""))
 			}
 		}
-		$detectedDistro = Detect-LinuxDistro -VIP $vmData.PublicIP -SSHport $vmData.SSHPort `
-			-testVMUser $user -testVMPassword $password
-		$currentKernelVersion = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort `
-			-username $user -password $password -command "uname -r"
-		if (IsGreaterKernelVersion -actualKernelVersion $currentKernelVersion -detectedDistro $detectedDistro) {
-			Write-LogInfo "Confirmed Kernel version supported: $currentKernelVersion"
-		} else {
-			$msg = "Unsupported Kernel version: $currentKernelVersion"
-			Write-LogErr $msg
-			throw $msg
-		}
 
 		Write-LogInfo "constants.sh created successfully..."
 		Write-LogInfo "test modes : $modes"
@@ -140,6 +138,8 @@ collect_VM_properties
 			-username $superUser -password $password -command "cat /root/state.txt"
 		$testResult = Get-TestStatus $dpdkStatus
 		if ($testResult -ne "PASS") {
+			Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort `
+				-username $superUser -password $password -download -downloadTo $LogDir -files "*.txt, *.log"
 			return $testResult
 		}
 
@@ -170,9 +170,9 @@ collect_VM_properties
 		$ovsStatus = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort `
 			-username $superUser -password $password -command "cat /root/state.txt"
 		$testResult = Get-TestStatus $ovsStatus
-		if ($testResult -ne "PASS") {
-			return $testResult
-		}
+
+		Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort `
+			-username $superUser -password $password -download -downloadTo $LogDir -files "*.txt, *.log"
 	} catch {
 		$ErrorMessage =  $_.Exception.Message
 		$ErrorLine = $_.InvocationInfo.ScriptLineNumber

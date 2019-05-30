@@ -36,17 +36,12 @@ Function New-ResultSummary($testResult, $checkValues, $testName, $metaData)
 }
 
 Function Get-FinalResultHeader($resultArr){
-	if (($resultArr -imatch "FAIL" ) -or ($resultArr -imatch "Aborted"))
-	{
-		$result = "FAIL"
-		if ($resultArr -imatch "Aborted")
-		{
-			$result = "Aborted"
-		}
-	}
-	else
-	{
-		$result = "PASS"
+	switch ($resultArr) {
+		{($_ -imatch "FAIL")} { $result = $global:ResultFail; break}
+		{($_ -imatch "Abort")} { $result = $global:ResultAborted; break}
+		{($_ -imatch "Skip")} { $result = $global:ResultSkipped; break}
+		{($_ -imatch "PASS")} { $result = $global:ResultPass; break}
+		default { $result = $global:ResultFail }
 	}
 	return $result
 }
@@ -1110,4 +1105,28 @@ Function Get-AndTestHostPublicIp {
 		}
 	}
 	return $null
+}
+
+
+function Get-TestStatus {
+	param($testStatus)
+	if ($testStatus -imatch "TestFailed") {
+		Write-LogErr "Test failed. Last known status: $currentStatus."
+		$testResult = "FAIL"
+	}	elseif ($testStatus -imatch "TestAborted") {
+		Write-LogErr "Test Aborted. Last known status : $currentStatus."
+		$testResult = "ABORTED"
+	}	elseif ($testStatus -imatch "TestSkipped") {
+		Write-LogErr "Test SKIPPED. Last known status : $currentStatus."
+		$testResult = "SKIPPED"
+	}	elseif ($testStatus -imatch "TestCompleted") {
+		Write-LogInfo "Test Completed."
+		Write-LogInfo "Build is Success"
+		$testResult = "PASS"
+	}	else {
+		Write-LogErr "Test execution is not successful, check test logs in VM."
+		$testResult = "ABORTED"
+	}
+
+	return $testResult
 }

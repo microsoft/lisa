@@ -150,15 +150,13 @@ function Main {
 			$ipAddrs = "$ipAddrs $internalIp"
 			Add-Content -Value "$roleName=$internalIp" -Path $constantsFile
 
-			$detectedDistro = Detect-LinuxDistro -VIP $vmData.PublicIP -SSHport $vmData.SSHPort `
-					-testVMUser $user -testVMPassword $password
 			$currentKernelVersion = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort `
 					-username $user -password $password -command "uname -r"
-			if (IsGreaterKernelVersion -actualKernelVersion $currentKernelVersion -detectedDistro $detectedDistro) {
-					Write-LogInfo "Confirmed Kernel version supported: $currentKernelVersion"
+			if (Is-DpdkCompatible -KernelVersion $currentKernelVersion -DetectedDistro $global:DetectedDistro) {
+				Write-LogInfo "Confirmed Kernel version supported: $currentKernelVersion"
 			} else {
-				Write-LogErr "Unsupported Kernel version: $currentKernelVersion"
-				throw "Unsupported Kernel version: $currentKernelVersion"
+				Write-LogWarn "Unsupported Kernel version: $currentKernelVersion or unsupported distro $($global:DetectedDistro)"
+				return $global:ResultSkipped
 			}
 		}
 
@@ -320,11 +318,11 @@ collect_VM_properties
 			}
 		}
 		Write-LogInfo "Test result : $testResult"
-		$perfData = $testDataCsv | Format-Table | Out-String
+		$perfData = ($testDataCsv | Format-Table | Out-String).Trim()
 		Write-LogInfo $perfData
 		if ($perfData) {
-			$currentTestResult.TestSummary +=  New-ResultSummary -testResult $perfData `
-				-metaData "Performance report" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+			$currentTestResult.TestSummary +=  (New-ResultSummary -testResult $perfData `
+				-checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName).Trim()
 		}
 	}
 	catch {

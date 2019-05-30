@@ -319,6 +319,9 @@ GetDistro()
 		suse*)
 			OS_FAMILY="Sles"
 		;;
+		coreos*)
+			OS_FAMILY="CoreOS"
+		;;
 		*)
 			OS_FAMILY="unknown"
 			return 1
@@ -2316,9 +2319,9 @@ function remove_package ()
 function install_epel () {
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos)
-			if [[ $DISTRO_VERSION =~ 6\. ]]; then
+			if [[ $DISTRO_VERSION =~ ^6\. ]]; then
 				epel_rpm_url="https://dl.fedoraproject.org/pub/epel/epel-release-latest-6.noarch.rpm"
-			elif [[ $DISTRO_VERSION =~ 7\. ]]; then
+			elif [[ $DISTRO_VERSION =~ ^7\. ]]; then
 				epel_rpm_url="https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm"
 			else
 				echo "Unsupported version to install epel repository"
@@ -2352,18 +2355,19 @@ function install_sshpass () {
 	which sshpass
 	if [ $? -ne 0 ]; then
 		echo "sshpass not installed\n Installing now..."
-		install_package sshpass
-		which sshpass
+		check_package "sshpass"
 		if [ $? -ne 0 ]; then
+			install_package "gcc make wget"
 			echo "sshpass not installed\n Build it from source code now..."
 			package_name="sshpass-1.06"
 			source_url="https://sourceforge.net/projects/sshpass/files/sshpass/1.06/$package_name.tar.gz"
 			wget $source_url
-			tar -xvf "$package_name.tar.gz"
+			tar -xf "$package_name.tar.gz"
 			cd $package_name
-			install_package "gcc make"
 			./configure --prefix=/usr/ && make && make install
 			cd ..
+		else
+			install_package sshpass
 		fi
 		which sshpass
 		check_exit_status "install_sshpass"
@@ -2434,7 +2438,17 @@ function install_fio () {
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos)
 			install_epel
-			yum -y --nogpgcheck install wget sysstat mdadm blktrace libaio fio
+			yum -y --nogpgcheck install wget sysstat mdadm blktrace libaio fio bc libaio-devel
+			if ! command -v fio; then
+				echo "fio is not installed\n Build it from source code now..."
+				fio_version="3.13"
+				yum -y groupinstall "Development Tools"
+				wget https://github.com/axboe/fio/archive/fio-${fio_version}.tar.gz
+				tar xvf fio-${fio_version}.tar.gz
+				pushd fio-fio-${fio_version} && ./configure && make && make install
+				popd
+				yes | cp -f /usr/local/bin/fio /bin/
+			fi
 			check_exit_status "install_fio"
 			mount -t debugfs none /sys/kernel/debug
 			;;
@@ -2450,7 +2464,7 @@ function install_fio () {
 		sles)
 			if [[ $DISTRO_VERSION =~ 12|15 ]]; then
 				add_sles_benchmark_repo
-				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install wget mdadm blktrace libaio1 sysstat
+				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install wget mdadm blktrace libaio1 sysstat bc
 				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install fio
 			else
 				echo "Unsupported SLES version"
@@ -2670,7 +2684,7 @@ function install_ntttcp () {
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos)
 			install_epel
-			yum -y --nogpgcheck install wget libaio sysstat git bc make gcc dstat psmisc
+			yum -y --nogpgcheck install wget libaio sysstat git bc make gcc dstat psmisc lshw
 			build_ntttcp "${1}"
 			build_lagscope
 			iptables -F
@@ -2678,7 +2692,7 @@ function install_ntttcp () {
 
 		ubuntu|debian)
 			dpkg_configure
-			apt-get -y install wget libaio1 sysstat git bc make gcc dstat psmisc
+			apt-get -y install wget libaio1 sysstat git bc make gcc dstat psmisc lshw
 			build_ntttcp "${1}"
 			build_lagscope
 			;;
@@ -2686,7 +2700,7 @@ function install_ntttcp () {
 		sles)
 			if [[ $DISTRO_VERSION =~ 12|15 ]]; then
 				add_sles_network_utilities_repo
-				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install wget sysstat git bc make gcc dstat psmisc
+				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install wget sysstat git bc make gcc dstat psmisc lshw
 				build_ntttcp "${1}"
 				build_lagscope
 				iptables -F
@@ -3399,10 +3413,10 @@ function Format_Mount_NVME()
 function DisableEnablePCI ()
 {
     case "$1" in
-        "SR-IOV") vf_pci_type="Ethernet" ;;
+        "SR-IOV") vf_pci_type="Ethernet\|Network" ;;
         "NVME")   vf_pci_type="Non-Volatile" ;;
         "GPU")    vf_pci_type="NVIDIA" ;;
-        "ALL")    vf_pci_type="NVIDIA\|Non-Volatile\|Ethernet" ;;
+        "ALL")    vf_pci_type="NVIDIA\|Non-Volatile\|Ethernet\|Network" ;;
         *)        LogErr "Unsupported device type for DisableEnablePCI." ; return 1 ;;
     esac
 
@@ -3489,4 +3503,68 @@ function CreateFile()
 	else
 		LogMsg "Error: $file_path failed to create with size $size"
 	fi
+}
+
+# Check available packages
+function check_package ()
+{
+	local package_list=("$@")
+	for package_name in "${package_list[@]}"; do
+		case "$DISTRO_NAME" in
+			oracle|rhel|centos)
+				yum provides "$package_name" | grep -i Matched
+				return $?
+				;;
+
+			ubuntu|debian)
+				apt-cache policy "$package_name" | grep Candidate
+				return $?
+				;;
+
+			suse|opensuse|sles)
+				zypper search "$package_name"
+				return $?
+				;;
+
+			clear-linux-os)
+				swupd search "$package_name" | grep -v "failed"
+				return $?
+				;;
+			*)
+				echo "Unknown distribution"
+				return 1
+		esac
+	done
+}
+
+# Install nvme
+function install_nvme_cli()
+{
+    which nvme
+    if [ $? -ne 0 ]; then
+        echo "nvme is not installed\n Installing now..."
+        check_package "nvme-cli"
+        if [ $? -ne 0 ]; then
+            yum -y groupinstall "Development Tools"
+            wget https://github.com/linux-nvme/nvme-cli/archive/${nvme_version}.tar.gz
+            tar xvf ${nvme_version}.tar.gz
+            pushd nvme-cli-${nvme_version/v/} && make && make install
+            popd
+            yes | cp -f /usr/local/sbin/nvme /sbin
+        else
+            install_package "nvme-cli"
+        fi
+    fi
+    which nvme
+    check_exit_status "install_nvme"
+}
+
+function CheckInstallLockUbuntu() {
+    if pidof dpkg;then
+        LogMsg "Another install is in progress. Waiting 10 seconds."
+        sleep 10
+        CheckInstallLockUbuntu
+    else
+        LogMsg "No lock on dpkg present."
+    fi
 }
