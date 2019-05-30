@@ -18,8 +18,8 @@ function Main {
         $testedVMSizes += $AllVMData.InstanceSize
         $previousVMSize = $AllVMData.InstanceSize
 
-        $loadBalanceName = (Get-AzureRmLoadBalancer -ResourceGroupName $AllVMData.ResourceGroupName).Name
-        $VirtualMachine = Get-AzureRmVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName
+        $loadBalanceName = (Get-AzLoadBalancer -ResourceGroupName $AllVMData.ResourceGroupName).Name
+        $VirtualMachine = Get-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName
         $ComputeSKUs = Get-AzComputeResourceSku
         foreach ($param in $currentTestData.TestParameters.param) {
             if ($param -match "TestMode") {
@@ -30,11 +30,11 @@ function Main {
             Write-LogInfo "The test mode is economy mode"
             $totalTestTimes = 10
         } else {
-            $totalTestTimes = (Get-AzureRmVMSize -Location $AllVMData.Location).Length
+            $totalTestTimes = (Get-AzVMSize -Location $AllVMData.Location).Length
         }
 
         for ($i = 0; $i -le $totalTestTimes; $i++) {
-            $vmSizes = (Get-AzureRmVMSize -ResourceGroupName $AllVMData.ResourceGroupName -VMName $AllVMData.RoleName).Name
+            $vmSizes = (Get-AzVMSize -ResourceGroupName $AllVMData.ResourceGroupName -VMName $AllVMData.RoleName).Name
             # For economy mode, select a size by random in order to cover as many different serial sizes as possible
             if ($testMode -eq "economy") {
                 $vmSizes = $vmSizes | Get-Random -Count 1
@@ -110,8 +110,8 @@ function Main {
         }
 
         # Resize the VM with an unsupported size in the current hardware cluster
-        $allVMSize = (Get-AzureRmVMSize -Location $AllVMData.Location).Name
-        $vmSizes = (Get-AzureRmVMSize -ResourceGroupName $AllVMData.ResourceGroupName -VMName $AllVMData.RoleName).Name
+        $allVMSize = (Get-AzVMSize -Location $AllVMData.Location).Name
+        $vmSizes = (Get-AzVMSize -ResourceGroupName $AllVMData.ResourceGroupName -VMName $AllVMData.RoleName).Name
         foreach ($vmSize in $allVMSize) {
             $Restrictions = ($ComputeSKUs | Where-Object { $_.Locations -eq $AllVMData.Location -and $_.ResourceType -eq "virtualMachines" `
                 -and $_.Name -eq $vmSize}).Restrictions

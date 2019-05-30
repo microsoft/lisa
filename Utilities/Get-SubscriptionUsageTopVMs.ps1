@@ -88,8 +88,8 @@ if (!(Test-Path -Path ".\SubscriptionUsage.html")) {
   $htmlHeader = $TableStyle + $htmlHeader
 }
 #region Get Subscription Details...
-Write-LogInfo "Running: Get-AzureRmSubscription..."
-$subscription = Get-AzureRmSubscription
+Write-LogInfo "Running: Get-AzSubscription..."
+$subscription = Get-AzSubscription
 $htmlHeader = $htmlHeader.Replace("TOP_VM_COUNT",$TopVMsCount)
 $htmlHeader = $htmlHeader.Replace("SUBSCRIPTION_IDENTIFIER","$($subscription.Name) [$($subscription.Id)]")
 #endregion
@@ -98,22 +98,22 @@ $htmlHeader = $htmlHeader.Replace("SUBSCRIPTION_IDENTIFIER","$($subscription.Nam
 $then = Get-Date
 Write-LogInfo "Elapsed Time: $($(Get-Date) - $then)"
 $allSizes = @{}
-Write-LogInfo "Running: Get-AzureRmLocation..."
-$allRegions = (Get-AzureRmLocation | Where-Object { $_.Providers -imatch "Microsoft.Compute" }).Location | Sort-Object
+Write-LogInfo "Running: Get-AzLocation..."
+$allRegions = (Get-AzLocation | Where-Object { $_.Providers -imatch "Microsoft.Compute" }).Location | Sort-Object
 try
 {
   $allVMStatus = @()
   foreach( $region in $allRegions )
   {
-      Write-LogInfo "Running: Get-AzureRmVMSize -Location $($region)"
-      $allSizes[ $region ] = Get-AzureRmVMSize -Location $region
+      Write-LogInfo "Running: Get-AzVMSize -Location $($region)"
+      $allSizes[ $region ] = Get-AzVMSize -Location $region
   }
   foreach ($region in $allRegions) {
-    Write-LogInfo "Running: Get-AzureRmVM -Status -Location $region"
-    $allVMStatus += Get-AzureRmVM -Status -Location $region
+    Write-LogInfo "Running: Get-AzVM -Status -Location $region"
+    $allVMStatus += Get-AzVM -Status -Location $region
   }
-	Write-LogInfo "Running: Get-AzureRmStorageAccount"
-	$sas = Get-AzureRmStorageAccount
+	Write-LogInfo "Running: Get-AzStorageAccount"
+	$sas = Get-AzStorageAccount
 }
 catch {
     Write-LogInfo "Error while fetching data. Please try again."

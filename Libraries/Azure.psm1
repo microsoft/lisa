@@ -95,7 +95,7 @@ Function Validate-SubscriptionUsage($RGXMLData, $Location, $OverrideVMSize, $Sto
 
         # Get the Azure Compute SKU details
         Write-LogInfo "Getting Azure 'ComputeSKU' details..."
-        $ComputeSKU = Get-AzureRmComputeResourceSku
+        $ComputeSKU = Get-AzComputeResourceSku
 
         #Define LISAv2's subscription usage limit. This is applicable for all the defined resources.
         #  e.g. If your subscription has below maximum limits:
@@ -238,7 +238,7 @@ Function Change-StorageAccountType($TestCaseData, [string]$Location, $GlobalConf
                     $copyVHD = $true
                 }
             } else {
-                $storageAccountType = (Get-AzureRmStorageAccount | Where-Object {$_.StorageAccountName -eq $storageAccount}).Sku.Tier.ToString()
+                $storageAccountType = (Get-AzStorageAccount | Where-Object {$_.StorageAccountName -eq $storageAccount}).Sku.Tier.ToString()
                 if ($storageAccountType -inotmatch "premium") {
                     Write-LogErr "Provided storage account is not premium type, this case $($TestCaseData.testName) need run under premium type of storage account."
                     Throw "Case $($TestCaseData.testName) need run under premium type of storage account."
