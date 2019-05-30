@@ -5,6 +5,9 @@
 from azuremodules import *
 from distutils.version import LooseVersion
 
+min_supported_distro_version="7.3"
+min_supported_LIS_version="4.3.0"
+
 
 def RunTest(command):
     UpdateState("TestStarted")
@@ -36,7 +39,7 @@ def RunTest(command):
     [current_distro, distro_version] = DetectDistro()
     lis_exists=Run("rpm -qa | grep hyper-v 2>/dev/null")
 
-    if distro_version.startswith("7") and lis_exists:
+    if LooseVersion(distro_version) >= LooseVersion(min_supported_distro_version) and lis_exists:
         hvModules.append("pci_hyperv")
         output = Run(command)
         if not ("pci_hyperv" in output):
@@ -44,7 +47,7 @@ def RunTest(command):
 
     if (distro_version.startswith("7.3") or distro_version.startswith("7.4")) and lis_exists:
         lis_version=Run("dmesg | grep 'Vmbus LIS version' | awk -F ':' '{print $3}' | tr -d [:blank:]")
-        if LooseVersion(lis_version) >= LooseVersion('4.3.0'):
+        if LooseVersion(lis_version) >= LooseVersion(min_supported_LIS_version):
             hvModules.append("mlx4_en")
             output = Run(command)
             if not ("mlx4_en" in output):
