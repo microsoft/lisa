@@ -88,7 +88,7 @@ if [ $(echo "${kvp_client_output}" | grep -c "Key:.*Value:.*") -ne "$expectedEnt
 fi
 
 if [ $(ps aux | grep -c [k]vp) -lt 1 ]; then
-    LogErr "KVP daemon failed after append"
+    LogErr "KVP daemon exited abnormally after appending entries to KVP pool $Pool"
     SetTestStateFailed
     exit 0
 fi
