@@ -245,8 +245,11 @@ collect_VM_properties
 			++$outputCounter
 			Wait-Time -seconds 5
 		}
-		$finalState = Run-LinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username $superUser -password $password -command "cat /root/state.txt"
-		Copy-RemoteFiles -downloadFrom $masterVM.PublicIP -port $masterVM.SSHPort -username $superUser -password $password -download -downloadTo $LogDir -files "*.csv, *.txt, *.log"
+		$finalState = Run-LinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort `
+			-username $superUser -password $password -command "cat /root/state.txt"
+		Copy-RemoteFiles -downloadFrom $masterVM.PublicIP -port $masterVM.SSHPort `
+			-username $superUser -password $password -download -downloadTo $LogDir `
+			-files "*.csv, *.txt, *.log, logdir/*.log"
 
 		$testDataCsv = Import-Csv -Path "${LogDir}\dpdk_test.csv"
 		if (!$testDataCsv) {
