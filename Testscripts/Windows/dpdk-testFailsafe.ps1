@@ -53,6 +53,10 @@ function Confirm-Performance() {
 		}
 	}
 
-	return (Confirm-WithinPercentage $before_rx_pps $after_rx_pps 10) -and
-			(Confirm-WithinPercentage $before_tx_pps $after_tx_pps 10)
+	$maxVariation = 10
+	if (!((Confirm-WithinPercentage $before_rx_pps $after_rx_pps $maxVariation) -and
+			(Confirm-WithinPercentage $before_tx_pps $after_tx_pps $maxVariation))) {
+		return "FAIL"
+	}
+	return "PASS"
 }
