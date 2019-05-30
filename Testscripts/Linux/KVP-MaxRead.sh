@@ -10,7 +10,6 @@
 }
 UtilsInit
 
-
 if [ "$(ps aux | grep -c [k]vp)" -lt 1 ]; then
     LogErr "KVP daemon is not running"
     SetTestStateAborted
@@ -19,13 +18,13 @@ fi
 
 # Verify OS architecture, select kvp client
 if [ "$(uname -a | grep -c x86_64)" -eq 1 ]; then
-    LogMsg "64 bit architecture was detected"
+    LogMsg "64-bit architecture was detected"
     kvp_client="kvp_client64"
 elif [ "$(uname -a | grep -c i686)" -eq 1 ]; then
-    LogMsg "32 bit architecture was detected"
+    LogMsg "32-bit architecture was detected"
     kvp_client="kvp_client32"
 else
-    LogErr "Unable to detect OS architecture"
+    LogErr "Unable to detect OS architecture: $(uname -a)"
     SetTestStateAborted
     exit 0
 fi
@@ -35,47 +34,44 @@ value="value"
 key="test"
 counter=0
 while [ "$counter" -le "$Entries" ]; do
-    ./"${kvp_client}" append "$Pool" "${key}${counter}" "${value}"
+    if ! ./"${kvp_client}" append "$Pool" "${key}${counter}" "${value}"; then
+        LogErr "Failed to append new entries"
+        SetTestStateFailed
+        exit 0
+    fi
+    LogMsg "${kvp_client} append $Pool ${key}${counter} ${value}"
     let counter=counter+1
 done
-
-
-if [ $? -ne 0 ]; then
-    LogErr "Failed to append new entries"
-    SetTestStateFailed
-    exit 0
-fi
 
 # Append Stage 2
 # kvp_client also deletes entries when appending for the same key
 counter=0
 while [ "$counter" -le "$Entries" ]; do
-    ./"${kvp_client}" append "$Pool" "${key}${counter}" "${value}"
+    if ! ./"${kvp_client}" append "$Pool" "${key}${counter}" "${value}"; then
+        LogErr "Failed to append new entries"
+        SetTestStateFailed
+        exit 0
+    fi
+    LogMsg "${kvp_client} append $Pool ${key}${counter} ${value}"
     let counter=counter+1
 done
 
-if [ $? -ne 0 ]; then
-    LogErr "Failed to replace new entries"
-    SetTestStateFailed
-    exit 0
-fi
-
 # kvp_client can output max 200 entries
-expectedEentryCount="$Entries"
-if [ "$expectedEentryCount" -gt 200 ]; then
-    expectedEentryCount=200
+expectedEntryCount="$Entries"
+if [ "$expectedEntryCount" -gt 200 ]; then
+    expectedEntryCount=200
 fi
 kvp_client_output="$(./${kvp_client} ${Pool})"
 
 if [ "$(echo "${kvp_client_output}" | grep -c "Pool is ${Pool}")" -ne 1 ]; then
-    LogErr "Wrong pool otuput"
+    LogErr "Wrong pool output"
     LogErr "${kvp_client_output}"
     SetTestStateFailed
     exit 0
 fi
 
 # expect more entries than client can output
-if [ "$Entries" -gt "$expectedEentryCount" ] && \
+if [ "$Entries" -gt "$expectedEntryCount" ] && \
     [ "$(echo "$kvp_client_output" | grep -c "Num records is 200")" -lt 1 ] && \
     [ "$(echo "$kvp_client_output" | grep -c "More records available")" -lt 1 ]; then
     LogErr "Not all entries got added"
@@ -84,8 +80,8 @@ if [ "$Entries" -gt "$expectedEentryCount" ] && \
     exit 0
 fi
 
-if [ $(echo "${kvp_client_output}" | grep -c "Key:.*Value:.*") -ne "$expectedEentryCount" ]; then
-    LogErr "Number of Entries doesn't match $expectedEentryCount"
+if [ $(echo "${kvp_client_output}" | grep -c "Key:.*Value:.*") -ne "$expectedEntryCount" ]; then
+    LogErr "Number of Entries doesn't match $expectedEntryCount"
     LogErr "${kvp_client_output}"
     SetTestStateFailed
     exit 0
