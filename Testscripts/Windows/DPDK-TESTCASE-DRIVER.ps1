@@ -265,7 +265,6 @@ collect_VM_properties
 		elseif ($finalState -imatch "TestCompleted") {
 			Write-LogInfo "Test Completed."
 			Copy-RemoteFiles -downloadFrom $masterVM.PublicIP -port $masterVM.SSHPort -username $superUser -password $password -download -downloadTo $LogDir -files "*.tar.gz"
-			$testResult = "PASS"
 			$testResult = (Get-FunctionAndInvoke("Confirm-Performance"))
 		}
 		elseif ($finalState -imatch "TestRunning") {
