@@ -59,6 +59,7 @@ else
     fdiskOption=1
 fi
 
+mntDir="/mnt"
 count=0
 for fs in "${fileSystems[@]}"; do
     # Create the new partition
@@ -66,7 +67,7 @@ for fs in "${fileSystems[@]}"; do
     # to rm partition, still can show in fdisk -l even it does not exist in fact.
     (echo d; echo w) | fdisk "$deviceName" 2> /dev/null
     (echo n; echo p; echo $fdiskOption; echo ; echo ;echo w) | fdisk "$deviceName" 2> /dev/null
-	check_exit_status "Create partition" "exit"
+    check_exit_status "Create partition" "exit"
     sync
 
     # Format the partition
@@ -76,13 +77,20 @@ for fs in "${fileSystems[@]}"; do
         LogErr "File-system tools for $fs not present. Skipping filesystem $fs."
         count=$(expr $count + 1)
     else
-        # Use -f option for xfs filesystem, but ignore parameter for other filesystems
+        # Use -f/-F option for xfs/ext4 filesystem, but ignore parameter for other filesystems
         option=""
         if [ "$fs" = "xfs" ]; then
             option="-f"
         fi
+        if [ "$fs" = "ext4" ]; then
+            option="-F"
+        fi
+        mount | grep $testPartition
+        if [ $? -eq 0 ]; then
+            umount $mntDir
+        fi
         mkfs -t $fs $option $testPartition
-		check_exit_status "Format partition with $fs" "exit"
+        check_exit_status "Format partition with $fs" "exit"
     fi
 
     if [ $count -eq ${#fileSystems[@]} ]; then
@@ -91,23 +99,22 @@ for fs in "${fileSystems[@]}"; do
         exit 1
     fi
 
-    mntDir="/mnt"
     if [ ! -e $mntDir ]; then
         mkdir $mntDir
-		check_exit_status "Create mount point" "exit"
+        check_exit_status "Create mount point" "exit"
     fi
 
     mount $testPartition $mntDir
-	check_exit_status "Mount partition" "exit"
+    check_exit_status "Mount partition" "exit"
 
     # Read/Write mount point
     ./STOR_VHDXResize_ReadWrite.sh
 
     umount $mntDir
-	check_exit_status "Unmount partition" "exit"
+    check_exit_status "Unmount partition" "exit"
 
     (echo d; echo w) | fdisk "$deviceName" 2> /dev/null
-	check_exit_status "Delete partition" "exit"
+    check_exit_status "Delete partition" "exit"
 
 done
 
