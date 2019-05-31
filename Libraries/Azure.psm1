@@ -2382,6 +2382,8 @@ function Add-AzureAccountFromSecretsFile {
         $CustomSecretsFilePath
     )
 
+    $SubscriptionSelected = $false
+
     if ($env:Azure_Secrets_File) {
         $secretsFile = $env:Azure_Secrets_File
         Write-LogInfo "Using secrets file: $secretsFile, defined in environments."
@@ -2397,23 +2399,67 @@ function Add-AzureAccountFromSecretsFile {
 
     if ( Test-Path $secretsFile ) {
         Write-LogInfo "$secretsFile found."
-        Write-LogInfo "------------------------------------------------------------------"
-        Write-LogInfo "Authenticating Azure PS session.."
         $XmlSecrets = [xml](Get-Content $secretsFile)
         $ClientID = $XmlSecrets.secrets.SubscriptionServicePrincipalClientID
         $TenantID = $XmlSecrets.secrets.SubscriptionServicePrincipalTenantID
         $Key = $XmlSecrets.secrets.SubscriptionServicePrincipalKey
-        $pass = ConvertTo-SecureString $key -AsPlainText -Force
-        $mycred = New-Object System.Management.Automation.PSCredential ($ClientID, $pass)
+        $AzureContextFilePath = $XmlSecrets.secrets.AzureContextFilePath
         $subIDSplitted = ($XmlSecrets.secrets.SubscriptionID).Split("-")
         $subIDMasked = "$($subIDSplitted[0])-xxxx-xxxx-xxxx-$($subIDSplitted[4])"
+        Write-LogInfo "------------------------------------------------------------------"
+        if ($ClientID -and $Key) {
+            Write-LogInfo "Authenticating Azure PS session using Service Principal..."
+            $pass = ConvertTo-SecureString $key -AsPlainText -Force
+            $mycred = New-Object System.Management.Automation.PSCredential ($ClientID, $pass)
+            $null = Add-AzureRmAccount -ServicePrincipal -Tenant $TenantID -Credential $mycred
+        } elseif ($AzureContextFilePath) {
+            Write-LogInfo "Authenticating Azure PS session using saved context file $AzureContextFilePath..."
+            $null = Import-AzureRmContext -Path $AzureContextFilePath
+        } else {
+            $ContextFiles = Get-ChildItem -Path $PWD -Recurse | `
+                Where-Object { $_.Name.EndsWith(".json") } | Select-String -Pattern "AzureCloud" | Select Path
+            $ContextFiles = $ContextFiles.Path | Get-Unique
+            if ($ContextFiles.Count -eq 0) {
+                Write-LogWarn "No Azure authentication methods were available in Secret File."
+                Write-LogWarn "No Azure authentication context files detected in $PWD."
 
-        $null = Add-AzureRmAccount -ServicePrincipal -Tenant $TenantID -Credential $mycred
-        $selectedSubscription = Select-AzureRmSubscription -SubscriptionId $XmlSecrets.secrets.SubscriptionID
+                Write-LogInfo "Checking if current Azure powershell session is already authenticated..."
+                $selectedSubscription = Select-AzureRmSubscription -SubscriptionId $XmlSecrets.secrets.SubscriptionID -ErrorAction SilentlyContinue
+                if ( $selectedSubscription.Subscription.Id -eq $XmlSecrets.secrets.SubscriptionID ) {
+                    $SubscriptionSelected = $true
+                    Write-LogInfo "Authenticated."
+                } else {
+                    Write-LogErr "Unable to proceed with unauthenticated Azure powershell session."
+                    Write-LogInfo "Please use one of the following method to authenticate this session."
+                    Write-LogInfo "1. Provide service principal details in XML secrets file."
+                    Write-LogInfo "    a. SubscriptionServicePrincipalClientID"
+                    Write-LogInfo "    b. SubscriptionServicePrincipalTenantID"
+                    Write-LogInfo "    c. SubscriptionServicePrincipalKey"
+                    Write-LogInfo "2. Provide the path of authenticated context file in XML secrets file."
+                    Write-LogInfo "    a. AzureContextFilePath"
+                    Write-LogInfo "3. Copy authenticated context file in $PWD"
+                    Write-LogInfo "4. Authenticate this current session by running Connect-AzureRmAccount command, and then run LISAv2 again."
+                }
+            } elseif ($ContextFiles.Count -eq 1)  {
+                $CustomAzureContextFilePath = $ContextFiles
+                Write-LogInfo "Authenticating with context file $CustomAzureContextFilePath"
+                $null = Import-AzureRmContext -Path $CustomAzureContextFilePath
+            } else {
+                Write-LogWarn "$($ContextFiles.Count) Azure context files found in $pwd."
+                $Counter = 1
+                foreach ( $file in $ContextFiles ) {
+                    Write-LogWarn "$Counter. $file"
+                }
+                Write-LogWarn "Please remove unwanted context files. Expected context files: 1."
+            }
+        }
+        if (-not $SubscriptionSelected) {
+            $selectedSubscription = Select-AzureRmSubscription -SubscriptionId $XmlSecrets.secrets.SubscriptionID  -ErrorAction SilentlyContinue
+        }
         if ( $selectedSubscription.Subscription.Id -eq $XmlSecrets.secrets.SubscriptionID ) {
             Write-LogInfo "Current Subscription : $subIDMasked."
         } else {
-            Write-LogInfo "There was an error when selecting $subIDMasked."
+            Throw "There was an error when selecting $subIDMasked."
         }
         Write-LogInfo "------------------------------------------------------------------"
     } else {

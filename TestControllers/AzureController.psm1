@@ -145,10 +145,9 @@ Class AzureController : TestController
 
 		$SelectedSubscription = Select-AzureRmSubscription -SubscriptionId $azureConfig.Subscription.SubscriptionID
 		$subIDSplitted = ($SelectedSubscription.Subscription.SubscriptionId).Split("-")
-		$userIDSplitted = ($SelectedSubscription.Account.Id).Split("-")
 		Write-LogInfo "SubscriptionName       : $($SelectedSubscription.Subscription.Name)"
 		Write-LogInfo "SubscriptionId         : $($subIDSplitted[0])-xxxx-xxxx-xxxx-$($subIDSplitted[4])"
-		Write-LogInfo "User                   : $($userIDSplitted[0])-xxxx-xxxx-xxxx-$($userIDSplitted[4])"
+		Write-LogInfo "User                   : $($SelectedSubscription.Account.Id)"
 		Write-LogInfo "ServiceEndpoint        : $($SelectedSubscription.Environment.ActiveDirectoryServiceEndpointResourceId)"
 		Write-LogInfo "CurrentStorageAccount  : $($azureConfig.Subscription.ARMStorageAccount)"
 
