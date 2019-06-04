@@ -49,10 +49,11 @@ if [[ "$sts" = *"Operation not supported"* ]]; then
     exit 0
 fi
 
+ethtool_output=$(ethtool -l "${SYNTH_NET_INTERFACES[@]}" | grep "Combined" | grep -o '[0-9]*')
 # Get number of channels
-channels=$(ethtool -l "${SYNTH_NET_INTERFACES[@]}" | grep "Combined" | sed -n 2p | grep -o '[0-9]*')
+channels=$(echo "$ethtool_output" | sed -n 2p)
 # Get max number of channels
-max_channels=$(ethtool -l "${SYNTH_NET_INTERFACES[@]}" | grep "Combined" | sed -n 1p | grep -o '[0-9]*')
+max_channels=$(echo "$ethtool_output" | sed -n 1p)
 # Get number of cores
 cores=$(grep -c processor < /proc/cpuinfo)
 
