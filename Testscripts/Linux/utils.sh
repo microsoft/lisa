@@ -1966,7 +1966,7 @@ VerifyIsEthtool()
                 ;;
             ubuntu*|debian*)
                 apt update -y
-		apt install ethtool -y
+                apt install ethtool -y
                 if [ $? -ne 0 ]; then
                     msg="ERROR: Failed to install Ethtool"
                     LogMsg "$msg"
