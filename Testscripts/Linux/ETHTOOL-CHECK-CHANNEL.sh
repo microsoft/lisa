@@ -62,9 +62,7 @@ LogMsg "Number of channels: $channels, max number of channels: $max_channels and
 for new_channels in $(seq 1 $max_channels); do
     old_channels=$channels
     # Change the number of channels
-    sts=$(ethtool -L "${SYNTH_NET_INTERFACES[@]}" combined $new_channels 2>&1)
-    if [[ "$sts" = *"Operation not supported"* ]]; then
-        LogErr "$sts"
+    if ! ethtool -L "${SYNTH_NET_INTERFACES[@]}" combined "$new_channels" ; then
         LogErr "Change the number of channels of ${SYNTH_NET_INTERFACES[@]} with $new_channels channels failed, old value: $old_channels"
         SetTestStateFailed
         exit 0
