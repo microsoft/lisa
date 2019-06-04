@@ -1049,7 +1049,7 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
     }
     #endregion
 
-    #region New ARM Bood Diagnostic Account if Storage Account Type is Premium LRS.
+    #region New ARM Boot Diagnostic Account if Storage Account Type is Premium LRS.
     $bootDiagnosticsSA = ([xml](Get-Content .\XML\RegionAndStorageAccounts.xml)).AllRegions.$Location.StandardStorage
     $diagnosticRG = ($GetAzureRMStorageAccount | Where-Object {$_.StorageAccountName -eq $bootDiagnosticsSA}).ResourceGroupName.ToString()
     #endregion
@@ -1371,7 +1371,7 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
 
     Add-Content -Value "$($indents[3])}" -Path $jsonFile
     Add-Content -Value "$($indents[2])}," -Path $jsonFile
-    Write-LogInfo "Addded Load Balancer."
+    Write-LogInfo "Added Load Balancer."
     #endregion
 
     $vmAdded = $false

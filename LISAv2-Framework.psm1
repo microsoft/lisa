@@ -5,7 +5,7 @@ $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 Get-ChildItem (Join-Path $here "Libraries") -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | `
 	ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
 
-# Get inital variable list
+# Get initial variable list
 $initialGlobalVarList = Get-Variable -Scope "Global" | Select-Object -ExpandProperty Name
 
 function Start-LISAv2 {
@@ -216,7 +216,7 @@ function Start-LISAv2 {
 			}
 			Write-LogInfo "LISAv2 exit code: $ExitCode"
 
-			# Remove all varibles that cannot be found in the initial list
+			# Remove all variables that cannot be found in the initial list
 			$finalGlobalVarList = Get-Variable -Exclude ("ExitCode", "LASTEXITCODE") -Scope "Global" | Select-Object -ExpandProperty Name
 			$removableGlobalVarList = (Compare-Object $initialGlobalVarList $finalGlobalVarList).InputObject
 
