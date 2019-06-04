@@ -22,6 +22,35 @@ Param([String] $TestParams)
 $ErrorActionPreference = "Stop"
 $testResult = "FAIL"
 
+# If the vm has more than one disk controller, the order in which their corresponding device nodes are added is arbitrary
+# This may result in device names like /dev/sda and /dev/sdc switching around on each boot
+Function Get-DeviceName
+{
+	param ($ip, $port)
+	$scriptContent = @'
+#! /bin/bash
+devlist=(/dev/sda /dev/sdb /dev/sdc)
+for dev in "${devlist[@]}"; do
+    # Skip the OS disk
+    fdisk -l $dev | grep -i "Linux filesystem" > /dev/null
+    if [ 0 -eq $? ]; then
+        continue
+    fi
+    # Skip the resource disk
+    fdisk -l $dev | grep -i "1 GiB" > /dev/null
+        if [ 0 -eq $? ]; then
+        continue
+    fi
+    deviceName=$dev
+done
+echo "$deviceName"
+'@
+	Set-Content "$LogDir\get_device_name.sh" $scriptContent
+	Copy-RemoteFiles -uploadTo $ip -port $port -files "$LogDir\get_device_name.sh" -username $user -password $password -upload
+	$ret = Run-LinuxCmd -ip $ip -port $port -username $user -password $password -command "bash get_device_name.sh" -runAsSudo
+	return $ret
+}
+
 Function Set-HardDiskSize
 {
 	param ($vhdPath, $newSize, $controllerType, $vmName, $hvServer, $ip, $port, $testParameters)
@@ -56,15 +85,14 @@ Function Set-HardDiskSize
 	}
 
 	Write-LogInfo "Check if the guest detects the new space"
-	$sd = "sdc"
-	if ( $controllerType -eq "IDE" ) {
-		$sd = "sdb"
-	}
-	$ret = Run-LinuxCmd -ip $ip -port $port -username $user -password $password -command "echo 'deviceName=/dev/$sd' >> constants.sh" -runAsSudo
+	$deviceName = Get-DeviceName -ip $ip -port $port
+	Write-LogInfo "The disk device name: $deviceName"
+	$sd = "$deviceName" -replace "/dev/",""
+	$ret = Run-LinuxCmd -ip $ip -port $port -username $user -password $password -command "echo 'deviceName=$deviceName' >> constants.sh" -runAsSudo
 	# Do a request & rescan to refresh the disks info
 	$ret = Run-LinuxCmd -ip $ip -port $port -username $user -password $password -command "fdisk -l > /dev/null" -runAsSudo
 	$ret = Run-LinuxCmd -ip $ip -port $port -username $user -password $password -command "echo 1 > /sys/block/$sd/device/rescan" -runAsSudo
-	$diskSize = Run-LinuxCmd -ip $ip -port $port -username $user -password $password -command "fdisk -l /dev/$sd  2> /dev/null | grep Disk | grep $sd | cut -f 5 -d ' '" -runAsSudo
+	$diskSize = Run-LinuxCmd -ip $ip -port $port -username $user -password $password -command "fdisk -l $deviceName 2> /dev/null | grep Disk | grep $sd | cut -f 5 -d ' '" -runAsSudo
 	if (-not $diskSize) {
 		Throw "Unable to determine disk size from within the guest after growing the VHDX"
 	}
@@ -149,10 +177,12 @@ Function Main
 				Throw "Insufficent disk free space, This test case requires ${testParameters.NewSize} free, Current free space is $($diskInfo.FreeSpace)"
 			}
 
+			$deviceName = Get-DeviceName -ip $ip -port $port
+			Write-LogInfo "The disk device name: $deviceName"
 			# Make sure if we can perform Read/Write operations on the guest VM
 			$ret = Run-LinuxCmd -ip $ip -port $port -username $user -password $password -command "echo 'fs=$fs' >> constants.sh" -runAsSudo
 			$ret = Run-LinuxCmd -ip $ip -port $port -username $user -password $password -command "sed -i '/rerun=yes/d' constants.sh" -runAsSudo
-			$ret = Run-LinuxCmd -ip $ip -port $port -username $user -password $password -command "echo 'deviceName=/dev/sdc' >> constants.sh" -runAsSudo
+			$ret = Run-LinuxCmd -ip $ip -port $port -username $user -password $password -command "echo 'deviceName=$deviceName' >> constants.sh" -runAsSudo
 			$ret = Run-LinuxCmd -ip $ip -port $port -username $user -password $password -command "./STOR_VHDXResize_GrowFSAfterResize.sh" -runAsSudo
 			if (-not $ret) {
 				$testResult = "FAIL"
