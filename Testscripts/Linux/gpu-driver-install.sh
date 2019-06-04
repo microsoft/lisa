@@ -83,7 +83,7 @@ function InstallCUDADrivers() {
         fi
 
         rpm -ivh /tmp/"${CUDA_REPO_PKG}"
-        yum --nogpgcheck -y install cuda-drivers
+        yum --nogpgcheck -y install cuda-drivers > ${HOME}/install_drivers.log 2>&1
         if [ $? -ne 0 ]; then
             LogErr "Failed to install the cuda-drivers!"
             SetTestStateAborted
@@ -108,7 +108,7 @@ function InstallCUDADrivers() {
         dpkg_configure
         apt update
 
-        apt -y --allow-unauthenticated install cuda-drivers
+        apt -y --allow-unauthenticated install cuda-drivers > ${HOME}/install_drivers.log 2>&1
         if [ $? -ne 0 ]; then
             LogErr "Failed to install cuda-drivers package!"
             SetTestStateAborted
@@ -117,7 +117,7 @@ function InstallCUDADrivers() {
     ;;
     esac
 
-    cp /var/lib/dkms/nvidia/*/log/make.log ${HOME}/nvidia_dkms_make.log
+    find /var/lib/dkms/nvidia* -name make.log -exec cp {} ${HOME}/nvidia_dkms_make.log \;
 }
 
 function InstallGRIDdrivers() {
@@ -145,6 +145,7 @@ EOF
 
     cp /etc/nvidia/gridd.conf.template /etc/nvidia/gridd.conf
     echo 'IgnoreSP=FALSE' >> /etc/nvidia/gridd.conf
+    find /var/log/* -name nvidia-installer.log -exec cp {} ${HOME}/nvidia-installer.log \;
 }
 
 #######################################################################

@@ -225,10 +225,16 @@ function Main {
             $currentTestData.files.Split('\')[3].Split('.')[0] -TestType "sh" -PublicIP `
             $allVMData.PublicIP -SSHPort $allVMData.SSHPort -Username $user `
             -password $password -TestName $currentTestData.testName
-
-        # Copy the dkms build log for the nvidia driver
-        Copy-RemoteFiles -download -downloadFrom $allVMData.PublicIP -files "nvidia_dkms_make.log" `
-            -downloadTo $LogDir -port $allVMData.SSHPort -username $superuser -password $password
+        if ($driver -eq "CUDA") {
+            # Copy the dkms build log for the nvidia driver
+            Copy-RemoteFiles -download -downloadFrom $allVMData.PublicIP -files "nvidia_dkms_make.log, install_drivers.log" `
+                -downloadTo $LogDir -port $allVMData.SSHPort -username $superuser -password $password
+        }
+        if ($driver -eq "GRID") {
+            # Copy the nvidia-installer log
+            Copy-RemoteFiles -download -downloadFrom $allVMData.PublicIP -files "nvidia-installer.log" `
+                -downloadTo $LogDir -port $allVMData.SSHPort -username $superuser -password $password
+        }
 
         Write-LogInfo "Test Completed."
         Write-LogInfo "Test Result: $testResult"
