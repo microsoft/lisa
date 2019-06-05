@@ -465,6 +465,7 @@ Class TestController
 			Write-LogErr "EXCEPTION: $errorMessage"
 			Write-LogErr "Source: Line $line in script $scriptName."
 			$currentTestResult.TestResult = $global:ResultFail
+			$currentTestResult.testSummary += $errorMessage
 		}
 
 		# Upload results to database
@@ -490,7 +491,7 @@ Class TestController
 		$this.TestSummary.UpdateTestSummaryForCase($CurrentTestData, $ExecutionCount, $currentTestResult.TestResult, $testRunDuration, $currentTestResult.testSummary, $VmData)
 
 		# Update junit report for current test case
-		$caseLog = Get-Content -Raw "$CurrentTestLogDir\$global:LogFileName"
+		$caseLog = ($currentTestResult.testSummary + (Get-Content -Raw "$CurrentTestLogDir\$global:LogFileName")).Trim()
 		$this.JunitReport.CompleteLogTestCase("LISAv2Test-$($this.TestPlatform)","$currentTestName",$currentTestResult.TestResult,$caseLog)
 
 		# Set back the LogDir to the parent folder
@@ -569,13 +570,22 @@ Class TestController
 					$executionCount += 1
 					if (!$vmData -or $tcDeployVM) {
 						# Deploy the VM for the setup
-						$vmData = $this.TestProvider.DeployVMs($this.GlobalConfig, $this.SetupTypeTable[$setupType], $this.SetupTypeToTestCases[$key][0], `
+						$deployVMStatus = $this.TestProvider.DeployVMs($this.GlobalConfig, $this.SetupTypeTable[$setupType], $this.SetupTypeToTestCases[$key][0], `
 							$this.TestLocation, $this.RGIdentifier, $this.UseExistingRG, $this.ResourceCleanup)
+						$vmData = $null
+						$deployErrors = ""
+						if ($deployVMStatus) {
+							$vmData = $deployVMStatus
+							$deployErrors = $deployVMStatus.Error
+							if ($deployVMStatus.Keys -and ($deployVMStatus.Keys -contains "VmData")) {
+								$vmData = $deployVMStatus.VmData
+							}
+						}
 						if (!$vmData) {
 							# Failed to deploy the VMs, Set the case to abort
 							$this.JunitReport.StartLogTestCase("LISAv2Test-$($this.TestPlatform)","$($case.testName)","$($this.TestPlatform)-$($case.Category)-$($case.Area)")
-							$this.JunitReport.CompleteLogTestCase("LISAv2Test-$($this.TestPlatform)","$($case.testName)","Aborted","")
-							$this.TestSummary.UpdateTestSummaryForCase($case, $executionCount, "Aborted", "0", "", $null)
+							$this.JunitReport.CompleteLogTestCase("LISAv2Test-$($this.TestPlatform)","$($case.testName)","Aborted", $deployErrors)
+							$this.TestSummary.UpdateTestSummaryForCase($case, $executionCount, "Aborted", "0", $deployErrors, $null)
 							continue
 						}
 					}

@@ -34,6 +34,7 @@ Class AzureProvider : TestProvider
 	[object] DeployVMs([xml] $GlobalConfig, [object] $SetupTypeData, [object] $TestCaseData, [string] $TestLocation, [string] $RGIdentifier, [bool] $UseExistingRG, [string] $ResourceCleanup) {
 		$allVMData = @()
 		$DeploymentElapsedTime = $null
+		$ErrorMessage = ""
 		try {
 			if ($UseExistingRG) {
 				Write-LogInfo "Running test against existing resource group: $RGIdentifier"
@@ -51,10 +52,10 @@ Class AzureProvider : TestProvider
 					$deployedGroups = $isAllDeployed[1]
 					$DeploymentElapsedTime = $isAllDeployed[3]
 					$allVMData = Get-AllDeploymentData -ResourceGroups $deployedGroups
-				}
-				else {
-					Write-LogErr "One or More Deployments are Failed..!"
-					return $null
+				} else {
+					$ErrorMessage = "One or more deployments failed."
+					Write-LogErr $ErrorMessage
+					return @{"VmData" = $null; "Error" = $ErrorMessage}
 				}
 			}
 			$isVmAlive = Is-VmAlive -AllVMDataObject $allVMData
@@ -67,15 +68,15 @@ Class AzureProvider : TestProvider
 				$customStatus = Set-CustomConfigInVMs -CustomKernel $this.CustomKernel -CustomLIS $this.CustomLIS -EnableSRIOV $enableSRIOV `
 					-AllVMData $allVMData -TestProvider $this
 				if (!$customStatus) {
-					Write-LogErr "Failed to set custom config in VMs, abort the test"
-					return $null
+					$ErrorMessage = "Failed to set custom config in VMs."
+					Write-LogErr $ErrorMessage
+					return @{"VmData" = $null; "Error" = $ErrorMessage}
 				}
 			}
 			else {
 				Write-LogErr "Unable to connect SSH ports.."
 			}
-		}
-		catch {
+		} catch {
 			Write-LogErr "Exception detected. Source : DeployVMs()"
 			$line = $_.InvocationInfo.ScriptLineNumber
 			$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD, ".")
@@ -83,7 +84,7 @@ Class AzureProvider : TestProvider
 			Write-LogErr "EXCEPTION : $ErrorMessage"
 			Write-LogErr "Source : Line $line in script $script_name."
 		}
-		return $allVMData
+		return @{"VmData" = $allVMData; "Error" = $ErrorMessage}
 	}
 
 	[void] DeleteTestVMs($allVMData, $SetupTypeData, $UseExistingRG) {

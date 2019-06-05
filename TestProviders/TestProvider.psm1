@@ -33,7 +33,10 @@ Class TestProvider
 	[bool]   $ReuseVmOnFailure = $false
 
 	[object] DeployVMs([xml] $GlobalConfig, [object] $SetupTypeData, [object] $TestCaseData, [string] $TestLocation, [string] $RGIdentifier, [bool] $UseExistingRG, [string] $ResourceCleanup) {
-		return $null
+		return @{
+			"VmData" = $null;
+			"Error" = $null
+		}
 	}
 
 	[void] RunSetup($VmData, $CurrentTestData, $TestParameters, $ApplyCheckPoint) {}
