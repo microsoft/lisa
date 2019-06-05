@@ -118,6 +118,9 @@ function InstallCUDADrivers() {
     esac
 
     find /var/lib/dkms/nvidia* -name make.log -exec cp {} ${HOME}/nvidia_dkms_make.log \;
+    if [[ ! -f "${HOME}/nvidia_dkms_make.log" ]]; then
+        echo "not found make.log" > ${HOME}/nvidia_dkms_make.log
+    fi
 }
 
 function InstallGRIDdrivers() {
@@ -146,6 +149,9 @@ EOF
     cp /etc/nvidia/gridd.conf.template /etc/nvidia/gridd.conf
     echo 'IgnoreSP=FALSE' >> /etc/nvidia/gridd.conf
     find /var/log/* -name nvidia-installer.log -exec cp {} ${HOME}/nvidia-installer.log \;
+    if [[ ! -f "${HOME}/nvidia-installer.log" ]]; then
+        echo "not found nvidia-installer.log" > ${HOME}/nvidia-installer.log
+    fi
 }
 
 #######################################################################
