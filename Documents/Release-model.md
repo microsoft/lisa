@@ -9,7 +9,7 @@ The change from feature branches will be merged to LISAv2 master branch. Based o
 1. Create a tag from the master branch in the format of 'stable-SPRINT'
 2. Create a new Release from the new tag, named like 'stable-SPRINT'
 3. Keep the branch along with older branches.
-4. Replace 'stable' to the latest branch
+4. Replace 'stable' with the latest branch
 
 ![alt text](./LISAv2ReleaseDiagram.jpg)
 
