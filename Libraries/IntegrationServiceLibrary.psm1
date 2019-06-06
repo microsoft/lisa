@@ -38,8 +38,10 @@ Function Set-VMDynamicMemory
 	$MaxMem = Convert-ToMemSize $MaxMem $VM.HyperVHost
 	$StartupMem = Convert-ToMemSize $StartupMem $VM.HyperVHost
 	Stop-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -force
+	Start-Sleep -s 1
 	Set-VMMemory -vmName $VM.RoleName -ComputerName $VM.HyperVHost -DynamicMemoryEnabled $true `
 		-MinimumBytes $MinMem -MaximumBytes $MaxMem -StartupBytes $StartupMem -Priority $MemWeight
+	Start-Sleep -s 1
 	# check if mem is set correctly
 	$vmMem = (Get-VMMemory -vmName $VM.RoleName -ComputerName $VM.HyperVHost).Startup
 	if( $vmMem -eq $StartupMem ) {

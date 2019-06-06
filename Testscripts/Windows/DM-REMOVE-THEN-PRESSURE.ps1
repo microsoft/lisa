@@ -123,7 +123,7 @@ function Main {
     Write-LogInfo "${VMName}: assigned - $vmBeforeAssigned | demand - $vmBeforeAssigned"
 
     # Send Command to consume
-    Add-Content $filename "$cmdToVM"
+    Set-Content $filename "$cmdToVM"
     Copy-RemoteFiles -uploadTo $Ipv4 -port $VMPort -files $filename -username $VMUserName -password $VMPassword -upload
     $consume = "cd /home/$VMUserName && chmod u+x ${filename} && sed -i 's/\r//g' ${filename} && ./${filename}"
     $job1 = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort -command $consume -runAsSudo -RunInBackGround
@@ -133,7 +133,7 @@ function Main {
     }
 
     # Sleep a few seconds so stress-ng starts and the memory assigned/demand gets updated
-    start-sleep -s 50
+    Start-Sleep -s 50
 
     # Get memory stats while stress-ng is running
     [int64]$vmDemand = ($vm.MemoryDemand / 1MB)
@@ -153,7 +153,7 @@ function Main {
     $timeout = 120
     $firstJobStatus = $false
     while ($timeout -gt 0) {
-        if ($job1.Status -like "Completed") {
+        if ((Get-Job -Id $job1).State -like "Completed") {
             $firstJobStatus = $true
             $retVal = Receive-Job $job1
             if (-not $retVal[-1]) {
@@ -167,7 +167,7 @@ function Main {
         }
 
         $timeout -= 1
-        start-sleep -s 1
+        Start-Sleep -s 1
     }
 
     # Step3: Verify assigned/demand memory could decrease again after stress test finished
@@ -191,7 +191,7 @@ function Main {
         return "FAIL"
     }
     else {
-        Write-LogErr "${VMName} assigned and demand memory decreases after stress-ng stopped"
+        Write-LogInfo "${VMName} assigned and demand memory decreases after stress-ng stopped"
     }
 
     # Wait for 2 minutes and check call traces
@@ -206,8 +206,9 @@ function Main {
     }
     else {
         Write-LogInfo "Test PASSED , No call traces found!"
+        return "PASS"
     }
 }
 Main -VMName $AllVMData.RoleName -HvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
-    -Ipv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort -VMUserName $user -VMPassword $password -RootDir $WorkingDirectory`
+    -Ipv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort -VMUserName $user -VMPassword $password `
     -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))

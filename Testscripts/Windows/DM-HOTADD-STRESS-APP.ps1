@@ -51,7 +51,8 @@ param([String] $TestParams,
         Set-Content $FILE_NAME "$cmdToVM"
         $null = Copy-RemoteFiles -uploadTo $VMIpv4 -port $VMSSHPort -files $FILE_NAME -username $user -password $password -upload
         $command = "echo $password | chmod u+x ${FILE_NAME} && sed -i 's/\r//g' ${FILE_NAME} && ./${FILE_NAME}"
-        $null = Run-LinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMSSHPort -command $command -runAsSudo -RunInBackGround
+        $jobID = Run-LinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMSSHPort -command $command -runAsSudo -RunInBackGround
+        return $jobID
     }
 
 #######################################################################
@@ -130,7 +131,7 @@ function Main {
         Write-LogInfo "  ${vm1Name}: assigned - $vm1BeforeAssigned | demand - $vm1BeforeDemand"
         # Send Command to consume
         $job1 = Consume-Memory $WorkingDirectory $Ipv4 $VMPort $timeoutStress $user $password
-        if (-not $?) {
+        if (-not $job1) {
             $testResult = $resultFail
             Throw "Unable to start job for creating pressure on $vm1Name"
         }
@@ -150,7 +151,7 @@ function Main {
         $firstJobStatus = $false
         while ($timeout -gt 0)
         {
-            if ($job1.Status -like "Completed") {
+            if ((Get-Job -Id $job1).State -like "Completed") {
                 $firstJobStatus = $true
                 $retVal = Receive-Job $job1
                 if (-not $retVal[-1]) {
