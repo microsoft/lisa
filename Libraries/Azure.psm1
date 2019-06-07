@@ -455,7 +455,7 @@ Function Delete-ResourceGroup([string]$RGName, [switch]$KeepDisks, [bool]$UseExi
 					$isRGDeleting = $true
 				} else {
 					Write-LogWarn "RG ${RGName} status is $($rgStatus.ProvisioningState)"
-					$maxRgDeletingRetries++
+					$rgDeletingRetries++
 					Start-Sleep 5
 				}
 			}
