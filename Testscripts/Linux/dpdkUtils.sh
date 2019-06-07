@@ -232,7 +232,8 @@ function Install_Dpdk() {
 
 	if type Dpdk_Configure > /dev/null; then
 		echo "Calling testcase provided Dpdk_Configure(install_ip) on ${install_ip}"
-		ssh ${install_ip} ". constants.sh; . utils.sh; . dpdkUtils.sh; cd ${LIS_HOME}/${DPDK_DIR}; $(typeset -f Dpdk_Configure); Dpdk_Configure ${install_ip}"
+		# shellcheck disable=SC2034
+		ssh ${install_ip} ". constants.sh; . utils.sh; . dpdkUtils.sh; cd ${LIS_HOME}/${DPDK_DIR}; $(typeset -f Dpdk_Configure); DPDK_DIR=${DPDK_DIR} LIS_HOME=${LIS_HOME} Dpdk_Configure ${install_ip}"
 	fi
 
 	ssh ${install_ip} "cd ${LIS_HOME}/${DPDK_DIR} && make -j"
@@ -319,6 +320,7 @@ function Create_Vm_Synthetic_Vf_Pair_Mappings() {
 
 	local name
 	for name in $VM_NAMES; do
+		# shellcheck disable=SC2034
 		local pairs=($(ssh ${!name} "$(typeset -f get_synthetic_vf_pairs); get_synthetic_vf_pairs"))
 		if [ "${#pairs[@]}" -eq 0 ]; then
 			LogErr "ERROR: No ${name} VFs present"
@@ -469,16 +471,18 @@ function Testpmd_Multiple_Tx_Flows_Setup() {
 # Notes:
 #   - Be aware of subnets
 function Testpmd_Macfwd_To_Dest() {
-	if [ -z "${1}" -o ]; then
-		LogErr "ERROR: must provide dest ip to Testpmd_Macfwd_To_Dest()"
-		SetTestStateAborted
-		exit 1
-	fi
+	local dpdk_version=$(Get_DPDK_Version "${LIS_HOME}/${DPDK_DIR}")
+	local dpdk_version_changed_mac_fwd="19.08"
 
 	local ptr_code="struct ipv4_hdr *ipv4_hdr;"
 	local offload_code="ol_flags |= PKT_TX_IP_CKSUM; ol_flags |= PKT_TX_IPV4;"
 	local dst_addr=$(echo ${1} | sed 'y/\./,/')
 	local dst_addr_code="ipv4_hdr = rte_pktmbuf_mtod_offset(mb, struct ipv4_hdr *, sizeof(struct ether_hdr)); ipv4_hdr->dst_addr = rte_be_to_cpu_32(IPv4(${dst_addr}));"
+
+	if [[ ! $(printf "${dpdk_version_changed_mac_fwd}\n${dpdk_version}" | sort -V | head -n1) == "${dpdk_version}" ]]; then
+		ptr_code="struct rte_ipv4_hdr *rte_ipv4_hdr1;"
+		dst_addr_code="rte_ipv4_hdr1 = rte_pktmbuf_mtod_offset(mb, struct rte_ipv4_hdr *, sizeof(struct rte_ether_hdr)); rte_ipv4_hdr1->dst_addr = rte_be_to_cpu_32(RTE_IPV4(${dst_addr}));"
+	fi
 
 	sed -i "53i ${ptr_code}" app/test-pmd/macfwd.c
 	sed -i "90i ${offload_code}" app/test-pmd/macfwd.c
@@ -492,6 +496,7 @@ function Get_DPDK_Version() {
 		dpdk_version=$(cat "${version_file_path}")
 	else
 		dpdk_version=$(grep -m 1 "version:" $meson_config_path | awk '{print $2}' | tr -d "\`'\,")
+		check_exit_status "Meson config not found at ${meson_config_path}." "exit"
 	fi
 	echo $dpdk_version
 }
