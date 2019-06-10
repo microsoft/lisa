@@ -2661,8 +2661,8 @@ function install_lagscope () {
 
 # Build and install ntttcp
 function build_ntttcp () {
-	ntttcp_version="v1.3.4"
-	# If the ntttcpVersion is provided in xml then it will go for that version, otherwise default to v1.3.4.
+	ntttcp_version="1.4.0"
+	# If the ntttcpVersion is provided in xml then it will go for that version, otherwise default to 1.4.0.
 	if [ "${1}" ]; then
 		ntttcp_version=${1}
 	fi
