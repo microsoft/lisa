@@ -134,6 +134,12 @@ if (printf '%s\n' "${HYPERV_MODULES[@]}" | grep -xq "hyperv_fb"); then
     fi
 fi
 
+# install bc tool if not exist
+which "bc"
+if [ $? -ne 0 ]; then
+    install_package bc
+fi
+
 pass=0
 START=$(date +%s)
 while [ $pass -lt $LoopCount ]
@@ -152,8 +158,17 @@ END=$(date +%s)
 DIFF=$(echo "$END - $START" | bc)
 
 LogMsg "Info: Finished testing, bringing up eth0"
+default_route=$(ip route show | grep default)
+
 ip link set eth0 down
 ip link set eth0 up
+
+ip route show | grep default
+# Add default route when miss it after run ip link down/up
+if [ $? -ne 0 ]; then
+    LogMsg "Run ip route add $default_route"
+    ip route add $default_route
+fi
 
 ipAddress=$(ip addr show eth0 | grep "inet\b")
 if [ -z "$ipAddress" ]; then
