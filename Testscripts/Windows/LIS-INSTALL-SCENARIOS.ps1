@@ -11,7 +11,7 @@ $ErrorActionPreference = "Stop"
 [xml]$configfile = Get-Content ".\XML\Other\ignorable-test-warnings.xml"
 $IgnorableWarnings = @($configfile.messages.warnings.keywords.Trim())
 
-Function Check-modules() {
+Function Check-Modules() {
     Write-LogInfo "Check if module are loaded after LIS installation"
     $remoteScript = "LIS-MODULES-CHECK.py"
     # Run the remote script
@@ -44,7 +44,7 @@ Function Install-LIS ($LISTarballUrl, $allVMData) {
         Write-LogErr "Custom LIS installation FAILED. Aborting tests."
         return $false
     }
-    $sts=Check-modules
+    $sts = Check-Modules
     if( -not $sts[-1]) {
         Write-LogErr "Failed due to either modules are not loaded or version mismatch"
         return $false
@@ -89,7 +89,7 @@ Function Upgrade-LIS ($LISTarballUrlOld, $LISTarballUrlCurrent, $allVMData , $Te
                         Write-LogInfo "New lis: $upgradedlisVersion"
                         Add-Content -Value "Old lis: $OldlisVersion" -Path ".\Report\AdditionalInfo-$TestID.html" -Force
                         Add-Content -Value "New lis: $upgradedlisVersion" -Path ".\Report\AdditionalInfo-$TestID.html" -Force
-                        $sts=Check-modules
+                        $sts = Check-Modules
                         if( -not $sts[-1]) {
                             Write-LogErr "Failed due to either modules are not loaded or version mismatch"
                             return $false
@@ -491,6 +491,18 @@ Function Main {
         }
         #PROVISION VMS FOR LISA WILL ENABLE ROOT USER AND WILL MAKE ENABLE PASSWORDLESS AUTHENTICATION ACROSS ALL VMS IN SAME HOSTED SERVICE.
         Provision-VMsForLisa -allVMData $AllVMData -installPackagesOnRoleNames "none"
+        Check-Modules | Out-Null
+        $isHv_vmbusModule = $False
+        $context = Get-Content $LogDir\LIS-MODULES-CHECK.py.log
+        foreach ($line in $context) {
+            if ($line -imatch "Module *hv_vmbus *: *Present") {
+                $isHv_vmbusModule = $True
+            }
+        }
+        if (-not $isHv_vmbusModule) {
+            Write-LogInfo "The hv_vmbus is built-in, so skip the test"
+            return "SKIPPED"
+        }
         #endregion
         foreach ($Scenario in $CurrentTestData.TestParameters.param) {
             switch ($Scenario) {
