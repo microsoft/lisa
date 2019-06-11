@@ -2421,3 +2421,175 @@ function Add-AzureAccountFromSecretsFile {
         Raise-Exception ("XML Secrets file not provided")
     }
 }
+
+Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $CurrentTestData) {
+    try {
+        Write-LogInfo "Boot time calculation started..."
+        $utctime = (Get-Date).ToUniversalTime()
+        $DateTimeUTC = "$($utctime.Year)-$($utctime.Month)-$($utctime.Day) $($utctime.Hour):$($utctime.Minute):$($utctime.Second)"
+
+        $SubscriptionID = $Global:XMLSecrets.secrets.SubscriptionID
+        $SubscriptionName = $Global:XMLSecrets.secrets.SubscriptionName
+        $dataSource = $Global:XMLSecrets.secrets.DatabaseServer
+        $dbuser = $Global:XMLSecrets.secrets.DatabaseUser
+        $dbpassword = $Global:XMLSecrets.secrets.DatabasePassword
+        $database = $Global:XMLSecrets.secrets.DatabaseName
+        $dataTableName = "LinuxDeploymentAndBootData"
+        $storageAccountName = $Global:XMLSecrets.secrets.bootPerfLogsStorageAccount
+        $storageAccountKey = $Global:XMLSecrets.secrets.bootPerfLogsStorageAccountKey
+
+        $NumberOfVMsInRG = 0
+        foreach ( $vmData in $allVMData ) {
+            $NumberOfVMsInRG += 1
+        }
+        $SQLQuery = "INSERT INTO $dataTableName (DateTimeUTC,TestPlatform,TestLocation,TestCaseName,SubscriptionID,SubscriptionName,ResourceGroupName,NumberOfVMsInRG,RoleName,DeploymentTime,KernelBootTime,WALAProvisionTime,HostVersion,GuestDistro,KernelVersion,LISVersion,WALAVersion,RoleSize,StorageType,CallTraces,kernelLogFile,WALAlogFile) VALUES "
+
+        foreach ( $vmData in $allVMData ) {
+            $ResourceGroupName = $vmData.ResourceGroupName
+            $RoleName = $vmData.RoleName
+            $RoleSize = $vmData.InstanceSize
+            $TestCaseName = $CurrentTestData.testName
+            $StorageType = $StorageAccountTypeGlobal
+
+            #Copy and run test file
+            $out = Copy-RemoteFiles -upload -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files ".\Testscripts\Linux\CollectLogFile.sh" -username $user -password $password
+            $out = Run-LinuxCmd -username $user -password $password -ip $vmData.PublicIP -port $vmData.SSHPort -command "bash CollectLogFile.sh" -ignoreLinuxExitCode
+
+            #download the log files
+            $out = Copy-RemoteFiles -downloadFrom $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -files "$($vmData.RoleName)-*.txt" -downloadTo "$LogDir" -download
+            # Upload files in data subfolder to Azure.
+            $destfolder = "bootPerf"
+            $containerName = "logs"
+            $blobContext = New-AzureStorageContext -StorageAccountName $storageAccountName -StorageAccountKey $storageAccountKey
+
+            $ticks = (Get-Date).Ticks
+            $fileName = "$LogDir\$($vmData.RoleName)-waagent.log.txt"
+            $blobName = "$destfolder/$($fileName.Replace("waagent","waagent-$ticks") | Split-Path -Leaf)"
+            $out = Set-AzureStorageBlobContent -File $filename -Container $containerName -Blob $blobName -Context $blobContext -Force
+            $WALAlogFile = "https://$storageAccountName.blob.core.windows.net/$containerName/$destfolder/$($fileName.Replace("waagent","waagent-$ticks") | Split-Path -Leaf)"
+            Write-LogInfo "Upload file to Azure: Success: $WALAlogFile"
+            $fileName = "$LogDir\$($vmData.RoleName)-dmesg.txt"
+            $blobName = "$destfolder/$($fileName.Replace("dmesg","dmesg-$ticks") | Split-Path -Leaf)"
+            $out = Set-AzureStorageBlobContent -File $filename -Container $containerName -Blob $blobName -Context $blobContext -Force
+            $kernelLogFile = "https://$storageAccountName.blob.core.windows.net/$containerName/$destfolder/$($fileName.Replace("dmesg","dmesg-$ticks") | Split-Path -Leaf)"
+            Write-LogInfo "Upload file to Azure: Success: $kernelLogFile"
+            $walaStartIdentifier = "Azure Linux Agent Version"
+            $walaEndIdentifier = "Start env monitor service"
+            $walaDistroIdentifier = "INFO OS"
+
+            #Analyse
+
+            #region Waagent Version Checking.
+            $waagentFile = "$LogDir\$($vmData.RoleName)-waagent.log.txt"
+            $waagentStartLineNumber = (Select-String -Path $waagentFile -Pattern "$walaStartIdentifier")[0].LineNumber
+            $waagentStartLine = (Get-Content -Path $waagentFile)[$waagentStartLineNumber - 1]
+            $WALAVersion = ($waagentStartLine.Split(":")[$waagentStartLine.Split(":").Count - 1]).Trim()
+            Write-LogInfo "$($vmData.RoleName) - WALA Version = $WALAVersion"
+            #endregion
+
+            if ( ($WALAVersion -imatch "2.2.18") -or ($WALAVersion -imatch "2.2.14") ) {
+                $walaEndIdentifier = "Provisioning complete"
+            }
+
+            if ($WALAVersion -imatch "2.2.17") {
+                $walaEndIdentifier = "Finished provisioning"
+            }
+            if ($WALAVersion -imatch "2.0.16") {
+                $walaEndIdentifier = "Provisioning image completed"
+                $walaDistroIdentifier = "Linux Distribution Detected"
+                $walaStartIdentifier = "Azure Linux Agent Version"
+            }
+            #region Guest Distro Checking
+            $GuestDistro = Get-Content -Path "$LogDir\$($vmData.RoleName)-distroVersion.txt"
+            #endregion
+
+            #region Waagent Provision Time Checking.
+            $waagentFile = "$LogDir\$($vmData.RoleName)-waagent.log.txt"
+            $waagentStartLineNumber = (Select-String -Path $waagentFile -Pattern "$walaStartIdentifier")[0].LineNumber
+            $waagentStartLine = (Get-Content -Path $waagentFile)[$waagentStartLineNumber - 1]
+            $waagentStartTime = [datetime]$waagentStartLine.Split(".")[0]
+
+            $waagentFinishedLineNumber = (Select-String -Path $waagentFile -Pattern "$walaEndIdentifier")[0].LineNumber
+            $waagentFinishedLine = (Get-Content -Path $waagentFile)[$waagentFinishedLineNumber - 1]
+            $waagentFinishedTime = [datetime]$waagentFinishedLine.Split(".")[0]
+
+            $WALAProvisionTime = [int]($waagentFinishedTime - $waagentStartTime).TotalSeconds
+            Write-LogInfo "$($vmData.RoleName) - WALA Provision Time = $WALAProvisionTime"
+            #endregion
+
+            #region Boot Time checking.
+            $bootStart = [datetime](Get-Content "$LogDir\$($vmData.RoleName)-uptime.txt")
+
+            $kernelBootTime = ($waagentStartTime - $bootStart).TotalSeconds
+            if ($kernelBootTime -le 0 -and $kernelBootTime -gt 1800) {
+                Throw "Invalid boottime range. Boot time = $kernelBootTime"
+            }
+            $dmesgFile = "$LogDir\$($vmData.RoleName)-dmesg.txt"
+            Write-LogInfo "$($vmData.RoleName) - Kernel Boot Time = $kernelBootTime seconds"
+            #endregion
+
+            #region Call Trace Checking
+            $KernelLogs = Get-Content $dmesgFile
+            $callTraceFound = $false
+            foreach ( $line in $KernelLogs ) {
+                if ( $line -imatch "Call Trace" ) {
+                    $callTraceFound = $true
+                }
+            }
+            if ( $callTraceFound ) {
+                $CallTraces = "Yes"
+            }
+            else {
+                $CallTraces = "No"
+            }
+            #endregion
+
+            #region Host Version checking
+            $foundLineNumber = (Select-String -Path $dmesgFile -Pattern "Hyper-V Host Build").LineNumber
+            $actualLineNumber = $foundLineNumber - 1
+            $finalLine = (Get-Content -Path $dmesgFile)[$actualLineNumber]
+            #Write-LogInfo $finalLine
+            $finalLine = $finalLine.Replace('; Vmbus version:4.0', '')
+            $finalLine = $finalLine.Replace('; Vmbus version:3.0', '')
+            $HostVersion = ($finalLine.Split(":")[$finalLine.Split(":").Count - 1 ]).Trim().TrimEnd(";")
+            Write-LogInfo "$($vmData.RoleName) - Host Version = $HostVersion"
+            Set-Variable -Value $HostVersion -Name HostVersion -Scope Global 
+            #endregion
+
+            #region LIS Version
+            $LISVersion = (Select-String -Path "$LogDir\$($vmData.RoleName)-lis.txt" -Pattern "^version:").Line
+            if ($LISVersion) {
+                $LISVersion = $LISVersion.Split(":").Trim()[1]
+            }
+            else {
+                $LISVersion = "NA"
+            }
+            #endregion
+            #region KernelVersion checking
+            $KernelVersion = Get-Content "$LogDir\$($vmData.RoleName)-kernelVersion.txt"
+            #endregion
+            $SQLQuery += "('$DateTimeUTC','$global:TestPlatform','$global:TestLocation','$TestCaseName','$SubscriptionID','$SubscriptionName','$ResourceGroupName','$NumberOfVMsInRG','$RoleName',$DeploymentTime,$KernelBootTime,$WALAProvisionTime,'$HostVersion','$GuestDistro','$KernelVersion','$LISVersion','$WALAVersion','$RoleSize','$StorageType','$CallTraces','$kernelLogFile','$WALAlogFile'),"
+        }
+        $SQLQuery = $SQLQuery.TrimEnd(',')
+        $connectionString = "Server=$dataSource;uid=$dbuser; pwd=$dbpassword;Database=$database;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
+        Write-LogInfo $SQLQuery
+        $connection = New-Object System.Data.SqlClient.SqlConnection
+        $connection.ConnectionString = $connectionString
+        $connection.Open()
+
+        $command = $connection.CreateCommand()
+        $command.CommandText = $SQLQuery
+        $result = $command.executenonquery()
+        $connection.Close()
+        Write-LogInfo "Uploading boot data to database :  done!!"
+    }
+    catch {
+        $line = $_.InvocationInfo.ScriptLineNumber
+        $script_name = ($_.InvocationInfo.ScriptName).Replace($PWD, ".")
+        $ErrorMessage = $_.Exception.Message
+        Write-LogErr "EXCEPTION : $ErrorMessage"
+        Write-LogErr "Source : Line $line in script $script_name."
+        Write-LogErr "ERROR : Uploading boot data to database"
+        Write-LogInfo $SQLQuery
+    }
+}

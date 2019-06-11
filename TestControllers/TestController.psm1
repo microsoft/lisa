@@ -571,7 +571,7 @@ Class TestController
 					if (!$vmData -or $tcDeployVM) {
 						# Deploy the VM for the setup
 						$deployVMStatus = $this.TestProvider.DeployVMs($this.GlobalConfig, $this.SetupTypeTable[$setupType], $this.SetupTypeToTestCases[$key][0], `
-							$this.TestLocation, $this.RGIdentifier, $this.UseExistingRG, $this.ResourceCleanup)
+							$this.TestLocation, $this.RGIdentifier, $this.UseExistingRG, $this.ResourceCleanup, $this.EnableTelemetry)
 						$vmData = $null
 						$deployErrors = ""
 						if ($deployVMStatus) {

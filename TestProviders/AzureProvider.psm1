@@ -31,7 +31,7 @@ Class AzureProvider : TestProvider
 	[string] $TipSessionId
 	[string] $TipCluster
 
-	[object] DeployVMs([xml] $GlobalConfig, [object] $SetupTypeData, [object] $TestCaseData, [string] $TestLocation, [string] $RGIdentifier, [bool] $UseExistingRG, [string] $ResourceCleanup) {
+	[object] DeployVMs([xml] $GlobalConfig, [object] $SetupTypeData, [object] $TestCaseData, [string] $TestLocation, [string] $RGIdentifier, [bool] $UseExistingRG, [string] $ResourceCleanup, [switch] $EnableTelemetry) {
 		$allVMData = @()
 		$DeploymentElapsedTime = $null
 		$ErrorMessage = ""
@@ -60,8 +60,8 @@ Class AzureProvider : TestProvider
 			}
 			$isVmAlive = Is-VmAlive -AllVMDataObject $allVMData
 			if ($isVmAlive -eq "True") {
-				if ((Test-Path -Path  .\Extras\UploadDeploymentDataToDB.ps1) -and !$UseExistingRG) {
-					$null = .\Extras\UploadDeploymentDataToDB.ps1 -allVMData $allVMData -DeploymentTime $DeploymentElapsedTime.TotalSeconds
+				if (($EnableTelemetry -and !$UseExistingRG)) {
+					$null = Upload-AzureBootAndDeploymentDataToDB -allVMData $allVMData -DeploymentTime $DeploymentElapsedTime.TotalSeconds -CurrentTestData $TestCaseData
 				}
 
 				$enableSRIOV = $TestCaseData.AdditionalHWConfig.Networking -imatch "SRIOV"

@@ -42,7 +42,7 @@ Class WSLProvider : TestProvider
 		}
 	}
 
-	[object] DeployVMs([xml] $GlobalConfig, [object] $SetupTypeData, [object] $TestCaseData, [string] $TestLocation, [string] $RGIdentifier, [bool] $UseExistingRG, [string] $ResourceCleanup) {
+	[object] DeployVMs([xml] $GlobalConfig, [object] $SetupTypeData, [object] $TestCaseData, [string] $TestLocation, [string] $RGIdentifier, [bool] $UseExistingRG, [string] $ResourceCleanup, [switch] $EnableTelemetry) {
 		$allVMData = @()
 		$deploySuccess = $true
 		try {
