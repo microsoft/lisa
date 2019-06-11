@@ -237,12 +237,12 @@ function Get-IPv4ViaKVP {
 						if ($addr) {
 							return $addr
 						}
-						$retryTime++
-						Start-Sleep -Seconds 10
 					}
 				}
 			}
 		}
+		$retryTime++
+		Start-Sleep -Seconds 10
 	}
 
 	Write-LogWarn "Get-IPv4ViaKVP: No IPv4 address found for VM ${VmName}"
