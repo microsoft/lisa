@@ -315,7 +315,9 @@ collect_VM_properties
 				$resultMap["Fwdpackets"] = [int64]($mode.fwd_packets)
 				$resultMap["Tx_PacketSize_KBytes"] = [Decimal]($mode.tx_packet_size)
 				$resultMap["Rx_PacketSize_KBytes"] = [Decimal]($mode.rx_packet_size)
-				Write-LogInfo "Collected performance data for $($mode.test_mode) mode."
+				if ($mode.test_mode) {
+					Write-LogInfo "Collected performance data for $($mode.test_mode) mode."
+				}
 				$currentTestResult.TestResultData += $resultMap
 			}
 		}
