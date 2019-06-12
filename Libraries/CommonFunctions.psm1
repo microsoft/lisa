@@ -100,6 +100,30 @@ Function Match-TestTag($currentTest, $TestTag)
     return $False
 }
 
+Function Match-TestAreas($currentTest, $TestArea)
+{
+    if ( -not $TestArea ) {
+        return $True
+    }
+
+    if ( $TestArea -eq "*") {
+        return $True
+    }
+
+    $areasInXml = $currentTest.Area
+    if (-not $areasInXml) {
+        Write-LogWarn "Test Area of $($currentTest.TestName) is not defined; include this test case by default."
+        return $True
+    }
+    foreach( $areaInTestRun in $TestArea.Split(",") ) {
+        foreach( $areaInXml in $areasInXml.Split(",") ) {
+            if ($areaInTestRun -eq $areaInXml) {
+                return $True
+            }
+        }
+    }
+    return $False
+}
 #
 # This function will filter and collect all qualified test cases from XML files.
 #
@@ -150,7 +174,8 @@ Function Collect-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Tes
                 continue
             }
 
-            if (!($TestArea.Split(",").Contains($test.Area)) -and ($TestArea -ne "*")) {
+            $testAreaMatched = Match-TestAreas -currentTest $test -TestArea $TestArea
+            if ($testAreaMatched -eq $false) {
                 continue
             }
 
