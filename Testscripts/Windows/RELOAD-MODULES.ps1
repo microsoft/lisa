@@ -5,6 +5,16 @@ param([String] $TestParams,
       [object] $AllVmData,
       [object] $CurrentTestData)
 
+function Start-AzureVmNetwork {
+    if ($TestPlatform -eq "Azure") {
+        Add-Content restartNetwork.txt 'modprobe hv_netvsc; ip link set eth0 down; ip link set eth0 up; dhclient -r; dhclient'
+        Invoke-AzureRmVMRunCommand  -ResourceGroupName $AllVMData.ResourceGroupName `
+            -Name $AllVMData.RoleName -CommandId "RunShellScript" `
+            -ScriptPath restartNetwork.txt
+        Remove-Item restartNetwork.txt -Force
+    }
+}
+
 function Check-Result {
     param (
         [String] $VmIp,
@@ -24,10 +34,11 @@ function Check-Result {
     $timeout = New-Timespan -Minutes 180
     $sw = [diagnostics.stopwatch]::StartNew()
     while ($sw.elapsed -lt $timeout){
+        $state = $null
         Start-Sleep -s 20
         Write-LogInfo "Test is running. Attempt number ${attempts} to reach VM"
         $attempts++
-        $isVmAlive = Is-VmAlive -AllVMDataObject $AllVMData
+        $isVmAlive = Is-VmAlive -AllVMDataObject $AllVMData -MaxRetryCount 5
         if ($isVmAlive -eq "True") {
             $state = Run-LinuxCmd -ip $VmIp -port $VMPort -username $User -password $Password -command "cat state.txt" -ignoreLinuxExitCode:$true
             if (-not $state) {
@@ -58,6 +69,7 @@ function Check-Result {
         }
     }
     if ($sw.elapsed -ge $timeout) {
+        Start-AzureVmNetwork
         Write-LogErr "Test has timed out. After 3 hours, state file couldn't be read!"
     }
     Collect-TestLogs -LogsDestination $LogDir -ScriptName `
@@ -82,7 +94,7 @@ function Main {
 
     # Run test script in background
     Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
-        -command "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;bash ${testScript} > RELOAD-MODULES_summary.log`"" -RunInBackGround | Out-Null
+        -command "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;nohup bash ./${testScript} > RELOAD-MODULES_summary.log`"" -RunInBackGround | Out-Null
 
     $sts = Check-Result -VmIp $Ipv4 -VmPort $VMPort -User $VMUserName -Password $VMPassword
     if (-not $($sts[-1])) {
