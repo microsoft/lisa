@@ -299,7 +299,8 @@ function InstallKernel() {
             CheckInstallLockUbuntu
             LogMsg "Debian package web link detected. Downloading $CustomKernel"
             apt install -y wget
-            apt remove -y linux-cloud-tools-common
+			# use dpkg directly to force the removal of package without dependencies
+            dpkg --remove --force-depends linux-cloud-tools-common
             wget "$CustomKernel"
             LogMsg "Installing ${CustomKernel##*/}"
             dpkg -i "${CustomKernel##*/}"  >> $LOG_FILE 2>&1
