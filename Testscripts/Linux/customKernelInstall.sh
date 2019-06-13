@@ -298,9 +298,7 @@ function InstallKernel() {
         if [[ $CustomKernel =~ "http" ]];then
             CheckInstallLockUbuntu
             LogMsg "Debian package web link detected. Downloading $CustomKernel"
-            apt install -y wget
-			# use dpkg directly to force the removal of package without dependencies
-            dpkg --remove --force-depends linux-cloud-tools-common
+            apt-get install -y wget
             wget "$CustomKernel"
             LogMsg "Installing ${CustomKernel##*/}"
             dpkg -i "${CustomKernel##*/}"  >> $LOG_FILE 2>&1
@@ -310,7 +308,8 @@ function InstallKernel() {
             CheckInstallLockUbuntu
             customKernelFilesUnExpanded="${CustomKernel#$LOCAL_FILE_PREFIX}"
             if [[ "${customKernelFilesUnExpanded}" == *'*.deb'* ]]; then
-                apt-get remove -y linux-cloud-tools-common
+                # use dpkg directly to force the removal of package without dependencies
+                dpkg --remove --force-depends linux-cloud-tools-common
             fi
 
             LogMsg "Installing ${customKernelFilesUnExpanded}"
