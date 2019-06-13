@@ -161,6 +161,7 @@
     <test>
         <testName>DYNAMIC-MEMORY-HIGH-PRIORITY</testName>
         <testScript>DM_HIGH-PRIORITY.ps1</testScript>
+        <files>.\Testscripts\Linux\utils.sh</files>
         <setupType>TwoVM</setupType>
         <TestParameters>
             <param>appGitURL=DYNAMIC_MEMORY_STRESSNG</param>
@@ -290,7 +291,7 @@
         <testName>DYNAMIC-MEMORY-DEMAND-PRESSURE</testName>
         <setupScript>.\Testscripts\Windows\DM-CONFIGURE-MEMORY.ps1</setupScript>
         <testScript>DM-PRESSURE-CHANGES-DEMAND.ps1</testScript>
-        <files>.\Testscripts\Linux\check_traces.sh</files>
+        <files>.\Testscripts\Linux\check_traces.sh,.\Testscripts\Linux\utils.sh</files>
         <setupType>OneVM</setupType>
         <TestParameters>
             <param>enableDM=yes</param>

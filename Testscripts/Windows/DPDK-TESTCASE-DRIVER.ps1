@@ -243,8 +243,11 @@ collect_VM_properties
 			++$outputCounter
 			Wait-Time -seconds 5
 		}
-		$finalState = Run-LinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort -username $superUser -password $password -command "cat /root/state.txt"
-		Copy-RemoteFiles -downloadFrom $masterVM.PublicIP -port $masterVM.SSHPort -username $superUser -password $password -download -downloadTo $LogDir -files "*.csv, *.txt, *.log"
+		$finalState = Run-LinuxCmd -ip $masterVM.PublicIP -port $masterVM.SSHPort `
+			-username $superUser -password $password -command "cat /root/state.txt"
+		Copy-RemoteFiles -downloadFrom $masterVM.PublicIP -port $masterVM.SSHPort `
+			-username $superUser -password $password -download -downloadTo $LogDir `
+			-files "*.csv, *.txt, *.log, logdir/*.log"
 
 		$testDataCsv = Import-Csv -Path "${LogDir}\dpdk_test.csv"
 		if (!$testDataCsv) {
@@ -263,7 +266,6 @@ collect_VM_properties
 		elseif ($finalState -imatch "TestCompleted") {
 			Write-LogInfo "Test Completed."
 			Copy-RemoteFiles -downloadFrom $masterVM.PublicIP -port $masterVM.SSHPort -username $superUser -password $password -download -downloadTo $LogDir -files "*.tar.gz"
-			$testResult = "PASS"
 			$testResult = (Get-FunctionAndInvoke("Confirm-Performance"))
 		}
 		elseif ($finalState -imatch "TestRunning") {
@@ -313,7 +315,9 @@ collect_VM_properties
 				$resultMap["Fwdpackets"] = [int64]($mode.fwd_packets)
 				$resultMap["Tx_PacketSize_KBytes"] = [Decimal]($mode.tx_packet_size)
 				$resultMap["Rx_PacketSize_KBytes"] = [Decimal]($mode.rx_packet_size)
-				Write-LogInfo "Collected performance data for $($mode.test_mode) mode."
+				if ($mode.test_mode) {
+					Write-LogInfo "Collected performance data for $($mode.test_mode) mode."
+				}
 				$currentTestResult.TestResultData += $resultMap
 			}
 		}

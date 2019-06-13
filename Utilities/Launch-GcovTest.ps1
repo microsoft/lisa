@@ -22,11 +22,12 @@ $ARM_IMAGE_NAME = "Canonical UbuntuServer 18.04-LTS latest"
 $TAR_PATH = "$($env:ProgramFiles)\Git\usr\bin\tar.exe"
 $CURRENT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 $WORK_DIR = $CURRENT_DIR.Directory.FullName
-# VM-HOT-RESIZE test takes a long time to run and it is
-# not relevant for coverage
+# VM-HOT-RESIZE is not relevant for coverage
 # PCI-DEVICE-DISABLE-ENABLE-SRIOV-NVME is deployed on L80_v2,
 # uses too much quota and the same test is run on GPU and SRIOV
-$EXCLUDED_TESTS = "VM-HOT-RESIZE,PCI-DEVICE-DISABLE-ENABLE-SRIOV-NVME"
+# Exclude GPU tests, NA for the kernel used
+# Exclude some SR-IOV tests that take a long time to run
+$EXCLUDED_TESTS = "VM-HOT-RESIZE,PCI-DEVICE-DISABLE-ENABLE-SRIOV-NVME,SRIOV-DISABLE-ENABLE-AN,SRIOV-IPERF-STRESS,*NVIDIA*"
 
 function Main {
     $SrcPackagePath = Resolve-Path $SrcPackagePath

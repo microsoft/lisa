@@ -180,7 +180,7 @@ function Install_Dpdk() {
 	if [[ $DPDK_LINK =~ .tar ]]; then
 		ssh ${install_ip} "mkdir ${DPDK_DIR}"
 		dpdk_download_file="${DPDK_LINK##*/}"
-		ssh "${install_ip}" "wget '${DPDK_LINK}' -P /tmp"
+		wget_retry "${DPDK_LINK}" "/tmp" "${install_ip}"
 		ssh "${install_ip}" "tar -xf '/tmp/${dpdk_download_file}' -C ${DPDK_DIR} --strip-components=1"
 		check_exit_status "Get DPDK sources from '${DPDK_LINK}' on ${install_ip}" "exit"
 	elif [[ $DPDK_LINK =~ ".git" ]] || [[ $DPDK_LINK =~ "git:" ]]; then

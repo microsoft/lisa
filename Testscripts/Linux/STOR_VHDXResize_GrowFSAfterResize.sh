@@ -72,6 +72,10 @@ if ! [ "$rerun" = "yes" ]; then
 		if [ "$fs" = "ext4" ]; then
 			option="-F"
 		fi
+		mount | grep "$deviceName"1
+		if [ $? -eq 0 ]; then
+			umount $mntDir
+		fi
 		mkfs -t $fs $option "$deviceName"1
 		check_exit_status "Format partition with $fs" "exit"
 	fi
@@ -79,7 +83,7 @@ if ! [ "$rerun" = "yes" ]; then
 	# Mount partition
 	if [ ! -e "$mntDir" ]; then
 		mkdir $mntDir
-	check_exit_status "Create mount point" "exit"
+		check_exit_status "Create mount point" "exit"
 	fi
 
 	mount "$deviceName"1 $mntDir
@@ -111,13 +115,13 @@ else
 	# we need to skip xfs for now
 	if [ ! "$fs" = "xfs" ]; then
 		e2fsck -y -v -f "$deviceName"1
-	check_exit_status "Check filesystem" "exit"
+		check_exit_status "Check filesystem" "exit"
 	fi
 
 	# Resizing the filesystem
 	if [ ! "$fs" = "xfs" ]; then
 		resize2fs "$deviceName"1
-	check_exit_status "Resize filesystem" "exit"
+		check_exit_status "Resize filesystem" "exit"
 	fi
 
 	# Mount partition

@@ -203,6 +203,9 @@ foreach ($region in $allRegions)
     $currentRegionUsage =  Get-AzVMUsage -Location $region
     Write-LogInfo "Get-AzVMUsage -Location $region"
     $currentRegionAllowedCores = ($currentRegionUsage | Where-Object { $_.Name.Value -eq "cores"}).Limit
+    if (-not $currentRegionAllowedCores) {
+        $currentRegionAllowedCores = 0
+    }
 
     $regionCounter+= 1
     Write-LogInfo "[$regionCounter/$($allRegions.Count)]. $($region)"
@@ -236,6 +239,11 @@ foreach ($region in $allRegions)
             $currentPublicIPs += 1
         }
     }
+    if ( $currentRegionAllowedCores -gt 0) {
+        $RegionUsagePercent = $([math]::Round($currentUsedCores*100/$currentRegionAllowedCores,1))
+    } else {
+        $RegionUsagePercent = 0
+    }
     Write-LogInfo "|--Current VMs: $currentVMs"
     Write-LogInfo "|--Current Storages: $currentStorageAccounts"
     Write-LogInfo "|--Current VNETs: $currentVNETs"
@@ -250,8 +258,8 @@ foreach ($region in $allRegions)
     $currentHTMLNode = $currentHTMLNode.Replace("Region_Used_Cores","$currentUsedCores")
     $currentHTMLNode = $currentHTMLNode.Replace("Region_Deallocated_Cores","$currentDeallocatedCores")
     $currentHTMLNode = $currentHTMLNode.Replace("Region_Allowed_Cores","$currentRegionAllowedCores")
-    $currentHTMLNode = $currentHTMLNode.Replace("Region_Core_Percent","$([math]::Round($currentUsedCores*100/$currentRegionAllowedCores,1))")
-    if ( [math]::Round($currentUsedCores*100/$currentRegionAllowedCores,1) -gt 80 )
+    $currentHTMLNode = $currentHTMLNode.Replace("Region_Core_Percent","$RegionUsagePercent")
+    if ( $RegionUsagePercent -gt 80 )
     {
         $currentHTMLNode = $currentHTMLNode.Replace("CORE_CLASS","tg-amwmred")
     }
@@ -280,7 +288,7 @@ foreach ($region in $allRegions)
     $TimeStamp = "$($psttime.Year)-$($psttime.Month)-$($psttime.Day) $($psttime.Hour):$($psttime.Minute):$($psttime.Second)"
     if ($UploadToDB)
     {
-        $SQLQuery += "('$SubscriptionID','$SubscriptionName','$currentRegion','$TimeStamp',$currentVMs,$currentUsedCores,$currentDeallocatedCores,$($currentUsedCores+$currentDeallocatedCores),$currentRegionAllowedCores,$([math]::Round($currentUsedCores*100/$currentRegionAllowedCores,1)),$PremiumStorages,$StanardStorages,$currentStorageAccounts,$currentPublicIPs,$currentVNETs),"
+        $SQLQuery += "('$SubscriptionID','$SubscriptionName','$currentRegion','$TimeStamp',$currentVMs,$currentUsedCores,$currentDeallocatedCores,$($currentUsedCores+$currentDeallocatedCores),$currentRegionAllowedCores,$RegionUsagePercent,$PremiumStorages,$StanardStorages,$currentStorageAccounts,$currentPublicIPs,$currentVNETs),"
     }
 
 }
@@ -290,8 +298,8 @@ $htmlSummary = $htmlSummary.Replace("Total_VMs","$totalVMs")
 $htmlSummary = $htmlSummary.Replace("Total_Used_Cores","$totalUsedCores")
 $htmlSummary = $htmlSummary.Replace("Total_Deallocated_Cores","$totalDeallocatedCores")
 $htmlSummary = $htmlSummary.Replace("Total_Allowed_Cores","$totalAllowedCores")
-$htmlSummary = $htmlSummary.Replace("Total_Core_Percent","$([math]::Round($totalUsedCores*100/$totalAllowedCores,1))")
-if ( $([math]::Round($totalUsedCores*100/$totalAllowedCores,1)) -gt 80 )
+$htmlSummary = $htmlSummary.Replace("Total_Core_Percent","$RegionUsagePercent")
+if ( $RegionUsagePercent -gt 80 )
 {
     $htmlSummary = $htmlSummary.Replace("CORE_CLASS","tg-l2ozred")
 }
@@ -309,7 +317,7 @@ $UsageReport += '</table>'
 #region Upload usage to DB
 if ($UploadToDB)
 {
-    $SQLQuery += "('$SubscriptionID','$SubscriptionName','Total','$TimeStamp',$totalVMs,$totalUsedCores,$totalDeallocatedCores,$($totalUsedCores+$totalDeallocatedCores),$totalAllowedCores,$([math]::Round($totalUsedCores*100/$totalAllowedCores,1)),$PremiumStorages,$StanardStorages,$totalStorageAccounts,$totalPublicIPs,$totalVNETs)"
+    $SQLQuery += "('$SubscriptionID','$SubscriptionName','Total','$TimeStamp',$totalVMs,$totalUsedCores,$totalDeallocatedCores,$($totalUsedCores+$totalDeallocatedCores),$totalAllowedCores,$RegionUsagePercent,$PremiumStorages,$StanardStorages,$totalStorageAccounts,$totalPublicIPs,$totalVNETs)"
     try
     {
         Write-LogInfo $SQLQuery

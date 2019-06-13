@@ -1869,6 +1869,14 @@ Function Publish-App([string]$appName, [string]$customIP, [string]$appGitURL, [s
         Write-LogErr "$appGitURL is not set"
         return $False
     }
+    # Install dependencies
+    Copy-RemoteFiles -upload -uploadTo $customIP -port $VMSSHPort -files ".\Testscripts\Linux\utils.sh" `
+        -username $user -password $password 2>&1
+    $cmd = ". utils.sh && update_repos && install_package 'make build-essential'"
+    if (($global:detectedDistro -imatch "CENTOS") -or ($global:detectedDistro -imatch "REDHAT") ) {
+        $cmd = ". utils.sh && update_repos && install_package 'make kernel-devel gcc-c++'"
+    }
+    $null = Run-LinuxCmd -username $user -password $password -ip $customIP -port $VMSSHPort -command $cmd -runAsSudo
     $retVal = Run-LinuxCmd -username $user -password $password -ip $customIP -port $VMSSHPort `
         -command "echo $password | sudo -S cd /root; git clone $appGitURL $appName > /dev/null 2>&1"
     if ($appGitTag) {
@@ -2274,4 +2282,18 @@ function Collect-GcovData {
     }
 
     return $status
+}
+
+Function Restart-VMFromShell($VMData, [switch]$SkipRestartCheck) {
+    Write-LogInfo "Restarting $($VMData.RoleName) from shell..."
+    $Null = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "sleep 5 && reboot" -runAsSudo -RunInBackground
+    if ($SkipRestartCheck) {
+        return $true
+    } else {
+        Start-Sleep -Seconds 5
+        if ((Is-VmAlive -AllVMDataObject $AllVMData) -eq "True") {
+            return $true
+        }
+        return $false
+    }
 }

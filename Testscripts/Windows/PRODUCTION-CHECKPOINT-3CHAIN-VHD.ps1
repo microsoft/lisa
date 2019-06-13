@@ -139,13 +139,6 @@ function Main {
             throw "Wait-ForVMToStop fail"
         }
 
-        # Clean snapshots
-        Write-LogInfo "Cleaning up snapshots..."
-        $sts = Restore-LatestVMSnapshot $vmName $hvServer
-        if (-not $sts[-1]) {
-            throw "Error: Cleaning snapshots on $vmname failed."
-        }
-
         # Get Parent VHD
         $ParentVHD = Get-ParentVHD $vmName $hvServer
         if(-not $ParentVHD) {
@@ -266,7 +259,7 @@ function Main {
         }
 
         $sts2 = Check-FileInLinuxGuest -VMPassword $password -VMPort $port -VMUserName $user -Ipv4 $vm2ipv4 -fileName "/home/$user/TestFile2"
-        if (-not $sts2) {
+        if ($sts2) {
             $testResult = $resultFail
             throw "TestFile2 is present,it should not be present on the VM"
         }
