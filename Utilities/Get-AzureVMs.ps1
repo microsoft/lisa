@@ -56,10 +56,10 @@ function Get-VMAgeFromDisk() {
         $container = $vhd.Split("/")[3]
         $blob = $vhd.Split("/")[4]
 
-        $blobStorageUsed = Get-AzureRmStorageAccount | where {  $($_.StorageAccountName -eq $storageAccount) -and $($_.Location -eq $vm.Location) }
+        $blobStorageUsed = Get-AzStorageAccount | where {  $($_.StorageAccountName -eq $storageAccount) -and $($_.Location -eq $vm.Location) }
         if( $blobStorageUsed ) {
-            Set-AzureRmCurrentStorageAccount -ResourceGroupName $blobStorageUsed.ResourceGroupName -Name $storageAccount > $null
-            $blobDetails = Get-AzureStorageBlob -Container $container -Blob $blob -ErrorAction SilentlyContinue
+            Set-AzCurrentStorageAccount -ResourceGroupName $blobStorageUsed.ResourceGroupName -Name $storageAccount > $null
+            $blobDetails = Get-AzStorageBlob -Container $container -Blob $blob -ErrorAction SilentlyContinue
             if( $blobDetails ) {
                 $copyCompletion = $blobDetails.ICloudBlob.CopyState.CompletionTime
                 $age = $($(Get-Date)-$copyCompletion.DateTime)
@@ -67,7 +67,7 @@ function Get-VMAgeFromDisk() {
             }
         }
     } else {
-        $osdisk = Get-AzureRmDisk -ResourceGroupName $vm.ResourceGroupName -DiskName $vm.StorageProfile.OsDisk.Name -ErrorAction SilentlyContinue
+        $osdisk = Get-AzDisk -ResourceGroupName $vm.ResourceGroupName -DiskName $vm.StorageProfile.OsDisk.Name -ErrorAction SilentlyContinue
         if( $osdisk ) {
             $age = $($(Get-Date) - $osDisk.TimeCreated)
             $ageDays = $($age.Days)
@@ -79,11 +79,11 @@ function Get-VMAgeFromDisk() {
 
 #Get all VMs and enumerate thru them adding items to results list.
 
-$allRGs = Get-AzureRmResourceGroup
+$allRGs = Get-AzResourceGroup
 if ($IncludeState) {
-    $allVMs = Get-AzureRmVM -Status
+    $allVMs = Get-AzVM -Status
 } else {
-    $allVMs = Get-AzureRmVM
+    $allVMs = Get-AzVM
 }
 
 $results = @()
@@ -125,7 +125,7 @@ foreach ($vm in $allVMs) {
             if( $null -ieq $result.Age ) {
                 $end_Date = Get-Date([datetime]::Now.ToUniversalTime()) -Format d
                 $start_Date = Get-Date($rg.Tags.CreationTime) -Format d
-                $ageInDays = (NEW-TIMESPAN –Start $start_Date –End $end_Date).Days
+                $ageInDays = (NEW-TIMESPAN â€“Start $start_Date â€“End $end_Date).Days
                 $result | Add-Member Age $ageInDays
             }
         }

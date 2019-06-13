@@ -61,7 +61,7 @@ function Main {
     Add-ResourceGroupTag -ResourceGroup $resourceGroupName -TagName "Month" -TagValue "$((Get-Culture).DateTimeFormat.GetMonthName((Get-Date).Month))"
 
     Write-LogInfo "Adding Timer Lock on the resource group $resourceGroupName"
-    New-AzureRmResourceLock -LockName "Timer Lock" -LockLevel CanNotDelete -ResourceGroupName $resourceGroupName -Force
+    New-AzResourceLock -LockName "Timer Lock" -LockLevel CanNotDelete -ResourceGroupName $resourceGroupName -Force
     return "PASS"
 }
 

@@ -277,7 +277,7 @@ Function GetAndCheck-KernelLogs($allDeployedVMs, $status, $vmUser, $vmPassword, 
 					$hash = @{}
 					$hash.Add("calltrace","yes")
 					$hash.Add("testName","$testName")
-					$Null = Set-AzureRmResourceGroup -Name $($VM.ResourceGroupName) -Tag $hash
+					$Null = Set-AzResourceGroup -Name $($VM.ResourceGroupName) -Tag $hash
 				}
 			}
 		}

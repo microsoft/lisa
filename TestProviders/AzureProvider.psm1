@@ -112,11 +112,11 @@ Class AzureProvider : TestProvider
 		$VMCoresArray = @()
 		Function Start-RestartAzureVMJob ($ResourceGroupName, $RoleName) {
 			Write-LogInfo "Triggering Restart-$($RoleName)..."
-			$Job = Restart-AzureRmVM -ResourceGroupName $ResourceGroupName -Name $RoleName -AsJob
+			$Job = Restart-AzVM -ResourceGroupName $ResourceGroupName -Name $RoleName -AsJob
 			$Job.Name = "Restart-$($ResourceGroupName):$($RoleName)"
 			return $Job
 		}
-		$AzureVMSizeInfo = Get-AzureRmVMSize -Location $AllVMData[0].Location
+		$AzureVMSizeInfo = Get-AzVMSize -Location $AllVMData[0].Location
 		foreach ( $vmData in $AllVMData ) {
 			$restartJobs += Start-RestartAzureVMJob -ResourceGroupName $vmData.ResourceGroupName -RoleName $vmData.RoleName
 			$VMCoresArray += ($AzureVMSizeInfo | Where-Object { $_.Name -eq $vmData.InstanceSize }).NumberOfCores

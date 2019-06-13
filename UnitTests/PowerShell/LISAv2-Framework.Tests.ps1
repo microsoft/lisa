@@ -7,7 +7,7 @@ $moduleName = "LISAv2-Framework"
 
 Import-Module (Join-Path $here "..\..\${moduleName}") -Force -DisableNameChecking
 
-function Select-AzureRmSubscription {
+function Select-AzSubscription {
 	param($SubscriptionId)
 	return
 }
@@ -31,7 +31,7 @@ Describe "Test if ${moduleName} Run-LISAv2 fails with no test cases found" {
 		Mock Validate-XmlFiles -Verifiable -ModuleName $moduleName {}
 
 		Mock Write-LogInfo -Verifiable -ModuleName "AzureController" {}
-		Mock Select-AzureRmSubscription -Verifiable -ModuleName "AzureController" {
+		Mock Select-AzSubscription -Verifiable -ModuleName "AzureController" {
 			return @{
 				"Account" = @{
 					"Id" = "Id"
@@ -57,7 +57,7 @@ Describe "Test if ${moduleName} Run-LISAv2 fails with no test cases found" {
 Describe "Test if ${moduleName} Run-LISAv2 fails to parse report results on Azure" {
 	It "Should fail at parsing report results on Azure" {
 		Mock Write-LogInfo -Verifiable -ModuleName "AzureController" {}
-		Mock Select-AzureRmSubscription -Verifiable -ModuleName "AzureController" {
+		Mock Select-AzSubscription -Verifiable -ModuleName "AzureController" {
 			return @{
 				"Account" = @{
 					"Id" = "Id"

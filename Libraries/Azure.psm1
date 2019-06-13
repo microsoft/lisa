@@ -95,7 +95,7 @@ Function Validate-SubscriptionUsage($RGXMLData, $Location, $OverrideVMSize, $Sto
 
         # Get the Azure Compute SKU details
         Write-LogInfo "Getting Azure 'ComputeSKU' details..."
-        $ComputeSKU = Get-AzureRmComputeResourceSku
+        $ComputeSKU = Get-AzComputeResourceSku
 
         #Define LISAv2's subscription usage limit. This is applicable for all the defined resources.
         #  e.g. If your subscription has below maximum limits:
@@ -116,7 +116,7 @@ Function Validate-SubscriptionUsage($RGXMLData, $Location, $OverrideVMSize, $Sto
         )
 
         #Get the region
-        $currentStatus = Get-AzureRmVMUsage -Location $Location
+        $currentStatus = Get-AzVMUsage -Location $Location
         $overFlowErrors = 0
         $premiumVMs = 0
         $vmCounter = 0
@@ -132,7 +132,7 @@ Function Validate-SubscriptionUsage($RGXMLData, $Location, $OverrideVMSize, $Sto
             if ($OverrideVMSize -and ($testVMUsage -gt 0)) {
                 #Do nothing.
             } else {
-                $testVMUsage = (Get-AzureRmVMSize -Location $Location | Where-Object { $_.Name -eq $testVMSize}).NumberOfCores
+                $testVMUsage = (Get-AzVMSize -Location $Location | Where-Object { $_.Name -eq $testVMSize}).NumberOfCores
             }
 
             $DetectedVMFamily = ($ComputeSKU | Where-Object { $_.Name -eq $testVMSize }).Family | Get-Unique
@@ -158,13 +158,13 @@ Function Validate-SubscriptionUsage($RGXMLData, $Location, $OverrideVMSize, $Sto
     #region Resource Groups
     #Source for current limit : https://docs.microsoft.com/en-us/azure/azure-subscription-service-limits#subscription-limits---azure-resource-manager
     $RGLimit = 980
-    $currentRGCount = (Get-AzureRmResourceGroup).Count
+    $currentRGCount = (Get-AzResourceGroup).Count
     $overFlowErrors += Check-OverflowErrors -ResourceType "Resource Group" -CurrentValue $currentRGCount `
         -RequiredValue 1 -MaximumLimit $RGLimit -AllowedUsagePercentage $AllowedUsagePercentage
     #endregion
 
     #region Storage Accounts
-    $currentStorageStatus = Get-AzureRmStorageUsage -Location $Location
+    $currentStorageStatus = Get-AzStorageUsage -Location $Location
     if ( ($premiumVMs -gt 0 ) -and ($StorageAccount -imatch "NewStorage_")) {
         $requiredStorageAccounts = 1
     }
@@ -178,7 +178,7 @@ Function Validate-SubscriptionUsage($RGXMLData, $Location, $OverrideVMSize, $Sto
         -RequiredValue $requiredStorageAccounts -MaximumLimit $currentStorageStatus.Limit -AllowedUsagePercentage $AllowedUsagePercentage
     #endregion
 
-    $GetAzureRmNetworkUsage = Get-AzureRmNetworkUsage -Location $Location
+    $GetAzureRmNetworkUsage = Get-AzNetworkUsage -Location $Location
 
     #region Public IP Addresses
     $PublicIPs = $GetAzureRmNetworkUsage | Where-Object { $_.Name.Value -eq "PublicIPAddresses" }
@@ -238,7 +238,7 @@ Function Change-StorageAccountType($TestCaseData, [string]$Location, $GlobalConf
                     $copyVHD = $true
                 }
             } else {
-                $storageAccountType = (Get-AzureRmStorageAccount | Where-Object {$_.StorageAccountName -eq $storageAccount}).Sku.Tier.ToString()
+                $storageAccountType = (Get-AzStorageAccount | Where-Object {$_.StorageAccountName -eq $storageAccount}).Sku.Tier.ToString()
                 if ($storageAccountType -inotmatch "premium") {
                     Write-LogErr "Provided storage account is not premium type, this case $($TestCaseData.testName) need run under premium type of storage account."
                     Throw "Case $($TestCaseData.testName) need run under premium type of storage account."
@@ -394,7 +394,7 @@ Function Delete-ResourceGroup([string]$RGName, [switch]$KeepDisks, [bool]$UseExi
     Write-LogInfo "Try to delete resource group $RGName..."
     try {
         Write-LogInfo "Checking if $RGName exists..."
-        $ResourceGroup = Get-AzureRmResourceGroup -Name $RGName -ErrorAction Ignore
+        $ResourceGroup = Get-AzResourceGroup -Name $RGName -ErrorAction Ignore
     }
     catch {
         Write-LogInfo "Failed to get resource group: $RGName; maybe this resource group does not exist."
@@ -403,18 +403,18 @@ Function Delete-ResourceGroup([string]$RGName, [switch]$KeepDisks, [bool]$UseExi
         if ($UseExistingRG) {
             # Get RG lock. If there is any lock in place, don't try to delete the Resource Group
             # "Microsoft.Authorization/locks" is the standard ResourceType for RG locks
-            $rgLock = (Get-AzureRmResourceLock -ResourceGroupName $RGName).ResourceType -eq "Microsoft.Authorization/locks"
+            $rgLock = (Get-AzResourceLock -ResourceGroupName $RGName).ResourceType -eq "Microsoft.Authorization/locks"
             if (-not $rgLock) {
-                $CurrentResources = Get-AzureRmResource -ResourceGroupName $RGName | `
+                $CurrentResources = Get-AzResource -ResourceGroupName $RGName | `
                     Where-Object { (( $_.ResourceGroupName -eq $RGName ) -and ( !($_.ResourceType -imatch "availabilitySets" )))}
                 $attempts = 0
                 while (($CurrentResources) -and ($attempts -le 10)) {
-                    $CurrentResources = Get-AzureRmResource -ResourceGroupName $RGName | `
+                    $CurrentResources = Get-AzResource -ResourceGroupName $RGName | `
                         Where-Object { (( $_.ResourceGroupName -eq $RGName ) -and ( !($_.ResourceType -imatch "availabilitySets" )))}
                     $unlockedResources = @()
                     # Get the lock for each resource and compute a list of "unlocked" resources
                     foreach ($resource in $CurrentResources) {
-                        $resourceLock = Get-AzureRmResourceLock -ResourceGroupName $RGName `
+                        $resourceLock = Get-AzResourceLock -ResourceGroupName $RGName `
                             -ResourceType $resource.ResourceType -ResourceName $resource.Name
                         if (-not $resourceLock) {
                             $unlockedResources += $resource
@@ -424,9 +424,9 @@ Function Delete-ResourceGroup([string]$RGName, [switch]$KeepDisks, [bool]$UseExi
                     foreach ($resource in $unlockedResources) {
                         Write-LogInfo "Removing resource $($resource.Name), type $($resource.ResourceType)"
                         try {
-                            $current_resource = Get-AzureRmResource -ResourceId $resource.ResourceId -ErrorAction Ignore
+                            $current_resource = Get-AzResource -ResourceId $resource.ResourceId -ErrorAction Ignore
                             if ($current_resource) {
-                                $null = Remove-AzureRmResource -ResourceId $resource.ResourceId -Force -Verbose
+                                $null = Remove-AzResource -ResourceId $resource.ResourceId -Force -Verbose
                             }
                         }
                         catch {
@@ -444,12 +444,12 @@ Function Delete-ResourceGroup([string]$RGName, [switch]$KeepDisks, [bool]$UseExi
         }
         else {
             Write-LogInfo "Triggering delete operation for Resource Group ${RGName}"
-            $null = Remove-AzureRmResourceGroup -Name $RGName -Force -AsJob
+            $null = Remove-AzResourceGroup -Name $RGName -Force -AsJob
             $maxRgDeletingRetries = 3
 			$rgDeletingRetries = 0
 			$isRgDeleting = $false
 			while (!$isRGDeleting -and $rgDeletingRetries -lt $maxRgDeletingRetries) {
-				$rgStatus = Get-AzureRmResourceGroup -Name $RGName -ErrorAction SilentlyContinue
+				$rgStatus = Get-AzResourceGroup -Name $RGName -ErrorAction SilentlyContinue
 				if (!$rgStatus -or $rgStatus.ProvisioningState -eq 'Deleting') {
 					Write-LogInfo "Successfully triggered delete operation for Resource Group ${RGName}"
 					$isRGDeleting = $true
@@ -478,7 +478,7 @@ Function Create-ResourceGroup([string]$RGName, $location, $CurrentTestData) {
             $FailCounter++
             if ($location) {
                 Write-LogInfo "Using location : $location"
-                $createRG = New-AzureRmResourceGroup -Name $RGName -Location $location.Replace('"', '') -Force -Verbose
+                $createRG = New-AzResourceGroup -Name $RGName -Location $location.Replace('"', '') -Force -Verbose
             }
             $operationStatus = $createRG.ProvisioningState
             if ($operationStatus -eq "Succeeded") {
@@ -514,7 +514,7 @@ Function Create-ResourceGroupDeployment([string]$RGName, $location, $TemplateFil
             $FailCounter++
             if ($location) {
                 Write-LogInfo "Creating Deployment using $TemplateFile ..."
-                $createRGDeployment = New-AzureRmResourceGroupDeployment -Name $ResourceGroupDeploymentName `
+                $createRGDeployment = New-AzResourceGroupDeployment -Name $ResourceGroupDeploymentName `
                                         -ResourceGroupName $RGName -TemplateFile $TemplateFile -Verbose
             }
             $operationStatus = $createRGDeployment.ProvisioningState
@@ -536,7 +536,7 @@ Function Create-ResourceGroupDeployment([string]$RGName, $location, $TemplateFil
                     }
                 }
                 else {
-                    $VMsCreated = Get-AzureRmVM -ResourceGroupName $RGName
+                    $VMsCreated = Get-AzVM -ResourceGroupName $RGName
                     if ( $VMsCreated ) {
                         Write-LogInfo "Keeping Failed resource group, as we found $($VMsCreated.Count) VM(s) deployed."
                     }
@@ -592,16 +592,16 @@ Function Get-AllDeploymentData($ResourceGroups)
         Write-LogInfo "Collecting $ResourceGroup data.."
 
         Write-LogInfo "	Microsoft.Network/publicIPAddresses data collection in progress.."
-        $RGIPsdata = Get-AzureRmResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Network/publicIPAddresses" -Verbose -ExpandProperties
+        $RGIPsdata = Get-AzResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Network/publicIPAddresses" -Verbose -ExpandProperties
         Write-LogInfo "	Microsoft.Compute/virtualMachines data collection in progress.."
-        $RGVMs = Get-AzureRmResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Compute/virtualMachines" -Verbose -ExpandProperties
+        $RGVMs = Get-AzResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Compute/virtualMachines" -Verbose -ExpandProperties
         Write-LogInfo "	Microsoft.Network/networkInterfaces data collection in progress.."
-        $NICdata = Get-AzureRmResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Network/networkInterfaces" -Verbose -ExpandProperties
-        $currentRGLocation = (Get-AzureRmResourceGroup -ResourceGroupName $ResourceGroup).Location
+        $NICdata = Get-AzResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Network/networkInterfaces" -Verbose -ExpandProperties
+        $currentRGLocation = (Get-AzResourceGroup -ResourceGroupName $ResourceGroup).Location
         Write-LogInfo "	Microsoft.Network/loadBalancers data collection in progress.."
-        $LBdata = Get-AzureRmResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Network/loadBalancers" -ExpandProperties -Verbose
+        $LBdata = Get-AzResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Network/loadBalancers" -ExpandProperties -Verbose
         foreach($ipData in $RGIPsdata) {
-            if ((Get-AzureRmPublicIpAddress -Name $ipData.name -ResourceGroupName $ipData.ResourceGroupName).IpAddress -ne "Not Assigned") {
+            if ((Get-AzPublicIpAddress -Name $ipData.name -ResourceGroupName $ipData.ResourceGroupName).IpAddress -ne "Not Assigned") {
                 $RGIPdata = $ipData
             }
         }
@@ -742,7 +742,7 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
             $retryCount += 1
             Write-LogInfo "[Attempt $retryCount/$maxRetryCount] : Getting Existing Storage account information..."
             $GetAzureRMStorageAccount = $null
-            $GetAzureRMStorageAccount = Get-AzureRmStorageAccount
+            $GetAzureRMStorageAccount = Get-AzStorageAccount
             if ($GetAzureRMStorageAccount -eq $null) {
                 $saInfoCollected = $false
             }
@@ -833,7 +833,7 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
     $createAvailabilitySet = !$UseExistingRG
 
     if ($UseExistingRG) {
-        $existentAvailabilitySet = Get-AzureRmResource | Where-Object { (( $_.ResourceGroupName -eq $RGName ) -and ( $_.ResourceType -imatch "availabilitySets" ))} | `
+        $existentAvailabilitySet = Get-AzResource | Where-Object { (( $_.ResourceGroupName -eq $RGName ) -and ( $_.ResourceType -imatch "availabilitySets" ))} | `
             Select-Object -First 1
         if ($existentAvailabilitySet) {
             $availabilitySetName = $existentAvailabilitySet.Name
@@ -870,7 +870,7 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
     if ($RGXMLData.ARMVnetName -ne $null) {
         $ExistingVnet = $RGXMLData.ARMVnetName
         Write-LogInfo "Getting $ExistingVnet Virtual Netowrk info ..."
-        $ExistingVnetResourceGroupName = ( Get-AzureRmResource | Where-Object {$_.Name -eq $ExistingVnet}).ResourceGroupName
+        $ExistingVnetResourceGroupName = ( Get-AzResource | Where-Object {$_.Name -eq $ExistingVnet}).ResourceGroupName
         Write-LogInfo "ARM VNET : $ExistingVnet (ResourceGroup : $ExistingVnetResourceGroupName)"
         $virtualNetworkName = $ExistingVnet
     }
@@ -1897,7 +1897,7 @@ Function Create-RGDeploymentWithTempParameters([string]$RGName, $TemplateFile, $
         try {
             $FailCounter++
             Write-LogInfo "Creating Deployment using $TemplateFile $TemplateParameterFile..."
-            $createRGDeployment = New-AzureRmResourceGroupDeployment -Name $ResourceGroupDeploymentName -ResourceGroupName $RGName -TemplateFile $TemplateFile -TemplateParameterFile $TemplateParameterFile -Verbose
+            $createRGDeployment = New-AzResourceGroupDeployment -Name $ResourceGroupDeploymentName -ResourceGroupName $RGName -TemplateFile $TemplateFile -TemplateParameterFile $TemplateParameterFile -Verbose
             $operationStatus = $createRGDeployment.ProvisioningState
             if ($operationStatus -eq "Succeeded") {
                 Write-LogInfo "Resource Group Deployment Created."
@@ -1973,7 +1973,7 @@ Function Copy-VHDToAnotherStorageAccount ($sourceStorageAccount, $sourceStorageC
             $retryCount += 1
             Write-LogInfo "[Attempt $retryCount/$maxRetryCount] : Getting Existing Storage Account details ..."
             $GetAzureRmStorageAccount = $null
-            $GetAzureRmStorageAccount = Get-AzureRmStorageAccount
+            $GetAzureRmStorageAccount = Get-AzStorageAccount
             if ($GetAzureRmStorageAccount -eq $null) {
                 throw
             }
@@ -1988,37 +1988,37 @@ Function Copy-VHDToAnotherStorageAccount ($sourceStorageAccount, $sourceStorageC
 
     if ( !$SasUrl ) {
         Write-LogInfo "Retrieving $sourceStorageAccount storage account key"
-        $SrcStorageAccountKey = (Get-AzureRmStorageAccountKey -ResourceGroupName $(($GetAzureRmStorageAccount  | Where-Object {$_.StorageAccountName -eq "$sourceStorageAccount"}).ResourceGroupName) -Name $sourceStorageAccount)[0].Value
+        $SrcStorageAccountKey = (Get-AzStorageAccountKey -ResourceGroupName $(($GetAzureRmStorageAccount  | Where-Object {$_.StorageAccountName -eq "$sourceStorageAccount"}).ResourceGroupName) -Name $sourceStorageAccount)[0].Value
         [string]$SrcStorageAccount = $sourceStorageAccount
         [string]$SrcStorageBlob = $vhdName
         $SrcStorageContainer = $sourceStorageContainer
-        $context = New-AzureStorageContext -StorageAccountName $srcStorageAccount -StorageAccountKey $srcStorageAccountKey
+        $context = New-AzStorageContext -StorageAccountName $srcStorageAccount -StorageAccountKey $srcStorageAccountKey
         $expireTime = Get-Date
         $expireTime = $expireTime.AddYears(1)
-        $SasUrl = New-AzureStorageBlobSASToken -container $srcStorageContainer -Blob $srcStorageBlob -Permission R -ExpiryTime $expireTime -FullUri -Context $Context
+        $SasUrl = New-AzStorageBlobSASToken -container $srcStorageContainer -Blob $srcStorageBlob -Permission R -ExpiryTime $expireTime -FullUri -Context $Context
 }
 
     Write-LogInfo "Retrieving $destinationStorageAccount storage account key"
-    $DestAccountKey = (Get-AzureRmStorageAccountKey -ResourceGroupName $(($GetAzureRmStorageAccount  | Where-Object {$_.StorageAccountName -eq "$destinationStorageAccount"}).ResourceGroupName) -Name $destinationStorageAccount)[0].Value
+    $DestAccountKey = (Get-AzStorageAccountKey -ResourceGroupName $(($GetAzureRmStorageAccount  | Where-Object {$_.StorageAccountName -eq "$destinationStorageAccount"}).ResourceGroupName) -Name $destinationStorageAccount)[0].Value
     [string]$DestAccountName = $destinationStorageAccount
     [string]$DestBlob = $destVHDName
     $DestContainer = $destinationStorageContainer
 
-    $destContext = New-AzureStorageContext -StorageAccountName $destAccountName -StorageAccountKey $destAccountKey
-    $testContainer = Get-AzureStorageContainer -Name $destContainer -Context $destContext -ErrorAction Ignore
+    $destContext = New-AzStorageContext -StorageAccountName $destAccountName -StorageAccountKey $destAccountKey
+    $testContainer = Get-AzStorageContainer -Name $destContainer -Context $destContext -ErrorAction Ignore
     if ($testContainer -eq $null) {
-        $null = New-AzureStorageContainer -Name $destContainer -context $destContext
+        $null = New-AzStorageContainer -Name $destContainer -context $destContext
     }
     # Start the Copy
     Write-LogInfo "Copy $vhdName --> $($destContext.StorageAccountName) : Running"
-    $null = Start-AzureStorageBlobCopy -AbsoluteUri $SasUrl  -DestContainer $destContainer -DestContext $destContext -DestBlob $destBlob -Force
+    $null = Start-AzStorageBlobCopy -AbsoluteUri $SasUrl  -DestContainer $destContainer -DestContext $destContext -DestBlob $destBlob -Force
     #
     # Monitor replication status
     #
     $CopyingInProgress = $true
     while ($CopyingInProgress) {
         $CopyingInProgress = $false
-        $status = Get-AzureStorageBlobCopyState -Container $destContainer -Blob $destBlob -Context $destContext
+        $status = Get-AzStorageBlobCopyState -Container $destContainer -Blob $destBlob -Context $destContext
         if ($status.Status -ne "Success") {
             $CopyingInProgress = $true
         } else {
@@ -2088,7 +2088,7 @@ Function Set-SRIOVinAzureVMs {
         foreach ( $TargetVM in $TargettedVMs) {
             $VMName = $TargetVM.RoleName
             $ResourceGroup = $TargetVM.ResourceGroupName
-            $AllNics = Get-AzureRmNetworkInterface -ResourceGroupName $ResourceGroup `
+            $AllNics = Get-AzNetworkInterface -ResourceGroupName $ResourceGroup `
                 | Where-Object { $($_.VirtualMachine.Id | Split-Path -leaf) -eq $VMName }
 
             if ($Enable) {
@@ -2101,16 +2101,16 @@ Function Set-SRIOVinAzureVMs {
                     $TargettedNics = $AllNics | Where-Object { $_.EnableAcceleratedNetworking -eq $false}
                     Write-LogInfo "Current Accelerated networking disabled NICs : $($TargettedNics.Name)"
                     Write-LogInfo "Shutting down $VMName..."
-                    $null = Stop-AzureRmVM -ResourceGroup $ResourceGroup -Name $VMName -Force
+                    $null = Stop-AzVM -ResourceGroup $ResourceGroup -Name $VMName -Force
                     foreach ($TargetNic in $TargettedNics) {
                         #Enable EnableAccelerated Networking
                         $TargetNic.EnableAcceleratedNetworking = $true
-                        $ChangedNic = $TargetNic | Set-AzureRmNetworkInterface
+                        $ChangedNic = $TargetNic | Set-AzNetworkInterface
                         $VMPropertiesChanged = $true
                         if ( $ChangedNic.EnableAcceleratedNetworking -eq $true) {
-                            Write-LogInfo "$($TargetNic.Name) [EnableAcceleratedNetworking=true]| Set-AzureRmNetworkInterface : SUCCESS"
+                            Write-LogInfo "$($TargetNic.Name) [EnableAcceleratedNetworking=true]| Set-AzNetworkInterface : SUCCESS"
                         } else {
-                            Write-LogInfo "$($TargetNic.Name) [EnableAcceleratedNetworking=true]| Set-AzureRmNetworkInterface : FAIL"
+                            Write-LogInfo "$($TargetNic.Name) [EnableAcceleratedNetworking=true]| Set-AzNetworkInterface : FAIL"
                         }
                     }
                 }
@@ -2125,16 +2125,16 @@ Function Set-SRIOVinAzureVMs {
                     $TargettedNics = $AllNics | Where-Object { $_.EnableAcceleratedNetworking -eq $true}
                     Write-LogInfo "Current Accelerated networking enabled NICs : $($TargettedNics.Name)"
                     Write-LogInfo "Shutting down $VMName..."
-                    $null = Stop-AzureRmVM -ResourceGroup $ResourceGroup -Name $VMName -Force
+                    $null = Stop-AzVM -ResourceGroup $ResourceGroup -Name $VMName -Force
                     foreach ($TargetNic in $TargettedNics) {
                         #Enable EnableAccelerated Networking
                         $TargetNic.EnableAcceleratedNetworking = $false
-                        $ChangedNic = $TargetNic | Set-AzureRmNetworkInterface
+                        $ChangedNic = $TargetNic | Set-AzNetworkInterface
                         $VMPropertiesChanged = $true
                         if ( $ChangedNic.EnableAcceleratedNetworking -eq $false) {
-                            Write-LogInfo "$($TargetNic.Name) [EnableAcceleratedNetworking=false] | Set-AzureRmNetworkInterface : SUCCESS"
+                            Write-LogInfo "$($TargetNic.Name) [EnableAcceleratedNetworking=false] | Set-AzNetworkInterface : SUCCESS"
                         } else {
-                            Write-LogInfo "$($TargetNic.Name) [EnableAcceleratedNetworking=false] | Set-AzureRmNetworkInterface : FAIL"
+                            Write-LogInfo "$($TargetNic.Name) [EnableAcceleratedNetworking=false] | Set-AzNetworkInterface : FAIL"
                         }
                     }
                 }
@@ -2143,7 +2143,7 @@ Function Set-SRIOVinAzureVMs {
             if ( $VMPropertiesChanged ) {
                 # Start the VM..
                 Write-LogInfo "Starting VM $($VMName)..."
-                $null = Start-AzureRmVM -ResourceGroup $ResourceGroup -Name $VMName
+                $null = Start-AzVM -ResourceGroup $ResourceGroup -Name $VMName
 
                 # Public IP address changes most of the times, when we shutdown the VM.
                 # Hence, we need to refresh the data
@@ -2170,7 +2170,7 @@ Function Set-SRIOVinAzureVMs {
                     }
                 }
 
-                $AllNics = Get-AzureRmNetworkInterface -ResourceGroupName $ResourceGroup `
+                $AllNics = Get-AzNetworkInterface -ResourceGroupName $ResourceGroup `
                     | Where-Object { $($_.VirtualMachine.Id | Split-Path -leaf) -eq $VMName }
                 if ($Enable) {
                     if (Check-CurrentNICStatus) {
@@ -2227,7 +2227,7 @@ Function Add-ResourceGroupTag {
     )
     try {
         Write-LogInfo "Setting $ResourceGroup tag : $TagName = $TagValue"
-        $ExistingTags = (Get-AzureRmResourceGroup -Name $ResourceGroup).Tags
+        $ExistingTags = (Get-AzResourceGroup -Name $ResourceGroup).Tags
         if ( $ExistingTags.Keys.Count -gt 0 ) {
             $ExistingKeyUpdated = $false
             foreach ($Key in $ExistingTags.Keys) {
@@ -2245,7 +2245,7 @@ Function Add-ResourceGroupTag {
             $hash = @{}
             $hash.Add($TagName, $TagValue)
         }
-        Set-AzureRmResourceGroup -Name $ResourceGroup -Tag $hash | Out-Null
+        Set-AzResourceGroup -Name $ResourceGroup -Tag $hash | Out-Null
     }
     catch {
         $ErrorMessage = $_.Exception.Message
@@ -2301,17 +2301,17 @@ function Get-AzureBootDiagnostics {
     )
 
     Write-LogInfo "Getting Azure boot diagnostic data of VM $($Vm.RoleName)"
-    $vmStatus = Get-AzureRmVm -ResourceGroupName $Vm.ResourceGroupName -VMName $Vm.RoleName -Status
+    $vmStatus = Get-AzVM -ResourceGroupName $Vm.ResourceGroupName -VMName $Vm.RoleName -Status
     if ($vmStatus -and $vmStatus.BootDiagnostics) {
         if ($vmStatus.BootDiagnostics.SerialConsoleLogBlobUri) {
             Write-LogInfo "Getting serial boot logs of VM $($Vm.RoleName)"
             try {
                 $uri = [System.Uri]$vmStatus.BootDiagnostics.SerialConsoleLogBlobUri
                 $storageAccountName = $uri.Host.Split(".")[0]
-                $diagnosticRG = ((Get-AzureRmStorageAccount) | Where-Object {$_.StorageAccountName -eq $storageAccountName}).ResourceGroupName.ToString()
-                $key = (Get-AzureRmStorageAccountKey -ResourceGroupName $diagnosticRG -Name $storageAccountName)[0].value
-                $diagContext = New-AzureStorageContext -StorageAccountName $storageAccountName -StorageAccountKey $key
-                Get-AzureStorageBlobContent -Blob $uri.LocalPath.Split("/")[2] `
+                $diagnosticRG = ((Get-AzStorageAccount) | Where-Object {$_.StorageAccountName -eq $storageAccountName}).ResourceGroupName.ToString()
+                $key = (Get-AzStorageAccountKey -ResourceGroupName $diagnosticRG -Name $storageAccountName)[0].value
+                $diagContext = New-AzStorageContext -StorageAccountName $storageAccountName -StorageAccountKey $key
+                Get-AzStorageBlobContent -Blob $uri.LocalPath.Split("/")[2] `
                     -Context $diagContext -Container $uri.LocalPath.Split("/")[1] `
                     -Destination $BootDiagnosticFile -Force | Out-Null
             } catch {
@@ -2408,8 +2408,8 @@ function Add-AzureAccountFromSecretsFile {
         $subIDSplitted = ($XmlSecrets.secrets.SubscriptionID).Split("-")
         $subIDMasked = "$($subIDSplitted[0])-xxxx-xxxx-xxxx-$($subIDSplitted[4])"
 
-        $null = Add-AzureRmAccount -ServicePrincipal -Tenant $TenantID -Credential $mycred
-        $selectedSubscription = Select-AzureRmSubscription -SubscriptionId $XmlSecrets.secrets.SubscriptionID
+        $null = Add-AzAccount -ServicePrincipal -Tenant $TenantID -Credential $mycred
+        $selectedSubscription = Select-AzSubscription -SubscriptionId $XmlSecrets.secrets.SubscriptionID
         if ( $selectedSubscription.Subscription.Id -eq $XmlSecrets.secrets.SubscriptionID ) {
             Write-LogInfo "Current Subscription : $subIDMasked."
         } else {

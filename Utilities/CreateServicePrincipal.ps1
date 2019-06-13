@@ -146,8 +146,8 @@ function Write-Prompt($Message) {
 }
 function New-ServicePrincipal() {
     $ErrorActionPreference = "Stop"
-    Login-AzureRmAccount
-    $subscription = Get-AzureRmSubscription
+    Login-AzAccount
+    $subscription = Get-AzSubscription
 
     $subCount = 1
     if ($subscription.Count) {
@@ -161,8 +161,8 @@ function New-ServicePrincipal() {
         }
         Write-Prompt "Copy and paste the ID of the subscription that you want to create Service Principal with:"
         $InputId = Read-Host
-        $subscription = Get-AzureRmSubscription -SubscriptionId $InputId
-        Select-AzureRmSubscription -Subscription $InputId
+        $subscription = Get-AzSubscription -SubscriptionId $InputId
+        Select-AzSubscription -Subscription $InputId
     }
     Write-Host "Use subscription $($subscription.Name)..."
 
@@ -186,7 +186,7 @@ function New-ServicePrincipal() {
     $securestring = ConvertTo-SecureString $clientSecret -AsPlainText -Force
 
     Write-Host "Create Active Directory application..."
-    $application = New-AzureRmADApplication -DisplayName $identifier -HomePage $homePage -IdentifierUris $idUris -Password $securestring
+    $application = New-AzADApplication -DisplayName $identifier -HomePage $homePage -IdentifierUris $idUris -Password $securestring
 
     $ClientId = $application.ApplicationId
 
@@ -194,7 +194,7 @@ function New-ServicePrincipal() {
 
     while ($true) {
         Start-Sleep 10
-        $appCheck = Get-AzureRmADApplication -ApplicationId $ClientId
+        $appCheck = Get-AzADApplication -ApplicationId $ClientId
         if ($appCheck) {
           break
         }
@@ -203,13 +203,13 @@ function New-ServicePrincipal() {
     $ErrorActionPreference = "Stop"
 
     Write-Host "Create Service Principal..."
-    New-AzureRmADServicePrincipal -ApplicationId $ClientId
+    New-AzADServicePrincipal -ApplicationId $ClientId
 
     $ErrorActionPreference = "Continue"
 
     while ($true) {
         Start-Sleep 10
-        $spCheck = Get-AzureRmADServicePrincipal -ApplicationId $ClientId
+        $spCheck = Get-AzADServicePrincipal -ApplicationId $ClientId
         if ($spCheck) {
           break
         }
@@ -226,10 +226,10 @@ function New-ServicePrincipal() {
 
     Write-Host "Assign roles to Service Principal..."
     if ($Privilege -eq 2) {
-        New-AzureRmRoleAssignment -RoleDefinitionName "Owner" -ApplicationId $ClientId
+        New-AzRoleAssignment -RoleDefinitionName "Owner" -ApplicationId $ClientId
     }
     else {
-        New-AzureRmRoleAssignment -RoleDefinitionName "Contributor" -ApplicationId $ClientId
+        New-AzRoleAssignment -RoleDefinitionName "Contributor" -ApplicationId $ClientId
     }
 
     Write-Host "Successfully created Service Principal`n"

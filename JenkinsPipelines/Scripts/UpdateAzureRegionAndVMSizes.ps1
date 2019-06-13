@@ -38,7 +38,7 @@ try
     $ExitCode = 1
     #region Update VM sizes
     Write-LogInfo "Getting 'Microsoft.Compute' supported region list..."
-    $allRegions = (Get-AzureRmLocation | Where-Object { $_.Providers.Contains("Microsoft.Compute")} | Sort-Object).Location
+    $allRegions = (Get-AzLocation | Where-Object { $_.Providers.Contains("Microsoft.Compute")} | Sort-Object).Location
     $allRegions = $allRegions | Sort-Object
     $i = 1
     $allRegions | ForEach-Object { Write-LogInfo "$i. $_"; $i++ }
@@ -46,7 +46,7 @@ try
     $RegionAndVMSize = "Region$tab`Size`n"
     foreach ( $NewRegion in $allRegions  )
     {
-        $currentRegionSizes = (Get-AzureRmVMSize -Location $NewRegion).Name | Sort-Object
+        $currentRegionSizes = (Get-AzVMSize -Location $NewRegion).Name | Sort-Object
         if ($currentRegionSizes)
         {
             Write-LogInfo "Found $($currentRegionSizes.Count) sizes for $($NewRegion)..."
