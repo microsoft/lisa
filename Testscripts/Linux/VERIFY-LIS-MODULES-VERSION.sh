@@ -45,15 +45,22 @@ if [[ $(detect_linux_distribution) == clear-linux-os ]]; then
 fi
 
 declare -A config_modulesDic
-config_modulesDic=([CONFIG_HYPERV=y]="hv_vmbus" [CONFIG_HYPERV_STORAGE=y]="hv_storvsc" [CONFIG_HYPERV_NET=y]="hv_netvsc" [CONFIG_HYPERV_UTILS=y]="hv_utils" 
-                   [CONFIG_HID_HYPERV_MOUSE=y]="hid_hyperv" [CONFIG_HYPERV_BALLOON=y]="hv_balloon" [CONFIG_HYPERV_KEYBOARD=y]="hyperv_keyboard")
+config_modulesDic=(
+[CONFIG_HYPERV=y]="hv_vmbus"
+[CONFIG_HYPERV_STORAGE=y]="hv_storvsc"
+[CONFIG_HYPERV_NET=y]="hv_netvsc"
+[CONFIG_HYPERV_UTILS=y]="hv_utils"
+[CONFIG_HID_HYPERV_MOUSE=y]="hid_hyperv"
+[CONFIG_HYPERV_BALLOON=y]="hv_balloon"
+[CONFIG_HYPERV_KEYBOARD=y]="hyperv_keyboard"
+)
 for key in $(echo ${!config_modulesDic[*]})
 do
-	module_included=$(grep $key "$config_path")
-	if [ "$module_included" ]; then
-		skip_modules+=("${config_modulesDic[$key]}")
-		LogMsg "Info: Skiping ${config_modulesDic[$key]} module as it is built-in."
-	fi
+    module_included=$(grep $key "$config_path")
+    if [ "$module_included" ]; then
+        skip_modules+=("${config_modulesDic[$key]}")
+        LogMsg "Info: Skiping ${config_modulesDic[$key]} module as it is built-in."
+    fi
 done
 
 # Remove each module in HYPERV_MODULES from skip_modules

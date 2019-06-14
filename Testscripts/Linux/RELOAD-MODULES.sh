@@ -36,53 +36,26 @@ config_path="/boot/config-$(uname -r)"
 if [[ $(detect_linux_distribution) == clear-linux-os ]]; then
     config_path="/usr/lib/kernel/config-$(uname -r)"
 fi
-vmbus_included=$(grep CONFIG_HYPERV=y "$config_path")
-if [ "$vmbus_included" ]; then
-    skip_modules+=("hv_vmbus")
-    LogMsg "Info: Skiping hv_vmbus module as it is built-in."
-fi
 
-netvsc_includes=$(grep CONFIG_HYPERV_NET=y "$config_path")
-if [ "$netvsc_includes" ]; then
-    skip_modules+=("hv_netvsc")
-    LogMsg "Info: Skiping hv_netvsc module as it is built-in."
-fi
-
-storvsc_included=$(grep CONFIG_HYPERV_STORAGE=y "$config_path")
-if [ "$storvsc_included" ]; then
-    skip_modules+=("hv_storvsc")
-    LogMsg "Info: Skiping hv_storvsc module as it is built-in."
-fi
-
-utils_includes=$(grep CONFIG_HYPERV_UTILS=y "$config_path")
-if [ "$utils_includes" ]; then
-    skip_modules+=("hv_utils")
-    LogMsg "Info: Skiping hv_utils module as it is built-in."
-fi
-
-balloon_includes=$(grep CONFIG_HYPERV_BALLOON=y "$config_path")
-if [ "$balloon_includes" ]; then
-    skip_modules+=("hv_balloon")
-    LogMsg "Info: Skiping hv_balloon module as it is built-in."
-fi
-
-hid_includes=$(grep CONFIG_HID_HYPERV_MOUSE=y "$config_path")
-if [ "$hid_includes" ]; then
-    skip_modules+=("hid_hyperv")
-    LogMsg "Info: Skiping hid_hyperv module as it is built-in."
-fi
-
-keyboard_includes=$(grep CONFIG_HYPERV_KEYBOARD=y "$config_path")
-if [ "$keyboard_includes" ]; then
-    skip_modules+=("hyperv_keyboard")
-    LogMsg "Info: Skiping hyperv_keyboard module as it is built-in."
-fi
-
-fb_includes=$(grep CONFIG_FB_HYPERV=y "$config_path")
-if [ "$fb_includes" ]; then
-    skip_modules+=("hyperv_fb")
-    LogMsg "Info: Skiping hyperv_fb module as it is built-in."
-fi
+declare -A config_modulesDic
+config_modulesDic=(
+[CONFIG_HYPERV=y]="hv_vmbus"
+[CONFIG_HYPERV_NET=y]="hv_netvsc"
+[CONFIG_HYPERV_STORAGE=y]="hv_storvsc"
+[CONFIG_HYPERV_UTILS=y]="hv_utils"
+[CONFIG_HYPERV_BALLOON=y]="hv_balloon"
+[CONFIG_HID_HYPERV_MOUSE=y]="hid_hyperv"
+[CONFIG_HYPERV_KEYBOARD=y]="hyperv_keyboard"
+[CONFIG_FB_HYPERV=y]="hyperv_fb"
+)
+for key in $(echo ${!config_modulesDic[*]})
+do
+    module_included=$(grep $key "$config_path")
+    if [ "$module_included" ]; then
+        skip_modules+=("${config_modulesDic[$key]}")
+        LogMsg "Info: Skiping ${config_modulesDic[$key]} module as it is built-in."
+    fi
+done
 
 # Remove each module in HYPERV_MODULES from skip_modules
 for module in "${HYPERV_MODULES[@]}"; do
