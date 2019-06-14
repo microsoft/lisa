@@ -576,7 +576,7 @@ Class TestController
 						$deployErrors = ""
 						if ($deployVMStatus) {
 							$vmData = $deployVMStatus
-							$deployErrors = $deployVMStatus.Error
+							$deployErrors = "$($deployVMStatus.Error) `n`r"
 							if ($deployVMStatus.Keys -and ($deployVMStatus.Keys -contains "VmData")) {
 								$vmData = $deployVMStatus.VmData
 							}
