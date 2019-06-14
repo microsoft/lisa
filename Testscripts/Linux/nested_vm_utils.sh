@@ -38,6 +38,9 @@ Update_Test_State()
 
 Install_KVM_Dependencies()
 {
+    if [ $DISTRO_NAME == "sles" ] || [ $DISTRO_NAME == "sle_hpc" ]; then
+        add_sles_network_utilities_repo
+    fi
     update_repos
     install_package qemu-kvm
     install_package bridge-utils
@@ -61,9 +64,6 @@ Install_KVM_Dependencies()
         echo "Cannot find qemu-system-x86_64"
         Update_Test_State $ICA_TESTFAILED
         exit 0
-    fi
-    if [ $DISTRO_NAME == "sles" ]; then
-        add_sles_network_utilities_repo
     fi
     install_package aria2
 }

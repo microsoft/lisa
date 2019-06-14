@@ -37,7 +37,7 @@ def RunTest(command):
         hvModules.remove("hid_hyperv")
 
     [current_distro, distro_version] = DetectDistro()
-    lis_exists=Run("rpm -qa | grep hyper-v 2>/dev/null")
+    lis_exists=Run("rpm -qa | grep microsoft-hyper-v 2>/dev/null")
 
     if LooseVersion(distro_version) >= LooseVersion(min_supported_distro_version) and lis_exists:
         hvModules.append("pci_hyperv")
