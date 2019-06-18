@@ -193,7 +193,7 @@ Function Run-SQLCmd {
 		$connection.Open()
 		$command = $connection.CreateCommand()
 		$command.CommandText = $SQLQuery
-		$result = $command.executenonquery()
+		$null = $command.executenonquery()
 		$connection.Close()
 		Write-LogInfo "Done."
 	}

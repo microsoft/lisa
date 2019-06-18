@@ -528,7 +528,7 @@ Function Create-ResourceGroupDeployment([string]$RGName, $TemplateFile, $UseExis
             }
             else {
                 # region grab deplyoment operations failures
-                $failedDeplyomentOperations = Get-AzureRmResourceGroupDeploymentOperation `
+                $failedDeplyomentOperations = Get-AzResourceGroupDeploymentOperation `
                     -ResourceGroupName $RGName -DeploymentName $createRGDeployment.DeploymentName `
                     | Where { $_.Properties.provisioningState -ne "Succeeded" }
                 foreach ($operation in $failedDeplyomentOperations) {
@@ -2450,7 +2450,6 @@ Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $Cu
         $TextIdentifiers = [xml](Get-Content -Path ".\XML\Other\text-identifiers.xml")
         $walaStartIdentifier = ""
         $walaEndIdentifier = ""
-        $walaDistroIdentifier = ""
         $WalaIdentifiersDetected = $false
 
         Write-LogInfo "Boot time calculation started..."
@@ -2482,7 +2481,7 @@ Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $Cu
         } else {
             $OsVHdStorageAccountName = $StorageProfile.OsDisk.Vhd.Uri.Split(".").split("/")[2]
             $StorageResourceGroup = (Get-AzResource  | Where-Object {$_.ResourceType -imatch "Microsoft.Storage/storageAccounts" -and $_.Name -eq "$OsVHdStorageAccountName"}).ResourceGroupName
-            $StorageType = (Get-AzureRmStorageAccount -ResourceGroupName $StorageResourceGroup -Name $OsVHdStorageAccountName).Sku.Name
+            $StorageType = (Get-AzStorageAccount -ResourceGroupName $StorageResourceGroup -Name $OsVHdStorageAccountName).Sku.Name
         }
         $NumberOfVMsInRG = 0
         foreach ( $vmData in $allVMData ) {
@@ -2497,26 +2496,26 @@ Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $Cu
             $RoleSize = $vmData.InstanceSize
 
             #Copy and run test file
-            $out = Copy-RemoteFiles -upload -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files ".\Testscripts\Linux\CollectLogFile.sh" -username $user -password $password
-            $out = Run-LinuxCmd -username $user -password $password -ip $vmData.PublicIP -port $vmData.SSHPort -command "bash CollectLogFile.sh" -ignoreLinuxExitCode
+            $null = Copy-RemoteFiles -upload -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files ".\Testscripts\Linux\CollectLogFile.sh" -username $user -password $password
+            $null = Run-LinuxCmd -username $user -password $password -ip $vmData.PublicIP -port $vmData.SSHPort -command "bash CollectLogFile.sh" -ignoreLinuxExitCode
 
             #download the log files
-            $out = Copy-RemoteFiles -downloadFrom $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -files "$($vmData.RoleName)-*.txt" -downloadTo "$LogDir" -download
+            $null = Copy-RemoteFiles -downloadFrom $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -files "$($vmData.RoleName)-*.txt" -downloadTo "$LogDir" -download
 
             # Upload files in data subfolder to Azure.
             $destfolder = "bootPerf"
             $containerName = "logs"
-            $blobContext = New-AzureStorageContext -StorageAccountName $storageAccountName -StorageAccountKey $storageAccountKey
+            $blobContext = New-AzStorageContext -StorageAccountName $storageAccountName -StorageAccountKey $storageAccountKey
 
             $ticks = (Get-Date).Ticks
             $fileName = "$LogDir\$($vmData.RoleName)-waagent.log.txt"
             $blobName = "$destfolder/$($fileName.Replace("waagent","waagent-$ticks") | Split-Path -Leaf)"
-            $out = Set-AzureStorageBlobContent -File $filename -Container $containerName -Blob $blobName -Context $blobContext -Force
+            $null = Set-AzStorageBlobContent -File $filename -Container $containerName -Blob $blobName -Context $blobContext -Force
             $WALAlogFile = "https://$storageAccountName.blob.core.windows.net/$containerName/$destfolder/$($fileName.Replace("waagent","waagent-$ticks") | Split-Path -Leaf)"
             Write-LogInfo "Upload file to Azure: Success: $WALAlogFile"
             $fileName = "$LogDir\$($vmData.RoleName)-dmesg.txt"
             $blobName = "$destfolder/$($fileName.Replace("dmesg","dmesg-$ticks") | Split-Path -Leaf)"
-            $out = Set-AzureStorageBlobContent -File $filename -Container $containerName -Blob $blobName -Context $blobContext -Force
+            $null = Set-AzStorageBlobContent -File $filename -Container $containerName -Blob $blobName -Context $blobContext -Force
             $kernelLogFile = "https://$storageAccountName.blob.core.windows.net/$containerName/$destfolder/$($fileName.Replace("dmesg","dmesg-$ticks") | Split-Path -Leaf)"
             Write-LogInfo "Upload file to Azure: Success: $kernelLogFile"
 
@@ -2571,7 +2570,7 @@ Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $Cu
             $waagentFinishedTime = [datetime]$waagentFinishedLine.Split(".")[0]
 
             $WALAProvisionTime = [int]($waagentFinishedTime - $waagentStartTime).TotalSeconds
-            Write-LogInfo "$($vmData.RoleName) - WALA Provision Time = $WALAProvisionTime"
+            Write-LogInfo "$($vmData.RoleName) - WALA Provision Time = $WALAProvisionTime seconds"
             #endregion
 
             #region Boot Time checking.
