@@ -2457,28 +2457,44 @@ Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $Cu
         $utctime = (Get-Date).ToUniversalTime()
         $DateTimeUTC = "$($utctime.Year)-$($utctime.Month)-$($utctime.Day) $($utctime.Hour):$($utctime.Minute):$($utctime.Second)"
 
+        # Get the subscription data
         $SubscriptionID = $Global:XMLSecrets.secrets.SubscriptionID
         $SubscriptionName = $Global:XMLSecrets.secrets.SubscriptionName
+
+        # Get the Database data
         $dataSource = $Global:XMLSecrets.secrets.DatabaseServer
         $dbuser = $Global:XMLSecrets.secrets.DatabaseUser
         $dbpassword = $Global:XMLSecrets.secrets.DatabasePassword
         $database = $Global:XMLSecrets.secrets.DatabaseName
+
+        # Set the Database table
         $dataTableName = "LinuxDeploymentAndBootData"
+
+        # Set the destination for uploading kernel and wala logs.
         $storageAccountName = $Global:XMLSecrets.secrets.bootPerfLogsStorageAccount
         $storageAccountKey = $Global:XMLSecrets.secrets.bootPerfLogsStorageAccountKey
 
+        # Get the test case data and storage profile
+        $TestCaseName = $CurrentTestData.testName
+        $StorageProfile = (Get-AzVM -ResourceGroupName $allVMData[0].ResourceGroupName  -Name $allVMData[0].RoleName).StorageProfile
+        if ($StorageProfile.OsDisk.ManagedDisk.StorageAccountType) {
+            $StorageType = $StorageProfile.OsDisk.ManagedDisk.StorageAccountType
+        } else {
+            $OsVHdStorageAccountName = $StorageProfile.OsDisk.Vhd.Uri.Split(".").split("/")[2]
+            $StorageResourceGroup = (Get-AzResource  | Where-Object {$_.ResourceType -imatch "Microsoft.Storage/storageAccounts" -and $_.Name -eq "$OsVHdStorageAccountName"}).ResourceGroupName
+            $StorageType = (Get-AzureRmStorageAccount -ResourceGroupName $StorageResourceGroup -Name $OsVHdStorageAccountName).Sku.Name
+        }
         $NumberOfVMsInRG = 0
         foreach ( $vmData in $allVMData ) {
             $NumberOfVMsInRG += 1
         }
+
         $SQLQuery = "INSERT INTO $dataTableName (DateTimeUTC,TestPlatform,TestLocation,TestCaseName,SubscriptionID,SubscriptionName,ResourceGroupName,NumberOfVMsInRG,RoleName,DeploymentTime,KernelBootTime,WALAProvisionTime,HostVersion,GuestDistro,KernelVersion,LISVersion,WALAVersion,RoleSize,StorageType,CallTraces,kernelLogFile,WALAlogFile) VALUES "
 
         foreach ( $vmData in $allVMData ) {
             $ResourceGroupName = $vmData.ResourceGroupName
             $RoleName = $vmData.RoleName
             $RoleSize = $vmData.InstanceSize
-            $TestCaseName = $CurrentTestData.testName
-            $StorageType = $StorageAccountTypeGlobal
 
             #Copy and run test file
             $out = Copy-RemoteFiles -upload -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files ".\Testscripts\Linux\CollectLogFile.sh" -username $user -password $password
@@ -2486,6 +2502,7 @@ Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $Cu
 
             #download the log files
             $out = Copy-RemoteFiles -downloadFrom $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -files "$($vmData.RoleName)-*.txt" -downloadTo "$LogDir" -download
+
             # Upload files in data subfolder to Azure.
             $destfolder = "bootPerf"
             $containerName = "logs"
@@ -2504,36 +2521,29 @@ Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $Cu
             Write-LogInfo "Upload file to Azure: Success: $kernelLogFile"
 
 
-            #Analyse
+            # Analyse
             $waagentFile = "$LogDir\$($vmData.RoleName)-waagent.log.txt"
             $waagentLogs = Get-Content -Path $waagentFile
 
             #region Detect the WALA identifiers
             foreach ($line in $waagentLogs.Split("`n")) {
-                foreach ( $keyword in $TextIdentifiers.identifiers.waagent.ProvisionComplete.keyword ) {
-                    if ($line -imatch $keyword) {
-                        $walaEndIdentifier = $keyword
-                    }
-                }
                 foreach ( $keyword in $TextIdentifiers.identifiers.waagent.ProvisionStarted.keyword ) {
                     if ($line -imatch $keyword) {
                         $walaStartIdentifier = $keyword
                     }
                 }
-                foreach ( $keyword in $TextIdentifiers.identifiers.waagent.DistroDetected.keyword ) {
+                foreach ( $keyword in $TextIdentifiers.identifiers.waagent.ProvisionComplete.keyword ) {
                     if ($line -imatch $keyword) {
-                        $walaDistroIdentifier = $keyword
+                        $walaEndIdentifier = $keyword
                     }
                 }
-                if ($walaEndIdentifier -and $walaStartIdentifier -and $walaDistroIdentifier ) {
+                if ($walaStartIdentifier -and $walaEndIdentifier) {
                     $WalaIdentifiersDetected = $true
-                    Write-Loginfo
                     break;
                 }
             }
             Write-Loginfo "WALA Start Identifier = $walaStartIdentifier"
             Write-Loginfo "WALA End Identifier = $walaEndIdentifier"
-            Write-Loginfo "WALA Distro Identifier = $walaDistroIdentifier"
             if (-not $WalaIdentifiersDetected) {
                 Throw "Unable to detect WALA identifiers"
             }
@@ -2568,8 +2578,10 @@ Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $Cu
             $bootStart = [datetime](Get-Content "$LogDir\$($vmData.RoleName)-uptime.txt")
 
             $kernelBootTime = ($waagentStartTime - $bootStart).TotalSeconds
-            if ($kernelBootTime -le 0 -and $kernelBootTime -gt 1800) {
-                Throw "Invalid boottime range. Boot time = $kernelBootTime"
+            if ($kernelBootTime -le 0 -or $kernelBootTime -gt 1800) {
+                Write-LogErr "Invalid boot time. Boot time = $kernelBootTime."
+                Write-LogErr "Acceptalbe boot time range is 0 - 1800 seconds. Please review the actual logs."
+                Throw "Invalid boot time = $kernelBootTime seconds."
             }
             $dmesgFile = "$LogDir\$($vmData.RoleName)-dmesg.txt"
             Write-LogInfo "$($vmData.RoleName) - Kernel Boot Time = $kernelBootTime seconds"
@@ -2577,17 +2589,12 @@ Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $Cu
 
             #region Call Trace Checking
             $KernelLogs = Get-Content $dmesgFile
-            $callTraceFound = $false
-            foreach ( $line in $KernelLogs ) {
+            $CallTraces = "No"
+            foreach ( $line in $KernelLogs.Split("`n") ) {
                 if ( $line -imatch "Call Trace" ) {
-                    $callTraceFound = $true
+                    $CallTraces = "Yes"
+                    break;
                 }
-            }
-            if ( $callTraceFound ) {
-                $CallTraces = "Yes"
-            }
-            else {
-                $CallTraces = "No"
             }
             #endregion
 
@@ -2600,7 +2607,7 @@ Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $Cu
             $finalLine = $finalLine.Replace('; Vmbus version:3.0', '')
             $HostVersion = ($finalLine.Split(":")[$finalLine.Split(":").Count - 1 ]).Trim().TrimEnd(";")
             Write-LogInfo "$($vmData.RoleName) - Host Version = $HostVersion"
-            Set-Variable -Value $HostVersion -Name HostVersion -Scope Global 
+            Set-Variable -Value $HostVersion -Name HostVersion -Scope Global
             #endregion
 
             #region LIS Version
@@ -2618,17 +2625,13 @@ Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $Cu
             $SQLQuery += "('$DateTimeUTC','$global:TestPlatform','$global:TestLocation','$TestCaseName','$SubscriptionID','$SubscriptionName','$ResourceGroupName','$NumberOfVMsInRG','$RoleName',$DeploymentTime,$KernelBootTime,$WALAProvisionTime,'$HostVersion','$GuestDistro','$KernelVersion','$LISVersion','$WALAVersion','$RoleSize','$StorageType','$CallTraces','$kernelLogFile','$WALAlogFile'),"
         }
         $SQLQuery = $SQLQuery.TrimEnd(',')
-        $connectionString = "Server=$dataSource;uid=$dbuser; pwd=$dbpassword;Database=$database;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
-        Write-LogInfo $SQLQuery
-        $connection = New-Object System.Data.SqlClient.SqlConnection
-        $connection.ConnectionString = $connectionString
-        $connection.Open()
 
-        $command = $connection.CreateCommand()
-        $command.CommandText = $SQLQuery
-        $result = $command.executenonquery()
-        $connection.Close()
-        Write-LogInfo "Uploading boot data to database :  done!!"
+        # Upload the boot time data to DB.
+        Run-SQLCmd -DBServer $dataSource `
+            -DBName $database `
+            -DBUsername $dbuser `
+            -DBPassword $dbpassword `
+            -SQLQuery $SQLQuery
     }
     catch {
         $line = $_.InvocationInfo.ScriptLineNumber
@@ -2637,6 +2640,5 @@ Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $Cu
         Write-LogErr "EXCEPTION : $ErrorMessage"
         Write-LogErr "Source : Line $line in script $script_name."
         Write-LogErr "ERROR : Uploading boot data to database"
-        Write-LogInfo $SQLQuery
     }
 }

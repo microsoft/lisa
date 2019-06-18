@@ -28,10 +28,5 @@ Formant:
             <keyword>Finished provisioning</keyword>
             <keyword>Provisioning image completed</keyword>
         </ProvisionComplete>
-        <DistroDetected>
-            <keyword>Linux Distribution Detected</keyword>
-            <keyword>INFO OS</keyword>
-            <keyword>Daemon OS</keyword>
-        </DistroDetected>
     </waagent>
 </identifiers>
