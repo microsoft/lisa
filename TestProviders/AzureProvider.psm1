@@ -53,7 +53,7 @@ Class AzureProvider : TestProvider
 					$DeploymentElapsedTime = $isAllDeployed[3]
 					$allVMData = Get-AllDeploymentData -ResourceGroups $deployedGroups
 				} else {
-					$ErrorMessage = "One or more deployments failed."
+					$ErrorMessage = "One or more deployments failed. " + $isAllDeployed[4]
 					Write-LogErr $ErrorMessage
 					return @{"VmData" = $null; "Error" = $ErrorMessage}
 				}

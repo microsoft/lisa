@@ -268,7 +268,7 @@ Function Change-StorageAccountType($TestCaseData, [string]$Location, $GlobalConf
 
 Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Distro, [string]$TestLocation, $GlobalConfig, $TiPSessionId, $TipCluster, $UseExistingRG, $ResourceCleanup) {
     $resourceGroupCount = 0
-
+    $Error = ""
     Write-LogInfo "Current test setup: $($SetupTypeData.Name)"
 
     $OsVHD = $global:BaseOSVHD
@@ -346,12 +346,12 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
                                 -StorageAccountName $used_SC
 
                         $DeploymentStartTime = (Get-Date)
-                        $CreateRGDeployments = Create-ResourceGroupDeployment -RGName $groupName -location $location -TemplateFile $azureDeployJSONFilePath `
+                        $CreateRGDeployments = Create-ResourceGroupDeployment -RGName $groupName -TemplateFile $azureDeployJSONFilePath `
                                 -UseExistingRG $UseExistingRG
 
                         $DeploymentEndTime = (Get-Date)
                         $DeploymentElapsedTime = $DeploymentEndTime - $DeploymentStartTime
-                        if ( $CreateRGDeployments ) {
+                        if ( $CreateRGDeployments.Status ) {
                             $retValue = "True"
                             $isServiceDeployed = "True"
                             $resourceGroupCount = $resourceGroupCount + 1
@@ -363,33 +363,38 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
                             }
                         }
                         else {
-                            Write-LogErr "Unable to Deploy one or more VM's"
+                            $Error = "Unable to Deploy one or more VM's. " + $CreateRGDeployments.Error
+                            Write-LogErr $Error
                             $retryDeployment = $retryDeployment + 1
                             $retValue = "False"
                             $isServiceDeployed = "False"
                         }
                     }
                     else {
-                        Write-LogErr "Unable to create $groupName"
+                        $Error = "Unable to create $groupName"
+                        Write-LogErr $Error
                         $retryDeployment = $retryDeployment + 1
                         $retValue = "False"
                         $isServiceDeployed = "False"
                     }
                 } else {
-                    Write-LogErr "Unable to delete existing resource group - $groupName"
+                    $Error = "Unable to delete existing resource group - $groupName."
+                    Write-LogErr $Error
                     $retryDeployment = 3
                     $retValue = "False"
                     $isServiceDeployed = "False"
                 }
             }
         } else {
-            Write-LogErr "Core quota is not sufficient. Stopping VM deployment."
+            $Error = "Core quota is not sufficient. Stopping VM deployment."
+            Write-LogErr $Error
             $retValue = "False"
             $isServiceDeployed = "False"
         }
     }
-    return $retValue, $deployedGroups, $resourceGroupCount, $DeploymentElapsedTime
+    return $retValue, $deployedGroups, $resourceGroupCount, $DeploymentElapsedTime, $Error
 }
+
 Function Delete-ResourceGroup([string]$RGName, [switch]$KeepDisks, [bool]$UseExistingRG) {
     Write-LogInfo "Try to delete resource group $RGName..."
     try {
@@ -505,25 +510,42 @@ Function Create-ResourceGroup([string]$RGName, $location, $CurrentTestData) {
     return $retValue
 }
 
-Function Create-ResourceGroupDeployment([string]$RGName, $location, $TemplateFile, $UseExistingRG, $ResourceCleanup) {
-    $FailCounter = 0
-    $retValue = "False"
+Function Create-ResourceGroupDeployment([string]$RGName, $TemplateFile, $UseExistingRG, $ResourceCleanup) {
+    $retValue = $false
+    $errMsg = ""
     $ResourceGroupDeploymentName = "eosg" + (Get-Date).Ticks
-    While (($retValue -eq $false) -and ($FailCounter -lt 1)) {
-        try {
-            $FailCounter++
-            if ($location) {
-                Write-LogInfo "Creating Deployment using $TemplateFile ..."
-                $createRGDeployment = New-AzResourceGroupDeployment -Name $ResourceGroupDeploymentName `
-                                        -ResourceGroupName $RGName -TemplateFile $TemplateFile -Verbose
-            }
+    try {
+        Write-LogInfo "Testing Deployment using $TemplateFile ..."
+        $testRGDeployment = Test-AzResourceGroupDeployment -ResourceGroupName $RGName -TemplateFile $TemplateFile -Verbose
+        if (-not $testRGDeployment.Message) {
+            Write-LogInfo "Creating Deployment using $TemplateFile ..."
+            $createRGDeployment = New-AzResourceGroupDeployment -Name $ResourceGroupDeploymentName `
+                                    -ResourceGroupName $RGName -TemplateFile $TemplateFile -Verbose
             $operationStatus = $createRGDeployment.ProvisioningState
             if ($operationStatus -eq "Succeeded") {
                 Write-LogInfo "Resource Group Deployment created."
                 $retValue = $true
             }
             else {
-                $retValue = $false
+                # region grab deplyoment operations failures
+                $failedDeplyomentOperations = Get-AzureRmResourceGroupDeploymentOperation `
+                    -ResourceGroupName $RGName -DeploymentName $createRGDeployment.DeploymentName `
+                    | Where { $_.Properties.provisioningState -ne "Succeeded" }
+                foreach ($operation in $failedDeplyomentOperations) {
+                    $statusObj = $operation.Properties.StatusMessage
+                    if ($statusObj.Error) {
+                        if ($statusObj.Error.Details) {
+                            $errMsg += $statusObj.Error.Details.Message + "`r`n"
+                        } else {
+                            $errMsg += $statusObj.Error.Message + "`r`n"
+                        }
+                    } else {
+                        $errMsg += $statusObj + "`r`n"
+                    }
+                }
+                Write-LogErr $errMsg
+                #endregion
+
                 Write-LogErr "Failed to create Resource Group Deployment - $RGName."
                 if ($ResourceCleanup -imatch "Delete") {
                     Write-LogInfo "-ResourceCleanup = Delete is Set. Deleting $RGName."
@@ -552,17 +574,18 @@ Function Create-ResourceGroupDeployment([string]$RGName, $location, $TemplateFil
                     }
                 }
             }
-        }
-        catch {
-            $retValue = $false
-
-            $line = $_.InvocationInfo.ScriptLineNumber
-            $script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
-            Write-LogErr "Exception in Create-ResourceGroupDeployment"
-            Write-LogErr "Source : Line $line in script $script_name."
+        } else {
+            $errMsg = $testRGDeployment.Message
+            Write-LogErr "Resource group configuration is not valid: $errMsg"
         }
     }
-    return $retValue
+    catch {
+        $line = $_.InvocationInfo.ScriptLineNumber
+        $script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
+        $errMsg = "Exception in Create-ResourceGroupDeployment. Source : Line $line in script $script_name."
+        Write-LogErr $errMsg
+    }
+    return @{ "Status" = $retValue ; "Error" = $errMsg }
 }
 
 Function Get-AllDeploymentData($ResourceGroups)
