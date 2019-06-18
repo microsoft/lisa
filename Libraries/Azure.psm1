@@ -2447,6 +2447,12 @@ function Add-AzureAccountFromSecretsFile {
 
 Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $CurrentTestData) {
     try {
+        $TextIdentifiers = [xml](Get-Content -Path ".\XML\Other\text-identifiers.xml")
+        $walaStartIdentifier = ""
+        $walaEndIdentifier = ""
+        $walaDistroIdentifier = ""
+        $WalaIdentifiersDetected = $false
+
         Write-LogInfo "Boot time calculation started..."
         $utctime = (Get-Date).ToUniversalTime()
         $DateTimeUTC = "$($utctime.Year)-$($utctime.Month)-$($utctime.Day) $($utctime.Hour):$($utctime.Minute):$($utctime.Second)"
@@ -2496,34 +2502,52 @@ Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $Cu
             $out = Set-AzureStorageBlobContent -File $filename -Container $containerName -Blob $blobName -Context $blobContext -Force
             $kernelLogFile = "https://$storageAccountName.blob.core.windows.net/$containerName/$destfolder/$($fileName.Replace("dmesg","dmesg-$ticks") | Split-Path -Leaf)"
             Write-LogInfo "Upload file to Azure: Success: $kernelLogFile"
-            $walaStartIdentifier = "Azure Linux Agent Version"
-            $walaEndIdentifier = "Start env monitor service"
-            $walaDistroIdentifier = "INFO OS"
+
 
             #Analyse
+            $waagentFile = "$LogDir\$($vmData.RoleName)-waagent.log.txt"
+            $waagentLogs = Get-Content -Path $waagentFile
+
+            #region Detect the WALA identifiers
+            foreach ($line in $waagentLogs.Split("`n")) {
+                foreach ( $keyword in $TextIdentifiers.identifiers.waagent.ProvisionComplete.keyword ) {
+                    if ($line -imatch $keyword) {
+                        $walaEndIdentifier = $keyword
+                    }
+                }
+                foreach ( $keyword in $TextIdentifiers.identifiers.waagent.ProvisionStarted.keyword ) {
+                    if ($line -imatch $keyword) {
+                        $walaStartIdentifier = $keyword
+                    }
+                }
+                foreach ( $keyword in $TextIdentifiers.identifiers.waagent.DistroDetected.keyword ) {
+                    if ($line -imatch $keyword) {
+                        $walaDistroIdentifier = $keyword
+                    }
+                }
+                if ($walaEndIdentifier -and $walaStartIdentifier -and $walaDistroIdentifier ) {
+                    $WalaIdentifiersDetected = $true
+                    Write-Loginfo
+                    break;
+                }
+            }
+            Write-Loginfo "WALA Start Identifier = $walaStartIdentifier"
+            Write-Loginfo "WALA End Identifier = $walaEndIdentifier"
+            Write-Loginfo "WALA Distro Identifier = $walaDistroIdentifier"
+            if (-not $WalaIdentifiersDetected) {
+                Throw "Unable to detect WALA identifiers"
+            }
+            #endregion
+
+            #region Guest Distro Checking
+            $GuestDistro = Get-Content -Path "$LogDir\$($vmData.RoleName)-distroVersion.txt"
+            #endregion
 
             #region Waagent Version Checking.
-            $waagentFile = "$LogDir\$($vmData.RoleName)-waagent.log.txt"
             $waagentStartLineNumber = (Select-String -Path $waagentFile -Pattern "$walaStartIdentifier")[0].LineNumber
             $waagentStartLine = (Get-Content -Path $waagentFile)[$waagentStartLineNumber - 1]
             $WALAVersion = ($waagentStartLine.Split(":")[$waagentStartLine.Split(":").Count - 1]).Trim()
             Write-LogInfo "$($vmData.RoleName) - WALA Version = $WALAVersion"
-            #endregion
-
-            if ( ($WALAVersion -imatch "2.2.18") -or ($WALAVersion -imatch "2.2.14") ) {
-                $walaEndIdentifier = "Provisioning complete"
-            }
-
-            if ($WALAVersion -imatch "2.2.17") {
-                $walaEndIdentifier = "Finished provisioning"
-            }
-            if ($WALAVersion -imatch "2.0.16") {
-                $walaEndIdentifier = "Provisioning image completed"
-                $walaDistroIdentifier = "Linux Distribution Detected"
-                $walaStartIdentifier = "Azure Linux Agent Version"
-            }
-            #region Guest Distro Checking
-            $GuestDistro = Get-Content -Path "$LogDir\$($vmData.RoleName)-distroVersion.txt"
             #endregion
 
             #region Waagent Provision Time Checking.
