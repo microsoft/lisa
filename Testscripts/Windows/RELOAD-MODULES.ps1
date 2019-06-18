@@ -20,7 +20,9 @@ function Check-Result {
         [String] $VmIp,
         [String] $VMPort,
         [String] $User,
-        [String] $Password
+        [String] $Password,
+        [String] $VMName,
+        [String] $HvServer
     )
 
     $retVal = $False
@@ -88,7 +90,9 @@ function Main {
         $VMPort,
         $VMUserName,
         $VMPassword,
-        $RootDir
+        $RootDir,
+        $VMName,
+        $HvServer
     )
     $testScript = "RELOAD-MODULES.sh"
 
@@ -96,7 +100,7 @@ function Main {
     Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
         -command "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;nohup bash ./${testScript} > RELOAD-MODULES_summary.log`"" -RunInBackGround | Out-Null
 
-    $sts = Check-Result -VmIp $Ipv4 -VmPort $VMPort -User $VMUserName -Password $VMPassword
+    $sts = Check-Result -VmIp $Ipv4 -VmPort $VMPort -User $VMUserName -Password $VMPassword -VMName $VMName -HvServer $HvServer
     if (-not $($sts[-1])) {
         Write-LogErr "Something went wrong during execution of $testScript script!"
         return "FAIL"
