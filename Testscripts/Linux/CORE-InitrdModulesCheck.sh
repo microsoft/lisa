@@ -67,22 +67,21 @@ fi
 
 # Rebuild array to exclude built-in modules
 skip_modules=()
-
-vmbusIncluded=$(grep CONFIG_HYPERV=y /boot/config-$(uname -r))
-if [ "$vmbusIncluded" ]; then
-    skip_modules+=("hv_vmbus.ko")
-    LogMsg "hv_vmbus module is built-in. Skipping module. "
-fi
-storvscIncluded=$(grep CONFIG_HYPERV_STORAGE=y /boot/config-$(uname -r))
-if [ "$storvscIncluded" ]; then
-    skip_modules+=("hv_storvsc.ko")
-    LogMsg "hv_storvsc module is built-in. Skipping module. "
-fi
-netvscIncluded=$(grep CONFIG_HYPERV_NET=y /boot/config-$(uname -r))
-if [ "$netvscIncluded" ]; then
-    skip_modules+=("hv_netvsc.ko")
-    LogMsg "hv_netvsc module is built-in. Skipping module. "
-fi
+config_path="/boot/config-$(uname -r)"
+declare -A config_modulesDic
+config_modulesDic=(
+[CONFIG_HYPERV=y]="hv_vmbus.ko"
+[CONFIG_HYPERV_STORAGE=y]="hv_storvsc.ko"
+[CONFIG_HYPERV_NET=y]="hv_netvsc.ko"
+)
+for key in $(echo ${!config_modulesDic[*]})
+do
+    module_included=$(grep $key "$config_path")
+    if [ "$module_included" ]; then
+        skip_modules+=("${config_modulesDic[$key]}")
+        LogMsg "Info: Skiping ${config_modulesDic[$key]} module as it is built-in."
+    fi
+done
 
 # declare temporary array
 tempList=()
