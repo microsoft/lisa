@@ -2377,12 +2377,47 @@ Function Get-StorageAccountFromRegion($Region,$StorageAccount)
     return $StorageAccountName
 }
 
+function Get-CurrentAzurePSAuthStatus() {
+    try {
+        $UserSubscriptions = Get-AzSubscription
+        $SubscriptionUser = $UserSubscriptions.ExtendedProperties.Account | Get-Unique
+        if ($UserSubscriptions.Count -gt 0) {
+            Write-LogInfo "Current Azure powershell session is authenticated by $SubscriptionUser."
+            return $true
+        } else {
+            Write-LogErr "Current Azure powershell session is authenticated by $SubscriptionUser, but does not contain any Azure subscriptions."
+            return $false
+        }
+    } catch {
+        Write-LogErr "Current Azure powershell session is not authenticated."
+        return $false
+    }
+}
+
+Function Import-AzureContextFile ($FilePath) {
+    try {
+        $ImportedSession = Import-AzContext -Path $FilePath
+        if ($ImportedSession.Context.Account.Id) {
+            Write-LogInfo "Imported $($ImportedSession.Context.Account.Id) user session."
+            return $true
+        } else {
+            Write-LogErr "$FilePath is not a valid Azure context file."
+            return $false
+        }
+    }
+    catch {
+        $ErrorMessage = $_.Exception.Message
+        $ErrorLine = $_.InvocationInfo.ScriptLineNumber
+        Write-LogErr "EXCEPTION in Import-AzureContextFile() : $ErrorMessage at line: $ErrorLine"
+        return $false
+    }
+}
 function Add-AzureAccountFromSecretsFile {
     param(
         $CustomSecretsFilePath
     )
 
-    $SubscriptionSelected = $false
+    $UserAuthenticated = $false
 
     if ($env:Azure_Secrets_File) {
         $secretsFile = $env:Azure_Secrets_File
@@ -2406,44 +2441,32 @@ function Add-AzureAccountFromSecretsFile {
         $AzureContextFilePath = $XmlSecrets.secrets.AzureContextFilePath
         $subIDSplitted = ($XmlSecrets.secrets.SubscriptionID).Split("-")
         $subIDMasked = "$($subIDSplitted[0])-xxxx-xxxx-xxxx-$($subIDSplitted[4])"
+
+        # Collect the context files, if any.
+        $ContextFiles = (Get-ChildItem -Path $PWD -Recurse | `
+            Where-Object { $_.Name.EndsWith(".json") } | Select-String -Pattern "AzureCloud" | Select Path).Path | Get-Unique
+
         Write-LogInfo "------------------------------------------------------------------"
         if ($ClientID -and $Key) {
+            # Scenario 1: Service Principal Credentials are avaialble in Secret File
             Write-LogInfo "Authenticating Azure PS session using Service Principal..."
             $pass = ConvertTo-SecureString $key -AsPlainText -Force
             $mycred = New-Object System.Management.Automation.PSCredential ($ClientID, $pass)
             $null = Add-AzAccount -ServicePrincipal -Tenant $TenantID -Credential $mycred
+            $UserAuthenticated = $true
         } elseif ($AzureContextFilePath) {
+            # Scenario 2: Azure context file path is avaialble in Secret File
             Write-LogInfo "Authenticating Azure PS session using saved context file $AzureContextFilePath..."
-            $null = Import-AzContext -Path $AzureContextFilePath
-        } else {
-            $ContextFiles = Get-ChildItem -Path $PWD -Recurse | `
-                Where-Object { $_.Name.EndsWith(".json") } | Select-String -Pattern "AzureCloud" | Select Path
-            $ContextFiles = $ContextFiles.Path | Get-Unique
-            if ($ContextFiles.Count -eq 0) {
-                Write-LogWarn "No Azure authentication methods were available in Secret File."
-                Write-LogWarn "No Azure authentication context files detected in $PWD."
-
-                Write-LogInfo "Checking if current Azure powershell session is already authenticated..."
-                $selectedSubscription = Select-AzSubscription -SubscriptionId $XmlSecrets.secrets.SubscriptionID -ErrorAction SilentlyContinue
-                if ( $selectedSubscription.Subscription.Id -eq $XmlSecrets.secrets.SubscriptionID ) {
-                    $SubscriptionSelected = $true
-                    Write-LogInfo "Authenticated."
-                } else {
-                    Write-LogErr "Unable to proceed with unauthenticated Azure powershell session."
-                    Write-LogInfo "Please use one of the following method to authenticate this session."
-                    Write-LogInfo "1. Provide service principal details in XML secrets file."
-                    Write-LogInfo "    a. SubscriptionServicePrincipalClientID"
-                    Write-LogInfo "    b. SubscriptionServicePrincipalTenantID"
-                    Write-LogInfo "    c. SubscriptionServicePrincipalKey"
-                    Write-LogInfo "2. Provide the path of authenticated context file in XML secrets file."
-                    Write-LogInfo "    a. AzureContextFilePath"
-                    Write-LogInfo "3. Copy authenticated context file in $PWD"
-                    Write-LogInfo "4. Authenticate this current session by running Connect-AzAccount command, and then run LISAv2 again."
+            if ( Import-AzureContextFile -FilePath $AzureContextFilePath ) {
+                $UserAuthenticated = $true
+            }
+        } elseif ($ContextFiles.Count -gt 0)  {
+            # Scenario 3: Azure context file is available in current working directory.
+            if ($ContextFiles.Count -eq 1) {
+                Write-LogInfo "Authenticating Azure PS session using $ContextFiles found in working directory."
+                if ( Import-AzureContextFile -FilePath $ContextFiles ) {
+                    $UserAuthenticated = $true
                 }
-            } elseif ($ContextFiles.Count -eq 1)  {
-                $CustomAzureContextFilePath = $ContextFiles
-                Write-LogInfo "Authenticating with context file $CustomAzureContextFilePath"
-                $null = Import-AzContext -Path $CustomAzureContextFilePath
             } else {
                 Write-LogWarn "$($ContextFiles.Count) Azure context files found in $pwd."
                 $Counter = 1
@@ -2452,14 +2475,37 @@ function Add-AzureAccountFromSecretsFile {
                 }
                 Write-LogWarn "Please remove unwanted context files. Expected context files: 1."
             }
-        }
-        if (-not $SubscriptionSelected) {
-            $selectedSubscription = Select-AzSubscription -SubscriptionId $XmlSecrets.secrets.SubscriptionID  -ErrorAction SilentlyContinue
-        }
-        if ( $selectedSubscription.Subscription.Id -eq $XmlSecrets.secrets.SubscriptionID ) {
-            Write-LogInfo "Current Subscription : $subIDMasked."
         } else {
-            Throw "There was an error when selecting $subIDMasked."
+            # Scenario 4: Current Azure Powershell session check.
+            Write-LogWarn "No Azure authentication methods were available in Secret File."
+            Write-LogWarn "No Azure authentication context files detected in $PWD."
+            Write-LogInfo "Checking if Current Azure powershell session is authenticated..."
+            if (Get-CurrentAzurePSAuthStatus) {
+                $UserAuthenticated = $true
+            }
+        }
+        #endregion User Authentication.
+
+        if ( $UserAuthenticated ) {
+            #Verify if the user is Authorized to use the subscription.
+            $selectedSubscription = Select-AzSubscription -SubscriptionId $XmlSecrets.secrets.SubscriptionID  -ErrorAction SilentlyContinue
+            if ( $selectedSubscription.Subscription.Id -eq $XmlSecrets.secrets.SubscriptionID ) {
+                Write-LogInfo "Current Subscription : $subIDMasked."
+            } else {
+                Throw "There was an error when selecting $subIDMasked."
+            }
+        } else {
+            Write-LogErr "Unable to proceed with unauthenticated Azure powershell session."
+            Write-LogInfo "Please use one of the following method to authenticate this session."
+            Write-LogInfo "1. Provide service principal details in XML secrets file."
+            Write-LogInfo "    a. SubscriptionServicePrincipalClientID"
+            Write-LogInfo "    b. SubscriptionServicePrincipalTenantID"
+            Write-LogInfo "    c. SubscriptionServicePrincipalKey"
+            Write-LogInfo "2. Provide the path of authenticated context file in XML secrets file."
+            Write-LogInfo "    a. AzureContextFilePath"
+            Write-LogInfo "3. Copy only 1 authenticated context file in $PWD"
+            Write-LogInfo "4. Authenticate this current session by running Connect-AzAccount command, and then run LISAv2 again."
+            Throw "User authenticatin failed / not available."
         }
         Write-LogInfo "------------------------------------------------------------------"
     } else {
