@@ -83,16 +83,20 @@ Collect_LIS() {
     HYPERV_MODULES=()
     HYPERV_MODULES+=$(lsmod | grep vsc | cut -d' ' -f1)
     skip_modules=()
-    vmbus_included=$(grep CONFIG_HYPERV=y /boot/config-$(uname -r))
-    if [ $vmbus_included ]; then
-        skip_modules+=("hv_vmbus")
-        echo "Info: Skipping hv_vmbus module as it is built-in."
-    fi
-    storvsc_included=$(grep CONFIG_HYPERV_STORAGE=y /boot/config-$(uname -r))
-    if [ $storvsc_included ]; then
-        skip_modules+=("hv_storvsc")
-        echo "Info: Skipping hv_storvsc module as it is built-in."
-    fi
+    config_path="/boot/config-$(uname -r)"
+    declare -A config_modulesDic
+    config_modulesDic=(
+    [CONFIG_HYPERV=y]="hv_vmbus"
+    [CONFIG_HYPERV_STORAGE=y]="hv_storvsc"
+    )
+    for key in $(echo ${!config_modulesDic[*]})
+    do
+        module_included=$(grep $key "$config_path")
+        if [ "$module_included" ]; then
+            skip_modules+=("${config_modulesDic[$key]}")
+            echo "Info: Skiping ${config_modulesDic[$key]} module as it is built-in."
+        fi
+    done
     # Remove each module in HYPERV_MODULES from skip_modules
     for mod in "${HYPERV_MODULES[@]}"; do
         TEMP_HYPERV_MODULES=()

@@ -277,7 +277,7 @@ Function GetAndCheck-KernelLogs($allDeployedVMs, $status, $vmUser, $vmPassword, 
 					$hash = @{}
 					$hash.Add("calltrace","yes")
 					$hash.Add("testName","$testName")
-					$Null = Set-AzureRmResourceGroup -Name $($VM.ResourceGroupName) -Tag $hash
+					$Null = Set-AzResourceGroup -Name $($VM.ResourceGroupName) -Tag $hash
 				}
 			}
 		}
@@ -391,4 +391,23 @@ Function Get-SystemDetailLogs($AllVMData, $User, $Password)
 			Write-LogErr "Unable to collect logs from IP : $testIP PORT : $testPort"
 		}
 	}
+}
+
+Function Trim-ErrorLogMessage($text) {
+	<#	.SYNOPSIS
+		Given an error text, it trims the text to 160 characters and adds "...".
+		If there is phrase affected by the trim, it also removes the phrase.
+		In all scenarios, it adds new line characters at the end.
+	#>
+
+	$maxLength = 160
+	if ($text.Length -ge $maxLength) {
+		$text = $text.Substring(0,$maxLength)
+		$splitByPeriod = $text.split(".")
+		if ($splitByPeriod.Count -gt 1) {
+			$maxLength -= $splitByPeriod[$splitByPeriod.Count - 1].Length
+		}
+		$text = $text.Substring(0,$maxLength) + ".."
+	}
+	return $text + "`r`n"
 }

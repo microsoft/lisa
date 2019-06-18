@@ -159,6 +159,8 @@ Function Main
         # Try to start VM3
         $VM3Ipv4=Start-VMandGetIP $VM3Name $HvServer $VMPort $user $password
         Write-LogInfo "IP of $VM3Name is $VM3Ipv4"
+        # Wait the VM stable
+        Start-Sleep -s 10
         # get memory stats after vm3 started
         [int64]$vm1AfterAssigned = ($vm1.MemoryAssigned/[int64]1048576)
         [int64]$vm1AfterDemand = ($vm1.MemoryDemand/[int64]1048576)
@@ -168,29 +170,27 @@ Function Main
         Write-LogInfo "$VM1Name : assigned - $vm1AfterAssigned | demand - $vm1AfterDemand"
         Write-LogInfo "$VM2Name : assigned - $vm2AfterAssigned | demand - $vm2AfterDemand"
         # Wait for jobs to finish now and make sure they exited successfully
-        $totalTimeout = $timeout = 120
+        $totalTimeout = 120
         $timeout = 0
         $firstJobState = $false
         $secondJobState = $false
         $min=0
         while ($true) {
-            if ($job1.State -like "Completed" -and -not $firstJobState) {
+            if ((Get-Job -Id $job1).State -like "Completed" -and -not $firstJobState) {
                 $firstJobState = $true
                 $retVal = Receive-Job $job1
                 if (-not $retVal) {
                     throw "Consume Memory script returned false on VM1 $VM1Name"
                 }
-                $diff = $totalTimeout - $timeout
-                Write-LogInfo "Job1 finished in $diff minutes."
+                Write-LogInfo "Job1 finished."
             }
-            if ($job2.State -like "Completed" -and -not $secondJobState) {
+            if ((Get-Job -Id $job2).State -like "Completed" -and -not $secondJobState) {
                 $secondJobState = $true
                 $retVal = Receive-Job $job2
                 if (-not $retVal) {
                     throw "Consume Memory script returned false on VM2 $VM2Name"
                 }
-                $diff = $totalTimeout - $timeout
-                Write-LogInfo "Job2 finished in $diff minutes."
+                Write-LogInfo "Job2 finished"
             }
             if ($firstJobState -and $secondJobState) {
                 break

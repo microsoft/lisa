@@ -99,14 +99,14 @@ function Create-AllHyperVGroupDeployments($SetupTypeData, $GlobalConfig, $TestLo
                                     $HyperVGroupCount = $HyperVGroupCount + 1
                                     $DeployedHyperVGroup += $HyperVGroupName
                                 } else {
-                                    Write-LogErr "Unable to start one or more VM's"
+                                    Write-LogErr "Unable to start one or more VM's."
                                     $retryDeployment = $retryDeployment + 1
                                     $retValue = "False"
                                     $isHyperVGroupDeployed = "False"
                                 }
                             }
                         } else {
-                            Write-LogErr "Unable to Deploy one or more VM's"
+                            Write-LogErr "Unable to Deploy one or more VM's."
                             $retryDeployment = $retryDeployment + 1
                             $retValue = "False"
                             $isHyperVGroupDeployed = "False"
@@ -118,7 +118,7 @@ function Create-AllHyperVGroupDeployments($SetupTypeData, $GlobalConfig, $TestLo
                         $isHyperVGroupDeployed = "False"
                     }
                 } else {
-                    Write-LogErr "Unable to delete existing HyperV Group - $HyperVGroupName"
+                    Write-LogErr "Unable to delete existing HyperV Group - $HyperVGroupName ."
                     $retryDeployment += 1
                     $retValue = "False"
                     $isHyperVGroupDeployed = "False"

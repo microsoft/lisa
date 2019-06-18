@@ -92,7 +92,7 @@ $Report = '
     <th class="tg-amwmleft">Age</th>
   </tr>
   '
-$AllResourceGroups = Get-AzureRmResourceGroup
+$AllResourceGroups = Get-AzResourceGroup
 $AllLISAv2RGs = $AllResourceGroups | Where-Object { (($_.ResourceGroupName -imatch "ICA-RG-") -or `
     ($_.ResourceGroupName -imatch "LISAv2-") -and ($_.ResourceGroupName -inotmatch "LISAv2-storage-"))}
 $AutoClenaupVMs = ($AllResourceGroups | Where-Object { $_.Tags.AutoCleanup })
@@ -100,7 +100,7 @@ $currentTimeStamp = Get-Date
 $counter = 0
 $lockcounter = 0
 $cleanupRGs = @()
-$allLocks = Get-AzureRmResourceLock
+$allLocks = Get-AzResourceLock
 foreach ($rg in $AllLISAv2RGs) {
     $counter += 1
     if ( $rg.Tags.AutoCleanup ) {
@@ -165,7 +165,7 @@ $cleanupRGScriptBlock = {
     $RGName = $args[0]
     $DryRun = $args[1]
     if (-not $DryRun) {
-        Remove-AzureRmResourceGroup -Name $RGName -Verbose -Force
+        Remove-AzResourceGroup -Name $RGName -Verbose -Force
     } else {
         Write-Host "DryRun Completed."
     }

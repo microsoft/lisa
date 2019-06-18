@@ -5,7 +5,7 @@ function Set-Test() {
 	$vm = "forwarder"
 	$nics = Get-NonManagementNic $vm
 	$nics[0].EnableIPForwarding = $true
-	$nics[0] | Set-AzureRmNetworkInterface
+	$nics[0] | Set-AzNetworkInterface
 
 	Write-LogInfo "Enabled ip forwarding on $vm's non management nic"
 }

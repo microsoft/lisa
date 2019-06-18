@@ -39,19 +39,19 @@ try {
         Write-LogInfo "Use provided storage key"
     } else {
         Write-LogInfo "Getting $destinationStorageAccount storage account key..."
-        $allResources = Get-AzureRmResource
+        $allResources = Get-AzResource
         $destSARG = ($allResources | Where { $_.ResourceType -imatch "storageAccounts" -and $_.Name -eq "$destinationStorageAccount" }).ResourceGroupName
         if ([string]::IsNullOrEmpty($destSARG)) {
             Write-LogErr "Not found storage account $destinationStorageAccount in current subscription, please provide storage key"
             return
         }
-        $keyObj = Get-AzureRmStorageAccountKey -ResourceGroupName $destSARG -Name $destinationStorageAccount
+        $keyObj = Get-AzStorageAccountKey -ResourceGroupName $destSARG -Name $destinationStorageAccount
         $destinationStorageKey = $keyObj[0].Value
     }
     $containerName = "$destinationContainer"
     $storageAccountName = $destinationStorageAccount
-    $blobContext = New-AzureStorageContext -StorageAccountName $storageAccountName -StorageAccountKey $destinationStorageKey
-    $null = New-AzureStorageContainer -Name $destinationContainer -Permission Blob -Context $blobContext -ErrorAction SilentlyContinue
+    $blobContext = New-AzStorageContext -StorageAccountName $storageAccountName -StorageAccountKey $destinationStorageKey
+    $null = New-AzStorageContainer -Name $destinationContainer -Permission Blob -Context $blobContext -ErrorAction SilentlyContinue
     $UploadedFileURLs = @()
     foreach($fileName in $filePaths.Split(",")) {
         if ($destinationFolder) {
@@ -61,7 +61,7 @@ try {
         }
         $LocalFileProperties = Get-Item -Path $fileName
         Write-LogInfo "Uploading $([math]::Round($LocalFileProperties.Length/1024,2))KB $filename --> $($blobContext.BlobEndPoint)$containerName/$blobName"
-        $UploadedFileProperties = Set-AzureStorageBlobContent -File $filename -Container $containerName -Blob $blobName -Context $blobContext -Force -ErrorAction Stop
+        $UploadedFileProperties = Set-AzStorageBlobContent -File $filename -Container $containerName -Blob $blobName -Context $blobContext -Force -ErrorAction Stop
         if ( $LocalFileProperties.Length -eq $UploadedFileProperties.Length ) {
             Write-LogInfo "Succeeded."
             $UploadedFileURLs += "$($blobContext.BlobEndPoint)$containerName/$blobName"

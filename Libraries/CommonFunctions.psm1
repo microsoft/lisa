@@ -1869,6 +1869,14 @@ Function Publish-App([string]$appName, [string]$customIP, [string]$appGitURL, [s
         Write-LogErr "$appGitURL is not set"
         return $False
     }
+    # Install dependencies
+    Copy-RemoteFiles -upload -uploadTo $customIP -port $VMSSHPort -files ".\Testscripts\Linux\utils.sh" `
+        -username $user -password $password 2>&1
+    $cmd = ". utils.sh && update_repos && install_package 'make build-essential'"
+    if (($global:detectedDistro -imatch "CENTOS") -or ($global:detectedDistro -imatch "REDHAT") ) {
+        $cmd = ". utils.sh && update_repos && install_package 'make kernel-devel gcc-c++'"
+    }
+    $null = Run-LinuxCmd -username $user -password $password -ip $customIP -port $VMSSHPort -command $cmd -runAsSudo
     $retVal = Run-LinuxCmd -username $user -password $password -ip $customIP -port $VMSSHPort `
         -command "echo $password | sudo -S cd /root; git clone $appGitURL $appName > /dev/null 2>&1"
     if ($appGitTag) {

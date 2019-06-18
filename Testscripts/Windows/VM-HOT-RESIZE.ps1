@@ -18,8 +18,9 @@ function Main {
         $testedVMSizes += $AllVMData.InstanceSize
         $previousVMSize = $AllVMData.InstanceSize
 
-        $loadBalanceName = (Get-AzureRmLoadBalancer -ResourceGroupName $AllVMData.ResourceGroupName).Name
-        $VirtualMachine = Get-AzureRmVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName
+        $loadBalanceName = (Get-AzLoadBalancer -ResourceGroupName $AllVMData.ResourceGroupName).Name
+        $VirtualMachine = Get-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName
+        $ComputeSKUs = Get-AzComputeResourceSku
         foreach ($param in $currentTestData.TestParameters.param) {
             if ($param -match "TestMode") {
                 $testMode = $param.Replace("TestMode=","").Replace('"',"")
@@ -29,11 +30,11 @@ function Main {
             Write-LogInfo "The test mode is economy mode"
             $totalTestTimes = 10
         } else {
-            $totalTestTimes = (Get-AzureRmVMSize -Location $AllVMData.Location).Length
+            $totalTestTimes = (Get-AzVMSize -Location $AllVMData.Location).Length
         }
 
         for ($i = 0; $i -le $totalTestTimes; $i++) {
-            $vmSizes = (Get-AzureRmVMSize -ResourceGroupName $AllVMData.ResourceGroupName -VMName $AllVMData.RoleName).Name
+            $vmSizes = (Get-AzVMSize -ResourceGroupName $AllVMData.ResourceGroupName -VMName $AllVMData.RoleName).Name
             # For economy mode, select a size by random in order to cover as many different serial sizes as possible
             if ($testMode -eq "economy") {
                 $vmSizes = $vmSizes | Get-Random -Count 1
@@ -55,28 +56,30 @@ function Main {
             if ($vmSize -in $testedVMSizes) {
                 continue
             }
+            $Restrictions = ($ComputeSKUs | Where-Object { $_.Locations -eq $AllVMData.Location -and $_.ResourceType -eq "virtualMachines" `
+                -and $_.Name -eq $vmSize}).Restrictions
+            if ( ($Restrictions | Where-Object {$_.Type -eq "Location"}).ReasonCode -eq "NotAvailableForSubscription") {
+                $i--
+                Write-LogInfo "The $vmSize is not supported by current subscription. Skip it."
+                break
+            }
             $testedVMSizes += $vmSize
 
             Write-LogInfo "--------------------------------------------------------"
             Write-LogInfo "Resizing the VM to size: $vmSize"
             $VirtualMachine.HardwareProfile.VmSize = $vmSize
-            Update-AzureRmVM -VM $VirtualMachine -ResourceGroupName $AllVMData.ResourceGroupName | Out-Null
+            Update-AzVM -VM $VirtualMachine -ResourceGroupName $AllVMData.ResourceGroupName | Out-Null
             if ($?) {
                 Write-LogInfo "Resize the VM from $previousVMSize to $vmSize successfully"
             } else {
-                if ($error[0].ToString() -like "*SkuNotAvailable*") {
-                    $i--
-                    Write-LogInfo "The $vmSize is not supported by current subscription. Skip it."
-                } else {
-                    $resizeVMSizeFailures += "Resize the VM from $previousVMSize to $vmSize failed"
-                    $testResult = "FAIL"
-                    Write-LogErr "Resize the VM from $previousVMSize to $vmSize failed"
-                }
+                $resizeVMSizeFailures += "Resize the VM from $previousVMSize to $vmSize failed"
+                $testResult = "FAIL"
+                Write-LogErr "Resize the VM from $previousVMSize to $vmSize failed"
                 continue
             }
 
             # Add CPU count and memory checks
-            $expectedVMSize = Get-AzureRmVMSize -Location $AllVMData.Location | Where-Object {$_.Name -eq $vmSize}
+            $expectedVMSize = Get-AzVMSize -Location $AllVMData.Location | Where-Object {$_.Name -eq $vmSize}
             $expectedCPUCount = $expectedVMSize.NumberOfCores
             $expectedMemorySizeInMB = $expectedVMSize.MemoryInMB
             $actualCPUCount = Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "nproc"
@@ -107,14 +110,20 @@ function Main {
         }
 
         # Resize the VM with an unsupported size in the current hardware cluster
-        $allVMSize = (Get-AzureRmVMSize -Location $AllVMData.Location).Name
-        $vmSizes = (Get-AzureRmVMSize -ResourceGroupName $AllVMData.ResourceGroupName -VMName $AllVMData.RoleName).Name
+        $allVMSize = (Get-AzVMSize -Location $AllVMData.Location).Name
+        $vmSizes = (Get-AzVMSize -ResourceGroupName $AllVMData.ResourceGroupName -VMName $AllVMData.RoleName).Name
         foreach ($vmSize in $allVMSize) {
+            $Restrictions = ($ComputeSKUs | Where-Object { $_.Locations -eq $AllVMData.Location -and $_.ResourceType -eq "virtualMachines" `
+                -and $_.Name -eq $vmSize}).Restrictions
+            if ( ($Restrictions | Where-Object {$_.Type -eq "Location"}).ReasonCode -eq "NotAvailableForSubscription") {
+                Write-LogInfo "The $vmSize is not supported by current subscription. Skip it."
+                break
+            }
             if (!($vmSize -in $vmSizes)) {
                 Write-LogInfo "--------------------------------------------------------"
                 Write-LogInfo "Resizing the VM to size: $vmSize"
                 $VirtualMachine.HardwareProfile.VmSize = $vmSize
-                Update-AzureRmVM -VM $VirtualMachine -ResourceGroupName $AllVMData.ResourceGroupName | Out-Null
+                Update-AzVM -VM $VirtualMachine -ResourceGroupName $AllVMData.ResourceGroupName | Out-Null
                 if ($?) {
                     $testResult = "FAIL"
                     $resizeVMSizeFailures += "The VM should fail to resize from $previousVMSize to $vmSize"

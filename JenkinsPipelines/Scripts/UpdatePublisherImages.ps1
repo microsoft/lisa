@@ -43,17 +43,17 @@ try
     $ARMImages = "Publisher	Offer	SKU	Version`n"
     foreach ( $newPub in $allRMPubs )
     {
-        $offers = Get-AzureRmVMImageOffer -PublisherName $newPub -Location $Location
+        $offers = Get-AzVMImageOffer -PublisherName $newPub -Location $Location
         if ($offers)
         {
             Write-LogInfo "Found $($offers.Count) offers for $($newPub)..."
             foreach ( $offer in $offers )
             {
-                $SKUs = Get-AzureRmVMImageSku -Location $Location -PublisherName $newPub -Offer $offer.Offer -ErrorAction SilentlyContinue
+                $SKUs = Get-AzVMImageSku -Location $Location -PublisherName $newPub -Offer $offer.Offer -ErrorAction SilentlyContinue
                 Write-LogInfo "|--Found $($SKUs.Count) SKUs for $($offer.Offer)..."
                 foreach ( $SKU in $SKUs )
                 {
-                    $rmImages = Get-AzureRmVMImage -Location $Location -PublisherName $newPub -Offer $offer.Offer -Skus $SKU.Skus
+                    $rmImages = Get-AzVMImage -Location $Location -PublisherName $newPub -Offer $offer.Offer -Skus $SKU.Skus
                     Write-LogInfo "|--|--Found $($rmImages.Count) Images for $($SKU.Skus)..."
                     if ( $rmImages.Count -gt 1 )
                     {

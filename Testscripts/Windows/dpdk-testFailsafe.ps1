@@ -5,7 +5,7 @@ function Set-Test() {
 	$vm = "forwarder"
 	$nics = Get-NonManagementNic $vm
 	$nics[0].EnableIPForwarding = $true
-	$nics[0] | Set-AzureRmNetworkInterface
+	$nics[0] | Set-AzNetworkInterface
 
 	Write-LogInfo "Enabled ip forwarding on $vm's non management nic"
 }
@@ -14,14 +14,14 @@ function Set-Runtime() {
 	if ($currentPhase -eq "READY_FOR_REVOKE") {
 		$nics = Get-NonManagementNic "forwarder"
 		$nics[0].EnableAcceleratedNetworking = $false
-		$nics[0] | Set-AzureRmNetworkInterface
+		$nics[0] | Set-AzNetworkInterface
 
 		Write-LogInfo "VF Revoked"
 		Set-Phase "REVOKE_DONE"
 	} elseif ($currentPhase -eq "READY_FOR_VF") {
 		$nics = Get-NonManagementNic "forwarder"
 		$nics[0].EnableAcceleratedNetworking = $true
-		$nics[0] | Set-AzureRmNetworkInterface
+		$nics[0] | Set-AzNetworkInterface
 
 		Write-LogInfo "VF Re-enabled"
 		Set-Phase "VF_RE_ENABLED"
