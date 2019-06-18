@@ -13,7 +13,7 @@
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>DPDK</Area>
-        <Tags>dpdk,network,hv_netvsc,sriov</Tags>
+        <Tags>dpdk,dpdk-core,network,hv_netvsc,sriov</Tags>
         <Priority>1</Priority>
     </test>
     <test>
@@ -33,7 +33,7 @@
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>DPDK</Area>
-        <Tags>dpdk,network,hv_netvsc,sriov</Tags>
+        <Tags>dpdk,dpdk-core,network,hv_netvsc,sriov</Tags>
         <Priority>2</Priority>
     </test>
     <test>
@@ -52,7 +52,7 @@
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>DPDK</Area>
-        <Tags>dpdk,network,hv_netvsc,sriov</Tags>
+        <Tags>dpdk,dpdk-core,network,hv_netvsc,sriov</Tags>
         <Priority>2</Priority>
     </test>
     <test>
@@ -69,7 +69,7 @@
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>DPDK</Area>
-        <Tags>dpdk,network,hv_netvsc,sriov</Tags>
+        <Tags>dpdk,dpdk-core,network,hv_netvsc,sriov</Tags>
         <Priority>0</Priority>
     </test>
     <test>
@@ -89,7 +89,7 @@
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>DPDK</Area>
-        <Tags>dpdk,ovs,network,hv_netvsc,sriov</Tags>
+        <Tags>dpdk,dpdk-community,ovs,network,hv_netvsc,sriov</Tags>
         <Priority>2</Priority>
     </test>
     <test>
@@ -109,7 +109,7 @@
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>DPDK</Area>
-        <Tags>dpdk,network,hv_netvsc,sriov</Tags>
+        <Tags>dpdk,dpdk-core,network,hv_netvsc,sriov</Tags>
         <Priority>1</Priority>
     </test>
     <test>
@@ -130,7 +130,7 @@
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>DPDK</Area>
-        <Tags>dpdk,nff-go,network,hv_netvsc,sriov</Tags>
+        <Tags>dpdk,dpdk-community,nff-go,network,hv_netvsc,sriov</Tags>
         <Priority>2</Priority>
     </test>
     <test>
@@ -150,7 +150,7 @@
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>DPDK</Area>
-        <Tags>dpdk,vpp,network,hv_netvsc,sriov</Tags>
+        <Tags>dpdk,dpdk-community,vpp,network,hv_netvsc,sriov</Tags>
         <Priority>2</Priority>
     </test>
 </TestCases>

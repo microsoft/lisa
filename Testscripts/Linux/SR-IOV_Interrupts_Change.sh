@@ -32,7 +32,7 @@ function get_interrupts_per_pci() {
     pci_interrupt_values=()
     while read line
     do
-        msi_value=$(echo $line | grep -i MSI | awk '{$1=""} NF{NF-=5}1' | awk -v RS='[0-9]+' '{n+=RT};END{print n}')
+        msi_value=$(echo $line | grep -i MSI | awk '{ for(i=2; i<='"$(($(nproc)+1))"'; ++i) { sum+=$i }; print sum }')
         if [ -n "${msi_value-}" ]; then
             if [ $msi_value -ne "0" ]; then
                 pci_interrupt_values+=("$msi_value")
@@ -64,7 +64,8 @@ function get_interrupts_per_vcpu() {
     cpu_array=()
     for (( vcpu_line=1; vcpu_line<=$(nproc); vcpu_line++ ))
     do
-        line=$(cat /proc/interrupts | grep -i MSI | awk '{$1=""} NF{NF-=5}1' | ruby -e'puts readlines.map(&:split).transpose.map{|x|x*" "}' | head -"$vcpu_line" | tail -1)
+        line=$(cat /proc/interrupts | grep -i MSI | awk '{$1=""} { for(i=2; i<='"$(($(nproc)+1))"'; i++) { { printf"%1s ", $i } if(i=='"$(($(nproc)+1))"') printf"\n"; }; }' \
+             | ruby -e'puts readlines.map(&:split).transpose.map{|x|x*" "}' | head -"$vcpu_line" | tail -1)
         vcpu_number=$(($vcpu_line-1))
         interrupts_sum=$(echo $line | awk '{sum=0; for(i=1; i<=NF; i++) sum += $i; print sum}')
         cpu_array[$vcpu_number]+=$interrupts_sum

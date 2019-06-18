@@ -12,11 +12,11 @@ if (Get-Module $moduleName -ErrorAction SilentlyContinue) {
     Remove-Module $moduleName
 }
 
-function Get-AzureRmVm {}
+function Get-AzVM {}
 
-function Get-AzureRmStorageAccount {}
+function Get-AzStorageAccount {}
 
-function Get-AzureRmStorageAccountKey {}
+function Get-AzStorageAccountKey {}
 
 
 Describe "Test if module ${moduleName} is valid" {
@@ -27,10 +27,10 @@ Describe "Test if module ${moduleName} is valid" {
 }
 
 Describe "Test Get-AzureBootDiagnostics" {
-    Mock Get-AzureRmVm -Verifiable -ModuleName $moduleName { return @{"BootDiagnostics"=@{"SerialConsoleLogBlobUri" = "http://fake.fakepath.com/blob/blobpath"}} }
+    Mock Get-AzVM -Verifiable -ModuleName $moduleName { return @{"BootDiagnostics"=@{"SerialConsoleLogBlobUri" = "http://fake.fakepath.com/blob/blobpath"}} }
     Mock Write-LogInfo -Verifiable -ModuleName $moduleName { return }
-    Mock Get-AzureRmStorageAccount -Verifiable -ModuleName $moduleName { return @{"StorageAccountName" = "fake"; "ResourceGroupName" = "fake_rg"}}
-    Mock Get-AzureRmStorageAccountKey -Verifiable -ModuleName $moduleName { throw "fail"}
+    Mock Get-AzStorageAccount -Verifiable -ModuleName $moduleName { return @{"StorageAccountName" = "fake"; "ResourceGroupName" = "fake_rg"}}
+    Mock Get-AzStorageAccountKey -Verifiable -ModuleName $moduleName { throw "fail"}
 
     It "Should not find an AzureVmKernelPanic" {
         Get-AzureBootDiagnostics @{"ResourceGroupName" = "fake_rg"; "RoleName" = "fake_role"} | Should Be $false

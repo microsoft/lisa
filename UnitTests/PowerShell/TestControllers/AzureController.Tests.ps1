@@ -14,7 +14,7 @@ Import-Module $logModulePath -Force -DisableNameChecking
 Import-Module $helpersModulePath -Force -DisableNameChecking
 Import-Module $azureModulePath -Force -DisableNameChecking
 
-function Select-AzureRmSubscription {
+function Select-AzSubscription {
 	param($SubscriptionId)
 	return
 }
@@ -88,7 +88,7 @@ Describe "Test if module ${moduleName} PrepareTestEnvironment is valid" {
 			return $fakeXML
 		}
 		Mock Get-LISAv2Tools -Verifiable -ModuleName "TestController" { return }
-		Mock Select-AzureRmSubscription -Verifiable -ModuleName $moduleName {
+		Mock Select-AzSubscription -Verifiable -ModuleName $moduleName {
 			return @{
 				"Account" = @{
 					"Id" = "Id"

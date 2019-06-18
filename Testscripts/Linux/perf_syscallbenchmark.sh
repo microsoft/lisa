@@ -77,7 +77,7 @@ case "$DISTRO_NAME" in
 	ubuntu|debian)
 		update_repos
 		;;
-	suse|opensuse|sles)
+	suse|opensuse|sles|sle_hpc)
 		add_sles_network_utilities_repo
 		;;
 	*)

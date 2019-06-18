@@ -98,9 +98,11 @@ function Main {
 		$FirstRun = $true
 		Provision-VMsForLisa -AllVMData $AllVMData -installPackagesOnRoleNames "none"
 		foreach ($VmData in $AllVMData) {
-			Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $superUser -password $password "echo $($VmData.RoleName) > /etc/hostname"
+			Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $superUser -password `
+				$password "echo $($VmData.RoleName) > /etc/hostname" | Out-Null
 			if ($VmData.RoleName -imatch "Client" -or $VmData.RoleName -imatch "dependency"){
-				Run-LinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username $superUser -password $password "echo '$($VmData.RoleName) $($VmData.InternalIP)' >> /etc/hosts"
+				Run-LinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username $superUser -password $password `
+					"echo '$($VmData.RoleName) $($VmData.InternalIP)' >> /etc/hosts" | Out-Null
 			}
 		}
 		#endregion
@@ -158,7 +160,7 @@ function Main {
 		# Call SetupRDMA.sh here, and it handles all packages, MPI, Benchmark installation.
 		foreach ($VMData in $AllVMData) {
 			Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $superUser `
-				-password $password "/root/SetupRDMA.sh" -RunInBackground
+				-password $password "/root/SetupRDMA.sh" -RunInBackground | Out-Null
 			Wait-Time -seconds 2
 		}
 
@@ -177,6 +179,18 @@ function Main {
 					}
 					Write-LogInfo "SetupRDMA.sh finished on $($VMData.RoleName)"
 					$vmCount--
+				}
+
+				if ($state -eq "TestSkipped") {
+					Write-LogInfo "SetupRDMA finished with SKIPPED state!"
+					$testResult = "SKIPPED"
+					return "SKIPPED"
+				}
+
+				if (($state -eq "TestFailed") -or ($state -eq "TestAborted")) {
+					Write-LogErr "SetupRDMA.sh didn't finish successfully!"
+					$testResult = "ABORTED"
+					return "ABORTED"
 				}
 			}
 			if ($vmCount -eq 0){
@@ -354,11 +368,15 @@ function Main {
 				if ($ImbP2pTestIterations -ge 1) {
 					$logFileName = "$LogDir\InfiniBand-Verification-$Iteration-$TempName\TestExecution.log"
 					$pattern = "INFINIBAND_VERIFICATION_SUCCESS_P2P_ALLNODES"
+					$patternSkipped = "INFINIBAND_VERIFICATION_SKIPPED_P2P_ALLNODES"
 					Write-LogInfo "Analyzing $logFileName"
 					$metaData = "InfiniBand-Verification-$Iteration-$TempName : IMB-P2P"
 					$SucessLogs = Select-String -Path $logFileName -Pattern $pattern
+					$SkippedLogs = Select-String -Path $logFileName -Pattern $patternSkipped
 					if ($SucessLogs.Count -eq 1) {
 						$currentResult = "PASS"
+					} elseif ($SkippedLogs.Count -eq 1) {
+						$currentResult = "SKIPPED"
 					} else {
 						$currentResult = "FAIL"
 					}
@@ -373,11 +391,15 @@ function Main {
 				if ($ImbIoTestIterations -ge 1) {
 					$logFileName = "$LogDir\InfiniBand-Verification-$Iteration-$TempName\TestExecution.log"
 					$pattern = "INFINIBAND_VERIFICATION_SUCCESS_IO_ALLNODES"
+					$patternSkipped = "INFINIBAND_VERIFICATION_SKIPPED_IO_ALLNODES"
 					Write-LogInfo "Analyzing $logFileName"
 					$metaData = "InfiniBand-Verification-$Iteration-$TempName : IMB-IO"
 					$SucessLogs = Select-String -Path $logFileName -Pattern $pattern
+					$SkippedLogs = Select-String -Path $logFileName -Pattern $patternSkipped
 					if ($SucessLogs.Count -eq 1) {
 						$currentResult = "PASS"
+					} elseif ($SkippedLogs.Count -eq 1) {
+						$currentResult = "SKIPPED"
 					} else {
 						$currentResult = "FAIL"
 					}

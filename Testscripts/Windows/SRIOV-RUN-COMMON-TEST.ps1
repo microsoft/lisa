@@ -21,13 +21,13 @@ function Main {
             foreach ($vmData in $allVMData) {
                 if ($vmData.RoleName -imatch "dependency") {
                     $dependencyVmData = $vmData
-                    $dependencyVmNICs = ((Get-AzureRmVM -Name $dependencyVmData.RoleName `
+                    $dependencyVmNICs = ((Get-AzVM -Name $dependencyVmData.RoleName `
                         -ResourceGroupName $dependencyVmData.ResourceGroupName).NetworkProfile).NetworkInterfaces
                     $dependencyVmExtraNICs = $dependencyVmNICs | Where-Object {$_.Primary -eq $False}
 
                 } else {
                     $testVmData = $vmData
-                    $testVmNICs = ((Get-AzureRmVM -Name  $testVmData.RoleName `
+                    $testVmNICs = ((Get-AzVM -Name  $testVmData.RoleName `
                         -ResourceGroupName $testVmData.ResourceGroupName).NetworkProfile).NetworkInterfaces
                     $testVmExtraNICs = $testVmNICs | Where-Object {$_.Primary -eq $False}
                 }
@@ -55,11 +55,11 @@ function Main {
                 }
                 $testVMNicName = $($testVmExtraNICs[$index].Id).substring($($testVmExtraNICs[$index].Id).LastIndexOf("/")+1)
                 $dependencyVMNicName = $($dependencyVmExtraNICs[$index].Id).substring($($dependencyVmExtraNICs[$index].Id).LastIndexOf("/")+1)
-                $testIPaddr = (Get-AzureRmNetworkInterface -Name $testVMNicName -ResourceGroupName `
-                    $testVmData.ResourceGroupName | Get-AzureRmNetworkInterfaceIpConfig `
+                $testIPaddr = (Get-AzNetworkInterface -Name $testVMNicName -ResourceGroupName `
+                    $testVmData.ResourceGroupName | Get-AzNetworkInterfaceIpConfig `
                     | Select-Object PrivateIpAddress).PrivateIpAddress
-                $dependencyIPaddr = (Get-AzureRmNetworkInterface -Name $dependencyVMNicName -ResourceGroupName `
-                    $dependencyVmData.ResourceGroupName | Get-AzureRmNetworkInterfaceIpConfig `
+                $dependencyIPaddr = (Get-AzNetworkInterface -Name $dependencyVMNicName -ResourceGroupName `
+                    $dependencyVmData.ResourceGroupName | Get-AzNetworkInterfaceIpConfig `
                     | Select-Object PrivateIpAddress).PrivateIpAddress
 
                 Write-LogInfo "Will add VF_IP${ipIndex}=${testIPaddr} to constants"

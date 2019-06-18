@@ -1,4 +1,4 @@
-﻿# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 
 param([object] $AllVmData, [object] $CurrentTestData)
@@ -15,24 +15,24 @@ netsh advfirewall firewall add rule name="WinRM HTTP" dir=in action=allow protoc
 	Set-Content  "$LogDir\$customScriptName"  $customScriptContent
 	$rgName = $AllVMData.ResourceGroupName[0]
 	$containerName = "vhds"
-	$storageName = (Get-AzureRmStorageAccount -ResourceGroupName $rgName).StorageAccountName
+	$storageName = (Get-AzStorageAccount -ResourceGroupName $rgName).StorageAccountName
 	if(-not $storageName) {
 		$randomNum = Get-Random -Maximum 999 -Minimum 100
 		$storageName = "temp" + [string]$randomNum
 		$location = $global:TestLocation
-		New-AzureRmStorageAccount -ResourceGroupName $rgName -AccountName $storageName -Location $location -SkuName "Standard_GRS" | Out-Null
+		New-AzStorageAccount -ResourceGroupName $rgName -AccountName $storageName -Location $location -SkuName "Standard_GRS" | Out-Null
 	}
-	$StorageKey = (Get-AzurermStorageAccountKey  -Name $storageName -ResourceGroupName $rgName).Value[0]
-	$sourceContext = New-AzureStorageContext -StorageAccountName $storageName -StorageAccountKey $StorageKey
-	$blobContainer = Get-AzureStorageContainer -Name $containerName -Context $sourceContext 2>$null
+	$StorageKey = (Get-AzStorageAccountKey  -Name $storageName -ResourceGroupName $rgName).Value[0]
+	$sourceContext = New-AzStorageContext -StorageAccountName $storageName -StorageAccountKey $StorageKey
+	$blobContainer = Get-AzStorageContainer -Name $containerName -Context $sourceContext 2>$null
 	if($null -eq $blobContainer) {
 		Write-LogInfo "The container $containerName doesn't exist, so create it."
-		New-AzureStorageContainer -Name $containerName -Context $sourceContext   | Out-Null
+		New-AzStorageContainer -Name $containerName -Context $sourceContext   | Out-Null
 		Start-Sleep 3
-		$blobContainer = Get-AzureStorageContainer -Name $containerName -Context $sourceContext
+		$blobContainer = Get-AzStorageContainer -Name $containerName -Context $sourceContext
 	}
 	Write-LogInfo "Upload the custom script to $blobContainer"
-	Set-AzureStorageBlobContent -File "$LogDir\$customScriptName" -Container $containerName  -Context $sourceContext | Out-Null
+	Set-AzStorageBlobContent -File "$LogDir\$customScriptName" -Container $containerName  -Context $sourceContext | Out-Null
 	$customScriptURI = $blobContainer.CloudBlobContainer.Uri.ToString() + "/" + $customScriptName
 	return $customScriptURI
 }
@@ -46,15 +46,15 @@ function Invoke-CustomScript($fileUri)
 	$stNameSavedScript = $fileUri.split("//")[2].split(".")[0]
 	$customeFileUri = @("$fileUri")
 	$settings = @{"fileUris" = $customeFileUri}
-	$rgNameSavedScript = Get-AzureRmStorageAccount | Where-Object {$_.StorageAccountName -eq $stNameSavedScript} | Select-Object -ExpandProperty ResourceGroupName
-	$stKeySavedScript = (Get-AzurermStorageAccountKey  -Name $stNameSavedScript -ResourceGroupName $rgNameSavedScript).Value[0]
+	$rgNameSavedScript = Get-AzStorageAccount | Where-Object {$_.StorageAccountName -eq $stNameSavedScript} | Select-Object -ExpandProperty ResourceGroupName
+	$stKeySavedScript = (Get-AzStorageAccountKey  -Name $stNameSavedScript -ResourceGroupName $rgNameSavedScript).Value[0]
 	$proSettings = @{"storageAccountName" = $stNameSavedScript; "storageAccountKey" = $stKeySavedScript; "commandToExecute" = "powershell -ExecutionPolicy Unrestricted -File $cutomeFile"};
 	$publisher = "Microsoft.Compute"
 	$type = "CustomScriptExtension"
 	$name = "CustomScriptExtension"
 	$location = $global:TestLocation
 	foreach($vm in $myVM) {
-		$sts=Set-AzureRmVMExtension -ResourceGroupName $rgName -Location $location -VMName $vm  -Name $name -Publisher $publisher -ExtensionType $type  -TypeHandlerVersion "1.9"  -Settings $settings  -ProtectedSettings $proSettings
+		$sts=Set-AzVMExtension -ResourceGroupName $rgName -Location $location -VMName $vm  -Name $name -Publisher $publisher -ExtensionType $type  -TypeHandlerVersion "1.9"  -Settings $settings  -ProtectedSettings $proSettings
 		if($sts.IsSuccessStatusCode) {
 			Write-LogInfo "Run custom script against $vm successfully."
 		} else {

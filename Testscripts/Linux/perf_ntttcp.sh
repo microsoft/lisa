@@ -210,11 +210,21 @@ Get_VFName()
 	ntttcpVersion="${1}"
 	ip="${2}"
 	ntttcp_cmd="${3}"
-	# The -K and -I options are supported if the ntttcp version is greater than v1.3.5, or equal to v1.3.5 or master
-	if [ $ntttcpVersion ] && ( [ $ntttcpVersion \> "v1.3.5" ] || [ $ntttcpVersion == "v1.3.5" ] || [ $ntttcpVersion == "master" ] ); then
+	if [ $ntttcpVersion ] && [[ $ntttcpVersion == v* ]]; then
+		currentVersion="${ntttcpVersion:1}"
+	else
+		currentVersion="${ntttcpVersion}"
+	fi
+	# The -K and -I options are supported if the ntttcp version is greater than 1.4.0, or equal to 1.4.0
+	# -K changed into --show-nic-packets, -I changed into --show-dev-interrupts in master branch
+	if [ $currentVersion ] && ( [ $currentVersion \> "1.4.0" ] || [ $currentVersion == "1.4.0" ] || [ $currentVersion == "master" ] ); then
 		vf_interface=$(ssh "$ip" lshw -c network -businfo | grep -i "Virtual Function" | awk '{print $2}')
 		if [ $vf_interface ]; then
-			ntttcp_cmd="$ntttcp_cmd -K $vf_interface -I mlx4"
+			if [[ $currentVersion == "master" ]]; then
+				ntttcp_cmd="$ntttcp_cmd --show-nic-packets $vf_interface --show-dev-interrupts mlx4"
+			else
+				ntttcp_cmd="$ntttcp_cmd -K $vf_interface -I mlx4"
+			fi
 		fi
 	fi
 	echo "$ntttcp_cmd"

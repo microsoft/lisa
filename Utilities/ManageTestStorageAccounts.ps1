@@ -58,7 +58,7 @@ try
                 exit 0
             }
         }
-        $AllAvailableRegions = (Get-AzureRmLocation | Where-Object { $_.Providers -imatch "Microsoft.Compute" }).Location
+        $AllAvailableRegions = (Get-AzLocation | Where-Object { $_.Providers -imatch "Microsoft.Compute" }).Location
         $RegionStorageMapping = [xml](Get-Content .\XML\RegionAndStorageAccounts.xml)
         foreach ( $Region in $AllAvailableRegions)
         {
@@ -67,11 +67,11 @@ try
                 $ResourceGroupName = "$RGIdentifier-storage-$Region"
                 if ( $Create )
                 {
-                    $Out = Get-AzureRmResourceGroup -Name $ResourceGroupName -ErrorAction SilentlyContinue
+                    $Out = Get-AzResourceGroup -Name $ResourceGroupName -ErrorAction SilentlyContinue
                     if ( ! $Out.ResourceGroupName )
                     {
                         Write-LogInfo "$ResourceGroupName creating..."
-                        $Out = New-AzureRmResourceGroup -Name $ResourceGroupName -Location $Region -ErrorAction SilentlyContinue
+                        $Out = New-AzResourceGroup -Name $ResourceGroupName -Location $Region -ErrorAction SilentlyContinue
                         if ($Out.ProvisioningState -eq "Succeeded")
                         {
                             Write-LogInfo "$ResourceGroupName created successfully."
@@ -84,7 +84,7 @@ try
                     if ($RegionStorageMapping.AllRegions.$Region.StandardStorage)
                     {
                         Write-LogInfo "Creating Standard_LRS storage account : $($RegionStorageMapping.AllRegions.$Region.StandardStorage)"
-                        $Out = New-AzureRmStorageAccount -ResourceGroupName $ResourceGroupName -Name $RegionStorageMapping.AllRegions.$Region.StandardStorage -SkuName Standard_LRS  -Location $Region
+                        $Out = New-AzStorageAccount -ResourceGroupName $ResourceGroupName -Name $RegionStorageMapping.AllRegions.$Region.StandardStorage -SkuName Standard_LRS  -Location $Region
                         if ($out.ProvisioningState -eq "Succeeded")
                         {
                             Write-LogInfo "Creating Standard_LRS storage account : $($RegionStorageMapping.AllRegions.$Region.StandardStorage) : Succeeded"
@@ -97,7 +97,7 @@ try
                     if ($RegionStorageMapping.AllRegions.$Region.PremiumStorage)
                     {
                         Write-LogInfo "Creating Premium_LRS storage account : $($RegionStorageMapping.AllRegions.$Region.PremiumStorage)"
-                        $Out = New-AzureRmStorageAccount -ResourceGroupName $ResourceGroupName -Name $RegionStorageMapping.AllRegions.$Region.PremiumStorage -SkuName Premium_LRS -Location $Region
+                        $Out = New-AzStorageAccount -ResourceGroupName $ResourceGroupName -Name $RegionStorageMapping.AllRegions.$Region.PremiumStorage -SkuName Premium_LRS -Location $Region
                         if ($out.ProvisioningState -eq "Succeeded")
                         {
                             Write-LogInfo "Creating Premium_LRS storage account : $($RegionStorageMapping.AllRegions.$Region.PremiumStorage) : Succeeded"
@@ -113,15 +113,15 @@ try
                     if ($RegionStorageMapping.AllRegions.$Region.StandardStorage)
                     {
                         Write-LogInfo "Removing Standard_LRS storage account : $($RegionStorageMapping.AllRegions.$Region.StandardStorage)"
-                        Remove-AzureRmStorageAccount -ResourceGroupName $ResourceGroupName -Name $RegionStorageMapping.AllRegions.$Region.StandardStorage -Force  -Verbose
+                        Remove-AzStorageAccount -ResourceGroupName $ResourceGroupName -Name $RegionStorageMapping.AllRegions.$Region.StandardStorage -Force  -Verbose
                     }
                     if ($RegionStorageMapping.AllRegions.$Region.PremiumStorage)
                     {
                         Write-LogInfo "Removing Premium_LRS storage account : $($RegionStorageMapping.AllRegions.$Region.PremiumStorage)"
-                        Remove-AzureRmStorageAccount -ResourceGroupName $ResourceGroupName -Name $RegionStorageMapping.AllRegions.$Region.PremiumStorage -Force -Verbose
+                        Remove-AzStorageAccount -ResourceGroupName $ResourceGroupName -Name $RegionStorageMapping.AllRegions.$Region.PremiumStorage -Force -Verbose
                     }
                     Write-LogInfo "Removing $ResourceGroupName"
-                    Remove-AzureRMResourceGroup -Name $ResourceGroupName -Force -Verbose
+                    Remove-AzResourceGroup -Name $ResourceGroupName -Force -Verbose
                     $ExitCode = 0
                 }
             }

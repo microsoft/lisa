@@ -114,7 +114,7 @@ Class AzureController : TestController
 		}
 		elseif ($this.StorageAccount)
 		{
-			$sc = Get-AzureRmStorageAccount | Where-Object {$_.StorageAccountName -eq $this.StorageAccount}
+			$sc = Get-AzStorageAccount | Where-Object {$_.StorageAccountName -eq $this.StorageAccount}
 			if (!$sc) {
 				Throw "Provided storage account $($this.StorageAccount) does not exist, abort testing."
 			}
@@ -143,7 +143,7 @@ Class AzureController : TestController
 
 		Write-LogInfo "------------------------------------------------------------------"
 
-		$SelectedSubscription = Select-AzureRmSubscription -SubscriptionId $azureConfig.Subscription.SubscriptionID
+		$SelectedSubscription = Select-AzSubscription -SubscriptionId $azureConfig.Subscription.SubscriptionID
 		$subIDSplitted = ($SelectedSubscription.Subscription.SubscriptionId).Split("-")
 		Write-LogInfo "SubscriptionName       : $($SelectedSubscription.Subscription.Name)"
 		Write-LogInfo "SubscriptionId         : $($subIDSplitted[0])-xxxx-xxxx-xxxx-$($subIDSplitted[4])"
@@ -201,10 +201,10 @@ Class AzureController : TestController
 					Throw "Failed to copy the VHD to $ARMStorageAccount"
 				}
 			} else {
-				$sc = Get-AzureRmStorageAccount | Where-Object {$_.StorageAccountName -eq $ARMStorageAccount}
-				$storageKey = (Get-AzureRmStorageAccountKey -ResourceGroupName $sc.ResourceGroupName -Name $ARMStorageAccount)[0].Value
-				$context = New-AzureStorageContext -StorageAccountName $ARMStorageAccount -StorageAccountKey $storageKey
-				$blob = Get-AzureStorageBlob -Blob $vhdName -Container $sourceContainer -Context $context -ErrorAction Ignore
+				$sc = Get-AzStorageAccount | Where-Object {$_.StorageAccountName -eq $ARMStorageAccount}
+				$storageKey = (Get-AzStorageAccountKey -ResourceGroupName $sc.ResourceGroupName -Name $ARMStorageAccount)[0].Value
+				$context = New-AzStorageContext -StorageAccountName $ARMStorageAccount -StorageAccountKey $storageKey
+				$blob = Get-AzStorageBlob -Blob $vhdName -Container $sourceContainer -Context $context -ErrorAction Ignore
 				if (!$blob) {
 					Throw "Provided VHD not existed, abort testing."
 				}

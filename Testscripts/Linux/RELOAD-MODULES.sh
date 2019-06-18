@@ -29,6 +29,8 @@ if [ "${LoopCount:-UNDEFINED}" = "UNDEFINED" ]; then
 fi
 
 HYPERV_MODULES=(hv_vmbus hv_netvsc hv_storvsc hv_utils hv_balloon hid_hyperv hyperv_keyboard hyperv_fb)
+MODULES_TO_RELOAD=(hv_netvsc)
+MODULES_NOT_TO_RELOAD=(hv_utils hyperv_fb)
 skip_modules=()
 config_path="/boot/config-$(uname -r)"
 if [[ $(detect_linux_distribution) == clear-linux-os ]]; then
@@ -93,7 +95,7 @@ done
 HYPERV_MODULES=("${tempList[@]}")
 
 if [[ ${#HYPERV_MODULES[@]} -eq 0 ]];then
-    LogMsg "Info: All modules are built-in. Skip this case."
+    LogMsg "All modules are built-in. Skip this case."
     SetTestStateSkipped
     exit 0
 fi
@@ -105,45 +107,102 @@ VerifyModules()
         lsmod | grep "hv_*" > $MODULES
         lsmod | grep "hyperv" >> $MODULES
         if ! grep -q "$module" "$MODULES"; then
-            msg="Error: $module not loaded"
-            LogErr "${msg}"
+            LogErr "$module not loaded"
             SetTestStateFailed
             exit 0
         fi
     done
 }
 
+BringNetworkUp()
+{
+    default_route=$(ip route show | grep default)
+
+    ip link set eth0 down
+    ip link set eth0 up
+
+    ip route show | grep default
+    # Add default route when miss it after run ip link down/up
+    if [ $? -ne 0 ]; then
+        LogMsg "Run ip route add $default_route"
+        ip route add $default_route
+    fi
+
+    ipAddress=$(ip addr show eth0 | grep "inet\b")
+    if [ -z "$ipAddress" ]; then
+        if ! (dhclient -r && dhclient)
+        then
+            LogMsg "dhclient exited with an error"
+            SetTestStateFailed
+            exit 0
+        fi
+    fi
+}
+
+ChangeModule()
+{
+    # $1 will be the module name
+    # $2 will be "-r" or empty
+    fail_expected=$3
+    if [ -z "$fail_expected" ]; then
+        fail_expected="not_expected"
+    fi
+
+    sleep 1
+    if ! modprobe $2 $1; then
+        if [ $fail_expected == "not_expected" ]; then
+            LogErr "Module ${1} was expected to be reloaded!"
+            modprobe $1
+            if [ "$1" == "hv_netvsc" ]; then
+                modprobe $1
+            fi
+            SetTestStateFailed
+            exit 0
+        fi
+    else
+        if [ $fail_expected == "expected" ]; then
+            LogErr "Module ${1} was not expected to be reloaded!"
+            modprobe $1
+            SetTestStateFailed
+            exit 0
+        fi
+    fi
+}
+
+
 #######################################################################
 #
 # Main script body
 #
 #######################################################################
-if (printf '%s\n' "${HYPERV_MODULES[@]}" | grep -xq "hv_utils"); then
-    if modprobe -r hv_utils; then
-        LogErr "hv_utils can be disabled, this is unexpected behavior."
-        SetTestStateFailed
-        exit 0
-    fi
+
+# install bc tool if not exist
+which "bc"
+if [ $? -ne 0 ]; then
+    update_repos
+    install_package bc
 fi
 
-if (printf '%s\n' "${HYPERV_MODULES[@]}" | grep -xq "hyperv_fb"); then
-    if modprobe -r hyperv_fb; then
-        LogErr "hyperv_fb can be disabled, this is unexpected behavior."
-        SetTestStateFailed
-        exit 0
+# Modules expected not to reload
+for module in "${MODULES_NOT_TO_RELOAD[@]}"
+do
+    if (printf '%s\n' "${HYPERV_MODULES[@]}" | grep -xq $module); then
+        ChangeModule $module "-r" "expected"
     fi
-fi
+done
 
 pass=0
 START=$(date +%s)
 while [ $pass -lt $LoopCount ]
 do
-    if (printf '%s\n' "${HYPERV_MODULES[@]}" | grep -xq "hv_netvsc"); then
-        modprobe -r hv_netvsc
-        sleep 1
-        modprobe hv_netvsc
-        sleep 1
-    fi
+    for module in "${MODULES_TO_RELOAD[@]}"
+    do
+        if (printf '%s\n' "${HYPERV_MODULES[@]}" | grep -xq $module); then
+            ChangeModule $module "-r"
+            ChangeModule $module
+        fi
+    done
+
     pass=$((pass+1))
     LogMsg "Reload iteration ${pass}"
 done
@@ -151,31 +210,17 @@ done
 END=$(date +%s)
 DIFF=$(echo "$END - $START" | bc)
 
-LogMsg "Info: Finished testing, bringing up eth0"
-ip link set eth0 down
-ip link set eth0 up
-
-ipAddress=$(ip addr show eth0 | grep "inet\b")
-if [ -z "$ipAddress" ]; then
-    if ! (dhclient -r && dhclient)
-    then
-        msg="Error: dhclient exited with an error"
-        LogMsg "${msg}"
-        SetTestStateFailed
-        exit 0
-    fi
-fi
+LogMsg "Finished testing, bringing up eth0"
+BringNetworkUp
 VerifyModules
 
 ipAddress=$(ip addr show eth0 | grep "inet\b")
 if [ -z "$ipAddress" ]; then
-    LogMsg "Info: Waiting for interface to receive an IP"
+    LogMsg "Waiting for interface to receive an IP"
     sleep 30
 fi
 
-LogMsg "Info: Test ran for ${DIFF} seconds"
-
-LogMsg "Result : Test Completed Successfully"
-LogMsg "Exiting with state: TestCompleted."
+LogMsg "Test ran for ${DIFF} seconds"
+LogMsg "Test Completed Successfully"
 SetTestStateCompleted
 exit 0

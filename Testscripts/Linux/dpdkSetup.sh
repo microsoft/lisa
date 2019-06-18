@@ -83,7 +83,7 @@ function install_dpdk () {
 		dpdkSrcTar="${dpdkSrcLink##*/}"
 		dpdk_version=$(echo "$dpdkSrcTar" | grep -Po "(\d+\.)+\d+")
 		LogMsg "Installing DPDK from source file $dpdkSrcTar"
-		ssh "${1}" "wget $dpdkSrcLink -P /tmp"
+		wget_retry "${dpdkSrcLink}" "/tmp" "${1}"
 		ssh "${1}" "tar xf /tmp/$dpdkSrcTar"
 		check_exit_status "tar xf /tmp/$dpdkSrcTar on ${1}" "exit"
 		dpdkSrcDir="${dpdkSrcTar%%".tar"*}"

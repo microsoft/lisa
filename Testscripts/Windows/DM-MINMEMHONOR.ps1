@@ -68,6 +68,7 @@ function Main {
         $HvServer = $VM1.HyperVHost
         $VM1Ipv4 = $VM1.PublicIP
         $VM2Ipv4 = $VM2.PublicIP
+        $VMPort = $VM2.SSHPort
         Write-LogInfo "VM1name is $vm1name"
         Write-LogInfo "VM2name is $vm2name"
         Write-LogInfo "Hvserver is $HvServer"

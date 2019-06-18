@@ -34,6 +34,7 @@ Class AzureProvider : TestProvider
 	[object] DeployVMs([xml] $GlobalConfig, [object] $SetupTypeData, [object] $TestCaseData, [string] $TestLocation, [string] $RGIdentifier, [bool] $UseExistingRG, [string] $ResourceCleanup) {
 		$allVMData = @()
 		$DeploymentElapsedTime = $null
+		$ErrorMessage = ""
 		try {
 			if ($UseExistingRG) {
 				Write-LogInfo "Running test against existing resource group: $RGIdentifier"
@@ -51,10 +52,10 @@ Class AzureProvider : TestProvider
 					$deployedGroups = $isAllDeployed[1]
 					$DeploymentElapsedTime = $isAllDeployed[3]
 					$allVMData = Get-AllDeploymentData -ResourceGroups $deployedGroups
-				}
-				else {
-					Write-LogErr "One or More Deployments are Failed..!"
-					return $null
+				} else {
+					$ErrorMessage = "One or more deployments failed."
+					Write-LogErr $ErrorMessage
+					return @{"VmData" = $null; "Error" = $ErrorMessage}
 				}
 			}
 			$isVmAlive = Is-VmAlive -AllVMDataObject $allVMData
@@ -67,15 +68,15 @@ Class AzureProvider : TestProvider
 				$customStatus = Set-CustomConfigInVMs -CustomKernel $this.CustomKernel -CustomLIS $this.CustomLIS -EnableSRIOV $enableSRIOV `
 					-AllVMData $allVMData -TestProvider $this
 				if (!$customStatus) {
-					Write-LogErr "Failed to set custom config in VMs, abort the test"
-					return $null
+					$ErrorMessage = "Failed to set custom config in VMs."
+					Write-LogErr $ErrorMessage
+					return @{"VmData" = $null; "Error" = $ErrorMessage}
 				}
 			}
 			else {
 				Write-LogErr "Unable to connect SSH ports.."
 			}
-		}
-		catch {
+		} catch {
 			Write-LogErr "Exception detected. Source : DeployVMs()"
 			$line = $_.InvocationInfo.ScriptLineNumber
 			$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD, ".")
@@ -83,7 +84,7 @@ Class AzureProvider : TestProvider
 			Write-LogErr "EXCEPTION : $ErrorMessage"
 			Write-LogErr "Source : Line $line in script $script_name."
 		}
-		return $allVMData
+		return @{"VmData" = $allVMData; "Error" = $ErrorMessage}
 	}
 
 	[void] DeleteTestVMs($allVMData, $SetupTypeData, $UseExistingRG) {
@@ -107,12 +108,31 @@ Class AzureProvider : TestProvider
 
 	[bool] RestartAllDeployments($AllVMData) {
 		$restartJobs = @()
-		foreach ( $vmData in $AllVMData ) {
-			Write-LogInfo "Triggering Restart-$($vmData.RoleName)..."
-			$restartJobs += Restart-AzureRmVM -ResourceGroupName $vmData.ResourceGroupName -Name $vmData.RoleName -Verbose -AsJob
+		$ShellRestart = 0
+		$VMCoresArray = @()
+		Function Start-RestartAzureVMJob ($ResourceGroupName, $RoleName) {
+			Write-LogInfo "Triggering Restart-$($RoleName)..."
+			$Job = Restart-AzVM -ResourceGroupName $ResourceGroupName -Name $RoleName -AsJob
+			$Job.Name = "Restart-$($ResourceGroupName):$($RoleName)"
+			return $Job
 		}
+		$AzureVMSizeInfo = Get-AzVMSize -Location $AllVMData[0].Location
+		foreach ( $vmData in $AllVMData ) {
+			$restartJobs += Start-RestartAzureVMJob -ResourceGroupName $vmData.ResourceGroupName -RoleName $vmData.RoleName
+			$VMCoresArray += ($AzureVMSizeInfo | Where-Object { $_.Name -eq $vmData.InstanceSize }).NumberOfCores
+		}
+		$MaximumCores = ($VMCoresArray | Measure-Object -Maximum).Maximum
+
+		# Calculate timeout depending on VM size.
+		# We're adding timeout of 10 minutes (default timeout) + 1 minute/10 cores (additional timeout).
+		# So For D64 VM, timeout = 10 + int[64/10] = 16 minutes.
+		# M128 VM, timeout = 10 + int[128/10] = 23 minutes.
+		$TimeoutMinutes = [int]($MaximumCores / 10) + 10
 		$recheckAgain = $true
-		Write-LogInfo "Waiting until VMs restart..."
+
+		# Timeout check is started after all the restart operations are triggered.
+		$Timeout = (Get-Date).AddMinutes($TimeoutMinutes)
+		Write-LogInfo "Waiting until VMs restart (Timeout = $TimeoutMinutes minutes)..."
 		$jobCount = $restartJobs.Count
 		$completedJobsCount = 0
 		while ($recheckAgain) {
@@ -128,12 +148,26 @@ Class AzureProvider : TestProvider
 					Write-LogErr "$($restartJob.Name) failed with error: ${jobError}"
 					return $false
 				} else {
-					$tempJobs += $restartJob
-					$recheckAgain = $true
+					if ((Get-Date) -gt $Timeout ) {
+						Write-LogErr "$($restartJob.Name) timed out after $TimeoutMinutes minutes. Removing the job."
+						$null = Remove-Job -Id $restartJob.ID -Force -ErrorAction SilentlyContinue
+						$TimedOutResourceGroup = $restartJob.Name.Replace("Restart-",'').Split(':')[0]
+						$TimedOutRoleName = $restartJob.Name.Replace("Restart-",'').Split(':')[1]
+						$TimedOutVM = $AllVMData | Where-Object {$_.ResourceGroupName -eq $TimedOutResourceGroup -and $_.RoleName -eq $TimedOutRoleName}
+						$Null = Restart-VMFromShell -VMData $TimedOutVM -SkipRestartCheck
+						$ShellRestart += 1
+					} else {
+						$tempJobs += $restartJob
+						$recheckAgain = $true
+					}
 				}
 			}
 			$restartJobs = $tempJobs
 			Start-Sleep -Seconds 1
+		}
+		if ($ShellRestart -gt 0) {
+			Write-LogInfo "$ShellRestart VMs were restarted from shell. Sleeping 5 seconds..."
+			Start-Sleep -Seconds 5
 		}
 		if ((Is-VmAlive -AllVMDataObject $AllVMData) -eq "True") {
 			return $true

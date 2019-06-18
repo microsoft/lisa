@@ -140,6 +140,15 @@ function Main() {
 			install_package "expect glibc-32bit glibc-devel libgcc_s1 libgcc_s1-32bit make gcc-c++ gcc-fortran rdma-core libibverbs-devel librdmacm1 libibverbs-utils bison flex"
 			# force install package that is known to have broken dependencies
 			zypper --non-interactive in libibmad-devel
+			if [ $? -eq 4 ]; then
+				expect -c "spawn zypper in libibmad-devel
+					expect -timeout -1 \"Choose from\"
+					send \"2\r\"
+					expect -timeout -1 \"Continue\"
+					send \"y\r\"
+					interact
+				"
+			fi
 			# Enable mlx5_ib module on boot
 			echo "mlx5_ib" >> /etc/modules-load.d/mlx5_ib.conf
 			;;
@@ -148,7 +157,7 @@ function Main() {
 			# IBM Platform MPI & Intel MPI do not seem to work. Under investigation.
 			if [[ $mpi_type == "ibm" || $mpi_type == "intel" ]]; then
 				LogErr "Distro '$DISTRO' not supported or not implemented"
-				SetTestStateFailed
+				SetTestStateSkipped
 				exit 0
 			fi
 			LogMsg "Installing required packages ..."

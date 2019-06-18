@@ -35,6 +35,7 @@ Class HyperVProvider : TestProvider
 	[object] DeployVMs([xml] $GlobalConfig, [object] $SetupTypeData, [object] $TestCaseData, [string] $TestLocation, [string] $RGIdentifier, [bool] $UseExistingRG, [string] $ResourceCleanup) {
 		$allVMData = @()
 		$DeploymentElapsedTime = $null
+		$ErrorMessage = ""
 		try {
 			if ($UseExistingRG) {
 				Write-LogInfo "Running test against existing HyperV group: $RGIdentifier"
@@ -53,8 +54,9 @@ Class HyperVProvider : TestProvider
 					$allVMData = Get-AllHyperVDeployementData -HyperVGroupNames $DeployedHyperVGroup -GlobalConfig $GlobalConfig
 				}
 				else {
-					Write-LogErr "One or More Deployments are Failed..!"
-					return $null
+					$ErrorMessage = "One or more deployments failed."
+					Write-LogErr $ErrorMessage
+					return @{"VmData" = $null; "Error" = $ErrorMessage}
 				}
 			}
 
@@ -63,8 +65,9 @@ Class HyperVProvider : TestProvider
 				$customStatus = Set-CustomConfigInVMs -CustomKernel $this.CustomKernel -CustomLIS $this.CustomLIS `
 					-AllVMData $allVMData -TestProvider $this -RegisterRhelSubscription
 				if (!$customStatus) {
-					Write-LogErr "Failed to set custom config in VMs, abort the test"
-					return $null
+					$ErrorMessage = "Failed to set custom config in VMs."
+					Write-LogErr $ErrorMessage
+					return @{"VmData" = $null; "Error" = $ErrorMessage}
 				}
 
 				Inject-HostnamesInHyperVVMs -allVMData $allVMData
@@ -96,7 +99,7 @@ Class HyperVProvider : TestProvider
 
 		# Note(v-advlad): Dependency VMs need to be removed
 		$allVMData = Check-IP -VMData $allVMData
-		return $allVMData
+		return @{"VmData" = $allVMData; "Error" = $ErrorMessage}
 	}
 
 	[void] RunSetup($VmData, $CurrentTestData, $TestParameters, $ApplyCheckPoint) {

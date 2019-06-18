@@ -159,7 +159,7 @@ function Main {
         $firstJobState = $false
         $secondJobState = $false
         while ($timeout -gt 0) {
-            if ($job1.State -like "Completed" -and -not $firstJobState) {
+            if ((Get-Job -Id $job1).State -like "Completed" -and -not $firstJobState) {
                 $firstJobState = $true
                 $retVal = Receive-Job $job1
                 if (-not $retVal) {
@@ -168,7 +168,7 @@ function Main {
                 $diff = $totalTimeout - $timeout
                 Write-LogInfo "Job1 finished in $diff seconds."
             }
-            if ($job2.State -like "Completed" -and -not $secondJobState) {
+            if ((Get-Job -Id $job2).State -like "Completed" -and -not $secondJobState) {
                 $secondJobState = $true
                 $retVal = Receive-Job $job2
                 if (-not $retVal) {
@@ -206,7 +206,7 @@ function Main {
             else {
                 $vm2bigger += 1
             }
-            Write-LogInfo "sample ${i}: vm1 = $vm1Assigned[$i] - vm2 = $vm2Assigned[$i]"
+            Write-LogInfo "sample ${i}: vm1 = $($vm1Assigned[$i]) - vm2 = $($vm2Assigned[$i])"
         }
         if ($vm1bigger -le $vm2bigger) {
             throw "$VM1Name didn't grow faster than $VM2Name"

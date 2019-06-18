@@ -1845,6 +1845,11 @@ function GetOSVersion {
         os_PACKAGE="rpm"
         os_CODENAME=""
         os_RELEASE=$(awk '/VERSION_ID=/' /etc/os-release | sed 's/VERSION_ID=//' | sed 's/\"//g')
+    elif [[ -f /etc/os-release ]] && [[ $(cat /etc/os-release) =~ "SUSE Linux Enterprise High Performance Computing" ]]; then
+        os_VENDOR="SLEHPC"
+        os_PACKAGE="rpm"
+        os_CODENAME=""
+        os_RELEASE=$(awk '/VERSION_ID=/' /etc/os-release | sed 's/VERSION_ID=//' | sed 's/\"//g')
     fi
     export os_VENDOR os_RELEASE os_UPDATE os_PACKAGE os_CODENAME
 }
@@ -1887,7 +1892,7 @@ function is_suse {
 
     [ "$os_VENDOR" = "openSUSE" ] || [ "$os_VENDOR" = "SUSE LINUX" ] || \
     [ "$os_VENDOR" = "SUSE" ] || [ "$os_VENDOR" = "SLE" ] || \
-    [ "$os_VENDOR" = "SLES" ]
+    [ "$os_VENDOR" = "SLES" ] || [ "$os_VENDOR" = "SLEHPC" ]
 }
 
 #######################################################################
@@ -1966,7 +1971,7 @@ VerifyIsEthtool()
                 ;;
             ubuntu*|debian*)
                 apt update -y
-		apt install ethtool -y
+                apt install ethtool -y
                 if [ $? -ne 0 ]; then
                     msg="ERROR: Failed to install Ethtool"
                     LogMsg "$msg"
@@ -2165,7 +2170,7 @@ function update_repos() {
 		ubuntu|debian)
 			apt-get update
 			;;
-		suse|opensuse|sles)
+		suse|opensuse|sles|sle_hpc)
 			zypper refresh
 			;;
 		clear-linux-os)
@@ -2273,7 +2278,7 @@ function install_package ()
 				apt_get_install "$package_name"
 				;;
 
-			suse|opensuse|sles)
+			suse|opensuse|sles|sle_hpc)
 				zypper_install "$package_name"
 				;;
 
@@ -2301,7 +2306,7 @@ function remove_package ()
 				apt_get_remove "$package_name"
 				;;
 
-			suse|opensuse|sles)
+			suse|opensuse|sles|sle_hpc)
 				zypper_remove "$package_name"
 				;;
 
@@ -2398,7 +2403,7 @@ function add_sles_benchmark_repo () {
 
 # Add network utilities repo on SLES
 function add_sles_network_utilities_repo () {
-	if [ $DISTRO_NAME == "sles" ]; then
+	if [[ $DISTRO_NAME == "sles" || $DISTRO_NAME == "sle_hpc" ]]; then
 		case $DISTRO_VERSION in
 			11*)
 				repo_url="https://download.opensuse.org/repositories/network:/utilities/SLE_11_SP4/network:utilities.repo"
@@ -2461,7 +2466,7 @@ function install_fio () {
 			mount -t debugfs none /sys/kernel/debug
 			;;
 
-		sles)
+		sles|sle_hpc)
 			if [[ $DISTRO_VERSION =~ 12|15 ]]; then
 				add_sles_benchmark_repo
 				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install wget mdadm blktrace libaio1 sysstat bc
@@ -2546,7 +2551,7 @@ function install_iperf3 () {
 			fi
 			;;
 
-		sles)
+		sles|sle_hpc)
 			if [[ $DISTRO_VERSION =~ 12|15 ]]; then
 				add_sles_network_utilities_repo
 				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install sysstat git bc make gcc psmisc iperf3
@@ -2623,7 +2628,7 @@ function install_lagscope () {
 			build_lagscope
 			;;
 
-		sles)
+		sles|sle_hpc)
 			if [[ $DISTRO_VERSION =~ 12|15 ]]; then
 				add_sles_network_utilities_repo
 				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install sysstat git bc make gcc dstat psmisc
@@ -2661,8 +2666,8 @@ function install_lagscope () {
 
 # Build and install ntttcp
 function build_ntttcp () {
-	ntttcp_version="v1.3.4"
-	# If the ntttcpVersion is provided in xml then it will go for that version, otherwise default to v1.3.4.
+	ntttcp_version="1.4.0"
+	# If the ntttcpVersion is provided in xml then it will go for that version, otherwise default to 1.4.0.
 	if [ "${1}" ]; then
 		ntttcp_version=${1}
 	fi
@@ -2697,7 +2702,7 @@ function install_ntttcp () {
 			build_lagscope
 			;;
 
-		sles)
+		sles|sle_hpc)
 			if [[ $DISTRO_VERSION =~ 12|15 ]]; then
 				add_sles_network_utilities_repo
 				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install wget sysstat git bc make gcc dstat psmisc lshw
@@ -2802,8 +2807,8 @@ function install_netperf () {
 
 # Get the active NIC name
 function get_active_nic_name () {
-	if [ $DISTRO_NAME == "sles" ] && [[ $DISTRO_VERSION =~ 15 ]]; then
-		zypper_install "net-tools-deprecated" > /dev/null
+	if [[ $DISTRO_NAME == "sles" ]] && [[ $DISTRO_VERSION =~ 15 ]] || [[ $DISTRO_NAME == "sle_hpc" ]]; then
+		zypper_install "net-tools-deprecated" > /dev/null 2>&1
 	fi
 	echo $(route | grep '^default' | grep -o '[^ ]*$')
 }
@@ -3521,7 +3526,7 @@ function check_package ()
 				return $?
 				;;
 
-			suse|opensuse|sles)
+			suse|opensuse|sles|sle_hpc)
 				zypper search "$package_name"
 				return $?
 				;;
@@ -3567,4 +3572,35 @@ function CheckInstallLockUbuntu() {
     else
         LogMsg "No lock on dpkg present."
     fi
+}
+
+function wget_retry() {
+	url=$1
+	dest=$2
+	remote_ip=$3
+
+	retries=0
+	max_retries=3
+	retry_timeout=3
+	log_msg="Downloading ${url} on ${remote_ip} to ${dest}."
+	err_log_msg="Could not download ${url} on ${remote_ip}."
+
+	while [[ $retries -lt $max_retries ]];
+	do
+		LogMsg "${log_msg}"
+		ssh_output=$(ssh "${remote_ip}" "wget --tries 3 --retry-connrefused '${url}' -P ${dest}")
+		if [ $? = 0 ]; then
+			break
+		else
+			LogErr "${ssh_output}"
+			LogErr "${err_log_msg}. Retrying..."
+			retries=$(($retries+1))
+			sleep $retry_timeout
+		fi
+	done
+	if [ $retries = $max_retries ]; then
+		LogMsg "${err_log_msg}"
+		SetTestStateAborted
+		exit 1
+	fi
 }
