@@ -72,6 +72,10 @@ $TestByCategory =  "platform`tcategory`tarea`tregion`n"
 # Generate Jenkins File
 foreach ( $platform in $Platforms )
 {
+	# Do not release WSL in pipeline menu
+	if ($platform -eq "WSL") {
+		continue
+	}
     $CurrentCategories = ($xmlData.test | Where-Object { $_.Platform.Contains($platform) }).Category | Sort-Object | Get-Unique
     foreach ( $category in $CurrentCategories)
     {
