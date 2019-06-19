@@ -97,7 +97,7 @@ if [ "$nics" -gt 1 ]; then
     LogMsg "Counting the cores spread only for the first NIC..."
     UpdateSummary "Counting the cores spread only for the first NIC..."
     sed -i ':a;N;$!ba;s/Synthetic network adapter/ignored adapter/2' lsvmbus.log && \
-    sed -i '/ignored adapter/,$d' lsvmbus.log
+    sed -i '/ignored adapter/,/^$/d' lsvmbus.log
 fi
 
 # Check number of SCSI Controllers on VM
@@ -106,7 +106,7 @@ if [ "$scsiAdapters" -gt 1 ]; then
     LogMsg "Counting the cores spread only for the first SCSI Adapter..."
     UpdateSummary "Counting the cores spread only for the first SCSI Adapter..."
     sed -i ':a;N;$!ba;s/Synthetic SCSI Controller/ignored controller/2' lsvmbus.log && \
-    sed -i '/ignored controller/,$d' lsvmbus.log
+    sed -i '/ignored controller/,/^$/d' lsvmbus.log
 fi
 
 while IFS='' read -r line || [[ -n "$line" ]]; do
@@ -139,7 +139,7 @@ if [ "$VCPU" -gt 64 ];then
     expected_scsi_counter=64
 else
     expected_scsi_counter=$(bc <<<"scale=2;$VCPU/4")
-    if [ "$expected_scsi_counter" != "${expected_scsi_counter#*.00}" ]; then
+    if [ "$expected_scsi_counter" != "${1#*.00}" ]; then
         # In this case we have a float number that needs to be rounded up.
         # For example with 6 cores, scsi controller is spread on 2 cores.
         expected_scsi_counter=$(bc <<<"("$expected_scsi_counter"+0.5)/1")
