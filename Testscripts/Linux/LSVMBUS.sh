@@ -90,14 +90,23 @@ for optional_token in "${optional_tokens[@]}"; do
     fi
 done
 
+msg="Info: All VMBus device IDs have been found."
+LogMsg "$msg"
+UpdateSummary "$msg"
+
 # SECOND TEST CASE
+# install bc tool if not exist
+if ! which bc; then
+    update_repos
+    install_package bc
+fi
+
 $lsvmbus_path -vvv > lsvmbus.log
 
 # Check number of NICs on VM
 nics=$( grep -o "Synthetic network adapter" lsvmbus.log | wc -l)
 if [ "$nics" -gt 1 ]; then
     LogMsg "Counting the cores spread only for the first NIC..."
-    UpdateSummary "Counting the cores spread only for the first NIC..."
     sed -i ':a;N;$!ba;s/Synthetic network adapter/ignored adapter/2' lsvmbus.log && \
     sed -i '/ignored adapter/,/^$/d' lsvmbus.log
 fi
@@ -106,7 +115,6 @@ fi
 scsiAdapters=$( grep -o "Synthetic SCSI Controller" lsvmbus.log | wc -l)
 if [ "$scsiAdapters" -gt 1 ]; then
     LogMsg "Counting the cores spread only for the first SCSI Adapter..."
-    UpdateSummary "Counting the cores spread only for the first SCSI Adapter..."
     sed -i ':a;N;$!ba;s/Synthetic SCSI Controller/ignored controller/2' lsvmbus.log && \
     sed -i '/ignored controller/,/^$/d' lsvmbus.log
 fi
@@ -154,12 +162,18 @@ if [ "$network_counter" != "$expected_network_counter" ] && [ "$scsi_counter" !=
     error_msg="Error: values are wrong. Expected for network adapter: $VCPU and actual: $network_counter;
     expected for scsi controller: ${expected_scsi_counter}, actual: $scsi_counter."
     LogErr "$error_msg"
+    UpdateSummary "$error_msg"
     SetTestStateFailed
     exit 0
 fi
 
-LogMsg "Network driver is spread on all $network_counter cores as expected."
-LogMsg "Storage driver is spread on all $scsi_counter cores as expected."
-LogMsg "Info: All VMBus device IDs have been found."
+msg="Network driver is spread on all $network_counter cores as expected."
+LogMsg "$msg"
+UpdateSummary "$msg"
+
+msg="Storage driver is spread on all $scsi_counter cores as expected."
+LogMsg "$msg"
+UpdateSummary "$msg"
+
 SetTestStateCompleted
 exit 0
