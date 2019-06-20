@@ -69,8 +69,10 @@ if [ "$os_GENERATION" -eq "1" ]; then
     tokens+=("Synthetic IDE Controller")
 fi
 
-# python required for lsvmbus
-if ! which python; then
+# lsvmbus requires python
+if [[ $DISTRO == "redhat_8" ]]; then
+    which python || ln -s /usr/libexec/platform-python /sbin/python
+elif ! which python; then
     update_repos
     install_package python
 fi
