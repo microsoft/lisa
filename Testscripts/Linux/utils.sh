@@ -2443,11 +2443,10 @@ function install_fio () {
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos)
 			install_epel
-			yum -y --nogpgcheck install wget sysstat mdadm blktrace libaio fio bc libaio-devel
+			yum -y --nogpgcheck install wget sysstat mdadm blktrace libaio fio bc libaio-devel gcc gcc-c++ kernel-devel
 			if ! command -v fio; then
 				echo "fio is not installed\n Build it from source code now..."
 				fio_version="3.13"
-				yum -y groupinstall "Development Tools"
 				wget https://github.com/axboe/fio/archive/fio-${fio_version}.tar.gz
 				tar xvf fio-${fio_version}.tar.gz
 				pushd fio-fio-${fio_version} && ./configure && make && make install
@@ -3550,7 +3549,7 @@ function install_nvme_cli()
         echo "nvme is not installed\n Installing now..."
         check_package "nvme-cli"
         if [ $? -ne 0 ]; then
-            yum -y groupinstall "Development Tools"
+            install_package "gcc gcc-c++ kernel-devel"
             wget https://github.com/linux-nvme/nvme-cli/archive/${nvme_version}.tar.gz
             tar xvf ${nvme_version}.tar.gz
             pushd nvme-cli-${nvme_version/v/} && make && make install
