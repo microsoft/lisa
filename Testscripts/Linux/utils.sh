@@ -1825,7 +1825,7 @@ function GetOSVersion {
                 os_VENDOR=$r
             fi
 
-            if [[ -n "$(grep \"$r\" /etc/SuSE-release)" ]]; then
+            if [[ -n "$(grep "${r}" /etc/SuSE-release)" ]]; then
                 os_CODENAME=$(grep "CODENAME = " /etc/SuSE-release | sed 's:.* = ::g')
                 os_RELEASE=$(grep "VERSION = " /etc/SuSE-release | sed 's:.* = ::g')
                 os_UPDATE=$(grep "PATCHLEVEL = " /etc/SuSE-release | sed 's:.* = ::g')
