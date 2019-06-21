@@ -141,6 +141,7 @@
             <param>TEST_DEV=/dev/nvme0n1p1</param>
             <param>TEST_DIR=/root/test</param>
             <param>NVME=yes</param>
+            <param>nvme_version=NVME_VERSION</param>
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
@@ -160,6 +161,7 @@
             <param>TEST_DIR=/root/test</param>
             <param>TEST_FS_MOUNT_OPTS='-o nobarrier'</param>
             <param>NVME=yes</param>
+            <param>nvme_version=NVME_VERSION</param>
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
@@ -179,6 +181,7 @@
             <param>TEST_DIR=/root/test</param>
             <param>TEST_FS_MOUNT_OPTS='-o nobarrier'</param>
             <param>NVME=yes</param>
+            <param>nvme_version=NVME_VERSION</param>
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
@@ -196,6 +199,7 @@
         <testParameters>
             <param>HYPERV_DISK_COUNT=1</param>
             <param>disable_enable_pci=yes</param>
+            <param>nvme_version=NVME_VERSION</param>
         </testParameters>
         <Timeout>1200</Timeout>
         <cleanupScript>.\Testscripts\Windows\SETUP-Remove-NVME-Disk.ps1</cleanupScript>
