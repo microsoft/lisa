@@ -23,6 +23,20 @@ UtilsInit
 #######################################################################
 # Main script body
 #######################################################################
+# Check if feature is suppoorted by the kernel
+if ! which nm; then
+    update_repos
+    install_package binutils
+fi
+
+kernel_version=$(uname -r)
+msg_level_symbols=$(nm /lib/modules/"$kernel_version"/kernel/drivers/net/hyperv/hv_netvsc.ko | grep msglevel)
+if [[ "$msg_level_symbols" != *netvsc_get_msglevel* ]] || [[ "$msg_level_symbols" != *netvsc_set_msglevel* ]]; then
+    UpdateSummary "Getting / Setting the driver message type flags from ethtool is not supported on $kernel_version, skipping test."
+    SetTestStateSkipped
+    exit 0
+fi
+
 # Check if ethtool exist and install it if not
 VerifyIsEthtool
 
@@ -42,7 +56,6 @@ LogMsg "Try to set $testflag1 and $testflag2 flags on $net_interface"
 sts=$(ethtool -s "${net_interface}" msglvl "$testflag1" on "$testflag2" on 2>&1)
 if [[ "$sts" = *"Operation not supported"* ]]; then
     LogErr "$sts"
-    kernel_version=$(uname -rs)
     LogErr "Setting the driver message type flags from ethtool is not supported on $kernel_version"
     SetTestStateFailed
     exit 0
