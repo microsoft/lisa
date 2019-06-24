@@ -21,6 +21,9 @@
             <keywords>Failed to access perfctr msr</keywords>
         </failures>
         <errors>
+            <keywords>TLS record write failed</keywords>
+            <keywords>state ensure error</keywords>
+            <keywords>got unexpected HTTP status code</keywords>
             <keywords>Error getting hardware address for "eth0": No such device</keywords>
             <keywords>codec can't encode character</keywords>
             <keywords>Failed to set certificate key file [gnutls error -64: Error while reading file.]</keywords>
