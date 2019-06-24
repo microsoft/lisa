@@ -23,18 +23,29 @@ UtilsInit
 #######################################################################
 # Main script body
 #######################################################################
-# Check if feature is suppoorted by the kernel
+# Check if feature is supported by the kernel
 if ! which nm; then
     update_repos
     install_package binutils
 fi
 
 kernel_version=$(uname -r)
-msg_level_symbols=$(nm /lib/modules/"$kernel_version"/kernel/drivers/net/hyperv/hv_netvsc.ko | grep msglevel)
-if [[ "$msg_level_symbols" != *netvsc_get_msglevel* ]] || [[ "$msg_level_symbols" != *netvsc_set_msglevel* ]]; then
-    UpdateSummary "Getting / Setting the driver message type flags from ethtool is not supported on $kernel_version, skipping test."
-    SetTestStateSkipped
-    exit 0
+# if the module is not builtin
+if [ $(grep -c netvsc < /lib/modules/"$kernel_version"/modules.builtin) == 0 ]; then
+    # get the path to the netvsc kernel module
+    kernel_module=$(ls /lib/modules/"$kernel_version"/kernel/drivers/net/hyperv/hv_netvsc.ko*)
+    # if the module is archived as xz, extract it to check symbols
+    if [ $(echo "$kernel_module" | grep -c ".xz") -ne 0 ]; then
+        cp "$kernel_module" .
+        xz -d $(basename $kernel_module)
+        kernel_module=$(ls hv_netvsc*)
+    fi
+    msg_level_symbols=$(nm "$kernel_module" | grep msglevel)
+    if [[ "$msg_level_symbols" != *netvsc_get_msglevel* ]] || [[ "$msg_level_symbols" != *netvsc_set_msglevel* ]]; then
+        UpdateSummary "Getting / Setting the driver message type flags from ethtool is not supported on $kernel_version, skipping test."
+        SetTestStateSkipped
+        exit 0
+    fi
 fi
 
 # Check if ethtool exist and install it if not
