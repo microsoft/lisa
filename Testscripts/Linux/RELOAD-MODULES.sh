@@ -30,7 +30,7 @@ fi
 
 HYPERV_MODULES=(hv_vmbus hv_netvsc hv_storvsc hv_utils hv_balloon hid_hyperv hyperv_keyboard hyperv_fb)
 MODULES_TO_RELOAD=(hv_netvsc)
-MODULES_NOT_TO_RELOAD=(hv_utils hyperv_fb)
+MODULES_NOT_TO_RELOAD=(hyperv_fb)
 skip_modules=()
 config_path="/boot/config-$(uname -r)"
 if [[ $(detect_linux_distribution) == clear-linux-os ]]; then
