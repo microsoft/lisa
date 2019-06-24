@@ -111,7 +111,7 @@ function Main {
             # Install dependencies on both VMs
             if ($TestParams.Install_Dependencies -eq "yes") {
                 Run-LinuxCmd -username $VMUsername -password $password -ip $publicIp -port $vmPort `
-                    -command "cp /home/$VMUsername/sriov_constants.sh . ; . SR-IOV-Utils.sh; InstallDependencies" -RunAsSudo | Out-Null
+                    -command "cp /home/$VMUsername/sriov_constants.sh . ; . SR-IOV-Utils.sh; InstallDependencies" -RunAsSudo -runMaxAllowedTime 600 | Out-Null
                 if (-not $?) {
                     Write-LogErr "Failed to install dependencies on $($testVmData.RoleName)"
                     return $False
@@ -123,7 +123,7 @@ function Main {
                     return $False
                 }
                 Run-LinuxCmd -username $VMUsername -password $password -ip $publicIp -port $dependencyVmData.SSHPort `
-                    -command "cp /home/$VMUsername/sriov_constants.sh . ; . SR-IOV-Utils.sh; InstallDependencies" -RunAsSudo | Out-Null
+                    -command "cp /home/$VMUsername/sriov_constants.sh . ; . SR-IOV-Utils.sh; InstallDependencies" -RunAsSudo -runMaxAllowedTime 600 | Out-Null
                 if (-not $?) {
                     Write-LogErr "Failed to install dependencies on $($dependencyVmData.RoleName)"
                     return $False
