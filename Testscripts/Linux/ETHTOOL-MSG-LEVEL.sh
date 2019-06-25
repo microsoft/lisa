@@ -31,10 +31,11 @@ fi
 
 kernel_version=$(uname -r)
 # if the module is not builtin
-if [ "$(grep -c netvsc < /lib/modules/"$kernel_version"/modules.builtin)" == 0 ]; then
+modules_path="/lib/modules/$kernel_version"
+if [ "$(grep -c netvsc < "$modules_path"/modules.builtin)" == 0 ]; then
     LogMsg "looking for msg level symbols in netvsc module..."
     # get the path to the netvsc kernel module
-    kernel_module=$(ls /lib/modules/"$kernel_version"/kernel/drivers/net/hyperv/hv_netvsc.ko*)
+    kernel_module=$(ls "$modules_path"/kernel/drivers/net/hyperv/hv_netvsc.ko*)
     # if the module is archived as xz, extract it to check symbols
     if [ "$(echo "$kernel_module" | grep -c ".xz")" -ne 0 ]; then
         cp "$kernel_module" .
@@ -44,11 +45,11 @@ if [ "$(grep -c netvsc < /lib/modules/"$kernel_version"/modules.builtin)" == 0 ]
     msg_level_symbols=$(nm "$kernel_module" | grep msglevel)
 else
     LogMsg "netvsc module is builtin, looking for msg level symbols in System.map..."
-    msg_level_symbols=$(grep 'netvsc.*msglevel' "/boot/System.map-$(uname -r)")
+    msg_level_symbols=$(grep 'netvsc.*msglevel' "/boot/System.map-$kernel_version")
 fi
 LogMsg "Msg level symbols: $msg_level_symbols"
 if [[ "$msg_level_symbols" != *netvsc_get_msglevel* ]] || [[ "$msg_level_symbols" != *netvsc_set_msglevel* ]]; then
-    UpdateSummary "Getting / Setting the driver message type flags from ethtool is not supported on $kernel_version, skipping test."
+    UpdateSummary "Get/Set message level not supported on $kernel_version, skipping test."
     SetTestStateSkipped
     exit 0
 fi
