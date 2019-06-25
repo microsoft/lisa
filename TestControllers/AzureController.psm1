@@ -45,6 +45,7 @@ Class AzureController : TestController
 
 		$this.TestProvider.TipSessionId = $this.CustomParams["TipSessionId"]
 		$this.TestProvider.TipCluster = $this.CustomParams["TipCluster"]
+		$this.TestProvider.EnableTelemetry = $ParamTable["EnableTelemetry"]
 		if ( !$this.ARMImageName -and !$this.OsVHD ) {
 			$parameterErrors += "-ARMImageName '<Publisher> <Offer> <Sku> <Version>', or -OsVHD <'VHD_Name.vhd'> is required."
 		}
