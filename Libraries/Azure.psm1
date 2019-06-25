@@ -2452,7 +2452,7 @@ Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $Cu
         $walaEndIdentifier = ""
         $WalaIdentifiersDetected = $false
 
-        Write-LogInfo "Boot time calculation started..."
+        Write-LogInfo "Started boot data telemetry collection..."
         $utctime = (Get-Date).ToUniversalTime()
         $DateTimeUTC = "$($utctime.Year)-$($utctime.Month)-$($utctime.Day) $($utctime.Hour):$($utctime.Minute):$($utctime.Second)"
 
@@ -2538,13 +2538,12 @@ Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $Cu
                 }
                 if ($walaStartIdentifier -and $walaEndIdentifier) {
                     $WalaIdentifiersDetected = $true
-                    break;
                 }
             }
             Write-Loginfo "WALA Start Identifier = $walaStartIdentifier"
             Write-Loginfo "WALA End Identifier = $walaEndIdentifier"
             if (-not $WalaIdentifiersDetected) {
-                Throw "Unable to detect WALA identifiers"
+                Throw "Unable to detect WALA identifiers."
             }
             #endregion
 
@@ -2553,7 +2552,7 @@ Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $Cu
             #endregion
 
             #region Waagent Version Checking.
-            $waagentStartLineNumber = (Select-String -Path $waagentFile -Pattern "$walaStartIdentifier")[0].LineNumber
+            $waagentStartLineNumber = (Select-String -Path $waagentFile -Pattern "$walaStartIdentifier")[-1].LineNumber
             $waagentStartLine = (Get-Content -Path $waagentFile)[$waagentStartLineNumber - 1]
             $WALAVersion = ($waagentStartLine.Split(":")[$waagentStartLine.Split(":").Count - 1]).Trim()
             Write-LogInfo "$($vmData.RoleName) - WALA Version = $WALAVersion"
@@ -2561,11 +2560,11 @@ Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $Cu
 
             #region Waagent Provision Time Checking.
             $waagentFile = "$LogDir\$($vmData.RoleName)-waagent.log.txt"
-            $waagentStartLineNumber = (Select-String -Path $waagentFile -Pattern "$walaStartIdentifier")[0].LineNumber
+            $waagentStartLineNumber = (Select-String -Path $waagentFile -Pattern "$walaStartIdentifier")[-1].LineNumber
             $waagentStartLine = (Get-Content -Path $waagentFile)[$waagentStartLineNumber - 1]
             $waagentStartTime = [datetime]$waagentStartLine.Split(".")[0]
 
-            $waagentFinishedLineNumber = (Select-String -Path $waagentFile -Pattern "$walaEndIdentifier")[0].LineNumber
+            $waagentFinishedLineNumber = (Select-String -Path $waagentFile -Pattern "$walaEndIdentifier")[-1].LineNumber
             $waagentFinishedLine = (Get-Content -Path $waagentFile)[$waagentFinishedLineNumber - 1]
             $waagentFinishedTime = [datetime]$waagentFinishedLine.Split(".")[0]
 
