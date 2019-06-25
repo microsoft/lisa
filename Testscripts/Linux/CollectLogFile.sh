@@ -16,7 +16,8 @@ dmesg > ${hostname}-dmesg.txt
 cp /var/log/waagent.log ${hostname}-waagent.log.txt
 uname -r > ${hostname}-kernelVersion.txt
 uname -i > ${hostname}-hardwarePlatform.txt
-last reboot -F | head -1 | awk '{print $9,$6,$7,$8}' > ${hostname}-uptime.txt || echo "UPTIME_COMMAND_ERROR" > ${hostname}-uptime.txt
+system_start=$(uptime -s || last reboot -F | head -1 | awk '{print $9,$6,$7,$8}')
+echo $system_start > ${hostname}-uptime.txt || echo "UPTIME_COMMAND_ERROR" > ${hostname}-uptime.txt
 modinfo hv_netvsc > ${hostname}-lis.txt
 release=$(cat /etc/*release*)
 if [ -f /etc/redhat-release ] ; then

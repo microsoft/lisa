@@ -23,10 +23,12 @@ Formant:
             <keyword>Azure Linux Agent Version</keyword>
         </ProvisionStarted>
         <ProvisionComplete>
+            <keyword>Provisioning already completed</keyword>
             <keyword>Start env monitor service</keyword>
             <keyword>Provisioning complete</keyword>
             <keyword>Finished provisioning</keyword>
             <keyword>Provisioning image completed</keyword>
+            <keyword>Successfully reported handler status</keyword> <!-- Azure Linux Agent Version: WALinuxAgent-2.0.16 -->
         </ProvisionComplete>
     </waagent>
 </identifiers>

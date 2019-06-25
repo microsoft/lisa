@@ -2562,11 +2562,11 @@ Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $Cu
             $waagentFile = "$LogDir\$($vmData.RoleName)-waagent.log.txt"
             $waagentStartLineNumber = (Select-String -Path $waagentFile -Pattern "$walaStartIdentifier")[-1].LineNumber
             $waagentStartLine = (Get-Content -Path $waagentFile)[$waagentStartLineNumber - 1]
-            $waagentStartTime = [datetime]$waagentStartLine.Split(".")[0]
+            $waagentStartTime = [datetime]($waagentStartLine.Split()[0] + " " + $waagentStartLine.Split()[1])
 
             $waagentFinishedLineNumber = (Select-String -Path $waagentFile -Pattern "$walaEndIdentifier")[-1].LineNumber
             $waagentFinishedLine = (Get-Content -Path $waagentFile)[$waagentFinishedLineNumber - 1]
-            $waagentFinishedTime = [datetime]$waagentFinishedLine.Split(".")[0]
+            $waagentFinishedTime = [datetime]($waagentFinishedLine.Split()[0] + " " + $waagentFinishedLine.Split()[1])
 
             $WALAProvisionTime = [int]($waagentFinishedTime - $waagentStartTime).TotalSeconds
             Write-LogInfo "$($vmData.RoleName) - WALA Provision Time = $WALAProvisionTime seconds"
@@ -2585,29 +2585,35 @@ Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $Cu
             Write-LogInfo "$($vmData.RoleName) - Kernel Boot Time = $kernelBootTime seconds"
             #endregion
 
-            #region Call Trace Checking
             $KernelLogs = Get-Content $dmesgFile
             $CallTraces = "No"
-            foreach ( $line in $KernelLogs.Split("`n") ) {
-                if ( $line -imatch "Call Trace" ) {
-                    $CallTraces = "Yes"
-                    break;
+            if ($KernelLogs) {
+
+                #region Call Trace Checking
+                foreach ( $line in $KernelLogs.Split("`n") ) {
+                    if ( $line -imatch "Call Trace" ) {
+                        $CallTraces = "Yes"
+                        break;
+                    }
                 }
+                #endregion
+
+                #region Host Version checking
+                $foundLineNumber = (Select-String -Path $dmesgFile -Pattern "Hyper-V Host Build").LineNumber
+                $actualLineNumber = $foundLineNumber - 1
+                $finalLine = (Get-Content -Path $dmesgFile)[$actualLineNumber]
+                $finalLine = $finalLine.Replace('; Vmbus version:4.0', '')
+                $finalLine = $finalLine.Replace('; Vmbus version:3.0', '')
+                $HostVersion = ($finalLine.Split(":")[$finalLine.Split(":").Count - 1 ]).Trim().TrimEnd(";")
+                #endregion
+            } else {
+                Write-LogWarn "Kernel log file is empty."
+                Write-LogWarn "Call trace checking skipped."
+                Write-LogWarn "Host Version checking skipped."
+                $HostVersion = "Unknown"
             }
-            #endregion
 
-            #region Host Version checking
-            $foundLineNumber = (Select-String -Path $dmesgFile -Pattern "Hyper-V Host Build").LineNumber
-            $actualLineNumber = $foundLineNumber - 1
-            $finalLine = (Get-Content -Path $dmesgFile)[$actualLineNumber]
-            #Write-LogInfo $finalLine
-            $finalLine = $finalLine.Replace('; Vmbus version:4.0', '')
-            $finalLine = $finalLine.Replace('; Vmbus version:3.0', '')
-            $HostVersion = ($finalLine.Split(":")[$finalLine.Split(":").Count - 1 ]).Trim().TrimEnd(";")
             Write-LogInfo "$($vmData.RoleName) - Host Version = $HostVersion"
-            Set-Variable -Value $HostVersion -Name HostVersion -Scope Global
-            #endregion
-
             #region LIS Version
             $LISVersion = (Select-String -Path "$LogDir\$($vmData.RoleName)-lis.txt" -Pattern "^version:").Line
             if ($LISVersion) {
@@ -2637,6 +2643,8 @@ Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $Cu
         $ErrorMessage = $_.Exception.Message
         Write-LogErr "EXCEPTION : $ErrorMessage"
         Write-LogErr "Source : Line $line in script $script_name."
-        Write-LogErr "ERROR : Uploading boot data to database"
+        Write-LogWarn "Debug: Last boot raw text : $(Get-Content "$LogDir\$($vmData.RoleName)-uptime.txt")"
+        Write-LogWarn "Debug: WALA start line raw text : $waagentStartLine"
+        Write-LogWarn "Debug: WALA start raw text : $($waagentStartLine.Split()[0] + " " + $waagentStartLine.Split()[1])"
     }
 }
