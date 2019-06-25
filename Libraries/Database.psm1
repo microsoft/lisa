@@ -177,3 +177,30 @@ Function Get-VMProperties ($PropertyFilePath) {
 	}
 }
 
+Function Run-SQLCmd {
+	param (
+		[string] $DBServer,
+		[string] $DBName,
+		[string] $DBUsername,
+		[string] $DBPassword,
+		[string] $SQLQuery
+	)
+	try {
+		Write-LogInfo "$SQLQuery"
+		$connectionString = "Server=$DBServer;uid=$DBUsername; pwd=$DBPassword;Database=$DBName;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
+		$connection = New-Object System.Data.SqlClient.SqlConnection
+		$connection.ConnectionString = $connectionString
+		$connection.Open()
+		$command = $connection.CreateCommand()
+		$command.CommandText = $SQLQuery
+		$null = $command.executenonquery()
+		$connection.Close()
+		Write-LogInfo "Done."
+	}
+	catch {
+		Write-LogErr "SQL Query failed to execute."
+		$ErrorMessage = $_.Exception.Message
+		$ErrorLine = $_.InvocationInfo.ScriptLineNumber
+		Write-LogErr "EXCEPTION in Run-SQLCmd() : $ErrorMessage at line: $ErrorLine"
+	}
+}
