@@ -24,15 +24,14 @@ UtilsInit
 # Main script body
 #######################################################################
 # Check if feature is supported by the kernel
-if ! which nm; then
-    update_repos
-    install_package binutils
-fi
-
 kernel_version=$(uname -r)
 # if the module is not builtin
 modules_path="/lib/modules/$kernel_version"
 if [ "$(grep -c netvsc < "$modules_path"/modules.builtin)" == 0 ]; then
+    if ! which nm; then
+        update_repos
+        install_package binutils
+    fi
     LogMsg "looking for msg level symbols in netvsc module..."
     # get the path to the netvsc kernel module
     kernel_module=$(ls "$modules_path"/kernel/drivers/net/hyperv/hv_netvsc.ko*)
