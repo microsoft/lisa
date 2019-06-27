@@ -29,10 +29,13 @@ if [ $? -ne 0 ]; then
     exit 2
 fi
 
+os_disk=$(get_OSdisk)
+LogMsg "OS disk:$os_disk"
+
 count=0
 for disk in $(cat /proc/partitions | grep sd | awk '{print $4}')
 do
-    if [[ "$disk" != "sda"* ]];
+    if [[ "$disk" != "$os_disk"* ]];
     then
         ((count++))
     fi
@@ -43,9 +46,9 @@ done
 for driveName in /dev/sd*[^0-9];
 do
     #
-    # Skip /dev/sda
+    # Skip the OS disk
     #
-    if [ $driveName != "/dev/sda"  ] ; then
+    if [ $driveName != "/dev/${os_disk}" ]; then
 
     # Delete the existing partition
     for (( c=1 ; c<=count; count--))
