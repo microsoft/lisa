@@ -1964,6 +1964,55 @@ function Enable-RootUser {
     return $deploymentResult
 }
 
+
+function Compare-KernelVersion {
+    param (
+        [string] $KernelVersion1,
+        [string] $KernelVersion2
+    )
+
+    if ($KernelVersion1 -eq $KernelVersion2) {
+        return 0
+    }
+
+    $KernelVersion1Array = $KernelVersion1 -split "[\.\-]+"
+    $KernelVersion2Array = $KernelVersion2 -split "[\.\-]+"
+    for($i=0; $i -lt $KernelVersion1Array.Length; $i++) {
+        try {
+                $KernelVersion1Array[$i] = [int]$KernelVersion1Array[$i]
+            } catch {
+                $KernelVersion1Array[$i] = 0
+                continue
+            }
+    }
+    for($i=0; $i -lt $KernelVersion2Array.Length;$i++) {
+        try {
+                $KernelVersion2Array[$i] = [int]$KernelVersion2Array[$i]
+            } catch {
+                $KernelVersion2Array[$i] = 0
+                continue
+            }
+    }
+
+    $array_count = $KernelVersion1Array.Length
+    if ($KernelVersion1Array.Length -gt $KernelVersion2Array.Length) {
+        $array_count = $KernelVersion2Array.Length
+    }
+
+    for($i=0; $i -lt $array_count;$i++) {
+        if ([int]$KernelVersion1Array[$i] -eq [int]$KernelVersion2Array[$i]) {
+            continue
+        } elseif ([int]$KernelVersion1Array[$i] -lt [int]$KernelVersion2Array[$i]) {
+            return -1
+        } else {
+            return 1
+        }
+    }
+
+    return -1
+}
+
+
 function Is-DpdkCompatible() {
     param (
         [string] $KernelVersion,
@@ -1992,40 +2041,11 @@ function Is-DpdkCompatible() {
         }
 
         if ($SUPPORTED_DISTRO_KERNEL.Keys -contains $DetectedDistro) {
-            $supportKernelVersions = $SUPPORTED_DISTRO_KERNEL[$DetectedDistro] -split "[\.\-]+"
-            $KernelVersions = $KernelVersion -split "[\.\-]+"
-            for($i=0; $i -lt $supportKernelVersions.Length;$i++) {
-                try {
-                        $supportKernelVersions[$i] = [int]$supportKernelVersions[$i]
-                    } catch {
-                        $supportKernelVersions[$i] = 0
-                        continue
-                    }
+            if ((Compare-KernelVersion $KernelVersion $SUPPORTED_DISTRO_KERNEL[$DetectedDistro]) -ge 0) {
+                return $true
+            } else {
+                 return $false
             }
-            for($i=0; $i -lt $KernelVersions.Length;$i++) {
-                try {
-                        $KernelVersions[$i] = [int]$KernelVersions[$i]
-                    } catch {
-                        $KernelVersions[$i] = 0
-                        continue
-                    }
-            }
-
-            $array_count = $KernelVersions.Length
-            if ($supportKernelVersions.Length -gt $KernelVersions.Length) {
-                $array_count = $supportKernelVersions.Length
-            }
-
-            for($i=0; $i -lt $array_count;$i++) {
-                if ([int]$KernelVersions[$i] -eq [int]$supportKernelVersions[$i]) {
-                    continue
-                } elseif ([int]$KernelVersions[$i] -lt [int]$supportKernelVersions[$i]) {
-                    return $false
-                } else {
-                    return $true
-                }
-            }
-            return $true
         } else {
             Write-LogWarn "Unsupported Distro: $DetectedDistro"
             return $false

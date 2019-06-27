@@ -78,6 +78,14 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceWith>18.11</ReplaceWith>
 	</Parameter>
 	<Parameter>
+		<ReplaceThis>DPDK_RDMA_CORE_SOURCE_URL</ReplaceThis>
+		<ReplaceWith>https://github.com/linux-rdma/rdma-core.git</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>DPDK_RDMA_CORE_BRANCH</ReplaceThis>
+		<ReplaceWith>stable-v24</ReplaceWith>
+	</Parameter>
+	<Parameter>
 		<ReplaceThis>NTTTCP_RUNTIME_IN_SECONDS</ReplaceThis>
 		<ReplaceWith>300</ReplaceWith>
 	</Parameter>
