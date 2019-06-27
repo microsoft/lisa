@@ -20,7 +20,13 @@ CopyImage()
 SearchModules()
 {
     LogMsg "Searching for modules..."
-    [[ -d "/root/initr/usr/lib/modules" ]] && abs_path="/root/initr/usr/lib/modules/" || abs_path="/root/initr/lib/modules/"
+    if [[ -d "/root/initr/usr/lib/modules" ]]; then
+        abs_path="/root/initr/usr/lib/modules/"
+    elif [[ -d "/root/initr/lib/modules" ]]; then
+        abs_path="/root/initr/lib/modules/"
+    elif [[ -d "/usr/lib64/modules" ]]; then
+        abs_path="/usr/lib64/modules/"
+    fi
     if [[ $DISTRO == "suse_12" ]]; then
         abs_path="/lib/modules/"
     fi
@@ -68,6 +74,9 @@ fi
 # Rebuild array to exclude built-in modules
 skip_modules=()
 config_path="/boot/config-$(uname -r)"
+if [[ $(detect_linux_distribution) == 'coreos' ]]; then
+    config_path="/usr/lib/kernel/config-$(uname -r)"
+fi
 declare -A config_modulesDic
 config_modulesDic=(
 [CONFIG_HYPERV=y]="hv_vmbus.ko"

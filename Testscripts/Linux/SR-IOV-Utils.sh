@@ -224,6 +224,9 @@ InstallDependencies()
         redhat*|centos*)
             service firewalld stop
         ;;
+        coreos)
+            LogMsg "No extra steps need here."
+        ;;
         *)
             LogErr "OS Version not supported in InstallDependencies!"
             SetTestStateFailed
@@ -244,7 +247,7 @@ InstallDependencies()
 
     # Check if iPerf3 is already installed
     iperf3 -v > /dev/null 2>&1
-    if [ $? -ne 0 ]; then
+    if [ $? -ne 0 ] && [[ $(detect_linux_distribution) != coreos ]]; then
         update_repos
         gcc -v
         if [ $? -ne 0 ]; then
@@ -275,6 +278,8 @@ InstallDependencies()
             SetTestStateFailed
             exit 1
         fi
+    else
+        install_iperf3
     fi
 
     return 0
