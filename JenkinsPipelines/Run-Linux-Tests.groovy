@@ -69,7 +69,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, 
                 FinalVMSize = " -OverrideVMSize ''"
             }
 
-            if (TestByTestname != "" && TestByTestname != null && (!(TestByTestname ==~ "Select a.*"​)​)​​)
+            if (TestByTestname != "" && TestByTestname != null && (!(TestByTestname ==~ "Select a.*")))
             {
                 def CurrentTests = [failFast: false]
                 for ( i = 0; i < TestByTestname.split(",").length; i++)
@@ -126,7 +126,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, 
                 }
                 parallel CurrentTests
             }
-            if (TestByCategorisedTestname != "" && TestByCategorisedTestname != null && (!(TestByCategorisedTestname ==~ "Select a.*"​)​))
+            if (TestByCategorisedTestname != "" && TestByCategorisedTestname != null && (!(TestByCategorisedTestname ==~ "Select a.*")))
             {
                 def CurrentTests = [failFast: false]
                 for ( i = 0; i < TestByCategorisedTestname.split(",").length; i++)
@@ -185,7 +185,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, 
                 }
                 parallel CurrentTests
             }
-            if (TestByCategory != "" && TestByCategory != null && (!(TestByCategory ==~ "Select a.*"​)​))
+            if (TestByCategory != "" && TestByCategory != null && (!(TestByCategory ==~ "Select a.*")))
             {
                 def CurrentTests = [failFast: false]
                 for ( i = 0; i < TestByCategory.split(",").length; i++)
@@ -244,7 +244,7 @@ def ExecuteTest( JenkinsUser, UpstreamBuildNumber, ImageSource, OverrideVMSize, 
                 }
                 parallel CurrentTests
             }
-            if (TestByTag != "" && TestByTag != null && (!(TestByTag ==~ "Select a.*"​)​))
+            if (TestByTag != "" && TestByTag != null && (!(TestByTag ==~ "Select a.*")))
             {
                 def CurrentTests = [failFast: false]
                 for ( i = 0; i < TestByTag.split(",").length; i++)
