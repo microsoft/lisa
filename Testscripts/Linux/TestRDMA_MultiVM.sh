@@ -643,7 +643,7 @@ function Main() {
 		;;
 		open)
 			total_virtual_machines=$(($total_virtual_machines + 1))
-			mpi_run_path=$(find / -name mpirun | head -n 1)
+			mpi_run_path=$(find / -name mpirun | grep -v gcc)
 		;;
 		intel)
 			vars=$(find / -name mpivars.sh | grep intel)
