@@ -150,6 +150,7 @@ ConfigureVF()
 
         # Extract vfIP value from constants.sh
         staticIP=$(cat sriov_constants.sh | grep IP"$__ipIterator" | head -1 | tr "=" " " | awk '{print $2}')
+        broadcastAddress="${staticIP%.*}.255"
 
         if is_ubuntu ; then
             __file_path="/etc/network/interfaces"
@@ -160,7 +161,6 @@ ConfigureVF()
             echo "netmask $NETMASK" >> $__file_path
 
             ip link set eth$__iterator up
-            broadcastAddress="${staticIP%.*}.255"
             ip addr add "${staticIP}"/"$NETMASK" broadcast $broadcastAddress dev eth$__iterator
 
         elif is_suse ; then
@@ -176,7 +176,7 @@ ConfigureVF()
             echo "STARTMODE=auto" >> $__file_path
 
             ip link set eth$__iterator up
-            ip addr add "${staticIP}"/"$NETMASK" dev eth$__iterator
+            ip addr add "${staticIP}"/"$NETMASK" broadcast $broadcastAddress dev eth$__iterator
 
         elif is_fedora ; then
             __file_path="/etc/sysconfig/network-scripts/ifcfg-eth$__iterator"
@@ -191,7 +191,7 @@ ConfigureVF()
             echo "ONBOOT=yes" >> $__file_path
 
             ip link set eth$__iterator up
-            ip addr add "${staticIP}"/"$NETMASK" dev eth$__iterator
+            ip addr add "${staticIP}"/"$NETMASK" broadcast $broadcastAddress dev eth$__iterator
         fi
         LogMsg "Network config file path: $__file_path"
 
