@@ -65,7 +65,22 @@ function get_interrupts_per_vcpu() {
     for (( vcpu_line=1; vcpu_line<=$(nproc); vcpu_line++ ))
     do
         line=$(cat /proc/interrupts | grep -i MSI | awk '{$1=""} { for(i=2; i<='"$(($(nproc)+1))"'; i++) { { printf"%1s ", $i } if(i=='"$(($(nproc)+1))"') printf"\n"; }; }' \
-             | ruby -e'puts readlines.map(&:split).transpose.map{|x|x*" "}' | head -"$vcpu_line" | tail -1)
+             | awk '
+             {
+                 for (i=1; i<=NF; i++)  {
+                     a[NR,i] = $i
+                 }
+             }
+             NF>p { p = NF }
+             END {
+                 for(j=1; j<=p; j++) {
+                     str=a[1,j]
+                     for(i=2; i<=NR; i++){
+                         str=str"\t"a[i,j];
+                     }
+                     print str
+                 }
+             }' | head -"$vcpu_line" | tail -1)
         vcpu_number=$(($vcpu_line-1))
         interrupts_sum=$(echo $line | awk '{sum=0; for(i=1; i<=NF; i++) sum += $i; print sum}')
         cpu_array[$vcpu_number]+=$interrupts_sum
@@ -100,9 +115,11 @@ export PATH="/usr/local/bin:${PATH}"
 }
 UtilsInit
 
-# Install required package
-update_repos
-install_package ruby
+if [[ $(detect_linux_distribution) == coreos ]]; then
+    iperf3_cmd="docker run --network host lisms/iperf3"
+else
+    iperf3_cmd="iperf3"
+fi
 
 # Check if the VF count inside the VM is the same as the expected count
 vf_count=$(find /sys/devices -name net -a -ipath '*vmbus*' | grep pci | wc -l)
@@ -121,9 +138,9 @@ get_interrupts_per_vcpu "1"
 
 # Start iPerf3 to force the interrupt count to increase
 LogMsg "------------ Running iPerf3 for 10 minutes ------------"
-ssh -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$remote_user"@"$VF_IP2" "nohup iperf3 -s > /dev/null 2>&1 &"
+ssh -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$remote_user"@"$VF_IP2" "nohup $iperf3_cmd -s > /dev/null 2>&1 &"
 sleep 5
-iperf3 -t 600 -c $VF_IP2 -P 128
+$iperf3_cmd -t 600 -c $VF_IP2 -P 128
 if [ $? -eq 0 ]; then
     LogMsg "------------ iPerf3 run has finished ------------"
 else
