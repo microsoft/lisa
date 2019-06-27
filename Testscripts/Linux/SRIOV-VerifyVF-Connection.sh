@@ -130,18 +130,18 @@ while [ $__iterator -le "$vf_count" ]; do
     ping_exit_code=1
     while [ $i -lt 4 ]
     do
-        i=$[$i+1]
+        i=$(($i+1))
         sleep 10
         ping -c 11 "$static_IP_2" > "$static_IP_2.log" 2>&1
         ping_exit_code=$?
-        LogMsg "Try the $i times to ping $VF_IP2 through $synthetic_interface_vm_1"
-        if [ $ping_exit_code == 0 ]; then
+        LogMsg "Attempt #$i to ping $VF_IP2 through $synthetic_interface_vm_1"
+        if [ "$ping_exit_code" == 0 ]; then
             LogMsg "Successfully pinged $VF_IP2 through $synthetic_interface_vm_1"
             break
         fi
     done
 
-    if [ $ping_exit_code == 1 ]; then
+    if [ "$ping_exit_code" == 1 ]; then
         LogErr "Unable to ping $VF_IP2 through $synthetic_interface_vm_1"
         SetTestStateFailed
         exit 0
