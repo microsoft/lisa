@@ -81,25 +81,34 @@ def CheckMtabEntry(command):
 def VerifyUUID():
     global verify_UUID_result
     RunLog.info("Verify UUID start...")
-    uuid_from_demesg = 0
+    uuid_from_dmesg = 0
     uuid_from_blkid = 0
-    dmsg_dev_count = 0
+    dmesg_dev_count = 0
+    uuid_from_dmesg_root = 0
+    uuid_from_fstab_root = 0
     output = JustRun("dmesg")
     output = output.lower()
     filter_condition_dmesg = r'uuid(=|/|-)(.*?)([ \t]|[\.])'
     filter_condition_blkid = r'(LABEL=\"(.*?)\"|)[ \t]uuid=\"(.*?)\"[ \t]'
     filter_condition_fstab = r'uuid(/|=)(\S+)[ \t]+\/(.*?)[ \t]+(.*?)[ \t]'
+    filter_condition_dmesg_root = r'root=/(.*?)[ \t]'
+    filter_condition_fstab_root = r'/(.*?)[ \t]/[ \t]'
 
-    dmsg_dev_count = output.count('command line:.*root=/dev/sd')
+    dmesg_dev_count = output.count('command line:.*root=/dev/sd')
 
     outputlist = re.split("\n", output)
     for line in outputlist:
         matchObj = re.search(filter_condition_dmesg, line, re.IGNORECASE)
 
         if matchObj:
-           uuid_from_demesg = matchObj.groups()[-2]
+           uuid_from_dmesg = matchObj.groups()[-2]
+           uuid_from_dmesg = uuid_from_dmesg.replace("\\x2d", "-")
 
-    uuid_from_demesg = uuid_from_demesg.replace("\\x2d", "-")
+    for line in outputlist:
+        matchObj = re.search(filter_condition_dmesg_root, line, re.IGNORECASE)
+
+        if matchObj:
+           uuid_from_dmesg_root = matchObj.groups()
 
     output = JustRun("blkid")
     output = output.lower()
@@ -108,7 +117,7 @@ def VerifyUUID():
     for line in outputlist:
         matchObj = re.search(filter_condition_blkid, line, re.IGNORECASE)
 
-        if (matchObj and uuid_from_demesg == matchObj.groups()[-1]):
+        if (matchObj and uuid_from_dmesg == matchObj.groups()[-1]):
             uuid_from_blkid = matchObj.groups()[-1]
 
     uuid_from_fstab = 0
@@ -124,9 +133,14 @@ def VerifyUUID():
             if (uuid_from_blkid == matchObj.groups()[-3]):
                 uuid_from_fstab = matchObj.groups()[-3]
 
-    if(uuid_from_demesg and uuid_from_fstab and (uuid_from_demesg == uuid_from_fstab) and (dmsg_dev_count == 0) and (fstab_dev_count == 0)):
+    for line in outputlist:
+        matchObj = re.search(filter_condition_fstab_root, line, re.IGNORECASE)
+
+        if matchObj:
+                uuid_from_fstab_root = matchObj.groups()
+
+    if((uuid_from_dmesg and uuid_from_fstab and (uuid_from_dmesg == uuid_from_fstab) and (dmesg_dev_count == 0) and (fstab_dev_count == 0)) or uuid_from_dmesg_root == uuid_from_fstab_root):
         verify_UUID_result = True
-        #print "UUID are valid and matched"
     elif (DetectDistro()[0] == 'coreos'):
         output = JustRun("dmesg | grep root")
         if ("root=LABEL" in output):
@@ -144,18 +158,18 @@ def VerifyUUID():
         else:
             RunLog.info("Verify UUID failed.")
     elif(DetectDistro()[0] == 'ubuntu' and fstab_dev_count == 1):
-        if (uuid_from_demesg != 0 and uuid_from_fstab != 0 and uuid_from_demesg == uuid_from_fstab and dmsg_dev_count == 0):
+        if (uuid_from_dmesg != 0 and uuid_from_fstab != 0 and uuid_from_dmesg == uuid_from_fstab and dmesg_dev_count == 0):
            verify_UUID_result = True
         else:
            RunLog.info("Verify UUID failed.")
     else:
-        if (uuid_from_demesg == 0):
+        if (uuid_from_dmesg == 0):
             RunLog.info('/ partition is not mounted using UUID in dmesg.')
         if (uuid_from_fstab == 0):
             RunLog.info('/ partition is not mounted using UUID in /etc/fstab.')
-        if (uuid_from_demesg != uuid_from_fstab):
+        if (uuid_from_dmesg != uuid_from_fstab):
             RunLog.info(' UUID is not same in dmesg and /etc/fstab.')
-        if (dmsg_dev_count != 0):
+        if (dmesg_dev_count != 0):
             RunLog.info('Found disks mounted without using UUID in dmesg.')
         if (fstab_dev_count != 0):
             RunLog.info('Found disks mounted without using UUID in /etc/fstab.')
