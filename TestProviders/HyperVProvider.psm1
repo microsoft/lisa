@@ -65,6 +65,9 @@ Class HyperVProvider : TestProvider
 				$customStatus = Set-CustomConfigInVMs -CustomKernel $this.CustomKernel -CustomLIS $this.CustomLIS `
 					-AllVMData $allVMData -TestProvider $this -RegisterRhelSubscription
 				if (!$customStatus) {
+					foreach ($vm in $allVMData) {
+						Stop-HyperVGroupVMs -HyperVGroupName $vm.HyperVGroupName -HyperVHost $vm.HyperVHost
+					}
 					$ErrorMessage = "Failed to set custom config in VMs."
 					Write-LogErr $ErrorMessage
 					return @{"VmData" = $null; "Error" = $ErrorMessage}
