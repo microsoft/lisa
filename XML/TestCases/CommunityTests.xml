@@ -67,6 +67,23 @@
         <Priority>2</Priority>
     </test>
     <test>
+        <TestName>FILE-SYSTEM-VERIFICATION-TESTS-AZURE-FILES</TestName>
+        <TestScript>FILE-SYSTEM-VERIFICATION-TESTS.ps1</TestScript>
+        <files>.\Testscripts\Linux\xfstesting.sh</files>
+        <setupType>OneVM</setupType>
+        <TestParameters>
+            <param>FSTYP=cifs</param>
+            <param>TEST_DIR=/root/test</param>
+            <param>TEST_FS_MOUNT_OPTS='-o vers=3.0,credentials=/etc/smbcredentials/lisav2.cred,dir_mode=0777,file_mode=0777,serverino'</param>
+            <param>MOUNT_OPTIONS='-o vers=3.0,credentials=/etc/smbcredentials/lisav2.cred,dir_mode=0777,file_mode=0777,serverino'</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Community</Category>
+        <Area>STORAGE</Area>
+        <Tags>storage,filesystem</Tags>
+        <Priority>2</Priority>
+    </test>
+    <test>
         <TestName>LINUX-TEST-PROJECT-TESTS</TestName>
         <TestScript>Run-LtpSuite.ps1</TestScript>
         <files>.\Testscripts\Linux\utils.sh,.\TestScripts\Linux\Linux-Test-Project-Tests.sh</files>
