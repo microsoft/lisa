@@ -17,7 +17,7 @@ function Main {
 		}
 		$currentKernelVersion = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort `
 			-username $user -password $password -command "uname -r"
-		if (Is-DpdkCompatible -KernelVersion $currentKernelVersion -DetectedDistro $global:DetectedDistro `
+		if ((Is-DpdkCompatible -KernelVersion $currentKernelVersion -DetectedDistro $global:DetectedDistro) `
 			-and ((Compare-KernelVersion $currentKernelVersion $MIN_KERNEL_VERSION) -ge 0)) {
 			Write-LogInfo "Confirmed Kernel version supported: $currentKernelVersion"
 		} else {
