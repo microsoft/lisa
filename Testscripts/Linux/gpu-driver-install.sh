@@ -91,6 +91,28 @@ function InstallCUDADrivers() {
         fi
     ;;
 
+    suse*)
+        distro_version=$(cat /etc/os-release|sed 's/"//g'|grep "VERSION_ID="| sed 's/VERSION_ID=//'| sed 's/\r//')
+        os_RELEASE=${distro_version%.*}
+        CUDA_REPO_PKG="cuda-repo-sles${os_RELEASE}-${CUDADriverVersion}.x86_64.rpm"
+        LogMsg "Using ${CUDA_REPO_PKG}"
+
+        wget http://developer.download.nvidia.com/compute/cuda/repos/sles"${os_RELEASE}"/x86_64/"${CUDA_REPO_PKG}" -O /tmp/"${CUDA_REPO_PKG}"
+        if [ $? -ne 0 ]; then
+            LogErr "Failed to download ${CUDA_REPO_PKG}"
+            SetTestStateAborted
+            return 1
+        fi
+
+        rpm -ivh /tmp/"${CUDA_REPO_PKG}"
+        zypper install -y cuda-drivers > ${HOME}/install_drivers.log 2>&1
+        if [ ! -f "${HOME}/install_drivers.log" ]; then
+            LogErr "Failed to install the cuda-drivers!"
+            SetTestStateAborted
+            return 1
+        fi
+    ;;
+
     ubuntu*)
         GetOSVersion
         CUDA_REPO_PKG="cuda-repo-ubuntu${os_RELEASE//./}_${CUDADriverVersion}_amd64.deb"
