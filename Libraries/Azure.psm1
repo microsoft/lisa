@@ -2338,7 +2338,7 @@ function Check-AzureVmKernelPanic {
     if ($diagStatus -and (Test-Path $bootDiagnosticFile)) {
         $diagFileContent = Get-Content $bootDiagnosticFile
         if ($diagFileContent -like "*Kernel panic - not syncing:*" -or $diagFileContent -like "*RIP:*" `
-              -or $diagFileContent -like '*grub>*') {
+              -or $diagFileContent -like '*grub>*' -or $diagFileContent -like '*(initramfs) *') {
             return $true
         }
     }
