@@ -2,6 +2,8 @@
 # Licensed under the Apache License.
 param([object] $AllVmData, [object] $CurrentTestData, [object] $TestProvider)
 
+$MIN_KERNEL_VERSION = "4.20"
+
 function Main {
 	# Create test result
 	$superUser = "root"
@@ -16,7 +18,7 @@ function Main {
 		$currentKernelVersion = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort `
 			-username $user -password $password -command "uname -r"
 		if (Is-DpdkCompatible -KernelVersion $currentKernelVersion -DetectedDistro $global:DetectedDistro `
-			-and (Compare-KernelVersion $currentKernelVersion "4.20" -ge 0)) {
+			-and ((Compare-KernelVersion $currentKernelVersion $MIN_KERNEL_VERSION) -ge 0)) {
 			Write-LogInfo "Confirmed Kernel version supported: $currentKernelVersion"
 		} else {
 			Write-LogWarn "Unsupported Kernel version: $currentKernelVersion or unsupported distro $($global:DetectedDistro)"
