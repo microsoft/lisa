@@ -15,7 +15,7 @@
         <testScript>VERIFY-DEPLOYMENT-PROVISION.ps1</testScript>
         <files></files>
         <setupType>OneVM</setupType>
-        <OverrideVMSize>Standard_DS1_v2</OverrideVMSize>
+        <OverrideVMSize>Standard_DS4_v2</OverrideVMSize>
         <AdditionalHWConfig>
             <DiskType>Managed</DiskType>
             <OSDiskType>Ephemeral</OSDiskType>
