@@ -303,6 +303,17 @@ function Create-HyperVGroupDeployment([string]$HyperVGroupName, $HyperVGroupXML,
                     continue
                 }
             }
+            # Check host memory before creating any VM
+            if ($CurrentTestData.OverrideVMSize) {
+                $CurrentVMSize = $CurrentTestData.OverrideVMSize
+            } else {
+                $CurrentVMSize = $VirtualMachine.ARMInstanceSize
+            }
+            Set-Variable -Name HyperVInstanceSize -Value $CurrentVMSize -Scope Global
+            $CurrentVMCpu = $HyperVMappedSizes.HyperV.$CurrentVMSize.NumberOfCores
+            $CurrentVMMemory = [int]$HyperVMappedSizes.HyperV.$CurrentVMSize.MemoryInMB
+            Get-HostMemory -HvServer $HyperVHost -RequestedMemory $CurrentVMMemory
+            $CurrentVMMemory = [int]$CurrentVMMemory * 1MB
 
             $vhdSuffix = [System.IO.Path]::GetExtension($OsVHD)
             $InterfaceAliasWithInternet = (Get-NetIPConfiguration -ComputerName $HyperVHost | Where-Object {$_.NetProfile.Name -ne 'Unidentified network'}).InterfaceAlias
@@ -370,15 +381,6 @@ function Create-HyperVGroupDeployment([string]$HyperVGroupName, $HyperVGroupXML,
             $Out = New-VHD -ParentPath $parentOsVHDPath -Path $CurrentVMOsVHDPath -ComputerName $HyperVHost
             if ($Out) {
                 Write-LogInfo "Prerequiste: Prepare OS Disk $CurrentVMOsVHDPath - Succeeded."
-                if ($CurrentTestData.OverrideVMSize) {
-                    $CurrentVMSize = $CurrentTestData.OverrideVMSize
-                } else {
-                    $CurrentVMSize = $VirtualMachine.ARMInstanceSize
-                }
-                Set-Variable -Name HyperVInstanceSize -Value $CurrentVMSize -Scope Global
-                $CurrentVMCpu = $HyperVMappedSizes.HyperV.$CurrentVMSize.NumberOfCores
-                $CurrentVMMemory = $HyperVMappedSizes.HyperV.$CurrentVMSize.MemoryInMB
-                $CurrentVMMemory = [int]$CurrentVMMemory * 1024 * 1024
                 Write-LogInfo "New-VM -Name $CurrentVMName -MemoryStartupBytes $CurrentVMMemory -BootDevice VHD -VHDPath $CurrentVMOsVHDPath -Generation $VMGeneration -Switch $($VMSwitches.Name) -ComputerName $HyperVHost"
                 $NewVM = New-VM -Name $CurrentVMName -MemoryStartupBytes $CurrentVMMemory -BootDevice VHD `
                     -VHDPath $CurrentVMOsVHDPath -Generation $VMGeneration -Switch $($VMSwitches.Name) -ComputerName $HyperVHost
@@ -511,6 +513,7 @@ function Stop-HyperVGroupVMs($HyperVGroupName, $HyperVHost) {
     }
     return $ReturnValue
 }
+
 function Get-AllHyperVDeployementData($HyperVGroupNames,$GlobalConfig,$RetryCount = 100) {
     $allDeployedVMs = @()
     function Create-QuickVMNode() {
@@ -580,8 +583,7 @@ function Get-AllHyperVDeployementData($HyperVGroupNames,$GlobalConfig,$RetryCoun
     return $allDeployedVMs
 }
 
-Function Inject-HostnamesInHyperVVMs($allVMData)
-{
+function Inject-HostnamesInHyperVVMs($allVMData) {
     $ErrorCount = 0
     try
     {
@@ -702,7 +704,6 @@ function Apply-HyperVCheckpoint {
     }
     return $true
 }
-
 
 function Check-IP {
     <#
@@ -889,4 +890,24 @@ function Wait-ForHyperVVMShutdown($HvServer,$VMNames) {
         Write-LogErr "Please provide HvServer and VMNames."
         throw "Wait-ForHyperVVMShutdown Missing Mandatory Parameters"
     }
+}
+
+function Get-HostMemory($HvServer, [int]$RequestedMemory) {
+    # Note: All values are in MB
+    Write-LogInfo "Checking if there is enough memory on $HvServer"
+    ## It is expected for a VM to fail to start even if there is
+    # exactly the same memory available as requested. We will calculate
+    # and decrease a 10% buffer before checking the available memory
+    $totalMemory = [math]::Round((Get-WmiObject -Class Win32_ComputerSystem -Computer $HvServer).TotalPhysicalMemory/1MB)
+    $bufferMemory = [int](0.1 * $totalMemory)
+    # Get available memory and decrease the buffer from it
+    $availableMemory = [int](Get-Counter -Counter "\Memory\Available MBytes" -ComputerName $HvServer).CounterSamples[0].CookedValue
+    $availableMemory = $availableMemory - $bufferMemory
+    # Check if there is enough memory to deploy the VM
+    $availableMemoryAfterDeploy = $availableMemory - $RequestedMemory
+    Write-LogInfo "Available memory on ${HvServer}: ${availableMemory}MB ::: Requested memory: ${RequestedMemory}MB"
+    if ($availableMemoryAfterDeploy -le 0) {
+        throw "Not enough memory on ${HvServer}"
+    }
+    return $true
 }

@@ -12,6 +12,74 @@ param([object] $AllVmData,
       [object] $CurrentTestData
     )
 
+$randomString = -join ((97..122) | Get-Random -Count 8 | % {[char]$_})
+$storageAccountName = "templisav2" + $randomString
+$fileShareName = "fileshare"
+$scratchName = "scratch"
+$skuName = "Standard_LRS"
+
+function Remove-StorageAccount {
+    param (
+        [string] $storageAccountName
+    )
+    Remove-AzStorageAccount -ResourceGroupName $AllVmData.ResourceGroupName `
+        -Name $storageAccountName -Force
+}
+
+function New-FileShare {
+    param (
+        $AllVmData,
+        $xfstestsConfig
+    )
+
+    # Create a new storage account inside the test RG
+    Write-LogInfo "Creating a new storage account"
+    $storageAccount = New-AzStorageAccount -ResourceGroupName $AllVmData.ResourceGroupName `
+        -Name $storageAccountName -Location $TestLocation -SkuName $skuName -Verbose
+    if ($storageAccount -eq $null) {
+        Write-LogErr "Failed to create a new storage account"
+        Remove-StorageAccount $storageAccountName
+        return 1
+    }
+
+    # Create file share on the storage account
+    $fileShareInfo = New-AzStorageShare -Name $fileShareName -Context $storageAccount.Context -Verbose
+    if ($fileShareInfo  -eq $null) {
+        Write-LogErr "Failed to create a new file share"
+        Remove-StorageAccount $storageAccountName
+        return 1
+    }
+    $scratchInfo = New-AzStorageShare -Name $scratchName -Context $storageAccount.Context -Verbose
+    if ($scratchInfo  -eq $null) {
+        Write-LogErr "Failed to create a new file share"
+        Remove-StorageAccount $storageAccountName
+        return 1
+    }
+    $sharePassword = (Get-AzStorageAccountKey -ResourceGroupName $AllVmData.ResourceGroupName `
+        -Name $storageAccountName).Value[0]
+    $shareHost = (Get-AzStorageShare -Context $storageAccount.Context).Uri.Host[0]
+    $url_main = $shareHost + "/" + $fileShareName
+    $url_scratch = $shareHost + "/" + $scratchName
+    Add-Content -Value "TEST_DEV=//$url_main" -Path $xfstestsConfig
+    Add-Content -Value "SCRATCH_DEV=//$url_scratch" -Path $xfstestsConfig
+
+    # Add new info in constants.sh
+    $cmdToSend = "sed -i '/TEST_FS_MOUNT_OPTS/d' /$superuser/constants.sh; echo 'share_user=`"$storageAccountName`"' >> /$superuser/constants.sh"
+    Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
+        -password $password -command $cmdToSend | Out-Null
+        $cmdToSend = "sed -i '/MOUNT_OPTIONS/d' /$superuser/constants.sh; echo 'share_scratch=`"$url_scratch`"' >> /$superuser/constants.sh"
+    Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
+        -password $password -command $cmdToSend | Out-Null
+    $cmdToSend = "echo 'share_main=`"$url_main`"' >> /$superuser/constants.sh; echo 'share_pass=`"$sharePassword`"' >> /$superuser/constants.sh"
+    Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
+        -password $password -command $cmdToSend | Out-Null
+    $cmdToSend = "echo 'fstab_info=`"nofail,vers=3.0,credentials=/etc/smbcredentials/lisav2.cred,dir_mode=0777,file_mode=0777,serverino`"' >> /$superuser/constants.sh"
+    Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
+        -password $password -command $cmdToSend | Out-Null
+
+    return 0
+}
+
 function Main {
     param (
         $AllVmData,
@@ -39,6 +107,12 @@ function Main {
             }
             Add-Content -Value "$param" -Path $xfstestsConfig
             Write-LogInfo "$param added to xfstests-config.config"
+        }
+        if ($TestFileSystem -eq "cifs") {
+            $sts = New-FileShare $AllVmData $xfstestsConfig
+            if ($sts[-1] -ne 0) {
+                throw "Failed to setup cifs"
+            }
         }
         Write-LogInfo "$xfstestsConfig created successfully"
 

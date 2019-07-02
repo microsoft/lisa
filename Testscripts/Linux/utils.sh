@@ -2165,7 +2165,7 @@ function detect_linux_distribution() {
 function update_repos() {
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos)
-			yum makecache
+			yum clean all
 			;;
 		ubuntu|debian)
 			apt-get update
@@ -2387,7 +2387,10 @@ function add_sles_benchmark_repo () {
 				repo_url="https://download.opensuse.org/repositories/benchmark/SLE_11_SP4/benchmark.repo"
 				;;
 			12*)
-				repo_url="https://download.opensuse.org/repositories/benchmark/SLE_12_SP3_Backports/benchmark.repo"
+				repo_url="https://download.opensuse.org/repositories/benchmark/SLE_12_SP4/benchmark.repo"
+				;;
+			15*)
+				repo_url="https://download.opensuse.org/repositories/benchmark/SLE_15_SP1/benchmark.repo"
 				;;
 			*)
 				echo "Unsupported SLES version $DISTRO_VERSION for add_sles_benchmark_repo"
