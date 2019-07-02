@@ -64,7 +64,7 @@ function Main {
         }
         # Create a file on the VM
         Write-LogInfo "Creating TestFile1"
-        $testfile1="Testfile_$(Get-Random -minimum 1 -maximum 1000)"
+        $testfile1="Testfile1_$(Get-Random -minimum 1 -maximum 1000)"
         $mnt_1="/mnt/1"
         $mnt_2="/mnt/2"
         Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command "touch $mnt_1/${testfile1}" -runAsSudo
@@ -95,7 +95,7 @@ function Main {
 
         # Create another file on the VM
         Write-LogInfo "Creating TestFile2"
-        $testfile2="Testfile_$(Get-Random -minimum 1 -maximum 1000)"
+        $testfile2="Testfile2_$(Get-Random -minimum 1 -maximum 1000)"
         Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command "touch $mnt_1/${testfile2}" -runAsSudo
         if (-not $?)
         {
@@ -124,9 +124,24 @@ function Main {
         }
 
         # Mount the partitions
-        Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command "mount /dev/sdc1 /mnt/1; mount /dev/sdc2 /mnt/2" -runAsSudo
+        $allDisks = Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort `
+            -command "ls /dev/sd* | grep -o '/dev/sd*[^0-9]' | uniq" -runAsSudo
+        $linuxOSDiskName = Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort `
+            -command ". utils.sh && get_OSdisk" -runAsSudo
+        # After restarting the VM, the OS disk name may swap to another one like /dev/sdc, so skip it
+        $availableDisks = @()
+        foreach ( $disk in ($allDisks -split "/dev/") ) {
+            if ($disk -and ($disk.Trim() -ne $linuxOSDiskName)) {
+                $availableDisks += $disk.Trim()
+            }
+        }
+        $mount_1st_disk = $availableDisks[0]
+        $mount_2nd_disk = $availableDisks[1]
+        Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort `
+            -command "mount /dev/${mount_1st_disk}1 /mnt/1; mount /dev/${mount_1st_disk}2 /mnt/2" -runAsSudo
         if ($TestParams.DUALMOUNT) {
-            Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command "mount /dev/sdd1 /mnt/1;  mount /dev/sdd2 /mnt/2" -runAsSudo
+            Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort `
+                -command "mount /dev/${mount_2nd_disk}1 /mnt/1; mount /dev/${mount_2nd_disk}2 /mnt/2" -runAsSudo
         }
         $sts1 = Check-FileInLinuxGuest -VMPassword $password -VMPort $VMPort -VMUserName $user -Ipv4 $Ipv4 -fileName "/mnt/1/${testfile1}"
         $sts2 = Check-FileInLinuxGuest -VMPassword $password -VMPort $VMPort -VMUserName $user -Ipv4 $Ipv4 -fileName "/mnt/2/${testfile1}"
@@ -147,9 +162,11 @@ function Main {
         Write-LogInfo "Info : Deleting Snapshot ${snapshot} of VM ${VMName}"
         # First, unmount the partitions
         if ($TestParams.DUALMOUNT) {
-            Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command "umount /dev/sdd1;  umount /dev/sdd2" -runAsSudo
+            Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort `
+                -command "umount /dev/${mount_2nd_disk}1; umount /dev/${mount_2nd_disk}2" -runAsSudo
         }
-        Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command "umount /dev/sdc1; umount /dev/sdc2" -runAsSudo
+        Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort `
+            -command "umount /dev/${mount_1st_disk}1; umount /dev/${mount_1st_disk}2" -runAsSudo
 
         Remove-VMSnapshot -VMName $VMName -Name $snapshot -ComputerName $HvServer
 
@@ -168,7 +185,7 @@ function Main {
         $resultArr += $testResult
     }
     $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
-	return $currentTestResult.TestResult
+    return $currentTestResult.TestResult
 }
 
 Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n")) -allVMData $AllVmData

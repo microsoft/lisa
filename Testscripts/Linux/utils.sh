@@ -3606,3 +3606,16 @@ function wget_retry() {
 		exit 1
 	fi
 }
+
+function get_OSdisk() {
+	for driveName in /dev/sd*[^0-9];
+	do
+		fdisk -l $driveName | grep -i "Linux filesystem" > /dev/null
+		if [ 0 -eq $? ]; then
+			os_disk=$(echo $driveName | awk -v FS=/ '{print $NF}')
+			break
+		fi
+	done
+
+	echo "$os_disk"
+}
