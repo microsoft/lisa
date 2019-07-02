@@ -2165,7 +2165,7 @@ function detect_linux_distribution() {
 function update_repos() {
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos)
-			yum makecache
+			yum clean all
 			;;
 		ubuntu|debian)
 			apt-get update
