@@ -8,13 +8,17 @@
 #    - Supported Distros: Debian, Ubuntu, RHEL, Fedora, CentOS
 #    - Supported disks: sdc, nvme0n1
 #    - Supported filesystem tests: generic, btrfs, ext4, xfs
+#
+# Details on excluded tests:
+#  - generic/211 - test takes too long to run on high RAM capacity VM.
+#
 #######################################################################
 XFSTestConfigFile="xfstests-config.config"
 xfs_folder="xfstests"
 dbench_folder="dbench"
 xfs_git_url="git://git.kernel.org/pub/scm/fs/xfs/xfstests-dev.git"
 dbench_git_url="https://github.com/sahlberg/dbench.git"
-excluded_tests="generic/430 generic/431 generic/434 /xfs/438 xfs/490 btrfs/007 btrfs/178"
+excluded_tests="generic/211 generic/430 generic/431 generic/434 /xfs/438 xfs/490 btrfs/007 btrfs/178"
 excluded_cifs="generic/013 generic/014 generic/070 generic/117 generic/430 generic/431 generic/434 generic/438 generic/476"
 . utils.sh || {
     echo "ERROR: unable to source utils.sh!"
