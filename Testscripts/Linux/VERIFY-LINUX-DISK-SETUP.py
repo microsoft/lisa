@@ -85,14 +85,16 @@ def VerifyUUID():
     uuid_from_blkid = 0
     dmesg_dev_count = 0
     uuid_from_dmesg_root = 0
+    uuid_from_blkid_root = 0
     uuid_from_fstab_root = 0
     output = JustRun("dmesg")
     output = output.lower()
     filter_condition_dmesg = r'uuid(=|/|-)(.*?)([ \t]|[\.])'
-    filter_condition_blkid = r'(LABEL=\"(.*?)\"|)[ \t]uuid=\"(.*?)\"[ \t]'
+    filter_condition_blkid = r'(label=\"(.*?)\"|)[ \t]uuid=\"(.*?)\"[ \t]'
     filter_condition_fstab = r'uuid(/|=)(\S+)[ \t]+\/(.*?)[ \t]+(.*?)[ \t]'
     filter_condition_dmesg_root = r'root=/(.*?)[ \t]'
     filter_condition_fstab_root = r'/(.*?)[ \t]/[ \t]'
+    filter_condition_blkid_root = r'/(.*?)\:[ \t]label=\"(.*?)\"[ \t]uuid=\"(.*?)\"[ \t]'
 
     dmesg_dev_count = output.count('command line:.*root=/dev/sd')
 
@@ -114,6 +116,16 @@ def VerifyUUID():
     output = output.lower()
 
     outputlist = re.split("\n", output)
+
+    if uuid_from_dmesg_root:
+        for line in outputlist:
+            matchObj = re.search(filter_condition_blkid_root, line, re.IGNORECASE)
+
+            if matchObj:
+                uuid_from_blkid_root = matchObj.groups()[-3]
+                if (uuid_from_blkid_root == uuid_from_dmesg_root[-1]):
+                    uuid_from_blkid = matchObj.groups()[-1]
+
     for line in outputlist:
         matchObj = re.search(filter_condition_blkid, line, re.IGNORECASE)
 
@@ -139,7 +151,7 @@ def VerifyUUID():
         if matchObj:
                 uuid_from_fstab_root = matchObj.groups()
 
-    if((uuid_from_dmesg and uuid_from_fstab and (uuid_from_dmesg == uuid_from_fstab) and (dmesg_dev_count == 0) and (fstab_dev_count == 0)) or uuid_from_dmesg_root == uuid_from_fstab_root):
+    if((uuid_from_dmesg and uuid_from_fstab and (uuid_from_dmesg == uuid_from_fstab) and (dmesg_dev_count == 0) and (fstab_dev_count == 0)) or (uuid_from_dmesg_root == uuid_from_fstab_root) or (uuid_from_fstab == uuid_from_blkid)):
         verify_UUID_result = True
     elif (DetectDistro()[0] == 'coreos'):
         output = JustRun("dmesg | grep root")
