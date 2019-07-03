@@ -116,6 +116,12 @@ function Main {
         Copy-RemoteFiles -uploadTo $allVMData.PublicIP -port $allVMData.SSHPort `
             -files $currentTestData.files -username $superuser -password $password -upload | Out-Null
 
+        #Skip test case against distro CLEARLINUX and COREOS based here https://docs.microsoft.com/en-us/azure/virtual-machines/linux/n-series-driver-setup
+        if (@("CLEARLINUX", "COREOS").contains($global:detectedDistro)) {
+            Write-LogInfo "$($global:detectedDistro) is not supported! Test skipped"
+            return $ResultSkipped
+        }
+
         # this covers both NV and NVv2 series
         if ($allVMData.InstanceSize -imatch "Standard_NV") {
             $driver = "GRID"
