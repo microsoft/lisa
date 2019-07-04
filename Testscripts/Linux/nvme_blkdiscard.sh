@@ -17,8 +17,15 @@
     exit 0
 }
 UtilsInit
+
+if [ "$DISTRO" == "ubuntu_14.04" ]; then
+    LogMsg "${DISTRO} is not supported as it does not include blkdiscard."
+    SetTestStateSkipped
+    exit 0
+fi
+
 Run_Blkdiscard() {
-    # Install nvme-cli tool and parted
+    # Install nvme-cli tool
     update_repos
     install_nvme_cli
     # Count NVME namespaces
@@ -34,9 +41,9 @@ Run_Blkdiscard() {
         umount "$namespace"
         (echo d; echo w) | fdisk "/dev/${namespace}"
         sync
-        #Format and mount nvme to namespace
+        # Format and mount nvme to namespace
         Format_Mount_NVME ${namespace} xfs
-        #unmont
+        # unmont
         umount "$namespace"
         if [ $? -ne 0 ]; then
             LogErr "Failed to unmount ${namespace}"
@@ -45,23 +52,23 @@ Run_Blkdiscard() {
         else
             LogMsg "Unmounted ${namespace}"
         fi
-        #Run blkdiscard on partition
+        # Run blkdiscard on partition
         blkdiscard  -v "/dev/${namespace}p1"
         if [ $? -ne 0 ]; then
             LogErr "Failed to run blkdiscard on ${namespace}"
             SetTestStateFailed
             exit 0
         else
-            LogMsg "Blkdiscard ran successfully"
+            LogMsg "blkdiscard ran successfully"
         fi
-        #Check mount after discard
+        # Check mount after discard
         mount "/dev/${namespace}p1" "$namespace"
         if [ $? -eq 0 ]; then
-            LogErr "Mounted ${namespace}p1 Test failed "
+            LogErr "Mounted ${namespace}p1 Test failed"
             SetTestStateFailed
             exit 0
         else
-            LogMsg "Failed to mount ${namespace}p1 Blkdiscard successful"
+            LogMsg "Failed to mount ${namespace}p1 blkdiscard successful"
         fi
         UpdateSummary "All the operations on ${namespace} worked as expected!"
     done
@@ -69,5 +76,6 @@ Run_Blkdiscard() {
     SetTestStateCompleted
     exit 0
 }
-#Run testcase
+
+# Run testcase
 Run_Blkdiscard
