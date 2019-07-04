@@ -647,9 +647,9 @@ function Install-CustomLIS ($CustomLIS, $customLISBranch, $allVMData, [switch]$R
 	try
 	{
 		$CustomLIS = $CustomLIS.Trim()
-		if ( ($CustomLIS -ne "lisnext") -and !($CustomLIS.EndsWith("tar.gz")))
+		if ( ($CustomLIS -ne "lisnext") -and !($CustomLIS.EndsWith("tar.gz")) -and ($CustomLIS -ne "LatestLIS"))
 		{
-			Write-LogErr "Only lisnext and *.tar.gz links are supported. Use -CustomLIS lisnext -LISbranch <branch name>. Or use -CustomLIS <link to tar.gz file>"
+			Write-LogErr "Only lisnext, LatestLIS and *.tar.gz links are supported. Use -CustomLIS lisnext -LISbranch <branch name>. Or use -CustomLIS <link to tar.gz file>. Or use -CustomLIS LatestLIS"
 		}
 		else
 		{
