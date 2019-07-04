@@ -55,6 +55,7 @@ function Main {
     Write-Output "REMOTE_LOG_PATH=/root/LongPerfStressTest" >> ltpt_deployment_data.txt
     Write-Output "VM_USERNAME=$user" >> ltpt_deployment_data.txt
     Write-Output "VM_PASSWORD=$password" >> ltpt_deployment_data.txt
+    Write-Output "RG_NAME=$resourceGroupName" >> ltpt_deployment_data.txt
 
     Write-LogInfo "Adding resource group tag: LongPerfStressTest=yes"
     Add-ResourceGroupTag -ResourceGroup $resourceGroupName -TagName LongPerfStressTest -TagValue yes
