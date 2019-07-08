@@ -266,7 +266,7 @@ Function Change-StorageAccountType($TestCaseData, [string]$Location, $GlobalConf
     return $changedSC
 }
 
-Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Distro, [string]$TestLocation, $GlobalConfig, $TiPSessionId, $TipCluster, $UseExistingRG, $ResourceCleanup) {
+Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Distro, [string]$TestLocation, $GlobalConfig, $TiPSessionId, $TipCluster, $UseExistingRG, $ResourceCleanup, $PlatformFaultDomainCount, $PlatformUpdateDomainCount) {
     $resourceGroupCount = 0
     $Error = ""
     Write-LogInfo "Current test setup: $($SetupTypeData.Name)"
@@ -343,7 +343,8 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
                         $azureDeployJSONFilePath = Join-Path $env:TEMP "$groupName.json"
                         $null = Generate-AzureDeployJSONFile -RGName $groupName -ImageName $osImage -osVHD $osVHD -RGXMLData $RG -Location $location `
                                 -azuredeployJSONFilePath $azureDeployJSONFilePath -CurrentTestData $TestCaseData -TiPSessionId $TiPSessionId -TipCluster $TipCluster `
-                                -StorageAccountName $used_SC
+                                -StorageAccountName $used_SC -PlatformFaultDomainCount $PlatformFaultDomainCount `
+                                -PlatformUpdateDomainCount $PlatformUpdateDomainCount
 
                         $DeploymentStartTime = (Get-Date)
                         $CreateRGDeployments = Create-ResourceGroupDeployment -RGName $groupName -TemplateFile $azureDeployJSONFilePath `
@@ -702,7 +703,7 @@ Function Get-NewVMName ($namePrefix, $numberOfVMs) {
 }
 
 Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, $Location, $azuredeployJSONFilePath,
-    $CurrentTestData, $StorageAccountName, $TiPSessionId, $TipCluster) {
+    $CurrentTestData, $StorageAccountName, $TiPSessionId, $TipCluster, $PlatformFaultDomainCount, $PlatformUpdateDomainCount) {
 
     #Random Data
     $RGrandomWord = ([System.IO.Path]::GetRandomFileName() -replace '[^a-z]')
@@ -992,10 +993,19 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
             Add-Content -Value "$($indents[4])^TipNode.SessionId^: ^$TiPSessionId^" -Path $jsonFile
             Add-Content -Value "$($indents[3])}," -Path $jsonFile
         }
+
+        $faultDomainCount = 2
+        $updateDomainCount = 5
+        if ($PlatformFaultDomainCount) {
+            $faultDomainCount = $PlatformFaultDomainCount
+        }
+        if ($PlatformUpdateDomainCount) {
+            $updateDomainCount = $PlatformUpdateDomainCount
+        }
         Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
         Add-Content -Value "$($indents[3]){" -Path $jsonFile
-        Add-Content -Value "$($indents[4])^platformFaultDomainCount^:2," -Path $jsonFile
-        Add-Content -Value "$($indents[4])^platformUpdateDomainCount^:5" -Path $jsonFile
+        Add-Content -Value "$($indents[4])^platformFaultDomainCount^:$faultDomainCount," -Path $jsonFile
+        Add-Content -Value "$($indents[4])^platformUpdateDomainCount^:$updateDomainCount" -Path $jsonFile
         if ( $TiPSessionId -and $TiPCluster) {
             Add-Content -Value "$($indents[4])," -Path $jsonFile
             Add-Content -Value "$($indents[4])^internalData^:" -Path $jsonFile
