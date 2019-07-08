@@ -41,33 +41,41 @@ function Check-Result {
         Write-LogInfo "Test is running. Attempt number ${attempts} to reach VM"
         $attempts++
         $isVmAlive = Is-VmAlive -AllVMDataObject $AllVMData -MaxRetryCount 5
+        Start-Sleep -s 5
         if ($isVmAlive -eq "True") {
-            $state = Run-LinuxCmd -ip $VmIp -port $VMPort -username $User -password $Password -command "cat state.txt" -ignoreLinuxExitCode:$true
-            if (-not $state) {
-                if ($TestPlatform -eq "HyperV" -and (Get-VMIntegrationService $VMName -ComputerName $HvServer | `
-                    Where-Object {$_.name -eq "Heartbeat"}).PrimaryStatusDescription `
-                    -match "No Contact|Lost Communication") {
+            try{
+                $state = Run-LinuxCmd -ip $VmIp -port $VMPort -username $User -password $Password -command "cat state.txt" -ignoreLinuxExitCode:$true
+            } catch {
+                Write-LogInfo "Current VM is inaccessible, please wait for a while."
+            } finally {
+                if (-not $state) {
+                    if ($TestPlatform -eq "HyperV" -and (Get-VMIntegrationService $VMName -ComputerName $HvServer | `
+                        Where-Object {$_.name -eq "Heartbeat"}).PrimaryStatusDescription `
+                        -match "No Contact|Lost Communication") {
 
-                    Stop-VM -Name $VMName -ComputerName $HvServer -Force -TurnOff
-                    Write-LogErr "Lost Communication or No Contact to VM!"
-                    break
+                        Stop-VM -Name $VMName -ComputerName $HvServer -Force -TurnOff
+                        Write-LogErr "Lost Communication or No Contact to VM!"
+                    } else {
+                        Write-LogInfo "Current VM is inaccessible, please wait for a while."
+                    }
                 } else {
-                    Write-LogInfo "Current VM is inaccessible, please wait for a while."
-                }
-            } else {
-                if ($state -eq $testRunning){
-                    Write-LogInfo "Test is still running!"
-                } elseif (($state -eq $testCompleted) -or ($state -eq $testSkipped)) {
-                    Write-LogInfo "state file contains ${state}"
-                    $retVal = $True
-                    break
-                } elseif (($state -eq $testAborted) -or ($state -eq $testFailed)) {
-                    Write-LogErr "state file contains ${state}"
-                    break
+                    if ($state -eq $testRunning){
+                        Write-LogInfo "Test is still running!"
+                    } elseif (($state -eq $testCompleted) -or ($state -eq $testSkipped)) {
+                        Write-LogInfo "state file contains ${state}"
+                        $retVal = $True
+                    } elseif (($state -eq $testAborted) -or ($state -eq $testFailed)) {
+                        Write-LogErr "state file contains ${state}"
+                    }
                 }
             }
         } else {
             Write-LogInfo "Current VM is inaccessible, please wait for a while."
+        }
+        if (($state -eq $testCompleted) -or ($state -eq $testSkipped) -or ($state -eq $testAborted) -or ($state -eq $testFailed) -or ($TestPlatform -eq "HyperV" -and (Get-VMIntegrationService $VMName -ComputerName $HvServer | `
+                        Where-Object {$_.name -eq "Heartbeat"}).PrimaryStatusDescription `
+                        -match "No Contact|Lost Communication")) {
+            break
         }
     }
     if ($sw.elapsed -ge $timeout) {
