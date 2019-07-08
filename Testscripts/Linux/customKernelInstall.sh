@@ -315,7 +315,7 @@ function InstallKernel() {
 
             LogMsg "Installing ${customKernelFilesUnExpanded}"
             CheckInstallLockUbuntu
-            eval "dpkg -i $customKernelFilesUnExpanded >> $LOG_FILE 2>&1"
+            eval "dpkg -i --force-overwrite $customKernelFilesUnExpanded >> $LOG_FILE 2>&1"
             kernelInstallStatus=$?
             image_file=$(ls -1 *image* | grep -v "dbg" | sed -n 1p)
         fi
