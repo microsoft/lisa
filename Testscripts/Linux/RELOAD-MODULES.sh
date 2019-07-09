@@ -35,6 +35,8 @@ skip_modules=()
 config_path="/boot/config-$(uname -r)"
 if [[ $(detect_linux_distribution) == clear-linux-os ]]; then
     config_path="/usr/lib/kernel/config-$(uname -r)"
+elif [[ $(detect_linux_distribution) == coreos ]];then
+    config_path="/usr/boot/config-$(uname -r)"
 fi
 
 declare -A config_modulesDic
@@ -101,7 +103,19 @@ BringNetworkUp()
         ip route add $default_route
     fi
 
-    ipAddress=$(ip addr show eth0 | grep "inet\b")
+    retryTime=1
+    maxRetryTimes=5
+    while [ $retryTime -le $maxRetryTimes ]
+    do
+        LogMsg "Sleep 3 seconds to get eth0 ip for the $retryTime time(s)."
+        sleep 3
+        ipAddress=$(ip addr show eth0 | grep "inet\b")
+        if [ -n "$ipAddress" ];then
+            break
+        fi
+        retryTime=$(($retryTime+1))
+    done
+
     if [ -z "$ipAddress" ]; then
         if ! (dhclient -r && dhclient)
         then
