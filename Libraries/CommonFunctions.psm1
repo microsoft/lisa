@@ -600,7 +600,7 @@ function Install-CustomKernel ($CustomKernel, $allVMData, [switch]$RestartAfterU
 				}
 			}
 			if ( $kernelSuccess -eq $jobCount ) {
-				Write-LogInfo "Kernel upgraded to `"$CustomKernel`" successfully in $($allVMData.Count) VM(s)."
+				Write-LogInfo "Kernel upgraded to `"$CustomKernel`" successfully in $jobCount VM(s)."
 				if ( $RestartAfterUpgrade ) {
 					Write-LogInfo "Now restarting VMs..."
 					if ( $TestProvider.RestartAllDeployments($allVMData) ) {

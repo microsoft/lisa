@@ -179,19 +179,32 @@ function Build_Kernel() {
     popd
 }
 
+function Get_Kernel_Name() {
+    count=$(find -name "*.deb" -type f | wc -l)
+    if [[ $count -gt 1 ]]; then
+        CustomKernel="*.deb"
+    elif [[ $count -eq 1 ]]; then
+        CustomKernel=$(find -name "*.deb" -type f)
+    fi
+    count=$(find -name "*.rpm" -type f | wc -l)
+    if [ $count -gt 1 ]; then
+        CustomKernel="*.rpm"
+    elif [ $count -eq 1 ]; then
+        CustomKernel=$(find -name "*.rpm" -type f)
+    fi
+    echo "${CustomKernel}"
+}
+
 function InstallKernel() {
     if [[ $CustomKernel =~ "http" ]];then
         install_package wget
         IFS=', ' read -r -a array <<<  "$CustomKernel"
-        for element in "${array[@]}"; do
-            LogMsg "Web link detected. Downloading $element"
-            wget "$element"
+        for url in "${array[@]}"; do
+            LogMsg "Web link detected. Downloading $url"
+            wget "$url"
         done
-        if [[ "${#array[@]}" -gt 1 && "${array[0]}" = *.deb ]]; then
-            CustomKernel="*.deb"
-        fi
-        if [[ "${#array[@]}" -gt 1 && "${array[0]}" = *.rpm ]]; then
-            CustomKernel="*.rpm"
+        if [[ "${#array[@]}" -gt 1 ]]; then
+            CustomKernel="$(Get_Kernel_Name)"
         fi
         if [[ "${#array[@]}" -eq 1 ]]; then
             CustomKernel="${CustomKernel##*/}"
@@ -200,18 +213,7 @@ function InstallKernel() {
 
     if [[ $CustomKernel = *tar.gz || $CustomKernel = *.tar ]]; then
         tar -xf "${CustomKernel#$LOCAL_FILE_PREFIX}"
-        count=$(find -name "*.deb" -type f | wc -l)
-        if [[ $count -gt 1 ]]; then 
-            CustomKernel="*.deb"
-        elif [[ $count -eq 1 ]]; then
-            CustomKernel=$(find -name "*.deb" -type f)
-        fi
-        count=$(find -name "*.rpm" -type f | wc -l)
-        if [ $count -gt 1 ]; then 
-            CustomKernel="*.rpm"
-        elif [ $count -eq 1 ]; then
-            CustomKernel=$(find -name "*.rpm" -type f)
-        fi
+        CustomKernel="$(Get_Kernel_Name)"
     fi
 
     if [ "${CustomKernel}" == "linuxnext" ]; then
