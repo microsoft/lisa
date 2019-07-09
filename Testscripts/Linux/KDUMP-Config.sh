@@ -6,7 +6,7 @@ kdump_conf=/etc/kdump.conf
 dump_path=/var/crash
 kdump_sysconfig=/etc/sysconfig/kdump
 boot_filepath=""
-
+target_version=2.0.15
 #
 # Source utils.sh to get more utils
 # Get $DISTRO, LogMsg directly from utils.sh
@@ -36,6 +36,20 @@ Install_Kexec(){
             apt-get update --fix-missing; apt --fix-broken install -y; apt_get_install "kexec-tools kdump-tools makedumpfile"
             if [ $? -ne 0 ]; then
                 UpdateSummary "Warning: Kexec-tools failed to install."
+            fi
+            #Existed bug for kexec-tools https://bugs.launchpad.net/ubuntu/+source/kexec-tools/+bug/1713940
+            if [[ "$DISTRO" == "ubuntu_14.04" || "$DISTRO_NAME" == "debian" ]]; then
+                kexec_version=$(kexec --v | awk -F' ' '{print $2}')
+                if version_gt "${target_version}" "${kexec_version}"; then
+                    apt_get_install "make gcc"
+                    wget "https://mirrors.edge.kernel.org/pub/linux/utils/kernel/kexec/kexec-tools-${kexecVersion}.tar.gz"
+                    kexec_tar=$(find -name "kexec-tools*" -type f)
+                    tar xf "${kexec_tar}"
+                    kexec_folder=$(find -name "kexec-tools*" -type d)
+                    pushd "${kexec_folder}" && ./configure && make && make install > /dev/null 2>&1
+                    popd
+                    yes | cp -f /usr/local/sbin/kexec /sbin/
+                fi
             fi
         ;;
         suse*)

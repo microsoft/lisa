@@ -3396,6 +3396,7 @@ function Format_Mount_NVME()
     else
         return 1
     fi
+    install_package xfsprogs
     # Partition disk
     echo "Creating  partition on ${namespace} disk "
     (echo n; echo p; echo 1; echo ; echo; echo ; echo w) | fdisk /dev/"${namespace}"
@@ -3522,7 +3523,7 @@ function check_package ()
 	for package_name in "${package_list[@]}"; do
 		case "$DISTRO_NAME" in
 			oracle|rhel|centos)
-				yum provides "$package_name" | grep -i Matched
+				yum --showduplicates list "$package_name" > /dev/null 2>&1
 				return $?
 				;;
 
@@ -3555,7 +3556,13 @@ function install_nvme_cli()
         echo "nvme is not installed\n Installing now..."
         check_package "nvme-cli"
         if [ $? -ne 0 ]; then
-            install_package "gcc gcc-c++ kernel-devel"
+            packages="gcc gcc-c++ kernel-devel make"
+            for package in $packages; do
+                check_package "$package"
+                if [ $? -eq 0 ]; then
+                    install_package "$package"
+                fi
+            done
             wget https://github.com/linux-nvme/nvme-cli/archive/${nvme_version}.tar.gz
             tar xvf ${nvme_version}.tar.gz
             pushd nvme-cli-${nvme_version/v/} && make && make install
@@ -3621,4 +3628,8 @@ function get_OSdisk() {
 	done
 
 	echo "$os_disk"
+}
+
+function version_gt() {
+	test "$(printf '%s\n' "$@" | sort -V | head -n 1)" != "$1"
 }
