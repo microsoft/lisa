@@ -96,6 +96,41 @@ function Start-Validation {
     #endregion
 }
 
+function Collect-CustomLogFile {
+    param (
+        [object] $fileName
+    )
+    if (Check-FileInLinuxGuest -ipv4 $allVMData.PublicIP -vmPassword $password -vmPort $allVMData.SSHPort -vmUserName $superuser -fileName $fileName) {
+        Copy-RemoteFiles -download -downloadFrom $allVMData.PublicIP -files $fileName `
+            -downloadTo $LogDir -port $allVMData.SSHPort -username $superuser -password $password
+    } else {
+        Write-LogWarn "${fileName} does not exist on VM."
+    }
+}
+
+function Collect-Logs {
+    # Get logs. An extra check for the previous $state is needed
+    # The test could actually hang. If state.txt is showing
+    # 'TestRunning' then abort the test
+    #####
+    # We first need to move copy from root folder to user folder for
+    # Collect-TestLogs function to work
+    Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
+        -password $password -command "cp * /home/$user" -ignoreLinuxExitCode:$true
+    Collect-TestLogs -LogsDestination $LogDir -ScriptName `
+        $currentTestData.files.Split('\')[3].Split('.')[0] -TestType "sh" -PublicIP `
+        $allVMData.PublicIP -SSHPort $allVMData.SSHPort -Username $user `
+        -password $password -TestName $currentTestData.testName | Out-Null
+    # Depending on the stage of the test the files may or may not exist.
+    if ($driver -eq "CUDA") {
+        Collect-CustomLogFile -fileName "install_drivers.log"
+        Collect-CustomLogFile -fileName "nvidia_dkms_make.log"
+    }
+    if ($driver -eq "GRID") {
+        Collect-CustomLogFile -fileName "nvidia-installer.log"
+    }
+}
+
 function Main {
     param (
         [object] $AllVmData,
@@ -172,6 +207,7 @@ function Main {
         if ($installState -ne "TestCompleted") {
             Write-LogErr "Unable to install the CUDA drivers!"
             $currentTestResult.TestResult = Get-FinalResultHeader -resultarr "FAIL"
+            Collect-Logs
             return $currentTestResult
         }
 
@@ -188,6 +224,7 @@ function Main {
         if ($null -eq $driverLoaded) {
             Write-LogErr "nVidia driver is not loaded after VM restart!"
             $currentTestResult.TestResult = Get-FinalResultHeader -resultarr "FAIL"
+            Collect-Logs
             return $currentTestResult
         }
 
@@ -220,28 +257,7 @@ function Main {
             $testResult = $resultFail
         }
 
-        # Get logs. An extra check for the previous $state is needed
-        # The test could actually hang. If state.txt is showing
-        # 'TestRunning' then abort the test
-        #####
-        # We first need to move copy from root folder to user folder for
-        # Collect-TestLogs function to work
-        Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
-            -password $password -command "cp * /home/$user" -ignoreLinuxExitCode:$true
-        Collect-TestLogs -LogsDestination $LogDir -ScriptName `
-            $currentTestData.files.Split('\')[3].Split('.')[0] -TestType "sh" -PublicIP `
-            $allVMData.PublicIP -SSHPort $allVMData.SSHPort -Username $user `
-            -password $password -TestName $currentTestData.testName | Out-Null
-        if ($driver -eq "CUDA") {
-            # Copy the dkms build log for the nvidia driver
-            Copy-RemoteFiles -download -downloadFrom $allVMData.PublicIP -files "nvidia_dkms_make.log, install_drivers.log" `
-                -downloadTo $LogDir -port $allVMData.SSHPort -username $superuser -password $password
-        }
-        if ($driver -eq "GRID") {
-            # Copy the nvidia-installer log
-            Copy-RemoteFiles -download -downloadFrom $allVMData.PublicIP -files "nvidia-installer.log" `
-                -downloadTo $LogDir -port $allVMData.SSHPort -username $superuser -password $password
-        }
+        Collect-Logs
 
         Write-LogInfo "Test Completed."
         Write-LogInfo "Test Result: $testResult"
