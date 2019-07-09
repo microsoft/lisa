@@ -194,11 +194,16 @@ Run_GPU_Benchmark_Test()
     if [ ! -e ${HOME}/test_results ]; then
         mkdir -p "${HOME}/test_results"
     fi
+    declare -A max_batch_size_per_mode=([inception3]=64 [vgg16]=128 [alexnet]=512 [resnet50]=64 [resnet152]=32)
 
     for mode in "${MODES[@]}"
     do
         for size in "${BATCH_SIZE[@]}"
         do
+            # Limit the batch size based on test mode to avoid the OOM(Out Of Memory) error
+            if [ $size -gt ${max_batch_size_per_mode[$mode]} ]; then
+                break
+            fi
             LogMsg "Run tensorflow batch_size=${size} model=${mode} data_name=imagenet device=gpu num_gpus=${gpucount}"
             outputName="${HOME}/test_results/${mode}-${size}-${gpucount}-gpu-result.log"
             python tf_cnn_benchmarks.py --local_parameter_device=cpu --batch_size=${size} --model=${mode} --data_name=imagenet --variable_update=parameter_server --distortions=True --device=gpu --data_format=NCHW --forward_only=False --use_fp16=False --num_gpus=${gpucount} 1> $outputName 2>&1 &
