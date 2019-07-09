@@ -70,10 +70,12 @@ function Main {
                 $ipIndex++
             }
             if ($ipIndex -gt 3) {
-                "NIC_COUNT=$($index+2)" | Out-File sriov_constants.sh -Append
+                $expectedVfCount=$($index+2)
             } else {
-                "NIC_COUNT=1" | Out-File sriov_constants.sh -Append
+                $expectedVfCount=1
             }
+            "NIC_COUNT=$expectedVfCount" | Out-File sriov_constants.sh -Append
+            Write-LogInfo "Expected VF Count in VM is: $expectedVfCount"
 
             "SSH_PRIVATE_KEY=id_rsa" | Out-File sriov_constants.sh -Append
             # Send sriov_constants.sh to VM
@@ -138,6 +140,19 @@ function Main {
         if ($CurrentTestData.Timeout) {
             $timeout = $CurrentTestData.Timeout
         }
+
+        # Determine if NIC_COUNT VFs are present in dependency VM before running remote test script.
+        Write-LogInfo "Checking VF count in dependency VM."
+        $cmdToSend = "find /sys/devices -name net -a -ipath '*vmbus*' | grep -c pci"
+        $dependencyVfCount = Run-LinuxCmd -ip $publicIp -port $dependencyVmData.SSHPort -username $VMUsername -password `
+            $password -command $cmdToSend
+        $msg="Expected VF count in dependency VM: $expectedVfCount. Actual VF count: $dependencyVfCount"
+        if ($expectedVfCount -ne $dependencyVfCount) {
+            Write-LogErr $msg
+            return $False
+        }
+        Write-LogInfo $msg
+
         $cmdToSend = "echo '${password}' | sudo -S -s eval `"export HOME=``pwd``;bash $($TestParams.Remote_Script) > $($TestParams.Remote_Script)_summary.log 2>&1`""
         Run-LinuxCmd -ip $publicIp -port $vmPort -username $VMUsername -password `
             $password -command $cmdToSend -runMaxAllowedTime $timeout | Out-Null
