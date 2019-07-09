@@ -33,7 +33,7 @@ Install_Kexec(){
         ;;
         ubuntu* | debian*)
             export DEBIAN_FRONTEND=noninteractive
-            apt-get update; apt_get_install "kexec-tools kdump-tools makedumpfile"
+            apt-get update --fix-missing; apt --fix-broken install -y; apt_get_install "kexec-tools kdump-tools makedumpfile"
             if [ $? -ne 0 ]; then
                 UpdateSummary "Warning: Kexec-tools failed to install."
             fi
