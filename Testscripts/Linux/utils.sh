@@ -235,6 +235,9 @@ GetDistro()
 	#Get distro (snipper take from alsa-info.sh)
 	__DISTRO=$(grep -ihs "Ubuntu\|SUSE\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os\|CoreOS" /{etc,usr/lib}/{issue,*release,*version})
 	case $__DISTRO in
+		*Ubuntu*14.04*)
+			DISTRO=ubuntu_14.04
+			;;
 		*Ubuntu*)
 			DISTRO=ubuntu_x
 			;;
