@@ -121,15 +121,16 @@ function Install_Dpdk_Dependencies() {
 
 	elif [[ "${distro}" == "sles15" ]]; then
 		local kernel=$(uname -r)
-		dependencies_install_command="zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install gcc make git tar wget dos2unix psmisc libnuma-devel numactl librdmacm1 rdma-core-devel libmnl-devel"
+		dependencies_install_command="zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install --oldpackage gcc make git tar wget dos2unix psmisc libnuma-devel numactl librdmacm1 rdma-core-devel libmnl-devel"
 		if [[ "${kernel}" == *azure ]]; then
-			dependencies_install_command="${dependencies_install_command} kernel-azure kernel-devel-azure"
+			kernel_major="${kernel%-azure}"
+			dependencies_install_command="${dependencies_install_command} kernel-azure kernel-devel-azure-${kernel_major}.1"
 		else
 			dependencies_install_command="${dependencies_install_command} kernel-default-devel"
 		fi
 
 		ssh "${install_ip}" "${dependencies_install_command}"
-		ssh ${install_ip} "ln -s /usr/include/libmnl/libmnl/libmnl.h /usr/include/libmnl/libmnl.h"
+		ssh ${install_ip} "ln -sf /usr/include/libmnl/libmnl/libmnl.h /usr/include/libmnl/libmnl.h"
 	else
 		LogErr "ERROR: unsupported distro ${distro} for DPDK on Azure"
 		SetTestStateAborted
