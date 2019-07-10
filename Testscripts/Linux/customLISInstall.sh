@@ -40,12 +40,16 @@ UpdateTestState() {
 }
 
 if [ -z "$CustomLIS" ]; then
-	echo "Please mention flag -CustomLIS lisnext or tar.gz/rpm name"
+	echo "Please mention flag -CustomLIS lisnext or tar.gz/rpm name or LatestLIS"
 	exit 1
 fi
 if [ -z "$LISbranch" ]; then
 	echo "LIS branch not specified, using master branch"
 	LISbranch="master"
+fi
+
+if [ "${CustomLIS}" == "LatestLIS" ];then
+    CustomLIS=$(curl -Ls -o /dev/null -w %{url_effective} http://aka.ms/lis)
 fi
 touch ~/build-CustomLIS.txt
 

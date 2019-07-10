@@ -489,6 +489,12 @@ Function Main {
                 $LISTarballUrlOld = $param.Replace("LIS_TARBALL_URL_OLD=","")
             }
         }
+        if( $LISTarballUrlCurrent -eq "LatestLIS" ) {
+            $LISTarballUrlCurrent=Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "echo ``curl -Ls -o /dev/null -w %{url_effective} http://aka.ms/lis``"
+        }
+        if( $LISTarballUrlOld -eq "LatestLIS" ) {
+            $LISTarballUrlOld=Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "echo ``curl -Ls -o /dev/null -w %{url_effective} http://aka.ms/lis``"
+        }
         #PROVISION VMS FOR LISA WILL ENABLE ROOT USER AND WILL MAKE ENABLE PASSWORDLESS AUTHENTICATION ACROSS ALL VMS IN SAME HOSTED SERVICE.
         Provision-VMsForLisa -allVMData $AllVMData -installPackagesOnRoleNames "none"
         Check-Modules | Out-Null
