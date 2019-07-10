@@ -96,18 +96,6 @@ function Start-Validation {
     #endregion
 }
 
-function Collect-CustomLogFile {
-    param (
-        [object] $fileName
-    )
-    if (Check-FileInLinuxGuest -ipv4 $allVMData.PublicIP -vmPassword $password -vmPort $allVMData.SSHPort -vmUserName $superuser -fileName $fileName) {
-        Copy-RemoteFiles -download -downloadFrom $allVMData.PublicIP -files $fileName `
-            -downloadTo $LogDir -port $allVMData.SSHPort -username $superuser -password $password
-    } else {
-        Write-LogWarn "${fileName} does not exist on VM."
-    }
-}
-
 function Collect-Logs {
     # Get logs. An extra check for the previous $state is needed
     # The test could actually hang. If state.txt is showing
@@ -123,11 +111,14 @@ function Collect-Logs {
         -password $password -TestName $currentTestData.testName | Out-Null
     # Depending on the stage of the test the files may or may not exist.
     if ($driver -eq "CUDA") {
-        Collect-CustomLogFile -fileName "install_drivers.log"
-        Collect-CustomLogFile -fileName "nvidia_dkms_make.log"
+        Collect-CustomLogFile -PublicIP $allVMData.PublicIP -SSHPort $allVMData.SSHPort `
+            -Username $user -Password $password -LogsDestination $LogDir -FileName "install_drivers.log"
+        Collect-CustomLogFile -PublicIP $allVMData.PublicIP -SSHPort $allVMData.SSHPort `
+            -Username $user -Password $password -LogsDestination $LogDir -FileName "nvidia_dkms_make.log"
     }
     if ($driver -eq "GRID") {
-        Collect-CustomLogFile -fileName "nvidia-installer.log"
+        Collect-CustomLogFile -PublicIP $allVMData.PublicIP -SSHPort $allVMData.SSHPort `
+            -Username $user -Password $password -LogsDestination $LogDir -FileName "nvidia-installer.log"
     }
 }
 
