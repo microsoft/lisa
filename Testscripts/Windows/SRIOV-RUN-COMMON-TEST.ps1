@@ -142,17 +142,18 @@ function Main {
         }
 
         # Determine if NIC_COUNT VFs are present in dependency VM before running remote test script.
-        Write-LogInfo "Checking VF count in dependency VM."
-        $cmdToSend = "find /sys/devices -name net -a -ipath '*vmbus*' | grep -c pci"
-        $dependencyVfCount = Run-LinuxCmd -ip $publicIp -port $dependencyVmData.SSHPort -username $VMUsername -password `
-            $password -command $cmdToSend
-        $msg="Expected VF count in dependency VM: $expectedVfCount. Actual VF count: $dependencyVfCount"
-        if ($expectedVfCount -ne $dependencyVfCount) {
-            Write-LogErr $msg
-            return $False
+        if ($dependencyVmData) {
+            Write-LogInfo "Checking VF count in dependency VM."
+            $cmdToSend = "find /sys/devices -name net -a -ipath '*vmbus*' | grep -c pci"
+            $dependencyVfCount = Run-LinuxCmd -ip $publicIp -port $dependencyVmData.SSHPort -username $VMUsername -password `
+              $password -command $cmdToSend
+            $msg="Expected VF count in dependency VM: $expectedVfCount. Actual VF count: $dependencyVfCount"
+            if ($expectedVfCount -ne $dependencyVfCount) {
+                Write-LogErr $msg
+                return $False
+            }
+            Write-LogInfo $msg
         }
-        Write-LogInfo $msg
-
         $cmdToSend = "echo '${password}' | sudo -S -s eval `"export HOME=``pwd``;bash $($TestParams.Remote_Script) > $($TestParams.Remote_Script)_summary.log 2>&1`""
         Run-LinuxCmd -ip $publicIp -port $vmPort -username $VMUsername -password `
             $password -command $cmdToSend -runMaxAllowedTime $timeout | Out-Null
