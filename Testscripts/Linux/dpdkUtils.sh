@@ -65,7 +65,7 @@ function Modprobe_Setup() {
 	# known issue on sles15
 	local distro=$(detect_linux_distribution)$(detect_linux_distribution_version)
 	if [[ "${distro}" == "sles15" ]]; then
-		modprobe_cmd="${modprobe_cmd} mlx4_ib mlx5_ib"
+		modprobe_cmd="${modprobe_cmd} mlx4_ib mlx5_ib || true"
 	fi
 
 	ssh ${1} "${modprobe_cmd}"
@@ -121,10 +121,10 @@ function Install_Dpdk_Dependencies() {
 
 	elif [[ "${distro}" == "sles15" ]]; then
 		local kernel=$(uname -r)
-		dependencies_install_command="zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install --oldpackage gcc make git tar wget dos2unix psmisc libnuma-devel numactl librdmacm1 rdma-core-devel libmnl-devel"
+		dependencies_install_command="zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install gcc make git tar wget dos2unix psmisc libnuma-devel numactl librdmacm1 rdma-core-devel libmnl-devel"
 		if [[ "${kernel}" == *azure ]]; then
-			kernel_major="${kernel%-azure}"
-			dependencies_install_command="${dependencies_install_command} kernel-azure kernel-devel-azure-${kernel_major}.1"
+			ssh "${install_ip}" "zypper install --oldpackage -y kernel-azure-devel=${kernel::-6}"
+			dependencies_install_command="${dependencies_install_command} kernel-devel-azure"
 		else
 			dependencies_install_command="${dependencies_install_command} kernel-default-devel"
 		fi
