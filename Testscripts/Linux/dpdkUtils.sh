@@ -65,7 +65,7 @@ function Modprobe_Setup() {
 	# known issue on sles15
 	local distro=$(detect_linux_distribution)$(detect_linux_distribution_version)
 	if [[ "${distro}" == "sles15" ]]; then
-		modprobe_cmd="${modprobe_cmd} mlx4_ib mlx5_ib"
+		modprobe_cmd="${modprobe_cmd} mlx4_ib mlx5_ib || true"
 	fi
 
 	ssh ${1} "${modprobe_cmd}"
@@ -114,19 +114,23 @@ function Install_Dpdk_Dependencies() {
 			# we have to update the repositories first
 			ssh ${install_ip} "yum -y --nogpgcheck install centos-release"
 			ssh ${install_ip} "yum clean all"
+			ssh ${install_ip} "yum makecache"
 			yum_flags="--enablerepo=C*-base --enablerepo=C*-updates"
 		fi
 		ssh ${install_ip} "yum install --nogpgcheck ${yum_flags} --setopt=skip_missing_names_on_install=False -y gcc make git tar wget dos2unix psmisc kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel libmnl-devel"
 
 	elif [[ "${distro}" == "sles15" ]]; then
 		local kernel=$(uname -r)
+		dependencies_install_command="zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install gcc make git tar wget dos2unix psmisc libnuma-devel numactl librdmacm1 rdma-core-devel libmnl-devel"
 		if [[ "${kernel}" == *azure ]]; then
-			ssh ${install_ip} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install gcc make git tar wget dos2unix psmisc kernel-azure kernel-devel-azure libnuma-devel numactl librdmacm1 rdma-core-devel libmnl-devel"
+			ssh "${install_ip}" "zypper install --oldpackage -y kernel-azure-devel=${kernel::-6}"
+			dependencies_install_command="${dependencies_install_command} kernel-devel-azure"
 		else
-			ssh ${install_ip} "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install gcc make git tar wget dos2unix psmisc kernel-default-devel libnuma-devel numactl librdmacm1 rdma-core-devel libmnl-devel"
+			dependencies_install_command="${dependencies_install_command} kernel-default-devel"
 		fi
 
-		ssh ${install_ip} "ln -s /usr/include/libmnl/libmnl/libmnl.h /usr/include/libmnl/libmnl.h"
+		ssh "${install_ip}" "${dependencies_install_command}"
+		ssh ${install_ip} "ln -sf /usr/include/libmnl/libmnl/libmnl.h /usr/include/libmnl/libmnl.h"
 	else
 		LogErr "ERROR: unsupported distro ${distro} for DPDK on Azure"
 		SetTestStateAborted
