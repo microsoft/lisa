@@ -114,6 +114,7 @@ function Install_Dpdk_Dependencies() {
 			# we have to update the repositories first
 			ssh ${install_ip} "yum -y --nogpgcheck install centos-release"
 			ssh ${install_ip} "yum clean all"
+			ssh ${install_ip} "yum makecache"
 			yum_flags="--enablerepo=C*-base --enablerepo=C*-updates"
 		fi
 		ssh ${install_ip} "yum install --nogpgcheck ${yum_flags} --setopt=skip_missing_names_on_install=False -y gcc make git tar wget dos2unix psmisc kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel libmnl-devel"
