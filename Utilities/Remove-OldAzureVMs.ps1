@@ -12,7 +12,8 @@ param(
     [int] $CleanupAgeInDays,
     [int] $LockedResourceAgeInDays,
     [switch] $RemoveAutoCleanupVMs,
-    [switch] $DryRun
+    [switch] $DryRun,
+    [switch] $RemoveDisks
 )
 
 if ( $customSecretsFilePath ) {
@@ -164,8 +165,39 @@ if ($RemoveAutoCleanupVMs) {
 $cleanupRGScriptBlock = {
     $RGName = $args[0]
     $DryRun = $args[1]
+    $RemoveDisks = $args[2]
     if (-not $DryRun) {
+        if ($RemoveDisks) {
+            $vms = Get-AzVM -ResourceGroupName $RGName
+        }
         Remove-AzResourceGroup -Name $RGName -Verbose -Force
+
+        if ($? -and $RemoveDisks) {
+            foreach ($vm in $vms) {
+                $osDiskUri = $vm.StorageProfile.OSDisk.Vhd.Uri
+                if ($osDiskUri) {
+                    $osDiskContainerName = $osDiskUri.Split('/')[-2]
+                    $osDiskStorageAcct = Get-AzStorageAccount | where { $_.StorageAccountName -eq $osDiskUri.Split('/')[2].Split('.')[0] }
+                    Write-Host "Remove unmanaged OS disk $osDiskUri"
+                    $osDiskStorageAcct | Remove-AzStorageBlob -Container $osDiskContainerName -Blob $osDiskUri.Split('/')[-1]
+                } else {
+                    Write-Host "Remove managed OS disk $($vm.StorageProfile.OsDisk.Name)"
+                    Get-AzDisk -DiskName $vm.StorageProfile.OsDisk.Name  | Remove-AzDisk -Force
+                }
+
+                foreach ($dataDisk in $vm.StorageProfile.DataDisks) {
+                    if ($dataDisk.Vhd.Uri) {
+                        $dataDiskStorageAcct = Get-AzStorageAccount -Name $uri.Split('/')[2].Split('.')[0]
+                        Write-Host "Remove unmanaged data disk $uri"
+                        $dataDiskStorageAcct | Remove-AzStorageBlob -Container $uri.Split('/')[-2] -Blob $uri.Split('/')[-1]
+                    }
+                    if ($dataDisk.ManagedDisk) {
+                        Write-Host "Remove managed data disk $($dataDisk.Name)"
+                        Get-AzDisk -DiskName $dataDisk.Name  | Remove-AzDisk -Force
+                    }
+                }
+            }
+        }
     } else {
         Write-Host "DryRun Completed."
     }
@@ -173,7 +205,7 @@ $cleanupRGScriptBlock = {
 
 foreach ($RGName in $cleanupRGs) {
     Write-Host "Triggering : Delete-ResourceGroup-$RGName..."
-    $null = Start-Job -ScriptBlock $cleanupRGScriptBlock -ArgumentList @($RGName,$DryRun) -Name "Delete-ResourceGroup-$RGName"
+    $null = Start-Job -ScriptBlock $cleanupRGScriptBlock -ArgumentList @($RGName,$DryRun,$RemoveDisks) -Name "Delete-ResourceGroup-$RGName"
 }
 Write-Host "$($cleanupRGs.Count) resource groups are being removed..."
 
