@@ -483,9 +483,13 @@ function Testpmd_Macfwd_To_Dest() {
 	local dst_addr=$(echo ${1} | sed 'y/\./,/')
 	local dst_addr_code="ipv4_hdr = rte_pktmbuf_mtod_offset(mb, struct ipv4_hdr *, sizeof(struct ether_hdr)); ipv4_hdr->dst_addr = rte_be_to_cpu_32(IPv4(${dst_addr}));"
 
+	LogMsg "DPDK version: ${dpdk_version}. DPDK version changed: ${dpdk_version_changed_mac_fwd}"
 	if [[ ! $(printf "${dpdk_version_changed_mac_fwd}\n${dpdk_version}" | sort -V | head -n1) == "${dpdk_version}" ]]; then
+		LogMsg "Using newer forwarding code insertion"
 		ptr_code="struct rte_ipv4_hdr *rte_ipv4_hdr1;"
 		dst_addr_code="rte_ipv4_hdr1 = rte_pktmbuf_mtod_offset(mb, struct rte_ipv4_hdr *, sizeof(struct rte_ether_hdr)); rte_ipv4_hdr1->dst_addr = rte_be_to_cpu_32(RTE_IPV4(${dst_addr}));"
+	else
+		LogMsg "Using legacy forwarding code insertion"
 	fi
 
 	sed -i "53i ${ptr_code}" app/test-pmd/macfwd.c
