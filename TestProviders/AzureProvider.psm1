@@ -30,6 +30,9 @@ Class AzureProvider : TestProvider
 {
 	[string] $TipSessionId
 	[string] $TipCluster
+	[bool] $EnableTelemetry
+	[string] $PlatformFaultDomainCount
+	[string] $PlatformUpdateDomainCount
 
 	[object] DeployVMs([xml] $GlobalConfig, [object] $SetupTypeData, [object] $TestCaseData, [string] $TestLocation, [string] $RGIdentifier, [bool] $UseExistingRG, [string] $ResourceCleanup) {
 		$allVMData = @()
@@ -46,22 +49,25 @@ Class AzureProvider : TestProvider
 			if (!$allVMData) {
 				$isAllDeployed = Create-AllResourceGroupDeployments -SetupTypeData $SetupTypeData -TestCaseData $TestCaseData -Distro $RGIdentifier `
 					-TestLocation $TestLocation -GlobalConfig $GlobalConfig -TipSessionId $this.TipSessionId -TipCluster $this.TipCluster `
-					-UseExistingRG $UseExistingRG -ResourceCleanup $ResourceCleanup
+					-UseExistingRG $UseExistingRG -ResourceCleanup $ResourceCleanup -PlatformFaultDomainCount $this.PlatformFaultDomainCount `
+					-PlatformUpdateDomainCount $this.PlatformUpdateDomainCount
 
 				if ($isAllDeployed[0] -eq "True") {
 					$deployedGroups = $isAllDeployed[1]
 					$DeploymentElapsedTime = $isAllDeployed[3]
 					$allVMData = Get-AllDeploymentData -ResourceGroups $deployedGroups
 				} else {
-					$ErrorMessage = "One or more deployments failed."
+					$ErrorMessage = "One or more deployments failed. " + $isAllDeployed[4]
 					Write-LogErr $ErrorMessage
 					return @{"VmData" = $null; "Error" = $ErrorMessage}
 				}
 			}
 			$isVmAlive = Is-VmAlive -AllVMDataObject $allVMData
 			if ($isVmAlive -eq "True") {
-				if ((Test-Path -Path  .\Extras\UploadDeploymentDataToDB.ps1) -and !$UseExistingRG) {
-					$null = .\Extras\UploadDeploymentDataToDB.ps1 -allVMData $allVMData -DeploymentTime $DeploymentElapsedTime.TotalSeconds
+				if (($this.EnableTelemetry -and !$UseExistingRG)) {
+					$null = Upload-AzureBootAndDeploymentDataToDB -allVMData $allVMData -DeploymentTime $DeploymentElapsedTime.TotalSeconds -CurrentTestData $TestCaseData
+				} else {
+					Write-LogInfo "Skipping boot data telemetry collection."
 				}
 
 				$enableSRIOV = $TestCaseData.AdditionalHWConfig.Networking -imatch "SRIOV"
@@ -112,11 +118,11 @@ Class AzureProvider : TestProvider
 		$VMCoresArray = @()
 		Function Start-RestartAzureVMJob ($ResourceGroupName, $RoleName) {
 			Write-LogInfo "Triggering Restart-$($RoleName)..."
-			$Job = Restart-AzureRmVM -ResourceGroupName $ResourceGroupName -Name $RoleName -AsJob
+			$Job = Restart-AzVM -ResourceGroupName $ResourceGroupName -Name $RoleName -AsJob
 			$Job.Name = "Restart-$($ResourceGroupName):$($RoleName)"
 			return $Job
 		}
-		$AzureVMSizeInfo = Get-AzureRmVMSize -Location $AllVMData[0].Location
+		$AzureVMSizeInfo = Get-AzVMSize -Location $AllVMData[0].Location
 		foreach ( $vmData in $AllVMData ) {
 			$restartJobs += Start-RestartAzureVMJob -ResourceGroupName $vmData.ResourceGroupName -RoleName $vmData.RoleName
 			$VMCoresArray += ($AzureVMSizeInfo | Where-Object { $_.Name -eq $vmData.InstanceSize }).NumberOfCores

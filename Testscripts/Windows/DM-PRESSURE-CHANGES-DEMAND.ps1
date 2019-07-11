@@ -148,7 +148,7 @@ function Main {
         $firstJobStatus = $false
         while ($timeout -gt 0)
         {
-            if($job1.Status -like "Completed"){
+            if((Get-Job -Id $job1).State -like "Completed"){
                 $firstJobStatus = $true
                 $retVal = Receive-Job $job1
                 if (-not $retVal[-1]) {

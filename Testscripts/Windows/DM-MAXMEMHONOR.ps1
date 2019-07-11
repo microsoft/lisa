@@ -137,7 +137,7 @@ function Main {
         }
         # sleep a few seconds so all stresstestapp processes start and the memory assigned/demand gets updated
         Start-Sleep -S 200
-        Write-LogInfo $job1.State
+        Write-LogInfo "The job status: $((Get-Job -Id $job1).State)"
         # get memory stats for vm1 and vm2
         [int64[]]$vm2Assigned = @()
         [int64[]]$vm2Demand = @()
@@ -147,7 +147,7 @@ function Main {
         $jobState = $false
         while ($timeout -gt 0)
         {
-            if ($job1.State -like "Completed" -and -not $jobState) {
+            if ((Get-Job -Id $job1).State -like "Completed" -and -not $jobState) {
                 $jobState = $true
                 $retVal = Receive-Job $job1
                 if (-not $retVal) {

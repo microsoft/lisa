@@ -647,9 +647,9 @@ function Install-CustomLIS ($CustomLIS, $customLISBranch, $allVMData, [switch]$R
 	try
 	{
 		$CustomLIS = $CustomLIS.Trim()
-		if ( ($CustomLIS -ne "lisnext") -and !($CustomLIS.EndsWith("tar.gz")))
+		if ( ($CustomLIS -ne "lisnext") -and !($CustomLIS.EndsWith("tar.gz")) -and ($CustomLIS -ne "LatestLIS"))
 		{
-			Write-LogErr "Only lisnext and *.tar.gz links are supported. Use -CustomLIS lisnext -LISbranch <branch name>. Or use -CustomLIS <link to tar.gz file>"
+			Write-LogErr "Only lisnext, LatestLIS and *.tar.gz links are supported. Use -CustomLIS lisnext -LISbranch <branch name>. Or use -CustomLIS <link to tar.gz file>. Or use -CustomLIS LatestLIS"
 		}
 		else
 		{
@@ -1869,6 +1869,14 @@ Function Publish-App([string]$appName, [string]$customIP, [string]$appGitURL, [s
         Write-LogErr "$appGitURL is not set"
         return $False
     }
+    # Install dependencies
+    Copy-RemoteFiles -upload -uploadTo $customIP -port $VMSSHPort -files ".\Testscripts\Linux\utils.sh" `
+        -username $user -password $password 2>&1
+    $cmd = ". utils.sh && update_repos && install_package 'make build-essential'"
+    if (($global:detectedDistro -imatch "CENTOS") -or ($global:detectedDistro -imatch "REDHAT") ) {
+        $cmd = ". utils.sh && update_repos && install_package 'make kernel-devel gcc-c++'"
+    }
+    $null = Run-LinuxCmd -username $user -password $password -ip $customIP -port $VMSSHPort -command $cmd -runAsSudo
     $retVal = Run-LinuxCmd -username $user -password $password -ip $customIP -port $VMSSHPort `
         -command "echo $password | sudo -S cd /root; git clone $appGitURL $appName > /dev/null 2>&1"
     if ($appGitTag) {
@@ -1956,6 +1964,55 @@ function Enable-RootUser {
     return $deploymentResult
 }
 
+
+function Compare-KernelVersion {
+    param (
+        [string] $KernelVersion1,
+        [string] $KernelVersion2
+    )
+
+    if ($KernelVersion1 -eq $KernelVersion2) {
+        return 0
+    }
+
+    $KernelVersion1Array = $KernelVersion1 -split "[\.\-]+"
+    $KernelVersion2Array = $KernelVersion2 -split "[\.\-]+"
+    for($i=0; $i -lt $KernelVersion1Array.Length; $i++) {
+        try {
+                $KernelVersion1Array[$i] = [int]$KernelVersion1Array[$i]
+            } catch {
+                $KernelVersion1Array[$i] = 0
+                continue
+            }
+    }
+    for($i=0; $i -lt $KernelVersion2Array.Length;$i++) {
+        try {
+                $KernelVersion2Array[$i] = [int]$KernelVersion2Array[$i]
+            } catch {
+                $KernelVersion2Array[$i] = 0
+                continue
+            }
+    }
+
+    $array_count = $KernelVersion1Array.Length
+    if ($KernelVersion1Array.Length -gt $KernelVersion2Array.Length) {
+        $array_count = $KernelVersion2Array.Length
+    }
+
+    for($i=0; $i -lt $array_count;$i++) {
+        if ([int]$KernelVersion1Array[$i] -eq [int]$KernelVersion2Array[$i]) {
+            continue
+        } elseif ([int]$KernelVersion1Array[$i] -lt [int]$KernelVersion2Array[$i]) {
+            return -1
+        } else {
+            return 1
+        }
+    }
+
+    return -1
+}
+
+
 function Is-DpdkCompatible() {
     param (
         [string] $KernelVersion,
@@ -1984,40 +2041,11 @@ function Is-DpdkCompatible() {
         }
 
         if ($SUPPORTED_DISTRO_KERNEL.Keys -contains $DetectedDistro) {
-            $supportKernelVersions = $SUPPORTED_DISTRO_KERNEL[$DetectedDistro] -split "[\.\-]+"
-            $KernelVersions = $KernelVersion -split "[\.\-]+"
-            for($i=0; $i -lt $supportKernelVersions.Length;$i++) {
-                try {
-                        $supportKernelVersions[$i] = [int]$supportKernelVersions[$i]
-                    } catch {
-                        $supportKernelVersions[$i] = 0
-                        continue
-                    }
+            if ((Compare-KernelVersion $KernelVersion $SUPPORTED_DISTRO_KERNEL[$DetectedDistro]) -ge 0) {
+                return $true
+            } else {
+                 return $false
             }
-            for($i=0; $i -lt $KernelVersions.Length;$i++) {
-                try {
-                        $KernelVersions[$i] = [int]$KernelVersions[$i]
-                    } catch {
-                        $KernelVersions[$i] = 0
-                        continue
-                    }
-            }
-
-            $array_count = $KernelVersions.Length
-            if ($supportKernelVersions.Length -gt $KernelVersions.Length) {
-                $array_count = $supportKernelVersions.Length
-            }
-
-            for($i=0; $i -lt $array_count;$i++) {
-                if ([int]$KernelVersions[$i] -eq [int]$supportKernelVersions[$i]) {
-                    continue
-                } elseif ([int]$KernelVersions[$i] -lt [int]$supportKernelVersions[$i]) {
-                    return $false
-                } else {
-                    return $true
-                }
-            }
-            return $true
         } else {
             Write-LogWarn "Unsupported Distro: $DetectedDistro"
             return $false

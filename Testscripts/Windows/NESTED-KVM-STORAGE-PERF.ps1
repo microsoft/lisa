@@ -56,7 +56,7 @@ function Send-ResultToDatabase ($currentTestResult, $AllVMData, $currentTestData
 	} else {
 		$HostBy	= ($global:TestLocation).Replace('"','')
 		$L1GuestSize = $AllVMData.InstanceSize
-		$vm = (Get-AzureRmVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName)
+		$vm = (Get-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName)
 		$count = $vm.StorageProfile.DataDisks.Count
 		$disk_size = $vm.StorageProfile.DataDisks[0].DiskSizeGB
 	}

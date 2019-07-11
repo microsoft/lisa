@@ -36,8 +36,8 @@ done
 # or a support kernel from the above list
 if [[ -z "$CustomKernel" ]] || [[ "$CustomKernel" != @(*.rpm|*.deb) ]]; then
     if [[ ! " ${supported_kernels[*]} " =~ $CustomKernel ]]; then
-        echo "Please mention a set of rpm/deb kernel packages, or a supported kernel type with -CustomKernel,
-        accepted values are: ${supported_kernels[@]}"
+        echo "Please mention a set of rpm/deb kernel packages, or a supported kernel type
+        with -CustomKernel, accepted values are: ${supported_kernels[@]}"
         exit 1
     fi
 fi
@@ -287,7 +287,8 @@ function InstallKernel() {
         kernelSource="https://git.kernel.org/pub/scm/linux/kernel/git/davem/net-next.git"
     elif [[ $CustomKernel == *.deb ]]; then
         LogMsg "Custom Kernel:$CustomKernel"
-        apt -y update
+		apt -y update
+		CheckInstallLockUbuntu
 
         LogMsg "Adding packages required by the kernel."
         apt install -y binutils
@@ -306,14 +307,15 @@ function InstallKernel() {
             kernelInstallStatus=$?
             image_file=$(ls -1 *.deb* | grep -v "dbg" | sed -n 1p)
         else
-            CheckInstallLockUbuntu
             customKernelFilesUnExpanded="${CustomKernel#$LOCAL_FILE_PREFIX}"
             if [[ "${customKernelFilesUnExpanded}" == *'*.deb'* ]]; then
+                CheckInstallLockUbuntu
                 apt-get remove -y linux-cloud-tools-common
             fi
 
             LogMsg "Installing ${customKernelFilesUnExpanded}"
-            eval "dpkg -i $customKernelFilesUnExpanded >> $LOG_FILE 2>&1"
+            CheckInstallLockUbuntu
+            eval "dpkg -i --force-overwrite $customKernelFilesUnExpanded >> $LOG_FILE 2>&1"
             kernelInstallStatus=$?
             image_file=$(ls -1 *image* | grep -v "dbg" | sed -n 1p)
         fi

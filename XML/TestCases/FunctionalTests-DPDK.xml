@@ -12,7 +12,7 @@
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
-        <Area>DPDK,DPDK-CORE</Area>
+        <Area>DPDK</Area>
         <Tags>dpdk,dpdk-core,network,hv_netvsc,sriov</Tags>
         <Priority>1</Priority>
     </test>
@@ -32,7 +32,7 @@
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
-        <Area>DPDK,DPDK-CORE</Area>
+        <Area>DPDK</Area>
         <Tags>dpdk,dpdk-core,network,hv_netvsc,sriov</Tags>
         <Priority>2</Priority>
     </test>
@@ -51,7 +51,7 @@
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
-        <Area>DPDK,DPDK-CORE</Area>
+        <Area>DPDK</Area>
         <Tags>dpdk,dpdk-core,network,hv_netvsc,sriov</Tags>
         <Priority>2</Priority>
     </test>
@@ -68,7 +68,7 @@
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
-        <Area>DPDK,DPDK-CORE</Area>
+        <Area>DPDK</Area>
         <Tags>dpdk,dpdk-core,network,hv_netvsc,sriov</Tags>
         <Priority>0</Priority>
     </test>
@@ -88,7 +88,7 @@
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
-        <Area>DPDK,DPDK-COMMUNITY</Area>
+        <Area>DPDK</Area>
         <Tags>dpdk,dpdk-community,ovs,network,hv_netvsc,sriov</Tags>
         <Priority>2</Priority>
     </test>
@@ -108,7 +108,7 @@
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
-        <Area>DPDK,DPDK-CORE</Area>
+        <Area>DPDK</Area>
         <Tags>dpdk,dpdk-core,network,hv_netvsc,sriov</Tags>
         <Priority>1</Priority>
     </test>
@@ -129,7 +129,7 @@
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
-        <Area>DPDK,DPDK-COMMUNITY</Area>
+        <Area>DPDK</Area>
         <Tags>dpdk,dpdk-community,nff-go,network,hv_netvsc,sriov</Tags>
         <Priority>2</Priority>
     </test>
@@ -149,8 +149,28 @@
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
-        <Area>DPDK,DPDK-COMMUNITY</Area>
+        <Area>DPDK</Area>
         <Tags>dpdk,dpdk-community,vpp,network,hv_netvsc,sriov</Tags>
+        <Priority>2</Priority>
+    </test>
+    <test>
+        <testName>VERIFY-DPDK-PRIMARY-SECONDARY-PROCESSES</testName>
+        <testScript>VERIFY-DPDK-PRIMARY-SECONDARY-PROCESSES.ps1</testScript>
+        <setupType>OneVM3NIC</setupType>
+        <OverrideVMSize>Standard_D16_v3</OverrideVMSize>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkSetup.sh,.\Testscripts\Linux\dpdkUtils.sh,.\Testscripts\Linux\dpdk_verify_primary_secondary.sh,.\Testscripts\Linux\build_install_rdma_core.sh</files>
+        <TestParameters>
+            <param>dpdkSrcLink="DPDK_SOURCE_URL"</param>
+            <param>dpdkRdmaCoreSrcLink="DPDK_RDMA_CORE_SOURCE_URL"</param>
+            <param>dpdkRdmaCoreBranch="DPDK_RDMA_CORE_BRANCH"</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>DPDK</Area>
+        <Tags>dpdk,dpdk-core,network,hv_netvsc,sriov</Tags>
         <Priority>2</Priority>
     </test>
 </TestCases>

@@ -32,9 +32,9 @@ function Start-Validation {
     Set-Content -Value $PCIExpress -Path $LogDir\PCI-Express-passthrough.txt -Force
     $pciExpressCount = (Select-String -Path $LogDir\PCI-Express-passthrough.txt -Pattern "PCI Express pass-through").Matches.Count
     if ($pciExpressCount -eq $expectedGPUCount) {
-        $currentResult = "PASS"
+        $currentResult = $resultPass
     } else {
-        $currentResult = "FAIL"
+        $currentResult = $resultFail
         $failureCount += 1
     }
     $metaData = "lsvmbus: Expected `"PCI Express pass-through`" count: $expectedGPUCount, count inside the VM: $pciExpressCount"
@@ -49,9 +49,9 @@ function Start-Validation {
     Set-Content -Value $lspci -Path $LogDir\lspci.txt -Force
     $lspciCount = (Select-String -Path $LogDir\lspci.txt -Pattern "NVIDIA Corporation").Matches.Count
     if ($lspciCount -eq $expectedGPUCount) {
-        $currentResult = "PASS"
+        $currentResult = $resultPass
     } else {
-        $currentResult = "FAIL"
+        $currentResult = $resultFail
         $failureCount += 1
     }
     $metaData = "lspci: Expected `"3D controller: NVIDIA Corporation`" count: $expectedGPUCount, found inside the VM: $lspciCount"
@@ -66,9 +66,9 @@ function Start-Validation {
     Set-Content -Value $lshw -Path $LogDir\lshw-c-video.txt -Force
     $lshwCount = (Select-String -Path $LogDir\lshw-c-video.txt -Pattern "vendor: NVIDIA Corporation").Matches.Count
     if ($lshwCount -eq $expectedGPUCount) {
-        $currentResult = "PASS"
+        $currentResult = $resultPass
     } else {
-        $currentResult = "FAIL"
+        $currentResult = $resultFail
         $failureCount += 1
     }
     $metaData = "lshw: Expected Display adapters: $expectedGPUCount, total adapters found in VM: $lshwCount"
@@ -83,15 +83,16 @@ function Start-Validation {
     Set-Content -Value $nvidiasmi -Path $LogDir\nvidia-smi.txt -Force
     $nvidiasmiCount = (Select-String -Path $LogDir\nvidia-smi.txt -Pattern "Tesla").Matches.Count
     if ($nvidiasmiCount -eq $expectedGPUCount) {
-        $currentResult = "PASS"
+        $currentResult = $resultPass
     } else {
-        $currentResult = "FAIL"
+        $currentResult = $resultFail
         $failureCount += 1
     }
     $metaData = "nvidia-smi: Expected GPU count: $expectedGPUCount, found inside the VM: $nvidiasmiCount"
     $resultArr += $currentResult
     $CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
         -checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
+    return $failureCount
     #endregion
 }
 
@@ -114,6 +115,12 @@ function Main {
         Provision-VMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
         Copy-RemoteFiles -uploadTo $allVMData.PublicIP -port $allVMData.SSHPort `
             -files $currentTestData.files -username $superuser -password $password -upload | Out-Null
+
+        #Skip test case against distro CLEARLINUX and COREOS based here https://docs.microsoft.com/en-us/azure/virtual-machines/linux/n-series-driver-setup
+        if (@("CLEARLINUX", "COREOS").contains($global:detectedDistro)) {
+            Write-LogInfo "$($global:detectedDistro) is not supported! Test skipped"
+            return $ResultSkipped
+        }
 
         # this covers both NV and NVv2 series
         if ($allVMData.InstanceSize -imatch "Standard_NV") {
@@ -206,11 +213,11 @@ function Main {
         }
 
         # run the tools
-        Start-Validation
+        $failureCount = Start-Validation
         if ($failureCount -eq 0) {
-            $testResult = "PASS"
+            $testResult = $resultPass
         } else {
-            $testResult = "FAIL"
+            $testResult = $resultFail
         }
 
         # Get logs. An extra check for the previous $state is needed
@@ -221,10 +228,10 @@ function Main {
         # Collect-TestLogs function to work
         Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
             -password $password -command "cp * /home/$user" -ignoreLinuxExitCode:$true
-        $testResult = Collect-TestLogs -LogsDestination $LogDir -ScriptName `
+        Collect-TestLogs -LogsDestination $LogDir -ScriptName `
             $currentTestData.files.Split('\')[3].Split('.')[0] -TestType "sh" -PublicIP `
             $allVMData.PublicIP -SSHPort $allVMData.SSHPort -Username $user `
-            -password $password -TestName $currentTestData.testName
+            -password $password -TestName $currentTestData.testName | Out-Null
         if ($driver -eq "CUDA") {
             # Copy the dkms build log for the nvidia driver
             Copy-RemoteFiles -download -downloadFrom $allVMData.PublicIP -files "nvidia_dkms_make.log, install_drivers.log" `
@@ -244,7 +251,7 @@ function Main {
         Write-LogInfo "EXCEPTION: $ErrorMessage at line: $ErrorLine"
     } finally {
         if (!$testResult) {
-            $testResult = "ABORTED"
+            $testResult = $resultAborted
         }
         $resultArr += $testResult
     }

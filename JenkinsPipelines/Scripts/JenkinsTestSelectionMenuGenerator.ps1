@@ -129,6 +129,7 @@ Write-LogInfo "Done"
 $TestByTestnameQuick = "platform`ttestname`tregion`n"
 foreach ( $platform in $Platforms )
 {
+    $TestNames = ($xmlData.test | Where-Object { $_.Platform.Contains($platform) } ).TestName | Sort-Object | Get-Unique
     foreach ( $testname in $TestNames)
     {
 

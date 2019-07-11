@@ -23,6 +23,36 @@ UtilsInit
 #######################################################################
 # Main script body
 #######################################################################
+# Check if feature is supported by the kernel
+kernel_version=$(uname -r)
+# if the module is not builtin
+modules_path="/lib/modules/$kernel_version"
+if [ "$(grep -c netvsc < "$modules_path"/modules.builtin)" == 0 ]; then
+    if ! which nm; then
+        update_repos
+        install_package binutils
+    fi
+    LogMsg "looking for msg level symbols in netvsc module..."
+    # get the path to the netvsc kernel module
+    kernel_module=$(ls "$modules_path"/kernel/drivers/net/hyperv/hv_netvsc.ko*)
+    # if the module is archived as xz, extract it to check symbols
+    if [ "$(echo "$kernel_module" | grep -c ".xz")" -ne 0 ]; then
+        cp "$kernel_module" .
+        xz -d "$(basename "$kernel_module")"
+        kernel_module=$(ls hv_netvsc*)
+    fi
+    msg_level_symbols=$(nm "$kernel_module" | grep msglevel)
+else
+    LogMsg "netvsc module is builtin, looking for msg level symbols in System.map..."
+    msg_level_symbols=$(grep 'netvsc.*msglevel' "/boot/System.map-$kernel_version")
+fi
+LogMsg "Msg level symbols: $msg_level_symbols"
+if [[ "$msg_level_symbols" != *netvsc_get_msglevel* ]] || [[ "$msg_level_symbols" != *netvsc_set_msglevel* ]]; then
+    UpdateSummary "Get/Set message level not supported on $kernel_version, skipping test."
+    SetTestStateSkipped
+    exit 0
+fi
+
 # Check if ethtool exist and install it if not
 VerifyIsEthtool
 
@@ -42,7 +72,6 @@ LogMsg "Try to set $testflag1 and $testflag2 flags on $net_interface"
 sts=$(ethtool -s "${net_interface}" msglvl "$testflag1" on "$testflag2" on 2>&1)
 if [[ "$sts" = *"Operation not supported"* ]]; then
     LogErr "$sts"
-    kernel_version=$(uname -rs)
     LogErr "Setting the driver message type flags from ethtool is not supported on $kernel_version"
     SetTestStateFailed
     exit 0

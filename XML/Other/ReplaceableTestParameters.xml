@@ -78,6 +78,14 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceWith>18.11</ReplaceWith>
 	</Parameter>
 	<Parameter>
+		<ReplaceThis>DPDK_RDMA_CORE_SOURCE_URL</ReplaceThis>
+		<ReplaceWith>https://github.com/linux-rdma/rdma-core.git</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>DPDK_RDMA_CORE_BRANCH</ReplaceThis>
+		<ReplaceWith>stable-v24</ReplaceWith>
+	</Parameter>
+	<Parameter>
 		<ReplaceThis>NTTTCP_RUNTIME_IN_SECONDS</ReplaceThis>
 		<ReplaceWith>300</ReplaceWith>
 	</Parameter>
@@ -382,7 +390,7 @@ Scenario 2 : You need to run all the performance tests quickly.
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>NTTTCP_VERSION</ReplaceThis>
-		<ReplaceWith>master</ReplaceWith>
+		<ReplaceWith>1.4.0</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>FIO_LOG_PARSE_TIMEOUT</ReplaceThis>
@@ -398,11 +406,11 @@ Scenario 2 : You need to run all the performance tests quickly.
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>LIS_CURRENT_URL</ReplaceThis>
-		<ReplaceWith>http://download.microsoft.com/download/6/8/F/68FE11B8-FAA4-4F8D-8C7D-74DA7F2CFC8C/lis-rpms-4.2.8.tar.gz</ReplaceWith>
+		<ReplaceWith>http://download.microsoft.com/download/6/8/F/68FE11B8-FAA4-4F8D-8C7D-74DA7F2CFC8C/lis-rpms-4.3.3.tar.gz</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>LIS_OLD_URL</ReplaceThis>
-		<ReplaceWith>http://download.microsoft.com/download/6/8/F/68FE11B8-FAA4-4F8D-8C7D-74DA7F2CFC8C/lis-rpms-4.2.7.tar.gz</ReplaceWith>
+		<ReplaceWith>http://download.microsoft.com/download/6/8/F/68FE11B8-FAA4-4F8D-8C7D-74DA7F2CFC8C/lis-rpms-4.3.2.tar.gz</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>GCOV_BUILD_DIR</ReplaceThis>
@@ -521,5 +529,9 @@ Scenario 2 : You need to run all the performance tests quickly.
 	<Parameter>
 		<ReplaceThis>VM_HOT_RESIZE_TEST_MODE</ReplaceThis>
 		<ReplaceWith>economy</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>KEXEC_VERSION</ReplaceThis>
+		<ReplaceWith>2.0.18</ReplaceWith>
 	</Parameter>
 </ReplaceableTestParameters>

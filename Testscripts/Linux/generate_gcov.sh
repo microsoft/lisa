@@ -2,7 +2,17 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 
-CORE_FILES=('drivers/hv/channel.c' 'drivers/hv/channel_mgmt.c' 'drivers/hv/connection.c'
+KVP_FILES=('drivers/hv/hv_kvp.c')
+
+STORAGE_FILES=('drivers/scsi/storvsc_drv.c')
+
+NETWORK_FILES=('drivers/net/hyperv/netvsc.c' 'drivers/net/hyperv/netvsc_drv.c'
+               'drivers/hv/ring_buffer.c' 'drivers/net/hyperv/rndis_filter.c')
+
+VMBUS_FILES=('drivers/hv/channel.c' 'drivers/hv/channel_mgmt.c'
+               'drivers/hv/connection.c' 'drivers/hv/vmbus_drv.c')
+
+ALL_LIS_FILES=('drivers/hv/channel.c' 'drivers/hv/channel_mgmt.c' 'drivers/hv/connection.c'
                'drivers/hid/hid-core.c' 'drivers/hid/hid-debug.c' 'drivers/hid/hid-hyperv.c'
                'drivers/hid/hid-input.c' 'drivers/hid/hv.c' 'drivers/hv/hv_balloon.c'
                'drivers/hv/hv_compat.c' 'drivers/hv/hv_fcopy.c' 'drivers/hv/hv_kvp.c'
@@ -12,37 +22,41 @@ CORE_FILES=('drivers/hv/channel.c' 'drivers/hv/channel_mgmt.c' 'drivers/hv/conne
                'drivers/hv/ring_buffer.c' 'drivers/net/hyperv/rndis_filter.c'
                'drivers/scsi/storvsc_drv.c' 'drivers/hv/vmbus_drv.c')
 
-HV_SOCK_FILES=('drivers/hv/channel.c' 'drivers/hv/channel_mgmt.c' 'drivers/hv/connection.c'
-                'drivers/hv/hv_util.c' 'drivers/hv/hv_utils_transport.c' 'drivers/hv/vmbus_drv.c'
-                'net/vmw_vsock/af_vsock.c')
-                
-SRIOV_FILES=('drivers/net/ethernet/mellanox/mlx4/alloc.c' 'drivers/net/ethernet/mellanox/mlx4/catas.c'
-             'drivers/net/ethernet/mellanox/mlx4/cmd.c' 'drivers/net/ethernet/mellanox/mlx4/cq.c'
-             'drivers/net/ethernet/mellanox/mlx4/eq.c' 'drivers/net/ethernet/mellanox/mlx4/fw.c'
-             'drivers/net/ethernet/mellanox/mlx4/fw_qos.c' 'drivers/net/ethernet/mellanox/mlx4/icm.c'
-             'drivers/net/ethernet/mellanox/mlx4/intf.c' 'drivers/net/ethernet/mellanox/mlx4/main.c'
-             'drivers/net/ethernet/mellanox/mlx4/mcg.c' 'drivers/net/ethernet/mellanox/mlx4/mr.c'
-             'drivers/net/ethernet/mellanox/mlx4/pd.c' 'drivers/net/ethernet/mellanox/mlx4/port.c'
-             'drivers/net/ethernet/mellanox/mlx4/profile.c' 'drivers/net/ethernet/mellanox/mlx4/qp.c'
-             'drivers/net/ethernet/mellanox/mlx4/reset.c' 'drivers/net/ethernet/mellanox/mlx4/sense.c'
-             'drivers/net/ethernet/mellanox/mlx4/srq.c' 'drivers/net/ethernet/mellanox/mlx4/resource_tracker.c'
-             'drivers/net/ethernet/mellanox/mlx4/en_main.c' 'drivers/net/ethernet/mellanox/mlx4/en_tx.c'
-             'drivers/net/ethernet/mellanox/mlx4/en_rx.c' 'drivers/net/ethernet/mellanox/mlx4/en_ethtool.c'
-             'drivers/net/ethernet/mellanox/mlx4/en_port.c' 'drivers/net/ethernet/mellanox/mlx4/en_cq.c'
-             'drivers/net/ethernet/mellanox/mlx4/en_resources.c' 'drivers/net/ethernet/mellanox/mlx4/en_netdev.c'
-             'drivers/net/ethernet/mellanox/mlx4/en_selftest.c' 'drivers/net/ethernet/mellanox/mlx4/en_clock.c')
+#HV_SOCK_FILES=('drivers/hv/channel.c' 'drivers/hv/channel_mgmt.c' 'drivers/hv/connection.c'
+#                'drivers/hv/hv_util.c' 'drivers/hv/hv_utils_transport.c' 'drivers/hv/vmbus_drv.c'
+#                'net/vmw_vsock/af_vsock.c')
+
+#SRIOV_FILES=('drivers/net/ethernet/mellanox/mlx4/alloc.c' 'drivers/net/ethernet/mellanox/mlx4/catas.c'3
+#             'drivers/net/ethernet/mellanox/mlx4/cmd.c' 'drivers/net/ethernet/mellanox/mlx4/cq.c'
+#             'drivers/net/ethernet/mellanox/mlx4/eq.c' 'drivers/net/ethernet/mellanox/mlx4/fw.c'
+#             'drivers/net/ethernet/mellanox/mlx4/fw_qos.c' 'drivers/net/ethernet/mellanox/mlx4/icm.c'
+#             'drivers/net/ethernet/mellanox/mlx4/intf.c' 'drivers/net/ethernet/mellanox/mlx4/main.c'
+#             'drivers/net/ethernet/mellanox/mlx4/mcg.c' 'drivers/net/ethernet/mellanox/mlx4/mr.c'
+#             'drivers/net/ethernet/mellanox/mlx4/pd.c' 'drivers/net/ethernet/mellanox/mlx4/port.c'
+#             'drivers/net/ethernet/mellanox/mlx4/profile.c' 'drivers/net/ethernet/mellanox/mlx4/qp.c'
+#             'drivers/net/ethernet/mellanox/mlx4/reset.c' 'drivers/net/ethernet/mellanox/mlx4/sense.c'
+#             'drivers/net/ethernet/mellanox/mlx4/srq.c' 'drivers/net/ethernet/mellanox/mlx4/resource_tracker.c'
+#             'drivers/net/ethernet/mellanox/mlx4/en_main.c' 'drivers/net/ethernet/mellanox/mlx4/en_tx.c'
+#             'drivers/net/ethernet/mellanox/mlx4/en_rx.c' 'drivers/net/ethernet/mellanox/mlx4/en_ethtool.c'
+#             'drivers/net/ethernet/mellanox/mlx4/en_port.c' 'drivers/net/ethernet/mellanox/mlx4/en_cq.c'
+#             'drivers/net/ethernet/mellanox/mlx4/en_resources.c' 'drivers/net/ethernet/mellanox/mlx4/en_netdev.c'
+#             'drivers/net/ethernet/mellanox/mlx4/en_selftest.c' 'drivers/net/ethernet/mellanox/mlx4/en_clock.c')
                
 LOG_REL_PATH="/sys/kernel/debug/gcov/"
 
 function generate_file_list {
     test_category="$1"
     
-    if [[ $test_category == "sriov" ]];then
-        COLLECT_FILES=${SRIOV_FILES[@]}
-    elif [[ $test_category == "hv-sock" ]];then
-        COLLECT_FILES=${HV_SOCK_FILES[@]}
+    if [[ $test_category == "KVP" ]];then
+        COLLECT_FILES=${KVP_FILES[@]}
+    elif [[ $test_category == "STORAGE" ]];then
+        COLLECT_FILES=${STORAGE_FILES[@]}
+    elif [[ $test_category == "NETWORK" ]];then
+        COLLECT_FILES=${NETWORK_FILES[@]}
+    elif [[ $test_category == "VMBUS" ]];then
+        COLLECT_FILES=${VMBUS_FILES[@]}
     else
-        COLLECT_FILES=${CORE_FILES[@]}
+        COLLECT_FILES=${ALL_LIS_FILES[@]}
     fi
 }
 

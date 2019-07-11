@@ -40,8 +40,9 @@ fi
 #
 pid=$(pgrep "hypervkvpd|hv_kvp_daemon")
 if [ $? -ne 0 ]; then
-    LogErr "KVP Daemon is not running by default"
-    SetTestStateFailed
+    LogMsg "KVP Daemon is not running by default"
+    UpdateSummary "KVP Daemon is not running by default"
+    SetTestStateSkipped
     exit 0
 fi
 LogMsg "KVP Daemon is running"

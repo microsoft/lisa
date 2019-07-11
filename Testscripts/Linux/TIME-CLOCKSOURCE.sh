@@ -74,8 +74,20 @@ function UnbindCurrentSource()
 	if echo $clocksource > $unbind_file
 	then
 		_clocksource=$(cat /sys/devices/system/clocksource/clocksource0/current_clocksource)
-		grep -rnw '/var/log' -e 'Switched to clocksource acpi_pm' --ignore-case
-		if [ $? -eq 0 ] && [ "$_clocksource" == "acpi_pm" ]; then
+		retryTime=1
+		maxRetryTimes=5
+		while [ $retryTime -le $maxRetryTimes ]
+		do
+			LogMsg "Sleep 10 seconds for message show up in log file for the $retryTime time(s)."
+			sleep 10
+			val=$(grep -rnw '/var/log' -e 'Switched to clocksource acpi_pm' --ignore-case)
+			if [ -n "$val" ];then
+				break
+			fi
+			retryTime=$(($retryTime+1))
+		done
+
+		if [ -n "$val" ] && [ "$_clocksource" == "acpi_pm" ]; then
 			LogMsg "Test successful. After unbind, current clocksource is $_clocksource"
 		else
 			LogMsg "Test failed. After unbind, current clocksource is $_clocksource"

@@ -160,7 +160,7 @@ function Main {
         # The NULL.log makes sure cp always work on all distros
         $null = Run-LinuxCmd -Command "touch /root/NULL.log && \cp -f /root/*.log /home/${user}" `
                 -Username $user -password $password -ip $AllVmData.PublicIP -Port $AllVmData.SSHPort `
-                -maxRetryCount 1 -runAsSudo
+                -maxRetryCount 1 -runAsSudo -ignoreLinuxExitCode
 
         $null = Run-LinuxCmd -Command "\cp -f /opt/ltp/VM_properties.csv /home/${user}" `
                 -Username $user -password $password -ip $AllVmData.PublicIP -Port $AllVmData.SSHPort `

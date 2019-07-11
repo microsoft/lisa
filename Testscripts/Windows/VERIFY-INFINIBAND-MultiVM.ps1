@@ -75,9 +75,13 @@ function Main {
 				$user -password $password $cmd -ignoreLinuxExitCode:$true
 			if ($release.Split(".")[0] -lt "18") {
 				Write-LogInfo "Ubuntu $release is not supported! Test skipped"
-				$testResult = "SKIPPED"
 				return "SKIPPED"
 			}
+		}
+		#Skip test case against distro CLEARLINUX and COREOS based here https://docs.microsoft.com/en-us/azure/virtual-machines/linux/sizes-hpc
+		if (@("CLEARLINUX", "COREOS").contains($global:detectedDistro)) {
+			Write-LogInfo "$($global:detectedDistro) is not supported! Test skipped!"
+			return "SKIPPED"
 		}
 		$VM_Size = ($ServerVMData.InstanceSize -split "_")[1] -replace "[^0-9]",''
 		Write-LogInfo "Getting VM instance size: $VM_Size"
@@ -189,8 +193,8 @@ function Main {
 
 				if (($state -eq "TestFailed") -or ($state -eq "TestAborted")) {
 					Write-LogErr "SetupRDMA.sh didn't finish successfully!"
-					$testResult = "ABORTED"
-					return "ABORTED"
+					$testResult = $resultAborted
+					return $resultAborted
 				}
 			}
 			if ($vmCount -eq 0){
@@ -297,12 +301,11 @@ function Main {
 				$metaData = "InfiniBand-Verification-$Iteration-$TempName : $InfinibandNic IP"
 				$SucessLogs = Select-String -Path $logFileName -Pattern $pattern
 				if ($SucessLogs.Count -eq 1) {
-					$currentResult = "PASS"
+					$currentResult = $resultPass
 				} else {
-					$currentResult = "FAIL"
+					$currentResult = $resultFail
 				}
 				Write-LogInfo "$pattern : $currentResult"
-				$resultArr += $currentResult
 				$CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
 					-checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
 				#endregion
@@ -313,17 +316,16 @@ function Main {
 				$metaData = "InfiniBand-Verification-$Iteration-$TempName : IBV_PINGPONG"
 				$SucessLogs = Select-String -Path $logFileName -Pattern $pattern
 				if ($SucessLogs.Count -eq 1) {
-					$currentResult = "PASS"
+					$currentResult = $resultPass
 				} else {
 					# Get the actual tests that failed and output them
 					$failedPingPongIBV = Select-String -Path $logFileName -Pattern '(_pingpong.*Failed)'
 					foreach ($failedTest in $failedPingPongIBV) {
 						Write-LogErr "$($failedTest.Line.Split()[-7..-1])"
 					}
-					$currentResult = "FAIL"
+					$currentResult = $resultFail
 				}
 				Write-LogInfo "$pattern : $currentResult"
-				$resultArr += $currentResult
 				$CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
 					-checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
 				#endregion
@@ -335,12 +337,11 @@ function Main {
 				$metaData = "InfiniBand-Verification-$Iteration-$TempName : PingPong Intranode"
 				$SucessLogs = Select-String -Path $logFileName -Pattern $pattern
 				if ($SucessLogs.Count -eq 1) {
-					$currentResult = "PASS"
+					$currentResult = $resultPass
 				} else {
-					$currentResult = "FAIL"
+					$currentResult = $resultFail
 				}
 				Write-LogInfo "$pattern : $currentResult"
-				$resultArr += $currentResult
 				$CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
 					-checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
 				#endregion
@@ -353,12 +354,11 @@ function Main {
 					$metaData = "InfiniBand-Verification-$Iteration-$TempName : IMB-MPI1"
 					$SucessLogs = Select-String -Path $logFileName -Pattern $pattern
 					if ($SucessLogs.Count -eq 1) {
-						$currentResult = "PASS"
+						$currentResult = $resultPass
 					} else {
-						$currentResult = "FAIL"
+						$currentResult = $resultFail
 					}
 					Write-LogInfo "$pattern : $currentResult"
-					$resultArr += $currentResult
 					$CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
 						-checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
 				}
@@ -374,14 +374,13 @@ function Main {
 					$SucessLogs = Select-String -Path $logFileName -Pattern $pattern
 					$SkippedLogs = Select-String -Path $logFileName -Pattern $patternSkipped
 					if ($SucessLogs.Count -eq 1) {
-						$currentResult = "PASS"
+						$currentResult = $resultPass
 					} elseif ($SkippedLogs.Count -eq 1) {
 						$currentResult = "SKIPPED"
 					} else {
-						$currentResult = "FAIL"
+						$currentResult = $resultFail
 					}
 					Write-LogInfo "$pattern : $currentResult"
-					$resultArr += $currentResult
 					$CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
 						-checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
 				}
@@ -397,14 +396,13 @@ function Main {
 					$SucessLogs = Select-String -Path $logFileName -Pattern $pattern
 					$SkippedLogs = Select-String -Path $logFileName -Pattern $patternSkipped
 					if ($SucessLogs.Count -eq 1) {
-						$currentResult = "PASS"
+						$currentResult = $resultPass
 					} elseif ($SkippedLogs.Count -eq 1) {
 						$currentResult = "SKIPPED"
 					} else {
-						$currentResult = "FAIL"
+						$currentResult = $resultFail
 					}
 					Write-LogInfo "$pattern : $currentResult"
-					$resultArr += $currentResult
 					$CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
 						-checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
 				}
@@ -418,12 +416,11 @@ function Main {
 					$metaData = "InfiniBand-Verification-$Iteration-$TempName : IMB-RMA"
 					$SucessLogs = Select-String -Path $logFileName -Pattern $pattern
 					if ($SucessLogs.Count -eq 1) {
-						$currentResult = "PASS"
+						$currentResult = $resultPass
 					} else {
-						$currentResult = "FAIL"
+						$currentResult = $resultFail
 					}
 					Write-LogInfo "$pattern : $currentResult"
-					$resultArr += $currentResult
 					$CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
 						-checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
 				}
@@ -437,12 +434,11 @@ function Main {
 					$metaData = "InfiniBand-Verification-$Iteration-$TempName : IMB-NBC"
 					$SucessLogs = Select-String -Path $logFileName -Pattern $pattern
 					if ($SucessLogs.Count -eq 1) {
-						$currentResult = "PASS"
+						$currentResult = $resultPass
 					} else {
-						$currentResult = "FAIL"
+						$currentResult = $resultFail
 					}
 					Write-LogInfo "$pattern : $currentResult"
-					$resultArr += $currentResult
 					$CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
 						-checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
 				}
@@ -462,18 +458,19 @@ function Main {
 
 			if ($FinalStatus -imatch "TestFailed") {
 				Write-LogErr "Test failed. Last known status : $CurrentStatus."
-				$testResult = "FAIL"
+				$testResult = $resultFail
 			} elseif ($FinalStatus -imatch "TestAborted") {
 				Write-LogErr "Test ABORTED. Last known status : $CurrentStatus."
-				$testResult = "ABORTED"
+				$testResult = $resultAborted
+				return $resultAborted
 			} elseif ($FinalStatus -imatch "TestCompleted") {
 				Write-LogInfo "Test Completed. Result : $FinalStatus."
-				$testResult = "PASS"
+				$testResult = $resultPass
 				$TotalSuccessCount += 1
 			} elseif ($FinalStatus -imatch "TestRunning") {
 				Write-LogInfo "PowerShell background job for test is completed but VM is reporting that test is still running. Please check $LogDir\mdConsoleLogs.txt"
 				Write-LogInfo "Contests of state.txt : $FinalStatus"
-				$testResult = "FAIL"
+				$testResult = $resultFail
 			}
 			Write-LogInfo "**********************************************"
 			if ($RemainingRebootIterations -gt 0) {
@@ -490,9 +487,9 @@ function Main {
 		while (($ExpectedSuccessCount -ne $Iteration) -and ($testResult -eq "PASS"))
 
 		if ($ExpectedSuccessCount -eq $TotalSuccessCount) {
-			$testResult = "PASS"
+			$testResult = $resultPass
 		} else {
-			$testResult = "FAIL"
+			$testResult = $resultFail
 		}
 		Write-LogInfo "Test result : $testResult"
 		Write-LogInfo "Test Completed"
@@ -502,9 +499,9 @@ function Main {
 		Write-LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
 	} finally {
 		if (!$testResult) {
-			$testResult = "ABORTED"
+			$testResult = $resultAborted
 		}
-		$resultArr += $testResult
+		$resultArr = $testResult
 	}
 	$CurrentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
 	return $CurrentTestResult

@@ -15,7 +15,7 @@
         <testScript>VERIFY-DEPLOYMENT-PROVISION.ps1</testScript>
         <files></files>
         <setupType>OneVM</setupType>
-        <OverrideVMSize>Standard_DS1_v2</OverrideVMSize>
+        <OverrideVMSize>Standard_DS4_v2</OverrideVMSize>
         <AdditionalHWConfig>
             <DiskType>Managed</DiskType>
             <OSDiskType>Ephemeral</OSDiskType>
@@ -545,6 +545,7 @@
             <param>vmCpuNumber=1</param>
             <param>vmMemory=4GB</param>
             <param>crashkernel=512M</param>
+            <param>kexecVersion=KEXEC_VERSION</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Functional</Category>
@@ -562,6 +563,7 @@
             <param>vmCpuNumber=2</param>
             <param>vmMemory=2GB</param>
             <param>crashkernel=256M</param>
+            <param>kexecVersion=KEXEC_VERSION</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Functional</Category>
@@ -580,6 +582,7 @@
             <param>vmMemory=3GB</param>
             <param>crashkernel=512M</param>
             <param>NMI=1</param>
+            <param>kexecVersion=KEXEC_VERSION</param>
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
@@ -597,6 +600,7 @@
             <param>vmCpuNumber=2</param>
             <param>vmMemory=2GB</param>
             <param>crashkernel=auto</param>
+            <param>kexecVersion=KEXEC_VERSION</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Functional</Category>
@@ -614,6 +618,7 @@
             <param>vmCpuNumber=4</param>
             <param>vmMemory=2GB</param>
             <param>crashkernel=512M</param>
+            <param>kexecVersion=KEXEC_VERSION</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Functional</Category>
@@ -631,6 +636,7 @@
             <param>vmCpuNumber=16</param>
             <param>vmMemory=4GB</param>
             <param>crashkernel=512M</param>
+            <param>kexecVersion=KEXEC_VERSION</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Functional</Category>

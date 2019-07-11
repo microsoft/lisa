@@ -235,6 +235,9 @@ GetDistro()
 	#Get distro (snipper take from alsa-info.sh)
 	__DISTRO=$(grep -ihs "Ubuntu\|SUSE\|Fedora\|Debian\|CentOS\|Red Hat Enterprise Linux\|clear-linux-os\|CoreOS" /{etc,usr/lib}/{issue,*release,*version})
 	case $__DISTRO in
+		*Ubuntu*14.04*)
+			DISTRO=ubuntu_14.04
+			;;
 		*Ubuntu*)
 			DISTRO=ubuntu_x
 			;;
@@ -1825,7 +1828,7 @@ function GetOSVersion {
                 os_VENDOR=$r
             fi
 
-            if [[ -n "$(grep \"$r\" /etc/SuSE-release)" ]]; then
+            if [[ -n "$(grep "${r}" /etc/SuSE-release)" ]]; then
                 os_CODENAME=$(grep "CODENAME = " /etc/SuSE-release | sed 's:.* = ::g')
                 os_RELEASE=$(grep "VERSION = " /etc/SuSE-release | sed 's:.* = ::g')
                 os_UPDATE=$(grep "PATCHLEVEL = " /etc/SuSE-release | sed 's:.* = ::g')
@@ -1842,6 +1845,11 @@ function GetOSVersion {
         os_RELEASE=$(awk '/VERSION_ID=/' /etc/os-release | sed 's/VERSION_ID=//' | sed 's/\"//g')
     elif [[ -f /etc/os-release ]] && [[ $(cat /etc/os-release) =~ "SUSE Linux Enterprise Server 15" ]]; then
         os_VENDOR="SLES"
+        os_PACKAGE="rpm"
+        os_CODENAME=""
+        os_RELEASE=$(awk '/VERSION_ID=/' /etc/os-release | sed 's/VERSION_ID=//' | sed 's/\"//g')
+    elif [[ -f /etc/os-release ]] && [[ $(cat /etc/os-release) =~ "SUSE Linux Enterprise High Performance Computing" ]]; then
+        os_VENDOR="SLEHPC"
         os_PACKAGE="rpm"
         os_CODENAME=""
         os_RELEASE=$(awk '/VERSION_ID=/' /etc/os-release | sed 's/VERSION_ID=//' | sed 's/\"//g')
@@ -1887,7 +1895,7 @@ function is_suse {
 
     [ "$os_VENDOR" = "openSUSE" ] || [ "$os_VENDOR" = "SUSE LINUX" ] || \
     [ "$os_VENDOR" = "SUSE" ] || [ "$os_VENDOR" = "SLE" ] || \
-    [ "$os_VENDOR" = "SLES" ]
+    [ "$os_VENDOR" = "SLES" ] || [ "$os_VENDOR" = "SLEHPC" ]
 }
 
 #######################################################################
@@ -2160,12 +2168,12 @@ function detect_linux_distribution() {
 function update_repos() {
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos)
-			yum makecache
+			yum clean all
 			;;
 		ubuntu|debian)
 			apt-get update
 			;;
-		suse|opensuse|sles)
+		suse|opensuse|sles|sle_hpc)
 			zypper refresh
 			;;
 		clear-linux-os)
@@ -2273,7 +2281,7 @@ function install_package ()
 				apt_get_install "$package_name"
 				;;
 
-			suse|opensuse|sles)
+			suse|opensuse|sles|sle_hpc)
 				zypper_install "$package_name"
 				;;
 
@@ -2301,7 +2309,7 @@ function remove_package ()
 				apt_get_remove "$package_name"
 				;;
 
-			suse|opensuse|sles)
+			suse|opensuse|sles|sle_hpc)
 				zypper_remove "$package_name"
 				;;
 
@@ -2382,7 +2390,10 @@ function add_sles_benchmark_repo () {
 				repo_url="https://download.opensuse.org/repositories/benchmark/SLE_11_SP4/benchmark.repo"
 				;;
 			12*)
-				repo_url="https://download.opensuse.org/repositories/benchmark/SLE_12_SP3_Backports/benchmark.repo"
+				repo_url="https://download.opensuse.org/repositories/benchmark/SLE_12_SP4/benchmark.repo"
+				;;
+			15*)
+				repo_url="https://download.opensuse.org/repositories/benchmark/SLE_15_SP1/benchmark.repo"
 				;;
 			*)
 				echo "Unsupported SLES version $DISTRO_VERSION for add_sles_benchmark_repo"
@@ -2398,7 +2409,7 @@ function add_sles_benchmark_repo () {
 
 # Add network utilities repo on SLES
 function add_sles_network_utilities_repo () {
-	if [ $DISTRO_NAME == "sles" ]; then
+	if [[ $DISTRO_NAME == "sles" || $DISTRO_NAME == "sle_hpc" ]]; then
 		case $DISTRO_VERSION in
 			11*)
 				repo_url="https://download.opensuse.org/repositories/network:/utilities/SLE_11_SP4/network:utilities.repo"
@@ -2438,11 +2449,10 @@ function install_fio () {
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos)
 			install_epel
-			yum -y --nogpgcheck install wget sysstat mdadm blktrace libaio fio bc libaio-devel
+			yum -y --nogpgcheck install wget sysstat mdadm blktrace libaio fio bc libaio-devel gcc gcc-c++ kernel-devel
 			if ! command -v fio; then
 				echo "fio is not installed\n Build it from source code now..."
 				fio_version="3.13"
-				yum -y groupinstall "Development Tools"
 				wget https://github.com/axboe/fio/archive/fio-${fio_version}.tar.gz
 				tar xvf fio-${fio_version}.tar.gz
 				pushd fio-fio-${fio_version} && ./configure && make && make install
@@ -2461,7 +2471,7 @@ function install_fio () {
 			mount -t debugfs none /sys/kernel/debug
 			;;
 
-		sles)
+		sles|sle_hpc)
 			if [[ $DISTRO_VERSION =~ 12|15 ]]; then
 				add_sles_benchmark_repo
 				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install wget mdadm blktrace libaio1 sysstat bc
@@ -2546,7 +2556,7 @@ function install_iperf3 () {
 			fi
 			;;
 
-		sles)
+		sles|sle_hpc)
 			if [[ $DISTRO_VERSION =~ 12|15 ]]; then
 				add_sles_network_utilities_repo
 				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install sysstat git bc make gcc psmisc iperf3
@@ -2623,7 +2633,7 @@ function install_lagscope () {
 			build_lagscope
 			;;
 
-		sles)
+		sles|sle_hpc)
 			if [[ $DISTRO_VERSION =~ 12|15 ]]; then
 				add_sles_network_utilities_repo
 				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install sysstat git bc make gcc dstat psmisc
@@ -2661,8 +2671,8 @@ function install_lagscope () {
 
 # Build and install ntttcp
 function build_ntttcp () {
-	ntttcp_version="v1.3.4"
-	# If the ntttcpVersion is provided in xml then it will go for that version, otherwise default to v1.3.4.
+	ntttcp_version="1.4.0"
+	# If the ntttcpVersion is provided in xml then it will go for that version, otherwise default to 1.4.0.
 	if [ "${1}" ]; then
 		ntttcp_version=${1}
 	fi
@@ -2697,7 +2707,7 @@ function install_ntttcp () {
 			build_lagscope
 			;;
 
-		sles)
+		sles|sle_hpc)
 			if [[ $DISTRO_VERSION =~ 12|15 ]]; then
 				add_sles_network_utilities_repo
 				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install wget sysstat git bc make gcc dstat psmisc lshw
@@ -2802,8 +2812,8 @@ function install_netperf () {
 
 # Get the active NIC name
 function get_active_nic_name () {
-	if [ $DISTRO_NAME == "sles" ] && [[ $DISTRO_VERSION =~ 15 ]]; then
-		zypper_install "net-tools-deprecated" > /dev/null
+	if [[ $DISTRO_NAME == "sles" ]] && [[ $DISTRO_VERSION =~ 15 ]] || [[ $DISTRO_NAME == "sle_hpc" ]]; then
+		zypper_install "net-tools-deprecated" > /dev/null 2>&1
 	fi
 	echo $(route | grep '^default' | grep -o '[^ ]*$')
 }
@@ -3386,6 +3396,7 @@ function Format_Mount_NVME()
     else
         return 1
     fi
+    install_package xfsprogs
     # Partition disk
     echo "Creating  partition on ${namespace} disk "
     (echo n; echo p; echo 1; echo ; echo; echo ; echo w) | fdisk /dev/"${namespace}"
@@ -3512,7 +3523,7 @@ function check_package ()
 	for package_name in "${package_list[@]}"; do
 		case "$DISTRO_NAME" in
 			oracle|rhel|centos)
-				yum provides "$package_name" | grep -i Matched
+				yum --showduplicates list "$package_name" > /dev/null 2>&1
 				return $?
 				;;
 
@@ -3521,7 +3532,7 @@ function check_package ()
 				return $?
 				;;
 
-			suse|opensuse|sles)
+			suse|opensuse|sles|sle_hpc)
 				zypper search "$package_name"
 				return $?
 				;;
@@ -3545,7 +3556,13 @@ function install_nvme_cli()
         echo "nvme is not installed\n Installing now..."
         check_package "nvme-cli"
         if [ $? -ne 0 ]; then
-            yum -y groupinstall "Development Tools"
+            packages="gcc gcc-c++ kernel-devel make"
+            for package in $packages; do
+                check_package "$package"
+                if [ $? -eq 0 ]; then
+                    install_package "$package"
+                fi
+            done
             wget https://github.com/linux-nvme/nvme-cli/archive/${nvme_version}.tar.gz
             tar xvf ${nvme_version}.tar.gz
             pushd nvme-cli-${nvme_version/v/} && make && make install
@@ -3598,4 +3615,21 @@ function wget_retry() {
 		SetTestStateAborted
 		exit 1
 	fi
+}
+
+function get_OSdisk() {
+	for driveName in /dev/sd*[^0-9];
+	do
+		fdisk -l $driveName | grep -i "Linux filesystem" > /dev/null
+		if [ 0 -eq $? ]; then
+			os_disk=$(echo $driveName | awk -v FS=/ '{print $NF}')
+			break
+		fi
+	done
+
+	echo "$os_disk"
+}
+
+function version_gt() {
+	test "$(printf '%s\n' "$@" | sort -V | head -n 1)" != "$1"
 }

@@ -20,7 +20,13 @@ CopyImage()
 SearchModules()
 {
     LogMsg "Searching for modules..."
-    [[ -d "/root/initr/usr/lib/modules" ]] && abs_path="/root/initr/usr/lib/modules/" || abs_path="/root/initr/lib/modules/"
+    if [[ -d "/root/initr/usr/lib/modules" ]]; then
+        abs_path="/root/initr/usr/lib/modules/"
+    elif [[ -d "/root/initr/lib/modules" ]]; then
+        abs_path="/root/initr/lib/modules/"
+    elif [[ -d "/usr/lib64/modules" ]]; then
+        abs_path="/usr/lib64/modules/"
+    fi
     if [[ $DISTRO == "suse_12" ]]; then
         abs_path="/lib/modules/"
     fi
@@ -67,22 +73,24 @@ fi
 
 # Rebuild array to exclude built-in modules
 skip_modules=()
-
-vmbusIncluded=$(grep CONFIG_HYPERV=y /boot/config-$(uname -r))
-if [ "$vmbusIncluded" ]; then
-    skip_modules+=("hv_vmbus.ko")
-    LogMsg "hv_vmbus module is built-in. Skipping module. "
+config_path="/boot/config-$(uname -r)"
+if [[ $(detect_linux_distribution) == 'coreos' ]]; then
+    config_path="/usr/lib/kernel/config-$(uname -r)"
 fi
-storvscIncluded=$(grep CONFIG_HYPERV_STORAGE=y /boot/config-$(uname -r))
-if [ "$storvscIncluded" ]; then
-    skip_modules+=("hv_storvsc.ko")
-    LogMsg "hv_storvsc module is built-in. Skipping module. "
-fi
-netvscIncluded=$(grep CONFIG_HYPERV_NET=y /boot/config-$(uname -r))
-if [ "$netvscIncluded" ]; then
-    skip_modules+=("hv_netvsc.ko")
-    LogMsg "hv_netvsc module is built-in. Skipping module. "
-fi
+declare -A config_modulesDic
+config_modulesDic=(
+[CONFIG_HYPERV=y]="hv_vmbus.ko"
+[CONFIG_HYPERV_STORAGE=y]="hv_storvsc.ko"
+[CONFIG_HYPERV_NET=y]="hv_netvsc.ko"
+)
+for key in $(echo ${!config_modulesDic[*]})
+do
+    module_included=$(grep $key "$config_path")
+    if [ "$module_included" ]; then
+        skip_modules+=("${config_modulesDic[$key]}")
+        LogMsg "Info: Skiping ${config_modulesDic[$key]} module as it is built-in."
+    fi
+done
 
 # declare temporary array
 tempList=()

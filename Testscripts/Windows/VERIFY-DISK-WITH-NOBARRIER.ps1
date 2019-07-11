@@ -9,8 +9,8 @@ function Main {
         $count = 0
         $VM = $allVMData
         $ResourceGroupUnderTest = $VM.ResourceGroupName
-        $VirtualMachine = Get-AzureRmVM -ResourceGroupName $VM.ResourceGroupName -Name $VM.RoleName
-        $diskCount = (Get-AzureRmVMSize -Location $allVMData.Location | Where-Object {$_.Name -eq $allVMData.InstanceSize}).MaxDataDiskCount
+        $VirtualMachine = Get-AzVM -ResourceGroupName $VM.ResourceGroupName -Name $VM.RoleName
+        $diskCount = (Get-AzVMSize -Location $allVMData.Location | Where-Object {$_.Name -eq $allVMData.InstanceSize}).MaxDataDiskCount
         Write-LogInfo "Max $diskCount Disks are attach to VM"
         Write-LogInfo "--------------------------------------------------------"
         Write-LogInfo "Serial Addition of Data Disks"
@@ -23,9 +23,9 @@ function Main {
             $VHDuri = $VirtualMachine.StorageProfile.OsDisk.Vhd.Uri
             $VHDUri = $VHDUri.Replace("osdisk", $diskName)
             Write-LogInfo "Adding an empty data disk of size $diskSizeinGB GB, $count"
-            $Null = Add-AzureRMVMDataDisk -VM $VirtualMachine -Name $diskName -DiskSizeInGB $diskSizeinGB -LUN $count -VhdUri $VHDuri.ToString() -CreateOption Empty
+            $Null = Add-AzVMDataDisk -VM $VirtualMachine -Name $diskName -DiskSizeInGB $diskSizeinGB -LUN $count -VhdUri $VHDuri.ToString() -CreateOption Empty
             Write-LogInfo "Successfully created an empty data disk of size $diskSizeinGB GB,$count"
-            $Null = Update-AzureRMVM -VM $VirtualMachine -ResourceGroupName $ResourceGroupUnderTest
+            $Null = Update-AzVM -VM $VirtualMachine -ResourceGroupName $ResourceGroupUnderTest
             Write-LogInfo "Successfully added an empty data disk to the VM of size $diskSizeinGB, $count"
             Write-LogInfo "Verifying if data disk is added to the VM: Running fdisk on remote VM"
             $fdiskOutput = Run-LinuxCmd -username $user -password $password -ip $VM.PublicIP -port $VM.SSHPort -command "/sbin/fdisk -l | grep /dev/sd" -runAsSudo

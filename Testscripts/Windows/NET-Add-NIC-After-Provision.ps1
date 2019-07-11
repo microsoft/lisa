@@ -24,7 +24,7 @@ function Main {
 		$testResult = "FAIL"
 
 		# Stop VM before attaching new NICs
-		Stop-AzureRmVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName `
+		Stop-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName `
 			-Force | Out-Null
 		if (-not $?) {
 			Write-LogErr "Failed to stop $($AllVMData.RoleName)"
@@ -32,13 +32,13 @@ function Main {
 		}
 
 		# Get necessary resources
-		$vnet = Get-AzureRmVirtualNetwork -Name "VirtualNetwork" -ResourceGroupName `
+		$vnet = Get-AzVirtualNetwork -Name "VirtualNetwork" -ResourceGroupName `
 			$AllVMData.ResourceGroupName
-		$vm = Get-AzureRmVm -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName
+		$vm = Get-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName
 
 		# Set the existing NIC as primary
 		$vm.NetworkProfile.NetworkInterfaces.Item(0).primary = $true
-		Update-AzureRmVM -ResourceGroupName $AllVMData.ResourceGroupName -VM $vm | Out-Null
+		Update-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -VM $vm | Out-Null
 
 		for ($nicNr = 1; $nicNr -le $extraNICs; $nicNr++) {
 			Write-LogInfo "Setting up NIC #${nicNr}"
@@ -47,11 +47,11 @@ function Main {
 			$ipConfigName = "IPConfig${nicNr}"
 
 			# Add a new network interface
-			$ipConfig = New-AzureRmNetworkInterfaceIpConfig -Name $ipConfigName -PrivateIpAddressVersion `
+			$ipConfig = New-AzNetworkInterfaceIpConfig -Name $ipConfigName -PrivateIpAddressVersion `
 				IPv4 -PrivateIpAddress $ipAddr -SubnetId $vnet.Subnets[0].Id
-			$nic = New-AzureRmNetworkInterface -Name $nicName -ResourceGroupName $AllVMData.ResourceGroupName `
+			$nic = New-AzNetworkInterface -Name $nicName -ResourceGroupName $AllVMData.ResourceGroupName `
 				-Location $AllVMData.Location -IpConfiguration $ipConfig -Force
-			Add-AzureRmVMNetworkInterface -VM $vm -Id $nic.Id | Out-Null
+			Add-AzVMNetworkInterface -VM $vm -Id $nic.Id | Out-Null
 			if (-not $?) {
 				Write-LogErr "Failed to create extra NIC #${nicNr} in $($AllVMData.ResourceGroupName)"
 				return "FAIL"
@@ -59,13 +59,13 @@ function Main {
 			Start-Sleep -s 5
 			Write-LogInfo "Successfully added extra NIC #${nicNr}!"
 		}
-		Update-AzureRmVM -ResourceGroupName $AllVMData.ResourceGroupName -VM $vm | Out-Null
+		Update-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -VM $vm | Out-Null
 		if (-not $?) {
 			Write-LogErr "Failed to update the VM $($AllVMData.RoleName) with new NIC(s)"
 			return "FAIL"
 		}
 		# Start VM
-		Start-AzureRmVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName | Out-Null
+		Start-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName | Out-Null
 		if (-not $?) {
 			Write-LogErr "Failed to start $($AllVMData.RoleName)"
 			return "FAIL"

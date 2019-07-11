@@ -465,7 +465,7 @@ Class TestController
 			Write-LogErr "EXCEPTION: $errorMessage"
 			Write-LogErr "Source: Line $line in script $scriptName."
 			$currentTestResult.TestResult = $global:ResultFail
-			$currentTestResult.testSummary += $errorMessage
+			$currentTestResult.testSummary += Trim-ErrorLogMessage $errorMessage
 		}
 
 		# Upload results to database
@@ -576,7 +576,7 @@ Class TestController
 						$deployErrors = ""
 						if ($deployVMStatus) {
 							$vmData = $deployVMStatus
-							$deployErrors = $deployVMStatus.Error
+							$deployErrors = Trim-ErrorLogMessage $deployVMStatus.Error
 							if ($deployVMStatus.Keys -and ($deployVMStatus.Keys -contains "VmData")) {
 								$vmData = $deployVMStatus.VmData
 							}

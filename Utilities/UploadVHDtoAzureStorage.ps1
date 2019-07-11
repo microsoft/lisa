@@ -32,7 +32,7 @@ try
 {
     Write-LogInfo "Target storage account: $StorageAccountName"
     Write-LogInfo "Gettting Resource group name of the Storage account - $StorageAccountName"
-    $StorageAccountNameRG = (Get-AzureRmResource | Where { $_.Name -eq $StorageAccountName}).ResourceGroupName
+    $StorageAccountNameRG = (Get-AzResource | Where { $_.Name -eq $StorageAccountName}).ResourceGroupName
     $UploadLink  = "https://$StorageAccountName.blob.core.windows.net/vhds"
 
     Write-LogInfo "WARNING: If a VHD is present in storage account with same name, it will be overwritten."
@@ -44,7 +44,7 @@ try
     {
         $retryCount += 1
         Write-LogInfo "Initiating '$VHDPath' upload to $UploadLink. Please wait..."
-        $out = Add-AzureRmVhd -ResourceGroupName $StorageAccountNameRG -Destination "$UploadLink/$VHDName" -LocalFilePath "$VHDPath" -NumberOfUploaderThreads $NumberOfUploaderThreads -OverWrite -Verbose
+        $out = Add-AzVhd -ResourceGroupName $StorageAccountNameRG -Destination "$UploadLink/$VHDName" -LocalFilePath "$VHDPath" -NumberOfUploaderThreads $NumberOfUploaderThreads -OverWrite -Verbose
         $uploadStatus = $?
         if ( $uploadStatus )
         {

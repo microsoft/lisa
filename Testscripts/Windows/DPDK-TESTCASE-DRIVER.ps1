@@ -41,7 +41,7 @@ function Get-NonManagementNic() {
 	)
 
 	$rg = $allVMData[0].ResourceGroupName
-	$allNics = Get-AzureRmNetworkInterface -ResourceGroupName $rg | Where-Object {($null -ne $_.VirtualMachine.Id) `
+	$allNics = Get-AzNetworkInterface -ResourceGroupName $rg | Where-Object {($null -ne $_.VirtualMachine.Id) `
 		-and (($_.VirtualMachine.Id | Split-Path -leaf) -eq $vmName)}
 
 	$nics = @()
@@ -315,7 +315,9 @@ collect_VM_properties
 				$resultMap["Fwdpackets"] = [int64]($mode.fwd_packets)
 				$resultMap["Tx_PacketSize_KBytes"] = [Decimal]($mode.tx_packet_size)
 				$resultMap["Rx_PacketSize_KBytes"] = [Decimal]($mode.rx_packet_size)
-				Write-LogInfo "Collected performance data for $($mode.test_mode) mode."
+				if ($mode.test_mode) {
+					Write-LogInfo "Collected performance data for $($mode.test_mode) mode."
+				}
 				$currentTestResult.TestResultData += $resultMap
 			}
 		}

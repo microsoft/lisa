@@ -14,7 +14,7 @@
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Performance</Category>
-        <Area>DPDK,DPDK-CORE</Area>
+        <Area>DPDK</Area>
         <Tags>dpdk,dpdk-core,network,hv_netvsc,sriov</Tags>
         <Priority>2</Priority>
     </test>
@@ -34,7 +34,7 @@
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Performance</Category>
-        <Area>DPDK,DPDK-CORE</Area>
+        <Area>DPDK</Area>
         <Tags>dpdk,dpdk-core,network,hv_netvsc,sriov</Tags>
         <Priority>2</Priority>
     </test>
@@ -53,7 +53,7 @@
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Performance</Category>
-        <Area>DPDK,DPDK-CORE</Area>
+        <Area>DPDK</Area>
         <Tags>dpdk,dpdk-core,network,hv_netvsc,sriov</Tags>
         <Priority>2</Priority>
     </test>
@@ -73,7 +73,7 @@
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Performance</Category>
-        <Area>DPDK,DPDK-CORE</Area>
+        <Area>DPDK</Area>
         <Tags>dpdk,dpdk-core,network,hv_netvsc,sriov</Tags>
         <Priority>2</Priority>
     </test>
@@ -94,7 +94,7 @@
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Performance</Category>
-        <Area>DPDK,DPDK-CORE</Area>
+        <Area>DPDK</Area>
         <Tags>dpdk,dpdk-core,network,hv_netvsc,sriov</Tags>
         <Priority>2</Priority>
     </test>

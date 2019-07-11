@@ -20,24 +20,6 @@ function Main {
         $TestParams
     )
 
-    $filename = "CheckEatmemory.sh"
-    $cmdToVM = @"
-    #!/bin/bash
-    count=0
-    touch HotAddErrors.log
-    echo "Info: eatmemory $vmConsumeMem MB" > HotAdd.log
-    while true; do
-        count=`$((`$count+1))
-        echo "Info: eatmemory for `$count time" >> HotAdd.log
-        eatmemory "${$vmConsumeMem}M"
-        if [ `$? -nq 0 ]; then
-            echo "Error: Cannot execute eatmemory $vmConsumeMem MB > HotAddErrors.log"
-            exit 1
-        fi
-    done
-    exit 0
-"@
-
     # Install eatmemory if not installed
     $install = Publish-App -appName "eatmemory" -customIP $Ipv4 -appGitURL $TestParams.appGitURL -VMSSHPort $VMPort
     if (-not $install) {
@@ -68,7 +50,7 @@ function Main {
         return "FAIL"
     }
 
-    Write-LogInfo "Memory stats after $VMName started reporting "
+    Write-LogInfo "Memory stats before $VMName started reporting "
     Write-LogInfo "${VMName}: assigned - $vmBeforeAssigned | demand - $vmBeforeDemand"
 
     [int64]$vmConsumeMem = (Get-VMMemory -VM $vm).Maximum
@@ -77,7 +59,22 @@ function Main {
     $vmConsumeMem /= 1MB
 
     # Send Command to consume
-    Add-Content $filename "$cmdToVM"
+    $filename = "CheckEatmemory.sh"
+    $cmdToVM = @"
+    #!/bin/bash
+    count=0
+    touch HotAddErrors.log
+    echo "Info: eatmemory $vmConsumeMem MB" > HotAdd.log
+    while true; do
+        count=`$((`$count+1))
+        echo "Info: eatmemory for `$count time" >> HotAdd.log
+        eatmemory "${vmConsumeMem}M"
+        sleep 1
+    done
+    echo "Error: Cannot execute eatmemory > HotAddErrors.log"
+    exit 1
+"@
+    Set-Content $filename "$cmdToVM"
     Copy-RemoteFiles -uploadTo $Ipv4 -port $VMPort -files $filename -username $VMUserName -password $VMPassword -upload
     $eatmemory = "chmod u+x ${filename} && sed -i 's/\r//g' ${filename} && ./${filename}"
     $job1 = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort -command $eatmemory -runAsSudo -RunInBackGround
@@ -90,17 +87,32 @@ function Main {
     $sleepTime = 30
     Start-Sleep -s $sleepTime
 
-    #Get memory stats for vm after eatmemory starts
-    [int64]$vmAssigned = ($vm.MemoryAssigned / 1MB)
-    [int64]$vmDemand = ($vm.MemoryDemand / 1MB)
+    # Get memory stats for vm after eatmemory starts
+    # The MemoryDemand is a dynamic value, so sample many times
+    $TotalTryTimes = 10
+    $successfulCount = 0
+    for ($tryTimes = 0; $tryTimes -le $TotalTryTimes; $tryTimes++) {
+        [int64]$vmAssigned = ($vm.MemoryAssigned / 1MB)
+        [int64]$vmDemand = ($vm.MemoryDemand / 1MB)
 
-    Write-LogInfo "Memory stats before $VMName started eatmemory"
-    Write-LogInfo " ${VMName}: assigned - $vmAssigned | demand - $vmDemand"
+        Write-LogInfo "[${tryTimes} / ${TotalTryTimes}]: Memory stats after $VMName started eatmemory"
+        Write-LogInfo " ${VMName}: assigned - $vmAssigned | demand - $vmDemand"
 
-    if ($vmDemand -le $vmBeforeDemand) {
-        Write-LogErr "Memory Demand did not increase after starting eatmemory"
-        return "FAIL"
+        if ($vmDemand -gt $vmBeforeDemand) {
+            $successfulCount++
+            if ($successfulCount -eq 3) {
+                Write-LogInfo "Memory Demand increases after starting eatmemory"
+                break
+            }
+        }
+
+        if (($successfulCount -lt 3) -and ($tryTimes -eq $TotalTryTimes)) {
+            Write-LogErr "Memory Demand did not increase after starting eatmemory"
+            return "FAIL"
+        }
+        Start-Sleep -s 3
     }
+
     # Sleep for 3 minutes to wait for eatmemory runnning
     $sleepTime = 180
     Start-Sleep -s $sleepTime
@@ -132,9 +144,10 @@ function Main {
     }
     else {
         Write-LogInfo "Test PASSED , No call traces found!"
+        return "PASS"
     }
 
 }
 Main -VMName $AllVMData.RoleName -HvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
-    -Ipv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort -VMUserName $user -VMPassword $password -RootDir $WorkingDirectory`
+    -Ipv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort -VMUserName $user -VMPassword $password `
     -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))
