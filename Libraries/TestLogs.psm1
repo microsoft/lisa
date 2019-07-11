@@ -144,6 +144,27 @@ function Collect-TestLogs {
 	return $currentTestResult
 }
 
+function Collect-CustomLogFile {
+	<#
+	.Synopsis
+		Checks if log file is present in VM and downloads it if so.
+    #>
+    param (
+        [string]$LogsDestination,
+		[string]$PublicIP,
+		[string]$SSHPort,
+		[string]$Username,
+		[string]$Password,
+        [string]$FileName
+    )
+    if (Check-FileInLinuxGuest -ipv4 $PublicIP -vmPassword $Password -vmPort $SSHPort -vmUserName $Username -fileName $FileName) {
+        Copy-RemoteFiles -download -downloadFrom $PublicIP -files $FileName `
+            -downloadTo $LogsDestination -port $SSHPort -username $Username -password $Password
+    } else {
+        Write-LogWarn "${fileName} does not exist on VM."
+    }
+}
+
 Function GetAndCheck-KernelLogs($allDeployedVMs, $status, $vmUser, $vmPassword, $EnableCodeCoverage) {
 	try	{
 		if (!($status -imatch "Initial" -or $status -imatch "Final")) {
