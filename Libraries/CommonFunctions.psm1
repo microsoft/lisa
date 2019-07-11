@@ -1135,7 +1135,7 @@ function Check-FileInLinuxGuest {
 
 	$check = Run-LinuxCmd -username $vmUserName -password $vmPassword -port $vmPort -ip $ipv4 -command "[ -f ${fileName} ] && echo 1 || echo 0"
 	if (-not [convert]::ToInt32($check)) {
-		Write-Loginfo "File $fileName does not exist"
+		Write-Loginfo "File $fileName does not exist."
 		return $False
 	}
 	if ($checkSize) {
