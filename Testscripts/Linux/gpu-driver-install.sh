@@ -54,7 +54,7 @@ function InstallRequirements() {
     ;;
 
     ubuntu*)
-        apt -y install build-essential libelf-dev linux-tools-"$(uname -r)" linux-cloud-tools-"$(uname -r)"
+        apt -y install build-essential libelf-dev linux-tools-"$(uname -r)" linux-cloud-tools-"$(uname -r)" python
     ;;
 
     suse_15*)
