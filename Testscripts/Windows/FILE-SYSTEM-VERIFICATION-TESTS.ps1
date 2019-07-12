@@ -127,22 +127,27 @@ function Main {
         $sw = [diagnostics.stopwatch]::StartNew()
         while ($sw.elapsed -lt $timeout) {
             Start-Sleep -s 60
-            $state = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort `
+            $tcpTestResult = (Test-NetConnection -ComputerName $allVMData.PublicIP -Port $allVMData.SSHPort).TcpTestSucceeded
+            if ($tcpTestResult) {
+                $state = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort `
                 -username $superuser -password $password "cat state.txt"
-            if ($state -eq "TestCompleted") {
-                Write-LogInfo "xfstesting.sh finished the run successfully!"
-                break
-            } elseif ($state -eq "TestFailed") {
-                Write-LogErr "xfstesting.sh failed on the VM!"
-                break
-            } elseif ($state -eq "TestAborted") {
-                Write-LogErr "xfstesting.sh aborted on the VM!"
-                break
-            } elseif ($state -eq "TestSkipped") {
-                Write-LogWarn "xfstesting.sh skipped on the VM!"
-                break
+                if ($state -eq "TestCompleted") {
+                    Write-LogInfo "xfstesting.sh finished the run successfully!"
+                    break
+                } elseif ($state -eq "TestFailed") {
+                    Write-LogErr "xfstesting.sh failed on the VM!"
+                    break
+                } elseif ($state -eq "TestAborted") {
+                    Write-LogErr "xfstesting.sh aborted on the VM!"
+                    break
+                } elseif ($state -eq "TestSkipped") {
+                    Write-LogWarn "xfstesting.sh skipped on the VM!"
+                    break
+                }
+                Write-LogInfo "xfstesting.sh is still running!"
+            } else {
+                continue
             }
-            Write-LogInfo "xfstesting.sh is still running!"
         }
 
         # Get logs. An extra check for the previous $state is needed
