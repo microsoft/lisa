@@ -22,14 +22,14 @@ function Main {
             $storageType = 'Premium_LRS'
             $diskConfig = New-AzDiskConfig -SkuName $storageType -Location $AllVMData.Location -CreateOption Empty -DiskSizeGB $diskSizeinGB
             $dataDisk = New-AzDisk -DiskName $diskName -Disk $diskConfig -ResourceGroupName $AllVMData.ResourceGroupName
-            $sts1 = Add-AzVMDataDisk -VM $VirtualMachine -Name $diskName -CreateOption Attach -ManagedDiskId $dataDisk.Id -Lun $count
-            if ($sts1.ProvisioningState -eq "Succeeded") {
-                Write-LogInfo "Successfully created an empty data disk of size $diskSizeinGB GB"
+            Add-AzVMDataDisk -VM $VirtualMachine -Name $diskName -CreateOption Attach -ManagedDiskId $dataDisk.Id -Lun $count | Out-Null
+            $updateVM1 = Update-AzVM -VM $VirtualMachine -ResourceGroupName $AllVMData.ResourceGroupName
+            if ($updateVM1.IsSuccessStatusCode) {
+                Write-LogInfo "Successfully attached an empty data disk of size $diskSizeinGB GB to VM"
             } else {
                 $testResult = $resultFail
-                throw "Failed to create an empty data disk of size $diskSizeinGB GB"
+                throw "Fail to attach an empty data disk of size $diskSizeinGB GB to VM"
             }
-            Update-AzVM -VM $VirtualMachine -ResourceGroupName $AllVMData.ResourceGroupName | Out-Null
             Write-LogInfo "Verifying if data disk is added to the VM: Running fdisk on remote VM"
             $fdiskOutput = Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "/sbin/fdisk -l | grep /dev/sd" -runAsSudo
             foreach ($line in ($fdiskOutput.Split([Environment]::NewLine))) {
@@ -45,14 +45,13 @@ function Main {
                 throw "Data disk added to the VM failed to verify inside VM"
             }
             Write-LogInfo "Removing the Data Disks from the VM"
-            $sts3 = Remove-AzVMDataDisk -VM $VirtualMachine -DataDiskNames $diskName
-            if ($sts3.ProvisioningState -eq "Succeeded") {
-                Write-LogInfo "Successfully removed data disk"
+            Remove-AzVMDataDisk -VM $VirtualMachine -DataDiskNames $diskName | Out-Null
+            $updateVM2 = Update-AzVM -VM $VirtualMachine -ResourceGroupName $AllVMData.ResourceGroupName
+            if ($updateVM2.IsSuccessStatusCode) {
+                Write-LogInfo "Successfully removed the data disk from the VM"
             } else {
-                throw "Failed to remove data disk"
+                throw "Failed to remove the data disk from the VM"
             }
-            Update-AzVM -VM $VirtualMachine -ResourceGroupName $AllVMData.ResourceGroupName | Out-Null
-            Write-LogInfo "Successfully removed the data disk from the VM"
             Write-LogInfo "Verifying if data disk is removed from the VM: Running fdisk on remote VM"
             $fdiskFinalOutput = Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "/sbin/fdisk -l | grep /dev/sd" -runAsSudo
             foreach ($line in ($fdiskFinalOutput.Split([Environment]::NewLine))) {
