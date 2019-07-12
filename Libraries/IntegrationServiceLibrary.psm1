@@ -849,19 +849,30 @@ Function Restore-Backup {
 		$HypervGroupName,
 		$VMName
 	)
+	$vm = Get-VM -name $VMName
 	# Start the Restore
 	Write-LogInfo "Now let's restore the VM from backup."
 	# Get BackupSet
 	$BackupSet = Get-WBBackupSet -BackupTarget $BackupLocation
 	# Start restore
-	Start-WBHyperVRecovery -BackupSet $BackupSet -VMInBackup $BackupSet.Application[0].Component[0] -Force -WarningAction SilentlyContinue
-	$sts=Get-WBJob -Previous 1
+	Start-WBHyperVRecovery -BackupSet $BackupSet -VMInBackup $BackupSet.Application[0].Component[0] `
+		-Force -WarningAction SilentlyContinue
+	$sts = Get-WBJob -Previous 1
 	if ($sts.JobState -ne "Completed" -or $sts.HResult -ne 0) {
 		Write-LogErr "VSS Restore failed"
+		if (!(Get-VM -ErrorAction SilentlyContinue -Name $VMName)) {
+			# Note (v-advlad): doing the best effort to revive the VM
+			Write-LogInfo "Restoring the initial VM, as the VM does not exist anymore"
+			Import-VM -Path $(Join-Path $((Get-VMHost).VirtualMachinePath + "\Virtual Machines") `
+				$($vm.VMId.Guid + ".vmcx")) -ErrorAction SilentlyContinue
+			Restore-VMSnapshot -Name 'IcaBase' -VMName $VMName `
+				-ErrorAction SilentlyContinue -Confirm:$false
+			Start-VM -VMName $VMName -ErrorAction SilentlyContinue
+		}
 		return $False
 	}
 	# Add VM to VMGroup
-	Add-VMGroupMember -Name $HypervGroupName -VM $(Get-VM -name $VMName)
+	Add-VMGroupMember -Name $HypervGroupName -VM $vm
 	return $True
 }
 

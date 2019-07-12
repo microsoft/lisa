@@ -1521,7 +1521,7 @@ function Start-VMandGetIP {
         Write-LogErr "Error: Failed to start VM $VMName on $HvServer"
         return $False
     } else {
-        Write-LogInfo "$VMName started on $HvServe"
+        Write-LogInfo "$VMName started on $HvServer"
     }
 
     # Wait for VM to boot
