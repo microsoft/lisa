@@ -293,6 +293,9 @@ collect_VM_properties
 				$resultMap["ProtocolType"] = "TCP"
 				$resultMap["TestPlatFrom"] = $global:TestPlatForm
 				$resultMap["TestCaseName"] = $global:GlobalConfig.Global.Azure.ResultsDatabase.testTag
+				if (!$resultMap.TestCaseName) {
+					$resultMap["TestCaseName"] = $CurrentTestData.testName
+				}
 				$resultMap["TestDate"] = $testDate
 				$resultMap["LISVersion"] = "Inbuilt"
 				if ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
