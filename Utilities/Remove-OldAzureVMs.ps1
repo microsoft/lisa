@@ -175,6 +175,7 @@ $cleanupRGScriptBlock = {
         if ($? -and $RemoveDisks) {
             foreach ($vm in $vms) {
                 $osDiskUri = $vm.StorageProfile.OSDisk.Vhd.Uri
+                #VHD URL example - http://storageaccountname.blob.core.windows.net/vhds/vhdname.vhd
                 if ($osDiskUri) {
                     $osDiskContainerName = $osDiskUri.Split('/')[-2]
                     $osDiskStorageAcct = Get-AzStorageAccount | where { $_.StorageAccountName -eq $osDiskUri.Split('/')[2].Split('.')[0] }
