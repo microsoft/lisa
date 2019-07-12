@@ -9,6 +9,7 @@
         <files>.\Testscripts\Linux\dpdk-testFailsafe.sh,.\Testscripts\Windows\dpdk-testFailsafe.ps1</files>
         <TestParameters>
             <param>DPDK_LINK="DPDK_SOURCE_URL"</param>
+            <param>MODES="txonly"</param>
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Functional</Category>

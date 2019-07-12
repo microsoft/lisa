@@ -127,10 +127,15 @@ function Testfailsafe_Parser() {
 		SetTestStateAborted
 		exit 1
 	fi
+	if [ -z "${MODES}" ]; then
+		MODES="txonly"
+		LogMsg "MODES parameter not found in environment; using default ${MODES}"
+	fi
 
 	local csv_file=$(Create_Csv)
-	echo "dpdk_version,phase,fwdrx_pps_avg,fwdtx_pps_avg" > "${csv_file}"
+	echo "dpdk_version,test_mode,phase,fwdrx_pps_avg,fwdtx_pps_avg" > "${csv_file}"
 	local dpdk_version=$(Get_DPDK_Version "${LIS_HOME}/${DPDK_DIR}")
+	local test_mode=${MODES}
 
 	local trimmed_prefix="trimmed-forwarder"
 	local trimmed_log="${LOG_DIR}/${trimmed_prefix}.log"
@@ -161,7 +166,7 @@ function Testfailsafe_Parser() {
 		else
 			phase="overall"
 		fi
-		echo "${dpdk_version},${phase},${fwdrx_pps_avg},${fwdtx_pps_avg}" >> "${csv_file}"
+		echo "${dpdk_version},${test_mode},${phase},${fwdrx_pps_avg},${fwdtx_pps_avg}" >> "${csv_file}"
 	done
 
 	column -s, -t "${csv_file}"
