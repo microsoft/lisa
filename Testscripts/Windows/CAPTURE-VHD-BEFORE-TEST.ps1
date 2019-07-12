@@ -18,9 +18,15 @@ function Main {
 
         # region Deprovision the VM.
         Write-LogInfo "Deprovisioning $($captureVMData.RoleName)"
-        Run-LinuxCmd -ip $captureVMData.PublicIP -port $captureVMData.SSHPort `
-            -username $user -password $password -command "waagent -deprovision --force && export HISTSIZE=0" `
-            -runAsSudo | Out-Null
+        if($detectedDistro -ne "UBUNTU") {
+            Run-LinuxCmd -ip $captureVMData.PublicIP -port $captureVMData.SSHPort `
+                -username $user -password $password -command "waagent -deprovision --force && export HISTSIZE=0" `
+                -runAsSudo | Out-Null
+        } else {
+            Run-LinuxCmd -ip $captureVMData.PublicIP -port $captureVMData.SSHPort `
+                -username $user -password $password -command "waagent -deprovision --force && if [ ! -f /etc/resolv.conf ]; then cd /etc; ln -s ../run/systemd/resolve/stub-resolv.conf resolv.conf; fi && export HISTSIZE=0" `
+                -runAsSudo | Out-Null
+        }
         Write-LogInfo "Deprovisioning done."
         # endregion
         Write-LogInfo "Shutting down VM..."

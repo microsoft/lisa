@@ -34,7 +34,7 @@ done
 
 # check for either if the custom kernel is a set of rpm/deb packages
 # or a support kernel from the above list
-if [[ -z "$CustomKernel" ]] || [[ "$CustomKernel" != @(*.rpm|*.deb) ]]; then
+if [[ -z "$CustomKernel" ]] || [[ "$CustomKernel" != @(*.rpm|*.deb|*tar.gz|*.tar) ]]; then
     if [[ ! " ${supported_kernels[*]} " =~ $CustomKernel ]]; then
         echo "Please mention a set of rpm/deb kernel packages, or a supported kernel type
         with -CustomKernel, accepted values are: ${supported_kernels[@]}"
@@ -179,7 +179,43 @@ function Build_Kernel() {
     popd
 }
 
+function Get_Kernel_Name() {
+    count=$(find -name "*.deb" -type f | wc -l)
+    if [[ $count -gt 1 ]]; then
+        CustomKernel="*.deb"
+    elif [[ $count -eq 1 ]]; then
+        CustomKernel=$(find -name "*.deb" -type f)
+    fi
+    count=$(find -name "*.rpm" -type f | wc -l)
+    if [ $count -gt 1 ]; then
+        CustomKernel="*.rpm"
+    elif [ $count -eq 1 ]; then
+        CustomKernel=$(find -name "*.rpm" -type f)
+    fi
+    echo "${CustomKernel}"
+}
+
 function InstallKernel() {
+    if [[ $CustomKernel =~ "http" ]];then
+        install_package wget
+        IFS=', ' read -r -a array <<<  "$CustomKernel"
+        for url in "${array[@]}"; do
+            LogMsg "Web link detected. Downloading $url"
+            wget "$url"
+        done
+        if [[ "${#array[@]}" -gt 1 ]]; then
+            CustomKernel="$(Get_Kernel_Name)"
+        fi
+        if [[ "${#array[@]}" -eq 1 ]]; then
+            CustomKernel="${CustomKernel##*/}"
+        fi
+    fi
+
+    if [[ $CustomKernel = *tar.gz || $CustomKernel = *.tar ]]; then
+        tar -xf "${CustomKernel#$LOCAL_FILE_PREFIX}"
+        CustomKernel="$(Get_Kernel_Name)"
+    fi
+
     if [ "${CustomKernel}" == "linuxnext" ]; then
         # daily upstream linux-next
         kernelSource="https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git"
@@ -287,8 +323,8 @@ function InstallKernel() {
         kernelSource="https://git.kernel.org/pub/scm/linux/kernel/git/davem/net-next.git"
     elif [[ $CustomKernel == *.deb ]]; then
         LogMsg "Custom Kernel:$CustomKernel"
-		apt -y update
-		CheckInstallLockUbuntu
+        apt -y update
+        CheckInstallLockUbuntu
 
         LogMsg "Adding packages required by the kernel."
         apt install -y binutils
@@ -296,29 +332,20 @@ function InstallKernel() {
         LogMsg "Removing packages that do not allow the kernel to be installed"
         apt remove -y grub-legacy-ec2
 
-        if [[ $CustomKernel =~ "http" ]];then
+        customKernelFilesUnExpanded="${CustomKernel#$LOCAL_FILE_PREFIX}"
+        if [[ "${customKernelFilesUnExpanded}" == *'*.deb'* ]]; then
             CheckInstallLockUbuntu
-            LogMsg "Debian package web link detected. Downloading $CustomKernel"
-            apt install -y wget
-            apt remove -y linux-cloud-tools-common
-            wget "$CustomKernel"
-            LogMsg "Installing ${CustomKernel##*/}"
-            dpkg -i "${CustomKernel##*/}"  >> $LOG_FILE 2>&1
-            kernelInstallStatus=$?
-            image_file=$(ls -1 *.deb* | grep -v "dbg" | sed -n 1p)
-        else
-            customKernelFilesUnExpanded="${CustomKernel#$LOCAL_FILE_PREFIX}"
-            if [[ "${customKernelFilesUnExpanded}" == *'*.deb'* ]]; then
-                CheckInstallLockUbuntu
-                apt-get remove -y linux-cloud-tools-common
-            fi
-
-            LogMsg "Installing ${customKernelFilesUnExpanded}"
-            CheckInstallLockUbuntu
-            eval "dpkg -i --force-overwrite $customKernelFilesUnExpanded >> $LOG_FILE 2>&1"
-            kernelInstallStatus=$?
+            apt-get remove -y linux-cloud-tools-common
             image_file=$(ls -1 *image* | grep -v "dbg" | sed -n 1p)
+        else
+            image_file=$(ls -1 *.deb* | grep -v "dbg" | sed -n 1p)
         fi
+
+        LogMsg "Installing ${image_file}"
+        CheckInstallLockUbuntu
+        eval "dpkg -i --force-overwrite *.deb >> $LOG_FILE 2>&1"
+        eval "apt install -f -y >> $LOG_FILE 2>&1"
+        kernelInstallStatus=$?
 
         LogMsg "Configuring the correct kernel boot order"
         if [[ $kernelInstallStatus -eq 0 && "${image_file}" != '' ]]; then
@@ -350,27 +377,16 @@ function InstallKernel() {
                 KERNEL_CONFLICTING_PACKAGES="hyper-v"
                 ;;
         esac
-
-        if [[ $CustomKernel =~ "http" ]];then
-            install_package wget
-            LogMsg "RPM package web link detected. Downloading $CustomKernel"
-            wget "$CustomKernel"
-            LogMsg "Installing ${CustomKernel##*/}"
-            rpm -ivh "${CustomKernel##*/}"  >> $LOG_FILE 2>&1
-            kernelInstallStatus=$?
-        else
-            customKernelFilesUnExpanded="${CustomKernel#$LOCAL_FILE_PREFIX}"
-
-            LogMsg "Removing packages that do not allow the kernel to be installed"
-            if [[ "${customKernelFilesUnExpanded}" == *'*.rpm'* ]]; then
-                LogMsg "Removing: ${KERNEL_CONFLICTING_PACKAGES}"
-                remove_package "${KERNEL_CONFLICTING_PACKAGES}"
-            fi
-
-            LogMsg "Installing ${customKernelFilesUnExpanded}"
-            eval "rpm -ivh $customKernelFilesUnExpanded >> $LOG_FILE 2>&1"
-            kernelInstallStatus=$?
+        customKernelFilesUnExpanded="${CustomKernel#$LOCAL_FILE_PREFIX}"
+        LogMsg "Removing packages that do not allow the kernel to be installed"
+        if [[ "${customKernelFilesUnExpanded}" == *'*.rpm'* ]]; then
+            LogMsg "Removing: ${KERNEL_CONFLICTING_PACKAGES}"
+            remove_package "${KERNEL_CONFLICTING_PACKAGES}"
         fi
+
+        LogMsg "Installing ${customKernelFilesUnExpanded}"
+        eval "rpm -ivh $customKernelFilesUnExpanded >> $LOG_FILE 2>&1"
+        kernelInstallStatus=$?
 
         LogMsg "Configuring the correct kernel boot order"
         sed -i 's%GRUB_DEFAULT=.*%GRUB_DEFAULT=0%' /etc/default/grub

@@ -529,7 +529,7 @@ function Install-CustomKernel ($CustomKernel, $allVMData, [switch]$RestartAfterU
 			"latest", "linuxnext", "netnext", "upstream-stable"
 
 		if ( ($CustomKernel -notin $SupportedKernels) -and !($CustomKernel.EndsWith(".deb")) -and `
-		!($CustomKernel.EndsWith(".rpm")) ) {
+		!($CustomKernel.EndsWith(".rpm")) -and !($CustomKernel.EndsWith(".tar.gz")) -and !($CustomKernel.EndsWith(".tar")) ) {
 			Write-LogErr "Only following kernel types are supported: $SupportedKernels.`
 			Or use -CustomKernel <link to deb file>, -CustomKernel <link to rpm file>"
 		} else {
@@ -600,7 +600,7 @@ function Install-CustomKernel ($CustomKernel, $allVMData, [switch]$RestartAfterU
 				}
 			}
 			if ( $kernelSuccess -eq $jobCount ) {
-				Write-LogInfo "Kernel upgraded to `"$CustomKernel`" successfully in $($allVMData.Count) VM(s)."
+				Write-LogInfo "Kernel upgraded to `"$CustomKernel`" successfully in $jobCount VM(s)."
 				if ( $RestartAfterUpgrade ) {
 					Write-LogInfo "Now restarting VMs..."
 					if ( $TestProvider.RestartAllDeployments($allVMData) ) {
