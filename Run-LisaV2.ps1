@@ -119,7 +119,13 @@ $MyInvocation.MyCommand.Parameters.Keys | ForEach-Object {
 	$value = (Get-Variable -Name $_ -Scope "Script" -ErrorAction "SilentlyContinue").Value
 	if ($value) {
 		$params[$_] = $value
-		Write-Host ($_ + " = " + $value)
+		if ($params.TestNames) {
+			$params.TestNames = $params.TestNames.replace(' ','')
+		}
+		if ($params.ARMImageName) {
+			$params.ARMImageName = $params.ARMImageName.trim() -replace '\s{2,}', ' '
+		}
+		Write-Host ($_ + " = " + $params[$_])
 	}
 }
 $params["Verbose"] = $PSCmdlet.MyInvocation.BoundParameters["Verbose"]
