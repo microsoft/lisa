@@ -122,6 +122,10 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceWith>1</ReplaceWith>
 	</Parameter>
 	<Parameter>
+		<ReplaceThis>INFINIBAND_HPCX_TOTAL_REBOOT_COUNT</ReplaceThis>
+		<ReplaceWith>1</ReplaceWith>
+	</Parameter>
+	<Parameter>
 		<ReplaceThis>INFINIBAND_MVAPICH_TOTAL_REBOOT_COUNT</ReplaceThis>
 		<ReplaceWith>1</ReplaceWith>
 	</Parameter>
@@ -146,8 +150,16 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceWith>--mca btl self,vader,tcp --mca btl_openib_cq_size 4096</ReplaceWith>
 	</Parameter>
 	<Parameter>
+		<ReplaceThis>INFINIBAND_HPCX_MPI_SETTINGS_TCP</ReplaceThis>
+		<ReplaceWith>--map-by ppr:1:node --mca pml ucx</ReplaceWith>
+	</Parameter>
+	<Parameter>
 		<ReplaceThis>INFINIBAND_OPEN_MPI_SETTINGS_IB</ReplaceThis>
 		<ReplaceWith>--mca btl self,vader,openib --mca btl_openib_cq_size 4096</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>INFINIBAND_HPCX_MPI_SETTINGS_IB</ReplaceThis>
+		<ReplaceWith>--map-by ppr:1:node --mca pml ucx</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_MVAPICH_MPI_SETTINGS_TCP</ReplaceThis>
@@ -171,6 +183,10 @@ Scenario 2 : You need to run all the performance tests quickly.
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_OPEN_MPI_TESTNAMES</ReplaceThis>
+		<ReplaceWith>all</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>INFINIBAND_HPCX_MPI_TESTNAMES</ReplaceThis>
 		<ReplaceWith>allreduce</ReplaceWith>
 	</Parameter>
 	<Parameter>
@@ -187,6 +203,10 @@ Scenario 2 : You need to run all the performance tests quickly.
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_OPEN_PPN</ReplaceThis>
+		<ReplaceWith>1</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>INFINIBAND_HPCX_PPN</ReplaceThis>
 		<ReplaceWith>1</ReplaceWith>
 	</Parameter>
 	<Parameter>
@@ -211,6 +231,10 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceWith>Unidir_put Unidir_get Bidir_put Bidir_get One_put_all One_get_all All_put_all All_get_all Put_local Put_all_local Exchange_put Exchange_get Fetch_and_op Compare_and_swap</ReplaceWith>
 	</Parameter>
 	<Parameter>
+		<ReplaceThis>INFINIBAND_HPCX_RMA_TESTNAMES</ReplaceThis>
+		<ReplaceWith>all</ReplaceWith>
+	</Parameter>
+	<Parameter>
 		<!-- 08/02/2019 - 'Accumulate' and 'Get_accumulate' not working - removing them for now -->
 		<ReplaceThis>INFINIBAND_MVAPICH_RMA_TESTNAMES</ReplaceThis>
 		<ReplaceWith>Unidir_put Unidir_get Bidir_put Bidir_get One_put_all One_get_all All_put_all All_get_all Put_local Put_all_local Exchange_put Exchange_get Fetch_and_op Compare_and_swap</ReplaceWith>
@@ -225,6 +249,11 @@ Scenario 2 : You need to run all the performance tests quickly.
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_OPEN_RMA_TEST_COUNT</ReplaceThis>
+		<ReplaceWith>0</ReplaceWith>
+	</Parameter>
+	<!-- 15/07/2019 - IMB-RMA is taking too long to complete. Skiping the test for now -->
+	<Parameter>
+		<ReplaceThis>INFINIBAND_HPCX_RMA_TEST_COUNT</ReplaceThis>
 		<ReplaceWith>0</ReplaceWith>
 	</Parameter>
 	<Parameter>
@@ -245,6 +274,10 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceWith>Ibcast Igather Igatherv Iscatter Iscatterv Ialltoall Ialltoallv Ireduce Ireduce_scatter Iallreduce Ibarrier</ReplaceWith>
 	</Parameter>
 	<Parameter>
+		<ReplaceThis>INFINIBAND_HPCX_NBC_TESTNAMES</ReplaceThis>
+		<ReplaceWith>allreduce</ReplaceWith>
+	</Parameter>
+	<Parameter>
 		<ReplaceThis>INFINIBAND_MVAPICH_NBC_TESTNAMES</ReplaceThis>
 		<ReplaceWith>allreduce</ReplaceWith>
 	</Parameter>
@@ -260,7 +293,11 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceThis>INFINIBAND_OPEN_NBC_TEST_COUNT</ReplaceThis>
 		<ReplaceWith>1</ReplaceWith>
 	</Parameter>
-		<Parameter>
+	<Parameter>
+		<ReplaceThis>INFINIBAND_HPCX_NBC_TEST_COUNT</ReplaceThis>
+		<ReplaceWith>1</ReplaceWith>
+	</Parameter>
+	<Parameter>
 		<ReplaceThis>INFINIBAND_MVAPICH_NBC_TEST_COUNT</ReplaceThis>
 		<ReplaceWith>1</ReplaceWith>
 	</Parameter>
@@ -276,7 +313,11 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceThis>INFINIBAND_OPEN_P2P_TEST_COUNT</ReplaceThis>
 		<ReplaceWith>1</ReplaceWith>
 	</Parameter>
-		<Parameter>
+	<Parameter>
+		<ReplaceThis>INFINIBAND_HPCX_P2P_TEST_COUNT</ReplaceThis>
+		<ReplaceWith>1</ReplaceWith>
+	</Parameter>
+	<Parameter>
 		<ReplaceThis>INFINIBAND_MVAPICH_P2P_TEST_COUNT</ReplaceThis>
 		<ReplaceWith>1</ReplaceWith>
 	</Parameter>
@@ -292,7 +333,12 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceThis>INFINIBAND_OPEN_IO_TEST_COUNT</ReplaceThis>
 		<ReplaceWith>0</ReplaceWith>
 	</Parameter>
-		<Parameter>
+	<!-- 15/07/2019 - IMB-IO is taking too long to complete. Skiping the test for now -->
+	<Parameter>
+		<ReplaceThis>INFINIBAND_HPCX_IO_TEST_COUNT</ReplaceThis>
+		<ReplaceWith>0</ReplaceWith>
+	</Parameter>
+	<Parameter>
 		<ReplaceThis>INFINIBAND_MVAPICH_IO_TEST_COUNT</ReplaceThis>
 		<ReplaceWith>1</ReplaceWith>
 	</Parameter>
@@ -488,6 +534,10 @@ Scenario 2 : You need to run all the performance tests quickly.
 	<Parameter>
 		<ReplaceThis>MLX_OFED_PARTIAL_LINK</ReplaceThis>
 		<ReplaceWith>http://content.mellanox.com/ofed/MLNX_OFED-4.5-1.0.1.0/MLNX_OFED_LINUX-4.5-1.0.1.0-rhel</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>HPCX_PARTIAL_LINK</ReplaceThis>
+		<ReplaceWith>http://www.mellanox.com/downloads/hpc/hpc-x/v2.3/hpcx-v2.3.0-gcc-MLNX_OFED_LINUX-4.5-1.0.1.0-</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>IBM_PLATFORM_MPI_DOWNLOAD</ReplaceThis>

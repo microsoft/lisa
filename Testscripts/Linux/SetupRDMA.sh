@@ -59,6 +59,8 @@ function Main() {
 	# Change memory limits
 	echo "* soft memlock unlimited" >> /etc/security/limits.conf
 	echo "* hard memlock unlimited" >> /etc/security/limits.conf
+	hpcx_ver=""
+	source /etc/os-release
 	case $DISTRO in
 		redhat_7|centos_7)
 			# install required packages regardless VM types.
@@ -84,6 +86,7 @@ function Main() {
 			# because we have seen some inconsistencies in getting the exact OS version.
 			distro_version=$(sed 's/[^.0-9]//g' /etc/redhat-release)
 			distro_version=$(echo ${distro_version:0:3})
+			hpcx_ver="redhat"$distro_version
 			mlx5_ofed_link="$mlx_ofed_partial_link$distro_version-x86_64.tgz"
 			cd
 			LogMsg "Downloading MLX driver"
@@ -151,6 +154,7 @@ function Main() {
 			fi
 			# Enable mlx5_ib module on boot
 			echo "mlx5_ib" >> /etc/modules-load.d/mlx5_ib.conf
+			hpcx_ver="suse"$VERSION_ID
 			;;
 		ubuntu*)
 			LogMsg "This is Ubuntu"
@@ -160,6 +164,7 @@ function Main() {
 				SetTestStateSkipped
 				exit 0
 			fi
+			hpcx_ver="ubuntu"$VERSION_ID
 			LogMsg "Installing required packages ..."
 			install_package "build-essential python-setuptools libibverbs-dev bison flex ibverbs-utils net-tools"
 			;;
@@ -317,6 +322,30 @@ function Main() {
 		# file validation
 		Verify_File $target_bin
 		LogMsg "Completed Open MPI installation"
+	elif [ $mpi_type == "hpcx" ]; then
+		# HPC-X MPI installation
+		LogMsg "HPC-X MPI installation running ..."
+		LogMsg "Downloading the target hpcx binary tbz, $hpcx_mpi$hpcx_ver-x86_64.tbz"
+
+		wget $hpcx_mpi$hpcx_ver-x86_64.tbz
+		Verify_Result
+
+		tar xvf $(echo $hpcx_mpi$hpcx_ver-x86_64.tbz | cut -d'/' -f8)
+		cd $(echo $hpcx_mpi$hpcx_ver-x86_64 | cut -d'/' -f8)
+		export HPCX_HOME=$PWD
+
+		LogMsg "Loading HPC-X initial values"
+		source $HPCX_HOME/hpcx-init.sh
+		Verify_Result
+
+		LogMsg "Loading HPC-X binaries"
+		hpcx_load
+		Verify_Result
+
+		LogMsg "Displaying env variales"
+		env | grep HPCX
+		Verify_Result
+		LogMsg "Completed HPC-X MPI loading"
 	else
 		# MVAPICH MPI installation
 		LogMsg "MVAPICH MPI installation running ..."
