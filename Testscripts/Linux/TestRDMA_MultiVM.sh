@@ -71,6 +71,14 @@ function Run_IMB_Intranode() {
 						LogMsg "$mpi_run_path --allow-run-as-root $non_shm_mpi_settings -np 2 --host $vm1,$vm2 $imb_mpi1_path pingpong"
 						ssh root@${vm1} "$mpi_run_path --allow-run-as-root $non_shm_mpi_settings -np 2 --host $vm1,$vm2 $imb_mpi1_path pingpong >> $log_file"
 					;;
+					hpcx)
+						if [ "$vm1" != "$vm2" ]; then
+							hpcx_init=$(find / -name hpcx-init.sh | grep root)
+							mpivars=$(find / -name mpivars.sh | grep open)
+							LogMsg "$mpi_run_path --allow-run-as-root -x UCX_IB_PKEY=$UCX_IB_PKEY $non_shm_mpi_settings -n 2 --H $vm1,$vm2 $imb_mpi1_path pingpong"
+							ssh root@${vm1} "source $hpcx_init; source $mpivars; hpcx_load; $mpi_run_path --allow-run-as-root -x UCX_IB_PKEY=$UCX_IB_PKEY $non_shm_mpi_settings -n 2 --H $vm1,$vm2 $imb_mpi1_path pingpong >> $log_file"
+						fi
+					;;
 					intel)
 						LogMsg "$mpi_run_path -hosts $vm1,$vm2 -ppn 2 -n 2 $non_shm_mpi_settings $imb_mpi1_path pingpong"
 						ssh root@${vm1} "$mpi_run_path -hosts $vm1,$vm2 -ppn 2 -n 2 $non_shm_mpi_settings $imb_mpi1_path pingpong >> $log_file"
@@ -127,6 +135,10 @@ function Run_IMB_MPI1() {
 				LogMsg "$mpi_run_path --allow-run-as-root --host $master,$slaves -n $(($mpi1_ppn * $total_virtual_machines)) $mpi_settings $imb_mpi1_path $extra_params"
 				$mpi_run_path --allow-run-as-root --host $master,$slaves -n $(($mpi1_ppn * $total_virtual_machines)) $mpi_settings $imb_mpi1_path $extra_params > IMB-MPI1-AllNodes-output-Attempt-${attempt}.txt
 			;;
+			hpcx)
+				LogMsg "$mpi_run_path --allow-run-as-root -x UCX_IB_PKEY=$UCX_IB_PKEY -n $(($mpi1_ppn * $total_virtual_machines)) --H $master,$slaves $mpi_settings $imb_mpi1_path $extra_params"
+				$mpi_run_path --allow-run-as-root -x UCX_IB_PKEY=$UCX_IB_PKEY -n $(($mpi1_ppn * $total_virtual_machines)) --H $master,$slaves $mpi_settings $imb_mpi1_path $extra_params > IMB-MPI1-AllNodes-output-Attempt-${attempt}.txt
+			;;
 			intel)
 				LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $mpi1_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $extra_params"
 				$mpi_run_path -hosts $master,$slaves -ppn $mpi1_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_mpi1_path $extra_params > IMB-MPI1-AllNodes-output-Attempt-${attempt}.txt
@@ -178,6 +190,10 @@ function Run_IMB_RMA() {
 				LogMsg "$mpi_run_path --allow-run-as-root --host $master,$slaves -n $(($rma_ppn * $total_virtual_machines)) $mpi_settings $imb_rma_path $extra_params"
 				$mpi_run_path --allow-run-as-root --host $master,$slaves -n $(($rma_ppn * $total_virtual_machines)) $mpi_settings $imb_rma_path $extra_params > IMB-RMA-AllNodes-output-Attempt-${attempt}.txt
 			;;
+			hpcx)
+				LogMsg "$mpi_run_path --allow-run-as-root -x UCX_IB_PKEY=$UCX_IB_PKEY -n $(($rma_ppn * $total_virtual_machines)) --H $master,$slaves $mpi_settings $imb_rma_path $extra_params"
+				$mpi_run_path --allow-run-as-root -x UCX_IB_PKEY=$UCX_IB_PKEY -n $(($rma_ppn * $total_virtual_machines)) --H $master,$slaves $mpi_settings $imb_rma_path $extra_params > IMB-RMA-AllNodes-output-Attempt-${attempt}.txt
+			;;
 			intel)
 				LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $mpi1_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_rma_path $extra_params"
 				$mpi_run_path -hosts $master,$slaves -ppn $mpi1_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_rma_path $extra_params > IMB-RMA-AllNodes-output-Attempt-${attempt}.txt
@@ -228,6 +244,10 @@ function Run_IMB_NBC() {
 				open)
 					LogMsg "$mpi_run_path --allow-run-as-root --host $master,$slaves -n $(($nbc_ppn * $total_virtual_machines)) $mpi_settings $imb_nbc_path $extra_params"
 					$mpi_run_path --allow-run-as-root --host $master,$slaves -n $(($nbc_ppn * $total_virtual_machines)) $mpi_settings $imb_nbc_path $extra_params > IMB-NBC-AllNodes-output-Attempt-${attempt}.txt
+				;;
+				hpcx)
+					LogMsg "$mpi_run_path --allow-run-as-root -x UCX_IB_PKEY=$UCX_IB_PKEY -n $(($nbc_ppn * $total_virtual_machines)) --H $master,$slaves $mpi_settings $imb_nbc_path $extra_params"
+					$mpi_run_path --allow-run-as-root -x UCX_IB_PKEY=$UCX_IB_PKEY -n $(($nbc_ppn * $total_virtual_machines)) --H $master,$slaves $mpi_settings $imb_nbc_path $extra_params > IMB-NBC-AllNodes-output-Attempt-${attempt}.txt
 				;;
 				intel)
 					LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $nbc_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_nbc_path $extra_params"
@@ -292,6 +312,10 @@ function Run_IMB_P2P() {
 					LogMsg "$mpi_run_path --allow-run-as-root --host $master,$slaves -n $(($p2p_ppn * $total_virtual_machines)) $mpi_settings $imb_p2p_path $extra_params"
 					$mpi_run_path --allow-run-as-root --host $master,$slaves -n $(($p2p_ppn * $total_virtual_machines)) $mpi_settings $imb_p2p_path $extra_params > IMB-P2P-AllNodes-output-Attempt-${attempt}.txt
 				;;
+				hpcx)
+					LogMsg "$mpi_run_path --allow-run-as-root -x UCX_IB_PKEY=$UCX_IB_PKEY -n $(($p2p_ppn * $total_virtual_machines)) --H $master,$slaves $mpi_settings $imb_p2p_path $extra_params"
+					$mpi_run_path --allow-run-as-root -x UCX_IB_PKEY=$UCX_IB_PKEY -n $(($p2p_ppn * $total_virtual_machines)) --H $master,$slaves $mpi_settings $imb_p2p_path $extra_params > IMB-P2P-AllNodes-output-Attempt-${attempt}.txt
+				;;
 				intel)
 					# LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $p2p_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_p2p_path $extra_params"
 					# $mpi_run_path -hosts $master,$slaves -ppn $p2p_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_p2p_path $extra_params > IMB-P2P-AllNodes-output-Attempt-${attempt}.txt
@@ -354,6 +378,10 @@ function Run_IMB_IO() {
 				open)
 					LogMsg "$mpi_run_path --allow-run-as-root --host $master,$slaves -n $(($io_ppn * $total_virtual_machines)) $mpi_settings $imb_io_path $extra_params"
 					$mpi_run_path --allow-run-as-root --host $master,$slaves -n $(($io_ppn * $total_virtual_machines)) $mpi_settings $imb_io_path $extra_params > IMB-IO-AllNodes-output-Attempt-${attempt}.txt
+				;;
+				hpcx)
+					LogMsg "$mpi_run_path --allow-run-as-root -x UCX_IB_PKEY=$UCX_IB_PKEY -n $(($io_ppn * $total_virtual_machines)) --H $master,$slaves $mpi_settings $imb_io_path $extra_params"
+					$mpi_run_path --allow-run-as-root -x UCX_IB_PKEY=$UCX_IB_PKEY -n $(($io_ppn * $total_virtual_machines)) --H $master,$slaves $mpi_settings $imb_io_path $extra_params > IMB-IO-AllNodes-output-Attempt-${attempt}.txt
 				;;
 				intel)
 					LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $io_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_io_path $extra_params"
@@ -644,6 +672,13 @@ function Main() {
 		open)
 			total_virtual_machines=$(($total_virtual_machines + 1))
 			mpi_run_path=$(find / -name mpirun | grep -v gcc)
+		;;
+		hpcx)
+			total_virtual_machines=$(($total_virtual_machines + 1))
+			mpi_run_path=$(find / -name mpirun | head -n 1)
+			export UCX_IB_PKEY=$(printf '0x%04x' "$(( $MPI_IB_PKEY & 0x0FFF ))")
+			hpcx_init=$(find / -name hpcx-init.sh | grep root)
+			source $hpcx_init; hpcx_load
 		;;
 		intel)
 			vars=$(find / -name mpivars.sh | grep intel)

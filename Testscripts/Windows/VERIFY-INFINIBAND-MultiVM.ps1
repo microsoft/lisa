@@ -32,6 +32,10 @@ function Resolve-UninitializedIB {
 }
 
 function Main {
+    param (
+        $AllVmData,
+        $CurrentTestData
+    )
 	$resultArr = @()
 	$currentTestResult = Create-TestResultObject
 	# Define two different users in run-time
@@ -491,8 +495,9 @@ function Main {
 		} else {
 			$testResult = $resultFail
 		}
-		Write-LogInfo "Test result : $testResult"
+		$resultArr += $testResult
 		Write-LogInfo "Test Completed"
+		Write-LogInfo "Test result : $testResult"
 	} catch {
 		$ErrorMessage =  $_.Exception.Message
 		$ErrorLine = $_.InvocationInfo.ScriptLineNumber
@@ -507,4 +512,4 @@ function Main {
 	return $CurrentTestResult
 }
 
-Main
+Main -AllVmData $AllVmData -CurrentTestData $CurrentTestData
