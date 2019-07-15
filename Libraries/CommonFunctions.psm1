@@ -313,7 +313,8 @@ function Run-SetupScript {
         [string] $Script,
         [hashtable] $Parameters,
         [object] $VMData,
-        [object] $CurrentTestData
+        [object] $CurrentTestData,
+        [object] $TestProvider
     )
     $workDir = Get-Location
     $scriptLocation = Join-Path $workDir $Script
@@ -324,7 +325,7 @@ function Run-SetupScript {
     $msg = ("Test setup/cleanup started using script:{0} with parameters:{1}" `
              -f @($Script,$scriptParameters))
     Write-LogInfo $msg
-    $result = & "${scriptLocation}" -TestParams $scriptParameters -AllVMData $VMData -CurrentTestData $CurrentTestData
+    $result = & "${scriptLocation}" -TestParams $scriptParameters -AllVMData $VMData -CurrentTestData $CurrentTestData -TestProvider $TestProvider
     return $result
 }
 
