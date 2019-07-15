@@ -143,6 +143,25 @@ function Main {
                 break
             }
             Write-LogInfo "xfstesting.sh is still running!"
+			try {
+				Copy-RemoteFiles -downloadFrom $vmData.PublicIP -port $vmData.SSHPort `
+					-username $superUser -password $password -download -downloadTo $LogDir -files "/var/log/kern.log"
+					-maxRetry 3
+			} catch {}
+            $kernelLogs = Get-Content "${LogDir}\kern.log" -Raw -ErrorAction SilentlyContinue
+            $kernelCallTracePresent = Check-AzureVmKernelPanic $($AllVmData | Select-Object -First 1) $kernelLogs
+            if ($kernelCallTracePresent) {
+                Write-LogErr "Kernel panic present, failing test"
+                Get-Job | Stop-Job -Confirm:$false
+                break
+            }
+
+            $kernelCallTracePresent = Check-AzureVmKernelPanic $($AllVmData | Select-Object -First 1)
+            if ($kernelCallTracePresent) {
+                Write-LogErr "Kernel panic present, failing test"
+                Get-Job | Stop-Job -Confirm:$false
+                break
+            }
         }
 
         # Get logs. An extra check for the previous $state is needed
@@ -159,7 +178,7 @@ function Main {
             -password $password -TestName $currentTestData.testName
         if ($state -eq "TestRunning") {
             $resultArr += "ABORTED"
-            Write-LogErr "xfstesting.sh is still running after 4 hours!"
+            Write-LogErr "xfstesting.sh is still running..."
         } else {
             $resultArr += $testResult
         }

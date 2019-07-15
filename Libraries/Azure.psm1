@@ -2363,17 +2363,20 @@ function Check-AzureVmKernelPanic {
         Downloads the Azure Boot diagnostics and checks if they contain kernel panic or RIPs.
     #>
     param(
-        $Vm
+        $Vm,
+        $KernelLogs
     )
 
-    $bootDiagnosticFile = "$LogDir\$($vm.RoleName)-SSH-Fail-Boot-Logs.txt"
-    $diagStatus = Get-AzureBootDiagnostics -Vm $vm -BootDiagnosticFile $bootDiagnosticFile
-    if ($diagStatus -and (Test-Path $bootDiagnosticFile)) {
-        $diagFileContent = Get-Content $bootDiagnosticFile
-        if ($diagFileContent -like "*Kernel panic - not syncing:*" -or $diagFileContent -like "*RIP:*" `
-              -or $diagFileContent -like '*grub>*') {
-            return $true
+    if (!$KernelLogs) {
+        $bootDiagnosticFile = "$LogDir\$($vm.RoleName)-SSH-Fail-Boot-Logs.txt"
+        $diagStatus = Get-AzureBootDiagnostics -Vm $vm -BootDiagnosticFile $bootDiagnosticFile
+        if ($diagStatus -and (Test-Path $bootDiagnosticFile)) {
+             $KernelLogs = Get-Content $bootDiagnosticFile
         }
+    }
+    if ($KernelLogs -like "*Kernel panic - not syncing:*" -or $KernelLogs -like "*RIP:*" `
+        -or $KernelLogs -like '*grub>*') {
+        return $true
     }
     return $false
 }

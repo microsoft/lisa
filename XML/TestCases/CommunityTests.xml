@@ -37,6 +37,9 @@
         <TestScript>FILE-SYSTEM-VERIFICATION-TESTS.ps1</TestScript>
         <files>.\Testscripts\Linux\xfstesting.sh</files>
         <setupType>OneVM1Disk</setupType>
+        <AdditionalHWConfig>
+            <StorageAccountType>PERF_STORAGE_ACCOUNT_TYPE</StorageAccountType>
+        </AdditionalHWConfig>
         <TestParameters>
             <param>FSTYP=ext4</param>
             <param>TEST_DEV=/dev/sdc1</param>

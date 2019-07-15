@@ -207,8 +207,8 @@ Main() {
         LogMsg "Starting xfstests run with cmd 'check -g generic/quick -E exclude_cifs.txt'"
         bash check -g generic/quick -E exclude_cifs.txt >> xfstests.log
     else
-        LogMsg "Starting xfstests run with cmd 'check -g ${FSTYP}/quick -E exclude.txt'"
-        bash check -g "$FSTYP"/quick -E exclude.txt >> xfstests.log
+        LogMsg "Starting xfstests run with cmd 'check $FSTYP/023'"
+        bash check "$FSTYP"/023 >> xfstests.log
     fi
     popd
     cat ${xfs_folder}/xfstests.log >> TestExecution.log
