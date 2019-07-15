@@ -122,8 +122,7 @@ function Main {
         Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
             -password $password -command "/$superuser/xfstesting.sh" -RunInBackground | Out-Null
         # Check the status of the run every minute
-        # If the run is longer than 3 hours, abort the test
-        $timeout = New-Timespan -Minutes 180
+        $timeout = New-Timespan -Minutes 15
         $sw = [diagnostics.stopwatch]::StartNew()
         while ($sw.elapsed -lt $timeout) {
             Start-Sleep -s 60
@@ -148,10 +147,20 @@ function Main {
 					-username $superUser -password $password -download -downloadTo $LogDir -files "/var/log/kern.log"
 					-maxRetry 3
 			} catch {}
+			Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
+				-password $password -command "dmesg > /var/log/dmesg.log" | Out-Null
+			Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
+				-password $password -command "echo 30 > /proc/sys/kernel/hung_task_timeout_secs" | Out-Null
+			try {
+				Copy-RemoteFiles -downloadFrom $vmData.PublicIP -port $vmData.SSHPort `
+					-username $superUser -password $password -download -downloadTo $LogDir -files "/var/log/dmesg.log"
+					-maxRetry 3
+			} catch {}
             $kernelLogs = Get-Content "${LogDir}\kern.log" -Raw -ErrorAction SilentlyContinue
+            $kernelLogs += Get-Content "${LogDir}\dmesg.log" -Raw -ErrorAction SilentlyContinue
             $kernelCallTracePresent = Check-AzureVmKernelPanic $($AllVmData | Select-Object -First 1) $kernelLogs
             if ($kernelCallTracePresent) {
-                Write-LogErr "Kernel panic present, failing test"
+                Write-LogErr "Kernel panic present, failing xfs test."
                 Get-Job | Stop-Job -Confirm:$false
                 break
             }
