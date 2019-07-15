@@ -161,9 +161,9 @@ Config_Rhel()
 
     if [ "$os_GENERATION" -eq 2 ] && [[ $os_RELEASE =~ 6.* ]]; then
         boot_filepath=/boot/efi/EFI/BOOT/bootx64.conf
-    elif [ "$os_GENERATION" -eq 1 ] && [[ $os_RELEASE =~ 6.* ]]; then
+    elif [ "$os_GENERATION" -eq 1 ] && [[ $os_RELEASE =~ ^6.* ]]; then
         boot_filepath=/boot/grub/grub.conf
-    elif [ "$os_GENERATION" -eq 1 ] && [[ $os_RELEASE =~ 7.* ]]; then
+    elif [ "$os_GENERATION" -eq 1 ] && [[ $os_RELEASE =~ ^7.* ]]; then
         boot_filepath=/boot/grub2/grub.cfg
     elif [ "$os_GENERATION" -eq 1 ] && [[ $os_RELEASE =~ 8.* ]]; then
         boot_filepath=/boot/grub2/grubenv
