@@ -39,6 +39,8 @@
             <keywords>errors=remount-ro</keywords>
         </errors>
         <warnings>
+            <keywords>WARNING Daemon VM is provisioned, but the VM unique identifier has changed -- clearing cached state</keywords>
+            <keywords>WARNING! Cached DHCP leases will be deleted</keywords>
             <keywords>Unconfined exec qualifier (ux) allows some dangerous environment variables</keywords>
             <keywords>Stopped Write warning to Azure ephemeral disk</keywords>
             <keywords>reloading interface list</keywords>
