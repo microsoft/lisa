@@ -31,21 +31,33 @@ PrepareForTest() {
 	lis_tarball_link=$1
 	distro=$(detect_linux_distribution)
 	if [[ $distro == "centos" || $distro == "oracle" || $distro == "rhel" ]]; then
-		total_hyperv_packages=$(rpm -qa | grep "hyper-v" | wc -l)
-		if [ $total_hyperv_packages -gt 0 ]; then
-			hyperv_package_names=$(rpm -qa | grep "hyper-v" | xargs)
-			LogMsg "Uninstalling hyperv packages..."
-			yum -y remove $hyperv_package_names
-			LogMsg "Removed $total_hyperv_packages hyperv packages."
-		else
-			LogMsg "LIS not found. (As expected)"
-		fi
 		lis_tarball_name=${lis_tarball_link##*/}
 		install_package wget
 		LogMsg "Downloading $lis_tarball_link"
 		wget $lis_tarball_link
 		LogMsg "Extracting $lis_tarball_name ..."
 		tar xzf $lis_tarball_name
+		# Skip test if LIS does not support kernel version
+		pushd LISISO
+		./install.sh > install_lis.log
+		grep -i "Unsupported kernel version" install_lis.log
+		if [ $? -eq 0 ]; then
+			LogMsg "Unsupported kernel version. Current kernel version: $(uname -r). Skipping."
+			SetTestStateSkipped
+			exit 0
+		fi
+		cleanup
+		LogMsg "Now removing LIS..."
+		./uninstall.sh
+		total_hyperv_packages=$(rpm -qa | grep "hyper-v" | wc -l)
+		if [ $total_hyperv_packages -eq 0 ]; then
+			LogMsg "LIS not found. (As expected)"
+		else
+			LogMsg "Error: Found $total_hyperv_packages hyper-v packages installed"
+			SetTestStateFailed
+			exit 0
+		fi
+		popd
 		LogMsg "Ready for the test."
 	else
 		LogMsg "Unsupported distro. Supported distros: centos, oracle, rhel. Skipping."
