@@ -74,7 +74,7 @@ fi
 #Make & build lagscope on client and server VMs
 
 LogMsg "Configuring client ${client}..."
-ssh "${client}" ". $UTIL_FILE && install_lagscope"
+ssh "${client}" "export PATH=$PATH:/usr/local/bin && . $UTIL_FILE && install_lagscope"
 if [ $? -ne 0 ]; then
 	LogMsg "Error: lagscope installation failed in ${client}.."
 	UpdateTestState "TestAborted"
@@ -82,7 +82,7 @@ if [ $? -ne 0 ]; then
 fi
 
 LogMsg "Configuring server ${server}..."
-ssh "${server}" ". $UTIL_FILE && install_lagscope"
+ssh "${server}" "export PATH=$PATH:/usr/local/bin && . $UTIL_FILE && install_lagscope"
 if [ $? -ne 0 ]; then
 	LogMsg "Error: lagscope installation failed in ${server}.."
 	UpdateTestState "TestAborted"
@@ -94,7 +94,7 @@ if [[ $(detect_linux_distribution) == coreos ]]; then
 	ssh root@"${server}" ". $UTIL_FILE && Delete_Containers"
 	ssh root@"${client}" ". $UTIL_FILE && Delete_Containers"
 else
-	cmd="lagscope"
+	cmd="export PATH=$PATH:/usr/local/bin && lagscope"
 fi
 
 #Now, start lagscope on server and client VMs.
@@ -105,6 +105,5 @@ ssh root@"${server}" "${cmd} -r" &
 sleep 20
 LogMsg "lagscope client running..."
 ssh root@"${client}" "${cmd} -s${server} -i0 -n${pingIteration} -H > lagscope-n${pingIteration}-output.txt"
-LogMsg "Test finsished."
+LogMsg "Test finished."
 UpdateTestState $ICA_TESTCOMPLETED
-
