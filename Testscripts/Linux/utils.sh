@@ -2624,21 +2624,21 @@ function install_lagscope () {
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos)
 			install_epel
-			yum -y --nogpgcheck install libaio sysstat git bc make gcc wget gcc-c++ cmake
+			yum -y --nogpgcheck install libaio sysstat git bc make gcc wget cmake
 			build_lagscope
 			iptables -F
 			;;
 
 		ubuntu|debian)
 			dpkg_configure
-			apt-get -y install libaio1 sysstat git bc make gcc g++ cmake
+			apt-get -y install libaio1 sysstat git bc make gcc cmake
 			build_lagscope
 			;;
 
 		sles|sle_hpc)
 			if [[ $DISTRO_VERSION =~ 12|15 ]]; then
 				add_sles_network_utilities_repo
-				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install sysstat git bc make gcc dstat psmisc gcc-c++ cmake
+				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install sysstat git bc make gcc dstat psmisc cmake
 				build_lagscope
 				iptables -F
 			else
