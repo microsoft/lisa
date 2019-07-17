@@ -48,6 +48,15 @@ UpdateTestState()
 	echo "${1}" > $STATE_FILE
 }
 
+get_AvailableDisks() {
+	for disk in $(lsblk | grep "sd[a-z].*disk" | cut -d ' ' -f1);
+	do
+		if [ $(df | grep -c $disk) -eq 0 ]; then
+			echo $disk
+		fi
+	done
+}
+
 RunFIO()
 {
 	UpdateTestState $ICA_TESTRUNNING
@@ -148,7 +157,8 @@ RunFIO()
 
 CreateRAID0()
 {
-	disks=$(ls -l /dev | grep sd[c-z]$ | awk '{print $10}')
+	disks=$(get_AvailableDisks)
+	diskLetters=$(echo "$disks" | sed 's/sd//g' | tr -d '\n')
 
 	LogMsg "INFO: Check and remove RAID first"
 	mdvol=$(cat /proc/mdstat | grep active | awk {'print $1'})
@@ -157,7 +167,7 @@ CreateRAID0()
 		umount /dev/${mdvol}
 		mdadm --stop /dev/${mdvol}
 		mdadm --remove /dev/${mdvol}
-		mdadm --zero-superblock /dev/sd[c-z][1-5]
+		mdadm --zero-superblock /dev/sd[a-z][1-5]
 	fi
 
 	LogMsg "INFO: Creating Partitions"
@@ -171,7 +181,7 @@ CreateRAID0()
 	done
 	LogMsg "INFO: Creating RAID of ${count} devices."
 	sleep 1
-	mdadm --create ${mdVolume} --level 0 --raid-devices ${count} /dev/sd[c-z][1-5]
+	mdadm --create ${mdVolume} --level 0 --raid-devices ${count} /dev/sd["$diskLetters"][1-5]
 }
 
 ConfigNVME()
