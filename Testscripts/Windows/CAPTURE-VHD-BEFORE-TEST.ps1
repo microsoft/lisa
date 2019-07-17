@@ -32,7 +32,7 @@ function Main {
         Write-LogInfo "Shutting down VM..."
         $null = Stop-AzVM -Name $captureVMData.RoleName -ResourceGroupName $captureVMData.ResourceGroupName -Force
         Write-LogInfo "VM shutdown successful."
-        $Append = $Distro
+        $Append = $Global:RGIdentifier
         if ($env:BUILD_NAME){
             $Append += "-$env:BUILD_NAME"
         }

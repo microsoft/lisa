@@ -169,7 +169,7 @@ Class TestController
 	}
 
 	[void] SetGlobalVariables() {
-		# Used in STRESS-WEB.ps1
+		# Used in STRESS-WEB.ps1, CAPTURE-VHD-BEFORE-TEST.ps1
 		Set-Variable -Name RGIdentifier -Value $this.RGIdentifier -Scope Global -Force
 		# Used in CAPTURE-VHD-BEFORE-TEST.ps1, and Create-HyperVGroupDeployment
 		Set-Variable -Name BaseOsVHD -Value $this.OsVHD -Scope Global -Force
