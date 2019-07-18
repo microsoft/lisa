@@ -4,6 +4,10 @@
         <testScript>VERIFY-DEPLOYMENT-PROVISION.ps1</testScript>
         <files></files>
         <setupType>OneVM</setupType>
+        <TestParameters>
+            <!-- Custom expected number of cores inside the VM. Empty by default. -->
+            <param>vCpu=VCPU</param>
+        </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Functional</Category>
         <Area>CORE</Area>
