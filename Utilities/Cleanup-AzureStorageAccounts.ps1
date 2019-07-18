@@ -30,7 +30,7 @@
     4. Remove VHDs based on string patterns.
 
     Command: .\Utilities\Cleanup-AzureStorageAccounts.ps1 -SecretFilePath .\XML\AzureSecrets_Test_ONLY.xml `
-        -Patterns "AUTOBUILT,LISAv2"
+        -Patterns "AUTOBUILT,LISAv2,-osdisk.vhd"
 
     5. [DryRun] Cleanup all** data from all storage accounts, older than 1 year.
 
@@ -43,6 +43,7 @@ Important Notes:
     2.  If you are not sure about what is being cleaned up, then use -DryRun mode.
         Then, examine the .csv file created, which shows list of files and cleanup status.
         If you're satisfied with dryrun cleanup list, remove -DryRun and run the cleanup.
+    3.  If user gives secret file, then script will run unattended, else it will require user confirmation before cleanup.
 #>
 
 param(
@@ -61,7 +62,7 @@ param(
     [String] $VHDNames,
 
     # Command separated VHD name patterns to clean.
-    [String] $Patterns = "LISAv2,-osdisk.vhd,AUTOBUILT",
+    [String] $Patterns = "LISAv2,AUTOBUILT,-osdisk.vhd",
 
     # Cleanup Age (in Days)
     [int] $CleanupAgeInDays = 7,
@@ -136,29 +137,64 @@ try {
     }
 
     Function Get-FileAge ($File) {
-        $FileCreationTime = $File.ICloudBlob.Properties.Created.UtcDateTime
         $CurrentTime = (Get-Date).ToUniversalTime()
+        if ($File.Type -imatch "disks") {
+            $FileCreationTime = $File.TimeCreated
+        } else {
+            $FileCreationTime = $File.ICloudBlob.Properties.Created.UtcDateTime
+        }
         $FileAge = ($CurrentTime - $FileCreationTime).Days
         return $FileAge
     }
 
     Function New-FileObject ($File) {
+        if ($File.Type -imatch "disks") {
+            $FileType = "Managed"
+            $size = $File.DiskSizeGB
+            $LockStatus = $File.DiskState
+            $StorageAccount = "NotApplicable"
+            $ResourceGroup = $File.ResourceGroupName
+            $Region = $File.Location
+            $Created = $File.TimeCreated
+            $Modified = "NotApplicable"
+            if ( $File.ManagedBy ) {
+                $VMName = $File.ManagedBy.Split('/')[-1]
+                $VMResourceGroup = $File.ManagedBy.Split('/')[4]
+            } else {
+                $VMName = ""
+                $VMResourceGroup = ""
+            }
+            $URL = $File.Id
+        } else {
+            $FileType = "Unmanaged"
+            $size = [math]::Round($File.Length / 1GB, 3)
+            $LockStatus = $File.ICloudBlob.Properties.LeaseStatus
+            $StorageAccount = $File.ICloudBlob.ServiceClient.StorageUri.PrimaryUri.Host.Split(".")[0]
+            $ResourceGroup = $null
+            $Region = $null
+            $Created = $File.ICloudBlob.Properties.Created.UtcDateTime
+            $Modified = $File.ICloudBlob.Properties.LastModified.UtcDateTime
+            $VMName = $File.ICloudBlob.Metadata["MicrosoftAzureCompute_VMName"]
+            $VMResourceGroup = $File.ICloudBlob.Metadata["MicrosoftAzureCompute_ResourceGroupName"]
+            $URL = $File.ICloudBlob.Uri.AbsoluteUri
+        }
+
         $FileObject = New-Object -TypeName psobject
         $FileObject | Add-Member -MemberType NoteProperty -Name SubscriptionId -Value $SubID
         $FileObject | Add-Member -MemberType NoteProperty -Name SubscriptionName -Value $SubName
+        $FileObject | Add-Member -MemberType NoteProperty -Name FileType -Value $FileType
         $FileObject | Add-Member -MemberType NoteProperty -Name FileName -Value $File.Name
-        $size = [math]::Round($File.Length / 1GB, 3)
-        $FileObject | Add-Member -MemberType NoteProperty -Name Size -Value $size
+        $FileObject | Add-Member -MemberType NoteProperty -Name SizeInGB -Value $size
         $FileObject | Add-Member -MemberType NoteProperty -Name Age -Value $null
-        $FileObject | Add-Member -MemberType NoteProperty -Name LockStatus -Value $File.ICloudBlob.Properties.LeaseStatus
-        $FileObject | Add-Member -MemberType NoteProperty -Name StorageAccount -Value $File.ICloudBlob.ServiceClient.StorageUri.PrimaryUri.Host.Split(".")[0]
-        $FileObject | Add-Member -MemberType NoteProperty -Name ResourceGroup -Value $null
-        $FileObject | Add-Member -MemberType NoteProperty -Name Region -Value $null
-        $FileObject | Add-Member -MemberType NoteProperty -Name Created -Value $File.ICloudBlob.Properties.Created.UtcDateTime
-        $FileObject | Add-Member -MemberType NoteProperty -Name Modified -Value $File.ICloudBlob.Properties.LastModified.UtcDateTime
-        $FileObject | Add-Member -MemberType NoteProperty -Name VMName -Value $File.ICloudBlob.Metadata["MicrosoftAzureCompute_VMName"]
-        $FileObject | Add-Member -MemberType NoteProperty -Name VMResourceGroup -Value $File.ICloudBlob.Metadata["MicrosoftAzureCompute_ResourceGroupName"]
-        $FileObject | Add-Member -MemberType NoteProperty -Name URL -Value $File.ICloudBlob.Uri.AbsoluteUri
+        $FileObject | Add-Member -MemberType NoteProperty -Name LockStatus -Value $LockStatus
+        $FileObject | Add-Member -MemberType NoteProperty -Name StorageAccount -Value $StorageAccount
+        $FileObject | Add-Member -MemberType NoteProperty -Name ResourceGroup -Value $ResourceGroup
+        $FileObject | Add-Member -MemberType NoteProperty -Name Region -Value $Region
+        $FileObject | Add-Member -MemberType NoteProperty -Name Created -Value $Created
+        $FileObject | Add-Member -MemberType NoteProperty -Name Modified -Value $Modified
+        $FileObject | Add-Member -MemberType NoteProperty -Name VMName -Value $VMName
+        $FileObject | Add-Member -MemberType NoteProperty -Name VMResourceGroup -Value $VMResourceGroup
+        $FileObject | Add-Member -MemberType NoteProperty -Name URL -Value $URL
         $FileObject | Add-Member -MemberType NoteProperty -Name CleanupStatus -Value "Skipped"
         return $FileObject
     }
@@ -167,10 +203,12 @@ try {
     # Start main body ..
     Write-LogInfo "Getting list of all storage accounts ..."
     $storageAccounts = Get-AzStorageAccount
-    $AllFiles = @()
+    $ManagedDisks = Get-AzDisk
+
     $CleanedFiles = 0
     $SkippedFiles = 0
     $Counter = 0
+    $ManagedDiskCounter = 0
     $AllFileObject = @()
     if ($AzureRegions) {
         [array] $AzureRegions = $AzureRegions.Split(",")
@@ -204,7 +242,12 @@ try {
         }
         Write-LogInfo "[Storage Account : $StorageAccountCounter/$($storageAccounts.Count)] Current Storage Account: $($storageAccount.StorageAccountName). Region: $CurrentRegion"
         Write-LogInfo "Get-AzStorageAccountKey -ResourceGroupName $($storageAccount.ResourceGroupName) -Name $($storageAccount.StorageAccountName)..."
-        $storageKey = (Get-AzStorageAccountKey -ResourceGroupName $storageAccount.ResourceGroupName -Name $storageAccount.StorageAccountName)[0].Value
+        try {
+            $storageKey = (Get-AzStorageAccountKey -ResourceGroupName $storageAccount.ResourceGroupName -Name $storageAccount.StorageAccountName)[0].Value
+        } catch {
+            Write-LogErr "Failed to get key for $($storageAccount.StorageAccountName). Skipping..."
+            continue;
+        }
         $context = New-AzStorageContext -StorageAccountName $storageAccount.StorageAccountName -StorageAccountKey $storageKey
         Write-LogInfo "Get-AzStorageContainer..."
         $containers = Get-AzStorageContainer -Context $context -ConcurrentTaskCount 64
@@ -261,12 +304,11 @@ try {
                     }
                 }
                 if (-not ($blob.ICloudBlob.Properties.LeaseStatus -eq 'Unlocked')) {
-                    if ($ShowSkippedFiles) { Write-LogInfo "[$File : blobCounter/$($blobs.Count)]. $FileURI : Skipped (Locked)" }
+                    if ($ShowSkippedFiles) { Write-LogInfo "[$File : $blobCounter/$($blobs.Count)]. $FileURI : Skipped (Locked)" }
                     $SkippedFiles += $blob.Length
                     continue;
                 }
                 $Counter += 1
-                $AllFiles += $blob
                 $CleanedFiles += $blob.Length
                 if (-not $DryRun) {
                     Write-LogInfo "[File : $blobCounter/$($blobs.Count)]. [Deleted Files=$Counter]. Deleting $DeleteAgeString unlocked File with Uri: $($blob.ICloudBlob.Uri.AbsoluteUri)"
@@ -291,6 +333,68 @@ try {
         }
     }
 
+    foreach ($ManagedDisk in $ManagedDisks) {
+        $ManagedDiskCounter += 1
+        $CurrentRegion = $ManagedDisk.Location
+        if (-not $AzureRegions.Contains($CurrentRegion)) {
+            if ($ShowSkippedFiles) { Write-LogInfo "Skipping $($ManagedDisk.Location). Region not given for cleanup." }
+            continue;
+        }
+
+        $FileAge = Get-FileAge -File $ManagedDisk
+        $CurrentFileObject = New-FileObject -File $ManagedDisk
+        $CurrentFileObject.Age = $FileAge
+        $AllFileObject += $CurrentFileObject
+        $FileURI = $($ManagedDisk.Id)
+        if ($VHDNames) {
+            $VHDNames = $VHDNames.Split(",")
+            if ( -not ( $VHDNames.Contains($ManagedDisk.Name)) ) {
+                if ($ShowSkippedFiles) { Write-LogInfo "[File : $ManagedDiskCounter/$($ManagedDisks.Count)]. $FileURI : Skipped (Disk Name not matched: $VHDNames)" }
+                $SkippedFiles += $ManagedDisk.DiskSizeGB * 1GB
+                continue;
+            }
+        }
+        if ($CleanupAgeInDays -ne $null) {
+            if ( $FileAge -le $CleanupAgeInDays) {
+                if ($ShowSkippedFiles) { Write-LogInfo "[File : $ManagedDiskCounter/$($ManagedDisks.Count)]. $FileURI : Skipped (File Age  ($FileAge) <= $CleanupAgeInDays)" }
+                $SkippedFiles += $ManagedDisk.DiskSizeGB * 1GB
+                continue;
+            } else {
+                $DeleteAgeString = "$FileAge days old"
+            }
+        } else {
+            $DeleteAgeString = $null
+        }
+        if ($Patterns) {
+            if ( -not (Test-Pattern -FileName $ManagedDisk.Name -Pattern $Patterns) ) {
+                if ($ShowSkippedFiles) { Write-LogInfo "[File : $ManagedDiskCounter/$($ManagedDisks.Count)]. $FileURI : Skipped (Pattern '$Patterns' not found)" }
+                $SkippedFiles += $ManagedDisk.DiskSizeGB * 1GB
+                continue;
+            }
+        }
+        if ($ManagedDisk.DiskState -ne "Unattached") {
+            if ($ShowSkippedFiles) { Write-LogInfo "[File : $ManagedDiskCounter/$($ManagedDisks.Count)]. $FileURI : Skipped ($($ManagedDisk.DiskState))" }
+            $SkippedFiles += $ManagedDisk.DiskSizeGB * 1GB
+            continue;
+        }
+        $Counter += 1
+
+        $CleanedFiles += ($ManagedDisk.DiskSizeGB * 1GB)
+        if (-not $DryRun) {
+            Write-LogInfo "[File : $ManagedDiskCounter/$($ManagedDisks.Count)]. [Deleted Files=$Counter]. Deleting $DeleteAgeString $($ManagedDisk.DiskState) File with Uri: $($FileURI)"
+            $null = $ManagedDisk | Remove-AzDisk -Force
+            if ($?) {
+                $AllFileObject[-1].CleanupStatus = "Deleted"
+            } else {
+                $AllFileObject[-1].CleanupStatus = "Failed"
+                $CleanedFiles -= ($ManagedDisk.DiskSizeGB * 1GB)
+                $SkippedFiles += $ManagedDisk.DiskSizeGB * 1GB
+            }
+        } else {
+            Write-LogInfo "[DryRun] [File : $ManagedDiskCounter/$($ManagedDisks.Count)]. [Deleted Files=$Counter]. Deleting $DeleteAgeString $($ManagedDisk.DiskState) File with Uri: $($FileURI)"
+            $AllFileObject[-1].CleanupStatus = "[DryRun] Deleted"
+        }
+    }
     $LogFileName = "Azure-Storage-Cleanup-$SubName-$(Get-Date -format 'yyyyMMdd-HHMMss').csv"
     Write-LogInfo "Creating CSV file '$LogFileName'..."
     $AllFileObject | Export-Csv -Path "$LogFileName" -Force
