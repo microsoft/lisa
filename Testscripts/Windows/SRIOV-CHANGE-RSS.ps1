@@ -45,7 +45,6 @@ function Main {
     }
     Write-LogInfo "The throughput before changing rss profile is $initialThroughput Gbits/sec"
 
-
     # Change Rss on test VM
     $rssProfile = Get-NetAdapterRss -Name "*$($TestParams.Switch_Name)*" -CimSession $HvServer
     $rssProfile = $rssProfile.Profile
@@ -59,7 +58,7 @@ function Main {
 
     # Check if the SR-IOV module is still loaded
     $moduleCount = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
-        $VMPassword -command $moduleCheckCMD -ignoreLinuxExitCode:$true
+        $VMPassword -command $moduleCheckCMD -ignoreLinuxExitCode:$true -runAsSudo
     if ($moduleCount -lt 1) {
         Write-LogErr "Module is not loaded"
         Set-NetAdapterRss -Name "*$($TestParams.Switch_Name)*" -Profile $rssProfile -CimSession $HvServer
