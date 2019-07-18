@@ -1925,15 +1925,18 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
         $vmAdded = $true
         $role = $role + 1
         $vmCount = $role
-        $heteroImageIndex = $heteroImageIndex + 1
-        if( $heteroImageIndex -lt $heteroImageCount )
+        if( $heteroImages )
         {
-            $imageInfo = $heteroImages[$heteroImageIndex].Split(' ')
-            $publisher = $imageInfo[0]
-            $offer = $imageInfo[1]
-            $sku = $imageInfo[2]
-            $version = $imageInfo[3]
-            Write-LogInfo "Switching to next heterogeneous image [$heteroImageIndex] $publisher $offer $sku $version"
+            $heteroImageIndex = $heteroImageIndex + 1
+            if( $heteroImageIndex -lt $heteroImageCount )
+            {
+                $imageInfo = $heteroImages[$heteroImageIndex].Split(' ')
+                $publisher = $imageInfo[0]
+                $offer = $imageInfo[1]
+                $sku = $imageInfo[2]
+                $version = $imageInfo[3]
+                Write-LogInfo "Switching to next heterogeneous image [$heteroImageIndex] $publisher $offer $sku $version"
+            }
         }
     }
     Add-Content -Value "$($indents[1])]" -Path $jsonFile

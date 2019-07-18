@@ -353,11 +353,10 @@ function Is-VmAlive {
         $retryCount += 1
         foreach ( $vm in $AllVMDataObject) {
             if ($global:IsWindowsImage) {
-                $port = $vm.RDPPort
-                if( $null -eq $port )
-                {
-                    # Note(seansp): When using heterogeneous tests, some VMs won't be using RDP. Allow these to validate using SSH.
-                    Write-LogInfo "RDP is <NULL> -- SSH is available and used instead."
+                # Note(seansp): When using heterogeneous tests, some VMs won't be using RDP. Allow these to validate using SSH.
+                if( $vm.RDPPort ) {
+                    $port = $vm.RDPPort
+                } else {
                     $port = $vm.SSHPort
                 }
             } else {

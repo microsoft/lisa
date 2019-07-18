@@ -52,21 +52,13 @@ Class AzureController : TestController
 			$parameterErrors += "-ARMImageName '<Publisher> <Offer> <Sku> <Version>', or -OsVHD <'VHD_Name.vhd'> is required."
 		}
 		if (!$this.OsVHD) {
-			if (($this.ARMImageName.Trim().Split(" ").Count -ne 4) -and ($this.ARMImageName -ne "")) {
-				if( $this.ARMImageName -Match(";") )
+			# Validate that each image is valid when heterogeneous images are used.
+			$allImageNames = $this.ARMImageName.Trim().Split(";")
+			foreach( $singleImageName in $allImageNames )
+			{
+				if(($singleImageName.Trim().Split(" ").Count -ne 4 ) -and ($singleImageName -ne "" ))
 				{
-					# Validate that each image is valid when heterogeneous images are used.
-					$allImageNames = $this.ARMImageName.Trim().Split(";")
-					foreach( $singleImageName in $allImageNames )
-					{
-						if(($singleImageName.Trim().Split(" ").Count -ne 4 ) -and ($singleImageName -ne "" ))
-						{
-							$parameterErrors += ("Invalid value for one of the provided ARMImageName parameters when using ; delimited format: <'$($singleImageName)'>." + `
-							"The ARM image should be in the format: '<Publisher> <Offer> <Sku> <Version>'.")
-						}
-					}
-				} else {
-					$parameterErrors += ("Invalid value for the provided ARMImageName parameter: <'$($this.ARMImageName)'>." + `
+					$parameterErrors += ("Invalid value for one of the provided ARMImageName parameters: <'$($singleImageName)'>." + `
 					"The ARM image should be in the format: '<Publisher> <Offer> <Sku> <Version>'.")
 				}
 			}
