@@ -354,6 +354,12 @@ function Is-VmAlive {
         foreach ( $vm in $AllVMDataObject) {
             if ($global:IsWindowsImage) {
                 $port = $vm.RDPPort
+                if( $null -eq $port )
+                {
+                    # Note(seansp): When using heterogeneous tests, some VMs won't be using RDP. Allow these to validate using SSH.
+                    Write-LogInfo "RDP is <NULL> -- SSH is available and used instead."
+                    $port = $vm.SSHPort
+                }
             } else {
                 $port = $vm.SSHPort
             }
@@ -369,7 +375,7 @@ function Is-VmAlive {
                     return "False"
                 }
             } else {
-                Write-LogInfo "Connecting to $($vm.PublicIP):$port succeeded."
+                Write-LogInfo "[$($vm.RoleName)]Connecting to $($vm.PublicIP):$port succeeded."
             }
         }
 

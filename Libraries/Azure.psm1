@@ -824,11 +824,27 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
     $jsonFile = $azuredeployJSONFilePath
 
     if ($ImageName -and !$osVHD) {
-        $imageInfo = $ImageName.Split(' ')
-        $publisher = $imageInfo[0]
-        $offer = $imageInfo[1]
-        $sku = $imageInfo[2]
-        $version = $imageInfo[3]
+        #Allow for heterogeneous images to be used
+        if( $ImageName -Match(";") )
+        {
+            Write-LogInfo "Heterogeneous Images in use."
+            $heteroImages = $ImageName.Split(';')
+            $heteroImageCount = $HeteroImages.Count
+            $heteroImageIndex = 0
+            $imageInfo = $heteroImages[$heteroImageIndex].Split(' ')
+            $publisher = $imageInfo[0]
+            $offer = $imageInfo[1]
+            $sku = $imageInfo[2]
+            $version = $imageInfo[3]
+            Write-LogInfo "Heterogeneous Image [$heteroImageIndex] $publisher $offer $sku $version"
+        } else {
+            $imageInfo = $ImageName.Split(' ')
+            $publisher = $imageInfo[0]
+            $offer = $imageInfo[1]
+            $sku = $imageInfo[2]
+            $version = $imageInfo[3]
+        }
+
     }
     if($osVHD) {
         $osVHD = $osVHD.Split("?")[0].split('/')[-1]
@@ -1909,6 +1925,17 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
         $vmAdded = $true
         $role = $role + 1
         $vmCount = $role
+        $heteroImageIndex = $heteroImageIndex + 1
+        if( $heteroImageIndex -lt $heteroImageCount )
+        {
+            Write-Host -ForegroundColor Green "------------- Switching to next heterogenous image."
+            $imageInfo = $heteroImages[$heteroImageIndex].Split(' ')
+            $publisher = $imageInfo[0]
+            $offer = $imageInfo[1]
+            $sku = $imageInfo[2]
+            $version = $imageInfo[3]
+            Write-Host -ForegroundColor Green "------<$heteroImageIndex>> $publisher $offer $sku $version"
+        }
     }
     Add-Content -Value "$($indents[1])]" -Path $jsonFile
 
