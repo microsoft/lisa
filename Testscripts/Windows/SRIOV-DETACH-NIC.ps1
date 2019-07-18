@@ -43,7 +43,8 @@ function Main {
     $sriovSwitch = $nicInfo.SwitchName
 
     # Connect a non-SRIOV vSwitch. We will use the same vSwitch as the management NIC
-    [string]$managementSwitch = Get-VMNetworkAdapter -VMName $VMName -ComputerName $HvServer | Select-Object -First 1 | Select-Object -ExpandProperty SwitchName
+    [string]$managementSwitch = Get-VMNetworkAdapter -VMName $VMName -ComputerName $HvServer `
+        | Select-Object -First 1 | Select-Object -ExpandProperty SwitchName
     Connect-VMNetworkAdapter -VMNetworkAdapter $nicInfo -SwitchName $managementSwitch -Confirm:$False
     if (-not $?) {
         Write-LogErr "Failed to attach another NIC in place of the SR-IOV one"
@@ -52,7 +53,7 @@ function Main {
 
     # Check if the  SR-IOV module is still loaded
     $moduleCount = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
-        $VMPassword -command $moduleCheckCMD -ignoreLinuxExitCode:$true
+        $VMPassword -command $moduleCheckCMD -ignoreLinuxExitCode:$true -runAsSudo
     if ($moduleCount -gt 0) {
         Write-LogErr "Module is still loaded"
         return "FAIL"

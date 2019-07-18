@@ -65,7 +65,7 @@ function Main {
 
         # Check if the SR-IOV module is still loaded
         $moduleCount = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
-            $VMPassword -command $moduleCheckCMD -ignoreLinuxExitCode:$true
+            $VMPassword -command $moduleCheckCMD -ignoreLinuxExitCode:$true -runAsSudo
         if ($moduleCount -gt 0) {
             Write-LogErr "Module is still loaded"
             return "FAIL"

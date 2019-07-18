@@ -33,22 +33,27 @@ function Set-VFInGuest {
     }
     Run-LinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort -command "cp sriov_constants.sh constants.sh"
     # Install dependencies
-    Run-LinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort -command ". SR-IOV-Utils.sh; InstallDependencies" -RunAsSudo -ignoreLinuxExitCode:$true
+    Run-LinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort `
+        -command ". SR-IOV-Utils.sh; InstallDependencies" -RunAsSudo -ignoreLinuxExitCode:$true
     if (-not $?) {
         Write-LogErr "Failed to install dependencies on $VMName"
         return $False
     }
     # Configure VF
-    Run-LinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort -command ". SR-IOV-Utils.sh; ConfigureVF $VMNumber" -RunAsSudo
+    Run-LinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort `
+        -command ". SR-IOV-Utils.sh; ConfigureVF $VMNumber" -RunAsSudo
     if (-not $?) {
         Write-LogErr "Failed to configure VF on $VMName"
         return $False
     }
     # Check VF
-    $retVal = Run-LinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort -command "ip a | grep -c $VfIPToCheck" -ignoreLinuxExitCode:$true -RunAsSudo
-    if ($retVal -ne 1) {
-        Write-LogErr "IP is not set on $VMName"
-        return $False
+    if ($VfIPToCheck) {
+        $retVal = Run-LinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort `
+            -command "ip a | grep -c $VfIPToCheck" -ignoreLinuxExitCode:$true -RunAsSudo
+        if ($retVal -ne 1) {
+            Write-LogErr "IP is not set on $VMName"
+            return $False
+        }
     }
     Run-LinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort -command "rm -f constants.sh" -RunAsSudo
     return $True
