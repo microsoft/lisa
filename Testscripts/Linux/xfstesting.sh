@@ -125,6 +125,7 @@ ConfigureDisks() {
     # Create test folders
     mkdir $main_mountpoint ; mkdir $secondary_mountpoint
     # Put remaining params in the config file
+    echo "TEST_DEV=/dev/${main_partition}" >> ${XFSTestConfigFile}
     echo "SCRATCH_DEV=/dev/${secondary_partition}" >> ${XFSTestConfigFile}
     echo "SCRATCH_MNT=/root/${secondary_mountpoint}" >> ${XFSTestConfigFile}
 }
@@ -182,7 +183,22 @@ Main() {
         if [ $FSTYP == "cifs" ]; then
             ConfigureCIFS "/root/test" "/root/scratch"
         else
-            ConfigureDisks "sdc" "sdc1" "sdc2" "$FSTYP" "test" "scratch"
+            TEST_DEV="sdc"
+            mount -l | grep -i "${TEST_DEV}" 2>&1 > /dev/null
+            if [ $? == 0 ]; then
+                LogMsg "${TEST_DEV} is already in use."
+                disk_array=$(fdisk -l | grep -i "Disk /dev/sd" | cut -d' ' -f2)
+                for disk in $disk_array; do
+                    disk=${disk::-1}
+                    mount -l | grep -i "${disk}" 2>&1 > /dev/null
+                    if [ $? != 0 ]; then
+                        LogMsg "${disk} is not in use."
+                        TEST_DEV=$(echo "$disk" | cut -d/ -f3)
+                        break
+                    fi
+                done
+            fi
+            ConfigureDisks "${TEST_DEV}" "${TEST_DEV}1" "${TEST_DEV}2" "$FSTYP" "test" "scratch"
         fi
     fi
     # Copy config file into the xfstests folder

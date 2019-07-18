@@ -6,7 +6,6 @@
         <setupType>OneVM1Disk</setupType>
         <TestParameters>
             <param>FSTYP=xfs</param>
-            <param>TEST_DEV=/dev/sdc1</param>
             <param>TEST_DIR=/root/test</param>
             <param>GENERIC=yes</param>
         </TestParameters>
@@ -23,7 +22,6 @@
         <setupType>OneVM1Disk</setupType>
         <TestParameters>
             <param>FSTYP=xfs</param>
-            <param>TEST_DEV=/dev/sdc1</param>
             <param>TEST_DIR=/root/test</param>
         </TestParameters>
         <Platform>Azure</Platform>
@@ -39,7 +37,6 @@
         <setupType>OneVM1Disk</setupType>
         <TestParameters>
             <param>FSTYP=ext4</param>
-            <param>TEST_DEV=/dev/sdc1</param>
             <param>TEST_DIR=/root/test</param>
             <param>TEST_FS_MOUNT_OPTS='-o nobarrier'</param>
         </TestParameters>
@@ -56,7 +53,6 @@
         <setupType>OneVM1Disk</setupType>
         <TestParameters>
             <param>FSTYP=btrfs</param>
-            <param>TEST_DEV=/dev/sdc1</param>
             <param>TEST_DIR=/root/test</param>
             <param>TEST_FS_MOUNT_OPTS='-o nobarrier'</param>
         </TestParameters>
