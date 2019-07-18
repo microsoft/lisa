@@ -1928,13 +1928,12 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
         $heteroImageIndex = $heteroImageIndex + 1
         if( $heteroImageIndex -lt $heteroImageCount )
         {
-            Write-Host -ForegroundColor Green "------------- Switching to next heterogenous image."
             $imageInfo = $heteroImages[$heteroImageIndex].Split(' ')
             $publisher = $imageInfo[0]
             $offer = $imageInfo[1]
             $sku = $imageInfo[2]
             $version = $imageInfo[3]
-            Write-Host -ForegroundColor Green "------<$heteroImageIndex>> $publisher $offer $sku $version"
+            Write-LogInfo "Switching to next heterogeneous image [$heteroImageIndex] $publisher $offer $sku $version"
         }
     }
     Add-Content -Value "$($indents[1])]" -Path $jsonFile
