@@ -656,7 +656,7 @@ Class TestController
 				-command "bash CollectLogFile.sh -hostname $($vmData.RoleName)" -ignoreLinuxExitCode -runAsSudo
 			$Null = Copy-RemoteFiles -downloadFrom $vmData.PublicIP -port $vmData.SSHPort `
 				-username $user -password $password -files "$FilesToDownload" -downloadTo $global:LogDir -download
-			$KernelVersion = Get-Content "$global:LogDir\$($vmData.RoleName)-kernelVersion.txt"
+			$global:FinalKernelVersion = Get-Content "$global:LogDir\$($vmData.RoleName)-kernelVersion.txt"
 			$HardwarePlatform = Get-Content "$global:LogDir\$($vmData.RoleName)-hardwarePlatform.txt"
 			$GuestDistro = Get-Content "$global:LogDir\$($vmData.RoleName)-distroVersion.txt"
 			$LISMatch = (Select-String -Path "$global:LogDir\$($vmData.RoleName)-lis.txt" -Pattern "^version:").Line
@@ -702,7 +702,7 @@ Class TestController
 
 				$SQLQuery = Get-SQLQueryOfTelemetryData -TestPlatform $global:TestPlatform -TestLocation $global:TestLocation -TestCategory $CurrentTestData.Category `
 					-TestArea $CurrentTestData.Area -TestName $CurrentTestData.TestName -CurrentTestResult $CurrentTestResult `
-					-ExecutionTag $global:GlobalConfig.Global.$global:TestPlatform.ResultsDatabase.testTag -GuestDistro $GuestDistro -KernelVersion $KernelVersion `
+					-ExecutionTag $global:GlobalConfig.Global.$global:TestPlatform.ResultsDatabase.testTag -GuestDistro $GuestDistro -KernelVersion $global:FinalKernelVersion `
 					-HardwarePlatform $HardwarePlatform -LISVersion $LISVersion -HostVersion $HostVersion -VMSize $VMSize -VMGeneration $VMGeneration -Networking $Networking `
 					-ARMImageName $global:ARMImageName -OsVHD $global:BaseOsVHD -BuildURL $env:BUILD_URL -TableName $dataTableName
 

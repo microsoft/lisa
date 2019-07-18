@@ -523,7 +523,7 @@ Function Provision-VMsForLisa($allVMData, $installPackagesOnRoleNames)
 function Install-CustomKernel ($CustomKernel, $allVMData, [switch]$RestartAfterUpgrade, $TestProvider) {
 	try {
 		$currentKernelVersion = ""
-		$upgradedKernelVersion = ""
+		$global:FinalKernelVersion = ""
 		$CustomKernel = $CustomKernel.Trim()
 		# when adding new kernels here, also update script customKernelInstall.sh
 		$SupportedKernels = "ppa", "proposed", "proposed-azure", "proposed-edge",
@@ -609,10 +609,10 @@ function Install-CustomKernel ($CustomKernel, $allVMData, [switch]$RestartAfterU
 						$isKernelUpgraded = $false
 						while ( !$isKernelUpgraded -and ($retryAttempts -gt 0) ) {
 							$retryAttempts -= 1
-							$upgradedKernelVersion = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -command "uname -r"
+							$global:FinalKernelVersion = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -command "uname -r"
 							Write-LogInfo "Old kernel: $currentKernelVersion"
-							Write-LogInfo "New kernel: $upgradedKernelVersion"
-							if ($currentKernelVersion -eq $upgradedKernelVersion) {
+							Write-LogInfo "New kernel: $global:FinalKernelVersion"
+							if ($currentKernelVersion -eq $global:FinalKernelVersion) {
 								Write-LogErr "Kernel version is same after restarting VMs."
 								if ( ($CustomKernel -eq "latest") -or ($CustomKernel -eq "ppa") -or ($CustomKernel -eq "proposed") ) {
 									Write-LogInfo "Continuing the tests as default kernel is same as $CustomKernel."
@@ -624,7 +624,7 @@ function Install-CustomKernel ($CustomKernel, $allVMData, [switch]$RestartAfterU
 								$isKernelUpgraded = $true
 							}
 							Add-Content -Value "Old kernel: $currentKernelVersion" -Path ".\Report\AdditionalInfo-$TestID.html" -Force
-							Add-Content -Value "New kernel: $upgradedKernelVersion" -Path ".\Report\AdditionalInfo-$TestID.html" -Force
+							Add-Content -Value "New kernel: $global:FinalKernelVersion" -Path ".\Report\AdditionalInfo-$TestID.html" -Force
 							return $isKernelUpgraded
 						}
 					} else {
@@ -977,6 +977,8 @@ Function Detect-LinuxDistro() {
 		[Parameter(Mandatory=$true)][string]$testVMPassword
 	)
 
+	$global:InitialKernelVersion = Run-LinuxCmd -ip $VIP -port $SSHPort -username $testVMUser -password $testVMPassword -command "uname -r"
+	Write-LogInfo "Initial Kernel Version: $global:InitialKernelVersion"
 	$null = Copy-RemoteFiles  -upload -uploadTo $VIP -port $SSHport -files ".\Testscripts\Linux\DetectLinuxDistro.sh" -username $testVMUser -password $testVMPassword 2>&1 | Out-Null
 	$null = Run-LinuxCmd -username $testVMUser -password $testVMPassword -ip $VIP -port $SSHport -command "chmod +x *.sh" -runAsSudo 2>&1 | Out-Null
 

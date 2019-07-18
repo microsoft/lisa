@@ -311,6 +311,12 @@ Class TestSummary
 		if ($this.TestPriority) {
 			$str += "`r`nTest Priority         : $($this.TestPriority)"
 		}
+		if ( $global:InitialKernelVersion ) {
+			$str += "`r`nInitial Kernel Version: " + $global:InitialKernelVersion
+		}
+		if ( $global:FinalKernelVersion ) {
+			$str += "`r`nFinal Kernel Version  : " + $global:FinalKernelVersion
+		}
 		$str += "`r`nTotal Test Cases      : " + $this.TotalTc + " (" + $this.TotalPassTc + " Passed, " + `
 			$this.TotalFailTc + " Failed, " + $this.TotalAbortedTc + " Aborted, " + $this.TotalSkippedTc + " Skipped)"
 		$str += "`r`nTotal Time (dd:hh:mm) : $durationStr`r`n`r`n"
