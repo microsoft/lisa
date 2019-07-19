@@ -30,7 +30,7 @@
     4. Remove VHDs based on string patterns.
 
     Command: .\Utilities\Cleanup-AzureStorageAccounts.ps1 -SecretFilePath .\XML\AzureSecrets_Test_ONLY.xml `
-        -Patterns "AUTOBUILT,LISAv2,-osdisk.vhd"
+        -Patterns "AUTOBUILT,LISAv2,-osdisk.vhd,disk-lun-"
 
     5. [DryRun] Cleanup all** data from all storage accounts, older than 1 year.
 
@@ -62,7 +62,7 @@ param(
     [String] $VHDNames,
 
     # Command separated VHD name patterns to clean.
-    [String] $Patterns = "LISAv2,AUTOBUILT,-osdisk.vhd",
+    [String] $Patterns = "LISAv2,AUTOBUILT,-osdisk.vhd,disk-lun-",
 
     # Cleanup Age (in Days)
     [int] $CleanupAgeInDays = 7,
@@ -264,7 +264,7 @@ try {
                 $blobs = Get-AzStorageBlob -Container $container.Name -Context $context | Where { $_.Name.EndsWith(".vhd") }
             } else {
                 if ($ShowSkippedFiles) { Write-LogInfo "[Container $containerCounter/$($containers.Count). Skipped : $($container.Name)" }
-                continue;
+                $blobs = Get-AzStorageBlob -Container $container.Name -Context $context
             }
             Write-LogInfo "[Container : $containerCounter/$($containers.Count)]. Get-AzStorageBlob -Container $($container.Name) ..."
 
@@ -277,6 +277,11 @@ try {
                 $CurrentFileObject.Region = $CurrentRegion
                 $AllFileObject += $CurrentFileObject
                 $FileURI = $($blob.ICloudBlob.Uri.AbsoluteUri)
+                if (($container.Name) -ne "vhds" -and !$isBootDiagContainer) {
+                    if ($ShowSkippedFiles) { Write-LogInfo "[File : $blobCounter/$($blobs.Count)]. $FileURI : Skipped (Container $($container.Name) not enabled for cleanup.)" }
+                    $SkippedFiles += $blob.Length
+                    continue;
+                }
                 if ($VHDNames) {
                     $VHDNames = $VHDNames.Split(",")
                     if ( -not ( $VHDNames.Contains($blob.Name)) ) {
