@@ -105,7 +105,6 @@ Function Get-ManagedDiskUsage ($ManagedDiskObject) {
         } elseif ($ManagedDiskObject.Sku.Tier -imatch "Standard") {
             $LockedStandardUsage +=[math]::Round($ManagedDiskObject.DiskSizeGB, 0)
         }
-
     } else {
         if ($ManagedDiskObject.Sku.Tier -imatch "Premium") {
             $UnlockedPremiumUsage += [math]::Round($ManagedDiskObject.DiskSizeGB, 0)
@@ -469,10 +468,11 @@ foreach ( $line in $TopVMsHTMLReport.Split("`n"))
 }
 foreach ( $line in $UsageReport.Split("`n"))
 {
-    $FinalEmailSummary += $line
+    # Removing the Resource Usage Table
+    # $FinalEmailSummary += $line
 }
 
-$FinalEmailSummary += '<p style="text-align: right;"><em><span style="font-size: 18px;"><span style="font-family: times new roman,times,serif;">&gt;</span></span></em></p>'
+$FinalEmailSummary += '<p style="text-align: right;"><em><span style="font-size: 18px;"><span style="font-family: times new roman,times,serif;"></span></span></em></p>'
 #endregion
 
 Add-Content -Path $FinalHtmlFile -Value $FinalEmailSummary -Verbose
