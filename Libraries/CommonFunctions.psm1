@@ -2036,7 +2036,6 @@ function Is-DpdkCompatible() {
         # https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk
         $SUPPORTED_DISTRO_KERNEL = @{
             "UBUNTU" = "4.15.0-1015-azure";
-            "SLES" = "4.12.14-5.5-azure";
             "SLES 15" = "4.12.14-5.5-azure";
             "SUSE" = "4.12.14-5.5-azure";
             "REDHAT" = "3.10.0-862.9.1.el7";
