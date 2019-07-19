@@ -1,4 +1,4 @@
-﻿# Linux Integration Services Automation (LISA), version 2
+# Linux Integration Services Automation (LISA), version 2
 
 Nov 2018
 
@@ -203,6 +203,9 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
 
         Multiple override virtual machine size example:
         .\Run-LisaV2.ps1 -TestPlatform "Azure" -TestLocation "westus" -RGIdentifier "deployment" -ARMImageName "canonical ubuntuserver 18.04-lts Latest" -TestNames "VERIFY-DEPLOYMENT-PROVISION" -OverrideVMSize "Standard_A2,Standard_DS1_v2"
+        
+        Multiple ARMImageName example:
+        .\Run-LisaV2.ps1 -TestPlatform "Azure" -TestLocation "westus" -RGIdentifier "seansp" -ARMImageName "canonical ubuntuserver 18.04-lts Latest;canonical ubuntuserver 16.04-lts latest" -TestNames "SRIOV-VERIFY-SINGLE-VF-CONNECTION"
 
    b. Provide parameters in .\XML\TestParameters.xml.
 
