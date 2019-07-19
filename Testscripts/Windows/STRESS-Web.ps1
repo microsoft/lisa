@@ -115,8 +115,7 @@ function Main() {
         Write-LogInfo "  Second Internal IP : $serverSecondInternalIP"
         Write-LogInfo "  SSH Port : $serverSSHPort"
 
-        $linuxRelease = Detect-LinuxDistro -VIP $serverPublicIP -SSHPort $serverSSHPort -testVMuser $username -testVMPassword $password
-        if (!@("UBUNTU", "DEBIAN").contains($linuxRelease)) {
+        if (!@("UBUNTU", "DEBIAN").contains($global:detectedDistro)) {
             Write-LogInfo "Test is only supported on Debian\Ubuntu based distributions."
             return "SKIPPED"
         }
