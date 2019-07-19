@@ -825,10 +825,10 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
 
     if ($ImageName -and !$osVHD) {
         #Allow for heterogeneous images to be used
-        if( $ImageName -Match(";") )
+        if( $ImageName -Match(",") )
         {
             Write-LogInfo "Heterogeneous Images in use."
-            $heteroImages = $ImageName.Split(';')
+            $heteroImages = $ImageName.Split(',')
             $heteroImageCount = $HeteroImages.Count
             $heteroImageIndex = 0
             $imageInfo = $heteroImages[$heteroImageIndex].Split(' ')
