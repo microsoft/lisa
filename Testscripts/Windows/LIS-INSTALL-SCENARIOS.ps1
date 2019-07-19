@@ -11,6 +11,25 @@ $ErrorActionPreference = "Stop"
 [xml]$configfile = Get-Content ".\XML\Other\ignorable-test-warnings.xml"
 $IgnorableWarnings = @($configfile.messages.warnings.keywords.Trim())
 
+# Minor version like 4.3.3.1 doesnt require source code change so the modinfo version will be same as the major version like 4.3.3
+# Hence we are comparing to check whether it is a minor LIS version upgrade
+Function Check-MinorLISVersionUpgrade($LISTarballUrlOld,$LISTarballUrlCurrent) {
+    $oldversion=(($LISTarballUrlOld -split ".*rpms?-")[1] -split ".tar.gz" -split "-")[0]
+    $oldversion=$oldversion.Split(".")
+    Write-LogInfo "LISTarballUrlOld version - $oldversion"
+    $currentversion=(($LISTarballUrlCurrent -split ".*rpms?-")[1] -split ".tar.gz" -split "-")[0]
+    $currentversion=$currentversion.Split(".")
+    Write-LogInfo "LISTarballUrlCurrent version - $currentversion"
+    $minorupgrade=$true
+    for ($index=0; $index -lt 3; $index++) {
+        if ($oldversion[$index] -ne $currentversion[$index] ) {
+            $minorupgrade=$false
+            break
+        }
+    }
+    return $minorupgrade
+}
+
 Function Check-Modules() {
     Write-LogInfo "Check if module are loaded after LIS installation"
     $remoteScript = "LIS-MODULES-CHECK.py"
@@ -46,7 +65,7 @@ Function Install-LIS ($LISTarballUrl, $allVMData) {
     }
     $sts = Check-Modules
     if( -not $sts[-1]) {
-        Write-LogErr "Failed due to either modules are not loaded or version mismatch"
+        Write-LogErr "Failed due to either modules not loaded or version mismatch"
         return $false
     }
     return $true
@@ -60,8 +79,9 @@ Function Upgrade-LIS ($LISTarballUrlOld, $LISTarballUrlCurrent, $allVMData , $Te
             Write-LogErr "OLD LIS installation FAILED. Aborting tests."
             return $false
         }
-        $OldlisVersion = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus"
-        Write-LogInfo "LIS version with previous LIS drivers: $OldlisVersion"
+        $OldLISVersion = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus"
+        $OldLISmoduleVersion = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus|grep -w `"version:`""
+        Write-LogInfo "LIS version with previous LIS drivers: $OldLISVersion"
         Write-LogInfo "Ugrading LIS to $LISTarballUrlCurrent"
         $CurrentLISExtractCommand = "rm -rf LISISO^wget $($LISTarballUrlCurrent)^tar -xzf $($LISTarballUrlCurrent | Split-Path -Leaf)^cp -ar LISISO/* ."
         $LISExtractCommands = $CurrentLISExtractCommand.Split("^")
@@ -76,31 +96,59 @@ Function Upgrade-LIS ($LISTarballUrlOld, $LISTarballUrlCurrent, $allVMData , $Te
         }
         else {
             if ($UpgradelLISConsoleOutput -imatch "error" -or ($UpgradelLISConsoleOutput -imatch "warning" -and ($null -eq ($IgnorableWarnings | ? {$UpgradelLISConsoleOutput -match $_ }))) -or $UpgradelLISConsoleOutput -imatch "abort") {
-                Write-LogErr "Latest LIS install is failed due found errors or warnings or aborted."
+                Write-LogErr "Latest LIS install is failed due to found errors or warnings or aborted."
                 return $false
             }
             if ( $RestartAfterUpgrade ) {
                 Write-LogInfo "Now restarting VMs..."
                 if ( $TestProvider.RestartAllDeployments($allVMData) ) {
-                    $upgradedlisVersion = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus"
-                    if ($OldlisVersion -ne $upgradedlisVersion) {
-                        Write-LogInfo "LIS upgraded to `"$LISTarballUrlCurrent`" successfully"
-                        Write-LogInfo "Old lis: $OldlisVersion"
-                        Write-LogInfo "New lis: $upgradedlisVersion"
-                        Add-Content -Value "Old lis: $OldlisVersion" -Path ".\Report\AdditionalInfo-$TestID.html" -Force
-                        Add-Content -Value "New lis: $upgradedlisVersion" -Path ".\Report\AdditionalInfo-$TestID.html" -Force
-                        $sts = Check-Modules
-                        if( -not $sts[-1]) {
-                            Write-LogErr "Failed due to either modules are not loaded or version mismatch"
+                    $upgradedLISVersion = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus"
+                    $upgradedLISmoduleVersion = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus|grep -w `"version:`""
+                    if (Check-MinorLISVersionUpgrade -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent) {
+                        if ($OldLISmoduleVersion -eq $upgradedLISmoduleVersion) {
+                            Write-LogInfo "LIS upgraded to `"$LISTarballUrlCurrent`" successfully"
+                            Write-LogInfo "Old LIS: $OldLISVersion"
+                            Write-LogInfo "New LIS: $upgradedLISVersion"
+                            Add-Content -Value "Old LIS: $OldLISVersion" -Path ".\Report\AdditionalInfo-$TestID.html" -Force
+                            Add-Content -Value "New LIS: $upgradedLISVersion" -Path ".\Report\AdditionalInfo-$TestID.html" -Force
+                            $sts = Check-Modules
+                            if( -not $sts[-1]) {
+                                Write-LogErr "Failed due to either modules not loaded or version mismatch"
+                                return $false
+                            }
+                            return $true
+                        }
+                        else {
+                            Write-LogErr "LIS upgradation failed"
+                            Write-LogInfo $OldLISVersion
+                            Write-LogInfo $upgradedLISVersion
+                            Add-Content -Value "Old LIS: $OldLISVersion" -Path ".\Report\AdditionalInfo-$TestID.html" -Force
+                            Add-Content -Value "New LIS: $upgradedLISVersion" -Path ".\Report\AdditionalInfo-$TestID.html" -Force
                             return $false
                         }
-                        return $true
                     }
                     else {
-                        Write-LogErr "LIS upgradation failed"
-                        Add-Content -Value "Old lis: $OldlisVersion" -Path ".\Report\AdditionalInfo-$TestID.html" -Force
-                        Add-Content -Value "New lis: $upgradedlisVersion" -Path ".\Report\AdditionalInfo-$TestID.html" -Force
-                        return $false
+                        if ($OldLISVersion -ne $upgradedLISVersion) {
+                            Write-LogInfo "LIS upgraded to `"$LISTarballUrlCurrent`" successfully"
+                            Write-LogInfo "Old LIS: $OldLISVersion"
+                            Write-LogInfo "New LIS: $upgradedLISVersion"
+                            Add-Content -Value "Old LIS: $OldLISVersion" -Path ".\Report\AdditionalInfo-$TestID.html" -Force
+                            Add-Content -Value "New LIS: $upgradedLISVersion" -Path ".\Report\AdditionalInfo-$TestID.html" -Force
+                            $sts = Check-Modules
+                            if( -not $sts[-1]) {
+                                Write-LogErr "Failed due to either modules not loaded or version mismatch"
+                                return $false
+                            }
+                            return $true
+                        }
+                        else {
+                            Write-LogErr "LIS upgradation failed inside else"
+                            Write-LogInfo $OldLISVersion
+                            Write-LogInfo $upgradedLISVersion
+                            Add-Content -Value "Old LIS: $OldLISVersion" -Path ".\Report\AdditionalInfo-$TestID.html" -Force
+                            Add-Content -Value "New LIS: $upgradedLISVersion" -Path ".\Report\AdditionalInfo-$TestID.html" -Force
+                            return $false
+                        }
                     }
                 }
                 else {
@@ -119,25 +167,39 @@ Function Upgrade-LIS ($LISTarballUrlOld, $LISTarballUrlCurrent, $allVMData , $Te
 Function Downgrade-LIS ($LISTarballUrlOld, $LISTarballUrlCurrent, $allVMData , $TestProvider) {
     try {
         $LIS_version_before_downgrade = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus"
+        $LIS_module_version_before_downgrade = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus|grep -w `"version:`""
         Write-LogInfo "LIS version before Downgrade: $LIS_version_before_downgrade"
         $UninstallLISStatus=Uninstall-LIS -LISTarballUrlCurrent $LISTarballUrlCurrent -allVMData $AllVMData -TestProvider $TestProvider
         if (-not $UninstallLISStatus[-1]) {
             return $false
         }
         Write-LogInfo "Downgrade to OLD LIS : $LISTarballUrlOld"
-        $OLDLisInstallStatus=Install-LIS -LISTarballUrl $LISTarballUrlOld -allVMData $AllVMData
-        if (-not $OLDLisInstallStatus[-1]) {
-            return $true
+        $OLDLISInstallStatus=Install-LIS -LISTarballUrl $LISTarballUrlOld -allVMData $AllVMData
+        if (-not $OLDLISInstallStatus[-1]) {
+            return $false
         }
         $LIS_version_after_downgraded = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus"
+        $LIS_module_version_after_downgraded = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus|grep -w `"version:`""
         Write-LogInfo "LIS version after Downgrade: $LIS_version_after_downgraded"
-        if ( $LIS_version_before_downgrade -ne $LIS_version_after_downgraded) {
-            Write-LogInfo "Downgraded LIS Successfully"
-            return $true
+        if (Check-MinorLISVersionUpgrade -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent) {
+            if ( $LIS_module_version_before_downgrade -eq $LIS_module_version_after_downgraded) {
+                Write-LogInfo "Downgraded LIS Successfully"
+                return $true
+            }
+            else {
+                Write-LogErr "LIS version has changed after downgrading"
+                return $false
+            }
         }
         else {
-            Write-LogErr "LIS version has not changed after downgrading"
-            return $false
+            if ( $LIS_version_before_downgrade -ne $LIS_version_after_downgraded) {
+                Write-LogInfo "Downgraded LIS Successfully"
+                return $true
+            }
+            else {
+                Write-LogErr "LIS version has not changed after downgrading"
+                return $false
+            }
         }
     }
     catch {
