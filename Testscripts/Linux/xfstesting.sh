@@ -182,7 +182,15 @@ Main() {
         if [ $FSTYP == "cifs" ]; then
             ConfigureCIFS "/root/test" "/root/scratch"
         else
-            ConfigureDisks "sdc" "sdc1" "sdc2" "$FSTYP" "test" "scratch"
+            # Check which disk is attached to the VM as custom storage.
+            # Azure provides links in /dev/disk/azure/ to /dev/sd[a-z] devices
+            # this is needed as some 5+ kernels do not assign drive letters in any particular order
+            # (previously the test disk was /dev/sdc)
+            testDisk=$(readlink -f /dev/disk/azure/scsi1/* | sed "s@/dev/@@g" | head -1)
+            ConfigureDisks "${testDisk}" "${testDisk}1" "${testDisk}2" "$FSTYP" "test" "scratch"
+            # Configure disk in env and xfstests config file
+            TEST_DEV="/dev/${testDisk}1"
+            echo "TEST_DEV=${TEST_DEV}" >> ${XFSTestConfigFile}
         fi
     fi
     # Copy config file into the xfstests folder
