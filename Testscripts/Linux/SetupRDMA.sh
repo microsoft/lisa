@@ -84,26 +84,28 @@ function Main() {
 			# This is required for new HPC VM HB- and HC- size deployment, Dec/2018
 			# Get redhat/centos version. Using custom commands instead of utils.sh function
 			# because we have seen some inconsistencies in getting the exact OS version.
-			distro_version=$(sed 's/[^.0-9]//g' /etc/redhat-release)
-			distro_version=$(echo ${distro_version:0:3})
-			hpcx_ver="redhat"$distro_version
-			mlx5_ofed_link="$mlx_ofed_partial_link$distro_version-x86_64.tgz"
-			cd
-			LogMsg "Downloading MLX driver"
-			wget $mlx5_ofed_link
-			Verify_Result
-			LogMsg "Downloaded MLNX_OFED_LINUX driver, $mlx5_ofed_link"
+			if [[ "$install_ofed" == "yes" ]];then
+				distro_version=$(sed 's/[^.0-9]//g' /etc/redhat-release)
+				distro_version=$(echo ${distro_version:0:3})
+				hpcx_ver="redhat"$distro_version
+				mlx5_ofed_link="$mlx_ofed_partial_link$distro_version-x86_64.tgz"
+				cd
+				LogMsg "Downloading MLX driver"
+				wget $mlx5_ofed_link
+				Verify_Result
+				LogMsg "Downloaded MLNX_OFED_LINUX driver, $mlx5_ofed_link"
 
-			LogMsg "Opening MLX OFED driver tar ball file"
-			file_nm=${mlx5_ofed_link##*/}
-			tar zxvf $file_nm
-			Verify_Result
-			LogMsg "Untar MLX driver tar ball file, $file_nm"
+				LogMsg "Opening MLX OFED driver tar ball file"
+				file_nm=${mlx5_ofed_link##*/}
+				tar zxvf $file_nm
+				Verify_Result
+				LogMsg "Untar MLX driver tar ball file, $file_nm"
 
-			LogMsg "Installing MLX OFED driver"
-			./${file_nm%.*}/mlnxofedinstall --add-kernel-support
-			Verify_Result
-			LogMsg "Installed MLX OFED driver with kernel support modules"
+				LogMsg "Installing MLX OFED driver"
+				./${file_nm%.*}/mlnxofedinstall --add-kernel-support
+				Verify_Result
+				LogMsg "Installed MLX OFED driver with kernel support modules"
+			fi
 
 			# Restart IB driver after enabling the eIPoIB Driver
 			LogMsg "Changing LOAD_EIPOIB to yes"

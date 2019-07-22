@@ -110,6 +110,10 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceWith>20190115</ReplaceWith>
 	</Parameter>
 	<Parameter>
+		<ReplaceThis>INFINIBAND_INSTALL_OFED</ReplaceThis>
+		<ReplaceWith>yes</ReplaceWith>
+	</Parameter>
+	<Parameter>
 		<ReplaceThis>INFINIBAND_INTEL_TOTAL_REBOOT_COUNT</ReplaceThis>
 		<ReplaceWith>1</ReplaceWith>
 	</Parameter>
