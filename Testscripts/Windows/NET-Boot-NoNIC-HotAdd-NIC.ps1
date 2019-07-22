@@ -61,8 +61,7 @@ function Main {
 
     # Configure the NET-Verify-Boot-NoNIC.sh script to be run automatically
     # on boot
-    $linuxRelease = Detect-LinuxDistro
-    if ($linuxRelease -eq "CENTOS" -or $linuxRelease -eq "FEDORA" -or $linuxRelease -eq "REDHAT") {
+    if ($global:detectedDistro -eq "CENTOS" -or $global:detectedDistro -eq "FEDORA" -or $global:detectedDistro -eq "REDHAT") {
         Run-LinuxCmd -Command "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;chmod +x /etc/rc.d/rc.local`"" `
             -Username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
             -runMaxAllowedTime $Timeout
@@ -73,7 +72,7 @@ function Main {
             -Username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
             -runMaxAllowedTime $Timeout
     }
-    elseif ($linuxRelease -eq "UBUNTU" -or $linuxRelease -eq "DEBIAN") {
+    elseif ($global:detectedDistro -eq "UBUNTU" -or $global:detectedDistro -eq "DEBIAN") {
         Run-LinuxCmd -Command "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;systemctl start cron.service`"" `
             -Username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
             -runMaxAllowedTime $Timeout
@@ -87,7 +86,7 @@ function Main {
             -Username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
             -runMaxAllowedTime $Timeout
     }
-    elseif ($linuxRelease -eq "SLES") {
+    elseif ($global:detectedDistro -eq "SLES") {
         $cmdToVM = @"
 [Unit]
 ConditionFileIsExecutable=/home/$VMUserName/NET-Verify-Boot-NoNIC.sh
@@ -114,7 +113,7 @@ RemainAfterExit=yes
             -runMaxAllowedTime $Timeout
     }
     else {
-        Write-LogErr "Unsupported linux distribution '${linuxRelease}'"
+        Write-LogErr "Unsupported linux distribution '${global:detectedDistro}'"
         return "ABORTED"
     }
 

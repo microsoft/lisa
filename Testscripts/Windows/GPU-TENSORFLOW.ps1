@@ -92,8 +92,6 @@ function Main {
                 }
             }
 
-            $detectedDistro = Detect-LinuxDistro -VIP $vmData.PublicIP -SSHport $vmData.SSHPort `
-                    -testVMUser $user -testVMPassword $password
             $properties = Get-VMProperties -PropertyFilePath "$LogDir\VM_properties.csv"
             $testDate = $(Get-Date -Format yyyy-MM-dd)
             $testDataCsv = Import-Csv -Path $LogDir\tensorflowBenchmark.csv
@@ -109,7 +107,7 @@ function Main {
                 $resultMap["TensorflowVersion"] = $TensorflowVersion
                 $resultMap["HostType"] = $global:TestPlatform
                 $resultMap["HostBy"] = $global:TestLocation
-                $resultMap["GuestOSType"] = $detectedDistro
+                $resultMap["GuestOSType"] = $global:detectedDistro
                 $resultMap["GuestSize"] = $AllVMData.InstanceSize
                 $resultMap["TestCaseName"] = $global:GlobalConfig.Global.Azure.ResultsDatabase.testTag
                 $resultMap["TestDate"] = $testDate
