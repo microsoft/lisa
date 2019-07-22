@@ -55,22 +55,30 @@ function Main() {
 	LogMsg "Starting RDMA required packages and software setup in VM"
 	update_repos
 	# Install common packages
-	install_package "gcc git zip"
+	install_package "gcc git make zip"
 	# Change memory limits
 	echo "* soft memlock unlimited" >> /etc/security/limits.conf
 	echo "* hard memlock unlimited" >> /etc/security/limits.conf
 	hpcx_ver=""
 	source /etc/os-release
 	case $DISTRO in
-		redhat_7|centos_7)
+		redhat_7|centos_7|redhat_8|centos_8)
 			# install required packages regardless VM types.
 			LogMsg "Starting RHEL/CentOS setup"
 			LogMsg "Installing required packages ..."
-			install_package "kernel-devel-$(uname -r) python-devel valgrind-devel redhat-rpm-config rpm-build gcc-gfortran libdb-devel gcc-c++ glibc-devel zlib-devel numactl-devel libmnl-devel binutils-devel iptables-devel libstdc++-devel libselinux-devel elfutils-devel libtool libnl3-devel java libstdc++.i686 dapl python-setuptools gtk2 atk cairo tcl tk createrepo byacc.x86_64 net-tools"
+			install_package "kernel-devel-$(uname -r) valgrind-devel redhat-rpm-config rpm-build gcc gcc-gfortran libdb-devel gcc-c++ glibc-devel zlib-devel numactl-devel libmnl-devel binutils-devel iptables-devel libstdc++-devel libselinux-devel elfutils-devel libtool libnl3-devel java libstdc++.i686 gtk2 atk cairo tcl tk createrepo byacc.x86_64 net-tools"
 			# libibverbs-devel and libibmad-devel have broken dependecies on Centos 7.6
 			# Switching to direct install instead of using the function
 			yum install -y libibverbs-devel libibmad-devel
-
+			# Install separate packages for 7.x and 8.x
+			case $DISTRO in
+				redhat_7|centos_7)
+					install_package "python-devel dapl python-setuptools"
+				;;
+				redhat_8|centos_8)
+					install_package "python3-devel python2-devel python2-setuptools"
+				;;
+			esac
 			yum -y groupinstall "InfiniBand Support"
 			Verify_Result
 			LogMsg "Installed group packages for InfiniBand Support"
@@ -140,7 +148,7 @@ function Main() {
 			# install required packages
 			LogMsg "This is SUSE"
 			LogMsg "Installing required packages ..."
-			install_package "expect glibc-32bit glibc-devel libgcc_s1 libgcc_s1-32bit make gcc-c++ gcc-fortran rdma-core libibverbs-devel librdmacm1 libibverbs-utils bison flex"
+			install_package "expect glibc-32bit glibc-devel libgcc_s1 libgcc_s1-32bit gcc-c++ gcc-fortran rdma-core libibverbs-devel librdmacm1 libibverbs-utils bison flex"
 			# force install package that is known to have broken dependencies
 			zypper --non-interactive in libibmad-devel
 			if [ $? -eq 4 ]; then

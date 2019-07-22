@@ -671,7 +671,7 @@ function Main() {
 		;;
 		open)
 			total_virtual_machines=$(($total_virtual_machines + 1))
-			mpi_run_path=$(find / -name mpirun | grep -v gcc)
+			mpi_run_path=$(find / -name mpirun | head -n 1)
 		;;
 		hpcx)
 			total_virtual_machines=$(($total_virtual_machines + 1))
