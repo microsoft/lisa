@@ -148,7 +148,8 @@ while [ $__iterator -le "$vf_count" ]; do
     fi
 
     # Send 1GB file from VM1 to VM2 via eth1
-    scp -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$output_file" "$remote_user"@"$static_IP_2":/tmp/"$output_file"
+    output_file_path=$(find / -name $output_file)
+    scp -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$output_file_path" "$remote_user"@"$static_IP_2":/tmp/"$output_file"
     if [ 0 -ne $? ]; then
         LogErr "Unable to send the file from VM1 to VM2 ($static_IP_2)"
         SetTestStateFailed
