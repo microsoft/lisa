@@ -2616,6 +2616,7 @@ function build_lagscope () {
 	pushd build && cmake .. && cmake --build . && cmake --build . --target install
 	popd
 	popd
+	ln -s /usr/local/bin/lagscope /usr/bin/lagscope
 }
 
 # Install lagscope and required packages
@@ -2697,7 +2698,7 @@ function install_ntttcp () {
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos)
 			install_epel
-			yum -y --nogpgcheck install wget libaio sysstat git bc make gcc dstat psmisc lshw
+			yum -y --nogpgcheck install wget libaio sysstat git bc make gcc dstat psmisc lshw cmake
 			build_ntttcp "${1}"
 			build_lagscope
 			iptables -F
@@ -2705,7 +2706,7 @@ function install_ntttcp () {
 
 		ubuntu|debian)
 			dpkg_configure
-			apt-get -y install wget libaio1 sysstat git bc make gcc dstat psmisc lshw
+			apt-get -y install wget libaio1 sysstat git bc make gcc dstat psmisc lshw cmake
 			build_ntttcp "${1}"
 			build_lagscope
 			;;
@@ -2713,7 +2714,7 @@ function install_ntttcp () {
 		sles|sle_hpc)
 			if [[ $DISTRO_VERSION =~ 12|15 ]]; then
 				add_sles_network_utilities_repo
-				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install wget sysstat git bc make gcc dstat psmisc lshw
+				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install wget sysstat git bc make gcc dstat psmisc lshw cmake
 				build_ntttcp "${1}"
 				build_lagscope
 				iptables -F
