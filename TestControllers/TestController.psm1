@@ -95,8 +95,9 @@ Class TestController
 		$this.TestProvider.CustomLIS = $ParamTable["CustomLIS"]
 		$this.CustomParams = @{}
 		if ( $ParamTable.ContainsKey("CustomParameters") ) {
-			$ParamTable["CustomParameters"].ToLower().Split(';').Trim() | ForEach-Object {
-				$key,$value = $_.ToLower().Split('=').Trim()
+			$ParamTable["CustomParameters"].Split(';').Trim() | ForEach-Object {
+				$key = $_.Split('=')[0].Trim()
+				$value = $_.Substring($_.IndexOf("=")+1)
 				$this.CustomParams[$key] = $value
 			}
 		}
@@ -230,7 +231,7 @@ Class TestController
 			{
 				$CustomParameter = $CustomParameter.Trim()
 				$ReplaceThis = $CustomParameter.Split("=")[0]
-				$ReplaceWith = $CustomParameter.Split("=")[1]
+				$ReplaceWith = $CustomParameter.Substring($CustomParameter.IndexOf("=")+1)
 
 				$OldValue = ($ReplaceableTestParameters.ReplaceableTestParameters.Parameter | Where-Object `
 					{ $_.ReplaceThis -eq $ReplaceThis }).ReplaceWith
