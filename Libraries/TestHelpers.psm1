@@ -705,7 +705,7 @@ Function Set-DistroSpecificVariables($detectedDistro)
 	}
 }
 
-Function Test-TCP($testIP, $testport)
+Function Test-TCP([string]$testIP, [Int32]$testport)
 {
 	$socket = New-Object Net.Sockets.TcpClient
 	$isConnected = "False"
@@ -713,7 +713,7 @@ Function Test-TCP($testIP, $testport)
 	{
 		$socket.Connect($testIP, $testPort)
 	}
-	catch [System.Net.Sockets.SocketException]
+	catch
 	{
 		Write-LogWarn "TCP test failed"
 	}
