@@ -245,10 +245,11 @@ Class TestController
 		foreach ( $test in $allTests) {
 			# Inject replaceable parameters
 			foreach ($ReplaceableParameter in $ReplaceableTestParameters.ReplaceableTestParameters.Parameter) {
+				$replaceWith = [System.Security.SecurityElement]::Escape($ReplaceableParameter.ReplaceWith)
 				$FindReplaceArray = @(
-					("=$($ReplaceableParameter.ReplaceThis)<" ,"=$($ReplaceableParameter.ReplaceWith)<" ),
-					("=`"$($ReplaceableParameter.ReplaceThis)`"" ,"=`"$($ReplaceableParameter.ReplaceWith)`""),
-					(">$($ReplaceableParameter.ReplaceThis)<" ,">$($ReplaceableParameter.ReplaceWith)<")
+					("=$($ReplaceableParameter.ReplaceThis)<" ,"=$($replaceWith)<" ),
+					("=`"$($ReplaceableParameter.ReplaceThis)`"" ,"=`"$($replaceWith)`""),
+					(">$($ReplaceableParameter.ReplaceThis)<" ,">$($replaceWith)<")
 				)
 				foreach ($item in $FindReplaceArray) {
 					$Find = $item[0]
