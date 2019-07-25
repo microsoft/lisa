@@ -107,7 +107,7 @@ Class AzureProvider : TestProvider
 			}
 			else
 			{
-				Write-LogInfo "Successfully cleaned up RG ${rg}.."
+				Write-LogInfo "Successfully started clean up for RG ${rg}.."
 			}
 		}
 	}
@@ -179,5 +179,24 @@ Class AzureProvider : TestProvider
 			return $true
 		}
 		return $false
+	}
+
+	[void] RunTestCleanup() {
+		# Wait till all the cleanup background jobs successfully started cleanup of resource groups.
+		$DeleteResourceGroupJobs = Get-Job | Where-Object { $_.Name -imatch "DeleteResourceGroup" }
+		$RunningJobs = $DeleteResourceGroupJobs | Where-Object { $_.State -imatch "Running" }
+		While ( $RunningJobs ) {
+			$RunningJobs | ForEach-Object {
+				Write-LogInfo "$($_.Name) background job is running. Waiting to finish..."
+			}
+			Start-Sleep -Seconds 5
+			$RunningJobs = $DeleteResourceGroupJobs | Where-Object { $_.State -imatch "Running" }
+		}
+		if ($DeleteResourceGroupJobs) {
+			Write-LogInfo "*****************Background clenaup job logs*****************"
+			$DeleteResourceGroupJobs | Receive-Job
+			Write-LogInfo "*************************************************************"
+			$DeleteResourceGroupJobs | Remove-Job -Force
+		}
 	}
 }
