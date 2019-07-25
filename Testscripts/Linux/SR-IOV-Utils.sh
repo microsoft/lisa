@@ -60,8 +60,8 @@ VerifyVF()
     # Using lsmod command, verify if driver is loaded
     lsmod | grep 'mlx[4-5]_core\|mlx4_en\|ixgbevf'
     if [ $? -ne 0 ]; then
-		# driver can be built-in, continuing to lspci
-		LogErr "Neither mlx[4-5]_core\mlx4_en or ixgbevf drivers are in use!"
+        # driver can be built-in, continuing to lspci
+        LogErr "Neither mlx[4-5]_core\mlx4_en or ixgbevf drivers are in use!"
     fi
 
     # Using the lspci command, verify if NIC has SR-IOV support
@@ -283,4 +283,16 @@ InstallDependencies()
     fi
 
     return 0
+}
+
+#
+# DisableNetworkManager - Disable the NetworkManager permanently if it's running
+#
+DisableNetworkManager()
+{
+    systemctl status NetworkManager | grep "Active:[ ]*active"
+    if [ $? -eq 0 ]; then
+        systemctl stop NetworkManager
+        systemctl disable NetworkManager
+    fi
 }
