@@ -35,10 +35,14 @@ function Hugepage_Setup() {
 		exit 1
 	fi
 
-	local hugepage_cmd="mkdir -p /mnt/huge; mount -t hugetlbfs nodev /mnt/huge && \
-		echo 4096 | tee /sys/devices/system/node/node*/hugepages/hugepages-2048kB/nr_hugepages > /dev/null"
-
-	ssh ${1} "${hugepage_cmd}"
+	LogMsg "Huge page setup is running"
+	ssh "${1}" "mkdir -p /mnt/huge && mkdir -p /mnt/huge-1G"
+	ssh "${1}" "mount -t hugetlbfs nodev /mnt/huge && mount -t hugetlbfs nodev /mnt/huge-1G -o 'pagesize=1G'"
+	check_exit_status "Huge pages are mounted on ${1}" "exit"
+	ssh "${1}" "echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages"
+	check_exit_status "4KB huge pages are configured on ${1}" "exit"
+	ssh "${1}" "echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages"
+	check_exit_status "1GB huge pages are configured on ${1}" "exit"
 }
 
 # Requires:

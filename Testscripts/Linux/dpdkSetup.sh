@@ -10,27 +10,23 @@ export RTE_SDK="${HOMEDIR}/dpdk"
 export RTE_TARGET="x86_64-native-linuxapp-gcc"
 
 UTIL_FILE="./utils.sh"
+DPDK_UTIL_FILE="./dpdkUtils.sh"
 
 # Source utils.sh
-. utils.sh || {
-	echo "ERROR: unable to source utils.sh!"
+. ${UTIL_FILE} || {
+	echo "ERROR: unable to source ${UTIL_FILE}!"
+	echo "TestAborted" > state.txt
+	exit 0
+}
+
+. ${DPDK_UTIL_FILE} || {
+	echo "ERROR: unable to source ${DPDK_UTIL_FILE}!"
 	echo "TestAborted" > state.txt
 	exit 0
 }
 
 # Source constants file and initialize most common variables
 UtilsInit
-
-function setup_huge_pages () {
-	LogMsg "Huge page setup is running"
-	ssh "${1}" "mkdir -p /mnt/huge && mkdir -p /mnt/huge-1G"
-	ssh "${1}" "mount -t hugetlbfs nodev /mnt/huge && mount -t hugetlbfs nodev /mnt/huge-1G -o 'pagesize=1G'"
-	check_exit_status "Huge pages are mounted on ${1}" "exit"
-	ssh "${1}" "echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages"
-	check_exit_status "4KB huge pages are configured on ${1}" "exit"
-	ssh "${1}" "echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages"
-	check_exit_status "1GB huge pages are configured on ${1}" "exit"
-}
 
 function install_dpdk () {
 	dpdk_server_ip=${2}
@@ -189,7 +185,7 @@ echo "client-vm : eth0 : ${client} : eth1 : ${clientNIC1ip} eth2 : ${clientNIC2i
 
 LogMsg "*********INFO: Starting Huge page configuration*********"
 LogMsg "INFO: Configuring huge pages on client ${client}..."
-setup_huge_pages "${client}"
+Hugepage_Setup "${client}"
 
 LogMsg "*********INFO: Starting setup & configuration of DPDK*********"
 LogMsg "INFO: Installing DPDK on client ${client}..."
@@ -200,7 +196,7 @@ then
 	LogMsg "Skip DPDK setup on server"
 else
 	LogMsg "INFO: Configuring huge pages on server ${server}..."
-	setup_huge_pages "${server}"
+	Hugepage_Setup "${server}"
 	LogMsg "INFO: Installing DPDK on server ${server}..."
 	install_dpdk "${server}" "${serverNIC1ip}" "${clientNIC1ip}"
 fi

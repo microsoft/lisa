@@ -63,7 +63,7 @@
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkSetup.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkSetup.sh,.\Testscripts\Linux\dpdkUtils.sh</files>
         <TestParameters>
             <param>dpdkSrcLink="DPDK_SOURCE_URL"</param>
         </TestParameters>
@@ -81,7 +81,7 @@
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
         <OverrideVMSize>Standard_D16_v3</OverrideVMSize>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkSetup.sh,.\Testscripts\Linux\ovs_setup.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkSetup.sh,.\Testscripts\Linux\ovs_setup.sh,.\Testscripts\Linux\dpdkUtils.sh</files>
         <TestParameters>
             <param>dpdkSrcLink="DPDK_SOURCE_URL"</param>
             <param>ovsSrcLink="OVS_SOURCE_URL"</param>
@@ -100,7 +100,7 @@
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkSetup.sh,.\Testscripts\Linux\run_dpdk_ring_latency.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkSetup.sh,.\Testscripts\Linux\run_dpdk_ring_latency.sh,.\Testscripts\Linux\dpdkUtils.sh</files>
         <TestParameters>
             <param>dpdkSrcLink="DPDK_SOURCE_URL"</param>
             <param>DPDK_RING_LATENCY_RUN_TIME=30</param>
@@ -121,7 +121,7 @@
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkSetup.sh,.\Testscripts\Linux\build_test_nff_go.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkSetup.sh,.\Testscripts\Linux\build_test_nff_go.sh,.\Testscripts\Linux\dpdkUtils.sh</files>
         <TestParameters>
             <param>dpdkSrcLink="DPDK_SOURCE_URL"</param>
             <param>nffGoSrcLink="NFF_GO_SOURCE_URL"</param>
