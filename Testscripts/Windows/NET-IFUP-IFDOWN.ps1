@@ -30,7 +30,9 @@ function Main {
         if ($TestPlatform -eq "HyperV") {
             $newIp = Get-IPv4AndWaitForSSHStart -VMName $VMName -HvServer $HvServer `
                 -VmPort $VmPort -User $VMUserName -Password $VMPassword -StepTimeout 30
-            $allVmData.PublicIP = $newIp
+            if($newIp) {
+                $allVmData.PublicIP = $newIp
+            }
         }
         else {
             $newIp = $allVmData.PublicIP
