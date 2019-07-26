@@ -294,7 +294,7 @@ function Parse-TestParameters {
             $testParams += Get-SecretParams -ParamsArray $paramsArray `
                  -GlobalConfig $GlobalConfig -AllVMData $AllVMData
         } else {
-            $value = $param.split("=")[1]
+            $value = $param.Substring($param.IndexOf("=")+1)
             $testParams[$name] = $value
         }
     }
