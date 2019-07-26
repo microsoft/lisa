@@ -1960,47 +1960,8 @@ VerifyIsEthtool()
     ethtool --version
     if [ $? -ne 0 ]; then
         LogMsg "INFO: Ethtool not found. Trying to install it."
-        GetDistro
-        case "$DISTRO" in
-            suse*)
-                zypper --non-interactive in ethtool
-                if [ $? -ne 0 ]; then
-                    msg="ERROR: Failed to install Ethtool"
-                    LogMsg "$msg"
-                    UpdateSummary "$msg"
-                    SetTestStateFailed
-                    exit 1
-                fi
-                ;;
-            ubuntu*|debian*)
-                apt update -y
-                apt install ethtool -y
-                if [ $? -ne 0 ]; then
-                    msg="ERROR: Failed to install Ethtool"
-                    LogMsg "$msg"
-                    UpdateSummary "$msg"
-                    SetTestStateFailed
-                    exit 1
-                fi
-                ;;
-            redhat*|centos*)
-                yum install ethtool -y
-                if [ $? -ne 0 ]; then
-                    msg="ERROR: Failed to install Ethtool"
-                    LogMsg "$msg"
-                    UpdateSummary "$msg"
-                    SetTestStateFailed
-                    exit 1
-                fi
-                ;;
-                *)
-                    msg="ERROR: OS Version not supported"
-                    LogMsg "$msg"
-                    UpdateSummary "$msg"
-                    SetTestStateFailed
-                    exit 1
-                ;;
-        esac
+        update_repos
+        install_package "ethtool"
     fi
     LogMsg "Info: Ethtool is installed!"
 }
