@@ -39,6 +39,9 @@ function Set-VFInGuest {
         Write-LogErr "Failed to install dependencies on $VMName"
         return $False
     }
+    # Disable the NetworkManager
+    Run-LinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort `
+        -command ". SR-IOV-Utils.sh; DisableNetworkManager" -RunAsSudo
     # Configure VF
     Run-LinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort `
         -command ". SR-IOV-Utils.sh; ConfigureVF $VMNumber" -RunAsSudo
