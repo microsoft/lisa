@@ -29,15 +29,16 @@ Function Get-DeviceName
 	param ($ip, $port)
 	$scriptContent = @'
 #! /bin/bash
-devlist=(/dev/sda /dev/sdb /dev/sdc)
-for dev in "${devlist[@]}"; do
+. utils.sh
+# Get the OS disk
+os_disk=$(get_OSdisk)
+for dev in /dev/sd*[^0-9]; do
     # Skip the OS disk
-    fdisk -l $dev | grep -i "Linux filesystem" > /dev/null
-    if [ 0 -eq $? ]; then
+    if [ $dev == "/dev/$os_disk" ]; then
         continue
     fi
     # Skip the resource disk
-    fdisk -l $dev | grep -i "1 GiB" > /dev/null
+    fdisk -l $dev 2> /dev/null | grep -i "1 GiB" > /dev/null
         if [ 0 -eq $? ]; then
         continue
     fi
