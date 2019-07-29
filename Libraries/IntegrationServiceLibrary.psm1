@@ -255,7 +255,7 @@ function Get-IPv4AndWaitForSSHStart {
 	# Wait for KVP start and
 	# Get ipv4 via kvp
 	# Wait for ssh start, test ssh.
-	# Returns [String]ipv4 address if succeeded or $False if failed
+	# Returns [String]ipv4 address if succeeded or $null if failed
 	param (
 		[String] $VmName,
 		[String] $HvServer,
@@ -268,20 +268,20 @@ function Get-IPv4AndWaitForSSHStart {
 	# Wait for KVP to start and able to get ipv4 address
 	if (-not (Wait-ForVMToStartKVP $VmName $HvServer $StepTimeout)) {
 		Write-LogErr "Get-IPv4AndWaitForSSHStart: Unable to get ipv4 from VM ${vmName} via KVP within timeout period ($StepTimeout)"
-		return $False
+		return $null
 	}
 
 	# Get new ipv4 in case an new IP is allocated to vm after reboot
 	$new_ip = Get-IPv4ViaKVP $vmName $hvServer
 	if (-not ($new_ip)){
 		Write-LogErr "Get-IPv4AndWaitForSSHStart: Unable to get ipv4 from VM ${vmName} via KVP"
-		return $False
+		return $null
 	}
 
 	# Wait for port 22 open
 	if (-not (Wait-ForVMToStartSSH $new_ip $stepTimeout)) {
 		Write-LogErr "Get-IPv4AndWaitForSSHStart: Failed to connect $new_ip port 22 within timeout period ($StepTimeout)"
-		return $False
+		return $null
 	}
 
 	# Cache fingerprint, Check ssh is functional after reboot
@@ -290,7 +290,7 @@ function Get-IPv4AndWaitForSSHStart {
 	$TestConnection = .\Tools\plink.exe -C -batch -pw $Password -P $VmPort $User@$new_ip "echo Connected"
 	if ($TestConnection -ne "Connected") {
 		Write-LogErr "Get-IPv4AndWaitForSSHStart: SSH is not working correctly after boot up"
-		return $False
+		return $null
 	}
 	return $new_ip
 }
