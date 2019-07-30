@@ -6,9 +6,9 @@
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
-        <files>.\Testscripts\Linux\dpdk-testFailsafe.sh,.\Testscripts\Windows\dpdk-testFailsafe.ps1</files>
+        <files>.\Testscripts\Linux\dpdk-testFailsafe.sh,.\Testscripts\Windows\dpdk-testFailsafe.ps1,.\Testscripts\Linux\dpdkUtils.sh</files>
         <TestParameters>
-            <param>DPDK_LINK="DPDK_SOURCE_URL"</param>
+            <param>dpdkSrcLink="DPDK_SOURCE_URL"</param>
             <param>MODES="txonly"</param>
         </TestParameters>
         <Platform>Azure</Platform>
