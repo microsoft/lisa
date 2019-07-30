@@ -150,7 +150,7 @@ function Main() {
 			# install required packages
 			LogMsg "This is SUSE"
 			LogMsg "Installing required packages ..."
-			install_package "expect glibc-32bit glibc-devel libgcc_s1 libgcc_s1-32bit gcc-c++ gcc-fortran rdma-core libibverbs-devel librdmacm1 libibverbs-utils bison flex"
+			install_package "bzip expect glibc-32bit glibc-devel libgcc_s1 libgcc_s1-32bit libpciaccess-devel gcc-c++ gcc-fortran rdma-core libibverbs-devel librdmacm1 libibverbs-utils bison flex"
 			# force install package that is known to have broken dependencies
 			zypper --non-interactive in libibmad-devel
 			if [ $? -eq 4 ]; then
@@ -164,7 +164,11 @@ function Main() {
 			fi
 			# Enable mlx5_ib module on boot
 			echo "mlx5_ib" >> /etc/modules-load.d/mlx5_ib.conf
-			hpcx_ver="suse"$VERSION_ID
+			if [ $VERSION_ID -eq "15" ]; then
+				hpcx_ver="suse"$VERSION_ID".0"
+			else
+				hpcx_ver="suse"$VERSION_ID
+			fi
 			;;
 		ubuntu*)
 			LogMsg "This is Ubuntu"
@@ -335,6 +339,14 @@ function Main() {
 	elif [ $mpi_type == "hpcx" ]; then
 		# HPC-X MPI installation
 		LogMsg "HPC-X MPI installation running ..."
+		case $DISTRO in
+			redhat*|centos*)
+				hpcx_mpi=$hpcx_mpi_ofed
+			;;
+			ubuntu*|suse*|sles*)
+				hpcx_mpi=$hpcx_mpi_inbox
+			;;
+		esac
 		LogMsg "Downloading the target hpcx binary tbz, $hpcx_mpi$hpcx_ver-x86_64.tbz"
 
 		wget $hpcx_mpi$hpcx_ver-x86_64.tbz

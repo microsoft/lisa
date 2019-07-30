@@ -163,7 +163,7 @@ Scenario 2 : You need to run all the performance tests quickly.
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_HPCX_MPI_SETTINGS_IB</ReplaceThis>
-		<ReplaceWith>--map-by ppr:1:node --mca pml ucx</ReplaceWith>
+		<ReplaceWith>--map-by ppr:1:node --mca pml ucx -x LD_LIBRARY_PATH</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_MVAPICH_MPI_SETTINGS_TCP</ReplaceThis>
@@ -540,8 +540,12 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceWith>http://content.mellanox.com/ofed/MLNX_OFED-4.5-1.0.1.0/MLNX_OFED_LINUX-4.5-1.0.1.0-rhel</ReplaceWith>
 	</Parameter>
 	<Parameter>
-		<ReplaceThis>HPCX_PARTIAL_LINK</ReplaceThis>
+		<ReplaceThis>HPCX_PARTIAL_LINK_OFED</ReplaceThis>
 		<ReplaceWith>http://www.mellanox.com/downloads/hpc/hpc-x/v2.3/hpcx-v2.3.0-gcc-MLNX_OFED_LINUX-4.5-1.0.1.0-</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>HPCX_PARTIAL_LINK_INBOX</ReplaceThis>
+		<ReplaceWith>http://www.mellanox.com/downloads/hpc/hpc-x/v2.4/hpcx-v2.4.0-gcc-inbox-</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>IBM_PLATFORM_MPI_DOWNLOAD</ReplaceThis>

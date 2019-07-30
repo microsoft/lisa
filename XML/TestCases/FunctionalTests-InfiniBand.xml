@@ -163,7 +163,7 @@
 		<testName>INFINIBAND-HPCX-MPI-2VM</testName>
 		<testScript>VERIFY-INFINIBAND-MultiVM.ps1</testScript>
 		<setupType>TwoVM1Dep</setupType>
-		<OverrideVMSize>Standard_HB60rs</OverrideVMSize>
+		<OverrideVMSize>Standard_HC44rs</OverrideVMSize>
 		<SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh,.\Testscripts\Linux\SetupRDMA.sh</files>
 		<Priority>1</Priority>
@@ -186,7 +186,8 @@
 			<param>imb_io_tests_iterations=INFINIBAND_HPCX_IO_TEST_COUNT</param>
 			<param>mpi_type="hpcx"</param>
 			<param>mlx_ofed_partial_link=MLX_OFED_PARTIAL_LINK</param>
-			<param>hpcx_mpi=HPCX_PARTIAL_LINK</param>
+			<param>hpcx_mpi_ofed=HPCX_PARTIAL_LINK_OFED</param>
+			<param>hpcx_mpi_inbox=HPCX_PARTIAL_LINK_INBOX</param>
 			<param>intel_mpi_benchmark=INTEL_MPI_BENCHMARK_DOWNLOAD</param>
 			<param>walaagent_repo=WALAAgent_REPO</param>
 		</TestParameters>
@@ -199,7 +200,7 @@
 		<testName>INFINIBAND-HPCX-MPI-32VM</testName>
 		<testScript>VERIFY-INFINIBAND-MultiVM.ps1</testScript>
 		<setupType>RDMA32VMs</setupType>
-		<OverrideVMSize>Standard_HB60rs</OverrideVMSize>
+		<OverrideVMSize>Standard_HC44rs</OverrideVMSize>
 		<SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh,.\Testscripts\Linux\SetupRDMA.sh</files>
 		<Priority>3</Priority>
@@ -222,7 +223,8 @@
 			<param>imb_io_tests_iterations=INFINIBAND_HPCX_IO_TEST_COUNT</param>
 			<param>mpi_type="hpcx"</param>
 			<param>mlx_ofed_partial_link=MLX_OFED_PARTIAL_LINK</param>
-			<param>hpcx_mpi=HPCX_PARTIAL_LINK</param>
+			<param>hpcx_mpi_ofed=HPCX_PARTIAL_LINK_OFED</param>
+			<param>hpcx_mpi_inbox=HPCX_PARTIAL_LINK_INBOX</param>
 			<param>intel_mpi_benchmark=INTEL_MPI_BENCHMARK_DOWNLOAD</param>
 			<param>walaagent_repo=WALAAgent_REPO</param>
 		</TestParameters>
