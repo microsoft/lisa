@@ -93,6 +93,10 @@ function InstallCUDADrivers() {
 
     ubuntu*)
         GetOSVersion
+        # Temporary fix till driver for ubuntu19 series list under http://developer.download.nvidia.com/compute/cuda/repos/
+        if [[ $os_RELEASE =~ 19.* ]]; then
+            os_RELEASE="18.10"
+        fi
         CUDA_REPO_PKG="cuda-repo-ubuntu${os_RELEASE//./}_${CUDADriverVersion}_amd64.deb"
         LogMsg "Using ${CUDA_REPO_PKG}"
 
