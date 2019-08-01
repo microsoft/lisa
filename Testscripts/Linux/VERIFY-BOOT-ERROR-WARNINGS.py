@@ -9,9 +9,9 @@ white_list_xml = "ignorable-boot-errors.xml"
 def RunTest():
     UpdateState("TestRunning")
     RunLog.info("Checking for ERROR and WARNING messages in system logs.")
-    errors = Run("grep -nw '/var/log/syslog' -e 'error' --ignore-case && grep -nw '/var/log/messages' -e 'error' --ignore-case")
-    warnings = Run("grep -nw '/var/log/syslog' -e 'warning' --ignore-case && grep -nw '/var/log/messages' -e 'warning' --ignore-case")
-    failures = Run("grep -nw '/var/log/syslog' -e 'fail' --ignore-case && grep -nw '/var/log/messages' -e 'fail' --ignore-case")
+    errors = Run("grep -nw '/var/log/syslog' -e 'error' --ignore-case --no-message && grep /var/log/messages -e error --ignore-case --no-message")
+    warnings = Run("grep -nw '/var/log/syslog' -e 'warning' --ignore-case --no-message && grep /var/log/messages -e warning --ignore-case --no-message")
+    failures = Run("grep -nw '/var/log/syslog' -e 'fail' --ignore-case --no-message && grep /var/log/messages -e fail --ignore-case --no-message")
     if (not errors and not warnings and not failures):
         RunLog.info('Could not find ERROR/WARNING/FAILURE messages in syslog/messages log file.')
         ResultLog.info('PASS')
