@@ -411,10 +411,11 @@ Class TestSummary
 		}
 		if ($TestSummary) {
 			$testSummaryLinePassSkip = "<tr><td>$ExecutionCount</td><td>$($TestData.Area)</td><td>$($TestData.testName)<br><br><font size=`"1`">$($TestSummary)</font></td><td>$Duration min</td><td>" + '{0}' + "</td></tr>"
+			$testSummaryLineFailAbort = "<tr><td>$ExecutionCount</td><td>$($TestData.Area)</td><td>$($TestData.testName)<br><br><font size=`"1`">$($TestSummary)</font>$($this.GetReproVMDetails($AllVMData))</td><td>$Duration min</td><td>" + '{0}' + "</td></tr>"
 		} else {
 			$testSummaryLinePassSkip = "<tr><td>$ExecutionCount</td><td>$($TestData.Area)</td><td>$($TestData.testName)</td><td>$Duration min</td><td>" + '{0}' + "</td></tr>"
+			$testSummaryLineFailAbort = "<tr><td>$ExecutionCount</td><td>$($TestData.Area)</td><td>$($TestData.testName)$($this.GetReproVMDetails($AllVMData))</td><td>$Duration min</td><td>" + '{0}' + "</td></tr>"
 		}
-		$testSummaryLineFailAbort = "<tr><td>$ExecutionCount</td><td>$($TestData.Area)</td><td>$($TestData.testName)$($this.GetReproVMDetails($AllVMData))</td><td>$Duration min</td><td>" + '{0}' + "</td></tr>"
 		if ($TestResult -imatch $global:ResultPass) {
 			$this.TotalPassTc += 1
 			$testResultRow = "<span style='color:green;font-weight:bolder'>$($global:ResultPass)</span>"
@@ -445,7 +446,7 @@ Class TestSummary
 	}
 
 	[string] GetReproVMDetails($allVMData) {
-		if ($allVMData) {
+		if ($allVMData -and $($vm.ResourceGroupName)) {
 			$reproVMHtmlText += "<br><font size=`"2`"><em>Repro VMs: </em></font>"
 
 			foreach ( $vm in $allVMData )
