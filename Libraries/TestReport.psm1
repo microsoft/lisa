@@ -457,7 +457,7 @@ Class TestSummary
 				$reproVMHtmlText += "<br><font size=`"2`">ResourceGroup : $($vm.ResourceGroupName), IP : $($vm.PublicIP), SSH : $($vm.SSHPort)</font>"
 			}
 			if ($reproVMHtmlText) {
-				$reproVMHtmlText = "<br><font size=`"2`"><em>Repro VMs: </em></font>" + reproVMHtmlText
+				$reproVMHtmlText = "<br><font size=`"2`"><em>Repro VMs: </em></font>" + $reproVMHtmlText
 			}
 		}
 		return $reproVMHtmlText
