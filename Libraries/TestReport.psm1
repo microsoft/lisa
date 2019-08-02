@@ -446,9 +446,8 @@ Class TestSummary
 	}
 
 	[string] GetReproVMDetails($allVMData) {
+		$reproVMHtmlText = ""
 		if ($allVMData) {
-			$reproVMHtmlText = ""
-
 			foreach ( $vm in $allVMData )
 			{
 				if (-not $vm.ResourceGroupName) {
