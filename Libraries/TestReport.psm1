@@ -446,15 +446,20 @@ Class TestSummary
 	}
 
 	[string] GetReproVMDetails($allVMData) {
-		if ($allVMData -and $($vm.ResourceGroupName)) {
-			$reproVMHtmlText += "<br><font size=`"2`"><em>Repro VMs: </em></font>"
+		if ($allVMData) {
+			$reproVMHtmlText = ""
 
 			foreach ( $vm in $allVMData )
 			{
+				if (-not $vm.ResourceGroupName) {
+					continue
+				}
 				$reproVMHtmlText += "<br><font size=`"2`">ResourceGroup : $($vm.ResourceGroupName), IP : $($vm.PublicIP), SSH : $($vm.SSHPort)</font>"
 			}
-			return $reproVMHtmlText
+			if ($reproVMHtmlText) {
+				$reproVMHtmlText = "<br><font size=`"2`"><em>Repro VMs: </em></font>" + reproVMHtmlText
+			}
 		}
-		return ""
+		return $reproVMHtmlText
 	}
 }
