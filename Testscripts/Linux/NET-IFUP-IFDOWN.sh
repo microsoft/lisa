@@ -93,8 +93,9 @@ ipAddress=$(ip addr show eth0 | grep "inet\b")
 if [ -z "$ipAddress" ]; then
     kill "$(pidof dhclient)"
     dhclient -r && dhclient
+    sleep 15
 fi
-sleep 15
+
 PingCheck $TestCount
 
 while [ "$TestCount" -lt "$LoopCount" ]
@@ -114,8 +115,8 @@ do
     if [ -z "$ipAddress" ]; then
         kill "$(pidof dhclient)"
         dhclient -r && dhclient
+        sleep 15
     fi
-    sleep 15
     PingCheck "$TestCount"
 done
 
