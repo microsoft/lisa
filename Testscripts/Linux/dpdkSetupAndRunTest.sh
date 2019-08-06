@@ -86,17 +86,17 @@ fi
 
 LogMsg "Starting DPDK Setup"
 # when available update to dpdk latest
-if [ -z "${DPDK_LINK}" ]; then
-	DPDK_LINK="https://fast.dpdk.org/rel/dpdk-18.08.tar.xz"
-	LogMsg "DPDK_LINK missing from environment; using ${DPDK_LINK}"
+if [ -z "${dpdkSrcLink}" ]; then
+	dpdkSrcLink="https://fast.dpdk.org/rel/dpdk-18.08.tar.xz"
+	LogMsg "dpdkSrcLink missing from environment; using ${dpdkSrcLink}"
 fi
 
 # set DPDK_DIR global
 DPDK_DIR="dpdk"
-if [[ $DPDK_LINK =~ .tar ]]; then
-	DPDK_DIR="dpdk-$(echo ${DPDK_LINK} | grep -Po "(\d+\.)+\d+")"
-elif [[ $DPDK_LINK =~ ".git" ]] || [[ $DPDK_LINK =~ "git:" ]]; then
-	DPDK_DIR="${DPDK_LINK##*/}"
+if [[ $dpdkSrcLink =~ .tar ]]; then
+	DPDK_DIR="dpdk-$(echo ${dpdkSrcLink} | grep -Po "(\d+\.)+\d+")"
+elif [[ $dpdkSrcLink =~ ".git" ]] || [[ $dpdkSrcLink =~ "git:" ]]; then
+	DPDK_DIR="${dpdkSrcLink##*/}"
 fi
 
 LogMsg "DPDK source dir is: ${DPDK_DIR}"

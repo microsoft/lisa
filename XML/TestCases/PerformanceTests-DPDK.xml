@@ -8,7 +8,7 @@
         </AdditionalHWConfig>
         <files>.\Testscripts\Linux\dpdk-testFWD.sh,.\Testscripts\Windows\dpdk-testFWD.ps1</files>
         <TestParameters>
-            <param>DPDK_LINK="DPDK_SOURCE_URL"</param>
+            <param>dpdkSrcLink="DPDK_SOURCE_URL"</param>
             <param>TEST_DURATION=DPDK_TEST_DURATION_IN_SECONDS</param>
             <param>CORES=(2 4 8)</param>
         </TestParameters>
@@ -28,7 +28,7 @@
         </AdditionalHWConfig>
         <files>.\Testscripts\Linux\dpdk-testPMD.sh,.\Testscripts\Windows\dpdk-testPMD.ps1</files>
         <TestParameters>
-            <param>DPDK_LINK="DPDK_SOURCE_URL"</param>
+            <param>dpdkSrcLink="DPDK_SOURCE_URL"</param>
             <param>TEST_DURATION=DPDK_TEST_DURATION_IN_SECONDS</param>
             <param>MODES="rxonly io"</param>
         </TestParameters>
@@ -47,7 +47,7 @@
         </AdditionalHWConfig>
         <files>.\Testscripts\Linux\dpdk-testPMD.sh,.\Testscripts\Windows\dpdk-testPMD.ps1</files>
         <TestParameters>
-            <param>DPDK_LINK="DPDK_SOURCE_URL"</param>
+            <param>dpdkSrcLink="DPDK_SOURCE_URL"</param>
             <param>TEST_DURATION=DPDK_TEST_DURATION_IN_SECONDS</param>
             <param>MODES="rxonly io"</param>
         </TestParameters>
@@ -66,7 +66,7 @@
         </AdditionalHWConfig>
         <files>.\Testscripts\Linux\dpdk-testPMD.sh,.\Testscripts\Windows\dpdk-testPMD.ps1</files>
         <TestParameters>
-            <param>DPDK_LINK="DPDK_SOURCE_URL"</param>
+            <param>dpdkSrcLink="DPDK_SOURCE_URL"</param>
             <param>TEST_DURATION=DPDK_TEST_DURATION_IN_SECONDS</param>
             <param>MODES="rxonly io"</param>
             <param>CORES=(2 4 8)</param>
@@ -87,7 +87,7 @@
         </AdditionalHWConfig>
         <files>.\Testscripts\Linux\dpdk-testPMD.sh,.\Testscripts\Windows\dpdk-testPMD.ps1</files>
         <TestParameters>
-            <param>DPDK_LINK="DPDK_SOURCE_URL"</param>
+            <param>dpdkSrcLink="DPDK_SOURCE_URL"</param>
             <param>TEST_DURATION=DPDK_TEST_DURATION_IN_SECONDS</param>
             <param>MODES="rxonly io"</param>
             <param>CORES=DPDK_PERF_CORES</param>

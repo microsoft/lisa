@@ -147,110 +147,168 @@ function Install_Dpdk_Dependencies() {
 	fi
 }
 
-# Requires:
-#   - basic environ i.e. have called UtilsInit
-#   - ${1} dpdk install target ip
-#   - SSH by root, passwordless login, and no StrictHostChecking. Basically have ran
-#     enableRoot.sh and enablePasswordLessRoot.sh from Testscripts/Linux
-# Modifies:
-#   - vm at ip ${1} to install dpdk
-# Effects:
-#   - does NOT set up hugepages or modprobe (see other funcs)
-#	- only installs dpdk on first IP provided
-function Install_Dpdk() {
-	if [ -z "${LIS_HOME}" -o -z "${DPDK_LINK}" -o -z "${DPDK_DIR}" ]; then
-		LogErr "ERROR: LIS_HOME, DPDK_LINK, and DPDK_DIR must be defined before calling Install_Dpdk()"
-		SetTestStateAborted
-		exit 1
-	fi
-
-	if [ -z "${1}" ]; then
-		LogErr "ERROR: Must supply ip of host to Install_Dpdk()"
-		SetTestStateAborted
-		exit 1
-	fi
-
-	CheckIP ${1}
-	if [ $? -eq 1 ]; then
-		LogErr "ERROR: must pass valid ip to Install_Dpdk()"
-		SetTestStateAborted
-		exit 1
-	fi
-	local install_ip=${1}
-	LogMsg "Installing dpdk on ${install_ip}"
-
-	local distro=$(detect_linux_distribution)$(detect_linux_distribution_version)
-	Install_Dpdk_Dependencies $install_ip $distro
-
+function Install_Dpdk () {
+	dpdk_server_ip=${2}
+	dpdk_client_ip=${3}
 	install_from_ppa=false
+	dpdk_version=""
 
-	ssh ${install_ip} "if [[ -e '${DPDK_DIR}' ]]; then rm -rf '${DPDK_DIR}'; fi"
-	if [[ $DPDK_LINK =~ .tar ]]; then
-		ssh ${install_ip} "mkdir ${DPDK_DIR}"
-		dpdk_download_file="${DPDK_LINK##*/}"
-		wget_retry "${DPDK_LINK}" "/tmp" "${install_ip}"
-		ssh "${install_ip}" "tar -xf '/tmp/${dpdk_download_file}' -C ${DPDK_DIR} --strip-components=1"
-		check_exit_status "Get DPDK sources from '${DPDK_LINK}' on ${install_ip}" "exit"
-	elif [[ $DPDK_LINK =~ ".git" ]] || [[ $DPDK_LINK =~ "git:" ]]; then
-		ssh ${install_ip} "git clone ${DPDK_LINK} ${DPDK_DIR}"
-	elif [[ $DPDK_LINK =~ "ppa:" ]]; then
-		if [[ $distro != "ubuntu16.04" && $distro != "ubuntu18.04" ]]; then
-			LogErr "PPAs are supported only on Debian based distros."
+	SetTestStateRunning
+	LogMsg "Configuring ${1} ${DISTRO_NAME} ${DISTRO_VERSION} for DPDK test..."
+	packages=(gcc make git tar wget dos2unix psmisc make)
+	case "${DISTRO_NAME}" in
+		oracle|rhel|centos)
+			ssh "${1}" ". utils.sh && install_epel"
+			ssh "${1}" "yum -y groupinstall 'Infiniband Support' && dracut --add-drivers 'mlx4_en mlx4_ib mlx5_ib' -f && systemctl enable rdma"
+			check_exit_status "Install Infiniband Support on ${1}" "exit"
+			ssh "${1}" "grep 7.5 /etc/redhat-release && curl https://partnerpipelineshare.blob.core.windows.net/kernel-devel-rpms/CentOS-Vault.repo > /etc/yum.repos.d/CentOS-Vault.repo"
+			packages+=(kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel libmnl-devel)
+			;;
+		ubuntu|debian)
+			ssh "${1}" "until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done"
+			if [[ "${DISTRO_VERSION}" == "16.04" ]];
+			then
+				LogMsg "Adding dpdk repo to ${DISTRO_NAME} ${DISTRO_VERSION} for DPDK test..."
+				ssh "${1}" ". utils.sh && CheckInstallLockUbuntu && add-apt-repository ppa:canonical-server/dpdk-azure -y"
+			else
+				packages+=(rdma-core)
+			fi
+			ssh "${1}" ". utils.sh && CheckInstallLockUbuntu && update_repos"
+			packages+=(librdmacm-dev librdmacm1 build-essential libnuma-dev libmnl-dev libelf-dev dpkg-dev)
+			;;
+		suse|opensuse|sles)
+			ssh "${1}" ". utils.sh && add_sles_network_utilities_repo"
+			local kernel=$(uname -r)
+			if [[ "${kernel}" == *azure ]];
+			then
+				ssh "${1}" "zypper install --oldpackage -y kernel-azure-devel=${kernel::-6}"
+				packages+=(kernel-devel-azure)
+			else
+				packages+=(kernel-default-devel)
+			fi
+			packages+=(libnuma-devel numactl librdmacm1 rdma-core-devel libmnl-devel)
+			;;
+		*)
+			echo "Unknown distribution"
+			SetTestStateAborted
+			exit 1
+	esac
+	ssh "${1}" ". utils.sh && install_package ${packages[@]}"
+	ssh "${1}" "if [[ -e '${DPDK_DIR}' ]]; then rm -rf '${DPDK_DIR}'; fi"
+
+	if [[ $dpdkSrcLink =~ .tar ]];
+	then
+		ssh ${1} "mkdir ${DPDK_DIR}"
+		dpdkSrcTar="${dpdkSrcLink##*/}"
+		dpdk_version=$(echo "$dpdkSrcTar" | grep -Po "(\d+\.)+\d+")
+		LogMsg "Installing DPDK from source file $dpdkSrcTar"
+		wget_retry "${dpdkSrcLink}" "/tmp" "${1}"
+		ssh "${1}" "tar xf /tmp/$dpdkSrcTar"
+		check_exit_status "tar xf /tmp/$dpdkSrcTar on ${1}" "exit"
+		dpdkSrcDir="${dpdkSrcTar%%".tar"*}"
+		LogMsg "dpdk source on ${1} $dpdkSrcDir"
+	elif [[ $dpdkSrcLink =~ ".git" ]] || [[ $dpdkSrcLink =~ "git:" ]];
+	then
+		dpdkSrcDir="${dpdkSrcLink##*/}"
+		dpdkSrcDir="${dpdkSrcDir%.git/}"
+		LogMsg "Installing DPDK from source file $dpdkSrcDir"
+		ssh "${1}" git clone "$dpdkSrcLink"
+		check_exit_status "git clone $dpdkSrcLink on ${1}" "exit"
+		LogMsg "dpdk source on ${1} $dpdkSrcDir"
+	elif [[ $dpdkSrcLink =~ "ppa:" ]];
+	then
+		if [[ $DISTRO_NAME != "ubuntu" && $DISTRO_NAME != "debian" ]];
+		then
+			echo "PPAs are supported only on Debian based distros."
 			SetTestStateAborted
 			exit 1
 		fi
-		ssh "${install_ip}" "add-apt-repository ${DPDK_LINK} -y -s"
-		ssh "${install_ip}" "apt-get update"
+		ssh "${1}" "add-apt-repository ${dpdkSrcLink} -y -s"
+		ssh "${1}" ". utils.sh && update_repos"
 		install_from_ppa=true
-	elif [[ $DPDK_LINK =~ "native" || $DPDK_LINK == "" ]]; then
-		if [[ $distro != "ubuntu16.04" && $distro != "ubuntu18.04" ]]; then
-			LogErr "Native installs are supported only on Debian based distros."
+	elif [[ $dpdkSrcLink =~ "native" || $dpdkSrcLink == "" ]];
+	then
+		if [[ $DISTRO_NAME != "ubuntu" && $DISTRO_NAME != "debian" ]];
+		then
+			echo "Native installs are supported only on Debian based distros."
 			SetTestStateAborted
 			exit 1
 		fi
-		ssh "${install_ip}" "sed -i '/deb-src/s/^# //' /etc/apt/sources.list"
-		check_exit_status "Enable source repos on ${install_ip}" "exit"
+		ssh "${1}" "sed -i '/deb-src/s/^# //' /etc/apt/sources.list"
+		check_exit_status "Enable source repos on ${1}" "exit"
 		install_from_ppa=true
 	else
-		LogErr "DPDK source link not supported: '${DPDK_LINK}'"
+		LogMsg "DPDK source link not supported: '${dpdkSrcLink}'"
 		SetTestStateAborted
 		exit 1
 	fi
 
-	if [[ $install_from_ppa == true ]]; then
-		ssh "${install_ip}" "apt install -y dpdk dpdk-dev"
-		check_exit_status "Install DPDK from ppa ${DPDK_LINK} on ${install_ip}" "exit"
-		ssh "${install_ip}" "apt-get source dpdk"
-		check_exit_status "Get DPDK sources from ppa on ${install_ip}" "exit"
+	if [[ $install_from_ppa == true ]];
+	then
+		ssh "${1}" ". utils.sh && install_package dpdk dpdk-dev"
+		check_exit_status "Install DPDK from ppa ${dpdkSrcLink} on ${1}" "exit"
+		ssh "${1}" "apt-get source dpdk"
+		check_exit_status "Get DPDK sources from ppa on ${1}" "exit"
 
-		dpdk_version=$(ssh "${install_ip}" "dpkg -s 'dpdk' | grep 'Version' | head -1 | awk '{print \$2}' | awk -F- '{print \$1}'")
+		dpdk_version=$(ssh "${1}" "dpkg -s 'dpdk' | grep 'Version' | head -1 | awk '{print \$2}' | awk -F- '{print \$1}'")
 		dpdk_source="dpdk_${dpdk_version}.orig.tar.xz"
 		dpdkSrcDir="dpdk-${dpdk_version}"
 
-		ssh "${install_ip}" "tar xf $dpdk_source"
-		check_exit_status "Get DPDK sources from ppa on ${install_ip}" "exit"
-		ssh "${install_ip}" "mv ${dpdkSrcDir} ${DPDK_DIR}"
+		ssh "${1}" "tar xf $dpdk_source"
+		check_exit_status "Get DPDK sources from ppa on ${1}" "exit"
 	fi
 
-	LogMsg "dpdk source on ${install_ip} at ${DPDK_DIR}"
+	HOMEDIR=$(pwd)
+	export RTE_SDK="${HOMEDIR}/dpdk"
+	export RTE_TARGET="x86_64-native-linuxapp-gcc"
+	ssh "${1}" "cp -r ${dpdkSrcDir} ${RTE_SDK}"
 
-	LogMsg "MLX_PMD flag enabling on ${install_ip}"
-	ssh ${install_ip} "cd ${LIS_HOME}/${DPDK_DIR} && make config T=x86_64-native-linuxapp-gcc"
-	ssh ${install_ip} "sed -ri 's,(MLX._PMD=)n,\1y,' ${LIS_HOME}/${DPDK_DIR}/build/.config"
+	DPDK_DIR="${dpdkSrcDir}"
+	LogMsg "DPDK source directory: ${DPDK_DIR}"
 
+	if [ ! -z "$dpdk_server_ip" -a "$dpdk_server_ip" != " " ];
+	then
+		LogMsg "dpdk build with NIC SRC IP $dpdk_server_ip ADDR on ${1}"
+		srcIpArry=( $(echo "$dpdk_server_ip" | sed "s/\./ /g") )
+		srcIpAddrs="define IP_SRC_ADDR ((${srcIpArry[0]}U << 24) | (${srcIpArry[1]} << 16) | ( ${srcIpArry[2]} << 8) | ${srcIpArry[3]})"
+		srcIpConfigCmd="sed -i 's/define IP_SRC_ADDR.*/$srcIpAddrs/' $RTE_SDK/app/test-pmd/txonly.c"
+		LogMsg "ssh ${1} $srcIpConfigCmd"
+		ssh "${1}" "$srcIpConfigCmd"
+		check_exit_status "SRC IP configuration on ${1}" "exit"
+	else
+		LogMsg "dpdk build with default DST IP ADDR on ${1}"
+	fi
+	if [ ! -z "$dpdk_client_ip" -a "$dpdk_client_ip" != " " ];
+	then
+		LogMsg "dpdk build with NIC DST IP $dpdk_client_ip ADDR on ${1}"
+		dstIpArry=( $(echo "$dpdk_client_ip" | sed "s/\./ /g") )
+		dstIpAddrs="define IP_DST_ADDR ((${dstIpArry[0]}U << 24) | (${dstIpArry[1]} << 16) | (${dstIpArry[2]} << 8) | ${dstIpArry[3]})"
+		dstIpConfigCmd="sed -i 's/define IP_DST_ADDR.*/$dstIpAddrs/' $RTE_SDK/app/test-pmd/txonly.c"
+		LogMsg "ssh ${1} $dstIpConfigCmd"
+		ssh "${1}" "$dstIpConfigCmd"
+		check_exit_status "DST IP configuration on ${1}" "exit"
+	else
+		LogMsg "dpdk build with default DST IP ADDR on ${1}"
+	fi
+
+	LogMsg "MLX_PMD flag enabling on ${1}"
 	if type Dpdk_Configure > /dev/null; then
-		echo "Calling testcase provided Dpdk_Configure(install_ip) on ${install_ip}"
+		echo "Calling testcase provided Dpdk_Configure(1) on ${1}"
+		ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && make config T=x86_64-native-linuxapp-gcc"
+		ssh ${1} "sed -ri 's,(MLX._PMD=)n,\1y,' ${LIS_HOME}/${DPDK_DIR}/build/.config"
 		# shellcheck disable=SC2034
-		ssh ${install_ip} ". constants.sh; . utils.sh; . dpdkUtils.sh; cd ${LIS_HOME}/${DPDK_DIR}; $(typeset -f Dpdk_Configure); DPDK_DIR=${DPDK_DIR} LIS_HOME=${LIS_HOME} Dpdk_Configure ${install_ip}"
+		ssh ${1} ". constants.sh; . utils.sh; . dpdkUtils.sh; cd ${LIS_HOME}/${DPDK_DIR}; $(typeset -f Dpdk_Configure); DPDK_DIR=${DPDK_DIR} LIS_HOME=${LIS_HOME} Dpdk_Configure ${1}"
+		ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && make -j && make install"
+		check_exit_status "dpdk build on ${1}" "exit"
+	else
+		ssh "${1}" "sed -i 's/^CONFIG_RTE_LIBRTE_MLX4_PMD=n/CONFIG_RTE_LIBRTE_MLX4_PMD=y/g' $RTE_SDK/config/common_base"
+		check_exit_status "${1} CONFIG_RTE_LIBRTE_MLX4_PMD=y" "exit"
+		ssh "${1}" "cd $RTE_SDK && make config O=$RTE_TARGET T=$RTE_TARGET"
+		ssh "${1}" "cd $RTE_SDK/$RTE_TARGET && make -j 2>&1 && make install 2>&1"
+		check_exit_status "dpdk build on ${1}" "exit"
 	fi
 
-	ssh ${install_ip} "cd ${LIS_HOME}/${DPDK_DIR} && make -j"
-	check_exit_status "cd ${LIS_HOME}/${DPDK_DIR} && make -j" "exit"
-
-	ssh ${install_ip} "cd ${LIS_HOME}/${DPDK_DIR} && make install"
-	check_exit_status "cd ${LIS_HOME}/${DPDK_DIR} && make install" "exit"
-
-	LogMsg "Finished installing dpdk on ${install_ip}"
+	LogMsg "Finished installing dpdk on ${1}"
 }
 
 # Below function(s) intended for use by a testcase provided Run_Testcase() function:
