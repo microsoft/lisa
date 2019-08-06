@@ -134,9 +134,10 @@ function Stop-FcopyDaemon{
 		[String] $vmUserName,
 		[String] $ipv4
 	)
-	$sts = check_fcopy_daemon  -vmPassword $vmPassword -vmPort $vmPort -vmUserName $vmUserName -ipv4 $ipv4
+
+	$sts = Check-FcopyDaemon -vmPassword $vmPassword -vmPort $vmPort -vmUserName $vmUserName -ipv4 $ipv4
 	if ($sts[-1] -eq $True ){
-		Write-Output "yes" | .\Tools\plink.exe -C -pw ${vmPassword} -P ${vmPort} ${vmUserName}@${ipv4} "pkill -f 'fcopy'"
+		Run-LinuxCmd -username $vmUserName -password $vmPassword -port $vmPort -ip $ipv4 "pkill -f fcopy" -runAsSudo
 		if (-not $?) {
 			Write-LogErr "Unable to kill hypervfcopy daemon"
 			return $False
@@ -613,8 +614,8 @@ function Check-FcopyDaemon{
 	#>
 
 	$filename = ".\fcopy_present"
-
-	Run-LinuxCmd -username $vmUserName -password $vmPassword -port $vmPort -ip $ipv4  "ps -ef | grep '[h]v_fcopy_daemon\|[h]ypervfcopyd' > /tmp/fcopy_present" -runAsSudo
+	$cmd = "ps -ef | grep '[h]v_fcopy_daemon\|[h]ypervfcopyd' > /tmp/fcopy_present"
+	Run-LinuxCmd -username $vmUserName -password $vmPassword -port $vmPort -ip $ipv4 $cmd -runAsSudo -ignoreLinuxExitCode
 	if (-not $?) {
 		Write-LogErr  "Unable to verify if the fcopy daemon is running"
 		return $False
@@ -633,7 +634,8 @@ function Check-FcopyDaemon{
 		return $True
 	}
 
-	Remove-Item $filename
+	Remove-Item $filename | Out-Null
+	return $False
 }
 
 function Copy-FileVM{
