@@ -72,7 +72,7 @@ function Main {
         -downloadTo $LogDir -port $VMPort -username $VMUserName -password $VMPassword
     $contents = Get-Content -Path $stateFile
     if (($contents -eq "TestAborted") -or ($contents -eq "TestFailed")) {
-        Write-LogErr "Error: Running $remoteScript script failed on VM!"
+        Write-LogErr "Running $remoteScript script failed on VM!"
         return "FAIL"
     }
     Write-LogInfo "Waiting for VM $VMName to shut-down..."
@@ -142,6 +142,8 @@ function Main {
         Write-LogErr "Could not delete temporary VM snapshot!"
         return "FAIL"
     }
+
+    return "PASS"
 }
 
 Main -VMName $AllVMData.RoleName -HvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
