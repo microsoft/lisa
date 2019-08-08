@@ -136,5 +136,6 @@ Class HyperVController : TestController
 
 		Set-Variable -Name VMGeneration -Value $this.TestProvider.VMGeneration -Scope Global
 		Set-Variable -Name VMIntegrationGuestService -Value "Guest Service Interface" -Scope Global
+		Set-Variable -Name VMIntegrationKeyValuePairExchange -Value "Key-Value Pair Exchange" -Scope Global
 	}
 }
