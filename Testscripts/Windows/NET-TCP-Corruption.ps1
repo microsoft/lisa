@@ -39,7 +39,7 @@ function Main {
         -Username $VMUserName -password $VMPassword
 
     # Run NET-Corruption.sh on the VM
-    Write-LogInfo "Info: Configuring VM"
+    Write-LogInfo "Configuring VM"
     $cmdToSend = "cp /home/${VMUserName}/constants.sh . ; bash NET-Corruption.sh ${sourceFilePath} ${port} ${netcatScriptPath} 2>/dev/null"
     $retVal = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $IPv4 -port $VMPort `
         -command $cmdToSend -ignoreLinuxExitCode:$true -RunAsSudo
@@ -50,7 +50,7 @@ function Main {
         return "FAIL"
     }
 
-    Write-LogInfo "Info: Checking system logs path"
+    Write-LogInfo "Checking system logs path"
     $sts = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $IPv4 -port $VMPort `
         -command "[[ -f /var/log/syslog ]];echo `$?" -ignoreLinuxExitCode:$true -RunAsSudo
     if ($sts -eq "1") {
@@ -60,34 +60,27 @@ function Main {
     }
 
     # Start netcat on guest
-    Start-Sleep 5
-    Write-LogInfo "Info: Starting netcat server on VM Job"
-    $cmd = "setsid ./listen.sh 2>&1"
+    Write-LogInfo "Starting netcat server on VM Job"
+    $cmd = "setsid ./$netcatScriptPath >/dev/null 2>&1"
     Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $IPv4 -port $VMPort `
         -command $cmd -ignoreLinuxExitCode:$true -RunInBackGround -RunAsSudo
 
-    $jobName = "ReceiveJobNC"
     $ipAddr = (Get-VMNetworkAdapter -VMName ${VMName} -ComputerName $HvServer)[1].IPAddresses[0]
     $cmd = "cmd.exe /C " + "'" + "${netcatBinPath} -v -w 2 ${ipAddr} ${port} > ${destionationFilePath}" + "'"
-    Write-LogInfo "Info: Running command ${cmd} on host"
+    Write-LogInfo "Running command ${cmd} on host"
     $cmd | Out-File ./nccmd.ps1
     $sts = ./nccmd.ps1
-    Start-Job -Name ${jobName} -ScriptBlock {./nccmd.ps1}
 
-
-    Write-LogInfo "Info: Checking for call traces in ${logPath}"
+    Write-LogInfo "Checking for call traces in ${logPath}"
     $grepCmd = "grep -i 'Call Trace' ${logPath}"
-    while ((Get-Job -Name ${jobName}).State -eq "Running") {
-        $retVal = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $IPv4 -port $VMPort `
+    $retVal = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $IPv4 -port $VMPort `
             -command $grepCmd -ignoreLinuxExitCode:$true -RunAsSudo
-        if ($retVal) {
-            Write-LogErr "Call traces found in ${logPath}"
-            return "FAIL"
-        }
-        Start-Sleep -s 5
+    if ($retVal) {
+        Write-LogErr "Call traces found in ${logPath}"
+        return "FAIL"
     }
 
-    Write-LogInfo "Info: Comparing hashes"
+    Write-LogInfo "Comparing hashes"
     $localHash = (Get-FileHash -Algorithm MD5 $destionationFilePath).Hash
     $remoteHash = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $IPv4 -port $VMPort `
         -command "md5sum ${sourceFilePath}" -ignoreLinuxExitCode:$true -RunAsSudo
@@ -102,8 +95,7 @@ function Main {
         Write-LogErr "File hashes do not match."
         return "FAIL"
     }
-    Stop-Job -Name $jobName -ErrorAction SilentlyContinue
-    Remove-Job -Name $jobName -Force -ErrorAction SilentlyContinue
+
     Write-LogInfo "Test completed successfully"
     return "PASS"
 }
