@@ -2132,6 +2132,7 @@ function update_repos() {
 			yum clean all
 			;;
 		ubuntu|debian)
+			dpkg_configure
 			apt-get update
 			;;
 		suse|opensuse|sles|sle_hpc)
