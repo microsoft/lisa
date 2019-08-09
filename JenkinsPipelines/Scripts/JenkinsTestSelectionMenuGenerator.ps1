@@ -191,6 +191,60 @@ Write-LogInfo "Validating TestByTestnameDetailed.txt..."
 (Get-Content "$DestinationPath\TestByTestnameDetailed.txt") | Where-Object {$_.trim() -ne "" } | Set-Content "$DestinationPath\TestByTestnameDetailed.txt"
 Write-LogInfo "Done"
 
+
+# This file is created for job: pipeline-cloudtest-manual
+# Parameter Name : CATEGORY_AREA
+$AzureCategoryAreas =  "CategoryArea="
+foreach ( $platform in $Platforms )
+{
+    if ($platform -ne "Azure") {
+        continue;
+    }
+    $CurrentCategories = ($xmlData.test | Where-Object { $_.Platform.Contains($platform) }).Category | Sort-Object | Get-Unique
+    foreach ( $category in $CurrentCategories)
+    {
+        $CurrentAreas = ($xmlData.test | Where-Object { $_.Platform.Contains($platform) } | Where-Object { $_.Category -eq "$category" }).Area | Sort-Object | Get-Unique
+        foreach ($area in $CurrentAreas)
+        {
+            if ($category -and $area) {
+                $AzureCategoryAreas += "$category $area,"
+            }
+        }
+    }
+}
+$AzureCategoryAreas = $AzureCategoryAreas.Trim(",")
+$FilePath = "$DestinationPath\Azure-LISAv2-TestCategoryAreas.txt"
+Write-LogInfo "Saving $FilePath..."
+Set-Content -Value $AzureCategoryAreas -Path $FilePath -Force
+Write-LogInfo "Validating $FilePath..."
+(Get-Content $FilePath) | Where-Object {$_.trim() -ne "" } | Set-Content -Path $FilePath -Force -NoNewline
+Write-LogInfo "Done."
+
+# This file is created for job: pipeline-cloudtest-manual
+# Parameter Name : TEST_NAMES
+$AzureTestNames =  "TestNames="
+foreach ( $platform in $Platforms )
+{
+    if ($platform -ne "Azure") {
+        continue;
+    }
+    $TestNames = ($xmlData.test | Where-Object { $_.Platform.Contains($platform) }).TestName | Sort-Object | Get-Unique
+    foreach ( $testname in $TestNames )
+    {
+        if ($testname -imatch "CAPTURE-VHD") {
+            continue;
+        }
+        $AzureTestNames += "$testname,"
+    }
+}
+$AzureTestNames = $AzureTestNames.Trim(",")
+$FilePath = "$DestinationPath\Azure-LISAv2-TestNames.txt"
+Write-LogInfo "Saving $FilePath..."
+Set-Content -Value $AzureTestNames -Path $FilePath -Force
+Write-LogInfo "Validating $FilePath..."
+(Get-Content $FilePath) | Where-Object {$_.trim() -ne "" } | Set-Content -Path $FilePath -Force -NoNewline
+Write-LogInfo "Done."
+
 Write-LogInfo "Saving '$($env:GitRepo)' to DefaultGitRepo.txt..."
 Set-Content -Value "DefaultGitRepo=$($env:GitRepo)"  -Path "$DestinationPath\DefaultGitRepo.txt" -Force -NoNewline
 
