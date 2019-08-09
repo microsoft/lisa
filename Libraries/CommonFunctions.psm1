@@ -917,23 +917,20 @@ Function Set-CustomConfigInVMs($CustomKernel, $CustomLIS, $EnableSRIOV, $AllVMDa
 	}
 
 	# Detect Linux Distro
-	if(!$global:detectedDistro -and !$global:IsWindowsImage) {
+	if(!$global:detectedDistro) {
 		$detectedDistro = Detect-LinuxDistro -VIP $AllVMData[0].PublicIP -SSHport $AllVMData[0].SSHPort `
 			-testVMUser $global:user -testVMPassword $global:password
 	}
 
 	# Solution for resolve download file issue "Fatal: Received unexpected end-of-file from server" for clear-os-linux
-	if(!$global:IsWindowsImage){
-		foreach ($vm in $AllVMData) {
-			if($detectedDistro -imatch "CLEARLINUX") {
-				Run-LinuxCmd -Username $global:user -password $global:password -ip $vm.PublicIP -Port $vm.SSHPort `
-					-Command "echo 'Subsystem sftp internal-sftp' >> /etc/ssh/sshd_config && sed -i 's/.*ExecStart=.*/ExecStart=\/usr\/sbin\/sshd -D `$OPTIONS -f \/etc\/ssh\/sshd_config/g' /usr/lib/systemd/system/sshd.service && systemctl daemon-reload && systemctl restart sshd.service" -runAsSudo
-			}
+	foreach ($vm in $AllVMData) {
+		if($detectedDistro -imatch "CLEARLINUX") {
+			Run-LinuxCmd -Username $global:user -password $global:password -ip $vm.PublicIP -Port $vm.SSHPort `
+				-Command "echo 'Subsystem sftp internal-sftp' >> /etc/ssh/sshd_config && sed -i 's/.*ExecStart=.*/ExecStart=\/usr\/sbin\/sshd -D `$OPTIONS -f \/etc\/ssh\/sshd_config/g' /usr/lib/systemd/system/sshd.service && systemctl daemon-reload && systemctl restart sshd.service" -runAsSudo
 		}
 	}
 
-	if ( $CustomKernel)
-	{
+	if ($CustomKernel) {
 		Write-LogInfo "Custom kernel: $CustomKernel will be installed on all machines..."
 		$kernelUpgradeStatus = Install-CustomKernel -CustomKernel $CustomKernel -allVMData $AllVMData -RestartAfterUpgrade -TestProvider $TestProvider
 		if (!$kernelUpgradeStatus) {
