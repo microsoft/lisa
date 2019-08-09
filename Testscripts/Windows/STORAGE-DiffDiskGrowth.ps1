@@ -49,8 +49,7 @@ function Main {
     $vhdFormat = $null
     $vmGeneration = $null
 
-    $REMOTE_SCRIPT = "STORAGE-PartitionDisks.sh"
-    $rootUser = "root"
+    $REMOTE_SCRIPT = "PartitionDisks.sh"
 
     $params = $testParams.Split(';')
     foreach ($p in $params) {
@@ -154,7 +153,7 @@ function Main {
     # setup script. Make sure the .vhd file exists.
     $vhdFileInfo = Get-RemoteFileInfo $vhdName $hvServer
     if (-not $vhdFileInfo) {
-        Write-LogErr "VHD file does not exist: ${vhdFilename}"
+        Write-LogErr "VHD file does not exist: ${vhdName}"
         return "FAIL"
     }
 
@@ -163,7 +162,7 @@ function Main {
     # Make sure the .vhd file is a differencing disk
     $vhdInfo = Get-Vhd -path $vhdName -ComputerName $hvServer
     if (-not $vhdInfo) {
-        Write-LogErr "Unable to retrieve VHD information on VHD file: ${vhdFilename}"
+        Write-LogErr "Unable to retrieve VHD information on VHD file: ${vhdName}"
         return "FAIL"
     }
     if ($vhdInfo.VhdType -ne "Differencing") {
@@ -184,36 +183,46 @@ function Main {
     Start-Sleep -Seconds 30
 
     # Format the disk
-    $scriptPath = Join-Path ".\Testscripts\Linux" $REMOTE_SCRIPT
-    Copy-RemoteFiles -uploadTo $Ipv4 -port $VMPort -password $VMPassword -username $rootUser `
-        -files $scriptPath -upload
-    $retVal = Run-LinuxCmd -username $rootUser -password $VMPassword -ip $Ipv4 -port $VMPort `
-        -command "bash ~/${REMOTE_SCRIPT}"
-    if (-not $retVal) {
+    $null = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+        -command "bash ${REMOTE_SCRIPT}" -runAsSudo
+    if (-not $?) {
         Write-LogErr "ERROR executing $REMOTE_SCRIPT on VM. Exiting test case!"
         return "FAIL"
     }
 
     # Tell the guest OS on the VM to mount the differencing disk
-    $retVal = Run-LinuxCmd -username $rootUser -password $VMPassword -ip $Ipv4 -port $VMPort `
-        -command "mkdir -p /mnt/2/DiffDiskGrowthTestCase"
-    if (-not $retVal) {
+    $mountPoint = "/mnt/2/DiffDiskGrowthTestCase"
+    $null = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+        -command "mkdir -p $mountPoint" -runAsSudo
+    if (-not $?) {
+        Write-LogErr "Unable to send mkdir request to VM"
+        return "FAIL"
+    }
+    $differencingDiskName = Get-DeviceName -ip $Ipv4 -port $VMPort -username $VMUserName `
+        -password $VMPassword
+    Write-LogInfo "The disk device name: $differencingDiskName"
+    $null = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+        -command "mount ${differencingDiskName}2 $mountPoint" -runAsSudo
+    if (-not $?) {
         Write-LogErr "Unable to send mkdir request to VM"
         return "FAIL"
     }
 
     # Tell the guest OS to write a few MB to the differencing disk
-    $retVal = Run-LinuxCmd -username $rootUser -password $VMPassword -ip $Ipv4 -port $VMPort `
-        -command "dd if=/dev/sdb1 of=/mnt/2/DiffDiskGrowthTestCase/test.dat count=2048 > /dev/null 2>&1"
-    if (-not $retVal) {
+    $osDisk = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+        -command ". utils.sh && get_OSdisk" -runAsSudo
+    $cmd = "dd if=/dev/${osDisk}1 of=${mountPoint}/test.dat count=2048 > /dev/null 2>&1"
+    $null = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+        -command $cmd -runAsSudo
+    if (-not $?) {
         Write-LogErr "Unable to send command to VM to grow the .vhd"
         return "FAIL"
     }
 
     # Tell the guest OS on the VM to unmount the differencing disk
-    $retVal = Run-LinuxCmd -username $rootUser -password $VMPassword -ip $Ipv4 -port $VMPort `
-        -command "umount /mnt/1 | umount /mnt/2"
-    if (-not $retVal) {
+    $null = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+        -command "umount $mountPoint" -runAsSudo
+    if (-not $?) {
         Write-LogErr "Unable to send umount request to VM"
         return "FAIL"
     }
@@ -222,7 +231,7 @@ function Main {
     $parentInfo = Get-RemoteFileInfo $parentVhdFilename $hvServer
     $parentFinalSize = $parentInfo.fileSize
 
-    $vhdInfo = Get-RemoteFileInfo $vhdFilename $hvServer
+    $vhdInfo = Get-RemoteFileInfo $vhdName $hvServer
     $vhdFinalSize = $vhdInfo.FileSize
 
     # Make sure the parent matches its initial size

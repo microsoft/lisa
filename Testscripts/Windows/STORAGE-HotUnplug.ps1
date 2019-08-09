@@ -139,7 +139,7 @@ function Main {
 
         #verify if vm sees that disks were dettached
         $retVal = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
-            -command "bash ~/${REMOTE_SCRIPT}" -RunAsSudo
+            -command "bash ${REMOTE_SCRIPT}" -RunAsSudo
 
         #Attaching the 1st VHDx again
         $retVal = Add-VHDxDiskDrive $vmName $hvServer $path1 $controllerType $controllerID1 $lun1

@@ -2313,3 +2313,26 @@ Function Restart-VMFromShell($VMData, [switch]$SkipRestartCheck) {
         return $false
     }
 }
+
+# This function get a data disk name on the guest
+# Background:
+#    If the vm has more than one disk controller, the order in which their corresponding device nodes are added is arbitrary.
+#    This may result in device names like /dev/sda and /dev/sdc switching around on each boot.
+# Note:
+#    If the size of data disk is the same as the resource disk (default size: 1GB), the return value may the device name of resource disk.
+#    It's recommended that the data disk size is more than 1GB to call this function.
+Function Get-DeviceName
+{
+    param (
+        [String] $ip,
+        [String] $port,
+        [String] $username,
+        [String] $password
+    )
+
+    Copy-RemoteFiles -upload -uploadTo $ip -username $username -port $port -password $password `
+        -files '.\Testscripts\Linux\get_data_disk_dev_name.sh' | Out-Null
+    $ret = Run-LinuxCmd -ip $ip -port $port -username $username -password $password `
+        -command "bash get_data_disk_dev_name.sh" -runAsSudo
+    return $ret
+}
