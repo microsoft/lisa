@@ -180,7 +180,13 @@ try {
     $Command = ".\Run-LisaV2.ps1"
     $Command += " -TestPlatform Azure"
     $Command += " -TestLocation '$Region'"
-    $Command += " -ARMImageName '$ARMVMImage'"
+    if ($CustomVHD) {
+        $Command += " -OsVHD '$CustomVHD'"
+    } elseif ($ARMVMImage) {
+        $Command += " -ARMImageName '$ARMVMImage'"
+    } else {
+        Throw "Please provide -OsVHD / -ARMImageName parameter value."
+    }
     $Command += " -StorageAccount '$StorageAccountName'"
     $Command += " -RGIdentifier '$VMName'"
     $Command += " -TestNames 'TOOL-DEPLOYMENT-PROVISION'"
