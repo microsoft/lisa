@@ -93,7 +93,6 @@ function Main {
     #
     # Run the guest VM side script to verify floppy disk operations
     #
-    $stateFile = "${LogDir}\state.txt"
     $Hypervcheck = "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;bash ${remoteScript} > Hypervcheck.log`""
     Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort $Hypervcheck -runAsSudo
     $testResult = Collect-TestLogs -LogsDestination $LogDir -ScriptName $remoteScript.split(".")[0] -TestType "sh" `
