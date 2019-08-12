@@ -19,9 +19,9 @@
 # Source constants file and initialize most common variables
 UtilsInit
 
-# check if lsvmbus exists
+# check if lsvmbus exists, or the running kernel does not match installed version of linux-tools
 lsvmbus_path=$(which lsvmbus)
-if [ -z "$lsvmbus_path" ]; then
+if [[ -z "$lsvmbus_path" ]] || ! $lsvmbus_path > /dev/null 2>&1; then
     install_package wget
     wget https://raw.githubusercontent.com/torvalds/linux/master/tools/hv/lsvmbus
     chmod +x lsvmbus
