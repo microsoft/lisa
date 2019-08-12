@@ -33,7 +33,7 @@ function Main {
 
     # Checking the input arguments
     if (-not $VMName) {
-        Write-LogErr  "VM name is null!"
+        Write-LogErr "VM name is null!"
         return "FAIL"
     }
 
@@ -85,7 +85,7 @@ function Main {
 
             Write-LogInfo "Waiting for the VM to run again and respond to SSH - port"
             if (-not (Wait-ForVMToStartSSH -Ipv4addr $Ipv4 -StepTimeout 200)) {
-                Write-LogErr  "Test case timed out for VM to be running again!"
+                Write-LogErr "Test case timed out for VM to be running again!"
                 return "FAIL"
             }
         }
@@ -96,15 +96,14 @@ function Main {
     $stateFile = "${LogDir}\state.txt"
     $Hypervcheck = "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;bash ${remoteScript} > Hypervcheck.log`""
     Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort $Hypervcheck -runAsSudo
-    Copy-RemoteFiles -download -downloadFrom $Ipv4 -files "/home/${VMUserName}/state.txt" `
-        -downloadTo $LogDir -port $VMPort -username $VMUserName -password $VMPassword
-    Copy-RemoteFiles -download -downloadFrom $Ipv4 -files "/home/${VMUserName}/Hypervcheck.log" `
-        -downloadTo $LogDir -port $VMPort -username $VMUserName -password $VMPassword
-    $contents = Get-Content -Path $stateFile
-    if (($contents -eq "TestAborted") -or ($contents -eq "TestFailed")) {
-        Write-LogErr "Error: Running $remoteScript script failed on VM!"
-        return "FAIL"
-    }
+    $testResult = Collect-TestLogs -LogsDestination $LogDir -ScriptName $remoteScript.split(".")[0] -TestType "sh" `
+        -PublicIP $Ipv4 -SSHPort $VMPort -Username $VMUserName -password $VMPassword `
+        -TestName $currentTestData.testName
+    $resultArr += $testResult
+    Write-LogInfo "Test result : $testResult"
+    $currentTestResult = Create-TestResultObject
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
+    return $currentTestResult
 }
 Main -VMName $AllVMData.RoleName -HvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
     -Ipv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort `

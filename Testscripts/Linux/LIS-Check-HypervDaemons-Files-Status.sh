@@ -52,8 +52,8 @@ Check_Hyper_Daemons() {
         done
         ;;
     *)
-        LogMsg "Distro not supported"
-        SetTestStateAborted
+        LogMsg "Distro not supported. Skip the test."
+        SetTestStateSkipped
         exit 0
         ;;
     esac
@@ -96,8 +96,8 @@ Check_Daemons_Files() {
         fi
         ;;
     *)
-        LogMsg "Distro not supported ! No dameon file checked !"
-        SetTestStateAborted
+        LogMsg "Distro not supported. Skip the test."
+        SetTestStateSkipped
         exit 0
         ;;
     esac
