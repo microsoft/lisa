@@ -382,7 +382,7 @@ scp -i "$homeDir"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no -r \
 ${remote_user}@[${STATIC_IP2}]:${remote_user_home}/netperf_ServerScript.log ${homeDir}/netperf_ServerScript.log
 
 # Shutdown dependency VM
-ssh -i "$homeDir"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no ${remote_user}@${STATIC_IP2} "init 0"
+ssh -i "$homeDir"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no ${remote_user}@${STATIC_IP2} "init 0" &
 
 if [[ $sts_sendfile -eq 1 || $sts_changemtu -eq 1 ]];then
     SetTestStateFailed

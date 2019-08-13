@@ -89,20 +89,34 @@ done
 LoopCount=4
 TestCount=1
 ChangeInterfaceState "up"
-kill "$(pidof dhclient)"
-dhclient -r && dhclient
-sleep 15
+ipAddress=$(ip addr show eth0 | grep "inet\b")
+if [ -z "$ipAddress" ]; then
+    kill "$(pidof dhclient)"
+    dhclient -r && dhclient
+    sleep 15
+fi
+
 PingCheck $TestCount
 
 while [ "$TestCount" -lt "$LoopCount" ]
 do
     TestCount=$((TestCount+1))
     LogMsg "Test Iteration : ${TestCount}"
+    default_route=$(ip route show | grep default)
     ChangeInterfaceState "down"
     ChangeInterfaceState "up"
-    kill "$(pidof dhclient)"
-    dhclient -r && dhclient
-    sleep 15
+    ip route show | grep default
+    # Add default route when miss it after run ip link down/up
+    if [ $? -ne 0 ]; then
+        LogMsg "Run ip route add $default_route"
+        ip route add $default_route
+    fi
+    ipAddress=$(ip addr show eth0 | grep "inet\b")
+    if [ -z "$ipAddress" ]; then
+        kill "$(pidof dhclient)"
+        dhclient -r && dhclient
+        sleep 15
+    fi
     PingCheck "$TestCount"
 done
 
