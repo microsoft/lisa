@@ -71,12 +71,14 @@ Class AzureProvider : TestProvider
 				}
 
 				$enableSRIOV = $TestCaseData.AdditionalHWConfig.Networking -imatch "SRIOV"
-				$customStatus = Set-CustomConfigInVMs -CustomKernel $this.CustomKernel -CustomLIS $this.CustomLIS -EnableSRIOV $enableSRIOV `
-					-AllVMData $allVMData -TestProvider $this
-				if (!$customStatus) {
-					$ErrorMessage = "Failed to set custom config in VMs."
-					Write-LogErr $ErrorMessage
-					return @{"VmData" = $null; "Error" = $ErrorMessage}
+				if (!$global:IsWindowsImage) {
+					$customStatus = Set-CustomConfigInVMs -CustomKernel $this.CustomKernel -CustomLIS $this.CustomLIS -EnableSRIOV $enableSRIOV `
+						-AllVMData $allVMData -TestProvider $this
+					if (!$customStatus) {
+						$ErrorMessage = "Failed to set custom config in VMs."
+						Write-LogErr $ErrorMessage
+						return @{"VmData" = $null; "Error" = $ErrorMessage}
+					}
 				}
 			}
 			else {

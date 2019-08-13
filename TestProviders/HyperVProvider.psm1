@@ -62,15 +62,17 @@ Class HyperVProvider : TestProvider
 
 			$isVmAlive = Is-VmAlive -AllVMDataObject $allVMData
 			if ($isVmAlive -eq "True") {
-				$customStatus = Set-CustomConfigInVMs -CustomKernel $this.CustomKernel -CustomLIS $this.CustomLIS `
-					-AllVMData $allVMData -TestProvider $this -RegisterRhelSubscription
-				if (!$customStatus) {
-					foreach ($vm in $allVMData) {
-						Stop-HyperVGroupVMs -HyperVGroupName $vm.HyperVGroupName -HyperVHost $vm.HyperVHost
+				if (!$global:IsWindowsImage) {
+					$customStatus = Set-CustomConfigInVMs -CustomKernel $this.CustomKernel -CustomLIS $this.CustomLIS `
+						-AllVMData $allVMData -TestProvider $this -RegisterRhelSubscription
+					if (!$customStatus) {
+						foreach ($vm in $allVMData) {
+							Stop-HyperVGroupVMs -HyperVGroupName $vm.HyperVGroupName -HyperVHost $vm.HyperVHost
+						}
+						$ErrorMessage = "Failed to set custom config in VMs."
+						Write-LogErr $ErrorMessage
+						return @{"VmData" = $null; "Error" = $ErrorMessage}
 					}
-					$ErrorMessage = "Failed to set custom config in VMs."
-					Write-LogErr $ErrorMessage
-					return @{"VmData" = $null; "Error" = $ErrorMessage}
 				}
 
 				Inject-HostnamesInHyperVVMs -allVMData $allVMData
