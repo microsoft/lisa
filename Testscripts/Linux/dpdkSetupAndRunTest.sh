@@ -92,7 +92,7 @@ if [ -z "${dpdkSrcLink}" ]; then
 fi
 
 # set DPDK_DIR global
- DPDK_DIR="dpdk"
+DPDK_DIR="dpdk"
 if [[ $dpdkSrcLink =~ .tar ]]; then
 	#DPDK_DIR="dpdk-$(echo ${dpdkSrcLink} | grep -Po "(\d+\.)+\d+")"
 	dpdkSrcTar="${dpdkSrcLink##*/}"
