@@ -396,6 +396,157 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
     return $retValue, $deployedGroups, $resourceGroupCount, $DeploymentElapsedTime, $Error
 }
 
+Function Start-DeleteResourceGroup ([string]$RGName) {
+    $DeleteScriptBlock = {
+        $ResourceGroupName = $args[0]
+        $WorkingDirectory = $args[1]
+        $XMLSecrets = $args[2]
+
+        # This script block runs in background in new Powershell instance.
+        # The variables declared here, don't interact with parent powershell instance.
+        Set-Location -Path $WorkingDirectory
+        Set-Variable -Name LogDir -Value $WorkingDirectory -Scope Global -Force
+        Set-Variable -Name LogFileName -Value "Start-DeleteResourceGroup.txt" -Scope Global -Force
+
+        # Authenticate this background powershell session.
+        $XmlFilePath = "$WorkingDirectory\AzureSecret-$((Get-Date).Ticks).xml"
+        $XMLSecrets.Save($XmlFilePath)
+        [void](.\Utilities\AddAzureRmAccountFromSecretsFile.ps1 -customSecretsFilePath $XmlFilePath)
+        [void](Remove-Item -Path $XmlFilePath -Force)
+
+        # Get the required resource details.
+        $StorageAccounts = Get-AzStorageAccount
+        $VMs = Get-AzVm -ResourceGroupName $ResourceGroupName
+
+        # Start the VM Cleanup
+        $Jobs = @()
+        foreach ($VM in $VMs) {
+            Write-LogInfo "[Background Job] : Removing $($VM.Name)"
+            $Jobs += $VM | Remove-AzVM -Force -AsJob
+        }
+
+        # Wait till all VMs are removed.
+        $VMCount = (Get-AzVm -ResourceGroupName $ResourceGroupName).Count
+        $MaxAttempts = 1800 # Giving ~30 minutes to delete
+        while ($VMCount -gt 0 -and $MaxAttempts -gt 0) {
+            $MaxAttempts -= 1
+            $VMCount = (Get-AzVm -ResourceGroupName $ResourceGroupName).Count
+            Write-LogInfo "[Background Job] : Pending cleanup of $VMCount VMs in $ResourceGroupName"
+            Start-Sleep -Seconds 10
+        }
+        Write-LogInfo "[Background Job] : Cleaned $($VMs.Count) VMs in $ResourceGroupName"
+        $Jobs | Remove-Job -Force
+
+        # Start the Disk Cleanup
+        foreach ($VM in $VMs) {
+            if ($VM.StorageProfile.OSDisk.Vhd) {
+                # Remove the unmanaged OS Disks
+                $OsDiskURI = $VM.StorageProfile.OSDisk.Vhd.Uri
+                $OsDiskName = $OsDiskURI.Split('/')[-1]
+                $OsDiskContainerName = $OsDiskURI.Split('/')[-2]
+                $OsDiskStorageAccountName = $OsDiskURI.Split('/')[2].Split('.')[0]
+                $VHDStorageAccount = $StorageAccounts | Where-Object { $_.StorageAccountName -eq $OsDiskStorageAccountName }
+                Write-LogInfo "[Background Job] : DeleteResourceGroup: Removing OS Disk : $OsDiskName"
+                $null = $VHDStorageAccount | Remove-AzStorageBlob -Container $OsDiskContainerName -Blob $OsDiskName -Force -Verbose
+
+                # Remove unmanaged data disks
+                foreach ($uri in $VM.StorageProfile.DataDisks.Vhd.Uri) {
+                    $DataDiskStorageAccountName = $uri.Split('/')[2].Split('.')[0]
+                    $DataDiskContainerName = $uri.Split('/')[-2]
+                    $DataDiskName = $uri.Split('/')[-1]
+                    $DataDiskStorageAccount = $StorageAccounts | Where-Object { $_.StorageAccountName -eq $DataDiskStorageAccountName }
+                    Write-LogInfo "[Background Job] : DeleteResourceGroup: Removing Data Disk  : $DataDiskName"
+                    $DataDiskStorageAccount | Remove-AzStorageBlob -Container $DataDiskContainerName -Blob $DataDiskName -Verbose -Force
+                }
+            }
+        }
+
+        # Remove the resource group which will remove all the remaining resources.
+        $MaxRetryAttemts = 10
+        Write-LogInfo "[Background Job] : Removing Resource Group : $ResourceGroupName"
+        $RemoveJob = Remove-AzResourceGroup -ResourceGroupName $ResourceGroupName -Force -AsJob
+        $isDeleting = (Get-AzResourceGroup -ResourceGroupName $ResourceGroupName).ProvisioningState -eq "Deleting"
+        while (!$isDeleting -and $MaxRetryAttemts -gt 0) {
+            $RgStatus = (Get-AzResourceGroup -ResourceGroupName $ResourceGroupName).ProvisioningState
+            $MaxRetryAttemts -= 1
+            $isDeleting = $RgStatus -eq "Deleting"
+            Write-LogInfo "[Background Job] : Removing Resource Group : $ResourceGroupName : $RgStatus. Remaining attempts - $MaxRetryAttemts"
+            Start-Sleep -Seconds 5
+        }
+        Write-LogInfo "[Background Job] : Removing Resource Group : $ResourceGroupName : $RgStatus"
+        $RemoveJob | Remove-Job -Force
+    }
+
+    # Check if VMs have unmanaged disks
+    $BackgroundCleanupStarted = $false
+    Write-LogInfo "Checking for any unmanaged disks in $RGName ..."
+    $VMs = Get-AzVm -ResourceGroupName $RGName
+    if ( ($VMs.StorageProfile.OSDisk.Vhd.Uri.Count -gt 0) -or ($VMs.StorageProfile.Datadisks.Vhd.Uri.Count -gt 0) ) {
+        $UnManagedOSDisksCount = $VMs.StorageProfile.OSDisk.Vhd.Uri.Count
+        $UnManagedDataDisksCount = $VMs.StorageProfile.DataDisks.Vhd.Uri.Count
+        $UnmanagedDiskCount = $UnManagedOSDisksCount + $UnManagedDataDisksCount
+    } else {
+        $UnmanagedDiskCount = 0
+    }
+    if ($UnmanagedDiskCount -gt 0) {
+        if ($Global:XMLSecrets.secrets.SubscriptionServicePrincipalTenantID -and `
+            $Global:XMLSecrets.secrets.SubscriptionServicePrincipalClientID -and `
+            $Global:XMLSecrets.secrets.SubscriptionServicePrincipalKey) {
+            # Unmanaged VHD cleanup is only possible when XML Secrets file (with service principal) is given, since Azure context files authentication doesn't work for background jobs.
+            # Azure powershell issue : https://github.com/Azure/azure-powershell/issues/9448
+            # Once this issue is resolved, we can use context file authentication for background cleanup.
+
+            Write-LogInfo "Detected unmanaged disks. OS Disks: $UnManagedOSDisksCount, DataDisks: $UnManagedDataDisksCount"
+            $null = Start-Job -Name "DeleteResourceGroup-$RGName" `
+                -ScriptBlock $DeleteScriptBlock `
+                -ArgumentList $RGName,$WorkingDirectory,$Global:XMLSecrets
+            $VMStatus = (Get-AzVM -ResourceGroupName $RGName ).ProvisioningState | Get-Unique
+            $isDeleting = $VMStatus -eq "Deleting"
+
+            # Give at least 30 seconds to start all the VM cleanup operations.
+            # Timeout is adjusted based on number of VMs.
+            $MaxAttempts = 10 + ($VMs.Count*2)
+            while (!$isDeleting -and $MaxAttempts -gt 0) {
+                $MaxAttempts -= 1
+                Write-LogInfo "Current VM Status: $VMStatus(Running). Checking again if VM cleanup is started... (Remaining attempts: $MaxAttempts)"
+                $VMs = Get-AzVM -ResourceGroupName $RGName
+                $VMStatus = $VMs.ProvisioningState | Get-Unique
+                $VMStatusCount = $VMStatus.Count
+                if ($VMStatusCount -eq 1) {
+                     if ( $VMStatus -eq "Deleting" ) {
+                         $isDeleting = $true
+                         $BackgroundCleanupStarted = $true
+                    }
+                } else {
+                    $isDeleting = $false
+                }
+                Start-Sleep -Seconds 3
+            }
+            Write-LogInfo "Current VM Status: $VMStatus."
+        } else {
+            Write-LogWarn "$UnmanagedDiskCount will be left undeleted due to XML secret file is not available."
+            Write-LogInfo "Proceeding resource group cleanup."
+            $BackgroundCleanupStarted = $false
+        }
+    } else {
+        Write-LogInfo "No any unmanaged VHDs found. Proceeding resource group cleanup."
+        $BackgroundCleanupStarted = $false
+    }
+    if (-not $BackgroundCleanupStarted) {
+        # Give 30 seconds to start all the Resource group cleanup operation.
+        $MaxRetryAttemts = 10
+        $null = Remove-AzResourceGroup -ResourceGroupName $RGName -AsJob -Force
+        $isDeleting = (Get-AzResourceGroup -ResourceGroupName $RGName).ProvisioningState -eq "Deleting"
+        while (!$isDeleting -and $MaxRetryAttemts -gt 0) {
+            $MaxRetryAttemts -= 1
+            Write-LogInfo "Retrying 'Remove-AzResourceGroup -ResourceGroupName $RGName'. Remaining attempts : $MaxRetryAttemts"
+            $null = Remove-AzResourceGroup -ResourceGroupName $RGName -AsJob -Force
+            $isDeleting = (Get-AzResourceGroup -ResourceGroupName $RGName).ProvisioningState -eq "Deleting"
+            Start-Sleep -Seconds 3
+        }
+    }
+    return $isDeleting
+}
 Function Delete-ResourceGroup([string]$RGName, [switch]$KeepDisks, [bool]$UseExistingRG) {
     Write-LogInfo "Try to delete resource group $RGName..."
     try {
@@ -450,21 +601,12 @@ Function Delete-ResourceGroup([string]$RGName, [switch]$KeepDisks, [bool]$UseExi
         }
         else {
             Write-LogInfo "Triggering delete operation for Resource Group ${RGName}"
-            $null = Remove-AzResourceGroup -Name $RGName -Force -AsJob
-            $maxRgDeletingRetries = 3
-			$rgDeletingRetries = 0
-			$isRgDeleting = $false
-			while (!$isRGDeleting -and $rgDeletingRetries -lt $maxRgDeletingRetries) {
-				$rgStatus = Get-AzResourceGroup -Name $RGName -ErrorAction SilentlyContinue
-				if (!$rgStatus -or $rgStatus.ProvisioningState -eq 'Deleting') {
-					Write-LogInfo "Successfully triggered delete operation for Resource Group ${RGName}"
-					$isRGDeleting = $true
-				} else {
-					Write-LogWarn "RG ${RGName} status is $($rgStatus.ProvisioningState)"
-					$rgDeletingRetries++
-					Start-Sleep 5
-				}
-			}
+            $isRgDeleting = Start-DeleteResourceGroup -RGName $RGName
+            if ($isRgDeleting) {
+                Write-LogInfo "Successfully triggered delete operation for Resource Group ${RGName}"
+            } else {
+                Write-LogWarn "Failed to start delete operation for Resource Group ${RGName}"
+            }
             $retValue = $isRgDeleting
         }
     }
