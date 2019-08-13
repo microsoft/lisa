@@ -42,8 +42,8 @@ function Check-Result {
         $attempts++
         $isVmAlive = Is-VmAlive -AllVMDataObject $AllVMData -MaxRetryCount 5
         if ($isVmAlive -eq "True") {
-            $tcpTestResult = (Test-NetConnection -ComputerName $VmIp -Port $VMPort).TcpTestSucceeded
-            if ($tcpTestResult) {
+            $TestConnection = .\Tools\plink.exe -C -batch -pw $Password -P $VMPort $User@$VmIp "echo Connected"
+            if ($TestConnection -eq "Connected") {
                 $state = Run-LinuxCmd -ip $VmIp -port $VMPort -username $User -password $Password -command "cat state.txt" -ignoreLinuxExitCode:$true
                 if (-not $state) {
                     if ($TestPlatform -eq "HyperV" -and (Get-VMIntegrationService $VMName -ComputerName $HvServer | `
@@ -69,6 +69,7 @@ function Check-Result {
                     }
                 }
             } else {
+                Write-LogInfo "Current VM is inaccessible, please wait for a while."
                 continue
             }
         } else {
