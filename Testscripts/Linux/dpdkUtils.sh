@@ -261,7 +261,7 @@ function Install_Dpdk () {
 	HOMEDIR=$(pwd)
 	export RTE_SDK="${HOMEDIR}/dpdk"
 	export RTE_TARGET="x86_64-native-linuxapp-gcc"
-	ssh "${1}" "cp -r ${dpdkSrcDir} ${RTE_SDK}"
+	ssh "${1}" "cp -r ${dpdkSrcDir}/* ${RTE_SDK}"
 
 	DPDK_DIR="${dpdkSrcDir}"
 	LogMsg "DPDK source directory: ${DPDK_DIR}"

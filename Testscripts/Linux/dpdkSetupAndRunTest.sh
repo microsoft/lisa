@@ -92,11 +92,14 @@ if [ -z "${dpdkSrcLink}" ]; then
 fi
 
 # set DPDK_DIR global
-DPDK_DIR="dpdk"
+ DPDK_DIR="dpdk"
 if [[ $dpdkSrcLink =~ .tar ]]; then
-	DPDK_DIR="dpdk-$(echo ${dpdkSrcLink} | grep -Po "(\d+\.)+\d+")"
+	#DPDK_DIR="dpdk-$(echo ${dpdkSrcLink} | grep -Po "(\d+\.)+\d+")"
+	dpdkSrcTar="${dpdkSrcLink##*/}"
+	DPDK_DIR="${dpdkSrcTar%%".tar"*}"
 elif [[ $dpdkSrcLink =~ ".git" ]] || [[ $dpdkSrcLink =~ "git:" ]]; then
-	DPDK_DIR="${dpdkSrcLink##*/}"
+	dpdkSrcDir="${dpdkSrcLink##*/}"
+	DPDK_DIR="${dpdkSrcDir%.git/}"
 fi
 
 LogMsg "DPDK source dir is: ${DPDK_DIR}"
