@@ -12,18 +12,34 @@ function Main {
     try {
         $testResult = $null
         $diskSizeinGB = $TestParams.DiskSize
-        $VirtualMachine = Get-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName
+        $virtualMachine = Get-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName
         $diskCount = (Get-AzVMSize -Location $AllVMData.Location | Where-Object {$_.Name -eq $AllVMData.InstanceSize}).MaxDataDiskCount
+        $storageProfile = (Get-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName).StorageProfile
         Write-LogInfo "Serial Addition and Removal of Data Disks"
         While ($count -lt $diskCount) {
             $count += 1
             $verifiedDiskCount = 0
             $diskName = "disk"+ $count.ToString()
-            $storageType = 'Premium_LRS'
-            $diskConfig = New-AzDiskConfig -SkuName $storageType -Location $AllVMData.Location -CreateOption Empty -DiskSizeGB $diskSizeinGB
-            $dataDisk = New-AzDisk -DiskName $diskName -Disk $diskConfig -ResourceGroupName $AllVMData.ResourceGroupName
-            Add-AzVMDataDisk -VM $VirtualMachine -Name $diskName -CreateOption Attach -ManagedDiskId $dataDisk.Id -Lun $count | Out-Null
-            $updateVM1 = Update-AzVM -VM $VirtualMachine -ResourceGroupName $AllVMData.ResourceGroupName
+            if ($storageProfile.OsDisk.ManagedDisk) {
+                # Add managed data disks
+                $storageType = 'Premium_LRS'
+                $diskConfig = New-AzDiskConfig -SkuName $storageType -Location $AllVMData.Location -CreateOption Empty -DiskSizeGB $diskSizeinGB
+                $dataDisk = New-AzDisk -DiskName $diskName -Disk $diskConfig -ResourceGroupName $AllVMData.ResourceGroupName
+                Add-AzVMDataDisk -VM $virtualMachine -Name $diskName -CreateOption Attach -ManagedDiskId $dataDisk.Id -Lun $count | Out-Null
+            } else {
+                # Add unmanaged data disks
+                $osVhdStorageAccountName = $storageProfile.OsDisk.Vhd.Uri.Split(".").split("/")[2]
+                $randomString = "{0}{1}" -f $(-join ((97..122) | Get-Random -Count 6 | % {[char]$_})), $(Get-Random -Maximum 99 -Minimum 11)
+                $dataDiskVhdUri = "http://${osVhdStorageAccountName}.blob.core.windows.net/vhds/test${randomString}.vhd"
+                $osVhdStorageAccount = Get-AzStorageAccount | where { $_.StorageAccountName -eq $osVhdStorageAccountName }
+                $allDataDiskVhdUri = ($osVhdStorageAccount | Get-AzStorageBlob -Container $dataDiskVhdUri.Split('/')[-2]).name
+                if ($allDataDiskVhdUri -Contains $dataDiskVhdUri.Split('/')[-1]) {
+                    $count -= 1
+                    continue
+                }
+                Add-AzVMDataDisk -VM $virtualMachine -Name $diskName -VhdUri $dataDiskVhdUri -Caching None -DiskSizeInGB $diskSizeinGB -Lun $count -CreateOption Empty | Out-Null
+            }
+            $updateVM1 = Update-AzVM -VM $virtualMachine -ResourceGroupName $AllVMData.ResourceGroupName
             if ($updateVM1.IsSuccessStatusCode) {
                 Write-LogInfo "Successfully attached an empty data disk of size $diskSizeinGB GB to VM"
             } else {
@@ -45,8 +61,8 @@ function Main {
                 throw "Data disk added to the VM failed to verify inside VM"
             }
             Write-LogInfo "Removing the Data Disks from the VM"
-            Remove-AzVMDataDisk -VM $VirtualMachine -DataDiskNames $diskName | Out-Null
-            $updateVM2 = Update-AzVM -VM $VirtualMachine -ResourceGroupName $AllVMData.ResourceGroupName
+            Remove-AzVMDataDisk -VM $virtualMachine -DataDiskNames $diskName | Out-Null
+            $updateVM2 = Update-AzVM -VM $virtualMachine -ResourceGroupName $AllVMData.ResourceGroupName
             if ($updateVM2.IsSuccessStatusCode) {
                 Write-LogInfo "Successfully removed the data disk from the VM"
             } else {
@@ -61,6 +77,10 @@ function Main {
                 }
             }
             Write-LogInfo "Successfully verified that data disk is removed from the VM"
+            # Remove unmanaged data disks
+            if (!$storageProfile.OsDisk.ManagedDisk) {
+                $osVhdStorageAccount | Remove-AzStorageBlob -Container $dataDiskVhdUri.Split('/')[-2] -Blob $dataDiskVhdUri.Split('/')[-1] -Verbose -Force
+            }
         }
         Write-LogInfo "Successfully added and removed $diskCount number of data disks"
         $testResult = $resultPass
