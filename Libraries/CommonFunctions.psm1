@@ -592,7 +592,6 @@ function Install-CustomKernel ($CustomKernel, $allVMData, [switch]$RestartAfterU
 							if ( ( Get-Content "$LogDir\build-CustomKernel.txt" ) -imatch $kernelMatchSuccess ) {
 								$kernelSuccess += 1
 							}
-							Rename-Item -Path "$LogDir\build-CustomKernel.txt" -NewName "$($job.RoleName)-build-CustomKernel.txt" -Force | Out-Null
 						}
 					}
 				}
@@ -618,7 +617,20 @@ function Install-CustomKernel ($CustomKernel, $allVMData, [switch]$RestartAfterU
 									Write-LogInfo "Continuing the tests as default kernel is same as $CustomKernel."
 									$isKernelUpgraded = $true
 								} else {
-									$isKernelUpgraded = $false
+                                    $kernelMatchSkip="CUSTOM_KERNEL_ALREADY_INSTALLED"
+                                    if ( !(Test-Path -Path "$LogDir\$($job.RoleName)-build-CustomKernel.txt" ) ) {
+                                        Copy-RemoteFiles -download -downloadFrom $job.PublicIP -port $job.SSHPort -files "build-CustomKernel.txt" `
+								                -username $user -password $password -downloadTo $LogDir
+                                        if ( ( Get-Content "$LogDir\build-CustomKernel.txt" ) -imatch $kernelMatchSkip -and $CustomKernel.EndsWith(".rpm") ) {
+                                            $isKernelUpgraded = $true
+                                        } else {
+                                            $isKernelUpgraded = $false
+                                        }
+                                        Rename-Item -Path "$LogDir\build-CustomKernel.txt" -NewName "$($job.RoleName)-build-CustomKernel.txt" -Force | Out-Null
+                                    } else {
+                                        Write-LogErr "File $LogDir\$($job.RoleName)-build-CustomKernel.txt is not present"
+                                        $isKernelUpgraded = $false
+                                    }
 								}
 							} else {
 								$isKernelUpgraded = $true

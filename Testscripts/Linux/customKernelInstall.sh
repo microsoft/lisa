@@ -379,6 +379,14 @@ function InstallKernel() {
         esac
         customKernelFilesUnExpanded="${CustomKernel#$LOCAL_FILE_PREFIX}"
         LogMsg "Removing packages that do not allow the kernel to be installed"
+        kernel_version_of_rpm=$(rpm -qp --queryformat='%{Version}-%{Release}.%{Arch}\n' ${customKernelFilesUnExpanded})
+        if [ "$kernel_version_of_rpm" = "$(uname -r)" ]; then
+            LogMsg "Kernel is already installed. So skipping $customKernelFilesUnExpanded installation."
+            LogMsg "CUSTOM_KERNEL_ALREADY_INSTALLED"
+            LogMsg "CUSTOM_KERNEL_SUCCESS"
+            SetTestStateCompleted
+            exit 0
+        fi
         if [[ "${customKernelFilesUnExpanded}" == *'*.rpm'* ]]; then
             LogMsg "Removing: ${KERNEL_CONFLICTING_PACKAGES}"
             remove_package "${KERNEL_CONFLICTING_PACKAGES}"
