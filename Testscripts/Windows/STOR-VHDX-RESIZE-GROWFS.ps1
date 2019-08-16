@@ -22,36 +22,6 @@ Param([String] $TestParams)
 $ErrorActionPreference = "Stop"
 $testResult = "FAIL"
 
-# If the vm has more than one disk controller, the order in which their corresponding device nodes are added is arbitrary
-# This may result in device names like /dev/sda and /dev/sdc switching around on each boot
-Function Get-DeviceName
-{
-	param ($ip, $port)
-	$scriptContent = @'
-#! /bin/bash
-. utils.sh
-# Get the OS disk
-os_disk=$(get_OSdisk)
-for dev in /dev/sd*[^0-9]; do
-    # Skip the OS disk
-    if [ $dev == "/dev/$os_disk" ]; then
-        continue
-    fi
-    # Skip the resource disk
-    fdisk -l $dev 2> /dev/null | grep -i "1 GiB" > /dev/null
-        if [ 0 -eq $? ]; then
-        continue
-    fi
-    deviceName=$dev
-done
-echo "$deviceName"
-'@
-	Set-Content "$LogDir\get_device_name.sh" $scriptContent
-	Copy-RemoteFiles -uploadTo $ip -port $port -files "$LogDir\get_device_name.sh" -username $user -password $password -upload
-	$ret = Run-LinuxCmd -ip $ip -port $port -username $user -password $password -command "bash get_device_name.sh" -runAsSudo
-	return $ret
-}
-
 Function Set-HardDiskSize
 {
 	param ($vhdPath, $newSize, $controllerType, $vmName, $hvServer, $ip, $port, $testParameters)
@@ -86,7 +56,7 @@ Function Set-HardDiskSize
 	}
 
 	Write-LogInfo "Check if the guest detects the new space"
-	$deviceName = Get-DeviceName -ip $ip -port $port
+	$deviceName = Get-DeviceName -ip $ip -port $port -username $user -password $password
 	Write-LogInfo "The disk device name: $deviceName"
 	$sd = "$deviceName" -replace "/dev/",""
 	$ret = Run-LinuxCmd -ip $ip -port $port -username $user -password $password -command "echo 'deviceName=$deviceName' >> constants.sh" -runAsSudo
@@ -178,7 +148,7 @@ Function Main
 				Throw "Insufficent disk free space, This test case requires ${testParameters.NewSize} free, Current free space is $($diskInfo.FreeSpace)"
 			}
 
-			$deviceName = Get-DeviceName -ip $ip -port $port
+			$deviceName = Get-DeviceName -ip $ip -port $port -username $user -password $password
 			Write-LogInfo "The disk device name: $deviceName"
 			# Make sure if we can perform Read/Write operations on the guest VM
 			$ret = Run-LinuxCmd -ip $ip -port $port -username $user -password $password -command "echo 'fs=$fs' >> constants.sh" -runAsSudo

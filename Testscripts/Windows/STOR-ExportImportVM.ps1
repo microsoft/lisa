@@ -59,7 +59,7 @@ function Main {
     # Stop the VM in order to export it
     #
     while ($testCaseTimeout -gt 0) {
-        Stop-VM -Name $VMName -ComputerName $HvServer -Force -Verbose
+        $null = Stop-VM -Name $VMName -ComputerName $HvServer -Force -Verbose
 
         if ( (Check-VMState -vmName $VMName -hvServer $HvServer ("Off"))) {
             break
@@ -77,7 +77,7 @@ function Main {
     #
     # Create a Snapshot before exporting the VM
     #
-    Checkpoint-VM -Name $VMName -ComputerName $HvServer -SnapshotName "TestExport" -Confirm:$False
+    $null = Checkpoint-VM -Name $VMName -ComputerName $HvServer -SnapshotName "TestExport" -Confirm:$False
     if ($? -ne "True") {
         Write-LogErr "Error while creating the snapshot"
         return "FAIL"
@@ -96,7 +96,7 @@ function Main {
     #
     # Export the VM
     #
-    Export-VM -Name $VMName -ComputerName $HvServer -Path $exportPath -Confirm:$False -Verbose
+    $null = Export-VM -Name $VMName -ComputerName $HvServer -Path $exportPath -Confirm:$False -Verbose
     if ($? -ne "True") {
         Write-LogErr "Error while exporting the VM"
         return "FAIL"
@@ -107,7 +107,7 @@ function Main {
     #
     # Before importing the VM from exported folder, Delete the created snapshot from the orignal VM.
     #
-    Get-VMSnapshot -VMName $VMName -ComputerName $HvServer -Name "TestExport" | Remove-VMSnapshot -Confirm:$False
+    $null = Get-VMSnapshot -VMName $VMName -ComputerName $HvServer -Name "TestExport" | Remove-VMSnapshot -Confirm:$False
 
     #
     # Save the GUID of exported VM.
@@ -143,7 +143,8 @@ function Main {
 
     Write-LogInfo $vmConfig.fullname
 
-    Import-VM -Path $vmConfig -ComputerName $HvServer -Copy "${vmPath}\Virtual Hard Disks" -Verbose -Confirm:$False -GenerateNewId
+    $null = Import-VM -Path $vmConfig -ComputerName $HvServer -Copy "${vmPath}\Virtual Hard Disks" `
+        -Verbose -Confirm:$False -GenerateNewId
     if ($? -ne "True") {
         Write-LogErr "Error while importing the VM"
         return "FAIL"
@@ -190,7 +191,7 @@ function Main {
     } until ((Get-VMIntegrationService $newName | Where-Object {$_.name -eq "Heartbeat"}).PrimaryStatusDescription -eq "OK")
 
     Write-LogInfo "Imported VM ${newName} has a snapshot TestExport, applied the snapshot and VM started successfully"
-    Stop-VM -Name $newName -ComputerName $HvServer -Force -TurnOff
+    $null = Stop-VM -Name $newName -ComputerName $HvServer -Force -TurnOff
     if ($? -ne "True") {
         Write-LogErr "Error while stopping the VM"
         return "FAIL"
@@ -199,7 +200,7 @@ function Main {
         #
         # Cleanup - stop the imported VM, remove it and delete the export folder.
         #
-        Remove-VM -Name $newName -ComputerName $HvServer -Force -Verbose
+        $null = Remove-VM -Name $newName -ComputerName $HvServer -Force -Verbose
         if ($? -ne "True") {
             Write-LogErr "Error while removing the Imported VM"
             return "FAIL"
@@ -209,14 +210,16 @@ function Main {
             return "PASS"
         }
 
-        Remove-Item -Path "${vmPath}" -Recurse -Force
+        $null = Remove-Item -Path "${vmPath}" -Recurse -Force
         if ($? -ne "True") {
             Write-LogErr "Error while deleting the export folder, trying again..."
-            Remove-Item -Recurse -Path "${vmPath}" -Force
+            $null = Remove-Item -Recurse -Path "${vmPath}" -Force
         }
 
         return "FAIL"
     }
+
+    return "PASS"
 }
 Main -VMName $AllVMData.RoleName -HvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
     -Ipv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort `
