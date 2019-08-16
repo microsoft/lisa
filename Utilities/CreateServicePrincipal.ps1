@@ -17,7 +17,7 @@ function New-SWRandomPassword {
         New-SWRandomPassword
         C&3SX6Kn
 
-        Will generate one password with a length between 8  and 12 chars.
+        Will generate one password with a length between 8 and 12 chars.
     .EXAMPLE
         New-SWRandomPassword -MinPasswordLength 8 -MaxPasswordLength 12 -Count 4
         7d&5cnaB
@@ -30,17 +30,17 @@ function New-SWRandomPassword {
         New-SWRandomPassword -InputStrings abc, ABC, 123 -PasswordLength 4
         3ABa
 
-        Generates a password with a length of 4 containing atleast one char from each InputString
+        Generates a password with a length of 4 containing at least one char from each InputString
     .EXAMPLE
         New-SWRandomPassword -InputStrings abc, ABC, 123 -PasswordLength 4 -FirstChar abcdefghijkmnpqrstuvwxyzABCEFGHJKLMNPQRSTUVWXYZ
         3ABa
 
-        Generates a password with a length of 4 containing atleast one char from each InputString that will start with a letter from
+        Generates a password with a length of 4 containing at least one char from each InputString that will start with a letter from
         the string specified with the parameter FirstChar
     .OUTPUTS
         [String]
     .NOTES
-        Written by Simon Wåhlin, blog.simonw.se
+        Written by Simon Wahlin, blog.simonw.se
         I take no responsibility for any issues caused by this script.
     .FUNCTIONALITY
         Generates random passwords
@@ -70,7 +70,7 @@ function New-SWRandomPassword {
         [ValidateRange(1,2147483647)]
         [int]$PasswordLength = 8,
 
-        # Specifies an array of strings containing charactergroups from which the password will be generated.
+        # Specifies an array of strings containing character groups from which the password will be generated.
         # At least one char from each group (string) will be used.
         [String[]]$InputStrings = @('abcdefghijkmnpqrstuvwxyz', 'ABCEFGHJKLMNPQRSTUVWXYZ', '23456789', '!#%=_'),
 
@@ -223,16 +223,38 @@ function New-ServicePrincipal() {
     Write-Prompt "2) Owner"
     Write-Prompt "Please choose by entering 1 or 2:"
     $Privilege = Read-Host
-
     Write-Host "Assign roles to Service Principal..."
-    if ($Privilege -eq 2) {
-        New-AzRoleAssignment -RoleDefinitionName "Owner" -ApplicationId $ClientId
-    }
-    else {
-        New-AzRoleAssignment -RoleDefinitionName "Contributor" -ApplicationId $ClientId
+    try {
+        if ($Privilege -eq 2) {
+            New-AzRoleAssignment -RoleDefinitionName "Owner" -ApplicationId $ClientId
+        }
+        else {
+            New-AzRoleAssignment -RoleDefinitionName "Contributor" -ApplicationId $ClientId
+        }
+        Write-Host "Successfully created Service Principal and assigned role...`n"
+    } catch {
+        $line = $_.InvocationInfo.ScriptLineNumber
+        $script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
+        Write-Host -ForegroundColor Red "Exception in New-ServicePrincipal."
+        Write-Host -ForegroundColor Red "Source : Line $line in script $script_name."
+
+        $currentSignInAccount = Get-AzContext | Select-Object Account
+        $role = Get-AzRoleAssignment -SignInName $currentSignInAccount.Account.id | Select-Object RoleDefinitionName
+        # https://docs.microsoft.com/en-us/powershell/azure/create-azure-service-principal-azureps?view=azps-2.5.0#manage-service-principal-roles
+        if ($_ -match "does not have authorization to perform action 'Microsoft.Authorization/roleAssignments/write' over scope") {
+            Write-Host "You are the $($role.RoleDefinitionName) of subscription $($subscription.Name) - $($subscription.Id), don't have enough permission to assign a role."
+            $confirmation = Read-Host "Do you want to delete the service principal $identifier just created? [y/n]"
+            if($confirmation -eq "y") {
+                Remove-AzADApplication -ApplicationId $ClientId -Force
+                Write-Host "Delete $identifier successfully..."
+                return
+            } else {
+                Write-Prompt "Successfully created Service Principal but assigned role failed..."
+                Write-Prompt "You can use command 'Remove-AzADApplication -ApplicationId $ClientId -Force' to remove it manually..."
+            }
+        }
     }
 
-    Write-Host "Successfully created Service Principal`n"
     Write-Host "==============Created Serivce Principal=============="
     Write-Host "SUBSCRIPTION_ID:" $subscription.Id
     Write-Host "CLIENT_ID:      " $clientId
