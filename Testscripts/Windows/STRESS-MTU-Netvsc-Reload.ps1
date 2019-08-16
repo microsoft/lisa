@@ -67,7 +67,7 @@ function Main {
 
     Start-Sleep -s 600
     $NewIP = Get-IPv4AndWaitForSSHStart -VmName $VMName -HvServer $HvServer -Vmport $VMPort `
-        -Password $VMPassword -User $VMUserName -StepTimeout 1000
+        -Password $VMPassword -User $VMUserName -StepTimeout 30
         $allVmData.PublicIP = $NewIP
     if (-not $NewIP) {
         Write-LogErr "VM became unresponsive after reloading hv_netvsc"

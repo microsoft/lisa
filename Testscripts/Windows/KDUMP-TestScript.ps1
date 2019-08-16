@@ -74,7 +74,7 @@ function Main {
             }
 
             $newIP = Get-IPv4AndWaitForSSHStart -VMName $VMName -HvServer $HvServer `
-                -VmPort $VmPort -User $VMUserName -Password $VMPassword -StepTimeout 360
+                -VmPort $VmPort -User $VMUserName -Password $VMPassword -StepTimeout 30
             if ($newIP) {
                 $vm2ipv4 = $newIP
             } else {

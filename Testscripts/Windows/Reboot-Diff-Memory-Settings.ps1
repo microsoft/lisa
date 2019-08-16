@@ -79,7 +79,7 @@ function Main {
 
         $Error.Clear()
         # If the VM has no IP it means it rebooted
-        $new_ipv4 = Get-IPv4AndWaitForSSHStart $VMName $HvServer $VMPort $VMUserName $VMPassword 300
+        $new_ipv4 = Get-IPv4AndWaitForSSHStart $VMName $HvServer $VMPort $VMUserName $VMPassword 30
         if ($new_ipv4) {
             # In some cases the IP changes after a reboot
             Write-LogInfo "${VMName} IP Address after reboot: ${new_ipv4}"

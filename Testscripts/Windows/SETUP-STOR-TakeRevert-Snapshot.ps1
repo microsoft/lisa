@@ -114,7 +114,7 @@ function Main {
     Start-VM $VMName -ComputerName $HvServer
 
     $newIpv4 = Get-Ipv4AndWaitForSSHStart -VmName $VMName -HvServer $HvServer -Vmport $VMPort -User $VMUserName `
-              -Password $VMPassword -StepTimeout 300
+              -Password $VMPassword -StepTimeout 30
     if (-not $newIpv4) {
         Write-LogErr "Failed to retrive $VMName IP after snasphot restore"
         return "FAIL"

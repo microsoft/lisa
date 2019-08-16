@@ -86,7 +86,7 @@ function Main {
     # Start VM and wait for SSH access
     Start-VM -Name $VMName -ComputerName $HvServer
     $newIpv4 = Get-Ipv4AndWaitForSSHStart $VMName $HvServer $VMPort $VMUserName `
-                $VMPassword 300
+                $VMPassword 30
     if ($newIpv4) {
         # In some cases the IP changes after a reboot
         Set-Variable -Name "Ipv4" -Value $newIpv4
