@@ -42,6 +42,7 @@ Class AzureProvider : TestProvider
 			if ($UseExistingRG) {
 				Write-LogInfo "Running test against existing resource group: $RGIdentifier"
 				$allVMData = Get-AllDeploymentData -ResourceGroups $RGIdentifier
+				Add-DefaultTagsToResourceGroup -ResourceGroup $RGIdentifier -CurrentTestData $TestCaseData
 				if (!$allVMData) {
 					Write-LogInfo "No VM is found in resource group $RGIdentifier, start to deploy VMs"
 				}
