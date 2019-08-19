@@ -196,10 +196,20 @@ else # other distro
     exit 0
 fi
 
-# Show a list of peers to check if the NTP daemon is running
-ntpq -p $loopbackIP
-if ! ntpq -p $loopbackIP
-then
+# check if the NTP daemon is running
+timeout=50
+while [ $timeout -ge 0 ]; do
+    ntpdVal=$(ntpq -p $loopbackIP)
+    if [ -n "$ntpdVal" ] ; then
+        break
+    else
+        LogMsg "Wait for NTP daemon is running"
+        timeout=$((timeout-5))
+        sleep 5
+    fi
+done
+
+if [ -z "$ntpdVal" ];then
     LogErr "Unable to query NTP deamon!"
     SetTestStateAborted
     exit 0
