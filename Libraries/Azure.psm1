@@ -775,7 +775,7 @@ Function Get-AllDeploymentData($ResourceGroups)
         $AllVMs = Get-AzVM -ResourceGroupName $ResourceGroup
         foreach ($testVM in $RGVMs)
         {
-            $testVMDetails = $AllVMs | Where { $_.Name -eq $testVM.Name }
+            $testVMDetails = $AllVMs | Where-Object { $_.Name -eq $testVM.Name }
             $QuickVMNode = Create-QuickVMNode
             $lbDetails = Get-AzLoadBalancer -ResourceGroupName $ResourceGroup -Name $LBdata.Name
             $InboundNatRules = $lbDetails.InboundNatRules
@@ -809,7 +809,7 @@ Function Get-AllDeploymentData($ResourceGroups)
             $AllNICs = Get-AzNetworkInterface -ResourceGroupName $ResourceGroup
             foreach ( $nic in $NICdata )
             {
-                $nicDetails = $AllNICs | Where { $_.Name -eq $nic.Name }
+                $nicDetails = $AllNICs | Where-Object { $_.Name -eq $nic.Name }
                 if (($nic.Name.Replace("PrimaryNIC-","") -eq $testVM.ResourceName) -and ( $nic.Name -imatch "PrimaryNIC"))
                 {
                     $QuickVMNode.InternalIP = "$($nicDetails.IpConfigurations[0].PrivateIPAddress)"
