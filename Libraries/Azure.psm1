@@ -758,71 +758,76 @@ Function Get-AllDeploymentData($ResourceGroups)
         Write-LogInfo "Collecting $ResourceGroup data.."
 
         Write-LogInfo "	Microsoft.Network/publicIPAddresses data collection in progress.."
-        $RGIPsdata = Get-AzResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Network/publicIPAddresses" -Verbose -ExpandProperties
+        $RGIPsdata = Get-AzResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Network/publicIPAddresses" -Verbose
         Write-LogInfo "	Microsoft.Compute/virtualMachines data collection in progress.."
-        $RGVMs = Get-AzResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Compute/virtualMachines" -Verbose -ExpandProperties
+        $RGVMs = Get-AzResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Compute/virtualMachines" -Verbose
         Write-LogInfo "	Microsoft.Network/networkInterfaces data collection in progress.."
-        $NICdata = Get-AzResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Network/networkInterfaces" -Verbose -ExpandProperties
+        $NICdata = Get-AzResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Network/networkInterfaces" -Verbose
         $currentRGLocation = (Get-AzResourceGroup -ResourceGroupName $ResourceGroup).Location
         Write-LogInfo "	Microsoft.Network/loadBalancers data collection in progress.."
-        $LBdata = Get-AzResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Network/loadBalancers" -ExpandProperties -Verbose
+        $LBdata = Get-AzResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Network/loadBalancers" -Verbose
         foreach($ipData in $RGIPsdata) {
             if ((Get-AzPublicIpAddress -Name $ipData.name -ResourceGroupName $ipData.ResourceGroupName).IpAddress -ne "Not Assigned") {
                 $RGIPdata = $ipData
             }
         }
 
+        $AllVMs = Get-AzVM -ResourceGroupName $ResourceGroup
         foreach ($testVM in $RGVMs)
         {
+            $testVMDetails = $AllVMs | Where-Object { $_.Name -eq $testVM.Name }
             $QuickVMNode = Create-QuickVMNode
-            $InboundNatRules = $LBdata.Properties.InboundNatRules
+            $lbDetails = Get-AzLoadBalancer -ResourceGroupName $ResourceGroup -Name $LBdata.Name
+            $InboundNatRules = $lbDetails.InboundNatRules
             foreach ($endPoint in $InboundNatRules)
             {
                 if ( $endPoint.Name -imatch $testVM.ResourceName)
                 {
                     $endPointName = "$($endPoint.Name)".Replace("$($testVM.ResourceName)-","")
-                    Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($endPointName)Port" -Value $endPoint.Properties.FrontendPort -Force
+                    Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($endPointName)Port" -Value $endPoint.FrontendPort -Force
                 }
             }
-            $LoadBalancingRules = $LBdata.Properties.LoadBalancingRules
+            $LoadBalancingRules = $lbDetails.LoadBalancingRules
             foreach ( $LBrule in $LoadBalancingRules )
             {
                 if ( $LBrule.Name -imatch "$ResourceGroup-LB-" )
                 {
                     $endPointName = "$($LBrule.Name)".Replace("$ResourceGroup-LB-","")
-                    Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($endPointName)Port" -Value $LBrule.Properties.FrontendPort -Force
+                    Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($endPointName)Port" -Value $LBrule.FrontendPort -Force
                 }
             }
-            $Probes = $LBdata.Properties.Probes
+            $Probes = $lbDetails.Probes
             foreach ( $Probe in $Probes )
             {
                 if ( $Probe.Name -imatch "$ResourceGroup-LB-" )
                 {
                     $probeName = "$($Probe.Name)".Replace("$ResourceGroup-LB-","").Replace("-probe","")
-                    Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($probeName)ProbePort" -Value $Probe.Properties.Port -Force
+                    Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($probeName)ProbePort" -Value $Probe.Port -Force
                 }
             }
 
+            $AllNICs = Get-AzNetworkInterface -ResourceGroupName $ResourceGroup
             foreach ( $nic in $NICdata )
             {
+                $nicDetails = $AllNICs | Where-Object { $_.Name -eq $nic.Name }
                 if (($nic.Name.Replace("PrimaryNIC-","") -eq $testVM.ResourceName) -and ( $nic.Name -imatch "PrimaryNIC"))
                 {
-                    $QuickVMNode.InternalIP = "$($nic.Properties.IpConfigurations[0].Properties.PrivateIPAddress)"
+                    $QuickVMNode.InternalIP = "$($nicDetails.IpConfigurations[0].PrivateIPAddress)"
                 }
                 if (($nic.Name.Replace("ExtraNetworkCard-1-","") -eq $testVM.ResourceName) -and ($nic.Name -imatch "ExtraNetworkCard-1"))
                 {
-                    $QuickVMNode.SecondInternalIP = "$($nic.Properties.IpConfigurations[0].Properties.PrivateIPAddress)"
+                    $QuickVMNode.SecondInternalIP = "$($nicDetails.IpConfigurations[0].PrivateIPAddress)"
                 }
             }
             $QuickVMNode.ResourceGroupName = $ResourceGroup
-
-            $QuickVMNode.PublicIP = ($RGIPData | Where-Object { $_.Properties.publicIPAddressVersion -eq "IPv4" }).Properties.ipAddress
-            $QuickVMNode.PublicIPv6 = ($RGIPData | Where-Object { $_.Properties.publicIPAddressVersion -eq "IPv6" }).Properties.ipAddress
-            $QuickVMNode.URL = ($RGIPData | Where-Object { $_.Properties.publicIPAddressVersion -eq "IPv4" }).Properties.dnsSettings.fqdn
-            $QuickVMNode.URLv6 = ($RGIPData | Where-Object { $_.Properties.publicIPAddressVersion -eq "IPv6" }).Properties.dnsSettings.fqdn
+            $ipDetails = Get-AzPublicIpAddress -Name $RGIPData.Name -ResourceGroupName $ResourceGroup
+            $QuickVMNode.PublicIP = ($ipDetails | Where-Object { $_.publicIPAddressVersion -eq "IPv4" }).ipAddress
+            $QuickVMNode.PublicIPv6 = ($ipDetails | Where-Object { $_.publicIPAddressVersion -eq "IPv6" }).ipAddress
+            $QuickVMNode.URL = ($ipDetails | Where-Object { $_.publicIPAddressVersion -eq "IPv4" }).dnsSettings.fqdn
+            $QuickVMNode.URLv6 = ($ipDetails | Where-Object { $_.publicIPAddressVersion -eq "IPv6" }).dnsSettings.fqdn
             $QuickVMNode.RoleName = $testVM.ResourceName
-            $QuickVMNode.Status = $testVM.Properties.ProvisioningState
-            $QuickVMNode.InstanceSize = $testVM.Properties.hardwareProfile.vmSize
+            $QuickVMNode.Status = $testVMDetails.ProvisioningState
+            $QuickVMNode.InstanceSize = $testVMDetails.hardwareProfile.vmSize
             $QuickVMNode.Location = $currentRGLocation
             $allDeployedVMs += $QuickVMNode
         }
