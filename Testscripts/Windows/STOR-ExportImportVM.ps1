@@ -128,11 +128,11 @@ function Main {
     switch ($BuildNum) {
         {$_ -lt 10000} {
             # Server 2012 R2, 20012 and 2008R2
-            $vmConfig = Get-Item "$vmPath\Virtual Machines\*.xml"
+            $vmConfig = Invoke-Command -ComputerName $HvServer {Get-Item "$Using:vmPath\Virtual Machines\*.xml"}
         }
         {$_ -ge 10000} {
             # Server 2016 or newer
-            $vmConfig = Get-Item "$vmPath\Virtual Machines\*.VMCX"
+            $vmConfig = Invoke-Command -ComputerName $HvServer { Get-Item "$Using:vmPath\Virtual Machines\*.VMCX" }
         }
         Default {
             # An unsupported version of Windows Server
@@ -162,15 +162,24 @@ function Main {
     foreach ($Vm in $VMs) {
         if ($ExportedVMID -ne $($Vm.VMId)) {
             $ImportedVM = $Vm.VMId
-            Get-VM -Id $Vm.VMId | Rename-VM -NewName $newName
+            Get-VM -Id $Vm.VMId -ComputerName $HvServer | Rename-VM -NewName $newName -Passthru
             break
         }
     }
 
-    Get-VMSnapshot -VMName $newName -ComputerName $HvServer -Name "TestExport" | Restore-VMSnapshot -Confirm:$False -Verbose
+    Restore-VMSnapshot -VMName $newName -ComputerName $HvServer -Name "TestExport" -Confirm:$False -Verbose
     if ($? -ne "True") {
         Write-LogErr "Error while applying the snapshot to imported VM $ImportedVM"
         return "FAIL"
+    }
+
+    #
+    # Start the original VM
+    #
+    Write-LogInfo "Starting the VM $VMName"
+
+    if ((Get-VM -ComputerName $HvServer -Name $VMName).State -eq "Off") {
+        Start-VM -ComputerName $HvServer -Name $VMName
     }
 
     #
@@ -188,9 +197,10 @@ function Main {
 
     do {
         Start-Sleep -Seconds 5
-    } until ((Get-VMIntegrationService $newName | Where-Object {$_.name -eq "Heartbeat"}).PrimaryStatusDescription -eq "OK")
+    } until ((Get-VMIntegrationService -ComputerName $HvServer -vmName $newName | Where-Object {$_.name -eq "Heartbeat"}).PrimaryStatusDescription -eq "OK")
 
     Write-LogInfo "Imported VM ${newName} has a snapshot TestExport, applied the snapshot and VM started successfully"
+
     $null = Stop-VM -Name $newName -ComputerName $HvServer -Force -TurnOff
     if ($? -ne "True") {
         Write-LogErr "Error while stopping the VM"
@@ -200,6 +210,9 @@ function Main {
         #
         # Cleanup - stop the imported VM, remove it and delete the export folder.
         #
+
+        Start-VM -Name $VMName -ComputerName $HvServer -Force -Verbose
+
         $null = Remove-VM -Name $newName -ComputerName $HvServer -Force -Verbose
         if ($? -ne "True") {
             Write-LogErr "Error while removing the Imported VM"
@@ -210,10 +223,10 @@ function Main {
             return "PASS"
         }
 
-        $null = Remove-Item -Path "${vmPath}" -Recurse -Force
+        $null = Invoke-Command -ComputerName $HvServer {Remove-Item -Path "$Using:vmPath" -Recurse -Force}
         if ($? -ne "True") {
             Write-LogErr "Error while deleting the export folder, trying again..."
-            $null = Remove-Item -Recurse -Path "${vmPath}" -Force
+            $null = Invoke-Command -ComputerName $HvServer {Remove-Item -Recurse -Path "$Using:vmPath" -Force }
         }
 
         return "FAIL"
