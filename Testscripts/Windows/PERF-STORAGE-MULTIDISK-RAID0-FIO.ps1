@@ -234,11 +234,22 @@ function Main {
             -RunInBackground -runAsSudo
 
         Write-LogInfo "Monitoring test run..."
+        $FioStuckCounter = 0
+        $MaxFioStuckAttempts = 10
         while ((Get-Job -Id $testJob).State -eq "Running") {
             $currentStatus = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort `
                 -username "root" -password $password -command "tail -1 fioConsoleLogs.txt" `
                 -runAsSudo
             Write-LogInfo "Current Test Status: $currentStatus"
+            if ($currentStatus -imatch "Doing forceful exit of this job") {
+                $FioStuckCounter++
+                if ( $FioStuckCounter -eq $MaxFioStuckAttempts) {
+                    throw "FIO is stuck, aborting the test"
+                }
+            } else {
+                $FioStuckCounter = 0
+            }
+
             Wait-Time -seconds 20
         }
 

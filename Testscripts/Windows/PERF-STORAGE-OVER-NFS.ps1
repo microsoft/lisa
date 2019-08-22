@@ -84,9 +84,21 @@ chmod 666 /root/perf_fio.csv
         #endregion
 
         #region MONITOR TEST
+
+        $FioStuckCounter = 0
+        $MaxFioStuckAttempts = 10
         while ((Get-Job -Id $testJob).State -eq "Running") {
             $currentStatus = Run-LinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -command "tail -1 runlog.txt"-runAsSudo
-            Write-LogInfo "Current Test Status : $currentStatus"
+            Write-LogInfo "Current Test Status: $currentStatus"
+            if ($currentStatus -imatch "Doing forceful exit of this job") {
+                $FioStuckCounter++
+                if ( $FioStuckCounter -eq $MaxFioStuckAttempts) {
+                    throw "FIO is stuck, aborting the test"
+                }
+            } else {
+                $FioStuckCounter = 0
+            }
+
             Wait-Time -seconds 20
         }
 
