@@ -134,10 +134,10 @@ function Main {
         }
     }
 
-    if (-not $rootDir) {
+    if (-not $Global:WorkingDirectory) {
         Write-LogErr "no rootdir was specified"
     } else {
-        Set-Location $rootDir
+        Set-Location $Global:WorkingDirectory
     }
 
     # Make sure we have all the required data
@@ -197,7 +197,6 @@ function Main {
         }
     }
 
-
     if ($vmGeneration -eq 1) {
         $lun = [int]($diskArgs[1].Trim())
     } else {
@@ -240,7 +239,7 @@ function Main {
     if ($vhdFileInfo) {
         $delSts = $vhdFileInfo.Delete()
         if (-not $delSts -or $delSts.ReturnValue -ne 0) {
-            LofErr "unable to delete the existing .vhd file: ${vhdFilename}"
+            LofErr "unable to delete the existing .vhd file: ${vhdName}"
             return $False
         }
     }

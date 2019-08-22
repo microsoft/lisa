@@ -36,7 +36,7 @@ case $DISTRO in
     ;;
     ubuntu* | debian*)
         #Update required before install
-        apt-get update
+        update_repos
         chrony_config_path="/etc/chrony/chrony.conf"
         chrony_service_name="chrony"
         ntp_service_name="ntp"

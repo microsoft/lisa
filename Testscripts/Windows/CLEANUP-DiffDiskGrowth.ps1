@@ -122,10 +122,10 @@ function Main {
         Write-LogErr "No vhdFormat specified in the test parameters"
         return $False
     }
-    if (-not $rootDir) {
+    if (-not $Global:WorkingDirectory) {
         Write-LogErr "no rootdir was specified"
     } else {
-        Set-Location $rootDir
+        Set-Location $Global:WorkingDirectory
     }
 
     $vmGeneration = Get-VMGeneration $vmName $hvServer
@@ -180,7 +180,7 @@ function Main {
     if ($vhdFileInfo) {
         $delSts = $vhdFileInfo.Delete()
         if (-not $delSts -or $delSts.ReturnValue -ne 0) {
-            Write-LogErr "unable to delete the existing $vhdFormat file: ${vhdFilename}"
+            Write-LogErr "unable to delete the existing $vhdFormat file: ${vhdName}"
             return $False
         }
     }

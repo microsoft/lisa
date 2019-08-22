@@ -345,8 +345,9 @@
     <test>
         <testName>STORAGE-VHD-ADD-DIFF-DISK-IDE</testName>
         <setupScript>.\TestScripts\Windows\SETUP-DiffDiskGrowth.ps1</setupScript>
-        <testScript>.\TestScripts\Windows\STORAGE-DiffDiskGrowth.ps1</testScript>
+        <testScript>STORAGE-DiffDiskGrowth.ps1</testScript>
         <cleanupScript>.\TestScripts\Windows\CLEANUP-DiffDiskGrowth.ps1</cleanupScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\PartitionDisks.sh</files>
         <setupType>OneVM</setupType>
         <TestParameters>
             <param>IDE=1,1,Diff</param>
@@ -362,8 +363,9 @@
     <test>
         <testName>STORAGE-VHD-ADD-DIFF-DISK-SCSI</testName>
         <setupScript>.\TestScripts\Windows\SETUP-DiffDiskGrowth.ps1</setupScript>
-        <testScript>.\TestScripts\Windows\STORAGE-DiffDiskGrowth.ps1</testScript>
+        <testScript>STORAGE-DiffDiskGrowth.ps1</testScript>
         <cleanupScript>.\TestScripts\Windows\CLEANUP-DiffDiskGrowth.ps1</cleanupScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\PartitionDisks.sh</files>
         <setupType>OneVM</setupType>
         <TestParameters>
             <param>SCSI=0,1,Diff</param>
@@ -483,8 +485,9 @@
     <test>
         <testName>STORAGE-VHDX-ADD-DIFF-DISK-IDE</testName>
         <setupScript>.\TestScripts\Windows\SETUP-DiffDiskGrowth.ps1</setupScript>
-        <testScript>.\TestScripts\Windows\STORAGE-DiffDiskGrowth.ps1</testScript>
+        <testScript>STORAGE-DiffDiskGrowth.ps1</testScript>
         <cleanupScript>.\TestScripts\Windows\CLEANUP-DiffDiskGrowth.ps1</cleanupScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\PartitionDisks.sh</files>
         <setupType>OneVM</setupType>
         <TestParameters>
             <param>IDE=1,1,Diff</param>
@@ -500,8 +503,9 @@
     <test>
         <testName>STORAGE-VHDX-ADD-DIFF-DISK-SCSI</testName>
         <setupScript>.\TestScripts\Windows\SETUP-DiffDiskGrowth.ps1</setupScript>
-        <testScript>.\TestScripts\Windows\STORAGE-DiffDiskGrowth.ps1</testScript>
+        <testScript>STORAGE-DiffDiskGrowth.ps1</testScript>
         <cleanupScript>.\TestScripts\Windows\CLEANUP-DiffDiskGrowth.ps1</cleanupScript>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\PartitionDisks.sh</files>
         <setupType>OneVM</setupType>
         <TestParameters>
             <param>SCSI=1,1,Diff</param>

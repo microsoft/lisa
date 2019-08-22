@@ -79,7 +79,7 @@ Config_NFS_Sles()
 Config_NFS_Debian()
 {
     LogMsg "Configuring nfs (Ubuntu)..."
-    apt-get update
+    update_repos
     apt_get_install nfs-kernel-server
     if [ $? -ne 0 ]; then
         LogErr "Failed to install nfs."

@@ -46,6 +46,7 @@ def UpdateRepos(current_distro):
     RunLog.info ("\nUpdating the repository information...")
     if (current_distro.find("ubuntu") != -1) or (current_distro.find("debian") != -1):
         #method 'RunUpdate': fix deadlock when using stdout=PIPE and/or stderr=PIPE and the child process generates enough output to a pipe
+        RunUpdate("until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done")
         RunUpdate("apt-get update")
     elif (current_distro.find("rhel") != -1) or (current_distro.find("Oracle") != -1) or (current_distro.find('centos') != -1):
         RunUpdate("yum -y update")

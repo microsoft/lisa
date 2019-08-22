@@ -107,7 +107,7 @@ function Install_Dpdk_Dependencies() {
 			apt_packages="${apt_packages} rdma-core"
 		fi
 
-		ssh ${install_ip} ". utils.sh && CheckInstallLockUbuntu && apt-get update"
+		ssh ${install_ip} ". utils.sh && CheckInstallLockUbuntu && update_repos"
 		ssh ${install_ip} ". utils.sh && CheckInstallLockUbuntu && apt-get install -y ${apt_packages}"
 
 	elif [[ "${distro}" == rhel7* || "${distro}" == centos7* ]]; then
@@ -267,6 +267,7 @@ function Install_Dpdk () {
 	fi
 
 	DPDK_DIR="dpdk"
+
 	LogMsg "DPDK source directory: ${DPDK_DIR}"
 
 	if [ ! -z "$dpdk_server_ip" -a "$dpdk_server_ip" != " " ];

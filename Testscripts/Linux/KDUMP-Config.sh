@@ -33,6 +33,7 @@ Install_Kexec(){
         ;;
         ubuntu* | debian*)
             export DEBIAN_FRONTEND=noninteractive
+            dpkg_configure
             apt-get update --fix-missing; apt --fix-broken install -y; apt_get_install "kexec-tools kdump-tools makedumpfile"
             if [ $? -ne 0 ]; then
                 UpdateSummary "Warning: Kexec-tools failed to install."
@@ -274,7 +275,7 @@ Config_Debian()
     sed -i 's/LOAD_KEXEC=true/LOAD_KEXEC=false/g' /etc/default/kexec
 
     # Configure to dump file on nfs server if it is the case
-    apt-get update -y
+    update_repos
     sleep 10
 
     if [ "$vm2ipv4" ] && [ "$vm2ipv4" != "" ]; then
