@@ -50,7 +50,7 @@ if [[ "$NIC_COUNT" -gt 1 ]];then
             server_ip_address=$(ip addr show $SERVER_NIC | grep 'inet\b')
             if [[  -z "$server_ip_address"  ]] ; then
                 LogMsg "NIC $SERVER_NIC doesn't have ip even after running dhclient"
-                LogMsg "Server ifconfig $(ifconfig)"
+                LogMsg "Server ifconfig $(ip a)"
                 SetTestStateFailed
                 exit 0
             fi
@@ -67,8 +67,8 @@ if [[ "$NIC_COUNT" -gt 1 ]];then
             client_ip_address=$(ssh root@"$VF_IP2" "ip addr show $CLIENT_NIC | grep 'inet\b'")
             if [[ -z "$client_ip_address" ]] ; then
                 LogMsg "NIC $CLIENT_NIC doesn't have ip even after running dhclient"
-                client_if_config=$(ssh root@"$VF_IP2" "ifconfig")
-                LogMsg "Client ifconfig $(client_if_config)"
+                client_if_config=$(ssh root@"$VF_IP2" "ip a")
+                LogMsg "Client ifconfig ${client_if_config}"
                 SetTestStateFailed
                 exit 0
             fi
