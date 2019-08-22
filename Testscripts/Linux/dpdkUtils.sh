@@ -37,7 +37,7 @@ function Hugepage_Setup() {
 
 	LogMsg "Huge page setup is running"
 	ssh "${1}" "mkdir -p /mnt/huge && mkdir -p /mnt/huge-1G"
-	LogMsg "huge page directory: $?"
+	LogMsg "creating huge page directory status: $?"
 	ssh "${1}" "mount -t hugetlbfs nodev /mnt/huge && mount -t hugetlbfs nodev /mnt/huge-1G -o 'pagesize=1G'"
 	check_exit_status "Huge pages are mounted on ${1}" "exit"
 	ssh "${1}" "echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages"
@@ -210,7 +210,6 @@ function Install_Dpdk () {
 		wget_retry "${dpdkSrcLink}" "/tmp" "${1}"
 		ssh "${1}" "tar xf /tmp/$dpdkSrcTar -C ${RTE_SDK} --strip-components 1"
 		check_exit_status "tar xf /tmp/$dpdkSrcTar on ${1}" "exit"
-		#dpdkSrcDir="${dpdkSrcTar%%".tar"*}"
 		LogMsg "dpdk source on ${1} $DPDK_DIR"
 	elif [[ $dpdkSrcLink =~ ".git" ]] || [[ $dpdkSrcLink =~ "git:" ]];
 	then
@@ -266,9 +265,6 @@ function Install_Dpdk () {
 		dpdkSrcDir="dpdk"
 		check_exit_status "Get DPDK sources from ppa on ${1}" "exit"
 	fi
-
-	
-	
 
 	DPDK_DIR="dpdk"
 	LogMsg "DPDK source directory: ${DPDK_DIR}"

@@ -93,15 +93,6 @@ fi
 
 # set DPDK_DIR global
 DPDK_DIR="dpdk"
-# dpdkSrcDir="${dpdkSrcLink##*/}"
-# if [[ $dpdkSrcLink =~ .tar ]]; then
-# 	DPDK_DIR="${dpdkSrcDir%%".tar"*}"
-# elif [[ $dpdkSrcLink =~ ".git" ]] || [[ $dpdkSrcLink =~ "git:" ]]; then
-# 	DPDK_DIR="${dpdkSrcDir%.git/}"
-# elif [[ $dpdkSrcLink =~ "ppa:" ]]; then
-# 	dpdk_version=$(dpkg -s 'dpdk' | grep 'Version' | head -1 | awk '{print $2}' | awk -F- '{print $1}')
-# 	DPDK_DIR="dpdk-${dpdk_version}"
-# fi
 
 LogMsg "DPDK source dir is: ${DPDK_DIR}"
 
