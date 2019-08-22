@@ -37,6 +37,7 @@ function Hugepage_Setup() {
 
 	LogMsg "Huge page setup is running"
 	ssh "${1}" "mkdir -p /mnt/huge && mkdir -p /mnt/huge-1G"
+	LogMsg "huge page directory: $?"
 	ssh "${1}" "mount -t hugetlbfs nodev /mnt/huge && mount -t hugetlbfs nodev /mnt/huge-1G -o 'pagesize=1G'"
 	check_exit_status "Huge pages are mounted on ${1}" "exit"
 	ssh "${1}" "echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages"
@@ -153,6 +154,10 @@ function Install_Dpdk () {
 	install_from_ppa=false
 	dpdk_version=""
 
+	HOMEDIR=$(pwd)
+	export RTE_SDK="${HOMEDIR}/dpdk"
+	export RTE_TARGET="x86_64-native-linuxapp-gcc"
+
 	SetTestStateRunning
 	LogMsg "Configuring ${1} ${DISTRO_NAME} ${DISTRO_VERSION} for DPDK test..."
 	packages=(gcc make git tar wget dos2unix psmisc make)
@@ -198,23 +203,25 @@ function Install_Dpdk () {
 
 	if [[ $dpdkSrcLink =~ .tar ]];
 	then
-		ssh ${1} "mkdir ${DPDK_DIR}"
+		ssh ${1} "mkdir ${RTE_SDK}"
 		dpdkSrcTar="${dpdkSrcLink##*/}"
 		dpdk_version=$(echo "$dpdkSrcTar" | grep -Po "(\d+\.)+\d+")
 		LogMsg "Installing DPDK from source file $dpdkSrcTar"
 		wget_retry "${dpdkSrcLink}" "/tmp" "${1}"
-		ssh "${1}" "tar xf /tmp/$dpdkSrcTar"
+		ssh "${1}" "tar xf /tmp/$dpdkSrcTar -C ${RTE_SDK} --strip-components 1"
 		check_exit_status "tar xf /tmp/$dpdkSrcTar on ${1}" "exit"
-		dpdkSrcDir="${dpdkSrcTar%%".tar"*}"
-		LogMsg "dpdk source on ${1} $dpdkSrcDir"
+		#dpdkSrcDir="${dpdkSrcTar%%".tar"*}"
+		LogMsg "dpdk source on ${1} $DPDK_DIR"
 	elif [[ $dpdkSrcLink =~ ".git" ]] || [[ $dpdkSrcLink =~ "git:" ]];
 	then
 		dpdkSrcDir="${dpdkSrcLink##*/}"
 		dpdkSrcDir="${dpdkSrcDir%.git/}"
 		LogMsg "Installing DPDK from source file $dpdkSrcDir"
-		ssh "${1}" git clone "$dpdkSrcLink"
+		ssh "${1}" git clone "$dpdkSrcLink $DPDK_DIR"
 		check_exit_status "git clone $dpdkSrcLink on ${1}" "exit"
-		LogMsg "dpdk source on ${1} $dpdkSrcDir"
+		ssh "${1}" "mv ${dpdkSrcDir} ${DPDK_DIR}"
+		LogMsg "dpdk source on ${1} $DPDK_DIR"
+
 	elif [[ $dpdkSrcLink =~ "ppa:" ]];
 	then
 		if [[ $DISTRO_NAME != "ubuntu" && $DISTRO_NAME != "debian" ]];
@@ -255,15 +262,15 @@ function Install_Dpdk () {
 		dpdkSrcDir="dpdk-${dpdk_version}"
 
 		ssh "${1}" "tar xf $dpdk_source"
+		ssh "${1}" "mv $dpdkSrcDir dpdk"
+		dpdkSrcDir="dpdk"
 		check_exit_status "Get DPDK sources from ppa on ${1}" "exit"
 	fi
 
-	HOMEDIR=$(pwd)
-	export RTE_SDK="${HOMEDIR}/dpdk"
-	export RTE_TARGET="x86_64-native-linuxapp-gcc"
-	ssh "${1}" "cp -r ${dpdkSrcDir}/* ${RTE_SDK}"
+	
+	
 
-	DPDK_DIR="${dpdkSrcDir}"
+	DPDK_DIR="dpdk"
 	LogMsg "DPDK source directory: ${DPDK_DIR}"
 
 	if [ ! -z "$dpdk_server_ip" -a "$dpdk_server_ip" != " " ];
