@@ -1167,19 +1167,22 @@ function Mount-Disk{
 
 	#>
 
+	# Get the data disk device name
+	$deviceName = Get-DeviceName -ip $ipv4 -port $vmPort -username $vmUsername -password $vmPassword
+
 	$cmdToVM = @"
 	#!/bin/bash
-	# /dev/sdc is used as /dev/sdb is the resource disk by default
-	(echo d;echo;echo w)|fdisk /dev/sdc
-	(echo n;echo p;echo 1;echo;echo;echo w)|fdisk /dev/sdc
-	if [ $? -ne 0 ];then
+
+	(echo d;echo;echo w)|fdisk $deviceName
+	(echo n;echo p;echo 1;echo;echo;echo w)|fdisk $deviceName
+	if [ `$? -ne 0 ];then
 		echo "Failed to create partition..."
 		exit 1
 	fi
-	mkfs.ext4 /dev/sdc1
+	mkfs.ext4 ${deviceName}1
 	mkdir -p /mnt/test
-	mount /dev/sdc1 /mnt/test
-	if [ $? -ne 0 ];then
+	mount ${deviceName}1 /mnt/test
+	if [ `$? -ne 0 ];then
 		echo "Failed to mount partition to /mnt/test..."
 		exit 1
 	fi
@@ -1188,12 +1191,12 @@ function Mount-Disk{
 	if (Test-Path ".\${filename}") {
 		Remove-Item ".\${filename}"
 	}
-		Add-Content $filename "$cmdToVM"
-		Copy-RemoteFiles -uploadTo $ipv4 -port $vmPort -files $filename -username $vmUsername -password $vmPassword -upload
-		$MountDisk = Run-LinuxCmd -username $vmUsername -password $vmPassword -ip $ipv4 -port $vmPort -command  `
-		"chmod u+x ${filename} && ./${filename}" -runAsSudo
-	if ($MountDisk) {
-		Write-LogInfo "Mounted /dev/sdc1 to /mnt/test"
+	Add-Content $filename "$cmdToVM"
+	Copy-RemoteFiles -uploadTo $ipv4 -port $vmPort -files $filename -username $vmUsername -password $vmPassword -upload
+	$null = Run-LinuxCmd -username $vmUsername -password $vmPassword -ip $ipv4 -port $vmPort -command  `
+	"chmod u+x ${filename} && ./${filename}" -runAsSudo
+	if ($?) {
+		Write-LogInfo "Mounted ${deviceName}1 to /mnt/test"
 		return $True
 	}
 }

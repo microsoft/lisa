@@ -36,7 +36,9 @@ function Connect-Disk {
         [String] $VMUser,
         [String] $VMPort
     )
-    $driveName = "/dev/sdc"
+
+    $driveName = Get-DeviceName -ip $IPv4 -port $VMPort -username $VMUser -password $VMPassword
+    Write-LogInfo "The disk device name: $driveName"
 
     $null = Run-LinuxCmd -username $VMUser -password $VMPassword -ip $IPv4 `
         -port $VMPort -command "(echo d;echo;echo w)|fdisk ${driveName}" -ignoreLinuxExitCode:$true

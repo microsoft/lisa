@@ -33,7 +33,7 @@
         <testName>STORAGE-VHDX-VERIFY-SECTORSIZE</testName>
         <setupScript>.\TestScripts\Windows\AddVhdxHardDisk.ps1</setupScript>
         <testScript>STOR-Verify-Sector-Size.sh</testScript>
-        <files>.\Testscripts\Linux\STOR-Verify-Sector-Size.sh,.\Testscripts\Linux\utils.sh</files>
+        <files>.\Testscripts\Linux\STOR-Verify-Sector-Size.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\get_data_disk_dev_name.sh</files>
         <setupType>OneVM</setupType>
         <TestParameters>
             <param>SCSI=1,1,Dynamic,512</param>
@@ -685,21 +685,6 @@
             <param>SCSI=0,1,Dynamic,512,6GB</param>
             <param>fileSystems=(ext4)</param>
             <param>TestLocalCopy=True</param>
-        </TestParameters>
-        <Platform>HyperV</Platform>
-        <Category>Functional</Category>
-        <Area>STORAGE</Area>
-        <Tags>storage</Tags>
-        <Priority>2</Priority>
-    </test>
-    <test>
-        <testName>STORAGE-VHDX-VERIFY-SECTORSIZE</testName>
-        <setupScript>.\TestScripts\Windows\AddVhdxHardDisk.ps1</setupScript>
-        <testScript>STOR-Verify-Sector-Size.sh</testScript>
-        <files>.\Testscripts\Linux\STOR-Verify-Sector-Size.sh,.\Testscripts\Linux\utils.sh</files>
-        <setupType>OneVM</setupType>
-        <TestParameters>
-            <param>SCSI=1,1,Dynamic,512</param>
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>

@@ -19,17 +19,17 @@
 
 UtilsInit
 # Need to add one disk before test
-drive_name=/dev/sdc
-# Check if parted is installed. If yes, create partition.
+drive_name=$(bash get_data_disk_dev_name.sh)
+# Check if parted is installed. If no, install it.
 parted --help > /dev/null 2>&1
-if [ $? -eq 0 ] ; then
-    parted $drive_name mklabel msdos
-    parted $drive_name mkpart primary 0% 100%
-else
-    LogErr "Parted not installed."
-    SetTestStateAborted
-    exit 0
+if [ $? -ne 0 ] ; then
+    update_repos
+    install_package parted
 fi
+
+# Create partition
+parted $drive_name mklabel msdos
+parted $drive_name mkpart primary 0% 100%
 fdisk_cmd=$(fdisk -lu $drive_name)
 test_disk=${drive_name}1
 start_sector=$(echo ${fdisk_cmd} | grep -o ${test_disk}.* | awk '{print $2}')
