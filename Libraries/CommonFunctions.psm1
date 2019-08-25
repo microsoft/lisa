@@ -574,7 +574,9 @@ function Install-CustomKernel ($CustomKernel, $allVMData, [switch]$RestartAfterU
 				#endregion
 			}
 			$packageInstallJobsRunning = $true
+			$kernelInstalledSkipped = $false
 			$kernelMatchSuccess = "CUSTOM_KERNEL_SUCCESS"
+			$customKernelAlreadyInstall="CUSTOM_KERNEL_ALREADY_INSTALLED"
 			while ($packageInstallJobsRunning) {
 				$packageInstallJobsRunning = $false
 				foreach ( $job in $packageInstallJobs ) {
@@ -589,10 +591,15 @@ function Install-CustomKernel ($CustomKernel, $allVMData, [switch]$RestartAfterU
 						if ( !(Test-Path -Path "$LogDir\$($job.RoleName)-build-CustomKernel.txt" ) ) {
 							Copy-RemoteFiles -download -downloadFrom $job.PublicIP -port $job.SSHPort -files "build-CustomKernel.txt" `
 								-username $user -password $password -downloadTo $LogDir
-							if ( ( Get-Content "$LogDir\build-CustomKernel.txt" ) -imatch $kernelMatchSuccess ) {
+							Rename-Item -Path "$LogDir\build-CustomKernel.txt" -NewName "$($job.RoleName)-build-CustomKernel.txt" -Force | Out-Null
+							if ( ( Get-Content "$LogDir\$($job.RoleName)-build-CustomKernel.txt" ) -imatch $kernelMatchSuccess ) {
 								$kernelSuccess += 1
 							}
-							Rename-Item -Path "$LogDir\build-CustomKernel.txt" -NewName "$($job.RoleName)-build-CustomKernel.txt" -Force | Out-Null
+							elseif ( ( Get-Content "$LogDir\$($job.RoleName)-build-CustomKernel.txt" ) -imatch $customKernelAlreadyInstall ) {
+								Write-LogInfo "Kernel upgrade is skipped in VM."
+								$kernelInstalledSkipped = $true
+								$kernelSuccess +=1
+							}
 						}
 					}
 				}
@@ -601,8 +608,8 @@ function Install-CustomKernel ($CustomKernel, $allVMData, [switch]$RestartAfterU
 				}
 			}
 			if ( $kernelSuccess -eq $jobCount ) {
-				Write-LogInfo "Kernel upgraded to `"$CustomKernel`" successfully in $jobCount VM(s)."
-				if ( $RestartAfterUpgrade ) {
+				if ( $RestartAfterUpgrade -and !$kernelInstalledSkipped ) {
+					Write-LogInfo "Kernel upgraded to `"$CustomKernel`" successfully in $jobCount VM(s)."
 					Write-LogInfo "Now restarting VMs..."
 					if ( $TestProvider.RestartAllDeployments($allVMData) ) {
 						$retryAttempts = 5
