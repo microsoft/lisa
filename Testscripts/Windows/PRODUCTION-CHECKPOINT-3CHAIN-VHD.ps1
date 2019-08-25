@@ -207,7 +207,7 @@ function Main {
         Write-LogInfo "Get the new IPv4 for $vmNameChild"
         # Get new IPV4
         $newIP = Get-IPv4AndWaitForSSHStart -VMName $vmNameChild -HvServer $hvServer `
-                -VmPort $port -User $user -Password $password -StepTimeout 360
+                -VmPort $port -User $user -Password $password -StepTimeout 30
         if ($newIP) {
             $vm2ipv4 = $newIP
         } else {
