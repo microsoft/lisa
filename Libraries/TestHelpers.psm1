@@ -85,18 +85,36 @@ function Upload-RemoteFile($uploadTo, $port, $file, $username, $password, $usePr
 							Set-Content -Value "1" -Path $args[6];
 							$username = $args[4];
 							$uploadTo = $args[5];
-							Write-Output "yes" | .\Tools\pscp -v -pw $args[1] -q -P $args[2] $args[3] $username@${uploadTo}: ;
+							Write-Output "yes" | .\Tools\pscp -v -pw $args[1] -q -P $args[2] $args[3] $username@${uploadTo}: 2>&1;
 							if ( $LASTEXITCODE -ne 0 ) {
-								Write-Output "yes" | .\Tools\pscp -v -scp -pw $args[1] -q -P $args[2] $args[3] $username@${uploadTo}: ;
+								Write-Output "yes" | .\Tools\pscp -v -scp -pw $args[1] -q -P $args[2] $args[3] $username@${uploadTo}: 2>&1;
 							}
 							Set-Content -Value $LASTEXITCODE -Path $args[6];
 						} -ArgumentList $curDir,$password,$port,$file,$username,${uploadTo},$uploadStatusRandomFile
 			Start-Sleep -Milliseconds 100
 			$uploadJobStatus = Get-Job -Id $uploadJob.Id
 			$uploadTimout = $false
+			$pscpStuckTimeout = 60
 			while (( $uploadJobStatus.State -eq "Running" ) -and ( !$uploadTimout ))
 			{
 				$now = Get-Date
+				if (($now - $uploadStartTime).TotalSeconds -gt $pscpStuckTimeout)
+				{
+					# We're handling here a very rare condition where VM is open to establish the TCP connection (ping is working)
+					# but, VM is not responding to SSH client. This behavior results in permanent hung of SSH client with below logs.
+					#     Looking up host "xxx.xxx.xxx.xxx" for SSH connection
+					#     Connecting to xxx.xxx.xxx.xxx port 22
+					#     We claim version: SSH-2.0-PuTTY_Release_0.71
+					#     <No further messages and pscp.exe is stuck here.>
+					# To handle this, we added a check to see if the pscp.exe's last console output is matching to "We claim version" string for more than 60 seconds.
+					# Because, for any other errors like "connection timeout" or "connection refused" happens under 20 seconds.
+					# The string - "We claim version", may change in future depending on the pscp.exe version, but this does not impact the existing flow of this function.
+					$uploadJobStatusConsole = [string](Receive-Job -Id $uploadJob.Id 2>&1)
+					if ($uploadJobStatusConsole) { $uploadJobStatusConsole = $uploadJobStatusConsole.TrimEnd() }
+					if ($uploadJobStatusConsole -and $uploadJobStatusConsole.Split("`n")[-1] -imatch "We claim version") {
+						Throw ".\Tools\pscp is stuck for $pscpStuckTimeout seconds. Aborting upload."
+					}
+				}
 				if ( ($now - $uploadStartTime).TotalSeconds -gt 600 )
 				{
 					$uploadTimout = $true
