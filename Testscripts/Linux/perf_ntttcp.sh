@@ -92,7 +92,7 @@ Run_SSHCommand()
 
 # Make & build ntttcp on client and server Machine
 LogMsg "Configuring client ${client}..."
-Run_SSHCommand "${client}" ". $UTIL_FILE && install_ntttcp ${ntttcpVersion}"
+Run_SSHCommand "${client}" ". $UTIL_FILE && install_ntttcp ${ntttcpVersion} ${lagscopeVersion}"
 if [ $? -ne 0 ]; then
 	LogMsg "Error: ntttcp installation failed in ${client}.."
 	UpdateTestState "TestAborted"
@@ -100,7 +100,7 @@ if [ $? -ne 0 ]; then
 fi
 
 LogMsg "Configuring server ${server}..."
-Run_SSHCommand "${server}" ". $UTIL_FILE && install_ntttcp ${ntttcpVersion}"
+Run_SSHCommand "${server}" ". $UTIL_FILE && install_ntttcp ${ntttcpVersion} ${lagscopeVersion}"
 if [ $? -ne 0 ]; then
 	LogMsg "Error: ntttcp installation failed in ${server}.."
 	UpdateTestState "TestAborted"
@@ -330,7 +330,7 @@ Run_Ntttcp()
 			ssh "${ip}" "${sar_cmd} -n DEV 1 ${testDuration}" > "./$log_folder/sar-${ip}-${tx_log_prefix}" &
 			ssh "${ip}" "${dstat_cmd} -dam" > "./$log_folder/dstat-${ip}-${tx_log_prefix}" &
 			ssh "${ip}" "${mpstat_cmd} -P ALL 1 ${testDuration}" > "./$log_folder/mpstat-${ip}-${tx_log_prefix}" &
-			ssh "${ip}" "${lagscope_cmd} -s${server} -t ${testDuration}" -V > "./$log_folder/lagscope-${ip}-${tx_log_prefix}" &
+			ssh "${ip}" "${lagscope_cmd} -s${server} -t${testDuration}" -V > "./$log_folder/lagscope-${ip}-${tx_log_prefix}" &
 			tx_lagscope_log_files+=("./$log_folder/lagscope-${ip}-${tx_log_prefix}")
 		done
 

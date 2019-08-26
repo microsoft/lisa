@@ -74,7 +74,7 @@ fi
 #Make & build lagscope on client and server VMs
 
 LogMsg "Configuring client ${client}..."
-ssh "${client}" ". $UTIL_FILE && install_lagscope"
+ssh "${client}" ". $UTIL_FILE && install_lagscope ${lagscopeVersion}"
 if [ $? -ne 0 ]; then
 	LogMsg "Error: lagscope installation failed in ${client}.."
 	UpdateTestState "TestAborted"
@@ -82,7 +82,7 @@ if [ $? -ne 0 ]; then
 fi
 
 LogMsg "Configuring server ${server}..."
-ssh "${server}" ". $UTIL_FILE && install_lagscope"
+ssh "${server}" ". $UTIL_FILE && install_lagscope ${lagscopeVersion}"
 if [ $? -ne 0 ]; then
 	LogMsg "Error: lagscope installation failed in ${server}.."
 	UpdateTestState "TestAborted"

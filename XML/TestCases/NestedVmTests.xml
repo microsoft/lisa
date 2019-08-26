@@ -36,6 +36,7 @@
             <param>testDuration=60</param>
             <param>testType=tcp</param>
             <param>testConnections=NESTED_NTTTCP_TCP_CONNECTIONS</param>
+            <param>lagscopeVersion=LAGSCOPE_VERSION</param>
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Performance</Category>
@@ -191,6 +192,7 @@
             <param>testType=tcp</param>
             <param>testDuration=60</param>
             <param>testConnections=NESTED_NTTTCP_TCP_CONNECTIONS</param>
+            <param>lagscopeVersion=LAGSCOPE_VERSION</param>
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Performance</Category>
@@ -219,6 +221,7 @@
             <param>testDuration=60</param>
             <param>testType=tcp</param>
             <param>testConnections=NESTED_NTTTCP_TCP_CONNECTIONS</param>
+            <param>lagscopeVersion=LAGSCOPE_VERSION</param>
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Performance</Category>
@@ -247,6 +250,7 @@
             <param>testDuration=60</param>
             <param>testType=tcp</param>
             <param>testConnections=NESTED_NTTTCP_TCP_CONNECTIONS</param>
+            <param>lagscopeVersion=LAGSCOPE_VERSION</param>
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Performance</Category>
@@ -273,6 +277,7 @@
             <param>NestedMemMB=8192</param>
             <param>NestedNetDevice=virtio-net-pci</param>
             <param>pingIteration=1000000</param>
+            <param>lagscopeVersion=LAGSCOPE_VERSION</param>
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Performance</Category>
@@ -300,6 +305,7 @@
             <param>testDuration=60</param>
             <param>testType=tcp</param>
             <param>testConnections=NESTED_NTTTCP_TCP_CONNECTIONS</param>
+            <param>lagscopeVersion=LAGSCOPE_VERSION</param>
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Performance</Category>
@@ -522,6 +528,7 @@
             <param>testType=tcp</param>
             <param>testConnections=NESTED_NTTTCP_TCP_CONNECTIONS</param>
             <param>SkipVerifyKernelLogs=true</param>
+            <param>lagscopeVersion=LAGSCOPE_VERSION</param>
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Performance</Category>
@@ -549,6 +556,7 @@
             <param>testType=tcp</param>
             <param>testConnections=NESTED_NTTTCP_TCP_CONNECTIONS</param>
             <param>SkipVerifyKernelLogs=true</param>
+            <param>lagscopeVersion=LAGSCOPE_VERSION</param>
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Performance</Category>

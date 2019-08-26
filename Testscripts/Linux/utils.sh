@@ -2576,13 +2576,26 @@ function install_iperf3 () {
 
 # Build and install lagscope
 function build_lagscope () {
+	lagscope_version="v0.2.0"
+	# If the lagscopeVersion is provided in xml then it will go for that version, otherwise default to v0.2.0.
+	if [ "${1}" ]; then
+		lagscope_version=${1}
+	fi
 	rm -rf lagscope
 	git clone https://github.com/Microsoft/lagscope
-	pushd lagscope/src && mkdir build
-	pushd build && cmake .. && cmake --build . && cmake --build . --target install
-	popd
-	popd
-	ln -s /usr/local/bin/lagscope /usr/bin/lagscope
+	if [ $lagscope_version ] && [[ $lagscope_version == v* ]]; then
+		currentVersion="${lagscope_version:1}"
+	else
+		currentVersion="${lagscope_version}"
+	fi
+	if [ $currentVersion ] && ( [ $currentVersion \> "0.2.0" ] || [ $currentVersion == "master" ] ); then
+		pushd lagscope && ./do-cmake.sh build && ./do-cmake.sh install
+		popd
+		ln -sf /usr/local/bin/lagscope /usr/bin/lagscope
+	else
+		pushd lagscope/src && git checkout "$lagscope_version" && make && make install
+		popd
+	fi
 }
 
 # Install lagscope and required packages
@@ -2593,21 +2606,21 @@ function install_lagscope () {
 		oracle|rhel|centos)
 			install_epel
 			yum -y --nogpgcheck install libaio sysstat git bc make gcc wget cmake
-			build_lagscope
+			build_lagscope "${1}"
 			iptables -F
 			;;
 
 		ubuntu|debian)
 			dpkg_configure
 			apt-get -y install libaio1 sysstat git bc make gcc cmake
-			build_lagscope
+			build_lagscope "${1}"
 			;;
 
 		sles|sle_hpc)
 			if [[ $DISTRO_VERSION =~ 12|15 ]]; then
 				add_sles_network_utilities_repo
 				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install sysstat git bc make gcc dstat psmisc cmake
-				build_lagscope
+				build_lagscope "${1}"
 				iptables -F
 			else
 				echo "Unsupported SLES version"
@@ -2617,7 +2630,7 @@ function install_lagscope () {
 
 		clear-linux-os)
 			swupd_bundle_install "performance-tools os-core-dev"
-			build_lagscope
+			build_lagscope "${1}"
 			iptables -F
 			;;
 
@@ -2666,7 +2679,7 @@ function install_ntttcp () {
 			install_epel
 			yum -y --nogpgcheck install wget libaio sysstat git bc make gcc dstat psmisc lshw cmake
 			build_ntttcp "${1}"
-			build_lagscope
+			build_lagscope "${2}"
 			iptables -F
 			;;
 
@@ -2674,7 +2687,7 @@ function install_ntttcp () {
 			dpkg_configure
 			apt-get -y install wget libaio1 sysstat git bc make gcc dstat psmisc lshw cmake
 			build_ntttcp "${1}"
-			build_lagscope
+			build_lagscope "${2}"
 			;;
 
 		sles|sle_hpc)
@@ -2682,7 +2695,7 @@ function install_ntttcp () {
 				add_sles_network_utilities_repo
 				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install wget sysstat git bc make gcc dstat psmisc lshw cmake
 				build_ntttcp "${1}"
-				build_lagscope
+				build_lagscope "${2}"
 				iptables -F
 			else
 				echo "Unsupported SLES version"
@@ -2693,7 +2706,7 @@ function install_ntttcp () {
 		clear-linux-os)
 			swupd_bundle_install "performance-tools os-core-dev"
 			build_ntttcp "${1}"
-			build_lagscope
+			build_lagscope "${2}"
 			iptables -F
 			;;
 
