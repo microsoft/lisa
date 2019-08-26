@@ -112,7 +112,15 @@ Function Main
 		}
 
 		# Find the vhdx drive to operate on
-		$vhdxDrive = Get-VMHardDiskDrive -VMName $vmName  -ComputerName $hvServer -ControllerLocation 1
+		$vhdxName = $vmName + "-" + $controllerType
+		$vhdxDisks = Get-VMHardDiskDrive -VMName $vmName -ComputerName $hvServer
+
+		foreach ($vhdx in $vhdxDisks){
+			$vhdxPath = $vhdx.Path
+			if ($vhdxPath.Contains($vhdxName)){
+				$vhdxDrive = Get-VMHardDiskDrive -VMName $vmName -Controllertype $controllerType -ControllerNumber $vhdx.ControllerNumber -ControllerLocation $vhdx.ControllerLocation -ComputerName $hvServer -ErrorAction SilentlyContinue
+			}
+		}
 		if (-not $vhdxDrive) {
 			$testResult = "FAIL"
 			Throw "No suitable virtual hard disk drives attached VM ${vmName}"
@@ -178,7 +186,7 @@ Function Main
 	} finally {
 		Stop-VM -VMName $vmName -ComputerName $hvServer -force
 		Remove-VMHardDiskDrive -VMHardDiskDrive $vhdxDrive
-		Remove-Item $vhdPath
+		$null = Invoke-Command -ComputerName $HvServer {Remove-Item -Path "$Using:vhdPath" -Force}
 		Start-VM -Name $vmName -ComputerName $hvServer
 		$resultArr += $testResult
 	}
