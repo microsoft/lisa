@@ -901,7 +901,11 @@ function Get-HostMemory($HvServer, [int]$RequestedMemory) {
     $totalMemory = [math]::Round((Get-WmiObject -Class Win32_ComputerSystem -Computer $HvServer).TotalPhysicalMemory/1MB)
     $bufferMemory = [int](0.1 * $totalMemory)
     # Get available memory and decrease the buffer from it
-    $availableMemory = [int](Get-Counter -Counter "\Memory\Available MBytes" -ComputerName $HvServer).CounterSamples[0].CookedValue
+    if ($HvServer -ne "localhost") {
+        $availableMemory = [int](Get-Counter -Counter "\Memory\Available MBytes" -ComputerName $HvServer).CounterSamples[0].CookedValue
+    } else {
+        $availableMemory = [int](Get-Counter -Counter "\Memory\Available MBytes").CounterSamples[0].CookedValue
+    }
     $availableMemory = $availableMemory - $bufferMemory
     # Check if there is enough memory to deploy the VM
     $availableMemoryAfterDeploy = $availableMemory - $RequestedMemory
