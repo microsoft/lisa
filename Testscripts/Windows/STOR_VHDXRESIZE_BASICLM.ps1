@@ -156,7 +156,10 @@ function Main {
         if ($diskInfo.FreeSpace -le $newVhdxSize + 10MB) {
             throw "Insufficent disk free space, This test case requires ${testParameters.NewSize} free, Current free space is $($diskInfo.FreeSpace)"
         }
-        Run-LinuxCmd -ip $Ipv4 -port $VMPort -username $user -password $password -command "echo 'deviceName=/dev/sdc' >> constants.sh" -runAsSudo
+        $deviceName = Get-DeviceName -ip $Ipv4 -port $VMPort -username $user -password $password
+        Write-LogInfo "The disk device name: $deviceName"
+        $sd = "$deviceName" -replace "/dev/",""
+        Run-LinuxCmd -ip $Ipv4 -port $VMPort -username $user -password $password -command "echo 'deviceName=${deviceName}' >> constants.sh" -runAsSudo
         $remoteScript="STOR_VHDXResize_PartitionDisk.sh"
         $retval = Invoke-RemoteScriptAndCheckStateFile $remoteScript $user $Password $Ipv4 $VMPort
         #$retval=Run-LinuxCmd -ip $Ipv4 -port $VMPort -username $user -password $password -command "./$remoteScript" -runAsSudo
@@ -172,8 +175,8 @@ function Main {
         # Check if the guest sees the added space
         #
         Write-LogInfo "Check if the guest sees the new space"
-        Run-LinuxCmd -ip $Ipv4 -port $VMPort -username $user -password $password -command "echo 1 > /sys/block/sdc/device/rescan" -runAsSudo
-        $diskSize = Run-LinuxCmd -ip $Ipv4 -port $VMPort -username $user -password $password -command "fdisk -l /dev/sdc  2> /dev/null | grep Disk | grep sdc | cut -f 5 -d ' '" -runAsSudo
+        Run-LinuxCmd -ip $Ipv4 -port $VMPort -username $user -password $password -command "echo 1 > /sys/block/${sd}/device/rescan" -runAsSudo
+        $diskSize = Run-LinuxCmd -ip $Ipv4 -port $VMPort -username $user -password $password -command "fdisk -l $deviceName  2> /dev/null | grep Disk | grep $sd | cut -f 5 -d ' '" -runAsSudo
         #
         # Let system have some time for the volume change to be indicated
         #

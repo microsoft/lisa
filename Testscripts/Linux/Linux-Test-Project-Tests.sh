@@ -50,6 +50,9 @@ fi
 update_repos
 install_package "${common_packages[@]}"
 
+drive_name=$(bash get_data_disk_dev_name.sh)
+LogMsg "Disk used: $drive_name"
+
 case $DISTRO in
     "suse"*)
         suse_packages=(git-core db48-utils libaio-devel libattr1 \
@@ -147,7 +150,7 @@ fi
 cd "$TOP_BUILDDIR"
 
 LogMsg "Running LTP..."
-LTP_PARAMS="-p -q -l $LTP_RESULTS -o $LTP_OUTPUT -z /dev/sdc"
+LTP_PARAMS="-p -q -l $LTP_RESULTS -o $LTP_OUTPUT -z $drive_name"
 
 if [[ "$SKIP_LTP_TESTS" != "" ]];then
     echo "Skipping tests: $SKIP_LTP_TESTS" >> ~/summary.log

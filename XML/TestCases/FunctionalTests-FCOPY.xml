@@ -33,6 +33,7 @@
 		<testName>FCOPY-LARGE-FILE</testName>
 		<setupScript>.\Testscripts\Windows\AddVhdxHardDisk.ps1</setupScript>
 		<testScript>FCOPY-LARGE-FILE.ps1</testScript>
+		<files>.\TestScripts\Linux\utils.sh</files>
 		<setupType>OneVM</setupType>
 		<testParameters>
 			<param>SCSI=1,0,Fixed,512,15GB</param>
@@ -58,6 +59,7 @@
 		<testName>FCOPY-REPEATED-DELETE</testName>
 		<setupScript>.\Testscripts\Windows\AddVhdxHardDisk.ps1</setupScript>
 		<testScript>FCOPY-REPEATED-DELETE.ps1</testScript>
+		<files>.\TestScripts\Linux\utils.sh</files>
 		<setupType>OneVM</setupType>
 		<testParameters>
 			<param>SCSI=1,0,Fixed,512,3GB</param>
@@ -73,6 +75,7 @@
 		<testName>FCOPY-DISABLE-ENABLE</testName>
 		<setupScript>.\Testscripts\Windows\AddVhdxHardDisk.ps1</setupScript>
 		<testScript>FCOPY-DISABLE-ENABLE.ps1</testScript>
+		<files>.\TestScripts\Linux\utils.sh</files>
 		<setupType>OneVM</setupType>
 		<testParameters>
 			<param>SCSI=1,0,Fixed,512,7GB</param>

@@ -82,7 +82,7 @@
     <test>
         <TestName>LINUX-TEST-PROJECT-TESTS</TestName>
         <TestScript>Run-LtpSuite.ps1</TestScript>
-        <files>.\Testscripts\Linux\utils.sh,.\TestScripts\Linux\Linux-Test-Project-Tests.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\TestScripts\Linux\Linux-Test-Project-Tests.sh,.\TestScripts\Linux\get_data_disk_dev_name.sh</files>
         <setupScript>.\TestScripts\Windows\AddVhdxHardDisk.ps1</setupScript>
         <cleanupScript>.\TestScripts\Windows\RemoveVhdxHardDisk.ps1</cleanupScript>
         <setupType>OneVM1Disk5G</setupType>
@@ -105,7 +105,7 @@
     <test>
         <TestName>LINUX-TEST-PROJECT-TESTS-FULL-RUN</TestName>
         <TestScript>Run-LtpSuite.ps1</TestScript>
-        <files>.\Testscripts\Linux\utils.sh,.\TestScripts\Linux\Linux-Test-Project-Tests.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\TestScripts\Linux\Linux-Test-Project-Tests.sh,.\TestScripts\Linux\get_data_disk_dev_name.sh</files>
         <setupScript>.\TestScripts\Windows\AddVhdxHardDisk.ps1</setupScript>
         <cleanupScript>.\TestScripts\Windows\RemoveVhdxHardDisk.ps1</cleanupScript>
         <setupType>OneVM1Disk5G</setupType>
