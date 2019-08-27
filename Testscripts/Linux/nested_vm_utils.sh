@@ -75,6 +75,7 @@ Download_Image_Files()
        shift
        shift
     done
+    cd /mnt/resource
     if [ "x$destination_image_name" == "x" ] || [ "x$source_image_url" == "x" ] ; then
         echo "Usage: GetImageFiles -destination_image_name <destination image name> -source_image_url <source nested image url>"
         Update_Test_State $ICA_TESTABORTED
