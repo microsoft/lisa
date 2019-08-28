@@ -108,6 +108,16 @@ sysctl -w vm.dirty_ratio=10
 sysctl -w vm.dirty_background_ratio=5
 sysctl -p
 
+# For cgroup test cases, the below subsystem should be mounted
+cgroup_subsystem_names=("rdma" "blkio" "memory" "net_cls,net_prio" "cpu,cpuacct" "devices" "pids" "cpuset" "freezer")
+for name in ${cgroup_subsystem_names[*]}; do
+    mount_point=$(grep -w $name /proc/mounts | grep -w "cgroup" | cut -f 2 | cut -d " " -f2)
+    if [ X$mount_point == X ]; then
+        LogMsg "$name is not mounted. Try to mount it"
+        mount -t cgroup -o rw,nosuid,nodev,noexec,relatime,$name cgroup /sys/fs/cgroup/$name
+    fi
+done
+
 # define regular stable releases in order to avoid unstable builds
 # https://github.com/linux-test-project/ltp/tags
 # 'ltp_version_git_tag' is passed from Test Definition in .\XML\TestCases\CommunityTests.xml.
