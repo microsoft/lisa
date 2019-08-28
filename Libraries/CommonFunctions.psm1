@@ -573,11 +573,12 @@ function Install-CustomKernel ($CustomKernel, $allVMData, [switch]$RestartAfterU
 				$jobCount += 1
 				#endregion
 			}
-			$packageInstallJobsRunning = $true
 			$kernelInstalledSkipped = $false
 			$kernelMatchSuccess = "CUSTOM_KERNEL_SUCCESS"
 			$customKernelAlreadyInstall="CUSTOM_KERNEL_ALREADY_INSTALLED"
-			while ($packageInstallJobsRunning) {
+			$timeout = New-Timespan -Minutes 180
+			$sw = [diagnostics.stopwatch]::StartNew()
+			while ($sw.elapsed -lt $timeout) {
 				$packageInstallJobsRunning = $false
 				foreach ( $job in $packageInstallJobs ) {
 					if ( (Get-Job -Id $($job.ID)).State -eq "Running" ) {
@@ -605,6 +606,8 @@ function Install-CustomKernel ($CustomKernel, $allVMData, [switch]$RestartAfterU
 				}
 				if ( $packageInstallJobsRunning ) {
 					Wait-Time -seconds 5
+				} else {
+					break
 				}
 			}
 			if ( $kernelSuccess -eq $jobCount ) {
