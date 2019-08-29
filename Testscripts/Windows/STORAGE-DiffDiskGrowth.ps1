@@ -104,9 +104,9 @@ function Main {
     }
 
     $vmGeneration = Get-VMGeneration $vmName $hvServer
-    if ( $controllerType -eq "IDE" -and $vmGeneration -eq 2 ) {
-        Write-LogErr "Generation 2 VM does not support IDE disk, skip test"
-        return "FAIL"
+    if (( $controllerType -eq "IDE" -or $vhdFormat -eq "vhd" ) -and $vmGeneration -eq 2 ) {
+        Write-LogInfo "Generation 2 VM does not support IDE or vhd disk, skip test"
+        return "SKIPPED"
     }
     if (-not $controllerID) {
         Write-LogErr "Missing controller index in test parameters"
