@@ -227,7 +227,7 @@ Collect_Logs() {
 	check_exit_status "Get the NTTTCP report"
 }
 
-Update_Test_State $ICA_TESTRUNNING
+SetTestStateRunning
 Install_KVM_Dependencies
 Download_Image_Files -destination_image_name $CLIENT_IMAGE -source_image_url $NestedImageUrl
 cp $CLIENT_IMAGE $SERVER_IMAGE
@@ -236,4 +236,7 @@ Prepare_Nested_VMs
 Run_Ntttcp_On_Client
 Collect_Logs
 Stop_Nested_VM
-Update_Test_State $ICA_TESTCOMPLETED
+SetTestStateCompleted
+
+#Exiting with zero is important.
+exit 0

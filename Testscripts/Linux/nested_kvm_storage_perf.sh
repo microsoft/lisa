@@ -155,7 +155,7 @@ Collect_Logs()
 ############################################################
 #   Main body
 ############################################################
-Update_Test_State $ICA_TESTRUNNING
+SetTestStateRunning
 
 disks=$(ls -l /dev | grep sd[c-z]$ | awk '{print $10}')
 Remove_Raid
@@ -190,4 +190,7 @@ Run_Fio
 Collect_Logs
 Stop_Nested_VM
 collect_VM_properties
-Update_Test_State $ICA_TESTCOMPLETED
+SetTestStateCompleted
+
+#Exiting with zero is important.
+exit 0

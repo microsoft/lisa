@@ -195,7 +195,7 @@ Collect_Logs()
     Remote_Copy_Wrapper "root" $HOST_FWD_PORT "nested_properties.csv" "get"
 }
 
-Update_Test_State $ICA_TESTRUNNING
+SetTestStateRunning
 Install_KVM_Dependencies
 Download_Image_Files -destination_image_name $IMAGE_NAME -source_image_url $NestedImageUrl
 Setup_Public_Bridge $BR_NAME $BR_ADDR
@@ -205,4 +205,7 @@ if [ "$role" == "client" ]; then
     Collect_Logs
     Stop_Nested_VM
 fi
-Update_Test_State $ICA_TESTCOMPLETED
+SetTestStateCompleted
+
+#Exiting with zero is important.
+exit 0
