@@ -128,6 +128,11 @@ function InstallCUDADrivers() {
             return 1
         fi
     ;;
+    suse*)
+        echo "$DISTRO not supported. Skip the test."
+        SetTestStateSkipped
+        exit 0
+    ;;
     esac
 
     find /var/lib/dkms/nvidia* -name make.log -exec cp {} ${HOME}/nvidia_dkms_make.log \;

@@ -196,6 +196,11 @@ function Main {
         $installState = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
             -password $password -command "cat /$superuser/state.txt"
 
+        if ($installState -eq "TestSkipped") {
+            $currentTestResult.TestResult = Get-FinalResultHeader -resultarr "SKIPPED"
+            return $currentTestResult
+        }
+
         if ($installState -imatch "TestAborted") {
             Write-LogErr "CUDA drivers installation aborted"
             $currentTestResult.TestResult = Get-FinalResultHeader -resultarr "ABORTED"
