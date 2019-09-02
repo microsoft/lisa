@@ -82,6 +82,7 @@ config_modulesDic=(
 [CONFIG_HYPERV=y]="hv_vmbus.ko"
 [CONFIG_HYPERV_STORAGE=y]="hv_storvsc.ko"
 [CONFIG_HYPERV_NET=y]="hv_netvsc.ko"
+[CONFIG_HYPERV_KEYBOARD=y]="hyperv-keyboard.ko"
 )
 for key in $(echo ${!config_modulesDic[*]})
 do
@@ -106,7 +107,7 @@ done
 hv_modules=("${tempList[@]}")
 
 if [ "${hv_modules:-UNDEFINED}" = "UNDEFINED" ]; then
-    LogMsg "hv_vmbus.ko, hv_storvsc.ko and hv_netvsc.ko modules are built-in, skip test"
+    LogMsg "hv_vmbus.ko, hv_storvsc.ko, hv_netvsc.ko and hyperv-keyboard.ko modules are built-in, skip test"
     SetTestStateSkipped
     exit 0
 fi
