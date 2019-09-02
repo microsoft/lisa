@@ -2294,6 +2294,8 @@ function install_epel () {
 				epel_rpm_url="https://dl.fedoraproject.org/pub/epel/epel-release-latest-6.noarch.rpm"
 			elif [[ $DISTRO_VERSION =~ ^7\. ]]; then
 				epel_rpm_url="https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm"
+			elif [[ $DISTRO_VERSION =~ ^8\. ]]; then
+				epel_rpm_url="https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm"
 			else
 				echo "Unsupported version to install epel repository"
 				return 1

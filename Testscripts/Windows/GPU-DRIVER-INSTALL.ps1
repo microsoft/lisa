@@ -159,7 +159,7 @@ function Main {
             $currentTestResult.TestResult = Get-FinalResultHeader -resultarr "ABORTED"
             return $currentTestResult
         }
-        $CurrentTestResult.TestSummary += New-ResultSummary -metaData "Using nVidia driver" -testName $CurrentTestData.testName -testResult $driver
+        $currentTestResult.TestSummary += New-ResultSummary -metaData "Using nVidia driver" -testName $CurrentTestData.testName -testResult $driver
 
         $cmdAddConstants = "echo -e `"driver=$($driver)`" >> constants.sh"
         Run-LinuxCmd -username $superuser -password $password -ip $allVMData.PublicIP -port $allVMData.SSHPort `
@@ -175,8 +175,17 @@ function Main {
                 Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
                     -password $password -command "wget -q https://aka.ms/lis -O - | tar -xz" -ignoreLinuxExitCode | Out-Null
                 Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
-                    -password $password -command "cd LISISO && ./install.sh" | Out-Null
-                if (-not $?) {
+                    -password $password -command "cd LISISO && ./install.sh > installLIS.log" -ignoreLinuxExitCode | Out-Null
+                $installLIS = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
+                    -password $password -command "cat /$superuser/LISISO/installLIS.log" -ignoreLinuxExitCode
+                if ($installLIS -imatch "Unsupported kernel version") {
+                    Write-LogInfo "Unsupported kernel version!"
+                    $currentTestResult.TestSummary += New-ResultSummary -testName $CurrentTestData.testName -testResult "Unsupported kernel version!"
+                    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr "SKIPPED"
+                    return $currentTestResult
+                } elseif ($installLIS -imatch "Linux Integration Services for Hyper-V has been installed") {
+                    Write-LogInfo "LIS has been installed successfully!"
+                } else {
                     Write-LogErr "Unable to install the LIS RPMs!"
                     $currentTestResult.TestResult = Get-FinalResultHeader -resultarr "ABORTED"
                     return $currentTestResult
