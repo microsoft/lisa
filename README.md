@@ -36,7 +36,7 @@ LISAv2 includes below test suite categories:
 
 5. For running Hyper-V tests, the resource requirements are:
 - Hyper-V role enabled
-- At least 8 GB of memory on the Host - Most of lisav2 tests will create and start Virtual Machines (Guests) with 3.5 GB of memory assigned
+- At least 8 GB of memory on the Host - Most of LISAv2 tests will create and start Virtual Machines (Guests) with 3.5 GB of memory assigned
 - 1 External vSwitch in Hyper-V Manager/Virtual Switch Manager. This vSwitch will be named 'External' and must have an internet connection. For Hyper-V NETWORK tests you need 2 more vSwitch types created: Internal and Private. These 2 vSwitches will have the naming also 'Internal' and 'Private'.
 
 6. For running WSL tests, you must enable WSL on the test server
@@ -51,6 +51,7 @@ LISAv2 includes below test suite categories:
 
 1. Download Web Platform Installer from [here](http://go.microsoft.com/fwlink/p/?linkid=320376&clcid=0x409)
 2. Start Web Platform Installer and select Azure PowerShell (required 6.3.0 or above) and proceed for Azure PowerShell Installation.
+3. Install the Azure Powershell Az module [here](https://docs.microsoft.com/en-us/powershell/azure/install-az-ps?view=azps-2.6.0)
 
 ### Authenticate Your Test Driver Machine with Your Azure Subscription
 
