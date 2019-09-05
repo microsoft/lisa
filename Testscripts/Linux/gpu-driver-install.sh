@@ -34,8 +34,8 @@ grid_driver="https://go.microsoft.com/fwlink/?linkid=874272"
 #######################################################################
 function InstallRequirements() {
     case $DISTRO in
-    redhat_7|centos_7)
-        if [[ $DISTRO -eq centos_7 ]]; then
+    redhat_7|centos_7|redhat_8)
+        if [[ $DISTRO == "centos_7" ]]; then
             # for all releases that are moved into vault.centos.org
             # we have to update the repositories first
             yum -y install centos-release
@@ -128,8 +128,8 @@ function InstallCUDADrivers() {
             return 1
         fi
     ;;
-    suse*)
-        echo "$DISTRO not supported. Skip the test."
+    suse*|redhat_8)
+        LogMsg "$DISTRO not supported. Skip the test."
         SetTestStateSkipped
         exit 0
     ;;
@@ -187,7 +187,7 @@ UtilsInit
 
 GetDistro
 update_repos
-install_package "wget lshw gcc"
+install_package "wget lshw gcc make"
 
 InstallRequirements
 check_exit_status "Install requirements" "exit"
@@ -205,6 +205,13 @@ if [ $? -ne 0 ]; then
     LogErr "Could not install the $driver drivers!"
     SetTestStateFailed
     exit 0
+fi
+
+if [[ $DISTRO == "redhat_8" ]]; then
+    ln -s /usr/libexec/platform-python /sbin/python
+    wget https://raw.githubusercontent.com/torvalds/linux/master/tools/hv/lsvmbus
+    chmod +x lsvmbus
+    mv lsvmbus /usr/sbin
 fi
 
 SetTestStateCompleted
