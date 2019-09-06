@@ -172,15 +172,9 @@ function Main() {
 			;;
 		ubuntu*)
 			LogMsg "This is Ubuntu"
-			# IBM Platform MPI & Intel MPI do not seem to work. Under investigation.
-			if [[ $mpi_type == "ibm" || $mpi_type == "intel" ]]; then
-				LogErr "Distro '$DISTRO' not supported or not implemented"
-				SetTestStateSkipped
-				exit 0
-			fi
 			hpcx_ver="ubuntu"$VERSION_ID
 			LogMsg "Installing required packages ..."
-			install_package "build-essential python-setuptools libibverbs-dev bison flex ibverbs-utils net-tools"
+			install_package "build-essential python-setuptools libibverbs-dev bison flex ibverbs-utils net-tools libdapl2"
 			;;
 		*)
 			LogErr "MPI type $mpi_type does not support on '$DISTRO' or not implement"
@@ -410,26 +404,15 @@ function Main() {
 		LogMsg "Completed MVAPICH MPI installation"
 	fi
 
-	# Install stable WALA agent and apply 3 patches
-	# This is customized part for RHEL 7.5 Standard_HB60rs
+	# Enable OS.RDMA and AutoUpdate.Enable in waagent configuration
 	cd ~
 
-	LogMsg "Download WALA agent repo and checkout tag 2.2.35"
-	git clone --branch v2.2.35 $walaagent_repo
-	Verify_Result
-
-	cd WALinuxAgent
-
 	LogMsg "Eanble EnableRDMA parameter in waagent.config"
-	sed -i -e 's/# OS.EnableRDMA=y/OS.EnableRDMA=y/g' config/waagent.conf
+	sed -i -e 's/# OS.EnableRDMA=y/OS.EnableRDMA=y/g' /etc/waagent.conf
 	Verify_Result
 
-	LogMsg "Disable AutoUpdate parameter in waagent.config"
-	sed -i -e 's/AutoUpdate.Enabled=y/# AutoUpdate.Enabled=y/g' config/waagent.conf
-	Verify_Result
-
-	LogMsg "Compile WALA"
-	python setup.py install --register-service  --force
+	LogMsg "Enable AutoUpdate parameter in waagent.config"
+	sed -i -e 's/# AutoUpdate.Enabled=y/AutoUpdate.Enabled=y/g' /etc/waagent.conf
 	Verify_Result
 
 	LogMsg "Restart waagent service"
@@ -439,6 +422,7 @@ function Main() {
 		service waagent restart
 	fi
 	Verify_Result
+
 	cd ~
 	LogMsg "Proceeding Intel MPI Benchmark test installation"
 
