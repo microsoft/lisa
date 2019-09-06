@@ -28,9 +28,10 @@ param([object] $AllVmData,
 function Start-Validation {
     # region PCI Express pass-through in lsvmbus
     $PCIExpress = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort `
-        -username $superuser -password $password "lsvmbus" -ignoreLinuxExitCode
+        -username $superuser -password $password "lsvmbus -vv" -ignoreLinuxExitCode
     Set-Content -Value $PCIExpress -Path $LogDir\PCI-Express-passthrough.txt -Force
-    $pciExpressCount = (Select-String -Path $LogDir\PCI-Express-passthrough.txt -Pattern "PCI Express pass-through").Matches.Count
+    # Scope to match GPUs only since there can be other pass-through devices
+    $pciExpressCount = (Select-String -Path $LogDir\PCI-Express-passthrough.txt -Pattern "Device_ID.*47505500").Matches.Count
     if ($pciExpressCount -eq $expectedGPUCount) {
         $currentResult = $resultPass
     } else {
