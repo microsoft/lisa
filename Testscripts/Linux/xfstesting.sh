@@ -166,6 +166,18 @@ Main() {
         exit 0
     fi
     GetDistro
+    config_path="/boot/config-$(uname -r)"
+    if [[ $(detect_linux_distribution) == clear-linux-os ]]; then
+        config_path="/usr/lib/kernel/config-$(uname -r)"
+    elif [[ $(detect_linux_distribution) == coreos ]];then
+        config_path="/usr/boot/config-$(uname -r)"
+    fi
+    grep -q "CONFIG_BTRFS_FS is not set" $config_path
+    if [ $? -eq 0 ];then
+        LogMsg "CONFIG_BTRFS_FS is not set in $config_path file in ${DISTRO}, skip the test"
+        SetTestStateSkipped
+        exit 0
+    fi
     #Refer https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8/html/considerations_in_adopting_rhel_8/file-systems-and-storage_considerations-in-adopting-rhel-8
     if [ $DISTRO == "redhat_8" ] && [ $FSTYP == "btrfs" ]; then
         LogMsg "${DISTRO} doesn't support $FSTYP filesystem."
