@@ -41,6 +41,11 @@ Install_KVM_Dependencies()
     if [ $DISTRO_NAME == "sles" ] || [ $DISTRO_NAME == "sle_hpc" ]; then
         add_sles_network_utilities_repo
     fi
+    if [ $DISTRO_NAME == "coreos" ]; then
+        LogMsg "Distro not supported. Skip the test."
+        SetTestStateSkipped
+        exit 0
+    fi
     update_repos
     install_package qemu-kvm
     install_package bridge-utils

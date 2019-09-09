@@ -59,6 +59,11 @@ Install_Kexec(){
                 UpdateSummary "Warning: Kexec-tools failed to install."
             fi
         ;;
+        coreos*)
+            LogMsg "Distro not supported. Skip the test."
+            SetTestStateSkipped
+            exit 0
+        ;;
         *)
             LogErr "Warning: Distro '${distro}' not supported. Kexec-tools failed to install."
         ;;
