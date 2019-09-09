@@ -172,6 +172,11 @@ Main() {
         SetTestStateSkipped
         exit 0
     fi
+    if [ $DISTRO == "coreos" ]; then
+        LogMsg "Distro not supported. Skip the test."
+        SetTestStateSkipped
+        exit 0
+    fi
     # Configure XFS Tools
     ConfigureXFSTestTools
 
