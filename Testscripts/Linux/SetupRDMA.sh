@@ -174,7 +174,15 @@ function Main() {
 			LogMsg "This is Ubuntu"
 			hpcx_ver="ubuntu"$VERSION_ID
 			LogMsg "Installing required packages ..."
-			install_package "build-essential python-setuptools libibverbs-dev bison flex ibverbs-utils net-tools libdapl2"
+			install_package "build-essential python-setuptools libibverbs-dev bison flex ibverbs-utils net-tools libdapl2 libmlx5 libmlx4-dev rdmacm-utils rdma-core bc"
+			LogMsg "*** Adding kernel modules to /etc/modules"
+			echo rdma_ucm >> /etc/modules
+			echo ib_ipoib >> /etc/modules
+			LogMsg "*** Adding Canoncial ppa for temporary fix"
+			add-apt-repository -y ppa:ci-train-ppa-service/3760
+			LogMsg "*** System updating with the customized ppa"
+			apt update
+			apt upgrade -y			
 			;;
 		*)
 			LogErr "MPI type $mpi_type does not support on '$DISTRO' or not implement"
@@ -292,6 +300,9 @@ function Main() {
 
 		# add Intel MPI path to PATH
 		export PATH=$PATH:"${mpirun_path%/*}"
+		# add sourcing file in each session
+		echo "source ${mpirun_path%/*}/mpivars.sh" >> $HOMEDIR/.bashrc
+		echo "source ${mpirun_path%/*}/mpivars.sh" >> /home/lisa/.bashrc
 
 		LogMsg "Completed Intel MPI installation"
 
