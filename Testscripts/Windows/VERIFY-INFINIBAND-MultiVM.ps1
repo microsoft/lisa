@@ -72,16 +72,7 @@ function Main {
 			Write-LogInfo "Waiting 5 minutes to finish RDMA update for NC series VMs."
 			Start-Sleep -Seconds 300
 		}
-		# Ubuntu extra step: make sure the VM supports RDMA
-		if (@("UBUNTU").contains($global:detectedDistro)) {
-			$cmd = "lsb_release -r | awk '{print `$2}'"
-			$release = Run-LinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username `
-				$user -password $password $cmd -ignoreLinuxExitCode:$true
-			if ($release.Split(".")[0] -lt "18") {
-				Write-LogInfo "Ubuntu $release is not supported! Test skipped"
-				return "SKIPPED"
-			}
-		}
+
 		#Skip test case against distro CLEARLINUX and COREOS based here https://docs.microsoft.com/en-us/azure/virtual-machines/linux/sizes-hpc
 		if (@("CLEARLINUX", "COREOS").contains($global:detectedDistro)) {
 			Write-LogInfo "$($global:detectedDistro) is not supported! Test skipped!"
