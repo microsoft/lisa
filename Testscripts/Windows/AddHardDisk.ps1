@@ -340,11 +340,6 @@ function Main {
         return $False
     }
 
-    $vmGen = Get-VMGeneration $VMName $HvServer
-    if ($vmGen -ne 1) {
-        throw "VHD is not supported by Gen 2 VMs"
-    }
-
     # Parse the testParams string
     $params = $testParams.Split(';')
     foreach ($p in $params) {
@@ -357,6 +352,16 @@ function Main {
             Write-LogErr "test parameter '$p' is being ignored because it appears to be malformed"
             continue
         }
+
+        if ( "vhdFormat" -eq $temp[0] ) {
+            $vhdFormat = $temp[1]
+            $vmGen = Get-VMGeneration $VMName $HvServer
+            if ($vmGen -ne 1 -and $vhdFormat -eq 'vhd') {
+                Write-LogInfo "Generation 2 VM does not support vhd disk, please skip this case in the test script"
+                return $True
+            }
+        }
+
         $controllerType = $temp[0]
         if (@("IDE", "SCSI") -notcontains $controllerType) {
             continue
