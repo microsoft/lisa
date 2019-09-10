@@ -194,11 +194,14 @@ Function Main
 		$testResult = "PASS"
 
 	} catch {
-		$testResult = "FAIL"
 		$ErrorMessage =  $_.Exception.Message
 		$ErrorLine = $_.InvocationInfo.ScriptLineNumber
-		Write-LogErr "$ErrorMessage at line: $ErrorLine"
-
+		if ($testResult -eq "SKIPPED" ) {
+			Write-LogInfo "$ErrorMessage"
+		}
+		else {
+			Write-LogErr "$ErrorMessage at line: $ErrorLine"
+		}
 	} finally {
 		$resultArr += $testResult
 	}
