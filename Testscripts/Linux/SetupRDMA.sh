@@ -174,10 +174,19 @@ function Main() {
 			LogMsg "This is Ubuntu"
 			hpcx_ver="ubuntu"$VERSION_ID
 			LogMsg "Installing required packages ..."
-			install_package "build-essential python-setuptools libibverbs-dev bison flex ibverbs-utils net-tools libdapl2 libmlx5 libmlx4-dev rdmacm-utils rdma-core bc"
+			LogMsg "*** Adding Canoncial ppa for temporary fix"
+			add-apt-repository -y ppa:ci-train-ppa-service/3760
+
+			LogMsg "*** System updating with the customized ppa"
+			apt update
+			apt upgrade -y
+
+			install_package "build-essential python-setuptools libibverbs-dev bison flex ibverbs-utils net-tools libdapl2 rdmacm-utils bc"
 			LogMsg "*** Adding kernel modules to /etc/modules"
 			echo rdma_ucm >> /etc/modules
+			modprobe rdma_ucm
 			echo ib_ipoib >> /etc/modules
+			modprobe ib_ipoib
 			LogMsg "*** Adding Canoncial ppa for temporary fix"
 			add-apt-repository -y ppa:ci-train-ppa-service/3760
 			LogMsg "*** System updating with the customized ppa"
