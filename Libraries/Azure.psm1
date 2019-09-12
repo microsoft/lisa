@@ -2329,8 +2329,16 @@ Function Set-SRIOVinAzureVMs {
             if ( $VMPropertiesChanged ) {
                 # Start the VM..
                 Write-LogInfo "Starting VM $($VMName)..."
-                $null = Start-AzVM -ResourceGroup $ResourceGroup -Name $VMName
+                $null = Start-AzVM -ResourceGroupName $ResourceGroup -Name $VMName -NoWait
 
+                $vm = Get-AzVM -ResourceGroupName $ResourceGroup -Name $VMName -Status
+                $MaxAttempts = 10
+                while (($vm.Statuses[-1].Code -ne "PowerState/running") -and $MaxAttempts -gt 0) {
+                    Start-Sleep 10
+                    $MaxAttempts -= 1
+                    Write-LogInfo "VM $($VMName) is still not in running state, wait for 10 seconds..."
+                    $vm = Get-AzVM -ResourceGroupName $ResourceGroup -Name $VMName -Status
+                }
                 # Public IP address changes most of the times, when we shutdown the VM.
                 # Hence, we need to refresh the data
                 $VMData = Get-AllDeploymentData -ResourceGroups $ResourceGroup
