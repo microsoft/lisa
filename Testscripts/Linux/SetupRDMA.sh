@@ -181,7 +181,13 @@ function Main() {
 			apt update
 			apt upgrade -y
 
+			LogMsg "Required 32-bit java"
+			dpkg --add-architecture i386
+			apt update
+
 			install_package "build-essential python-setuptools libibverbs-dev bison flex ibverbs-utils net-tools libdapl2 rdmacm-utils bc"
+			install_package " openjdk-9-jre:i386"
+
 			LogMsg "*** Adding kernel modules to /etc/modules"
 			echo rdma_ucm >> /etc/modules
 			modprobe rdma_ucm
