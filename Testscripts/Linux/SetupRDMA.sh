@@ -251,21 +251,26 @@ function Main() {
 		# compile ping_pong
 		cd $ping_pong_help
 		LogMsg "Compiling ping_pong binary in Platform help directory"
-		make -j $(nproc)
+		ret=`make -j $(nproc)`
 		if [ $? -ne 0 ]; then
 			pkey=$(cat /sys/class/infiniband/*/ports/1/pkeys/0)
 			export MPI_IB_PKEY=${pkey}
 			make -j $(nproc)
+			LogMsg "Ping-pong compilation completed"
+		else
+			LogErr "Failed to complie ping_pong binary: $ret"
 		fi
-		LogMsg "Ping-pong compilation completed"
 
 		# verify ping_pong binary
 		Verify_File $ping_pong_bin
 
 		# add IBM Platform MPI path to PATH
+		LogMsg "Exporting MPI_ROOT and PATH variables"
 		export MPI_ROOT=/opt/ibm/platform_mpi
+		LogMsg "MPI_ROOT: $MPI_ROOT"
 		export PATH=$PATH:$MPI_ROOT
 		export PATH=$PATH:$MPI_ROOT/bin
+		LogMsg "PATH: $PATH"
 	elif [ $mpi_type == "intel" ]; then
 		# if HPC images comes with MPI binary pre-installed, (CentOS HPC)
 		#   there is no action required except binary verification
