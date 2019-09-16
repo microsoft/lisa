@@ -73,17 +73,6 @@ function Main {
 			Start-Sleep -Seconds 300
 		}
 
-		# Ubuntu extra step: make sure the VM supports RDMA
-		if (@("UBUNTU").contains($global:detectedDistro)) {
-			$cmd = "lsb_release -r | awk '{print `$2}'"
-			$release = Run-LinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username `
-					$user -password $password $cmd -ignoreLinuxExitCode:$true
-			if ($release.Split(".")[0] -lt "18" -and $MpiType -eq 'hpcx') {
-				Write-LogInfo "$MpiType in Ubuntu $release is not supported! Test skipped"
-				return "SKIPPED"
-			}
-		}
-
 		#Skip test case against distro CLEARLINUX and COREOS based here https://docs.microsoft.com/en-us/azure/virtual-machines/linux/sizes-hpc
 		if (@("CLEARLINUX", "COREOS").contains($global:detectedDistro)) {
 			Write-LogInfo "$($global:detectedDistro) is not supported! Test skipped!"
@@ -147,9 +136,6 @@ function Main {
 			if ($TestParam -imatch "num_reboot") {
 				$RemainingRebootIterations = [string]($TestParam.Replace("num_reboot=", "").Trim('"'))
 				$ExpectedSuccessCount = [int]($TestParam.Replace("num_reboot=", "").Trim('"')) + 1
-			}
-			if ($TestParam -imatch "mpi_type") {
-				$MpiType = [string]($TestParam.Replace("mpi_type=", "").Trim('"'))
 			}
 		}
 		Add-Content -Value "master=`"$($ServerVMData.InternalIP)`"" -Path $constantsFile
