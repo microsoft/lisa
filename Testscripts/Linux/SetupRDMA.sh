@@ -186,13 +186,15 @@ function Main() {
 			apt update
 
 			install_package "build-essential python-setuptools libibverbs-dev bison flex ibverbs-utils net-tools libdapl2 rdmacm-utils bc"
-			install_package " openjdk-9-jre:i386"
+			install_package "openjdk-9-jre:i386"
 
 			LogMsg "*** Adding kernel modules to /etc/modules"
 			echo rdma_ucm >> /etc/modules
 			modprobe rdma_ucm
 			echo ib_ipoib >> /etc/modules
 			modprobe ib_ipoib
+			echo ib_umad >> /etc/modules
+			modprobe ib_umad
 			LogMsg "*** Adding Canoncial ppa for temporary fix"
 			add-apt-repository -y ppa:ci-train-ppa-service/3760
 			LogMsg "*** System updating with the customized ppa"
