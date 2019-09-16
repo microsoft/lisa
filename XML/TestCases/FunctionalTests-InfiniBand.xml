@@ -158,7 +158,7 @@
 		<Area>INFINIBAND</Area>
 		<Tags>rdma</Tags>
 	</test>
-	<!-- HPC-X MPI -->
+<!-- 	HPC-X MPI: Mellanox HPC-X links constantly changed, so can not support HPC-X. Leave the code, however. 
 	<test>
 		<testName>INFINIBAND-HPCX-MPI-2VM</testName>
 		<testScript>VERIFY-INFINIBAND-MultiVM.ps1</testScript>
@@ -232,7 +232,7 @@
 		<Category>Functional</Category>
 		<Area>INFINIBAND</Area>
 		<Tags>rdma</Tags>
-	</test>
+	</test> -->
 <!-- IBM MPI -->
 	<test>
 		<testName>INFINIBAND-IBM-MPI-2VM</testName>
