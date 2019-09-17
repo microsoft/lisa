@@ -75,7 +75,7 @@ function UnbindCurrentSource()
 	then
 		_clocksource=$(cat /sys/devices/system/clocksource/clocksource0/current_clocksource)
 		retryTime=1
-		maxRetryTimes=5
+		maxRetryTimes=20
 		while [ $retryTime -le $maxRetryTimes ]
 		do
 			LogMsg "Sleep 10 seconds for message show up in log file for the $retryTime time(s)."
