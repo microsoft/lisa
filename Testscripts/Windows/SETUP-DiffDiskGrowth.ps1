@@ -146,12 +146,6 @@ function Main {
         return $False
     }
 
-    $vmGeneration = Get-VMGeneration $vmName $hvServer
-    if ( $controllerType -eq "IDE" -and $vmGeneration -eq 2 ) {
-        Write-LogInfo "Generation 2 VM does not support IDE disk, please skip this case in the test script"
-        return $True
-    }
-
     if (-not $controllerID) {
         Write-LogErr "No controller ID specified in the test parameters"
         return $False
@@ -165,6 +159,12 @@ function Main {
     if (-not $vhdFormat) {
         Write-LogErr "No vhdFormat specified in the test parameters"
         return $False
+    }
+
+    $vmGeneration = Get-VMGeneration $vmName $hvServer
+    if (( $controllerType -eq "IDE" -or $vhdFormat -eq "vhd" ) -and $vmGeneration -eq 2 ) {
+        Write-LogInfo "Generation 2 VM does not support IDE or vhd disk, please skip this case in the test script"
+        return $True
     }
 
     if (-not $parentVhd) {

@@ -167,8 +167,8 @@ function Main {
 
     $vmGeneration = Get-VMGeneration $vmName $hvServer
     if ($IDECount -ge 1 -and $vmGeneration -eq 2 ) {
-         Write-LogErr "Generation 2 VM does not support IDE disk, please skip this case in the test script"
-         return $false
+         Write-LogInfo "Generation 2 VM does not support IDE disk, please skip this case in the test script"
+         return $true
     }
 
     # if define diskCount number, only support one SCSI parameter

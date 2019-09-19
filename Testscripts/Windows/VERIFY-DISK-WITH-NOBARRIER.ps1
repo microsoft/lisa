@@ -11,7 +11,9 @@ function Main {
         $ResourceGroupUnderTest = $VM.ResourceGroupName
         $VirtualMachine = Get-AzVM -ResourceGroupName $VM.ResourceGroupName -Name $VM.RoleName
         $diskCount = (Get-AzVMSize -Location $allVMData.Location | Where-Object {$_.Name -eq $allVMData.InstanceSize}).MaxDataDiskCount
-        Write-LogInfo "Max $diskCount Disks are attach to VM"
+        $storageProfile = (Get-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName).StorageProfile
+
+        Write-LogInfo "Max $diskCount Disks will be attached to VM"
         Write-LogInfo "--------------------------------------------------------"
         Write-LogInfo "Serial Addition of Data Disks"
         Write-LogInfo "--------------------------------------------------------"
@@ -20,13 +22,24 @@ function Main {
             $verifiedDiskCount = 0
             $diskName = "disk" + $count.ToString()
             $diskSizeinGB = "10"
-            $VHDuri = $VirtualMachine.StorageProfile.OsDisk.Vhd.Uri
-            $VHDUri = $VHDUri.Replace("osdisk", $diskName)
-            Write-LogInfo "Adding an empty data disk of size $diskSizeinGB GB, $count"
-            $Null = Add-AzVMDataDisk -VM $VirtualMachine -Name $diskName -DiskSizeInGB $diskSizeinGB -LUN $count -VhdUri $VHDuri.ToString() -CreateOption Empty
-            Write-LogInfo "Successfully created an empty data disk of size $diskSizeinGB GB,$count"
+            if ($storageProfile.OsDisk.ManagedDisk) {
+                # Add managed data disks
+                $storageType = 'Standard_LRS'
+                $diskConfig = New-AzDiskConfig -SkuName $storageType -Location $AllVMData.Location -CreateOption Empty -DiskSizeGB $diskSizeinGB
+                Write-LogInfo "#$count - Adding a managed empty data disk of size $diskSizeinGB GB"
+                $dataDisk = New-AzDisk -DiskName $diskName -Disk $diskConfig -ResourceGroupName $AllVMData.ResourceGroupName
+                Add-AzVMDataDisk -VM $virtualMachine -Name $diskName -CreateOption Attach -ManagedDiskId $dataDisk.Id -Lun $count | Out-Null
+                Write-LogInfo "#$count - Successfully created a managed empty data disk of size $diskSizeinGB GB"
+            } else {
+                # Add unmanaged data disks
+                $VHDuri = $VirtualMachine.StorageProfile.OsDisk.Vhd.Uri
+                $VHDUri = $VHDUri.Replace("osdisk", $diskName)
+                Write-LogInfo "#$count - Adding an unmanaged empty data disk of size $diskSizeinGB GB"
+                $Null = Add-AzVMDataDisk -VM $VirtualMachine -Name $diskName -DiskSizeInGB $diskSizeinGB -LUN $count -VhdUri $VHDuri.ToString() -CreateOption Empty
+                Write-LogInfo "#$count - Successfully created an unmanaged empty data disk of size $diskSizeinGB GB"
+            }
             $Null = Update-AzVM -VM $VirtualMachine -ResourceGroupName $ResourceGroupUnderTest
-            Write-LogInfo "Successfully added an empty data disk to the VM of size $diskSizeinGB, $count"
+            Write-LogInfo "#$count - Successfully added an empty data disk to the VM of size $diskSizeinGB"
             Write-LogInfo "Verifying if data disk is added to the VM: Running fdisk on remote VM"
             $fdiskOutput = Run-LinuxCmd -username $user -password $password -ip $VM.PublicIP -port $VM.SSHPort -command "/sbin/fdisk -l | grep /dev/sd" -runAsSudo
             foreach ($line in ($fdiskOutput.Split([Environment]::NewLine))) {

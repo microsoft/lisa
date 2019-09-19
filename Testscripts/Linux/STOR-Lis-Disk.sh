@@ -60,6 +60,7 @@ SetTestStateRunning
 # Count the number of SCSI= and IDE= entries in constants
 #
 disk_count=0
+diskIDECount=0
 for entry in $(cat ./constants.sh); do
     # Convert to lower case
     lowStr="$(tr '[A-Z]' '[a-z' <<<"$entry")"
@@ -67,6 +68,7 @@ for entry in $(cat ./constants.sh); do
     # does it start wtih ide or scsi
     if [[ $lowStr == ide* ]]; then
         disk_count=$((disk_count + 1))
+        diskIDECount=$((diskIDECount+1))
     fi
 
     if [[ $lowStr == scsi* ]]; then
@@ -75,6 +77,15 @@ for entry in $(cat ./constants.sh); do
 done
 
 LogMsg "constants disk count = $disk_count"
+
+# Generation 2 VM does not support IDE or VHD format disk
+if [ -d /sys/firmware/efi ]; then
+    if [[ $diskIDECount -ge 1 ]] || [[ $vhdFormat == 'vhd' ]]; then 
+        UpdateSummary "Generation 2 VM does not support IDE or VHD format disk, skip test"
+        SetTestStateSkipped
+        exit 0
+    fi
+fi
 
 #
 # Compute the number of sd* drives on the system.
