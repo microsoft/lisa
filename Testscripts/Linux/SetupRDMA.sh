@@ -204,7 +204,7 @@ function Main() {
 			add-apt-repository -y ppa:ci-train-ppa-service/3760
 			LogMsg "*** System updating with the customized ppa"
 			apt update
-			apt upgrade -y			
+			apt upgrade -y
 			;;
 		*)
 			LogErr "MPI type $mpi_type does not support on '$DISTRO' or not implement"
@@ -258,12 +258,11 @@ function Main() {
 		# compile ping_pong
 		cd $ping_pong_help
 		LogMsg "Compiling ping_pong binary in Platform help directory"
-		ret=`make`
+		ret=$(make -j $(nproc))
 		if [ $? -ne 0 ]; then
 			pkey=$(cat /sys/class/infiniband/*/ports/1/pkeys/0)
 			export MPI_IB_PKEY=${pkey}
-			LogMsg "After setting pkeys in the system, recompile the ping_pong binary"
-			make
+			make -j $(nproc)
 			LogMsg "Ping-pong compilation completed"
 		else
 			LogErr "Failed to complie ping_pong binary: $ret"
