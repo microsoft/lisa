@@ -187,7 +187,7 @@ function Main() {
 
 			install_package "build-essential python-setuptools libibverbs-dev bison flex ibverbs-utils net-tools libdapl2 rdmacm-utils bc"
 			os_RELEASE=$(awk '/VERSION_ID=/' /etc/os-release | sed 's/VERSION_ID=//' | sed 's/\"//g')
-			if [ "$os_RELEASE" == "18.04"]; then
+			if [[ "$os_RELEASE" == "18.04" ]]; then
 				install_package "openjdk-8-jre:i386"
 			else
 				install_package "openjdk-9-jre:i386"
