@@ -42,12 +42,12 @@ if [[ "$NIC_COUNT" -gt 1 ]];then
     SERVER_NIC_IPs=($(ip add show | grep -v SLAVE | grep BROADCAST | sed 's/:/ /g' | awk '{print $2}'))
     for SERVER_NIC in "${SERVER_NIC_IPs[@]}"
     do
-        server_ip_address=$(ip addr show $SERVER_NIC | grep 'inet\b')
+        server_ip_address=$(ip addr show $SERVER_NIC | grep "inet\b")
         if [[ -z "$server_ip_address" ]] ; then
             pkill dhclient
-            sleep 1
-            timeout 10 dhclient $SERVER_NIC
-            server_ip_address=$(ip addr show $SERVER_NIC | grep 'inet\b')
+            sleep 3
+            timeout 20 dhclient $SERVER_NIC
+            server_ip_address=$(ip addr show $SERVER_NIC | grep "inet\b")
             if [[  -z "$server_ip_address"  ]] ; then
                 LogMsg "NIC $SERVER_NIC doesn't have ip even after running dhclient"
                 LogMsg "Server ifconfig $(ip a)"
@@ -57,13 +57,14 @@ if [[ "$NIC_COUNT" -gt 1 ]];then
         fi
     done
     CLIENT_NIC_IPs=$(ssh root@"$VF_IP2" "ip add show | grep -v SLAVE | grep BROADCAST | sed 's/:/ /g' | awk '{print \$2}'")
+    CLIENT_NIC_IPs=($CLIENT_NIC_IPs)
     for CLIENT_NIC in "${CLIENT_NIC_IPs[@]}"
     do
         client_ip_address=$(ssh root@"$VF_IP2" "ip addr show $CLIENT_NIC | grep 'inet\b'")
         if [[ -z "$client_ip_address" ]] ; then
             ssh root@"${VF_IP2}" "pkill dhclient"
-            sleep 1
-            ssh root@"${VF_IP2}" "timeout 10 dhclient $CLIENT_NIC"
+            sleep 3
+            ssh root@"${VF_IP2}" "timeout 20 dhclient $CLIENT_NIC"
             client_ip_address=$(ssh root@"$VF_IP2" "ip addr show $CLIENT_NIC | grep 'inet\b'")
             if [[ -z "$client_ip_address" ]] ; then
                 LogMsg "NIC $CLIENT_NIC doesn't have ip even after running dhclient"

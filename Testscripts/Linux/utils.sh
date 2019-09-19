@@ -1210,8 +1210,9 @@ CreateIfupConfigFile()
 					BOOTPROTO=dhcp
 				EOF
 
+				ip link set "$__interface_name" down
 				ip link set "$__interface_name" up
-				service network restart || service networking restart
+				service network restart || service networking restart || service NetworkManager restart
 
 				;;
 			redhat_5|centos_5)
@@ -1380,8 +1381,9 @@ CreateIfupConfigFile()
 					EOF
 				fi
 
+				ip link set "$__interface_name" down
 				ip link set "$__interface_name" up
-				service network restart || service networking restart
+				service network restart || service networking restart || service NetworkManager restart
 				;;
 
 			debian*|ubuntu*)
