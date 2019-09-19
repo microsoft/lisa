@@ -258,11 +258,12 @@ function Main() {
 		# compile ping_pong
 		cd $ping_pong_help
 		LogMsg "Compiling ping_pong binary in Platform help directory"
-		ret=`make -j $(nproc)`
+		ret=`make`
 		if [ $? -ne 0 ]; then
 			pkey=$(cat /sys/class/infiniband/*/ports/1/pkeys/0)
 			export MPI_IB_PKEY=${pkey}
-			make -j $(nproc)
+			LogMsg "After setting pkeys in the system, recompile the ping_pong binary"
+			make
 			LogMsg "Ping-pong compilation completed"
 		else
 			LogErr "Failed to complie ping_pong binary: $ret"
