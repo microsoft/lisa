@@ -44,17 +44,17 @@ function install_ovs () {
 		ovsVersion=$(echo "$ovsSrcTar" | grep -Po "(\d+\.)+\d+")
 		LogMsg "Installing OVS from source file $ovsSrcTar"
 		ssh "${1}" "wget $ovsSrcLink -P /tmp"
-		ssh "${1}" "tar xf /tmp/$ovsSrcTar"
-		check_exit_status "tar xf /tmp/$ovsSrcTar on ${1}" "exit"
-		ovsSrcDir="${ovsSrcTar%%".tar"*}"
+		ssh "${1}" "mkdir ${OVS_DIR}"
+		ssh "${1}" "tar xf /tmp/$ovsSrcTar -C ${OVS_DIR} --strip-components 1"
+		check_exit_status "tar xf /tmp/$ovsSrcTar -C ${OVS_DIR} --strip-components 1 on ${1}" "exit"
 		LogMsg "ovs source on ${1} $ovsSrcDir"
-		ssh "${1}" "mv ${ovsSrcDir} ${OVS_DIR}"
 	elif [[ $ovsSrcLink =~ ".git" ]] || [[ $ovsSrcLink =~ "git:" ]];
 	then
 		ovsSrcDir="${ovsSrcLink##*/}"
 		LogMsg "Installing OVS from git repo ${ovsSrcLink} to ${ovsSrcDir}"
 		ssh "${1}" git clone --single-branch --branch "${ovsSrcBranch}" "${ovsSrcLink}"
 		check_exit_status "git clone --single-branch --branch ${ovsSrcBranch} ${ovsSrcLink} on ${1}" "exit"
+		ssh "${1}" "git revert 75e5e39e5"
 	else
 		LogMsg "Provide proper link $ovsSrcLink"
 	fi
