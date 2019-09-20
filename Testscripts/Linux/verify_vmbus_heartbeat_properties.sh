@@ -55,18 +55,27 @@ SetTestStateRunning
 test_failed=""
 
 # check the file structure exists and that all the files can be read
-vmbus_driver_files=(channel_vp_mapping class_id client_monitor_conn_id \
+vmbus_driver_files_default=(channel_vp_mapping class_id client_monitor_conn_id \
 client_monitor_latency client_monitor_pending device device_id id in_intr_mask \
 in_read_bytes_avail in_read_index in_write_bytes_avail in_write_index modalias \
 monitor_id out_intr_mask out_read_bytes_avail out_read_index out_write_bytes_avail \
 out_write_index server_monitor_conn_id server_monitor_latency \
 server_monitor_pending state uevent vendor)
 
+vmbus_driver_files_upstream=(channel_vp_mapping class_id device device_id id \
+in_intr_mask in_read_bytes_avail in_read_index in_write_bytes_avail \
+in_write_index modalias out_intr_mask out_read_bytes_avail out_read_index \
+out_write_bytes_avail out_write_index state uevent vendor driver_override)
+
+if [ ! -f "$sys_path/driver_override" ]; then
+    vmbus_driver_files="$vmbus_driver_files_default"
+else
+    vmbus_driver_files="$vmbus_driver_files_upstream"
+fi
 for file in "${vmbus_driver_files[@]}"; do
     if [ ! -f "$sys_path/$file" ]; then
         LogErr "$sys_path/$file does not exist"
         test_failed="true"
-
     fi
     if ! cat "$sys_path/$file" > /dev/null; then
         LogErr "Cannot read file: $sys_path/$file"
@@ -76,18 +85,25 @@ done
 
 # check the 1st channel of the device
 channel_path="$sys_path/channels/$(ls -1 $sys_path/channels | head -1)"
-vmbus_channel_files=(cpu events in_mask interrupts latency out_mask pending read_avail write_avail)
-
-for file in "${vmbus_channel_files[@]}"; do
-    if [ ! -f "$channel_path/$file" ]; then
-        LogErr "$channel_path/$file does not exist"
-        test_failed="true"
+if [ -d "$channel_path" ]; then
+    vmbus_channel_files_default=(cpu events in_mask interrupts latency out_mask pending read_avail write_avail)
+    vmbus_channel_files_upstream=(cpu events in_mask interrupts out_mask read_avail write_avail)
+    if [ -f "$channel_path/monitor_id" ]; then
+        vmbus_channel_files="$vmbus_channel_files_default"
+    else
+        vmbus_channel_files="$vmbus_channel_files_upstream"
     fi
-    if ! cat "$channel_path/$file" > /dev/null; then
-        LogErr "Cannot read file: $channel_path/$file"
-        test_failed="true"
-    fi
-done
+    for file in "${vmbus_channel_files[@]}"; do
+        if [ ! -f "$channel_path/$file" ]; then
+            LogErr "$channel_path/$file does not exist"
+            test_failed="true"
+        fi
+        if ! cat "$channel_path/$file" > /dev/null; then
+            LogErr "Cannot read file: $channel_path/$file"
+            test_failed="true"
+        fi
+    done
+fi
 
 if [ -z "$test_failed" ]; then
     LogMsg "Driver file structure is Ok."
@@ -107,22 +123,23 @@ if [ -z "$test_failed" ]; then
         LogErr "in_* files are equal to out_* files"
     fi
 
-    # check events and interrupts increase per channel as we read the files
-    old_interrupts=$(cat $channel_path/interrupts)
-    old_events=$(cat $channel_path/events)
-    for iterator in {1..5}; do
-        sleep 2
-        interrupts=$(cat $channel_path/interrupts)
-        events=$(cat $channel_path/events)
-        if [ $interrupts -gt $old_interrupts ] && [ $events -gt $old_events ]; then
-            LogMsg "Interrupts and events increased on $iterator try."
-        else
-            LogErr "Interrupts and events did not increase on try $iterator"
-        fi
-        old_interrupts=$interrupts
-        old_events=$events
-
-    done
+    if [ -d "$channel_path" ]; then
+        # check events and interrupts increase per channel as we read the files
+        old_interrupts=$(cat $channel_path/interrupts)
+        old_events=$(cat $channel_path/events)
+        for iterator in {1..5}; do
+            sleep 2
+            interrupts=$(cat $channel_path/interrupts)
+            events=$(cat $channel_path/events)
+            if [ $interrupts -gt $old_interrupts ] && [ $events -gt $old_events ]; then
+                LogMsg "Interrupts and events increased on $iterator try."
+            else
+                LogErr "Interrupts and events did not increase on try $iterator"
+            fi
+            old_interrupts=$interrupts
+            old_events=$events
+        done
+    fi
 fi
 
 if [ ! -z "$test_failed" ]; then
