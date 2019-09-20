@@ -32,10 +32,10 @@ function Resolve-UninitializedIB {
 }
 
 function Main {
-    param (
-        $AllVmData,
-        $CurrentTestData
-    )
+	param (
+		$AllVmData,
+		$CurrentTestData
+	)
 	$resultArr = @()
 	$currentTestResult = Create-TestResultObject
 	# Define two different users in run-time
@@ -78,6 +78,10 @@ function Main {
 			Write-LogInfo "$($global:detectedDistro) is not supported! Test skipped!"
 			return "SKIPPED"
 		}
+		if (@("UBUNTU").contains($global:detectedDistro) -and $CurrentTestData.TestParameters.param.contains("ibm")) {
+			Write-LogInfo "$($global:detectedDistro) is not supported IBM Platform MPI! Test skipped!"
+			return "SKIPPED"
+		}
 		$VM_Size = ($ServerVMData.InstanceSize -split "_")[1] -replace "[^0-9]",''
 		Write-LogInfo "Getting VM instance size: $VM_Size"
 		#region CONFIGURE VMs for TEST
@@ -112,7 +116,7 @@ function Main {
 
 		Write-LogInfo "Generating constants.sh ..."
 		$constantsFile = "$LogDir\constants.sh"
-		foreach ($TestParam in $CurrentTestData.TestParameters.param ) {
+		foreach ($TestParam in $CurrentTestData.TestParameters.param) {
 			Add-Content -Value "$TestParam" -Path $constantsFile
 			Write-LogInfo "$TestParam added to constants.sh"
 			if ($TestParam -imatch "imb_mpi1_tests_iterations") {
