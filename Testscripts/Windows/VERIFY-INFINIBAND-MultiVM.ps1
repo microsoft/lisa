@@ -78,10 +78,7 @@ function Main {
 			Write-LogInfo "$($global:detectedDistro) is not supported! Test skipped!"
 			return "SKIPPED"
 		}
-		if (@("UBUNTU").contains($global:detectedDistro) -and $CurrentTestData.TestParameters.param.contains("ibm")) {
-			Write-LogInfo "$($global:detectedDistro) is not supported IBM Platform MPI! Test skipped!"
-			return "SKIPPED"
-		}
+
 		$VM_Size = ($ServerVMData.InstanceSize -split "_")[1] -replace "[^0-9]",''
 		Write-LogInfo "Getting VM instance size: $VM_Size"
 		#region CONFIGURE VMs for TEST
@@ -141,6 +138,9 @@ function Main {
 				$RemainingRebootIterations = [string]($TestParam.Replace("num_reboot=", "").Trim('"'))
 				$ExpectedSuccessCount = [int]($TestParam.Replace("num_reboot=", "").Trim('"')) + 1
 			}
+			if ($TestParam -imatch "mpi_type") {
+				$MpiType = [string]($TestParam.Replace("mpi_type=", "").Trim('"'))
+			}
 		}
 		Add-Content -Value "master=`"$($ServerVMData.InternalIP)`"" -Path $constantsFile
 		Write-LogInfo "master=$($ServerVMData.InternalIP) added to constants.sh"
@@ -158,6 +158,12 @@ function Main {
 				-files "$constantsFile,$($CurrentTestData.files)" -username $superUser -password $password -upload
 		}
 		#endregion
+
+		# IBM Platform MPI shows 32-bit binary complexity in Ubuntu
+		if (@("UBUNTU").contains($global:detectedDistro) -and ($MpiType -eq "ibm")) {
+			Write-LogInfo "$($global:detectedDistro) is not supported IBM Platform MPI! Test skipped!"
+			return "SKIPPED"
+		}
 
 		Write-LogInfo "SetupRDMA.sh is called"
 		# Call SetupRDMA.sh here, and it handles all packages, MPI, Benchmark installation.
