@@ -253,7 +253,7 @@ function Main() {
 		# compile ping_pong
 		cd $ping_pong_help
 		LogMsg "Compiling ping_pong binary in Platform help directory"
-		ret=$(make -j $(nproc))
+		make -j $(nproc)
 		if [ $? -ne 0 ]; then
 			pkey=$(cat /sys/class/infiniband/*/ports/1/pkeys/0)
 			export MPI_IB_PKEY=${pkey}
