@@ -174,16 +174,11 @@ function Main() {
 			LogMsg "This is Ubuntu"
 			hpcx_ver="ubuntu"$VERSION_ID
 			LogMsg "Installing required packages ..."
-			LogMsg "*** Adding Canoncial ppa for temporary fix"
+			LogMsg "*** Adding Canonical ppa for temporary fix"
 			add-apt-repository -y ppa:ci-train-ppa-service/3760
-
-			LogMsg "*** System updating with the customized ppa"
-			apt update
-			apt upgrade -y
 
 			LogMsg "Required 32-bit java"
 			dpkg --add-architecture i386
-			apt update
 
 			install_package "build-essential python-setuptools libibverbs-dev bison flex ibverbs-utils net-tools libdapl2 rdmacm-utils bc"
 			os_RELEASE=$(awk '/VERSION_ID=/' /etc/os-release | sed 's/VERSION_ID=//' | sed 's/\"//g')
@@ -200,7 +195,7 @@ function Main() {
 			modprobe ib_ipoib
 			echo ib_umad >> /etc/modules
 			modprobe ib_umad
-			LogMsg "*** Adding Canoncial ppa for temporary fix"
+			LogMsg "*** Adding Canonical ppa for temporary fix"
 			add-apt-repository -y ppa:ci-train-ppa-service/3760
 			LogMsg "*** System updating with the customized ppa"
 			apt update
@@ -264,8 +259,6 @@ function Main() {
 			export MPI_IB_PKEY=${pkey}
 			make -j $(nproc)
 			LogMsg "Ping-pong compilation completed"
-		else
-			LogErr "Failed to complie ping_pong binary: $ret"
 		fi
 
 		# verify ping_pong binary
@@ -329,7 +322,6 @@ function Main() {
 		export PATH=$PATH:"${mpirun_path%/*}"
 		# add sourcing file in each session
 		echo "source ${mpirun_path%/*}/mpivars.sh" >> $HOMEDIR/.bashrc
-		echo "source ${mpirun_path%/*}/mpivars.sh" >> /home/lisa/.bashrc
 
 		LogMsg "Completed Intel MPI installation"
 
