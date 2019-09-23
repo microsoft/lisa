@@ -35,7 +35,7 @@
             <param>VF_IP1=10.0.0.40</param>
             <param>VF_IP2=10.0.0.60</param>
             <param>NETMASK=255.255.255.0</param>
-            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>Switch_Name=HYPERV_PERF_NIC_NAME</param>
             <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
@@ -56,7 +56,7 @@
             <param>VF_IP1=10.0.0.41</param>
             <param>VF_IP2=10.0.0.61</param>
             <param>NETMASK=255.255.255.0</param>
-            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>Switch_Name=HYPERV_PERF_NIC_NAME</param>
             <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
         </TestParameters>
         <Platform>HyperV</Platform>
@@ -83,7 +83,7 @@
             <param>VF_IP1=10.0.0.42</param>
             <param>VF_IP2=10.0.0.62</param>
             <param>NETMASK=255.255.255.0</param>
-            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>Switch_Name=HYPERV_PERF_NIC_NAME</param>
             <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
@@ -108,7 +108,7 @@
             <param>NIC_COUNT=7</param>
             <param>MAX_NICS=yes</param>
             <param>NETMASK=255.255.255.0</param>
-            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>Switch_Name=HYPERV_PERF_NIC_NAME</param>
             <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
@@ -134,7 +134,7 @@
             <param>NIC_COUNT=7</param>
             <param>MAX_NICS=yes</param>
             <param>NETMASK=255.255.255.0</param>
-            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>Switch_Name=HYPERV_PERF_NIC_NAME</param>
             <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
@@ -207,7 +207,7 @@
             <param>VF_IP1=10.0.0.47</param>
             <param>VF_IP2=10.0.0.67</param>
             <param>NETMASK=255.255.255.0</param>
-            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>Switch_Name=HYPERV_PERF_NIC_NAME</param>
             <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
         </TestParameters>
         <timeout>1200</timeout>
@@ -233,7 +233,7 @@
             <param>VF_IP1=10.0.0.45</param>
             <param>VF_IP2=10.0.0.65</param>
             <param>NETMASK=255.255.255.0</param>
-            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>Switch_Name=HYPERV_PERF_NIC_NAME</param>
             <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
@@ -258,7 +258,7 @@
             <param>VF_IP1=10.0.0.46</param>
             <param>VF_IP2=10.0.0.66</param>
             <param>NETMASK=255.255.255.0</param>
-            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>Switch_Name=HYPERV_PERF_NIC_NAME</param>
             <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
@@ -277,7 +277,7 @@
             <param>VF_IP1=10.0.0.10</param>
             <param>VF_IP2=10.0.0.30</param>
             <param>NETMASK=255.255.255.0</param>
-            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>Switch_Name=HYPERV_PERF_NIC_NAME</param>
             <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
         </TestParameters>
         <Platform>HyperV</Platform>
@@ -296,7 +296,7 @@
             <param>VF_IP1=10.0.0.11</param>
             <param>VF_IP2=10.0.0.31</param>
             <param>NETMASK=255.255.255.0</param>
-            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>Switch_Name=HYPERV_PERF_NIC_NAME</param>
             <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
         </TestParameters>
         <Platform>HyperV</Platform>
@@ -315,7 +315,7 @@
             <param>VF_IP1=10.0.0.12</param>
             <param>VF_IP2=10.0.0.32</param>
             <param>NETMASK=255.255.255.0</param>
-            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>Switch_Name=HYPERV_PERF_NIC_NAME</param>
             <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
         </TestParameters>
         <Platform>HyperV</Platform>
@@ -334,7 +334,7 @@
             <param>VF_IP1=10.0.0.13</param>
             <param>VF_IP2=10.0.0.33</param>
             <param>NETMASK=255.255.255.0</param>
-            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>Switch_Name=HYPERV_PERF_NIC_NAME</param>
             <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
         </TestParameters>
         <Platform>HyperV</Platform>
@@ -353,7 +353,7 @@
             <param>VF_IP1=10.0.0.14</param>
             <param>VF_IP2=10.0.0.34</param>
             <param>NETMASK=255.255.255.0</param>
-            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>Switch_Name=HYPERV_PERF_NIC_NAME</param>
             <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
         </TestParameters>
         <Platform>HyperV</Platform>
@@ -372,7 +372,7 @@
             <param>VF_IP1=10.0.0.15</param>
             <param>VF_IP2=10.0.0.35</param>
             <param>NETMASK=255.255.255.0</param>
-            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>Switch_Name=HYPERV_PERF_NIC_NAME</param>
             <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
         </TestParameters>
         <Platform>HyperV</Platform>
@@ -391,7 +391,7 @@
             <param>VF_IP1=10.0.0.16</param>
             <param>VF_IP2=10.0.0.36</param>
             <param>NETMASK=255.255.255.0</param>
-            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>Switch_Name=HYPERV_PERF_NIC_NAME</param>
             <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
         </TestParameters>
         <Platform>HyperV</Platform>
@@ -410,7 +410,7 @@
             <param>VF_IP1=10.0.0.17</param>
             <param>VF_IP2=10.0.0.37</param>
             <param>NETMASK=255.255.255.0</param>
-            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>Switch_Name=HYPERV_PERF_NIC_NAME</param>
             <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
         </TestParameters>
         <Platform>HyperV</Platform>
@@ -430,7 +430,7 @@
             <param>VF_IP1=10.0.0.22</param>
             <param>VF_IP2=10.0.0.42</param>
             <param>NETMASK=255.255.255.0</param>
-            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>Switch_Name=HYPERV_PERF_NIC_NAME</param>
             <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
         </TestParameters>
         <Platform>HyperV</Platform>
@@ -450,7 +450,7 @@
             <param>VF_IP1=10.0.0.23</param>
             <param>VF_IP2=10.0.0.43</param>
             <param>NETMASK=255.255.255.0</param>
-            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>Switch_Name=HYPERV_PERF_NIC_NAME</param>
             <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
         </TestParameters>
         <Platform>HyperV</Platform>
@@ -469,7 +469,7 @@
             <param>VF_IP1=10.0.0.18</param>
             <param>VF_IP2=10.0.0.38</param>
             <param>NETMASK=255.255.255.0</param>
-            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>Switch_Name=HYPERV_PERF_NIC_NAME</param>
             <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
         </TestParameters>
         <Platform>HyperV</Platform>
@@ -488,7 +488,7 @@
             <param>VF_IP1=10.0.0.20</param>
             <param>VF_IP2=10.0.0.40</param>
             <param>NETMASK=255.255.255.0</param>
-            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>Switch_Name=HYPERV_PERF_NIC_NAME</param>
             <param>VM_STATE=save</param>
             <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
         </TestParameters>
@@ -508,7 +508,7 @@
             <param>VF_IP1=10.0.0.21</param>
             <param>VF_IP2=10.0.0.41</param>
             <param>NETMASK=255.255.255.0</param>
-            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>Switch_Name=HYPERV_PERF_NIC_NAME</param>
             <param>VM_STATE=pause</param>
             <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
         </TestParameters>
@@ -535,7 +535,7 @@
             <param>VF_IP1=10.0.0.44</param>
             <param>VF_IP2=10.0.0.64</param>
             <param>NETMASK=255.255.255.0</param>
-            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>Switch_Name=HYPERV_PERF_NIC_NAME</param>
             <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
         </TestParameters>
         <timeout>2400</timeout>
@@ -555,7 +555,7 @@
             <param>VF_IP1=10.0.0.19</param>
             <param>VF_IP2=10.0.0.39</param>
             <param>NETMASK=255.255.255.0</param>
-            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>Switch_Name=HYPERV_PERF_NIC_NAME</param>
             <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
         </TestParameters>
         <Platform>HyperV</Platform>
@@ -581,7 +581,7 @@
             <param>VF_IP1=10.0.0.34</param>
             <param>VF_IP2=10.0.0.54</param>
             <param>NETMASK=255.255.255.0</param>
-            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>Switch_Name=HYPERV_PERF_NIC_NAME</param>
             <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
             <param>disable_enable_pci=yes</param>
         </TestParameters>
