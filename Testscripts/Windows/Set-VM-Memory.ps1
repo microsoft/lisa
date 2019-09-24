@@ -9,7 +9,8 @@
 param (
     [string] $vmName,
     [string] $hvServer,
-    [string] $testParams
+    [string] $testParams,
+    [object] $AllVMData
 )
 
 function Main {
