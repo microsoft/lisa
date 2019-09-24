@@ -157,10 +157,10 @@ function Main {
     foreach ($p in $params) {
         $fields = $p.Split("=")
 
-        switch ($fields[0].Trim()) {
+        switch -regex ($fields[0].Trim()) {
             "diskCount"   { $diskCount = $fields[1].Trim() }
-            "SCSI"  { $SCSICount = $SCSICount +1 }
-            "IDE"  { $IDECount = $IDECount +1 }
+            "SCSI[_0-9]*$"  { $SCSICount = $SCSICount +1 }
+            "IDE[_0-9]*$"  { $IDECount = $IDECount +1 }
             default     {}  # unknown param - just ignore it
         }
     }
@@ -194,6 +194,11 @@ function Main {
         # Matches[1] represents the parameter name
         # Matches[2] is the value content of the parameter
         $controllerType = $Matches[1].Trim().ToLower()
+        if ($controllerType -like "scsi_*") {
+            $controllerType = "scsi"
+        } elseif ($controllerType -like "ide_*") {
+            $controllerType = "ide"
+        }
         if ($controllertype -ne "scsi" -and $controllerType -ne "ide") {
             # Just ignore the parameter
             continue

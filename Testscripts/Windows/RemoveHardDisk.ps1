@@ -42,11 +42,16 @@ function Main {
         }
 
         $field_value = $fields[0].Trim().ToLower()
+        if ($field_value -match "scsi_") {
+            $field_value = "scsi"
+        } elseif ($field_value -match "ide_") {
+            $field_value = "ide"
+        }
         if ($field_value -ne "scsi" -and $field_value -ne "ide") {
             # Just ignore the parameter
             continue
         } else {
-            $controllerType = $fields[0].Trim().ToUpper()
+            $controllerType = $field_value.ToUpper()
         }
     }
 
