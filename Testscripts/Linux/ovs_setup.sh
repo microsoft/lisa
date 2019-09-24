@@ -29,7 +29,7 @@ function install_ovs () {
 		ubuntu|debian)
 			ssh "${1}" "until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done"
 			ssh "${1}" ". ${UTIL_FILE} && update_repos"
-			packages+=(autoconf libtool)
+			packages+=(autoconf libtool libpcap-dev)
 			;;
 		*)
 			echo "Unknown distribution"
@@ -37,6 +37,24 @@ function install_ovs () {
 			exit 1
 	esac
 	ssh "${1}" ". ${UTIL_FILE} && install_package ${packages[@]}"
+
+	# For older versions of dpdk get old ovs pair
+	# DPDK releases are with .tar only
+	if [[ $dpdkSrcLink =~ .tar ]];
+	then
+		# check dpdk version
+		ovsOldSrc="https://github.com/openvswitch/ovs/archive/v2.11.2.tar.gz"
+		dpdkSrcTar="${dpdkSrcLink##*/}"
+		dpdk_version=$(echo "$dpdkSrcTar" | grep -Po "(\d+\.)+\d+")
+		if [[ $dpdk_version =~ "18.11" ]]; 
+		then
+			LogMsg "DPDK Source is $dpdk_version"
+			LogMsg "Changing OVS source to older version: $ovsOldSrc"
+			ovsSrcLink="$ovsOldSrc"
+			LogMsg "OVS source changed to: $ovsSrcLink"
+		fi
+
+	fi
 
 	if [[ $ovsSrcLink =~ .tar ]];
 	then
@@ -54,7 +72,6 @@ function install_ovs () {
 		LogMsg "Installing OVS from git repo ${ovsSrcLink} to ${ovsSrcDir}"
 		ssh "${1}" git clone --single-branch --branch "${ovsSrcBranch}" "${ovsSrcLink}"
 		check_exit_status "git clone --single-branch --branch ${ovsSrcBranch} ${ovsSrcLink} on ${1}" "exit"
-		ssh "${1}" "git revert 75e5e39e5"
 	else
 		LogMsg "Provide proper link $ovsSrcLink"
 	fi
