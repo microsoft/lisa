@@ -29,7 +29,7 @@ function install_ovs () {
 		ubuntu|debian)
 			ssh "${1}" "until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done"
 			ssh "${1}" ". ${UTIL_FILE} && update_repos"
-			packages+=(autoconf libtool)
+			packages+=(autoconf libtool libpcap-dev)
 			;;
 		*)
 			echo "Unknown distribution"
@@ -38,17 +38,34 @@ function install_ovs () {
 	esac
 	ssh "${1}" ". ${UTIL_FILE} && install_package ${packages[@]}"
 
+	# For older versions of dpdk get old ovs pair
+	# DPDK releases are with .tar only
+	if [[ $dpdkSrcLink =~ .tar ]];
+	then
+		# check dpdk version
+		ovsOldSrc="https://github.com/openvswitch/ovs/archive/v2.11.2.tar.gz"
+		dpdkSrcTar="${dpdkSrcLink##*/}"
+		dpdk_version=$(echo "$dpdkSrcTar" | grep -Po "(\d+\.)+\d+")
+		if [[ $dpdk_version =~ "18.11" ]]; 
+		then
+			LogMsg "DPDK Source is $dpdk_version"
+			LogMsg "Changing OVS source to older version: $ovsOldSrc"
+			ovsSrcLink="$ovsOldSrc"
+			LogMsg "OVS source changed to: $ovsSrcLink"
+		fi
+
+	fi
+
 	if [[ $ovsSrcLink =~ .tar ]];
 	then
 		ovsSrcTar="${ovsSrcLink##*/}"
 		ovsVersion=$(echo "$ovsSrcTar" | grep -Po "(\d+\.)+\d+")
 		LogMsg "Installing OVS from source file $ovsSrcTar"
 		ssh "${1}" "wget $ovsSrcLink -P /tmp"
-		ssh "${1}" "tar xf /tmp/$ovsSrcTar"
-		check_exit_status "tar xf /tmp/$ovsSrcTar on ${1}" "exit"
-		ovsSrcDir="${ovsSrcTar%%".tar"*}"
+		ssh "${1}" "mkdir ${OVS_DIR}"
+		ssh "${1}" "tar xf /tmp/$ovsSrcTar -C ${OVS_DIR} --strip-components 1"
+		check_exit_status "tar xf /tmp/$ovsSrcTar -C ${OVS_DIR} --strip-components 1 on ${1}" "exit"
 		LogMsg "ovs source on ${1} $ovsSrcDir"
-		ssh "${1}" "mv ${ovsSrcDir} ${OVS_DIR}"
 	elif [[ $ovsSrcLink =~ ".git" ]] || [[ $ovsSrcLink =~ "git:" ]];
 	then
 		ovsSrcDir="${ovsSrcLink##*/}"
