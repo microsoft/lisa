@@ -46,7 +46,11 @@ Prepare_Test_Dependencies()
         dpkg_configure
     fi
     update_repos
-    install_package make gcc wget libgmp3-dev
+    if [[ "${DISTRO_NAME}" == "centos" ]] || [[ "${DISTRO_NAME}" == "rhel" ]] ; then
+        install_package make gcc wget time gmp-devel
+    else
+        install_package make gcc wget libgmp3-dev
+    fi
     wget -t 5 "$GOLANG_INSTALL_PACKAGE" -O golang_source.tar.gz -o download_golang.log
     tar xvf golang_source.tar.gz -C "$GOLANG_INSTALL_DIR"
     exit_status=$?
@@ -97,7 +101,7 @@ Parse_Result()
     cat $csv_file_tmp > $csv_file
     rm -rf $csv_file_tmp
     LogMsg "Parse test result completed"
-    cp $csv_file "$HOME"
+    cp $csv_file "$LIS_HOME"
     popd
 }
 
