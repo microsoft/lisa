@@ -256,10 +256,6 @@ function Main {
         Write-LogInfo "Checking test run status..."
         $finalStatus = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort `
             -username "root" -password $password -command "cat state.txt"
-        Copy-RemoteFiles -downloadFrom $allVMData.PublicIP -port $allVMData.SSHPort `
-            -username "root" -password $password -download -downloadTo $LogDir -files "FIOTest-*.tar.gz"
-        Copy-RemoteFiles -downloadFrom $allVMData.PublicIP -port $allVMData.SSHPort `
-            -username "root" -password $password -download -downloadTo $LogDir -files "VM_properties.csv"
         if ($finalStatus -imatch "TestFailed") {
             Write-LogErr "Test failed. Last known status : $currentStatus."
             $testResult = "FAIL"
@@ -267,6 +263,10 @@ function Main {
             Write-LogErr "Test Aborted. Last known status : $currentStatus."
             $testResult = "ABORTED"
         } elseif ($finalStatus -imatch "TestCompleted") {
+            Copy-RemoteFiles -downloadFrom $allVMData.PublicIP -port $allVMData.SSHPort `
+                -username "root" -password $password -download -downloadTo $LogDir -files "FIOTest-*.tar.gz"
+            Copy-RemoteFiles -downloadFrom $allVMData.PublicIP -port $allVMData.SSHPort `
+                -username "root" -password $password -download -downloadTo $LogDir -files "VM_properties.csv"
             $null = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort `
                 -username "root" -password $password -command "/root/ParseFioTestLogs.sh" `
                 -runMaxAllowedTime $TestParams.parseTimeout
@@ -279,6 +279,9 @@ function Main {
             $testResult = "FAILED"
         }
         Write-LogInfo "Test result: $testResult"
+        if ($testResult -ne "PASS") {
+            return $testResult
+        }
 
         Write-LogInfo "Parsing and consuming test results..."
         $outPerfResultFile = "$LogDir\fioData.csv"

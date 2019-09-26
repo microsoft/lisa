@@ -313,7 +313,13 @@ Function  Install-LIS-Scenario-1 ($PreviousTestResult, $LISTarballUrlOld, $LISTa
     if ($PreviousTestResult -eq "PASS") {
         $LISInstallStatus=Install-LIS -LISTarballUrl $LISTarballUrlCurrent -allVMData $AllVMData
         if (-not $LISInstallStatus[-1]) {
-            return "FAIL"
+            $sts = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "cat build-CustomLIS.txt | grep -E 'Unsupported kernel version|Kernel version not supported'" -ignoreLinuxExitCode:$true
+            if ($sts) {
+                Write-LogInfo "Unsupported kernel version, skip test.."
+                return "SKIPPED"
+            } else {
+                return "FAIL"
+            }
         }
         if ($TestPlatform -eq "HyperV") {
             #Take Snapshot with name
@@ -333,7 +339,13 @@ Function Install-LIS-Scenario-2 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
     if ($PreviousTestResult -eq "PASS") {
         $UpgradeStatus=Upgrade-LIS -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent -allVMData $AllVMData -TestProvider $TestProvider -RestartAfterUpgrade
         if (-not $UpgradeStatus[-1]) {
-            return "FAIL"
+            $sts = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "cat build-CustomLIS.txt | grep -E 'Unsupported kernel version|Kernel version not supported'" -ignoreLinuxExitCode:$true
+            if ($sts) {
+                Write-LogInfo "Unsupported kernel version, skip test.."
+                return "SKIPPED"
+            } else {
+                return "FAIL"
+            }
         }
         if ($TestPlatform -eq "HyperV") {
             #Take Snapshot with name
@@ -356,11 +368,16 @@ Function Install-LIS-Scenario-3 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
             if (-not $sts) {
                 return "ABORTED"
             }
-        }
-        elseif ($TestPlatform -eq "Azure") {
+        } elseif ($TestPlatform -eq "Azure") {
             $UpgradeStatus=Upgrade-LIS -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent -allVMData $AllVMData -TestProvider $TestProvider -RestartAfterUpgrade
             if (-not $UpgradeStatus[-1]) {
-                return "FAIL"
+                $sts = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "cat build-CustomLIS.txt | grep -E 'Unsupported kernel version|Kernel version not supported'" -ignoreLinuxExitCode:$true
+                if ($sts) {
+                    Write-LogInfo "Unsupported kernel version, skip test.."
+                    return "SKIPPED"
+                } else {
+                    return "FAIL"
+                }
             }
         }
         $DowgradeStatus=Downgrade-LIS -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent -allVMData $AllVMData -TestProvider $TestProvider
@@ -394,6 +411,7 @@ Function Install-LIS-Scenario-4 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
         return "ABORTED"
     }
 }
+
 # Scenario Information : Installs Current LIS then upgrade kernel with reboot
 # Expected result : Verify that LIS built-in drivers are detected after kernel upgrade
 Function Install-LIS-Scenario-5 ($PreviousTestResult, $LISTarballUrlOld, $LISTarballUrlCurrent) {
@@ -406,7 +424,13 @@ Function Install-LIS-Scenario-5 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
         } elseif ($TestPlatform -eq "Azure") {
             $LISInstallStatus=Install-LIS -LISTarballUrl $LISTarballUrlCurrent -allVMData $AllVMData
             if (-not $LISInstallStatus[-1]) {
-                return "FAIL"
+                $sts = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "cat build-CustomLIS.txt | grep -E 'Unsupported kernel version|Kernel version not supported'" -ignoreLinuxExitCode:$true
+                if ($sts) {
+                    Write-LogInfo "Unsupported kernel version, skip test.."
+                    return "SKIPPED"
+                } else {
+                    return "FAIL"
+                }
             }
         }
         $LIS_version_before_upgrade_kernel = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus"
@@ -444,7 +468,13 @@ Function Install-LIS-Scenario-6 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
         } elseif ($TestPlatform -eq "Azure") {
             $UpgradeStatus=Upgrade-LIS -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent -allVMData $AllVMData -TestProvider $TestProvider -RestartAfterUpgrade
             if (-not $UpgradeStatus[-1]) {
-                return "FAIL"
+                $sts = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "cat build-CustomLIS.txt | grep -E 'Unsupported kernel version|Kernel version not supported'" -ignoreLinuxExitCode:$true
+                if ($sts) {
+                    Write-LogInfo "Unsupported kernel version, skip test.."
+                    return "SKIPPED"
+                } else {
+                    return "FAIL"
+                }
             }
         }
         $LIS_version_before_upgrade_kernel = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus"
@@ -495,7 +525,13 @@ Function Install-LIS-Scenario-7 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
             Write-LogInfo "Sucessfully Upgraded Minor Kernel"
             $UpgradeStatus=Upgrade-LIS -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent -allVMData $AllVMData -TestProvider $TestProvider -RestartAfterUpgrade
             if (-not $UpgradeStatus[-1]) {
-                return "FAIL"
+                $sts = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "cat build-CustomLIS.txt | grep -E 'Unsupported kernel version|Kernel version not supported'" -ignoreLinuxExitCode:$true
+                if ($sts) {
+                    Write-LogInfo "Unsupported kernel version, skip test.."
+                    return "SKIPPED"
+                } else {
+                    return "FAIL"
+                }
             }
             return "PASS"
         }
@@ -521,7 +557,13 @@ Function Install-LIS-Scenario-8 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
         } elseif ($TestPlatform -eq "Azure") {
             $LISInstallStatus=Install-LIS -LISTarballUrl $LISTarballUrlCurrent -allVMData $AllVMData
             if (-not $LISInstallStatus[-1]) {
-                return "FAIL"
+                $sts = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "cat build-CustomLIS.txt | grep -E 'Unsupported kernel version|Kernel version not supported'" -ignoreLinuxExitCode:$true
+                if ($sts) {
+                    Write-LogInfo "Unsupported kernel version, skip test.."
+                    return "SKIPPED"
+                } else {
+                    return "FAIL"
+                }
             }
         }
         $UninstallLISStatus=Uninstall-LIS -LISTarballUrlCurrent $LISTarballUrlCurrent -allVMData $AllVMData -TestProvider $TestProvider

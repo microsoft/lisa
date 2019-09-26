@@ -20,10 +20,19 @@ function Main {
         $testResult = $null
         $captureVMData = $allVMData
         $VMName = $captureVMData.RoleName
-        $HvServer= $captureVMData.HyperVhost
-        $Ipv4=$captureVMData.PublicIP
-        $VMPort=$captureVMData.SSHPort
-        $HypervGroupName=$captureVMData.HyperVGroupName
+        $HvServer = $captureVMData.HyperVhost
+        $Ipv4 = $captureVMData.PublicIP
+        $VMPort = $captureVMData.SSHPort
+        $HypervGroupName = $captureVMData.HyperVGroupName
+
+        if ($TestParams.secureBootVM) {
+            $vmGeneration = Get-VMGeneration $VMName $HvServer
+            if ($vmGeneration -ne 2) {
+                Write-LogInfo "VM ${VMName} is not a Generation 2 VM, skipping test."
+                return $resultSkipped
+            }
+        }
+
         # Change the working directory to where we need to be
         Set-Location $WorkingDirectory
         $sts = New-BackupSetup $VMName $HvServer
