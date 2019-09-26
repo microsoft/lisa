@@ -70,6 +70,7 @@ function InstallRequirements() {
         kernel=$(uname -r)
         if [[ "${kernel}" == *azure ]];
         then
+            zypper install --oldpackage -y kernel-azure-devel="${kernel::-6}"
             zypper install -y kernel-devel-azure
         else
             zypper install -y kernel-default-devel
