@@ -159,9 +159,9 @@ function Main {
         if (-not $run) {
             Throw "Unable to start stress-ng for creating pressure on $vmName"
         }
-        [int64]$vm1Demand = ($VmInfo.MemoryDemand/1MB)
         # sleep a few seconds so stress-ng starts and the memory assigned/demand gets updated
         Start-Sleep -s 50
+        [int64]$vm1Demand = ($VmInfo.MemoryDemand/1MB)
         # get memory stats while stress-ng is running
         [int64]$vm1Assigned = ($VmInfo.MemoryAssigned/1MB)
         Write-LogInfo "Memory stats after $vmName started stress-ng"
@@ -170,7 +170,8 @@ function Main {
         if ($vm1Demand -le $vm1BeforeDemand) {
             Write-LogInfo "Memory Demand did not increase after starting stress-ng"
         }
-        # get memory stats after stress-ng stopped running
+        # Wait stress-ng stopped running, and then get memory stats
+        Start-Sleep -s 100
         [int64]$vm1AfterStressAssigned = ($VmInfo.MemoryAssigned/1MB)
         [int64]$vm1AfterStressDemand = ($VmInfo.MemoryDemand/1MB)
         Write-LogInfo "Memory stats after $vmName stress-ng run"
