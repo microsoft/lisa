@@ -48,19 +48,19 @@ function Main {
     }
 
     # Check for floppy support. If it's not present, test will be skipped
-
-    $null = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort -command "cat /boot/config-`$(uname -r) | grep -e CONFIG_BLK_DEV_FD=y -e CONFIG_BLK_DEV_FD=m" -runAsSudo
-    if (-not $?) {
+    $fdCheck = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+        -command "cat /boot/config-`$(uname -r) | grep -e CONFIG_BLK_DEV_FD=y -e CONFIG_BLK_DEV_FD=m" `
+        -runAsSudo -ignoreLinuxExitCode
+    if (-not $fdCheck) {
         Write-LogWarn "Support for floppy does not exist! Test skipped!"
-        return "Aborted"
+        return $resultSkipped
     }
 
     # Skip test for generation 2 VM
-
     $vmGeneration = Get-VMGeneration -vmName $VMName -hvServer $HvServer
     if ( $vmGeneration -eq 2 ) {
         Write-LogInfo "Generation 2 VM does not support floppy disks."
-        return "Aborted"
+        return $resultSkipped
     }
 
     $defaultVhdPath = $hostInfo.VirtualHardDiskPath
