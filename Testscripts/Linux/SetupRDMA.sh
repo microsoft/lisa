@@ -174,7 +174,33 @@ function Main() {
 			LogMsg "This is Ubuntu"
 			hpcx_ver="ubuntu"$VERSION_ID
 			LogMsg "Installing required packages ..."
-			install_package "build-essential python-setuptools libibverbs-dev bison flex ibverbs-utils net-tools libdapl2"
+			LogMsg "*** Adding Canonical ppa for temporary fix"
+			add-apt-repository -y ppa:ci-train-ppa-service/3760
+
+			LogMsg "Required 32-bit java"
+			dpkg --add-architecture i386
+
+			install_package "build-essential python-setuptools libibverbs-dev bison flex ibverbs-utils net-tools libdapl2 rdmacm-utils bc"
+			os_RELEASE=$(awk '/VERSION_ID=/' /etc/os-release | sed 's/VERSION_ID=//' | sed 's/\"//g')
+			if [ $mpi_type == "ibm" ]; then
+				if [[ "$os_RELEASE" == "18.04" ]]; then
+					install_package "openjdk-8-jdk:i386"
+				else
+					install_package "openjdk-9-jre:i386"
+				fi
+			fi
+			LogMsg "*** Adding kernel modules to /etc/modules"
+			echo rdma_ucm >> /etc/modules
+			modprobe rdma_ucm
+			echo ib_ipoib >> /etc/modules
+			modprobe ib_ipoib
+			echo ib_umad >> /etc/modules
+			modprobe ib_umad
+			LogMsg "*** Adding Canonical ppa for temporary fix"
+			add-apt-repository -y ppa:ci-train-ppa-service/3760
+			LogMsg "*** System updating with the customized ppa"
+			apt update
+			apt upgrade -y
 			;;
 		*)
 			LogErr "MPI type $mpi_type does not support on '$DISTRO' or not implement"
@@ -233,16 +259,19 @@ function Main() {
 			pkey=$(cat /sys/class/infiniband/*/ports/1/pkeys/0)
 			export MPI_IB_PKEY=${pkey}
 			make -j $(nproc)
+			LogMsg "Ping-pong compilation completed"
 		fi
-		LogMsg "Ping-pong compilation completed"
 
 		# verify ping_pong binary
 		Verify_File $ping_pong_bin
 
 		# add IBM Platform MPI path to PATH
+		LogMsg "Exporting MPI_ROOT and PATH variables"
 		export MPI_ROOT=/opt/ibm/platform_mpi
+		LogMsg "MPI_ROOT: $MPI_ROOT"
 		export PATH=$PATH:$MPI_ROOT
 		export PATH=$PATH:$MPI_ROOT/bin
+		LogMsg "PATH: $PATH"
 	elif [ $mpi_type == "intel" ]; then
 		# if HPC images comes with MPI binary pre-installed, (CentOS HPC)
 		#   there is no action required except binary verification
@@ -292,6 +321,8 @@ function Main() {
 
 		# add Intel MPI path to PATH
 		export PATH=$PATH:"${mpirun_path%/*}"
+		# add sourcing file in each session
+		echo "source ${mpirun_path%/*}/mpivars.sh" >> $HOMEDIR/.bashrc
 
 		LogMsg "Completed Intel MPI installation"
 

@@ -140,7 +140,7 @@ function Run_IMB_MPI1() {
 				$mpi_run_path --allow-run-as-root -x UCX_IB_PKEY=$UCX_IB_PKEY -n $(($mpi1_ppn * $total_virtual_machines)) --H $master,$slaves $mpi_settings $imb_mpi1_path $extra_params > IMB-MPI1-AllNodes-output-Attempt-${attempt}.txt
 			;;
 			intel)
-				LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $mpi1_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $extra_params"
+				LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $mpi1_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_mpi1_path $extra_params"
 				$mpi_run_path -hosts $master,$slaves -ppn $mpi1_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_mpi1_path $extra_params > IMB-MPI1-AllNodes-output-Attempt-${attempt}.txt
 			;;
 			mvapich)

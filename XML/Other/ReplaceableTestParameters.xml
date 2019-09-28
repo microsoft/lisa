@@ -553,7 +553,7 @@ Scenario 2 : You need to run all the performance tests quickly.
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INTEL_MPI_DOWNLOAD</ReplaceThis>
-		<ReplaceWith>https://partnerpipelineshare.blob.core.windows.net/mpi/l_mpi_2018.3.222.tgz</ReplaceWith>
+		<ReplaceWith>https://partnerpipelineshare.blob.core.windows.net/mpi/l_mpi_2019.5.281.tgz</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>OPEN_MPI_DOWNLOAD</ReplaceThis>
