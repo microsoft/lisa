@@ -1739,7 +1739,7 @@ Function Start-StressNg {
         -username $user -password $password -upload
     # execute command as job
     $retVal = Run-LinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMSSHPort `
-        -command "echo $password | cd /home/$user && chmod u+x ${FILE_NAME} && sed -i 's/\r//g' ${FILE_NAME} && ./${FILE_NAME}" -runAsSudo
+        -command "echo $password | cd /home/$user && chmod u+x ${FILE_NAME} && sed -i 's/\r//g' ${FILE_NAME} && ./${FILE_NAME}" -runAsSudo -RunInBackground
     return $retVal
 }
 # This function runs the remote script on VM.
@@ -1867,7 +1867,7 @@ function Get-MemoryStressNG([String]$VMIpv4, [String]$VMSSHPort, [int]$timeoutSt
     Write-LogInfo "Copy-RemoteFiles done"
     # execute command
     $sendCommand = "echo $password | cd /home/$user && chmod u+x ${FILE_NAME} && sed -i 's/\r//g' ${FILE_NAME} && ./${FILE_NAME}"
-    $retVal = Run-LinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMSSHPort -command $sendCommand  -runAsSudo
+    $retVal = Run-LinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMSSHPort -command $sendCommand -runAsSudo -RunInBackground
     return $retVal
 }
 

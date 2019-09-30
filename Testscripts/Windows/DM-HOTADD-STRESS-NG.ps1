@@ -146,9 +146,9 @@ function Main {
         if (-not $startMemory){
            Throw "Unable to start job for creating pressure on $vm1Name" | Tee-Object -Append -file $summaryLog
         }
-        [int64]$vm1Demand = ($vmInfo.MemoryDemand/1MB)
         # Wait for stress-ng to start and the memory assigned/demand gets updated
         Start-Sleep -s $sleepTime
+        [int64]$vm1Demand = ($vmInfo.MemoryDemand/1MB)
         # Get memory stats for vm1 after stress-ng starts
         [int64]$vm1Assigned = ($vmInfo.MemoryAssigned/1MB)
         Write-LogInfo "Memory stats for $vm1Name after stress-ng started"
