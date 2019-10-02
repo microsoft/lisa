@@ -124,4 +124,32 @@
 		<Tags>stress,network,sriov</Tags>
 		<Priority>2</Priority>
 	</test>
+		<test>
+		<testName>STRESSTEST-NVME-4K-IO</testName>
+		<testScript>PERF-STORAGE-MULTIDISK-RAID0-FIO.ps1</testScript>
+		<setupType>OneVM</setupType>
+		<OverrideVMSize>Standard_L64s_v2</OverrideVMSize>
+		<setupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\TestScripts\Windows\SETUP-Config-VM.ps1,.\Testscripts\Windows\SETUP-Add-NVME-Disk.ps1</setupScript>
+		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
+		<TestParameters>
+			<param>vmCpuNumber=8</param>
+			<param>vmMemory=8GB</param>
+			<param>NVME=yes</param>
+			<param>modes=PERF-STORAGE-4K-IO-MODES</param>
+			<param>startQDepth=64</param>
+			<param>maxQDepth=16384</param>
+			<param>startIO=4</param>
+			<param>ioruntime=FIO_STRESS_RUNTIME</param>
+			<param>maxIO=4</param>
+			<param>PHYSICAL_NUMBER=1</param>
+			<param>parseTimeout=FIO_LOG_PARSE_TIMEOUT</param>
+			<param>nvme_version=NVME_VERSION</param>
+		</TestParameters>
+		<cleanupScript>.\Testscripts\Windows\SETUP-Remove-NVME-Disk.ps1</cleanupScript>
+		<Platform>Azure,HyperV</Platform>
+		<Category>Stress</Category>
+		<Area>STRESS</Area>
+		<Tags>stress,nvme,storage</Tags>
+		<Priority>2</Priority>
+	</test>
 </TestCases>
