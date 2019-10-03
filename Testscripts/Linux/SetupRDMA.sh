@@ -301,8 +301,9 @@ function Main() {
 			LogMsg "Downloading Intel MPI source code, $intel_mpi"
 			wget $intel_mpi
 
-			tar xvzf $(echo $intel_mpi | cut -d'/' -f5)
-			cd $(echo "${intel_mpi%.*}" | cut -d'/' -f5)
+			tar_filename=$(echo $intel_mpi | rev | cut -d'/' -f1 | rev)
+			tar xvzf $tar_filename
+			cd ${tar_filename%.*}
 
 			LogMsg "Executing silent installation"
 			sed -i -e 's/ACCEPT_EULA=decline/ACCEPT_EULA=accept/g' silent.cfg
@@ -333,8 +334,9 @@ function Main() {
 		wget $open_mpi
 		Verify_Result
 
-		tar xvzf $(echo $open_mpi | cut -d'/' -f5)
-		cd $(echo "${open_mpi%.*}" | cut -d'/' -f5 | sed -n '/\.tar$/s///p')
+		tar_filename=$(echo $open_mpi | rev | cut -d'/' -f1 | rev)
+		tar xvzf $tar_filename
+		cd ${tar_filename%.*.*}
 
 		LogMsg "Running configuration"
 		./configure --enable-mpirun-prefix-by-default
@@ -405,8 +407,9 @@ function Main() {
 			madh_location=$(find / -name "mad.h" | tail -1)
 			cp $madh_location /usr/include/infiniband/
 		fi
-		tar xvzf $(echo $mvapich_mpi | cut -d'/' -f5)
-		cd $(echo "${mvapich_mpi%.*}" | cut -d'/' -f5 | sed -n '/\.tar$/s///p')
+		tar_filename=$(echo $mvapich_mpi | rev | cut -d'/' -f1 | rev)
+		tar xvzf $tar_filename
+		cd ${tar_filename%.*.*}
 
 		LogMsg "Running configuration"
 		if [[ $DISTRO == "ubuntu"* ]]; then
