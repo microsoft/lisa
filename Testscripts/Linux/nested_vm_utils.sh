@@ -98,15 +98,15 @@ Download_Image_Files()
        shift
     done
     [ ! -d /mnt/resource ] && mkdir /mnt/resource
-    cd /mnt/resource
     if [ "x$destination_image_name" == "x" ] || [ "x$source_image_url" == "x" ] ; then
         echo "Usage: GetImageFiles -destination_image_name <destination image name> -source_image_url <source nested image url>"
         Update_Test_State $ICA_TESTABORTED
         exit 0
     fi
     echo "Downloading $NestedImageUrl..."
-    rm -f $destination_image_name
-    aria2c -o $destination_image_name -x 10 $source_image_url
+    rm -f /mnt/resource/$destination_image_name
+    echo "aria2c -d /mnt/resource -o $destination_image_name -x 10 $source_image_url"
+    aria2c -d /mnt/resource -o $destination_image_name -x 10 $source_image_url
     exit_status=$?
     if [ $exit_status -ne 0 ]; then
         echo "Download image fail: $NestedImageUrl"
