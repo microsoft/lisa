@@ -65,8 +65,10 @@ if [ $DISTRO_NAME == "centos" ] || [ $DISTRO_NAME == "rhel" ] || [ $DISTRO_NAME 
 fi
 
 # Only upstream with "Enable sg as tunable, sync offload settings to VF NIC" patch supports syncing offloading
-if version_lt "$(uname -r)" "5.3.0" ; then
-    LogErr "Syncing offloading is not supported for $(uname -r), Test skipped!"
+# if no [fixed] string next to tx-scatter-gather in ethtool -k, the kernel has the right patches.
+patch_filter=$(ethtool -k eth0 | grep -i tx-scatter-gather:)
+if [[ $patch_filter == *"[fixed]" ]]; then
+    LogErr "Syncing offloading is not supported or missed the required patches for $(uname -r), Test skipped!"
     SetTestStateSkipped
     exit 0
 fi
