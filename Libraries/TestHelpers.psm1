@@ -74,7 +74,7 @@ function Upload-RemoteFile($uploadTo, $port, $file, $username, $password, $usePr
 		}
 		else
 		{
-			Write-LogInfo "Uploading $file to $username : $uploadTo, port $port using Password authentication"
+			Write-LogInfo "Uploading $file to $username @ $uploadTo : $port using password authentication"
 			$curDir = $PWD
 			$uploadStatusRandomFileName = "UploadStatusFile" + (Get-Random -Maximum 9999 -Minimum 1111) + ".txt"
 			$uploadStatusRandomFile = Join-Path $env:TEMP $uploadStatusRandomFileName
@@ -156,9 +156,9 @@ function Download-RemoteFile($downloadFrom, $downloadTo, $port, $file, $username
 	{
 		if ($usePrivateKey)
 		{
-			Write-LogInfo "Downloading $file from $username : $downloadFrom,port $port to $downloadTo using PrivateKey authentication"
+			Write-LogInfo "Downloading $file from $username : $downloadFrom : $port to $downloadTo using PrivateKey authentication"
 		} else {
-			Write-LogInfo "Downloading $file from $username : $downloadFrom,port $port to $downloadTo using Password authentication"
+			Write-LogInfo "Downloading $file from $username @ $downloadFrom : $port to $downloadTo using password authentication"
 		}
 		$curDir = $PWD
 		$downloadStatusRandomFileName = "DownloadStatusFile" + (Get-Random -Maximum 9999 -Minimum 1111) + ".txt"
