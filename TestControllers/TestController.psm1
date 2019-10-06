@@ -353,7 +353,7 @@ Class TestController
 		}
 		Write-LogInfo "Test script: ${Script} started."
 		$testVMData = $VMData | Where-Object { !($_.RoleName -like "*dependency-vm*") } | Select-Object -First 1
-		# Note(v-advlad): PowerShell scripts can have a side effect of changing the
+		# PowerShell scripts can have a side effect of changing the
 		# $CurrentTestData global variable.
 		# Bash and Python scripts write a string in the state.txt log file with the test result,
 		# which is parsed and returned by the Collect-TestLogs method.
@@ -422,9 +422,11 @@ Class TestController
 			}
 
 			# Run setup script if any
+			Write-LogInfo "==> Run test setup script if defined."
 			$this.TestProvider.RunSetup($VmData, $CurrentTestData, $testParameters, $ApplyCheckpoint)
 
 			if (!$global:IsWindowsImage) {
+				Write-LogInfo "==> Check the target machine kernel log."
 				GetAndCheck-KernelLogs -allDeployedVMs $VmData -status "Initial" | Out-Null
 			}
 
@@ -432,9 +434,9 @@ Class TestController
 			if ($CurrentTestData.files) {
 				if(!$global:IsWindowsImage){
 					foreach ($vm in $VmData) {
+						Write-LogInfo "==> Upload test files to target machine $($vm.RoleName) if any."
 						Copy-RemoteFiles -upload -uploadTo $vm.PublicIP -Port $vm.SSHPort `
 							-files $CurrentTestData.files -Username $global:user -password $global:password
-						Write-LogInfo "Test files uploaded to VM $($vm.RoleName)"
 					}
 				}
 			}
@@ -443,7 +445,8 @@ Class TestController
 			if ($CurrentTestData.Timeout) {
 				$timeout = $CurrentTestData.Timeout
 			}
-			Write-LogInfo "Before run-test script with $($global:user)"
+
+			Write-LogInfo "==> Run test script on the target machine."
 			# Run test script
 			if ($CurrentTestData.TestScript) {
 				$currentTestResult = $this.RunTestScript(
@@ -458,7 +461,7 @@ Class TestController
 					$this.GlobalConfig,
 					$this.TestProvider)
 			} else {
-				throw "Missing TestScript in case $currentTestName."
+				throw "Test case $currentTestName does not define any TestScript in the XML file."
 			}
 		} catch {
 			$errorMessage = $_.Exception.Message
@@ -471,14 +474,15 @@ Class TestController
 		}
 
 		# Upload results to database
+		Write-LogInfo "==> Upload test results to database."
 		if ($currentTestResult.TestResultData) {
 			Upload-TestResultDataToDatabase -TestResultData $currentTestResult.TestResultData -DatabaseConfig $this.GlobalConfig.Global.$($this.TestPlatform).ResultsDatabase
 		}
 
 		try {
-			# Do log collecting and VM clean up
+			Write-LogInfo "==> Check if the test target machines are still running."
 			$isVmAlive = Is-VmAlive -AllVMDataObject $VMData -MaxRetryCount 10
-			# Check if VM is running before collecting logs
+			
 			if (!$global:IsWindowsImage -and $testParameters["SkipVerifyKernelLogs"] -ne "True" -and $isVmAlive -eq "True" ) {
 				GetAndCheck-KernelLogs -allDeployedVMs $VmData -status "Final" -EnableCodeCoverage $this.EnableCodeCoverage | Out-Null
 				$this.GetSystemBasicLogs($VmData, $global:user, $global:password, $CurrentTestData, $currentTestResult, $this.EnableTelemetry) | Out-Null
@@ -486,6 +490,8 @@ Class TestController
 
 			$collectDetailLogs = !$this.TestCasePassStatus.contains($currentTestResult.TestResult) -and !$global:IsWindowsImage -and $testParameters["SkipVerifyKernelLogs"] -ne "True" -and $isVmAlive -eq "True"
 			$doRemoveFiles = $this.TestCasePassStatus.contains($currentTestResult.TestResult) -and !($this.ResourceCleanup -imatch "Keep") -and !$global:IsWindowsImage -and $testParameters["SkipVerifyKernelLogs"] -ne "True"
+
+			Write-LogInfo "==> Run test cleanup script if defined."
 			$this.TestProvider.RunTestCaseCleanup($vmData, $CurrentTestData, $currentTestResult, $collectDetailLogs, $doRemoveFiles, `
 				$global:user, $global:password, $SetupTypeData, $testParameters)
 		} catch {
@@ -576,10 +582,11 @@ Class TestController
 						$this.SetupTypeToTestCases[$key][0].OverrideVMSize = $multiplexedTestConfig["TestVmSize"]
 					}
 
-					Write-LogInfo "$($case.testName) started running."
+					Write-LogInfo "$($case.testName) started running ..."
 					$executionCount += 1
 					if (!$vmData -or $tcDeployVM) {
 						# Deploy the VM for the setup
+						Write-LogInfo "Deploy target machine for test ..."
 						$deployVMStatus = $this.TestProvider.DeployVMs($this.GlobalConfig, $this.SetupTypeTable[$setupType], $this.SetupTypeToTestCases[$key][0], `
 							$this.TestLocation, $this.RGIdentifier, $this.UseExistingRG, $this.ResourceCleanup)
 						$vmData = $null
@@ -600,6 +607,7 @@ Class TestController
 						}
 					}
 					# Run test case
+					Write-LogInfo "Run test case against the target machine ..."
 					$lastResult = $this.RunTestCase($vmData, $case, $executionCount, $this.SetupTypeTable[$setupType], ($tests -ne 0))
 					$tests++
 					# If the case doesn't pass, keep the VM for failed case except when ResourceCleanup = "Delete" is set
@@ -633,7 +641,7 @@ Class TestController
 
 	[void] RunTest([string]$TestReportXmlPath, [int]$TestIterations, [bool]$RunInParallel) {
 		$this.PrepareTestImage()
-		Write-LogInfo "Starting the test"
+		Write-LogInfo "Prepare test log structure and start testing now ..."
 
 		# Start JUnit XML report logger.
 		$this.JunitReport = [JUnitReportGenerator]::New($TestReportXmlPath)

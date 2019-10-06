@@ -96,16 +96,16 @@ Function Upload-TestResultToDatabase ([String]$SQLQuery)
 				$command.CommandText = $SQLQuery
 				$null = $command.executenonquery()
 				$connection.Close()
-				Write-LogInfo "Uploading test results to database :  done!!"
+				Write-LogInfo "Uploading test results to database: DONE"
 			}
 			catch
 			{
-				Write-LogErr "Uploading test results to database :  ERROR"
+				Write-LogErr "Uploading test results to database: ERROR"
 				$line = $_.InvocationInfo.ScriptLineNumber
 				$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
 				$ErrorMessage =  $_.Exception.Message
-				Write-LogInfo "EXCEPTION : $ErrorMessage"
-				Write-LogInfo "Source : Line $line in script $script_name."
+				Write-LogErr "EXCEPTION : $ErrorMessage"
+				Write-LogErr "Source : Line $line in script $script_name."
 			}
 		} else {
 			Write-LogErr "Database details are not provided. Results will not be uploaded to database!!"

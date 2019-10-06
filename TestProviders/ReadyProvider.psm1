@@ -35,6 +35,7 @@ Class ReadyProvider : TestProvider
 			Add-Member -InputObject $objNode -MemberType NoteProperty -Name SSHPort -Value $null -Force
 			Add-Member -InputObject $objNode -MemberType NoteProperty -Name UserName -Value $null -Force
 			Add-Member -InputObject $objNode -MemberType NoteProperty -Name Password -Value $null -Force
+			Add-Member -InputObject $objNode -MemberType NoteProperty -Name RoleName -Value $null -Force
 			return $objNode
 		}
 
@@ -44,10 +45,14 @@ Class ReadyProvider : TestProvider
 			$allVmList = $RGIdentifier.Split(";");
 			foreach($vmInfo in $allVmList){
 				$vmNode = Create-QuickVMNode
-				$vmNode.PublicIP = $vmInfo.Split(":")[0];
-				$vmNode.SSHPort = $vmInfo.Split(":")[1];
+				$vmNode.PublicIP = $vmInfo.Split(":")[0]
+				$vmNode.SSHPort = $vmInfo.Split(":")[1]
+				$vmNode.UserName = $Global:user
+				$vmNode.Password = $Global:password
+				$vmNode.RoleName = "UndefinedRole"
 				$allVMData += $vmNode;
 			}
+			Write-LogInfo("No need to deploy new VM as this test case is running against a prepared environment.")
 
 			$isVmAlive = Is-VmAlive -AllVMDataObject $allVMData
 			if ($isVmAlive -ne "True") {

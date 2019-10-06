@@ -75,7 +75,7 @@ runTestPmd()
 	mkdir -p  /mnt/huge; mkdir -p  /mnt/huge-1G; mount -t hugetlbfs nodev /mnt/huge && mount -t hugetlbfs nodev /mnt/huge-1G -o 'pagesize=1G' && echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages && grep -i hug /proc/meminfo 
 
 	# Check testpmd --no-pci if it triggers a kernel crash
-	# NOTE(v-advlad): SIGKILL(9) is required, as the --no-pci makes testpmd hang
+	# SIGKILL(9) is required, as the --no-pci makes testpmd hang
 	# although SIGINT is sent.
 	echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages \
 		&& echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages \

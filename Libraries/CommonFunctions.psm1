@@ -364,25 +364,25 @@ function Is-VmAlive {
 
             $out = Test-TCP -testIP $vm.PublicIP -testport $port
             if ($out -ne "True") {
-                Write-LogInfo "Connecting to $($vm.PublicIP) and port $port failed."
+                Write-LogInfo "Connecting to $($vm.PublicIP) : $port failed."
                 $deadVms += 1
-                # Note(v-advlad): Check for kernel panic once every ${kernelPanicPeriod} retries on Linux Azure
+
                 if (($retryCount % $kernelPanicPeriod -eq 0) -and ($TestPlatform -eq "Azure") `
                     -and (!$global:IsWindowsImage) -and (Check-AzureVmKernelPanic $vm)) {
                     Write-LogErr "Linux VM $($vm.RoleName) failed to boot because of a kernel panic."
                     return "False"
                 }
             } else {
-                Write-LogInfo "Connecting to $($vm.PublicIP):$port succeeded."
+                Write-LogInfo "Connecting to $($vm.PublicIP) : $port succeeded."
             }
         }
 
         if ($deadVms -gt 0) {
-            Write-LogInfo "$deadVms VM(s) still waiting to open port $port."
+            Write-LogInfo "$deadVms VM(s) still waiting for port $port open."
             Write-LogInfo "Retrying $retryCount/$MaxRetryCount in 3 seconds."
             Start-Sleep -Seconds 3
         } else {
-            Write-LogInfo "All VM ports are open."
+            Write-LogInfo "The SSH ports for all VMs are open."
             return "True"
         }
     } While (($retryCount -lt $MaxRetryCount) -and ($deadVms -gt 0))
@@ -997,7 +997,7 @@ Function Detect-LinuxDistro() {
 		# Instead of throw, it sets 'Unknown' if it does not exist
 		$CleanedDistroName = "Unknown"
 	} else {
-		# Note(v-advlad): DistroName must be cleaned of unwanted sudo output
+		# DistroName must be cleaned of unwanted sudo output
 		# like 'sudo: unable to resolve host'
 		$CleanedDistroName = $DistroName.Split("`r`n").Trim() | Select-Object -Last 1
 		Set-Variable -Name detectedDistro -Value $CleanedDistroName -Scope Global
