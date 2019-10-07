@@ -270,7 +270,7 @@ while [ $__iterator -le "$vf_count" ]; do
     LogMsg "Set $synthetic_interface_vm_1 feature $feature_device_name to off"
     set_feature_status $synthetic_interface_vm_1 $feature_device_name "off"
     # Check sync offloading features to VF NIC again
-    LogMsg "Verifying $vf_interface_vm_1 feature $feature_name is off
+    LogMsg "Verifying $vf_interface_vm_1 feature $feature_name is off"
     check_feature_status $vf_interface_vm_1 $feature_name "off"
 
     # Step 4: Disable/enable SRIOV
