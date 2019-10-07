@@ -33,9 +33,11 @@ fi
 function check_feature_status() {
     on_or_off=$(ethtool -k $1 2>&1 | grep "^$2" | awk {'print $2'})
     if [[ "$on_or_off" != "$3" ]];then
-        LogErr "The $2 is expected $3, but it's not"
+        LogErr "The $2 is expected $3, but it returned $on_or_off."
         SetTestStateFailed
         exit 0
+    else
+        LogMsg "Returned the expected value, $on_or_off"
     fi
 }
 
@@ -50,6 +52,8 @@ function set_feature_status() {
         LogErr "The kernel doesn't support $2 feature"
         SetTestStateFailed
         exit 0
+    else
+        LogMsg "Successfully set the value $3 of $3 in the device $1."
     fi
 }
 
