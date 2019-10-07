@@ -257,26 +257,33 @@ while [ $__iterator -le "$vf_count" ]; do
     # Step 1: Set the status of scatter-gather on and check it
     feature_name="scatter-gather"
     feature_device_name="sg"
+    LogMsg "Set $synthetic_interface_vm_1 feature $feature_device_name to on"
     set_feature_status $synthetic_interface_vm_1 $feature_device_name "on"
+    LogMsg "Verifying $synthetic_interface_vm_1 feature $feature_name is on"
     check_feature_status $synthetic_interface_vm_1 $feature_name "on"
 
     # Step 2: Check sync offloading features to VF NIC
+    LogMsg "Verifying $vf_interface_vm_1 $feature_name on"
     check_feature_status $vf_interface_vm_1 $feature_name "on"
 
     # Step 3: Check scatter-gather feature to be tunable
+    LogMsg "Set $synthetic_interface_vm_1 feature $feature_device_name to off"
     set_feature_status $synthetic_interface_vm_1 $feature_device_name "off"
     # Check sync offloading features to VF NIC again
+    LogMsg "Verifying $vf_interface_vm_1 feature $feature_name is off
     check_feature_status $vf_interface_vm_1 $feature_name "off"
 
     # Step 4: Disable/enable SRIOV
     if ! DisableEnablePCI "SR-IOV"; then
-        LogErr "Could not disable and reenable pci device."
+        LogErr "Could not disable and enable back PCI device."
         SetTestStateFailed
         exit 0
     fi
 
     # Step 5: Verify the changed setting persists on VF
+    LogMsg "Verifying $synthetic_interface_vm_1 feature $feature_name is off"
     check_feature_status $synthetic_interface_vm_1 $feature_name "off"
+    LogMsg "Verifying $vf_interface_vm_1 feature $feature_name is off"
     check_feature_status $vf_interface_vm_1 $feature_name "off"
 
     # It's expected that the perf is running during the whole test
@@ -285,6 +292,8 @@ while [ $__iterator -le "$vf_count" ]; do
         LogErr "The iperf3 is not running."
         SetTestStateFailed
         exit 0
+    else
+        LogMsg "Verified iperf3 is still running successfully"
     fi
 
     __ip_iterator_1=$(($__ip_iterator_1 + 2))
