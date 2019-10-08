@@ -212,7 +212,7 @@ Function Validate-VHD {
 		Write-Host "Error: Please install tool AzCopy."
 		return $false
 	}
-	Test-VHD $pwd/$vhdName
+	Test-VHD $pwd/$vhdName -ErrorAction SilentlyContinue
 	$returnVal = $?
 	Remove-Item $pwd/$vhdName
 	if($returnVal) {
