@@ -220,9 +220,9 @@ while [ $__iterator -le "$vf_count" ]; do
     # Get default status of features
     for key in ${!offload_features_default_status[*]}
     do
-        status=$(ethtool -k $synthetic_interface_vm_1 2>&1 | grep "^$key" | awk {'print $2'})
-        if [ $status != X"on" || $status !="off" ]; then
-            LogErr "The status of $key is $status, but on/off is expected"
+        status=$(ethtool -k $synthetic_interface_vm_1 2>&1 | grep "^$key" | head -n 1 | awk {'print $2'})
+        if [ ${status} != "on" ] && [ ${status} != "off" ]; then
+            LogErr "The status of $key is $status, but on or off is expected"
             SetTestStateFailed
             exit 0
         fi
@@ -240,48 +240,79 @@ while [ $__iterator -le "$vf_count" ]; do
     # Get status again after disable/enable SRIOV
     for key in ${!offload_features_default_status[*]}
     do
-        status=$(ethtool -k $synthetic_interface_vm_1 2>&1 | grep "^$key" | awk {'print $2'})
-        if [ $status != X"on" || $status !="off" ]; then
-            LogErr "The status of $key is $status, but on/off is expected"
+        status=$(ethtool -k $synthetic_interface_vm_1 2>&1 | grep "^$key" | head -n 1 | awk {'print $2'})
+        if [ ${status} != "on" ] && [ ${status} != "off" ]; then
+            LogErr "The status of $key is $status, but on or off is expected"
             SetTestStateFailed
             exit 0
         fi
-        if [ $status != ${offload_features_default_status[$key]} ]; then
+        if [ ${status} != ${offload_features_default_status[$key]} ]; then
             LogErr "The status of $key is changed from ${offload_features_default_status[$key]} to $status after disable/enable SRIOV"
             SetTestStateFailed
             exit 0
         fi
     done
 
+    synthetic_interface_vm_1=$(ip addr | grep $static_IP_1 | awk '{print $NF}')
+    LogMsg  "Synthetic interface found: $synthetic_interface_vm_1"
+    if [[ $DISTRO_VERSION =~ ^6\. ]]; then
+        synthetic_MAC=$(ip link show ${synthetic_interface_vm_1} | grep ether | awk '{print $2}')
+        vf_interface_vm_1=$(grep -il ${synthetic_MAC} /sys/class/net/*/address | grep -v $synthetic_interface_vm_1 | sed 's/\// /g' | awk '{print $4}')
+    else
+        vf_interface_vm_1=$(find /sys/devices/* -name "*${synthetic_interface_vm_1}" | grep "pci" | sed 's/\// /g' | awk '{print $12}')
+    fi
+    LogMsg "Virtual function found: $vf_interface_vm_1"
+
     # The below is against scatter-gather feature
     # Step 1: Set the status of scatter-gather on and check it
     feature_name="scatter-gather"
     feature_device_name="sg"
-    LogMsg "Set $synthetic_interface_vm_1 feature $feature_device_name to on"
+    LogMsg "1. Set $synthetic_interface_vm_1 feature $feature_device_name to on"
     set_feature_status $synthetic_interface_vm_1 $feature_device_name "on"
     LogMsg "Verifying $synthetic_interface_vm_1 feature $feature_name is on"
     check_feature_status $synthetic_interface_vm_1 $feature_name "on"
 
     # Step 2: Check sync offloading features to VF NIC
-    LogMsg "Verifying $vf_interface_vm_1 $feature_name on"
+    LogMsg "2. Verifying $vf_interface_vm_1 $feature_name on"
     check_feature_status $vf_interface_vm_1 $feature_name "on"
 
+    synthetic_interface_vm_1=$(ip addr | grep $static_IP_1 | awk '{print $NF}')
+    LogMsg  "Synthetic interface found: $synthetic_interface_vm_1"
+    if [[ $DISTRO_VERSION =~ ^6\. ]]; then
+        synthetic_MAC=$(ip link show ${synthetic_interface_vm_1} | grep ether | awk '{print $2}')
+        vf_interface_vm_1=$(grep -il ${synthetic_MAC} /sys/class/net/*/address | grep -v $synthetic_interface_vm_1 | sed 's/\// /g' | awk '{print $4}')
+    else
+        vf_interface_vm_1=$(find /sys/devices/* -name "*${synthetic_interface_vm_1}" | grep "pci" | sed 's/\// /g' | awk '{print $12}')
+    fi
+    LogMsg "Virtual function found: $vf_interface_vm_1"
+
     # Step 3: Check scatter-gather feature to be tunable
-    LogMsg "Set $synthetic_interface_vm_1 feature $feature_device_name to off"
+    LogMsg "3. Set $synthetic_interface_vm_1 feature $feature_device_name to off"
     set_feature_status $synthetic_interface_vm_1 $feature_device_name "off"
     # Check sync offloading features to VF NIC again
     LogMsg "Verifying $vf_interface_vm_1 feature $feature_name is off"
     check_feature_status $vf_interface_vm_1 $feature_name "off"
 
     # Step 4: Disable/enable SRIOV
+    LogMsg "4. Disable and enable back SR-IOV"
     if ! DisableEnablePCI "SR-IOV"; then
         LogErr "Could not disable and enable back PCI device."
         SetTestStateFailed
         exit 0
     fi
 
+    synthetic_interface_vm_1=$(ip addr | grep $static_IP_1 | awk '{print $NF}')
+    LogMsg  "Synthetic interface found: $synthetic_interface_vm_1"
+    if [[ $DISTRO_VERSION =~ ^6\. ]]; then
+        synthetic_MAC=$(ip link show ${synthetic_interface_vm_1} | grep ether | awk '{print $2}')
+        vf_interface_vm_1=$(grep -il ${synthetic_MAC} /sys/class/net/*/address | grep -v $synthetic_interface_vm_1 | sed 's/\// /g' | awk '{print $4}')
+    else
+        vf_interface_vm_1=$(find /sys/devices/* -name "*${synthetic_interface_vm_1}" | grep "pci" | sed 's/\// /g' | awk '{print $12}')
+    fi
+    LogMsg "Virtual function found: $vf_interface_vm_1"
+
     # Step 5: Verify the changed setting persists on VF
-    LogMsg "Verifying $synthetic_interface_vm_1 feature $feature_name is off"
+    LogMsg "5. Verifying $synthetic_interface_vm_1 feature $feature_name is off"
     check_feature_status $synthetic_interface_vm_1 $feature_name "off"
     LogMsg "Verifying $vf_interface_vm_1 feature $feature_name is off"
     check_feature_status $vf_interface_vm_1 $feature_name "off"
