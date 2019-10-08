@@ -482,7 +482,7 @@ Class TestController
 		try {
 			Write-LogInfo "==> Check if the test target machines are still running."
 			$isVmAlive = Is-VmAlive -AllVMDataObject $VMData -MaxRetryCount 10
-			
+
 			if (!$global:IsWindowsImage -and $testParameters["SkipVerifyKernelLogs"] -ne "True" -and $isVmAlive -eq "True" ) {
 				GetAndCheck-KernelLogs -allDeployedVMs $VmData -status "Final" -EnableCodeCoverage $this.EnableCodeCoverage | Out-Null
 				$this.GetSystemBasicLogs($VmData, $global:user, $global:password, $CurrentTestData, $currentTestResult, $this.EnableTelemetry) | Out-Null

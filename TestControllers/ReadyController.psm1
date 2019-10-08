@@ -43,7 +43,7 @@ Class ReadyController : TestController
 			if ( ($ParamTable.RGIdentifier.Contains(" ")) `
 			-or !($ParamTable.RGIdentifier.Contains(":")) `
 			-or !($ParamTable.RGIdentifier.Contains(".")) ) {
-				$parameterErrors += "-TestLocation format error (expected format: 1.1.1.1:22;2.2.2.2:22)."
+				$parameterErrors += "-RGIdentifier format error (expected format: 1.1.1.1:22;2.2.2.2:22)."
 			}
 		}
 
@@ -69,7 +69,7 @@ Class ReadyController : TestController
 		}
 		$this.VmUsername = $readyVConfig.TestCredentials.LinuxUsername
 		$this.VmPassword = $readyVConfig.TestCredentials.LinuxPassword
-		
+
 		if( $this.ResultDBTable ) {
 			$readyVConfig.ResultsDatabase.dbtable = ($this.ResultDBTable).Trim()
 			Write-LogInfo "ResultDBTable : $this.ResultDBTable added to GlobalConfig.Global.Ready.ResultsDatabase.dbtable"
