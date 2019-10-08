@@ -69,7 +69,7 @@ function Main {
         $privateIP = "fd00::4:10"
     }
 
-	$interfaces = (Invoke-Command -ComputerName $HvServer {Get-NetIPAddress -addressFamily $Using:addressFamily})
+    $interfaces = (Invoke-Command -ComputerName $HvServer {Get-NetIPAddress -addressFamily $Using:addressFamily})
     foreach ($interface in $interfaces) {
         if ($interface.InterfaceAlias -like "*(Internal)*") {
             break
