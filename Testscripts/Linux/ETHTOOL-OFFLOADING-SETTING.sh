@@ -232,7 +232,7 @@ while [ $__iterator -le "$vf_count" ]; do
 
     # Disable/enable SRIOV
     if ! DisableEnablePCI "SR-IOV"; then
-        LogErr "Could not disable and reenable pci device."
+        LogErr "Could not disable and reenable PCI device."
         SetTestStateFailed
         exit 0
     fi
