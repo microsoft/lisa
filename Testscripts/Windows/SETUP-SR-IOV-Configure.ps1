@@ -85,19 +85,15 @@ function Main {
             "VM2NAME" { $VM2Name = $fields[1].Trim() }
             "VF_IP1" {
                 $vfIP1 = $fields[1].Trim()
-                $vfIP += ($vfIP1)
                 $vfIterator++ }
             "VF_IP2" {
                 $vfIP2 = $fields[1].Trim()
-                $vfIP += ($vfIP2)
                 $vfIterator++ }
             "VF_IP3" {
                 $vfIP3 = $fields[1].Trim()
-                $vfIP += ($vfIP3)
                 $vfIterator++ }
             "VF_IP4" {
                 $vfIP4 = $fields[1].Trim()
-                $vfIP += ($vfIP4)
                 $vfIterator++ }
             "MAX_NICS" { $maxNICs = $fields[1].Trim() }
             "NETMASK" { $netmask = $fields[1].Trim() }
@@ -106,6 +102,11 @@ function Main {
             default {}
         }
     }
+
+    $vfIP += ($vfIP1)
+    $vfIP += ($vfIP2)
+    $vfIP += ($vfIP3)
+    $vfIP += ($vfIP4)
 
     if ($maxNICs -eq "yes") {
         $nicIterator = 7
@@ -203,7 +204,6 @@ function Main {
     Remove-Item sriov_constants.sh -Force -EA SilentlyContinue
     "SSH_PRIVATE_KEY=id_rsa" | Out-File sriov_constants.sh
     "NETMASK=${netmask}" | Out-File sriov_constants.sh -Append
-    [array]::Sort($vfIP)
     for ($i=0; $i -lt $vfIterator; $i++){
         # get ip from array
         $j = $i + 1
