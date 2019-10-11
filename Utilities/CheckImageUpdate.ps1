@@ -37,9 +37,9 @@ Function Detect-NewVHDFromStorageContainer {
 
 	$containers_result = $Containers.Split(";")
 
-	$xmlFile = "blobsXml.xml"
-	$configFile = "config.xml"
-	$newVhdsFile = "NewVHDs.xml"
+	$xmlFile = Join-Path $PWD "blobsXml.xml"
+	$configFile = Join-Path $PWD "config.xml"
+	$newVhdsFile = Join-Path $PWD "NewVHDs.xml"
 	$vhdCount = 0
 	$lastCheckTime = [DateTime]::Now.AddHours(-$DetectInterval)
 
@@ -170,10 +170,14 @@ Info: Number # $index URL is $vhdurl
 				$UrlsNode = $VhdInfoXml.CreateElement("Urls")
 				$VhdNode.AppendChild($UrlsNode) | Out-Null
 				foreach ($vhdurl in $vhdUrls) {
-					if(Validate-VHD -url $vhdurl) {
+					$isVHDVaild = (Validate-VHD -url $vhdurl)[-1]
+					if($isVHDVaild) {
 						$UrlNode = $VhdInfoXml.CreateElement("Url")
 						$UrlNode.set_InnerXml($vhdUrl.Replace('&','&amp;'))
 						$UrlsNode.AppendChild($UrlNode) | Out-Null
+					} else {
+						$vhdCount--
+						continue
 					}
 				}
 
