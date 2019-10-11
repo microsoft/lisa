@@ -101,6 +101,9 @@ function Main {
     foreach ($p in $params){
         $fields = $p.Split("=")
         $controller = $fields[0].Trim()
+        if ($controller -like "SCSI_*") {
+            $controller = "SCSI"
+        }
         if ("SCSI" -notcontains $controller) {
             # Not a test parameter we are concerned with
             continue
@@ -147,7 +150,7 @@ function Main {
             Write-LogErr "Failed to attach first VHDx with path $path1!"
             return "FAIL"
         }
-        Write-LogErr "Attached first VHDx with path $path1"
+        Write-LogInfo "Attached first VHDx with path $path1"
         #wait for vm to see the disks
         Start-Sleep 5
         $diskNumber = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
