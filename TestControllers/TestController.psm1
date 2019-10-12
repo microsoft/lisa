@@ -70,6 +70,7 @@ Class TestController
 	[array] $TestCasePassStatus
 	[bool] $EnableCodeCoverage
 	[Hashtable] $CustomParams
+	[string] $VMGeneration
 
 	[string[]] ParseAndValidateParameters([Hashtable]$ParamTable) {
 		$this.TestLocation = $ParamTable["TestLocation"]
@@ -90,7 +91,10 @@ Class TestController
 		$this.ResultDBTestTag = $ParamTable["ResultDBTestTag"]
 		$this.UseExistingRG = $ParamTable["UseExistingRG"]
 		$this.EnableCodeCoverage = $ParamTable["EnableCodeCoverage"]
-
+		$this.VMGeneration = $ParamTable["VMGeneration"]
+		if (!$this.VMGeneration) {
+			$this.VMGeneration = "1"
+		}
 		$this.TestProvider.CustomKernel = $ParamTable["CustomKernel"]
 		$this.TestProvider.CustomLIS = $ParamTable["CustomLIS"]
 		$this.CustomParams = @{}
@@ -184,6 +188,8 @@ Class TestController
 		Set-Variable -Name GlobalConfig -Value $this.GlobalConfig -Scope Global -Force
 		# XML secrets, used in Upload-TestResultToDatabase
 		Set-Variable -Name XmlSecrets -Value $this.XmlSecrets -Scope Global -Force
+		# VMGeneration
+		Set-Variable -Name VMGeneration -Value $this.VMGeneration -Scope Global -Force
 		# Test results
 		$passResult = "PASS"
 		$skippedResult = "SKIPPED"
@@ -707,7 +713,7 @@ Class TestController
 			if ($global:TestPlatform -eq "HyperV") {
 				$VMSize = $global:HyperVInstanceSize
 			}
-			$VMGeneration = $vmData.VMGeneration
+			$VMGen = $vmData.VMGeneration
 			#endregion
 			if ($enableTelemetry) {
 				$dataTableName = ""
@@ -721,7 +727,7 @@ Class TestController
 				$SQLQuery = Get-SQLQueryOfTelemetryData -TestPlatform $global:TestPlatform -TestLocation $global:TestLocation -TestCategory $CurrentTestData.Category `
 					-TestArea $CurrentTestData.Area -TestName $CurrentTestData.TestName -CurrentTestResult $CurrentTestResult `
 					-ExecutionTag $global:GlobalConfig.Global.$global:TestPlatform.ResultsDatabase.testTag -GuestDistro $GuestDistro -KernelVersion $global:FinalKernelVersion `
-					-HardwarePlatform $HardwarePlatform -LISVersion $LISVersion -HostVersion $HostVersion -VMSize $VMSize -VMGeneration $VMGeneration -Networking $Networking `
+					-HardwarePlatform $HardwarePlatform -LISVersion $LISVersion -HostVersion $HostVersion -VMSize $VMSize -VMGeneration $VMGen -Networking $Networking `
 					-ARMImageName $global:ARMImageName -OsVHD $global:BaseOsVHD -BuildURL $env:BUILD_URL -TableName $dataTableName
 
 				Upload-TestResultToDatabase -SQLQuery $SQLQuery
