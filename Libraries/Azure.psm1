@@ -747,7 +747,7 @@ Function Get-AllDeploymentData($ResourceGroups)
         Add-Member -InputObject $objNode -MemberType NoteProperty -Name URLv6 -Value $URL -Force
         Add-Member -InputObject $objNode -MemberType NoteProperty -Name Status -Value $Status -Force
         Add-Member -InputObject $objNode -MemberType NoteProperty -Name InstanceSize -Value $InstanceSize -Force
-        Add-Member -InputObject $objNode -MemberType NoteProperty -Name VMGeneration -Value 1 -Force
+        Add-Member -InputObject $objNode -MemberType NoteProperty -Name VMGeneration -Value $VMGeneration -Force
         return $objNode
     }
 
@@ -1191,7 +1191,7 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
     #region CustomImages
     if ($OsVHD -and $UseManagedDisks) {
         Add-Content -Value "$($indents[2]){" -Path $jsonFile
-        Add-Content -Value "$($indents[3])^apiVersion^: ^2017-12-01^," -Path $jsonFile
+        Add-Content -Value "$($indents[3])^apiVersion^: ^2019-03-01^," -Path $jsonFile
         Add-Content -Value "$($indents[3])^type^: ^Microsoft.Compute/images^," -Path $jsonFile
         Add-Content -Value "$($indents[3])^name^: ^$RGName-Image^," -Path $jsonFile
         Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
@@ -1205,10 +1205,15 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
         Add-Content -Value "$($indents[6])^osType^: ^$OSType^," -Path $jsonFile
         Add-Content -Value "$($indents[6])^osState^: ^Generalized^," -Path $jsonFile
         Add-Content -Value "$($indents[6])^blobUri^: ^https://$StorageAccountName.blob.core.windows.net/vhds/$OsVHD^," -Path $jsonFile
-        Add-Content -Value "$($indents[6])^storageAccountType^: ^$StorageAccountType^," -Path $jsonFile
+        Add-Content -Value "$($indents[6])^storageAccountType^: ^$StorageAccountType^" -Path $jsonFile
         Add-Content -Value "$($indents[5])}" -Path $jsonFile
 
         Add-Content -Value "$($indents[4])}" -Path $jsonFile
+        if ($VMGeneration -eq "2") {
+            Add-Content -Value "$($indents[4]),^hyperVGeneration^: ^V2^" -Path $jsonFile
+        } else {
+            Add-Content -Value "$($indents[4]),^hyperVGeneration^: ^V1^" -Path $jsonFile
+        }
         Add-Content -Value "$($indents[3])}" -Path $jsonFile
         Add-Content -Value "$($indents[2])}," -Path $jsonFile
         Write-LogInfo "Added Custom image '$RGName-Image' from '$OsVHD'.."
