@@ -159,14 +159,7 @@ function Build_Kernel() {
     check_exit_status "Make kernel config" "exit"
 
     LogMsg "Start to build kernel"
-    if [ "${CustomKernel}" == "linuxnext" ]; then
-        # Workaround for build break in linuxnext bring in by commit 057fc695e934a77bae0c6c7f3be01251774b61cf
-        # Will revert this once it is fixed in linuxnext
-        sed -i 's/CONFIG_DRM_AMD_DC=y/ONFIG_DRM_AMD_DC=n/g' .config
-        echo n | make -j"$thread_number" >> $LOG_FILE 2>&1
-    else
-        make -j"$thread_number" >> $LOG_FILE 2>&1
-    fi
+    make -j"$thread_number" >> $LOG_FILE 2>&1
     check_exit_status "Build kernel" "exit"
 
     LogMsg "Start to install modules"
