@@ -80,9 +80,9 @@ Class ReadyController : TestController
 		}
 
 		Write-LogInfo "------------------------------------------------------------------"
-		$serverCount = $this.RGIdentifier.split(';').Count
-		for( $index=0 ; $index -lt $serverCount ; $index++ ) {
-			Write-LogInfo "Target Machine   : $($this.VmUsername) @ $($this.RGIdentifier.split(';')[$index])"
+		$vmList = $this.RGIdentifier.split(';')
+		for( $index=0 ; $index -lt $vmList.Count ; $index++ ) {
+			Write-LogInfo "Target Machine   : $($this.VmUsername) @ $($vmList[$index])"
 		}
 		Write-LogInfo "------------------------------------------------------------------"
 
