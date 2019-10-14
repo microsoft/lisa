@@ -43,13 +43,16 @@ Class ReadyProvider : TestProvider
 		$ErrorMessage = ""
 		try {
 			$allVmList = $RGIdentifier.Split(";");
+			$vmIndex = 0
 			foreach($vmInfo in $allVmList){
+				$vmIndex++
 				$vmNode = Create-QuickVMNode
+
 				$vmNode.PublicIP = $vmInfo.Split(":")[0]
 				$vmNode.SSHPort = $vmInfo.Split(":")[1]
 				$vmNode.UserName = $Global:user
 				$vmNode.Password = $Global:password
-				$vmNode.RoleName = "UndefinedRole"
+				$vmNode.RoleName = "Role$vmIndex"
 				$allVMData += $vmNode;
 			}
 			Write-LogInfo("No need to deploy new VM as this test case is running against a prepared environment.")
