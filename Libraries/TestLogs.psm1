@@ -28,7 +28,7 @@ Function Write-Log()
 {
 	param
 	(
-		[ValidateSet('INFO','WARN','ERROR', IgnoreCase = $false)]
+		[ValidateSet('INFO','WARN','ERROR','DEBUG', IgnoreCase = $false)]
 		[string]$logLevel,
 		[string]$text
 	)
@@ -45,6 +45,7 @@ Function Write-Log()
 		"INFO"	{$fgColor = "White"; continue}
 		"WARN"	{$fgColor = "Yellow"; continue}
 		"ERROR"	{$fgColor = "Red"; continue}
+		"DEBUG"	{$fgColor = "DarkGray"; continue}
 	}
 	Write-Host $finalMessage -ForegroundColor $fgColor
 
@@ -83,6 +84,11 @@ Function Write-LogErr($text)
 Function Write-LogWarn($text)
 {
 	Write-Log "WARN" $text
+}
+
+Function Write-LogDbg($text)
+{
+	Write-Log "DEBUG" $text
 }
 
 function Collect-TestLogs {
