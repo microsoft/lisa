@@ -407,7 +407,7 @@ Class TestController
 		return $currentTestResult
 	}
 
-	[object] RunTestCase($VmData, $CurrentTestData, $ExecutionCount, $SetupTypeData, $ApplyCheckpoint) {
+	[object] RunOneTestCase($VmData, $CurrentTestData, $ExecutionCount, $SetupTypeData, $ApplyCheckpoint) {
 		# Prepare test case log folder
 		$currentTestName = $($CurrentTestData.testName)
 		$oldLogDir = $global:LogDir
@@ -488,16 +488,14 @@ Class TestController
 		try {
 			Write-LogInfo "==> Check if the test target machines are still running."
 			$isVmAlive = Is-VmAlive -AllVMDataObject $VMData -MaxRetryCount 10
-
 			if (!$global:IsWindowsImage -and $testParameters["SkipVerifyKernelLogs"] -ne "True" -and $isVmAlive -eq "True" ) {
 				GetAndCheck-KernelLogs -allDeployedVMs $VmData -status "Final" -EnableCodeCoverage $this.EnableCodeCoverage | Out-Null
 				$this.GetSystemBasicLogs($VmData, $global:user, $global:password, $CurrentTestData, $currentTestResult, $this.EnableTelemetry) | Out-Null
 			}
 
+			Write-LogInfo "==> Run test cleanup script if defined."
 			$collectDetailLogs = !$this.TestCasePassStatus.contains($currentTestResult.TestResult) -and !$global:IsWindowsImage -and $testParameters["SkipVerifyKernelLogs"] -ne "True" -and $isVmAlive -eq "True"
 			$doRemoveFiles = $this.TestCasePassStatus.contains($currentTestResult.TestResult) -and !($this.ResourceCleanup -imatch "Keep") -and !$global:IsWindowsImage -and $testParameters["SkipVerifyKernelLogs"] -ne "True"
-
-			Write-LogInfo "==> Run test cleanup script if defined."
 			$this.TestProvider.RunTestCaseCleanup($vmData, $CurrentTestData, $currentTestResult, $collectDetailLogs, $doRemoveFiles, `
 				$global:user, $global:password, $SetupTypeData, $testParameters)
 		} catch {
@@ -513,8 +511,8 @@ Class TestController
 		$this.TestSummary.UpdateTestSummaryForCase($CurrentTestData, $ExecutionCount, $currentTestResult.TestResult, $testRunDuration, $currentTestResult.testSummary, $VmData)
 
 		# Update junit report for current test case
-		$caseLog = ($currentTestResult.testSummary + (Get-Content -Raw "$CurrentTestLogDir\$global:LogFileName")).Trim()
-		$this.JunitReport.CompleteLogTestCase("LISAv2Test-$($this.TestPlatform)","$currentTestName",$currentTestResult.TestResult,$caseLog)
+		$testCaseLog = ($currentTestResult.testSummary + (Get-Content -Raw "$CurrentTestLogDir\$global:LogFileName")).Trim()
+		$this.JunitReport.CompleteLogTestCase("LISAv2Test-$($this.TestPlatform)","$currentTestName",$currentTestResult.TestResult,$testCaseLog)
 
 		# Set back the LogDir to the parent folder
 		Set-Variable -Name "LogDir" -Value $oldLogDir -Scope Global
@@ -557,24 +555,24 @@ Class TestController
 		return $multiplexedTestConfigs
 	}
 
-	[void] RunTestInSequence([int]$TestIterations)
+	[void] RunTestCasesInSequence([int]$TestIterations)
 	{
 		$executionCount = 0
 
-		foreach ($key in $this.SetupTypeToTestCases.Keys) {
-			$setupType = $key.Split(',')[0]
+		foreach ($setupKey in $this.SetupTypeToTestCases.Keys) {
+			$setupType = $setupKey.Split(',')[0]
 
 			$vmData = $null
 			$lastResult = $null
 			$tests = 0
 
-			foreach ($case in $this.SetupTypeToTestCases[$key]) {
-				$multiplexedTestConfigs = $this.GetMultiplexedTestConfigs($case.testName, $case.OverrideVMSize)
+			foreach ($currentTestCase in $this.SetupTypeToTestCases[$setupKey]) {
+				$multiplexedTestConfigs = $this.GetMultiplexedTestConfigs($currentTestCase.testName, $currentTestCase.OverrideVMSize)
 				$tcDeployVM = $this.DeployVMPerEachTest
 				$tcRemoveVM = $this.DeployVMPerEachTest
 				for ($multiplexedTestIndex = 0; $multiplexedTestIndex -lt $multiplexedTestConfigs.Count; $multiplexedTestIndex++) {
 					$multiplexedTestConfig = $multiplexedTestConfigs[$multiplexedTestIndex]
-					$case.testName = $multiplexedTestConfig["TestName"]
+					$currentTestCase.testName = $multiplexedTestConfig["TestName"]
 					if ($multiplexedTestIndex -lt ($multiplexedTestConfigs.Count - 1)) {
 						$tcRemoveVM = $this.DeployVMPerEachTest -or `
 							($multiplexedTestConfigs[$multiplexedTestIndex + 1]["TestVmSize"] -ne $multiplexedTestConfig["TestVmSize"])
@@ -584,21 +582,20 @@ Class TestController
 							($multiplexedTestConfigs[$multiplexedTestIndex - 1]["TestVmSize"] -ne $multiplexedTestConfig["TestVmSize"])
 					}
 					if ($multiplexedTestConfig["TestVmSize"]) {
-						$case.OverrideVMSize = $multiplexedTestConfig["TestVmSize"]
-						$this.SetupTypeToTestCases[$key][0].OverrideVMSize = $multiplexedTestConfig["TestVmSize"]
+						$currentTestCase.OverrideVMSize = $multiplexedTestConfig["TestVmSize"]
+						$this.SetupTypeToTestCases[$setupKey][0].OverrideVMSize = $multiplexedTestConfig["TestVmSize"]
 					}
 
-					Write-LogInfo "$($case.testName) started running ..."
+					Write-LogInfo "$($currentTestCase.testName) started running ..."
 					$executionCount += 1
 					if (!$vmData -or $tcDeployVM) {
 						# Deploy the VM for the setup
 						Write-LogInfo "Deploy target machine for test ..."
-						$deployVMStatus = $this.TestProvider.DeployVMs($this.GlobalConfig, $this.SetupTypeTable[$setupType], $this.SetupTypeToTestCases[$key][0], `
+						$deployVMStatus = $this.TestProvider.DeployVMs($this.GlobalConfig, $this.SetupTypeTable[$setupType], $this.SetupTypeToTestCases[$setupKey][0], `
 							$this.TestLocation, $this.RGIdentifier, $this.UseExistingRG, $this.ResourceCleanup)
 						$vmData = $null
 						$deployErrors = ""
 						if ($deployVMStatus) {
-							$vmData = $deployVMStatus
 							$deployErrors = Trim-ErrorLogMessage $deployVMStatus.Error
 							if ($deployVMStatus.Keys -and ($deployVMStatus.Keys -contains "VmData")) {
 								$vmData = $deployVMStatus.VmData
@@ -606,56 +603,62 @@ Class TestController
 						}
 						if (!$vmData) {
 							# Failed to deploy the VMs, Set the case to abort
-							$this.JunitReport.StartLogTestCase("LISAv2Test-$($this.TestPlatform)","$($case.testName)","$($this.TestPlatform)-$($case.Category)-$($case.Area)")
-							$this.JunitReport.CompleteLogTestCase("LISAv2Test-$($this.TestPlatform)","$($case.testName)","Aborted", $deployErrors)
-							$this.TestSummary.UpdateTestSummaryForCase($case, $executionCount, "Aborted", "0", $deployErrors, $null)
+							$this.JunitReport.StartLogTestCase("LISAv2Test-$($this.TestPlatform)","$($currentTestCase.testName)","$($this.TestPlatform)-$($currentTestCase.Category)-$($currentTestCase.Area)")
+							$this.JunitReport.CompleteLogTestCase("LISAv2Test-$($this.TestPlatform)","$($currentTestCase.testName)","Aborted", $deployErrors)
+							$this.TestSummary.UpdateTestSummaryForCase($currentTestCase, $executionCount, "Aborted", "0", $deployErrors, $null)
 							continue
 						}
 					}
-					# Run test case
+					# Run current test case
 					Write-LogInfo "Run test case against the target machine ..."
-					$lastResult = $this.RunTestCase($vmData, $case, $executionCount, $this.SetupTypeTable[$setupType], ($tests -ne 0))
+					$lastResult = $this.RunOneTestCase($vmData, $currentTestCase, $executionCount, $this.SetupTypeTable[$setupType], ($tests -ne 0))
 					$tests++
 					# If the case doesn't pass, keep the VM for failed case except when ResourceCleanup = "Delete" is set
 					# and deploy a new VM for the next test
 					if (!$this.TestCasePassStatus.contains($lastResult.TestResult)) {
 						if ($this.ResourceCleanup -imatch "Delete") {
-							$this.TestProvider.DeleteTestVMS($vmData, $this.SetupTypeTable[$setupType], $this.UseExistingRG)
+							Write-LogInfo "Delete deployed target machine ..."
+							$this.TestProvider.DeleteVMs($vmData, $this.SetupTypeTable[$setupType], $this.UseExistingRG)
 							$vmData = $null
 						} elseif (!$this.TestProvider.ReuseVmOnFailure) {
+							Write-LogInfo "Keep deployed target machine for future reuse."
 							$vmData = $null
 						}
 					} elseif ($tcRemoveVM -and !($this.ResourceCleanup -imatch "Keep")) {
 						# Delete the VM if tcRemoveVM is set
 						# Do not delete the VMs if testing against existing resource group, or -ResourceCleanup = Keep is set
-						$this.TestProvider.DeleteTestVMS($vmData, $this.SetupTypeTable[$setupType], $this.UseExistingRG)
+						Write-LogInfo "Delete deployed target machine ..."
+						$this.TestProvider.DeleteVMs($vmData, $this.SetupTypeTable[$setupType], $this.UseExistingRG)
 						$vmData = $null
 					}
 
-					Write-LogInfo "$($case.testName) ended running with status: $($lastResult.TestResult)."
+					Write-LogInfo "$($currentTestCase.testName) ended running with status: $($lastResult.TestResult)."
 				}
 			}
 
 			# Delete the VM after all the cases of same setup are run, if DeployVMPerEachTest is not set
 			if ($this.TestCasePassStatus.contains($lastResult.TestResult) -and !($this.ResourceCleanup -imatch "Keep") -and !$this.DeployVMPerEachTest) {
-				$this.TestProvider.DeleteTestVMS($vmData, $this.SetupTypeTable[$setupType], $this.UseExistingRG)
+				Write-LogInfo "Delete deployed target machine if required ..."
+				$this.TestProvider.DeleteVMs($vmData, $this.SetupTypeTable[$setupType], $this.UseExistingRG)
 			}
 		}
 
+		Write-LogInfo "Cleanup test environment if required ..."
 		$this.TestProvider.RunTestCleanup()
 	}
 
-	[void] RunTest([string]$TestReportXmlPath, [int]$TestIterations, [bool]$RunInParallel) {
+	[void] RunLoadedTestCases([string]$TestReportXmlPath, [int]$TestIterations, [bool]$RunInParallel) {
+		Write-LogInfo "Prepare test image if required ..."
 		$this.PrepareTestImage()
-		Write-LogInfo "Prepare test log structure and start testing now ..."
 
+		Write-LogInfo "Prepare test log structure and start testing now ..."
 		# Start JUnit XML report logger.
 		$this.JunitReport = [JUnitReportGenerator]::New($TestReportXmlPath)
 		$this.JunitReport.StartLogTestSuite("LISAv2Test-$($this.TestPlatform)")
 		$this.TestSummary = [TestSummary]::New($this.TestCategory, $this.TestArea, $this.TestName, $this.TestTag, $this.TestPriority, $this.TotalCaseNum)
 
 		if (!$RunInParallel) {
-			$this.RunTestInSequence($TestIterations)
+			$this.RunTestCasesInSequence($TestIterations)
 		} else {
 			throw "Running test in parallel is not supported yet."
 		}
@@ -689,7 +692,7 @@ Class TestController
 			} else {
 				$LISVersion = "NA"
 			}
-			#region Host Version checking
+
 			$HostVersion = ""
 			$FoundLineNumber = (Select-String -Path "$global:LogDir\$($vmData.RoleName)-dmesg.txt" -Pattern "Hyper-V Host Build").LineNumber
 			if (![string]::IsNullOrEmpty($FoundLineNumber)) {
@@ -699,7 +702,6 @@ Class TestController
 				$FinalLine = $FinalLine.Replace('; Vmbus version:3.0', '')
 				$HostVersion = ($FinalLine.Split(":")[$FinalLine.Split(":").Count - 1 ]).Trim().TrimEnd(";")
 			}
-			#endregion
 
 			if ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
 				$Networking = "SRIOV"
@@ -714,7 +716,7 @@ Class TestController
 				$VMSize = $global:HyperVInstanceSize
 			}
 			$VMGen = $vmData.VMGeneration
-			#endregion
+
 			if ($enableTelemetry) {
 				$dataTableName = ""
 				if ($this.XmlSecrets.secrets.TableName) {
@@ -741,5 +743,5 @@ Class TestController
 			Write-LogErr "Calling function - $($MyInvocation.MyCommand)."
 			Write-LogErr "Source: Line $line in script $script_name."
 		}
-  }
+	}
 }

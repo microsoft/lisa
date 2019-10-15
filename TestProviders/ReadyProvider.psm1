@@ -73,6 +73,10 @@ Class ReadyProvider : TestProvider
 		return @{"VmData" = $allVMData; "Error" = $ErrorMessage}
 	}
 
+	[void] DeleteVMs($allVMData, $SetupTypeData, $UseExistingRG) {
+		Write-LogInfo("Will not remove any VM as this test case is running against a prepared environment.")
+	}
+
 	[void] RunSetup($VmData, $CurrentTestData, $TestParameters, $ApplyCheckPoint) {
 		if ($CurrentTestData.SetupScript) {
 			if ($null -eq $CurrentTestData.runSetupScriptOnlyOnce) {

@@ -145,7 +145,7 @@ Class WSLProvider : TestProvider
 		}
 		if (!$deploySuccess){
 			if ($allVMData) {
-				$this.DeleteTestVMs($allVMData, $SetupTypeData, $false)
+				$this.DeleteVMs($allVMData, $SetupTypeData, $false)
 			}
 		} else {
 			$isVmAlive = Is-VmAlive -AllVMDataObject $allVMData
@@ -160,7 +160,7 @@ Class WSLProvider : TestProvider
 		return $null
 	}
 
-	[void] DeleteTestVMs($allVMData, $SetupTypeData, $UseExistingRG) {
+	[void] DeleteVMs($allVMData, $SetupTypeData, $UseExistingRG) {
 		foreach ($vmData in $AllVMData) {
 			try {
 				Write-LogInfo "Close port $($vmData.SSHPort) on server $($vmData.WSLHost)"
