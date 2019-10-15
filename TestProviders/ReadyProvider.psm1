@@ -26,6 +26,28 @@
 ###############################################################################################
 using Module ".\TestProvider.psm1"
 
+Function Get-IPAddressFromIfconfig([string] $ifConfigInfo) {
+	Write-Host "GetIPAddress $ifConfigInfo"
+	[regex] $re = "(?:[0-9]{1,3}\.){3}[0-9]{1,3}"
+	[string] $matchedIp = $re.Match($ifConfigInfo)
+	return $matchedIp
+}
+
+Function Set-InternalIPAddress([object] $AllVMData) {
+	$count=0
+	foreach ($vmData in $AllVMData) {
+		$ifconfigInfo = Run-LinuxCmd -username $global:user -password $global:password -ip $($vmData.PublicIp) -port $($vmData.SSHPort) -command "ifconfig"
+		$ipAddress = Get-IPAddressFromIfconfig -ifConfigInfo $ifConfigInfo
+		if ($ipAddress) {
+			$AllVmData[$count].InternalIP = $ipAddress
+		}
+		else {
+			Write-LogErr "Cannot get the internal IP address for $($vmData.PublicIp):$($vmData.SSHPort)"
+		}
+		$count++
+	}
+}
+
 Class ReadyProvider : TestProvider
 {
 	[object] DeployVMs([xml] $GlobalConfig, [object] $SetupTypeData, [object] $TestCaseData, [string] $TestLocation, [string] $RGIdentifier, [bool] $UseExistingRG, [string] $ResourceCleanup) {
@@ -36,6 +58,7 @@ Class ReadyProvider : TestProvider
 			Add-Member -InputObject $objNode -MemberType NoteProperty -Name UserName -Value $null -Force
 			Add-Member -InputObject $objNode -MemberType NoteProperty -Name Password -Value $null -Force
 			Add-Member -InputObject $objNode -MemberType NoteProperty -Name RoleName -Value $null -Force
+			Add-Member -InputObject $objNode -MemberType NoteProperty -Name InternalIP -Value $null -Force
 			return $objNode
 		}
 
@@ -55,6 +78,7 @@ Class ReadyProvider : TestProvider
 				$vmNode.RoleName = "Role$vmIndex"
 				$allVMData += $vmNode;
 			}
+			Set-InternalIPAddress -AllVMData $allVMData
 			Write-LogInfo("No need to deploy new VM as this test case is running against a prepared environment.")
 
 			$isVmAlive = Is-VmAlive -AllVMDataObject $allVMData
