@@ -96,7 +96,7 @@ Class AzureProvider : TestProvider
 		return @{"VmData" = $allVMData; "Error" = $ErrorMessage}
 	}
 
-	[void] DeleteTestVMs($allVMData, $SetupTypeData, $UseExistingRG) {
+	[void] DeleteVMs($allVMData, $SetupTypeData, $UseExistingRG) {
 		$rgs = @()
 		foreach ($vmData in $AllVMData) {
 			$rgs += $vmData.ResourceGroupName

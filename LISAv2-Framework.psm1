@@ -81,6 +81,7 @@ function Start-LISAv2 {
 			$maxDirLength = 32
 			$workingDirectory = (Get-Location).Path
 			if ($workingDirectory.Length -gt $maxDirLength) {
+				Write-LogWarn "The path of current working directory '$workingDirectory' is too long ($workingDirectory.Length)."
 				$originalWorkingDirectory = $workingDirectory
 				$workingDirectory = Move-ToNewWorkingSpace $originalWorkingDirectory | `
 					Select-Object -Last 1
@@ -160,7 +161,7 @@ function Start-LISAv2 {
 			}
 
 			# Run test
-			$testController.RunTest($TestReportXml,$TestIterations,$false)
+			$testController.RunLoadedTestCases($TestReportXml, $TestIterations, $false)
 			Write-LogInfo "Test $global:testId finished"
 
 			# Output text summary

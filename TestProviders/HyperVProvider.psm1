@@ -177,7 +177,7 @@ Class HyperVProvider : TestProvider
 		}
 	}
 
-	[void] DeleteTestVMs($allVMData, $SetupTypeData, $UseExistingRG) {
+	[void] DeleteVMs($allVMData, $SetupTypeData, $UseExistingRG) {
 		foreach ($vmData in $AllVMData) {
 			$isCleaned = Delete-HyperVGroup -HyperVGroupName $vmData.HyperVGroupName `
 				-HyperVHost $vmData.HyperVHost -SetupTypeData $SetupTypeData -UseExistingRG $UseExistingRG

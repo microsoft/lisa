@@ -62,7 +62,7 @@ Class TestProvider
 		}
 	}
 
-	[void] DeleteTestVMs($allVMData, $SetupTypeData, $UseExistingRG) {}
+	[void] DeleteVMs($allVMData, $SetupTypeData, $UseExistingRG) {}
 
 	[void] RunTestCleanup() {}
 
