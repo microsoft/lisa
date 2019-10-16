@@ -27,21 +27,20 @@
 using Module ".\TestProvider.psm1"
 
 Function Get-IPAddressFromIfconfig([string] $ifConfigInfo) {
-	Write-Host "GetIPAddress $ifConfigInfo"
+	Write-LogDbg "GetIPAddress $ifConfigInfo"
 	[regex] $re = "(?:[0-9]{1,3}\.){3}[0-9]{1,3}"
 	[string] $matchedIp = $re.Match($ifConfigInfo)
 	return $matchedIp
 }
 
 Function Set-InternalIPAddress([object] $AllVMData) {
-	$count=0
+	$count = 0
 	foreach ($vmData in $AllVMData) {
 		$ifconfigInfo = Run-LinuxCmd -username $global:user -password $global:password -ip $($vmData.PublicIp) -port $($vmData.SSHPort) -command "ifconfig"
 		$ipAddress = Get-IPAddressFromIfconfig -ifConfigInfo $ifConfigInfo
 		if ($ipAddress) {
 			$AllVmData[$count].InternalIP = $ipAddress
-		}
-		else {
+		} else {
 			Write-LogErr "Cannot get the internal IP address for $($vmData.PublicIp):$($vmData.SSHPort)"
 		}
 		$count++
