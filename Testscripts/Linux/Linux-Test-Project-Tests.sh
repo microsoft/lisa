@@ -150,7 +150,11 @@ fi
 cd "$TOP_BUILDDIR"
 
 LogMsg "Running LTP..."
-LTP_PARAMS="-p -q -l $LTP_RESULTS -o $LTP_OUTPUT -z $drive_name"
+if [[ -n $drive_name ]]; then
+       LTP_PARAMS="-p -q -l $LTP_RESULTS -o $LTP_OUTPUT -z $drive_name"
+else
+       LTP_PARAMS="-p -q -l $LTP_RESULTS -o $LTP_OUTPUT"
+fi
 
 if [[ "$SKIP_LTP_TESTS" != "" ]];then
     echo "Skipping tests: $SKIP_LTP_TESTS" >> ~/summary.log
