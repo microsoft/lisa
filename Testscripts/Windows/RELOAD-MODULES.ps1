@@ -116,6 +116,6 @@ function Main {
     }
 }
 
-Main -VMName $AllVMData.RoleName -hvServer $TestLocation `
+Main -VMName $AllVMData.RoleName -hvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
          -ipv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort `
          -VMUserName $user -VMPassword $password -RootDir $WorkingDirectory
