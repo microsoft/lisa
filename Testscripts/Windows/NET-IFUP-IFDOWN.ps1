@@ -55,6 +55,6 @@ function Main {
         return "PASS"
     }
 }
-Main -VMName $AllVMData.RoleName -HvServer $TestLocation `
+Main -VMName $AllVMData.RoleName -HvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
     -Ipv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort `
     -VMUserName $user -VMPassword $password -RootDir $WorkingDirectory
