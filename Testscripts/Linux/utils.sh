@@ -3509,7 +3509,7 @@ function check_package ()
 				;;
 
 			ubuntu|debian)
-				apt-cache policy "$package_name" | grep Candidate
+				apt-cache policy "$package_name" | grep "Candidate" | grep -v "none"
 				return $?
 				;;
 

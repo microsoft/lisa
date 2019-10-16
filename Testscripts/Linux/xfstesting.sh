@@ -31,7 +31,15 @@ ConfigureXFSTestTools() {
     case "$DISTRO" in
         ubuntu*|debian*)
             until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done
-            pack_list=(btrfs-tools libacl1-dev libaio-dev libattr1-dev libgdbm-dev libtool-bin libuuid1 libuuidm-ocaml-dev sqlite3 uuid-dev uuid-runtime xfslibs-dev zlib1g-dev)
+            pack_list=(libacl1-dev libaio-dev libattr1-dev libgdbm-dev libtool-bin libuuid1 libuuidm-ocaml-dev sqlite3 uuid-dev uuid-runtime xfslibs-dev zlib1g-dev)
+            check_package "btrfs-tools"
+            if [ $? -eq 0 ]; then
+                pack_list+=(btrfs-tools)
+            fi
+            check_package "btrfs-progs"
+            if [ $? -eq 0 ]; then
+                pack_list+=(btrfs-progs)
+            fi
         ;;
 
         redhat*|centos*|fedora*)

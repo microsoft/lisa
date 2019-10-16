@@ -39,7 +39,7 @@ fi
 UpdateSummary "Expected VF count: $NIC_COUNT. Actual VF count: $vf_count"
 
 # Start iPerf server on dependency VM
-ssh -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$remote_user"@"$VF_IP2" 'iperf3 -s > perfResults.log &'
+ssh -i "/$remote_user"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$remote_user"@"$VF_IP2" 'iperf3 -s &> perfResults.log &'
 if [ $? -ne 0 ]; then
     LogErr "Could not start iPerf3 on VM2 (VF_IP: ${VF_IP2})"
     SetTestStateFailed
