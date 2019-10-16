@@ -115,7 +115,7 @@
 			<param>testFileSizeInKb='5 30 100 200 512 1024'</param>
 			<param>runtime=120</param>
 			<param>HTTP_LOAD=https://partnerpipelineshare.blob.core.windows.net/binarytools/http_load-12mar2006.tar.gz</param>
-			<param>Switch_Name=SRIOV</param>
+			<param>Switch_Name=HYPERV_PERF_NIC_NAME</param>
 			<param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
 		</TestParameters>
 		<Platform>Azure,HyperV</Platform>

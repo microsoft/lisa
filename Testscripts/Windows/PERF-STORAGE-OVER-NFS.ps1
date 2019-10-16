@@ -103,14 +103,10 @@ chmod 666 /root/perf_fio.csv
         }
 
         $finalStatus = Run-LinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -command "cat state.txt"
-        Copy-RemoteFiles -downloadFrom $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "FIOTest-*.tar.gz"
-        Copy-RemoteFiles -downloadFrom $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "VM_properties.csv"
-
         $testSummary = $null
         #endregion
         #>
 
-        $finalStatus = "TestCompleted"
         if ($finalStatus -imatch "TestFailed") {
             Write-LogErr "Test failed. Last known status : $currentStatus."
             $testResult = "FAIL"
@@ -118,6 +114,8 @@ chmod 666 /root/perf_fio.csv
             Write-LogErr "Test Aborted. Last known status : $currentStatus."
             $testResult = "ABORTED"
         } elseif ($finalStatus -imatch "TestCompleted") {
+            Copy-RemoteFiles -downloadFrom $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "FIOTest-*.tar.gz"
+            Copy-RemoteFiles -downloadFrom $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "VM_properties.csv"
             $null = Run-LinuxCmd -ip $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -command "/root/ParseFioTestLogs.sh"
             Copy-RemoteFiles -downloadFrom $testVMData.PublicIP -port $testVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "perf_fio.csv"
             Write-LogInfo "Test Completed."
@@ -127,6 +125,11 @@ chmod 666 /root/perf_fio.csv
             Write-LogInfo "Content of summary.log : $testSummary"
             $testResult = "PASS"
         }
+        Write-LogInfo "Test result: $testResult"
+        if ($testResult -ne "PASS") {
+            return $testResult
+        }
+
         try {
             foreach ($line in (Get-Content "$LogDir\perf_fio.csv")) {
                 if ($line -imatch "Max IOPS of each mode") {
@@ -161,32 +164,30 @@ chmod 666 /root/perf_fio.csv
                 $TestCaseName = $CurrentTestData.testName
             }
             for ($QDepth = $startThread; $QDepth -le $maxThread; $QDepth *= 2) {
-                if ($testResult -eq "PASS") {
-                    Write-LogInfo "Collected performance data for $QDepth QDepth."
-                    $resultMap = @{}
-                    $resultMap["TestCaseName"] = $TestCaseName
-                    $resultMap["TestDate"] = $TestDate
-                    $resultMap["HostType"] = "Azure"
-                    $resultMap["HostBy"] = ($global:TestLocation).Replace('"','')
-                    $resultMap["HostOS"] = cat "$LogDir\VM_properties.csv" | Select-String "Host Version"| %{$_ -replace ",Host Version,",""}
-                    $resultMap["GuestOSType"] = "Linux"
-                    $resultMap["GuestDistro"] = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
-                    $resultMap["GuestSize"] = $testVMData.InstanceSize
-                    $resultMap["KernelVersion"] = cat "$LogDir\VM_properties.csv" | Select-String "Kernel version"| %{$_ -replace ",Kernel version,",""}
-                    $resultMap["DiskSetup"] = 'RAID0:12xP30'
-                    $resultMap["BlockSize_KB"] = [Int]((($fioDataCsv |  where { $_.Threads -eq "$QDepth"} | Select BlockSize)[0].BlockSize).Replace("K",""))
-                    $resultMap["QDepth"] = $QDepth
-                    $resultMap["seq_read_iops"] = [Float](($fioDataCsv |  where { $_.TestType -eq "read" -and  $_.Threads -eq "$QDepth"} | Select ReadIOPS).ReadIOPS)
-                    $resultMap["seq_read_lat_usec"] = [Float](($fioDataCsv |  where { $_.TestType -eq "read" -and  $_.Threads -eq "$QDepth"} | Select MaxOfReadMeanLatency).MaxOfReadMeanLatency)
-                    $resultMap["rand_read_iops"] = [Float](($fioDataCsv |  where { $_.TestType -eq "randread" -and  $_.Threads -eq "$QDepth"} | Select ReadIOPS).ReadIOPS)
-                    $resultMap["rand_read_lat_usec"] = [Float](($fioDataCsv |  where { $_.TestType -eq "randread" -and  $_.Threads -eq "$QDepth"} | Select MaxOfReadMeanLatency).MaxOfReadMeanLatency)
-                    $resultMap["seq_write_iops"] = [Float](($fioDataCsv |  where { $_.TestType -eq "write" -and  $_.Threads -eq "$QDepth"} | Select WriteIOPS).WriteIOPS)
-                    $resultMap["seq_write_lat_usec"] = [Float](($fioDataCsv |  where { $_.TestType -eq "write" -and  $_.Threads -eq "$QDepth"} | Select MaxOfWriteMeanLatency).MaxOfWriteMeanLatency)
-                    $resultMap["rand_write_iops"] = [Float](($fioDataCsv |  where { $_.TestType -eq "randwrite" -and  $_.Threads -eq "$QDepth"} | Select WriteIOPS).WriteIOPS)
-                    $resultMap["rand_write_lat_usec"] = [Float](($fioDataCsv |  where { $_.TestType -eq "randwrite" -and  $_.Threads -eq "$QDepth"} | Select MaxOfWriteMeanLatency).MaxOfWriteMeanLatency)
-                    $resultMap["TestType"] = "NFS"
-                    $currentTestResult.TestResultData += $resultMap
-                }
+                Write-LogInfo "Collected performance data for $QDepth QDepth."
+                $resultMap = @{}
+                $resultMap["TestCaseName"] = $TestCaseName
+                $resultMap["TestDate"] = $TestDate
+                $resultMap["HostType"] = "Azure"
+                $resultMap["HostBy"] = ($global:TestLocation).Replace('"','')
+                $resultMap["HostOS"] = cat "$LogDir\VM_properties.csv" | Select-String "Host Version"| %{$_ -replace ",Host Version,",""}
+                $resultMap["GuestOSType"] = "Linux"
+                $resultMap["GuestDistro"] = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}
+                $resultMap["GuestSize"] = $testVMData.InstanceSize
+                $resultMap["KernelVersion"] = cat "$LogDir\VM_properties.csv" | Select-String "Kernel version"| %{$_ -replace ",Kernel version,",""}
+                $resultMap["DiskSetup"] = 'RAID0:12xP30'
+                $resultMap["BlockSize_KB"] = [Int]((($fioDataCsv |  where { $_.Threads -eq "$QDepth"} | Select BlockSize)[0].BlockSize).Replace("K",""))
+                $resultMap["QDepth"] = $QDepth
+                $resultMap["seq_read_iops"] = [Float](($fioDataCsv |  where { $_.TestType -eq "read" -and  $_.Threads -eq "$QDepth"} | Select ReadIOPS).ReadIOPS)
+                $resultMap["seq_read_lat_usec"] = [Float](($fioDataCsv |  where { $_.TestType -eq "read" -and  $_.Threads -eq "$QDepth"} | Select MaxOfReadMeanLatency).MaxOfReadMeanLatency)
+                $resultMap["rand_read_iops"] = [Float](($fioDataCsv |  where { $_.TestType -eq "randread" -and  $_.Threads -eq "$QDepth"} | Select ReadIOPS).ReadIOPS)
+                $resultMap["rand_read_lat_usec"] = [Float](($fioDataCsv |  where { $_.TestType -eq "randread" -and  $_.Threads -eq "$QDepth"} | Select MaxOfReadMeanLatency).MaxOfReadMeanLatency)
+                $resultMap["seq_write_iops"] = [Float](($fioDataCsv |  where { $_.TestType -eq "write" -and  $_.Threads -eq "$QDepth"} | Select WriteIOPS).WriteIOPS)
+                $resultMap["seq_write_lat_usec"] = [Float](($fioDataCsv |  where { $_.TestType -eq "write" -and  $_.Threads -eq "$QDepth"} | Select MaxOfWriteMeanLatency).MaxOfWriteMeanLatency)
+                $resultMap["rand_write_iops"] = [Float](($fioDataCsv |  where { $_.TestType -eq "randwrite" -and  $_.Threads -eq "$QDepth"} | Select WriteIOPS).WriteIOPS)
+                $resultMap["rand_write_lat_usec"] = [Float](($fioDataCsv |  where { $_.TestType -eq "randwrite" -and  $_.Threads -eq "$QDepth"} | Select MaxOfWriteMeanLatency).MaxOfWriteMeanLatency)
+                $resultMap["TestType"] = "NFS"
+                $currentTestResult.TestResultData += $resultMap
             }
         } catch {
             $ErrorMessage =  $_.Exception.Message

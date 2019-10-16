@@ -172,12 +172,21 @@ Main() {
     elif [[ $(detect_linux_distribution) == coreos ]];then
         config_path="/usr/boot/config-$(uname -r)"
     fi
+
     grep -q "CONFIG_BTRFS_FS is not set" $config_path
-    if [ $? -eq 0 ];then
+    if [ $? -eq 0 ] && [ $FSTYP == "btrfs" ];then
         LogMsg "CONFIG_BTRFS_FS is not set in $config_path file in ${DISTRO}, skip the test"
         SetTestStateSkipped
         exit 0
     fi
+
+    grep -q "CONFIG_CIFS is not set" $config_path
+    if [ $? -eq 0 ] && [ $FSTYP == "cifs" ];then
+        LogMsg "CONFIG_CIFS is not set in $config_path file in ${DISTRO}, skip the test"
+        SetTestStateSkipped
+        exit 0
+    fi
+
     #Refer https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8/html/considerations_in_adopting_rhel_8/file-systems-and-storage_considerations-in-adopting-rhel-8
     if [ $DISTRO == "redhat_8" ] && [ $FSTYP == "btrfs" ]; then
         LogMsg "${DISTRO} doesn't support $FSTYP filesystem."

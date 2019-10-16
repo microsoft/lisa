@@ -396,7 +396,7 @@ Scenario 2 : You need to run all the performance tests quickly.
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>HYPERV_PERF_NIC_NAME</ReplaceThis>
-		<ReplaceWith>SRIOV</ReplaceWith>
+		<ReplaceWith>SRIOV_MLNX</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>PERF-NETWORK-TCP-SINGLE-CONNECTION-THROUGHPUT-SYNTHETIC-BUFFER-LENGTHS</ReplaceThis>
@@ -595,5 +595,9 @@ Scenario 2 : You need to run all the performance tests quickly.
 	<Parameter>
 		<ReplaceThis>VCPU</ReplaceThis>
 		<ReplaceWith></ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>LAGSCOPE_VERSION</ReplaceThis>
+		<ReplaceWith>v0.2.0</ReplaceWith>
 	</Parameter>
 </ReplaceableTestParameters>

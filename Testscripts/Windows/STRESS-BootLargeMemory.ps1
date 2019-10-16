@@ -11,11 +11,8 @@ function Main {
         $Ipv4,
         $VMPort,
         $VMUserName,
-        $VMPassword,
-        $RootDir
+        $VMPassword
     )
-
-    $rootUser = "root"
 
     $params = $testParams.Split(";")
     foreach ($p in $params) {
@@ -30,15 +27,15 @@ function Main {
     $peakFaultMem = [int]67700
 
     #Get VM available memory
-    $guestReadableMem = Run-LinuxCmd -username $rootUser -password $VMPassword -ip $Ipv4 -port $VMPort `
-        -command "free -m | grep Mem | xargs | cut -d ' ' -f 2"
+    $guestReadableMem = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+        -command "free -m | grep Mem | xargs | cut -d ' ' -f 2" -runAsSudo
     if ($? -ne "True") {
         Write-LogErr "Unable to send command to VM."
         return "FAIL"
     }
 
-    $memInfo = Run-LinuxCmd -username $rootUser -password $VMPassword -ip $Ipv4 -port $VMPort `
-        -command "cat /proc/meminfo | grep MemTotal | xargs | cut -d ' ' -f 2"
+    $memInfo = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+        -command "cat /proc/meminfo | grep MemTotal | xargs | cut -d ' ' -f 2" -runAsSudo
     if ($? -ne "True") {
         Write-LogErr "Unable to send command to VM."
         return "FAIL"
@@ -62,4 +59,4 @@ function Main {
 
 Main -VMName $AllVMData.RoleName -hvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
          -ipv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort `
-         -VMUserName $user -VMPassword $password -RootDir $WorkingDirectory
+         -VMUserName $user -VMPassword $password
