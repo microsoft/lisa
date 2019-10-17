@@ -596,6 +596,7 @@ Class TestController
 						$vmData = $null
 						$deployErrors = ""
 						if ($deployVMStatus) {
+							$vmData = $deployVMStatus
 							$deployErrors = Trim-ErrorLogMessage $deployVMStatus.Error
 							if ($deployVMStatus.Keys -and ($deployVMStatus.Keys -contains "VmData")) {
 								$vmData = $deployVMStatus.VmData
@@ -603,6 +604,7 @@ Class TestController
 						}
 						if (!$vmData) {
 							# Failed to deploy the VMs, Set the case to abort
+							Write-LogWarn("VMData is empty (null). Aborting the testing.")
 							$this.JunitReport.StartLogTestCase("LISAv2Test-$($this.TestPlatform)","$($currentTestCase.testName)","$($this.TestPlatform)-$($currentTestCase.Category)-$($currentTestCase.Area)")
 							$this.JunitReport.CompleteLogTestCase("LISAv2Test-$($this.TestPlatform)","$($currentTestCase.testName)","Aborted", $deployErrors)
 							$this.TestSummary.UpdateTestSummaryForCase($currentTestCase, $executionCount, "Aborted", "0", $deployErrors, $null)
