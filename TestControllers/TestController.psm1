@@ -590,7 +590,7 @@ Class TestController
 					$executionCount += 1
 					if (!$vmData -or $tcDeployVM) {
 						# Deploy the VM for the setup
-						Write-LogInfo "Deploy target machine for test ..."
+						Write-LogInfo "Deploy target machine for test if required ..."
 						$deployVMStatus = $this.TestProvider.DeployVMs($this.GlobalConfig, $this.SetupTypeTable[$setupType], $this.SetupTypeToTestCases[$setupKey][0], `
 							$this.TestLocation, $this.RGIdentifier, $this.UseExistingRG, $this.ResourceCleanup)
 						$vmData = $null

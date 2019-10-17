@@ -85,13 +85,22 @@ Class ReadyProvider : TestProvider
 						$null = Run-SetupScript -Script $script -Parameters $TestParameters -VMData $VM -CurrentTestData $CurrentTestData
 					}
 				}
-			}
-			else {
+			} else {
 				foreach ($script in $($CurrentTestData.SetupScript).Split(",")) {
 					$null = Run-SetupScript -Script $script -Parameters $TestParameters -VMData $VmData -CurrentTestData $CurrentTestData
 				}
 			}
 		}
+	}
+
+	[bool] RestartAllDeployments($AllVMData) {
+		foreach ($vm in $AllVMData) {
+			$Null = Restart-VMFromShell -VMData $vm
+		}
+		if ((Is-VmAlive -AllVMDataObject $AllVMData) -eq "True") {
+			return $true
+		}
+		return $false
 	}
 
 	[void] RunTestCaseCleanup ($AllVMData, $CurrentTestData, $CurrentTestResult, $CollectVMLogs, $RemoveFiles, $User, $Password, $SetupTypeData, $TestParameters){
