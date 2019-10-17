@@ -187,7 +187,7 @@ Function GetAndCheck-KernelLogs($allDeployedVMs, $status, $vmUser, $vmPassword, 
 
 		$retValue = $false
 		foreach ($VM in $allDeployedVMs) {
-			Write-LogInfo "Collecting $($VM.RoleName) VM Kernel $status Logs..."
+			Write-LogInfo "Collecting $($VM.RoleName) VM Kernel $status Logs ..."
 
 			$bootLogDir = "$Logdir\$($VM.RoleName)"
 			mkdir $bootLogDir -Force | Out-Null
@@ -340,11 +340,11 @@ Function Check-KernelLogs($allVMData, $vmUser, $vmPassword)
 			$vmErrors = 0
 			$BootLogDir="$Logdir\$($VM.RoleName)"
 			mkdir $BootLogDir -Force | Out-Null
-			Write-LogInfo "Collecting $($VM.RoleName) VM Kernel $status Logs.."
+			Write-LogInfo "Collecting $($VM.RoleName) VM Kernel Logs.."
 			$currentKernelLogFile="$BootLogDir\CurrentKernelLogs.txt"
 			$Null = Run-LinuxCmd -ip $VM.PublicIP -port $VM.SSHPort -username $vmUser -password $vmPassword -command "dmesg > /home/$vmUser/CurrentKernelLogs.txt" -runAsSudo
 			$Null = Copy-RemoteFiles -download -downloadFrom $VM.PublicIP -port $VM.SSHPort -files "/home/$vmUser/CurrentKernelLogs.txt" -downloadTo $BootLogDir -username $vmUser -password $vmPassword
-			Write-LogInfo "$($VM.RoleName): $status Kernel logs collected successfully."
+			Write-LogInfo "$($VM.RoleName): Kernel logs collected successfully."
 			foreach ($errorLine in $errorLines)
 			{
 				Write-LogInfo "Checking for $errorLine in kernel logs.."
