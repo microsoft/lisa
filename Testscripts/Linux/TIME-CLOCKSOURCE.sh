@@ -28,7 +28,7 @@ CheckSource()
 	current_clocksource="/sys/devices/system/clocksource/clocksource0/current_clocksource"
 	clocksource="hyperv_clocksource_tsc_page"
 	if ! [[ $(find $current_clocksource -type f -size +0M) ]]; then
-		LogMsg "Test Failed. No file was found current_clocksource greater than 0M."
+		LogErr "Test Failed. No file was found current_clocksource greater than 0M."
 		SetTestStateFailed
 		exit 0
 	else
@@ -36,18 +36,18 @@ CheckSource()
 		if [[ $__file_content == "$clocksource" ]]; then
 			LogMsg "Test successful. Proper file was found. Clocksource file content is $__file_content"
 		else
-			LogMsg "Test failed. Proper file was NOT found."
+			LogErr "Test failed. Proper file was NOT found."
 			SetTestStateFailed
 			exit 0
 		fi
 	fi
 
-	# check cpu with constant_tsc
-	if grep -q constant_tsc /proc/cpuinfo
+	# check cpu with tsc, for Intel CPU shows constant_tsc, for AMD cpu, only tsc
+	if grep -q tsc /proc/cpuinfo
 	then
-		LogMsg "Test successful. /proc/cpuinfo contains flag constant_tsc"
+		LogMsg "Test successful. /proc/cpuinfo contains flag tsc"
 	else
-		LogMsg "Test failed. /proc/cpuinfo does not contain flag constant_tsc"
+		LogErr "Test failed. /proc/cpuinfo does not contain flag tsc"
 		SetTestStateFailed
 		exit 0
 	fi
@@ -62,7 +62,7 @@ CheckSource()
 	then
 		LogMsg "Test successful. dmesg contains log - clocksource $__dmesg_output"
 	else
-		LogMsg "Test failed. dmesg does not contain log - clocksource $__dmesg_output"
+		LogErr "Test failed. dmesg does not contain log - clocksource $__dmesg_output"
 		SetTestStateFailed
 		exit 0
 	fi
@@ -90,12 +90,12 @@ function UnbindCurrentSource()
 		if [ -n "$val" ] && [ "$_clocksource" == "acpi_pm" ]; then
 			LogMsg "Test successful. After unbind, current clocksource is $_clocksource"
 		else
-			LogMsg "Test failed. After unbind, current clocksource is $_clocksource"
+			LogErr "Test failed. After unbind, current clocksource is $_clocksource"
 			SetTestStateFailed
 			exit 0
 		fi
 	else
-		LogMsg "Test failed. Can not unbind $clocksource"
+		LogErr "Test failed. Can not unbind $clocksource"
 		SetTestStateFailed
 		exit 0
 	fi
