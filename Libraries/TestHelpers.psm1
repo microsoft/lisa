@@ -381,7 +381,7 @@ Function Run-LinuxCmd([string] $username,[string] $password,[string] $ip,[string
 			$logCommand = "`"$MaskedCommand`""
 		}
 	}
-	Write-LogDbg ".\Tools\plink.exe -t -pw $password -P $port $username@$ip $logCommand"
+	Write-LogDbg ".\Tools\plink.exe -ssh -t -pw $password -P $port $username@$ip $logCommand"
 	$returnCode = 1
 	$attemptswt = 0
 	$attemptswot = 0
@@ -398,7 +398,7 @@ Function Run-LinuxCmd([string] $username,[string] $password,[string] $ip,[string
 			{ `
 				$username = $args[1]; $password = $args[2]; $ip = $args[3]; $port = $args[4]; $jcommand = $args[5]; `
 				Set-Location $args[0]; `
-				.\Tools\plink.exe -C -v -pw $password -P $port $username@$ip $jcommand;`
+				.\Tools\plink.exe -ssh -C -v -pw $password -P $port $username@$ip $jcommand;`
 			} `
 			-ArgumentList $currentDir, $username, $password, $ip, $port, $linuxCommand
 		}
@@ -409,7 +409,7 @@ Function Run-LinuxCmd([string] $username,[string] $password,[string] $ip,[string
 			{ `
 				$username = $args[1]; $password = $args[2]; $ip = $args[3]; $port = $args[4]; $jcommand = $args[5]; `
 				Set-Location $args[0]; `
-				.\Tools\plink.exe -t -C -v -pw $password -P $port $username@$ip $jcommand;`
+				.\Tools\plink.exe -ssh -t -C -v -pw $password -P $port $username@$ip $jcommand;`
 			} `
 			-ArgumentList $currentDir, $username, $password, $ip, $port, $linuxCommand
 		}
