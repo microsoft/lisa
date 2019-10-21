@@ -60,8 +60,10 @@ CheckTimerInfo()
 # unbind clockevent "Hyper-V clockevent"
 UnbindClockEvent()
 {
-    if [ "$VCPU" -gt "1" ]; then
-        LogMsg "SMP vcpus not support unbind clockevent"
+    # AMD cpu not support unbind clockevent
+    lscpu | grep -i amd
+    if [ $? -eq 0 ] || [ "$VCPU" -gt "1" ]; then
+        LogMsg "AMD cpu or SMP vcpus not support unbind clockevent"
     else
         clockevent_unbind_file="/sys/devices/system/clockevents/clockevent0/unbind_device"
         clockevent="Hyper-V clockevent"
