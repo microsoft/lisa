@@ -80,7 +80,7 @@ VerifyVF()
             synthetic_MAC=$(ip link show ${synthetic_interface} | grep ether | awk '{print $2}')
             vf_interface=$(grep -il ${synthetic_MAC} /sys/class/net/*/address | grep -v $synthetic_interface | sed 's/\// /g' | awk '{print $4}')
         else
-            vf_interface=$(find /sys/devices/* -name "*${synthetic_interface}" | grep "pci" | sed 's/\// /g' | awk '{print $12}')
+            vf_interface=$(find /sys/devices/* -name "*${synthetic_interface}" | grep "pci" | sed 's/\// /g' | awk '{print $11}')
         fi
     fi
 
