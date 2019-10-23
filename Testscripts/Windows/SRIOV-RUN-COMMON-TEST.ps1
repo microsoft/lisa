@@ -47,7 +47,7 @@ function Main {
 
             # Pass VM Generation info to constants file
             Write-LogInfo "Will add VMGen=$($testVmData.VMGeneration) to constants"
-            "VMGen=$($testVmData.VMGeneration)" | Out-File sriov_constants.sh
+            "VMGen=$($testVmData.VMGeneration)" | Out-File sriov_constants.sh -Append
 
             # Extract IP addresses from both VMs
             $ipIndex = 3
