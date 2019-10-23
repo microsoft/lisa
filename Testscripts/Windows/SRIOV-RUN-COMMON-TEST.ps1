@@ -45,6 +45,10 @@ function Main {
             Write-LogInfo "Will add VF_IP2=$($dependencyVmData.InternalIP) to constants"
             "VF_IP2=$($dependencyVmData.InternalIP)" | Out-File sriov_constants.sh -Append
 
+            # Pass VM Generation info to constants file
+            Write-LogInfo "Will add VMGen=$($testVmData.VMGeneration) to constants"
+            "VMGen=$($testVmData.VMGeneration)" | Out-File sriov_constants.sh
+
             # Extract IP addresses from both VMs
             $ipIndex = 3
             foreach ($nic in $testVmExtraNICs) {
