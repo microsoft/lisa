@@ -129,7 +129,13 @@ while [ $__iterator -le "$vf_count" ]; do
         synthetic_MAC=$(ip link show ${synthetic_interface_vm_1} | grep ether | awk '{print $2}')
         vf_interface_vm_1=$(grep -il ${synthetic_MAC} /sys/class/net/*/address | grep -v $synthetic_interface_vm_1 | sed 's/\// /g' | awk '{print $4}')
     else
-        vf_interface_vm_1=$(find /sys/devices/* -name "*${synthetic_interface_vm_1}" | grep "pci" | sed 's/\// /g' | awk '{print $12}')
+        if [[ -d /sys/firmware/efi ]]; then
+        # This is the case of VM gen 2
+            vf_interface_vm_1="find /sys/devices/* -name "*${synthetic_interface_vm_1}" | grep pci | sed 's/\// /g' | awk '{print \$11}'"
+        else
+        # VM gen 1 case
+            vf_interface_vm_1="find /sys/devices/* -name "*${synthetic_interface_vm_1}" | grep pci | sed 's/\// /g' | awk '{print \$12}'"
+        fi
     fi
     LogMsg "Virtual function found: $vf_interface_vm_1"
 
@@ -182,7 +188,13 @@ while [ $__iterator -le "$vf_count" ]; do
         synthetic_MAC=$(ssh -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$remote_user"@"$static_IP_2" "$synthetic_MAC_command")
         cmd_to_send="grep -il ${synthetic_MAC} /sys/class/net/*/address | grep -v "${synthetic_interface_vm_2}" | sed 's/\// /g' | awk '{print \$4}'"
     else
-        cmd_to_send="find /sys/devices/* -name "*${synthetic_interface_vm_2}" | grep pci | sed 's/\// /g' | awk '{print \$12}'"
+        if [[ -d /sys/firmware/efi ]]; then
+        # This is the case of VM gen 2
+            cmd_to_send="find /sys/devices/* -name "*${synthetic_interface_vm_2}" | grep pci | sed 's/\// /g' | awk '{print \$11}'"
+        else
+        # VM gen 1 case
+            cmd_to_send="find /sys/devices/* -name "*${synthetic_interface_vm_2}" | grep pci | sed 's/\// /g' | awk '{print \$12}'"
+        fi
     fi
     vf_interface_vm_2=$(ssh -i "$HOME"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no "$remote_user"@"$static_IP_2" "$cmd_to_send")
 
