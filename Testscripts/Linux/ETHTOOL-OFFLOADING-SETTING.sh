@@ -191,7 +191,13 @@ while [ $__iterator -le "$vf_count" ]; do
         synthetic_MAC=$(ip link show ${synthetic_interface_vm_1} | grep ether | awk '{print $2}')
         vf_interface_vm_1=$(grep -il ${synthetic_MAC} /sys/class/net/*/address | grep -v $synthetic_interface_vm_1 | sed 's/\// /g' | awk '{print $4}')
     else
-        vf_interface_vm_1=$(find /sys/devices/* -name "*${synthetic_interface_vm_1}" | grep "pci" | sed 's/\// /g' | awk '{print $12}')
+        if [[ -d /sys/firmware/efi ]]; then
+        # This is the case of VM gen 2
+            vf_interface_vm_1=$(find /sys/devices/* -name "*${synthetic_interface_vm_1}" | grep pci | sed 's/\// /g' | awk '{print $11}')
+        else
+        # VM gen 1 case
+            vf_interface_vm_1=$(find /sys/devices/* -name "*${synthetic_interface_vm_1}" | grep pci | sed 's/\// /g' | awk '{print $12}')
+        fi
     fi
     LogMsg "Virtual function found: $vf_interface_vm_1"
 
@@ -259,7 +265,13 @@ while [ $__iterator -le "$vf_count" ]; do
         synthetic_MAC=$(ip link show ${synthetic_interface_vm_1} | grep ether | awk '{print $2}')
         vf_interface_vm_1=$(grep -il ${synthetic_MAC} /sys/class/net/*/address | grep -v $synthetic_interface_vm_1 | sed 's/\// /g' | awk '{print $4}')
     else
-        vf_interface_vm_1=$(find /sys/devices/* -name "*${synthetic_interface_vm_1}" | grep "pci" | sed 's/\// /g' | awk '{print $12}')
+        if [[ -d /sys/firmware/efi ]]; then
+        # This is the case of VM gen 2
+            vf_interface_vm_1=$(find /sys/devices/* -name "*${synthetic_interface_vm_1}" | grep pci | sed 's/\// /g' | awk '{print $11}')
+        else
+        # VM gen 1 case
+            vf_interface_vm_1=$(find /sys/devices/* -name "*${synthetic_interface_vm_1}" | grep pci | sed 's/\// /g' | awk '{print $12}')
+        fi
     fi
     LogMsg "Virtual function found: $vf_interface_vm_1"
 
@@ -282,7 +294,13 @@ while [ $__iterator -le "$vf_count" ]; do
         synthetic_MAC=$(ip link show ${synthetic_interface_vm_1} | grep ether | awk '{print $2}')
         vf_interface_vm_1=$(grep -il ${synthetic_MAC} /sys/class/net/*/address | grep -v $synthetic_interface_vm_1 | sed 's/\// /g' | awk '{print $4}')
     else
-        vf_interface_vm_1=$(find /sys/devices/* -name "*${synthetic_interface_vm_1}" | grep "pci" | sed 's/\// /g' | awk '{print $12}')
+        if [[ -d /sys/firmware/efi ]]; then
+        # This is the case of VM gen 2
+            vf_interface_vm_1=$(find /sys/devices/* -name "*${synthetic_interface_vm_1}" | grep pci | sed 's/\// /g' | awk '{print $11}')
+        else
+        # VM gen 1 case
+            vf_interface_vm_1=$(find /sys/devices/* -name "*${synthetic_interface_vm_1}" | grep pci | sed 's/\// /g' | awk '{print $12}')
+        fi
     fi
     LogMsg "Virtual function found: $vf_interface_vm_1"
 
@@ -307,7 +325,13 @@ while [ $__iterator -le "$vf_count" ]; do
         synthetic_MAC=$(ip link show ${synthetic_interface_vm_1} | grep ether | awk '{print $2}')
         vf_interface_vm_1=$(grep -il ${synthetic_MAC} /sys/class/net/*/address | grep -v $synthetic_interface_vm_1 | sed 's/\// /g' | awk '{print $4}')
     else
-        vf_interface_vm_1=$(find /sys/devices/* -name "*${synthetic_interface_vm_1}" | grep "pci" | sed 's/\// /g' | awk '{print $12}')
+        if [[ -d /sys/firmware/efi ]]; then
+        # This is the case of VM gen 2
+            vf_interface_vm_1=$(find /sys/devices/* -name "*${synthetic_interface_vm_1}" | grep pci | sed 's/\// /g' | awk '{print $11}')
+        else
+        # VM gen 1 case
+            vf_interface_vm_1=$(find /sys/devices/* -name "*${synthetic_interface_vm_1}" | grep pci | sed 's/\// /g' | awk '{print $12}')
+        fi
     fi
     LogMsg "Virtual function found: $vf_interface_vm_1"
 
