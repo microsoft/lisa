@@ -28,27 +28,6 @@ using Module ".\TestProvider.psm1"
 
 Class ReadyProvider : TestProvider
 {
-	[object] GetIPAddressFromIfconfig([string] $ifConfigInfo) {
-		Write-LogDbg "GetIPAddress $ifConfigInfo"
-		[regex] $re = "(?:[0-9]{1,3}\.){3}[0-9]{1,3}"
-		[string] $matchedIp = $re.Match($ifConfigInfo)
-		return $matchedIp
-	}
-
-	[void] SetInternalIPAddress([object] $AllVMData) {
-		$count = 0
-		foreach ($vmData in $AllVMData) {
-			$ifconfigInfo = Run-LinuxCmd -username $global:user -password $global:password -ip $($vmData.PublicIp) -port $($vmData.SSHPort) -command "ifconfig"
-			$ipAddress = GetIPAddressFromIfconfig -ifConfigInfo $ifConfigInfo
-			if ($ipAddress) {
-				$AllVmData[$count].InternalIP = $ipAddress
-			} else {
-				Write-LogErr "Cannot get the internal IP address for $($vmData.PublicIp):$($vmData.SSHPort)"
-			}
-			$count++
-		}
-	}
-
 	[object] DeployVMs([xml] $GlobalConfig, [object] $SetupTypeData, [object] $TestCaseData, [string] $TestLocation, [string] $RGIdentifier, [bool] $UseExistingRG, [string] $ResourceCleanup) {
 		function Create-QuickVMNode() {
 			$objNode = New-Object -TypeName PSObject
@@ -59,6 +38,27 @@ Class ReadyProvider : TestProvider
 			Add-Member -InputObject $objNode -MemberType NoteProperty -Name RoleName -Value $null -Force
 			Add-Member -InputObject $objNode -MemberType NoteProperty -Name InternalIP -Value $null -Force
 			return $objNode
+		}
+
+		function GetIPAddressFromIpAddrInfo([string] $ipAddrInfo) {
+			Write-LogDbg "GetIPAddress $ipAddrInfo"
+			[regex] $re = "(?:[0-9]{1,3}\.){3}[0-9]{1,3}"
+			[string] $matchedIp = $re.Match($ipAddrInfo)
+			return $matchedIp
+		}
+		
+		function SetInternalIPAddress([object] $AllVMData) {
+			$count = 0
+			foreach ($vmData in $AllVMData) {
+				$ipAddrInfo = Run-LinuxCmd -username $global:user -password $global:password -ip $($vmData.PublicIp) -port $($vmData.SSHPort) -command "ip -4 address | awk -F': ' '!/lo/ {print `$2}' | xargs ip address show" -RunAsSudo
+				$ipAddress = GetIPAddressFromIpAddrInfo -ipAddrInfo $ipAddrInfo
+				if ($ipAddress) {
+					$AllVmData[$count].InternalIP = $ipAddress
+				} else {
+					Write-LogErr "Cannot get the internal IP address for $($vmData.PublicIp):$($vmData.SSHPort)"
+				}
+				$count++
+			}
 		}
 
 		$allVMData = @()
