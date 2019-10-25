@@ -36,7 +36,29 @@ Class ReadyProvider : TestProvider
 			Add-Member -InputObject $objNode -MemberType NoteProperty -Name UserName -Value $null -Force
 			Add-Member -InputObject $objNode -MemberType NoteProperty -Name Password -Value $null -Force
 			Add-Member -InputObject $objNode -MemberType NoteProperty -Name RoleName -Value $null -Force
+			Add-Member -InputObject $objNode -MemberType NoteProperty -Name InternalIP -Value $null -Force
 			return $objNode
+		}
+
+		function GetIPAddressFromIpAddrInfo([string] $ipAddrInfo) {
+			Write-LogDbg "GetIPAddress $ipAddrInfo"
+			[regex] $re = "(?:[0-9]{1,3}\.){3}[0-9]{1,3}"
+			[string] $matchedIp = $re.Match($ipAddrInfo)
+			return $matchedIp
+		}
+
+		function SetInternalIPAddress([object] $AllVMData) {
+			$count = 0
+			foreach ($vmData in $AllVMData) {
+				$ipAddrInfo = Run-LinuxCmd -username $global:user -password $global:password -ip $($vmData.PublicIp) -port $($vmData.SSHPort) -command "ip -4 address | awk -F': ' '!/lo/ {print `$2}' | xargs ip address show" -RunAsSudo
+				$ipAddress = GetIPAddressFromIpAddrInfo -ipAddrInfo $ipAddrInfo
+				if ($ipAddress) {
+					$AllVmData[$count].InternalIP = $ipAddress
+				} else {
+					Write-LogErr "Cannot get the internal IP address for $($vmData.PublicIp):$($vmData.SSHPort)"
+				}
+				$count++
+			}
 		}
 
 		$allVMData = @()
@@ -55,6 +77,7 @@ Class ReadyProvider : TestProvider
 				$vmNode.RoleName = "Role$vmIndex"
 				$allVMData += $vmNode;
 			}
+			SetInternalIPAddress -AllVMData $allVMData
 			Write-LogInfo("No need to deploy new VM as this test case is running against a prepared environment.")
 
 			$isVmAlive = Is-VmAlive -AllVMDataObject $allVMData
