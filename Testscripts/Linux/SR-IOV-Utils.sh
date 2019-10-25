@@ -82,10 +82,10 @@ VerifyVF()
         else
             if [[ -d /sys/firmware/efi ]]; then
             # This is the case of VM gen 2
-                vf_interface="find /sys/devices/* -name "*${synthetic_interface_vm_1}" | grep pci | sed 's/\// /g' | awk '{print \$11}'"
+                vf_interface="find /sys/devices/* -name "*${synthetic_interface}" | grep pci | sed 's/\// /g' | awk '{print \$11}'"
             else
             # VM gen 1 case
-                vf_interface="find /sys/devices/* -name "*${synthetic_interface_vm_1}" | grep pci | sed 's/\// /g' | awk '{print \$12}'"
+                vf_interface="find /sys/devices/* -name "*${synthetic_interface}" | grep pci | sed 's/\// /g' | awk '{print \$12}'"
             fi
         fi
     fi
