@@ -46,7 +46,7 @@ Class ReadyProvider : TestProvider
 			[string] $matchedIp = $re.Match($ipAddrInfo)
 			return $matchedIp
 		}
-		
+
 		function SetInternalIPAddress([object] $AllVMData) {
 			$count = 0
 			foreach ($vmData in $AllVMData) {
