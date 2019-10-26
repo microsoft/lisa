@@ -40,18 +40,19 @@ Class ReadyProvider : TestProvider
 			return $objNode
 		}
 
-		function GetIPAddressFromIpAddrInfo([string] $ipAddrInfo) {
-			Write-LogDbg "GetIPAddress $ipAddrInfo"
+		function GetIPv4AddressFromIpAddrInfo([string] $ipAddrInfo) {
+			Write-LogDbg "Get IPv4 address from command output of 'ip address show': $ipAddrInfo"
 			[regex] $re = "(?:[0-9]{1,3}\.){3}[0-9]{1,3}"
 			[string] $matchedIp = $re.Match($ipAddrInfo)
 			return $matchedIp
 		}
 
-		function SetInternalIPAddress([object] $AllVMData) {
+		function SetInternalIPv4Address([object] $AllVMData) {
 			$count = 0
 			foreach ($vmData in $AllVMData) {
+				# get the first active nic device's IPv4 address. This is the temporary approach, as it may not be right for VMs that have multi nic devices.
 				$ipAddrInfo = Run-LinuxCmd -username $global:user -password $global:password -ip $($vmData.PublicIp) -port $($vmData.SSHPort) -command "ip -4 address | awk -F': ' '!/lo/ {print `$2}' | xargs ip address show" -RunAsSudo
-				$ipAddress = GetIPAddressFromIpAddrInfo -ipAddrInfo $ipAddrInfo
+				$ipAddress = GetIPv4AddressFromIpAddrInfo -ipAddrInfo $ipAddrInfo
 				if ($ipAddress) {
 					$AllVmData[$count].InternalIP = $ipAddress
 				} else {
@@ -77,7 +78,7 @@ Class ReadyProvider : TestProvider
 				$vmNode.RoleName = "Role$vmIndex"
 				$allVMData += $vmNode;
 			}
-			SetInternalIPAddress -AllVMData $allVMData
+			SetInternalIPv4Address -AllVMData $allVMData
 			Write-LogInfo("No need to deploy new VM as this test case is running against a prepared environment.")
 
 			$isVmAlive = Is-VmAlive -AllVMDataObject $allVMData
