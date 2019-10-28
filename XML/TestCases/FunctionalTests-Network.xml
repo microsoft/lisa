@@ -629,7 +629,7 @@
         <Tags>ethtool</Tags>
         <Priority>0</Priority>
     </test>
-        <test>
+    <test>
         <testName>ETHTOOL-OFFLOADING-SETTING</testName>
         <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-RUN-COMMON-TEST.ps1</testScript>
@@ -650,7 +650,7 @@
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
         <Category>Functional</Category>
-        <Area>NETWORK</Area>
+        <Area>SRIOV</Area>
         <Tags>ethtool</Tags>
         <Priority>0</Priority>
     </test>
@@ -677,7 +677,7 @@
         </TestParameters>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>
-        <Area>NETWORK</Area>
+        <Area>SRIOV</Area>
         <Tags>ethtool</Tags>
         <Priority>0</Priority>
     </test>
