@@ -50,7 +50,13 @@ if [[ $DISTRO_VERSION =~ ^6\. ]]; then
     synthetic_MAC=$(ip link show ${synthetic_interface} | grep ether | awk '{print $2}')
     vf_interface=$(grep -il ${synthetic_MAC} /sys/class/net/*/address | grep -v $synthetic_interface | sed 's/\// /g' | awk '{print $4}')
 else
-    vf_interface=$(find /sys/devices/* -name "*${synthetic_interface}*" | grep "pci" | sed 's/\// /g' | awk '{print $12}')
+    if [[ -d /sys/firmware/efi ]]; then
+    # This is the case of VM gen 2
+        vf_interface=$(find /sys/devices/* -name "*${synthetic_interface}" | grep pci | sed 's/\// /g' | awk '{print $11}')
+    else
+    # VM gen 1 case
+        vf_interface=$(find /sys/devices/* -name "*${synthetic_interface}" | grep pci | sed 's/\// /g' | awk '{print $12}')
+    fi
 fi
 LogMsg "Virtual function found: $vf_interface"
 # Extract module name
@@ -60,6 +66,12 @@ mlnx_sts=$(echo "$module_name_in_use" | grep -c mlx)
 if [ "$mlnx_sts" -eq 1 ]; then
     module_version=$(echo "$module_name_in_use" | sed  's/_/ /g' | awk '{print $1}')
     primary_module="${module_version}_en"
+    LogMsg "Checking $primary_module in lsmod and ensure if it is primary"
+    target_mod_check=$(lsmod | grep -i $primary_module)
+    # Sometimes mlx OFED driver has mlx5_ib not mlx5_en
+    if [ -z $target_mod_check ]; then
+        primary_module="${module_version}_ib"
+    fi
 fi
 
 # Unload modules
