@@ -436,6 +436,7 @@
         <setupScript>.\TestScripts\Windows\LIS-Mount-CD.ps1</setupScript>
         <testScript>LIS-Mount-CD.sh</testScript>
         <files>.\Testscripts\Linux\LIS-Mount-CD.sh,.\Testscripts\Linux\check_traces.sh,.\Testscripts\Linux\utils.sh</files>
+        <cleanUpScript>.\TestScripts\Windows\SETUP-RemoveIsoFromDvd.ps1</cleanUpScript>
         <setupType>OneVM</setupType>
         <Platform>HyperV</Platform>
         <Category>Functional</Category>

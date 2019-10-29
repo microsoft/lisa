@@ -98,7 +98,11 @@ function Main {
     if (-not $defaultVhdPath.EndsWith("\")) {
         $defaultVhdPath += "\"
     }
-    $isoPath = $defaultVhdPath + "${vmName}_CDtest.iso"
+
+    # Get remote iso file path
+    $isoPath_default = $defaultVhdPath + "${vmName}_CDtest.iso"
+    $isoPath = $isoPath_default.Replace(':','$')
+    $isoPath = "\\" + $HvServer + "\" + $isoPath
 
     $WebClient = New-Object System.Net.WebClient
     $WebClient.DownloadFile("$url", "$isoPath")
@@ -110,15 +114,16 @@ function Main {
         Write-LogErr "The .iso file $isoPath could not be found!"
         return $False
     }
-
     #
     # Insert the .iso file into the VMs DVD drive
     #
     if ($vmGen -eq 1) {
-        Add-VMDvdDrive -VMName $VMName -Path $isoPath -ControllerNumber 1 -ControllerLocation 1 -ComputerName $HvServer -Confirm:$False
+        Invoke-Command -ComputerName $HvServer { Add-VMDvdDrive -VMName $Using:VMName -Path $Using:isoPath_default `
+             -ControllerNumber 1 -ControllerLocation 1 -Confirm:$False }
     }
     else {
-        Add-VMDvdDrive -VMName $VMName -Path $isoPath -ControllerNumber 0 -ControllerLocation 1 -ComputerName $HvServer -Confirm:$False
+        Invoke-Command -ComputerName $HvServer { Add-VMDvdDrive -VMName $Using:VMName -Path $Using:isoPath_default `
+            -ControllerNumber 0 -ControllerLocation 1 -Confirm:$False }
     }
 
     if ($? -ne "True") {
