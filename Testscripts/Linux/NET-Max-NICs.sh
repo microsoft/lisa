@@ -144,7 +144,6 @@ function main() {
     # Check if every interface has an IP assigned
     for eth_name in ${IFACES[@]}; do
         eth_ip=$(ip a | grep $eth_name | sed -n '2 p' | awk '{print $2}')
-        eth_name=eth8
         eth_number=$(echo $eth_name | sed 's/[^0-9]*//g')
         if [[ $eth_number -ge 8 ]]; then
             continue
