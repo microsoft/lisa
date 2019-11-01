@@ -94,7 +94,7 @@ function Upload-RemoteFile($uploadTo, $port, $file, $username, $password, $usePr
 			Start-Sleep -Milliseconds 100
 			$uploadJobStatus = Get-Job -Id $uploadJob.Id
 			$uploadTimout = $false
-			$pscpStuckTimeout = 60
+			$pscpStuckTimeout = 90
 			while (( $uploadJobStatus.State -eq "Running" ) -and ( !$uploadTimout ))
 			{
 				$now = Get-Date
