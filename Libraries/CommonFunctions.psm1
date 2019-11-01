@@ -990,7 +990,7 @@ Function Detect-LinuxDistro() {
 	$null = Copy-RemoteFiles  -upload -uploadTo $VIP -port $SSHport -files ".\Testscripts\Linux\DetectLinuxDistro.sh" -username $testVMUser -password $testVMPassword 2>&1 | Out-Null
 	$null = Run-LinuxCmd -username $testVMUser -password $testVMPassword -ip $VIP -port $SSHport -command "chmod +x *.sh" -runAsSudo 2>&1 | Out-Null
 
-	$DistroName = Run-LinuxCmd -username $testVMUser -password $testVMPassword -ip $VIP -port $SSHport -command "/home/$testVMUser/DetectLinuxDistro.sh" -runAsSudo
+	$DistroName = Run-LinuxCmd -username $testVMUser -password $testVMPassword -ip $VIP -port $SSHport -command "bash /home/$testVMUser/DetectLinuxDistro.sh" -runAsSudo
 
 	if (($DistroName -imatch "Unknown") -or (!$DistroName)) {
 		Write-LogErr "Linux distro detected : $DistroName"
