@@ -24,15 +24,14 @@ function Main {
 
     # Check arguments
     if (-not $vmName) {
-        "Error: Missing vmName argument"
+        Write-LogErr "Missing vmName argument"
         return $False
     }
     if (-not $hvServer) {
-        "Error: Missing hvServer argument"
+        Write-LogErr "Missing hvServer argument"
         return $False
     }
     # This script does not use any testParams
-    $error.Clear()
     $vmGeneration = Get-VM $vmName -ComputerName $hvServer | Select-Object -ExpandProperty Generation `
         -ErrorAction SilentlyContinue
     if ($? -eq $False) {
@@ -57,10 +56,34 @@ function Main {
     }
 
     if (-not $?) {
-        "Error: Unable to remove the .iso from the DVD!"
+        Write-LogErr "Unable to remove the .iso from the DVD!"
         return $False
     }
 
+    # Get Hyper-V VHD path
+    $obj = Get-WmiObject -ComputerName $hvServer -Namespace "root\virtualization\v2" -Class "MsVM_VirtualSystemManagementServiceSettingData"
+    $defaultVhdPath = $obj.DefaultVirtualHardDiskPath
+    if (-not $defaultVhdPath) {
+        Write-LogErr "Unable to determine VhdDefaultPath on Hyper-V server ${hvServer}"
+        return $False
+    }
+    if (-not $defaultVhdPath.EndsWith("\")) {
+        $defaultVhdPath += "\"
+    }
+
+    # Remove the .iso file
+    $isoPath_tmp = $defaultVhdPath + "${vmName}_CDtest.iso"
+    $isoPath = $isoPath_tmp.Replace(':','$')
+    $isoPath = "\\" + $HvServer + "\" + $isoPath
+
+    if (Test-Path "${isoPath}") {
+        try {
+            Remove-Item "${isoPath}"
+        } catch {
+            Write-LogErr "The .iso file $isoPath could not be removed!"
+            return $False
+        }
+    }
     return $True
 }
 
