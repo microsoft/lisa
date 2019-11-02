@@ -48,7 +48,10 @@ Install_KVM_Dependencies()
     fi
     update_repos
     install_package qemu-kvm
-    install_package bridge-utils
+    check_package "bridge-utils"
+    if [ $? -eq 0 ]; then
+        install_package bridge-utils
+    fi
     lsmod | grep kvm_intel
     exit_status=$?
     if [ $exit_status -ne 0 ]; then
@@ -62,7 +65,11 @@ Install_KVM_Dependencies()
         echo "Install epel repository"
         install_epel
         echo "Install qemu-system-x86"
-        install_package qemu-system-x86
+        check_package "qemu-system-x86"
+        if [ $? -eq 0 ]; then
+            install_package qemu-system-x86
+        fi
+        [ -f /usr/libexec/qemu-kvm ] && ln -s /usr/libexec/qemu-kvm /sbin/qemu-system-x86_64
     fi
     which qemu-system-x86_64
     if [ $? -ne 0 ]; then
@@ -70,7 +77,17 @@ Install_KVM_Dependencies()
         Update_Test_State $ICA_TESTFAILED
         exit 0
     fi
-    install_package aria2
+    check_package "aria2"
+    if [ $? -eq 0 ]; then
+        install_package aria2
+    else
+        install_package make
+        wget https://github.com/q3aql/aria2-static-builds/releases/download/v1.35.0/aria2-1.35.0-linux-gnu-64bit-build1.tar.bz2
+        tar -xf aria2-1.35.0-linux-gnu-64bit-build1.tar.bz2
+        cd aria2-1.35.0-linux-gnu-64bit-build1/
+        make install
+        cd ..
+    fi
 }
 
 Download_Image_Files()
@@ -80,6 +97,7 @@ Download_Image_Files()
        shift
        shift
     done
+    [ ! -d /mnt/resource ] && mkdir /mnt/resource
     cd /mnt/resource
     if [ "x$destination_image_name" == "x" ] || [ "x$source_image_url" == "x" ] ; then
         echo "Usage: GetImageFiles -destination_image_name <destination image name> -source_image_url <source nested image url>"

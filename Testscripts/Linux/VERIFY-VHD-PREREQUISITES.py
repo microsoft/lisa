@@ -47,7 +47,7 @@ def verify_grub(distro):
             return False
     if distro == "CENTOS" or distro == "ORACLELINUX" or distro == "REDHAT" or distro == "SLES" or distro == "FEDORA":
         version_release = 0
-        if distro == "REDHAT":
+        if distro == "REDHAT" or distro == "CENTOS":
             version_release = Run("cat /etc/system-release | grep -Eo '[0-9].?[0-9]?' | head -1 | tr -d '\n'")
         if float(version_release) == 8.0:
             RunLog.info("Getting Contents of /boot/grub2/grubenv")
@@ -277,13 +277,13 @@ if distro == "CENTOS":
     result = verify_udev_rules(distro)
     #Verify repositories
     r_out = Run("yum repolist")
-    if "base" in r_out and "updates" in r_out:
+    if "base" in r_out.lower() and "updates" in r_out.lower():
         RunLog.info("Expected repositories are present")
         print(distro+"_TEST_REPOSITORIES_AVAILABLE")
     else:
-        if "base" not in r_out:
+        if "base" not in r_out.lower():
             RunLog.error("Base repository not present")
-        if "updates" not in r_out:
+        if "updates" not in r_out.lower():
             RunLog.error("Updates repository not present")
         print(distro+"_TEST_REPOSITORIES_ERROR")
     #Verify etc/yum.conf

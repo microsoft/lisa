@@ -70,9 +70,8 @@ if [ "$os_GENERATION" -eq "1" ]; then
 fi
 
 # lsvmbus requires python
-if [[ $DISTRO == "redhat_8" ]]; then
-    which python || ln -s /usr/libexec/platform-python /sbin/python
-elif ! which python; then
+which python || [ -f /usr/libexec/platform-python ] && ln -s /usr/libexec/platform-python /sbin/python
+if ! which python; then
     update_repos
     install_package python
 fi

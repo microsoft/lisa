@@ -271,6 +271,9 @@ GetDistro()
 		*CentOS*release*7\.*\.*)
 			DISTRO=centos_7
 			;;
+		*CentOS*release*8\.*\.*)
+			DISTRO=centos_8
+			;;
 		*CentOS*)
 			DISTRO=centos_x
 			;;
