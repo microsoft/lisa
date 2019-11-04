@@ -197,6 +197,7 @@ ConfigNVME()
 		echo 0 > /sys/block/${namespace}/queue/rq_affinity
 		sleep 1
 		nvme_namespaces="${nvme_namespaces}/dev/${namespace}:"
+		LogMsg "NMVe name space: $namespace"
 	done
 	# Deleting last char of string (:)
 	nvme_namespaces=${nvme_namespaces%?}
@@ -204,8 +205,10 @@ ConfigNVME()
 	# Set the remaining variables
 	# NVMe perf tests will have a starting qdepth equal to vCPU number
 	startQDepth=$(nproc)
+	LogMsg "Setting qdepth in the setting: $startQDepth"
 	# NVMe perf tests will have a max qdepth equal to vCPU number x 256
 	maxQDepth=$(($(nproc) * 256))
+	LogMsg "Setting maxQDepth in the setting: $maxQDepth"
 }
 
 CreateLVM()

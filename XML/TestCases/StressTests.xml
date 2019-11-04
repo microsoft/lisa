@@ -140,7 +140,7 @@
 			<param>maxQDepth=16384</param>
 			<param>startIO=4</param>
 			<param>ioruntime=FIO_STRESS_RUNTIME</param>
-			<param>maxIO=4</param>
+			<param>maxIO=1</param>
 			<param>PHYSICAL_NUMBER=1</param>
 			<param>parseTimeout=FIO_LOG_PARSE_TIMEOUT</param>
 			<param>nvme_version=NVME_VERSION</param>
