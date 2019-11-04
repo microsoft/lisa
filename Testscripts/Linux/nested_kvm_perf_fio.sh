@@ -89,7 +89,7 @@ Run_Fio()
 		io=$startIO
 		while [ $io -le $maxIO ]
 		do
-			Thread=$startThread			
+			Thread=$startThread
 			while [ $Thread -le $maxThread ]
 			do
 				if [ $Thread -ge 8 ]
@@ -106,7 +106,7 @@ Run_Fio()
 				fio $FILEIO --readwrite=$testmode --bs=${io}K --runtime=$ioruntime --iodepth=$Thread --numjobs=$numjobs --output-format=json --output=$jsonfilename --name="iteration"${iteration} >> $LOGFILE
 				iostatPID=$(ps -ef | awk '/iostat/ && !/awk/ { print $2 }')
 				kill -9 $iostatPID
-				Thread=$(( Thread*2 ))		
+				Thread=$(( Thread*2 ))
 				iteration=$(( iteration+1 ))
 			done
 		io=$(( io * io_increment ))
