@@ -18,10 +18,11 @@
 # Dependency:
 #   utils.sh
 #######################################################################
+HOMEDIR=$(pwd)
 
 . utils.sh || {
     echo "Error: missing utils.sh file"
-    echo "TestAborted" > "${HOME}"/state.txt
+    echo "TestAborted" > "${HOMEDIR}"/state.txt
     exit 1
 }
 
@@ -79,20 +80,20 @@ Parse_Result()
     cat $csv_file_tmp > $csv_file
     rm -rf $csv_file_tmp
     LogMsg "Parse test result completed"
-    cp $csv_file "$HOME"
+    cp $csv_file "$HOMEDIR"
 }
 
 Run_Web_Test()
 {
     iteration=0
-    mkdir -p "${HOME}"/web_test_results
+    mkdir -p "${HOMEDIR}"/web_test_results
     for parallel in $parallelConnections; do
-        outputName="${HOME}/web_test_results/web-${parallel}th-${runtime}s.http_load.result"
+        outputName="${HOMEDIR}/web_test_results/web-${parallel}th-${runtime}s.http_load.result"
         LogMsg "-- iteration ${iteration} -- ${parallel} parallel connections, ${runtime} seconds -- $(date +"%x %r %Z") --"
-        http_load -p "${parallel}" -s "${runtime}" "${HOME}"/urls  >> "$outputName"
+        http_load -p "${parallel}" -s "${runtime}" "${HOMEDIR}"/urls  >> "$outputName"
         exit_status=$?
         if [ $exit_status -ne 0 ]; then
-            LogErr "Run http_load -p ${parallel} -s ${runtime} ${HOME}/urls  failed"
+            LogErr "Run http_load -p ${parallel} -s ${runtime} ${HOMEDIR}/urls  failed"
             SetTestStateFailed
             exit 1
         fi
@@ -105,8 +106,8 @@ Prepare_Test_Dependencies
 LogMsg "*********INFO: Starting test execution*********"
 SetTestStateRunning
 Run_Web_Test
-cd "${HOME}"/web_test_results
+cd "${HOMEDIR}"/web_test_results
 Parse_Result
-cd "$HOME"
+cd "$HOMEDIR"
 tar czf web_test_results.tar.gz web_test_results/
 SetTestStateCompleted

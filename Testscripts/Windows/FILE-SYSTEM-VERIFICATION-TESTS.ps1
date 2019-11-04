@@ -122,8 +122,8 @@ function Main {
         Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
             -password $password -command "/$superuser/xfstesting.sh" -RunInBackground | Out-Null
         # Check the status of the run every minute
-        # If the run is longer than 3 hours, abort the test
-        $timeout = New-Timespan -Minutes 180
+        # If the run is longer than 4 hours, abort the test
+        $timeout = New-Timespan -Minutes 240
         $sw = [diagnostics.stopwatch]::StartNew()
         while ($sw.elapsed -lt $timeout) {
             Start-Sleep -s 60

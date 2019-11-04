@@ -107,7 +107,7 @@ Scenario 2 : You need to run all the performance tests quickly.
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>LTP_TESTS_GIT_TAG</ReplaceThis>
-		<ReplaceWith>20190115</ReplaceWith>
+		<ReplaceWith>20190930</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_INSTALL_OFED</ReplaceThis>

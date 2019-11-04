@@ -36,7 +36,7 @@ function Main {
 
         # Run iPerf on client side for 30 seconds with SR-IOV enabled
         Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
-            $VMPassword -command "source sriov_constants.sh ; iperf3 -t 30 -c `$VF_IP2 --logfile PerfResults.log"
+            $VMPassword -command "source sriov_constants.sh ; iperf3 -t 30 -f g -c `$VF_IP2 --logfile PerfResults.log"
 
         [decimal]$vfEnabledThroughput = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
             $VMPassword -command "tail -4 PerfResults.log | head -1 | awk '{print `$7}'" `
@@ -74,7 +74,7 @@ function Main {
         Start-Sleep -s 60
         # Get the throughput with SR-IOV disabled; it should be lower
         Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
-            $VMPassword -command "source sriov_constants.sh ; iperf3 -t 30 -c `$VF_IP2 --logfile PerfResults.log"
+            $VMPassword -command "source sriov_constants.sh ; iperf3 -t 30 -f g -c `$VF_IP2 --logfile PerfResults.log"
 
         [decimal]$vfDisabledThroughput = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
             $VMPassword -command "tail -4 PerfResults.log | head -1 | awk '{print `$7}'" `
@@ -108,7 +108,7 @@ function Main {
         Start-Sleep -s 60
         # Read the throughput again, it should be higher than before
         Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
-            $VMPassword -command "source sriov_constants.sh ; iperf3 -t 30 -c `$VF_IP2 --logfile PerfResults.log"
+            $VMPassword -command "source sriov_constants.sh ; iperf3 -t 30 -f g -c `$VF_IP2 --logfile PerfResults.log"
         [decimal]$vfDisabledThroughput = $vfDisabledThroughput * 1.5
         [decimal]$vfFinalThroughput = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
             $VMPassword -command "tail -4 PerfResults.log | head -1 | awk '{print `$7}'" `

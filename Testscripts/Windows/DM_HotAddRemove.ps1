@@ -146,30 +146,26 @@ function Main {
             $timeout -= 1
             Start-Sleep -s 1
         }
-        # stop vm2
-        Stop-VM -VMName $VM2Name -ComputerName $HvServer -force
-        # Verify if errors occured on guest
+        # Verify if errors occurred on guest
         $isAlive = Wait-ForVMToStartKVP $VM1Name $HvServer 10
         if (-not $isAlive) {
-            throw "VM $VM2Name is unresponsive after running the memory stress test"
+            throw "VM $VM1Name is unresponsive after running the memory stress test"
         }
         # Everything ok
         Write-LogInfo  "Memory Hot Add/Remove completed successfully"
         $testResult = $resultPass
-    }
-    catch {
+    } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
         Write-LogErr "$ErrorMessage at line: $ErrorLine"
-    }
-    finally {
+    } finally {
         if (!$testResult) {
             $testResult = "ABORTED"
         }
             $resultArr += $testResult
     }
     $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
-	return $currentTestResult.TestResult
+    return $currentTestResult.TestResult
 
 }
 Main -VM1 $allVMData[0] -VM2 $allVMData[1] -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))

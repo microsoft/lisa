@@ -27,8 +27,8 @@ SearchModules()
     elif [[ -d "/usr/lib64/modules" ]]; then
         abs_path="/usr/lib64/modules/"
     fi
-    if [[ $DISTRO == "suse_12" ]]; then
-        abs_path="/lib/modules/"
+    if [[ $DISTRO == "suse_12" ]] || ([[ $DISTRO_NAME == "ubuntu" ]] && [[ $DISTRO_VERSION == "19.10" ]]); then
+        abs_path="/lib/modules/$(uname -r)"
     fi
     for module in "${hv_modules[@]}"; do
         grep -i "$module" $abs_path*/modules.dep
