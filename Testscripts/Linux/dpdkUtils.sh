@@ -167,7 +167,15 @@ function Install_Dpdk () {
 			ssh "${1}" "yum -y groupinstall 'Infiniband Support' && dracut --add-drivers 'mlx4_en mlx4_ib mlx5_ib' -f && systemctl enable rdma"
 			check_exit_status "Install Infiniband Support on ${1}" "exit"
 			ssh "${1}" "grep 7.5 /etc/redhat-release && curl https://partnerpipelineshare.blob.core.windows.net/kernel-devel-rpms/CentOS-Vault.repo > /etc/yum.repos.d/CentOS-Vault.repo"
-			packages+=(kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel libmnl-devel)
+			packages+=(kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel)
+			check_package "libmnl-devel"
+			if [ $? -eq 0 ]; then
+				packages+=("libmnl-devel")
+			fi
+			check_package "elfutils-libelf-devel"
+			if [ $? -eq 0 ]; then
+				packages+=("elfutils-libelf-devel")
+			fi
 			;;
 		ubuntu|debian)
 			ssh "${1}" "until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done"

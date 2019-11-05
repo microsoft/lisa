@@ -208,7 +208,7 @@ if [ $? -ne 0 ]; then
     exit 0
 fi
 
-if [[ $DISTRO == "redhat_8" ]]; then
+if [ -f /usr/libexec/platform-python ]; then
     ln -s /usr/libexec/platform-python /sbin/python
     wget https://raw.githubusercontent.com/torvalds/linux/master/tools/hv/lsvmbus
     chmod +x lsvmbus
