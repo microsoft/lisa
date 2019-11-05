@@ -206,11 +206,12 @@ function Main {
         Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
             -password $password -command "install_package libglvnd-dev ubuntu-desktop" -runMaxAllowedTime 1800 -ignoreLinuxExitCode | Out-Null
         }
+
         # -----> SUSE
         if (@("SUSE").contains($global:detectedDistro)) {
             Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
                 -password $password -command "install_package xorg-x11-driver-video libglvnd-devel" -runMaxAllowedTime 1800 -ignoreLinuxExitCode | Out-Null
-            }
+        }
 
         # Start the test script
         Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
@@ -260,7 +261,7 @@ function Main {
         
         if ($allVMData.InstanceSize -match "Standard_NDv2") {
             [int]$expectedGPUCount = $($vmCPUCount/5)
-        elseif (($allVMData.InstanceSize -imatch "Standard_ND" -or $allVMData.InstanceSize -imatch "Standard_NVS") -and $allVMData.InstanceSize -imatch "v3") {
+        } elseif (($allVMData.InstanceSize -imatch "Standard_ND" -or $allVMData.InstanceSize -imatch "Standard_NVS") -and $allVMData.InstanceSize -imatch "v3") {
             [int]$expectedGPUCount = $($vmCPUCount/12)
         } else {
             [int]$expectedGPUCount = $($vmCPUCount/6)
