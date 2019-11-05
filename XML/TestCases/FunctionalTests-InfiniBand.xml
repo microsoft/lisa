@@ -10,6 +10,7 @@
 		<Priority>3</Priority>
 		<TestParameters>
 			<param>install_ofed="INFINIBAND_INSTALL_OFED"</param>
+			<param>install_ofed_from_extension="INFINIBAND_INSTALL_OFED_FROM_EXTENSION"</param>
 			<param>num_reboot="INFINIBAND_INTEL_TOTAL_REBOOT_COUNT"</param>
 			<param>mpi_settings="INFINIBAND_INTEL_MPI_SETTINGS_IB"</param>
 			<param>ib_nic="INFINIBAND_IB_NIC"</param>

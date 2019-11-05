@@ -141,6 +141,13 @@ function Main {
 			if ($TestParam -imatch "mpi_type") {
 				$MpiType = [string]($TestParam.Replace("mpi_type=", "").Trim('"'))
 			}
+			if ($TestParam -imatch "install_ofed_from_extension") {
+				if($TestParam.Split("=")[1] -match "yes") {
+					$installOFEDFromExtension = $true
+				} else {
+					$installOFEDFromExtension = $false
+				}
+			}
 		}
 		Add-Content -Value "master=`"$($ServerVMData.InternalIP)`"" -Path $constantsFile
 		Write-LogInfo "master=$($ServerVMData.InternalIP) added to constants.sh"
@@ -163,6 +170,16 @@ function Main {
 		if (@("UBUNTU").contains($global:detectedDistro) -and ($MpiType -eq "ibm")) {
 			Write-LogInfo "$($global:detectedDistro) is not supported IBM Platform MPI! Test skipped!"
 			return "SKIPPED"
+		}
+
+		if ($installOFEDFromExtension) {
+			foreach ($VMData in $AllVMData) {
+				$install_Output = Set-AzVMExtension -ResourceGroupName $VMData.ResourceGroupName -Location $TestLocation -VMName $VMData.RoleName `
+					-ExtensionName "InfiniBandDriverLinux" -Publisher "Microsoft.HpcCompute" -Type "InfiniBandDriverLinux" -TypeHandlerVersion "1.0"
+				if ($install_Output.StatusCode -ne "OK") {
+					Throw "Extension InfiniBandDriverLinux install failed on $($VMData.RoleName)!"
+				}
+			}
 		}
 
 		Write-LogInfo "SetupRDMA.sh is called"

@@ -114,6 +114,10 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceWith>yes</ReplaceWith>
 	</Parameter>
 	<Parameter>
+		<ReplaceThis>INFINIBAND_INSTALL_OFED_FROM_EXTENSION</ReplaceThis>
+		<ReplaceWith>no</ReplaceWith>
+	</Parameter>
+	<Parameter>
 		<ReplaceThis>INFINIBAND_INTEL_TOTAL_REBOOT_COUNT</ReplaceThis>
 		<ReplaceWith>1</ReplaceWith>
 	</Parameter>
