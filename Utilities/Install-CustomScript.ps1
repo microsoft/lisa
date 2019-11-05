@@ -12,6 +12,7 @@
 	-ResourceGroupName, the resource group name of the VMs to install the CustomScript extension, if no ResourceGroupName is provided, it will be installed on all VMs in the subscription
 	-FileUris, comma separated Uris of the custom scripts
 	-CommandToRun, the command to run on the VM
+	-Timeout, the longest time that current job wait for command running on the VM, if no Timeout is provided, it will be 360s
 	-StorageAccountName, the name of the storage account that contains the custom scripts
 	-StorageAccountKey, the key of the storage account that contains the custom scripts
 	-OSType, the type of the OS, Linux or Windows, valid only if neither VmName nor ResourceGroupName is provided
@@ -37,6 +38,7 @@ param
 	[String] $FileUris,
 	[Parameter(Mandatory=$true)]
 	[String] $CommandToRun,
+	[int] $Timeout = 360,
 	[String] $StorageAccountName = "",
 	[String] $StorageAccountKey = "",
 	[ValidateSet('Linux','Windows', IgnoreCase = $false)]
@@ -66,7 +68,7 @@ Function Initialize-Environment($AzureSecretsFile, $LogFileName) {
 	.\Utilities\AddAzureRmAccountFromSecretsFile.ps1 -customSecretsFilePath $secretsFile
 }
 
-Function Install-CustomScript($AzureSecretsFile, $FileUris, $CommandToRun, $StorageAccountName, $StorageAccountKey, $VmName, $ResourceGroupName, $OSType){
+Function Install-CustomScript($AzureSecretsFile, $FileUris, $CommandToRun, $Timeout, $StorageAccountName, $StorageAccountKey, $VmName, $ResourceGroupName, $OSType){
 	Initialize-Environment -AzureSecretsFile $AzureSecretsFile -logFileName "Install-CustomScriptOnAllVMs.log"
 
 	$uriArray = $FileUris -split ","
@@ -135,7 +137,7 @@ Function Install-CustomScript($AzureSecretsFile, $FileUris, $CommandToRun, $Stor
 			Write-LogErr $_.Exception
 		}
 	}
-	$jobs | Wait-Job -Timeout 360
+	$jobs | Wait-Job -Timeout $Timeout
 	foreach ($job in $jobs) {
 		$state = $job.State
 		if ($state -eq "Running") {
@@ -168,5 +170,5 @@ Function Install-CustomScript($AzureSecretsFile, $FileUris, $CommandToRun, $Stor
 	}
 }
 
-Install-CustomScript -AzureSecretsFile $AzureSecretsFile -FileUris $FileUris -CommandToRun $CommandToRun -StorageAccountName $StorageAccountName `
+Install-CustomScript -AzureSecretsFile $AzureSecretsFile -FileUris $FileUris -CommandToRun $CommandToRun -Timeout $Timeout -StorageAccountName $StorageAccountName `
 	-StorageAccountKey $StorageAccountKey -VmName $VmName -ResourceGroupName $ResourceGroupName -OSType $OSType
