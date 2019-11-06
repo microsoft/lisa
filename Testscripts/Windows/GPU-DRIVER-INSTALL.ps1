@@ -255,7 +255,11 @@ function Main {
             return $currentTestResult
         }
 
-        # The expected ratio is 1 GPU adapter for every 6 CPU cores
+        # The expected GPU ratio is different from VM sizes
+        # NC, NC_v2, NC_v3, NV, NV_v2, and ND: 6
+        # NV_v3: 12
+        # ND_v2: 5
+        # Due to hyperthreading option, NV12s_v3 has 1GPU, 24s_v3 has 2 and 48s_v3 has 4 GPUs
         $vmCPUCount = Run-LinuxCmd -username $user -password $password -ip $allVMData.PublicIP `
             -port $allVMData.SSHPort -command "nproc" -ignoreLinuxExitCode
 
