@@ -261,7 +261,7 @@ function Main {
         
         if ($allVMData.InstanceSize -match "Standard_NDv2") {
             [int]$expectedGPUCount = $($vmCPUCount/5)
-        } elseif (($allVMData.InstanceSize -imatch "Standard_ND" -or $allVMData.InstanceSize -imatch "Standard_NVS") -and $allVMData.InstanceSize -imatch "v3") {
+        } elseif (($allVMData.InstanceSize -imatch "Standard_ND" -or $allVMData.InstanceSize -imatch "Standard_NV") -and $allVMData.InstanceSize -imatch "v3") {
             [int]$expectedGPUCount = $($vmCPUCount/12)
         } else {
             [int]$expectedGPUCount = $($vmCPUCount/6)
