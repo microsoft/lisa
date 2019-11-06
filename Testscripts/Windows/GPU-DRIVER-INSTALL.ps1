@@ -200,19 +200,6 @@ function Main {
             }
         }
 
-        # Install required packages
-        # ---> Ubuntu case
-        if (@("UBUNTU").contains($global:detectedDistro)) {
-        Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
-            -password $password -command "install_package libglvnd-dev ubuntu-desktop" -runMaxAllowedTime 1800 -ignoreLinuxExitCode | Out-Null
-        }
-
-        # -----> SUSE
-        if (@("SUSE").contains($global:detectedDistro)) {
-            Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
-                -password $password -command "install_package xorg-x11-driver-video libglvnd-devel" -runMaxAllowedTime 1800 -ignoreLinuxExitCode | Out-Null
-        }
-
         # Start the test script
         Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
             -password $password -command "/$superuser/${testScript}" -runMaxAllowedTime 1800 -ignoreLinuxExitCode | Out-Null
