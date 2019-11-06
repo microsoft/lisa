@@ -258,7 +258,7 @@ function Main {
         # The expected ratio is 1 GPU adapter for every 6 CPU cores
         $vmCPUCount = Run-LinuxCmd -username $user -password $password -ip $allVMData.PublicIP `
             -port $allVMData.SSHPort -command "nproc" -ignoreLinuxExitCode
-        
+
         if ($allVMData.InstanceSize -match "Standard_NDv2") {
             [int]$expectedGPUCount = $($vmCPUCount/5)
         } elseif (($allVMData.InstanceSize -imatch "Standard_ND" -or $allVMData.InstanceSize -imatch "Standard_NV") -and $allVMData.InstanceSize -imatch "v3") {
