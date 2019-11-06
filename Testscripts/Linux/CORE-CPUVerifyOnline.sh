@@ -17,13 +17,13 @@
 UtilsInit
 
 # Getting the CPUs count
-cpu_count=$(grep -i processor -o /proc/cpuinfo | wc -l)
+cpu_count=$(grep -i ^processor -o /proc/cpuinfo | wc -l)
 UpdateSummary "${cpu_count} CPU cores detected"
 
 #
 # Verifying all CPUs can't be offline except CPU0
 #
-for ((cpu=1 ; cpu<=$cpu_count ; cpu++)) ;do
+for ((cpu=1 ; cpu<$cpu_count ; cpu++)) ;do
     LogMsg "Checking the $cpu on /sys/device/...."
     __file_path="/sys/devices/system/cpu/cpu$cpu/online"
     if [ -e "$__file_path" ]; then

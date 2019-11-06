@@ -210,6 +210,7 @@
         <testScript>CORE-CPUVerifyOnline.sh</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\CORE-CPUVerifyOnline.sh</files>
         <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_DS3_v2</OverrideVMSize>
         <TestParameters>
             <param>vCPU=4</param>
         </TestParameters>
