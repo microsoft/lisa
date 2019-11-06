@@ -260,6 +260,7 @@ function Main {
         # NV_v3: 12
         # ND_v2: 5
         # Due to hyperthreading option, NV12s_v3 has 1GPU, 24s_v3 has 2 and 48s_v3 has 4 GPUs
+        # Source: https://docs.microsoft.com/en-us/azure/virtual-machines/linux/sizes-gpu
         $vmCPUCount = Run-LinuxCmd -username $user -password $password -ip $allVMData.PublicIP `
             -port $allVMData.SSHPort -command "nproc" -ignoreLinuxExitCode
 
