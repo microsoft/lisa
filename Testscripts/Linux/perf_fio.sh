@@ -155,6 +155,106 @@ RunFIO()
 	UpdateTestState $ICA_TESTCOMPLETED
 }
 
+RunStressFIO()
+{
+	UpdateTestState $ICA_TESTRUNNING
+	FILEIO="--size=${fileSize} --direct=1 --ioengine=libaio --filename=${mdVolume} --overwrite=1 "
+	if [ -n "${NVME}" ]; then
+		FILEIO="--direct=1 --ioengine=libaio --filename=${nvme_namespaces} --gtod_reduce=1"
+	fi
+	iteration=0
+	io_increment=128
+
+	# Log Config
+	mkdir $HOMEDIR/FIOLog/jsonLog
+	mkdir $HOMEDIR/FIOLog/iostatLog
+	mkdir $HOMEDIR/FIOLog/blktraceLog
+
+	# LOGDIR="${HOMEDIR}/FIOLog"
+	JSONFILELOG="${LOGDIR}/jsonLog"
+	IOSTATLOGDIR="${LOGDIR}/iostatLog"
+	LOGFILE="${LOGDIR}/fio-test.log.txt"
+
+	# redirect blktrace files directory
+	Resource_mount=$(mount -l | grep /sdb1 | awk '{print$3}')
+	blk_base="${Resource_mount}/blk-$(date +"%m%d%Y-%H%M%S")"
+	mkdir $blk_base
+
+	####################################
+	LogMsg "Test log created at: ${LOGFILE}"
+	LogMsg "===================================== Starting Run $(date +"%x %r %Z") ================================"
+
+	chmod 666 $LOGFILE
+	LogMsg "--- Kernel Version Information ---"
+	uname -a >> $LOGFILE
+	cat /proc/version >> $LOGFILE
+	if [ -f /usr/share/clear/version ]; then
+		cat /usr/share/clear/version >> $LOGFILE
+	elif [[ -n $(ls /etc/*-release) ]]; then
+		cat /etc/*-release >> $LOGFILE
+	fi
+	LogMsg "--- PCI Bus Information ---"
+	lspci >> $LOGFILE
+	df -h >> $LOGFILE
+	fio --cpuclock-test >> $LOGFILE
+	####################################
+	# Trigger run from here
+	io=$startIO
+	while [ $io -le $maxIO ]
+	do
+		numJobIterator=0
+		qDepth=$startQDepth
+		while [ $qDepth -le $maxQDepth ]
+		do
+			numJob=1
+			thread=$((qDepth/numJob))
+			for testmode in "${modes[@]}"; do
+				iostatfilename="${IOSTATLOGDIR}/iostat-fio-${testmode}-${io}K-${thread}td.txt"
+				nohup $iostat_cmd -x 5 -t -y > $iostatfilename &
+				LogMsg "-- iteration ${iteration} ----------------------------- ${testmode} test, ${io}K bs, ${thread} threads, ${numJob} jobs ------------------ $(date +"%x %r %Z") ---"
+				LogMsg "Running ${testmode} test, ${io}K bs, ${qDepth} qdepth (${thread} X ${numJob})..."
+				jsonfilename="${JSONFILELOG}/fio-result-${testmode}-${io}K-${qDepth}td.json"
+				if [ -z "${testmode##*'write'*}" ]; then
+					LogMsg "${fio_cmd} $FILEIO --readwrite=${testmode} --bs=${io}K --iodepth=${thread} --numjob=${numJob} --output-format=json --output=${jsonfilename} --name='iteration'${iteration} --verify=sha1 --do_verify=0 --verify_backlog=1024 --verify_fatal=1"
+					$fio_cmd $FILEIO --readwrite=$testmode --bs=${io}K --iodepth=$thread --numjob=$numJob --output-format=json --output=$jsonfilename --name="iteration"${iteration} --verify=sha1 --do_verify=0 --verify_backlog=1024 --verify_fatal=1 >> $LOGFILE
+					if [ $? -ne 0 ]; then
+						LogMsg "Error: Failed to run fio in ${testmode} phase"
+						UpdateTestState $ICA_TESTFAILED
+						exit 1
+					fi
+				else
+					LogMsg "${fio_cmd} $FILEIO --readwrite=${testmode} --bs=${io}K --iodepth=${thread} --numjob=${numJob} --output-format=json --output=${jsonfilename} --name='iteration'${iteration} --verify=sha1 --do_verify=1 --verify_backlog=1024 --verify_fatal=1 --verify_only"
+					$fio_cmd $FILEIO --readwrite=$testmode --bs=${io}K --iodepth=$thread --numjob=$numJob --output-format=json --output=$jsonfilename --name="iteration"${iteration} --verify=sha1 --do_verify=1 --verify_backlog=1024 --verify_fatal=1 --verify_only  >> $LOGFILE
+					if [ $? -ne 0 ]; then
+						LogMsg "Error: Failed to run fio in verify phase"
+						UpdateTestState $ICA_TESTFAILED
+						exit 1
+					fi
+				fi
+
+				iostatPID=$(ps -ef | awk '/iostat/ && !/awk/ { print $2 }')
+				kill -9 $iostatPID
+				if [[ $(detect_linux_distribution) == coreos ]]; then
+					Kill_Process 127.0.0.1 fio
+				fi
+			done
+			qDepth=$((qDepth*2))
+			iteration=$((iteration+1))
+			numJobIterator=$((numJobIterator+1))
+		done
+	io=$((io * io_increment))
+	done
+	####################################
+	LogMsg "===================================== Completed Run at $(date +"%x %r %Z") ================================"
+
+	compressedFileName="${HOMEDIR}/FIOTest-$(date +"%m%d%Y-%H%M%S").tar.gz"
+	LogMsg "INFO: Please wait...Compressing all results to ${compressedFileName}..."
+	tar -cvzf $compressedFileName $LOGDIR/
+
+	LogMsg "Test logs are located at ${LOGDIR}"
+	UpdateTestState $ICA_TESTCOMPLETED
+}
+
 CreateRAID0()
 {
 	disks=$(get_AvailableDisks)
@@ -279,5 +379,9 @@ fi
 
 # Run test from here
 LogMsg "*********INFO: Starting test execution*********"
-RunFIO
+if [[ "$testType" == Stress ]];then
+	RunStressFIO
+else
+	RunFIO
+fi
 LogMsg "*********INFO: Script execution reach END. Completed !!!*********"

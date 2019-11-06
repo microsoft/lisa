@@ -254,13 +254,11 @@ function Main {
         # Matches[2] is the value content of the parameter
         $controllerType = $Matches[1].Trim()
         $value = $Matches[2].Trim()
-        if ($controllerType -match "SCSI_") {
+        if ($controllerType -like "SCSI_*") {
             $controllerType = "SCSI"
-        }
-        elseif ($controllerType -match "IDE_") {
+        } elseif ($controllerType -like "IDE_*") {
             $controllerType = "IDE"
         }
-
 
         if (@("IDE", "SCSI") -notcontains $controllerType) {
             # Not a test parameter we are concerned with

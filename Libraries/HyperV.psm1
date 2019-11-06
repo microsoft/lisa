@@ -158,7 +158,7 @@ function Delete-HyperVGroup([string]$HyperVGroupName, [string]$HyperVHost, $Setu
             return $false
         }
 
-        # Note(v-advlad): Need to remove also the parents of the .avhdx (snapshots)
+        # Need to remove also the parents of the .avhdx (snapshots)
         $hardDiskPath = @()
         $vm.HardDrives | ForEach-Object {
             $hardDiskPath += $_.Path

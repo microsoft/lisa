@@ -20,14 +20,14 @@
     echo "TestAborted" > state.txt
     exit 0
 }
-
+HOMEDIR=$(pwd)
 # Source constants file and initialize most common variables
 UtilsInit
 
 TOP_BUILDDIR="/opt/ltp"
-TOP_SRCDIR="$HOME/src"
-LTP_RESULTS="$HOME/ltp-results.log"
-LTP_OUTPUT="$HOME/ltp-output.log"
+TOP_SRCDIR="$HOMEDIR/src"
+LTP_RESULTS="$HOMEDIR/ltp-results.log"
+LTP_OUTPUT="$HOMEDIR/ltp-output.log"
 LTP_LITE_TESTS="math,fsx,ipc,mm,sched,pty,fs"
 ltp_git_url="https://github.com/linux-test-project/ltp.git"
 
@@ -116,7 +116,7 @@ sysctl -p
 if [[ $LTP_PACKAGE_URL == "" ]];then
     LogMsg "Cloning LTP"
     git clone "$ltp_git_url"
-    TOP_SRCDIR="${HOME}/src/ltp"
+    TOP_SRCDIR="${HOMEDIR}/src/ltp"
 
     cd "$TOP_SRCDIR"
     if [[ "$ltp_version_git_tag" != "" || "$ltp_version_git_tag" != "master" ]]; then
@@ -150,7 +150,11 @@ fi
 cd "$TOP_BUILDDIR"
 
 LogMsg "Running LTP..."
-LTP_PARAMS="-p -q -l $LTP_RESULTS -o $LTP_OUTPUT -z $drive_name"
+if [[ -n $drive_name ]]; then
+       LTP_PARAMS="-p -q -l $LTP_RESULTS -o $LTP_OUTPUT -z $drive_name"
+else
+       LTP_PARAMS="-p -q -l $LTP_RESULTS -o $LTP_OUTPUT"
+fi
 
 if [[ "$SKIP_LTP_TESTS" != "" ]];then
     echo "Skipping tests: $SKIP_LTP_TESTS" >> ~/summary.log

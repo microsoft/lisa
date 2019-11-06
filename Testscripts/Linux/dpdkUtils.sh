@@ -167,7 +167,15 @@ function Install_Dpdk () {
 			ssh "${1}" "yum -y groupinstall 'Infiniband Support' && dracut --add-drivers 'mlx4_en mlx4_ib mlx5_ib' -f && systemctl enable rdma"
 			check_exit_status "Install Infiniband Support on ${1}" "exit"
 			ssh "${1}" "grep 7.5 /etc/redhat-release && curl https://partnerpipelineshare.blob.core.windows.net/kernel-devel-rpms/CentOS-Vault.repo > /etc/yum.repos.d/CentOS-Vault.repo"
-			packages+=(kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel libmnl-devel)
+			packages+=(kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel)
+			check_package "libmnl-devel"
+			if [ $? -eq 0 ]; then
+				packages+=("libmnl-devel")
+			fi
+			check_package "elfutils-libelf-devel"
+			if [ $? -eq 0 ]; then
+				packages+=("elfutils-libelf-devel")
+			fi
 			;;
 		ubuntu|debian)
 			ssh "${1}" "until dpkg --force-all --configure -a; sleep 10; do echo 'Trying again...'; done"
@@ -515,7 +523,7 @@ function Testpmd_Multiple_Tx_Flows_Setup() {
 	sed -i "54i ${num_port_code}" app/test-pmd/txonly.c
 	sed -i "55i ${port_arr_code}" app/test-pmd/txonly.c
 
-	# Note(v-advlad): we need to add port_code line after the nb_pkt is defined
+	# We need to add port_code line after the nb_pkt is defined
 	lookup_line_nb_packet='for (nb_pkt = 0; nb_pkt < nb_pkt_per_burst; nb_pkt++) {'
 	local lines_to_be_replaced=$(grep -nir "${lookup_line_nb_packet}" app/test-pmd/txonly.c| awk '{print $1}' | tr -d ':''')
 	local line_index=1
@@ -526,7 +534,7 @@ function Testpmd_Multiple_Tx_Flows_Setup() {
 		line_index=$(($line_index + 1))
 	done
 
-	# Note(v-advlad): fallback to previous implementation
+	# Fallback to previous implementation
 	if [[ -z "${lines_to_be_replaced}" ]]; then
 		sed -i "234i ${port_arr_code}" app/test-pmd/txonly.c
 	fi

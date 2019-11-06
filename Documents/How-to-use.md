@@ -146,6 +146,14 @@ This XML file defines the regions per Category. It may require specific region o
 
 Per Category, each XML file has VM name, Resource Group name, etc. We do not recommend to make change of the file.
 
+## Basic standard of code changing
+
+    1. Any change should be reviewed and signed off with more than 1 person via PR process. Do not make a change to the master branch directly.
+    2. Squash multiple commits to a single in PR review. [here](https://github.com/wprig/wprig/wiki/How-to-squash-commits).
+    3. Post the change base test result in PR, if possible. Apply to the most of cases.
+    4. PR description must have clear information about new change.
+    5. Follow the PR communication in timely manner.
+
 ## Add test case in Azure
 
     1. Design test case and its configuration.

@@ -111,11 +111,15 @@ Scenario 2 : You need to run all the performance tests quickly.
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>LTP_TESTS_GIT_TAG</ReplaceThis>
-		<ReplaceWith>20190115</ReplaceWith>
+		<ReplaceWith>20190930</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_INSTALL_OFED</ReplaceThis>
 		<ReplaceWith>yes</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>INFINIBAND_INSTALL_OFED_FROM_EXTENSION</ReplaceThis>
+		<ReplaceWith>no</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_INTEL_TOTAL_REBOOT_COUNT</ReplaceThis>
@@ -417,6 +421,10 @@ Scenario 2 : You need to run all the performance tests quickly.
 	<Parameter>
 		<ReplaceThis>PERF-STORAGE-4K-IO-MODES</ReplaceThis>
 		<ReplaceWith>(randread randwrite read write)</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>STRESS-STORAGE-4K-IO-MODES</ReplaceThis>
+		<ReplaceWith>(randwrite randread write read)</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>NESTED_RAID_OPTION</ReplaceThis>

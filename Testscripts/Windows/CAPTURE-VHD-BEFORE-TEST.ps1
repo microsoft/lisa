@@ -52,40 +52,47 @@ function Main {
         Write-LogInfo "Sleeping 30 seconds..."
         Start-Sleep -Seconds 30
 
-        # Collect current VHD, Storage Account and Key
         Write-LogInfo "---------------Copy #1: START----------------"
-        $saInfoCollected = $false
-        $retryCount = 0
-        $maxRetryCount = 999
-        while(!$saInfoCollected -and ($retryCount -lt $maxRetryCount)) {
-            try {
-                $retryCount += 1
-                Write-LogInfo "[Attempt $retryCount/$maxRetryCount] : Getting Storage Account details..."
-                $GetAzureRMStorageAccount = $null
-                $GetAzureRMStorageAccount = Get-AzStorageAccount
-                if (!$GetAzureRMStorageAccount) {
-                    throw
+        $vm = Get-AzVM -ResourceGroupName $captureVMData.ResourceGroupName -Name $captureVMData.RoleName
+        $managedDisk = $vm.StorageProfile.OsDisk | Where-Object {$_.ManagedDisk -ne $null} | Select-Object Name
+        if ($managedDisk) {
+            $sas = Grant-AzDiskAccess -ResourceGroupName $vm.ResourceGroupName -DiskName $managedDisk.Name -Access Read -DurationInSecond (60*60*24)
+            $null = Copy-VHDToAnotherStorageAccount -SasUrl $sas.AccessSAS -destinationStorageAccount  $GlobalConfig.Global.Azure.Subscription.ARMStorageAccount -vhdName $managedDisk.Name -destVHDName $newVHDName -destinationStorageContainer "vhds"
+            $null = Revoke-AzDiskAccess -ResourceGroupName $vm.ResourceGroupName -DiskName $managedDisk.Name
+        } else {
+            # Collect current VHD, Storage Account and Key
+            $saInfoCollected = $false
+            $retryCount = 0
+            $maxRetryCount = 999
+            while(!$saInfoCollected -and ($retryCount -lt $maxRetryCount)) {
+                try {
+                    $retryCount += 1
+                    Write-LogInfo "[Attempt $retryCount/$maxRetryCount] : Getting Storage Account details..."
+                    $GetAzureRMStorageAccount = $null
+                    $GetAzureRMStorageAccount = Get-AzStorageAccount
+                    if (!$GetAzureRMStorageAccount) {
+                        throw
+                    }
+                    $saInfoCollected = $true
+                } catch {
+                    Write-LogErr "Error in fetching Storage Account info. Retrying in 10 seconds."
+                    Start-Sleep -Seconds 10
                 }
-                $saInfoCollected = $true
-            } catch {
-                Write-LogErr "Error in fetching Storage Account info. Retrying in 10 seconds."
-                Start-Sleep -Seconds 10
             }
+            Write-LogInfo "Collecting OS Disk VHD information."
+            $OSDiskVHD = (Get-AzVM -ResourceGroupName $captureVMData.ResourceGroupName -Name $captureVMData.RoleName).StorageProfile.OsDisk.Vhd.Uri
+            $currentVHDName = $OSDiskVHD.Trim().Split("/")[($OSDiskVHD.Trim().Split("/").Count -1)]
+            $testStorageAccount = $OSDiskVHD.Replace("http://","").Replace("https://","").Trim().Split(".")[0]
+            $sourceRegion = $(($GetAzureRmStorageAccount  | Where-Object {$_.StorageAccountName -eq "$testStorageAccount"}).Location)
+            $targetStorageAccountType =  [string]($(($GetAzureRmStorageAccount  | Where-Object {$_.StorageAccountName -eq "$testStorageAccount"}).Sku.Tier))
+            Write-LogInfo "Check 1: $targetStorageAccountType"
+            Write-LogInfo ".\Utilities\CopyVHDtoOtherStorageAccount.ps1 -sourceLocation $sourceRegion -destinationLocations $sourceRegion -destinationAccountType $targetStorageAccountType -sourceVHDName $currentVHDName -destinationVHDName $newVHDName"
+            $null = .\Utilities\CopyVHDtoOtherStorageAccount.ps1 -sourceLocation $sourceRegion -destinationLocations $sourceRegion -destinationAccountType $targetStorageAccountType -sourceVHDName $currentVHDName -destinationVHDName $newVHDName
+            #endregion
         }
-        Write-LogInfo "Collecting OS Disk VHD information."
-        $OSDiskVHD = (Get-AzVM -ResourceGroupName $captureVMData.ResourceGroupName -Name $captureVMData.RoleName).StorageProfile.OsDisk.Vhd.Uri
-        $currentVHDName = $OSDiskVHD.Trim().Split("/")[($OSDiskVHD.Trim().Split("/").Count -1)]
-        $testStorageAccount = $OSDiskVHD.Replace("http://","").Replace("https://","").Trim().Split(".")[0]
-        $sourceRegion = $(($GetAzureRmStorageAccount  | Where-Object {$_.StorageAccountName -eq "$testStorageAccount"}).Location)
-        $targetStorageAccountType =  [string]($(($GetAzureRmStorageAccount  | Where-Object {$_.StorageAccountName -eq "$testStorageAccount"}).Sku.Tier))
-        Write-LogInfo "Check 1: $targetStorageAccountType"
-        Write-LogInfo ".\Utilities\CopyVHDtoOtherStorageAccount.ps1 -sourceLocation $sourceRegion -destinationLocations $sourceRegion -destinationAccountType $targetStorageAccountType -sourceVHDName $currentVHDName -destinationVHDName $newVHDName"
-        $null = .\Utilities\CopyVHDtoOtherStorageAccount.ps1 -sourceLocation $sourceRegion -destinationLocations $sourceRegion -destinationAccountType $targetStorageAccountType -sourceVHDName $currentVHDName -destinationVHDName $newVHDName
         Write-LogInfo "---------------Copy #1: END----------------"
         Write-LogInfo "Saving '$newVHDName' to .\CapturedVHD.azure.env"
         $null = Set-Content -Path .\CapturedVHD.azure.env -Value $newVHDName -NoNewline -Force
-        #endregion
-
         $testResult = "PASS"
     } catch {
         $ErrorMessage =  $_.Exception.Message

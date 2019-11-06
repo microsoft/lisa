@@ -81,6 +81,7 @@ function Start-LISAv2 {
 			$maxDirLength = 32
 			$workingDirectory = (Get-Location).Path
 			if ($workingDirectory.Length -gt $maxDirLength) {
+				Write-LogWarn "The path of current working directory '$workingDirectory' is too long: $($workingDirectory.Length)."
 				$originalWorkingDirectory = $workingDirectory
 				$workingDirectory = Move-ToNewWorkingSpace $originalWorkingDirectory | `
 					Select-Object -Last 1
@@ -160,7 +161,7 @@ function Start-LISAv2 {
 			}
 
 			# Run test
-			$testController.RunTest($TestReportXml,$TestIterations,$false)
+			$testController.RunLoadedTestCases($TestReportXml, $TestIterations, $false)
 			Write-LogInfo "Test $global:testId finished"
 
 			# Output text summary
@@ -179,12 +180,12 @@ function Start-LISAv2 {
 			New-ZipFile -zipFileName $zipFilePath -sourceDir $LogDir
 
 			if (Test-Path -Path $TestReportXml) {
-				Write-LogInfo "Analyzing results.."
+				Write-LogInfo "Analyzing test results ..."
 				$results = $null
 				try {
 					$results = [xml](Get-Content $TestReportXml -ErrorAction SilentlyContinue)
 				} catch {
-					throw "Could not parse test report results"
+					throw "Could not parse test results from the test report."
 				}
 				$testSuiteresults = $results.testsuites.testsuite
 				if (($testSuiteresults.failures -eq 0) `
@@ -195,7 +196,7 @@ function Start-LISAv2 {
 					$ExitCode = 1
 				}
 			} else {
-				Write-LogErr "Summary file: $TestReportXml does not exist. Exiting with exit code 1"
+				Write-LogErr "Summary file: $TestReportXml does not exist. Exiting with error code 1."
 				$ExitCode = 1
 			}
 		} catch {

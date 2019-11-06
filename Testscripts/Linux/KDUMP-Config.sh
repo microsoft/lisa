@@ -24,7 +24,7 @@ UtilsInit
 Install_Kexec(){
     case $DISTRO in
         centos* | redhat* | fedora*)
-            if [[ $DISTRO != "redhat_8" ]]; then
+            if [[ $DISTRO != "redhat_8" ]] && [[ $DISTRO != "centos_8" ]]; then
                 yum_install "kexec-tools kdump-tools makedumpfile"
                 if [ $? -ne 0 ]; then
                     UpdateSummary "Warning: Kexec-tools failed to install."
@@ -347,7 +347,7 @@ sed -i "s/crashkernel=\S*//g" $boot_filepath
 sed -i "s/console=\S*//g" $boot_filepath
 
 # Add the crashkernel param
-if [[ $DISTRO != "redhat_8" ]]; then
+if [[ $DISTRO != "redhat_8" ]] && [[ $DISTRO != "centos_8" ]]; then
     sed -i "/vmlinuz-$(uname -r)/ s/$/ crashkernel=$crashkernel/" $boot_filepath
 else
     sed -i "/kernelopts=root/s/$/ crashkernel=$crashkernel/" $boot_filepath

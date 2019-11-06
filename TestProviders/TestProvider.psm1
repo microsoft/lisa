@@ -43,7 +43,7 @@ Class TestProvider
 
 	[void] RunTestCaseCleanup ($AllVMData, $CurrentTestData, $CurrentTestResult, $CollectVMLogs, $RemoveFiles, $User, $Password, $SetupTypeData, $TestParameters){
 		# Remove running background jobs
-		Write-LogInfo "Start to do clean up for case $($CurrentTestData.testName)"
+		Write-LogInfo "Start to do cleanup for case $($CurrentTestData.testName)"
 		$currentTestBackgroundJobs = Get-Content $global:LogDir\CurrentTestBackgroundJobs.txt -ErrorAction SilentlyContinue
 		if ($currentTestBackgroundJobs) {
 			$currentTestBackgroundJobs = $currentTestBackgroundJobs.Split()
@@ -62,7 +62,7 @@ Class TestProvider
 		}
 	}
 
-	[void] DeleteTestVMs($allVMData, $SetupTypeData, $UseExistingRG) {}
+	[void] DeleteVMs($allVMData, $SetupTypeData, $UseExistingRG) {}
 
 	[void] RunTestCleanup() {}
 

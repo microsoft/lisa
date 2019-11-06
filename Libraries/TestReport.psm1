@@ -390,7 +390,7 @@ Class TestSummary
 		$strHtml += $this.HtmlSummary
 		$strHtml += "</table></body></Html>"
 
-		# Note(v-advlad): the check is required for unit tests to pass
+		# The check is required for unit tests to pass
 		if (Test-Path (Split-Path $FilePath)) {
 			Set-Content -Value $strHtml -Path $FilePath -Force | Out-Null
 		} else {

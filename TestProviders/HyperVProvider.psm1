@@ -86,7 +86,7 @@ Class HyperVProvider : TestProvider
 				Write-LogErr "Unable to connect SSH ports.."
 			}
 
-			# Note(v-advlad): clustered vms will not be cleaned up
+			# Clustered vms will not be cleaned up
 			# Todo: clean up clustered vms that do not belong to a Hyper-V group
 			if ($SetupTypeData.ClusteredVM) {
 				foreach ($VM in $allVMData) {
@@ -102,7 +102,7 @@ Class HyperVProvider : TestProvider
 			Write-LogErr "Source : Line $line in script $script_name."
 		}
 
-		# Note(v-advlad): Dependency VMs need to be removed
+		# Dependency VMs need to be removed
 		$allVMData = Check-IP -VMData $allVMData
 		return @{"VmData" = $allVMData; "Error" = $ErrorMessage}
 	}
@@ -177,7 +177,7 @@ Class HyperVProvider : TestProvider
 		}
 	}
 
-	[void] DeleteTestVMs($allVMData, $SetupTypeData, $UseExistingRG) {
+	[void] DeleteVMs($allVMData, $SetupTypeData, $UseExistingRG) {
 		foreach ($vmData in $AllVMData) {
 			$isCleaned = Delete-HyperVGroup -HyperVGroupName $vmData.HyperVGroupName `
 				-HyperVHost $vmData.HyperVHost -SetupTypeData $SetupTypeData -UseExistingRG $UseExistingRG

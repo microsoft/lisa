@@ -271,6 +271,9 @@ GetDistro()
 		*CentOS*release*7\.*\.*)
 			DISTRO=centos_7
 			;;
+		*CentOS*release*8\.*\.*)
+			DISTRO=centos_8
+			;;
 		*CentOS*)
 			DISTRO=centos_x
 			;;
@@ -1368,7 +1371,6 @@ CreateIfupConfigFile()
 						BOOTPROTO=none
 						IPADDR="$__ip"
 						NETMASK="$__netmask"
-						NM_CONTROLLED=no
 					EOF
 				else
 					cat <<-EOF > "$__file_path"
@@ -1377,7 +1379,6 @@ CreateIfupConfigFile()
 						IPV6ADDR="$__ip"
 						IPV6INIT=yes
 						PREFIX="$__netmask"
-						NM_CONTROLLED=no
 					EOF
 				fi
 
@@ -3511,7 +3512,7 @@ function check_package ()
 				;;
 
 			ubuntu|debian)
-				apt-cache policy "$package_name" | grep Candidate
+				apt-cache policy "$package_name" | grep "Candidate" | grep -v "none"
 				return $?
 				;;
 

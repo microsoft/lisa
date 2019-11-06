@@ -68,13 +68,13 @@ function Upload-RemoteFile($uploadTo, $port, $file, $username, $password, $usePr
 		# TODO: $UsePrivateKey is not enabled yet
 		if ($usePrivateKey)
 		{
-			Write-LogInfo "Uploading $file to $username : $uploadTo, port $port using PrivateKey authentication"
+			Write-LogDbg "Uploading $file to $username : $uploadTo, port $port using PrivateKey authentication"
 			Write-Output "yes" | .\Tools\pscp -i .\ssh\$sshKey -q -P $port $file $username@${uploadTo}:
 			$returnCode = $LASTEXITCODE
 		}
 		else
 		{
-			Write-LogInfo "Uploading $file to $username : $uploadTo, port $port using Password authentication"
+			Write-LogDbg "Uploading $file to $username @ $uploadTo : $port using password authentication"
 			$curDir = $PWD
 			$uploadStatusRandomFileName = "UploadStatusFile" + (Get-Random -Maximum 9999 -Minimum 1111) + ".txt"
 			$uploadStatusRandomFile = Join-Path $env:TEMP $uploadStatusRandomFileName
@@ -94,7 +94,7 @@ function Upload-RemoteFile($uploadTo, $port, $file, $username, $password, $usePr
 			Start-Sleep -Milliseconds 100
 			$uploadJobStatus = Get-Job -Id $uploadJob.Id
 			$uploadTimout = $false
-			$pscpStuckTimeout = 60
+			$pscpStuckTimeout = 90
 			while (( $uploadJobStatus.State -eq "Running" ) -and ( !$uploadTimout ))
 			{
 				$now = Get-Date
@@ -139,7 +139,7 @@ function Upload-RemoteFile($uploadTo, $port, $file, $username, $password, $usePr
 		}
 		elseif ($returnCode -eq 0)
 		{
-			Write-LogInfo "Upload successful after $retry attempt"
+			Write-LogDbg "Upload successful after $retry attempt"
 			break
 		}
 		$retry += 1
@@ -156,9 +156,9 @@ function Download-RemoteFile($downloadFrom, $downloadTo, $port, $file, $username
 	{
 		if ($usePrivateKey)
 		{
-			Write-LogInfo "Downloading $file from $username : $downloadFrom,port $port to $downloadTo using PrivateKey authentication"
+			Write-LogDbg "Downloading $file from $username : $downloadFrom : $port to $downloadTo using PrivateKey authentication"
 		} else {
-			Write-LogInfo "Downloading $file from $username : $downloadFrom,port $port to $downloadTo using Password authentication"
+			Write-LogDbg "Downloading $file from $username @ $downloadFrom : $port to $downloadTo using password authentication"
 		}
 		$curDir = $PWD
 		$downloadStatusRandomFileName = "DownloadStatusFile" + (Get-Random -Maximum 9999 -Minimum 1111) + ".txt"
@@ -221,20 +221,20 @@ function Download-RemoteFile($downloadFrom, $downloadTo, $port, $file, $username
 		}
 		if ( $returnCode -eq 0)
 		{
-			Write-LogInfo "Download command returned exit code 0"
+			Write-LogDbg "Download command returned exit code 0"
 		}
 		else
 		{
 			$receivedFiles = Select-String -Path "$downloadStatusRandomFile" -Pattern "Sending file"
 			if ($receivedFiles.Count -ge 1)
 			{
-				Write-LogInfo "Received $($receivedFiles.Count) file(s)"
+				Write-LogDbg "Received $($receivedFiles.Count) file(s)"
 				$returnCode = 0
 			}
 			else
 			{
-				Write-LogInfo "Download command returned exit code $returnCode"
-				Write-LogInfo "$(Get-Content -Path $downloadStatusRandomFile)"
+				Write-LogDbg "Download command returned exit code $returnCode"
+				Write-LogDbg "$(Get-Content -Path $downloadStatusRandomFile)"
 			}
 		}
 		Remove-Item -Force $downloadStatusRandomFile | Out-Null
@@ -251,7 +251,7 @@ function Download-RemoteFile($downloadFrom, $downloadTo, $port, $file, $username
 		}
 		elseif ($returnCode -eq 0)
 		{
-			Write-LogInfo "Download successful after $retry attempt"
+			Write-LogDbg "Download successful after $retry attempt"
 			break
 		}
 		$retry += 1
@@ -273,7 +273,7 @@ Function Copy-RemoteFiles($uploadTo, $downloadFrom, $downloadTo, $port, $files, 
 			$file = $f.Trim()
 			if ($file.EndsWith(".sh") -or $file.EndsWith(".py")) {
 				$out = .\Tools\dos2unix.exe $file 2>&1
-				Write-LogInfo ([string]$out)
+				Write-LogDbg ([string]$out)
 			}
 			$fileList += $file
 		}
@@ -285,7 +285,7 @@ Function Copy-RemoteFiles($uploadTo, $downloadFrom, $downloadTo, $port, $files, 
 			$tarFileName = ($uploadTo+"@"+$port).Replace(".","-")+".tar"
 			foreach ($f in $fileList)
 			{
-				Write-LogInfo "Compressing $f and adding to $tarFileName"
+				Write-LogDbg "Compressing $f and adding to $tarFileName"
 				$CompressFile = .\Tools\7za.exe a $tarFileName $f
 				if ( ! $CompressFile -imatch "Everything is Ok" )
 				{
@@ -299,9 +299,9 @@ Function Copy-RemoteFiles($uploadTo, $downloadFrom, $downloadTo, $port, $files, 
 			Upload-RemoteFile -uploadTo $uploadTo -port $port -file $file -username $username -password $password -UsePrivateKey $UsePrivateKey $maxRetry
 		}
 		if ($doCompress) {
-			Write-LogInfo "Removing compressed file : $tarFileName"
+			Write-LogDbg "Removing compressed file : $tarFileName"
 			Remove-Item -Path $tarFileName -Force 2>&1 | Out-Null
-			Write-LogInfo "Decompressing files in VM ..."
+			Write-LogDbg "Decompressing files in VM ..."
 			$out = Run-LinuxCmd -username $username -password $password -ip $uploadTo -port $port -command "tar -xf $tarFileName" -runAsSudo
 		}
 	}
@@ -381,7 +381,7 @@ Function Run-LinuxCmd([string] $username,[string] $password,[string] $ip,[string
 			$logCommand = "`"$MaskedCommand`""
 		}
 	}
-	Write-LogInfo ".\Tools\plink.exe -t -pw $password -P $port $username@$ip $logCommand"
+	Write-LogDbg ".\Tools\plink.exe -ssh -t -pw $password -P $port $username@$ip $logCommand"
 	$returnCode = 1
 	$attemptswt = 0
 	$attemptswot = 0
@@ -398,7 +398,7 @@ Function Run-LinuxCmd([string] $username,[string] $password,[string] $ip,[string
 			{ `
 				$username = $args[1]; $password = $args[2]; $ip = $args[3]; $port = $args[4]; $jcommand = $args[5]; `
 				Set-Location $args[0]; `
-				.\Tools\plink.exe -C -v -pw $password -P $port $username@$ip $jcommand;`
+				.\Tools\plink.exe -ssh -C -v -pw $password -P $port $username@$ip $jcommand;`
 			} `
 			-ArgumentList $currentDir, $username, $password, $ip, $port, $linuxCommand
 		}
@@ -409,7 +409,7 @@ Function Run-LinuxCmd([string] $username,[string] $password,[string] $ip,[string
 			{ `
 				$username = $args[1]; $password = $args[2]; $ip = $args[3]; $port = $args[4]; $jcommand = $args[5]; `
 				Set-Location $args[0]; `
-				.\Tools\plink.exe -t -C -v -pw $password -P $port $username@$ip $jcommand;`
+				.\Tools\plink.exe -ssh -t -C -v -pw $password -P $port $username@$ip $jcommand;`
 			} `
 			-ArgumentList $currentDir, $username, $password, $ip, $port, $linuxCommand
 		}
@@ -497,7 +497,7 @@ Function Run-LinuxCmd([string] $username,[string] $password,[string] $ip,[string
 				-Status $runLinuxCmdJob.State -Id 87678 -SecondsRemaining ($RunMaxAllowedTime - $RunElaplsedTime) -Completed
 			if ( $isBackGroundProcessStarted -and !$isBackGroundProcessTerminated )
 			{
-				Write-LogInfo "$MaskedCommand is running in background with ID $($runLinuxCmdJob.Id) ..."
+				Write-LogDbg "$MaskedCommand is running in background with ID $($runLinuxCmdJob.Id) ..."
 				Add-Content -Path $LogDir\CurrentTestBackgroundJobs.txt -Value $runLinuxCmdJob.Id
 				$retValue = $runLinuxCmdJob.Id
 			}
@@ -534,7 +534,7 @@ Function Run-LinuxCmd([string] $username,[string] $password,[string] $ip,[string
 				{
 					if ($notExceededTimeLimit)
 					{
-						Write-LogInfo "Failed to execute : $MaskedCommand. Retrying..."
+						Write-LogWarn "Failed to execute : $MaskedCommand. Retrying..."
 					}
 				}
 			}
@@ -620,7 +620,7 @@ Function Run-LinuxCmd([string] $username,[string] $password,[string] $ip,[string
 			if ($LinuxExitCode -imatch "AZURE-LINUX-EXIT-CODE-0")
 			{
 				$returnCode = 0
-				Write-LogInfo "$MaskedCommand executed successfully in $([math]::Round($RunElaplsedTime,2)) seconds." `
+				Write-LogDbg "$MaskedCommand executed successfully in $([math]::Round($RunElaplsedTime,2)) seconds." `
 					-WriteHostOnly $WriteHostOnly -NoLogsPlease $NoLogsPlease
 				$retValue = $RunLinuxCmdOutput.Trim()
 			}
@@ -639,7 +639,7 @@ Function Run-LinuxCmd([string] $username,[string] $password,[string] $ip,[string
 				}
 				if ($debugOutput -imatch "Unable to authenticate")
 					{
-						Write-LogInfo "Unable to authenticate. Not retrying!"
+						Write-LogWarn "Unable to authenticate. Not retrying!"
 						Throw "Calling function - $($MyInvocation.MyCommand). Unable to authenticate"
 
 					}
@@ -665,7 +665,7 @@ Function Run-LinuxCmd([string] $username,[string] $password,[string] $ip,[string
 				}
 				else
 				{
-					Write-LogInfo "Command execution returned return code $($LinuxExitCode.Split("-")[4]) Ignoring.."
+					Write-LogDbg "Command execution returned return code $($LinuxExitCode.Split("-")[4]) Ignoring.."
 					$retValue = $RunLinuxCmdOutput.Trim()
 					break
 				}
@@ -713,13 +713,13 @@ Function Set-DistroSpecificVariables($detectedDistro)
 	{
 		Set-Variable -Name ifconfig_cmd -Value "/sbin/ifconfig" -Scope Global
 		Set-Variable -Name fdisk -Value "/sbin/fdisk" -Scope Global
-		Write-LogInfo "Set `$ifconfig_cmd > $ifconfig_cmd for $detectedDistro"
-		Write-LogInfo "Set `$fdisk > /sbin/fdisk for $detectedDistro"
+		Write-LogDbg "Set `$ifconfig_cmd > $ifconfig_cmd for $detectedDistro"
+		Write-LogDbg "Set `$fdisk > /sbin/fdisk for $detectedDistro"
 	}
 	else
 	{
 		Set-Variable -Name fdisk -Value "fdisk" -Scope Global
-		Write-LogInfo "Set `$fdisk > fdisk for $detectedDistro"
+		Write-LogDbg "Set `$fdisk > fdisk for $detectedDistro"
 	}
 }
 
@@ -749,7 +749,7 @@ Function Retry-Operation($operation, $description, $expectResult=$null, $maxRetr
 
 	do
 	{
-		Write-LogInfo "Attempt : $retryCount/$maxRetryCount : $description" -NoLogsPlease $NoLogsPlease
+		Write-LogDbg "Attempt : $retryCount/$maxRetryCount : $description" -NoLogsPlease $NoLogsPlease
 		$ret = $null
 		$oldErrorActionValue = $ErrorActionPreference
 		$ErrorActionPreference = "Stop"
@@ -807,7 +807,7 @@ Function Retry-Operation($operation, $description, $expectResult=$null, $maxRetr
 
 function New-ZipFile( $zipFileName, $sourceDir )
 {
-	Write-LogInfo "Creating '$zipFileName' from '$sourceDir'"
+	Write-LogDbg "Creating '$zipFileName' from '$sourceDir'"
 	$currentDir = (Get-Location).Path
 	$7z = (Get-ChildItem .\Tools\7za.exe).FullName
 	$sourceDir = $sourceDir.Trim('\')
@@ -815,7 +815,7 @@ function New-ZipFile( $zipFileName, $sourceDir )
 	$out = Invoke-Expression "$7z a -mx5 $zipFileName * -r"
 	Set-Location $currentDir
 	if ($out -match "Everything is Ok") {
-		Write-LogInfo "$zipFileName created successfully."
+		Write-LogDbg "$zipFileName created successfully."
 	} else {
 		Write-LogErr "Unexpected output from 7za.exe when creating $zipFileName :"
 		Write-LogErr $out
@@ -867,7 +867,7 @@ function Create-ConstantsFile {
 				-f @($param,$($Parameters[$param]))) -Path $FilePath -Force
 		$msg = ("{0}={1} added to constants.sh file" `
 				-f @($param,$($Parameters[$param])))
-		Write-LogInfo $msg
+		Write-LogDbg $msg
 	}
 }
 
@@ -876,20 +876,20 @@ Function Validate-VHD($vhdPath)
 	try
 	{
 		$tempVHDName = Split-Path $vhdPath -leaf
-		Write-LogInfo "Inspecting '$tempVHDName'. Please wait..."
+		Write-LogDbg "Inspecting '$tempVHDName'. Please wait..."
 		$VHDInfo = Get-VHD -Path $vhdPath -ErrorAction Stop
-		Write-LogInfo "  VhdFormat            :$($VHDInfo.VhdFormat)"
-		Write-LogInfo "  VhdType              :$($VHDInfo.VhdType)"
-		Write-LogInfo "  FileSize             :$($VHDInfo.FileSize)"
-		Write-LogInfo "  Size                 :$($VHDInfo.Size)"
-		Write-LogInfo "  LogicalSectorSize    :$($VHDInfo.LogicalSectorSize)"
-		Write-LogInfo "  PhysicalSectorSize   :$($VHDInfo.PhysicalSectorSize)"
-		Write-LogInfo "  BlockSize            :$($VHDInfo.BlockSize)"
-		Write-LogInfo "Validation successful."
+		Write-LogDbg "  VhdFormat            :$($VHDInfo.VhdFormat)"
+		Write-LogDbg "  VhdType              :$($VHDInfo.VhdType)"
+		Write-LogDbg "  FileSize             :$($VHDInfo.FileSize)"
+		Write-LogDbg "  Size                 :$($VHDInfo.Size)"
+		Write-LogDbg "  LogicalSectorSize    :$($VHDInfo.LogicalSectorSize)"
+		Write-LogDbg "  PhysicalSectorSize   :$($VHDInfo.PhysicalSectorSize)"
+		Write-LogDbg "  BlockSize            :$($VHDInfo.BlockSize)"
+		Write-LogDbg "Validation successful."
 	}
 	catch
 	{
-		Write-LogInfo "Failed: Get-VHD -Path $vhdPath"
+		Write-LogErr "Failed: Get-VHD -Path $vhdPath"
 		Throw "INVALID_VHD_EXCEPTION"
 	}
 }

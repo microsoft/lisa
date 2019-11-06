@@ -102,8 +102,10 @@ function Main {
     }
 
     # Create the new partition
-    New-VHD -Path $vhdpath -Dynamic -SizeBytes $newsize -ComputerName $HvServer | Mount-VHD -Passthru | Initialize-Disk -Passthru |
-    New-Partition -DriveLetter $driveletter[0] -UseMaximumSize | Format-Volume -FileSystem NTFS -Confirm:$false -Force
+    Invoke-Command -ComputerName $hvServer -ScriptBlock { New-VHD -Path $args[0] -Dynamic -SizeBytes $args[1] | Mount-VHD -Passthru | Initialize-Disk -Passthru |
+        New-Partition -DriveLetter $args[2] -UseMaximumSize | Format-Volume -FileSystem NTFS -Confirm:$false -Force } `
+    -ArgumentList $vhdpath, $newsize, $driveletter[0]
+
     if (-not $?) {
         Write-LogErr "Error: Failed to create the new partition $driveletter"
         return "FAIL"
@@ -124,7 +126,7 @@ function Main {
     Write-LogInfo $ParentVHD
     Write-LogInfo $ChildVHD
     Start-Sleep -s 15
-    xcopy $ParentVHD $ChildVHD* /Y
+    Invoke-command -ComputerName $hvServer { xcopy $Using:ParentVHD $Using:ChildVHD* /Y }
     if (-not $?) {
         Write-LogErr "Error: Creating Child VHD of VM $VMName"
         return "FAIL"

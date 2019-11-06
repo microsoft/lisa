@@ -28,7 +28,7 @@ Function Write-Log()
 {
 	param
 	(
-		[ValidateSet('INFO','WARN','ERROR', IgnoreCase = $false)]
+		[ValidateSet('INFO','WARN','ERROR','DEBUG', IgnoreCase = $false)]
 		[string]$logLevel,
 		[string]$text
 	)
@@ -45,6 +45,7 @@ Function Write-Log()
 		"INFO"	{$fgColor = "White"; continue}
 		"WARN"	{$fgColor = "Yellow"; continue}
 		"ERROR"	{$fgColor = "Red"; continue}
+		"DEBUG"	{$fgColor = "DarkGray"; continue}
 	}
 	Write-Host $finalMessage -ForegroundColor $fgColor
 
@@ -83,6 +84,11 @@ Function Write-LogErr($text)
 Function Write-LogWarn($text)
 {
 	Write-Log "WARN" $text
+}
+
+Function Write-LogDbg($text)
+{
+	Write-Log "DEBUG" $text
 }
 
 function Collect-TestLogs {
@@ -181,7 +187,7 @@ Function GetAndCheck-KernelLogs($allDeployedVMs, $status, $vmUser, $vmPassword, 
 
 		$retValue = $false
 		foreach ($VM in $allDeployedVMs) {
-			Write-LogInfo "Collecting $($VM.RoleName) VM Kernel $status Logs..."
+			Write-LogInfo "Collecting $($VM.RoleName) VM Kernel $status Logs ..."
 
 			$bootLogDir = "$Logdir\$($VM.RoleName)"
 			mkdir $bootLogDir -Force | Out-Null
@@ -201,7 +207,7 @@ Function GetAndCheck-KernelLogs($allDeployedVMs, $status, $vmUser, $vmPassword, 
 			if ($status -imatch "Initial") {
 				$checkConnectivityFile = Join-Path $LogDir ([System.IO.Path]::GetRandomFileName())
 				Set-Content -Value "Test connectivity." -Path $checkConnectivityFile
-				Copy-RemoteFiles -uploadTo $VM.PublicIP -port $VM.SSHPort  -files $checkConnectivityFile `
+				Copy-RemoteFiles -uploadTo $VM.PublicIP -port $VM.SSHPort -files $checkConnectivityFile `
 					-username $vmUser -password $vmPassword -upload | Out-Null
 				Remove-Item -Path $checkConnectivityFile -Force
 			}
@@ -223,7 +229,7 @@ Function GetAndCheck-KernelLogs($allDeployedVMs, $status, $vmUser, $vmPassword, 
 				-command "dmesg > /home/$vmUser/${currenBootLogFile}" | Out-Null
 			Copy-RemoteFiles -download -downloadFrom $VM.PublicIP -port $VM.SSHPort -files "/home/$vmUser/${currenBootLogFile}" `
 				-downloadTo $BootLogDir -username $vmUser -password $vmPassword | Out-Null
-			Write-LogInfo "$($VM.RoleName): $status Kernel logs collected SUCCESSFULLY to ${currenBootLogFile} file."
+			Write-LogInfo "$($VM.RoleName): $status Kernel logs collected successfully to ${currenBootLogFile} file."
 
 			Write-LogInfo "Checking for call traces in kernel logs.."
 			$KernelLogs = Get-Content $currenBootLog
@@ -334,11 +340,11 @@ Function Check-KernelLogs($allVMData, $vmUser, $vmPassword)
 			$vmErrors = 0
 			$BootLogDir="$Logdir\$($VM.RoleName)"
 			mkdir $BootLogDir -Force | Out-Null
-			Write-LogInfo "Collecting $($VM.RoleName) VM Kernel $status Logs.."
+			Write-LogInfo "Collecting $($VM.RoleName) VM Kernel Logs.."
 			$currentKernelLogFile="$BootLogDir\CurrentKernelLogs.txt"
 			$Null = Run-LinuxCmd -ip $VM.PublicIP -port $VM.SSHPort -username $vmUser -password $vmPassword -command "dmesg > /home/$vmUser/CurrentKernelLogs.txt" -runAsSudo
 			$Null = Copy-RemoteFiles -download -downloadFrom $VM.PublicIP -port $VM.SSHPort -files "/home/$vmUser/CurrentKernelLogs.txt" -downloadTo $BootLogDir -username $vmUser -password $vmPassword
-			Write-LogInfo "$($VM.RoleName): $status Kernel logs collected ..SUCCESSFULLY"
+			Write-LogInfo "$($VM.RoleName): Kernel logs collected successfully."
 			foreach ($errorLine in $errorLines)
 			{
 				Write-LogInfo "Checking for $errorLine in kernel logs.."
@@ -359,7 +365,7 @@ Function Check-KernelLogs($allVMData, $vmUser, $vmPassword)
 			}
 			if ( $vmErrors -eq 0 )
 			{
-				Write-LogInfo "$($VM.RoleName) : No issues in kernel logs."
+				Write-LogInfo "$($VM.RoleName) : No issue found from the kernel logs."
 				$retValue = $true
 			}
 			else

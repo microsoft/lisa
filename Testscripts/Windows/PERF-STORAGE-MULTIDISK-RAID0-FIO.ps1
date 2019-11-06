@@ -133,7 +133,7 @@ function Consume-FioPerformanceResults {
     if (!$TestCaseName) {
         $TestCaseName = $CurrentTestData.testName
     }
-    # Note(v-advlad): aggregate fio results by qDepth
+    # Aggregate fio results by qDepth
     $perfResultsByQdepth = @{}
     $TestDate = $(Get-Date -Format yyyy-MM-dd)
     $FioPerformanceResults | ForEach-Object {

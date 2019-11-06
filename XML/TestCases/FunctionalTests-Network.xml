@@ -630,6 +630,58 @@
         <Priority>0</Priority>
     </test>
     <test>
+        <testName>ETHTOOL-OFFLOADING-SETTING</testName>
+        <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
+        <testScript>SRIOV-RUN-COMMON-TEST.ps1</testScript>
+        <setupType>TwoVM2Host1Dep</setupType>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <files>.\Testscripts\Linux\ETHTOOL-OFFLOADING-SETTING.sh,.\Testscripts\Linux\SR-IOV-Utils.sh,.\Testscripts\Linux\utils.sh</files>
+        <TestParameters>
+            <param>Remote_Script=ETHTOOL-OFFLOADING-SETTING.sh</param>
+            <param>Set_SSH=yes</param>
+            <param>NIC_COUNT=1</param>
+            <param>VF_IP1=10.0.0.40</param>
+            <param>VF_IP2=10.0.0.60</param>
+            <param>NETMASK=255.255.255.0</param>
+            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
+        </TestParameters>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>SRIOV</Area>
+        <Tags>ethtool</Tags>
+        <Priority>0</Priority>
+    </test>
+    <test>
+        <testName>ETHTOOL-OFFLOADING-SETTING-3NICS</testName>
+        <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
+        <testScript>SRIOV-RUN-COMMON-TEST.ps1</testScript>
+        <setupType>TwoVM2Host1Dep</setupType>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <files>.\Testscripts\Linux\ETHTOOL-OFFLOADING-SETTING.sh,.\Testscripts\Linux\SR-IOV-Utils.sh,.\Testscripts\Linux\utils.sh</files>
+        <TestParameters>
+            <param>Remote_Script=ETHTOOL-OFFLOADING-SETTING.sh</param>
+            <param>Set_SSH=yes</param>
+            <param>NIC_COUNT=2</param>
+            <param>VF_IP1=10.0.0.30</param>
+            <param>VF_IP2=10.0.0.50</param>
+            <param>VF_IP3=10.0.0.70</param>
+            <param>VF_IP4=10.0.0.90</param>
+            <param>NETMASK=255.255.255.0</param>
+            <param>Switch_Name=SRIOV_MLNX</param>
+            <param>SECRET_PARAMS=(VM2Name,CheckpointName)</param>
+        </TestParameters>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>SRIOV</Area>
+        <Tags>ethtool</Tags>
+        <Priority>0</Priority>
+    </test>
+    <test>
         <testName>NETWORK-ADD-MAX-SYNTHETIC-NICS-DURING-PROVISION</testName>
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-Max-NIC.ps1</setupScript>
         <setupType>OneVM8NIC</setupType>

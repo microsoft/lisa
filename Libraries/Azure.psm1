@@ -557,11 +557,11 @@ Function Delete-ResourceGroup([string]$RGName, [switch]$KeepDisks, [bool]$UseExi
         Write-LogInfo "Failed to get resource group: $RGName; maybe this resource group does not exist."
     }
     if ($ResourceGroup) {
-        if ($UseExistingRG) {
-            # Get RG lock. If there is any lock in place, don't try to delete the Resource Group
-            # "Microsoft.Authorization/locks" is the standard ResourceType for RG locks
-            $rgLock = (Get-AzResourceLock -ResourceGroupName $RGName).ResourceType -eq "Microsoft.Authorization/locks"
-            if (-not $rgLock) {
+        # Get RG lock. If there is any lock in place, don't try to delete the Resource Group
+        # "Microsoft.Authorization/locks" is the standard ResourceType for RG locks
+        $rgLock = (Get-AzResourceLock -ResourceGroupName $RGName).ResourceType -eq "Microsoft.Authorization/locks"
+        if (-not $rgLock) {
+            if ($UseExistingRG) {
                 $CurrentResources = Get-AzResource -ResourceGroupName $RGName | `
                     Where-Object { (( $_.ResourceGroupName -eq $RGName ) -and ( !($_.ResourceType -imatch "availabilitySets" )))}
                 $attempts = 0
@@ -585,8 +585,7 @@ Function Delete-ResourceGroup([string]$RGName, [switch]$KeepDisks, [bool]$UseExi
                             if ($current_resource) {
                                 $null = Remove-AzResource -ResourceId $resource.ResourceId -Force -Verbose
                             }
-                        }
-                        catch {
+                        } catch {
                             Write-LogErr "Failed to delete resource $($resource.Name). We will try to remove it in next attempt."
                         }
                     }
@@ -596,21 +595,20 @@ Function Delete-ResourceGroup([string]$RGName, [switch]$KeepDisks, [bool]$UseExi
                 Write-LogInfo "Resources in $RGName are deleted."
                 $retValue = $true
             } else {
-                Write-LogWarn "Lock is in place for $RGName. Skipping RG delete!"
+                Write-LogInfo "Triggering delete operation for Resource Group ${RGName}"
+                $isRgDeleting = Start-DeleteResourceGroup -RGName $RGName
+                if ($isRgDeleting) {
+                    Write-LogInfo "Successfully triggered delete operation for Resource Group ${RGName}"
+                } else {
+                    Write-LogWarn "Failed to start delete operation for Resource Group ${RGName}"
+                }
+                $retValue = $isRgDeleting
             }
+        } else {
+            Write-LogWarn "Lock is in place for $RGName. Skipping RG delete!"
+            $retValue = $false
         }
-        else {
-            Write-LogInfo "Triggering delete operation for Resource Group ${RGName}"
-            $isRgDeleting = Start-DeleteResourceGroup -RGName $RGName
-            if ($isRgDeleting) {
-                Write-LogInfo "Successfully triggered delete operation for Resource Group ${RGName}"
-            } else {
-                Write-LogWarn "Failed to start delete operation for Resource Group ${RGName}"
-            }
-            $retValue = $isRgDeleting
-        }
-    }
-    else {
+    } else {
         Write-LogInfo "$RGName does not exists."
         $retValue = $true
     }
@@ -749,7 +747,7 @@ Function Get-AllDeploymentData($ResourceGroups)
         Add-Member -InputObject $objNode -MemberType NoteProperty -Name URLv6 -Value $URL -Force
         Add-Member -InputObject $objNode -MemberType NoteProperty -Name Status -Value $Status -Force
         Add-Member -InputObject $objNode -MemberType NoteProperty -Name InstanceSize -Value $InstanceSize -Force
-        Add-Member -InputObject $objNode -MemberType NoteProperty -Name VMGeneration -Value 1 -Force
+        Add-Member -InputObject $objNode -MemberType NoteProperty -Name VMGeneration -Value $VMGeneration -Force
         return $objNode
     }
 
@@ -1193,7 +1191,7 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
     #region CustomImages
     if ($OsVHD -and $UseManagedDisks) {
         Add-Content -Value "$($indents[2]){" -Path $jsonFile
-        Add-Content -Value "$($indents[3])^apiVersion^: ^2017-12-01^," -Path $jsonFile
+        Add-Content -Value "$($indents[3])^apiVersion^: ^2019-03-01^," -Path $jsonFile
         Add-Content -Value "$($indents[3])^type^: ^Microsoft.Compute/images^," -Path $jsonFile
         Add-Content -Value "$($indents[3])^name^: ^$RGName-Image^," -Path $jsonFile
         Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
@@ -1207,10 +1205,15 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
         Add-Content -Value "$($indents[6])^osType^: ^$OSType^," -Path $jsonFile
         Add-Content -Value "$($indents[6])^osState^: ^Generalized^," -Path $jsonFile
         Add-Content -Value "$($indents[6])^blobUri^: ^https://$StorageAccountName.blob.core.windows.net/vhds/$OsVHD^," -Path $jsonFile
-        Add-Content -Value "$($indents[6])^storageAccountType^: ^$StorageAccountType^," -Path $jsonFile
+        Add-Content -Value "$($indents[6])^storageAccountType^: ^$StorageAccountType^" -Path $jsonFile
         Add-Content -Value "$($indents[5])}" -Path $jsonFile
 
         Add-Content -Value "$($indents[4])}" -Path $jsonFile
+        if ($VMGeneration -eq "2") {
+            Add-Content -Value "$($indents[4]),^hyperVGeneration^: ^V2^" -Path $jsonFile
+        } else {
+            Add-Content -Value "$($indents[4]),^hyperVGeneration^: ^V1^" -Path $jsonFile
+        }
         Add-Content -Value "$($indents[3])}" -Path $jsonFile
         Add-Content -Value "$($indents[2])}," -Path $jsonFile
         Write-LogInfo "Added Custom image '$RGName-Image' from '$OsVHD'.."

@@ -31,7 +31,11 @@ case $DISTRO in
         else
             chrony_config_path="/etc/chrony.conf"
             chrony_service_name="chronyd"
-            ntp_service_name="ntpd"
+            if [[ $os_RELEASE =~ 8.* ]]; then
+                LogMsg "Info: $os_VENDOR $os_RELEASE does not support NTP. Skip define ntp_service_name."
+            else
+                ntp_service_name="ntpd"
+            fi
         fi
     ;;
     ubuntu* | debian*)
@@ -75,11 +79,14 @@ if [[ $Chrony == "off" ]]; then
         SetTestStateFailed
         exit 1
     fi
-    service $ntp_service_name stop
-    if [ $? -ne 0 ]; then
-        LogMsg "ERROR: Unable to stop NTPD"
-        SetTestStateFailed
-        exit 1
+
+    if [[ -n $ntp_service_name ]]; then
+        service $ntp_service_name stop
+        if [ $? -ne 0 ]; then
+            LogMsg "ERROR: Unable to stop NTPD"
+            SetTestStateFailed
+            exit 1
+        fi
     fi
 fi
 

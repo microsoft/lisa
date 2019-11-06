@@ -76,7 +76,7 @@ function Execute-PausedStateTest {
         Write-LogInfo "NMI could not be sent when the VM ${VMName} is in suspended state."
         $testStates["SavedState"] = $true
     } finally {
-        # Note(v-advlad): Needed by the test framework, as there might be failures
+        # Needed by the test framework, as there might be failures
         # if the last test case does not bring the VM up
         Start-VM -ComputerName $hvServer -Name $vmName
         Wait-VMState -VMName $VMName -HvServer $HvServer -VMState "Running"

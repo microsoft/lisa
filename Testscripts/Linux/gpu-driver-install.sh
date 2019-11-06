@@ -70,6 +70,7 @@ function InstallRequirements() {
         kernel=$(uname -r)
         if [[ "${kernel}" == *azure ]];
         then
+            zypper install --oldpackage -y kernel-azure-devel="${kernel::-6}"
             zypper install -y kernel-devel-azure
         else
             zypper install -y kernel-default-devel
@@ -207,7 +208,7 @@ if [ $? -ne 0 ]; then
     exit 0
 fi
 
-if [[ $DISTRO == "redhat_8" ]]; then
+if [ -f /usr/libexec/platform-python ]; then
     ln -s /usr/libexec/platform-python /sbin/python
     wget https://raw.githubusercontent.com/torvalds/linux/master/tools/hv/lsvmbus
     chmod +x lsvmbus

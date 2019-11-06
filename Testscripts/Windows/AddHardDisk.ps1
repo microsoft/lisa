@@ -180,12 +180,14 @@ function New-HardDrive
             Write-LogInfo "New-HardDrive was passed a bad SCSI Controller ID: $ControllerID"
             return $False
         }
-
         # Create the SCSI controller if needed
-        $sts = New-SCSIController $vmName $server $controllerID
-        if (-not $sts) {
-            Write-LogErr "Unable to create SCSI controller $controllerID"
-            return $False
+        $controllerObj = Get-VMScsiController -VMName $vmName -ControllerNumber $controllerID -ComputerName $server
+        if ( -not $controllerObj ){
+            $sts = New-SCSIController $vmName $server $controllerID
+            if (-not $sts) {
+                Write-LogErr "Unable to create SCSI controller $controllerID"
+                return $False
+            }
         }
 
         $controllerType = "SCSI"
@@ -353,9 +355,9 @@ function Main {
             continue
         }
 
+        $vmGen = Get-VMGeneration $VMName $HvServer
         if ( "vhdFormat" -eq $temp[0] ) {
             $vhdFormat = $temp[1]
-            $vmGen = Get-VMGeneration $VMName $HvServer
             if ($vmGen -ne 1 -and $vhdFormat -eq 'vhd') {
                 Write-LogInfo "Generation 2 VM does not support vhd disk, please skip this case in the test script"
                 return $True
@@ -363,6 +365,12 @@ function Main {
         }
 
         $controllerType = $temp[0]
+        if ($controllerType -match "SCSI_") {
+            $controllerType = "SCSI"
+        } elseif ($controllerType -match "IDE_") {
+            $controllerType = "IDE"
+        }
+
         if (@("IDE", "SCSI") -notcontains $controllerType) {
             continue
         }
@@ -402,7 +410,7 @@ function Main {
         } else {
             Write-LogInfo "New-HardDrive $vmName $hvServer $scsi $controllerID $Lun $vhdType"
             $sts = New-HardDrive -vmName $vmName -server $hvServer -SCSI:$SCSI `
-                -ControllerID $controllerID -Lun $Lun -vhdType $vhdType -newSize $VHDSize
+                -ControllerID $controllerID -Lun $Lun -vhdType $vhdType -newSize $VHDSize -vmGen $vmGen
         }
     }
 
