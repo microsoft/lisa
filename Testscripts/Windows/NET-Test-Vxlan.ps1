@@ -51,8 +51,10 @@ function Main {
     # Make sure the VM supports vxlan before testing it
     [int]$majorVersion = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $vm2ipv4 `
         -port $VMPort -command ". utils.sh && GetOSVersion && echo `$os_RELEASE"
-    [int]$minorVersion = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $vm2ipv4 `
+    $minorVersion = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $vm2ipv4 `
         -port $VMPort -command ". utils.sh && GetOSVersion && echo `$os_UPDATE"
+    # In case minorVersion is not int, such as '1 Beta'
+    [int]$minorVersion = $minorVersion.split(' ')[0]
     if ((($majorVersion -le 6) -and ($minorVersion -le 4)) -or $majorVersion -le 5) {
         Write-LogWarn "RHEL ${majorVersion}.${minorVersion} doesn't support vxlan"
         return "ABORT"
