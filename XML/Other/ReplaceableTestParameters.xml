@@ -98,6 +98,10 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceWith>300</ReplaceWith>
 	</Parameter>
 	<Parameter>
+		<ReplaceThis>FIO_STRESS_RUNTIME</ReplaceThis>
+		<ReplaceWith>720</ReplaceWith>
+	</Parameter>
+	<Parameter>
 		<ReplaceThis>DPDK_TEST_DURATION_IN_SECONDS</ReplaceThis>
 		<ReplaceWith>120</ReplaceWith>
 	</Parameter>
