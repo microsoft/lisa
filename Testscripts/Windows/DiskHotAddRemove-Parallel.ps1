@@ -57,7 +57,6 @@ function Main {
             if ($line -imatch "Disk /dev/sd[a-z]+:" -and [int64]($line.Split()[4]) -eq (([int64]($diskSizeinGB) * [int64]1073741824))){
                 $verifiedDiskCount += 1
                 Write-LogInfo "$verifiedDiskCount data disk is successfully mounted to the VM: $line"
-                
             }
         }
         Write-LogInfo "Number of data disks verified inside VM $verifiedDiskCount"
