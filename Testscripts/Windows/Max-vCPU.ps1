@@ -97,7 +97,7 @@ function Main {
 
     # Determine how many cores the VM has detected
     $vCPU = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
-            -command "cat /proc/cpuinfo | grep processor | wc -l" -RunAsSudo
+            -command "cat /proc/cpuinfo | grep ^processor | wc -l" -RunAsSudo
     if ($vCPU -eq $guestMaxCPUs) {
         Write-LogInfo "CPU count inside VM is $guestMaxCPUs"
         Write-LogInfo "VM $VMName successfully started with $guestMaxCPUs cores."
