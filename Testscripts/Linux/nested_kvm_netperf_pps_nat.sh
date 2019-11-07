@@ -131,7 +131,7 @@ Setup_Network()
     Log_Msg "Setup network" $log_file
     ip a add $IP_ADDR dev eth1
     ip link set eth1 up
-    check_exit_status "Setup network"
+    check_exit_status "Setup network" "exit"
     ./nat_qemu_ifup.sh
 }
 
@@ -142,9 +142,9 @@ Start_Nested_VM_Nat()
     mac_addr1=$(generate_random_mac_addr)
     mac_addr2=$(generate_random_mac_addr)
     Log_Msg "Start the nested VM: $image_name" $log_file
-    Log_Msg "qemu-system-x86_64 -cpu host -smp $NestedCpuNum -m $NestedMemMB -hda $image_name -device $NestedNetDevice,netdev=net0,mac=$mac_addr1 -netdev user,id=net0,hostfwd=tcp::$host_fwd_port-:22 \
+    Log_Msg "qemu-system-x86_64 -cpu host -smp $NestedCpuNum -m $NestedMemMB -hda /mnt/resource/$image_name -device $NestedNetDevice,netdev=net0,mac=$mac_addr1 -netdev user,id=net0,hostfwd=tcp::$host_fwd_port-:22 \
                                 -device $NestedNetDevice,netdev=net1,mac=$mac_addr2 -netdev tap,id=net1,vhost=on,script=./nat_qemu_ifup.sh -display none -enable-kvm -daemonize" $log_file
-    cmd="qemu-system-x86_64 -cpu host -smp $NestedCpuNum -m $NestedMemMB -hda $image_name -device $NestedNetDevice,netdev=net0,mac=$mac_addr1 -netdev user,id=net0,hostfwd=tcp::$host_fwd_port-:22 \
+    cmd="qemu-system-x86_64 -cpu host -smp $NestedCpuNum -m $NestedMemMB -hda /mnt/resource/$image_name -device $NestedNetDevice,netdev=net0,mac=$mac_addr1 -netdev user,id=net0,hostfwd=tcp::$host_fwd_port-:22 \
                                 -device $NestedNetDevice,netdev=net1,mac=$mac_addr2 -netdev tap,id=net1,vhost=on,script=./nat_qemu_ifup.sh -display none -enable-kvm -daemonize"
     Start_Nested_VM -user $NestedUser -passwd $NestedUserPassword -port $host_fwd_port $cmd
     Enable_Root -user $NestedUser -passwd $NestedUserPassword -port $host_fwd_port
@@ -159,7 +159,7 @@ Start_Nested_VM_Nat()
     L2_IP_ADDR=$(cat ./nestedip)
 
     Remote_Exec_Wrapper $NestedUser $host_fwd_port "echo $NestedUserPassword | sudo -S /home/$NestedUser/enableRoot.sh -password $NestedUserPassword"
-    check_exit_status "Enable root for VM $image_name"
+    check_exit_status "Enable root for VM $image_name" "exit"
 
     Remote_Exec_Wrapper "root" $host_fwd_port "cp /home/$NestedUser/*.sh /root"
 }
@@ -196,7 +196,7 @@ Prepare_Server()
     echo "Setup iptables to route the traffic from L1 guest to L2 guest"
 
     iptables -t nat -A PREROUTING -d $L1_SERVER_IP_ADDR -p tcp -j DNAT --to $L2_IP_ADDR
-    check_exit_status "New iptables forward rules"
+    check_exit_status "New iptables forward rules" "exit"
 }
 
 Prepare_Nested_VMs()

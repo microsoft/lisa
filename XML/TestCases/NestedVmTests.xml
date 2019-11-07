@@ -36,6 +36,7 @@
             <param>testDuration=60</param>
             <param>testType=tcp</param>
             <param>testConnections=NESTED_NTTTCP_TCP_CONNECTIONS</param>
+            <param>ntttcpVersion=NTTTCP_VERSION</param>
             <param>lagscopeVersion=LAGSCOPE_VERSION</param>
         </TestParameters>
         <Platform>Azure</Platform>
@@ -192,6 +193,7 @@
             <param>testType=tcp</param>
             <param>testDuration=60</param>
             <param>testConnections=NESTED_NTTTCP_TCP_CONNECTIONS</param>
+            <param>ntttcpVersion=NTTTCP_VERSION</param>
             <param>lagscopeVersion=LAGSCOPE_VERSION</param>
         </TestParameters>
         <Platform>HyperV</Platform>
@@ -221,6 +223,7 @@
             <param>testDuration=60</param>
             <param>testType=tcp</param>
             <param>testConnections=NESTED_NTTTCP_TCP_CONNECTIONS</param>
+            <param>ntttcpVersion=NTTTCP_VERSION</param>
             <param>lagscopeVersion=LAGSCOPE_VERSION</param>
         </TestParameters>
         <Platform>HyperV</Platform>
@@ -250,6 +253,7 @@
             <param>testDuration=60</param>
             <param>testType=tcp</param>
             <param>testConnections=NESTED_NTTTCP_TCP_CONNECTIONS</param>
+            <param>ntttcpVersion=NTTTCP_VERSION</param>
             <param>lagscopeVersion=LAGSCOPE_VERSION</param>
         </TestParameters>
         <Platform>HyperV</Platform>
@@ -305,6 +309,7 @@
             <param>testDuration=60</param>
             <param>testType=tcp</param>
             <param>testConnections=NESTED_NTTTCP_TCP_CONNECTIONS</param>
+            <param>ntttcpVersion=NTTTCP_VERSION</param>
             <param>lagscopeVersion=LAGSCOPE_VERSION</param>
         </TestParameters>
         <Platform>Azure</Platform>
@@ -528,6 +533,7 @@
             <param>testType=tcp</param>
             <param>testConnections=NESTED_NTTTCP_TCP_CONNECTIONS</param>
             <param>SkipVerifyKernelLogs=true</param>
+            <param>ntttcpVersion=NTTTCP_VERSION</param>
             <param>lagscopeVersion=LAGSCOPE_VERSION</param>
         </TestParameters>
         <Platform>HyperV</Platform>
@@ -556,6 +562,7 @@
             <param>testType=tcp</param>
             <param>testConnections=NESTED_NTTTCP_TCP_CONNECTIONS</param>
             <param>SkipVerifyKernelLogs=true</param>
+            <param>ntttcpVersion=NTTTCP_VERSION</param>
             <param>lagscopeVersion=LAGSCOPE_VERSION</param>
         </TestParameters>
         <Platform>Azure</Platform>

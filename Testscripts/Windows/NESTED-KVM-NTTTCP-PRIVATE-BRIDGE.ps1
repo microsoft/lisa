@@ -135,7 +135,7 @@ function Main {
         }
 
         # Collect L1 VM properties
-        Run-LinuxCmd -username $user -password $password -ip $hs1VIP -port $hs1vm1sshport -command ". utils.sh && collect_VM_properties" -runAsSudo
+        Run-LinuxCmd -username $user -password $password -ip $hs1VIP -port $hs1vm1sshport -command ". utils.sh && collect_VM_properties" -runAsSudo | Out-Null
         Copy-RemoteFiles -download -downloadFrom $hs1VIP -files "/home/$user/VM_properties.csv" -downloadTo $LogDir -port $hs1vm1sshport -username $user -password $password
 
         if ($testResult -imatch $resultPass) {

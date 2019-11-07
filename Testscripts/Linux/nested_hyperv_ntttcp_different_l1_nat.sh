@@ -133,7 +133,7 @@ Collect_Logs() {
     remote_exec -host localhost -user root -passwd $NestedUserPassword -port 22 "mv /root/ntttcpTest.log /home/${NestedUser}"
     remote_exec -host localhost -user root -passwd $NestedUserPassword -port 22 "mv /root/ntttcpConsoleLogs /home/${NestedUser}"
     remote_exec -host localhost -user root -passwd $NestedUserPassword -port 22 "mv /root/nested_properties.csv /home/${NestedUser}"
-    check_exit_status "Get the NTTTCP report"
+    check_exit_status "Get the NTTTCP report" "exit"
 }
 
 

@@ -89,7 +89,7 @@ Start_Test()
 
     echo $NestedUserPassword | sudo -S ip addr add $IP_ADDR/24 dev $NIC_NAME
     echo $NestedUserPassword | sudo -S ip link set $NIC_NAME up
-    check_exit_status "Setup static IP address for $NIC_NAME"
+    check_exit_status "Setup static IP address for $NIC_NAME" "exit"
     chmod a+x /home/$NestedUser/*.sh
 
     Log_Msg "Enable root for VM $role" $log_file
@@ -129,7 +129,7 @@ Collect_Logs() {
     remote_exec -host localhost -user root -passwd $NestedUserPassword -port 22 "mv /root/report.log /home/${NestedUser}"
     remote_exec -host localhost -user root -passwd $NestedUserPassword -port 22 "mv /root/ntttcpTest.log /home/${NestedUser}"
     remote_exec -host localhost -user root -passwd $NestedUserPassword -port 22 "mv /root/ntttcpConsoleLogs /home/${NestedUser}"
-    check_exit_status "Get the NTTTCP report"
+    check_exit_status "Get the NTTTCP report" "exit"
 }
 
 Update_Test_State $ICA_TESTRUNNING

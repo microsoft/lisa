@@ -141,8 +141,8 @@ Start_Nested_VM_Nat()
     mac_addr1=$(generate_random_mac_addr)
     mac_addr2=$(generate_random_mac_addr)
     Log_Msg "Start the nested VM: $image_name" $log_file
-    Log_Msg "qemu-system-x86_64 -cpu host -smp $NestedCpuNum -m $NestedMemMB -hda $image_name -device $NestedNetDevice,netdev=net0,mac=$mac_addr1 -netdev user,id=net0,hostfwd=tcp::$host_fwd_port-:22 -device $NestedNetDevice,netdev=net1,mac=$mac_addr2 -netdev tap,id=net1,vhost=on,script=./nat_qemu_ifup.sh -display none -enable-kvm -daemonize" $log_file
-    cmd="qemu-system-x86_64 -cpu host -smp $NestedCpuNum -m $NestedMemMB -hda $image_name -device $NestedNetDevice,netdev=net0,mac=$mac_addr1 -netdev user,id=net0,hostfwd=tcp::$host_fwd_port-:22 -device $NestedNetDevice,netdev=net1,mac=$mac_addr2 -netdev tap,id=net1,vhost=on,script=./nat_qemu_ifup.sh -display none -enable-kvm -daemonize"
+    Log_Msg "qemu-system-x86_64 -cpu host -smp $NestedCpuNum -m $NestedMemMB -hda /mnt/resource/$image_name -device $NestedNetDevice,netdev=net0,mac=$mac_addr1 -netdev user,id=net0,hostfwd=tcp::$host_fwd_port-:22 -device $NestedNetDevice,netdev=net1,mac=$mac_addr2 -netdev tap,id=net1,vhost=on,script=./nat_qemu_ifup.sh -display none -enable-kvm -daemonize" $log_file
+    cmd="qemu-system-x86_64 -cpu host -smp $NestedCpuNum -m $NestedMemMB -hda /mnt/resource/$image_name -device $NestedNetDevice,netdev=net0,mac=$mac_addr1 -netdev user,id=net0,hostfwd=tcp::$host_fwd_port-:22 -device $NestedNetDevice,netdev=net1,mac=$mac_addr2 -netdev tap,id=net1,vhost=on,script=./nat_qemu_ifup.sh -display none -enable-kvm -daemonize"
     Start_Nested_VM -user $NestedUser -passwd $NestedUserPassword -port $host_fwd_port $cmd
     Enable_Root -user $NestedUser -passwd $NestedUserPassword -port $host_fwd_port
 

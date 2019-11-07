@@ -105,14 +105,14 @@ Setup_Bridge() {
 	ip link add "$BR_NAME" type bridge
 	ip addr add "$BR_ADDR"/24 dev "$BR_NAME"
 	ip link set "$BR_NAME" up
-	check_exit_status "Setup bridge $BR_NAME"
+	check_exit_status "Setup bridge $BR_NAME" "exit"
 }
 
 Prepare_Client() {
 	Setup_Tap $CLIENT_TAP $BR_NAME
 	mac_addr1=$(generate_random_mac_addr)
 	mac_addr2=$(generate_random_mac_addr)
-	cmd="qemu-system-x86_64 -cpu host -smp $NestedCpuNum -m $NestedMemMB -hda $CLIENT_IMAGE \
+	cmd="qemu-system-x86_64 -cpu host -smp $NestedCpuNum -m $NestedMemMB -hda /mnt/resource/$CLIENT_IMAGE \
 		-device $NestedNetDevice,netdev=net0,mac=$mac_addr1 -netdev user,id=net0,hostfwd=tcp::$CLIENT_HOST_FWD_PORT-:22 \
 		-device $NestedNetDevice,netdev=net1,mac=$mac_addr2,mq=on,vectors=10 \
 		-netdev tap,id=net1,ifname=$CLIENT_TAP,script=no,vhost=on,queues=4 -display none -enable-kvm -daemonize"
@@ -125,7 +125,7 @@ Prepare_Client() {
 	Remote_Exec_Wrapper "root" $CLIENT_HOST_FWD_PORT "rm -rf /root/sshFix"
 	Remote_Exec_Wrapper "root" $CLIENT_HOST_FWD_PORT "/root/enablePasswordLessRoot.sh"
 	Remote_Copy_Wrapper "root" $CLIENT_HOST_FWD_PORT "sshFix.tar" "get"
-	check_exit_status "Download key from the client VM"
+	check_exit_status "Download key from the client VM" "exit"
 
 	Remote_Exec_Wrapper "root" $CLIENT_HOST_FWD_PORT "md5sum /root/.ssh/id_rsa > /root/clientmd5sum.log"
 	Remote_Copy_Wrapper "root" $CLIENT_HOST_FWD_PORT "clientmd5sum.log" "get"
@@ -143,7 +143,7 @@ Prepare_Server() {
 	Setup_Tap $SERVER_TAP $BR_NAME
 	mac_addr1=$(generate_random_mac_addr)
 	mac_addr2=$(generate_random_mac_addr)
-	cmd="qemu-system-x86_64 -cpu host -smp $NestedCpuNum -m $NestedMemMB -hda $SERVER_IMAGE \
+	cmd="qemu-system-x86_64 -cpu host -smp $NestedCpuNum -m $NestedMemMB -hda /mnt/resource/$SERVER_IMAGE \
 	    -device $NestedNetDevice,netdev=net0,mac=$mac_addr1 -netdev user,id=net0,hostfwd=tcp::$SERVER_HOST_FWD_PORT-:22 \
 	    -device $NestedNetDevice,netdev=net1,mac=$mac_addr2,mq=on,vectors=10 \
 	    -netdev tap,id=net1,ifname=$SERVER_TAP,script=no,vhost=on,queues=4 -display none -enable-kvm -daemonize"
@@ -153,7 +153,7 @@ Prepare_Server() {
 	Remote_Copy_Wrapper "root" $SERVER_HOST_FWD_PORT "./utils.sh" "put"
 	Remote_Exec_Wrapper "root" $SERVER_HOST_FWD_PORT "chmod a+x *.sh"
 	Remote_Copy_Wrapper "root" $SERVER_HOST_FWD_PORT "./sshFix.tar" "put"
-	check_exit_status "Copy key to the server VM"
+	check_exit_status "Copy key to the server VM" "exit"
 
 	Remote_Exec_Wrapper "root" $SERVER_HOST_FWD_PORT "/root/enablePasswordLessRoot.sh"
 	Remote_Exec_Wrapper "root" $SERVER_HOST_FWD_PORT "md5sum /root/.ssh/id_rsa > /root/servermd5sum.log"
@@ -191,9 +191,10 @@ Bring_Up_Nic_With_Private_Ip() {
 			Update_Test_State $ICA_TESTFAILED
 			exit 0
 		else
-			sleep 10
+			sleep 30
 			Log_Msg "Try to bring up the nested VM NIC with private IP, left retry times: $retry_times" $log_file
 			Remote_Exec_Wrapper "root" $host_fwd_port "ip addr add $ip_addr/24 dev $NIC_NAME && ip link set $NIC_NAME up"
+			Remote_Exec_Wrapper "root" $host_fwd_port "ip addr show dev $NIC_NAME | grep -i $ip_addr/24"
 			exit_status=$?
 		fi
 	done
@@ -224,13 +225,13 @@ Collect_Logs() {
 	Remote_Exec_Wrapper "root" $SERVER_HOST_FWD_PORT "tar -cf ./ntttcp-test-logs-receiver.tar ./ntttcp-${testType}-test-logs-receiver"
 	Remote_Copy_Wrapper "root" $SERVER_HOST_FWD_PORT "ntttcp-test-logs-receiver.tar" "get"
 	Remote_Copy_Wrapper "root" $CLIENT_HOST_FWD_PORT "report.log" "get"
-	check_exit_status "Get the NTTTCP report"
+	check_exit_status "Get the NTTTCP report" "exit"
 }
 
 Update_Test_State $ICA_TESTRUNNING
 Install_KVM_Dependencies
 Download_Image_Files -destination_image_name $CLIENT_IMAGE -source_image_url $NestedImageUrl
-cp $CLIENT_IMAGE $SERVER_IMAGE
+cp /mnt/resource/$CLIENT_IMAGE /mnt/resource/$SERVER_IMAGE
 Setup_Bridge
 Prepare_Nested_VMs
 Run_Ntttcp_On_Client
