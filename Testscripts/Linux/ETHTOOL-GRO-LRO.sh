@@ -23,17 +23,23 @@ UtilsInit
 CheckResults()
 {
     action="$1"
-    sts=$(ethtool -k "${SYNTH_NET_INTERFACES[@]}" 2>&1 | grep generic-receive-offload | awk {'print $2'})
+    conf="$2"
+    if [ x"$conf" == x"gro" ]; then
+        checkpoint="generic-receive-offload"
+    elif [ x"$conf" == x"lro" ]; then
+        checkpoint="large-receive-offload"
+    fi
+    sts=$(ethtool -k "${SYNTH_NET_INTERFACES[@]}" 2>&1 | grep "${checkpoint}" | awk {'print $2'})
     if [ "$action" == "disabled" ] && [ "$sts" == "on" ]; then
-        LogMsg "Generic-receive-offload NOT disabled."
+        LogMsg "${checkpoint} NOT disabled."
         SetTestStateFailed
         exit 0 
     elif [ "$action" == "enabled" ] && [ "$sts" == "off" ]; then 
-        LogMsg "Generic-receive-offload NOT enabled."
+        LogMsg "${checkpoint} NOT enabled."
         SetTestStateFailed
         exit 0
     else
-        LogMsg "Generic-receive-offload is $action."
+        LogMsg "${checkpoint} is $action."
     fi
 }
 
@@ -51,43 +57,41 @@ if ! GetSynthNetInterfaces; then
     exit 0
 fi
 
-for (( i = 0 ; i < 2 ; i++ )); do
-    # Show GRO status
-    sts=$(ethtool -k "${SYNTH_NET_INTERFACES[@]}" 2>&1 | grep generic-receive-offload | awk {'print $2'})
-    if [[ "$sts" == "on" ]];then
-        # Disable GRO
-        if ! ethtool -K "${SYNTH_NET_INTERFACES[@]}" gro off >/dev/null 2>&1;then
-            LogMsg "Cannot disable generic-receive-offload."
+declare -a confArr=("gro" "lro")
+for confItem in "${confArr[@]}"; do
+    if [ x"$confItem" == x"gro" ]; then
+        ckp="generic-receive-offload"
+    elif [ x"$confItem" == x"lro" ]; then
+        ckp="large-receive-offload"
+    fi
+    for (( i = 0 ; i < 2 ; i++ )); do
+        # Show GRO/LRO status
+        sts=$(ethtool -k "${SYNTH_NET_INTERFACES[@]}" 2>&1 | grep ${ckp} | awk {'print $2'})
+        if [[ "$sts" == "on" ]];then
+            # Disable GRO/LRO
+            if ! ethtool -K "${SYNTH_NET_INTERFACES[@]}" ${confItem} off >/dev/null 2>&1;then
+                LogMsg "Cannot disable ${ckp}."
+                SetTestStateFailed
+                exit 0
+            fi
+            # Check if is disabled
+            CheckResults "disabled" "${confItem}"
+        elif [[ "$sts" == "off" ]];then
+            # Enable GRO/LRO
+            if ! ethtool -K "${SYNTH_NET_INTERFACES[@]}" ${confItem} on >/dev/null 2>&1;then
+                LogMsg "Cannot enable ${ckp}."
+                SetTestStateFailed
+                exit 0
+            fi
+            # Check if is enabled
+            CheckResults "enabled" "${confItem}"
+        else
+            LogMsg "Cannot get status of ${ckp}."
             SetTestStateFailed
             exit 0
         fi
-        # Check if is disabled
-        CheckResults "disabled"
-    elif [[ "$sts" == "off" ]];then
-        # Enable GRO
-        if ! ethtool -K "${SYNTH_NET_INTERFACES[@]}" gro on >/dev/null 2>&1;then
-            LogMsg "Cannot enable generic-receive-offload."
-            SetTestStateFailed
-            exit 0
-        fi
-        # Check if is enabled
-        CheckResults "enabled"
-    else
-        LogMsg "Cannot get status of generic-receive-offload."
-        SetTestStateFailed
-        exit 0
-    fi   
+    done
 done
-
-# Disable/Enable LRO
-LogMsg "LRO status:"
-ethtool -k "${SYNTH_NET_INTERFACES[@]}" | grep large-receive-offload 
-LogMsg "Enable large-receive-offload:"
-ethtool -K "${SYNTH_NET_INTERFACES[[@]}" lro on
-LogMsg "LRO status:"
-ethtool -k "${SYNTH_NET_INTERFACES[@]}" | grep large-receive-offload
-LogMsg "Disable large-receive-offload:"
-ethtool -K "${SYNTH_NET_INTERFACES[@]}" lro off
 
 SetTestStateCompleted
 exit 0
