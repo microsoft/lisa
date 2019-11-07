@@ -648,7 +648,7 @@ Function Run-LinuxCmd([string] $username,[string] $password,[string] $ip,[string
 					if ($timeOut)
 					{
 						$retValue = ""
-						Write-LogErr "Timeout while executing command : $MaskedCommand"
+						Throw "Calling function - $($MyInvocation.MyCommand). Timeout while executing command : $MaskedCommand"
 					}
 					Write-LogErr "Linux machine returned exit code : $($LinuxExitCode.Split("-")[4])"
 					if ($attemptswt -eq $maxRetryCount -and $attemptswot -eq $maxRetryCount)
