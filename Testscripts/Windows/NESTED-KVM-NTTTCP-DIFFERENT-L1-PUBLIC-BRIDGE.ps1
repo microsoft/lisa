@@ -124,28 +124,19 @@ function Main () {
 			}
 		}
 
-		foreach ($param in $currentTestData.TestParameters.param) {
-			if ($param -match "ntttcpVersion") {
-				$ntttcpVersion = $param.split("=")[1]
-			}
-			if ($param -match "lagscopeVersion") {
-				$lagscopeVersion = $param.split("=")[1]
-			}
-		}
-
 		if($TestPlatform -eq "Azure")
 		{
 			$cmd = "/home/$user/${testScript} -role server -clientIP $hs2secondip -serverIP $hs1secondip -level1ClientIP $hs2secondip -level1User $user -level1Password $password -level1Port 22 -logFolder /home/$user > /home/$user/TestExecutionConsole.log"
 			Start-TestExecution -ip $hs1VIP -port $hs1vm1sshport -cmd $cmd
 
-			$cmd = "/home/$user/${testScript} -role client -clientIP $hs2secondip -serverIP $hs1secondip -ntttcpVersion $ntttcpVersion -lagscopeVersion $lagscopeVersion -logFolder /home/$user > /home/$user/TestExecutionConsole.log"
+			$cmd = "/home/$user/${testScript} -role client -clientIP $hs2secondip -serverIP $hs1secondip -logFolder /home/$user > /home/$user/TestExecutionConsole.log"
 			Start-TestExecution -ip $hs2VIP -port $hs2vm1sshport -cmd $cmd
 		}
 		elseif ($TestPlatform -eq "HyperV") {
 			$cmd = "/home/$user/${testScript} -role server -level1ClientIP $hs2VIP -level1User $user -level1Password $password -level1Port $hs2vm1sshport -logFolder /home/$user > /home/$user/TestExecutionConsole.log"
 			Start-TestExecution -ip $hs1VIP -port $hs1vm1sshport -cmd $cmd
 
-			$cmd = "/home/$user/${testScript} -role client -ntttcpVersion $ntttcpVersion -lagscopeVersion $lagscopeVersion -logFolder /home/$user > /home/$user/TestExecutionConsole.log"
+			$cmd = "/home/$user/${testScript} -role client -logFolder /home/$user > /home/$user/TestExecutionConsole.log"
 			Start-TestExecution -ip $hs2VIP -port $hs2vm1sshport -cmd $cmd
 		}
 

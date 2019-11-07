@@ -172,8 +172,6 @@ Prepare_Client()
     echo "client=$L2_IP_ADDR" >> ${CONSTANTS_FILE}
     echo "server=$L1_SERVER_IP_ADDR" >> ${CONSTANTS_FILE}
     echo "nicName=$NIC_NAME" >> ${CONSTANTS_FILE}
-    echo "ntttcpVersion=$ntttcpVersion" >> ${CONSTANTS_FILE}
-    echo "lagscopeVersion=$lagscopeVersion" >> ${CONSTANTS_FILE}
     Remote_Copy_Wrapper "root" $HOST_FWD_PORT "${CONSTANTS_FILE}" "put"
 }
 
