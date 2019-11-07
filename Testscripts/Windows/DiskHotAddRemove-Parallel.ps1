@@ -15,7 +15,7 @@ function Main {
         $allUnmanagedDataDisks = @()
         $virtualMachine = Get-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName
         $diskCount = (Get-AzVMSize -Location $AllVMData.Location | Where-Object {$_.Name -eq $AllVMData.InstanceSize}).MaxDataDiskCount
-        Write-Debug "Found max data disk size $diskCount in the system0"
+        Write-Debug "Found max data disk size $diskCount in the system"
         $storageProfile = (Get-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName).StorageProfile
         Write-LogInfo "Parallel Addition of Data Disks to the VM "
         While ($count -lt $diskCount) {
@@ -25,7 +25,7 @@ function Main {
             if ($storageProfile.OsDisk.ManagedDisk) {
                 # Add managed data disks
                 $storageType = 'Premium_LRS'
-                $diskConfig = New-AzDiskConfig -SkuName $storageType -Location $AllVMData.Location -CreateOption Empty -DiskSizeGB $diskSizeinGB
+                $diskConfig = New-AzDiskConfig -SkuName $storageType -Location $AllVMData.Location -CreateOption Empty -DiskSizeInBytes $diskSizeinGB
                 $dataDisk = New-AzDisk -DiskName $diskName -Disk $diskConfig -ResourceGroupName $AllVMData.ResourceGroupName
                 Add-AzVMDataDisk -VM $virtualMachine -Name $diskName -CreateOption Attach -ManagedDiskId $dataDisk.Id -Lun $count | Out-Null
             } else {
