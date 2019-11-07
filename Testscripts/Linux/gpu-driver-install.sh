@@ -28,57 +28,6 @@
 grid_driver="https://go.microsoft.com/fwlink/?linkid=874272"
 
 #######################################################################
-#
-# Install dependencies
-#
-#######################################################################
-function InstallRequirements() {
-    case $DISTRO in
-    redhat_7|centos_7|redhat_8)
-        if [[ $DISTRO == "centos_7" ]]; then
-            # for all releases that are moved into vault.centos.org
-            # we have to update the repositories first
-            yum -y install centos-release
-            yum clean all
-            yum -y install --enablerepo=C*-base --enablerepo=C*-updates kernel-devel-"$(uname -r)" kernel-headers-"$(uname -r)"
-        else
-            yum -y install kernel-devel-"$(uname -r)" kernel-headers-"$(uname -r)"
-        fi
-
-        # Kernel devel package is mandatory for nvdia cuda driver installation.
-        # Failure to install kernel devel should be treated as test aborted not failed.
-        rpm -q --quiet kernel-devel-$(uname -r)
-        if [ $? -ne 0 ]; then
-            LogErr "Failed to install the RH/CentOS kernel-devel package"
-            SetTestStateAborted
-            return 1
-        fi
-
-        # mesa-libEGL install/update is require to avoid a conflict between
-        # libraries - bugzilla.redhat 1584740
-        yum -y install mesa-libGL mesa-libEGL libglvnd-devel
-
-        install_epel
-        yum --nogpgcheck -y install dkms
-    ;;
-
-    ubuntu*)
-        apt -y install build-essential libelf-dev linux-tools-"$(uname -r)" linux-cloud-tools-"$(uname -r)" python
-    ;;
-
-    suse_15*)
-        kernel=$(uname -r)
-        if [[ "${kernel}" == *azure ]];
-        then
-            zypper install --oldpackage -y kernel-azure-devel="${kernel::-6}"
-            zypper install -y kernel-devel-azure
-        else
-            zypper install -y kernel-default-devel
-        fi
-    ;;
-esac
-}
-
 function InstallCUDADrivers() {
     case $DISTRO in
     redhat_7|centos_7)
@@ -188,10 +137,9 @@ UtilsInit
 
 GetDistro
 update_repos
-install_package "wget lshw gcc make"
 
-InstallRequirements
-check_exit_status "Install requirements" "exit"
+# Install dependencies
+install_gpu_requirements
 
 if [ "$driver" == "CUDA" ]; then
     InstallCUDADrivers
