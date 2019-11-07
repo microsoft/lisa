@@ -15,6 +15,7 @@ function Main {
         $allUnmanagedDataDisks = @()
         $virtualMachine = Get-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName
         $diskCount = (Get-AzVMSize -Location $AllVMData.Location | Where-Object {$_.Name -eq $AllVMData.InstanceSize}).MaxDataDiskCount
+        Write-Debug "Found max data disk size $diskCount in the system0"
         $storageProfile = (Get-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName).StorageProfile
         Write-LogInfo "Parallel Addition of Data Disks to the VM "
         While ($count -lt $diskCount) {
@@ -43,7 +44,7 @@ function Main {
             }
             $updateVM1 = Update-AzVM -VM $virtualMachine -ResourceGroupName $AllVMData.ResourceGroupName
             if ($updateVM1.IsSuccessStatusCode) {
-                Write-LogInfo "Successfully attached an empty data disk of size $diskSizeinGB GB to VM"
+                Write-LogInfo "$count - Successfully attached an empty data disk of size $diskSizeinGB GB to VM"
             } else {
                 $testResult = $resultFail
                 throw "Fail to attach an empty data disk of size $diskSizeinGB GB to VM"
@@ -54,8 +55,9 @@ function Main {
         $fdiskOutput = Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "/sbin/fdisk -l | grep /dev/sd" -runAsSudo
         foreach ($line in ($fdiskOutput.Split([Environment]::NewLine))) {
             if ($line -imatch "Disk /dev/sd[a-z]+:" -and [int64]($line.Split()[4]) -eq (([int64]($diskSizeinGB) * [int64]1073741824))){
-                Write-LogInfo "Data disk is successfully mounted to the VM: $line"
                 $verifiedDiskCount += 1
+                Write-LogInfo "$verifiedDiskCount data disk is successfully mounted to the VM: $line"
+                
             }
         }
         Write-LogInfo "Number of data disks verified inside VM $verifiedDiskCount"
@@ -76,7 +78,7 @@ function Main {
         Write-LogInfo "Verifying if data disks are removed from the VM: Running fdisk on remote VM"
         $fdiskFinalOutput = Run-LinuxCmd -username $user -password $password -ip  $AllVMData.PublicIP -port $AllVMData.SSHPort -command "/sbin/fdisk -l | grep /dev/sd" -runAsSudo
         foreach ($line in ($fdiskFinalOutput.Split([Environment]::NewLine))) {
-            if($line -imatch "Disk /dev/sd[^ab]:" -and [int64]($line.Split()[4]) -eq (([int64]($diskSizeinGB) * [int64]1073741824))) {
+            if($line -imatch "Disk /dev/sd[a-z]+:" -and [int64]($line.Split()[4]) -eq (([int64]($diskSizeinGB) * [int64]1073741824))) {
                 $testResult=$resultFail
                 throw "Data disk is NOT removed from the VM at $line"
             }
