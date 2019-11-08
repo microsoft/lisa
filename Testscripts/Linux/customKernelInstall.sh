@@ -347,11 +347,18 @@ function InstallKernel() {
         eval "apt install -f -y >> $LOG_FILE 2>&1"
         kernelInstallStatus=$?
 
+        release_publisher=$(cat /etc/issue | head -n 1 | awk '{print $1}')
+        if [ "${release_publisher}"x == "Debian"x ]; then
+            publisher_string="Debian GNU\/Linux"
+        else
+            publisher_string="Ubuntu"
+        fi
+		
         LogMsg "Configuring the correct kernel boot order"
         if [[ $kernelInstallStatus -eq 0 && "${image_file}" != '' ]]; then
             kernel_identifier=$(dpkg-deb --info "${image_file}" | grep 'Package: ' | grep -o "image.*")
             kernel_identifier=${kernel_identifier#image-}
-            sed -i.bak 's/GRUB_DEFAULT=.*/GRUB_DEFAULT="Advanced options for Ubuntu>Ubuntu, with Linux '$kernel_identifier'"/g' /etc/default/grub
+            sed -i.bak "s/GRUB_DEFAULT=.*/GRUB_DEFAULT='Advanced options for $publisher_string>$publisher_string, with Linux $kernel_identifier'/g" /etc/default/grub
             update-grub
         else
             msg="Kernel correct boot order could not be set."
