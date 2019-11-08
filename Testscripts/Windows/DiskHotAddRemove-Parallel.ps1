@@ -15,6 +15,7 @@ function Main {
         $allUnmanagedDataDisks = @()
         $virtualMachine = Get-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName
         $diskCount = (Get-AzVMSize -Location $AllVMData.Location | Where-Object {$_.Name -eq $AllVMData.InstanceSize}).MaxDataDiskCount
+        Write-Debug "Found max data disk size $diskCount in the system"
         $storageProfile = (Get-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName).StorageProfile
         Write-LogInfo "Parallel Addition of Data Disks to the VM "
         While ($count -lt $diskCount) {
@@ -41,25 +42,26 @@ function Main {
                 $allUnmanagedDataDisks += $dataDiskVhdUri.Split('/')[-1]
                 Add-AzVMDataDisk -VM $virtualMachine -Name $diskName -VhdUri $dataDiskVhdUri -Caching None -DiskSizeInGB $diskSizeinGB -Lun $count -CreateOption Empty | Out-Null
             }
-            $updateVM1 = Update-AzVM -VM $virtualMachine -ResourceGroupName $AllVMData.ResourceGroupName
-            if ($updateVM1.IsSuccessStatusCode) {
-                Write-LogInfo "Successfully attached an empty data disk of size $diskSizeinGB GB to VM"
-            } else {
-                $testResult = $resultFail
-                throw "Fail to attach an empty data disk of size $diskSizeinGB GB to VM"
-            }
+            Write-LogInfo "$count - Successfully create an empty data disks of size $diskSizeinGB GB"
         }
         Write-LogInfo "Number of data disks added to the VM $count"
-        Write-LogInfo "Verifying if data disk is added to the VM: Running fdisk on remote VM"
+        $updateVM1 = Update-AzVM -VM $virtualMachine -ResourceGroupName $AllVMData.ResourceGroupName
+        if ($updateVM1.IsSuccessStatusCode) {
+            Write-LogInfo "Successfully attached $count empty data disks of size $diskSizeinGB GB to VM"
+        } else {
+            $testResult = $resultFail
+            throw "Fail to attach $count empty data disks of size $diskSizeinGB GB to VM"
+        }
+        Write-LogInfo "Verifying if data disks are added to the VM - running fdisk on remote VM"
         $fdiskOutput = Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "/sbin/fdisk -l | grep /dev/sd" -runAsSudo
         foreach ($line in ($fdiskOutput.Split([Environment]::NewLine))) {
-            if ($line -imatch "Disk /dev/sd[^ab]:" -and [int64]($line.Split()[4]) -eq (([int64]($diskSizeinGB) * [int64]1073741824))){
-                Write-LogInfo "Data disk is successfully mounted to the VM: $line"
+            if ($line -imatch "Disk /dev/sd[a-z][a-z]|sd[c-z]:" -and [int64]($line.Split()[4]) -eq (([int64]($diskSizeinGB) * [int64]1073741824))){
                 $verifiedDiskCount += 1
+                Write-LogInfo "$verifiedDiskCount data disk is successfully attached the VM: $line"
             }
         }
         Write-LogInfo "Number of data disks verified inside VM $verifiedDiskCount"
-        if ($verifiedDiskCount -ge $diskCount) {
+        if ($verifiedDiskCount -eq $diskCount) {
             Write-LogInfo "Data disks added to the VM are successfully verified inside VM"
         } else {
             $testResult=$resultFail
@@ -76,15 +78,16 @@ function Main {
         Write-LogInfo "Verifying if data disks are removed from the VM: Running fdisk on remote VM"
         $fdiskFinalOutput = Run-LinuxCmd -username $user -password $password -ip  $AllVMData.PublicIP -port $AllVMData.SSHPort -command "/sbin/fdisk -l | grep /dev/sd" -runAsSudo
         foreach ($line in ($fdiskFinalOutput.Split([Environment]::NewLine))) {
-            if($line -imatch "Disk /dev/sd[^ab]:" -and [int64]($line.Split()[4]) -eq (([int64]($diskSizeinGB) * [int64]1073741824))) {
+            if($line -imatch "Disk /dev/sd[a-z][a-z]|sd[c-z]:" -and [int64]($line.Split()[4]) -eq (([int64]($diskSizeinGB) * [int64]1073741824))) {
                 $testResult=$resultFail
                 throw "Data disk is NOT removed from the VM at $line"
             }
         }
         Write-LogInfo "Successfully verified that all data disks are removed from the VM"
-        # Remove unmanaged data disks
+        # Delete unmanaged data disks
         if (!$storageProfile.OsDisk.ManagedDisk) {
             foreach ($unmanagedDataDisk in $allUnmanagedDataDisks) {
+                Write-LogInfo "Delete unmanaged data disks $unmanagedDataDisk"
                 $osVhdStorageAccount | Remove-AzStorageBlob -Container $dataDiskVhdUri.Split('/')[-2] -Blob $unmanagedDataDisk -Verbose -Force
             }
         }
