@@ -71,6 +71,7 @@ function Modprobe_Setup() {
 	local distro=$(detect_linux_distribution)$(detect_linux_distribution_version)
 	if [[ "${distro}" == "sles15" || ("${distro}" =~ "ubuntu") ]]; then
 		modprobe_cmd="${modprobe_cmd} mlx4_ib mlx5_ib || true"
+		LogMsg "Loading mlx4_ib and mlx5_ib modules with ib_uverbs module manually for distro: ${distro}"
 	fi
 
 	ssh ${1} "${modprobe_cmd}"
