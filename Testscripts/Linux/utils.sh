@@ -2799,6 +2799,9 @@ function get_active_nic_name () {
 	if [[ $DISTRO_NAME == "sles" ]] && [[ $DISTRO_VERSION =~ 15 ]] || [[ $DISTRO_NAME == "sle_hpc" ]]; then
 		zypper_install "net-tools-deprecated" > /dev/null 2>&1
 	fi
+	if [[ "${DISTRO_NAME}" == "ubuntu" ]]; then
+		apt_get_install "net-tools" > /dev/null 2>&1
+	fi
 	echo $(route | grep '^default' | grep -o '[^ ]*$')
 }
 
