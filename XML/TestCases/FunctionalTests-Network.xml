@@ -465,7 +465,7 @@
     <test>
         <testName>NET-HOT-ADD-REMOVE-MAXNIC</testName>
         <testScript>NET-HotAddRemove-Max-NIC.ps1</testScript>
-        <files>.\Testscripts\Linux\NET-MAX-NICs.sh,.\Testscripts\Linux\NET-Verify-HotAdd-MultiNIC.sh,.\Testscripts\Linux\utils.sh</files>
+        <files>.\Testscripts\Linux\NET-Max-NICs.sh,.\Testscripts\Linux\NET-Verify-HotAdd-MultiNIC.sh,.\Testscripts\Linux\utils.sh</files>
         <setupType>OneVM</setupType>
         <TestParameters>
             <param>TEST_TYPE=synthetic</param>

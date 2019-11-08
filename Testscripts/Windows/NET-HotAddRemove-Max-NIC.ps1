@@ -25,7 +25,7 @@ function Main {
     )
 
     $switchName = "External"
-    $remoteScript = "NET-MAX-NICs.sh"
+    $remoteScript = "NET-Max-NICs.sh"
     $remoteScript2 = "NET-Verify-HotAdd-MultiNIC.sh"
     ########################################################################
     $params = $TestParams.Split(";")
