@@ -295,9 +295,12 @@ Class TestSummary
 		if ( $global:BaseOSVHD ) {
 			$str += "`r`nVHD Under Test        : " + $global:BaseOSVHD
 		}
-		if ( $global:ARMImageName ) {
+		if ($global:ARMImageName) {
 			$imageInfo = $global:ARMImageName.Split(' ')
 			$str += "`r`nARM Image Under Test  : " + "$($imageInfo[0]) : $($imageInfo[1]) : $($imageInfo[2]) : $($imageInfo[3])"
+		}
+		if ($global:OverrideVMSize) {
+			$str += "`r`nOverride VM size      : " + "$($global:OverrideVMSize)"
 		}
 		if ($this.TestCategory) {
 			$str += "`r`nTest Category         : $($this.TestCategory)"
@@ -311,10 +314,10 @@ Class TestSummary
 		if ($this.TestPriority) {
 			$str += "`r`nTest Priority         : $($this.TestPriority)"
 		}
-		if ( $global:InitialKernelVersion ) {
+		if ($global:InitialKernelVersion) {
 			$str += "`r`nInitial Kernel Version: " + $global:InitialKernelVersion
 		}
-		if ( $global:FinalKernelVersion ) {
+		if ($global:FinalKernelVersion) {
 			$str += "`r`nFinal Kernel Version  : " + $global:FinalKernelVersion
 		}
 		$str += "`r`nTotal Test Cases      : " + $this.TotalTc + " (" + $this.TotalPassTc + " Passed, " + `
