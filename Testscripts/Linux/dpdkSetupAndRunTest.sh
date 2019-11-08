@@ -87,7 +87,7 @@ fi
 LogMsg "Starting DPDK Setup"
 # when available update to dpdk latest
 if [ -z "${dpdkSrcLink}" ]; then
-	dpdkSrcLink="https://fast.dpdk.org/rel/dpdk-18.08.tar.xz"
+	dpdkSrcLink="https://fast.dpdk.org/rel/dpdk-19.08.tar.xz"
 	LogMsg "dpdkSrcLink missing from environment; using ${dpdkSrcLink}"
 fi
 
