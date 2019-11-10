@@ -1,5 +1,4 @@
 #!/bin/bash
-
 ########################################################################
 #
 # Copyright (c) Microsoft Corporation. All rights reserved.
@@ -21,17 +20,21 @@ InstallCUDAToolKit() {
 
         wget http://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/"${CUDA_REPO_PKG}" -O /tmp/"${CUDA_REPO_PKG}"
         if [ $? -ne 0 ]; then
-            LogErr "Failed to download ${CUDA_REPO_PKG}"
+            LogErr "Failed to download $CUDA_REPO_PKG"
             SetTestStateAborted
             exit 1
+        else
+            LogMsg "Successfully downloaded $CUDA_REPO_PKG"
         fi
 
         rpm -ivh /tmp/"${CUDA_REPO_PKG}"
         yum --nogpgcheck -y install $CudaToolkitVersion
         if [ $? -ne 0 ]; then
-            LogErr "Failed to install the CUAD toolkit $CudaToolkitVersion!"
+            LogErr "Failed to install the CUDA toolkit $CudaToolkitVersion!"
             SetTestStateAborted
             exit 1
+        else
+            LogMsg "Successfully installed the CUDA toolkit $CudaToolkitVersion"
         fi
     ;;
 
@@ -42,9 +45,11 @@ InstallCUDAToolKit() {
 
         wget http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"${os_RELEASE//./}"/x86_64/"${CUDA_REPO_PKG}" -O /tmp/"${CUDA_REPO_PKG}"
         if [ $? -ne 0 ]; then
-            LogErr "Failed to download ${CUDA_REPO_PKG}"
+            LogErr "Failed to download $CUDA_REPO_PKG"
             SetTestStateAborted
             exit 1
+        else
+            LogMsg "Successfully downloaded $CUDA_REPO_PKG"
         fi
 
         apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"${os_RELEASE//./}"/x86_64/7fa2af80.pub
@@ -53,17 +58,18 @@ InstallCUDAToolKit() {
         apt update
         apt -y --allow-unauthenticated install $CudaToolkitVersion
         if [ $? -ne 0 ]; then
-            LogErr "Failed to install the CUAD toolkit $CudaToolkitVersion!"
+            LogErr "Failed to install the CUDA toolkit $CudaToolkitVersion!"
             SetTestStateAborted
             exit 1
+        else
+            LogMsg "Successfully installed the CUDA toolkit $CudaToolkitVersion"
         fi
     ;;
     esac
-    LogMsg "Install CUDA toolkit $CudaToolkitVersion successfully."
+    LogMsg "Completed CUDA toolkit $CudaToolkitVersion installation"
 }
 
-Prepare_Test_Dependencies()
-{
+Prepare_Test_Dependencies() {
     LogMsg "Install dependencies..."
     if [[ "${DISTRO_NAME}" == "debian" ]] || [[ "${DISTRO_NAME}" == "ubuntu" ]] ; then
         dpkg_configure
@@ -77,59 +83,74 @@ Prepare_Test_Dependencies()
 
     LogMsg "Install tensorflow-gpu $TensorflowVersion..."
     python -m pip install --upgrade pip
+    LogMsg "Ensured the latest pip version"
     if [ x"$TensorflowVersion" != "xlatest" ]; then
         pip install --upgrade "tensorflow-gpu==$TensorflowVersion"
+        LogMsg "Installed the latest tensorflow-gpu $TensorflowVersion"
     else
         pip install --upgrade tf-nightly-gpu
+        LogMsg "Installed the tensorflow-gpu nightly build"
     fi
 
     LogMsg "Install $CudnnPackage..."
     wget -t 5 "$CudnnPackage" -O cuda.tgz -o download_cudnn.log
     tar -zxf cuda.tgz
     if [ $? -ne 0 ]; then
-        LogErr "Install CuDNN $CudnnPackage failed"
+        LogErr "Failed CuDNN $CudnnPackage installation"
         SetTestStateAborted
         exit 1
+    else
+        LogMsg "Successfully installed CuDNN $CudnnPackage"
     fi
+
     sudo cp -p cuda/lib64/libcudnn* /usr/lib/x86_64-linux-gnu
     if [ $? -ne 0 ]; then
-        LogErr "Copy cuda/lib64/libcudnn* to /usr/lib/x86_64-linux-gnu failed"
+        LogErr "Failed to copy cuda/lib64/libcudnn* to /usr/lib/x86_64-linux-gnu"
         SetTestStateAborted
         exit 1
+    else
+        LogMsg "Successfully copied cuda/lib64/libcudnn* to /usr/lib/x86_64-linux-gnu"
     fi
 
     echo -e "import tensorflow; print(tensorflow.__version__)" | python
     if [ $? -ne 0 ]; then
-        LogErr "Failed to install tensorflow-gpu $TensorflowVersion"
+        LogErr "Failed to import tensorflow-gpu $TensorflowVersion"
         SetTestStateAborted
         exit 1
+    else
+        LogMsg "Successfully import tensorflow-gpu $TensorflowVersion"
     fi
 
     git clone $BenchmarkTool
     if [ $? -ne 0 ]; then
-        LogErr "Get benchmarks tool from $BenchmarkTool failed"
+        LogErr "Failed to clone out the benchmark tool, $BenchmarkTool"
         SetTestStateAborted
         exit 1
+    else
+        LogMsg "Successfully cloned the benchmark tool, $BenchmarkTool"
     fi
+
     LogMsg "Install dependencies and tensorflow-gpu finished"
 
     export PATH=$(ls -d /usr/local/cuda-*)/bin${PATH:+:${PATH}}
     export LD_LIBRARY_PATH=/usr/local/cuda/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
 
-    # Try to run the benchmarks test by default value.
+    # Try to run the benchmark test by default value.
     python benchmarks/scripts/tf_cnn_benchmarks/tf_cnn_benchmarks.py
     if [ $? -ne 0 ]; then
-        LogErr "Try to run benchmarks test failed"
+        LogErr "Try to run benchmark test failed"
         LogErr "Please check the compatibility among the versions of CUDA Driver, CUDA Toolkit, Tensorflow and CudnnPackage"
         SetTestStateAborted
         exit 1
+    else
+        LogMsg "Successfully ran benchmark test with the default value"
     fi
 }
 
-Get_Average_Utilization()
-{
+Get_Average_Utilization() {
     timeout=0
     TOTAL_TIMEOUT=300
+    LogMsg "Stablized the GPU utilization during $TOTAL_TIMEOUT. As soon as it reach out to 30% above, it is ready to test"
     while [ $timeout -lt $TOTAL_TIMEOUT ]
     do
         utilizations=$(nvidia-smi --query-gpu=utilization.gpu,utilization.memory --format=csv | sed -n '2p')
@@ -144,7 +165,7 @@ Get_Average_Utilization()
     done
 
     if [ $timeout -ge $TOTAL_TIMEOUT ]; then
-        LogErr "The utilizations of GPU and memory are lower than 30% in last $TOTAL_TIMEOUT seconds."
+        LogErr "The utilizations of GPU and memory has been lower than 30% in last $TOTAL_TIMEOUT seconds. Time-out!"
         return 1
     fi
 
@@ -167,17 +188,16 @@ Get_Average_Utilization()
     done
 
     if [ $timeout -ge $TOTAL_TIMEOUT ]; then
-        LogErr "Run GPU benchmarks test timeout"
+        LogErr "Run GPU benchmarks test timed out"
         return 1
     fi
 
     let utilization_gpu_avg=utilization_gpu_sum/timeout
     let utilization_mem_avg=utilization_mem_sum/timeout
-    echo "Average of gpu and memory utilization: $utilization_gpu_avg $utilization_mem_avg"
+    LogMsg "Average of gpu and memory utilization: $utilization_gpu_avg $utilization_mem_avg"
 }
 
-Run_GPU_Benchmark_Test()
-{
+Run_GPU_Benchmark_Test() {
     if [ ! -e ${HOME}/test_results ]; then
         mkdir -p "${HOME}/test_results"
     fi
@@ -221,13 +241,13 @@ Run_GPU_Benchmark_Test()
     popd
 }
 
-Parse_Result()
-{
+Parse_Result() {
     LogMsg "Parse test result..."
     pushd "${HOME}"/test_results
     csv_file=tensorflowBenchmark.csv
     csv_file_tmp=output_tmp.csv
     rm -rf $csv_file
+    LogMsg "Clean up the previous file, $csv_file"
     echo "batch_size,model,num_gpus,total_images_sec,utilization_mem_avg,utilization_gpu_avg" > $csv_file_tmp
     result_list=($(ls *gpu-result.log))
     count=0
