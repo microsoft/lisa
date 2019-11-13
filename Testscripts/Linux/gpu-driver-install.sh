@@ -62,10 +62,10 @@ function InstallCUDADrivers() {
             LogMsg "There is no cuda driver for $os_RELEASE, used the one for 18.10"
             os_RELEASE="18.10"
         fi
-        CUDA_REPO_PKG="cuda-repo-ubuntu$os_RELEASE//./_$CUDADriverVersion_amd64.deb"
-        LogMsg "Using $CUDA_REPO_PKG"
+        CUDA_REPO_PKG="cuda-repo-ubuntu${os_RELEASE//./}_${CUDADriverVersion}_amd64.deb"
+        LogMsg "Using ${CUDA_REPO_PKG}"
 
-        wget http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"$os_RELEASE//./"/x86_64/"$CUDA_REPO_PKG" -O /tmp/"$CUDA_REPO_PKG"
+        wget http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"${os_RELEASE//./}"/x86_64/"${CUDA_REPO_PKG}" -O /tmp/"${CUDA_REPO_PKG}"
         if [ $? -ne 0 ]; then
             LogErr "Failed to download $CUDA_REPO_PKG"
             SetTestStateAborted
@@ -74,7 +74,7 @@ function InstallCUDADrivers() {
             LogMsg "Successfully downloaded $CUDA_REPO_PKG"
         fi
 
-        apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"$os_RELEASE//./"/x86_64/7fa2af80.pub
+        apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"${os_RELEASE//./}"/x86_64/7fa2af80.pub
         dpkg -i /tmp/"$CUDA_REPO_PKG"
         LogMsg "Installed $CUDA_REPO_PKG"
         dpkg_configure
