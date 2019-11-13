@@ -190,6 +190,8 @@ Class TestController
 		Set-Variable -Name XmlSecrets -Value $this.XmlSecrets -Scope Global -Force
 		# VMGeneration
 		Set-Variable -Name VMGeneration -Value $this.VMGeneration -Scope Global -Force
+		# OverrideVMSize
+		Set-Variable -Name OverrideVMSize -Value $this.OverrideVMSize -Scope Global -Force
 		# Test results
 		$passResult = "PASS"
 		$skippedResult = "SKIPPED"
