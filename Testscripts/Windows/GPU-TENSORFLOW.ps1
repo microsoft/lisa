@@ -84,7 +84,7 @@ function Main {
             foreach ($param in $currentTestData.TestParameters.param) {
                 if ($param -match "CUDADriverVersion") {
                     $CUDADriverVersion = $param.Replace("CUDADriverVersion=","").Replace('"',"")
-                    Write-Debug "CUDA driver version: $$CUDADRiverVersion"
+                    Write-Debug "CUDA driver version: $CUDADRiverVersion"
                 }
                 if ($param -match "CudaToolkitVersion") {
                     $CudaToolkitVersion = $param.Replace("CudaToolkitVersion=","").Replace('"',"")

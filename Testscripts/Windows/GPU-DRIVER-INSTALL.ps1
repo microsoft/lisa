@@ -39,14 +39,14 @@ function Start-Validation {
     # Scope to match GPUs only since there can be other pass-through devices
     $pciExpressCount = (Select-String -Path $LogDir\PCI-Express-passthrough.txt -Pattern "Device_ID.*47505500").Matches.Count
     if ( $pciExpressCount -gt 0 ) {
-        Write-Debug "Successfully fetched more than a PCI Expess device "
+        Write-Debug "Successfully found more than a PCI Expess device "
     } else {
-        Write-Error "Could not fetched the PCI Express device count"
+        Write-Error "Could not find the PCI Express device count"
     }
 
     if ($pciExpressCount -eq $expectedGPUCount) {
         $currentResult = $resultPass
-        Write-Debug "Successfully verified PCI Express device count with the expected GPU counts: $pciExpressCount"
+        Write-Debug "Successfully verified PCI Express device count with the expected GPU count: $pciExpressCount"
     } else {
         $currentResult = $resultFail
         Write-Error "Failed to verify the PCI Express device count. Expected: $expectedGPUCount, but found: $pciExpressCount"

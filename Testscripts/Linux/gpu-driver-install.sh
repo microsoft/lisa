@@ -34,7 +34,7 @@ function InstallCUDADrivers() {
         CUDA_REPO_PKG="cuda-repo-rhel7-$CUDADriverVersion.x86_64.rpm"
         LogMsg "Using $CUDA_REPO_PKG"
 
-        wget http://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/"${CUDA_REPO_PKG}" -O /tmp/"${CUDA_REPO_PKG}"
+        wget http://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/"$CUDA_REPO_PKG" -O /tmp/"$CUDA_REPO_PKG"
         if [ $? -ne 0 ]; then
             LogErr "Failed to download $CUDA_REPO_PKG"
             SetTestStateAborted
@@ -45,7 +45,7 @@ function InstallCUDADrivers() {
 
         rpm -ivh /tmp/"$CUDA_REPO_PKG"
         LogMsg "Installed the rpm package, $CUDA_REPO_PKG"
-        yum --nogpgcheck -y install cuda-drivers > ${HOME}/install_drivers.log 2>&1
+        yum --nogpgcheck -y install cuda-drivers > $HOME/install_drivers.log 2>&1
         if [ $? -ne 0 ]; then
             LogErr "Failed to install the cuda-drivers!"
             SetTestStateAborted
@@ -62,10 +62,10 @@ function InstallCUDADrivers() {
             LogMsg "There is no cuda driver for $os_RELEASE, used the one for 18.10"
             os_RELEASE="18.10"
         fi
-        CUDA_REPO_PKG="cuda-repo-ubuntu${os_RELEASE//./}_${CUDADriverVersion}_amd64.deb"
-        LogMsg "Using ${CUDA_REPO_PKG}"
+        CUDA_REPO_PKG="cuda-repo-ubuntu$os_RELEASE//./_$CUDADriverVersion_amd64.deb"
+        LogMsg "Using $CUDA_REPO_PKG"
 
-        wget http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"${os_RELEASE//./}"/x86_64/"${CUDA_REPO_PKG}" -O /tmp/"${CUDA_REPO_PKG}"
+        wget http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"$os_RELEASE//./"/x86_64/"$CUDA_REPO_PKG" -O /tmp/"$CUDA_REPO_PKG"
         if [ $? -ne 0 ]; then
             LogErr "Failed to download $CUDA_REPO_PKG"
             SetTestStateAborted
@@ -74,13 +74,13 @@ function InstallCUDADrivers() {
             LogMsg "Successfully downloaded $CUDA_REPO_PKG"
         fi
 
-        apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"${os_RELEASE//./}"/x86_64/7fa2af80.pub
+        apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"$os_RELEASE//./"/x86_64/7fa2af80.pub
         dpkg -i /tmp/"$CUDA_REPO_PKG"
         LogMsg "Installed $CUDA_REPO_PKG"
         dpkg_configure
         apt update
 
-        apt -y --allow-unauthenticated install cuda-drivers > ${HOME}/install_drivers.log 2>&1
+        apt -y --allow-unauthenticated install cuda-drivers > $HOME/install_drivers.log 2>&1
         if [ $? -ne 0 ]; then
             LogErr "Failed to install cuda-drivers package!"
             SetTestStateAborted
@@ -96,9 +96,9 @@ function InstallCUDADrivers() {
     ;;
     esac
 
-    find /var/lib/dkms/nvidia* -name make.log -exec cp {} ${HOME}/nvidia_dkms_make.log \;
-    if [[ ! -f "${HOME}/nvidia_dkms_make.log" ]]; then
-        echo "File not found, make.log" > ${HOME}/nvidia_dkms_make.log
+    find /var/lib/dkms/nvidia* -name make.log -exec cp {} $HOME/nvidia_dkms_make.log \;
+    if [[ ! -f "$HOME/nvidia_dkms_make.log" ]]; then
+        echo "File not found, make.log" > $HOME/nvidia_dkms_make.log
     fi
 }
 
@@ -134,9 +134,9 @@ EOF
     cp /etc/nvidia/gridd.conf.template /etc/nvidia/gridd.conf
     echo 'IgnoreSP=FALSE' >> /etc/nvidia/gridd.conf
     LogMsg "Added IgnoreSP parameter in gridd.conf"
-    find /var/log/* -name nvidia-installer.log -exec cp {} ${HOME}/nvidia-installer.log \;
-    if [[ ! -f "${HOME}/nvidia-installer.log" ]]; then
-        echo "File not found, nvidia-installer.log" > ${HOME}/nvidia-installer.log
+    find /var/log/* -name nvidia-installer.log -exec cp {} $HOME/nvidia-installer.log \;
+    if [[ ! -f "$HOME/nvidia-installer.log" ]]; then
+        echo "File not found, nvidia-installer.log" > $HOME/nvidia-installer.log
     fi
 }
 

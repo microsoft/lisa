@@ -15,10 +15,10 @@ InstallCUDAToolKit() {
     LogMsg "Install CUDA toolkit packages $CudaToolkitVersion..."
     case $DISTRO in
     redhat_7|centos_7)
-        CUDA_REPO_PKG="cuda-repo-rhel7-${CUDADriverVersion}.x86_64.rpm"
-        LogMsg "Using ${CUDA_REPO_PKG}"
+        CUDA_REPO_PKG="cuda-repo-rhel7-$CUDADriverVersion.x86_64.rpm"
+        LogMsg "Using $CUDA_REPO_PKG"
 
-        wget http://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/"${CUDA_REPO_PKG}" -O /tmp/"${CUDA_REPO_PKG}"
+        wget http://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/"$CUDA_REPO_PKG" -O /tmp/"$CUDA_REPO_PKG"
         if [ $? -ne 0 ]; then
             LogErr "Failed to download $CUDA_REPO_PKG"
             SetTestStateAborted
@@ -27,7 +27,7 @@ InstallCUDAToolKit() {
             LogMsg "Successfully downloaded $CUDA_REPO_PKG"
         fi
 
-        rpm -ivh /tmp/"${CUDA_REPO_PKG}"
+        rpm -ivh /tmp/"$CUDA_REPO_PKG"
         yum --nogpgcheck -y install $CudaToolkitVersion
         if [ $? -ne 0 ]; then
             LogErr "Failed to install the CUDA toolkit $CudaToolkitVersion!"
@@ -40,10 +40,10 @@ InstallCUDAToolKit() {
 
     ubuntu*)
         GetOSVersion
-        CUDA_REPO_PKG="cuda-repo-ubuntu${os_RELEASE//./}_${CUDADriverVersion}_amd64.deb"
-        LogMsg "Using ${CUDA_REPO_PKG}"
+        CUDA_REPO_PKG="cuda-repo-ubuntu$os_RELEASE//./_$CUDADriverVersion_amd64.deb"
+        LogMsg "Using $CUDA_REPO_PKG"
 
-        wget http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"${os_RELEASE//./}"/x86_64/"${CUDA_REPO_PKG}" -O /tmp/"${CUDA_REPO_PKG}"
+        wget http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"$os_RELEASE//./"/x86_64/"$CUDA_REPO_PKG" -O /tmp/"$CUDA_REPO_PKG"
         if [ $? -ne 0 ]; then
             LogErr "Failed to download $CUDA_REPO_PKG"
             SetTestStateAborted
@@ -52,8 +52,8 @@ InstallCUDAToolKit() {
             LogMsg "Successfully downloaded $CUDA_REPO_PKG"
         fi
 
-        apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"${os_RELEASE//./}"/x86_64/7fa2af80.pub
-        dpkg -i /tmp/"${CUDA_REPO_PKG}"
+        apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"$os_RELEASE//./"/x86_64/7fa2af80.pub
+        dpkg -i /tmp/"$CUDA_REPO_PKG"
         dpkg_configure
         apt update
         apt -y --allow-unauthenticated install $CudaToolkitVersion
@@ -71,7 +71,7 @@ InstallCUDAToolKit() {
 
 Prepare_Test_Dependencies() {
     LogMsg "Install dependencies..."
-    if [[ "${DISTRO_NAME}" == "debian" ]] || [[ "${DISTRO_NAME}" == "ubuntu" ]] ; then
+    if [[ "$DISTRO_NAME" == "debian" ]] || [[ "$DISTRO_NAME" == "ubuntu" ]] ; then
         dpkg_configure
     fi
     update_repos
@@ -132,13 +132,13 @@ Prepare_Test_Dependencies() {
 
     LogMsg "Install dependencies and tensorflow-gpu finished"
 
-    export PATH=$(ls -d /usr/local/cuda-*)/bin${PATH:+:${PATH}}
-    export LD_LIBRARY_PATH=/usr/local/cuda/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+    export PATH=$(ls -d /usr/local/cuda-*)/bin${PATH:+:$PATH}
+    export LD_LIBRARY_PATH=/usr/local/cuda/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
 
     # Try to run the benchmark test by default value.
     python benchmarks/scripts/tf_cnn_benchmarks/tf_cnn_benchmarks.py
     if [ $? -ne 0 ]; then
-        LogErr "Try to run benchmark test failed"
+        LogErr "Try to run benchmark test failed [$?]: %python benchmarks/scripts/tf_cnn_benchmarks/tf_cnn_benchmarks.py"
         LogErr "Please check the compatibility among the versions of CUDA Driver, CUDA Toolkit, Tensorflow and CudnnPackage"
         SetTestStateAborted
         exit 1
@@ -150,7 +150,7 @@ Prepare_Test_Dependencies() {
 Get_Average_Utilization() {
     timeout=0
     TOTAL_TIMEOUT=300
-    LogMsg "Stablized the GPU utilization during $TOTAL_TIMEOUT. As soon as it reach out to 30% above, it is ready to test"
+    LogMsg "Stablizing the GPU utilization during $TOTAL_TIMEOUT before the test execution"
     while [ $timeout -lt $TOTAL_TIMEOUT ]
     do
         utilizations=$(nvidia-smi --query-gpu=utilization.gpu,utilization.memory --format=csv | sed -n '2p')
@@ -198,8 +198,8 @@ Get_Average_Utilization() {
 }
 
 Run_GPU_Benchmark_Test() {
-    if [ ! -e ${HOME}/test_results ]; then
-        mkdir -p "${HOME}/test_results"
+    if [ ! -e $HOME/test_results ]; then
+        mkdir -p "$HOME/test_results"
     fi
     pushd benchmarks/scripts/tf_cnn_benchmarks
     gpucount=0
@@ -211,8 +211,8 @@ Run_GPU_Benchmark_Test() {
 
     MODES=(inception3 vgg16 alexnet resnet50 resnet152)
     BATCH_SIZE=(32 64 128 512)
-    if [ ! -e ${HOME}/test_results ]; then
-        mkdir -p "${HOME}/test_results"
+    if [ ! -e $HOME/test_results ]; then
+        mkdir -p "$HOME/test_results"
     fi
     declare -A max_batch_size_per_mode=([inception3]=64 [vgg16]=128 [alexnet]=512 [resnet50]=64 [resnet152]=32)
 
@@ -221,12 +221,12 @@ Run_GPU_Benchmark_Test() {
         for size in "${BATCH_SIZE[@]}"
         do
             # Limit the batch size based on test mode to avoid the OOM(Out Of Memory) error
-            if [ $size -gt ${max_batch_size_per_mode[$mode]} ]; then
+            if [ $size -gt $max_batch_size_per_mode[$mode] ]; then
                 break
             fi
-            LogMsg "Run tensorflow batch_size=${size} model=${mode} data_name=imagenet device=gpu num_gpus=${gpucount}"
-            outputName="${HOME}/test_results/${mode}-${size}-${gpucount}-gpu-result.log"
-            python tf_cnn_benchmarks.py --local_parameter_device=cpu --batch_size=${size} --model=${mode} --data_name=imagenet --variable_update=parameter_server --distortions=True --device=gpu --data_format=NCHW --forward_only=False --use_fp16=False --num_gpus=${gpucount} 1> $outputName 2>&1 &
+            LogMsg "Run tensorflow batch_size=$size model=$mode data_name=imagenet device=gpu num_gpus=$gpucount"
+            outputName="$HOME/test_results/$mode-$size-$gpucount-gpu-result.log"
+            python tf_cnn_benchmarks.py --local_parameter_device=cpu --batch_size=$size --model=$mode --data_name=imagenet --variable_update=parameter_server --distortions=True --device=gpu --data_format=NCHW --forward_only=False --use_fp16=False --num_gpus=${gpucount} 1> $outputName 2>&1 &
             utilizations_arv=$(Get_Average_Utilization $outputName)
             # Wait all GPU processes finished
             gpu_pids=$(nvidia-smi | sed -n 's/|\s*[0-9]*\s*\([0-9]*\)\s*.*/\1/p' | sort | uniq | sed '/^$/d')
@@ -243,7 +243,7 @@ Run_GPU_Benchmark_Test() {
 
 Parse_Result() {
     LogMsg "Parse test result..."
-    pushd "${HOME}"/test_results
+    pushd "$HOME"/test_results
     csv_file=tensorflowBenchmark.csv
     csv_file_tmp=output_tmp.csv
     rm -rf $csv_file
@@ -251,9 +251,9 @@ Parse_Result() {
     echo "batch_size,model,num_gpus,total_images_sec,utilization_mem_avg,utilization_gpu_avg" > $csv_file_tmp
     result_list=($(ls *gpu-result.log))
     count=0
-    while [ "x${result_list[$count]}" != "x" ]
+    while [ "x$result_list[$count]" != "x" ]
     do
-        file_name=${result_list[$count]}
+        file_name=$result_list[$count]
         echo "The file $file_name is parsing..."
         model=$(echo "$file_name" | tr '-' " " | awk '{print $1}')
         batch_size=$(echo "$file_name" | tr '-' " " | awk '{print $2}')
@@ -290,6 +290,6 @@ Prepare_Test_Dependencies
 SetTestStateRunning
 Run_GPU_Benchmark_Test
 Parse_Result
-tar czf test_results.tar.gz ${HOME}/test_results
+tar czf test_results.tar.gz $HOME/test_results
 SetTestStateCompleted
 exit 0
