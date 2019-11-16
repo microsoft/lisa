@@ -3418,7 +3418,10 @@ function DisableEnablePCI ()
         *)        LogErr "Unsupported device type for DisableEnablePCI." ; return 1 ;;
     esac
 
+	LogMsg "Disable and re-enable device: $1"
+
     if ! lspci --version > /dev/null 2>&1; then
+		LogMsg "This distro needs to get lspci. Installing pciutils"
         update_repos
         install_package "pciutils"
     fi
@@ -3433,19 +3436,22 @@ function DisableEnablePCI ()
         return 1
     else
         LogMsg "Found the following $vf_pci_type devices:"
-        # Remove the VF for each address
+        # Identify the PCI device for each address
         for addr in ${vf_pci_addresses[@]}; do
             LogMsg "$(lspci | grep $addr)"
         done
     fi
 
-    # Remove the VF for each address
+    # Verify and remove PCI device path for each address
     for addr in ${vf_pci_addresses[@]}; do
         vf_pci_remove_path="/sys/bus/pci/devices/${addr}/remove"
         if [ ! -f "$vf_pci_remove_path" ]; then
             LogErr "Could not to disable the PCI device, because the $vf_pci_remove_path doesn't exist."
             return 1
-        fi
+        else
+			LogMsg "Found the PCI device remove pathg: $vf_pci_remove_path"
+		fi
+		LogMsg "Removing $addr device"
         echo 1 > "$vf_pci_remove_path"
     done
 
@@ -3457,13 +3463,17 @@ function DisableEnablePCI ()
         if [ -d "$vf_pci_device_path" ] || [ "$(lspci | grep -ic $addr)" -ne 0 ]; then
             LogErr "Could not disable the PCI device: $addr"
             return 1
-        fi
+        else
+			LogMsg "Successfully verified the PCI device removal"
+		fi
     done
 
     # Check if all VFs has been re-enabled
     retry=1
     while [ $retry -le 5 ]; do
+	LogMsg "Trying count: $retry"
         # Enable the VF
+		LogMsg "Rescanning PCI devices in the system"
         echo 1 > /sys/bus/pci/rescan
         sleep 5
         #Search for all addresses and folder structures

@@ -12,6 +12,7 @@ function Run-TestScript ($ip, $port, $testScript)
     Run-LinuxCmd -username $user -password $password -ip $ip -port $port -command "chmod a+x *.sh" -runAsSudo
     Write-LogInfo "Executing : ${testScript}"
     $cmd = "bash /home/$user/${testScript}"
+    Write-Debug "Commands: $cmd"
     $testJob = Run-LinuxCmd -username $user -password $password -ip $ip -port $port -command $cmd -runAsSudo -RunInBackground
     $timeCount = 0
     while ((Get-Job -Id $testJob).State -eq "Running") {
@@ -54,6 +55,7 @@ function Main {
             $currentTestResult.TestResult = Get-FinalResultHeader -resultarr "ABORTED"
             return $currentTestResult
         }
+        Write-Debug "Set GPU device driver: $driver"
 
         # Install CUDA/GRID driver
         $workDir = Get-Location
@@ -64,6 +66,7 @@ function Main {
         if ($result -match "PASS") {
             #Start the test script
             $testScript = "gpu-tensorflow.sh"
+            Write-Debug "Running test script, $testScript"
             Run-TestScript -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -testScript $testScript | Out-Null
             $testResult = Collect-TestLogs -LogsDestination $LogDir -ScriptName $currentTestData.files.Split('\')[3].Split('.')[0] `
                           -TestType "sh" -PublicIP $allVMData.PublicIP -SSHPort $allVMData.SSHPort -Username $user `
@@ -73,6 +76,7 @@ function Main {
             $remoteFiles = "*.csv,*.log"
             Copy-RemoteFiles -download -downloadFrom $allVMData.PublicIP -files $remoteFiles -downloadTo $LogDir `
                 -port $allVMData.SSHPort -username $user -password $password
+            Write-Debug "Collecting remote files like csv or log"
         }
 
         if ($testResult -match "PASS") {
@@ -80,15 +84,18 @@ function Main {
             foreach ($param in $currentTestData.TestParameters.param) {
                 if ($param -match "CUDADriverVersion") {
                     $CUDADriverVersion = $param.Replace("CUDADriverVersion=","").Replace('"',"")
+                    Write-Debug "CUDA driver version: $CUDADRiverVersion"
                 }
                 if ($param -match "CudaToolkitVersion") {
                     $CudaToolkitVersion = $param.Replace("CudaToolkitVersion=","").Replace('"',"")
+                    Write-Debug "CUDA Tool kit version: $CudaToolkitVersion"
                 }
                 if ($param -match "TensorflowVersion") {
                     $TensorflowVersion = $param.Replace("TensorflowVersion=","").Replace('"',"")
                     if (-not $TensorflowVersion) {
                         $TensorflowVersion = "tf-nightly-gpu"
                     }
+                    Write-Debug "TensorFlow version: $TensorflowVersion"
                 }
             }
 

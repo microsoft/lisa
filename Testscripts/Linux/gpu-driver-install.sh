@@ -1,5 +1,4 @@
 #!/bin/bash
-
 ########################################################################
 #
 # Copyright (c) Microsoft Corporation. All rights reserved.
@@ -29,24 +28,30 @@ grid_driver="https://go.microsoft.com/fwlink/?linkid=874272"
 
 #######################################################################
 function InstallCUDADrivers() {
+    LogMsg "Starting CUDA driver installation"
     case $DISTRO in
     redhat_7|centos_7)
-        CUDA_REPO_PKG="cuda-repo-rhel7-${CUDADriverVersion}.x86_64.rpm"
-        LogMsg "Using ${CUDA_REPO_PKG}"
+        CUDA_REPO_PKG="cuda-repo-rhel7-$CUDADriverVersion.x86_64.rpm"
+        LogMsg "Using $CUDA_REPO_PKG"
 
-        wget http://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/"${CUDA_REPO_PKG}" -O /tmp/"${CUDA_REPO_PKG}"
+        wget http://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/"$CUDA_REPO_PKG" -O /tmp/"$CUDA_REPO_PKG"
         if [ $? -ne 0 ]; then
-            LogErr "Failed to download ${CUDA_REPO_PKG}"
+            LogErr "Failed to download $CUDA_REPO_PKG"
             SetTestStateAborted
             return 1
+        else
+            LogMsg "Successfully downloaded the $CUDA_REPO_PKG file in /tmp directory"
         fi
 
-        rpm -ivh /tmp/"${CUDA_REPO_PKG}"
-        yum --nogpgcheck -y install cuda-drivers > ${HOME}/install_drivers.log 2>&1
+        rpm -ivh /tmp/"$CUDA_REPO_PKG"
+        LogMsg "Installed the rpm package, $CUDA_REPO_PKG"
+        yum --nogpgcheck -y install cuda-drivers > $HOME/install_drivers.log 2>&1
         if [ $? -ne 0 ]; then
             LogErr "Failed to install the cuda-drivers!"
             SetTestStateAborted
             return 1
+        else
+            LogMsg "Successfully installed cuda-drivers"
         fi
     ;;
 
@@ -54,6 +59,7 @@ function InstallCUDADrivers() {
         GetOSVersion
         # Temporary fix till driver for ubuntu19 series list under http://developer.download.nvidia.com/compute/cuda/repos/
         if [[ $os_RELEASE =~ 19.* ]]; then
+            LogMsg "There is no cuda driver for $os_RELEASE, used the one for 18.10"
             os_RELEASE="18.10"
         fi
         CUDA_REPO_PKG="cuda-repo-ubuntu${os_RELEASE//./}_${CUDADriverVersion}_amd64.deb"
@@ -61,21 +67,26 @@ function InstallCUDADrivers() {
 
         wget http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"${os_RELEASE//./}"/x86_64/"${CUDA_REPO_PKG}" -O /tmp/"${CUDA_REPO_PKG}"
         if [ $? -ne 0 ]; then
-            LogErr "Failed to download ${CUDA_REPO_PKG}"
+            LogErr "Failed to download $CUDA_REPO_PKG"
             SetTestStateAborted
             return 1
+        else
+            LogMsg "Successfully downloaded $CUDA_REPO_PKG"
         fi
 
         apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu"${os_RELEASE//./}"/x86_64/7fa2af80.pub
-        dpkg -i /tmp/"${CUDA_REPO_PKG}"
+        dpkg -i /tmp/"$CUDA_REPO_PKG"
+        LogMsg "Installed $CUDA_REPO_PKG"
         dpkg_configure
         apt update
 
-        apt -y --allow-unauthenticated install cuda-drivers > ${HOME}/install_drivers.log 2>&1
+        apt -y --allow-unauthenticated install cuda-drivers > $HOME/install_drivers.log 2>&1
         if [ $? -ne 0 ]; then
             LogErr "Failed to install cuda-drivers package!"
             SetTestStateAborted
             return 1
+        else
+            LogMsg "Successfully installed cuda-drivers package"
         fi
     ;;
     suse*|redhat_8)
@@ -85,24 +96,28 @@ function InstallCUDADrivers() {
     ;;
     esac
 
-    find /var/lib/dkms/nvidia* -name make.log -exec cp {} ${HOME}/nvidia_dkms_make.log \;
-    if [[ ! -f "${HOME}/nvidia_dkms_make.log" ]]; then
-        echo "File not found, make.log" > ${HOME}/nvidia_dkms_make.log
+    find /var/lib/dkms/nvidia* -name make.log -exec cp {} $HOME/nvidia_dkms_make.log \;
+    if [[ ! -f "$HOME/nvidia_dkms_make.log" ]]; then
+        echo "File not found, make.log" > $HOME/nvidia_dkms_make.log
     fi
 }
 
 function InstallGRIDdrivers() {
+    LogMsg "Starting GRID driver installation"
     wget "$grid_driver" -O /tmp/NVIDIA-Linux-x86_64-grid.run
     if [ $? -ne 0 ]; then
         LogErr "Failed to download the GRID driver!"
         SetTestStateAborted
         return 1
+    else
+        LogMsg "Successfully downloaded the GRID driver"
     fi
 
     cat > /etc/modprobe.d/nouveau.conf<< EOF
     blacklist nouveau
     blacklist lbm-nouveau
 EOF
+    LogMsg "Updated nouveau.conf file with blacklist"
 
     pushd /tmp
     chmod +x NVIDIA-Linux-x86_64-grid.run
@@ -111,14 +126,17 @@ EOF
         LogErr "Failed to install the GRID driver!"
         SetTestStateAborted
         return 1
+    else
+        LogMsg "Successfully install the GRID driver"
     fi
     popd
 
     cp /etc/nvidia/gridd.conf.template /etc/nvidia/gridd.conf
     echo 'IgnoreSP=FALSE' >> /etc/nvidia/gridd.conf
-    find /var/log/* -name nvidia-installer.log -exec cp {} ${HOME}/nvidia-installer.log \;
-    if [[ ! -f "${HOME}/nvidia-installer.log" ]]; then
-        echo "File not found, nvidia-installer.log" > ${HOME}/nvidia-installer.log
+    LogMsg "Added IgnoreSP parameter in gridd.conf"
+    find /var/log/* -name nvidia-installer.log -exec cp {} $HOME/nvidia-installer.log \;
+    if [[ ! -f "$HOME/nvidia-installer.log" ]]; then
+        echo "File not found, nvidia-installer.log" > $HOME/nvidia-installer.log
     fi
 }
 
