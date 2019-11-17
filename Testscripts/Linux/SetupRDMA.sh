@@ -44,6 +44,7 @@ function Found_File {
 }
 
 function Verify_Result {
+	# Return OK string, if the latest result is 0
 	if [ $? -eq 0 ]; then
 		LogMsg "OK"
 	else
@@ -56,32 +57,42 @@ function Main() {
 	update_repos
 	# Install common packages
 	install_package "gcc git make zip"
+	LogMsg "$?: Installed the common required packages, gcc git make zip"
 	# Change memory limits
 	echo "* soft memlock unlimited" >> /etc/security/limits.conf
 	echo "* hard memlock unlimited" >> /etc/security/limits.conf
+	LogMsg "$?: Set memlock values to unlimited for both soft and hard"
 	hpcx_ver=""
 	source /etc/os-release
 	case $DISTRO in
 		redhat_7|centos_7|redhat_8|centos_8)
 			# install required packages regardless VM types.
-			LogMsg "Starting RHEL/CentOS setup"
-			LogMsg "Installing required packages ..."
-			install_package "kernel-devel-$(uname -r) valgrind-devel redhat-rpm-config rpm-build gcc gcc-gfortran libdb-devel gcc-c++ glibc-devel zlib-devel numactl-devel libmnl-devel binutils-devel iptables-devel libstdc++-devel libselinux-devel elfutils-devel libtool libnl3-devel java libstdc++.i686 gtk2 atk cairo tcl tk createrepo byacc.x86_64 net-tools"
+			LogMsg "Starting RDMA setup for RHEL/CentOS"
+			req_pkg="kernel-devel-$(uname -r) valgrind-devel redhat-rpm-config rpm-build gcc gcc-gfortran libdb-devel gcc-c++ glibc-devel zlib-devel numactl-devel libmnl-devel binutils-devel iptables-devel libstdc++-devel libselinux-devel elfutils-devel libtool libnl3-devel java libstdc++.i686 gtk2 atk cairo tcl tk createrepo byacc.x86_64 net-tools"
+			install_package $req_pkg
+			LogMsg "$?: Installed required packages $req_pkg"
 			# libibverbs-devel and libibmad-devel have broken dependecies on Centos 7.6
 			# Switching to direct install instead of using the function
-			yum install -y libibverbs-devel libibmad-devel
+			req_pkg="libibverbs-devel libibmad-devel"
+			yum install -y $req_pkg
+			LogMsg "$?: Installed $req_pkg"
 			# Install separate packages for 7.x and 8.x
 			case $DISTRO in
 				redhat_7|centos_7)
-					install_package "python-devel dapl python-setuptools"
+					req_pkg="python-devel dapl python-setuptools"
+					install_package $req_pkg
+					LogMsg "$?: Installed $req_pkg"
 				;;
 				redhat_8|centos_8)
-					install_package "python3-devel python2-devel python2-setuptools"
+					req_pkg="python3-devel python2-devel python2-setuptools"
+					install_package $req_pkg
+					LogMsg "$?: Installed $req_pkg"
 				;;
 			esac
 			yum -y groupinstall "InfiniBand Support"
 			Verify_Result
-			LogMsg "Installed group packages for InfiniBand Support"
+			LogMsg "Installed InfiniBand Support"
+
 			LogMsg "Completed the required packages installation"
 
 			LogMsg "Enabling rdma service"
@@ -98,7 +109,7 @@ function Main() {
 				hpcx_ver="redhat"$distro_version
 				mlx5_ofed_link="$mlx_ofed_partial_link$distro_version-x86_64.tgz"
 				cd
-				LogMsg "Downloading MLX driver"
+				LogMsg "Downloading MLX driver, $mlx5_ofed_link"
 				wget $mlx5_ofed_link
 				Verify_Result
 				LogMsg "Downloaded MLNX_OFED_LINUX driver, $mlx5_ofed_link"
@@ -138,8 +149,10 @@ function Main() {
 			systemctl mask firewalld
 			systemctl stop firewalld.service
 			Verify_Result
+			LogMsg "Stopped firewll service"
 			systemctl disable firewalld.service
 			Verify_Result
+			LogMsg "Disabled firewall service"
 			iptables -nL
 			Verify_Result
 			sed -i -e 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/selinux/config
@@ -148,10 +161,12 @@ function Main() {
 			;;
 		suse*|sles*)
 			# install required packages
-			LogMsg "This is SUSE"
-			LogMsg "Installing required packages ..."
-			install_package "bzip expect glibc-32bit glibc-devel libgcc_s1 libgcc_s1-32bit libpciaccess-devel gcc-c++ gcc-fortran rdma-core libibverbs-devel librdmacm1 libibverbs-utils bison flex"
+			LogMsg "Starting RDMA setup for SUSE"
+			req_pkg="bzip expect glibc-32bit glibc-devel libgcc_s1 libgcc_s1-32bit libpciaccess-devel gcc-c++ gcc-fortran rdma-core libibverbs-devel librdmacm1 libibverbs-utils bison flex"
+			LogMsg "Installing required packages, $req_pkg"
+			install_package $req_pkg
 			# force install package that is known to have broken dependencies
+			LogMsg "Installating libibmad-devel"
 			zypper --non-interactive in libibmad-devel
 			if [ $? -eq 4 ]; then
 				expect -c "spawn zypper in libibmad-devel
@@ -163,15 +178,17 @@ function Main() {
 				"
 			fi
 			# Enable mlx5_ib module on boot
+			LogMsg "Set mlx5_ib module in the kernel"
 			echo "mlx5_ib" >> /etc/modules-load.d/mlx5_ib.conf
 			if [ $VERSION_ID -eq "15" ]; then
 				hpcx_ver="suse"$VERSION_ID".0"
 			else
 				hpcx_ver="suse"$VERSION_ID
 			fi
+			LogMsg "$?: Set hpcx version, $hpcx_ver"
 			;;
 		ubuntu*)
-			LogMsg "This is Ubuntu"
+			LogMsg "Starting RDMA setup for Ubuntu"
 			hpcx_ver="ubuntu"$VERSION_ID
 			LogMsg "Installing required packages ..."
 			LogMsg "*** Adding Canonical ppa for temporary fix"
@@ -180,27 +197,35 @@ function Main() {
 			LogMsg "Required 32-bit java"
 			dpkg --add-architecture i386
 
-			install_package "build-essential python-setuptools libibverbs-dev bison flex ibverbs-utils net-tools libdapl2 rdmacm-utils bc"
+			req_pkg="build-essential python-setuptools libibverbs-dev bison flex ibverbs-utils net-tools libdapl2 rdmacm-utils bc"
+			install_package $req_pkg
+			LogMsg "Installed the required packaes, $req_pkg"
 			os_RELEASE=$(awk '/VERSION_ID=/' /etc/os-release | sed 's/VERSION_ID=//' | sed 's/\"//g')
 			if [ $mpi_type == "ibm" ]; then
 				if [[ "$os_RELEASE" == "18.04" ]]; then
-					install_package "openjdk-8-jdk:i386"
+					req_pkg="openjdk-8-jdk:i386"
 				else
-					install_package "openjdk-9-jre:i386"
+					req_pkg="openjdk-9-jre:i386"
 				fi
+				install_package $req_pkg
+				LogMsg "IBM MPI required 32-bit Java in the system, $req_pkg"
 			fi
-			LogMsg "*** Adding kernel modules to /etc/modules"
+			LogMsg "Adding kernel modules to /etc/modules"
 			echo rdma_ucm >> /etc/modules
 			modprobe rdma_ucm
+			LogMsg "Loaded rdma_ucm successfully"
 			echo ib_ipoib >> /etc/modules
 			modprobe ib_ipoib
+			LogMsg "Loaded ib_ipoib successfully"
 			echo ib_umad >> /etc/modules
 			modprobe ib_umad
+			LogMsg "Loaded ib_umad successfully"
 			LogMsg "*** Adding Canonical ppa for temporary fix"
 			add-apt-repository -y ppa:ci-train-ppa-service/3760
 			LogMsg "*** System updating with the customized ppa"
 			apt update
 			apt upgrade -y
+			Verify_Result
 			;;
 		*)
 			LogErr "MPI type $mpi_type does not support on '$DISTRO' or not implement"
@@ -209,11 +234,11 @@ function Main() {
 			;;
 	esac
 
-	LogMsg "Proceeding to MPI installation"
+	LogMsg "Proceeding to the MPI installation"
 
 	# install MPI packages
 	if [ $mpi_type == "ibm" ]; then
-		LogMsg  "IBM Platform MPI installation running ..."
+		LogMsg "IBM Platform MPI installation running ..."
 		# IBM platform MPI installation
 		cd ~
 		LogMsg "Downloading bin file, $ibm_platform_mpi"
@@ -238,18 +263,23 @@ function Main() {
 		echo '\n' >> $keystroke_filename
 		LogMsg "$(cat $keystroke_filename)"
 
-		LogMsg "Executing silent installation"
+		LogMsg "Executing the silent installation"
 		cat ibm_keystroke | $HOMEDIR/$(echo $ibm_platform_mpi | cut -d'/' -f5)
 		Verify_Result
 		LogMsg "Completed IBM Platform MPI installation"
 
 		# set path string to verify IBM MPI binaries
 		target_bin=/opt/ibm/platform_mpi/bin/mpirun
-		ping_pong_help=/opt/ibm/platform_mpi/help
-		ping_pong_bin=/opt/ibm/platform_mpi/help/ping_pong
-
-		# file validation
+		LogMsg "Set target_bin path, $target_bin"
 		Verify_File $target_bin
+
+		ping_pong_help=/opt/ibm/platform_mpi/help
+		LogMsg "Set ping_pong_help path, $ping_pong_help"
+		Verify_File $ping_pong_help
+
+		ping_pong_bin=/opt/ibm/platform_mpi/help/ping_pong
+		LogMsg "Set ping_pong_bin path, $ping_pong_bin"
+		Verify_File $ping_pong_bin
 
 		# compile ping_pong
 		cd $ping_pong_help
@@ -258,10 +288,10 @@ function Main() {
 		if [ $? -ne 0 ]; then
 			pkey=$(cat /sys/class/infiniband/*/ports/1/pkeys/0)
 			export MPI_IB_PKEY=${pkey}
+			LogMsg "Exporting MPI_IB_PKEY, $pkey"
 			make -j $(nproc)
 			LogMsg "Ping-pong compilation completed"
 		fi
-
 		# verify ping_pong binary
 		Verify_File $ping_pong_bin
 
@@ -273,6 +303,7 @@ function Main() {
 		export PATH=$PATH:$MPI_ROOT/bin
 		LogMsg "PATH: $PATH"
 	elif [ $mpi_type == "intel" ]; then
+		LogMsg "Intel MPI installation running ..."
 		# if HPC images comes with MPI binary pre-installed, (CentOS HPC)
 		#   there is no action required except binary verification
 		mpirun_path=$(find / -name mpirun | grep intel64)		# $mpirun_path is not empty or null and file path should exists
@@ -284,14 +315,14 @@ function Main() {
 		# if this is HPC images with MPI installer rpm files, (SUSE HPC)
 		#   then it should be install those rpm files
 		elif [ -d /opt/intelMPI ]; then
-			LogMsg "Found intelMPI directory. This has an installable rpm ready image"
+			LogMsg "Found intel MPI directory. This has an installable rpm ready image"
 			LogMsg "Installing all rpm files in /opt/intelMPI/intel_mpi_packages/"
 
 			rpm -v -i --nodeps /opt/intelMPI/intel_mpi_packages/*.rpm
 			Verify_Result
 
 			mpirun_path=$(find / -name mpirun | grep intel64)
-
+			LogMsg "Searching $mpirun_path ..."
 			Found_File "mpirun" "intel64"
 			Found_File "IMB-MPI1" "intel64"
 		else
@@ -302,17 +333,18 @@ function Main() {
 			wget $intel_mpi
 
 			tar_filename=$(echo $intel_mpi | rev | cut -d'/' -f1 | rev)
+			LogMsg "Untarring the downloaded file, $tar_filename"
 			tar xvzf $tar_filename
 			cd ${tar_filename%.*}
 
-			LogMsg "Executing silent installation"
+			LogMsg "Executing the silent installation"
 			sed -i -e 's/ACCEPT_EULA=decline/ACCEPT_EULA=accept/g' silent.cfg
 			./install.sh -s silent.cfg
 			Verify_Result
 			LogMsg "Completed Intel MPI installation"
 
 			mpirun_path=$(find / -name mpirun | grep intel64)
-
+			LogMsg "Searching $mpirun_path ..."
 			Found_File "mpirun" "intel64"
 			Found_File "IMB-MPI1" "intel64"
 		fi
@@ -322,10 +354,11 @@ function Main() {
 
 		# add Intel MPI path to PATH
 		export PATH=$PATH:"${mpirun_path%/*}"
+		LogMsg "$?: Set $mpirun_path to PATH, $PATH"
 		# add sourcing file in each session
 		echo "source ${mpirun_path%/*}/mpivars.sh" >> $HOMEDIR/.bashrc
 
-		LogMsg "Completed Intel MPI installation"
+		LogMsg "$?: Completed Intel MPI installation"
 
 	elif [ $mpi_type == "open" ]; then
 		# Open MPI installation
@@ -335,10 +368,11 @@ function Main() {
 		Verify_Result
 
 		tar_filename=$(echo $open_mpi | rev | cut -d'/' -f1 | rev)
+		LogMsg "Untarring the downloaded file, $tar_filename"
 		tar xvzf $tar_filename
 		cd ${tar_filename%.*.*}
 
-		LogMsg "Running configuration"
+		LogMsg "Running configuration, ./configure --enable-mpirun-prefix-by-default"
 		./configure --enable-mpirun-prefix-by-default
 		Verify_Result
 
@@ -356,32 +390,38 @@ function Main() {
 
 		LogMsg "Adding default installed path to system path"
 		export PATH=$PATH:/usr/local/bin
+		LogMsg "$?: PATH is $PATH"
 
 		# set path string to verify IBM MPI binaries
 		target_bin=/usr/local/bin/mpirun
 
 		# file validation
+		LogMsg "Searching $target_bin"
 		Verify_File $target_bin
 		LogMsg "Completed Open MPI installation"
 	elif [ $mpi_type == "hpcx" ]; then
 		# HPC-X MPI installation
-		LogMsg "HPC-X MPI installation running ..."
+		LogMsg  "HPC-X MPI installation running ..."
 		case $DISTRO in
 			redhat*|centos*)
 				hpcx_mpi=$hpcx_mpi_ofed
+				LogMsg "Use $hpcx_mpi in RHEL or CentOS"
 			;;
 			ubuntu*|suse*|sles*)
 				hpcx_mpi=$hpcx_mpi_inbox
+				LogMsg "Use $hpcx_mpi_inbox in SUSE or Ubuntu"
 			;;
 		esac
-		LogMsg "Downloading the target hpcx binary tbz, $hpcx_mpi$hpcx_ver-x86_64.tbz"
 
+		LogMsg "Downloading the target hpcx binary tbz, $hpcx_mpi$hpcx_ver-x86_64.tbz"
 		wget $hpcx_mpi$hpcx_ver-x86_64.tbz
 		Verify_Result
 
+		LogMsg "Untarring $hpcx_mpi$hpcx_ver-x86_64.tbz"
 		tar xvf $(echo $hpcx_mpi$hpcx_ver-x86_64.tbz | cut -d'/' -f8)
 		cd $(echo $hpcx_mpi$hpcx_ver-x86_64 | cut -d'/' -f8)
 		export HPCX_HOME=$PWD
+		LogMsg "Set HPCX_HOME $HPCX_HOME"
 
 		LogMsg "Loading HPC-X initial values"
 		source $HPCX_HOME/hpcx-init.sh
@@ -404,17 +444,22 @@ function Main() {
 		# in newer kernels, mad.h is missing from /usr/include/infiniband
 		ls /usr/include/infiniband/ | grep -w mad.h
 		if [[ $? -ne 0 ]]; then
+			LogMsg "Found mad.h file is missing in /usr/include/infiniband/. Copied one from $madh_location"
 			madh_location=$(find / -name "mad.h" | tail -1)
 			cp $madh_location /usr/include/infiniband/
+			Verify_Result
 		fi
 		tar_filename=$(echo $mvapich_mpi | rev | cut -d'/' -f1 | rev)
 		tar xvzf $tar_filename
+		LogMsg "Untarred $tar_filename"
 		cd ${tar_filename%.*.*}
 
 		LogMsg "Running configuration"
 		if [[ $DISTRO == "ubuntu"* ]]; then
+			LogMsg "Running ./configure --disable-fortran --disable-mcast"
 			./configure --disable-fortran --disable-mcast
 		else
+			LogMsg "Running ./configure"
 			./configure
 		fi
 		Verify_Result
@@ -429,9 +474,11 @@ function Main() {
 
 		#LogMsg "Adding default installed path to system path"
 		export PATH=$PATH:/usr/local/bin
+		LogMsg "Exported to $PATH"
 
 		# set path string to verify IBM MPI binaries
 		target_bin=/usr/local/bin/mpirun
+		LogMsg "Set target_bin $target_bin"
 
 		# file validation
 		Verify_File $target_bin
@@ -491,7 +538,7 @@ function Main() {
 	fi
 
 	echo "setup_completed=0" >> /root/constants.sh
-
+	LogMsg "Completed SetupRDAM process"
 	LogMsg "Main function completed"
 }
 
