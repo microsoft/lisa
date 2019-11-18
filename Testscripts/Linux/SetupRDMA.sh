@@ -517,7 +517,6 @@ function Main() {
 		cd mpi-benchmarks/src_c
 		LogMsg "Building Intel MPI Benchmarks tests"
 		make -j $(nproc)
-		Verify_Result
 
 		# install P2P test
 		LogMsg "Change directory to P2P"
@@ -549,20 +548,20 @@ function post_verification() {
 	# Validate if the platform MPI binaries work in the system.
 	_hostname=$(cat /etc/hostname)
 	_ipaddress=$(hostname -i | awk '{print $1}')
-	LogMsg "Found hostname from system - $_hostname"
-	LogMsg "Found _ipaddress from system - $_ipaddress"
+	LogMsg "Found hostname from system: $_hostname"
+	LogMsg "Found _ipaddress from system: $_ipaddress"
 
 	# MPI hostname cmd for initial test
 	if [ $mpi_type == "ibm" ]; then
 		_res_hostname=$(/opt/ibm/platform_mpi/bin/mpirun -TCP -hostlist $_ipaddress:1 hostname)
 	elif [ $mpi_type == "intel" ]; then
-		_res_hostname=$(mpirun --host $_ipaddress hostname)
+		_res_hostname=$(mpirun --host $_ipaddress hostname | head -1)
 	elif [ $mpi_type == "open" ]; then
 		_res_hostname=$(mpirun --allow-run-as-root -np 1 --host $_ipaddress hostname)
 	else
 		_res_hostname=$(mpirun_rsh -np 1 $_ipaddress hostname)
 	fi
-	LogMsg "_res_hostname $_res_hostname"
+	LogMsg "queried value of _res_hostname: $_res_hostname"
 
 	if [ $_hostname = $_res_hostname ]; then
 		LogMsg "Verified hostname from MPI successfully"
@@ -586,11 +585,8 @@ function post_verification() {
 		else
 			LogErr "Found zero ping_pong test result"
 		fi
-
-	elif [ $mpi_type == "intel" ]; then
-		LogMsg "TBD: This is intel MPI and no verification defined yet"
 	else
-		LogMsg "TBD: This is Open and MVAPICH MPI, and no verification defined yet"
+		LogMsg "TBD: This is $mpi_type MPI and no verification of ping_pong defined yet. Skipped"
 	fi
 	LogMsg "Post_verification completed"
 }
