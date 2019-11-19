@@ -665,14 +665,24 @@ Function Run-LinuxCmd([string] $username,[string] $password,[string] $ip,[string
 				}
 				else
 				{
-					Write-LogDbg "Command execution returned return code $($LinuxExitCode.Split("-")[4]) Ignoring.."
+					# NOTE: Command exit code is returned in second return value in case of
+					# ignoreLinuxExitCode is true. Otherwise it is returned as first return value.
+					Write-LogDbg "Command exit return as a exitCode."
 					$retValue = $RunLinuxCmdOutput.Trim()
+					$exitCode = $LinuxExitCode.Split("-")[4]
 					break
 				}
 			}
 		}
 	}
-	return $retValue
+	if ($exitCode -eq $null)
+	{
+		return $retValue
+	}
+	else
+	{
+		return $retValue, $exitCode
+	}
 }
 
 Function New-TestID()
