@@ -1791,8 +1791,9 @@ function GetOSVersion {
                 os_CODENAME=${ver#*|}
                 os_RELEASE=${ver%|*}
                 os_UPDATE=${os_RELEASE##*.}
-                # For the scenario "7.0 Beta (Maipo)", only need to keep the number part for transfering int type
-                if [[ $os_VENDOR == "Red Hat" || $os_UPDATE == "\d*\D*" ]]; then
+                # Fix when os_UPDATE not only contains number, e.g. '7.0 Beta (Maipo)'
+                os_UPDATE_pattern='^[0-9].* .*[^0-9].*'
+                if [[ $os_VENDOR == "Red Hat" ]] && [[ $os_UPDATE =~ $os_UPDATE_pattern ]]; then
                     os_UPDATE=${os_UPDATE% *}
                 fi
                 os_RELEASE=${os_RELEASE%.*}
