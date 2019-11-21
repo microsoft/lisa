@@ -7,23 +7,22 @@ param(
         [object] $TestProvider
 )
 $ErrorActionPreference = "Stop"
-
 [xml]$configfile = Get-Content ".\XML\Other\ignorable-test-warnings.xml"
 $IgnorableWarnings = @($configfile.messages.warnings.keywords.Trim())
 
-# Minor version like 4.3.3.1 doesnt require source code change so the modinfo version will be same as the major version like 4.3.3
+# Minor version like 4.3.3.1 doesn't require source code change so the modinfo version will be same as the major version like 4.3.3
 # Hence we are comparing to check whether it is a minor LIS version upgrade
-Function Check-MinorLISVersionUpgrade($LISTarballUrlOld,$LISTarballUrlCurrent) {
-    $oldversion=(($LISTarballUrlOld -split ".*rpms?-")[1] -split ".tar.gz" -split "-")[0]
-    $oldversion=$oldversion.Split(".")
+Function Check-MinorLISVersionUpgrade ($LISTarballUrlOld, $LISTarballUrlCurrent) {
+    $oldversion = (($LISTarballUrlOld -split ".*rpms?-")[1] -split ".tar.gz" -split "-")[0]
+    $oldversion = $oldversion.Split(".")
     Write-LogInfo "LISTarballUrlOld version - $oldversion"
-    $currentversion=(($LISTarballUrlCurrent -split ".*rpms?-")[1] -split ".tar.gz" -split "-")[0]
-    $currentversion=$currentversion.Split(".")
+    $currentversion = (($LISTarballUrlCurrent -split ".*rpms?-")[1] -split ".tar.gz" -split "-")[0]
+    $currentversion = $currentversion.Split(".")
     Write-LogInfo "LISTarballUrlCurrent version - $currentversion"
-    $minorupgrade=$true
-    for ($index=0; $index -lt 3; $index++) {
-        if ($oldversion[$index] -ne $currentversion[$index] ) {
-            $minorupgrade=$false
+    $minorupgrade = $true
+    for ($index = 0; $index -lt 3; $index++) {
+        if ($oldversion[$index] -ne $currentversion[$index]) {
+            $minorupgrade = $false
             break
         }
     }
@@ -64,7 +63,7 @@ Function Install-LIS ($LISTarballUrl, $allVMData) {
         return $false
     }
     $sts = Check-Modules
-    if( -not $sts[-1]) {
+    if (-not $sts[-1]) {
         Write-LogErr "Failed due to either modules not loaded or version mismatch"
         return $false
     }
@@ -74,7 +73,7 @@ Function Install-LIS ($LISTarballUrl, $allVMData) {
 Function Upgrade-LIS ($LISTarballUrlOld, $LISTarballUrlCurrent, $allVMData , $TestProvider, [switch]$RestartAfterUpgrade) {
     try {
         Write-LogInfo "Upgrading LIS"
-        $OldLISInstallStatus=Install-LIS -LISTarballUrl $LISTarballUrlOld -allVMData $AllVMData
+        $OldLISInstallStatus = Install-LIS -LISTarballUrl $LISTarballUrlOld -allVMData $AllVMData
         if (-not $OldLISInstallStatus[-1]) {
             Write-LogErr "OLD LIS installation FAILED. Aborting tests."
             return $false
@@ -82,26 +81,25 @@ Function Upgrade-LIS ($LISTarballUrlOld, $LISTarballUrlCurrent, $allVMData , $Te
         $OldLISVersion = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus"
         $OldLISmoduleVersion = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus|grep -w `"version:`""
         Write-LogInfo "LIS version with previous LIS drivers: $OldLISVersion"
-        Write-LogInfo "Ugrading LIS to $LISTarballUrlCurrent"
+        Write-LogInfo "Upgrading LIS to $LISTarballUrlCurrent"
         $CurrentLISExtractCommand = "rm -rf LISISO^wget $($LISTarballUrlCurrent)^tar -xzf $($LISTarballUrlCurrent | Split-Path -Leaf)^cp -ar LISISO/* ."
         $LISExtractCommands = $CurrentLISExtractCommand.Split("^")
-        foreach ( $LISExtractCommand in $LISExtractCommands ) {
+        foreach ($LISExtractCommand in $LISExtractCommands) {
             Run-LinuxCmd -username "root" -password $password -ip $allVMData.PublicIP -port $allVMData.SSHPort -command $LISExtractCommand -runMaxAllowedTime 2000 -maxRetryCount 3
         }
-        $UpgradelLISConsoleOutput=Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "./upgrade.sh"
+        $UpgradelLISConsoleOutput = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "./upgrade.sh"
         Write-LogInfo $UpgradelLISConsoleOutput
         if ($UpgradelLISConsoleOutput -imatch "is already installed") {
             Write-LogInfo "Latest LIS version is already installed."
             return $true
-        }
-        else {
+        } else {
             if ($UpgradelLISConsoleOutput -imatch "error" -or ($UpgradelLISConsoleOutput -imatch "warning" -and ($null -eq ($IgnorableWarnings | ? {$UpgradelLISConsoleOutput -match $_ }))) -or $UpgradelLISConsoleOutput -imatch "abort") {
                 Write-LogErr "Latest LIS install is failed due to found errors or warnings or aborted."
                 return $false
             }
-            if ( $RestartAfterUpgrade ) {
+            if ($RestartAfterUpgrade) {
                 Write-LogInfo "Now restarting VMs..."
-                if ( $TestProvider.RestartAllDeployments($allVMData) ) {
+                if ($TestProvider.RestartAllDeployments($allVMData)) {
                     $upgradedLISVersion = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus"
                     $upgradedLISmoduleVersion = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus|grep -w `"version:`""
                     if (Check-MinorLISVersionUpgrade -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent) {
@@ -112,13 +110,12 @@ Function Upgrade-LIS ($LISTarballUrlOld, $LISTarballUrlCurrent, $allVMData , $Te
                             Add-Content -Value "Old LIS: $OldLISVersion" -Path ".\Report\AdditionalInfo-$TestID.html" -Force
                             Add-Content -Value "New LIS: $upgradedLISVersion" -Path ".\Report\AdditionalInfo-$TestID.html" -Force
                             $sts = Check-Modules
-                            if( -not $sts[-1]) {
+                            if (-not $sts[-1]) {
                                 Write-LogErr "Failed due to either modules not loaded or version mismatch"
                                 return $false
                             }
                             return $true
-                        }
-                        else {
+                        } else {
                             Write-LogErr "LIS upgradation failed"
                             Write-LogInfo $OldLISVersion
                             Write-LogInfo $upgradedLISVersion
@@ -126,8 +123,7 @@ Function Upgrade-LIS ($LISTarballUrlOld, $LISTarballUrlCurrent, $allVMData , $Te
                             Add-Content -Value "New LIS: $upgradedLISVersion" -Path ".\Report\AdditionalInfo-$TestID.html" -Force
                             return $false
                         }
-                    }
-                    else {
+                    } else {
                         if ($OldLISVersion -ne $upgradedLISVersion) {
                             Write-LogInfo "LIS upgraded to `"$LISTarballUrlCurrent`" successfully"
                             Write-LogInfo "Old LIS: $OldLISVersion"
@@ -135,13 +131,12 @@ Function Upgrade-LIS ($LISTarballUrlOld, $LISTarballUrlCurrent, $allVMData , $Te
                             Add-Content -Value "Old LIS: $OldLISVersion" -Path ".\Report\AdditionalInfo-$TestID.html" -Force
                             Add-Content -Value "New LIS: $upgradedLISVersion" -Path ".\Report\AdditionalInfo-$TestID.html" -Force
                             $sts = Check-Modules
-                            if( -not $sts[-1]) {
+                            if (-not $sts[-1]) {
                                 Write-LogErr "Failed due to either modules not loaded or version mismatch"
                                 return $false
                             }
                             return $true
-                        }
-                        else {
+                        } else {
                             Write-LogErr "LIS upgradation failed inside else"
                             Write-LogInfo $OldLISVersion
                             Write-LogInfo $upgradedLISVersion
@@ -150,15 +145,13 @@ Function Upgrade-LIS ($LISTarballUrlOld, $LISTarballUrlCurrent, $allVMData , $Te
                             return $false
                         }
                     }
-                }
-                else {
+                } else {
                     Write-LogErr "Failed while restarting VM"
                     return $false
                 }
             }
         }
-    }
-    catch {
+    } catch {
         Write-LogErr "Exception in Upgrade-LIS."
         return $false
     }
@@ -169,12 +162,12 @@ Function Downgrade-LIS ($LISTarballUrlOld, $LISTarballUrlCurrent, $allVMData , $
         $LIS_version_before_downgrade = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus"
         $LIS_module_version_before_downgrade = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus|grep -w `"version:`""
         Write-LogInfo "LIS version before Downgrade: $LIS_version_before_downgrade"
-        $UninstallLISStatus=Uninstall-LIS -LISTarballUrlCurrent $LISTarballUrlCurrent -allVMData $AllVMData -TestProvider $TestProvider
+        $UninstallLISStatus = Uninstall-LIS -LISTarballUrlCurrent $LISTarballUrlCurrent -allVMData $AllVMData -TestProvider $TestProvider
         if (-not $UninstallLISStatus[-1]) {
             return $false
         }
         Write-LogInfo "Downgrade to OLD LIS : $LISTarballUrlOld"
-        $OLDLISInstallStatus=Install-LIS -LISTarballUrl $LISTarballUrlOld -allVMData $AllVMData
+        $OLDLISInstallStatus = Install-LIS -LISTarballUrl $LISTarballUrlOld -allVMData $AllVMData
         if (-not $OLDLISInstallStatus[-1]) {
             return $false
         }
@@ -182,74 +175,65 @@ Function Downgrade-LIS ($LISTarballUrlOld, $LISTarballUrlCurrent, $allVMData , $
         $LIS_module_version_after_downgraded = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus|grep -w `"version:`""
         Write-LogInfo "LIS version after Downgrade: $LIS_version_after_downgraded"
         if (Check-MinorLISVersionUpgrade -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent) {
-            if ( $LIS_module_version_before_downgrade -eq $LIS_module_version_after_downgraded) {
+            if ($LIS_module_version_before_downgrade -eq $LIS_module_version_after_downgraded) {
                 Write-LogInfo "Downgraded LIS Successfully"
                 return $true
-            }
-            else {
+            } else {
                 Write-LogErr "LIS version has changed after downgrading"
                 return $false
             }
-        }
-        else {
-            if ( $LIS_version_before_downgrade -ne $LIS_version_after_downgraded) {
+        } else {
+            if ($LIS_version_before_downgrade -ne $LIS_version_after_downgraded) {
                 Write-LogInfo "Downgraded LIS Successfully"
                 return $true
-            }
-            else {
+            } else {
                 Write-LogErr "LIS version has not changed after downgrading"
                 return $false
             }
         }
-    }
-    catch {
+    } catch {
         Write-LogErr "Exception in Downgrade-LIS."
         return $false
     }
 }
 
-Function Uninstall-LIS ( $LISTarballUrlCurrent, $allVMData , $TestProvider) {
+Function Uninstall-LIS ($LISTarballUrlCurrent, $allVMData , $TestProvider) {
     try {
         $LIS_version_before_uninstalling = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus"
         Write-LogInfo "LIS version before uninstalling: $LIS_version_before_uninstalling"
         Write-LogInfo "Uninstalling LIS $LISTarballUrlCurrent"
         $CurrentLISExtractCommand = "rm  -rf LISISO^wget $($LISTarballUrlCurrent)^tar -xzf $($LISTarballUrlCurrent | Split-Path -Leaf)^cp -ar LISISO/* ."
         $LISExtractCommands = $CurrentLISExtractCommand.Split("^")
-        foreach ( $LISExtractCommand in $LISExtractCommands ) {
+        foreach ($LISExtractCommand in $LISExtractCommands) {
             Run-LinuxCmd -username "root" -password $password -ip $allVMData.PublicIP -port $allVMData.SSHPort -command $LISExtractCommand -runMaxAllowedTime 2000 -maxRetryCount 3
         }
-        $UninstallLISConsoleOutput=Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "./uninstall.sh"
+        $UninstallLISConsoleOutput = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "./uninstall.sh"
         Write-LogInfo $UninstallLISConsoleOutput
         if ($UninstallLISConsoleOutput -imatch "No LIS RPM's are present") {
             Write-LogInfo "LIS already uninstalled and it has built-in LIS drivers"
             return $true
-        }
-        else {
+        } else {
             if ($UninstallLISConsoleOutput -imatch "error" -or ($UninstallLISConsoleOutput -imatch "warning" -and ($null -eq ($IgnorableWarnings | ? {$UninstallLISConsoleOutput -match $_ }))) -or $UninstallLISConsoleOutput -imatch "abort") {
                 Write-LogErr "Latest LIS install is failed due to found errors or warnings or aborted."
                 return $false
-            }
-            else {
-                if ( $TestProvider.RestartAllDeployments($allVMData) ) {
+            } else {
+                if ($TestProvider.RestartAllDeployments($allVMData)) {
                     $LIS_version_after_uninstalling = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus"
                     Write-LogInfo "LIS version after uninstalling: $LIS_version_after_uninstalling"
-                    if ( $LIS_version_after_uninstalling -ne $LIS_version_before_uninstalling) {
+                    if ($LIS_version_after_uninstalling -ne $LIS_version_before_uninstalling) {
                         Write-LogInfo "Successfully uninstalled $LISTarballUrlCurrent."
                         return $true
-                    }
-                    else {
+                    } else {
                         Write-LogErr "Uninstall LIS failed"
                         return $false
                     }
-                }
-                else {
+                } else {
                     Write-LogErr "Failed while restarting VM"
                     return $false
                 }
             }
         }
-    }
-    catch {
+    } catch {
         Write-LogErr "Exception in Uninstall-LIS."
         return $false
     }
@@ -271,26 +255,23 @@ Function Upgrade-Kernel ($allVMData, $TestProvider, [switch]$RestartAfterUpgrade
         $upgraded_kernel = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "cat kernel_install_scenario.log | grep 'Installed' -A 1 | tail -1 | cut -d \: -f 2"
         if ($upgraded_kernel) {
             Write-LogInfo "Kernel version after upgrade: ${upgraded_kernel}"
-        }
-        else {
+        } else {
             Write-LogInfo "Warn: Cannot find upgraded kernel version"
         }
         $kernel_version_before_upgrade = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "uname -r"
         Write-LogInfo "kernel version before upgrade: $kernel_version_before_upgrade"
         Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "sync"
         Write-LogInfo "Getting kernel upgrade status"
-        $kernelUpgradeStatus=Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "cat kernel_install_scenario.log | grep 'Complete!'"
+        $kernelUpgradeStatus = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "cat kernel_install_scenario.log | grep 'Complete!'"
         if (-not $kernelUpgradeStatus) {
             Write-LogErr "Kernel upgrade failed"
             return $false
-        }
-        else {
+        } else {
             Write-LogInfo "Successfully upgraded kernel"
             if ($RestartAfterUpgrade) {
                 if ($TestProvider.RestartAllDeployments($allVMData)) {
                     Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "echo `"---kernel version after upgrade:`$(uname -r)---`" >> kernel_install_scenario.log"
-                }
-                else {
+                } else {
                     Write-LogErr "Failed while restarting VM"
                     return $false
                 }
@@ -298,8 +279,7 @@ Function Upgrade-Kernel ($allVMData, $TestProvider, [switch]$RestartAfterUpgrade
         }
         Copy-RemoteFiles -download -downloadFrom $allVMData.PublicIP -port $allVMData.SSHPort -files "kernel_install_scenario.log" -username "root" -password $password -downloadTo $LogDir
         return $true
-    }
-    catch {
+    } catch {
         Write-LogErr "Exception in Upgrade-Kernel"
         return $false
     }
@@ -307,11 +287,11 @@ Function Upgrade-Kernel ($allVMData, $TestProvider, [switch]$RestartAfterUpgrade
 
 ### Scenarios ###############################
 
-# Scenario Information : Installs the Current LIS using given LIS source file (.tar.gz )
+# Scenario Information : Installs the Current LIS using given LIS source file (.tar.gz)
 # Expected result : Verify that Current LIS Installs successfully
 Function  Install-LIS-Scenario-1 ($PreviousTestResult, $LISTarballUrlOld, $LISTarballUrlCurrent) {
     if ($PreviousTestResult -eq "PASS") {
-        $LISInstallStatus=Install-LIS -LISTarballUrl $LISTarballUrlCurrent -allVMData $AllVMData
+        $LISInstallStatus = Install-LIS -LISTarballUrl $LISTarballUrlCurrent -allVMData $AllVMData
         if (-not $LISInstallStatus[-1]) {
             $sts = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "cat build-CustomLIS.txt | grep -E 'Unsupported kernel version|Kernel version not supported'" -ignoreLinuxExitCode:$true
             if ($sts) {
@@ -325,9 +305,10 @@ Function  Install-LIS-Scenario-1 ($PreviousTestResult, $LISTarballUrlOld, $LISTa
             #Take Snapshot with name
             Create-HyperVCheckpoint -VMData $AllVMData -CheckpointName "CURRENT_LIS_INSTALLED"
         }
+        $global:NeedUninstallLIS = $true
+        Write-Debug "NeedUninstallLIS value is $global:NeedUninstallLIS"
         return "PASS"
-    }
-    else {
+    } else {
         return "ABORTED"
     }
 }
@@ -337,7 +318,7 @@ Function  Install-LIS-Scenario-1 ($PreviousTestResult, $LISTarballUrlOld, $LISTa
 # Expected result : Verify that LIS has upgraded to Current LIS successfully
 Function Install-LIS-Scenario-2 ($PreviousTestResult, $LISTarballUrlOld, $LISTarballUrlCurrent) {
     if ($PreviousTestResult -eq "PASS") {
-        $UpgradeStatus=Upgrade-LIS -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent -allVMData $AllVMData -TestProvider $TestProvider -RestartAfterUpgrade
+        $UpgradeStatus = Upgrade-LIS -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent -allVMData $AllVMData -TestProvider $TestProvider -RestartAfterUpgrade
         if (-not $UpgradeStatus[-1]) {
             $sts = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "cat build-CustomLIS.txt | grep -E 'Unsupported kernel version|Kernel version not supported'" -ignoreLinuxExitCode:$true
             if ($sts) {
@@ -351,9 +332,10 @@ Function Install-LIS-Scenario-2 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
             #Take Snapshot with name
             Create-HyperVCheckpoint -VMData $AllVMData -CheckpointName "CURRENT_LIS_UPGRADED"
         }
+        $global:NeedUninstallLIS = $true
+        Write-Debug "NeedUninstallLIS value is $global:NeedUninstallLIS"
         return "PASS"
-    }
-    else {
+    } else {
         return "ABORTED"
     }
 }
@@ -364,12 +346,12 @@ Function Install-LIS-Scenario-2 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
 Function Install-LIS-Scenario-3 ($PreviousTestResult, $LISTarballUrlOld, $LISTarballUrlCurrent) {
     if ($PreviousTestResult -eq "PASS") {
         if ($TestPlatform -eq "HyperV") {
-            $sts=Apply-HyperVCheckpoint -VMData $AllVMData -CheckpointName "CURRENT_LIS_UPGRADED"
+            $sts = Apply-HyperVCheckpoint -VMData $AllVMData -CheckpointName "CURRENT_LIS_UPGRADED"
             if (-not $sts) {
                 return "ABORTED"
             }
         } elseif ($TestPlatform -eq "Azure") {
-            $UpgradeStatus=Upgrade-LIS -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent -allVMData $AllVMData -TestProvider $TestProvider -RestartAfterUpgrade
+            $UpgradeStatus = Upgrade-LIS -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent -allVMData $AllVMData -TestProvider $TestProvider -RestartAfterUpgrade
             if (-not $UpgradeStatus[-1]) {
                 $sts = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "cat build-CustomLIS.txt | grep -E 'Unsupported kernel version|Kernel version not supported'" -ignoreLinuxExitCode:$true
                 if ($sts) {
@@ -380,13 +362,14 @@ Function Install-LIS-Scenario-3 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
                 }
             }
         }
-        $DowgradeStatus=Downgrade-LIS -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent -allVMData $AllVMData -TestProvider $TestProvider
+        $DowgradeStatus = Downgrade-LIS -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent -allVMData $AllVMData -TestProvider $TestProvider
         if (-not $DowgradeStatus[-1]) {
+            $global:NeedUninstallLIS = $true
+            Write-Debug "NeedUninstallLIS value is $global:NeedUninstallLIS"
             return "FAIL"
         }
         return "PASS"
-    }
-    else {
+    } else {
         return "ABORTED"
     }
 }
@@ -395,19 +378,24 @@ Function Install-LIS-Scenario-3 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
 #Expected result : Verify that LIS should abort install (LIS negative scenario test)
 Function Install-LIS-Scenario-4 ($PreviousTestResult, $LISTarballUrlOld, $LISTarballUrlCurrent) {
     if ($PreviousTestResult -eq "PASS") {
-        $UpgradekernelStatus=Upgrade-Kernel -allVMData $AllVMData -TestProvider $TestProvider
+        $UpgradekernelStatus = Upgrade-Kernel -allVMData $AllVMData -TestProvider $TestProvider
         if (-not $UpgradekernelStatus[-1]) {
             return "SKIPPED"
         }
-        $LISInstallStatus=Install-LIS -LISTarballUrl $LISTarballUrlCurrent -allVMData $AllVMData
+        $LISInstallStatus = Install-LIS -LISTarballUrl $LISTarballUrlCurrent -allVMData $AllVMData
         if ($LISInstallStatus[-1] -ne $false) {
-            Write-LogErr "LIS installation should fail but succeded"
+            Write-LogErr "LIS installation should fail but succeeded"
             return "FAIL"
         }
         Write-LogInfo "Installation failed as expected."
-        return "PASS"
-    }
-    else {
+        if ($TestProvider.RestartAllDeployments($AllVMData)) {
+            $null = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "rm -rf build-CustomLIS.txt" -ignoreLinuxExitCode:$true
+            Write-LogInfo "Restart VM for new kernel takes effect, to avoid impact on following cases."
+            return "PASS"
+        } else {
+            return "FAIL"
+        }
+    } else {
         return "ABORTED"
     }
 }
@@ -417,12 +405,12 @@ Function Install-LIS-Scenario-4 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
 Function Install-LIS-Scenario-5 ($PreviousTestResult, $LISTarballUrlOld, $LISTarballUrlCurrent) {
     if ($PreviousTestResult -eq "PASS") {
         if ($TestPlatform -eq "HyperV") {
-            $sts=Apply-HyperVCheckpoint -VMData $AllVMData -CheckpointName "CURRENT_LIS_INSTALLED"
+            $sts = Apply-HyperVCheckpoint -VMData $AllVMData -CheckpointName "CURRENT_LIS_INSTALLED"
             if (-not $sts) {
                 return "ABORTED"
             }
         } elseif ($TestPlatform -eq "Azure") {
-            $LISInstallStatus=Install-LIS -LISTarballUrl $LISTarballUrlCurrent -allVMData $AllVMData
+            $LISInstallStatus = Install-LIS -LISTarballUrl $LISTarballUrlCurrent -allVMData $AllVMData
             if (-not $LISInstallStatus[-1]) {
                 $sts = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "cat build-CustomLIS.txt | grep -E 'Unsupported kernel version|Kernel version not supported'" -ignoreLinuxExitCode:$true
                 if ($sts) {
@@ -435,22 +423,24 @@ Function Install-LIS-Scenario-5 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
         }
         $LIS_version_before_upgrade_kernel = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus"
         Write-LogInfo "LIS version before upgrading kernel: $LIS_version_before_upgrade_kernel"
-        $UpgradekernelStatus=Upgrade-Kernel -allVMData $AllVMData -TestProvider $TestProvider -RestartAfterUpgrade
+        $UpgradekernelStatus = Upgrade-Kernel -allVMData $AllVMData -TestProvider $TestProvider -RestartAfterUpgrade
         if (-not $UpgradekernelStatus[-1]) {
+            $global:NeedUninstallLIS = $true
+            Write-Debug "NeedUninstallLIS value is $global:NeedUninstallLIS"
             return "SKIPPED"
         }
         $LIS_version_after_upgrade_kernel = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus"
         Write-LogInfo "LIS version after upgrading kernel: $LIS_version_after_upgrade_kernel"
-        if ( $LIS_version_before_upgrade_kernel -ne $LIS_version_after_upgrade_kernel) {
+        if ($LIS_version_before_upgrade_kernel -ne $LIS_version_after_upgrade_kernel) {
             Write-LogInfo "LIS built-in drivers are detected.. after kernel upgrade."
-        }
-        else {
+        } else {
             Write-LogErr "New LIS version NOT detected"
             return "FAIL"
         }
+        $global:NeedUninstallLIS = $true
+        Write-Debug "NeedUninstallLIS value is $global:NeedUninstallLIS"
         return "PASS"
-    }
-    else {
+    } else {
         return "ABORTED"
     }
 }
@@ -461,12 +451,12 @@ Function Install-LIS-Scenario-5 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
 Function Install-LIS-Scenario-6 ($PreviousTestResult, $LISTarballUrlOld, $LISTarballUrlCurrent) {
     if ($PreviousTestResult -eq "PASS") {
         if ($TestPlatform -eq "HyperV") {
-            $sts=Apply-HyperVCheckpoint -VMData $AllVMData -CheckpointName "CURRENT_LIS_UPGRADED"
+            $sts = Apply-HyperVCheckpoint -VMData $AllVMData -CheckpointName "CURRENT_LIS_UPGRADED"
             if (-not $sts) {
                 return "ABORTED"
             }
         } elseif ($TestPlatform -eq "Azure") {
-            $UpgradeStatus=Upgrade-LIS -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent -allVMData $AllVMData -TestProvider $TestProvider -RestartAfterUpgrade
+            $UpgradeStatus = Upgrade-LIS -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent -allVMData $AllVMData -TestProvider $TestProvider -RestartAfterUpgrade
             if (-not $UpgradeStatus[-1]) {
                 $sts = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "cat build-CustomLIS.txt | grep -E 'Unsupported kernel version|Kernel version not supported'" -ignoreLinuxExitCode:$true
                 if ($sts) {
@@ -479,22 +469,24 @@ Function Install-LIS-Scenario-6 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
         }
         $LIS_version_before_upgrade_kernel = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus"
         Write-LogInfo "LIS version before upgrading kernel: $LIS_version_before_upgrade_kernel"
-        $UpgradekernelStatus=Upgrade-Kernel -allVMData $AllVMData -TestProvider $TestProvider -RestartAfterUpgrade
+        $UpgradekernelStatus = Upgrade-Kernel -allVMData $AllVMData -TestProvider $TestProvider -RestartAfterUpgrade
         if (-not $UpgradekernelStatus[-1]) {
+            $global:NeedUninstallLIS = $true
+            Write-Debug "NeedUninstallLIS value is $global:NeedUninstallLIS"
             return "SKIPPED"
         }
         $LIS_version_after_upgrade_kernel = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "modinfo hv_vmbus"
         Write-LogInfo "LIS version after upgrading kernel: $LIS_version_after_upgrade_kernel"
-        if( $LIS_version_before_upgrade_kernel -ne $LIS_version_after_upgrade_kernel) {
+        if ($LIS_version_before_upgrade_kernel -ne $LIS_version_after_upgrade_kernel) {
             Write-LogInfo "LIS built-in drivers are detected.. after kernel upgrade."
-        }
-        else {
+        } else {
             Write-LogErr "New LIS version NOT detected"
             return "FAIL"
         }
+        $global:NeedUninstallLIS = $true
+        Write-Debug "NeedUninstallLIS value is $global:NeedUninstallLIS"
         return "PASS"
-    }
-    else {
+    } else {
         return "ABORTED"
     }
 }
@@ -506,24 +498,24 @@ Function Install-LIS-Scenario-6 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
 Function Install-LIS-Scenario-7 ($PreviousTestResult, $LISTarballUrlOld, $LISTarballUrlCurrent) {
     if ($PreviousTestResult -eq "PASS") {
         if ($detectedDistro -imatch "ORACLELINUX") {
-            Write-LogErr "Skipped: Oracle not suported on this TC"
+            Write-LogErr "Skipped: Oracle not supported on this TC"
             return "SKIPPED"
         }
         Write-LogInfo "Upgrading minor kernel"
         $kernel_version_before_upgrade = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "uname -r"
         Write-LogInfo "kernel version before upgrade: $kernel_version_before_upgrade"
-        $UpgradeKernelConsoleOutput=Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $user -password $password -command ". utils.sh && UpgradeMinorKernel" -runMaxAllowedTime 2000 -maxRetryCount 3 -runAsSudo
+        $UpgradeKernelConsoleOutput = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $user -password $password -command ". utils.sh && UpgradeMinorKernel" -runMaxAllowedTime 2000 -maxRetryCount 3 -runAsSudo
         Write-LogInfo $UpgradeKernelConsoleOutput
         Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "sync"
         if ($TestProvider.RestartAllDeployments($allVMData)) {
             $kernel_version_after_upgrade = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "uname -r"
             Write-LogInfo "kernel version after upgrade: $kernel_version_after_upgrade"
-            if ( $kernel_version_after_upgrade -eq $kernel_version_before_upgrade) {
+            if ($kernel_version_after_upgrade -eq $kernel_version_before_upgrade) {
                 Write-LogErr "Failed to Upgrade Minor kernel"
                 return "SKIPPED"
             }
             Write-LogInfo "Sucessfully Upgraded Minor Kernel"
-            $UpgradeStatus=Upgrade-LIS -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent -allVMData $AllVMData -TestProvider $TestProvider -RestartAfterUpgrade
+            $UpgradeStatus = Upgrade-LIS -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent -allVMData $AllVMData -TestProvider $TestProvider -RestartAfterUpgrade
             if (-not $UpgradeStatus[-1]) {
                 $sts = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "cat build-CustomLIS.txt | grep -E 'Unsupported kernel version|Kernel version not supported'" -ignoreLinuxExitCode:$true
                 if ($sts) {
@@ -533,9 +525,10 @@ Function Install-LIS-Scenario-7 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
                     return "FAIL"
                 }
             }
+            $global:NeedUninstallLIS = $true
+            Write-Debug "NeedUninstallLIS value is $global:NeedUninstallLIS"
             return "PASS"
-        }
-        else {
+        } else {
             Write-LogErr "Failed while restarting VM"
             return "FAIL"
         }
@@ -550,12 +543,12 @@ Function Install-LIS-Scenario-7 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
 Function Install-LIS-Scenario-8 ($PreviousTestResult, $LISTarballUrlOld, $LISTarballUrlCurrent) {
     if ($PreviousTestResult -eq "PASS") {
         if ($TestPlatform -eq "HyperV") {
-            $sts=Apply-HyperVCheckpoint -VMData $AllVMData -CheckpointName "CURRENT_LIS_INSTALLED"
+            $sts = Apply-HyperVCheckpoint -VMData $AllVMData -CheckpointName "CURRENT_LIS_INSTALLED"
             if (-not $sts) {
                 return "ABORTED"
             }
         } elseif ($TestPlatform -eq "Azure") {
-            $LISInstallStatus=Install-LIS -LISTarballUrl $LISTarballUrlCurrent -allVMData $AllVMData
+            $LISInstallStatus = Install-LIS -LISTarballUrl $LISTarballUrlCurrent -allVMData $AllVMData
             if (-not $LISInstallStatus[-1]) {
                 $sts = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "cat build-CustomLIS.txt | grep -E 'Unsupported kernel version|Kernel version not supported'" -ignoreLinuxExitCode:$true
                 if ($sts) {
@@ -566,7 +559,7 @@ Function Install-LIS-Scenario-8 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
                 }
             }
         }
-        $UninstallLISStatus=Uninstall-LIS -LISTarballUrlCurrent $LISTarballUrlCurrent -allVMData $AllVMData -TestProvider $TestProvider
+        $UninstallLISStatus = Uninstall-LIS -LISTarballUrlCurrent $LISTarballUrlCurrent -allVMData $AllVMData -TestProvider $TestProvider
         if (-not $UninstallLISStatus[-1]) {
             return "FAIL"
         }
@@ -580,11 +573,11 @@ Function Main {
     $currentTestResult = Create-TestResultObject
     $resultArr = @()
     try {
-        if(! @("REDHAT", "ORACLELINUX", "CENTOS").contains($global:detectedDistro)) {
+        if (!@("REDHAT", "ORACLELINUX", "CENTOS").contains($global:detectedDistro)) {
                 Write-LogInfo "Skip case for UNSUPPORTED distro - $global:detectedDistro"
                 return "SKIPPED"
         }
-        $PreviousTestResult="PASS"
+        $PreviousTestResult = "PASS"
         foreach ($param in $CurrentTestData.TestParameters.param) {
             if ($param -imatch "LIS_TARBALL_URL_CURRENT") {
                 $LISTarballUrlCurrent = $param.Replace("LIS_TARBALL_URL_CURRENT=","")
@@ -593,11 +586,11 @@ Function Main {
                 $LISTarballUrlOld = $param.Replace("LIS_TARBALL_URL_OLD=","")
             }
         }
-        if( $LISTarballUrlCurrent -eq "LatestLIS" ) {
-            $LISTarballUrlCurrent=Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "echo ``curl -Ls -o /dev/null -w %{url_effective} http://aka.ms/lis``"
+        if ($LISTarballUrlCurrent -eq "LatestLIS") {
+            $LISTarballUrlCurrent = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "echo ``curl -Ls -o /dev/null -w %{url_effective} http://aka.ms/lis``"
         }
-        if( $LISTarballUrlOld -eq "LatestLIS" ) {
-            $LISTarballUrlOld=Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "echo ``curl -Ls -o /dev/null -w %{url_effective} http://aka.ms/lis``"
+        if ($LISTarballUrlOld -eq "LatestLIS") {
+            $LISTarballUrlOld = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "echo ``curl -Ls -o /dev/null -w %{url_effective} http://aka.ms/lis``"
         }
         #PROVISION VMS FOR LISA WILL ENABLE ROOT USER AND WILL MAKE ENABLE PASSWORDLESS AUTHENTICATION ACROSS ALL VMS IN SAME HOSTED SERVICE.
         Provision-VMsForLisa -allVMData $AllVMData -installPackagesOnRoleNames "none"
@@ -615,6 +608,7 @@ Function Main {
         }
         #endregion
         foreach ($Scenario in $CurrentTestData.TestParameters.param) {
+            $global:NeedUninstallLIS = $false
             switch ($Scenario) {
                 "Install-LIS-Scenario-1" {
                     $testResult = Install-LIS-Scenario-1 -PreviousTestResult $PreviousTestResult -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent
@@ -668,15 +662,19 @@ Function Main {
                     #Do nothing.
                 }
             }
+            if ($global:NeedUninstallLIS) {
+                Write-Debug "NeedUninstallLIS value is $global:NeedUninstallLIS"
+                Write-LogInfo "In case $Scenario - uninstall LIS $LISTarballUrlCurrent start"
+                Uninstall-LIS -LISTarballUrlCurrent $LISTarballUrlCurrent -allVMData $AllVMData -TestProvider $TestProvider | out-null
+                Write-LogInfo "In case $Scenario - uninstall LIS $LISTarballUrlCurrent end"
+            }
             $PreviousTestResult = $testResult
         }
-    }
-    catch {
+    } catch {
         $ErrorMessage = $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
         Write-LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
-    }
-    finally {
+    } finally {
         if (!$testResult) {
             $testResult = "ABORTED"
             $CurrentTestResult.TestSummary += New-ResultSummary -testResult $testResult -metaData "LIS-INSTALL-SCENARIOS" `
