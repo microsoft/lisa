@@ -353,7 +353,7 @@ function InstallKernel() {
         else
             publisher_string="Ubuntu"
         fi
-		
+
         LogMsg "Configuring the correct kernel boot order"
         if [[ $kernelInstallStatus -eq 0 && "${image_file}" != '' ]]; then
             kernel_identifier=$(dpkg-deb --info "${image_file}" | grep 'Package: ' | grep -o "image.*")
@@ -372,6 +372,7 @@ function InstallKernel() {
         else
             LogMsg "CUSTOM_KERNEL_SUCCESS"
             DEBIAN_FRONTEND=noninteractive apt -y remove linux-image-$(uname -r)
+            rm -rf *.deb
             SetTestStateCompleted
         fi
     elif [[ $CustomKernel == *.rpm ]]; then
@@ -426,6 +427,7 @@ function InstallKernel() {
             SetTestStateCompleted
             rpm -e kernel-$(uname -r)
             grub2-set-default 0
+            rm -rf *.rpm
         fi
     fi
     if [[ ${CustomKernel} == "linuxnext" ]] || [[ ${CustomKernel} == "netnext" ]] || \
