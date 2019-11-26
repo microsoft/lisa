@@ -228,7 +228,7 @@
             <param>appGitTag=APP_GIT_TAG</param>
             <param>minMem1=512MB</param>
             <param>maxMem1=40%</param>
-            <param>startupMem1=512MB</param>
+            <param>startupMem1=1024MB</param>
             <param>memWeight1=100</param>
             <param>staticMem=1024MB</param>
             <param>maxMem2=85%</param>
