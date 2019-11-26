@@ -990,7 +990,7 @@ Function Detect-LinuxDistro() {
 	$null = Copy-RemoteFiles  -upload -uploadTo $VIP -port $SSHport -files ".\Testscripts\Linux\DetectLinuxDistro.sh" -username $testVMUser -password $testVMPassword 2>&1 | Out-Null
 	$null = Run-LinuxCmd -username $testVMUser -password $testVMPassword -ip $VIP -port $SSHport -command "chmod +x *.sh" -runAsSudo 2>&1 | Out-Null
 
-	$DistroName = Run-LinuxCmd -username $testVMUser -password $testVMPassword -ip $VIP -port $SSHport -command "bash /home/$testVMUser/DetectLinuxDistro.sh" -runAsSudo
+	$DistroName = Run-LinuxCmd -username $testVMUser -password $testVMPassword -ip $VIP -port $SSHport -command "bash ./DetectLinuxDistro.sh" -runAsSudo
 
 	if (($DistroName -imatch "Unknown") -or (!$DistroName)) {
 		Write-LogErr "Linux distro detected : $DistroName"
@@ -1018,7 +1018,7 @@ Function Remove-AllFilesFromHomeDirectory($AllDeployedVMs, $User, $Password)
 		{
 			Write-LogInfo "Removing all files logs from IP : $testIP PORT : $testPort"
 			$Null = Run-LinuxCmd -username $User -password $Password -ip $testIP -port $testPort -command 'rm -rf *' -runAsSudo
-			Write-LogInfo "All files removed from /home/$user successfully. VM IP : $testIP PORT : $testPort"
+			Write-LogInfo "All files removed from current user $User home folder successfully. VM IP : $testIP PORT : $testPort"
 		}
 		catch
 		{
@@ -1760,9 +1760,9 @@ Function Invoke-RemoteScriptAndCheckStateFile
     $stateFile = "${remoteScript}.state.txt"
     $Hypervcheck = "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;bash ${remoteScript} > ${remoteScript}.log`""
     Run-LinuxCmd -username $VMUser -password $VMPassword -ip $VMIpv4 -port $VMPort $Hypervcheck -runAsSudo
-    Copy-RemoteFiles -download -downloadFrom $VMIpv4 -files "/home/${user}/state.txt" `
+    Copy-RemoteFiles -download -downloadFrom $VMIpv4 -files "./state.txt" `
         -downloadTo $LogDir -port $VMPort -username $VMUser -password $password
-    Copy-RemoteFiles -download -downloadFrom $VMIpv4 -files "/home/${user}/${remoteScript}.log" `
+    Copy-RemoteFiles -download -downloadFrom $VMIpv4 -files "./${remoteScript}.log" `
         -downloadTo $LogDir -port $VMPort -username $VMUser -password $VMPassword
     Move-Item -Path "${LogDir}\state.txt" -Destination "${LogDir}\$stateFile" -Force
     $contents = Get-Content -Path $LogDir\$stateFile

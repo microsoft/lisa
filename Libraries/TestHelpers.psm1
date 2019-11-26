@@ -337,8 +337,25 @@ Function Wrap-CommandsToFile([string] $username,[string] $password,[string] $ip,
 	}
 }
 
-Function Run-LinuxCmd([string] $username,[string] $password,[string] $ip,[string] $command, [int] $port, [switch]$runAsSudo, [Boolean]$WriteHostOnly, [Boolean]$NoLogsPlease, [switch]$ignoreLinuxExitCode, [int]$runMaxAllowedTime = 300, [switch]$RunInBackGround, [int]$maxRetryCount = 20, [string] $MaskStrings)
+Function Get-AvailableExecutionFolder([string] $username, [string] $password, [string] $ip, [int] $port) {
+	if ("root" -ne $username) {
+		Write-LogInfo "Check if execution folder /home/$username exists or not, if not, create one."
+		$output = Write-Output "yes" | .\Tools\plink.exe -C -pw $password -P $port "$username@$ip" "sudo -S bash -c 'if [ ! -d /home/$username ]; then mkdir -p /home/$username; chown -R ${user}: /home/$username; fi; if [ -d /home/$username ]; then echo EXIST; else echo NOTEXIST; fi;'" 2> $null
+		if ("NOTEXIST" -eq $output) {
+			Write-LogDbg "We can't find or create execution folder /home/$username."
+			Throw "Not find available execution folder."
+		} else {
+			Write-LogDbg "Execution folder /home/$username exists."
+			Set-Variable -Name AvailableExecutionFolder -Value $true -Scope Global
+		}
+	}
+}
+
+Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [string] $command, [int] $port, [switch]$runAsSudo, [Boolean]$WriteHostOnly, [Boolean]$NoLogsPlease, [switch]$ignoreLinuxExitCode, [int]$runMaxAllowedTime = 300, [switch]$RunInBackGround, [int]$maxRetryCount = 20, [string] $MaskStrings)
 {
+	if (!$global:AvailableExecutionFolder) {
+		Get-AvailableExecutionFolder $username $password $ip $port
+	}
 	Wrap-CommandsToFile $username $password $ip $command $port
 	$MaskedCommand = $command
 	if ($MaskStrings) {

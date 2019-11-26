@@ -119,8 +119,7 @@ function Collect-TestLogs {
 	$currentTestResult = Create-TestResultObject
 
 	if ($TestType -eq "sh") {
-		$filesTocopy = "{0}/state.txt, {0}/summary.log, {0}/TestExecution.log, {0}/TestExecutionError.log" `
-			-f @("/home/${Username}")
+		$filesTocopy = "./state.txt, ./summary.log, ./TestExecution.log, ./TestExecutionError.log"
 		Copy-RemoteFiles -download -downloadFrom $PublicIP -downloadTo $LogsDestination `
 			 -Port $SSHPort -Username $Username -password $Password `
 			 -files $filesTocopy
@@ -133,8 +132,7 @@ function Collect-TestLogs {
 			$currentTestResult.TestResult = $resultTranslation[$testState]
 		}
 	} elseif ($TestType -eq "py") {
-		$filesTocopy = "{0}/state.txt, {0}/Summary.log, {0}/${TestName}_summary.log" `
-			-f @("/home/${Username}")
+		$filesTocopy = "./state.txt, ./Summary.log, ./${TestName}_summary.log"
 		Copy-RemoteFiles -download -downloadFrom $PublicIP -downloadTo $LogsDestination `
 			 -Port $SSHPort -Username $Username -password $Password `
 			 -files $filesTocopy
@@ -226,8 +224,8 @@ Function GetAndCheck-KernelLogs($allDeployedVMs, $status, $vmUser, $vmPassword, 
 			}
 			Run-LinuxCmd -ip $VM.PublicIP -port $VM.SSHPort -runAsSudo `
 				-username $vmUser -password $vmPassword `
-				-command "dmesg > /home/$vmUser/${currenBootLogFile}" | Out-Null
-			Copy-RemoteFiles -download -downloadFrom $VM.PublicIP -port $VM.SSHPort -files "/home/$vmUser/${currenBootLogFile}" `
+				-command "dmesg > ./${currenBootLogFile}" | Out-Null
+			Copy-RemoteFiles -download -downloadFrom $VM.PublicIP -port $VM.SSHPort -files "./${currenBootLogFile}" `
 				-downloadTo $BootLogDir -username $vmUser -password $vmPassword | Out-Null
 			Write-LogInfo "$($VM.RoleName): $status Kernel logs collected successfully to ${currenBootLogFile} file."
 
@@ -342,8 +340,8 @@ Function Check-KernelLogs($allVMData, $vmUser, $vmPassword)
 			mkdir $BootLogDir -Force | Out-Null
 			Write-LogInfo "Collecting $($VM.RoleName) VM Kernel Logs.."
 			$currentKernelLogFile="$BootLogDir\CurrentKernelLogs.txt"
-			$Null = Run-LinuxCmd -ip $VM.PublicIP -port $VM.SSHPort -username $vmUser -password $vmPassword -command "dmesg > /home/$vmUser/CurrentKernelLogs.txt" -runAsSudo
-			$Null = Copy-RemoteFiles -download -downloadFrom $VM.PublicIP -port $VM.SSHPort -files "/home/$vmUser/CurrentKernelLogs.txt" -downloadTo $BootLogDir -username $vmUser -password $vmPassword
+			$Null = Run-LinuxCmd -ip $VM.PublicIP -port $VM.SSHPort -username $vmUser -password $vmPassword -command "dmesg > ./CurrentKernelLogs.txt" -runAsSudo
+			$Null = Copy-RemoteFiles -download -downloadFrom $VM.PublicIP -port $VM.SSHPort -files "./CurrentKernelLogs.txt" -downloadTo $BootLogDir -username $vmUser -password $vmPassword
 			Write-LogInfo "$($VM.RoleName): Kernel logs collected successfully."
 			foreach ($errorLine in $errorLines)
 			{

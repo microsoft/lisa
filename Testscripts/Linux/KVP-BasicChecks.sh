@@ -19,7 +19,7 @@
 }
 # Source constants file and initialize most common variables
 UtilsInit
-
+homeDir=$(dirname "$0")
 #
 # Make sure constants.sh contains the variables we expect
 #
@@ -70,14 +70,14 @@ fi
 #
 # Make sure we have the kvp_client tool
 #
-if [ ! -e /home/${SUDO_USER}/${kvp_client} ]; then
+if [ ! -e ${homeDir}/${kvp_client} ]; then
     LogErr "${kvp_client} tool is not on the system"
     SetTestStateAborted
     exit 0
 fi
 
-chmod +x /home/${SUDO_USER}/kvp_client*
-poolCount=$(/home/${SUDO_USER}/$kvp_client | grep -i pool | wc -l)
+chmod +x ${homeDir}/kvp_client*
+poolCount=$(${homeDir}/$kvp_client | grep -i pool | wc -l)
 if [ "$poolCount" -ne 5 ]; then
     LogErr "Could not find a total of 5 KVP data pools"
     SetTestStateFailed
@@ -147,7 +147,7 @@ fi
 # 7. Check the number of records in Pool 3.
 # Below 11 entries (default value) the test will fail
 #
-pool_records=$(/home/${SUDO_USER}/${kvp_client} "$kvp_pool" | wc -l)
+pool_records=$(${homeDir}/${kvp_client} "$kvp_pool" | wc -l)
 if [ "$pool_records" -eq 0 ]; then
     LogErr "Could not list the KVP Items in pool ${kvp_pool}"
     SetTestStateFailed
@@ -156,14 +156,14 @@ fi
 LogMsg "KVP items in pool ${kvp_pool}: ${pool_records}"
 UpdateSummary "KVP items in pool ${kvp_pool}: ${pool_records}"
 
-poolItemNumber=$(/home/${SUDO_USER}/${kvp_client} "$kvp_pool" | awk 'FNR==2 {print $4}')
+poolItemNumber=$(${homeDir}/${kvp_client} "$kvp_pool" | awk 'FNR==2 {print $4}')
 if [ "$poolItemNumber" -lt "$kvp_items" ]; then
     LogErr "Pool $kvp_pool has only $poolItemNumber items. We need $kvp_items items or more"
     SetTestStateFailed
     exit 0
 fi
 
-actualPoolItemNumber=$(/home/${SUDO_USER}/${kvp_client} "$kvp_pool" | grep Key | wc -l)
+actualPoolItemNumber=$(${homeDir}/${kvp_client} "$kvp_pool" | grep Key | wc -l)
 if [ "$poolItemNumber" -ne "$actualPoolItemNumber" ]; then
     LogErr "Pool $kvp_pool reported $poolItemNumber items but actually has $actualPoolItemNumber items"
     SetTestStateFailed
