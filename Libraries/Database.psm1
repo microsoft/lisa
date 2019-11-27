@@ -106,6 +106,8 @@ Function Upload-TestResultToDatabase ([String]$SQLQuery)
 				$ErrorMessage =  $_.Exception.Message
 				Write-LogErr "EXCEPTION : $ErrorMessage"
 				Write-LogErr "Source : Line $line in script $script_name."
+				# throw from catch, in order to be catched by caller module/function
+				throw $_.Exception
 			}
 		} else {
 			Write-LogErr "Database details are not provided. Results will not be uploaded to database!!"
@@ -154,6 +156,8 @@ Function Upload-TestResultDataToDatabase ([Array] $TestResultData, [Object] $Dat
 			$ErrorMessage =  $_.Exception.Message
 			Write-LogInfo "EXCEPTION : $ErrorMessage"
 			Write-LogInfo "Source : Line $line in script $script_name."
+			# throw from catch, in order to be catched by caller module/function
+			throw $_.Exception
 		}
 	} else {
 		Write-LogErr "Database details are not provided. Results will not be uploaded to database."
@@ -202,5 +206,7 @@ Function Run-SQLCmd {
 		$ErrorMessage = $_.Exception.Message
 		$ErrorLine = $_.InvocationInfo.ScriptLineNumber
 		Write-LogErr "EXCEPTION in Run-SQLCmd() : $ErrorMessage at line: $ErrorLine"
+		# throw from catch, in order to be catched by caller module/function
+		throw $_.Exception
 	}
 }
