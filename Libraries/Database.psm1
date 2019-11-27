@@ -25,12 +25,10 @@
 #>
 ###############################################################################################
 
-Function Get-SQLQueryOfTelemetryData ($TestPlatform,$TestLocation,$TestCategory,$TestArea,$TestName,$CurrentTestResult, `
-									$ExecutionTag,$GuestDistro,$KernelVersion,$HardwarePlatform,$LISVersion,$HostVersion,$VMSize, $VMGeneration, `
-									$Networking,$ARMImageName,$OsVHD,$LogFile,$BuildURL, $TableName)
-{
-	try
-	{
+Function Get-SQLQueryOfTelemetryData ($TestPlatform, $TestLocation, $TestCategory, $TestArea, $TestName, $CurrentTestResult, `
+		$ExecutionTag, $GuestDistro, $KernelVersion, $HardwarePlatform, $LISVersion, $HostVersion, $VMSize, $VMGeneration, `
+		$Networking, $ARMImageName, $OsVHD, $LogFile, $BuildURL, $TableName) {
+	try {
 		$TestResult = $CurrentTestResult.TestResult
 		$TestSummary = $CurrentTestResult.TestSummary
 		$UTCTime = (Get-Date).ToUniversalTime()
@@ -38,15 +36,16 @@ Function Get-SQLQueryOfTelemetryData ($TestPlatform,$TestLocation,$TestCategory,
 		$testLogStorageAccount = $XmlSecrets.secrets.testLogsStorageAccount
 		$testLogStorageAccountKey = $XmlSecrets.secrets.testLogsStorageAccountKey
 		$testLogFolder = "$($UTCTime.Year)-$($UTCTime.Month)-$($UTCTime.Day)"
-		$ticks= (Get-Date).Ticks
+		$ticks = (Get-Date).Ticks
 		$uploadFileName = Join-Path $env:TEMP "$TestName-$ticks.zip"
 		$null = New-ZipFile -zipFileName $uploadFileName -sourceDir $LogDir
 		$UploadedURL = .\Utilities\UploadFilesToStorageAccount.ps1 -filePaths $uploadFileName `
-		-destinationStorageAccount $testLogStorageAccount -destinationContainer "lisav2logs" `
-		-destinationFolder "$testLogFolder" -destinationStorageKey $testLogStorageAccountKey
+			-destinationStorageAccount $testLogStorageAccount -destinationContainer "lisav2logs" `
+			-destinationFolder "$testLogFolder" -destinationStorageKey $testLogStorageAccountKey
 		if ($BuildURL) {
 			$BuildURL = "$BuildURL`consoleFull"
-		} else {
+		}
+		else {
 			$BuildURL = ""
 		}
 		$SQLQuery = "INSERT INTO $TableName (DateTimeUTC,TestPlatform,TestLocation,TestCategory,TestArea,TestName,TestResult,SubTestName,SubTestResult,ExecutionTag,GuestDistro,KernelVersion,HardwarePlatform,LISVersion,HostVersion,VMSize,VMGeneration,Networking,ARMImage,OsVHD,LogFile,BuildURL) VALUES "
@@ -54,9 +53,9 @@ Function Get-SQLQueryOfTelemetryData ($TestPlatform,$TestLocation,$TestCategory,
 		if ($TestSummary) {
 			foreach ($tempResult in $TestSummary.Split('>')) {
 				if ($tempResult) {
-					$tempResult = $tempResult.Trim().Replace("<br /","").Trim()
-					$subTestResult = $tempResult.Split(":")[$tempResult.Split(":").Count -1 ].Trim()
-					$subTestName = $tempResult.Replace("$subTestResult","").Trim().TrimEnd(":").Trim()
+					$tempResult = $tempResult.Trim().Replace("<br /", "").Trim()
+					$subTestResult = $tempResult.Split(":")[$tempResult.Split(":").Count - 1 ].Trim()
+					$subTestName = $tempResult.Replace("$subTestResult", "").Trim().TrimEnd(":").Trim()
 					$SQLQuery += "('$DateTimeUTC','$TestPlatform','$TestLocation','$TestCategory','$TestArea','$TestName','$testResult','$subTestName','$subTestResult','$ExecutionTag','$GuestDistro','$KernelVersion','$HardwarePlatform','$LISVersion','$HostVersion','$VMSize','$VMGeneration','$Networking','$ARMImageName','$OsVHD','$UploadedURL', '$BuildURL'),"
 				}
 			}
@@ -65,19 +64,17 @@ Function Get-SQLQueryOfTelemetryData ($TestPlatform,$TestLocation,$TestCategory,
 		Write-LogInfo "Get the SQL query of test results:  done"
 		return $SQLQuery
 	}
-	catch
-	{
+	catch {
 		Write-LogErr "Get the SQL query of test results:  ERROR"
 		$line = $_.InvocationInfo.ScriptLineNumber
-		$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
-		$ErrorMessage =  $_.Exception.Message
+		$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD, ".")
+		$ErrorMessage = $_.Exception.Message
 		Write-LogInfo "EXCEPTION : $ErrorMessage"
 		Write-LogInfo "Source : Line $line in script $script_name."
 	}
 }
 
-Function Upload-TestResultToDatabase ([String]$SQLQuery)
-{
+Function Upload-TestResultToDatabase ([String]$SQLQuery) {
 	if ($XmlSecrets) {
 		$dataSource = $XmlSecrets.secrets.DatabaseServer
 		$dbuser = $XmlSecrets.secrets.DatabaseUser
@@ -85,8 +82,7 @@ Function Upload-TestResultToDatabase ([String]$SQLQuery)
 		$database = $XmlSecrets.secrets.DatabaseName
 
 		if ($dataSource -and $dbuser -and $dbpassword -and $database) {
-			try
-			{
+			try {
 				Write-LogInfo "SQLQuery:  $SQLQuery"
 				$connectionString = "Server=$dataSource;uid=$dbuser; pwd=$dbpassword;Database=$database;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
 				$connection = New-Object System.Data.SqlClient.SqlConnection
@@ -98,21 +94,25 @@ Function Upload-TestResultToDatabase ([String]$SQLQuery)
 				$connection.Close()
 				Write-LogInfo "Uploading test results to database: DONE"
 			}
-			catch
-			{
+			catch {
 				Write-LogErr "Uploading test results to database: ERROR"
 				$line = $_.InvocationInfo.ScriptLineNumber
-				$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
-				$ErrorMessage =  $_.Exception.Message
+				$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD, ".")
+				$ErrorMessage = $_.Exception.Message
 				Write-LogErr "EXCEPTION : $ErrorMessage"
 				Write-LogErr "Source : Line $line in script $script_name."
 				# throw from catch, in order to be catched by caller module/function
 				throw $_.Exception
 			}
-		} else {
+			finally {
+				$connection.Close()
+			}
+		}
+		else {
 			Write-LogErr "Database details are not provided. Results will not be uploaded to database!!"
 		}
-	} else {
+	}
+ else {
 		Write-LogErr "Unable to send telemetry data to Azure. XML Secrets file not provided."
 	}
 }
@@ -137,7 +137,8 @@ Function Upload-TestResultDataToDatabase ([Array] $TestResultData, [Object] $Dat
 					$queryKey += "$key,"
 					if ($map[$key] -ne $null -and $map[$key].GetType().Name -eq "String") {
 						$queryValue += "'$($map[$key])',"
-					} else {
+					}
+					else {
 						$queryValue += "$($map[$key]),"
 					}
 				}
@@ -149,33 +150,39 @@ Function Upload-TestResultDataToDatabase ([Array] $TestResultData, [Object] $Dat
 			}
 			$connection.Close()
 			Write-LogInfo "Succeed to upload test results to database"
-		} catch {
+		}
+		catch {
 			Write-LogErr "Fail to upload test results to database"
 			$line = $_.InvocationInfo.ScriptLineNumber
-			$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
-			$ErrorMessage =  $_.Exception.Message
+			$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD, ".")
+			$ErrorMessage = $_.Exception.Message
 			Write-LogInfo "EXCEPTION : $ErrorMessage"
 			Write-LogInfo "Source : Line $line in script $script_name."
 			# throw from catch, in order to be catched by caller module/function
 			throw $_.Exception
 		}
-	} else {
+		finally {
+			$connection.Close()
+		}
+	}
+ else {
 		Write-LogErr "Database details are not provided. Results will not be uploaded to database."
 	}
 }
 
 Function Get-VMProperties ($PropertyFilePath) {
 	if (Test-Path $PropertyFilePath) {
-		$GuestDistro = Get-Content $PropertyFilePath | Select-String "OS type"| ForEach-Object {$_ -replace ",OS type,",""}
-		$HostOS = Get-Content $PropertyFilePath | Select-String "Host Version"| ForEach-Object {$_ -replace ",Host Version,",""}
-		$KernelVersion = Get-Content $PropertyFilePath | Select-String "Kernel version"| ForEach-Object {$_ -replace ",Kernel version,",""}
+		$GuestDistro = Get-Content $PropertyFilePath | Select-String "OS type" | ForEach-Object { $_ -replace ",OS type,", "" }
+		$HostOS = Get-Content $PropertyFilePath | Select-String "Host Version" | ForEach-Object { $_ -replace ",Host Version,", "" }
+		$KernelVersion = Get-Content $PropertyFilePath | Select-String "Kernel version" | ForEach-Object { $_ -replace ",Kernel version,", "" }
 
 		$objNode = New-Object -TypeName PSObject
 		Add-Member -InputObject $objNode -MemberType NoteProperty -Name GuestDistro -Value $GuestDistro -Force
 		Add-Member -InputObject $objNode -MemberType NoteProperty -Name HostOS -Value $HostOS -Force
 		Add-Member -InputObject $objNode -MemberType NoteProperty -Name KernelVersion -Value $KernelVersion -Force
 		return $objNode
-	} else {
+	}
+ else {
 		Write-LogErr "The property file doesn't exist: $PropertyFilePath"
 		return $null
 	}
@@ -208,5 +215,8 @@ Function Run-SQLCmd {
 		Write-LogErr "EXCEPTION in Run-SQLCmd() : $ErrorMessage at line: $ErrorLine"
 		# throw from catch, in order to be catched by caller module/function
 		throw $_.Exception
+	}
+	finally {
+		$connection.Close()
 	}
 }
