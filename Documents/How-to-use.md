@@ -39,7 +39,7 @@ If you add a custom test menu, you will need to re-build the Jenkins menu, and t
                 $LogDir: The logging directory
                 $detectedDistro: The distro name of the test VM
                 $BaseOsVHD : The VHD name if the test runs with a VHD
-                $RGIdentifier: The ID included in the resource group name or HyperV group name. For Ready test platform (see below), it should be one or multi <ip_address:ssh_port> pair concatenated with semicolon to identify the SUT location
+                $RGIdentifier: The ID included in the resource group name or HyperV group name. For Ready test platform, it should be <ip_address:ssh_port> to identify the SUT location
                 $TestLocation: The Azure region, HyperV servers or WSL host
                 $TestPlatform: Azure, HyperV, Ready or WSL
                 $user: The user name of the VM
