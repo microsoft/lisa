@@ -66,6 +66,7 @@ Param(
 	[string] $OsVHD = "",   #... [Azure: Required only if -ARMImageName is not provided.]
 							#... [HyperV: Mandatory]
 							#... [WSL: Mandatory, which can be the URL of the distro, or the path to the distro file on the local host]
+							#... [Ready: Not needed, and will be ignored if provided]
 	[string] $TestCategory = "",
 	[string] $TestArea = "",
 	[string] $TestTag = "",

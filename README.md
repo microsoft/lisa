@@ -205,6 +205,9 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
         Multiple override virtual machine size example:
         .\Run-LisaV2.ps1 -TestPlatform "Azure" -TestLocation "westus" -RGIdentifier "deployment" -ARMImageName "canonical ubuntuserver 18.04-lts Latest" -TestNames "VERIFY-DEPLOYMENT-PROVISION" -OverrideVMSize "Standard_A2,Standard_DS1_v2"
 
+        Ready platform example:
+        .\Run-LisaV2.ps1 -TestPlatform "Ready" -RGIdentifier "10.100.100.100:1111;10.100.100.100:1112" -TestNames "<Test cases separated by comma>" -XMLSecretFile "E:\AzureCredential.xml" [-EnableTelemetry]
+
    b. Provide parameters in .\XML\TestParameters.xml.
 
         .\Run-LisaV2.ps1 -TestParameters .\XML\TestParameters.xml
