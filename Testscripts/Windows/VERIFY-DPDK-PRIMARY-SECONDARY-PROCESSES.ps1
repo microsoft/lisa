@@ -141,25 +141,17 @@ collect_VM_properties
 		$dpdkStatus = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort `
 			-username $superUser -password $password -command "cat /root/state.txt"
 		$testResult = Get-TestStatus $dpdkStatus
-		if ($testResult -ne "PASS") {
-			Copy-RemoteFiles -downloadFrom $vmData.PublicIP -port $vmData.SSHPort `
-				-username $superUser -password $password -download -downloadTo $LogDir -files "*.txt, *.log"
-			$primarySecondaryLogFile = "primary_secondary.log"
-			if (Test-Path (Join-Path $LogDir $primarySecondaryLogFile)) {
-				$dpdkPrimarySecondaryLog = Get-Content (Join-Path $LogDir $primarySecondaryLogFile) -Raw
-				if ($dpdkPrimarySecondaryLog -and ($dpdkPrimarySecondaryLog -like "*Finished process init*")) {
-					Write-LogWarn "The secondary process exited with error, but the primary secondary processes work."
-					$testResult = "PASS"
-				} else {
-					Write-LogErr "The secondary process failed with error: ${dpdkPrimarySecondaryLog}."
-				}
-			} else {
-				return $testResult
-			}
-		}
 
 		Copy-RemoteFiles -downloadFrom $vmData.PublicIP -port $vmData.SSHPort `
 			-username $superUser -password $password -download -downloadTo $LogDir -files "*.txt, *.log"
+		$primarySecondaryLogFile = "dpdkVerifyPrimarySecondaryLogs.txt"
+		if (Test-Path (Join-Path $LogDir $primarySecondaryLogFile)) {
+			$dpdkPrimarySecondaryLog = Get-Content (Join-Path $LogDir $primarySecondaryLogFile) -Raw
+			if ($dpdkPrimarySecondaryLog -and ($dpdkPrimarySecondaryLog -like "*Segmentation fault*")) {
+				Write-LogErr "The secondary process failed with error: ${dpdkPrimarySecondaryLog}."
+				$testResult = "FAIL"
+			}
+		}
 	} catch {
 		$ErrorMessage =  $_.Exception.Message
 		$ErrorLine = $_.InvocationInfo.ScriptLineNumber

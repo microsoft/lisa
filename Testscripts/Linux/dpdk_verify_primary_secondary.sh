@@ -48,19 +48,25 @@ function build_test_dpdk_primary_secondary () {
 
 	LogMsg "Whitelisted PCI ids: ${whitelist_params}"
 
+	LogMsg "${RTE_SDK}/${EXAMPLES_DIR}/mp_server/${RTE_TARGET}/mp_server -l0-1 -n4 $whitelist_params -- -p 0x14 -n2 1>/dev/null 2>/dev/null &"
 	"${RTE_SDK}/${EXAMPLES_DIR}/mp_server/${RTE_TARGET}/mp_server" -l0-1 -n4 $whitelist_params -- -p 0x14 -n2 1>/dev/null 2>/dev/null &
 	sleep 10
 	log_file="./primary_secondary.log"
+	LogMsg "timeout --preserve-status 15 ${RTE_SDK}/${EXAMPLES_DIR}/mp_client/${RTE_TARGET}/mp_client -l3 \
+		-n4 --proc-type=auto $whitelist_params -- -n 0 2>&1 > $log_file"
 	timeout --preserve-status 15 "${RTE_SDK}/${EXAMPLES_DIR}/mp_client/${RTE_TARGET}/mp_client" -l3 \
 		-n4 --proc-type=auto $whitelist_params -- -n 0 2>&1 > $log_file
 
 	test_output=$(cat $log_file)
-	if [[ "${test_output}" == *"Failed"* ]]; then
+	pkill -f mp_server
+	if [[ "${test_output}" == *"Failed"* ]] || [[ "${test_output}" == *"Segmentation fault"* ]]; then
 		LogErr "Test output failure: $test_output"
 		SetTestStateFailed
+		exit 0
 	fi
-	pkill -f dpdk
-
+	if [[ "${test_output}" == *"APP: Finished Process Init"* ]]; then
+		SetTestStateCompleted
+	fi
 	LogMsg "Built and ran tests for primary/secondary on ${1} with output: $test_output"
 }
 
@@ -68,7 +74,5 @@ LogMsg "Script execution started"
 LogMsg "Starting build and tests for primary/secondary"
 
 build_test_dpdk_primary_secondary "${client}"
-
-SetTestStateCompleted
 LogMsg "primary/secondary build and test completed"
 
