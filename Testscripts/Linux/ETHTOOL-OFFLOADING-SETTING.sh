@@ -26,6 +26,9 @@ fi
     exit 0
 }
 
+# Check if ethtool exist and install it if not
+VerifyIsEthtool
+
 # check_feature_status
 # $1: eth device name
 # $2: feature name

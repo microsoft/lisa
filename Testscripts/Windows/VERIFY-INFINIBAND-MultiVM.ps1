@@ -74,7 +74,7 @@ function Main {
 		}
 
 		#Skip test case against distro CLEARLINUX and COREOS based here https://docs.microsoft.com/en-us/azure/virtual-machines/linux/sizes-hpc
-		if (@("CLEARLINUX", "COREOS").contains($global:detectedDistro)) {
+		if (@("CLEARLINUX", "COREOS", "DEBIAN").contains($global:detectedDistro)) {
 			Write-LogInfo "$($global:detectedDistro) is not supported! Test skipped!"
 			return "SKIPPED"
 		}

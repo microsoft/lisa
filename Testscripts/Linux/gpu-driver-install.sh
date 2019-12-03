@@ -27,6 +27,20 @@
 grid_driver="https://go.microsoft.com/fwlink/?linkid=874272"
 
 #######################################################################
+function skip_test() {
+    if [[ "$driver" == "CUDA" ]] && ([[ $DISTRO == *"suse"* ]] || [[ $DISTRO == "redhat_8" ]] || [[ $DISTRO == *"debian"* ]]); then
+        LogMsg "$DISTRO not supported. Skip the test."
+        SetTestStateSkipped
+        exit 0
+    fi
+
+    if [[ "$driver" == "GRID" ]] && ([[ $DISTRO == "redhat_8" ]] || [[ $DISTRO == *"debian"* ]]); then
+        LogMsg "$DISTRO not supported. Skip the test."
+        SetTestStateSkipped
+        exit 0
+    fi
+}
+
 function InstallCUDADrivers() {
     LogMsg "Starting CUDA driver installation"
     case $DISTRO in
@@ -89,11 +103,6 @@ function InstallCUDADrivers() {
             LogMsg "Successfully installed cuda-drivers package"
         fi
     ;;
-    suse*|redhat_8)
-        LogMsg "$DISTRO not supported. Skip the test."
-        SetTestStateSkipped
-        exit 0
-    ;;
     esac
 
     find /var/lib/dkms/nvidia* -name make.log -exec cp {} $HOME/nvidia_dkms_make.log \;
@@ -155,7 +164,7 @@ UtilsInit
 
 GetDistro
 update_repos
-
+skip_test
 # Install dependencies
 install_gpu_requirements
 
