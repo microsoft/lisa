@@ -22,7 +22,7 @@ UtilsInit
 # Install python 2.7 if missing
 python_path=$(which python)
 if [[ $? -gt 0 ]]; then
-	yum_install python2
+	install_package python2
 	ln -s /usr/bin/python2.7 /usr/bin/python
 fi
 
