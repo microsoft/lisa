@@ -19,6 +19,13 @@
 # Source constants file and initialize most common variables
 UtilsInit
 
+# Install python 2.7 if missing
+python_path=$(which python)
+if [[ $? -gt 0 ]]; then
+	yum_install python2
+	ln -s /usr/bin/python2.7 /usr/bin/python
+fi
+
 # check if lsvmbus exists, or the running kernel does not match installed version of linux-tools
 lsvmbus_path=$(which lsvmbus)
 if [[ -z "$lsvmbus_path" ]] || ! $lsvmbus_path > /dev/null 2>&1; then
