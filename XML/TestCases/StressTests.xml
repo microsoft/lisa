@@ -30,7 +30,7 @@
 		<Tags>stress,boot,network,sriov</Tags>
 		<Priority>2</Priority>
 	</test>
-		<test>
+	<test>
 		<testName>STRESSTEST-RELOAD-LIS-MODULES</testName>
 		<testScript>RELOAD-MODULES.ps1</testScript>
 		<files>.\TestScripts\Linux\RELOAD-MODULES.sh,.\TestScripts\Linux\utils.sh</files>
@@ -151,7 +151,7 @@
 		<Area>STRESS</Area>
 		<Tags>stress,nvme,storage</Tags>
 		<Priority>2</Priority>
-  </test>
+	</test>
 	<test>
 		<testName>STRESS-STORAGE-4K-IO-WITHVERIFY</testName>
 		<testScript>PERF-STORAGE-MULTIDISK-RAID0-FIO.ps1</testScript>
