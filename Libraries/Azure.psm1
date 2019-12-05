@@ -2339,10 +2339,10 @@ Function Set-SRIOVinAzureVMs {
                     Write-LogErr "Start-AzVM command executes failed."
                 }
                 $vm = Get-AzVM -ResourceGroupName $ResourceGroup -Name $VMName -Status
-                $MaxAttempts = 20
+                $MaxAttempts = 30
                 while (($vm.Statuses[-1].Code -ne "PowerState/running") -and ($MaxAttempts -gt 0)) {
-                    Write-LogInfo "Attempt $(21 - $MaxAttempts) - VM $($VMName) is in $($vm.Statuses[-1].Code) state, still not in running state, wait for 10 seconds..."
-                    Start-Sleep -Seconds 10
+                    Write-LogInfo "Attempt $(31 - $MaxAttempts) - VM $($VMName) is in $($vm.Statuses[-1].Code) state, still not in running state, wait for 20 seconds..."
+                    Start-Sleep -Seconds 20
                     $MaxAttempts -= 1
                     $vm = Get-AzVM -ResourceGroupName $ResourceGroup -Name $VMName -Status
                 }

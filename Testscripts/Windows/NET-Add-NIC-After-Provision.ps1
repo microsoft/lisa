@@ -2,10 +2,10 @@
 # Licensed under the Apache License.
 <#
 .Synopsis
-    Check if Network Interfaces are configured correctly in guest VM
+	Check if Network Interfaces are configured correctly in guest VM
 
 .Description
-    	This is an Azure only test. After the VM is provisioned, additional
+	This is an Azure only test. After the VM is provisioned, additional
 	Network Interface(s) will be added. The number of Extra NICs is dynamic
 	and is a parameter in the XML test definition. Steps:
 	1. Stop VM
@@ -22,7 +22,7 @@ function Main {
 	try {
 		$extraNICs = $TestParams.EXTRA_NICS
 		$testResult = "FAIL"
-
+		Write-LogDbg "Stopping VM $($AllVMData.RoleName) in RG $($AllVMData.ResourceGroupName)."
 		# Stop VM before attaching new NICs
 		Stop-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName `
 			-Force | Out-Null
@@ -30,7 +30,7 @@ function Main {
 			Write-LogErr "Failed to stop $($AllVMData.RoleName)"
 			return "FAIL"
 		}
-
+		Write-LogDbg "Completed VM stopping $($AllVMData.RoleName) in RG $($AllVMData.ResourceGroupName)."
 		# Get necessary resources
 		$vnet = Get-AzVirtualNetwork -Name "VirtualNetwork" -ResourceGroupName `
 			$AllVMData.ResourceGroupName
@@ -56,18 +56,33 @@ function Main {
 				Write-LogErr "Failed to create extra NIC #${nicNr} in $($AllVMData.ResourceGroupName)"
 				return "FAIL"
 			}
-			Start-Sleep -s 5
+			Start-Sleep -Seconds 5
 			Write-LogInfo "Successfully added extra NIC #${nicNr}!"
 		}
+		Write-LogDbg "Updating VM $($AllVMData.RoleName) in RG $($AllVMData.ResourceGroupName)."
 		Update-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -VM $vm | Out-Null
 		if (-not $?) {
 			Write-LogErr "Failed to update the VM $($AllVMData.RoleName) with new NIC(s)"
 			return "FAIL"
 		}
+		Write-LogDbg "Completed VM updating $($AllVMData.RoleName) in RG $($AllVMData.ResourceGroupName)."
 		# Start VM
-		Start-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName | Out-Null
+		Write-LogDbg "Starting VM $($AllVMData.RoleName) in RG $($AllVMData.ResourceGroupName)."
+		Start-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName -NoWait | Out-Null
 		if (-not $?) {
 			Write-LogErr "Failed to start $($AllVMData.RoleName)"
+			return "FAIL"
+		}
+		$vm = Get-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName -Status
+		$MaxAttempts = 30
+		while (($vm.Statuses[-1].Code -ne "PowerState/running") -and ($MaxAttempts -gt 0)) {
+			Write-LogDbg "Attempt $(31 - $MaxAttempts) - VM $($AllVMData.RoleName) is in $($vm.Statuses[-1].Code) state, still not in running state, wait for 20 seconds..."
+			Start-Sleep -Seconds 20
+			$MaxAttempts -= 1
+			$vm = Get-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName -Status
+		}
+		if ($vm.Statuses[-1].Code -ne "PowerState/running") {
+			Write-LogErr "Test case timed out waiting for VM to boot"
 			return "FAIL"
 		}
 		$vmData = Get-AllDeploymentData -ResourceGroups $AllVMData.ResourceGroupName
