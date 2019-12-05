@@ -20,8 +20,7 @@
 UtilsInit
 
 # Install python 2.7 if missing
-LogMsg "Checking the system Python path: $python_path"
-python_path=$(which python)
+which python
 if [[ $? -gt 0 ]]; then
 	install_package python2
 	ln -s /usr/bin/python2.7 /usr/bin/python
