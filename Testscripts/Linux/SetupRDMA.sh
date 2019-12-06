@@ -57,7 +57,7 @@ function Main() {
 	update_repos
 	# Install common packages
 	install_package "gcc git make zip"
-	LogMsg "$?: Installed the common required packages, gcc git make zip"
+	LogMsg "Installed the common required packages, gcc git make zip"
 	# Change memory limits
 	echo "* soft memlock unlimited" >> /etc/security/limits.conf
 	echo "* hard memlock unlimited" >> /etc/security/limits.conf
@@ -210,16 +210,23 @@ function Main() {
 				install_package $req_pkg
 				LogMsg "IBM MPI required 32-bit Java in the system, $req_pkg"
 			fi
+			# In case, kernel did not load the required modules
 			LogMsg "Adding kernel modules to /etc/modules"
-			echo rdma_ucm >> /etc/modules
-			modprobe rdma_ucm
-			LogMsg "Loaded rdma_ucm successfully"
-			echo ib_ipoib >> /etc/modules
-			modprobe ib_ipoib
-			LogMsg "Loaded ib_ipoib successfully"
-			echo ib_umad >> /etc/modules
-			modprobe ib_umad
-			LogMsg "Loaded ib_umad successfully"
+			for ex_module in rdma_ucm ib_ipoib ib_umad
+			do
+				lsmod | grep -i $ex_module
+				if [ $? != 0 ]; then
+					echo $ex_module >> /etc/modules
+					modprobe $ex_module
+					if [ $? == 0 ]; then
+						LogMsg "Loaded $ex_module successfully"
+					else
+						LogErr "Failed to load $ex_module"
+					fi
+				else
+					LogMsg "Module $ex_module already loaded"
+				fi
+			done
 			LogMsg "*** Adding Canonical ppa for temporary fix"
 			add-apt-repository -y ppa:ci-train-ppa-service/3760
 			LogMsg "*** System updating with the customized ppa"
@@ -444,8 +451,8 @@ function Main() {
 		# in newer kernels, mad.h is missing from /usr/include/infiniband
 		ls /usr/include/infiniband/ | grep -w mad.h
 		if [[ $? -ne 0 ]]; then
-			LogMsg "Found mad.h file is missing in /usr/include/infiniband/. Copied one from $madh_location"
 			madh_location=$(find / -name "mad.h" | tail -1)
+			LogMsg "Found mad.h file is missing in /usr/include/infiniband/. Copied one from $madh_location"
 			cp $madh_location /usr/include/infiniband/
 			Verify_Result
 		fi
@@ -517,6 +524,7 @@ function Main() {
 		cd mpi-benchmarks/src_c
 		LogMsg "Building Intel MPI Benchmarks tests"
 		make -j $(nproc)
+		Verify_Result
 
 		# install P2P test
 		LogMsg "Change directory to P2P"

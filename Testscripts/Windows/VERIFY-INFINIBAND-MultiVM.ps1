@@ -290,7 +290,7 @@ function Main {
 				}
 
 				$temp=(Get-Job -Id $TestJob).State
-					Write-LogInfo "--------------------------------------------------------------------$temp-------------------------"
+				Write-LogInfo "--------------------------------------------------------------------$temp-------------------------"
 				Copy-RemoteFiles -downloadFrom $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username $superUser `
 					-password $password -download -downloadTo $LogDir -files "/root/$InfinibandNic-status*"
 				Copy-RemoteFiles -downloadFrom $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username $superUser `
