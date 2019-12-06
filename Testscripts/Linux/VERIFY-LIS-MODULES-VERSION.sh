@@ -73,7 +73,7 @@ for module in "${HYPERV_MODULES[@]}"; do
     [[ -n $skip ]] || tempList+=("$module")
 done
 HYPERV_MODULES=("${tempList[@]}")
-LogMsg "Target module names: $HYPERV_MODULES"
+LogMsg "Target module names: ${HYPERV_MODULES[@]}"
 
 if [ ! $HYPERV_MODULES ]; then
     LogErr "Target module is empty or null"
