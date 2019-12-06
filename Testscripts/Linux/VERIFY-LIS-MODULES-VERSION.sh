@@ -77,12 +77,6 @@ LogMsg "Target module names: $HYPERV_MODULES"
 
 if [ ! $HYPERV_MODULES ]; then
     LogErr "Target module is empty or null"
-    GetDistro
-    if [ $OS_FAMILY != "Rhel" ]; then
-    LogErr "Confirmed this VM is not RHEL Family, which this test does not support."
-        SetTestStateSkipped
-        exit 1
-    fi
 fi
 
 if which rpm 2>/dev/null;then
@@ -156,9 +150,9 @@ done
 if [ "1" -eq "$exit_code" ]; then
     LogMsg "Exiting with state: $__LIS_TESTABORTED."
     SetTestStateAborted
+    exit 1
 else
     LogMsg "Exiting with state: $__LIS_TESTCOMPLETED."
     SetTestStateCompleted
+    exit 0
 fi
-
-exit 0
