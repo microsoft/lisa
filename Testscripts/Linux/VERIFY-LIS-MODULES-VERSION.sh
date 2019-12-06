@@ -77,17 +77,19 @@ LogMsg "Target module names: ${HYPERV_MODULES[*]}"
 
 if [ ! $HYPERV_MODULES ]; then
     LogErr "Target module is empty or null"
+    exit_code=$((exit_code+1))
 fi
 
 if which rpm 2>/dev/null;then
     rpmAvailable=true
     isLISInstalled=$(rpm -qa | grep microsoft-hyper-v 2>/dev/null)
+    LogMsg "The current LIS installation state: $isLISInstalled"
 else
     rpmAvailable=false
     isLISInstalled=''
+    LogMsg "The current LIS installation state: none"
 fi
 LogMsg "RPM availability in the system: $rpmAvailable"
-LogMsg "The current LIS installation state: $isLISInstalled"
 
 if [ ! -z "$isLISInstalled" ]; then
     expected_lis_version=$(dmesg | grep -i 'Vmbus LIS version' | awk -F ':' '{print $3}' | tr -d [:blank:])
