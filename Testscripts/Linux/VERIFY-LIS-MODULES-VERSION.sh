@@ -12,7 +12,7 @@
 #
 ########################################################################
 
-exit_code="0"
+exit_code=0
 expected_lis_version=''
 min_supported_distro_version="7.3"
 min_supported_LIS_version="4.3.0"
@@ -73,7 +73,7 @@ for module in "${HYPERV_MODULES[@]}"; do
     [[ -n $skip ]] || tempList+=("$module")
 done
 HYPERV_MODULES=("${tempList[@]}")
-LogMsg "Target module names: ${HYPERV_MODULES[@]}"
+LogMsg "Target module names: ${HYPERV_MODULES[*]}"
 
 if [ ! $HYPERV_MODULES ]; then
     LogErr "Target module is empty or null"
@@ -81,12 +81,12 @@ fi
 
 if which rpm 2>/dev/null;then
     rpmAvailable=true
+    isLISInstalled=$(rpm -qa | grep microsoft-hyper-v 2>/dev/null)
 else
     rpmAvailable=false
+    isLISInstalled=''
 fi
 LogMsg "RPM availability in the system: $rpmAvailable"
-
-isLISInstalled=$(rpm -qa | grep microsoft-hyper-v 2>/dev/null)
 LogMsg "The current LIS installation state: $isLISInstalled"
 
 if [ ! -z "$isLISInstalled" ]; then
@@ -117,19 +117,20 @@ for module in "${HYPERV_MODULES[@]}"; do
 
     # Check to see if the module is loaded
     if [[ $load_status =~ $module ]]; then
+        LogMsg "LIS nmodule $module loaded successfully"
         if [ "$rpmAvailable" = true ] && [ ! -z "$isLISInstalled" ]; then
             version=$(modinfo "$module" | grep version: | head -1 | awk '{print $2}')
             LogMsg "$module module version: ${version}"
             if [ "$module" == "mlx4_en" ] ;then
                 if [ "$MLNX_VERSION" != "$version" ] ;then
                     LogErr "Status: $module $version did not match to the build one, $MLNX_VERSION"
-                    exit_code="1"
+                    exit_code=$((exit_code+1))
                 fi
                 continue
             fi
             if [ "$expected_lis_version" != "$version" ] ;then
                 LogErr "Status: $module $version did not match to the build one, $expected_lis_version"
-                exit_code="1"
+                exit_code=$((exit_code+1))
             fi
             continue
         fi
@@ -139,20 +140,20 @@ for module in "${HYPERV_MODULES[@]}"; do
             LogMsg "Found the matching kernel version of $module module: ${version}"
         else
             LogErr "LIS module $module did not match the kernel build version!"
-            exit_code="1"
+            exit_code=$((exit_code+1))
         fi
     else
          LogErr "LIS module $module was not loaded"
-         exit_code="1"
+         exit_code=$((exit_code+1))
     fi
 done
 
-if [ "1" -eq "$exit_code" ]; then
-    LogMsg "Exiting with state: $__LIS_TESTABORTED."
-    SetTestStateAborted
-    exit 1
-else
+if [ 0 -eq $exit_code ]; then
     LogMsg "Exiting with state: $__LIS_TESTCOMPLETED."
     SetTestStateCompleted
     exit 0
+else
+    LogMsg "Exiting with state: $__LIS_TESTABORTED."
+    SetTestStateAborted
+    exit 1
 fi
