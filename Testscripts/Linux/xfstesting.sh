@@ -158,7 +158,7 @@ ConfigureCIFS() {
         echo "password=${share_pass}" >> /etc/smbcredentials/lisav2.cred
     fi
     chmod 600 /etc/smbcredentials/lisav2.cred
-
+    cp -f /etc/fstab /etc/fstab_cifs
     echo "//${share_main} ${main_mountpoint} ${FSTYP} ${fstab_info}" >> /etc/fstab
     echo "//${share_scratch} ${secondary_mountpoint} ${FSTYP} ${fstab_info}" >> /etc/fstab
     echo "SCRATCH_MNT=${secondary_mountpoint}" >> ${XFSTestConfigFile}
@@ -259,6 +259,7 @@ Main() {
         exit 0
     fi
     UpdateSummary "xfstests run finished successfully!"
+    [ -f /etc/fstab_cifs ] && cp -f /etc/fstab_cifs /etc/fstab
     SetTestStateCompleted
     exit 0
 }

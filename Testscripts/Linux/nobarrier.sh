@@ -52,4 +52,8 @@ if [ $? -ne 0 ]; then
 else
 	LogMsg "${deviceName} mounted with ${mount_option}"
 	SetTestStateCompleted
+	LogMsg "Umount $mountDir and stop $deviceName"
+	umount "$mountDir"
+	mdadm --stop "$deviceName"
+	[ -f /etc/fstab_raid ] && cp -f /etc/fstab_raid /etc/fstab
 fi

@@ -2872,6 +2872,7 @@ function create_raid_and_mount() {
 
 	mkdir $mountdir
 	uuid=$(blkid $deviceName| sed "s/.*UUID=\"//"| sed "s/\".*\"//")
+	cp -f /etc/fstab /etc/fstab_raid
 	echo "UUID=$uuid $mountdir $format defaults 0 2" >> /etc/fstab
 	if [ -z "$mount_option" ]
 	then
