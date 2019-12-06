@@ -75,6 +75,16 @@ done
 HYPERV_MODULES=("${tempList[@]}")
 LogMsg "Target module names: $HYPERV_MODULES"
 
+if [ ! $HYPERV_MODULES ]; then
+    LogErr "Target module is empty or null"
+    GetDistro
+    if [ $OS_FAMILY != "Rhel" ]; then
+    LogErr "Confirmed this VM is not RHEL Family, which this test does not support."
+        SetTestStateSkipped
+        exit 1
+    fi
+fi
+
 if which rpm 2>/dev/null;then
     rpmAvailable=true
 else
