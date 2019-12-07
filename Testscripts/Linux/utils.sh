@@ -247,10 +247,7 @@ GetDistro()
 		*Debian*)
 			DISTRO=debian_x
 			;;
-		*SLE*15*)
-			DISTRO=suse_15
-			;;
-		*SUSE*15*)
+		*SLE*15* | *SUSE*15*)
 			DISTRO=suse_15
 			;;
 		*SUSE*12*)
