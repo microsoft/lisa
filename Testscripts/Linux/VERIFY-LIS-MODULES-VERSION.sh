@@ -119,22 +119,22 @@ for module in "${HYPERV_MODULES[@]}"; do
 
     # Check to see if the module is loaded
     if [[ $load_status =~ $module ]]; then
-        LogMsg "LIS nmodule $module loaded successfully"
+        LogMsg "LIS module $module loaded successfully"
         if [ "$rpmAvailable" = true ] && [ ! -z "$isLISInstalled" ]; then
             version=$(modinfo "$module" | grep version: | head -1 | awk '{print $2}')
             LogMsg "$module module version: ${version}"
-            if [ "$module" == "mlx4_en" ] ;then
-                if [ "$MLNX_VERSION" != "$version" ] ;then
+            if [ "$module" == "mlx4_en" && "$MLNX_VERSION" != "$version" ] ;then
                     LogErr "Status: $module $version did not match to the build one, $MLNX_VERSION"
                     exit_code=$((exit_code+1))
-                fi
+            else
                 continue
             fi
             if [ "$expected_lis_version" != "$version" ] ;then
                 LogErr "Status: $module $version did not match to the build one, $expected_lis_version"
                 exit_code=$((exit_code+1))
+            else
+                continue
             fi
-            continue
         fi
 
         version=$(modinfo "$module" | grep vermagic: | awk '{print $2}')
