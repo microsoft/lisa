@@ -597,3 +597,33 @@ function Get_Trx_Rx_Ip_Flags() {
 	fi
 	echo "${trx_rx_ips}"
 }
+
+function wget_retry() {
+	url=$1
+	dest=$2
+	remote_ip=$3
+
+	max_retries=3
+	retry_timeout=3
+	log_msg="Downloading ${url} on ${remote_ip} to ${dest}."
+	err_log_msg="Could not download ${url} on ${remote_ip}."
+
+	while [ $max_retries -gt 0 ]; do
+		LogMsg "${log_msg}"
+		ssh_output=$(ssh "${remote_ip}" "wget --tries 3 --retry-connrefused '${url}' -P ${dest}")
+		if [ $? = 0 ]; then
+			LogMsg "Successully downloading"
+			break
+		else
+			LogErr "${ssh_output}"
+			LogErr "${err_log_msg}. Retrying..."
+			max_retries=$(($max_retries-1))
+			sleep $retry_timeout
+		fi
+	done
+	if [ $max_retries -eq 0 ]; then
+		LogMsg "${err_log_msg}"
+		SetTestStateAborted
+		exit 1
+	fi
+}

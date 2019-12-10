@@ -66,12 +66,11 @@ declare PACKAGE_BLOB_LOCATION="https://eosgpackages.blob.core.windows.net/testpa
 ######################################## Functions ########################################
 
 # Convenience function used to set-up most common variables
-UtilsInit()
-{
+function UtilsInit() {
 	if [ -d "$LIS_HOME" ]; then
 		cd "$LIS_HOME"
 	else
-		LogMsg "Warning: LIS_HOME $LIS_HOME directory missing. Unable to initialize testscript"
+		LogErr "LIS_HOME $LIS_HOME directory missing. Unable to initialize testscript"
 		return 1
 	fi
 
@@ -79,7 +78,7 @@ UtilsInit()
 	if [ -e "$__LIS_LOG_FILE" ]; then
 		if [ -d "$__LIS_LOG_FILE" ]; then
 			rm -rf "$__LIS_LOG_FILE"
-			LogMsg "Warning: Found $__LIS_LOG_FILE directory"
+			LogMsg "Found $__LIS_LOG_FILE directory"
 		else
 			rm -f "$__LIS_LOG_FILE"
 		fi
@@ -88,7 +87,7 @@ UtilsInit()
 	if [ -e "$__LIS_ERROR_LOG_FILE" ]; then
 		if [ -d "$__LIS_ERROR_LOG_FILE" ]; then
 			rm -rf "$__LIS_ERROR_LOG_FILE"
-			LogMsg "Warning: Found $__LIS_ERROR_LOG_FILE directory"
+			LogMsg "Found $__LIS_ERROR_LOG_FILE directory"
 		else
 			rm -f "$__LIS_ERROR_LOG_FILE"
 		fi
@@ -97,7 +96,7 @@ UtilsInit()
 	if [ -e "$__LIS_SUMMARY_FILE" ]; then
 		if [ -d "$__LIS_SUMMARY_FILE" ]; then
 			rm -rf "$__LIS_SUMMARY_FILE"
-			LogMsg "Warning: Found $__LIS_SUMMARY_FILE directory"
+			LogMsg "Found $__LIS_SUMMARY_FILE directory"
 		else
 			rm -f "$__LIS_SUMMARY_FILE"
 		fi
@@ -108,8 +107,8 @@ UtilsInit()
 	# Create state file and update test state
 	touch "$__LIS_STATE_FILE"
 	SetTestStateRunning || {
-		LogMsg "Warning: unable to update test state-file. Cannot continue initializing testscript"
-		return 2
+		LogErr "Unable to update test state-file. Cannot continue initializing testscript"
+		return 1
 	}
 
 	touch "$__LIS_LOG_FILE"
@@ -119,82 +118,73 @@ UtilsInit()
 	if [ -f "$__LIS_CONSTANTS_FILE" ]; then
 		. "$__LIS_CONSTANTS_FILE"
 	else
-		LogMsg "Error: constants file $__LIS_CONSTANTS_FILE missing or not a regular file. Cannot source it!"
+		LogErr "Constants file $__LIS_CONSTANTS_FILE missing or not a regular file. Cannot source it!"
 		SetTestStateAborted
 		UpdateSummary "Error: constants file $__LIS_CONSTANTS_FILE missing or not a regular file. Cannot source it!"
-		return 3
+		return 1
 	fi
 
-	GetDistro && LogMsg "Testscript running on $DISTRO" || LogMsg "Warning: test running on unknown distro!"
+	GetDistro && LogMsg "Testscript running on $DISTRO" || LogErr "Test running on unknown distro!"
 
 	LogMsg "Successfully initialized testscript!"
 	return 0
-
 }
 
 # Functions used to update the current test state
 
 # Should not be used directly. $1 should be one of __LIS_TESTRUNNING __LIS_TESTCOMPLETE __LIS_TESTABORTED __LIS_TESTFAILED
-__SetTestState()
-{
+function __SetTestState() {
 	if [ -f "$__LIS_STATE_FILE" ]; then
 		if [ -w "$__LIS_STATE_FILE" ]; then
 			echo "$1" > "$__LIS_STATE_FILE"
 		else
-			LogMsg "Warning: state file $__LIS_STATE_FILE exists and is a normal file, but is not writable"
+			LogErr "State file $__LIS_STATE_FILE exists and is a normal file, but is not writable"
 			chmod u+w "$__LIS_STATE_FILE" && { echo "$1" > "$__LIS_STATE_FILE" && return 0 ; } || LogMsg "Warning: unable to make $__LIS_STATE_FILE writeable"
 			return 1
 		fi
 	else
-		LogMsg "Warning: state file $__LIS_STATE_FILE either does not exist or is not a regular file. Trying to create it..."
-		echo "$1" > "$__LIS_STATE_FILE" || return 2
+		LogErr "State file $__LIS_STATE_FILE either does not exist or is not a regular file. Trying to create it..."
+		echo "$1" > "$__LIS_STATE_FILE" || return 1
 	fi
 
 	return 0
 }
 
-SetTestStateFailed()
-{
+function SetTestStateFailed() {
 	__SetTestState "$__LIS_TESTFAILED"
 	return $?
 }
 
-SetTestStateSkipped()
-{
+function SetTestStateSkipped() {
 	__SetTestState "$__LIS_TESTSKIPPED"
 	return $?
 }
 
-SetTestStateAborted()
-{
+function SetTestStateAborted() {
 	__SetTestState "$__LIS_TESTABORTED"
 	return $?
 }
 
-SetTestStateCompleted()
-{
+function SetTestStateCompleted() {
 	__SetTestState "$__LIS_TESTCOMPLETED"
 	return $?
 }
 
-SetTestStateRunning()
-{
+function SetTestStateRunning() {
 	__SetTestState "$__LIS_TESTRUNNING"
 	return $?
 }
 
 # Logging function. The way LIS currently runs scripts and collects log files, just echo the message
 # $1 == Message
-LogMsg()
-{
+function LogMsg() {
 	echo $(date "+%a %b %d %T %Y") : "${1}"
 	echo $(date "+%a %b %d %T %Y") : "${1}" >> "./TestExecution.log"
 }
 
 # Error Logging function. The way LIS currently runs scripts and collects log files, just echo the message
 # $1 == Message
-LogErr()
-{
+function LogErr() {
 	echo $(date "+%a %b %d %T %Y") : "${1}"
 	echo $(date "+%a %b %d %T %Y") : "${1}" >> "./TestExecutionError.log"
 	UpdateSummary "${1}"
@@ -202,23 +192,22 @@ LogErr()
 
 # Update summary file with message $1
 # Summary should contain only a few lines
-UpdateSummary()
-{
-	if [ -f "$__LIS_SUMMARY_FILE" ]; then
-		if [ -w "$__LIS_SUMMARY_FILE" ]; then
-			echo "$1" >> "$__LIS_SUMMARY_FILE"
-		else
-			LogMsg "Warning: summary file $__LIS_SUMMARY_FILE exists and is a normal file, but is not writable"
-			chmod u+w "$__LIS_SUMMARY_FILE" && echo "$1" >> "$__LIS_SUMMARY_FILE" || LogMsg "Warning: unable to make $__LIS_SUMMARY_FILE writeable"
-			return 1
-		fi
-	else
-		LogMsg "Warning: summary file $__LIS_SUMMARY_FILE either does not exist or is not a regular file. Trying to create it..."
-		echo "$1" >> "$__LIS_SUMMARY_FILE" || return 2
-	fi
-	LogMsg "$1"
+function UpdateSummary() {
+    if [ -f "$__LIS_SUMMARY_FILE" ]; then
+        if [ -w "$__LIS_SUMMARY_FILE" ]; then
+            echo "$1" >> "$__LIS_SUMMARY_FILE"
+        else
+            LogErr "Summary file $__LIS_SUMMARY_FILE exists and is a normal file, but is not writable"
+            chmod u+w "$__LIS_SUMMARY_FILE" && echo "$1" >> "$__LIS_SUMMARY_FILE" || LogMsg "Warning: unable to make $__LIS_SUMMARY_FILE writeable"
+            return 1
+        fi
+    else
+        LogErr "Summary file $__LIS_SUMMARY_FILE either does not exist or is not a regular file. Trying to create it..."
+        echo "$1" >> "$__LIS_SUMMARY_FILE" || return 1
+    fi
+    LogMsg "$1"
 
-	return 0
+    return 0
 }
 
 
@@ -227,9 +216,7 @@ UpdateSummary()
 # Sets the $OS_FAMILY variable to one of the following: Rhel, Debian, Suse
 # The naming scheme will be distroname_version
 # Takes no arguments
-
-GetDistro()
-{
+function GetDistro() {
 	# Make sure we don't inherit anything
 	declare __DISTRO
 	#Get distro (snipper take from alsa-info.sh)
@@ -339,10 +326,10 @@ GetDistro()
 # Return value:
 #   0: current version equals or above supported version
 #   1: current version is below supported version, or no param
-CheckVMFeatureSupportStatus()
-{
+function CheckVMFeatureSupportStatus() {
     specifiedKernel=$1
     if [ $specifiedKernel == "" ];then
+        LogErr "Kernel version is required in the argument"
         return 1
     fi
     # for example 3.10.0-514.el7.x86_64
@@ -368,8 +355,7 @@ CheckVMFeatureSupportStatus()
 # Function to get all synthetic network interfaces
 # Sets the $SYNTH_NET_INTERFACES array elements to an interface name suitable for network tools use
 # Takes no arguments
-GetSynthNetInterfaces()
-{
+function GetSynthNetInterfaces() {
     # Check for distribuion version
     case $DISTRO in
         redhat_5)
@@ -383,46 +369,45 @@ GetSynthNetInterfaces()
     extraction() {
         case $DISTRO in
         redhat_5)
-             SYNTH_NET_INTERFACES[$1]=$(echo "${__SYNTH_NET_ADAPTERS_PATHS[$1]}" | awk -F: '{print $2}')
+            SYNTH_NET_INTERFACES[$1]=$(echo "${__SYNTH_NET_ADAPTERS_PATHS[$1]}" | awk -F: '{print $2}')
             ;;
         *)
-             SYNTH_NET_INTERFACES[$1]=$(ls "${__SYNTH_NET_ADAPTERS_PATHS[$1]}" | head -n 1)
+            SYNTH_NET_INTERFACES[$1]=$(ls "${__SYNTH_NET_ADAPTERS_PATHS[$1]}" | head -n 1)
             ;;
         esac
     }
-
 
     # declare array
     declare -a __SYNTH_NET_ADAPTERS_PATHS
     # Add synthetic netadapter paths into __SYNTH_NET_ADAPTERS_PATHS array
     if [ -d '/sys/devices' ]; then
-            while IFS= read -d $'\0' -r path ; do
-                    __SYNTH_NET_ADAPTERS_PATHS=("${__SYNTH_NET_ADAPTERS_PATHS[@]}" "$path")
-            done < <(find /sys/devices -name $check -a -ipath '*vmbus*' -print0)
+        while IFS= read -d $'\0' -r path ; do
+            __SYNTH_NET_ADAPTERS_PATHS=("${__SYNTH_NET_ADAPTERS_PATHS[@]}" "$path")
+        done < <(find /sys/devices -name $check -a -ipath '*vmbus*' -print0)
     else
-            LogMsg "Cannot find synthetic network interfaces. No /sys/devices directory."
-            return 1
+        LogErr "Cannot find synthetic network interface. No /sys/devices directory."
+        return 1
     fi
 
     # Check if we found anything
     if [ 0 -eq ${#__SYNTH_NET_ADAPTERS_PATHS[@]} ]; then
-            LogMsg "No synthetic network adapters found."
-            return 2
+        LogErr "No synthetic network adapter found."
+        return 1
     fi
 
     # Loop __SYNTH_NET_ADAPTERS_PATHS and get interfaces
     declare -i __index
     for __index in "${!__SYNTH_NET_ADAPTERS_PATHS[@]}"; do
-            if [ ! -d "${__SYNTH_NET_ADAPTERS_PATHS[$__index]}" ]; then
-                    LogMsg "Synthetic netadapter dir ${__SYNTH_NET_ADAPTERS_PATHS[$__index]} disappeared during processing!"
-                    return 3
-            fi
-            # extract the interface names
-            extraction $__index
-            if [ -z "${SYNTH_NET_INTERFACES[$__index]}" ]; then
-                    LogMsg "No network interface found in ${__SYNTH_NET_ADAPTERS_PATHS[$__index]}"
-                    return 4
-            fi
+        if [ ! -d "${__SYNTH_NET_ADAPTERS_PATHS[$__index]}" ]; then
+            LogErr "Synthetic netadapter dir ${__SYNTH_NET_ADAPTERS_PATHS[$__index]} disappeared during processing!"
+            return 1
+        fi
+        # extract the interface names
+        extraction $__index
+        if [ -z "${SYNTH_NET_INTERFACES[$__index]}" ]; then
+            LogErr "No network interface found in ${__SYNTH_NET_ADAPTERS_PATHS[$__index]}"
+            return 1
+        fi
     done
 
     unset __SYNTH_NET_ADAPTERS_PATHS
@@ -433,8 +418,7 @@ GetSynthNetInterfaces()
 # Function to get all legacy network interfaces
 # Sets the $LEGACY_NET_INTERFACES array elements to an interface name suitable for network tools use
 # Takes no arguments
-GetLegacyNetInterfaces()
-{
+function GetLegacyNetInterfaces() {
 	# declare array
 	declare -a __LEGACY_NET_ADAPTERS_PATHS
 	# Add legacy netadapter paths into __LEGACY_NET_ADAPTERS_PATHS array
@@ -443,28 +427,28 @@ GetLegacyNetInterfaces()
 			__LEGACY_NET_ADAPTERS_PATHS=("${__LEGACY_NET_ADAPTERS_PATHS[@]}" "$path")
 		done < <(find /sys/devices -name net -a ! -path '*VMBUS*' -print0)
 	else
-		LogMsg "Cannot find Legacy network interfaces. No /sys/devices directory."
+		LogErr "Cannot find Legacy network interfaces. No /sys/devices directory."
 		return 1
 	fi
 
 	# Check if we found anything
 	if [ 0 -eq ${#__LEGACY_NET_ADAPTERS_PATHS[@]} ]; then
-		LogMsg "No synthetic network adapters found."
-		return 2
+		LogErr "No synthetic network adapters found."
+		return 1
 	fi
 
 	# Loop __LEGACY_NET_ADAPTERS_PATHS and get interfaces
 	declare -i __index
 	for __index in "${!__LEGACY_NET_ADAPTERS_PATHS[@]}"; do
 		if [ ! -d "${__LEGACY_NET_ADAPTERS_PATHS[$__index]}" ]; then
-			LogMsg "Legacy netadapter dir ${__LEGACY_NET_ADAPTERS_PATHS[$__index]} disappeared during processing!"
-			return 3
+			LogErr "Legacy netadapter dir ${__LEGACY_NET_ADAPTERS_PATHS[$__index]} disappeared during processing!"
+			return 1
 		fi
 		# ls should not yield more than one interface, but doesn't hurt to be sure
 		LEGACY_NET_INTERFACES[$__index]=$(ls ${__LEGACY_NET_ADAPTERS_PATHS[$__index]} | head -n 1)
 		if [ -z "${LEGACY_NET_INTERFACES[$__index]}" ]; then
-			LogMsg "No network interface found in ${__LEGACY_NET_ADAPTERS_PATHS[$__index]}"
-			return 4
+			LogErr "No network interface found in ${__LEGACY_NET_ADAPTERS_PATHS[$__index]}"
+			return 1
 		fi
 	done
 
@@ -473,19 +457,18 @@ GetLegacyNetInterfaces()
 }
 
 # Validate that $1 is an IPv4 address
-CheckIP()
-{
-	if [ 1 -ne $# ]; then
-		LogMsg "CheckIP accepts 1 arguments: IP address"
-		return 100
-	fi
+function CheckIP() {
+    if [ 1 -ne $# ]; then
+        LogErr "Required 1 arguments: IP address"
+        return 1
+    fi
 
-	declare ip
-	declare stat
-	ip=$1
-	stat=1
+    declare ip
+    declare stat
+    ip=$1
+    stat=1
 
-	if [[ $ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+    if [[ $ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
         OIFS="$IFS"
         IFS='.'
         ip=($ip)
@@ -495,37 +478,36 @@ CheckIP()
         stat=$?
     fi
 
-	return $stat
+    return $stat
 
 }
 
 # Validate that $1 is an IPv6 address
-CheckIPV6()
-{
-	if [ 1 -ne $# ]; then
-		LogMsg "CheckIPV6 accepts 1 arguments: IPV6 address"
-		return 100
-	fi
+function CheckIPV6() {
+    if [ 1 -ne $# ]; then
+        LogErr "Required 1 arguments: IPV6 address"
+        return 1
+    fi
 
-	declare ip
-	declare stat
-	ip=$1
-	stat=1
+    declare ip
+    declare stat
+    ip=$1
+    stat=1
 
-	if [[ $ip =~ ^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$ ]]; then
+    if [[ $ip =~ ^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$ ]]; then
         stat=$?
     fi
 
-	return $stat
+    return $stat
 
 }
 
 # Check that $1 is a MAC address
-CheckMAC()
-{
+# Unused
+function CheckMAC() {
 	if [ 1 -ne $# ]; then
-		LogMsg "CheckIP accepts 1 arguments: IP address"
-		return 100
+		LogErr "Required 1 arguments: IP address"
+		return 1
 	fi
 
 	# allow lower and upper-case, as well as : (colon) or - (hyphen) as separators
@@ -536,17 +518,17 @@ CheckMAC()
 }
 
 # Function to set interface $1 to whatever the dhcp server assigns
-SetIPfromDHCP()
-{
+# Unused
+function SetIPfromDHCP(){
 	if [ 1 -ne $# ]; then
-		LogMsg "SetIPfromDHCP accepts 1 argument: network interface to assign the ip to"
-		return 100
+		LogErr "Required 1 argument: network interface to assign the ip to"
+		return 1
 	fi
 
 	# Check first argument
 	ip link show "$1" >/dev/null 2>&1
 	if [ 0 -ne $? ]; then
-		LogMsg "Network adapter $1 is not working."
+		LogErr "Network adapter $1 is not working."
 		return 1
 	fi
 
@@ -557,20 +539,20 @@ SetIPfromDHCP()
 		redhat*|fedora*|centos*|ubuntu*|debian*)
 			dhclient -r "$1" ; dhclient "$1"
 			if [ 0 -ne $? ]; then
-				LogMsg "Unable to get dhcpd address for interface $1"
-				return 2
+				LogErr "Unable to get dhcpd address for interface $1"
+				return 1
 			fi
 			;;
 		suse*)
 			dhcpcd -k "$1" ; dhcpcd "$1"
 			if [ 0 -ne $? ]; then
-				LogMsg "Unable to get dhcpd address for interface $1"
-				return 2
+				LogErr "Unable to get dhcpd address for interface $1"
+				return 1
 			fi
 			;;
 		*)
-			LogMsg "Platform not supported yet!"
-			return 3
+			LogErr "Platform not supported yet!"
+			return 1
 			;;
 	esac
 
@@ -579,8 +561,8 @@ SetIPfromDHCP()
 	__IP_ADDRESS=$(ip -o addr show "$1" | grep -vi inet6 | cut -d '/' -f1 | awk '{print $NF}')
 
 	if [ -z "$__IP_ADDRESS" ]; then
-		LogMsg "IP address did not get assigned to $1"
-		return 3
+		LogErr "IP address did not get assigned to $1"
+		return 1
 	fi
 	# OK
 	return 0
@@ -593,23 +575,22 @@ SetIPfromDHCP()
 # $1 == static ip
 # $2 == interface
 # $3 == netmask optional
-SetIPstatic()
-{
+function SetIPstatic() {
 	if [ 2 -gt $# ]; then
-		LogMsg "SetIPstatic accepts 3 arguments: 1. static IP, 2. network interface, 3. (optional) netmask"
-		return 100
+		LogErr "Required 3 arguments: 1. static IP, 2. network interface, 3. (optional) netmask"
+		return 1
 	fi
 
 	CheckIP "$1"
 	if [ 0 -ne $? ]; then
-		LogMsg "Parameter $1 is not a valid IPv4 Address"
+		LogErr "Parameter $1 is not a valid IPv4 Address"
 		return 1
 	fi
 
 	ip link show "$2" > /dev/null 2>&1
 	if [ 0 -ne $? ]; then
-		LogMsg "Network adapter $2 is not working."
-		return 2
+		LogErr "Network adapter $2 is not working."
+		return 1
 	fi
 
 	declare __netmask
@@ -624,14 +605,14 @@ SetIPstatic()
 	if [ 0 -eq $? ]; then
 		__netmask=$(NetmaskToCidr "$__netmask")
 		if [ 0 -ne $? ]; then
-			LogMsg "SetIPstatic: $__netmask is not a valid netmask"
-			return 3
+			LogErr "$__netmask is not a valid netmask"
+			return 1
 		fi
 	fi
 
 	if [ "$__netmask" -ge 32 -o "$__netmask" -le 0 ]; then
-		LogMsg "SetIPstatic: $__netmask is not a valid cidr netmask"
-		return 4
+		LogErr "$__netmask is not a valid cidr netmask"
+		return 1
 	fi
 
 	ip link set "$__interface" down
@@ -640,7 +621,7 @@ SetIPstatic()
 	ip link set "$__interface" up
 
 	if [ 0 -ne $? ]; then
-		LogMsg "Unable to assign address $__ip/$__netmask to $__interface."
+		LogErr "Unable to assign address $__ip/$__netmask to $__interface."
 		return 5
 	fi
 
@@ -649,14 +630,14 @@ SetIPstatic()
 	__IP_ADDRESS=$(ip -o addr show "${SYNTH_NET_INTERFACES[$__iterator]}" | grep -vi inet6 | cut -d '/' -f1 | awk '{print $NF}' | grep -vi '[a-z]')
 
 	if [ -z "$__IP_ADDRESS" ]; then
-		LogMsg "IP address $__ip did not get assigned to $__interface"
-		return 3
+		LogErr "IP address $__ip did not get assigned to $__interface"
+		return 1
 	fi
 
 	# Check that addresses match
 	if [ "$__IP_ADDRESS" != "$__ip" ]; then
-		LogMsg "New address $__IP_ADDRESS differs from static ip $__ip on interface $__interface"
-		return 6
+		LogErr "New address $__IP_ADDRESS differs from static ip $__ip on interface $__interface"
+		return 1
 	fi
 
 	# OK
@@ -666,59 +647,58 @@ SetIPstatic()
 # translate network mask to CIDR notation
 # Parameters:
 # $1 == valid network mask
-NetmaskToCidr()
-{
-	if [ 1 -ne $# ]; then
-		LogMsg "NetmaskToCidr accepts 1 argument: a valid network mask"
-		return 100
-	fi
+function NetmaskToCidr() {
+    if [ 1 -ne $# ]; then
+        LogErr "Required 1 argument: a valid network mask"
+        return 1
+    fi
 
-	declare -i netbits=0
-	IFS=.
+    declare -i netbits=0
+    IFS=.
 
-	for dec in $1; do
-		case $dec in
-			255)
-				netbits=$((netbits+8))
-				;;
-			254)
-				netbits=$((netbits+7))
-				;;
-			252)
-				netbits=$((netbits+6))
-				;;
-			248)
-				netbits=$((netbits+5))
-				;;
-			240)
-				netbits=$((netbits+4))
-				;;
-			224)
-				netbits=$((netbits+3))
-				;;
-			192)
-				netbits=$((netbits+2))
-				;;
-			128)
-				netbits=$((netbits+1))
-				;;
-			0)	#nothing to add
-				;;
-			*)
-				LogMsg "NetmaskToCidr: $1 is not a valid netmask"
-				return 1
-				;;
-		esac
-	done
+    # TODO: change to another way mathmatically later.
+    for dec in $1; do
+        case $dec in
+            255)
+                netbits=$((netbits+8))
+                ;;
+            254)
+                netbits=$((netbits+7))
+                ;;
+            252)
+                netbits=$((netbits+6))
+                ;;
+            248)
+                netbits=$((netbits+5))
+                ;;
+            240)
+                netbits=$((netbits+4))
+                ;;
+            224)
+                netbits=$((netbits+3))
+                ;;
+            192)
+                netbits=$((netbits+2))
+                ;;
+            128)
+                netbits=$((netbits+1))
+                ;;
+            0)	#nothing to add
+                ;;
+            *)
+                LogErr "$1 is not a valid netmask"
+                return 1
+                ;;
+        esac
+    done
 
-	echo $netbits
+    echo $netbits
 
-	return 0
+    return 0
 }
 
 # Remove all default gateways
-RemoveDefaultGateway()
-{
+function RemoveDefaultGateway() {
 	while ip route del default >/dev/null 2>&1
 	do : #nothing
 	done
@@ -730,28 +710,26 @@ RemoveDefaultGateway()
 # Parameters:
 # $1 == gateway ip
 # $2 == interface
-CreateDefaultGateway()
-{
+function CreateDefaultGateway() {
 	if [ 2 -ne $# ]; then
-		LogMsg "CreateDefaultGateway expects 2 arguments"
-		return 100
+		LogErr "Required 2 arguments"
+		return 1
 	fi
 
 	# check that $1 is an IP address
 	CheckIP "$1"
 
 	if [ 0 -ne $? ]; then
-		LogMsg "CreateDefaultGateway: $1 is not a valid IP Address"
+		LogErr "$1 is not a valid IP Address"
 		return 1
 	fi
 
 	# check interface exists
 	ip link show "$2" >/dev/null 2>&1
 	if [ 0 -ne $? ]; then
-		LogMsg "CreateDefaultGateway: no interface $2 found."
-		return 2
+		LogErr "No interface $2 found."
+		return 1
 	fi
-
 
 	declare __interface
 	declare __ipv4
@@ -766,16 +744,16 @@ CreateDefaultGateway()
 	ip route add default via "$__ipv4" dev "$__interface"
 
 	if [ 0 -ne $? ]; then
-		LogMsg "CreateDefaultGateway: unable to set $__ipv4 as a default gateway for interface $__interface"
-		return 3
+		LogErr "Unable to set $__ipv4 as a default gateway for interface $__interface"
+		return 1
 	fi
 
 	# check to make sure default gateway actually was created
 	ip route show | grep -i "default via $__ipv4 dev $__interface" >/dev/null 2>&1
 
 	if [ 0 -ne $? ]; then
-		LogMsg "CreateDefaultGateway: Route command succeded, but gateway does not appear to have been set."
-		return 4
+		LogErr "Route command succeded, but gateway does not appear to have been set."
+		return 1
 	fi
 
 	return 0
@@ -787,17 +765,16 @@ CreateDefaultGateway()
 # $2 == static IP to set for vlan interface
 # $3 == netmask for that interface
 # $4 == vlan ID
-CreateVlanConfig()
-{
+function CreateVlanConfig() {
 	if [ 4 -ne $# ]; then
-		LogMsg "CreateVlanConfig expects 4 arguments"
-		return 100
+		LogErr "Required 4 arguments"
+		return 1
 	fi
 
 	# check interface exists
 	ip link show "$1" >/dev/null 2>&1
 	if [ 0 -ne $? ]; then
-		LogMsg "CreateVlanConfig: no interface $1 found."
+		LogErr "No interface $1 found."
 		return 1
 	fi
 
@@ -810,16 +787,16 @@ CreateVlanConfig()
 		if [[ $? -eq 0 ]]; then
 	    	netmaskConf="PREFIX"
 	    else
-	    	LogMsg "CreateVlanConfig: $2 is not a valid IP Address"
-			return 2
+	    	LogErr "$2 is not a valid IP Address"
+			return 1
 		fi
 	fi
 
 	declare __noreg='^[0-4096]+'
 	# check $4 for valid vlan range
 	if ! [[ $4 =~ $__noreg ]] ; then
-		LogMsg "CreateVlanConfig: invalid vlan ID $4 received."
-		return 3
+		LogErr "Invalid vlan ID $4 received."
+		return 1
 	fi
 
 	# check that vlan driver is loaded
@@ -843,7 +820,7 @@ CreateVlanConfig()
 	# consider a better cleanup of environment if an existing interfaces setup exists
 	__file_path="/etc/sysconfig/network-scripts/ifcfg-$__interface"
 	if [ -e "$__file_path" ]; then
-		LogMsg "CreateVlanConfig: warning, $__file_path already exists."
+		LogErr "Warning, $__file_path already exists."
 		if [ -d "$__file_path" ]; then
 			rm -rf "$__file_path"
 		else
@@ -853,7 +830,7 @@ CreateVlanConfig()
 
 	__vlan_file_path="/etc/sysconfig/network-scripts/ifcfg-$__interface.$__vlanID"
 	if [ -e "$__vlan_file_path" ]; then
-		LogMsg "CreateVlanConfig: warning, $__vlan_file_path already exists."
+		LogErr "Warning, $__vlan_file_path already exists."
 		if [ -d "$__vlan_file_path" ]; then
 			rm -rf "$__vlan_file_path"
 		else
@@ -935,8 +912,8 @@ CreateVlanConfig()
 
 			;;
 		*)
-			LogMsg "Platform not supported yet!"
-			return 4
+			LogErr "Platform not supported yet!"
+			return 1
 			;;
 	esac
 
@@ -946,7 +923,7 @@ CreateVlanConfig()
 	grep "$__vlanID" /proc/net/vlan/config
 	if [ 0 -ne $? ]; then
 		LogMsg "/proc/net/vlan/config has no vlanID of $__vlanID"
-		return 5
+		return 1
 	fi
 
 	return 0
@@ -956,24 +933,24 @@ CreateVlanConfig()
 # Parameters:
 # $1 == interface from which to remove the vlan config file
 # $2 == vlan ID
-RemoveVlanConfig()
-{
+# Unused
+function RemoveVlanConfig() {
 	if [ 2 -ne $# ]; then
-		LogMsg "RemoveVlanConfig expects 2 arguments"
-		return 100
+		LogErr "Required 2 arguments"
+		return 1
 	fi
 
 	# check interface exists
 	ip link show "$1" >/dev/null 2>&1
 	if [ 0 -ne $? ]; then
-		LogMsg "RemoveVlanConfig: no interface $1 found."
+		LogErr "No interface $1 found."
 		return 1
 	fi
 
 	declare __noreg='^[0-4096]+'
 	# check $2 for valid vlan range
 	if ! [[ $2 =~ $__noreg ]] ; then
-		LogMsg "RemoveVlanConfig: invalid vlan ID $2 received."
+		LogErr "Invalid vlan ID $2 received."
 		return 2
 	fi
 
@@ -991,7 +968,7 @@ RemoveVlanConfig()
 		redhat*|fedora*)
 			__file_path="/etc/sysconfig/network-scripts/ifcfg-$__interface.$__vlanID"
 			if [ -e "$__file_path" ]; then
-				LogMsg "RemoveVlanConfig: found $__file_path ."
+				LogErr "Found $__file_path ."
 				if [ -d "$__file_path" ]; then
 					rm -rf "$__file_path"
 				else
@@ -1006,7 +983,7 @@ RemoveVlanConfig()
 		suse_12*)
 			__file_path="/etc/sysconfig/network/ifcfg-$__interface.$__vlanID"
 			if [ -e "$__file_path" ]; then
-				LogMsg "RemoveVlanConfig: found $__file_path ."
+				LogErr "Found $__file_path ."
 				if [ -d "$__file_path" ]; then
 					rm -rf "$__file_path"
 				else
@@ -1020,7 +997,7 @@ RemoveVlanConfig()
 		suse*)
 			__file_path="/etc/sysconfig/network/ifcfg-$__interface.$__vlanID"
 			if [ -e "$__file_path" ]; then
-				LogMsg "RemoveVlanConfig: found $__file_path ."
+				LogErr "Found $__file_path ."
 				if [ -d "$__file_path" ]; then
 					rm -rf "$__file_path"
 				else
@@ -1038,15 +1015,15 @@ RemoveVlanConfig()
 		debian*|ubuntu*)
 			__file_path="/etc/network/interfaces"
 			if [ ! -e "$__file_path" ]; then
-				LogMsg "RemoveVlanConfig: warning, $__file_path does not exist."
+				LogErr "Warning, $__file_path does not exist."
 				return 0
 			fi
 			if [ ! -d "$(dirname $__file_path)" ]; then
-				LogMsg "RemoveVlanConfig: warning, $(dirname $__file_path) does not exist."
+				LogErr "Warning, $(dirname $__file_path) does not exist."
 				return 0
 			else
 				rm -f "$(dirname $__file_path)"
-				LogMsg "CreateVlanConfig: Warning $(dirname $__file_path) is not a directory"
+				LogErr "Warning $(dirname $__file_path) is not a directory"
 				mkdir -p "$(dirname $__file_path)"
 				touch "$__file_path"
 			fi
@@ -1063,8 +1040,8 @@ RemoveVlanConfig()
 				__last_line=$(wc -l $__file_path | cut -d ' ' -f 1)
 				# sanity check
 				if [ "$__first_iface" -gt "$__last_line" ]; then
-					LogMsg "CreateVlanConfig: error while parsing $__file_path . First iface line is gt last line in file"
-					return 100
+					LogErr "Error while parsing $__file_path . First iface line is gt last line in file"
+					return 1
 				fi
 
 				# get the last x lines after __first_iface
@@ -1085,13 +1062,13 @@ RemoveVlanConfig()
 
 
 					if [ "$__second_iface" -gt "$__last_line" ]; then
-						LogMsg "CreateVlanConfig: error while parsing $__file_path . Second iface line is gt last line in file"
-						return 100
+						LogErr "Error while parsing $__file_path . Second iface line is gt last line in file"
+						return 1
 					fi
 
 					if [ "$__second_iface" -le "$__first_iface" ]; then
-						LogMsg "CreateVlanConfig: error while parsing $__file_path . Second iface line is gt last line in file"
-						return 100
+						LogErr "Error while parsing $__file_path . Second iface line is gt last line in file"
+						return 1
 					fi
 				fi
 				# now delete all lines between the first iface and the second iface
@@ -1102,13 +1079,12 @@ RemoveVlanConfig()
 
 			;;
 		*)
-			LogMsg "Platform not supported yet!"
+			LogErr "Platform not supported yet!"
 			return 3
 			;;
 	esac
 
 	return 0
-
 }
 
 # Create ifup config file
@@ -1118,17 +1094,16 @@ RemoveVlanConfig()
 # $3 == IP Address
 # $4 == Subnet Mask
 # if $2 is set to dhcp, $3 and $4 are ignored
-CreateIfupConfigFile()
-{
+function CreateIfupConfigFile() {
 	if [ 2 -gt $# -o 4 -lt $# ]; then
-		LogMsg "CreateIfupConfigFile accepts between 2 and 4 arguments"
-		return 100
+		LogErr "Required 2 or 4 arguments"
+		return 1
 	fi
 
 	# check interface exists
 	ip link show "$1" >/dev/null 2>&1
 	if [ 0 -ne $? ]; then
-		LogMsg "CreateIfupConfigFile: no interface $1 found."
+		LogErr "Found no interface $1"
 		return 1
 	fi
 
@@ -1147,7 +1122,7 @@ CreateIfupConfigFile()
 			__create_static=0
 			;;
 		*)
-			LogMsg "CreateIfupConfigFile: \$2 needs to be either static or dhcp (received $2)"
+			LogErr "\$2 needs to be either static or dhcp (received $2)"
 			return 2
 			;;
 	esac
@@ -1159,12 +1134,12 @@ CreateIfupConfigFile()
 			suse_12*)
 				__file_path="/etc/sysconfig/network/ifcfg-$__interface_name"
 				if [ ! -d "$(dirname $__file_path)" ]; then
-					LogMsg "CreateIfupConfigFile: $(dirname $__file_path) does not exist! Something is wrong with the network config!"
+					LogErr "$(dirname $__file_path) does not exist! Something is wrong with the network config!"
 					return 3
 				fi
 
 				if [ -e "$__file_path" ]; then
-					LogMsg "CreateIfupConfigFile: Warning will overwrite $__file_path ."
+					LogErr "Warning will overwrite $__file_path ."
 				fi
 
 				cat <<-EOF > "$__file_path"
@@ -1178,12 +1153,12 @@ CreateIfupConfigFile()
 			suse*)
 				__file_path="/etc/sysconfig/network/ifcfg-$__interface_name"
 				if [ ! -d "$(dirname $__file_path)" ]; then
-					LogMsg "CreateIfupConfigFile: $(dirname $__file_path) does not exist! Something is wrong with the network config!"
+					LogErr "$(dirname $__file_path) does not exist! Something is wrong with the network config!"
 					return 3
 				fi
 
 				if [ -e "$__file_path" ]; then
-					LogMsg "CreateIfupConfigFile: Warning will overwrite $__file_path ."
+					LogErr "Warning will overwrite $__file_path ."
 				fi
 
 				cat <<-EOF > "$__file_path"
@@ -1197,12 +1172,12 @@ CreateIfupConfigFile()
 			redhat_6|centos_6|redhat_7|redhat_8|centos_7|centos_8|fedora*)
 				__file_path="/etc/sysconfig/network-scripts/ifcfg-$__interface_name"
 				if [ ! -d "$(dirname $__file_path)" ]; then
-					LogMsg "CreateIfupConfigFile: $(dirname $__file_path) does not exist! Something is wrong with the network config!"
+					LogErr "$(dirname $__file_path) does not exist! Something is wrong with the network config!"
 					return 3
 				fi
 
 				if [ -e "$__file_path" ]; then
-					LogMsg "CreateIfupConfigFile: Warning will overwrite $__file_path ."
+					LogErr "Warning will overwrite $__file_path ."
 				fi
 
 				cat <<-EOF > "$__file_path"
@@ -1218,12 +1193,12 @@ CreateIfupConfigFile()
 			redhat_5|centos_5)
 				__file_path="/etc/sysconfig/network-scripts/ifcfg-$__interface_name"
 				if [ ! -d "$(dirname $__file_path)" ]; then
-					LogMsg "CreateIfupConfigFile: $(dirname $__file_path) does not exist! Something is wrong with the network config!"
+					LogErr "$(dirname $__file_path) does not exist! Something is wrong with the network config!"
 					return 3
 				fi
 
 				if [ -e "$__file_path" ]; then
-					LogMsg "CreateIfupConfigFile: Warning will overwrite $__file_path ."
+					LogErr "Warning will overwrite $__file_path ."
 				fi
 
 				cat <<-EOF > "$__file_path"
@@ -1242,18 +1217,18 @@ CreateIfupConfigFile()
 			debian*|ubuntu*)
 				__file_path="/etc/network/interfaces"
 				if [ ! -d "$(dirname $__file_path)" ]; then
-					LogMsg "CreateIfupConfigFile: $(dirname $__file_path) does not exist! Something is wrong with the network config!"
+					LogErr "$(dirname $__file_path) does not exist! Something is wrong with the network config!"
 					return 3
 				fi
 
 				if [ -e "$__file_path" ]; then
-					LogMsg "CreateIfupConfigFile: Warning will overwrite $__file_path ."
+					LogErr "Warning will overwrite $__file_path ."
 				fi
 
 				#Check if interface is already configured. If so, delete old config
 				if grep -q "$__interface_name" $__file_path
 				then
-					LogMsg "CreateIfupConfigFile: Warning will delete older configuration of interface $__interface_name"
+					LogErr "Warning will delete older configuration of interface $__interface_name"
 				    sed -i "/$__interface_name/d" $__file_path
 				fi
 
@@ -1269,28 +1244,28 @@ CreateIfupConfigFile()
 				fi
 				;;
 			*)
-				LogMsg "CreateIfupConfigFile: Platform not supported yet!"
-				return 3
+				LogErr "Platform not supported yet!"
+				return 1
 				;;
 		esac
 	else
 		# create config file for static
 		if [ $# -ne 4 ]; then
-			LogMsg "CreateIfupConfigFile: if static config is selected, please provide 4 arguments"
-			return 100
+			LogErr "if static config is selected, please provide 4 arguments"
+			return 1
 		fi
 
 		if [[ $3 == *":"* ]]; then
 			CheckIPV6 "$3"
 			if [ 0 -ne $? ]; then
-				LogMsg "CreateIfupConfigFile: $3 is not a valid IPV6 Address"
-				return 2
+				LogErr "$3 is not a valid IPV6 Address"
+				return 1
 			fi
 			ipv6=true
 		else
 			CheckIP "$3"
 			if [ 0 -ne $? ]; then
-				LogMsg "CreateIfupConfigFile: $3 is not a valid IP Address"
+				LogErr "$3 is not a valid IP Address"
 				return 2
 			fi
 		fi
@@ -1305,12 +1280,12 @@ CreateIfupConfigFile()
 			suse_12*|suse_15*)
 				__file_path="/etc/sysconfig/network/ifcfg-$__interface_name"
 				if [ ! -d "$(dirname $__file_path)" ]; then
-					LogMsg "CreateIfupConfigFile: $(dirname $__file_path) does not exist! Something is wrong with the network config!"
-					return 3
+					LogErr "$(dirname $__file_path) does not exist! Something is wrong with the network config!"
+					return 1
 				fi
 
 				if [ -e "$__file_path" ]; then
-					LogMsg "CreateIfupConfigFile: Warning will overwrite $__file_path ."
+					LogErr "Warning will overwrite $__file_path ."
 				fi
 				if [[ $ipv6 == false ]]; then
 					cat <<-EOF > "$__file_path"
@@ -1333,12 +1308,12 @@ CreateIfupConfigFile()
 			suse*)
 				__file_path="/etc/sysconfig/network/ifcfg-$__interface_name"
 				if [ ! -d "$(dirname $__file_path)" ]; then
-					LogMsg "CreateIfupConfigFile: $(dirname $__file_path) does not exist! Something is wrong with the network config!"
-					return 3
+					LogErr "$(dirname $__file_path) does not exist! Something is wrong with the network config!"
+					return 1
 				fi
 
 				if [ -e "$__file_path" ]; then
-					LogMsg "CreateIfupConfigFile: Warning will overwrite $__file_path ."
+					LogErr "Warning will overwrite $__file_path ."
 				fi
 
 				cat <<-EOF > "$__file_path"
@@ -1354,12 +1329,12 @@ CreateIfupConfigFile()
 			redhat*|centos*|fedora*)
 				__file_path="/etc/sysconfig/network-scripts/ifcfg-$__interface_name"
 				if [ ! -d "$(dirname $__file_path)" ]; then
-					LogMsg "CreateIfupConfigFile: $(dirname $__file_path) does not exist! Something is wrong with the network config!"
-					return 3
+					LogErr "$(dirname $__file_path) does not exist! Something is wrong with the network config!"
+					return 1
 				fi
 
 				if [ -e "$__file_path" ]; then
-					LogMsg "CreateIfupConfigFile: Warning will overwrite $__file_path ."
+					LogErr "Warning will overwrite $__file_path ."
 				fi
 
 				if [[ $ipv6 == false ]]; then
@@ -1387,25 +1362,24 @@ CreateIfupConfigFile()
 			debian*|ubuntu*)
 				__file_path="/etc/network/interfaces"
 				if [ ! -d "$(dirname $__file_path)" ]; then
-					LogMsg "CreateIfupConfigFile: $(dirname $__file_path) does not exist! Something is wrong with the network config!"
-					return 3
+					LogErr "$(dirname $__file_path) does not exist! Something is wrong with the network config!"
+					return 1
 				fi
 
 				if [ -e "$__file_path" ]; then
-					LogMsg "CreateIfupConfigFile: Warning will overwrite $__file_path ."
+					LogErr "Warning will overwrite $__file_path ."
 				fi
 
 				#Check if interface is already configured. If so, delete old config
-				if grep -q "$__interface_name" $__file_path
-				then
-					LogMsg "CreateIfupConfigFile: Warning will delete older configuration of interface $__interface_name"
-				    lineNumber=$(cat -n $__file_path |grep "iface $__interface_name"| awk '{print $1;}')
-				    if [ $lineNumber ]; then
-				        lineNumber=$lineNumber+1
-				        sed -i "${lineNumber},+1 d" $__file_path
-				    fi
-				    sed -i "/$__interface_name/d" $__file_path
-				fi
+				if [ grep -q "$__interface_name" $__file_path ]; then
+                    LogErr "Warning will delete older configuration of interface $__interface_name"
+                    lineNumber=$(cat -n $__file_path |grep "iface $__interface_name"| awk '{print $1;}')
+                    if [ $lineNumber ]; then
+                        lineNumber=$lineNumber+1
+                        sed -i "${lineNumber},+1 d" $__file_path
+                    fi
+                    sed -i "/$__interface_name/d" $__file_path
+                fi
 
 				if [[ $ipv6 == false ]]; then
 					cat <<-EOF >> "$__file_path"
@@ -1430,8 +1404,8 @@ CreateIfupConfigFile()
 				fi
 				;;
 			*)
-				LogMsg "CreateIfupConfigFile: Platform not supported!"
-				return 3
+				LogErr "Platform not supported!"
+				return 1
 				;;
 		esac
 	fi
@@ -1448,103 +1422,100 @@ CreateIfupConfigFile()
 # Control Network Manager
 # Parameters:
 # $1 == start | stop
-ControlNetworkManager()
-{
-	if [ 1 -ne $# ]; then
-		LogMsg "ControlNetworkManager accepts 1 argument: start | stop"
-		return 100
-	fi
+# Unusued
+function ControlNetworkManager() {
+    if [ 1 -ne $# ]; then
+        LogErr "Required 1 argument: start | stop"
+        return 1
+    fi
 
-	# Check first argument
-	if [ x"$1" != xstop ]; then
-		if [ x"$1" != xstart ]; then
-			LogMsg "ControlNetworkManager accepts 1 argument: start | stop."
-			return 100
-		fi
-	fi
+    # Check first argument
+    if [ x"$1" != xstop ] && [ x"$1" != xstart ]; then
+        LogErr "Required 1 argument: start | stop."
+        return 1
+    fi
 
-	GetDistro
-	case $DISTRO in
-		redhat*|fedora*|centos*)
-			# check that we have a NetworkManager service running
-			service NetworkManager status
-			if [ 0 -ne $? ]; then
-				LogMsg "NetworkManager does not appear to be running."
-				return 0
-			fi
-			# now try to start|stop the service
-			service NetworkManager $1
-			if [ 0 -ne $? ]; then
-				LogMsg "Unable to $1 NetworkManager."
-				return 1
-			else
-				LogMsg "Successfully ${1}ed NetworkManager."
-			fi
-			;;
-		suse*)
-			# no service file
-			# edit /etc/sysconfig/network/config and set NETWORKMANAGER=no
-			declare __nm_activated
-			if [ x"$1" = xstart ]; then
-				__nm_activated=yes
-			else
-				__nm_activated=no
-			fi
+    GetDistro
+    case $DISTRO in
+        redhat*|fedora*|centos*)
+            # check that we have a NetworkManager service running
+            service NetworkManager status
+            if [ 0 -ne $? ]; then
+                LogMsg "NetworkManager does not appear to be running."
+                return 0
+            fi
+            # now try to start|stop the service
+            service NetworkManager $1
+            if [ 0 -ne $? ]; then
+                LogMsg "Unable to $1 NetworkManager."
+                return 1
+            else
+                LogMsg "Successfully ${1}ed NetworkManager."
+            fi
+            ;;
+        suse*)
+            # no service file
+            # edit /etc/sysconfig/network/config and set NETWORKMANAGER=no
+            declare __nm_activated
+            if [ x"$1" = xstart ]; then
+                __nm_activated=yes
+            else
+                __nm_activated=no
+            fi
 
-			if [ -f /etc/sysconfig/network/config ]; then
-				grep '^NETWORKMANAGER=' /etc/sysconfig/network/config
-				if [ 0 -eq $? ]; then
-					sed -i "s/^NETWORKMANAGER=.*/NETWORKMANAGER=$__nm_activated/g" /etc/sysconfig/network/config
-				else
-					echo "NETWORKMANAGER=$__nm_activated" >> /etc/sysconfig/network/config
-				fi
+            if [ -f /etc/sysconfig/network/config ]; then
+                grep '^NETWORKMANAGER=' /etc/sysconfig/network/config
+                if [ 0 -eq $? ]; then
+                    sed -i "s/^NETWORKMANAGER=.*/NETWORKMANAGER=$__nm_activated/g" /etc/sysconfig/network/config
+                else
+                    echo "NETWORKMANAGER=$__nm_activated" >> /etc/sysconfig/network/config
+                fi
 
-				# before restarting service, save the LIS network interface details and restore them after restarting. (or at least try)
-				# this needs to be done in the caller, as this function cannot be expected to read the constants file and know which interface to reconfigure.
-				service network restart
-			else
-				LogMsg "No network config file found at /etc/sysconfig/network/config"
-				return 1
-			fi
+                # before restarting service, save the LIS network interface details and restore them after restarting. (or at least try)
+                # this needs to be done in the caller, as this function cannot be expected to read the constants file and know which interface to reconfigure.
+                service network restart
+            else
+                LogMsg "No network config file found at /etc/sysconfig/network/config"
+                return 1
+            fi
 
-			LogMsg "Successfully ${1}ed NetworkManager."
-			;;
-		debian*|ubuntu*)
-			# check that we have a NetworkManager service running
-			service network-manager status
-			if [ 0 -ne $? ]; then
-				LogMsg "NetworkManager does not appear to be running."
-				return 0
-			fi
-			# now try to start|stop the service
-			service network-manager $1
-			if [ 0 -ne $? ]; then
-				LogMsg "Unable to $1 NetworkManager."
-				return 1
-			else
-				LogMsg "Successfully ${1}ed NetworkManager."
-			fi
-			;;
-		*)
-			LogMsg "Platform not supported!"
-			return 3
-			;;
-	esac
+            LogMsg "Successfully ${1}ed NetworkManager."
+            ;;
+        debian*|ubuntu*)
+            # check that we have a NetworkManager service running
+            service network-manager status
+            if [ 0 -ne $? ]; then
+                LogMsg "NetworkManager does not appear to be running."
+                return 0
+            fi
+            # now try to start|stop the service
+            service network-manager $1
+            if [ 0 -ne $? ]; then
+                LogMsg "Unable to $1 NetworkManager."
+                return 1
+            else
+                LogMsg "Successfully ${1}ed NetworkManager."
+            fi
+            ;;
+        *)
+            LogMsg "Platform not supported!"
+            return 1
+            ;;
+    esac
 
-	return 0
+    return 0
 }
 
 # Convenience Function to disable NetworkManager
-DisableNetworkManager()
-{
+function DisableNetworkManager() {
 	ControlNetworkManager stop
 	# propagate return value from ControlNetworkManager
 	return $?
 }
 
 # Convenience Function to enable NetworkManager
-EnableNetworkManager()
-{
+# Unused
+function EnableNetworkManager() {
 	ControlNetworkManager start
 	# propagate return value from ControlNetworkManager
 	return $?
@@ -1555,10 +1526,10 @@ EnableNetworkManager()
 # $2 == Bridge netmask
 # $3 - $# == Interfaces to attach to bridge
 # if no parameter is given outside of IP and Netmask, all interfaces will be added (except lo)
-SetupBridge()
-{
+# Unused
+function SetupBridge() {
 	if [ $# -lt 2 ]; then
-		LogMsg "SetupBridge needs at least 2 parameters"
+		LogErr "Required at least 2 parameters"
 		return 1
 	fi
 
@@ -1569,8 +1540,8 @@ SetupBridge()
 	CheckIP "$1"
 
 	if [ 0 -ne $? ]; then
-		LogMsg "SetupBridge: $1 is not a valid IP Address"
-		return 2
+		LogErr "$1 is not a valid IP Address"
+		return 1
 	fi
 
 	__bridge_ip="$1"
@@ -1580,18 +1551,18 @@ SetupBridge()
 	if [  0 -eq $? ]; then
 		__bridge_netmask=$(NetmaskToCidr "$__bridge_netmask")
 		if [ 0 -ne $? ]; then
-			LogMsg "SetupBridge: $__bridge_netmask is not a valid netmask"
-			return 3
+			LogErr "$__bridge_netmask is not a valid netmask"
+			return 1
 		fi
 	fi
 
 	if [ "$__bridge_netmask" -ge 32 -o "$__bridge_netmask" -le 0 ]; then
-		LogMsg "SetupBridge: $__bridge_netmask is not a valid cidr netmask"
-		return 4
+		LogErr "$__bridge_netmask is not a valid cidr netmask"
+		return 1
 	fi
 
 	if [ 2 -eq $# ]; then
-		LogMsg "SetupBridge received no interface argument. All network interfaces found will be attached to the bridge."
+		LogMsg "Received no interface argument. All network interfaces found will be attached to the bridge."
 		# Get all synthetic interfaces
 		GetSynthNetInterfaces
 		# Remove the loopback interface
@@ -1608,8 +1579,8 @@ SetupBridge()
 		__bridge_interfaces=("${SYNTH_NET_INTERFACES[@]}" "${LEGACY_NET_INTERFACES[@]}")
 
 		if [ ${#__bridge_interfaces[@]} -eq 0 ]; then
-			LogMsg "SetupBridge: No interfaces found"
-			return 3
+			LogErr "No interfaces found"
+			return 1
 		fi
 
 	else
@@ -1621,8 +1592,8 @@ SetupBridge()
 		for __iterator in "$@"; do
 			ip link show "$__iterator" >/dev/null 2>&1
 			if [ 0 -ne $? ]; then
-				LogMsg "SetupBridge: Interface $__iterator not working or not present"
-				return 4
+				LogErr "Interface $__iterator not working or not present"
+				return 1
 			fi
 			__bridge_interfaces=("${__bridge_interfaces[@]}" "$__iterator")
 		done
@@ -1631,8 +1602,8 @@ SetupBridge()
 	# create bridge br0
 	brctl addbr br0
 	if [ 0 -ne $? ]; then
-		LogMsg "SetupBridge: unable to create bridge br0"
-		return 5
+		LogErr "Unable to create bridge br0"
+		return 1
 	fi
 
 	# turn off stp
@@ -1648,10 +1619,10 @@ SetupBridge()
 		#add interface to bridge
 		brctl addif br0 "$__iface"
 		if [ 0 -ne $? ]; then
-			LogMsg "SetupBridge: unable to add interface $__iface to bridge br0"
-			return 6
+			LogErr "Unable to add interface $__iface to bridge br0"
+			return 1
 		fi
-		LogMsg "SetupBridge: Added $__iface to bridge"
+		LogErr "Added $__iface to bridge"
 		echo "1" > /proc/sys/net/ipv4/conf/"$__iface"/proxy_arp
 		echo "1" > /proc/sys/net/ipv4/conf/"$__iface"/forwarding
 
@@ -1666,24 +1637,24 @@ SetupBridge()
 	ip addr add "$__bridge_ip"/"$__bridge_netmask" dev br0
 	ip link set br0 up
 	LogMsg "$(brctl show br0)"
-	LogMsg "SetupBridge: Successfull"
+	LogMsg "Successfully create a new bridge"
 	# done
 	return 0
 }
 
 # TearDown Bridge br0
-TearDownBridge()
-{
+# Unused
+function TearDownBridge() {
 	ip link show br0 >/dev/null 2>&1
 	if [ 0 -ne $? ]; then
-		LogMsg "TearDownBridge: No interface br0 found"
+		LogErr "No interface br0 found"
 		return 1
 	fi
 
 	brctl show br0
 	if [ 0 -ne $? ]; then
-		LogMsg "TearDownBridge: No bridge br0 found"
-		return 2
+		LogErr "No bridge br0 found"
+		return 1
 	fi
 
 	# get Mac Addresses of interfaces attached to the bridge
@@ -1697,11 +1668,10 @@ TearDownBridge()
 	for __mac in $__bridge_macs; do
 		__bridge_interfaces=$(grep -il "$__mac" /sys/class/net/*/address)
 		if [ 0 -ne $? ]; then
-			msg="TearDownBridge: MAC Address $__mac does not belong to any interface."
-			LogMsg "$msg"
+			LogErr "MAC Address $__mac does not belong to any interface."
 			UpdateSummary "$msg"
 			SetTestStateFailed
-			return 3
+			return 1
 		fi
 
 		# get just the interface name from the path
@@ -1709,8 +1679,8 @@ TearDownBridge()
 
 		ip link show "$__bridge_interfaces" >/dev/null 2>&1
 		if [ 0 -ne $? ]; then
-			LogMsg "TearDownBridge: Could not find interface $__bridge_interfaces"
-			return 4
+			LogErr "Could not find interface $__bridge_interfaces"
+			return 1
 		fi
 
 		brctl delif br0 "$__bridge_interfaces"
@@ -1721,7 +1691,6 @@ TearDownBridge()
 	brctl delbr br0
 
 	return 0
-
 }
 
 # Check free space
@@ -1729,11 +1698,10 @@ TearDownBridge()
 # $2 number of bytes to compare
 # return == 0 if total free space is greater than $2
 # return 1 otherwise
-IsFreeSpace()
-{
+function IsFreeSpace() {
 	if [ 2 -ne $# ]; then
 		LogMsg "IsFreeSpace takes 2 arguments: path/to/dir to check for free space and number of bytes needed free"
-		return 100
+		return -1
 	fi
 
 	declare -i __total_free_bytes=0
@@ -1758,7 +1726,6 @@ function GetOSVersion {
         os_RELEASE=$(sw_vers -productVersion)
         os_UPDATE=${os_RELEASE##*.}
         os_RELEASE=${os_RELEASE%.*}
-        os_PACKAGE=""
         if [[ "$os_RELEASE" =~ "10.7" ]]; then
             os_CODENAME="lion"
         elif [[ "$os_RELEASE" =~ "10.6" ]]; then
@@ -1862,169 +1829,37 @@ function GetOSVersion {
     export os_VENDOR os_RELEASE os_UPDATE os_PACKAGE os_CODENAME
 }
 
-#######################################################################
-# Determine if current distribution is a Fedora-based distribution
-# (Fedora, RHEL, CentOS, etc).
-#######################################################################
-function is_fedora {
-    if [[ -z "$os_VENDOR" ]]; then
-        GetOSVersion
-    fi
-
-    [ "$os_VENDOR" = "Fedora" ] || [ "$os_VENDOR" = "Red Hat" ] || \
-        [ "$os_VENDOR" = "CentOS" ] || [ "$os_VENDOR" = "OracleServer" ]
-}
-
-#######################################################################
-# Determine if current distribution is a Rhel/CentOS 7 distribution
-#######################################################################
-
-function is_rhel7 {
-    if [[ -z "$os_RELEASE" ]]; then
-        GetOSVersion
-    fi
-
-    [ "$os_VENDOR" = "Red Hat" ] || \
-        [ "$os_VENDOR" = "CentOS" ] || [ "$os_VENDOR" = "OracleServer" ] && \
-        [[ $os_RELEASE =~ 7.* ]] && [[ $os_RELEASE != 6.7 ]]
-}
-
-#######################################################################
-# Determine if current distribution is a SUSE-based distribution
-# (openSUSE, SLE).
-#######################################################################
-function is_suse {
-    if [[ -z "$os_VENDOR" ]]; then
-        GetOSVersion
-    fi
-
-    [ "$os_VENDOR" = "openSUSE" ] || [ "$os_VENDOR" = "SUSE LINUX" ] || \
-    [ "$os_VENDOR" = "SUSE" ] || [ "$os_VENDOR" = "SLE" ] || \
-    [ "$os_VENDOR" = "SLES" ] || [ "$os_VENDOR" = "SLEHPC" ]
-}
-
-#######################################################################
-# Determine if current distribution is an Ubuntu-based distribution
-# It will also detect non-Ubuntu but Debian-based distros
-#######################################################################
-function is_ubuntu {
-    if [[ -z "$os_PACKAGE" ]]; then
-        GetOSVersion
-    fi
-    [ "$os_PACKAGE" = "deb" ]
-}
-
-GetGuestGeneration()
-{
+function GetGuestGeneration() {
     if [ -d /sys/firmware/efi/ ]; then
         os_GENERATION=2
     else
         os_GENERATION=1
     fi
-	echo "Generation: $os_GENERATION"
+	LogMsg "Generation: $os_GENERATION"
 }
 
-#######################################################################
-# Perform a minor kernel upgrade on CentOS/RHEL distros
-#######################################################################
-UpgradeMinorKernel() {
-	os_version=$(sed -e 's/^.* \([0-9].*\) (\(.*\)).*$/\1/' /etc/redhat-release)
-
-	grep CentOS /etc/redhat-release
-	if [ $? -eq 0 ]; then
-		# Make changes to CentOS-Vault.repo
-		sed -i "s/enabled=\S*/enabled=1/g" /etc/yum.repos.d/CentOS-Vault.repo
-
-		# A CentOS 6.x specific command
-		sed -i "s/6.0/$os_version/g" /etc/yum.repos.d/CentOS-Vault.repo
-
-		# Get kernel version
-		kernel_version=$(sed 's/.el.*//' <<< "$(uname -r)")
-		sts=$(yum install kernel-${kernel_version}* -y)
-		if [ $? -ne 0 ]; then
-			sed -i "s/enabled=\S*/enabled=0/g" /etc/yum.repos.d/CentOS-Vault.repo
-			sts=$(yum install kernel-${kernel_version}* -y)
-		fi
-	fi
-
-	grep "Red Hat" /etc/redhat-release
-	if [ $? -eq 0 ]; then
-		sts=$(yum install -y --releasever=${os_version} kernel)
-	fi
-
-	if [ $sts -ne 0 ]; then
-		return 1
-	fi
-
-	return 0
-}
-
-VerifyIsEthtool()
-{
+function VerifyIsEthtool() {
+	# Should have "return" value: 0, if existed. Otherwise, 1.
     # Check for ethtool. If it's not on the system, install it.
     ethtool --version
     if [ $? -ne 0 ]; then
-        LogMsg "INFO: Ethtool not found. Trying to install it."
+        LogMsg "Ethtool not found. Trying to install it."
         update_repos
         install_package "ethtool"
     fi
-    LogMsg "Info: Ethtool is installed!"
-}
-
-
-#list all network interfaces without eth0
-ListInterfaces()
-{
-    # Parameter provided in constants file
-    #    ipv4 is the IP Address of the interface used to communicate with the VM, which needs to remain unchanged
-    #    it is not touched during this test (no dhcp or static ip assigned to it)
-
-    if [ "${ipv4:-UNDEFINED}" = "UNDEFINED" ]; then
-        msg="The test parameter ipv4 is not defined in constants file!"
-        LogMsg "$msg"
-        UpdateSummary "$msg"
-        SetTestStateAborted
-        exit 30
+    which ethtool
+    if [ $? -eq 0 ]; then
+        LogMsg "Ethtool is successfully installed!"
+        return 0
     else
-
-        CheckIP "$ipv4"
-        if [ 0 -ne $? ]; then
-            msg="Test parameter ipv4 = $ipv4 is not a valid IP Address"
-            LogMsg "$msg"
-            UpdateSummary "$msg"
-            SetTestStateAborted
-            exit 10
-        fi
-
-        # Get the interface associated with the given ipv4
-        __iface_ignore=$(ip -o addr show | grep "$ipv4" | cut -d ' ' -f2)
+        LogErr "Ethtool installation failed"
+        return 1
     fi
-
-    GetSynthNetInterfaces
-    if [ 0 -ne $? ]; then
-        msg="No synthetic network interfaces found"
-        LogMsg "$msg"
-        UpdateSummary "$msg"
-        SetTestStateFailed
-        exit 10
-    fi
-    # Remove interface if present
-    SYNTH_NET_INTERFACES=(${SYNTH_NET_INTERFACES[@]/$__iface_ignore/})
-
-    if [ ${#SYNTH_NET_INTERFACES[@]} -eq 0 ]; then
-        msg="The only synthetic interface is the one which LIS uses to send files/commands to the VM."
-        LogMsg "$msg"
-        UpdateSummary "$msg"
-        SetTestStateAborted
-        exit 10
-    fi
-    LogMsg "Found ${#SYNTH_NET_INTERFACES[@]} synthetic interface(s): ${SYNTH_NET_INTERFACES[*]} in VM"
 }
 
 # Function that will check for Call Traces on VM after 2 minutes
 # This function assumes that check_traces.sh is already on the VM
-CheckCallTracesWithDelay()
-{
+function CheckCallTracesWithDelay() {
     dos2unix -q check_traces.sh
     echo 'sleep 5 && bash ~/check_traces.sh ~/check_traces.log &' > runtest_traces.sh
     bash runtest_traces.sh > check_traces.log 2>&1
@@ -2041,10 +1876,8 @@ CheckCallTracesWithDelay()
     fi
 }
 
-
 # Get the verison of LIS
-function get_lis_version ()
-{
+function get_lis_version() {
 	lis_version=$(modinfo hv_vmbus | grep "^version:"| awk '{print $2}')
 	if [ "$lis_version" == "" ]; then
 		lis_version="Default_LIS"
@@ -2053,14 +1886,12 @@ function get_lis_version ()
 }
 
 # Get the version of host
-function get_host_version ()
-{
+function get_host_version() {
 	dmesg | grep "Host Build" | sed "s/.*Host Build://"| awk '{print  $1}'| sed "s/;//"
 }
 
 # Validate the exit status of previous execution
-function check_exit_status ()
-{
+function check_exit_status() {
 	exit_status=$?
 	message=$1
 
@@ -2147,7 +1978,7 @@ function update_repos() {
 			swupd update
 			;;
 		*)
-			echo "Unknown distribution"
+			LogErr "Unknown distribution"
 			return 1
 	esac
 }
@@ -2169,8 +2000,7 @@ function install_deb () {
 }
 
 # Apt-get install packages, parameter: package name
-function apt_get_install ()
-{
+function apt_get_install () {
 	package_name=$1
 	dpkg_configure
 	sudo DEBIAN_FRONTEND=noninteractive apt --fix-broken install -y
@@ -2179,8 +2009,7 @@ function apt_get_install ()
 }
 
 # Apt-get remove packages, parameter: package name
-function apt_get_remove ()
-{
+function apt_get_remove () {
 	package_name=$1
 	dpkg_configure
 	sudo DEBIAN_FRONTEND=noninteractive apt-get remove -y --force-yes $package_name
@@ -2188,56 +2017,49 @@ function apt_get_remove ()
 }
 
 # Yum install packages, parameter: package name
-function yum_install ()
-{
+function yum_install () {
 	package_name=$1
 	sudo yum -y --nogpgcheck install $package_name
 	check_exit_status "yum_install $package_name" "exit"
 }
 
 # Yum remove packages, parameter: package name
-function yum_remove ()
-{
+function yum_remove () {
 	package_name=$1
 	sudo yum -y remove $package_name
 	check_exit_status "yum_remove $package_name" "exit"
 }
 
 # Zypper install packages, parameter: package name
-function zypper_install ()
-{
+function zypper_install () {
 	package_name=$1
 	sudo zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys in $package_name
 	check_exit_status "zypper_install $package_name" "exit"
 }
 
 # Zypper remove packages, parameter: package name
-function zypper_remove ()
-{
+function zypper_remove () {
 	package_name=$1
 	sudo zypper --non-interactive rm $package_name
 	check_exit_status "zypper_remove $package_name" "exit"
 }
 
 # swupd bundle install packages, parameter: package name
-function swupd_bundle_install ()
-{
+function swupd_bundle_install () {
 	package_name=$1
 	sudo swupd bundle-add $package_name
 	check_exit_status "swupd_bundle_install $package_name" "exit"
 }
 
 # swupd bundle remove packages, parameter: package name
-function swupd_bundle_remove ()
-{
+function swupd_bundle_remove () {
 	package_name=$1
 	sudo swupd bundle-remove $package_name
 	check_exit_status "swupd_bundle_remove $package_name" "exit"
 }
 
 # Install packages, parameter: package name
-function install_package ()
-{
+function install_package () {
 	local package_list=("$@")
 	for package_name in "${package_list[@]}"; do
 		case "$DISTRO_NAME" in
@@ -2257,15 +2079,14 @@ function install_package ()
 				swupd_bundle_install "$package_name"
 				;;
 			*)
-				echo "Unknown distribution"
+				LogErr "Unknown distribution"
 				return 1
 		esac
 	done
 }
 
 # Remove packages, parameter: package name
-function remove_package ()
-{
+function remove_package () {
 	local package_list=("$@")
 	for package_name in "${package_list[@]}"; do
 		case "$DISTRO_NAME" in
@@ -2285,7 +2106,7 @@ function remove_package ()
 				swupd_bundle_remove "$package_name"
 				;;
 			*)
-				echo "Unknown distribution"
+				LogErr "Unknown distribution"
 				return 1
 		esac
 	done
@@ -2302,12 +2123,12 @@ function install_epel () {
 			elif [[ $DISTRO_VERSION =~ ^8\. ]]; then
 				epel_rpm_url="https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm"
 			else
-				echo "Unsupported version to install epel repository"
+				LogErr "Unsupported version to install epel repository"
 				return 1
 			fi
 			;;
 		*)
-			echo "Unsupported distribution to install epel repository"
+			LogErr "Unsupported distribution to install epel repository"
 			return 1
 	esac
 	sudo rpm -ivh $epel_rpm_url
@@ -2332,11 +2153,11 @@ function enable_nfs_rhel() {
 function install_sshpass () {
 	which sshpass
 	if [ $? -ne 0 ]; then
-		echo "sshpass not installed\n Installing now..."
+		LogMsg "sshpass not installed\n Installing now..."
 		check_package "sshpass"
 		if [ $? -ne 0 ]; then
 			install_package "gcc make wget"
-			echo "sshpass not installed\n Build it from source code now..."
+			LogMsg "sshpass not installed\n Build it from source code now..."
 			package_name="sshpass-1.06"
 			source_url="https://sourceforge.net/projects/sshpass/files/sshpass/1.06/$package_name.tar.gz"
 			wget $source_url
@@ -2366,13 +2187,14 @@ function add_sles_benchmark_repo () {
 				repo_url="https://download.opensuse.org/repositories/benchmark/SLE_15_SP1/benchmark.repo"
 				;;
 			*)
-				echo "Unsupported SLES version $DISTRO_VERSION for add_sles_benchmark_repo"
+				LogErr "Unsupported SLES version $DISTRO_VERSION for add_sles_benchmark_repo"
 				return 1
 		esac
 		zypper addrepo $repo_url
 		zypper --no-gpg-checks refresh
+		return 0
 	else
-		echo "Unsupported distribution for add_sles_benchmark_repo"
+		LogErr "Unsupported distribution for add_sles_benchmark_repo"
 		return 1
 	fi
 }
@@ -2391,13 +2213,14 @@ function add_sles_network_utilities_repo () {
 				repo_url="https://download.opensuse.org/repositories/network:utilities/SLE_15/network:utilities.repo"
 				;;
 			*)
-				echo "Unsupported SLES version $DISTRO_VERSION for add_sles_network_utilities_repo"
+				LogErr "Unsupported SLES version $DISTRO_VERSION for add_sles_network_utilities_repo"
 				return 1
 		esac
 		zypper addrepo $repo_url
 		zypper --no-gpg-checks refresh
+		return 0
 	else
-		echo "Unsupported distribution for add_sles_network_utilities_repo"
+		LogErr "Unsupported distribution for add_sles_network_utilities_repo"
 		return 1
 	fi
 }
@@ -2408,20 +2231,20 @@ function dpkg_configure () {
 		sudo dpkg --force-all --configure -a && break
 		retry=$[$retry - 1]
 		sleep 5
-		echo 'Trying again to run dpkg --configure ...'
+		LogMsg 'Trying again to run dpkg --configure ...'
 	done
 }
 
 # Install fio and required packages
 function install_fio () {
-	echo "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of fio"
+	LogMsg "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of fio"
 	update_repos
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos)
 			install_epel
 			yum -y --nogpgcheck install wget sysstat mdadm blktrace libaio fio bc libaio-devel gcc gcc-c++ kernel-devel
 			if ! command -v fio; then
-				echo "fio is not installed\n Build it from source code now..."
+				LogMsg "fio is not installed\n Build it from source code now..."
 				fio_version="3.13"
 				wget https://github.com/axboe/fio/archive/fio-${fio_version}.tar.gz
 				tar xvf fio-${fio_version}.tar.gz
@@ -2436,7 +2259,7 @@ function install_fio () {
 		ubuntu|debian)
 			export DEBIAN_FRONTEND=noninteractive
 			dpkg_configure
-			apt-get install -y pciutils gawk mdadm wget sysstat blktrace bc fio
+			install_package "pciutils gawk mdadm wget sysstat blktrace bc fio"
 			check_exit_status "install_fio"
 			mount -t debugfs none /sys/kernel/debug
 			;;
@@ -2447,25 +2270,25 @@ function install_fio () {
 				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install wget mdadm blktrace libaio1 sysstat bc
 				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install fio
 			else
-				echo "Unsupported SLES version"
+				LogErr "Unsupported SLES version"
 				return 1
 			fi
 			# FIO is not available in the repository of SLES 15
 			which fio
 			if [ $? -ne 0 ]; then
-				echo "Info: fio is not available in repository. So, Installing fio using rpm"
+				LogMsg "Info: fio is not available in repository. So, Installing fio using rpm"
 				fio_url="$PACKAGE_BLOB_LOCATION/fio-sles-x86_64.rpm"
 				fio_file="fio-sles-x86_64.rpm"
 				curl -o $fio_file $fio_url
-				echo "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install $fio_file"
+				LogMsg "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install $fio_file"
 				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install $fio_file
 				which fio
 				if [ $? -ne 0 ]; then
-					echo "Error: Unable to install fio from source/rpm"
+					LogErr "Error: Unable to install fio from source/rpm"
 					return 1
 				fi
 			else
-				echo "Info: fio installed from repository"
+				LogMsg "fio installed from repository"
 			fi
 			;;
 
@@ -2480,7 +2303,7 @@ function install_fio () {
 			;;
 
 		*)
-			echo "Unsupported distribution for install_fio"
+			LogErr "Unsupported distribution for install_fio"
 			return 1
 	esac
 	if [[ $(detect_linux_distribution) == coreos ]]; then
@@ -2490,13 +2313,13 @@ function install_fio () {
 	fi
 	if [ $? -ne 0 ]; then
 		return 1
-	fi	
+	fi
 }
 
 # Install iperf3 and required packages
 function install_iperf3 () {
 	ip_version=$1
-	echo "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of iperf3"
+	LogMsg "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of iperf3"
 	update_repos
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos)
@@ -2531,24 +2354,24 @@ function install_iperf3 () {
 				add_sles_network_utilities_repo
 				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install sysstat git bc make gcc psmisc iperf3
 			else
-				echo "Unsupported SLES version"
+				LogErr "Unsupported SLES version"
 				return 1
 			fi
 			# iperf3 is not available in the repository of SLES 12
 			which iperf3
 			if [ $? -ne 0 ]; then
-				LogMsg "Info: iperf3 is not installed. So, Installing iperf3 using rpm"
+				LogMsg "iperf3 is not installed. So, Installing iperf3 using rpm"
 				iperf_url="$PACKAGE_BLOB_LOCATION/iperf-sles-x86_64.rpm"
 				libiperf_url="$PACKAGE_BLOB_LOCATION/libiperf0-sles-x86_64.rpm"
 				rpm -ivh $iperf_url $libiperf_url
 				which iperf3
 				if [ $? -ne 0 ]; then
-					LogMsg "Error: Unable to install iperf3 from source/rpm"
+					LogErr "Unable to install iperf3 from source/rpm"
 					SetTestStateAborted
 					return 1
 				fi
 			else
-				echo "Info: iperf3 installed from repository"
+				LogMsg "iperf3 installed from repository"
 			fi
 			iptables -F
 			;;
@@ -2564,7 +2387,7 @@ function install_iperf3 () {
 			;;
 
 		*)
-			echo "Unsupported distribution for install_iperf3"
+			LogErr "Unsupported distribution for install_iperf3"
 			return 1
 	esac
 	if [[ $(detect_linux_distribution) == coreos ]]; then
@@ -2603,7 +2426,7 @@ function build_lagscope () {
 
 # Install lagscope and required packages
 function install_lagscope () {
-	echo "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of lagscope"
+	LogMsg "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of lagscope"
 	update_repos
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos)
@@ -2626,7 +2449,7 @@ function install_lagscope () {
 				build_lagscope "${1}"
 				iptables -F
 			else
-				echo "Unsupported SLES version"
+				LogErr "Unsupported SLES version"
 				return 1
 			fi
 			;;
@@ -2642,7 +2465,7 @@ function install_lagscope () {
 			;;
 
 		*)
-			echo "Unsupported distribution for install_lagscope"
+			LogErr "Unsupported distribution for install_lagscope"
 			return 1
 	esac
 	if [[ $(detect_linux_distribution) == coreos ]]; then
@@ -2675,7 +2498,7 @@ function build_ntttcp () {
 
 # Install ntttcp and required packages
 function install_ntttcp () {
-	echo "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of ntttcp"
+	LogMsg "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of ntttcp"
 	update_repos
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos)
@@ -2701,7 +2524,7 @@ function install_ntttcp () {
 				build_lagscope "${2}"
 				iptables -F
 			else
-				echo "Unsupported SLES version"
+				LogErr "Unsupported SLES version"
 				return 1
 			fi
 			;;
@@ -2720,7 +2543,7 @@ function install_ntttcp () {
 			;;
 
 		*)
-			echo "Unsupported distribution for install_ntttcp"
+			LogErr "Unsupported distribution for install_ntttcp"
 			return 1
 	esac
 	if [[ $(detect_linux_distribution) == coreos ]]; then
@@ -2743,7 +2566,7 @@ function build_netperf () {
 
 # Install ntttcp and required packages
 function install_netperf () {
-	echo "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of netperf"
+	LogMsg "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of netperf"
 	update_repos
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos)
@@ -2766,7 +2589,7 @@ function install_netperf () {
 				build_netperf
 				iptables -F
 			else
-				echo "Unsupported SLES version"
+				LogErr "Unsupported SLES version"
 				return 1
 			fi
 			;;
@@ -2783,7 +2606,7 @@ function install_netperf () {
 			;;
 
 		*)
-			echo "Unsupported distribution for build_netperf"
+			LogErr "Unsupported distribution for build_netperf"
 			return 1
 	esac
 	if [[ $(detect_linux_distribution) == coreos ]]; then
@@ -2808,9 +2631,10 @@ function get_active_nic_name () {
 }
 
 # Create partitions
+# Unused
 function create_partitions () {
 	disk_list=($@)
-	echo "Creating partitions on ${disk_list[@]}"
+	LogMsg "Creating partitions on ${disk_list[@]}"
 
 	count=0
 	while [ "x${disk_list[count]}" != "x" ]; do
@@ -2821,9 +2645,10 @@ function create_partitions () {
 }
 
 # Remove partitions
+# Unused
 function remove_partitions () {
 	disk_list=($@)
-	echo "Creating partitions on ${disk_list[@]}"
+	LogMsg "Removing partitions on ${disk_list[@]}"
 
 	count=0
 	while [ "x${disk_list[count]}" != "x" ]; do
@@ -2833,80 +2658,32 @@ function remove_partitions () {
 	done
 }
 
-# Create RAID using unused data disks attached to the VM.
-function create_raid_and_mount() {
-		local deviceName="/dev/md1"
-		local mountdir=/data-dir
-		local format="ext4"
-		local mount_option=""
-		if [[ ! -z "$1" ]];then
-			deviceName=$1
-		fi
-		if [[ ! -z "$2" ]];then
-			mountdir=$2
-		fi
-		if [[ ! -z "$3" ]];then
-			format=$3
-		fi
-		if [[ ! -z "$4" ]];then
-			mount_option=$4
-		fi
-
-	local uuid=""
-	local list=""
-
-	echo "IO test setup started.."
-	list=($(fdisk -l | grep 'Disk.*/dev/sd[a-z]' |awk  '{print $2}' | sed s/://| sort| grep -v "/dev/sd[ab]$" ))
-
-	lsblk
-	install_package mdadm
-	echo "--- Raid $deviceName creation started ---"
-	(echo y)| mdadm --create $deviceName --level 0 --raid-devices ${#list[@]} ${list[@]}
-	check_exit_status "$deviceName Raid creation"
-
-	time mkfs -t $format $deviceName
-	check_exit_status "$deviceName Raid format"
-
-	mkdir $mountdir
-	uuid=$(blkid $deviceName| sed "s/.*UUID=\"//"| sed "s/\".*\"//")
-	cp -f /etc/fstab /etc/fstab_raid
-	echo "UUID=$uuid $mountdir $format defaults 0 2" >> /etc/fstab
-	if [ -z "$mount_option" ]
-	then
-		mount $deviceName $mountdir
-	else
-		mount -o $mount_option $deviceName $mountdir
-	fi
-	check_exit_status "RAID ($deviceName) mount on $mountdir as $format"
-}
-
 #Create raid0
-function create_raid0()
-{
+function create_raid0() {
 	if [[ $# == 2 ]]; then
 		local disks=$1
 		local deviceName=$2
 	else
-		echo "Error: create_raid0 accepts 2 arguments: 1. disks name, separated by whitespace 2. deviceName for raid"
+		LogErr "create_raid0 accepts 2 arguments: 1. disks name, separated by whitespace 2. deviceName for raid"
 		return 100
 	fi
 	count=0
 	for disk in ${disks}
 	do
-		echo "Partition disk /dev/${disk}"
+		LogMsg "Partition disk /dev/${disk}"
 		(echo d; echo n; echo p; echo 1; echo; echo; echo t; echo fd; echo w;) | fdisk /dev/${disk}
 		raidDevices="${raidDevices} /dev/${disk}1"
 		count=$(( $count + 1 ))
 	done
-	echo "INFO: Creating RAID of ${count} devices."
+	LogMsg "Creating RAID of ${count} devices."
 	sleep 1
-	echo "Run cmd: yes | mdadm --create ${deviceName} --level 0 --raid-devices $count $raidDevices"
+	LogMsg "Run cmd: yes | mdadm --create ${deviceName} --level 0 --raid-devices $count $raidDevices"
 	yes | mdadm --create ${deviceName} --level 0 --raid-devices $count $raidDevices
 	if [ $? -ne 0 ]; then
-		echo "Error: unable to create raid ${deviceName}"
+		LogErr "Unable to create raid ${deviceName}"
 		return 1
 	else
-		echo "Raid ${deviceName} create successfully."
+		LogMsg "Raid ${deviceName} create successfully."
 	fi
 }
 
@@ -2925,7 +2702,7 @@ function remote_copy () {
 	install_sshpass
 
 	if [ "x$host" == "x" ] || [ "x$user" == "x" ] || [ "x$passwd" == "x" ] || [ "x$filename" == "x" ] ; then
-		echo "Usage: remote_copy -user <username> -passwd <user password> -host <host ipaddress> -filename <filename> -remote_path <location of the file on remote vm> -cmd <put/get>"
+		LogErr "Usage: remote_copy -user <username> -passwd <user password> -host <host ipaddress> -filename <filename> -remote_path <location of the file on remote vm> -cmd <put/get>"
 		return
 	fi
 
@@ -2943,7 +2720,7 @@ function remote_copy () {
 
 	status=$(sshpass -p $passwd scp -o StrictHostKeyChecking=no -P $port $source_path $destination_path 2>&1)
 	exit_status=$?
-	echo $status
+	LogMsg $status
 	return $exit_status
 }
 
@@ -2961,7 +2738,7 @@ function remote_exec () {
 	install_sshpass
 
 	if [ "x$host" == "x" ] || [ "x$user" == "x" ] || [ "x$passwd" == "x" ] || [ "x$cmd" == "x" ] ; then
-		echo "Usage: remote_exec -user <username> -passwd <user password> -host <host ipaddress> <onlycommand>"
+		LogErr "Usage: remote_exec -user <username> -passwd <user password> -host <host ipaddress> <onlycommand>"
 		return
 	fi
 
@@ -2971,18 +2748,19 @@ function remote_exec () {
 
 	status=$(sshpass -p $passwd ssh -t -o StrictHostKeyChecking=no -p $port $user@$host $cmd 2>&1)
 	exit_status=$?
-	echo $status
+	LogMsg $status
 	return $exit_status
 }
 
 # Set root or any user's password
+# Unused
 function set_user_password {
 	if [[ $# == 3 ]]; then
 		user=$1
 		user_password=$2
 		sudo_password=$3
 	else
-		echo "Usage: user user_password sudo_password"
+		LogErr "Usage: user user_password sudo_password"
 		return -1
 	fi
 
@@ -2991,7 +2769,7 @@ function set_user_password {
 	string=$(echo $sudo_password | sudo -S cat /etc/shadow | grep $user)
 
 	if [ "x$string" == "x" ]; then
-		echo "$user not found in /etc/shadow"
+		LogErr "$user not found in /etc/shadow"
 		return -1
 	fi
 
@@ -3001,9 +2779,9 @@ function set_user_password {
 	echo $sudo_password | sudo -S sed -i "s#^${array[0]}.*#$line#" /etc/shadow
 
 	if [ $(echo $sudo_password | sudo -S cat /etc/shadow| grep $line|wc -l) != "" ]; then
-		echo "Password set succesfully"
+		LogMsg "Password set succesfully"
 	else
-		echo "failed to set password"
+		LogErr "failed to set password"
 	fi
 }
 
@@ -3031,6 +2809,7 @@ function collect_VM_properties () {
 }
 
 # Add command in startup files
+# Unused
 function keep_cmd_in_startup () {
 	testcommand=$*
 	startup_files="/etc/rc.d/rc.local /etc/rc.local /etc/SuSE-release"
@@ -3042,17 +2821,18 @@ function keep_cmd_in_startup () {
 				if ! grep -q "${testcommand}" $file; then
 					echo $testcommand >> $file
 				fi
-				echo "Added $testcommand >> $file"
+				LogMsg "Added $testcommand >> $file"
 				((count++))
 			fi
 		fi
 	done
 	if [ $count == 0 ]; then
-		echo "Cannot find $startup_files files"
+		LogErr "Cannot find $startup_files files"
 	fi
 }
 
 # Remove command from startup files
+# Unused
 function remove_cmd_from_startup () {
 	testcommand=$*
 	startup_files="/etc/rc.d/rc.local /etc/rc.local /etc/SuSE-release"
@@ -3062,12 +2842,12 @@ function remove_cmd_from_startup () {
 			if grep -q "${testcommand}" $file; then
 				sed "s/${testcommand}//" $file -i
 				((count++))
-				echo "Removed $testcommand from $file"
+				LogMsg "Removed $testcommand from $file"
 			fi
 		fi
 	done
 	if [ $count == 0 ]; then
-		echo "Cannot find $testcommand in $startup_files files"
+		LogErr "Cannot find $testcommand in $startup_files files"
 	fi
 }
 
@@ -3121,28 +2901,6 @@ function get_synthetic_vf_pairs() {
     done
 }
 
-# Requires:
-#	- UtilsInit has been called
-# 	- 1st argument is script to source
-# Effects:
-#	Sources script, if it cannot aborts test
-function source_script() {
-    if [ -z "${1}" ]; then
-        LogErr "ERROR: Must supply script name as 1st argument to sourceScript"
-        SetTestStateAborted
-        exit 1
-    fi
-
-    local file=${1}
-    if [ -e ${file} ]; then
-        source ${file}
-    else
-        LogErr "ERROR: func sourceScript unable to source ${file} file"
-        SetTestStateAborted
-        exit 1
-    fi
-}
-
 function test_rsync() {
     . net_constants.sh
     ping -I vxlan0 242.0.0.11 -c 3
@@ -3163,7 +2921,7 @@ function test_rsync() {
 function test_rsync_files() {
     ping -I vxlan0 242.0.0.12 -c 3
     if [ $? -ne 0 ]; then
-        LogErr "Could not ping the first VM through the vxlan interface"
+        LogErr "Failed to ping the first VM through the vxlan interface"
         SetTestStateAborted
         exit 1
     else
@@ -3238,7 +2996,7 @@ function stop_firewall() {
             status=$(systemctl is-active SuSEfirewall2)
             if [ "$status" = "active" ]; then
                 service SuSEfirewall2 stop
-                if [ $? -ne 0 ]; then    
+                if [ $? -ne 0 ]; then
                     return 1
                 fi
             fi
@@ -3257,6 +3015,9 @@ function stop_firewall() {
             iptables -F
             iptables -X
             ;;
+		coreos)
+            LogMsg "No extra steps need here."
+			;;
         *)
             LogErr "OS Version not supported!"
             return 1
@@ -3289,8 +3050,7 @@ function Update_Kernel() {
     return $retVal
 }
 
-Kill_Process()
-{
+Kill_Process() {
     ips=$1
     IFS=',' read -r -a array <<< "$ips"
     for ip in "${array[@]}"
@@ -3311,8 +3071,7 @@ Kill_Process()
     done
 }
 
-Delete_Containers()
-{
+Delete_Containers() {
     containers=$(docker ps -a | grep -v 'CONTAINER ID' | awk '{print $1}')
     for containerID in ${containers}
     do
@@ -3321,8 +3080,7 @@ Delete_Containers()
     done
 }
 
-Get_BC_Command()
-{
+Get_BC_Command() {
     bc_cmd=""
     if [[ $(detect_linux_distribution) != coreos ]]; then
         bc_cmd="bc"
@@ -3378,8 +3136,7 @@ function ConsumeMemory() {
     return 0
 }
 
-function Format_Mount_NVME()
-{
+function Format_Mount_NVME() {
     if [[ $# == 2 ]]; then
         local namespace=$1
         local filesystem=$2
@@ -3411,8 +3168,7 @@ function Format_Mount_NVME()
 # @param1 DeviceType: supported values are "NVME", "SR-IOV", "GPU"
 # and "ALL" for all 3 previous types
 # @return 0 if the devices were removed and reattached successfully
-function DisableEnablePCI ()
-{
+function DisableEnablePCI () {
     case "$1" in
         "SR-IOV") vf_pci_type="Ethernet\|Network" ;;
         "NVME")   vf_pci_type="Non-Volatile" ;;
@@ -3504,8 +3260,7 @@ function DisableEnablePCI ()
 # Examples -
 # CreateFile 1G /root/abc.out
 # CreateFile 100M ./test.file
-function CreateFile()
-{
+function CreateFile() {
 	size=$1
 	file_path=$2
 	fallocate -l $size $file_path
@@ -3517,8 +3272,7 @@ function CreateFile()
 }
 
 # Check available packages
-function check_package ()
-{
+function check_package () {
 	local package_list=("$@")
 	for package_name in "${package_list[@]}"; do
 		case "$DISTRO_NAME" in
@@ -3549,8 +3303,7 @@ function check_package ()
 }
 
 # Install nvme
-function install_nvme_cli()
-{
+function install_nvme_cli() {
     which nvme
     if [ $? -ne 0 ]; then
         echo "nvme is not installed\n Installing now..."
@@ -3582,39 +3335,8 @@ function CheckInstallLockUbuntu() {
         sleep 10
         CheckInstallLockUbuntu
     else
-        LogMsg "No lock on dpkg present."
+        LogMsg "No apt lock present."
     fi
-}
-
-function wget_retry() {
-	url=$1
-	dest=$2
-	remote_ip=$3
-
-	retries=0
-	max_retries=3
-	retry_timeout=3
-	log_msg="Downloading ${url} on ${remote_ip} to ${dest}."
-	err_log_msg="Could not download ${url} on ${remote_ip}."
-
-	while [[ $retries -lt $max_retries ]];
-	do
-		LogMsg "${log_msg}"
-		ssh_output=$(ssh "${remote_ip}" "wget --tries 3 --retry-connrefused '${url}' -P ${dest}")
-		if [ $? = 0 ]; then
-			break
-		else
-			LogErr "${ssh_output}"
-			LogErr "${err_log_msg}. Retrying..."
-			retries=$(($retries+1))
-			sleep $retry_timeout
-		fi
-	done
-	if [ $retries = $max_retries ]; then
-		LogMsg "${err_log_msg}"
-		SetTestStateAborted
-		exit 1
-	fi
 }
 
 function get_OSdisk() {
@@ -3629,67 +3351,4 @@ function get_OSdisk() {
 	done
 
 	echo "$os_disk"
-}
-
-function version_gt() {
-	test "$(printf '%s\n' "$@" | sort -V | head -n 1)" != "$1"
-}
-
-function install_gpu_requirements() {
-	install_package "wget lshw gcc make"
-	LogMsg "installed wget lshw gcc make"
-
-	case $DISTRO in
-		redhat_7|centos_7|redhat_8)
-			if [[ $DISTRO == "centos_7" ]]; then
-				# for all releases that are moved into vault.centos.org
-				# we have to update the repositories first
-				yum -y install centos-release
-				LogMsg "installed centos-release"
-				yum clean all
-				yum -y install --enablerepo=C*-base --enablerepo=C*-updates kernel-devel-"$(uname -r)" kernel-headers-"$(uname -r)"
-				LogMsg "installed kernel-devel package with its header"
-			else
-				yum -y install kernel-devel-"$(uname -r)" kernel-headers-"$(uname -r)"
-				LogMsg "installed kernel-devel package with its header"
-			fi
-
-			# Kernel devel package is mandatory for nvdia cuda driver installation.
-			# Failure to install kernel devel should be treated as test aborted not failed.
-			rpm -q --quiet kernel-devel-$(uname -r)
-			if [ $? -ne 0 ]; then
-				LogErr "Failed to install the RH/CentOS kernel-devel package"
-				SetTestStateAborted
-				return 1
-			fi
-			LogMsg "rpm-ed kernel-devel packages"
-
-			# mesa-libEGL install/update is require to avoid a conflict between
-			# libraries - bugzilla.redhat 1584740
-			yum -y install mesa-libGL mesa-libEGL libglvnd-devel
-			LogMsg "installed mesa-libGL mesa-libEGL libglvnd-devel"
-
-			install_epel
-			yum --nogpgcheck -y install dkms
-			LogMsg "installed dkms"
-		;;
-
-		ubuntu*)
-			apt -y install build-essential libelf-dev linux-tools-"$(uname -r)" linux-cloud-tools-"$(uname -r)" python libglvnd-dev ubuntu-desktop
-			LogMsg "installed build-essential libelf-dev linux-tools linux-cloud-tools python libglvnd-dev ubuntu-desktop"
-		;;
-
-		suse_15*)
-			kernel=$(uname -r)
-			if [[ "${kernel}" == *azure ]];
-			then
-				zypper install --oldpackage -y kernel-azure-devel="${kernel::-6}"
-				zypper install -y kernel-devel-azure xorg-x11-driver-video libglvnd-devel
-				LogMsg "installed kernel-azure-devel xorg-x11-driver-video libglvnd-devel"
-			else
-				zypper install -y kernel-default-devel xorg-x11-driver-video libglvnd-devel
-				LogMsg "installed kernel-default-devel xorg-x11-driver-video libglvnd-devel"
-			fi
-		;;
-	esac
 }

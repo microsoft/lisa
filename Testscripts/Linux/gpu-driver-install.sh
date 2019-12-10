@@ -149,6 +149,120 @@ EOF
     fi
 }
 
+function install_gpu_requirements() {
+	install_package "wget lshw gcc make"
+	LogMsg "installed wget lshw gcc make"
+
+	case $DISTRO in
+		redhat_7|centos_7|redhat_8)
+			if [[ $DISTRO == "centos_7" ]]; then
+				# for all releases that are moved into vault.centos.org
+				# we have to update the repositories first
+				yum -y install centos-release
+				if [ $? -eq 0 ]; then
+					LogMsg "Successfully installed centos-release"
+				else
+					LogErr "Failed to install centos-release"
+					SetTestStateAborted
+					return 1
+				fi
+				yum clean all
+				yum -y install --enablerepo=C*-base --enablerepo=C*-updates kernel-devel-"$(uname -r)" kernel-headers-"$(uname -r)"
+				if [ $? -eq 0 ]; then
+					LogMsg "Successfully installed kernel-devel package with its header"
+				else
+					LogErr "Failed to install kernel-devel package with its header"
+					SetTestStateAborted
+					return 1
+				fi
+			else
+				yum -y install kernel-devel-"$(uname -r)" kernel-headers-"$(uname -r)"
+				if [ $? -eq 0 ]; then
+					LogMsg "Successfully installed kernel-devel package with its header"
+				else
+					LogErr "Failed to installed kernel-devel package with its header"
+					SetTestStateAborted
+					return 1
+				fi
+			fi
+
+			# Kernel devel package is mandatory for nvdia cuda driver installation.
+			# Failure to install kernel devel should be treated as test aborted not failed.
+			rpm -q --quiet kernel-devel-$(uname -r)
+			if [ $? -ne 0 ]; then
+				LogErr "Failed to install the RH/CentOS kernel-devel package"
+				SetTestStateAborted
+				return 1
+			else
+				LogMsg "Successfully rpm-ed kernel-devel packages"
+			fi
+
+			# mesa-libEGL install/update is require to avoid a conflict between
+			# libraries - bugzilla.redhat 1584740
+			yum -y install mesa-libGL mesa-libEGL libglvnd-devel
+			if [ $? -eq 0 ]; then
+				LogMsg "Successfully installed mesa-libGL mesa-libEGL libglvnd-devel"
+			else
+				LogErr "Failed to install mesa-libGL mesa-libEGL libglvnd-devel"
+				SetTestStateAborted
+				return 1
+			fi
+
+			install_epel
+			yum --nogpgcheck -y install dkms
+			if [ $? -eq 0 ]; then
+				LogMsg "Successfully installed dkms"
+			else
+				LogErr "Failed to install dkms"
+				SetTestStateAborted
+				return 1
+			fi
+		;;
+
+		ubuntu*)
+			apt -y install build-essential libelf-dev linux-tools-"$(uname -r)" linux-cloud-tools-"$(uname -r)" python libglvnd-dev ubuntu-desktop
+			if [ $? -eq 0 ]; then
+				LogMsg "Successfully installed build-essential libelf-dev linux-tools linux-cloud-tools python libglvnd-dev ubuntu-desktop"
+			else
+				LogErr "Failed to install build-essential libelf-dev linux-tools linux-cloud-tools python libglvnd-dev ubuntu-desktop"
+				SetTestStateAborted
+				return 1
+			fi
+		;;
+
+		suse_15*)
+			kernel=$(uname -r)
+			if [[ "${kernel}" == *azure ]]; then
+				zypper install --oldpackage -y kernel-azure-devel="${kernel::-6}"
+				if [ $? -eq 0 ]; then
+					LogMsg "Successfully installed kernel-azure-devel"
+				else
+					LogErr "Failed to install kernel-azure-devel"
+					SetTestStateAborted
+					return 1
+				fi
+				zypper install -y kernel-devel-azure xorg-x11-driver-video libglvnd-devel
+				if [ $? -eq 0 ]; then
+					LogMsg "Successfully installed kernel-azure-devel xorg-x11-driver-video libglvnd-devel"
+				else
+					LogErr "Failed to install kernel-azure-devel xorg-x11-driver-video libglvnd-devel"
+					SetTestStateAborted
+					return 1
+				fi
+			else
+				zypper install -y kernel-default-devel xorg-x11-driver-video libglvnd-devel
+				if [ $? -eq 0 ]; then
+					LogMsg "Successfully installed kernel-default-devel xorg-x11-driver-video libglvnd-devel"
+				else
+					LogErr "Failed to install kernel-default-devel xorg-x11-driver-video libglvnd-devel"
+					SetTestStateAborted
+					return 1
+				fi
+			fi
+		;;
+	esac
+}
+
 #######################################################################
 #
 # Main script body

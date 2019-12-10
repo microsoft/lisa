@@ -9,21 +9,26 @@ count=0
 #######################################################################
 function iScsi_Connect() {
 # Start the iscsi service. This is distro-specific.
-    if is_suse ; then
-        /etc/init.d/open-iscsi start
-        check_exit_status "iSCSI start" "exit"
-    elif is_ubuntu ; then
-        service open-iscsi restart
-        check_exit_status "iSCSI service restart" "exit"
-    elif is_fedora ; then
-        service iscsi restart
-        check_exit_status "iSCSI service restart" "exit"
-    else
-        LogMsg "Distro not supported"
-        SetTestStateAborted
-        UpdateSummary "Distro not supported, test aborted"
-        exit 1
-    fi
+    GetDistro
+    case $DISTRO in
+        suse*|sles*)
+            /etc/init.d/open-iscsi start
+            check_exit_status "iSCSI start" "exit"
+        ;;
+        ubuntu*)
+            service open-iscsi restart
+            check_exit_status "iSCSI service restart" "exit"
+        ;;
+        redhat_*|centos_*)
+            service iscsi restart
+            check_exit_status "iSCSI service restart" "exit"
+        ;;
+        *)
+            LogMsg "Distro not supported"
+            SetTestStateAborted
+            UpdateSummary "Distro not supported, test aborted"
+            exit 1
+    esac
 
     # Discover the IQN
     iscsiadm -m discovery -t st -p ${TargetIP}
@@ -102,17 +107,15 @@ check_exit_status "iScsi connection to $TargetIP" "exit"
 # Count the Number of partition present in added new Disk .
 for disk in $(cat /proc/partitions | grep sd | awk '{print $4}')
 do
-        if [[ "$disk" != "sda"*  && "$disk" != "sdb"* ]];
-        then
-                ((count++))
+        if [[ "$disk" != "sda"*  && "$disk" != "sdb"* ]]; then
+            ((count++))
         fi
 done
 
 ((count--))
 
 # Format, Partition and mount all the new disk on this system.
-for driveName in /dev/sd*[^0-9];
-do
+for driveName in /dev/sd*[^0-9]; do
     #
     # Skip /dev/sda and /dev/sdb
     #
@@ -121,10 +124,9 @@ do
     fi
 
     # Delete the exisiting partition
-    for (( c=1 ; c<=count; count--))
-        do
-            (echo d; echo $c ; echo ; echo w) | fdisk $driveName
-        done
+    for (( c=1 ; c<=count; count--)); do
+        (echo d; echo $c ; echo ; echo w) | fdisk $driveName
+    done
 
     # Partition Drive
     (echo n; echo p; echo 1; echo ; echo +500M; echo ; echo w) | fdisk $driveName
@@ -146,31 +148,31 @@ do
     echo "y" | mkfs.$FILESYS ${driveName}1  ; echo "y" | mkfs.$FILESYS ${driveName}2
     check_exit_status "Creating·FileSystem·$filesys·on·disk·$driveName" "exit"
 
-   sleep 1
+    sleep 1
 
 # mount the disk .
-   MountName="/mnt/1"
-   if [ ! -e ${MountName} ]; then
-       mkdir $MountName
-   fi
-   MountName1="/mnt/2"
-   if [ ! -e ${MountName1} ]; then
-       mkdir $MountName1
-   fi
-   mount  ${driveName}1 $MountName ; mount  ${driveName}2 $MountName1
-   sts=$?
-       if [ 0 -ne ${sts} ]; then
-           LogErr "mounting disk Failed ${sts}"
-           SetTestStateAborted
-           UpdateSummary " Mounting disk $driveName on $MountName: Failed"
-           exit 1
-       else
-           LogMsg "mounting disk ${driveName}1 on ${MountName}"
-           LogMsg "mounting disk ${driveName}2 on ${MountName1}"
-           UpdateSummary " Mounting disk ${driveName}1 : Success"
-           UpdateSummary " Mounting disk ${driveName}2 : Success"
-       fi
-done
+    MountName="/mnt/1"
+    if [ ! -e ${MountName} ]; then
+        mkdir $MountName
+    fi
+    MountName1="/mnt/2"
+    if [ ! -e ${MountName1} ]; then
+        mkdir $MountName1
+    fi
+    mount  ${driveName}1 $MountName ; mount  ${driveName}2 $MountName1
+    sts=$?
+        if [ 0 -ne ${sts} ]; then
+            LogErr "mounting disk Failed ${sts}"
+            SetTestStateAborted
+            UpdateSummary " Mounting disk $driveName on $MountName: Failed"
+            exit 1
+        else
+            LogMsg "mounting disk ${driveName}1 on ${MountName}"
+            LogMsg "mounting disk ${driveName}2 on ${MountName1}"
+            UpdateSummary " Mounting disk ${driveName}1 : Success"
+            UpdateSummary " Mounting disk ${driveName}2 : Success"
+        fi
+    done
 
 SetTestStateCompleted
 exit 0

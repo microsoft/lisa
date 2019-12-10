@@ -26,11 +26,14 @@ declare -i __iterator=0
 UtilsInit
 
 # Check if ethtool exist and install it if not
-VerifyIsEthtool
+if ! VerifyIsEthtool; then
+    LogErr "Could not find ethtool in the VM"
+    SetTestStateFailed
+    exit 0
+fi
 
 if ! GetSynthNetInterfaces; then
-    msg="ERROR: No synthetic network interfaces found"
-    LogMsg "$msg"
+    LogErr "No synthetic network interfaces found"
     SetTestStateFailed
     exit 0
 fi

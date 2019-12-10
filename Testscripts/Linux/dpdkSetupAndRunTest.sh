@@ -55,6 +55,28 @@ function dpdk_setup() {
 	sleep 2
 }
 
+# Requires:
+#	- UtilsInit has been called
+# 	- 1st argument is script to source
+# Effects:
+#	Sources script, if it cannot aborts test
+function source_script() {
+    if [ -z "${1}" ]; then
+        LogErr "Must supply script name as 1st argument to sourceScript"
+        SetTestStateAborted
+        exit 1
+    fi
+
+    local file=${1}
+    if [ -e ${file} ]; then
+        source ${file}
+    else
+        LogErr "Failed to source ${file} file"
+        SetTestStateAborted
+        exit 1
+    fi
+}
+
 # Source utils.sh
 . utils.sh || {
 	echo "ERROR: unable to source utils.sh!" | tee "${HOME}"/TestExecutionError.log
