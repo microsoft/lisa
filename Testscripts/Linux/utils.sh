@@ -3582,7 +3582,7 @@ function CheckInstallLockUbuntu() {
         sleep 10
         CheckInstallLockUbuntu
     else
-        LogMsg "No lock on dpkg present."
+        LogMsg "No apt lock present."
     fi
 }
 
@@ -3591,26 +3591,25 @@ function wget_retry() {
 	dest=$2
 	remote_ip=$3
 
-	retries=0
 	max_retries=3
 	retry_timeout=3
 	log_msg="Downloading ${url} on ${remote_ip} to ${dest}."
 	err_log_msg="Could not download ${url} on ${remote_ip}."
 
-	while [[ $retries -lt $max_retries ]];
-	do
+	while [ $max_retries -gt 0 ]; do
 		LogMsg "${log_msg}"
 		ssh_output=$(ssh "${remote_ip}" "wget --tries 3 --retry-connrefused '${url}' -P ${dest}")
 		if [ $? = 0 ]; then
+			LogMsg "Successully downloading"
 			break
 		else
 			LogErr "${ssh_output}"
 			LogErr "${err_log_msg}. Retrying..."
-			retries=$(($retries+1))
+			max_retries=$(($max_retries-1))
 			sleep $retry_timeout
 		fi
 	done
-	if [ $retries = $max_retries ]; then
+	if [ $max_retries -eq 0 ]; then
 		LogMsg "${err_log_msg}"
 		SetTestStateAborted
 		exit 1
@@ -3645,13 +3644,31 @@ function install_gpu_requirements() {
 				# for all releases that are moved into vault.centos.org
 				# we have to update the repositories first
 				yum -y install centos-release
-				LogMsg "installed centos-release"
+				if [ $? -eq 0 ]; then
+					LogMsg "Successfully installed centos-release"
+				else
+					LogErr "Failed to install centos-release"
+					SetTestStateAborted
+					return 1
+				fi
 				yum clean all
 				yum -y install --enablerepo=C*-base --enablerepo=C*-updates kernel-devel-"$(uname -r)" kernel-headers-"$(uname -r)"
-				LogMsg "installed kernel-devel package with its header"
+				if [ $? -eq 0 ]; then
+					LogMsg "Successfully installed kernel-devel package with its header"
+				else
+					LogErr "Failed to install kernel-devel package with its header"
+					SetTestStateAborted
+					return 1
+				fi
 			else
 				yum -y install kernel-devel-"$(uname -r)" kernel-headers-"$(uname -r)"
-				LogMsg "installed kernel-devel package with its header"
+				if [ $? -eq 0 ]; then
+					LogMsg "Successfully installed kernel-devel package with its header"
+				else
+					LogErr "Failed to installed kernel-devel package with its header"
+					SetTestStateAborted
+					return 1
+				fi
 			fi
 
 			# Kernel devel package is mandatory for nvdia cuda driver installation.
@@ -3661,34 +3678,71 @@ function install_gpu_requirements() {
 				LogErr "Failed to install the RH/CentOS kernel-devel package"
 				SetTestStateAborted
 				return 1
+			else
+				LogMsg "Successfully rpm-ed kernel-devel packages"
 			fi
-			LogMsg "rpm-ed kernel-devel packages"
 
 			# mesa-libEGL install/update is require to avoid a conflict between
 			# libraries - bugzilla.redhat 1584740
 			yum -y install mesa-libGL mesa-libEGL libglvnd-devel
-			LogMsg "installed mesa-libGL mesa-libEGL libglvnd-devel"
+			if [ $? -eq 0 ]; then
+				LogMsg "Successfully installed mesa-libGL mesa-libEGL libglvnd-devel"
+			else
+				LogErr "Failed to install mesa-libGL mesa-libEGL libglvnd-devel"
+				SetTestStateAborted
+				return 1
+			fi
 
 			install_epel
 			yum --nogpgcheck -y install dkms
-			LogMsg "installed dkms"
+			if [ $? -eq 0 ]; then
+				LogMsg "Successfully installed dkms"
+			else
+				LogErr "Failed to install dkms"
+				SetTestStateAborted
+				return 1
+			fi
 		;;
 
 		ubuntu*)
 			apt -y install build-essential libelf-dev linux-tools-"$(uname -r)" linux-cloud-tools-"$(uname -r)" python libglvnd-dev ubuntu-desktop
-			LogMsg "installed build-essential libelf-dev linux-tools linux-cloud-tools python libglvnd-dev ubuntu-desktop"
+			if [ $? -eq 0 ]; then
+				LogMsg "Successfully installed build-essential libelf-dev linux-tools linux-cloud-tools python libglvnd-dev ubuntu-desktop"
+			else
+				LogErr "Failed to install build-essential libelf-dev linux-tools linux-cloud-tools python libglvnd-dev ubuntu-desktop"
+				SetTestStateAborted
+				return 1
+			fi
 		;;
 
 		suse_15*)
 			kernel=$(uname -r)
-			if [[ "${kernel}" == *azure ]];
-			then
+			if [[ "${kernel}" == *azure ]]; then
 				zypper install --oldpackage -y kernel-azure-devel="${kernel::-6}"
+				if [ $? -eq 0 ]; then
+					LogMsg "Successfully installed kernel-azure-devel"
+				else
+					LogErr "Failed to install kernel-azure-devel"
+					SetTestStateAborted
+					return 1
+				fi
 				zypper install -y kernel-devel-azure xorg-x11-driver-video libglvnd-devel
-				LogMsg "installed kernel-azure-devel xorg-x11-driver-video libglvnd-devel"
+				if [ $? -eq 0 ]; then
+					LogMsg "Successfully installed kernel-azure-devel xorg-x11-driver-video libglvnd-devel"
+				else
+					LogErr "Failed to install kernel-azure-devel xorg-x11-driver-video libglvnd-devel"
+					SetTestStateAborted
+					return 1
+				fi
 			else
 				zypper install -y kernel-default-devel xorg-x11-driver-video libglvnd-devel
-				LogMsg "installed kernel-default-devel xorg-x11-driver-video libglvnd-devel"
+				if [ $? -eq 0 ]; then
+					LogMsg "Successfully installed kernel-default-devel xorg-x11-driver-video libglvnd-devel"
+				else
+					LogErr "Failed to install kernel-default-devel xorg-x11-driver-video libglvnd-devel"
+					SetTestStateAborted
+					return 1
+				fi
 			fi
 		;;
 	esac
