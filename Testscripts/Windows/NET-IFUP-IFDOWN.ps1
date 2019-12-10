@@ -42,7 +42,7 @@ function Main {
         Start-Sleep -Seconds 30
     } until (($state -eq "TestCompleted") -or ($state -eq "TestAborted") `
      -or ($state -eq "TestFailed") -or ($state -eq "TestSkipped") -or ((Get-Date) -gt $expiration))
-    Copy-RemoteFiles -download -downloadFrom $newIp -files "/home/${VMUserName}/NET-IFUP-IFDOWN.log" `
+    Copy-RemoteFiles -download -downloadFrom $newIp -files "./NET-IFUP-IFDOWN.log" `
         -downloadTo $LogDir -port $VMPort -username $VMUserName -password $VMPassword
     if (($state -eq "TestAborted") -or ($state -eq "TestFailed") -or ((Get-Date) -gt $expiration)) {
         Write-LogErr "Running $remoteScript script failed on VM!"
