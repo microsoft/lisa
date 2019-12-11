@@ -171,6 +171,8 @@ Config_Rhel()
         boot_filepath=/boot/grub/grub.conf
     elif [ "$os_GENERATION" -eq 1 ] && [[ $os_RELEASE =~ ^7.* ]]; then
         boot_filepath=/boot/grub2/grub.cfg
+    elif [ "$os_GENERATION" -eq 1 ] && [[ $os_RELEASE =~ 8.* ]] && grep "efi/centos/grubenv" /boot/grub2/grub.cfg 2>&1 > null; then
+        boot_filepath=/boot/efi/EFI/centos/grubenv
     elif [ "$os_GENERATION" -eq 1 ] && [[ $os_RELEASE =~ 8.* ]]; then
         boot_filepath=/boot/grub2/grubenv
     elif [ "$os_GENERATION" -eq 2 ] && [[ $os_RELEASE =~ 7.* || $os_RELEASE =~ 8.* ]]; then
