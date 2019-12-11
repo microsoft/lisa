@@ -41,9 +41,9 @@ fi
 skip_modules=()
 config_path="/boot/config-$(uname -r)"
 if [[ $(detect_linux_distribution) == clear-linux-os ]]; then
-    config_path="/usr/lib/kernel/config-$(uname -r)"
-    LogMsg "Set the configuration path to $config_path"
+	config_path="/usr/lib/kernel/config-$(uname -r)"
 fi
+LogMsg "Set the configuration path to $config_path"
 
 declare -A config_modulesDic
 config_modulesDic=(
