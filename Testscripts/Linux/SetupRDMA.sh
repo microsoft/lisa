@@ -71,7 +71,7 @@ function Main() {
 			req_pkg="kernel-devel-$(uname -r) valgrind-devel redhat-rpm-config rpm-build gcc gcc-gfortran libdb-devel gcc-c++ glibc-devel zlib-devel numactl-devel libmnl-devel binutils-devel iptables-devel libstdc++-devel libselinux-devel elfutils-devel libtool libnl3-devel java libstdc++.i686 gtk2 atk cairo tcl tk createrepo byacc.x86_64 net-tools"
 			install_package $req_pkg
 			LogMsg "$?: Installed required packages $req_pkg"
-			# libibverbs-devel and libibmad-devel have broken dependecies on Centos 7.6
+			# libibverbs-devel and libibmad-devel have broken dependencies on Centos 7.6
 			# Switching to direct install instead of using the function
 			req_pkg="libibverbs-devel libibmad-devel"
 			yum install -y $req_pkg
@@ -149,7 +149,7 @@ function Main() {
 			systemctl mask firewalld
 			systemctl stop firewalld.service
 			Verify_Result
-			LogMsg "Stopped firewll service"
+			LogMsg "Stopped firewall service"
 			systemctl disable firewalld.service
 			Verify_Result
 			LogMsg "Disabled firewall service"
@@ -199,7 +199,7 @@ function Main() {
 
 			req_pkg="build-essential python-setuptools libibverbs-dev bison flex ibverbs-utils net-tools libdapl2 rdmacm-utils bc"
 			install_package $req_pkg
-			LogMsg "Installed the required packaes, $req_pkg"
+			LogMsg "Installed the required packages, $req_pkg"
 			os_RELEASE=$(awk '/VERSION_ID=/' /etc/os-release | sed 's/VERSION_ID=//' | sed 's/\"//g')
 			if [ $mpi_type == "ibm" ]; then
 				if [[ "$os_RELEASE" == "18.04" ]]; then
