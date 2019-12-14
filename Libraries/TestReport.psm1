@@ -259,9 +259,9 @@ Class TestResult
 	[array] $TestResultData
 
 	TestResult() {
-		$TestResult = $null
-		$TestSummary = $null
-		$TestResultData = @()
+		$this.TestResult = $null
+		$this.TestSummary = $null
+		$this.TestResultData = @()
 	}
 }
 
