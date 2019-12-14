@@ -163,8 +163,8 @@ function Collect-CustomLogFile {
 Function Compare-OsLogs($InitialLogFilePath, $FinalLogFilePath, $LogStatusFilePath, $ErrorMatchPatten) {
 	$ret = $true
 	try {
-		$fileDiff = Compare-Object -ReferenceObject (Get-Content $FinalLogFilePath) `
-			-DifferenceObject (Get-Content $InitialLogFilePath)
+		$fileDiff = Compare-Object -ReferenceObject (Get-Content $InitialLogFilePath) `
+			-DifferenceObject (Get-Content $FinalLogFilePath)
 
 		if (!$fileDiff) {
 			$msg = "Initial and Final Logs have same content"
@@ -177,14 +177,16 @@ Function Compare-OsLogs($InitialLogFilePath, $FinalLogFilePath, $LogStatusFilePa
 			Set-Content -Value $msg -Path $LogStatusFilePath
 			Add-Content -Value "-------------------------------START----------------------------------" -Path $LogStatusFilePath
 			foreach ($line in $fileDiff) {
-				Add-Content -Value $line.InputObject -Path $LogStatusFilePath
-				if ($line.InputObject -imatch $ErrorMatchPatten) {
-					$errorCount += 1
-					if ($errorCount -eq 1) {
-						$warnMsg = "Following $patternStr messages were added in the logs during execution of test:"
-						Write-LogWarn $warnMsg
+				if ($line.SideIndicator -eq "=>") {
+					Add-Content -Value $line.InputObject -Path $LogStatusFilePath
+					if ($line.InputObject -imatch $ErrorMatchPatten) {
+						$errorCount += 1
+						if ($errorCount -eq 1) {
+							$warnMsg = "Following $patternStr messages were added in the logs during execution of test:"
+							Write-LogWarn $warnMsg
+						}
+						Write-LogWarn $line.InputObject
 					}
-					Write-LogWarn $line.InputObject
 				}
 			}
 			Add-Content -Value "--------------------------------EOF-----------------------------------" -Path $LogStatusFilePath
