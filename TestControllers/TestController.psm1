@@ -487,6 +487,11 @@ Class TestController
 			$currentTestResult.testSummary += Trim-ErrorLogMessage $errorMessage
 		}
 
+		# Sometimes test scripts may return an array, the last one is the result object
+		if ($currentTestResult.GetType().Name -ne "TestResult") {
+			$currentTestResult = $currentTestResult[-1]
+		}
+
 		# Upload results to database
 		Write-LogInfo "==> Upload test results to database."
 		if ($currentTestResult.TestResultData) {
@@ -500,6 +505,7 @@ Class TestController
 				$ret = $this.GetAndCompareOsLogs($VmData, "Final")
 				if ($testParameters["FailForLogCheck"] -eq "True" -and $ret -eq $false) {
 					$currentTestResult.TestResult = $global:ResultFail
+					Write-LogErr "Test $($CurrentTestData.TestName) fails log check"
 				}
 				$this.GetSystemBasicLogs($VmData, $global:user, $global:password, $CurrentTestData, $currentTestResult, $this.EnableTelemetry) | Out-Null
 			}
