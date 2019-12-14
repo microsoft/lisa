@@ -435,7 +435,7 @@ Class TestController
 
 			if (!$global:IsWindowsImage) {
 				if (!$global:detectedDistro) {
-					$detectedDistro = Detect-LinuxDistro -VIP $VM.PublicIP -SSHport $VM.SSHPort `
+					$detectedDistro = Detect-LinuxDistro -VIP $VmData[0].PublicIP -SSHport $VmData[0].SSHPort `
 						-testVMUser $global:user -testVMPassword $global:password
 				}
 				Set-DistroSpecificVariables -detectedDistro $detectedDistro
