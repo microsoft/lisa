@@ -252,6 +252,19 @@ Class JUnitReportGenerator
 	}
 }
 
+Class TestResult
+{
+	[string] $TestResult
+	[string] $TestSummary
+	[array] $TestResultData
+
+	TestResult() {
+		$TestResult = $null
+		$TestSummary = $null
+		$TestResultData = @()
+	}
+}
+
 Class TestSummary
 {
 	[string] $TextSummary
