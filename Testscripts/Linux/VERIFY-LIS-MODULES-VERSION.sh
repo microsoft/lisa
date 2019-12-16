@@ -148,8 +148,8 @@ for module in "${HYPERV_MODULES[@]}"; do
             exit_code=$((exit_code+1))
         fi
     else
-         LogErr "LIS module $module was not loaded"
-         exit_code=$((exit_code+1))
+        LogErr "LIS module $module was not loaded"
+        exit_code=$((exit_code+1))
     fi
 done
 
