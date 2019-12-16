@@ -1959,72 +1959,21 @@ UpgradeMinorKernel() {
 	return 0
 }
 
-VerifyIsEthtool()
-{
+function VerifyIsEthtool() {
+	# Should have "return" value
     # Check for ethtool. If it's not on the system, install it.
     ethtool --version
     if [ $? -ne 0 ]; then
-        LogMsg "INFO: Ethtool not found. Trying to install it."
+        LogMsg "Ethtool not found. Trying to install it."
         update_repos
         install_package "ethtool"
     fi
-    LogMsg "Info: Ethtool is installed!"
-}
-
-
-#list all network interfaces without eth0
-ListInterfaces()
-{
-    # Parameter provided in constants file
-    #    ipv4 is the IP Address of the interface used to communicate with the VM, which needs to remain unchanged
-    #    it is not touched during this test (no dhcp or static ip assigned to it)
-
-    if [ "${ipv4:-UNDEFINED}" = "UNDEFINED" ]; then
-        msg="The test parameter ipv4 is not defined in constants file!"
-        LogMsg "$msg"
-        UpdateSummary "$msg"
-        SetTestStateAborted
-        exit 30
-    else
-
-        CheckIP "$ipv4"
-        if [ 0 -ne $? ]; then
-            msg="Test parameter ipv4 = $ipv4 is not a valid IP Address"
-            LogMsg "$msg"
-            UpdateSummary "$msg"
-            SetTestStateAborted
-            exit 10
-        fi
-
-        # Get the interface associated with the given ipv4
-        __iface_ignore=$(ip -o addr show | grep "$ipv4" | cut -d ' ' -f2)
-    fi
-
-    GetSynthNetInterfaces
-    if [ 0 -ne $? ]; then
-        msg="No synthetic network interfaces found"
-        LogMsg "$msg"
-        UpdateSummary "$msg"
-        SetTestStateFailed
-        exit 10
-    fi
-    # Remove interface if present
-    SYNTH_NET_INTERFACES=(${SYNTH_NET_INTERFACES[@]/$__iface_ignore/})
-
-    if [ ${#SYNTH_NET_INTERFACES[@]} -eq 0 ]; then
-        msg="The only synthetic interface is the one which LIS uses to send files/commands to the VM."
-        LogMsg "$msg"
-        UpdateSummary "$msg"
-        SetTestStateAborted
-        exit 10
-    fi
-    LogMsg "Found ${#SYNTH_NET_INTERFACES[@]} synthetic interface(s): ${SYNTH_NET_INTERFACES[*]} in VM"
+    LogMsg "Ethtool is installed!"
 }
 
 # Function that will check for Call Traces on VM after 2 minutes
 # This function assumes that check_traces.sh is already on the VM
-CheckCallTracesWithDelay()
-{
+function CheckCallTracesWithDelay() {
     dos2unix -q check_traces.sh
     echo 'sleep 5 && bash ~/check_traces.sh ~/check_traces.log &' > runtest_traces.sh
     bash runtest_traces.sh > check_traces.log 2>&1
@@ -2041,10 +1990,8 @@ CheckCallTracesWithDelay()
     fi
 }
 
-
 # Get the verison of LIS
-function get_lis_version ()
-{
+function get_lis_version() {
 	lis_version=$(modinfo hv_vmbus | grep "^version:"| awk '{print $2}')
 	if [ "$lis_version" == "" ]; then
 		lis_version="Default_LIS"
@@ -2053,14 +2000,12 @@ function get_lis_version ()
 }
 
 # Get the version of host
-function get_host_version ()
-{
+function get_host_version() {
 	dmesg | grep "Host Build" | sed "s/.*Host Build://"| awk '{print  $1}'| sed "s/;//"
 }
 
 # Validate the exit status of previous execution
-function check_exit_status ()
-{
+function check_exit_status() {
 	exit_status=$?
 	message=$1
 
@@ -2147,7 +2092,7 @@ function update_repos() {
 			swupd update
 			;;
 		*)
-			echo "Unknown distribution"
+			LogErr "Unknown distribution"
 			return 1
 	esac
 }
@@ -2169,8 +2114,7 @@ function install_deb () {
 }
 
 # Apt-get install packages, parameter: package name
-function apt_get_install ()
-{
+function apt_get_install () {
 	package_name=$1
 	dpkg_configure
 	sudo DEBIAN_FRONTEND=noninteractive apt --fix-broken install -y
@@ -2179,8 +2123,7 @@ function apt_get_install ()
 }
 
 # Apt-get remove packages, parameter: package name
-function apt_get_remove ()
-{
+function apt_get_remove () {
 	package_name=$1
 	dpkg_configure
 	sudo DEBIAN_FRONTEND=noninteractive apt-get remove -y --force-yes $package_name
@@ -2188,56 +2131,49 @@ function apt_get_remove ()
 }
 
 # Yum install packages, parameter: package name
-function yum_install ()
-{
+function yum_install () {
 	package_name=$1
 	sudo yum -y --nogpgcheck install $package_name
 	check_exit_status "yum_install $package_name" "exit"
 }
 
 # Yum remove packages, parameter: package name
-function yum_remove ()
-{
+function yum_remove () {
 	package_name=$1
 	sudo yum -y remove $package_name
 	check_exit_status "yum_remove $package_name" "exit"
 }
 
 # Zypper install packages, parameter: package name
-function zypper_install ()
-{
+function zypper_install () {
 	package_name=$1
 	sudo zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys in $package_name
 	check_exit_status "zypper_install $package_name" "exit"
 }
 
 # Zypper remove packages, parameter: package name
-function zypper_remove ()
-{
+function zypper_remove () {
 	package_name=$1
 	sudo zypper --non-interactive rm $package_name
 	check_exit_status "zypper_remove $package_name" "exit"
 }
 
 # swupd bundle install packages, parameter: package name
-function swupd_bundle_install ()
-{
+function swupd_bundle_install () {
 	package_name=$1
 	sudo swupd bundle-add $package_name
 	check_exit_status "swupd_bundle_install $package_name" "exit"
 }
 
 # swupd bundle remove packages, parameter: package name
-function swupd_bundle_remove ()
-{
+function swupd_bundle_remove () {
 	package_name=$1
 	sudo swupd bundle-remove $package_name
 	check_exit_status "swupd_bundle_remove $package_name" "exit"
 }
 
 # Install packages, parameter: package name
-function install_package ()
-{
+function install_package () {
 	local package_list=("$@")
 	for package_name in "${package_list[@]}"; do
 		case "$DISTRO_NAME" in
@@ -2257,15 +2193,14 @@ function install_package ()
 				swupd_bundle_install "$package_name"
 				;;
 			*)
-				echo "Unknown distribution"
+				LogErr "Unknown distribution"
 				return 1
 		esac
 	done
 }
 
 # Remove packages, parameter: package name
-function remove_package ()
-{
+function remove_package () {
 	local package_list=("$@")
 	for package_name in "${package_list[@]}"; do
 		case "$DISTRO_NAME" in
@@ -2285,7 +2220,7 @@ function remove_package ()
 				swupd_bundle_remove "$package_name"
 				;;
 			*)
-				echo "Unknown distribution"
+				LogErr "Unknown distribution"
 				return 1
 		esac
 	done
@@ -2302,12 +2237,12 @@ function install_epel () {
 			elif [[ $DISTRO_VERSION =~ ^8\. ]]; then
 				epel_rpm_url="https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm"
 			else
-				echo "Unsupported version to install epel repository"
+				LogErr "Unsupported version to install epel repository"
 				return 1
 			fi
 			;;
 		*)
-			echo "Unsupported distribution to install epel repository"
+			LogErr "Unsupported distribution to install epel repository"
 			return 1
 	esac
 	sudo rpm -ivh $epel_rpm_url
@@ -2332,11 +2267,11 @@ function enable_nfs_rhel() {
 function install_sshpass () {
 	which sshpass
 	if [ $? -ne 0 ]; then
-		echo "sshpass not installed\n Installing now..."
+		LogMsg "sshpass not installed\n Installing now..."
 		check_package "sshpass"
 		if [ $? -ne 0 ]; then
 			install_package "gcc make wget"
-			echo "sshpass not installed\n Build it from source code now..."
+			LogMsg "sshpass not installed\n Build it from source code now..."
 			package_name="sshpass-1.06"
 			source_url="https://sourceforge.net/projects/sshpass/files/sshpass/1.06/$package_name.tar.gz"
 			wget $source_url
@@ -2366,13 +2301,14 @@ function add_sles_benchmark_repo () {
 				repo_url="https://download.opensuse.org/repositories/benchmark/SLE_15_SP1/benchmark.repo"
 				;;
 			*)
-				echo "Unsupported SLES version $DISTRO_VERSION for add_sles_benchmark_repo"
+				LogErr "Unsupported SLES version $DISTRO_VERSION for add_sles_benchmark_repo"
 				return 1
 		esac
 		zypper addrepo $repo_url
 		zypper --no-gpg-checks refresh
+		return 0
 	else
-		echo "Unsupported distribution for add_sles_benchmark_repo"
+		LogErr "Unsupported distribution for add_sles_benchmark_repo"
 		return 1
 	fi
 }
@@ -2391,13 +2327,14 @@ function add_sles_network_utilities_repo () {
 				repo_url="https://download.opensuse.org/repositories/network:utilities/SLE_15/network:utilities.repo"
 				;;
 			*)
-				echo "Unsupported SLES version $DISTRO_VERSION for add_sles_network_utilities_repo"
+				LogErr "Unsupported SLES version $DISTRO_VERSION for add_sles_network_utilities_repo"
 				return 1
 		esac
 		zypper addrepo $repo_url
 		zypper --no-gpg-checks refresh
+		return 0
 	else
-		echo "Unsupported distribution for add_sles_network_utilities_repo"
+		LogErr "Unsupported distribution for add_sles_network_utilities_repo"
 		return 1
 	fi
 }
@@ -2408,20 +2345,20 @@ function dpkg_configure () {
 		sudo dpkg --force-all --configure -a && break
 		retry=$[$retry - 1]
 		sleep 5
-		echo 'Trying again to run dpkg --configure ...'
+		LogMsg 'Trying again to run dpkg --configure ...'
 	done
 }
 
 # Install fio and required packages
 function install_fio () {
-	echo "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of fio"
+	LogMsg "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of fio"
 	update_repos
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos)
 			install_epel
 			yum -y --nogpgcheck install wget sysstat mdadm blktrace libaio fio bc libaio-devel gcc gcc-c++ kernel-devel
 			if ! command -v fio; then
-				echo "fio is not installed\n Build it from source code now..."
+				LogMsg "fio is not installed\n Build it from source code now..."
 				fio_version="3.13"
 				wget https://github.com/axboe/fio/archive/fio-${fio_version}.tar.gz
 				tar xvf fio-${fio_version}.tar.gz
@@ -2436,7 +2373,7 @@ function install_fio () {
 		ubuntu|debian)
 			export DEBIAN_FRONTEND=noninteractive
 			dpkg_configure
-			apt-get install -y pciutils gawk mdadm wget sysstat blktrace bc fio
+			install_package "pciutils gawk mdadm wget sysstat blktrace bc fio"
 			check_exit_status "install_fio"
 			mount -t debugfs none /sys/kernel/debug
 			;;
@@ -2447,25 +2384,25 @@ function install_fio () {
 				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install wget mdadm blktrace libaio1 sysstat bc
 				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install fio
 			else
-				echo "Unsupported SLES version"
+				LogErr "Unsupported SLES version"
 				return 1
 			fi
 			# FIO is not available in the repository of SLES 15
 			which fio
 			if [ $? -ne 0 ]; then
-				echo "Info: fio is not available in repository. So, Installing fio using rpm"
+				LogMsg "Info: fio is not available in repository. So, Installing fio using rpm"
 				fio_url="$PACKAGE_BLOB_LOCATION/fio-sles-x86_64.rpm"
 				fio_file="fio-sles-x86_64.rpm"
 				curl -o $fio_file $fio_url
-				echo "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install $fio_file"
+				LogMsg "zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install $fio_file"
 				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install $fio_file
 				which fio
 				if [ $? -ne 0 ]; then
-					echo "Error: Unable to install fio from source/rpm"
+					LogErr "Error: Unable to install fio from source/rpm"
 					return 1
 				fi
 			else
-				echo "Info: fio installed from repository"
+				LogMsg "fio installed from repository"
 			fi
 			;;
 
@@ -2480,7 +2417,7 @@ function install_fio () {
 			;;
 
 		*)
-			echo "Unsupported distribution for install_fio"
+			LogErr "Unsupported distribution for install_fio"
 			return 1
 	esac
 	if [[ $(detect_linux_distribution) == coreos ]]; then
@@ -2490,13 +2427,13 @@ function install_fio () {
 	fi
 	if [ $? -ne 0 ]; then
 		return 1
-	fi	
+	fi
 }
 
 # Install iperf3 and required packages
 function install_iperf3 () {
 	ip_version=$1
-	echo "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of iperf3"
+	LogMsg "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of iperf3"
 	update_repos
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos)
@@ -2531,24 +2468,24 @@ function install_iperf3 () {
 				add_sles_network_utilities_repo
 				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install sysstat git bc make gcc psmisc iperf3
 			else
-				echo "Unsupported SLES version"
+				LogErr "Unsupported SLES version"
 				return 1
 			fi
 			# iperf3 is not available in the repository of SLES 12
 			which iperf3
 			if [ $? -ne 0 ]; then
-				LogMsg "Info: iperf3 is not installed. So, Installing iperf3 using rpm"
+				LogMsg "iperf3 is not installed. So, Installing iperf3 using rpm"
 				iperf_url="$PACKAGE_BLOB_LOCATION/iperf-sles-x86_64.rpm"
 				libiperf_url="$PACKAGE_BLOB_LOCATION/libiperf0-sles-x86_64.rpm"
 				rpm -ivh $iperf_url $libiperf_url
 				which iperf3
 				if [ $? -ne 0 ]; then
-					LogMsg "Error: Unable to install iperf3 from source/rpm"
+					LogErr "Unable to install iperf3 from source/rpm"
 					SetTestStateAborted
 					return 1
 				fi
 			else
-				echo "Info: iperf3 installed from repository"
+				LogMsg "iperf3 installed from repository"
 			fi
 			iptables -F
 			;;
@@ -2564,7 +2501,7 @@ function install_iperf3 () {
 			;;
 
 		*)
-			echo "Unsupported distribution for install_iperf3"
+			LogErr "Unsupported distribution for install_iperf3"
 			return 1
 	esac
 	if [[ $(detect_linux_distribution) == coreos ]]; then
@@ -2603,7 +2540,7 @@ function build_lagscope () {
 
 # Install lagscope and required packages
 function install_lagscope () {
-	echo "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of lagscope"
+	LogMsg "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of lagscope"
 	update_repos
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos)
@@ -2626,7 +2563,7 @@ function install_lagscope () {
 				build_lagscope "${1}"
 				iptables -F
 			else
-				echo "Unsupported SLES version"
+				LogErr "Unsupported SLES version"
 				return 1
 			fi
 			;;
@@ -2642,7 +2579,7 @@ function install_lagscope () {
 			;;
 
 		*)
-			echo "Unsupported distribution for install_lagscope"
+			LogErr "Unsupported distribution for install_lagscope"
 			return 1
 	esac
 	if [[ $(detect_linux_distribution) == coreos ]]; then
@@ -2675,7 +2612,7 @@ function build_ntttcp () {
 
 # Install ntttcp and required packages
 function install_ntttcp () {
-	echo "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of ntttcp"
+	LogMsg "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of ntttcp"
 	update_repos
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos)
@@ -2701,7 +2638,7 @@ function install_ntttcp () {
 				build_lagscope "${2}"
 				iptables -F
 			else
-				echo "Unsupported SLES version"
+				LogErr "Unsupported SLES version"
 				return 1
 			fi
 			;;
@@ -2720,7 +2657,7 @@ function install_ntttcp () {
 			;;
 
 		*)
-			echo "Unsupported distribution for install_ntttcp"
+			LogErr "Unsupported distribution for install_ntttcp"
 			return 1
 	esac
 	if [[ $(detect_linux_distribution) == coreos ]]; then
@@ -2743,7 +2680,7 @@ function build_netperf () {
 
 # Install ntttcp and required packages
 function install_netperf () {
-	echo "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of netperf"
+	LogMsg "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of netperf"
 	update_repos
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos)
@@ -2766,7 +2703,7 @@ function install_netperf () {
 				build_netperf
 				iptables -F
 			else
-				echo "Unsupported SLES version"
+				LogErr "Unsupported SLES version"
 				return 1
 			fi
 			;;
@@ -2783,7 +2720,7 @@ function install_netperf () {
 			;;
 
 		*)
-			echo "Unsupported distribution for build_netperf"
+			LogErr "Unsupported distribution for build_netperf"
 			return 1
 	esac
 	if [[ $(detect_linux_distribution) == coreos ]]; then
@@ -2808,9 +2745,10 @@ function get_active_nic_name () {
 }
 
 # Create partitions
+# Unused
 function create_partitions () {
 	disk_list=($@)
-	echo "Creating partitions on ${disk_list[@]}"
+	LogMsg "Creating partitions on ${disk_list[@]}"
 
 	count=0
 	while [ "x${disk_list[count]}" != "x" ]; do
@@ -2821,9 +2759,10 @@ function create_partitions () {
 }
 
 # Remove partitions
+# Unused
 function remove_partitions () {
 	disk_list=($@)
-	echo "Creating partitions on ${disk_list[@]}"
+	LogMsg "Removing partitions on ${disk_list[@]}"
 
 	count=0
 	while [ "x${disk_list[count]}" != "x" ]; do
@@ -2833,80 +2772,32 @@ function remove_partitions () {
 	done
 }
 
-# Create RAID using unused data disks attached to the VM.
-function create_raid_and_mount() {
-		local deviceName="/dev/md1"
-		local mountdir=/data-dir
-		local format="ext4"
-		local mount_option=""
-		if [[ ! -z "$1" ]];then
-			deviceName=$1
-		fi
-		if [[ ! -z "$2" ]];then
-			mountdir=$2
-		fi
-		if [[ ! -z "$3" ]];then
-			format=$3
-		fi
-		if [[ ! -z "$4" ]];then
-			mount_option=$4
-		fi
-
-	local uuid=""
-	local list=""
-
-	echo "IO test setup started.."
-	list=($(fdisk -l | grep 'Disk.*/dev/sd[a-z]' |awk  '{print $2}' | sed s/://| sort| grep -v "/dev/sd[ab]$" ))
-
-	lsblk
-	install_package mdadm
-	echo "--- Raid $deviceName creation started ---"
-	(echo y)| mdadm --create $deviceName --level 0 --raid-devices ${#list[@]} ${list[@]}
-	check_exit_status "$deviceName Raid creation"
-
-	time mkfs -t $format $deviceName
-	check_exit_status "$deviceName Raid format"
-
-	mkdir $mountdir
-	uuid=$(blkid $deviceName| sed "s/.*UUID=\"//"| sed "s/\".*\"//")
-	cp -f /etc/fstab /etc/fstab_raid
-	echo "UUID=$uuid $mountdir $format defaults 0 2" >> /etc/fstab
-	if [ -z "$mount_option" ]
-	then
-		mount $deviceName $mountdir
-	else
-		mount -o $mount_option $deviceName $mountdir
-	fi
-	check_exit_status "RAID ($deviceName) mount on $mountdir as $format"
-}
-
 #Create raid0
-function create_raid0()
-{
+function create_raid0() {
 	if [[ $# == 2 ]]; then
 		local disks=$1
 		local deviceName=$2
 	else
-		echo "Error: create_raid0 accepts 2 arguments: 1. disks name, separated by whitespace 2. deviceName for raid"
+		LogErr "create_raid0 accepts 2 arguments: 1. disks name, separated by whitespace 2. deviceName for raid"
 		return 100
 	fi
 	count=0
 	for disk in ${disks}
 	do
-		echo "Partition disk /dev/${disk}"
+		LogMsg "Partition disk /dev/${disk}"
 		(echo d; echo n; echo p; echo 1; echo; echo; echo t; echo fd; echo w;) | fdisk /dev/${disk}
 		raidDevices="${raidDevices} /dev/${disk}1"
 		count=$(( $count + 1 ))
 	done
-	echo "INFO: Creating RAID of ${count} devices."
+	LogMsg "Creating RAID of ${count} devices."
 	sleep 1
-	echo "Run cmd: yes | mdadm --create ${deviceName} --level 0 --raid-devices $count $raidDevices"
+	LogMsg "Run cmd: yes | mdadm --create ${deviceName} --level 0 --raid-devices $count $raidDevices"
 	yes | mdadm --create ${deviceName} --level 0 --raid-devices $count $raidDevices
 	if [ $? -ne 0 ]; then
-		echo "Error: unable to create raid ${deviceName}"
+		LogErr "Unable to create raid ${deviceName}"
 		return 1
 	else
-		echo "Raid ${deviceName} create successfully."
+		LogMsg "Raid ${deviceName} create successfully."
 	fi
 }
 
@@ -2925,7 +2816,7 @@ function remote_copy () {
 	install_sshpass
 
 	if [ "x$host" == "x" ] || [ "x$user" == "x" ] || [ "x$passwd" == "x" ] || [ "x$filename" == "x" ] ; then
-		echo "Usage: remote_copy -user <username> -passwd <user password> -host <host ipaddress> -filename <filename> -remote_path <location of the file on remote vm> -cmd <put/get>"
+		LogErr "Usage: remote_copy -user <username> -passwd <user password> -host <host ipaddress> -filename <filename> -remote_path <location of the file on remote vm> -cmd <put/get>"
 		return
 	fi
 
@@ -2943,7 +2834,7 @@ function remote_copy () {
 
 	status=$(sshpass -p $passwd scp -o StrictHostKeyChecking=no -P $port $source_path $destination_path 2>&1)
 	exit_status=$?
-	echo $status
+	LogMsg $status
 	return $exit_status
 }
 
@@ -2961,7 +2852,7 @@ function remote_exec () {
 	install_sshpass
 
 	if [ "x$host" == "x" ] || [ "x$user" == "x" ] || [ "x$passwd" == "x" ] || [ "x$cmd" == "x" ] ; then
-		echo "Usage: remote_exec -user <username> -passwd <user password> -host <host ipaddress> <onlycommand>"
+		LogErr "Usage: remote_exec -user <username> -passwd <user password> -host <host ipaddress> <onlycommand>"
 		return
 	fi
 
@@ -2971,18 +2862,19 @@ function remote_exec () {
 
 	status=$(sshpass -p $passwd ssh -t -o StrictHostKeyChecking=no -p $port $user@$host $cmd 2>&1)
 	exit_status=$?
-	echo $status
+	LogMsg $status
 	return $exit_status
 }
 
 # Set root or any user's password
+# Unused
 function set_user_password {
 	if [[ $# == 3 ]]; then
 		user=$1
 		user_password=$2
 		sudo_password=$3
 	else
-		echo "Usage: user user_password sudo_password"
+		LogErr "Usage: user user_password sudo_password"
 		return -1
 	fi
 
@@ -2991,7 +2883,7 @@ function set_user_password {
 	string=$(echo $sudo_password | sudo -S cat /etc/shadow | grep $user)
 
 	if [ "x$string" == "x" ]; then
-		echo "$user not found in /etc/shadow"
+		LogErr "$user not found in /etc/shadow"
 		return -1
 	fi
 
@@ -3001,9 +2893,9 @@ function set_user_password {
 	echo $sudo_password | sudo -S sed -i "s#^${array[0]}.*#$line#" /etc/shadow
 
 	if [ $(echo $sudo_password | sudo -S cat /etc/shadow| grep $line|wc -l) != "" ]; then
-		echo "Password set succesfully"
+		LogMsg "Password set succesfully"
 	else
-		echo "failed to set password"
+		LogErr "failed to set password"
 	fi
 }
 
@@ -3031,6 +2923,7 @@ function collect_VM_properties () {
 }
 
 # Add command in startup files
+# Unused
 function keep_cmd_in_startup () {
 	testcommand=$*
 	startup_files="/etc/rc.d/rc.local /etc/rc.local /etc/SuSE-release"
@@ -3042,17 +2935,18 @@ function keep_cmd_in_startup () {
 				if ! grep -q "${testcommand}" $file; then
 					echo $testcommand >> $file
 				fi
-				echo "Added $testcommand >> $file"
+				LogMsg "Added $testcommand >> $file"
 				((count++))
 			fi
 		fi
 	done
 	if [ $count == 0 ]; then
-		echo "Cannot find $startup_files files"
+		LogErr "Cannot find $startup_files files"
 	fi
 }
 
 # Remove command from startup files
+# Unused
 function remove_cmd_from_startup () {
 	testcommand=$*
 	startup_files="/etc/rc.d/rc.local /etc/rc.local /etc/SuSE-release"
@@ -3062,12 +2956,12 @@ function remove_cmd_from_startup () {
 			if grep -q "${testcommand}" $file; then
 				sed "s/${testcommand}//" $file -i
 				((count++))
-				echo "Removed $testcommand from $file"
+				LogMsg "Removed $testcommand from $file"
 			fi
 		fi
 	done
 	if [ $count == 0 ]; then
-		echo "Cannot find $testcommand in $startup_files files"
+		LogErr "Cannot find $testcommand in $startup_files files"
 	fi
 }
 
@@ -3121,28 +3015,6 @@ function get_synthetic_vf_pairs() {
     done
 }
 
-# Requires:
-#	- UtilsInit has been called
-# 	- 1st argument is script to source
-# Effects:
-#	Sources script, if it cannot aborts test
-function source_script() {
-    if [ -z "${1}" ]; then
-        LogErr "ERROR: Must supply script name as 1st argument to sourceScript"
-        SetTestStateAborted
-        exit 1
-    fi
-
-    local file=${1}
-    if [ -e ${file} ]; then
-        source ${file}
-    else
-        LogErr "ERROR: func sourceScript unable to source ${file} file"
-        SetTestStateAborted
-        exit 1
-    fi
-}
-
 function test_rsync() {
     . net_constants.sh
     ping -I vxlan0 242.0.0.11 -c 3
@@ -3163,7 +3035,7 @@ function test_rsync() {
 function test_rsync_files() {
     ping -I vxlan0 242.0.0.12 -c 3
     if [ $? -ne 0 ]; then
-        LogErr "Could not ping the first VM through the vxlan interface"
+        LogErr "Failed to ping the first VM through the vxlan interface"
         SetTestStateAborted
         exit 1
     else
@@ -3238,7 +3110,7 @@ function stop_firewall() {
             status=$(systemctl is-active SuSEfirewall2)
             if [ "$status" = "active" ]; then
                 service SuSEfirewall2 stop
-                if [ $? -ne 0 ]; then    
+                if [ $? -ne 0 ]; then
                     return 1
                 fi
             fi
@@ -3257,6 +3129,9 @@ function stop_firewall() {
             iptables -F
             iptables -X
             ;;
+		coreos)
+            LogMsg "No extra steps need here."
+			;;
         *)
             LogErr "OS Version not supported!"
             return 1
@@ -3289,8 +3164,7 @@ function Update_Kernel() {
     return $retVal
 }
 
-Kill_Process()
-{
+Kill_Process() {
     ips=$1
     IFS=',' read -r -a array <<< "$ips"
     for ip in "${array[@]}"
@@ -3311,8 +3185,7 @@ Kill_Process()
     done
 }
 
-Delete_Containers()
-{
+Delete_Containers() {
     containers=$(docker ps -a | grep -v 'CONTAINER ID' | awk '{print $1}')
     for containerID in ${containers}
     do
@@ -3321,8 +3194,7 @@ Delete_Containers()
     done
 }
 
-Get_BC_Command()
-{
+Get_BC_Command() {
     bc_cmd=""
     if [[ $(detect_linux_distribution) != coreos ]]; then
         bc_cmd="bc"
@@ -3378,8 +3250,7 @@ function ConsumeMemory() {
     return 0
 }
 
-function Format_Mount_NVME()
-{
+function Format_Mount_NVME() {
     if [[ $# == 2 ]]; then
         local namespace=$1
         local filesystem=$2
@@ -3411,8 +3282,7 @@ function Format_Mount_NVME()
 # @param1 DeviceType: supported values are "NVME", "SR-IOV", "GPU"
 # and "ALL" for all 3 previous types
 # @return 0 if the devices were removed and reattached successfully
-function DisableEnablePCI ()
-{
+function DisableEnablePCI () {
     case "$1" in
         "SR-IOV") vf_pci_type="Ethernet\|Network" ;;
         "NVME")   vf_pci_type="Non-Volatile" ;;
@@ -3504,8 +3374,7 @@ function DisableEnablePCI ()
 # Examples -
 # CreateFile 1G /root/abc.out
 # CreateFile 100M ./test.file
-function CreateFile()
-{
+function CreateFile() {
 	size=$1
 	file_path=$2
 	fallocate -l $size $file_path
@@ -3517,8 +3386,7 @@ function CreateFile()
 }
 
 # Check available packages
-function check_package ()
-{
+function check_package () {
 	local package_list=("$@")
 	for package_name in "${package_list[@]}"; do
 		case "$DISTRO_NAME" in
@@ -3549,8 +3417,7 @@ function check_package ()
 }
 
 # Install nvme
-function install_nvme_cli()
-{
+function install_nvme_cli() {
     which nvme
     if [ $? -ne 0 ]; then
         echo "nvme is not installed\n Installing now..."
@@ -3586,36 +3453,6 @@ function CheckInstallLockUbuntu() {
     fi
 }
 
-function wget_retry() {
-	url=$1
-	dest=$2
-	remote_ip=$3
-
-	max_retries=3
-	retry_timeout=3
-	log_msg="Downloading ${url} on ${remote_ip} to ${dest}."
-	err_log_msg="Could not download ${url} on ${remote_ip}."
-
-	while [ $max_retries -gt 0 ]; do
-		LogMsg "${log_msg}"
-		ssh_output=$(ssh "${remote_ip}" "wget --tries 3 --retry-connrefused '${url}' -P ${dest}")
-		if [ $? = 0 ]; then
-			LogMsg "Successully downloading"
-			break
-		else
-			LogErr "${ssh_output}"
-			LogErr "${err_log_msg}. Retrying..."
-			max_retries=$(($max_retries-1))
-			sleep $retry_timeout
-		fi
-	done
-	if [ $max_retries -eq 0 ]; then
-		LogMsg "${err_log_msg}"
-		SetTestStateAborted
-		exit 1
-	fi
-}
-
 function get_OSdisk() {
 	for driveName in /dev/sd*[^0-9];
 	do
@@ -3628,122 +3465,4 @@ function get_OSdisk() {
 	done
 
 	echo "$os_disk"
-}
-
-function version_gt() {
-	test "$(printf '%s\n' "$@" | sort -V | head -n 1)" != "$1"
-}
-
-function install_gpu_requirements() {
-	install_package "wget lshw gcc make"
-	LogMsg "installed wget lshw gcc make"
-
-	case $DISTRO in
-		redhat_7|centos_7|redhat_8)
-			if [[ $DISTRO == "centos_7" ]]; then
-				# for all releases that are moved into vault.centos.org
-				# we have to update the repositories first
-				yum -y install centos-release
-				if [ $? -eq 0 ]; then
-					LogMsg "Successfully installed centos-release"
-				else
-					LogErr "Failed to install centos-release"
-					SetTestStateAborted
-					return 1
-				fi
-				yum clean all
-				yum -y install --enablerepo=C*-base --enablerepo=C*-updates kernel-devel-"$(uname -r)" kernel-headers-"$(uname -r)"
-				if [ $? -eq 0 ]; then
-					LogMsg "Successfully installed kernel-devel package with its header"
-				else
-					LogErr "Failed to install kernel-devel package with its header"
-					SetTestStateAborted
-					return 1
-				fi
-			else
-				yum -y install kernel-devel-"$(uname -r)" kernel-headers-"$(uname -r)"
-				if [ $? -eq 0 ]; then
-					LogMsg "Successfully installed kernel-devel package with its header"
-				else
-					LogErr "Failed to installed kernel-devel package with its header"
-					SetTestStateAborted
-					return 1
-				fi
-			fi
-
-			# Kernel devel package is mandatory for nvdia cuda driver installation.
-			# Failure to install kernel devel should be treated as test aborted not failed.
-			rpm -q --quiet kernel-devel-$(uname -r)
-			if [ $? -ne 0 ]; then
-				LogErr "Failed to install the RH/CentOS kernel-devel package"
-				SetTestStateAborted
-				return 1
-			else
-				LogMsg "Successfully rpm-ed kernel-devel packages"
-			fi
-
-			# mesa-libEGL install/update is require to avoid a conflict between
-			# libraries - bugzilla.redhat 1584740
-			yum -y install mesa-libGL mesa-libEGL libglvnd-devel
-			if [ $? -eq 0 ]; then
-				LogMsg "Successfully installed mesa-libGL mesa-libEGL libglvnd-devel"
-			else
-				LogErr "Failed to install mesa-libGL mesa-libEGL libglvnd-devel"
-				SetTestStateAborted
-				return 1
-			fi
-
-			install_epel
-			yum --nogpgcheck -y install dkms
-			if [ $? -eq 0 ]; then
-				LogMsg "Successfully installed dkms"
-			else
-				LogErr "Failed to install dkms"
-				SetTestStateAborted
-				return 1
-			fi
-		;;
-
-		ubuntu*)
-			apt -y install build-essential libelf-dev linux-tools-"$(uname -r)" linux-cloud-tools-"$(uname -r)" python libglvnd-dev ubuntu-desktop
-			if [ $? -eq 0 ]; then
-				LogMsg "Successfully installed build-essential libelf-dev linux-tools linux-cloud-tools python libglvnd-dev ubuntu-desktop"
-			else
-				LogErr "Failed to install build-essential libelf-dev linux-tools linux-cloud-tools python libglvnd-dev ubuntu-desktop"
-				SetTestStateAborted
-				return 1
-			fi
-		;;
-
-		suse_15*)
-			kernel=$(uname -r)
-			if [[ "${kernel}" == *azure ]]; then
-				zypper install --oldpackage -y kernel-azure-devel="${kernel::-6}"
-				if [ $? -eq 0 ]; then
-					LogMsg "Successfully installed kernel-azure-devel"
-				else
-					LogErr "Failed to install kernel-azure-devel"
-					SetTestStateAborted
-					return 1
-				fi
-				zypper install -y kernel-devel-azure xorg-x11-driver-video libglvnd-devel
-				if [ $? -eq 0 ]; then
-					LogMsg "Successfully installed kernel-azure-devel xorg-x11-driver-video libglvnd-devel"
-				else
-					LogErr "Failed to install kernel-azure-devel xorg-x11-driver-video libglvnd-devel"
-					SetTestStateAborted
-					return 1
-				fi
-			else
-				zypper install -y kernel-default-devel xorg-x11-driver-video libglvnd-devel
-				if [ $? -eq 0 ]; then
-					LogMsg "Successfully installed kernel-default-devel xorg-x11-driver-video libglvnd-devel"
-				else
-					LogErr "Failed to install kernel-default-devel xorg-x11-driver-video libglvnd-devel"
-					SetTestStateAborted
-					return 1
-				fi
-			fi
-		;;
-	esac
 }

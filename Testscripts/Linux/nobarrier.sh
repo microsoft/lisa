@@ -23,6 +23,54 @@ UTIL_FILE="./utils.sh"
 }
 # Source constants file and initialize most common variables
 UtilsInit
+
+# Create RAID using unused data disks attached to the VM.
+function create_raid_and_mount() {
+		local deviceName="/dev/md1"
+		local mountdir=/data-dir
+		local format="ext4"
+		local mount_option=""
+		if [[ ! -z "$1" ]];then
+			deviceName=$1
+		fi
+		if [[ ! -z "$2" ]];then
+			mountdir=$2
+		fi
+		if [[ ! -z "$3" ]];then
+			format=$3
+		fi
+		if [[ ! -z "$4" ]];then
+			mount_option=$4
+		fi
+
+	local uuid=""
+	local list=""
+
+	LogMsg "IO test setup started.."
+	list=($(fdisk -l | grep 'Disk.*/dev/sd[a-z]' |awk  '{print $2}' | sed s/://| sort| grep -v "/dev/sd[ab]$" ))
+
+	lsblk
+	install_package mdadm
+	LogMsg "--- Raid $deviceName creation started ---"
+	(echo y)| mdadm --create $deviceName --level 0 --raid-devices ${#list[@]} ${list[@]}
+	check_exit_status "$deviceName Raid creation"
+
+	time mkfs -t $format $deviceName
+	check_exit_status "$deviceName Raid format"
+
+	mkdir $mountdir
+	uuid=$(blkid $deviceName| sed "s/.*UUID=\"//"| sed "s/\".*\"//")
+	cp -f /etc/fstab /etc/fstab_raid
+	echo "UUID=$uuid $mountdir $format defaults 0 2" >> /etc/fstab
+	if [ -z "$mount_option" ]
+	then
+		mount $deviceName $mountdir
+	else
+		mount -o $mount_option $deviceName $mountdir
+	fi
+	check_exit_status "RAID ($deviceName) mount on $mountdir as $format"
+}
+
 #Install required packages for raid
 packages=("gcc" "git" "tar" "wget" "dos2unix" "mdadm")
 case "$DISTRO_NAME" in
@@ -38,7 +86,7 @@ case "$DISTRO_NAME" in
 	coreos|clear-linux-os)
 		;;
 	*)
-		echo "Unknown distribution"
+		LogErr "Unknown distribution"
 		SetTestStateAborted
 		exit 1
 esac

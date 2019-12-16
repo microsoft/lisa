@@ -218,27 +218,8 @@ InstallDependencies()
     # Enable broadcast listening
     echo 0 >/proc/sys/net/ipv4/icmp_echo_ignore_broadcasts
 
-    # Disable firewall
-    GetDistro
-    case "$DISTRO" in
-        suse*)
-            service SuSEfirewall2 stop
-        ;;
-        ubuntu*|debian*)
-            ufw disable
-        ;;
-        redhat*|centos*)
-            service firewalld stop
-        ;;
-        coreos)
-            LogMsg "No extra steps need here."
-        ;;
-        *)
-            LogErr "OS Version not supported in InstallDependencies!"
-            SetTestStateFailed
-            exit 1
-        ;;
-    esac
+    # Stop firewall
+    stop_firewall
 
     wget -V > /dev/null 2>&1
     if [ $? -ne 0 ]; then

@@ -21,7 +21,7 @@ target_version=2.0.15
 #
 UtilsInit
 
-Install_Kexec(){
+Install_Kexec() {
     case $DISTRO in
         centos* | redhat* | fedora*)
             if [[ $DISTRO != "redhat_8" ]] && [[ $DISTRO != "centos_8" ]]; then
@@ -70,7 +70,7 @@ Install_Kexec(){
     esac
 }
 
-Rhel_Extra_Settings(){
+Rhel_Extra_Settings() {
     LogMsg "Adding extra kdump parameters(Rhel)..."
 
     to_be_updated=(
@@ -117,8 +117,7 @@ Rhel_Extra_Settings(){
     sed -i "s/KDUMP_COMMANDLINE_APPEND.*/KDUMP_COMMANDLINE_APPEND=\"$kdump_commandline_arguments\"/g" $kdump_sysconfig
 }
 
-Config_Rhel()
-{
+Config_Rhel() {
     # Modifying kdump.conf settings
     LogMsg "Configuring kdump (Rhel)..."
 
@@ -225,8 +224,7 @@ Config_Rhel()
     fi
 }
 
-Config_Sles()
-{
+Config_Sles() {
     LogMsg "Configuring kdump (Sles)..."
 
     if [[ -d /boot/grub2 ]]; then
@@ -236,7 +234,7 @@ Config_Sles()
     fi
 
     LogMsg "Enabling kdump"
-    
+
     chkconfig boot.kdump on
     if [ $? -ne 0 ]; then
         systemctl enable kdump.service
@@ -263,8 +261,7 @@ Config_Sles()
     fi
 }
 
-Config_Debian()
-{
+Config_Debian() {
     boot_filepath="/boot/grub/grub.cfg"
     LogMsg "Configuring kdump (Ubuntu)..."
     UpdateSummary "Configuring kdump (Ubuntu)..."
@@ -300,6 +297,10 @@ Config_Debian()
         echo "NFS=\"$vm2ipv4:/mnt\"" >> /etc/default/kdump-tools
         service kexec restart
     fi
+}
+
+function version_gt() {
+	test "$(printf '%s\n' "$@" | sort -V | head -n 1)" != "$1"
 }
 
 #######################################################################
