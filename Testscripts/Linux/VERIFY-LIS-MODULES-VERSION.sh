@@ -41,7 +41,7 @@ fi
 skip_modules=()
 config_path="/boot/config-$(uname -r)"
 if [[ $(detect_linux_distribution) == clear-linux-os ]]; then
-	config_path="/usr/lib/kernel/config-$(uname -r)"
+    config_path="/usr/lib/kernel/config-$(uname -r)"
 fi
 LogMsg "Set the configuration path to $config_path"
 
@@ -88,6 +88,9 @@ else
     rpmAvailable=false
     isLISInstalled=''
     LogMsg "The current LIS installation state: none"
+    LogErr "Test Skipped because of no LIS installation"
+    SetTestStateSkipped
+    exit 1
 fi
 LogMsg "RPM availability in the system: $rpmAvailable"
 
@@ -124,8 +127,8 @@ for module in "${HYPERV_MODULES[@]}"; do
             version=$(modinfo "$module" | grep version: | head -1 | awk '{print $2}')
             LogMsg "$module module version: ${version}"
             if [ "$module" == "mlx4_en" && "$MLNX_VERSION" != "$version" ] ;then
-                    LogErr "Status: $module $version did not match to the build one, $MLNX_VERSION"
-                    exit_code=$((exit_code+1))
+                LogErr "Status: $module $version did not match to the build one, $MLNX_VERSION"
+                exit_code=$((exit_code+1))
             else
                 continue
             fi
