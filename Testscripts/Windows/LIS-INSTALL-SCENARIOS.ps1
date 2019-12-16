@@ -285,41 +285,6 @@ Function Upgrade-Kernel ($allVMData, $TestProvider, [switch]$RestartAfterUpgrade
     }
 }
 
-#######################################################################
-# Perform a minor kernel upgrade on CentOS/RHEL distros
-#######################################################################
-UpgradeMinorKernel() {
-	os_version=$(sed -e 's/^.* \([0-9].*\) (\(.*\)).*$/\1/' /etc/redhat-release)
-
-	grep CentOS /etc/redhat-release
-	if [ $? -eq 0 ]; then
-		# Make changes to CentOS-Vault.repo
-		sed -i "s/enabled=\S*/enabled=1/g" /etc/yum.repos.d/CentOS-Vault.repo
-
-		# A CentOS 6.x specific command
-		sed -i "s/6.0/$os_version/g" /etc/yum.repos.d/CentOS-Vault.repo
-
-		# Get kernel version
-		kernel_version=$(sed 's/.el.*//' <<< "$(uname -r)")
-		sts=$(yum install kernel-${kernel_version}* -y)
-		if [ $? -ne 0 ]; then
-			sed -i "s/enabled=\S*/enabled=0/g" /etc/yum.repos.d/CentOS-Vault.repo
-			sts=$(yum install kernel-${kernel_version}* -y)
-		fi
-	fi
-
-	grep "Red Hat" /etc/redhat-release
-	if [ $? -eq 0 ]; then
-		sts=$(yum install -y --releasever=${os_version} kernel)
-	fi
-
-	if [ $sts -ne 0 ]; then
-		return 1
-	fi
-
-	return 0
-}
-
 ### Scenarios ###############################
 
 # Scenario Information : Installs the Current LIS using given LIS source file (.tar.gz)
