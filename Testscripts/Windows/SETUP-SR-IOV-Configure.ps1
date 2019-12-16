@@ -41,7 +41,7 @@ function Set-VFInGuest {
     }
     # Disable the NetworkManager
     Run-LinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort `
-        -command ". SR-IOV-Utils.sh; DisableNetworkManager" -RunAsSudo
+        -command ". SR-IOV-Utils.sh; DisableNetworkManager-SRIOV" -RunAsSudo
     # Configure VF
     Run-LinuxCmd -username $VMUser -password $VMPass -ip $VMIp -port $VMPort `
         -command ". SR-IOV-Utils.sh; ConfigureVF $VMNumber" -RunAsSudo

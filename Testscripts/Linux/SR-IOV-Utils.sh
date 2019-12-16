@@ -150,6 +150,7 @@ ConfigureVF()
     __ipIterator=$1
     LogMsg "Iterator: $__iterator"
 
+    GetDistro
     # Set static IPs for each vf created
     while [ $__iterator -le "$vfCount" ]; do
         LogMsg "Network config will start"
@@ -158,47 +159,55 @@ ConfigureVF()
         staticIP=$(cat sriov_constants.sh | grep IP"$__ipIterator" | head -1 | tr "=" " " | awk '{print $2}')
         broadcastAddress="${staticIP%.*}.255"
 
-        if is_ubuntu ; then
-            __file_path="/etc/network/interfaces"
-            # Change /etc/network/interfaces
-            echo "auto eth$__iterator" >> $__file_path
-            echo "iface eth$__iterator inet static" >> $__file_path
-            echo "address $staticIP" >> $__file_path
-            echo "netmask $NETMASK" >> $__file_path
+        case $DISTRO in
+            ubuntu*)
+                __file_path="/etc/network/interfaces"
+                # Change /etc/network/interfaces
+                echo "auto eth$__iterator" >> $__file_path
+                echo "iface eth$__iterator inet static" >> $__file_path
+                echo "address $staticIP" >> $__file_path
+                echo "netmask $NETMASK" >> $__file_path
 
-            ip link set eth$__iterator up
-            ip addr add "${staticIP}"/"$NETMASK" broadcast $broadcastAddress dev eth$__iterator
+                ip link set eth$__iterator up
+                ip addr add "${staticIP}"/"$NETMASK" broadcast $broadcastAddress dev eth$__iterator
+            ;;
+            suse*|sles*)
+                __file_path="/etc/sysconfig/network/ifcfg-eth$__iterator"
+                rm -f $__file_path
 
-        elif is_suse ; then
-            __file_path="/etc/sysconfig/network/ifcfg-eth$__iterator"
-            rm -f $__file_path
+                # Replace the BOOTPROTO, IPADDR and NETMASK values found in ifcfg file
+                echo "DEVICE=eth$__iterator" >> $__file_path
+                echo "NAME=eth$__iterator" >> $__file_path
+                echo "BOOTPROTO=static" >> $__file_path
+                echo "IPADDR=$staticIP" >> $__file_path
+                echo "NETMASK=$NETMASK" >> $__file_path
+                echo "STARTMODE=auto" >> $__file_path
 
-            # Replace the BOOTPROTO, IPADDR and NETMASK values found in ifcfg file
-            echo "DEVICE=eth$__iterator" >> $__file_path
-            echo "NAME=eth$__iterator" >> $__file_path
-            echo "BOOTPROTO=static" >> $__file_path
-            echo "IPADDR=$staticIP" >> $__file_path
-            echo "NETMASK=$NETMASK" >> $__file_path
-            echo "STARTMODE=auto" >> $__file_path
+                ip link set eth$__iterator up
+                ip addr add "${staticIP}"/"$NETMASK" broadcast $broadcastAddress dev eth$__iterator
+            ;;
 
-            ip link set eth$__iterator up
-            ip addr add "${staticIP}"/"$NETMASK" broadcast $broadcastAddress dev eth$__iterator
+            redhat_*|centos_*)
+                __file_path="/etc/sysconfig/network-scripts/ifcfg-eth$__iterator"
+                rm -f $__file_path
 
-        elif is_fedora ; then
-            __file_path="/etc/sysconfig/network-scripts/ifcfg-eth$__iterator"
-            rm -f $__file_path
+                # Replace the BOOTPROTO, IPADDR and NETMASK values found in ifcfg file
+                echo "DEVICE=eth$__iterator" >> $__file_path
+                echo "NAME=eth$__iterator" >> $__file_path
+                echo "BOOTPROTO=static" >> $__file_path
+                echo "IPADDR=$staticIP" >> $__file_path
+                echo "NETMASK=$NETMASK" >> $__file_path
+                echo "ONBOOT=yes" >> $__file_path
 
-            # Replace the BOOTPROTO, IPADDR and NETMASK values found in ifcfg file
-            echo "DEVICE=eth$__iterator" >> $__file_path
-            echo "NAME=eth$__iterator" >> $__file_path
-            echo "BOOTPROTO=static" >> $__file_path
-            echo "IPADDR=$staticIP" >> $__file_path
-            echo "NETMASK=$NETMASK" >> $__file_path
-            echo "ONBOOT=yes" >> $__file_path
-
-            ip link set eth$__iterator up
-            ip addr add "${staticIP}"/"$NETMASK" broadcast $broadcastAddress dev eth$__iterator
-        fi
+                ip link set eth$__iterator up
+                ip addr add "${staticIP}"/"$NETMASK" broadcast $broadcastAddress dev eth$__iterator
+            ;;
+            *)
+                LogErr "$DISTRO does not support in the function call"
+                SetTestStateFailed
+                exit 0
+            ;;
+        esac
         LogMsg "Network config file path: $__file_path"
 
         __ipIterator=$(($__ipIterator + 2))
@@ -273,10 +282,9 @@ InstallDependencies()
 }
 
 #
-# DisableNetworkManager - Disable the NetworkManager permanently if it's running
+# DisableNetworkManager-SRIOV - Disable the NetworkManager permanently if it's running
 #
-DisableNetworkManager()
-{
+function DisableNetworkManager-SRIOV() {
     systemctl status NetworkManager | grep "Active:[ ]*active"
     if [ $? -eq 0 ]; then
         systemctl stop NetworkManager

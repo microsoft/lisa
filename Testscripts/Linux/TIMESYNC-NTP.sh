@@ -28,173 +28,161 @@ loopbackIP="127.0.0.1"              # IP to force NTPD to listen on IPv4
 # Source constants file and initialize most common variables
 UtilsInit
 
+GetDistro
 # Try to restart NTP. If it fails we try to install it.
-if is_fedora ; then
-    # RHEL 8 does not support NTP, skip test
-    if [[ $os_RELEASE =~ 8.* ]]; then
-        LogMsg "Info: $os_VENDOR $os_RELEASE does not support NTP. Test skipped. "
-        SetTestStateSkipped
-        exit 0
-    fi
-    # Check if ntpd is running
-    if ! service ntpd restart
-    then
-        LogMsg "Info: NTPD not installed. Trying to install..."
-        if ! yum install -y ntp ntpdate
-        then
-            LogErr "Unable to install ntpd. Aborting"
+case $DISTRO in
+        redhat_*|centos_*)
+            # RHEL 8 does not support NTP, skip test
+            if [[ $os_RELEASE =~ 8.* ]]; then
+                LogMsg "Info: $os_VENDOR $os_RELEASE does not support NTP. Test skipped. "
+                SetTestStateSkipped
+                exit 0
+            fi
+            # Check if ntpd is running
+            if ! service ntpd restart
+            then
+                LogMsg "Info: NTPD not installed. Trying to install..."
+                if [ ! yum install -y ntp ntpdate ]; then
+                    LogErr "Unable to install ntpd. Aborting"
+                    SetTestStateAborted
+                    exit 0
+                fi
+
+                if [ ! chkconfig ntpd on ]; then
+                    LogErr "Unable to chkconfig ntpd on. Aborting"
+                    SetTestStateAborted
+                    exit 0
+                fi
+
+                if [ ! ntpdate pool.ntp.org ]; then
+                    LogErr "Unable to set ntpdate. Aborting"
+                    SetTestStateAborted
+                    exit 0
+                fi
+
+                if [ ! service ntpd start ]; then
+                    LogErr "Unable to start ntpd. Aborting"
+                    SetTestStateAborted
+                    exit 0
+                fi
+                LogMsg "Info: NTPD has been installed successfully!"
+            fi
+
+            # set rtc clock to system time & restart NTPD
+            if [ ! hwclock --systohc ]; then
+                LogErr "Unable to sync RTC clock to system time. Aborting"
+                SetTestStateAborted
+                exit 0
+            fi
+
+            if [ ! service ntpd restart ]; then
+                LogErr "Unable to start ntpd. Aborting"
+                SetTestStateAborted
+                exit 0
+            fi
+        ;;
+        ubuntu*)
+            # Check if ntp is running
+            if [ ! service ntp restart ]; then
+                LogMsg "NTP is not installed. Trying to install..."
+                update_repos
+                install_package ntp
+                LogMsg "Info: NTPD has been installed successfully!"
+            fi
+
+            # set rtc clock to system time & restart NTPD
+            if [ ! hwclock --systohc ]; then
+                LogErr "Unable to sync RTC clock to system time. Aborting"
+                SetTestStateAborted
+                exit 0
+            fi
+
+            if [ ! service ntp restart ]; then
+                LogErr "Unable to restart ntpd. Aborting"
+                SetTestStateAborted
+                exit 0
+            fi
+        ;;
+        suse*|sles*)
+            #In SLES 12 service name is ntpd, in SLES 11 is ntp
+            os_RELEASE=$(echo "$os_RELEASE" | sed -e 's/^\(.\{2\}\).*/\1/')
+            if  [ "$os_RELEASE" -eq 11 ]; then
+                srv="ntp"
+            else
+                srv="ntpd"
+            fi
+
+            service $srv restart
+            if [ ! service $srv restart ]; then
+                LogMsg "NTP is not installed. Trying to install ..."
+                zypper --non-interactive install ntp
+                if [ ! zypper --non-interactive install ntp ]; then
+                    LogErr "Unable to install ntp. Aborting"
+                    SetTestStateAborted
+                    exit 0
+                fi
+                LogErr "NTP installed successfully!"
+            fi
+
+            service $srv stop
+
+            # Edit NTP Server config and set the timeservers
+            sed -i 's/^server.*/ /g' /etc/ntp.conf
+            echo "
+            server 0.pool.ntp.org
+            server 1.pool.ntp.org
+            server 2.pool.ntp.org
+            server 3.pool.ntp.org
+            " >> /etc/ntp.conf
+            if [[ $? -ne 0 ]]; then
+                LogErr "Unable to sync RTC clock to system time. Aborting"
+                SetTestStateAborted
+                exit 0
+            fi
+
+            # Set rtc clock to system time
+            hwclock --systohc
+            if [ ! hwclock --systohc ]; then
+                LogErr "Unable to sync RTC clock to system time. Aborting"
+                SetTestStateAborted
+                exit 0
+            fi
+
+            # Restart NTP service
+            service $srv restart
+            if [ ! service $srv restart ]; then
+                LogErr "Unable to restart ntpd. Aborting"
+                SetTestStateAborted
+                exit 0
+            fi
+        ;;
+        coreos)
+            # Refer to https://github.com/coreos/docs/blob/master/os/configuring-date-and-timezone.md#time-synchronization
+            systemctl stop systemd-timesyncd
+            systemctl mask systemd-timesyncd
+            systemctl enable ntpd
+            systemctl start ntpd
+            check_exit_status "Start ntpd service"
+            # set rtc clock to system time & restart NTPD
+            if [ ! hwclock --systohc ]; then
+                LogErr "Unable to sync RTC clock to system time. Aborting"
+                SetTestStateAborted
+                exit 0
+            fi
+
+            if [ ! systemctl restart ntpd ]; then
+                LogErr "Unable to restart ntpd. Aborting"
+                SetTestStateAborted
+                exit 0
+            fi
+        ;;
+        *)
+            LogMsg "Warning: Distro not supported. Aborting"
+            UpdateSummary "Warning: Distro not supported. Aborting"
             SetTestStateAborted
             exit 0
-        fi
-
-        if ! chkconfig ntpd on
-        then
-            LogErr "Unable to chkconfig ntpd on. Aborting"
-            SetTestStateAborted
-            exit 0
-        fi
-
-        if ! ntpdate pool.ntp.org
-        then
-            LogErr "Unable to set ntpdate. Aborting"
-            SetTestStateAborted
-            exit 0
-        fi
-
-        if ! service ntpd start
-        then
-            LogErr "Unable to start ntpd. Aborting"
-            SetTestStateAborted
-            exit 0
-        fi
-        LogMsg "Info: NTPD has been installed successfully!"
-    fi
-
-    # set rtc clock to system time & restart NTPD
-    if ! hwclock --systohc
-    then
-        LogErr "Unable to sync RTC clock to system time. Aborting"
-        SetTestStateAborted
-        exit 0
-    fi
-
-    if ! service ntpd restart
-    then
-        LogErr "Unable to start ntpd. Aborting"
-        SetTestStateAborted
-        exit 0
-    fi
-
-elif is_ubuntu ; then
-    # Check if ntp is running
-    if ! service ntp restart
-    then
-        LogMsg "NTP is not installed. Trying to install..."
-        update_repos
-        install_package ntp
-        LogMsg "Info: NTPD has been installed successfully!"
-    fi
-
-    # set rtc clock to system time & restart NTPD
-    if ! hwclock --systohc
-    then
-        LogErr "Unable to sync RTC clock to system time. Aborting"
-        SetTestStateAborted
-        exit 0
-    fi
-
-    if ! service ntp restart
-    then
-        LogErr "Unable to restart ntpd. Aborting"
-        SetTestStateAborted
-        exit 0
-    fi
-
-elif is_suse ; then
-    #In SLES 12 service name is ntpd, in SLES 11 is ntp
-    os_RELEASE=$(echo "$os_RELEASE" | sed -e 's/^\(.\{2\}\).*/\1/')
-    if  [ "$os_RELEASE" -eq 11 ]; then
-        srv="ntp"
-    else
-        srv="ntpd"
-    fi
-
-    service $srv restart
-    if ! service $srv restart
-    then
-        LogMsg "NTP is not installed. Trying to install ..."
-        zypper --non-interactive install ntp
-        if ! zypper --non-interactive install ntp
-        then
-            LogErr "Unable to install ntp. Aborting"
-            SetTestStateAborted
-            exit 0
-        fi
-        LogErr "NTP installed successfully!"
-    fi
-
-    service $srv stop
-
-    # Edit NTP Server config and set the timeservers
-    sed -i 's/^server.*/ /g' /etc/ntp.conf
-    echo "
-    server 0.pool.ntp.org
-    server 1.pool.ntp.org
-    server 2.pool.ntp.org
-    server 3.pool.ntp.org
-    " >> /etc/ntp.conf
-    if [[ $? -ne 0 ]]; then
-        LogErr "Unable to sync RTC clock to system time. Aborting"
-        SetTestStateAborted
-        exit 0
-    fi
-
-    # Set rtc clock to system time
-    hwclock --systohc
-    if ! hwclock --systohc
-    then
-        LogErr "Unable to sync RTC clock to system time. Aborting"
-        SetTestStateAborted
-        exit 0
-    fi
-
-    # Restart NTP service
-    service $srv restart
-    if ! service $srv restart
-    then
-        LogErr "Unable to restart ntpd. Aborting"
-        SetTestStateAborted
-        exit 0
-    fi
-
-elif [[ $(detect_linux_distribution) == coreos ]]; then
-    # Refer to https://github.com/coreos/docs/blob/master/os/configuring-date-and-timezone.md#time-synchronization
-    systemctl stop systemd-timesyncd
-    systemctl mask systemd-timesyncd
-    systemctl enable ntpd
-    systemctl start ntpd
-    check_exit_status "Start ntpd service"
-    # set rtc clock to system time & restart NTPD
-    if ! hwclock --systohc
-    then
-        LogErr "Unable to sync RTC clock to system time. Aborting"
-        SetTestStateAborted
-        exit 0
-    fi
-
-    if ! systemctl restart ntpd
-    then
-        LogErr "Unable to restart ntpd. Aborting"
-        SetTestStateAborted
-        exit 0
-    fi
-
-else # other distro
-    LogMsg "Warning: Distro not supported. Aborting"
-    UpdateSummary "Warning: Distro not supported. Aborting"
-    SetTestStateAborted
-    exit 0
-fi
+        ;;
+    esac
 
 # check if the NTP daemon is running
 timeout=50
