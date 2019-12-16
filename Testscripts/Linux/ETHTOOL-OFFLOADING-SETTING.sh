@@ -27,7 +27,11 @@ fi
 }
 
 # Check if ethtool exist and install it if not
-VerifyIsEthtool
+if ! VerifyIsEthtool; then
+    LogErr "Could not find ethtool in the VM"
+    SetTestStateFailed
+    exit 0
+fi
 
 # check_feature_status
 # $1: eth device name

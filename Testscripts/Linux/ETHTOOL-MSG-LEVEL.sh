@@ -54,7 +54,11 @@ if [[ "$msg_level_symbols" != *netvsc_get_msglevel* ]] || [[ "$msg_level_symbols
 fi
 
 # Check if ethtool exist and install it if not
-VerifyIsEthtool
+if ! VerifyIsEthtool; then
+    LogErr "Could not find ethtool in the VM"
+    SetTestStateFailed
+    exit 0
+fi
 
 if ! GetSynthNetInterfaces; then
     LogErr "No synthetic network interfaces found"

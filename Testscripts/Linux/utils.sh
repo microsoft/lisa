@@ -1960,7 +1960,7 @@ UpgradeMinorKernel() {
 }
 
 function VerifyIsEthtool() {
-	# Should have "return" value
+	# Should have "return" value: 0, if existed. Otherwise, 1.
     # Check for ethtool. If it's not on the system, install it.
     ethtool --version
     if [ $? -ne 0 ]; then
@@ -1968,7 +1968,14 @@ function VerifyIsEthtool() {
         update_repos
         install_package "ethtool"
     fi
-    LogMsg "Ethtool is installed!"
+    which ethtool
+    if [ $? -eq 0 ]; then
+        LogMsg "Ethtool is successfully installed!"
+        return 0
+    else
+        LogErr "Ethtool installation failed"
+        return 1
+    fi
 }
 
 # Function that will check for Call Traces on VM after 2 minutes
