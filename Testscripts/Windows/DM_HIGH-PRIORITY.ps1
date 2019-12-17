@@ -103,7 +103,7 @@ function Main {
                 break
             }
             $sleepPeriod-= 5
-            Start-Sleep -s 5
+            Start-Sleep -Seconds 5
         }
         if (($vm1BeforeAssigned -le 0) -or ($vm1BeforeDemand -le 0) -or ($vm2BeforeAssigned -le 0) -or ($vm2BeforeDemand -le 0)) {
             throw "vm1 or vm2 reported 0 memory (assigned or demand)."
@@ -147,7 +147,7 @@ function Main {
             throw "Unable to start job for creating pressure on $VM2Name"
         }
         # sleep a few seconds so all stress-ng processes start and the memory assigned/demand gets updated
-        Start-Sleep -S 200
+        Start-Sleep -Seconds 200
         # get memory stats for vm1 and vm2
         [int64[]]$vm1Assigned = @()
         [int64[]]$vm1Demand = @()
@@ -191,7 +191,7 @@ function Main {
                 break
             }
             $timeout -= 1
-            Start-Sleep -s 1
+            Start-Sleep -Seconds 1
         }
         if ($samples -le 0) {
             throw "No data has been sampled."

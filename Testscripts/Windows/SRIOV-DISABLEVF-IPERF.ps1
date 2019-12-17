@@ -31,7 +31,7 @@ function Main {
     # Start client on dependency VM
     Run-LinuxCmd -ip $vm2ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "iperf3 -s > client.out" -RunInBackGround
-    Start-Sleep -s 5
+    Start-Sleep -Seconds 5
 
     # Run iPerf on client side for 30 seconds with SR-IOV enabled
     Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `

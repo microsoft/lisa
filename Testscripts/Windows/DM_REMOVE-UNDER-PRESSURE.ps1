@@ -105,7 +105,7 @@ Function Main
                 break
 	        }
             $sleepPeriod-= 5
-            Start-Sleep -s 5
+            Start-Sleep -Seconds 5
         }
         Write-LogInfo "Memory stats after both $VM1Name and $VM2Name started reporting:"
         Write-LogInfo "$VM1Name : assigned - $vm1BeforeAssigned | demand - $vm1BeforeDemand"
@@ -147,7 +147,7 @@ Function Main
             throw "Unable to start job for creating pressure on $VM2Name" | Tee-Object -Append -file $summaryLog
         }
         # sleep a few seconds so all stress-ng processes start and the memory assigned/demand gets updated
-        Start-Sleep -s 240
+        Start-Sleep -Seconds 240
         # get memory stats for vm1 and vm2 just before vm3 starts
         [int64]$vm1Assigned = ($vm1.MemoryAssigned/[int64]1048576)
         [int64]$vm1Demand = ($vm1.MemoryDemand/[int64]1048576)
@@ -160,7 +160,7 @@ Function Main
         $VM3Ipv4=Start-VMandGetIP $VM3Name $HvServer $VMPort $user $password
         Write-LogInfo "IP of $VM3Name is $VM3Ipv4"
         # Wait the VM stable
-        Start-Sleep -s 10
+        Start-Sleep -Seconds 10
         # get memory stats after vm3 started
         [int64]$vm1AfterAssigned = ($vm1.MemoryAssigned/[int64]1048576)
         [int64]$vm1AfterDemand = ($vm1.MemoryDemand/[int64]1048576)
@@ -204,7 +204,7 @@ Function Main
 	        }
             $timeout += 5
             $totalTimeout -= 5
-            Start-Sleep -s 5
+            Start-Sleep -Seconds 5
         }
         [int64]$vm1DeltaAssigned = [int64]$vm1Assigned - [int64]$vm1AfterAssigned
         [int64]$vm1DeltaDemand = [int64]$vm1Demand - [int64]$vm1AfterDemand
@@ -230,7 +230,7 @@ Function Main
                     break
 	        }
             $sleepPeriod -= 5
-            Start-Sleep -s 5
+            Start-Sleep -Seconds 5
         }
         if ($vm1EndAssigned -le 0 -or $vm1EndDemand -le 0 -or $vm2EndAssigned -le 0 -or $vm2EndDemand -le 0 -or $vm3EndAssigned -le 0 -or $vm3EndDemand -le 0) {
 	        throw "One of the VMs reports 0 memory (assigned or demand) after VM3 $VM3Name started"

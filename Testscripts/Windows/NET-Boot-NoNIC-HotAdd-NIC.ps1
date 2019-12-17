@@ -166,7 +166,7 @@ RemainAfterExit=yes
     while ($tmo -gt 0) {
         $value = Get-KvpItem $VMName $HvServer ${KVP_KEY}
         Write-LogInfo "Trying to get KVP Item value..."
-        if ($value -ne $null) {
+        if ($null -ne $value) {
             break
         }
 

@@ -113,7 +113,7 @@ function Main {
                 Throw "Error: $vm1Name assigned memory drops below minimum memory set, $vm1MinMem MB"
             }
             $sleepPeriod-= 5
-            Start-Sleep -s 5
+            Start-Sleep -Seconds 5
         }
         if (($vm1Assigned -le 0) -or ($vm1Demand -le 0) -or ($vm2Assigned -le 0) -or ($vm2Demand -le 0)) {
             Stop-VM -VMName $vm2name -ComputerName $HvServer -force

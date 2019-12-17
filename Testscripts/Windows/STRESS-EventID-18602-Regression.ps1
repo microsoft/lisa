@@ -77,7 +77,7 @@ function Wait-VMEvent {
                 return $true
             }
         }
-        Start-Sleep $RetryInterval
+        Start-Sleep -Seconds $RetryInterval
     }
     if ($currentRetryCount -eq $RetryCount) {
         Write-LogErr "VM ${VMName} failed to trigger event on the host"
@@ -151,7 +151,7 @@ function Main {
                 -RetryCount 60 -RetryInterval 2
         $resultVMHeartbeat = Wait-VMHeartbeatOK -VMName $VMName -HvServer $HvServer `
                 -RetryCount 60 -RetryInterval 2
-        Start-Sleep -S 60
+        Start-Sleep -Seconds 60
         Stop-VM -Name $VMName -Confirm:$false -Force
         $resultVMStateOff = Wait-VMState -VMName $VMName -HvServer $HvServer -VMState "Off" `
                 -RetryCount 60 -RetryInterval 2

@@ -135,7 +135,7 @@ Function Upload-TestResultDataToDatabase ([Array] $TestResultData, [Object] $Dat
 				$queryValue = "VALUES ("
 				foreach ($key in $map.Keys) {
 					$queryKey += "$key,"
-					if ($map[$key] -ne $null -and $map[$key].GetType().Name -eq "String") {
+					if (($null -ne $map[$key]) -and ($map[$key].GetType().Name -eq "String")) {
 						$queryValue += "'$($map[$key])',"
 					}
 					else {

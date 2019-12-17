@@ -83,7 +83,7 @@ try {
         }
         Write-LogInfo "Cluster service for node ${destinationNode} is stopped"
         Write-LogInfo "Sleep for 30 sec."
-        Start-Sleep -s 30
+        Start-Sleep -Seconds 30
         Write-LogInfo "Starting cluster service for node ${destinationNode}"
         $null = Start-ClusterNode -Name $destinationNode
         Write-LogInfo "Waiting for ${destinationNode}'s cluster service to be up and running"

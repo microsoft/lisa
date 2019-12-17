@@ -43,7 +43,7 @@ function Main {
         $null = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
             -command "sleep 5 && ip link set dev eth0 mtu $i" -RunAsSudo
 
-        Start-Sleep -s 30
+        Start-Sleep -Seconds 30
         Test-Connection -ComputerName $Ipv4 | Out-Null
         if (-not $?) {
             Write-LogErr "VM became unresponsive after changing MTU on VM to $i on iteration $iteration "
@@ -65,7 +65,7 @@ function Main {
     $null = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
         -command "dos2unix reload_netvsc.sh && sleep 5 && bash reload_netvsc.sh" -RunInBackGround  -RunAsSudo
 
-    Start-Sleep -s 600
+    Start-Sleep -Seconds 600
     $NewIP = Get-IPv4AndWaitForSSHStart -VmName $VMName -HvServer $HvServer -Vmport $VMPort `
         -Password $VMPassword -User $VMUserName -StepTimeout 30
         $allVmData.PublicIP = $NewIP

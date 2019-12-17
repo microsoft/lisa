@@ -22,20 +22,16 @@
 
 #>
 ###############################################################################################
-Function New-ResultSummary($testResult, $checkValues, $testName, $metaData)
-{
-	if ( $metaData )
-	{
+Function New-ResultSummary($testResult, $checkValues, $testName, $metaData) {
+	if ( $metaData ) {
 		$resultString = "	$metaData : $testResult <br />"
-	}
-	else
-	{
+	} else {
 		$resultString = "	$testResult <br />"
 	}
 	return $resultString
 }
 
-Function Get-FinalResultHeader($resultArr){
+Function Get-FinalResultHeader($resultArr) {
 	switch ($resultArr) {
 		{($_ -imatch "FAIL")} { $result = $global:ResultFail; break}
 		{($_ -imatch "Abort")} { $result = $global:ResultAborted; break}
@@ -46,8 +42,7 @@ Function Get-FinalResultHeader($resultArr){
 	return $result
 }
 
-function Create-TestResultObject()
-{
+function Create-TestResultObject() {
 	$objNode = New-Object -TypeName PSObject
 	Add-Member -InputObject $objNode -MemberType NoteProperty -Name TestResult -Value $null -Force
 	Add-Member -InputObject $objNode -MemberType NoteProperty -Name TestSummary -Value $null -Force
@@ -63,17 +58,13 @@ function Upload-RemoteFile($uploadTo, $port, $file, $username, $password, $usePr
 		$maxRetry = 10
 	}
 
-	while($retry -le $maxRetry)
-	{
+	while($retry -le $maxRetry) {
 		# TODO: $UsePrivateKey is not enabled yet
-		if ($usePrivateKey)
-		{
+		if ($usePrivateKey) {
 			Write-LogDbg "Uploading $file to $username : $uploadTo, port $port using PrivateKey authentication"
 			Write-Output "yes" | .\Tools\pscp -i .\ssh\$sshKey -q -P $port $file $username@${uploadTo}:
 			$returnCode = $LASTEXITCODE
-		}
-		else
-		{
+		} else {
 			Write-LogDbg "Uploading $file to $username @ $uploadTo : $port using password authentication"
 			$curDir = $PWD
 			$uploadStatusRandomFileName = "UploadStatusFile" + (Get-Random -Maximum 9999 -Minimum 1111) + ".txt"
@@ -95,11 +86,9 @@ function Upload-RemoteFile($uploadTo, $port, $file, $username, $password, $usePr
 			$uploadJobStatus = Get-Job -Id $uploadJob.Id
 			$uploadTimout = $false
 			$pscpStuckTimeout = 90
-			while (( $uploadJobStatus.State -eq "Running" ) -and ( !$uploadTimout ))
-			{
+			while (( $uploadJobStatus.State -eq "Running" ) -and ( !$uploadTimout )) {
 				$now = Get-Date
-				if (($now - $uploadStartTime).TotalSeconds -gt $pscpStuckTimeout)
-				{
+				if (($now - $uploadStartTime).TotalSeconds -gt $pscpStuckTimeout) {
 					# We're handling here a very rare condition where VM is open to establish the TCP connection (ping is working)
 					# but, VM is not responding to SSH client. This behavior results in permanent hung of SSH client with below logs.
 					#     Looking up host "xxx.xxx.xxx.xxx" for SSH connection
@@ -115,8 +104,7 @@ function Upload-RemoteFile($uploadTo, $port, $file, $username, $password, $usePr
 						Throw ".\Tools\pscp is stuck for $pscpStuckTimeout seconds. Aborting upload."
 					}
 				}
-				if ( ($now - $uploadStartTime).TotalSeconds -gt 600 )
-				{
+				if ( ($now - $uploadStartTime).TotalSeconds -gt 600 ) {
 					$uploadTimout = $true
 					Write-LogErr "Upload Timout!"
 				}
@@ -127,18 +115,13 @@ function Upload-RemoteFile($uploadTo, $port, $file, $username, $password, $usePr
 			Remove-Item -Force $uploadStatusRandomFile | Out-Null
 			Remove-Job -Id $uploadJob.Id -Force | Out-Null
 		}
-		if (($returnCode -ne 0) -and ($retry -ne $maxRetry))
-		{
+		if (($returnCode -ne 0) -and ($retry -ne $maxRetry)) {
 			Write-LogWarn "Error in upload, attempt $retry, retrying"
 			Wait-Time -seconds 10
-		}
-		elseif (($returnCode -ne 0) -and ($retry -eq $maxRetry))
-		{
+		} elseif (($returnCode -ne 0) -and ($retry -eq $maxRetry)) {
 			Write-Output "Error in upload after $retry attempt, hence giving up"
 			Throw "Calling function - $($MyInvocation.MyCommand). Error in upload after $retry attempt, hence giving up"
-		}
-		elseif ($returnCode -eq 0)
-		{
+		} elseif ($returnCode -eq 0) {
 			Write-LogDbg "Upload successful after $retry attempt"
 			break
 		}
@@ -152,10 +135,8 @@ function Download-RemoteFile($downloadFrom, $downloadTo, $port, $file, $username
 	if (!$maxRetry) {
 		$maxRetry = 20
 	}
-	while($retry -le $maxRetry)
-	{
-		if ($usePrivateKey)
-		{
+	while($retry -le $maxRetry) {
+		if ($usePrivateKey) {
 			Write-LogDbg "Downloading $file from $username : $downloadFrom : $port to $downloadTo using PrivateKey authentication"
 		} else {
 			Write-LogDbg "Downloading $file from $username @ $downloadFrom : $port to $downloadTo using password authentication"
@@ -203,11 +184,9 @@ function Download-RemoteFile($downloadFrom, $downloadTo, $port, $file, $username
 		Start-Sleep -Milliseconds 100
 		$downloadJobStatus = Get-Job -Id $downloadJob.Id
 		$downloadTimout = $false
-		while (( $downloadJobStatus.State -eq "Running" ) -and ( !$downloadTimout ))
-		{
+		while (( $downloadJobStatus.State -eq "Running" ) -and ( !$downloadTimout )) {
 			$now = Get-Date
-			if ( ($now - $downloadStartTime).TotalSeconds -gt 600 )
-			{
+			if ( ($now - $downloadStartTime).TotalSeconds -gt 600 ) {
 				$downloadTimout = $true
 				Write-LogErr "Download Timout!"
 			}
@@ -215,24 +194,17 @@ function Download-RemoteFile($downloadFrom, $downloadTo, $port, $file, $username
 			$downloadJobStatus = Get-Job -Id $downloadJob.Id
 		}
 		$downloadExitCode = (Select-String -Path $downloadStatusRandomFile -Pattern "DownloadExitCode_").Line
-		if ( $downloadExitCode )
-		{
+		if ( $downloadExitCode ) {
 			$returnCode = $downloadExitCode.Replace("DownloadExitCode_",'')
 		}
-		if ( $returnCode -eq 0)
-		{
+		if ( $returnCode -eq 0) {
 			Write-LogDbg "Download command returned exit code 0"
-		}
-		else
-		{
+		} else {
 			$receivedFiles = Select-String -Path "$downloadStatusRandomFile" -Pattern "Sending file"
-			if ($receivedFiles.Count -ge 1)
-			{
+			if ($receivedFiles.Count -ge 1) {
 				Write-LogDbg "Received $($receivedFiles.Count) file(s)"
 				$returnCode = 0
-			}
-			else
-			{
+			} else {
 				Write-LogDbg "Download command returned exit code $returnCode"
 				Write-LogDbg "$(Get-Content -Path $downloadStatusRandomFile)"
 			}
@@ -240,17 +212,12 @@ function Download-RemoteFile($downloadFrom, $downloadTo, $port, $file, $username
 		Remove-Item -Force $downloadStatusRandomFile | Out-Null
 		Remove-Job -Id $downloadJob.Id -Force | Out-Null
 
-		if (($returnCode -ne 0) -and ($retry -ne $maxRetry))
-		{
+		if (($returnCode -ne 0) -and ($retry -ne $maxRetry)) {
 			Write-LogWarn "Download error, attempt $retry. Retrying for download"
-		}
-		elseif (($returnCode -ne 0) -and ($retry -eq $maxRetry))
-		{
+		} elseif (($returnCode -ne 0) -and ($retry -eq $maxRetry)) {
 			Write-Output "Download error after $retry attempt, hence giving up"
 			Throw "Calling function - $($MyInvocation.MyCommand). Download error after $retry attempt, hence giving up."
-		}
-		elseif ($returnCode -eq 0)
-		{
+		} elseif ($returnCode -eq 0) {
 			Write-LogDbg "Download successful after $retry attempt"
 			break
 		}
@@ -259,17 +226,14 @@ function Download-RemoteFile($downloadFrom, $downloadTo, $port, $file, $username
 }
 
 # Upload or download files to/from remote VMs
-Function Copy-RemoteFiles($uploadTo, $downloadFrom, $downloadTo, $port, $files, $username, $password, [switch]$upload, [switch]$download, [switch]$usePrivateKey, [switch]$doNotCompress, $maxRetry)
-{
+Function Copy-RemoteFiles($uploadTo, $downloadFrom, $downloadTo, $port, $files, $username, $password, [switch]$upload, [switch]$download, [switch]$usePrivateKey, [switch]$doNotCompress, $maxRetry) {
 	if (!$files) {
 		Write-LogErr "No file(s) to copy."
 		return
 	}
 	$fileList = @()
-	foreach ($f in $files.Split(","))
-	{
-		if ($f)
-		{
+	foreach ($f in $files.Split(",")) {
+		if ($f) {
 			$file = $f.Trim()
 			if ($file.EndsWith(".sh") -or $file.EndsWith(".py")) {
 				$out = .\Tools\dos2unix.exe $file 2>&1
@@ -278,17 +242,14 @@ Function Copy-RemoteFiles($uploadTo, $downloadFrom, $downloadTo, $port, $files, 
 			$fileList += $file
 		}
 	}
-	if ($upload)
-	{
+	if ($upload) {
 		$doCompress = ($fileList.Count -gt 2) -and !$doNotCompress
 		if ($doCompress) {
 			$tarFileName = ($uploadTo+"@"+$port).Replace(".","-")+".tar"
-			foreach ($f in $fileList)
-			{
+			foreach ($f in $fileList) {
 				Write-LogDbg "Compressing $f and adding to $tarFileName"
 				$CompressFile = .\Tools\7za.exe a $tarFileName $f
-				if ( ! $CompressFile -imatch "Everything is Ok" )
-				{
+				if ( ! $CompressFile -imatch "Everything is Ok" ) {
 					Remove-Item -Path $tarFileName -Force 2>&1 | Out-Null
 					Throw "Calling function - $($MyInvocation.MyCommand). Failed to compress $f"
 				}
@@ -304,16 +265,12 @@ Function Copy-RemoteFiles($uploadTo, $downloadFrom, $downloadTo, $port, $files, 
 			Write-LogDbg "Decompressing files in VM ..."
 			$out = Run-LinuxCmd -username $username -password $password -ip $uploadTo -port $port -command "tar -xf $tarFileName" -runAsSudo
 		}
-	}
-	elseif ($download)
-	{
+	} elseif ($download) {
 		foreach ($file in $fileList) {
 			Download-RemoteFile -downloadFrom $downloadFrom -downloadTo $downloadTo -port $port -file $file -username $username `
 				-password $password -usePrivateKey $usePrivateKey $maxRetry
 		}
-	}
-	else
-	{
+	} else {
 		Write-LogErr "Upload/Download switch is not used!"
 	}
 }
@@ -321,12 +278,9 @@ Function Copy-RemoteFiles($uploadTo, $downloadFrom, $downloadTo, $port, $files, 
 Function Wrap-CommandsToFile([string] $username,[string] $password,[string] $ip,[string] $command, [int] $port)
 {
 	if ( ( $lastLinuxCmd -eq $command) -and ($lastIP -eq $ip) -and ($lastPort -eq $port) `
-		-and ($lastUser -eq $username) -and ($TestPlatform -ne "HyperV"))
-	{
+		-and ($lastUser -eq $username) -and ($TestPlatform -ne "HyperV")) {
 		#Skip upload if current command is same as last command.
-	}
-	else
-	{
+	} else {
 		Set-Variable -Name lastLinuxCmd -Value $command -Scope Global
 		Set-Variable -Name lastIP -Value $ip -Scope Global
 		Set-Variable -Name lastPort -Value $port -Scope Global
@@ -351,8 +305,7 @@ Function Get-AvailableExecutionFolder([string] $username, [string] $password, [s
 	}
 }
 
-Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [string] $command, [int] $port, [switch]$runAsSudo, [Boolean]$WriteHostOnly, [Boolean]$NoLogsPlease, [switch]$ignoreLinuxExitCode, [int]$runMaxAllowedTime = 300, [switch]$RunInBackGround, [int]$maxRetryCount = 20, [string] $MaskStrings)
-{
+Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [string] $command, [int] $port, [switch]$runAsSudo, [Boolean]$WriteHostOnly, [Boolean]$NoLogsPlease, [switch]$ignoreLinuxExitCode, [int]$runMaxAllowedTime = 300, [switch]$RunInBackGround, [int]$maxRetryCount = 20, [string] $MaskStrings) {
 	if (!$global:AvailableExecutionFolder) {
 		Get-AvailableExecutionFolder $username $password $ip $port
 	}
@@ -364,36 +317,26 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 		}
 	}
 	$randomFileName = [System.IO.Path]::GetRandomFileName()
-	if ( $maxRetryCount -eq 0)
-	{
+	if ( $maxRetryCount -eq 0) {
 		$maxRetryCount = 1
 	}
 	$currentDir = $PWD.Path
 	$RunStartTime = Get-Date
 
-	if ($runAsSudo)
-	{
+	if ($runAsSudo) {
 		$plainTextPassword = $password.Replace('"','');
-		if ( $detectedDistro -eq "COREOS" )
-		{
+		if ( $detectedDistro -eq "COREOS" ) {
 			$linuxCommand = "`"export PATH=/usr/share/oem/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/oem/bin:/opt/bin && echo $plainTextPassword | sudo -S env `"PATH=`$PATH`" bash -c `'bash runtest.sh ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
 			$logCommand = "`"export PATH=/usr/share/oem/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/oem/bin:/opt/bin && echo $plainTextPassword | sudo -S env `"PATH=`$PATH`" $MaskedCommand`""
-		}
-		else
-		{
+		} else {
 			$linuxCommand = "`"echo $plainTextPassword | sudo -S bash -c `'bash runtest.sh ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
 			$logCommand = "`"echo $plainTextPassword | sudo -S $MaskedCommand`""
 		}
-	}
-	else
-	{
-		if ( $detectedDistro -eq "COREOS" )
-		{
+	} else {
+		if ( $detectedDistro -eq "COREOS" ) {
 			$linuxCommand = "`"export PATH=/usr/share/oem/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/oem/bin:/opt/bin && bash -c `'bash runtest.sh ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
 			$logCommand = "`"export PATH=/usr/share/oem/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/oem/bin:/opt/bin && $MaskedCommand`""
-		}
-		else
-		{
+		} else {
 			$linuxCommand = "`"bash -c `'bash runtest.sh ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
 			$logCommand = "`"$MaskedCommand`""
 		}
@@ -405,10 +348,8 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 	$notExceededTimeLimit = $true
 	$isBackGroundProcessStarted = $false
 
-	while ( ($returnCode -ne 0) -and ($attemptswt -lt $maxRetryCount -or $attemptswot -lt $maxRetryCount) -and $notExceededTimeLimit)
-	{
-		if ($runwithoutt -or $attemptswt -eq $maxRetryCount)
-		{
+	while ( ($returnCode -ne 0) -and ($attemptswt -lt $maxRetryCount -or $attemptswot -lt $maxRetryCount) -and $notExceededTimeLimit) {
+		if ($runwithoutt -or $attemptswt -eq $maxRetryCount) {
 			Set-Variable -Name runwithoutt -Value true -Scope Global
 			$attemptswot +=1
 			$runLinuxCmdJob = Start-Job -ScriptBlock `
@@ -418,9 +359,7 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 				.\Tools\plink.exe -ssh -C -v -pw $password -P $port $username@$ip $jcommand;`
 			} `
 			-ArgumentList $currentDir, $username, $password, $ip, $port, $linuxCommand
-		}
-		else
-		{
+		} else {
 			$attemptswt += 1
 			$runLinuxCmdJob = Start-Job -ScriptBlock `
 			{ `
@@ -433,34 +372,25 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 		$RunLinuxCmdOutput = ""
 		$debugOutput = ""
 		$LinuxExitCode = ""
-		if ( $RunInBackGround )
-		{
-			While(($runLinuxCmdJob.State -eq "Running") -and ($isBackGroundProcessStarted -eq $false ) -and $notExceededTimeLimit)
-			{
+		if ( $RunInBackGround ) {
+			While(($runLinuxCmdJob.State -eq "Running") -and ($isBackGroundProcessStarted -eq $false ) -and $notExceededTimeLimit) {
 				$SSHOut = Receive-Job $runLinuxCmdJob 2> $LogDir\$randomFileName
 				$jobOut = Get-Content $LogDir\$randomFileName
-				if ($jobOut)
-				{
-					foreach($outLine in $jobOut)
-					{
-						if ($outLine -imatch "Started a shell")
-						{
+				if ($jobOut) {
+					foreach($outLine in $jobOut) {
+						if ($outLine -imatch "Started a shell") {
 							$LinuxExitCode = $outLine
 							$isBackGroundProcessStarted = $true
 							$returnCode = 0
-						}
-						else
-						{
+						} else {
 							$RunLinuxCmdOutput += "$outLine`n"
 						}
 					}
 				}
 				$debugLines = Get-Content $LogDir\$randomFileName
-				if ($debugLines)
-				{
+				if ($debugLines) {
 					$debugString = ""
-					foreach ($line in $debugLines)
-					{
+					foreach ($line in $debugLines) {
 						$debugString += $line
 					}
 					$debugOutput += "$debugString`n"
@@ -471,12 +401,9 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 				$RunCurrentTime = Get-Date
 				$RunDiffTime = $RunCurrentTime - $RunStartTime
 				$RunElaplsedTime =  $RunDiffTime.TotalSeconds
-				if ($RunElaplsedTime -le $RunMaxAllowedTime)
-				{
+				if ($RunElaplsedTime -le $RunMaxAllowedTime) {
 					$notExceededTimeLimit = $true
-				}
-				else
-				{
+				} else {
 					$notExceededTimeLimit = $false
 					Stop-Job $runLinuxCmdJob
 					$timeOut = $true
@@ -484,105 +411,76 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 			}
 			Wait-Time -seconds 2
 			$SSHOut = Receive-Job $runLinuxCmdJob 2> $LogDir\$randomFileName
-			if ($SSHOut)
-			{
-				foreach ($outLine in $SSHOut)
-				{
-					if ($outLine -imatch "AZURE-LINUX-EXIT-CODE-")
-					{
+			if ($SSHOut) {
+				foreach ($outLine in $SSHOut) {
+					if ($outLine -imatch "AZURE-LINUX-EXIT-CODE-") {
 						$LinuxExitCode = $outLine
 						$isBackGroundProcessTerminated = $true
-					}
-					else
-					{
+					} else {
 						$RunLinuxCmdOutput += "$outLine`n"
 					}
 				}
 			}
 
 			$debugLines = Get-Content $LogDir\$randomFileName
-			if ($debugLines)
-			{
+			if ($debugLines) {
 				$debugString = ""
-				foreach ($line in $debugLines)
-				{
+				foreach ($line in $debugLines) {
 					$debugString += $line
 				}
 				$debugOutput += "$debugString`n"
 			}
 			Write-Progress -Activity "Attempt : $attemptswot+$attemptswt : Executing $logCommand on $ip : $port" `
 				-Status $runLinuxCmdJob.State -Id 87678 -SecondsRemaining ($RunMaxAllowedTime - $RunElaplsedTime) -Completed
-			if ( $isBackGroundProcessStarted -and !$isBackGroundProcessTerminated )
-			{
+			if ( $isBackGroundProcessStarted -and !$isBackGroundProcessTerminated ) {
 				Write-LogDbg "$MaskedCommand is running in background with ID $($runLinuxCmdJob.Id) ..."
 				Add-Content -Path $LogDir\CurrentTestBackgroundJobs.txt -Value $runLinuxCmdJob.Id
 				$retValue = $runLinuxCmdJob.Id
-			}
-			else
-			{
+			} else {
 				Remove-Job $runLinuxCmdJob
-				if (!$isBackGroundProcessStarted)
-				{
+				if (!$isBackGroundProcessStarted) {
 					Write-LogErr "Failed to start process in background.."
 				}
-				if ( $isBackGroundProcessTerminated )
-				{
+				if ( $isBackGroundProcessTerminated ) {
 					Write-LogErr "Background Process terminated from Linux side with error code :  $($LinuxExitCode.Split("-")[4])"
 					$returnCode = $($LinuxExitCode.Split("-")[4])
 					Write-LogErr $SSHOut
 				}
-				if ($debugOutput -imatch "Unable to authenticate")
-				{
+				if ($debugOutput -imatch "Unable to authenticate") {
 					Write-LogErr "Unable to authenticate. Not retrying!"
 					Throw "Calling function - $($MyInvocation.MyCommand). Unable to authenticate"
-
 				}
-				if ($timeOut)
-				{
+				if ($timeOut) {
 					$retValue = ""
 					Throw "Calling function - $($MyInvocation.MyCommand). Timeout while executing command : $MaskedCommand"
 				}
 				Write-LogErr "Linux machine returned exit code : $($LinuxExitCode.Split("-")[4])"
-				if ($attempts -eq $maxRetryCount)
-				{
+				if ($attempts -eq $maxRetryCount) {
 					Throw "Calling function - $($MyInvocation.MyCommand). Failed to execute : $MaskedCommand."
-				}
-				else
-				{
-					if ($notExceededTimeLimit)
-					{
+				} else {
+					if ($notExceededTimeLimit) {
 						Write-LogWarn "Failed to execute : $MaskedCommand. Retrying..."
 					}
 				}
 			}
 			Remove-Item $LogDir\$randomFileName -Force | Out-Null
-		}
-		else
-		{
-			While($notExceededTimeLimit -and ($runLinuxCmdJob.State -eq "Running"))
-			{
+		} else {
+			While($notExceededTimeLimit -and ($runLinuxCmdJob.State -eq "Running")) {
 				$jobOut = Receive-Job $runLinuxCmdJob 2> $LogDir\$randomFileName
-				if ($jobOut)
-				{
+				if ($jobOut) {
 					$jobOut = $jobOut.Replace("[sudo] password for $username`: ","").Replace("Password: ","")
-					foreach ($outLine in $jobOut)
-					{
-						if ($outLine -imatch "AZURE-LINUX-EXIT-CODE-")
-						{
+					foreach ($outLine in $jobOut) {
+						if ($outLine -imatch "AZURE-LINUX-EXIT-CODE-") {
 							$LinuxExitCode = $outLine
-						}
-						else
-						{
+						} else {
 							$RunLinuxCmdOutput += "$outLine`n"
 						}
 					}
 				}
 				$debugLines = Get-Content $LogDir\$randomFileName
-				if ($debugLines)
-				{
+				if ($debugLines) {
 					$debugString = ""
-					foreach ($line in $debugLines)
-					{
+					foreach ($line in $debugLines) {
 						$debugString += $line
 					}
 					$debugOutput += "$debugString`n"
@@ -593,39 +491,29 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 				$RunCurrentTime = Get-Date
 				$RunDiffTime = $RunCurrentTime - $RunStartTime
 				$RunElaplsedTime =  $RunDiffTime.TotalSeconds
-				if ($RunElaplsedTime -le $RunMaxAllowedTime)
-				{
+				if ($RunElaplsedTime -le $RunMaxAllowedTime) {
 					$notExceededTimeLimit = $true
-				}
-				else
-				{
+				} else {
 					$notExceededTimeLimit = $false
 					Stop-Job $runLinuxCmdJob
 					$timeOut = $true
 				}
 			}
 			$jobOut = Receive-Job $runLinuxCmdJob 2> $LogDir\$randomFileName
-			if ($jobOut)
-			{
+			if ($jobOut) {
 				$jobOut = $jobOut.Replace("[sudo] password for $username`: ","").Replace("Password: ","")
-				foreach ($outLine in $jobOut)
-				{
-					if ($outLine -imatch "AZURE-LINUX-EXIT-CODE-")
-					{
+				foreach ($outLine in $jobOut) {
+					if ($outLine -imatch "AZURE-LINUX-EXIT-CODE-") {
 						$LinuxExitCode = $outLine
-					}
-					else
-					{
+					} else {
 						$RunLinuxCmdOutput += "$outLine`n"
 					}
 				}
 			}
 			$debugLines = Get-Content $LogDir\$randomFileName
-			if ($debugLines)
-			{
+			if ($debugLines) {
 				$debugString = ""
-				foreach ($line in $debugLines)
-				{
+				foreach ($line in $debugLines) {
 					$debugString += $line
 				}
 				$debugOutput += "$debugString`n"
@@ -634,54 +522,38 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 				-Status $runLinuxCmdJob.State -Id 87678 -SecondsRemaining ($RunMaxAllowedTime - $RunElaplsedTime) -Completed
 			Remove-Job $runLinuxCmdJob
 			Remove-Item $LogDir\$randomFileName -Force | Out-Null
-			if ($LinuxExitCode -imatch "AZURE-LINUX-EXIT-CODE-0")
-			{
+			if ($LinuxExitCode -imatch "AZURE-LINUX-EXIT-CODE-0") {
 				$returnCode = 0
 				Write-LogDbg "$MaskedCommand executed successfully in $([math]::Round($RunElaplsedTime,2)) seconds." `
 					-WriteHostOnly $WriteHostOnly -NoLogsPlease $NoLogsPlease
 				$retValue = $RunLinuxCmdOutput.Trim()
-			}
-			else
-			{
-				if (!$ignoreLinuxExitCode)
-				{
+			} else {
+				if (!$ignoreLinuxExitCode) {
 					$debugOutput = ($debugOutput.Split("`n")).Trim()
-					foreach ($line in $debugOutput)
-					{
-						if ($line)
-						{
+					foreach ($line in $debugOutput) {
+						if ($line) {
 							Write-LogErr $line
 						}
 					}
 				}
-				if ($debugOutput -imatch "Unable to authenticate")
-					{
+				if ($debugOutput -imatch "Unable to authenticate") {
 						Write-LogWarn "Unable to authenticate. Not retrying!"
 						Throw "Calling function - $($MyInvocation.MyCommand). Unable to authenticate"
-
 					}
-				if (!$ignoreLinuxExitCode)
-				{
-					if ($timeOut)
-					{
+				if (!$ignoreLinuxExitCode) {
+					if ($timeOut) {
 						$retValue = ""
 						Throw "Calling function - $($MyInvocation.MyCommand). Timeout while executing command : $MaskedCommand"
 					}
 					Write-LogErr "Linux machine returned exit code : $($LinuxExitCode.Split("-")[4])"
-					if ($attemptswt -eq $maxRetryCount -and $attemptswot -eq $maxRetryCount)
-					{
+					if ($attemptswt -eq $maxRetryCount -and $attemptswot -eq $maxRetryCount) {
 						Throw "Calling function - $($MyInvocation.MyCommand). Failed to execute : $MaskedCommand."
-					}
-					else
-					{
-						if ($notExceededTimeLimit)
-						{
+					} else {
+						if ($notExceededTimeLimit) {
 							Write-LogErr "Failed to execute : $MaskedCommand. Retrying..."
 						}
 					}
-				}
-				else
-				{
+				} else {
 					Write-LogDbg "Command execution returned return code $($LinuxExitCode.Split("-")[4]) Ignoring.."
 					$retValue = $RunLinuxCmdOutput.Trim()
 					break
@@ -692,30 +564,22 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 	return $retValue
 }
 
-Function New-TestID()
-{
+Function New-TestID() {
 	return "{0}{1}" -f $(-join ((65..90) | Get-Random -Count 2 | ForEach-Object {[char]$_})), $(Get-Random -Maximum 99 -Minimum 11)
 }
 
-Function New-TimeBasedUniqueId()
-{
+Function New-TimeBasedUniqueId() {
 	return Get-Date -UFormat "%Y%m%d%H%M%S"
 }
 
-Function Raise-Exception($Exception)
-{
-	try
-	{
+Function Raise-Exception($Exception) {
+	try {
 		$line = $Exception.InvocationInfo.ScriptLineNumber
 		$script_name = ($Exception.InvocationInfo.ScriptName).Replace($PWD,".")
 		$ErrorMessage =  $Exception.Exception.Message
-	}
-	catch
-	{
+	} catch {
 		Write-LogErr "Failed to display Exception"
-	}
-	finally
-	{
+	} finally {
 		$now = [Datetime]::Now.ToUniversalTime().ToString("MM/dd/yyyy HH:mm:ss")
 		Write-Host "$now : [OOPS   ]: $ErrorMessage"  -ForegroundColor Red
 		Write-Host "$now : [SOURCE ]: Line $line in script $script_name."  -ForegroundColor Red
@@ -723,107 +587,79 @@ Function Raise-Exception($Exception)
 	}
 }
 
-Function Set-DistroSpecificVariables($detectedDistro)
-{
+Function Set-DistroSpecificVariables($detectedDistro) {
 	Set-Variable -Name ifconfig_cmd -Value "ifconfig" -Scope Global
-	if (($detectedDistro -eq "SLES") -or ($detectedDistro -eq "SUSE"))
-	{
+	if (($detectedDistro -eq "SLES") -or ($detectedDistro -eq "SUSE")) {
 		Set-Variable -Name ifconfig_cmd -Value "/sbin/ifconfig" -Scope Global
 		Set-Variable -Name fdisk -Value "/sbin/fdisk" -Scope Global
 		Write-LogDbg "Set `$ifconfig_cmd > $ifconfig_cmd for $detectedDistro"
 		Write-LogDbg "Set `$fdisk > /sbin/fdisk for $detectedDistro"
-	}
-	else
-	{
+	} else {
 		Set-Variable -Name fdisk -Value "fdisk" -Scope Global
 		Write-LogDbg "Set `$fdisk > fdisk for $detectedDistro"
 	}
 }
 
-Function Test-TCP([string]$testIP, [Int32]$testport)
-{
+Function Test-TCP([string]$testIP, [Int32]$testport) {
 	$socket = New-Object Net.Sockets.TcpClient
 	$isConnected = "False"
-	try
-	{
+	try {
 		$socket.Connect($testIP, $testPort)
-	}
-	catch
-	{
+	} catch {
 		Write-LogWarn "TCP test failed"
 	}
-	if ($socket.Connected)
-	{
+	if ($socket.Connected) {
 		$isConnected = "True"
 	}
 	$socket.Close()
 	return $isConnected
 }
 
-Function Retry-Operation($operation, $description, $expectResult=$null, $maxRetryCount=10, $retryInterval=10, [switch]$NoLogsPlease, [switch]$ThrowExceptionOnFailure)
-{
+Function Retry-Operation($operation, $description, $expectResult=$null, $maxRetryCount=10, $retryInterval=10, [switch]$NoLogsPlease, [switch]$ThrowExceptionOnFailure) {
 	$retryCount = 1
 
-	do
-	{
+	do {
 		Write-LogDbg "Attempt : $retryCount/$maxRetryCount : $description" -NoLogsPlease $NoLogsPlease
 		$ret = $null
 		$oldErrorActionValue = $ErrorActionPreference
 		$ErrorActionPreference = "Stop"
 
-		try
-		{
+		try {
 			$ret = Invoke-Command -ScriptBlock $operation
-			if ($null -ne $expectResult)
-			{
-				if ($ret -match $expectResult)
-				{
+			if ($null -ne $expectResult) {
+				if ($ret -match $expectResult) {
 					return $ret
-				}
-				else
-				{
+				} else {
 					$ErrorActionPreference = $oldErrorActionValue
 					$retryCount ++
 					Wait-Time -seconds $retryInterval
 				}
-			}
-			else
-			{
+			} else {
 				return $ret
 			}
-		}
-		catch
-		{
+		} catch {
 			$retryCount ++
 			Wait-Time -seconds $retryInterval
-			if ( $retryCount -le $maxRetryCount )
-			{
+			if ( $retryCount -le $maxRetryCount ) {
 				continue
 			}
-		}
-		finally
-		{
+		} finally {
 			$ErrorActionPreference = $oldErrorActionValue
 		}
-		if ($retryCount -ge $maxRetryCount)
-		{
+		if ($retryCount -ge $maxRetryCount) {
 			Write-LogErr "Command '$operation' Failed."
 			break;
 		}
 	} while ($True)
 
-	if ($ThrowExceptionOnFailure)
-	{
+	if ($ThrowExceptionOnFailure) {
 		Raise-Exception -Exception "Command '$operation' Failed."
-	}
-	else
-	{
+	} else {
 		return $null
 	}
 }
 
-function New-ZipFile( $zipFileName, $sourceDir )
-{
+function New-ZipFile( $zipFileName, $sourceDir ) {
 	Write-LogDbg "Creating '$zipFileName' from '$sourceDir'"
 	$currentDir = (Get-Location).Path
 	$7z = (Get-ChildItem .\Tools\7za.exe).FullName
@@ -839,8 +675,7 @@ function New-ZipFile( $zipFileName, $sourceDir )
 	}
 }
 
-Function Get-LISAv2Tools($XMLSecretFile)
-{
+Function Get-LISAv2Tools($XMLSecretFile) {
 	# Copy required binary files to working folder
 	$CurrentDirectory = Get-Location
 	$CmdArray = @('7za.exe','dos2unix.exe','gawk','jq','plink.exe','pscp.exe', `
@@ -888,10 +723,8 @@ function Create-ConstantsFile {
 	}
 }
 
-Function Validate-VHD($vhdPath)
-{
-	try
-	{
+Function Validate-VHD($vhdPath) {
+	try {
 		$tempVHDName = Split-Path $vhdPath -leaf
 		Write-LogDbg "Inspecting '$tempVHDName'. Please wait..."
 		$VHDInfo = Get-VHD -Path $vhdPath -ErrorAction Stop
@@ -903,40 +736,31 @@ Function Validate-VHD($vhdPath)
 		Write-LogDbg "  PhysicalSectorSize   :$($VHDInfo.PhysicalSectorSize)"
 		Write-LogDbg "  BlockSize            :$($VHDInfo.BlockSize)"
 		Write-LogDbg "Validation successful."
-	}
-	catch
-	{
+	} catch {
 		Write-LogErr "Failed: Get-VHD -Path $vhdPath"
 		Throw "INVALID_VHD_EXCEPTION"
 	}
 }
 
-Function Validate-XmlFiles( [string]$ParentFolder )
-{
+Function Validate-XmlFiles( [string]$ParentFolder ) {
 	Write-LogInfo "Validating XML Files from $ParentFolder folder recursively..."
 	$allXmls = Get-ChildItem "$ParentFolder\*.xml" -Recurse
 	$xmlErrorFiles = @()
-	foreach ($file in $allXmls)
-	{
-		try
-		{
+	foreach ($file in $allXmls) {
+		try {
 			$null = [xml](Get-Content $file.FullName)
-		}
-		catch
-		{
+		} catch {
 			Write-LogErr -text "$($file.FullName) validation failed."
 			$xmlErrorFiles += $file.FullName
 		}
 	}
-	if ( $xmlErrorFiles.Count -gt 0 )
-	{
+	if ( $xmlErrorFiles.Count -gt 0 ) {
 		$xmlErrorFiles | ForEach-Object -Process {Write-LogInfo $_}
 		Throw "Please fix above ($($xmlErrorFiles.Count)) XML files."
 	}
 }
 
-Function Get-Cred($user, $password)
-{
+Function Get-Cred($user, $password) {
 	$secstr = New-Object -TypeName System.Security.SecureString
 	$password.ToCharArray() | ForEach-Object {$secstr.AppendChar($_)}
 	$cred = New-Object -typename System.Management.Automation.PSCredential -argumentlist $user, $secstr
@@ -944,32 +768,24 @@ Function Get-Cred($user, $password)
 	return $cred
 }
 
-Function Wait-Time($seconds,$minutes,$hours)
-{
-	if (!$hours -and !$minutes -and !$seconds)
-	{
+Function Wait-Time($seconds,$minutes,$hours) {
+	if (!$hours -and !$minutes -and !$seconds) {
 		Write-Output "At least hour, minute or second requires"
-	}
-	else
-	{
-		if (!$hours)
-		{
+	} else {
+		if (!$hours) {
 			$hours = 0
 		}
-		if (!$minutes)
-		{
+		if (!$minutes) {
 			$minutes = 0
 		}
-		if (!$seconds)
-		{
+		if (!$seconds) {
 			$seconds = 0
 		}
 
 		$timeToSleepInSeconds = ($hours*60*60) + ($minutes*60) + $seconds
 		$secondsRemaining = $timeToSleepInSeconds
 		$secondsRemainingPercentage = (100 - (($secondsRemaining/$timeToSleepInSeconds)*100))
-		for ($i = 1; $i -le $timeToSleepInSeconds; $i++)
-		{
+		for ($i = 1; $i -le $timeToSleepInSeconds; $i++) {
 			write-progress -Id 27 -activity SLEEPING -Status "$($secondsRemaining) seconds remaining..." -percentcomplete $secondsRemainingPercentage
 			$secondsRemaining = $timeToSleepInSeconds - $i
 			$secondsRemainingPercentage = (100 - (($secondsRemaining/$timeToSleepInSeconds)*100))
@@ -998,7 +814,7 @@ function Get-UnixVMTime {
 	return $unixTimeStr
 }
 
-function Convert-StringToUInt64{
+function Convert-StringToUInt64 {
 	param (
 		[string] $str
 	)
@@ -1007,29 +823,21 @@ function Convert-StringToUInt64{
 	#
 	# Make sure we received a string to convert
 	#
-	if (-not $str)
-	{
+	if (-not $str) {
 		Write-LogErr "ConvertStringToUInt64() - input string is null"
 		return $null
 	}
 
-	if ($str.EndsWith("MB"))
-	{
+	if ($str.EndsWith("MB")) {
 		$num = $str.Replace("MB","")
 		$uint64Size = ([Convert]::ToUInt64($num)) * 1MB
-	}
-	elseif ($str.EndsWith("GB"))
-	{
+	} elseif ($str.EndsWith("GB")) {
 		$num = $str.Replace("GB","")
 		$uint64Size = ([Convert]::ToUInt64($num)) * 1GB
-	}
-	elseif ($str.EndsWith("TB"))
-	{
+	} elseif ($str.EndsWith("TB")) {
 		$num = $str.Replace("TB","")
 		$uint64Size = ([Convert]::ToUInt64($num)) * 1TB
-	}
-	else
-	{
+	} else {
 		Write-LogErr "Invalid newSize parameter: ${str}"
 		return $null
 	}
@@ -1066,15 +874,14 @@ function Convert-StringToDecimal {
 	return $uint64Size
 }
 
-function Generate-RandomString{
+function Generate-RandomString {
 	param(
 		[Int] $length
 	)
 
 	$set = "abcdefghijklmnopqrstuvwxyz0123456789".ToCharArray()
 	$result = ""
-	for ($x = 0; $x -lt $length; $x++)
-	{
+	for ($x = 0; $x -lt $length; $x++) {
 		$result += $set | Get-Random
 	}
 	return $result
@@ -1093,8 +900,7 @@ function Is-ValidMAC {
 # This function removes all the invalid characters from given filename.
 # Do not pass file paths (relative or full) to this function.
 # Only file name is supported.
-Function Remove-InvalidCharactersFromFileName
-{
+Function Remove-InvalidCharactersFromFileName {
 	param (
 		[String]$FileName
 	)
@@ -1142,23 +948,22 @@ Function Get-AndTestHostPublicIp {
 	return $null
 }
 
-
 function Get-TestStatus {
 	param($testStatus)
 	if ($testStatus -imatch "TestFailed") {
 		Write-LogErr "Test failed. Last known status: $currentStatus."
 		$testResult = "FAIL"
-	}	elseif ($testStatus -imatch "TestAborted") {
+	} elseif ($testStatus -imatch "TestAborted") {
 		Write-LogErr "Test Aborted. Last known status : $currentStatus."
 		$testResult = "ABORTED"
-	}	elseif ($testStatus -imatch "TestSkipped") {
+	} elseif ($testStatus -imatch "TestSkipped") {
 		Write-LogErr "Test SKIPPED. Last known status : $currentStatus."
 		$testResult = "SKIPPED"
-	}	elseif ($testStatus -imatch "TestCompleted") {
+	} elseif ($testStatus -imatch "TestCompleted") {
 		Write-LogInfo "Test Completed."
 		Write-LogInfo "Build is Success"
 		$testResult = "PASS"
-	}	else {
+	} else {
 		Write-LogErr "Test execution is not successful, check test logs in VM."
 		$testResult = "ABORTED"
 	}

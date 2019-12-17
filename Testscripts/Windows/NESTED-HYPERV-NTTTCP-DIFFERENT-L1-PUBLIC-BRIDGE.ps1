@@ -44,7 +44,7 @@ function Download-OSvhd ($session, $srcPath, $dstPath) {
 
 		do{
 			Write-Output (Get-Date) $btjob.BytesTransferred $btjob.BytesTotal ($btjob.BytesTransferred/$btjob.BytesTotal*100)
-			Start-Sleep -s 10
+			Start-Sleep -Seconds 10
 		} while ($btjob.BytesTransferred -lt $btjob.BytesTotal)
 
 		Write-Output (Get-Date) $btjob.BytesTransferred $btjob.BytesTotal ($btjob.BytesTransferred/$btjob.BytesTotal*100)
@@ -168,7 +168,7 @@ function Main () {
 		Write-LogInfo "Restart VMs to make sure Hyper-V install completely"
 		$TestProvider.RestartAllDeployments($AllVMData)
 
-		Start-Sleep 20
+		Start-Sleep -Seconds 20
 		$serverSession = New-PSSession -ComputerName $hs1VIP -Credential $cred
 		$clientSession = New-PSSession -ComputerName $hs2VIP -Credential $cred
 
@@ -270,7 +270,7 @@ function Main () {
 			do
 			{
 				$CurrentRetryAttempt++
-				Start-Sleep 5
+				Start-Sleep -Seconds 5
 				Write-LogInfo "    [$CurrentRetryAttempt/$RetryCount] : nested vm on $($vm.RoleName) : Waiting for IP address ..."
 				$output = Invoke-Command -ComputerName $vm.PublicIP -ScriptBlock {
 				$vmName = "test"

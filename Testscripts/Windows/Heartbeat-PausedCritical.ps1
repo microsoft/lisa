@@ -125,7 +125,7 @@ function Main {
     }
     Write-LogInfo $ParentVHD
     Write-LogInfo $ChildVHD
-    Start-Sleep -s 15
+    Start-Sleep -Seconds 15
     Invoke-command -ComputerName $hvServer { xcopy $Using:ParentVHD $Using:ChildVHD* /Y }
     if (-not $?) {
         Write-LogErr "Error: Creating Child VHD of VM $VMName"
@@ -181,7 +181,7 @@ function Main {
 
     # Get the VM1 ip
     $ipv4vm1 = Get-IPv4ViaKVP $VMName1 $HvServer
-    Start-Sleep 15
+    Start-Sleep -Seconds 15
 
     # Get partition size
     $disk = Get-WmiObject Win32_LogicalDisk -ComputerName $HvServer -Filter "DeviceID='${driveletter}'" | Select-Object FreeSpace
@@ -219,7 +219,7 @@ function Main {
 
     Write-LogInfo "Info: Filling $VMName with $ddFileSize MB of data."
     Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $ipv4vm1 -port $VMPort -command "nohup dd if=/dev/urandom of=/home/${VMUserName}/data2 bs=1M count=$ddFileSize" -RunInBackGround -RunAsSudo
-    Start-Sleep 90
+    Start-Sleep -Seconds 90
 
     $vm1 = Get-VM -Name $VMName1 -ComputerName $HvServer
     if ($vm1.State -ne "PausedCritical") {
@@ -243,7 +243,7 @@ function Main {
     }
 
     # Check Heartbeat
-    Start-Sleep 5
+    Start-Sleep -Seconds 5
     if ($vm1.Heartbeat -eq "OkApplicationsUnknown") {
         Write-LogInfo "Info: Heartbeat detected, status OK."
         Write-LogInfo "Info: Test Passed. Heartbeat is again reported as OK."

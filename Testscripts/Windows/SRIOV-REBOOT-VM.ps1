@@ -36,7 +36,7 @@ function Main {
     # Start client on dependency VM
     Run-LinuxCmd -ip $vm2ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "iperf3 -s > client.out" -RunInBackGround
-    Start-Sleep -s 5
+    Start-Sleep -Seconds 5
     # Run iPerf on client side for 30 seconds and get the throughput
     Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "source sriov_constants.sh ; iperf3 -t 30 -c `$VF_IP2 --logfile PerfResults.log"

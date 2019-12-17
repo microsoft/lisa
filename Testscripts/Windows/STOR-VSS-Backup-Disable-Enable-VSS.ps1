@@ -53,7 +53,7 @@ function Main {
                 if (-not (Wait-ForVMToStartKVP $VMName $HvServer $timeout )) {
                     throw "${VMName} failed to start"
                 }
-                Start-Sleep -s 3
+                Start-Sleep -Seconds 3
             }
             $sts = New-BackupSetup $VMName $HvServer
             if (-not $sts[-1]) {

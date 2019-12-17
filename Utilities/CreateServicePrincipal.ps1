@@ -193,7 +193,7 @@ function New-ServicePrincipal() {
     $ErrorActionPreference = "Continue"
 
     while ($true) {
-        Start-Sleep 10
+        Start-Sleep -Seconds 10
         $appCheck = Get-AzADApplication -ApplicationId $ClientId
         if ($appCheck) {
           break
@@ -208,7 +208,7 @@ function New-ServicePrincipal() {
     $ErrorActionPreference = "Continue"
 
     while ($true) {
-        Start-Sleep 10
+        Start-Sleep -Seconds 10
         $spCheck = Get-AzADServicePrincipal -ApplicationId $ClientId
         if ($spCheck) {
           break

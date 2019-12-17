@@ -89,7 +89,7 @@ function Main {
                 break
             }
             $sleepPeriod-= 5
-            Start-Sleep -s 5
+            Start-Sleep -Seconds 5
         }
         Write-LogInfo "Memory stats after both $VM1Name and $VM2Name started reporting "
         Write-LogInfo "$VM1Name : assigned - $vm1BeforeAssigned | demand - $vm1BeforeDemand"
@@ -112,7 +112,7 @@ function Main {
             throw "Unable to start job for creating pressure on $VM1Name"
         }
         # sleep a few seconds so all stress-ng processes start and the memory assigned/demand gets updated
-        Start-Sleep -s 400
+        Start-Sleep -Seconds 400
         # get memory stats for vm1 after stress-ng starts
         [int64]$vm1Assigned = ($vm1.MemoryAssigned/1MB)
         [int64]$vm1Demand = ($vm1.MemoryDemand/1MB)
@@ -144,7 +144,7 @@ function Main {
                 break
             }
             $timeout -= 1
-            Start-Sleep -s 1
+            Start-Sleep -Seconds 1
         }
         # Verify if errors occurred on guest
         $isAlive = Wait-ForVMToStartKVP $VM1Name $HvServer 10

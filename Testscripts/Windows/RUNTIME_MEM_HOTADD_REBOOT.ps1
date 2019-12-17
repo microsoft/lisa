@@ -60,7 +60,7 @@ function Main {
             Throw "VM $vmName does not exist"
         }
         # Get memory stats from vm1
-        Start-Sleep -s 60
+        Start-Sleep -Seconds 60
         # Get VM1 memory from host and guest
         [int64]$vm1BeforeAssigned = ($VmInfo.MemoryAssigned/1MB)
         [int64]$vm1BeforeDemand = ($VmInfo.MemoryDemand/1MB)
@@ -78,7 +78,7 @@ function Main {
         # Set new memory value for 3 iterations
         for ($i=0; $i -lt 3; $i++) {
             Set-VMMemory -VMName $vmName  -ComputerName $HvServer -DynamicMemoryEnabled $false -StartupBytes $testMem
-            Start-Sleep -s 5
+            Start-Sleep -Seconds 5
             if ( $VmInfo.MemoryAssigned -eq $testMem ) {
                 [int64]$vm1AfterAssigned = ($VmInfo.MemoryAssigned/1MB)
                 [int64]$vm1AfterDemand = ($VmInfo.MemoryDemand/1MB)
@@ -117,12 +117,12 @@ function Main {
                     | Tee-Object -Append -file $summaryLog
         }
         # Increase memory again after reboot by 1000MB(1048576000 bytes)
-        Start-Sleep -s 60
+        Start-Sleep -Seconds 60
         $testMem = $testMem + 1048576000
         # Set new memory value trying for 3 iterations
         for ($i=0; $i -lt 3; $i++) {
             Set-VMMemory -VMName $vmName -ComputerName $HvServer -DynamicMemoryEnabled $false -StartupBytes $testMem
-            Start-Sleep -s 5
+            Start-Sleep -Seconds 5
             if ( $VmInfo.MemoryAssigned -eq $testMem ) {
                 [int64]$vm1AfterAssigned = ($VmInfo.MemoryAssigned/1MB)
                 [int64]$vm1AfterDemand = ($VmInfo.MemoryDemand/1MB)

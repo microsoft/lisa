@@ -25,8 +25,7 @@
 #>
 ###############################################################################################
 
-Function Set-VMDynamicMemory
-{
+Function Set-VMDynamicMemory {
 	param (
 		$VM,
 		$MinMem,
@@ -38,17 +37,16 @@ Function Set-VMDynamicMemory
 	$MaxMem = Convert-ToMemSize $MaxMem $VM.HyperVHost
 	$StartupMem = Convert-ToMemSize $StartupMem $VM.HyperVHost
 	Stop-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -force
-	Start-Sleep -s 1
+	Start-Sleep -Seconds 1
 	Set-VMMemory -vmName $VM.RoleName -ComputerName $VM.HyperVHost -DynamicMemoryEnabled $true `
 		-MinimumBytes $MinMem -MaximumBytes $MaxMem -StartupBytes $StartupMem -Priority $MemWeight
-	Start-Sleep -s 1
+	Start-Sleep -Seconds 1
 	# check if mem is set correctly
 	$vmMem = (Get-VMMemory -vmName $VM.RoleName -ComputerName $VM.HyperVHost).Startup
 	if( $vmMem -eq $StartupMem ) {
 		Write-LogInfo "Set VM Startup Memory for $($VM.RoleName) to $StartupMem"
 		return $True
-	}
-	else {
+	} else {
 		Write-LogErr "Unable to set VM Startup Memory for $($VM.RoleName) to $StartupMem"
 		return $False
 	}
@@ -65,13 +63,13 @@ Function Get-VMDemandMemory {
 		$vm = Get-VM -Name $VMName -ComputerName $Server
 		if (-not $vm) {
 			Write-LogErr "Get-VMDemandMemory: Unable to find VM ${VMName}"
-			return $false
+			return $False
 		}
 		if ($vm.MemoryDemand -and $vm.MemoryDemand -gt 0) {
 			return $True
 		}
 		$waitTimeOut -= 5  # Note - Test Port will sleep for 5 seconds
-		Start-Sleep -s 5
+		Start-Sleep -Seconds 5
 	}
 	Write-LogErr "Get-VMDemandMemory: VM ${VMName} did not get demand within timeout period ($Timeout)"
 	return $False
@@ -274,7 +272,7 @@ function Get-IPv4AndWaitForSSHStart {
 
 	# Get new ipv4 in case an new IP is allocated to vm after reboot
 	$new_ip = Get-IPv4ViaKVP $vmName $hvServer
-	if (-not ($new_ip)){
+	if (-not ($new_ip)) {
 		Write-LogErr "Get-IPv4AndWaitForSSHStart: Unable to get ipv4 from VM ${vmName} via KVP"
 		return $null
 	}
@@ -314,7 +312,7 @@ function Wait-ForVMToStartKVP {
 		}
 
 		$waitTimeOut -= 10
-		Start-Sleep -s 10
+		Start-Sleep -Seconds 10
 	}
 
 	Write-LogErr "Wait-ForVMToStartKVP: VM ${VmName} did not start KVP within timeout period ($StepTimeout)"
@@ -332,7 +330,7 @@ function Wait-ForVMToStop {
 	[System.Reflection.Assembly]::LoadWithPartialName("Microsoft.HyperV.PowerShell")
 	$tmo = $Timeout
 	while ($tmo -gt 0) {
-		Start-Sleep -s 1
+		Start-Sleep -Seconds 1
 		$tmo -= 5
 
 		$vm = Get-VM -Name $VmName -ComputerName $HvServer
@@ -360,8 +358,8 @@ function Get-ParentVHD {
 
 	$VmInfo = Get-VM -Name $vmName -ComputerName $hvServer
 	if (-not $VmInfo) {
-	Write-LogErr "Unable to collect VM settings for ${vmName}"
-	return $False
+		Write-LogErr "Unable to collect VM settings for ${vmName}"
+		return $False
 	}
 
 	$vmGen = Get-VMGeneration $vmName $hvServer
@@ -511,8 +509,7 @@ function Create-Controller{
 	#
 	# Initially, we will limit this to 4 SCSI controllers...
 	#
-	if ($ControllerID -lt 0 -or $controllerID -gt 3)
-	{
+	if ($ControllerID -lt 0 -or $controllerID -gt 3) {
 		Write-LogErr "Bad SCSI controller ID: $controllerID"
 		return $False
 	}
@@ -521,17 +518,13 @@ function Create-Controller{
 	# Check if the controller already exists.
 	#
 	$scsiCtrl = Get-VMScsiController -VMName $vmName -ComputerName $server
-	if ($scsiCtrl.Length -1 -ge $controllerID)
-	{
-	Write-LogInfo "SCSI controller already exists"
-	}
-	else
-	{
+	if ($scsiCtrl.Length -1 -ge $controllerID) {
+		Write-LogInfo "SCSI controller already exists"
+	} else {
 		$error.Clear()
 		Add-VMScsiController -VMName $vmName -ComputerName $server
-		if ($error.Count -gt 0)
-		{
-		Write-LogErr "Add-VMScsiController failed to add 'SCSI Controller $ControllerID'"
+		if ($error.Count -gt 0) {
+			Write-LogErr "Add-VMScsiController failed to add 'SCSI Controller $ControllerID'"
 			$error[0].Exception
 			return $False
 		}
@@ -685,7 +678,7 @@ function Copy-CheckFileInLinuxGuest{
 	}
 
 	$filesize = (Get-Item $testfile).Length
-	if (-not $filesize){
+	if (-not $filesize) {
 		Write-LogErr "Cannot get the size of file $testfile'."
 		return $False
 	}
@@ -697,8 +690,7 @@ function Copy-CheckFileInLinuxGuest{
 	$Error.Clear()
 	if ($overwrite) {
 		Copy-VMFile -vmName $vmName -ComputerName $hvServer -SourcePath $filePath -DestinationPath "/tmp/" -FileSource host -ErrorAction SilentlyContinue -Force
-	}
-	else {
+	} else {
 		Copy-VMFile -vmName $vmName -ComputerName $hvServer -SourcePath $filePath -DestinationPath "/tmp/" -FileSource host -ErrorAction SilentlyContinue
 	}
 	if ($Error.Count -eq 0) {
@@ -706,8 +698,7 @@ function Copy-CheckFileInLinuxGuest{
 		if (-not $sts) {
 			Write-LogErr "File check error on the guest VM '${vmName}'!"
 			return $False
-		}
-		elseif ($sts -ne $filesize) {
+		} elseif ($sts -ne $filesize) {
 			Write-LogErr "The copied file doesn't match the $filesize size."
 			return $False
 		}
@@ -715,20 +706,16 @@ function Copy-CheckFileInLinuxGuest{
 		if ($sts -ne $filecontent) {
 			Write-LogErr "The copied file doesn't match the content '$filecontent'."
 			return $False
-		}
-		else {
+		} else {
 			Write-LogInfo "The copied file matches the $filesize size and content '$filecontent'."
 		}
-	}
-	else {
+	} else {
 		Write-LogErr "An error has occurred while copying the file to guest VM '${vmName}'."
 		$error[0]
 		return $False
 	}
 	return $True
 }
-
-
 
 Function Check-VSSDemon {
 	param (
@@ -771,8 +758,7 @@ Function New-BackupSetup {
 			Write-LogErr "Not able to remove existing BackupSet"
 			return $False
 		}
-	}
-	catch {
+	} catch {
 		Write-LogInfo "No existing backup's to remove"
 	}
 	# Check if the VM VHD in not on the same drive as the backup destination
@@ -804,8 +790,7 @@ Function New-Backup {
 	# Remove Existing Backup Policy
 	try {
 		Remove-WBPolicy -all -force
-	}
-	Catch {
+	} catch {
 		Write-LogInfo "No existing backup policy to remove"
 	}
 	# Set up a new Backup Policy
@@ -907,15 +892,13 @@ Function Check-VMStateAndFileStatus {
 			Wait-ForVMToStartKVP $VMName $HvServer $timeout
 			$ip_address = Get-IPv4ViaKVP $VMName $HvServer
 		}
-	}
-	elseif ($vmState -eq "Off" -or $vmState -eq "saved" ) {
+	} elseif ($vmState -eq "Off" -or $vmState -eq "saved" ) {
 		Write-LogInfo "Starting VM : ${VMName}"
 		Start-VM -vmName $VMName -ComputerName $HvServer
 		if (-not (Wait-ForVMToStartKVP $VMName $HvServer $timeout )) {
 			Write-LogErr "${VMName} failed to start"
 			return $False
-		}
-		else {
+		} else {
 			$ip_address = Get-IPv4ViaKVP $VMName $HvServer
 		}
 	}
@@ -925,8 +908,7 @@ Function Check-VMStateAndFileStatus {
 		if (-not (Wait-ForVMToStartKVP $VMName $HvServer $timeout )) {
 			Write-LogErr "${VMName} failed to resume"
 			return $False
-		}
-		else {
+		} else {
 			$ip_address = Get-IPv4ViaKVP $VMName $HvServer
 		}
 	}
@@ -943,12 +925,10 @@ Function Check-VMStateAndFileStatus {
 		if (-not $sts) {
 			Write-LogErr "No /home/$user/1 file after restore"
 			return $False
-		}
-		else {
+		} else {
 			Write-LogInfo "there is /home/$user/1 file after restore"
 		}
-	}
-	else {
+	} else {
 		Write-LogInfo "Ignore checking file /home/$user/1 when no network"
 	}
 	return $True
@@ -962,8 +942,7 @@ Function Remove-Backup {
 	Write-LogInfo "Removing old backups from $BackupLocation"
 	try {
 		Remove-WBBackupSet -BackupTarget $BackupLocation -Force -WarningAction SilentlyContinue
-	}
-	Catch {
+	} catch {
 		Write-LogInfo "No existing backups to remove"
 	}
 }
@@ -981,8 +960,7 @@ Function Get-BackupType() {
 		if ( $line -match "Caption" -and $line -match "online") {
 			Write-LogInfo "VSS Backup type is online"
 			$backupType = "online"
-		}
-		elseif ($line -match "Caption" -and $line -match "offline") {
+		} elseif ($line -match "Caption" -and $line -match "offline") {
 			Write-LogInfo "VSS Backup type is offline"
 			$backupType = "offline"
 		}
@@ -1006,8 +984,7 @@ Function Get-DriveLetter {
 		# To avoid PSUseDeclaredVarsMoreThanAssignments warning when run PS Analyzer
 		Write-LogInfo "global parameter driveletter is set to $global:driveletter"
 		return $True
-	}
-	else {
+	} else {
 		return $False
 	}
 }
@@ -1021,55 +998,45 @@ function Get-KVPItem {
 	)
 
 	$vm = Get-WmiObject -ComputerName $server -Namespace root\virtualization\v2 -Query "Select * From Msvm_ComputerSystem Where ElementName=`'$VMName`'"
-	if (-not $vm)
-	{
+	if (-not $vm) {
 		return $Null
 	}
 
 	$kvpEc = Get-WmiObject -ComputerName $server  -Namespace root\virtualization\v2 -Query "Associators of {$vm} Where AssocClass=Msvm_SystemDevice ResultClass=Msvm_KvpExchangeComponent"
-	if (-not $kvpEc)
-	{
+	if (-not $kvpEc) {
 		return $Null
 	}
 
 	$kvpData = $Null
 
-	if ($Intrinsic)
-	{
+	if ($Intrinsic) {
 		$kvpData = $KvpEc.GuestIntrinsicExchangeItems
-	}else{
+	} else {
 		$kvpData = $KvpEc.GuestExchangeItems
 	}
 
-	if ($kvpData -eq $Null)
-	{
+	if ($null -eq $kvpData) {
 		return $Null
 	}
 
-	foreach ($dataItem in $kvpData)
-	{
+	foreach ($dataItem in $kvpData) {
 		$key = $null
 		$value = $null
 		$xmlData = [Xml] $dataItem
 
-		foreach ($p in $xmlData.INSTANCE.PROPERTY)
-		{
-			if ($p.Name -eq "Name")
-			{
+		foreach ($p in $xmlData.INSTANCE.PROPERTY) {
+			if ($p.Name -eq "Name") {
 				$key = $p.Value
 			}
 
-			if ($p.Name -eq "Data")
-			{
+			if ($p.Name -eq "Data") {
 				$value = $p.Value
 			}
 		}
-		if ($key -eq $keyName)
-		{
+		if ($key -eq $keyName) {
 			return $value
 		}
 	}
-
 	return $Null
 }
 
@@ -1087,8 +1054,7 @@ function Set-IntegrationService {
 	}
 	if ($ServiceStatus -eq $false) {
 		Disable-VMIntegrationService -ComputerName $HvServer -VMName $VMName -Name $ServiceName
-	}
-	else {
+	} else {
 		Enable-VMIntegrationService -ComputerName $HvServer -VMName $VMName -Name $ServiceName
 	}
 	$status = Get-VMIntegrationService -ComputerName $HvServer -VMName $VMName -Name $ServiceName

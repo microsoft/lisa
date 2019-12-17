@@ -75,7 +75,7 @@ function Main {
         Write-LogInfo "Info: Chrony has been turned off by shell script."
     }
 
-    Start-Sleep -S 10
+    Start-Sleep -Seconds 10
     # Pause/Save the VM state and wait for 10 mins.
     if ($vmState -eq "pause") {
         Suspend-VM -Name $VMName -ComputerName $HvServer -Confirm:$False
@@ -92,7 +92,7 @@ function Main {
 
     # If the test delay was specified, sleep for a bit
     Write-LogInfo "Sleeping for ${testDelay} seconds"
-    Start-Sleep -S $testDelay
+    Start-Sleep -Seconds $testDelay
 
     # After 10 mins resume the VM and check the time sync.
     Start-VM -Name $VMName -ComputerName $HvServer -Confirm:$False `

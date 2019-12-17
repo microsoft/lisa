@@ -30,12 +30,12 @@ function Main {
     #####################################################################
 
     # Check input arguments
-    if ($VMName -eq $null) {
+    if ($null -eq $VMName) {
         Write-LogErr "VM name is null"
         return "FAIL"
     }
 
-    if ($HvServer -eq $null) {
+    if ($null -eq $HvServer) {
         Write-LogErr "hvServer is null"
         return "FAIL"
     }

@@ -63,7 +63,7 @@ function Main {
                 break
             }
             $sleepPeriod -= 5
-            Start-Sleep -s 5
+            Start-Sleep -Seconds 5
         }
         Write-LogInfo "VM1 $VM1Name before assigned memory : $vm1BeforeAssigned"
         Write-LogInfo "VM1 $VM1Name before memory demand: $vm1BeforeDemand"
@@ -73,7 +73,7 @@ function Main {
         if ($vm1BeforeDemand -le 0) {
             throw "$VM1Name Memory demand is 0"
         }
-        Start-Sleep -s 100
+        Start-Sleep -Seconds 100
         Write-LogInfo "Starting VM2 $VM2Name"
         $VM2Ipv4=Start-VMandGetIP $VM2Name $HvServer $VMPort $user $password
         Write-LogInfo "IP of $VM2Name is $VM2Ipv4"

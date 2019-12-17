@@ -30,9 +30,9 @@ function Main {
             } else {
                 # Add unmanaged data disks
                 $osVhdStorageAccountName = $storageProfile.OsDisk.Vhd.Uri.Split(".").split("/")[2]
-                $randomString = "{0}{1}" -f $(-join ((97..122) | Get-Random -Count 6 | % {[char]$_})), $(Get-Random -Maximum 99 -Minimum 11)
+                $randomString = "{0}{1}" -f $(-join ((97..122) | Get-Random -Count 6 | ForEach-Object {[char]$_})), $(Get-Random -Maximum 99 -Minimum 11)
                 $dataDiskVhdUri = "http://${osVhdStorageAccountName}.blob.core.windows.net/vhds/test${randomString}.vhd"
-                $osVhdStorageAccount = Get-AzStorageAccount | where { $_.StorageAccountName -eq $osVhdStorageAccountName }
+                $osVhdStorageAccount = Get-AzStorageAccount | Where-Object { $_.StorageAccountName -eq $osVhdStorageAccountName }
                 $allDataDiskVhdUri = ($osVhdStorageAccount | Get-AzStorageBlob -Container $dataDiskVhdUri.Split('/')[-2]).name
                 if ($allDataDiskVhdUri -Contains $dataDiskVhdUri.Split('/')[-1]) {
                     $count -= 1
@@ -45,7 +45,7 @@ function Main {
                 Write-LogInfo "$count - Successfully attached an empty data disk of size $diskSizeinGB GB to VM"
             } else {
                 $testResult = $resultFail
-                throw "Fail to attach an empty data disk of size $diskSizeinGB GB to VM"
+                throw "Fail to attachï¿½an empty data disk of size $diskSizeinGB GB to VM"
             }
             Write-LogInfo "Verifying if data disk is added to the VM: Running fdisk on remote VM"
             $fdiskOutput = Run-LinuxCmd -username $user -password $password -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -command "/sbin/fdisk -l | grep /dev/sd" -runAsSudo

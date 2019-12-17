@@ -110,7 +110,7 @@ function Main {
                 break
             }
             $sleepPeriod-= 5
-            Start-Sleep -s 5
+            Start-Sleep -Seconds 5
         }
         if (($vm1BeforeAssigned -le 0) -or ($vm1BeforeDemand -le 0)) {
             $testResult = $resultFail
@@ -133,7 +133,7 @@ function Main {
         if (-not $?) {
             throw "Unable to start job for creating pressure on $VM1Name" | Tee-Object -Append -file $summaryLog
         }
-        Start-Sleep -s 120
+        Start-Sleep -Seconds 120
         # get memory stats for vm1 after stress-ng starts
         [int64]$vm1Assigned = ($vm1.MemoryAssigned/1MB)
         [int64]$vm1Demand = ($vm1.MemoryDemand/1MB)
@@ -159,7 +159,7 @@ function Main {
                 break
             }
             $timeout -= 1
-            Start-Sleep -s 1
+            Start-Sleep -Seconds 1
         }
         # Verify if errors occured on guest
         $isAlive = Wait-ForVMToStartKVP  $VMName $HvServer 10

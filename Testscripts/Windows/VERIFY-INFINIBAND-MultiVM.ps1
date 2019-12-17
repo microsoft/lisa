@@ -17,7 +17,7 @@ function Resolve-UninitializedIB {
 				if (-not $ibvOutput) {
 					Write-LogWarn "IB is NOT initialized in $($VMData.RoleName)"
 					$TestProvider.RestartAllDeployments($VmData)
-					Start-Sleep -s 20
+					Start-Sleep -Seconds 20
 					$retries++
 				} else {
 					Write-LogInfo "IB is initialized in $($VMData.RoleName)"

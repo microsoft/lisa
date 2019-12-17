@@ -90,7 +90,7 @@ function Main {
 
     # Check if KVP IP values match the ones present in the VM
     Write-LogInfo "Checking KVP values for each NIC"
-    Start-Sleep -s 60
+    Start-Sleep -Seconds 60
     $kvp_ip = Get-IPv4ViaKVP $vmName $hvServer | Select-Object -uniq
     $vm_ip = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort -command "ip -4 -o addr show scope global | awk '{print `$4}'" | ForEach-Object {$_.Split('\n')} | ForEach-Object { $_.Split('/')[0]; }
 

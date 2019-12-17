@@ -62,7 +62,7 @@ function Main {
                 break
             }
             $sleepPeriod -= 5
-            Start-Sleep -s 5
+            Start-Sleep -Seconds 5
         }
         Write-LogInfo "VM1 $VM1Name before assigned memory : $vm1BeforeAssigned"
         Write-LogInfo "VM1 $VM1Name before memory demand: $vm1BeforeDemand"
@@ -72,7 +72,7 @@ function Main {
         if ($vm1BeforeDemand -le 0) {
             throw "$VM1Name Memory demand is 0"
         }
-        Start-Sleep -s 100
+        Start-Sleep -Seconds 100
         Write-LogInfo "Starting VM2 $VM2Name"
         $VM1Ipv4 = Start-VMandGetIP $VM2Name $HvServer $VMPort $user $password
         Write-LogInfo "IP of $VM2Name is $VM2Ipv4"
@@ -107,7 +107,7 @@ function Main {
                 break
             }
             $sleepPeriod-= 5
-            Start-Sleep -s 5
+            Start-Sleep -Seconds 5
         }
         Write-LogInfo "VM2 $VM2Name before assigned memory : $vm2BeforeAssigned"
         Write-LogInfo "VM2 $VM2Name before memory demand: $vm2BeforeDemand"
@@ -118,7 +118,7 @@ function Main {
             throw "$VM2Name demand memory is 0"
         }
         # sleep 120 seconds to let VM2 stabilize
-        Start-Sleep -s 120
+        Start-Sleep -Seconds 120
         # get VM2's Memory
         [int64]$vm2AfterAssigned = ($vm2.MemoryAssigned/[int64]1048576)
         [int64]$vm2AfterDemand = ($vm2.MemoryDemand/[int64]1048576)

@@ -111,7 +111,7 @@ function Main {
         $timeoutStress = 10
         # get memory stats from vm1
         # wait up to 2 min for it
-        Start-Sleep -s 30
+        Start-Sleep -Seconds 30
         $sleepPeriod = 120 #seconds
         # get VM1 Memory
         while ($sleepPeriod -gt 0)
@@ -122,7 +122,7 @@ function Main {
                 break
             }
             $sleepPeriod-= 5
-            Start-Sleep -s 5
+            Start-Sleep -Seconds 5
         }
         if (($vm1BeforeAssigned -le 0) -or ($vm1BeforeDemand -le 0)) {
             $testResult = $resultFail
@@ -136,7 +136,7 @@ function Main {
             Throw "Unable to start job for creating pressure on $vm1Name"
         }
         # sleep a few seconds so stresstestapp processes start and the memory assigned/demand gets updated
-        Start-Sleep -s 100
+        Start-Sleep -Seconds 100
         # get memory stats for vm1 after stresstestapp starts
         [int64]$vm1Assigned = ($VM1.MemoryAssigned/1MB)
         [int64]$vm1Demand = ($VM1.MemoryDemand/1MB)
@@ -164,14 +164,14 @@ function Main {
                 break
             }
             $timeout -= 1
-            Start-Sleep -s 1
+            Start-Sleep -Seconds 1
         }
         # Verify if errors occured on guest
         $isAlive = Wait-ForVMToStartKVP $vm1Name $hvServer 10
         if (-not $isAlive){
             Throw "VM is unresponsive after running the memory stress test"
         }
-        Start-Sleep -s 20
+        Start-Sleep -Seconds 20
         # get memory stats after stresstestapp finished
         [int64]$vm1AfterAssigned = ($vm1.MemoryAssigned/1MB)
         [int64]$vm1AfterDemand = ($vm1.MemoryDemand/1MB)

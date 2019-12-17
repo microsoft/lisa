@@ -12,7 +12,7 @@ param([object] $AllVmData,
       [object] $CurrentTestData
     )
 
-$randomString = -join ((97..122) | Get-Random -Count 8 | % {[char]$_})
+$randomString = -join ((97..122) | Get-Random -Count 8 | ForEach-Object {[char]$_})
 $storageAccountName = "templisav2" + $randomString
 $fileShareName = "fileshare"
 $scratchName = "scratch"
@@ -36,7 +36,7 @@ function New-FileShare {
     Write-LogInfo "Creating a new storage account"
     $storageAccount = New-AzStorageAccount -ResourceGroupName $AllVmData.ResourceGroupName `
         -Name $storageAccountName -Location $TestLocation -SkuName $skuName -Verbose
-    if ($storageAccount -eq $null) {
+    if ($null -eq $storageAccount) {
         Write-LogErr "Failed to create a new storage account"
         Remove-StorageAccount $storageAccountName
         return 1
@@ -44,13 +44,13 @@ function New-FileShare {
 
     # Create file share on the storage account
     $fileShareInfo = New-AzStorageShare -Name $fileShareName -Context $storageAccount.Context -Verbose
-    if ($fileShareInfo  -eq $null) {
+    if ($null -eq $fileShareInfo) {
         Write-LogErr "Failed to create a new file share"
         Remove-StorageAccount $storageAccountName
         return 1
     }
     $scratchInfo = New-AzStorageShare -Name $scratchName -Context $storageAccount.Context -Verbose
-    if ($scratchInfo  -eq $null) {
+    if ($null -eq $scratchInfo) {
         Write-LogErr "Failed to create a new file share"
         Remove-StorageAccount $storageAccountName
         return 1
@@ -126,7 +126,7 @@ function Main {
         $timeout = New-Timespan -Minutes 240
         $sw = [diagnostics.stopwatch]::StartNew()
         while ($sw.elapsed -lt $timeout) {
-            Start-Sleep -s 60
+            Start-Sleep -Seconds 60
             $tcpTestResult = (Test-NetConnection -ComputerName $allVMData.PublicIP -Port $allVMData.SSHPort).TcpTestSucceeded
             if ($tcpTestResult) {
                 $state = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort `

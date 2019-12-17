@@ -68,7 +68,7 @@ try
         {
             Write-LogInfo "ERROR: Something went wrong in upload. Retrying..."
             $RetryUpload = $true
-            Start-Sleep 10
+            Start-Sleep -Seconds 10
         }
     }
 }

@@ -76,7 +76,7 @@ function Main {
         }
         Write-LogInfo "Stress-ng is installed! Will begin running memory stress tests shortly."
         # Get memory stats from $VmInfo
-        Start-Sleep -s 10
+        Start-Sleep -Seconds 10
         $sleepPeriod = 60
         # get VmInfo memory from host and guest
         while ($sleepPeriod -gt 0)
@@ -90,7 +90,7 @@ function Main {
                 break
             }
             $sleepPeriod-= 5
-            Start-Sleep -s 5
+            Start-Sleep -Seconds 5
         }
         if (($vm1BeforeAssigned -le 0) -or ($vm1BeforeDemand -le 0) -or ($vm1BeforeAssignedGuest -le 0)){
             Throw "vm1 $vmName reported 0 memory (assigned or demand)."
@@ -100,7 +100,7 @@ function Main {
         # Setting new memory value for 3 iterations. To check memory has been increased or decreased for 3 iterations
         for ($i=0; $i -lt 3; $i++) {
             Set-VMMemory -VMName $vmName  -ComputerName $HvServer -DynamicMemoryEnabled $false -StartupBytes $testMem
-            Start-Sleep -s 5
+            Start-Sleep -Seconds 5
             if ($VmInfo.MemoryAssigned -eq $testMem){
                 [int64]$vm1AfterAssigned = ($VmInfo.MemoryAssigned/1MB)
                 [int64]$vm1AfterDemand = ($VmInfo.MemoryDemand/1MB)
@@ -143,7 +143,7 @@ function Main {
             Throw  "Unable to start stress-ng for creating pressure on $vmName"
         }
         # sleep a few seconds so stress-ng starts and the memory assigned/demand gets updated
-        Start-Sleep -s 50
+        Start-Sleep -Seconds 50
         [int64]$vm1Demand = ($VmInfo.MemoryDemand/1MB)
         # get memory stats while stress-ng is running
         [int64]$vm1Assigned = ($VmInfo.MemoryAssigned/1MB)
@@ -155,7 +155,7 @@ function Main {
             Throw "Memory Demand did not increase after starting stress-ng"
         }
         # Wait stress-ng stopped running, and then get memory stats
-        Start-Sleep -s 100
+        Start-Sleep -Seconds 100
         [int64]$vm1AfterStressAssigned = ($VmInfo.MemoryAssigned/1MB)
         [int64]$vm1AfterStressDemand = ($VmInfo.MemoryDemand/1MB)
         Write-LogInfo "Memory stats after $vmName stress-ng run"

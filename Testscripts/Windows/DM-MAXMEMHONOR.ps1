@@ -109,7 +109,7 @@ function Main {
                 break
             }
             $sleepPeriod-= 5
-            Start-Sleep -S 5
+            Start-Sleep -Seconds 5
         }
         if (($vm1BeforeAssigned -le 0) -or ($vm1BeforeDemand -le 0) -or ($vm2BeforeAssigned -le 0) -or ($vm2BeforeDemand -le 0))
         {
@@ -136,7 +136,7 @@ function Main {
             throw "Unable to start job for creating pressure on $vm1name" | Tee-Object -Append -file $summaryLog
         }
         # sleep a few seconds so all stresstestapp processes start and the memory assigned/demand gets updated
-        Start-Sleep -S 200
+        Start-Sleep -Seconds 200
         Write-LogInfo "The job status: $((Get-Job -Id $job1).State)"
         # get memory stats for vm1 and vm2
         [int64[]]$vm2Assigned = @()
@@ -165,7 +165,7 @@ function Main {
                 $samples += 1
             }
             $timeout -= 1
-            Start-Sleep -S 1
+            Start-Sleep -Seconds 1
         }
         if (-not $jobState) {
             Throw "consume memory script did not finish in $totalTimeout seconds"

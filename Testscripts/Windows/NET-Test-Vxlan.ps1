@@ -130,11 +130,11 @@ function Main {
     # Wait 3 minutes for files to be transferred & test connection to make
     # sure VM1 is still up
     Write-LogInfo "Sleeping for 180 seconds"
-    Start-Sleep -s 180
+    Start-Sleep -Seconds 180
 
     $timeout=200
     do {
-        Start-Sleep -s 5
+        Start-Sleep -Seconds 5
         $timeout -= 5
         if ($timeout -eq 0) {
             Write-LogErr "Connection lost to the first VM"

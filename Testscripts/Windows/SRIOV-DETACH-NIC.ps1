@@ -28,7 +28,7 @@ function Main {
         -RunInBackGround
 
     # Wait 30 seconds and read the RTT
-    Start-Sleep -s 30
+    Start-Sleep -Seconds 30
     [decimal]$initialRTT = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "tail -5 PingResults.log | head -1 | awk '{print `$7}' | sed 's/=/ /' | awk '{print `$2}'" `
         -ignoreLinuxExitCode:$true
@@ -74,7 +74,7 @@ function Main {
         return "FAIL"
     }
 
-    Start-Sleep -s 30
+    Start-Sleep -Seconds 30
     # Read the RTT again, it should be lower than before
     # We should see values to close to the initial RTT measured
     [decimal]$initialRTT = $initialRTT * 1.7

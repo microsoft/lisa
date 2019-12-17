@@ -31,7 +31,7 @@ function Main {
         -RunInBackGround
 
     # Wait 30 seconds and read the RTT
-    Start-Sleep -s 30
+    Start-Sleep -Seconds 30
     [decimal]$vfEnabledRTT = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "tail -5 PingResults.log | head -1 | awk '{print `$7}' | sed 's/=/ /' | awk '{print `$2}'" `
         -ignoreLinuxExitCode:$true
@@ -42,7 +42,7 @@ function Main {
     Write-LogInfo "The RTT before disabling SR-IOV is $vfEnabledRTT ms"
 
     # Disable SR-IOV on test VM and dependency VM
-    Start-Sleep -s 5
+    Start-Sleep -Seconds 5
     Write-LogInfo "Disabling VF on vm1"
     Set-VMNetworkAdapter -VMName $VMName -ComputerName $HvServer -IovWeight 0
     if (-not $?) {
@@ -56,7 +56,7 @@ function Main {
     }
 
     # Read the RTT with SR-IOV disabled; it should be higher
-    Start-Sleep -s 30
+    Start-Sleep -Seconds 30
     [decimal]$vfDisabledRTT = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "tail -5 PingResults.log | head -1 | awk '{print `$7}' | sed 's/=/ /' | awk '{print `$2}'" `
         -ignoreLinuxExitCode:$true
@@ -83,7 +83,7 @@ function Main {
         return "FAIL"
     }
 
-    Start-Sleep -s 30
+    Start-Sleep -Seconds 30
     # Read the RTT again, it should be lower than before
     # We should see values to close to the initial RTT measured
     [decimal]$vfEnabledRTT = $vfEnabledRTT * 1.3

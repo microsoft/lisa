@@ -213,7 +213,7 @@ function Main {
         # Now collect the IP addresses assigned to the VM and make
         # sure the injected address is in the list.
         #
-        Start-Sleep 20
+        Start-Sleep -Seconds 20
         $vmNICs = Get-VMNetworkAdapter -vmName $VMName -ComputerName $HvServer
         $ipAddrs = @()
         foreach( $nic in $vmNICS) {

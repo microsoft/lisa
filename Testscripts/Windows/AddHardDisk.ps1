@@ -260,7 +260,7 @@ function New-HardDrive
                     ($_.OperationalStatus -eq "Offline" -and $_.Number -gt "$PhyNumber")
                 }).Number
                 Write-LogInfo "Physical drive found: $newVhd"
-                Start-Sleep 5
+                Start-Sleep -Seconds 5
             }
             "Diff" {
                 $parentVhdName = $defaultVhdPath + "icaDiffParent.vhd"
