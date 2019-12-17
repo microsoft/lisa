@@ -39,7 +39,7 @@ case $DISTRO in
         LogMsg "Distro $DISTRO is not supported, skipping test."
         UpdateSummary "Distro $DISTRO is not supported, skipping test."
         SetTestStateSkipped
-        exit 1
+        exit 0
     ;;
 esac
 

@@ -28,7 +28,7 @@ function build_install_rdma_core () {
 		*)
 			echo "Unsupported distro ${DISTRO_NAME}"
 			SetTestStateSkipped
-			exit 1
+			exit 0
 	esac
 	ssh "${1}" ". ${UTIL_FILE} && CheckInstallLockUbuntu && install_package ${packages[@]}"
 

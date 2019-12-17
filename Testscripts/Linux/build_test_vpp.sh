@@ -57,7 +57,7 @@ function build_test_vpp () {
 		*)
 			echo "Unsupported distro ${DISTRO_NAME}"
 			SetTestStateSkipped
-			exit 1
+			exit 0
 	esac
 	ssh "${1}" ". ${UTIL_FILE} && CheckInstallLockUbuntu && install_package ${packages[@]}"
 

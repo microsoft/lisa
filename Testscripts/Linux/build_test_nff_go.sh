@@ -34,7 +34,7 @@ function build_test_nff_go () {
 		*)
 			echo "Unsupported distro ${DISTRO_NAME}"
 			SetTestStateSkipped
-			exit 1
+			exit 0
 	esac
 	ssh "${1}" ". ${UTIL_FILE} && install_package ${packages[@]}"
 
