@@ -170,6 +170,6 @@ case $DISTRO in
     *)
         LogErr "$DISTRO is not supported in this test"
         SetTestStateSkipped
-        exit 1
+        exit 0
     ;;
 esac
