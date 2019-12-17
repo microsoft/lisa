@@ -48,7 +48,7 @@ ReloadNetvsc()
         sleep 1
         msg="modprobe ${1} hv_netvsc : Passed"
         LogMsg "$msg"
-    fi    
+    fi
 }
 
 ### Main script ###
