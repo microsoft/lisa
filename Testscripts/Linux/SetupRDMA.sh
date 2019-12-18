@@ -191,8 +191,13 @@ function Main() {
 			LogMsg "Starting RDMA setup for Ubuntu"
 			hpcx_ver="ubuntu"$VERSION_ID
 			LogMsg "Installing required packages ..."
-			LogMsg "*** Adding Canonical ppa for temporary fix"
-			add-apt-repository -y ppa:ci-train-ppa-service/3760
+			# the old fix integrated to dpdk-18.11 repo
+			add-apt-repository ppa:canonical-server/dpdk-azure-18.11 -y
+			if [ $? -ne 0 ]; then
+				LogErr "Failed to add the required dpdk-azure-18.11 repo to apt source"
+			else
+				LogMsg "Successfully added the required dpdk-azure-18.11 repo"
+			fi
 
 			LogMsg "Required 32-bit java"
 			dpkg --add-architecture i386
@@ -227,8 +232,6 @@ function Main() {
 					LogMsg "Module $ex_module already loaded"
 				fi
 			done
-			LogMsg "*** Adding Canonical ppa for temporary fix"
-			add-apt-repository -y ppa:ci-train-ppa-service/3760
 			LogMsg "*** System updating with the customized ppa"
 			apt update
 			apt upgrade -y
