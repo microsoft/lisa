@@ -503,7 +503,7 @@ Class TestController
 			$isVmAlive = Is-VmAlive -AllVMDataObject $VMData -MaxRetryCount 10
 			if (!$global:IsWindowsImage -and $testParameters["SkipVerifyKernelLogs"] -ne "True" -and $isVmAlive -eq "True" ) {
 				$ret = $this.GetAndCompareOsLogs($VmData, "Final")
-				if ($testParameters["FailForLogCheck"] -eq "True" -and $ret -eq $false) {
+				if ($testParameters["FailForLogCheck"] -eq "True" -and $ret -eq $false -and $currentTestResult.TestResult -eq $global:ResultPass) {
 					$currentTestResult.TestResult = $global:ResultFail
 					Write-LogErr "Test $($CurrentTestData.TestName) fails log check"
 				}
