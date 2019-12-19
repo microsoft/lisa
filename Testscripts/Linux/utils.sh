@@ -1875,21 +1875,21 @@ function UpgradeMinorKernel() {
 
 function VerifyIsEthtool() {
 	# Should have "return" value: 0, if existed. Otherwise, 1.
-    # Check for ethtool. If it's not on the system, install it.
-    ethtool --version
-    if [ $? -ne 0 ]; then
-        LogMsg "Ethtool not found. Trying to install it."
-        update_repos
-        install_package "ethtool"
-    fi
-    which ethtool
-    if [ $? -eq 0 ]; then
-        LogMsg "Ethtool is successfully installed!"
-        return 0
-    else
-        LogErr "Ethtool installation failed"
-        return 1
-    fi
+	# Check for ethtool. If it's not on the system, install it.
+	ethtool --version
+	if [ $? -ne 0 ]; then
+		LogMsg "Ethtool not found. Trying to install it."
+		update_repos
+		install_package "ethtool"
+	fi
+	which ethtool
+	if [ $? -eq 0 ]; then
+		LogMsg "Ethtool is successfully installed!"
+		return 0
+	else
+		LogErr "Ethtool installation failed"
+		return 1
+	fi
 }
 
 # Function that will check for Call Traces on VM after 2 minutes
@@ -2903,13 +2903,13 @@ declare DISTRO_VERSION=$(detect_linux_distribution_version)
 #   when starting from zero i.e. index 1 and 2 have no relation
 #   if captured output is empty then no VFs exist
 function get_synthetic_vf_pairs() {
-    local ignore_if=$(ip route | grep default | awk '{print $5}')
-    local interfaces=$(ls /sys/class/net | grep -v lo | grep -v ${ignore_if})
+	local ignore_if=$(ip route | grep default | awk '{print $5}')
+	local interfaces=$(ls /sys/class/net | grep -v lo | grep -v ${ignore_if})
 
-    local synth_ifs=""
-    local vf_ifs=""
-    local interface
-    for interface in ${interfaces}; do
+	local synth_ifs=""
+	local vf_ifs=""
+	local interface
+	for interface in ${interfaces}; do
 		# alternative is, but then must always know driver name
 		# readlink -f /sys/class/net/<interface>/device/driver/
 		local bus_addr=$(ethtool -i ${interface} | grep bus-info | awk '{print $2}')
@@ -2918,22 +2918,22 @@ function get_synthetic_vf_pairs() {
 		else
 			vf_ifs="${vf_ifs} ${interface}"
 		fi
-    done
+	done
 
-    local synth_if
-    local vf_if
-    for synth_if in ${synth_ifs}; do
-        local synth_mac=$(ip link show ${synth_if} | grep ether | awk '{print $2}')
+	local synth_if
+	local vf_if
+	for synth_if in ${synth_ifs}; do
+		local synth_mac=$(ip link show ${synth_if} | grep ether | awk '{print $2}')
 
-        for vf_if in ${vf_ifs}; do
-            local vf_mac=$(ip link show ${vf_if} | grep ether | awk '{print $2}')
-            # single = is posix compliant
-            if [ "${synth_mac}" = "${vf_mac}" ]; then
-                bus_addr=$(ethtool -i ${vf_if} | grep bus-info | awk '{print $2}')
-                echo "${synth_if} ${bus_addr}"
-            fi
-        done
-    done
+		for vf_if in ${vf_ifs}; do
+			local vf_mac=$(ip link show ${vf_if} | grep ether | awk '{print $2}')
+			# single = is posix compliant
+			if [ "${synth_mac}" = "${vf_mac}" ]; then
+				bus_addr=$(ethtool -i ${vf_if} | grep bus-info | awk '{print $2}')
+				echo "${synth_if} ${bus_addr}"
+			fi
+		done
+	done
 }
 
 function test_rsync() {
@@ -3025,40 +3025,40 @@ function change_mtu_increment() {
 }
 
 function stop_firewall() {
-    GetDistro
-    case "$DISTRO" in
-        suse*)
-            status=$(systemctl is-active SuSEfirewall2)
-            if [ "$status" = "active" ]; then
-                service SuSEfirewall2 stop
-                if [ $? -ne 0 ]; then
-                    return 1
-                fi
-            fi
-            ;;
-        ubuntu*|debian*)
-            ufw disable
-            if [ $? -ne 0 ]; then
-                return 1
-            fi
-            ;;
-        redhat* | centos* | fedora*)
-            service firewalld stop
-            if [ $? -ne 0 ]; then
-                exit 1
-            fi
-            iptables -F
-            iptables -X
-            ;;
-		coreos)
-            LogMsg "No extra steps need here."
+	GetDistro
+	case "$DISTRO" in
+		suse*)
+			status=$(systemctl is-active SuSEfirewall2)
+			if [ "$status" = "active" ]; then
+				service SuSEfirewall2 stop
+				if [ $? -ne 0 ]; then
+					return 1
+				fi
+			fi
 			;;
-        *)
-            LogErr "OS Version not supported!"
-            return 1
-        ;;
-    esac
-    return 0
+		ubuntu*|debian*)
+			ufw disable
+			if [ $? -ne 0 ]; then
+				return 1
+			fi
+			;;
+		redhat* | centos* | fedora*)
+			service firewalld stop
+			if [ $? -ne 0 ]; then
+				exit 1
+			fi
+			iptables -F
+			iptables -X
+			;;
+		coreos)
+			LogMsg "No extra steps need here."
+			;;
+		*)
+			LogErr "OS Version not supported!"
+			return 1
+		;;
+	esac
+	return 0
 }
 
 function Update_Kernel() {
