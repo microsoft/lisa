@@ -48,7 +48,7 @@ GetDistro
 case $DISTRO in
     redhat_*|centos_*)
         # RHEL 8 does not support ntp, skip test
-        if [[ $DISTRO -eq $centos_8 || $DISTRO -eq $redhat_8 ]]; then
+        if [[ $DISTRO -eq "centos_8" || $DISTRO -eq "redhat_8" ]]; then
             LogMsg "$DISTRO does not support ntp. Test skipped. "
             SetTestStateSkipped
             exit 0
@@ -98,8 +98,7 @@ case $DISTRO in
     ;;
     suse*|sles*)
         #In SLES 12 service name is ntpd, in SLES 11 is ntp
-        os_RELEASE=$(echo "$os_RELEASE" | sed -e 's/^\(.\{2\}\).*/\1/')
-        if  [ "$os_RELEASE" -eq 11 ]; then
+        if  [ $DISTRO -eq "suse_11" ]; then
             srv="ntp"
         else
             srv="ntpd"
