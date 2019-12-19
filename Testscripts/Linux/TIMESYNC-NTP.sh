@@ -48,8 +48,8 @@ GetDistro
 case $DISTRO in
     redhat_*|centos_*)
         # RHEL 8 does not support ntp, skip test
-        if [[ $os_RELEASE =~ 8.* ]]; then
-            LogMsg "Info: $os_VENDOR $os_RELEASE does not support ntp. Test skipped. "
+        if [[ $DISTRO -eq $centos_8 || $DISTRO -eq $redhat_8 ]]; then
+            LogMsg "$DISTRO does not support ntp. Test skipped. "
             SetTestStateSkipped
             exit 0
         fi
