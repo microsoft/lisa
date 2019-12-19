@@ -182,7 +182,7 @@ isOver=false
 secondsToRun=1800
 stopTest=$(( $(date +%s) + secondsToRun ))
 
-while [[ $isOver == false ]]; do
+while [ $isOver == false ]; do
     # 'ntpq -c rl' returns the offset between the ntp server and internal clock
     delay=$(ntpq -c rl $loopbackIP | grep offset= | awk -F "=" '{print $3}' | awk '{print $1}')
     delay=$(echo "$delay" | sed s'/.$//')
