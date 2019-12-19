@@ -171,8 +171,6 @@ Config_Rhel()
         boot_filepath=/boot/grub/grub.conf
     elif [ "$os_GENERATION" -eq 1 ] && [[ $os_RELEASE =~ ^7.* ]]; then
         boot_filepath=/boot/grub2/grub.cfg
-    elif [ "$os_GENERATION" -eq 1 ] && [[ $os_RELEASE =~ 8.* ]] && grep "efi/centos/grubenv" /boot/grub2/grub.cfg 2>&1 > null; then
-        boot_filepath=/boot/efi/EFI/centos/grubenv
     elif [ "$os_GENERATION" -eq 1 ] && [[ $os_RELEASE =~ 8.* ]]; then
         boot_filepath=/boot/grub2/grubenv
     elif [ "$os_GENERATION" -eq 2 ] && [[ $os_RELEASE =~ 7.* || $os_RELEASE =~ 8.* ]]; then
@@ -343,16 +341,16 @@ fi
 Config_"${OS_FAMILY}"
 
 # Remove old crashkernel params
-sed -i "s/crashkernel=\S*//g" $boot_filepath
+sed -i --follow-symlinks "s/crashkernel=\S*//g" $boot_filepath
 
 # Remove console params; It could interfere with the testing
-sed -i "s/console=\S*//g" $boot_filepath
+sed -i --follow-symlinks "s/console=\S*//g" $boot_filepath
 
 # Add the crashkernel param
 if [[ $DISTRO != "redhat_8" ]] && [[ $DISTRO != "centos_8" ]]; then
-    sed -i "/vmlinuz-$(uname -r)/ s/$/ crashkernel=$crashkernel/" $boot_filepath
+    sed -i --follow-symlinks "/vmlinuz-$(uname -r)/ s/$/ crashkernel=$crashkernel/" $boot_filepath
 else
-    sed -i "/kernelopts=root/s/$/ crashkernel=$crashkernel/" $boot_filepath
+    sed -i --follow-symlinks "/kernelopts=root/s/$/ crashkernel=$crashkernel/" $boot_filepath
 fi
 if [ $? -ne 0 ]; then
     LogErr "Could not set the new crashkernel value in $boot_filepath"
