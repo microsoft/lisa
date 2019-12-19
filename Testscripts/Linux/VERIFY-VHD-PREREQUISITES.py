@@ -33,7 +33,7 @@ def verify_default_targetpw(distro):
 
 def verify_grub(distro):
     import os.path
-    RunLog.info("Checking console=ttyS0 rootdelay=300..")
+    RunLog.info("Checking console=ttyS0..")
     if distro == "UBUNTU":
         grub_out = Run("cat /boot/grub/grub.cfg")
     if distro == "SUSE":
@@ -65,7 +65,7 @@ def verify_grub(distro):
     if distro == "COREOS":
         #in core os we don't have access to boot partition
         grub_out = Run("dmesg")
-    if "console=ttyS0" in grub_out and "rootdelay=300" in grub_out and "libata.atapi_enabled=0" not in grub_out and "reserve=0x1f0,0x8" not in grub_out:
+    if "console=ttyS0" in grub_out and "libata.atapi_enabled=0" not in grub_out and "reserve=0x1f0,0x8" not in grub_out:
         if distro == "CENTOS" or distro == "ORACLELINUX" or distro == "REDHAT":
             # check numa=off in grub for CentOS 6.x and Oracle Linux 6.x
             version_release = Run("cat /etc/system-release | grep -Eo '[0-9].?[0-9]?' | head -1 | tr -d '\n'")
@@ -84,8 +84,6 @@ def verify_grub(distro):
         print(distro+"_TEST_GRUB_VERIFICATION_FAIL")
         if "console=ttyS0" not in grub_out:
             RunLog.error("console=ttyS0 not present")
-        if "rootdelay=300" not in grub_out:
-            RunLog.error("rootdelay=300 not present")
         if "libata.atapi_enabled=0" in grub_out:
             RunLog.error("libata.atapi_enabled=0 is present")
         if "reserve=0x1f0,0x8" in grub_out:
@@ -214,7 +212,7 @@ if distro == "UBUNTU":
     else:
         print(distro+"_TEST_REPOSITORIES_ERROR")
 
-    #Test 3 : Make sure to have console=ttyS0 rootdelay=300 in /etc/default/grub.
+    #Test 3 : Make sure to have console=ttyS0 in /etc/default/grub.
     result = verify_grub(distro)
 
     #Test 4 : Make sure that default targetpw is commented in /etc/sudoers file.
@@ -244,7 +242,7 @@ if distro == "DEBIAN":
     #Test 3 : Make sure that default targetpw is commented in /etc/sudoers file.
     result = verify_default_targetpw(distro)
 
-    
+
 if distro == "SUSE":
     #Make sure that distro contains Cloud specific repositories
     RunLog.info("Verifying Cloud specific repositories")
@@ -276,10 +274,13 @@ if distro == "CENTOS":
     result = verify_ifcfg_eth0(distro)
     result = verify_udev_rules(distro)
     #Verify repositories
+    version_release = Run("cat /etc/system-release | grep -Eo '[0-9].?[0-9]?' | head -1 | tr -d '\n'")
     r_out = Run("yum repolist")
-    if "base" in r_out.lower() and "updates" in r_out.lower():
+    if "base" in r_out.lower() and ("updates" in r_out.lower() or float(version_release) == 8.0):
         RunLog.info("Expected repositories are present")
         print(distro+"_TEST_REPOSITORIES_AVAILABLE")
+        if float(version_release) == 8.0:
+            RunLog.info("In CentOS 8.0, skip updates repo check")
     else:
         if "base" not in r_out.lower():
             RunLog.error("Base repository not present")
@@ -289,7 +290,6 @@ if distro == "CENTOS":
     #Verify etc/yum.conf
     y_out = Run("cat /etc/yum.conf")
     # check http_caching=packages in yum.conf for CentOS 6.x
-    version_release = Run("cat /etc/system-release | grep -Eo '[0-9].?[0-9]?' | head -1 | tr -d '\n'")
     if float(version_release) < 6.6:
         if "http_caching=packages" in y_out:
             RunLog.info("http_caching=packages present in /etc/yum.conf")
@@ -384,6 +384,5 @@ if distro == "SLES":
         RunLog.info("DHCLIENT_SET_HOSTNAME='no' not present in /etc/sysconfig/network/dhcp, it's not strict.")
 
 if distro == "COREOS":
-    #"rootdelay=300" has issues with CoreOS which causes extra long boot time
-    #result = verify_grub(distro)
+    result = verify_grub(distro)
     result = verify_udev_rules(distro)
