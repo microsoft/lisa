@@ -34,11 +34,11 @@ function check_cmd_result() {
     success_msg=$2
     failed_msg=$3
     if [ $cmd_result -ne 0  ]; then
-        LogErr $failed_msg
+        LogErr "$failed_msg"
         SetTestStateAborted
         exit 0
     else
-        LogMsg $success_msg
+        LogMsg "$success_msg"
     fi
 }
 # Source constants file and initialize most common variables
@@ -62,10 +62,10 @@ case $DISTRO in
             check_cmd_result $? "Installed ntpd successfully" "Unable to install ntpd. Aborting"
 
             chkconfig ntpd on
-            check_cmd_result $? "Successfull configure ntpd" "Unable to chkconfig ntpd on. Aborting"
+            check_cmd_result $? "Successfully configure ntpd" "Unable to chkconfig ntpd on. Aborting"
 
             ntpdate pool.ntp.org
-            check_cmd_result $? "Successfull update ntpdate to pool.ntp.org" "Unable to set ntpdate. Aborting"
+            check_cmd_result $? "Successfully update ntpdate to pool.ntp.org" "Unable to set ntpdate. Aborting"
 
             service ntpd start
             check_cmd_result $? "Successfully started ntpd service" "Unable to start ntpd. Aborting"
@@ -132,7 +132,7 @@ case $DISTRO in
 
         # Restart ntp service
         service $srv restart
-        check_cmd_result $? "Successfull restarted $srv daemon" "Unable to restart $srv. Aborting"
+        check_cmd_result $? "Successfully restarted $srv daemon" "Unable to restart $srv. Aborting"
     ;;
     coreos)
         # Refer to https://github.com/coreos/docs/blob/master/os/configuring-date-and-timezone.md#time-synchronization
