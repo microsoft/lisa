@@ -48,7 +48,7 @@ GetDistro
 case $DISTRO in
     redhat_*|centos_*)
         # RHEL 8 does not support ntp, skip test
-        if [[ $DISTRO -eq "centos_8" || $DISTRO -eq "redhat_8" ]]; then
+        if [[ $DISTRO == "centos_8" || $DISTRO == "redhat_8" ]]; then
             LogMsg "$DISTRO does not support ntp. Test skipped. "
             SetTestStateSkipped
             exit 0
@@ -98,7 +98,7 @@ case $DISTRO in
     ;;
     suse*|sles*)
         #In SLES 12 service name is ntpd, in SLES 11 is ntp
-        if  [ $DISTRO -eq "suse_11" ]; then
+        if  [[ $DISTRO == "suse_11" ]]; then
             srv="ntp"
         else
             srv="ntpd"
@@ -182,7 +182,7 @@ isOver=false
 secondsToRun=1800
 stopTest=$(( $(date +%s) + secondsToRun ))
 
-while [ $isOver == false ]; do
+while [[ $isOver == false ]]; do
     # 'ntpq -c rl' returns the offset between the ntp server and internal clock
     delay=$(ntpq -c rl $loopbackIP | grep offset= | awk -F "=" '{print $3}' | awk '{print $1}')
     delay=$(echo "$delay" | sed s'/.$//')
