@@ -161,7 +161,7 @@ function Collect-CustomLogFile {
 }
 
 Function Compare-OsLogs($InitialLogFilePath, $FinalLogFilePath, $LogStatusFilePath, $ErrorMatchPatten) {
-	$ret = $true
+	$retValue = $true
 	try {
 		$fileDiff = Compare-Object -ReferenceObject (Get-Content $InitialLogFilePath) `
 			-DifferenceObject (Get-Content $FinalLogFilePath)
