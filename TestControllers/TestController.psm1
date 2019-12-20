@@ -505,7 +505,8 @@ Class TestController
 				$ret = $this.GetAndCompareOsLogs($VmData, "Final")
 				if ($testParameters["FailForLogCheck"] -eq "True" -and $ret -eq $false -and $currentTestResult.TestResult -eq $global:ResultPass) {
 					$currentTestResult.TestResult = $global:ResultFail
-					Write-LogErr "Test $($CurrentTestData.TestName) fails log check"
+					Write-LogErr "Test $($CurrentTestData.TestName) fails for log check"
+					$currentTestResult.testSummary += New-ResultSummary -testResult "Test fails for log check"
 				}
 				$this.GetSystemBasicLogs($VmData, $global:user, $global:password, $CurrentTestData, $currentTestResult, $this.EnableTelemetry) | Out-Null
 			}
