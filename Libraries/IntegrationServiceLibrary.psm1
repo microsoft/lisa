@@ -518,7 +518,7 @@ function Create-Controller{
 	# Check if the controller already exists.
 	#
 	$scsiCtrl = Get-VMScsiController -VMName $vmName -ComputerName $server
-	if ($scsiCtrl.Length -1 -ge $controllerID) {
+	if (($scsiCtrl.Length - 1) -ge $controllerID) {
 		Write-LogInfo "SCSI controller already exists"
 	} else {
 		$error.Clear()
