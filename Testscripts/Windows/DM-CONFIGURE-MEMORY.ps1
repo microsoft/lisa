@@ -66,16 +66,13 @@ function Main {
         #
         # Check input arguments
         #
-        if (-not $VMName)
-        {
+        if (-not $VMName) {
            throw "INFO: VM name is null. "
         }
-        if (-not $HvServer)
-        {
+        if (-not $HvServer) {
             throw "Error: HvServer is null"
         }
-        if (-not $TestParams)
-        {
+        if (-not $TestParams) {
           throw "Error: TestParams is null"
         }
         $vm_mem = (Get-VMMemory $VMName -ComputerName $HvServer).Startup
@@ -87,62 +84,52 @@ function Main {
         [int64]$dmMemWeight = -1
         [int64]$dmStaticMem = 0
         $bootLargeMem = $false
-        if ($TestParams.enableDM -ilike "yes")
-        {
+        if ($TestParams.enableDM -ilike "yes") {
             $tpEnabled = $true
-        }
-        else
-        {
+        } else {
             $tpEnabled = $false
         }
-        $dmMinMem = Convert-ToMemSize $TestParams.minMem $HvServer
 
-        if ($dmMinMem -le 0)
-        {
-            Write-LogErr "Error: Unable to convert minMem to int64."
+        $dmMinMem = Convert-ToMemSize $TestParams.minMem $HvServer
+        if ($dmMinMem -le 0) {
+            Write-LogWarn "Unable to convert minMem to int64."
         }
+
         $maxMem_xmlValue = $TestParams.maxMem
         $dmMaxMem = Convert-ToMemSize $TestParams.maxMem $HvServer
-
-        if ($dmMaxMem -le 0)
-        {
-           Write-LogErr "Error: Unable to convert maxMem to int64."
+        if ($dmMaxMem -le 0) {
+            Write-LogWarn "Unable to convert maxMem to int64."
         }
+
         $startupMem_xmlValue = $TestParams.startupMem
         $dmStartupMem = Convert-ToMemSize $TestParams.startupMem $HvServer
-        if ($dmStartupMem -le 0)
-        {
-            Write-LogErr "Error: Unable to convert minMem to int64."
+        if ($dmStartupMem -le 0) {
+            Write-LogWarn "Unable to convert minMem to int64."
         }
-        $dmMemWeight = [Convert]::ToInt32($TestParams.memWeight)
 
-        if ($dmMemWeight -lt 0 -or $dmmemWeight -gt 100)
-        {
+        $dmMemWeight = [Convert]::ToInt32($TestParams.memWeight)
+        if (($dmMemWeight -lt 0) -or ($dmmemWeight -gt 100)) {
            throw "Error: Memory weight needs to be between 0 and 100."
         }
         Write-LogInfo "dmmemWeight $dmMemWeight"
 
-        if ($TestParams.bootLargeMem -ilike "yes")
-        {
-		    $bootLargeMem = $true
+        if ($TestParams.bootLargeMem -ilike "yes") {
+           $bootLargeMem = $true
         }
         Write-LogInfo "BootLargeMemory: $bootLargeMem"
+
         $dmStaticMem = Convert-ToMemSize $TestParams.staticMem $HvServer
-        if ($dmStaticMem -le 0)
-        {
-           Write-LogErr "Error: Unable to convert staticMem to int64."
+        if ($dmStaticMem -le 0) {
+           Write-LogWarn "Unable to convert staticMem to int64."
         }
         # check if we have all variables set
-        if ( $VMName -and ($tpEnabled -eq $false -or $tpEnabled -eq $true) -and $dmStartupMem -and ([int64]$dmMemWeight -ge [int64]0) )
-        {
+        if ($VMName -and ($tpEnabled -eq $false -or $tpEnabled -eq $true) -and $dmStartupMem -and ([int64]$dmMemWeight -ge [int64]0)) {
             # make sure VM is off
-            if (Get-VM -Name $VMName -ComputerName $HvServer |  Where-Object { $_.State -like "Running" })
-            {
+            if (Get-VM -Name $VMName -ComputerName $HvServer |  Where-Object { $_.State -like "Running" }) {
                 Write-LogInfo "Stopping VM $VMName"
                 Stop-VM -Name $VMName -ComputerName $HvServer -force
 
-                if (-not $?)
-                {
+                if (-not $?) {
                     throw "Error: Unable to shut $VMName down (in order to set Memory parameters)"
                 }
 
@@ -154,53 +141,41 @@ function Main {
 		        $freeMem = $OSInfo.FreePhysicalMemory * 1KB
 		        if ($dmStartupMem -le $freeMem) {
 			        Set-VMMemory -VMName $VMName -ComputerName $HvServer -DynamicMemoryEnabled $false -StartupBytes $dmStartupMem
-		        }
-		        else {
+		        } else {
 			        throw "Error: Insufficient memory to run test. Skipping test."
 		        }
-	        }
-            elseif ($tpEnabled)
-            {
-                if ($maxMem_xmlValue -eq $startupMem_xmlValue)
-                {
+	        } elseif ($tpEnabled) {
+                if ($maxMem_xmlValue -eq $startupMem_xmlValue) {
                     $dmStartupMem = $dmMaxMem
                 }
                 Set-VMMemory -VMName $VMName -ComputerName $HvServer -DynamicMemoryEnabled $tpEnabled `
                               -MinimumBytes $dmMinMem -MaximumBytes $dmMaxMem -StartupBytes $dmStartupMem `
                               -Priority $dmMemWeight
-            }
-            else
-            {
+            } else {
                 Set-VMMemory -VMName $VMName -ComputerName $HvServer -DynamicMemoryEnabled $tpEnabled `
                             -StartupBytes $dmStartupMem -Priority $dmMemWeight
             }
-            if (-not $?)
-            {
+            if (-not $?) {
                 throw "Error: Unable to set VM Memory for $VMName."
             }
             # check if mem is set correctly
             $vm_mem = (Get-VMMemory $VMName -ComputerName $HvServer).Startup
-            if( $vm_mem -eq $dmStartupMem )
-            {
+            if ($vm_mem -eq $dmStartupMem) {
                 Write-LogInfo "Set VM Startup Memory for $VMName to $dmStartupMem"
                 $testResult = "PASS"
-            }
-            else
-            {
+            } else {
                 throw "Error : Unable to set VM Startup Memory for $VMName to $dmStartupMem"
             }
         }
-    }
-    catch {
+    } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
         Write-LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
-    }
-    finally {
+    } finally {
         if (!$testResult) {
             $testResult = "ABORTED"
         }
-            $resultArr += $testResult
+        $resultArr += $testResult
     }
 
     $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr

@@ -63,8 +63,8 @@ function Main {
         for ($i = 0; $i -le 1; $i++ ) {
             $serviceAction = $setAction[$i]
             $serviceCommand = "echo serviceAction=$serviceAction  >> constants.sh"
-            $null = Run-LinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMPort $serviceCommand -runAsSudo
-            if (-not $sts[-1]) {
+            Run-LinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMPort $serviceCommand -runAsSudo | Out-Null
+            if ($? -eq $false) {
                 throw "Could not echo serviceAction to vm's constants.sh."
             }
             Write-LogInfo "$serviceAction hyperv backup service"
@@ -78,25 +78,22 @@ function Main {
             # when stop hypervvssd, backup offline backup
             if ( -not $stsBackUp[-1]) {
                 throw "Failed in start Backup"
-            }
-            else {
-                $backupLocation = $stsBackUp
+            } else {
+                $backupLocation = $stsBackUp[-1]
                 # if stop hypervvssd, vm does offline backup
                 $bkType = Get-BackupType
                 $temp = $backupTypes[$i]
                 if ( $bkType -ne $temp ) {
                     $testResult = "FAIL"
                     throw "Failed: Not get expected backup type as $temp"
-                }
-                else {
+                } else {
                      Write-LogInfo "Got expected backup type $temp"
                 }
-              $null = Remove-Backup $backupLocation
+                $null = Remove-Backup $backupLocation
             }
         }
         $testResult = "PASS"
-    }
-    catch {
+    } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
         Write-LogErr "$ErrorMessage at line: $ErrorLine"

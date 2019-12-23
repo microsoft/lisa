@@ -610,26 +610,28 @@ function Inject-HostnamesInHyperVVMs($allVMData) {
     }
 }
 
-function Get-VMPanicEvent {
+function Get-VMEvent {
     param(
         $VMName,
         $HvServer,
         $StartTime,
-        $RetryCount=30,
-        $RetryInterval=5
+        $EventID,
+        $LogName = "Microsoft-Windows-Hyper-V-Worker-Admin",
+        $RetryCount = 30,
+        $RetryInterval = 5
     )
 
     $currentRetryCount = 0
     $testPassed = $false
     while ($currentRetryCount -lt $RetryCount -and !$testPassed) {
-        Write-LogInfo "Checking eventlog for 18590 event sent by VM ${VMName}"
+        Write-LogInfo "Checking eventlog for $EventID event sent by VM ${VMName}"
         $currentRetryCount++
         $events = @(Get-WinEvent -FilterHashTable `
-            @{LogName = "Microsoft-Windows-Hyper-V-Worker-Admin";
+            @{LogName = $LogName;
               StartTime = $StartTime} `
             -ComputerName $hvServer -ErrorAction SilentlyContinue)
         foreach ($evt in $events) {
-            if ($evt.id -eq 18590 -and $evt.message.Contains($vmName)) {
+            if ($evt.id -eq $EventID -and $evt.message.Contains($vmName)) {
                 $testPassed = $true
                 break
             }

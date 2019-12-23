@@ -9,16 +9,16 @@ function Main {
     $params = Get-Content './heartbeat_params.info' | Out-String | ConvertFrom-StringData
 
     if ($params.vm_name) {
-        Write-Output "Info: Starting cleanup for the child VM"
+        Write-LogInfo "Starting cleanup for the child VM"
         Stop-VM -Name $params.vm_name -ComputerName $params.hvServer -TurnOff
         if (-not $?) {
-            Write-LogErr "Error: Unable to Shut Down VM $vmName1"
+            Write-LogErr "Unable to Shut Down VM $vmName1"
         }
 
         # Delete the child VM created
         Remove-VM -Name $params.vm_name -ComputerName $params.hvServer -Confirm:$false -Force
         if (-not $?) {
-            Write-LogErr "Error: Cannot remove the child VM $vmName1"
+            Write-LogErr "Cannot remove the child VM $vmName1"
         }
     }
 

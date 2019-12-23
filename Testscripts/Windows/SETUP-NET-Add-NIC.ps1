@@ -64,7 +64,7 @@ function Main {
         if ($temp[0].Trim() -match "NIC_") {
             $nicArgs = $temp[1].Split(',')
             if ($nicArgs.Length -lt 3) {
-                Write-LogErr "Error: Incorrect number of arguments for NIC test parameter: $p"
+                Write-LogErr "Incorrect number of arguments for NIC test parameter: $p"
                 return $false
 
             }
@@ -78,7 +78,7 @@ function Main {
 
             # Validate the network adapter type
             if (@("NetworkAdapter", "LegacyNetworkAdapter") -notcontains $nicType) {
-                Write-LogErr "Error: Invalid NIC type: $nicType"
+                Write-LogErr "Invalid NIC type: $nicType"
                 Write-LogErr "       Must be either 'NetworkAdapter' or 'LegacyNetworkAdapter'"
                 return $false
             }
@@ -87,14 +87,14 @@ function Main {
                 $legacy = $true
                 $vmGeneration = Get-VMGeneration $VMName $HvServer
                 if ($vmGeneration -eq 2 ) {
-                    Write-LogWarn "Warning: Generation 2 VM does not support LegacyNetworkAdapter, please skip this case in the test script"
+                    Write-LogWarn "Generation 2 VM does not support LegacyNetworkAdapter, please skip this case in the test script"
                     return $True
                 }
             }
 
             # Validate the Network type
             if (@("External", "Internal", "Private", "None") -notcontains $networkType) {
-                Write-LogErr "Error: Invalid netowrk type: $networkType"
+                Write-LogErr "Invalid netowrk type: $networkType"
                 Write-LogErr "       Network type must be either: External, Internal, Private, None"
                 return $false
             }
@@ -103,33 +103,33 @@ function Main {
             if ($networkType -notlike "None") {
                 $vmSwitch = Get-VMSwitch -Name $networkName -ComputerName $HvServer
                 if (-not $vmSwitch) {
-                    Write-LogErr "Error: Invalid network name: $networkName"
+                    Write-LogErr "Invalid network name: $networkName"
                     Write-LogErr "       The network does not exist"
                     return $false
                 }
 
                 # Make sure network is of stated type
                 if ($vmSwitch.SwitchType -notlike $networkType) {
-                    Write-LogErr "Error: Switch $networkName is type $vmSwitch.SwitchType (not $networkType)"
+                    Write-LogErr "Switch $networkName is type $vmSwitch.SwitchType (not $networkType)"
                     return $false
                 }
             }
 
             if ($isDynamicMAC -eq $true) {
                 $macAddress = Get-RandUnusedMAC $HvServer
-                Write-LogInfo "Info: Generated MAC address: $macAddress"
+                Write-LogInfo "Generated MAC address: $macAddress"
                 $streamWrite.WriteLine($macAddress)
             } else {
                 # Validate the MAC is the correct length
                 if ($macAddress.Length -ne 12) {
-                    Write-LogErr "Error: Invalid mac address: $p"
+                    Write-LogErr "Invalid mac address: $p"
                     return $false
                 }
                 # Make sure each character is a hex digit
                 $ca = $macAddress.ToCharArray()
                 foreach ($c in $ca) {
                     if ($c -notmatch "[A-Fa-f0-9]") {
-                        Write-LogErr "Error: MAC address contains non hexidecimal characters: $c"
+                        Write-LogErr "MAC address contains non hexidecimal characters: $c"
                         return $false
                     }
                 }
@@ -142,13 +142,13 @@ function Main {
                 Add-VMNetworkAdapter -VMName $VMName -StaticMacAddress $macAddress -IsLegacy:$legacy -ComputerName $HvServer
             }
             if ($? -ne "True") {
-                Write-LogErr "Error: Add-VMNetworkAdapter failed"
+                Write-LogErr "Add-VMNetworkAdapter failed"
                 $retVal = $False
             } else {
                 if ($networkName -like '*SRIOV*') {
                     $(Get-VM -Name $VMName -ComputerName $HvServer).NetworkAdapters | Where-Object { $_.SwitchName -like '*SRIOV*' } | Set-VMNetworkAdapter -IovWeight 1
                     if ($? -ne $True) {
-                        Write-LogErr "Error: Unable to enable SRIOV"
+                        Write-LogErr "Unable to enable SRIOV"
                         $retVal = $False
                     } else {
                         $retVal = $True

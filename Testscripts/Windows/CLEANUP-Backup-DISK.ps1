@@ -5,7 +5,7 @@
     This script creates a disk to be used for backup and restore tests
 .Description
     This script will create a new VHD double the size of the VHD in the
-    given vm. The VHD will be mounted to a new partiton, initialized and
+    given vm. The VHD will be mounted to a new partition, initialized and
     formatted with NTFS
 #>
 param([object] $AllVmData)
@@ -23,6 +23,7 @@ function Main {
         Set-Location $WorkingDirectory
         $backupdiskpath = (Get-VMHost).VirtualHardDiskPath + "\" + $VMName + "_VSS_DISK.vhdx"
         $tempFile = (Get-VMHost).VirtualHardDiskPath + "\" + $VMName + "_DRIVE_LETTER.txt"
+        $isoPath_default = (Get-VMHost).VirtualHardDiskPath + "\" + $VMName + "_CDtest.iso"
         # This is used to set the $global:driveletter variable
         Get-DriveLetter $VMName $HvServer
         if ($global:driveletter) {
@@ -38,10 +39,13 @@ function Main {
             if (-not $?) {
                 Write-LogErr "Could not remove temporary file"
             }
+            Remove-Item $isoPath_default -Force -ErrorAction SilentlyContinue
+            if (-not $?) {
+                Write-LogWarn "$isoPath_default doesn't exist"
+            }
             Write-LogInfo "Cleanup completed!"
-            $testResult=$resultPass
-        }
-        else {
+            $testResult = $resultPass
+        } else {
             Write-LogErr "Drive letter isn't set"
         }
     } catch {

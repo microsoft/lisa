@@ -52,8 +52,7 @@ function Main {
     $BuildNumber = Get-HostBuildNumber $HvServer
     if ($BuildNumber -eq 0) {
         return "FAIL"
-    }
-    elseif ($BuildNumber -lt 9600) {
+    } elseif ($BuildNumber -lt 9600) {
         return "ABORTED"
     }
     # Check VM state
@@ -76,7 +75,7 @@ function Main {
     }
 
     $null = Check-Systemd -Ipv4 $Ipv4 -SSHPort $VMPort -Username $VMUserName -Password $VMPassword
-    if ( -not $True) {
+    if (-not $True) {
         Write-LogErr "Systemd is not being used. Test Skipped"
         return "FAIL"
     }
@@ -152,8 +151,7 @@ function Main {
     if ($operStatus -ne "Ok") {
         Write-LogErr "The Guest services are not working properly for VM $VMName!"
         return "FAIL"
-    }
-    else {
+    } else {
         $fileToCopySize = Convert-StringToUInt64 -str $FcopyFileSize
 
         # Create a 5GB sample file
@@ -178,7 +176,7 @@ function Main {
     $checkProcess = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
         "systemctl is-active $daemonName --quiet" -runAsSudo -ignoreLinuxExitCode
     #will exit with status zero if service is active
-    if ( $checkProcess -ne "0" ) {
+    if ($checkProcess -ne "0") {
         Write-LogErr "Warning: $daemonName was not automatically started by systemd. Will start it manually."
         $null = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
         " systemctl start $daemonName" -runAsSudo
@@ -203,8 +201,7 @@ function Main {
 
     if ($Error.Count -eq 0) {
         Write-LogInfo "File has been successfully copied to guest VM '${vmName}'"
-    }
-    else {
+    } else {
         Write-LogErr "File could not be copied!"
         return "FAIL"
     }
@@ -215,13 +212,11 @@ function Main {
     # Checking if the file is present on the guest and file size is matching
     $sts = Check-FileInLinuxGuest -vmUserName $VMUserName -vmPassword $VMPassword -vmPort $VMPort -ipv4 $Ipv4 -fileName "/mnt/test/$testfile" -checkSize $true
     if (-not $sts) {
-        Write-LogErr "File is not present on the guest VM"
+        Write-LogErr "File was not present on the guest VM"
         return "FAIL"
-    }
-    elseif ($sts -eq $fileToCopySize) {
+    } elseif ($sts -eq $fileToCopySize) {
         Write-LogInfo "The file copied matches the $FcopyFileSize size."
-    }
-    else {
+    } else {
         Write-LogErr "The file copied doesn't match the $FcopyFileSize size!"
         return "FAIL"
     }

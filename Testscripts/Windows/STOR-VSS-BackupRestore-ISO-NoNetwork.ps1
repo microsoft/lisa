@@ -66,53 +66,44 @@ function Main {
         $defaultVhdPath = $obj.DefaultVirtualHardDiskPath
         if (-not $defaultVhdPath) {
             Write-LogErr "Unable to determine VhdDefaultPath on Hyper-V server ${hvServer}"
-            $error[0].Exception
+            $exception = $error[0].Exception.Message
+            Write-LogErr "$exception"
             return $False
         }
         if (-not $defaultVhdPath.EndsWith("\")) {
             $defaultVhdPath += "\"
         }
         $isoPath = $defaultVhdPath + "${vmName}_CDtest.iso"
-        Write-LogInfo "iso path: $isoPath defaultVhdPath $defaultVhdPath"
+        Write-LogInfo "ISO path: $isoPath defaultVhdPath $defaultVhdPath"
         $WebClient = New-Object System.Net.WebClient
         $WebClient.DownloadFile("$url", "$isoPath")
         try {
-            Get-RemoteFileInfo -filename $isoPath  -server $HvServer
-        }
-        catch {
-            Write-LogErr "The .iso file $isoPath could not be found!"
-            throw
+            Get-RemoteFileInfo -filename $isoPath -server $HvServer | Out-Null
+        } catch {
+            throw "The .iso file $isoPath could not be found!"
         }
         Set-VMDvdDrive -VMName $VMName -ComputerName $hvServer -Path $isoPath
         if (-not $?) {
-                throw "Unable to Add ISO $isoPath"
+            throw "Unable to Add ISO $isoPath"
         }
         Write-LogInfo "Attached DVD: Success"
         # Bring down the network.
-        $remoteTest = "echo '${password}' | sudo -S -s eval `"export HOME=``pwd``;bash ${RemoteScript} > remotescript.log`""
+        $remoteTest = "bash ${RemoteScript} > remotescript.log"
         Write-LogInfo "Run the remotescript $remoteScript"
         #Run the test on VM
-        $null = Run-LinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMPort $remoteTest -runAsSudo
+        Run-LinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMPort $remoteTest -runAsSudo -RunInBackGround | Out-Null
         Start-Sleep -Seconds 3
         # Make sure network is down.
         $sts = ping $VMIpv4
-        $pingresult = $False
-        foreach ($line in $sts) {
-           if (( $line -Like "*unreachable*" ) -or ($line -Like "*timed*")) {
-               $pingresult = $True
-           }
-        }
-        if ($pingresult) {
+        if ((($sts -like '*Request timed out*').Count -gt 0) -or (($sts -like '*unreachable*').Count -gt 0)) {
             Write-LogInfo "Network Down: Success"
-        }
-        else {
+        } else {
             throw "Network Down: Failed"
         }
         $sts = New-Backup $VMName $driveLetter $HvServer $VMIpv4 $VMPort
         if (-not $sts[-1]) {
             throw "Could not create a Backup Location"
-        }
-        else {
+        } else {
             $backupLocation = $sts[-1]
         }
         $sts = Restore-Backup $backupLocation $HypervGroupName $VMName
@@ -124,11 +115,11 @@ function Main {
             throw "Backup evaluation failed"
         }
         $null = Remove-Backup $backupLocation
-        if( $testResult -ne $resultFail) {
-            $testResult=$resultPass
+        if ($testResult -ne $resultFail) {
+            $testResult = $resultPass
         }
     } catch {
-        $ErrorMessage =  $_.Exception.Message
+        $ErrorMessage = $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
         Write-LogErr "$ErrorMessage at line: $ErrorLine"
     } finally {

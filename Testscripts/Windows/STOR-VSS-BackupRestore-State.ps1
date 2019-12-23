@@ -107,8 +107,7 @@ function Main
         $sts = New-Backup $VMName $driveletter $HvServer $VMIpv4 $VMPort
         if (-not $sts[-1]) {
             throw "Could not create a Backup Location"
-        }
-        else {
+        } else {
             $backupLocation = $sts[-1]
         }
         $sts = Restore-Backup $backupLocation $HypervGroupName $VMName
@@ -119,7 +118,7 @@ function Main
         if (-not $sts[-1]) {
             throw "Backup evaluation failed"
         }
-        Remove-Backup $backupLocation
+        Remove-Backup $backupLocation | Out-Null
         if( $testResult -ne $resultFail) {
             $testResult=$resultPass
         }

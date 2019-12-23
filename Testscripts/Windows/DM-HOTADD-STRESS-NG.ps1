@@ -44,9 +44,9 @@ function Main {
         $testResult = $null
         $captureVMData = $allVMData
         $VMName = $captureVMData.RoleName
-        $HvServer= $captureVMData.HyperVhost
+        $HvServer = $captureVMData.HyperVhost
         $Ipv4 = $captureVMData.PublicIP
-        $VMPort= $captureVMData.SSHPort
+        $VMPort = $captureVMData.SSHPort
         # Check input arguments
         if (-not $VMName) {
             throw "VM name is null. "
@@ -83,11 +83,10 @@ function Main {
             throw "VM $vm1Name does not exist"
         }
         # Install stress-ng if not installed
-        if($appGitURL) {
+        if ($appGitURL) {
             Write-LogInfo "Stress-ng installation started"
             $retVal = Publish-App "stress-ng" $Ipv4 $appGitURL $appGitTag $VMPort
-            if (-not $retVal)
-            {
+            if (-not $retVal) {
                 Throw "stress-ng could not be installed! Please install it before running the memory stress tests." | Tee-Object -Append -file $summaryLog
             }
             Write-LogInfo "Stress-ng is installed"
@@ -95,8 +94,7 @@ function Main {
         Start-Sleep -Seconds 40
         $sleepPeriod = 120 #seconds
         # Get VM1 Memory
-        while ($sleepPeriod -gt 0)
-        {
+        while ($sleepPeriod -gt 0) {
             [int64]$vm1BeforeAssigned = ($vmInfo.MemoryAssigned/1MB)
             [int64]$vm1BeforeDemand = ($vmInfo.MemoryDemand/1MB)
             if ($vm1BeforeAssigned -gt 0 -and $vm1BeforeDemand -gt 0) {
@@ -116,18 +114,15 @@ function Main {
             $sleepTime = 20
             $duration = 0
             $chunk = 0
-        }
-        elseif ($timeoutStress -eq 1) {
+        } elseif ($timeoutStress -eq 1) {
             $sleepTime = 60
             $duration = 120
             $chunk = 1
-        }
-        elseif ($timeoutStress -eq 2) {
+        } elseif ($timeoutStress -eq 2) {
             $sleepTime = 20
             $duration = 40
             $chunk = 1
-        }
-        else {
+        } else {
           $sleepTime = 20
           $duration = 40
           $chunk = 1
@@ -139,11 +134,10 @@ function Main {
         # Send Command to consume
         if ($timeoutStress -ge 1) {
             $startMemory = Get-MemoryStressNG $Ipv4 $VMPort $timeoutStress $vm1ConsumeMem $duration $chunk
-        }
-        else {
+        } else {
             $startMemory = Start-StressNg $Ipv4 $VMPort
         }
-        if (-not $startMemory){
+        if (-not $startMemory) {
            Throw "Unable to start job for creating pressure on $vm1Name" | Tee-Object -Append -file $summaryLog
         }
         # Wait for stress-ng to start and the memory assigned/demand gets updated
@@ -160,14 +154,13 @@ function Main {
         }
         # Wait for jobs to finish now and make sure they exited successfully
         $timeout = 240
-        while ($timeout -gt 0)
-        {
+        while ($timeout -gt 0) {
             $timeout -= 5
             Start-Sleep -Seconds 5
         }
         # Verify if errors occured on guest
         $isAlive = Wait-ForVMToStartKVP $vm1Name $hvServer 10
-        if (-not $isAlive){
+        if (-not $isAlive) {
             $testResult = $resultFail
             Throw "VM is unresponsive after running the memory stress test" | Tee-Object -Append -file $summaryLog
         }
@@ -184,13 +177,11 @@ function Main {
         }
         Write-LogInfo "Memory Hot Add (using stress-ng) completed successfully!" | Tee-Object -Append -file $summaryLog
         $testResult = $resultPass
-    }
-    catch {
+    } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
         Write-LogErr "$ErrorMessage at line: $ErrorLine"
-    }
-    finally {
+    } finally {
         if (!$testResult) {
             $testResult = "ABORTED"
         }

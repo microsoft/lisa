@@ -256,7 +256,7 @@ Function Upgrade-Kernel ($allVMData, $TestProvider, [switch]$RestartAfterUpgrade
         if ($upgraded_kernel) {
             Write-LogInfo "Kernel version after upgrade: ${upgraded_kernel}"
         } else {
-            Write-LogInfo "Warn: Cannot find upgraded kernel version"
+            Write-LogWarn "Cannot find upgraded kernel version"
         }
         $kernel_version_before_upgrade = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "uname -r"
         Write-LogInfo "kernel version before upgrade: $kernel_version_before_upgrade"

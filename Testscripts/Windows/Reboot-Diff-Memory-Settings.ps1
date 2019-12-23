@@ -24,7 +24,7 @@ function Main {
 
     # Change the working directory to where we need to be
     if (-not (Test-Path $rootDir)) {
-        Write-LogErr "Error: The directory `"${rootDir}`" does not exist"
+        Write-LogErr "The directory `"${rootDir}`" does not exist"
         return "FAIL"
     }
     Set-Location $rootDir
@@ -45,7 +45,7 @@ function Main {
         if ($vm.State -ne "Off") {
             Stop-VM -Name $VMName -ComputerName $HvServer -Force
             if (-not $?) {
-               Write-LogErr "Error: Unable to Shut Down VM"
+               Write-LogErr "Unable to Shut Down VM"
                $retVal = "FAIL"
                break
             }
@@ -53,7 +53,7 @@ function Main {
             $timeout = 180
             $sts = Wait-ForVMToStop $VMName $HvServer $timeout
             if (-not $sts) {
-               Write-LogErr "Error: Wait-ForVMToStop fail"
+               Write-LogErr "Wait-ForVMToStop fail"
                $retVal = "FAIL"
                break
             }
@@ -64,7 +64,7 @@ function Main {
         if ($sts[-1] -eq "True") {
             Write-LogInfo "VM memory count updated to $memory GB RAM"
         } else {
-            Write-LogErr "Error: Unable to update VM memory to $memory GB RAM. Consider changing the value."
+            Write-LogErr "Unable to update VM memory to $memory GB RAM. Consider changing the value."
             $retVal = "FAIL"
             break
         }
@@ -72,7 +72,7 @@ function Main {
         $Error.Clear()
         Start-VM -Name $VMName -ComputerName $HvServer  -ErrorAction SilentlyContinue
         if ($Error[0] -and $Error[0].Exception.Message.Contains("Not enough memory")) {
-            Write-LogErr "Error: Not enough memory ($memory) GB to start VM. Consider changing the value."
+            Write-LogErr "Not enough memory ($memory) GB to start VM. Consider changing the value."
             $retVal = "FAIL"
             break
         }
@@ -85,7 +85,7 @@ function Main {
             Write-LogInfo "${VMName} IP Address after reboot: ${new_ipv4}"
             Set-Variable -Name "Ipv4" -Value $new_ipv4 -Scope Global
         } else {
-            Write-LogErr "Error: VM $VMName failed to start after setting $numCPUs vCPUs"
+            Write-LogErr "VM $VMName failed to start after setting $numCPUs vCPUs"
             $retVal = "FAIL"
             break
         }

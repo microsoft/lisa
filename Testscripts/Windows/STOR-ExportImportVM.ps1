@@ -136,7 +136,7 @@ function Main {
         }
         Default {
             # An unsupported version of Windows Server
-            "Error: Unsupported build of Windows Server"
+            Write-LogErr "Unsupported build of Windows Server"
             return "FAIL"
         }
     }

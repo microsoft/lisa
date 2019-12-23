@@ -44,12 +44,12 @@ function New-ParentVhd {
 
     $hostInfo = Get-VMHost -ComputerName $server
     if (-not $hostInfo) {
-            Write-LogErr "Unable to collect Hyper-V settings for ${server}"
-            return $False
+        Write-LogErr "Unable to collect Hyper-V settings for ${server}"
+        return $False
     }
     $defaultVhdPath = $hostInfo.VirtualHardDiskPath
     if (-not $defaultVhdPath.EndsWith("\")) {
-            $defaultVhdPath += "\"
+        $defaultVhdPath += "\"
     }
 
     $parentVhdName = $defaultVhdPath + $vmName + "_Parent." + $vhdFormat
@@ -135,7 +135,7 @@ function Main {
     }
 
     if (-not $Global:WorkingDirectory) {
-        Write-LogErr "no rootdir was specified"
+        Write-LogWarn "No rootdir was specified"
     } else {
         Set-Location $Global:WorkingDirectory
     }

@@ -24,7 +24,7 @@ function Main {
 
     # Change the working directory
     if (-not (Test-Path $RootDir)) {
-        Write-LogErr "Error: The directory `"${RootDir}`" does not exist"
+        Write-LogErr "The directory `"${RootDir}`" does not exist"
         return "ABORTED"
     }
     Set-Location $RootDir
@@ -35,7 +35,7 @@ function Main {
         $VMPassword $supportedKernel
 
     if ($kernelSupport -ne $True) {
-        Write-LogInfo "Info: Current VM Linux kernel version does not support vDSO feature."
+        Write-LogInfo "Current VM Linux kernel version does not support vDSO feature."
         return "ABORTED"
     }
 
@@ -44,7 +44,7 @@ function Main {
     Run-LinuxCmd -ip $Ipv4 -port $VMPort -username $VMUserName -password `
         $VMPassword -command $compileCmd -runAsSudo
     if ($? -ne $True) {
-        Write-LogErr "Error: Unable to compile gettime.c"
+        Write-LogErr "Unable to compile gettime.c"
         return "ABORTED"
     }
 
@@ -61,7 +61,7 @@ function Main {
     Write-LogInfo "real time: $real :: sys time: $sys"
     # Support VDSO, sys time should be shorter than 1.0 second
     if (([float]$real -gt 10.0) -or ([float]$sys -gt 1.0)) {
-        Write-LogErr "Error: Check real time is $real(>10.0s), sys time is $sys(>1.0s)"
+        Write-LogErr "Check real time is $real(>10.0s), sys time is $sys(>1.0s)"
         return "FAIL"
     } else {
         Write-LogInfo "Check real time is $real(<10.0s), sys time is $sys(<1.0s)"

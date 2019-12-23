@@ -140,7 +140,7 @@ function Main {
         }
         Write-LogInfo "After reboot Memory stats $vmName memory was increased with 1000MB"
         Write-LogInfo "${vmName}: assigned - $vm1AfterAssigned | demand - $vm1AfterDemand"
-        Write-LogInfo "Info: VM memory changed successfully!"
+        Write-LogInfo "VM memory changed successfully!"
         $testResult = $resultPass
     }
     catch {

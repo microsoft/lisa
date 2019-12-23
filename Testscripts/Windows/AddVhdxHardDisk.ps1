@@ -154,7 +154,8 @@ function Create-HardDrive( [string] $vmName, [string] $server, [System.Boolean] 
      -ControllerLocation $Lun -ControllerType $controllerType -ComputerName $server
     if ($error.Count -gt 0) {
         Write-LogErr "Add-VMHardDiskDrive failed to add drive on ${controllerType} ${controllerID} ${Lun}s"
-        $error[0].Exception
+        $exception = $error[0].Exception.Message
+        Write-LogErr "$exception"
         return $retVal
     }
 
@@ -246,7 +247,7 @@ function Main {
         # does contain a value.
         $p -match '^([^=]+)=(.+)' | Out-Null
         if ($Matches[1,2].Length -ne 2) {
-        Write-LogInfo "Warn : test parameter '$p' is being ignored because it appears to be malformed"
+            Write-LogWarn "Test parameter '$p' is being ignored because it appears to be malformed"
             continue
         }
 

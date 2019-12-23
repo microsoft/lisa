@@ -423,7 +423,7 @@ function Create-ChildVHD {
 	}
 
 	if (Test-Path $ChildVHD) {
-		Write-LogInfo "Remove-Itemeting existing VHD $ChildVHD"
+		Write-LogInfo "Remove-Item existing VHD $ChildVHD"
 		Remove-Item $ChildVHD
 	}
 
@@ -525,7 +525,8 @@ function Create-Controller{
 		Add-VMScsiController -VMName $vmName -ComputerName $server
 		if ($error.Count -gt 0) {
 			Write-LogErr "Add-VMScsiController failed to add 'SCSI Controller $ControllerID'"
-			$error[0].Exception
+			$exception = $error[0].Exception.Message
+			Write-LogErr "$exception"
 			return $False
 		}
 		Write-LogInfo "Controller successfully added"
@@ -545,7 +546,7 @@ function Get-TimeSync {
 	$unixTimeStr = Run-LinuxCmd -ip $Ipv4 -port $Port -username $Username -password $Password `
 		-command 'date "+%m/%d/%Y/%T" -u'
 	if (-not $unixTimeStr) {
-		Write-LogErr "Error: Unable to get date/time string from VM"
+		Write-LogErr "Unable to get date/time string from VM"
 		return $False
 	}
 
@@ -559,7 +560,7 @@ function Get-TimeSync {
 	$diffInSeconds = $null
 	$timeSpan = $windowsTime - $unixTime
 	if (-not $timeSpan) {
-		Write-LogErr "Error: Unable to compute timespan"
+		Write-LogErr "Unable to compute timespan"
 		return $False
 	} else {
 		$diffInSeconds = [Math]::Abs($timeSpan.TotalSeconds)
@@ -585,7 +586,7 @@ function Optimize-TimeSync {
 		-password $Password -command `
 		"echo '${Password}' | sudo -S -s eval `"export HOME=``pwd``;bash ${testScript} > ${testScript}.log`""
 	if (-not $?) {
-		Write-LogInfo "Error: Failed to configure time sync. Check logs for details."
+		Write-LogErr "Failed to configure time sync. Check logs for details."
 		return $False
 	}
 	return $True
@@ -711,7 +712,8 @@ function Copy-CheckFileInLinuxGuest{
 		}
 	} else {
 		Write-LogErr "An error has occurred while copying the file to guest VM '${vmName}'."
-		$error[0]
+		$exception = $error[0].Exception.Message
+		Write-LogErr "$exception"
 		return $False
 	}
 	return $True
@@ -845,10 +847,11 @@ Function Restore-Backup {
 	Start-WBHyperVRecovery -BackupSet $BackupSet -VMInBackup $BackupSet.Application[0].Component[0] `
 		-Force -WarningAction SilentlyContinue
 	$sts = Get-WBJob -Previous 1
+	Write-LogDbg "JobState - $($sts.JobState), HResult - $($sts.HResult)"
 	if ($sts.JobState -ne "Completed" -or $sts.HResult -ne 0) {
 		Write-LogErr "VSS Restore failed"
 		if (!(Get-VM -ErrorAction SilentlyContinue -Name $VMName)) {
-			# Note (v-advlad): doing the best effort to revive the VM
+			# Doing the best effort to revive the VM
 			Write-LogInfo "Restoring the initial VM, as the VM does not exist anymore"
 			Import-VM -Path $(Join-Path $((Get-VMHost).VirtualMachinePath + "\Virtual Machines") `
 				$($vm.VMId.Guid + ".vmcx")) -ErrorAction SilentlyContinue
@@ -914,8 +917,8 @@ Function Check-VMStateAndFileStatus {
 	}
 	Write-LogInfo "${VMName} IP is $ip_address"
 	# check selinux denied log after IP injection
-	$sts=Get-SelinuxAVCLog -ipv4 $VMIpv4 -SSHPort $VMPort -Username "root" -Password $password
-	if (-not $sts) {
+	$sts = Get-SelinuxAVCLog -ipv4 $VMIpv4 -SSHPort $VMPort -Username $user -Password $password
+	if ($sts) {
 		return $False
 	}
 	# only check restore file when IP available
@@ -936,7 +939,7 @@ Function Check-VMStateAndFileStatus {
 
 Function Remove-Backup {
 	param (
-		[String] $BackupLocation
+		$BackupLocation
 	)
 	# Remove Created Backup
 	Write-LogInfo "Removing old backups from $BackupLocation"
@@ -952,7 +955,7 @@ Function Get-BackupType() {
 	$backupType = $null
 	$sts = Get-WBJob -Previous 1
 	if ($sts.JobState -ne "Completed" -or $sts.HResult -ne 0) {
-		Write-LogErr "Error: VSS Backup failed "
+		Write-LogErr "VSS Backup failed "
 		return $backupType
 	}
 	$contents = Get-Content $sts.SuccessLogPath

@@ -131,21 +131,19 @@ function Main {
         # Checking if the file size is matching
         $sts = Check-FileInLinuxGuest -vmPassword $VMPassword -vmPort $VMPort -vmUserName $VMUserName -ipv4 $Ipv4 -filename "/tmp/$testfile" -checkSize $true
         if (-not $sts) {
-            Write-LogErr "File is not present on the guest VM '${vmName}'!"
+            Write-LogErr "File was not present on the guest VM '${vmName}'!"
             return "FAIL"
-        }
-        elseif ($sts -eq 10485760) {
-            Write-LogInfo "Info: The file copied matches the 10MB size."
+        } elseif ($sts -eq 10485760) {
+            Write-LogInfo "The file copied matches the 10MB size."
             return "PASS"
-        }
-        else {
+        } else {
             Write-LogErr "The file copied doesn't match the 10MB size!"
             return "FAIL"
         }
-    }
-    elseif ($Error.Count -gt 0) {
+    } elseif ($Error.Count -gt 0) {
         Write-LogErr "Test FAIL. An error has occurred while copying the file to guest VM '${vmName}'!"
-        $error[0]
+        $exception = $error[0].Exception.Message
+        Write-LogErr "$exception"
         return "FAIL"
     }
 
@@ -155,8 +153,7 @@ function Main {
 
     if ($error.Count -eq 0) {
         Write-LogInfo "Test PASS! File could not be copied as it already exists on guest VM '${vmName}'"
-    }
-    else{
+    } else{
         Write-LogErr "File '${testfile}' has been copied twice to guest VM '${vmName}'!"
         return "FAIL"
     }

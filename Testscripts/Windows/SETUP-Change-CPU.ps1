@@ -117,13 +117,13 @@ function Main {
         $retVal = $false
         Write-LogErr "Unable to update NUMA nodes!"
     }
-
+    $currentMemory = Get-VMMemory -VMName $VMName -ComputerName $HvServer
     if ($null -ne $memWeight) {
         Set-VMMemory $VMName -ComputerName $HvServer -Priority $memWeight
     }
 
     if ($null -ne $startupMem) {
-        Set-VMMemory -vmName $VMName -ComputerName $HvServer -DynamicMemoryEnabled $false -StartupBytes $startupMem
+        Set-VMMemory -vmName $VMName -ComputerName $HvServer -DynamicMemoryEnabled $currentMemory.DynamicMemoryEnabled -StartupBytes $startupMem
     }
 
     if ($null -ne $mem) {
@@ -137,7 +137,6 @@ function Main {
             $retVal = $false
         }
     }
-
     return $retVal
 }
 

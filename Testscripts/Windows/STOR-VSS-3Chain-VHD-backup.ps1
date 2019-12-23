@@ -32,17 +32,17 @@ function Main {
         $testResult = $null
         $captureVMData = $allVMData
         $VMName = $captureVMData.RoleName
-        $HvServer= $captureVMData.HyperVhost
+        $HvServer = $captureVMData.HyperVhost
         $VMIpv4 = $captureVMData.PublicIP
         $VMPort = $captureVMData.SSHPort
-        $HypervGroupName=$captureVMData.HyperVGroupName
+        $HypervGroupName = $captureVMData.HyperVGroupName
         Write-LogInfo "Test VM details :"
         Write-LogInfo "  RoleName : $($captureVMData.RoleName)"
         Write-LogInfo "  Public IP : $($captureVMData.PublicIP)"
         Write-LogInfo "  SSH Port : $($captureVMData.SSHPort)"
         Write-LogInfo "  HostName : $($captureVMData.HyperVhost)"
-        $vmName1 = "${vmName}_ChildVM"
-        Write-LogInfo "vmName1 Name is $vmName1"
+        $childVMName = "${vmName}_ChildVM"
+        Write-LogInfo "childVMName Name is $childVMName"
         Set-Location $WorkingDirectory
         $sts = New-BackupSetup $VMName $HvServer
         if (-not $sts[-1]) {
@@ -52,11 +52,6 @@ function Main {
         $sts = Check-VSSDemon $VMName $HvServer $VMIpv4 $VMPort
         if (-not $sts) {
             throw "VSS Daemon is not running"
-        }
-        # Create a file on the VM before backup
-        $null = Run-LinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMPort -command "touch /home/$user/1" -runAsSudo
-        if (-not $?) {
-            throw "Cannot create test file"
         }
         $driveletter = $global:driveletter
         if ($null -eq $driveletter) {
@@ -75,7 +70,7 @@ function Main {
             throw "Unable to Shut Down VM"
         }
         # Clean snapshots
-        Write-LogInfo "INFO:  Cleaning up snapshots"
+        Write-LogInfo "Cleaning up snapshots"
         $sts = Restore-LatestVMSnapshot $VMName $HvServer
         if (-not $sts[-1]) {
             throw "Cleaning snapshots on $VMName failed."
@@ -86,8 +81,16 @@ function Main {
             throw "Unable to get parent VHD of VM $VMName"
         }
         Write-LogInfo "Successfully Got Parent VHD"
+        $obj = Get-WmiObject -ComputerName $HvServer -Namespace "root\virtualization\v2" -Class "MsVM_VirtualSystemManagementServiceSettingData"
+        $defaultVhdPath = $obj.DefaultVirtualHardDiskPath
+        if (-not $defaultVhdPath) {
+            throw "Unable to determine VhdDefaultPath on Hyper-V server ${hvServer}"
+        }
+        if (-not $defaultVhdPath.EndsWith("\")) {
+            $defaultVhdPath += "\"
+        }
         # Create Child and Grand-Child VHD, use temp path to avoid using same disk with backup drive
-        $childVhd = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(),"vssVhd")
+        $childVhd = $defaultVhdPath + "$VMName" + "_vssVhd"
         $CreateVHD = Create-ChildVHD $ParentVHD $childVhd $HvServer
         if(-not $CreateVHD) {
             throw "Unable to create Child and Grand Child VHD of VM $VMName"
@@ -99,44 +102,49 @@ function Main {
         # Get-VM
         $vm = Get-VM -Name $VMName -ComputerName $HvServer
         # Get the VM Network adapter so we can attach it to the new VM
-        $VMNetAdapter = Get-VMNetworkAdapter $VMName
+        $VMNetAdapter = Get-VMNetworkAdapter -VMName $VMName -ComputerName $HvServer
         if (-not $?) {
             throw "Unable to get network adapter"
         }
         #Get VM Generation
         $vm_gen = $vm.Generation
         # Create the GChildVM
-        New-VM -Name $vmName1 -ComputerName $HvServer -VHDPath $GChildVHD -MemoryStartupBytes 1024MB -SwitchName $VMNetAdapter[0].SwitchName -Generation $vm_gen
+        New-VM -Name $childVMName -ComputerName $HvServer -VHDPath $GChildVHD -MemoryStartupBytes 1024MB -SwitchName $VMNetAdapter[0].SwitchName -Generation $vm_gen | Out-Null
         if (-not $?) {
-            throw "Creating New VM"
+            throw "Failed to create a new VM"
         }
         # Disable secure boot
         if ($vm_gen -eq 2) {
-            Set-VMFirmware -VMName $vmName1 -ComputerName $HvServer -EnableSecureBoot Off
+            Set-VMFirmware -VMName $childVMName -ComputerName $HvServer -EnableSecureBoot Off
             if(-not $?) {
                 throw "Unable to disable secure boot"
             }
         }
-        Write-LogInfo "New 3 Chain VHD VM $vmName1 created"
-        $newIpv4 = Start-VMandGetIP $vmName1 $HvServer $VMPort $user $password
-        Write-LogInfo "New VM $vmName1 started having IP $newIpv4"
-        $sts = New-Backup $vmName1 $driveletter $HvServer $VMIpv4 $VMPort
+        Write-LogInfo "New 3 Chain VHD VMs $childVMName created"
+        $newIpv4 = Start-VMandGetIP $childVMName $HvServer $VMPort $user $password
+        Write-LogInfo "New VM $childVMName started having IP $newIpv4"
+        # Create a file on the VM before backup
+        $null = Run-LinuxCmd -username $user -password $password -ip $newIpv4 -port $VMPort -command "touch /home/$user/1" -runAsSudo
+        if (-not $?) {
+            throw "Cannot create a test file"
+        }
+        $sts = New-Backup $childVMName $driveletter $HvServer $newIpv4 $VMPort
         if (-not $sts[-1]) {
             throw "Failed to backup the VM"
         } else {
             $backupLocation = $sts[-1]
         }
-        $sts = Restore-Backup $backupLocation $HypervGroupName $vmName1
+        $sts = Restore-Backup $backupLocation $HypervGroupName $childVMName
         if (-not $sts[-1]) {
             throw "Restore backup action failed for $backupLocation"
         }
-        $sts = Check-VMStateAndFileStatus $VMName $HvServer $VMIpv4 $VMPort
+        $sts = Check-VMStateAndFileStatus $childVMName $HvServer $newIpv4 $VMPort
         if (-not $sts) {
             throw "Backup evaluation failed"
         }
-        $sts = Stop-VM -Name $vmName1 -ComputerName $HvServer -TurnOff
+        $sts = Stop-VM -Name $childVMName -ComputerName $HvServer -TurnOff
         if (-not $?) {
-            throw "Unable to Shut Down VM $vmName1"
+            throw "Unable to Shut Down VM $childVMName"
         }
         $null = Remove-Backup $backupLocation
         if(-not $?) {
@@ -144,19 +152,24 @@ function Main {
         }
         Write-LogInfo "Cleanup is completed"
         # Clean Delete New VM created
-        $sts = Remove-VM -Name $vmName1 -ComputerName $HvServer -Confirm:$false -Force
+        $sts = Remove-VM -Name $childVMName -ComputerName $HvServer -Confirm:$false -Force
         if (-not $?) {
-            throw "Unable to delete New VM $vmName1"
+            throw "Unable to delete New VM $childVMName"
+        } else {
+            Remove-Item -Path $CreateVHD -ErrorAction SilentlyContinue
+            if (-not $?) {
+                Write-LogWarn "$CreateVHD not exist"
+            }
         }
-        Write-LogInfo "Deleted VM $vmName1"
-        $testResult=$resultPass
-    }
-    catch {
+        Write-LogInfo "Deleted VM $childVMName"
+        $newIpv4 = Start-VMandGetIP $vmName $HvServer $VMPort $user $password
+        $AllVMData[0].PublicIP = $newIpv4
+        $testResult = $resultPass
+    } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
         Write-LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
-    }
-    finally {
+    } finally {
         if (!$testResult) {
             $testResult = "Aborted"
         }

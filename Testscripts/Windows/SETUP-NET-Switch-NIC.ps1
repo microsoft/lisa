@@ -35,7 +35,7 @@ function Main {
         if ($temp[0].Trim() -eq "SWITCH") {
             $nicArgs = $temp[1].Split(',')
             if ($nicArgs.Length -lt 3) {
-                Write-LogErr "Error: Incorrect number of arguments for SWITCH test parameter: $p"
+                Write-LogErr "Incorrect number of arguments for SWITCH test parameter: $p"
                 return $False
             }
 
@@ -51,7 +51,7 @@ function Main {
 
             # Validate the network adapter type
             if (@("NetworkAdapter", "LegacyNetworkAdapter") -notcontains $nicType) {
-                Write-LogErr "Error: Invalid NIC type: $nicType"
+                Write-LogErr "Invalid NIC type: $nicType"
                 Write-LogErr "Must be either 'NetworkAdapter' or 'LegacyNetworkAdapter'"
                 return $False
             }
@@ -62,7 +62,7 @@ function Main {
 
             # Validate the Network type
             if (@("External", "Internal", "Private", "None") -notcontains $networkType) {
-                Write-LogErr "Error: Invalid netowrk type: $networkType"
+                Write-LogErr "Invalid netowrk type: $networkType"
                 Write-LogErr "Network type must be either: External, Internal, Private, None"
                 return $False
             }
@@ -71,7 +71,7 @@ function Main {
             if ($networkType -notlike "None") {
                 $vmSwitch = Get-VMSwitch -Name $networkName -ComputerName $hvServer
                 if (-not $vmSwitch) {
-                    Write-LogErr "Error: Invalid network name: $networkName"
+                    Write-LogErr "Invalid network name: $networkName"
                     Write-LogErr "The network does not exist"
                     return $False
                 }
@@ -88,7 +88,7 @@ function Main {
 
                 $retVal = $?
             } else {
-                Write-LogErr "Error: $VMName - No NIC found with MAC $macAddress ."
+                Write-LogErr "$VMName - No NIC found with MAC $macAddress ."
             }
         }
     }

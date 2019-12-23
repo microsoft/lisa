@@ -50,7 +50,7 @@ function Main {
             throw "Cannot create test file"
         }
         # Check SecureBoot is enabled
-        if ( $TestParams.secureBootVM ) {
+        if ($TestParams.secureBootVM) {
             # Check if Secure boot settings are in place before the backup
             $firmwareSettings = Get-VMFirmware -VMName $VMName
             if ($firmwareSettings.SecureBoot -ne "On") {
@@ -74,8 +74,7 @@ function Main {
         $sts = New-Backup $VMName $driveletter $HvServer $Ipv4 $VMPort
         if (-not $sts[-1]) {
             throw "Could not create a Backup Location"
-        }
-        else {
+        } else {
             $backupLocation = $sts[-1]
         }
         $sts = Restore-Backup $backupLocation $HypervGroupName $VMName
@@ -86,7 +85,7 @@ function Main {
         if (-not $sts) {
             throw "Backup evaluation failed"
         }
-        if ( $TestParams.secureBootVM ) {
+        if ($TestParams.secureBootVM) {
             # Check if Secure boot settings are in place before the backup
             $firmwareSettings = Get-VMFirmware -VMName $VMName
             if ($firmwareSettings.SecureBoot -ne "On") {
@@ -95,7 +94,7 @@ function Main {
             }
         }
         $null = Remove-Backup $backupLocation
-        if( $testResult -ne $resultFail) {
+        if ($testResult -ne $resultFail) {
             $testResult=$resultPass
         }
     } catch {

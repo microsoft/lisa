@@ -77,5 +77,5 @@ try {
     $ErrorMessage =  $_.Exception.Message
     Write-LogErr "EXCEPTION : $ErrorMessage"
     Write-LogErr "Source : Line $line in script $script_name."
-    Write-LogErr "ERROR : $($blobContext.BlobEndPoint)$containerName/$blobName : Failed"
+    Write-LogErr "$($blobContext.BlobEndPoint)$containerName/$blobName : Failed"
 }

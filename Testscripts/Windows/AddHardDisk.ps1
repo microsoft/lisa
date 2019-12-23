@@ -127,7 +127,7 @@ function New-PassThruDrive {
 
     $vhdName = ("{0}{1}-{2}-{3}-{4}-pass.vhd" `
         -f @($defaultVhdPath, $vmName, $controllerType, $controllerID, $Lun))
-    if(Test-Path $vhdName) {
+    if (Test-Path $vhdName) {
         Dismount-VHD -Path $vhdName -ErrorAction Ignore
         Remove-Item $vhdName
     }
@@ -147,8 +147,8 @@ function New-PassThruDrive {
     $physDisk | Add-VMHardDiskDrive -VMName $vmName -ControllerNumber $controllerID `
                     -ControllerLocation $Lun -ControllerType $controllerType -ComputerName $server
     if ($ERROR.Count -gt 0) {
-            Write-LogErr "Add-VMHardDiskDrive failed to add drive on ${controllerType} ${controllerID} ${Lun}s"
-            return $False
+        Write-LogErr "Add-VMHardDiskDrive failed to add drive on ${controllerType} ${controllerID} ${Lun}s"
+        return $False
     }
 
     Write-LogInfo "Successfully attached passthrough drive"
@@ -202,7 +202,7 @@ function New-HardDrive
     $drive = Get-VMHardDiskDrive -VMName $vmName -ComputerName $hvServer `
         -ControllerType $controllerType -ControllerNumber $controllerID -ControllerLocation $Lun
     if ($drive) {
-        if ( $controllerID -eq 0 -and $Lun -eq 0 ) {
+        if ($controllerID -eq 0 -and $Lun -eq 0) {
             Write-LogErr "drive $controllerType $controllerID $Lun already exists"
             return $False
         } else {
@@ -230,7 +230,7 @@ function New-HardDrive
     $vhdName = ("{0}{1}-{2}-{3}-{4}-{5}.vhd" `
         -f @($defaultVhdPath, $vmName, $controllerType, $controllerID, $Lun, $vhdType))
 
-    if(Test-Path $vhdName) {
+    if (Test-Path $vhdName) {
         Dismount-VHD -Path $vhdName -ErrorAction Ignore
         Remove-Item $vhdName
     }
@@ -356,7 +356,7 @@ function Main {
         }
 
         $vmGen = Get-VMGeneration $VMName $HvServer
-        if ( "vhdFormat" -eq $temp[0] ) {
+        if ("vhdFormat" -eq $temp[0]) {
             $vhdFormat = $temp[1]
             if ($vmGen -ne 1 -and $vhdFormat -eq 'vhd') {
                 Write-LogInfo "Generation 2 VM does not support vhd disk, please skip this case in the test script"

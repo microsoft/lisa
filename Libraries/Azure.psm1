@@ -2630,7 +2630,7 @@ function Add-AzureAccountFromSecretsFile {
     }
 
     if ( ($null -eq $secretsFile) -or ($secretsFile -eq [string]::Empty)) {
-        Write-LogErr "ERROR: The Secrets file is not being set."
+        Write-LogErr "The Secrets file is not being set."
         Raise-Exception ("XML Secrets file not provided")
     }
 

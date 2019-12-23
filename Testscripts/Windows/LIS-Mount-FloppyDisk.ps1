@@ -36,7 +36,7 @@ function Main {
     #############################################################
     # Change the working directory to where we need to be
     if (-not (Test-Path $RootDir)) {
-        Write-LogErr "Error: The directory `"${RootDir}`" does not exist!"
+        Write-LogErr "The directory `"${RootDir}`" does not exist!"
         return "FAIL"
     }
     Set-Location $RootDir
@@ -80,9 +80,8 @@ function Main {
             Write-LogErr "Unable to create VFD file ${vfdPath}"
             return "FAIL"
         }
-    }
-    else {
-        Write-LogInfo "Info: The file ${vfdPath} already exists"
+    } else {
+        Write-LogInfo "The file ${vfdPath} already exists"
     }
     #
     # Add the vfd
@@ -90,8 +89,7 @@ function Main {
     Set-VMFloppyDiskDrive -Path $vfdPath -VMName $VMName -ComputerName $HvServer
     if ($? -eq "True") {
         Write-LogInfo "Mounted the floppy file!"
-    }
-    else {
+    } else {
         Write-LogErr "Unable to mount the floppy file!"
         return "FAIL"
     }
@@ -107,11 +105,10 @@ function Main {
         -downloadTo $LogDir -port $VMPort -username $VMUserName -password $VMPassword
     $contents = Get-Content -Path $stateFile
     if (($contents -eq "TestAborted") -or ($contents -eq "TestFailed")) {
-        Write-LogErr "Error: Running $remoteScript script failed on VM!"
+        Write-LogErr "Running $remoteScript script failed on VM!"
         return "FAIL"
-    }
-    else {
-        Write-LogInfo "Test PASSED , Floppy Mounted on  VM!"
+    } else {
+        Write-LogInfo "Test PASSED, Floppy Mounted on VM!"
     }
 
 }

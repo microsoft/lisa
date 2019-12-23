@@ -21,7 +21,7 @@ function Main {
         Set-Location $WorkingDirectory
         $backupdisksize = 2*$(Get-VMHardDiskDrive -ComputerName $HvServer -VMName $VMName | Get-Vhd -ComputerName $HvServer)[0].size
         Write-LogInfo "backupdisksize = $backupdisksize"
-        $backupdiskpath = (Get-VMHost).VirtualHardDiskPath + $VMName + "_VSS_DISK.vhdx"
+        $backupdiskpath = (Get-VMHost).VirtualHardDiskPath + "\" + $VMName + "_VSS_DISK.vhdx"
         $driveletter = Get-ChildItem function:[g-y]: -n | Where-Object { !(Test-Path $_) } | Get-Random
         $originaldriveletter = $driveletter
         [char]$driveletter = $driveletter.Replace(":","")

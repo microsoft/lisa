@@ -108,7 +108,7 @@ function Main {
             return "FAIL"
         }
         else {
-            Write-LogInfo "Info: initial 2MB sample file $testfile successfully created"
+            Write-LogInfo "Initial 2MB sample file $testfile successfully created"
         }
 
         # Multiply the contents of the sample file up to an 100MB auxiliary file
@@ -140,7 +140,7 @@ function Main {
         else {
             $testfileSize = $testfileSize / 1MB
             $testfileSize = [math]::round($testfileSize, 2)
-            Write-LogInfo "Info: $testfileSize MB auxiliary file successfully created"
+            Write-LogInfo "$testfileSize MB auxiliary file successfully created"
         }
 
         # Getting MD5 checksum of the file
@@ -219,7 +219,7 @@ function Main {
         return "FAIL"
     }
 
-    Write-LogInfo "Info: MD5 checksums are matching between the host-side and guest VM file."
+    Write-LogInfo "MD5 checksums are matching between the host-side and guest VM file."
 
     # Removing the temporary test file
     Remove-Item -Path \\$HvServer\$file_path_formatted -Force

@@ -41,7 +41,7 @@ function Main {
 
     # Change the working directory to where we need to be
     if (-not (Test-Path $RootDir)) {
-        Write-LogErr "Error: The directory `"${RootDir}`" does not exist!"
+        Write-LogErr "The directory `"${RootDir}`" does not exist!"
         return "FAIL"
     }
     Set-Location $rootDir
@@ -49,12 +49,12 @@ function Main {
     $kernel = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 `
         -port $VMPort -command "uname -r" -runAsSudo
     if ($? -eq $false){
-        Write-LogWarn "WARNING: Could not get kernel version of $VMName"
+        Write-LogWarn "Could not get kernel version of $VMName"
     }
 
     $numaVal = Get-NumaSupportStatus $kernel
     if (-not $numaVal) {
-        Write-LogWarn "WARNING: NUMA not suported for kernel:`n $kernel"
+        Write-LogWarn "NUMA not suported for kernel:`n $kernel"
         return "ABORTED"
     }
 
@@ -64,16 +64,16 @@ function Main {
 
     # Send the Numa Nodes value to the guest if it matches with the number of CPUs
     if ($GetNumaNodes -eq $numCPUs/$vcpuOnNode) {
-        Write-LogInfo "Info: NumaNodes and the number of CPU are matched."
+        Write-LogInfo "NumaNodes and the number of CPU are matched."
     } else {
-        Write-LogErr "Error: NumaNodes and the number of CPU does not match."
+        Write-LogErr "NumaNodes and the number of CPU does not match."
         return "FAIL"
     }
     $cmdAddConstants = "echo `"expected_number=$($numCPUs/$vcpuOnNode)`" >> /home/${VMUserName}/constants.sh"
     Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port `
         $VMPort -command $cmdAddConstants -runAsSudo
     if (-not $?) {
-        Write-LogErr "Error: Unable to submit command ${cmd} to VM!"
+        Write-LogErr "Unable to submit command ${cmd} to VM!"
         return "FAIL"
     }
 
@@ -85,7 +85,7 @@ function Main {
         -downloadTo $LogDir -port $VmPort -username $VMUserName -password $VMPassword
     $contents = Get-Content -Path $stateFile
     if (($contents -eq "TestAborted") -or ($contents -eq "TestFailed")) {
-        Write-LogErr "Error: Running $remoteScript script failed on VM!"
+        Write-LogErr "Running $remoteScript script failed on VM!"
         return "FAIL"
     } else {
         Write-LogInfo "Matching values for NumaNodes: $vcpuOnNode has been found on the VM!"
