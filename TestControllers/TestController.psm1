@@ -503,7 +503,7 @@ Class TestController
 			$isVmAlive = Is-VmAlive -AllVMDataObject $VMData -MaxRetryCount 10
 			if (!$global:IsWindowsImage -and $testParameters["SkipVerifyKernelLogs"] -ne "True" -and $isVmAlive -eq "True" ) {
 				$ret = $this.GetAndCompareOsLogs($VmData, "Final")
-				if ($testParameters["FailForLogCheck"] -eq "True" -and $ret -eq $false -and $currentTestResult.TestResult -eq $global:ResultPass) {
+				if (($testParameters["FailForLogCheck"] -eq "True") -and ($ret -eq $false) -and ($currentTestResult.TestResult -eq $global:ResultPass)) {
 					$currentTestResult.TestResult = $global:ResultFail
 					Write-LogErr "Test $($CurrentTestData.TestName) fails for log check"
 					$currentTestResult.testSummary += New-ResultSummary -testResult "Test fails for log check"
@@ -769,7 +769,7 @@ Class TestController
 		$retValue = $true
 		try	{
 			if (!($status -imatch "Initial" -or $status -imatch "Final")) {
-				Write-LogInfo "Status value should be either final or initial"
+				Write-LogErr "Status value should be either final or initial"
 				return $false
 			}
 			foreach ($VM in $AllVMData) {
@@ -804,7 +804,7 @@ Class TestController
 					-command "dmesg > ./${currentBootLogFile}" | Out-Null
 				Copy-RemoteFiles -download -downloadFrom $VM.PublicIP -port $VM.SSHPort -files "./${currentBootLogFile}" `
 					-downloadTo $BootLogDir -username $global:user -password $global:password | Out-Null
-				Write-LogInfo "$($VM.RoleName): $status Kernel logs collected successfully to ${currentBootLogFile} file."
+				Write-LogInfo "$($VM.RoleName): $status kernel log, ${currentBootLogFile}, collected successfully."
 
 				Write-LogInfo "Checking for call traces in kernel logs.."
 				$KernelLogs = Get-Content $currentBootLog
