@@ -138,12 +138,12 @@ function __SetTestState() {
 		if [ -w "$__LIS_STATE_FILE" ]; then
 			echo "$1" > "$__LIS_STATE_FILE"
 		else
-			LogErr "State file $__LIS_STATE_FILE exists and is a normal file, but is not writable"
+			LogMsg "State file $__LIS_STATE_FILE exists and is a normal file, but is not writable"
 			chmod u+w "$__LIS_STATE_FILE" && { echo "$1" > "$__LIS_STATE_FILE" && return 0 ; } || LogMsg "Warning: unable to make $__LIS_STATE_FILE writeable"
 			return 1
 		fi
 	else
-		LogErr "State file $__LIS_STATE_FILE either does not exist or is not a regular file. Trying to create it..."
+		LogMsg "State file $__LIS_STATE_FILE either does not exist or is not a regular file. Trying to create it..."
 		echo "$1" > "$__LIS_STATE_FILE" || return 1
 	fi
 
@@ -197,12 +197,12 @@ function UpdateSummary() {
         if [ -w "$__LIS_SUMMARY_FILE" ]; then
             echo "$1" >> "$__LIS_SUMMARY_FILE"
         else
-            LogErr "Summary file $__LIS_SUMMARY_FILE exists and is a normal file, but is not writable"
+            LogMsg "Summary file $__LIS_SUMMARY_FILE exists and is a normal file, but is not writable"
             chmod u+w "$__LIS_SUMMARY_FILE" && echo "$1" >> "$__LIS_SUMMARY_FILE" || LogMsg "Warning: unable to make $__LIS_SUMMARY_FILE writeable"
             return 1
         fi
     else
-        LogErr "Summary file $__LIS_SUMMARY_FILE either does not exist or is not a regular file. Trying to create it..."
+        LogMsg "Summary file $__LIS_SUMMARY_FILE either does not exist or is not a regular file. Trying to create it..."
         echo "$1" >> "$__LIS_SUMMARY_FILE" || return 1
     fi
     LogMsg "$1"
