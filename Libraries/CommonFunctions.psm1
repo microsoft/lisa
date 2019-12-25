@@ -1295,7 +1295,7 @@ function Wait-ForVMToStartSSH {
 		}
 
 		$waitTimeOut -= 15  # Note - Test Port will sleep for 5 seconds
-		Start-Sleep -s 10
+		Start-Sleep -Seconds 10
 	}
 
 	if (-not $retVal) {
@@ -1489,7 +1489,7 @@ function Get-RandUnusedMAC {
     }
 
     # before getting the random number, check all VMs for static MACs
-    $staticMacs = (get-VM -computerName $hvServer | Get-VMNetworkAdapter | where { $_.DynamicMacAddressEnabled -like "False" }).MacAddress
+    $staticMacs = (get-VM -computerName $hvServer | Get-VMNetworkAdapter | Where-Object { $_.DynamicMacAddressEnabled -like "False" }).MacAddress
     do {
         # now get random number
         [uint64]$randDecAddr = Get-Random -minimum $randStart -maximum $randStop
@@ -1558,7 +1558,7 @@ function Generate-IPv4{
     )
     [int]$check = $null
 
-    if ($OldIpv4 -eq $null) {
+    if ($null -eq $OldIpv4) {
         [int]$octet = 102
     } else {
         $oldIpPart = $OldIpv4.Split(".")

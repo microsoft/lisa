@@ -54,7 +54,7 @@ function Main {
 
         Write-LogInfo "---------------Copy #1: START----------------"
         $vm = Get-AzVM -ResourceGroupName $captureVMData.ResourceGroupName -Name $captureVMData.RoleName
-        $managedDisk = $vm.StorageProfile.OsDisk | Where-Object {$_.ManagedDisk -ne $null} | Select-Object Name
+        $managedDisk = $vm.StorageProfile.OsDisk | Where-Object {$null -ne $_.ManagedDisk} | Select-Object Name
         if ($managedDisk) {
             $sas = Grant-AzDiskAccess -ResourceGroupName $vm.ResourceGroupName -DiskName $managedDisk.Name -Access Read -DurationInSecond (60*60*24)
             $null = Copy-VHDToAnotherStorageAccount -SasUrl $sas.AccessSAS -destinationStorageAccount  $GlobalConfig.Global.Azure.Subscription.ARMStorageAccount -vhdName $managedDisk.Name -destVHDName $newVHDName -destinationStorageContainer "vhds"

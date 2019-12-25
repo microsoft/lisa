@@ -45,7 +45,7 @@ function Main {
             throw "Running $remoteScript script failed on VM!"
         }
         # Wait 5 seconds for stress action to start on the VM
-        Start-Sleep -s 5
+        Start-Sleep -Seconds 5
         $sts = New-Backup $VMName $BackupDriveLetter $HvServer $Ipv4 $VMPort
         if (-not $sts[-1]) {
             throw "Could not retrieve Backup Location"

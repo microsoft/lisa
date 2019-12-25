@@ -70,7 +70,7 @@ function Main {
         }
 
         $sleepPeriod -= 5
-        Start-Sleep -s 5
+        Start-Sleep -Seconds 5
     }
 
     if ($vmBeforeAssigned -le 0 -or $vmBeforeDemand -le 0) {
@@ -91,7 +91,7 @@ function Main {
             break
         }
         $sleepPeriod += 5
-        Start-Sleep -s 5
+        Start-Sleep -Seconds 5
     }
 
     Write-LogInfo "Memory stats after ${VMName} sleeps $sleepPeriod seconds"
@@ -109,7 +109,7 @@ function Main {
     # Step 2: Test assigned/demand memory could increase during stress test
 
     # Sleep 2 more minutes to wait for the assigned memory decrease
-    Start-Sleep -s 120
+    Start-Sleep -Seconds 120
 
     [int64]$vmBeforeAssigned = ($vm.MemoryAssigned / 1MB)
     [int64]$vmBeforeAssigned = ($vm.MemoryDemand / 1MB)
@@ -133,7 +133,7 @@ function Main {
     }
 
     # Sleep a few seconds so stress-ng starts and the memory assigned/demand gets updated
-    Start-Sleep -s 50
+    Start-Sleep -Seconds 50
 
     # Get memory stats while stress-ng is running
     [int64]$vmDemand = ($vm.MemoryDemand / 1MB)
@@ -167,7 +167,7 @@ function Main {
         }
 
         $timeout -= 1
-        Start-Sleep -s 1
+        Start-Sleep -Seconds 1
     }
 
     # Step3: Verify assigned/demand memory could decrease again after stress test finished
@@ -179,7 +179,7 @@ function Main {
             break
         }
         $sleepPeriod += 5
-        Start-Sleep -s 5
+        Start-Sleep -Seconds 5
     }
 
     Write-LogInfo "Memory stats after ${VMName} sleeps $sleepPeriod seconds"

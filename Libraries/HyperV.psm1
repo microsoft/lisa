@@ -60,8 +60,7 @@ function Create-AllHyperVGroupDeployments($SetupTypeData, $GlobalConfig, $TestLo
                 $isHyperVGroupDeleted = $true
                 $CreatedHyperVGroup = $true
             }
-            elseif ( $HyperVGroupXML.Tag -ne $null )
-            {
+            elseif ($null -ne $HyperVGroupXML.Tag) {
                 $HyperVGroupName = "LISAv2-" + $HyperVGroupXML.Tag + "-" + $Distro + "-" + "$TestID-" + "$curtime"
             } else {
                 $HyperVGroupName = "LISAv2-" + $SetupTypeData.Name + "-" + $Distro + "-" + "$TestID-" + "$curtime"
@@ -558,7 +557,7 @@ function Get-AllHyperVDeployementData($HyperVGroupNames,$GlobalConfig,$RetryCoun
             $QuickVMNode = Create-QuickVMNode
             do {
                 $CurrentRetryAttempt++
-                Start-Sleep 5
+                Start-Sleep -Seconds 5
                 Write-LogInfo "    [$CurrentRetryAttempt/$RetryCount] : $($property.Name) : Waiting for IP address ..."
                 $QuickVMNode.PublicIP = $VMNicProperties.IPAddresses | Where-Object {$_ -imatch "\b(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}\b"}
             } while(($CurrentRetryAttempt -lt $RetryCount) -and (!$QuickVMNode.PublicIP))
@@ -751,7 +750,7 @@ function Check-IP {
                     }
                 }
                 if (-not $publicIP) {
-                    Start-Sleep 5
+                    Start-Sleep -Seconds 5
                     $runTime += 5
                 }
             }

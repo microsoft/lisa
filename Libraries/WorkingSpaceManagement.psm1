@@ -42,7 +42,7 @@ Function Move-ToNewWorkingSpace($originalFolder) {
 			break
 		}
 		$tempWorkingDir = "${tempParentFolder}\$TestID-{0}" -f @(Get-Date -Format "yyyyMMddHHmmss")
-		Start-Sleep -S 1
+		Start-Sleep -Seconds 1
 		$collisionChecks++
 	} while ($collisionChecks -lt $maxcollisionChecks)
 

@@ -207,7 +207,7 @@ function Main {
     $daemonName = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort $cmd -runAsSudo
     $daemonName = $daemonName.Split(".")[0]
     Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort "systemctl start $daemonName" -runAsSudo
-    Start-Sleep -s 2
+    Start-Sleep -Seconds 2
     $sts = Check-FileInLinuxGuest -vmUserName $VMUserName -vmPassword $VMPassword `
         -vmPort $VMPort -ipv4 $Ipv4 -fileName "/tmp/$testfile" -checkSize $true
     if ($sts) {

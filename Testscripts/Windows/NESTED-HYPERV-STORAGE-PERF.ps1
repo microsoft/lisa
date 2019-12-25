@@ -19,7 +19,7 @@ function Disable-APIPA ($session) {
 		}
 		Restart-Computer -Force
 	}
-	Start-Sleep -s 10
+	Start-Sleep -Seconds 10
 	# Wait the VM really running
 	Test-TCP -testIP $AllVMData.PublicIP -testport $AllVmData.RDPPort
 }
@@ -38,7 +38,7 @@ function New-TestSession ($remote) {
 		if (($session) -and ($session.State -eq "Opened")) {
 			break
 		}
-		Start-Sleep -s 10
+		Start-Sleep -Seconds 10
 		$retryTime += 1
 	}
 	return $session
@@ -105,7 +105,7 @@ function Get-NestedVMIPAdress ($session, $vmName) {
 		$status = Get-VM -Name $vmName
 		if ($($status.State) -ne "running") {
 			Start-VM -Name $vmName
-			Start-Sleep 10
+			Start-Sleep -Seconds 10
 		}
 	} -ArgumentList $vmName
 
@@ -113,7 +113,7 @@ function Get-NestedVMIPAdress ($session, $vmName) {
 	$i=0
 	do {
 		$i++
-		Start-Sleep 30
+		Start-Sleep -Seconds 30
 		$VMNicProperties = Invoke-Command -Session $session -ScriptBlock {
 			param($vmName)
 
@@ -286,7 +286,7 @@ netsh advfirewall firewall add rule name="WinRM HTTP" dir=in action=allow protoc
 	if ($null -eq $blobContainer) {
 		Write-LogInfo "The container $containerName doesn't exist, so create it."
 		New-AzStorageContainer -Name $containerName -Context $sourceContext   | Out-Null
-		Start-Sleep 3
+		Start-Sleep -Seconds 3
 		$blobContainer = Get-AzStorageContainer -Name $containerName -Context $sourceContext
 	}
 
@@ -348,7 +348,7 @@ function Get-OSvhd ($session, $srcPath, $dstPath) {
 
 			do {
 				Write-Output (Get-Date) $btjob.BytesTransferred $btjob.BytesTotal ($btjob.BytesTransferred/$btjob.BytesTotal*100)
-				Start-Sleep -s 10
+				Start-Sleep -Seconds 10
 			} while ($btjob.BytesTransferred -lt $btjob.BytesTotal)
 
 			Write-Output (Get-Date) $btjob.BytesTransferred $btjob.BytesTotal ($btjob.BytesTransferred/$btjob.BytesTotal*100)
@@ -362,7 +362,7 @@ function Get-OSvhd ($session, $srcPath, $dstPath) {
 function Install-Hyperv ($session) {
 	Write-LogInfo "Install Hyper-V and restart the host"
 	Invoke-Command -Session $session -ScriptBlock { Install-WindowsFeature -Name Hyper-V -IncludeManagementTools -Restart }
-	Start-Sleep 100
+	Start-Sleep -Seconds 100
 }
 
 function New-NetworkSwitch ($session, $switchName) {

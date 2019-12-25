@@ -97,14 +97,14 @@ function Main {
             Write-LogErr "Unable to disable VMIntegrationService on $VMName ($hvServer) on $counter run"
             return "FAIL"
         }
-        Start-Sleep 5
+        Start-Sleep -Seconds 5
 
         Enable-VMIntegrationService -Name $global:VMIntegrationKeyValuePairExchange -VMName $VMName -ComputerName $hvServer
         if ($? -ne "True") {
             Write-LogInfo "Unable to enable VMIntegrationService on $VMName ($hvServer) on $counter run"
             return "FAIL"
         }
-        Start-Sleep 5
+        Start-Sleep -Seconds 5
         $counter += 1
     }
 

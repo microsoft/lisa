@@ -39,13 +39,13 @@ function Main {
     # Start client on dependency VM
     Run-LinuxCmd -ip $vm2ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "iperf3 -s > client.out" -RunInBackGround
-    Start-Sleep -s 5
+    Start-Sleep -Seconds 5
 
     # Run iPerf on client side for 30 seconds with SR-IOV enabled
     Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "source sriov_constants.sh ; iperf3 -t 2400 -c `$VF_IP2 --logfile PerfResults.log" `
         -RunInBackGround
-    Start-Sleep -s 30
+    Start-Sleep -Seconds 30
     [decimal]$initialThroughput = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "tail -4 PerfResults.log | head -1 | awk '{print `$7}'" `
         -ignoreLinuxExitCode:$true
@@ -70,7 +70,7 @@ function Main {
 
         # Change state
         Invoke-Expression $cmd_StateChange
-        Start-Sleep -s 10
+        Start-Sleep -Seconds 10
         # Resume initial state
         Invoke-Expression $cmd_StateResume
         Wait-VMState -VMName $VMName -HvServer $HvServer -VMState "Running"
@@ -108,7 +108,7 @@ function Main {
                         $hasSwitched = $true
                     }
                 }
-                Start-Sleep -s 1
+                Start-Sleep -Seconds 1
             }
             $timeToSwitch++
         }

@@ -73,7 +73,7 @@ function Main {
             if (-not $sts[-1]) {
                 throw "Running $remoteScript script failed on VM!"
             }
-            Start-Sleep -s 3
+            Start-Sleep -Seconds 3
             $stsBackUp = New-Backup $VMName $driveLetter $HvServer $VMIpv4 $VMPort
             # when stop hypervvssd, backup offline backup
             if ( -not $stsBackUp[-1]) {

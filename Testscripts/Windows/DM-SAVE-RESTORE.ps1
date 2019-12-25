@@ -90,7 +90,7 @@ function Main {
                 break
             }
             $sleepPeriod -= 5
-            Start-Sleep -s 5
+            Start-Sleep -Seconds 5
         }
         if ($vm1BeforeAssigned -le 0) {
             $testResult = $resultFail
@@ -117,7 +117,7 @@ function Main {
                 break
             }
             $sleepPeriod-= 5
-            Start-Sleep -s 5
+            Start-Sleep -Seconds 5
         }
         if ($vm2BeforeAssigned -le 0) {
             $testResult = $resultFail
@@ -138,7 +138,7 @@ function Main {
         if (-not $?) {
             throw "Unable to start VM2 $VM2Name after saving it" | Tee-Object -Append -file $summaryLog
         }
-        Start-Sleep -s 60
+        Start-Sleep -Seconds 60
         # get VM2's Memory
         [int64]$vm2AfterAssigned = ($vm2.MemoryAssigned/[int64]1048576)
         [int64]$vm2AfterDemand = ($vm2.MemoryDemand/[int64]1048576)
@@ -161,7 +161,7 @@ function Main {
         if (-not $?) {
             throw "Unable to start VM1 $VM1Name after saving it" | Tee-Object -Append -file $summaryLog
         }
-        Start-Sleep -s 60
+        Start-Sleep -Seconds 60
         # get VM1's Memory
         [int64]$vm1AfterAssigned = ($vm1.MemoryAssigned/[int64]1048576)
         [int64]$vm1AfterDemand = ($vm1.MemoryDemand/[int64]1048576)
@@ -192,7 +192,7 @@ function Main {
         if (-not $?) {
             throw "Unable to start VM1 $VM1Name after saving it the second time" | Tee-Object -Append -file $summaryLog
         }
-        Start-Sleep -s 60
+        Start-Sleep -Seconds 60
         # get VM1's Memory after saving the VM1
         [int64]$vm1EndAssigned = ($vm1.MemoryAssigned/[int64]1048576)
         [int64]$vm1EndDemand = ($vm1.MemoryDemand/[int64]1048576)

@@ -116,7 +116,7 @@ function Main {
     Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
         -command "reboot" -runAsSudo -RunInBackGround | Out-Null
     Write-LogInfo "Rebooting VM $VMName after kdump configuration..."
-    Start-Sleep 10 # Wait for kvp & ssh services stop
+    Start-Sleep -Seconds 10 # Wait for kvp & ssh services stop
 
     # Wait for VM boot up and update ip address
     Wait-ForVMToStartSSH -Ipv4addr $Ipv4 -StepTimeout 360 | Out-Null
@@ -135,7 +135,7 @@ function Main {
     Write-LogInfo "Trigger the kernel panic..."
     if ($nmi -eq 1) {
         # Waiting to kdump_execute.sh to finish execution.
-        Start-Sleep -S 100
+        Start-Sleep -Seconds 100
         Debug-VM -Name $VMName -InjectNonMaskableInterrupt -ComputerName $HvServer -Force
     } else {
         if ($vcpu -eq 4){
@@ -151,11 +151,11 @@ function Main {
 
     # Give the host a few seconds to record the event
     Write-LogInfo "Waiting seconds to record the event..."
-    Start-Sleep 10
+    Start-Sleep -Seconds 10
 
     if ($TestPlatform -eq "HyperV") {
         if ((-not $RHEL7_Above) -and ($BuildNumber -eq "14393")){
-            Start-Sleep 120 # Make sure dump completed
+            Start-Sleep -Seconds 120 # Make sure dump completed
             Stop-VM -VMName $VMName -ComputerName $HvServer -TurnOff -Force
             Start-VM -VMName $VMName -ComputerName $HvServer
         }

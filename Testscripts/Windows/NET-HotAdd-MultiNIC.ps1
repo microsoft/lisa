@@ -83,7 +83,7 @@ function Main {
         Write-LogErr "Unable to Hot Add NIC to VM '${VMName}' on server '${HvServer}'"
         return "FAIL"
     }
-    Start-Sleep -s 3
+    Start-Sleep -Seconds 3
 
     # Run the NET-Verify-HotAdd-MultiNIC.sh on the VM to verify the VM detected the hot add/remove
     if ($nic_action -eq "remove") {

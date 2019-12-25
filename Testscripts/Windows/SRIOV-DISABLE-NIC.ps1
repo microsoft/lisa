@@ -33,7 +33,7 @@ function Main {
         # Start client on dependency VM
         Run-LinuxCmd -ip $vm2ipv4 -port $VMPort -username $VMUsername -password `
             $VMPassword -command "iperf3 -s > client.out" -RunInBackGround
-        Start-Sleep -s 5
+        Start-Sleep -Seconds 5
 
         # Run iPerf on client side for 30 seconds with SR-IOV enabled
         Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
@@ -61,7 +61,7 @@ function Main {
         }
         # Wait 1 minute to make sure VF has changed. It is an expected behavior
         Write-LogInfo "Wait 1 minute for VF to be put down"
-        Start-Sleep -s 60
+        Start-Sleep -Seconds 60
 
         # Check if the SR-IOV module is still loaded
         $moduleCount = Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
@@ -87,7 +87,7 @@ function Main {
         }
         # Wait 1 minute to make sure VF has changed. It is an expected behavior
         Write-LogInfo "Wait 1 minute for VF to be put up"
-        Start-Sleep -s 60
+        Start-Sleep -Seconds 60
         # Read the throughput again, it should be higher than before
         Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
             $VMPassword -command "source sriov_constants.sh ; iperf3 -t 30 -c `$VF_IP2 --logfile PerfResults.log"

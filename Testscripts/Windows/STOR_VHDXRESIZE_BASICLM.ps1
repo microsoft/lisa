@@ -180,7 +180,7 @@ function Main {
         #
         # Let system have some time for the volume change to be indicated
         #
-        Start-Sleep -S 30
+        Start-Sleep -Seconds 30
         if ($diskSize -ne $newVhdxSize) {
             throw "VM ${VMName} sees a disk size of ${diskSize}, not the expected size of ${newVhdxSize}"
         }

@@ -42,7 +42,7 @@ function Main {
         }
 
         $sleepPeriod -= 5
-        Start-Sleep -s 5
+        Start-Sleep -Seconds 5
     }
 
     if ($vmBeforeAssigned -le 0 -or $vmBeforeDemand -le 0) {
@@ -85,7 +85,7 @@ function Main {
 
     # Wait for eatmemory to start and the memory assigned/demand gets updated
     $sleepTime = 30
-    Start-Sleep -s $sleepTime
+    Start-Sleep -Seconds $sleepTime
 
     # Get memory stats for vm after eatmemory starts
     # The MemoryDemand is a dynamic value, so sample many times
@@ -110,12 +110,12 @@ function Main {
             Write-LogErr "Memory Demand did not increase after starting eatmemory"
             return "FAIL"
         }
-        Start-Sleep -s 3
+        Start-Sleep -Seconds 3
     }
 
     # Sleep for 3 minutes to wait for eatmemory runnning
     $sleepTime = 180
-    Start-Sleep -s $sleepTime
+    Start-Sleep -Seconds $sleepTime
 
     $isAlive = Wait-ForVMToStartKVP $VMName $HvServer 10
     if (-not $isAlive) {

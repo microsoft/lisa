@@ -111,7 +111,7 @@ Function Detect-NewVHDFromStorageContainer {
 					$srcUrl = $Url.Insert($Url.IndexOf('?'), '/' + $blob.Name)
 
 					# Try get metadata the second time to check whether the VHD is in the progress of uploading. Etag value changes if the vhd is being uploaded.
-					Start-Sleep -s 5
+					Start-Sleep -Seconds 5
 					Invoke-RestMethod $listBlobUrl -Headers @{"Accept"="Application/xml"} -ErrorVariable restError -OutFile $xmlFile
 
 					if ($?) {

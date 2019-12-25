@@ -53,7 +53,7 @@ function Main {
     # If the test delay was specified, sleep for a bit
     if ($testDelay -ne "0") {
         Write-LogInfo "Sleeping for ${testDelay} seconds"
-        Start-Sleep -S $testDelay
+        Start-Sleep -Seconds $testDelay
     }
 
     $diffInSeconds = Get-TimeSync -Ipv4 $Ipv4 -Port $VMPort `

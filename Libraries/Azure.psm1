@@ -671,7 +671,7 @@ Function Create-ResourceGroupDeployment([string]$RGName, $TemplateFile, $UseExis
                 # region grab deplyoment operations failures
                 $failedDeplyomentOperations = Get-AzResourceGroupDeploymentOperation `
                     -ResourceGroupName $RGName -DeploymentName $createRGDeployment.DeploymentName `
-                    | Where { $_.Properties.provisioningState -ne "Succeeded" }
+                    | Where-Object { $_.Properties.provisioningState -ne "Succeeded" }
                 foreach ($operation in $failedDeplyomentOperations) {
                     $statusObj = $operation.Properties.StatusMessage
                     if ($statusObj.Error) {
@@ -918,7 +918,7 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
             Write-LogInfo "[Attempt $retryCount/$maxRetryCount] : Getting Existing Storage account information..."
             $GetAzureRMStorageAccount = $null
             $GetAzureRMStorageAccount = Get-AzStorageAccount
-            if ($GetAzureRMStorageAccount -eq $null) {
+            if ($null -eq $GetAzureRMStorageAccount) {
                 $saInfoCollected = $false
             }
             else {
@@ -1042,7 +1042,7 @@ Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, 
 
     Write-LogInfo "Using API VERSION : $apiVersion"
     $ExistingVnet = $null
-    if ($RGXMLData.ARMVnetName -ne $null) {
+    if ($null -ne $RGXMLData.ARMVnetName) {
         $ExistingVnet = $RGXMLData.ARMVnetName
         Write-LogInfo "Getting $ExistingVnet Virtual Netowrk info ..."
         $ExistingVnetResourceGroupName = ( Get-AzResource | Where-Object {$_.Name -eq $ExistingVnet}).ResourceGroupName
@@ -2163,7 +2163,7 @@ Function Copy-VHDToAnotherStorageAccount ($sourceStorageAccount, $sourceStorageC
             Write-LogInfo "[Attempt $retryCount/$maxRetryCount] : Getting Existing Storage Account details ..."
             $GetAzureRmStorageAccount = $null
             $GetAzureRmStorageAccount = Get-AzStorageAccount
-            if ($GetAzureRmStorageAccount -eq $null) {
+            if ($null -eq $GetAzureRmStorageAccount) {
                 throw
             }
             $saInfoCollected = $true
@@ -2195,7 +2195,7 @@ Function Copy-VHDToAnotherStorageAccount ($sourceStorageAccount, $sourceStorageC
 
     $destContext = New-AzStorageContext -StorageAccountName $destAccountName -StorageAccountKey $destAccountKey
     $testContainer = Get-AzStorageContainer -Name $destContainer -Context $destContext -ErrorAction Ignore
-    if ($testContainer -eq $null) {
+    if ($null -eq $testContainer) {
         $null = New-AzStorageContainer -Name $destContainer -context $destContext
     }
     # Start the Copy
@@ -2644,7 +2644,7 @@ function Add-AzureAccountFromSecretsFile {
 
         # Collect the context files, if any.
         $ContextFiles = (Get-ChildItem -Path $PWD -Recurse | `
-            Where-Object { $_.Name.EndsWith(".json") } | Select-String -Pattern "AzureCloud" | Select Path).Path | Get-Unique
+            Where-Object { $_.Name.EndsWith(".json") } | Select-String -Pattern "AzureCloud" | Select-Object Path).Path | Get-Unique
 
         Write-LogInfo "------------------------------------------------------------------"
         if ($ClientID -and $Key) {

@@ -24,8 +24,7 @@
 
 #>
 ###############################################################################################
-Function Write-Log()
-{
+Function Write-Log() {
 	param
 	(
 		[ValidateSet('INFO','WARN','ERROR','DEBUG', IgnoreCase = $false)]
@@ -40,8 +39,7 @@ Function Write-Log()
 	$logType = $logLevel.PadRight(5, ' ')
 	$finalMessage = "$now : [$logType] $text"
 	$fgColor = "White"
-	switch ($logLevel)
-	{
+	switch ($logLevel) {
 		"INFO"	{$fgColor = "White"; continue}
 		"WARN"	{$fgColor = "Yellow"; continue}
 		"ERROR"	{$fgColor = "Red"; continue}
@@ -49,8 +47,7 @@ Function Write-Log()
 	}
 	Write-Host $finalMessage -ForegroundColor $fgColor
 
-	try
-	{
+	try {
 		if ($LogDir) {
 			if (!(Test-Path $LogDir)) {
 				New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
@@ -64,30 +61,24 @@ Function Write-Log()
 			New-Item -path $LogDir -name $LogFileName -type "file" | Out-Null
 		}
 		Add-Content -Value $finalMessage -Path $LogFileFullPath -Force
-	}
-	catch
-	{
+	} catch {
 		Write-Output "[LOG FILE EXCEPTION] : $now : $text"
 	}
 }
 
-Function Write-LogInfo($text)
-{
+Function Write-LogInfo($text) {
 	Write-Log "INFO" $text
 }
 
-Function Write-LogErr($text)
-{
+Function Write-LogErr($text) {
 	Write-Log "ERROR" $text
 }
 
-Function Write-LogWarn($text)
-{
+Function Write-LogWarn($text) {
 	Write-Log "WARN" $text
 }
 
-Function Write-LogDbg($text)
-{
+Function Write-LogDbg($text) {
 	Write-Log "DEBUG" $text
 }
 
@@ -314,27 +305,22 @@ Function GetAndCheck-KernelLogs($allDeployedVMs, $status, $vmUser, $vmPassword, 
 	return $retValue
 }
 
-Function Check-KernelLogs($allVMData, $vmUser, $vmPassword)
-{
-	try
-	{
+Function Check-KernelLogs($allVMData, $vmUser, $vmPassword) {
+	try {
 		$errorLines = @()
 		$errorLines += "Call Trace"
 		$errorLines += "rcu_sched self-detected stall on CPU"
 		$errorLines += "rcu_sched detected stalls on"
 		$errorLines += "BUG: soft lockup"
 		$totalErrors = 0
-		if ( !$vmUser )
-		{
+		if ( !$vmUser ) {
 			$vmUser = $user
 		}
-		if ( !$vmPassword )
-		{
+		if ( !$vmPassword ) {
 			$vmPassword = $password
 		}
 		$retValue = $false
-		foreach ($VM in $allVMData)
-		{
+		foreach ($VM in $allVMData) {
 			$vmErrors = 0
 			$BootLogDir="$Logdir\$($VM.RoleName)"
 			mkdir $BootLogDir -Force | Out-Null
@@ -343,60 +329,45 @@ Function Check-KernelLogs($allVMData, $vmUser, $vmPassword)
 			$Null = Run-LinuxCmd -ip $VM.PublicIP -port $VM.SSHPort -username $vmUser -password $vmPassword -command "dmesg > ./CurrentKernelLogs.txt" -runAsSudo
 			$Null = Copy-RemoteFiles -download -downloadFrom $VM.PublicIP -port $VM.SSHPort -files "./CurrentKernelLogs.txt" -downloadTo $BootLogDir -username $vmUser -password $vmPassword
 			Write-LogInfo "$($VM.RoleName): Kernel logs collected successfully."
-			foreach ($errorLine in $errorLines)
-			{
+			foreach ($errorLine in $errorLines) {
 				Write-LogInfo "Checking for $errorLine in kernel logs.."
 				$KernelLogs = Get-Content $currentKernelLogFile
-				foreach ( $line in $KernelLogs )
-				{
-					if ( ($line -imatch "$errorLine") -and ($line -inotmatch "initcall "))
-					{
+				foreach ( $line in $KernelLogs ) {
+					if ( ($line -imatch "$errorLine") -and ($line -inotmatch "initcall ")) {
 						Write-LogErr $line
 						$totalErrors += 1
 						$vmErrors += 1
 					}
-					if ( $line -imatch "\[<")
-					{
+					if ( $line -imatch "\[<") {
 						Write-LogErr $line
 					}
 				}
 			}
-			if ( $vmErrors -eq 0 )
-			{
+			if ( $vmErrors -eq 0 ) {
 				Write-LogInfo "$($VM.RoleName) : No issue found from the kernel logs."
 				$retValue = $true
-			}
-			else
-			{
+			} else {
 				Write-LogErr "$($VM.RoleName) : $vmErrors errors found."
 				$retValue = $false
 			}
 		}
-		if ( $totalErrors -eq 0 )
-		{
+		if ( $totalErrors -eq 0 ) {
 			$retValue = $true
-		}
-		else
-		{
+		} else {
 			$retValue = $false
 		}
-	}
-	catch
-	{
+	} catch {
 		$retValue = $false
 	}
 	return $retValue
 }
 
-Function Get-SystemDetailLogs($AllVMData, $User, $Password)
-{
-	foreach ($testVM in $AllVMData)
-	{
+Function Get-SystemDetailLogs($AllVMData, $User, $Password) {
+	foreach ($testVM in $AllVMData) {
 		$testIP = $testVM.PublicIP
 		$testPort = $testVM.SSHPort
 		$LisLogFile = "LIS-Logs" + ".tgz"
-		try
-		{
+		try {
 			Write-LogInfo "Collecting logs from IP : $testIP PORT : $testPort"
 			Copy-RemoteFiles -upload -uploadTo $testIP -username $User -port $testPort -password $Password -files '.\Testscripts\Linux\CORE-LogCollector.sh'
 			Run-LinuxCmd -username $User -password $Password -ip $testIP -port $testPort -command 'chmod +x CORE-LogCollector.sh'
@@ -404,13 +375,10 @@ Function Get-SystemDetailLogs($AllVMData, $User, $Password)
 			Write-LogInfo $out
 			Copy-RemoteFiles -download -downloadFrom $testIP -username $User -password $Password -port $testPort -downloadTo $LogDir -files $LisLogFile
 			Write-LogInfo "Logs collected successfully from IP : $testIP PORT : $testPort"
-			if ($TestPlatform -eq "Azure")
-			{
+			if ($TestPlatform -eq "Azure") {
 				Rename-Item -Path "$LogDir\$LisLogFile" -NewName ("LIS-Logs-" + $testVM.RoleName + ".tgz") -Force
 			}
-		}
-		catch
-		{
+		} catch {
 			$ErrorMessage =  $_.Exception.Message
 			Write-LogErr "EXCEPTION : $ErrorMessage"
 			Write-LogErr "Unable to collect logs from IP : $testIP PORT : $testPort"

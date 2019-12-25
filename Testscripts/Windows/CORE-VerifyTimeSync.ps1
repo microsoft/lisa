@@ -27,7 +27,7 @@ function Main {
 
     $service = "Time Synchronization"
 
-    if ($TestParams -eq $null) {
+    if ($null -eq $TestParams) {
         Write-LogErr " TestParams is null"
         return "FAIL"
     }

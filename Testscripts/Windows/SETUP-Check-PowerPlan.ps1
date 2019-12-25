@@ -15,7 +15,7 @@ function Main {
         # Get PowerPlan
         $powerPlanStatus = Get-CimInstance -ComputerName $vmData.HypervHost `
             -Name root\cimv2\power -Class win32_PowerPlan -Filter `
-            "ElementName = 'High Performance'" | select -ExpandProperty IsActive
+            "ElementName = 'High Performance'" | Select-Object -ExpandProperty IsActive
         if ($powerPlanStatus -eq $True) {
             Write-LogInfo "PowerPlan is on High Performance on $($vmData.HypervHost)"
             $retVal = $true
@@ -31,7 +31,7 @@ function Main {
 
             $powerPlanStatus = Get-CimInstance -ComputerName $vmData.HypervHost `
                 -Name root\cimv2\power -Class win32_PowerPlan -Filter `
-                "ElementName = 'High Performance'" | select -ExpandProperty IsActive
+                "ElementName = 'High Performance'" | Select-Object -ExpandProperty IsActive
             if ($powerPlanStatus -eq $True) {
                 Write-LogInfo "PowerPlan was set to High Performance on $($vmData.HypervHost)"
                 $retVal = $true

@@ -183,7 +183,7 @@ function Main {
                 throw "unable to start the VM"
             }
             $sleepPeriod = 5 # seconds
-            Start-Sleep -s $sleepPeriod
+            Start-Sleep -Seconds $sleepPeriod
             #
             # Check heartbeat
             #

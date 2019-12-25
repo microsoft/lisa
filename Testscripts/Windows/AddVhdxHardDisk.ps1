@@ -143,7 +143,7 @@ function Create-HardDrive( [string] $vmName, [string] $server, [System.Boolean] 
                   return $False
               }
        }
-        if ($nv -eq $null) {
+        if ($null -eq $nv) {
             Write-LogErr "New-VHD failed to create the new .vhd file: $($vhdName)"
             return $False
         }
@@ -177,17 +177,17 @@ function Main {
     )
 
     # Check input arguments
-    if ($vmName -eq $null -or $vmName.Length -eq 0) {
+    if ($null -eq $vmName -or $vmName.Length -eq 0) {
         Write-LogErr "VM name is null"
         return $False
     }
 
-    if ($hvServer -eq $null -or $hvServer.Length -eq 0) {
+    if ($null -eq $hvServer -or $hvServer.Length -eq 0) {
         Write-LogErr "hvServer is null"
         return $False
     }
 
-    if ($testParams -eq $null -or $testParams.Length -lt 3) {
+    if ($null -eq $testParams -or $testParams.Length -lt 3) {
         Write-LogErr "No testParams provided"
         return $False
     }
@@ -214,7 +214,7 @@ function Main {
         }
     }
 
-    cd $rootDir
+    Set-Location $rootDir
 
     $vmGeneration = Get-VMGeneration -vmName $vmName -hvServer $hvServer
     if ($IDECount -ge 1 -and $vmGeneration -eq 2) {
@@ -222,7 +222,7 @@ function Main {
         return $True
     }
     # if define diskCount number, only support one SCSI parameter
-    if ($diskCount -ne $null) {
+    if ($null -ne $diskCount) {
         if ($SCSICount -gt 1 -or $IDECount -gt 0) {
             Write-LogErr "Invalid SCSI/IDE arguments, only support to define one SCSI disk"
             return $False
@@ -308,7 +308,7 @@ function Main {
         }
 
         # here only test scsi when use diskCount
-        if ($diskCount -ne $null -and $SCSI -eq $true) {
+        if ($null -ne $diskCount -and $SCSI -eq $true) {
             if ($vmGeneration -eq 1) {
                 $startLun = 0
                 $endLun = $diskCount-1

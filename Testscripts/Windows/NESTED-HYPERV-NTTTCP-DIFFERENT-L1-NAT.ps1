@@ -28,7 +28,7 @@ netsh advfirewall firewall add rule name="WinRM HTTP" dir=in action=allow protoc
 	if($null -eq $blobContainer) {
 		Write-LogInfo "The container $containerName doesn't exist, so create it."
 		New-AzStorageContainer -Name $containerName -Context $sourceContext   | Out-Null
-		Start-Sleep 3
+		Start-Sleep -Seconds 3
 		$blobContainer = Get-AzStorageContainer -Name $containerName -Context $sourceContext
 	}
 	Write-LogInfo "Upload the custom script to $blobContainer"
@@ -114,7 +114,7 @@ function Get-NestedVMIPAdress ($session, $vmName="test") {
 		$status = Get-VM -Name $vmName
 		if ($($status.State) -ne "running") {
 			Start-VM -Name $vmName
-			Start-Sleep 10
+			Start-Sleep -Seconds 10
 		}
 	} -ArgumentList $vmName
 
@@ -123,7 +123,7 @@ function Get-NestedVMIPAdress ($session, $vmName="test") {
 	do
 	{
 		$i++
-		Start-Sleep 30
+		Start-Sleep -Seconds 30
 		$VMNicProperties = Invoke-Command -Session $session -ScriptBlock {
 			param($vmName)
 
@@ -164,7 +164,7 @@ function Get-OSvhd ($session, $srcPath, $dstPath) {
 
 			do{
 				Write-Output (Get-Date) $btjob.BytesTransferred $btjob.BytesTotal ($btjob.BytesTransferred/$btjob.BytesTotal*100)
-				Start-Sleep -s 10
+				Start-Sleep -Seconds 10
 			} while ($btjob.BytesTransferred -lt $btjob.BytesTotal)
 
 			Write-Output (Get-Date) $btjob.BytesTransferred $btjob.BytesTotal ($btjob.BytesTransferred/$btjob.BytesTotal*100)
@@ -183,7 +183,7 @@ function Install-Hyperv ($session, $ip, $port=3389) {
 	$maxRetryTimes=10
 	$retryTimes=1
 	do {
-		Start-Sleep 20
+		Start-Sleep -Seconds 20
 		$null = Test-TCP  -testIP $ip -testport $port
 	} while(($? -ne $true) -and ($retryTimes++ -lt $maxRetryTimes))
 	if($retryTimes -eq 10) {
@@ -384,7 +384,7 @@ function Main () {
 				$maxRetryTimes=10
 				$retryTimes=1
 				do {
-					Start-Sleep 20
+					Start-Sleep -Seconds 20
 					$connectionURL = "http://$($vm.PublicIP):$($vm.SessionPort)"
 					Write-LogInfo "Session connection URL: $connectionURL"
 					if($vm.RoleName.Contains("role-0")) {
@@ -419,7 +419,7 @@ function Main () {
 			$maxRetryTimes=10
 			$retryTimes=1
 			do {
-				Start-Sleep 20
+				Start-Sleep -Seconds 20
 				$serverSession = New-PSSession -ComputerName $hs1VIP -Credential $cred
 			} while(($? -ne $true) -and ($retryTimes++ -lt $maxRetryTimes))
 			if($retryTimes -eq 10) {
@@ -428,7 +428,7 @@ function Main () {
 
 			$retryTimes=1
 			do {
-				Start-Sleep 20
+				Start-Sleep -Seconds 20
 				$clientSession = New-PSSession -ComputerName $hs2VIP -Credential $cred
 			} while(($? -ne $true) -and ($retryTimes++ -lt $maxRetryTimes))
 			if($retryTimes -eq 10) {

@@ -76,7 +76,7 @@ Function Get-OSvhd ([string]$computerName, [string]$srcPath, [string]$dstPath, $
 
 			do{
 				Write-LogInfo (Get-Date) $btjob.BytesTransferred $btjob.BytesTotal ($btjob.BytesTransferred/$btjob.BytesTotal*100)
-				Start-Sleep -s 20
+				Start-Sleep -Seconds 20
 			} while ($btjob.BytesTransferred -lt $btjob.BytesTotal)
 
 			Write-LogInfo (Get-Date) $btjob.BytesTransferred $btjob.BytesTotal ($btjob.BytesTransferred/$btjob.BytesTotal*100)

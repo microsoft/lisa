@@ -37,7 +37,7 @@ function Check-Result {
     $sw = [diagnostics.stopwatch]::StartNew()
     while ($sw.elapsed -lt $timeout){
         $state = $null
-        Start-Sleep -s 20
+        Start-Sleep -Seconds 20
         Write-LogInfo "Test is running. Attempt number ${attempts} to reach VM"
         $attempts++
         $isVmAlive = Is-VmAlive -AllVMDataObject $AllVMData -MaxRetryCount 5

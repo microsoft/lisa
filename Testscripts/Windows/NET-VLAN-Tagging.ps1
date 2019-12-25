@@ -138,7 +138,7 @@ function Main {
         return "FAIL"
     }
     Write-LogInfo "Successfully configured $vm1Nic"
-    Start-Sleep -s 10
+    Start-Sleep -Seconds 10
 
     $retVal = Test-GuestInterface $VMUserName $vm2StaticIP $IPv4 $VMPort $VMPassword `
         $vm1MacAddress $pingVersion $packetNumber
@@ -157,7 +157,7 @@ function Main {
         return "FAIL"
     }
     Write-LogInfo "Successfully configured $vm2nic"
-    Start-Sleep -s 10
+    Start-Sleep -Seconds 10
 
     $retVal = Test-GuestInterface $VMUserName $vm2StaticIP $IPv4 $VMPort $VMPassword `
         $vm1MacAddress $pingVersion $packetNumber
@@ -176,7 +176,7 @@ function Main {
         return "FAIL"
     }
     Write-LogInfo "Successfully configured $vm1Nic"
-    Start-Sleep -s 10
+    Start-Sleep -Seconds 10
     $retVal = Test-GuestInterface $VMUserName $vm2StaticIP $IPv4 $VMPort $VMPassword `
         $vm1MacAddress $pingVersion $packetNumber
     if ($retVal -eq $True) {

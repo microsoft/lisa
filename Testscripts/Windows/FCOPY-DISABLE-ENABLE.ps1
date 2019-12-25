@@ -72,7 +72,7 @@ function Main {
             return "FAIL"
         }
         Write-LogInfo "Waiting 60 secs for VM $VMName to start ..."
-        Start-Sleep 60
+        Start-Sleep -Seconds 60
     }
 
     $null = Check-Systemd -Ipv4 $Ipv4 -SSHPort $VMPort -Username $VMUserName -Password $VMPassword
@@ -105,14 +105,14 @@ function Main {
             Write-LogErr "Unable to disable VMIntegrationService on $VMName ($HvServer) on $counter run"
             return "FAIL"
         }
-        Start-Sleep 5
+        Start-Sleep -Seconds 5
 
         Enable-VMIntegrationService -Name "Guest Service Interface" -vmName $VMName -ComputerName $HvServer
         if ($? -ne "True") {
             Write-LogErr "Unable to enable VMIntegrationService on $VMName ($HvServer) on $counter run"
             return "FAIL"
         }
-        Start-Sleep 5
+        Start-Sleep -Seconds 5
         $counter += 1
     }
     Write-LogInfo "Disabled and Enabled Guest Services $counter times"

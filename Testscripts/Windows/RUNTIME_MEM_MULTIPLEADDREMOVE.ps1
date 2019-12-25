@@ -67,7 +67,7 @@ function Main {
         }
         Write-LogInfo "Stress-ng is installed! Will begin running memory stress tests shortly."
         # Get memory stats from VmInfo
-        Start-Sleep -s 10
+        Start-Sleep -Seconds 10
         $sleepPeriod = 60
         # get VmInfo memory from host and guest
         while ( $sleepPeriod -gt 0 ) {
@@ -80,7 +80,7 @@ function Main {
                 break
             }
             $sleepPeriod-= 5
-            Start-Sleep -s 5
+            Start-Sleep -Seconds 5
         }
         if (($vm1BeforeAssigned -le 0) -or ($vm1BeforeDemand -le 0) -or ($vm1BeforeIncrease -le 0)) {
             Throw "vm1 $vmName reported 0 memory (assigned or demand)."
@@ -92,7 +92,7 @@ function Main {
         # Set new memory value. Trying for 3 iterations
         for ($i=0; $i -lt 3; $i++) {
             Set-VMMemory -VMName $vmName -ComputerName $HvServer -DynamicMemoryEnabled $false -StartupBytes $testMem
-            Start-Sleep -s 5
+            Start-Sleep -Seconds 5
             if ( $VmInfo.MemoryAssigned -eq $testMem ) {
                 [int64]$vm1AfterAssigned = ($VmInfo.MemoryAssigned/1MB)
                 [int64]$vm1AfterDemand = ($VmInfo.MemoryDemand/1MB)
@@ -120,12 +120,12 @@ function Main {
         Write-LogInfo "Memory stats after $vmName memory was increased by 2GB"
         Write-LogInfo "${vmName}: assigned - $vm1AfterAssigned | demand - $vm1AfterDemand"
         # Change 2 - Decrease by 2048 MB(2147483648)
-        Start-Sleep -s 10
+        Start-Sleep -Seconds 10
         $testMem = $testMem - 2147483648
         # Set new memory value.Trying for 3 iterations
         for ($i=0; $i -lt 3; $i++) {
             Set-VMMemory -VMName $vmName -ComputerName $HvServer -DynamicMemoryEnabled $false -StartupBytes $testMem
-            Start-Sleep -s 5
+            Start-Sleep -Seconds 5
             if ( $VmInfo.MemoryAssigned -eq $testMem ) {
                 [int64]$vm1AfterAssigned = ($VmInfo.MemoryAssigned/1MB)
                 [int64]$vm1AfterDemand = ($VmInfo.MemoryDemand/1MB)
@@ -154,12 +154,12 @@ function Main {
         Write-LogInfo "Memory stats after $vmName memory was decreased by 2GB"
         Write-LogInfo "${vmName}: assigned - $vm1AfterAssigned | demand - $vm1AfterDemand"
         # Change 3 - Increase by 1GB(1073741824)
-        Start-Sleep -s 10
+        Start-Sleep -Seconds 10
         $testMem = $testMem + 1073741824
         # Set new memory value.Trying for 3 iterations
         for ($i=0; $i -lt 3; $i++) {
             Set-VMMemory -VMName $vmName  -ComputerName $HvServer -DynamicMemoryEnabled $false -StartupBytes $testMem
-            Start-Sleep -s 5
+            Start-Sleep -Seconds 5
             if ($VmInfo.MemoryAssigned -eq $testMem) {
                 [int64]$vm1AfterAssigned = ($VmInfo.MemoryAssigned/1MB)
                 [int64]$vm1AfterDemand = ($VmInfo.MemoryDemand/1MB)
@@ -188,12 +188,12 @@ function Main {
         Write-LogInfo "Memory stats after $vmName memory was increased by 1GB"
         Write-LogInfo "${vmName}: assigned - $vm1AfterAssigned | demand - $vm1AfterDemand"
         # Change 4 - Decrease by 2GB(2147483648)
-        Start-Sleep -s 10
+        Start-Sleep -Seconds 10
         $testMem = $testMem - 2147483648
         # Set new memory value. Trying for 3 iterations
         for ($i=0; $i -lt 3; $i++) {
             Set-VMMemory -VMName $vmName  -ComputerName $HvServer -DynamicMemoryEnabled $false -StartupBytes $testMem
-            Start-Sleep -s 5
+            Start-Sleep -Seconds 5
             if ($VmInfo.MemoryAssigned -eq $testMem) {
                 [int64]$vm1AfterAssigned = ($VmInfo.MemoryAssigned/1MB)
                 [int64]$vm1AfterDemand = ($VmInfo.MemoryDemand/1MB)
@@ -228,7 +228,7 @@ function Main {
         }
 
         # sleep a few seconds so stress-ng starts and the memory assigned/demand gets updated
-        Start-Sleep -s 80
+        Start-Sleep -Seconds 80
         [int64]$vm1Demand = ($VmInfo.MemoryDemand/1MB)
         # get memory stats while stress-ng is running
         [int64]$vm1Assigned = ($VmInfo.MemoryAssigned/1MB)
@@ -239,7 +239,7 @@ function Main {
             Throw "Memory Demand did not increase after starting stress-ng"
         }
         # Wait stress-ng stopped running, and then get memory stats
-        Start-Sleep -s 100
+        Start-Sleep -Seconds 100
         [int64]$vm1AfterStressAssigned = ($VmInfo.MemoryAssigned/1MB)
         [int64]$vm1AfterStressDemand = ($VmInfo.MemoryDemand/1MB)
         Write-LogInfo "Memory stats after $vmName stress-ng run"

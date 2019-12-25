@@ -152,7 +152,7 @@ function Main {
         }
         Write-LogInfo "Attached first VHDx with path $path1"
         #wait for vm to see the disks
-        Start-Sleep 5
+        Start-Sleep -Seconds 5
         $diskNumber = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
             -command "fdisk -l | grep 'Disk /dev/sd*' | grep -v 'Disk /dev/sda' | wc -l" -RunAsSudo
         if ( $diskNumber -ne 2) {

@@ -169,7 +169,7 @@ Class WSLController : TestController
 							Remove-BitsTransfer $btJob
 							throw "Error connecting $srcPath to download."
 						}
-						Start-Sleep -s 5
+						Start-Sleep -Seconds 5
 					} while ($btJob.BytesTransferred -lt $btJob.BytesTotal)
 					Complete-BitsTransfer $btJob
 				} -ArgumentList $wslDistro, $dstFile

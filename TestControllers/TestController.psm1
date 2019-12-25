@@ -283,7 +283,7 @@ Class TestController
 				Set-AdditionalHWConfigInTestCaseData -CurrentTestData $test -ConfigName "OSType" -ConfigValue $this.CustomParams["OSType"]
 			}
 			if ($this.OverrideVMSize) {
-				$this.OverrideVMSize = ($this.OverrideVMSize.Split(",") | select -Unique) -join ","
+				$this.OverrideVMSize = ($this.OverrideVMSize.Split(",") | Select-Object -Unique) -join ","
 				Write-LogInfo "The OverrideVMSize of case $($test.testName) is set to $($this.OverrideVMSize)"
 				if ($test.OverrideVMSize) {
 					$test.OverrideVMSize = $this.OverrideVMSize
