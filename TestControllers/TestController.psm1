@@ -488,7 +488,7 @@ Class TestController
 		}
 
 		# Sometimes test scripts may return an array, the last one is the result object
-		if ($currentTestResult.GetType().Name -match "[]") {
+		if ($currentTestResult.count) {
 			$currentTestResult = $currentTestResult[-1]
 		}
 
