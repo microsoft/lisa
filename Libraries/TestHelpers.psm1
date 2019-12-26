@@ -42,7 +42,8 @@ Function Get-FinalResultHeader($resultArr) {
 	return $result
 }
 
-function Create-TestResultObject() {
+function Create-TestResultObject()
+{
 	$objNode = New-Object -TypeName PSObject
 	Add-Member -InputObject $objNode -MemberType NoteProperty -Name TestResult -Value $null -Force
 	Add-Member -InputObject $objNode -MemberType NoteProperty -Name TestSummary -Value $null -Force

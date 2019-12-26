@@ -252,19 +252,6 @@ Class JUnitReportGenerator
 	}
 }
 
-Class TestResult
-{
-	[string] $TestResult
-	[string] $TestSummary
-	[array] $TestResultData
-
-	TestResult() {
-		$this.TestResult = $null
-		$this.TestSummary = $null
-		$this.TestResultData = @()
-	}
-}
-
 Class TestSummary
 {
 	[string] $TextSummary
