@@ -143,170 +143,76 @@ function Collect-CustomLogFile {
 	<#
 	.Synopsis
 		Checks if log file is present in VM and downloads it if so.
-    #>
-    param (
-        [string]$LogsDestination,
+	#>
+	param (
+		[string]$LogsDestination,
 		[string]$PublicIP,
 		[string]$SSHPort,
 		[string]$Username,
 		[string]$Password,
-        [string]$FileName
-    )
-    if (Check-FileInLinuxGuest -ipv4 $PublicIP -vmPassword $Password -vmPort $SSHPort -vmUserName $Username -fileName $FileName) {
-        Copy-RemoteFiles -download -downloadFrom $PublicIP -files $FileName `
-            -downloadTo $LogsDestination -port $SSHPort -username $Username -password $Password
-    } else {
-        Write-LogWarn "${fileName} does not exist on VM."
-    }
+		[string]$FileName
+	)
+	if (Check-FileInLinuxGuest -ipv4 $PublicIP -vmPassword $Password -vmPort $SSHPort -vmUserName $Username -fileName $FileName) {
+		Copy-RemoteFiles -download -downloadFrom $PublicIP -files $FileName `
+			-downloadTo $LogsDestination -port $SSHPort -username $Username -password $Password
+	} else {
+		Write-LogWarn "${fileName} does not exist on VM."
+	}
 }
 
-Function GetAndCheck-KernelLogs($allDeployedVMs, $status, $vmUser, $vmPassword, $EnableCodeCoverage) {
-	try	{
-		if (!($status -imatch "Initial" -or $status -imatch "Final")) {
-			Write-LogInfo "Status value should be either final or initial"
-			return $false
-		}
+Function Compare-OsLogs($InitialLogFilePath, $FinalLogFilePath, $LogStatusFilePath, $ErrorMatchPatten) {
+	$retValue = $true
+	try {
+		$fileDiff = Compare-Object -ReferenceObject (Get-Content $InitialLogFilePath) `
+			-DifferenceObject (Get-Content $FinalLogFilePath)
 
-		if (!$vmUser) {
-			$vmUser = $user
-		}
-		if (!$vmPassword) {
-			$vmPassword = $password
-		}
-
-		$retValue = $false
-		foreach ($VM in $allDeployedVMs) {
-			Write-LogInfo "Collecting $($VM.RoleName) VM Kernel $status Logs ..."
-
-			$bootLogDir = "$Logdir\$($VM.RoleName)"
-			mkdir $bootLogDir -Force | Out-Null
-			$initialBootLogFile = "InitialBootLogs.txt"
-			$finalBootLogFile = "FinalBootLogs.txt"
-			$initialBootLog = Join-Path $BootLogDir $initialBootLogFile
-			$finalBootLog = Join-Path $BootLogDir $finalBootLogFile
-			$currenBootLogFile = $initialBootLogFile
-			$currenBootLog = $initialBootLog
-			$kernelLogStatus = Join-Path $BootLogDir "KernelLogStatus.txt"
-
-			if ($status -imatch "Final") {
-				$currenBootLogFile = $finalBootLogFile
-				$currenBootLog = $finalBootLog
-			}
-
-			if ($status -imatch "Initial") {
-				$checkConnectivityFile = Join-Path $LogDir ([System.IO.Path]::GetRandomFileName())
-				Set-Content -Value "Test connectivity." -Path $checkConnectivityFile
-				Copy-RemoteFiles -uploadTo $VM.PublicIP -port $VM.SSHPort -files $checkConnectivityFile `
-					-username $vmUser -password $vmPassword -upload | Out-Null
-				Remove-Item -Path $checkConnectivityFile -Force
-			}
-
-			if ($EnableCodeCoverage -and ($status -imatch "Final")) {
-				Write-LogInfo "Collecting coverage debug files from VM $($VM.RoleName)"
-
-				$gcovCollected = Collect-GcovData -ip $VM.PublicIP -port $VM.SSHPort `
-					-username $vmUser -password $vmPassword -logDir $LogDir
-
-				if ($gcovCollected) {
-					Write-LogInfo "GCOV data collected successfully"
-				} else {
-					Write-LogErr "Failed to collect GCOV data from VM: $($VM.RoleName)"
-				}
-			}
-			Run-LinuxCmd -ip $VM.PublicIP -port $VM.SSHPort -runAsSudo `
-				-username $vmUser -password $vmPassword `
-				-command "dmesg > ./${currenBootLogFile}" | Out-Null
-			Copy-RemoteFiles -download -downloadFrom $VM.PublicIP -port $VM.SSHPort -files "./${currenBootLogFile}" `
-				-downloadTo $BootLogDir -username $vmUser -password $vmPassword | Out-Null
-			Write-LogInfo "$($VM.RoleName): $status Kernel logs collected successfully to ${currenBootLogFile} file."
-
-			Write-LogInfo "Checking for call traces in kernel logs.."
-			$KernelLogs = Get-Content $currenBootLog
-			$callTraceFound  = $false
-			foreach ($line in $KernelLogs) {
-				if (( $line -imatch "Call Trace" ) -and ($line -inotmatch "initcall ")) {
-					Write-LogErr $line
-					$callTraceFound = $true
-				}
-				if ($callTraceFound) {
-					if ($line -imatch "\[<") {
-						Write-LogErr $line
-					}
-				}
-			}
-			if (!$callTraceFound) {
-				Write-LogInfo "No kernel call traces found in the kernel log"
-			}
-
-			if ($status -imatch "Initial") {
-				if (!$global:detectedDistro) {
-					$detectedDistro = Detect-LinuxDistro -VIP $VM.PublicIP -SSHport $VM.SSHPort `
-						-testVMUser $vmUser -testVMPassword $vmPassword
-				}
-				Set-DistroSpecificVariables -detectedDistro $detectedDistro
-				$retValue = $true
-			}
-
-			if($status -imatch "Final") {
-				$KernelDiff = Compare-Object -ReferenceObject (Get-Content $FinalBootLog) `
-					-DifferenceObject (Get-Content $InitialBootLog)
-
-				# Removing final dmesg file from logs to reduce the size of logs.
-				# We can always see complete Final Logs as: Initial Kernel Logs + Difference in Kernel Logs
-				Remove-Item -Path $FinalBootLog -Force | Out-Null
-
-				if (!$KernelDiff) {
-					$msg = "Initial and Final Kernel Logs have same content"
-					Write-LogInfo $msg
-					Set-Content -Value $msg -Path $KernelLogStatus
-					$retValue = $true
-				} else {
-					$errorCount = 0
-					$msg = "Following lines were added in the kernel log during execution of test."
-					Set-Content -Value $msg -Path $KernelLogStatus
-					Add-Content -Value "-------------------------------START----------------------------------" -Path $KernelLogStatus
-					foreach ($line in $KernelDiff) {
-						Add-Content -Value $line.InputObject -Path $KernelLogStatus
-						if ( ($line.InputObject -imatch "fail") -or ($line.InputObject -imatch "error") `
-								-or ($line.InputObject -imatch "warning")) {
-							$errorCount += 1
-							if ($errorCount -eq 1) {
-								$warnMsg = "Following fail/error/warning messages were added in the kernel log during execution of test:"
-								Write-LogWarn $warnMsg
-							}
-							Write-LogWarn $line.InputObject
+		if (!$fileDiff) {
+			$msg = "Initial and Final Logs have same content"
+			Write-LogInfo $msg
+			Set-Content -Value $msg -Path $LogStatusFilePath
+		} else {
+			$errorCount = 0
+			$msg = "Following lines were added in the logs during execution of test."
+			$patternStr = $ErrorMatchPatten.Replace('|','/')
+			Set-Content -Value $msg -Path $LogStatusFilePath
+			Add-Content -Value "-------------------------------START----------------------------------" -Path $LogStatusFilePath
+			foreach ($line in $fileDiff) {
+				if ($line.SideIndicator -eq "=>") {
+					Add-Content -Value $line.InputObject -Path $LogStatusFilePath
+					if ($line.InputObject -imatch $ErrorMatchPatten) {
+						$errorCount += 1
+						if ($errorCount -eq 1) {
+							$warnMsg = "Following $patternStr messages were added in the logs during execution of test:"
+							Write-LogWarn $warnMsg
 						}
+						Write-LogWarn $line.InputObject
 					}
-					Add-Content -Value "--------------------------------EOF-----------------------------------" -Path $KernelLogStatus
-					if ($errorCount -gt 0) {
-						Write-LogWarn "Found $errorCount fail/error/warning messages in kernel logs during execution."
-						$retValue = $false
-					}
-					Write-LogInfo "$($VM.RoleName): $status Kernel logs collected and compared successfully"
-				}
-
-				if ($callTraceFound) {
-					Write-LogInfo "Preserving the Resource Group(s) $($VM.ResourceGroupName)"
-					Add-ResourceGroupTag -ResourceGroup $VM.ResourceGroupName -TagName $preserveKeyword -TagValue "yes"
-					Add-ResourceGroupTag -ResourceGroup $VM.ResourceGroupName -TagName "calltrace" -TagValue "yes"
-					Write-LogInfo "Setting tags : calltrace = yes; testName = $testName"
-					$hash = @{}
-					$hash.Add("calltrace","yes")
-					$hash.Add("testName","$testName")
-					$Null = Set-AzResourceGroup -Name $($VM.ResourceGroupName) -Tag $hash
 				}
 			}
+			Add-Content -Value "--------------------------------EOF-----------------------------------" -Path $LogStatusFilePath
+			if ($errorCount -gt 0) {
+				Write-LogWarn "Found $errorCount $patternStr messages in the logs during execution."
+				$retValue = $false
+			}
 		}
-	} catch {
-		Write-LogInfo $_
-		$retValue = $false
 	}
-
+	catch
+	{
+		$line = $_.InvocationInfo.ScriptLineNumber
+		$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
+		$ErrorMessage =  $_.Exception.Message
+		Write-LogErr "EXCEPTION: $ErrorMessage"
+		Write-LogErr "Calling function - $($MyInvocation.MyCommand)."
+		Write-LogErr "Source: Line $line in script $script_name."
+	}
 	return $retValue
 }
 
-Function Check-KernelLogs($allVMData, $vmUser, $vmPassword) {
-	try {
+
+Function Check-KernelLogs($allVMData, $vmUser, $vmPassword)
+{
+	try
+	{
 		$errorLines = @()
 		$errorLines += "Call Trace"
 		$errorLines += "rcu_sched self-detected stall on CPU"

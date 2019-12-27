@@ -434,8 +434,14 @@ Class TestController
 			$this.TestProvider.RunSetup($VmData, $CurrentTestData, $testParameters, $ApplyCheckpoint)
 
 			if (!$global:IsWindowsImage) {
+				if (!$global:detectedDistro) {
+					$detectedDistro = Detect-LinuxDistro -VIP $VmData[0].PublicIP -SSHport $VmData[0].SSHPort `
+						-testVMUser $global:user -testVMPassword $global:password
+				}
+				Set-DistroSpecificVariables -detectedDistro $detectedDistro
+
 				Write-LogInfo "==> Check the target machine kernel log."
-				GetAndCheck-KernelLogs -allDeployedVMs $VmData -status "Initial" | Out-Null
+				$this.GetAndCompareOsLogs($VmData, "Initial")
 			}
 
 			# Upload test files to VMs
@@ -481,6 +487,11 @@ Class TestController
 			$currentTestResult.testSummary += Trim-ErrorLogMessage $errorMessage
 		}
 
+		# Sometimes test scripts may return an array, the last one is the result object
+		if ($currentTestResult.count) {
+			$currentTestResult = $currentTestResult[-1]
+		}
+
 		# Upload results to database
 		Write-LogInfo "==> Upload test results to database."
 		if ($currentTestResult.TestResultData) {
@@ -491,7 +502,12 @@ Class TestController
 			Write-LogInfo "==> Check if the test target machines are still running."
 			$isVmAlive = Is-VmAlive -AllVMDataObject $VMData -MaxRetryCount 10
 			if (!$global:IsWindowsImage -and $testParameters["SkipVerifyKernelLogs"] -ne "True" -and $isVmAlive -eq "True" ) {
-				GetAndCheck-KernelLogs -allDeployedVMs $VmData -status "Final" -EnableCodeCoverage $this.EnableCodeCoverage | Out-Null
+				$ret = $this.GetAndCompareOsLogs($VmData, "Final")
+				if (($testParameters["FailForLogCheck"] -eq "True") -and ($ret -eq $false) -and ($currentTestResult.TestResult -eq $global:ResultPass)) {
+					$currentTestResult.TestResult = $global:ResultFail
+					Write-LogErr "Test $($CurrentTestData.TestName) fails for log check"
+					$currentTestResult.testSummary += New-ResultSummary -testResult "Test fails for log check"
+				}
 				$this.GetSystemBasicLogs($VmData, $global:user, $global:password, $CurrentTestData, $currentTestResult, $this.EnableTelemetry) | Out-Null
 			}
 
@@ -747,5 +763,96 @@ Class TestController
 			Write-LogErr "Calling function - $($MyInvocation.MyCommand)."
 			Write-LogErr "Source: Line $line in script $script_name."
 		}
+	}
+
+	[bool] GetAndCompareOsLogs($AllVMData, $Status) {
+		$retValue = $true
+		try	{
+			if (!($status -imatch "Initial" -or $status -imatch "Final")) {
+				Write-LogErr "Status value should be either final or initial"
+				return $false
+			}
+			foreach ($VM in $AllVMData) {
+				Write-LogInfo "Collecting $($VM.RoleName) VM Kernel $status Logs ..."
+
+				$bootLogDir = "$global:Logdir\$($VM.RoleName)"
+				mkdir $bootLogDir -Force | Out-Null
+
+				$currentBootLogFile = "${status}BootLogs.txt"
+				$currentBootLog = Join-Path $BootLogDir $currentBootLogFile
+
+				$initialBootLogFile = "InitialBootLogs.txt"
+				$initialBootLog = Join-Path $BootLogDir $initialBootLogFile
+
+				$kernelLogStatus = Join-Path $BootLogDir "KernelLogStatus.txt"
+
+				if ($this.EnableCodeCoverage -and ($status -imatch "Final")) {
+					Write-LogInfo "Collecting coverage debug files from VM $($VM.RoleName)"
+
+					$gcovCollected = Collect-GcovData -ip $VM.PublicIP -port $VM.SSHPort `
+						-username $global:user -password $global:password -logDir $global:LogDir
+
+					if ($gcovCollected) {
+						Write-LogInfo "GCOV data collected successfully"
+					} else {
+						Write-LogErr "Failed to collect GCOV data from VM: $($VM.RoleName)"
+					}
+				}
+
+				Run-LinuxCmd -ip $VM.PublicIP -port $VM.SSHPort -runAsSudo `
+					-username $global:user -password $global:password `
+					-command "dmesg > ./${currentBootLogFile}" | Out-Null
+				Copy-RemoteFiles -download -downloadFrom $VM.PublicIP -port $VM.SSHPort -files "./${currentBootLogFile}" `
+					-downloadTo $BootLogDir -username $global:user -password $global:password | Out-Null
+				Write-LogInfo "$($VM.RoleName): $status kernel log, ${currentBootLogFile}, collected successfully."
+
+				Write-LogInfo "Checking for call traces in kernel logs.."
+				$KernelLogs = Get-Content $currentBootLog
+				$callTraceFound  = $false
+				foreach ($line in $KernelLogs) {
+					if (( $line -imatch "Call Trace" ) -and ($line -inotmatch "initcall ")) {
+						Write-LogErr $line
+						$callTraceFound = $true
+					}
+					if ($callTraceFound) {
+						if ($line -imatch "\[<") {
+							Write-LogErr $line
+						}
+					}
+				}
+				if (!$callTraceFound) {
+					Write-LogInfo "No kernel call traces found in the kernel log"
+				}
+
+				if($status -imatch "Final") {
+					$ret = Compare-OsLogs -InitialLogFilePath $InitialBootLog -FinalLogFilePath $currentBootLog -LogStatusFilePath $KernelLogStatus `
+						-ErrorMatchPatten "fail|error|warning"
+
+					if ($ret -eq $false) {
+						$retValue = $false
+					}
+
+					# Removing final dmesg file from logs to reduce the size of logs.
+					# We can always see complete Final Logs as: Initial Kernel Logs + Difference in Kernel Logs
+					Remove-Item -Path $currentBootLog -Force | Out-Null
+
+					Write-LogInfo "$($VM.RoleName): $status Kernel logs collected and compared successfully"
+
+					if ($callTraceFound -and $global:TestPlatform -imatch "Azure") {
+						Write-LogInfo "Preserving the Resource Group(s) $($VM.ResourceGroupName). Setting tags : calltrace = yes"
+						Add-ResourceGroupTag -ResourceGroup $VM.ResourceGroupName -TagName "calltrace" -TagValue "yes"
+					}
+				}
+			}
+		} catch {
+			$line = $_.InvocationInfo.ScriptLineNumber
+			$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
+			$ErrorMessage =  $_.Exception.Message
+			Write-LogErr "EXCEPTION: $ErrorMessage"
+			Write-LogErr "Calling function - $($MyInvocation.MyCommand)."
+			Write-LogErr "Source: Line $line in script $script_name."
+		}
+
+		return $retValue
 	}
 }
