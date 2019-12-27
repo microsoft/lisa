@@ -124,7 +124,7 @@ function UtilsInit() {
 		return 1
 	fi
 
-	GetDistro && LogMsg "Testscript running on $DISTRO" || LogErr "Test running on unknown distro!"
+	GetDistro && LogMsg "Testscript running on $DISTRO" || LogMsg "Test running on unknown distro!"
 
 	LogMsg "Successfully initialized testscript!"
 	return 0
