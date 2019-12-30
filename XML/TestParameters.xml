@@ -66,6 +66,8 @@
 	<ExcludeTests></ExcludeTests>
 	<TestIterations></TestIterations>
 	<XMLSecretFile></XMLSecretFile>
+	<SSHPrivateKey></SSHPrivateKey>
+	<SSHPublicKey></SSHPublicKey>
 	<EnableTelemetry></EnableTelemetry>
 	<UseExistingRG></UseExistingRG>
 

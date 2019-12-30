@@ -86,6 +86,8 @@ Param(
 	# [Optional] Parameters for changing framework behavior.
 	[int]    $TestIterations = 1,
 	[string] $XMLSecretFile = "",
+	[string] $SSHPrivateKey = "",
+	[string] $SSHPublicKey = "",
 	[switch] $EnableTelemetry,
 	[switch] $UseExistingRG,
 

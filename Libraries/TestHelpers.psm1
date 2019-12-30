@@ -58,12 +58,14 @@ function Upload-RemoteFile($uploadTo, $port, $file, $username, $password, $usePr
 	if (!$maxRetry) {
 		$maxRetry = 10
 	}
-
+	if ($global:sshPrivateKey) {
+		$usePrivateKey = $true
+		$sshKey = $global:sshPrivateKey
+	}
 	while($retry -le $maxRetry) {
-		# TODO: $UsePrivateKey is not enabled yet
 		if ($usePrivateKey) {
 			Write-LogDbg "Uploading $file to $username : $uploadTo, port $port using PrivateKey authentication"
-			Write-Output "yes" | .\Tools\pscp -i .\ssh\$sshKey -q -P $port $file $username@${uploadTo}:
+			Write-Output "yes" | .\Tools\pscp -i $sshKey -q -P $port $file $username@${uploadTo}:
 			$returnCode = $LASTEXITCODE
 		} else {
 			Write-LogDbg "Uploading $file to $username @ $uploadTo : $port using password authentication"
@@ -136,6 +138,10 @@ function Download-RemoteFile($downloadFrom, $downloadTo, $port, $file, $username
 	if (!$maxRetry) {
 		$maxRetry = 20
 	}
+	if ($global:sshPrivateKey) {
+		$usePrivateKey = $true
+		$sshKey = $global:sshPrivateKey
+	}
 	while($retry -le $maxRetry) {
 		if ($usePrivateKey) {
 			Write-LogDbg "Downloading $file from $username : $downloadFrom : $port to $downloadTo using PrivateKey authentication"
@@ -148,7 +154,6 @@ function Download-RemoteFile($downloadFrom, $downloadTo, $port, $file, $username
 		Set-Content -Value "1" -Path $downloadStatusRandomFile
 		$downloadStartTime = Get-Date
 
-		# TODO: $UsePrivateKey is not enabled yet
 		if ($UsePrivateKey) {
 			$downloadJob = Start-Job -ScriptBlock {
 				$curDir=$args[0];
@@ -160,9 +165,8 @@ function Download-RemoteFile($downloadFrom, $downloadTo, $port, $file, $username
 				$downloadTo=$args[6];
 				$downloadStatusRandomFile=$args[7];
 				Set-Location $curDir;
-				Set-Content -Value "1" -Path $args[6];
-				Write-Output "yes" | .\Tools\pscp -i .\ssh\$sshKey -q -P $port $username@${downloadFrom}:$testFile $downloadTo;
-				Set-Content -Value $LASTEXITCODE -Path $downloadStatusRandomFile;
+				Write-Output "yes" | .\Tools\pscp -i $sshKey -q -P $port $username@${downloadFrom}:$testFile $downloadTo 2> $downloadStatusRandomFile;
+				Add-Content -Value "DownloadExitCode_$LASTEXITCODE" -Path $downloadStatusRandomFile;
 			} -ArgumentList $curDir,$sshKey,$port,$file,$username,${downloadFrom},$downloadTo,$downloadStatusRandomFile
 		} else {
 			$downloadJob = Start-Job -ScriptBlock {
@@ -295,7 +299,12 @@ Function Wrap-CommandsToFile([string] $username,[string] $password,[string] $ip,
 Function Get-AvailableExecutionFolder([string] $username, [string] $password, [string] $ip, [int] $port) {
 	if ("root" -ne $username) {
 		Write-LogInfo "Check if execution folder /home/$username exists or not, if not, create one."
-		$output = Write-Output "yes" | .\Tools\plink.exe -C -pw $password -P $port "$username@$ip" "sudo -S bash -c 'if [ ! -d /home/$username ]; then mkdir -p /home/$username; chown -R ${user}: /home/$username; fi; if [ -d /home/$username ]; then echo EXIST; else echo NOTEXIST; fi;'" 2> $null
+		if ($global:sshPrivateKey) {
+			$sshKey = $global:sshPrivateKey
+			$output = Write-Output "yes" | .\Tools\plink.exe -C -i $sshKey -P $port "$username@$ip" "sudo -S bash -c 'if [ ! -d /home/$username ]; then mkdir -p /home/$username; chown -R ${user}: /home/$username; fi; if [ -d /home/$username ]; then echo EXIST; else echo NOTEXIST; fi;'" 2> $null
+		} else {
+			$output = Write-Output "yes" | .\Tools\plink.exe -C -pw $password -P $port "$username@$ip" "sudo -S bash -c 'if [ ! -d /home/$username ]; then mkdir -p /home/$username; chown -R ${user}: /home/$username; fi; if [ -d /home/$username ]; then echo EXIST; else echo NOTEXIST; fi;'" 2> $null
+		}
 		if ("NOTEXIST" -eq $output) {
 			Write-LogDbg "We can't find or create execution folder /home/$username."
 			Throw "Not find available execution folder."
@@ -324,6 +333,9 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 	$currentDir = $PWD.Path
 	$RunStartTime = Get-Date
 
+	if ($global:sshPrivateKey) {
+		$sshKey = $global:sshPrivateKey
+	}
 	if ($runAsSudo) {
 		$plainTextPassword = $password.Replace('"','');
 		if ( $detectedDistro -eq "COREOS" ) {
@@ -342,7 +354,11 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 			$logCommand = "`"$MaskedCommand`""
 		}
 	}
-	Write-LogDbg ".\Tools\plink.exe -ssh -t -pw $password -P $port $username@$ip $logCommand"
+	if ($global:sshPrivateKey) {
+		Write-LogDbg ".\Tools\plink.exe -ssh -t -i $sshKey -P $port $username@$ip $logCommand"
+	} else {
+		Write-LogDbg ".\Tools\plink.exe -ssh -t -pw $password -P $port $username@$ip $logCommand"
+	}
 	$returnCode = 1
 	$attemptswt = 0
 	$attemptswot = 0
@@ -355,20 +371,22 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 			$attemptswot +=1
 			$runLinuxCmdJob = Start-Job -ScriptBlock `
 			{ `
-				$username = $args[1]; $password = $args[2]; $ip = $args[3]; $port = $args[4]; $jcommand = $args[5]; `
+				$username = $args[1]; $password = $args[2]; $ip = $args[3]; $port = $args[4]; $jcommand = $args[5]; $sshKey = $args[6];`
 				Set-Location $args[0]; `
-				.\Tools\plink.exe -ssh -C -v -pw $password -P $port $username@$ip $jcommand;`
+				if ($sshKey) { .\Tools\plink.exe -ssh -C -v -i $sshKey -P $port $username@$ip $jcommand; } `
+				else { .\Tools\plink.exe -ssh -C -v -pw $password -P $port $username@$ip $jcommand; } `
 			} `
-			-ArgumentList $currentDir, $username, $password, $ip, $port, $linuxCommand
+			-ArgumentList $currentDir, $username, $password, $ip, $port, $linuxCommand, $sshKey
 		} else {
 			$attemptswt += 1
 			$runLinuxCmdJob = Start-Job -ScriptBlock `
 			{ `
-				$username = $args[1]; $password = $args[2]; $ip = $args[3]; $port = $args[4]; $jcommand = $args[5]; `
+				$username = $args[1]; $password = $args[2]; $ip = $args[3]; $port = $args[4]; $jcommand = $args[5]; $sshKey = $args[6];`
 				Set-Location $args[0]; `
-				.\Tools\plink.exe -ssh -t -C -v -pw $password -P $port $username@$ip $jcommand;`
+				if ($sshKey) { .\Tools\plink.exe -ssh -t -C -v -i $sshKey -P $port $username@$ip $jcommand; } `
+				else { .\Tools\plink.exe -ssh -t -C -v -pw $password -P $port $username@$ip $jcommand; } `
 			} `
-			-ArgumentList $currentDir, $username, $password, $ip, $port, $linuxCommand
+			-ArgumentList $currentDir, $username, $password, $ip, $port, $linuxCommand, $sshKey
 		}
 		$RunLinuxCmdOutput = ""
 		$debugOutput = ""

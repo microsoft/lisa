@@ -87,15 +87,24 @@ Class AzureController : TestController
 			$secrets = $this.XMLSecrets.secrets
 			$azureConfig.Subscription.SubscriptionID = $secrets.SubscriptionID
 			$azureConfig.TestCredentials.LinuxUsername = $secrets.linuxTestUsername
-			$azureConfig.TestCredentials.LinuxPassword = $secrets.linuxTestPassword
-			$azureConfig.ResultsDatabase.server = $secrets.DatabaseServer
-			$azureConfig.ResultsDatabase.user = $secrets.DatabaseUser
-			$azureConfig.ResultsDatabase.password = $secrets.DatabasePassword
-			$azureConfig.ResultsDatabase.dbname = $secrets.DatabaseName
+			$azureConfig.TestCredentials.LinuxPassword = if ($secrets.linuxTestPassword) { $secrets.linuxTestPassword } else { "" }
+			$azureConfig.ResultsDatabase.server = if ($secrets.DatabaseServer) { $secrets.DatabaseServer } else { "" }
+			$azureConfig.ResultsDatabase.user = if ($secrets.DatabaseUser) { $secrets.DatabaseUser } else { "" }
+			$azureConfig.ResultsDatabase.password = if ($secrets.DatabasePassword) { $secrets.DatabasePassword } else { "" }
+			$azureConfig.ResultsDatabase.dbname = if ($secrets.DatabaseName) { $secrets.DatabaseName } else { "" }
 			Add-AzureAccountFromSecretsFile -CustomSecretsFilePath $XMLSecretFile
 		}
 		$this.VmUsername = $azureConfig.TestCredentials.LinuxUsername
 		$this.VmPassword = $azureConfig.TestCredentials.LinuxPassword
+
+		if ($this.SSHPrivateKey) {
+			if (!$this.UseExistingRG -and !$this.SSHPublicKey) {
+				throw "Please set -SSHPublicKey and -SSHPrivateKey at the same time for a new deployment."
+			}
+		}
+		if (!$this.SSHPrivateKey -and !$this.VmPassword) {
+			Write-LogErr "Please set -SSHPrivateKey or linuxTestPassword."
+		}
 		# global variables: StorageAccount, TestLocation
 		if ( $this.StorageAccount -imatch "ExistingStorage_Standard" )
 		{
