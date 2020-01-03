@@ -50,6 +50,8 @@
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh,.\Testscripts\Linux\SetupRDMA.sh</files>
 		<Priority>3</Priority>
 		<TestParameters>
+			<param>install_ofed="INFINIBAND_INSTALL_OFED"</param>
+			<param>install_ofed_from_extension="INFINIBAND_INSTALL_OFED_FROM_EXTENSION"</param>
 			<param>num_reboot="INFINIBAND_INTEL_TOTAL_REBOOT_COUNT"</param>
 			<param>mpi_settings="INFINIBAND_INTEL_MPI_SETTINGS_IB"</param>
 			<param>ib_nic="INFINIBAND_IB_NIC"</param>
@@ -90,6 +92,8 @@
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh,.\Testscripts\Linux\SetupRDMA.sh</files>
 		<Priority>1</Priority>
 		<TestParameters>
+			<param>install_ofed="INFINIBAND_INSTALL_OFED"</param>
+			<param>install_ofed_from_extension="INFINIBAND_INSTALL_OFED_FROM_EXTENSION"</param>
 			<param>num_reboot="INFINIBAND_OPEN_TOTAL_REBOOT_COUNT"</param>
 			<param>mpi_settings="INFINIBAND_OPEN_MPI_SETTINGS_IB"</param>
 			<param>ib_nic="INFINIBAND_IB_NIC"</param>
@@ -129,6 +133,8 @@
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh,.\Testscripts\Linux\SetupRDMA.sh</files>
 		<Priority>3</Priority>
 		<TestParameters>
+			<param>install_ofed="INFINIBAND_INSTALL_OFED"</param>
+			<param>install_ofed_from_extension="INFINIBAND_INSTALL_OFED_FROM_EXTENSION"</param>
 			<param>num_reboot="INFINIBAND_OPEN_TOTAL_REBOOT_COUNT"</param>
 			<param>mpi_settings="INFINIBAND_OPEN_MPI_SETTINGS_IB"</param>
 			<param>ib_nic="INFINIBAND_IB_NIC"</param>
@@ -244,6 +250,8 @@
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh,.\Testscripts\Linux\SetupRDMA.sh</files>
 		<Priority>3</Priority>
 		<TestParameters>
+			<param>install_ofed="INFINIBAND_INSTALL_OFED"</param>
+			<param>install_ofed_from_extension="INFINIBAND_INSTALL_OFED_FROM_EXTENSION"</param>
 			<param>num_reboot="INFINIBAND_IBM_TOTAL_REBOOT_COUNT"</param>
 			<param>mpi_settings="INFINIBAND_IBM_MPI_SETTINGS_IB"</param>
 			<param>ib_nic="INFINIBAND_IB_NIC"</param>
@@ -283,6 +291,8 @@
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh,.\Testscripts\Linux\SetupRDMA.sh</files>
 		<Priority>3</Priority>
 		<TestParameters>
+			<param>install_ofed="INFINIBAND_INSTALL_OFED"</param>
+			<param>install_ofed_from_extension="INFINIBAND_INSTALL_OFED_FROM_EXTENSION"</param>
 			<param>num_reboot="INFINIBAND_IBM_TOTAL_REBOOT_COUNT"</param>
 			<param>mpi_settings="INFINIBAND_IBM_MPI_SETTINGS_IB"</param>
 			<param>ib_nic="INFINIBAND_IB_NIC"</param>
@@ -323,6 +333,8 @@
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh,.\Testscripts\Linux\SetupRDMA.sh</files>
 		<Priority>3</Priority>
 		<TestParameters>
+			<param>install_ofed="INFINIBAND_INSTALL_OFED"</param>
+			<param>install_ofed_from_extension="INFINIBAND_INSTALL_OFED_FROM_EXTENSION"</param>
 			<param>num_reboot="INFINIBAND_MVAPICH_TOTAL_REBOOT_COUNT"</param>
 			<param>mpi_settings="INFINIBAND_MVAPICH_MPI_SETTINGS_IB"</param>
 			<param>ib_nic="INFINIBAND_IB_NIC"</param>
@@ -362,6 +374,8 @@
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh,.\Testscripts\Linux\SetupRDMA.sh</files>
 		<Priority>3</Priority>
 		<TestParameters>
+			<param>install_ofed="INFINIBAND_INSTALL_OFED"</param>
+			<param>install_ofed_from_extension="INFINIBAND_INSTALL_OFED_FROM_EXTENSION"</param>
 			<param>num_reboot="INFINIBAND_MVAPICH_TOTAL_REBOOT_COUNT"</param>
 			<param>mpi_settings="INFINIBAND_MVAPICH_MPI_SETTINGS_IB"</param>
 			<param>ib_nic="INFINIBAND_IB_NIC"</param>

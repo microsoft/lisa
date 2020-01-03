@@ -68,7 +68,11 @@ function Main() {
 		redhat_7|centos_7|redhat_8|centos_8)
 			# install required packages regardless VM types.
 			LogMsg "Starting RDMA setup for RHEL/CentOS"
-			req_pkg="kernel-devel-$(uname -r) valgrind-devel redhat-rpm-config rpm-build gcc gcc-gfortran libdb-devel gcc-c++ glibc-devel zlib-devel numactl-devel libmnl-devel binutils-devel iptables-devel libstdc++-devel libselinux-devel elfutils-devel libtool libnl3-devel java libstdc++.i686 gtk2 atk cairo tcl tk createrepo byacc.x86_64 net-tools"
+			# Due to redhat bug, 1787637, this workaround is required.
+			suppliment_pkg="dnf rpm"
+			install_package $suppliment_pkg
+			# required dependencies
+			req_pkg="kernel-devel-$(uname -r) valgrind-devel redhat-rpm-config rpm-build gcc gcc-gfortran libdb-devel gcc-c++ glibc-devel zlib-devel numactl-devel libmnl-devel binutils-devel iptables-devel libstdc++-devel libselinux-devel elfutils-devel libtool libnl3-devel java libstdc++.i686 gtk2 atk cairo tcl tk createrepo byacc.x86_64 net-tools kernel-rpm-macros tcsh"
 			install_package $req_pkg
 			LogMsg "$?: Installed required packages $req_pkg"
 			# libibverbs-devel and libibmad-devel have broken dependencies on Centos 7.6
@@ -99,32 +103,7 @@ function Main() {
 			systemctl enable rdma
 			Verify_Result
 			LogMsg "Enabled rdma service"
-
-			# This is required for new HPC VM HB- and HC- size deployment, Dec/2018
-			# Get redhat/centos version. Using custom commands instead of utils.sh function
-			# because we have seen some inconsistencies in getting the exact OS version.
-			if [[ "$install_ofed" == "yes" ]];then
-				distro_version=$(sed 's/[^.0-9]//g' /etc/redhat-release)
-				distro_version=$(echo ${distro_version:0:3})
-				hpcx_ver="redhat"$distro_version
-				mlx5_ofed_link="$mlx_ofed_partial_link$distro_version-x86_64.tgz"
-				cd
-				LogMsg "Downloading MLX driver, $mlx5_ofed_link"
-				wget $mlx5_ofed_link
-				Verify_Result
-				LogMsg "Downloaded MLNX_OFED_LINUX driver, $mlx5_ofed_link"
-
-				LogMsg "Opening MLX OFED driver tar ball file"
-				file_nm=${mlx5_ofed_link##*/}
-				tar zxvf $file_nm
-				Verify_Result
-				LogMsg "Untar MLX driver tar ball file, $file_nm"
-
-				LogMsg "Installing MLX OFED driver"
-				./${file_nm%.*}/mlnxofedinstall --add-kernel-support
-				Verify_Result
-				LogMsg "Installed MLX OFED driver with kernel support modules"
-			fi
+			sleep 5
 
 			# Restart IB driver after enabling the eIPoIB Driver
 			LogMsg "Changing LOAD_EIPOIB to yes"
@@ -136,11 +115,14 @@ function Main() {
 			modprobe -rv ib_isert rpcrdma ib_srpt
 			Verify_Result
 			LogMsg "Removed ib_isert rpcrdma ib_srpt services"
+			sleep 1
 
 			LogMsg "Restarting openibd service"
 			/etc/init.d/openibd restart
 			Verify_Result
 			LogMsg "Restarted Open IB Driver"
+			# Ignore the openibd service restart. Known issue in Mellanox 773774
+			# VM will reboot later and resolve automatically.
 
 			# remove or disable firewall and selinux services, if needed
 			LogMsg "Disabling Firewall and SELinux services"
@@ -244,6 +226,45 @@ function Main() {
 			;;
 	esac
 
+	# This is required for new HPC VM HB- and HC- size deployment, Dec/2018
+	# Get redhat/centos version. Using custom commands instead of utils.sh function
+	# because we have seen some inconsistencies in getting the exact OS version.
+	if [[ "$install_ofed" == "yes" ]];then
+		source /etc/os-release
+		distro_name=$ID
+		distro_version=$VERSION_ID
+		if [[ $ID_LIKE == "suse" ]]; then
+			if [[ $VERSION_ID == "15" ]]; then
+				distro_version=${distro_version}sp0
+			else
+				distro_version=${distro_version%.*}sp${VERSION_ID##*.}
+			fi
+		fi
+		# OFED driver for Ubuntu version conflicts to those 3 dependencies. Recommended to remove.
+		if [[ $ID == "ubuntu" ]]; then
+			apt remove -f -y librdmacm1 ibverbs-providers libibverbs-dev
+			LogMsg "$?: Removed the dependencies, librdmacm1 ibverbs-providers libibverbs-dev"
+		fi
+		hpcx_ver=$distro_name$distro_version
+		mlx5_ofed_link="$mlx_ofed_partial_link$distro_name$distro_version-x86_64.tgz"
+		cd
+		LogMsg "Downloading MLX driver, $mlx5_ofed_link"
+		wget $mlx5_ofed_link
+		Verify_Result
+		LogMsg "Downloaded MLNX_OFED_LINUX driver, $mlx5_ofed_link"
+
+		LogMsg "Opening MLX OFED driver tar ball file"
+		file_nm=${mlx5_ofed_link##*/}
+		tar zxvf $file_nm
+		Verify_Result
+		LogMsg "Untar MLX driver tar ball file, $file_nm"
+
+		LogMsg "Installing MLX OFED driver"
+		./${file_nm%.*}/mlnxofedinstall --add-kernel-support
+		Verify_Result
+		LogMsg "Installed MLX OFED driver with kernel support modules"
+	fi
+
 	LogMsg "Proceeding to the MPI installation"
 
 	# install MPI packages
@@ -313,7 +334,6 @@ function Main() {
 		export PATH=$PATH:$MPI_ROOT/bin
 		LogMsg "PATH: $PATH"
 	elif [ $mpi_type == "intel" ]; then
-		LogMsg "Intel MPI installation running ..."
 		# if HPC images comes with MPI binary pre-installed, (CentOS HPC)
 		#   there is no action required except binary verification
 		mpirun_path=$(find / -name mpirun | grep intel64)		# $mpirun_path is not empty or null and file path should exists

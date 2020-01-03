@@ -115,7 +115,7 @@ Scenario 2 : You need to run all the performance tests quickly.
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_INSTALL_OFED</ReplaceThis>
-		<ReplaceWith>yes</ReplaceWith>
+		<ReplaceWith>no</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_INSTALL_OFED_FROM_EXTENSION</ReplaceThis>
@@ -147,7 +147,7 @@ Scenario 2 : You need to run all the performance tests quickly.
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_INTEL_MPI_SETTINGS_IB</ReplaceThis>
-		<ReplaceWith>-env I_MPI_FABRICS ofa -env I_MPI_DAPL_PROVIDER=ofa-v2-ib0 -env SECS_PER_SAMPLE=600</ReplaceWith>
+		<ReplaceWith>-env I_MPI_FABRICS ofi -env SECS_PER_SAMPLE=600</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_IBM_MPI_SETTINGS_TCP</ReplaceThis>
@@ -274,7 +274,7 @@ Scenario 2 : You need to run all the performance tests quickly.
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_INTEL_NBC_TESTNAMES</ReplaceThis>
-		<ReplaceWith>allreduce</ReplaceWith>
+		<ReplaceWith></ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_IBM_NBC_TESTNAMES</ReplaceThis>
@@ -549,7 +549,7 @@ Scenario 2 : You need to run all the performance tests quickly.
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>MLX_OFED_PARTIAL_LINK</ReplaceThis>
-		<ReplaceWith>http://content.mellanox.com/ofed/MLNX_OFED-4.5-1.0.1.0/MLNX_OFED_LINUX-4.5-1.0.1.0-rhel</ReplaceWith>
+		<ReplaceWith>https://partnerpipelineshare.blob.core.windows.net/ofed/MLNX_OFED_LINUX-4.7-3.2.9.0-</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>HPCX_PARTIAL_LINK_OFED</ReplaceThis>
