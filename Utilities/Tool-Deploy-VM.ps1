@@ -47,17 +47,23 @@ Param(
     # Guest VM Username and Password
     [Parameter(Mandatory=$true)]
     [String] $Username,
-    [Parameter(Mandatory=$true)]
     [String] $Password,
-
     [String] $AutoCleanup,
     [String] $TiPCluster,
-    [String] $TipSessionID
+    [String] $TipSessionID,
+    [String] $SSHPrivateKey,
+    [String] $SSHPublicKey
 )
 try {
     #Make a backup of XML files.
+    if (($GuestOSType -eq "Linux") -and !$Password -and (!$SSHPrivateKey -or !$SSHPublicKey)) {
+        Throw "Please provide -Password or (-SSHPrivateKey and -SSHPublicKey)"
+    }
+    if (($GuestOSType -eq "Windows") -and !$Password) {
+        Throw "Please provide -Password"
+    }
 
-    if ($Username -and $Password) {
+    if ($Username) {
         # Create a backup of secret file before injecting custom username and password.
         Copy-Item -Path $customSecretsFilePath -Destination "$customSecretsFilePath.backup" -Force
 
@@ -65,8 +71,6 @@ try {
         $XmlSecrets.secrets.linuxTestUsername = $Username
         $XmlSecrets.secrets.linuxTestPassword = $Password
         $XmlSecrets.Save($customSecretsFilePath)
-    } else {
-        Throw "Please provide -Username and -Password"
     }
 
     $SetupTypeName = "Deploy$NumberOfVMs`VM"
@@ -187,6 +191,12 @@ try {
     } else {
         Throw "Please provide -OsVHD / -ARMImageName parameter value."
     }
+    if ($SSHPrivateKey) {
+        $Command += " -SSHPrivateKey '$SSHPrivateKey'"
+    }
+    if ($SSHPublicKey) {
+        $Command += " -SSHPublicKey '$SSHPublicKey'"
+    }
     $Command += " -StorageAccount '$StorageAccountName'"
     $Command += " -RGIdentifier '$VMName'"
     $Command += " -TestNames 'TOOL-DEPLOYMENT-PROVISION'"
@@ -204,7 +214,7 @@ catch {
     Write-Host "EXCEPTION (Tool-Deploy-VM) : $ErrorMessage"
 }
 finally {
-    Move-Item -Path "$customSecretsFilePath.backup" -Destination "$customSecretsFilePath" -Force
+    Move-Item -Path "$customSecretsFilePath.backup" -Destination "$customSecretsFilePath" -Force -ErrorAction SilentlyContinue
     Remove-Item -Path .\XML\TestCases\Tool-Deploy-VM.xml -Force -ErrorAction SilentlyContinue
     Remove-Item -Path .\XML\VMConfigurations\Tool-Deploy-VM.xml -Force -ErrorAction SilentlyContinue
 }
