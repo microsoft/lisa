@@ -163,8 +163,21 @@ function Collect-CustomLogFile {
 Function Compare-OsLogs($InitialLogFilePath, $FinalLogFilePath, $LogStatusFilePath, $ErrorMatchPatten) {
 	$retValue = $true
 	try {
-		$fileDiff = Compare-Object -ReferenceObject (Get-Content $InitialLogFilePath) `
-			-DifferenceObject (Get-Content $FinalLogFilePath)
+		$initialLogs = Get-Content $InitialLogFilePath
+		$finalLogs = Get-Content $FinalLogFilePath
+
+		if (-not $initialLogs) {
+			if (-not $finalLogs) {
+				Write-LogInfo "Initial and final logs are both empty"
+				return $true
+			} else {
+				$initialLogs = @("This is a dummy log for object comparison")
+			}
+		} elseif (-not $finalLogs) {
+			Write-LogInfo "Final log is empty"
+			return $true
+		}
+		$fileDiff = Compare-Object -ReferenceObject $initialLogs -DifferenceObject $finalLogs
 
 		if (!$fileDiff) {
 			$msg = "Initial and Final Logs have same content"
