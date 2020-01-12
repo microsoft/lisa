@@ -18,7 +18,7 @@ if (!$global:LogFileName) {
 Get-ChildItem ..\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
 
 #When given -UseSecretsFile or an AzureSecretsFile path, we will attempt to search the path or the environment variable.
-if ( $UseSecretsFile -or $AzureSecretsFile ) {
+if ($UseSecretsFile -or $AzureSecretsFile) {
     #Read secrets file and terminate if not present.
     if ($AzureSecretsFile) {
         $secretsFile = $AzureSecretsFile
@@ -28,7 +28,7 @@ if ( $UseSecretsFile -or $AzureSecretsFile ) {
         Write-LogInfo "-AzureSecretsFile and env:Azure_Secrets_File are empty. Exiting."
         exit 1
     }
-    if ( Test-Path $secretsFile) {
+    if (Test-Path $secretsFile) {
         Write-LogInfo "Secrets file found."
         .\AddAzureRmAccountFromSecretsFile.ps1 -customSecretsFilePath $secretsFile
         $xmlSecrets = [xml](Get-Content $secretsFile)
@@ -55,7 +55,7 @@ Function Get-StorageAccountUsage ($storageAccountObject) {
         Write-LogInfo "[Container : $containerCounter/$($containers.Count)]. Get-AzStorageBlob -Container $($container.Name) ..."
         $blobs = Get-AzStorageBlob -Container $($container.Name) -Context $context -ConcurrentTaskCount 64
         foreach ($blob in $blobs) {
-            if ( $blob.ICloudBlob.Properties.LeaseStatus -eq 'Unlocked' ) {
+            if ($blob.ICloudBlob.Properties.LeaseStatus -eq 'Unlocked') {
                 if ($storageAccountObject.Sku.Tier -imatch "Premium") {
                     $UnlockedPremiumUsage += $blob.Length
                 } elseif ($storageAccountObject.Sku.Tier -imatch "Standard") {
@@ -90,7 +90,7 @@ Function Get-ManagedDiskUsage ($ManagedDiskObject) {
     $LockedPremiumUsage = 0
     $UnlockedStandardUsage = 0
     $UnlockedPremiumUsage = 0
-    if ( $ManagedDiskObject.DiskState -eq 'Attached' ) {
+    if ($ManagedDiskObject.DiskState -eq 'Attached') {
         if ($ManagedDiskObject.Sku.Tier -imatch "Premium") {
             $LockedPremiumUsage += [math]::Round($ManagedDiskObject.DiskSizeGB, 0)
         } elseif ($ManagedDiskObject.Sku.Tier -imatch "Standard") {
@@ -116,10 +116,10 @@ try {
     $allRegions = (Get-AzLocation | Where-Object { $_.Providers -imatch "Microsoft.Compute" }).Location | Sort-Object
     foreach ($region in $allRegions) {
         Write-LogInfo "Running: Get-AzVM -Status -Location $region"
-        $allVMStatus += Get-AzVM -Status -Location $region
+        $allVMStatus += Get-AzVM -Status -Location $region -ErrorAction SilentlyContinue
     }
     Write-LogInfo "Running: Get-AzSubscription..."
-    $subscription = Get-AzSubscription
+    $subscription = Get-AzSubscription -SubscriptionId $xmlSecrets.secrets.SubscriptionID
     Write-LogInfo "Running: Get-AzResource..."
     $allResources = Get-AzResource
 
@@ -129,8 +129,7 @@ try {
     Write-LogInfo "Running: Get-AzDisk..."
     $allManagedDisks = Get-AzDisk
 
-}
-catch {
+} catch {
     Write-LogInfo "Error while fetching data. Please try again."
     Add-Content -Path $FinalHtmlFile -Value "There was some error in fetching data from Azure today."
     Set-Content -Path $EmailSubjectTextFile -Value "Azure Subscription Daily Utilization Report: $($psttime.Year)/$($psttime.Month)/$($psttime.Day)"
@@ -271,9 +270,9 @@ foreach ($region in $allRegions) {
     $currentStandardUnlockedStorageUsageInGB = 0
     $currentPremiumUnlockedStorageUsageInGB = 0
 
-    $currentRegionSizes = Get-AzVMSize -Location $region
+    $currentRegionSizes = Get-AzVMSize -Location $region -ErrorAction SilentlyContinue
     Write-LogInfo "Get-AzVMSize -Location $region"
-    $currentRegionUsage = Get-AzVMUsage -Location $region
+    $currentRegionUsage = Get-AzVMUsage -Location $region -ErrorAction SilentlyContinue
     Write-LogInfo "Get-AzVMUsage -Location $region"
     $currentRegionAllowedCores = ($currentRegionUsage | Where-Object { $_.Name.Value -eq "cores" }).Limit
     if (-not $currentRegionAllowedCores) {
@@ -284,16 +283,16 @@ foreach ($region in $allRegions) {
     Write-LogInfo "[$regionCounter/$($allRegions.Count)]. $($region)"
 
     foreach ($resource in $allResources) {
-        if ( $resource.Location -eq $region -and $resource.ResourceType -eq $VM_String) {
+        if ($resource.Location -eq $region -and $resource.ResourceType -eq $VM_String) {
             $currentVMs += 1
             Write-LogInfo "+1 : $($resource.ResourceType) : $($resource.Name)"
             $currentVMStatus = $allVMStatus | Where-Object { $_.ResourceGroupName -eq $resource.ResourceGroupName -and $_.Name -eq $resource.Name }
             $currentUsedCores += ($currentRegionSizes | Where-Object { $_.Name -eq $($currentVMStatus.HardwareProfile.VmSize) }).NumberOfCores
-            if ( $($currentVMStatus.PowerState) -imatch "VM deallocated") {
+            if ($($currentVMStatus.PowerState) -imatch "VM deallocated") {
                 $currentDeallocatedCores += ($currentRegionSizes | Where-Object { $_.Name -eq $($currentVMStatus.HardwareProfile.VmSize) }).NumberOfCores
             }
         }
-        if ( $resource.Location -eq $region -and $resource.ResourceType -eq $storage_String) {
+        if ($resource.Location -eq $region -and $resource.ResourceType -eq $storage_String) {
             Write-LogInfo "+1 : $($resource.ResourceType) : $($resource.Name)"
             $currentStorageAccounts += 1
             $StorageAccountObject = $allStorageAccounts | Where-Object { $_.StorageAccountName -eq $resource.Name }
@@ -303,10 +302,10 @@ foreach ($region in $allRegions) {
             $currentStandardUnlockedStorageUsageInGB += $DataUsage[2]
             $currentPremiumUnlockedStorageUsageInGB += $DataUsage[3]
         }
-        if ( $resource.Location -eq $region -and $resource.ResourceType -eq $ManagedDisk_String) {
+        if ($resource.Location -eq $region -and $resource.ResourceType -eq $ManagedDisk_String) {
             Write-LogInfo "+1 : $($resource.ResourceType) : $($resource.Name)"
             $ManagedDisks = $allManagedDisks | Where-Object { $_.Name -eq $resource.Name }
-            foreach ( $ManagedDiskObject in $ManagedDisks) {
+            foreach ($ManagedDiskObject in $ManagedDisks) {
                 $DataUsage = Get-ManagedDiskUsage -ManagedDiskObject $ManagedDiskObject
                 $currentStandardLockedStorageUsageInGB += $DataUsage[0]
                 $currentPremiumLockedStorageUsageInGB += $DataUsage[1]
@@ -314,16 +313,16 @@ foreach ($region in $allRegions) {
                 $currentPremiumUnlockedStorageUsageInGB += $DataUsage[3]
             }
         }
-        if ( $resource.Location -eq $region -and $resource.ResourceType -eq $VNET_String) {
+        if ($resource.Location -eq $region -and $resource.ResourceType -eq $VNET_String) {
             Write-LogInfo "+1 : $($resource.ResourceType) : $($resource.Name)"
             $currentVNETs += 1
         }
-        if ( $resource.Location -eq $region -and $resource.ResourceType -eq $PublicIP_String) {
+        if ($resource.Location -eq $region -and $resource.ResourceType -eq $PublicIP_String) {
             Write-LogInfo "+1 : $($resource.ResourceType) : $($resource.Name)"
             $currentPublicIPs += 1
         }
     }
-    if ( $currentRegionAllowedCores -gt 0) {
+    if ($currentRegionAllowedCores -gt 0) {
         $RegionUsagePercent = $([math]::Round($currentUsedCores * 100 / $currentRegionAllowedCores, 1))
     } else {
         $RegionUsagePercent = 0
@@ -350,7 +349,7 @@ foreach ($region in $allRegions) {
     $currentHTMLNode = $currentHTMLNode.Replace("Region_Deallocated_Cores", "$currentDeallocatedCores")
     $currentHTMLNode = $currentHTMLNode.Replace("Region_Allowed_Cores", "$currentRegionAllowedCores")
     $currentHTMLNode = $currentHTMLNode.Replace("Region_Core_Percent", "$RegionUsagePercent")
-    if ( $RegionUsagePercent -gt 80 ) {
+    if ($RegionUsagePercent -gt 80) {
         $currentHTMLNode = $currentHTMLNode.Replace("CORE_CLASS", "tg-amwmred")
     } else {
         $currentHTMLNode = $currentHTMLNode.Replace("CORE_CLASS", "tg-amwmgreen")
@@ -390,7 +389,7 @@ $htmlSummary = $htmlSummary.Replace("Total_Used_Cores", "$totalUsedCores")
 $htmlSummary = $htmlSummary.Replace("Total_Deallocated_Cores", "$totalDeallocatedCores")
 $htmlSummary = $htmlSummary.Replace("Total_Allowed_Cores", "$totalAllowedCores")
 $htmlSummary = $htmlSummary.Replace("Total_Core_Percent", "$RegionUsagePercent")
-if ( $RegionUsagePercent -gt 80 ) {
+if ($RegionUsagePercent -gt 80) {
     $htmlSummary = $htmlSummary.Replace("CORE_CLASS", "tg-l2ozred")
 } else {
     $htmlSummary = $htmlSummary.Replace("CORE_CLASS", "tg-l2ozgreen")
@@ -425,16 +424,16 @@ if ($UploadToDB) {
 #endregion
 
 Write-LogInfo "Getting top 20 VMs."
-.\Get-SubscriptionUsageTopVMs.ps1 -TopVMsCount 20
+.\Get-SubscriptionUsageTopVMs.ps1 -TopVMsCount 20 -SubscriptionId $subscription.SubscriptionId
 
 $TopVMsHTMLReport = (Get-Content -Path .\vmAge.html)
 
 $FinalEmailSummary += $htmlFileStart
 
-foreach ( $line in $TopVMsHTMLReport.Split("`n")) {
+foreach ($line in $TopVMsHTMLReport.Split("`n")) {
     $FinalEmailSummary += $line
 }
-foreach ( $line in $UsageReport.Split("`n")) {
+foreach ($line in $UsageReport.Split("`n")) {
     # Removing the Resource Usage Table
     # $FinalEmailSummary += $line
 }
