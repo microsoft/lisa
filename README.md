@@ -25,12 +25,16 @@ LISAv2 includes below test suite categories:
 * 7za.exe
 * dos2unix.exe
 * gawk
+* go1.11.4.linux-amd64.tar.gz
+* golang_benchmark.tar.gz
+* http_load-12mar2006.tar.gz
 * jq
 * plink.exe
 * pscp.exe
 * kvp_client32
 * kvp_client64
 * nc.exe
+* nc64.exe
 
 4. For running Azure tests, you must have a valid Windows Azure Subscription, if you want to enable ssh key authentication on Azure platform, please refer [here](https://docs.microsoft.com/en-us/azure/virtual-machines/linux/ssh-from-windows) for generating SSH key pairs.
 
