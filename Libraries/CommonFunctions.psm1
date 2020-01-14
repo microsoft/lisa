@@ -1097,32 +1097,21 @@ function Get-SelinuxAVCLog() {
 		[String] $Username,
 		[String] $Password
 	)
-
-	$FILE_NAME = ".\audit.log"
-	$TEXT_HV = "hyperv"
-	$TEXT_AVC = "type=avc"
-
-	Write-Output "yes" | .\Tools\plink.exe -C -pw $Password -P $SSHPort $Username@$Ipv4 "ls /var/log/audit/audit.log > /dev/null 2>&1"
-	if (-not $LASTEXITCODE) {
-		Write-LogErr "Warning: Unable to find audit.log from the VM, ignore audit log check"
-		return $True
+	$result = $null
+	$result = Run-LinuxCmd -username $Username -password $Password -ip $Ipv4 -command "[ -f /var/log/audit/audit.log ] || echo 1"  -port $SSHPort -runAsSudo -ignoreLinuxExitCode
+	if ($result -eq 1) {
+		Write-LogWarn "File audit.log not exist."
+		return $false
 	}
-	Write-Output "yes" | .\Tools\pscp -C -pw $Password -P $SSHPort $Username@${Ipv4}:/var/log/audit/audit.log $filename
-	if (-not $LASTEXITCODE) {
-		Write-LogErr "ERROR: Unable to copy audit.log from the VM"
-		return $False
+	$result = $null
+	$result = Run-LinuxCmd -username $Username -password $Password -ip $Ipv4 -command "[ -f /var/log/audit/audit.log ] && cat /var/log/audit/audit.log | grep -i 'avc' | grep -E 'hyperv|hv' | wc -l"  -port $SSHPort -runAsSudo -ignoreLinuxExitCode
+	if (!$result -and ($result -gt 0)) {
+		Write-LogErr "Get the avc denied log"
+		return $true
 	}
 
-	$file = Get-Content $FILE_NAME
-	Remove-Item $FILE_NAME
-	foreach ($line in $file) {
-		if ($line -match $TEXT_HV -and $line -match $TEXT_AVC) {
-			Write-LogErr "ERROR: get the avc denied log: $line"
-			return $True
-		}
-	}
-	Write-LogErr "Info: no avc denied log in audit log as expected"
-	return $False
+	Write-LogInfo "No avc denied log in audit log as expected"
+	return $false
 }
 
 function Check-FileInLinuxGuest {
@@ -1532,7 +1521,7 @@ function Start-VMandGetIP {
 
     Start-VM -Name $VMName -ComputerName $HvServer
     if (-not $?) {
-        Write-LogErr "Error: Failed to start VM $VMName on $HvServer"
+        Write-LogErr "Failed to start VM $VMName on $HvServer"
         return $False
     } else {
         Write-LogInfo "$VMName started on $HvServer"
@@ -1545,7 +1534,7 @@ function Start-VMandGetIP {
         Write-LogInfo "$VMName IP address: $newIpv4"
         return $newIpv4
     } else {
-        Write-LogErr "Error: Failed to get IP of $VMName on $HvServer"
+        Write-LogErr "Failed to get IP of $VMName on $HvServer"
         return $False
     }
 }
@@ -2194,7 +2183,7 @@ Function Download-File {
         if ($BitsStarted) {
             if ($jobStatus.JobState -eq "Connecting" -or $jobStatus.JobState -eq "Transferring" -or `
             $jobStatus.JobState -eq "Queued" -or $jobStatus.JobState -eq "TransientError" ) {
-                Write-LogErr "Error: User aborted the download process. Removing unfinished BITS job : $($jobStatus.JobId)"
+                Write-LogErr "User aborted the download process. Removing unfinished BITS job : $($jobStatus.JobId)"
                 $jobStatus | Remove-BitsTransfer
             }
         } else {
@@ -2206,7 +2195,7 @@ Function Download-File {
             if ($TargetStream) { $TargetStream.Dispose() }
             # If file exists and $count is not zero or $null, then script was interrupted by user
             if ((Test-Path $TempFilePath) -and $count) {
-                Write-LogErr "Error: User aborted the download process. Removing unfinished file $TempFilePath"
+                Write-LogErr "User aborted the download process. Removing unfinished file $TempFilePath"
                 [void] (Remove-Item -Path $TempFilePath -Force -ErrorAction SilentlyContinue)
             }
             if ($response) { $response.Dispose() }

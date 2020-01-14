@@ -200,7 +200,7 @@ function Main {
     Copy-RemoteFiles -download -downloadFrom $Ipv4 -files "/home/${VMUserName}/check_traces.log" `
         -downloadTo $LogDir -port $VMPort -username $VMUserName -password $VMPassword
     $contents = Get-Content -Path $trace
-    if ($contents -contains "ERROR") {
+    if ($contents -match "ERROR") {
         Write-LogErr "Test FAIL , Call Traces found!"
         return "FAIL"
     }

@@ -26,7 +26,7 @@ function Main {
 
     # Change the working directory for the log files
     if (-not (Test-Path $rootDir)) {
-        Write-LogErr "Error: The directory `"${rootDir}`" does not exist"
+        Write-LogErr "The directory `"${rootDir}`" does not exist"
         return "FAIL"
     }
     Set-Location $rootDir
@@ -64,14 +64,14 @@ function Main {
     try {
         Stop-VM -Name $VMName -ComputerName $HvServer
     } catch [system.exception] {
-        Write-LogErr "Error: Unable to stop VM $VMName!"
+        Write-LogErr "Unable to stop VM $VMName!"
         return "FAIL"
     }
 
     try {
         Wait-ForVMToStop $VMName $HvServer 200
     } catch [system.exception] {
-        Write-LogErr "Error: Timed out while stopping VM $VMName!"
+        Write-LogErr "Timed out while stopping VM $VMName!"
         return "FAIL"
     }
 
@@ -79,7 +79,7 @@ function Main {
     if ($? -eq "True") {
         Write-LogInfo "CPU cores count updated to $guestMaxCPUs"
     } else {
-        Write-LogErr "Error: Unable to update CPU count to $guestMaxCPUs!"
+        Write-LogErr "Unable to update CPU count to $guestMaxCPUs!"
         return "FAIL"
     }
 
@@ -91,7 +91,7 @@ function Main {
         # In some cases the IP changes after a reboot
         Set-Variable -Name "Ipv4" -Value $newIpv4
     } else {
-        Write-LogErr "Error: VM $VMName failed to start after setting $guestMaxCPUs vCPUs"
+        Write-LogErr "VM $VMName failed to start after setting $guestMaxCPUs vCPUs"
         return "FAIL"
     }
 
@@ -103,7 +103,7 @@ function Main {
         Write-LogInfo "VM $VMName successfully started with $guestMaxCPUs cores."
         return "PASS"
     } else {
-        Write-LogErr "Error: Wrong vCPU count of $vCPU detected on the VM, expected $guestMaxCPUs!"
+        Write-LogErr "Wrong vCPU count of $vCPU detected on the VM, expected $guestMaxCPUs!"
         return "FAIL"
     }
 }

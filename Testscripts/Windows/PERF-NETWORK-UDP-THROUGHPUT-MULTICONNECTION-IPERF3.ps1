@@ -191,7 +191,7 @@ collect_VM_properties
                             $currentInstanceClientThroughput = (((($currentConnCurrentInstanceAllIntervalThroughputArr | Measure-Object -Average).Average))/1000000000)
                             $outOfOrderPackats = ([regex]::Matches($currentInstanceclientJsonText, "OUT OF ORDER" )).count
                             if ($outOfOrderPackats -gt 0) {
-                                Write-LogErr " $fileName : ERROR: $outOfOrderPackats PACKETS ARRIVED OUT OF ORDER"
+                                Write-LogErr " $fileName : $outOfOrderPackats PACKETS ARRIVED OUT OF ORDER"
                             }
                             Write-LogInfo " $fileName : Data collected successfully."
                         } else {
@@ -226,7 +226,7 @@ collect_VM_properties
 
                             $outOfOrderPackats = ([regex]::Matches($currentInstanceserverJsonText, "OUT OF ORDER" )).count
                             if ($outOfOrderPackats -gt 0) {
-                                Write-LogErr " $fileName : ERROR: $outOfOrderPackats PACKETS ARRIVED OUT OF ORDER"
+                                Write-LogErr " $fileName : $outOfOrderPackats PACKETS ARRIVED OUT OF ORDER"
                             }
                             Write-LogInfo " $fileName : Data collected successfully."
                         } else {

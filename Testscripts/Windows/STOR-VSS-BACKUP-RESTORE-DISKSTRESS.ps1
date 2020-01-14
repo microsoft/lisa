@@ -49,8 +49,7 @@ function Main {
         $sts = New-Backup $VMName $BackupDriveLetter $HvServer $Ipv4 $VMPort
         if (-not $sts[-1]) {
             throw "Could not retrieve Backup Location"
-        }
-        else {
+        } else {
             $backupLocation = $sts[-1]
         }
         $sts = Restore-Backup $backupLocation $HypervGroupName $VMName

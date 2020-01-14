@@ -31,7 +31,7 @@ function Main {
             throw "Invalid Windows build number"
         }
         elseif ($BuildNumber -lt 10500) {
-	        Write-LogInfo "Info: Feature supported only on WS2016 and newer"
+	        Write-LogInfo "Feature supported only on WS2016 and newer"
         }
 
         # Check to see Linux VM is running VSS backup daemon
@@ -59,7 +59,7 @@ function Main {
         $random = Get-Random -minimum 1024 -maximum 4096
         $snapshot = "TestSnapshot_$random"
 
-        Write-LogInfo "Info : creating Checkpoint ${snapshot} of VM ${VMName}"
+        Write-LogInfo "Creating Checkpoint ${snapshot} of VM ${VMName}"
         Checkpoint-VM -Name $VMName -SnapshotName $snapshot -ComputerName $HvServer
         if (-not $?) {
             Write-LogErr "Could not create Standard checkpoint with $snapshot"
@@ -69,12 +69,12 @@ function Main {
             Write-LogInfo "Standard Checkpoint successfully created"
         }
 
-        Write-LogInfo "Info : Deleting Snapshot ${snapshot} of VM ${VMName}"
+        Write-LogInfo "Deleting Snapshot ${snapshot} of VM ${VMName}"
         Remove-VMSnapshot -VMName $VMName -Name $snapshot -ComputerName $HvServer
 
         if( $testResult -ne $resultFail) {
-            Write-LogInfo "Info : Only the first file is present. Test succeeded"
-            $testResult=$resultPass
+            Write-LogInfo "Only the first file is present. Test succeeded"
+            $testResult = $resultPass
         }
 
     } catch {

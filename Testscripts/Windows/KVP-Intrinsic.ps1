@@ -26,7 +26,7 @@ function Main {
     $intrinsic = $True
 
     if (-not $RootDir) {
-        Write-LogErr "Warn : no RootDir was specified"
+        Write-LogWarn "No RootDir was specified"
     } else {
         Set-Location $RootDir
     }
@@ -47,7 +47,7 @@ function Main {
     # Verify the Data Exchange Service is enabled for this VM
     $des = Get-VMIntegrationService -VMName $VMName -ComputerName $HvServer
     if (-not $des) {
-        Write-LogErr "Error: Unable to retrieve Integration Service status from VM '${VMName}'"
+        Write-LogErr "Unable to retrieve Integration Service status from VM '${VMName}'"
         return "FAIL"
     }
 
@@ -60,7 +60,7 @@ function Main {
     }
 
     if (-not $serviceEnabled) {
-        Write-LogErr "Error: The Data Exchange Service is not enabled for VM '${VMName}'"
+        Write-LogErr "The Data Exchange Service is not enabled for VM '${VMName}'"
         return "FAIL"
     }
 
@@ -68,14 +68,14 @@ function Main {
     $vm = Get-WmiObject -ComputerName $HvServer -Namespace root\virtualization\v2 `
         -Query "Select * From Msvm_ComputerSystem Where ElementName=`'$VMName`'"
     if (-not $vm) {
-        Write-LogErr "Error: Unable to the VM '${VMName}' on the local host"
+        Write-LogErr "Unable to the VM '${VMName}' on the local host"
         return "FAIL"
     }
 
     $kvp = Get-WmiObject -ComputerName $HvServer -Namespace root\virtualization\v2 `
         -Query "Associators of {$vm} Where AssocClass=Msvm_SystemDevice ResultClass=Msvm_KvpExchangeComponent"
     if (-not $kvp) {
-        Write-LogErr "Error: Unable to retrieve KVP Exchange object for VM '${VMName}'"
+        Write-LogErr "Unable to retrieve KVP Exchange object for VM '${VMName}'"
         return "FAIL"
     }
 
@@ -102,17 +102,17 @@ function Main {
         $testPassed = $True
         foreach ($key in $keyName) {
             if (-not $dict.ContainsKey($key)) {
-                Write-LogErr "Error: The key '${key}' does not exist"
+                Write-LogErr "The key '${key}' does not exist"
                 $testPassed = $False
                 break
             }
         }
     } else {
         if ($dict.length -gt 0) {
-            Write-LogInfo "Info: $($dict.length) non-intrinsic KVP items found"
+            Write-LogInfo "$($dict.length) non-intrinsic KVP items found"
             $testPassed = $True
         } else {
-            Write-LogErr "Error: No non-intrinsic KVP items found"
+            Write-LogErr "No non-intrinsic KVP items found"
             $testPassed = $False
         }
     }

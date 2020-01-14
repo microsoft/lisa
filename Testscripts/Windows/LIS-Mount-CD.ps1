@@ -74,13 +74,13 @@ function Main {
     # There should be only one DVD unit by default
     #
     $dvd = Get-VMDvdDrive $VMName -ComputerName $HvServer
-    if ( $dvd ) {
+    if ($dvd) {
         try {
             Remove-VMDvdDrive $dvd -Confirm:$False
-        }
-        catch {
+        } catch {
             Write-LogErr "Cannot remove DVD drive from ${vmName}"
-            $error[0].Exception
+            $exception = $error[0].Exception.Message
+            Write-LogErr "$exception"
             return $False
         }
     }
@@ -92,7 +92,8 @@ function Main {
     $defaultVhdPath = $obj.DefaultVirtualHardDiskPath
     if (-not $defaultVhdPath) {
         Write-LogErr "Unable to determine VhdDefaultPath on Hyper-V server ${hvServer}"
-        $error[0].Exception
+        $exception = $error[0].Exception.Message
+        Write-LogErr "$exception"
         return $False
     }
     if (-not $defaultVhdPath.EndsWith("\")) {
@@ -120,18 +121,17 @@ function Main {
     if ($vmGen -eq 1) {
         Invoke-Command -ComputerName $HvServer { Add-VMDvdDrive -VMName $Using:VMName -Path $Using:isoPath_default `
              -ControllerNumber 1 -ControllerLocation 1 -Confirm:$False }
-    }
-    else {
+    } else {
         Invoke-Command -ComputerName $HvServer { Add-VMDvdDrive -VMName $Using:VMName -Path $Using:isoPath_default `
             -ControllerNumber 0 -ControllerLocation 1 -Confirm:$False }
     }
 
     if ($? -ne "True") {
         Write-LogErr "Unable to mount the ISO file!"
-        $error[0].Exception
+        $exception = $error[0].Exception.Message
+        Write-LogErr "$exception"
         return $False
-    }
-    else {
+    } else {
         $retVal = $True
     }
 

@@ -67,14 +67,14 @@ function Get-GChildVHD($ParentVHD)
     # Create Child VHD
     New-VHD -ParentPath:$ParentVHD -Path:$ChildVHD
     if (-not $?) {
-       Write-LogErr "Error: Unable to create child VHD"
+       Write-LogErr "Unable to create child VHD"
        return $False
     }
 
     # Create Grand Child VHD
     New-VHD -ParentPath:$ChildVHD -Path:$GChildVHD
     if (-not $?) {
-       Write-LogErr "Error: Unable to create Grand child VHD"
+       Write-LogErr "Unable to create Grand child VHD"
        return $False
     }
 

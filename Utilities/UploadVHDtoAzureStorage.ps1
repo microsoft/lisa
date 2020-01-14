@@ -66,7 +66,7 @@ try
         }
         else
         {
-            Write-LogInfo "ERROR: Something went wrong in upload. Retrying..."
+            Write-LogWarn "Something went wrong in upload. Retrying..."
             $RetryUpload = $true
             Start-Sleep -Seconds 10
         }

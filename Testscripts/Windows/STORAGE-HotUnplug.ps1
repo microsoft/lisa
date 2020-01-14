@@ -33,7 +33,8 @@ function Add-VHDxDiskDrive {
                         -ControllerNumber $controllerID `
                         -ControllerLocation $lun
     if ($error.Count -gt 0) {
-        Write-LogErr "Add-VMHardDiskDrive failed to add drive on SCSI controller $error[0].Exception"
+        $exception = $error[0].Exception
+        Write-LogErr "Add-VMHardDiskDrive failed to add drive on SCSI controller $exception"
         return $False
     }
     return $True
@@ -54,7 +55,8 @@ function Remove-VHDxDiskDrive {
                            -ControllerLocation $lun `
                            -ControllerNumber $controllerID
     if ($error.Count -gt 0) {
-        Write-LogErr "Remove-VMHardDiskDrive failed to remove drive on SCSI controller $error[0].Exception"
+        $exception = $error[0].Exception
+        Write-LogErr "Remove-VMHardDiskDrive failed to remove drive on SCSI controller $exception"
         return $False
     }
     return $True

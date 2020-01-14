@@ -35,16 +35,16 @@ function Main {
     $resultArr = @()
     try {
         $testResult = $null
-        $memweight1=$TestParams.memWeight1
-        $memweight2=$TestParams.memWeight2
-        $VM1Name=$VM1.RoleName
-        $VM2Name=$VM2.RoleName
-        $HvServer=$VM1.HyperVHost
-        $VMPort=$VM2.SSHPort
+        $memweight1 = $TestParams.memWeight1
+        $memweight2 = $TestParams.memWeight2
+        $VM1Name = $VM1.RoleName
+        $VM2Name = $VM2.RoleName
+        $HvServer = $VM1.HyperVHost
+        $VMPort = $VM2.SSHPort
         Set-VMDynamicMemory -VM $VM1 -minMem $TestParams.minMem1 -maxMem $TestParams.maxMem1 -startupMem $TestParams.startupMem1 -memWeight $memweight1 | Out-Null
         Set-VMDynamicMemory -VM $VM2 -minMem $TestParams.minMem2 -maxMem $TestParams.maxMem2 -startupMem $TestParams.startupMem2 -memWeight $memweight2 | Out-Null
         Write-LogInfo "Starting VM1 $VM1Name"
-        $VM1Ipv4=Start-VMandGetIP $VM1Name $HvServer $VMPort $user $password
+        $VM1Ipv4 = Start-VMandGetIP $VM1Name $HvServer $VMPort $user $password
         Write-LogInfo "IP of $VM1Name is $VM1Ipv4"
         # Change working directory to root dir
         Set-Location $WorkingDirectory
@@ -75,7 +75,7 @@ function Main {
         }
         Start-Sleep -Seconds 100
         Write-LogInfo "Starting VM2 $VM2Name"
-        $VM2Ipv4=Start-VMandGetIP $VM2Name $HvServer $VMPort $user $password
+        $VM2Ipv4 = Start-VMandGetIP $VM2Name $HvServer $VMPort $user $password
         Write-LogInfo "IP of $VM2Name is $VM2Ipv4"
         # get VM1's Memory
         [int64]$vm1AfterAssigned = ($vm1.MemoryAssigned/[int64]1048576)
@@ -100,25 +100,26 @@ function Main {
         }
         Stop-VM -vmName $VM1Name -ComputerName $HvServer -force
         if (-not $?) {
-            throw "$VM1Name did not shutdown via Hyper-V"
+            throw "$VM1Name did not shutdown gracefully via Hyper-V"
         }
         # vm1 shut down gracefully via Hyper-V, so shutdown vm2
         Stop-VM -vmName $VM2Name -ComputerName $HvServer -force
         $testResult = $resultPass
-    }
-    catch {
+    } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
         Write-LogErr "$ErrorMessage at line: $ErrorLine"
-    }
-    finally {
+    } finally {
         if (!$testResult) {
             $testResult = "ABORTED"
         }
-            $resultArr += $testResult
+        $resultArr += $testResult
+        Start-VM -Name $VM1Name -ComputerName $HvServer -Confirm:$False `
+            -WarningAction SilentlyContinue
+        Start-VM -Name $VM2Name -ComputerName $HvServer -Confirm:$False `
+            -WarningAction SilentlyContinue
     }
     $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
-	return $currentTestResult.TestResult
-
+    return $currentTestResult.TestResult
 }
 Main -VM1 $allVMData[0] -VM2 $allVMData[1] -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n"))

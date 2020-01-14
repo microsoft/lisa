@@ -37,7 +37,7 @@ function Main {
             throw "Invalid Windows build number"
         }
         elseif ($BuildNumber -lt 10500) {
-            Write-LogInfo "Info: Feature supported only on WS2016 and newer"
+            Write-LogInfo "Feature supported only on WS2016 and newer"
         }
 
         # Check if AddVhdxHardDisk doesn't add a VHD disk to Gen2 VM
@@ -86,7 +86,7 @@ function Main {
         $random = Get-Random -minimum 1024 -maximum 4096
         $snapshot = "TestSnapshot_$random"
 
-        Write-LogInfo "Info : creating Production Checkpoint ${snapshot} of VM ${VMName}"
+        Write-LogInfo "Creating Production Checkpoint ${snapshot} of VM ${VMName}"
         Checkpoint-VM -Name $VMName -SnapshotName $snapshot -ComputerName $HvServer | Out-Null
         if (-not $?)
         {
@@ -106,7 +106,7 @@ function Main {
         {
              throw "Cannot create file ${testfile2} in /mnt/2"
         }
-        Write-LogInfo "Info : Restoring Production Checkpoint ${snapshot}"
+        Write-LogInfo "Restoring Production Checkpoint ${snapshot}"
         Restore-VMSnapshot -VMName $VMName -Name $snapshot -ComputerName $HvServer -Confirm:$false | Out-Null
 
         #
@@ -200,7 +200,7 @@ function Main {
         #
         # Delete the snapshot
         #
-        Write-LogInfo "Info : Deleting Snapshot ${snapshot} of VM ${VMName}"
+        Write-LogInfo "Deleting Snapshot ${snapshot} of VM ${VMName}"
         # First, unmount the partitions
         if ($TestParams.DUALMOUNT) {
             Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort `
@@ -212,7 +212,7 @@ function Main {
         Remove-VMSnapshot -VMName $VMName -Name $snapshot -ComputerName $HvServer | Out-Null
 
         if( $testResult -ne $resultFail){
-            Write-LogInfo "Info : Only the first file is present. Test succeeded"
+            Write-LogInfo "Only the first file is present. Test succeeded"
             $testResult=$resultPass
         }
     } catch {

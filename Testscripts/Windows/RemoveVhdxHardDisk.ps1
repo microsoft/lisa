@@ -146,7 +146,7 @@ function Main {
 
     if ($null -eq $testParams -or $testParams.Length -lt 13) {
         # The minimum length testParams string is "IDE=1,1,Fixed
-        Write-LogErr "Error: No testParams provided"
+        Write-LogErr "No testParams provided"
         Write-LogErr "The script $MyInvocation.InvocationName requires test parameters"
         return $false
     }

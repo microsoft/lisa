@@ -38,7 +38,7 @@ function Main {
 
     # Change the working directory to where we should be
     if (-not (Test-Path $rootDir)) {
-        Write-LogErr "Error: The directory `"${rootDir}`" does not exist"
+        Write-LogErr "The directory `"${rootDir}`" does not exist"
         return "FAIL"
     }
     Set-Location $rootDir
@@ -46,7 +46,7 @@ function Main {
     $retVal = Optimize-TimeSync -Ipv4 $Ipv4 -Port $VMPort -Username $VMUserName `
                 -Password $VMPassword
     if (-not $retVal)  {
-        Write-LogErr "Error: Failed to config time sync."
+        Write-LogErr "Failed to config time sync."
         return "FAIL"
     }
 
@@ -59,10 +59,10 @@ function Main {
     $diffInSeconds = Get-TimeSync -Ipv4 $Ipv4 -Port $VMPort `
          -Username $VMUserName -Password $VMPassword
     if ($diffInSeconds -and $diffInSeconds -lt $maxTimeDiff) {
-        Write-LogInfo "Info: Time is properly synced"
+        Write-LogInfo "Time is properly synced"
         return "PASS"
     } else {
-        Write-LogErr "Error: Time is out of sync!"
+        Write-LogErr "Time is out of sync!"
         return "FAIL"
     }
 }

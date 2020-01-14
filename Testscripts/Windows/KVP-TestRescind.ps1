@@ -135,7 +135,7 @@ function Main {
 
     # check selinux denied log after ip injection.
     $sts = Get-SelinuxAVCLog -ipv4 $ipv4 -SSHPort $VMPort -Username $VMUserName -Password $VMPassword
-    if (-not $sts) {
+    if ($sts) {
         Write-LogErr "Avc denied log is found in audit log"
         return "FAIL"
     }

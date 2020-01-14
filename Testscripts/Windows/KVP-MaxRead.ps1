@@ -103,7 +103,7 @@ function Main {
         $lisDriversCmd = "rpm -qa | grep kmod-microsoft-hyper-v && rpm -qa | grep microsoft-hyper-v"
         $null = .\Tools\plink.exe -C -pw $password -P $VMPort $user@$Ipv4 $lisDriversCmd
         if ($? -ne "True") {
-            Write-LogErr "Error: No LIS-4.x drivers detected. Skipping test."
+            Write-LogErr "No LIS-4.x drivers detected. Skipping test."
             $testResult = "Aborted"
             $resultArr += $testResult
             $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr

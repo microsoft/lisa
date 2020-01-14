@@ -23,7 +23,7 @@ function Add-NICs {
     }
 
     for ($i=0; $i -lt $nicsAmount; $i++) {
-        Write-LogInfo "Info : Attaching NIC '${network_type}' to '${VMName}'"
+        Write-LogInfo "Attaching NIC '${network_type}' to '${VMName}'"
         Add-VMNetworkAdapter -VMName $VMName -SwitchName $network_type -ComputerName $HvServer -IsLegacy $isLegacy
     }
 }
@@ -45,7 +45,7 @@ function Main {
         if ($temp[0].Trim() -eq "NETWORK_TYPE") {
             $network_type = $temp[1]
             if (@("External", "Internal", "Private", "None") -notcontains $network_type) {
-                Write-LogErr "Error: Invalid netowrk type"
+                Write-LogErr "Invalid netowrk type"
                 return $false
             }
         }
@@ -54,16 +54,16 @@ function Main {
             $test_type = $temp[1].Split(',')
             if ($test_type.Length -eq 2) {
                 if ($test_type[0] -notlike 'legacy' -and $test_type[0] -notlike 'synthetic') {
-                    Write-LogErr "Error: Incorrect test type - $test_type[0]"
+                    Write-LogErr "Incorrect test type - $test_type[0]"
                     return $false
                 }
 
                 if ($test_type[1] -notlike 'legacy' -and $test_type[1] -notlike 'synthetic') {
-                    Write-LogErr "Error: Incorrect test type - $test_type[1]"
+                    Write-LogErr "Incorrect test type - $test_type[1]"
                     return $false
                 }
             } elseif ($test_type -notlike 'legacy' -and $test_type -notlike 'synthetic') {
-                Write-LogErr "Error: Incorrect test type - $test_type"
+                Write-LogErr "Incorrect test type - $test_type"
                 return $false
             }
         }
@@ -100,7 +100,7 @@ function Main {
     }
 
     if (-not $?) {
-        Write-LogErr 0 "Error: Unable to add multiple NICs on VM '${VMName}' on server '${HvServer}'"
+        Write-LogErr "Unable to add multiple NICs on VM '${VMName}' on server '${HvServer}'"
         return $false
     }
 
@@ -108,7 +108,7 @@ function Main {
     $tempIpv4 = Start-VMandGetIP $allVMData.RoleName $allVMData.HypervHost $allVMData.SSHPort `
         $user $password
     if (-not $tempIpv4) {
-        Write-LogErr "Error: Unable to start $($allVMData.RoleName) and get an IPv4 address"
+        Write-LogErr "Unable to start $($allVMData.RoleName) and get an IPv4 address"
         return $false
     }
     # Update the global public IP, otherwise, the collecting logs will fail if the IP is changed
@@ -120,7 +120,7 @@ function Main {
     Run-LinuxCmd -ip $tempIpv4 -port $allVMData.SSHPort -username $user -password `
         $password -command $cmdToSend
     if (-not $?) {
-        Write-LogErr "Error: Failed to create platform.txt file"
+        Write-LogErr "Failed to create platform.txt file"
         return $false
     }
 

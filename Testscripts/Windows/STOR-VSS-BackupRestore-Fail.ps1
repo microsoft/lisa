@@ -47,14 +47,13 @@ function Main {
         $sts = New-Backup $VMName $BackupDriveLetter $HvServer $Ipv4 $VMPort
         if (-not $sts[-1]) {
             throw "Could not retrieve Backup Location"
-        }
-        else {
+        } else {
             $backupLocation = $sts[-1]
         }
         Write-LogInfo "Going through event logs for Warning ID 10107"
         # Now Check if Warning related Error is present in Event Log ? Backup should fail .
         $EventLog = Get-WinEvent -ProviderName Microsoft-Windows-Hyper-V-VMMS | Where-Object {  $_.TimeCreated -gt $Date}
-        if(-not $EventLog) {
+        if (-not $EventLog) {
             throw "Cannot get Event log."
         }
         # Event ID 10107 is what we looking here, it will be always be 10107.
@@ -70,7 +69,7 @@ function Main {
             Write-LogWarn "VSS Backup Error not in Event Log"
         }
         $null = Remove-Backup $backupLocation
-        if( $testResult -ne $resultFail) {
+        if ($testResult -ne $resultFail) {
             $testResult=$resultPass
         }
     }

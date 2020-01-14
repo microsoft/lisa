@@ -31,17 +31,17 @@ function Main {
         }
         $tokens = $p.Trim().Split('=')
         if ($tokens.Length -ne 2) {
-            Write-LogInfo "Warn: test parameter '$p' is being ignored because it appears to be malformed"
+            Write-LogWarn "Test parameter '$p' is being ignored because it appears to be malformed"
             continue
         }
     }
 
     if (-not $Ipv4) {
-        Write-LogErr " The IPv4 test parameter was not provided."
+        Write-LogErr "The IPv4 test parameter was not provided."
         return "FAIL"
     }
     if (-not $RootDir) {
-        Write-LogErr " The RootDir test parameter is not defined."
+        Write-LogErr "The RootDir test parameter is not defined."
         return "FAIL"
     } else {
         Set-Location $RootDir
@@ -52,7 +52,7 @@ function Main {
     $hvState = $vm.State
 
     if ($hvState -ne "Running") {
-        "Error: VM $VMName is not in running state. Test failed."
+        Write-LogErr "VM $VMName is not in running state. Test failed."
         return "FAIL"
     }
 
@@ -67,7 +67,7 @@ function Main {
     }
 
     if ($heartbeatTimeout -eq 0) {
-        Write-LogErr " Test case timed out for VM to enter in the Running state"
+        Write-LogErr "Test case timed out for VM to enter in the Running state"
         return "FAIL"
     }
 
@@ -99,7 +99,7 @@ function Main {
         return "PASS"
     } else {
         Write-LogErr "Test Failed: VM heartbeat not detected again!"
-        Write-LogErr " Heartbeat not detected after re-enabling the Heartbeat service"
+        Write-LogErr "Heartbeat not detected after re-enabling the Heartbeat service"
         return "FAIL"
     }
 }

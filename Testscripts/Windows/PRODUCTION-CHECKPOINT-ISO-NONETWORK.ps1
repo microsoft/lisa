@@ -40,9 +40,9 @@ function Main {
         $url = $TestParams.CDISO
         $captureVMData = $allVMData
         $vmName = $captureVMData.RoleName
-        $hvServer= $captureVMData.HyperVhost
+        $hvServer = $captureVMData.HyperVhost
         $Ipv4 = $captureVMData.PublicIP
-        $VMPort= $captureVMData.SSHPort
+        $VMPort = $captureVMData.SSHPort
 
         # Change the working directory to where we need to be
         Set-Location $WorkingDirectory
@@ -51,8 +51,7 @@ function Main {
         $BuildNumber = Get-HostBuildNumber -hvServer $HvServer
         if ($BuildNumber -eq 0) {
             throw "Incorrect Host Build Number"
-        }
-        elseif ($BuildNumber -lt 10500) {
+        } elseif ($BuildNumber -lt 10500) {
             throw "Feature supported only on WS2016 and newer"
         }
 
@@ -60,7 +59,7 @@ function Main {
         $vm = Get-VM -Name $vmName -ComputerName $hvServer
 
         # Check to see Linux VM is running VSS backup daemon
-        $remoteScript="STOR_VSS_Check_VSS_Daemon.sh"
+        $remoteScript = "STOR_VSS_Check_VSS_Daemon.sh"
         $retval = Invoke-RemoteScriptAndCheckStateFile $remoteScript $user $password $Ipv4 $VMPort
         if ($retval -eq $False) {
             throw "Running $remoteScript script failed on VM!"
@@ -80,15 +79,14 @@ function Main {
         }
 
         $isoPath = $defaultVhdPath + "${vmName}_CDtest.iso"
-        Write-LogInfo "iso path: $isoPath defaultVhdPath $defaultVhdPath"
+        Write-LogInfo "ISO path: $isoPath defaultVhdPath $defaultVhdPath"
 
         $WebClient = New-Object System.Net.WebClient
         $WebClient.DownloadFile("$url", "$isoPath")
 
         try {
-            Get-RemoteFileInfo -filename $isoPath  -server $HvServer
-        }
-        catch {
+            Get-RemoteFileInfo -filename $isoPath -server $HvServer | Out-Null
+        } catch {
             Write-LogErr "The .iso file $isoPath could not be found!"
             throw
         }
@@ -105,20 +103,13 @@ function Main {
         $remoteTest = "echo '${password}' | sudo -S -s eval `"export HOME=``pwd``;bash ${NetworkStopScript} > remotescript.log`""
         Write-LogInfo "Run the remotescript $remoteScript"
         #Run the test on VM
-        Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort $remoteTest -runAsSudo
+        Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort $remoteTest -runAsSudo -RunInBackGround | Out-Null
 
-        Start-Sleep -Seconds 3
+        Start-Sleep -Seconds 5
 
         # Make sure network is down.
         $sts = ping $ipv4
-        $pingresult = $False
-        foreach ($line in $sts) {
-            if (( $line -Like "*unreachable*" ) -or ($line -Like "*timed*")) {
-                $pingresult = $True
-            }
-        }
-
-        if ($pingresult) {
+        if ((($sts -like '*Request timed out*').Count -gt 0) -or (($sts -like '*unreachable*').Count -gt 0)) {
             Write-LogInfo "Network Down: Success"
         } else {
             throw  "Network Down: Failed"
@@ -158,7 +149,7 @@ function Main {
 
         # Check if ISO file is still present
         $isoInfo = Get-VMDvdDrive -VMName $vmName -ComputerName $hvServer
-        if ($isoInfo.Path -like "*CDTEST*" -eq $False){
+        if (($isoInfo.Path -like "*CDTEST*") -eq $False){
             throw "Error: The ISO is missing from the VM"
             $testResult = "FAIL"
         }
@@ -174,9 +165,12 @@ function Main {
         if ( -not $?) {
             Write-LogErr "Could not delete snapshot"
         }
-
+        Remove-Item $isoPath -Force -ErrorAction SilentlyContinue
+        if (-not $?) {
+            Write-LogWarn "$isoPath doesn't exist"
+        }
     } catch {
-        $ErrorMessage =  $_.Exception.Message
+        $ErrorMessage = $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
         Write-LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
     } finally {
@@ -190,5 +184,5 @@ function Main {
     return $currentTestResult.TestResult
 }
 
-Main -TestParams  (ConvertFrom-StringData $TestParams.Replace(";","`n")) -allVMData $AllVmData
+Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n")) -allVMData $AllVmData
 

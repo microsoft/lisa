@@ -159,7 +159,7 @@ else {
 #
 Remove-Item -Path \\$HvServer\$file_path_formatted -Force
 if ($? -ne "True") {
-    Write-LogErr "ERROR: Cannot remove the test file '${testfile}'!"
+    Write-LogErr "Cannot remove the test file '${testfile}'!"
 }
 return "PASS"
 

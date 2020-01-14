@@ -33,7 +33,7 @@ function Main {
         }
 
         $val = $tokens[1].Trim()
-        switch($tokens[0].Trim().ToLower()) {
+        switch ($tokens[0].Trim().ToLower()) {
             "vmState" {$vmState = $val.toLower()}
             "testdelay" {$testDelay = $val}
             "chrony" {$chrony_state = $val}
@@ -41,14 +41,14 @@ function Main {
         }
     }
     if (-not $vmState) {
-        Write-LogErr "Error: testParams is missing the vmState parameter"
+        Write-LogErr "testParams is missing the vmState parameter"
         return "FAIL"
     }
-    Write-LogInfo "Info: testDelay = $testDelay; chrony_state = $chrony_state;"
+    Write-LogInfo "testDelay = $testDelay; chrony_state = $chrony_state;"
 
     # Change the working directory
     if (-not (Test-Path $RootDir)) {
-        Write-LogErr "Error: The directory `"${RootDir}`" does not exist"
+        Write-LogErr "The directory `"${RootDir}`" does not exist"
         return "FAIL"
     }
     Set-Location $RootDir
@@ -57,7 +57,7 @@ function Main {
     $retVal = Optimize-TimeSync -Ipv4 $Ipv4 -Port $VMPort -Username $VMUserName `
                 -Password $VMPassword
     if (-not $retVal) {
-        Write-LogErr "Error: Failed to config time sync."
+        Write-LogErr "Failed to config time sync."
         return "FAIL"
     }
 
@@ -65,14 +65,14 @@ function Main {
     $diffInSeconds = Get-TimeSync -Ipv4 $Ipv4 -Port $VMPort `
          -Username $VMUserName -Password $VMPassword
     if ($diffInSeconds -and $diffInSeconds -lt 5) {
-        Write-LogInfo "Info: Time is properly synced"
+        Write-LogInfo "Time is properly synced"
     } else {
-        Write-LogErr "Error: Time is out of sync before pause/save action!"
+        Write-LogErr "Time is out of sync before pause/save action!"
         return "FAIL"
     }
 
     if ($chrony_state -eq "off") {
-        Write-LogInfo "Info: Chrony has been turned off by shell script."
+        Write-LogInfo "Chrony has been turned off by shell script."
     }
 
     Start-Sleep -Seconds 10
@@ -82,10 +82,10 @@ function Main {
     } elseif ($vmState -eq "save") {
         Save-VM -Name $VMName -ComputerName $HvServer -Confirm:$False
     } else {
-        Write-LogErr "Error: Invalid VM state - ${vmState}"
+        Write-LogErr "Invalid VM state - ${vmState}"
     }
 
-    if ($? -ne "True") {
+    if ($? -ne $true) {
       Write-LogErr "Error while suspending the VM state"
       return "FAIL"
     }
@@ -106,10 +106,10 @@ function Main {
     $diffInSeconds = Get-TimeSync -Ipv4 $Ipv4 -Port $VMPort `
          -Username $VMUserName -Password $VMPassword
     if ($diffInSeconds -and $diffInSeconds -lt 5) {
-        Write-LogInfo "Info: Time is properly synced after start action"
+        Write-LogInfo "Time is properly synced after start action"
         return "PASS"
     } else {
-        Write-LogErr "Error: Time is out of sync after start action!"
+        Write-LogErr "Time is out of sync after start action!"
         return "FAIL"
     }
 }

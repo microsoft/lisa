@@ -25,8 +25,7 @@ function Main {
     if (-not $install) {
         Write-LogErr "eatmemory could not be installed! Please install it before running the memory stress tests."
         return "FAIL"
-    }
-    else {
+    } else {
         Write-LogInfo "eatmemory is installed! Will begin running memory stress tests shortly."
     }
 
@@ -45,16 +44,19 @@ function Main {
         Start-Sleep -Seconds 5
     }
 
-    if ($vmBeforeAssigned -le 0 -or $vmBeforeDemand -le 0) {
+    if (($vmBeforeAssigned -le 0) -or ($vmBeforeDemand -le 0)) {
         Write-LogErr "$VMName reported 0 memory (assigned or demand)."
         return "FAIL"
     }
 
-    Write-LogInfo "Memory stats before $VMName started reporting "
+    Write-LogInfo "Memory stats before $VMName started reporting"
     Write-LogInfo "${VMName}: assigned - $vmBeforeAssigned | demand - $vmBeforeDemand"
-
-    [int64]$vmConsumeMem = (Get-VMMemory -VM $vm).Maximum
-
+    $vmMemory = Get-VMMemory -VM $vm
+    if ($vmMemory.DynamicMemoryEnabled) {
+        [int64]$vmConsumeMem = (Get-VMMemory -VM $vm).Maximum
+    } else {
+        [int64]$vmConsumeMem = (Get-VMMemory -VM $vm).Startup
+    }
     # Transform to MB and stress with maximum
     $vmConsumeMem /= 1MB
 
@@ -69,10 +71,12 @@ function Main {
         count=`$((`$count+1))
         echo "Info: eatmemory for `$count time" >> HotAdd.log
         eatmemory "${vmConsumeMem}M"
-        sleep 1
+        if [ `$? -nq 0 ]; then
+            echo "Error: Cannot execute eatmemory $vmConsumeMem MB > HotAddErrors.log"
+            exit 1
+        fi
     done
-    echo "Error: Cannot execute eatmemory > HotAddErrors.log"
-    exit 1
+    exit 0
 "@
     Set-Content $filename "$cmdToVM"
     Copy-RemoteFiles -uploadTo $Ipv4 -port $VMPort -files $filename -username $VMUserName -password $VMPassword -upload
@@ -113,13 +117,13 @@ function Main {
         Start-Sleep -Seconds 3
     }
 
-    # Sleep for 3 minutes to wait for eatmemory runnning
+    # Sleep for 3 minutes to wait for eatmemory running
     $sleepTime = 180
     Start-Sleep -Seconds $sleepTime
 
     $isAlive = Wait-ForVMToStartKVP $VMName $HvServer 10
     if (-not $isAlive) {
-        Write-LogErr  "VM is unresponsive after running the memory stress test"
+        Write-LogErr "VM is unresponsive after running the memory stress test"
         return "FAIL"
     }
     # Check for errors
@@ -127,7 +131,7 @@ function Main {
     Copy-RemoteFiles -download -downloadFrom $Ipv4 -files "/home/${VMUserName}/HotAddErrors.log" `
         -downloadTo $LogDir -port $VMPort -username $VMUserName -password $VMPassword
     $errorsOnGuest = Get-Content -Path $errorfile
-    if (-not  [string]::IsNullOrEmpty($errorsOnGuest)) {
+    if (-not [string]::IsNullOrEmpty($errorsOnGuest)) {
         Write-LogErr "Errors found while running eatmemory : $errorsOnGuest"
         return "FAIL"
     }
@@ -138,15 +142,13 @@ function Main {
     Copy-RemoteFiles -download -downloadFrom $Ipv4 -files "/home/${VMUserName}/check_traces.log" `
         -downloadTo $LogDir -port $VMPort -username $VMUserName -password $VMPassword
     $contents = Get-Content -Path $trace
-    if ($contents -contains "ERROR") {
+    if ($contents -match "ERROR") {
         Write-LogErr "Test FAIL , Call Traces found!"
         return "FAIL"
-    }
-    else {
+    } else {
         Write-LogInfo "Test PASSED , No call traces found!"
         return "PASS"
     }
-
 }
 Main -VMName $AllVMData.RoleName -HvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
     -Ipv4 $AllVMData.PublicIP -VMPort $AllVMData.SSHPort -VMUserName $user -VMPassword $password `

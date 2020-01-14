@@ -75,33 +75,29 @@ function Main {
             $sts = New-Backup $VMName $BackupDriveLetter $HvServer $Ipv4 $VMPort
             if (-not $sts[-1]) {
                 throw "Failed in start Backup"
-            }
-            else {
+            } else {
                 $backupLocation = $sts[-1]
             }
             # check the backup type, if VSS integration service is disabled,
             # it executes offline backup, otherwise, it executes online backup.
             $sts = Get-BackupType
             $temp = $backupTypes[$i]
-            if  ( $sts -ne $temp ) {
+            if  ($sts -ne $temp) {
                 $testResult = $resultFail
                 throw "Didn't get expected backup type"
-            }
-            else {
+            } else {
                 Write-LogInfo "Received expected backup type $temp"
             }
             $null = Remove-Backup $backupLocation
         }
-        if( $testResult -ne $resultFail) {
+        if ($testResult -ne $resultFail) {
             $testResult=$resultPass
         }
-    }
-    catch {
+    } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
         Write-LogErr "$ErrorMessage at line: $ErrorLine"
-    }
-    finally {
+    } finally {
         if (!$testResult) {
             $testResult = "Aborted"
         }

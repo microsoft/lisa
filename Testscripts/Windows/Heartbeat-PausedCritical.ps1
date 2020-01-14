@@ -31,7 +31,7 @@ function Main {
 
     # Change the working directory for the log files
     if (-not (Test-Path $RootDir)) {
-        Write-LogErr "Error: The directory `"${RootDir}`" does not exist"
+        Write-LogErr "The directory `"${RootDir}`" does not exist"
         return "FAIL"
     }
     Set-Location $RootDir
@@ -39,7 +39,7 @@ function Main {
     # Check host version and skipp TC in case of WS2012 or older
     $hostVersion = Get-HostBuildNumber $HvServer
     if ($hostVersion -le 9600) {
-        Write-LogInfo "Info: Host is WS2012R2 or older. Skipping test case."
+        Write-LogInfo "Host is WS2012R2 or older. Skipping test case."
         return "ABORTED"
     }
 
@@ -47,7 +47,7 @@ function Main {
     $driveletter = Get-ChildItem function:[g-y]: -n | Where-Object {!(Test-Path $_)} | Get-Random
 
     if ([string]::IsNullOrEmpty($driveletter)) {
-        Write-LogErr "Error: The driveletter variable is empty!"
+        Write-LogErr "The driveletter variable is empty!"
         return "FAIL"
     } else {
         Write-LogInfo "The drive letter of test volume is $driveletter"
@@ -56,7 +56,7 @@ function Main {
     # Shutdown gracefully so we don't corrupt the VHD
     Stop-VM -Name $VMName -ComputerName $HvServer
     if (-not $?) {
-        Write-LogErr "Error: Unable to Shut Down VM"
+        Write-LogErr "Unable to Shut Down VM"
         return "FAIL"
     }
 
@@ -107,7 +107,7 @@ function Main {
     -ArgumentList $vhdpath, $newsize, $driveletter[0]
 
     if (-not $?) {
-        Write-LogErr "Error: Failed to create the new partition $driveletter"
+        Write-LogErr "Failed to create the new partition $driveletter"
         return "FAIL"
     }
 
@@ -128,7 +128,7 @@ function Main {
     Start-Sleep -Seconds 15
     Invoke-command -ComputerName $hvServer { xcopy $Using:ParentVHD $Using:ChildVHD* /Y }
     if (-not $?) {
-        Write-LogErr "Error: Creating Child VHD of VM $VMName"
+        Write-LogErr "Creating Child VHD of VM $VMName"
         return "FAIL"
     }
 
@@ -138,7 +138,7 @@ function Main {
     # Get the VM Network adapter so we can attach it to the new VM
     $VMNetAdapter = Get-VMNetworkAdapter $VMName -ComputerName $HvServer
     if (-not $?) {
-        Write-LogErr "Error: Failed to run Get-VMNetworkAdapter to obtain the source VM configuration"
+        Write-LogErr "Failed to run Get-VMNetworkAdapter to obtain the source VM configuration"
         return "FAIL"
     }
 
@@ -154,7 +154,7 @@ function Main {
     # Create the ChildVM
     New-VM -Name $VMName1 -ComputerName $HvServer -VHDPath $ChildVHD -MemoryStartupBytes 2048MB -SwitchName $VMNetAdapter[0].SwitchName -Generation $vm_gen
     if (-not $?) {
-       Write-LogErr "Error: Creating new VM $VMName1 failed!"
+       Write-LogErr "Creating new VM $VMName1 failed!"
        return "FAIL"
     }
     "vm_name=$VMName1" | Out-File './heartbeat_params.info' -Append
@@ -163,21 +163,21 @@ function Main {
     if ($vm_gen -eq 2) {
         Set-VMFirmware -VMName $VMName1 -ComputerName $HvServer -EnableSecureBoot Off
         if(-not $?) {
-            Write-LogErr "Error: Unable to disable secure boot!"
+            Write-LogErr "Unable to disable secure boot!"
             return "FAIL"
         }
     }
 
-    Write-LogInfo "Info: Child VM $VMName1 created"
+    Write-LogInfo "Child VM $VMName1 created"
 
     $timeout = 300
     Start-VM -Name $VMName1 -ComputerName $HvServer
     if (-not (Wait-ForVMToStartKVP $VMName1 $HvServer $timeout )) {
-        Write-LogErr "Error: ${vmName1} failed to start"
+        Write-LogErr "${vmName1} failed to start"
         return "FAIL"
     }
     Start-VM -Name $VMName -ComputerName $HvServer
-    Write-LogInfo "Info: New VM $VMName1 started"
+    Write-LogInfo "New VM $VMName1 started"
 
     # Get the VM1 ip
     $ipv4vm1 = Get-IPv4ViaKVP $VMName1 $HvServer
@@ -193,11 +193,11 @@ function Main {
     # Fill up the partition
     $createfile = fsutil file createnew \\$HvServer\$file_path_formatted $filesize
     if ($createfile -notlike "File *testfile* is created") {
-        Write-LogErr "Error: Could not create the sample test file in the working directory! $file_path_formatted"
+        Write-LogErr "Could not create the sample test file in the working directory! $file_path_formatted"
         return "FAIL"
     }
-    Write-LogInfo "Info: Created test file on \\$HvServer\$file_path_formatted with the size $filesize"
-    Write-LogInfo "Info: Writing data on the VM disk in order to hit the disk limit"
+    Write-LogInfo "Created test file on \\$HvServer\$file_path_formatted with the size $filesize"
+    Write-LogInfo "Writing data on the VM disk in order to hit the disk limit"
 
     # Get the used space reported by the VM on the root partition
     $usedSpaceVM = Run-LinuxCmd -username  $VMUserName -password $VMPassword -ip $ipv4vm1 -port $VMPort -command "df -B1 /home/${VMUserName} |  awk '{print `$3}' | tail -1" -RunAsSudo
@@ -209,7 +209,7 @@ function Main {
     $ddFileSize = [math]::Round($vmFileSize/1MB) #The value supplied to dd command has to be in MB
 
     if ($ddFileSize -le 0) {
-        Write-LogWarn "Warning: The difference between the created partition size and the used VM space is negative."
+        Write-LogWarn "The difference between the created partition size and the used VM space is negative."
         # If the number is negative, convert it to possitive and if it is a one or two digit number use the filesize value
         $ddFileSize = $ddFileSize * -1
         if ($ddFileSize.length -eq 1 -or $ddFileSize.length -eq 2) {
@@ -217,39 +217,39 @@ function Main {
         }
     }
 
-    Write-LogInfo "Info: Filling $VMName with $ddFileSize MB of data."
+    Write-LogInfo "Filling $VMName with $ddFileSize MB of data."
     Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $ipv4vm1 -port $VMPort -command "nohup dd if=/dev/urandom of=/home/${VMUserName}/data2 bs=1M count=$ddFileSize" -RunInBackGround -RunAsSudo
     Start-Sleep -Seconds 90
 
     $vm1 = Get-VM -Name $VMName1 -ComputerName $HvServer
     if ($vm1.State -ne "PausedCritical") {
-        Write-LogErr "Error: VM $VMName1 is not in Paused-Critical after we filled the disk"
+        Write-LogErr "VM $VMName1 is not in Paused-Critical after we filled the disk"
         return "FAIL"
     }
-    Write-LogInfo "Info: VM $VMName1 entered in Paused-Critical state, as expected."
+    Write-LogInfo "VM $VMName1 entered in Paused-Critical state, as expected."
 
     # Create space on partition
     Remove-Item -Path \\$HvServer\$file_path_formatted -Force
     if (-not $?) {
-        Write-LogErr "ERROR: Cannot remove the test file '${testfile1}'!"
+        Write-LogErr "Cannot remove the test file '${testfile1}'!"
         return "FAIL"
     }
-    Write-LogInfo "Info: Test file deleted from mounted VHDx"
+    Write-LogInfo "Test file deleted from mounted VHDx"
 
     # Resume VM after we created space on the partition
     Resume-VM -Name $VMName1 -ComputerName $HvServer
     if (-not $?) {
-        Write-LogErr "Error: Failed to resume the vm $VMName1"
+        Write-LogErr "Failed to resume the vm $VMName1"
     }
 
     # Check Heartbeat
     Start-Sleep -Seconds 5
     if ($vm1.Heartbeat -eq "OkApplicationsUnknown") {
-        Write-LogInfo "Info: Heartbeat detected, status OK."
-        Write-LogInfo "Info: Test Passed. Heartbeat is again reported as OK."
+        Write-LogInfo "Heartbeat detected, status OK."
+        Write-LogInfo "Test Passed. Heartbeat is again reported as OK."
         return "PASS"
     } else {
-        Write-LogErr "Error: Heartbeat is not in the OK state."
+        Write-LogErr "Heartbeat is not in the OK state."
         return "FAIL"
     }
 }

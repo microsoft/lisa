@@ -23,17 +23,17 @@ function Main {
     $startupMemory = $null
 
     if (-not $vmName -or $vmName.Length -eq 0) {
-        Write-LogErr "Error: vmName is null"
+        Write-LogErr "vmName is null"
         return $False
     }
 
     if (-not $hvServer -or $hvServer.Length -eq 0) {
-        Write-LogErr "Error: hvServer is null"
+        Write-LogErr "hvServer is null"
         return $False
     }
 
     if (-not $testParams) {
-        Write-LogErr "Error: testParams is null"
+        Write-LogErr "testParams is null"
         return $False
     }
 
@@ -53,7 +53,7 @@ function Main {
     $availableMemory = Convert-StringToDecimal $availableMemory
 
     if ($startupMemory -gt $availableMemory) {
-        Write-LogErr "Error: Not enough available memory on the system. startupMemory: $startupMemory, free space: $availableMemory"
+        Write-LogErr "Not enough available memory on the system. startupMemory: $startupMemory, free space: $availableMemory"
         return $False
     }
 
@@ -67,7 +67,7 @@ function Main {
     }
 
     if (-not $?) {
-        Write-LogErr "Error: Unable to set ${VMMemory} of RAM for ${vmName}"
+        Write-LogErr "Unable to set ${VMMemory} of RAM for ${vmName}"
         return $False
     }
 

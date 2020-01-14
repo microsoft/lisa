@@ -25,7 +25,7 @@ function Main {
         return "Aborted"
     }
     if (-not $RootDir) {
-        Write-LogInfo "Warn: no rootdir was specified"
+        Write-LogWarn "No rootdir was specified"
     } else {
         Set-Location $RootDir
     }

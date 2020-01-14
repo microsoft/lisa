@@ -48,38 +48,54 @@ function Check-VMBusPanicEvent {
     Write-LogInfo "Make sure kdump is configured on the VM"
     if ($TestParams.ENABLE_KDUMP -eq "true") {
         $installKdumpFile = "KDUMP-Config.sh"
-        $installKdumpScript = "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;bash ${installKdumpFile} > install_kdump.log`""
-        $installKdumpLog = "/home/${VMUserName}/install_kdump.log"
+        $installKdumpLog = "install_kdump.log"
+        $installKdumpScript = "bash ${installKdumpFile} > ${installKdumpLog}"
+
         Run-LinuxCmd -username $VMUserName -password $VMPassword `
-                    -ip $Ipv4 -port $VMPort $installKdumpScript -runAsSudo
+                    -ip $Ipv4 -port $VMPort $installKdumpScript -runAsSudo | Out-Null
         Copy-RemoteFiles -download -downloadFrom $Ipv4 -files $installKdumpLog `
                    -downloadTo $LogDir -port $VMPort -username $VMUserName `
                    -password $VMPassword
-
-        Stop-VM -ComputerName $hvServer -Name $vmName -Force -Confirm:$false
-        Wait-VMState -VMName $VMName -HvServer $HvServer -VMState "Off"
-        Start-VM -ComputerName $hvServer -Name $vmName
-        Wait-VMState -VMName $VMName -HvServer $HvServer -VMState "Running"
-        Wait-VMHeartbeatOK -VMName $VMName -HvServer $HvServer
+        $retryTimes = 3
+        DO {
+            Write-LogInfo "Rebooting VM $VMName after kdump configuration..."
+            Stop-VM -ComputerName $hvServer -Name $vmName -Force -Confirm:$false
+            Wait-VMState -VMName $VMName -HvServer $HvServer -VMState "Off"
+            Start-VM -ComputerName $hvServer -Name $vmName
+            Wait-VMState -VMName $VMName -HvServer $HvServer -VMState "Running"
+            Wait-VMHeartbeatOK -VMName $VMName -HvServer $HvServer
+            Write-LogInfo "Attempt $(4 - $retryTimes) to check memory reservation successfully."
+            $retCount = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+                        -command "dmesg | grep -ic 'crashkernel reservation failed - No suitable area found'" `
+                        -ignoreLinuxExitCode:$true -runAsSudo
+            if (1 -eq $retCount) {
+                Write-LogWarn "Memory reservation failed..."
+                continue
+            } else{
+                Write-LogInfo "Memory reservation successfully..."
+                break
+            }
+            $retryTimes -= 1
+        } while (($retryTimes -gt 0))
     }
 
     Write-LogInfo "Enable sysrq on VM"
-    $enableSysrqScript = "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;sysctl -w kernel.sysrq=1`""
+    $enableSysrqScript = "sysctl -w kernel.sysrq=1"
     Run-LinuxCmd -username $VMUserName -password $VMPassword `
-                -ip $Ipv4 -port $VMPort $enableSysrqScript
-
+                -ip $Ipv4 -port $VMPort $enableSysrqScript -runAsSudo | Out-Null
+    Start-Sleep -Seconds 30
     Write-LogInfo "Trigger kernel panic on the VM"
     $prePanicTime = [DateTime]::Now
-    $triggerSysrqScript = "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;echo 'echo c > /proc/sysrq-trigger' | at now + 1 minutes`""
     Run-LinuxCmd -username $VMUserName -password $VMPassword `
-                -ip $Ipv4 -port $VMPort $triggerSysrqScript
+                -ip $Ipv4 -port $VMPort "sleep 5; echo c > /proc/sysrq-trigger" -RunInBackGround -runAsSudo | Out-Null
 
+    Start-Sleep -Seconds 30
     Write-LogInfo "Check host event log for the 18590 event from the VM"
     Start-Sleep -Seconds 60
-    $testPassed = Get-VMPanicEvent -VMName $VMName -HvServer $HvServer `
-                                   -StartTime $prePanicTime
+    $testPassed = Get-VMEvent -VMName $VMName -HvServer $HvServer `
+                    -StartTime $prePanicTime -EventID 18590
     if (-not $testPassed) {
-        Write-LogErr "Error: Event 18590 was not logged by VM ${vmName}"
+        Write-LogErr "Event 18590 was not logged by VM ${vmName}"
         Write-LogErr "Make sure KDump status is stopped on the VM"
         return "FAIL"
     } else {

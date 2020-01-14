@@ -122,7 +122,7 @@ function Invoke-KVPAction {
     $msvmKvpExchangeDataItemPath = "\\$HvServer\root\virtualization\v2:Msvm_KvpExchangeDataItem"
     $msvmKvpExchangeDataItem = ([WmiClass]$msvmKvpExchangeDataItemPath).CreateInstance()
     if (-not $msvmKvpExchangeDataItem) {
-        Write-LogErr "Error: Unable to create Msvm_KvpExchangeDataItem object"
+        Write-LogErr "Unable to create Msvm_KvpExchangeDataItem object"
         return $False
     }
 
@@ -142,8 +142,7 @@ function Invoke-KVPAction {
         if ($job.ErrorCode -eq 32773) {
             Write-LogErr "Key does not exist.  Key = '${key}'"
             return $False
-        }
-        else {
+        } else {
             Write-LogErr "Unable to ${Action} KVP key '${key}'"
             return $False
         }

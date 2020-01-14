@@ -175,7 +175,7 @@ function Main {
 
     $parentFileInfo = Get-RemoteFileInfo $parentVhdFilename $hvServer
     if (-not $parentFileInfo) {
-        Write-LogErr"Unable to collect file information on parent VHD `"${parentVhd}`""
+        Write-LogErr "Unable to collect file information on parent VHD `"${parentVhd}`""
         return "FAIL"
     }
 

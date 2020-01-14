@@ -183,7 +183,6 @@ function Main {
                 Throw "$vm2Name assigned memory exceeded the maximum memory set"
             }
         }
-        Stop-VM -VMName $vm2name -ComputerName $HvServer -force
         $testResult = $resultPass
     } catch {
         $ErrorMessage =  $_.Exception.Message

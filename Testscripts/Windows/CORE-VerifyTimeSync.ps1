@@ -28,7 +28,7 @@ function Main {
     $service = "Time Synchronization"
 
     if ($null -eq $TestParams) {
-        Write-LogErr " TestParams is null"
+        Write-LogErr "TestParams is null"
         return "FAIL"
     }
 
@@ -42,12 +42,12 @@ function Main {
     }
 
     if (-not $RootDir) {
-        Write-LogErr " The RootDir test parameter is not defined."
+        Write-LogErr "The RootDir test parameter is not defined."
         return "Aborted"
     }
 
     if (-not (Test-Path $RootDir) ) {
-        Write-LogErr " The test root directory '${RootDir}' does not exist"
+        Write-LogErr "The test root directory '${RootDir}' does not exist"
         return "FAIL"
     } else {
         Set-Location $RootDir
@@ -56,55 +56,55 @@ function Main {
     $retVal = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
         -command "bash ./CORE-ConfigTimeSync.sh" -runAsSudo
     if (-not $retVal) {
-        Write-LogErr " Failed to config time sync."
+        Write-LogErr "Failed to config time sync."
         return "FAIL"
     }
 
     # Get the VMs Integrated Services and verify Time Sync is enabled and status is OK
-    Write-LogInfo " Verify the Integrated Services Time Sync Service is enabled"
+    Write-LogInfo "Verify the Integrated Services Time Sync Service is enabled"
     $status = Get-VMIntegrationService -ComputerName $HvServer -VMName $VMName -Name $service
     if ($status.Enabled -ne $True) {
-        Write-LogErr " The Integrated Time Sync Service is already disabled"
+        Write-LogErr "The Integrated Time Sync Service is already disabled"
         return "FAIL"
     }
     if ($status.PrimaryOperationalStatus -ne "Ok") {
-        Write-LogErr " Incorrect Operational Status for Time Sync Service: $($status.PrimaryOperationalStatus)"
+        Write-LogErr "Incorrect Operational Status for Time Sync Service: $($status.PrimaryOperationalStatus)"
         return "FAIL"
     }
 
     # Disable the Time Sync service.
-    Write-LogInfo " Disabling the Integrated Services Time Sync Service"
+    Write-LogInfo "Disabling the Integrated Services Time Sync Service"
     Disable-VMIntegrationService -ComputerName $HvServer -VMName $VMName -Name $service
     $status = Get-VMIntegrationService -ComputerName $HvServer -VMName $VMName -Name $service
     if ($status.Enabled -ne $False) {
-        Write-LogErr " The Time Sync Service could not be disabled"
+        Write-LogErr "The Time Sync Service could not be disabled"
         return "FAIL"
     }
     if ($status.PrimaryOperationalStatus -ne "Ok") {
-        Write-LogErr " Incorrect Operational Status for Time Sync Service: $($status.PrimaryOperationalStatus)"
+        Write-LogErr "Incorrect Operational Status for Time Sync Service: $($status.PrimaryOperationalStatus)"
         return "FAIL"
     }
-    Write-LogInfo " Integrated Time Sync Service successfully disabled"
+    Write-LogInfo "Integrated Time Sync Service successfully disabled"
 
     # Enable the Time Sync service
-    Write-LogInfo " Enabling the Integrated Services Time Sync Service"
+    Write-LogInfo "Enabling the Integrated Services Time Sync Service"
 
     Enable-VMIntegrationService -ComputerName $HvServer -VMName $VMName -Name $service
     $status = Get-VMIntegrationService -ComputerName $HvServer -VMName $VMName -Name $service
     if ($status.Enabled -ne $True) {
-        Write-LogErr " Integrated Time Sync Service could not be enabled"
+        Write-LogErr "Integrated Time Sync Service could not be enabled"
         return "FAIL"
     }
 
     if ($status.PrimaryOperationalStatus -ne "Ok") {
-        Write-LogErr " Incorrect Operational Status for Time Sync Service: $($status.PrimaryOperationalStatus)"
+        Write-LogErr "Incorrect Operational Status for Time Sync Service: $($status.PrimaryOperationalStatus)"
         return "FAIL"
     }
-    Write-LogInfo " Integrated Time Sync Service successfully Enabled"
+    Write-LogInfo "Integrated Time Sync Service successfully Enabled"
 
     Start-Sleep -seconds 5
     # Now also save the VM for 60 seconds
-    Write-LogInfo " Saving the VM"
+    Write-LogInfo "Saving the VM"
 
     Save-VM -Name $VMName -ComputerName $HvServer -Confirm:$False
     Start-Sleep -seconds 60
@@ -114,7 +114,7 @@ function Main {
     Start-VM -Name $VMName -ComputerName $HvServer -Confirm:$false
     $startTimeout = 300
     while ($startTimeout -gt 0) {
-        if ( (Test-TCP $Ipv4 $VMPort) -eq "True" ) {
+        if ((Test-TCP $Ipv4 $VMPort) -eq "True") {
             break
         }
         Start-Sleep -seconds 5
@@ -124,7 +124,7 @@ function Main {
         Write-LogErr "Test case timed out for VM to enter in the Running state"
         return "FAIL"
     }
-    Write-LogInfo " VM successfully started"
+    Write-LogInfo "VM successfully started"
 
     $diffInSeconds = Get-TimeSync -Ipv4 $Ipv4 -Port $VMPort `
                         -Username $VMUserName -Password $VMPassword
@@ -133,7 +133,7 @@ function Main {
         Write-LogInfo "Time is properly synced"
         return "PASS"
     } else {
-        Write-LogErr " Time is out of sync!"
+        Write-LogErr "Time is out of sync!"
         return "FAIL"
     }
 }

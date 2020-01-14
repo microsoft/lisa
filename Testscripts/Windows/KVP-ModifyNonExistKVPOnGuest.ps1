@@ -25,12 +25,12 @@ function Main {
     $value = $null
 
     if (-not $TestParams) {
-        Write-LogErr "Error: No TestParams provided"
+        Write-LogErr "No TestParams provided"
         Write-LogErr "       This script requires the Key & value test parameters"
         return "Aborted"
     }
     if (-not $RootDir) {
-        Write-LogErr "Warn : no RootDir test parameter was supplied"
+        Write-LogWarn "No RootDir test parameter was supplied"
     } else {
         Set-Location $RootDir
     }
@@ -48,11 +48,11 @@ function Main {
     }
 
     if (-not $key) {
-        Write-LogErr "Error: Missing testParam Key to be added"
+        Write-LogErr "Missing testParam Key to be added"
         return "FAIL"
     }
     if (-not $value) {
-        Write-LogErr "Error: Missing testParam Value to be added"
+        Write-LogErr "Missing testParam Value to be added"
         return "FAIL"
     }
 
@@ -60,33 +60,33 @@ function Main {
     $vmManagementService = Get-WmiObject -ComputerName $HvServer -class "Msvm_VirtualSystemManagementService" `
         -namespace "root\virtualization\v2"
     if (-not $vmManagementService) {
-        Write-LogErr "Error: Unable to create a VMManagementService object"
+        Write-LogErr "Unable to create a VMManagementService object"
         return "FAIL"
     }
 
     $vmGuest = Get-WmiObject -ComputerName $HvServer -Namespace root\virtualization\v2 `
         -Query "Select * From Msvm_ComputerSystem Where ElementName='$VMName'"
     if (-not $vmGuest) {
-        Write-LogErr "Error: Unable to create VMGuest object"
+        Write-LogErr "Unable to create VMGuest object"
         return "FAIL"
     }
 
     $msvmKvpExchangeDataItemPath = "\\$HvServer\root\virtualization\v2:Msvm_KvpExchangeDataItem"
     $msvmKvpExchangeDataItem = ([WmiClass]$msvmKvpExchangeDataItemPath).CreateInstance()
     if (-not $msvmKvpExchangeDataItem) {
-        Write-LogErr "Error: Unable to create Msvm_KvpExchangeDataItem object"
+        Write-LogErr "Unable to create Msvm_KvpExchangeDataItem object"
         return "FAIL"
     }
 
-    Write-LogInfo "Info : Detecting Host version of Windows Server"
+    Write-LogInfo "Detecting Host version of Windows Server"
     $osInfo = GWMI Win32_OperatingSystem -ComputerName $HvServer
     if (-not $osInfo) {
-        Write-LogErr "Error: Unable to collect Operating System information"
+        Write-LogErr "Unable to collect Operating System information"
         return "FAIL"
     }
     [System.Int32]$buildNR = $osInfo.BuildNumber
 
-    Write-LogInfo "Info : Modifying Key '${key}'to '${Value}'"
+    Write-LogInfo "Modifying Key '${key}'to '${Value}'"
 
     $msvmKvpExchangeDataItem.Source = 0
     $msvmKvpExchangeDataItem.Name = $key
@@ -100,23 +100,23 @@ function Main {
     }
 
     if ($job.ErrorCode -ne 0) {
-        Write-LogErr "Error: while modifying the key value pair"
-        Write-LogErr "Error: Job error code = $($Job.ErrorCode)"
+        Write-LogErr "While modifying the key value pair"
+        Write-LogErr "Job error code = $($Job.ErrorCode)"
 
         if ($job.ErrorCode -eq 32773) {
-            Write-LogErr "Error (as expected): Key = '${key} ,Non-existing key cannot be modified Error Code-' $($Job.ErrorCode) "
+            Write-LogErr "(as expected): Key = '${key}, non-existing key cannot be modified Error Code-' $($Job.ErrorCode) "
             return "PASS"
         } elseIf ($job.ErrorCode -eq 32779 -And $buildNR -ge 10000) {
-            Write-LogErr "Error (as expected): Key = '${key} ,Non-existing key cannot be modified Error Code-' $($Job.ErrorCode) "
+            Write-LogErr "(as expected): Key = '${key}, non-existing key cannot be modified Error Code-' $($Job.ErrorCode) "
             return "PASS"
         } else {
-            Write-LogErr "Error: Unable to modify key"
+            Write-LogErr "Unable to modify key"
             return "FAIL"
         }
     }
 
     if ($job.Status -eq "OK") {
-        "Error: Non-existing KVP modified with status OK, Check Key and Value pair exist or not in pool 0"
+        Write-LogErr "Non-existing KVP modified with status OK, Check Key and Value pair exist or not in pool 0"
         return "FAIL"
     }
 }

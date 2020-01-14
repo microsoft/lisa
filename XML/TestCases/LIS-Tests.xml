@@ -15,6 +15,7 @@
         <setupScript>.\TestScripts\Windows\LIS-Mount-CD.ps1</setupScript>
         <testScript>Test_LIS_disk_check.sh</testScript>
         <files>.\Testscripts\Linux\Test_LIS_disk_check.sh,.\Testscripts\Linux\check_traces.sh,.\Testscripts\Linux\utils.sh</files>
+        <cleanUpScript>.\TestScripts\Windows\SETUP-RemoveIsoFromDvd.ps1</cleanUpScript>
         <setupType>OneVM</setupType>
         <Platform>Azure,HyperV</Platform>
         <Category>Functional</Category>
