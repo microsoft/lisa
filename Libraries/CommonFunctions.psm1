@@ -982,7 +982,7 @@ Function Detect-LinuxDistro() {
 		[Parameter(Mandatory=$true)][string]$VIP,
 		[Parameter(Mandatory=$true)][string]$SSHPort,
 		[Parameter(Mandatory=$true)][string]$testVMUser,
-		[Parameter(Mandatory=$true)][string]$testVMPassword
+		[string]$testVMPassword
 	)
 
 	$global:InitialKernelVersion = Run-LinuxCmd -ip $VIP -port $SSHPort -username $testVMUser -password $testVMPassword -command "uname -r"

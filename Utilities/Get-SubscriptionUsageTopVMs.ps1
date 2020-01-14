@@ -6,11 +6,12 @@
 
 param
 (
-    [int]$TopVMsCount=20,
+    [int] $TopVMsCount = 20,
+    [string] $SubscriptionId = "",
     [string] $LogFileName = "GetSubscriptionUsageTopVMs.log"
 )
-if (!$global:LogFileName){
-  Set-Variable -Name LogFileName -Value $LogFileName -Scope Global -Force
+if (!$global:LogFileName) {
+    Set-Variable -Name LogFileName -Value $LogFileName -Scope Global -Force
 }
 Get-ChildItem ..\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
 #region HTML File structure
@@ -85,11 +86,11 @@ $tick = (Get-Date).Ticks
 $VMAgeHTMLFile = "vmAge.html"
 $cacheFilePath = "cache.results-$tick.json"
 if (!(Test-Path -Path ".\SubscriptionUsage.html")) {
-  $htmlHeader = $TableStyle + $htmlHeader
+    $htmlHeader = $TableStyle + $htmlHeader
 }
 #region Get Subscription Details...
 Write-LogInfo "Running: Get-AzSubscription..."
-$subscription = Get-AzSubscription
+$subscription = Get-AzSubscription -SubscriptionId $SubscriptionId
 $htmlHeader = $htmlHeader.Replace("TOP_VM_COUNT",$TopVMsCount)
 $htmlHeader = $htmlHeader.Replace("SUBSCRIPTION_IDENTIFIER","$($subscription.Name) [$($subscription.Id)]")
 #endregion
@@ -100,56 +101,45 @@ Write-LogInfo "Elapsed Time: $($(Get-Date) - $then)"
 $allSizes = @{}
 Write-LogInfo "Running: Get-AzLocation..."
 $allRegions = (Get-AzLocation | Where-Object { $_.Providers -imatch "Microsoft.Compute" }).Location | Sort-Object
-try
-{
-  $allVMStatus = @()
-  foreach( $region in $allRegions )
-  {
-      Write-LogInfo "Running: Get-AzVMSize -Location $($region)"
-      $allSizes[ $region ] = Get-AzVMSize -Location $region
-  }
-  foreach ($region in $allRegions) {
-    Write-LogInfo "Running: Get-AzVM -Status -Location $region"
-    $allVMStatus += Get-AzVM -Status -Location $region
-  }
-	Write-LogInfo "Running: Get-AzStorageAccount"
-	$sas = Get-AzStorageAccount
-}
-catch {
+try {
+    $allVMStatus = @()
+    foreach ($region in $allRegions) {
+        Write-LogInfo "Running: Get-AzVMSize -Location $($region)"
+        $allSizes[ $region ] = Get-AzVMSize -Location $region -ErrorAction SilentlyContinue
+    }
+    foreach ($region in $allRegions) {
+        Write-LogInfo "Running: Get-AzVM -Status -Location $region"
+        $allVMStatus += Get-AzVM -Status -Location $region -ErrorAction SilentlyContinue
+    }
+    Write-LogInfo "Running: Get-AzStorageAccount"
+    $sas = Get-AzStorageAccount
+} catch {
     Write-LogInfo "Error while fetching data. Please try again."
     Set-Content -Path $VMAgeHTMLFile -Value "There was some error in fetching data from Azure today."
     exit 1
 }
 
-
 Write-LogInfo "Elapsed Time: $($(Get-Date) - $then)"
 $finalResults = @()
-foreach( $vm in $allVMStatus )
-{
-  $deallocated = $false
-  if( $vm.PowerState -imatch "VM deallocated" )
-  {
+foreach ($vm in $allVMStatus) {
+    $deallocated = $false
+    if ($vm.PowerState -imatch "VM deallocated") {
         $PowerStatusString = " [OFF] "
         $deallocated = $true
-  }
-  else
-  {
+    } else {
         $PowerStatusString = " [ON] "
-  }
-  Write-LogInfo "[$($(Get-Date) - $then)] $PowerStatusString -Name $($vm.Name) -ResourceGroup $($vm.ResourceGroupName) Size=$($vm.HardwareProfile.VmSize)"
-  $storageKind = "None"
-  $ageDays = -1
-  $idleDays = -1
+}
+Write-LogInfo "[$($(Get-Date) - $then)] $PowerStatusString -Name $($vm.Name) -ResourceGroup $($vm.ResourceGroupName) Size=$($vm.HardwareProfile.VmSize)"
+$storageKind = "None"
+$ageDays = -1
+$idleDays = -1
 
-  if( $vm.StorageProfile.OsDisk.Vhd.Uri )
-  {
+if ($vm.StorageProfile.OsDisk.Vhd.Uri) {
     $vhd = $vm.StorageProfile.OsDisk.Vhd.Uri
     $storageAccount = $vhd.Split("/")[2].Split(".")[0]
     $container = $vhd.Split("/")[3]
     $blob = $vhd.Split("/")[4]
-
     $storageKind = "blob"
-
     $foo = $sas | Where-Object {  $($_.StorageAccountName -eq $storageAccount) -and $($_.Location -eq $vm.Location) }
     Set-AzCurrentStorageAccount -ResourceGroupName $foo.ResourceGroupName -Name $storageAccount > $null
     $blobDetails = Get-AzStorageBlob -Container $container -Blob $blob
@@ -159,23 +149,19 @@ foreach( $vm in $allVMStatus )
     $idle = $($(Get-Date)-$lastWriteTime.DateTime)
     $ageDays = $age.Days
     $idleDays = $idle.Days
-
     Write-LogInfo " Age = $ageDays  Idle = $idleDays"
-  }
-  else
-  {
+} else {
     $storageKind = "disk"
-	Write-LogInfo "Running:  Get-AzDisk -ResourceGroupName $($vm.ResourceGroupName) -DiskName $($vm.StorageProfile.OsDisk.Name)"
+    Write-LogInfo "Running:  Get-AzDisk -ResourceGroupName $($vm.ResourceGroupName) -DiskName $($vm.StorageProfile.OsDisk.Name)"
     $osdisk = Get-AzDisk -ResourceGroupName $vm.ResourceGroupName -DiskName $vm.StorageProfile.OsDisk.Name
-    if( $osdisk.TimeCreated )
-    {
-      $age = $($(Get-Date) - $osDisk.TimeCreated)
-      $ageDays = $($age.Days)
-      Write-LogInfo " Age = $($age.Days)"
+    if ($osdisk.TimeCreated) {
+        $age = $($(Get-Date) - $osDisk.TimeCreated)
+        $ageDays = $($age.Days)
+        Write-LogInfo " Age = $($age.Days)"
     }
-  }
-  $coreCount = $allSizes[ $vm.Location ] | Where-Object { $_.Name -eq $($vm.HardwareProfile.VmSize) }
-  $newEntry = @{
+}
+$coreCount = $allSizes[ $vm.Location ] | Where-Object { $_.Name -eq $($vm.HardwareProfile.VmSize) }
+$newEntry = @{
     Name=$vm.Name
     resourceGroup=$vm.ResourceGroupName
     location=$vm.Location
@@ -186,38 +172,34 @@ foreach( $vm in $allVMStatus )
     Weight=$($coreCount.NumberOfCores * $ageDays)
     StorageKind=$storageKind
     Deallocated=$deallocated
-  }
+}
 
-  $finalResults += $newEntry
+$finalResults += $newEntry
 }
 Write-LogInfo "FinalResults.Count = $($finalResults.Count)"
 if ($finalResults) {
-  $finalResults | ConvertTo-Json -Depth 10 | Set-Content "$cacheFilePath"
-  $VMAges = ConvertFrom-Json -InputObject  ([string](Get-Content -Path "$cacheFilePath"))
-  $VMAges   = $VMAges | Sort-Object -Descending Weight
+    $finalResults | ConvertTo-Json -Depth 10 | Set-Content "$cacheFilePath"
+    $VMAges = ConvertFrom-Json -InputObject  ([string](Get-Content -Path "$cacheFilePath"))
+    $VMAges   = $VMAges | Sort-Object -Descending Weight
 }
 
 #endregion
 
 #region Build HTML Page
 $finalHTMLString = $htmlHeader
-
 $RGLinkHtml = '<a href="https://ms.portal.azure.com/#resource/subscriptions/' + "$($subscription.Id)" + '/resourceGroups/RESOURCE_GROUP_NAME/overview" target="_blank" rel="noopener">RESOURCE_GROUP_NAME</a>'
 $VMLinkHtml = '<a href="https://ms.portal.azure.com/#resource/subscriptions/' + "$($subscription.Id)" + '/resourceGroups/RESOURCE_GROUP_NAME/providers/Microsoft.Compute/virtualMachines/INSTANCE_NAME/overview" target="_blank" rel="noopener">INSTANCE_NAME</a>'
-
 $maxCount = $TopVMsCount
 $i = 0
-foreach ($currentVMNode in $VMAges)
-{
-    if ( $currentVMNode -ne $null)
-    {
-        if ( $currentVMNode.Deallocated -eq $true)
-        {
-			#Don't consider deallocated VMs in this count.
+foreach ($currentVMNode in $VMAges) {
+    if ($currentVMNode -ne $null) {
+        if ($currentVMNode.Deallocated -eq $true) {
+            #Don't consider deallocated VMs in this count.
             #$currentVMHTMLNode = $htmlNodeGreen
-        }
-        else
-        {
+        } else {
+            if (0 -eq $($currentVMNode.Weight)) {
+                continue
+            }
             $i += 1
             $currentVMHTMLNode = $htmlNodeRed
             $currentVMHTMLNode = $currentVMHTMLNode.Replace("SR_ID","$i")
@@ -233,8 +215,7 @@ foreach ($currentVMNode in $VMAges)
             $currentVMHTMLNode = $currentVMHTMLNode.Replace("VM_AGE","$($currentVMNode.Age)")
             $currentVMHTMLNode = $currentVMHTMLNode.Replace("VM_CORE","$($currentVMNode.coreCount)")
             $finalHTMLString += $currentVMHTMLNode
-            if ( $i -ge $maxCount)
-            {
+            if ($i -ge $maxCount) {
               break
             }
         }
@@ -242,7 +223,6 @@ foreach ($currentVMNode in $VMAges)
 }
 
 $finalHTMLString += $htmlEnd
-
 Set-Content -Value $finalHTMLString -Path $VMAgeHTMLFile
 #endregion
 
