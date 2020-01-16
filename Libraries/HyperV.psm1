@@ -379,7 +379,7 @@ function Create-HyperVGroupDeployment([string]$HyperVGroupName, $HyperVGroupXML,
 
             $Out = New-VHD -ParentPath $parentOsVHDPath -Path $CurrentVMOsVHDPath -ComputerName $HyperVHost
             if ($Out) {
-                Write-LogInfo "Prerequiste: Prepare OS Disk $CurrentVMOsVHDPath - Succeeded."
+                Write-LogInfo "Prerequisite: Prepare OS Disk $CurrentVMOsVHDPath - Succeeded."
                 Write-LogInfo "New-VM -Name $CurrentVMName -MemoryStartupBytes $CurrentVMMemory -BootDevice VHD -VHDPath $CurrentVMOsVHDPath -Generation $VMGeneration -Switch $($VMSwitches.Name) -ComputerName $HyperVHost"
                 $NewVM = New-VM -Name $CurrentVMName -MemoryStartupBytes $CurrentVMMemory -BootDevice VHD `
                     -VHDPath $CurrentVMOsVHDPath -Generation $VMGeneration -Switch $($VMSwitches.Name) -ComputerName $HyperVHost
@@ -423,7 +423,7 @@ function Create-HyperVGroupDeployment([string]$HyperVGroupName, $HyperVGroupXML,
                     $ErrorCount += 1
                 }
             } else {
-                Write-LogInfo "Prerequiste: Prepare OS Disk $CurrentVMOsVHDPath - Failed."
+                Write-LogInfo "Prerequisite: Prepare OS Disk $CurrentVMOsVHDPath - Failed."
                 $ErrorCount += 1
             }
             if ($SetupTypeData.ClusteredVM) {

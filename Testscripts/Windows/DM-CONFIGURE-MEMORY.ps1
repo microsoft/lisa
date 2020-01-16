@@ -54,8 +54,8 @@ param([String] $TestParams,
 
 function Main {
     param (
-         $TestParams, $AllVmData
-	  )
+        $TestParams, $AllVmData
+    )
     $resultArr = @()
     $currentTestResult = Create-TestResultObject
     try {
@@ -67,13 +67,13 @@ function Main {
         # Check input arguments
         #
         if (-not $VMName) {
-           throw "INFO: VM name is null. "
+            throw "INFO: VM name is null. "
         }
         if (-not $HvServer) {
             throw "Error: HvServer is null"
         }
         if (-not $TestParams) {
-          throw "Error: TestParams is null"
+            throw "Error: TestParams is null"
         }
         $vm_mem = (Get-VMMemory $VMName -ComputerName $HvServer).Startup
         Write-LogInfo "VM Memory $vm_mem"
@@ -109,18 +109,18 @@ function Main {
 
         $dmMemWeight = [Convert]::ToInt32($TestParams.memWeight)
         if (($dmMemWeight -lt 0) -or ($dmmemWeight -gt 100)) {
-           throw "Error: Memory weight needs to be between 0 and 100."
+            throw "Error: Memory weight needs to be between 0 and 100."
         }
         Write-LogInfo "dmmemWeight $dmMemWeight"
 
         if ($TestParams.bootLargeMem -ilike "yes") {
-           $bootLargeMem = $true
+            $bootLargeMem = $true
         }
         Write-LogInfo "BootLargeMemory: $bootLargeMem"
 
         $dmStaticMem = Convert-ToMemSize $TestParams.staticMem $HvServer
         if ($dmStaticMem -le 0) {
-           Write-LogWarn "Unable to convert staticMem to int64."
+            Write-LogWarn "Unable to convert staticMem to int64."
         }
         # check if we have all variables set
         if ($VMName -and ($tpEnabled -eq $false -or $tpEnabled -eq $true) -and $dmStartupMem -and ([int64]$dmMemWeight -ge [int64]0)) {
@@ -136,15 +136,15 @@ function Main {
                 # wait for VM to finish shutting down
                 Wait-ForHyperVVMShutdown $HvServer $VMName
             }
-	        if ($bootLargeMem) {
+            if ($bootLargeMem) {
                 $OSInfo = Get-CIMInstance Win32_OperatingSystem -ComputerName $HvServer
-		        $freeMem = $OSInfo.FreePhysicalMemory * 1KB
-		        if ($dmStartupMem -le $freeMem) {
-			        Set-VMMemory -VMName $VMName -ComputerName $HvServer -DynamicMemoryEnabled $false -StartupBytes $dmStartupMem
-		        } else {
-			        throw "Error: Insufficient memory to run test. Skipping test."
-		        }
-	        } elseif ($tpEnabled) {
+                $freeMem = $OSInfo.FreePhysicalMemory * 1KB
+                if ($dmStartupMem -le $freeMem) {
+                    Set-VMMemory -VMName $VMName -ComputerName $HvServer -DynamicMemoryEnabled $false -StartupBytes $dmStartupMem
+                } else {
+                    throw "Error: Insufficient memory to run test. Skipping test."
+                }
+            } elseif ($tpEnabled) {
                 if ($maxMem_xmlValue -eq $startupMem_xmlValue) {
                     $dmStartupMem = $dmMaxMem
                 }

@@ -6,13 +6,13 @@
 # Source utils.sh
 . utils.sh || {
     echo "Error: unable to source utils.sh!"
-    echo "TestAborted" >state.txt
+    echo "TestAborted" > state.txt
     exit 2
 }
 
 # Source constants file and initialize most common variables
 UtilsInit
-
+items=(SUBSYSTEM==\"memory\", ACTION==\"add\", ATTR{state}=\"online\")
 #######################################################################
 #
 # Main script body
@@ -21,8 +21,8 @@ UtilsInit
 # Create the state.txt file so ICA knows we are running
 
 # Cleanup any old summary.log files
-if [ -e ~/summary.log ]; then
-    rm -rf ~/summary.log
+if [ -e summary.log ]; then
+    rm -rf summary.log
 fi
 
 # Search in /etc/udev and /lib/udev folders
