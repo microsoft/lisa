@@ -140,8 +140,8 @@ function Run_IMB_MPI1() {
 				$mpi_run_path --allow-run-as-root -x UCX_IB_PKEY=$UCX_IB_PKEY -n $(($mpi1_ppn * $total_virtual_machines)) --H $master,$slaves $mpi_settings $imb_mpi1_path $extra_params > IMB-MPI1-AllNodes-output-Attempt-${attempt}.txt
 			;;
 			intel)
-				LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $mpi1_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_mpi1_path $extra_params"
-				$mpi_run_path -hosts $master,$slaves -ppn $mpi1_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_mpi1_path $extra_params > IMB-MPI1-AllNodes-output-Attempt-${attempt}.txt
+				LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $(($VM_Size / $total_virtual_machines)) -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_mpi1_path $extra_params"
+				$mpi_run_path -hosts $master,$slaves -ppn $(($VM_Size / $total_virtual_machines)) -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_mpi1_path $extra_params > IMB-MPI1-AllNodes-output-Attempt-${attempt}.txt
 			;;
 			mvapich)
 				LogMsg "$mpi_run_path -n $(($mpi1_ppn * $total_virtual_machines)) $master $slaves_array $mpi_settings $imb_mpi1_path $extra_params"
@@ -195,8 +195,8 @@ function Run_IMB_RMA() {
 				$mpi_run_path --allow-run-as-root -x UCX_IB_PKEY=$UCX_IB_PKEY -n $(($rma_ppn * $total_virtual_machines)) --H $master,$slaves $mpi_settings $imb_rma_path $extra_params > IMB-RMA-AllNodes-output-Attempt-${attempt}.txt
 			;;
 			intel)
-				LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $mpi1_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_rma_path $extra_params"
-				$mpi_run_path -hosts $master,$slaves -ppn $mpi1_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_rma_path $extra_params > IMB-RMA-AllNodes-output-Attempt-${attempt}.txt
+				LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $(($VM_Size / $total_virtual_machines)) -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_rma_path $extra_params"
+				$mpi_run_path -hosts $master,$slaves -ppn $(($VM_Size / $total_virtual_machines)) -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_rma_path $extra_params > IMB-RMA-AllNodes-output-Attempt-${attempt}.txt
 			;;
 			mvapich)
 				LogMsg "$mpi_run_path -n $(($rma_ppn * $total_virtual_machines)) $master $slaves_array $mpi_settings $imb_rma_path $extra_params"
@@ -250,8 +250,8 @@ function Run_IMB_NBC() {
 					$mpi_run_path --allow-run-as-root -x UCX_IB_PKEY=$UCX_IB_PKEY -n $(($nbc_ppn * $total_virtual_machines)) --H $master,$slaves $mpi_settings $imb_nbc_path $extra_params > IMB-NBC-AllNodes-output-Attempt-${attempt}.txt
 				;;
 				intel)
-					LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $nbc_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_nbc_path $extra_params"
-					$mpi_run_path -hosts $master,$slaves -ppn $nbc_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_nbc_path $extra_params > IMB-NBC-AllNodes-output-Attempt-${attempt}.txt
+					LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $(($VM_Size / $total_virtual_machines)) -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_nbc_path $extra_params"
+					$mpi_run_path -hosts $master,$slaves -ppn $(($VM_Size / $total_virtual_machines)) -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_nbc_path $extra_params > IMB-NBC-AllNodes-output-Attempt-${attempt}.txt
 				;;
 				mvapich)
 					LogMsg "$mpi_run_path -n $(($nbc_ppn * $total_virtual_machines)) $master $slaves_array $mpi_settings $imb_nbc_path $extra_params"
@@ -317,8 +317,8 @@ function Run_IMB_P2P() {
 					$mpi_run_path --allow-run-as-root -x UCX_IB_PKEY=$UCX_IB_PKEY -n $(($p2p_ppn * $total_virtual_machines)) --H $master,$slaves $mpi_settings $imb_p2p_path $extra_params > IMB-P2P-AllNodes-output-Attempt-${attempt}.txt
 				;;
 				intel)
-					# LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $p2p_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_p2p_path $extra_params"
-					# $mpi_run_path -hosts $master,$slaves -ppn $p2p_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_p2p_path $extra_params > IMB-P2P-AllNodes-output-Attempt-${attempt}.txt
+					# LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $(($VM_Size / $total_virtual_machines)) -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_p2p_path $extra_params"
+					# $mpi_run_path -hosts $master,$slaves -ppn $(($VM_Size / $total_virtual_machines)) -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_p2p_path $extra_params > IMB-P2P-AllNodes-output-Attempt-${attempt}.txt
 				;;
 				mvapich)
 					LogMsg "$mpi_run_path -n $(($p2p_ppn * $total_virtual_machines)) $master $slaves_array $mpi_settings $imb_p2p_path $extra_params"
@@ -384,8 +384,8 @@ function Run_IMB_IO() {
 					$mpi_run_path --allow-run-as-root -x UCX_IB_PKEY=$UCX_IB_PKEY -n $(($io_ppn * $total_virtual_machines)) --H $master,$slaves $mpi_settings $imb_io_path $extra_params > IMB-IO-AllNodes-output-Attempt-${attempt}.txt
 				;;
 				intel)
-					LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $io_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_io_path $extra_params"
-					$mpi_run_path -hosts $master,$slaves -ppn $io_ppn -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_io_path $extra_params > IMB-IO-AllNodes-output-Attempt-${attempt}.txt
+					LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $(($VM_Size / $total_virtual_machines)) -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_io_path $extra_params"
+					$mpi_run_path -hosts $master,$slaves -ppn $(($VM_Size / $total_virtual_machines)) -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $imb_io_path $extra_params > IMB-IO-AllNodes-output-Attempt-${attempt}.txt
 				;;
 				mvapich)
 					LogMsg "$mpi_run_path -n $(($io_ppn * $total_virtual_machines)) $master $slaves_array $mpi_settings $imb_io_path $extra_params"
@@ -496,9 +496,9 @@ function Main() {
 
 	# ############################################################################################################
 	# ib kernel modules verification
-	# mlx5_ib, rdma_cm, rdma_ucm, ib_ipoib shall be loaded in kernel
+	# mlx5_ib, rdma_cm, rdma_ucm, ib_ipoib, ib_umad shall be loaded in kernel
 	final_module_load_status=0
-	kernel_modules="mlx5_ib rdma_cm rdma_ucm ib_ipoib"
+	kernel_modules="mlx5_ib rdma_cm rdma_ucm ib_ipoib ib_umad"
 
 	for vm in $master $slaves_array; do
 	LogMsg "Checking kernel modules in $vm"
@@ -602,49 +602,72 @@ function Main() {
 	# ############################################################################################################
 	# Verify ibv_rc_pingpong, ibv_uc_pingpong and ibv_ud_pingpong and rping.
 	final_pingpong_state=0
+	found_ib0_interface=1
+
+	# Getting ib0 interface address and store in constants.sh
+	slaves_array=$(echo ${slaves} | tr ',' ' ')
+	for vm in $master $slaves_array; do
+		ib0=$(ssh root@${vm} ip addr show ib0 | awk -F ' *|:' '/inet /{print $3}' | cut -d / -f 1)
+		if [[ $? -eq 0 && $ib0 ]]; then
+			LogMsg "Successfully queried ib0 interface address, $ib0 from ${vm}."
+		else
+			LogErr "Failed to query ib0 interface address, $ib0 from ${vm}."
+			final_pingpong_state=$(($final_pingpong_state + 1))
+			found_ib0_interface=0
+		fi
+		LogMsg "Logging ib0_$vm value: $ib0"
+		vm_id=$(echo $vm | sed -r 's!/.*!!; s!.*\.!!')
+		echo ib0_$vm_id=$ib0 >> /root/constants.sh
+		export ib0_$vm_id=$ib0
+	done
 
 	# Define ibv_ pingpong commands in the array
 	declare -a ping_cmds=("ibv_rc_pingpong" "ibv_uc_pingpong" "ibv_ud_pingpong")
 
-	for ping_cmd in "${ping_cmds[@]}"; do
-		for vm1 in $master $slaves_array; do
-			for vm2 in $slaves_array $master; do
-				if [[ "$vm1" == "$vm2" ]]; then
-					# Skip self-ping test case
-					break
-				fi
-				# Define pingpong test log file name
-				log_file=IMB-"$ping_cmd"-output-$vm1-$vm2.txt
-				LogMsg "Run $ping_cmd from $vm2 to $vm1"
-				LogMsg "  Start $ping_cmd in server VM $vm1 first"
-				retries=0
-				while [ $retries -lt 3 ]; do
-					ssh root@${vm1} "$ping_cmd" &
-					sleep 1
-					LogMsg "  Start $ping_cmd in client VM $vm2"
-					ssh root@${vm2} "$ping_cmd $vm1 > /root/$log_file"
-					pingpong_state=$?
+	if [ $found_ib0_interface = 1 ]; then
+		for ping_cmd in "${ping_cmds[@]}"; do
+			for vm1 in $master $slaves_array; do
+				for vm2 in $slaves_array $master; do
+					if [[ "$vm1" == "$vm2" ]]; then
+						# Skip self-ping test case
+						break
+					fi
+					# Define pingpong test log file name
+					log_file=IMB-"$ping_cmd"-output-$vm1-$vm2.txt
+					LogMsg "Run $ping_cmd from $vm2 to $vm1"
+					LogMsg "  Start $ping_cmd in server VM $vm1 first"
+					retries=0
+					while [ $retries -lt 3 ]; do
+						ssh root@${vm1} "$ping_cmd" &
+						LogMsg "  $?"
+						sleep 1
+						vm1_id=ib0_$(echo $vm1 | sed -r 's!/.*!!; s!.*\.!!')
+						LogMsg "  Start $ping_cmd in client VM, $vm2 to ${!vm1_id}"
+						ssh root@${vm2} "$ping_cmd ${!vm1_id} > /root/$log_file"
+						pingpong_state=$?
+						LogMsg "  $pingpong_state"
 
-					sleep 1
-					scp root@${vm2}:/root/$log_file .
-					pingpong_result=$(cat $log_file | grep -i Mbit | cut -d ' ' -f7)
-					if [ $pingpong_state -eq 0 ] && [ $pingpong_result > 0 ]; then
-						LogMsg "$ping_cmd test execution successful"
-						LogMsg "$ping_cmd result $pingpong_result in $vm1-$vm2 - Succeeded."
-						retries=4
-					else
-						sleep 10
-						let retries=retries+1
+						sleep 1
+						scp root@${vm2}:/root/$log_file .
+						pingpong_result=$(cat $log_file | grep -i Mbit | cut -d ' ' -f7)
+						if [ $pingpong_state -eq 0 ] && [ $pingpong_result > 0 ]; then
+							LogMsg "$ping_cmd test execution successful"
+							LogMsg "$ping_cmd result $pingpong_result in $vm1-$vm2 - Succeeded."
+							retries=4
+						else
+							sleep 10
+							let retries=retries+1
+						fi
+					done
+					if [ $pingpong_state -ne 0 ] || (($(echo "$pingpong_result <= 0" | bc -l))); then
+						LogErr "$ping_cmd test execution failed"
+						LogErr "$ping_cmd result $pingpong_result in $vm1-$vm2 - Failed"
+						final_pingpong_state=$(($final_pingpong_state + 1))
 					fi
 				done
-				if [ $pingpong_state -ne 0 ] || (($(echo "$pingpong_result <= 0" | bc -l))); then
-					LogErr "$ping_cmd test execution failed"
-					LogErr "$ping_cmd result $pingpong_result in $vm1-$vm2 - Failed"
-					final_pingpong_state=$(($final_pingpong_state + 1))
-				fi
 			done
 		done
-	done
+	fi
 
 	if [ $final_pingpong_state -ne 0 ]; then
 		LogErr "ibv_ping_pong test failed in some VMs. Aborting further tests."
