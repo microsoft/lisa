@@ -69,8 +69,8 @@ function Main() {
 			# install required packages regardless VM types.
 			LogMsg "Starting RDMA setup for RHEL/CentOS"
 			# Due to redhat bug, 1787637, this workaround is required.
-			suppliment_pkg="dnf rpm"
-			install_package $suppliment_pkg
+			supplement_pkg="dnf rpm"
+			install_package $supplement_pkg
 			# required dependencies
 			req_pkg="kernel-devel-$(uname -r) valgrind-devel redhat-rpm-config rpm-build gcc gcc-gfortran libdb-devel gcc-c++ glibc-devel zlib-devel numactl-devel libmnl-devel binutils-devel iptables-devel libstdc++-devel libselinux-devel elfutils-devel libtool libnl3-devel java libstdc++.i686 gtk2 atk cairo tcl tk createrepo byacc.x86_64 net-tools kernel-rpm-macros tcsh"
 			install_package $req_pkg
