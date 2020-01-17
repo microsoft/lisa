@@ -56,7 +56,8 @@ function Upgrade_waagent {
 	# This is only temporary solution, WILL BE REMOVED as soon as 2.2.45 release in each image.
 	LogMsg "Starting waagent upgrade"
 	ln -s /usr/bin/python3 /usr/bin/python
-	if [[ $DISTRO == suse* || $DISTRO == sles* ]]; then
+	source /etc/os-release
+	if [[ $DISTRO == suse* || $DISTRO == sles* && $VERSION_ID != 12.4 ]]; then
 		install_package net-tools-deprecated
 	else
 		install_package net-tools
