@@ -167,7 +167,7 @@ Scenario 2 : You need to run all the performance tests quickly.
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_OPEN_MPI_SETTINGS_IB</ReplaceThis>
-		<ReplaceWith>--mca btl self,vader,openib --mca btl_openib_cq_size 4096</ReplaceWith>
+		<ReplaceWith>--mca btl self,vader,openib --mca btl_openib_cq_size 4096 --mca btl_openib_allow_ib 1 --mca btl_openib_warn_no_device_params_found 0</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_HPCX_MPI_SETTINGS_IB</ReplaceThis>
