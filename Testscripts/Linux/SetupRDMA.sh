@@ -52,6 +52,17 @@ function Verify_Result {
 	fi
 }
 
+function Upgrade_waagent {
+	# This is only temporary solution, WILL BE REMOVED as soon as 2.2.45 release in each image.
+	wget https://github.com/Azure/WALinuxAgent/archive/v2.2.45.tar.gz
+	tar xvzf v2.2.45.tar.gz
+	cd WALinuxAgent-2.2.45
+	python3 setup.py install --force
+	service waagent restart
+	# Later, VM reboot completes the service upgrade
+	cd ..
+}
+
 function Main() {
 	LogMsg "Starting RDMA required packages and software setup in VM"
 	update_repos
@@ -64,6 +75,8 @@ function Main() {
 	LogMsg "$?: Set memlock values to unlimited for both soft and hard"
 	hpcx_ver=""
 	source /etc/os-release
+	# Place the temporary solution for waagent 2.2.45 upgrade.
+	Upgrade_waagent
 	case $DISTRO in
 		redhat_7|centos_7|redhat_8|centos_8)
 			# install required packages regardless VM types.
