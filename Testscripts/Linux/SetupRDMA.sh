@@ -54,13 +54,28 @@ function Verify_Result {
 
 function Upgrade_waagent {
 	# This is only temporary solution, WILL BE REMOVED as soon as 2.2.45 release in each image.
+	LogMsg "Starting waagent upgrade"
+	ln -s /usr/bin/python3 /usr/bin/python
+	if [ $DISTRO == suse* || $DISTRO == sles* ]; then
+		install_package net-tools-deprecated
+	else
+		install_package net-tools
+	fi
 	wget https://github.com/Azure/WALinuxAgent/archive/v2.2.45.tar.gz
 	tar xvzf v2.2.45.tar.gz
 	cd WALinuxAgent-2.2.45
 	python3 setup.py install --force
-	service waagent restart
+	LogMsg "$?: Completed the waagent upgrade"
+	LogMsg "Restart waagent service"
+	if [[ $DISTRO == "ubuntu"* ]]; then
+		service walinuxagent restart
+	else
+		service waagent restart
+	fi
+	Verify_Result
 	# Later, VM reboot completes the service upgrade
 	cd ..
+	LogMsg "Ended waagent upgrade"
 }
 
 function Main() {
