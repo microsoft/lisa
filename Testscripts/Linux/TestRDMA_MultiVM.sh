@@ -433,7 +433,6 @@ function Main() {
 	else
 		service waagent restart
 	fi
-	Verify_Result
 	sleep 2
 
 	LogMsg "Starting $mpi_type MPI tests..."
