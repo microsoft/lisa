@@ -2473,7 +2473,7 @@ function install_lagscope () {
 
 		ubuntu|debian)
 			dpkg_configure
-			apt-get -y install libaio1 sysstat git bc make gcc cmake
+			install_package "libaio1 sysstat git bc make gcc cmake"
 			build_lagscope "${1}"
 			;;
 
@@ -2546,7 +2546,7 @@ function install_ntttcp () {
 
 		ubuntu|debian)
 			dpkg_configure
-			apt-get -y install wget libaio1 sysstat git bc make gcc dstat psmisc lshw cmake
+			install_package "wget libaio1 sysstat git bc make gcc dstat psmisc lshw cmake"
 			build_ntttcp "${1}"
 			build_lagscope "${2}"
 			;;
