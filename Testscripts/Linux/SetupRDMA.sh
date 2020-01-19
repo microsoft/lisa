@@ -84,7 +84,7 @@ function Main() {
 	LogMsg "Starting RDMA required packages and software setup in VM"
 	update_repos
 	# Install common packages
-	install_package "gcc git make zip"
+	install_package "gcc git make zip python3"
 	LogMsg "Installed the common required packages, gcc git make zip"
 	# Change memory limits
 	echo "* soft memlock unlimited" >> /etc/security/limits.conf
