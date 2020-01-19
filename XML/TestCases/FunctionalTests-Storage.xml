@@ -752,6 +752,7 @@
         <setupType>OneVM</setupType>
         <testParameters>
             <param>DiskSize=30</param>
+            <param>DiskSku=DATA_DISK_SKU</param>
         </testParameters>
         <AdditionalHWConfig>
             <DiskType>Managed</DiskType>
@@ -769,6 +770,7 @@
         <setupType>OneVM</setupType>
         <testParameters>
             <param>DiskSize=30</param>
+            <param>DiskSku=DATA_DISK_SKU</param>
         </testParameters>
         <AdditionalHWConfig>
             <DiskType>Managed</DiskType>
