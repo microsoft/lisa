@@ -427,6 +427,14 @@ function Run_IMB_IO() {
 }
 
 function Main() {
+	LogMsg "Restarting waagent for ib0 device loading"
+	if [[ $DISTRO == "ubuntu"* ]]; then
+		service walinuxagent restart
+	else
+		service waagent restart
+	fi
+	sleep 2
+
 	LogMsg "Starting $mpi_type MPI tests..."
 
 	# ############################################################################################################

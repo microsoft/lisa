@@ -52,11 +52,39 @@ function Verify_Result {
 	fi
 }
 
+function Upgrade_waagent {
+	# This is only temporary solution, WILL BE REMOVED as soon as 2.2.45 release in each image.
+	LogMsg "Starting waagent upgrade"
+	ln -s /usr/bin/python3 /usr/bin/python
+	if [[ $DISTRO == suse_15 ]]; then
+		install_package net-tools-deprecated
+	else
+		install_package net-tools
+	fi
+	wget https://github.com/Azure/WALinuxAgent/archive/v2.2.45.tar.gz
+	tar xvzf v2.2.45.tar.gz
+	cd WALinuxAgent-2.2.45
+	sed -i -e 's/# OS.EnableRDMA=y/OS.EnableRDMA=y/g' /root/WALinuxAgent-2.2.45/config/waagent.conf
+	sed -i -e 's/# AutoUpdate.Enabled=y/AutoUpdate.Enabled=y/g' /root/WALinuxAgent-2.2.45/config/waagent.conf
+	python3 setup.py install --force
+	LogMsg "$?: Completed the waagent upgrade"
+	LogMsg "Restart waagent service"
+	if [[ $DISTRO == "ubuntu"* ]]; then
+		service walinuxagent restart
+	else
+		service waagent restart
+	fi
+	Verify_Result
+	# Later, VM reboot completes the service upgrade
+	cd ..
+	LogMsg "Ended waagent upgrade"
+}
+
 function Main() {
 	LogMsg "Starting RDMA required packages and software setup in VM"
 	update_repos
 	# Install common packages
-	install_package "gcc git make zip"
+	install_package "gcc git make zip python3"
 	LogMsg "Installed the common required packages, gcc git make zip"
 	# Change memory limits
 	echo "* soft memlock unlimited" >> /etc/security/limits.conf
@@ -64,6 +92,8 @@ function Main() {
 	LogMsg "$?: Set memlock values to unlimited for both soft and hard"
 	hpcx_ver=""
 	source /etc/os-release
+	# Place the temporary solution for waagent 2.2.45 upgrade.
+	Upgrade_waagent
 	case $DISTRO in
 		redhat_7|centos_7|redhat_8|centos_8)
 			# install required packages regardless VM types.
