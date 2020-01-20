@@ -81,6 +81,11 @@ function Upgrade_waagent {
 }
 
 function Main() {
+	# another rhel 8.0 repo bug workaround, https://bugzilla.redhat.com/show_bug.cgi?id=1787637
+	if [ $DISTRO == 'redhat_8' ]; then
+		echo 8 > /etc/yum/vars/releasever
+		LogMsg "$?: Applied a mitigation to /etc/yum/vars/releasever"
+	fi
 	LogMsg "Starting RDMA required packages and software setup in VM"
 	update_repos
 	# Install common packages
@@ -98,11 +103,8 @@ function Main() {
 		redhat_7|centos_7|redhat_8|centos_8)
 			# install required packages regardless VM types.
 			LogMsg "Starting RDMA setup for RHEL/CentOS"
-			# Due to redhat bug, 1787637, this workaround is required.
-			supplement_pkg="dnf rpm"
-			install_package $supplement_pkg
 			# required dependencies
-			req_pkg="kernel-devel-$(uname -r) valgrind-devel redhat-rpm-config rpm-build gcc gcc-gfortran libdb-devel gcc-c++ glibc-devel zlib-devel numactl-devel libmnl-devel binutils-devel iptables-devel libstdc++-devel libselinux-devel elfutils-devel libtool libnl3-devel java libstdc++.i686 gtk2 atk cairo tcl tk createrepo byacc.x86_64 net-tools kernel-rpm-macros tcsh"
+			req_pkg="kernel-devel-$(uname -r) valgrind-devel redhat-rpm-config rpm-build gcc gcc-gfortran libdb-devel gcc-c++ glibc-devel zlib-devel numactl-devel libmnl-devel binutils-devel iptables-devel libstdc++-devel libselinux-devel elfutils-devel libtool libnl3-devel java libstdc++.i686 gtk2 atk cairo tcl tk createrepo byacc.x86_64 net-tools tcsh"
 			install_package $req_pkg
 			LogMsg "$?: Installed required packages $req_pkg"
 			# libibverbs-devel and libibmad-devel have broken dependencies on Centos 7.6
@@ -118,6 +120,9 @@ function Main() {
 					LogMsg "$?: Installed $req_pkg"
 				;;
 				redhat_8|centos_8)
+					# Due to redhat bug, 1787637, this workaround is required.
+					supplement_pkg="dnf rpm kernel-rpm-macros"
+					install_package $supplement_pkg
 					req_pkg="python3-devel python2-devel python2-setuptools"
 					install_package $req_pkg
 					LogMsg "$?: Installed $req_pkg"

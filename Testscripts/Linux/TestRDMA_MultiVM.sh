@@ -568,7 +568,7 @@ function Main() {
 	# IF completed successfully, constants.sh has setup_completed=0
 	setup_state_cnt=0
 	for vm in $master $slaves_array; do
-		setup_result=$(ssh root@${vm} "cat /root/constants.sh | grep -i setup_completed")
+		setup_result=$(ssh root@${vm} "cat /root/constants.sh | grep -i setup_completed" | head -1)
 		setup_result=$(echo $setup_result | cut -d '=' -f 2)
 		if [ "$setup_result" == "0" ]; then
 			LogMsg "$vm RDMA setup - Succeeded; $setup_result"
