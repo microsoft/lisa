@@ -118,7 +118,6 @@ function Run_IMB_Intranode() {
 
 function Run_IMB_MPI1() {
 	total_attempts=$(seq 1 1 $imb_mpi1_tests_iterations)
-	imb_mpi1_final_status=0
 	if [[ $imb_mpi1_tests == "all" ]]; then
 		extra_params=""
 	else
@@ -172,7 +171,6 @@ function Run_IMB_MPI1() {
 
 function Run_IMB_RMA() {
 	total_attempts=$(seq 1 1 $imb_rma_tests_iterations)
-	imb_rma_final_status=0
 	if [[ $imb_rma_tests == "all" ]]; then
 		extra_params=""
 	else
@@ -227,7 +225,6 @@ function Run_IMB_RMA() {
 
 function Run_IMB_NBC() {
 	total_attempts=$(seq 1 1 $imb_nbc_tests_iterations)
-	imb_nbc_final_status=0
 	if [[ $imb_nbc_tests == "all" ]]; then
 		extra_params=""
 	else
@@ -294,7 +291,6 @@ function Run_IMB_NBC() {
 
 function Run_IMB_P2P() {
 	total_attempts=$(seq 1 1 $imb_p2p_tests_iterations)
-	imb_p2p_final_status=0
 	if [[ $imb_p2p_tests == "all" ]]; then
 		extra_params=""
 	else
@@ -361,7 +357,6 @@ function Run_IMB_P2P() {
 
 function Run_IMB_IO() {
 	total_attempts=$(seq 1 1 $imb_io_tests_iterations)
-	imb_io_final_status=0
 	if [[ $imb_io_tests == "all" ]]; then
 		extra_params=""
 	else
@@ -739,18 +734,20 @@ function Main() {
 	# Run all benchmarks
 	Run_IMB_Intranode
 	Run_IMB_MPI1
-	Run_IMB_RMA
-	Run_IMB_NBC
-	# Sometimes IMB-P2P and IMB-IO aren't available, skip them if it's the case
-	if [ ! -z "$imb_p2p_path" ]; then
-		Run_IMB_P2P
-	else
-		LogMsg "INFINIBAND_VERIFICATION_SKIPPED_P2P_ALLNODES"
-	fi
-	if [ ! -z "$imb_io_path" ]; then
-		Run_IMB_IO
-	else
-		LogMsg "INFINIBAND_VERIFICATION_SKIPPED_IO_ALLNODES"
+	if [[ $quicktestonly == "no" ]]; then
+		Run_IMB_RMA
+		Run_IMB_NBC
+		# Sometimes IMB-P2P and IMB-IO aren't available, skip them if it's the case
+		if [ ! -z "$imb_p2p_path" ]; then
+			Run_IMB_P2P
+		else
+			LogMsg "INFINIBAND_VERIFICATION_SKIPPED_P2P_ALLNODES"
+		fi
+		if [ ! -z "$imb_io_path" ]; then
+			Run_IMB_IO
+		else
+			LogMsg "INFINIBAND_VERIFICATION_SKIPPED_IO_ALLNODES"
+		fi
 	fi
 
 	# Get all results and finish the test
