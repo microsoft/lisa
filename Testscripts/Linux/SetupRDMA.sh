@@ -120,9 +120,6 @@ function Main() {
 					LogMsg "$?: Installed $req_pkg"
 				;;
 				redhat_8|centos_8)
-					# Due to redhat bug, 1787637, this workaround is required.
-					supplement_pkg="dnf rpm kernel-rpm-macros"
-					install_package $supplement_pkg
 					req_pkg="python3-devel python2-devel python2-setuptools"
 					install_package $req_pkg
 					LogMsg "$?: Installed $req_pkg"
