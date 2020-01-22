@@ -5,7 +5,6 @@
 		<testScript>VERIFY-INFINIBAND-MultiVM.ps1</testScript>
 		<setupType>TwoVM1Dep</setupType>
 		<OverrideVMSize>Standard_HC44rs</OverrideVMSize>
-		<SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh,.\Testscripts\Linux\SetupRDMA.sh</files>
 		<Priority>3</Priority>
 		<TestParameters>
@@ -46,7 +45,6 @@
 		<testScript>VERIFY-INFINIBAND-MultiVM.ps1</testScript>
 		<setupType>RDMA32VMs</setupType>
 		<OverrideVMSize>Standard_HC44rs</OverrideVMSize>
-		<SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh,.\Testscripts\Linux\SetupRDMA.sh</files>
 		<Priority>3</Priority>
 		<TestParameters>
@@ -88,7 +86,6 @@
 		<testScript>VERIFY-INFINIBAND-MultiVM.ps1</testScript>
 		<setupType>TwoVM1Dep</setupType>
 		<OverrideVMSize>Standard_HC44rs</OverrideVMSize>
-		<SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh,.\Testscripts\Linux\SetupRDMA.sh</files>
 		<Priority>1</Priority>
 		<TestParameters>
@@ -129,7 +126,6 @@
 		<testScript>VERIFY-INFINIBAND-MultiVM.ps1</testScript>
 		<setupType>RDMA32VMs</setupType>
 		<OverrideVMSize>Standard_HC44rs</OverrideVMSize>
-		<SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh,.\Testscripts\Linux\SetupRDMA.sh</files>
 		<Priority>3</Priority>
 		<TestParameters>
@@ -165,13 +161,12 @@
 		<Area>INFINIBAND</Area>
 		<Tags>rdma</Tags>
 	</test>
-<!-- 	HPC-X MPI: Mellanox HPC-X links constantly changed, so can not support HPC-X. Leave the code, however. 
+<!-- 	HPC-X MPI: Mellanox HPC-X links constantly changed, so can not support HPC-X. Leave the code, however.
 	<test>
 		<testName>INFINIBAND-HPCX-MPI-2VM</testName>
 		<testScript>VERIFY-INFINIBAND-MultiVM.ps1</testScript>
 		<setupType>TwoVM1Dep</setupType>
 		<OverrideVMSize>Standard_HC44rs</OverrideVMSize>
-		<SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh,.\Testscripts\Linux\SetupRDMA.sh</files>
 		<Priority>1</Priority>
 		<TestParameters>
@@ -208,7 +203,6 @@
 		<testScript>VERIFY-INFINIBAND-MultiVM.ps1</testScript>
 		<setupType>RDMA32VMs</setupType>
 		<OverrideVMSize>Standard_HC44rs</OverrideVMSize>
-		<SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh,.\Testscripts\Linux\SetupRDMA.sh</files>
 		<Priority>3</Priority>
 		<TestParameters>
@@ -246,7 +240,6 @@
 		<testScript>VERIFY-INFINIBAND-MultiVM.ps1</testScript>
 		<setupType>TwoVM1Dep</setupType>
 		<OverrideVMSize>Standard_HC44rs</OverrideVMSize>
-		<SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh,.\Testscripts\Linux\SetupRDMA.sh</files>
 		<Priority>3</Priority>
 		<TestParameters>
@@ -287,7 +280,6 @@
 		<testScript>VERIFY-INFINIBAND-MultiVM.ps1</testScript>
 		<setupType>RDMA32VMs</setupType>
 		<OverrideVMSize>Standard_HC44rs</OverrideVMSize>
-		<SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh,.\Testscripts\Linux\SetupRDMA.sh</files>
 		<Priority>3</Priority>
 		<TestParameters>
@@ -329,7 +321,6 @@
 		<testScript>VERIFY-INFINIBAND-MultiVM.ps1</testScript>
 		<setupType>TwoVM1Dep</setupType>
 		<OverrideVMSize>Standard_HC44rs</OverrideVMSize>
-		<SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh,.\Testscripts\Linux\SetupRDMA.sh</files>
 		<Priority>3</Priority>
 		<TestParameters>
@@ -370,7 +361,6 @@
 		<testScript>VERIFY-INFINIBAND-MultiVM.ps1</testScript>
 		<setupType>RDMA32VMs</setupType>
 		<OverrideVMSize>Standard_HC44rs</OverrideVMSize>
-		<SubtestValues>SOME,TEXTS,NEEDS,TO,BE,PRESENT,HERE,FOR,PRINTING,TEST,SUMMARY</SubtestValues>
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh,.\Testscripts\Linux\SetupRDMA.sh</files>
 		<Priority>3</Priority>
 		<TestParameters>
