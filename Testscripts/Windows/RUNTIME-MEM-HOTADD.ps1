@@ -22,9 +22,9 @@ function Main {
         $testResult = $null
         $captureVMData = $allVMData
         $vmName = $captureVMData.RoleName
-        $HvServer= $captureVMData.HyperVhost
-        $Ipv4=$captureVMData.PublicIP
-        $VMPort=$captureVMData.SSHPort
+        $HvServer = $captureVMData.HyperVhost
+        $Ipv4 = $captureVMData.PublicIP
+        $VMPort = $captureVMData.SSHPort
         Write-LogInfo "Test VM details :"
         Write-LogInfo "RoleName : $($captureVMData.RoleName)"
         Write-LogInfo "Public IP : $($captureVMData.PublicIP)"
@@ -34,14 +34,12 @@ function Main {
         Write-LogInfo "TestMem : $($TestParams.testMem)"
         Set-Location $WorkingDirectory
         $testMem = Convert-ToMemSize $TestParams.testMem $captureVMData.HyperVhost
-        if ($testMem -le 0)
-        {
+        if ($testMem -le 0) {
             Throw "Unable to convert testMem to int64."
         }
         Write-LogInfo "testMem: $testMem"
         $startupMem = Convert-ToMemSize $TestParams.startupMem $captureVMData.HyperVhost
-        if ($startupMem -le 0)
-        {
+        if ($startupMem -le 0) {
             Throw "Unable to convert startupMem to int64."
         }
         Write-LogInfo "startupMem: $startupMem"
@@ -58,8 +56,7 @@ function Main {
         Write-LogInfo "BuildNumber: '$BuildNumber'"
         if ($BuildNumber -eq 0) {
             Throw "Feature is not supported"
-        }
-        elseif ($BuildNumber -lt 10500) {
+        } elseif ($BuildNumber -lt 10500) {
             $testResult = "ABORTED"
             Throw "Feature supported only on WS2016 and newer"
         }
@@ -79,34 +76,33 @@ function Main {
         Start-Sleep -Seconds 10
         $sleepPeriod = 60
         # get VmInfo memory from host and guest
-        while ($sleepPeriod -gt 0)
-        {
+        while ($sleepPeriod -gt 0) {
             [int64]$vm1BeforeAssigned = ($VmInfo.MemoryAssigned/1MB)
             [int64]$vm1BeforeDemand = ($VmInfo.MemoryDemand/1MB)
             $lisDriversCmd = "cat /proc/meminfo | grep -i MemFree | awk '{ print `$2 }'"
-            [int64]$vm1BeforeAssignedGuest =Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command $lisDriversCmd -runAsSudo
+            [int64]$vm1BeforeAssignedGuest = Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command $lisDriversCmd -runAsSudo
             Write-LogInfo "vm1BeforeAssignedGuest : '$vm1BeforeAssignedGuest'"
-            if (($vm1BeforeAssigned -gt 0) -and ($vm1BeforeDemand -gt 0) -and ($vm1BeforeAssignedGuest -gt 0)){
+            if (($vm1BeforeAssigned -gt 0) -and ($vm1BeforeDemand -gt 0) -and ($vm1BeforeAssignedGuest -gt 0)) {
                 break
             }
-            $sleepPeriod-= 5
+            $sleepPeriod -= 5
             Start-Sleep -Seconds 5
         }
-        if (($vm1BeforeAssigned -le 0) -or ($vm1BeforeDemand -le 0) -or ($vm1BeforeAssignedGuest -le 0)){
+        if (($vm1BeforeAssigned -le 0) -or ($vm1BeforeDemand -le 0) -or ($vm1BeforeAssignedGuest -le 0)) {
             Throw "vm1 $vmName reported 0 memory (assigned or demand)."
         }
         Write-LogInfo "Memory stats after $vmName started reporting"
         Write-LogInfo "${vmName}: assigned - $vm1BeforeAssigned | demand - $vm1BeforeDemand"
         # Setting new memory value for 3 iterations. To check memory has been increased or decreased for 3 iterations
-        for ($i=0; $i -lt 3; $i++) {
-            Set-VMMemory -VMName $vmName  -ComputerName $HvServer -DynamicMemoryEnabled $false -StartupBytes $testMem
+        for ($i = 0; $i -lt 3; $i++) {
+            Set-VMMemory -VMName $vmName -ComputerName $HvServer -DynamicMemoryEnabled $false -StartupBytes $testMem
             Start-Sleep -Seconds 5
-            if ($VmInfo.MemoryAssigned -eq $testMem){
+            if ($VmInfo.MemoryAssigned -eq $testMem) {
                 [int64]$vm1AfterAssigned = ($VmInfo.MemoryAssigned/1MB)
                 [int64]$vm1AfterDemand = ($VmInfo.MemoryDemand/1MB)
                 # Get memory data from guest
                 $lisDriversCmd = "cat /proc/meminfo | grep -i MemFree | awk '{ print `$2 }'"
-                [int64]$vm1AfterAssignedGuest =Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command $lisDriversCmd -runAsSudo
+                [int64]$vm1AfterAssignedGuest = Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command $lisDriversCmd -runAsSudo
                 Write-LogInfo "vm1AfterAssignedGuest : '$vm1AfterAssignedGuest'"
                 break
             }
@@ -117,7 +113,7 @@ function Main {
         }
         Write-LogInfo "Memory stats after $vmName memory was changed"
         Write-LogInfo "${vmName}: assigned - $vm1AfterAssigned | demand - $vm1AfterDemand"
-        if ( $vm1AfterAssigned -ne ($testMem/1MB)){
+        if ($vm1AfterAssigned -ne ($testMem/1MB)) {
             $testResult = $resultFail
             Throw "Memory assigned doesn't match the memory set as parameter"
         }
@@ -125,11 +121,10 @@ function Main {
         Write-LogInfo "Free memory difference before-after assigning the new memory value: ${deltaMemGuest} MB"
         if ($testMem -ge $startupMem) {
             [int64]$deltaMemGuest = ($vm1AfterAssignedGuest - $vm1BeforeAssignedGuest) / 1024
-        }
-        else {
+        } else {
             [int64]$deltaMemGuest = ($vm1BeforeAssignedGuest - $vm1AfterAssignedGuest) / 1024
         }
-        if ( $deltaMemGuest -lt 1000) {
+        if ($deltaMemGuest -lt 1000) {
             Write-LogInfo "Memory stats after $vmName memory was changed"
             Write-LogInfo "${vmName}: Initial Memory - $vm1BeforeAssignedGuest KB :: After setting new value - $vm1AfterAssignedGuest"
             $testResult = $resultFail
@@ -165,20 +160,18 @@ function Main {
         }
         Write-LogInfo "VM changed its memory and ran memory stress tests successfully!"
         $testResult = $resultPass
-    }
-    catch {
+    } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
         Write-LogErr "$ErrorMessage at line: $ErrorLine"
-    }
-    finally {
+    } finally {
         if (!$testResult) {
             $testResult = "ABORTED"
         }
         $resultArr += $testResult
     }
-	$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
-	return $currentTestResult.TestResult
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
+    return $currentTestResult.TestResult
 }
 
 Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n")) -AllVMData $AllVMData

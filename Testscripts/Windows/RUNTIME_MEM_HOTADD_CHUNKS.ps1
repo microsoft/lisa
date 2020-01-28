@@ -2,7 +2,7 @@
 # Licensed under the Apache License.
 <#
 .Synopsis
-	Verify that memory assigned to VM changes.
+   Verify that memory assigned to VM changes.
 
  Description:
    Verify that memory changes if small chunks memory are added or removed.
@@ -25,9 +25,9 @@ function Main {
         $testResult = $null
         $captureVMData = $allVMData
         $vmName = $captureVMData.RoleName
-        $HvServer= $captureVMData.HyperVhost
-        $Ipv4=$captureVMData.PublicIP
-        $VMPort=$captureVMData.SSHPort
+        $HvServer = $captureVMData.HyperVhost
+        $Ipv4 = $captureVMData.PublicIP
+        $VMPort = $captureVMData.SSHPort
         Write-LogInfo "Test VM details :"
         Write-LogInfo "RoleName : $($captureVMData.RoleName)"
         Write-LogInfo "Public IP : $($captureVMData.PublicIP)"
@@ -41,18 +41,16 @@ function Main {
         Write-LogInfo "decrease : $($TestParams.decrease)"
         Set-Location $WorkingDirectory
         $startupMem = Convert-ToMemSize $TestParams.startupMem $captureVMData.HyperVhost
-        if ($startupMem -le 0)
-        {
+        if ($startupMem -le 0) {
             Throw "Unable to convert startupMem to int64."
         }
         Write-LogInfo "startupMem: $startupMem "
-        $chunkMem  = Convert-ToMemSize $TestParams.chunkMem $captureVMData.HyperVhost
-        if ($chunkMem -le 0)
-        {
+        $chunkMem = Convert-ToMemSize $TestParams.chunkMem $captureVMData.HyperVhost
+        if ($chunkMem -le 0) {
             Throw "Unable to convert chunkMem to int64."
         }
         Write-LogInfo "chunkMem : $chunkMem"
-        $decrease=$TestParams.decrease
+        $decrease = $TestParams.decrease
         Write-LogInfo "decrease : $decrease"
         $appGitURL = $TestParams.appGitURL
         $appGitTag = $TestParams.appGitTag
@@ -67,9 +65,8 @@ function Main {
         Write-LogInfo "BuildNumber: '$BuildNumber'"
         if ($BuildNumber -eq 0) {
             Throw "Feature is not supported"
-        }
-        elseif ($BuildNumber -lt 10500) {
-	        $testResult = "ABORTED"
+        } elseif ($BuildNumber -lt 10500) {
+            $testResult = "ABORTED"
             Throw "Feature supported only on WS2016 and newer"
         }
         $VmInfo = Get-VM -Name $vmName -ComputerName $HvServer -ErrorAction SilentlyContinue
@@ -80,7 +77,7 @@ function Main {
         Write-LogInfo "Checking if stress-ng is installed"
         $retVal = Publish-App "stress-ng" $Ipv4 $appGitURL $appGitTag $VMPort
         if (-not $retVal) {
-            Throw  "Stress-ng is not installed! Please install it before running the memory stress tests."
+            Throw "Stress-ng is not installed! Please install it before running the memory stress tests."
         }
         Write-LogInfo "Stress-ng is installed! Will begin running memory stress tests shortly."
         # Get memory stats from VmInfo
@@ -91,8 +88,8 @@ function Main {
             [int64]$vm1BeforeAssigned = ($VmInfo.MemoryAssigned/1MB)
             [int64]$vm1BeforeDemand = ($VmInfo.MemoryDemand/1MB)
             $lisDriversCmd = "cat /proc/meminfo | grep -i MemFree | awk '{ print `$2 }'"
-            [int64]$vm1BeforeAssignedGuest =Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command $lisDriversCmd -runAsSudo
-            if (($vm1BeforeAssigned -gt 0) -and ($vm1BeforeDemand -gt 0) -and ($vm1BeforeAssignedGuest -gt 0)){
+            [int64]$vm1BeforeAssignedGuest = Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command $lisDriversCmd -runAsSudo
+            if (($vm1BeforeAssigned -gt 0) -and ($vm1BeforeDemand -gt 0) -and ($vm1BeforeAssignedGuest -gt 0)) {
                 break
             }
             $sleepPeriod-= 5
@@ -105,17 +102,15 @@ function Main {
         Write-LogInfo "${vmName}: assigned - $vm1BeforeAssigned | demand - $vm1BeforeDemand"
         $testMem = $startupMem
         # Setting new memory value trying for 5 iterations. To check testMem has been increased or decreased for 5 iterations
-        for ($i=1; $i -le 5; $i++)
-        {
+        for ($i = 1; $i -le 5; $i++) {
             # Modify testMem accordingly to testcase (increase or decrease)
-            if ($decrease -like "no"){
-                $testMem =  $testMem + $chunkMem
-            }
-            else{
-                $testMem =  $testMem - $chunkMem
+            if ($decrease -like "no") {
+                $testMem = $testMem + $chunkMem
+            } else {
+                $testMem = $testMem - $chunkMem
             }
             Write-LogInfo "testMem: $testMem"
-            Set-VMMemory -VMName $vmName  -ComputerName $HvServer -DynamicMemoryEnabled $false -StartupBytes $testMem
+            Set-VMMemory -VMName $vmName -ComputerName $HvServer -DynamicMemoryEnabled $false -StartupBytes $testMem
             Start-Sleep -Seconds 5
             if ($VmInfo.MemoryAssigned -eq $testMem) {
                 [int64]$vm1AfterAssigned = ($VmInfo.MemoryAssigned/1MB)
@@ -128,7 +123,7 @@ function Main {
             }
         }
         [int64]$vm1AfterAssigned = ($VmInfo.MemoryAssigned/1MB)
-        if ( $vm1AfterAssigned -eq $vm1BeforeAssigned ) {
+        if ($vm1AfterAssigned -eq $vm1BeforeAssigned) {
             $testResult = $resultFail
             Throw "VM failed to change memory.LIS 4.1 or kernel version 4.4 required"
         }
@@ -140,8 +135,7 @@ function Main {
         # Verify memory reported inside guest VM
         if ($decrease -like "no") {
             [int64]$deltaMemGuest = ($vm1AfterAssignedGuest - $vm1BeforeAssignedGuest) / 1024
-        }
-        else{
+        } else {
             [int64]$deltaMemGuest = ($vm1BeforeAssignedGuest - $vm1AfterAssignedGuest) / 1024
         }
 
@@ -150,7 +144,7 @@ function Main {
             Write-LogInfo "Memory stats after $vmName memory was changed"
             Write-LogInfo "${vmName}: Initial Memory - $vm1BeforeAssignedGuest KB :: After setting new value - $vm1AfterAssignedGuest"
             $testResult = $resultFail
-            Throw  "Guest reports that memory value hasn't increased or decreased enough!"
+            Throw "Guest reports that memory value hasn't increased or decreased enough!"
         }
         Write-LogInfo "Memory stats after $vmName memory was changed"
         Write-LogInfo "${vmName}: assigned - $vm1AfterAssigned | demand - $vm1AfterDemand"
@@ -182,13 +176,11 @@ function Main {
         }
         Write-LogInfo "VM changed its memory and ran memory stress tests successfully!"
         $testResult = $resultPass
-    }
-    catch {
-        $ErrorMessage =  $_.Exception.Message
+    } catch {
+        $ErrorMessage = $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
         Write-LogErr "$ErrorMessage at line: $ErrorLine"
-    }
-    finally{
+    } finally {
         if (!$testResult) {
             $testResult = "ABORTED"
         }

@@ -54,7 +54,7 @@ function Main {
 
     $numaVal = Get-NumaSupportStatus $kernel
     if (-not $numaVal) {
-        Write-LogWarn "NUMA not suported for kernel:`n $kernel"
+        Write-LogWarn "NUMA not supported for kernel:`n $kernel"
         return "ABORTED"
     }
 
@@ -73,7 +73,7 @@ function Main {
     Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port `
         $VMPort -command $cmdAddConstants -runAsSudo
     if (-not $?) {
-        Write-LogErr "Unable to submit command ${cmd} to VM!"
+        Write-LogErr "Unable to submit command ${cmdAddConstants} to VM!"
         return "FAIL"
     }
 

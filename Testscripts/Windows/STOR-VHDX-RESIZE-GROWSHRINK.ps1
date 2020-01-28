@@ -25,7 +25,7 @@ Function Set-HardDiskSize
 	param ($vhdPath, $newSize, $controllerType, $vmName, $hvServer, $ip, $port, $testParameters)
 
 	# for IDE & offline need to stop VM before resize
-	if ( $controllerType -eq "IDE" -or $testParameters.Offline -eq "True") {
+	if ($controllerType -eq "IDE" -or $testParameters.Offline -eq "True") {
 		Write-LogInfo "Stopping VM for IDE disk or offline is requested"
 		Stop-VM -VMName $vmName -ComputerName $hvServer -force
 	}
@@ -37,10 +37,10 @@ Function Set-HardDiskSize
 	}
 
 	# Now start the VM for IDE or Offline
-	if ( $controllerType -eq "IDE" -or $testParameters.Offline -eq "True" ) {
+	if ($controllerType -eq "IDE" -or $testParameters.Offline -eq "True") {
 		$timeout = 300
 		Start-VM -Name $vmName -ComputerName $hvServer
-		if (-not (Wait-ForVMToStartKVP $vmName $hvServer $timeout )) {
+		if (-not (Wait-ForVMToStartKVP $vmName $hvServer $timeout)) {
 			Throw "${vmName} failed to start"
 		} else {
 			Write-LogInfo "Started VM ${vmName}"
@@ -49,7 +49,7 @@ Function Set-HardDiskSize
 
 	# check file size after resize
 	$vhdxInfoResize = Get-Vhd -Path $vhdPath -ComputerName $hvServer
-	if ( $newSize.contains("GB") -and $vhdxInfoResize.Size/1gb -ne $newSize.Trim("GB") ) {
+	if ($newSize.contains("GB") -and $vhdxInfoResize.Size/1gb -ne $newSize.Trim("GB")) {
 		Throw "Failed to Resize Disk to new Size"
 	}
 
@@ -58,14 +58,14 @@ Function Set-HardDiskSize
 	Write-LogInfo "The disk device name: $deviceName"
 	$sd = "$deviceName" -replace "/dev/",""
 	$ret = Run-LinuxCmd -ip $ip -port $port -username $user -password $password `
-		-command "echo 'deviceName=/dev/$sd' >> constants.sh" -runAsSudo
+				-command "echo 'deviceName=/dev/$sd' >> constants.sh" -runAsSudo
 	# Do a request & rescan to refresh the disks info
 	$ret = Run-LinuxCmd -ip $ip -port $port -username $user -password $password `
-		-command "fdisk -l > /dev/null" -runAsSudo
+				-command "fdisk -l > /dev/null" -runAsSudo
 	$ret = Run-LinuxCmd -ip $ip -port $port -username $user -password $password `
-		-command "echo 1 > /sys/block/$sd/device/rescan" -runAsSudo
+				-command "echo 1 > /sys/block/$sd/device/rescan" -runAsSudo
 	$diskSize = Run-LinuxCmd -ip $ip -port $port -username $user -password $password `
-		-command "fdisk -l /dev/$sd  2> /dev/null | grep Disk | grep $sd | cut -f 5 -d ' '" -runAsSudo
+				-command "fdisk -l /dev/$sd  2> /dev/null | grep Disk | grep $sd | cut -f 5 -d ' '" -runAsSudo
 	if (-not $diskSize) {
 		Throw "Unable to determine disk size from within the guest after growing the VHDX"
 	}
@@ -78,16 +78,16 @@ Function Set-HardDiskSize
 	if ([int]($newSize/1gb) -gt 2048) {
 		$guestScript = "STOR_VHDXResize_PartitionDiskOver2TB.sh"
 		$ret = Run-LinuxCmd -ip $ip -port $port -username $user -password $password `
-			-command "bash $guestScript" -runAsSudo -runMaxAllowedTime 1200
+				-command "bash $guestScript" -runAsSudo -runMaxAllowedTime 1200
 	} else {
 		$guestScript = "STOR_VHDXResize_PartitionDisk.sh"
 		$ret = Run-LinuxCmd -ip $ip -port $port -username $user -password $password `
-			-command "echo 'rerun=yes' >> constants.sh" -runAsSudo
+				-command "echo 'rerun=yes' >> constants.sh" -runAsSudo
 		$ret = Run-LinuxCmd -ip $ip -port $port -username $user -password $password `
-			-command "bash $guestScript" -runAsSudo
+				-command "bash $guestScript" -runAsSudo
 	}
 	if (-not $ret) {
-		Throw "Running '${guestScript}'script failed on VM. check VM logs , exiting test case execution"
+		Throw "Running '${guestScript}' script failed on VM. Check VM logs, exiting test case execution"
 	}
 	Write-LogInfo "The guest detects the new size after resizing ($diskSize)"
 } # End function
@@ -112,11 +112,9 @@ Function Main
 				$testResult = "SKIPPED"
 				Throw "Generation 2 VM does not support IDE disk, skip test"
 			}
-		}
-		elseif ($testParameters.Contains("SCSI")) {
+		} elseif ($testParameters.Contains("SCSI")) {
 			$controllerType = "SCSI"
-		}
-		else {
+		} else {
 			$testResult = "ABORTED"
 			Throw "Could not determine ControllerType"
 		}
@@ -127,7 +125,7 @@ Function Main
 
 		foreach ($vhdx in $vhdxDisks){
 			$vhdxPath = $vhdx.Path
-			if ($vhdxPath.Contains($vhdxName)){
+			if ($vhdxPath.Contains($vhdxName)) {
 				$vhdxDrive = Get-VMHardDiskDrive -VMName $vmName -Controllertype $controllerType -ControllerNumber $vhdx.ControllerNumber -ControllerLocation $vhdx.ControllerLocation -ComputerName $hvServer -ErrorAction SilentlyContinue
 			}
 		}
@@ -162,7 +160,7 @@ Function Main
 		$sizeFlag = Convert-StringToUInt64 "20GB"
 		if ($diskInfo.FreeSpace -le $sizeFlag + 10MB) {
 			$testResult = "FAIL"
-			Throw "Insufficent disk free space, This test case requires ${testParameters.NewSize} free, `
+			Throw "Insufficient disk free space, This test case requires ${testParameters.NewSize} free, `
 				Current free space is $($diskInfo.FreeSpace)"
 		}
 
@@ -171,12 +169,12 @@ Function Main
 		$deviceName = Get-DeviceName -ip $ip -port $port -username $user -password $password
 		Write-LogInfo "The disk device name: $deviceName"
 		$ret = Run-LinuxCmd -ip $ip -port $port -username $user -password $password `
-			-command "echo 'deviceName=$deviceName' >> constants.sh" -runAsSudo
+				-command "echo 'deviceName=$deviceName' >> constants.sh" -runAsSudo
 		$ret = Run-LinuxCmd -ip $ip -port $port -username $user -password $password `
-			-command "bash STOR_VHDXResize_PartitionDisk.sh" -runAsSudo
+				-command "bash STOR_VHDXResize_PartitionDisk.sh" -runAsSudo
 		if (-not $ret) {
 			$testResult = "FAIL"
-			Throw "Running '${guestScript}'script failed on VM. check VM logs , exiting test case execution"
+			Throw "Running 'STOR_VHDXResize_PartitionDisk.sh' script failed on VM. check VM logs, exiting test case execution"
 		}
 
 		if ($null -ne $testParameters.growSize) {
@@ -198,8 +196,7 @@ Function Main
 		$ErrorLine = $_.InvocationInfo.ScriptLineNumber
 		if ($testResult -eq "SKIPPED" ) {
 			Write-LogInfo "$ErrorMessage"
-		}
-		else {
+		} else {
 			Write-LogErr "$ErrorMessage at line: $ErrorLine"
 		}
 	} finally {

@@ -22,7 +22,7 @@ function Main {
         [String] $RootDir
     )
 
-    if (-not (Test-Path $RootDir) ) {
+    if (-not (Test-Path $RootDir)) {
         Write-LogErr "The test root directory '${RootDir}' does not exist"
         return "FAIL"
     } else {
@@ -71,7 +71,7 @@ function Main {
 
     # Now do a shutdown to ensure the Shutdown Service is still functioning
     Write-LogInfo "Shutting down the VM"
-    $ShutdownTimeout = 600
+    $shutdownTimeout = 600
     Stop-VM -Name $VMName -ComputerName $HvServer -Force
     while ($shutdownTimeout -gt 0) {
         if ((Check-VMState $VMName $HvServer) -eq "Off") {

@@ -20,10 +20,10 @@ function Main {
         $testResult = $null
         $captureVMData = $allVMData
         $VMName = $captureVMData.RoleName
-        $HvServer= $captureVMData.HyperVhost
-        $VMIpv4=$captureVMData.PublicIP
-        $VMPort=$captureVMData.SSHPort
-        $HypervGroupName=$captureVMData.HyperVGroupName
+        $HvServer = $captureVMData.HyperVhost
+        $VMIpv4 = $captureVMData.PublicIP
+        $VMPort = $captureVMData.SSHPort
+        $HypervGroupName = $captureVMData.HyperVGroupName
         # Change the working directory to where we need to be
         Set-Location $WorkingDirectory
         $sts = New-BackupSetup $VMName $HvServer
@@ -45,7 +45,7 @@ function Main {
             $testResult = $resultFail
             throw "Backup driveletter is not specified."
         }
-        $remoteScript="STOR_VSS_Disk_Mount_Multi_Paths.sh"
+        $remoteScript = "STOR_VSS_Disk_Mount_Multi_Paths.sh"
         $retval = Invoke-RemoteScriptAndCheckStateFile $remoteScript $user $password $VMIpv4 $VMPort
         if ($retval -eq $False) {
             throw "Running $remoteScript script failed on VM!"
@@ -64,9 +64,14 @@ function Main {
         if (-not $sts) {
             throw "Backup evaluation failed"
         }
+        $disks = Get-VMHardDiskDrive -VMName $VMName -ComputerName $HvServer | Where-Object {$_.ControllerType -like "IDE"}
+        if ($disks.Count -ne 2) {
+            Write-LogErr "IDE 1 1 doesn't exist after restore backup."
+            $testResult = $resultFail
+        }
         Remove-Backup $backupLocation | Out-Null
-        if( $testResult -ne $resultFail) {
-            $testResult=$resultPass
+        if ($testResult -ne $resultFail) {
+            $testResult = $resultPass
         }
     } catch {
         $ErrorMessage =  $_.Exception.Message

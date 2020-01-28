@@ -13,19 +13,19 @@ $ErrorActionPreference = "Stop"
 function Main {
     $currentTestResult = Create-TestResultObject
     $resultArr = @()
-    try
-    {
+    try {
         $testResult = $null
         $captureVMData = $allVMData
         $VMName = $captureVMData.RoleName
-        $HvServer= $captureVMData.HyperVhost
+        $HvServer = $captureVMData.HyperVhost
         # Check if the VM VHD in not on the same drive as the backup destination
         $vm = Get-VM -Name $VMName -ComputerName $HvServer
         #
         # Check if it's a Generation 2 VM
         #
         if ($vm.Generation -ne 2) {
-            throw "VM ${VMName} is not a Generation 2 VM"
+            Write-LogWarn "VM ${VMName} is not a Generation 2 VM, Skip test case."
+            return "SKIPPED"
         }
         #
         # Check if Secure Boot is enabled

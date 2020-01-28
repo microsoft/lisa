@@ -16,25 +16,25 @@ function Main {
         $testResult = $null
         $captureVMData = $allVMData
         $VMName = $captureVMData.RoleName
-        $HvServer= $captureVMData.HyperVhost
-        $Ipv4=$captureVMData.PublicIP
-        $VMPort=$captureVMData.SSHPort
+        $HvServer = $captureVMData.HyperVhost
+        $Ipv4 = $captureVMData.PublicIP
+        $VMPort = $captureVMData.SSHPort
         # Change the working directory to where we need to be
         Set-Location $WorkingDirectory
         # set the backup type array, if set Integration Service VSS
         # as disabled/unchecked, it executes offline backup, if VSS is
         # enabled/checked and hypervvssd is running, it executes online backup.
-        $backupTypes = @("offline","online")
+        $backupTypes = @("offline", "online")
         # checkVSSD uses to set integration service,
         # also uses to define whether need to check
         # hypervvssd running status during runSetup
-        $checkVSSD= @($false,$true)
+        $checkVSSD = @($false, $true)
         # If the kernel version is smaller than 3.10.0-383,
         # it does not take effect after un-check then
         # check VSS service unless restart VM.
         $supportkernel = "3.10.0.383"
         $supportStatus = Get-VMFeatureSupportStatus $Ipv4 $VMPort $user $password $supportkernel
-        for ($i = 0; $i -le 1; $i++ ) {
+        for ($i = 0; $i -le 1; $i++) {
             # stop vm then set integration service
             if (-not $supportStatus[-1]) {
                 # need to stop-vm to set integration service
@@ -50,7 +50,7 @@ function Main {
             if (-not $supportStatus[-1]) {
                 $timeout = 300
                 $sts = Start-VM -Name $VMName -ComputerName $HvServer
-                if (-not (Wait-ForVMToStartKVP $VMName $HvServer $timeout )) {
+                if (-not (Wait-ForVMToStartKVP $VMName $HvServer $timeout)) {
                     throw "${VMName} failed to start"
                 }
                 Start-Sleep -Seconds 3
@@ -59,7 +59,7 @@ function Main {
             if (-not $sts[-1]) {
                 throw "Run setup failed"
             }
-            if($checkVSSD[$i]) {
+            if ($checkVSSD[$i]) {
                 # Check VSS Demon is running
                 $sts = Check-VSSDemon $VMName $HvServer $Ipv4 $VMPort
                 if (-not $sts){
@@ -82,7 +82,7 @@ function Main {
             # it executes offline backup, otherwise, it executes online backup.
             $sts = Get-BackupType
             $temp = $backupTypes[$i]
-            if  ($sts -ne $temp) {
+            if ($sts -ne $temp) {
                 $testResult = $resultFail
                 throw "Didn't get expected backup type"
             } else {
@@ -91,7 +91,7 @@ function Main {
             $null = Remove-Backup $backupLocation
         }
         if ($testResult -ne $resultFail) {
-            $testResult=$resultPass
+            $testResult = $resultPass
         }
     } catch {
         $ErrorMessage =  $_.Exception.Message

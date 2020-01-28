@@ -20,7 +20,7 @@ function Main {
         $TestParams
     )
 
-    $controllerNumber=$null
+    $controllerNumber = $null
 
     # Check arguments
     if (-not $vmName) {
@@ -40,13 +40,13 @@ function Main {
 
     # Make sure the DVD drive exists on the VM
     if ($vmGeneration -eq 1) {
-        $controllerNumber=1
+        $controllerNumber = 1
     } else {
-        $controllerNumber=0
+        $controllerNumber = 0
     }
 
     $dvdcount = $(Get-VMDvdDrive -VMName $vmName -ComputerName $hvServer).ControllerLocation.count
-    for ($i=0; $i -le $dvdcount; $i++) {
+    for ($i = 0; $i -le $dvdcount; $i++) {
         $dvd = Get-VMDvdDrive -VMName $vmName -ComputerName $hvServer `
             -ControllerNumber $controllerNumber -ControllerLocation $i
         if ($dvd) {
