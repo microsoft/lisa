@@ -158,7 +158,12 @@ Function Collect-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Tes
                 continue
             }
 
-            if (!($TestNames.Split(",").Contains($test.testName)) -and ($TestNames -ne "*")) {
+            # This enables regular-expression matching (like with
+            # `-ExcludedTests`, found below), but appends `$` to each
+            # input so that substrings do not match without an
+            # explicit pattern. That is `TEST-` won't match all tests
+            # starting with `TEST-`, but `TEST-.*` will.
+            if (!($TestNames.Split(",").Where({$test.TestName -match "${_}$"})) -and ($TestNames -ne "*")) {
                 continue
             }
 
