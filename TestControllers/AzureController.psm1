@@ -224,5 +224,19 @@ Class AzureController : TestController
 			Set-Variable -Name BaseOsVHD -Value $this.OsVHD -Scope Global
 			Write-LogInfo "New Base VHD name - $($this.OsVHD)"
 		}
+		if ($this.ARMImageName) {
+			$imageInfo = $this.ARMImageName.Trim().Split(" ")
+			$images = Get-AzVMImage -Location $this.TestLocation -PublisherName $imageInfo[0] -Offer $imageInfo[1] -Skus $imageInfo[2] -ErrorAction SilentlyContinue
+			if ($null -ne $images) {
+				if($imageInfo[3].ToLower() -ne "latest") {
+					$image = $images | Where-Object { $_.Version -eq $imageInfo[3].ToLower() }
+					if ($null -eq $image) {
+						throw "ARMImage $($this.ARMImageName) not exist"
+					}
+				}
+			} else {
+				throw "ARMImage $($this.ARMImageName) not exist"
+			}
+		}
 	}
 }

@@ -8,8 +8,9 @@ jobs:
     strategy:
       parallel: 1
     pool:
-      vmImage: 'win1803'
+      vmImage: 'windows-2019'
     steps:
+    - powershell: Install-Module -Name Az -Scope CurrentUser -Force -SkipPublisherCheck -AllowClobber
     - powershell: Install-Module -Name Pester -Scope CurrentUser -Force -SkipPublisherCheck -AllowClobber
     - powershell:
         Invoke-Pester . -EnableExit -PassThru
@@ -19,7 +20,7 @@ jobs:
     strategy:
       parallel: 1
     pool:
-      vmImage: 'win1803'
+      vmImage: 'windows-2019'
     steps:
     - powershell: Install-Module -Name PSScriptAnalyzer -Scope CurrentUser -Force -SkipPublisherCheck -AllowClobber
     - powershell:
