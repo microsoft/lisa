@@ -63,6 +63,8 @@ function Main {
         $vm = Get-VM -VMName $vmName -ComputerName $hvServer
         if ($vm.DynamicMemoryEnabled) {
             Set-VMMemory -VMName $vmName -ComputerName $hvServer -StartupBytes $startupMemory -MaximumBytes $startupMemory -MinimumBytes $startupMemory -Confirm:$False -Priority $memWeight
+        } else {
+            Set-VMMemory -VMName $vmName -ComputerName $hvServer -StartupBytes $startupMemory
         }
     }
 

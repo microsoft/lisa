@@ -17,10 +17,10 @@ function Main {
         $testResult = $null
         $captureVMData = $allVMData
         $VMName = $captureVMData.RoleName
-        $HvServer= $captureVMData.HyperVhost
-        $Ipv4=$captureVMData.PublicIP
-        $VMPort=$captureVMData.SSHPort
-        $HypervGroupName=$captureVMData.HyperVGroupName
+        $HvServer = $captureVMData.HyperVhost
+        $Ipv4 = $captureVMData.PublicIP
+        $VMPort = $captureVMData.SSHPort
+        $HypervGroupName = $captureVMData.HyperVGroupName
         # Change the working directory to where we need to be
         Set-Location $WorkingDirectory
         $sts = New-BackupSetup $VMName $HvServer
@@ -39,7 +39,7 @@ function Main {
             $testResult = $resultFail
             throw "Backup driveletter is not specified."
         }
-        $remoteScript="STOR_VSS_Disk_Stress.sh"
+        $remoteScript = "STOR_VSS_Disk_Stress.sh"
         $retval = Invoke-RemoteScriptAndCheckStateFile $remoteScript $user $password $Ipv4 $VMPort
         if ($retval -eq $False) {
             throw "Running $remoteScript script failed on VM!"

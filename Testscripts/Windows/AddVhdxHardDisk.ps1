@@ -30,10 +30,10 @@ $global:MinDiskSize = 1GB
 $global:DefaultDynamicSize = 127GB
 $SCSICount = 0
 $IDECount = 0
-$diskCount=$null
-$lun=$null
-$vmGeneration=$null
-$clusterVm=$null
+$diskCount = $null
+$lun = $null
+$vmGeneration = $null
+$clusterVm = $null
 
 ############################################################################
 #
@@ -83,7 +83,7 @@ function Create-HardDrive( [string] $vmName, [string] $server, [System.Boolean] 
     $drive = Get-VMHardDiskDrive -VMName $vmName -ControllerNumber $controllerID -ControllerLocation $Lun `
                 -ControllerType $controllerType -ComputerName $server
     if ($drive) {
-        if ( $controllerID -eq 0 -and $Lun -eq 0 ) {
+        if ($controllerID -eq 0 -and $Lun -eq 0) {
             Write-LogErr "Drive $controllerType $controllerID $Lun already exists"
             return $retVal
         } else {
@@ -125,24 +125,19 @@ function Create-HardDrive( [string] $vmName, [string] $server, [System.Boolean] 
 
     $fileInfo = Get-RemoteFileInfo -filename $vhdName -server $server
     if (-not $fileInfo) {
-      $nv = $null
-      switch ($vhdType)
-      {
-          "Dynamic"
-              {
-                  $nv = New-Vhd -Path $vhdName -size $global:MinDiskSize -Dynamic -LogicalSectorSizeBytes ([int] $sectorSize) -ComputerName $server
-              }
-          "Fixed"
-              {
-                  $nv = New-Vhd -Path $vhdName -size $global:MinDiskSize -Fixed -LogicalSectorSizeBytes ([int] $sectorSize) -ComputerName $server
-              }
-
-          default
-              {
+        $nv = $null
+        switch ($vhdType) {
+            "Dynamic" {
+                $nv = New-Vhd -Path $vhdName -size $global:MinDiskSize -Dynamic -LogicalSectorSizeBytes ([int] $sectorSize) -ComputerName $server
+            }
+            "Fixed" {
+                $nv = New-Vhd -Path $vhdName -size $global:MinDiskSize -Fixed -LogicalSectorSizeBytes ([int] $sectorSize) -ComputerName $server
+            }
+            default {
                 Write-LogErr "Unknown VHD type ${vhdType}"
-                  return $False
-              }
-       }
+                return $False
+            }
+        }
         if ($null -eq $nv) {
             Write-LogErr "New-VHD failed to create the new .vhd file: $($vhdName)"
             return $False
@@ -151,15 +146,13 @@ function Create-HardDrive( [string] $vmName, [string] $server, [System.Boolean] 
 
     $error.Clear()
     Add-VMHardDiskDrive -VMName $vmName -Path $vhdName -ControllerNumber $controllerID `
-     -ControllerLocation $Lun -ControllerType $controllerType -ComputerName $server
+        -ControllerLocation $Lun -ControllerType $controllerType -ComputerName $server
     if ($error.Count -gt 0) {
         Write-LogErr "Add-VMHardDiskDrive failed to add drive on ${controllerType} ${controllerID} ${Lun}s"
         $exception = $error[0].Exception.Message
         Write-LogErr "$exception"
         return $retVal
     }
-
-    "Success"
     $retVal = $True
     return $retVal
 }
@@ -201,17 +194,15 @@ function Main {
         $var = $fields[0].Trim()
         if ($var -match "SCSI_") {
             $var = "SCSI"
-        }
-        elseif ($var -match "IDE_") {
+        } elseif ($var -match "IDE_") {
             $var = "IDE"
         }
-        switch ($var)
-        {
-        "rootDIR"   { $rootDir = $fields[1].Trim() }
-        "diskCount"   { $diskCount = $fields[1].Trim() }
-        "SCSI"  { $SCSICount = $SCSICount +1 }
-        "IDE"  { $IDECount = $IDECount +1 }
-        default     {}  # unknown param - just ignore it
+        switch ($var) {
+            "rootDIR" { $rootDir = $fields[1].Trim() }
+            "diskCount" { $diskCount = $fields[1].Trim() }
+            "SCSI" { $SCSICount = $SCSICount +1 }
+            "IDE" { $IDECount = $IDECount +1 }
+            default {}  # unknown param - just ignore it
         }
     }
 
@@ -236,8 +227,7 @@ function Main {
         }
     }
 
-    foreach ($p in $params)
-    {
+    foreach ($p in $params) {
         if ($p.Trim().Length -eq 0) {
             continue
         }
@@ -318,16 +308,14 @@ function Main {
                 $endLun = $diskCount-2
             }
         } else {
-        $startLun = $lun
-        $endLun = $lun
+            $startLun = $lun
+            $endLun = $lun
         }
-        for ($lun=$startLun; $lun -le $endLun; $lun++) {
-            "Create-HardDrive $vmName $hvServer $scsi $controllerID $Lun $vhdType $sectorSize"
+        for ($lun = $startLun; $lun -le $endLun; $lun++) {
             $sts = Create-HardDrive -vmName $vmName -server $hvServer -SCSI:$SCSI -ControllerID $controllerID `
-            -Lun $Lun -vhdType $vhdType -sectorSize $sectorSize
+                    -Lun $Lun -vhdType $vhdType -sectorSize $sectorSize
             if (-not $sts[$sts.Length-1]) {
                 Write-LogErr "Failed to create hard drive!"
-                $sts
                 $retVal = $false
                 continue
             }

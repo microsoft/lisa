@@ -20,22 +20,19 @@ $ErrorActionPreference = "Stop"
 #######################################################################
 # Channge the VM state
 #######################################################################
-function Change-VMState($vmState,$vmName,$hvServer)
+function Change-VMState($vmState, $vmName, $hvServer)
 {
     $vm = Get-VM -Name $vmName -ComputerName $hvServer
     if ($vmState -eq "Off") {
         Stop-VM -Name $vmName -ComputerName $hvServer -ErrorAction SilentlyContinue
         return $vm.state
-    }
-    elseif ($vmState -eq "Saved") {
+    } elseif ($vmState -eq "Saved") {
         Save-VM -Name $vmName -ComputerName $hvServer -ErrorAction SilentlyContinue
         return $vm.state
-    }
-    elseif ($vmState -eq "Paused") {
+    } elseif ($vmState -eq "Paused") {
         Suspend-VM -Name $vmName -ComputerName $hvServer -ErrorAction SilentlyContinue
         return $vm.state
-    }
-    else {
+    } else {
         return $false
     }
 }
@@ -54,20 +51,20 @@ function Main
         $testResult = $null
         $captureVMData = $allVMData
         $VMName = $captureVMData.RoleName
-        $HvServer= $captureVMData.HyperVhost
-        $VMIpv4=$captureVMData.PublicIP
-        $VMPort=$captureVMData.SSHPort
-        $vmState=$TestParams.vmState
-        $HypervGroupName=$captureVMData.HyperVGroupName
+        $HvServer = $captureVMData.HyperVhost
+        $VMIpv4 = $captureVMData.PublicIP
+        $VMPort = $captureVMData.SSHPort
+        $vmState = $TestParams.vmState
+        $HypervGroupName = $captureVMData.HyperVGroupName
         Write-LogInfo "Test VM details :"
         Write-LogInfo "  RoleName : $($captureVMData.RoleName)"
         Write-LogInfo "  Public IP : $($captureVMData.PublicIP)"
         Write-LogInfo "  SSH Port : $($captureVMData.SSHPort)"
         Write-LogInfo "  HostName : $($captureVMData.HyperVhost)"
-        Write-LogInfo "vmstate from params  is $vmState"
+        Write-LogInfo "vmstate from params is $vmState"
         # Change the working directory to where we need to be
         Set-Location $WorkingDirectory
-        Write-LogInfo "WorkingDirectory"
+        Write-LogInfo "$WorkingDirectory"
         $sts = New-BackupSetup $VMName $HvServer
         if (-not $sts[-1]) {
             throw "Failed to create a Backup Setup"
@@ -88,19 +85,18 @@ function Main
         }
         Write-LogInfo "Driveletter is $driveletter"
         # Check if VM is Started
-        $vm = Get-VM -Name $VMName
-        $currentState=$vm.state
-        Write-LogInfo "current vm state is $currentState "
-        if ( $currentState -ne "Running" ) {
+        $vm = Get-VM -Name $VMName -ComputerName $hvServer
+        $currentState = $vm.state
+        Write-LogInfo "Current vm state is $currentState "
+        if ($currentState -ne "Running") {
             Write-LogErr "$vmName is not started."
         }
         # Change the VM state
         $sts = Change-VMState $vmState $VMName $HvServer
-        Write-LogInfo "VM state changed to $vmstate :  $sts"
+        Write-LogInfo "VM state changed to $vmstate : $sts"
         if (-not $sts[-1]) {
             throw "vmState param: $vmState is wrong. Available options are `'Off`', `'Saved`'' and `'Paused`'."
-        }
-        elseif ( $sts -ne $vmState ) {
+        } elseif ($sts -ne $vmState) {
             throw "Failed to put $vmName in $vmState state $sts."
         }
         Write-LogInfo "State change of $vmName to $vmState : Success."
@@ -119,16 +115,14 @@ function Main
             throw "Backup evaluation failed"
         }
         Remove-Backup $backupLocation | Out-Null
-        if( $testResult -ne $resultFail) {
-            $testResult=$resultPass
+        if ($testResult -ne $resultFail) {
+            $testResult = $resultPass
         }
-    }
-    catch {
-        $ErrorMessage =  $_.Exception.Message
+    } catch {
+        $ErrorMessage = $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
         Write-LogErr "$ErrorMessage at line: $ErrorLine"
-    }
-    finally {
+    } finally {
         if (!$testResult) {
             $testResult = $resultAborted
         }

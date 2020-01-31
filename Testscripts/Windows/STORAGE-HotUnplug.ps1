@@ -74,8 +74,8 @@ function Main {
         $TestParams
     )
 
-    $scsi=$true
-    $REMOTE_SCRIPT="STORAGE-HotRemove.sh"
+    $scsi = $true
+    $REMOTE_SCRIPT = "STORAGE-HotRemove.sh"
 
     if ($null -eq $testParams -or $testParams.Length -lt 3) {
         Write-LogErr "setupScript requires test params"
@@ -111,28 +111,28 @@ function Main {
             continue
         }
 
-        $controllerType=$controller
+        $controllerType = $controller
         $diskArgs = $fields[1].Trim().Split(',')
         if ($diskArgs.Length -lt 3 -or $diskArgs.Length -gt 5) {
             Write-LogErr "Incorrect number of arguments: $p"
             return "FAIL"
         }
         $vmGeneration = Get-VMGeneration $vmName $hvServer
-        if($scsi){
+        if ($scsi) {
             $controllerID1 = $diskArgs[0].Trim()
             if ($vmGeneration -eq 1) {
                 $lun1 = [int]($diskArgs[1].Trim())
             } else {
-                $lun1 = [int]($diskArgs[1].Trim()) +1
+                $lun1 = [int]($diskArgs[1].Trim()) + 1
             }
-            $scsi=$false
+            $scsi = $false
         }
     }
 
-    $path1=(Get-VMHardDiskDrive -VMName $vmName -ComputerName $hvServer -ControllerLocation $lun1 `
+    $path1 = (Get-VMHardDiskDrive -VMName $vmName -ComputerName $hvServer -ControllerLocation $lun1 `
                 -ControllerNumber $controllerID1 -ControllerType $controllerType).Path
 
-    for ($i=0; $i -lt $loopCount; $i++) {
+    for ($i = 0; $i -lt $loopCount; $i++) {
         #Remove the 1st VHDx
         Write-LogInfo "Current loop number is $i."
         $retVal = Remove-VHDxDiskDrive $vmName $hvServer $controllerType $controllerID1 $lun1
@@ -142,7 +142,7 @@ function Main {
         }
         Write-LogInfo "Removed first VHDx with path $path1"
 
-        #verify if vm sees that disks were dettached
+        #verify if vm sees that disks were detached
         $retVal = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
             -command "bash ${REMOTE_SCRIPT}" -RunAsSudo
 
@@ -157,8 +157,8 @@ function Main {
         Start-Sleep -Seconds 5
         $diskNumber = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
             -command "fdisk -l | grep 'Disk /dev/sd*' | grep -v 'Disk /dev/sda' | wc -l" -RunAsSudo
-        if ( $diskNumber -ne 2) {
-            Write-LogErr "Failed to attach VHDx "
+        if ($diskNumber -ne 2) {
+            Write-LogErr "Failed to attach VHDx"
             return "FAIL"
         }
     }

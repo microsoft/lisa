@@ -6,8 +6,8 @@
 
 .Description
     Use the PowerShell cmdlet to verify the heartbeat
-	provided by the test VM is detected by the Hyper-V
-	server.
+    provided by the test VM is detected by the Hyper-V
+    server.
 #>
 
 param([String] $TestParams,
@@ -67,7 +67,7 @@ function Main {
     }
 
     if ($heartbeatTimeout -eq 0) {
-        Write-LogErr "Test case timed out for VM to enter in the Running state"
+        Write-LogErr "Test case timed out for VM enter into the running state"
         return "FAIL"
     }
 
@@ -77,7 +77,7 @@ function Main {
         Write-LogInfo "Heartbeat detected"
     } else {
         Write-LogErr "Test Failed: VM heartbeat not detected!"
-        Write-LogErr "Heartbeat not detected while the Heartbeat service is enabled"
+        Write-LogErr "Heartbeat not detected while the Heartbeat service is enabled, Heartbeat - $($vm.Heartbeat)"
         return "FAIL"
     }
 
@@ -85,9 +85,9 @@ function Main {
     Disable-VMIntegrationService -ComputerName $HvServer -VMName $VMName -Name "Heartbeat"
     $status = Get-VMIntegrationService -VMName $VMName -ComputerName $HvServer -Name "Heartbeat"
     if ($status.Enabled -eq $False -And $vm.Heartbeat -eq "Disabled") {
-        Write-LogErr "Heartbeat disabled successfully"
+        Write-LogInfo "Heartbeat disabled successfully"
     } else {
-        Write-LogErr "Unable to disable the Heartbeat service"
+        Write-LogErr "Unable to disable the Heartbeat service, Heartbeat - $($vm.Heartbeat)"
         return "FAIL"
     }
 
@@ -99,7 +99,7 @@ function Main {
         return "PASS"
     } else {
         Write-LogErr "Test Failed: VM heartbeat not detected again!"
-        Write-LogErr "Heartbeat not detected after re-enabling the Heartbeat service"
+        Write-LogErr "Heartbeat not detected after re-enabling the Heartbeat service, Heartbeat - $($vm.Heartbeat)"
         return "FAIL"
     }
 }

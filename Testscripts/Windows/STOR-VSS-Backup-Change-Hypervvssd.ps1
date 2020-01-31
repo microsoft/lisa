@@ -57,10 +57,10 @@ function Main {
             throw "Backup driveletter is not specified."
         }
         # set the backup type array, if stop hypervvssd, it executes offline backup, if start hypervvssd, it executes online backup
-        $backupTypes = @("offline","online")
+        $backupTypes = @("offline", "online")
         # set hypervvssd status, firstly stop, then start
-        $setAction= @("stop","start")
-        for ($i = 0; $i -le 1; $i++ ) {
+        $setAction = @("stop", "start")
+        for ($i = 0; $i -le 1; $i++) {
             $serviceAction = $setAction[$i]
             $serviceCommand = "echo serviceAction=$serviceAction  >> constants.sh"
             Run-LinuxCmd -username $user -password $password -ip $VMIpv4 -port $VMPort $serviceCommand -runAsSudo | Out-Null
@@ -76,18 +76,18 @@ function Main {
             Start-Sleep -Seconds 3
             $stsBackUp = New-Backup $VMName $driveLetter $HvServer $VMIpv4 $VMPort
             # when stop hypervvssd, backup offline backup
-            if ( -not $stsBackUp[-1]) {
+            if (-not $stsBackUp[-1]) {
                 throw "Failed in start Backup"
             } else {
                 $backupLocation = $stsBackUp[-1]
                 # if stop hypervvssd, vm does offline backup
                 $bkType = Get-BackupType
                 $temp = $backupTypes[$i]
-                if ( $bkType -ne $temp ) {
+                if ($bkType -ne $temp) {
                     $testResult = "FAIL"
                     throw "Failed: Not get expected backup type as $temp"
                 } else {
-                     Write-LogInfo "Got expected backup type $temp"
+                    Write-LogInfo "Got expected backup type $temp"
                 }
                 $null = Remove-Backup $backupLocation
             }
@@ -97,8 +97,7 @@ function Main {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
         Write-LogErr "$ErrorMessage at line: $ErrorLine"
-    }
-    finally {
+    } finally {
         if (!$testResult) {
             $testResult = "Aborted"
         }
