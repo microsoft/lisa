@@ -111,19 +111,15 @@ function Main {
         Write-LogInfo "${vm1Name}: assigned - $vm1BeforeAssigned | demand - $vm1BeforeDemand"
         # Set the amount of sleep time needed
         if ($timeoutStress -eq 0) {
-            $sleepTime = 20
             $duration = 0
             $chunk = 0
         } elseif ($timeoutStress -eq 1) {
-            $sleepTime = 60
             $duration = 120
             $chunk = 1
         } elseif ($timeoutStress -eq 2) {
-            $sleepTime = 20
             $duration = 40
             $chunk = 1
         } else {
-          $sleepTime = 20
           $duration = 40
           $chunk = 1
         }
