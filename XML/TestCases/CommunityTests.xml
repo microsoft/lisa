@@ -125,4 +125,21 @@
         <Tags>ltp</Tags>
         <Priority>3</Priority>
     </test>
-</TestCases>
+    <test>
+        <TestName>LINUX-KERNEL-SELFTESTS</TestName>
+        <TestScript>Run-LksSuite.ps1</TestScript>
+        <files>.\Testscripts\Linux\utils.sh,.\TestScripts\Linux\Linux-Kernel-Self-Tests.sh</files>
+        <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_DS4_v2</OverrideVMSize>
+        <TestParameters>
+            <param>LKS_VERSION_GIT_TAG="LKS_TESTS_GIT_TAG"</param>
+            <param>SUMMARY=1</param>
+        </TestParameters>
+        <Timeout>20000</Timeout>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Community</Category>
+        <Area>LKS</Area>
+        <Tags>lks</Tags>
+        <Priority>2</Priority>
+    </test>
+    </TestCases>
