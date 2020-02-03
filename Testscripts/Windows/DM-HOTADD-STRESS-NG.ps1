@@ -91,7 +91,7 @@ function Main {
             }
             Write-LogInfo "Stress-ng is installed"
         }
-        Start-Sleep -Seconds 40
+        Start-Sleep -Seconds 120
         $sleepPeriod = 120 #seconds
         # Get VM1 Memory
         while ($sleepPeriod -gt 0) {
@@ -100,7 +100,7 @@ function Main {
             if ($vm1BeforeAssigned -gt 0 -and $vm1BeforeDemand -gt 0) {
                 break
             }
-            $sleepPeriod-= 5
+            $sleepPeriod -= 5
             Start-Sleep -Seconds 5
         }
         if (($vm1BeforeAssigned -le 0) -or ($vm1BeforeDemand -le 0)) {
@@ -141,36 +141,42 @@ function Main {
            Throw "Unable to start job for creating pressure on $vm1Name" | Tee-Object -Append -file $summaryLog
         }
         # Wait for stress-ng to start and the memory assigned/demand gets updated
-        Start-Sleep -Seconds $sleepTime
-        [int64]$vm1Demand = ($vmInfo.MemoryDemand/1MB)
-        # Get memory stats for vm1 after stress-ng starts
-        [int64]$vm1Assigned = ($vmInfo.MemoryAssigned/1MB)
+        for ($i = 1; $i -lt 20; $i++) {
+            [int64]$vm1Demand = ($vmInfo.MemoryDemand/1MB)
+            # Get memory stats for vm1 after stress-ng starts
+            [int64]$vm1Assigned = ($vmInfo.MemoryAssigned/1MB)
+            Write-LogInfo "The $i time - ${vm1Name}: assigned - $vm1Assigned | demand - $vm1Demand"
+            if ($vm1Demand -gt $vm1BeforeDemand) {
+                break
+            } else {
+                Start-Sleep -Seconds 3
+            }
+        }
         Write-LogInfo "Memory stats for $vm1Name after stress-ng started"
         Write-LogInfo "${vm1Name}: assigned - $vm1Assigned | demand - $vm1Demand"
-        Write-LogInfo "vm1BeforeDemand $vm1BeforeDemand vm1Demand  $vm1Demand"
+        Write-LogInfo "vm1BeforeDemand $vm1BeforeDemand vm1Demand $vm1Demand"
         if ($vm1Demand -le $vm1BeforeDemand) {
             $testResult = $resultFail
             Throw "Memory Demand did not increase after starting stress-ng" | Tee-Object -Append -file $summaryLog
         }
-        # Wait for jobs to finish now and make sure they exited successfully
-        $timeout = 240
-        while ($timeout -gt 0) {
-            $timeout -= 5
-            Start-Sleep -Seconds 5
-        }
-        # Verify if errors occured on guest
+        # Verify if errors occurred on guest
         $isAlive = Wait-ForVMToStartKVP $vm1Name $hvServer 10
         if (-not $isAlive) {
             $testResult = $resultFail
             Throw "VM is unresponsive after running the memory stress test" | Tee-Object -Append -file $summaryLog
         }
-        Start-Sleep -Seconds 20
-        # Get memory stats after stress-ng finished
-        [int64]$vm1AfterAssigned = ($vmInfo.MemoryAssigned/1MB)
-        [int64]$vm1AfterDemand = ($vmInfo.MemoryDemand/1MB)
         Write-LogInfo "Memory stats after stress-ng finished: "
-        Write-LogInfo "  ${vm1Name}: assigned - $vm1AfterAssigned | demand - $vm1AfterDemand"
-        Write-LogInfo "vm1AfterDemand $vm1AfterDemand vm1Demand $vm1Demand"
+        for ($i = 1; $i -lt 20; $i++) {
+            Start-Sleep -Seconds 20
+            # Get memory stats after stress-ng finished
+            [int64]$vm1AfterAssigned = ($vmInfo.MemoryAssigned/1MB)
+            [int64]$vm1AfterDemand = ($vmInfo.MemoryDemand/1MB)
+            Write-LogInfo "  ${vm1Name}: assigned - $vm1AfterAssigned | demand - $vm1AfterDemand"
+            Write-LogInfo "The $i time - vm1AfterDemand $vm1AfterDemand vm1Demand $vm1Demand"
+            if ($vm1AfterDemand -lt $vm1Demand) {
+                break
+            }
+        }
         if ($vm1AfterDemand -ge $vm1Demand) {
             $testResult = $resultFail
             Throw "Demand did not go down after stress-ng finished." | Tee-Object -Append -file $summaryLog
