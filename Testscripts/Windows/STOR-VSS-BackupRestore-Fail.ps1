@@ -18,9 +18,9 @@ function Main {
         $testResult = $null
         $captureVMData = $allVMData
         $VMName = $captureVMData.RoleName
-        $HvServer= $captureVMData.HyperVhost
-        $Ipv4=$captureVMData.PublicIP
-        $VMPort=$captureVMData.SSHPort
+        $HvServer = $captureVMData.HyperVhost
+        $Ipv4 = $captureVMData.PublicIP
+        $VMPort = $captureVMData.SSHPort
         # Change the working directory to where we need to be
         Set-Location $WorkingDirectory
         $sts = New-BackupSetup $VMName $HvServer
@@ -29,7 +29,7 @@ function Main {
         }
         # Check VSS Demon is running
         $sts = Check-VSSDemon $VMName $HvServer $Ipv4 $VMPort
-        if (-not $sts){
+        if (-not $sts) {
             throw "VSS Daemon is not running"
         }
         # Create a file on the VM before backup
@@ -70,10 +70,9 @@ function Main {
         }
         $null = Remove-Backup $backupLocation
         if ($testResult -ne $resultFail) {
-            $testResult=$resultPass
+            $testResult = $resultPass
         }
-    }
-    catch {
+    } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
         Write-LogErr "$ErrorMessage at line: $ErrorLine"

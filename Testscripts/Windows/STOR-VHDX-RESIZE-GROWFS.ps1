@@ -77,7 +77,7 @@ Function Set-HardDiskSize
 	$ret = Run-LinuxCmd -ip $ip -port $port -username $user -password $password -command "echo 'rerun=yes' >> constants.sh" -runAsSudo
 	$ret = Run-LinuxCmd -ip $ip -port $port -username $user -password $password -command "./$guestScript" -runAsSudo
 	if (-not $ret) {
-		Throw "Running '${guestScript}'script failed on VM. check VM logs , exiting test case execution"
+		Throw "Running '${guestScript}' script failed on VM. check VM logs, exiting test case execution"
 	}
 	Write-LogInfo "The guest detects the new size after resizing ($diskSize)"
 } # End function

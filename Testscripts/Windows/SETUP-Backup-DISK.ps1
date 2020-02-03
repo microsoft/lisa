@@ -28,7 +28,7 @@ function Main {
         if ([string]::IsNullOrEmpty($driveletter)) {
             throw "Setup: The driveletter variable is empty!"
         }
-        $maxRetryCount=2
+        $maxRetryCount = 2
         $currentRetryCount = 0
         while ($currentRetryCount -lt $maxRetryCount){
             if (Test-Path ($backupdiskpath)) {
@@ -58,9 +58,9 @@ function Main {
             Remove-Item $filePath
         }
         Write-Output "$originaldriveletter" >> $filePath
-        $testResult=$resultPass
+        $testResult = $resultPass
     } catch {
-        $ErrorMessage =  $_.Exception.Message
+        $ErrorMessage = $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
         Write-LogErr "$ErrorMessage at line: $ErrorLine"
     } finally {

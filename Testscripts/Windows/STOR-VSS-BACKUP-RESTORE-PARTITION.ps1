@@ -65,7 +65,7 @@ function Main {
         }
         # Run the Partition Disk script
         if (-not $TestParams.secureBootVM) {
-            $remoteScript="PartitionMultipleDisks.sh"
+            $remoteScript = "PartitionMultipleDisks.sh"
             $retval = Invoke-RemoteScriptAndCheckStateFile $remoteScript $user $password $Ipv4 $VMPort
             if ($retval -eq $False) {
                 throw "Running $remoteScript script failed on VM!"
@@ -95,7 +95,7 @@ function Main {
         }
         $null = Remove-Backup $backupLocation
         if ($testResult -ne $resultFail) {
-            $testResult=$resultPass
+            $testResult = $resultPass
         }
     } catch {
         $ErrorMessage =  $_.Exception.Message

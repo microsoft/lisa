@@ -104,7 +104,7 @@ function Main {
     }
 
     $vmGeneration = Get-VMGeneration $vmName $hvServer
-    if (( $controllerType -eq "IDE" -or $vhdFormat -eq "vhd" ) -and $vmGeneration -eq 2 ) {
+    if (($controllerType -eq "IDE" -or $vhdFormat -eq "vhd") -and $vmGeneration -eq 2) {
         Write-LogInfo "Generation 2 VM does not support IDE or vhd disk, skip test"
         return "SKIPPED"
     }
@@ -143,7 +143,7 @@ function Main {
     if ($vmGeneration -eq 1) {
         $lun = [int]($diskArgs[1].Trim())
     } else {
-        $lun = [int]($diskArgs[1].Trim()) +1
+        $lun = [int]($diskArgs[1].Trim()) + 1
     }
 
     $vhdName = ("{0}{1}-{2}-{3}-{4}-Diff.{5}" `
@@ -239,13 +239,11 @@ function Main {
         Write-LogInfo "The parent .vhd file did not change in size"
     }
 
-    if ($vhdFinalSize -gt $vhdInitialSize)
-    {
+    if ($vhdFinalSize -gt $vhdInitialSize) {
         Write-LogInfo "The differencing disk grew in size from ${vhdInitialSize} to ${vhdFinalSize}"
     }
 
     Write-LogInfo "Test finished with result: PASS"
-
     return "PASS"
 }
 

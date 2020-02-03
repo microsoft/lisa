@@ -61,7 +61,7 @@ function Main {
     while ($testCaseTimeout -gt 0) {
         $null = Stop-VM -Name $VMName -ComputerName $HvServer -Force -Verbose
 
-        if ( (Check-VMState -vmName $VMName -hvServer $HvServer ("Off"))) {
+        if ((Check-VMState -vmName $VMName -hvServer $HvServer ("Off"))) {
             break
         }
 
@@ -105,7 +105,7 @@ function Main {
     Write-LogInfo "VM ${vmName} exported successfully"
 
     #
-    # Before importing the VM from exported folder, Delete the created snapshot from the orignal VM.
+    # Before importing the VM from exported folder, Delete the created snapshot from the original VM.
     #
     $null = Get-VMSnapshot -VMName $VMName -ComputerName $HvServer -Name "TestExport" | Remove-VMSnapshot -Confirm:$False
 
@@ -128,7 +128,7 @@ function Main {
     switch ($BuildNum) {
         {$_ -lt 10000} {
             # Server 2012 R2, 20012 and 2008R2
-            $vmConfig = Invoke-Command -ComputerName $HvServer {Get-Item "$Using:vmPath\Virtual Machines\*.xml"}
+            $vmConfig = Invoke-Command -ComputerName $HvServer { Get-Item "$Using:vmPath\Virtual Machines\*.xml" }
         }
         {$_ -ge 10000} {
             # Server 2016 or newer
@@ -144,7 +144,7 @@ function Main {
     Write-LogInfo $vmConfig.fullname
 
     $null = Import-VM -Path $vmConfig -ComputerName $HvServer -Copy "${vmPath}\Virtual Hard Disks" `
-        -Verbose -Confirm:$False -GenerateNewId
+                -Verbose -Confirm:$False -GenerateNewId
     if ($? -ne "True") {
         Write-LogErr "Error while importing the VM"
         return "FAIL"
@@ -217,16 +217,15 @@ function Main {
         if ($? -ne "True") {
             Write-LogErr "Error while removing the Imported VM"
             return "FAIL"
-        }
-        else {
+        } else {
             Write-LogInfo "Imported VM removed, test completed"
             return "PASS"
         }
 
-        $null = Invoke-Command -ComputerName $HvServer {Remove-Item -Path "$Using:vmPath" -Recurse -Force}
+        $null = Invoke-Command -ComputerName $HvServer { Remove-Item -Path "$Using:vmPath" -Recurse -Force }
         if ($? -ne "True") {
             Write-LogErr "Error while deleting the export folder, trying again..."
-            $null = Invoke-Command -ComputerName $HvServer {Remove-Item -Recurse -Path "$Using:vmPath" -Force }
+            $null = Invoke-Command -ComputerName $HvServer { Remove-Item -Recurse -Path "$Using:vmPath" -Force }
         }
 
         return "FAIL"

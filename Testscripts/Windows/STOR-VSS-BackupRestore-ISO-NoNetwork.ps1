@@ -20,7 +20,7 @@ $remoteScript = "STOR_VSS_StopNetwork.sh"
 #######################################################################
 function Main {
     param (
-       $TestParams, $AllVMData
+        $TestParams, $AllVMData
     )
     $currentTestResult = Create-TestResultObject
     try {
@@ -113,6 +113,18 @@ function Main {
         $sts = Check-VMStateAndFileStatus $VMName $HvServer $VMIpv4 $VMPort
         if (-not $sts) {
             throw "Backup evaluation failed"
+        }
+        $dvdDrive = Get-VMDvdDrive -VMName $VMName -ComputerName $hvServer
+        if ($dvdDrive) {
+            if ($dvdDrive.Path -ne $isoPath) {
+                Write-LogErr "DVD path changed into $($dvdDrive.Path) after restore backup."
+                $testResult = $resultFail
+            } else {
+                Write-LogInfo "DVD path is $($dvdDrive.Path) after restore backup."
+            }
+        } else {
+            Write-LogErr "DVD is missing after restore backup."
+            $testResult = $resultFail
         }
         $null = Remove-Backup $backupLocation
         if ($testResult -ne $resultFail) {

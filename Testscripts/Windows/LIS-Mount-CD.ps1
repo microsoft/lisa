@@ -31,12 +31,12 @@ function Main {
     #######################################################################
     # Check arguments
     if (-not $VMName) {
-       Write-LogErr "Missing vmName argument"
+        Write-LogErr "Missing vmName argument"
         return $False
     }
 
     if (-not $HvServer) {
-       Write-LogErr  "Missing hvServer argument"
+        Write-LogErr  "Missing hvServer argument"
         return $False
     }
     #
@@ -65,8 +65,8 @@ function Main {
     $error.Clear()
 
     $vmGen = Get-VMGeneration  -vmName  $VMName -hvServer $HvServer
-    if ( $hotAdd -eq "True" -and $vmGen -eq 1) {
-       Write-LogInfo " Generation 1 VM does not support hot add DVD, please skip this case in the test script"
+    if ($hotAdd -eq "True" -and $vmGen -eq 1) {
+        Write-LogInfo "Generation 1 VM does not support hot add DVD, please skip this case in the test script"
         return $True
     }
 
@@ -110,8 +110,7 @@ function Main {
 
     try {
         Get-RemoteFileInfo -filename $isoPath  -server $HvServer
-    }
-    catch {
+    } catch {
         Write-LogErr "The .iso file $isoPath could not be found!"
         return $False
     }

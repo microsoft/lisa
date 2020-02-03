@@ -25,25 +25,22 @@ function Main
         Write-LogInfo "Host build number : '$BuildNumber'"
         if ($buildNumber -eq 0) {
             throw "Invalid Windows build number"
-        }
-        elseif ($BuildNumber -lt 10500) {
+        } elseif ($BuildNumber -lt 10500) {
             $testResult = "ABORTED"
             Throw "Feature supported only on WS2016 and newer"
         }
         Write-LogInfo "startup memory : $($testParams.startupMem)"
         # Parse the TestParams string, then process each parameter
         $startupMem = Convert-ToMemSize $testParams.startupMem $captureVMData.HyperVhost
-        if ($startupMem -le 0)
-        {
+        if ($startupMem -le 0) {
             throw "Invalid startup memory"
         }
         Write-LogInfo "startupMem: $startupMem"
         # check if we have all variables set
-        if ($vmName -and $DM_Enabled -eq $False -and $startupMem)
-        {
-            Write-LogInfo "Check VM:'${vmName}' is in Runnning state"`
+        if ($vmName -and $DM_Enabled -eq $False -and $startupMem) {
+            Write-LogInfo "Check VM:'${vmName}' is in running state"
             # make sure VM is off
-            if ( Get-VM -Name $vmName -ComputerName $HvServer |  Where-Object { $_.State -like "Running" }) {
+            if (Get-VM -Name $vmName -ComputerName $HvServer | Where-Object { $_.State -like "Running" }) {
                 Write-LogInfo "Stopping VM $vmName"
                 Stop-VM -VMName $vmName -ComputerName $HvServer -TurnOff -Force
                 if (-not $?) {
@@ -56,35 +53,32 @@ function Main
         }
         Write-LogInfo "To Verify VM Version is greater than 7"
         $version = Get-VM -Name $vmName -ComputerName $HvServer | Select-Object -ExpandProperty Version
-        [int]$version = [convert]::ToInt32($version[0],10)
+        [int]$version = [convert]::ToInt32($version[0], 10)
         if ($version -lt 7) {
             throw  "$vmName is version $version. It needs to be version 7 or greater"
-        }
-        elseif($version -gt 7) {
+        } elseif($version -gt 7) {
             Write-LogInfo "VM $vmName is version $version"
         }
         #To set VM Memory
         Set-VMMemory -vmName $vmName -ComputerName $hvServer -DynamicMemoryEnabled $DM_Enabled `
                       -StartupBytes $startupMem
         if (-not $?) {
-           $testResult = $resultFail
-           throw "Unable to set VM Memory for $vmName"
+            $testResult = $resultFail
+            throw "Unable to set VM Memory for $vmName"
         }
         $testResult = $resultPass
-    }
-    catch {
+    } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
         Write-LogErr "$ErrorMessage at line: $ErrorLine"
-    }
-    finally {
+    } finally {
         if (!$testResult) {
             $testResult = "ABORTED"
         }
         $resultArr += $testResult
     }
-	$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
-	return $currentTestResult.TestResult
+    $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
+    return $currentTestResult.TestResult
 }
 
 Main -TestParams (ConvertFrom-StringData $TestParams.Replace(";","`n")) -allVMData $AllVmData

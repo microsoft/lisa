@@ -18,7 +18,7 @@ function Main {
         $testResult = $null
         $captureVMData = $allVMData
         $VMName = $captureVMData.RoleName
-        $HvServer= $captureVMData.HyperVhost
+        $HvServer = $captureVMData.HyperVhost
         # Change the working directory to where we need to be
         Set-Location $WorkingDirectory
         $backupdiskpath = (Get-VMHost).VirtualHardDiskPath + "\" + $VMName + "_VSS_DISK.vhdx"

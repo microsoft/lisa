@@ -109,6 +109,11 @@ function Main {
         return "FAIL"
     } else {
         Write-LogInfo "Test PASSED, Floppy Mounted on VM!"
+        Write-LogDbg "Disassociate floppy file from VM $VMName."
+        Set-VMFloppyDiskDrive -Path $null -VMName $VMName -ComputerName $HvServer
+        Write-LogDbg "Remove file - $vfdPath."
+        Remove-Item $vfdPath -Force
+        return "PASS"
     }
 
 }

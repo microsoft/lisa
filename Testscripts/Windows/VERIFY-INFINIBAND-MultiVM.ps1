@@ -148,6 +148,9 @@ function Main {
 					$installOFEDFromExtension = $false
 				}
 			}
+			if ($TestParam -imatch "quicktest_only") {
+				$QuickTestOnly = [string]($TestParam.Replace("quicktest_only=", "").Trim('"'))
+			}
 		}
 		Add-Content -Value "master=`"$($ServerVMData.InternalIP)`"" -Path $constantsFile
 		Write-LogInfo "master=$($ServerVMData.InternalIP) added to constants.sh"
@@ -155,6 +158,8 @@ function Main {
 		Write-LogInfo "slaves=$SlaveInternalIPs added to constants.sh"
 		Add-Content -Value "VM_Size=`"$VM_Size`"" -Path $constantsFile
 		Write-LogInfo "VM_Size=$VM_Size added to constants.sh"
+		Add-Content -Value "quicktestonly=`"$QuickTestOnly`"" -Path $constantsFile
+		Write-LogInfo "quicktestonly=$QuickTestOnly added to constants.sh"
 
 		Write-LogInfo "constants.sh created successfully..."
 		#endregion
@@ -397,7 +402,7 @@ function Main {
 					$SkippedLogs = Select-String -Path $logFileName -Pattern $patternSkipped
 					if ($SucessLogs.Count -eq 1) {
 						$currentResult = $resultPass
-					} elseif ($SkippedLogs.Count -eq 1) {
+					} elseif (($SkippedLogs.Count -eq 1) -or ($QuickTestOnly -eq "yes")) {
 						$currentResult = "SKIPPED"
 					} else {
 						$currentResult = $resultFail
@@ -419,7 +424,7 @@ function Main {
 					$SkippedLogs = Select-String -Path $logFileName -Pattern $patternSkipped
 					if ($SucessLogs.Count -eq 1) {
 						$currentResult = $resultPass
-					} elseif ($SkippedLogs.Count -eq 1) {
+					} elseif (($SkippedLogs.Count -eq 1) -or ($QuickTestOnly -eq "yes")) {
 						$currentResult = "SKIPPED"
 					} else {
 						$currentResult = $resultFail
@@ -439,6 +444,8 @@ function Main {
 					$SucessLogs = Select-String -Path $logFileName -Pattern $pattern
 					if ($SucessLogs.Count -eq 1) {
 						$currentResult = $resultPass
+					} elseif ($QuickTestOnly -eq "yes") {
+						$currentResult = "SKIPPED"
 					} else {
 						$currentResult = $resultFail
 					}
@@ -457,6 +464,8 @@ function Main {
 					$SucessLogs = Select-String -Path $logFileName -Pattern $pattern
 					if ($SucessLogs.Count -eq 1) {
 						$currentResult = $resultPass
+					} elseif ($QuickTestOnly -eq "yes") {
+						$currentResult = "SKIPPED"
 					} else {
 						$currentResult = $resultFail
 					}

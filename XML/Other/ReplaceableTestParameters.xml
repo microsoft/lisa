@@ -167,7 +167,7 @@ Scenario 2 : You need to run all the performance tests quickly.
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_OPEN_MPI_SETTINGS_IB</ReplaceThis>
-		<ReplaceWith>--mca btl self,vader,openib --mca btl_openib_cq_size 4096</ReplaceWith>
+		<ReplaceWith>--mca btl self,vader,openib --mca btl_openib_cq_size 4096 --mca btl_openib_allow_ib 1 --mca btl_openib_warn_no_device_params_found 0</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_HPCX_MPI_SETTINGS_IB</ReplaceThis>
@@ -278,7 +278,7 @@ Scenario 2 : You need to run all the performance tests quickly.
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_IBM_NBC_TESTNAMES</ReplaceThis>
-		<ReplaceWith>allreduce</ReplaceWith>
+		<ReplaceWith></ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<!-- 11/02/2019 - 'Iallgather' & 'Iallgatherv' not working - removing them for now -->
@@ -287,11 +287,11 @@ Scenario 2 : You need to run all the performance tests quickly.
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_HPCX_NBC_TESTNAMES</ReplaceThis>
-		<ReplaceWith>allreduce</ReplaceWith>
+		<ReplaceWith></ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_MVAPICH_NBC_TESTNAMES</ReplaceThis>
-		<ReplaceWith>allreduce</ReplaceWith>
+		<ReplaceWith></ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_INTEL_NBC_TEST_COUNT</ReplaceThis>
@@ -611,6 +611,10 @@ Scenario 2 : You need to run all the performance tests quickly.
 	<Parameter>
 		<ReplaceThis>LAGSCOPE_VERSION</ReplaceThis>
 		<ReplaceWith>v0.2.0</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>QUICKTEST_ONLY</ReplaceThis>
+		<ReplaceWith>no</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>DATA_DISK_SKU</ReplaceThis>

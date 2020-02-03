@@ -7,7 +7,6 @@
 .Description
     Disable, then re-enable the LIS Time Sync service. Then also save the VM and
     verify that after these operations a Time Sync request still works.
-    The XML test case definition for this test would look similar to:
 #>
 
 param([String] $TestParams,
@@ -54,7 +53,7 @@ function Main {
     }
 
     $retVal = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
-        -command "bash ./CORE-ConfigTimeSync.sh" -runAsSudo
+                -command "bash CORE-ConfigTimeSync.sh" -runAsSudo
     if (-not $retVal) {
         Write-LogErr "Failed to config time sync."
         return "FAIL"
@@ -88,14 +87,12 @@ function Main {
 
     # Enable the Time Sync service
     Write-LogInfo "Enabling the Integrated Services Time Sync Service"
-
     Enable-VMIntegrationService -ComputerName $HvServer -VMName $VMName -Name $service
     $status = Get-VMIntegrationService -ComputerName $HvServer -VMName $VMName -Name $service
     if ($status.Enabled -ne $True) {
         Write-LogErr "Integrated Time Sync Service could not be enabled"
         return "FAIL"
     }
-
     if ($status.PrimaryOperationalStatus -ne "Ok") {
         Write-LogErr "Incorrect Operational Status for Time Sync Service: $($status.PrimaryOperationalStatus)"
         return "FAIL"
@@ -121,7 +118,7 @@ function Main {
         $startTimeout -= 5
     }
     if ($startTimeout -eq 0) {
-        Write-LogErr "Test case timed out for VM to enter in the Running state"
+        Write-LogErr "Test case timed out for VM enter into the running state"
         return "FAIL"
     }
     Write-LogInfo "VM successfully started"

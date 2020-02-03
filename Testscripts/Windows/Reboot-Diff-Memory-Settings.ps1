@@ -33,7 +33,7 @@ function Main {
     $osInfo = Get-WmiObject Win32_OperatingSystem -ComputerName $HvServer
     $freeMem = [int]$($OSInfo.FreePhysicalMemory) / 1MB
 
-    # Array of memory size to boot( total available memory, 70% of available memory, 40% of available memory)
+    # Array of memory size to boot (total available memory, 70% of available memory, 40% of available memory)
     $mem100 = "{0:N0}" -f $($freeMem - 2)
     $mem70 = "{0:N0}" -f $($freeMem * 0.7)
     $mem40 = "{0:N0}" -f $($freeMem * 0.4)
@@ -45,17 +45,17 @@ function Main {
         if ($vm.State -ne "Off") {
             Stop-VM -Name $VMName -ComputerName $HvServer -Force
             if (-not $?) {
-               Write-LogErr "Unable to Shut Down VM"
-               $retVal = "FAIL"
-               break
+                Write-LogErr "Unable to Shut Down VM"
+                $retVal = "FAIL"
+                break
             }
 
             $timeout = 180
             $sts = Wait-ForVMToStop $VMName $HvServer $timeout
             if (-not $sts) {
-               Write-LogErr "Wait-ForVMToStop fail"
-               $retVal = "FAIL"
-               break
+                Write-LogErr "Wait-ForVMToStop fail"
+                $retVal = "FAIL"
+                break
             }
         }
 
@@ -85,7 +85,7 @@ function Main {
             Write-LogInfo "${VMName} IP Address after reboot: ${new_ipv4}"
             Set-Variable -Name "Ipv4" -Value $new_ipv4 -Scope Global
         } else {
-            Write-LogErr "VM $VMName failed to start after setting $numCPUs vCPUs"
+            Write-LogErr "VM $VMName failed to start after setting $memory GB RAM."
             $retVal = "FAIL"
             break
         }
