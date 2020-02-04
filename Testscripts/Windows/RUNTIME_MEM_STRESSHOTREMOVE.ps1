@@ -52,7 +52,7 @@ function Main {
         Write-LogInfo "BuildNumber: '$BuildNumber'"
         if ($BuildNumber -eq 0) {
             Throw "Feature is not supported"
-        } elseif ( $BuildNumber -lt 10500 ) {
+        } elseif ($BuildNumber -lt 10500) {
             $testResult = "ABORTED"
             Throw "Feature supported only on WS2016 and newer"
         }
@@ -68,7 +68,6 @@ function Main {
         }
         Write-LogInfo "Stress-ng is installed! Will begin running memory stress tests shortly."
         # Get memory stats from VmInfo
-        Start-Sleep -Seconds 10
         $sleepPeriod = 60
         # get VmInfo memory from host and guest
         while ($sleepPeriod -gt 0) {
@@ -93,7 +92,6 @@ function Main {
             Throw "Unable to start stress-ng for creating pressure on $vmName"
         }
         # sleep a few seconds so stress-ng starts and the memory assigned/demand gets updated
-        Start-Sleep -Seconds 80
         [int64]$vm1Demand = ($VmInfo.MemoryDemand / 1MB)
         # get memory stats while stress-ng is running
         [int64]$vm1Assigned = ($VmInfo.MemoryAssigned / 1MB)
@@ -110,21 +108,18 @@ function Main {
         [int64]$testMem = $testMem / 1048576
         if ($testMem % 2 -eq 0){
             [int64]$testMem = $testMem * 1048576
-        } else{
+        } else {
             [int64]$testMem = $testMem + 1
             [int64]$testMem = $testMem * 1048576
         }
-        # Set new memory value. Trying for 3 iterations to set a new memory value
-        for ($i=0; $i -lt 3; $i++) {
-            Set-VMMemory -VMName $vmName -ComputerName $HvServer -DynamicMemoryEnabled $false -StartupBytes $testMem
-            Start-Sleep -Seconds 5
-            if ($VmInfo.MemoryAssigned -eq $testMem){
-                [int64]$vm1AfterAssigned = ($VmInfo.MemoryAssigned/1MB)
-                [int64]$vm1AfterDemand = ($VmInfo.MemoryDemand/1MB)
-                $lisDriversCmd = "cat /proc/meminfo | grep -i MemFree | awk '{ print `$2 }'"
-                [int64]$vm1AfterAssignedGuest = Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command $lisDriversCmd -runAsSudo
-                break
-            }
+        Set-VMMemory -VMName $vmName -ComputerName $HvServer -DynamicMemoryEnabled $false -StartupBytes $testMem
+        Start-Sleep -Seconds 5
+        if ($VmInfo.MemoryAssigned -eq $testMem){
+            [int64]$vm1AfterAssigned = ($VmInfo.MemoryAssigned/1MB)
+            [int64]$vm1AfterDemand = ($VmInfo.MemoryDemand/1MB)
+        } else {
+            $testResult = $resultFail
+            Throw "Fail to update memory into $testMem for VM $vmName."
         }
         [int64]$vm1AfterAssigned = ($VmInfo.MemoryAssigned / 1MB)
         if ($vm1AfterAssigned -eq $vm1BeforeAssigned) {
@@ -138,7 +133,16 @@ function Main {
             Throw "Memory assigned doesn't match the memory set as parameter!"
         }
         Write-LogInfo "Memory stats after $vmName memory was changed"
-        Write-LogInfo "${vmName}: Initial Memory - $vm1BeforeAssignedGuest KB :: After setting new value - $vm1AfterAssignedGuest KB"
+        # wait for 2 mins
+        for ($i = 1; $i -lt 5; $i++) {
+            Start-Sleep -Seconds 30
+            $lisDriversCmd = "cat /proc/meminfo | grep -i MemFree | awk '{ print `$2 }'"
+            [int64]$vm1AfterAssignedGuest = Run-LinuxCmd -username $user -password $password -ip $Ipv4 -port $VMPort -command $lisDriversCmd -runAsSudo
+            Write-LogInfo "The $i time - ${vmName}: Initial Memory - $vm1BeforeAssignedGuest KB :: After setting new value - $vm1AfterAssignedGuest KB"
+            if ($vm1AfterAssignedGuest -lt $vm1BeforeAssignedGuest) {
+                break
+            }
+        }
         if ($vm1AfterAssignedGuest -ge $vm1BeforeAssignedGuest) {
             $testResult = $resultFail
             Throw "Guest reports that memory value hasn't decreased!"
@@ -159,7 +163,7 @@ function Main {
         Write-LogInfo "VM changed its memory and ran memory stress tests successfully!"
         $testResult = $resultPass
     } catch {
-        $ErrorMessage =  $_.Exception.Message
+        $ErrorMessage = $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
         Write-LogErr "$ErrorMessage at line: $ErrorLine"
     } finally {
