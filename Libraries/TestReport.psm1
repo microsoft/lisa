@@ -442,10 +442,11 @@ Class TestSummary
 			$this.HtmlSummary += $testSummaryLineFailAbort -f @($testResultRow)
 		}
 
-		Write-LogInfo "CURRENT - $($global:ResultPass)    - $($this.TotalPassTc)"
-		Write-LogInfo "CURRENT - $($global:ResultSkipped) - $($this.TotalSkippedTc)"
-		Write-LogInfo "CURRENT - $($global:ResultFail)    - $($this.TotalFailTc)"
-		Write-LogInfo "CURRENT - $($global:ResultAborted) - $($this.TotalAbortedTc)"
+		Write-LogInfo "$($global:ResultPass)    - $($this.TotalPassTc)"
+		Write-LogInfo "$($global:ResultSkipped) - $($this.TotalSkippedTc)"
+		Write-LogInfo "$($global:ResultFail)    - $($this.TotalFailTc)"
+		Write-LogInfo "$($global:ResultAborted) - $($this.TotalAbortedTc)"
+		Write-LogInfo "$($global:ResultAborted) - $($this.TotalTc - $this.TotalPassTc- $this.TotalSkippedTc - $this.TotalFailTc - $this.TotalAbortedTc)"
 	}
 
 	[string] GetReproVMDetails($allVMData) {
