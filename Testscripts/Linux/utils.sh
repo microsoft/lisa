@@ -118,7 +118,10 @@ function UtilsInit() {
 	if [ -f "$__LIS_CONSTANTS_FILE" ]; then
 		. "$__LIS_CONSTANTS_FILE"
 	else
-		LogMsg "Constants file $__LIS_CONSTANTS_FILE missing or not a regular file. Cannot source it!"
+		LogErr "Constants file $__LIS_CONSTANTS_FILE missing or not a regular file. Cannot source it!"
+		SetTestStateAborted
+		UpdateSummary "Error: constants file $__LIS_CONSTANTS_FILE missing or not a regular file. Cannot source it!"
+		return 1
 	fi
 
 	GetDistro && LogMsg "Testscript running on $DISTRO" || LogMsg "Test running on unknown distro!"
