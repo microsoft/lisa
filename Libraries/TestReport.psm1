@@ -446,7 +446,7 @@ Class TestSummary
 		Write-LogInfo "$($global:ResultSkipped) - $($this.TotalSkippedTc)"
 		Write-LogInfo "$($global:ResultFail)    - $($this.TotalFailTc)"
 		Write-LogInfo "$($global:ResultAborted) - $($this.TotalAbortedTc)"
-		Write-LogInfo "$($global:ResultAborted) - $($this.TotalTc - $this.TotalPassTc- $this.TotalSkippedTc - $this.TotalFailTc - $this.TotalAbortedTc)"
+		Write-LogInfo "PENDING - $($this.TotalTc - $this.TotalPassTc- $this.TotalSkippedTc - $this.TotalFailTc - $this.TotalAbortedTc)"
 	}
 
 	[string] GetReproVMDetails($allVMData) {
