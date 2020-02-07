@@ -144,7 +144,6 @@
         </AdditionalHWConfig>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkUtils.sh,.\Testscripts\Linux\build_test_vpp.sh</files>
         <TestParameters>
-            <param>dpdkVersion="VPP_DPDK_VERSION"</param>
             <param>vppSrcLink="VPP_SOURCE_URL"</param>
             <param>vppSrcBranch="VPP_SOURCE_BRANCH"</param>
         </TestParameters>
