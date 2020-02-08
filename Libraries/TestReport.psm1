@@ -441,7 +441,7 @@ Class TestSummary
 			$testResultRow = "<span style='background-color:yellow;font-weight:bolder'>$($global:ResultAborted)</span>"
 			$this.HtmlSummary += $testSummaryLineFailAbort -f @($testResultRow)
 		}
-		Write-LogInfo "End of testing: $($TestData.testName) with result: $(If ($TestResult) {$TestResult} Else {$global:ResultAborted})"
+		Write-LogInfo "End of testing: $($TestData.testName) , result: $(if ($TestResult) {$TestResult} else {$global:ResultAborted})"
 		Write-LogInfo "$($global:ResultPass)    - $($this.TotalPassTc)"
 		Write-LogInfo "$($global:ResultSkipped) - $($this.TotalSkippedTc)"
 		Write-LogInfo "$($global:ResultFail)    - $($this.TotalFailTc)"
