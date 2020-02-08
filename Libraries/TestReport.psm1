@@ -441,11 +441,12 @@ Class TestSummary
 			$testResultRow = "<span style='background-color:yellow;font-weight:bolder'>$($global:ResultAborted)</span>"
 			$this.HtmlSummary += $testSummaryLineFailAbort -f @($testResultRow)
 		}
-
-		Write-LogInfo "CURRENT - $($global:ResultPass)    - $($this.TotalPassTc)"
-		Write-LogInfo "CURRENT - $($global:ResultSkipped) - $($this.TotalSkippedTc)"
-		Write-LogInfo "CURRENT - $($global:ResultFail)    - $($this.TotalFailTc)"
-		Write-LogInfo "CURRENT - $($global:ResultAborted) - $($this.TotalAbortedTc)"
+		Write-LogInfo "End of testing: $($TestData.testName) , result: $(if ($TestResult) {$TestResult} else {$global:ResultAborted})"
+		Write-LogInfo "$($global:ResultPass)    - $($this.TotalPassTc)"
+		Write-LogInfo "$($global:ResultSkipped) - $($this.TotalSkippedTc)"
+		Write-LogInfo "$($global:ResultFail)    - $($this.TotalFailTc)"
+		Write-LogInfo "$($global:ResultAborted) - $($this.TotalAbortedTc)"
+		Write-LogInfo "PENDING - $($this.TotalTc - $this.TotalPassTc- $this.TotalSkippedTc - $this.TotalFailTc - $this.TotalAbortedTc) `n"
 	}
 
 	[string] GetReproVMDetails($allVMData) {
