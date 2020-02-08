@@ -625,9 +625,8 @@ Class TestController
 						$currentTestCase.OverrideVMSize = $multiplexedTestConfig["TestVmSize"]
 						$this.SetupTypeToTestCases[$setupKey][0].OverrideVMSize = $multiplexedTestConfig["TestVmSize"]
 					}
-
-					Write-LogInfo "$($currentTestCase.testName) started running ..."
 					$executionCount += 1
+					Write-LogInfo "($executionCount/$($this.TotalCaseNum)) testing started: $($currentTestCase.testName)"
 					if (!$vmData -or $tcDeployVM) {
 						# Deploy the VM for the setup
 						Write-LogInfo "Deploy target machine for test if required ..."
@@ -673,8 +672,6 @@ Class TestController
 						$this.TestProvider.DeleteVMs($vmData, $this.SetupTypeTable[$setupType], $this.UseExistingRG)
 						$vmData = $null
 					}
-
-					Write-LogInfo "$($currentTestCase.testName) ended running with status: $($lastResult.TestResult)."
 				}
 			}
 
