@@ -54,38 +54,15 @@ function Main {
 		$vm = Add-AzVMDataDisk -VM $vm -Name $dataDiskName -CreateOption Attach -ManagedDiskId $dataDisk1.Id -Lun 1
 
 		Update-AzVM -VM $vm -ResourceGroupName $rgName
-#### move this into bash
-		# fdisk creates a new Linux swap space
-		"n p 1 2048 2147483647 t 82 w" | ForEach-Object {
-			Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "echo ${_} >> /root/keys.txt" -ignoreLinuxExitCode:$true -runAsSudo | Out-Null
-		}
-		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /root/keys.txt | fdisk /dev/sdc" -ignoreLinuxExitCode:$true -runAsSudo | Out-Null
-		# mkswap creates the swap space
-		$mkswap_ret = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "mkswap /dev/sdc1" -ignoreLinuxExitCode:$true -runAsSudo
-		Write-LogDbg "mkswap result: $mkswap_ret"
 
-		# swapon enabled the path
-		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "swapon /dev/sdc1" -ignoreLinuxExitCode:$true -runAsSudo | Out-Null
-		# Get the UUID from the blkid output
-		$blkid_ret = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "blkid" -ignoreLinuxExitCode:$true -runAsSudo
-		Write-LogDbg "blkid result: $blkid_ret"
-
-		$UUID_val = $mkswap_ret.Split(' ')
-		Write-LogInfo "UUID: $UUID_val[12]"
-
-		Add-Content -Value "uuid=$UUID_val[12]" -Path $constantsFile
-		Write-LogInfo "uuid=$UUID_val[12] added to constants.sh"
-
-		Write-LogInfo "constants.sh updated successfully..."
-
-		# Insert a new line in fstab file for permenent disk mounting
-		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "echo '${UUID_val[12]} none swap sw 0 0' >> /etc/fstab" -ignoreLinuxExitCode:$true -runAsSudo | Out-Null
-		#endregion
+		# Wait for disk sync with Azure host
+		Start-Sleep -s 10
 
 		#region Upload files to master VM
 		foreach ($VMData in $AllVMData) {
 			Copy-RemoteFiles -uploadTo $VMData.PublicIP -port $VMData.SSHPort `
 				-files "$constantsFile,$($CurrentTestData.files)" -username $user -password $password -upload -runAsSudo
+				Write-LogInfo "Copied the script files to the VM, $VMData.PublicIP"
 		}
 		#endregion
 
@@ -93,6 +70,7 @@ function Main {
 		# Configuration for the hibernation
 		if ($hb_url -ne "") {
 			Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "/root/SetupHbKernel.sh" -ignoreLinuxExitCode:$true -runAsSudo | Out-Null
+			Write-LogInfo "Executed SetupHbKernel script inside VM"
 
 			# Wait for kernel compilation completion. 20 min timeout
 			$timeout = New-Timespan -Minutes 20
@@ -149,7 +127,7 @@ function Main {
 		}
 
 		# Hibernate the VM
-		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "source /root/test.sh" -ignoreLinuxExitCode:$true -runAsSudo | Out-Null
+		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "sudo ./test.sh" -ignoreLinuxExitCode:$true -runAsSudo | Out-Null
 		Write-LogInfo "Sent hibernate command to the system"
 		Start-Sleep -s 120
 
