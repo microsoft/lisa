@@ -23,9 +23,9 @@ function Main {
 		$testResult = "FAIL"
 		Write-LogDbg "Prepare swap space for VM $($AllVMData.RoleName) in RG $($AllVMData.ResourceGroupName)."
 		# Prepare the swap space in the target VM
-		$rgName = $(AllVMData.ResourceGroupName)
-		$vmName = $($AllVMData.RoleName)
-		$location = $($AllVMData.Location)
+		$rgName = $AllVMData.ResourceGroupName
+		$vmName = $AllVMData.RoleName
+		$location = $AllVMData.Location
 		$storageType = 'StandardSSD_LRS'
 		$dataDiskName = $vmName + '_datadisk1'
 
@@ -39,16 +39,9 @@ function Main {
 			Add-Content -Value "$TestParam" -Path $constantsFile
 			Write-LogInfo "$TestParam added to constants.sh"
 			if ($TestParam -imatch "hb_url") {
-				$hb_url = [int]($TestParam.Replace("hb_url=", "").Trim('"'))
-			}
-			if ($TestParam -imatch "hb_branch") {
-				$hb_branch = [int]($TestParam.Replace("hb_branch=", "").Trim('"'))
+				$hb_url = $TestParam
 			}
 		}
-		Add-Content -Value "hb_url=$hb_url" -Path $constantsFile
-		Write-LogInfo "hb_url=$hb_url added to constants.sh"
-		Add-Content -Value "hb_branch=$hb_branch" -Path $constantsFile
-		Write-LogInfo "hb_branch=$hb_branch added to constants.sh"
 
 		Write-LogInfo "constants.sh created successfully..."
 		#endregion
@@ -61,7 +54,7 @@ function Main {
 		$vm = Add-AzVMDataDisk -VM $vm -Name $dataDiskName -CreateOption Attach -ManagedDiskId $dataDisk1.Id -Lun 1
 
 		Update-AzVM -VM $vm -ResourceGroupName $rgName
-
+#### move this into bash
 		# fdisk creates a new Linux swap space
 		"n p 1 2048 2147483647 t 82 w" | ForEach-Object {
 			Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "echo ${_} >> /root/keys.txt" -ignoreLinuxExitCode:$true -runAsSudo | Out-Null
@@ -78,7 +71,7 @@ function Main {
 		Write-LogDbg "blkid result: $blkid_ret"
 
 		$UUID_val = $mkswap_ret.Split(' ')
-		Write-LogMsg "UUID: $UUID_val[12]"
+		Write-LogInfo "UUID: $UUID_val[12]"
 
 		Add-Content -Value "uuid=$UUID_val[12]" -Path $constantsFile
 		Write-LogInfo "uuid=$UUID_val[12] added to constants.sh"
