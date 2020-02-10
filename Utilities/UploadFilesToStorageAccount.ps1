@@ -32,7 +32,9 @@ param
     $destinationStorageKey
 )
 
-Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
+if (-not (Test-Path -Path Function:\Write-LogInfo)) {
+    Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
+}
 
 try {
     if (![string]::IsNullOrEmpty($destinationStorageKey)) {

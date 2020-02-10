@@ -24,7 +24,7 @@ function Main {
             $allDiskNames += $diskName
             if ($storageProfile.OsDisk.ManagedDisk) {
                 # Add managed data disks
-                $storageType = 'Premium_LRS'
+                $storageType = $TestParams.DiskSku
                 $diskConfig = New-AzDiskConfig -SkuName $storageType -Location $AllVMData.Location -CreateOption Empty -DiskSizeGB $diskSizeinGB
                 $dataDisk = New-AzDisk -DiskName $diskName -Disk $diskConfig -ResourceGroupName $AllVMData.ResourceGroupName
                 Add-AzVMDataDisk -VM $virtualMachine -Name $diskName -CreateOption Attach -ManagedDiskId $dataDisk.Id -Lun ($count-1) | Out-Null

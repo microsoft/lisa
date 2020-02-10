@@ -283,7 +283,7 @@ Function Copy-RemoteFiles($uploadTo, $downloadFrom, $downloadTo, $port, $files, 
 Function Wrap-CommandsToFile([string] $username,[string] $password,[string] $ip,[string] $command, [int] $port)
 {
 	if ( ( $lastLinuxCmd -eq $command) -and ($lastIP -eq $ip) -and ($lastPort -eq $port) `
-		-and ($lastUser -eq $username) -and ($TestPlatform -ne "HyperV")) {
+		-and ($lastUser -eq $username) -and ($TestPlatform -eq "Azure")) {
 		#Skip upload if current command is same as last command.
 	} else {
 		Set-Variable -Name lastLinuxCmd -Value $command -Scope Global

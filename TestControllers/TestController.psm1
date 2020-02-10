@@ -523,12 +523,14 @@ Class TestController
 		try {
 			Write-LogInfo "==> Check if the test target machines are still running."
 			$isVmAlive = Is-VmAlive -AllVMDataObject $VMData -MaxRetryCount 10
-			if (!$global:IsWindowsImage -and $testParameters["SkipVerifyKernelLogs"] -ne "True" -and $isVmAlive -eq "True" ) {
-				$ret = $this.GetAndCompareOsLogs($VmData, "Final")
-				if (($testParameters["FailForLogCheck"] -eq "True") -and ($ret -eq $false) -and ($currentTestResult.TestResult -eq $global:ResultPass)) {
-					$currentTestResult.TestResult = $global:ResultFail
-					Write-LogErr "Test $($CurrentTestData.TestName) fails for log check"
-					$currentTestResult.testSummary += New-ResultSummary -testResult "Test fails for log check"
+			if (!$global:IsWindowsImage -and $isVmAlive -eq "True" ) {
+				if ($testParameters["SkipVerifyKernelLogs"] -ne "True") {
+					$ret = $this.GetAndCompareOsLogs($VmData, "Final")
+					if (($testParameters["FailForLogCheck"] -eq "True") -and ($ret -eq $false) -and ($currentTestResult.TestResult -eq $global:ResultPass)) {
+						$currentTestResult.TestResult = $global:ResultFail
+						Write-LogErr "Test $($CurrentTestData.TestName) fails for log check"
+						$currentTestResult.testSummary += New-ResultSummary -testResult "Test fails for log check"
+					}
 				}
 				$this.GetSystemBasicLogs($VmData, $global:user, $global:password, $CurrentTestData, $currentTestResult, $this.EnableTelemetry) | Out-Null
 			}
@@ -625,9 +627,8 @@ Class TestController
 						$currentTestCase.OverrideVMSize = $multiplexedTestConfig["TestVmSize"]
 						$this.SetupTypeToTestCases[$setupKey][0].OverrideVMSize = $multiplexedTestConfig["TestVmSize"]
 					}
-
-					Write-LogInfo "$($currentTestCase.testName) started running ..."
 					$executionCount += 1
+					Write-LogInfo "($executionCount/$($this.TotalCaseNum)) testing started: $($currentTestCase.testName)"
 					if (!$vmData -or $tcDeployVM) {
 						# Deploy the VM for the setup
 						Write-LogInfo "Deploy target machine for test if required ..."
@@ -673,8 +674,6 @@ Class TestController
 						$this.TestProvider.DeleteVMs($vmData, $this.SetupTypeTable[$setupType], $this.UseExistingRG)
 						$vmData = $null
 					}
-
-					Write-LogInfo "$($currentTestCase.testName) ended running with status: $($lastResult.TestResult)."
 				}
 			}
 

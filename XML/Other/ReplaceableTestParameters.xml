@@ -625,4 +625,8 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceWith>decui/hibernation/2020-0127/upstream-linus/v5.5</ReplaceWith>
 	</Parameter>
 
+	<Parameter>
+		<ReplaceThis>DATA_DISK_SKU</ReplaceThis>
+		<ReplaceWith>Premium_LRS</ReplaceWith>
+	</Parameter>
 </ReplaceableTestParameters>
