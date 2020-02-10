@@ -237,6 +237,30 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
          .\Run-LisaV2.ps1 -TestPlatform "Ready" -RGIdentifier "10.100.100.100:1111;10.100.100.100:1112" -TestNames "<Test cases separated by comma>" -XMLSecretFile "E:\AzureCredential.xml" [-EnableTelemetry]
          ```
 
+      7. `-TestNames` example:
+
+         You can provide comma-separated test names that are matched as regular
+         expressions against the test names available in XML files.
+
+         ```powershell
+         # Comma-separated exact matches.
+         $testNames = "VERIFY-BOOT-ERROR-WARNINGS,PERF-GOLANG-BENCHMARK"
+
+         # Regex to match all tests.
+         $testNames = ".*"
+
+         # Regex to match all tests starting with `PERF-`
+         $testNames = "PERF-.*"
+
+         # Regex to match all tests starting with either "PERF-" or "VERIFY-"
+         $testNames = "(PERF-.*)|(VERIFY-.*)"
+
+         # Note that the strings have `$` appended automatically, so susbtrings do not match.
+         $testNames = "PERF-" # No matches! Same as "PERF-$"
+
+         .\Run-LisaV2.ps1 -TestNames $testNames -TestPlatform WSL -TestLocation "localhost" -RGIdentifier 'ubuntuwsl' -OsVHD 'https://aka.ms/wsl-ubuntu-1804' -DestinationOsVHDPath "D:\test"
+         ```
+
    2. Provide parameters in .\XML\TestParameters.xml.
 
          ```powershell
