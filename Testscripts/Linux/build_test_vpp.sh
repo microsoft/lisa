@@ -78,21 +78,15 @@ function build_test_vpp () {
 	ssh "${1}" "cd ${VPP_DIR} && sed -i '/vpp_uses_dpdk_mlx5_pmd/s/^# //g' build-data/platforms/vpp.mk"
 	ssh "${1}" "cd ${VPP_DIR} && sed -i '/vpp_uses_dpdk_mlx4_pmd/s/^# //g' build-data/platforms/vpp.mk"
 
-	# VPP 18.10 or higher is supported for Azure
-	# VPP 19.04 or higher supports 18.11 or 19.02 dpdkVersion
-	# VPP 19.01 supports 18.08 or 18.11 dpdkVersion
-	# VPP 18.10 supports 18.05 or 18.08 dpdkVersion
-	ssh "${1}" "cd ${VPP_DIR} && make pkg-${package_type} DPDK_VERSION=${dpdkVersion} vpp_uses_dpdk_mlx4_pmd=yes vpp_uses_dpdk_mlx5_pmd=yes DPDK_MLX4_PMD=y DPDK_MLX5_PMD=y DPDK_MLX5_PMD_DLOPEN_DEPS=y"
-	check_exit_status "make -j pkg-{package_type} DPDK_MLX5_PMD=y DPDK_MLX4_PMD=y DPDK_MLX5_PMD_DLOPEN_DEPS=y on ${1}" "exit"
+	ssh "${1}" "cd ${VPP_DIR} && make pkg-${package_type} vpp_uses_dpdk_mlx4_pmd=yes vpp_uses_dpdk_mlx5_pmd=yes DPDK_MLX4_PMD=y DPDK_MLX5_PMD=y DPDK_MLX5_PMD_DLOPEN_DEPS=y DPDK_MLX4_PMD_DLOPEN_DEPS=y"
+	check_exit_status "make pkg-${package_type} vpp_uses_dpdk_mlx4_pmd=yes vpp_uses_dpdk_mlx5_pmd=yes DPDK_MLX4_PMD=y DPDK_MLX5_PMD=y DPDK_MLX5_PMD_DLOPEN_DEPS=y DPDK_MLX4_PMD_DLOPEN_DEPS=y on ${1}" "exit"
 
 	prepare_install_command=". ${UTIL_FILE} && CheckInstallLockUbuntu && cd ${VPP_DIR} && ${package_manager} ${package_manager_install_flags}"
-	ssh "${1}" "${prepare_install_command} build-root/vpp-sel*.${package_type}"
-	ssh "${1}" "${prepare_install_command} build-root/vpp-lib*.${package_type}"
-	ssh "${1}" "${prepare_install_command} build-root/vpp-18*.${package_type}"
-	ssh "${1}" "${prepare_install_command} build-root/vpp-19*.${package_type}"
-	ssh "${1}" "${prepare_install_command} build-root/vpp_*.${package_type}"
-	ssh "${1}" "${prepare_install_command} build-root/vpp-plug*.${package_type}"
-	check_exit_status "${package_manager} install packages on ${1}" "exit"
+	ssh "${1}" "${prepare_install_command} build-root/*.${package_type}"
+	if [[ $DISTRO_NAME = "ubuntu" ]]; then
+		ssh "${1}" "apt --fix-broken -y install"
+	fi
+	check_exit_status "${prepare_install_command} build-root/*.${package_type} on ${1}" "exit"
 
 	ssh "${1}" "modprobe uio_hv_generic"
 	check_exit_status "modprobe uio_hv_generic on ${1}" "exit"
@@ -113,7 +107,7 @@ function build_test_vpp () {
 	sleep 10
 
 	# VPP Azure interfaces show as fortygigabit interfaces
-	vpp_hardware=$(ssh "${1}" vppctl show int | grep -iv 'local' | grep -i 'fortygigabit')
+	vpp_hardware=$(ssh "${1}" vppctl show int | grep -iv 'local' | grep -i 'GigabitEthernet')
 	if [[ "${vpp_hardware}" != "" ]]; then
 		LogMsg "VPP interfaces found: ${vpp_hardware[@]}"
 		SetTestStateCompleted
