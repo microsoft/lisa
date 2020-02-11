@@ -59,6 +59,9 @@ function Start-Validation {
     #endregion
 
     #region lspci
+    Write-LogInfo "Install package pciutils to use lspci command."
+    Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $user -password $password `
+            -command "which lspci || (. ./utils.sh && install_package pciutils)" -runAsSudo -ignoreLinuxExitCode | Out-Null
     $lspci = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort `
         -username $superuser -password $password "lspci" -ignoreLinuxExitCode
 
@@ -217,6 +220,8 @@ function Main {
 
             if (-not $sts) {
                 # Download and install the latest LIS version
+                Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser -password $password `
+                    -command "which wget || (. ./utils.sh && install_package wget)" -runAsSudo -ignoreLinuxExitCode | Out-Null
                 Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
                     -password $password -command "wget -q https://aka.ms/lis -O - | tar -xz" -ignoreLinuxExitCode | Out-Null
                 Write-Debug "Installed the latest LIS package"
