@@ -137,8 +137,8 @@ function Main {
 
 		# Resume the VM
 		Start-AzVM -Name $vmName -ResourceGroupName $rgName -NoWait | Out-Null
-		Write-LogInfo "Waked up the VM $vmName in Resource Group $rgName and waiting 120 seconds"
-		Start-Sleep -s 120
+		Write-LogInfo "Waked up the VM $vmName in Resource Group $rgName and waiting 180 seconds"
+		Start-Sleep -s 180
 
 		#Verify the VM status after power on event
 		$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status

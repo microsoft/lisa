@@ -25,7 +25,7 @@ function Main() {
 	update_repos
 
 	# Install common packages
-	req_pkg="gcc make flex bison git build-essential fakeroot libncurses5-dev libssl-dev ccache"
+	req_pkg="gcc make flex bison git libncurses5-dev libssl-dev ccache"
 	install_package $req_pkg
 	LogMsg "$?: Installed the common required packages; $req_pkg"
 
@@ -33,13 +33,13 @@ function Main() {
 
 	case $DISTRO in
 		redhat_7|centos_7|redhat_8|centos_8)
+			req_pkg="elfutils-libelf-devel"	
 			;;
 		suse*|sles*)
 			req_pkg="ncurses-devel libelf-dev"
-			install_package $req_pkg
-			LogMsg "$?: Installed required packages, $req_pkg"
 			;;
 		ubuntu*)
+			req_pkg="build-essential fakeroot"
 			;;
 		*)
 			LogErr "$DISTRO does not support hibernation"
@@ -47,6 +47,8 @@ function Main() {
 			exit 0
 			;;
 	esac
+	install_package $req_pkg
+	LogMsg "$?: Installed required packages, $req_pkg"
 
 	# Prepare swap space
 	for key in n p 1 2048 '' t 82 p w
