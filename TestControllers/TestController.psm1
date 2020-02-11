@@ -699,7 +699,7 @@ Class TestController
 		# Start JUnit XML report logger.
 		$this.JunitReport = [JUnitReportGenerator]::New($TestReportXmlPath)
 		$this.JunitReport.StartLogTestSuite("LISAv2Test-$($this.TestPlatform)")
-		$this.TestSummary = [TestSummary]::New($this.TestCategory, $this.TestArea, $this.TestName, $this.TestTag, $this.TestPriority, $this.TotalCaseNum)
+		$this.TestSummary = [TestSummary]::New($this.TestCategory, $this.TestArea, $this.TestNames, $this.TestTag, $this.TestPriority, $this.TotalCaseNum)
 
 		if (!$RunInParallel) {
 			$this.RunTestCasesInSequence($TestIterations)
