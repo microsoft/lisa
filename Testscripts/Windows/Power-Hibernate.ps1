@@ -20,7 +20,7 @@ function Main {
 	param($AllVMData, $TestParams)
 	$currentTestResult = Create-TestResultObject
 	try {
-		$testResult = "FAIL"
+		$testResult = $resultFail
 		Write-LogDbg "Prepare swap space for VM $($AllVMData.RoleName) in RG $($AllVMData.ResourceGroupName)."
 		# Prepare the swap space in the target VM
 		$rgName = $AllVMData.ResourceGroupName
@@ -77,7 +77,6 @@ function Main {
 			$sw = [diagnostics.stopwatch]::StartNew()
 			while ($sw.elapsed -lt $timeout){
 				$vmCount = $AllVMData.Count
-				Write-LogDbg "Found $vmCount VMs"
 				
 				Wait-Time -seconds 15
 				$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat ~/state.txt"
@@ -102,7 +101,7 @@ function Main {
 					Write-LogInfo "SetupHbKernel.sh is still running in the VM!"
 				}
 			}
-			if ($vmCount -eq 0){
+			if ($vmCount -le 0){
 				Write-LogInfo "SetupHbKernel.sh is done"
 			} else {
 				Throw "SetupHbKernel.sh didn't finish in the VM!"
@@ -124,13 +123,13 @@ function Main {
 
 		# Hibernate the VM
 		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "sudo ~/test.sh" -ignoreLinuxExitCode:$true | Out-Null
-		Write-LogInfo "Sent hibernate command to the system"
+		Write-LogInfo "Sent hibernate command to the VM"
 		Start-Sleep -s 120
 
 		# Verify the VM status
 		$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
 		if ($vmStatus.Statuses[1].DisplayStatus = "VM stopped") {
-			Write-LogInfo "$vmStatus.Statuses[1].DisplayStatus: Verified VM status is running after hibernation command sent"
+			Write-LogInfo "$vmStatus.Statuses[1].DisplayStatus: Verified VM status is stopped after hibernation command sent"
 		} else {
 			Write-LogInfo "$vmStatus.Statuses[1].DisplayStatus: Could not find the VM status after hibernation command sent"
 			throw "Can not identify VM ststus after hibernate"
@@ -138,15 +137,15 @@ function Main {
 
 		# Resume the VM
 		Start-AzVM -Name $vmName -ResourceGroupName $rgName -NoWait | Out-Null
-		Write-LogInfo "Waked up the VM $vmName in Resource Group $rgName"
+		Write-LogInfo "Waked up the VM $vmName in Resource Group $rgName and waiting 120 seconds"
 		Start-Sleep -s 120
 
 		#Verify the VM status after power on event
 		$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
 		if ($vmStatus.Statuses[1].DisplayStatus = "VM running") {
-			Write-LogInfo "$vmStatus.Statuses[1].DisplayStatus: Verified VM status is running before resuming"
+			Write-LogInfo "$vmStatus.Statuses[1].DisplayStatus: Verified VM status is running after resuming"
 		} else {
-			Write-LogInfo "$vmStatus.Statuses[1].DisplayStatus: Could not find the VM status before resuming"
+			Write-LogInfo "$vmStatus.Statuses[1].DisplayStatus: Could not find the VM status after resuming"
 			throw "Can not identify VM status after resuming"
 		}
 
@@ -157,9 +156,9 @@ function Main {
 			Write-LogInfo "Found Call Trace in dmesg"
 			throw "Call trace in dmesg"
 		} else {
-			Write-LogInfo "Not found call trace in dmesg"
+			Write-LogInfo "Not found Call Trace in dmesg"
 		}
-
+		$testResult = $resultPass
 	} catch {
 		$ErrorMessage =  $_.Exception.Message
 		$ErrorLine = $_.InvocationInfo.ScriptLineNumber
