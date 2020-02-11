@@ -69,47 +69,43 @@ function Main {
 		# Run kernel compilation if defined
 		# Configuration for the hibernation
 		if ($hb_url -ne "") {
-			Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "sudo ./SetupHbKernel.sh" -ignoreLinuxExitCode:$true | Out-Null
+			Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./SetupHbKernel.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
 			Write-LogInfo "Executed SetupHbKernel script inside VM"
 
 			# Wait for kernel compilation completion. 20 min timeout
-			$timeout = New-Timespan -Minutes 20
+			$timeout = New-Timespan -Minutes 30
 			$sw = [diagnostics.stopwatch]::StartNew()
 			while ($sw.elapsed -lt $timeout){
 				$vmCount = $AllVMData.Count
-				foreach ($VMData in $AllVMData) {
-					Wait-Time -seconds 15
-					$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat ./state.txt"
-					if ($state -eq "TestCompleted") {
-						$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat ./constants.sh | grep setup_completed=0"
-						if ($kernelCompileCompleted -ne "setup_completed=0") {
-							Throw "SetupHbKernel.sh run finished on $($VMData.RoleName) but setup was not successful!"
-						}
+				Write-LogDbg "Found $vmCount VMs"
+				
+				Wait-Time -seconds 15
+				$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat ~/state.txt"
+				if ($state -eq "TestCompleted") {
+					$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat ~/constants.sh | grep setup_completed=0"
+					if ($kernelCompileCompleted -ne "setup_completed=0") {
+						Write-LogErr "SetupHbKernel.sh run finished on $($VMData.RoleName) but setup was not successful!"
+					} else {
 						Write-LogInfo "SetupHbKernel.sh finished on $($VMData.RoleName)"
 						$vmCount--
 					}
-
-					if ($state -eq "TestSkipped") {
-						Write-LogInfo "SetupHbKernel.sh finished with SKIPPED state!"
-						$testResult = "SKIPPED"
-						return "SKIPPED"
-					}
-
-					if (($state -eq "TestFailed") -or ($state -eq "TestAborted")) {
-						Write-LogErr "SetupHbKernel.sh didn't finish successfully!"
-						$testResult = $resultAborted
-						return $resultAborted
-					}
-				}
-				if ($vmCount -eq 0){
 					break
+				} elseif ($state -eq "TestSkipped") {
+					Write-LogInfo "SetupHbKernel.sh finished with SKIPPED state!"
+					$testResult = $resultSkipped
+					return $testResult
+				} elseif (($state -eq "TestFailed") -or ($state -eq "TestAborted")) {
+					Write-LogErr "SetupHbKernel.sh didn't finish successfully!"
+					$testResult = $resultAborted
+					return $testResult
+				} else {
+					Write-LogInfo "SetupHbKernel.sh is still running in the VM!"
 				}
-				Write-LogInfo "SetupHbKernel.sh is still running on $vmCount VM(s)!"
 			}
 			if ($vmCount -eq 0){
 				Write-LogInfo "SetupHbKernel.sh is done"
 			} else {
-				Throw "SetupHbKernel.sh didn't finish at least on one VM!"
+				Throw "SetupHbKernel.sh didn't finish in the VM!"
 			}
 		}
 
@@ -127,7 +123,7 @@ function Main {
 		}
 
 		# Hibernate the VM
-		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "sudo ./test.sh" -ignoreLinuxExitCode:$true | Out-Null
+		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "sudo ~/test.sh" -ignoreLinuxExitCode:$true | Out-Null
 		Write-LogInfo "Sent hibernate command to the system"
 		Start-Sleep -s 120
 

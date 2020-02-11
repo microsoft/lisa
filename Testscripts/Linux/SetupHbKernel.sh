@@ -120,8 +120,10 @@ function Main() {
 }
 
 # main body
+LogMsg "Start time: $date"
 Main
 cp ~/TestExecution.log ~/Setup-TestExecution.log
 cp ~/TestExecutionError.log ~/Setup-TestExecutionError.log
 SetTestStateCompleted
+LogMsg "End time: $date"
 exit 0
