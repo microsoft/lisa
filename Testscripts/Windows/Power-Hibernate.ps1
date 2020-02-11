@@ -61,15 +61,15 @@ function Main {
 		#region Upload files to master VM
 		foreach ($VMData in $AllVMData) {
 			Copy-RemoteFiles -uploadTo $VMData.PublicIP -port $VMData.SSHPort `
-				-files "$constantsFile,$($CurrentTestData.files)" -username $user -password $password -upload -runAsSudo
-				Write-LogInfo "Copied the script files to the VM, $VMData.PublicIP"
+				-files "$constantsFile,$($CurrentTestData.files)" -username $user -password $password -upload
+				Write-LogInfo "Copied the script files to the VM"
 		}
 		#endregion
 
 		# Run kernel compilation if defined
 		# Configuration for the hibernation
 		if ($hb_url -ne "") {
-			Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "/root/SetupHbKernel.sh" -ignoreLinuxExitCode:$true -runAsSudo | Out-Null
+			Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "sudo ./SetupHbKernel.sh" -ignoreLinuxExitCode:$true | Out-Null
 			Write-LogInfo "Executed SetupHbKernel script inside VM"
 
 			# Wait for kernel compilation completion. 20 min timeout
@@ -79,9 +79,9 @@ function Main {
 				$vmCount = $AllVMData.Count
 				foreach ($VMData in $AllVMData) {
 					Wait-Time -seconds 15
-					$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat /root/state.txt" -runAsSudo
+					$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat ./state.txt"
 					if ($state -eq "TestCompleted") {
-						$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat /root/constants.sh | grep setup_completed=0" -runAsSudo
+						$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat ./constants.sh | grep setup_completed=0"
 						if ($kernelCompileCompleted -ne "setup_completed=0") {
 							Throw "SetupHbKernel.sh run finished on $($VMData.RoleName) but setup was not successful!"
 						}
@@ -127,7 +127,7 @@ function Main {
 		}
 
 		# Hibernate the VM
-		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "sudo ./test.sh" -ignoreLinuxExitCode:$true -runAsSudo | Out-Null
+		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "sudo ./test.sh" -ignoreLinuxExitCode:$true | Out-Null
 		Write-LogInfo "Sent hibernate command to the system"
 		Start-Sleep -s 120
 
@@ -155,7 +155,7 @@ function Main {
 		}
 
 		# Verify the kernel panic or call trace
-		$calltrace_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg | grep -i 'call trace'" -ignoreLinuxExitCode:$true -runAsSudo
+		$calltrace_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg | grep -i 'call trace'" -ignoreLinuxExitCode:$true
 
 		if ($calltrace_filter -ne "") {
 			Write-LogInfo "Found Call Trace in dmesg"
