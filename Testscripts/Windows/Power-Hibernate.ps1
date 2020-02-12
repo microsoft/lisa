@@ -69,7 +69,7 @@ function Main {
 		# Run kernel compilation if defined
 		# Configuration for the hibernation
 		if ($hb_url -ne "") {
-			Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./SetupHbKernel.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+			Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "~/SetupHbKernel.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
 			Write-LogInfo "Executed SetupHbKernel script inside VM"
 
 			# Wait for kernel compilation completion. 20 min timeout
@@ -77,7 +77,6 @@ function Main {
 			$sw = [diagnostics.stopwatch]::StartNew()
 			while ($sw.elapsed -lt $timeout){
 				$vmCount = $AllVMData.Count
-				
 				Wait-Time -seconds 15
 				$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat ~/state.txt"
 				if ($state -eq "TestCompleted") {

@@ -33,7 +33,7 @@ function Main() {
 
 	case $DISTRO in
 		redhat_7|centos_7|redhat_8|centos_8)
-			req_pkg="elfutils-libelf-devel"	
+			req_pkg="elfutils-libelf-devel ncurses-devel bc elfutils-libelf-devel openssl-devel grub2"
 			;;
 		suse*|sles*)
 			req_pkg="ncurses-devel libelf-dev"
