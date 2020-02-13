@@ -59,25 +59,31 @@ function Main() {
 
 	sudo cat ~/keys.txt | sudo fdisk /dev/sdc
 	LogMsg "$?: Executed fdisk command"
+	ret=$(sudo ls /dev/sd*)
+	LogMsg "$?: List out /dev/sd* - $ret"
 
 	sudo mkswap /dev/sdc1
-	LogMsg "Made the swap space"
+	LogMsg "$?: Set up the swap space"
 
 	sudo swapon /dev/sdc1
-	LogMsg "Enabled the swap space"
+	LogMsg "$?: Enabled the swap space"
+	ret=$(swapon -s)
+	LogMsg "$?: Show the swap on information - $ret"
 
 	sw_uuid=$(blkid | grep -i sw | awk '{print $2}' | tr -d " " | sed 's/"//g')
-	LogMsg "Found the Swap space disk UUID: $sw_uuid"
+	LogMsg "$?: Found the Swap space disk UUID: $sw_uuid"
 
 	sudo chmod 766 /etc/fstab
 
 	sudo echo $sw_uuid none swap sw 0 0 >> /etc/fstab
-	LogMsg "Updated /etc/fstab file with swap uuid information"
+	LogMsg "$?: Updated /etc/fstab file with swap uuid information"
+	ret=$(cat /etc/fstab)
+	LogMsg "$?: Displayed the contents in /etc/fstab"
 
 	# Start kernel compilation
-	LogMsg "Clone and compile new kernel from $hb_url to /usr/src"
-	git clone $hb_url /usr/src/
-	LogMsg "$?: Cloned the kernel source repo in /usr/src/"
+	LogMsg "Clone and compile new kernel from $hb_url to /usr/src/linux"
+	git clone $hb_url /usr/src/linux
+	LogMsg "$?: Cloned the kernel source repo in /usr/src/linux"
 
 	cd /usr/src/linux/
 
@@ -113,6 +119,10 @@ function Main() {
 
 	cd
 
+	# Append the test log to the main log files.
+	cat /usr/src/linux/TestExecution.log >> ~/TestExecution.log
+	cat /usrsrc/linux/TestExecutionError.log >> ~/TestExecutionError.log
+
 	LogMsg "Setting hibernate command to test.sh"
 	echo 'echo disk > /sys/power/state' > ~/test.sh
 	chmod 766 ~/test.sh
@@ -122,10 +132,10 @@ function Main() {
 }
 
 # main body
-LogMsg "Start time: $date"
+LogMsg "Start time: $(date)"
 Main
 cp ~/TestExecution.log ~/Setup-TestExecution.log
 cp ~/TestExecutionError.log ~/Setup-TestExecutionError.log
 SetTestStateCompleted
-LogMsg "End time: $date"
+LogMsg "End time: $(date)"
 exit 0
