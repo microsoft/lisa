@@ -9,6 +9,9 @@
 			<param>hb_url=Hb_CustomKernelURL</param>
 			<param>hb_branch=Hb_CustomKernelBranch</param>
 		</TestParameters>
+		<AdditionalHWConfig>
+			<DiskType>Managed</DiskType>
+		</AdditionalHWConfig>
 		<Platform>Azure</Platform>
 		<Category>Functional</Category>
 		<Area>POWER</Area>
