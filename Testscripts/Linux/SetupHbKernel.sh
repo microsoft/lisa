@@ -25,7 +25,7 @@ function Main() {
 	update_repos
 
 	# Install common packages
-	req_pkg="gcc make flex bison git libncurses5-dev libssl-dev ccache"
+	req_pkg="gcc make flex bison git"
 	install_package $req_pkg
 	LogMsg "$?: Installed the common required packages; $req_pkg"
 
@@ -39,7 +39,7 @@ function Main() {
 			req_pkg="ncurses-devel libelf-dev"
 			;;
 		ubuntu*)
-			req_pkg="build-essential fakeroot"
+			req_pkg="build-essential fakeroot libncurses5-dev libssl-dev ccache"
 			;;
 		*)
 			LogErr "$DISTRO does not support hibernation"

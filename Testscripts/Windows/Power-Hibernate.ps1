@@ -51,12 +51,15 @@ function Main {
 		$dataDisk1 = New-AzDisk -DiskName $dataDiskName -Disk $diskConfig -ResourceGroupName $rgName
 
 		$vm = Get-AzVM -Name $vmName -ResourceGroupName $rgName
+		Start-Sleep -s 30
 		$vm = Add-AzVMDataDisk -VM $vm -Name $dataDiskName -CreateOption Attach -ManagedDiskId $dataDisk1.Id -Lun 1
-
+		Start-Sleep -s 30
+		
 		Update-AzVM -VM $vm -ResourceGroupName $rgName
-
+		Write-LogInfo "Updated the VM with a new data disk"
+		Write-LogInfo "Waiting for 30 seconds for configuration sync"
 		# Wait for disk sync with Azure host
-		Start-Sleep -s 10
+		Start-Sleep -s 30
 
 		#region Upload files to master VM
 		foreach ($VMData in $AllVMData) {
@@ -69,11 +72,11 @@ function Main {
 		# Run kernel compilation if defined
 		# Configuration for the hibernation
 		if ($hb_url -ne "") {
-			Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "~/SetupHbKernel.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+			Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./SetupHbKernel.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
 			Write-LogInfo "Executed SetupHbKernel script inside VM"
 
-			# Wait for kernel compilation completion. 20 min timeout
-			$timeout = New-Timespan -Minutes 30
+			# Wait for kernel compilation completion. 60 min timeout
+			$timeout = New-Timespan -Minutes 60
 			$sw = [diagnostics.stopwatch]::StartNew()
 			while ($sw.elapsed -lt $timeout){
 				$vmCount = $AllVMData.Count
