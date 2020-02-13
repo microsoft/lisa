@@ -75,16 +75,16 @@ function Main() {
 	LogMsg "Updated /etc/fstab file with swap uuid information"
 
 	# Start kernel compilation
-	LogMsg "Clone and compile new kernel from $hb_url"
-	git clone $hb_url
-	LogMsg "$?: Cloned the kernel source repo"
+	LogMsg "Clone and compile new kernel from $hb_url to /usr/src"
+	git clone $hb_url /usr/src/
+	LogMsg "$?: Cloned the kernel source repo in /usr/src/"
 
-	cd linux
+	cd /usr/src/linux/
 
 	git checkout $hb_branch
 	LogMsg "$?: Changed to $hb_branch"
 
-	cp /boot/config*-azure ./.config
+	cp /boot/config*-azure /usr/src/linux/.config
 	LogMsg "$?: Copied the default config file from /boot"
 
 	yes '' | make oldconfig

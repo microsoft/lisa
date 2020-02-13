@@ -54,7 +54,7 @@ function Main {
 		Start-Sleep -s 30
 		$vm = Add-AzVMDataDisk -VM $vm -Name $dataDiskName -CreateOption Attach -ManagedDiskId $dataDisk1.Id -Lun 1
 		Start-Sleep -s 30
-		
+
 		Update-AzVM -VM $vm -ResourceGroupName $rgName
 		Write-LogInfo "Updated the VM with a new data disk"
 		Write-LogInfo "Waiting for 30 seconds for configuration sync"
