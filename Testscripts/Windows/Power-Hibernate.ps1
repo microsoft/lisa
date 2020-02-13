@@ -63,8 +63,7 @@ function Main {
 
 		#region Upload files to master VM
 		foreach ($VMData in $AllVMData) {
-			Copy-RemoteFiles -uploadTo $VMData.PublicIP -port $VMData.SSHPort `
-				-files "$constantsFile,$($CurrentTestData.files)" -username $user -password $password -upload
+			Copy-RemoteFiles -uploadTo $VMData.PublicIP -port $VMData.SSHPort -files "$constantsFile,$($CurrentTestData.files)" -username $user -password $password -upload
 				Write-LogInfo "Copied the script files to the VM"
 		}
 		#endregion
@@ -117,7 +116,7 @@ function Main {
 		# Check the VM status before hibernation
 		$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
 		if ($vmStatus.Statuses[1].DisplayStatus = "VM running") {
-			Write-LogInfo "$vmStatus.Statuses[1].DisplayStatus: Verified VM status is running before hibernation"
+			Write-LogInfo "$vmStatus.Statuses[1].DisplayStatus: Verified successfully VM status is running before hibernation"
 		} else {
 			Write-LogErr "$vmStatus.Statuses[1].DisplayStatus: Could not find the VM status before hibernation"
 			throw "Can not identify VM status before hibernate"
@@ -131,9 +130,9 @@ function Main {
 		# Verify the VM status
 		$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
 		if ($vmStatus.Statuses[1].DisplayStatus = "VM stopped") {
-			Write-LogInfo "$vmStatus.Statuses[1].DisplayStatus: Verified VM status is stopped after hibernation command sent"
+			Write-LogInfo "$vmStatus.Statuses[1].DisplayStatus: Verified successfully VM status is stopped after hibernation command sent"
 		} else {
-			Write-LogInfo "$vmStatus.Statuses[1].DisplayStatus: Could not find the VM status after hibernation command sent"
+			Write-LogErr "$vmStatus.Statuses[1].DisplayStatus: Could not find the VM status after hibernation command sent"
 			throw "Can not identify VM ststus after hibernate"
 		}
 
@@ -145,9 +144,9 @@ function Main {
 		#Verify the VM status after power on event
 		$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
 		if ($vmStatus.Statuses[1].DisplayStatus = "VM running") {
-			Write-LogInfo "$vmStatus.Statuses[1].DisplayStatus: Verified VM status is running after resuming"
+			Write-LogInfo "$vmStatus.Statuses[1].DisplayStatus: Verified successfully VM status is running after resuming"
 		} else {
-			Write-LogInfo "$vmStatus.Statuses[1].DisplayStatus: Could not find the VM status after resuming"
+			Write-LogErr "$vmStatus.Statuses[1].DisplayStatus: Could not find the VM status after resuming"
 			throw "Can not identify VM status after resuming"
 		}
 
@@ -155,11 +154,23 @@ function Main {
 		$calltrace_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg | grep -i 'call trace'" -ignoreLinuxExitCode:$true
 
 		if ($calltrace_filter -ne "") {
-			Write-LogInfo "Found Call Trace in dmesg"
+			Write-LogErr "Found Call Trace in dmesg"
 			throw "Call trace in dmesg"
 		} else {
 			Write-LogInfo "Not found Call Trace in dmesg"
 		}
+
+		# Check the system log if it shows Power Management log
+		$pm_log_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg | grep -i 'PM: hibernation '" -ignoreLinuxExitCode:$true
+
+		if ($pm_log_filter -eq "") {
+			Write-LogErr "Could not find Power Management log in dmesg"
+			throw "Missing PM logging in dmesg"
+		} else {
+			Write-LogInfo "Successfully found Power Management log in dmesg"
+			Write-LogInfo $pm_log_filter
+		}
+
 		$testResult = $resultPass
 	} catch {
 		$ErrorMessage =  $_.Exception.Message
