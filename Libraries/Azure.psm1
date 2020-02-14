@@ -2833,12 +2833,22 @@ Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $Cu
             $waagentFile = "$LogDir\$($vmData.RoleName)-waagent.log.txt"
             $waagentStartLineNumber = (Select-String -Path $waagentFile -Pattern "$walaStartIdentifier")[-1].LineNumber
             $waagentStartLine = (Get-Content -Path $waagentFile)[$waagentStartLineNumber - 1]
-            $waagentStartTime = [datetime]($waagentStartLine.Split()[0] + " " + $waagentStartLine.Split()[1])
-
+            try {
+                $waagentStartTime = [datetime]($waagentStartLine.Split()[0] + " " + $waagentStartLine.Split()[1])
+            } catch {
+                if ($_.Exception.Message.Contains("String was not recognized as a valid DateTime")) {
+                    $waagentStartTime = [datetime]($waagentStartLine.Split()[0].Split('T')[0] + " " + $waagentStartLine.Split()[0].Split('T')[1].Split('Z')[0])
+                }
+            }
             $waagentFinishedLineNumber = (Select-String -Path $waagentFile -Pattern "$walaEndIdentifier")[-1].LineNumber
             $waagentFinishedLine = (Get-Content -Path $waagentFile)[$waagentFinishedLineNumber - 1]
-            $waagentFinishedTime = [datetime]($waagentFinishedLine.Split()[0] + " " + $waagentFinishedLine.Split()[1])
-
+            try {
+                $waagentFinishedTime = [datetime]($waagentFinishedLine.Split()[0] + " " + $waagentFinishedLine.Split()[1])
+            } catch {
+                if ($_.Exception.Message.Contains("String was not recognized as a valid DateTime")) {
+                    $waagentFinishedTime = [datetime]($waagentFinishedLine.Split()[0].Split('T')[0] + " " + $waagentFinishedLine.Split()[0].Split('T')[1].Split('Z')[0])
+                }
+            }
             $WALAProvisionTime = [int]($waagentFinishedTime - $waagentStartTime).TotalSeconds
             Write-LogInfo "$($vmData.RoleName) - WALA Provision Time = $WALAProvisionTime seconds"
             #endregion
