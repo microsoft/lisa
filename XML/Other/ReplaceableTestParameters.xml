@@ -617,10 +617,10 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceWith>Premium_LRS</ReplaceWith>
 	</Parameter>
 		<ReplaceThis>Hb_CustomKernelURL</ReplaceThis>
-		<ReplaceWith>https://github.com/dcui/linux.git</ReplaceWith>
+		<ReplaceWith>git://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>Hb_CustomKernelBranch</ReplaceThis>
-		<ReplaceWith>decui/hibernation/2020-0127/upstream-linus/v5.5</ReplaceWith>
+		<ReplaceWith>next-20200210</ReplaceWith>
 	</Parameter>
 </ReplaceableTestParameters>
