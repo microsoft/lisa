@@ -265,11 +265,11 @@ Class TestSummary
 	[DateTime] $TestStartTime
 	[string] $TestCategory
 	[string] $TestArea
-	[string] $TestName
+	[string] $TestNames
 	[string] $TestTag
 	[string] $TestPriority
 
-	TestSummary($TestCategory, $TestArea, $TestName, $TestTag, $TestPriority, $TotalCaseNum) {
+	TestSummary($TestCategory, $TestArea, $TestNames, $TestTag, $TestPriority, $TotalCaseNum) {
 		$this.TextSummary = ""
 		$this.HtmlSummary = ""
 		$this.AddHeader = $true
@@ -281,7 +281,7 @@ Class TestSummary
 		$this.TestStartTime = [DateTime]::Now.ToUniversalTime()
 		$this.TestCategory = $TestCategory
 		$this.TestArea = $TestArea
-		$this.TestName = $TestName
+		$this.TestNames = $TestNames
 		$this.TestTag = $TestTag
 		$this.TestPriority = $TestPriority
 	}
