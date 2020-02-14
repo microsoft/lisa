@@ -148,6 +148,9 @@ function Start-LISAv2 {
 			# Validate all the XML files and then import test cases from them for test
 			Validate-XmlFiles -ParentFolder $workingDirectory
 
+			if ($paramTable.ContainsKey("CustomTestParameters")) {
+				$CustomTestParameters = $paramTable["CustomTestParameters"]
+			}
 			$testController.LoadTestCases($workingDirectory, $CustomTestParameters)
 
 			# Create report folder
