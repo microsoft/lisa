@@ -68,45 +68,42 @@ function Main {
 		}
 		#endregion
 
-		# Run kernel compilation if defined
 		# Configuration for the hibernation
-		if ($hb_url -ne "") {
-			Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./SetupHbKernel.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
-			Write-LogInfo "Executed SetupHbKernel script inside VM"
+		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./SetupHbKernel.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+		Write-LogInfo "Executed SetupHbKernel script inside VM"
 
-			# Wait for kernel compilation completion. 60 min timeout
-			$timeout = New-Timespan -Minutes 60
-			$sw = [diagnostics.stopwatch]::StartNew()
-			while ($sw.elapsed -lt $timeout){
-				$vmCount = $AllVMData.Count
-				Wait-Time -seconds 15
-				$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat ~/state.txt"
-				if ($state -eq "TestCompleted") {
-					$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat ~/constants.sh | grep setup_completed=0"
-					if ($kernelCompileCompleted -ne "setup_completed=0") {
-						Write-LogErr "SetupHbKernel.sh run finished on $($VMData.RoleName) but setup was not successful!"
-					} else {
-						Write-LogInfo "SetupHbKernel.sh finished on $($VMData.RoleName)"
-						$vmCount--
-					}
-					break
-				} elseif ($state -eq "TestSkipped") {
-					Write-LogInfo "SetupHbKernel.sh finished with SKIPPED state!"
-					$testResult = $resultSkipped
-					return $testResult
-				} elseif (($state -eq "TestFailed") -or ($state -eq "TestAborted")) {
-					Write-LogErr "SetupHbKernel.sh didn't finish successfully!"
-					$testResult = $resultAborted
-					return $testResult
+		# Wait for kernel compilation completion. 60 min timeout
+		$timeout = New-Timespan -Minutes 60
+		$sw = [diagnostics.stopwatch]::StartNew()
+		while ($sw.elapsed -lt $timeout){
+			$vmCount = $AllVMData.Count
+			Wait-Time -seconds 15
+			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat ~/state.txt"
+			if ($state -eq "TestCompleted") {
+				$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat ~/constants.sh | grep setup_completed=0"
+				if ($kernelCompileCompleted -ne "setup_completed=0") {
+					Write-LogErr "SetupHbKernel.sh run finished on $($VMData.RoleName) but setup was not successful!"
 				} else {
-					Write-LogInfo "SetupHbKernel.sh is still running in the VM!"
+					Write-LogInfo "SetupHbKernel.sh finished on $($VMData.RoleName)"
+					$vmCount--
 				}
-			}
-			if ($vmCount -le 0){
-				Write-LogInfo "SetupHbKernel.sh is done"
+				break
+			} elseif ($state -eq "TestSkipped") {
+				Write-LogInfo "SetupHbKernel.sh finished with SKIPPED state!"
+				$testResult = $resultSkipped
+				return $testResult
+			} elseif (($state -eq "TestFailed") -or ($state -eq "TestAborted")) {
+				Write-LogErr "SetupHbKernel.sh didn't finish successfully!"
+				$testResult = $resultAborted
+				return $testResult
 			} else {
-				Throw "SetupHbKernel.sh didn't finish in the VM!"
+				Write-LogInfo "SetupHbKernel.sh is still running in the VM!"
 			}
+		}
+		if ($vmCount -le 0){
+			Write-LogInfo "SetupHbKernel.sh is done"
+		} else {
+			Throw "SetupHbKernel.sh didn't finish in the VM!"
 		}
 
 		# Reboot VM to apply swap setup changes
@@ -161,14 +158,17 @@ function Main {
 		}
 
 		# Check the system log if it shows Power Management log
-		$pm_log_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg | grep -i 'PM: hibernation '" -ignoreLinuxExitCode:$true
 
-		if ($pm_log_filter -eq "") {
-			Write-LogErr "Could not find Power Management log in dmesg"
-			throw "Missing PM logging in dmesg"
-		} else {
-			Write-LogInfo "Successfully found Power Management log in dmesg"
-			Write-LogInfo $pm_log_filter
+		"hibernation entry", "hibernation exit" | ForEach-Object  {
+			$pm_log_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg | grep -i '$_'" -ignoreLinuxExitCode:$true
+			Write-LogInfo "Searching the keyword: $_"
+			if ($pm_log_filter -eq "") {
+				Write-LogErr "Could not find Power Management log in dmesg"
+				throw "Missing PM logging in dmesg"
+			} else {
+				Write-LogInfo "Successfully found Power Management log in dmesg"
+				Write-LogInfo $pm_log_filter
+			}
 		}
 
 		$testResult = $resultPass
