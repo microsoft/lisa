@@ -17,9 +17,6 @@ UtilsInit
 # Get distro information
 GetDistro
 
-# Load the global variables
-source ~/constants.sh
-
 function Main() {
 	# Prepare swap space
 	for key in n p 1 2048 '' t 82 p w
@@ -51,7 +48,7 @@ function Main() {
 	ret=$(cat /etc/fstab)
 	LogMsg "$?: Displayed the contents in /etc/fstab"
 
-	if [[$hb_url != ""]]; then
+	if [[ $hb_url != "" ]]; then
 		LogMsg "Starting Hibernation required packages and kernel build in the VM"
 		update_repos
 
@@ -59,8 +56,6 @@ function Main() {
 		req_pkg="gcc make flex bison git"
 		install_package $req_pkg
 		LogMsg "$?: Installed the common required packages; $req_pkg"
-
-		source /etc/os-release
 
 		case $DISTRO in
 			redhat_7|centos_7|redhat_8|centos_8)
@@ -110,7 +105,7 @@ function Main() {
 
 		# Append the test log to the main log files.
 		cat /usr/src/linux/TestExecution.log >> ~/TestExecution.log
-		cat /usrsrc/linux/TestExecutionError.log >> ~/TestExecutionError.log
+		cat /usr/src/linux/TestExecutionError.log >> ~/TestExecutionError.log
 	fi
 
 	sed -i -e "s/rootdelay=300/rootdelay=300 resume=$sw_uuid/g" /etc/default/grub.d/50-cloudimg-settings.cfg
@@ -134,10 +129,8 @@ function Main() {
 }
 
 # main body
-LogMsg "Start time: $(date)"
 Main
 cp ~/TestExecution.log ~/Setup-TestExecution.log
 cp ~/TestExecutionError.log ~/Setup-TestExecutionError.log
 SetTestStateCompleted
-LogMsg "End time: $(date)"
 exit 0
