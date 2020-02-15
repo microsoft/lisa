@@ -38,9 +38,6 @@ function Main {
 		foreach ($TestParam in $CurrentTestData.TestParameters.param) {
 			Add-Content -Value "$TestParam" -Path $constantsFile
 			Write-LogInfo "$TestParam added to constants.sh"
-			if ($TestParam -imatch "hb_url") {
-				$hb_url = $TestParam
-			}
 		}
 
 		Write-LogInfo "constants.sh created successfully..."
