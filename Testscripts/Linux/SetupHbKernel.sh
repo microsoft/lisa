@@ -21,8 +21,6 @@ GetDistro
 source ~/constants.sh
 
 function Main() {
-	
-
 	# Prepare swap space
 	for key in n p 1 2048 '' t 82 p w
 	do
@@ -107,8 +105,12 @@ function Main() {
 
 		make install
 		LogMsg "$?: Install new kernel"
+
 		cd
 
+		# Append the test log to the main log files.
+		cat /usr/src/linux/TestExecution.log >> ~/TestExecution.log
+		cat /usrsrc/linux/TestExecutionError.log >> ~/TestExecutionError.log
 	fi
 
 	sed -i -e "s/rootdelay=300/rootdelay=300 resume=$sw_uuid/g" /etc/default/grub.d/50-cloudimg-settings.cfg
@@ -122,11 +124,6 @@ function Main() {
 
 	update-grub2
 	LogMsg "$?: Ran update-grub2"
-
-
-	# Append the test log to the main log files.
-	cat /usr/src/linux/TestExecution.log >> ~/TestExecution.log
-	cat /usrsrc/linux/TestExecutionError.log >> ~/TestExecutionError.log
 
 	LogMsg "Setting hibernate command to test.sh"
 	echo 'echo disk > /sys/power/state' > ~/test.sh
