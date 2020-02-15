@@ -5,7 +5,7 @@
 	Perform a simple VM hibernation in Azure or Hyper-V
 
 .Description
-	This test can be performend in Azure and Hyper-V both.
+	This test can be performed in Azure and Hyper-V both.
 	1. Prepare swap space for hibernation
 	2. Compile a new kernel (optional)
 	3. Update the grup.cfg with resume=UUID=xxxx where is from blkid swap disk
@@ -61,7 +61,7 @@ function Main {
 		#region Upload files to master VM
 		foreach ($VMData in $AllVMData) {
 			Copy-RemoteFiles -uploadTo $VMData.PublicIP -port $VMData.SSHPort -files "$constantsFile,$($CurrentTestData.files)" -username $user -password $password -upload
-				Write-LogInfo "Copied the script files to the VM"
+			Write-LogInfo "Copied the script files to the VM"
 		}
 		#endregion
 
@@ -110,9 +110,9 @@ function Main {
 		# Check the VM status before hibernation
 		$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
 		if ($vmStatus.Statuses[1].DisplayStatus = "VM running") {
-			Write-LogInfo "$vmStatus.Statuses[1].DisplayStatus: Verified successfully VM status is running before hibernation"
+			Write-LogInfo "$($vmStatus.Statuses[1].DisplayStatus): Verified successfully VM status is running before hibernation"
 		} else {
-			Write-LogErr "$vmStatus.Statuses[1].DisplayStatus: Could not find the VM status before hibernation"
+			Write-LogErr "$($vmStatus.Statuses[1].DisplayStatus): Could not find the VM status before hibernation"
 			throw "Can not identify VM status before hibernate"
 		}
 
@@ -124,11 +124,11 @@ function Main {
 		# Verify the VM status
 		# Can not find if VM hibernation completion or not as soon as it disconnects the network. Assume it is in timeout.
 		$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
-		if ($vmStatus.Statuses[1].DisplayStatus = "VM stopped") {
-			Write-LogInfo "$vmStatus.Statuses[1].DisplayStatus: Verified successfully VM status is stopped after hibernation command sent"
+		if ($vmStatus.Statuses[1].DisplayStatus -eq "VM stopped") {
+			Write-LogInfo "$($vmStatus.Statuses[1].DisplayStatus): Verified successfully VM status is stopped after hibernation command sent"
 		} else {
-			Write-LogErr "$vmStatus.Statuses[1].DisplayStatus: Could not find the VM status after hibernation command sent"
-			throw "Can not identify VM ststus after hibernate"
+			Write-LogErr "$($vmStatus.Statuses[1].DisplayStatus): Could not find the VM status after hibernation command sent"
+			throw "Can not identify VM status after hibernate"
 		}
 
 		# Resume the VM
@@ -163,10 +163,10 @@ function Main {
 
 		#Verify the VM status after power on event
 		$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
-		if ($vmStatus.Statuses[1].DisplayStatus = "VM running") {
-			Write-LogInfo "$vmStatus.Statuses[1].DisplayStatus: Verified successfully VM status is running after resuming"
+		if ($vmStatus.Statuses[1].DisplayStatus -eq "VM running") {
+			Write-LogInfo "$($vmStatus.Statuses[1].DisplayStatus): Verified successfully VM status is running after resuming"
 		} else {
-			Write-LogErr "$vmStatus.Statuses[1].DisplayStatus: Could not find the VM status after resuming"
+			Write-LogErr "$($vmStatus.Statuses[1].DisplayStatus): Could not find the VM status after resuming"
 			throw "Can not identify VM status after resuming"
 		}
 
