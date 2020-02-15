@@ -125,6 +125,7 @@ function Main {
 		Start-Sleep -s 120
 
 		# Verify the VM status
+		# Can not find if VM hibernation completion or not as soon as it disconnects the network. Assume it is in timeout.
 		$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
 		if ($vmStatus.Statuses[1].DisplayStatus = "VM stopped") {
 			Write-LogInfo "$vmStatus.Statuses[1].DisplayStatus: Verified successfully VM status is stopped after hibernation command sent"
@@ -135,8 +136,33 @@ function Main {
 
 		# Resume the VM
 		Start-AzVM -Name $vmName -ResourceGroupName $rgName -NoWait | Out-Null
-		Write-LogInfo "Waked up the VM $vmName in Resource Group $rgName and waiting 180 seconds"
-		Start-Sleep -s 180
+		Write-LogInfo "Waked up the VM $vmName in Resource Group $rgName and continue checking its status in every 15 seconds until 15 minutes timeout "
+
+		# Wait for VM resume for 15 min-timeout
+		$timeout = New-Timespan -Minutes 15
+		$sw = [diagnostics.stopwatch]::StartNew()
+		while ($sw.elapsed -lt $timeout){
+			$vmCount = $AllVMData.Count
+			Wait-Time -seconds 15
+			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "date"
+			if ($state -eq "TestCompleted") {
+				$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "dmesg | grep -i 'hibernation exit'"
+				if ($kernelCompileCompleted -ne "hibernation exit") {
+					Write-LogErr "VM $($VMData.RoleName) resumed successfully but could not determine hibernation completion"
+				} else {
+					Write-LogInfo "VM $($VMData.RoleName) resumed successfully"
+					$vmCount--
+				}
+				break
+			} else {
+				Write-LogInfo "VM is still resuming!"
+			}
+		}
+		if ($vmCount -le 0){
+			Write-LogInfo "VM resume completed"
+		} else {
+			Throw "VM resume did not finish"
+		}
 
 		#Verify the VM status after power on event
 		$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
