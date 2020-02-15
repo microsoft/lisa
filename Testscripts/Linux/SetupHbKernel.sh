@@ -17,39 +17,7 @@ UtilsInit
 # Get distro information
 GetDistro
 
-# Load the global variables
-source ~/constants.sh
-
 function Main() {
-	LogMsg "Starting Hibernation required packages and kernel build in the VM"
-	update_repos
-
-	# Install common packages
-	req_pkg="gcc make flex bison git"
-	install_package $req_pkg
-	LogMsg "$?: Installed the common required packages; $req_pkg"
-
-	source /etc/os-release
-
-	case $DISTRO in
-		redhat_7|centos_7|redhat_8|centos_8)
-			req_pkg="elfutils-libelf-devel ncurses-devel bc elfutils-libelf-devel openssl-devel grub2"
-			;;
-		suse*|sles*)
-			req_pkg="ncurses-devel libelf-dev"
-			;;
-		ubuntu*)
-			req_pkg="build-essential fakeroot libncurses5-dev libssl-dev ccache"
-			;;
-		*)
-			LogErr "$DISTRO does not support hibernation"
-			SetTestStateFailed
-			exit 0
-			;;
-	esac
-	install_package $req_pkg
-	LogMsg "$?: Installed required packages, $req_pkg"
-
 	# Prepare swap space
 	for key in n p 1 2048 '' t 82 p w
 	do
@@ -80,30 +48,65 @@ function Main() {
 	ret=$(cat /etc/fstab)
 	LogMsg "$?: Displayed the contents in /etc/fstab"
 
-	# Start kernel compilation
-	LogMsg "Clone and compile new kernel from $hb_url to /usr/src/linux"
-	git clone $hb_url /usr/src/linux
-	LogMsg "$?: Cloned the kernel source repo in /usr/src/linux"
+	if [[ $hb_url != "" ]]; then
+		LogMsg "Starting Hibernation required packages and kernel build in the VM"
+		update_repos
 
-	cd /usr/src/linux/
+		# Install common packages
+		req_pkg="gcc make flex bison git"
+		install_package $req_pkg
+		LogMsg "$?: Installed the common required packages; $req_pkg"
 
-	git checkout $hb_branch
-	LogMsg "$?: Changed to $hb_branch"
+		case $DISTRO in
+			redhat_7|centos_7|redhat_8|centos_8)
+				req_pkg="elfutils-libelf-devel ncurses-devel bc elfutils-libelf-devel openssl-devel grub2"
+				;;
+			suse*|sles*)
+				req_pkg="ncurses-devel libelf-dev"
+				;;
+			ubuntu*)
+				req_pkg="build-essential fakeroot libncurses5-dev libssl-dev ccache"
+				;;
+			*)
+				LogErr "$DISTRO does not support hibernation"
+				SetTestStateFailed
+				exit 0
+				;;
+		esac
+		install_package $req_pkg
+		LogMsg "$?: Installed required packages, $req_pkg"
 
-	cp /boot/config*-azure /usr/src/linux/.config
-	LogMsg "$?: Copied the default config file from /boot"
+		# Start kernel compilation
+		LogMsg "Clone and compile new kernel from $hb_url to /usr/src/linux"
+		git clone $hb_url /usr/src/linux
+		LogMsg "$?: Cloned the kernel source repo in /usr/src/linux"
 
-	yes '' | make oldconfig
-	LogMsg "$?: Did oldconfig make file"
+		cd /usr/src/linux/
 
-	make -j $(getconf _NPROCESSORS_ONLN)
-	LogMsg "$?: Compiled the source codes"
+		git checkout $hb_branch
+		LogMsg "$?: Changed to $hb_branch"
 
-	make modules_install
-	LogMsg "$?: Installed new kernel modules"
+		cp /boot/config*-azure /usr/src/linux/.config
+		LogMsg "$?: Copied the default config file from /boot"
 
-	make install
-	LogMsg "$?: Install new kernel"
+		yes '' | make oldconfig
+		LogMsg "$?: Did oldconfig make file"
+
+		make -j $(getconf _NPROCESSORS_ONLN)
+		LogMsg "$?: Compiled the source codes"
+
+		make modules_install
+		LogMsg "$?: Installed new kernel modules"
+
+		make install
+		LogMsg "$?: Install new kernel"
+
+		cd
+
+		# Append the test log to the main log files.
+		cat /usr/src/linux/TestExecution.log >> ~/TestExecution.log
+		cat /usr/src/linux/TestExecutionError.log >> ~/TestExecutionError.log
+	fi
 
 	sed -i -e "s/rootdelay=300/rootdelay=300 resume=$sw_uuid/g" /etc/default/grub.d/50-cloudimg-settings.cfg
 	LogMsg "$?: Updated the 50-cloudimg-settings.cfg with resume=$sw_uuid"
@@ -117,12 +120,6 @@ function Main() {
 	update-grub2
 	LogMsg "$?: Ran update-grub2"
 
-	cd
-
-	# Append the test log to the main log files.
-	cat /usr/src/linux/TestExecution.log >> ~/TestExecution.log
-	cat /usrsrc/linux/TestExecutionError.log >> ~/TestExecutionError.log
-
 	LogMsg "Setting hibernate command to test.sh"
 	echo 'echo disk > /sys/power/state' > ~/test.sh
 	chmod 766 ~/test.sh
@@ -132,10 +129,8 @@ function Main() {
 }
 
 # main body
-LogMsg "Start time: $(date)"
 Main
 cp ~/TestExecution.log ~/Setup-TestExecution.log
 cp ~/TestExecutionError.log ~/Setup-TestExecutionError.log
 SetTestStateCompleted
-LogMsg "End time: $(date)"
 exit 0

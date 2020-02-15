@@ -5,7 +5,7 @@
 	Perform a simple VM hibernation in Azure or Hyper-V
 
 .Description
-	This test can be performend in Azure and Hyper-V both.
+	This test can be performed in Azure and Hyper-V both.
 	1. Prepare swap space for hibernation
 	2. Compile a new kernel (optional)
 	3. Update the grup.cfg with resume=UUID=xxxx where is from blkid swap disk
@@ -38,9 +38,6 @@ function Main {
 		foreach ($TestParam in $CurrentTestData.TestParameters.param) {
 			Add-Content -Value "$TestParam" -Path $constantsFile
 			Write-LogInfo "$TestParam added to constants.sh"
-			if ($TestParam -imatch "hb_url") {
-				$hb_url = $TestParam
-			}
 		}
 
 		Write-LogInfo "constants.sh created successfully..."
@@ -64,49 +61,46 @@ function Main {
 		#region Upload files to master VM
 		foreach ($VMData in $AllVMData) {
 			Copy-RemoteFiles -uploadTo $VMData.PublicIP -port $VMData.SSHPort -files "$constantsFile,$($CurrentTestData.files)" -username $user -password $password -upload
-				Write-LogInfo "Copied the script files to the VM"
+			Write-LogInfo "Copied the script files to the VM"
 		}
 		#endregion
 
-		# Run kernel compilation if defined
 		# Configuration for the hibernation
-		if ($hb_url -ne "") {
-			Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./SetupHbKernel.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
-			Write-LogInfo "Executed SetupHbKernel script inside VM"
+		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./SetupHbKernel.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+		Write-LogInfo "Executed SetupHbKernel script inside VM"
 
-			# Wait for kernel compilation completion. 60 min timeout
-			$timeout = New-Timespan -Minutes 60
-			$sw = [diagnostics.stopwatch]::StartNew()
-			while ($sw.elapsed -lt $timeout){
-				$vmCount = $AllVMData.Count
-				Wait-Time -seconds 15
-				$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat ~/state.txt"
-				if ($state -eq "TestCompleted") {
-					$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat ~/constants.sh | grep setup_completed=0"
-					if ($kernelCompileCompleted -ne "setup_completed=0") {
-						Write-LogErr "SetupHbKernel.sh run finished on $($VMData.RoleName) but setup was not successful!"
-					} else {
-						Write-LogInfo "SetupHbKernel.sh finished on $($VMData.RoleName)"
-						$vmCount--
-					}
-					break
-				} elseif ($state -eq "TestSkipped") {
-					Write-LogInfo "SetupHbKernel.sh finished with SKIPPED state!"
-					$testResult = $resultSkipped
-					return $testResult
-				} elseif (($state -eq "TestFailed") -or ($state -eq "TestAborted")) {
-					Write-LogErr "SetupHbKernel.sh didn't finish successfully!"
-					$testResult = $resultAborted
-					return $testResult
+		# Wait for kernel compilation completion. 60 min timeout
+		$timeout = New-Timespan -Minutes 60
+		$sw = [diagnostics.stopwatch]::StartNew()
+		while ($sw.elapsed -lt $timeout){
+			$vmCount = $AllVMData.Count
+			Wait-Time -seconds 15
+			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat ~/state.txt"
+			if ($state -eq "TestCompleted") {
+				$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat ~/constants.sh | grep setup_completed=0"
+				if ($kernelCompileCompleted -ne "setup_completed=0") {
+					Write-LogErr "SetupHbKernel.sh run finished on $($VMData.RoleName) but setup was not successful!"
 				} else {
-					Write-LogInfo "SetupHbKernel.sh is still running in the VM!"
+					Write-LogInfo "SetupHbKernel.sh finished on $($VMData.RoleName)"
+					$vmCount--
 				}
-			}
-			if ($vmCount -le 0){
-				Write-LogInfo "SetupHbKernel.sh is done"
+				break
+			} elseif ($state -eq "TestSkipped") {
+				Write-LogInfo "SetupHbKernel.sh finished with SKIPPED state!"
+				$testResult = $resultSkipped
+				return $testResult
+			} elseif (($state -eq "TestFailed") -or ($state -eq "TestAborted")) {
+				Write-LogErr "SetupHbKernel.sh didn't finish successfully!"
+				$testResult = $resultAborted
+				return $testResult
 			} else {
-				Throw "SetupHbKernel.sh didn't finish in the VM!"
+				Write-LogInfo "SetupHbKernel.sh is still running in the VM!"
 			}
+		}
+		if ($vmCount -le 0){
+			Write-LogInfo "SetupHbKernel.sh is done"
+		} else {
+			Throw "SetupHbKernel.sh didn't finish in the VM!"
 		}
 
 		# Reboot VM to apply swap setup changes
@@ -116,9 +110,9 @@ function Main {
 		# Check the VM status before hibernation
 		$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
 		if ($vmStatus.Statuses[1].DisplayStatus = "VM running") {
-			Write-LogInfo "$vmStatus.Statuses[1].DisplayStatus: Verified successfully VM status is running before hibernation"
+			Write-LogInfo "$($vmStatus.Statuses[1].DisplayStatus): Verified successfully VM status is running before hibernation"
 		} else {
-			Write-LogErr "$vmStatus.Statuses[1].DisplayStatus: Could not find the VM status before hibernation"
+			Write-LogErr "$($vmStatus.Statuses[1].DisplayStatus): Could not find the VM status before hibernation"
 			throw "Can not identify VM status before hibernate"
 		}
 
@@ -128,25 +122,51 @@ function Main {
 		Start-Sleep -s 120
 
 		# Verify the VM status
+		# Can not find if VM hibernation completion or not as soon as it disconnects the network. Assume it is in timeout.
 		$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
-		if ($vmStatus.Statuses[1].DisplayStatus = "VM stopped") {
-			Write-LogInfo "$vmStatus.Statuses[1].DisplayStatus: Verified successfully VM status is stopped after hibernation command sent"
+		if ($vmStatus.Statuses[1].DisplayStatus -eq "VM stopped") {
+			Write-LogInfo "$($vmStatus.Statuses[1].DisplayStatus): Verified successfully VM status is stopped after hibernation command sent"
 		} else {
-			Write-LogErr "$vmStatus.Statuses[1].DisplayStatus: Could not find the VM status after hibernation command sent"
-			throw "Can not identify VM ststus after hibernate"
+			Write-LogErr "$($vmStatus.Statuses[1].DisplayStatus): Could not find the VM status after hibernation command sent"
+			throw "Can not identify VM status after hibernate"
 		}
 
 		# Resume the VM
 		Start-AzVM -Name $vmName -ResourceGroupName $rgName -NoWait | Out-Null
-		Write-LogInfo "Waked up the VM $vmName in Resource Group $rgName and waiting 180 seconds"
-		Start-Sleep -s 180
+		Write-LogInfo "Waked up the VM $vmName in Resource Group $rgName and continue checking its status in every 15 seconds until 15 minutes timeout "
+
+		# Wait for VM resume for 15 min-timeout
+		$timeout = New-Timespan -Minutes 15
+		$sw = [diagnostics.stopwatch]::StartNew()
+		while ($sw.elapsed -lt $timeout){
+			$vmCount = $AllVMData.Count
+			Wait-Time -seconds 15
+			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "date"
+			if ($state -eq "TestCompleted") {
+				$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "dmesg | grep -i 'hibernation exit'"
+				if ($kernelCompileCompleted -ne "hibernation exit") {
+					Write-LogErr "VM $($VMData.RoleName) resumed successfully but could not determine hibernation completion"
+				} else {
+					Write-LogInfo "VM $($VMData.RoleName) resumed successfully"
+					$vmCount--
+				}
+				break
+			} else {
+				Write-LogInfo "VM is still resuming!"
+			}
+		}
+		if ($vmCount -le 0){
+			Write-LogInfo "VM resume completed"
+		} else {
+			Throw "VM resume did not finish"
+		}
 
 		#Verify the VM status after power on event
 		$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
-		if ($vmStatus.Statuses[1].DisplayStatus = "VM running") {
-			Write-LogInfo "$vmStatus.Statuses[1].DisplayStatus: Verified successfully VM status is running after resuming"
+		if ($vmStatus.Statuses[1].DisplayStatus -eq "VM running") {
+			Write-LogInfo "$($vmStatus.Statuses[1].DisplayStatus): Verified successfully VM status is running after resuming"
 		} else {
-			Write-LogErr "$vmStatus.Statuses[1].DisplayStatus: Could not find the VM status after resuming"
+			Write-LogErr "$($vmStatus.Statuses[1].DisplayStatus): Could not find the VM status after resuming"
 			throw "Can not identify VM status after resuming"
 		}
 
@@ -161,14 +181,17 @@ function Main {
 		}
 
 		# Check the system log if it shows Power Management log
-		$pm_log_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg | grep -i 'PM: hibernation '" -ignoreLinuxExitCode:$true
 
-		if ($pm_log_filter -eq "") {
-			Write-LogErr "Could not find Power Management log in dmesg"
-			throw "Missing PM logging in dmesg"
-		} else {
-			Write-LogInfo "Successfully found Power Management log in dmesg"
-			Write-LogInfo $pm_log_filter
+		"hibernation entry", "hibernation exit" | ForEach-Object  {
+			$pm_log_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg | grep -i '$_'" -ignoreLinuxExitCode:$true
+			Write-LogInfo "Searching the keyword: $_"
+			if ($pm_log_filter -eq "") {
+				Write-LogErr "Could not find Power Management log in dmesg"
+				throw "Missing PM logging in dmesg"
+			} else {
+				Write-LogInfo "Successfully found Power Management log in dmesg"
+				Write-LogInfo $pm_log_filter
+			}
 		}
 
 		$testResult = $resultPass
