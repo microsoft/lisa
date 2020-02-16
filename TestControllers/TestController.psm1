@@ -408,10 +408,11 @@ Class TestController
 				$VmData -TestProvider $TestProvider -CurrentTestData $CurrentTestData
 		}
 
+		Collect-TestLogs -LogsDestination $LogDir `
+			-TestType $scriptExtension -PublicIP $testVMData.PublicIP -SSHPort $testVMData.SSHPort `
+			-Username $Username -password $Password -TestName $TestName
+
 		if ($scriptExtension -ne "ps1") {
-			Collect-TestLogs -LogsDestination $LogDir `
-				-TestType $scriptExtension -PublicIP $testVMData.PublicIP -SSHPort $testVMData.SSHPort `
-				-Username $Username -password $Password -TestName $TestName
 			$currentTestResult = Get-TestResult -TestType $scriptExtension
 		} else {
 			if ($psScriptTestResult.TestResult) {

@@ -109,6 +109,11 @@ function Collect-TestLogs {
 		Copy-RemoteFiles -download -downloadFrom $PublicIP -downloadTo $LogsDestination `
 			 -Port $SSHPort -Username $Username -password $Password `
 			 -files $filesTocopy
+	} elseif ($TestType -eq "ps1") {
+		$filesTocopy = "./state.txt, ./summary.log, ./TestExecution.log, ./TestExecutionError.log"
+		Copy-RemoteFiles -download -downloadFrom $PublicIP -downloadTo $LogsDestination `
+			 -Port $SSHPort -Username $Username -password $Password `
+			 -files $filesTocopy -maxRetry 1
 	}
 }
 
