@@ -151,7 +151,7 @@ function Main {
             -Username $user -password $password -ip $AllVmData.PublicIP -Port $AllVmData.SSHPort `
             -maxRetryCount 1 -runMaxAllowedTime 12600 -runAsSudo
 
-        $null = Collect-TestLogs -LogsDestination $LogDir -TestType "sh" `
+        Collect-TestLogs -LogsDestination $LogDir -TestType "sh" `
             -PublicIP $AllVmData.PublicIP -SSHPort $AllVmData.SSHPort `
             -Username $user -password $password `
             -TestName $currentTestData.testName

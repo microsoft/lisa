@@ -95,9 +95,10 @@ function Main {
     #
     $Hypervcheck = "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;bash ${remoteScript} > Hypervcheck.log`""
     Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort $Hypervcheck -runAsSudo
-    $testResult = Collect-TestLogs -LogsDestination $LogDir -TestType "sh" `
+    Collect-TestLogs -LogsDestination $LogDir -TestType "sh" `
         -PublicIP $Ipv4 -SSHPort $VMPort -Username $VMUserName -password $VMPassword `
         -TestName $currentTestData.testName
+    $testResult = Get-TestResult
     $resultArr += $testResult
     Write-LogInfo "Test result : $testResult"
     $currentTestResult = Create-TestResultObject

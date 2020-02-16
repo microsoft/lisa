@@ -135,9 +135,10 @@ function Main() {
         }
 
         Start-TestExecution -ip $clientPublicIP -port $clientSSHPort
-        $testResult = Collect-TestLogs -LogsDestination $LogDir -TestType "sh" `
+        Collect-TestLogs -LogsDestination $LogDir -TestType "sh" `
                       -PublicIP $clientPublicIP -SSHPort $clientSSHPort -Username $username -password $password `
                       -TestName $currentTestData.testName
+        $testResult = Get-TestResult
         if ($testResult -imatch $resultPass) {
             Remove-Item "$LogDir\*.csv" -Force
             $remoteFiles = "nginxStress.csv,VM_properties.csv,TestExecution.log,web_test_results.tar.gz"

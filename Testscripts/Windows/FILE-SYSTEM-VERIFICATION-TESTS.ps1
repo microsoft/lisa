@@ -158,9 +158,10 @@ function Main {
         # Collect-TestLogs function to work
         Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
             -password $password -command "cp * /home/$user" -ignoreLinuxExitCode:$true | Out-Null
-        $testResult = Collect-TestLogs -LogsDestination $LogDir -TestType "sh"  -PublicIP `
+        Collect-TestLogs -LogsDestination $LogDir -TestType "sh"  -PublicIP `
             $allVMData.PublicIP -SSHPort $allVMData.SSHPort -Username $user `
             -password $password -TestName $currentTestData.testName
+        $testResult = Get-TestResult
         if ($state -eq "TestRunning") {
             $resultArr += "ABORTED"
             Write-LogErr "xfstesting.sh is still running after 4 hours!"

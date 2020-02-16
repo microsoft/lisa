@@ -98,6 +98,30 @@ function Collect-TestLogs {
 		[string]$TestType,
 		[string]$TestName
 	)
+
+	if ($TestType -eq "sh") {
+		$filesTocopy = "./state.txt, ./summary.log, ./TestExecution.log, ./TestExecutionError.log"
+		Copy-RemoteFiles -download -downloadFrom $PublicIP -downloadTo $LogsDestination `
+			 -Port $SSHPort -Username $Username -password $Password `
+			 -files $filesTocopy
+	} elseif ($TestType -eq "py") {
+		$filesTocopy = "./state.txt, ./Summary.log, ./${TestName}_summary.log"
+		Copy-RemoteFiles -download -downloadFrom $PublicIP -downloadTo $LogsDestination `
+			 -Port $SSHPort -Username $Username -password $Password `
+			 -files $filesTocopy
+	}
+}
+
+function Get-TestResult {
+	<#
+	.DESCRIPTION
+	The function finds test result from shell/python test scripts.
+	#>
+
+	param(
+		[string]$TestType = "sh"
+	)
+
 	# Note: This is a temporary solution until a standard is decided
 	# for what string py/sh scripts return
 	$resultTranslation = @{"TestCompleted" = $global:ResultPass;
@@ -109,10 +133,6 @@ function Collect-TestLogs {
 	$currentTestResult = Create-TestResultObject
 
 	if ($TestType -eq "sh") {
-		$filesTocopy = "./state.txt, ./summary.log, ./TestExecution.log, ./TestExecutionError.log"
-		Copy-RemoteFiles -download -downloadFrom $PublicIP -downloadTo $LogsDestination `
-			 -Port $SSHPort -Username $Username -password $Password `
-			 -files $filesTocopy
 		$summary = Get-Content (Join-Path $LogDir "summary.log")
 		$testState = Get-Content (Join-Path $LogDir "state.txt")
 		# If test has timed out state.txt will contain TestRunning
@@ -122,10 +142,6 @@ function Collect-TestLogs {
 			$currentTestResult.TestResult = $resultTranslation[$testState]
 		}
 	} elseif ($TestType -eq "py") {
-		$filesTocopy = "./state.txt, ./Summary.log, ./${TestName}_summary.log"
-		Copy-RemoteFiles -download -downloadFrom $PublicIP -downloadTo $LogsDestination `
-			 -Port $SSHPort -Username $Username -password $Password `
-			 -files $filesTocopy
 		$summary = Get-Content (Join-Path $LogDir "Summary.log")
 		$currentTestResult.TestResult = $summary
 	}

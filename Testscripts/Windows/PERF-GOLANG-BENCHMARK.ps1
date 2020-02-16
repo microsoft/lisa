@@ -73,9 +73,10 @@ function Main() {
         $hs1VIP = $AllVMData.PublicIP
         $port = $AllVMData.SSHPort
         Start-TestExecution -ip $hs1VIP -port $port
-        $testResult = Collect-TestLogs -LogsDestination $LogDir -TestType "sh" `
+        Collect-TestLogs -LogsDestination $LogDir -TestType "sh" `
                       -PublicIP $hs1VIP -SSHPort $port -Username $username -password $password `
                       -TestName $currentTestData.testName
+        $testResult = Get-Result
         if ($testResult -imatch $resultPass) {
             Remove-Item "$LogDir\*.csv" -Force
             $remoteFiles = "golangBenchmark.csv,VM_properties.csv,TestExecution.log,test_results.tar.gz"

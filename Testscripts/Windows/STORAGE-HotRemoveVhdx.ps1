@@ -29,11 +29,11 @@ function Main {
     Run-LinuxCmd -Command "echo '${VMPassword}' | sudo -S -s eval `"export HOME=``pwd``;bash ${TEST_SCRIPT} > ${testName}_summary.log 2>&1`"" `
         -Username $VMUserName -password $VMPassword -ip $Ipv4 -Port $VMPort
 
-    $testResult = Collect-TestLogs -LogsDestination $LogDir -TestType "sh" `
+    Collect-TestLogs -LogsDestination $LogDir -TestType "sh" `
         -PublicIP $Ipv4 -SSHPort $VMPort -Username $VMUserName -password $VMPassword `
         -TestName $currentTestData.testName
 
-    return $testResult
+    return Get-TestResult
 }
 
 Main -VMname $AllVMData.RoleName -HvServer $GlobalConfig.Global.Hyperv.Hosts.ChildNodes[0].ServerName `
