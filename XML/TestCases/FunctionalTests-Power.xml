@@ -2,7 +2,7 @@
 	<test>
 		<testName>Power-hibernate</testName>
 		<testScript>Power-Hibernate.ps1</testScript>
-		<setupType>OneVM</setupType>
+		<setupType>OneVMhb</setupType>
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SetupHbKernel.sh</files>
 		<Priority>3</Priority>
 		<TestParameters>
