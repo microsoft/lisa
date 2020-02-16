@@ -135,7 +135,7 @@ function Main() {
         }
 
         Start-TestExecution -ip $clientPublicIP -port $clientSSHPort
-        $testResult = Collect-TestLogs -LogsDestination $LogDir -ScriptName $testScript.split(".")[0] -TestType "sh" `
+        $testResult = Collect-TestLogs -LogsDestination $LogDir -TestType "sh" `
                       -PublicIP $clientPublicIP -SSHPort $clientSSHPort -Username $username -password $password `
                       -TestName $currentTestData.testName
         if ($testResult -imatch $resultPass) {

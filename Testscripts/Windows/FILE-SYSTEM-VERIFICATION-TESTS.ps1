@@ -158,8 +158,7 @@ function Main {
         # Collect-TestLogs function to work
         Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
             -password $password -command "cp * /home/$user" -ignoreLinuxExitCode:$true | Out-Null
-        $testResult = Collect-TestLogs -LogsDestination $LogDir -ScriptName `
-            $currentTestData.files.Split('\')[3].Split('.')[0] -TestType "sh"  -PublicIP `
+        $testResult = Collect-TestLogs -LogsDestination $LogDir -TestType "sh"  -PublicIP `
             $allVMData.PublicIP -SSHPort $allVMData.SSHPort -Username $user `
             -password $password -TestName $currentTestData.testName
         if ($state -eq "TestRunning") {

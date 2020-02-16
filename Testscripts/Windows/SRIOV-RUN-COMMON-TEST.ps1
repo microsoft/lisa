@@ -158,7 +158,7 @@ function Main {
         Run-LinuxCmd -ip $publicIp -port $vmPort -username $VMUsername -password `
             $password -command $cmdToSend -runMaxAllowedTime $timeout | Out-Null
 
-        $testResult = Collect-TestLogs -LogsDestination $LogDir -ScriptName $TestParams.Remote_Script.Split('.')[0] -TestType "sh" `
+        $testResult = Collect-TestLogs -LogsDestination $LogDir -TestType "sh" `
             -PublicIP $publicIp -SSHPort $vmPort -Username $VMUsername -password $password `
             -TestName $currentTestData.testName
 

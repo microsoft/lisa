@@ -142,8 +142,7 @@ function Collect-Logs {
     # Collect-TestLogs function to work
     Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username $superuser `
         -password $password -command "cp * /home/$user" -ignoreLinuxExitCode:$true
-    Collect-TestLogs -LogsDestination $LogDir -ScriptName `
-        $currentTestData.files.Split('\')[3].Split('.')[0] -TestType "sh" -PublicIP `
+    Collect-TestLogs -LogsDestination $LogDir -TestType "sh" -PublicIP `
         $allVMData.PublicIP -SSHPort $allVMData.SSHPort -Username $user `
         -password $password -TestName $currentTestData.testName | Out-Null
     # Depending on the stage of the test the files may or may not exist.

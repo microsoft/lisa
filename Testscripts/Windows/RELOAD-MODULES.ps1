@@ -80,8 +80,7 @@ function Check-Result {
         Start-AzureVmNetwork
         Write-LogErr "Test has timed out. After 3 hours, state file couldn't be read!"
     }
-    Collect-TestLogs -LogsDestination $LogDir -ScriptName `
-        $CurrentTestData.files.Split('\')[3].Split('.')[0] -TestType "sh" -PublicIP `
+    Collect-TestLogs -LogsDestination $LogDir -TestType "sh" -PublicIP `
         $VmIp -SSHPort $VMPort -Username $User -password $Password -TestName `
         $CurrentTestData.testName | Out-Null
     return $retVal

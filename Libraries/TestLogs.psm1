@@ -91,7 +91,6 @@ function Collect-TestLogs {
 
 	param(
 		[string]$LogsDestination,
-		[string]$ScriptName,
 		[string]$PublicIP,
 		[string]$SSHPort,
 		[string]$Username,

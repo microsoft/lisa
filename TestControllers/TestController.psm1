@@ -357,7 +357,6 @@ Class TestController
 
 		$workDir = Get-Location
 		$script = $CurrentTestData.TestScript
-		$scriptName = $Script.split(".")[0]
 		$scriptExtension = $Script.split(".")[1]
 		$constantsPath = Join-Path $workDir "constants.sh"
 		$testName = $currentTestData.TestName
@@ -410,7 +409,7 @@ Class TestController
 		}
 
 		if ($scriptExtension -ne "ps1") {
-			$currentTestResult = Collect-TestLogs -LogsDestination $LogDir -ScriptName $scriptName `
+			$currentTestResult = Collect-TestLogs -LogsDestination $LogDir `
 				-TestType $scriptExtension -PublicIP $testVMData.PublicIP -SSHPort $testVMData.SSHPort `
 				-Username $Username -password $Password -TestName $TestName
 		} else {

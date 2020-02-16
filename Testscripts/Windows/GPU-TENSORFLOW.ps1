@@ -68,7 +68,7 @@ function Main {
             $testScript = "gpu-tensorflow.sh"
             Write-Debug "Running test script, $testScript"
             Run-TestScript -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -testScript $testScript | Out-Null
-            $testResult = Collect-TestLogs -LogsDestination $LogDir -ScriptName $currentTestData.files.Split('\')[3].Split('.')[0] `
+            $testResult = Collect-TestLogs -LogsDestination $LogDir `
                           -TestType "sh" -PublicIP $allVMData.PublicIP -SSHPort $allVMData.SSHPort -Username $user `
                           -password $password -TestName $currentTestData.testName
 
