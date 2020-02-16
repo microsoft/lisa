@@ -613,15 +613,6 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceWith>no</ReplaceWith>
 	</Parameter>
 	<Parameter>
-		<ReplaceThis>Hb_CustomKernelURL</ReplaceThis>
-		<ReplaceWith>https://github.com/dcui/linux.git</ReplaceWith>
-	</Parameter>
-		<Parameter>
-		<ReplaceThis>Hb_CustomKernelBranch</ReplaceThis>
-		<ReplaceWith>decui/hibernation/2020-0127/upstream-linus/v5.5</ReplaceWith>
-	</Parameter>
-
-	<Parameter>
 		<ReplaceThis>DATA_DISK_SKU</ReplaceThis>
 		<ReplaceWith>Premium_LRS</ReplaceWith>
 	</Parameter>
