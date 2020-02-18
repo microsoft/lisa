@@ -21,11 +21,11 @@
 #   to skip these subsystems. There are some subsystems have some new features but the
 #   test kernel don't have, we use SKIP_TARGETS_NONSUPPORT_XXX to skip them.
 # 2)If LKS_VERSION_GIT_TAG is NULL, we use Kselftests from distro's own kernel. some subsystems
-#   are unstable or compiled failed.
+#   are unstable or compiled failed. We don't support SUSE.
 # 3)If this test runs against custom kernel, we use Kselftests from linux-stable or 
 #   linux-next of the same version. We just skip $SKIP_TARGETS these targets. Some subsystems
 #   are unstable or compiled failed.
-# 4)We just support Ubuntu/Debian/Centos/Redhat now, we will support other distros in the future.
+# 4)We just support Ubuntu/Debian/Centos/Redhat/SUSE now, we will support other distros in the future.
 #
 ###############################################################################
 LKS_SRCDIR=""
@@ -39,24 +39,29 @@ rtc sigaltstack size splice static_keys sync sysctl user x86 zram"
 SKIP_TARGETS="android breakpoints cpu-hotplug memory-hotplug vm powerpc"
 
 # Skip these targets for they are failed to compile.
-SKIP_TARGETS_COMPILE_FAIL_CENTOS7="intel_pstate proc size x86"
-SKIP_TARGETS_COMPILE_FAIL_CENTOS8="size x86"
-SKIP_TARGETS_COMPILE_FAIL_UBUNTU16="drivers/dma-buf filesystems/binderfs proc"
+SKIP_TARGETS_COMPILE_FAIL_CENTOS7="proc"
+SKIP_TARGETS_COMPILE_FAIL_UBUNTU16="proc"
 
 # Skip these targets for the test kernel are non-support
-SKIP_TARGETS_NONSUPPORT_UBUNTU16="membarrier"
-SKIP_TARGETS_NONSUPPORT_CENTOS7="drivers/dma-buf mount nsfs"
+SKIP_TARGETS_NONSUPPORT_UBUNTU16="drivers/dma-buf membarrier"
+SKIP_TARGETS_NONSUPPORT_CENTOS7="drivers/dma-buf mount nsfs intel_pstate"
 SKIP_TARGETS_NONSUPPORT_CENTOS8="drivers/dma-buf"
 SKIP_TARGETS_NONSUPPORT_DEBIAN="drivers/dma-buf mount"
+SKIP_TARGETS_NONSUPPORT_SUSE="membarrier drivers/dma-buf"
 
 # Ignorable these failed tests for the kernel are non-support or test cases are unstable
 IGNORABLE_FAIL_TESTS_UBUNTU16=("x86: test_syscall_vdso_32" "seccomp: seccomp_bpf")
-IGNORABLE_FAIL_TESTS_CENTOS_7=("seccomp: seccomp_bpf")
-IGNORABLE_FAIL_TESTS_CENTOS_8=("proc: setns-dcache" "proc: proc-pid-vm" "seccomp: seccomp_bpf")
+IGNORABLE_FAIL_TESTS_CENTOS_7=("seccomp: seccomp_bpf" "x86: syscall_nt_64" "x86: sigreturn_64" "x86: fsgsbase_64" "x86: mpx-mini-test_64")
+IGNORABLE_FAIL_TESTS_CENTOS_8=("proc: setns-dcache" "proc: proc-pid-vm" "seccomp: seccomp_bpf" \
+                               "x86: check_initial_reg_state_32" "x86: mpx-mini-test_64" "x86: mpx-mini-test_32" \
+                               "x86: check_initial_reg_state_64")
 IGNORABLE_FAIL_TESTS_DEBIAN=("seccomp: seccomp_bpf")
+IGNORABLE_FAIL_TESTS_SUSE=("seccomp: seccomp_bpf" "proc: proc-pid-vm" "proc: proc-self-map-files-001" \
+                           "proc: proc-self-map-files-002" "proc: setns-dcache")
 
 TOTAL_TARGETS=""
 CUSTOM_KERNEL_FLAG="FALSE"
+DISTRO_KERNEL_FLAG="FALSE"
 VERSION_ID=""
 
 ubuntu_src_git="git://git.launchpad.net/~canonical-kernel/ubuntu/+source/linux-azure/+git/"
@@ -85,11 +90,18 @@ function install_dependencies() {
                         libcap-devel glibc-devel.*i686 fuse-devel elfutils-devel \
                         numactl-devel glibc-devel)
             if [[ $DISTRO != centos_8 ]]; then
-                rpm_packages+=(libmount-devel)
+                rpm_packages+=(libmount-devel glibc-static)
             fi
             install_epel
             LogMsg "Dependency package names： ${rpm_packages[@]}"
             install_package "${rpm_packages[@]}" >> $BUILDING_LOG 2>&1
+            ;;
+        suse*)
+            suse_packages=(make git gcc flex bison fuse libcap-ng-devel fuse-devel popt-devel \
+                         numactl libnuma-devel libmount-devel libcap-devel libcap-progs \
+                         glibc-devel libelf-devel glibc-static)
+            LogMsg "Dependency package names： ${suse_packages[@]}"
+            install_package "${suse_packages[@]}" >> $BUILDING_LOG 2>&1
             ;;
         *)
             LogErr "Unsupported distro: $DISTRO"
@@ -102,13 +114,13 @@ function download_custom_kernel() {
     cd /root
     if [[ $KERNEL_VERSION =~ "next" ]]; then
         version=${KERNEL_VERSION#*-}
-        LogMsg "kernel source git: $next_kernel_src"
+        LogMsg "Kernel source git: $next_kernel_src"
         git clone $next_kernel_src
         check_exit_status "Clone next kernel source code" "exit"
         LKS_SRCDIR="/root/linux-next"
     else
         version=${KERNEL_VERSION%%-*}
-        LogMsg "kernel source git: $stable_kernel_src"
+        LogMsg "Kernel source git: $stable_kernel_src"
         git clone $stable_kernel_src
         check_exit_status "Clone stable kernel source code" "exit"
         LKS_SRCDIR="/root/linux"
@@ -116,11 +128,11 @@ function download_custom_kernel() {
 
     cd $LKS_SRCDIR
     tag=$(git tag | grep $version | head -1)
-    LogMsg "kernel tag: $tag"
+    LogMsg "Kernel tag: $tag"
     if [[ $tag != "" ]]; then
         git checkout -f $tag
     else
-        LogErr "kernel version: $KERNEL_VERSION is not supported. Can't find source code"
+        LogErr "The kernel tag $version does not exist"
         return 1
     fi
 }
@@ -133,7 +145,7 @@ function download_distro_kernel() {
             ubuntu_codename="$(awk '/UBUNTU_CODENAME=/' /etc/os-release | sed 's/UBUNTU_CODENAME=//')"
             if [[ "$ubuntu_codename" != "" ]]; then
                 src_code_git=$ubuntu_src_git$ubuntu_codename
-                LogMsg "kernel source git: $src_code_git"
+                LogMsg "Kernel source git: $src_code_git"
                 cd $HOMEDIR
                 git clone $src_code_git
                 check_exit_status "Clone kernel source code" "exit"
@@ -146,16 +158,17 @@ function download_distro_kernel() {
 
             cd $LKS_SRCDIR
             tag=$(git tag | grep $version | head -1)
+            LogMsg "Kernel tag: $tag"
             if [[ $tag != "" ]]; then
                 git checkout -f $tag
             else
-                LogErr "kernel version: $KERNEL_VERSION is not supported. Can't find source code"
+                LogErr "The kernel tag $version does not exist"
                 return 1
             fi
             ;;
         debian*)
             #debian 10
-            LogMsg "kernel source: from linux-source package"
+            LogMsg "Kernel source: from linux-source package"
             CheckInstallLockUbuntu
             install_package "linux-source"
             cd /usr/src/
@@ -171,14 +184,15 @@ function download_distro_kernel() {
             ;;
         centos*|redhat*)
             VERSION_ID=$(cat /etc/os-release | grep "VERSION_ID" | awk -F '"' '{print $2}' | awk -F '.' '{print $1}')
-            LogMsg "kernel source git: https://git.centos.org/git/rpms/kernel.git"
-            LogMsg "kernel source https://git.centos.org/git/centos-git-common.git"
+            src_version="c$VERSION_ID"
+            LogMsg "Kernel source git: https://git.centos.org/git/rpms/kernel.git"
+            LogMsg "Kernel source https://git.centos.org/git/centos-git-common.git"
             cd /root
             git clone https://git.centos.org/git/rpms/kernel.git
             git clone https://git.centos.org/git/centos-git-common.git
             if [[ -d "kernel" && -d "centos-git-common" ]]; then
                 cd kernel
-                git checkout "c$VERSION_ID"
+                git checkout "$src_version"
                 ../centos-git-common/get_sources.sh
                 if [ -d "SOURCES" ]; then
                     cd SOURCES
@@ -192,7 +206,7 @@ function download_distro_kernel() {
             fi
             ;;
         *)
-            LogErr "Unknown distro $DISTRO"
+            LogErr "Unsupported distro $DISTRO"
             return 1
         ;;
     esac
@@ -245,8 +259,8 @@ function build_and_run_lks() {
         targets=$(cat $MAKEFILE | grep ^TARGETS | awk -F '=' '{print $2}' | sort -u | grep -v "^$")
         TOTAL_TARGETS="$targets"
 
-        if [ "$CUSTOM_KERNEL_FLAG" != "TRUE" ]; then
-            if [ "$TARGETS" != "" ]; then 
+        if [[ "$CUSTOM_KERNEL_FLAG" != "TRUE" && "$DISTRO_KERNEL_FLAG" != "TRUE" ]]; then
+            if [[ "$TARGETS" != "" ]]; then 
                 check_targets "$targets" "$TARGETS"
             fi
 
@@ -269,8 +283,12 @@ function build_and_run_lks() {
                 skip_targets "$TOTAL_TARGETS" "$SKIP_TARGETS_COMPILE_FAIL_CENTOS7 $SKIP_TARGETS_NONSUPPORT_CENTOS7"
                 ;;
             centos_8 | redhat_8)
-                LogMsg "Skip targets ($SKIP_TARGETS_COMPILE_FAIL_CENTOS8 $SKIP_TARGETS_NONSUPPORT_CENTOS8) for Centos or Redhat"
-                skip_targets "$TOTAL_TARGETS" "$SKIP_TARGETS_COMPILE_FAIL_CENTOS8 $SKIP_TARGETS_NONSUPPORT_CENTOS8"
+                LogMsg "Skip targets ($SKIP_TARGETS_NONSUPPORT_CENTOS8) for Centos or Redhat"
+                skip_targets "$TOTAL_TARGETS" "$SKIP_TARGETS_NONSUPPORT_CENTOS8"
+                ;;
+            suse*)
+                LogMsg "Skip targets ($SKIP_TARGETS_NONSUPPORT_SUSE) for suse"
+                skip_targets "$TOTAL_TARGETS" "$SKIP_TARGETS_NONSUPPORT_SUSE"
                 ;;
             *)
                 LogErr "Unknown distro $DISTRO"
@@ -279,12 +297,21 @@ function build_and_run_lks() {
             esac
         fi
 
-        if [ "$SKIP_TARGETS" != "" ]; then
+        if [[ "$SKIP_TARGETS" != "" ]]; then
             LogMsg "Skip targets ($SKIP_TARGETS) for these targets may cause system hanging or our scenario is not involved"
             skip_targets "$TOTAL_TARGETS" "$SKIP_TARGETS"
         fi
 
-        LogMsg "total targets: $TOTAL_TARGETS"
+        if [[ $DISTRO =~ "centos_8" ]]; then
+            if [ -f "./tools/testing/selftests/x86/Makefile" ]; then
+                sed -i "s/-static//" ./tools/testing/selftests/x86/Makefile
+            fi
+            if [ -f "./tools/testing/selftests/size/Makefile" ]; then
+                sed -i "s/-static//" ./tools/testing/selftests/size/Makefile
+            fi
+        fi
+
+        LogMsg "Total targets: $TOTAL_TARGETS"
         if [ $SUMMARY -eq 1 ]; then
             make -C tools/testing/selftests summary=1 TARGETS="$TOTAL_TARGETS" run_tests >> $LKS_OUTPUT 2>&1
         else
@@ -339,6 +366,7 @@ fi
 
 LogMsg "Download LKS source code"
 KERNEL_VERSION="$(uname -r)"
+LogMsg "Kernel version: $KERNEL_VERSION"
 
 # 1) If the kernel is custom kernel, we download next or stable kernel source code.
 # 2) If $LKS_VERSION_GIT_TAG is set value, we download stable kernel of this tag for
@@ -346,10 +374,11 @@ KERNEL_VERSION="$(uname -r)"
 #    'LKS_VERSION_GIT_TAG' is passed from Test Definition in .\XML\TestCases\CommunityTests.xml.
 #    'LKS_VERSION_GIT_TAG' default value is defined in .\XML\Other\ReplaceableTestParameters.xml.
 # 3) If the kernel is distro kernel, we download distro kernel source code.
-if [[ $DISTRO =~ "ubuntu" && $KERNEL_VERSION != *azure* 
-    || $DISTRO =~ "debian" && $KERNEL_VERSION != *cloud* 
-    || $DISTRO =~ "centos" && $KERNEL_VERSION != *el* 
-    || $DISTRO =~ "redhat" && $KERNEL_VERSION != *el* ]]; then
+if [[ $DISTRO =~ "ubuntu" && $KERNEL_VERSION != *azure*
+    || $DISTRO =~ "debian" && $KERNEL_VERSION != *cloud*
+    || $DISTRO =~ "centos" && $KERNEL_VERSION != *el*
+    || $DISTRO =~ "redhat" && $KERNEL_VERSION != *el*
+    || $DISTRO =~ "suse" && $KERNEL_VERSION != *azure* ]]; then
     download_custom_kernel
     if [ $? -ne 0 ]; then
         LogErr "Failed to download custom kernel source code"
@@ -358,8 +387,8 @@ if [[ $DISTRO =~ "ubuntu" && $KERNEL_VERSION != *azure*
     fi
     CUSTOM_KERNEL_FLAG="TRUE"
 elif [[ "$LKS_VERSION_GIT_TAG" != "" ]]; then
-    LogMsg "kernel source git: $stable_kernel_src"
-    LogMsg "kernel git tag: $LKS_VERSION_GIT_TAG"
+    LogMsg "Kernel source git: $stable_kernel_src"
+    LogMsg "Kernel git tag: $LKS_VERSION_GIT_TAG"
     cd /root
     git clone $stable_kernel_src
     check_exit_status "Clone stable kernel source code" "exit"
@@ -373,6 +402,7 @@ else
         SetTestStateAborted
         exit 0
     fi
+    DISTRO_KERNEL_FLAG="TRUE"
 fi
 
 LogMsg "Building and running LKS tests..."
@@ -393,6 +423,8 @@ if [ -f $LKS_OUTPUT ]; then
         ignore_failed_tests_from_output "${IGNORABLE_FAIL_TESTS_CENTOS_7[@]}"
     elif [[ $DISTRO =~ "centos_8" || $DISTRO =~ "redhat_8" ]]; then
         ignore_failed_tests_from_output "${IGNORABLE_FAIL_TESTS_CENTOS_8[@]}"
+    elif [[ $DISTRO =~ "suse" ]]; then
+        ignore_failed_tests_from_output "${IGNORABLE_FAIL_TESTS_SUSE[@]}"
     else
         cat $LKS_OUTPUT | grep -E "^ok|^not ok" | sort -u >> $LKS_RESULTS 2>&1
     fi
