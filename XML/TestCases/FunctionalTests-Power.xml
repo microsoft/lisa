@@ -12,7 +12,7 @@
 		<AdditionalHWConfig>
 			<DiskType>Managed</DiskType>
 		</AdditionalHWConfig>
-		<Platform>Azure</Platform>
+		<Platform>Azure,HyperV</Platform>
 		<Category>Functional</Category>
 		<Area>POWER</Area>
 		<Tags>power</Tags>
