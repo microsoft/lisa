@@ -52,11 +52,19 @@ function Main {
 		$vm = Add-AzVMDataDisk -VM $vm -Name $dataDiskName -CreateOption Attach -ManagedDiskId $dataDisk1.Id -Lun 1
 		Start-Sleep -s 30
 
-		Update-AzVM -VM $vm -ResourceGroupName $rgName
+		$ret_val = Update-AzVM -VM $vm -ResourceGroupName $rgName
 		Write-LogInfo "Updated the VM with a new data disk"
 		Write-LogInfo "Waiting for 30 seconds for configuration sync"
 		# Wait for disk sync with Azure host
 		Start-Sleep -s 30
+
+		# Verify the new data disk addition
+		if ($ret_val.IsSuccessStatusCode) {
+			Write-LogInfo "Successfully add a new disk to the Resource Group, $($rgName)"
+		} else {
+			Write-LogErr "Failed to add a new disk to the Resource Group, $($rgname)"
+			throw "Failed to add a new disk"
+		}
 
 		#region Upload files to master VM
 		foreach ($VMData in $AllVMData) {
@@ -87,12 +95,19 @@ function Main {
 				break
 			} elseif ($state -eq "TestSkipped") {
 				Write-LogInfo "SetupHbKernel.sh finished with SKIPPED state!"
-				$testResult = $resultSkipped
-				return $testResult
-			} elseif (($state -eq "TestFailed") -or ($state -eq "TestAborted")) {
+				$resultArr = $resultSkipped
+				$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
+				return $currentTestResult.TestResult
+			} elseif ($state -eq "TestFailed") {
 				Write-LogErr "SetupHbKernel.sh didn't finish successfully!"
-				$testResult = $resultAborted
-				return $testResult
+				$resultArr = $resultFail
+				$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
+				return $currentTestResult.TestResult
+			} elseif ($state -eq "TestAborted") {
+				Write-LogInfo "SetupHbKernel.sh finished with Aborted state!"
+				$resultArr = $resultAborted
+				$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
+				return $currentTestResult.TestResult
 			} else {
 				Write-LogInfo "SetupHbKernel.sh is still running in the VM!"
 			}
