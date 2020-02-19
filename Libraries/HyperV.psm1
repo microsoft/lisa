@@ -322,7 +322,7 @@ function Create-HyperVGroupDeployment([string]$HyperVGroupName, $HyperVGroupXML,
             $vhdSuffix = [System.IO.Path]::GetExtension($OsVHD)
             $InterfaceAliasWithInternet = (Get-NetIPConfiguration -ComputerName $HyperVHost | Where-Object {$_.NetProfile.Name -ne 'Unidentified network'}).InterfaceAlias
             # using -like *$_.Name* to replace -match $_.Name, in order to avoid Switch's Name contains brackets '(' ')', which will be taken as regex syntax, matching failure
-            $VMSwitches = Get-VMSwitch -ComputerName $HyperVHost | Where-Object {$InterfaceAliasWithInternet -like "*" + $_.Name + "*"} | Select-Object -First 1
+            $VMSwitches = Get-VMSwitch -ComputerName $HyperVHost | Where-Object {$InterfaceAliasWithInternet -like "*" + $_.Name + "*" } | Select-Object -First 1
             if ( $VirtualMachine.RoleName) {
                 $CurrentVMName = $HyperVGroupName + "-" + $VirtualMachine.RoleName
                 $CurrentVMOsVHDPath = "$DestinationOsVHDPath\$HyperVGroupName-$CurrentVMName-diff-OSDisk${vhdSuffix}"
