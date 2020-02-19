@@ -37,7 +37,12 @@ function Create-AllHyperVGroupDeployments($SetupTypeData, $GlobalConfig, $TestLo
         $HyperVHostArray = @()
         if ($deployOnDifferentHosts -eq "yes") {
             foreach ($HypervHost in $GlobalConfig.Global.HyperV.Hosts.ChildNodes) {
-                $HyperVHostArray += $HyperVHost.ServerName
+                if (!($HyperVHostArray -contains $HyperVHost.ServerName)) {
+                    $HyperVHostArray += $HyperVHost.ServerName
+                }
+                else {
+                    throw "Duplicate HyperVHost name '$($HyperVHost.ServerName)' detected, could not deploy VMs on different hosts"
+                }
             }
         } else {
             $HyperVHostArray += $GlobalConfig.Global.HyperV.Hosts.ChildNodes[$index].ServerName
