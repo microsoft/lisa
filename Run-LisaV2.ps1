@@ -115,7 +115,7 @@ Param(
 
 
 $CURRENT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
-Import-Module "${CURRENT_DIR}\LISAv2-Framework"
+Import-Module "${CURRENT_DIR}\LISAv2-Framework" -Force
 
 $params = @{}
 $MyInvocation.MyCommand.Parameters.Keys | ForEach-Object {
