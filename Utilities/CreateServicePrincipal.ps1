@@ -13,6 +13,8 @@ function New-SWRandomPassword {
         Generates one or more complex passwords designed to fulfill the requirements for Active Directory
     .DESCRIPTION
         Generates one or more complex passwords designed to fulfill the requirements for Active Directory
+        Strongly recommend the subscription owner executes the script. Non-owner may see warning message
+        such as "don't have enough permission to assign a role" in New-AzRoleAssignment
     .EXAMPLE
         New-SWRandomPassword
         C&3SX6Kn
