@@ -8,6 +8,8 @@ LISAv2 is the one-stop automation solution implemented by PowerShell scripts, Li
 * Microsoft Azure
 * Microsoft Azure Stack
 * Microsoft Hyper-V
+* WSL
+* Ready
 
 LISAv2 includes below test suite categories:
 * Functional tests
@@ -17,7 +19,7 @@ LISAv2 includes below test suite categories:
 
 ### Prerequisite
 
-1. You must have a Windows Machine (Host) with PowerShell (v5.0 and above) as test driver. It should be Windows Server for localhost, or any Windows system including Windows 10 for remote host access case.
+1. You must have a Windows Machine (Host) with PowerShell (v5.0 and above but not 6.x) as test driver. It should be Windows Server for localhost, or any Windows system including Windows 10 for remote host access case. PowerShell 6.x shows run-time error due to missing nugget.
 
 2. You must be connected to Internet.
 
@@ -54,7 +56,7 @@ LISAv2 includes below test suite categories:
 ### Download Latest Azure PowerShell
 
 1. Download Web Platform Installer from [here](http://go.microsoft.com/fwlink/p/?linkid=320376&clcid=0x409)
-2. Start Web Platform Installer and select Azure PowerShell (required 6.3.0 or above) and proceed for Azure PowerShell Installation.
+2. Start Web Platform Installer and select Azure PowerShell (required 6.3.0 or above) and proceed for Azure PowerShell Installation. (Azure PowerShell version is different from PowerShell version)
 3. Install the Azure Powershell Az module [here](https://docs.microsoft.com/en-us/powershell/azure/install-az-ps?view=azps-2.6.0)
 
 ### Authenticate Your Test Driver Machine with Your Azure Subscription
@@ -86,29 +88,29 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
 
 ### Launch Test Suite
 
-1. Clone this automation code to your test driver by:
+1. Clone this automation code to your test system by:
 
           git clone https://github.com/LIS/LISAv2.git
 
-2. Use a secret file or update the .\XML\GlobalConfigurations.xml manually for preparatory work:
+2. Create a new secret file, or update it with those required fields from .\XML\GlobalConfigurations.xml manually for the preparation:
 
-    2.1 Update below subscription info using created service principal, can use [this script](https://github.com/LIS/LISAv2/blob/master/Utilities/CreateServicePrincipal.ps1) to create service principal
-        If run test case in location eastasia, create a standard and premium storage account under the test subscription in eastasia, and replace storage account names in secrets file
-        if run against other region, add new sections like <eastasia></eastasia>
+    2.1 Update below subscription info using created service principal, can use [this script](https://github.com/LIS/LISAv2/blob/master/Utilities/CreateServicePrincipal.ps1) to create service principal.
+        For example, if you run test case in location 'eastasia', then you create a standard and premium storage account under the test subscription in 'eastasia' and replace storage account names in secrets file.
+        If you run against other regions, add new tag sections like <new_region></new_region>
     ```xml
         <secrets>
             <!--Not mandatory-->
-            <SubscriptionName></SubscriptionName>
+            <SubscriptionName>Enter your subscription name</SubscriptionName>
             <!--Below four sections are mandatory when test against Azure platform-->
-            <SubscriptionID></SubscriptionID>
-            <SubscriptionServicePrincipalTenantID></SubscriptionServicePrincipalTenantID>
-            <SubscriptionServicePrincipalClientID></SubscriptionServicePrincipalClientID>
-            <SubscriptionServicePrincipalKey><SubscriptionServicePrincipalKey>
+            <SubscriptionID>Enter your subscription id</SubscriptionID>
+            <SubscriptionServicePrincipalTenantID>Enter a new Tenant id from CreateServicePrincipal.ps1 result</SubscriptionServicePrincipalTenantID>
+            <SubscriptionServicePrincipalClientID>Enter a new Client id from CreateServicePrincipal.ps1 result</SubscriptionServicePrincipalClientID>
+            <SubscriptionServicePrincipalKey>Enter a new Principal key from CreateServicePrincipal.ps1 result<SubscriptionServicePrincipalKey>
             <!--Download needed tools from the blob-->
-            <blobStorageLocation> </blobStorageLocation>
+            <blobStorageLocation>Enter your blob storage location if needed</blobStorageLocation>
             <!--VMs Credential-->
-            <linuxTestUsername></linuxTestUsername>
-            <linuxTestPassword></linuxTestPassword>
+            <linuxTestUsername>Enter Linux VM user name</linuxTestUsername>
+            <linuxTestPassword>Enter Linux VM user password with high complexity</linuxTestPassword>
             <!--Database info for upload results-->
             <DatabaseServer></DatabaseServer>
             <DatabaseUser></DatabaseUser>
@@ -116,12 +118,12 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
             <DatabaseName></DatabaseName>
             <RegionAndStorageAccounts>
                 <eastasia>
-                    <StandardStorage>HERE</StandardStorage>
-                    <PremiumStorage>HERE</PremiumStorage>
+                    <StandardStorage>Enter Standard Storage Account name</StandardStorage>
+                    <PremiumStorage>Enter Premium Storage Account name</PremiumStorage>
                 </eastasia>
                 <westus>
-                    <StandardStorage>HERE</StandardStorage>
-                    <PremiumStorage>HERE</PremiumStorage>
+                    <StandardStorage>Enter Standard Storage Account name</StandardStorage>
+                    <PremiumStorage>Enter Premium Storage Account name</PremiumStorage>
                 </westus>
                 <!--Other locations sections-->
             </RegionAndStorageAccounts>
