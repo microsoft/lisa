@@ -10,7 +10,9 @@ param (
     [ValidateSet("0", "1", "2", "3")]
     [string] $Priority,
     [string] $Category,
-    [string] $Area
+    [string] $Area,
+    [boolean] $ExportCSV = $false,
+    [string] $Path
 )
 
 # Hashtable for tag info collection
@@ -66,14 +68,28 @@ if ($Area) {
     $all_test_cases = @($all_test_cases | Where-Object {$_.Area -imatch $Area})
 }
 
+if ($ExportCSV -eq $true) {
+    if (!$Path){
+        $Path = "./LISAv2Statistics_" + (Get-Date).ToString("yyyyMMdd_hhmmss") + ".csv"
+    }
+    $all_test_cases | Select-Object -Property TestName,Platform,Category,Area,Tags,Priority | Export-Csv -Path $Path -NoTypeInformation
+    if ($?) {
+        Write-Output "Exported CSV file: $Path"
+    }
+}
+else {
+    if ($Path) {
+        Write-Output "`n[Warning]: '`$Path' has value '$Path', but `$ExportCSV -eq `$false, formating output as Table instead of exporting csv."
+        Start-Sleep -s 5
+    }
+    $all_test_cases | Format-Table TestName,Platform,Category,Area,Tags,Priority -AutoSize
+    Write-Output "TestCases Count: $($all_test_cases.count)"
 
-$all_test_cases | Format-Table TestName,Platform,Category,Area,Tags,Priority -AutoSize
-Write-Output "TestCases Count: $($all_test_cases.count)"
-
-if (!$Platform -and !$Priority -and !$Tags -and !$Category -and !$Area) {
-    Write-Output "===== Test Cases Number per platform ====="
-    $platform_info | Format-Table -hide
-    Write-Output "===== Tag Details ====="
-    #Show tag information
-    Write-Output ($numTags | Out-String)
+    if (!$Platform -and !$Priority -and !$Tags -and !$Category -and !$Area) {
+        Write-Output "===== Test Cases Number per platform ====="
+        $platform_info | Format-Table -hide
+        Write-Output "===== Tag Details ====="
+        #Show tag information
+        Write-Output ($numTags | Out-String)
+    }
 }
