@@ -1,0 +1,20 @@
+<TestCases>
+	<test>
+		<testName>Power-hibernate</testName>
+		<testScript>Power-Hibernate.ps1</testScript>
+		<setupType>OneVMhb</setupType>
+		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SetupHbKernel.sh</files>
+		<Priority>3</Priority>
+		<TestParameters>
+			<param>hb_url=Hb_CustomKernelURL</param>
+			<param>hb_branch=Hb_CustomKernelBranch</param>
+		</TestParameters>
+		<AdditionalHWConfig>
+			<DiskType>Managed</DiskType>
+		</AdditionalHWConfig>
+		<Platform>Azure,HyperV</Platform>
+		<Category>Functional</Category>
+		<Area>POWER</Area>
+		<Tags>power</Tags>
+	</test>
+</TestCases>
