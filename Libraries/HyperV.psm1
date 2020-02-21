@@ -37,7 +37,11 @@ function Create-AllHyperVGroupDeployments($SetupTypeData, $GlobalConfig, $TestLo
         $HyperVHostArray = @()
         if ($deployOnDifferentHosts -eq "yes") {
             foreach ($HypervHost in $GlobalConfig.Global.HyperV.Hosts.ChildNodes) {
-                $HyperVHostArray += $HyperVHost.ServerName
+                if (!($HyperVHostArray -contains $HyperVHost.ServerName)) {
+                    $HyperVHostArray += $HyperVHost.ServerName
+                } else {
+                    throw "Duplicate HyperVHost name '$($HyperVHost.ServerName)' detected, could not deploy VMs on different hosts"
+                }
             }
         } else {
             $HyperVHostArray += $GlobalConfig.Global.HyperV.Hosts.ChildNodes[$index].ServerName
@@ -316,7 +320,8 @@ function Create-HyperVGroupDeployment([string]$HyperVGroupName, $HyperVGroupXML,
 
             $vhdSuffix = [System.IO.Path]::GetExtension($OsVHD)
             $InterfaceAliasWithInternet = (Get-NetIPConfiguration -ComputerName $HyperVHost | Where-Object {$_.NetProfile.Name -ne 'Unidentified network'}).InterfaceAlias
-            $VMSwitches = Get-VMSwitch -ComputerName $HyperVHost | Where-Object {$InterfaceAliasWithInternet -match $_.Name} | Select-Object -First 1
+            # using -like *$_.Name* to replace -match $_.Name, in order to avoid Switch's Name contains brackets '(' ')', which will be taken as regex syntax, matching failure
+            $VMSwitches = Get-VMSwitch -ComputerName $HyperVHost | Where-Object {$InterfaceAliasWithInternet -like "*" + $_.Name + "*" } | Select-Object -First 1
             if ( $VirtualMachine.RoleName) {
                 $CurrentVMName = $HyperVGroupName + "-" + $VirtualMachine.RoleName
                 $CurrentVMOsVHDPath = "$DestinationOsVHDPath\$HyperVGroupName-$CurrentVMName-diff-OSDisk${vhdSuffix}"
@@ -902,11 +907,8 @@ function Get-HostMemory($HvServer, [int]$RequestedMemory) {
     $totalMemory = [math]::Round((Get-WmiObject -Class Win32_ComputerSystem -Computer $HvServer).TotalPhysicalMemory/1MB)
     $bufferMemory = [int](0.1 * $totalMemory)
     # Get available memory and decrease the buffer from it
-    if ($HvServer -ne "localhost") {
-        $availableMemory = [int](Get-Counter -Counter "\Memory\Available MBytes" -ComputerName $HvServer).CounterSamples[0].CookedValue
-    } else {
-        $availableMemory = [int](Get-Counter -Counter "\Memory\Available MBytes").CounterSamples[0].CookedValue
-    }
+    # WORKAROUND: 'Get-Counter' will throw exception on Windows Client as Hyper-V host, so work around by Invoke-Command
+    $availableMemory = Invoke-Command -ComputerName $HvServer -ScriptBlock { [int](Get-Counter -Counter "\Memory\Available MBytes").CounterSamples[0].CookedValue }
     $availableMemory = $availableMemory - $bufferMemory
     # Check if there is enough memory to deploy the VM
     $availableMemoryAfterDeploy = $availableMemory - $RequestedMemory
