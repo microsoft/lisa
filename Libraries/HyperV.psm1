@@ -39,8 +39,7 @@ function Create-AllHyperVGroupDeployments($SetupTypeData, $GlobalConfig, $TestLo
             foreach ($HypervHost in $GlobalConfig.Global.HyperV.Hosts.ChildNodes) {
                 if (!($HyperVHostArray -contains $HyperVHost.ServerName)) {
                     $HyperVHostArray += $HyperVHost.ServerName
-                }
-                else {
+                } else {
                     throw "Duplicate HyperVHost name '$($HyperVHost.ServerName)' detected, could not deploy VMs on different hosts"
                 }
             }
