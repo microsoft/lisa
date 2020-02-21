@@ -163,7 +163,7 @@ POWERBI_MESSAGE
 '
 if (!(Test-Path -Path ".\SubscriptionUsage.html")) {
     $htmlFileStart = $TableStyle + $htmlFileStart
-    $htmlFileStart = $htmlFileStart.Replace("POWERBI_MESSAGE", '<p style="text-align: left;"><em>Last refreshed&nbsp;<strong>DATE_TIME. </strong></em> <a href="https://msit.powerbi.com/groups/bf12e64a-dd80-4fa8-8297-6607ea85f687/reports/251e1a2b-1568-4d4d-9daa-0ca47a20162b/ReportSection" target="_blank" rel="noopener"><em><strong>Click Here</strong></em></a> to see the report in PowerBI.</p>')
+    $htmlFileStart = $htmlFileStart.Replace("POWERBI_MESSAGE", '<p style="text-align: left;"><em>Last refreshed&nbsp;<strong>DATE_TIME. </strong></em> <a href="https://msit.powerbi.com/groups/bf12e64a-dd80-4fa8-8297-6607ea85f687/reports/251e1a2b-1568-4d4d-9daa-0ca47a20162b/ReportSectionc76454e8966c842453be" target="_blank" rel="noopener"><em><strong>Click Here</strong></em></a> to see the report in PowerBI.</p>')
 } else {
     $htmlFileStart = $htmlFileStart.Replace("POWERBI_MESSAGE", '<hr />')
 }
