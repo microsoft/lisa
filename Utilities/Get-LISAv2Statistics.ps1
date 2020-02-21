@@ -11,7 +11,7 @@ param (
     [string] $Priority,
     [string] $Category,
     [string] $Area,
-    [boolean] $ExportCSV = $false,
+    [switch] $ExportCSV,
     [string] $Path
 )
 
@@ -68,18 +68,18 @@ if ($Area) {
     $all_test_cases = @($all_test_cases | Where-Object {$_.Area -imatch $Area})
 }
 
-if ($ExportCSV -eq $true) {
+if ($ExportCSV.IsPresent) {
     if (!$Path){
         $Path = "./LISAv2Statistics_" + (Get-Date).ToString("yyyyMMdd_hhmmss") + ".csv"
     }
-    $all_test_cases | Select-Object -Property TestName,Platform,Category,Area,Tags,Priority | Export-Csv -Path $Path -NoTypeInformation
+    $all_test_cases | Select-Object -Property TestName,Platform,Category,Area,Tags,Priority | Export-Csv -Path $Path -NoTypeInformation -Force
     if ($?) {
         Write-Output "Exported CSV file: $Path"
     }
 }
 else {
     if ($Path) {
-        Write-Output "`n[Warning]: '`$Path' has value '$Path', but `$ExportCSV -eq `$false, formating output as Table instead of exporting csv."
+        Write-Output "`n[Warning]: '-Path' has value '$Path', but '-ExportCSV' does NOT present as a parameter, hence formating output as Table instead of exporting csv."
         Start-Sleep -s 5
     }
     $all_test_cases | Format-Table TestName,Platform,Category,Area,Tags,Priority -AutoSize
