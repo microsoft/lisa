@@ -48,6 +48,12 @@ function Main {
     param( [object]$AllVmData, [object]$CurrentTestData )
     $currentTestResult = Create-TestResultObject
     try {
+        foreach ($vmData in $AllVMData) {
+            Write-LogInfo "Install package pciutils to use lspci command."
+            Copy-RemoteFiles -uploadTo $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -file ".\Testscripts\Linux\utils.sh" -upload
+            Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password `
+                    -command "which lspci || (. ./utils.sh && install_package pciutils)" -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+        }
         $resultArr = @()
         $Stage2Result = $true
         $FailureCount = 0

@@ -158,7 +158,7 @@ function Install_Dpdk () {
 	HOMEDIR=$(pwd)
 	export RTE_SDK="${HOMEDIR}/dpdk"
 	export RTE_TARGET="x86_64-native-linuxapp-gcc"
-
+	DPDK_DIR="dpdk"
 	SetTestStateRunning
 	LogMsg "Configuring ${1} ${DISTRO_NAME} ${DISTRO_VERSION} for DPDK test..."
 	packages=(gcc make git tar wget dos2unix psmisc make)
@@ -167,7 +167,7 @@ function Install_Dpdk () {
 			ssh "${1}" ". utils.sh && install_epel"
 			ssh "${1}" "yum -y groupinstall 'Infiniband Support' && dracut --add-drivers 'mlx4_en mlx4_ib mlx5_ib' -f && systemctl enable rdma"
 			check_exit_status "Install Infiniband Support on ${1}" "exit"
-			ssh "${1}" "grep 7.5 /etc/redhat-release && curl https://partnerpipelineshare.blob.core.windows.net/kernel-devel-rpms/CentOS-Vault.repo > /etc/yum.repos.d/CentOS-Vault.repo"
+			ssh "${1}" "(grep 7.5 /etc/redhat-release || grep 7.6 /etc/redhat-release) && curl https://partnerpipelineshare.blob.core.windows.net/kernel-devel-rpms/CentOS-Vault.repo > /etc/yum.repos.d/CentOS-Vault.repo"
 			packages+=(kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel)
 			check_package "libmnl-devel"
 			if [ $? -eq 0 ]; then
@@ -274,8 +274,6 @@ function Install_Dpdk () {
 		dpdkSrcDir="dpdk"
 		check_exit_status "Get DPDK sources from ppa on ${1}" "exit"
 	fi
-
-	DPDK_DIR="dpdk"
 
 	LogMsg "DPDK source directory: ${DPDK_DIR}"
 
