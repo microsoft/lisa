@@ -314,6 +314,8 @@ function Install_Dpdk () {
 	else
 		ssh "${1}" "sed -i 's/^CONFIG_RTE_LIBRTE_MLX4_PMD=n/CONFIG_RTE_LIBRTE_MLX4_PMD=y/g' $RTE_SDK/config/common_base"
 		check_exit_status "${1} CONFIG_RTE_LIBRTE_MLX4_PMD=y" "exit"
+		ssh "${1}" "sed -i 's/^CONFIG_RTE_LIBRTE_MLX5_PMD=n/CONFIG_RTE_LIBRTE_MLX5_PMD=y/g' $RTE_SDK/config/common_base"
+		check_exit_status "${1} CONFIG_RTE_LIBRTE_MLX5_PMD=y" "exit"
 		ssh "${1}" "cd $RTE_SDK && make config O=$RTE_TARGET T=$RTE_TARGET"
 		ssh "${1}" "cd $RTE_SDK/$RTE_TARGET && make -j 2>&1 && make install 2>&1"
 		check_exit_status "dpdk build on ${1}" "exit"
