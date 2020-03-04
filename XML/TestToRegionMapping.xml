@@ -8,5 +8,6 @@
     </Tag>
     <TestName>
         <VERIFY-NVIDIA-CUDA-DRIVER-FOR-NC6-VM>eastus</VERIFY-NVIDIA-CUDA-DRIVER-FOR-NC6-VM>
+        <VALIDATE-INTEL-SGX-DRIVER-FOR-DC-VM>uksouth</VALIDATE-INTEL-SGX-DRIVER-FOR-DC-VM>
     </TestName>
 </EnabledRegions>
