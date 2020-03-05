@@ -126,6 +126,9 @@ function Main() {
 					LogMsg "$?: Installed $req_pkg"
 				;;
 			esac
+			if [ ! -f /usr/bin/python ]; then
+				ln -s /usr/bin/python3 /usr/bin/python
+			fi
 			yum -y groupinstall "InfiniBand Support"
 			Verify_Result
 			LogMsg "Installed InfiniBand Support"
