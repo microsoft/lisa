@@ -14,9 +14,10 @@
 set -e
 set -x
 
+sudo rm -rf state.txt
 . utils.sh || {
     echo "Error: unable to source utils.sh!"
-    echo "TestAborted" >state.txt
+    echo "TestAborted" > state.txt
     exit 1
 }
 
