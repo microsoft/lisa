@@ -5,7 +5,7 @@
 	Perform a simple VM hibernation in Azure or Hyper-V
 
 .Description
-	This test can be performed in Azure and Hyper-V both.
+	This test can be performed in Azure and Hyper-V both. But this script only covers Azure.
 	1. Prepare swap space for hibernation
 	2. Compile a new kernel (optional)
 	3. Update the grup.cfg with resume=UUID=xxxx where is from blkid swap disk
