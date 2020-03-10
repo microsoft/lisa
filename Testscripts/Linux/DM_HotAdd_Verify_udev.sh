@@ -13,6 +13,15 @@
 # Source constants file and initialize most common variables
 UtilsInit
 items=(SUBSYSTEM==\"memory\", ACTION==\"add\", ATTR{state}=\"online\")
+
+case $DISTRO in
+    redhat_7|centos_7|redhat_8|centos_8)
+        items=(SUBSYSTEM!=\"memory\", GOTO=\"memory_hotplug_end\")
+    ;;
+    *)
+    ;;
+esac
+
 #######################################################################
 #
 # Main script body
