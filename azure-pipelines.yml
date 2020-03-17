@@ -8,7 +8,7 @@ jobs:
     strategy:
       parallel: 1
     pool:
-      vmImage: 'win1803'
+      vmImage: 'windows-2019'
     steps:
     - powershell: Install-Module -Name Pester -Scope CurrentUser -Force -SkipPublisherCheck -AllowClobber
     - powershell:
@@ -19,7 +19,7 @@ jobs:
     strategy:
       parallel: 1
     pool:
-      vmImage: 'win1803'
+      vmImage: 'windows-2019'
     steps:
     - powershell: Install-Module -Name PSScriptAnalyzer -Scope CurrentUser -Force -SkipPublisherCheck -AllowClobber
     - powershell:
