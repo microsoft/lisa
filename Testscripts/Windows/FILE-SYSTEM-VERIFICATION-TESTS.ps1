@@ -127,8 +127,8 @@ function Main {
         $sw = [diagnostics.stopwatch]::StartNew()
         while ($sw.elapsed -lt $timeout) {
             Start-Sleep -Seconds 60
-            $tcpTestResult = (Test-NetConnection -ComputerName $allVMData.PublicIP -Port $allVMData.SSHPort).TcpTestSucceeded
-            if ($tcpTestResult) {
+            $isVmAlive = Is-VmAlive -AllVMDataObject $allVMData -MaxRetryCount 10
+            if ($isVmAlive -eq "True") {
                 $state = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort `
                 -username $superuser -password $password "cat state.txt"
                 if ($state -eq "TestCompleted") {
@@ -146,7 +146,7 @@ function Main {
                 }
                 Write-LogInfo "xfstesting.sh is still running!"
             } else {
-                continue
+                throw "VM is not responsible during testing."
             }
         }
 
