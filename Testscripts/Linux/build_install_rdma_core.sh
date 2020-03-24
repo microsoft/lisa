@@ -6,7 +6,7 @@
 
 HOMEDIR=$(pwd)
 UTIL_FILE="./utils.sh"
-
+DPDK_UTIL_FILE="./dpdkUtils.sh"
 # Source utils.sh
 . utils.sh || {
 	echo "ERROR: unable to source utils.sh!"
@@ -22,7 +22,7 @@ function build_install_rdma_core () {
 	packages=()
 	case "${DISTRO_NAME}" in
 		ubuntu|debian)
-			ssh "${1}" ". ${UTIL_FILE} && . ${DPDK_UTIL_FILE} && Install_Dpdk_Dependencies ${1} ${DISTRO_NAME}"
+			ssh "${1}" ". ${UTIL_FILE} && update_repos && . ${DPDK_UTIL_FILE} && Install_Dpdk_Dependencies ${1} ${DISTRO_NAME}"
 			packages=(devscripts equivs python-docutils cython3 pandoc python3-dev)
 			;;
 		*)
@@ -39,6 +39,8 @@ function build_install_rdma_core () {
 	check_exit_status "enabled apt sources on ${1}" "exit"
 
 	RDMA_CORE_DIR="rdma-core"
+	LogMsg "Remove folder $RDMA_CORE_DIR if exists."
+	rm -rf "${RDMA_CORE_DIR}"
 	git clone "${dpdkRdmaCoreSrcLink}" -b "${dpdkRdmaCoreBranch}" "${RDMA_CORE_DIR}"
 	check_exit_status "git clone ${dpdkRdmaCoreSrcLink} rdma-core on ${1}" "exit"
 	pushd "${RDMA_CORE_DIR}"
@@ -47,8 +49,9 @@ function build_install_rdma_core () {
 	popd
 
 	pushd "${HOMEDIR}"
-	dpkg -i libibverbs1_*_amd64.deb ibverbs-providers_*_amd64.deb  libibverbs-dev_*_amd64.deb rdma-core_*_amd64.deb
-	check_exit_status "dpkg -i libibverbs1_*_amd64.deb ibverbs-providers_*_amd64.deb  libibverbs-dev_*_amd64.deb rdma-core_*_amd64.deb on ${1}" "exit"
+	LogMsg "Install all built packages."
+	dpkg -i *.deb
+	check_exit_status "dpkg -i *.deb on ${1}" "exit"
 	popd
 }
 
