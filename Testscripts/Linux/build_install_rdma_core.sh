@@ -39,6 +39,7 @@ function build_install_rdma_core () {
 	check_exit_status "enabled apt sources on ${1}" "exit"
 
 	RDMA_CORE_DIR="rdma-core"
+	LogMsg "Remove folder $RDMA_CORE_DIR if exists."
 	rm -rf "${RDMA_CORE_DIR}"
 	git clone "${dpdkRdmaCoreSrcLink}" -b "${dpdkRdmaCoreBranch}" "${RDMA_CORE_DIR}"
 	check_exit_status "git clone ${dpdkRdmaCoreSrcLink} rdma-core on ${1}" "exit"
@@ -48,6 +49,7 @@ function build_install_rdma_core () {
 	popd
 
 	pushd "${HOMEDIR}"
+	LogMsg "Install all built packages."
 	dpkg -i *.deb
 	check_exit_status "dpkg -i *.deb on ${1}" "exit"
 	popd
