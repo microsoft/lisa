@@ -146,7 +146,7 @@ function Main {
                 }
                 Write-LogInfo "xfstesting.sh is still running!"
             } else {
-                throw "VM is not responsible during testing."
+                throw "VM is not responding during testing."
             }
         }
 

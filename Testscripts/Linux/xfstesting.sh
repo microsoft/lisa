@@ -72,6 +72,7 @@ ConfigureXFSTestTools() {
     modprobe btrfs
     LogMsg "Packages installation complete."
     # Install dbench
+    LogMsg "Remove folder $dbench_folder if exists."
     rm -rf $dbench_folder
     git clone $dbench_git_url $dbench_folder
     pushd $dbench_folder
@@ -81,6 +82,7 @@ ConfigureXFSTestTools() {
     make install
     popd
     # Install xfstests
+    LogMsg "Remove folder $xfs_folder if exists."
     rm -rf $xfs_folder
     git clone $xfs_git_url $xfs_folder
     pushd $xfs_folder
