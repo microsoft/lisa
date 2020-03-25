@@ -1910,7 +1910,7 @@ function CheckCallTracesWithDelay() {
 
 # Get the verison of LIS
 function get_lis_version() {
-	lis_version=$(modinfo hv_vmbus | grep "^version:"| awk '{print $2}')
+	lis_version=$(modinfo hv_vmbus 2>/dev/null | grep "^version:"| awk '{print $2}')
 	if [ "$lis_version" == "" ]; then
 		lis_version="Default_LIS"
 	fi
@@ -2833,11 +2833,11 @@ function collect_VM_properties () {
 	echo ",LIS Version,"$(get_lis_version) >> $output_file
 	echo ",Host Version,"$(get_host_version) >> $output_file
 	echo ",Total CPU cores,"$(nproc) >> $output_file
-	echo ",Total Memory,"$(free -h|grep Mem|awk '{print $2}') >> $output_file
-	echo ",Resource disks size,"$(lsblk|grep "^sdb"| awk '{print $4}')  >> $output_file
-	echo ",Data disks attached,"$(lsblk | grep "^sd" | awk '{print $1}' | sort | grep -v "sd[ab]$" | wc -l)  >> $output_file
+	echo ",Total Memory,"$(free -h | grep Mem | awk '{print $2}') >> $output_file
+	echo ",Resource disks size,"$(lsblk | grep "^sdb" | awk '{print $4}') >> $output_file
+	echo ",Data disks attached,"$(lsblk | grep "^sd" | awk '{print $1}' | sort | grep -v "sd[ab]$" | wc -l) >> $output_file
 	echo ",eth0 MTU,"$(cat /sys/class/net/eth0/mtu) >> $output_file
-	echo ",eth1 MTU,"$(cat /sys/class/net/eth1/mtu) >> $output_file
+	[ -f /sys/class/net/eth1/mtu ] && echo ",eth1 MTU,"$(cat /sys/class/net/eth1/mtu) >> $output_file
 }
 
 # Add command in startup files
