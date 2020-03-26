@@ -52,6 +52,7 @@ function Main {
 
     if ($TestPlatform -eq "HyperV") {
         $buildNumber = Get-HostBuildNumber $HvServer
+        Write-LogInfo "Found the buildNumber $buildNumber"
         #$RHEL7_Above = Get-VMFeatureSupportStatus -Ipv4 $Ipv4 -SSHPort $VMPort `
         #    -Username $VMUserName -Password $VMPassword -SupportKernel "3.10.0-123"
         $RHEL7_Above = $True
@@ -110,6 +111,7 @@ function Main {
         Write-LogErr "Running KDUMP-Config.sh script failed on VM!"
         return "ABORTED"
     } elseif ($state -eq "TestSkipped") {
+        Write-LogWarn "Distro is not supported or kernel config does not allow auto"
         return "SKIPPED"
     }
     # Rebooting the VM in order to apply the kdump settings
@@ -124,6 +126,7 @@ function Main {
     # Prepare the kdump related
     $retVal = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
                 -command "export HOME=``pwd``;chmod u+x KDUMP-Execute.sh && ./KDUMP-Execute.sh" -runAsSudo
+    Write-LogInfo "Executed DUMP-Execute.sh in the VM"
     $state = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
         -command "cat state.txt" -runAsSudo
     if (($state -eq "TestAborted") -or ($state -eq "TestFailed")) {
@@ -135,15 +138,18 @@ function Main {
     Write-LogInfo "Trigger the kernel panic..."
     if ($nmi -eq 1) {
         # Waiting to kdump_execute.sh to finish execution.
+        Write-LogInfo "Let KDUMP-Execute.sh complete."
         Start-Sleep -Seconds 100
         Debug-VM -Name $VMName -InjectNonMaskableInterrupt -ComputerName $HvServer -Force
     } else {
+        Write-LogInfo "NMI does not support, so it triggers different method"
         if ($vcpu -eq 4){
             Write-LogInfo "Kdump will be triggered on VCPU 3 of 4"
             $retVal = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
                 -command "taskset -c 2 echo c > /proc/sysrq-trigger"
         } else {
             # If directly use plink to trigger kdump, command fails to exit, so use start-process
+            Write-LogInfo "Set /proc/sysrq-trigger"
             Run-LinuxCmd -username  $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
                 -command "echo c > /proc/sysrq-trigger" -RunInBackGround -runAsSudo | Out-Null
         }
