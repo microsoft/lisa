@@ -119,7 +119,7 @@ function download_custom_kernel() {
         check_exit_status "Clone next kernel source code" "exit"
         LKS_SRCDIR="/root/linux-next"
     else
-        version=${KERNEL_VERSION%%-*}
+        version=${KERNEL_VERSION%%[^.&^0-9]*}
         LogMsg "Kernel source git: $stable_kernel_src"
         git clone $stable_kernel_src
         check_exit_status "Clone stable kernel source code" "exit"
@@ -258,12 +258,11 @@ function build_and_run_lks() {
     if [ -f $MAKEFILE ]; then
         targets=$(cat $MAKEFILE | grep ^TARGETS | awk -F '=' '{print $2}' | sort -u | grep -v "^$")
         TOTAL_TARGETS="$targets"
+        if [[ "$TARGETS" != "" ]]; then
+            check_targets "$targets" "$TARGETS"
+        fi
 
         if [[ "$CUSTOM_KERNEL_FLAG" != "TRUE" && "$DISTRO_KERNEL_FLAG" != "TRUE" ]]; then
-            if [[ "$TARGETS" != "" ]]; then 
-                check_targets "$targets" "$TARGETS"
-            fi
-
             case $DISTRO in
             ubuntu*)
                 #16.04           
