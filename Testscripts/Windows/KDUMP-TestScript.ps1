@@ -138,7 +138,7 @@ function Main {
     Write-LogInfo "Trigger the kernel panic..."
     if ($nmi -eq 1) {
         # Waiting to kdump_execute.sh to finish execution.
-        Write-LogInfo "Let KDUMP-Execute.sh complete."
+        Write-LogInfo "Let KDUMP-Execute.sh complete"
         Start-Sleep -Seconds 100
         Debug-VM -Name $VMName -InjectNonMaskableInterrupt -ComputerName $HvServer -Force
     } else {
