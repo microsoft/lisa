@@ -2836,8 +2836,12 @@ function collect_VM_properties () {
 	echo ",Total Memory,"$(free -h | grep Mem | awk '{print $2}') >> $output_file
 	echo ",Resource disks size,"$(lsblk | grep "^sdb" | awk '{print $4}') >> $output_file
 	echo ",Data disks attached,"$(lsblk | grep "^sd" | awk '{print $1}' | sort | grep -v "sd[ab]$" | wc -l) >> $output_file
-	echo ",eth0 MTU,"$(cat /sys/class/net/eth0/mtu) >> $output_file
-	[ -f /sys/class/net/eth1/mtu ] && echo ",eth1 MTU,"$(cat /sys/class/net/eth1/mtu) >> $output_file
+	IFACES=($(ls /sys/class/net/))
+	for i in "${!IFACES[@]}"; do
+		if [[ "${IFACES[$i]}" != *"lo"* ]]; then
+			echo ",${IFACES[$i]} MTU,"$(cat /sys/class/net/${IFACES[$i]}/mtu) >> $output_file
+		fi
+	done
 }
 
 # Add command in startup files
