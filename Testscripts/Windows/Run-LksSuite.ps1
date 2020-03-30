@@ -36,21 +36,20 @@ function Get-TestResult ($currentTestResult, $currentTestData) {
                 $metaData = $_.split(":")[1].replace(' ','').split('[')[0]
                 $result = $_.split("[]")[1]
                 $item = "{0,-35} {1,10}" -f $metaData, $result
-            } elseif ($_ -match "(ok|not ok)+\s+\d+\s+[\w]") {
-                $metaData = $_.split(" ")[2]
-                $result = $_.split(" ")[0]
-
-                if ($result -eq "ok") {
+            } elseif ($_ -match "(ok|not ok)+\s+\d+\s+(selftests:)\s+[\w|\w-\w:]+\s+[\w|\w-\w|.]") {
+                if ($_.Contains("not ok")) {
+                    if ($_.Contains("SKIP")) {
+                        $result = "SKIP"
+                    } else {
+                        $result = "FAIL"
+                    }
+                } elseif ($_.Contains("ok")) {
                     $result = "PASS"
-                } else {
-                    $result = "FAIL"
                 }
-
-                $item = "{0,-35} {1,10}" -f $metaData, $result
-            }
-            else {
-                Write-LogInfo "Unknown output format"
-                continue
+                $subsystem = $_.split(":")[1].split(" ")[1]
+                $testname = $_.split(":")[2].split(" ")[1]
+                $metaData = $subsystem + "_" + $testname
+                $item = "{0,-20} {1,-35} {2,10}" -f $subsystem, $testname, $result
             }
 
             $totalCount += 1
