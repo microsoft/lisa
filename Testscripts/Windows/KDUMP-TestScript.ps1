@@ -116,7 +116,7 @@ function Main {
     }
     # Rebooting the VM in order to apply the kdump settings
     Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
-        -command "reboot" -runAsSudo -RunInBackGround | Out-Null
+        -command "sleep 5; reboot" -runAsSudo -RunInBackGround | Out-Null
     Write-LogInfo "Rebooting VM $VMName after kdump configuration..."
     Start-Sleep -Seconds 10 # Wait for kvp & ssh services stop
 
@@ -126,7 +126,7 @@ function Main {
     # Prepare the kdump related
     $retVal = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
                 -command "export HOME=``pwd``;chmod u+x KDUMP-Execute.sh && ./KDUMP-Execute.sh" -runAsSudo
-    Write-LogInfo "Executed DUMP-Execute.sh in the VM"
+    Write-LogInfo "Executed KDUMP-Execute.sh in the VM"
     $state = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
         -command "cat state.txt" -runAsSudo
     if (($state -eq "TestAborted") -or ($state -eq "TestFailed")) {
@@ -151,13 +151,13 @@ function Main {
             # If directly use plink to trigger kdump, command fails to exit, so use start-process
             Write-LogInfo "Set /proc/sysrq-trigger"
             Run-LinuxCmd -username  $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
-                -command "echo c > /proc/sysrq-trigger" -RunInBackGround -runAsSudo | Out-Null
+                -command "sleep 5; echo c > /proc/sysrq-trigger" -RunInBackGround -runAsSudo | Out-Null
         }
     }
 
     # Give the host a few seconds to record the event
-    Write-LogInfo "Waiting seconds to record the event..."
-    Start-Sleep -Seconds 10
+    Write-LogInfo "Waiting 60 seconds to record the event..."
+    Start-Sleep -Seconds 60
 
     if ($TestPlatform -eq "HyperV") {
         if ((-not $RHEL7_Above) -and ($BuildNumber -eq "14393")){
@@ -173,19 +173,22 @@ function Main {
     # Verifying if the kernel panic process creates a vmcore file of size 10M+
     $retVal = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
                 -command "export HOME=``pwd``;chmod u+x KDUMP-Results.sh && ./KDUMP-Results.sh $vm2ipv4" -runAsSudo
+    $summary = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+                -command "cat summary.log" -runAsSudo
+    Write-LogDbg "Result of executing KDUMP-Results.sh - $summary."
     if (-not $retVal) {
         Write-LogErr "Results are not as expected. Check logs for details."
-
         # Stop NFS server VM
         if ($vm2Name) {
             Stop-VM -VMName $vm2Name -ComputerName $HvServer -Force
         }
         return "FAIL"
     }
-    $result = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
-                -command "find /var/crash/ -name vmcore -type f -size +10M" -runAsSudo
-    Write-LogInfo "Files found: $result"
-    Write-LogInfo "Test passed: crash file $result is present"
+    $state = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort -command "cat state.txt" -runAsSudo
+    if (($state -eq "TestAborted") -or ($state -eq "TestFailed")) {
+        Write-LogErr "Running KDUMP-Results.sh script failed on VM!"
+        return "ABORTED"
+    }
 
     # Stop NFS server VM
     if ($vm2Name) {
