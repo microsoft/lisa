@@ -706,20 +706,19 @@ function Install-CustomLIS ($CustomLIS, $customLISBranch, $allVMData, [switch]$R
 						Write-LogInfo "Package Installation Status for $($job.RoleName) : $currentStatus"
 						$packageInstallJobsRunning = $true
 					}
-					else
-					{
-						Copy-RemoteFiles -download -downloadFrom $job.PublicIP -port $job.SSHPort -files "build-CustomLIS.txt" -username "root" -password $password -downloadTo $LogDir
-						if ( ( Get-Content "$LogDir\build-CustomLIS.txt" ) -imatch "CUSTOM_LIS_SUCCESS" )
-						{
-							$lisSuccess += 1
-						}
-						Move-Item -Path "$LogDir\build-CustomLIS.txt" -Destination "${LogDir}\$($job.RoleName)-build-CustomLIS.txt" -Force | Out-Null
-					}
 				}
 				if ( $packageInstallJobsRunning )
 				{
 					Wait-Time -seconds 10
 				}
+			}
+
+			foreach ($vmData in $allVMData) {
+				Copy-RemoteFiles -download -downloadFrom $vmData.PublicIP -port $vmData.SSHPort -files "build-CustomLIS.txt" -username "root" -password $password -downloadTo $LogDir
+				if ((Get-Content "$LogDir\build-CustomLIS.txt") -imatch "CUSTOM_LIS_SUCCESS") {
+					$lisSuccess += 1
+				}
+				Move-Item -Path "$LogDir\build-CustomLIS.txt" -Destination "${LogDir}\$($vmData.RoleName)-build-CustomLIS.txt" -Force | Out-Null
 			}
 
 			if ( $lisSuccess -eq $jobCount )
