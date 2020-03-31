@@ -116,7 +116,7 @@ function Main {
     }
     # Rebooting the VM in order to apply the kdump settings
     Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
-        -command "sleep 5; reboot" -runAsSudo -RunInBackGround | Out-Null
+        -command "sync; reboot" -runAsSudo -RunInBackGround | Out-Null
     Write-LogInfo "Rebooting VM $VMName after kdump configuration..."
     Start-Sleep -Seconds 10 # Wait for kvp & ssh services stop
 
@@ -151,7 +151,7 @@ function Main {
             # If directly use plink to trigger kdump, command fails to exit, so use start-process
             Write-LogInfo "Set /proc/sysrq-trigger"
             Run-LinuxCmd -username  $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
-                -command "sleep 5; echo c > /proc/sysrq-trigger" -RunInBackGround -runAsSudo | Out-Null
+                -command "sync; echo c > /proc/sysrq-trigger" -RunInBackGround -runAsSudo | Out-Null
         }
     }
 
