@@ -287,8 +287,10 @@
         <MemoryInMB>28672</MemoryInMB>
     </Standard_DS12-2_v2>
     <Standard_DS12_v2>
-        <NumberOfCores>4</NumberOfCores>
-        <MemoryInMB>28672</MemoryInMB>
+        <!-- Azure flavor Core: 4 -->
+        <NumberOfCores>8</NumberOfCores>
+        <!-- Azure flavor RAM size: 28672 -->
+        <MemoryInMB>4096</MemoryInMB>
     </Standard_DS12_v2>
     <Standard_DS13-2_v2>
         <NumberOfCores>8</NumberOfCores>
