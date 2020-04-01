@@ -26,6 +26,8 @@ SearchModules()
         abs_path="/root/initr/lib/modules/"
     elif [[ -d "/usr/lib64/modules" ]]; then
         abs_path="/usr/lib64/modules/"
+    elif [[ -d "/usr/lib/modules" ]]; then
+        abs_path="/usr/lib/modules/$(uname -r)"
     fi
     if [[ $DISTRO == "suse_12" ]] || ([[ $DISTRO_NAME == "ubuntu" ]] && [[ $DISTRO_VERSION == "19.10" ]]); then
         abs_path="/lib/modules/$(uname -r)"

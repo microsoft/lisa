@@ -70,7 +70,7 @@ if [ "$os_GENERATION" -eq "1" ]; then
 fi
 
 # lsvmbus requires python
-which python || [ -f /usr/libexec/platform-python ] && ln -s /usr/libexec/platform-python /sbin/python
+which python || [ -f /usr/libexec/platform-python ] && ln -s /usr/libexec/platform-python /sbin/python || which python3 && ln -s $(which python3) /sbin/python
 if ! which python; then
     update_repos
     install_package python
