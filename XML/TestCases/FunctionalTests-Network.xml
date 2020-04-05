@@ -408,7 +408,7 @@
     <test>
         <testName>VERIFY-RESTART-INTERFACE-RELOAD-NETVSC</testName>
         <setupType>OneVM</setupType>
-        <OverrideVMSize>Standard_D2_v2</OverrideVMSize>
+        <OverrideVMSize>Standard_DS2_v2</OverrideVMSize>
         <AdditionalHWConfig>
             <Networking>Synthetic</Networking>
         </AdditionalHWConfig>
@@ -685,7 +685,7 @@
         <testName>NETWORK-ADD-MAX-SYNTHETIC-NICS-DURING-PROVISION</testName>
         <setupScript>.\Testscripts\Windows\SETUP-NET-Add-Max-NIC.ps1</setupScript>
         <setupType>OneVM8NIC</setupType>
-        <OverrideVMSize>Standard_A8_v2</OverrideVMSize>
+        <OverrideVMSize>Standard_B16ms</OverrideVMSize>
         <TestParameters>
             <param>network_interface_count=8</param>
             <param>TEST_TYPE=synthetic</param>
@@ -706,7 +706,7 @@
         <testScript>NET-Add-NIC-After-Provision.ps1</testScript>
         <files></files>
         <setupType>OneVM</setupType>
-        <OverrideVMSize>Standard_A8_v2</OverrideVMSize>
+        <OverrideVMSize>Standard_B16ms</OverrideVMSize>
         <TestParameters>
             <param>EXTRA_NICS=7</param>
         </TestParameters>

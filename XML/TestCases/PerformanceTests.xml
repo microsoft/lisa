@@ -490,7 +490,7 @@
         <testName>PERF-SYSCALL-BENCHMARK</testName>
         <testScript>PERF-SYSCALL-BENCHMARK.ps1</testScript>
         <setupType>OneVM</setupType>
-        <OverrideVMSize>Standard_D15_v2</OverrideVMSize>
+        <OverrideVMSize>Standard_DS15_v2</OverrideVMSize>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_syscallbenchmark.sh</files>
         <TestParameters>
             <param>syscallurl="https://github.com/arkanis/syscall-benchmark.git"</param>
