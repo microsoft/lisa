@@ -2,7 +2,7 @@
     <test>
         <testName>SRIOV-VERIFY-LSPCI</testName>
         <setupType>OneVM</setupType>
-        <OverrideVMSize>Standard_D15_v2</OverrideVMSize>
+        <OverrideVMSize>Standard_DS4_v2</OverrideVMSize>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>

@@ -3,7 +3,7 @@
         <testName>NVIDIA-CUDA-DRIVER-VALIDATION</testName>
         <testScript>GPU-DRIVER-INSTALL.ps1</testScript>
         <setupType>OneVM</setupType>
-        <OverrideVMSize>Standard_NC6</OverrideVMSize>
+        <OverrideVMSize>Standard_NC6s_v2</OverrideVMSize>
         <files>.\Testscripts\Linux\gpu-driver-install.sh,.\Testscripts\Linux\utils.sh</files>
         <TestParameters>
             <param>CUDADriverVersion="CUDA_DRIVER"</param>

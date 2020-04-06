@@ -101,7 +101,7 @@
         <ResourceGroup>
             <VirtualMachine>
                 <state></state>
-                <ARMInstanceSize>Standard_D5_v2</ARMInstanceSize>
+                <ARMInstanceSize>Standard_DS5_v2</ARMInstanceSize>
                 <RoleName></RoleName>
                 <EndPoints>
                     <Name>SSH</Name>

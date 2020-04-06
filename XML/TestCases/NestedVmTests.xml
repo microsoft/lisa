@@ -4,7 +4,7 @@
         <testScript>nested_kvm_basic_test.sh</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_basic_test.sh</files>
         <setupType>OneVM</setupType>
-        <OverrideVMSize>Standard_E4_v3</OverrideVMSize>
+        <OverrideVMSize>Standard_E4s_v3</OverrideVMSize>
         <TestParameters>
             <!--The nested image should be qcow2 format, and accessible from a public URL-->
             <param>NestedImageUrl=NESTED_IMAGE_URL</param>

@@ -147,8 +147,8 @@
         <ResourceGroup>
             <VirtualMachine>
                 <state></state>
-                <InstanceSize>Standard_D12_v2</InstanceSize>
-                <ARMInstanceSize>Standard_D12_v2</ARMInstanceSize>
+                <InstanceSize>Standard_DS12_v2</InstanceSize>
+                <ARMInstanceSize>Standard_DS12_v2</ARMInstanceSize>
                 <RoleName></RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
@@ -161,8 +161,8 @@
             <VirtualMachine>
                 <DeployOnDifferentHyperVHost>yes</DeployOnDifferentHyperVHost>
                 <state></state>
-                <InstanceSize>Standard_D12_v2</InstanceSize>
-                <ARMInstanceSize>Standard_D12_v2</ARMInstanceSize>
+                <InstanceSize>Standard_DS12_v2</InstanceSize>
+                <ARMInstanceSize>Standard_DS12_v2</ARMInstanceSize>
                 <RoleName>dependency-vm</RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
