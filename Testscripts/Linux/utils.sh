@@ -2209,11 +2209,8 @@ function install_sshpass () {
 function add_sles_benchmark_repo () {
 	if [ $DISTRO_NAME == "sles" ]; then
 		case $DISTRO_VERSION in
-			11*)
-				repo_url="https://download.opensuse.org/repositories/benchmark/SLE_11_SP4/benchmark.repo"
-				;;
 			12*)
-				repo_url="https://download.opensuse.org/repositories/benchmark/SLE_12_SP4/benchmark.repo"
+				repo_url="https://download.opensuse.org/repositories/benchmark/SLE_12_SP5/benchmark.repo"
 				;;
 			15*)
 				repo_url="https://download.opensuse.org/repositories/benchmark/SLE_15_SP1/benchmark.repo"
@@ -2466,6 +2463,7 @@ function install_lagscope () {
 			yum -y --nogpgcheck install libaio sysstat git bc make gcc wget cmake
 			build_lagscope "${1}"
 			iptables -F
+			systemctl stop firewalld.service || service firewalld stop
 			;;
 
 		ubuntu|debian)
