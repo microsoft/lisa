@@ -245,6 +245,12 @@
         <NumberOfCores>4</NumberOfCores>
         <MemoryInMB>16384</MemoryInMB>
     </Standard_B4ms>
+    <Standard_B16ms>
+        <!-- Azure flavor Core: 16 -->
+        <NumberOfCores>8</NumberOfCores>
+        <!-- Azure flavor RAM size: 65536 -->
+        <MemoryInMB>16384</MemoryInMB>
+    </Standard_B16ms>
     <Standard_B8ms>
         <NumberOfCores>8</NumberOfCores>
         <MemoryInMB>32768</MemoryInMB>
@@ -317,8 +323,10 @@
         <MemoryInMB>8192</MemoryInMB>
     </Standard_DS14_v2>
     <Standard_DS15_v2>
-        <NumberOfCores>20</NumberOfCores>
-        <MemoryInMB>143360</MemoryInMB>
+        <!-- Azure flavor Core: 20 -->
+        <NumberOfCores>8</NumberOfCores>
+        <!-- Azure flavor RAM size: 143360 -->
+        <MemoryInMB>8192</MemoryInMB>
     </Standard_DS15_v2>
     <Standard_DS2_v2_Promo>
         <NumberOfCores>2</NumberOfCores>
@@ -397,8 +405,10 @@
         <MemoryInMB>8192</MemoryInMB>
     </Standard_D64_v3>
     <Standard_D64s_v3>
-        <NumberOfCores>64</NumberOfCores>
-        <MemoryInMB>262144</MemoryInMB>
+        <!-- Azure flavor Core: 64 -->
+        <NumberOfCores>8</NumberOfCores>
+        <!-- Azure flavor RAM size: 262144 -->
+        <MemoryInMB>8192</MemoryInMB>
     </Standard_D64s_v3>
     <Standard_E2_v3>
         <NumberOfCores>2</NumberOfCores>

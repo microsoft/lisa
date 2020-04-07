@@ -118,7 +118,7 @@
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
             <VirtualMachine>
-                <ARMInstanceSize>Standard_D15_v2</ARMInstanceSize>
+                <ARMInstanceSize>Standard_DS15_v2</ARMInstanceSize>
                 <RoleName></RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
@@ -130,7 +130,7 @@
             </VirtualMachine>
             <VirtualMachine>
                 <DeployOnDifferentHyperVHost>yes</DeployOnDifferentHyperVHost>
-                <ARMInstanceSize>Standard_D15_v2</ARMInstanceSize>
+                <ARMInstanceSize>Standard_DS15_v2</ARMInstanceSize>
                 <RoleName></RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
@@ -244,7 +244,7 @@
         <ResourceGroup>
             <VirtualMachine>
                 <state></state>
-                <ARMInstanceSize>Standard_D5_v2</ARMInstanceSize>
+                <ARMInstanceSize>Standard_DS5_v2</ARMInstanceSize>
                 <RoleName>server-vm</RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
@@ -257,7 +257,7 @@
             </VirtualMachine>
             <VirtualMachine>
                 <state></state>
-                <ARMInstanceSize>Standard_D5_v2</ARMInstanceSize>
+                <ARMInstanceSize>Standard_DS5_v2</ARMInstanceSize>
                 <RoleName>client-vm</RoleName>
                 <EndPoints>
                     <Name>SSH</Name>

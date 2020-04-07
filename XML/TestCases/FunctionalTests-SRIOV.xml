@@ -70,7 +70,7 @@
         <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1,.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-RUN-COMMON-TEST.ps1</testScript>
         <setupType>TwoVM2Host1Dep</setupType>
-        <OverrideVMSize>Standard_D64_v3</OverrideVMSize>
+        <OverrideVMSize>Standard_D64s_v3</OverrideVMSize>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
@@ -97,7 +97,7 @@
         <setupScript>.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-RUN-COMMON-TEST.ps1</testScript>
         <setupType>TwoVM8NIC</setupType>
-        <OverrideVMSize>Standard_D14_v2</OverrideVMSize>
+        <OverrideVMSize>Standard_DS14_v2</OverrideVMSize>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
@@ -122,7 +122,7 @@
         <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1,.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-RUN-COMMON-TEST.ps1</testScript>
         <setupType>TwoVM8NIC</setupType>
-        <OverrideVMSize>Standard_D64_v3</OverrideVMSize>
+        <OverrideVMSize>Standard_D64s_v3</OverrideVMSize>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
@@ -178,7 +178,7 @@
     <test>
         <testName>SRIOV-DISABLE-ENABLE-AN</testName>
         <setupType>OneVM</setupType>
-        <OverrideVMSize>Standard_D3_v2</OverrideVMSize>
+        <OverrideVMSize>Standard_DS3_v2</OverrideVMSize>
         <testScript>VERIFY-ENABLE-DISABLE-SRIOV-ON-EXISTING-VM.ps1</testScript>
         <files></files>
         <TestIterations>5</TestIterations>
@@ -193,7 +193,7 @@
         <setupScript>.\TestScripts\Windows\SETUP-Change-CPU.ps1,.\Testscripts\Windows\SETUP-SR-IOV-Configure.ps1</setupScript>
         <testScript>SRIOV-RUN-COMMON-TEST.ps1</testScript>
         <setupType>TwoVM2Host1Dep</setupType>
-        <OverrideVMSize>Standard_D64_v3</OverrideVMSize>
+        <OverrideVMSize>Standard_D64s_v3</OverrideVMSize>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
