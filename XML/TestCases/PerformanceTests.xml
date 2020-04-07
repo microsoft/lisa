@@ -629,7 +629,7 @@
         <testName>PERF-GOLANG-BENCHMARK</testName>
         <TestScript>PERF-GOLANG-BENCHMARK.ps1</TestScript>
         <setupType>OneVM</setupType>
-        <OverrideVMSize>Standard_D13_v2</OverrideVMSize>
+        <OverrideVMSize>Standard_DS13_v2</OverrideVMSize>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\golang-benchmark.sh</files>
         <Platform>Azure,HyperV,WSL</Platform>
         <TestParameters>
@@ -646,7 +646,7 @@
         <preTestScript>GPU-DRIVER-INSTALL.ps1</preTestScript>
         <testScript>GPU-TENSORFLOW.ps1</testScript>
         <setupType>OneVM</setupType>
-        <OverrideVMSize>Standard_NC6</OverrideVMSize>
+        <OverrideVMSize>Standard_NC6s_v2</OverrideVMSize>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\gpu-driver-install.sh,.\Testscripts\Linux\gpu-tensorflow.sh</files>
         <TestParameters>
             <param>CUDADriverVersion="CUDA_DRIVER"</param>

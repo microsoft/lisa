@@ -80,7 +80,7 @@
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
-        <OverrideVMSize>Standard_D16_v3</OverrideVMSize>
+        <OverrideVMSize>Standard_D16s_v3</OverrideVMSize>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkSetup.sh,.\Testscripts\Linux\ovs_setup.sh,.\Testscripts\Linux\dpdkUtils.sh</files>
         <TestParameters>
             <param>dpdkSrcLink="DPDK_SOURCE_URL"</param>
@@ -117,7 +117,7 @@
         <testName>VERIFY-DPDK-NFF-GO</testName>
         <testScript>VERIFY-DPDK-NFF-GO.ps1</testScript>
         <setupType>OneVM3NIC</setupType>
-        <OverrideVMSize>Standard_D16_v3</OverrideVMSize>
+        <OverrideVMSize>Standard_D16s_v3</OverrideVMSize>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
@@ -138,7 +138,7 @@
         <testName>VERIFY-DPDK-VPP</testName>
         <testScript>VERIFY-DPDK-VPP.ps1</testScript>
         <setupType>OneVM3NIC</setupType>
-        <OverrideVMSize>Standard_D16_v3</OverrideVMSize>
+        <OverrideVMSize>Standard_D16s_v3</OverrideVMSize>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
@@ -157,7 +157,7 @@
         <testName>VERIFY-DPDK-PRIMARY-SECONDARY-PROCESSES</testName>
         <testScript>VERIFY-DPDK-PRIMARY-SECONDARY-PROCESSES.ps1</testScript>
         <setupType>OneVM3NIC</setupType>
-        <OverrideVMSize>Standard_D16_v3</OverrideVMSize>
+        <OverrideVMSize>Standard_D16s_v3</OverrideVMSize>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
