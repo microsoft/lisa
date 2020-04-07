@@ -28,6 +28,7 @@ count=0
 while [ "x${json_list[$count]}" != "x" ]
 do
 	file_name=${json_list[$count]}
+	sed -i '/fio: multiple writers may overwrite blocks that belong to other jobs. This can cause verification failures./d' $file_name
 	Iteration=$(echo -e $file_name |gawk -f JSON.awk|grep '"jobname"'| tail -1| sed 's/.*]//'| sed 's/[[:blank:]]//g'| sed 's/"iteration\(.*\)"/\1/')
 	Jobs=$(echo -e $file_name |awk -f JSON.awk|grep '"jobname"'| wc -l)
 	ReadIOPS=$(echo -e $file_name |awk -f JSON.awk|grep '"read","iops"'| sed 's/.*]//' | paste -sd+ - | ${bc_cmd})

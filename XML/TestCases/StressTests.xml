@@ -181,4 +181,38 @@
 		<Tags>stress,hv_storvsc,storage</Tags>
 		<Priority></Priority>
 	</test>
+	<test>
+		<testName>STRESS-STORAGE-4K-IO-WITHVERIFY-LONGTIME</testName>
+		<testScript>PERF-STORAGE-MULTIDISK-RAID0-FIO.ps1</testScript>
+		<setupType>OneVM12Disk</setupType>
+		<AdditionalHWConfig>
+			<DiskType>Managed</DiskType>
+			<StorageAccountType>PERF_STORAGE_ACCOUNT_TYPE</StorageAccountType>
+		</AdditionalHWConfig>
+		<setupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\AddHardDisk.ps1</setupScript>
+		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
+		<TestParameters>
+			<param>modes=STRESS-STORAGE-4K-IO-MODES</param>
+			<param>chunkSize=256</param>
+			<param>ioSize=5000T</param>
+			<param>numJobDefine=16</param>
+			<param>fileSystem=xfs</param>
+			<param>startQDepth=1024</param>
+			<param>maxQDepth=32768</param>
+			<param>startIO=4</param>
+			<param>maxIO=256</param>
+			<param>fileSize=16G</param>
+			<param>ioruntime=FIO_STRESS_LONGTIME_RUNTIME</param>
+			<param>PHYSICAL_NUMBER=1</param>
+			<param>SCSI=1,1,RAID</param>
+			<param>parseTimeout=FIO_LOG_PARSE_TIMEOUT</param>
+			<param>testType=StressLongTime</param>
+		</TestParameters>
+		<cleanupScript>.\Testscripts\Windows\RemoveHardDisk.ps1</cleanupScript>
+		<Platform>Azure,HyperV</Platform>
+		<Category></Category>
+		<Area></Area>
+		<Tags>stress,hv_storvsc,storage</Tags>
+		<Priority></Priority>
+	</test>
 </TestCases>

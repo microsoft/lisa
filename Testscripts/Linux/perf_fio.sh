@@ -163,7 +163,7 @@ RunStressFIO()
 		FILEIO="--direct=1 --ioengine=libaio --filename=${nvme_namespaces} --gtod_reduce=1"
 	fi
 	iteration=0
-	io_increment=128
+	io_increment=4
 
 	# Log Config
 	mkdir $HOMEDIR/FIOLog/jsonLog
@@ -206,7 +206,11 @@ RunStressFIO()
 		qDepth=$startQDepth
 		while [ $qDepth -le $maxQDepth ]
 		do
-			numJob=1
+			if [ -n "$numJobDefine" ]; then
+				numJob=$numJobDefine
+			else
+				numJob=1
+			fi
 			thread=$((qDepth/numJob))
 			for testmode in "${modes[@]}"; do
 				iostatfilename="${IOSTATLOGDIR}/iostat-fio-${testmode}-${io}K-${thread}td.txt"
@@ -214,21 +218,33 @@ RunStressFIO()
 				LogMsg "-- iteration ${iteration} ----------------------------- ${testmode} test, ${io}K bs, ${thread} threads, ${numJob} jobs ------------------ $(date +"%x %r %Z") ---"
 				LogMsg "Running ${testmode} test, ${io}K bs, ${qDepth} qdepth (${thread} X ${numJob})..."
 				jsonfilename="${JSONFILELOG}/fio-result-${testmode}-${io}K-${qDepth}td.json"
-				if [ -z "${testmode##*'write'*}" ]; then
-					LogMsg "${fio_cmd} $FILEIO --readwrite=${testmode} --bs=${io}K --iodepth=${thread} --numjob=${numJob} --output-format=json --output=${jsonfilename} --name='iteration'${iteration} --verify=sha1 --do_verify=0 --verify_backlog=1024 --verify_fatal=1"
-					$fio_cmd $FILEIO --readwrite=$testmode --bs=${io}K --iodepth=$thread --numjob=$numJob --output-format=json --output=$jsonfilename --name="iteration"${iteration} --verify=sha1 --do_verify=0 --verify_backlog=1024 --verify_fatal=1 >> $LOGFILE 2>&1
+				if [[ "$testType" == "StressLongTime" ]] && [[ -n "$ioSize" ]]; then
+					if [ -z "${testmode##*'write'*}" ]; then
+						LogMsg "${fio_cmd} $FILEIO --readwrite=${testmode} --bs=${io}K --iodepth=${thread} --numjobs=${numJob} --output-format=json --output=${jsonfilename} --gtod_reduce=1 --runtime=${ioruntime}  --io_size=$ioSize --name='iteration'${iteration} --verify=md5 --iodepth_batch=32 --verify_dump=1"
+						$fio_cmd $FILEIO --readwrite=$testmode --bs=${io}K --iodepth=$thread --numjobs=$numJob --output-format=json --output=$jsonfilename --gtod_reduce=1 --runtime=$ioruntime --io_size=$ioSize --name="iteration"${iteration} --verify=md5 --iodepth_batch=32 --verify_dump=1 >> $LOGFILE 2>&1
+					fi
 					if [ $? -ne 0 ]; then
-						LogMsg "Error: Failed to run fio in ${testmode} phase"
+						LogMsg "Error: Failed to run fio in ${testmode} verify phase"
 						UpdateTestState $ICA_TESTFAILED
 						exit 1
 					fi
 				else
-					LogMsg "${fio_cmd} $FILEIO --readwrite=${testmode} --bs=${io}K --iodepth=${thread} --numjob=${numJob} --output-format=json --output=${jsonfilename} --name='iteration'${iteration} --verify=sha1 --do_verify=1 --verify_backlog=1024 --verify_fatal=1 --verify_only"
-					$fio_cmd $FILEIO --readwrite=$testmode --bs=${io}K --iodepth=$thread --numjob=$numJob --output-format=json --output=$jsonfilename --name="iteration"${iteration} --verify=sha1 --do_verify=1 --verify_backlog=1024 --verify_fatal=1 --verify_only  >> $LOGFILE 2>&1
-					if [ $? -ne 0 ]; then
-						LogMsg "Error: Failed to run fio in verify phase"
-						UpdateTestState $ICA_TESTFAILED
-						exit 1
+					if [ -z "${testmode##*'write'*}" ]; then
+						LogMsg "${fio_cmd} $FILEIO --readwrite=${testmode} --bs=${io}K --iodepth=${thread} --numjob=${numJob} --output-format=json --output=${jsonfilename} --name='iteration'${iteration} --verify=sha1 --do_verify=0 --verify_backlog=1024 --verify_fatal=1"
+						$fio_cmd $FILEIO --readwrite=$testmode --bs=${io}K --iodepth=$thread --numjobs=$numJob --output-format=json --output=$jsonfilename --name="iteration"${iteration} --verify=sha1 --do_verify=0 --verify_backlog=1024 --verify_fatal=1 --verify_dump=1 >> $LOGFILE 2>&1
+						if [ $? -ne 0 ]; then
+							LogMsg "Error: Failed to run fio in ${testmode} phase"
+							UpdateTestState $ICA_TESTFAILED
+							exit 1
+						fi
+					else
+						LogMsg "${fio_cmd} $FILEIO --readwrite=${testmode} --bs=${io}K --iodepth=${thread} --numjob=${numJob} --output-format=json --output=${jsonfilename} --name='iteration'${iteration} --verify=sha1 --do_verify=1 --verify_backlog=1024 --verify_fatal=1 --verify_only"
+						$fio_cmd $FILEIO --readwrite=$testmode --bs=${io}K --iodepth=$thread --numjobs=$numJob --output-format=json --output=$jsonfilename --name="iteration"${iteration} --verify=sha1 --do_verify=1 --verify_backlog=1024 --verify_fatal=1 --verify_only --verify_dump=1 >> $LOGFILE 2>&1
+						if [ $? -ne 0 ]; then
+							LogMsg "Error: Failed to run fio in verify phase"
+							UpdateTestState $ICA_TESTFAILED
+							exit 1
+						fi
 					fi
 				fi
 
@@ -281,7 +297,15 @@ CreateRAID0()
 	done
 	LogMsg "INFO: Creating RAID of ${count} devices."
 	sleep 1
-	mdadm --create ${mdVolume} --level 0 --raid-devices ${count} /dev/sd["$diskLetters"][1-5]
+	if [ -n "$chunkSize" ]; then
+		mdadm --create ${mdVolume} --level 0 --chunk $chunkSize --raid-devices ${count} /dev/sd["$diskLetters"][1-5]
+	else
+		mdadm --create ${mdVolume} --level 0 --raid-devices ${count} /dev/sd["$diskLetters"][1-5]
+	fi
+
+	if [ -n "$fileSystem" ]; then
+		mkfs -t $fileSystem ${mdVolume}
+	fi
 }
 
 ConfigNVME()
@@ -379,7 +403,7 @@ fi
 
 # Run test from here
 LogMsg "*********INFO: Starting test execution*********"
-if [[ "$testType" == Stress ]];then
+if [[ "$testType" == "Stress" ]] || [[ "$testType" == "StressLongTime" ]];then
 	RunStressFIO
 else
 	RunFIO
