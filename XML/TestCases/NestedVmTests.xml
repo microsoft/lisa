@@ -24,7 +24,7 @@
         <testScript>NESTED-KVM-NTTTCP-PRIVATE-BRIDGE.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_ntttcp_private_bridge.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
         <setupType>OneVM</setupType>
-        <OverrideVMSize>Standard_E16_v3</OverrideVMSize>
+        <OverrideVMSize>Standard_E16s_v3</OverrideVMSize>
         <TestParameters>
             <!--The nested image should be qcow2 format, and accessible from a public URL-->
             <param>NestedImageUrl=NESTED_IMAGE_URL</param>
@@ -294,7 +294,7 @@
         <testScript>NESTED-KVM-NTTTCP-DIFFERENT-L1-PUBLIC-BRIDGE.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_ntttcp_different_l1_nat.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_ntttcp.sh,.\Testscripts\Linux\nat_qemu_ifup.sh,</files>
         <setupType>TwoVM2NIC</setupType>
-        <OverrideVMSize>Standard_E16_v3</OverrideVMSize>
+        <OverrideVMSize>Standard_E16s_v3</OverrideVMSize>
         <AdditionalHWConfig>
             <DiskType>Managed</DiskType>
         </AdditionalHWConfig>
@@ -492,7 +492,7 @@
         <testScript>NESTED-KVM-NETPERF-PPS.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_netperf_pps_nat.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_netperf.sh,.\Testscripts\Linux\nat_qemu_ifup.sh</files>
         <setupType>TwoVM2NIC</setupType>
-        <OverrideVMSize>Standard_E16_v3</OverrideVMSize>
+        <OverrideVMSize>Standard_E16s_v3</OverrideVMSize>
         <TestParameters>
             <!--The nested image should be qcow2 format, and accessible from a public URL-->
             <param>NestedImageUrl=NESTED_IMAGE_URL</param>
