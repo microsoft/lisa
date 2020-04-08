@@ -130,6 +130,9 @@ RunFIO()
 				if [ $? -ne 0 ]; then
 					LogMsg "Error: Failed to run fio"
 					UpdateTestState $ICA_TESTFAILED
+					compressedFileName="${HOMEDIR}/FIOTest-$(date +"%m%d%Y-%H%M%S").tar.gz"
+					LogMsg "INFO: Please wait...Compressing all results to ${compressedFileName}..."
+					tar -cvzf $compressedFileName $LOGDIR/
 					exit 1
 				fi
 				iostatPID=$(ps -ef | awk '/iostat/ && !/awk/ { print $2 }')
@@ -223,29 +226,22 @@ RunStressFIO()
 						LogMsg "${fio_cmd} $FILEIO --readwrite=${testmode} --bs=${io}K --iodepth=${thread} --numjobs=${numJob} --output-format=json --output=${jsonfilename} --gtod_reduce=1 --runtime=${ioruntime}  --io_size=$ioSize --name='iteration'${iteration} --verify=md5 --iodepth_batch=32 --verify_dump=1"
 						$fio_cmd $FILEIO --readwrite=$testmode --bs=${io}K --iodepth=$thread --numjobs=$numJob --output-format=json --output=$jsonfilename --gtod_reduce=1 --runtime=$ioruntime --io_size=$ioSize --name="iteration"${iteration} --verify=md5 --iodepth_batch=32 --verify_dump=1 >> $LOGFILE 2>&1
 					fi
-					if [ $? -ne 0 ]; then
-						LogMsg "Error: Failed to run fio in ${testmode} verify phase"
-						UpdateTestState $ICA_TESTFAILED
-						exit 1
-					fi
 				else
 					if [ -z "${testmode##*'write'*}" ]; then
 						LogMsg "${fio_cmd} $FILEIO --readwrite=${testmode} --bs=${io}K --iodepth=${thread} --numjob=${numJob} --output-format=json --output=${jsonfilename} --name='iteration'${iteration} --verify=sha1 --do_verify=0 --verify_backlog=1024 --verify_fatal=1"
 						$fio_cmd $FILEIO --readwrite=$testmode --bs=${io}K --iodepth=$thread --numjobs=$numJob --output-format=json --output=$jsonfilename --name="iteration"${iteration} --verify=sha1 --do_verify=0 --verify_backlog=1024 --verify_fatal=1 --verify_dump=1 >> $LOGFILE 2>&1
-						if [ $? -ne 0 ]; then
-							LogMsg "Error: Failed to run fio in ${testmode} phase"
-							UpdateTestState $ICA_TESTFAILED
-							exit 1
-						fi
 					else
 						LogMsg "${fio_cmd} $FILEIO --readwrite=${testmode} --bs=${io}K --iodepth=${thread} --numjob=${numJob} --output-format=json --output=${jsonfilename} --name='iteration'${iteration} --verify=sha1 --do_verify=1 --verify_backlog=1024 --verify_fatal=1 --verify_only"
 						$fio_cmd $FILEIO --readwrite=$testmode --bs=${io}K --iodepth=$thread --numjobs=$numJob --output-format=json --output=$jsonfilename --name="iteration"${iteration} --verify=sha1 --do_verify=1 --verify_backlog=1024 --verify_fatal=1 --verify_only --verify_dump=1 >> $LOGFILE 2>&1
-						if [ $? -ne 0 ]; then
-							LogMsg "Error: Failed to run fio in verify phase"
-							UpdateTestState $ICA_TESTFAILED
-							exit 1
-						fi
 					fi
+				fi
+				if [ $? -ne 0 ]; then
+					LogMsg "Error: Failed to run fio in verify phase"
+					UpdateTestState $ICA_TESTFAILED
+					compressedFileName="${HOMEDIR}/FIOTest-$(date +"%m%d%Y-%H%M%S").tar.gz"
+					LogMsg "INFO: Please wait...Compressing all results to ${compressedFileName}..."
+					tar -cvzf $compressedFileName $LOGDIR/
+					exit 1
 				fi
 
 				iostatPID=$(ps -ef | awk '/iostat/ && !/awk/ { print $2 }')
