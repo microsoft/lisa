@@ -93,12 +93,12 @@ Start_Test()
     chmod a+x /home/$NestedUser/*.sh
 
     Log_Msg "Enable root for VM $role" $log_file
-    echo $NestedUserPassword | sudo -S /home/$NestedUser/enableRoot.sh -password $NestedUserPassword
+    echo $NestedUserPassword | sudo -S /home/$NestedUser/enable_root.sh -password $NestedUserPassword
     echo $NestedUserPassword | sudo -S cp /home/$NestedUser/*.sh /root
     remote_exec -host localhost -user root -passwd $NestedUserPassword -port 22 "hostname"
 
     if [ "$role" == "server" ]; then
-        remote_exec -host localhost -user root -passwd $NestedUserPassword -port 22 "/root/enablePasswordLessRoot.sh"
+        remote_exec -host localhost -user root -passwd $NestedUserPassword -port 22 "/root/enable_passwordless_root.sh"
         echo $NestedUserPassword | sudo -S md5sum /root/.ssh/id_rsa > /root/servermd5sum.log
         echo $NestedUserPassword | sudo -S cp /root/sshFix.tar /tmp
     else
@@ -106,7 +106,7 @@ Start_Test()
         Log_Msg "remote_copy -host $SERVER_IP_ADDR -user $NestedUser -passwd $NestedUserPassword -port 22 -filename sshFix.tar -remote_path '/tmp' -cmd get" $log_file
         remote_copy -host $SERVER_IP_ADDR -user $NestedUser -passwd $NestedUserPassword -port 22 -filename "sshFix.tar" -remote_path "/tmp" -cmd get
         echo $NestedUserPassword | sudo -S cp -fR /home/$NestedUser/sshFix.tar /root/sshFix.tar
-        remote_exec -host localhost -user root -passwd $NestedUserPassword -port 22 "/root/enablePasswordLessRoot.sh"
+        remote_exec -host localhost -user root -passwd $NestedUserPassword -port 22 "/root/enable_passwordless_root.sh"
         echo $NestedUserPassword | sudo -S md5sum /root/.ssh/id_rsa > /root/clientmd5sum.log
     fi
 

@@ -135,7 +135,7 @@ Start_Nested_VM_Public_Bridge()
     Start_Nested_VM -user $NestedUser -passwd $NestedUserPassword -port $host_fwd_port $cmd
     Enable_Root -user $NestedUser -passwd $NestedUserPassword -port $host_fwd_port
 
-    Remote_Copy_Wrapper $NestedUser $host_fwd_port "./enablePasswordLessRoot.sh" "put"
+    Remote_Copy_Wrapper $NestedUser $host_fwd_port "./enable_passwordless_root.sh" "put"
     Remote_Copy_Wrapper $NestedUser $host_fwd_port "./perf_ntttcp.sh" "put"
     Remote_Copy_Wrapper $NestedUser $host_fwd_port "./utils.sh" "put"
     Remote_Exec_Wrapper $NestedUser $host_fwd_port "chmod a+x /home/$NestedUser/*.sh"
@@ -149,7 +149,7 @@ Prepare_Client()
     Setup_Tap $TAP_NAME $BR_NAME
     Start_Nested_VM_Public_Bridge $IMAGE_NAME $TAP_NAME $HOST_FWD_PORT
     Remote_Copy_Wrapper "root" $HOST_FWD_PORT "/tmp/sshFix.tar" "put"
-    Remote_Exec_Wrapper "root" $HOST_FWD_PORT "/root/enablePasswordLessRoot.sh"
+    Remote_Exec_Wrapper "root" $HOST_FWD_PORT "/root/enable_passwordless_root.sh"
     Remote_Exec_Wrapper "root" $HOST_FWD_PORT "md5sum /root/.ssh/id_rsa > /root/clientmd5sum.log"
     Remote_Copy_Wrapper "root" $HOST_FWD_PORT "clientmd5sum.log" "get"
 
@@ -165,7 +165,7 @@ Prepare_Server()
     Start_Nested_VM_Public_Bridge $IMAGE_NAME $TAP_NAME $HOST_FWD_PORT
 
     Remote_Exec_Wrapper "root" $HOST_FWD_PORT "rm -rf /root/sshFix"
-    Remote_Exec_Wrapper "root" $HOST_FWD_PORT "/root/enablePasswordLessRoot.sh"
+    Remote_Exec_Wrapper "root" $HOST_FWD_PORT "/root/enable_passwordless_root.sh"
     Remote_Copy_Wrapper "root" $HOST_FWD_PORT "sshFix.tar" "get"
     Remote_Exec_Wrapper "root" $HOST_FWD_PORT 'md5sum /root/.ssh/id_rsa > /root/servermd5sum.log'
     Remote_Copy_Wrapper "root" $HOST_FWD_PORT "servermd5sum.log" "get"

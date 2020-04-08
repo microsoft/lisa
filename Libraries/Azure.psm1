@@ -267,8 +267,1240 @@ Function Change-StorageAccountType($TestCaseData, [string]$Location, $GlobalConf
 }
 
 Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Distro, [string]$TestLocation, $GlobalConfig, $TiPSessionId, $TipCluster, $UseExistingRG, $ResourceCleanup, $PlatformFaultDomainCount, $PlatformUpdateDomainCount) {
+	Function Write-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, $Location, $azuredeployJSONFilePath, $CurrentTestData, $StorageAccountName) {
+
+		#Random Data
+		$RGrandomWord = ([System.IO.Path]::GetRandomFileName() -replace '[^a-z]')
+		$RGRandomNumber = Get-Random -Minimum 11111 -Maximum 99999
+	
+		$UseManagedDisks = $CurrentTestData.AdditionalHWConfig.DiskType -contains "managed"
+		if ($UseManagedDisks) {
+			$DiskType = "Managed"
+		} else {
+			$DiskType = "Unmanaged"
+		}
+	
+		$UseSpecializedImage = $CurrentTestData.AdditionalHWConfig.ImageType -contains "Specialized"
+		$IsWindowsOS = $CurrentTestData.AdditionalHWConfig.OSType -contains "Windows"
+		if ($IsWindowsOS) {
+			$OSType = "Windows"
+		} else {
+			$OSType = "Linux"
+		}
+	
+		if ( $CurrentTestData.AdditionalHWConfig.OSDiskType -eq "Ephemeral" ) {
+			if ( $UseManagedDisks ) {
+				$UseEphemeralOSDisk = $true
+				$DiskType += "-Ephemeral"
+			}
+			else {
+				Throw "Invalid VM configuration. Ephemeral disks can only be created using Managed disk option."
+			}
+		}
+		else {
+			$DiskType += "-Persistent"
+			$UseEphemeralOSDisk = $false
+		}
+		#Generate the initial data
+		$numberOfVMs = 0
+		$VMNames = @()
+		$EnableIPv6 = $false
+		$totalSubnetsRequired = 0
+		foreach ( $newVM in $RGXMLData.VirtualMachine) {
+			if ( !$EnableIPv6 ) {
+				foreach ( $endpoint in $newVM.EndPoints ) {
+					if ( $endpoint.EnableIPv6 -eq "True" ) {
+						$EnableIPv6 = $true
+					}
+					#Check total subnets required
+					if ( $newVM.ExtraNICs -ne 0) {
+						$totalSubnetsRequired = $newVM.ExtraNICs
+					}
+				}
+			}
+			if ($newVM.RoleName) {
+				$VMNames += $newVM.RoleName
+			}
+			else {
+				$VMNames += Get-NewVMName -namePrefix $RGName -numberOfVMs $numberOfVMs
+			}
+			$numberOfVMs += 1
+		}
+	
+	
+		$saInfoCollected = $false
+		$retryCount = 0
+		$maxRetryCount = 999
+		while (!$saInfoCollected -and ($retryCount -lt $maxRetryCount)) {
+			try {
+				$retryCount += 1
+				Write-LogInfo "[Attempt $retryCount/$maxRetryCount] : Getting Existing Storage account information..."
+				$GetAzureRMStorageAccount = $null
+				$GetAzureRMStorageAccount = Get-AzStorageAccount
+				if ($null -eq $GetAzureRMStorageAccount) {
+					$saInfoCollected = $false
+				}
+				else {
+					$saInfoCollected = $true
+				}
+	
+			}
+			catch {
+				Write-LogErr "Error in fetching Storage Account info. Retrying in 10 seconds."
+				Start-Sleep -Seconds 10
+				$saInfoCollected = $false
+			}
+		}
+	
+		#Condition Existing Storage - NonManaged disks
+		if ( $StorageAccountName -inotmatch "NewStorage" -and !$UseManagedDisks ) {
+			$StorageAccountType = ($GetAzureRMStorageAccount | Where-Object {$_.StorageAccountName -eq $StorageAccountName}).Sku.Tier.ToString()
+			if ($StorageAccountType -match 'Premium') {
+				$StorageAccountType = "Premium_LRS"
+			}
+			else {
+				$StorageAccountType = "Standard_LRS"
+			}
+			Write-LogInfo "Storage Account Type : $StorageAccountType"
+		}
+	
+		#Condition Existing Storage - Managed Disks
+		if ( $StorageAccountName -inotmatch "NewStorage" -and $UseManagedDisks ) {
+			$StorageAccountType = ($GetAzureRMStorageAccount | Where-Object {$_.StorageAccountName -eq $StorageAccountName}).Sku.Tier.ToString()
+			if ($StorageAccountType -match 'Premium') {
+				$StorageAccountType = "Premium_LRS"
+			}
+			else {
+				$StorageAccountType = "Standard_LRS"
+			}
+		}
+	
+		#Condition New Storage - NonManaged disk
+		if ( $StorageAccountName -imatch "NewStorage" -and !$UseManagedDisks) {
+			$NewARMStorageAccountType = ($StorageAccountName).Replace("NewStorage_", "")
+			$StorageAccountName = $($NewARMStorageAccountType.ToLower().Replace("_", "")) + "$RGRandomNumber"
+			$NewStorageAccountName = $StorageAccountName
+			Write-LogInfo "Using New ARM Storage Account : $StorageAccountName"
+			$StorageAccountType = $NewARMStorageAccountType
+		}
+	
+		#Condition New Storage - Managed disk
+		if ( $StorageAccountName -imatch "NewStorage" -and $UseManagedDisks) {
+			Write-LogInfo "Conflicting parameters - NewStorage and UseManagedDisks. Storage account will not be created."
+		}
+		#Region Define all Variables.
+	
+		Write-LogInfo "Generating Template : $azuredeployJSONFilePath"
+		$jsonFile = $azuredeployJSONFilePath
+	
+		if ($ImageName -and !$osVHD) {
+			$imageInfo = $ImageName.Split(' ')
+			$publisher = $imageInfo[0]
+			$offer = $imageInfo[1]
+			$sku = $imageInfo[2]
+			$version = $imageInfo[3]
+		}
+		if($osVHD) {
+			$osVHD = $osVHD.Split("?")[0].split('/')[-1]
+		}
+	
+		$vmCount = 0
+		$indents = @()
+		$indent = ""
+		$singleIndent = ""
+		$indents += $indent
+		$dnsNameForPublicIP = "ica$RGRandomNumber" + "v4"
+		$dnsNameForPublicIPv6 = "ica$RGRandomNumber" + "v6"
+		#$virtualNetworkName = $($RGName.ToUpper() -replace '[^a-z]') + "VNET"
+		$virtualNetworkName = "VirtualNetwork"
+		$defaultSubnetName = "SubnetForPrimaryNIC"
+		$availabilitySetName = "AvailabilitySet"
+		#$LoadBalancerName =  $($RGName.ToUpper() -replace '[^a-z]') + "LoadBalancer"
+		$LoadBalancerName = "LoadBalancer"
+		$apiVersion = "2018-04-01"
+		#$PublicIPName = $($RGName.ToUpper() -replace '[^a-z]') + "PublicIPv4"
+		$PublicIPName = "PublicIPv4-$RGRandomNumber"
+		#$PublicIPv6Name = $($RGName.ToUpper() -replace '[^a-z]') + "PublicIPv6"
+		$PublicIPv6Name = "PublicIPv6"
+		$sshPath = '/home/' + $user + '/.ssh/authorized_keys'
+		$sshKeyData = $global:sshPublicKey
+		$createAvailabilitySet = !$UseExistingRG
+	
+		if ($UseExistingRG) {
+			$existentAvailabilitySet = Get-AzResource | Where-Object { (( $_.ResourceGroupName -eq $RGName ) -and ( $_.ResourceType -imatch "availabilitySets" ))} | `
+				Select-Object -First 1
+			if ($existentAvailabilitySet) {
+				$availabilitySetName = $existentAvailabilitySet.Name
+			} else {
+				$createAvailabilitySet = $true
+			}
+		}
+	
+		if ( $CurrentTestData.ProvisionTimeExtensions ) {
+			$extensionString = (Get-Content .\XML\Extensions.xml)
+			foreach ($line in $extensionString.Split("`n")) {
+				if ($line -imatch ">$($CurrentTestData.ProvisionTimeExtensions)<") {
+					$ExecutePS = $true
+				}
+				if ($line -imatch '</Extension>') {
+					$ExecutePS = $false
+				}
+				if ( ($line -imatch "EXECUTE-PS-" ) -and $ExecutePS) {
+					$PSoutout = ""
+					$line = $line.Trim()
+					$line = $line.Replace("EXECUTE-PS-", "")
+					$line = $line.Split(">")
+					$line = $line.Split("<")
+					Write-LogInfo "Executing Powershell command from Extensions.XML file : $($line[2])..."
+					$PSoutout = Invoke-Expression -Command $line[2]
+					$extensionString = $extensionString.Replace("EXECUTE-PS-$($line[2])", $PSoutout)
+					Start-Sleep -Milliseconds 1
+				}
+			}
+		}
+	
+		Write-LogInfo "Using API VERSION : $apiVersion"
+		$ExistingVnet = $null
+		if ($null -ne $RGXMLData.ARMVnetName) {
+			$ExistingVnet = $RGXMLData.ARMVnetName
+			Write-LogInfo "Getting $ExistingVnet Virtual Netowrk info ..."
+			$ExistingVnetResourceGroupName = ( Get-AzResource | Where-Object {$_.Name -eq $ExistingVnet}).ResourceGroupName
+			Write-LogInfo "ARM VNET : $ExistingVnet (ResourceGroup : $ExistingVnetResourceGroupName)"
+			$virtualNetworkName = $ExistingVnet
+		}
+	
+		#Generate Single Indent
+		for ($i = 0; $i -lt 4; $i++) {
+			$singleIndent += " "
+		}
+	
+		#Generate Indent Levels
+		for ($i = 0; $i -lt 30; $i++) {
+			$indent += $singleIndent
+			$indents += $indent
+		}
+	
+	
+		#region Generate JSON file
+		Set-Content -Value "$($indents[0]){" -Path $jsonFile -Force
+		Add-Content -Value "$($indents[1])^`$schema^: ^https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#^," -Path $jsonFile
+		Add-Content -Value "$($indents[1])^contentVersion^: ^1.0.0.0^," -Path $jsonFile
+		Add-Content -Value "$($indents[1])^parameters^: {}," -Path $jsonFile
+		Add-Content -Value "$($indents[1])^variables^:" -Path $jsonFile
+		Add-Content -Value "$($indents[1]){" -Path $jsonFile
+	
+		#region Variables
+		Add-Content -Value "$($indents[2])^StorageAccountName^: ^$StorageAccountName^," -Path $jsonFile
+		Add-Content -Value "$($indents[2])^dnsNameForPublicIP^: ^$dnsNameForPublicIP^," -Path $jsonFile
+		Add-Content -Value "$($indents[2])^dnsNameForPublicIPv6^: ^$dnsNameForPublicIPv6^," -Path $jsonFile
+		Add-Content -Value "$($indents[2])^adminUserName^: ^$user^," -Path $jsonFile
+		Add-Content -Value "$($indents[2])^adminPassword^: ^$($password.Replace('"',''))^," -Path $jsonFile
+		Add-Content -Value "$($indents[2])^sshKeyPublicThumbPrint^: ^$sshPublicKeyThumbprint^," -Path $jsonFile
+		Add-Content -Value "$($indents[2])^sshKeyPath^: ^$sshPath^," -Path $jsonFile
+		Add-Content -Value "$($indents[2])^sshKeyData^: ^$sshKeyData^," -Path $jsonFile
+		Add-Content -Value "$($indents[2])^location^: ^$($Location.Replace('"',''))^," -Path $jsonFile
+		Add-Content -Value "$($indents[2])^publicIPv4AddressName^: ^$PublicIPName^," -Path $jsonFile
+		Add-Content -Value "$($indents[2])^publicIPv6AddressName^: ^$PublicIPv6Name^," -Path $jsonFile
+	
+		Add-Content -Value "$($indents[2])^virtualNetworkName^: ^$virtualNetworkName^," -Path $jsonFile
+		Add-Content -Value "$($indents[2])^nicName^: ^$nicName^," -Path $jsonFile
+		Add-Content -Value "$($indents[2])^addressPrefix^: ^10.0.0.0/16^," -Path $jsonFile
+		Add-Content -Value "$($indents[2])^vmSourceImageName^ : ^^," -Path $jsonFile
+		Add-Content -Value "$($indents[2])^CompliedSourceImageName^ : ^[concat('/',subscription().subscriptionId,'/services/images/',variables('vmSourceImageName'))]^," -Path $jsonFile
+		Add-Content -Value "$($indents[2])^defaultSubnetPrefix^: ^10.0.0.0/24^," -Path $jsonFile
+		#Add-Content -Value "$($indents[2])^subnet2Prefix^: ^10.0.1.0/24^," -Path $jsonFile
+		Add-Content -Value "$($indents[2])^vmStorageAccountContainerName^: ^vhds^," -Path $jsonFile
+		Add-Content -Value "$($indents[2])^publicIPAddressType^: ^Dynamic^," -Path $jsonFile
+		Add-Content -Value "$($indents[2])^storageAccountType^: ^$storageAccountType^," -Path $jsonFile
+		if ($ExistingVnet) {
+			Add-Content -Value "$($indents[2])^virtualNetworkResourceGroup^: ^$ExistingVnetResourceGroupName^," -Path $jsonFile
+			Add-Content -Value "$($indents[2])^vnetID^: ^[resourceId(variables('virtualNetworkResourceGroup'), 'Microsoft.Network/virtualNetworks', '$virtualNetworkName')]^," -Path $jsonFile
+		}
+		else {
+			Add-Content -Value "$($indents[2])^defaultSubnet^: ^$defaultSubnetName^," -Path $jsonFile
+			Add-Content -Value "$($indents[2])^defaultSubnetID^: ^[concat(variables('vnetID'),'/subnets/', variables('defaultSubnet'))]^," -Path $jsonFile
+			Add-Content -Value "$($indents[2])^vnetID^: ^[resourceId('Microsoft.Network/virtualNetworks',variables('virtualNetworkName'))]^," -Path $jsonFile
+		}
+		Add-Content -Value "$($indents[2])^availabilitySetName^: ^$availabilitySetName^," -Path $jsonFile
+		Add-Content -Value "$($indents[2])^lbName^: ^$LoadBalancerName^," -Path $jsonFile
+		Add-Content -Value "$($indents[2])^lbID^: ^[resourceId('Microsoft.Network/loadBalancers',variables('lbName'))]^," -Path $jsonFile
+		Add-Content -Value "$($indents[2])^frontEndIPv4ConfigID^: ^[concat(variables('lbID'),'/frontendIPConfigurations/LoadBalancerFrontEndIPv4')]^," -Path $jsonFile
+		Add-Content -Value "$($indents[2])^frontEndIPv6ConfigID^: ^[concat(variables('lbID'),'/frontendIPConfigurations/LoadBalancerFrontEndIPv6')]^," -Path $jsonFile
+		Add-Content -Value "$($indents[2])^lbIPv4PoolID^: ^[concat(variables('lbID'),'/backendAddressPools/BackendPoolIPv4')]^," -Path $jsonFile
+		Add-Content -Value "$($indents[2])^lbIPv6PoolID^: ^[concat(variables('lbID'),'/backendAddressPools/BackendPoolIPv6')]^," -Path $jsonFile
+		Add-Content -Value "$($indents[2])^lbProbeID^: ^[concat(variables('lbID'),'/probes/tcpProbe')]^" -Path $jsonFile
+		#Add more variables here, if required..
+		Add-Content -Value "$($indents[1])}," -Path $jsonFile
+		Write-LogInfo "Added Variables.."
+	
+		#endregion
+	
+		#region Define Resources
+		Add-Content -Value "$($indents[1])^resources^:" -Path $jsonFile
+		Add-Content -Value "$($indents[1])[" -Path $jsonFile
+	
+		#region Common Resources for all deployments..
+	
+		#region availabilitySets
+		if (!$createAvailabilitySet) {
+			Write-LogInfo "Using existing Availability Set: $availabilitySetName"
+		}
+		else {
+			Add-Content -Value "$($indents[2]){" -Path $jsonFile
+			Add-Content -Value "$($indents[3])^apiVersion^: ^$apiVersion^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^type^: ^Microsoft.Compute/availabilitySets^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^name^: ^[variables('availabilitySetName')]^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
+			if ($UseManagedDisks) {
+				Add-Content -Value "$($indents[3])^sku^:" -Path $jsonFile
+				Add-Content -Value "$($indents[3]){" -Path $jsonFile
+				Add-Content -Value "$($indents[4])^name^: ^Aligned^" -Path $jsonFile
+				Add-Content -Value "$($indents[3])}," -Path $jsonFile
+			}
+			if ( $TiPSessionId -and $TiPCluster) {
+				Add-Content -Value "$($indents[3])^tags^:" -Path $jsonFile
+				Add-Content -Value "$($indents[3]){" -Path $jsonFile
+				Add-Content -Value "$($indents[4])^TipNode.SessionId^: ^$TiPSessionId^" -Path $jsonFile
+				Add-Content -Value "$($indents[3])}," -Path $jsonFile
+			}
+	
+			$faultDomainCount = 2
+			$updateDomainCount = 5
+			if ($PlatformFaultDomainCount) {
+				$faultDomainCount = $PlatformFaultDomainCount
+			}
+			if ($PlatformUpdateDomainCount) {
+				$updateDomainCount = $PlatformUpdateDomainCount
+			}
+			Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
+			Add-Content -Value "$($indents[3]){" -Path $jsonFile
+			Add-Content -Value "$($indents[4])^platformFaultDomainCount^:$faultDomainCount," -Path $jsonFile
+			Add-Content -Value "$($indents[4])^platformUpdateDomainCount^:$updateDomainCount" -Path $jsonFile
+			if ( $TiPSessionId -and $TiPCluster) {
+				Add-Content -Value "$($indents[4])," -Path $jsonFile
+				Add-Content -Value "$($indents[4])^internalData^:" -Path $jsonFile
+				Add-Content -Value "$($indents[4]){" -Path $jsonFile
+				Add-Content -Value "$($indents[5])^pinnedFabricCluster^ : ^$TiPCluster^" -Path $jsonFile
+				Add-Content -Value "$($indents[4])}" -Path $jsonFile
+			}
+			Add-Content -Value "$($indents[3])}" -Path $jsonFile
+			Add-Content -Value "$($indents[2])}," -Path $jsonFile
+			Write-LogInfo "Added availabilitySet $availabilitySetName.."
+		}
+		#endregion
+	
+		#region publicIPAddresses
+		Add-Content -Value "$($indents[2]){" -Path $jsonFile
+		Add-Content -Value "$($indents[3])^apiVersion^: ^$apiVersion^," -Path $jsonFile
+		Add-Content -Value "$($indents[3])^type^: ^Microsoft.Network/publicIPAddresses^," -Path $jsonFile
+		Add-Content -Value "$($indents[3])^name^: ^[variables('publicIPv4AddressName')]^," -Path $jsonFile
+		Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
+		Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
+		Add-Content -Value "$($indents[3]){" -Path $jsonFile
+		Add-Content -Value "$($indents[4])^publicIPAllocationMethod^: ^[variables('publicIPAddressType')]^," -Path $jsonFile
+		Add-Content -Value "$($indents[4])^dnsSettings^: " -Path $jsonFile
+		Add-Content -Value "$($indents[4]){" -Path $jsonFile
+		Add-Content -Value "$($indents[5])^domainNameLabel^: ^[variables('dnsNameForPublicIP')]^" -Path $jsonFile
+		Add-Content -Value "$($indents[4])}" -Path $jsonFile
+		Add-Content -Value "$($indents[3])}" -Path $jsonFile
+		Add-Content -Value "$($indents[2])}," -Path $jsonFile
+		Write-LogInfo "Added Public IP Address $PublicIPName.."
+		#endregion
+	
+		#region CustomImages
+		if ($OsVHD -and $UseManagedDisks) {
+			Add-Content -Value "$($indents[2]){" -Path $jsonFile
+			Add-Content -Value "$($indents[3])^apiVersion^: ^2019-03-01^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^type^: ^Microsoft.Compute/images^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^name^: ^$RGName-Image^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
+			Add-Content -Value "$($indents[3]){" -Path $jsonFile
+			Add-Content -Value "$($indents[4])^storageProfile^: " -Path $jsonFile
+			Add-Content -Value "$($indents[4]){" -Path $jsonFile
+	
+			Add-Content -Value "$($indents[5])^osDisk^: " -Path $jsonFile
+			Add-Content -Value "$($indents[5]){" -Path $jsonFile
+			Add-Content -Value "$($indents[6])^osType^: ^$OSType^," -Path $jsonFile
+			Add-Content -Value "$($indents[6])^osState^: ^Generalized^," -Path $jsonFile
+			Add-Content -Value "$($indents[6])^blobUri^: ^https://$StorageAccountName.blob.core.windows.net/vhds/$OsVHD^," -Path $jsonFile
+			Add-Content -Value "$($indents[6])^storageAccountType^: ^$StorageAccountType^" -Path $jsonFile
+			Add-Content -Value "$($indents[5])}" -Path $jsonFile
+	
+			Add-Content -Value "$($indents[4])}" -Path $jsonFile
+			if ($VMGeneration -eq "2") {
+				Add-Content -Value "$($indents[4]),^hyperVGeneration^: ^V2^" -Path $jsonFile
+			} else {
+				Add-Content -Value "$($indents[4]),^hyperVGeneration^: ^V1^" -Path $jsonFile
+			}
+			Add-Content -Value "$($indents[3])}" -Path $jsonFile
+			Add-Content -Value "$($indents[2])}," -Path $jsonFile
+			Write-LogInfo "Added Custom image '$RGName-Image' from '$OsVHD'.."
+	
+		}
+		#endregion
+	
+	
+		#region New ARM Storage Account, if necessary!
+		if ( $NewStorageAccountName) {
+			Add-Content -Value "$($indents[2]){" -Path $jsonFile
+			Add-Content -Value "$($indents[3])^apiVersion^: ^2015-06-15^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^type^: ^Microsoft.Storage/storageAccounts^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^name^: ^$NewStorageAccountName^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
+			Add-Content -Value "$($indents[3]){" -Path $jsonFile
+			Add-Content -Value "$($indents[4])^accountType^: ^$($NewARMStorageAccountType.Trim())^" -Path $jsonFile
+			Add-Content -Value "$($indents[3])}" -Path $jsonFile
+			Add-Content -Value "$($indents[2])}," -Path $jsonFile
+			Write-LogInfo "Added New Storage Account $NewStorageAccountName.."
+		}
+		#endregion
+	
+		#region New ARM Boot Diagnostic Account if Storage Account Type is Premium LRS.
+		$bootDiagnosticsSA = ([xml](Get-Content .\XML\RegionAndStorageAccounts.xml)).AllRegions.$Location.StandardStorage
+		$diagnosticRG = ($GetAzureRMStorageAccount | Where-Object {$_.StorageAccountName -eq $bootDiagnosticsSA}).ResourceGroupName.ToString()
+		#endregion
+	
+		#region virtualNetworks
+		if (!$ExistingVnet) {
+			Add-Content -Value "$($indents[2]){" -Path $jsonFile
+			Add-Content -Value "$($indents[3])^apiVersion^: ^$apiVersion^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^type^: ^Microsoft.Network/virtualNetworks^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^name^: ^[variables('virtualNetworkName')]^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
+			Add-Content -Value "$($indents[3]){" -Path $jsonFile
+			#AddressSpace
+			Add-Content -Value "$($indents[4])^addressSpace^: " -Path $jsonFile
+			Add-Content -Value "$($indents[4]){" -Path $jsonFile
+			Add-Content -Value "$($indents[5])^addressPrefixes^: " -Path $jsonFile
+			Add-Content -Value "$($indents[5])[" -Path $jsonFile
+			Add-Content -Value "$($indents[6])^[variables('addressPrefix')]^" -Path $jsonFile
+			Add-Content -Value "$($indents[5])]" -Path $jsonFile
+			Add-Content -Value "$($indents[4])}," -Path $jsonFile
+			#Subnets
+			Add-Content -Value "$($indents[4])^subnets^: " -Path $jsonFile
+			Add-Content -Value "$($indents[4])[" -Path $jsonFile
+			Add-Content -Value "$($indents[5]){" -Path $jsonFile
+			Add-Content -Value "$($indents[6])^name^: ^[variables('defaultSubnet')]^," -Path $jsonFile
+			Add-Content -Value "$($indents[6])^properties^: " -Path $jsonFile
+			Add-Content -Value "$($indents[6]){" -Path $jsonFile
+			Add-Content -Value "$($indents[7])^addressPrefix^: ^[variables('defaultSubnetPrefix')]^" -Path $jsonFile
+			Add-Content -Value "$($indents[6])}" -Path $jsonFile
+			Add-Content -Value "$($indents[5])}" -Path $jsonFile
+			Write-LogInfo "Added Default Subnet to $virtualNetworkName.."
+	
+			if ($totalSubnetsRequired -ne 0) {
+				$subnetCounter = 1
+				While ($subnetCounter -le $totalSubnetsRequired) {
+					Add-Content -Value "$($indents[5])," -Path $jsonFile
+					Add-Content -Value "$($indents[5]){" -Path $jsonFile
+					Add-Content -Value "$($indents[6])^name^: ^ExtraSubnet-$subnetCounter^," -Path $jsonFile
+					Add-Content -Value "$($indents[6])^properties^: " -Path $jsonFile
+					Add-Content -Value "$($indents[6]){" -Path $jsonFile
+					Add-Content -Value "$($indents[7])^addressPrefix^: ^10.0.$subnetCounter.0/24^" -Path $jsonFile
+					Add-Content -Value "$($indents[6])}" -Path $jsonFile
+					Add-Content -Value "$($indents[5])}" -Path $jsonFile
+					Write-LogInfo "  Added ExtraSubnet-$subnetCounter to $virtualNetworkName.."
+					$subnetCounter += 1
+				}
+			}
+			Add-Content -Value "$($indents[4])]" -Path $jsonFile
+			Add-Content -Value "$($indents[3])}" -Path $jsonFile
+			Add-Content -Value "$($indents[2])}," -Path $jsonFile
+			Write-LogInfo "Added Virtual Network $virtualNetworkName.."
+		}
+		#endregion
+	
+		#endregion
+	
+		#region publicIPAddresses
+		if ( $EnableIPv6 ) {
+			Add-Content -Value "$($indents[2]){" -Path $jsonFile
+			Add-Content -Value "$($indents[3])^apiVersion^: ^$apiVersion^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^type^: ^Microsoft.Network/publicIPAddresses^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^name^: ^[variables('publicIPv6AddressName')]^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
+			Add-Content -Value "$($indents[3]){" -Path $jsonFile
+			Add-Content -Value "$($indents[4])^publicIPAllocationMethod^: ^[variables('publicIPAddressType')]^," -Path $jsonFile
+			Add-Content -Value "$($indents[4])^publicIPAddressVersion^: ^IPv6^," -Path $jsonFile
+			Add-Content -Value "$($indents[4])^dnsSettings^: " -Path $jsonFile
+			Add-Content -Value "$($indents[4]){" -Path $jsonFile
+			Add-Content -Value "$($indents[5])^domainNameLabel^: ^[variables('dnsNameForPublicIPv6')]^" -Path $jsonFile
+			Add-Content -Value "$($indents[4])}" -Path $jsonFile
+			Add-Content -Value "$($indents[3])}" -Path $jsonFile
+			Add-Content -Value "$($indents[2])}," -Path $jsonFile
+			Write-LogInfo "Added Public IPv6 Address $PublicIPv6Name.."
+		}
+		#endregion
+	
+		#region Multiple VM Deployment
+	
+		#region LoadBalancer
+		Write-LogInfo "Adding Load Balancer ..."
+		Add-Content -Value "$($indents[2]){" -Path $jsonFile
+		Add-Content -Value "$($indents[3])^apiVersion^: ^$apiVersion^," -Path $jsonFile
+		Add-Content -Value "$($indents[3])^type^: ^Microsoft.Network/loadBalancers^," -Path $jsonFile
+		Add-Content -Value "$($indents[3])^name^: ^[variables('lbName')]^," -Path $jsonFile
+		Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
+		Add-Content -Value "$($indents[3])^dependsOn^: " -Path $jsonFile
+		Add-Content -Value "$($indents[3])[" -Path $jsonFile
+		if ( $EnableIPv6 ) {
+			Add-Content -Value "$($indents[4])^[concat('Microsoft.Network/publicIPAddresses/', variables('publicIPv6AddressName'))]^," -Path $jsonFile
+		}
+		Add-Content -Value "$($indents[4])^[concat('Microsoft.Network/publicIPAddresses/', variables('publicIPv4AddressName'))]^" -Path $jsonFile
+		Add-Content -Value "$($indents[3])]," -Path $jsonFile
+		Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
+		Add-Content -Value "$($indents[3]){" -Path $jsonFile
+		Add-Content -Value "$($indents[4])^frontendIPConfigurations^: " -Path $jsonFile
+		Add-Content -Value "$($indents[4])[" -Path $jsonFile
+		Add-Content -Value "$($indents[5]){" -Path $jsonFile
+		Add-Content -Value "$($indents[6])^name^: ^LoadBalancerFrontEndIPv4^," -Path $jsonFile
+		Add-Content -Value "$($indents[6])^properties^:" -Path $jsonFile
+		Add-Content -Value "$($indents[6]){" -Path $jsonFile
+		Add-Content -Value "$($indents[7])^publicIPAddress^:" -Path $jsonFile
+		Add-Content -Value "$($indents[7]){" -Path $jsonFile
+		Add-Content -Value "$($indents[8])^id^: ^[resourceId('Microsoft.Network/publicIPAddresses',variables('publicIPv4AddressName'))]^" -Path $jsonFile
+		Add-Content -Value "$($indents[7])}" -Path $jsonFile
+		Add-Content -Value "$($indents[6])}" -Path $jsonFile
+		Add-Content -Value "$($indents[5])}" -Path $jsonFile
+	
+		#region IPV6 frondend loadbalancer config
+		if ( $EnableIPv6 ) {
+			Add-Content -Value "$($indents[5])," -Path $jsonFile
+			Add-Content -Value "$($indents[5]){" -Path $jsonFile
+			Add-Content -Value "$($indents[6])^name^: ^LoadBalancerFrontEndIPv6^," -Path $jsonFile
+			Add-Content -Value "$($indents[6])^properties^:" -Path $jsonFile
+			Add-Content -Value "$($indents[6]){" -Path $jsonFile
+			Add-Content -Value "$($indents[7])^publicIPAddress^:" -Path $jsonFile
+			Add-Content -Value "$($indents[7]){" -Path $jsonFile
+			Add-Content -Value "$($indents[8])^id^: ^[resourceId('Microsoft.Network/publicIPAddresses',variables('publicIPv6AddressName'))]^" -Path $jsonFile
+			Add-Content -Value "$($indents[7])}" -Path $jsonFile
+			Add-Content -Value "$($indents[6])}" -Path $jsonFile
+			Add-Content -Value "$($indents[5])}" -Path $jsonFile
+		}
+		#endregion
+	
+		Add-Content -Value "$($indents[4])]," -Path $jsonFile
+		Add-Content -Value "$($indents[4])^backendAddressPools^:" -Path $jsonFile
+		Add-Content -Value "$($indents[4])[" -Path $jsonFile
+		Add-Content -Value "$($indents[5]){" -Path $jsonFile
+		Add-Content -Value "$($indents[6])^name^:^BackendPoolIPv4^" -Path $jsonFile
+		Add-Content -Value "$($indents[5])}" -Path $jsonFile
+		if ( $EnableIPv6 ) {
+			Add-Content -Value "$($indents[5])," -Path $jsonFile
+			Add-Content -Value "$($indents[5]){" -Path $jsonFile
+			Add-Content -Value "$($indents[6])^name^:^BackendPoolIPv6^" -Path $jsonFile
+			Add-Content -Value "$($indents[5])}" -Path $jsonFile
+		}
+		Add-Content -Value "$($indents[4])]," -Path $jsonFile
+		#region Normal Endpoints
+	
+		Add-Content -Value "$($indents[4])^inboundNatRules^:" -Path $jsonFile
+		Add-Content -Value "$($indents[4])[" -Path $jsonFile
+		$LBPorts = 0
+		$EndPointAdded = $false
+		$role = 0
+		foreach ( $newVM in $RGXMLData.VirtualMachine) {
+			if ($newVM.RoleName) {
+				$vmName = $newVM.RoleName
+			}
+			else {
+				$vmName = Get-NewVMName -namePrefix $RGName -numberOfVMs $role
+			}
+			foreach ( $endpoint in $newVM.EndPoints) {
+				if ( !($endpoint.LoadBalanced) -or ($endpoint.LoadBalanced -eq "False") ) {
+					if ( $EndPointAdded ) {
+						Add-Content -Value "$($indents[5])," -Path $jsonFile
+					}
+					Add-Content -Value "$($indents[5]){" -Path $jsonFile
+					Add-Content -Value "$($indents[6])^name^: ^$vmName-$($endpoint.Name)^," -Path $jsonFile
+					Add-Content -Value "$($indents[6])^properties^:" -Path $jsonFile
+					Add-Content -Value "$($indents[6]){" -Path $jsonFile
+					Add-Content -Value "$($indents[7])^frontendIPConfiguration^:" -Path $jsonFile
+					Add-Content -Value "$($indents[7]){" -Path $jsonFile
+					Add-Content -Value "$($indents[8])^id^: ^[variables('frontEndIPv4ConfigID')]^" -Path $jsonFile
+					Add-Content -Value "$($indents[7])}," -Path $jsonFile
+					Add-Content -Value "$($indents[7])^protocol^: ^$($endpoint.Protocol)^," -Path $jsonFile
+					Add-Content -Value "$($indents[7])^frontendPort^: ^$($endpoint.PublicPort)^," -Path $jsonFile
+					Add-Content -Value "$($indents[7])^backendPort^: ^$($endpoint.LocalPort)^," -Path $jsonFile
+					Add-Content -Value "$($indents[7])^enableFloatingIP^: false" -Path $jsonFile
+					Add-Content -Value "$($indents[6])}" -Path $jsonFile
+					Add-Content -Value "$($indents[5])}" -Path $jsonFile
+					Write-LogInfo "Added inboundNatRule Name:$vmName-$($endpoint.Name) frontendPort:$($endpoint.PublicPort) backendPort:$($endpoint.LocalPort) Protocol:$($endpoint.Protocol)."
+					$EndPointAdded = $true
+				}
+				else {
+					$LBPorts += 1
+				}
+			}
+			$role += 1
+		}
+		Add-Content -Value "$($indents[4])]" -Path $jsonFile
+		#endregion
+	
+		#region LoadBalanced Endpoints
+		if ( $LBPorts -gt 0 ) {
+			Add-Content -Value "$($indents[4])," -Path $jsonFile
+			Add-Content -Value "$($indents[4])^loadBalancingRules^:" -Path $jsonFile
+			Add-Content -Value "$($indents[4])[" -Path $jsonFile
+			$probePorts = 0
+			$EndPointAdded = $false
+			$addedLBPort = $null
+			$role = 0
+			foreach ( $newVM in $RGXMLData.VirtualMachine) {
+				if ($newVM.RoleName) {
+					$vmName = $newVM.RoleName
+				}
+				else {
+					$vmName = Get-NewVMName -namePrefix $RGName -numberOfVMs $role
+				}
+	
+				foreach ( $endpoint in $newVM.EndPoints) {
+					if ( ($endpoint.LoadBalanced -eq "True") -and !($addedLBPort -imatch "$($endpoint.Name)-$($endpoint.PublicPort)" ) ) {
+						if ( $EndPointAdded ) {
+							Add-Content -Value "$($indents[5])," -Path $jsonFile
+						}
+						Add-Content -Value "$($indents[5]){" -Path $jsonFile
+						Add-Content -Value "$($indents[6])^name^: ^$RGName-LB-$($endpoint.Name)^," -Path $jsonFile
+						Add-Content -Value "$($indents[6])^properties^:" -Path $jsonFile
+						Add-Content -Value "$($indents[6]){" -Path $jsonFile
+	
+						Add-Content -Value "$($indents[7])^frontendIPConfiguration^:" -Path $jsonFile
+						Add-Content -Value "$($indents[7]){" -Path $jsonFile
+						if ($endpoint.EnableIPv6 -eq "True") {
+							Add-Content -Value "$($indents[8])^id^: ^[variables('frontEndIPv6ConfigID')]^" -Path $jsonFile
+						}
+						else {
+							Add-Content -Value "$($indents[8])^id^: ^[variables('frontEndIPv4ConfigID')]^" -Path $jsonFile
+						}
+						Add-Content -Value "$($indents[7])}," -Path $jsonFile
+						Add-Content -Value "$($indents[7])^backendAddressPool^:" -Path $jsonFile
+						Add-Content -Value "$($indents[7]){" -Path $jsonFile
+						if ($endpoint.EnableIPv6 -eq "True") {
+							Add-Content -Value "$($indents[8])^id^: ^[variables('lbIPv6PoolID')]^" -Path $jsonFile
+						}
+						else {
+							Add-Content -Value "$($indents[8])^id^: ^[variables('lbIPv4PoolID')]^" -Path $jsonFile
+						}
+						Add-Content -Value "$($indents[7])}," -Path $jsonFile
+						Add-Content -Value "$($indents[7])^protocol^: ^$($endpoint.Protocol)^," -Path $jsonFile
+						Add-Content -Value "$($indents[7])^frontendPort^: ^$($endpoint.PublicPort)^," -Path $jsonFile
+						Add-Content -Value "$($indents[7])^backendPort^: ^$($endpoint.LocalPort)^" -Path $jsonFile
+	
+	
+						if ( $endpoint.ProbePort ) {
+							$probePorts += 1
+							Add-Content -Value "$($indents[7])," -Path $jsonFile
+							Add-Content -Value "$($indents[7])^probe^:" -Path $jsonFile
+							Add-Content -Value "$($indents[7]){" -Path $jsonFile
+							Add-Content -Value "$($indents[8])^id^: ^[concat(variables('lbID'),'/probes/$RGName-LB-$($endpoint.Name)-probe')]^" -Path $jsonFile
+							Add-Content -Value "$($indents[7])}," -Path $jsonFile
+							Write-LogInfo "Enabled Probe for loadBalancingRule Name:$RGName-LB-$($endpoint.Name) : $RGName-LB-$($endpoint.Name)-probe."
+						}
+						else {
+							if ( $endpoint.EnableIPv6 -ne "True" ) {
+								Add-Content -Value "$($indents[7])," -Path $jsonFile
+								Add-Content -Value "$($indents[7])^enableFloatingIP^: false," -Path $jsonFile
+								Add-Content -Value "$($indents[7])^idleTimeoutInMinutes^: 5" -Path $jsonFile
+							}
+						}
+						Add-Content -Value "$($indents[6])}" -Path $jsonFile
+						Add-Content -Value "$($indents[5])}" -Path $jsonFile
+						Write-LogInfo "Added loadBalancingRule Name:$RGName-LB-$($endpoint.Name) frontendPort:$($endpoint.PublicPort) backendPort:$($endpoint.LocalPort) Protocol:$($endpoint.Protocol)."
+						if ( $addedLBPort ) {
+							$addedLBPort += "-$($endpoint.Name)-$($endpoint.PublicPort)"
+						}
+						else {
+							$addedLBPort = "$($endpoint.Name)-$($endpoint.PublicPort)"
+						}
+						$EndPointAdded = $true
+					}
+				}
+				$role += 1
+			}
+			Add-Content -Value "$($indents[4])]" -Path $jsonFile
+		}
+		#endregion
+	
+		#region Probe Ports
+		if ( $probePorts -gt 0 ) {
+			Add-Content -Value "$($indents[4])," -Path $jsonFile
+			Add-Content -Value "$($indents[4])^probes^:" -Path $jsonFile
+			Add-Content -Value "$($indents[4])[" -Path $jsonFile
+	
+			$EndPointAdded = $false
+			$addedProbes = $null
+			$role = 0
+			foreach ( $newVM in $RGXMLData.VirtualMachine) {
+	
+				if ($newVM.RoleName) {
+					$vmName = $newVM.RoleName
+				}
+				else {
+					$vmName = Get-NewVMName -namePrefix $RGName -numberOfVMs $role
+				}
+	
+				foreach ( $endpoint in $newVM.EndPoints) {
+					if ( ($endpoint.LoadBalanced -eq "True") ) {
+						if ( $endpoint.ProbePort -and !($addedProbes -imatch "$($endpoint.Name)-probe-$($endpoint.ProbePort)")) {
+							if ( $EndPointAdded ) {
+								Add-Content -Value "$($indents[5])," -Path $jsonFile
+							}
+							Add-Content -Value "$($indents[5]){" -Path $jsonFile
+							Add-Content -Value "$($indents[6])^name^: ^$RGName-LB-$($endpoint.Name)-probe^," -Path $jsonFile
+							Add-Content -Value "$($indents[6])^properties^:" -Path $jsonFile
+							Add-Content -Value "$($indents[6]){" -Path $jsonFile
+							Add-Content -Value "$($indents[7])^protocol^ : ^$($endpoint.Protocol)^," -Path $jsonFile
+							Add-Content -Value "$($indents[7])^port^ : ^$($endpoint.ProbePort)^," -Path $jsonFile
+							Add-Content -Value "$($indents[7])^intervalInSeconds^ : ^15^," -Path $jsonFile
+							Add-Content -Value "$($indents[7])^numberOfProbes^ : ^$probePorts^" -Path $jsonFile
+							Add-Content -Value "$($indents[6])}" -Path $jsonFile
+							Add-Content -Value "$($indents[5])}" -Path $jsonFile
+							Write-LogInfo "Added probe :$RGName-LB-$($endpoint.Name)-probe Probe Port:$($endpoint.ProbePort) Protocol:$($endpoint.Protocol)."
+							if ( $addedProbes ) {
+								$addedProbes += "-$($endpoint.Name)-probe-$($endpoint.ProbePort)"
+							}
+							else {
+								$addedProbes = "$($endpoint.Name)-probe-$($endpoint.ProbePort)"
+							}
+							$EndPointAdded = $true
+						}
+					}
+				}
+	
+				$role += 1
+			}
+			Add-Content -Value "$($indents[4])]" -Path $jsonFile
+		}
+		#endregion
+	
+		Add-Content -Value "$($indents[3])}" -Path $jsonFile
+		Add-Content -Value "$($indents[2])}," -Path $jsonFile
+		Write-LogInfo "Added Load Balancer."
+		#endregion
+	
+		$vmAdded = $false
+		$role = 0
+		foreach ( $newVM in $RGXMLData.VirtualMachine) {
+			if ( $CurrentTestData.OverrideVMSize) {
+				$instanceSize = $CurrentTestData.OverrideVMSize
+			}
+			else {
+				$instanceSize = $newVM.ARMInstanceSize
+			}
+	
+			$ExistingSubnet = $newVM.ARMSubnetName
+			if ($newVM.RoleName) {
+				$vmName = $newVM.RoleName
+			}
+			else {
+				$vmName = Get-NewVMName -namePrefix $RGName -numberOfVMs $role
+			}
+			$NIC = "PrimaryNIC" + "-$vmName"
+	
+			if ( $vmAdded ) {
+				Add-Content -Value "$($indents[2])," -Path $jsonFile
+			}
+	
+			#region networkInterfaces
+			Write-LogInfo "Adding Network Interface Card $NIC"
+			Add-Content -Value "$($indents[2]){" -Path $jsonFile
+			Add-Content -Value "$($indents[3])^apiVersion^: ^2016-09-01^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^type^: ^Microsoft.Network/networkInterfaces^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^name^: ^$NIC^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^dependsOn^: " -Path $jsonFile
+			Add-Content -Value "$($indents[3])[" -Path $jsonFile
+			if ( $EnableIPv6 ) {
+				Add-Content -Value "$($indents[4])^[concat('Microsoft.Network/publicIPAddresses/', variables('publicIPv6AddressName'))]^," -Path $jsonFile
+			}
+			Add-Content -Value "$($indents[4])^[concat('Microsoft.Network/publicIPAddresses/', variables('publicIPv4AddressName'))]^," -Path $jsonFile
+			if (!$ExistingVnet) {
+				Add-Content -Value "$($indents[4])^[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]^," -Path $jsonFile
+			}
+			Add-Content -Value "$($indents[4])^[variables('lbID')]^" -Path $jsonFile
+			Add-Content -Value "$($indents[3])]," -Path $jsonFile
+	
+			Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
+			Add-Content -Value "$($indents[3]){" -Path $jsonFile
+			Add-Content -Value "$($indents[4])^ipConfigurations^: " -Path $jsonFile
+			Add-Content -Value "$($indents[4])[" -Path $jsonFile
+	
+			#region IPv4 Config
+			Add-Content -Value "$($indents[5]){" -Path $jsonFile
+			Add-Content -Value "$($indents[6])^name^: ^IPv4Config1^," -Path $jsonFile
+			Add-Content -Value "$($indents[6])^properties^: " -Path $jsonFile
+			Add-Content -Value "$($indents[6]){" -Path $jsonFile
+			Add-Content -Value "$($indents[7])^privateIPAddressVersion^:^IPv4^," -Path $jsonFile
+			Add-Content -Value "$($indents[7])^loadBalancerBackendAddressPools^:" -Path $jsonFile
+			Add-Content -Value "$($indents[7])[" -Path $jsonFile
+			Add-Content -Value "$($indents[8]){" -Path $jsonFile
+			Add-Content -Value "$($indents[9])^id^: ^[concat(variables('lbID'), '/backendAddressPools/BackendPoolIPv4')]^" -Path $jsonFile
+			Add-Content -Value "$($indents[8])}" -Path $jsonFile
+			Add-Content -Value "$($indents[7])]," -Path $jsonFile
+	
+			#region Enable InboundRules in NIC
+			Add-Content -Value "$($indents[7])^loadBalancerInboundNatRules^:" -Path $jsonFile
+			Add-Content -Value "$($indents[7])[" -Path $jsonFile
+			$EndPointAdded = $false
+			foreach ( $endpoint in $newVM.EndPoints) {
+				if ( !($endpoint.LoadBalanced) -or ($endpoint.LoadBalanced -eq "False") ) {
+					if ( $EndPointAdded ) {
+						Add-Content -Value "$($indents[8])," -Path $jsonFile
+					}
+					Add-Content -Value "$($indents[8]){" -Path $jsonFile
+					Add-Content -Value "$($indents[9])^id^:^[concat(variables('lbID'),'/inboundNatRules/$vmName-$($endpoint.Name)')]^" -Path $jsonFile
+					Add-Content -Value "$($indents[8])}" -Path $jsonFile
+					Write-LogInfo "Enabled inboundNatRule Name:$vmName-$($endpoint.Name) frontendPort:$($endpoint.PublicPort) backendPort:$($endpoint.LocalPort) Protocol:$($endpoint.Protocol) to $NIC."
+					$EndPointAdded = $true
+				}
+			}
+	
+			Add-Content -Value "$($indents[7])]," -Path $jsonFile
+			#endregion
+	
+			Add-Content -Value "$($indents[7])^subnet^:" -Path $jsonFile
+			Add-Content -Value "$($indents[7]){" -Path $jsonFile
+			if ( $existingSubnet ) {
+				Add-Content -Value "$($indents[8])^id^: ^[concat(variables('vnetID'),'/subnets/', '$existingSubnet')]^" -Path $jsonFile
+			}
+			else {
+				Add-Content -Value "$($indents[8])^id^: ^[variables('defaultSubnetID')]^" -Path $jsonFile
+			}
+			Add-Content -Value "$($indents[7])}," -Path $jsonFile
+			Add-Content -Value "$($indents[7])^privateIPAllocationMethod^: ^Dynamic^" -Path $jsonFile
+			Add-Content -Value "$($indents[6])}" -Path $jsonFile
+			Add-Content -Value "$($indents[5])}" -Path $jsonFile
+			#endregion
+	
+			#region IPv6 Config...
+			if ( $EnableIPv6 ) {
+				Add-Content -Value "$($indents[5])," -Path $jsonFile
+				Add-Content -Value "$($indents[5]){" -Path $jsonFile
+				Add-Content -Value "$($indents[6])^name^: ^IPv6Config1^," -Path $jsonFile
+				Add-Content -Value "$($indents[6])^properties^: " -Path $jsonFile
+				Add-Content -Value "$($indents[6]){" -Path $jsonFile
+				Add-Content -Value "$($indents[7])^privateIPAddressVersion^:^IPv6^," -Path $jsonFile
+				Add-Content -Value "$($indents[7])^loadBalancerBackendAddressPools^:" -Path $jsonFile
+				Add-Content -Value "$($indents[7])[" -Path $jsonFile
+				Add-Content -Value "$($indents[8]){" -Path $jsonFile
+				Add-Content -Value "$($indents[9])^id^: ^[concat(variables('lbID'), '/backendAddressPools/BackendPoolIPv6')]^" -Path $jsonFile
+				Add-Content -Value "$($indents[8])}" -Path $jsonFile
+				Add-Content -Value "$($indents[7])]," -Path $jsonFile
+				Add-Content -Value "$($indents[7])^privateIPAllocationMethod^: ^Dynamic^" -Path $jsonFile
+				Add-Content -Value "$($indents[6])}" -Path $jsonFile
+				Add-Content -Value "$($indents[5])}" -Path $jsonFile
+			}
+			#endregion
+			Add-Content -Value "$($indents[4])]" -Path $jsonFile
+			if ($CurrentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
+				Add-Content -Value "$($indents[4])," -Path $jsonFile
+				Add-Content -Value "$($indents[4])^enableAcceleratedNetworking^: true" -Path $jsonFile
+				Write-LogInfo "Enabled Accelerated Networking."
+			}
+			Add-Content -Value "$($indents[3])}" -Path $jsonFile
+	
+	
+			Add-Content -Value "$($indents[2])}," -Path $jsonFile
+			Write-LogInfo "Added NIC $NIC.."
+			#endregion
+	
+			#region multiple Nics
+			[System.Collections.ArrayList]$NicNameList = @()
+			foreach ($NetworkInterface in $newVM.NetworkInterfaces) {
+				$NicName = $NetworkInterface.Name
+				$NicNameList.add($NicName)
+				Add-Content -Value "$($indents[2]){" -Path $jsonFile
+				Add-Content -Value "$($indents[3])^apiVersion^: ^2016-09-01^," -Path $jsonFile
+				Add-Content -Value "$($indents[3])^type^: ^Microsoft.Network/networkInterfaces^," -Path $jsonFile
+				Add-Content -Value "$($indents[3])^name^: ^$NicName^," -Path $jsonFile
+				Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
+				Add-Content -Value "$($indents[3])^dependsOn^: " -Path $jsonFile
+				Add-Content -Value "$($indents[3])[" -Path $jsonFile
+				Add-Content -Value "$($indents[4])^[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]^," -Path $jsonFile
+				Add-Content -Value "$($indents[4])^[variables('lbID')]^" -Path $jsonFile
+				Add-Content -Value "$($indents[3])]," -Path $jsonFile
+	
+				Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
+				Add-Content -Value "$($indents[3]){" -Path $jsonFile
+				Add-Content -Value "$($indents[4])^ipConfigurations^: " -Path $jsonFile
+				Add-Content -Value "$($indents[4])[" -Path $jsonFile
+				Add-Content -Value "$($indents[5]){" -Path $jsonFile
+				Add-Content -Value "$($indents[6])^name^: ^IPv4Config1^," -Path $jsonFile
+				Add-Content -Value "$($indents[6])^properties^: " -Path $jsonFile
+				Add-Content -Value "$($indents[6]){" -Path $jsonFile
+				Add-Content -Value "$($indents[7])^subnet^:" -Path $jsonFile
+				Add-Content -Value "$($indents[7]){" -Path $jsonFile
+				Add-Content -Value "$($indents[8])^id^: ^[variables('defaultSubnetID')]^" -Path $jsonFile
+				Add-Content -Value "$($indents[7])}" -Path $jsonFile
+				Add-Content -Value "$($indents[6])}" -Path $jsonFile
+				Add-Content -Value "$($indents[5])}" -Path $jsonFile
+				Add-Content -Value "$($indents[4])]" -Path $jsonFile
+				if ($CurrentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
+					Add-Content -Value "$($indents[4])," -Path $jsonFile
+					Add-Content -Value "$($indents[4])^enableAcceleratedNetworking^: true" -Path $jsonFile
+					Write-LogInfo "Enabled Accelerated Networking for $NicName."
+				}
+				Add-Content -Value "$($indents[3])}" -Path $jsonFile
+				Add-Content -Value "$($indents[2])}," -Path $jsonFile
+			}
+	
+			#Add Bulk NICs
+			$currentVMNics = 0
+			while ($currentVMNics -lt $newVM.ExtraNICs) {
+				$totalRGNics += 1
+				$currentVMNics += 1
+				$NicName = "ExtraNetworkCard-$currentVMNics-$($vmName)"
+				$NicNameList.add($NicName)
+				Add-Content -Value "$($indents[2]){" -Path $jsonFile
+				Add-Content -Value "$($indents[3])^apiVersion^: ^2016-09-01^," -Path $jsonFile
+				Add-Content -Value "$($indents[3])^type^: ^Microsoft.Network/networkInterfaces^," -Path $jsonFile
+				Add-Content -Value "$($indents[3])^name^: ^$NicName^," -Path $jsonFile
+				Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^,"   -Path $jsonFile
+				Add-Content -Value "$($indents[3])^dependsOn^: " -Path $jsonFile
+				Add-Content -Value "$($indents[3])[" -Path $jsonFile
+				Add-Content -Value "$($indents[4])^[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]^," -Path $jsonFile
+				Add-Content -Value "$($indents[4])^[variables('lbID')]^" -Path $jsonFile
+				Add-Content -Value "$($indents[3])]," -Path $jsonFile
+	
+				Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
+				Add-Content -Value "$($indents[3]){" -Path $jsonFile
+				Add-Content -Value "$($indents[4])^ipConfigurations^: " -Path $jsonFile
+				Add-Content -Value "$($indents[4])[" -Path $jsonFile
+				Add-Content -Value "$($indents[5]){" -Path $jsonFile
+				Add-Content -Value "$($indents[6])^name^: ^IPv4Config1^," -Path $jsonFile
+				Add-Content -Value "$($indents[6])^properties^: " -Path $jsonFile
+				Add-Content -Value "$($indents[6]){" -Path $jsonFile
+				Add-Content -Value "$($indents[7])^subnet^:" -Path $jsonFile
+				Add-Content -Value "$($indents[7]){" -Path $jsonFile
+				Add-Content -Value "$($indents[8])^id^: ^[concat(variables('vnetID'),'/subnets/', 'ExtraSubnet-$currentVMNics')]^" -Path $jsonFile
+				Write-LogInfo "  $NicName is part of subnet - ExtraSubnet-$currentVMNics"
+				Add-Content -Value "$($indents[7])}" -Path $jsonFile
+				Add-Content -Value "$($indents[6])}" -Path $jsonFile
+				Add-Content -Value "$($indents[5])}" -Path $jsonFile
+				Add-Content -Value "$($indents[4])]" -Path $jsonFile
+				if ($CurrentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
+					Add-Content -Value "$($indents[4])," -Path $jsonFile
+					Add-Content -Value "$($indents[4])^enableAcceleratedNetworking^: true" -Path $jsonFile
+					Write-LogInfo "  Enabled Accelerated Networking for $NicName."
+				}
+				Add-Content -Value "$($indents[3])}" -Path $jsonFile
+				Add-Content -Value "$($indents[2])}," -Path $jsonFile
+			}
+	
+			#endregion
+			#region virtualMachines
+			Write-LogInfo "Adding Virtual Machine $vmName"
+			Add-Content -Value "$($indents[2]){" -Path $jsonFile
+			Add-Content -Value "$($indents[3])^apiVersion^: ^2018-06-01^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^type^: ^Microsoft.Compute/virtualMachines^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^name^: ^$vmName^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
+			if ($publisher -imatch "clear-linux-project") {
+				Write-LogInfo "  Adding plan information for clear-linux.."
+				Add-Content -Value "$($indents[3])^plan^:" -Path $jsonFile
+				Add-Content -Value "$($indents[3]){" -Path $jsonFile
+				Add-Content -Value "$($indents[4])^name^: ^$sku^," -Path $jsonFile
+				Add-Content -Value "$($indents[4])^product^: ^clear-linux-os^," -Path $jsonFile
+				Add-Content -Value "$($indents[4])^publisher^: ^clear-linux-project^" -Path $jsonFile
+				Add-Content -Value "$($indents[3])}," -Path $jsonFile
+			}
+			Add-Content -Value "$($indents[3])^tags^: {^TestID^: ^$TestID^}," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^dependsOn^: " -Path $jsonFile
+			Add-Content -Value "$($indents[3])[" -Path $jsonFile
+			if (!$createAvailabilitySet) {
+				#Add-Content -Value "$($indents[4])^[concat('Microsoft.Compute/availabilitySets/', variables('availabilitySetName'))]^," -Path $jsonFile
+			}
+			else {
+				Add-Content -Value "$($indents[4])^[concat('Microsoft.Compute/availabilitySets/', variables('availabilitySetName'))]^," -Path $jsonFile
+			}
+			if ( $NewARMStorageAccountType) {
+				Add-Content -Value "$($indents[4])^[concat('Microsoft.Storage/storageAccounts/', variables('StorageAccountName'))]^," -Path $jsonFile
+			}
+			if ( $OsVHD -and $UseManagedDisks ) {
+				Add-Content -Value "$($indents[4])^[resourceId('Microsoft.Compute/images', '$RGName-Image')]^," -Path $jsonFile
+			}
+	
+			if ($NicNameList) {
+				foreach ($NicName in $NicNameList) {
+					Add-Content -Value "$($indents[4])^[concat('Microsoft.Network/networkInterfaces/', '$NicName')]^," -Path $jsonFile
+				}
+			}
+			Add-Content -Value "$($indents[4])^[concat('Microsoft.Network/networkInterfaces/', '$NIC')]^" -Path $jsonFile
+			Add-Content -Value "$($indents[3])]," -Path $jsonFile
+	
+			#region VM Properties
+			Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
+			Add-Content -Value "$($indents[3]){" -Path $jsonFile
+			#region availabilitySet
+			Add-Content -Value "$($indents[4])^availabilitySet^: " -Path $jsonFile
+			Add-Content -Value "$($indents[4]){" -Path $jsonFile
+			Add-Content -Value "$($indents[5])^id^: ^[resourceId('Microsoft.Compute/availabilitySets','$availabilitySetName')]^" -Path $jsonFile
+			Add-Content -Value "$($indents[4])}," -Path $jsonFile
+			#endregion
+	
+			#region Hardware Profile
+			Add-Content -Value "$($indents[4])^hardwareProfile^: " -Path $jsonFile
+			Add-Content -Value "$($indents[4]){" -Path $jsonFile
+			Add-Content -Value "$($indents[5])^vmSize^: ^$instanceSize^" -Path $jsonFile
+			Add-Content -Value "$($indents[4])}," -Path $jsonFile
+			#endregion
+	
+			if ( !($UseSpecializedImage) ) {
+				#region OSProfile
+				Add-Content -Value "$($indents[4])^osProfile^: " -Path $jsonFile
+				Add-Content -Value "$($indents[4]){" -Path $jsonFile
+				Add-Content -Value "$($indents[5])^computername^: ^$vmName^," -Path $jsonFile
+				Add-Content -Value "$($indents[5])^adminUsername^: ^[variables('adminUserName')]^," -Path $jsonFile
+				if (!$sshKeyData) {
+					Add-Content -Value "$($indents[5])^adminPassword^: ^[variables('adminPassword')]^" -Path $jsonFile
+				} else {
+					Add-Content -Value "$($indents[5])^linuxConfiguration^:" -Path $jsonFile
+					Add-Content -Value "$($indents[5]){" -Path $jsonFile
+						Add-Content -Value "$($indents[6])^disablePasswordAuthentication^:true," -Path $jsonFile
+						Add-Content -Value "$($indents[6])^ssh^:" -Path $jsonFile
+						Add-Content -Value "$($indents[6]){" -Path $jsonFile
+							Add-Content -Value "$($indents[7])^publicKeys^:" -Path $jsonFile
+							Add-Content -Value "$($indents[7])[" -Path $jsonFile
+								Add-Content -Value "$($indents[8]){" -Path $jsonFile
+									Add-Content -Value "$($indents[9])^path^:^$sshPath^," -Path $jsonFile
+									Add-Content -Value "$($indents[9])^keyData^:^$sshKeyData^" -Path $jsonFile
+								Add-Content -Value "$($indents[8])}" -Path $jsonFile
+							Add-Content -Value "$($indents[7])]" -Path $jsonFile
+						Add-Content -Value "$($indents[6])}" -Path $jsonFile
+					Add-Content -Value "$($indents[5])}" -Path $jsonFile
+				}
+				Add-Content -Value "$($indents[4])}," -Path $jsonFile
+				#endregion
+			}
+			#region Storage Profile
+			Add-Content -Value "$($indents[4])^storageProfile^: " -Path $jsonFile
+			Add-Content -Value "$($indents[4]){" -Path $jsonFile
+			if ($ImageName -and !$osVHD) {
+				Write-LogInfo ">>> Using ARMImage : $publisher : $offer : $sku : $version"
+				Add-Content -Value "$($indents[5])^imageReference^ : " -Path $jsonFile
+				Add-Content -Value "$($indents[5]){" -Path $jsonFile
+				Add-Content -Value "$($indents[6])^publisher^: ^$publisher^," -Path $jsonFile
+				Add-Content -Value "$($indents[6])^offer^: ^$offer^," -Path $jsonFile
+				Add-Content -Value "$($indents[6])^sku^: ^$sku^," -Path $jsonFile
+				Add-Content -Value "$($indents[6])^version^: ^$version^" -Path $jsonFile
+				Add-Content -Value "$($indents[5])}," -Path $jsonFile
+			}
+			elseif ( $OsVHD -and $UseManagedDisks ) {
+				Add-Content -Value "$($indents[5])^imageReference^ : " -Path $jsonFile
+				Add-Content -Value "$($indents[5]){" -Path $jsonFile
+				Add-Content -Value "$($indents[6])^id^: ^[resourceId('Microsoft.Compute/images', '$RGName-Image')]^," -Path $jsonFile
+				Add-Content -Value "$($indents[5])}," -Path $jsonFile
+			}
+			Add-Content -Value "$($indents[5])^osDisk^ : " -Path $jsonFile
+			Add-Content -Value "$($indents[5]){" -Path $jsonFile
+			if ($osVHD) {
+				if ($UseManagedDisks) {
+					Write-LogInfo ">>> Using VHD : $osVHD (Converted to Managed Image)"
+					Add-Content -Value "$($indents[6])^osType^: ^$OSType^," -Path $jsonFile
+					Add-Content -Value "$($indents[6])^name^: ^$vmName-OSDisk^," -Path $jsonFile
+					Add-Content -Value "$($indents[6])^managedDisk^: " -Path $jsonFile
+					Add-Content -Value "$($indents[6]){" -Path $jsonFile
+					Add-Content -Value "$($indents[7])^storageAccountType^: ^$StorageAccountType^" -Path $jsonFile
+	
+					Add-Content -Value "$($indents[6])}," -Path $jsonFile
+					if ($UseEphemeralOSDisk) {
+						Add-Content -Value "$($indents[6])^caching^: ^ReadOnly^," -Path $jsonFile
+						Add-Content -Value "$($indents[6])^diffDiskSettings^: " -Path $jsonFile
+						Add-Content -Value "$($indents[6]){" -Path $jsonFile
+						Add-Content -Value "$($indents[7])^option^: ^local^" -Path $jsonFile
+						Add-Content -Value "$($indents[6])}," -Path $jsonFile
+					}
+					else {
+						Add-Content -Value "$($indents[6])^caching^: ^ReadWrite^," -Path $jsonFile
+					}
+					Add-Content -Value "$($indents[6])^createOption^: ^FromImage^" -Path $jsonFile
+				}
+				else {
+					Write-LogInfo ">>> Using VHD : $osVHD"
+					if ($UseSpecializedImage) {
+						$vhduri = "https://$StorageAccountName.blob.core.windows.net/vhds/$OsVHD"
+						$sourceContainer = $vhduri.Split("/")[$vhduri.Split("/").Count - 2]
+						$destVHDName = "$vmName-$RGrandomWord-osdisk.vhd"
+	
+						$copyStatus = Copy-VHDToAnotherStorageAccount -sourceStorageAccount $StorageAccountName -sourceStorageContainer $sourceContainer -destinationStorageAccount $StorageAccountName -destinationStorageContainer "vhds" -vhdName $OsVHD -destVHDName $destVHDName
+						if (!$copyStatus) {
+							Throw "Failed to copy the VHD to $ARMStorageAccount"
+						} else {
+							Write-LogInfo "New Base VHD name - $destVHDName"
+						}
+						Add-Content -Value "$($indents[6])^osType^: ^$OSType^," -Path $jsonFile
+						Add-Content -Value "$($indents[6])^name^: ^$vmName-OSDisk^," -Path $jsonFile
+						#Add-Content -Value "$($indents[6])^osType^: ^Linux^," -Path $jsonFile
+						Add-Content -Value "$($indents[6])^vhd^: " -Path $jsonFile
+						Add-Content -Value "$($indents[6]){" -Path $jsonFile
+						Add-Content -Value "$($indents[7])^uri^: ^[concat('http://',variables('StorageAccountName'),'.blob.core.windows.net/vhds/','$vmName-$RGrandomWord-osdisk.vhd')]^" -Path $jsonFile
+						Add-Content -Value "$($indents[6])}," -Path $jsonFile
+						Add-Content -Value "$($indents[6])^caching^: ^ReadWrite^," -Path $jsonFile
+						Add-Content -Value "$($indents[6])^createOption^: ^Attach^" -Path $jsonFile
+					}
+					else {
+						Add-Content -Value "$($indents[6])^image^: " -Path $jsonFile
+						Add-Content -Value "$($indents[6]){" -Path $jsonFile
+						Add-Content -Value "$($indents[7])^uri^: ^[concat('http://',variables('StorageAccountName'),'.blob.core.windows.net/vhds/','$osVHD')]^" -Path $jsonFile
+						Add-Content -Value "$($indents[6])}," -Path $jsonFile
+						Add-Content -Value "$($indents[6])^osType^: ^$OSType^," -Path $jsonFile
+						Add-Content -Value "$($indents[6])^name^: ^$vmName-OSDisk^," -Path $jsonFile
+						#Add-Content -Value "$($indents[6])^osType^: ^Linux^," -Path $jsonFile
+						Add-Content -Value "$($indents[6])^vhd^: " -Path $jsonFile
+						Add-Content -Value "$($indents[6]){" -Path $jsonFile
+						Add-Content -Value "$($indents[7])^uri^: ^[concat('http://',variables('StorageAccountName'),'.blob.core.windows.net/vhds/','$vmName-$RGrandomWord-osdisk.vhd')]^" -Path $jsonFile
+						Add-Content -Value "$($indents[6])}," -Path $jsonFile
+						Add-Content -Value "$($indents[6])^caching^: ^ReadWrite^," -Path $jsonFile
+						Add-Content -Value "$($indents[6])^createOption^: ^FromImage^" -Path $jsonFile
+					}
+				}
+			}
+			else {
+				if ($UseManagedDisks) {
+					Add-Content -Value "$($indents[6])^name^: ^$vmName-OSDisk^," -Path $jsonFile
+					Add-Content -Value "$($indents[6])^managedDisk^: " -Path $jsonFile
+					Add-Content -Value "$($indents[6]){" -Path $jsonFile
+					Add-Content -Value "$($indents[7])^storageAccountType^: ^$StorageAccountType^" -Path $jsonFile
+					Add-Content -Value "$($indents[6])}," -Path $jsonFile
+					if ($UseEphemeralOSDisk) {
+						Add-Content -Value "$($indents[6])^caching^: ^ReadOnly^," -Path $jsonFile
+						Add-Content -Value "$($indents[6])^diffDiskSettings^: " -Path $jsonFile
+						Add-Content -Value "$($indents[6]){" -Path $jsonFile
+						Add-Content -Value "$($indents[7])^option^: ^local^" -Path $jsonFile
+						Add-Content -Value "$($indents[6])}," -Path $jsonFile
+					} else {
+						Add-Content -Value "$($indents[6])^caching^: ^ReadWrite^," -Path $jsonFile
+					}
+					Add-Content -Value "$($indents[6])^createOption^: ^FromImage^" -Path $jsonFile
+				} else {
+					Add-Content -Value "$($indents[6])^name^: ^$vmName-OSDisk^," -Path $jsonFile
+					Add-Content -Value "$($indents[6])^createOption^: ^FromImage^," -Path $jsonFile
+					Add-Content -Value "$($indents[6])^vhd^: " -Path $jsonFile
+					Add-Content -Value "$($indents[6]){" -Path $jsonFile
+					Add-Content -Value "$($indents[7])^uri^: ^[concat('http://',variables('StorageAccountName'),'.blob.core.windows.net/vhds/','$vmName-$RGrandomWord-osdisk.vhd')]^" -Path $jsonFile
+					Add-Content -Value "$($indents[6])}," -Path $jsonFile
+					Add-Content -Value "$($indents[6])^caching^: ^ReadWrite^" -Path $jsonFile
+				}
+			}
+			Add-Content -Value "$($indents[5])}," -Path $jsonFile
+			Write-LogInfo "Added $DiskType OS disk : $vmName-OSDisk"
+			$dataDiskAdded = $false
+			Add-Content -Value "$($indents[5])^dataDisks^ : " -Path $jsonFile
+			Add-Content -Value "$($indents[5])[" -Path $jsonFile
+			foreach ( $dataDisk in $newVM.DataDisk ) {
+				if ( $dataDisk.LUN -ge 0 ) {
+					if ( $dataDiskAdded ) {
+						Add-Content -Value "$($indents[6])," -Path $jsonFile
+					}
+	
+					if ($UseManagedDisks) {
+						Add-Content -Value "$($indents[6]){" -Path $jsonFile
+						Add-Content -Value "$($indents[7])^name^: ^$vmName-disk-lun-$($dataDisk.LUN)^," -Path $jsonFile
+						Add-Content -Value "$($indents[7])^diskSizeGB^: ^$($dataDisk.DiskSizeInGB)^," -Path $jsonFile
+						Add-Content -Value "$($indents[7])^lun^: ^$($dataDisk.LUN)^," -Path $jsonFile
+						Add-Content -Value "$($indents[7])^createOption^: ^Empty^," -Path $jsonFile
+						Add-Content -Value "$($indents[7])^caching^: ^$($dataDisk.HostCaching)^," -Path $jsonFile
+						Add-Content -Value "$($indents[7])^managedDisk^:" -Path $jsonFile
+						Add-Content -Value "$($indents[7]){" -Path $jsonFile
+						Add-Content -Value "$($indents[8])^storageAccountType^: ^$StorageAccountType^" -Path $jsonFile
+						Add-Content -Value "$($indents[7])}" -Path $jsonFile
+						Add-Content -Value "$($indents[6])}" -Path $jsonFile
+						Write-LogInfo "Added managed $($dataDisk.DiskSizeInGB)GB Datadisk to $($dataDisk.LUN)."
+					} else {
+						Add-Content -Value "$($indents[6]){" -Path $jsonFile
+						Add-Content -Value "$($indents[7])^name^: ^$vmName-disk-lun-$($dataDisk.LUN)^," -Path $jsonFile
+						Add-Content -Value "$($indents[7])^diskSizeGB^: ^$($dataDisk.DiskSizeInGB)^," -Path $jsonFile
+						Add-Content -Value "$($indents[7])^lun^: ^$($dataDisk.LUN)^," -Path $jsonFile
+						Add-Content -Value "$($indents[7])^createOption^: ^Empty^," -Path $jsonFile
+						Add-Content -Value "$($indents[7])^caching^: ^$($dataDisk.HostCaching)^," -Path $jsonFile
+						Add-Content -Value "$($indents[7])^vhd^:" -Path $jsonFile
+						Add-Content -Value "$($indents[7]){" -Path $jsonFile
+						Add-Content -Value "$($indents[8])^uri^: ^[concat('http://',variables('StorageAccountName'),'.blob.core.windows.net/vhds/','$vmName-$RGrandomWord-disk-lun-$($dataDisk.LUN).vhd')]^" -Path $jsonFile
+						Add-Content -Value "$($indents[7])}" -Path $jsonFile
+						Add-Content -Value "$($indents[6])}" -Path $jsonFile
+						Write-LogInfo "Added unmanaged $($dataDisk.DiskSizeInGB)GB Datadisk to $($dataDisk.LUN)."
+					}
+	
+					$dataDiskAdded = $true
+				}
+			}
+			Add-Content -Value "$($indents[5])]" -Path $jsonFile
+			Add-Content -Value "$($indents[4])}" -Path $jsonFile
+	
+			Add-Content -Value "$($indents[4])," -Path $jsonFile
+			#endregion
+	
+			Write-LogInfo "Added Virtual Machine $vmName"
+	
+			#region Network Profile
+			Add-Content -Value "$($indents[4])^networkProfile^: " -Path $jsonFile
+			Add-Content -Value "$($indents[4]){" -Path $jsonFile
+			Add-Content -Value "$($indents[5])^networkInterfaces^: " -Path $jsonFile
+			Add-Content -Value "$($indents[5])[" -Path $jsonFile
+			#region configure multiple NICs to networkProfile
+			if ($NicNameList) {
+				foreach ($NicName in $NicNameList) {
+					Add-Content -Value "$($indents[6]){" -Path $jsonFile
+					Add-Content -Value "$($indents[7])^id^: ^[resourceId('Microsoft.Network/networkInterfaces','$NicName')]^," -Path $jsonFile
+					Add-Content -Value "$($indents[7])^properties^: { ^primary^: false }" -Path $jsonFile
+					Add-Content -Value "$($indents[6])}," -Path $jsonFile
+					Write-LogInfo "Attached Network Interface Card `"$NicName`" to Virtual Machine `"$vmName`"."
+				}
+				Add-Content -Value "$($indents[6]){" -Path $jsonFile
+				Add-Content -Value "$($indents[7])^id^: ^[resourceId('Microsoft.Network/networkInterfaces','$NIC')]^," -Path $jsonFile
+				Add-Content -Value "$($indents[7])^properties^: { ^primary^: true }" -Path $jsonFile
+				Add-Content -Value "$($indents[6])}" -Path $jsonFile
+				Write-LogInfo "Attached Network Interface Card `"$NIC`" to Virtual Machine `"$vmName`"."
+			} else {
+				Add-Content -Value "$($indents[6]){" -Path $jsonFile
+				Add-Content -Value "$($indents[7])^id^: ^[resourceId('Microsoft.Network/networkInterfaces','$NIC')]^" -Path $jsonFile
+				Add-Content -Value "$($indents[6])}" -Path $jsonFile
+			}
+			#endregion
+			Add-Content -Value "$($indents[5])]" -Path $jsonFile
+			Add-Content -Value "$($indents[4])}" -Path $jsonFile
+	
+	
+			#region Enable boot dignostics.
+			Add-Content -Value "$($indents[4])," -Path $jsonFile
+			Add-Content -Value "$($indents[4])^diagnosticsProfile^: " -Path $jsonFile
+			Add-Content -Value "$($indents[4]){" -Path $jsonFile
+			Add-Content -Value "$($indents[5])^bootDiagnostics^: " -Path $jsonFile
+			Add-Content -Value "$($indents[5]){" -Path $jsonFile
+			Add-Content -Value "$($indents[6])^enabled^: true," -Path $jsonFile
+			Add-Content -Value "$($indents[6])^storageUri^: ^[reference(resourceId('$diagnosticRG', 'Microsoft.Storage/storageAccounts', '$bootDiagnosticsSA'), '2015-06-15').primaryEndpoints['blob']]^" -Path $jsonFile
+			Add-Content -Value "$($indents[5])}" -Path $jsonFile
+			Add-Content -Value "$($indents[4])}" -Path $jsonFile
+			#endregion
+	
+			Add-Content -Value "$($indents[3])}" -Path $jsonFile
+			#endregion
+	
+			Add-Content -Value "$($indents[2])}" -Path $jsonFile
+			#endregion
+	
+			$vmAdded = $true
+			$role = $role + 1
+			$vmCount = $role
+		}
+		Add-Content -Value "$($indents[1])]" -Path $jsonFile
+	
+		#endregion
+	
+		Add-Content -Value "$($indents[0])}" -Path $jsonFile
+		Set-Content -Path $jsonFile -Value (Get-Content $jsonFile).Replace("^", '"') -Force
+		#endregion
+	
+		Write-LogInfo "Template generated successfully."
+		return $createSetupCommand, $RGName, $vmCount
+	}
+
     $resourceGroupCount = 0
-    $Error = ""
+    $outputError = ""
     Write-LogInfo "Current test setup: $($SetupTypeData.Name)"
 
     $OsVHD = $global:BaseOSVHD
@@ -341,10 +1573,9 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
                     Write-LogInfo "test platform is : $testPlatform"
                     if ($isServiceCreated -eq "True") {
                         $azureDeployJSONFilePath = Join-Path $env:TEMP "$groupName.json"
-                        $null = Generate-AzureDeployJSONFile -RGName $groupName -ImageName $osImage -osVHD $osVHD -RGXMLData $RG -Location $location `
-                                -azuredeployJSONFilePath $azureDeployJSONFilePath -CurrentTestData $TestCaseData -TiPSessionId $TiPSessionId -TipCluster $TipCluster `
-                                -StorageAccountName $used_SC -PlatformFaultDomainCount $PlatformFaultDomainCount `
-                                -PlatformUpdateDomainCount $PlatformUpdateDomainCount
+                        $null = Write-AzureDeployJSONFile -RGName $groupName -ImageName $osImage -osVHD $osVHD -RGXMLData $RG -Location $location `
+                                -azuredeployJSONFilePath $azureDeployJSONFilePath -CurrentTestData $TestCaseData `
+                                -StorageAccountName $used_SC
 
                         $DeploymentStartTime = (Get-Date)
                         $CreateRGDeployments = Create-ResourceGroupDeployment -RGName $groupName -TemplateFile $azureDeployJSONFilePath `
@@ -364,36 +1595,36 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
                             }
                         }
                         else {
-                            $Error = "Unable to Deploy one or more VM's. " + $CreateRGDeployments.Error
-                            Write-LogErr $Error
+                            $outputError = "Unable to Deploy one or more VM's. " + $CreateRGDeployments.Error
+                            Write-LogErr $outputError
                             $retryDeployment = $retryDeployment + 1
                             $retValue = "False"
                             $isServiceDeployed = "False"
                         }
                     }
                     else {
-                        $Error = "Unable to create $groupName"
-                        Write-LogErr $Error
+                        $outputError = "Unable to create $groupName"
+                        Write-LogErr $outputError
                         $retryDeployment = $retryDeployment + 1
                         $retValue = "False"
                         $isServiceDeployed = "False"
                     }
                 } else {
-                    $Error = "Unable to delete existing resource group - $groupName."
-                    Write-LogErr $Error
+                    $outputError = "Unable to delete existing resource group - $groupName."
+                    Write-LogErr $outputError
                     $retryDeployment = 3
                     $retValue = "False"
                     $isServiceDeployed = "False"
                 }
             }
         } else {
-            $Error = "Core quota is not sufficient. Stopping VM deployment."
-            Write-LogErr $Error
+            $outputError = "Core quota is not sufficient. Stopping VM deployment."
+            Write-LogErr $outputError
             $retValue = "False"
             $isServiceDeployed = "False"
         }
     }
-    return $retValue, $deployedGroups, $resourceGroupCount, $DeploymentElapsedTime, $Error
+    return $retValue, $deployedGroups, $resourceGroupCount, $DeploymentElapsedTime, $outputError
 }
 
 Function Start-DeleteResourceGroup ([string]$RGName) {
@@ -845,1239 +2076,6 @@ Function Get-NewVMName ($namePrefix, $numberOfVMs) {
         $VMName = "$namePrefix-role-$numberOfVMs"
     }
     return $VMName
-}
-
-Function Generate-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, $Location, $azuredeployJSONFilePath,
-    $CurrentTestData, $StorageAccountName, $TiPSessionId, $TipCluster, $PlatformFaultDomainCount, $PlatformUpdateDomainCount) {
-
-    #Random Data
-    $RGrandomWord = ([System.IO.Path]::GetRandomFileName() -replace '[^a-z]')
-    $RGRandomNumber = Get-Random -Minimum 11111 -Maximum 99999
-
-    $UseManagedDisks = $CurrentTestData.AdditionalHWConfig.DiskType -contains "managed"
-    if ($UseManagedDisks) {
-        $DiskType = "Managed"
-    } else {
-        $DiskType = "Unmanaged"
-    }
-
-    $UseSpecializedImage = $CurrentTestData.AdditionalHWConfig.ImageType -contains "Specialized"
-    $IsWindowsOS = $CurrentTestData.AdditionalHWConfig.OSType -contains "Windows"
-    if ($IsWindowsOS) {
-        $OSType = "Windows"
-    } else {
-        $OSType = "Linux"
-    }
-
-    if ( $CurrentTestData.AdditionalHWConfig.OSDiskType -eq "Ephemeral" ) {
-        if ( $UseManagedDisks ) {
-            $UseEphemeralOSDisk = $true
-            $DiskType += "-Ephemeral"
-        }
-        else {
-            Throw "Invalid VM configuration. Ephemeral disks can only be created using Managed disk option."
-        }
-    }
-    else {
-        $DiskType += "-Persistent"
-        $UseEphemeralOSDisk = $false
-    }
-    #Generate the initial data
-    $numberOfVMs = 0
-    $VMNames = @()
-    $EnableIPv6 = $false
-    $totalSubnetsRequired = 0
-    foreach ( $newVM in $RGXMLData.VirtualMachine) {
-        if ( !$EnableIPv6 ) {
-            foreach ( $endpoint in $newVM.EndPoints ) {
-                if ( $endpoint.EnableIPv6 -eq "True" ) {
-                    $EnableIPv6 = $true
-                }
-                #Check total subnets required
-                if ( $newVM.ExtraNICs -ne 0) {
-                    $totalSubnetsRequired = $newVM.ExtraNICs
-                }
-            }
-        }
-        if ($newVM.RoleName) {
-            $VMNames += $newVM.RoleName
-        }
-        else {
-            $VMNames += Get-NewVMName -namePrefix $RGName -numberOfVMs $numberOfVMs
-        }
-        $numberOfVMs += 1
-    }
-
-
-    $saInfoCollected = $false
-    $retryCount = 0
-    $maxRetryCount = 999
-    while (!$saInfoCollected -and ($retryCount -lt $maxRetryCount)) {
-        try {
-            $retryCount += 1
-            Write-LogInfo "[Attempt $retryCount/$maxRetryCount] : Getting Existing Storage account information..."
-            $GetAzureRMStorageAccount = $null
-            $GetAzureRMStorageAccount = Get-AzStorageAccount
-            if ($null -eq $GetAzureRMStorageAccount) {
-                $saInfoCollected = $false
-            }
-            else {
-                $saInfoCollected = $true
-            }
-
-        }
-        catch {
-            Write-LogErr "Error in fetching Storage Account info. Retrying in 10 seconds."
-            Start-Sleep -Seconds 10
-            $saInfoCollected = $false
-        }
-    }
-
-    #Condition Existing Storage - NonManaged disks
-    if ( $StorageAccountName -inotmatch "NewStorage" -and !$UseManagedDisks ) {
-        $StorageAccountType = ($GetAzureRMStorageAccount | Where-Object {$_.StorageAccountName -eq $StorageAccountName}).Sku.Tier.ToString()
-        if ($StorageAccountType -match 'Premium') {
-            $StorageAccountType = "Premium_LRS"
-        }
-        else {
-            $StorageAccountType = "Standard_LRS"
-        }
-        Write-LogInfo "Storage Account Type : $StorageAccountType"
-    }
-
-    #Condition Existing Storage - Managed Disks
-    if ( $StorageAccountName -inotmatch "NewStorage" -and $UseManagedDisks ) {
-        $StorageAccountType = ($GetAzureRMStorageAccount | Where-Object {$_.StorageAccountName -eq $StorageAccountName}).Sku.Tier.ToString()
-        if ($StorageAccountType -match 'Premium') {
-            $StorageAccountType = "Premium_LRS"
-        }
-        else {
-            $StorageAccountType = "Standard_LRS"
-        }
-    }
-
-    #Condition New Storage - NonManaged disk
-    if ( $StorageAccountName -imatch "NewStorage" -and !$UseManagedDisks) {
-        $NewARMStorageAccountType = ($StorageAccountName).Replace("NewStorage_", "")
-        $StorageAccountName = $($NewARMStorageAccountType.ToLower().Replace("_", "")) + "$RGRandomNumber"
-        $NewStorageAccountName = $StorageAccountName
-        Write-LogInfo "Using New ARM Storage Account : $StorageAccountName"
-        $StorageAccountType = $NewARMStorageAccountType
-    }
-
-    #Condition New Storage - Managed disk
-    if ( $StorageAccountName -imatch "NewStorage" -and $UseManagedDisks) {
-        Write-LogInfo "Conflicting parameters - NewStorage and UseManagedDisks. Storage account will not be created."
-    }
-    #Region Define all Variables.
-
-    Write-LogInfo "Generating Template : $azuredeployJSONFilePath"
-    $jsonFile = $azuredeployJSONFilePath
-
-    if ($ImageName -and !$osVHD) {
-        $imageInfo = $ImageName.Split(' ')
-        $publisher = $imageInfo[0]
-        $offer = $imageInfo[1]
-        $sku = $imageInfo[2]
-        $version = $imageInfo[3]
-    }
-    if($osVHD) {
-        $osVHD = $osVHD.Split("?")[0].split('/')[-1]
-    }
-
-    $vmCount = 0
-    $indents = @()
-    $indent = ""
-    $singleIndent = ""
-    $indents += $indent
-    $dnsNameForPublicIP = "ica$RGRandomNumber" + "v4"
-    $dnsNameForPublicIPv6 = "ica$RGRandomNumber" + "v6"
-    #$virtualNetworkName = $($RGName.ToUpper() -replace '[^a-z]') + "VNET"
-    $virtualNetworkName = "VirtualNetwork"
-    $defaultSubnetName = "SubnetForPrimaryNIC"
-    $availabilitySetName = "AvailabilitySet"
-    #$LoadBalancerName =  $($RGName.ToUpper() -replace '[^a-z]') + "LoadBalancer"
-    $LoadBalancerName = "LoadBalancer"
-    $apiVersion = "2018-04-01"
-    #$PublicIPName = $($RGName.ToUpper() -replace '[^a-z]') + "PublicIPv4"
-    $PublicIPName = "PublicIPv4-$RGRandomNumber"
-    #$PublicIPv6Name = $($RGName.ToUpper() -replace '[^a-z]') + "PublicIPv6"
-    $PublicIPv6Name = "PublicIPv6"
-    $sshPath = '/home/' + $user + '/.ssh/authorized_keys'
-    $sshKeyData = $global:sshPublicKey
-    $createAvailabilitySet = !$UseExistingRG
-
-    if ($UseExistingRG) {
-        $existentAvailabilitySet = Get-AzResource | Where-Object { (( $_.ResourceGroupName -eq $RGName ) -and ( $_.ResourceType -imatch "availabilitySets" ))} | `
-            Select-Object -First 1
-        if ($existentAvailabilitySet) {
-            $availabilitySetName = $existentAvailabilitySet.Name
-        } else {
-            $createAvailabilitySet = $true
-        }
-    }
-
-    if ( $CurrentTestData.ProvisionTimeExtensions ) {
-        $extensionString = (Get-Content .\XML\Extensions.xml)
-        foreach ($line in $extensionString.Split("`n")) {
-            if ($line -imatch ">$($CurrentTestData.ProvisionTimeExtensions)<") {
-                $ExecutePS = $true
-            }
-            if ($line -imatch '</Extension>') {
-                $ExecutePS = $false
-            }
-            if ( ($line -imatch "EXECUTE-PS-" ) -and $ExecutePS) {
-                $PSoutout = ""
-                $line = $line.Trim()
-                $line = $line.Replace("EXECUTE-PS-", "")
-                $line = $line.Split(">")
-                $line = $line.Split("<")
-                Write-LogInfo "Executing Powershell command from Extensions.XML file : $($line[2])..."
-                $PSoutout = Invoke-Expression -Command $line[2]
-                $extensionString = $extensionString.Replace("EXECUTE-PS-$($line[2])", $PSoutout)
-                Start-Sleep -Milliseconds 1
-            }
-        }
-    }
-
-    Write-LogInfo "Using API VERSION : $apiVersion"
-    $ExistingVnet = $null
-    if ($null -ne $RGXMLData.ARMVnetName) {
-        $ExistingVnet = $RGXMLData.ARMVnetName
-        Write-LogInfo "Getting $ExistingVnet Virtual Netowrk info ..."
-        $ExistingVnetResourceGroupName = ( Get-AzResource | Where-Object {$_.Name -eq $ExistingVnet}).ResourceGroupName
-        Write-LogInfo "ARM VNET : $ExistingVnet (ResourceGroup : $ExistingVnetResourceGroupName)"
-        $virtualNetworkName = $ExistingVnet
-    }
-
-    #Generate Single Indent
-    for ($i = 0; $i -lt 4; $i++) {
-        $singleIndent += " "
-    }
-
-    #Generate Indent Levels
-    for ($i = 0; $i -lt 30; $i++) {
-        $indent += $singleIndent
-        $indents += $indent
-    }
-
-
-    #region Generate JSON file
-    Set-Content -Value "$($indents[0]){" -Path $jsonFile -Force
-    Add-Content -Value "$($indents[1])^`$schema^: ^https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#^," -Path $jsonFile
-    Add-Content -Value "$($indents[1])^contentVersion^: ^1.0.0.0^," -Path $jsonFile
-    Add-Content -Value "$($indents[1])^parameters^: {}," -Path $jsonFile
-    Add-Content -Value "$($indents[1])^variables^:" -Path $jsonFile
-    Add-Content -Value "$($indents[1]){" -Path $jsonFile
-
-    #region Variables
-    Add-Content -Value "$($indents[2])^StorageAccountName^: ^$StorageAccountName^," -Path $jsonFile
-    Add-Content -Value "$($indents[2])^dnsNameForPublicIP^: ^$dnsNameForPublicIP^," -Path $jsonFile
-    Add-Content -Value "$($indents[2])^dnsNameForPublicIPv6^: ^$dnsNameForPublicIPv6^," -Path $jsonFile
-    Add-Content -Value "$($indents[2])^adminUserName^: ^$user^," -Path $jsonFile
-    Add-Content -Value "$($indents[2])^adminPassword^: ^$($password.Replace('"',''))^," -Path $jsonFile
-    Add-Content -Value "$($indents[2])^sshKeyPublicThumbPrint^: ^$sshPublicKeyThumbprint^," -Path $jsonFile
-    Add-Content -Value "$($indents[2])^sshKeyPath^: ^$sshPath^," -Path $jsonFile
-    Add-Content -Value "$($indents[2])^sshKeyData^: ^$sshKeyData^," -Path $jsonFile
-    Add-Content -Value "$($indents[2])^location^: ^$($Location.Replace('"',''))^," -Path $jsonFile
-    Add-Content -Value "$($indents[2])^publicIPv4AddressName^: ^$PublicIPName^," -Path $jsonFile
-    Add-Content -Value "$($indents[2])^publicIPv6AddressName^: ^$PublicIPv6Name^," -Path $jsonFile
-
-    Add-Content -Value "$($indents[2])^virtualNetworkName^: ^$virtualNetworkName^," -Path $jsonFile
-    Add-Content -Value "$($indents[2])^nicName^: ^$nicName^," -Path $jsonFile
-    Add-Content -Value "$($indents[2])^addressPrefix^: ^10.0.0.0/16^," -Path $jsonFile
-    Add-Content -Value "$($indents[2])^vmSourceImageName^ : ^^," -Path $jsonFile
-    Add-Content -Value "$($indents[2])^CompliedSourceImageName^ : ^[concat('/',subscription().subscriptionId,'/services/images/',variables('vmSourceImageName'))]^," -Path $jsonFile
-    Add-Content -Value "$($indents[2])^defaultSubnetPrefix^: ^10.0.0.0/24^," -Path $jsonFile
-    #Add-Content -Value "$($indents[2])^subnet2Prefix^: ^10.0.1.0/24^," -Path $jsonFile
-    Add-Content -Value "$($indents[2])^vmStorageAccountContainerName^: ^vhds^," -Path $jsonFile
-    Add-Content -Value "$($indents[2])^publicIPAddressType^: ^Dynamic^," -Path $jsonFile
-    Add-Content -Value "$($indents[2])^storageAccountType^: ^$storageAccountType^," -Path $jsonFile
-    if ($ExistingVnet) {
-        Add-Content -Value "$($indents[2])^virtualNetworkResourceGroup^: ^$ExistingVnetResourceGroupName^," -Path $jsonFile
-        Add-Content -Value "$($indents[2])^vnetID^: ^[resourceId(variables('virtualNetworkResourceGroup'), 'Microsoft.Network/virtualNetworks', '$virtualNetworkName')]^," -Path $jsonFile
-    }
-    else {
-        Add-Content -Value "$($indents[2])^defaultSubnet^: ^$defaultSubnetName^," -Path $jsonFile
-        Add-Content -Value "$($indents[2])^defaultSubnetID^: ^[concat(variables('vnetID'),'/subnets/', variables('defaultSubnet'))]^," -Path $jsonFile
-        Add-Content -Value "$($indents[2])^vnetID^: ^[resourceId('Microsoft.Network/virtualNetworks',variables('virtualNetworkName'))]^," -Path $jsonFile
-    }
-    Add-Content -Value "$($indents[2])^availabilitySetName^: ^$availabilitySetName^," -Path $jsonFile
-    Add-Content -Value "$($indents[2])^lbName^: ^$LoadBalancerName^," -Path $jsonFile
-    Add-Content -Value "$($indents[2])^lbID^: ^[resourceId('Microsoft.Network/loadBalancers',variables('lbName'))]^," -Path $jsonFile
-    Add-Content -Value "$($indents[2])^frontEndIPv4ConfigID^: ^[concat(variables('lbID'),'/frontendIPConfigurations/LoadBalancerFrontEndIPv4')]^," -Path $jsonFile
-    Add-Content -Value "$($indents[2])^frontEndIPv6ConfigID^: ^[concat(variables('lbID'),'/frontendIPConfigurations/LoadBalancerFrontEndIPv6')]^," -Path $jsonFile
-    Add-Content -Value "$($indents[2])^lbIPv4PoolID^: ^[concat(variables('lbID'),'/backendAddressPools/BackendPoolIPv4')]^," -Path $jsonFile
-    Add-Content -Value "$($indents[2])^lbIPv6PoolID^: ^[concat(variables('lbID'),'/backendAddressPools/BackendPoolIPv6')]^," -Path $jsonFile
-    Add-Content -Value "$($indents[2])^lbProbeID^: ^[concat(variables('lbID'),'/probes/tcpProbe')]^" -Path $jsonFile
-    #Add more variables here, if required..
-    Add-Content -Value "$($indents[1])}," -Path $jsonFile
-    Write-LogInfo "Added Variables.."
-
-    #endregion
-
-    #region Define Resources
-    Add-Content -Value "$($indents[1])^resources^:" -Path $jsonFile
-    Add-Content -Value "$($indents[1])[" -Path $jsonFile
-
-    #region Common Resources for all deployments..
-
-    #region availabilitySets
-    if (!$createAvailabilitySet) {
-        Write-LogInfo "Using existing Availability Set: $availabilitySetName"
-    }
-    else {
-        Add-Content -Value "$($indents[2]){" -Path $jsonFile
-        Add-Content -Value "$($indents[3])^apiVersion^: ^$apiVersion^," -Path $jsonFile
-        Add-Content -Value "$($indents[3])^type^: ^Microsoft.Compute/availabilitySets^," -Path $jsonFile
-        Add-Content -Value "$($indents[3])^name^: ^[variables('availabilitySetName')]^," -Path $jsonFile
-        Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
-        if ($UseManagedDisks) {
-            Add-Content -Value "$($indents[3])^sku^:" -Path $jsonFile
-            Add-Content -Value "$($indents[3]){" -Path $jsonFile
-            Add-Content -Value "$($indents[4])^name^: ^Aligned^" -Path $jsonFile
-            Add-Content -Value "$($indents[3])}," -Path $jsonFile
-        }
-        if ( $TiPSessionId -and $TiPCluster) {
-            Add-Content -Value "$($indents[3])^tags^:" -Path $jsonFile
-            Add-Content -Value "$($indents[3]){" -Path $jsonFile
-            Add-Content -Value "$($indents[4])^TipNode.SessionId^: ^$TiPSessionId^" -Path $jsonFile
-            Add-Content -Value "$($indents[3])}," -Path $jsonFile
-        }
-
-        $faultDomainCount = 2
-        $updateDomainCount = 5
-        if ($PlatformFaultDomainCount) {
-            $faultDomainCount = $PlatformFaultDomainCount
-        }
-        if ($PlatformUpdateDomainCount) {
-            $updateDomainCount = $PlatformUpdateDomainCount
-        }
-        Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
-        Add-Content -Value "$($indents[3]){" -Path $jsonFile
-        Add-Content -Value "$($indents[4])^platformFaultDomainCount^:$faultDomainCount," -Path $jsonFile
-        Add-Content -Value "$($indents[4])^platformUpdateDomainCount^:$updateDomainCount" -Path $jsonFile
-        if ( $TiPSessionId -and $TiPCluster) {
-            Add-Content -Value "$($indents[4])," -Path $jsonFile
-            Add-Content -Value "$($indents[4])^internalData^:" -Path $jsonFile
-            Add-Content -Value "$($indents[4]){" -Path $jsonFile
-            Add-Content -Value "$($indents[5])^pinnedFabricCluster^ : ^$TiPCluster^" -Path $jsonFile
-            Add-Content -Value "$($indents[4])}" -Path $jsonFile
-        }
-        Add-Content -Value "$($indents[3])}" -Path $jsonFile
-        Add-Content -Value "$($indents[2])}," -Path $jsonFile
-        Write-LogInfo "Added availabilitySet $availabilitySetName.."
-    }
-    #endregion
-
-    #region publicIPAddresses
-    Add-Content -Value "$($indents[2]){" -Path $jsonFile
-    Add-Content -Value "$($indents[3])^apiVersion^: ^$apiVersion^," -Path $jsonFile
-    Add-Content -Value "$($indents[3])^type^: ^Microsoft.Network/publicIPAddresses^," -Path $jsonFile
-    Add-Content -Value "$($indents[3])^name^: ^[variables('publicIPv4AddressName')]^," -Path $jsonFile
-    Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
-    Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
-    Add-Content -Value "$($indents[3]){" -Path $jsonFile
-    Add-Content -Value "$($indents[4])^publicIPAllocationMethod^: ^[variables('publicIPAddressType')]^," -Path $jsonFile
-    Add-Content -Value "$($indents[4])^dnsSettings^: " -Path $jsonFile
-    Add-Content -Value "$($indents[4]){" -Path $jsonFile
-    Add-Content -Value "$($indents[5])^domainNameLabel^: ^[variables('dnsNameForPublicIP')]^" -Path $jsonFile
-    Add-Content -Value "$($indents[4])}" -Path $jsonFile
-    Add-Content -Value "$($indents[3])}" -Path $jsonFile
-    Add-Content -Value "$($indents[2])}," -Path $jsonFile
-    Write-LogInfo "Added Public IP Address $PublicIPName.."
-    #endregion
-
-    #region CustomImages
-    if ($OsVHD -and $UseManagedDisks) {
-        Add-Content -Value "$($indents[2]){" -Path $jsonFile
-        Add-Content -Value "$($indents[3])^apiVersion^: ^2019-03-01^," -Path $jsonFile
-        Add-Content -Value "$($indents[3])^type^: ^Microsoft.Compute/images^," -Path $jsonFile
-        Add-Content -Value "$($indents[3])^name^: ^$RGName-Image^," -Path $jsonFile
-        Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
-        Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
-        Add-Content -Value "$($indents[3]){" -Path $jsonFile
-        Add-Content -Value "$($indents[4])^storageProfile^: " -Path $jsonFile
-        Add-Content -Value "$($indents[4]){" -Path $jsonFile
-
-        Add-Content -Value "$($indents[5])^osDisk^: " -Path $jsonFile
-        Add-Content -Value "$($indents[5]){" -Path $jsonFile
-        Add-Content -Value "$($indents[6])^osType^: ^$OSType^," -Path $jsonFile
-        Add-Content -Value "$($indents[6])^osState^: ^Generalized^," -Path $jsonFile
-        Add-Content -Value "$($indents[6])^blobUri^: ^https://$StorageAccountName.blob.core.windows.net/vhds/$OsVHD^," -Path $jsonFile
-        Add-Content -Value "$($indents[6])^storageAccountType^: ^$StorageAccountType^" -Path $jsonFile
-        Add-Content -Value "$($indents[5])}" -Path $jsonFile
-
-        Add-Content -Value "$($indents[4])}" -Path $jsonFile
-        if ($VMGeneration -eq "2") {
-            Add-Content -Value "$($indents[4]),^hyperVGeneration^: ^V2^" -Path $jsonFile
-        } else {
-            Add-Content -Value "$($indents[4]),^hyperVGeneration^: ^V1^" -Path $jsonFile
-        }
-        Add-Content -Value "$($indents[3])}" -Path $jsonFile
-        Add-Content -Value "$($indents[2])}," -Path $jsonFile
-        Write-LogInfo "Added Custom image '$RGName-Image' from '$OsVHD'.."
-
-    }
-    #endregion
-
-
-    #region New ARM Storage Account, if necessary!
-    if ( $NewStorageAccountName) {
-        Add-Content -Value "$($indents[2]){" -Path $jsonFile
-        Add-Content -Value "$($indents[3])^apiVersion^: ^2015-06-15^," -Path $jsonFile
-        Add-Content -Value "$($indents[3])^type^: ^Microsoft.Storage/storageAccounts^," -Path $jsonFile
-        Add-Content -Value "$($indents[3])^name^: ^$NewStorageAccountName^," -Path $jsonFile
-        Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
-        Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
-        Add-Content -Value "$($indents[3]){" -Path $jsonFile
-        Add-Content -Value "$($indents[4])^accountType^: ^$($NewARMStorageAccountType.Trim())^" -Path $jsonFile
-        Add-Content -Value "$($indents[3])}" -Path $jsonFile
-        Add-Content -Value "$($indents[2])}," -Path $jsonFile
-        Write-LogInfo "Added New Storage Account $NewStorageAccountName.."
-    }
-    #endregion
-
-    #region New ARM Boot Diagnostic Account if Storage Account Type is Premium LRS.
-    $bootDiagnosticsSA = ([xml](Get-Content .\XML\RegionAndStorageAccounts.xml)).AllRegions.$Location.StandardStorage
-    $diagnosticRG = ($GetAzureRMStorageAccount | Where-Object {$_.StorageAccountName -eq $bootDiagnosticsSA}).ResourceGroupName.ToString()
-    #endregion
-
-    #region virtualNetworks
-    if (!$ExistingVnet) {
-        Add-Content -Value "$($indents[2]){" -Path $jsonFile
-        Add-Content -Value "$($indents[3])^apiVersion^: ^$apiVersion^," -Path $jsonFile
-        Add-Content -Value "$($indents[3])^type^: ^Microsoft.Network/virtualNetworks^," -Path $jsonFile
-        Add-Content -Value "$($indents[3])^name^: ^[variables('virtualNetworkName')]^," -Path $jsonFile
-        Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
-        Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
-        Add-Content -Value "$($indents[3]){" -Path $jsonFile
-        #AddressSpace
-        Add-Content -Value "$($indents[4])^addressSpace^: " -Path $jsonFile
-        Add-Content -Value "$($indents[4]){" -Path $jsonFile
-        Add-Content -Value "$($indents[5])^addressPrefixes^: " -Path $jsonFile
-        Add-Content -Value "$($indents[5])[" -Path $jsonFile
-        Add-Content -Value "$($indents[6])^[variables('addressPrefix')]^" -Path $jsonFile
-        Add-Content -Value "$($indents[5])]" -Path $jsonFile
-        Add-Content -Value "$($indents[4])}," -Path $jsonFile
-        #Subnets
-        Add-Content -Value "$($indents[4])^subnets^: " -Path $jsonFile
-        Add-Content -Value "$($indents[4])[" -Path $jsonFile
-        Add-Content -Value "$($indents[5]){" -Path $jsonFile
-        Add-Content -Value "$($indents[6])^name^: ^[variables('defaultSubnet')]^," -Path $jsonFile
-        Add-Content -Value "$($indents[6])^properties^: " -Path $jsonFile
-        Add-Content -Value "$($indents[6]){" -Path $jsonFile
-        Add-Content -Value "$($indents[7])^addressPrefix^: ^[variables('defaultSubnetPrefix')]^" -Path $jsonFile
-        Add-Content -Value "$($indents[6])}" -Path $jsonFile
-        Add-Content -Value "$($indents[5])}" -Path $jsonFile
-        Write-LogInfo "Added Default Subnet to $virtualNetworkName.."
-
-        if ($totalSubnetsRequired -ne 0) {
-            $subnetCounter = 1
-            While ($subnetCounter -le $totalSubnetsRequired) {
-                Add-Content -Value "$($indents[5])," -Path $jsonFile
-                Add-Content -Value "$($indents[5]){" -Path $jsonFile
-                Add-Content -Value "$($indents[6])^name^: ^ExtraSubnet-$subnetCounter^," -Path $jsonFile
-                Add-Content -Value "$($indents[6])^properties^: " -Path $jsonFile
-                Add-Content -Value "$($indents[6]){" -Path $jsonFile
-                Add-Content -Value "$($indents[7])^addressPrefix^: ^10.0.$subnetCounter.0/24^" -Path $jsonFile
-                Add-Content -Value "$($indents[6])}" -Path $jsonFile
-                Add-Content -Value "$($indents[5])}" -Path $jsonFile
-                Write-LogInfo "  Added ExtraSubnet-$subnetCounter to $virtualNetworkName.."
-                $subnetCounter += 1
-            }
-        }
-        Add-Content -Value "$($indents[4])]" -Path $jsonFile
-        Add-Content -Value "$($indents[3])}" -Path $jsonFile
-        Add-Content -Value "$($indents[2])}," -Path $jsonFile
-        Write-LogInfo "Added Virtual Network $virtualNetworkName.."
-    }
-    #endregion
-
-    #endregion
-
-    #region publicIPAddresses
-    if ( $EnableIPv6 ) {
-        Add-Content -Value "$($indents[2]){" -Path $jsonFile
-        Add-Content -Value "$($indents[3])^apiVersion^: ^$apiVersion^," -Path $jsonFile
-        Add-Content -Value "$($indents[3])^type^: ^Microsoft.Network/publicIPAddresses^," -Path $jsonFile
-        Add-Content -Value "$($indents[3])^name^: ^[variables('publicIPv6AddressName')]^," -Path $jsonFile
-        Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
-        Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
-        Add-Content -Value "$($indents[3]){" -Path $jsonFile
-        Add-Content -Value "$($indents[4])^publicIPAllocationMethod^: ^[variables('publicIPAddressType')]^," -Path $jsonFile
-        Add-Content -Value "$($indents[4])^publicIPAddressVersion^: ^IPv6^," -Path $jsonFile
-        Add-Content -Value "$($indents[4])^dnsSettings^: " -Path $jsonFile
-        Add-Content -Value "$($indents[4]){" -Path $jsonFile
-        Add-Content -Value "$($indents[5])^domainNameLabel^: ^[variables('dnsNameForPublicIPv6')]^" -Path $jsonFile
-        Add-Content -Value "$($indents[4])}" -Path $jsonFile
-        Add-Content -Value "$($indents[3])}" -Path $jsonFile
-        Add-Content -Value "$($indents[2])}," -Path $jsonFile
-        Write-LogInfo "Added Public IPv6 Address $PublicIPv6Name.."
-    }
-    #endregion
-
-    #region Multiple VM Deployment
-
-    #region LoadBalancer
-    Write-LogInfo "Adding Load Balancer ..."
-    Add-Content -Value "$($indents[2]){" -Path $jsonFile
-    Add-Content -Value "$($indents[3])^apiVersion^: ^$apiVersion^," -Path $jsonFile
-    Add-Content -Value "$($indents[3])^type^: ^Microsoft.Network/loadBalancers^," -Path $jsonFile
-    Add-Content -Value "$($indents[3])^name^: ^[variables('lbName')]^," -Path $jsonFile
-    Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
-    Add-Content -Value "$($indents[3])^dependsOn^: " -Path $jsonFile
-    Add-Content -Value "$($indents[3])[" -Path $jsonFile
-    if ( $EnableIPv6 ) {
-        Add-Content -Value "$($indents[4])^[concat('Microsoft.Network/publicIPAddresses/', variables('publicIPv6AddressName'))]^," -Path $jsonFile
-    }
-    Add-Content -Value "$($indents[4])^[concat('Microsoft.Network/publicIPAddresses/', variables('publicIPv4AddressName'))]^" -Path $jsonFile
-    Add-Content -Value "$($indents[3])]," -Path $jsonFile
-    Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
-    Add-Content -Value "$($indents[3]){" -Path $jsonFile
-    Add-Content -Value "$($indents[4])^frontendIPConfigurations^: " -Path $jsonFile
-    Add-Content -Value "$($indents[4])[" -Path $jsonFile
-    Add-Content -Value "$($indents[5]){" -Path $jsonFile
-    Add-Content -Value "$($indents[6])^name^: ^LoadBalancerFrontEndIPv4^," -Path $jsonFile
-    Add-Content -Value "$($indents[6])^properties^:" -Path $jsonFile
-    Add-Content -Value "$($indents[6]){" -Path $jsonFile
-    Add-Content -Value "$($indents[7])^publicIPAddress^:" -Path $jsonFile
-    Add-Content -Value "$($indents[7]){" -Path $jsonFile
-    Add-Content -Value "$($indents[8])^id^: ^[resourceId('Microsoft.Network/publicIPAddresses',variables('publicIPv4AddressName'))]^" -Path $jsonFile
-    Add-Content -Value "$($indents[7])}" -Path $jsonFile
-    Add-Content -Value "$($indents[6])}" -Path $jsonFile
-    Add-Content -Value "$($indents[5])}" -Path $jsonFile
-
-    #region IPV6 frondend loadbalancer config
-    if ( $EnableIPv6 ) {
-        Add-Content -Value "$($indents[5])," -Path $jsonFile
-        Add-Content -Value "$($indents[5]){" -Path $jsonFile
-        Add-Content -Value "$($indents[6])^name^: ^LoadBalancerFrontEndIPv6^," -Path $jsonFile
-        Add-Content -Value "$($indents[6])^properties^:" -Path $jsonFile
-        Add-Content -Value "$($indents[6]){" -Path $jsonFile
-        Add-Content -Value "$($indents[7])^publicIPAddress^:" -Path $jsonFile
-        Add-Content -Value "$($indents[7]){" -Path $jsonFile
-        Add-Content -Value "$($indents[8])^id^: ^[resourceId('Microsoft.Network/publicIPAddresses',variables('publicIPv6AddressName'))]^" -Path $jsonFile
-        Add-Content -Value "$($indents[7])}" -Path $jsonFile
-        Add-Content -Value "$($indents[6])}" -Path $jsonFile
-        Add-Content -Value "$($indents[5])}" -Path $jsonFile
-    }
-    #endregion
-
-    Add-Content -Value "$($indents[4])]," -Path $jsonFile
-    Add-Content -Value "$($indents[4])^backendAddressPools^:" -Path $jsonFile
-    Add-Content -Value "$($indents[4])[" -Path $jsonFile
-    Add-Content -Value "$($indents[5]){" -Path $jsonFile
-    Add-Content -Value "$($indents[6])^name^:^BackendPoolIPv4^" -Path $jsonFile
-    Add-Content -Value "$($indents[5])}" -Path $jsonFile
-    if ( $EnableIPv6 ) {
-        Add-Content -Value "$($indents[5])," -Path $jsonFile
-        Add-Content -Value "$($indents[5]){" -Path $jsonFile
-        Add-Content -Value "$($indents[6])^name^:^BackendPoolIPv6^" -Path $jsonFile
-        Add-Content -Value "$($indents[5])}" -Path $jsonFile
-    }
-    Add-Content -Value "$($indents[4])]," -Path $jsonFile
-    #region Normal Endpoints
-
-    Add-Content -Value "$($indents[4])^inboundNatRules^:" -Path $jsonFile
-    Add-Content -Value "$($indents[4])[" -Path $jsonFile
-    $LBPorts = 0
-    $EndPointAdded = $false
-    $role = 0
-    foreach ( $newVM in $RGXMLData.VirtualMachine) {
-        if ($newVM.RoleName) {
-            $vmName = $newVM.RoleName
-        }
-        else {
-            $vmName = Get-NewVMName -namePrefix $RGName -numberOfVMs $role
-        }
-        foreach ( $endpoint in $newVM.EndPoints) {
-            if ( !($endpoint.LoadBalanced) -or ($endpoint.LoadBalanced -eq "False") ) {
-                if ( $EndPointAdded ) {
-                    Add-Content -Value "$($indents[5])," -Path $jsonFile
-                }
-                Add-Content -Value "$($indents[5]){" -Path $jsonFile
-                Add-Content -Value "$($indents[6])^name^: ^$vmName-$($endpoint.Name)^," -Path $jsonFile
-                Add-Content -Value "$($indents[6])^properties^:" -Path $jsonFile
-                Add-Content -Value "$($indents[6]){" -Path $jsonFile
-                Add-Content -Value "$($indents[7])^frontendIPConfiguration^:" -Path $jsonFile
-                Add-Content -Value "$($indents[7]){" -Path $jsonFile
-                Add-Content -Value "$($indents[8])^id^: ^[variables('frontEndIPv4ConfigID')]^" -Path $jsonFile
-                Add-Content -Value "$($indents[7])}," -Path $jsonFile
-                Add-Content -Value "$($indents[7])^protocol^: ^$($endpoint.Protocol)^," -Path $jsonFile
-                Add-Content -Value "$($indents[7])^frontendPort^: ^$($endpoint.PublicPort)^," -Path $jsonFile
-                Add-Content -Value "$($indents[7])^backendPort^: ^$($endpoint.LocalPort)^," -Path $jsonFile
-                Add-Content -Value "$($indents[7])^enableFloatingIP^: false" -Path $jsonFile
-                Add-Content -Value "$($indents[6])}" -Path $jsonFile
-                Add-Content -Value "$($indents[5])}" -Path $jsonFile
-                Write-LogInfo "Added inboundNatRule Name:$vmName-$($endpoint.Name) frontendPort:$($endpoint.PublicPort) backendPort:$($endpoint.LocalPort) Protocol:$($endpoint.Protocol)."
-                $EndPointAdded = $true
-            }
-            else {
-                $LBPorts += 1
-            }
-        }
-        $role += 1
-    }
-    Add-Content -Value "$($indents[4])]" -Path $jsonFile
-    #endregion
-
-    #region LoadBalanced Endpoints
-    if ( $LBPorts -gt 0 ) {
-        Add-Content -Value "$($indents[4])," -Path $jsonFile
-        Add-Content -Value "$($indents[4])^loadBalancingRules^:" -Path $jsonFile
-        Add-Content -Value "$($indents[4])[" -Path $jsonFile
-        $probePorts = 0
-        $EndPointAdded = $false
-        $addedLBPort = $null
-        $role = 0
-        foreach ( $newVM in $RGXMLData.VirtualMachine) {
-            if ($newVM.RoleName) {
-                $vmName = $newVM.RoleName
-            }
-            else {
-                $vmName = Get-NewVMName -namePrefix $RGName -numberOfVMs $role
-            }
-
-            foreach ( $endpoint in $newVM.EndPoints) {
-                if ( ($endpoint.LoadBalanced -eq "True") -and !($addedLBPort -imatch "$($endpoint.Name)-$($endpoint.PublicPort)" ) ) {
-                    if ( $EndPointAdded ) {
-                        Add-Content -Value "$($indents[5])," -Path $jsonFile
-                    }
-                    Add-Content -Value "$($indents[5]){" -Path $jsonFile
-                    Add-Content -Value "$($indents[6])^name^: ^$RGName-LB-$($endpoint.Name)^," -Path $jsonFile
-                    Add-Content -Value "$($indents[6])^properties^:" -Path $jsonFile
-                    Add-Content -Value "$($indents[6]){" -Path $jsonFile
-
-                    Add-Content -Value "$($indents[7])^frontendIPConfiguration^:" -Path $jsonFile
-                    Add-Content -Value "$($indents[7]){" -Path $jsonFile
-                    if ($endpoint.EnableIPv6 -eq "True") {
-                        Add-Content -Value "$($indents[8])^id^: ^[variables('frontEndIPv6ConfigID')]^" -Path $jsonFile
-                    }
-                    else {
-                        Add-Content -Value "$($indents[8])^id^: ^[variables('frontEndIPv4ConfigID')]^" -Path $jsonFile
-                    }
-                    Add-Content -Value "$($indents[7])}," -Path $jsonFile
-                    Add-Content -Value "$($indents[7])^backendAddressPool^:" -Path $jsonFile
-                    Add-Content -Value "$($indents[7]){" -Path $jsonFile
-                    if ($endpoint.EnableIPv6 -eq "True") {
-                        Add-Content -Value "$($indents[8])^id^: ^[variables('lbIPv6PoolID')]^" -Path $jsonFile
-                    }
-                    else {
-                        Add-Content -Value "$($indents[8])^id^: ^[variables('lbIPv4PoolID')]^" -Path $jsonFile
-                    }
-                    Add-Content -Value "$($indents[7])}," -Path $jsonFile
-                    Add-Content -Value "$($indents[7])^protocol^: ^$($endpoint.Protocol)^," -Path $jsonFile
-                    Add-Content -Value "$($indents[7])^frontendPort^: ^$($endpoint.PublicPort)^," -Path $jsonFile
-                    Add-Content -Value "$($indents[7])^backendPort^: ^$($endpoint.LocalPort)^" -Path $jsonFile
-
-
-                    if ( $endpoint.ProbePort ) {
-                        $probePorts += 1
-                        Add-Content -Value "$($indents[7])," -Path $jsonFile
-                        Add-Content -Value "$($indents[7])^probe^:" -Path $jsonFile
-                        Add-Content -Value "$($indents[7]){" -Path $jsonFile
-                        Add-Content -Value "$($indents[8])^id^: ^[concat(variables('lbID'),'/probes/$RGName-LB-$($endpoint.Name)-probe')]^" -Path $jsonFile
-                        Add-Content -Value "$($indents[7])}," -Path $jsonFile
-                        Write-LogInfo "Enabled Probe for loadBalancingRule Name:$RGName-LB-$($endpoint.Name) : $RGName-LB-$($endpoint.Name)-probe."
-                    }
-                    else {
-                        if ( $endpoint.EnableIPv6 -ne "True" ) {
-                            Add-Content -Value "$($indents[7])," -Path $jsonFile
-                            Add-Content -Value "$($indents[7])^enableFloatingIP^: false," -Path $jsonFile
-                            Add-Content -Value "$($indents[7])^idleTimeoutInMinutes^: 5" -Path $jsonFile
-                        }
-                    }
-                    Add-Content -Value "$($indents[6])}" -Path $jsonFile
-                    Add-Content -Value "$($indents[5])}" -Path $jsonFile
-                    Write-LogInfo "Added loadBalancingRule Name:$RGName-LB-$($endpoint.Name) frontendPort:$($endpoint.PublicPort) backendPort:$($endpoint.LocalPort) Protocol:$($endpoint.Protocol)."
-                    if ( $addedLBPort ) {
-                        $addedLBPort += "-$($endpoint.Name)-$($endpoint.PublicPort)"
-                    }
-                    else {
-                        $addedLBPort = "$($endpoint.Name)-$($endpoint.PublicPort)"
-                    }
-                    $EndPointAdded = $true
-                }
-            }
-            $role += 1
-        }
-        Add-Content -Value "$($indents[4])]" -Path $jsonFile
-    }
-    #endregion
-
-    #region Probe Ports
-    if ( $probePorts -gt 0 ) {
-        Add-Content -Value "$($indents[4])," -Path $jsonFile
-        Add-Content -Value "$($indents[4])^probes^:" -Path $jsonFile
-        Add-Content -Value "$($indents[4])[" -Path $jsonFile
-
-        $EndPointAdded = $false
-        $addedProbes = $null
-        $role = 0
-        foreach ( $newVM in $RGXMLData.VirtualMachine) {
-
-            if ($newVM.RoleName) {
-                $vmName = $newVM.RoleName
-            }
-            else {
-                $vmName = Get-NewVMName -namePrefix $RGName -numberOfVMs $role
-            }
-
-            foreach ( $endpoint in $newVM.EndPoints) {
-                if ( ($endpoint.LoadBalanced -eq "True") ) {
-                    if ( $endpoint.ProbePort -and !($addedProbes -imatch "$($endpoint.Name)-probe-$($endpoint.ProbePort)")) {
-                        if ( $EndPointAdded ) {
-                            Add-Content -Value "$($indents[5])," -Path $jsonFile
-                        }
-                        Add-Content -Value "$($indents[5]){" -Path $jsonFile
-                        Add-Content -Value "$($indents[6])^name^: ^$RGName-LB-$($endpoint.Name)-probe^," -Path $jsonFile
-                        Add-Content -Value "$($indents[6])^properties^:" -Path $jsonFile
-                        Add-Content -Value "$($indents[6]){" -Path $jsonFile
-                        Add-Content -Value "$($indents[7])^protocol^ : ^$($endpoint.Protocol)^," -Path $jsonFile
-                        Add-Content -Value "$($indents[7])^port^ : ^$($endpoint.ProbePort)^," -Path $jsonFile
-                        Add-Content -Value "$($indents[7])^intervalInSeconds^ : ^15^," -Path $jsonFile
-                        Add-Content -Value "$($indents[7])^numberOfProbes^ : ^$probePorts^" -Path $jsonFile
-                        Add-Content -Value "$($indents[6])}" -Path $jsonFile
-                        Add-Content -Value "$($indents[5])}" -Path $jsonFile
-                        Write-LogInfo "Added probe :$RGName-LB-$($endpoint.Name)-probe Probe Port:$($endpoint.ProbePort) Protocol:$($endpoint.Protocol)."
-                        if ( $addedProbes ) {
-                            $addedProbes += "-$($endpoint.Name)-probe-$($endpoint.ProbePort)"
-                        }
-                        else {
-                            $addedProbes = "$($endpoint.Name)-probe-$($endpoint.ProbePort)"
-                        }
-                        $EndPointAdded = $true
-                    }
-                }
-            }
-
-            $role += 1
-        }
-        Add-Content -Value "$($indents[4])]" -Path $jsonFile
-    }
-    #endregion
-
-    Add-Content -Value "$($indents[3])}" -Path $jsonFile
-    Add-Content -Value "$($indents[2])}," -Path $jsonFile
-    Write-LogInfo "Added Load Balancer."
-    #endregion
-
-    $vmAdded = $false
-    $role = 0
-    foreach ( $newVM in $RGXMLData.VirtualMachine) {
-        if ( $CurrentTestData.OverrideVMSize) {
-            $instanceSize = $CurrentTestData.OverrideVMSize
-        }
-        else {
-            $instanceSize = $newVM.ARMInstanceSize
-        }
-
-        $ExistingSubnet = $newVM.ARMSubnetName
-        if ($newVM.RoleName) {
-            $vmName = $newVM.RoleName
-        }
-        else {
-            $vmName = Get-NewVMName -namePrefix $RGName -numberOfVMs $role
-        }
-        $NIC = "PrimaryNIC" + "-$vmName"
-
-        if ( $vmAdded ) {
-            Add-Content -Value "$($indents[2])," -Path $jsonFile
-        }
-
-        #region networkInterfaces
-        Write-LogInfo "Adding Network Interface Card $NIC"
-        Add-Content -Value "$($indents[2]){" -Path $jsonFile
-        Add-Content -Value "$($indents[3])^apiVersion^: ^2016-09-01^," -Path $jsonFile
-        Add-Content -Value "$($indents[3])^type^: ^Microsoft.Network/networkInterfaces^," -Path $jsonFile
-        Add-Content -Value "$($indents[3])^name^: ^$NIC^," -Path $jsonFile
-        Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
-        Add-Content -Value "$($indents[3])^dependsOn^: " -Path $jsonFile
-        Add-Content -Value "$($indents[3])[" -Path $jsonFile
-        if ( $EnableIPv6 ) {
-            Add-Content -Value "$($indents[4])^[concat('Microsoft.Network/publicIPAddresses/', variables('publicIPv6AddressName'))]^," -Path $jsonFile
-        }
-        Add-Content -Value "$($indents[4])^[concat('Microsoft.Network/publicIPAddresses/', variables('publicIPv4AddressName'))]^," -Path $jsonFile
-        if (!$ExistingVnet) {
-            Add-Content -Value "$($indents[4])^[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]^," -Path $jsonFile
-        }
-        Add-Content -Value "$($indents[4])^[variables('lbID')]^" -Path $jsonFile
-        Add-Content -Value "$($indents[3])]," -Path $jsonFile
-
-        Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
-        Add-Content -Value "$($indents[3]){" -Path $jsonFile
-        Add-Content -Value "$($indents[4])^ipConfigurations^: " -Path $jsonFile
-        Add-Content -Value "$($indents[4])[" -Path $jsonFile
-
-        #region IPv4 Config
-        Add-Content -Value "$($indents[5]){" -Path $jsonFile
-        Add-Content -Value "$($indents[6])^name^: ^IPv4Config1^," -Path $jsonFile
-        Add-Content -Value "$($indents[6])^properties^: " -Path $jsonFile
-        Add-Content -Value "$($indents[6]){" -Path $jsonFile
-        Add-Content -Value "$($indents[7])^privateIPAddressVersion^:^IPv4^," -Path $jsonFile
-        Add-Content -Value "$($indents[7])^loadBalancerBackendAddressPools^:" -Path $jsonFile
-        Add-Content -Value "$($indents[7])[" -Path $jsonFile
-        Add-Content -Value "$($indents[8]){" -Path $jsonFile
-        Add-Content -Value "$($indents[9])^id^: ^[concat(variables('lbID'), '/backendAddressPools/BackendPoolIPv4')]^" -Path $jsonFile
-        Add-Content -Value "$($indents[8])}" -Path $jsonFile
-        Add-Content -Value "$($indents[7])]," -Path $jsonFile
-
-        #region Enable InboundRules in NIC
-        Add-Content -Value "$($indents[7])^loadBalancerInboundNatRules^:" -Path $jsonFile
-        Add-Content -Value "$($indents[7])[" -Path $jsonFile
-        $EndPointAdded = $false
-        foreach ( $endpoint in $newVM.EndPoints) {
-            if ( !($endpoint.LoadBalanced) -or ($endpoint.LoadBalanced -eq "False") ) {
-                if ( $EndPointAdded ) {
-                    Add-Content -Value "$($indents[8])," -Path $jsonFile
-                }
-                Add-Content -Value "$($indents[8]){" -Path $jsonFile
-                Add-Content -Value "$($indents[9])^id^:^[concat(variables('lbID'),'/inboundNatRules/$vmName-$($endpoint.Name)')]^" -Path $jsonFile
-                Add-Content -Value "$($indents[8])}" -Path $jsonFile
-                Write-LogInfo "Enabled inboundNatRule Name:$vmName-$($endpoint.Name) frontendPort:$($endpoint.PublicPort) backendPort:$($endpoint.LocalPort) Protocol:$($endpoint.Protocol) to $NIC."
-                $EndPointAdded = $true
-            }
-        }
-
-        Add-Content -Value "$($indents[7])]," -Path $jsonFile
-        #endregion
-
-        Add-Content -Value "$($indents[7])^subnet^:" -Path $jsonFile
-        Add-Content -Value "$($indents[7]){" -Path $jsonFile
-        if ( $existingSubnet ) {
-            Add-Content -Value "$($indents[8])^id^: ^[concat(variables('vnetID'),'/subnets/', '$existingSubnet')]^" -Path $jsonFile
-        }
-        else {
-            Add-Content -Value "$($indents[8])^id^: ^[variables('defaultSubnetID')]^" -Path $jsonFile
-        }
-        Add-Content -Value "$($indents[7])}," -Path $jsonFile
-        Add-Content -Value "$($indents[7])^privateIPAllocationMethod^: ^Dynamic^" -Path $jsonFile
-        Add-Content -Value "$($indents[6])}" -Path $jsonFile
-        Add-Content -Value "$($indents[5])}" -Path $jsonFile
-        #endregion
-
-        #region IPv6 Config...
-        if ( $EnableIPv6 ) {
-            Add-Content -Value "$($indents[5])," -Path $jsonFile
-            Add-Content -Value "$($indents[5]){" -Path $jsonFile
-            Add-Content -Value "$($indents[6])^name^: ^IPv6Config1^," -Path $jsonFile
-            Add-Content -Value "$($indents[6])^properties^: " -Path $jsonFile
-            Add-Content -Value "$($indents[6]){" -Path $jsonFile
-            Add-Content -Value "$($indents[7])^privateIPAddressVersion^:^IPv6^," -Path $jsonFile
-            Add-Content -Value "$($indents[7])^loadBalancerBackendAddressPools^:" -Path $jsonFile
-            Add-Content -Value "$($indents[7])[" -Path $jsonFile
-            Add-Content -Value "$($indents[8]){" -Path $jsonFile
-            Add-Content -Value "$($indents[9])^id^: ^[concat(variables('lbID'), '/backendAddressPools/BackendPoolIPv6')]^" -Path $jsonFile
-            Add-Content -Value "$($indents[8])}" -Path $jsonFile
-            Add-Content -Value "$($indents[7])]," -Path $jsonFile
-            Add-Content -Value "$($indents[7])^privateIPAllocationMethod^: ^Dynamic^" -Path $jsonFile
-            Add-Content -Value "$($indents[6])}" -Path $jsonFile
-            Add-Content -Value "$($indents[5])}" -Path $jsonFile
-        }
-        #endregion
-        Add-Content -Value "$($indents[4])]" -Path $jsonFile
-        if ($CurrentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
-            Add-Content -Value "$($indents[4])," -Path $jsonFile
-            Add-Content -Value "$($indents[4])^enableAcceleratedNetworking^: true" -Path $jsonFile
-            Write-LogInfo "Enabled Accelerated Networking."
-        }
-        Add-Content -Value "$($indents[3])}" -Path $jsonFile
-
-
-        Add-Content -Value "$($indents[2])}," -Path $jsonFile
-        Write-LogInfo "Added NIC $NIC.."
-        #endregion
-
-        #region multiple Nics
-        [System.Collections.ArrayList]$NicNameList = @()
-        foreach ($NetworkInterface in $newVM.NetworkInterfaces) {
-            $NicName = $NetworkInterface.Name
-            $NicNameList.add($NicName)
-            Add-Content -Value "$($indents[2]){" -Path $jsonFile
-            Add-Content -Value "$($indents[3])^apiVersion^: ^2016-09-01^," -Path $jsonFile
-            Add-Content -Value "$($indents[3])^type^: ^Microsoft.Network/networkInterfaces^," -Path $jsonFile
-            Add-Content -Value "$($indents[3])^name^: ^$NicName^," -Path $jsonFile
-            Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
-            Add-Content -Value "$($indents[3])^dependsOn^: " -Path $jsonFile
-            Add-Content -Value "$($indents[3])[" -Path $jsonFile
-            Add-Content -Value "$($indents[4])^[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]^," -Path $jsonFile
-            Add-Content -Value "$($indents[4])^[variables('lbID')]^" -Path $jsonFile
-            Add-Content -Value "$($indents[3])]," -Path $jsonFile
-
-            Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
-            Add-Content -Value "$($indents[3]){" -Path $jsonFile
-            Add-Content -Value "$($indents[4])^ipConfigurations^: " -Path $jsonFile
-            Add-Content -Value "$($indents[4])[" -Path $jsonFile
-            Add-Content -Value "$($indents[5]){" -Path $jsonFile
-            Add-Content -Value "$($indents[6])^name^: ^IPv4Config1^," -Path $jsonFile
-            Add-Content -Value "$($indents[6])^properties^: " -Path $jsonFile
-            Add-Content -Value "$($indents[6]){" -Path $jsonFile
-            Add-Content -Value "$($indents[7])^subnet^:" -Path $jsonFile
-            Add-Content -Value "$($indents[7]){" -Path $jsonFile
-            Add-Content -Value "$($indents[8])^id^: ^[variables('defaultSubnetID')]^" -Path $jsonFile
-            Add-Content -Value "$($indents[7])}" -Path $jsonFile
-            Add-Content -Value "$($indents[6])}" -Path $jsonFile
-            Add-Content -Value "$($indents[5])}" -Path $jsonFile
-            Add-Content -Value "$($indents[4])]" -Path $jsonFile
-            if ($CurrentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
-                Add-Content -Value "$($indents[4])," -Path $jsonFile
-                Add-Content -Value "$($indents[4])^enableAcceleratedNetworking^: true" -Path $jsonFile
-                Write-LogInfo "Enabled Accelerated Networking for $NicName."
-            }
-            Add-Content -Value "$($indents[3])}" -Path $jsonFile
-            Add-Content -Value "$($indents[2])}," -Path $jsonFile
-        }
-
-        #Add Bulk NICs
-        $currentVMNics = 0
-        while ($currentVMNics -lt $newVM.ExtraNICs) {
-            $totalRGNics += 1
-            $currentVMNics += 1
-            $NicName = "ExtraNetworkCard-$currentVMNics-$($vmName)"
-            $NicNameList.add($NicName)
-            Add-Content -Value "$($indents[2]){" -Path $jsonFile
-            Add-Content -Value "$($indents[3])^apiVersion^: ^2016-09-01^," -Path $jsonFile
-            Add-Content -Value "$($indents[3])^type^: ^Microsoft.Network/networkInterfaces^," -Path $jsonFile
-            Add-Content -Value "$($indents[3])^name^: ^$NicName^," -Path $jsonFile
-            Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^,"   -Path $jsonFile
-            Add-Content -Value "$($indents[3])^dependsOn^: " -Path $jsonFile
-            Add-Content -Value "$($indents[3])[" -Path $jsonFile
-            Add-Content -Value "$($indents[4])^[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]^," -Path $jsonFile
-            Add-Content -Value "$($indents[4])^[variables('lbID')]^" -Path $jsonFile
-            Add-Content -Value "$($indents[3])]," -Path $jsonFile
-
-            Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
-            Add-Content -Value "$($indents[3]){" -Path $jsonFile
-            Add-Content -Value "$($indents[4])^ipConfigurations^: " -Path $jsonFile
-            Add-Content -Value "$($indents[4])[" -Path $jsonFile
-            Add-Content -Value "$($indents[5]){" -Path $jsonFile
-            Add-Content -Value "$($indents[6])^name^: ^IPv4Config1^," -Path $jsonFile
-            Add-Content -Value "$($indents[6])^properties^: " -Path $jsonFile
-            Add-Content -Value "$($indents[6]){" -Path $jsonFile
-            Add-Content -Value "$($indents[7])^subnet^:" -Path $jsonFile
-            Add-Content -Value "$($indents[7]){" -Path $jsonFile
-            Add-Content -Value "$($indents[8])^id^: ^[concat(variables('vnetID'),'/subnets/', 'ExtraSubnet-$currentVMNics')]^" -Path $jsonFile
-            Write-LogInfo "  $NicName is part of subnet - ExtraSubnet-$currentVMNics"
-            Add-Content -Value "$($indents[7])}" -Path $jsonFile
-            Add-Content -Value "$($indents[6])}" -Path $jsonFile
-            Add-Content -Value "$($indents[5])}" -Path $jsonFile
-            Add-Content -Value "$($indents[4])]" -Path $jsonFile
-            if ($CurrentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
-                Add-Content -Value "$($indents[4])," -Path $jsonFile
-                Add-Content -Value "$($indents[4])^enableAcceleratedNetworking^: true" -Path $jsonFile
-                Write-LogInfo "  Enabled Accelerated Networking for $NicName."
-            }
-            Add-Content -Value "$($indents[3])}" -Path $jsonFile
-            Add-Content -Value "$($indents[2])}," -Path $jsonFile
-        }
-
-        #endregion
-        #region virtualMachines
-        Write-LogInfo "Adding Virtual Machine $vmName"
-        Add-Content -Value "$($indents[2]){" -Path $jsonFile
-        Add-Content -Value "$($indents[3])^apiVersion^: ^2018-06-01^," -Path $jsonFile
-        Add-Content -Value "$($indents[3])^type^: ^Microsoft.Compute/virtualMachines^," -Path $jsonFile
-        Add-Content -Value "$($indents[3])^name^: ^$vmName^," -Path $jsonFile
-        Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
-        if ($publisher -imatch "clear-linux-project") {
-            Write-LogInfo "  Adding plan information for clear-linux.."
-            Add-Content -Value "$($indents[3])^plan^:" -Path $jsonFile
-            Add-Content -Value "$($indents[3]){" -Path $jsonFile
-            Add-Content -Value "$($indents[4])^name^: ^$sku^," -Path $jsonFile
-            Add-Content -Value "$($indents[4])^product^: ^clear-linux-os^," -Path $jsonFile
-            Add-Content -Value "$($indents[4])^publisher^: ^clear-linux-project^" -Path $jsonFile
-            Add-Content -Value "$($indents[3])}," -Path $jsonFile
-        }
-        Add-Content -Value "$($indents[3])^tags^: {^TestID^: ^$TestID^}," -Path $jsonFile
-        Add-Content -Value "$($indents[3])^dependsOn^: " -Path $jsonFile
-        Add-Content -Value "$($indents[3])[" -Path $jsonFile
-        if (!$createAvailabilitySet) {
-            #Add-Content -Value "$($indents[4])^[concat('Microsoft.Compute/availabilitySets/', variables('availabilitySetName'))]^," -Path $jsonFile
-        }
-        else {
-            Add-Content -Value "$($indents[4])^[concat('Microsoft.Compute/availabilitySets/', variables('availabilitySetName'))]^," -Path $jsonFile
-        }
-        if ( $NewARMStorageAccountType) {
-            Add-Content -Value "$($indents[4])^[concat('Microsoft.Storage/storageAccounts/', variables('StorageAccountName'))]^," -Path $jsonFile
-        }
-        if ( $OsVHD -and $UseManagedDisks ) {
-            Add-Content -Value "$($indents[4])^[resourceId('Microsoft.Compute/images', '$RGName-Image')]^," -Path $jsonFile
-        }
-
-        if ($NicNameList) {
-            foreach ($NicName in $NicNameList) {
-                Add-Content -Value "$($indents[4])^[concat('Microsoft.Network/networkInterfaces/', '$NicName')]^," -Path $jsonFile
-            }
-        }
-        Add-Content -Value "$($indents[4])^[concat('Microsoft.Network/networkInterfaces/', '$NIC')]^" -Path $jsonFile
-        Add-Content -Value "$($indents[3])]," -Path $jsonFile
-
-        #region VM Properties
-        Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
-        Add-Content -Value "$($indents[3]){" -Path $jsonFile
-        #region availabilitySet
-        Add-Content -Value "$($indents[4])^availabilitySet^: " -Path $jsonFile
-        Add-Content -Value "$($indents[4]){" -Path $jsonFile
-        Add-Content -Value "$($indents[5])^id^: ^[resourceId('Microsoft.Compute/availabilitySets','$availabilitySetName')]^" -Path $jsonFile
-        Add-Content -Value "$($indents[4])}," -Path $jsonFile
-        #endregion
-
-        #region Hardware Profile
-        Add-Content -Value "$($indents[4])^hardwareProfile^: " -Path $jsonFile
-        Add-Content -Value "$($indents[4]){" -Path $jsonFile
-        Add-Content -Value "$($indents[5])^vmSize^: ^$instanceSize^" -Path $jsonFile
-        Add-Content -Value "$($indents[4])}," -Path $jsonFile
-        #endregion
-
-        if ( !($UseSpecializedImage) ) {
-            #region OSProfile
-            Add-Content -Value "$($indents[4])^osProfile^: " -Path $jsonFile
-            Add-Content -Value "$($indents[4]){" -Path $jsonFile
-            Add-Content -Value "$($indents[5])^computername^: ^$vmName^," -Path $jsonFile
-            Add-Content -Value "$($indents[5])^adminUsername^: ^[variables('adminUserName')]^," -Path $jsonFile
-            if (!$sshKeyData) {
-                Add-Content -Value "$($indents[5])^adminPassword^: ^[variables('adminPassword')]^" -Path $jsonFile
-            } else {
-                Add-Content -Value "$($indents[5])^linuxConfiguration^:" -Path $jsonFile
-                Add-Content -Value "$($indents[5]){" -Path $jsonFile
-                    Add-Content -Value "$($indents[6])^disablePasswordAuthentication^:true," -Path $jsonFile
-                    Add-Content -Value "$($indents[6])^ssh^:" -Path $jsonFile
-                    Add-Content -Value "$($indents[6]){" -Path $jsonFile
-                        Add-Content -Value "$($indents[7])^publicKeys^:" -Path $jsonFile
-                        Add-Content -Value "$($indents[7])[" -Path $jsonFile
-                            Add-Content -Value "$($indents[8]){" -Path $jsonFile
-                                Add-Content -Value "$($indents[9])^path^:^$sshPath^," -Path $jsonFile
-                                Add-Content -Value "$($indents[9])^keyData^:^$sshKeyData^" -Path $jsonFile
-                            Add-Content -Value "$($indents[8])}" -Path $jsonFile
-                        Add-Content -Value "$($indents[7])]" -Path $jsonFile
-                    Add-Content -Value "$($indents[6])}" -Path $jsonFile
-                Add-Content -Value "$($indents[5])}" -Path $jsonFile
-            }
-            Add-Content -Value "$($indents[4])}," -Path $jsonFile
-            #endregion
-        }
-        #region Storage Profile
-        Add-Content -Value "$($indents[4])^storageProfile^: " -Path $jsonFile
-        Add-Content -Value "$($indents[4]){" -Path $jsonFile
-        if ($ImageName -and !$osVHD) {
-            Write-LogInfo ">>> Using ARMImage : $publisher : $offer : $sku : $version"
-            Add-Content -Value "$($indents[5])^imageReference^ : " -Path $jsonFile
-            Add-Content -Value "$($indents[5]){" -Path $jsonFile
-            Add-Content -Value "$($indents[6])^publisher^: ^$publisher^," -Path $jsonFile
-            Add-Content -Value "$($indents[6])^offer^: ^$offer^," -Path $jsonFile
-            Add-Content -Value "$($indents[6])^sku^: ^$sku^," -Path $jsonFile
-            Add-Content -Value "$($indents[6])^version^: ^$version^" -Path $jsonFile
-            Add-Content -Value "$($indents[5])}," -Path $jsonFile
-        }
-        elseif ( $OsVHD -and $UseManagedDisks ) {
-            Add-Content -Value "$($indents[5])^imageReference^ : " -Path $jsonFile
-            Add-Content -Value "$($indents[5]){" -Path $jsonFile
-            Add-Content -Value "$($indents[6])^id^: ^[resourceId('Microsoft.Compute/images', '$RGName-Image')]^," -Path $jsonFile
-            Add-Content -Value "$($indents[5])}," -Path $jsonFile
-        }
-        Add-Content -Value "$($indents[5])^osDisk^ : " -Path $jsonFile
-        Add-Content -Value "$($indents[5]){" -Path $jsonFile
-        if ($osVHD) {
-            if ($UseManagedDisks) {
-                Write-LogInfo ">>> Using VHD : $osVHD (Converted to Managed Image)"
-                Add-Content -Value "$($indents[6])^osType^: ^$OSType^," -Path $jsonFile
-                Add-Content -Value "$($indents[6])^name^: ^$vmName-OSDisk^," -Path $jsonFile
-                Add-Content -Value "$($indents[6])^managedDisk^: " -Path $jsonFile
-                Add-Content -Value "$($indents[6]){" -Path $jsonFile
-                Add-Content -Value "$($indents[7])^storageAccountType^: ^$StorageAccountType^" -Path $jsonFile
-
-                Add-Content -Value "$($indents[6])}," -Path $jsonFile
-                if ($UseEphemeralOSDisk) {
-                    Add-Content -Value "$($indents[6])^caching^: ^ReadOnly^," -Path $jsonFile
-                    Add-Content -Value "$($indents[6])^diffDiskSettings^: " -Path $jsonFile
-                    Add-Content -Value "$($indents[6]){" -Path $jsonFile
-                    Add-Content -Value "$($indents[7])^option^: ^local^" -Path $jsonFile
-                    Add-Content -Value "$($indents[6])}," -Path $jsonFile
-                }
-                else {
-                    Add-Content -Value "$($indents[6])^caching^: ^ReadWrite^," -Path $jsonFile
-                }
-                Add-Content -Value "$($indents[6])^createOption^: ^FromImage^" -Path $jsonFile
-            }
-            else {
-                Write-LogInfo ">>> Using VHD : $osVHD"
-                if ($UseSpecializedImage) {
-                    $vhduri = "https://$StorageAccountName.blob.core.windows.net/vhds/$OsVHD"
-                    $sourceContainer = $vhduri.Split("/")[$vhduri.Split("/").Count - 2]
-                    $destVHDName = "$vmName-$RGrandomWord-osdisk.vhd"
-
-                    $copyStatus = Copy-VHDToAnotherStorageAccount -sourceStorageAccount $StorageAccountName -sourceStorageContainer $sourceContainer -destinationStorageAccount $StorageAccountName -destinationStorageContainer "vhds" -vhdName $OsVHD -destVHDName $destVHDName
-                    if (!$copyStatus) {
-                        Throw "Failed to copy the VHD to $ARMStorageAccount"
-                    } else {
-                        Write-LogInfo "New Base VHD name - $destVHDName"
-                    }
-                    Add-Content -Value "$($indents[6])^osType^: ^$OSType^," -Path $jsonFile
-                    Add-Content -Value "$($indents[6])^name^: ^$vmName-OSDisk^," -Path $jsonFile
-                    #Add-Content -Value "$($indents[6])^osType^: ^Linux^," -Path $jsonFile
-                    Add-Content -Value "$($indents[6])^vhd^: " -Path $jsonFile
-                    Add-Content -Value "$($indents[6]){" -Path $jsonFile
-                    Add-Content -Value "$($indents[7])^uri^: ^[concat('http://',variables('StorageAccountName'),'.blob.core.windows.net/vhds/','$vmName-$RGrandomWord-osdisk.vhd')]^" -Path $jsonFile
-                    Add-Content -Value "$($indents[6])}," -Path $jsonFile
-                    Add-Content -Value "$($indents[6])^caching^: ^ReadWrite^," -Path $jsonFile
-                    Add-Content -Value "$($indents[6])^createOption^: ^Attach^" -Path $jsonFile
-                }
-                else {
-                    Add-Content -Value "$($indents[6])^image^: " -Path $jsonFile
-                    Add-Content -Value "$($indents[6]){" -Path $jsonFile
-                    Add-Content -Value "$($indents[7])^uri^: ^[concat('http://',variables('StorageAccountName'),'.blob.core.windows.net/vhds/','$osVHD')]^" -Path $jsonFile
-                    Add-Content -Value "$($indents[6])}," -Path $jsonFile
-                    Add-Content -Value "$($indents[6])^osType^: ^$OSType^," -Path $jsonFile
-                    Add-Content -Value "$($indents[6])^name^: ^$vmName-OSDisk^," -Path $jsonFile
-                    #Add-Content -Value "$($indents[6])^osType^: ^Linux^," -Path $jsonFile
-                    Add-Content -Value "$($indents[6])^vhd^: " -Path $jsonFile
-                    Add-Content -Value "$($indents[6]){" -Path $jsonFile
-                    Add-Content -Value "$($indents[7])^uri^: ^[concat('http://',variables('StorageAccountName'),'.blob.core.windows.net/vhds/','$vmName-$RGrandomWord-osdisk.vhd')]^" -Path $jsonFile
-                    Add-Content -Value "$($indents[6])}," -Path $jsonFile
-                    Add-Content -Value "$($indents[6])^caching^: ^ReadWrite^," -Path $jsonFile
-                    Add-Content -Value "$($indents[6])^createOption^: ^FromImage^" -Path $jsonFile
-                }
-            }
-        }
-        else {
-            if ($UseManagedDisks) {
-                Add-Content -Value "$($indents[6])^name^: ^$vmName-OSDisk^," -Path $jsonFile
-                Add-Content -Value "$($indents[6])^managedDisk^: " -Path $jsonFile
-                Add-Content -Value "$($indents[6]){" -Path $jsonFile
-                Add-Content -Value "$($indents[7])^storageAccountType^: ^$StorageAccountType^" -Path $jsonFile
-                Add-Content -Value "$($indents[6])}," -Path $jsonFile
-                if ($UseEphemeralOSDisk) {
-                    Add-Content -Value "$($indents[6])^caching^: ^ReadOnly^," -Path $jsonFile
-                    Add-Content -Value "$($indents[6])^diffDiskSettings^: " -Path $jsonFile
-                    Add-Content -Value "$($indents[6]){" -Path $jsonFile
-                    Add-Content -Value "$($indents[7])^option^: ^local^" -Path $jsonFile
-                    Add-Content -Value "$($indents[6])}," -Path $jsonFile
-                } else {
-                    Add-Content -Value "$($indents[6])^caching^: ^ReadWrite^," -Path $jsonFile
-                }
-                Add-Content -Value "$($indents[6])^createOption^: ^FromImage^" -Path $jsonFile
-            } else {
-                Add-Content -Value "$($indents[6])^name^: ^$vmName-OSDisk^," -Path $jsonFile
-                Add-Content -Value "$($indents[6])^createOption^: ^FromImage^," -Path $jsonFile
-                Add-Content -Value "$($indents[6])^vhd^: " -Path $jsonFile
-                Add-Content -Value "$($indents[6]){" -Path $jsonFile
-                Add-Content -Value "$($indents[7])^uri^: ^[concat('http://',variables('StorageAccountName'),'.blob.core.windows.net/vhds/','$vmName-$RGrandomWord-osdisk.vhd')]^" -Path $jsonFile
-                Add-Content -Value "$($indents[6])}," -Path $jsonFile
-                Add-Content -Value "$($indents[6])^caching^: ^ReadWrite^" -Path $jsonFile
-            }
-        }
-        Add-Content -Value "$($indents[5])}," -Path $jsonFile
-        Write-LogInfo "Added $DiskType OS disk : $vmName-OSDisk"
-        $dataDiskAdded = $false
-        Add-Content -Value "$($indents[5])^dataDisks^ : " -Path $jsonFile
-        Add-Content -Value "$($indents[5])[" -Path $jsonFile
-        foreach ( $dataDisk in $newVM.DataDisk ) {
-            if ( $dataDisk.LUN -ge 0 ) {
-                if ( $dataDiskAdded ) {
-                    Add-Content -Value "$($indents[6])," -Path $jsonFile
-                }
-
-                if ($UseManagedDisks) {
-                    Add-Content -Value "$($indents[6]){" -Path $jsonFile
-                    Add-Content -Value "$($indents[7])^name^: ^$vmName-disk-lun-$($dataDisk.LUN)^," -Path $jsonFile
-                    Add-Content -Value "$($indents[7])^diskSizeGB^: ^$($dataDisk.DiskSizeInGB)^," -Path $jsonFile
-                    Add-Content -Value "$($indents[7])^lun^: ^$($dataDisk.LUN)^," -Path $jsonFile
-                    Add-Content -Value "$($indents[7])^createOption^: ^Empty^," -Path $jsonFile
-                    Add-Content -Value "$($indents[7])^caching^: ^$($dataDisk.HostCaching)^," -Path $jsonFile
-                    Add-Content -Value "$($indents[7])^managedDisk^:" -Path $jsonFile
-                    Add-Content -Value "$($indents[7]){" -Path $jsonFile
-                    Add-Content -Value "$($indents[8])^storageAccountType^: ^$StorageAccountType^" -Path $jsonFile
-                    Add-Content -Value "$($indents[7])}" -Path $jsonFile
-                    Add-Content -Value "$($indents[6])}" -Path $jsonFile
-                    Write-LogInfo "Added managed $($dataDisk.DiskSizeInGB)GB Datadisk to $($dataDisk.LUN)."
-                } else {
-                    Add-Content -Value "$($indents[6]){" -Path $jsonFile
-                    Add-Content -Value "$($indents[7])^name^: ^$vmName-disk-lun-$($dataDisk.LUN)^," -Path $jsonFile
-                    Add-Content -Value "$($indents[7])^diskSizeGB^: ^$($dataDisk.DiskSizeInGB)^," -Path $jsonFile
-                    Add-Content -Value "$($indents[7])^lun^: ^$($dataDisk.LUN)^," -Path $jsonFile
-                    Add-Content -Value "$($indents[7])^createOption^: ^Empty^," -Path $jsonFile
-                    Add-Content -Value "$($indents[7])^caching^: ^$($dataDisk.HostCaching)^," -Path $jsonFile
-                    Add-Content -Value "$($indents[7])^vhd^:" -Path $jsonFile
-                    Add-Content -Value "$($indents[7]){" -Path $jsonFile
-                    Add-Content -Value "$($indents[8])^uri^: ^[concat('http://',variables('StorageAccountName'),'.blob.core.windows.net/vhds/','$vmName-$RGrandomWord-disk-lun-$($dataDisk.LUN).vhd')]^" -Path $jsonFile
-                    Add-Content -Value "$($indents[7])}" -Path $jsonFile
-                    Add-Content -Value "$($indents[6])}" -Path $jsonFile
-                    Write-LogInfo "Added unmanaged $($dataDisk.DiskSizeInGB)GB Datadisk to $($dataDisk.LUN)."
-                }
-
-                $dataDiskAdded = $true
-            }
-        }
-        Add-Content -Value "$($indents[5])]" -Path $jsonFile
-        Add-Content -Value "$($indents[4])}" -Path $jsonFile
-
-        Add-Content -Value "$($indents[4])," -Path $jsonFile
-        #endregion
-
-        Write-LogInfo "Added Virtual Machine $vmName"
-
-        #region Network Profile
-        Add-Content -Value "$($indents[4])^networkProfile^: " -Path $jsonFile
-        Add-Content -Value "$($indents[4]){" -Path $jsonFile
-        Add-Content -Value "$($indents[5])^networkInterfaces^: " -Path $jsonFile
-        Add-Content -Value "$($indents[5])[" -Path $jsonFile
-        #region configure multiple NICs to networkProfile
-        if ($NicNameList) {
-            foreach ($NicName in $NicNameList) {
-                Add-Content -Value "$($indents[6]){" -Path $jsonFile
-                Add-Content -Value "$($indents[7])^id^: ^[resourceId('Microsoft.Network/networkInterfaces','$NicName')]^," -Path $jsonFile
-                Add-Content -Value "$($indents[7])^properties^: { ^primary^: false }" -Path $jsonFile
-                Add-Content -Value "$($indents[6])}," -Path $jsonFile
-                Write-LogInfo "Attached Network Interface Card `"$NicName`" to Virtual Machine `"$vmName`"."
-            }
-            Add-Content -Value "$($indents[6]){" -Path $jsonFile
-            Add-Content -Value "$($indents[7])^id^: ^[resourceId('Microsoft.Network/networkInterfaces','$NIC')]^," -Path $jsonFile
-            Add-Content -Value "$($indents[7])^properties^: { ^primary^: true }" -Path $jsonFile
-            Add-Content -Value "$($indents[6])}" -Path $jsonFile
-            Write-LogInfo "Attached Network Interface Card `"$NIC`" to Virtual Machine `"$vmName`"."
-        } else {
-            Add-Content -Value "$($indents[6]){" -Path $jsonFile
-            Add-Content -Value "$($indents[7])^id^: ^[resourceId('Microsoft.Network/networkInterfaces','$NIC')]^" -Path $jsonFile
-            Add-Content -Value "$($indents[6])}" -Path $jsonFile
-        }
-        #endregion
-        Add-Content -Value "$($indents[5])]" -Path $jsonFile
-        Add-Content -Value "$($indents[4])}" -Path $jsonFile
-
-
-        #region Enable boot dignostics.
-        Add-Content -Value "$($indents[4])," -Path $jsonFile
-        Add-Content -Value "$($indents[4])^diagnosticsProfile^: " -Path $jsonFile
-        Add-Content -Value "$($indents[4]){" -Path $jsonFile
-        Add-Content -Value "$($indents[5])^bootDiagnostics^: " -Path $jsonFile
-        Add-Content -Value "$($indents[5]){" -Path $jsonFile
-        Add-Content -Value "$($indents[6])^enabled^: true," -Path $jsonFile
-        Add-Content -Value "$($indents[6])^storageUri^: ^[reference(resourceId('$diagnosticRG', 'Microsoft.Storage/storageAccounts', '$bootDiagnosticsSA'), '2015-06-15').primaryEndpoints['blob']]^" -Path $jsonFile
-        Add-Content -Value "$($indents[5])}" -Path $jsonFile
-        Add-Content -Value "$($indents[4])}" -Path $jsonFile
-        #endregion
-
-        Add-Content -Value "$($indents[3])}" -Path $jsonFile
-        #endregion
-
-        Add-Content -Value "$($indents[2])}" -Path $jsonFile
-        #endregion
-
-        $vmAdded = $true
-        $role = $role + 1
-        $vmCount = $role
-    }
-    Add-Content -Value "$($indents[1])]" -Path $jsonFile
-
-    #endregion
-
-    Add-Content -Value "$($indents[0])}" -Path $jsonFile
-    Set-Content -Path $jsonFile -Value (Get-Content $jsonFile).Replace("^", '"') -Force
-    #endregion
-
-    Write-LogInfo "Template generated successfully."
-    return $createSetupCommand, $RGName, $vmCount
 }
 
 Function Create-RGDeploymentWithTempParameters([string]$RGName, $TemplateFile, $TemplateParameterFile) {

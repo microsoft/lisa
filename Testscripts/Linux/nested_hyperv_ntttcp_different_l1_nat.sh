@@ -93,21 +93,21 @@ Start_Test()
     chmod a+x /home/$NestedUser/*.sh
 
     Log_Msg "Enable root for VM $role" $log_file
-    /home/$NestedUser/enableRoot.sh -password $NestedUserPassword
+    /home/$NestedUser/enable_root.sh -password $NestedUserPassword
     cp /home/$NestedUser/*.sh /root 
 
     if [ "$role" == "server" ]; then
         echo "nameserver $dns_server_ip0" >> /etc/resolv.conf
         echo "nameserver $dns_server_ip1" >> /etc/resolv.conf
         Log_Msg "Enable less root for VM $role" $log_file
-        /root/enablePasswordLessRoot.sh
+        /root/enable_passwordless_root.sh
         md5sum /root/.ssh/id_rsa > /root/servermd5sum.log
         cp /root/sshFix.tar /tmp
     else
         echo "nameserver $dns_client_ip0" >> /etc/resolv.conf
         echo "nameserver $dns_client_ip1" >> /etc/resolv.conf
         cp /home/${NestedUser}/sshFix.tar /root/sshFix.tar
-        /root/enablePasswordLessRoot.sh
+        /root/enable_passwordless_root.sh
         md5sum /root/.ssh/id_rsa > /root/clientmd5sum.log
     fi
 

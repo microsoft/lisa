@@ -22,7 +22,7 @@
     <test>
         <TestName>NESTED-KVM-NTTTCP-PRIVATE-BRIDGE</TestName>
         <testScript>NESTED-KVM-NTTTCP-PRIVATE-BRIDGE.ps1</testScript>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_ntttcp_private_bridge.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_ntttcp_private_bridge.sh,.\Testscripts\Linux\enable_root.sh,.\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
         <setupType>OneVM</setupType>
         <OverrideVMSize>Standard_E16s_v3</OverrideVMSize>
         <TestParameters>
@@ -49,7 +49,7 @@
         <TestName>HYPERV-NESTED-KVM-STORAGE-SINGLE-DISK</TestName>
         <testScript>NESTED-KVM-STORAGE-PERF.ps1</testScript>
         <setupScript>.\Testscripts\Windows\SETUP-Enable-NestedVirtualization.ps1</setupScript>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_storage_perf.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_storage_perf.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\enable_root.sh,.\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <setupType>OneVM1Disk</setupType>
         <OverrideVMSize>Standard_F16</OverrideVMSize>
         <TestParameters>
@@ -79,7 +79,7 @@
     <test>
         <TestName>AZURE-NESTED-KVM-STORAGE-SINGLE-DISK</TestName>
         <testScript>NESTED-KVM-STORAGE-PERF.ps1</testScript>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_storage_perf.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_storage_perf.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\enable_root.sh,.\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <setupType>OneVM1DiskNested</setupType>
         <AdditionalHWConfig>
             <DiskType>Managed</DiskType>
@@ -112,7 +112,7 @@
         <TestName>HYPERV-NESTED-KVM-STORAGE-MULTIDISK</TestName>
         <testScript>NESTED-KVM-STORAGE-PERF.ps1</testScript>
         <setupScript>.\Testscripts\Windows\SETUP-Enable-NestedVirtualization.ps1</setupScript>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_storage_perf.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_storage_perf.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\enable_root.sh,.\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <setupType>OneVM4Disk</setupType>
         <TestParameters>
             <!--The nested image should be qcow2 format, and accessible from a public URL-->
@@ -142,7 +142,7 @@
     <test>
         <TestName>AZURE-NESTED-KVM-STORAGE-MULTIDISK</TestName>
         <testScript>NESTED-KVM-STORAGE-PERF.ps1</testScript>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_storage_perf.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_storage_perf.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\enable_root.sh,.\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <setupType>OneVM6DiskNested</setupType>
         <AdditionalHWConfig>
             <DiskType>Managed</DiskType>
@@ -176,7 +176,7 @@
         <TestName>NESTED-KVM-NTTTCP-DIFFERENT-L1-PUBLIC-BRIDGE</TestName>
         <testScript>NESTED-KVM-NTTTCP-DIFFERENT-L1-PUBLIC-BRIDGE.ps1</testScript>
         <setupScript>.\Testscripts\Windows\SETUP-Enable-NestedVirtualization.ps1</setupScript>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_ntttcp_different_l1_public_bridge.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_ntttcp_different_l1_public_bridge.sh,.\Testscripts\Linux\enable_root.sh,.\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
         <setupType>TwoVM2Host</setupType>
         <OverrideVMSize>Standard_F16</OverrideVMSize>
         <AdditionalHWConfig>
@@ -206,7 +206,7 @@
         <TestName>NESTED-HYPERV-NTTTCP-DIFFERENT-L1-PUBLIC-BRIDGE</TestName>
         <testScript>NESTED-HYPERV-NTTTCP-DIFFERENT-L1-PUBLIC-BRIDGE.ps1</testScript>
         <setupScript>.\Testscripts\Windows\SETUP-Enable-NestedVirtualization.ps1</setupScript>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_hyperv_ntttcp_different_l1_public_bridge.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_hyperv_ntttcp_different_l1_public_bridge.sh,.\Testscripts\Linux\enable_root.sh,.\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
         <setupType>TwoVM2Host</setupType>
         <OverrideVMSize>Standard_F16</OverrideVMSize>
         <AdditionalHWConfig>
@@ -236,7 +236,7 @@
         <TestName>NESTED-KVM-NTTTCP-DIFFERENT-L1-NAT</TestName>
         <testScript>NESTED-KVM-NTTTCP-DIFFERENT-L1-PUBLIC-BRIDGE.ps1</testScript>
         <setupScript>.\Testscripts\Windows\SETUP-Enable-NestedVirtualization.ps1</setupScript>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_ntttcp_different_l1_nat.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_ntttcp.sh,.\Testscripts\Linux\nat_qemu_ifup.sh,</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_ntttcp_different_l1_nat.sh,.\Testscripts\Linux\enable_root.sh,.\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\perf_ntttcp.sh,.\Testscripts\Linux\nat_qemu_ifup.sh,</files>
         <setupType>TwoVM2Host</setupType>
         <OverrideVMSize>Standard_F16</OverrideVMSize>
         <AdditionalHWConfig>
@@ -266,7 +266,7 @@
         <TestName>NESTED-KVM-LAGSCOPE-DIFFERENT-L1-PUBLIC-BRIDGE</TestName>
         <testScript>NESTED-KVM-LAGSCOPE-DIFFERENT-L1-PUBLIC-BRIDGE.ps1</testScript>
         <setupScript>.\Testscripts\Windows\SETUP-Enable-NestedVirtualization.ps1</setupScript>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_lagscope_different_l1_public_bridge.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_lagscope.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_lagscope_different_l1_public_bridge.sh,.\Testscripts\Linux\enable_root.sh,.\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\perf_lagscope.sh</files>
         <setupType>TwoVM2Host</setupType>
         <OverrideVMSize>Standard_F16</OverrideVMSize>
         <AdditionalHWConfig>
@@ -292,7 +292,7 @@
     <test>
         <TestName>AZURE-NESTED-KVM-NTTTCP-DIFFERENT-L1-NAT</TestName>
         <testScript>NESTED-KVM-NTTTCP-DIFFERENT-L1-PUBLIC-BRIDGE.ps1</testScript>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_ntttcp_different_l1_nat.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_ntttcp.sh,.\Testscripts\Linux\nat_qemu_ifup.sh,</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_ntttcp_different_l1_nat.sh,.\Testscripts\Linux\enable_root.sh,.\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\perf_ntttcp.sh,.\Testscripts\Linux\nat_qemu_ifup.sh,</files>
         <setupType>TwoVM2NIC</setupType>
         <OverrideVMSize>Standard_E16s_v3</OverrideVMSize>
         <AdditionalHWConfig>
@@ -463,7 +463,7 @@
         <TestName>NESTED-KVM-NETPERF-PPS</TestName>
         <testScript>NESTED-KVM-NETPERF-PPS.ps1</testScript>
         <setupScript>.\Testscripts\Windows\SETUP-Enable-NestedVirtualization.ps1</setupScript>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_netperf_pps.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_netperf.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_netperf_pps.sh,.\Testscripts\Linux\enable_root.sh,.\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\perf_netperf.sh</files>
         <setupType>TwoVM2Host</setupType>
         <OverrideVMSize>Standard_F16</OverrideVMSize>
         <AdditionalHWConfig>
@@ -490,7 +490,7 @@
     <test>
         <TestName>AZURE-NESTED-KVM-NETPERF-PPS</TestName>
         <testScript>NESTED-KVM-NETPERF-PPS.ps1</testScript>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_netperf_pps_nat.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_netperf.sh,.\Testscripts\Linux\nat_qemu_ifup.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_netperf_pps_nat.sh,.\Testscripts\Linux\enable_root.sh,.\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\perf_netperf.sh,.\Testscripts\Linux\nat_qemu_ifup.sh</files>
         <setupType>TwoVM2NIC</setupType>
         <OverrideVMSize>Standard_E16s_v3</OverrideVMSize>
         <TestParameters>
@@ -515,7 +515,7 @@
         <TestName>NESTED-HYPERV-NTTTCP-DIFFERENT-L1-NAT</TestName>
         <testScript>NESTED-HYPERV-NTTTCP-DIFFERENT-L1-NAT.ps1</testScript>
         <setupScript>.\Testscripts\Windows\SETUP-Enable-NestedVirtualization.ps1</setupScript>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_hyperv_ntttcp_different_l1_nat.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_hyperv_ntttcp_different_l1_nat.sh,.\Testscripts\Linux\enable_root.sh,.\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
         <setupType>TwoVM2Host</setupType>
         <OverrideVMSize>Standard_F16</OverrideVMSize>
         <AdditionalHWConfig>
@@ -545,7 +545,7 @@
     <test>
         <TestName>AZURE-NESTED-HYPERV-NTTTCP-DIFFERENT-L1-NAT</TestName>
         <testScript>NESTED-HYPERV-NTTTCP-DIFFERENT-L1-NAT.ps1</testScript>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_hyperv_ntttcp_different_l1_nat.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_hyperv_ntttcp_different_l1_nat.sh,.\Testscripts\Linux\enable_root.sh,.\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\perf_ntttcp.sh</files>
         <setupType>TwoVMNested</setupType>
         <AdditionalHWConfig>
             <OSType>Windows</OSType>

@@ -220,9 +220,9 @@ Enable_Root()
         exit 0
     fi
     remote_copy -host localhost -user $user -passwd $passwd -port $port -filename ./utils.sh -remote_path /home/$user -cmd put
-    remote_copy -host localhost -user $user -passwd $passwd -port $port -filename ./enableRoot.sh -remote_path /home/$user -cmd put
+    remote_copy -host localhost -user $user -passwd $passwd -port $port -filename ./enable_root.sh -remote_path /home/$user -cmd put
     remote_exec -host localhost -user $user -passwd $passwd -port $port "chmod a+x /home/$user/*.sh"
-    remote_exec -host localhost -user $user -passwd $passwd -port $port "echo $passwd | sudo -S /home/$user/enableRoot.sh -password $passwd"
+    remote_exec -host localhost -user $user -passwd $passwd -port $port "echo $passwd | sudo -S /home/$user/enable_root.sh -password $passwd"
     if [ $? -eq 0 ]; then
         echo "Root enabled for VM: $image_name"
     else

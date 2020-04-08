@@ -119,11 +119,11 @@ Prepare_Client() {
 
 	Start_Nested_VM -user $NestedUser -passwd $NestedUserPassword -port $CLIENT_HOST_FWD_PORT $cmd
 	Enable_Root -user $NestedUser -passwd $NestedUserPassword -port $CLIENT_HOST_FWD_PORT
-	Remote_Copy_Wrapper "root" $CLIENT_HOST_FWD_PORT "./enablePasswordLessRoot.sh" "put"
+	Remote_Copy_Wrapper "root" $CLIENT_HOST_FWD_PORT "./enable_passwordless_root.sh" "put"
 	Remote_Copy_Wrapper "root" $CLIENT_HOST_FWD_PORT "./utils.sh" "put"
 	Remote_Exec_Wrapper "root" $CLIENT_HOST_FWD_PORT "chmod a+x *.sh"
 	Remote_Exec_Wrapper "root" $CLIENT_HOST_FWD_PORT "rm -rf /root/sshFix"
-	Remote_Exec_Wrapper "root" $CLIENT_HOST_FWD_PORT "/root/enablePasswordLessRoot.sh"
+	Remote_Exec_Wrapper "root" $CLIENT_HOST_FWD_PORT "/root/enable_passwordless_root.sh"
 	Remote_Copy_Wrapper "root" $CLIENT_HOST_FWD_PORT "sshFix.tar" "get"
 	check_exit_status "Download key from the client VM" "exit"
 
@@ -149,13 +149,13 @@ Prepare_Server() {
 	    -netdev tap,id=net1,ifname=$SERVER_TAP,script=no,vhost=on,queues=4 -display none -enable-kvm -daemonize"
 	Start_Nested_VM -user $NestedUser -passwd $NestedUserPassword -port $SERVER_HOST_FWD_PORT $cmd
 	Enable_Root -user $NestedUser -passwd $NestedUserPassword -port $SERVER_HOST_FWD_PORT
-	Remote_Copy_Wrapper "root" $SERVER_HOST_FWD_PORT "./enablePasswordLessRoot.sh" "put"
+	Remote_Copy_Wrapper "root" $SERVER_HOST_FWD_PORT "./enable_passwordless_root.sh" "put"
 	Remote_Copy_Wrapper "root" $SERVER_HOST_FWD_PORT "./utils.sh" "put"
 	Remote_Exec_Wrapper "root" $SERVER_HOST_FWD_PORT "chmod a+x *.sh"
 	Remote_Copy_Wrapper "root" $SERVER_HOST_FWD_PORT "./sshFix.tar" "put"
 	check_exit_status "Copy key to the server VM" "exit"
 
-	Remote_Exec_Wrapper "root" $SERVER_HOST_FWD_PORT "/root/enablePasswordLessRoot.sh"
+	Remote_Exec_Wrapper "root" $SERVER_HOST_FWD_PORT "/root/enable_passwordless_root.sh"
 	Remote_Exec_Wrapper "root" $SERVER_HOST_FWD_PORT "md5sum /root/.ssh/id_rsa > /root/servermd5sum.log"
 	Remote_Copy_Wrapper "root" $SERVER_HOST_FWD_PORT "servermd5sum.log" "get"
 	Log_Msg "Reboot the nested server VM" $log_file
