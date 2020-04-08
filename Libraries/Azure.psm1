@@ -268,18 +268,17 @@ Function Change-StorageAccountType($TestCaseData, [string]$Location, $GlobalConf
 
 Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Distro, [string]$TestLocation, $GlobalConfig, $TiPSessionId, $TipCluster, $UseExistingRG, $ResourceCleanup, $PlatformFaultDomainCount, $PlatformUpdateDomainCount) {
 	Function Write-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, $Location, $azuredeployJSONFilePath, $CurrentTestData, $StorageAccountName) {
-
 		#Random Data
 		$RGrandomWord = ([System.IO.Path]::GetRandomFileName() -replace '[^a-z]')
 		$RGRandomNumber = Get-Random -Minimum 11111 -Maximum 99999
-	
+
 		$UseManagedDisks = $CurrentTestData.AdditionalHWConfig.DiskType -contains "managed"
 		if ($UseManagedDisks) {
 			$DiskType = "Managed"
 		} else {
 			$DiskType = "Unmanaged"
 		}
-	
+
 		$UseSpecializedImage = $CurrentTestData.AdditionalHWConfig.ImageType -contains "Specialized"
 		$IsWindowsOS = $CurrentTestData.AdditionalHWConfig.OSType -contains "Windows"
 		if ($IsWindowsOS) {
@@ -287,7 +286,6 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 		} else {
 			$OSType = "Linux"
 		}
-	
 		if ( $CurrentTestData.AdditionalHWConfig.OSDiskType -eq "Ephemeral" ) {
 			if ( $UseManagedDisks ) {
 				$UseEphemeralOSDisk = $true
@@ -326,8 +324,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			}
 			$numberOfVMs += 1
 		}
-	
-	
+
 		$saInfoCollected = $false
 		$retryCount = 0
 		$maxRetryCount = 999
@@ -343,7 +340,6 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 				else {
 					$saInfoCollected = $true
 				}
-	
 			}
 			catch {
 				Write-LogErr "Error in fetching Storage Account info. Retrying in 10 seconds."
@@ -351,7 +347,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 				$saInfoCollected = $false
 			}
 		}
-	
+
 		#Condition Existing Storage - NonManaged disks
 		if ( $StorageAccountName -inotmatch "NewStorage" -and !$UseManagedDisks ) {
 			$StorageAccountType = ($GetAzureRMStorageAccount | Where-Object {$_.StorageAccountName -eq $StorageAccountName}).Sku.Tier.ToString()
@@ -363,7 +359,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			}
 			Write-LogInfo "Storage Account Type : $StorageAccountType"
 		}
-	
+
 		#Condition Existing Storage - Managed Disks
 		if ( $StorageAccountName -inotmatch "NewStorage" -and $UseManagedDisks ) {
 			$StorageAccountType = ($GetAzureRMStorageAccount | Where-Object {$_.StorageAccountName -eq $StorageAccountName}).Sku.Tier.ToString()
@@ -374,7 +370,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 				$StorageAccountType = "Standard_LRS"
 			}
 		}
-	
+
 		#Condition New Storage - NonManaged disk
 		if ( $StorageAccountName -imatch "NewStorage" -and !$UseManagedDisks) {
 			$NewARMStorageAccountType = ($StorageAccountName).Replace("NewStorage_", "")
@@ -383,13 +379,13 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			Write-LogInfo "Using New ARM Storage Account : $StorageAccountName"
 			$StorageAccountType = $NewARMStorageAccountType
 		}
-	
+
 		#Condition New Storage - Managed disk
 		if ( $StorageAccountName -imatch "NewStorage" -and $UseManagedDisks) {
 			Write-LogInfo "Conflicting parameters - NewStorage and UseManagedDisks. Storage account will not be created."
 		}
 		#Region Define all Variables.
-	
+
 		Write-LogInfo "Generating Template : $azuredeployJSONFilePath"
 		$jsonFile = $azuredeployJSONFilePath
 	
@@ -403,7 +399,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 		if($osVHD) {
 			$osVHD = $osVHD.Split("?")[0].split('/')[-1]
 		}
-	
+
 		$vmCount = 0
 		$indents = @()
 		$indent = ""
@@ -425,7 +421,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 		$sshPath = '/home/' + $user + '/.ssh/authorized_keys'
 		$sshKeyData = $global:sshPublicKey
 		$createAvailabilitySet = !$UseExistingRG
-	
+
 		if ($UseExistingRG) {
 			$existentAvailabilitySet = Get-AzResource | Where-Object { (( $_.ResourceGroupName -eq $RGName ) -and ( $_.ResourceType -imatch "availabilitySets" ))} | `
 				Select-Object -First 1
@@ -435,7 +431,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 				$createAvailabilitySet = $true
 			}
 		}
-	
+
 		if ( $CurrentTestData.ProvisionTimeExtensions ) {
 			$extensionString = (Get-Content .\XML\Extensions.xml)
 			foreach ($line in $extensionString.Split("`n")) {
@@ -458,7 +454,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 				}
 			}
 		}
-	
+
 		Write-LogInfo "Using API VERSION : $apiVersion"
 		$ExistingVnet = $null
 		if ($null -ne $RGXMLData.ARMVnetName) {
@@ -468,19 +464,18 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			Write-LogInfo "ARM VNET : $ExistingVnet (ResourceGroup : $ExistingVnetResourceGroupName)"
 			$virtualNetworkName = $ExistingVnet
 		}
-	
+
 		#Generate Single Indent
 		for ($i = 0; $i -lt 4; $i++) {
 			$singleIndent += " "
 		}
-	
+
 		#Generate Indent Levels
 		for ($i = 0; $i -lt 30; $i++) {
 			$indent += $singleIndent
 			$indents += $indent
 		}
-	
-	
+
 		#region Generate JSON file
 		Set-Content -Value "$($indents[0]){" -Path $jsonFile -Force
 		Add-Content -Value "$($indents[1])^`$schema^: ^https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#^," -Path $jsonFile
@@ -488,7 +483,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 		Add-Content -Value "$($indents[1])^parameters^: {}," -Path $jsonFile
 		Add-Content -Value "$($indents[1])^variables^:" -Path $jsonFile
 		Add-Content -Value "$($indents[1]){" -Path $jsonFile
-	
+
 		#region Variables
 		Add-Content -Value "$($indents[2])^StorageAccountName^: ^$StorageAccountName^," -Path $jsonFile
 		Add-Content -Value "$($indents[2])^dnsNameForPublicIP^: ^$dnsNameForPublicIP^," -Path $jsonFile
@@ -501,7 +496,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 		Add-Content -Value "$($indents[2])^location^: ^$($Location.Replace('"',''))^," -Path $jsonFile
 		Add-Content -Value "$($indents[2])^publicIPv4AddressName^: ^$PublicIPName^," -Path $jsonFile
 		Add-Content -Value "$($indents[2])^publicIPv6AddressName^: ^$PublicIPv6Name^," -Path $jsonFile
-	
+
 		Add-Content -Value "$($indents[2])^virtualNetworkName^: ^$virtualNetworkName^," -Path $jsonFile
 		Add-Content -Value "$($indents[2])^nicName^: ^$nicName^," -Path $jsonFile
 		Add-Content -Value "$($indents[2])^addressPrefix^: ^10.0.0.0/16^," -Path $jsonFile
@@ -532,15 +527,15 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 		#Add more variables here, if required..
 		Add-Content -Value "$($indents[1])}," -Path $jsonFile
 		Write-LogInfo "Added Variables.."
-	
+
 		#endregion
-	
+
 		#region Define Resources
 		Add-Content -Value "$($indents[1])^resources^:" -Path $jsonFile
 		Add-Content -Value "$($indents[1])[" -Path $jsonFile
-	
+
 		#region Common Resources for all deployments..
-	
+
 		#region availabilitySets
 		if (!$createAvailabilitySet) {
 			Write-LogInfo "Using existing Availability Set: $availabilitySetName"
@@ -563,7 +558,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 				Add-Content -Value "$($indents[4])^TipNode.SessionId^: ^$TiPSessionId^" -Path $jsonFile
 				Add-Content -Value "$($indents[3])}," -Path $jsonFile
 			}
-	
+
 			$faultDomainCount = 2
 			$updateDomainCount = 5
 			if ($PlatformFaultDomainCount) {
@@ -588,7 +583,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			Write-LogInfo "Added availabilitySet $availabilitySetName.."
 		}
 		#endregion
-	
+
 		#region publicIPAddresses
 		Add-Content -Value "$($indents[2]){" -Path $jsonFile
 		Add-Content -Value "$($indents[3])^apiVersion^: ^$apiVersion^," -Path $jsonFile
@@ -606,7 +601,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 		Add-Content -Value "$($indents[2])}," -Path $jsonFile
 		Write-LogInfo "Added Public IP Address $PublicIPName.."
 		#endregion
-	
+
 		#region CustomImages
 		if ($OsVHD -and $UseManagedDisks) {
 			Add-Content -Value "$($indents[2]){" -Path $jsonFile
@@ -618,7 +613,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			Add-Content -Value "$($indents[3]){" -Path $jsonFile
 			Add-Content -Value "$($indents[4])^storageProfile^: " -Path $jsonFile
 			Add-Content -Value "$($indents[4]){" -Path $jsonFile
-	
+
 			Add-Content -Value "$($indents[5])^osDisk^: " -Path $jsonFile
 			Add-Content -Value "$($indents[5]){" -Path $jsonFile
 			Add-Content -Value "$($indents[6])^osType^: ^$OSType^," -Path $jsonFile
@@ -626,7 +621,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			Add-Content -Value "$($indents[6])^blobUri^: ^https://$StorageAccountName.blob.core.windows.net/vhds/$OsVHD^," -Path $jsonFile
 			Add-Content -Value "$($indents[6])^storageAccountType^: ^$StorageAccountType^" -Path $jsonFile
 			Add-Content -Value "$($indents[5])}" -Path $jsonFile
-	
+
 			Add-Content -Value "$($indents[4])}" -Path $jsonFile
 			if ($VMGeneration -eq "2") {
 				Add-Content -Value "$($indents[4]),^hyperVGeneration^: ^V2^" -Path $jsonFile
@@ -636,11 +631,9 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			Add-Content -Value "$($indents[3])}" -Path $jsonFile
 			Add-Content -Value "$($indents[2])}," -Path $jsonFile
 			Write-LogInfo "Added Custom image '$RGName-Image' from '$OsVHD'.."
-	
 		}
 		#endregion
-	
-	
+
 		#region New ARM Storage Account, if necessary!
 		if ( $NewStorageAccountName) {
 			Add-Content -Value "$($indents[2]){" -Path $jsonFile
@@ -656,12 +649,12 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			Write-LogInfo "Added New Storage Account $NewStorageAccountName.."
 		}
 		#endregion
-	
+
 		#region New ARM Boot Diagnostic Account if Storage Account Type is Premium LRS.
 		$bootDiagnosticsSA = ([xml](Get-Content .\XML\RegionAndStorageAccounts.xml)).AllRegions.$Location.StandardStorage
 		$diagnosticRG = ($GetAzureRMStorageAccount | Where-Object {$_.StorageAccountName -eq $bootDiagnosticsSA}).ResourceGroupName.ToString()
 		#endregion
-	
+
 		#region virtualNetworks
 		if (!$ExistingVnet) {
 			Add-Content -Value "$($indents[2]){" -Path $jsonFile
@@ -690,7 +683,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			Add-Content -Value "$($indents[6])}" -Path $jsonFile
 			Add-Content -Value "$($indents[5])}" -Path $jsonFile
 			Write-LogInfo "Added Default Subnet to $virtualNetworkName.."
-	
+
 			if ($totalSubnetsRequired -ne 0) {
 				$subnetCounter = 1
 				While ($subnetCounter -le $totalSubnetsRequired) {
@@ -712,9 +705,9 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			Write-LogInfo "Added Virtual Network $virtualNetworkName.."
 		}
 		#endregion
-	
+
 		#endregion
-	
+
 		#region publicIPAddresses
 		if ( $EnableIPv6 ) {
 			Add-Content -Value "$($indents[2]){" -Path $jsonFile
@@ -735,9 +728,9 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			Write-LogInfo "Added Public IPv6 Address $PublicIPv6Name.."
 		}
 		#endregion
-	
+
 		#region Multiple VM Deployment
-	
+
 		#region LoadBalancer
 		Write-LogInfo "Adding Load Balancer ..."
 		Add-Content -Value "$($indents[2]){" -Path $jsonFile
@@ -766,7 +759,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 		Add-Content -Value "$($indents[7])}" -Path $jsonFile
 		Add-Content -Value "$($indents[6])}" -Path $jsonFile
 		Add-Content -Value "$($indents[5])}" -Path $jsonFile
-	
+
 		#region IPV6 frondend loadbalancer config
 		if ( $EnableIPv6 ) {
 			Add-Content -Value "$($indents[5])," -Path $jsonFile
@@ -782,7 +775,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			Add-Content -Value "$($indents[5])}" -Path $jsonFile
 		}
 		#endregion
-	
+
 		Add-Content -Value "$($indents[4])]," -Path $jsonFile
 		Add-Content -Value "$($indents[4])^backendAddressPools^:" -Path $jsonFile
 		Add-Content -Value "$($indents[4])[" -Path $jsonFile
@@ -797,7 +790,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 		}
 		Add-Content -Value "$($indents[4])]," -Path $jsonFile
 		#region Normal Endpoints
-	
+
 		Add-Content -Value "$($indents[4])^inboundNatRules^:" -Path $jsonFile
 		Add-Content -Value "$($indents[4])[" -Path $jsonFile
 		$LBPorts = 0
@@ -840,7 +833,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 		}
 		Add-Content -Value "$($indents[4])]" -Path $jsonFile
 		#endregion
-	
+
 		#region LoadBalanced Endpoints
 		if ( $LBPorts -gt 0 ) {
 			Add-Content -Value "$($indents[4])," -Path $jsonFile
@@ -857,7 +850,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 				else {
 					$vmName = Get-NewVMName -namePrefix $RGName -numberOfVMs $role
 				}
-	
+
 				foreach ( $endpoint in $newVM.EndPoints) {
 					if ( ($endpoint.LoadBalanced -eq "True") -and !($addedLBPort -imatch "$($endpoint.Name)-$($endpoint.PublicPort)" ) ) {
 						if ( $EndPointAdded ) {
@@ -889,8 +882,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 						Add-Content -Value "$($indents[7])^protocol^: ^$($endpoint.Protocol)^," -Path $jsonFile
 						Add-Content -Value "$($indents[7])^frontendPort^: ^$($endpoint.PublicPort)^," -Path $jsonFile
 						Add-Content -Value "$($indents[7])^backendPort^: ^$($endpoint.LocalPort)^" -Path $jsonFile
-	
-	
+
 						if ( $endpoint.ProbePort ) {
 							$probePorts += 1
 							Add-Content -Value "$($indents[7])," -Path $jsonFile
@@ -924,25 +916,23 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			Add-Content -Value "$($indents[4])]" -Path $jsonFile
 		}
 		#endregion
-	
+
 		#region Probe Ports
 		if ( $probePorts -gt 0 ) {
 			Add-Content -Value "$($indents[4])," -Path $jsonFile
 			Add-Content -Value "$($indents[4])^probes^:" -Path $jsonFile
 			Add-Content -Value "$($indents[4])[" -Path $jsonFile
-	
+
 			$EndPointAdded = $false
 			$addedProbes = $null
 			$role = 0
 			foreach ( $newVM in $RGXMLData.VirtualMachine) {
-	
 				if ($newVM.RoleName) {
 					$vmName = $newVM.RoleName
 				}
 				else {
 					$vmName = Get-NewVMName -namePrefix $RGName -numberOfVMs $role
 				}
-	
 				foreach ( $endpoint in $newVM.EndPoints) {
 					if ( ($endpoint.LoadBalanced -eq "True") ) {
 						if ( $endpoint.ProbePort -and !($addedProbes -imatch "$($endpoint.Name)-probe-$($endpoint.ProbePort)")) {
@@ -970,18 +960,17 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 						}
 					}
 				}
-	
 				$role += 1
 			}
 			Add-Content -Value "$($indents[4])]" -Path $jsonFile
 		}
 		#endregion
-	
+
 		Add-Content -Value "$($indents[3])}" -Path $jsonFile
 		Add-Content -Value "$($indents[2])}," -Path $jsonFile
 		Write-LogInfo "Added Load Balancer."
 		#endregion
-	
+
 		$vmAdded = $false
 		$role = 0
 		foreach ( $newVM in $RGXMLData.VirtualMachine) {
@@ -991,7 +980,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			else {
 				$instanceSize = $newVM.ARMInstanceSize
 			}
-	
+
 			$ExistingSubnet = $newVM.ARMSubnetName
 			if ($newVM.RoleName) {
 				$vmName = $newVM.RoleName
@@ -1004,7 +993,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			if ( $vmAdded ) {
 				Add-Content -Value "$($indents[2])," -Path $jsonFile
 			}
-	
+
 			#region networkInterfaces
 			Write-LogInfo "Adding Network Interface Card $NIC"
 			Add-Content -Value "$($indents[2]){" -Path $jsonFile
@@ -1023,12 +1012,12 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			}
 			Add-Content -Value "$($indents[4])^[variables('lbID')]^" -Path $jsonFile
 			Add-Content -Value "$($indents[3])]," -Path $jsonFile
-	
+
 			Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
 			Add-Content -Value "$($indents[3]){" -Path $jsonFile
 			Add-Content -Value "$($indents[4])^ipConfigurations^: " -Path $jsonFile
 			Add-Content -Value "$($indents[4])[" -Path $jsonFile
-	
+
 			#region IPv4 Config
 			Add-Content -Value "$($indents[5]){" -Path $jsonFile
 			Add-Content -Value "$($indents[6])^name^: ^IPv4Config1^," -Path $jsonFile
@@ -1041,7 +1030,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			Add-Content -Value "$($indents[9])^id^: ^[concat(variables('lbID'), '/backendAddressPools/BackendPoolIPv4')]^" -Path $jsonFile
 			Add-Content -Value "$($indents[8])}" -Path $jsonFile
 			Add-Content -Value "$($indents[7])]," -Path $jsonFile
-	
+
 			#region Enable InboundRules in NIC
 			Add-Content -Value "$($indents[7])^loadBalancerInboundNatRules^:" -Path $jsonFile
 			Add-Content -Value "$($indents[7])[" -Path $jsonFile
@@ -1058,10 +1047,10 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 					$EndPointAdded = $true
 				}
 			}
-	
+
 			Add-Content -Value "$($indents[7])]," -Path $jsonFile
 			#endregion
-	
+
 			Add-Content -Value "$($indents[7])^subnet^:" -Path $jsonFile
 			Add-Content -Value "$($indents[7]){" -Path $jsonFile
 			if ( $existingSubnet ) {
@@ -1075,7 +1064,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			Add-Content -Value "$($indents[6])}" -Path $jsonFile
 			Add-Content -Value "$($indents[5])}" -Path $jsonFile
 			#endregion
-	
+
 			#region IPv6 Config...
 			if ( $EnableIPv6 ) {
 				Add-Content -Value "$($indents[5])," -Path $jsonFile
@@ -1102,12 +1091,11 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 				Write-LogInfo "Enabled Accelerated Networking."
 			}
 			Add-Content -Value "$($indents[3])}" -Path $jsonFile
-	
-	
+
 			Add-Content -Value "$($indents[2])}," -Path $jsonFile
 			Write-LogInfo "Added NIC $NIC.."
 			#endregion
-	
+
 			#region multiple Nics
 			[System.Collections.ArrayList]$NicNameList = @()
 			foreach ($NetworkInterface in $newVM.NetworkInterfaces) {
@@ -1123,7 +1111,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 				Add-Content -Value "$($indents[4])^[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]^," -Path $jsonFile
 				Add-Content -Value "$($indents[4])^[variables('lbID')]^" -Path $jsonFile
 				Add-Content -Value "$($indents[3])]," -Path $jsonFile
-	
+
 				Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
 				Add-Content -Value "$($indents[3]){" -Path $jsonFile
 				Add-Content -Value "$($indents[4])^ipConfigurations^: " -Path $jsonFile
@@ -1147,7 +1135,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 				Add-Content -Value "$($indents[3])}" -Path $jsonFile
 				Add-Content -Value "$($indents[2])}," -Path $jsonFile
 			}
-	
+
 			#Add Bulk NICs
 			$currentVMNics = 0
 			while ($currentVMNics -lt $newVM.ExtraNICs) {
@@ -1165,7 +1153,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 				Add-Content -Value "$($indents[4])^[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]^," -Path $jsonFile
 				Add-Content -Value "$($indents[4])^[variables('lbID')]^" -Path $jsonFile
 				Add-Content -Value "$($indents[3])]," -Path $jsonFile
-	
+
 				Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
 				Add-Content -Value "$($indents[3]){" -Path $jsonFile
 				Add-Content -Value "$($indents[4])^ipConfigurations^: " -Path $jsonFile
@@ -1190,8 +1178,8 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 				Add-Content -Value "$($indents[3])}" -Path $jsonFile
 				Add-Content -Value "$($indents[2])}," -Path $jsonFile
 			}
-	
 			#endregion
+
 			#region virtualMachines
 			Write-LogInfo "Adding Virtual Machine $vmName"
 			Add-Content -Value "$($indents[2]){" -Path $jsonFile
@@ -1223,7 +1211,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			if ( $OsVHD -and $UseManagedDisks ) {
 				Add-Content -Value "$($indents[4])^[resourceId('Microsoft.Compute/images', '$RGName-Image')]^," -Path $jsonFile
 			}
-	
+
 			if ($NicNameList) {
 				foreach ($NicName in $NicNameList) {
 					Add-Content -Value "$($indents[4])^[concat('Microsoft.Network/networkInterfaces/', '$NicName')]^," -Path $jsonFile
@@ -1231,7 +1219,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			}
 			Add-Content -Value "$($indents[4])^[concat('Microsoft.Network/networkInterfaces/', '$NIC')]^" -Path $jsonFile
 			Add-Content -Value "$($indents[3])]," -Path $jsonFile
-	
+
 			#region VM Properties
 			Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
 			Add-Content -Value "$($indents[3]){" -Path $jsonFile
@@ -1241,14 +1229,14 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			Add-Content -Value "$($indents[5])^id^: ^[resourceId('Microsoft.Compute/availabilitySets','$availabilitySetName')]^" -Path $jsonFile
 			Add-Content -Value "$($indents[4])}," -Path $jsonFile
 			#endregion
-	
+
 			#region Hardware Profile
 			Add-Content -Value "$($indents[4])^hardwareProfile^: " -Path $jsonFile
 			Add-Content -Value "$($indents[4]){" -Path $jsonFile
 			Add-Content -Value "$($indents[5])^vmSize^: ^$instanceSize^" -Path $jsonFile
 			Add-Content -Value "$($indents[4])}," -Path $jsonFile
 			#endregion
-	
+
 			if ( !($UseSpecializedImage) ) {
 				#region OSProfile
 				Add-Content -Value "$($indents[4])^osProfile^: " -Path $jsonFile
@@ -1305,7 +1293,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 					Add-Content -Value "$($indents[6])^managedDisk^: " -Path $jsonFile
 					Add-Content -Value "$($indents[6]){" -Path $jsonFile
 					Add-Content -Value "$($indents[7])^storageAccountType^: ^$StorageAccountType^" -Path $jsonFile
-	
+
 					Add-Content -Value "$($indents[6])}," -Path $jsonFile
 					if ($UseEphemeralOSDisk) {
 						Add-Content -Value "$($indents[6])^caching^: ^ReadOnly^," -Path $jsonFile
@@ -1325,7 +1313,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 						$vhduri = "https://$StorageAccountName.blob.core.windows.net/vhds/$OsVHD"
 						$sourceContainer = $vhduri.Split("/")[$vhduri.Split("/").Count - 2]
 						$destVHDName = "$vmName-$RGrandomWord-osdisk.vhd"
-	
+
 						$copyStatus = Copy-VHDToAnotherStorageAccount -sourceStorageAccount $StorageAccountName -sourceStorageContainer $sourceContainer -destinationStorageAccount $StorageAccountName -destinationStorageContainer "vhds" -vhdName $OsVHD -destVHDName $destVHDName
 						if (!$copyStatus) {
 							Throw "Failed to copy the VHD to $ARMStorageAccount"
@@ -1396,7 +1384,6 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 					if ( $dataDiskAdded ) {
 						Add-Content -Value "$($indents[6])," -Path $jsonFile
 					}
-	
 					if ($UseManagedDisks) {
 						Add-Content -Value "$($indents[6]){" -Path $jsonFile
 						Add-Content -Value "$($indents[7])^name^: ^$vmName-disk-lun-$($dataDisk.LUN)^," -Path $jsonFile
@@ -1424,18 +1411,16 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 						Add-Content -Value "$($indents[6])}" -Path $jsonFile
 						Write-LogInfo "Added unmanaged $($dataDisk.DiskSizeInGB)GB Datadisk to $($dataDisk.LUN)."
 					}
-	
 					$dataDiskAdded = $true
 				}
 			}
 			Add-Content -Value "$($indents[5])]" -Path $jsonFile
 			Add-Content -Value "$($indents[4])}" -Path $jsonFile
-	
 			Add-Content -Value "$($indents[4])," -Path $jsonFile
 			#endregion
-	
+
 			Write-LogInfo "Added Virtual Machine $vmName"
-	
+
 			#region Network Profile
 			Add-Content -Value "$($indents[4])^networkProfile^: " -Path $jsonFile
 			Add-Content -Value "$($indents[4]){" -Path $jsonFile
@@ -1463,8 +1448,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			#endregion
 			Add-Content -Value "$($indents[5])]" -Path $jsonFile
 			Add-Content -Value "$($indents[4])}" -Path $jsonFile
-	
-	
+
 			#region Enable boot dignostics.
 			Add-Content -Value "$($indents[4])," -Path $jsonFile
 			Add-Content -Value "$($indents[4])^diagnosticsProfile^: " -Path $jsonFile
@@ -1476,25 +1460,24 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			Add-Content -Value "$($indents[5])}" -Path $jsonFile
 			Add-Content -Value "$($indents[4])}" -Path $jsonFile
 			#endregion
-	
+
 			Add-Content -Value "$($indents[3])}" -Path $jsonFile
 			#endregion
-	
+
 			Add-Content -Value "$($indents[2])}" -Path $jsonFile
 			#endregion
-	
+
 			$vmAdded = $true
 			$role = $role + 1
 			$vmCount = $role
 		}
 		Add-Content -Value "$($indents[1])]" -Path $jsonFile
-	
 		#endregion
-	
+
 		Add-Content -Value "$($indents[0])}" -Path $jsonFile
 		Set-Content -Path $jsonFile -Value (Get-Content $jsonFile).Replace("^", '"') -Force
 		#endregion
-	
+
 		Write-LogInfo "Template generated successfully."
 		return $createSetupCommand, $RGName, $vmCount
 	}
