@@ -388,7 +388,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 
 		Write-LogInfo "Generating Template : $azuredeployJSONFilePath"
 		$jsonFile = $azuredeployJSONFilePath
-	
+
 		if ($ImageName -and !$osVHD) {
 			$imageInfo = $ImageName.Split(' ')
 			$publisher = $imageInfo[0]
@@ -860,7 +860,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 						Add-Content -Value "$($indents[6])^name^: ^$RGName-LB-$($endpoint.Name)^," -Path $jsonFile
 						Add-Content -Value "$($indents[6])^properties^:" -Path $jsonFile
 						Add-Content -Value "$($indents[6]){" -Path $jsonFile
-	
+
 						Add-Content -Value "$($indents[7])^frontendIPConfiguration^:" -Path $jsonFile
 						Add-Content -Value "$($indents[7]){" -Path $jsonFile
 						if ($endpoint.EnableIPv6 -eq "True") {
@@ -989,7 +989,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 				$vmName = Get-NewVMName -namePrefix $RGName -numberOfVMs $role
 			}
 			$NIC = "PrimaryNIC" + "-$vmName"
-	
+
 			if ( $vmAdded ) {
 				Add-Content -Value "$($indents[2])," -Path $jsonFile
 			}
