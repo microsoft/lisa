@@ -2207,28 +2207,13 @@ function install_sshpass () {
 
 # Add benchmark repo on SLES
 function add_sles_benchmark_repo () {
-	if [ $DISTRO_NAME == "sles" ]; then
-		case $DISTRO_VERSION in
-			11*)
-				repo_url="https://download.opensuse.org/repositories/benchmark/SLE_11_SP4/benchmark.repo"
-				;;
-			12*)
-				repo_url="https://download.opensuse.org/repositories/benchmark/SLE_12_SP4/benchmark.repo"
-				;;
-			15*)
-				repo_url="https://download.opensuse.org/repositories/benchmark/SLE_15_SP1/benchmark.repo"
-				;;
-			*)
-				LogErr "Unsupported SLES version $DISTRO_VERSION for add_sles_benchmark_repo"
-				return 1
-		esac
-		zypper addrepo $repo_url
-		zypper --no-gpg-checks refresh
-		return 0
-	else
-		LogErr "Unsupported distribution for add_sles_benchmark_repo"
-		return 1
-	fi
+	source /etc/os-release
+	IFS='- ' read -r -a array <<< "$VERSION"
+	repo_url="https://download.opensuse.org/repositories/benchmark/SLE_${array[0]}_${array[1]}/benchmark.repo"
+	LogMsg "add_sles_benchmark_repo - $repo_url"
+	zypper addrepo $repo_url
+	zypper --no-gpg-checks refresh
+	return 0
 }
 
 # Add network utilities repo on SLES
@@ -2466,6 +2451,7 @@ function install_lagscope () {
 			yum -y --nogpgcheck install libaio sysstat git bc make gcc wget cmake
 			build_lagscope "${1}"
 			iptables -F
+			systemctl stop firewalld.service || service firewalld stop
 			;;
 
 		ubuntu|debian)
