@@ -209,11 +209,7 @@ RunStressFIO()
 		qDepth=$startQDepth
 		while [ $qDepth -le $maxQDepth ]
 		do
-			if [ -n "$numJobDefine" ]; then
-				numJob=$numJobDefine
-			else
-				numJob=1
-			fi
+			numJob=1
 			thread=$((qDepth/numJob))
 			for testmode in "${modes[@]}"; do
 				iostatfilename="${IOSTATLOGDIR}/iostat-fio-${testmode}-${io}K-${thread}td.txt"

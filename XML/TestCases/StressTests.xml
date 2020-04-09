@@ -195,10 +195,9 @@
 			<param>modes=STRESS-STORAGE-4K-IO-MODES</param>
 			<param>chunkSize=256</param>
 			<param>ioSize=5000T</param>
-			<param>numJobDefine=16</param>
 			<param>fileSystem=xfs</param>
-			<param>startQDepth=1024</param>
-			<param>maxQDepth=32768</param>
+			<param>startQDepth=64</param>
+			<param>maxQDepth=2048</param>
 			<param>startIO=4</param>
 			<param>maxIO=256</param>
 			<param>fileSize=16G</param>
