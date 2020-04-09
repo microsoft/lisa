@@ -35,11 +35,6 @@ if ! modinfo intel_sgx; then
     exit 1
 fi
 
-if [ "$(stat -c %a /dev/sgx)" == 600 ]; then
-    echo "/dev/sgx permission is incorrect: 0600, temporarily fix this issue by chmod 666"
-    sudo chmod 666 /dev/sgx
-fi
-
 function install_prereq_1804() {
     echo 'deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu bionic main' | sudo tee /etc/apt/sources.list.d/intel-sgx.list
     wget -qO - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | sudo apt-key add -
