@@ -180,17 +180,17 @@ function Main {
     # Set SSH key for both VMs
     # Setup ssh on VM1
     Copy-RemoteFiles -uploadTo $ipv4 -port $VMPort -files `
-        ".\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SR-IOV-Utils.sh" `
+        ".\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SR-IOV-Utils.sh" `
         -username $VMUsername -password $VMPassword -upload
     Copy-RemoteFiles -uploadTo $vm2ipv4 -port $VMPort -files `
-        ".\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SR-IOV-Utils.sh" `
+        ".\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SR-IOV-Utils.sh" `
         -username $VMUsername -password $VMPassword -upload
     Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "chmod +x /home/${VMUsername}/*.sh" -RunAsSudo -ignoreLinuxExitCode:$true
     Run-LinuxCmd -ip $vm2ipv4 -port $VMPort -username $VMUsername -password `
         $VMPassword -command "chmod +x /home/${VMUsername}/*.sh" -RunAsSudo -ignoreLinuxExitCode:$true
     Run-LinuxCmd -ip $ipv4 -port $VMPort -username $VMUsername -password `
-        $VMPassword -command "./enablePasswordLessRoot.sh  /home/$VMUsername ; cp -rf /root/.ssh /home/$VMUsername" -RunAsSudo
+        $VMPassword -command "./enable_passwordless_root.sh  /home/$VMUsername ; cp -rf /root/.ssh /home/$VMUsername" -RunAsSudo
 
     # Copy keys from VM1 and setup VM2
     Copy-RemoteFiles -download -downloadFrom $ipv4 -port $VMPort -files `
@@ -198,7 +198,7 @@ function Main {
     Copy-RemoteFiles -uploadTo $vm2ipv4 -port $VMPort -files "$LogDir\sshFix.tar" `
         -username $VMUsername -password $VMPassword -upload
     Run-LinuxCmd -ip $vm2ipv4 -port $VMPort -username $VMUsername -password `
-            $VMPassword -command "./enablePasswordLessRoot.sh  /home/$VMUsername ; cp -rf /root/.ssh /home/$VMUsername" -RunAsSudo
+            $VMPassword -command "./enable_passwordless_root.sh  /home/$VMUsername ; cp -rf /root/.ssh /home/$VMUsername" -RunAsSudo
 
     # Construct and send sriov_constants.sh
     Remove-Item sriov_constants.sh -Force -EA SilentlyContinue

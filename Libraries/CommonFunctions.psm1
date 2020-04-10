@@ -396,11 +396,11 @@ Function Provision-VMsForLisa($allVMData, $installPackagesOnRoleNames)
 	foreach ( $vmData in $allVMData )
 	{
 		Write-LogInfo "Configuring $($vmData.RoleName) for LISA test..."
-		Copy-RemoteFiles -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files ".\Testscripts\Linux\utils.sh,.\Testscripts\Linux\enableRoot.sh,.\Testscripts\Linux\enablePasswordLessRoot.sh" -username $user -password $password -upload
+		Copy-RemoteFiles -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files ".\Testscripts\Linux\utils.sh,.\Testscripts\Linux\enable_root.sh,.\Testscripts\Linux\enable_passwordless_root.sh" -username $user -password $password -upload
 		$Null = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -command "chmod +x /home/$user/*.sh" -runAsSudo
 		$rootPasswordSet = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort `
 			-username $user -password $password -runAsSudo `
-			-command ("/home/{0}/enableRoot.sh -password {1}" -f @($user, $password.Replace('"','')))
+			-command ("/home/{0}/enable_root.sh -password {1}" -f @($user, $password.Replace('"','')))
 		Write-LogInfo $rootPasswordSet
 		if (( $rootPasswordSet -imatch "ROOT_PASSWRD_SET" ) -and ( $rootPasswordSet -imatch "SSHD_RESTART_SUCCESSFUL" ))
 		{
@@ -414,7 +414,7 @@ Function Provision-VMsForLisa($allVMData, $installPackagesOnRoleNames)
 		if ( $keysGenerated )
 		{
 			Copy-RemoteFiles -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files "$LogDir\sshFix.tar" -username "root" -password $password -upload
-			$keyCopyOut = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username "root" -password $password -command "./enablePasswordLessRoot.sh"
+			$keyCopyOut = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username "root" -password $password -command "./enable_passwordless_root.sh"
 			Write-LogInfo $keyCopyOut
 			if ( $keyCopyOut -imatch "KEY_COPIED_SUCCESSFULLY" )
 			{
@@ -438,7 +438,7 @@ Function Provision-VMsForLisa($allVMData, $installPackagesOnRoleNames)
 		else
 		{
 			$Null = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username "root" -password $password -command "rm -rf /root/sshFix*"
-			$keyGenOut = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username "root" -password $password -command "./enablePasswordLessRoot.sh"
+			$keyGenOut = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username "root" -password $password -command "./enable_passwordless_root.sh"
 			Write-LogInfo $keyGenOut
 			if ( $keyGenOut -imatch "KEY_GENERATED_SUCCESSFULLY" )
 			{
@@ -1954,8 +1954,8 @@ function Enable-RootUser {
 
     foreach ($VM in $VMData) {
         Copy-RemoteFiles -upload -uploadTo $VM.PublicIP -Port $VM.SSHPort `
-             -files ".\Testscripts\Linux\utils.sh,.\Testscripts\Linux\enableRoot.sh" -Username $Username -password $Password
-        $cmdResult = Run-LinuxCmd -Command "bash enableRoot.sh -password ${RootPassword}" -runAsSudo `
+             -files ".\Testscripts\Linux\utils.sh,.\Testscripts\Linux\enable_root.sh" -Username $Username -password $Password
+        $cmdResult = Run-LinuxCmd -Command "bash enable_root.sh -password ${RootPassword}" -runAsSudo `
              -Username $Username -password $Password -ip $VM.PublicIP -Port $VM.SSHPort
         if (-not $cmdResult) {
             Write-LogInfo "Fail to enable root user for VM: $($VM.RoleName)"

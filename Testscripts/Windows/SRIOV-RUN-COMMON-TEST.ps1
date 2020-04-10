@@ -89,17 +89,17 @@ function Main {
             if ($TestParams.Set_SSH -eq "yes") {
                 Write-LogInfo "Setting SSH keys for both VMs"
                 Copy-RemoteFiles -uploadTo $publicIp -port $vmPort -files `
-                    ".\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SR-IOV-Utils.sh" `
+                    ".\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SR-IOV-Utils.sh" `
                     -username $VMUsername -password $password -upload | Out-Null
                 Copy-RemoteFiles -uploadTo $publicIp -port $dependencyVmData.SSHPort -files `
-                    ".\Testscripts\Linux\enablePasswordLessRoot.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SR-IOV-Utils.sh" `
+                    ".\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SR-IOV-Utils.sh" `
                     -username $VMUsername -password $password -upload | Out-Null
                 Run-LinuxCmd -ip $publicIp -port $vmPort -username $VMUsername -password `
                     $password -command "chmod +x /home/$VMUsername/*.sh" -RunAsSudo | Out-Null
                 Run-LinuxCmd -ip $publicIp -port $dependencyVmData.SSHPort -username $VMUsername -password `
                     $password -command "chmod +x /home/$VMUsername/*.sh" -RunAsSudo | Out-Null
                 Run-LinuxCmd -ip $publicIp -port $vmPort -username $VMUsername -password `
-                    $password -command "./enablePasswordLessRoot.sh /home/$VMUsername ; cp -rf /root/.ssh /home/$VMUsername" -RunAsSudo | Out-Null
+                    $password -command "./enable_passwordless_root.sh /home/$VMUsername ; cp -rf /root/.ssh /home/$VMUsername" -RunAsSudo | Out-Null
 
                 # Copy keys from VM1 and setup VM2
                 Copy-RemoteFiles -download -downloadFrom $publicIp -port $vmPort -files `
@@ -107,7 +107,7 @@ function Main {
                 Copy-RemoteFiles -uploadTo $publicIp -port $dependencyVmData.SSHPort -files "$LogDir\sshFix.tar" `
                     -username $VMUsername -password $password -upload | Out-Null
                 Run-LinuxCmd -ip $publicIp -port $dependencyVmData.SSHPort -username $VMUsername -password `
-                    $password -command "./enablePasswordLessRoot.sh /home/$VMUsername ; cp -rf /root/.ssh /home/$VMUsername" -RunAsSudo | Out-Null
+                    $password -command "./enable_passwordless_root.sh /home/$VMUsername ; cp -rf /root/.ssh /home/$VMUsername" -RunAsSudo | Out-Null
             }
 
             # Install dependencies on both VMs

@@ -18,7 +18,7 @@
 # Requires:
 #   - UtilsInit has been called
 #   - SSH by root, passwordless login, and no StrictHostChecking. Basically have ran
-#     enableRoot.sh and enablePasswordLessRoot.sh from Testscripts/Linux
+#     enable_root.sh and enable_passwordless_root.sh from Testscripts/Linux
 # Effects:
 #    Configures hugepages on machine at IP provided
 function Hugepage_Setup() {
@@ -49,7 +49,7 @@ function Hugepage_Setup() {
 # Requires:
 #   - UtilsInit has been called
 #   - SSH by root, passwordless login, and no StrictHostChecking. Basically have ran
-#     enableRoot.sh and enablePasswordLessRoot.sh from Testscripts/Linux
+#     enable_root.sh and enable_passwordless_root.sh from Testscripts/Linux
 # Effects:
 #    modprobes required modules for dpdk on machine at IP provided
 function Modprobe_Setup() {
