@@ -1212,32 +1212,43 @@ function CreateIfupConfigFile() {
 
 				;;
 			debian*|ubuntu*)
-				__file_path="/etc/network/interfaces"
-				if [ ! -d "$(dirname $__file_path)" ]; then
-					LogErr "$(dirname $__file_path) does not exist! Something is wrong with the network config!"
-					return 3
-				fi
+				if [ -d /etc/netplan/ ]; then
+					__file_path="/etc/netplan/01-network.yaml"
+					rm -rf $__file_path
+					echo "network:" >> $__file_path
+					echo "    ethernets:" >> $__file_path
+					echo "        $__interface_name:" >> $__file_path
+					echo "            dhcp4: true" >> $__file_path
+					echo "    version: 2" >> $__file_path
+					netplan apply
+				else
+					__file_path="/etc/network/interfaces"
+					if [ ! -d "$(dirname $__file_path)" ]; then
+						LogErr "$(dirname $__file_path) does not exist! Something is wrong with the network config!"
+						return 3
+					fi
 
-				if [ -e "$__file_path" ]; then
-					LogErr "Warning will overwrite $__file_path ."
-				fi
+					if [ -e "$__file_path" ]; then
+						LogErr "Warning will overwrite $__file_path ."
+					fi
 
-				#Check if interface is already configured. If so, delete old config
-				if grep -q "$__interface_name" $__file_path
-				then
-					LogErr "Warning will delete older configuration of interface $__interface_name"
-					sed -i "/$__interface_name/d" $__file_path
-				fi
+					#Check if interface is already configured. If so, delete old config
+					if grep -q "$__interface_name" $__file_path
+					then
+						LogErr "Warning will delete older configuration of interface $__interface_name"
+						sed -i "/$__interface_name/d" $__file_path
+					fi
 
-				cat <<-EOF >> "$__file_path"
-					auto $__interface_name
-					iface $__interface_name inet dhcp
-				EOF
+					cat <<-EOF >> "$__file_path"
+						auto $__interface_name
+						iface $__interface_name inet dhcp
+					EOF
 
-				ip link set "$__interface_name" up
-				service networking restart || service network restart
-				if $(ifup --help > /dev/null 2>&1) ; then
-					ifup "$__interface_name"
+					ip link set "$__interface_name" up
+					service networking restart || service network restart
+					if $(ifup --help > /dev/null 2>&1) ; then
+						ifup "$__interface_name"
+					fi
 				fi
 				;;
 			*)
@@ -1357,47 +1368,59 @@ function CreateIfupConfigFile() {
 				;;
 
 			debian*|ubuntu*)
-				__file_path="/etc/network/interfaces"
-				if [ ! -d "$(dirname $__file_path)" ]; then
-					LogErr "$(dirname $__file_path) does not exist! Something is wrong with the network config!"
-					return 1
-				fi
-
-				if [ -e "$__file_path" ]; then
-					LogErr "Warning will overwrite $__file_path ."
-				fi
-
-				#Check if interface is already configured. If so, delete old config
-				if [ grep -q "$__interface_name" $__file_path ]; then
-					LogErr "Warning will delete older configuration of interface $__interface_name"
-					lineNumber=$(cat -n $__file_path |grep "iface $__interface_name"| awk '{print $1;}')
-					if [ $lineNumber ]; then
-						lineNumber=$lineNumber+1
-						sed -i "${lineNumber},+1 d" $__file_path
-					fi
-					sed -i "/$__interface_name/d" $__file_path
-				fi
-
-				if [[ $ipv6 == false ]]; then
-					cat <<-EOF >> "$__file_path"
-						auto $__interface_name
-						iface $__interface_name inet static
-						address $__ip
-						netmask $__netmask
-					EOF
+				if [ -d /etc/netplan/ ]; then
+					__file_path="/etc/netplan/01-static-network.yaml"
+					rm -rf $__file_path
+					echo "network:" >> "$__file_path"
+					echo "    version: 2" >> "$__file_path"
+					echo "    ethernets:" >> "$__file_path"
+					echo "        $__interface_name:" >> "$__file_path"
+					echo "            dhcp4: no" >> "$__file_path"
+					echo "            addresses: [$__ip/24]" >> "$__file_path"
+					netplan apply
 				else
-					cat <<-EOF >> "$__file_path"
-						auto $__interface_name
-						iface $__interface_name inet6 static
-						address $__ip
-						netmask $__netmask
-					EOF
-				fi
+					__file_path="/etc/network/interfaces"
+					if [ ! -d "$(dirname $__file_path)" ]; then
+						LogErr "$(dirname $__file_path) does not exist! Something is wrong with the network config!"
+						return 1
+					fi
 
-				ip link set "$__interface_name" up
-				service networking restart || service network restart
-				if $(ifup --help > /dev/null 2>&1) ; then
-					ifup "$__interface_name"
+					if [ -e "$__file_path" ]; then
+						LogErr "Warning will overwrite $__file_path ."
+					fi
+
+					#Check if interface is already configured. If so, delete old config
+					if [ grep -q "$__interface_name" $__file_path ]; then
+						LogErr "Warning will delete older configuration of interface $__interface_name"
+						lineNumber=$(cat -n $__file_path |grep "iface $__interface_name"| awk '{print $1;}')
+						if [ $lineNumber ]; then
+							lineNumber=$lineNumber+1
+							sed -i "${lineNumber},+1 d" $__file_path
+						fi
+						sed -i "/$__interface_name/d" $__file_path
+					fi
+
+					if [[ $ipv6 == false ]]; then
+						cat <<-EOF >> "$__file_path"
+							auto $__interface_name
+							iface $__interface_name inet static
+							address $__ip
+							netmask $__netmask
+						EOF
+					else
+						cat <<-EOF >> "$__file_path"
+							auto $__interface_name
+							iface $__interface_name inet6 static
+							address $__ip
+							netmask $__netmask
+						EOF
+					fi
+
+					ip link set "$__interface_name" up
+					service networking restart || service network restart
+					if $(ifup --help > /dev/null 2>&1) ; then
+						ifup "$__interface_name"
+					fi
 				fi
 				;;
 			*)
