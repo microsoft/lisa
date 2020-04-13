@@ -17,6 +17,30 @@
             </VirtualMachine>
         </ResourceGroup>
     </OneVM>
+    <OneVM80>
+        <isDeployed>NO</isDeployed>
+        <ResourceGroup>
+            <VirtualMachine>
+                <state></state>
+                <InstanceSize>Standard_DS1_v2</InstanceSize>
+                <ARMInstanceSize>Standard_DS1_v2</ARMInstanceSize>
+                <RoleName></RoleName>
+                <EndPoints>
+                    <Name>SSH</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>22</LocalPort>
+                    <PublicPort>22</PublicPort>
+                </EndPoints>
+                <EndPoints>
+                    <Name>port_80</Name>
+                    <Protocol>tcp</Protocol>
+                    <LocalPort>80</LocalPort>
+                    <PublicPort>80</PublicPort>
+                </EndPoints>
+                <DataDisk></DataDisk>
+            </VirtualMachine>
+        </ResourceGroup>
+    </OneVM80>
     <OneVMhb>
         <isDeployed>NO</isDeployed>
         <ResourceGroup>

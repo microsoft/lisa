@@ -1,0 +1,28 @@
+<TestCases>
+    <test>
+        <testName>DOCKER-ENGINE-INSTALLATION</testName>
+        <testScript>docker_engine_install.sh</testScript>
+        <setupType>OneVM</setupType>
+        <files>.\Testscripts\Linux\docker_engine_install.sh,.\Testscripts\Linux\utils.sh</files>
+        <TestParameters>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>DOCKER</Area>
+        <Tags>docker,container</Tags>
+        <Priority>0</Priority>
+    </test>
+    <test>
+        <testName>DOCKER-COMPOSE</testName>
+        <testScript>docker_compose.sh</testScript>
+        <setupType>OneVM80</setupType>
+        <files>.\Testscripts\Linux\docker_compose.sh,.\Testscripts\Linux\utils.sh</files>
+        <TestParameters>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>DOCKER</Area>
+        <Tags>docker,container</Tags>
+        <Priority>0</Priority>
+    </test>
+</TestCases>
