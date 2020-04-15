@@ -36,6 +36,12 @@ ChangeMTU $net_interface 4096
 # Get NIC statistics using ethtool
 LogMsg "Getting NIC statistics with ethtool" >> ~/summary.log
 stats=$(ethtool -S $net_interface)
+if [[ $stats == '' ]]; then
+    LogErr "No statistics available in $DISTRO" >> ~/summary.log
+    SetTestStateSkipped
+    exit 0
+fi
+
 if [ $? -ne 0 ]; then
     LogErr "Failed to get NIC statistics with ethtool !" >> ~/summary.log
     SetTestStateFailed
@@ -43,14 +49,18 @@ if [ $? -ne 0 ]; then
 else
     LogMsg "$stats" >> ~/summary.log
 fi
-LogMsg "Getting NIC statistics per CPU with ethtool" >> ~/summary.log
-statspcup=$(ethtool -S $net_interface | grep 'queue_')
-if [ $? -ne 0 ]; then
-    LogErr "Failed to get NIC statistics per CPU with ethtool !" >> ~/summary.log
-    SetTestStateFailed
-    exit 0
+if [[ $DISTRO != "ubuntu_x"* ]]; then
+    LogErr "This distro $DISTRO does not have NIC statistics per CPU feature"
 else
-    LogMsg "$statspcup" >> ~/summary.log
+    LogMsg "Getting NIC statistics per CPU with ethtool" >> ~/summary.log
+    statspcup=$(ethtool -S $net_interface | grep 'queue_')
+    if [ $? -ne 0 ]; then
+        LogErr "Failed to get NIC statistics per CPU with ethtool !" >> ~/summary.log
+        SetTestStateFailed
+        exit 0
+    else
+        LogMsg "$statspcup" >> ~/summary.log
+    fi
 fi
 
 SetTestStateCompleted

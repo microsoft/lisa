@@ -35,6 +35,12 @@ if ! GetSynthNetInterfaces; then
     exit 0
 fi
 
+if [[ $DISTRO == "ubuntu_12.04"* || $DISTRO == "ubuntu_14.04"* ]]; then
+    LogErr "This distro $DISTRO does not support speed features"
+    SetTestStateSkipped
+    exit 0
+fi
+
 net_interface=${SYNTH_NET_INTERFACES[0]}
 LogMsg "The network interface is $net_interface"
 
