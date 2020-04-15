@@ -2276,11 +2276,11 @@ function add_sles_network_utilities_repo () {
 }
 
 function dpkg_configure () {
-	retry=5
+	retry=100
 	until [ $retry -le 0 ]; do
 		sudo dpkg --force-all --configure -a && break
 		retry=$[$retry - 1]
-		sleep 5
+		sleep 6
 		LogMsg 'Trying again to run dpkg --configure ...'
 	done
 }
