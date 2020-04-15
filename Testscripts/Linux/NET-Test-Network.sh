@@ -252,7 +252,7 @@ for __iterator in ${!SYNTH_NET_INTERFACES[@]}; do
         LogMsg "Setting $GATEWAY as default gateway on dev ${SYNTH_NET_INTERFACES[$__iterator]}"
         CreateDefaultGateway "$GATEWAY" "${SYNTH_NET_INTERFACES[$__iterator]}"
         if [ 0 -ne $? ]; then
-            LogWarn "Failed to set default gateway!"
+            LogMsg "Failed to set default gateway!"
         fi
     fi
 
