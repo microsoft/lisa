@@ -43,7 +43,7 @@ sts=$(ethtool -g "${SYNTH_NET_INTERFACES[@]}" 2>&1)
 if [[ "$sts" = *"Operation not supported"* ]]; then
     LogMsg "$sts"
     LogMsg "Operation not supported. Test Skipped."
-    SetTestStateAborted
+    SetTestStateSkipped
     exit 0
 fi
 
