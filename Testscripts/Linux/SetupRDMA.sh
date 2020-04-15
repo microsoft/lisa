@@ -206,6 +206,9 @@ function Main() {
 			LogMsg "$?: Set hpcx version, $hpcx_ver"
 			;;
 		ubuntu*)
+			LogMsg "Disable rename ib0 on Ubuntu by adding net.ifnames=0 biosdevname=0 into kernel parameter."
+			sed -ie 's/GRUB_CMDLINE_LINUX="\(.*\)"/GRUB_CMDLINE_LINUX="\1 net.ifnames=0 biosdevname=0"/' /etc/default/grub
+			update-grub
 			LogMsg "Starting RDMA setup for Ubuntu"
 			hpcx_ver="ubuntu"$VERSION_ID
 			LogMsg "Installing required packages ..."
