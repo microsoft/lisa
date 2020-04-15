@@ -1220,7 +1220,12 @@ function CreateIfupConfigFile() {
 					echo "        $__interface_name:" >> $__file_path
 					echo "            dhcp4: true" >> $__file_path
 					echo "    version: 2" >> $__file_path
+					LogMsg "Generate file $__file_path, then run netplan apply."
 					netplan apply
+					if [ 0 -ne $? ]; then
+						LogErr "Fail to run netplan apply!"
+						return 1
+					fi
 				else
 					__file_path="/etc/network/interfaces"
 					if [ ! -d "$(dirname $__file_path)" ]; then
@@ -1377,7 +1382,12 @@ function CreateIfupConfigFile() {
 					echo "        $__interface_name:" >> "$__file_path"
 					echo "            dhcp4: no" >> "$__file_path"
 					echo "            addresses: [$__ip/24]" >> "$__file_path"
+					LogMsg "Generate file $__file_path, then run netplan apply."
 					netplan apply
+					if [ 0 -ne $? ]; then
+						LogErr "Fail to run netplan apply!"
+						return 1
+					fi
 				else
 					__file_path="/etc/network/interfaces"
 					if [ ! -d "$(dirname $__file_path)" ]; then
