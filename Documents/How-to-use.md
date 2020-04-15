@@ -207,6 +207,10 @@ Per Category, each XML file has VM name, Resource Group name, etc. We do not rec
             CentOS Linux release 7.3.1611 (Core)
             CentOS Linux release 7.4.1708 (Core)
             CentOS Linux release 7.5.1804 (Core)
+            CentOS Linux release 7.6
+            CentOS Linux release 7.7
+            CentOS Linux release 8.0
+            CentOS Linux release 8.1
             CentOS release 6.5 (Final)
             CentOS release 6.6 (Final)
             CentOS release 6.7 (Final)
@@ -214,33 +218,40 @@ Per Category, each XML file has VM name, Resource Group name, etc. We do not rec
             CentOS release 6.9 (Final)
             CentOS release 6.10 (Final)
         b. ClearLinux
-            Clear Linux OS for Intel Architecture 1
+            Clear Linux OS for Basic
+            Clear Linux OS for Containers
+            Clear Linux OS for Machine-Learning
         c. Debian
-            Debian GNU/Linux 7 (wheezy)
-            Debian GNU/Linux 8 (jessie)
-            Debian GNU/Linux 9 (stretch)
-        d. OpenSUSE
-            openSUSE Leap 42.3
-        e. Oracle
+            Debian GNU/Linux 10 (+backport)
+            Debian GNU/Linux 11
+        d. Oracle
             Oracle Linux Server 6.8
             Oracle Linux Server 6.9
             Oracle Linux Server 7.3
             Oracle Linux Server 7.4
-        f. RHEL
-            Red Hat Enterprise Linux Server release 6.7 (Santiago)
-            Red Hat Enterprise Linux Server release 6.8 (Santiago)
-            Red Hat Enterprise Linux Server release 6.9 (Santiago)
-            Red Hat Enterprise Linux Server release 6.10 (Santiago)
-            Red Hat Enterprise Linux Server release 7.2 (Maipo)
-            Red Hat Enterprise Linux Server release 7.3 (Maipo)
-            Red Hat Enterprise Linux Server release 7.4 (Maipo)
-            Red Hat Enterprise Linux Server release 7.5 (Maipo)
-        g. SLES
-            SUSE Linux Enterprise Server 11 SP4
-            SUSE Linux Enterprise Server 12 SP2
-            SUSE Linux Enterprise Server 12 SP3
-            SUSE Linux Enterprise Server 15
-        h. Ubuntu
+            Oracle Linux Server 7.5
+            Oracle Linux Server 7.6
+            Oracle Linux Server 7.7
+            Oracle Linux Server 8
+            Oracle Linux Server 8.1
+        e. RHEL
+            Red Hat Enterprise Linux Server release 6.7
+            Red Hat Enterprise Linux Server release 6.8
+            Red Hat Enterprise Linux Server release 6.9
+            Red Hat Enterprise Linux Server release 6.10
+            Red Hat Enterprise Linux Server release 7.2
+            Red Hat Enterprise Linux Server release 7.3
+            Red Hat Enterprise Linux Server release 7.4
+            Red Hat Enterprise Linux Server release 7.5
+            Red Hat Enterprise Linux Server release 7.6
+            Red Hat Enterprise Linux Server release 7.7
+            Red Hat Enterprise Linux Server release 8.0
+            Red Hat Enterprise Linux Server release 8.1
+        f. SLES
+            SUSE Linux Enterprise Server 12 SP4
+            SUSE Linux Enterprise Server 12 SP5
+            SUSE Linux Enterprise Server 15 SP1
+        g. Ubuntu
             Ubuntu 12.04.5 LTS, Precise Pangolin
             Ubuntu 14.04.5 LTS, Trusty Tahr
             Ubuntu 16.04.4 LTS (Xenial Xerus)
@@ -248,7 +259,9 @@ Per Category, each XML file has VM name, Resource Group name, etc. We do not rec
             Ubuntu 17.10 (Artful Aardvark)
             Ubuntu 18.04 LTS (Bionic Beaver)
             Ubuntu 18.04.1 LTS (Bionic Beaver)
-        j. CoreOS
+            Ubuntu 19.04
+            Ubuntu 19.10
+        h. CoreOS
             CoreOS Linux (Stable)
             CoreOS Linux (Alpha)
             CoreOS Linux (Beta)

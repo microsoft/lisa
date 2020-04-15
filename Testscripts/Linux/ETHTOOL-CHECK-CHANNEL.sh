@@ -35,6 +35,12 @@ if ! GetSynthNetInterfaces; then
     exit 0
 fi
 
+if [[ $DISTRO != "ubuntu_x"* ]]; then
+    LogErr "This distro $DISTRO does not support channel features"
+    SetTestStateSkipped
+    exit 0
+fi
+
 # Skip when host older than 2012R2
 vmbus_version=$(dmesg | grep "Vmbus version" | awk -F: '{print $(NF)}' | awk -F. '{print $1}')
 if [ "$vmbus_version" -lt "3" ]; then

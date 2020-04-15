@@ -37,7 +37,7 @@ if ! VerifyIsEthtool; then
     exit 0
 fi
 
-if [[ $DISTRO == "ubuntu 12.04"* ]]; then
+if [[ $DISTRO == "ubuntu_12.04"* ]]; then
     LogErr "This distro $DISTRO does not support $ETHTOOL_KEYS features"
     SetTestStateSkipped
     exit 0
