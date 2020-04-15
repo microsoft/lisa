@@ -161,13 +161,23 @@ ConfigureVF()
 
         case $DISTRO in
             ubuntu*)
-                __file_path="/etc/network/interfaces"
-                # Change /etc/network/interfaces
-                echo "auto eth$__iterator" >> $__file_path
-                echo "iface eth$__iterator inet static" >> $__file_path
-                echo "address $staticIP" >> $__file_path
-                echo "netmask $NETMASK" >> $__file_path
-
+                if [ -d /etc/netplan/ ]; then
+                    __file_path="/etc/netplan/$__iterator-static-network.yaml"
+                    rm -rf $__file_path
+                    echo "network:" >> "$__file_path"
+                    echo "    version: 2" >> "$__file_path"
+                    echo "    ethernets:" >> "$__file_path"
+                    echo "        eth$__iterator:" >> "$__file_path"
+                    echo "            dhcp4: no" >> "$__file_path"
+                    echo "            addresses: [$staticIP/24]" >> "$__file_path"
+                else
+                    __file_path="/etc/network/interfaces"
+                    # Change /etc/network/interfaces
+                    echo "auto eth$__iterator" >> $__file_path
+                    echo "iface eth$__iterator inet static" >> $__file_path
+                    echo "address $staticIP" >> $__file_path
+                    echo "netmask $NETMASK" >> $__file_path
+                fi
                 ip link set eth$__iterator up
                 ip addr add "${staticIP}"/"$NETMASK" broadcast $broadcastAddress dev eth$__iterator
             ;;

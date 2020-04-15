@@ -29,7 +29,7 @@ SendFile(){
     # Get the root directory of the tarball
     downloadDir="/netperf-netperf-2.7.0"
     rootDir="${homeDir}/$downloadDir"
-    cd ${rootDir}
+    pushd ${rootDir}
 
     # Distro specific setup
     GetDistro
@@ -156,7 +156,7 @@ SendFile(){
         LogErr "Unable to install netperf."
         return 1
     fi
-
+    popd
     LogMsg "Copy files to dependency vm: ${STATIC_IP2}"
     scp -i "$homeDir"/.ssh/"$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no ${homeDir}/NET-Netperf-Server.sh \
         ${remote_user}@[${STATIC_IP2}]: > /dev/null 2>&1
@@ -211,6 +211,7 @@ SendFile(){
     fi
 
     # create 4GB file test for TCP_SENDFILE test
+    LogMsg "Create file under folder $PWD"
     dd if=/dev/zero of=test1 bs=1M count=4096
 
     LogMsg "Starting netperf .."
