@@ -37,6 +37,12 @@ if ! VerifyIsEthtool; then
     exit 0
 fi
 
+if [[ $DISTRO == "ubuntu_12.04"* ]]; then
+    LogErr "This distro $DISTRO does not support $ETHTOOL_KEYS features"
+    SetTestStateSkipped
+    exit 0
+fi
+
 GetSynthNetInterfaces
 if ! GetSynthNetInterfaces; then
     msg="ERROR: No synthetic network interfaces found"
