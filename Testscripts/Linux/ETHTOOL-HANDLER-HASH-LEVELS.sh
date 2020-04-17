@@ -21,13 +21,14 @@
 # Source constants file and initialize most common variables
 UtilsInit
 
-CheckResults() {
+CheckResults()
+{
     action="$2"
     status="$1"
     if [[ "$status" = *"Operation not supported"* ]]; then
         LogMsg "$status"
         LogMsg "Operation not supported. Test Skipped."
-        SetTestStateSkipped
+        SetTestStateAborted
         exit 0
     fi
     LogMsg "$status"
