@@ -290,7 +290,6 @@
         <testScript>PERF-STORAGE-MULTIDISK-RAID0-FIO.ps1</testScript>
         <setupType>OneVM12Disk</setupType>
         <AdditionalHWConfig>
-            <DiskType>Managed</DiskType>
             <StorageAccountType>PERF_STORAGE_ACCOUNT_TYPE</StorageAccountType>
         </AdditionalHWConfig>
         <setupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\AddHardDisk.ps1</setupScript>
@@ -318,9 +317,6 @@
         <testName>PERF-STORAGE-1024K-IO</testName>
         <testScript>PERF-STORAGE-MULTIDISK-RAID0-FIO.ps1</testScript>
         <setupType>OneVM12Disk</setupType>
-        <AdditionalHWConfig>
-            <DiskType>Managed</DiskType>
-        </AdditionalHWConfig>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <TestParameters>
             <param>modes=PERF-STORAGE-1024K-IO-MODES</param>

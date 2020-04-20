@@ -20,10 +20,6 @@
         <files></files>
         <setupType>OneVM</setupType>
         <OverrideVMSize>Standard_DS4_v2</OverrideVMSize>
-        <AdditionalHWConfig>
-            <DiskType>Managed</DiskType>
-            <OSDiskType>Ephemeral</OSDiskType>
-        </AdditionalHWConfig>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>CORE</Area>

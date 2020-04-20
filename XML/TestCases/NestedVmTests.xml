@@ -81,9 +81,6 @@
         <testScript>NESTED-KVM-STORAGE-PERF.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_storage_perf.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\enable_root.sh,.\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <setupType>OneVM1DiskNested</setupType>
-        <AdditionalHWConfig>
-            <DiskType>Managed</DiskType>
-        </AdditionalHWConfig>
         <TestParameters>
             <!--The nested image should be qcow2 format, and accessible from a public URL-->
             <param>NestedImageUrl=NESTED_IMAGE_URL</param>
@@ -144,9 +141,6 @@
         <testScript>NESTED-KVM-STORAGE-PERF.ps1</testScript>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_storage_perf.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\enable_root.sh,.\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <setupType>OneVM6DiskNested</setupType>
-        <AdditionalHWConfig>
-            <DiskType>Managed</DiskType>
-        </AdditionalHWConfig>
         <TestParameters>
             <!--The nested image should be qcow2 format, and accessible from a public URL-->
             <param>NestedImageUrl=NESTED_IMAGE_URL</param>
@@ -295,9 +289,6 @@
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_ntttcp_different_l1_nat.sh,.\Testscripts\Linux\enable_root.sh,.\Testscripts\Linux\enable_passwordless_root.sh,.\Testscripts\Linux\perf_ntttcp.sh,.\Testscripts\Linux\nat_qemu_ifup.sh,</files>
         <setupType>TwoVM2NIC</setupType>
         <OverrideVMSize>Standard_E16s_v3</OverrideVMSize>
-        <AdditionalHWConfig>
-            <DiskType>Managed</DiskType>
-        </AdditionalHWConfig>
         <TestParameters>
             <!--The nested image should be qcow2 format, and accessible from a public URL-->
             <param>NestedImageUrl=NESTED_IMAGE_URL</param>
@@ -395,7 +386,6 @@
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <setupType>OneVM1DiskNested</setupType>
         <AdditionalHWConfig>
-            <DiskType>Managed</DiskType>
             <OSType>Windows</OSType>
         </AdditionalHWConfig>
         <TestParameters>
@@ -429,7 +419,6 @@
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\nested_vm_utils.sh,.\Testscripts\Linux\nested_kvm_perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <setupType>OneVM6DiskNested</setupType>
         <AdditionalHWConfig>
-            <DiskType>Managed</DiskType>
             <OSType>Windows</OSType>
         </AdditionalHWConfig>
         <TestParameters>

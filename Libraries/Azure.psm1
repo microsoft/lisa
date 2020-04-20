@@ -272,7 +272,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 		$RGrandomWord = ([System.IO.Path]::GetRandomFileName() -replace '[^a-z]')
 		$RGRandomNumber = Get-Random -Minimum 11111 -Maximum 99999
 
-		$UseManagedDisks = $CurrentTestData.AdditionalHWConfig.DiskType -contains "managed"
+		$UseManagedDisks = $CurrentTestData.AdditionalHWConfig.DiskType -inotcontains "unmanaged"
 		if ($UseManagedDisks) {
 			$DiskType = "Managed"
 		} else {
