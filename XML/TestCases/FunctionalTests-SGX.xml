@@ -5,9 +5,6 @@
         <setupType>OneVM</setupType>
         <OverrideVMSize>Standard_DC2s_v2</OverrideVMSize>
         <files>.\Testscripts\Linux\validate-intel-sgx-driver.sh,.\Testscripts\Linux\utils.sh</files>
-        <AdditionalHWConfig>
-            <DiskType>Managed</DiskType>
-        </AdditionalHWConfig>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>SGX</Area>

@@ -754,9 +754,6 @@
             <param>DiskSize=30</param>
             <param>DiskSku=DATA_DISK_SKU</param>
         </testParameters>
-        <AdditionalHWConfig>
-            <DiskType>Managed</DiskType>
-        </AdditionalHWConfig>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>STORAGE</Area>
@@ -772,9 +769,6 @@
             <param>DiskSize=30</param>
             <param>DiskSku=DATA_DISK_SKU</param>
         </testParameters>
-        <AdditionalHWConfig>
-            <DiskType>Managed</DiskType>
-        </AdditionalHWConfig>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>STORAGE</Area>

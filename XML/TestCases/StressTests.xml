@@ -207,7 +207,6 @@
 		<testScript>PERF-STORAGE-MULTIDISK-RAID0-FIO.ps1</testScript>
 		<setupType>OneVM12Disk</setupType>
 		<AdditionalHWConfig>
-			<DiskType>Managed</DiskType>
 			<StorageAccountType>PERF_STORAGE_ACCOUNT_TYPE</StorageAccountType>
 		</AdditionalHWConfig>
 		<setupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\AddHardDisk.ps1</setupScript>
