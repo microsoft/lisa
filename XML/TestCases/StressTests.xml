@@ -2,6 +2,7 @@
 	<test>
 		<testName>STRESSTEST-VERIFY-RESTART</testName>
 		<testScript>STRESSTEST-VERIFY-RESTART.ps1</testScript>
+		<files>.\TestScripts\Linux\utils.sh</files>
 		<files></files>
 		<setupType>OneVM</setupType>
 		<TestParameters>
@@ -16,18 +17,67 @@
 	<test>
 		<testName>STRESSTEST-VERIFY-RESTART-MAX-SRIOV-NICS</testName>
 		<testScript>STRESSTEST-VERIFY-RESTART.ps1</testScript>
-		<files></files>
+		<files>.\TestScripts\Linux\utils.sh</files>
 		<setupType>OneVM8NIC</setupType>
 		<AdditionalHWConfig>
 			<Networking>SRIOV</Networking>
 		</AdditionalHWConfig>
 		<TestParameters>
-			<param>rebootNumber=3</param>
+			<param>rebootNumber=SRIOV_STRESS_REBOOT_NUMBER</param>
+			<param>type=SRIOV</param>
 		</TestParameters>
 		<Platform>Azure</Platform>
 		<Category>Stress</Category>
 		<Area>STRESS</Area>
 		<Tags>stress,boot,network,sriov</Tags>
+		<Priority>2</Priority>
+	</test>
+	<test>
+		<testName>STRESSTEST-VERIFY-RESTART-MAX-NVME-DISK</testName>
+		<testScript>STRESSTEST-VERIFY-RESTART.ps1</testScript>
+		<files>.\TestScripts\Linux\utils.sh</files>
+		<setupType>OneVM</setupType>
+		<OverrideVMSize>Standard_L80s_v2</OverrideVMSize>
+		<TestParameters>
+			<param>rebootNumber=NVME_STRESS_REBOOT_NUMBER</param>
+			<param>type=NVME</param>
+		</TestParameters>
+		<Platform>Azure</Platform>
+		<Category>Stress</Category>
+		<Area>STRESS</Area>
+		<Tags>stress,boot,storage,nvme</Tags>
+		<Priority>2</Priority>
+	</test>
+	<test>
+		<testName>STRESSTEST-VERIFY-RESTART-MAX-GPU-GRID</testName>
+		<testScript>STRESSTEST-VERIFY-RESTART.ps1</testScript>
+		<files>.\TestScripts\Linux\utils.sh</files>
+		<setupType>OneVM</setupType>
+		<OverrideVMSize>Standard_NC24</OverrideVMSize>
+		<TestParameters>
+			<param>rebootNumber=GPU_STRESS_REBOOT_NUMBER</param>
+			<param>type=GPU</param>
+		</TestParameters>
+		<Platform>Azure</Platform>
+		<Category>Stress</Category>
+		<Area>STRESS</Area>
+		<Tags>stress,boot,gpu</Tags>
+		<Priority>2</Priority>
+	</test>
+	<test>
+		<testName>STRESSTEST-VERIFY-RESTART-MAX-GPU-CUDA</testName>
+		<testScript>STRESSTEST-VERIFY-RESTART.ps1</testScript>
+		<files>.\TestScripts\Linux\utils.sh</files>
+		<setupType>OneVM</setupType>
+		<OverrideVMSize>Standard_NV24</OverrideVMSize>
+		<TestParameters>
+			<param>rebootNumber=GPU_STRESS_REBOOT_NUMBER</param>
+			<param>type=GPU</param>
+		</TestParameters>
+		<Platform>Azure</Platform>
+		<Category>Stress</Category>
+		<Area>STRESS</Area>
+		<Tags>stress,boot,gpu</Tags>
 		<Priority>2</Priority>
 	</test>
 	<test>

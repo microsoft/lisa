@@ -451,6 +451,18 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceWith>100</ReplaceWith>
 	</Parameter>
 	<Parameter>
+		<ReplaceThis>SRIOV_STRESS_REBOOT_NUMBER</ReplaceThis>
+		<ReplaceWith>3</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>NVME_STRESS_REBOOT_NUMBER</ReplaceThis>
+		<ReplaceWith>100</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>GPU_STRESS_REBOOT_NUMBER</ReplaceThis>
+		<ReplaceWith>3</ReplaceWith>
+	</Parameter>
+	<Parameter>
 		<ReplaceThis>NTTTCP_VERSION</ReplaceThis>
 		<ReplaceWith>1.4.0</ReplaceWith>
 	</Parameter>

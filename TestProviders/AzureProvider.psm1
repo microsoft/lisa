@@ -116,18 +116,18 @@ Class AzureProvider : TestProvider
 	}
 
 	[bool] RestartAllDeployments($AllVMData) {
-		$restartJobs = @()
-		$ShellRestart = 0
 		$VMCoresArray = @()
-		Function Start-RestartAzureVMJob ($ResourceGroupName, $RoleName) {
-			Write-LogInfo "Triggering Restart-$($RoleName)..."
-			$Job = Restart-AzVM -ResourceGroupName $ResourceGroupName -Name $RoleName -AsJob
-			$Job.Name = "Restart-$($ResourceGroupName):$($RoleName)"
-			return $Job
-		}
 		$AzureVMSizeInfo = Get-AzVMSize -Location $AllVMData[0].Location
 		foreach ( $vmData in $AllVMData ) {
-			$restartJobs += Start-RestartAzureVMJob -ResourceGroupName $vmData.ResourceGroupName -RoleName $vmData.RoleName
+			Restart-AzVM -ResourceGroupName $vmData.ResourceGroupName -Name $vmData.RoleName -NoWait | Out-Null
+			if ($? -eq "True") {
+				Write-Loginfo "Restart-AzVM command executes successfully."
+				Write-Loginfo "Sleep 10 seconds to make sure that VM receive the restart command."
+				Start-Sleep -Seconds 10
+			} else {
+				Write-LogErr "Restart-AzVM command executes failed."
+				return $false
+			}
 			$VMCoresArray += ($AzureVMSizeInfo | Where-Object { $_.Name -eq $vmData.InstanceSize }).NumberOfCores
 		}
 		$MaximumCores = ($VMCoresArray | Measure-Object -Maximum).Maximum
@@ -136,48 +136,16 @@ Class AzureProvider : TestProvider
 		# We're adding timeout of 10 minutes (default timeout) + 1 minute/10 cores (additional timeout).
 		# So For D64 VM, timeout = 10 + int[64/10] = 16 minutes.
 		# M128 VM, timeout = 10 + int[128/10] = 23 minutes.
-		$TimeoutMinutes = [int]($MaximumCores / 10) + 10
-		$recheckAgain = $true
-
-		# Timeout check is started after all the restart operations are triggered.
-		$Timeout = (Get-Date).AddMinutes($TimeoutMinutes)
-		Write-LogInfo "Waiting until VMs restart (Timeout = $TimeoutMinutes minutes)..."
-		$jobCount = $restartJobs.Count
-		$completedJobsCount = 0
-		while ($recheckAgain) {
-			$recheckAgain = $false
-			$tempJobs = @()
-			foreach ($restartJob in $restartJobs) {
-				if ($restartJob.State -eq "Completed") {
-					$completedJobsCount += 1
-					Write-LogInfo "[$completedJobsCount/$jobCount] $($restartJob.Name) is done."
-					$null = Remove-Job -Id $restartJob.ID -Force -ErrorAction SilentlyContinue
-				} elseif ($restartJob.State -eq "Failed") {
-					$jobError = Get-Job -Name $restartJob.Name | Receive-Job 2>&1
-					Write-LogErr "$($restartJob.Name) failed with error: ${jobError}"
-					return $false
-				} else {
-					if ((Get-Date) -gt $Timeout ) {
-						Write-LogErr "$($restartJob.Name) timed out after $TimeoutMinutes minutes. Removing the job."
-						$null = Remove-Job -Id $restartJob.ID -Force -ErrorAction SilentlyContinue
-						$TimedOutResourceGroup = $restartJob.Name.Replace("Restart-",'').Split(':')[0]
-						$TimedOutRoleName = $restartJob.Name.Replace("Restart-",'').Split(':')[1]
-						$TimedOutVM = $AllVMData | Where-Object {$_.ResourceGroupName -eq $TimedOutResourceGroup -and $_.RoleName -eq $TimedOutRoleName}
-						$Null = Restart-VMFromShell -VMData $TimedOutVM -SkipRestartCheck
-						$ShellRestart += 1
-					} else {
-						$tempJobs += $restartJob
-						$recheckAgain = $true
-					}
-				}
+		$Timeout = New-Timespan -Minutes ([int]($MaximumCores / 10) + 10)
+		$sw = [diagnostics.stopwatch]::StartNew()
+		foreach ($vmData in $AllVMData) {
+			$vm = Get-AzVM -ResourceGroupName $vmData.ResourceGroupName -Name $vmData.RoleName -Status
+			while (($vm.Statuses[-1].Code -ne "PowerState/running") -and ($sw.elapsed -lt $Timeout)) {
+				Write-LogInfo "VM $($vmData.RoleName) is in $($vm.Statuses[-1].Code) state, still not in running state"
+				$vm = Get-AzVM -ResourceGroupName $vmData.ResourceGroupName -Name $vmData.RoleName -Status
 			}
-			$restartJobs = $tempJobs
-			Start-Sleep -Seconds 1
 		}
-		if ($ShellRestart -gt 0) {
-			Write-LogInfo "$ShellRestart VMs were restarted from shell. Sleeping 5 seconds..."
-			Start-Sleep -Seconds 5
-		}
+
 		if ((Is-VmAlive -AllVMDataObject $AllVMData) -eq "True") {
 			return $true
 		}

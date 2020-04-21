@@ -2341,3 +2341,66 @@ Function Get-DeviceName
         -command "bash get_data_disk_dev_name.sh" -runAsSudo
     return $ret
 }
+
+# This function will return expected devices count and keyword which part of output from command lspci based on provided device type
+# NVME - Disk count = vCPU/8
+#    size Standard_L8s_v2, vCPU 8, NVMe Disk 1
+#    size Standard_L16s_v2, vCPU 16, NVMe Disk 2
+#    size Standard_L32s_v2, vCPU 32, NVMe Disk 4
+#    size Standard_L64s_v2, vCPU 64, NVMe Disk 8
+#    size Standard_L80s_v2, vCPU 80, NVMe Disk 10
+# GPU
+#    The expected GPU ratio is different from VM sizes
+#    NC, NC_v2, NC_v3, NV, NV_v2, and ND: 6
+#    NV_v3: 12
+#    ND_v2: 5
+#    Due to hyperthreading option, NV12s_v3 has 1GPU, 24s_v3 has 2 and 48s_v3 has 4 GPUs
+#    Source: https://docs.microsoft.com/en-us/azure/virtual-machines/linux/sizes-gpu
+# SRIOV
+#    Get current VM's nic which enable accelerated networking
+Function Get-ExpectedDevicesCount {
+    param (
+        [Object] $vmData,
+        [String] $username,
+        [String] $password,
+        [String] $type
+    )
+    $vmCPUCount = Run-LinuxCmd -username $username -password $password -ip $vmData.PublicIP -port $vmData.SSHPort -command "nproc" -ignoreLinuxExitCode
+    $size = $vmData.InstanceSize
+    if ($vmCPUCount) {
+        Write-LogDbg "Successfully fetched nproc result: $vmCPUCount"
+    } else {
+        Write-LogErr "Could not fetch the nproc command result."
+    }
+    [int]$expectedCount = 0
+    switch ($type) {
+        "NVME" {
+            [int]$expectedCount = $($vmCPUCount/8)
+            $keyWord = "Non-Volatile memory controller"
+            break
+        }
+        "GPU" {
+            if ($size -match "Standard_NDv2") {
+                [int]$expectedCount = $($vmCPUCount/5)
+            } elseif (($size -imatch "Standard_ND" -or $size -imatch "Standard_NV") -and $size -imatch "v3") {
+                [int]$expectedCount = $($vmCPUCount/12)
+            } else {
+                [int]$expectedCount = $($vmCPUCount/6)
+            }
+            $keyWord = "NVIDIA"
+            break
+        }
+        "SRIOV" {
+            $keyWord = "Mellanox"
+            foreach($nic in (Get-AzVM -Name $vmData.RoleName).NetworkProfile.NetworkInterfaces) {
+                if((Get-AzNetworkInterface -ResourceId $nic.Id).EnableAcceleratedNetworking) {
+                    $expectedcount++
+                }
+            }
+            break
+        }
+        Default {}
+    }
+
+    return $expectedCount,$keyWord
+}
