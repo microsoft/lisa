@@ -119,13 +119,10 @@ Class AzureProvider : TestProvider
 		$VMCoresArray = @()
 		$AzureVMSizeInfo = Get-AzVMSize -Location $AllVMData[0].Location
 		foreach ( $vmData in $AllVMData ) {
-			Restart-AzVM -ResourceGroupName $vmData.ResourceGroupName -Name $vmData.RoleName -NoWait | Out-Null
-			if ($? -eq "True") {
-				Write-Loginfo "Restart-AzVM command executes successfully."
-				Write-Loginfo "Sleep 10 seconds to make sure that VM receive the restart command."
-				Start-Sleep -Seconds 10
+			if (Restart-VMFromShell -VMData $vmData -SkipRestartCheck) {
+				Write-Loginfo "Restart-VMFromShell executes successfully."
 			} else {
-				Write-LogErr "Restart-AzVM command executes failed."
+				Write-LogErr "Restart-VMFromShell executes failed."
 				return $false
 			}
 			$VMCoresArray += ($AzureVMSizeInfo | Where-Object { $_.Name -eq $vmData.InstanceSize }).NumberOfCores
