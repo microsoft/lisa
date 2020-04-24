@@ -138,14 +138,34 @@ def Prepare()
     }
 }
 
+def UpdateRegionAndStorageAccountsFromSecretsFile(secretfile) {
+    withEnv(["secretfile=${secretfile}"]) {
+        def returnValues = powershell returnStdout: true, script: '''
+            $customSecrets = [xml](Get-Content $env:secretfile)
+            if ($customSecrets.secrets.RegionAndStorageAccounts) {
+                $FilePath = Resolve-Path ".\\XML\\RegionAndStorageAccounts.xml"
+                $CurrentStorageXML = [xml](Get-Content $FilePath)
+                $CurrentStorageXML.AllRegions.InnerXml = $customSecrets.secrets.RegionAndStorageAccounts.InnerXml
+                $CurrentStorageXML.Save($FilePath)
+            }
+        '''
+    }
+}
+
 stage ("Prerequisite")
 {
     node ("azure")
     {
-        cleanWs()
-        git branch: GitBranchForAutomation, url: GitUrlForAutomation
-        stash includes: '**', name: 'LISAv2'
-        cleanWs()
+        withCredentials([file(credentialsId: 'Azure_Secrets_TESTONLY_File', variable: 'Azure_Secrets_File')])
+        {
+            cleanWs()
+            git branch: GitBranchForAutomation, url: GitUrlForAutomation
+            script {
+                UpdateRegionAndStorageAccountsFromSecretsFile("${Azure_Secrets_File}")
+            }
+            stash includes: '**', name: 'LISAv2'
+            cleanWs()
+        }
     }
 }
 
@@ -179,8 +199,7 @@ stage('Upload VHD to Azure')
             withCredentials([file(credentialsId: 'Azure_Secrets_TESTONLY_File', variable: 'Azure_Secrets_File')])
             {
                 RunPowershellCommand (".\\Utilities\\AddAzureRmAccountFromSecretsFile.ps1 -customSecretsFilePath '${Azure_Secrets_File}';" +
-                ".\\Utilities\\UploadVHDtoAzureStorage.ps1 -Region westus2 -VHDPath 'Q:\\Temp\\${FinalVHDName}' -DeleteVHDAfterUpload -NumberOfUploaderThreads 64"
-                )
+                ".\\Utilities\\UploadVHDtoAzureStorage.ps1 -Region westus2 -VHDPath 'Q:\\Temp\\${FinalVHDName}' -DeleteVHDAfterUpload -NumberOfUploaderThreads 64")
             }
         }
     }
