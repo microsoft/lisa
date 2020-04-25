@@ -32,7 +32,7 @@ function Main {
 		}
 		Write-LogDbg "Completed VM stopping $($AllVMData.RoleName) in RG $($AllVMData.ResourceGroupName)."
 		# Get necessary resources
-		$vnet = Get-AzVirtualNetwork -Name "VirtualNetwork" -ResourceGroupName `
+		$vnet = Get-AzVirtualNetwork -Name "LISAv2-VirtualNetwork" -ResourceGroupName `
 			$AllVMData.ResourceGroupName
 		$vm = Get-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName
 

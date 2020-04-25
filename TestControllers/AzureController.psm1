@@ -48,6 +48,9 @@ Class AzureController : TestController
 		$this.TestProvider.PlatformFaultDomainCount = $this.CustomParams["PlatformFaultDomainCount"]
 		$this.TestProvider.PlatformUpdateDomainCount = $this.CustomParams["PlatformUpdateDomainCount"]
 		$this.TestProvider.EnableTelemetry = $ParamTable["EnableTelemetry"]
+		if ($this.CustomParams["EnableNSG"] -and $this.CustomParams["EnableNSG"] -eq "true") {
+			$this.TestProvider.EnableNSG = $true
+		}
 		if ( !$this.ARMImageName -and !$this.OsVHD ) {
 			$parameterErrors += "-ARMImageName '<Publisher> <Offer> <Sku> <Version>', or -OsVHD <'VHD_Name.vhd'> is required."
 		}

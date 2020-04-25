@@ -266,7 +266,7 @@ Function Change-StorageAccountType($TestCaseData, [string]$Location, $GlobalConf
     return $changedSC
 }
 
-Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Distro, [string]$TestLocation, $GlobalConfig, $TiPSessionId, $TipCluster, $UseExistingRG, $ResourceCleanup, $PlatformFaultDomainCount, $PlatformUpdateDomainCount) {
+Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Distro, [string]$TestLocation, $GlobalConfig, $TiPSessionId, $TipCluster, $UseExistingRG, $ResourceCleanup, $PlatformFaultDomainCount, $PlatformUpdateDomainCount, [boolean]$EnableNSG = $false) {
 	Function Write-AzureDeployJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, $Location, $azuredeployJSONFilePath, $CurrentTestData, $StorageAccountName) {
 		#Random Data
 		$RGrandomWord = ([System.IO.Path]::GetRandomFileName() -replace '[^a-z]')
@@ -408,19 +408,29 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 		$dnsNameForPublicIP = "ica$RGRandomNumber" + "v4"
 		$dnsNameForPublicIPv6 = "ica$RGRandomNumber" + "v6"
 		#$virtualNetworkName = $($RGName.ToUpper() -replace '[^a-z]') + "VNET"
-		$virtualNetworkName = "VirtualNetwork"
-		$defaultSubnetName = "SubnetForPrimaryNIC"
-		$availabilitySetName = "AvailabilitySet"
+		$virtualNetworkName = "LISAv2-VirtualNetwork"
+		$defaultSubnetName = "LISAv2-SubnetForPrimaryNIC"
+		$availabilitySetName = "LISAv2-AvailabilitySet"
 		#$LoadBalancerName =  $($RGName.ToUpper() -replace '[^a-z]') + "LoadBalancer"
-		$LoadBalancerName = "LoadBalancer"
+		$LoadBalancerName = "LISAv2-LoadBalancer"
 		$apiVersion = "2018-04-01"
 		#$PublicIPName = $($RGName.ToUpper() -replace '[^a-z]') + "PublicIPv4"
-		$PublicIPName = "PublicIPv4-$RGRandomNumber"
+		$PublicIPName = "LISAv2-PublicIPv4-$RGRandomNumber"
 		#$PublicIPv6Name = $($RGName.ToUpper() -replace '[^a-z]') + "PublicIPv6"
-		$PublicIPv6Name = "PublicIPv6"
+		$PublicIPv6Name = "LISAv2-PublicIPv6"
 		$sshPath = '/home/' + $user + '/.ssh/authorized_keys'
 		$sshKeyData = $global:sshPublicKey
 		$createAvailabilitySet = !$UseExistingRG
+		$networkSecurityGroupName = "LISAv2-NSG"
+
+		if ($EnableNSG) {
+			$securityRulesXml = [xml](Get-Content -Path "$WorkingDirectory\XML\Other\NetworkSecurityGroupRules.xml")
+			if ($OSType -imatch "Windows") {
+				$securityRules = $securityRulesXml.platform.windows.rule
+			} else {
+				$securityRules = $securityRulesXml.platform.linux.rule
+			}
+		}
 
 		if ($UseExistingRG) {
 			$existentAvailabilitySet = Get-AzResource | Where-Object { (( $_.ResourceGroupName -eq $RGName ) -and ( $_.ResourceType -imatch "availabilitySets" ))} | `
@@ -498,6 +508,9 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 		Add-Content -Value "$($indents[2])^publicIPv6AddressName^: ^$PublicIPv6Name^," -Path $jsonFile
 
 		Add-Content -Value "$($indents[2])^virtualNetworkName^: ^$virtualNetworkName^," -Path $jsonFile
+		if ($EnableNSG) {
+			Add-Content -Value "$($indents[2])^networkSecurityGroupName^: ^$networkSecurityGroupName^," -Path $jsonFile
+		}
 		Add-Content -Value "$($indents[2])^nicName^: ^$nicName^," -Path $jsonFile
 		Add-Content -Value "$($indents[2])^addressPrefix^: ^10.0.0.0/16^," -Path $jsonFile
 		Add-Content -Value "$($indents[2])^vmSourceImageName^ : ^^," -Path $jsonFile
@@ -581,6 +594,45 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			Add-Content -Value "$($indents[3])}" -Path $jsonFile
 			Add-Content -Value "$($indents[2])}," -Path $jsonFile
 			Write-LogInfo "Added availabilitySet $availabilitySetName.."
+		}
+		#endregion
+
+		#region network security groups
+		if ($EnableNSG) {
+			Add-Content -Value "$($indents[2]){" -Path $jsonFile
+			Add-Content -Value "$($indents[3])^apiVersion^: ^$apiVersion^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^type^: ^Microsoft.Network/networkSecurityGroups^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^name^: ^[variables('networkSecurityGroupName')]^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
+			Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
+			Add-Content -Value "$($indents[3]){" -Path $jsonFile
+			Add-Content -Value "$($indents[4])^securityRules^:" -Path $jsonFile
+			Add-Content -Value "$($indents[4])[" -Path $jsonFile
+			$securityRules | ForEach-Object {
+				Add-Content -Value "$($indents[5]){" -Path $jsonFile
+				Add-Content -Value "$($indents[6])^name^: ^$($_.name)^," -Path $jsonFile
+				Add-Content -Value "$($indents[6])^properties^:" -Path $jsonFile
+				Add-Content -Value "$($indents[6]){" -Path $jsonFile
+				Add-Content -Value "$($indents[7])^description^: ^$($_.properties.description)^," -Path $jsonFile
+				Add-Content -Value "$($indents[7])^protocol^: ^$($_.properties.protocol)^," -Path $jsonFile
+				Add-Content -Value "$($indents[7])^sourcePortRange^: ^$($_.properties.sourcePortRange)^," -Path $jsonFile
+				Add-Content -Value "$($indents[7])^destinationPortRange^: $($_.properties.destinationPortRange)," -Path $jsonFile
+				Add-Content -Value "$($indents[7])^sourceAddressPrefix^: ^$($_.properties.sourceAddressPrefix)^," -Path $jsonFile
+				Add-Content -Value "$($indents[7])^destinationAddressPrefix^: ^$($_.properties.destinationAddressPrefix)^," -Path $jsonFile
+				Add-Content -Value "$($indents[7])^access^: ^$($_.properties.access)^," -Path $jsonFile
+				Add-Content -Value "$($indents[7])^priority^: ^$($_.properties.priority)^," -Path $jsonFile
+				Add-Content -Value "$($indents[7])^direction^: ^$($_.properties.direction)^" -Path $jsonFile
+				Add-Content -Value "$($indents[6])}" -Path $jsonFile
+				if ($_ -eq $securityRules[-1]) {
+					Add-Content -Value "$($indents[5])}" -Path $jsonFile
+				} else {
+					Add-Content -Value "$($indents[5])}," -Path $jsonFile
+				}
+			}
+			Add-Content -Value "$($indents[4])]" -Path $jsonFile
+			Add-Content -Value "$($indents[3])}" -Path $jsonFile
+			Add-Content -Value "$($indents[2])}," -Path $jsonFile
+			Write-LogInfo "Added Network Security Group..."
 		}
 		#endregion
 
@@ -797,12 +849,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 		$EndPointAdded = $false
 		$role = 0
 		foreach ( $newVM in $RGXMLData.VirtualMachine) {
-			if ($newVM.RoleName) {
-				$vmName = $newVM.RoleName
-			}
-			else {
-				$vmName = Get-NewVMName -namePrefix $RGName -numberOfVMs $role
-			}
+			$vmName = $VMNames[$role]
 			foreach ( $endpoint in $newVM.EndPoints) {
 				if ( !($endpoint.LoadBalanced) -or ($endpoint.LoadBalanced -eq "False") ) {
 					if ( $EndPointAdded ) {
@@ -844,13 +891,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			$addedLBPort = $null
 			$role = 0
 			foreach ( $newVM in $RGXMLData.VirtualMachine) {
-				if ($newVM.RoleName) {
-					$vmName = $newVM.RoleName
-				}
-				else {
-					$vmName = Get-NewVMName -namePrefix $RGName -numberOfVMs $role
-				}
-
+				$vmName = $VMNames[$role]
 				foreach ( $endpoint in $newVM.EndPoints) {
 					if ( ($endpoint.LoadBalanced -eq "True") -and !($addedLBPort -imatch "$($endpoint.Name)-$($endpoint.PublicPort)" ) ) {
 						if ( $EndPointAdded ) {
@@ -927,12 +968,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			$addedProbes = $null
 			$role = 0
 			foreach ( $newVM in $RGXMLData.VirtualMachine) {
-				if ($newVM.RoleName) {
-					$vmName = $newVM.RoleName
-				}
-				else {
-					$vmName = Get-NewVMName -namePrefix $RGName -numberOfVMs $role
-				}
+				$vmName = $VMNames[$role]
 				foreach ( $endpoint in $newVM.EndPoints) {
 					if ( ($endpoint.LoadBalanced -eq "True") ) {
 						if ( $endpoint.ProbePort -and !($addedProbes -imatch "$($endpoint.Name)-probe-$($endpoint.ProbePort)")) {
@@ -982,13 +1018,8 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			}
 
 			$ExistingSubnet = $newVM.ARMSubnetName
-			if ($newVM.RoleName) {
-				$vmName = $newVM.RoleName
-			}
-			else {
-				$vmName = Get-NewVMName -namePrefix $RGName -numberOfVMs $role
-			}
-			$NIC = "PrimaryNIC" + "-$vmName"
+			$vmName = $VMNames[$role]
+			$NIC = "$vmName" + "-PrimaryNIC"
 
 			if ( $vmAdded ) {
 				Add-Content -Value "$($indents[2])," -Path $jsonFile
@@ -1003,6 +1034,9 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
 			Add-Content -Value "$($indents[3])^dependsOn^: " -Path $jsonFile
 			Add-Content -Value "$($indents[3])[" -Path $jsonFile
+			if ( $EnableNSG ) {
+				Add-Content -Value "$($indents[4])^[concat('Microsoft.Network/networkSecurityGroups/', variables('networkSecurityGroupName'))]^," -Path $jsonFile
+			}
 			if ( $EnableIPv6 ) {
 				Add-Content -Value "$($indents[4])^[concat('Microsoft.Network/publicIPAddresses/', variables('publicIPv6AddressName'))]^," -Path $jsonFile
 			}
@@ -1085,6 +1119,13 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			}
 			#endregion
 			Add-Content -Value "$($indents[4])]" -Path $jsonFile
+			if ( $EnableNSG) {
+				Add-Content -Value "$($indents[4])," -Path $jsonFile
+				Add-Content -Value "$($indents[4])^networkSecurityGroup^:" -Path $jsonFile
+				Add-Content -Value "$($indents[4]){" -Path $jsonFile
+				Add-Content -Value "$($indents[5])^id^: ^[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroupName'))]^" -Path $jsonFile
+				Add-Content -Value "$($indents[4])}" -Path $jsonFile
+			}
 			if ($CurrentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
 				Add-Content -Value "$($indents[4])," -Path $jsonFile
 				Add-Content -Value "$($indents[4])^enableAcceleratedNetworking^: true" -Path $jsonFile
@@ -1141,7 +1182,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			while ($currentVMNics -lt $newVM.ExtraNICs) {
 				$totalRGNics += 1
 				$currentVMNics += 1
-				$NicName = "ExtraNetworkCard-$currentVMNics-$($vmName)"
+				$NicName = "$($vmName)-ExtraNetworkCard-$currentVMNics"
 				$NicNameList.add($NicName)
 				Add-Content -Value "$($indents[2]){" -Path $jsonFile
 				Add-Content -Value "$($indents[3])^apiVersion^: ^2016-09-01^," -Path $jsonFile
@@ -1248,17 +1289,17 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 				} else {
 					Add-Content -Value "$($indents[5])^linuxConfiguration^:" -Path $jsonFile
 					Add-Content -Value "$($indents[5]){" -Path $jsonFile
-						Add-Content -Value "$($indents[6])^disablePasswordAuthentication^:true," -Path $jsonFile
-						Add-Content -Value "$($indents[6])^ssh^:" -Path $jsonFile
-						Add-Content -Value "$($indents[6]){" -Path $jsonFile
-							Add-Content -Value "$($indents[7])^publicKeys^:" -Path $jsonFile
-							Add-Content -Value "$($indents[7])[" -Path $jsonFile
-								Add-Content -Value "$($indents[8]){" -Path $jsonFile
-									Add-Content -Value "$($indents[9])^path^:^$sshPath^," -Path $jsonFile
-									Add-Content -Value "$($indents[9])^keyData^:^$sshKeyData^" -Path $jsonFile
-								Add-Content -Value "$($indents[8])}" -Path $jsonFile
-							Add-Content -Value "$($indents[7])]" -Path $jsonFile
-						Add-Content -Value "$($indents[6])}" -Path $jsonFile
+					Add-Content -Value "$($indents[6])^disablePasswordAuthentication^:true," -Path $jsonFile
+					Add-Content -Value "$($indents[6])^ssh^:" -Path $jsonFile
+					Add-Content -Value "$($indents[6]){" -Path $jsonFile
+					Add-Content -Value "$($indents[7])^publicKeys^:" -Path $jsonFile
+					Add-Content -Value "$($indents[7])[" -Path $jsonFile
+					Add-Content -Value "$($indents[8]){" -Path $jsonFile
+					Add-Content -Value "$($indents[9])^path^:^$sshPath^," -Path $jsonFile
+					Add-Content -Value "$($indents[9])^keyData^:^$sshKeyData^" -Path $jsonFile
+					Add-Content -Value "$($indents[8])}" -Path $jsonFile
+					Add-Content -Value "$($indents[7])]" -Path $jsonFile
+					Add-Content -Value "$($indents[6])}" -Path $jsonFile
 					Add-Content -Value "$($indents[5])}" -Path $jsonFile
 				}
 				Add-Content -Value "$($indents[4])}," -Path $jsonFile
@@ -1761,7 +1802,17 @@ Function Start-DeleteResourceGroup ([string]$RGName) {
     }
     return $isDeleting
 }
-Function Delete-ResourceGroup([string]$RGName, [switch]$KeepDisks, [bool]$UseExistingRG) {
+Function Delete-ResourceGroup([string]$RGName, [switch]$KeepDisks, [bool]$UseExistingRG, [array]$AllVMData) {
+    Function RemoveAzResourcesByResourceType([string] $ResourceType4iMatch) {
+        $unlockedResources | Where-Object {$_.ResourceType -imatch $ResourceType4iMatch} | ForEach-Object {
+            try {
+                $null = Remove-AzResource -ResourceGroupName $RGName -ResourceName $_.Name -ResourceType $_.ResourceType -Force -Verbose
+            } catch {
+                Write-LogErr "Failed to delete resource $($_.Name). We will try to remove it in next attempt $($attempts + 1)"
+            }
+        }
+    }
+
     Write-LogInfo "Try to delete resource group $RGName..."
     try {
         Write-LogInfo "Checking if $RGName exists..."
@@ -1776,38 +1827,34 @@ Function Delete-ResourceGroup([string]$RGName, [switch]$KeepDisks, [bool]$UseExi
         $rgLock = (Get-AzResourceLock -ResourceGroupName $RGName).ResourceType -eq "Microsoft.Authorization/locks"
         if (-not $rgLock) {
             if ($UseExistingRG) {
-                $CurrentResources = Get-AzResource -ResourceGroupName $RGName | `
-                    Where-Object { (( $_.ResourceGroupName -eq $RGName ) -and ( !($_.ResourceType -imatch "availabilitySets" )))}
+                if ($AllVMData) {
+                    $vmRoleNamePattern = ($AllVMData | Select-Object -ExpandProperty RoleName) -Join '|'
+                }
                 $attempts = 0
-                while (($CurrentResources) -and ($attempts -le 10)) {
-                    $CurrentResources = Get-AzResource -ResourceGroupName $RGName | `
-                        Where-Object { (( $_.ResourceGroupName -eq $RGName ) -and ( !($_.ResourceType -imatch "availabilitySets" )))}
-                    $unlockedResources = @()
-                    # Get the lock for each resource and compute a list of "unlocked" resources
-                    foreach ($resource in $CurrentResources) {
-                        $resourceLock = Get-AzResourceLock -ResourceGroupName $RGName `
-                            -ResourceType $resource.ResourceType -ResourceName $resource.Name
-                        if (-not $resourceLock) {
-                            $unlockedResources += $resource
-                        }
+                while ($attempts -le 10) {
+                    # Get LISAv2 deployed resources and ResourceType is NOT 'AvailabilitySets'
+                    $currentResources = Get-AzResource -ResourceGroupName $RGName | `
+                        Where-Object {$_.ResourceType -inotmatch "availabilitySets" -and (($vmRoleNamePattern -and $_.Name -imatch "^($vmRoleNamePattern)") -or ($_.Name -imatch '^LISAv2-.+'))}
+                    # Get the lock for each resource and compute a list of "unlocked" resources, # Only try to delete the "unlocked" resources
+                    $unlockedResources = $currentResources | Where-Object {-not $(Get-AzResourceLock -ResourceGroupName $RGName -ResourceType $_.ResourceType -ResourceName $_.Name)}
+                    if (-not $unlockedResources) {
+                        break
                     }
-                    # Only try to delete the "unlocked" resources
-                    foreach ($resource in $unlockedResources) {
-                        Write-LogInfo "Removing resource $($resource.Name), type $($resource.ResourceType)"
-                        try {
-                            $current_resource = Get-AzResource -ResourceId $resource.ResourceId -ErrorAction Ignore
-                            if ($current_resource) {
-                                $null = Remove-AzResource -ResourceId $resource.ResourceId -Force -Verbose
-                            }
-                        } catch {
-                            Write-LogErr "Failed to delete resource $($resource.Name). We will try to remove it in next attempt."
-                        }
+                    else {
+                        RemoveAzResourcesByResourceType -ResourceType4iMatch 'Microsoft.Network/loadBalancers'
+                        RemoveAzResourcesByResourceType -ResourceType4iMatch 'Microsoft.Compute/virtualMachines'
+                        RemoveAzResourcesByResourceType -ResourceType4iMatch 'Microsoft.Network/networkInterfaces'
+                        RemoveAzResourcesByResourceType -ResourceType4iMatch 'Microsoft'
                     }
-                    $CurrentResources = $unlockedResources
                     $attempts++
                 }
-                Write-LogInfo "Resources in $RGName are deleted."
-                $retValue = $true
+                if ($attempts -le 10) {
+                    Write-LogInfo "Resources in $RGName were deleted."
+                    $retValue = $true
+                } else {
+                    Write-LogWarn "$RGName was not deleted completed. Please check logs and make sure it won't break following testing"
+                    $retValue = $false
+                }
             } else {
                 Write-LogInfo "Triggering delete operation for Resource Group ${RGName}"
                 $isRgDeleting = Start-DeleteResourceGroup -RGName $RGName
@@ -1965,24 +2012,40 @@ Function Get-AllDeploymentData($ResourceGroups)
         return $objNode
     }
 
+    $orchestratorHostName = $env:COMPUTERNAME
+    if (!$orchestratorHostName) {
+        $orchestratorHostName = Invoke-Expression -Command 'hostname'
+    }
+
     foreach ($ResourceGroup in $ResourceGroups.Split("^"))
     {
         Write-LogInfo "Collecting $ResourceGroup data.."
 
-        Write-LogInfo "	Microsoft.Network/publicIPAddresses data collection in progress.."
-        $RGIPsdata = Get-AzResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Network/publicIPAddresses" -Verbose
-        Write-LogInfo "	Microsoft.Compute/virtualMachines data collection in progress.."
-        $RGVMs = Get-AzResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Compute/virtualMachines" -Verbose
-        Write-LogInfo "	Microsoft.Network/networkInterfaces data collection in progress.."
-        $NICdata = Get-AzResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Network/networkInterfaces" -Verbose
-        $currentRGLocation = (Get-AzResourceGroup -ResourceGroupName $ResourceGroup).Location
-        Write-LogInfo "	Microsoft.Network/loadBalancers data collection in progress.."
-        $LBdata = Get-AzResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Network/loadBalancers" -Verbose
-        foreach($ipData in $RGIPsdata) {
-            if ((Get-AzPublicIpAddress -Name $ipData.name -ResourceGroupName $ipData.ResourceGroupName).IpAddress -ne "Not Assigned") {
-                $RGIPdata = $ipData
-            }
+        Write-LogInfo "    Microsoft.Compute/virtualMachines data collection in progress.."
+        # Exclude itself if LISAv2 Orchestrator is also deployed in the same ResourceGroup
+        $RGVMs = Get-AzResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Compute/virtualMachines" -Verbose `
+            | Where-Object {$orchestratorHostName -inotmatch $_.Name -and $ResourceGroup.StartsWith($_.Name.Split('-')[0])}
+        if ($RGVMs) {
+            $vmNamePrefix = $RGVMs[0].Name.Split('-')[0]
         }
+
+        Write-LogInfo "    Microsoft.Network/networkInterfaces data collection in progress.."
+        # Only NetworkInterface and OSDisk resource will always have the same prefix in Name as it's owner in Name (the VM Name)
+        $NICdata = Get-AzResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Network/networkInterfaces" -Verbose `
+            | Where-Object {$vmNamePrefix -and $_.Name.StartsWith($vmNamePrefix)}
+        $currentRGLocation = (Get-AzResourceGroup -ResourceGroupName $ResourceGroup).Location
+
+        Write-LogInfo "    Microsoft.Network/loadBalancers data collection in progress.."
+        # (LISAv2 deploy this resource type with constant Name value in template file)
+        $LBdata = Get-AzResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Network/loadBalancers" -Verbose `
+            | Where-Object {$_.Name -imatch '^LISAv2-.+'}
+
+        Write-LogInfo "    Microsoft.Network/publicIPAddresses data collection in progress.."
+        # Make sure the IpAddress is assigned and is deployed by LISAv2 (LISAv2 deploy this resource type with constant Name value in template file)
+        $RGIPsdata = Get-AzResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Network/publicIPAddresses" -Verbose `
+            | Where-Object {$pIp = (Get-AzPublicIpAddress -Name $_.name -ResourceGroupName $ResourceGroup); `
+                return (($pIP.IpAddress -ne "Not Assigned") -and ($_.Name -imatch '^LISAv2-.+'))} `
+            | Select-Object -Last 1
 
         $AllVMs = Get-AzVM -ResourceGroupName $ResourceGroup
         foreach ($testVM in $RGVMs)
@@ -1995,7 +2058,7 @@ Function Get-AllDeploymentData($ResourceGroups)
             {
                 if ( $endPoint.Name -imatch $testVM.ResourceName)
                 {
-                    $endPointName = "$($endPoint.Name)".Replace("$($testVM.ResourceName)-","")
+                    $endPointName = "$($endPoint.Name)".Replace("$($testVM.Name)-","")
                     Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($endPointName)Port" -Value $endPoint.FrontendPort -Force
                 }
             }
@@ -2022,22 +2085,22 @@ Function Get-AllDeploymentData($ResourceGroups)
             foreach ( $nic in $NICdata )
             {
                 $nicDetails = $AllNICs | Where-Object { $_.Name -eq $nic.Name }
-                if (($nic.Name.Replace("PrimaryNIC-","") -eq $testVM.ResourceName) -and ( $nic.Name -imatch "PrimaryNIC"))
+                if (($nic.Name.Replace("-PrimaryNIC","") -eq $testVM.Name) -and ( $nic.Name -imatch "PrimaryNIC"))
                 {
                     $QuickVMNode.InternalIP = "$($nicDetails.IpConfigurations[0].PrivateIPAddress)"
                 }
-                if (($nic.Name.Replace("ExtraNetworkCard-1-","") -eq $testVM.ResourceName) -and ($nic.Name -imatch "ExtraNetworkCard-1"))
+                if (($nic.Name.Replace("-ExtraNetworkCard-1","") -eq $testVM.Name) -and ($nic.Name -imatch "ExtraNetworkCard-1"))
                 {
                     $QuickVMNode.SecondInternalIP = "$($nicDetails.IpConfigurations[0].PrivateIPAddress)"
                 }
             }
             $QuickVMNode.ResourceGroupName = $ResourceGroup
-            $ipDetails = Get-AzPublicIpAddress -Name $RGIPData.Name -ResourceGroupName $ResourceGroup
+            $ipDetails = Get-AzPublicIpAddress -Name $RGIPsdata.name -ResourceGroupName $ResourceGroup
             $QuickVMNode.PublicIP = ($ipDetails | Where-Object { $_.publicIPAddressVersion -eq "IPv4" }).ipAddress
             $QuickVMNode.PublicIPv6 = ($ipDetails | Where-Object { $_.publicIPAddressVersion -eq "IPv6" }).ipAddress
             $QuickVMNode.URL = ($ipDetails | Where-Object { $_.publicIPAddressVersion -eq "IPv4" }).dnsSettings.fqdn
             $QuickVMNode.URLv6 = ($ipDetails | Where-Object { $_.publicIPAddressVersion -eq "IPv6" }).dnsSettings.fqdn
-            $QuickVMNode.RoleName = $testVM.ResourceName
+            $QuickVMNode.RoleName = $testVM.Name
             $QuickVMNode.Status = $testVMDetails.ProvisioningState
             $QuickVMNode.InstanceSize = $testVMDetails.hardwareProfile.vmSize
             $QuickVMNode.Location = $currentRGLocation
@@ -2168,7 +2231,7 @@ Function Copy-VHDToAnotherStorageAccount ($sourceStorageAccount, $sourceStorageC
         $expireTime = Get-Date
         $expireTime = $expireTime.AddYears(1)
         $SasUrl = New-AzStorageBlobSASToken -container $srcStorageContainer -Blob $srcStorageBlob -Permission R -ExpiryTime $expireTime -FullUri -Context $Context
-}
+    }
 
     Write-LogInfo "Retrieving $destinationStorageAccount storage account key"
     $DestAccountKey = (Get-AzStorageAccountKey -ResourceGroupName $(($GetAzureRmStorageAccount  | Where-Object {$_.StorageAccountName -eq "$destinationStorageAccount"}).ResourceGroupName) -Name $destinationStorageAccount)[0].Value
