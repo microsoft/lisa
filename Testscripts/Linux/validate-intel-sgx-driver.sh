@@ -81,9 +81,6 @@ echo "----- Running Samples Tests -----"
 cd ~
 cp -r /opt/openenclave/share/openenclave/samples/ ~
 source /opt/openenclave/share/openenclave/openenclaverc
-# Temporarily switch compiler from clang to gcc
-export CC=gcc
-export CXX=g++
 SAMPLES=$(find ~/samples/* -maxdepth 0 -type d)
 NUM_PASS=0
 for DIR in $SAMPLES; do
