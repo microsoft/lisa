@@ -13,5 +13,6 @@
 		<Category>Functional</Category>
 		<Area>POWER</Area>
 		<Tags>power</Tags>
+		<Priority>1</Priority>
 	</test>
 </TestCases>
