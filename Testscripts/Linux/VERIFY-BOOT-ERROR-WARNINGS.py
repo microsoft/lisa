@@ -4,16 +4,31 @@
 from azuremodules import *
 
 white_list_xml = "ignorable-boot-errors.xml"
+wala_white_list_xml = "ignorable-walalog-errors.xml"
+logfile_list = [
+    "/var/log/syslog",
+    "/var/log/messages",
+    "/tmp/dmesg"
+]
+
+
+def _filter_log(keyword):
+    return Run("grep -nw '{}.*' {} --ignore-case --no-message".format(
+        keyword, ' '.join(logfile_list))).strip().split('\n')
 
 
 def RunTest():
     UpdateState("TestRunning")
-    RunLog.info("Checking for ERROR and WARNING messages in system logs.")
-    errors = Run("grep -nw '/var/log/syslog' -e 'error' --ignore-case --no-message && grep /var/log/messages -e error --ignore-case --no-message")
-    warnings = Run("grep -nw '/var/log/syslog' -e 'warning' --ignore-case --no-message && grep /var/log/messages -e warning --ignore-case --no-message")
-    failures = Run("grep -nw '/var/log/syslog' -e 'fail' --ignore-case --no-message && grep /var/log/messages -e fail --ignore-case --no-message")
+    Run("dmesg > /tmp/dmesg")
+    RunLog.info(
+        "Checking for ERROR/WARNING/FAILURE messages in system logs:{}".format(
+            logfile_list))
+    errors = _filter_log('err')
+    warnings = _filter_log('warn')
+    failures = _filter_log('fail')
     if (not errors and not warnings and not failures):
-        RunLog.info('Could not find ERROR/WARNING/FAILURE messages in syslog/messages log file.')
+        RunLog.info(
+            'Could not find ERROR/WARNING/FAILURE messages in system log files.')
         ResultLog.info('PASS')
     else:
         if white_list_xml and os.path.isfile(white_list_xml):
@@ -25,13 +40,27 @@ def RunTest():
             white_list_file = ET.parse(white_list_xml)
             xml_root = white_list_file.getroot()
 
-            RunLog.info('Checking ignorable boot ERROR/WARNING/FAILURE messages...')
+            wala_white_list_file = ET.parse(wala_white_list_xml)
+            wala_xml_root = wala_white_list_file.getroot()
+
+            RunLog.info(
+                'Checking ignorable boot ERROR/WARNING/FAILURE messages...')
             for node in xml_root:
                 if (failures and node.tag == "failures"):
                     failures = RemoveIgnorableMessages(failures, node)
                 if (errors and node.tag == "errors"):
                     errors = RemoveIgnorableMessages(errors, node)
                 if (warnings and node.tag == "warnings"):
+                    warnings = RemoveIgnorableMessages(warnings, node)
+
+            RunLog.info(
+                'Checking ignorable wala ERROR/WARNING/FAILURE messages...')
+            for node in wala_xml_root:
+                if failures:
+                    failures = RemoveIgnorableMessages(failures, node)
+                if errors:
+                    errors = RemoveIgnorableMessages(errors, node)
+                if warnings:
                     warnings = RemoveIgnorableMessages(warnings, node)
 
         if (errors or warnings or failures):
@@ -53,12 +82,11 @@ def SplitLog(logType, logValues):
         RunLog.info(logType + ': ' + logEntry)
 
 
-def RemoveIgnorableMessages(messages, keywords_xml_node):
-    message_list = messages.strip().split('\n')
+def RemoveIgnorableMessages(message_list, keywords_xml_node):
     valid_list = []
     for msg in message_list:
         for keywords in keywords_xml_node:
-            if keywords.text in msg:
+            if re.findall(keywords.text, msg, re.M):
                 RunLog.info('Ignorable ERROR/WARNING/FAILURE message: ' + msg)
                 break
         else:
@@ -67,5 +95,6 @@ def RemoveIgnorableMessages(messages, keywords_xml_node):
         return valid_list
     else:
         return None
+
 
 RunTest()

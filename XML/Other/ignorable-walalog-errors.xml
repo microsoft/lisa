@@ -10,5 +10,9 @@
         <keywords>.*ERROR:Traceback \(most recent call last\):\n[^\n]*in DoDhcpWork\n[^\n]*ERROR:    receiveBuffer = sock.recv\(1024\)\n[^\n]*ERROR:timeout: timed out\n[^\n]*ERROR:</keywords>
         <keywords>.*error result is 0 output is : Adding repository 'msft-rdma-pack' \[......done\].*</keywords>
         <keywords>ERROR Event: name=WALinuxAgent, op=Download, message=Incarnation 1 failed to get Prod package list: \(000008\)Failed to fetch ExtensionManifest from all sources</keywords>
+        <keywords>.*Error: .CGroupsException. The daemon.s PID .* was already added to the legacy cgroup; this invalidates resource usage data.*</keywords>
+        <keywords>.*Daemon Error getting cloud-init enabled status from systemctl: Command '\['systemctl', 'is-enabled', 'cloud-init-local.service'\]' returned non-zero exit status 1</keywords>
+        <keywords>.*Daemon Error getting cloud-init enabled status from service: Command '\['service', 'cloud-init', 'status'\]' returned non-zero exit status 4</keywords>
+        <keywords>.*Daemon sfdisk with --part-type failed \[1\], retrying with -c</keywords>
     </errors>
 </messages>
