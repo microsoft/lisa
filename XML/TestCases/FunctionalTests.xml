@@ -757,7 +757,7 @@
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
         <TestParameters>
-            <param>expectedSriov=7</param>
+            <param>expectedSriov=8</param>
             <param>expectedNvme=10</param>
         </TestParameters>
         <Platform>Azure</Platform>
