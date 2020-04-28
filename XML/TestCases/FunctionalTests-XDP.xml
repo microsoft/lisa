@@ -1,0 +1,17 @@
+<TestCases>
+    <test>
+        <testName>VERIFY-XDP-COMPLIANCE</testName>
+        <testScript>VERIFY-XDP-COMPLIANCE.ps1</testScript>
+        <setupType>OneVM2NIC</setupType>
+        <OverrideVMSize>Standard_DS4_v2</OverrideVMSize>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh</files>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>XDP</Area>
+        <Tags>xdp,network,hv_netvsc,sriov</Tags>
+        <Priority>0</Priority>
+    </test>
+</TestCases>
