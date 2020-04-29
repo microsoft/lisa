@@ -5,28 +5,34 @@
 ###############################################################################
 #
 # Description:
-# Support distros: Ubuntu 18.04 
+# We use LKP framework to run a few benchmarks which includes hackbench, unixbench,
+# perf-bench-numa-mem, perf-bench-sched-pipe, aim9, pmbench.
+#
+# Support distros: Ubuntu, Centos 7, RedHat 7, Debian
 #
 ###############################################################################
 
 LKP_SCHEDULER_HACKBENCH_TESTS=("hackbench-100.yaml" "hackbench.yaml")
 LKP_SCHEDULER_PERF_BENCH_SCHED_PIPE_TESTS=("perf-bench-sched-pipe.yaml")
-LKP_SCHEDULER_SCHBENCH_TESTS=("schbench.yaml")
-LKP_DATABASE_OLTP_TESTS=("oltp.yaml")
-LKP_DATABASE_REDIS_TESTS=("redis.yaml")
 LKP_MEMORY_PERF_BENCH_NUMA_MEM_TESTS=("perf-bench-numa-mem.yaml")
 LKP_MEMORY_PMBENCH_TESTS=("pmbench.yaml")
-LKP_WORKLOAD_APACHEBENCH_TESTS=("apachebench.yaml")
-LKP_TESTS_ALL_ABOVE=("perf-bench-sched-pipe.yaml" "schbench.yaml" "oltp.yaml" "redis.yaml" \
-                     "perf-bench-numa-mem.yaml" "pmbench.yaml" "apachebench.yaml")
+LKP_TESTS_ALL_ABOVE=("perf-bench-sched-pipe.yaml" "perf-bench-numa-mem.yaml" "pmbench.yaml")
 LKP_OTHER_UNIXBENCH_TESTS=("unixbench.yaml")
 LKP_OTHER_AIM9_TESTS=("aim9.yaml")
+
+declare -A TEST_DICT
+TEST_DICT=(["hackbench"]=${LKP_SCHEDULER_HACKBENCH_TESTS[@]} \
+           ["perf-bench-sched-pipe"]=${LKP_SCHEDULER_PERF_BENCH_SCHED_PIPE_TESTS[@]} \
+           ["perf-bench-numa-mem"]=${LKP_MEMORY_PERF_BENCH_NUMA_MEM_TESTS[@]} \
+           ["pmbench"]=${LKP_MEMORY_PMBENCH_TESTS[@]} \
+           ["unixbench"]=${LKP_OTHER_UNIXBENCH_TESTS[@]} \
+           ["aim9"]=${LKP_OTHER_AIM9_TESTS[@]} \
+           ["lkp_microbenchmark"]=${LKP_TESTS_ALL_ABOVE[@]})
 
 ###############################################################################
 function install_dependencies() {
     LogMsg "Installing dependency packages"
 
-    GetDistro
     update_repos
 
     case $DISTRO in
@@ -61,58 +67,11 @@ function install_dependencies() {
     esac
 }
 
-function choose_test_case {
-    TEST_NAME_SET=("$TEST_NAME")
-    case $TEST_NAME in
-        hackbench)
-            LKP_TESTS=${LKP_SCHEDULER_HACKBENCH_TESTS[@]}
-            ;;
-        perf-bench-sched-pipe)
-            LKP_TESTS=${LKP_SCHEDULER_PERF_BENCH_SCHED_PIPE_TESTS[@]}
-            ;;
-        schbench)
-            LKP_TESTS=${LKP_SCHEDULER_SCHBENCH_TESTS[@]}
-            ;;
-        oltp)
-            LKP_TESTS=${LKP_DATABASE_OLTP_TESTS[@]}
-            ;;
-        redis)
-            LKP_TESTS=${LKP_DATABASE_REDIS_TESTS[@]}
-            ;;
-        perf-bench-numa-mem)
-            LKP_TESTS=${LKP_MEMORY_PERF_BENCH_NUMA_MEM_TESTS[@]}
-            ;;
-        pmbench)
-            LKP_TESTS=${LKP_MEMORY_PMBENCH_TESTS[@]}
-            ;;
-        apachebench)
-            LKP_TESTS=${LKP_WORKLOAD_APACHEBENCH_TESTS[@]}
-            ;;
-        unixbench)
-            LKP_TESTS=${LKP_OTHER_UNIXBENCH_TESTS[@]}
-            ;;
-        aim9)
-            LKP_TESTS=${LKP_OTHER_AIM9_TESTS[@]}
-            ;;
-        lkp_microbenchmark)
-            LKP_TESTS=${LKP_TESTS_ALL_ABOVE[@]}
-            TEST_NAME_SET=("perf-bench-sched-pipe" "schbench" "oltp" "redis" \
-                           "perf-bench-numa-mem" "pmbench" "apachebench")
-            ;;
-        *)
-            LogErr "Unsupported test case: $TEST_NAME"
-            return 1
-            ;;
-    esac
-    for test in ${LKP_TESTS[@]}; do
-        LogMsg "Choose test case: $test"
-    done
-}
-
 function run_tests {
     LogMsg "git clone LKP..."
+    # There is no enough space in $HOMEDIR for redhat
     if [[ $DISTRO =~ "redhat" ]]; then
-        work_dir=$(df -h | grep "/dev/sdb1" | awk -F " " '{ print $6 }')
+        work_dir=$(df | grep "^/dev" | sort -rn -k 4 -t " " | head -1 | awk -F " " '{ print $6 }')
         cd "$work_dir"
     fi
 
@@ -143,6 +102,8 @@ function run_tests {
         lkp install $(ls $testName-* | head -n1) >> $LKP_OUTPUT 2>&1
         if [[ $TEST_NAME =~ "aim9" ]]; then
             all_jobs=$(ls aim9-all-*.yaml)
+        elif [[ $TEST_NAME =~ "unixbench" ]]; then
+            all_jobs=$(ls unixbench-1-*.yaml)
         else
             all_jobs=$(ls | grep $testName)
         fi
@@ -170,7 +131,7 @@ function run_tests {
     done
 
     cd $HOMEDIR
-    tar -cvf "lkp_log.tar" lkp_log
+    tar -cvf "$LKP_LOG.tar" $LKP_LOG
 }
 ###############################################################################
 #
@@ -189,6 +150,7 @@ UtilsInit
 HOMEDIR=$(pwd)
 LKP_OUTPUT="$HOMEDIR/lkp-output.log"
 LKP_LOG_DIR="$HOMEDIR/lkp_log"
+LKP_LOG="lkp_log"
 
 mkdir -p $LKP_LOG_DIR
 if [ $? -ne 0 ]; then
@@ -205,12 +167,18 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-LogMsg "Choose test case..."
-choose_test_case
-if [ $? -ne 0 ]; then
-    LogErr "Test name error"
-    SetTestStateAborted
+if [[ $DISTRO =~ "debian" && $TEST_NAME =~ "unixbench" ]]; then
+    LogMsg "Unsupported distro for unixbench of LKP"
+    SetTestStateSkipped
     exit 1
+fi
+
+LogMsg "Choose test case..."
+LKP_TESTS=${TEST_DICT["$TEST_NAME"]}
+if [[ $TEST_NAME =~ "lkp_microbenchmark" ]]; then
+    TEST_NAME_SET=("perf-bench-sched-pipe" "perf-bench-numa-mem" "pmbench")
+else
+    TEST_NAME_SET=("$TEST_NAME")
 fi
 
 LogMsg "Run LKP tests"
@@ -218,10 +186,3 @@ run_tests
 
 SetTestStateCompleted
 exit 0
-
-
-
-
-
-
-

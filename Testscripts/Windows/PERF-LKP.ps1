@@ -13,8 +13,8 @@ $LKP_RESULTS = "lkp-results.log"
 $LKP_OUPUT = "lkp-output.log"
 $LKP_LOG_FILE = "lkp_log.tar"
 $LKP_LOG_DIR = "lkp_log"
-$VERTICAL_FORMAT_TESTS = @("oltp", "redis", "perf-bench-numa-mem", "apachebench", "pmbench", "aim9")
-$MICROBENCHMARK_TEST_NAMES = @("perf-bench-sched-pipe", "schbench", "oltp", "redis", "perf-bench-numa-mem", "apachebench", "pmbench")
+$VERTICAL_FORMAT_TESTS = @("perf-bench-numa-mem", "pmbench", "aim9")
+$MICROBENCHMARK_TEST_NAMES = @("perf-bench-sched-pipe", "perf-bench-numa-mem", "pmbench")
 
 function Get-BenchmarkResult ($testName, $jsonResult) {
     switch ($testName) {
@@ -25,15 +25,6 @@ function Get-BenchmarkResult ($testName, $jsonResult) {
         "perf-bench-sched-pipe" {
             $resultTitle = "ops_per_sec"
             $result = ${jsonResult}.'perf-bench-sched-pipe.ops_per_sec'[0]
-        }
-        "schbench" {
-            $resultTitle = "latency_max_us"
-            $result = ${jsonResult}.'schbench.latency_max_us'[0]
-        }
-        "pgbench" {
-            $resultTitle = "{0,-30} {1,-30} {2,30} {3,30}" -f "transactions", "latency_ms", "tps", "tps_exclude_connect"
-            $result = "{0,-30} {1,-30} {2,30} {3,30}" -f ${jsonResult}.'pgbench.transactions'[0], ${jsonResult}.'pgbench.latency_ms'[0], `
-            ${jsonResult}.'pgbench.tps'[0], ${jsonResult}.'pgbench.tps_exclude_connect'[0]
         }
         "unixbench" {
             $resultTitle = "{0,-30} {1,-30}" -f "score", "workload"
@@ -48,9 +39,7 @@ function Get-BenchmarkResult ($testName, $jsonResult) {
 }
 
 function Get-VerticalFormat-TestResult ($currentTestResult, $currentTestData, $testName) {
-
     try {
-
         $LogPath = Join-Path $LogDir\$LKP_LOG_DIR $testName
         if (-not (Test-Path -Path $LogPath)) {
             Write-LogErr "EXCEPTION : $LKP_LOG_DIR doesn't exist"
@@ -66,7 +55,7 @@ function Get-VerticalFormat-TestResult ($currentTestResult, $currentTestData, $t
                 return $resultPass
             }
 
-            $metaData = "{0,-30}" -f $_
+            $metaData = "{0,-30}" -f "$_ Job"
             $result = $null
             $item = "{0,-30} {1,30}" -f $metaData, $result
             Add-Content -Value $item -Path "$LogDir\$LKP_RESULTS"
@@ -151,7 +140,7 @@ function Get-TestResult ($currentTestResult, $currentTestData) {
     try {
         Write-LogInfo "Uncompress $LKP_LOG_FILE..."
         $Compress = .\Tools\7za.exe -y x "$LogDir\$LKP_LOG_FILE" -o"$LogDir"
-        if ( -not ($Compress -imatch "Everything is Ok")) {
+        if (-not ($Compress -imatch "Everything is Ok")) {
             Write-LogErr "EXCEPTION : Failed to uncompress $LKP_LOG_FILE"
             return $resultAborted
         }
