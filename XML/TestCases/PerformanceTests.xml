@@ -694,7 +694,7 @@
         <Category>Performance</Category>
         <Area>LKP</Area>
         <Tags>lkp</Tags>
-        <Priority>2</Priority>
+        <Priority>3</Priority>
     </test>
     <test>
         <testName>PERF-SCHEDULER-HACKBENCH-LKP</testName>
@@ -739,6 +739,6 @@
         <Category>Performance</Category>
         <Area>LKP</Area>
         <Tags>lkp</Tags>
-        <Priority>2</Priority>
+        <Priority>3</Priority>
     </test>
 </TestCases>
