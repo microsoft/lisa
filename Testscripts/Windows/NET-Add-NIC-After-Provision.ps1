@@ -85,7 +85,7 @@ function Main {
 			Write-LogErr "Test case timed out waiting for VM to boot"
 			return "FAIL"
 		}
-		$vmData = Get-AllDeploymentData -ResourceGroups $AllVMData.ResourceGroupName
+		$vmData = Get-AllDeploymentData -ResourceGroups $AllVMData.ResourceGroupName -PatternOfResourceNamePrefix $AllVMData.RoleName
 		$AllVMData.PublicIP = $vmData.PublicIP
 
 		# Waiting for the VM to run again and respond to SSH - port 22

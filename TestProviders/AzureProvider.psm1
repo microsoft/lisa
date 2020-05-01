@@ -41,10 +41,12 @@ Class AzureProvider : TestProvider
 		$allVMData = @()
 		$DeploymentElapsedTime = $null
 		$ErrorMessage = ""
+		$patternOfResourceNamePrefix = ($SetupTypeData.ResourceGroup | Select-Object -ExpandProperty "VirtualMachine" `
+			| Where-Object {$_.RoleName -imatch '[^\s]+'} | Select-Object -ExpandProperty RoleName) -join '|'
 		try {
 			if ($UseExistingRG) {
 				Write-LogInfo "Running test against existing resource group: $RGIdentifier"
-				$allVMData = Get-AllDeploymentData -ResourceGroups $RGIdentifier
+				$allVMData = Get-AllDeploymentData -ResourceGroups $RGIdentifier -PatternOfResourceNamePrefix $patternOfResourceNamePrefix
 				Add-DefaultTagsToResourceGroup -ResourceGroup $RGIdentifier -CurrentTestData $TestCaseData
 				if (!$allVMData) {
 					Write-LogInfo "No VM is found in resource group $RGIdentifier, start to deploy VMs"
@@ -59,7 +61,7 @@ Class AzureProvider : TestProvider
 				if ($isAllDeployed[0] -eq "True") {
 					$deployedGroups = $isAllDeployed[1]
 					$DeploymentElapsedTime = $isAllDeployed[3]
-					$allVMData = Get-AllDeploymentData -ResourceGroups $deployedGroups
+					$allVMData = Get-AllDeploymentData -ResourceGroups $deployedGroups -PatternOfResourceNamePrefix $patternOfResourceNamePrefix
 				} else {
 					$ErrorMessage = "One or more deployments failed. " + $isAllDeployed[4]
 					Write-LogErr $ErrorMessage
@@ -86,7 +88,11 @@ Class AzureProvider : TestProvider
 				}
 			}
 			else {
-				Write-LogErr "Unable to connect SSH ports.."
+				# Do not DeleteVMs here, instead, we will set below $ErrorMessage
+				#, to indicate there's deployment errors, and TestController will handle those errors
+				$ErrorMessage = "Unable to connect SSH ports..."
+				Write-LogErr $ErrorMessage
+				return @{"VmData" = $allVMData; "Error" = $ErrorMessage}
 			}
 		} catch {
 			Write-LogErr "Exception detected. Source : DeployVMs()"
@@ -100,13 +106,20 @@ Class AzureProvider : TestProvider
 	}
 
 	[void] DeleteVMs($allVMData, $SetupTypeData, $UseExistingRG) {
+		if ($allVMData) {
+			$patternOfResourceNamePrefix = ($allVMData | Where-Object {$_.RoleName -imatch '[^\s]+'} | Select-Object -ExpandProperty RoleName) -Join '|'
+		}
+		else {
+			$patternOfResourceNamePrefix = ($SetupTypeData.ResourceGroup | Select-Object -ExpandProperty "VirtualMachine" `
+				| Where-Object {$_.RoleName -imatch '[^\s]+'} | Select-Object -ExpandProperty RoleName) -join '|'
+		}
 		$rgs = @()
-		foreach ($vmData in $AllVMData) {
+		foreach ($vmData in $allVMData) {
 			$rgs += $vmData.ResourceGroupName
 		}
 		$uniqueRgs = $rgs | Select-Object -Unique
 		foreach ($rg in $uniqueRgs) {
-			$isCleaned = Delete-ResourceGroup -RGName $rg -UseExistingRG $UseExistingRG -AllVMData $allVMData
+			$isCleaned = Delete-ResourceGroup -RGName $rg -UseExistingRG $UseExistingRG -PatternOfResourceNamePrefix $patternOfResourceNamePrefix
 			if (!$isCleaned)
 			{
 				Write-LogInfo "Failed to trigger delete resource group $rg.. Please delete it manually."
