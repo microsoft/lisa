@@ -1623,7 +1623,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
                         else {
                             $outputError = "Unable to Deploy one or more VM's. " + $CreateRGDeployments.Error
                             Write-LogErr $outputError
-                            
+
                             if ($ResourceCleanup -imatch "Keep") {
                                 Write-LogInfo "Keeping Failed deployment for this Resoruce Group: $RGName, as -ResourceCleanup = Keep is Set."
                             }
@@ -2012,7 +2012,7 @@ Function Get-AllDeploymentData([string]$ResourceGroups, [string]$PatternOfResour
         # Exclude itself, if LISAv2 Orchestrator is also deployed in the same ResourceGroup
         # Collect all VM Resources that are deployed by LISAv2, inlucidng below case
         # -----1). VM.ResourceName has the same naming prefix as Resource Group Name
-        # -----2). VM.ResourceName has the same name from SetupType.RoleName, 
+        # -----2). VM.ResourceName has the same name from SetupType.RoleName,
         # ----------> as matching $PatternOfResourceNamePrefix, which is RoleNames from SetupType Config xml, joined by '|'
         $RGVMs = Get-AzResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Compute/virtualMachines" -Verbose `
             | Where-Object {$orchestratorHostName -inotmatch $_.Name -and (($_.Name -imatch $PatternOfResourceNamePrefix) -or ($ResourceGroup.StartsWith($_.Name.Split('-')[0])))}
