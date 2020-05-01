@@ -654,6 +654,7 @@ Class TestController
 							}
 						}
 					}
+					return $vmData
 				}
 
 				for ($indexOfTC = 0; $indexOfTC -lt $arrayOfTestConfigs.Count; $indexOfTC++) {
@@ -686,7 +687,7 @@ Class TestController
 							}
 							# if there are deployment errors, skip RunTestCase, just CleanupResource, as this is unrecoverable
 							if ($vmData -and $deployVMStatus.Error) {
-								&$CleanupResource
+								$vmData = &$CleanupResource
 							}
 							$deployErrors = Trim-ErrorLogMessage $deployVMStatus.Error
 						}
@@ -704,7 +705,7 @@ Class TestController
 					$lastResult = $this.RunOneTestCase($vmData, $currentTestCase, $executionCount, $this.SetupTypeTable[$setupType], ($tests -ne 0))
 					$tests++
 
-					&$CleanupResource
+					$vmData = &$CleanupResource
 				}
 			}
 
