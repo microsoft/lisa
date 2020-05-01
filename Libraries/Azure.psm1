@@ -1625,17 +1625,17 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
                             Write-LogErr $outputError
 
                             if ($ResourceCleanup -imatch "Keep") {
-                                Write-LogInfo "Keeping Failed deployment for this Resoruce Group: $RGName, as -ResourceCleanup = Keep is Set."
+                                Write-LogInfo "Keeping Failed deployment for this Resoruce Group: $groupName, as -ResourceCleanup = Keep is Set."
                             }
                             else {
                                 # Clean up the failed deployment by default, as the deployment failure is not useful for debugging/repro
                                 #, $errMsg contains all necessary information
-                                $isCleaned = Delete-ResourceGroup -RGName $RGName -UseExistingRG $UseExistingRG -PatternOfResourceNamePrefix $patternOfResourceNamePrefix
+                                $isCleaned = Delete-ResourceGroup -RGName $groupName -UseExistingRG $UseExistingRG -PatternOfResourceNamePrefix $patternOfResourceNamePrefix
                                 if (!$isCleaned) {
-                                    Write-LogInfo "Cleanup unsuccessful for $RGName.. Please delete the services manually."
+                                    Write-LogInfo "Cleanup unsuccessful for $groupName.. Please delete the services manually."
                                 }
                                 else {
-                                    Write-LogInfo "Cleanup successful for $RGName."
+                                    Write-LogInfo "Cleanup successful for $groupName."
                                 }
                             }
                             $retryDeployment = $retryDeployment + 1
@@ -1845,10 +1845,16 @@ Function Delete-ResourceGroup([string]$RGName, [bool]$UseExistingRG, [string]$Pa
         if (-not $rgLock) {
             if ($UseExistingRG) {
                 $attempts = 0
+                if ($PatternOfResourceNamePrefix) {
+                    $PatternOfResourceNamePrefix += '|disk'
+                }
+                else {
+                    $PatternOfResourceNamePrefix = 'disk'
+                }
                 while ($attempts -le 10) {
                     # Get LISAv2 deployed resources and ResourceType is NOT 'AvailabilitySets'
                     $currentResources = Get-AzResource -ResourceGroupName $RGName | `
-                        Where-Object {$_.ResourceType -inotmatch "availabilitySets" -and (($PatternOfResourceNamePrefix -and $_.Name -imatch "^($PatternOfResourceNamePrefix)") -or ($_.Name -imatch '^LISAv2-.+'))}
+                        Where-Object {$_.ResourceType -inotmatch "availabilitySets" -and (($PatternOfResourceNamePrefix -and $_.Name -imatch "^($PatternOfResourceNamePrefix)") -or ($RGName.StartsWith($_.Name.Split('-')[0])) -or ($_.Name -imatch '^LISAv2-.+'))}
                     # Get the lock for each resource and compute a list of "unlocked" resources, # Only try to delete the "unlocked" resources
                     $unlockedResources = $currentResources | Where-Object {-not $(Get-AzResourceLock -ResourceGroupName $RGName -ResourceType $_.ResourceType -ResourceName $_.Name)}
                     if (-not $unlockedResources) {
