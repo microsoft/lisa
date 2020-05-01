@@ -119,7 +119,7 @@ function Upload-RemoteFile($uploadTo, $port, $file, $username, $password, $usePr
 			Remove-Job -Id $uploadJob.Id -Force | Out-Null
 		}
 		if (($returnCode -ne 0) -and ($retry -ne $maxRetry)) {
-			Write-LogWarn "Error in upload, attempt $retry, retrying"
+			Write-LogWarn "Error in upload, attempt $retry/$maxRetry, retrying"
 			Wait-Time -seconds 10
 		} elseif (($returnCode -ne 0) -and ($retry -eq $maxRetry)) {
 			Write-Output "Error in upload after $retry attempt, hence giving up"

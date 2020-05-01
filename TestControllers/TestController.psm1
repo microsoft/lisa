@@ -616,50 +616,8 @@ Class TestController
 				$arrayOfTestConfigs = $this.GetArrayOfExpandedTestConfigsFromTestParameters($currentTestCase.testName, $currentTestCase.OverrideVMSize)
 				$tcDeployVM = $this.DeployVMPerEachTest
 				$tcRemoveVM = $this.DeployVMPerEachTest
-				for ($indexOfTC = 0; $indexOfTC -lt $arrayOfTestConfigs.Count; $indexOfTC++) {
-					$expandedTestConfig = $arrayOfTestConfigs[$indexOfTC]
-					$currentTestCase.testName = $expandedTestConfig["TestName"]
-					if ($indexOfTC -lt ($arrayOfTestConfigs.Count - 1)) {
-						$tcRemoveVM = $this.DeployVMPerEachTest -or `
-							($arrayOfTestConfigs[$indexOfTC + 1]["TestVmSize"] -ne $expandedTestConfig["TestVmSize"])
-					}
-					if ($indexOfTC -gt 0) {
-						$tcDeployVM = $this.DeployVMPerEachTest -or `
-							($arrayOfTestConfigs[$indexOfTC - 1]["TestVmSize"] -ne $expandedTestConfig["TestVmSize"])
-					}
-					if ($expandedTestConfig["TestVmSize"]) {
-						$currentTestCase.OverrideVMSize = $expandedTestConfig["TestVmSize"]
-					}
-					$executionCount += 1
-					Write-LogInfo "($executionCount/$($this.TotalCaseNum)) testing started: $($currentTestCase.testName)"
-					if (!$vmData -or $tcDeployVM) {
-						# Deploy the VM for the setup
-						Write-LogInfo "Deploy target machine for test if required ..."
-						$deployVMStatus = $this.TestProvider.DeployVMs($this.GlobalConfig, $this.SetupTypeTable[$setupType], $currentTestCase, `
-							$this.TestLocation, $this.RGIdentifier, $this.UseExistingRG, $this.ResourceCleanup)
-						$vmData = $null
-						$deployErrors = ""
-						if ($deployVMStatus) {
-							$vmData = $deployVMStatus
-							$deployErrors = Trim-ErrorLogMessage $deployVMStatus.Error
-							if ($deployVMStatus.Keys -and ($deployVMStatus.Keys -contains "VmData")) {
-								$vmData = $deployVMStatus.VmData
-							}
-						}
-						if (!$vmData) {
-							# Failed to deploy the VMs, Set the case to abort
-							Write-LogWarn("VMData is empty (null). Aborting the testing.")
-							$this.JunitReport.StartLogTestCase("LISAv2Test-$($this.TestPlatform)","$($currentTestCase.testName)","$($this.TestPlatform)-$($currentTestCase.Category)-$($currentTestCase.Area)")
-							$this.JunitReport.CompleteLogTestCase("LISAv2Test-$($this.TestPlatform)","$($currentTestCase.testName)","Aborted", $deployErrors)
-							$this.TestSummary.UpdateTestSummaryForCase($currentTestCase, $executionCount, "Aborted", "0", $deployErrors, $null)
-							continue
-						}
-					}
-					# Run current test case
-					Write-LogInfo "Run test case against the target machine ..."
-					$lastResult = $this.RunOneTestCase($vmData, $currentTestCase, $executionCount, $this.SetupTypeTable[$setupType], ($tests -ne 0))
-					$tests++
 
+				$CleanupResource = {
 					if ($this.ResourceCleanup -imatch "Keep") {
 						# No matter test results, Keep $vmData.
 						Write-LogInfo "Keep deployed target machine for future reuse."
@@ -695,8 +653,58 @@ Class TestController
 								$vmData = $null
 							}
 						}
-
 					}
+				}
+
+				for ($indexOfTC = 0; $indexOfTC -lt $arrayOfTestConfigs.Count; $indexOfTC++) {
+					$expandedTestConfig = $arrayOfTestConfigs[$indexOfTC]
+					$currentTestCase.testName = $expandedTestConfig["TestName"]
+					if ($indexOfTC -lt ($arrayOfTestConfigs.Count - 1)) {
+						$tcRemoveVM = $this.DeployVMPerEachTest -or `
+							($arrayOfTestConfigs[$indexOfTC + 1]["TestVmSize"] -ne $expandedTestConfig["TestVmSize"])
+					}
+					if ($indexOfTC -gt 0) {
+						$tcDeployVM = $this.DeployVMPerEachTest -or `
+							($arrayOfTestConfigs[$indexOfTC - 1]["TestVmSize"] -ne $expandedTestConfig["TestVmSize"])
+					}
+					if ($expandedTestConfig["TestVmSize"]) {
+						$currentTestCase.OverrideVMSize = $expandedTestConfig["TestVmSize"]
+					}
+					$executionCount += 1
+					Write-LogInfo "($executionCount/$($this.TotalCaseNum)) testing started: $($currentTestCase.testName)"
+					if (!$vmData -or $tcDeployVM) {
+						# Deploy the VM for the setup
+						Write-LogInfo "Deploy target machine for test if required ..."
+						$deployVMStatus = $this.TestProvider.DeployVMs($this.GlobalConfig, $this.SetupTypeTable[$setupType], $currentTestCase, `
+							$this.TestLocation, $this.RGIdentifier, $this.UseExistingRG, $this.ResourceCleanup)
+						$vmData = $null
+						$deployErrors = ""
+						if ($deployVMStatus) {
+							$vmData = $deployVMStatus
+							if ($deployVMStatus.Keys -and ($deployVMStatus.Keys -contains "VmData")) {
+								$vmData = $deployVMStatus.VmData
+							}
+							# if there are deployment errors, skip RunTestCase, just CleanupResource, as this is unrecoverable
+							if ($vmData -and $deployVMStatus.Error) {
+								&$CleanupResource
+							}
+							$deployErrors = Trim-ErrorLogMessage $deployVMStatus.Error
+						}
+						if (!$vmData) {
+							# Failed to deploy the VMs, Set the case to abort
+							Write-LogWarn("VMData is empty (null). Aborting the testing.")
+							$this.JunitReport.StartLogTestCase("LISAv2Test-$($this.TestPlatform)","$($currentTestCase.testName)","$($this.TestPlatform)-$($currentTestCase.Category)-$($currentTestCase.Area)")
+							$this.JunitReport.CompleteLogTestCase("LISAv2Test-$($this.TestPlatform)","$($currentTestCase.testName)","Aborted", $deployErrors)
+							$this.TestSummary.UpdateTestSummaryForCase($currentTestCase, $executionCount, "Aborted", "0", $deployErrors, $null)
+							continue
+						}
+					}
+					# Run current test case
+					Write-LogInfo "Run test case against the target machine ..."
+					$lastResult = $this.RunOneTestCase($vmData, $currentTestCase, $executionCount, $this.SetupTypeTable[$setupType], ($tests -ne 0))
+					$tests++
+
+					&$CleanupResource
 				}
 			}
 

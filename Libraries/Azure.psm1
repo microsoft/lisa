@@ -1544,7 +1544,9 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
     } else {
         $used_SC = $GlobalConfig.Global.Azure.Subscription.ARMStorageAccount
     }
-    foreach ($RG in $setupTypeData.ResourceGroup ) {
+    $patternOfResourceNamePrefix = ($SetupTypeData.ResourceGroup | Select-Object -ExpandProperty "VirtualMachine" `
+                                    | Where-Object {$_.RoleName -imatch '[^\s]+'} | Select-Object -ExpandProperty RoleName) -join '|'
+    foreach ($RG in $setupTypeData.ResourceGroup) {
         $validateStartTime = Get-Date
         Write-LogInfo "Checking the subscription usage..."
         $readyToDeploy = $false
@@ -1621,6 +1623,21 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
                         else {
                             $outputError = "Unable to Deploy one or more VM's. " + $CreateRGDeployments.Error
                             Write-LogErr $outputError
+
+                            if ($ResourceCleanup -imatch "Keep") {
+                                Write-LogInfo "Keeping Failed deployment for this Resoruce Group: $RGName, as -ResourceCleanup = Keep is Set."
+                            }
+                            else {
+                                # Clean up the failed deployment by default, as the deployment failure is not useful for debugging/repro
+                                #, $errMsg contains all necessary information
+                                $isCleaned = Delete-ResourceGroup -RGName $RGName -UseExistingRG $UseExistingRG -PatternOfResourceNamePrefix $patternOfResourceNamePrefix
+                                if (!$isCleaned) {
+                                    Write-LogInfo "Cleanup unsuccessful for $RGName.. Please delete the services manually."
+                                }
+                                else {
+                                    Write-LogInfo "Cleanup successful for $RGName."
+                                }
+                            }
                             $retryDeployment = $retryDeployment + 1
                             $retValue = "False"
                             $isServiceDeployed = "False"
@@ -1802,7 +1819,7 @@ Function Start-DeleteResourceGroup ([string]$RGName) {
     }
     return $isDeleting
 }
-Function Delete-ResourceGroup([string]$RGName, [switch]$KeepDisks, [bool]$UseExistingRG, [array]$AllVMData) {
+Function Delete-ResourceGroup([string]$RGName, [bool]$UseExistingRG, [string]$PatternOfResourceNamePrefix) {
     Function RemoveAzResourcesByResourceType([string] $ResourceType4iMatch) {
         $unlockedResources | Where-Object {$_.ResourceType -imatch $ResourceType4iMatch} | ForEach-Object {
             try {
@@ -1827,14 +1844,11 @@ Function Delete-ResourceGroup([string]$RGName, [switch]$KeepDisks, [bool]$UseExi
         $rgLock = (Get-AzResourceLock -ResourceGroupName $RGName).ResourceType -eq "Microsoft.Authorization/locks"
         if (-not $rgLock) {
             if ($UseExistingRG) {
-                if ($AllVMData) {
-                    $vmRoleNamePattern = ($AllVMData | Select-Object -ExpandProperty RoleName) -Join '|'
-                }
                 $attempts = 0
                 while ($attempts -le 10) {
                     # Get LISAv2 deployed resources and ResourceType is NOT 'AvailabilitySets'
                     $currentResources = Get-AzResource -ResourceGroupName $RGName | `
-                        Where-Object {$_.ResourceType -inotmatch "availabilitySets" -and (($vmRoleNamePattern -and $_.Name -imatch "^($vmRoleNamePattern)") -or ($_.Name -imatch '^LISAv2-.+'))}
+                        Where-Object {$_.ResourceType -inotmatch "availabilitySets" -and (($PatternOfResourceNamePrefix -and $_.Name -imatch "^($PatternOfResourceNamePrefix)") -or ($_.Name -imatch '^LISAv2-.+'))}
                     # Get the lock for each resource and compute a list of "unlocked" resources, # Only try to delete the "unlocked" resources
                     $unlockedResources = $currentResources | Where-Object {-not $(Get-AzResourceLock -ResourceGroupName $RGName -ResourceType $_.ResourceType -ResourceName $_.Name)}
                     if (-not $unlockedResources) {
@@ -1912,7 +1926,7 @@ Function Create-ResourceGroup([string]$RGName, $location, $CurrentTestData) {
     return $retValue
 }
 
-Function Create-ResourceGroupDeployment([string]$RGName, $TemplateFile, $UseExistingRG, $ResourceCleanup) {
+Function Create-ResourceGroupDeployment([string]$RGName, $TemplateFile, $UseExistingRG) {
     $retValue = $false
     $errMsg = ""
     $ResourceGroupDeploymentName = "eosg" + (Get-Date).Ticks
@@ -1929,6 +1943,7 @@ Function Create-ResourceGroupDeployment([string]$RGName, $TemplateFile, $UseExis
                 $retValue = $true
             }
             else {
+                Write-LogErr "Failed to create Resource Group Deployment - $RGName."
                 # region grab deplyoment operations failures
                 $failedDeplyomentOperations = Get-AzResourceGroupDeploymentOperation `
                     -ResourceGroupName $RGName -DeploymentName $createRGDeployment.DeploymentName `
@@ -1947,34 +1962,6 @@ Function Create-ResourceGroupDeployment([string]$RGName, $TemplateFile, $UseExis
                 }
                 Write-LogErr $errMsg
                 #endregion
-
-                Write-LogErr "Failed to create Resource Group Deployment - $RGName."
-                if ($ResourceCleanup -imatch "Delete") {
-                    Write-LogInfo "-ResourceCleanup = Delete is Set. Deleting $RGName."
-                    $isCleaned = Delete-ResourceGroup -RGName $RGName -UseExistingRG $UseExistingRG
-                    if (!$isCleaned) {
-                        Write-LogInfo "Cleanup unsuccessful for $RGName.. Please delete the services manually."
-                    }
-                    else {
-                        Write-LogInfo "Cleanup successful for $RGName."
-                    }
-                }
-                else {
-                    $VMsCreated = Get-AzVM -ResourceGroupName $RGName
-                    if ( $VMsCreated ) {
-                        Write-LogInfo "Keeping Failed resource group, as we found $($VMsCreated.Count) VM(s) deployed."
-                    }
-                    else {
-                        Write-LogInfo "Removing Failed resource group, as we found 0 VM(s) deployed."
-                        $isCleaned = Delete-ResourceGroup -RGName $RGName -UseExistingRG $UseExistingRG
-                        if (!$isCleaned) {
-                            Write-LogInfo "Cleanup unsuccessful for $RGName.. Please delete the services manually."
-                        }
-                        else {
-                            Write-LogInfo "Cleanup successful for $RGName."
-                        }
-                    }
-                }
             }
         } else {
             $errMsg = $testRGDeployment.Message
@@ -1990,7 +1977,7 @@ Function Create-ResourceGroupDeployment([string]$RGName, $TemplateFile, $UseExis
     return @{ "Status" = $retValue ; "Error" = $errMsg }
 }
 
-Function Get-AllDeploymentData($ResourceGroups)
+Function Get-AllDeploymentData([string]$ResourceGroups, [string]$PatternOfResourceNamePrefix)
 {
     $allDeployedVMs = @()
     function Create-QuickVMNode()
@@ -2022,17 +2009,25 @@ Function Get-AllDeploymentData($ResourceGroups)
         Write-LogInfo "Collecting $ResourceGroup data.."
 
         Write-LogInfo "    Microsoft.Compute/virtualMachines data collection in progress.."
-        # Exclude itself if LISAv2 Orchestrator is also deployed in the same ResourceGroup
+        # Exclude itself, if LISAv2 Orchestrator is also deployed in the same ResourceGroup
+        # Collect all VM Resources that are deployed by LISAv2, inlucidng below case
+        # -----1). VM.ResourceName has the same naming prefix as Resource Group Name
+        # -----2). VM.ResourceName has the same name from SetupType.RoleName,
+        # ----------> as matching $PatternOfResourceNamePrefix, which is RoleNames from SetupType Config xml, joined by '|'
         $RGVMs = Get-AzResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Compute/virtualMachines" -Verbose `
-            | Where-Object {$orchestratorHostName -inotmatch $_.Name -and $ResourceGroup.StartsWith($_.Name.Split('-')[0])}
+            | Where-Object {$orchestratorHostName -inotmatch $_.Name -and (($_.Name -imatch $PatternOfResourceNamePrefix) -or ($ResourceGroup.StartsWith($_.Name.Split('-')[0])))}
         if ($RGVMs) {
-            $vmNamePrefix = $RGVMs[0].Name.Split('-')[0]
+            $vmResourcePattern = ($RGVMs | Select-Object -ExpandProperty Name) -Join '|'
+        }
+        else {
+            Write-LogWarn "    No available Microsoft.Compute/virtualMachines resources, return empty VmData..."
+            break
         }
 
         Write-LogInfo "    Microsoft.Network/networkInterfaces data collection in progress.."
         # Only NetworkInterface and OSDisk resource will always have the same prefix in Name as it's owner in Name (the VM Name)
         $NICdata = Get-AzResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Network/networkInterfaces" -Verbose `
-            | Where-Object {$vmNamePrefix -and $_.Name.StartsWith($vmNamePrefix)}
+            | Where-Object {$vmResourcePattern -and ($_.Name -imatch $vmResourcePattern)}
         $currentRGLocation = (Get-AzResourceGroup -ResourceGroupName $ResourceGroup).Location
 
         Write-LogInfo "    Microsoft.Network/loadBalancers data collection in progress.."
@@ -2046,6 +2041,10 @@ Function Get-AllDeploymentData($ResourceGroups)
             | Where-Object {$pIp = (Get-AzPublicIpAddress -Name $_.name -ResourceGroupName $ResourceGroup); `
                 return (($pIP.IpAddress -ne "Not Assigned") -and ($_.Name -imatch '^LISAv2-.+'))} `
             | Select-Object -Last 1
+        if (!$RGIPsdata) {
+            Write-LogWarn "    No available Microsoft.Network/publicIPAddresses resources, return empty VmData..."
+            break
+        }
 
         $AllVMs = Get-AzVM -ResourceGroupName $ResourceGroup
         foreach ($testVM in $RGVMs)
@@ -2394,7 +2393,7 @@ Function Set-SRIOVinAzureVMs {
                 }
                 # Public IP address changes most of the times, when we shutdown the VM.
                 # Hence, we need to refresh the data
-                $VMData = Get-AllDeploymentData -ResourceGroups $ResourceGroup
+                $VMData = Get-AllDeploymentData -ResourceGroups $ResourceGroup -PatternOfResourceNamePrefix $VMName
                 $TestVMData = $VMData | Where-Object {$_.ResourceGroupName -eq $ResourceGroup `
                     -and $_.RoleName -eq $VMName }
 
