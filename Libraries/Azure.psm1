@@ -1241,7 +1241,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			Add-Content -Value "$($indents[3])^dependsOn^: " -Path $jsonFile
 			Add-Content -Value "$($indents[3])[" -Path $jsonFile
 			if (!$createAvailabilitySet) {
-				#Add-Content -Value "$($indents[4])^[concat('Microsoft.Compute/availabilitySets/', variables('availabilitySetName'))]^," -Path $jsonFile
+				Add-Content -Value "$($indents[4])^[resourceId('Microsoft.Compute/availabilitySets','$availabilitySetName')]^" -Path $jsonFile
 			}
 			else {
 				Add-Content -Value "$($indents[4])^[concat('Microsoft.Compute/availabilitySets/', variables('availabilitySetName'))]^," -Path $jsonFile
