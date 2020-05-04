@@ -99,10 +99,20 @@ Param(
 	[string] $OverrideVMSize = "",
 	[ValidateSet('Default','Keep','Delete',IgnoreCase = $true)]
 
-	#ResourceCleanup options:
-	#	"Default" = If test is PASS then delete resources else preserve for analysis.
-	#	"Keep" = Preserve resources for analysis irrespective of test result.
-	#	"Delete" = Delete resources irrespective of test result.
+	# ResourceCleanup options are used to config/control how to proceed the VM and RG resources cleanup between test cases and setupTypes, so
+	# 1) At the end of each test setupType (which means next test case will definitely use another different deploy template)
+	#		"Default" = By default delete resources if VM and RG resources are still exist, unless 'Keep' is specified
+	#		"Keep"    = Always preserve resources for analysis
+	#		"Delete"  = Always delete resources before any of the next setupType deployments happen.
+	# 2) For each test belongs to the same setupType, we respect last test case result of running, Pass or Fail/Aborted
+	#		if lastResult Pass, try to reuse existing deployed VM resources,
+	#			unless '-DeployVMPerEachTest' or next test case needs different profile in deploy template, => Delete resources
+	#		if lastResult Fail/Aborted, try to Preserve resources for analysis,
+	#			unless '-UseExistingRG' or 'ResourceCleanup = Delete', => Delete resources
+	#			unless '-ReuseVmOnFailure', => Reuse vm resources, even lastResult is failed.
+	#		if 'ResourceCleanup = Keep', we respect to 'Keep' whenever trying to delete an successfully deployed VM resources
+	#			but log warning messages when VM and resources need Manual deletion
+	#				or when 'Keep' conflicts with other parameters of Run-LISAv2
 	[string] $ResourceCleanup,
 	[switch] $DeployVMPerEachTest,
 	[string] $VMGeneration = "",
