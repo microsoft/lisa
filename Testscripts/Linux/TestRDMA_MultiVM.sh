@@ -27,6 +27,7 @@ imb_rma_final_status=0
 imb_nbc_final_status=0
 imb_p2p_final_status=0
 imb_io_final_status=0
+osu_p2p_final_status=0
 
 # Get all the Kernel-Logs from all VMs.
 function Collect_Logs() {
@@ -166,6 +167,64 @@ function Run_IMB_MPI1() {
 		exit 0
 	else
 		LogMsg "INFINIBAND_VERIFICATION_SUCCESS_MPI1_ALLNODES"
+	fi
+}
+
+function Run_OSU_P2P() {
+	total_attempts=$(seq 1 1 $imb_mpi1_tests_iterations)
+	if [[ $osu_p2p_tests == "all" ]]; then
+		extra_params=""
+	else
+		extra_params=$osu_p2p_tests
+	fi
+	for attempt in $total_attempts; do
+		LogMsg "OSU P2P test iteration $attempt for $mpi_type- Running."
+		case "$mpi_type" in
+			ibm)
+				LogMsg "Test not yet available"
+				# LogMsg "$mpi_run_path -hostlist $modified_slaves:$VM_Size -np $(($VM_Size * $total_virtual_machines)) -e MPI_IB_PKEY=$MPI_IB_PKEY $osu_p2p_path allreduce"
+				# $mpi_run_path -hostlist $modified_slaves:$VM_Size -np $(($VM_Size * $total_virtual_machines)) -e MPI_IB_PKEY=$MPI_IB_PKEY $osu_p2p_path allreduce > OSU-P2P-AllNodes-output-Attempt-${attempt}.txt
+			;;
+			open)
+				LogMsg "Test not yet available"
+				# LogMsg "$mpi_run_path --allow-run-as-root --host $master,$slaves -n $(($mpi1_ppn * $total_virtual_machines)) $mpi_settings $osu_p2p_path $extra_params"
+				# $mpi_run_path --allow-run-as-root --host $master,$slaves -n $(($mpi1_ppn * $total_virtual_machines)) $mpi_settings $osu_p2p_path $extra_params > OSU-P2P-AllNodes-output-Attempt-${attempt}.txt
+			;;
+			hpcx)
+				LogMsg "Test not yet available"
+				# LogMsg "$mpi_run_path --allow-run-as-root -x UCX_IB_PKEY=$UCX_IB_PKEY -n $(($mpi1_ppn * $total_virtual_machines)) --H $master,$slaves $mpi_settings $osu_p2p_path $extra_params"
+				# $mpi_run_path --allow-run-as-root -x UCX_IB_PKEY=$UCX_IB_PKEY -n $(($mpi1_ppn * $total_virtual_machines)) --H $master,$slaves $mpi_settings $osu_p2p_path $extra_params > OSU-P2P-AllNodes-output-Attempt-${attempt}.txt
+			;;
+			intel)
+				LogMsg "Test not yet available"
+				# LogMsg "$mpi_run_path -hosts $master,$slaves -ppn $(($VM_Size / $total_virtual_machines)) -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $osu_p2p_path $extra_params"
+				# $mpi_run_path -hosts $master,$slaves -ppn $(($VM_Size / $total_virtual_machines)) -n $(($VM_Size * $total_virtual_machines)) $mpi_settings $osu_p2p_path $extra_params > OSU-P2P-AllNodes-output-Attempt-${attempt}.txt
+			;;
+			mvapich)
+				LogMsg "$osu_p2p_tests for $mpi_type"
+				LogMsg "$mpi_run_path -n $(($mpi1_ppn * $total_virtual_machines)) $master $slaves_array $mpi_settings $osu_p2p_path $extra_params"
+				ssh root@${master} "$mpi_run_path -n $(($mpi1_ppn * $total_virtual_machines)) $master $slaves_array $mpi_settings $osu_p2p_path$extra_params> OSU-P2P-AllNodes-output-Attempt-${attempt}.txt"
+			;;
+		esac
+		mpi_status=$?
+		if [ $mpi_status -eq 0 ]; then
+			LogMsg "OSU P2P test iteration $attempt - Succeeded."
+			sleep 1
+		else
+			LogErr "OSU P2P test iteration $attempt - Failed."
+			osu_p2p_final_status=$(($osu_p2p_final_status + $mpi_status))
+			sleep 1
+		fi
+	done
+
+	if [ $osu_p2p_final_status -ne 0 ]; then
+		LogErr "OSU P2P tests returned non-zero exit code."
+		SetTestStateFailed
+		Collect_Logs
+		LogErr "INFINIBAND_VERIFICATION_FAILED_OSU_P2P_ALLNODES"
+		exit 0
+	else
+		LogMsg "INFINIBAND_VERIFICATION_SUCCESS_OSU_P2P_ALLNODES"
 	fi
 }
 
@@ -689,6 +748,7 @@ function Main() {
 	imb_nbc_path=$(find / -name IMB-NBC | head -n 1)
 	imb_p2p_path=$(find / -name IMB-P2P | head -n 1)
 	imb_io_path=$(find / -name IMB-IO | head -n 1)
+	osu_p2p_path="/usr/local/libexec/osu-micro-benchmarks/mpi/pt2pt/"
 
 	case "$mpi_type" in
 		ibm)
@@ -734,6 +794,7 @@ function Main() {
 	# Run all benchmarks
 	Run_IMB_Intranode
 	Run_IMB_MPI1
+	Run_OSU_P2P
 	if [[ $quicktestonly == "no" ]]; then
 		Run_IMB_RMA
 		Run_IMB_NBC

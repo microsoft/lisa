@@ -131,6 +131,9 @@ function Main {
 			if ($TestParam -imatch "imb_io_tests_iterations") {
 				$ImbIoTestIterations = [int]($TestParam.Replace("imb_io_tests_iterations=", "").Trim('"'))
 			}
+			if ($TestParam -imatch "osu_p2p_tests_iterations") {
+				$OsuP2PTestIterations = [int]($TestParam.Replace("osu_p2p_tests_iterations=", "").Trim('"'))
+			}
 			if ($TestParam -imatch "ib_nic") {
 				$InfinibandNic = [string]($TestParam.Replace("ib_nic=", "").Trim('"'))
 			}
@@ -466,6 +469,24 @@ function Main {
 						$currentResult = $resultPass
 					} elseif ($QuickTestOnly -eq "yes") {
 						$currentResult = "SKIPPED"
+					} else {
+						$currentResult = $resultFail
+					}
+					Write-LogInfo "$pattern : $currentResult"
+					$CurrentTestResult.TestSummary += New-ResultSummary -testResult $currentResult -metaData $metaData `
+						-checkValues "PASS,FAIL,ABORTED" -testName $CurrentTestData.testName
+				}
+				#endregion
+
+				#region Check OSU all nodes tests
+				if ($OsuP2PTestIterations -ge 1) {
+					$logFileName = "$LogDir\InfiniBand-Verification-$Iteration-$TempName\TestExecution.log"
+					$pattern = "INFINIBAND_VERIFICATION_SUCCESS_OSU_ALLNODES"
+					Write-LogInfo "Analyzing $logFileName"
+					$metaData = "InfiniBand-Verification-$Iteration-$TempName : IMB-RMA"
+					$SucessLogs = Select-String -Path $logFileName -Pattern $pattern
+					if ($SucessLogs.Count -eq 1) {
+						$currentResult = $resultPass
 					} else {
 						$currentResult = $resultFail
 					}
