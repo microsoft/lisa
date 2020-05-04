@@ -37,7 +37,7 @@ function Main() {
 		# Install common packages
 		req_pkg="gcc make flex bison git"
 		install_package $req_pkg
-		LogMsg "$?: Installed the common required packages; $req_pkg"
+		LogMsg "$?: Installed the required common packages; $req_pkg"
 
 		case $DISTRO in
 			redhat_7|centos_7|redhat_8|centos_8)
@@ -50,8 +50,8 @@ function Main() {
 				req_pkg="build-essential fakeroot libncurses5-dev libssl-dev ccache"
 				;;
 			*)
-				LogErr "$DISTRO does not support hibernation"
-				SetTestStateFailed
+				LogErr "$DISTRO does not support vmbus channel re-assignment per cpu offline"
+				SetTestStateSkipped
 				exit 0
 				;;
 		esac

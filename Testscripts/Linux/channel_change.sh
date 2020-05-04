@@ -2,18 +2,8 @@
 #
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
-# This script will set up CPU offline feature with vmbus interrupt channel re-assignment.
+# This script will execute the CPU channel change along with vmbus interrupt re-assignment
 # This feature will be enabled the kernel version 5.7+
-# Select a CPU number where does not associate to vmbus channels; /sys/bus/vmbus/devices/<device ID>/channels/<channel ID>/cpu.
-# Set 1 to online file, echo 1 > /sys/devices/system/cpu/cpu<number>/online
-# Verify the dmesg log like ‘smpboot: Booting Node xx Processor x APIC 0xXX’
-# Set 0 to online file, echo 0 > /sys/devices/system/cpu/cpu<number>/online
-# Verify the dmesg log like ‘smpboot: CPU x is now offline’
-# Select a CPU number where associates to vmbus channels.
-# Set 1 to online file, echo 1 > /sys/devices/system/cpu/cpu<number>/online
-# Verify the command error: Device or resource busy
-# Set 0 to online file, echo 0 > /sys/devices/system/cpu/cpu<number>/online
-# Verify the command error: Device or resource busy
 ########################################################################################################
 # Source utils.sh
 . utils.sh || {
@@ -28,84 +18,149 @@ UtilsInit
 # Get distro information
 GetDistro
 
+
+# Global variables
+lsvmbus_output_location=/tmp/lsvmbus.output
+vmbus_id=()
+idle_cpus=()
+prefix1="Rel_ID="
+suffix1=","
+prefix2="target_cpu="
+
+function reset_cpu_id() {
+# Read VMBUS ID and store vmbus ids in the array
+# Change the cpu_id from non-zero to 0 in order to set cpu offline.
+# If successful, all cpu_ids in lsvmbus output should be 0 per channel, and generate
+# the list of idle cpus
+
+	lsvmbus_output_location="/tmp/lsvmbus.output"
+	idx=0
+	cpu_idx=0
+	while IFS=' ' read -a line
+	do
+		if [[ ${line[0]} == "VMBUS" && ${line[1]} == "ID" ]]; then
+			vmbus_id[$idx]=${line[2]%?}
+			LogMsg "Found new VMBUS ID --> ${vmbus_id[$idx]}"
+
+			read -a line
+			# Ignored Device Id
+
+			read -a line
+			if [[ ${line[0]} =~ "Sysfs" && ${line[1]} == "path:" ]]; then
+				sysfs_path=${line[2]%?}
+				LogMsg "Found new sysfs --> $sysfs_path"
+
+				# Read Rel_ID and target_cpu lines
+				read -a line
+				while [[ $line != '' ]]
+				do
+					rel_id=${line[0]#"$prefix1"}
+					rel_id=${rel_id%"$suffix1"}
+					LogMsg "Found Rel_ID: $rel_id"
+					cpu_id=${line[1]#"$prefix2"}
+					LogMsg "Found target_cpu: $cpu_id"
+
+					if [[ $cpu_id != "0" ]]; then
+						_cpu_id=$(cat $sysfs_path/channels/$rel_id/cpu)
+						LogMsg "Found the cpu id, $_cpu_id from the channel $rel_id. Will set 0, the default cpu id, to this cpu"
+						echo 0 > $sysfs_path/channels/$rel_id/cpu
+						_cpu_id=$(cat $sysfs_path/channels/$rel_id/cpu)
+						if [[ $_cpu_id == "0" ]]; then
+							LogMsg "Successfully changed the cpu id of the channel $rel_id to 0"
+							idle_cpus[$cpu_idx]=$_cpu_id
+							cpu_idx=$((cpu_idx+1))
+						else
+							LogErr "Failed to change the cpu id of the channel $rel_id to 0. Expected 0, but found $_cpu_id"
+						fi
+					fi
+					read -a line
+				done
+				#LogMsg "Found vmbus channel and its target cpus: ${temp[@]}, ${!temp[@]}"
+			else
+				LogErr "Supposed to read Sysfs path, but found ${line[@]}"
+			fi
+			idx=$((idx+1))
+		else
+			LogErr "Supposed to read VMBUS ID line, but found ${line[@]}"
+		fi
+	done < "$lsvmbus_output_location"
+
+	LogMsg "VMBUS scanning result: ${vmbus_id[@]}"
+	return
+}
+
 function Main() {
-
-	if [[ $repo_url != "" ]]; then
-		LogMsg "CPU offline and vmbus interrupt reassignement requires kernel build in the VM until the version 5.7"
-		update_repos
-
-		# Install common packages
-		req_pkg="gcc make flex bison git"
-		install_package $req_pkg
-		LogMsg "$?: Installed the common required packages; $req_pkg"
-
-		case $DISTRO in
-			redhat_7|centos_7|redhat_8|centos_8)
-				req_pkg="elfutils-libelf-devel ncurses-devel bc elfutils-libelf-devel openssl-devel grub2"
-				;;
-			suse*|sles*)
-				req_pkg="ncurses-devel libelf-dev"
-				;;
-			ubuntu*)
-				req_pkg="build-essential fakeroot libncurses5-dev libssl-dev ccache"
-				;;
-			*)
-				LogErr "$DISTRO does not support hibernation"
-				SetTestStateFailed
-				exit 0
-				;;
-		esac
-		install_package $req_pkg
-		LogMsg "$?: Installed required packages, $req_pkg"
-
-		# Start kernel compilation
-		LogMsg "Clone and compile new kernel from $repo_url to /usr/src/linux"
-		git clone $repo_url /usr/src/linux
-		LogMsg "$?: Cloned the kernel source repo in /usr/src/linux"
-
-		cd /usr/src/linux/
-
-		git checkout $repo_branch
-		LogMsg "$?: Changed to $repo_branch"
-
-		cp /boot/config*-azure /usr/src/linux/.config
-		LogMsg "$?: Copied the default config file from /boot"
-
-		yes '' | make oldconfig
-		LogMsg "$?: Did oldconfig make file"
-
-		make -j $(getconf _NPROCESSORS_ONLN)
-		LogMsg "$?: Compiled the source codes"
-
-		make modules_install
-		LogMsg "$?: Installed new kernel modules"
-
-		make install
-		LogMsg "$?: Install new kernel"
-
-		cd
-
-		# Append the test log to the main log files.
-		cat /usr/src/linux/TestExecution.log >> ~/TestExecution.log
-		cat /usr/src/linux/TestExecutionError.log >> ~/TestExecutionError.log
+	# Collect the vmbus and cpu id information from the system, and store in /tmp/lsvmbus.output
+	lsvmbus
+	if [ $? != 0 ]; then
+		if [ -f /usr/src/linux/tools/hv/lsvmbus ]; then
+			/usr/src/linux/tools/hv/lsvmbus -vv > $lsvmbus_output_location
+		else
+			LogErr "File, lsvmbus, not found in the system. Aborted the execution."
+			SetTestStateAborted
+			exit 0
+		fi
+	else
+		lsvmbus -vv > $lsvmbus_output_location
 	fi
+	LogMsg "Successfully recorded lsvmbus output in $lsvmbus_output_location"
 
-	sed -i -e "s/GRUB_HIDDEN_TIMEOUT=*.*/GRUB_HIDDEN_TIMEOUT=30/g" /etc/default/grub.d/50-cloudimg-settings.cfg
-	LogMsg "$?: Updated GRUB_HIDDEN_TIMEOUT value with 30"
+	# Before chaning cpu id to 0, reset all cpu ids of each vmbus channel.
+	reset_cpu_id
 
-	sed -i -e "s/GRUB_TIMEOUT=*.*/GRUB_TIMEOUT=30/g" /etc/default/grub.d/50-cloudimg-settings.cfg
-	LogMsg "$?: Updated GRUB_TIMEOUT value with 30"
-
-	update-grub2
-	LogMsg "$?: Ran update-grub2"
+	# Select a CPU number where does not associate to vmbus channels from idle_cpus array
+	for id in ${idle_cpus[@]}; do
+		state=$(cat /sys/devices/system/cpu/cpu$id/online)
+		if [[ $state == "1" ]]; then
+			LogMsg "Verified the current cpu $id is online"
+			dmesg > /tmp/pre-stage.log
+			LogMsg "Took a snapshot of dmesg to /tmp/pre-stage.log"
+			# set cpu to offline
+			echo 0 > /sys/devices/system/cpu/cpu$id/online
+			LogMsg "Changed the cpu $id state to offline"
+			sleep 1
+			post_state=$(cat /sys/devices/system/cpu/cpu$id/online)
+			if [[ $post_state == "0" ]]; then
+				LogMsg "Successfully verified to change the cpu $id state to offline"
+				sleep 1
+				dmesg > /tmp/post-stage.log
+				diff_val=$(diff /tmp/pre-stage.log /tmp/post-stage.log)
+				if [[ $diff_val == *"CPU $id is now offline"* ]]; then
+					LogMsg "Successfully found dmesg log per cpu offline state change"
+					# Change back to online
+					echo 1 > /sys/devices/system/cpu/cpu$id/online
+					LogMsg "Changed the cpu $id state to online"
+					sleep 1
+					post_state=$(cat /sys/devices/system/cpu/cpu$id/online)
+					if [[ $post_state == "1"]]; then
+						LogMsg "Successfully verified to change back the cpu $id state to online"
+						sleep 1
+						dmesg > /tmp/post-stage2.log
+						diff_val2=$(diff /tmp/post-stage.log /tmp/post-stage2.log)
+						if [[ $diff_val == *"smptboot: Booting Node 1 Processor $id APIC"* ]]; then
+							LogMsg "Successfully found dmesg log per cpu online state change"
+						else
+							LogErr "Failed to verify cpu online state change. Expected smptboot: Booting Node 1 Processor $id APIC, but found $diff_val2"
+						fi
+					else
+						LogErr "Failed to change back cpu $id to onlone"
+					fi
+				else
+					LogErr "Failed to find the expected dmesg. Expected CPU $id is now offline, but found $diff_val"
+				fi
+			else
+				LogErr "Failed to change the cpu $id state to offline. Expected 0, but found $post_state"
+			fi
+		else
+			LogErr "Found the currect cpu $id is not online. Expected 1 but found $state"
+		fi
+	done
 
 	echo "job_completed=0" >> ~/constants.sh
-	LogMsg "Main job function completed"
+	LogMsg "Main function job completed"
 }
 
 # main body
 Main
-cp ~/TestExecution.log ~/Setup-TestExecution.log
-cp ~/TestExecutionError.log ~/Setup-TestExecutionError.log
 SetTestStateCompleted
 exit 0
