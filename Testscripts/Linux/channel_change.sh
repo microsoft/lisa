@@ -18,7 +18,6 @@ UtilsInit
 # Get distro information
 GetDistro
 
-
 # Global variables
 lsvmbus_output_location=/tmp/lsvmbus.output
 vmbus_id=()
