@@ -320,6 +320,7 @@ function Main {
 				New-Item -Path "$LogDir\InfiniBand-Verification-$Iteration-$TempName" -Force -ItemType Directory | Out-Null
 				Move-Item -Path "$LogDir\$InfinibandNic-status*" -Destination "$LogDir\InfiniBand-Verification-$Iteration-$TempName" | Out-Null
 				Move-Item -Path "$LogDir\IMB*" -Destination "$LogDir\InfiniBand-Verification-$Iteration-$TempName" | Out-Null
+				Move-Item -Path "$LogDir\OSU*" -Destination "$LogDir\InfiniBand-Verification-$Iteration-$TempName" | Out-Null
 				Move-Item -Path "$LogDir\kernel-logs-*" -Destination "$LogDir\InfiniBand-Verification-$Iteration-$TempName" | Out-Null
 				Move-Item -Path "$LogDir\TestExecution.log" -Destination "$LogDir\InfiniBand-Verification-$Iteration-$TempName" | Out-Null
 				Move-Item -Path "$LogDir\state.txt" -Destination "$LogDir\InfiniBand-Verification-$Iteration-$TempName" | Out-Null
@@ -394,11 +395,11 @@ function Main {
 				}
 				#endregion
 
-				#region Check P2P all nodes tests
+				#region Check IMB P2P all nodes tests
 				if ($ImbP2pTestIterations -ge 1) {
 					$logFileName = "$LogDir\InfiniBand-Verification-$Iteration-$TempName\TestExecution.log"
-					$pattern = "INFINIBAND_VERIFICATION_SUCCESS_P2P_ALLNODES"
-					$patternSkipped = "INFINIBAND_VERIFICATION_SKIPPED_P2P_ALLNODES"
+					$pattern = "INFINIBAND_VERIFICATION_SUCCESS_IMB_P2P_ALLNODES"
+					$patternSkipped = "INFINIBAND_VERIFICATION_SKIPPED_IMB_P2P_ALLNODES"
 					Write-LogInfo "Analyzing $logFileName"
 					$metaData = "InfiniBand-Verification-$Iteration-$TempName : IMB-P2P"
 					$SucessLogs = Select-String -Path $logFileName -Pattern $pattern
@@ -481,9 +482,9 @@ function Main {
 				#region Check OSU all nodes tests
 				if ($OsuP2PTestIterations -ge 1) {
 					$logFileName = "$LogDir\InfiniBand-Verification-$Iteration-$TempName\TestExecution.log"
-					$pattern = "INFINIBAND_VERIFICATION_SUCCESS_OSU_ALLNODES"
+					$pattern = "INFINIBAND_VERIFICATION_SUCCESS_OSU_P2P_ALLNODES"
 					Write-LogInfo "Analyzing $logFileName"
-					$metaData = "InfiniBand-Verification-$Iteration-$TempName : IMB-RMA"
+					$metaData = "InfiniBand-Verification-$Iteration-$TempName : OSU-P2P"
 					$SucessLogs = Select-String -Path $logFileName -Pattern $pattern
 					if ($SucessLogs.Count -eq 1) {
 						$currentResult = $resultPass

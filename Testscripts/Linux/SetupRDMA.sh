@@ -606,20 +606,26 @@ function Main() {
 		Verify_File $benchmark_bin
 	fi
 
-    HOMEDIR=$(pwd)
-	cd ~
-	LogMsg "Proceeding OSU MPI Benchmark test installation"
-	LogMsg "Downloading mpi-benchmarks from $osu_mpi_benchmark"
-	wget http://mvapich.cse.ohio-state.edu/download/mvapich/osu-micro-benchmarks-5.6.2.tar.gz
-	tar xvzf osu-micro-benchmarks-5.6.2.tar.gz
-	cd osu-micro-benchmarks-5.6.2
-	./configure --prefix=$(pwd) && make && make install
-	Verify_Result
-	LogMsg "OSU mpi-benchmarks  $osu_mpi_benchmark installation completed"
-	# set string to verify osu Benchmark is downloaded
-	osu_benchmark_bin=/usr/local/libexec/osu-micro-benchmarks/mpi/pt2pt/osu_latency
-	Verify_File $osu_benchmark_bin
-	cd HOMEDIR
+	if [ $mpi_type != "mvapich" ]; then
+		currentDir=$(pwd)
+		cd ~
+		LogMsg "Proceeding OSU MPI Benchmark test installation"
+		LogMsg "Downloading mpi-benchmarks from $osu_mpi_benchmark"
+		wget $osu_mpi_benchmark
+		tar_filename=$(echo $osu_mpi_benchmark | rev | cut -d'/' -f1 | rev)
+		tar xvzf tar_filename
+		LogMsg "Untarred $tar_filename"
+		cd ${tar_filename%.*.*}
+
+		LogMsg "Running configuration and installing"
+		./configure --prefix=$(pwd) && make && make install
+		Verify_Result
+		LogMsg "OSU mpi-benchmarks $osu_mpi_benchmark installation completed"
+		# set string to verify osu benchmark is downloaded
+		osu_benchmark_bin=/usr/local/libexec/osu-micro-benchmarks/mpi/pt2pt/osu_latency
+		Verify_File $osu_benchmark_bin
+		cd $currentDir
+	fi
 
 	echo "setup_completed=0" >> /root/constants.sh
 	LogMsg "Completed SetupRDMA process"

@@ -35,7 +35,6 @@
 			<param>open_mpi=OPEN_MPI_DOWNLOAD</param>
 			<param>mvapich_mpi=MVAPICH_MPI_DOWNLOAD</param>
 			<param>intel_mpi_benchmark=INTEL_MPI_BENCHMARK_DOWNLOAD</param>
-            <param>osu_mpi_benchmark=OSU_MPI_BENCHMARK_DOWNLOAD</param>
 			<param>walaagent_repo=WALAAgent_REPO</param>
 			<param>quicktest_only=QUICKTEST_ONLY</param>
 		</TestParameters>
