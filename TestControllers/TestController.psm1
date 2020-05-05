@@ -611,50 +611,16 @@ Class TestController
 			$lastResult = $null
 			$tests = 0
 
+			$CleanupResource = {
+				Write-LogInfo "Delete deployed target machine ..."
+				$null = $this.TestProvider.DeleteVMs($vmData, $this.SetupTypeTable[$setupType], $this.UseExistingRG); $null
+			}
+
 			foreach ($currentTestCase in $this.SetupTypeToTestCases[$setupKey]) {
 				# array like: @({TestName=xxx-<vmSize>-<iteration>;TestVmSize=yyy}, { }, ...)
 				$arrayOfTestConfigs = $this.GetArrayOfExpandedTestConfigsFromTestParameters($currentTestCase.testName, $currentTestCase.OverrideVMSize)
 				$tcDeployVM = $this.DeployVMPerEachTest
 				$tcRemoveVM = $this.DeployVMPerEachTest
-
-				$CleanupResource = {
-					if ($this.ResourceCleanup -imatch "Keep") {
-						# No matter test results, Keep $vmData.
-						Write-LogInfo "Keep deployed target machine for future reuse."
-					}
-					elseif ($this.ResourceCleanup -imatch "Delete") {
-						# No matter test results, DeleteVMs and reset $vmData = $null
-						Write-LogInfo "Delete deployed target machine ..."
-						$this.TestProvider.DeleteVMs($vmData, $this.SetupTypeTable[$setupType], $this.UseExistingRG)
-						$vmData = $null
-					}
-					else { # $this.ResourceCleanup = Default
-						if ($this.TestCasePassStatus.contains($lastResult.TestResult)) {
-							# be default to reuse this VMData for following test cases, unless 'tcRemoveVM' = true
-							if ($tcRemoveVM) {
-								Write-LogInfo "Delete deployed target machine ..."
-								$this.TestProvider.DeleteVMs($vmData, $this.SetupTypeTable[$setupType], $this.UseExistingRG)
-								$vmData = $null
-							}
-						}
-						else { # Test Failed or Aborted
-							if ($this.TestProvider.ReuseVmOnFailure) {
-								# do nothing, and reuse the $vmData
-								Write-LogInfo "Keep deployed target machine for future reuse, as 'ReuseVmOnFailure' is True"
-							}
-							elseif ($this.UseExistingRG) {
-								# UseExistingRG possibly means limited TiP Resources. Also, preserve deployed VMs with different OSType will cause following Testing Aborted
-								Write-LogInfo "Delete deployed target machine on Failed/Aborted, because -UseExistingRG IsPresent ..."
-								$this.TestProvider.DeleteVMs($vmData, $this.SetupTypeTable[$setupType], $this.UseExistingRG)
-								$vmData = $null
-							}
-							else {
-								# do not DeleteVMs(), but reset $vmData = $null, so continue testing will Deploy New VMs
-								$vmData = $null
-							}
-						}
-					}
-				}
 
 				for ($indexOfTC = 0; $indexOfTC -lt $arrayOfTestConfigs.Count; $indexOfTC++) {
 					$expandedTestConfig = $arrayOfTestConfigs[$indexOfTC]
@@ -685,8 +651,9 @@ Class TestController
 								$vmData = $deployVMStatus.VmData
 							}
 							# if there are deployment errors, skip RunTestCase, just CleanupResource, as this is unrecoverable
+							# and we do not care about the last test run result (Pass or Fail), always CleanupResource
 							if ($vmData -and $deployVMStatus.Error) {
-								&$CleanupResource
+								$vmData = &$CleanupResource
 							}
 							$deployErrors = Trim-ErrorLogMessage $deployVMStatus.Error
 						}
@@ -701,19 +668,57 @@ Class TestController
 					}
 					# Run current test case
 					Write-LogInfo "Run test case against the target machine ..."
+					# After RunOneTestCase, we care about '$lastResult', to choose flow of 'reuse' or 'preserve' VMs
 					$lastResult = $this.RunOneTestCase($vmData, $currentTestCase, $executionCount, $this.SetupTypeTable[$setupType], ($tests -ne 0))
 					$tests++
 
-					&$CleanupResource
+					# Last Test is 'Pass', by default reuse VM deployment till the end of current SetupType (with the Combined Setup Key)
+					if ($this.TestCasePassStatus.contains($lastResult.TestResult)) {
+						# Unless 'tcRemoveVM' = true, then ==>  $vmData = &$CleanupResource
+						if ($tcRemoveVM) {
+							if ($this.ResourceCleanup -imatch "Keep") {
+								Write-LogWarn "ResourceCleanup = 'Keep' is respected, but may be huge waste of resources when '-DeployVMPerEachTest' is Set."
+								$vmData = $null
+							}
+							else {
+								$vmData = &$CleanupResource
+							}
+						}
+					}
+					else { # Last Test is Failed/Aborted, by default preserve VM for analysis/debugging, but set $vmData = null: (force another deployment happen for next TC)
+						# unless '-ReuseVmOnFailure', keep $vmData as last failure environment, no new deployment behavior followed.
+						if ($this.TestProvider.ReuseVmOnFailure) {
+							Write-LogInfo "Keep deployed target machine for future reuse, as '-ReuseVmOnFailure' is True"
+						}
+						# unless '-ResourceCleanup = Delete', possibly means choose economy option for saving cost and resources
+						# unless '-UseExistingRG', preserve deployed VMs in the same RG will cause following Testing Aborted (names of resources are fixed in LISAv2)
+						elseif ($this.UseExistingRG -or ($this.ResourceCleanup -imatch "Delete")) {
+							if ($this.ResourceCleanup -imatch "Keep") {
+								Write-LogWarn "ResourceCleanup = 'Keep' is respected, but may conflict with '-UseExistingRG', as 'Keep' will cause following tests Aborted."
+								$vmData = $null
+							}
+							else {
+								$vmData = &$CleanupResource
+							}
+						}
+						else { # this is by default choice for last Failed/Aborted
+							$vmData = $null
+						}
+					}
 				}
 			}
 
-			# If the Last Test Result passed (already preserved the failure VMs following testing params and config),
-			# delete the VM after all the cases of same setup are completed, unless the ResourceLeanup is Keep
-			if ($this.TestCasePassStatus.contains($lastResult.TestResult) -and ($this.ResourceCleanup -inotmatch "Keep")) {
-				Write-LogInfo "Delete deployed target machine if required ..."
-				$this.TestProvider.DeleteVMs($vmData, $this.SetupTypeTable[$setupType], $this.UseExistingRG)
-				# $vmData and $lastResult will be reset as $null at the beginning of each iteration for setupTypes
+			# Cleanup, if $vmData is not null (Not Preserved for failure/debugging) or 'ResourceCleanup = Delete'
+			# at the end of each SetupType (Combined setup Key) after all tests belongs to this testSetup completed
+			# unless $ResourceCleanup is Keep
+			if ($vmData -or ($this.ResourceCleanup -imatch "Delete")) {
+				if ($this.ResourceCleanup -imatch "Keep") {
+					Write-LogWarn "ResourceCleanup = 'Keep' is respected, you may need to delete the testing resources * MANUALLY * sometime later."
+					$vmData = $null
+				}
+				else {
+					$vmData = &$CleanupResource
+				}
 			}
 		}
 

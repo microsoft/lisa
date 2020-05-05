@@ -346,6 +346,10 @@ function Is-VmAlive {
         $AllVMDataObject,
         $MaxRetryCount = 50
     )
+	if ((!$AllVMDataObject) -or (!$AllVMDataObject.RoleName)) {
+		Write-LogWarn "Empty/Invalid collection of AllVMDataObject."
+		return "False"
+	}
 
     Write-LogInfo "Trying to connect to deployed VMs."
 
