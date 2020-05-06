@@ -263,6 +263,14 @@ function Main {
             Write-LogErr "Test Aborted. Last known status : $currentStatus."
             $testResult = "ABORTED"
         } elseif ($finalStatus -imatch "TestCompleted") {
+            $testResult = "PASS"
+        } elseif ($finalStatus -imatch "TestRunning") {
+            Write-LogInfo "Powershell job for test is completed but test is still running."
+            $testResult = "FAILED"
+        }
+
+        if ($testResult -eq "PASS" -or $testResult -eq "FAIL") {
+            Write-LogInfo "Copying remote files..."
             Copy-RemoteFiles -downloadFrom $allVMData.PublicIP -port $allVMData.SSHPort `
                 -username "root" -password $password -download -downloadTo $LogDir -files "FIOTest-*.tar.gz"
             Copy-RemoteFiles -downloadFrom $allVMData.PublicIP -port $allVMData.SSHPort `
@@ -271,12 +279,8 @@ function Main {
                 -username "root" -password $password -command "/root/ParseFioTestLogs.sh" `
                 -runMaxAllowedTime $TestParams.parseTimeout
             Copy-RemoteFiles -downloadFrom $allVMData.PublicIP -port $allVMData.SSHPort `
-                -username "root" -password $password -download -downloadTo $LogDir `
-                -files "perf_fio.csv"
-            $testResult = "PASS"
-        } elseif ($finalStatus -imatch "TestRunning") {
-            Write-LogInfo "Powershell job for test is completed but test is still running."
-            $testResult = "FAILED"
+                    -username "root" -password $password -download -downloadTo $LogDir `
+                    -files "perf_fio.csv"
         }
         Write-LogInfo "Test result: $testResult"
         if ($testResult -ne "PASS") {
