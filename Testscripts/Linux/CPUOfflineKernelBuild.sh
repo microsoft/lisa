@@ -44,7 +44,7 @@ function Main() {
 				req_pkg="elfutils-libelf-devel ncurses-devel bc elfutils-libelf-devel openssl-devel grub2"
 				;;
 			suse*|sles*)
-				req_pkg="ncurses-devel libelf-dev"
+				req_pkg="ncurses-devel libopenssl-devel libelf-devel"
 				;;
 			ubuntu*)
 				req_pkg="build-essential fakeroot libncurses5-dev libssl-dev ccache"
@@ -91,10 +91,12 @@ function Main() {
 		LogMsg "$?: Install new kernel"
 	fi
 
-	update-grub2
-	LogMsg "$?: Ran update-grub2"
+	if [[ $DISTRO == "ubuntu*" ]]; then
+		update-grub2
+		LogMsg "$?: Ran update-grub2"
+	fi
 
-	echo "setup_completed=0" >> ~/constants.sh
+	echo "setup_completed=0" >> /home/$user/constants.sh
 	LogMsg "Main function of setup completed"
 }
 
