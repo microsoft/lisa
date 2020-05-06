@@ -59,17 +59,24 @@ function Main() {
 		LogMsg "$?: Installed required packages, $req_pkg"
 
 		# Start kernel compilation
-		LogMsg "Clone and compile new kernel from $repo_url to /usr/src/linux"
-		git clone $repo_url /usr/src/linux
-		LogMsg "$?: Cloned the kernel source repo in /usr/src/linux"
+		LogMsg "Clone and compile new kernel from $repo_url"
+		git clone $repo_url linux
+		LogMsg "$?: Cloned the kernel source repo"
 
-		cd /usr/src/linux/
+		cd linux
 
 		git checkout $repo_branch
 		LogMsg "$?: Changed to $repo_branch"
 
-		cp /boot/config*-azure /usr/src/linux/.config
+		config_file=$(ls /boot/config* | head -n 1)
+		cp $config_file ~/.config
 		LogMsg "$?: Copied the default config file from /boot"
+
+		if [[ $DISTRO == "redhat_8" ]]; then
+			# comment out those 2 parameters in RHEL 8.x
+			sed -i -e "s/CONFIG_SYSTEM_TRUSTED_KEY*.*/#CONFIG_SYSTEM_TRUSTED_KEY/g" ~/.config
+			sed -i -e "s/CONFIG_MODULE_SIG_KEY*.*/#CONFIG_MODULE_SIG_KEY/g" ~/.config
+		fi
 
 		yes '' | make oldconfig
 		LogMsg "$?: Did oldconfig make file"
@@ -82,19 +89,7 @@ function Main() {
 
 		make install
 		LogMsg "$?: Install new kernel"
-
-		cd
-
-		# Append the test log to the main log files.
-		cat /usr/src/linux/TestExecution.log >> ~/TestExecution.log
-		cat /usr/src/linux/TestExecutionError.log >> ~/TestExecutionError.log
 	fi
-
-	sed -i -e "s/GRUB_HIDDEN_TIMEOUT=*.*/GRUB_HIDDEN_TIMEOUT=30/g" /etc/default/grub.d/50-cloudimg-settings.cfg
-	LogMsg "$?: Updated GRUB_HIDDEN_TIMEOUT value with 30"
-
-	sed -i -e "s/GRUB_TIMEOUT=*.*/GRUB_TIMEOUT=30/g" /etc/default/grub.d/50-cloudimg-settings.cfg
-	LogMsg "$?: Updated GRUB_TIMEOUT value with 30"
 
 	update-grub2
 	LogMsg "$?: Ran update-grub2"
@@ -105,7 +100,5 @@ function Main() {
 
 # main body
 Main
-cp ~/TestExecution.log ~/Setup-TestExecution.log
-cp ~/TestExecutionError.log ~/Setup-TestExecutionError.log
 SetTestStateCompleted
 exit 0
