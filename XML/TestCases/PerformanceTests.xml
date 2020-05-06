@@ -317,6 +317,9 @@
         <testName>PERF-STORAGE-1024K-IO</testName>
         <testScript>PERF-STORAGE-MULTIDISK-RAID0-FIO.ps1</testScript>
         <setupType>OneVM12Disk</setupType>
+        <AdditionalHWConfig>
+            <StorageAccountType>PERF_STORAGE_ACCOUNT_TYPE</StorageAccountType>
+        </AdditionalHWConfig>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <TestParameters>
             <param>modes=PERF-STORAGE-1024K-IO-MODES</param>
@@ -338,6 +341,9 @@
         <testName>PERF-STORAGE-OVER-NFS-Synthetic-TCP-4K</testName>
         <testScript>PERF-STORAGE-OVER-NFS.ps1</testScript>
         <setupType>TwoVM12Disk</setupType>
+        <AdditionalHWConfig>
+            <StorageAccountType>PERF_STORAGE_ACCOUNT_TYPE</StorageAccountType>
+        </AdditionalHWConfig>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh,.\Tools\gawk</files>
         <TestParameters>
             <param>modes=PERF-STORAGE-4K-IO-MODES</param>
@@ -360,6 +366,9 @@
         <testName>PERF-STORAGE-OVER-NFS-Synthetic-UDP-4K</testName>
         <testScript>PERF-STORAGE-OVER-NFS.ps1</testScript>
         <setupType>TwoVM12Disk</setupType>
+        <AdditionalHWConfig>
+            <StorageAccountType>PERF_STORAGE_ACCOUNT_TYPE</StorageAccountType>
+        </AdditionalHWConfig>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh</files>
         <TestParameters>
             <param>modes=PERF-STORAGE-4K-IO-MODES</param>
@@ -384,6 +393,7 @@
         <setupType>TwoVM12Disk</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
+            <StorageAccountType>PERF_STORAGE_ACCOUNT_TYPE</StorageAccountType>
         </AdditionalHWConfig>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh</files>
         <TestParameters>
@@ -409,6 +419,7 @@
         <setupType>TwoVM12Disk</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
+            <StorageAccountType>PERF_STORAGE_ACCOUNT_TYPE</StorageAccountType>
         </AdditionalHWConfig>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh</files>
         <TestParameters>
