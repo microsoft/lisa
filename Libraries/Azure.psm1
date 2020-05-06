@@ -2976,8 +2976,12 @@ Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $Cu
         $ErrorMessage = $_.Exception.Message
         Write-LogErr "EXCEPTION : $ErrorMessage"
         Write-LogErr "Source : Line $line in script $script_name."
-        Write-LogWarn "Debug: Last boot raw text : $(Get-Content "$LogDir\$($vmData.RoleName)-uptime.txt")"
-        Write-LogWarn "Debug: WALA start line raw text : $waagentStartLine"
-        Write-LogWarn "Debug: WALA start raw text : $($waagentStartLine.Split()[0] + " " + $waagentStartLine.Split()[1])"
+        if ($vmData -and $vmData.RoleName -and $LogDir -and $(Test-Path -Path "$LogDir\$($vmData.RoleName)-uptime.txt")) {
+            Write-LogWarn "Debug: Last boot raw text : $(Get-Content "$LogDir\$($vmData.RoleName)-uptime.txt")"
+        }
+        if ($waagentStartLine) {
+            Write-LogWarn "Debug: WALA start line raw text : $waagentStartLine"
+            Write-LogWarn "Debug: WALA start raw text : $($waagentStartLine.Split()[0] + " " + $waagentStartLine.Split()[1])"
+        }
     }
 }
