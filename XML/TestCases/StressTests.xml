@@ -208,7 +208,7 @@
 			<param>testType=StressLongTime</param>
 		</TestParameters>
 		<cleanupScript>.\Testscripts\Windows\RemoveHardDisk.ps1</cleanupScript>
-		<Platform>Azure,HyperV</Platform>
+		<Platform>Azure</Platform>
 		<Category></Category>
 		<Area></Area>
 		<Tags>stress,hv_storvsc,storage</Tags>
