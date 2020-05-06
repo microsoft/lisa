@@ -35,7 +35,7 @@ function Main() {
 		update_repos
 
 		# Install common packages
-		req_pkg="gcc make flex bison git"
+		req_pkg="gcc make bison git"
 		install_package $req_pkg
 		LogMsg "$?: Installed the required common packages; $req_pkg"
 
@@ -47,7 +47,7 @@ function Main() {
 				req_pkg="ncurses-devel libopenssl-devel libelf-devel"
 				;;
 			ubuntu*)
-				req_pkg="build-essential fakeroot libncurses5-dev libssl-dev ccache"
+				req_pkg="build-essential fakeroot libncurses5-dev libssl-dev ccache flex"
 				;;
 			*)
 				LogErr "$DISTRO does not support vmbus channel re-assignment per cpu offline"
