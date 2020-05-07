@@ -40,7 +40,7 @@ function Main {
 
 		# ##################################################################################
 		# New kernel build for CPU channel change and vmbus interrupt re-assignment
-		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./CPUOfflineKernelBuild.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "/home/$user/CPUOfflineKernelBuild.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
 		Write-LogInfo "Executing CPUOfflineKernelBuild script inside VM"
 
 		# Wait for kernel compilation completion. 60 min timeout
@@ -49,9 +49,9 @@ function Main {
 		while ($sw.elapsed -lt $timeout){
 			$vmCount = $AllVMData.Count
 			Wait-Time -seconds 15
-			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat ~/state.txt"
+			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat /home/$user/state.txt"
 			if ($state -eq "TestCompleted") {
-				$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat ~/constants.sh | grep setup_completed=0"
+				$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat /home/$user/constants.sh | grep setup_completed=0"
 				if ($kernelCompileCompleted -ne "setup_completed=0") {
 					Write-LogErr "CPUOfflineKernelBuild.sh finished on $($VMData.RoleName) but setup was not successful!"
 				} else {
@@ -86,7 +86,7 @@ function Main {
 
 		# ##################################################################################
 		# Running CPU channel change
-		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./channel_change.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "/home/$user/channel_change.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
 		Write-LogInfo "Executed channel_change script inside VM"
 
 		# Wait for kernel compilation completion. 60 min timeout
@@ -95,9 +95,9 @@ function Main {
 		while ($sw.elapsed -lt $timeout){
 			$vmCount = $AllVMData.Count
 			Wait-Time -seconds 15
-			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat ~/state.txt"
+			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat /home/$user/state.txt"
 			if ($state -eq "TestCompleted") {
-				$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat ~/constants.sh | grep job_completed=0"
+				$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat /home/$user/constants.sh | grep job_completed=0"
 				if ($kernelCompileCompleted -ne "job_completed=0") {
 					Write-LogErr "channel_change.sh finished on $($VMData.RoleName) but job was not successful!"
 				} else {
