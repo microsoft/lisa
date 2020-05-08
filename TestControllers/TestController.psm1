@@ -656,7 +656,7 @@ Class TestController
 							# and we do not care about the last test run result (Pass or Fail), always try to CleanupResource, unless 'ResourceCleanup = Keep' set
 							if ($vmData -and $deployVMResults.Error) {
 								if ($this.ResourceCleanup -imatch "Keep") {
-									Write-LogWarn "ResourceCleanup = 'Keep' is respected, but following testing may fail, as Deployment Errors detected."
+									Write-LogWarn "ResourceCleanup = 'Keep' is respected, current test will abort, as deployment error(s) detected."
 									$vmData = $null
 								}
 								else {
