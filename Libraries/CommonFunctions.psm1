@@ -1647,7 +1647,7 @@ function Set-GuestInterface {
         Write-LogErr "Failed to configure $testInterfaceName NIC on vm $VMName"
         return $False
     }
-    Write-LogInfo "Sucessfuly configured $testInterfaceName on $VMName"
+    Write-LogInfo "Successfully configured $testInterfaceName on $VMName"
     return $True
 }
 

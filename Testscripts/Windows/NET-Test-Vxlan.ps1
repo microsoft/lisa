@@ -104,7 +104,7 @@ function Main {
         Write-LogErr "Failed to configure vxlan on vm $VMName"
         return "FAIL"
     } else {
-        Write-LogInfo "Sucessfuly configured vxlan on $VMName"
+        Write-LogInfo "Succesfully configured vxlan on $VMName"
     }
 
     $cmdToSendVM2 = "chmod u+x NET-Configure-Vxlan.sh && ./NET-Configure-Vxlan.sh $vm2StaticIP remote"
@@ -114,7 +114,7 @@ function Main {
         Write-LogErr "Failed to configure vxlan on vm $VM2Name"
         return "FAIL"
     } else {
-        Write-LogInfo "Sucessfuly configured vxlan on $VM2Name"
+        Write-LogInfo "Succesfully configured vxlan on $VM2Name"
     }
 
     # Send rsync command on the first VM
