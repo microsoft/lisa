@@ -405,14 +405,6 @@ function Create-HyperVGroupDeployment([string]$HyperVGroupName, $HyperVGroupXML,
                     $Out = Set-VM -VM $NewVM -ProcessorCount $CurrentVMCpu -StaticMemory  -CheckpointType Disabled -Notes "$HyperVGroupName"
                     Write-LogInfo "Add-VMGroupMember -Name $HyperVGroupName -VM $($NewVM.Name)"
                     $Out = Add-VMGroupMember -Name "$HyperVGroupName" -VM $NewVM -ComputerName $HyperVHost
-                    $ResourceDiskPath = Join-Path $env:TEMP "ResourceDisk-$((Get-Date).Ticks)-sdb${vhdSuffix}"
-                    if ($DestinationOsVHDPath -ne "VHDs_Destination_Path") {
-                        $ResourceDiskPath = "$DestinationOsVHDPath\ResourceDisk-$((Get-Date).Ticks)-sdb${vhdSuffix}"
-                    }
-                    Write-LogInfo "New-VHD -Path $ResourceDiskPath -SizeBytes 1GB -Dynamic -ComputerName $HyperVHost"
-                    New-VHD -Path $ResourceDiskPath -SizeBytes 1GB -Dynamic -ComputerName $HyperVHost
-                    Write-LogInfo "Add-VMHardDiskDrive -ControllerType SCSI -Path $ResourceDiskPath -VM $($NewVM.Name)"
-                    Add-VMHardDiskDrive -ControllerType SCSI -Path $ResourceDiskPath -VM $NewVM
                     if ($NewVM.AutomaticStopAction -ne "Shutdown") {
                         Write-LogInfo "Set-VM -Name $CurrentVMName -ComputerName $HyperVHost -AutomaticStopAction Shutdown"
                         try {

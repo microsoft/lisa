@@ -129,7 +129,7 @@ collect_VM_properties
             }
         }
 
-        $currentStatus = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort `
+        $currentStatus = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort `
             -username $user -password $password -command "tail -1 ~/xdpConsoleLogs.txt" -runAsSudo
         $currentState = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort `
             -username $user -password $password -command "cat state.txt" -runAsSudo

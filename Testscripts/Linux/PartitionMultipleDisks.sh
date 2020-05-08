@@ -22,7 +22,7 @@ declare -a fsSkipped
 # Check if tools for all the filesystems are installed
 for fs in "${fileSystems[@]}"
 do
-    LogMsg "FileSystem check for $fs" 
+    LogMsg "FileSystem check for $fs"
     command -v mkfs.$fs >> ./summary.log
     if [ $? -ne 0 ]; then
         msg="Tools for filesystem $fs are not installed. Test will be skipped."
@@ -36,62 +36,17 @@ do
         fsSkipped[$fs]=0
     fi
 done
-# Count total number of partitions on system
-count=$(grep -c 'sd[a-z][0-9]' /proc/partitions)
-LogMsg "Total number of partitions ${count}"
-for driveName in /dev/sd*[^0-9]
-do
-    #
-    # Skip /dev/sda and /dev/sdb
-    #
-    if [[ $driveName == "/dev/sda"  || $driveName == "/dev/sdb" ]] ; then
-        continue
-    fi
-    drives+=($driveName)
-    # Delete existing partition
-    for (( c=1 ; c<=count; count--))
-    do
-        (echo d; echo $c ; echo ; echo w) |  fdisk $driveName &>~/summary.log
-        sleep 5
-    done
-    # Partition drive
-    (echo n; echo p; echo 1; echo ; echo +500M; echo ; echo w) | fdisk $driveName &>~/summary.log
-    sleep 5
-    (echo n; echo p; echo 2; echo ; echo; echo ; echo w) | fdisk $driveName &>~/summary.log
-    sts=$?
-    sleep 5
-    if [ 0 -ne ${sts} ]; then
-        LogErr "Partitioning disk Failed ${sts}" >> ~/summary.log
-        SetTestStateAborted
-        exit 1
+
+delete_partition
+make_partition 2
+
+for fs in "${fileSystems[@]}"; do
+    if [ ${fsSkipped[$fs]} -eq 0 ]; then
+        LogMsg "$fs is NOT skipped"
+        make_filesystem 2 "${fs}"
     else
-        LogMsg "Partitioning disk $driveName : Success" >> ~/summary.log
+        LogErr "$fs is skipped"
     fi
-    # Create filesystem on it
-    for fs in "${fileSystems[@]}"
-    do
-        if [ ${fsSkipped[$fs]} -eq 0 ]
-        then
-            LogMsg "$fs is NOT skipped" >> ~/fsCheck.log
-            fsSkipped[$fs]=1
-            echo "y" | mkfs.$fs ${driveName}1  &>~/summary.log; echo "y" | mkfs.$fs ${driveName}2 &>~/summary.log
-            sts=$?
-            if [ 0 -ne ${sts} ]
-            then
-                LogErr "Warning: creating filesystem Failed ${sts}" >> ~/summary.log
-                LogErr "Warning: test for $fs will be skipped" >> ~/summary.log
-            else
-                LogMsg "Creating FileSystem $fs on disk  $driveName : Success" >> ~/summary.log
-            fi
-            break
-        else
-            LogErr "$fs is skipped" >> ~/fsCheck.log
-        fi
-    done
-    sleep 1
-    fs=${fs//,}
-    filename="summary-$fs.log"
-    cp ~/summary.log ~/$filename
 done
 SetTestStateCompleted
 exit 0

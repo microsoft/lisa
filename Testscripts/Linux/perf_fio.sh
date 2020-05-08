@@ -48,15 +48,6 @@ UpdateTestState()
 	echo "${1}" > $STATE_FILE
 }
 
-get_AvailableDisks() {
-	for disk in $(lsblk | grep "sd[a-z].*disk" | cut -d ' ' -f1);
-	do
-		if [ $(df | grep -c $disk) -eq 0 ]; then
-			echo $disk
-		fi
-	done
-}
-
 RunFIO()
 {
 	UpdateTestState $ICA_TESTRUNNING
