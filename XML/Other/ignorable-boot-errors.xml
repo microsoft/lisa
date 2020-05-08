@@ -24,6 +24,11 @@
             <keywords>microcode_ctl: kernel version ".*" failed early load check for ".*", skipping</keywords>
             <keywords>rngd: Failed to init entropy source 0: Hardware RNG Device</keywords>
             <keywords>open /dev/vmbus/hv_fcopy failed; error: 2 No such file or directory</keywords>
+            <keywords>open /dev/vmbus/hv_vss failed; error: 2 No such file or directory</keywords>
+            <keywords>hv-vss-daemon.service: Main process exited, code=exited, status=1/FAILURE</keywords>
+            <keywords>hv-vss-daemon.service: Failed with result 'exit-code'</keywords>
+            <keywords>hv-fcopy-daemon.service: Main process exited, code=exited, status=1/FAILURE</keywords>
+            <keywords>hv-fcopy-daemon.service: Failed with result 'exit-code'</keywords>
         </failures>
         <errors>
             <keywords>TLS record write failed</keywords>
@@ -36,6 +41,7 @@
             <keywords>Condition check resulted in Process error reports when automatic reporting is enabled</keywords>
             <keywords>error trying to compare the snap system key: system-key missing on disk</keywords>
             <keywords>open /dev/vmbus/hv_fcopy failed; error: 2 No such file or directory</keywords>
+            <keywords>open /dev/vmbus/hv_vss failed; error: 2 No such file or directory</keywords>
             <keywords>mitigating potential DNS violation DVE-2018-0001</keywords>
             <keywords>end_request: I/O error, dev fd0, sector 0</keywords>
             <keywords>blk_update_request: I/O error, dev fd0, sector 0</keywords>
