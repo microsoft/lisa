@@ -138,9 +138,9 @@ Function Collect-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Tes
             if ($TestPlatform -eq "Any") {
                 $platformMatched = $true
             } else {
-                $platforms = $test.Platform.Split(",")
+                $platforms = $test.Platform.Trim(', ').Split(',').Trim()
                 for ($i=0; $i -lt $platforms.length; $i++) {
-                    if ($TestPlatform.Contains($platforms[$i]) -or $platforms[$i].Contains($TestPlatform)) {
+                    if (($TestPlatform -imatch $platforms[$i]) -or ($platforms[$i] -imatch $TestPlatform)) {
                         $platformMatched = $true
                         break
                     }
@@ -149,16 +149,16 @@ Function Collect-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Tes
             if (!$platformMatched) {
                 continue
             }
-
-            if (!($TestCategory.Split(",").Contains($test.Category)) -and ($TestCategory -ne "*")) {
+            # case insensitive 'contains', and always complete match the concatenated expression, e.g., 'ABC-DE,  MY-TEST,  '
+            if (!($TestCategory.Trim(', ').Split(',').Trim() -contains $test.Category) -and ($TestCategory -ne "*")) {
                 continue
             }
 
-            if (!($TestArea.Split(",").Contains($test.Area)) -and ($TestArea -ne "*")) {
+            if (!($TestArea.Trim(', ').Split(',').Trim() -contains $test.Area) -and ($TestArea -ne "*")) {
                 continue
             }
 
-            if (!($TestNames.Split(",").Contains($test.testName)) -and ($TestNames -ne "*")) {
+            if (!($TestNames.Trim(', ').Split(',').Trim() -contains $test.testName) -and ($TestNames -ne "*")) {
                 continue
             }
 
@@ -174,12 +174,12 @@ Function Collect-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Tes
 
             if ($ExcludeTests) {
                 $ExcludeTestMatched = $false
-                foreach ($TestString in $ExcludeTests.Split(",")) {
+                foreach ($TestString in $ExcludeTests.Trim(', ').Split(',').Trim()) {
                     if (($TestString.IndexOfAny($WildCards))-ge 0) {
                         if ($TestString.StartsWith('*')) {
                             $TestString = ".$TestString"
                         }
-                        if ($test.TestName -match $TestString) {
+                        if ($test.TestName -imatch $TestString) {
                             Write-LogInfo "Excluded Test  : $($test.TestName) [Wildcards match]"
                             $ExcludeTestMatched = $true
                         }
