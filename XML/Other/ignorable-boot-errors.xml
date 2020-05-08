@@ -24,6 +24,7 @@
             <keywords>microcode_ctl: kernel version ".*" failed early load check for ".*", skipping</keywords>
             <keywords>rngd: Failed to init entropy source 0: Hardware RNG Device</keywords>
             <keywords>open /dev/vmbus/hv_fcopy failed; error: 2 No such file or directory</keywords>
+            <keywords>dnf.*: Failed determining last makecache time</keywords>
         </failures>
         <errors>
             <keywords>TLS record write failed</keywords>
@@ -60,5 +61,6 @@
             <keywords>Started Write warning to Azure ephemeral disk</keywords>
             <keywords>Proceeding WITHOUT firewalling in effect!</keywords>
             <keywords>urandom warning\(s\) missed due to ratelimiting</keywords>
+            <keywords>kdumpctl.*: Warning: There might not be enough space to save a vmcore</keywords>
         </warnings>
 </messages>
