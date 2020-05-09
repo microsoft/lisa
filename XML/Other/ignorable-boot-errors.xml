@@ -29,6 +29,7 @@
             <keywords>hv-vss-daemon.service: Failed with result 'exit-code'</keywords>
             <keywords>hv-fcopy-daemon.service: Main process exited, code=exited, status=1/FAILURE</keywords>
             <keywords>hv-fcopy-daemon.service: Failed with result 'exit-code'</keywords>
+            <keywords>dnf.*: Failed determining last makecache time</keywords>
         </failures>
         <errors>
             <keywords>TLS record write failed</keywords>
@@ -66,5 +67,6 @@
             <keywords>Started Write warning to Azure ephemeral disk</keywords>
             <keywords>Proceeding WITHOUT firewalling in effect!</keywords>
             <keywords>urandom warning\(s\) missed due to ratelimiting</keywords>
+            <keywords>kdumpctl.*: Warning: There might not be enough space to save a vmcore</keywords>
         </warnings>
 </messages>
