@@ -149,16 +149,16 @@ Function Collect-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Tes
             if (!$platformMatched) {
                 continue
             }
-
-            if (!($TestCategory.Split(",").Contains($test.Category)) -and ($TestCategory -ne "*")) {
+            # case insensitive 'contains', and always complete match the concatenated expression for Category of TestCase
+            if (!($TestCategory.Trim(', ').Split(',').Trim() -contains $test.Category) -and ($TestCategory -ne "*")) {
                 continue
             }
-
-            if (!($TestArea.Split(",").Contains($test.Area)) -and ($TestArea -ne "*")) {
+            # case insensitive 'contains', and always complete match the concatenated expression for Area of TestCase
+            if (!($TestArea.Trim(', ').Split(',').Trim() -contains $test.Area) -and ($TestArea -ne "*")) {
                 continue
             }
-
-            if (!($TestNames.Split(",").Contains($test.testName)) -and ($TestNames -ne "*")) {
+            # case insensitive 'contains', and always complete match the concatenated expression for TestName of TestCase
+            if (!($TestNames.Trim(', ').Split(',').Trim() -contains $test.testName) -and ($TestNames -ne "*")) {
                 continue
             }
 
@@ -174,12 +174,12 @@ Function Collect-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Tes
 
             if ($ExcludeTests) {
                 $ExcludeTestMatched = $false
-                foreach ($TestString in $ExcludeTests.Split(",")) {
+                foreach ($TestString in $ExcludeTests.Trim(', ').Split(',').Trim()) {
                     if (($TestString.IndexOfAny($WildCards))-ge 0) {
                         if ($TestString.StartsWith('*')) {
                             $TestString = ".$TestString"
                         }
-                        if ($test.TestName -match $TestString) {
+                        if ($test.TestName -imatch $TestString) {
                             Write-LogInfo "Excluded Test  : $($test.TestName) [Wildcards match]"
                             $ExcludeTestMatched = $true
                         }
