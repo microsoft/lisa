@@ -2,6 +2,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 from azuremodules import *
+from shutil import copyfile
 
 white_list_xml = "ignorable-boot-errors.xml"
 wala_white_list_xml = "ignorable-walalog-errors.xml"
@@ -75,6 +76,7 @@ def RunTest():
         else:
             ResultLog.info('PASS')
     UpdateState("TestCompleted")
+    CollectLogs()
 
 
 def SplitLog(logType, logValues):
@@ -95,6 +97,21 @@ def RemoveIgnorableMessages(message_list, keywords_xml_node):
         return valid_list
     else:
         return None
+
+
+def CollectLogs():
+    logfiles = ['/var/log/messages']
+    hostname = os.uname()[1]
+    for logfile in logfiles:
+        if os.path.exists(logfile):
+            dst = "{}/{}-{}.txt".format(os.getcwd(), hostname,
+                                        os.path.basename(logfile))
+            try:
+                RunLog.info("Copying {} to {}...".format(logfile, dst))
+                copyfile(logfile, dst)
+            except Exception:
+                RunLog.warn("Copy {} to {} failed!".format(logfile, dst))
+    RunLog.info("Copy all logs finished!")
 
 
 RunTest()
