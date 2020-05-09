@@ -641,21 +641,29 @@ Class TestController
 					if (!$vmData -or $tcDeployVM) {
 						# Deploy the VM for the setup
 						Write-LogInfo "Deploy target machine for test if required ..."
-						$deployVMStatus = $this.TestProvider.DeployVMs($this.GlobalConfig, $this.SetupTypeTable[$setupType], $currentTestCase, `
+						$deployVMResults = $this.TestProvider.DeployVMs($this.GlobalConfig, $this.SetupTypeTable[$setupType], $currentTestCase, `
 							$this.TestLocation, $this.RGIdentifier, $this.UseExistingRG, $this.ResourceCleanup)
 						$vmData = $null
 						$deployErrors = ""
-						if ($deployVMStatus) {
-							$vmData = $deployVMStatus
-							if ($deployVMStatus.Keys -and ($deployVMStatus.Keys -contains "VmData")) {
-								$vmData = $deployVMStatus.VmData
+						if ($deployVMResults) {
+							# By default set $vmData with $deployVMResults, because providers may return array of vmData directly if no errors.
+							$vmData = $deployVMResults
+							# override the $vmData if $deployResults give VmData specifically with property 'VmData'
+							if ($deployVMResults.Keys -and ($deployVMResults.Keys -contains "VmData")) {
+								$vmData = $deployVMResults.VmData
 							}
-							# if there are deployment errors, skip RunTestCase, just CleanupResource, as this is unrecoverable
-							# and we do not care about the last test run result (Pass or Fail), always CleanupResource
-							if ($vmData -and $deployVMStatus.Error) {
-								$vmData = &$CleanupResource
+							# if there are deployment errors, skip RunTestCase and try to CleanupResource, as this is unrecoverable
+							# and we do not care about the last test run result (Pass or Fail), always try to CleanupResource, unless 'ResourceCleanup = Keep' set
+							if ($vmData -and $deployVMResults.Error) {
+								if ($this.ResourceCleanup -imatch "Keep") {
+									Write-LogWarn "ResourceCleanup = 'Keep' is respected, current test will abort, as deployment error(s) detected."
+									$vmData = $null
+								}
+								else {
+									$vmData = &$CleanupResource
+								}
 							}
-							$deployErrors = Trim-ErrorLogMessage $deployVMStatus.Error
+							$deployErrors = Trim-ErrorLogMessage $deployVMResults.Error
 						}
 						if (!$vmData) {
 							# Failed to deploy the VMs, Set the case to abort

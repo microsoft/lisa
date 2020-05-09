@@ -514,7 +514,7 @@ Function Install-LIS-Scenario-7 ($PreviousTestResult, $LISTarballUrlOld, $LISTar
                 Write-LogErr "Failed to Upgrade Minor kernel"
                 return "SKIPPED"
             }
-            Write-LogInfo "Sucessfully Upgraded Minor Kernel"
+            Write-LogInfo "Succesfully Upgraded Minor Kernel"
             $UpgradeStatus = Upgrade-LIS -LISTarballUrlOld $LISTarballUrlOld -LISTarballUrlCurrent $LISTarballUrlCurrent -allVMData $AllVMData -TestProvider $TestProvider -RestartAfterUpgrade
             if (-not $UpgradeStatus[-1]) {
                 $sts = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort -username "root" -password $password -command "cat build-CustomLIS.txt | grep -E 'Unsupported kernel version|Kernel version not supported'" -ignoreLinuxExitCode:$true
