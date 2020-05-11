@@ -27,7 +27,7 @@ imb_rma_final_status=0
 imb_nbc_final_status=0
 imb_p2p_final_status=0
 imb_io_final_status=0
-osu_p2p_final_status=0
+omb_p2p_final_status=0
 
 # Get all the Kernel-Logs from all VMs.
 function Collect_Logs() {
@@ -46,6 +46,10 @@ function Collect_Logs() {
 	# Create zip file to avoid downloading thousands of files in some cases
 	zip -r /root/IMB_AllTestLogs.zip /root/IMB-*
 	rm -rf /root/IMB-*
+	if [[ $benchmark_type == "OMB" ]]; then
+	zip -r /root/OMB_AllTestLogs.zip /root/OMB-*
+	rm -rf /root/OMB-*
+	fi
 }
 
 function Run_IMB_Intranode() {
@@ -170,52 +174,49 @@ function Run_IMB_MPI1() {
 	fi
 }
 
-function Run_OSU_P2P() {
-	total_attempts=$(seq 1 1 $osu_p2p_tests_iterations)
-	if [[ $osu_p2p_tests == "all" ]]; then
-		extra_params=""
-	else
-		extra_params=$osu_p2p_tests
-	fi
+function Run_OMB_P2P() {
+	total_attempts=$(seq 1 1 $omb_p2p_tests_iterations)
+	omb_p2p_tests_array=($omb_p2p_tests)
 	for attempt in $total_attempts; do
-		LogMsg "OSU P2P test iteration $attempt for $mpi_type- Running."
+		LogMsg "OMB P2P test iteration $attempt for $mpi_type- Running."
 		case "$mpi_type" in
 			ibm)
-				LogMsg "Test not yet available"
+				LogErr "Test not yet available"
 			;;
 			open)
-				LogMsg "Test not yet available"
+				LogErr "Test not yet available"
 			;;
 			hpcx)
-				LogMsg "Test not yet available"
+				LogErr "Test not yet available"
 			;;
 			intel)
-				LogMsg "Test not yet available"
+				LogErr "Test not yet available"
 			;;
 			mvapich)
-				LogMsg "$osu_p2p_tests for $mpi_type"
-				LogMsg "$mpi_run_path -n $(($mpi1_ppn * $total_virtual_machines)) $master $slaves_array $mpi_settings $osu_p2p_path $extra_params"
-				ssh root@${master} "$mpi_run_path -n $(($mpi1_ppn * $total_virtual_machines)) $master $slaves_array $mpi_settings $osu_p2p_path$extra_params> OSU-P2P-AllNodes-output-Attempt-${attempt}.txt"
+				for test_name in ${omb_p2p_tests_array[@]}; do
+					LogMsg "$mpi_run_path -n $(($omb_ppn * $total_virtual_machines)) $master $slaves_array $mpi_settings $omb_p2p_path$test_name"
+					ssh root@${master} "$mpi_run_path -n $(($omb_ppn * $total_virtual_machines)) $master $slaves_array $mpi_settings $omb_p2p_path$test_name> OMB-P2P-AllNodes-output-Attempt-${attempt}-$test_name.txt"
+				done
 			;;
 		esac
 		mpi_status=$?
 		if [ $mpi_status -eq 0 ]; then
-			LogMsg "OSU P2P test iteration $attempt - Succeeded."
+			LogMsg "OMB P2P test iteration $attempt - Succeeded."
 		else
-			LogErr "OSU P2P test iteration $attempt - Failed."
-			osu_p2p_final_status=$(($osu_p2p_final_status + $mpi_status))
+			LogErr "OMB P2P test iteration $attempt - Failed."
+			omb_p2p_final_status=$(($omb_p2p_final_status + $mpi_status))
 		fi
 		sleep 1
 	done
 
-	if [ $osu_p2p_final_status -ne 0 ]; then
-		LogErr "OSU P2P tests returned non-zero exit code."
+	if [ $omb_p2p_final_status -ne 0 ]; then
+		LogErr "OMB P2P tests returned non-zero exit code."
 		SetTestStateFailed
 		Collect_Logs
-		LogErr "INFINIBAND_VERIFICATION_FAILED_OSU_P2P_ALLNODES"
+		LogErr "INFINIBAND_VERIFICATION_FAILED_OMB_P2P_ALLNODES"
 		exit 0
 	else
-		LogMsg "INFINIBAND_VERIFICATION_SUCCESS_OSU_P2P_ALLNODES"
+		LogMsg "INFINIBAND_VERIFICATION_SUCCESS_OMB_P2P_ALLNODES"
 	fi
 }
 
@@ -739,7 +740,7 @@ function Main() {
 	imb_nbc_path=$(find / -name IMB-NBC | head -n 1)
 	imb_p2p_path=$(find / -name IMB-P2P | head -n 1)
 	imb_io_path=$(find / -name IMB-IO | head -n 1)
-	osu_p2p_path="/usr/local/libexec/osu-micro-benchmarks/mpi/pt2pt/"
+	omb_p2p_path="/usr/local/libexec/osu-micro-benchmarks/mpi/pt2pt/"
 
 	case "$mpi_type" in
 		ibm)
@@ -766,7 +767,7 @@ function Main() {
 			mpi_run_path=$(find / -name mpirun | grep intel64)
 		;;
 		mvapich)
-			osu_p2p_path="/root/mvapich2-2.3/osu_benchmarks/mpi/pt2pt/.libs/"
+			omb_p2p_path="/root/mvapich2-2.3/osu_benchmarks/mpi/pt2pt/"
 			total_virtual_machines=$(($total_virtual_machines + 1))
 			mpi_run_path=$(find / -name mpirun_rsh | tail -n 1)
 		;;
@@ -782,12 +783,14 @@ function Main() {
 	LogMsg "IMB-NBC Path: $imb_nbc_path"
 	LogMsg "IMB-P2P Path: $imb_p2p_path"
 	LogMsg "IMB-IO Path: $imb_io_path"
-	LogMsg "OSU-P2P Path: $osu_p2p_path"
+	LogMsg "OMB-P2P Path: $omb_p2p_path"
 
 	# Run all benchmarks
+	if [[ $benchmark_type == "OMB" ]]; then
+	Run_OMB_P2P
+	fi
 	Run_IMB_Intranode
 	Run_IMB_MPI1
-	Run_OSU_P2P
 	if [[ $quicktestonly == "no" ]]; then
 		Run_IMB_RMA
 		Run_IMB_NBC
@@ -806,7 +809,7 @@ function Main() {
 
 	# Get all results and finish the test
 	Collect_Logs
-	finalStatus=$(($final_ib_nic_status + $ib_port_state_down_cnt + $alloc_uar_limited_cnt + $final_mpi_intranode_status + $imb_mpi1_final_status + $imb_nbc_final_status))
+	finalStatus=$(($final_ib_nic_status + $ib_port_state_down_cnt + $alloc_uar_limited_cnt + $final_mpi_intranode_status + $imb_mpi1_final_status + $imb_nbc_final_status + $omb_p2p_final_status))
 	if [ $finalStatus -ne 0 ]; then
 		LogMsg "${ib_nic}_status: $final_ib_nic_status"
 		LogMsg "ib_port_state_down_cnt: $ib_port_state_down_cnt"
@@ -817,6 +820,7 @@ function Main() {
 		LogMsg "imb_nbc_final_status: $imb_nbc_final_status"
 		LogMsg "imb_p2p_final_status: $imb_p2p_final_status"
 		LogMsg "imb_io_final_status: $imb_io_final_status"
+		LogMsg "omb_p2p_final_status: $omb_p2p_final_status"
 		LogErr "INFINIBAND_VERIFICATION_FAILED"
 		SetTestStateFailed
 	else

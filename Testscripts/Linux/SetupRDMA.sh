@@ -609,7 +609,7 @@ function Main() {
 	if [ $mpi_type != "mvapich" ]; then
 		currentDir=$(pwd)
 		cd ~
-		LogMsg "Proceeding OSU MPI Benchmark test installation"
+		LogMsg "Proceeding OSU MPI Benchmark (OMB) test installation"
 		LogMsg "Downloading mpi-benchmarks from $osu_mpi_benchmark"
 		wget $osu_mpi_benchmark
 		tar_filename=$(echo $osu_mpi_benchmark | rev | cut -d'/' -f1 | rev)
@@ -618,7 +618,7 @@ function Main() {
 		cd ${tar_filename%.*.*}
 
 		LogMsg "Running configuration and installing"
-		./configure --prefix=$(pwd) && make && make install
+		./configure CC=/usr/local/bin/mpicc CXX=/usr/local/bin/mpicxx --prefix=$(pwd) && make && make install
 		Verify_Result
 		LogMsg "OSU mpi-benchmarks $osu_mpi_benchmark installation completed"
 		# set string to verify osu benchmark is downloaded

@@ -177,6 +177,10 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceThis>INFINIBAND_MVAPICH_MPI_SETTINGS_TCP</ReplaceThis>
 		<ReplaceWith></ReplaceWith>
 	</Parameter>
+		<Parameter>
+		<ReplaceThis>INFINIBAND_OMB_MVAPICH_MPI_SETTINGS</ReplaceThis>
+		<ReplaceWith>MV2_CPU_BINDING_LEVEL=numanode MV2_CPU_BINDING_POLICY=scatter </ReplaceWith>
+	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_MVAPICH_MPI_SETTINGS_IB</ReplaceThis>
 		<ReplaceWith></ReplaceWith>
@@ -223,6 +227,10 @@ Scenario 2 : You need to run all the performance tests quickly.
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_MVAPICH_PPN</ReplaceThis>
+		<ReplaceWith>1</ReplaceWith>
+	</Parameter>
+		<Parameter>
+		<ReplaceThis>INFINIBAND_MVAPICH_OMB_PPN</ReplaceThis>
 		<ReplaceWith>1</ReplaceWith>
 	</Parameter>
 	<Parameter>
@@ -294,9 +302,9 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceWith></ReplaceWith>
 	</Parameter>
 	<Parameter>
-		<!--  options include osu_latency, osu_bw etc. Refer http://mvapich.cse.ohio-state.edu/benchmarks/-->
-		<ReplaceThis>INFINIBAND_MVAPICH_OSU_P2P_TESTNAMES</ReplaceThis>
-		<ReplaceWith>osu_latency</ReplaceWith>
+		<!-- Refer http://mvapich.cse.ohio-state.edu/benchmarks/-->
+		<ReplaceThis>INFINIBAND_MVAPICH_OMB_P2P_TESTNAMES</ReplaceThis>
+		<ReplaceWith>"osu_latency osu_bw osu_bibw osu_mbw_mr osu_multi_lat"</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_INTEL_NBC_TEST_COUNT</ReplaceThis>
@@ -360,7 +368,7 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceWith>1</ReplaceWith>
 	</Parameter>
 	<Parameter>
-		<ReplaceThis>INFINIBAND_MVAPICH_OSU_P2P_TEST_COUNT</ReplaceThis>
+		<ReplaceThis>INFINIBAND_MVAPICH_OMB_P2P_TEST_COUNT</ReplaceThis>
 		<ReplaceWith>1</ReplaceWith>
 	</Parameter>
 	<Parameter>

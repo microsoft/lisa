@@ -131,8 +131,8 @@ function Main {
 			if ($TestParam -imatch "imb_io_tests_iterations") {
 				$ImbIoTestIterations = [int]($TestParam.Replace("imb_io_tests_iterations=", "").Trim('"'))
 			}
-			if ($TestParam -imatch "osu_p2p_tests_iterations") {
-				$OsuP2PTestIterations = [int]($TestParam.Replace("osu_p2p_tests_iterations=", "").Trim('"'))
+			if ($TestParam -imatch "omb_p2p_tests_iterations") {
+				$OmbP2PTestIterations = [int]($TestParam.Replace("omb_p2p_tests_iterations=", "").Trim('"'))
 			}
 			if ($TestParam -imatch "ib_nic") {
 				$InfinibandNic = [string]($TestParam.Replace("ib_nic=", "").Trim('"'))
@@ -143,6 +143,9 @@ function Main {
 			}
 			if ($TestParam -imatch "mpi_type") {
 				$MpiType = [string]($TestParam.Replace("mpi_type=", "").Trim('"'))
+			}
+			if ($TestParam -imatch "benchmark_type") {
+				$BenchmarkType = [string]($TestParam.Replace("benchmark_type=", "").Trim('"'))
 			}
 			if ($TestParam -imatch "install_ofed_from_extension") {
 				if($TestParam.Split("=")[1] -match "yes") {
@@ -309,6 +312,10 @@ function Main {
 					-password $password -download -downloadTo $LogDir -files "/root/TestExecution.log"
 				Copy-RemoteFiles -downloadFrom $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username $superUser `
 					-password $password -download -downloadTo $LogDir -files "/root/state.txt"
+				if ($BenchmarkType -eq "OMB") {
+					Copy-RemoteFiles -downloadFrom $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username $superUser `
+						-password $password -download -downloadTo $LogDir -files "/root/OMB*"
+				}
 				$ConsoleOutput = ( Get-Content -Path "$LogDir\TestExecution.log" | Out-String )
 				$FinalStatus = Run-LinuxCmd -ip $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username $superUser `
 					-password $password -command "cat /$superUser/state.txt"
@@ -320,10 +327,12 @@ function Main {
 				New-Item -Path "$LogDir\InfiniBand-Verification-$Iteration-$TempName" -Force -ItemType Directory | Out-Null
 				Move-Item -Path "$LogDir\$InfinibandNic-status*" -Destination "$LogDir\InfiniBand-Verification-$Iteration-$TempName" | Out-Null
 				Move-Item -Path "$LogDir\IMB*" -Destination "$LogDir\InfiniBand-Verification-$Iteration-$TempName" | Out-Null
-				Move-Item -Path "$LogDir\OSU*" -Destination "$LogDir\InfiniBand-Verification-$Iteration-$TempName" | Out-Null
 				Move-Item -Path "$LogDir\kernel-logs-*" -Destination "$LogDir\InfiniBand-Verification-$Iteration-$TempName" | Out-Null
 				Move-Item -Path "$LogDir\TestExecution.log" -Destination "$LogDir\InfiniBand-Verification-$Iteration-$TempName" | Out-Null
 				Move-Item -Path "$LogDir\state.txt" -Destination "$LogDir\InfiniBand-Verification-$Iteration-$TempName" | Out-Null
+				if ($BenchmarkType -eq "OMB") {
+					Move-Item -Path "$LogDir\OMB*" -Destination "$LogDir\InfiniBand-Verification-$Iteration-$TempName" | Out-Null
+				}
 
 				#region Check if $InfinibandNic got IP address
 				$logFileName = "$LogDir\InfiniBand-Verification-$Iteration-$TempName\TestExecution.log"
@@ -369,6 +378,8 @@ function Main {
 				$SucessLogs = Select-String -Path $logFileName -Pattern $pattern
 				if ($SucessLogs.Count -eq 1) {
 					$currentResult = $resultPass
+				} elseif ($BenchmarkType -eq "OMB") {
+					$currentResult = "SKIPPED"
 				} else {
 					$currentResult = $resultFail
 				}
@@ -386,6 +397,8 @@ function Main {
 					$SucessLogs = Select-String -Path $logFileName -Pattern $pattern
 					if ($SucessLogs.Count -eq 1) {
 						$currentResult = $resultPass
+					} elseif ($BenchmarkType -eq "OMB") {
+						$currentResult = "SKIPPED"
 					} else {
 						$currentResult = $resultFail
 					}
@@ -479,12 +492,12 @@ function Main {
 				}
 				#endregion
 
-				#region Check OSU all nodes tests
-				if ($OsuP2PTestIterations -ge 1) {
+				#region Check OMB P2P all nodes tests
+				if ($OmbP2PTestIterations -ge 1) {
 					$logFileName = "$LogDir\InfiniBand-Verification-$Iteration-$TempName\TestExecution.log"
-					$pattern = "INFINIBAND_VERIFICATION_SUCCESS_OSU_P2P_ALLNODES"
+					$pattern = "INFINIBAND_VERIFICATION_SUCCESS_OMB_P2P_ALLNODES"
 					Write-LogInfo "Analyzing $logFileName"
-					$metaData = "InfiniBand-Verification-$Iteration-$TempName : OSU-P2P"
+					$metaData = "InfiniBand-Verification-$Iteration-$TempName : OMB-P2P"
 					$SucessLogs = Select-String -Path $logFileName -Pattern $pattern
 					if ($SucessLogs.Count -eq 1) {
 						$currentResult = $resultPass
