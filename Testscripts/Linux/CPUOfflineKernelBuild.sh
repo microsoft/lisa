@@ -63,6 +63,7 @@ function Main() {
 		git clone $repo_url linux
 		LogMsg "$?: Cloned the kernel source repo"
 
+		basedir=$(pwd)
 		cd linux
 
 		git checkout $repo_branch
@@ -78,17 +79,41 @@ function Main() {
 			sed -i -e "s/CONFIG_MODULE_SIG_KEY*.*/#CONFIG_MODULE_SIG_KEY/g" ~/.config
 		fi
 
-		yes '' | make oldconfig
-		LogMsg "$?: Did oldconfig make file"
+		ret=$(yes '' | make oldconfig)
+		if [ $ret ]; then
+			LogMsg "$?: Did oldconfig make file"
+		else
+			LogErr "$?: Failed to run make oldconfig"
+			SetTestStateFailed
+			exit 0
+		fi
 
-		make -j $(getconf _NPROCESSORS_ONLN)
-		LogMsg "$?: Compiled the source codes"
+		ret=$(make -j $(getconf _NPROCESSORS_ONLN))
+		if [ $ret ]; then
+			LogMsg "$?: Compiled the source codes"
+		else
+			LogErr "$?: Failed to compile the source code"
+			SetTestStateFailed
+			exit 0
+		fi
 
 		make modules_install
-		LogMsg "$?: Installed new kernel modules"
+		if [ $ret ]; then
+			LogMsg "$?: Installed new kernel modules"
+		else
+			LogErr "$?: Failed to install kernel modules"
+			SetTestStateFailed
+			exit 0
+		fi
 
 		make install
-		LogMsg "$?: Install new kernel"
+		if [ $ret ]; then
+			LogMsg "$?: Install new kernel"
+		else
+			LogErr "$?: Failed to install new kernel"
+			SetTestStateFailed
+			exit 0
+		fi
 	fi
 
 	if [[ $DISTRO == "ubuntu*" ]]; then
@@ -96,9 +121,12 @@ function Main() {
 		LogMsg "$?: Ran update-grub2"
 	fi
 
-	echo "setup_completed=0" >> /home/$user/constants.sh
-	LogMsg "Main function of setup completed"
+	cat ./TestExecution.log >> $basedir/TestExecution.log
+	cat ./TestExecutionError.log >> $basedir/TestExecutionError.log
 }
+
+echo "setup_completed=0" >> $basedir/constants.sh
+LogMsg "Main function of setup completed"
 
 # main body
 Main
