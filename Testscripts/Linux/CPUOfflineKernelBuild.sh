@@ -47,7 +47,7 @@ function Main() {
 				req_pkg="ncurses-devel libopenssl-devel libelf-devel"
 				;;
 			ubuntu*)
-				req_pkg="build-essential fakeroot libncurses5-dev libssl-dev ccache flex"
+				req_pkg="build-essential fakeroot libncurses5-dev libssl-dev ccache flex dkms"
 				;;
 			*)
 				LogErr "$DISTRO does not support vmbus channel re-assignment per cpu offline"
