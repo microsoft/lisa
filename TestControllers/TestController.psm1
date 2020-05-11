@@ -561,8 +561,11 @@ Class TestController
 		return $currentTestResult
 	}
 
-	[array] GetMultiplexedTestConfigs($testName, $testOverrideVmSize) {
-		$multiplexedTestConfigs = @()
+	# According to Test Parameters $this.TestIterations and $this.OverrideVMSize,
+	# Get an array of expanded possible Tests @({TestName=xxx-<vmSize>-<iteration>;TestVmSize=yyy}, { }, ...)
+	# If $this.TestIteration and $this.OverrideVMSize are both default value, return just one element in the result array.
+	[array] GetArrayOfExpandedTestConfigsFromTestParameters($testName, $testOverrideVmSize) {
+		$arrayOfTestConfigs = @()
 		$testVmSizes = @("unknown")
 
 		if ($testOverrideVmSize) {
@@ -575,26 +578,26 @@ Class TestController
 		if ($this.TestIterations -gt 1 -or $testVmSizes.Count -gt 1) {
 			foreach($testVmSize in $testVmSizes) {
 				for ($iteration = 1; $iteration -lt $this.TestIterations + 1; $iteration++) {
-					$multiplexedTestConfig = @{
+					$expandedTestConfig = @{
 						"TestName" = $testName
 					}
 					if ($testVmSizes.Count -gt 1) {
-						$multiplexedTestConfig["TestName"] += "-${testVmSize}"
-						$multiplexedTestConfig["TestVmSize"] = $testVmSize
+						$expandedTestConfig["TestName"] += "-${testVmSize}"
+						$expandedTestConfig["TestVmSize"] = $testVmSize
 					}
 					if ($this.TestIterations -gt 1) {
-						$multiplexedTestConfig["TestName"] += "-${iteration}"
+						$expandedTestConfig["TestName"] += "-${iteration}"
 					}
-					$multiplexedTestConfigs += $multiplexedTestConfig
+					$arrayOfTestConfigs += $expandedTestConfig
 				}
 			}
 		} else {
-			$multiplexedTestConfigs = @(@{
+			$arrayOfTestConfigs = @(@{
 				"TestName" = $testName
 			})
 		}
 
-		return $multiplexedTestConfigs
+		return $arrayOfTestConfigs
 	}
 
 	[void] RunTestCasesInSequence([int]$TestIterations)
@@ -608,40 +611,59 @@ Class TestController
 			$lastResult = $null
 			$tests = 0
 
+			$CleanupResource = {
+				Write-LogInfo "Delete deployed target machine ..."
+				$null = $this.TestProvider.DeleteVMs($vmData, $this.SetupTypeTable[$setupType], $this.UseExistingRG); $null
+			}
+
 			foreach ($currentTestCase in $this.SetupTypeToTestCases[$setupKey]) {
-				$multiplexedTestConfigs = $this.GetMultiplexedTestConfigs($currentTestCase.testName, $currentTestCase.OverrideVMSize)
+				# array like: @({TestName=xxx-<vmSize>-<iteration>;TestVmSize=yyy}, { }, ...)
+				$arrayOfTestConfigs = $this.GetArrayOfExpandedTestConfigsFromTestParameters($currentTestCase.testName, $currentTestCase.OverrideVMSize)
 				$tcDeployVM = $this.DeployVMPerEachTest
 				$tcRemoveVM = $this.DeployVMPerEachTest
-				for ($multiplexedTestIndex = 0; $multiplexedTestIndex -lt $multiplexedTestConfigs.Count; $multiplexedTestIndex++) {
-					$multiplexedTestConfig = $multiplexedTestConfigs[$multiplexedTestIndex]
-					$currentTestCase.testName = $multiplexedTestConfig["TestName"]
-					if ($multiplexedTestIndex -lt ($multiplexedTestConfigs.Count - 1)) {
+
+				for ($indexOfTC = 0; $indexOfTC -lt $arrayOfTestConfigs.Count; $indexOfTC++) {
+					$expandedTestConfig = $arrayOfTestConfigs[$indexOfTC]
+					$currentTestCase.testName = $expandedTestConfig["TestName"]
+					if ($indexOfTC -lt ($arrayOfTestConfigs.Count - 1)) {
 						$tcRemoveVM = $this.DeployVMPerEachTest -or `
-							($multiplexedTestConfigs[$multiplexedTestIndex + 1]["TestVmSize"] -ne $multiplexedTestConfig["TestVmSize"])
+							($arrayOfTestConfigs[$indexOfTC + 1]["TestVmSize"] -ne $expandedTestConfig["TestVmSize"])
 					}
-					if ($multiplexedTestIndex -gt 0) {
+					if ($indexOfTC -gt 0) {
 						$tcDeployVM = $this.DeployVMPerEachTest -or `
-							($multiplexedTestConfigs[$multiplexedTestIndex - 1]["TestVmSize"] -ne $multiplexedTestConfig["TestVmSize"])
+							($arrayOfTestConfigs[$indexOfTC - 1]["TestVmSize"] -ne $expandedTestConfig["TestVmSize"])
 					}
-					if ($multiplexedTestConfig["TestVmSize"]) {
-						$currentTestCase.OverrideVMSize = $multiplexedTestConfig["TestVmSize"]
-						$this.SetupTypeToTestCases[$setupKey][0].OverrideVMSize = $multiplexedTestConfig["TestVmSize"]
+					if ($expandedTestConfig["TestVmSize"]) {
+						$currentTestCase.OverrideVMSize = $expandedTestConfig["TestVmSize"]
 					}
 					$executionCount += 1
 					Write-LogInfo "($executionCount/$($this.TotalCaseNum)) testing started: $($currentTestCase.testName)"
 					if (!$vmData -or $tcDeployVM) {
 						# Deploy the VM for the setup
 						Write-LogInfo "Deploy target machine for test if required ..."
-						$deployVMStatus = $this.TestProvider.DeployVMs($this.GlobalConfig, $this.SetupTypeTable[$setupType], $this.SetupTypeToTestCases[$setupKey][0], `
+						$deployVMResults = $this.TestProvider.DeployVMs($this.GlobalConfig, $this.SetupTypeTable[$setupType], $currentTestCase, `
 							$this.TestLocation, $this.RGIdentifier, $this.UseExistingRG, $this.ResourceCleanup)
 						$vmData = $null
 						$deployErrors = ""
-						if ($deployVMStatus) {
-							$vmData = $deployVMStatus
-							$deployErrors = Trim-ErrorLogMessage $deployVMStatus.Error
-							if ($deployVMStatus.Keys -and ($deployVMStatus.Keys -contains "VmData")) {
-								$vmData = $deployVMStatus.VmData
+						if ($deployVMResults) {
+							# By default set $vmData with $deployVMResults, because providers may return array of vmData directly if no errors.
+							$vmData = $deployVMResults
+							# override the $vmData if $deployResults give VmData specifically with property 'VmData'
+							if ($deployVMResults.Keys -and ($deployVMResults.Keys -contains "VmData")) {
+								$vmData = $deployVMResults.VmData
 							}
+							# if there are deployment errors, skip RunTestCase and try to CleanupResource, as this is unrecoverable
+							# and we do not care about the last test run result (Pass or Fail), always try to CleanupResource, unless 'ResourceCleanup = Keep' set
+							if ($vmData -and $deployVMResults.Error) {
+								if ($this.ResourceCleanup -imatch "Keep") {
+									Write-LogWarn "ResourceCleanup = 'Keep' is respected, current test will abort, as deployment error(s) detected."
+									$vmData = $null
+								}
+								else {
+									$vmData = &$CleanupResource
+								}
+							}
+							$deployErrors = Trim-ErrorLogMessage $deployVMResults.Error
 						}
 						if (!$vmData) {
 							# Failed to deploy the VMs, Set the case to abort
@@ -654,33 +676,57 @@ Class TestController
 					}
 					# Run current test case
 					Write-LogInfo "Run test case against the target machine ..."
+					# After RunOneTestCase, we care about '$lastResult', to choose flow of 'reuse' or 'preserve' VMs
 					$lastResult = $this.RunOneTestCase($vmData, $currentTestCase, $executionCount, $this.SetupTypeTable[$setupType], ($tests -ne 0))
 					$tests++
-					# If the case doesn't pass, keep the VM for failed case except when ResourceCleanup = "Delete" is set
-					# and deploy a new VM for the next test
-					if (!$this.TestCasePassStatus.contains($lastResult.TestResult)) {
-						if ($this.ResourceCleanup -imatch "Delete") {
-							Write-LogInfo "Delete deployed target machine ..."
-							$this.TestProvider.DeleteVMs($vmData, $this.SetupTypeTable[$setupType], $this.UseExistingRG)
-							$vmData = $null
-						} elseif (!$this.TestProvider.ReuseVmOnFailure) {
-							Write-LogInfo "Keep deployed target machine for future reuse."
+
+					# Last Test is 'Pass', by default reuse VM deployment till the end of current SetupType (with the Combined Setup Key)
+					if ($this.TestCasePassStatus.contains($lastResult.TestResult)) {
+						# Unless 'tcRemoveVM' = true, then ==>  $vmData = &$CleanupResource
+						if ($tcRemoveVM) {
+							if ($this.ResourceCleanup -imatch "Keep") {
+								Write-LogWarn "ResourceCleanup = 'Keep' is respected, but may be huge waste of resources when '-DeployVMPerEachTest' is Set."
+								$vmData = $null
+							}
+							else {
+								$vmData = &$CleanupResource
+							}
+						}
+					}
+					else { # Last Test is Failed/Aborted, by default preserve VM for analysis/debugging, but set $vmData = null: (force another deployment happen for next TC)
+						# unless '-ReuseVmOnFailure', keep $vmData as last failure environment, no new deployment behavior followed.
+						if ($this.TestProvider.ReuseVmOnFailure) {
+							Write-LogInfo "Keep deployed target machine for future reuse, as '-ReuseVmOnFailure' is True"
+						}
+						# unless '-ResourceCleanup = Delete', possibly means choose economy option for saving cost and resources
+						# unless '-UseExistingRG', preserve deployed VMs in the same RG will cause following Testing Aborted (names of resources are fixed in LISAv2)
+						elseif ($this.UseExistingRG -or ($this.ResourceCleanup -imatch "Delete")) {
+							if ($this.ResourceCleanup -imatch "Keep") {
+								Write-LogWarn "ResourceCleanup = 'Keep' is respected, but may conflict with '-UseExistingRG', as 'Keep' will cause following tests Aborted."
+								$vmData = $null
+							}
+							else {
+								$vmData = &$CleanupResource
+							}
+						}
+						else { # this is by default choice for last Failed/Aborted
 							$vmData = $null
 						}
-					} elseif ($tcRemoveVM -and !($this.ResourceCleanup -imatch "Keep")) {
-						# Delete the VM if tcRemoveVM is set
-						# Do not delete the VMs if testing against existing resource group, or -ResourceCleanup = Keep is set
-						Write-LogInfo "Delete deployed target machine ..."
-						$this.TestProvider.DeleteVMs($vmData, $this.SetupTypeTable[$setupType], $this.UseExistingRG)
-						$vmData = $null
 					}
 				}
 			}
 
-			# Delete the VM after all the cases of same setup are run, if DeployVMPerEachTest is not set
-			if ($this.TestCasePassStatus.contains($lastResult.TestResult) -and !($this.ResourceCleanup -imatch "Keep") -and !$this.DeployVMPerEachTest) {
-				Write-LogInfo "Delete deployed target machine if required ..."
-				$this.TestProvider.DeleteVMs($vmData, $this.SetupTypeTable[$setupType], $this.UseExistingRG)
+			# Cleanup, if $vmData is not null (Not Preserved for failure/debugging) or 'ResourceCleanup = Delete'
+			# at the end of each SetupType (Combined setup Key) after all tests belongs to this testSetup completed
+			# unless $ResourceCleanup is Keep
+			if ($vmData -or ($this.ResourceCleanup -imatch "Delete")) {
+				if ($this.ResourceCleanup -imatch "Keep") {
+					Write-LogWarn "ResourceCleanup = 'Keep' is respected, you may need to delete the testing resources * MANUALLY * sometime later."
+					$vmData = $null
+				}
+				else {
+					$vmData = &$CleanupResource
+				}
 			}
 		}
 

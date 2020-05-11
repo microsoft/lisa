@@ -73,6 +73,12 @@ function Start-LISAv2 {
 
 	PROCESS {
 		try {
+			# Modify environment TEMP variable
+			if (!(test-path "$PSScriptRoot\Temp")) {
+				New-Item -Path "$PSScriptRoot\Temp" -ItemType Directory -Force | Out-Null
+			}
+			$env:TEMP = "$PSScriptRoot\Temp"
+
 			# Generate test log file
 			$testId = New-TestId
 			$logFileName = "LISAv2-Test-${testId}.log"
@@ -125,7 +131,7 @@ function Start-LISAv2 {
 			}
 			if ($testPlatform) {
 				$moduleName = "TestControllers\$($testPlatform)Controller.psm1"
-				if ([System.IO.File]::Exists("$pwd\$moduleName")) {
+				if ([System.IO.File]::Exists("$PSScriptRoot\$moduleName")) {
 					. $([ScriptBlock]::Create("using module $moduleName"))
 					$testController = New-Object -TypeName $testPlatform"Controller"
 				} else {

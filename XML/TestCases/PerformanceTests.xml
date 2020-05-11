@@ -23,7 +23,7 @@
         <Category>Performance</Category>
         <Area>NETWORK</Area>
         <Tags>network,hv_netvsc</Tags>
-        <Priority>2</Priority>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>PERF-NETWORK-TCP-THROUGHPUT-MULTICONNECTION-NTTTCP-SRIOV</testName>
@@ -49,7 +49,7 @@
         <Category>Performance</Category>
         <Area>NETWORK</Area>
         <Tags>network,hv_netvsc,sriov</Tags>
-        <Priority>2</Priority>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>PERF-NETWORK-UDP-1K-THROUGHPUT-MULTICONNECTION-NTTTCP-Synthetic</testName>
@@ -76,7 +76,7 @@
         <Category>Performance</Category>
         <Area>NETWORK</Area>
         <Tags>network,hv_netvsc</Tags>
-        <Priority>2</Priority>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>PERF-NETWORK-UDP-1K-THROUGHPUT-MULTICONNECTION-NTTTCP-SRIOV</testName>
@@ -103,7 +103,7 @@
         <Category>Performance</Category>
         <Area>NETWORK</Area>
         <Tags>network,hv_netvsc,sriov</Tags>
-        <Priority>2</Priority>
+        <Priority>1</Priority>
     </test>
     <test>
         <testName>PERF-NETWORK-TCP-THROUGHPUT-MULTICLIENTS-NTTTCP-Synthetic</testName>
@@ -124,7 +124,7 @@
         <Category>Performance</Category>
         <Area>NETWORK</Area>
         <Tags>network,hv_netvsc</Tags>
-        <Priority>1</Priority>
+        <Priority></Priority>
     </test>
     <test>
         <testName>PERF-NETWORK-TCP-THROUGHPUT-MULTICLIENTS-NTTTCP-SRIOV</testName>
@@ -145,7 +145,7 @@
         <Category>Performance</Category>
         <Area>NETWORK</Area>
         <Tags>network,hv_netvsc,sriov</Tags>
-        <Priority>1</Priority>
+        <Priority></Priority>
     </test>
     <test>
         <testName>PERF-NETWORK-UDP-1K-THROUGHPUT-MULTICLIENTS-NTTTCP-Synthetic</testName>
@@ -167,7 +167,7 @@
         <Category>Performance</Category>
         <Area>NETWORK</Area>
         <Tags>network,hv_netvsc</Tags>
-        <Priority>2</Priority>
+        <Priority></Priority>
     </test>
     <test>
         <testName>PERF-NETWORK-UDP-1K-THROUGHPUT-MULTICLIENTS-NTTTCP-SRIOV</testName>
@@ -189,7 +189,7 @@
         <Category>Performance</Category>
         <Area>NETWORK</Area>
         <Tags>network,hv_netvsc,sriov</Tags>
-        <Priority>2</Priority>
+        <Priority></Priority>
     </test>
     <test>
         <testName>PERF-NETWORK-TCP-LATENCY-Synthetic</testName>
@@ -317,6 +317,9 @@
         <testName>PERF-STORAGE-1024K-IO</testName>
         <testScript>PERF-STORAGE-MULTIDISK-RAID0-FIO.ps1</testScript>
         <setupType>OneVM12Disk</setupType>
+        <AdditionalHWConfig>
+            <StorageAccountType>PERF_STORAGE_ACCOUNT_TYPE</StorageAccountType>
+        </AdditionalHWConfig>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_fio.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Tools\gawk</files>
         <TestParameters>
             <param>modes=PERF-STORAGE-1024K-IO-MODES</param>
@@ -338,6 +341,9 @@
         <testName>PERF-STORAGE-OVER-NFS-Synthetic-TCP-4K</testName>
         <testScript>PERF-STORAGE-OVER-NFS.ps1</testScript>
         <setupType>TwoVM12Disk</setupType>
+        <AdditionalHWConfig>
+            <StorageAccountType>PERF_STORAGE_ACCOUNT_TYPE</StorageAccountType>
+        </AdditionalHWConfig>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh,.\Tools\gawk</files>
         <TestParameters>
             <param>modes=PERF-STORAGE-4K-IO-MODES</param>
@@ -360,6 +366,9 @@
         <testName>PERF-STORAGE-OVER-NFS-Synthetic-UDP-4K</testName>
         <testScript>PERF-STORAGE-OVER-NFS.ps1</testScript>
         <setupType>TwoVM12Disk</setupType>
+        <AdditionalHWConfig>
+            <StorageAccountType>PERF_STORAGE_ACCOUNT_TYPE</StorageAccountType>
+        </AdditionalHWConfig>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh</files>
         <TestParameters>
             <param>modes=PERF-STORAGE-4K-IO-MODES</param>
@@ -384,6 +393,7 @@
         <setupType>TwoVM12Disk</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
+            <StorageAccountType>PERF_STORAGE_ACCOUNT_TYPE</StorageAccountType>
         </AdditionalHWConfig>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh</files>
         <TestParameters>
@@ -409,6 +419,7 @@
         <setupType>TwoVM12Disk</setupType>
         <AdditionalHWConfig>
             <Networking>SRIOV</Networking>
+            <StorageAccountType>PERF_STORAGE_ACCOUNT_TYPE</StorageAccountType>
         </AdditionalHWConfig>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\fio_jason_parser.sh,.\Testscripts\Linux\JSON.awk,.\Testscripts\Linux\perf_fio_nfs.sh,.\Testscripts\Linux\CreateRaid.sh</files>
         <TestParameters>
@@ -676,5 +687,65 @@
         <Area>GPU</Area>
         <Tags>gpu,benchmark</Tags>
         <Priority>2</Priority>
+    </test>
+    <test>
+        <testName>PERF-LKP-MICROBENCHMARK</testName>
+        <testScript>PERF-LKP.ps1</testScript>
+        <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_D15_v2</OverrideVMSize>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_lkp.sh</files>
+        <TestParameters>
+            <param>TEST_NAME=lkp_microbenchmark</param>
+        </TestParameters>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Performance</Category>
+        <Area>LKP</Area>
+        <Tags>lkp</Tags>
+        <Priority>3</Priority>
+    </test>
+    <test>
+        <testName>PERF-SCHEDULER-HACKBENCH-LKP</testName>
+        <testScript>PERF-LKP.ps1</testScript>
+        <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_D3_v2</OverrideVMSize>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_lkp.sh</files>
+        <TestParameters>
+            <param>TEST_NAME=hackbench</param>
+        </TestParameters>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Performance</Category>
+        <Area>LKP</Area>
+        <Tags>lkp</Tags>
+        <Priority>1</Priority>
+    </test>
+    <test>
+        <testName>PERF-OTHER-UNIXBENCH-LKP</testName>
+        <testScript>PERF-LKP.ps1</testScript>
+        <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_D3_v2</OverrideVMSize>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_lkp.sh</files>
+        <TestParameters>
+            <param>TEST_NAME=unixbench</param>
+        </TestParameters>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Performance</Category>
+        <Area>LKP</Area>
+        <Tags>lkp</Tags>
+        <Priority>2</Priority>
+    </test>
+    <test>
+        <testName>PERF-OTHER-AIM9-LKP</testName>
+        <testScript>PERF-LKP.ps1</testScript>
+        <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_D3_v2</OverrideVMSize>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_lkp.sh</files>
+        <TestParameters>
+            <param>TEST_NAME=aim9</param>
+        </TestParameters>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Performance</Category>
+        <Area>LKP</Area>
+        <Tags>lkp</Tags>
+        <Priority>3</Priority>
     </test>
 </TestCases>

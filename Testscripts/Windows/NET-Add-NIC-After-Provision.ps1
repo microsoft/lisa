@@ -32,7 +32,7 @@ function Main {
 		}
 		Write-LogDbg "Completed VM stopping $($AllVMData.RoleName) in RG $($AllVMData.ResourceGroupName)."
 		# Get necessary resources
-		$vnet = Get-AzVirtualNetwork -Name "VirtualNetwork" -ResourceGroupName `
+		$vnet = Get-AzVirtualNetwork -Name "LISAv2-VirtualNetwork" -ResourceGroupName `
 			$AllVMData.ResourceGroupName
 		$vm = Get-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName
 
@@ -85,7 +85,7 @@ function Main {
 			Write-LogErr "Test case timed out waiting for VM to boot"
 			return "FAIL"
 		}
-		$vmData = Get-AllDeploymentData -ResourceGroups $AllVMData.ResourceGroupName
+		$vmData = Get-AllDeploymentData -ResourceGroups $AllVMData.ResourceGroupName -PatternOfResourceNamePrefix $AllVMData.RoleName
 		$AllVMData.PublicIP = $vmData.PublicIP
 
 		# Waiting for the VM to run again and respond to SSH - port 22
