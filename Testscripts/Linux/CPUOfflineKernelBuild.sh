@@ -48,6 +48,9 @@ function Main() {
 				;;
 			ubuntu*)
 				req_pkg="build-essential fakeroot libncurses5-dev libssl-dev ccache flex dkms"
+				if [[ "${DISTRO_VERSION}" == "16.04" ]]; then
+					req_pkg="${req_pkg} bc libelf-dev"
+				fi
 				;;
 			*)
 				LogErr "$DISTRO does not support vmbus channel re-assignment per cpu offline"
@@ -79,38 +82,38 @@ function Main() {
 			sed -i -e "s/CONFIG_MODULE_SIG_KEY*.*/#CONFIG_MODULE_SIG_KEY/g" ~/.config
 		fi
 
-		ret=$(yes '' | make oldconfig)
-		if [ $ret ]; then
-			LogMsg "$?: Did oldconfig make file"
+		yes '' | make oldconfig
+		if [ $? ]; then
+			LogMsg "Did oldconfig make file"
 		else
-			LogErr "$?: Failed to run make oldconfig"
+			LogErr "Failed to run make oldconfig"
 			SetTestStateFailed
 			exit 0
 		fi
 
-		ret=$(make -j $(getconf _NPROCESSORS_ONLN))
-		if [ $ret ]; then
-			LogMsg "$?: Compiled the source codes"
+		make -j $(getconf _NPROCESSORS_ONLN)
+		if [ $? ]; then
+			LogMsg "Compiled the source codes"
 		else
-			LogErr "$?: Failed to compile the source code"
+			LogErr "Failed to compile the source code"
 			SetTestStateFailed
 			exit 0
 		fi
 
 		make modules_install
-		if [ $ret ]; then
-			LogMsg "$?: Installed new kernel modules"
+		if [ $? ]; then
+			LogMsg "Installed new kernel modules"
 		else
-			LogErr "$?: Failed to install kernel modules"
+			LogErr "Failed to install kernel modules"
 			SetTestStateFailed
 			exit 0
 		fi
 
 		make install
-		if [ $ret ]; then
-			LogMsg "$?: Install new kernel"
+		if [ $? ]; then
+			LogMsg "Install new kernel"
 		else
-			LogErr "$?: Failed to install new kernel"
+			LogErr "Failed to install new kernel"
 			SetTestStateFailed
 			exit 0
 		fi
