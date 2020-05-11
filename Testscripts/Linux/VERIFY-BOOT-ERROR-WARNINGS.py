@@ -104,8 +104,8 @@ def CollectLogs():
     hostname = os.uname()[1]
     for logfile in logfiles:
         if os.path.exists(logfile):
-            dst = "{}/{}-{}.txt".format(os.getcwd(), hostname,
-                                        os.path.basename(logfile))
+            dst = "{}/{}{}.txt".format(os.getcwd(), hostname,
+                                       logfile.replace('/', '-'))
             try:
                 RunLog.info("Copying {} to {}...".format(logfile, dst))
                 copyfile(logfile, dst)
