@@ -123,7 +123,7 @@ function Main() {
 			# Install separate packages for 7.x and 8.x
 			case $DISTRO in
 				redhat_7|centos_7)
-					req_pkg="python-devel dapl python-setuptools"
+					req_pkg="python-devel dapl python-setuptools wget"
 					install_package $req_pkg
 					LogMsg "$?: Installed $req_pkg"
 				;;
