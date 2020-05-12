@@ -85,6 +85,11 @@ function Main {
 		}
 
 		# ##################################################################################
+		# Reboot VM to apply RDMA changes
+		Write-LogInfo "Rebooting VM!"
+		$TestProvider.RestartAllDeployments($AllVMData)
+
+		# ##################################################################################
 		# Running CPU channel change
 		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./channel_change.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
 		Write-LogInfo "Executed channel_change script inside VM"
