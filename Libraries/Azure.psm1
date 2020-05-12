@@ -1240,10 +1240,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			Add-Content -Value "$($indents[3])^tags^: {^TestID^: ^$TestID^}," -Path $jsonFile
 			Add-Content -Value "$($indents[3])^dependsOn^: " -Path $jsonFile
 			Add-Content -Value "$($indents[3])[" -Path $jsonFile
-			if (!$createAvailabilitySet) {
-				#Add-Content -Value "$($indents[4])^[concat('Microsoft.Compute/availabilitySets/', variables('availabilitySetName'))]^," -Path $jsonFile
-			}
-			else {
+			if ($createAvailabilitySet) {
 				Add-Content -Value "$($indents[4])^[concat('Microsoft.Compute/availabilitySets/', variables('availabilitySetName'))]^," -Path $jsonFile
 			}
 			if ( $NewARMStorageAccountType) {
@@ -1556,14 +1553,15 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
                                 -StorageAccount $used_SC
             $validateCurrentTime = Get-Date
             $elapsedWaitTime = ($validateCurrentTime - $validateStartTime).TotalSeconds
-            if ( (!$readyToDeploy) -and ($elapsedWaitTime -lt $coreCountExceededTimeout)) {
+            # Don't wait if -UseExistingRG, otherwise waiting for resource cleanup to release quota
+            if ($elapsedWaitTime -gt $coreCountExceededTimeout -or $UseExistingRG) {
+                break
+            }
+            elseif (!$readyToDeploy) {
                 $waitPeriod = Get-Random -Minimum 1 -Maximum 10 -SetSeed (Get-Random)
                 Write-LogInfo "Timeout in approx. $($coreCountExceededTimeout - $elapsedWaitTime) seconds..."
                 Write-LogInfo "Waiting $waitPeriod minutes..."
                 Start-Sleep -Seconds ($waitPeriod * 60)
-            }
-            if ( $elapsedWaitTime -gt $coreCountExceededTimeout ) {
-                break
             }
         }
         if ($readyToDeploy) {
@@ -1846,10 +1844,10 @@ Function Delete-ResourceGroup([string]$RGName, [bool]$UseExistingRG, [string]$Pa
             if ($UseExistingRG) {
                 $attempts = 0
                 if ($PatternOfResourceNamePrefix) {
-                    $PatternOfResourceNamePrefix += '|disk'
+                    $PatternOfResourceNamePrefix += '|disk|NIC'
                 }
                 else {
-                    $PatternOfResourceNamePrefix = 'disk'
+                    $PatternOfResourceNamePrefix = 'disk|NIC'
                 }
                 while ($attempts -le 10) {
                     # Get LISAv2 deployed resources and ResourceType is NOT 'AvailabilitySets'
@@ -2021,7 +2019,11 @@ Function Get-AllDeploymentData([string]$ResourceGroups, [string]$PatternOfResour
         # -----2). VM.ResourceName has the same name from SetupType.RoleName,
         # ----------> as matching $PatternOfResourceNamePrefix, which is RoleNames from SetupType Config xml, joined by '|'
         $RGVMs = Get-AzResource -ResourceGroupName $ResourceGroup -ResourceType "Microsoft.Compute/virtualMachines" -Verbose `
-            | Where-Object {$orchestratorHostName -inotmatch $_.Name -and (($_.Name -imatch $PatternOfResourceNamePrefix) -or ($ResourceGroup.StartsWith($_.Name.Split('-')[0])))}
+            | Where-Object {$orchestratorHostName -inotmatch $_.Name -and `
+                (
+                    ($PatternOfResourceNamePrefix -and ($_.Name -imatch $PatternOfResourceNamePrefix)) -or `
+                    ($ResourceGroup.StartsWith($_.Name.Split('-')[0]))
+                )}
         if ($RGVMs) {
             $vmResourcePattern = ($RGVMs | Select-Object -ExpandProperty Name) -Join '|'
         }
@@ -2047,64 +2049,65 @@ Function Get-AllDeploymentData([string]$ResourceGroups, [string]$PatternOfResour
             | Where-Object {$pIp = (Get-AzPublicIpAddress -Name $_.name -ResourceGroupName $ResourceGroup); `
                 return (($pIP.IpAddress -ne "Not Assigned") -and ($_.Name -imatch '^LISAv2-.+'))} `
             | Select-Object -Last 1
-        if (!$RGIPsdata) {
-            Write-LogWarn "    No available Microsoft.Network/publicIPAddresses resources, return empty VmData..."
-            break
-        }
 
         $AllVMs = Get-AzVM -ResourceGroupName $ResourceGroup
         foreach ($testVM in $RGVMs)
         {
             $testVMDetails = $AllVMs | Where-Object { $_.Name -eq $testVM.Name }
             $QuickVMNode = Create-QuickVMNode
-            $lbDetails = Get-AzLoadBalancer -ResourceGroupName $ResourceGroup -Name $LBdata.Name
-            $InboundNatRules = $lbDetails.InboundNatRules
-            foreach ($endPoint in $InboundNatRules)
-            {
-                if ( $endPoint.Name -imatch $testVM.ResourceName)
+            if ($LBdata) {
+                $lbDetails = Get-AzLoadBalancer -ResourceGroupName $ResourceGroup -Name $LBdata.Name
+                $InboundNatRules = $lbDetails.InboundNatRules
+                foreach ($endPoint in $InboundNatRules)
                 {
-                    $endPointName = "$($endPoint.Name)".Replace("$($testVM.Name)-","")
-                    Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($endPointName)Port" -Value $endPoint.FrontendPort -Force
+                    if ( $endPoint.Name -imatch $testVM.ResourceName)
+                    {
+                        $endPointName = "$($endPoint.Name)".Replace("$($testVM.Name)-","")
+                        Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($endPointName)Port" -Value $endPoint.FrontendPort -Force
+                    }
+                }
+                $LoadBalancingRules = $lbDetails.LoadBalancingRules
+                foreach ( $LBrule in $LoadBalancingRules )
+                {
+                    if ( $LBrule.Name -imatch "$ResourceGroup-LB-" )
+                    {
+                        $endPointName = "$($LBrule.Name)".Replace("$ResourceGroup-LB-","")
+                        Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($endPointName)Port" -Value $LBrule.FrontendPort -Force
+                    }
+                }
+                $Probes = $lbDetails.Probes
+                foreach ( $Probe in $Probes )
+                {
+                    if ( $Probe.Name -imatch "$ResourceGroup-LB-" )
+                    {
+                        $probeName = "$($Probe.Name)".Replace("$ResourceGroup-LB-","").Replace("-probe","")
+                        Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($probeName)ProbePort" -Value $Probe.Port -Force
+                    }
                 }
             }
-            $LoadBalancingRules = $lbDetails.LoadBalancingRules
-            foreach ( $LBrule in $LoadBalancingRules )
-            {
-                if ( $LBrule.Name -imatch "$ResourceGroup-LB-" )
+            if ($NICdata) {
+                $AllNICs = Get-AzNetworkInterface -ResourceGroupName $ResourceGroup
+                foreach ($nic in $NICdata)
                 {
-                    $endPointName = "$($LBrule.Name)".Replace("$ResourceGroup-LB-","")
-                    Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($endPointName)Port" -Value $LBrule.FrontendPort -Force
-                }
-            }
-            $Probes = $lbDetails.Probes
-            foreach ( $Probe in $Probes )
-            {
-                if ( $Probe.Name -imatch "$ResourceGroup-LB-" )
-                {
-                    $probeName = "$($Probe.Name)".Replace("$ResourceGroup-LB-","").Replace("-probe","")
-                    Add-Member -InputObject $QuickVMNode -MemberType NoteProperty -Name "$($probeName)ProbePort" -Value $Probe.Port -Force
-                }
-            }
-
-            $AllNICs = Get-AzNetworkInterface -ResourceGroupName $ResourceGroup
-            foreach ( $nic in $NICdata )
-            {
-                $nicDetails = $AllNICs | Where-Object { $_.Name -eq $nic.Name }
-                if (($nic.Name.Replace("-PrimaryNIC","") -eq $testVM.Name) -and ( $nic.Name -imatch "PrimaryNIC"))
-                {
-                    $QuickVMNode.InternalIP = "$($nicDetails.IpConfigurations[0].PrivateIPAddress)"
-                }
-                if (($nic.Name.Replace("-ExtraNetworkCard-1","") -eq $testVM.Name) -and ($nic.Name -imatch "ExtraNetworkCard-1"))
-                {
-                    $QuickVMNode.SecondInternalIP = "$($nicDetails.IpConfigurations[0].PrivateIPAddress)"
+                    $nicDetails = $AllNICs | Where-Object { $_.Name -eq $nic.Name }
+                    if (($nic.Name.Replace("-PrimaryNIC","") -eq $testVM.Name) -and ( $nic.Name -imatch "PrimaryNIC"))
+                    {
+                        $QuickVMNode.InternalIP = "$($nicDetails.IpConfigurations[0].PrivateIPAddress)"
+                    }
+                    if (($nic.Name.Replace("-ExtraNetworkCard-1","") -eq $testVM.Name) -and ($nic.Name -imatch "ExtraNetworkCard-1"))
+                    {
+                        $QuickVMNode.SecondInternalIP = "$($nicDetails.IpConfigurations[0].PrivateIPAddress)"
+                    }
                 }
             }
             $QuickVMNode.ResourceGroupName = $ResourceGroup
-            $ipDetails = Get-AzPublicIpAddress -Name $RGIPsdata.name -ResourceGroupName $ResourceGroup
-            $QuickVMNode.PublicIP = ($ipDetails | Where-Object { $_.publicIPAddressVersion -eq "IPv4" }).ipAddress
-            $QuickVMNode.PublicIPv6 = ($ipDetails | Where-Object { $_.publicIPAddressVersion -eq "IPv6" }).ipAddress
-            $QuickVMNode.URL = ($ipDetails | Where-Object { $_.publicIPAddressVersion -eq "IPv4" }).dnsSettings.fqdn
-            $QuickVMNode.URLv6 = ($ipDetails | Where-Object { $_.publicIPAddressVersion -eq "IPv6" }).dnsSettings.fqdn
+            if ($RGIPsdata) {
+                $ipDetails = Get-AzPublicIpAddress -Name $RGIPsdata.name -ResourceGroupName $ResourceGroup
+                $QuickVMNode.PublicIP = ($ipDetails | Where-Object { $_.publicIPAddressVersion -eq "IPv4" }).ipAddress
+                $QuickVMNode.PublicIPv6 = ($ipDetails | Where-Object { $_.publicIPAddressVersion -eq "IPv6" }).ipAddress
+                $QuickVMNode.URL = ($ipDetails | Where-Object { $_.publicIPAddressVersion -eq "IPv4" }).dnsSettings.fqdn
+                $QuickVMNode.URLv6 = ($ipDetails | Where-Object { $_.publicIPAddressVersion -eq "IPv6" }).dnsSettings.fqdn
+            }
             $QuickVMNode.RoleName = $testVM.Name
             $QuickVMNode.Status = $testVMDetails.ProvisioningState
             $QuickVMNode.InstanceSize = $testVMDetails.hardwareProfile.vmSize
@@ -2973,8 +2976,12 @@ Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $Cu
         $ErrorMessage = $_.Exception.Message
         Write-LogErr "EXCEPTION : $ErrorMessage"
         Write-LogErr "Source : Line $line in script $script_name."
-        Write-LogWarn "Debug: Last boot raw text : $(Get-Content "$LogDir\$($vmData.RoleName)-uptime.txt")"
-        Write-LogWarn "Debug: WALA start line raw text : $waagentStartLine"
-        Write-LogWarn "Debug: WALA start raw text : $($waagentStartLine.Split()[0] + " " + $waagentStartLine.Split()[1])"
+        if ($vmData -and $vmData.RoleName -and $LogDir -and $(Test-Path -Path "$LogDir\$($vmData.RoleName)-uptime.txt")) {
+            Write-LogWarn "Debug: Last boot raw text : $(Get-Content "$LogDir\$($vmData.RoleName)-uptime.txt")"
+        }
+        if ($waagentStartLine) {
+            Write-LogWarn "Debug: WALA start line raw text : $waagentStartLine"
+            Write-LogWarn "Debug: WALA start raw text : $($waagentStartLine.Split()[0] + " " + $waagentStartLine.Split()[1])"
+        }
     }
 }

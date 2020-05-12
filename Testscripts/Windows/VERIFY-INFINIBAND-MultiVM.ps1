@@ -339,8 +339,8 @@ function Main {
 				$pattern = "INFINIBAND_VERIFICATION_SUCCESS_$InfinibandNic"
 				Write-LogInfo "Analyzing $logFileName"
 				$metaData = "InfiniBand-Verification-$Iteration-$TempName : $InfinibandNic IP"
-				$SucessLogs = Select-String -Path $logFileName -Pattern $pattern
-				if ($SucessLogs.Count -eq 1) {
+				$SuccessLogs = Select-String -Path $logFileName -Pattern $pattern
+				if ($SuccessLogs.Count -eq 1) {
 					$currentResult = $resultPass
 				} else {
 					$currentResult = $resultFail
@@ -354,8 +354,8 @@ function Main {
 				$pattern = "INFINIBAND_VERIFICATION_SUCCESS_IBV_PINGPONG"
 				Write-LogInfo "Analyzing $logFileName"
 				$metaData = "InfiniBand-Verification-$Iteration-$TempName : IBV_PINGPONG"
-				$SucessLogs = Select-String -Path $logFileName -Pattern $pattern
-				if ($SucessLogs.Count -eq 1) {
+				$SuccessLogs = Select-String -Path $logFileName -Pattern $pattern
+				if ($SuccessLogs.Count -eq 1) {
 					$currentResult = $resultPass
 				} else {
 					# Get the actual tests that failed and output them
@@ -375,8 +375,8 @@ function Main {
 				$pattern = "INFINIBAND_VERIFICATION_SUCCESS_MPI1_INTRANODE"
 				Write-LogInfo "Analyzing $logFileName"
 				$metaData = "InfiniBand-Verification-$Iteration-$TempName : PingPong Intranode"
-				$SucessLogs = Select-String -Path $logFileName -Pattern $pattern
-				if ($SucessLogs.Count -eq 1) {
+				$SuccessLogs = Select-String -Path $logFileName -Pattern $pattern
+				if ($SuccessLogs.Count -eq 1) {
 					$currentResult = $resultPass
 				} elseif ($BenchmarkType -eq "OMB") {
 					$currentResult = "SKIPPED"
@@ -394,8 +394,8 @@ function Main {
 					$pattern = "INFINIBAND_VERIFICATION_SUCCESS_MPI1_ALLNODES"
 					Write-LogInfo "Analyzing $logFileName"
 					$metaData = "InfiniBand-Verification-$Iteration-$TempName : IMB-MPI1"
-					$SucessLogs = Select-String -Path $logFileName -Pattern $pattern
-					if ($SucessLogs.Count -eq 1) {
+					$SuccessLogs = Select-String -Path $logFileName -Pattern $pattern
+					if ($SuccessLogs.Count -eq 1) {
 						$currentResult = $resultPass
 					} elseif ($BenchmarkType -eq "OMB") {
 						$currentResult = "SKIPPED"
@@ -415,9 +415,9 @@ function Main {
 					$patternSkipped = "INFINIBAND_VERIFICATION_SKIPPED_IMB_P2P_ALLNODES"
 					Write-LogInfo "Analyzing $logFileName"
 					$metaData = "InfiniBand-Verification-$Iteration-$TempName : IMB-P2P"
-					$SucessLogs = Select-String -Path $logFileName -Pattern $pattern
+					$SuccessLogs = Select-String -Path $logFileName -Pattern $pattern
 					$SkippedLogs = Select-String -Path $logFileName -Pattern $patternSkipped
-					if ($SucessLogs.Count -eq 1) {
+					if ($SuccessLogs.Count -eq 1) {
 						$currentResult = $resultPass
 					} elseif (($SkippedLogs.Count -eq 1) -or ($QuickTestOnly -eq "yes")) {
 						$currentResult = "SKIPPED"
@@ -437,9 +437,9 @@ function Main {
 					$patternSkipped = "INFINIBAND_VERIFICATION_SKIPPED_IO_ALLNODES"
 					Write-LogInfo "Analyzing $logFileName"
 					$metaData = "InfiniBand-Verification-$Iteration-$TempName : IMB-IO"
-					$SucessLogs = Select-String -Path $logFileName -Pattern $pattern
+					$SuccessLogs = Select-String -Path $logFileName -Pattern $pattern
 					$SkippedLogs = Select-String -Path $logFileName -Pattern $patternSkipped
-					if ($SucessLogs.Count -eq 1) {
+					if ($SuccessLogs.Count -eq 1) {
 						$currentResult = $resultPass
 					} elseif (($SkippedLogs.Count -eq 1) -or ($QuickTestOnly -eq "yes")) {
 						$currentResult = "SKIPPED"
@@ -458,8 +458,8 @@ function Main {
 					$pattern = "INFINIBAND_VERIFICATION_SUCCESS_RMA_ALLNODES"
 					Write-LogInfo "Analyzing $logFileName"
 					$metaData = "InfiniBand-Verification-$Iteration-$TempName : IMB-RMA"
-					$SucessLogs = Select-String -Path $logFileName -Pattern $pattern
-					if ($SucessLogs.Count -eq 1) {
+					$SuccessLogs = Select-String -Path $logFileName -Pattern $pattern
+					if ($SuccessLogs.Count -eq 1) {
 						$currentResult = $resultPass
 					} elseif ($QuickTestOnly -eq "yes") {
 						$currentResult = "SKIPPED"
@@ -478,8 +478,8 @@ function Main {
 					$pattern = "INFINIBAND_VERIFICATION_SUCCESS_NBC_ALLNODES"
 					Write-LogInfo "Analyzing $logFileName"
 					$metaData = "InfiniBand-Verification-$Iteration-$TempName : IMB-NBC"
-					$SucessLogs = Select-String -Path $logFileName -Pattern $pattern
-					if ($SucessLogs.Count -eq 1) {
+					$SuccessLogs = Select-String -Path $logFileName -Pattern $pattern
+					if ($SuccessLogs.Count -eq 1) {
 						$currentResult = $resultPass
 					} elseif ($QuickTestOnly -eq "yes") {
 						$currentResult = "SKIPPED"

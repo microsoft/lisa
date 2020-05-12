@@ -80,6 +80,7 @@ if [ -n "$mdvol" ]; then
         mdadm --remove /dev/${mdvol}
         mdadm --zero-superblock /dev/sd[c-z][1-5]
 fi
+# Should use function create_raid0() from utils.sh, for below logic
 echo "INFO: Creating Partitions"
 count=0
 for disk in ${disks}
