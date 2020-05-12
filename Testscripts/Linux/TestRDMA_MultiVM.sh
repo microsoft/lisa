@@ -194,8 +194,8 @@ function Run_OMB_P2P() {
 			;;
 			mvapich)
 				for test_name in ${omb_p2p_tests_array[@]}; do
-					LogMsg "$mpi_run_path -n $(($omb_ppn * $total_virtual_machines)) $master $slaves_array $mpi_settings $omb_p2p_path$test_name"
-					ssh root@${master} "$mpi_run_path -n $(($omb_ppn * $total_virtual_machines)) $master $slaves_array $mpi_settings $omb_p2p_path$test_name> OMB-P2P-AllNodes-output-Attempt-${attempt}-$test_name.txt"
+					LogMsg "ssh root@${master} $mpi_run_path -n $total_virtual_machines $master $slaves_array $mpi_settings  numactl $numactl_settings  $omb_p2p_path$test_name> OMB-P2P-AllNodes-output-Attempt-${attempt}-$test_name.txt"
+					ssh root@${master} "$mpi_run_path -n $total_virtual_machines $master $slaves_array $mpi_settings numactl $numactl_settings $omb_p2p_path$test_name> OMB-P2P-AllNodes-output-Attempt-${attempt}-$test_name.txt"
 				done
 			;;
 		esac
@@ -399,7 +399,7 @@ function Run_IMB_P2P() {
 		LogErr "IMB-P2P tests returned non-zero exit code. Aborting further tests."
 		SetTestStateFailed
 		Collect_Logs
-		LogErr "INFINIBAND_VERIFICATION_FAILED_P2P_ALLNODES"
+		LogErr "INFINIBAND_VERIFICATION_FAILED_IMB_P2P_ALLNODES"
 		exit 0
 	else
 		LogMsg "INFINIBAND_VERIFICATION_SUCCESS_IMB_P2P_ALLNODES"

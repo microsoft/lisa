@@ -105,7 +105,7 @@ function Main() {
 			LogMsg "Starting RDMA setup for RHEL/CentOS"
 			# required dependencies
 			grep 7.5 /etc/redhat-release || grep 7.6 /etc/redhat-release && curl https://partnerpipelineshare.blob.core.windows.net/kernel-devel-rpms/CentOS-Vault.repo > /etc/yum.repos.d/CentOS-Vault.repo
-			req_pkg="kernel-devel-$(uname -r) valgrind-devel redhat-rpm-config rpm-build gcc gcc-gfortran libdb-devel gcc-c++ glibc-devel zlib-devel numactl-devel libmnl-devel binutils-devel iptables-devel libstdc++-devel libselinux-devel elfutils-devel libtool libnl3-devel java libstdc++.i686 gtk2 atk cairo tcl tk createrepo byacc.x86_64 net-tools tcsh"
+			req_pkg="kernel-devel-$(uname -r) valgrind-devel redhat-rpm-config rpm-build gcc gcc-gfortran libdb-devel gcc-c++ glibc-devel zlib-devel numactl numactl-devel libmnl-devel binutils-devel iptables-devel libstdc++-devel libselinux-devel elfutils-devel libtool libnl3-devel java libstdc++.i686 gtk2 atk cairo tcl tk createrepo byacc.x86_64 net-tools tcsh"
 			install_package $req_pkg
 			LogMsg "$?: Installed required packages $req_pkg"
 			# libibverbs-devel and libibmad-devel have broken dependencies on Centos 7.6
@@ -180,7 +180,7 @@ function Main() {
 		suse*|sles*)
 			# install required packages
 			LogMsg "Starting RDMA setup for SUSE"
-			req_pkg="bzip expect glibc-32bit glibc-devel libgcc_s1 libgcc_s1-32bit libpciaccess-devel gcc-c++ gcc-fortran rdma-core libibverbs-devel librdmacm1 libibverbs-utils bison flex"
+			req_pkg="bzip expect glibc-32bit glibc-devel libgcc_s1 libgcc_s1-32bit libpciaccess-devel gcc-c++ gcc-fortran rdma-core libibverbs-devel librdmacm1 libibverbs-utils bison flex numactl"
 			LogMsg "Installing required packages, $req_pkg"
 			install_package $req_pkg
 			# force install package that is known to have broken dependencies
@@ -223,7 +223,7 @@ function Main() {
 			LogMsg "Required 32-bit java"
 			dpkg --add-architecture i386
 
-			req_pkg="build-essential python-setuptools libibverbs-dev bison flex ibverbs-utils net-tools libdapl2 rdmacm-utils bc"
+			req_pkg="build-essential python-setuptools libibverbs-dev bison flex ibverbs-utils net-tools libdapl2 rdmacm-utils bc numactl"
 			install_package $req_pkg
 			LogMsg "Installed the required packages, $req_pkg"
 			os_RELEASE=$(awk '/VERSION_ID=/' /etc/os-release | sed 's/VERSION_ID=//' | sed 's/\"//g')

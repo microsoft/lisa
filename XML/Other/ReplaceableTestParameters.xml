@@ -234,8 +234,8 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceWith>1</ReplaceWith>
 	</Parameter>
 		<Parameter>
-		<ReplaceThis>INFINIBAND_MVAPICH_OMB_PPN</ReplaceThis>
-		<ReplaceWith>1</ReplaceWith>
+		<ReplaceThis>INFINIBAND_NUMACTL_SETTINGS</ReplaceThis>
+		<ReplaceWith>-c 1</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_MPI_TEST_COUNT</ReplaceThis>
@@ -308,7 +308,7 @@ Scenario 2 : You need to run all the performance tests quickly.
 	<Parameter>
 		<!-- Refer http://mvapich.cse.ohio-state.edu/benchmarks/-->
 		<ReplaceThis>INFINIBAND_MVAPICH_OMB_P2P_TESTNAMES</ReplaceThis>
-		<ReplaceWith>"osu_latency osu_bw osu_bibw osu_mbw_mr osu_multi_lat"</ReplaceWith>
+		<ReplaceWith>osu_latency osu_bw osu_bibw osu_mbw_mr osu_multi_lat</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_INTEL_NBC_TEST_COUNT</ReplaceThis>
