@@ -2292,6 +2292,9 @@ function install_fio () {
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos)
 			install_epel
+			if [[ "${DISTRO_VERSION}" == "7.8" ]]; then
+				yum install -y libpmem-devel
+			fi
 			yum -y --nogpgcheck install wget sysstat mdadm blktrace libaio fio bc libaio-devel gcc gcc-c++ kernel-devel
 			if ! command -v fio; then
 				LogMsg "fio is not installed\n Build it from source code now..."
