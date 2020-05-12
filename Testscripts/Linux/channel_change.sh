@@ -90,6 +90,7 @@ function reset_cpu_id() {
 
 function Main() {
 	# Collect the vmbus and cpu id information from the system, and store in /tmp/lsvmbus.output
+	basedir=$(pwd)
 	lsvmbus
 	if [ $? != 0 ]; then
 		if [ -f /usr/src/linux/tools/hv/lsvmbus ]; then
@@ -131,7 +132,7 @@ function Main() {
 					LogMsg "Changed the cpu $id state to online"
 					sleep 1
 					post_state=$(cat /sys/devices/system/cpu/cpu$id/online)
-					if [[ $post_state == "1"]]; then
+					if [[ $post_state == "1" ]]; then
 						LogMsg "Successfully verified to change back the cpu $id state to online"
 						sleep 1
 						dmesg > /tmp/post-stage2.log
@@ -155,7 +156,7 @@ function Main() {
 		fi
 	done
 
-	echo "job_completed=0" >> ~/constants.sh
+	echo "job_completed=0" >> $basedir/constants.sh
 	LogMsg "Main function job completed"
 }
 

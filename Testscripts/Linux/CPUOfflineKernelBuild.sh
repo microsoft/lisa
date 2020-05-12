@@ -119,7 +119,7 @@ function Main() {
 		fi
 	fi
 
-	if [[ $DISTRO == "ubuntu*" ]]; then
+	if [[ $DISTRO =~ "ubuntu" ]]; then
 		update-grub2
 		LogMsg "$?: Ran update-grub2"
 	fi
