@@ -84,7 +84,7 @@ function Main() {
 	# another rhel 8.0 repo bug workaround, https://bugzilla.redhat.com/show_bug.cgi?id=1787637
 	if [ $DISTRO == 'redhat_8' ]; then
 		echo 8 > /etc/yum/vars/releasever
-		LogMsg "$?: Applied a mitigation to /etc/yum/vars/releasever"
+		LogMsg "$?: Applied a mitigation for $DISTRO to /etc/yum/vars/releasever"
 	fi
 	LogMsg "Starting RDMA required packages and software setup in VM"
 	update_repos
@@ -98,7 +98,7 @@ function Main() {
 	hpcx_ver=""
 	source /etc/os-release
 	# Place the temporary solution for waagent 2.2.45 upgrade.
-	Upgrade_waagent
+	# Upgrade_waagent
 	case $DISTRO in
 		redhat_7|centos_7|redhat_8|centos_8)
 			# install required packages regardless VM types.
