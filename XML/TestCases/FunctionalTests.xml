@@ -780,6 +780,6 @@
         <Category>Functional</Category>
         <Area>CORE</Area>
         <Tags>cpu</Tags>
-        <Priority>2</Priority>
+        <Priority>3</Priority>
     </test>
 </TestCases>
