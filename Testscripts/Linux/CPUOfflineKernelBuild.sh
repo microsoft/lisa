@@ -30,6 +30,8 @@ GetDistro
 
 function Main() {
 
+	basedir=$(pwd)
+
 	if [[ $repo_url != "" ]]; then
 		LogMsg "CPU offline and vmbus interrupt reassignement requires kernel build in the VM until the version 5.7"
 		update_repos
@@ -66,7 +68,6 @@ function Main() {
 		git clone $repo_url linux
 		LogMsg "$?: Cloned the kernel source repo"
 
-		basedir=$(pwd)
 		cd linux
 
 		git checkout $repo_branch
@@ -126,10 +127,10 @@ function Main() {
 
 	cat ./TestExecution.log >> $basedir/TestExecution.log
 	cat ./TestExecutionError.log >> $basedir/TestExecutionError.log
-}
 
-echo "setup_completed=0" >> $basedir/constants.sh
-LogMsg "Main function of setup completed"
+	echo "setup_completed=0" >> $basedir/constants.sh
+	LogMsg "Main function of setup completed"
+}
 
 # main body
 Main
