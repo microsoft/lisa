@@ -46,7 +46,7 @@ function reset_cpu_id() {
 
 			read -a line
 			if [[ ${line[0]} =~ "Sysfs" && ${line[1]} == "path:" ]]; then
-				sysfs_path=${line[2]%?}
+				sysfs_path=${line[2]}
 				LogMsg "Found new sysfs --> $sysfs_path"
 
 				# Read Rel_ID and target_cpu lines
@@ -58,18 +58,19 @@ function reset_cpu_id() {
 					LogMsg "Found Rel_ID: $rel_id"
 					cpu_id=${line[1]#"$prefix2"}
 					LogMsg "Found target_cpu: $cpu_id"
-
 					if [[ $cpu_id != "0" ]]; then
 						_cpu_id=$(cat $sysfs_path/channels/$rel_id/cpu)
+						idle_cpus+=($_cpu_id)
 						LogMsg "Found the cpu id, $_cpu_id from the channel $rel_id. Will set 0, the default cpu id, to this cpu"
 						echo 0 > $sysfs_path/channels/$rel_id/cpu
+						sleep 1
+						# validate the change of that cpu id
 						_cpu_id=$(cat $sysfs_path/channels/$rel_id/cpu)
 						if [[ $_cpu_id == "0" ]]; then
-							LogMsg "Successfully changed the cpu id of the channel $rel_id to 0"
-							idle_cpus[$cpu_idx]=$_cpu_id
+							LogMsg "Successfully changed the cpu id of the channel $rel_id from ${idle_cpus[$cpu_idx]} to 0"
 							cpu_idx=$((cpu_idx+1))
 						else
-							LogErr "Failed to change the cpu id of the channel $rel_id to 0. Expected 0, but found $_cpu_id"
+							LogErr "Failed to change the cpu id of the channel $rel_id from ${idle_cpus[$cpu_idx]} to 0. Expected 0, but found $_cpu_id"
 						fi
 					fi
 					read -a line
@@ -82,6 +83,7 @@ function reset_cpu_id() {
 		else
 			LogErr "Supposed to read VMBUS ID line, but found ${line[@]}"
 		fi
+		LogMsg ""
 	done < "$lsvmbus_output_location"
 
 	LogMsg "VMBUS scanning result: ${vmbus_id[@]}"
@@ -93,8 +95,9 @@ function Main() {
 	basedir=$(pwd)
 	lsvmbus
 	if [ $? != 0 ]; then
-		if [ -f /usr/src/linux/tools/hv/lsvmbus ]; then
-			/usr/src/linux/tools/hv/lsvmbus -vv > $lsvmbus_output_location
+		if [ -f $basedir/linux/tools/hv/lsvmbus ]; then
+			chmod +x $basedir/linux/tools/hv/lsvmbus
+			$basedir/linux/tools/hv/lsvmbus -vv > $lsvmbus_output_location
 		else
 			LogErr "File, lsvmbus, not found in the system. Aborted the execution."
 			SetTestStateAborted
@@ -106,6 +109,7 @@ function Main() {
 	LogMsg "Successfully recorded lsvmbus output in $lsvmbus_output_location"
 
 	# Before chaning cpu id to 0, reset all cpu ids of each vmbus channel.
+	LogMsg "Resetting CPU ID if non-zero"
 	reset_cpu_id
 
 	# Select a CPU number where does not associate to vmbus channels from idle_cpus array
@@ -137,10 +141,10 @@ function Main() {
 						sleep 1
 						dmesg > /tmp/post-stage2.log
 						diff_val2=$(diff /tmp/post-stage.log /tmp/post-stage2.log)
-						if [[ $diff_val == *"smptboot: Booting Node 1 Processor $id APIC"* ]]; then
+						if [[ $diff_val2 == *"smpboot: Booting Node"* ]]; then
 							LogMsg "Successfully found dmesg log per cpu online state change"
 						else
-							LogErr "Failed to verify cpu online state change. Expected smptboot: Booting Node 1 Processor $id APIC, but found $diff_val2"
+							LogErr "Failed to verify cpu online state change. Expected smpboot: Booting Node, but found $diff_val2"
 						fi
 					else
 						LogErr "Failed to change back cpu $id to onlone"
@@ -154,6 +158,7 @@ function Main() {
 		else
 			LogErr "Found the currect cpu $id is not online. Expected 1 but found $state"
 		fi
+		LogMsg ""
 	done
 
 	echo "job_completed=0" >> $basedir/constants.sh

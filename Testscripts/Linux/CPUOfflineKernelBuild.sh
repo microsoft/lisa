@@ -125,8 +125,10 @@ function Main() {
 		LogMsg "$?: Ran update-grub2"
 	fi
 
-	cat ./TestExecution.log >> $basedir/TestExecution.log
-	cat ./TestExecutionError.log >> $basedir/TestExecutionError.log
+	cp $basedir/TestExecution.log $basedir/Setup-TestExecution.log
+	cat ./TestExecution.log >> $basedir/Setup-TestExecution.log
+	cp $basedir/TestExecutionError,log $basedir/Setup-TestExecutionError.log
+	cat ./TestExecutionError.log >> $basedir/Setup-TestExecutionError.log
 
 	echo "setup_completed=0" >> $basedir/constants.sh
 	LogMsg "Main function of setup completed"
