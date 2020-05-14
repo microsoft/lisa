@@ -2,7 +2,7 @@
 # Licensed under the Apache License.
 <#
 .Synopsis
-	Perform a simple VM hibernation in Azure or Hyper-V
+	Perform a simple VM hibernation in Azure
 
 .Description
 	This test can be performed in Azure and Hyper-V both. But this script only covers Azure.

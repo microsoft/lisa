@@ -748,4 +748,19 @@
         <Tags>lkp</Tags>
         <Priority>3</Priority>
     </test>
+    <test>
+        <testName>PERF-STORAGE-HIBERNATE</testName>
+        <testScript>PERF-STORAGE-FIO-HB.ps1</testScript>
+        <setupType>OneVMhb</setupType>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SetupHbKernel.sh</files>
+        <TestParameters>
+            <param>hb_url=Hb_CustomKernelURL</param>
+            <param>hb_branch=Hb_CustomKernelBranch</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Performance</Category>
+        <Area>POWER</Area>
+        <Tags>power,storage</Tags>
+        <Priority>3</Priority>
+    </test>
 </TestCases>
