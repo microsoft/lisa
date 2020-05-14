@@ -84,7 +84,7 @@ function Main() {
 	# another rhel 8.0 repo bug workaround, https://bugzilla.redhat.com/show_bug.cgi?id=1787637
 	if [ $DISTRO == 'redhat_8' ]; then
 		echo 8 > /etc/yum/vars/releasever
-		LogMsg "$?: Applied a mitigation to /etc/yum/vars/releasever"
+		LogMsg "$?: Applied a mitigation for $DISTRO to /etc/yum/vars/releasever"
 	fi
 	LogMsg "Starting RDMA required packages and software setup in VM"
 	update_repos
@@ -98,14 +98,21 @@ function Main() {
 	hpcx_ver=""
 	source /etc/os-release
 	# Place the temporary solution for waagent 2.2.45 upgrade.
-	Upgrade_waagent
+	# Upgrade_waagent
 	case $DISTRO in
 		redhat_7|centos_7|redhat_8|centos_8)
 			# install required packages regardless VM types.
 			LogMsg "Starting RDMA setup for RHEL/CentOS"
 			# required dependencies
 			grep 7.5 /etc/redhat-release || grep 7.6 /etc/redhat-release && curl https://partnerpipelineshare.blob.core.windows.net/kernel-devel-rpms/CentOS-Vault.repo > /etc/yum.repos.d/CentOS-Vault.repo
-			req_pkg="kernel-devel-$(uname -r) valgrind-devel redhat-rpm-config rpm-build gcc gcc-gfortran libdb-devel gcc-c++ glibc-devel zlib-devel numactl numactl-devel libmnl-devel binutils-devel iptables-devel libstdc++-devel libselinux-devel elfutils-devel libtool libnl3-devel java libstdc++.i686 gtk2 atk cairo tcl tk createrepo byacc.x86_64 net-tools tcsh"
+			req_pkg="kernel-devel-$(uname -r) redhat-rpm-config rpm-build gcc gcc-gfortran libdb-devel gcc-c++ glibc-devel zlib-devel numactl numactl-devel binutils-devel iptables-devel libstdc++-devel libselinux-devel elfutils-devel libtool java libstdc++.i686 gtk2 atk cairo tcl tk createrepo byacc.x86_64 net-tools tcsh"
+			install_package $req_pkg
+			LogMsg "$?: Installed required packages $req_pkg"
+			if [[ ! $(grep 7.8 /etc/redhat-release) ]]; then
+				req_pkg="valgrind-devel libmnl-devel libnl3-devel"
+				install_package $req_pkg
+				LogMsg "$?: Installed required packages $req_pkg"
+			fi
 			install_package $req_pkg
 			LogMsg "$?: Installed required packages $req_pkg"
 			# libibverbs-devel and libibmad-devel have broken dependencies on Centos 7.6
@@ -116,7 +123,7 @@ function Main() {
 			# Install separate packages for 7.x and 8.x
 			case $DISTRO in
 				redhat_7|centos_7)
-					req_pkg="python-devel dapl python-setuptools"
+					req_pkg="python-devel dapl python-setuptools wget"
 					install_package $req_pkg
 					LogMsg "$?: Installed $req_pkg"
 				;;
@@ -238,7 +245,7 @@ function Main() {
 			fi
 			# In case, kernel did not load the required modules
 			LogMsg "Adding kernel modules to /etc/modules"
-			for ex_module in rdma_ucm ib_ipoib ib_umad
+			for ex_module in rdma_cm rdma_ucm ib_ipoib ib_umad
 			do
 				lsmod | grep -i $ex_module
 				if [ $? != 0 ]; then
