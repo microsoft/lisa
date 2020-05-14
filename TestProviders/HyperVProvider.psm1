@@ -168,9 +168,10 @@ Class HyperVProvider : TestProvider
 				Create-HyperVCheckpoint -VMData $AllVMData -CheckpointName "$($CurrentTestData.TestName)-$($CurrentTestResult.TestResult)" `
 					-ShouldTurnOffVMBeforeCheckpoint $false -ShouldTurnOnVMAfterCheckpoint $false
 			}
-		}
-		catch
-		{
+			if ($global:DependencyVmHost) {
+				Stop-VM -Name $global:DependencyVmName -TurnOff -Force -ComputerName $global:DependencyVmHost
+			}
+		} catch {
 			$ErrorMessage =  $_.Exception.Message
 			Write-Output "EXCEPTION in RunTestCaseCleanup : $ErrorMessage"
 		}

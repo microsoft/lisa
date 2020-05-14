@@ -583,8 +583,7 @@ function Optimize-TimeSync {
 	)
 	$testScript = "timesync_config.sh"
 	$null = Run-LinuxCmd -ip $Ipv4 -port $Port -username $Username `
-		-password $Password -command `
-		"echo '${Password}' | sudo -S -s eval `"export HOME=``pwd``;bash ${testScript} > ${testScript}.log`""
+			-password $Password -command "bash ${testScript} > ${testScript}.log" -runAsSudo
 	if (-not $?) {
 		Write-LogErr "Failed to configure time sync. Check logs for details."
 		return $False
