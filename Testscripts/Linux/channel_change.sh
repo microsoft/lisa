@@ -42,7 +42,6 @@ function reset_cpu_id() {
 # If successful, all cpu_ids in lsvmbus output should be 0 per channel, and generate
 # the list of idle cpus
 
-	lsvmbus_output_location="/tmp/lsvmbus.output"
 	idx=0
 	cpu_idx=0
 	while IFS=' ' read -a line
