@@ -2,18 +2,8 @@
 #
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
-# This script will set up CPU offline feature with vmbus interrupt channel re-assignment.
+# This script will execute the CPU channel change along with vmbus interrupt re-assignment
 # This feature will be enabled the kernel version 5.7+
-# Select a CPU number where does not associate to vmbus channels; /sys/bus/vmbus/devices/<device ID>/channels/<channel ID>/cpu.
-# Set 1 to online file, echo 1 > /sys/devices/system/cpu/cpu<number>/online
-# Verify the dmesg log like ‘smpboot: Booting Node xx Processor x APIC 0xXX’
-# Set 0 to online file, echo 0 > /sys/devices/system/cpu/cpu<number>/online
-# Verify the dmesg log like ‘smpboot: CPU x is now offline’
-# Select a CPU number where associates to vmbus channels.
-# Set 1 to online file, echo 1 > /sys/devices/system/cpu/cpu<number>/online
-# Verify the command error: Device or resource busy
-# Set 0 to online file, echo 0 > /sys/devices/system/cpu/cpu<number>/online
-# Verify the command error: Device or resource busy
 ########################################################################################################
 # Source utils.sh
 . utils.sh || {
@@ -73,8 +63,9 @@ function Main() {
 		git checkout $repo_branch
 		LogMsg "$?: Changed to $repo_branch"
 
-		config_file=$(ls /boot/config* | head -n 1)
-		cp $config_file ~/.config
+		config_file="/boot/config-$(uname -r)"
+
+		cp $config_file $basedir/linux/.config
 		LogMsg "$?: Copied the default config file from /boot"
 
 		if [[ $DISTRO == "redhat_8" ]]; then
@@ -84,13 +75,7 @@ function Main() {
 		fi
 
 		yes '' | make oldconfig
-		if [ $? ]; then
-			LogMsg "Did oldconfig make file"
-		else
-			LogErr "Failed to run make oldconfig"
-			SetTestStateFailed
-			exit 0
-		fi
+		LogMsg "Did make oldconfig file"
 
 		make -j $(getconf _NPROCESSORS_ONLN)
 		if [ $? ]; then
@@ -118,17 +103,17 @@ function Main() {
 			SetTestStateFailed
 			exit 0
 		fi
-	fi
 
-	if [[ $DISTRO =~ "ubuntu" ]]; then
-		update-grub2
-		LogMsg "$?: Ran update-grub2"
-	fi
+		if [[ $DISTRO =~ "ubuntu" ]]; then
+			update-grub2
+			LogMsg "$?: Ran update-grub2"
+		fi
 
-	cp $basedir/TestExecution.log $basedir/Setup-TestExecution.log
-	cat ./TestExecution.log >> $basedir/Setup-TestExecution.log
-	cp $basedir/TestExecutionError,log $basedir/Setup-TestExecutionError.log
-	cat ./TestExecutionError.log >> $basedir/Setup-TestExecutionError.log
+		cp $basedir/TestExecution.log $basedir/Setup-TestExecution.log
+		cat ./TestExecution.log >> $basedir/Setup-TestExecution.log
+		cp $basedir/TestExecutionError,log $basedir/Setup-TestExecutionError.log
+		cat ./TestExecutionError.log >> $basedir/Setup-TestExecutionError.log
+	fi
 
 	echo "setup_completed=0" >> $basedir/constants.sh
 	LogMsg "Main function of setup completed"

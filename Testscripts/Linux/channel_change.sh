@@ -2,8 +2,18 @@
 #
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
-# This script will execute the CPU channel change along with vmbus interrupt re-assignment
+# This script will set up CPU offline feature with vmbus interrupt channel re-assignment.
 # This feature will be enabled the kernel version 5.7+
+# Select a CPU number where does not associate to vmbus channels; /sys/bus/vmbus/devices/<device ID>/channels/<channel ID>/cpu.
+# Set 1 to online file, echo 1 > /sys/devices/system/cpu/cpu<number>/online
+# Verify the dmesg log like ‘smpboot: Booting Node xx Processor x APIC 0xXX’
+# Set 0 to online file, echo 0 > /sys/devices/system/cpu/cpu<number>/online
+# Verify the dmesg log like ‘smpboot: CPU x is now offline’
+# Select a CPU number where associates to vmbus channels.
+# Set 1 to online file, echo 1 > /sys/devices/system/cpu/cpu<number>/online
+# Verify the command error: Device or resource busy
+# Set 0 to online file, echo 0 > /sys/devices/system/cpu/cpu<number>/online
+# Verify the command error: Device or resource busy
 ########################################################################################################
 # Source utils.sh
 . utils.sh || {

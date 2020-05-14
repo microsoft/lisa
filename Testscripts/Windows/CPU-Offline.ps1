@@ -85,7 +85,7 @@ function Main {
 		}
 
 		# ##################################################################################
-		# Reboot VM to apply RDMA changes
+		# Reboot VM
 		Write-LogInfo "Rebooting VM!"
 		$TestProvider.RestartAllDeployments($AllVMData)
 
