@@ -78,31 +78,13 @@ function Main() {
 		LogMsg "Did make oldconfig file"
 
 		make -j $(getconf _NPROCESSORS_ONLN)
-		if [ $? ]; then
-			LogMsg "Compiled the source codes"
-		else
-			LogErr "Failed to compile the source code"
-			SetTestStateFailed
-			exit 0
-		fi
+		LogMsg "Compiled the source codes"
 
 		make modules_install
-		if [ $? ]; then
-			LogMsg "Installed new kernel modules"
-		else
-			LogErr "Failed to install kernel modules"
-			SetTestStateFailed
-			exit 0
-		fi
+		LogMsg "Installed new kernel modules"
 
 		make install
-		if [ $? ]; then
-			LogMsg "Install new kernel"
-		else
-			LogErr "Failed to install new kernel"
-			SetTestStateFailed
-			exit 0
-		fi
+		LogMsg "Install new kernel"
 
 		if [[ $DISTRO =~ "ubuntu" ]]; then
 			update-grub2
