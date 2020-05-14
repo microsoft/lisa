@@ -2,7 +2,9 @@
 # Licensed under the Apache License.
 <#
 .Synopsis
-	Perform a simple VM hibernation in Azure or Hyper-V
+	Perform a simple VM hibernation in Azure
+	This feature might be available in kernel 5.7 or later. By the time, 
+	customized kernel will be built.
 
 .Description
 	This test can be performed in Azure and Hyper-V both. But this script only covers Azure.
@@ -219,6 +221,7 @@ function Main {
 			}
 		}
 		$testResult = $resultPass
+		Copy-RemoteFiles -downloadFrom $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user -password $password -download -downloadTo $LogDir -files "*.log" -runAsSudo
 	} catch {
 		$ErrorMessage =  $_.Exception.Message
 		$ErrorLine = $_.InvocationInfo.ScriptLineNumber

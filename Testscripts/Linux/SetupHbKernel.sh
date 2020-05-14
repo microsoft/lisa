@@ -67,6 +67,10 @@ function Main() {
 	ret=$(cat /etc/fstab)
 	LogMsg "$?: Displayed the contents in /etc/fstab"
 
+	# fio installation for storage test case.
+	update_repos
+	install_package fio
+
 	if [[ $hb_url != "" ]]; then
 		LogMsg "Starting Hibernation required packages and kernel build in the VM"
 		update_repos
