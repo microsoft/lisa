@@ -6,7 +6,7 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 #
 # Sample script to run sysbench.
 # In this script, we want to bench-mark device IO performance on a mounted folder.
@@ -57,7 +57,7 @@ RunFIO()
 	#
 
 	#Log Config
-	
+
 	mkdir $HOMEDIR/FIOLog/jsonLog
 	mkdir $HOMEDIR/FIOLog/iostatLog
 	mkdir $HOMEDIR/FIOLog/blktraceLog
@@ -65,7 +65,7 @@ RunFIO()
 	#LOGDIR="${HOMEDIR}/FIOLog"
 	JSONFILELOG="${LOGDIR}/jsonLog"
 	IOSTATLOGDIR="${LOGDIR}/iostatLog"
-	LOGFILE="${LOGDIR}/fio-test.log.txt"	
+	LOGFILE="${LOGDIR}/fio-test.log.txt"
 
 	#redirect blktrace files directory
 	Resource_mount=$(mount -l | grep /sdb1 | awk '{print$3}')
@@ -106,7 +106,7 @@ RunFIO()
 		io=$startIO
 		while [ $io -le $maxIO ]
 		do
-			Thread=$startThread			
+			Thread=$startThread
 			while [ $Thread -le $maxThread ]
 			do
 				if [ $Thread -ge 8 ]
@@ -123,7 +123,7 @@ RunFIO()
 				fio $FILEIO --readwrite=$testmode --bs=${io}K --runtime=$ioruntime --iodepth=$Thread --numjobs=$numjobs --output-format=json --output=$jsonfilename --name="iteration"${iteration} >> $LOGFILE
 				iostatPID=$(ps -ef | awk '/iostat/ && !/awk/ { print $2 }')
 				kill -9 $iostatPID
-				Thread=$(( Thread*2 ))		
+				Thread=$(( Thread*2 ))
 				iteration=$(( iteration+1 ))
 			done
 		io=$(( io * io_increment ))
@@ -184,6 +184,7 @@ if [ $? -eq 0 ]; then
 	ssh root@nfs-server-vm ". utils.sh; update_repos"
 	ssh root@nfs-server-vm ". utils.sh; install_package ${nfsServerPackage}"
 	ssh root@nfs-server-vm "echo '/data nfs-client-vm(rw,sync,no_root_squash)' >> /etc/exports"
+	ssh root@nfs-server-vm "iptables -F"
 	ssh root@nfs-server-vm "service ${nfsService} restart"
 	ssh root@nfs-server-vm ". utils.sh; enable_nfs_rhel"
 	#Mount NFS Directory.
