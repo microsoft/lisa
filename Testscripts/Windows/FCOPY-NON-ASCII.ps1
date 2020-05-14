@@ -172,7 +172,7 @@ function Main {
     }
 
     # Removing previous test files on the VM
-    .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$Ipv4 "rm -f /tmp/testfile-*"
+    Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort -command "rm -f /tmp/testfile-*" -runAsSudo
 
     #
     # Sending the test file to VM
@@ -193,7 +193,7 @@ function Main {
     #
     # Verify if the file is present on the guest VM
     #
-    .\Tools\plink.exe -C -pw $VMPassword -P $VMPort $VMUserName@$Ipv4 "stat /tmp/testfile-* > /dev/null" 2> $null
+    $null = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort -command "stat /tmp/testfile-* > /dev/null" -runAsSudo
     if (-not $?) {
         Write-LogErr "Test file is not present on the guest VM!"
         return "FAIL"
