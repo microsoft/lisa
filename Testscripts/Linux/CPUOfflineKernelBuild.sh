@@ -18,7 +18,7 @@
 # Source utils.sh
 . utils.sh || {
 	echo "Error: unable to source utils.sh!"
-	echo "TestAborted" >state.txt
+	echo "TestAborted" > state.txt
 	exit 0
 }
 # Source constants file and initialize most common variables
