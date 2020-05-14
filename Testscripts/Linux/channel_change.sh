@@ -167,7 +167,6 @@ function Main() {
 		else
 			LogErr "Found the currect cpu $id is not online. Expected 1 but found $state"
 		fi
-		LogMsg ""
 	done
 
 	echo "job_completed=0" >> $basedir/constants.sh
