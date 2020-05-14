@@ -180,22 +180,13 @@ function Run_OMB_P2P() {
 	for attempt in $total_attempts; do
 		LogMsg "OMB P2P test iteration $attempt for $mpi_type- Running."
 		case "$mpi_type" in
-			ibm)
-				LogErr "Test not yet available"
-			;;
-			open)
-				LogErr "Test not yet available"
-			;;
-			hpcx)
-				LogErr "Test not yet available"
-			;;
-			intel)
+			ibm | open | hpcx | intel)
 				LogErr "Test not yet available"
 			;;
 			mvapich)
 				for test_name in ${omb_p2p_tests_array[@]}; do
-					LogMsg "ssh root@${master} $mpi_run_path -n $total_virtual_machines $master $slaves_array $mpi_settings  numactl $numactl_settings  $omb_p2p_path$test_name> OMB-P2P-AllNodes-output-Attempt-${attempt}-$test_name.txt"
-					ssh root@${master} "$mpi_run_path -n $total_virtual_machines $master $slaves_array $mpi_settings numactl $numactl_settings $omb_p2p_path$test_name> OMB-P2P-AllNodes-output-Attempt-${attempt}-$test_name.txt"
+					LogMsg "ssh root@${master} $mpi_run_path -n $total_virtual_machines $master $slaves_array $mpi_settings  numactl $numactl_settings  $omb_path/mpi/pt2pt/$test_name> OMB-P2P-AllNodes-output-Attempt-${attempt}-$test_name.txt"
+					ssh root@${master} "$mpi_run_path -n $total_virtual_machines $master $slaves_array $mpi_settings numactl $numactl_settings $omb_path/mpi/pt2pt/$test_name> OMB-P2P-AllNodes-output-Attempt-${attempt}-$test_name.txt"
 				done
 			;;
 		esac
@@ -740,7 +731,7 @@ function Main() {
 	imb_nbc_path=$(find / -name IMB-NBC | head -n 1)
 	imb_p2p_path=$(find / -name IMB-P2P | head -n 1)
 	imb_io_path=$(find / -name IMB-IO | head -n 1)
-	omb_p2p_path="/usr/local/libexec/osu-micro-benchmarks/mpi/pt2pt/"
+	omb_path=$(find / -name osu-micro-benchmarks | tail -n 1)
 
 	case "$mpi_type" in
 		ibm)
@@ -767,7 +758,7 @@ function Main() {
 			mpi_run_path=$(find / -name mpirun | grep intel64)
 		;;
 		mvapich)
-			omb_p2p_path="/root/mvapich2-2.3/osu_benchmarks/mpi/pt2pt/"
+			omb_path=$(find / -name osu_benchmarks | tail -n 1)
 			total_virtual_machines=$(($total_virtual_machines + 1))
 			mpi_run_path=$(find / -name mpirun_rsh | tail -n 1)
 		;;
@@ -783,7 +774,7 @@ function Main() {
 	LogMsg "IMB-NBC Path: $imb_nbc_path"
 	LogMsg "IMB-P2P Path: $imb_p2p_path"
 	LogMsg "IMB-IO Path: $imb_io_path"
-	LogMsg "OMB-P2P Path: $omb_p2p_path"
+	LogMsg "OMB Path: $omb_path"
 
 	# Run all benchmarks
 	if [[ $benchmark_type == "OMB" ]]; then
