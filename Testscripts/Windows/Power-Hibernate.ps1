@@ -3,6 +3,8 @@
 <#
 .Synopsis
 	Perform a simple VM hibernation in Azure
+	This feature might be available in kernel 5.7 or later. By the time, 
+	customized kernel will be built.
 
 .Description
 	This test can be performed in Azure and Hyper-V both. But this script only covers Azure.

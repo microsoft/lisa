@@ -3,6 +3,8 @@
 <#
 .Synopsis
     Perform a simple VM hibernation in Azure
+    This feature might be available in kernel 5.7 or later. By the time,
+    customized kernel will be built.
 
 .Description
     1. Prepare swap space for hibernation
@@ -16,7 +18,7 @@
     8. Verify IOPS counts
     9. Run the thrid fio testing.
     10. In the middle of fio, hibernation starts.
-    11. Verify no kernel panic or call trace
+    11. Verify no kernel panic or call trace after resume.
 #>
 
 param([object] $AllVmData, [string]$TestParams)
@@ -136,6 +138,9 @@ function Main {
             throw "Can not identify VM status before hibernate"
         }
 
+        # Run the first fio testing
+
+
         # Hibernate the VM
         Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "sudo ~/test.sh" -ignoreLinuxExitCode:$true | Out-Null
         Write-LogInfo "Sent hibernate command to the VM"
@@ -190,7 +195,7 @@ function Main {
             throw "Can not identify VM status after resuming"
         }
 
-        # Verify the kernel panic or call trace
+        # Verify kernel panic or call trace
         $calltrace_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg | grep -i 'call trace'" -ignoreLinuxExitCode:$true
 
         if ($calltrace_filter -ne "") {
@@ -212,6 +217,28 @@ function Main {
                 Write-LogInfo "Successfully found Power Management log in dmesg"
                 Write-LogInfo $pm_log_filter
             }
+        }
+
+        # Run the second fio testing
+
+
+        # Run the third fio testing
+
+        # Hibernate the VM
+
+        # Resume back the VM
+
+
+        # verify fio test is still running.
+
+        # Verify kernel panic or call trace
+        $calltrace_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg | grep -i 'call trace'" -ignoreLinuxExitCode:$true
+
+        if ($calltrace_filter -ne "") {
+            Write-LogErr "Found Call Trace in dmesg"
+            throw "Call trace in dmesg"
+        } else {
+            Write-LogInfo "Not found Call Trace in dmesg"
         }
 
         $testResult = $resultPass
