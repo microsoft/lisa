@@ -27,7 +27,6 @@ imb_rma_final_status=0
 imb_nbc_final_status=0
 imb_p2p_final_status=0
 imb_io_final_status=0
-omb_p2p_final_status=0
 
 # Get all the Kernel-Logs from all VMs.
 function Collect_Logs() {
@@ -46,10 +45,6 @@ function Collect_Logs() {
 	# Create zip file to avoid downloading thousands of files in some cases
 	zip -r /root/IMB_AllTestLogs.zip /root/IMB-*
 	rm -rf /root/IMB-*
-	if [[ $benchmark_type == "OMB" ]]; then
-	zip -r /root/OMB_AllTestLogs.zip /root/OMB-*
-	rm -rf /root/OMB-*
-	fi
 }
 
 function Run_IMB_Intranode() {
@@ -171,43 +166,6 @@ function Run_IMB_MPI1() {
 		exit 0
 	else
 		LogMsg "INFINIBAND_VERIFICATION_SUCCESS_MPI1_ALLNODES"
-	fi
-}
-
-function Run_OMB_P2P() {
-	total_attempts=$(seq 1 1 $omb_p2p_tests_iterations)
-	omb_p2p_tests_array=($omb_p2p_tests)
-	for attempt in $total_attempts; do
-		LogMsg "OMB P2P test iteration $attempt for $mpi_type- Running."
-		case "$mpi_type" in
-			ibm | open | hpcx | intel)
-				LogErr "Test not yet available"
-			;;
-			mvapich)
-				for test_name in ${omb_p2p_tests_array[@]}; do
-					LogMsg "ssh root@${master} $mpi_run_path -n $total_virtual_machines $master $slaves_array $mpi_settings  numactl $numactl_settings  $omb_path/mpi/pt2pt/$test_name> OMB-P2P-AllNodes-output-Attempt-${attempt}-$test_name.txt"
-					ssh root@${master} "$mpi_run_path -n $total_virtual_machines $master $slaves_array $mpi_settings numactl $numactl_settings $omb_path/mpi/pt2pt/$test_name> OMB-P2P-AllNodes-output-Attempt-${attempt}-$test_name.txt"
-				done
-			;;
-		esac
-		mpi_status=$?
-		if [ $mpi_status -eq 0 ]; then
-			LogMsg "OMB P2P test iteration $attempt - Succeeded."
-		else
-			LogErr "OMB P2P test iteration $attempt - Failed."
-			omb_p2p_final_status=$(($omb_p2p_final_status + $mpi_status))
-		fi
-		sleep 1
-	done
-
-	if [ $omb_p2p_final_status -ne 0 ]; then
-		LogErr "OMB P2P tests returned non-zero exit code."
-		SetTestStateFailed
-		Collect_Logs
-		LogErr "INFINIBAND_VERIFICATION_FAILED_OMB_P2P_ALLNODES"
-		exit 0
-	else
-		LogMsg "INFINIBAND_VERIFICATION_SUCCESS_OMB_P2P_ALLNODES"
 	fi
 }
 
@@ -390,10 +348,10 @@ function Run_IMB_P2P() {
 		LogErr "IMB-P2P tests returned non-zero exit code. Aborting further tests."
 		SetTestStateFailed
 		Collect_Logs
-		LogErr "INFINIBAND_VERIFICATION_FAILED_IMB_P2P_ALLNODES"
+		LogErr "INFINIBAND_VERIFICATION_FAILED_P2P_ALLNODES"
 		exit 0
 	else
-		LogMsg "INFINIBAND_VERIFICATION_SUCCESS_IMB_P2P_ALLNODES"
+		LogMsg "INFINIBAND_VERIFICATION_SUCCESS_P2P_ALLNODES"
 	fi
 }
 
@@ -731,7 +689,6 @@ function Main() {
 	imb_nbc_path=$(find / -name IMB-NBC | head -n 1)
 	imb_p2p_path=$(find / -name IMB-P2P | head -n 1)
 	imb_io_path=$(find / -name IMB-IO | head -n 1)
-	omb_path=$(find / -name osu-micro-benchmarks | tail -n 1)
 
 	case "$mpi_type" in
 		ibm)
@@ -758,7 +715,6 @@ function Main() {
 			mpi_run_path=$(find / -name mpirun | grep intel64)
 		;;
 		mvapich)
-			omb_path=$(find / -name osu_benchmarks | tail -n 1)
 			total_virtual_machines=$(($total_virtual_machines + 1))
 			mpi_run_path=$(find / -name mpirun_rsh | tail -n 1)
 		;;
@@ -774,12 +730,8 @@ function Main() {
 	LogMsg "IMB-NBC Path: $imb_nbc_path"
 	LogMsg "IMB-P2P Path: $imb_p2p_path"
 	LogMsg "IMB-IO Path: $imb_io_path"
-	LogMsg "OMB Path: $omb_path"
 
 	# Run all benchmarks
-	if [[ $benchmark_type == "OMB" ]]; then
-	Run_OMB_P2P
-	fi
 	Run_IMB_Intranode
 	Run_IMB_MPI1
 	if [[ $quicktestonly == "no" ]]; then
@@ -789,7 +741,7 @@ function Main() {
 		if [ ! -z "$imb_p2p_path" ]; then
 			Run_IMB_P2P
 		else
-			LogMsg "INFINIBAND_VERIFICATION_SKIPPED_IMB_P2P_ALLNODES"
+			LogMsg "INFINIBAND_VERIFICATION_SKIPPED_P2P_ALLNODES"
 		fi
 		if [ ! -z "$imb_io_path" ]; then
 			Run_IMB_IO
@@ -800,7 +752,7 @@ function Main() {
 
 	# Get all results and finish the test
 	Collect_Logs
-	finalStatus=$(($final_ib_nic_status + $ib_port_state_down_cnt + $alloc_uar_limited_cnt + $final_mpi_intranode_status + $imb_mpi1_final_status + $imb_nbc_final_status + $omb_p2p_final_status))
+	finalStatus=$(($final_ib_nic_status + $ib_port_state_down_cnt + $alloc_uar_limited_cnt + $final_mpi_intranode_status + $imb_mpi1_final_status + $imb_nbc_final_status))
 	if [ $finalStatus -ne 0 ]; then
 		LogMsg "${ib_nic}_status: $final_ib_nic_status"
 		LogMsg "ib_port_state_down_cnt: $ib_port_state_down_cnt"
@@ -811,7 +763,6 @@ function Main() {
 		LogMsg "imb_nbc_final_status: $imb_nbc_final_status"
 		LogMsg "imb_p2p_final_status: $imb_p2p_final_status"
 		LogMsg "imb_io_final_status: $imb_io_final_status"
-		LogMsg "omb_p2p_final_status: $omb_p2p_final_status"
 		LogErr "INFINIBAND_VERIFICATION_FAILED"
 		SetTestStateFailed
 	else
