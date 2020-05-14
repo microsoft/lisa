@@ -6,6 +6,7 @@
         <files>.\Testscripts\Linux\docker_java_app.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\containers_utils.sh</files>
         <TestParameters>
         </TestParameters>
+        <Timeout>600</Timeout>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>CONTAINER</Area>
@@ -19,11 +20,12 @@
         <files>.\Testscripts\Linux\docker_dotnet_app.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\containers_utils.sh</files>
         <TestParameters>
         </TestParameters>
+        <Timeout>600</Timeout>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>CONTAINER</Area>
         <Tags>docker</Tags>
-        <Priority>0</Priority>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>DOCKER-BASIC-PYTHON-APP</testName>
@@ -32,11 +34,12 @@
         <files>.\Testscripts\Linux\docker_python_app.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\containers_utils.sh</files>
         <TestParameters>
         </TestParameters>
+        <Timeout>600</Timeout>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>CONTAINER</Area>
         <Tags>docker</Tags>
-        <Priority>0</Priority>
+        <Priority>2</Priority>
     </test>
     <test>
         <testName>DOCKER-COMPOSE-WORDPRESS-MYSQL-APP</testName>
@@ -45,6 +48,7 @@
         <files>.\Testscripts\Linux\docker_compose_wordpress_mysql_app.sh,.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\containers_utils.sh</files>
         <TestParameters>
         </TestParameters>
+        <Timeout>600</Timeout>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>CONTAINER</Area>
