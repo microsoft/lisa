@@ -177,6 +177,10 @@ if [ $? -eq 0 ]; then
 
 	mountDir="/data"
 	cd ${HOMEDIR}
+	ssh root@nfs-server-vm "systemctl stop firewalld"
+	ssh root@nfs-server-vm "systemctl disable firewalld"
+	systemctl stop firewalld
+	systemctl disable firewalld
 	install_fio
 	install_package $nfsClientPackage
 
@@ -184,7 +188,6 @@ if [ $? -eq 0 ]; then
 	ssh root@nfs-server-vm ". utils.sh; update_repos"
 	ssh root@nfs-server-vm ". utils.sh; install_package ${nfsServerPackage}"
 	ssh root@nfs-server-vm "echo '/data nfs-client-vm(rw,sync,no_root_squash)' >> /etc/exports"
-	ssh root@nfs-server-vm "iptables -F"
 	ssh root@nfs-server-vm "service ${nfsService} restart"
 	ssh root@nfs-server-vm ". utils.sh; enable_nfs_rhel"
 	#Mount NFS Directory.
