@@ -65,7 +65,7 @@ Class AzureProvider : TestProvider
 				} else {
 					$ErrorMessage = "One or more deployments failed. " + $isAllDeployed[4]
 					Write-LogErr $ErrorMessage
-					return @{"VmData" = $null; "Error" = $ErrorMessage}
+					return @{"VmData" = $allVMData; "Error" = $ErrorMessage}
 				}
 			}
 			$isVmAlive = Is-VmAlive -AllVMDataObject $allVMData
@@ -83,7 +83,7 @@ Class AzureProvider : TestProvider
 					if (!$customStatus) {
 						$ErrorMessage = "Failed to set custom config in VMs."
 						Write-LogErr $ErrorMessage
-						return @{"VmData" = $null; "Error" = $ErrorMessage}
+						return @{"VmData" = $allVMData; "Error" = $ErrorMessage}
 					}
 				}
 			}
