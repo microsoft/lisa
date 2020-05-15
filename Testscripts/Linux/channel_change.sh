@@ -156,7 +156,7 @@ function Main() {
 							LogErr "Failed to verify cpu online state change. Expected smpboot: Booting Node, but found $diff_val2"
 						fi
 					else
-						LogErr "Failed to change back cpu $id to onlone"
+						LogErr "Failed to change back cpu $id to online"
 					fi
 				else
 					LogErr "Failed to find the expected dmesg. Expected CPU $id is now offline, but found $diff_val"
