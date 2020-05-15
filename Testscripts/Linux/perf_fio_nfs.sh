@@ -177,10 +177,12 @@ if [ $? -eq 0 ]; then
 
 	mountDir="/data"
 	cd ${HOMEDIR}
-	ssh root@nfs-server-vm "systemctl stop firewalld"
-	ssh root@nfs-server-vm "systemctl disable firewalld"
-	systemctl stop firewalld
-	systemctl disable firewalld
+	if [[ $DISTRO == "redhat_7" ]]; then
+		ssh root@nfs-server-vm "systemctl stop firewalld"
+		ssh root@nfs-server-vm "systemctl disable firewalld"
+		systemctl stop firewalld
+		systemctl disable firewalld
+	fi
 	install_fio
 	install_package $nfsClientPackage
 
