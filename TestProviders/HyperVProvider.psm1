@@ -55,7 +55,7 @@ Class HyperVProvider : TestProvider
 				else {
 					$ErrorMessage = "One or more deployments failed."
 					Write-LogErr $ErrorMessage
-					return @{"VmData" = $null; "Error" = $ErrorMessage}
+					return @{"VmData" = $allVMData; "Error" = $ErrorMessage}
 				}
 			}
 
@@ -70,7 +70,7 @@ Class HyperVProvider : TestProvider
 						}
 						$ErrorMessage = "Failed to set custom config in VMs."
 						Write-LogErr $ErrorMessage
-						return @{"VmData" = $null; "Error" = $ErrorMessage}
+						return @{"VmData" = $allVMData; "Error" = $ErrorMessage}
 					}
 				}
 
