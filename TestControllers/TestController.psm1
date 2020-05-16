@@ -603,19 +603,17 @@ Class TestController
 	[void] RunTestCasesInSequence([int]$TestIterations)
 	{
 		$executionCount = 0
-
-		foreach ($setupKey in $this.SetupTypeToTestCases.Keys) {
-			$setupType = $setupKey.Split(',')[0]
-
-			$vmData = $null
-			$lastResult = $null
-			$tests = 0
-
-			$CleanupResource = {
+		$CleanupResource = {
+			if ($vmData) {
 				Write-LogInfo "Delete deployed target machine ..."
 				$null = $this.TestProvider.DeleteVMs($vmData, $this.SetupTypeTable[$setupType], $this.UseExistingRG); $null
 			}
-
+		}
+		foreach ($setupKey in $this.SetupTypeToTestCases.Keys) {
+			$setupType = $setupKey.Split(',')[0]
+			$vmData = $null
+			$lastResult = $null
+			$tests = 0
 			foreach ($currentTestCase in $this.SetupTypeToTestCases[$setupKey]) {
 				# array like: @({TestName=xxx-<vmSize>-<iteration>;TestVmSize=yyy}, { }, ...)
 				$arrayOfTestConfigs = $this.GetArrayOfExpandedTestConfigsFromTestParameters($currentTestCase.testName, $currentTestCase.OverrideVMSize)

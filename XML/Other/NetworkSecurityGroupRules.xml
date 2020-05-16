@@ -1,49 +1,16 @@
-<!--# We define inbound and outbound security rules for Windows VM or Linux VM in this file.-->
-<platform>
-    <linux>
-        <rule>
-            <name>Lisav2SecurityRule1</name>
-            <properties>
-                <description>Lisav2SecurityRule1</description>
-                <protocol>tcp</protocol>
-                <sourcePortRange>*</sourcePortRange>
-                <destinationPortRange>22</destinationPortRange>
-                <sourceAddressPrefix>10.0.0.4/32</sourceAddressPrefix>
-                <destinationAddressPrefix>*</destinationAddressPrefix>
-                <access>Allow</access>
-                <priority>125</priority>
-                <direction>Inbound</direction>
-            </properties>
-        </rule>
-    </linux>
-    <windows>
-        <rule>
-            <name>Lisav2SecurityRule2</name>
-            <properties>
-                <description>Lisav2SecurityRule2</description>
-                <protocol>tcp</protocol>
-                <sourcePortRange>*</sourcePortRange>
-                <destinationPortRange>5985</destinationPortRange>
-                <sourceAddressPrefix>10.0.0.4/32</sourceAddressPrefix>
-                <destinationAddressPrefix>*</destinationAddressPrefix>
-                <access>Allow</access>
-                <priority>150</priority>
-                <direction>Inbound</direction>
-            </properties>
-        </rule>
-        <rule>
-            <name>Lisav2SecurityRule3</name>
-            <properties>
-                <description>Lisav2SecurityRule3</description>
-                <protocol>tcp</protocol>
-                <sourcePortRange>*</sourcePortRange>
-                <destinationPortRange>3389</destinationPortRange>
-                <sourceAddressPrefix>10.0.0.4/32</sourceAddressPrefix>
-                <destinationAddressPrefix>*</destinationAddressPrefix>
-                <access>Allow</access>
-                <priority>151</priority>
-                <direction>Inbound</direction>
-            </properties>
-        </rule>
-    </windows>
-</platform>
+<LISAv2NetworkSecurityGroupRules>
+    <rule>
+        <name>LISAv2SecurityRule1</name>
+        <properties>
+            <description>LISAv2SecurityRule1</description>
+            <protocol>tcp</protocol>
+            <sourcePortRange>*</sourcePortRange>
+            <destinationPortRanges>22,3389,5985,5986</destinationPortRanges>
+            <sourceAddressPrefixes>127.0.0.1/32</sourceAddressPrefixes>
+            <destinationAddressPrefix>*</destinationAddressPrefix>
+            <access>Allow</access>
+            <priority>200</priority>
+            <direction>Inbound</direction>
+        </properties>
+    </rule>
+</LISAv2NetworkSecurityGroupRules>
