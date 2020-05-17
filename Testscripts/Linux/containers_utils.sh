@@ -82,7 +82,7 @@ function InstallDockerEngine() {
 
     LogMsg "InstallDockerEngine on $DISTRO"
     update_repos
-
+    GetOSVersion
     case $DISTRO in
         ubuntu*|debian*)
             LogMsg "Uninstall old versions of Docker."
@@ -93,7 +93,13 @@ function InstallDockerEngine() {
             LogMsg "Add Docker's official GPG key."
             curl -fsSL https://download.docker.com/linux/$DISTRO_NAME/gpg | sudo apt-key add -
             LogMsg "Set up the stable repository."
-            add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/$DISTRO_NAME $(lsb_release -cs) stable"
+            # Temporary fix till driver for ubuntu20 series list under https://docs.docker.com/engine/install/ubuntu/
+            if [[ $os_RELEASE =~ 20.* ]]; then
+                release="bionic"
+            else
+                release=$(lsb_release -cs)
+            fi
+            add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/$DISTRO_NAME ${release} stable"
             apt-get update
             install_package "docker-ce docker-ce-cli containerd.io"
             ret=$?
