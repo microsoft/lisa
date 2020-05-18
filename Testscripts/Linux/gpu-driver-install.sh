@@ -71,8 +71,8 @@ function InstallCUDADrivers() {
 
     ubuntu*)
         GetOSVersion
-        # Temporary fix till driver for ubuntu19 series list under http://developer.download.nvidia.com/compute/cuda/repos/
-        if [[ $os_RELEASE =~ 19.* ]]; then
+        # Temporary fix till driver for ubuntu19 and ubuntu20 series list under http://developer.download.nvidia.com/compute/cuda/repos/
+        if [[ $os_RELEASE =~ 19.* ]] || [[ $os_RELEASE =~ 20.* ]]; then
             LogMsg "There is no cuda driver for $os_RELEASE, used the one for 18.10"
             os_RELEASE="18.10"
         fi
