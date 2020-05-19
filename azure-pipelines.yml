@@ -11,6 +11,9 @@ jobs:
       vmImage: 'windows-2019'
     steps:
     - powershell: Install-Module -Name Pester -Scope CurrentUser -Force -SkipPublisherCheck -AllowClobber
+    - powershell: Install-PackageProvider NuGet -Force | Out-Null
+    - powershell: Set-PSRepository PSGallery -InstallationPolicy Trusted | Out-Null
+    - powershell: Install-Module -Name Az -AllowClobber -Scope AllUsers | Out-Null
     - powershell:
         Invoke-Pester . -EnableExit -PassThru
   - job: 'PowerShellCodeCheck_PSScriptAnalyzer'

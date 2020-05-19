@@ -2715,7 +2715,7 @@ function Add-AzureAccountFromSecretsFile {
             Write-LogInfo "Authenticating Azure PS session using Service Principal..."
             $pass = ConvertTo-SecureString $key -AsPlainText -Force
             $mycred = New-Object System.Management.Automation.PSCredential ($ClientID, $pass)
-            $null = Add-AzAccount -ServicePrincipal -Tenant $TenantID -Credential $mycred
+            $null = Connect-AzAccount -ServicePrincipal -Tenant $TenantID -Credential $mycred
             $UserAuthenticated = $true
         } elseif ($AzureContextFilePath) {
             # Scenario 2: Azure context file path is avaialble in Secret File
@@ -2751,8 +2751,8 @@ function Add-AzureAccountFromSecretsFile {
 
         if ( $UserAuthenticated ) {
             #Verify if the user is Authorized to use the subscription.
-            $selectedSubscription = Select-AzSubscription -SubscriptionId $XmlSecrets.secrets.SubscriptionID  -ErrorAction SilentlyContinue
-            if ( $selectedSubscription.Subscription.Id -eq $XmlSecrets.secrets.SubscriptionID ) {
+            $azContextResult = Set-AzContext -Subscription $XmlSecrets.secrets.SubscriptionID -ErrorAction SilentlyContinue
+            if ($azContextResult -and ($azContextResult.Subscription.Id -eq $XmlSecrets.secrets.SubscriptionID)) {
                 Write-LogInfo "Current Subscription : $subIDMasked."
             } else {
                 Throw "There was an error when selecting $subIDMasked."
