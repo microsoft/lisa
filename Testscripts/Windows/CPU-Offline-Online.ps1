@@ -133,7 +133,7 @@ function Main {
 
 			# Revert state.txt and remove job_completed=0
 			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat /dev/null > ~/state.txt" -runAsSudo
-			sed -i -e 's/job_completed=0//g' ~/constants.sh
+			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "sed -i -e 's/job_completed=0//g' ~/constants.sh" -runAsSudo
 		}
 		$testResult = $resultPass
 	} catch {
