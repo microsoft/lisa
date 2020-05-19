@@ -182,5 +182,7 @@ Class AzureProvider : TestProvider
 			Write-LogInfo "*************************************************************"
 			$DeleteResourceGroupJobs | Remove-Job -Force
 		}
+		# Clean up AzContext
+		Clear-AzContext -Force -ErrorAction SilentlyContinue | Out-NULL
 	}
 }

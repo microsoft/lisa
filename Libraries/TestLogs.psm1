@@ -55,7 +55,9 @@ Function Write-Log() {
 		} else {
 			$LogDir = $env:TEMP
 		}
-
+		if (!$LogFileName) {
+			$LogFileName = "LISAv2-Test-$(Get-Date -Format 'yyyy-MM-dd-HH-mm-ss-ffff').log"
+		}
 		$LogFileFullPath = Join-Path $LogDir $LogFileName
 		if (!(Test-Path $LogFileFullPath)) {
 			New-Item -path $LogDir -name $LogFileName -type "file" | Out-Null
