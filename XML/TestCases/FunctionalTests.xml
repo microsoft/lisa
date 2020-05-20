@@ -565,6 +565,7 @@
         <testScript>KDUMP-TestScript.ps1</testScript>
         <files>.\Testscripts\Linux\KDUMP-Execute.sh,.\Testscripts\Linux\KDUMP-Config.sh,.\Testscripts\Linux\KDUMP-Results.sh,.\Testscripts\Linux\utils.sh</files>
         <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_DS2_v2</OverrideVMSize>
         <TestParameters>
             <param>vmCpuNumber=2</param>
             <param>vmMemory=2GB</param>
@@ -620,6 +621,7 @@
         <testScript>KDUMP-TestScript.ps1</testScript>
         <files>.\Testscripts\Linux\KDUMP-Execute.sh,.\Testscripts\Linux\KDUMP-Config.sh,.\Testscripts\Linux\KDUMP-Results.sh,.\Testscripts\Linux\utils.sh</files>
         <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_DS3_v2</OverrideVMSize>
         <TestParameters>
             <param>vmCpuNumber=4</param>
             <param>vmMemory=2GB</param>
@@ -638,6 +640,7 @@
         <testScript>KDUMP-TestScript.ps1</testScript>
         <files>.\Testscripts\Linux\KDUMP-Execute.sh,.\Testscripts\Linux\KDUMP-Config.sh,.\Testscripts\Linux\KDUMP-Results.sh,.\Testscripts\Linux\utils.sh</files>
         <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_DS5_v2</OverrideVMSize>
         <TestParameters>
             <param>vmCpuNumber=16</param>
             <param>vmMemory=4GB</param>

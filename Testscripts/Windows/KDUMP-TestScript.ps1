@@ -40,7 +40,7 @@ function Main {
           "NMI"           { $nmi = $fields[1].Trim() }
           "VM2NAME"       { $vm2Name = $fields[1].Trim() }
           "use_nfs"       { $useNFS = $fields[1].Trim() }
-          "VCPU"          { $vCPU = $fields[1].Trim() }
+          "vmCpuNumber"   { $vCPU = $fields[1].Trim() }
           default         {}
         }
     }
@@ -145,12 +145,12 @@ function Main {
         Write-LogInfo "NMI does not support, so it triggers different method"
         if ($vcpu -eq 4){
             Write-LogInfo "Kdump will be triggered on VCPU 3 of 4"
-            $retVal = Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
-                -command "taskset -c 2 echo c > /proc/sysrq-trigger"
+            Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+                -command "taskset -c 2 echo c > /proc/sysrq-trigger" -RunInBackGround -runAsSudo | Out-Null
         } else {
             # If directly use plink to trigger kdump, command fails to exit, so use start-process
             Write-LogInfo "Set /proc/sysrq-trigger"
-            Run-LinuxCmd -username  $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
+            Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort `
                 -command "sync; echo c > /proc/sysrq-trigger" -RunInBackGround -runAsSudo | Out-Null
         }
     }
