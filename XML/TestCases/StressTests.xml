@@ -265,7 +265,7 @@
 	</test>
 		<test>
 		<testName>STRESS-CPU-OFFLINE-ONLINE</testName>
-		<testScript>CPU-Offline-Online.ps1</testScript>
+		<testScript>CPU-Offline.ps1</testScript>
 		<setupType>OneVM</setupType>
 		<OverrideVMSize>Standard_L32s_v2</OverrideVMSize>
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\CPUOfflineKernelBuild.sh,.\Testscripts\Linux\channel_change.sh</files>
