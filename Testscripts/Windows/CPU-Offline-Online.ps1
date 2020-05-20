@@ -147,9 +147,6 @@ function Main {
 		$resultArr = $testResult
 	}
 
-	# Collect the TestExecution.log file
-	Copy-RemoteFiles -downloadFrom $ServerVMData.PublicIP -port $ServerVMData.SSHPort -username $user -password $password -download -downloadTo $LogDir -files "~/TestExecution.log"
-
 	$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
 	return $currentTestResult
 }
