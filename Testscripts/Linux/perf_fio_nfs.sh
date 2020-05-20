@@ -16,8 +16,7 @@
 #
 
 HOMEDIR="/root"
-LogMsg()
-{
+LogMsg() {
 	echo "[$(date +"%x %r %Z")] ${1}"
 	echo "[$(date +"%x %r %Z")] ${1}" >> "${HOMEDIR}/runlog.txt"
 }
@@ -42,15 +41,13 @@ touch ./fioTest.log
 	exit 10
 }
 
-UpdateTestState()
-{
+UpdateTestState() {
 	echo "${1}" > $HOMEDIR/state.txt
 }
 
-RunFIO()
-{
+RunFIO() {
 	UpdateTestState $ICA_TESTRUNNING
-	FILEIO="--size=${fileSize} --direct=1 --ioengine=libaio --filename=fiodata --overwrite=1  "
+	FILEIO="--size=${fileSize} --direct=1 --ioengine=libaio --filename=fiodata --overwrite=1"
 
 	####################################
 	#All run config set here
@@ -104,13 +101,10 @@ RunFIO()
 	#Trigger run from here
 	for testmode in "${modes[@]}"; do
 		io=$startIO
-		while [ $io -le $maxIO ]
-		do
+		while [ $io -le $maxIO ]; do
 			Thread=$startThread
-			while [ $Thread -le $maxThread ]
-			do
-				if [ $Thread -ge 8 ]
-				then
+			while [ $Thread -le $maxThread ]; do
+				if [ $Thread -ge 8 ]; then
 					numjobs=8
 				else
 					numjobs=$Thread
@@ -126,7 +120,7 @@ RunFIO()
 				Thread=$(( Thread*2 ))
 				iteration=$(( iteration+1 ))
 			done
-		io=$(( io * io_increment ))
+			io=$(( io * io_increment ))
 		done
 	done
 	####################################
@@ -182,6 +176,21 @@ if [ $? -eq 0 ]; then
 		ssh root@nfs-server-vm "systemctl disable firewalld"
 		systemctl stop firewalld
 		systemctl disable firewalld
+		retval=$(ssh root@nfs-server-vm "firewall-cmd --state" 2>tmp;cat tmp)
+		if [[ $retval == "not running" ]]; then
+			LogMsg "Successfully disabled and turned off the firewall service in nfs-server-vm"
+		else
+			LogErr "Failed to turn off firewall service in nfs-server-vm"
+			exit 1
+		fi
+
+		retval=$(firewall-cmd --state 2>tmp;cat tmp)
+		if [[ $retval == "not running" ]]; then
+			LogMsg "Successfully disabled and turned off the firewall service in localhost"
+		else
+			LogErr "Failed to turn off firewall service in localhost"
+			exit 1
+		fi
 	fi
 	install_fio
 	install_package $nfsClientPackage
@@ -202,11 +211,12 @@ if [ $? -eq 0 ]; then
 		RunFIO
 		LogMsg "*********INFO: Script execution reach END. Completed !!!*********"
 	else
-		LogMsg "Failed to mount NSF directory."
+		LogErr "Failed to mount NSF directory."
+		exit 1
 	fi
 	#Run test from here
 
 else
-	LogMsg "Error: Unable to Create RAID on NSF server"
+	LogErr "Error: Unable to Create RAID on NSF server"
 	exit 1
 fi
