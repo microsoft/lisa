@@ -20,6 +20,7 @@ def _filter_log(keyword):
         ret.remove("")
     return ret
 
+
 def RunTest():
     UpdateState("TestRunning")
     Run("dmesg > /tmp/dmesg")
