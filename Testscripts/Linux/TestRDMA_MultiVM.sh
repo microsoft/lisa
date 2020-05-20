@@ -47,8 +47,8 @@ function Collect_Logs() {
 	zip -r /root/IMB_AllTestLogs.zip /root/IMB-*
 	rm -rf /root/IMB-*
 	if [[ $benchmark_type == "OMB" ]]; then
-	zip -r /root/OMB_AllTestLogs.zip /root/OMB-*
-	rm -rf /root/OMB-*
+		zip -r /root/OMB_AllTestLogs.zip /root/OMB-*
+		rm -rf /root/OMB-*
 	fi
 }
 
@@ -778,7 +778,7 @@ function Main() {
 
 	# Run all benchmarks
 	if [[ $benchmark_type == "OMB" ]]; then
-	Run_OMB_P2P
+		Run_OMB_P2P
 	fi
 	Run_IMB_Intranode
 	Run_IMB_MPI1
