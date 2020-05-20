@@ -14,9 +14,11 @@ logfile_list = [
 
 
 def _filter_log(keyword):
-    return Run("grep -nw '{}.*' {} --ignore-case --no-message".format(
+    ret = Run("grep -nw '{}.*' {} --ignore-case --no-message".format(
         keyword, ' '.join(logfile_list))).strip().split('\n')
-
+    while("" in ret):
+        ret.remove("")
+    return ret
 
 def RunTest():
     UpdateState("TestRunning")
