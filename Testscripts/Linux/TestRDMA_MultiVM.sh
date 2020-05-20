@@ -178,16 +178,16 @@ function Run_OMB_P2P() {
 	total_attempts=$(seq 1 1 $omb_p2p_tests_iterations)
 	omb_p2p_tests_array=($omb_p2p_tests)
 	for attempt in $total_attempts; do
-		LogMsg "OMB P2P test iteration $attempt for $mpi_type- Running."
 		case "$mpi_type" in
-			ibm | open | hpcx | intel)
-				LogErr "Test not yet available"
-			;;
 			mvapich)
+				LogMsg "OMB P2P test iteration $attempt for $mpi_type- Running."
 				for test_name in ${omb_p2p_tests_array[@]}; do
 					LogMsg "ssh root@${master} $mpi_run_path -n $total_virtual_machines $master $slaves_array $mpi_settings  numactl $numactl_settings  $omb_path/mpi/pt2pt/$test_name> OMB-P2P-AllNodes-output-Attempt-${attempt}-$test_name.txt"
 					ssh root@${master} "$mpi_run_path -n $total_virtual_machines $master $slaves_array $mpi_settings numactl $numactl_settings $omb_path/mpi/pt2pt/$test_name> OMB-P2P-AllNodes-output-Attempt-${attempt}-$test_name.txt"
 				done
+			;;
+			*)
+				LogErr "Test not yet available"
 			;;
 		esac
 		mpi_status=$?

@@ -16,10 +16,10 @@
 			<param>imb_mpi1_tests="INFINIBAND_MVAPICH_MPI_IMB-TESTNAMES"</param>
 			<param>mpi1_ppn=INFINIBAND_MVAPICH_PPN</param>
 			<param>imb_mpi1_tests_iterations=INFINIBAND_MPI_TEST_COUNT</param>
-            <param>omb_p2p_tests="INFINIBAND_MVAPICH_OMB_P2P_TESTNAMES"</param>
-            <param>omb_p2p_tests_iterations=INFINIBAND_MVAPICH_OMB_P2P_TEST_COUNT</param>
+			<param>omb_p2p_tests="INFINIBAND_MVAPICH_OMB_P2P_TESTNAMES"</param>
+			<param>omb_p2p_tests_iterations=INFINIBAND_MVAPICH_OMB_P2P_TEST_COUNT</param>
 			<param>numactl_settings="INFINIBAND_NUMACTL_SETTINGS"</param>
-            <param>mpi_type="mvapich"</param>
+			<param>mpi_type="mvapich"</param>
 			<param>benchmark_type="OMB"</param>
 			<param>intel_mpi_benchmark=INTEL_MPI_BENCHMARK_DOWNLOAD</param>
 			<param>osu_mpi_benchmark=OSU_MPI_BENCHMARK_DOWNLOAD</param>

@@ -378,8 +378,6 @@ function Main {
 				$SuccessLogs = Select-String -Path $logFileName -Pattern $pattern
 				if ($SuccessLogs.Count -eq 1) {
 					$currentResult = $resultPass
-				} elseif ($BenchmarkType -eq "OMB") {
-					$currentResult = "SKIPPED"
 				} else {
 					$currentResult = $resultFail
 				}
@@ -397,8 +395,6 @@ function Main {
 					$SuccessLogs = Select-String -Path $logFileName -Pattern $pattern
 					if ($SuccessLogs.Count -eq 1) {
 						$currentResult = $resultPass
-					} elseif ($BenchmarkType -eq "OMB") {
-						$currentResult = "SKIPPED"
 					} else {
 						$currentResult = $resultFail
 					}

@@ -613,7 +613,7 @@ function Main() {
 		Verify_File $benchmark_bin
 	fi
 
-	if [ $mpi_type != "mvapich" ]; then
+	if [ $benchmark_type == "OMB" && $$mpi_type != "mvapich" ]; then
 		currentDir=$(pwd)
 		cd ~
 		LogMsg "Proceeding OSU MPI Benchmark (OMB) test installation"
@@ -624,8 +624,14 @@ function Main() {
 		LogMsg "Untarred $tar_filename"
 		cd ${tar_filename%.*.*}
 
-		LogMsg "Running configuration and installing"
-		./configure CC=/usr/local/bin/mpicc CXX=/usr/local/bin/mpicxx --prefix=$(pwd) && make && make install
+		LogMsg "Running configuration ./configure CC=/usr/local/bin/mpicc CXX=/usr/local/bin/mpicxx --prefix=$(pwd)"
+		./configure CC=/usr/local/bin/mpicc CXX=/usr/local/bin/mpicxx --prefix=$(pwd)
+		Verify_Result
+		LogMsg "Compiling OSU Microbenchmarks"
+		make
+		Verify_Result
+		LogMsg "Installing new binaries in /usr/local/bin directory"
+		make install
 		Verify_Result
 		LogMsg "OSU mpi-benchmarks $osu_mpi_benchmark installation completed"
 		# set string to verify osu benchmark is downloaded
