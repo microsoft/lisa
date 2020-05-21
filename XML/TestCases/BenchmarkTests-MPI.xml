@@ -8,14 +8,9 @@
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\TestRDMA_MultiVM.sh,.\Testscripts\Linux\SetupRDMA.sh</files>
 		<Priority>3</Priority>
 		<TestParameters>
-			<param>install_ofed="INFINIBAND_INSTALL_OFED"</param>
-			<param>install_ofed_from_extension="INFINIBAND_INSTALL_OFED_FROM_EXTENSION"</param>
 			<param>num_reboot="INFINIBAND_MVAPICH_TOTAL_REBOOT_COUNT"</param>
-			<param>mpi_settings="INFINIBAND_OMB_MVAPICH_MPI_SETTINGS"</param>
+			<param>omb_mpi_settings="INFINIBAND_OMB_MVAPICH_MPI_SETTINGS"</param>
 			<param>ib_nic="INFINIBAND_IB_NIC"</param>
-			<param>imb_mpi1_tests="INFINIBAND_MVAPICH_MPI_IMB-TESTNAMES"</param>
-			<param>mpi1_ppn=INFINIBAND_MVAPICH_PPN</param>
-			<param>imb_mpi1_tests_iterations=INFINIBAND_MPI_TEST_COUNT</param>
 			<param>omb_p2p_tests="INFINIBAND_MVAPICH_OMB_P2P_TESTNAMES"</param>
 			<param>omb_p2p_tests_iterations=INFINIBAND_MVAPICH_OMB_P2P_TEST_COUNT</param>
 			<param>numactl_settings="INFINIBAND_NUMACTL_SETTINGS"</param>
@@ -25,7 +20,6 @@
 			<param>osu_mpi_benchmark=OSU_MPI_BENCHMARK_DOWNLOAD</param>
 			<param>mvapich_mpi=MVAPICH_MPI_DOWNLOAD</param>
 			<param>walaagent_repo=WALAAgent_REPO</param>
-			<param>quicktest_only=QUICKTEST_ONLY</param>
 		</TestParameters>
 		<Platform>Azure</Platform>
 		<Category>Functional</Category>

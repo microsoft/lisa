@@ -114,10 +114,10 @@ function Run_IMB_Intranode() {
 		LogErr "IMB-MPI1 Intranode test failed in some VMs. Aborting further tests."
 		SetTestStateFailed
 		Collect_Logs
-		LogErr "INFINIBAND_VERIFICATION_FAILED_MPI1_INTRANODE"
+		LogErr "INFINIBAND_VERIFICATION_FAILED_IMB_MPI1_INTRANODE"
 		exit 0
 	else
-		LogMsg "INFINIBAND_VERIFICATION_SUCCESS_MPI1_INTRANODE"
+		LogMsg "INFINIBAND_VERIFICATION_SUCCESS_IMB_MPI1_INTRANODE"
 	fi
 }
 
@@ -167,10 +167,10 @@ function Run_IMB_MPI1() {
 		LogErr "IMB-MPI1 tests returned non-zero exit code."
 		SetTestStateFailed
 		Collect_Logs
-		LogErr "INFINIBAND_VERIFICATION_FAILED_MPI1_ALLNODES"
+		LogErr "INFINIBAND_VERIFICATION_FAILED_IMB_MPI1_ALLNODES"
 		exit 0
 	else
-		LogMsg "INFINIBAND_VERIFICATION_SUCCESS_MPI1_ALLNODES"
+		LogMsg "INFINIBAND_VERIFICATION_SUCCESS_IMB_MPI1_ALLNODES"
 	fi
 }
 
@@ -182,8 +182,8 @@ function Run_OMB_P2P() {
 			mvapich)
 				LogMsg "OMB P2P test iteration $attempt for $mpi_type- Running."
 				for test_name in ${omb_p2p_tests_array[@]}; do
-					LogMsg "ssh root@${master} $mpi_run_path -n $total_virtual_machines $master $slaves_array $mpi_settings  numactl $numactl_settings  $omb_path/mpi/pt2pt/$test_name> OMB-P2P-AllNodes-output-Attempt-${attempt}-$test_name.txt"
-					ssh root@${master} "$mpi_run_path -n $total_virtual_machines $master $slaves_array $mpi_settings numactl $numactl_settings $omb_path/mpi/pt2pt/$test_name> OMB-P2P-AllNodes-output-Attempt-${attempt}-$test_name.txt"
+					LogMsg "ssh root@${master} $mpi_run_path -n $total_virtual_machines $master $slaves_array $omb_mpi_settings  numactl $numactl_settings  $omb_path/mpi/pt2pt/$test_name> OMB-P2P-AllNodes-output-Attempt-${attempt}-$test_name.txt"
+					ssh root@${master} "$mpi_run_path -n $total_virtual_machines $master $slaves_array $omb_mpi_settings numactl $numactl_settings $omb_path/mpi/pt2pt/$test_name> OMB-P2P-AllNodes-output-Attempt-${attempt}-$test_name.txt"
 				done
 			;;
 			*)
@@ -258,10 +258,10 @@ function Run_IMB_RMA() {
 		LogErr "IMB-RMA tests returned non-zero exit code. Aborting further tests."
 		SetTestStateFailed
 		Collect_Logs
-		LogErr "INFINIBAND_VERIFICATION_FAILED_RMA_ALLNODES"
+		LogErr "INFINIBAND_VERIFICATION_FAILED_IMB_RMA_ALLNODES"
 		exit 0
 	else
-		LogMsg "INFINIBAND_VERIFICATION_SUCCESS_RMA_ALLNODES"
+		LogMsg "INFINIBAND_VERIFICATION_SUCCESS_IMB_RMA_ALLNODES"
 	fi
 }
 
@@ -324,10 +324,10 @@ function Run_IMB_NBC() {
 		LogErr "IMB-NBC tests returned non-zero exit code. Aborting further tests."
 		SetTestStateFailed
 		Collect_Logs
-		LogErr "INFINIBAND_VERIFICATION_FAILED_NBC_ALLNODES"
+		LogErr "INFINIBAND_VERIFICATION_FAILED_IMB_NBC_ALLNODES"
 		exit 0
 	else
-		LogMsg "INFINIBAND_VERIFICATION_SUCCESS_NBC_ALLNODES"
+		LogMsg "INFINIBAND_VERIFICATION_SUCCESS_IMB_NBC_ALLNODES"
 	fi
 }
 
@@ -456,10 +456,10 @@ function Run_IMB_IO() {
 		LogErr "IMB-IO tests returned non-zero exit code. Aborting further tests."
 		SetTestStateFailed
 		Collect_Logs
-		LogErr "INFINIBAND_VERIFICATION_FAILED_IO_ALLNODES"
+		LogErr "INFINIBAND_VERIFICATION_FAILED_IMB_IO_ALLNODES"
 		exit 0
 	else
-		LogMsg "INFINIBAND_VERIFICATION_SUCCESS_IO_ALLNODES"
+		LogMsg "INFINIBAND_VERIFICATION_SUCCESS_IMB_IO_ALLNODES"
 	fi
 }
 
@@ -778,23 +778,26 @@ function Main() {
 
 	# Run all benchmarks
 	if [[ $benchmark_type == "OMB" ]]; then
+		LogMsg "Running OMB benchmarks tests for $mpi_type"
 		Run_OMB_P2P
-	fi
-	Run_IMB_Intranode
-	Run_IMB_MPI1
-	if [[ $quicktestonly == "no" ]]; then
-		Run_IMB_RMA
-		Run_IMB_NBC
-		# Sometimes IMB-P2P and IMB-IO aren't available, skip them if it's the case
-		if [ ! -z "$imb_p2p_path" ]; then
-			Run_IMB_P2P
-		else
-			LogMsg "INFINIBAND_VERIFICATION_SKIPPED_IMB_P2P_ALLNODES"
-		fi
-		if [ ! -z "$imb_io_path" ]; then
-			Run_IMB_IO
-		else
-			LogMsg "INFINIBAND_VERIFICATION_SKIPPED_IO_ALLNODES"
+	elif [[ $benchmark_type == "IMB" ]]; then
+		LogMsg "Running IMB benchmarks tests for $mpi_type"
+		Run_IMB_Intranode
+		Run_IMB_MPI1
+		if [[ $quicktestonly == "no" ]]; then
+			Run_IMB_RMA
+			Run_IMB_NBC
+			# Sometimes IMB-P2P and IMB-IO aren't available, skip them if it's the case
+			if [ ! -z "$imb_p2p_path" ]; then
+				Run_IMB_P2P
+			else
+				LogMsg "INFINIBAND_VERIFICATION_SKIPPED_IMB_P2P_ALLNODES"
+			fi
+			if [ ! -z "$imb_io_path" ]; then
+				Run_IMB_IO
+			else
+				LogMsg "INFINIBAND_VERIFICATION_SKIPPED_IMB_IO_ALLNODES"
+			fi
 		fi
 	fi
 
