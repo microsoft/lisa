@@ -37,6 +37,7 @@ suffix1=","
 prefix2="target_cpu="
 
 function Main() {
+	FailedCount=0
 	# Collect the vmbus and cpu id information from the system, and store in /tmp/lsvmbus.output
 	basedir=$(pwd)
 	lsvmbus
@@ -103,6 +104,7 @@ function Main() {
 							LogMsg "Successfully verified the device busy message"
 						else
 							LogErr "Failed to verify the device busy message. Expected Device or resource busy, but found $diff_val"
+							FailedCount=$((FailedCount+1))
 						fi
 						LogMsg "Found the cpu id, $_cpu_id from the channel $rel_id. Will set 0, the default cpu id, to this cpu"
 						echo 0 > $sysfs_path/channels/$rel_id/cpu
@@ -125,20 +127,24 @@ function Main() {
 								LogMsg "Successfully verified the device busy message"
 							else
 								LogErr "Failed to verify the device busy message. Expected Device or resource busy, but found $diff_val"
+								FailedCount=$((FailedCount+1))
 							fi
 						else
 							LogErr "Failed to change the cpu id of the channel $rel_id from ${idle_cpus[$cpu_idx]} to 0. Expected 0, but found $_cpu_id"
+							FailedCount=$((FailedCount+1))
 						fi
 					fi
 					read -a line
 				done
 				#LogMsg "Found vmbus channel and its target cpus: ${temp[@]}, ${!temp[@]}"
 			else
-				LogErr "Supposed to read Sysfs path, but found ${line[@]}"
+				LogErr "Failed. Supposed to read Sysfs path, but found ${line[@]}"
+				FailedCount=$((FailedCount+1))
 			fi
 			idx=$((idx+1))
 		else
-			LogErr "Supposed to read VMBUS ID line, but found ${line[@]}"
+			LogErr "Failed. Supposed to read VMBUS ID line, but found ${line[@]}"
+			FailedCount=$((FailedCount+1))
 		fi
 		LogMsg ""
 	done < "$lsvmbus_output_location"
@@ -183,18 +189,23 @@ function Main() {
 							LogMsg "Successfully found dmesg log per cpu online state change"
 						else
 							LogErr "Failed to verify cpu online state change. Expected smpboot: Booting Node, but found $diff_val2"
+							FailedCount=$((FailedCount+1))
 						fi
 					else
 						LogErr "Failed to change back cpu $id to online"
+						FailedCount=$((FailedCount+1))
 					fi
 				else
 					LogErr "Failed to find the expected dmesg. Expected CPU $id is now offline, but found $diff_val"
+					FailedCount=$((FailedCount+1))
 				fi
 			else
 				LogErr "Failed to change the cpu $id state to offline. Expected 0, but found $post_state"
+				FailedCount=$((FailedCount+1))
 			fi
 		else
 			LogErr "Found the currect cpu $id is not online. Expected 1 but found $state"
+			FailedCount=$((FailedCount+1))
 		fi
 	done
 
@@ -204,5 +215,9 @@ function Main() {
 
 # main body
 Main
-SetTestStateCompleted
+if [ $FailedCount == 0 ]; then
+	SetTestStateCompleted
+else
+	SetTestStateFailed
+fi
 exit 0
