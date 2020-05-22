@@ -425,11 +425,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 
 		if ($EnableNSG) {
 			$securityRulesXml = [xml](Get-Content -Path "$WorkingDirectory\XML\Other\NetworkSecurityGroupRules.xml")
-			if ($OSType -imatch "Windows") {
-				$securityRules = $securityRulesXml.platform.windows.rule
-			} else {
-				$securityRules = $securityRulesXml.platform.linux.rule
-			}
+			$securityRules = $securityRulesXml.LISAv2NetworkSecurityGroupRules.rule
 		}
 
 		if ($UseExistingRG) {
@@ -609,6 +605,10 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			Add-Content -Value "$($indents[4])^securityRules^:" -Path $jsonFile
 			Add-Content -Value "$($indents[4])[" -Path $jsonFile
 			$securityRules | ForEach-Object {
+				$destinationPortRanges = @($_.properties.destinationPortRanges.Trim(', ').Split(',').Trim())
+				$destinationPortRanges | ForEach-Object {$i = 0; $i += 0} {$destinationPortRanges[$i] = "^$_^"; $i++}
+				$sourceAddressPrefixes = @($_.properties.sourceAddressPrefixes.Trim(', ').Split(',').Trim())
+				$sourceAddressPrefixes | ForEach-Object {$i = 0; $i += 0} {$sourceAddressPrefixes[$i] = "^$_^"; $i++}
 				Add-Content -Value "$($indents[5]){" -Path $jsonFile
 				Add-Content -Value "$($indents[6])^name^: ^$($_.name)^," -Path $jsonFile
 				Add-Content -Value "$($indents[6])^properties^:" -Path $jsonFile
@@ -616,8 +616,8 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 				Add-Content -Value "$($indents[7])^description^: ^$($_.properties.description)^," -Path $jsonFile
 				Add-Content -Value "$($indents[7])^protocol^: ^$($_.properties.protocol)^," -Path $jsonFile
 				Add-Content -Value "$($indents[7])^sourcePortRange^: ^$($_.properties.sourcePortRange)^," -Path $jsonFile
-				Add-Content -Value "$($indents[7])^destinationPortRange^: $($_.properties.destinationPortRange)," -Path $jsonFile
-				Add-Content -Value "$($indents[7])^sourceAddressPrefix^: ^$($_.properties.sourceAddressPrefix)^," -Path $jsonFile
+				Add-Content -Value "$($indents[7])^destinationPortRanges^: [$($destinationPortRanges -Join ',')]," -Path $jsonFile
+				Add-Content -Value "$($indents[7])^sourceAddressPrefixes^: [$($sourceAddressPrefixes -Join ',')]," -Path $jsonFile
 				Add-Content -Value "$($indents[7])^destinationAddressPrefix^: ^$($_.properties.destinationAddressPrefix)^," -Path $jsonFile
 				Add-Content -Value "$($indents[7])^access^: ^$($_.properties.access)^," -Path $jsonFile
 				Add-Content -Value "$($indents[7])^priority^: ^$($_.properties.priority)^," -Path $jsonFile
@@ -1821,16 +1821,20 @@ Function Delete-ResourceGroup([string]$RGName, [bool]$UseExistingRG, [string]$Pa
     Function RemoveAzResourcesByResourceType([string] $ResourceType4iMatch) {
         $unlockedResources | Where-Object {$_.ResourceType -imatch $ResourceType4iMatch} | ForEach-Object {
             try {
-                $null = Remove-AzResource -ResourceGroupName $RGName -ResourceName $_.Name -ResourceType $_.ResourceType -Force -Verbose
+                if (Remove-AzResource -ResourceGroupName $RGName -ResourceName $_.Name -ResourceType $_.ResourceType -Force) {
+                    Write-LogInfo "`tDeleted resource '$($_.Name)' successfully."
+                }
+                else {
+                    Write-LogWarn "`tFailed to delete resource '$($_.Name)', will try to remove it in next attempt $($attempts + 1)"
+                }
             } catch {
-                Write-LogErr "Failed to delete resource $($_.Name). We will try to remove it in next attempt $($attempts + 1)"
+                Write-LogErr "`tException when removing resource '$($_.Name)', will try to remove it in next attempt $($attempts + 1)"
             }
         }
     }
 
     Write-LogInfo "Try to delete resource group $RGName..."
     try {
-        Write-LogInfo "Checking if $RGName exists..."
         $ResourceGroup = Get-AzResourceGroup -Name $RGName -ErrorAction Ignore
     }
     catch {
@@ -1859,10 +1863,15 @@ Function Delete-ResourceGroup([string]$RGName, [bool]$UseExistingRG, [string]$Pa
                         break
                     }
                     else {
-                        RemoveAzResourcesByResourceType -ResourceType4iMatch 'Microsoft.Network/loadBalancers'
-                        RemoveAzResourcesByResourceType -ResourceType4iMatch 'Microsoft.Compute/virtualMachines'
-                        RemoveAzResourcesByResourceType -ResourceType4iMatch 'Microsoft.Network/networkInterfaces'
-                        RemoveAzResourcesByResourceType -ResourceType4iMatch 'Microsoft'
+                        Write-LogInfo "Start removing resoruces from '$RGName', attempt $($attempts) ..."
+                        RemoveAzResourcesByResourceType -ResourceType4iMatch '^Microsoft\.Compute/virtualMachines$'
+                        RemoveAzResourcesByResourceType -ResourceType4iMatch '^Microsoft\.Compute/disks$'
+                        RemoveAzResourcesByResourceType -ResourceType4iMatch '^Microsoft\.Network/networkInterfaces$'
+                        RemoveAzResourcesByResourceType -ResourceType4iMatch '^Microsoft\.Network/virtualNetworks$'
+                        RemoveAzResourcesByResourceType -ResourceType4iMatch '^Microsoft\.Network/loadBalancers$'
+                        RemoveAzResourcesByResourceType -ResourceType4iMatch '^Microsoft\.Network/publicIPAddresses$'
+                        RemoveAzResourcesByResourceType -ResourceType4iMatch '^Microsoft\.Network/networkSecurityGroups$'
+                        RemoveAzResourcesByResourceType -ResourceType4iMatch '^Microsoft\..+/(?!(virtualMachines|disks|networkInterfaces|virtualNetworks|loadBalancers|publicIPAddresses|networkSecurityGroups)).+$'
                     }
                     $attempts++
                 }
@@ -2706,7 +2715,7 @@ function Add-AzureAccountFromSecretsFile {
             Write-LogInfo "Authenticating Azure PS session using Service Principal..."
             $pass = ConvertTo-SecureString $key -AsPlainText -Force
             $mycred = New-Object System.Management.Automation.PSCredential ($ClientID, $pass)
-            $null = Add-AzAccount -ServicePrincipal -Tenant $TenantID -Credential $mycred
+            $null = Connect-AzAccount -ServicePrincipal -Tenant $TenantID -Credential $mycred
             $UserAuthenticated = $true
         } elseif ($AzureContextFilePath) {
             # Scenario 2: Azure context file path is avaialble in Secret File
@@ -2742,8 +2751,8 @@ function Add-AzureAccountFromSecretsFile {
 
         if ( $UserAuthenticated ) {
             #Verify if the user is Authorized to use the subscription.
-            $selectedSubscription = Select-AzSubscription -SubscriptionId $XmlSecrets.secrets.SubscriptionID  -ErrorAction SilentlyContinue
-            if ( $selectedSubscription.Subscription.Id -eq $XmlSecrets.secrets.SubscriptionID ) {
+            $azContextResult = Set-AzContext -Subscription $XmlSecrets.secrets.SubscriptionID -ErrorAction SilentlyContinue
+            if ($azContextResult -and ($azContextResult.Subscription.Id -eq $XmlSecrets.secrets.SubscriptionID)) {
                 Write-LogInfo "Current Subscription : $subIDMasked."
             } else {
                 Throw "There was an error when selecting $subIDMasked."

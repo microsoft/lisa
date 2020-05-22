@@ -44,4 +44,19 @@
         <Tags>xdp,network,hv_netvsc,sriov</Tags>
         <Priority>1</Priority>
     </test>
+    <test>
+        <testName>VERIFY-XDP-LOAD-UNLOAD</testName>
+        <testScript>VERIFY-XDP-LOAD-UNLOAD.ps1</testScript>
+        <setupType>TwoVM2NIC</setupType>
+        <OverrideVMSize>Standard_DS4_v2</OverrideVMSize>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh</files>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>XDP</Area>
+        <Tags>xdp,network,hv_netvsc,sriov</Tags>
+        <Priority>1</Priority>
+    </test>
 </TestCases>

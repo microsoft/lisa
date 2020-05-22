@@ -565,6 +565,7 @@
         <testScript>KDUMP-TestScript.ps1</testScript>
         <files>.\Testscripts\Linux\KDUMP-Execute.sh,.\Testscripts\Linux\KDUMP-Config.sh,.\Testscripts\Linux\KDUMP-Results.sh,.\Testscripts\Linux\utils.sh</files>
         <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_DS2_v2</OverrideVMSize>
         <TestParameters>
             <param>vmCpuNumber=2</param>
             <param>vmMemory=2GB</param>
@@ -620,6 +621,7 @@
         <testScript>KDUMP-TestScript.ps1</testScript>
         <files>.\Testscripts\Linux\KDUMP-Execute.sh,.\Testscripts\Linux\KDUMP-Config.sh,.\Testscripts\Linux\KDUMP-Results.sh,.\Testscripts\Linux\utils.sh</files>
         <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_DS3_v2</OverrideVMSize>
         <TestParameters>
             <param>vmCpuNumber=4</param>
             <param>vmMemory=2GB</param>
@@ -638,6 +640,7 @@
         <testScript>KDUMP-TestScript.ps1</testScript>
         <files>.\Testscripts\Linux\KDUMP-Execute.sh,.\Testscripts\Linux\KDUMP-Config.sh,.\Testscripts\Linux\KDUMP-Results.sh,.\Testscripts\Linux\utils.sh</files>
         <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_DS5_v2</OverrideVMSize>
         <TestParameters>
             <param>vmCpuNumber=16</param>
             <param>vmMemory=4GB</param>
@@ -765,5 +768,21 @@
         <Area>CORE</Area>
         <Tags>pci_hyperv,nvme,sriov</Tags>
         <Priority>1</Priority>
+    </test>
+    <test>
+        <testName>CPU-OFFLINE-VMBUS-INTERRUPT-REASSINGMENT</testName>
+        <testScript>CPU-Offline.ps1</testScript>
+        <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_L32s_v2</OverrideVMSize>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\CPUOfflineKernelBuild.sh,.\Testscripts\Linux\channel_change.sh</files>
+        <TestParameters>
+            <param>repo_url=CPU_CustomKernelURL</param>
+            <param>repo_branch=CPU_CustomKernelBranch</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>cpu</Tags>
+        <Priority>3</Priority>
     </test>
 </TestCases>

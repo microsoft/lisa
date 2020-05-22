@@ -85,7 +85,7 @@ Run_Fstrim() {
             LogMsg "Trim size after file creation:$trim_final"
         fi
         #check how much is trimmed after file is created
-        if [ "$trim_final" -ne "$trim_init" ]; then
+        if [ "$trim_final" != "$trim_init" ]; then
             LogErr "Final trim size does not match initial trim size"
             SetTestStateFailed
             exit 0
