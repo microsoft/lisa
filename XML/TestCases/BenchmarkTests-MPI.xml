@@ -16,7 +16,6 @@
 			<param>numactl_settings="INFINIBAND_NUMACTL_SETTINGS"</param>
 			<param>mpi_type="mvapich"</param>
 			<param>benchmark_type="OMB"</param>
-			<param>intel_mpi_benchmark=INTEL_MPI_BENCHMARK_DOWNLOAD</param>
 			<param>osu_mpi_benchmark=OSU_MPI_BENCHMARK_DOWNLOAD</param>
 			<param>mvapich_mpi=MVAPICH_MPI_DOWNLOAD</param>
 			<param>walaagent_repo=WALAAgent_REPO</param>

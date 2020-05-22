@@ -233,7 +233,7 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceThis>INFINIBAND_MVAPICH_PPN</ReplaceThis>
 		<ReplaceWith>1</ReplaceWith>
 	</Parameter>
-		<Parameter>
+	<Parameter>
 		<ReplaceThis>INFINIBAND_NUMACTL_SETTINGS</ReplaceThis>
 		<ReplaceWith>-c 1</ReplaceWith>
 	</Parameter>
