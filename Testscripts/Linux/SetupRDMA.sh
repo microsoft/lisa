@@ -105,7 +105,7 @@ function Main() {
 			LogMsg "Starting RDMA setup for RHEL/CentOS"
 			# required dependencies
 			grep 7.5 /etc/redhat-release || grep 7.6 /etc/redhat-release && curl https://partnerpipelineshare.blob.core.windows.net/kernel-devel-rpms/CentOS-Vault.repo > /etc/yum.repos.d/CentOS-Vault.repo
-			req_pkg="kernel-devel-$(uname -r) redhat-rpm-config rpm-build gcc gcc-gfortran libdb-devel gcc-c++ glibc-devel zlib-devel numactl-devel binutils-devel iptables-devel libstdc++-devel libselinux-devel elfutils-devel libtool java libstdc++.i686 gtk2 atk cairo tcl tk createrepo byacc.x86_64 net-tools tcsh"
+			req_pkg="kernel-devel-$(uname -r) redhat-rpm-config rpm-build gcc gcc-gfortran libdb-devel gcc-c++ glibc-devel zlib-devel numactl numactl-devel binutils-devel iptables-devel libstdc++-devel libselinux-devel elfutils-devel libtool java libstdc++.i686 gtk2 atk cairo tcl tk createrepo byacc.x86_64 net-tools tcsh"
 			install_package $req_pkg
 			LogMsg "$?: Installed required packages $req_pkg"
 			if [[ ! $(grep 7.8 /etc/redhat-release) ]]; then
@@ -187,7 +187,7 @@ function Main() {
 		suse*|sles*)
 			# install required packages
 			LogMsg "Starting RDMA setup for SUSE"
-			req_pkg="bzip expect glibc-32bit glibc-devel libgcc_s1 libgcc_s1-32bit libpciaccess-devel gcc-c++ gcc-fortran rdma-core libibverbs-devel librdmacm1 libibverbs-utils bison flex"
+			req_pkg="bzip expect glibc-32bit glibc-devel libgcc_s1 libgcc_s1-32bit libpciaccess-devel gcc-c++ gcc-fortran rdma-core libibverbs-devel librdmacm1 libibverbs-utils bison flex numactl"
 			LogMsg "Installing required packages, $req_pkg"
 			install_package $req_pkg
 			# force install package that is known to have broken dependencies
@@ -230,7 +230,7 @@ function Main() {
 			LogMsg "Required 32-bit java"
 			dpkg --add-architecture i386
 
-			req_pkg="build-essential python-setuptools libibverbs-dev bison flex ibverbs-utils net-tools libdapl2 rdmacm-utils bc"
+			req_pkg="build-essential python-setuptools libibverbs-dev bison flex ibverbs-utils net-tools libdapl2 rdmacm-utils bc numactl"
 			install_package $req_pkg
 			LogMsg "Installed the required packages, $req_pkg"
 			os_RELEASE=$(awk '/VERSION_ID=/' /etc/os-release | sed 's/VERSION_ID=//' | sed 's/\"//g')
@@ -613,8 +613,35 @@ function Main() {
 		Verify_File $benchmark_bin
 	fi
 
+	if [ $benchmark_type == "OMB" && $$mpi_type != "mvapich" ]; then
+		currentDir=$(pwd)
+		cd ~
+		LogMsg "Proceeding OSU MPI Benchmark (OMB) test installation"
+		LogMsg "Downloading mpi-benchmarks from $osu_mpi_benchmark"
+		wget $osu_mpi_benchmark
+		tar_filename=$(echo $osu_mpi_benchmark | rev | cut -d'/' -f1 | rev)
+		tar xvzf tar_filename
+		LogMsg "Untarred $tar_filename"
+		cd ${tar_filename%.*.*}
+
+		LogMsg "Running configuration ./configure CC=/usr/local/bin/mpicc CXX=/usr/local/bin/mpicxx --prefix=$(pwd)"
+		./configure CC=/usr/local/bin/mpicc CXX=/usr/local/bin/mpicxx --prefix=$(pwd)
+		Verify_Result
+		LogMsg "Compiling OSU Microbenchmarks"
+		make
+		Verify_Result
+		LogMsg "Installing new binaries in /usr/local/bin directory"
+		make install
+		Verify_Result
+		LogMsg "OSU mpi-benchmarks $osu_mpi_benchmark installation completed"
+		# set string to verify osu benchmark is downloaded
+		osu_benchmark_bin=/usr/local/libexec/osu-micro-benchmarks/mpi/pt2pt/osu_latency
+		Verify_File $osu_benchmark_bin
+		cd $currentDir
+	fi
+
 	echo "setup_completed=0" >> /root/constants.sh
-	LogMsg "Completed SetupRDAM process"
+	LogMsg "Completed SetupRDMA process"
 	LogMsg "Main function completed"
 }
 

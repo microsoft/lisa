@@ -181,6 +181,10 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceThis>INFINIBAND_MVAPICH_MPI_SETTINGS_TCP</ReplaceThis>
 		<ReplaceWith></ReplaceWith>
 	</Parameter>
+		<Parameter>
+		<ReplaceThis>INFINIBAND_OMB_MVAPICH_MPI_SETTINGS</ReplaceThis>
+		<ReplaceWith>MV2_CPU_BINDING_LEVEL=numanode MV2_CPU_BINDING_POLICY=scatter </ReplaceWith>
+	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_MVAPICH_MPI_SETTINGS_IB</ReplaceThis>
 		<ReplaceWith></ReplaceWith>
@@ -228,6 +232,10 @@ Scenario 2 : You need to run all the performance tests quickly.
 	<Parameter>
 		<ReplaceThis>INFINIBAND_MVAPICH_PPN</ReplaceThis>
 		<ReplaceWith>1</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>INFINIBAND_NUMACTL_SETTINGS</ReplaceThis>
+		<ReplaceWith>-c 1</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_MPI_TEST_COUNT</ReplaceThis>
@@ -298,6 +306,11 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceWith></ReplaceWith>
 	</Parameter>
 	<Parameter>
+		<!-- Refer http://mvapich.cse.ohio-state.edu/benchmarks/-->
+		<ReplaceThis>INFINIBAND_MVAPICH_OMB_P2P_TESTNAMES</ReplaceThis>
+		<ReplaceWith>osu_latency osu_bw osu_bibw osu_mbw_mr osu_multi_lat</ReplaceWith>
+	</Parameter>
+	<Parameter>
 		<ReplaceThis>INFINIBAND_INTEL_NBC_TEST_COUNT</ReplaceThis>
 		<ReplaceWith>1</ReplaceWith>
 	</Parameter>
@@ -356,6 +369,10 @@ Scenario 2 : You need to run all the performance tests quickly.
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>INFINIBAND_MVAPICH_IO_TEST_COUNT</ReplaceThis>
+		<ReplaceWith>1</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>INFINIBAND_MVAPICH_OMB_P2P_TEST_COUNT</ReplaceThis>
 		<ReplaceWith>1</ReplaceWith>
 	</Parameter>
 	<Parameter>
@@ -594,6 +611,10 @@ Scenario 2 : You need to run all the performance tests quickly.
 	<Parameter>
 		<ReplaceThis>INTEL_MPI_BENCHMARK_DOWNLOAD</ReplaceThis>
 		<ReplaceWith>https://github.com/intel/mpi-benchmarks</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>OSU_MPI_BENCHMARK_DOWNLOAD</ReplaceThis>
+		<ReplaceWith>http://mvapich.cse.ohio-state.edu/download/mvapich/osu-micro-benchmarks-5.6.2.tar.gz</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>WALAAgent_REPO</ReplaceThis>
