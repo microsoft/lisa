@@ -10,8 +10,6 @@
 # Set 0 to online file, echo 0 > /sys/devices/system/cpu/cpu<number>/online
 # Verify the dmesg log like ‘smpboot: CPU x is now offline’
 # Select a CPU number where associates to vmbus channels.
-# Set 1 to online file, echo 1 > /sys/devices/system/cpu/cpu<number>/online
-# Verify the command error: Device or resource busy
 # Set 0 to online file, echo 0 > /sys/devices/system/cpu/cpu<number>/online
 # Verify the command error: Device or resource busy
 ########################################################################################################
@@ -91,21 +89,17 @@ function Main() {
 					if [[ $cpu_id != "0" ]]; then
 						_cpu_id=$(cat $sysfs_path/channels/$rel_id/cpu)
 						idle_cpus+=($_cpu_id)
-						# Set 1 to online file, echo 1 > /sys/devices/system/cpu/cpu<number>/online
-						# Verify the command error: Device or resource busy, because cpu is online already.
+						# Set 0 to online file, echo 0 > /sys/devices/system/cpu/cpu<number>/online
+						# Verify the command error: Device or resource busy, because cpu is online and vmbus is used.
 						# negative test
-						dmesg > /tmp/pre-stage.log
-						LogMsg "Took a snapshot of dmesg to /tmp/pre-stage.log"
-						echo 1 > /sys/devices/system/cpu/cpu$_cpu_id/online
-						sleep 1
-						dmesg > /tmp/post-stage.log
-						diff_val=$(diff /tmp/pre-stage.log /tmp/post-stage.log)
-						if [[ $diff_val == *"Device or resource busy"* ]]; then
+						echo 0 > /sys/devices/system/cpu/cpu$_cpu_id/online 2>retval
+						if [[ $(cat retval) == *"Device or resource busy"* ]]; then
 							LogMsg "Successfully verified the device busy message"
 						else
-							LogErr "Failed to verify the device busy message. Expected Device or resource busy, but found $diff_val"
+							LogErr "Failed to verify the device busy message. Expected Device or resource busy, but found $(cat retval)"
 							FailedCount=$((FailedCount+1))
 						fi
+						# Now reset this vmbus's cpu id to 0. The target cpu id is ready to be idle.
 						LogMsg "Found the cpu id, $_cpu_id from the channel $rel_id. Will set 0, the default cpu id, to this cpu"
 						echo 0 > $sysfs_path/channels/$rel_id/cpu
 						sleep 1
@@ -114,21 +108,6 @@ function Main() {
 						if [[ $_cpu_id == "0" ]]; then
 							LogMsg "Successfully changed the cpu id of the channel $rel_id from ${idle_cpus[$cpu_idx]} to 0"
 							cpu_idx=$((cpu_idx+1))
-							# Set 0 to online file, echo 0 > /sys/devices/system/cpu/cpu<number>/online
-							# Verify the command error: Device or resource busy
-							# negative test
-							dmesg > /tmp/pre-stage.log
-							LogMsg "Took a snapshot of dmesg to /tmp/pre-stage.log"
-							echo 0 > /sys/devices/system/cpu/cpu$cpu_idx/online
-							sleep 1
-							dmesg > /tmp/post-stage.log
-							diff_val=$(diff /tmp/pre-stage.log /tmp/post-stage.log)
-							if [[ $diff_val == *"Device or resource busy"* ]]; then
-								LogMsg "Successfully verified the device busy message"
-							else
-								LogErr "Failed to verify the device busy message. Expected Device or resource busy, but found $diff_val"
-								FailedCount=$((FailedCount+1))
-							fi
 						else
 							LogErr "Failed to change the cpu id of the channel $rel_id from ${idle_cpus[$cpu_idx]} to 0. Expected 0, but found $_cpu_id"
 							FailedCount=$((FailedCount+1))
