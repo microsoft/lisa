@@ -188,6 +188,84 @@ function Main() {
 		fi
 	done
 
+	# ########################################################################
+	# Assign a random CPU id to the vmbus channel
+	# Assign the original CPU id to the vmbus channel
+	# Now each vmbus's cpu id is 0.
+
+	# Find the max CPU core counts
+	max_cpu=$(nproc)
+	LogMsg "Re-read the original lsvmbus output file"
+	while IFS=' ' read -a line
+	do
+		if [[ ${line[0]} == "VMBUS" && ${line[1]} == "ID" ]]; then
+			vmbus_id[$idx]=${line[2]%?}
+			LogMsg "Found new VMBUS ID --> ${vmbus_id[$idx]}"
+
+			read -a line
+			# Ignored Device Id
+
+			read -a line
+			if [[ ${line[0]} =~ "Sysfs" && ${line[1]} == "path:" ]]; then
+				sysfs_path=${line[2]}
+				LogMsg "Found new sysfs --> $sysfs_path"
+
+				# Read Rel_ID and target_cpu lines
+				read -a line
+				while [[ $line != '' ]]; do
+					rel_id=${line[0]#"$prefix1"}
+					rel_id=${rel_id%"$suffix1"}
+					LogMsg "Found Rel_ID: $rel_id, which is vmbus channel id"
+					cpu_id=${line[1]#"$prefix2"}
+					LogMsg "Found the original target cpu id: $cpu_id"
+					# This cpu_is is fro lsvmbus.output, the original output.
+					if [[ $cpu_id != "0" ]]; then
+						# read the cpu id from the actual system
+						_cpu_id=$(cat $sysfs_path/channels/$rel_id/cpu)
+						# The current cpu id should be 0
+						if [[ $_cpu_id == '0' ]]; then
+							LogMsg "Verified the current cpu id is 0"
+						else
+							LogErr "Failed to verify the currenct cpu id. Expected 0 but found $_cpu_id"
+							FailedCount=$((FailedCount+1))
+						fi
+						# Change to random number
+						cpu_rdn=$(($RANDOM % $max_cpu))
+						echo $cpu_rdm > $sysfs_path/channels/$rel_id/cpu
+						# Read back new cpu id
+						_cpu_id=$(cat $sysfs_path/channels/$rel_id/cpu)
+						if [[ $_cpu_id == $cpu_rdn ]]; then
+							LogMsg "Verified the random number assigned to cpu successfully"
+						else
+							LogErr "Failed to verify random number assignment to the cpu id. Expected $cpu_rdn, found $_cpu_id"
+							FailedCount=$((FailedCount+1))
+						fi
+						# Change to the original cpu id
+						echo $cpu_id > $sysfs_path/channels/$rel_id/cpu
+						# Read back new cpu id
+						_cpu_id=$(cat $sysfs_path/channels/$rel_id/cpu)
+						if [[ $_cpu_id == $cpu_id ]]; then
+							LogMsg "Verified the original number assigned to cpu successfully"
+						else
+							LogErr "Failed to verify the original number assignment to the cpu id. Expected $cpu_id, found $_cpu_id"
+							FailedCount=$((FailedCount+1))
+						fi
+					fi
+					read -a line
+				done
+				#LogMsg "Found vmbus channel and its target cpus: ${temp[@]}, ${!temp[@]}"
+			else
+				LogErr "Failed. Supposed to read Sysfs path, but found ${line[@]}"
+				FailedCount=$((FailedCount+1))
+			fi
+			idx=$((idx+1))
+		else
+			LogErr "Failed. Supposed to read VMBUS ID line, but found ${line[@]}"
+			FailedCount=$((FailedCount+1))
+		fi
+		LogMsg ""
+	done < "$lsvmbus_output_location"
+
 	echo "job_completed=0" >> $basedir/constants.sh
 	LogMsg "Main function job completed"
 }
