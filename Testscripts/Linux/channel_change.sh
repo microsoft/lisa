@@ -231,7 +231,7 @@ function Main() {
 						fi
 						# Change to random number
 						cpu_rdn=$(($RANDOM % $max_cpu))
-						echo $cpu_rdm > $sysfs_path/channels/$rel_id/cpu
+						echo $cpu_rdn > $sysfs_path/channels/$rel_id/cpu
 						# Read back new cpu id
 						_cpu_id=$(cat $sysfs_path/channels/$rel_id/cpu)
 						if [[ $_cpu_id == $cpu_rdn ]]; then
