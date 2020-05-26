@@ -218,7 +218,7 @@ function Main() {
 					LogMsg "Found Rel_ID: $rel_id, which is vmbus channel id"
 					cpu_id=${line[1]#"$prefix2"}
 					LogMsg "Found the original target cpu id: $cpu_id"
-					# This cpu_is is fro lsvmbus.output, the original output.
+					# This cpu_is is from lsvmbus.output, the original output.
 					if [[ $cpu_id != "0" ]]; then
 						# read the cpu id from the actual system
 						_cpu_id=$(cat $sysfs_path/channels/$rel_id/cpu)
