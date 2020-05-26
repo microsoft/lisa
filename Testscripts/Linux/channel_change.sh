@@ -44,9 +44,9 @@ function Main() {
 			chmod +x $basedir/linux/tools/hv/lsvmbus
 			$basedir/linux/tools/hv/lsvmbus -vv > $lsvmbus_output_location
 		else
-			LogErr "File, lsvmbus, not found in the system. Aborted the execution."
-			SetTestStateAborted
-			exit 0
+			wget https://raw.githubusercontent.com/torvalds/linux/master/tools/hv/lsvmbus
+			chmod +x lsvmbus
+			$basedir/lsvmbus -vv > $lsvmbus_output_location
 		fi
 	else
 		lsvmbus -vv > $lsvmbus_output_location
