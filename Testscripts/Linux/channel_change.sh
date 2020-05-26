@@ -90,10 +90,10 @@ function Main() {
 						# Verify the command error: Device or resource busy, because cpu is online and vmbus is used.
 						# negative test
 						# Read the current cpu online state and restore into oldState variable.
-						oldState=$(/sys/devices/system/cpu/cpu$_cpu_id/online)
+						oldState=$(cat /sys/devices/system/cpu/cpu$_cpu_id/online)
 						echo 0 > /sys/devices/system/cpu/cpu$_cpu_id/online 2>retval
 						sleep 1
-						newState=$(/sys/devices/system/cpu/cpu$_cpu_id/online)
+						newState=$(cat /sys/devices/system/cpu/cpu$_cpu_id/online)
 						# Verify the dmesg log
 						if [[ $(cat retval) == *"Device or resource busy"* ]]; then
 							LogMsg "Successfully verified the dmesg log, device or resource busy message"
