@@ -271,7 +271,6 @@ function Main() {
 			LogErr "Failed. Supposed to read VMBUS ID line, but found ${line[@]}"
 			FailedCount=$((FailedCount+1))
 		fi
-		LogMsg ""
 	done < "$lsvmbus_output_location"
 
 	echo "job_completed=0" >> $basedir/constants.sh
