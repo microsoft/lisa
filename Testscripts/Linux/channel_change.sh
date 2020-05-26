@@ -3,7 +3,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 # This script will set up CPU offline feature with vmbus interrupt channel re-assignment.
-# This feature will be enabled the kernel version 5.7+
+# This feature will be enabled the kernel version 5.8+
 # Select a CPU number where does not associate to vmbus channels; /sys/bus/vmbus/devices/<device ID>/channels/<channel ID>/cpu.
 # Set 1 to online file, echo 1 > /sys/devices/system/cpu/cpu<number>/online
 # Verify the dmesg log like ‘smpboot: Booting Node xx Processor x APIC 0xXX’
@@ -92,9 +92,17 @@ function Main() {
 						# Set 0 to online file, echo 0 > /sys/devices/system/cpu/cpu<number>/online
 						# Verify the command error: Device or resource busy, because cpu is online and vmbus is used.
 						# negative test
+						# Read the current cpu online state and restore into oldState variable.
+						oldState=$(/sys/devices/system/cpu/cpu$_cpu_id/online)
 						echo 0 > /sys/devices/system/cpu/cpu$_cpu_id/online 2>retval
 						if [[ $(cat retval) == *"Device or resource busy"* ]]; then
 							LogMsg "Successfully verified the device busy message"
+							newState=$(/sys/devices/system/cpu/cpu$_cpu_id/online)
+							if [[ $newState == $oldState ]]; then
+								LogMsg "Successfully verified the cpu online state was not changed"
+							else
+								LogErr "Failed to verify the cpu online state. Expected $oldState, found $newState"
+							fi
 						else
 							LogErr "Failed to verify the device busy message. Expected Device or resource busy, but found $(cat retval)"
 							FailedCount=$((FailedCount+1))
