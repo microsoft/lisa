@@ -12,6 +12,10 @@
 DOCKER_BUILD_OUTPUT="docker_build.log"
 DOCKER_RUN_OUTPUT="docker_run.log"
 
+export GOPATH=${HOME}/go
+export GOBIN=${GOPATH}/bin
+export PATH=${PATH}:/usr/local/go/bin:${GOPATH}/bin
+
 # Source the command utility functions
 . utils.sh || {
     echo "ERROR: unable to source utils.sh!"
@@ -64,6 +68,114 @@ function VerifyDockerEngine() {
         return 1
     fi
     LogMsg "VerifyDockerEngine: hello-world output - $output"
+}
+
+# Function to set enviroment for Kubernetes cluster deployment
+function ConfigureEnvironment() {
+    local ret=0
+    if [[ -f setenv ]];then
+        dos2unix setenv
+        . setenv || $ret=2
+    fi
+    return $ret
+}
+
+# Function to install go package
+function InstallGo() {
+    local ret=2
+    GetOSVersion
+
+    case $DISTRO in
+        ubuntu*|debian*)
+            LogMsg "InstallGo on $DISTRO"
+            update_repos
+            apt install -y build-essential gcc
+            if [[ ! -z ${GO_LANG_DOWNLOAD_URL} ]];then
+                wget ${GO_LANG_DOWNLOAD_URL} -O go.linux-amd64.tar.gz
+                tar -C /usr/local -zxf go.linux-amd64.tar.gz
+                [[ $? -ne 0 ]] && ret=1 || ret=0
+            else
+                ret=1
+            fi
+            if [[ $ret -eq 0 ]];then
+                mkdir -p ${GOPATH}; mkdir -p ${GOBIN}
+            fi
+        ;;
+
+        *)
+           HandleSkip "$DISTRO not supported" $ret
+    esac
+    LogMsg "InstallGo: return: $ret"
+    return $ret
+}
+
+# Function to install kubectl for query aks cluster
+function InstallKubectl() {
+    local ret=2
+    GetOSVersion
+
+    case $DISTRO in
+        ubuntu*|debian*)
+            LogMsg "InstallKubectl on $DISTRO"
+            apt-get install -y ca-certificates curl apt-transport-https lsb-release gnupg
+            curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
+            echo "deb https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee -a /etc/apt/sources.list.d/kubernetes.list
+            update_repos
+            apt-get install -y kubectl
+            ln -sf /usr/bin/kubectl /usr/bin/k
+            [[ $? -ne 0 ]] && ret=1 || ret=0
+        ;;
+
+        *)
+           HandleSkip "$DISTRO not supported" $ret
+    esac
+    LogMsg "InstallKubectl: return: $ret"
+    return $ret
+}
+
+# Function to install Azure command line package
+function InstallAzureCli() {
+    local ret=2
+    GetOSVersion
+
+    case $DISTRO in
+        ubuntu*|debian*)
+            LogMsg "InstallAzureCli on $DISTRO"
+            update_repos
+            apt-get install -y ca-certificates curl apt-transport-https lsb-release gnupg
+            curl -sL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor | tee /etc/apt/trusted.gpg.d/microsoft.asc.gpg > /dev/null
+            AZ_REPO=$(lsb_release -cs)
+            echo "deb [arch=amd64] https://packages.microsoft.com/repos/azure-cli/ $AZ_REPO main" | tee /etc/apt/sources.list.d/azure-cli.list
+            apt-get update
+            apt-get install -y azure-cli
+            [[ $? -ne 0 ]] && ret=1 || ret=0
+        ;;
+
+        *)
+           HandleSkip "$DISTRO not supported" $ret
+    esac
+    LogMsg "InstallAzureCli: return: $ret"
+    return $ret
+}
+
+# Function to install the JSON utility for Azure query processing
+function InstallMiscUtility() {
+    local ret=2
+    GetOSVersion
+
+    case $DISTRO in
+        ubuntu*|debian*)
+            LogMsg "InstallMiscUtility on $DISTRO"
+            update_repos
+            apt-get install -y jq dos2unix
+            [[ $? -ne 0 ]] && ret=1 || ret=0
+        ;;
+
+        *)
+           HandleSkip "$DISTRO not supported" $ret
+    esac
+    LogMsg "InstallMiscUtility: return: $ret"
+    return $ret
 }
 
 # Function to start docker engine
@@ -210,4 +322,64 @@ function InstallDockerCompose() {
         return 1
     fi
     return 0
+}
+
+# Function to login to azure using service principle
+function LoginToAzure() {
+    local CLIENT_ID=${1}
+    local CLIENT_SECRET=${2}
+    local TENANT_ID=${3}
+    az login --service-principal --username ${CLIENT_ID} --password ${CLIENT_SECRET} --tenant ${TENANT_ID}
+    [[ $? -ne 0 ]] && return 1
+    return 0
+}
+
+# Function to generate RG name for the Kubernetes cluster deployment
+function GetResourceGroupName() {
+    local status=true
+    local RG_NAME=""
+    local LOCATION="${1}"
+
+    while true;do
+        RG_NAME="LISAv2-k8s-${LOCATION}-${RANDOM}"
+        status=$(az group exists -n ${RG_NAME})
+        [[ $status == false ]] && break
+    done
+    LogMsg "GetResourceGroupName:: RESOURCE_GROUP=${RG_NAME}"
+    export RESOURCE_GROUP="${RG_NAME}"
+}
+
+# Function to create the resource group
+function CreateResourceGroup() {
+    local ret=1
+    local RESOURCE_GROUP=${1}
+
+    [[ -z ${RESOURCE_GROUP} ]] && return $ret
+
+    local status=$(az group exists -n ${RESOURCE_GROUP})
+    LogMsg "az group exists -n ${RESOURCE_GROUP} returned: $status"
+    if [[ $status == false ]];then
+        LogMsg "az group create --name ${RESOURCE_GROUP} --location ${LOCATION}"
+        az group create --name ${RESOURCE_GROUP} --location ${LOCATION}
+        ret=$?
+    fi
+    return $ret
+}
+
+# Function to clean up the resources
+function CleanupResources() {
+    [[ -z ${RESOURCE_GROUP} ]] && return 0
+
+    local status=$(az group exists -n ${RESOURCE_GROUP})
+    LogMsg "CleanupResources:: az group exists -n ${RESOURCE_GROUP} return: $status"
+    if [[ $status == true ]];then
+        LogMsg "CleanupResources:: az group delete --name ${RESOURCE_GROUP} --no-wait -y"
+        az group delete --name ${RESOURCE_GROUP} --no-wait -y
+    fi
+    return 0
+}
+
+# Function to register resource clean up when the script exits
+function RegisterResourceCleanup() {
+    trap "CleanupResources" EXIT
 }
