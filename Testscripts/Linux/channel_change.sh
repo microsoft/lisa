@@ -50,7 +50,7 @@ function Main() {
 	fi
 	LogMsg "Successfully recorded lsvmbus output in $lsvmbus_output_location"
 
-	# Before chaning cpu id to 0, reset all cpu ids of each vmbus channel.
+	# Before changing cpu id to 0, reset all cpu ids of each vmbus channel.
 	LogMsg "Resetting CPU ID if non-zero"
 
 	# #######################################################################################

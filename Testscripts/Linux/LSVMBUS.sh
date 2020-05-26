@@ -119,6 +119,9 @@ if [ "$scsiAdapters" -gt 1 ]; then
 fi
 
 while IFS='' read -r line || [[ -n "$line" ]]; do
+    if [[ $line =~ "VMBUS ID" ]]; then
+        token=""
+    fi
     if [[ $line =~ "Synthetic network adapter" ]]; then
         token="adapter"
     fi
@@ -157,8 +160,8 @@ else
     expected_scsi_counter=${expected_scsi_counter%.*}
 fi
 
-if [ "$network_counter" != "$expected_network_counter" ] && [ "$scsi_counter" != "$expected_scsi_counter" ]; then
-    error_msg="Error: values are wrong. Expected for network adapter: $VCPU and actual: $network_counter;
+if [ "$network_counter" != "$expected_network_counter" ] || [ "$scsi_counter" != "$expected_scsi_counter" ]; then
+    error_msg="Error: values are wrong. Expected for network adapter: ${expected_network_counter} and actual: $network_counter;
     expected for scsi controller: ${expected_scsi_counter}, actual: $scsi_counter."
     LogErr "$error_msg"
     UpdateSummary "$error_msg"
@@ -166,11 +169,11 @@ if [ "$network_counter" != "$expected_network_counter" ] && [ "$scsi_counter" !=
     exit 0
 fi
 
-msg="Network driver is spread on all $network_counter cores as expected."
+msg="Network driver is spread on all $network_counter cores as expected ${expected_network_counter} cores."
 LogMsg "$msg"
 UpdateSummary "$msg"
 
-msg="Storage driver is spread on all $scsi_counter cores as expected."
+msg="Storage driver is spread on all $scsi_counter cores as expected ${expected_scsi_counter} cores."
 LogMsg "$msg"
 UpdateSummary "$msg"
 
