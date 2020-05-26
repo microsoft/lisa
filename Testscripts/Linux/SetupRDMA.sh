@@ -187,8 +187,12 @@ function Main() {
 		suse*|sles*)
 			# install required packages
 			LogMsg "Starting RDMA setup for SUSE"
+			req_pkg="bzip expect glibc-32bit glibc-devel libgcc_s1 libgcc_s1-32bit libpciaccess-devel gcc-c++ gcc-fortran rdma-core libibverbs-devel librdmacm1 libibverbs-utils bison flex numactl"
 			# add net-tools-deprecated package to work around https://github.com/Azure/WALinuxAgent/issues/1712
-			req_pkg="bzip expect glibc-32bit glibc-devel libgcc_s1 libgcc_s1-32bit libpciaccess-devel gcc-c++ gcc-fortran rdma-core libibverbs-devel librdmacm1 libibverbs-utils bison flex numactl net-tools-deprecated"
+			check_package "net-tools-deprecated"
+			if [ $? -eq 0 ]; then
+				req_pkg+=" net-tools-deprecated"
+			fi
 			LogMsg "Installing required packages, $req_pkg"
 			install_package $req_pkg
 			# force install package that is known to have broken dependencies
