@@ -81,6 +81,7 @@ def RunTest():
         client.request('GET', VERSIONS_PATH)
         success = True
     except Exception as e:
+        RunLog.error("Error -- failed to connect to wireserver: {0}".format(e))
         success = False
 
     if success:
