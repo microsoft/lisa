@@ -13,6 +13,6 @@ if (Get-Module $moduleName -ErrorAction SilentlyContinue) {
 
 Describe "Test if module ${moduleName} is valid" {
     It "Should load a valid module" {
-        { Import-Module $modulePath -DisableNameChecking } | Should Not Throw
+        { Import-Module $modulePath -DisableNameChecking } | Should -Not -Throw
     }
 }
