@@ -17,7 +17,7 @@ Describe "Test if ${moduleName} Run-LISAv2 fails" {
 		Mock Write-LogInfo -Verifiable -ModuleName $moduleName {}
 		Mock Write-LogErr -Verifiable -ModuleName $moduleName {}
 
-		{ Run-LISAv2 -Verbose } | Should Throw
+		{ Run-LISAv2 -Verbose } | Should -Throw
 
 		Assert-VerifiableMock
 	}
@@ -48,7 +48,7 @@ Describe "Test if ${moduleName} Run-LISAv2 fails with no test cases found" {
 		Mock Collect-TestCases -Verifiable -ModuleName "TestController" {}
 
 		{ Run-LISAv2 -Verbose -TestPlatform "Azure" -RGIdentifier "test" -ARMImageName "one two three four" `
-			-TestLocation "westus2" } | Should Throw
+			-TestLocation "westus2" } | Should -Throw
 
 		Assert-VerifiableMock
 	}
@@ -86,7 +86,7 @@ Describe "Test if ${moduleName} Run-LISAv2 fails to parse report results on Azur
 		Mock New-ZipFile -Verifiable -ModuleName $moduleName { return }
 
 		{ Run-LISAv2 -Verbose -TestPlatform "Azure" -RGIdentifier "test" -ARMImageName "one two three four" `
-			-TestLocation "westus2" -TestNames "VERIFY-DEPLOYMENT-PROVISION"} | Should Throw
+			-TestLocation "westus2" -TestNames "VERIFY-DEPLOYMENT-PROVISION"} | Should -Throw
 
 		Assert-VerifiableMock
 	}
