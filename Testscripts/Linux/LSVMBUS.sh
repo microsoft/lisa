@@ -1,6 +1,7 @@
 #!/bin/bash
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
+# TEST ONLY
 
 tokens=("Operating system shutdown" "Time Synchronization" "Heartbeat"
         "Data Exchange" "mouse" "keyboard"
