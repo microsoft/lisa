@@ -182,7 +182,12 @@ Class AzureProvider : TestProvider
 			Write-LogInfo "*************************************************************"
 			$DeleteResourceGroupJobs | Remove-Job -Force
 		}
-		# Clean up AzContext
-		Clear-AzContext -Force -ErrorAction SilentlyContinue | Out-NULL
+		# Clean up AzContext only when using service principal or using AzureContextFile
+		$spClientID = $global:XmlSecrets.secrets.SubscriptionServicePrincipalClientID
+		$spKey = $global:XmlSecrets.secrets.SubscriptionServicePrincipalKey
+		$contextFilePath = $global:XmlSecrets.secrets.AzureContextFilePath
+		if (($spClientID -and $spKey) -or $contextFilePath) {
+			Clear-AzContext -Force -ErrorAction SilentlyContinue | Out-NULL
+		}
 	}
 }
