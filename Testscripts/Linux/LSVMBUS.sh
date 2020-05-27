@@ -19,6 +19,7 @@ scsi_counter=0
 
 # Source constants file and initialize most common variables
 UtilsInit
+LogMsg "VM Size: $VM_Size"
 
 GetDistro
 case $DISTRO in
@@ -146,19 +147,31 @@ else
     expected_network_counter=$VCPU
 fi
 
-# the cpu count that attached to the SCSI driver is MIN(the number of vCPUs/4, 64).
-if [ "$VCPU" -gt 64 ];then
-    expected_scsi_counter=64
-else
-    expected_scsi_counter=$(bc <<<"scale=2;$VCPU/4")
-    if [ "$expected_scsi_counter" != "${1#*.00}" ]; then
-        # In this case we have a float number that needs to be rounded up.
-        # For example with 6 cores, scsi controller is spread on 2 cores.
-        expected_scsi_counter=$(bc <<<"("$expected_scsi_counter"+0.5)/1")
-    fi
-    # normalizing the number to integer
-    expected_scsi_counter=${expected_scsi_counter%.*}
-fi
+case $VM_Size in
+    # If Lv2, the cpu count that attached to the SCSI driver is MIN(the number of vCPUs, 64).
+    *Standard_L*s_v2*)
+        if [ "$VCPU" -gt 64 ];then
+            expected_scsi_counter=64
+        else
+            expected_scsi_counter=$VCPU
+        fi
+    ;;
+    # Default: the cpu count that attached to the SCSI driver is MIN(the number of vCPUs/4, 64).
+    *)
+        if [ "$VCPU" -gt $((64*4)) ];then
+            expected_scsi_counter=64
+        else
+            expected_scsi_counter=$(bc <<<"scale=2;$VCPU/4")
+            if ! [[ "$expected_scsi_counter" =~ \.00 ]]; then
+                # In this case we have a float number that needs to be rounded up.
+                # For example with 6 cores, scsi controller is spread on 2 cores.
+                expected_scsi_counter=$(bc <<<"("$expected_scsi_counter"+1)/1")
+            fi
+            # normalizing the number to integer
+            expected_scsi_counter=${expected_scsi_counter%.*}
+        fi
+    ;;
+esac
 
 if [ "$network_counter" != "$expected_network_counter" ] || [ "$scsi_counter" != "$expected_scsi_counter" ]; then
     error_msg="Error: values are wrong. Expected for network adapter: ${expected_network_counter} and actual: $network_counter;

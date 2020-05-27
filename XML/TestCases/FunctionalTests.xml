@@ -238,7 +238,7 @@
     </test>
     <test>
         <TestName>LSVMBUS</TestName>
-        <TestScript>LSVMBUS.sh</TestScript>
+        <testScript>LSVMBUS.ps1</testScript>
         <files>.\TestScripts\Linux\LSVMBUS.sh,.\TestScripts\Linux\utils.sh</files>
         <setupType>OneVM</setupType>
         <OverrideVMSize>Standard_DS4_v2</OverrideVMSize>
