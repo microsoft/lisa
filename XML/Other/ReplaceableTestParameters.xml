@@ -667,11 +667,11 @@ Scenario 2 : You need to run all the performance tests quickly.
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>CPU_CustomKernelURL</ReplaceThis>
-		<ReplaceWith>https://github.com/aparri/linux.git</ReplaceWith>
+		<ReplaceWith>https://git.kernel.org/pub/scm/linux/kernel/git/hyperv/linux.git</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>CPU_CustomKernelBranch</ReplaceThis>
-		<ReplaceWith>hyperv</ReplaceWith>
+		<ReplaceWith>hyperv-next</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>MAX_CPU_OFFLINEONLINE</ReplaceThis>
