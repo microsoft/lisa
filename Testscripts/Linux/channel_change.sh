@@ -5,9 +5,7 @@
 # This script sets up CPU offline feature with the vmbus interrupt channel re-assignment, which would be available in 5.8+
 # Select a CPU number where does not associate to vmbus channels; /sys/bus/vmbus/devices/<device ID>/channels/<channel ID>/cpu.
 # Set 1 to online file, echo 1 > /sys/devices/system/cpu/cpu<number>/online
-# Verify the dmesg log like ‘smpboot: Booting Node xx Processor x APIC 0xXX’
 # Set 0 to online file, echo 0 > /sys/devices/system/cpu/cpu<number>/online
-# Verify the dmesg log like ‘smpboot: CPU x is now offline’
 # Select a CPU number which is assigned to some VMBus channel interrupt.
 # Set 0 to online file, echo 0 > /sys/devices/system/cpu/cpu<number>/online
 # Verify the command error: Device or resource busy
@@ -87,20 +85,11 @@ function Main() {
 						_cpu_id=$(cat $sysfs_path/channels/$rel_id/cpu)
 						idle_cpus+=($_cpu_id)
 						# Set 0 to online file, echo 0 > /sys/devices/system/cpu/cpu<number>/online
-						# Verify the command error: Device or resource busy, because cpu is online and vmbus is used.
-						# negative test
 						# Read the current cpu online state and restore into oldState variable.
 						oldState=$(cat /sys/devices/system/cpu/cpu$_cpu_id/online)
-						echo 0 > /sys/devices/system/cpu/cpu$_cpu_id/online 2>retval
+						echo 0 > /sys/devices/system/cpu/cpu$_cpu_id/online
 						sleep 1
 						newState=$(cat /sys/devices/system/cpu/cpu$_cpu_id/online)
-						# Verify the dmesg log
-						if [[ $(cat retval) == *"Device or resource busy"* ]]; then
-							LogMsg "Successfully verified the dmesg log, device or resource busy message"
-						else
-							LogErr "Failed to verify the dmesg log, device or resource busy message. Expected Device or resource busy, but found $(cat retval)"
-							FailedCount=$((FailedCount+1))
-						fi
 						# Verify the cpu id change
 						if [[ $newState == $oldState ]]; then
 							LogMsg "Successfully verified no cpu state change"
@@ -144,10 +133,7 @@ function Main() {
 		state=$(cat /sys/devices/system/cpu/cpu$id/online)
 		if [[ $state == "1" ]]; then
 			LogMsg "Verified the current cpu $id online"
-			dmesg > /tmp/pre-stage.log
-			LogMsg "Captured dmesg to /tmp/pre-stage.log"
 			# Set 0 to online file, echo 0 > /sys/devices/system/cpu/cpu<number>/online
-			# Verify the dmesg log like ‘smpboot: CPU x is now offline’
 			# Set cpu to offline
 			echo 0 > /sys/devices/system/cpu/cpu$id/online
 			LogMsg "Set the cpu $id to offline"
@@ -156,34 +142,17 @@ function Main() {
 			if [[ $post_state == "0" ]]; then
 				LogMsg "Successfully changed the cpu $id to offline"
 				sleep 1
-				dmesg > /tmp/post-stage.log
-				diff_val=$(diff /tmp/pre-stage.log /tmp/post-stage.log)
-				if [[ $diff_val == *"CPU $id is now offline"* ]]; then
-					LogMsg "Successfully found dmesg log about cpu state change"
-					# Set 1 to online file, echo 1 > /sys/devices/system/cpu/cpu<number>/online
-					# Verify the dmesg log like ‘smpboot: Booting Node xx Processor x APIC 0xXX’
-					# Change back to online
-					echo 1 > /sys/devices/system/cpu/cpu$id/online
-					LogMsg "Set the cpu $id to online"
+				# Set 1 to online file, echo 1 > /sys/devices/system/cpu/cpu<number>/online
+				# Change back to online
+				echo 1 > /sys/devices/system/cpu/cpu$id/online
+				LogMsg "Set the cpu $id to online"
+				sleep 1
+				post_state=$(cat /sys/devices/system/cpu/cpu$id/online)
+				if [[ $post_state == "1" ]]; then
+					LogMsg "Successfully verified the cpu $id online"
 					sleep 1
-					post_state=$(cat /sys/devices/system/cpu/cpu$id/online)
-					if [[ $post_state == "1" ]]; then
-						LogMsg "Successfully verified the cpu $id online"
-						sleep 1
-						dmesg > /tmp/post-stage2.log
-						diff_val2=$(diff /tmp/post-stage.log /tmp/post-stage2.log)
-						if [[ $diff_val2 == *"smpboot: Booting Node"* ]]; then
-							LogMsg "Successfully found dmesg log about cpu state change"
-						else
-							LogErr "Failed to verify cpu state change. Expected smpboot: Booting Node, but found $diff_val2"
-							FailedCount=$((FailedCount+1))
-						fi
-					else
-						LogErr "Failed to change the cpu $id to online"
-						FailedCount=$((FailedCount+1))
-					fi
 				else
-					LogErr "Failed to find the expected dmesg. Expected CPU $id is now offline, but found $diff_val"
+					LogErr "Failed to change the cpu $id to online"
 					FailedCount=$((FailedCount+1))
 				fi
 			else
