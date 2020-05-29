@@ -8,7 +8,7 @@
 # Verify the dmesg log like ‘smpboot: Booting Node xx Processor x APIC 0xXX’
 # Set 0 to online file, echo 0 > /sys/devices/system/cpu/cpu<number>/online
 # Verify the dmesg log like ‘smpboot: CPU x is now offline’
-# Select a CPU number where associates to vmbus channels.
+# Select a CPU number which is assigned to some VMBus channel interrupt.
 # Set 0 to online file, echo 0 > /sys/devices/system/cpu/cpu<number>/online
 # Verify the command error: Device or resource busy
 ########################################################################################################
