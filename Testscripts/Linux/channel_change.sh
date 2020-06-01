@@ -33,7 +33,7 @@ function Main() {
 		rm -f $OriginalSource
 	fi
 	touch $OriginalSource
-	LogMsg "Changed all vmbus channels' cpu id to 0, if non-zero"
+	LogMsg "Change all vmbus channels' cpu id to 0, if non-zero"
 	for _device in /sys/bus/vmbus/devices/*
 	do
 		echo $_device >> $OriginalSource

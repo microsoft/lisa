@@ -1,0 +1,148 @@
+#!/bin/bash
+#
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache License.
+# This script sets up CPU offline feature with the vmbus interrupt channel re-assignment, which would be available in 5.8+
+# vmbus channel of synthetic network adapter is changed by ethtool with offlined cpu, and verify the result.
+########################################################################################################
+# Source utils.sh
+. utils.sh || {
+	echo "Error: unable to source utils.sh!"
+	echo "TestAborted" > state.txt
+	exit 0
+}
+# Source constants file and initialize most common variables
+UtilsInit
+
+FailedCount=0
+
+# Get distro information
+GetDistro
+
+function Main() {
+	# #######################################################################################
+	# Read VMBUS ID and store vmbus ids in the array
+	# Change the cpu_id from non-zero to 0 in order to set cpu offline.
+	# If successful, all cpu_ids in lsvmbus output should be 0 of each channel, and generate
+	# the list of idle cpus
+
+	idle_cpus=()
+	basedir=$(pwd)
+	max_cpu=$(nproc)
+	syn_net_adpt=""
+
+	LogMsg "Change all vmbus channels' cpu id to 0, if non-zero"
+	for _device in /sys/bus/vmbus/devices/*
+	do
+		# Get Class ID and determine if this device is Synthetic Network Adapter.
+		# https://github.com/torvalds/linux/blob/master/tools/hv/lsvmbus#L34
+		# {f8615163-df3e-46c5-913f-f2d2f965ed0e}
+		# The copied file is used in next steps.
+		cid=$(cat $_device/class_id)
+		if [[ $cid == "{f8615163-df3e-46c5-913f-f2d2f965ed0e}" ]]; then
+			syn_net_adpt=$_device
+		fi
+
+		# Need to access the copy of channel_vp_mapping to avoid race condition.
+		cp $_device/channel_vp_mapping .
+		# read channel_vp_mapping file of each device
+		while IFS=: read _vmbus_ch _cpu
+		do
+			LogMsg "vmbus: $_vmbus_ch,		cpu id: $_cpu"
+			if [ $_cpu != 0 ]; then
+				idle_cpus+=($_cpu)
+				# Now reset this cpu id to 0.
+				LogMsg "Set the vmbus channel $_vmbus_ch's cpu to the default cpu, 0"
+				echo 0 > $_device/channels/$_vmbus_ch/cpu
+				sleep 1
+				# validate the change of that cpu id
+				_cpu_id=$(cat $_device/channels/$_vmbus_ch/cpu)
+				if [ $_cpu_id = 0 ]; then
+					LogMsg "Successfully set the vmbus channel $_vmbus_ch's cpu to 0"
+				else
+					LogErr "Failed to set the vmbus channel $_vmbus_ch's cpu to 0. Expected 0, but found $_cpu_id"
+					FailedCount=$((FailedCount+1))
+				fi
+			fi
+			sleep 1
+		done < channel_vp_mapping
+	done
+	LogMsg "The list of target CPU: ${idle_cpus[@]}"
+
+	# #######################################################################################
+	# The previous step sets all channels' cpu to 0, so the rest of non-zero cpu can be offline
+	# Select a CPU number where does not associate to vmbus channels from idle_cpus array
+	LogMsg "Set all online cpus to offline."
+	for id in ${idle_cpus[@]}; do
+		state=$(cat /sys/devices/system/cpu/cpu$id/online)
+		if [ $state = 1 ]; then
+			# Set cpu to offline
+			echo 0 > /sys/devices/system/cpu/cpu$id/online
+			sleep 1
+			LogMsg "Set the cpu $id offline"
+			post_state=$(cat /sys/devices/system/cpu/cpu$id/online)
+			if [ $post_state = 0 ]; then
+				LogMsg "Successfully verified the cpu $id offline"
+			else
+				LogErr "Failed to verify the cpu $id state. Expected 0, found $post_state"
+				FailedCount=$((FailedCount+1))
+			fi
+		fi
+	done
+
+	# ########################################################################
+	# The previous steps set all cpus to offline, but all channels use cpu 0
+	# By using ethtool command, it sets new channels
+	# Verify if any offline cpu is assigned to new channels or not.
+	# Verify cpu should stay offline state.
+	LogMsg "Change vmbus channel numbers by ethtool command"
+	_ch_counts=$(ethtool -l eth0 | grep -i combined | tail -1 | cut -d ':' -f 2 | sed -e 's/^[[:space:]]*//')
+	LogMsg "Current channel counts: $_ch_counts"
+
+	# Set the random channel numbers to network device.
+	# max channel number is 64.
+	# Source: https://github.com/torvalds/linux/blob/master/drivers/net/hyperv/hyperv_net.h#L842
+	_new_counts=$(($RANDOM % 64))
+	((_new_counts=_new_counts+1))
+	if [[ $_new_counts -gt $max_cpu ]]; then
+		_new_counts=$max_cpu
+	fi
+
+	ethtool -L eth0 combined $_new_counts
+	sleep 1
+	LogMsg "Changed the channel numbers to $_new_counts"
+
+	if [ ! -d "$syn_net_adpt" ]; then
+		LogErr "Can not find the synthetic network adapter of vmbus sysfs path. The test failed."
+		FailedCount=$((FailedCount+1))
+	else
+		cp $syn_net_adpt/channel_vp_mapping new_channel_vp_mapping
+
+		while IFS=: read v c; do
+			LogMsg "Found vmbus channel: $v,		cpu: $c"
+			# Run test against all except cpu0.
+			if [ $c != 0 ]; then
+				# CPU is offline
+				_state=$(cat /sys/devices/system/cpu/cpu$c/online)
+				if [ $_state = 0 ]; then
+					LogMsg "Successfully verify the cpu $id offline"
+				else
+					LogErr "Failed to verify the cpu $id offline. Expected 0, found $post_state"
+					FailedCount=$((FailedCount+1))
+				fi
+			fi
+		done < new_channel_vp_mapping
+	fi
+	echo "job_completed=0" >> $basedir/constants.sh
+	LogMsg "Main function job completed"
+}
+
+# main body
+Main
+if [ $FailedCount == 0 ]; then
+	SetTestStateCompleted
+else
+	LogErr "Failed case counts: $FailedCount"
+	SetTestStateFailed
+fi
+exit 0

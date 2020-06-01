@@ -263,7 +263,7 @@
 		<Tags>stress,hv_storvsc,storage</Tags>
 		<Priority></Priority>
 	</test>
-		<test>
+	<test>
 		<testName>STRESS-CPU-OFFLINE-ONLINE</testName>
 		<testScript>CPU-Offline.ps1</testScript>
 		<setupType>OneVM</setupType>

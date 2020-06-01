@@ -4,11 +4,13 @@
 .Synopsis
 	CPU offline-online functional and stress testing
 	with vmbus interrupt channel reassignment via VM reboot
+	Also it can invoke the script for offline cpu handle test script.
 
 .Description
-	CPU offline and verify no error in dmesg/syslog.
-	CPU offline all except one.
+	Set CPU offline and online.
+	Assign cpu to vmbus channels
 	Reboot VM and repeat above steps for a few times, if this is stress mode.
+	Handle the offline cpu assignment to the vmbus channel in negative test.
 #>
 
 param([object] $AllVmData, [string]$TestParams)
@@ -19,13 +21,20 @@ $max_stress_count = 1
 function Main {
 	param($AllVMData, $TestParams)
 	$currentTestResult = Create-TestResultObject
+	$local_script="channel_change.sh"
+
 	try {
 		$testResult = $resultFail
 
+		# Find the local test script
+		foreach ($TestScript in $CurrentTestData.files) {
+			if ($TestParam -imatch "handle_offline_cpu.sh") {
+				local_script="handle_offline_cpu.sh"
+			}
+		}
 		#region Generate constants.sh
 		# We need to add extra parameters to constants.sh file apart from parameter properties defined in XML.
 		# Hence, we are generating constants.sh file again in test script.
-
 		Write-LogInfo "Generating constants.sh ..."
 		$constantsFile = "$LogDir\constants.sh"
 		foreach ($TestParam in $CurrentTestData.TestParameters.param) {
@@ -36,7 +45,6 @@ function Main {
 				$max_stress_count = [int]($TestParam.Replace("maxIteration=", "").Trim('"'))
 			}
 		}
-
 		Write-LogInfo "constants.sh created successfully..."
 		#endregion
 
@@ -93,10 +101,10 @@ function Main {
 			Write-LogInfo "Rebooting VM! - Loop Count: $loopCount"
 			$TestProvider.RestartAllDeployments($AllVMData)
 
-			# ##################################################################################
-			# Running CPU channel change
-			Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./channel_change.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
-			Write-LogInfo "Executed channel_change script inside VM"
+			# Feature test and stress test case with $local_script
+			# Running the local test script
+			Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./$local_script" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+			Write-LogInfo "Executed $local_script script inside VM"
 
 			# Wait for kernel compilation completion. 60 min timeout
 			$timeout = New-Timespan -Minutes 60
@@ -108,29 +116,29 @@ function Main {
 				if ($state -eq "TestCompleted") {
 					$channelChangeCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat ~/constants.sh | grep job_completed=0" -runAsSudo
 					if ($channelChangeCompleted -ne "job_completed=0") {
-						throw "channel_change.sh finished on $($VMData.RoleName) but job was not successful!"
+						throw "$local_script finished on $($VMData.RoleName) but job was not successful!"
 					} else {
-						Write-LogInfo "channel_change.sh finished on $($VMData.RoleName)"
+						Write-LogInfo "$local_script finished on $($VMData.RoleName)"
 						$vmCount--
 					}
 					break
 				} elseif ($state -eq "TestSkipped") {
 					$resultArr = $resultSkipped
-					throw "channel_change.sh finished with SKIPPED state!"
+					throw "$local_script finished with SKIPPED state!"
 				} elseif ($state -eq "TestFailed") {
 					$resultArr = $resultFail
-					throw "channel_change.sh finished with FAILED state!"
+					throw "$local_script finished with FAILED state!"
 				} elseif ($state -eq "TestAborted") {
 					$resultArr = $resultAborted
-					throw "channel_change.sh finished with ABORTED state!"
+					throw "$local_script finished with ABORTED state!"
 				} else {
-					Write-LogInfo "channel_change.sh is still running in the VM!"
+					Write-LogInfo "$local_script is still running in the VM!"
 				}
 			}
 			if ($vmCount -le 0){
-				Write-LogInfo "channel_change.sh is done"
+				Write-LogInfo "$local_script is done"
 			} else {
-				Throw "channel_change.sh didn't finish in the VM!"
+				Throw "$local_script didn't finish in the VM!"
 			}
 
 			# Revert state.txt and remove job_completed=0
