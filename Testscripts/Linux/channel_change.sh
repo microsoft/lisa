@@ -67,7 +67,6 @@ function Main() {
 				_cpu_id=$(cat $_device/channels/$_vmbus_ch/cpu)
 				if [ $_cpu_id = 0 ]; then
 					LogMsg "Successfully set the vmbus channel $_vmbus_ch's cpu to 0"
-					cpu_idx=$((cpu_idx+1))
 				else
 					LogErr "Failed to set the vmbus channel $_vmbus_ch's cpu to 0. Expected 0, but found $_cpu_id"
 					FailedCount=$((FailedCount+1))
@@ -81,7 +80,7 @@ function Main() {
 	# #######################################################################################
 	# The previous step sets all channels' cpu to 0, so the rest of non-zero cpu can be offline
 	# Select a CPU number where does not associate to vmbus channels from idle_cpus array
-	LogMsg "Changed all cpu state from online to offline, and vice versa."
+	LogMsg "Change all cpu state from online to offline, and vice versa."
 	for id in ${idle_cpus[@]}; do
 		state=$(cat /sys/devices/system/cpu/cpu$id/online)
 		if [ $state = 1 ]; then
