@@ -3,12 +3,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 # This script sets up CPU offline feature with the vmbus interrupt channel re-assignment, which would be available in 5.8+
-# Select a CPU number where does not associate to vmbus channels; /sys/bus/vmbus/devices/<device ID>/channels/<channel ID>/cpu.
-# Set 1 to online file, echo 1 > /sys/devices/system/cpu/cpu<number>/online
-# Set 0 to online file, echo 0 > /sys/devices/system/cpu/cpu<number>/online
-# Select a CPU number which is assigned to some VMBus channel interrupt.
-# Set 0 to online file, echo 0 > /sys/devices/system/cpu/cpu<number>/online
-# Verify the command error: Device or resource busy
 ########################################################################################################
 # Source utils.sh
 . utils.sh || {
@@ -19,229 +13,160 @@
 # Source constants file and initialize most common variables
 UtilsInit
 
-lsvmbus_output_location=/tmp/lsvmbus.output
-vmbus_id=()
-idle_cpus=()
-prefix1="Rel_ID="
-suffix1=","
-prefix2="target_cpu="
 FailedCount=0
 
 # Get distro information
 GetDistro
 
 function Main() {
-	# Collect the vmbus and cpu id information from the system, and store in /tmp/lsvmbus.output
-	basedir=$(pwd)
-	lsvmbus
-	if [ $? != 0 ]; then
-		if [ -f $basedir/linux/tools/hv/lsvmbus ]; then
-			chmod +x $basedir/linux/tools/hv/lsvmbus
-			$basedir/linux/tools/hv/lsvmbus -vv > $lsvmbus_output_location
-		else
-			wget https://raw.githubusercontent.com/torvalds/linux/master/tools/hv/lsvmbus
-			chmod +x lsvmbus
-			$basedir/lsvmbus -vv > $lsvmbus_output_location
-		fi
-	else
-		lsvmbus -vv > $lsvmbus_output_location
-	fi
-	LogMsg "Successfully recorded lsvmbus output in $lsvmbus_output_location"
-
-	# Before changing cpu id to 0, reset all cpu ids of each vmbus channel.
-	LogMsg "Resetting CPU ID if non-zero"
-
 	# #######################################################################################
 	# Read VMBUS ID and store vmbus ids in the array
 	# Change the cpu_id from non-zero to 0 in order to set cpu offline.
 	# If successful, all cpu_ids in lsvmbus output should be 0 of each channel, and generate
 	# the list of idle cpus
-	idx=0
-	cpu_idx=0
-	while IFS=' ' read -a line
+
+	idle_cpus=()
+
+	# restore the original vmbus and cpu id restored in OriginalSource file.
+	OriginalSource=vmbus_cpu.original
+	if [ -f $OriginalSource ]; then
+		rm -f $OriginalSource
+	fi
+	touch $OriginalSource
+	LogMsg "Changed all vmbus channels' cpu id to 0, if non-zero"
+	for _device in /sys/bus/vmbus/devices/*
 	do
-		if [[ ${line[0]} == "VMBUS" && ${line[1]} == "ID" ]]; then
-			vmbus_id[$idx]=${line[2]%?}
-			LogMsg "Found new VMBUS ID --> ${vmbus_id[$idx]}"
+		echo $_device >> $OriginalSource
+		# Need to access the copy of channel_vp_mapping to avoid race condition.
+		cp $_device/channel_vp_mapping .
+		# read channel_vp_mapping file of each device
+		while IFS=: read _vmbus_ch _cpu
+		do
+			LogMsg "vmbus: $_vmbus_ch,		cpu id: $_cpu"
+			echo "$_vmbus_ch:$_cpu" >> $OriginalSource
+			if [ $_cpu != 0 ]; then
+				idle_cpus+=($_cpu)
+				# Set 0 to online file, echo 0 > /sys/devices/system/cpu/cpu<number>/online
+				oldState=$(cat /sys/devices/system/cpu/cpu$_cpu/online)
+				echo 0 > /sys/devices/system/cpu/cpu$_cpu/online 2>&1
+				sleep 1
+				newState=$(cat /sys/devices/system/cpu/cpu$_cpu/online)
+				# Verify the cpu id change
+				if [[ $newState = $oldState ]]; then
+					LogMsg "Successfully verified NO cpu state change, because it was used."
+				else
+					LogErr "Failed to verify the cpu state NO change. Expected $oldState, found $newState"
+					FailedCount=$((FailedCount+1))
+				fi
 
-			read -a line
-			# Ignored Device Id
-
-			read -a line
-			if [[ ${line[0]} =~ "Sysfs" && ${line[1]} == "path:" ]]; then
-				sysfs_path=${line[2]}
-				LogMsg "Found new sysfs --> $sysfs_path"
-
-				# Read Rel_ID and target_cpu lines
-				read -a line
-				while [[ $line != '' ]]
-				do
-					rel_id=${line[0]#"$prefix1"}
-					rel_id=${rel_id%"$suffix1"}
-					LogMsg "Found Rel_ID: $rel_id"
-					cpu_id=${line[1]#"$prefix2"}
-					LogMsg "Found target_cpu: $cpu_id"
-					if [[ $cpu_id != "0" ]]; then
-						_cpu_id=$(cat $sysfs_path/channels/$rel_id/cpu)
-						idle_cpus+=($_cpu_id)
-						# Set 0 to online file, echo 0 > /sys/devices/system/cpu/cpu<number>/online
-						# Read the current cpu online state and restore into oldState variable.
-						oldState=$(cat /sys/devices/system/cpu/cpu$_cpu_id/online)
-						echo 0 > /sys/devices/system/cpu/cpu$_cpu_id/online
-						sleep 1
-						newState=$(cat /sys/devices/system/cpu/cpu$_cpu_id/online)
-						# Verify the cpu id change
-						if [[ $newState == $oldState ]]; then
-							LogMsg "Successfully verified no cpu state change"
-						else
-							LogErr "Failed to verify the cpu state change. Expected $oldState, found $newState"
-						fi
-
-						# Now reset this vmbus's cpu id to 0. The target cpu id is ready to be idle.
-						LogMsg "Found the cpu id, $_cpu_id from the channel $rel_id. Will set 0, the default cpu id, to this cpu"
-						echo 0 > $sysfs_path/channels/$rel_id/cpu
-						sleep 1
-						# validate the change of that cpu id
-						_cpu_id=$(cat $sysfs_path/channels/$rel_id/cpu)
-						if [[ $_cpu_id == "0" ]]; then
-							LogMsg "Successfully changed the cpu id of the channel $rel_id from ${idle_cpus[$cpu_idx]} to 0"
-							cpu_idx=$((cpu_idx+1))
-						else
-							LogErr "Failed to change the cpu id of the channel $rel_id from ${idle_cpus[$cpu_idx]} to 0. Expected 0, but found $_cpu_id"
-							FailedCount=$((FailedCount+1))
-						fi
-					fi
-					read -a line
-				done
-				#LogMsg "Found vmbus channel and its target cpus: ${temp[@]}, ${!temp[@]}"
-			else
-				LogErr "Failed. Supposed to read Sysfs path, but found ${line[@]}"
-				FailedCount=$((FailedCount+1))
+				# Now reset this cpu id to 0.
+				LogMsg "Set the vmbus channel $_vmbus_ch's cpu to the default cpu, 0"
+				echo 0 > $_device/channels/$_vmbus_ch/cpu
+				sleep 1
+				# validate the change of that cpu id
+				_cpu_id=$(cat $_device/channels/$_vmbus_ch/cpu)
+				if [ $_cpu_id = 0 ]; then
+					LogMsg "Successfully set the vmbus channel $_vmbus_ch's cpu to 0"
+					cpu_idx=$((cpu_idx+1))
+				else
+					LogErr "Failed to set the vmbus channel $_vmbus_ch's cpu to 0. Expected 0, but found $_cpu_id"
+					FailedCount=$((FailedCount+1))
+				fi
 			fi
-			idx=$((idx+1))
-		else
-			LogErr "Failed. Supposed to read VMBUS ID line, but found ${line[@]}"
-			FailedCount=$((FailedCount+1))
-		fi
-	done < "$lsvmbus_output_location"
-
-	LogMsg "VMBUS scanning result: ${vmbus_id[@]}"
+			sleep 1
+		done < channel_vp_mapping
+	done
+	LogMsg "The list of target CPU: ${idle_cpus[@]}"
 
 	# #######################################################################################
+	# The previous step sets all channels' cpu to 0, so the rest of non-zero cpu can be offline
 	# Select a CPU number where does not associate to vmbus channels from idle_cpus array
+	LogMsg "Changed all cpu state from online to offline, and vice versa."
 	for id in ${idle_cpus[@]}; do
 		state=$(cat /sys/devices/system/cpu/cpu$id/online)
-		if [[ $state == "1" ]]; then
+		if [ $state = 1 ]; then
 			LogMsg "Verified the current cpu $id online"
-			# Set 0 to online file, echo 0 > /sys/devices/system/cpu/cpu<number>/online
 			# Set cpu to offline
 			echo 0 > /sys/devices/system/cpu/cpu$id/online
-			LogMsg "Set the cpu $id to offline"
 			sleep 1
+			LogMsg "Set the cpu $id offline"
 			post_state=$(cat /sys/devices/system/cpu/cpu$id/online)
-			if [[ $post_state == "0" ]]; then
-				LogMsg "Successfully changed the cpu $id to offline"
-				sleep 1
-				# Set 1 to online file, echo 1 > /sys/devices/system/cpu/cpu<number>/online
+			if [ $post_state = 0 ]; then
+				LogMsg "Successfully set the cpu $id offline"
 				# Change back to online
 				echo 1 > /sys/devices/system/cpu/cpu$id/online
-				LogMsg "Set the cpu $id to online"
 				sleep 1
+				LogMsg "Set the cpu $id online"
 				post_state=$(cat /sys/devices/system/cpu/cpu$id/online)
-				if [[ $post_state == "1" ]]; then
-					LogMsg "Successfully verified the cpu $id online"
+				if [ $post_state = 1 ]; then
+					LogMsg "Successfully set the cpu $id online"
 					sleep 1
 				else
-					LogErr "Failed to change the cpu $id to online"
+					LogErr "Failed to set the cpu $id online. Expected 1, found $post_state"
 					FailedCount=$((FailedCount+1))
 				fi
 			else
-				LogErr "Failed to change the cpu $id to offline. Expected 0, but found $post_state"
+				LogErr "Failed to set the cpu $id offline. Expected 0, found $post_state"
 				FailedCount=$((FailedCount+1))
 			fi
 		else
-			LogErr "Found the currect cpu $id was not online. Expected 1 but found $state"
+			LogErr "Found the currect cpu $id was not online. Expected 1, found $state"
 			FailedCount=$((FailedCount+1))
 		fi
 	done
 
 	# ########################################################################
+	# The previous step sets all cpus to online state, but all channels use cpu 0
 	# Assign a random CPU id to the vmbus channel
 	# Assign the original CPU id to the vmbus channel
 	# Now each vmbus's cpu id is 0.
 
 	# Find the max CPU core counts
 	max_cpu=$(nproc)
-
-	LogMsg "Re-read the original lsvmbus output file"
-	while IFS=' ' read -a line
+	# Read the original vmbus and cpu information from the previous capture.
+	LogMsg "Assign a random cpu id and, then the original cpu id to the vmbus channel"
+	while IFS= read line
 	do
-		if [[ ${line[0]} == "VMBUS" && ${line[1]} == "ID" ]]; then
-			vmbus_id[$idx]=${line[2]%?}
-			LogMsg "Found new VMBUS ID --> ${vmbus_id[$idx]}"
-
-			read -a line
-			# Ignored Device Id
-
-			read -a line
-			if [[ ${line[0]} =~ "Sysfs" && ${line[1]} == "path:" ]]; then
-				sysfs_path=${line[2]}
-				LogMsg "Found new sysfs --> $sysfs_path"
-
-				# Read Rel_ID and target_cpu lines
-				read -a line
-				while [[ $line != '' ]]; do
-					rel_id=${line[0]#"$prefix1"}
-					rel_id=${rel_id%"$suffix1"}
-					LogMsg "Found Rel_ID: $rel_id, which is vmbus channel id"
-					cpu_id=${line[1]#"$prefix2"}
-					LogMsg "Found the original target cpu id: $cpu_id"
-					# This cpu_is is from lsvmbus.output, the original output.
-					if [[ $cpu_id != "0" ]]; then
-						# read the cpu id from the actual system
-						_cpu_id=$(cat $sysfs_path/channels/$rel_id/cpu)
-						# The current cpu id should be 0
-						if [[ $_cpu_id == '0' ]]; then
-							LogMsg "Verified the current cpu id is 0"
-						else
-							LogErr "Failed to verify the currenct cpu id. Expected 0 but found $_cpu_id"
-							FailedCount=$((FailedCount+1))
-						fi
-						# Change to random number
-						cpu_rdn=$(($RANDOM % $max_cpu))
-						echo $cpu_rdn > $sysfs_path/channels/$rel_id/cpu
-						# Read back new cpu id
-						_cpu_id=$(cat $sysfs_path/channels/$rel_id/cpu)
-						if [[ $_cpu_id == $cpu_rdn ]]; then
-							LogMsg "Verified the random number assigned to cpu successfully"
-						else
-							LogErr "Failed to verify random number assignment to the cpu id. Expected $cpu_rdn, found $_cpu_id"
-							FailedCount=$((FailedCount+1))
-						fi
-						# Change to the original cpu id
-						echo $cpu_id > $sysfs_path/channels/$rel_id/cpu
-						# Read back new cpu id
-						_cpu_id=$(cat $sysfs_path/channels/$rel_id/cpu)
-						if [[ $_cpu_id == $cpu_id ]]; then
-							LogMsg "Verified the original number assigned to cpu successfully"
-						else
-							LogErr "Failed to verify the original number assignment to the cpu id. Expected $cpu_id, found $_cpu_id"
-							FailedCount=$((FailedCount+1))
-						fi
-					fi
-					read -a line
-				done
-			else
-				LogErr "Failed. Supposed to read Sysfs path, but found ${line[@]}"
-				FailedCount=$((FailedCount+1))
-			fi
-			idx=$((idx+1))
+		if [[ $line == *"/sys/bus"* ]]; then
+			_path=$line
 		else
-			LogErr "Failed. Supposed to read VMBUS ID line, but found ${line[@]}"
-			FailedCount=$((FailedCount+1))
+			_vmbus_ch=$(echo $line | cut -d ":" -f 1)
+			_cpu=$(echo $line | cut -d ":" -f 2)
+			if [ $_cpu != 0 ]; then
+				LogMsg "Testing for sysfs: $_path, vmbus channel: $_vmbus_ch, cpu id: $_cpu"
+				# read the cpu id from the actual system
+				_cpu_id=$(cat $_path/channels/$_vmbus_ch/cpu)
+				# The current cpu id should be 0
+				if [ $_cpu_id = 0 ]; then
+					LogMsg "Verified the current cpu id is 0"
+				else
+					LogErr "Failed to verify the currenct cpu id. Expected 0 but found $_cpu_id"
+					FailedCount=$((FailedCount+1))
+				fi
+				# Change to random number
+				cpu_rdn=$(($RANDOM % $max_cpu))
+				echo $cpu_rdn > $_path/channels/$_vmbus_ch/cpu
+				# Read back new cpu id
+				_cpu_id=$(cat $_path/channels/$_vmbus_ch/cpu)
+				if [ $_cpu_id = $cpu_rdn ]; then
+					LogMsg "Verified the random number assigned to cpu successfully"
+				else
+					LogErr "Failed to verify random number assignment to the cpu id. Expected $cpu_rdn, found $_cpu_id"
+					FailedCount=$((FailedCount+1))
+				fi
+				# Change to the original cpu id _cpu
+				echo $_cpu > $_path/channels/$_vmbus_ch/cpu
+				# Read back new cpu id
+				_cpu_id=$(cat $_path/channels/$_vmbus_ch/cpu)
+				if [ $_cpu = $_cpu_id ]; then
+					LogMsg "Verified the original number assigned to cpu successfully"
+				else
+					LogErr "Failed to verify the original number assignment to the cpu id. Expected $_cpu, found $_cpu_id"
+					FailedCount=$((FailedCount+1))
+				fi
+			fi
 		fi
-	done < "$lsvmbus_output_location"
-
+	done < $OriginalSource
 	echo "job_completed=0" >> $basedir/constants.sh
 	LogMsg "Main function job completed"
 }
