@@ -26,7 +26,7 @@ function Main() {
 	# the list of idle cpus
 
 	idle_cpus=()
-
+	basedir=$(pwd)
 	# restore the original vmbus and cpu id restored in OriginalSource file.
 	OriginalSource=vmbus_cpu.original
 	if [ -f $OriginalSource ]; then
@@ -176,6 +176,7 @@ Main
 if [ $FailedCount == 0 ]; then
 	SetTestStateCompleted
 else
+	LogErr "Failed case counts: $FailedCount"
 	SetTestStateFailed
 fi
 exit 0
