@@ -776,8 +776,8 @@
         <OverrideVMSize>Standard_L32s_v2</OverrideVMSize>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\CPUOfflineKernelBuild.sh,.\Testscripts\Linux\channel_change.sh</files>
         <TestParameters>
-            <param>repo_url=CPU_CustomKernelURL</param>
-            <param>repo_branch=CPU_CustomKernelBranch</param>
+            <param>repo_url=CPU_CUSTOM_KERNEL_URL</param>
+            <param>repo_branch=CPU_CUSTOM_KERNEL_BRANCH</param>
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
