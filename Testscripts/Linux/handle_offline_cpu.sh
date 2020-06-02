@@ -28,7 +28,6 @@ function Main() {
 
 	idle_cpus=()
 	basedir=$(pwd)
-	max_cpu=$(nproc)
 	syn_net_adpt=""
 
 	LogMsg "Change all vmbus channels' cpu id to 0, if non-zero"
@@ -72,7 +71,7 @@ function Main() {
 	# #######################################################################################
 	# The previous step sets all channels' cpu to 0, so the rest of non-zero cpu can be offline
 	# Select a CPU number where does not associate to vmbus channels from idle_cpus array
-	LogMsg "Set all online cpus to offline."
+	LogMsg "Set all online idles cpus to offline."
 	for id in ${idle_cpus[@]}; do
 		state=$(cat /sys/devices/system/cpu/cpu$id/online)
 		if [ $state = 1 ]; then
@@ -99,14 +98,13 @@ function Main() {
 	_ch_counts=$(ethtool -l eth0 | grep -i combined | tail -1 | cut -d ':' -f 2 | sed -e 's/^[[:space:]]*//')
 	LogMsg "Current channel counts: $_ch_counts"
 
+	max_cpu=$(nproc)
+
 	# Set the random channel numbers to network device.
 	# max channel number is 64.
 	# Source: https://github.com/torvalds/linux/blob/master/drivers/net/hyperv/hyperv_net.h#L842
-	_new_counts=$(($RANDOM % 64))
+	_new_counts=$(($RANDOM % $max_cpu))
 	((_new_counts=_new_counts+1))
-	if [[ $_new_counts -gt $max_cpu ]]; then
-		_new_counts=$max_cpu
-	fi
 
 	ethtool -L eth0 combined $_new_counts
 	sleep 1
@@ -125,10 +123,10 @@ function Main() {
 				# CPU is offline
 				_state=$(cat /sys/devices/system/cpu/cpu$c/online)
 				if [ $_state = 0 ]; then
-					LogMsg "Successfully verify the cpu $id offline"
-				else
-					LogErr "Failed to verify the cpu $id offline. Expected 0, found $post_state"
+					LogErr "Found the offlined cpu, $c is assigned to channel interrupt, $v. This should be 1, if cpu is used in channel interrupt."
 					FailedCount=$((FailedCount+1))
+				else
+					LogMsg "Verified the channel interrupt, $v is assigned to online cpu, $c"
 				fi
 			fi
 		done < new_channel_vp_mapping
