@@ -8,6 +8,9 @@
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh</files>
+        <TestParameters>
+            <param>repo_url=XDPDUMP_REPO_URL</param>
+        </TestParameters>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>XDP</Area>
@@ -23,6 +26,9 @@
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh</files>
+        <TestParameters>
+            <param>repo_url=XDPDUMP_REPO_URL</param>
+        </TestParameters>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>XDP</Area>
@@ -38,6 +44,9 @@
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh</files>
+        <TestParameters>
+            <param>repo_url=XDPDUMP_REPO_URL</param>
+        </TestParameters>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>XDP</Area>
@@ -53,6 +62,9 @@
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh</files>
+        <TestParameters>
+            <param>repo_url=XDPDUMP_REPO_URL</param>
+        </TestParameters>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>XDP</Area>
