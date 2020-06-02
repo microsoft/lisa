@@ -46,18 +46,6 @@ function Main() {
 			echo "$_vmbus_ch:$_cpu" >> $OriginalSource
 			if [ $_cpu != 0 ]; then
 				idle_cpus+=($_cpu)
-				# Set 0 to online file, echo 0 > /sys/devices/system/cpu/cpu<number>/online
-				oldState=$(cat /sys/devices/system/cpu/cpu$_cpu/online)
-				echo 0 > /sys/devices/system/cpu/cpu$_cpu/online 2>&1
-				sleep 1
-				newState=$(cat /sys/devices/system/cpu/cpu$_cpu/online)
-				# Verify the cpu id change
-				if [[ $newState = $oldState ]]; then
-					LogMsg "Successfully verified NO cpu state change, because it was used."
-				else
-					LogErr "Failed to verify the cpu state NO change. Expected $oldState, found $newState"
-					FailedCount=$((FailedCount+1))
-				fi
 
 				# Now reset this cpu id to 0.
 				LogMsg "Set the vmbus channel $_vmbus_ch's cpu to the default cpu, 0"
@@ -133,15 +121,6 @@ function Main() {
 			_cpu=$(echo $line | cut -d ":" -f 2)
 			if [ $_cpu != 0 ]; then
 				LogMsg "Testing for sysfs: $_path, vmbus channel: $_vmbus_ch, cpu id: $_cpu"
-				# read the cpu id from the actual system
-				_cpu_id=$(cat $_path/channels/$_vmbus_ch/cpu)
-				# The current cpu id should be 0
-				if [ $_cpu_id = 0 ]; then
-					LogMsg "Verified the current cpu id is 0"
-				else
-					LogErr "Failed to verify the currenct cpu id. Expected 0 but found $_cpu_id"
-					FailedCount=$((FailedCount+1))
-				fi
 				# Change to random number
 				cpu_rdn=$(($RANDOM % $max_cpu))
 				echo $cpu_rdn > $_path/channels/$_vmbus_ch/cpu
