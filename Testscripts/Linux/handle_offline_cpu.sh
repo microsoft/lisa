@@ -3,7 +3,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
 # This script sets up CPU offline feature with the vmbus interrupt channel re-assignment, which would be available in 5.8+
-# vmbus channel of synthetic network adapter is changed by ethtool with offlined cpu, and verify the result.
+# vmbus channel of synthetic network adapter is changed by ethtool with offlined cpu, and verifies the result.
 ########################################################################################################
 # Source utils.sh
 . utils.sh || {
