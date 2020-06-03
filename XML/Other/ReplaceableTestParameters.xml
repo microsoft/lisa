@@ -658,19 +658,19 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceWith>Premium_LRS</ReplaceWith>
 	</Parameter>
 	<Parameter>
-		<ReplaceThis>Hb_CustomKernelURL</ReplaceThis>
+		<ReplaceThis>HB_CUSTOM_KERNEL_URL</ReplaceThis>
 		<ReplaceWith>git://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git</ReplaceWith>
 	</Parameter>
 	<Parameter>
-		<ReplaceThis>Hb_CustomKernelBranch</ReplaceThis>
+		<ReplaceThis>HB_CUSTOM_KERNEL_BRANCH</ReplaceThis>
 		<ReplaceWith>next-20200210</ReplaceWith>
 	</Parameter>
 	<Parameter>
-		<ReplaceThis>CPU_CustomKernelURL</ReplaceThis>
+		<ReplaceThis>CPU_CUSTOM_KERNEL_URL</ReplaceThis>
 		<ReplaceWith>https://git.kernel.org/pub/scm/linux/kernel/git/hyperv/linux.git</ReplaceWith>
 	</Parameter>
 	<Parameter>
-		<ReplaceThis>CPU_CustomKernelBranch</ReplaceThis>
+		<ReplaceThis>CPU_CUSTOM_KERNEL_BRANCH</ReplaceThis>
 		<ReplaceWith>hyperv-next</ReplaceWith>
 	</Parameter>
 	<Parameter>

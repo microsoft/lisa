@@ -263,15 +263,15 @@
 		<Tags>stress,hv_storvsc,storage</Tags>
 		<Priority></Priority>
 	</test>
-		<test>
+	<test>
 		<testName>STRESS-CPU-OFFLINE-ONLINE</testName>
 		<testScript>CPU-Offline.ps1</testScript>
 		<setupType>OneVM</setupType>
 		<OverrideVMSize>Standard_L32s_v2</OverrideVMSize>
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\CPUOfflineKernelBuild.sh,.\Testscripts\Linux\channel_change.sh</files>
 		<TestParameters>
-			<param>repo_url=CPU_CustomKernelURL</param>
-			<param>repo_branch=CPU_CustomKernelBranch</param>
+			<param>repo_url=CPU_CUSTOM_KERNEL_URL</param>
+			<param>repo_branch=CPU_CUSTOM_KERNEL_BRANCH</param>
 			<param>maxIteration=MAX_CPU_OFFLINEONLINE</param>
 		</TestParameters>
 		<Platform>Azure</Platform>

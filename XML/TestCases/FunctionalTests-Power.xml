@@ -5,8 +5,8 @@
 		<setupType>OneVMhb</setupType>
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SetupHbKernel.sh</files>
 		<TestParameters>
-			<param>hb_url=Hb_CustomKernelURL</param>
-			<param>hb_branch=Hb_CustomKernelBranch</param>
+			<param>hb_url=HB_CUSTOM_KERNEL_URL</param>
+			<param>hb_branch=HB_CUSTOM_KERNEL_BRANCH</param>
 		</TestParameters>
 		<Platform>Azure</Platform>
 		<Category>Functional</Category>
