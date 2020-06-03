@@ -30,6 +30,22 @@ function Main() {
 	basedir=$(pwd)
 	syn_net_adpt=""
 
+	ethtool --version
+	if [ $? != 0 ]; then
+		install_package ethtool
+		LogMsg "Installing ethtool in the VM"
+		ethtool --version
+		if [ $? != 0 ]; then
+			LogErr "Did not find ethtool and could not install ethtool. Stop the test here"
+			SetTestStateFailed
+			exit 0
+		else
+			LogMsg "Successfully installed ethtool in the VM, and proceed the rest of test steps."
+		fi
+	else
+		LogMsg "Found ethtool in the VM, and proceed the rest of steps."
+	fi
+
 	LogMsg "Change all vmbus channels' cpu id to 0, if non-zero"
 	for _device in /sys/bus/vmbus/devices/*
 	do
@@ -107,29 +123,34 @@ function Main() {
 	((_new_counts=_new_counts+1))
 
 	ethtool -L eth0 combined $_new_counts
-	sleep 1
-	LogMsg "Changed the channel numbers to $_new_counts"
-
-	if [ ! -d "$syn_net_adpt" ]; then
-		LogErr "Can not find the synthetic network adapter of vmbus sysfs path. The test failed."
+	if [ $? != 0 ]; then
+		LogErr "Failed to execute channel number change by ethtool, $?"
 		failed_count=$((failed_count+1))
 	else
-		cp $syn_net_adpt/channel_vp_mapping new_channel_vp_mapping
+		sleep 1
+		LogMsg "Changed the channel numbers to $_new_counts"
 
-		while IFS=: read v c; do
-			LogMsg "Found vmbus channel: $v,		cpu: $c"
-			# Run test against all except cpu0.
-			if [ $c != 0 ]; then
-				# CPU is offline
-				_state=$(cat /sys/devices/system/cpu/cpu$c/online)
-				if [ $_state = 0 ]; then
-					LogErr "Found the offlined cpu, $c is assigned to channel interrupt, $v. This should be 1, if cpu is used in channel interrupt."
-					failed_count=$((failed_count+1))
-				else
-					LogMsg "Verified the channel interrupt, $v is assigned to online cpu, $c"
+		if [ ! -d "$syn_net_adpt" ]; then
+			LogErr "Can not find the synthetic network adapter of vmbus sysfs path. The test failed."
+			failed_count=$((failed_count+1))
+		else
+			cp $syn_net_adpt/channel_vp_mapping new_channel_vp_mapping
+
+			while IFS=: read v c; do
+				LogMsg "Found vmbus channel: $v,		cpu: $c"
+				# Run test against all except cpu0.
+				if [ $c != 0 ]; then
+					# CPU is offline
+					_state=$(cat /sys/devices/system/cpu/cpu$c/online)
+					if [ $_state = 0 ]; then
+						LogErr "Found the offlined cpu, $c is assigned to channel interrupt, $v. This should be 1, if cpu is used in channel interrupt."
+						failed_count=$((failed_count+1))
+					else
+						LogMsg "Verified the channel interrupt, $v is assigned to online cpu, $c"
+					fi
 				fi
-			fi
-		done < new_channel_vp_mapping
+			done < new_channel_vp_mapping
+		fi
 	fi
 	echo "job_completed=0" >> $basedir/constants.sh
 	LogMsg "Main function job completed"
