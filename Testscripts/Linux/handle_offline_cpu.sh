@@ -14,7 +14,7 @@
 # Source constants file and initialize most common variables
 UtilsInit
 
-FailedCount=0
+failed_count=0
 
 # Get distro information
 GetDistro
@@ -60,7 +60,7 @@ function Main() {
 					LogMsg "Successfully set the vmbus channel $_vmbus_ch's cpu to 0"
 				else
 					LogErr "Failed to set the vmbus channel $_vmbus_ch's cpu to 0. Expected 0, but found $_cpu_id"
-					FailedCount=$((FailedCount+1))
+					failed_count=$((failed_count+1))
 				fi
 			fi
 			sleep 1
@@ -84,7 +84,7 @@ function Main() {
 				LogMsg "Successfully verified the cpu $id offline"
 			else
 				LogErr "Failed to verify the cpu $id state. Expected 0, found $post_state"
-				FailedCount=$((FailedCount+1))
+				failed_count=$((failed_count+1))
 			fi
 		fi
 	done
@@ -112,7 +112,7 @@ function Main() {
 
 	if [ ! -d "$syn_net_adpt" ]; then
 		LogErr "Can not find the synthetic network adapter of vmbus sysfs path. The test failed."
-		FailedCount=$((FailedCount+1))
+		failed_count=$((failed_count+1))
 	else
 		cp $syn_net_adpt/channel_vp_mapping new_channel_vp_mapping
 
@@ -124,7 +124,7 @@ function Main() {
 				_state=$(cat /sys/devices/system/cpu/cpu$c/online)
 				if [ $_state = 0 ]; then
 					LogErr "Found the offlined cpu, $c is assigned to channel interrupt, $v. This should be 1, if cpu is used in channel interrupt."
-					FailedCount=$((FailedCount+1))
+					failed_count=$((failed_count+1))
 				else
 					LogMsg "Verified the channel interrupt, $v is assigned to online cpu, $c"
 				fi
@@ -137,10 +137,10 @@ function Main() {
 
 # main body
 Main
-if [ $FailedCount == 0 ]; then
+if [ $failed_count == 0 ]; then
 	SetTestStateCompleted
 else
-	LogErr "Failed case counts: $FailedCount"
+	LogErr "Failed case counts: $failed_count"
 	SetTestStateFailed
 fi
 exit 0

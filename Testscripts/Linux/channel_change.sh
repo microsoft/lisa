@@ -13,7 +13,7 @@
 # Source constants file and initialize most common variables
 UtilsInit
 
-FailedCount=0
+failed_count=0
 
 # Get distro information
 GetDistro
@@ -56,7 +56,7 @@ function Main() {
 					LogMsg "Successfully verified NO cpu state change, because it was used."
 				else
 					LogErr "Failed to verify the cpu state NO change. Expected $oldState, found $newState"
-					FailedCount=$((FailedCount+1))
+					failed_count=$((failed_count+1))
 				fi
 
 				# Now reset this cpu id to 0.
@@ -69,7 +69,7 @@ function Main() {
 					LogMsg "Successfully set the vmbus channel $_vmbus_ch's cpu to 0"
 				else
 					LogErr "Failed to set the vmbus channel $_vmbus_ch's cpu to 0. Expected 0, but found $_cpu_id"
-					FailedCount=$((FailedCount+1))
+					failed_count=$((failed_count+1))
 				fi
 			fi
 			sleep 1
@@ -102,15 +102,15 @@ function Main() {
 					sleep 1
 				else
 					LogErr "Failed to set the cpu $id online. Expected 1, found $post_state"
-					FailedCount=$((FailedCount+1))
+					failed_count=$((failed_count+1))
 				fi
 			else
 				LogErr "Failed to set the cpu $id offline. Expected 0, found $post_state"
-				FailedCount=$((FailedCount+1))
+				failed_count=$((failed_count+1))
 			fi
 		else
 			LogErr "Found the currect cpu $id was not online. Expected 1, found $state"
-			FailedCount=$((FailedCount+1))
+			failed_count=$((failed_count+1))
 		fi
 	done
 
@@ -140,7 +140,7 @@ function Main() {
 					LogMsg "Verified the current cpu id is 0"
 				else
 					LogErr "Failed to verify the currenct cpu id. Expected 0 but found $_cpu_id"
-					FailedCount=$((FailedCount+1))
+					failed_count=$((failed_count+1))
 				fi
 				# Change to random number
 				cpu_rdn=$(($RANDOM % $max_cpu))
@@ -151,7 +151,7 @@ function Main() {
 					LogMsg "Verified the random number assigned to cpu successfully"
 				else
 					LogErr "Failed to verify random number assignment to the cpu id. Expected $cpu_rdn, found $_cpu_id"
-					FailedCount=$((FailedCount+1))
+					failed_count=$((failed_count+1))
 				fi
 				# Change to the original cpu id _cpu
 				echo $_cpu > $_path/channels/$_vmbus_ch/cpu
@@ -161,7 +161,7 @@ function Main() {
 					LogMsg "Verified the original number assigned to cpu successfully"
 				else
 					LogErr "Failed to verify the original number assignment to the cpu id. Expected $_cpu, found $_cpu_id"
-					FailedCount=$((FailedCount+1))
+					failed_count=$((failed_count+1))
 				fi
 			fi
 		fi
@@ -172,10 +172,10 @@ function Main() {
 
 # main body
 Main
-if [ $FailedCount == 0 ]; then
+if [ $failed_count == 0 ]; then
 	SetTestStateCompleted
 else
-	LogErr "Failed case counts: $FailedCount"
+	LogErr "Failed case counts: $failed_count"
 	SetTestStateFailed
 fi
 exit 0
