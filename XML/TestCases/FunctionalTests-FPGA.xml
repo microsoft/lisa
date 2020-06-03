@@ -1,0 +1,15 @@
+<TestCases>
+    <test>
+        <testName>XILINX-CARD-VALIDATION</testName>
+        <testScript>fpga-card-validation.sh</testScript>
+        <setupType>OneVM</setupType>
+        <OverrideVMSize>Standard_NP10s</OverrideVMSize>
+        <files>.\Testscripts\Linux\fpga-card-validation.sh,.\Testscripts\Linux\utils.sh</files>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>FPGA</Area>
+        <Tags>fpga</Tags>
+        <Timeout>600</Timeout>
+        <Priority>0</Priority>
+    </test>
+</TestCases>
