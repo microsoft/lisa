@@ -34,7 +34,10 @@ function skip_test() {
         exit 0
     fi
 
-    if [[ "$driver" == "GRID" ]] && ([[ $DISTRO == "redhat_8" ]] || [[ $DISTRO == *"debian"* ]]); then
+    # https://docs.microsoft.com/en-us/azure/virtual-machines/linux/n-series-driver-setup
+    # Only support Ubuntu 16.04 LTS, 18.04 LTS, RHEL/CentOS 7.0 ~ 7.7, SLES 12 SP2
+    # Azure HPC team defines GRID driver support scope.
+    if [[ "$driver" == "GRID" ]] && ([[ $DISTRO == "redhat_8" ]] || [[ $DISTRO == *"debian"* ]] || [[ $DISTRO == *"suse_"* ]] || [[ $DISTRO == "centos_8" ]] || [[ $DISTRO == "redhat_8" ]]); then
         LogMsg "$DISTRO not supported. Skip the test."
         SetTestStateSkipped
         exit 0
