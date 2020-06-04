@@ -52,6 +52,7 @@
             <keywords>smartd.*: Device: /dev/.*, Bad IEC \(SMART\) mode page, err=5, skip device</keywords>
             <keywords>GPT: Use GNU Parted to correct GPT errors</keywords>
             <keywords>RAS: Correctable Errors collector initialized</keywords>
+            <keywords>BERT: Boot Error Record Table support is disabled. Enable it by using bert_enable as kernel parameter</keywords>
         </errors>
         <warnings>
             <keywords>WARNING Daemon VM is provisioned, but the VM unique identifier has changed -- clearing cached state</keywords>
