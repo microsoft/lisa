@@ -28,7 +28,7 @@ grid_driver="https://go.microsoft.com/fwlink/?linkid=874272"
 
 #######################################################################
 function skip_test() {
-    if [[ "$driver" == "CUDA" ]] && ([[ $DISTRO == *"suse"* ]] || [[ $DISTRO == "redhat_8" ]] || [[ $DISTRO == *"debian"* ]]); then
+    if [[ $driver == "CUDA" ]] && ([[ $DISTRO == *"suse"* ]] || [[ $DISTRO == "redhat_8" ]] || [[ $DISTRO == *"debian"* ]]); then
         LogMsg "$DISTRO not supported. Skip the test."
         SetTestStateSkipped
         exit 0
@@ -37,10 +37,40 @@ function skip_test() {
     # https://docs.microsoft.com/en-us/azure/virtual-machines/linux/n-series-driver-setup
     # Only support Ubuntu 16.04 LTS, 18.04 LTS, RHEL/CentOS 7.0 ~ 7.7, SLES 12 SP2
     # Azure HPC team defines GRID driver support scope.
-    if [[ "$driver" == "GRID" ]] && ([[ $DISTRO == "redhat_8" ]] || [[ $DISTRO == *"debian"* ]] || [[ $DISTRO == *"suse_"* ]] || [[ $DISTRO == "centos_8" ]] || [[ $DISTRO == "redhat_8" ]]); then
-        LogMsg "$DISTRO not supported. Skip the test."
-        SetTestStateSkipped
-        exit 0
+    if [[ $driver == "GRID" ]]; then
+        support_distro="redhat_7 centos_7 ubuntu_x suse_12"
+        unsupport_flag=0
+        GetDistro
+        source /etc/os-release
+        if [ "$support_distro" == *"$DISTRO"* ]; then
+            if [ ($DISTRO == "redhat_7" || $DISTRO == "centos_8") ]; then
+                # RHEL/CentOS 7.8 should be skipped
+                if [[ $VERSION_ID > "7.7" ]; then
+                    unsupport_flag=1
+                fi
+                break
+            fi
+            if [ $DISTRO == "ubuntu_x" ]; then
+                # skip other ubuntu version than 16.04 and 18.04
+                if [ $VERSION_ID != "16.04" || $VERSION_ID != "18.04" ]; then
+                    unsupport_flag=1
+                fi
+                break
+            fi
+            if [ $DISTRO == "suse_12" ]; then
+                # skip others except SLES 12 SP2
+                if [ $VERSION_ID != "12.2" ];then
+                    unsupport_flag=1
+                fi
+            fi
+        else
+            unsupport_flag=1
+        fi
+        if [ ! $unsupport_flag ]; then
+            LogMsg "$DISTRO not supported. Skip the test."
+            SetTestStateSkipped
+            exit 0
+        fi
     fi
 }
 
