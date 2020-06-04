@@ -67,8 +67,8 @@ function skip_test() {
 			unsupport_flag=1
 		fi
 		if [ $unsupport_flag = 1 ]; then
-			LogMsg "$DISTRO not supported. Skip the test."
-			SetTestStateSkipped
+			LogMsg "$DISTRO not supported. Abort the test."
+			SetTestStateAborted
 			exit 0
 		fi
 	fi
@@ -311,6 +311,9 @@ UtilsInit
 
 GetDistro
 update_repos
+if [ $? != 0 ]; then
+	SetTestStateAborted
+fi
 skip_test
 # Install dependencies
 install_gpu_requirements
