@@ -43,9 +43,17 @@ function skip_test() {
 		GetDistro
 		source /etc/os-release
 		if [[ "$support_distro" == *"$DISTRO"* ]]; then
-			if [[ $DISTRO == "redhat_7" || $DISTRO == "centos_7" ]]; then
-				# RHEL/CentOS 7.8 should be skipped
-				if [ $VERSION_ID > "7.7" ]; then
+			if [[ $DISTRO == "redhat_7" ]]; then
+				# RHEL 7.8 should be skipped
+				_minor_ver=$(echo $VERSION_ID | cut -d'.' -f 2)
+				if [ $_minor_ver -gt 7 ]; then
+					unsupport_flag=1
+				fi
+			fi
+			if [[ $DISTRO == "centos_7" ]]; then
+				# CentOS 7.8 should be skipped
+				_minor_ver=$(cat /etc/centos-release | cut -d ' ' -f 4 | cut -d '.' -f 2)
+				if [ $_minor_ver -gt 7 ]; then
 					unsupport_flag=1
 				fi
 			fi
