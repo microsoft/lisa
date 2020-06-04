@@ -714,6 +714,12 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			Add-Content -Value "$($indents[3])^type^: ^Microsoft.Network/virtualNetworks^," -Path $jsonFile
 			Add-Content -Value "$($indents[3])^name^: ^[variables('virtualNetworkName')]^," -Path $jsonFile
 			Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
+			if ($EnableNSG) {
+				Add-Content -Value "$($indents[3])^dependsOn^: " -Path $jsonFile
+				Add-Content -Value "$($indents[3])[" -Path $jsonFile
+				Add-Content -Value "$($indents[4])^[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroupName'))]^" -Path $jsonFile
+				Add-Content -Value "$($indents[3])]," -Path $jsonFile
+			}
 			Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
 			Add-Content -Value "$($indents[3]){" -Path $jsonFile
 			#AddressSpace
@@ -732,7 +738,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			Add-Content -Value "$($indents[6])^properties^: " -Path $jsonFile
 			Add-Content -Value "$($indents[6]){" -Path $jsonFile
 			Add-Content -Value "$($indents[7])^addressPrefix^: ^[variables('defaultSubnetPrefix')]^" -Path $jsonFile
-			if ( $EnableNSG) {
+			if ($EnableNSG) {
 				Add-Content -Value "$($indents[7])," -Path $jsonFile
 				Add-Content -Value "$($indents[7])^networkSecurityGroup^:" -Path $jsonFile
 				Add-Content -Value "$($indents[7]){" -Path $jsonFile
