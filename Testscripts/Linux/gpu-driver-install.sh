@@ -42,10 +42,10 @@ function skip_test() {
         unsupport_flag=0
         GetDistro
         source /etc/os-release
-        if [ "$support_distro" == *"$DISTRO"* ]; then
-            if [ ($DISTRO == "redhat_7" || $DISTRO == "centos_8") ]; then
+        if [[ "$support_distro" == *"$DISTRO"* ]]; then
+            if [ $DISTRO == "redhat_7" || $DISTRO == "centos_7" ]; then
                 # RHEL/CentOS 7.8 should be skipped
-                if [[ $VERSION_ID > "7.7" ]; then
+                if [ $VERSION_ID > "7.7" ]; then
                     unsupport_flag=1
                 fi
                 break
@@ -66,7 +66,7 @@ function skip_test() {
         else
             unsupport_flag=1
         fi
-        if [ ! $unsupport_flag ]; then
+        if [ $unsupport_flag = 1 ]; then
             LogMsg "$DISTRO not supported. Skip the test."
             SetTestStateSkipped
             exit 0
