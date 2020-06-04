@@ -43,21 +43,19 @@ function skip_test() {
         GetDistro
         source /etc/os-release
         if [[ "$support_distro" == *"$DISTRO"* ]]; then
-            if [ $DISTRO == "redhat_7" || $DISTRO == "centos_7" ]; then
+            if [[ $DISTRO == "redhat_7" || $DISTRO == "centos_7" ]]; then
                 # RHEL/CentOS 7.8 should be skipped
                 if [ $VERSION_ID > "7.7" ]; then
                     unsupport_flag=1
                 fi
-                break
             fi
-            if [ $DISTRO == "ubuntu_x" ]; then
+            if [[ $DISTRO == "ubuntu_x" ]]; then
                 # skip other ubuntu version than 16.04 and 18.04
-                if [ $VERSION_ID != "16.04" || $VERSION_ID != "18.04" ]; then
+                if [[ $VERSION_ID != "16.04" && $VERSION_ID != "18.04" ]]; then
                     unsupport_flag=1
                 fi
-                break
             fi
-            if [ $DISTRO == "suse_12" ]; then
+            if [[ $DISTRO == "suse_12" ]]; then
                 # skip others except SLES 12 SP2
                 if [ $VERSION_ID != "12.2" ];then
                     unsupport_flag=1
