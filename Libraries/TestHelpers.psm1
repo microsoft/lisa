@@ -721,6 +721,40 @@ Function Get-LISAv2Tools($XMLSecretFile) {
 	}
 }
 
+Function Get-SSHKey ($XMLSecretFile) {
+	# Download SSHKey when provide a URL
+	$CurrentDirectory = Get-Location
+	$sshKeyPath = ""
+	if ($XMLSecretFile) {
+		$WebClient = New-Object System.Net.WebClient
+		$xmlSecret = [xml](Get-Content $XMLSecretFile)
+		$privateSSHKey = $xmlSecret.secrets.sshPrivateKey.InnerText
+		$sshKeyPath = $privateSSHKey
+	}
+	if ($privateSSHKey) {
+		if ($privateSSHKey.StartsWith("http")) {
+			$CurrentDirectory = Get-Location
+			$WebClient = New-Object System.Net.WebClient
+			$sshPrivateKeyFolder = "SSHKey"
+			if (!(Test-Path $CurrentDirectory/$sshPrivateKeyFolder)) {
+				New-Item -Path $CurrentDirectory/$sshPrivateKeyFolder -ItemType Directory | Out-Null
+			}
+			$privateSSHKeyName = $privateSSHKey.Split('?')[0].Split('/')[-1]
+			try {
+				$WebClient.DownloadFile("$privateSSHKey", "$CurrentDirectory/$sshPrivateKeyFolder/$privateSSHKeyName")
+			} catch {
+				Throw "Can't download key from $privateSSHKey, please double check the path."
+			}
+			$sshKeyPath = "$CurrentDirectory/$sshPrivateKeyFolder/$privateSSHKeyName"
+		}
+		if (![System.IO.File]::Exists($sshKeyPath)) {
+			Throw "SSH Private key $sshKeyPath doesn't exist, please double check."
+		}
+		$sshKeyPath = (Resolve-Path $sshKeyPath).Path
+	}
+	return $sshKeyPath
+}
+
 function Create-ConstantsFile {
 	<#
 	.DESCRIPTION

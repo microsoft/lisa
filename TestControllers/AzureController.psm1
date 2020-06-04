@@ -84,13 +84,13 @@ Class AzureController : TestController
 		} else {
 			throw "File $RegionAndStorageMapFile does not exist"
 		}
-
 		$azureConfig = $this.GlobalConfig.Global.Azure
 		if ($this.XMLSecrets) {
 			$secrets = $this.XMLSecrets.secrets
 			$azureConfig.Subscription.SubscriptionID = $secrets.SubscriptionID
 			$azureConfig.TestCredentials.LinuxUsername = $secrets.linuxTestUsername
 			$azureConfig.TestCredentials.LinuxPassword = if ($secrets.linuxTestPassword) { $secrets.linuxTestPassword } else { "" }
+			$azureConfig.TestCredentials.sshPrivateKey = if (Get-SSHKey -XMLSecretFile $XMLSecretFile) { Get-SSHKey -XMLSecretFile $XMLSecretFile } else { "" }
 			$azureConfig.ResultsDatabase.server = if ($secrets.DatabaseServer) { $secrets.DatabaseServer } else { "" }
 			$azureConfig.ResultsDatabase.user = if ($secrets.DatabaseUser) { $secrets.DatabaseUser } else { "" }
 			$azureConfig.ResultsDatabase.password = if ($secrets.DatabasePassword) { $secrets.DatabasePassword } else { "" }
@@ -99,14 +99,10 @@ Class AzureController : TestController
 		}
 		$this.VmUsername = $azureConfig.TestCredentials.LinuxUsername
 		$this.VmPassword = $azureConfig.TestCredentials.LinuxPassword
+		$this.SSHPrivateKey = $azureConfig.TestCredentials.sshPrivateKey
 
-		if ($this.SSHPrivateKey) {
-			if (!$this.UseExistingRG -and !$this.SSHPublicKey) {
-				throw "Please set -SSHPublicKey and -SSHPrivateKey at the same time for a new deployment."
-			}
-		}
-		if (!$this.SSHPrivateKey -and !$this.VmPassword) {
-			Write-LogErr "Please set -SSHPrivateKey or linuxTestPassword."
+		if (!($this.sshPrivateKey) -and !$this.VmPassword) {
+			Write-LogErr "Please set sshPrivateKey or linuxTestPassword."
 		}
 		# global variables: StorageAccount, TestLocation
 		if ( $this.StorageAccount -imatch "ExistingStorage_Standard" )

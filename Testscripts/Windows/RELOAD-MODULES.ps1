@@ -42,7 +42,12 @@ function Check-Result {
         $attempts++
         $isVmAlive = Is-VmAlive -AllVMDataObject $AllVMData -MaxRetryCount 5
         if ($isVmAlive -eq "True") {
-            $TestConnection = .\Tools\plink.exe -C -batch -pw $Password -P $VMPort $User@$VmIp "echo Connected"
+            if ($global:sshPrivateKey) {
+                $sshKey = $global:sshPrivateKey
+                $TestConnection = .\Tools\plink.exe -C -batch -i $sshKey -P $VMPort $User@$VmIp "echo Connected"
+            } else {
+                $TestConnection = .\Tools\plink.exe -C -batch -pw $Password -P $VMPort $User@$VmIp "echo Connected"
+            }
             if ($TestConnection -eq "Connected") {
                 $state = Run-LinuxCmd -ip $VmIp -port $VMPort -username $User -password $Password -command "cat state.txt" -ignoreLinuxExitCode:$true
                 if (-not $state) {

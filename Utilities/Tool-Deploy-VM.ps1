@@ -50,15 +50,9 @@ Param(
     [String] $Password,
     [String] $AutoCleanup,
     [String] $TiPCluster,
-    [String] $TipSessionID,
-    [String] $SSHPrivateKey,
-    [String] $SSHPublicKey
-)
+    [String] $TipSessionID)
 try {
     #Make a backup of XML files.
-    if (($GuestOSType -eq "Linux") -and !$Password -and (!$SSHPrivateKey -or !$SSHPublicKey)) {
-        Throw "Please provide -Password or (-SSHPrivateKey and -SSHPublicKey)"
-    }
     if (($GuestOSType -eq "Windows") -and !$Password) {
         Throw "Please provide -Password"
     }
@@ -191,12 +185,7 @@ try {
     } else {
         Throw "Please provide -OsVHD / -ARMImageName parameter value."
     }
-    if ($SSHPrivateKey) {
-        $Command += " -SSHPrivateKey '$SSHPrivateKey'"
-    }
-    if ($SSHPublicKey) {
-        $Command += " -SSHPublicKey '$SSHPublicKey'"
-    }
+
     $Command += " -StorageAccount '$StorageAccountName'"
     $Command += " -RGIdentifier '$VMName'"
     $Command += " -TestNames 'TOOL-DEPLOYMENT-PROVISION'"

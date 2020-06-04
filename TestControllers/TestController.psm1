@@ -50,7 +50,6 @@ Class TestController
 	[string] $TestLocation
 	[string] $VmUsername
 	[string] $VmPassword
-	[string] $SSHPublicKey
 	[string] $SSHPrivateKey
 	[string] $RGIdentifier
 	[string] $OsVHD
@@ -97,12 +96,6 @@ Class TestController
 		if (!$this.VMGeneration) {
 			$this.VMGeneration = "1"
 		}
-		if ($ParamTable["SSHPrivateKey"]) {
-			$this.SSHPrivateKey = $ParamTable["SSHPrivateKey"]
-		}
-		if ($ParamTable["SSHPublicKey"]) {
-			$this.SSHPublicKey = $ParamTable["SSHPublicKey"]
-		}
 		$this.TestProvider.CustomKernel = $ParamTable["CustomKernel"]
 		$this.TestProvider.CustomLIS = $ParamTable["CustomLIS"]
 		$this.CustomParams = @{}
@@ -117,18 +110,6 @@ Class TestController
 		# Validate general parameters
 		if (!$this.RGIdentifier) {
 			$parameterErrors += "-RGIdentifier is not set"
-		}
-		if ($this.SSHPrivateKey) {
-			if (![System.IO.File]::Exists($this.SSHPrivateKey)) {
-				$parameterErrors += "-SSHPrivateKey file not exist"
-			}
-		}
-		if ($this.SSHPublicKey) {
-			if (![System.IO.File]::Exists($this.SSHPublicKey)) {
-				$parameterErrors += "-SSHPublicKey file not exist"
-			} else {
-				$this.SSHPublicKey = Get-Content -Path $this.SSHPublicKey
-			}
 		}
 		return $parameterErrors
 	}
@@ -175,7 +156,6 @@ Class TestController
 
 				# Download the tools required for LISAv2 execution.
 				Get-LISAv2Tools -XMLSecretFile $XMLSecretFile
-
 				$this.UpdateXMLStringsFromSecretsFile()
 				$this.UpdateRegionAndStorageAccountsFromSecretsFile()
 			} else {
@@ -204,7 +184,6 @@ Class TestController
 		# Used in test cases
 		Set-Variable -Name user -Value $this.VmUsername -Scope Global -Force
 		Set-Variable -Name password -Value $this.VmPassword -Scope Global -Force
-		Set-Variable -Name sshPublicKey -Value $this.SSHPublicKey -Scope Global -Force
 		Set-Variable -Name sshPrivateKey -Value $this.SSHPrivateKey -Scope Global -Force
 		# Global config
 		Set-Variable -Name GlobalConfig -Value $this.GlobalConfig -Scope Global -Force

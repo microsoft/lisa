@@ -15,14 +15,31 @@ done
     exit 10
 }
 
-password=$password
 sshd_configFilePath="/etc/ssh/sshd_config"
 sshdServiceName="sshd"
-usermod --password $(echo "$password" | openssl passwd -1 -stdin) root
+
 if [ ! -f $sshd_configFilePath ]; then
     echo "File not found! Create one."
     touch $sshd_configFilePath
 fi
+
+authorized_keys_content=$(cat /root/.ssh/authorized_keys)
+rm -rf /root/.ssh/id_rsa*
+rm -rf authorized_keys
+if [ -f /root/.ssh/authorized_keys ] && [[ "${authorized_keys_content}" != "" ]]; then
+    if [[ "${authorized_keys_content}" =~ "Please login as the user" ]]; then
+        echo "${authorized_keys_content}" > authorized_keys
+        content="$(cat authorized_keys)"
+        IFS=' ' read -r -a array <<< "$content"
+        echo "${array[@]: -2:2}" > authorized_keys
+        cp authorized_keys /root/.ssh/authorized_keys
+        sed -i 's/.*PermitEmptyPasswords.*/PermitEmptyPasswords yes/g' $sshd_configFilePath
+    fi
+else
+    password=$password
+    usermod --password $(echo "$password" | openssl passwd -1 -stdin) root
+fi
+
 if [ $? == 0 ]; then
     sed -i 's/.*PermitRootLogin.*/PermitRootLogin yes/g' $sshd_configFilePath
     if [ $? == 0 ]; then

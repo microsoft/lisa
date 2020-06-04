@@ -2408,3 +2408,24 @@ Function Get-ExpectedDevicesCount {
 
     return $expectedCount,$keyWord
 }
+
+# Extract values from file between two lines which has specified start pattern
+Function ExtractValueFromFile {
+    param (
+        [String] $filePath,
+        [String] $startLinePattern="Public-Lines",
+        [String] $endLinePattern="private-Lines"
+    )
+        if (![string]::IsNullOrEmpty($filePath)) {
+            $fromHereStartingLine = Select-String $filePath -pattern $startLinePattern | Select-Object LineNumber
+            $uptoHereStartingLine = Select-String $filePath -pattern $endLinePattern | Select-Object LineNumber
+            $extractedValue = ""
+            for($i=$fromHereStartingLine.LineNumber; $i -lt $uptoHereStartingLine.LineNumber-1; $i+=1) {
+                $extractedValue += Get-Content -Path $FilePath | Foreach-Object { ($_  -replace "`r*`n*","") } | Select-Object -Index $i
+            }
+
+            return "ssh-rsa $extractedValue"
+        } else {
+            return $null
+        }
+}
