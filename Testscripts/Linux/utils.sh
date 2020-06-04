@@ -2037,7 +2037,12 @@ function update_repos() {
 			apt-get update
 			;;
 		suse|opensuse|sles|sle_hpc)
-			zypper refresh
+			_ret=$(zypper refresh)
+			_azure_kernel=$(uname -r)
+			if [[ $_ret == *"Warning"* && $_azure_kernel == *"default"* ]]; then
+				LogErr "SAP or BYOS do not have repo configuration. Abort the test"
+				return 1
+			fi
 			;;
 		clear-linux-os)
 			swupd update
