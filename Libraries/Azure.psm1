@@ -732,6 +732,13 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			Add-Content -Value "$($indents[6])^properties^: " -Path $jsonFile
 			Add-Content -Value "$($indents[6]){" -Path $jsonFile
 			Add-Content -Value "$($indents[7])^addressPrefix^: ^[variables('defaultSubnetPrefix')]^" -Path $jsonFile
+			if ( $EnableNSG) {
+				Add-Content -Value "$($indents[7])," -Path $jsonFile
+				Add-Content -Value "$($indents[7])^networkSecurityGroup^:" -Path $jsonFile
+				Add-Content -Value "$($indents[7]){" -Path $jsonFile
+				Add-Content -Value "$($indents[8])^id^: ^[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroupName'))]^" -Path $jsonFile
+				Add-Content -Value "$($indents[7])}" -Path $jsonFile
+			}
 			Add-Content -Value "$($indents[6])}" -Path $jsonFile
 			Add-Content -Value "$($indents[5])}" -Path $jsonFile
 			Write-LogInfo "Added Default Subnet to $virtualNetworkName.."
@@ -1119,13 +1126,6 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			}
 			#endregion
 			Add-Content -Value "$($indents[4])]" -Path $jsonFile
-			if ( $EnableNSG) {
-				Add-Content -Value "$($indents[4])," -Path $jsonFile
-				Add-Content -Value "$($indents[4])^networkSecurityGroup^:" -Path $jsonFile
-				Add-Content -Value "$($indents[4]){" -Path $jsonFile
-				Add-Content -Value "$($indents[5])^id^: ^[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroupName'))]^" -Path $jsonFile
-				Add-Content -Value "$($indents[4])}" -Path $jsonFile
-			}
 			if ($CurrentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
 				Add-Content -Value "$($indents[4])," -Path $jsonFile
 				Add-Content -Value "$($indents[4])^enableAcceleratedNetworking^: true" -Path $jsonFile
