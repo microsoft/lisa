@@ -2186,22 +2186,25 @@ function remove_package () {
 function install_epel () {
 	case "$DISTRO_NAME" in
 		oracle|rhel|centos)
-			if [[ $DISTRO_VERSION =~ ^6\. ]]; then
-				epel_rpm_url="https://dl.fedoraproject.org/pub/epel/epel-release-latest-6.noarch.rpm"
-			elif [[ $DISTRO_VERSION =~ ^7\. ]]; then
-				epel_rpm_url="https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm"
-			elif [[ $DISTRO_VERSION =~ ^8\. ]]; then
-				epel_rpm_url="https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm"
-			else
-				LogErr "Unsupported version to install epel repository"
-				return 1
+			yum -y install epel-release
+			if [ $? != 0 ]; then
+				if [[ $DISTRO_VERSION =~ ^6\. ]]; then
+					epel_rpm_url="https://dl.fedoraproject.org/pub/epel/epel-release-latest-6.noarch.rpm"
+				elif [[ $DISTRO_VERSION =~ ^7\. ]]; then
+					epel_rpm_url="https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm"
+				elif [[ $DISTRO_VERSION =~ ^8\. ]]; then
+					epel_rpm_url="https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm"
+				else
+					LogErr "Unsupported version to install epel repository"
+					return 1
+				fi
+				sudo rpm -ivh $epel_rpm_url
 			fi
 			;;
 		*)
 			LogErr "Unsupported distribution to install epel repository"
 			return 1
 	esac
-	sudo rpm -ivh $epel_rpm_url
 	check_exit_status "install_epel"
 }
 
