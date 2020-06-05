@@ -87,7 +87,7 @@ done
 LogMsg "LRO status:"
 ethtool -k "${SYNTH_NET_INTERFACES[@]}" | grep large-receive-offload 
 LogMsg "Enable large-receive-offload:"
-ethtool -K "${SYNTH_NET_INTERFACES[[@]}" lro on
+ethtool -K "${SYNTH_NET_INTERFACES[@]}" lro on
 LogMsg "LRO status:"
 ethtool -k "${SYNTH_NET_INTERFACES[@]}" | grep large-receive-offload
 LogMsg "Disable large-receive-offload:"

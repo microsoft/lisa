@@ -333,10 +333,12 @@ Install_Kexec
 #
 # Configure kdump - this has distro specific behaviour
 #
-if ! grep CONFIG_KEXEC_AUTO_RESERVE=y /boot/config-$(uname -r) && [[ "$crashkernel" == "auto" ]];then
-    LogErr "crashkernel=auto doesn't work for this distro. Please use this pattern: crashkernel=X@Y."
-    SetTestStateSkipped
-    exit 0
+if [[ $DISTRO != "redhat_8" ]];then
+    if ! grep CONFIG_KEXEC_AUTO_RESERVE=y /boot/config-$(uname -r) && [[ "$crashkernel" == "auto" ]];then
+        LogErr "crashkernel=auto doesn't work for this distro. Please use this pattern: crashkernel=X@Y."
+        SetTestStateSkipped
+        exit 0
+    fi
 fi
 
 Config_"${OS_FAMILY}"

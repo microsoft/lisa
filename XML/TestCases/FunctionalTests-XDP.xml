@@ -8,10 +8,105 @@
             <Networking>SRIOV</Networking>
         </AdditionalHWConfig>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh</files>
+        <TestParameters>
+            <param>repo_url=XDPDUMP_REPO_URL</param>
+        </TestParameters>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
         <Area>XDP</Area>
         <Tags>xdp,network,hv_netvsc,sriov</Tags>
         <Priority>0</Priority>
+    </test>
+    <test>
+        <testName>VERIFY-SRIOV-FAILSAFE-XDP</testName>
+        <testScript>VERIFY-SRIOV-FAILSAFE-XDP.ps1</testScript>
+        <setupType>TwoVM2NIC</setupType>
+        <OverrideVMSize>Standard_DS4_v2</OverrideVMSize>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh</files>
+        <TestParameters>
+            <param>repo_url=XDPDUMP_REPO_URL</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>XDP</Area>
+        <Tags>xdp,network,hv_netvsc,sriov</Tags>
+        <Priority>1</Priority>
+    </test>
+    <test>
+        <testName>VERIFY-XDP-MULTIPLE-NICS</testName>
+        <testScript>VERIFY-XDP-MULTIPLE-NICS.ps1</testScript>
+        <setupType>TwoVM3NIC</setupType>
+        <OverrideVMSize>Standard_DS4_v2</OverrideVMSize>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh</files>
+        <TestParameters>
+            <param>repo_url=XDPDUMP_REPO_URL</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>XDP</Area>
+        <Tags>xdp,network,hv_netvsc,sriov</Tags>
+        <Priority>1</Priority>
+    </test>
+    <test>
+        <testName>VERIFY-XDP-LOAD-UNLOAD</testName>
+        <testScript>VERIFY-XDP-LOAD-UNLOAD.ps1</testScript>
+        <setupType>TwoVM2NIC</setupType>
+        <OverrideVMSize>Standard_DS4_v2</OverrideVMSize>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh</files>
+        <TestParameters>
+            <param>repo_url=XDPDUMP_REPO_URL</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>XDP</Area>
+        <Tags>xdp,network,hv_netvsc,sriov</Tags>
+        <Priority>1</Priority>
+    </test>
+    <test>
+        <testName>VERIFY-XDP-ACTION-DROP</testName>
+        <testScript>VERIFY-XDP-ACTION.ps1</testScript>
+        <setupType>TwoVM2NIC</setupType>
+        <OverrideVMSize>Standard_DS4_v2</OverrideVMSize>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh,.\Testscripts\Linux\XDP-Action.sh</files>
+        <TestParameters>
+            <param>ACTION=DROP</param>
+            <param>repo_url=XDPDUMP_REPO_URL</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>XDP</Area>
+        <Tags>xdp,network,hv_netvsc,sriov</Tags>
+        <Priority>1</Priority>
+    </test>
+    <test>
+        <testName>VERIFY-XDP-ACTION-TX</testName>
+        <testScript>VERIFY-XDP-ACTION.ps1</testScript>
+        <setupType>TwoVM2NIC</setupType>
+        <OverrideVMSize>Standard_DS4_v2</OverrideVMSize>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh,.\Testscripts\Linux\XDP-Action.sh</files>
+        <TestParameters>
+            <param>ACTION=TX</param>
+            <param>repo_url=XDPDUMP_REPO_URL</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>XDP</Area>
+        <Tags>xdp,network,hv_netvsc,sriov</Tags>
+        <Priority>1</Priority>
     </test>
 </TestCases>

@@ -15,14 +15,14 @@
 #    5. Collects results
 #
 # 1)If we set LKS_VERSION_GIT_TAG value, we use Kselftests from stable kernel of
-#   this tag for avoiding unstable builds or non-uniform output format. 
+#   this tag for avoiding unstable builds or non-uniform output format.
 #   For Centos/Redhat or Ubuntu 16.04, there are some subsystems are failed to compile
 #   for that some dependency packages' version is low. We use SKIP_TARGETS_COMPILE_FAIL_XXX
 #   to skip these subsystems. There are some subsystems have some new features but the
 #   test kernel don't have, we use SKIP_TARGETS_NONSUPPORT_XXX to skip them.
 # 2)If LKS_VERSION_GIT_TAG is NULL, we use Kselftests from distro's own kernel. some subsystems
 #   are unstable or compiled failed. We don't support SUSE.
-# 3)If this test runs against custom kernel, we use Kselftests from linux-stable or 
+# 3)If this test runs against custom kernel, we use Kselftests from linux-stable or
 #   linux-next of the same version. We just skip $SKIP_TARGETS these targets. Some subsystems
 #   are unstable or compiled failed.
 # 4)We just support Ubuntu/Debian/Centos/Redhat/SUSE now, we will support other distros in the future.
@@ -141,7 +141,7 @@ function download_distro_kernel() {
     # The kernel is distro kernel
     case $DISTRO in
         ubuntu*)
-            #18.04  16.04  19.04            
+            #18.04  16.04  19.04
             ubuntu_codename="$(awk '/UBUNTU_CODENAME=/' /etc/os-release | sed 's/UBUNTU_CODENAME=//')"
             if [[ "$ubuntu_codename" != "" ]]; then
                 src_code_git=$ubuntu_src_git$ubuntu_codename
@@ -150,7 +150,7 @@ function download_distro_kernel() {
                 git clone $src_code_git
                 check_exit_status "Clone kernel source code" "exit"
                 LKS_SRCDIR=$HOMEDIR/$ubuntu_codename
-                version=$(echo $KERNEL_VERSION | sed 's/-azure//')                  
+                version=$(echo $KERNEL_VERSION | sed 's/-azure//')
             else
                 LogErr "Get Ubuntu code name failed"
                 return 1
@@ -265,7 +265,7 @@ function build_and_run_lks() {
         if [[ "$CUSTOM_KERNEL_FLAG" != "TRUE" && "$DISTRO_KERNEL_FLAG" != "TRUE" ]]; then
             case $DISTRO in
             ubuntu*)
-                #16.04           
+                #16.04
                 VERSION_ID=$(cat /etc/os-release | grep VERSION_ID | sed 's/VERSION_ID=//g' | sed 's/\"//g' | awk -F '.' '{print $1}')
                 if [ $[$VERSION_ID] -le 16 ]; then
                     LogMsg "Skip targets ($SKIP_TARGETS_COMPILE_FAIL_UBUNTU16 $SKIP_TARGETS_NONSUPPORT_UBUNTU16) for Ubuntu 16 or older version"

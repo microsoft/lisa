@@ -19,6 +19,7 @@ scsi_counter=0
 
 # Source constants file and initialize most common variables
 UtilsInit
+LogMsg "VM Size: $VM_Size"
 
 GetDistro
 case $DISTRO in
@@ -119,6 +120,9 @@ if [ "$scsiAdapters" -gt 1 ]; then
 fi
 
 while IFS='' read -r line || [[ -n "$line" ]]; do
+    if [[ $line =~ "VMBUS ID" ]]; then
+        token=""
+    fi
     if [[ $line =~ "Synthetic network adapter" ]]; then
         token="adapter"
     fi
@@ -143,22 +147,34 @@ else
     expected_network_counter=$VCPU
 fi
 
-# the cpu count that attached to the SCSI driver is MIN(the number of vCPUs/4, 64).
-if [ "$VCPU" -gt 64 ];then
-    expected_scsi_counter=64
-else
-    expected_scsi_counter=$(bc <<<"scale=2;$VCPU/4")
-    if [ "$expected_scsi_counter" != "${1#*.00}" ]; then
-        # In this case we have a float number that needs to be rounded up.
-        # For example with 6 cores, scsi controller is spread on 2 cores.
-        expected_scsi_counter=$(bc <<<"("$expected_scsi_counter"+0.5)/1")
-    fi
-    # normalizing the number to integer
-    expected_scsi_counter=${expected_scsi_counter%.*}
-fi
+case $VM_Size in
+    # If Lv2, the cpu count that attached to the SCSI driver is MIN(the number of vCPUs, 64).
+    *Standard_L*s_v2*)
+        if [ "$VCPU" -gt 64 ];then
+            expected_scsi_counter=64
+        else
+            expected_scsi_counter=$VCPU
+        fi
+    ;;
+    # Default: the cpu count that attached to the SCSI driver is MIN(the number of vCPUs/4, 64).
+    *)
+        if [ "$VCPU" -gt $((64*4)) ];then
+            expected_scsi_counter=64
+        else
+            expected_scsi_counter=$(bc <<<"scale=2;$VCPU/4")
+            if ! [[ "$expected_scsi_counter" =~ \.00 ]]; then
+                # In this case we have a float number that needs to be rounded up.
+                # For example with 6 cores, scsi controller is spread on 2 cores.
+                expected_scsi_counter=$(bc <<<"("$expected_scsi_counter"+1)/1")
+            fi
+            # normalizing the number to integer
+            expected_scsi_counter=${expected_scsi_counter%.*}
+        fi
+    ;;
+esac
 
-if [ "$network_counter" != "$expected_network_counter" ] && [ "$scsi_counter" != "$expected_scsi_counter" ]; then
-    error_msg="Error: values are wrong. Expected for network adapter: $VCPU and actual: $network_counter;
+if [ "$network_counter" != "$expected_network_counter" ] || [ "$scsi_counter" != "$expected_scsi_counter" ]; then
+    error_msg="Error: values are wrong. Expected for network adapter: ${expected_network_counter} and actual: $network_counter;
     expected for scsi controller: ${expected_scsi_counter}, actual: $scsi_counter."
     LogErr "$error_msg"
     UpdateSummary "$error_msg"
@@ -166,11 +182,11 @@ if [ "$network_counter" != "$expected_network_counter" ] && [ "$scsi_counter" !=
     exit 0
 fi
 
-msg="Network driver is spread on all $network_counter cores as expected."
+msg="Network driver is spread on all $network_counter cores as expected ${expected_network_counter} cores."
 LogMsg "$msg"
 UpdateSummary "$msg"
 
-msg="Storage driver is spread on all $scsi_counter cores as expected."
+msg="Storage driver is spread on all $scsi_counter cores as expected ${expected_scsi_counter} cores."
 LogMsg "$msg"
 UpdateSummary "$msg"
 

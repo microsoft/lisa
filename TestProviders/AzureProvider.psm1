@@ -65,7 +65,7 @@ Class AzureProvider : TestProvider
 				} else {
 					$ErrorMessage = "One or more deployments failed. " + $isAllDeployed[4]
 					Write-LogErr $ErrorMessage
-					return @{"VmData" = $null; "Error" = $ErrorMessage}
+					return @{"VmData" = $allVMData; "Error" = $ErrorMessage}
 				}
 			}
 			$isVmAlive = Is-VmAlive -AllVMDataObject $allVMData
@@ -83,7 +83,7 @@ Class AzureProvider : TestProvider
 					if (!$customStatus) {
 						$ErrorMessage = "Failed to set custom config in VMs."
 						Write-LogErr $ErrorMessage
-						return @{"VmData" = $null; "Error" = $ErrorMessage}
+						return @{"VmData" = $allVMData; "Error" = $ErrorMessage}
 					}
 				}
 			}
@@ -181,6 +181,13 @@ Class AzureProvider : TestProvider
 			$DeleteResourceGroupJobs | Receive-Job
 			Write-LogInfo "*************************************************************"
 			$DeleteResourceGroupJobs | Remove-Job -Force
+		}
+		# Clean up AzContext only when using service principal or using AzureContextFile
+		$spClientID = $global:XmlSecrets.secrets.SubscriptionServicePrincipalClientID
+		$spKey = $global:XmlSecrets.secrets.SubscriptionServicePrincipalKey
+		$contextFilePath = $global:XmlSecrets.secrets.AzureContextFilePath
+		if (($spClientID -and $spKey) -or $contextFilePath) {
+			Clear-AzContext -Force -ErrorAction SilentlyContinue | Out-NULL
 		}
 	}
 }

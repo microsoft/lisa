@@ -10,7 +10,15 @@ jobs:
     pool:
       vmImage: 'windows-2019'
     steps:
-    - powershell: Install-Module -Name Pester -Scope CurrentUser -Force -SkipPublisherCheck -AllowClobber
+    - powershell:
+        $pesterModule = Get-InstalledModule -Name Pester -ErrorAction SilentlyContinue;
+        if ($pesterModule -and $pesterModule.Version -inotmatch '4\.10\.1') { Uninstall-Module -Name Pester -Force; };
+        if (!$pesterModule) { Install-Module -Name Pester -Scope CurrentUser -Force -Repository PSGallery -RequiredVersion 4.10.1 -AllowClobber; };
+        if (!((Get-Command Clear-AzContext -ErrorAction SilentlyContinue).Version)) {
+          Install-PackageProvider NuGet -Force | Out-Null;
+          Set-PSRepository PSGallery -InstallationPolicy Trusted | Out-Null;
+          Install-Module -Name Az -AllowClobber -Scope AllUsers | Out-Null;
+        };
     - powershell:
         Invoke-Pester . -EnableExit -PassThru
   - job: 'PowerShellCodeCheck_PSScriptAnalyzer'

@@ -2,32 +2,49 @@
 # Licensed under the Apache License.
 <#
 .Synopsis
-	CPU offline feature testing with vmbus interrupt channel reassignment
+	CPU offline-online functional and stress testing
+	with vmbus interrupt channel reassignment via VM reboot
+	Also it can invoke the script for offline cpu handle test script.
 
 .Description
-	CPU offline and verify no error in dmesg/syslog
-	CPU offline all except one
+	Set CPU offline and online.
+	Assign cpu to vmbus channels
+	Reboot VM and repeat above steps for a few times, if this is stress mode.
+	Handle the offline cpu assignment to the vmbus channel in negative test.
 #>
 
 param([object] $AllVmData, [string]$TestParams)
+# Set default Iteration value of the Stress test
+# Set 1 for functional test. New value can be overwritten.
+$max_stress_count = 1
 
 function Main {
 	param($AllVMData, $TestParams)
 	$currentTestResult = Create-TestResultObject
+	$local_script="channel_change.sh"
+
 	try {
 		$testResult = $resultFail
 
+		# Find the local test script
+		foreach ($TestScript in $CurrentTestData.files) {
+			if ($TestParam -imatch "handle_offline_cpu.sh") {
+				local_script="handle_offline_cpu.sh"
+			}
+		}
 		#region Generate constants.sh
 		# We need to add extra parameters to constants.sh file apart from parameter properties defined in XML.
 		# Hence, we are generating constants.sh file again in test script.
-
 		Write-LogInfo "Generating constants.sh ..."
 		$constantsFile = "$LogDir\constants.sh"
 		foreach ($TestParam in $CurrentTestData.TestParameters.param) {
 			Add-Content -Value "$TestParam" -Path $constantsFile
 			Write-LogInfo "$TestParam added to constants.sh"
+			if ($TestParam -imatch "maxIteration") {
+				# Overwrite new max Iteration of CPU offline and online stress test
+				$max_stress_count = [int]($TestParam.Replace("maxIteration=", "").Trim('"'))
+			}
 		}
-
 		Write-LogInfo "constants.sh created successfully..."
 		#endregion
 
@@ -60,20 +77,14 @@ function Main {
 				}
 				break
 			} elseif ($state -eq "TestSkipped") {
-				Write-LogInfo "CPUOfflineKernelBuild.sh finished with SKIPPED state!"
 				$resultArr = $resultSkipped
-				$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
-				return $currentTestResult.TestResult
+				throw "CPUOfflineKernelBuild.sh finished with SKIPPED state!"
 			} elseif ($state -eq "TestFailed") {
-				Write-LogErr "CPUOfflineKernelBuild.sh didn't finish successfully!"
 				$resultArr = $resultFail
-				$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
-				return $currentTestResult.TestResult
+				throw "CPUOfflineKernelBuild.sh finished with FAILED state!"
 			} elseif ($state -eq "TestAborted") {
-				Write-LogInfo "CPUOfflineKernelBuild.sh finished with Aborted state!"
 				$resultArr = $resultAborted
-				$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
-				return $currentTestResult.TestResult
+				throw "CPUOfflineKernelBuild.sh finished with ABORTED state!"
 			} else {
 				Write-LogInfo "CPUOfflineKernelBuild.sh is still running in the VM!"
 			}
@@ -84,57 +95,56 @@ function Main {
 			Throw "CPUOfflineKernelBuild.sh didn't finish in the VM!"
 		}
 
-		# ##################################################################################
-		# Reboot VM
-		Write-LogInfo "Rebooting VM!"
-		$TestProvider.RestartAllDeployments($AllVMData)
+		for ($loopCount = 1;$loopCount -le $max_stress_count;$loopCount++) {
+			# ##################################################################################
+			# Reboot VM
+			Write-LogInfo "Rebooting VM! - Loop Count: $loopCount"
+			$TestProvider.RestartAllDeployments($AllVMData)
 
-		# ##################################################################################
-		# Running CPU channel change
-		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./channel_change.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
-		Write-LogInfo "Executed channel_change script inside VM"
+			# Feature test and stress test case with $local_script
+			# Running the local test script
+			Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./$local_script" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+			Write-LogInfo "Executed $local_script script inside VM"
 
-		# Wait for kernel compilation completion. 60 min timeout
-		$timeout = New-Timespan -Minutes 60
-		$sw = [diagnostics.stopwatch]::StartNew()
-		while ($sw.elapsed -lt $timeout){
-			$vmCount = $AllVMData.Count
-			Wait-Time -seconds 15
-			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat ~/state.txt"
-			if ($state -eq "TestCompleted") {
-				$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat ~/constants.sh | grep job_completed=0" -runAsSudo
-				if ($kernelCompileCompleted -ne "job_completed=0") {
-					Write-LogErr "channel_change.sh finished on $($VMData.RoleName) but job was not successful!"
+			# Wait for kernel compilation completion. 60 min timeout
+			$timeout = New-Timespan -Minutes 60
+			$sw = [diagnostics.stopwatch]::StartNew()
+			while ($sw.elapsed -lt $timeout){
+				$vmCount = $AllVMData.Count
+				Wait-Time -seconds 15
+				$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat ~/state.txt"
+				if ($state -eq "TestCompleted") {
+					$channelChangeCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat ~/constants.sh | grep job_completed=0" -runAsSudo
+					if ($channelChangeCompleted -ne "job_completed=0") {
+						throw "$local_script finished on $($VMData.RoleName) but job was not successful!"
+					} else {
+						Write-LogInfo "$local_script finished on $($VMData.RoleName)"
+						$vmCount--
+					}
+					break
+				} elseif ($state -eq "TestSkipped") {
+					$resultArr = $resultSkipped
+					throw "$local_script finished with SKIPPED state!"
+				} elseif ($state -eq "TestFailed") {
+					$resultArr = $resultFail
+					throw "$local_script finished with FAILED state!"
+				} elseif ($state -eq "TestAborted") {
+					$resultArr = $resultAborted
+					throw "$local_script finished with ABORTED state!"
 				} else {
-					Write-LogInfo "channel_change.sh finished on $($VMData.RoleName)"
-					$vmCount--
+					Write-LogInfo "$local_script is still running in the VM!"
 				}
-				break
-			} elseif ($state -eq "TestSkipped") {
-				Write-LogInfo "channel_change.sh finished with SKIPPED state!"
-				$resultArr = $resultSkipped
-				$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
-				return $currentTestResult.TestResult
-			} elseif ($state -eq "TestFailed") {
-				Write-LogErr "channel_change.sh didn't finish successfully!"
-				$resultArr = $resultFail
-				$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
-				return $currentTestResult.TestResult
-			} elseif ($state -eq "TestAborted") {
-				Write-LogInfo "channel_change.sh finished with Aborted state!"
-				$resultArr = $resultAborted
-				$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
-				return $currentTestResult.TestResult
-			} else {
-				Write-LogInfo "channel_change.sh is still running in the VM!"
 			}
-		}
-		if ($vmCount -le 0){
-			Write-LogInfo "channel_change.sh is done"
-		} else {
-			Throw "channel_change.sh didn't finish in the VM!"
-		}
+			if ($vmCount -le 0){
+				Write-LogInfo "$local_script is done"
+			} else {
+				Throw "$local_script didn't finish in the VM!"
+			}
 
+			# Revert state.txt and remove job_completed=0
+			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat /dev/null > ~/state.txt" -runAsSudo
+			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "sed -i -e 's/job_completed=0//g' ~/constants.sh" -runAsSudo
+		}
 		$testResult = $resultPass
 	} catch {
 		$ErrorMessage =  $_.Exception.Message

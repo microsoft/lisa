@@ -30,7 +30,7 @@ Describe "Test if module ${moduleName} ParseAndValidateParameters is valid" {
 			"TestLocation" = "fakeLocation";
 		}
 
-		{ $azureController.ParseAndValidateParameters($fakeParams) } | Should Not Throw
+		{ $azureController.ParseAndValidateParameters($fakeParams) } | Should -Not -Throw
 	}
 
 	It "Should not validate parameters" {
@@ -43,7 +43,7 @@ Describe "Test if module ${moduleName} ParseAndValidateParameters is valid" {
 			"TestLocation" = "";
 		}
 
-		{ $azureController.ParseAndValidateParameters($fakeParams) } | Should Throw
+		{ $azureController.ParseAndValidateParameters($fakeParams) } | Should -Throw
 	}
 
 	It "Should run all mocked commands" {
@@ -57,7 +57,7 @@ Describe "Test if module ${moduleName} SetGlobalVariables is valid" {
 
 		$azureController = New-Object -TypeName $moduleName
 
-		{ $azureController.SetGlobalVariables() } | Should Not Throw
+		{ $azureController.SetGlobalVariables() } | Should -Not -Throw
 	}
 
 	It "Should run all mocked commands" {
@@ -105,7 +105,7 @@ Describe "Test if module ${moduleName} PrepareTestEnvironment is valid" {
 		$azureController.TestLocation = "westus2"
 		$fakeXML = "test1.xml"
 
-		{ $azureController.PrepareTestEnvironment($fakeXML) } | Should Not Throw
+		{ $azureController.PrepareTestEnvironment($fakeXML) } | Should -Not -Throw
 	}
 }
 
@@ -116,7 +116,7 @@ Describe "Test if module ${moduleName} PrepareTestEnvironment can fail" {
 		$azureController = New-Object -TypeName $moduleName
 
 		$fakeXML = "test2.xml"
-		{ $azureController.PrepareTestEnvironment($fakeXML) } | Should Throw
+		{ $azureController.PrepareTestEnvironment($fakeXML) } | Should -Throw
 	}
 
 	It "Should run all mocked commands" {
@@ -128,7 +128,7 @@ Describe "Test if module ${moduleName} PrepareTestImage is valid" {
 	It "Should set prepare test image" {
 		$azureController = New-Object -TypeName $moduleName
 
-		{ $azureController.PrepareTestImage() } | Should Not Throw
+		{ $azureController.PrepareTestImage() } | Should -Not -Throw
 	}
 
 	It "Should run all mocked commands" {

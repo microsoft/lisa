@@ -55,7 +55,7 @@ Class HyperVProvider : TestProvider
 				else {
 					$ErrorMessage = "One or more deployments failed."
 					Write-LogErr $ErrorMessage
-					return @{"VmData" = $null; "Error" = $ErrorMessage}
+					return @{"VmData" = $allVMData; "Error" = $ErrorMessage}
 				}
 			}
 
@@ -70,7 +70,7 @@ Class HyperVProvider : TestProvider
 						}
 						$ErrorMessage = "Failed to set custom config in VMs."
 						Write-LogErr $ErrorMessage
-						return @{"VmData" = $null; "Error" = $ErrorMessage}
+						return @{"VmData" = $allVMData; "Error" = $ErrorMessage}
 					}
 				}
 
@@ -168,9 +168,10 @@ Class HyperVProvider : TestProvider
 				Create-HyperVCheckpoint -VMData $AllVMData -CheckpointName "$($CurrentTestData.TestName)-$($CurrentTestResult.TestResult)" `
 					-ShouldTurnOffVMBeforeCheckpoint $false -ShouldTurnOnVMAfterCheckpoint $false
 			}
-		}
-		catch
-		{
+			if ($global:DependencyVmHost) {
+				Stop-VM -Name $global:DependencyVmName -TurnOff -Force -ComputerName $global:DependencyVmHost
+			}
+		} catch {
 			$ErrorMessage =  $_.Exception.Message
 			Write-Output "EXCEPTION in RunTestCaseCleanup : $ErrorMessage"
 		}

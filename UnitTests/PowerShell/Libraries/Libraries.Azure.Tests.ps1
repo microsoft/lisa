@@ -21,8 +21,8 @@ function Get-AzStorageAccountKey {}
 
 Describe "Test if module ${moduleName} is valid" {
     It "Should load a valid module" {
-        { Import-Module $modulePath -DisableNameChecking } | Should Not Throw
-        { Import-Module $logModulePath -DisableNameChecking } | Should Not Throw
+        { Import-Module $modulePath -DisableNameChecking } | Should -Not -Throw
+        { Import-Module $logModulePath -DisableNameChecking } | Should -Not -Throw
     }
 }
 
@@ -33,7 +33,7 @@ Describe "Test Get-AzureBootDiagnostics" {
     Mock Get-AzStorageAccountKey -Verifiable -ModuleName $moduleName { throw "fail"}
 
     It "Should not find an AzureVmKernelPanic" {
-        Get-AzureBootDiagnostics @{"ResourceGroupName" = "fake_rg"; "RoleName" = "fake_role"} | Should Be $false
+        Get-AzureBootDiagnostics @{"ResourceGroupName" = "fake_rg"; "RoleName" = "fake_role"} | Should -Be $false
     }
 
     It "Should run all mocked commands" {
@@ -47,7 +47,7 @@ Describe "Test Check-AzureVmKernelPanic" {
     Mock Get-Content -Verifiable -ModuleName $moduleName { return "RIP: rest in peace" }
 
     It "Should not find an AzureVmKernelPanic" {
-        Check-AzureVmKernelPanic | Should Be $true
+        Check-AzureVmKernelPanic | Should -Be $true
     }
 
     It "Should run all mocked commands" {

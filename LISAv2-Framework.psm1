@@ -98,7 +98,7 @@ function Start-LISAv2 {
 			Set-Variable -Name "WorkingDirectory" -Value $workingDirectory -Scope Global
 
 			# Prepare log folder
-			$testTimestamp = Get-Date -Format 'yyyy-dd-MM-HH-mm-ss-ffff'
+			$testTimestamp = Get-Date -Format 'yyyy-MM-dd-HH-mm-ss-ffff'
 			$logDir = Join-Path $workingDirectory "TestResults\${testTimestamp}"
 			New-Item -ItemType "Directory" -Path $logDir -Force | Out-Null
 			Write-LogInfo "Logging directory: $logDir"
