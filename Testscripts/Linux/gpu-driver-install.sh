@@ -75,7 +75,7 @@ function skip_test() {
 			unsupport_flag=1
 		fi
 		if [ $unsupport_flag = 1 ]; then
-			LogMsg "$DISTRO not supported. Abort the test."
+			LogErr "$DISTRO not supported. Abort the test."
 			SetTestStateAborted
 		fi
 	fi
@@ -327,7 +327,7 @@ fi
 # Validate the distro version eligibility
 skip_test
 _state=$(cat state.txt)
-if [ $_state != "TestCompleted" ]; then
+if [ $_state == "TestAborted" ]; then
 	LogErr "Stop test procedure here for state, $_state"
 	exit 0
 fi
