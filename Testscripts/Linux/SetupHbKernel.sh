@@ -17,33 +17,52 @@ UtilsInit
 # Get distro information
 GetDistro
 
+# Get generation: 1/2
+GetGuestGeneration
+
+# Hibernation is supported in RHEL-8 since kernel-4.18.0-202. Not supported in RHEL-7.
+if [[ $DISTRO =~ "redhat" ]];then
+	MIN_KERNEL="4.18.0-202"
+	CheckVMFeatureSupportStatus $MIN_KERNEL
+	if [[ $? == 1 ]];then
+		UpdateSummary "Hibernation is supported since kernel-4.18.0-202. Current version: $(uname -r). Skip the test."
+		SetTestStateSkipped
+		exit 0
+	fi
+fi
+
 function Main() {
 	# Prepare swap space
 	for key in n p 1 2048 '' t 82 p w
 	do
-		echo $key >> ~/keys.txt
+		echo $key >> keys.txt
 	done
 	LogMsg "Generated the keys.txt file for fdisk commanding"
 
-	sudo cat ~/keys.txt | sudo fdisk /dev/sdc
+	cat keys.txt | fdisk /dev/sdc
 	LogMsg "$?: Executed fdisk command"
-	ret=$(sudo ls /dev/sd*)
+	ret=$(ls /dev/sd*)
 	LogMsg "$?: List out /dev/sd* - $ret"
 
-	sudo mkswap /dev/sdc1
+	mkswap /dev/sdc1
 	LogMsg "$?: Set up the swap space"
 
-	sudo swapon /dev/sdc1
+	swapon /dev/sdc1
 	LogMsg "$?: Enabled the swap space"
 	ret=$(swapon -s)
 	LogMsg "$?: Show the swap on information - $ret"
 
 	sw_uuid=$(blkid | grep -i sw | awk '{print $2}' | tr -d " " | sed 's/"//g')
 	LogMsg "$?: Found the Swap space disk UUID: $sw_uuid"
+	if [[ -z "$sw_uuid" ]];then
+		LogErr "Swap space disk UUID is empty. Abort the test."
+		SetTestStateAborted
+		exit 0
+	fi
 
-	sudo chmod 766 /etc/fstab
+	chmod 766 /etc/fstab
 
-	sudo echo $sw_uuid none swap sw 0 0 >> /etc/fstab
+	echo $sw_uuid none swap sw 0 0 >> /etc/fstab
 	LogMsg "$?: Updated /etc/fstab file with swap uuid information"
 	ret=$(cat /etc/fstab)
 	LogMsg "$?: Displayed the contents in /etc/fstab"
@@ -104,33 +123,50 @@ function Main() {
 		cd
 
 		# Append the test log to the main log files.
-		cat /usr/src/linux/TestExecution.log >> ~/TestExecution.log
-		cat /usr/src/linux/TestExecutionError.log >> ~/TestExecutionError.log
+		cat /usr/src/linux/TestExecution.log >> TestExecution.log
+		cat /usr/src/linux/TestExecutionError.log >> TestExecutionError.log
 	fi
 
-	sed -i -e "s/rootdelay=300/rootdelay=300 resume=$sw_uuid/g" /etc/default/grub.d/50-cloudimg-settings.cfg
-	LogMsg "$?: Updated the 50-cloudimg-settings.cfg with resume=$sw_uuid"
+	if [[ "$DISTRO" =~ "redhat" ]];then
+		sed -i -e "s/rootdelay=300/rootdelay=300 resume=$sw_uuid/g" /etc/default/grub
+		LogMsg "$?: Updated the /etc/default/grub with resume=$sw_uuid"
 
-	sed -i -e "s/GRUB_HIDDEN_TIMEOUT=*.*/GRUB_HIDDEN_TIMEOUT=30/g" /etc/default/grub.d/50-cloudimg-settings.cfg
-	LogMsg "$?: Updated GRUB_HIDDEN_TIMEOUT value with 30"
+		if [[ "$os_GENERATION" == "2" ]];then
+			grub_cfg="/boot/efi/EFI/redhat/grub.cfg"
+		else
+			grub_cfg="/boot/grub2/grub.cfg"
+		fi
+		grub2-mkconfig -o ${grub_cfg}
+		LogMsg "$?: Run grub2-mkconfig -o ${grub_cfg}"
 
-	sed -i -e "s/GRUB_TIMEOUT=*.*/GRUB_TIMEOUT=30/g" /etc/default/grub.d/50-cloudimg-settings.cfg
-	LogMsg "$?: Updated GRUB_TIMEOUT value with 30"
+		# Must run dracut -f, or it cannot recover image in boot after hibernation
+		dracut -f
+		LogMsg "$?: Run dracut -f"
+	else
+		sed -i -e "s/rootdelay=300/rootdelay=300 resume=$sw_uuid/g" /etc/default/grub.d/50-cloudimg-settings.cfg
+		LogMsg "$?: Updated the 50-cloudimg-settings.cfg with resume=$sw_uuid"
 
-	update-grub2
-	LogMsg "$?: Ran update-grub2"
+		sed -i -e "s/GRUB_HIDDEN_TIMEOUT=*.*/GRUB_HIDDEN_TIMEOUT=30/g" /etc/default/grub.d/50-cloudimg-settings.cfg
+		LogMsg "$?: Updated GRUB_HIDDEN_TIMEOUT value with 30"
+
+		sed -i -e "s/GRUB_TIMEOUT=*.*/GRUB_TIMEOUT=30/g" /etc/default/grub.d/50-cloudimg-settings.cfg
+		LogMsg "$?: Updated GRUB_TIMEOUT value with 30"
+
+		update-grub2
+		LogMsg "$?: Ran update-grub2"
+	fi
 
 	LogMsg "Setting hibernate command to test.sh"
-	echo 'echo disk > /sys/power/state' > ~/test.sh
-	chmod 766 ~/test.sh
+	echo 'echo disk > /sys/power/state' > test.sh
+	chmod 766 test.sh
 
-	echo "setup_completed=0" >> ~/constants.sh
+	echo "setup_completed=0" >> constants.sh
 	LogMsg "Main function completed"
 }
 
 # main body
 Main
-cp ~/TestExecution.log ~/Setup-TestExecution.log
-cp ~/TestExecutionError.log ~/Setup-TestExecutionError.log
+cp TestExecution.log Setup-TestExecution.log
+cp TestExecutionError.log Setup-TestExecutionError.log
 SetTestStateCompleted
 exit 0

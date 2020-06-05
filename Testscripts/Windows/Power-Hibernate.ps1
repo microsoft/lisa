@@ -132,13 +132,22 @@ function Main {
 		}
 
 		# Hibernate the VM
-		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "sudo ~/test.sh" -ignoreLinuxExitCode:$true | Out-Null
-		Write-LogInfo "Sent hibernate command to the VM"
-		Start-Sleep -s 120
+		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./test.sh" -runAsSudo -RunInBackground -ignoreLinuxExitCode:$true | Out-Null
+		Write-LogInfo "Sent hibernate command to the VM and continue checking its status in every 15 seconds until 2 minutes timeout "
 
 		# Verify the VM status
 		# Can not find if VM hibernation completion or not as soon as it disconnects the network. Assume it is in timeout.
-		$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
+		$timeout = New-Timespan -Minutes 10
+		$sw = [diagnostics.stopwatch]::StartNew()
+		while ($sw.elapsed -lt $timeout){
+			Wait-Time -seconds 15
+			$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
+			if ($vmStatus.Statuses[1].DisplayStatus -eq "VM stopped") {
+				break
+			} else {
+				Write-LogInfo "VM status is not stopped. Wating for 15s..."
+			}
+		}
 		if ($vmStatus.Statuses[1].DisplayStatus -eq "VM stopped") {
 			Write-LogInfo "$($vmStatus.Statuses[1].DisplayStatus): Verified successfully VM status is stopped after hibernation command sent"
 		} else {
@@ -156,24 +165,19 @@ function Main {
 		while ($sw.elapsed -lt $timeout){
 			$vmCount = $AllVMData.Count
 			Wait-Time -seconds 15
-			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "date"
-			if ($state -eq "TestCompleted") {
-				$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "dmesg | grep -i 'hibernation exit'"
-				if ($kernelCompileCompleted -ne "hibernation exit") {
-					Write-LogErr "VM $($VMData.RoleName) resumed successfully but could not determine hibernation completion"
-				} else {
-					Write-LogInfo "VM $($VMData.RoleName) resumed successfully"
-					$vmCount--
-				}
-				break
-			} else {
+			$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "dmesg | grep -i 'hibernation exit'"
+			if ($kernelCompileCompleted -ne "") {
 				Write-LogInfo "VM is still resuming!"
+			} else {
+				Write-LogInfo "VM $($VMData.RoleName) resumed successfully"
+				$vmCount--
+				break
 			}
 		}
 		if ($vmCount -le 0){
 			Write-LogInfo "VM resume completed"
 		} else {
-			Throw "VM resume did not finish"
+			Throw "VM resume did not finish in 15 minutes"
 		}
 
 		#Verify the VM status after power on event
