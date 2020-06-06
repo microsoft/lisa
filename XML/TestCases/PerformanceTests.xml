@@ -752,10 +752,11 @@
         <testName>PERF-STORAGE-HIBERNATE</testName>
         <testScript>PERF-STORAGE-FIO-HB.ps1</testScript>
         <setupType>OneVMhb</setupType>
+        <OverrideVMSize>Standard_L64s_v2</OverrideVMSize>
         <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SetupHbKernel.sh</files>
         <TestParameters>
-            <param>hb_url=Hb_CustomKernelURL</param>
-            <param>hb_branch=Hb_CustomKernelBranch</param>
+            <param>hb_url=HB_CUSTOM_KERNEL_URL</param>
+            <param>hb_branch=HB_CUSTOM_KERNEL_BRANCH</param>
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Performance</Category>
