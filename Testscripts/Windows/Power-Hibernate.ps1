@@ -185,14 +185,14 @@ function Main {
 			throw "Can not identify VM status after resuming"
 		}
 
-		# Verify the kernel panic or call trace
-		$calltrace_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg | grep -i 'call trace'" -ignoreLinuxExitCode:$true
+		# Verify the kernel panic, call trace or fatal error
+		$calltrace_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg | grep -iE '(call trace|fatal error)'" -ignoreLinuxExitCode:$true
 
 		if ($calltrace_filter -ne "") {
-			Write-LogErr "Found Call Trace in dmesg"
-			throw "Call trace in dmesg"
+			Write-LogErr "Found Call Trace or Fatal error in dmesg"
+			throw "Call trace or Fatal error in dmesg"
 		} else {
-			Write-LogInfo "Not found Call Trace in dmesg"
+			Write-LogInfo "Not found Call Trace and Fatal error in dmesg"
 		}
 
 		# Check the system log if it shows Power Management log
