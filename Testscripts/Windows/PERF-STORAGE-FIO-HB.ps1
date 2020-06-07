@@ -139,11 +139,23 @@ function Main {
         }
 
         # Run the first fio testing
-
-
-        # Hibernate the VM
-        Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "sudo ~/test.sh" -ignoreLinuxExitCode:$true | Out-Null
-        Write-LogInfo "Sent hibernate command to the VM"
+        # After the first fio command, it sends out hibernate command.
+        # and then the second fio test is running.
+        $fioOverHibernateCommand = @"
+date > timestamp.output
+fio --size=10G --name=beforehb --direct=1 --ioengine=libaio --filename=fiodata --overwrite=1 --readwrite=readwrite --bs=1M --runtime=1 --iodepth=128 --numjobs=32 --runtime=300 --output-format=json --output=1.json
+sleep 1
+rm -f fiodata
+echo disk > /sys/power/state
+sleep 1
+fio --size=10G --name=afterhb --direct=1 --ioengine=libaio --filename=fiodata --overwrite=1 --readwrite=readwrite --bs=1M --runtime=1 --iodepth=128 --numjobs=32 --runtime=300 --output-format=json --output=1.json
+sleep 1
+rm -f fiodata
+date >> timestamp.output
+"@
+        Set-Content "$LogDir\fiotest.sh" $fioOverHibernateCommand
+        Copy-RemoteFiles -uploadTo $receiverVMData.PublicIP -port $receiverVMData.SSHPort -files "$LogDir\fiotest.sh" -username $user -password $password -upload -runAsSudo
+        $testJob = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user -password $password -command "bash ./fiotest.sh" -RunInBackground -runAsSudo
         Start-Sleep -s 120
 
         # Verify the VM status
@@ -206,8 +218,7 @@ function Main {
         }
 
         # Check the system log if it shows Power Management log
-
-        "hibernation entry", "hibernation exit" | ForEach-Object  {
+        "hibernation entry", "hibernation exit" | ForEach-Object {
             $pm_log_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg | grep -i '$_'" -ignoreLinuxExitCode:$true
             Write-LogInfo "Searching the keyword: $_"
             if ($pm_log_filter -eq "") {
@@ -219,17 +230,9 @@ function Main {
             }
         }
 
-        # Run the second fio testing
+        # verify fio test results.
 
 
-        # Run the third fio testing
-
-        # Hibernate the VM
-
-        # Resume back the VM
-
-
-        # verify fio test is still running.
 
         # Verify kernel panic or call trace
         $calltrace_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg | grep -i 'call trace'" -ignoreLinuxExitCode:$true
@@ -242,6 +245,7 @@ function Main {
         }
 
         $testResult = $resultPass
+        Copy-RemoteFiles -downloadFrom $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user -password $password -download -downloadTo $LogDir -files "*.json, *.log" -runAsSudo
     } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
