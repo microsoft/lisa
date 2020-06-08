@@ -27,6 +27,10 @@ function Main {
     param($AllVMData, $TestParams)
     $currentTestResult = Create-TestResultObject
     try {
+        $maxResumeWaitTime = 8
+        $maxWakeupTime = 15
+        $maxKernelCompileTime = 60
+        $azurSyncTime = 30
         $testResult = $resultFail
         Write-LogDbg "Prepare swap space for VM $($AllVMData.RoleName) in RG $($AllVMData.ResourceGroupName)."
         # Prepare the swap space in the target VM
@@ -55,15 +59,15 @@ function Main {
         $dataDisk1 = New-AzDisk -DiskName $dataDiskName -Disk $diskConfig -ResourceGroupName $rgName
 
         $vm = Get-AzVM -Name $vmName -ResourceGroupName $rgName
-        Start-Sleep -s 30
+        Start-Sleep -s $azurSyncTime
         $vm = Add-AzVMDataDisk -VM $vm -Name $dataDiskName -CreateOption Attach -ManagedDiskId $dataDisk1.Id -Lun 1
-        Start-Sleep -s 30
+        Start-Sleep -s $azurSyncTime
 
         $ret_val = Update-AzVM -VM $vm -ResourceGroupName $rgName
         Write-LogInfo "Updated the VM with a new data disk"
-        Write-LogInfo "Waiting for 30 seconds for configuration sync"
+        Write-LogInfo "Waiting for $azurSyncTime seconds for configuration sync"
         # Wait for disk sync with Azure host
-        Start-Sleep -s 30
+        Start-Sleep -s $azurSyncTime
 
         # Verify the new data disk addition
         if ($ret_val.IsSuccessStatusCode) {
@@ -85,7 +89,7 @@ function Main {
         Write-LogInfo "Executed SetupHbKernel script inside VM"
 
         # Wait for kernel compilation completion. 60 min timeout
-        $timeout = New-Timespan -Minutes 60
+        $timeout = New-Timespan -Minutes $maxKernelCompileTime
         $sw = [diagnostics.stopwatch]::StartNew()
         while ($sw.elapsed -lt $timeout){
             $vmCount = $AllVMData.Count
@@ -154,17 +158,28 @@ rm -f fiodata
 date >> timestamp.output
 "@
         Set-Content "$LogDir\fiotest.sh" $fioOverHibernateCommand
+        # Upload test commands for fio and hibernation
         Copy-RemoteFiles -uploadTo $receiverVMData.PublicIP -port $receiverVMData.SSHPort -files "$LogDir\fiotest.sh" -username $user -password $password -upload -runAsSudo
         $testJob = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user -password $password -command "bash ./fiotest.sh" -RunInBackground -runAsSudo
-        Start-Sleep -s 120
+        Write-LogDbg "$testJob: Executed fio tests and following hibernation in the system. Waiting for $maxResumeWaitTime minutes until VM stopped"
+
+        $timeout = New-Timespan -Minutes $maxResumeWaitTime
+        $sw = [diagnostics.stopwatch]::StartNew()
+        while ($sw.elapsed -lt $timeout){
+            Write-LogInfo (Get-Date)
+            Wait-Time -seconds $azurSyncTime
+            if ($vmStatus.Statuses[1].DisplayStatus -eq "VM stopped") {
+                break
+            }
+        }
 
         # Verify the VM status
         # Can not find if VM hibernation completion or not as soon as it disconnects the network. Assume it is in timeout.
         $vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
         if ($vmStatus.Statuses[1].DisplayStatus -eq "VM stopped") {
-            Write-LogInfo "$($vmStatus.Statuses[1].DisplayStatus): Verified successfully VM status is stopped after hibernation command sent"
+            Write-LogInfo "$($vmStatus.Statuses[1].DisplayStatus): Verified successfully VM status is stopped after the first fio & hibernation command sent"
         } else {
-            Write-LogErr "$($vmStatus.Statuses[1].DisplayStatus): Could not find the VM status after hibernation command sent"
+            Write-LogErr "$($vmStatus.Statuses[1].DisplayStatus): Could not find the VM status after fio & hibernation command sent"
             throw "Can not identify VM status after hibernate"
         }
 
@@ -172,21 +187,15 @@ date >> timestamp.output
         Start-AzVM -Name $vmName -ResourceGroupName $rgName -NoWait | Out-Null
         Write-LogInfo "Waked up the VM $vmName in Resource Group $rgName and continue checking its status in every 15 seconds until 15 minutes timeout "
 
-        # Wait for VM resume for 15 min-timeout
-        $timeout = New-Timespan -Minutes 15
+        # Wait for VM resume for $maxWakeupTime min-timeout
+        $timeout = New-Timespan -Minutes $maxWakeupTime
         $sw = [diagnostics.stopwatch]::StartNew()
         while ($sw.elapsed -lt $timeout){
             $vmCount = $AllVMData.Count
             Wait-Time -seconds 15
             $state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "date"
-            if ($state -eq "TestCompleted") {
-                $kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "dmesg | grep -i 'hibernation exit'"
-                if ($kernelCompileCompleted -ne "hibernation exit") {
-                    Write-LogErr "VM $($VMData.RoleName) resumed successfully but could not determine hibernation completion"
-                } else {
-                    Write-LogInfo "VM $($VMData.RoleName) resumed successfully"
-                    $vmCount--
-                }
+            if ($state -eq 0) {
+                Write-LogInfo "VM $($VMData.RoleName) resumed successfully"
                 break
             } else {
                 Write-LogInfo "VM is still resuming!"
@@ -195,7 +204,7 @@ date >> timestamp.output
         if ($vmCount -le 0){
             Write-LogInfo "VM resume completed"
         } else {
-            Throw "VM resume did not finish"
+            throw "VM resume did not finish"
         }
 
         #Verify the VM status after power on event
@@ -231,8 +240,6 @@ date >> timestamp.output
         }
 
         # verify fio test results.
-
-
 
         # Verify kernel panic or call trace
         $calltrace_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg | grep -i 'call trace'" -ignoreLinuxExitCode:$true
