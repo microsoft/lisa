@@ -161,7 +161,7 @@ date >> timestamp.output
         # Upload test commands for fio and hibernation
         Copy-RemoteFiles -uploadTo $receiverVMData.PublicIP -port $receiverVMData.SSHPort -files "$LogDir\fiotest.sh" -username $user -password $password -upload -runAsSudo
         $testJob = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user -password $password -command "bash ./fiotest.sh" -RunInBackground -runAsSudo
-        Write-LogDbg "$testJob: Executed fio tests and following hibernation in the system. Waiting for $maxResumeWaitTime minutes until VM stopped"
+        Write-LogInfo "Executed fio tests and following hibernation in the system. Waiting for $maxResumeWaitTime minutes until VM stopped"
 
         $timeout = New-Timespan -Minutes $maxResumeWaitTime
         $sw = [diagnostics.stopwatch]::StartNew()
