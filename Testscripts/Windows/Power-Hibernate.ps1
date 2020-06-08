@@ -207,7 +207,6 @@ function Main {
 		}
 
 		# Check the system log if it shows Power Management log
-
 		"hibernation entry", "hibernation exit" | ForEach-Object  {
 			$pm_log_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg | grep -i '$_'" -ignoreLinuxExitCode:$true
 			Write-LogInfo "Searching the keyword: $_"
@@ -219,7 +218,6 @@ function Main {
 				Write-LogInfo $pm_log_filter
 			}
 		}
-
 		$testResult = $resultPass
 	} catch {
 		$ErrorMessage =  $_.Exception.Message
