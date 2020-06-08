@@ -143,12 +143,12 @@ function Main {
         # and then the second fio test is running.
         $fioOverHibernateCommand = @"
 date > timestamp.output
-fio --size=10G --name=beforehb --direct=1 --ioengine=libaio --filename=fiodata --overwrite=1 --readwrite=readwrite --bs=1M --runtime=1 --iodepth=128 --numjobs=32 --runtime=300 --output-format=json --output=1.json
+fio --size=10G --name=beforehb --direct=1 --ioengine=libaio --filename=fiodata --overwrite=1 --readwrite=readwrite --bs=1M --runtime=1 --iodepth=128 --numjobs=32 --runtime=300 --output-format=json+ --output=beforehb.json
 sleep 1
 rm -f fiodata
 echo disk > /sys/power/state
 sleep 1
-fio --size=10G --name=afterhb --direct=1 --ioengine=libaio --filename=fiodata --overwrite=1 --readwrite=readwrite --bs=1M --runtime=1 --iodepth=128 --numjobs=32 --runtime=300 --output-format=json --output=1.json
+fio --size=10G --name=afterhb --direct=1 --ioengine=libaio --filename=fiodata --overwrite=1 --readwrite=readwrite --bs=1M --runtime=1 --iodepth=128 --numjobs=32 --runtime=300 --output-format=json+ --output=afterhb.json
 sleep 1
 rm -f fiodata
 date >> timestamp.output
