@@ -49,6 +49,7 @@ function Main() {
 	LogMsg "$?: Displayed the contents in /etc/fstab"
 
 	# fio installation for storage test case.
+	update_repos
 	install_package fio
 
 	if [[ $hb_url != "" ]]; then
