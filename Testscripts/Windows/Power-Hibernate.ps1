@@ -174,7 +174,6 @@ function Main {
 
 		if ($vmCount -le 0){
 			Write-LogInfo "VM resume completed"
-			break
 		} else {
 			# Either VM hang or VM resume needs longer time.
 			throw "VM resume did not finish, the latest state was $state"
