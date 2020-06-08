@@ -109,4 +109,25 @@
         <Tags>xdp,network,hv_netvsc,sriov</Tags>
         <Priority>1</Priority>
     </test>
+    <test>
+        <testName>VERIFY-XDP-MTU</testName>
+        <testScript>VERIFY-XDP-MTU.ps1</testScript>
+        <setupType>TwoVM2NIC</setupType>
+        <OverrideVMSize>Standard_DS4_v2</OverrideVMSize>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh,.\Testscripts\Linux\XDP-MTUVerify.sh</files>
+        <TestParameters>
+            <param>mtuSizes=(1500 2000 3506)</param>
+            <param>defaultMtu=1500</param>
+            <param>maxMtuSize=3506</param>
+            <param>repo_url=XDPDUMP_REPO_URL</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>XDP</Area>
+        <Tags>xdp,network,hv_netvsc,sriov</Tags>
+        <Priority>3</Priority>
+    </test>
 </TestCases>
