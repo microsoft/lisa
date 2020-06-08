@@ -22,19 +22,13 @@ if [ ! -f $sshd_configFilePath ]; then
     echo "File not found! Create one."
     touch $sshd_configFilePath
 fi
-
-authorized_keys_content=$(cat /root/.ssh/authorized_keys)
-rm -rf /root/.ssh/id_rsa*
-rm -rf authorized_keys
-if [ -f /root/.ssh/authorized_keys ] && [[ "${authorized_keys_content}" != "" ]]; then
-    if [[ "${authorized_keys_content}" =~ "Please login as the user" ]]; then
-        echo "${authorized_keys_content}" > authorized_keys
-        content="$(cat authorized_keys)"
-        IFS=' ' read -r -a array <<< "$content"
-        echo "${array[@]: -2:2}" > authorized_keys
-        cp authorized_keys /root/.ssh/authorized_keys
-        sed -i 's/.*PermitEmptyPasswords.*/PermitEmptyPasswords yes/g' $sshd_configFilePath
+rm -rf /root/.ssh/
+if [[ $usesshkey == "True" ]]; then
+    if [ -f /home/$user/.ssh/authorized_keys ]; then
+        mkdir -p /root/.ssh
+        cp /home/$user/.ssh/authorized_keys /root/.ssh/authorized_keys
     fi
+    sed -i 's/.*PermitEmptyPasswords.*/PermitEmptyPasswords yes/g' $sshd_configFilePath
 else
     password=$password
     usermod --password $(echo "$password" | openssl passwd -1 -stdin) root

@@ -111,7 +111,7 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
             <!--VMs Credential-->
             <linuxTestUsername>Enter Linux VM user name</linuxTestUsername>
             <linuxTestPassword>Enter Linux VM user password with high complexity</linuxTestPassword>
-            <sshPrivateKey>ppk format of ssh private key</sshPrivateKey>
+            <sshPrivateKey>Downloadable URL or local file - ssh ppk private key</sshPrivateKey>
             <!--Database info for upload results-->
             <DatabaseServer></DatabaseServer>
             <DatabaseUser></DatabaseUser>

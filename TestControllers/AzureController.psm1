@@ -90,7 +90,7 @@ Class AzureController : TestController
 			$azureConfig.Subscription.SubscriptionID = $secrets.SubscriptionID
 			$azureConfig.TestCredentials.LinuxUsername = $secrets.linuxTestUsername
 			$azureConfig.TestCredentials.LinuxPassword = if ($secrets.linuxTestPassword) { $secrets.linuxTestPassword } else { "" }
-			$azureConfig.TestCredentials.sshPrivateKey = if (Get-SSHKey -XMLSecretFile $XMLSecretFile) { Get-SSHKey -XMLSecretFile $XMLSecretFile } else { "" }
+			$azureConfig.TestCredentials.sshPrivateKey = Get-SSHKey -XMLSecretFile $XMLSecretFile
 			$azureConfig.ResultsDatabase.server = if ($secrets.DatabaseServer) { $secrets.DatabaseServer } else { "" }
 			$azureConfig.ResultsDatabase.user = if ($secrets.DatabaseUser) { $secrets.DatabaseUser } else { "" }
 			$azureConfig.ResultsDatabase.password = if ($secrets.DatabasePassword) { $secrets.DatabasePassword } else { "" }

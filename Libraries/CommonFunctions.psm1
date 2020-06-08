@@ -404,7 +404,7 @@ Function Provision-VMsForLisa($allVMData, $installPackagesOnRoleNames)
 		$Null = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -command "chmod +x /home/$user/*.sh" -runAsSudo
 		$rootPasswordSet = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort `
 			-username $user -password $password -runAsSudo `
-			-command ("/home/{0}/enable_root.sh -password {1}" -f @($user, $password.Replace('"','')))
+			-command ("/home/{0}/enable_root.sh -password {1} -usesshkey {2} -user {3}" -f @($user, $password.Replace('"',''), !([string]::IsNullOrEmpty($global:sshPrivateKey)), $user))
 		Write-LogInfo $rootPasswordSet
 		if (( $rootPasswordSet -imatch "ROOT_PASSWRD_SET" ) -and ( $rootPasswordSet -imatch "SSHD_RESTART_SUCCESSFUL" ))
 		{
@@ -1941,36 +1941,6 @@ function Restore-LatestVMSnapshot($vmName, $hvServer)
     return $True
 }
 
-function Enable-RootUser {
-    <#
-    .DESCRIPTION
-    Sets a new password for the root user for all VMs in deployment.
-    #>
-
-    param(
-        $VMData,
-        [string]$RootPassword,
-        [string]$Username,
-        [string]$Password
-    )
-
-    $deploymentResult = $True
-
-    foreach ($VM in $VMData) {
-        Copy-RemoteFiles -upload -uploadTo $VM.PublicIP -Port $VM.SSHPort `
-             -files ".\Testscripts\Linux\utils.sh,.\Testscripts\Linux\enable_root.sh" -Username $Username -password $Password
-        $cmdResult = Run-LinuxCmd -Command "bash enable_root.sh -password ${RootPassword}" -runAsSudo `
-             -Username $Username -password $Password -ip $VM.PublicIP -Port $VM.SSHPort
-        if (-not $cmdResult) {
-            Write-LogInfo "Fail to enable root user for VM: $($VM.RoleName)"
-        }
-        $deploymentResult = $deploymentResult -and $cmdResult
-    }
-
-    return $deploymentResult
-}
-
-
 function Compare-KernelVersion {
     param (
         [string] $KernelVersion1,
@@ -2410,7 +2380,7 @@ Function Get-ExpectedDevicesCount {
 }
 
 # Extract values from file between two lines which has specified start pattern
-Function ExtractValueFromFile {
+Function ExtractSSHPublicKeyFromPPKFile {
     param (
         [String] $filePath,
         [String] $startLinePattern="Public-Lines",
