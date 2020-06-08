@@ -165,21 +165,28 @@ function Main {
 		while ($sw.elapsed -lt $timeout){
 			$vmCount = $AllVMData.Count
 			Wait-Time -seconds 15
-			$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "dmesg | grep -i 'hibernation exit'"
-			if ($kernelCompileCompleted -ne "") {
-				Write-LogInfo "VM is still resuming!"
-			} else {
-				Write-LogInfo "VM $($VMData.RoleName) resumed successfully"
-				$vmCount--
+			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "date"
+			if ($state -eq 0) {
+				$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "dmesg | grep -i 'hibernation exit'"
+				# This verification might be revised in future. Checking with dmesg is risky.
+				if ($kernelCompileCompleted -ne "hibernation exit") {
+					Write-LogErr "VM $($VMData.RoleName) resumed successfully but could not determine hibernation completion"
+				} else {
+					Write-LogInfo "VM $($VMData.RoleName) resumed successfully"
+					$vmCount--
+				}
 				break
+			} else {
+				Write-LogInfo "VM is still resuming!"
 			}
 		}
+
 		if ($vmCount -le 0){
 			Write-LogInfo "VM resume completed"
 		} else {
-			Throw "VM resume did not finish in 15 minutes"
+			# Either VM hang or VM resume needs longer time.
+			throw "VM resume did not finish, the latest state was $state"
 		}
-
 		#Verify the VM status after power on event
 		$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
 		if ($vmStatus.Statuses[1].DisplayStatus -eq "VM running") {
@@ -200,7 +207,6 @@ function Main {
 		}
 
 		# Check the system log if it shows Power Management log
-
 		"hibernation entry", "hibernation exit" | ForEach-Object  {
 			$pm_log_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg | grep -i '$_'" -ignoreLinuxExitCode:$true
 			Write-LogInfo "Searching the keyword: $_"
@@ -212,7 +218,6 @@ function Main {
 				Write-LogInfo $pm_log_filter
 			}
 		}
-
 		$testResult = $resultPass
 	} catch {
 		$ErrorMessage =  $_.Exception.Message

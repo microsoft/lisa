@@ -84,7 +84,7 @@ function Main() {
 				req_pkg="ncurses-devel libelf-dev"
 				;;
 			ubuntu*)
-				req_pkg="build-essential fakeroot libncurses5-dev libssl-dev ccache"
+				req_pkg="build-essential fakeroot libncurses5-dev libssl-dev ccache bc"
 				;;
 			*)
 				LogErr "$DISTRO does not support hibernation"
