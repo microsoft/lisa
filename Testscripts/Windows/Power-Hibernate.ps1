@@ -159,6 +159,7 @@ function Main {
 			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "date"
 			if ($state -eq 0) {
 				$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "dmesg | grep -i 'hibernation exit'"
+				# This verification might be revised in future. Checking with dmesg is risky.
 				if ($kernelCompileCompleted -ne "hibernation exit") {
 					Write-LogErr "VM $($VMData.RoleName) resumed successfully but could not determine hibernation completion"
 				} else {
@@ -169,14 +170,15 @@ function Main {
 			} else {
 				Write-LogInfo "VM is still resuming!"
 			}
-			if ($vmCount -le 0){
-				Write-LogInfo "VM resume completed"
-				break
-			} else {
-				throw "VM resume did not finish"
-			}
 		}
 
+		if ($vmCount -le 0){
+			Write-LogInfo "VM resume completed"
+			break
+		} else {
+			# Either VM hang or VM resume needs longer time.
+			throw "VM resume did not finish, the latest state was $state"
+		}
 		#Verify the VM status after power on event
 		$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
 		if ($vmStatus.Statuses[1].DisplayStatus -eq "VM running") {
