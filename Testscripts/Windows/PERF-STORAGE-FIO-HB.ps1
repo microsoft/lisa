@@ -94,13 +94,13 @@ function Main {
         while ($sw.elapsed -lt $timeout){
             $vmCount = $AllVMData.Count
             Wait-Time -seconds 15
-            $state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat ~/state.txt"
+            $state = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password "cat ~/state.txt"
             if ($state -eq "TestCompleted") {
-                $kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat ~/constants.sh | grep setup_completed=0"
+                $kernelCompileCompleted = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password "cat ~/constants.sh | grep setup_completed=0"
                 if ($kernelCompileCompleted -ne "setup_completed=0") {
-                    Write-LogErr "SetupHbKernel.sh run finished on $($VMData.RoleName) but setup was not successful!"
+                    Write-LogErr "SetupHbKernel.sh run finished on $($AllVMData.RoleName) but setup was not successful!"
                 } else {
-                    Write-LogInfo "SetupHbKernel.sh finished on $($VMData.RoleName)"
+                    Write-LogInfo "SetupHbKernel.sh finished on $($AllVMData.RoleName)"
                     $vmCount--
                 }
                 break
@@ -159,8 +159,8 @@ date >> timestamp.output
 "@
         Set-Content "$LogDir\fiotest.sh" $fioOverHibernateCommand
         # Upload test commands for fio and hibernation
-        Copy-RemoteFiles -uploadTo $receiverVMData.PublicIP -port $receiverVMData.SSHPort -files "$LogDir\fiotest.sh" -username $user -password $password -upload -runAsSudo
-        $testJob = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user -password $password -command "bash ./fiotest.sh" -RunInBackground -runAsSudo
+        Copy-RemoteFiles -uploadTo $AllVMData.PublicIP -port $AllVMData.SSHPort -files "$LogDir\fiotest.sh" -username $user -password $password -upload -runAsSudo
+        $testJob = Run-LinuxCmd -ip -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash ./fiotest.sh" -RunInBackground -runAsSudo
         Write-LogInfo "Executed fio tests and following hibernation in the system. Waiting for $maxResumeWaitTime minutes until VM stopped"
 
         $timeout = New-Timespan -Minutes $maxResumeWaitTime
@@ -193,9 +193,9 @@ date >> timestamp.output
         while ($sw.elapsed -lt $timeout){
             $vmCount = $AllVMData.Count
             Wait-Time -seconds 15
-            $state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "date"
+            $state = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password "date"
             if ($state -eq 0) {
-                Write-LogInfo "VM $($VMData.RoleName) resumed successfully"
+                Write-LogInfo "VM $($AllVMData.RoleName) resumed successfully"
                 break
             } else {
                 Write-LogInfo "VM is still resuming!"
@@ -252,7 +252,7 @@ date >> timestamp.output
         }
 
         $testResult = $resultPass
-        Copy-RemoteFiles -downloadFrom $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user -password $password -download -downloadTo $LogDir -files "*.json, *.log" -runAsSudo
+        Copy-RemoteFiles -downloadFrom $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -download -downloadTo $LogDir -files "*.json, *.log" -runAsSudo
     } catch {
         $ErrorMessage =  $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
