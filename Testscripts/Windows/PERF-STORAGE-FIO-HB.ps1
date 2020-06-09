@@ -5,6 +5,8 @@
 	Perform a simple VM hibernation in Azure
 	This feature might be available in kernel 5.7 or later. By the time,
 	customized kernel will be built.
+	# Hibernation will be supported in the general purpose VM with max 16G vRAM
+	# and the GPU VMs with max 112G vRAM.
 
 .Description
 	1. Prepare swap space for hibernation
@@ -115,7 +117,7 @@ SetTestStateCompleted
 		while ($sw.elapsed -lt $timeout){
 			$vmCount = $AllVMData.Count
 			Wait-Time -seconds 15
-			$state = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password "cat ~/state.txt"
+			$state = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password "cat /home/$username/state.txt"
 			if ($state -eq "TestCompleted") {
 				$kernelCompileCompleted = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password "cat ~/constants.sh | grep setup_completed=0"
 				if ($kernelCompileCompleted -ne "setup_completed=0") {
@@ -168,9 +170,10 @@ SetTestStateCompleted
 		$timeout = New-Timespan -Minutes $maxFIORunWaitMin
 		$sw = [diagnostics.stopwatch]::StartNew()
 		$state = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash ./fio1Command.sh" -RunInBackground -runAsSudo
+		Wait-Time -seconds 5
 		while ($sw.elapsed -lt $timeout){
 			Wait-Time -seconds 15
-			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat ~/state.txt"
+			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat /home/$username/state.txt"
 			if ($state -eq "TestCompleted") {
 				Write-LogInfo "Completed fio command execution in the VM $($AllVMData.RoleName) successfully"
 				break
@@ -271,9 +274,10 @@ SetTestStateCompleted
 		$timeout = New-Timespan -Minutes $maxFIORunWaitMin
 		$sw = [diagnostics.stopwatch]::StartNew()
 		$state = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash ./fio2Command.sh" -RunInBackground -runAsSudo
+		Wait-Time -seconds 5
 		while ($sw.elapsed -lt $timeout){
 			Wait-Time -seconds 15
-			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat ~/state.txt"
+			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat /home/$username/state.txt"
 			if ($state -eq "TestCompleted") {
 				Write-LogInfo "Completed fio command execution in the VM $($AllVMData.RoleName) successfully"
 				break
