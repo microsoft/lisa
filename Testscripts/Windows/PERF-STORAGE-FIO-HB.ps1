@@ -153,7 +153,7 @@ function Main {
 		$sw = [diagnostics.stopwatch]::StartNew()
 		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "fio --size=10G --name=beforehb --direct=1 --ioengine=libaio `
 			--filename=fiodata --overwrite=1 --readwrite=readwrite --bs=1M --runtime=1 --iodepth=128 --numjobs=32 --runtime=300 --output-format=json+ `
-			--output=beforehb.json;echo fio1=completed >> constants.sh" -runAsSudo - -RunInBackground
+			--output=beforehb.json;echo fio1=completed >> constants.sh" -runAsSudo -RunInBackground
 		while ($sw.elapsed -lt $timeout){
 			Wait-Time -seconds 15
 			$fioState = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password "cat constants.sh | grep fio1=completed" -runAsSudo
@@ -258,7 +258,7 @@ function Main {
 		$sw = [diagnostics.stopwatch]::StartNew()
 		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "fio --size=10G --name=afterhb --direct=1 --ioengine=libaio `
 			--filename=fiodata --overwrite=1 --readwrite=readwrite --bs=1M --runtime=1 --iodepth=128 --numjobs=32 --runtime=300 --output-format=json+ `
-			--output=afterhb.json;echo fio2=completed >> constants.sh" -runAsSudo - -RunInBackground
+			--output=afterhb.json;echo fio2=completed >> constants.sh" -runAsSudo -RunInBackground
 		while ($sw.elapsed -lt $timeout){
 			Wait-Time -seconds 15
 			$fioState = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password "cat constants.sh | grep fio2=completed" -runAsSudo
