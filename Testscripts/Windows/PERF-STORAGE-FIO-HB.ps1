@@ -81,9 +81,25 @@ function Main {
 		}
 		#endregion
 
+		$fio1Command = @"
+SetTestStateRunning
+fio --size=10G --name=beforehb --direct=1 --ioengine=libaio --filename=fiodata --overwrite=1 --readwrite=readwrite --bs=1M --runtime=1 --iodepth=128 --numjobs=32 --runtime=300 --output-format=json+ --output=beforehb.json
+rm -f fiodata
+SetTestStateCompleted
+"@
+		Set-Content "$LogDir\fio1Command.sh" $fio1Command
+
+		$fio2Command = @"
+SetTestStateRunning
+fio --size=10G --name=afterhb --direct=1 --ioengine=libaio --filename=fiodata --overwrite=1 --readwrite=readwrite --bs=1M --runtime=1 --iodepth=128 --numjobs=32 --runtime=300 --output-format=json+ --output=afterhb.json
+rm -f fiodata
+SetTestStateCompleted
+"@
+		Set-Content "$LogDir\fio2Command.sh" $fio2Command
+
 		#region Upload files to VM
 		foreach ($VMData in $AllVMData) {
-			Copy-RemoteFiles -uploadTo $VMData.PublicIP -port $VMData.SSHPort -files "$constantsFile,$($CurrentTestData.files)" -username $user -password $password -upload
+			Copy-RemoteFiles -uploadTo $VMData.PublicIP -port $VMData.SSHPort -files "$constantsFile,$($CurrentTestData.files),$LogDir\fio*.sh" -username $user -password $password -upload
 			Write-LogInfo "Copied the script files to the VM"
 		}
 		#endregion
@@ -151,27 +167,23 @@ function Main {
 		Write-LogInfo "Running fio-1 command"
 		$timeout = New-Timespan -Minutes $maxFIORunWaitMin
 		$sw = [diagnostics.stopwatch]::StartNew()
-		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "fio --size=10G --name=beforehb --direct=1 --ioengine=libaio `
-			--filename=fiodata --overwrite=1 --readwrite=readwrite --bs=1M --runtime=1 --iodepth=128 --numjobs=32 --runtime=300 --output-format=json+ `
-			--output=beforehb.json;echo fio1=completed >> constants.sh" -runAsSudo -RunInBackground
+		$state = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash ./fio1Command.sh" -RunInBackground -runAsSudo
 		while ($sw.elapsed -lt $timeout){
 			Wait-Time -seconds 15
-			$fioState = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password "cat constants.sh | grep fio1=completed" -runAsSudo
-			if ($fioState -eq "fio1=completed") {
+			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat ~/state.txt"
+			if ($state -eq "TestCompleted") {
 				Write-LogInfo "Completed fio command execution in the VM $($AllVMData.RoleName) successfully"
 				break
 			} else {
 				Write-LogInfo "fio command is still running!"
 			}
 		}
-		if ($fioState -ne "fio1=completed") {
+		if ($state -ne "TestCompleted") {
 			throw "fio-1 command is still running after $maxFIORunWaitMin minutes"
 		}
 
-		Write-LogInfo "Removed the old fio runtime artifact"
-		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password "rm -f fiodata" -runAsSudo
-
 		# Hibernate the VM
+		Write-LogInfo "Hibernating ..."
 		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./test.sh" -runAsSudo -RunInBackground -ignoreLinuxExitCode:$true | Out-Null
 		Write-LogInfo "Sent hibernate command to the VM and continue checking its status in every 15 seconds until $maxVMResumeWaitMin minutes timeout."
 
@@ -234,6 +246,7 @@ function Main {
 
 		if ($calltrace_filter -ne "") {
 			Write-LogErr "Found Call Trace in dmesg"
+			# The throw statement is commented out because this is linux-next, so there is high chance to get call trace from other issue. For now, only print the error.
 			# throw "Call trace in dmesg"
 		} else {
 			Write-LogInfo "Not found Call Trace in dmesg"
@@ -256,25 +269,20 @@ function Main {
 		Write-LogInfo "Running fio-2 command"
 		$timeout = New-Timespan -Minutes $maxFIORunWaitMin
 		$sw = [diagnostics.stopwatch]::StartNew()
-		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "fio --size=10G --name=afterhb --direct=1 --ioengine=libaio `
-			--filename=fiodata --overwrite=1 --readwrite=readwrite --bs=1M --runtime=1 --iodepth=128 --numjobs=32 --runtime=300 --output-format=json+ `
-			--output=afterhb.json;echo fio2=completed >> constants.sh" -runAsSudo -RunInBackground
+		$state = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash ./fio2Command.sh" -RunInBackground -runAsSudo
 		while ($sw.elapsed -lt $timeout){
 			Wait-Time -seconds 15
-			$fioState = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password "cat constants.sh | grep fio2=completed" -runAsSudo
-			if ($fioState -eq "fio2=completed") {
+			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat ~/state.txt"
+			if ($state -eq "TestCompleted") {
 				Write-LogInfo "Completed fio command execution in the VM $($AllVMData.RoleName) successfully"
 				break
 			} else {
 				Write-LogInfo "fio command is still running!"
 			}
 		}
-		if ($fioState -ne "fio2=completed") {
+		if ($state -ne "TestCompleted") {
 			throw "fio-2 command is still running after $maxFIORunWaitMin minutes"
 		}
-
-		Write-LogInfo "Removed the old fio runtime artifact"
-		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password "rm -f fiodata" -runAsSudo
 
 		$testResult = $resultPass
 
