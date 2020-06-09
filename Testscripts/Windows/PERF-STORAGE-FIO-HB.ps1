@@ -184,7 +184,7 @@ SetTestStateCompleted
 				Write-LogInfo "Completed fio command execution in the VM $($AllVMData.RoleName) successfully"
 				break
 			} else {
-				Write-LogInfo "fio command is still running!"
+				Write-LogInfo "$state: fio command is still running!"
 			}
 		}
 		if ($state -ne "TestCompleted") {
@@ -206,7 +206,7 @@ SetTestStateCompleted
 			if ($vmStatus.Statuses[1].DisplayStatus -eq "VM stopped") {
 				break
 			} else {
-				Write-LogInfo "VM status is not stopped. Wating for 1 minute..."
+				Write-LogInfo "$vmStatus.Statuses[1].DisplayStatus: VM status is not stopped. Wating for 1 minute..."
 			}
 		}
 		if ($vmStatus.Statuses[1].DisplayStatus -eq "VM stopped") {
@@ -233,7 +233,7 @@ SetTestStateCompleted
 				$vmCount--
 				break
 			} else {
-				Write-LogInfo "VM is still resuming! Wait for 1 minute ..."
+				Write-LogInfo "$state: VM is still resuming! Wait for 1 minute ..."
 			}
 		}
 		if ($vmCount -le 0){
@@ -288,7 +288,7 @@ SetTestStateCompleted
 				Write-LogInfo "Completed fio command execution in the VM $($AllVMData.RoleName) successfully"
 				break
 			} else {
-				Write-LogInfo "fio command is still running!"
+				Write-LogInfo "$state: fio command is still running!"
 			}
 		}
 		if ($state -ne "TestCompleted") {
