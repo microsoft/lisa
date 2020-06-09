@@ -29,7 +29,6 @@ function Main {
 	try {
 		$maxVMResumeWaitMin = 8
 		$maxFIORunWaitMin = 7
-		$FIORunSecond = 300
 		$maxVMWakeupMin = 15
 		$maxKernelCompileMin = 60
 		$azureSyncSecond = 30
@@ -154,7 +153,7 @@ function Main {
 		$sw = [diagnostics.stopwatch]::StartNew()
 		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "echo fio1=running >> constants.sh" -runAsSudo
 		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "fio --size=10G --name=beforehb --direct=1 --ioengine=libaio `
-			--filename=fiodata --overwrite=1 --readwrite=readwrite --bs=1M --runtime=1 --iodepth=128 --numjobs=32 --runtime=$FIORunSecond --output-format=json+ `
+			--filename=fiodata --overwrite=1 --readwrite=readwrite --bs=1M --runtime=1 --iodepth=128 --numjobs=32 --runtime=300 --output-format=json+ `
 			--output=beforehb.json;sed -i -e 's/fio1=running/fio=completed/g' constants.sh" -runAsSudo - -RunInBackground
 		while ($sw.elapsed -lt $timeout){
 			Wait-Time -seconds 15
@@ -236,7 +235,7 @@ function Main {
 
 		if ($calltrace_filter -ne "") {
 			Write-LogErr "Found Call Trace in dmesg"
-			throw "Call trace in dmesg"
+			# throw "Call trace in dmesg"
 		} else {
 			Write-LogInfo "Not found Call Trace in dmesg"
 		}
@@ -260,7 +259,7 @@ function Main {
 		$sw = [diagnostics.stopwatch]::StartNew()
 		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "echo fio2=running >> constants.sh" -runAsSudo
 		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "fio --size=10G --name=afterhb --direct=1 --ioengine=libaio `
-			--filename=fiodata --overwrite=1 --readwrite=readwrite --bs=1M --runtime=1 --iodepth=128 --numjobs=32 --runtime=$FIORunSecond --output-format=json+ `
+			--filename=fiodata --overwrite=1 --readwrite=readwrite --bs=1M --runtime=1 --iodepth=128 --numjobs=32 --runtime=300 --output-format=json+ `
 			--output=afterhb.json;sed -i -e 's/fio2=running/fio=completed/g' constants.sh" -runAsSudo - -RunInBackground
 		while ($sw.elapsed -lt $timeout){
 			Wait-Time -seconds 15
