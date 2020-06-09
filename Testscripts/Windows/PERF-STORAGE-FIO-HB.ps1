@@ -27,9 +27,9 @@ function Main {
 	param($AllVMData, $TestParams)
 	$currentTestResult = Create-TestResultObject
 	try {
-		$maxVMResumeWaitMin = 8
+		$maxVMHibernateWaitMin = 30
 		$maxFIORunWaitMin = 7
-		$maxVMWakeupMin = 15
+		$maxVMWakeupMin = 40
 		$maxKernelCompileMin = 60
 		$azureSyncSecond = 30
 
@@ -185,19 +185,19 @@ SetTestStateCompleted
 		# Hibernate the VM
 		Write-LogInfo "Hibernating ..."
 		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./test.sh" -runAsSudo -RunInBackground -ignoreLinuxExitCode:$true | Out-Null
-		Write-LogInfo "Sent hibernate command to the VM and continue checking its status in every 15 seconds until $maxVMResumeWaitMin minutes timeout."
+		Write-LogInfo "Sent hibernate command to the VM and continue checking its status in every 1 minute until $maxVMHibernateWaitMin minutes timeout."
 
 		# Verify the VM status
 		# Can not find if VM hibernation completion or not as soon as it disconnects the network. Assume it is in timeout.
-		$timeout = New-Timespan -Minutes $maxVMResumeWaitMin
+		$timeout = New-Timespan -Minutes $maxVMHibernateWaitMin
 		$sw = [diagnostics.stopwatch]::StartNew()
 		while ($sw.elapsed -lt $timeout){
-			Wait-Time -seconds 15
+			Wait-Time -seconds 60
 			$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
 			if ($vmStatus.Statuses[1].DisplayStatus -eq "VM stopped") {
 				break
 			} else {
-				Write-LogInfo "VM status is not stopped. Wating for 15s..."
+				Write-LogInfo "VM status is not stopped. Wating for 1 minute..."
 			}
 		}
 		if ($vmStatus.Statuses[1].DisplayStatus -eq "VM stopped") {
@@ -208,28 +208,29 @@ SetTestStateCompleted
 		}
 
 		# Resume the VM
+		Write-LogInfo "Hibernation completed and resuming back the VM ..."
 		Start-AzVM -Name $vmName -ResourceGroupName $rgName -NoWait | Out-Null
-		Write-LogInfo "Waked up the VM $vmName in Resource Group $rgName and continue checking its status in every 15 seconds until $maxVMWakeupMin minutes timeout "
+		Write-LogInfo "Waked up the VM $vmName in Resource Group $rgName and continue checking its status in every 1 minute until $maxVMWakeupMin minutes timeout "
 
-		# Wait for VM resume for $maxWakeupTime min-timeout
+		# Wait for VM resume for $maxVMWakeupMin timeout
 		$timeout = New-Timespan -Minutes $maxVMWakeupMin
 		$sw = [diagnostics.stopwatch]::StartNew()
 		while ($sw.elapsed -lt $timeout){
 			$vmCount = $AllVMData.Count
-			Wait-Time -seconds 15
+			Wait-Time -seconds 60
 			$state = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password "date"
 			if ($state -eq 0) {
 				Write-LogInfo "VM $($AllVMData.RoleName) resumed successfully."
 				$vmCount--
 				break
 			} else {
-				Write-LogInfo "VM is still resuming!"
+				Write-LogInfo "VM is still resuming! Wait for 1 minute ..."
 			}
 		}
 		if ($vmCount -le 0){
 			Write-LogInfo "VM resume completed."
 		} else {
-			throw "VM resume did not finish after maxVMWakeupMin minutes."
+			throw "VM resume did not finish after $maxVMWakeupMin minutes."
 		}
 
 		#Verify the VM status after power on event
