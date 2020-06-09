@@ -227,8 +227,8 @@ SetTestStateCompleted
 		while ($sw.elapsed -lt $timeout){
 			$vmCount = $AllVMData.Count
 			Wait-Time -seconds 60
-			$state = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password "date"
-			if ($state -eq 0) {
+			$state = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password "cat /home/$username/state.txt"
+			if ($state -eq "TestCompleted") {
 				Write-LogInfo "VM $($AllVMData.RoleName) resumed successfully."
 				$vmCount--
 				break
