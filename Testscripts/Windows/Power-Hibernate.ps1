@@ -25,6 +25,7 @@ function Main {
 	param($AllVMData, $TestParams)
 	$currentTestResult = Create-TestResultObject
 	try {
+		$maxKernelCompileMin = 90
 		$testResult = $resultFail
 		Write-LogDbg "Prepare swap space for VM $($AllVMData.RoleName) in RG $($AllVMData.ResourceGroupName)."
 		# Prepare the swap space in the target VM
@@ -82,12 +83,12 @@ function Main {
 		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./SetupHbKernel.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
 		Write-LogInfo "Executed SetupHbKernel script inside VM"
 
-		# Wait for kernel compilation completion. 60 min timeout
-		$timeout = New-Timespan -Minutes 60
+		# Wait for kernel compilation completion. 90 min timeout
+		$timeout = New-Timespan -Minutes $maxKernelCompileMin
 		$sw = [diagnostics.stopwatch]::StartNew()
 		while ($sw.elapsed -lt $timeout){
 			$vmCount = $AllVMData.Count
-			Wait-Time -seconds 15
+			Wait-Time -seconds 30
 			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat ~/state.txt"
 			if ($state -eq "TestCompleted") {
 				$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat ~/constants.sh | grep setup_completed=0"

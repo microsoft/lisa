@@ -32,7 +32,7 @@ function Main {
 		$maxVMHibernateWaitMin = 30
 		$maxFIORunWaitMin = 7
 		$maxVMWakeupMin = 40
-		$maxKernelCompileMin = 60
+		$maxKernelCompileMin = 90
 		$azureSyncSecond = 30
 
 		$testResult = $resultFail
@@ -84,17 +84,23 @@ function Main {
 		#endregion
 
 		$fio1Command = @"
+source utils.sh
 SetTestStateRunning
-fio --size=10G --name=beforehb --direct=1 --ioengine=libaio --filename=fiodata --overwrite=1 --readwrite=readwrite --bs=1M --runtime=1 --iodepth=128 --numjobs=32 --runtime=300 --output-format=json+ --output=beforehb.json
+fio --size=1G --name=beforehb --direct=1 --ioengine=libaio --filename=fiodata --overwrite=1 --readwrite=readwrite --bs=1M --runtime=1 --iodepth=128 --numjobs=32 --runtime=300 --output-format=json+ --output=beforehb.json
 rm -f fiodata
+sync
+echo 3 > /proc/sys/vm/drop_caches
 SetTestStateCompleted
 "@
 		Set-Content "$LogDir\fio1Command.sh" $fio1Command
 
 		$fio2Command = @"
+source utils.sh
 SetTestStateRunning
-fio --size=10G --name=afterhb --direct=1 --ioengine=libaio --filename=fiodata --overwrite=1 --readwrite=readwrite --bs=1M --runtime=1 --iodepth=128 --numjobs=32 --runtime=300 --output-format=json+ --output=afterhb.json
+fio --size=1G --name=afterhb --direct=1 --ioengine=libaio --filename=fiodata --overwrite=1 --readwrite=readwrite --bs=1M --runtime=1 --iodepth=128 --numjobs=32 --runtime=300 --output-format=json+ --output=afterhb.json
 rm -f fiodata
+sync
+echo 3 > /proc/sys/vm/drop_caches
 SetTestStateCompleted
 "@
 		Set-Content "$LogDir\fio2Command.sh" $fio2Command
@@ -111,12 +117,12 @@ SetTestStateCompleted
 		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./SetupHbKernel.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
 		Write-LogInfo "Executed SetupHbKernel script inside VM"
 
-		# Wait for kernel compilation completion. 60 min timeout
+		# Wait for kernel compilation completion. 90 min timeout
 		$timeout = New-Timespan -Minutes $maxKernelCompileMin
 		$sw = [diagnostics.stopwatch]::StartNew()
 		while ($sw.elapsed -lt $timeout){
 			$vmCount = $AllVMData.Count
-			Wait-Time -seconds 15
+			Wait-Time -seconds 30
 			$state = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password "cat /home/$username/state.txt"
 			if ($state -eq "TestCompleted") {
 				$kernelCompileCompleted = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password "cat ~/constants.sh | grep setup_completed=0"
