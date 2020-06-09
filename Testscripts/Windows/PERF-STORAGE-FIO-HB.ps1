@@ -127,7 +127,7 @@ SetTestStateCompleted
 			if ($state -eq "TestCompleted") {
 				$kernelCompileCompleted = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password "cat ~/constants.sh | grep setup_completed=0"
 				if ($kernelCompileCompleted -ne "setup_completed=0") {
-					Write-LogErr "SetupHbKernel.sh run finished on $($AllVMData.RoleName) but setup was not successful!"
+					Write-LogErr "SetupHbKernel.sh finished on $($AllVMData.RoleName) but setup was not successful!"
 				} else {
 					Write-LogInfo "SetupHbKernel.sh finished on $($AllVMData.RoleName)"
 					$vmCount--
@@ -184,7 +184,7 @@ SetTestStateCompleted
 				Write-LogInfo "Completed fio command execution in the VM $($AllVMData.RoleName) successfully"
 				break
 			} else {
-				Write-LogInfo "$state: fio command is still running!"
+				Write-LogInfo "$($state): fio command is still running!"
 			}
 		}
 		if ($state -ne "TestCompleted") {
@@ -233,7 +233,7 @@ SetTestStateCompleted
 				$vmCount--
 				break
 			} else {
-				Write-LogInfo "$state: VM is still resuming! Wait for 1 minute ..."
+				Write-LogInfo "$($state): VM is still resuming! Wait for 1 minute ..."
 			}
 		}
 		if ($vmCount -le 0){
@@ -288,7 +288,7 @@ SetTestStateCompleted
 				Write-LogInfo "Completed fio command execution in the VM $($AllVMData.RoleName) successfully"
 				break
 			} else {
-				Write-LogInfo "$state: fio command is still running!"
+				Write-LogInfo "$($state): fio command is still running!"
 			}
 		}
 		if ($state -ne "TestCompleted") {
