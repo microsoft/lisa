@@ -207,15 +207,15 @@ echo disk > /sys/power/state
 			throw "Can not identify VM status after resuming"
 		}
 
-		# Verify the kernel panic or call trace
-		$calltrace_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg | grep -i 'call trace'" -ignoreLinuxExitCode:$true
+		# Verify the kernel panic, call trace or fatal error
+		$calltrace_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg | grep -iE '(call trace|fatal error)'" -ignoreLinuxExitCode:$true
 
 		if ($calltrace_filter -ne "") {
-			Write-LogErr "Found Call Trace in dmesg"
+			Write-LogErr "Found Call Trace or Fatal error in dmesg"
 			# The throw statement is commented out because this is linux-next, so there is high chance to get call trace from other issue. For now, only print the error.
 			# throw "Call trace in dmesg"
 		} else {
-			Write-LogInfo "Not found Call Trace in dmesg"
+			Write-LogInfo "Not found Call Trace and Fatal error in dmesg"
 		}
 
 		# Check the system log if it shows Power Management log
