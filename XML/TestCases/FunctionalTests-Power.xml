@@ -3,6 +3,7 @@
 		<testName>POWER-HIBERNATE</testName>
 		<testScript>Power-Hibernate.ps1</testScript>
 		<setupType>OneVMhb</setupType>
+		<OverrideVMSize>Standard_D8s_v3</OverrideVMSize>
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SetupHbKernel.sh</files>
 		<TestParameters>
 			<param>hb_url=HB_CUSTOM_KERNEL_URL</param>
@@ -15,6 +16,22 @@
 		<Priority>3</Priority>
 	</test>
 	<test>
+		<testName>POWER-STORAGE-WORKLOAD-HIBERNATE</testName>
+		<testScript>STORAGE-FIO-HB.ps1</testScript>
+		<setupType>OneVMhb</setupType>
+		<OverrideVMSize>Standard_D8s_v3</OverrideVMSize>
+		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SetupHbKernel.sh</files>
+		<TestParameters>
+			<param>hb_url=HB_CUSTOM_KERNEL_URL</param>
+			<param>hb_branch=HB_CUSTOM_KERNEL_BRANCH</param>
+		</TestParameters>
+		<Platform>Azure</Platform>
+		<Category>Functional</Category>
+		<Area>POWER</Area>
+		<Tags>power,storage</Tags>
+		<Priority>3</Priority>
+	</test>
+	<test>
 		<testName>POWER-HIBERNATE-SRIOV</testName>
 		<testScript>Power-Hibernate.ps1</testScript>
 		<setupType>OneVMhb</setupType>
@@ -23,8 +40,8 @@
 		</AdditionalHWConfig>
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SetupHbKernel.sh</files>
 		<TestParameters>
-			<param>hb_url=Hb_CustomKernelURL</param>
-			<param>hb_branch=Hb_CustomKernelBranch</param>
+			<param>hb_url=HB_CUSTOM_KERNEL_URL</param>
+			<param>hb_branch=HB_CUSTOM_KERNEL_BRANCH</param>
 		</TestParameters>
 		<Platform>Azure</Platform>
 		<Category>Functional</Category>

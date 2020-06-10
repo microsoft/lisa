@@ -67,6 +67,10 @@ function Main() {
 	ret=$(cat /etc/fstab)
 	LogMsg "$?: Displayed the contents in /etc/fstab"
 
+	# fio installation for storage test case.
+	update_repos
+	install_package fio
+
 	if [[ $hb_url != "" ]]; then
 		LogMsg "Starting Hibernation required packages and kernel build in the VM"
 		update_repos
@@ -155,10 +159,6 @@ function Main() {
 		update-grub2
 		LogMsg "$?: Ran update-grub2"
 	fi
-
-	LogMsg "Setting hibernate command to test.sh"
-	echo 'echo disk > /sys/power/state' > test.sh
-	chmod 766 test.sh
 
 	echo "setup_completed=0" >> constants.sh
 	LogMsg "Main function completed"
