@@ -339,11 +339,21 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 	if ($runAsSudo) {
 		$plainTextPassword = $password.Replace('"','');
 		if ( $detectedDistro -eq "COREOS" ) {
-			$linuxCommand = "`"export PATH=/usr/share/oem/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/oem/bin:/opt/bin && echo $plainTextPassword | sudo -S env `"PATH=`$PATH`" bash -c `'bash runtest.sh ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
-			$logCommand = "`"export PATH=/usr/share/oem/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/oem/bin:/opt/bin && echo $plainTextPassword | sudo -S env `"PATH=`$PATH`" $MaskedCommand`""
+			if ($global:SSHPrivateKey) {
+				$linuxCommand = "`"export PATH=/usr/share/oem/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/oem/bin:/opt/bin && sudo -S env `"PATH=`$PATH`" bash -c `'bash runtest.sh ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
+				$logCommand = "`"export PATH=/usr/share/oem/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/oem/bin:/opt/bin && sudo -S env `"PATH=`$PATH`" $MaskedCommand`""
+			} else {
+				$linuxCommand = "`"export PATH=/usr/share/oem/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/oem/bin:/opt/bin && echo $plainTextPassword | sudo -S env `"PATH=`$PATH`" bash -c `'bash runtest.sh ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
+				$logCommand = "`"export PATH=/usr/share/oem/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/oem/bin:/opt/bin && echo $plainTextPassword | sudo -S env `"PATH=`$PATH`" $MaskedCommand`""
+			}
 		} else {
-			$linuxCommand = "`"echo $plainTextPassword | sudo -S bash -c `'bash runtest.sh ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
-			$logCommand = "`"echo $plainTextPassword | sudo -S $MaskedCommand`""
+			if ($global:SSHPrivateKey) {
+				$linuxCommand = "`"sudo -S bash -c `'bash runtest.sh ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
+				$logCommand = "`"sudo -S $MaskedCommand`""
+			} else {
+				$linuxCommand = "`"echo $plainTextPassword | sudo -S bash -c `'bash runtest.sh ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
+				$logCommand = "`"echo $plainTextPassword | sudo -S $MaskedCommand`""
+			}
 		}
 	} else {
 		if ( $detectedDistro -eq "COREOS" ) {
@@ -355,7 +365,7 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 		}
 	}
 	if ($global:sshPrivateKey) {
-		Write-LogDbg ".\Tools\plink.exe -ssh -t -i $sshKey -P $port $username@$ip $logCommand"
+		Write-LogDbg ".\Tools\plink.exe -ssh -t -i ppkfile -P $port $username@$ip $logCommand"
 	} else {
 		Write-LogDbg ".\Tools\plink.exe -ssh -t -pw $password -P $port $username@$ip $logCommand"
 	}

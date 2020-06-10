@@ -17,7 +17,6 @@ done
 
 sshd_configFilePath="/etc/ssh/sshd_config"
 sshdServiceName="sshd"
-
 if [ ! -f $sshd_configFilePath ]; then
     echo "File not found! Create one."
     touch $sshd_configFilePath
