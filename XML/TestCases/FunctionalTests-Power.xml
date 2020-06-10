@@ -15,7 +15,7 @@
 		<Tags>power</Tags>
 		<Priority>3</Priority>
 	</test>
-		<test>
+	<test>
 		<testName>POWER-STORAGE-WORKLOAD-HIBERNATE</testName>
 		<testScript>STORAGE-FIO-HB.ps1</testScript>
 		<setupType>OneVMhb</setupType>
@@ -30,6 +30,7 @@
 		<Area>POWER</Area>
 		<Tags>power,storage</Tags>
 		<Priority>3</Priority>
+	</test>
 	<test>
 		<testName>POWER-HIBERNATE-SRIOV</testName>
 		<testScript>Power-Hibernate.ps1</testScript>
