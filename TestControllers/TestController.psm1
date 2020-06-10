@@ -541,7 +541,7 @@ Class TestController
 	}
 
 	# According to Test Parameters $this.TestIterations and $this.OverrideVMSize,
-	# Get an array of expanded possible Tests @({TestName=xxx-<vmSize>-<iteration>;TestVmSize=yyy}, { }, ...)
+	# Get an array of expanded possible Tests @({TestName=xxx-<vmSize>-<iteration>;TestVmSize=<vmSize>}, { }, ...)
 	# If $this.TestIteration and $this.OverrideVMSize are both default value, return just one element in the result array.
 	[array] GetArrayOfExpandedTestConfigsFromTestParameters($testName, $testOverrideVmSize) {
 		$arrayOfTestConfigs = @()

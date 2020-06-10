@@ -39,7 +39,16 @@ Class AzureController : TestController
 
 	[void] ParseAndValidateParameters([Hashtable]$ParamTable) {
 		$this.ARMImageName = $ParamTable["ARMImageName"]
-		$this.StorageAccount = $ParamTable["StorageAccount"]
+
+		if ($ParamTable["StorageAccount"] -imatch "^NewStorage_") {
+			Throw "LISAv2 only supports specified storage account by '-StorageAccount' or candidate parameters values as below. `n
+			Please use '-StorageAccount ""Auto_Complete_RG=XXXResourceGroupName""' or `n
+			'-StorageAccount ""Existing_Storage_Standard""' or `n
+			'-StorageAccount ""Existing_Storage_Premium""'"
+		}
+		else {
+			$this.StorageAccount = $ParamTable["StorageAccount"]
+		}
 
 		$parameterErrors = ([TestController]$this).ParseAndValidateParameters($ParamTable)
 
@@ -77,6 +86,18 @@ Class AzureController : TestController
 	}
 
 	[void] PrepareTestEnvironment($XMLSecretFile) {
+		if ($XMLSecretFile -and (Test-Path $XMLSecretFile)) {
+			# Connect AzureAccount and Set Azure Context
+			Add-AzureAccountFromSecretsFile -CustomSecretsFilePath $XMLSecretFile
+			# Place prepare storage accounts before invoke Base.PrepareTestEnvironment($XMLSecretFile)
+			if ($this.StorageAccount -imatch "^Auto_Complete_RG=.+") {
+				$storageAccountRG = $this.StorageAccount.Trim('= ').Split('=').Trim()[1]
+				# Prepare storage accounts (create new storage accounts if needed), and update AzureSecretFile with new set of StorageAccounts
+				# and update content of .XML\RegionAndStorageAccounts.xml
+				PrepareAutoCompleteStorageAccounts -storageAccountsRGName $storageAccountRG -XMLSecretFile $XMLSecretFile
+			}
+		}
+		# Invoke Base.PrepareTestEnvironment($XMLSecretFile)
 		([TestController]$this).PrepareTestEnvironment($XMLSecretFile)
 		$RegionAndStorageMapFile = Resolve-Path ".\XML\RegionAndStorageAccounts.xml"
 		if (Test-Path $RegionAndStorageMapFile) {
@@ -85,6 +106,7 @@ Class AzureController : TestController
 			throw "File $RegionAndStorageMapFile does not exist"
 		}
 		$azureConfig = $this.GlobalConfig.Global.Azure
+		# $this.XMLSecrets will be assigned after Base.PrepareTestEnvironment($XMLSecretFile)
 		if ($this.XMLSecrets) {
 			$secrets = $this.XMLSecrets.secrets
 			$azureConfig.Subscription.SubscriptionID = $secrets.SubscriptionID
@@ -95,7 +117,6 @@ Class AzureController : TestController
 			$azureConfig.ResultsDatabase.user = if ($secrets.DatabaseUser) { $secrets.DatabaseUser } else { "" }
 			$azureConfig.ResultsDatabase.password = if ($secrets.DatabasePassword) { $secrets.DatabasePassword } else { "" }
 			$azureConfig.ResultsDatabase.dbname = if ($secrets.DatabaseName) { $secrets.DatabaseName } else { "" }
-			Add-AzureAccountFromSecretsFile -CustomSecretsFilePath $XMLSecretFile
 		}
 		$this.VmUsername = $azureConfig.TestCredentials.LinuxUsername
 		$this.VmPassword = $azureConfig.TestCredentials.LinuxPassword
@@ -109,26 +130,16 @@ Class AzureController : TestController
 			$this.VmPassword = ""
 		}
 		# global variables: StorageAccount, TestLocation
-		if ( $this.StorageAccount -imatch "ExistingStorage_Standard" )
-		{
+		if ( $this.StorageAccount -imatch "^ExistingStorage_Standard" ) {
 			$azureConfig.Subscription.ARMStorageAccount = $RegionAndStorageMap.AllRegions.$($this.TestLocation).StandardStorage
 			Write-LogInfo "Selecting existing standard storage account in $($this.TestLocation) - $($azureConfig.Subscription.ARMStorageAccount)"
 		}
-		elseif ( $this.StorageAccount -imatch "ExistingStorage_Premium" )
-		{
+		elseif ( $this.StorageAccount -imatch "^ExistingStorage_Premium" ) {
 			$azureConfig.Subscription.ARMStorageAccount = $RegionAndStorageMap.AllRegions.$($this.TestLocation).PremiumStorage
 			Write-LogInfo "Selecting existing premium storage account in $($this.TestLocation) - $($azureConfig.Subscription.ARMStorageAccount)"
 		}
-		elseif ( $this.StorageAccount -imatch "NewStorage_Standard" )
-		{
-			$azureConfig.Subscription.ARMStorageAccount = "NewStorage_Standard_LRS"
-		}
-		elseif ( $this.StorageAccount -imatch "NewStorage_Premium" )
-		{
-			$azureConfig.Subscription.ARMStorageAccount = "NewStorage_Premium_LRS"
-		}
-		elseif ($this.StorageAccount)
-		{
+		elseif ($this.StorageAccount -and ($this.StorageAccount -inotmatch "^Auto_Complete_RG=.+")) {
+			 # $this.StorageAccount should be some exact name of Storage Account
 			$sc = Get-AzStorageAccount | Where-Object {$_.StorageAccountName -eq $this.StorageAccount}
 			if (!$sc) {
 				Throw "Provided storage account $($this.StorageAccount) does not exist, abort testing."
@@ -139,26 +150,23 @@ Class AzureController : TestController
 			$azureConfig.Subscription.ARMStorageAccount = $this.StorageAccount.Trim()
 			Write-LogInfo "Selecting custom storage account : $($azureConfig.Subscription.ARMStorageAccount) as per your test region."
 		}
-		else
-		{
+		else { # else means $this.StorageAccount is empty, or $this.StorageAccount is like 'Auto_Complete_RG=Xxx'
 			$azureConfig.Subscription.ARMStorageAccount = $RegionAndStorageMap.AllRegions.$($this.TestLocation).StandardStorage
 			Write-LogInfo "Auto selecting storage account : $($azureConfig.Subscription.ARMStorageAccount) as per your test region."
 		}
 
-		if( $this.ResultDBTable )
-		{
+		if ($this.ResultDBTable) {
 			$azureConfig.ResultsDatabase.dbtable = ($this.ResultDBTable).Trim()
 			Write-LogInfo "ResultDBTable : $($this.ResultDBTable) added to GlobalConfig.Global.HyperV.ResultsDatabase.dbtable"
 		}
-		if( $this.ResultDBTestTag )
-		{
+		if ($this.ResultDBTestTag) {
 			$azureConfig.ResultsDatabase.testTag = ($this.ResultDBTestTag).Trim()
 			Write-LogInfo "ResultDBTestTag: $($this.ResultDBTestTag) added to GlobalConfig.Global.HyperV.ResultsDatabase.testTag"
 		}
 
 		Write-LogInfo "------------------------------------------------------------------"
 
-		$SelectedSubscription = Select-AzSubscription -SubscriptionId $azureConfig.Subscription.SubscriptionID
+		$SelectedSubscription = Set-AzContext -SubscriptionId $azureConfig.Subscription.SubscriptionID
 		$subIDSplitted = ($SelectedSubscription.Subscription.SubscriptionId).Split("-")
 		Write-LogInfo "SubscriptionName       : $($SelectedSubscription.Subscription.Name)"
 		Write-LogInfo "SubscriptionId         : $($subIDSplitted[0])-xxxx-xxxx-xxxx-$($subIDSplitted[4])"
@@ -182,13 +190,16 @@ Class AzureController : TestController
 	[void] PrepareTestImage() {
 		#If Base OS VHD is present in another storage account, then copy to test storage account first.
 		if ($this.OsVHD) {
+			$ARMStorageAccount = $this.GlobalConfig.Global.Azure.Subscription.ARMStorageAccount
+			if ($ARMStorageAccount -imatch "^NewStorage_") {
+				Throw "LISAv2 only supports copying VHDs to existing storage account.`n
+				Please use <ARMStorageAccount>Auto_Complete_RG=XXXResourceGroupName<ARMStorageAccount> or `n
+				<ARMStorageAccount>Existing_Storage_Standard<ARMStorageAccount> `n
+				<ARMStorageAccount>Existing_Storage_Premium<ARMStorageAccount>"
+			}
 			$useSASURL = $false
 			if (($this.OsVHD -imatch 'sp=') -and ($this.OsVHD -imatch 'sig=')) {
 				$useSASURL = $true
-			}
-			$ARMStorageAccount = $this.GlobalConfig.Global.Azure.Subscription.ARMStorageAccount
-			if ($ARMStorageAccount -imatch "NewStorage_") {
-				Throw "LISAv2 only supports copying VHDs to existing storage account."
 			}
 
 			if (!$useSASURL -and ($this.OsVHD -inotmatch "/")) {

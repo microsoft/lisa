@@ -108,21 +108,14 @@ Function Validate-SubscriptionUsage($RGXMLData, $Location, $OverrideVMSize, $Sto
         #    LISAv2 Network Security Groups usage limit: 25
         $AllowedUsagePercentage = 100
 
-        $PremiumStorageVMFamilies = @("standardDSFamily",
-        "standardDSv2Family",
-        "standardDSv2PromoFamily",
-        "standardDSv3Family",
-        "standardFSFamily"
-        )
-
         #Get the region
         $currentStatus = Get-AzVMUsage -Location $Location
         $overFlowErrors = 0
-        $premiumVMs = 0
         $vmCounter = 0
         foreach ($VM in $RGXMLData.VirtualMachine) {
             $vmCounter += 1
             Write-LogInfo "Estimating VM #$vmCounter usage."
+            # this 'OverrideVMSize' is already one item from OverrideVMSize Array that already splitted by ','
             if ($OverrideVMSize) {
                 $testVMSize = $OverrideVMSize
             } else {
@@ -142,9 +135,6 @@ Function Validate-SubscriptionUsage($RGXMLData, $Location, $OverrideVMSize, $Sto
             } else {
                 Write-LogInfo "Requested VM size: $testVMSize is not yet registered to monitor. Usage simulation skipped."
             }
-            if ($PremiumStorageVMFamilies.Contains($DetectedVMFamily)){
-                $premiumVMs += 1
-            }
         }
     } catch {
         $line = $_.InvocationInfo.ScriptLineNumber
@@ -161,21 +151,6 @@ Function Validate-SubscriptionUsage($RGXMLData, $Location, $OverrideVMSize, $Sto
     $currentRGCount = (Get-AzResourceGroup).Count
     $overFlowErrors += Check-OverflowErrors -ResourceType "Resource Group" -CurrentValue $currentRGCount `
         -RequiredValue 1 -MaximumLimit $RGLimit -AllowedUsagePercentage $AllowedUsagePercentage
-    #endregion
-
-    #region Storage Accounts
-    $currentStorageStatus = Get-AzStorageUsage -Location $Location
-    if ( ($premiumVMs -gt 0 ) -and ($StorageAccount -imatch "NewStorage_")) {
-        $requiredStorageAccounts = 1
-    }
-    elseif ( ($premiumVMs -gt 0 ) -and !($StorageAccount -imatch "NewStorage_")) {
-        $requiredStorageAccounts = 1
-    }
-    elseif ( !($premiumVMs -gt 0 ) -and !($StorageAccount -imatch "NewStorage_")) {
-        $requiredStorageAccounts = 0
-    }
-    $overFlowErrors += Check-OverflowErrors -ResourceType "Storage Account" -CurrentValue $currentStorageStatus.CurrentValue `
-        -RequiredValue $requiredStorageAccounts -MaximumLimit $currentStorageStatus.Limit -AllowedUsagePercentage $AllowedUsagePercentage
     #endregion
 
     $GetAzureRmNetworkUsage = Get-AzNetworkUsage -Location $Location
@@ -213,57 +188,179 @@ Function Validate-SubscriptionUsage($RGXMLData, $Location, $OverrideVMSize, $Sto
     }
 }
 
+Function Get-StorageAccountFromRegion($Region, $StorageAccount)
+{
+	#region Select Storage Account Type
+	$RegionName = $Region.Replace(" ","").Replace('"',"").ToLower()
+	$regionStorageMapping = [xml](Get-Content .\XML\RegionAndStorageAccounts.xml)
+	if ($StorageAccount) {
+		if ($StorageAccount -imatch "^ExistingStorage_Standard") {
+			$StorageAccountName = $regionStorageMapping.AllRegions.$RegionName.StandardStorage
+		}
+		elseif ($StorageAccount -imatch "^ExistingStorage_Premium")
+		{
+			$StorageAccountName = $regionStorageMapping.AllRegions.$RegionName.PremiumStorage
+		}
+	}
+	else {
+		$StorageAccountName = $regionStorageMapping.AllRegions.$RegionName.StandardStorage
+	}
+	Write-LogInfo "Selected : $StorageAccountName"
+	return $StorageAccountName
+}
+
 Function Change-StorageAccountType($TestCaseData, [string]$Location, $GlobalConfig, $OsVHD) {
-    $storageAccount = $GlobalConfig.Global.Azure.Subscription.ARMStorageAccount
-    $changedSC = ""
-    $copyVHD = $false
-    if ($TestCaseData.AdditionalHWConfig.StorageAccountType -and $TestCaseData.AdditionalHWConfig.StorageAccountType.Contains("Premium")) {
-        # if SC is ExistingStorage_Standard, switch to ExistingStorage_Premium
-        if ($storageAccount -imatch "ExistingStorage_Standard") {
-            $changedSC = Get-StorageAccountFromRegion -Region $Location -StorageAccount "ExistingStorage_Premium"
-            # if it is OsVHD format, need copy VHD from standard to premium storage account
-            if ($OsVHD) {
-                $copyVHD = $true
-            }
-        # if SC is NewStorage_Standard, switch to NewStorage_Premium
-        } elseif ($storageAccount -imatch "NewStorage_Standard") {
-            $changedSC = "NewStorage_Premium_LRS"
-        } elseif (($storageAccount -imatch "NewStorage_Premium") -or ($storageAccount -imatch "ExistingStorage_Premium")) {
-            $changedSC = ""
-        } else {
-            $current_sc = Get-StorageAccountFromRegion -Region $Location -StorageAccount "ExistingStorage_Standard"
-            if ($current_sc -eq $storageAccount) {
-                $changedSC = Get-StorageAccountFromRegion -Region $Location -StorageAccount "ExistingStorage_Premium"
-                if ($OsVHD) {
-                    $copyVHD = $true
-                }
-            } else {
-                $storageAccountType = (Get-AzStorageAccount | Where-Object {$_.StorageAccountName -eq $storageAccount}).Sku.Tier.ToString()
-                if ($storageAccountType -inotmatch "premium") {
-                    Write-LogErr "Provided storage account is not premium type, this case $($TestCaseData.testName) need run under premium type of storage account."
-                    Throw "Case $($TestCaseData.testName) need run under premium type of storage account."
-                }
-            }
-        }
-    }
+	# From PrepareTestEnvironment(), $GlobalConfig.Global.Azure.Subscription.ARMStorageAccount has already been updated with expected Storage Account Name, either user specified, or existing storage account from RegionsAndStorageAccounts.xml
+	$currentStorageAccount = $GlobalConfig.Global.Azure.Subscription.ARMStorageAccount
+	$resultStorageAccount = $currentStorageAccount
+	if ($TestCaseData.AdditionalHWConfig.StorageAccountType -and $TestCaseData.AdditionalHWConfig.StorageAccountType.Contains("Premium")) {
+		$storageAccountType = (Get-AzStorageAccount | Where-Object {$_.StorageAccountName -eq $currentStorageAccount}).Sku.Tier.ToString()
+		if ($storageAccountType -inotmatch "premium") {
+			$existingStandardStorageAccount = Get-StorageAccountFromRegion -Region $Location -StorageAccount "ExistingStorage_Standard"
+			# if $currentStorageAccount from GlobalConfig is the existing standard storage accounts, then change to existing Premium storage
+			if ($existingStandardStorageAccount -eq $currentStorageAccount) {
+				$resultStorageAccount = Get-StorageAccountFromRegion -Region $Location -StorageAccount "ExistingStorage_Premium"
+				if ($OsVHD) {
+					$originalContainerFromOsVHD = $OsVHD.Split("/")[$OsVHD.Split("/").Count - 2]
+					$vhdName = $OsVHD.Split("?")[0].split('/')[-1]
+					Write-LogInfo "Copy VHD from $currentStorageAccount to $resultStorageAccount."
+					if(($OsVHD -imatch 'sp=') -and ($OsVHD -imatch 'sig=')) {
+						$copyStatus = Copy-VHDToAnotherStorageAccount -SasUrl $OsVHD -destinationStorageAccount $resultStorageAccount `
+							-destinationStorageContainer "vhds" -vhdName $vhdName
+					} else {
+						$copyStatus = Copy-VHDToAnotherStorageAccount -sourceStorageAccount $currentStorageAccount -sourceStorageContainer $originalContainerFromOsVHD `
+							-destinationStorageAccount $resultStorageAccount -destinationStorageContainer "vhds" -vhdName $vhdName
+					}
+					if (!$copyStatus) {
+						Throw "Failed to copy the VHD $currentStorageAccount to $resultStorageAccount."
+					}
+				}
+			}
+			else {
+				# if $currentStorageAccount's StorageType is Standard_LRS, but not from existing standard storage accounts, then throw exception with messages
+				Write-LogErr "Provided storage account is not premium type, this case $($TestCaseData.testName) need run under premium type of storage account."
+				Throw "Case $($TestCaseData.testName) need run under premium type of storage account."
+			}
+		}
+	}
+	return $resultStorageAccount
+}
 
-    if ($copyVHD) {
-        $sourceContainer =  $osVHD.Split("/")[$osVHD.Split("/").Count - 2]
-        $vhdName = $osVHD.Split("?")[0].split('/')[-1]
-        Write-LogInfo "Copy VHD from $storageAccount to $changedSC."
-        if(($OsVHD -imatch 'sp=') -and ($OsVHD -imatch 'sig=')) {
-            $copyStatus = Copy-VHDToAnotherStorageAccount -SasUrl $osVHD -destinationStorageAccount $changedSC `
-                -destinationStorageContainer "vhds" -vhdName $vhdName
-        } else {
-            $copyStatus = Copy-VHDToAnotherStorageAccount -sourceStorageAccount $storageAccount -sourceStorageContainer $sourceContainer `
-                -destinationStorageAccount $changedSC -destinationStorageContainer "vhds" -vhdName $vhdName
-        }
-        if (!$copyStatus) {
-            Throw "Failed to copy the VHD $storageAccount to $changedSC."
-        }
-    }
+Function PrepareAutoCompleteStorageAccounts ($storageAccountsRGName, $XMLSecretFile) {
+	# Create StorageAccounts needed for Run-LISAv2
+	$GetRandomCharacters = {
+		param($Length)
+		if ($Length) {
+			$characters = 'abcdefghiklmnoprstuvwxyz1234567890'
+			$random = 1..$Length | ForEach-Object { Get-Random -Maximum $characters.Length }
+			$private:ofs=""
+			return [String]$characters[$random]
+		}
+		else {
+			Write-LogErr "unavailable length for GetRandomCharacters"
+		}
+	}
+	$CreateStorageAccounts = {
+		param($StorageAccountsRGName, $StorageSKUName, $StorageAccountName, $Region)
+		if ($StorageAccountsRGName -and $StorageSKUName -and $StorageAccountName -and $Region) {
+			$outOfNewStorageAccount = New-AzStorageAccount -ResourceGroupName $StorageAccountsRGName -Name $StorageAccountName -SkuName $StorageSKUName  -Location $Region
+			if ($outOfNewStorageAccount.ProvisioningState -eq "Succeeded") {
+				Write-LogInfo "Creating '$StorageSKUName' storage account '$StorageAccountName' with Region '$Region': Succeeded"
+				return $outOfNewStorageAccount
+			}
+			else {
+				Write-LogErr "Creating '$StorageSKUName' storage account '$StorageAccountName' with Region '$Region': Failed"
+			}
+		}
+	}
+	$UpdateSecretFileWithStorageAccounts = {
+		param (
+			[object] $RSAMapping,
+			[string] $AzureSecretFile
+		)
+		if ($RSAMapping -and (Test-Path $AzureSecretFile)) {
+			$AzureSecretXml = [xml](Get-Content $AzureSecretFile)
+			$outDatedNodes = $AzureSecretXml.SelectNodes('/secrets/RegionAndStorageAccounts')
+			if ($outDatedNodes) {
+				$outDatedNodes | ForEach-Object { $AzureSecretXml.secrets.RemoveChild($_)  | Out-Null }
+			}
+			$rasANode = $AzureSecretXml.CreateElement("RegionAndStorageAccounts")
+			foreach ($regionKey in $RSAMapping.Keys) {
+				$regionNode = $AzureSecretXml.CreateElement($regionKey)
+				foreach($skuKey in $RSAMapping[$regionKey].Keys) {
+					$skuTypeNode = $AzureSecretXml.CreateElement($skuKey)
+					$skuTypeNode.InnerText = $RSAMapping[$regionKey][$skuKey].StorageAccountName
+					$regionNode.AppendChild($skuTypeNode)
+				}
+				$rasANode.AppendChild($regionNode)
+			}
+			$AzureSecretXml.secrets.AppendChild($rasANode)
+			$AzureSecretXml.Save($AzureSecretFile)
+		}
+	}
+	$azLocations = Get-AzLocation
+	$regionsSupportSA = ((Get-AzResourceProvider -ProviderNamespace "Microsoft.Storage").ResourceTypes | `
+	Where-Object ResourceTypeName -eq "storageaccounts").Locations
+	$allAvailableRegions = $azLocations | Where-Object {$regionsSupportSA -contains $_.DisplayName} | Select-Object -ExpandProperty Location
+	# Create ResourceGroup for StorageAccounts to run LISAv2
+	$getRGResult = Get-AzResourceGroup -Name $storageAccountsRGName -ErrorAction SilentlyContinue
+	if (!$getRGResult.ResourceGroupName ) {
+		Write-LogInfo "creating $storageAccountsRGName..."
+		$outOfNewRG = New-AzResourceGroup -Name $storageAccountsRGName -Location $allAvailableRegions[0] -ErrorAction SilentlyContinue
+		if ($outOfNewRG.ProvisioningState -eq "Succeeded") {
+			Write-LogInfo "$storageAccountsRGName created successfully."
+		}
+	}
+	else {
+		Write-LogInfo "$storageAccountsRGName already exists."
+	}
+	$regionStorageMapping = @{}
+	$existingLISAStorageAccounts = Get-AzStorageAccount -ResourceGroupName $storageAccountsRGName
+	$lisaSANum = 0
+	$lisaSAPrefix = 'lisa'
+	$existingLISAStorageAccounts | ForEach-Object {
+		if ($_.StorageAccountName -imatch "^$lisaSAPrefix.+") {
+			$lisaSANum++;
+			if (!$regionStorageMapping[$_.Location]) {
+				$regionStorageMapping[$_.Location] = @{}
+			}
+			if ($_.Sku.Name -imatch "Standard_LRS") {
+				$regionStorageMapping[$_.Location]["StandardStorage"] = $_
+			}
+			elseif ($_.Sku.Name -imatch "Premium_LRS") {
+				$regionStorageMapping[$_.Location]["PremiumStorage"] = $_
+			}
+		}
+	}
 
-    return $changedSC
+	if (((2 * $allAvailableRegions.Length) -ne $lisaSANum)) {
+		foreach ($region in $allAvailableRegions)
+		{
+			if (!$regionStorageMapping.$region) {
+				$regionStorageMapping[$region] = @{}
+			}
+			if (!$regionStorageMapping.$region.StandardStorage) {
+				$storageAccountName = $lisaSAPrefix + $(&$GetRandomCharacters -Length 15)
+				while (!((Get-AzStorageAccountNameAvailability -Name $storageAccountName).NameAvailable)) {
+					$storageAccountName = $lisaSAPrefix + $(&$GetRandomCharacters -Length 15)
+				}
+				$regionStorageMapping[$region]["StandardStorage"] = &$CreateStorageAccounts -StorageAccountName $storageAccountName `
+					-StorageSKUName "Standard_LRS" -StorageAccountsRGName $storageAccountsRGName -Region $region
+			}
+			if (!$regionStorageMapping.$region.PremiumStorage) {
+				$storageAccountName = $lisaSAPrefix + $(&$GetRandomCharacters -Length 15)
+				while (!((Get-AzStorageAccountNameAvailability -Name $storageAccountName).NameAvailable)) {
+					$storageAccountName = $lisaSAPrefix + $(&$GetRandomCharacters -Length 15)
+				}
+				$regionStorageMapping[$region]["PremiumStorage"] = &$CreateStorageAccounts -StorageAccountName $storageAccountName `
+					-StorageSKUName "Premium_LRS" -StorageAccountsRGName $storageAccountsRGName -Region $region
+			}
+		}
+		&$UpdateSecretFileWithStorageAccounts -AzureSecretFile $XMLSecretFile -RSAMapping $regionStorageMapping
+	}
+	elseif ((2 * $allAvailableRegions.Length) -eq $lisaSANum) {
+		&$UpdateSecretFileWithStorageAccounts -AzureSecretFile $XMLSecretFile -RSAMapping $regionStorageMapping
+	}
 }
 
 Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Distro, [string]$TestLocation, $GlobalConfig, $TiPSessionId, $TipCluster, $UseExistingRG, $ResourceCleanup, $PlatformFaultDomainCount, $PlatformUpdateDomainCount, [boolean]$EnableNSG = $false) {
@@ -348,42 +445,16 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			}
 		}
 
-		#Condition Existing Storage - NonManaged disks
-		if ( $StorageAccountName -inotmatch "NewStorage" -and !$UseManagedDisks ) {
-			$StorageAccountType = ($GetAzureRMStorageAccount | Where-Object {$_.StorageAccountName -eq $StorageAccountName}).Sku.Tier.ToString()
-			if ($StorageAccountType -match 'Premium') {
-				$StorageAccountType = "Premium_LRS"
-			}
-			else {
-				$StorageAccountType = "Standard_LRS"
-			}
-			Write-LogInfo "Storage Account Type : $StorageAccountType"
+		# Consolidate and use 'Premium_LRS' and 'Standard_LRS' only
+		$StorageAccountType = ($GetAzureRMStorageAccount | Where-Object {$_.StorageAccountName -eq $StorageAccountName}).Sku.Tier.ToString()
+		if ($StorageAccountType -match 'Premium') {
+			$StorageAccountType = "Premium_LRS"
 		}
+		else {
+			$StorageAccountType = "Standard_LRS"
+		}
+		Write-LogInfo "Storage Account Type : $StorageAccountType"
 
-		#Condition Existing Storage - Managed Disks
-		if ( $StorageAccountName -inotmatch "NewStorage" -and $UseManagedDisks ) {
-			$StorageAccountType = ($GetAzureRMStorageAccount | Where-Object {$_.StorageAccountName -eq $StorageAccountName}).Sku.Tier.ToString()
-			if ($StorageAccountType -match 'Premium') {
-				$StorageAccountType = "Premium_LRS"
-			}
-			else {
-				$StorageAccountType = "Standard_LRS"
-			}
-		}
-
-		#Condition New Storage - NonManaged disk
-		if ( $StorageAccountName -imatch "NewStorage" -and !$UseManagedDisks) {
-			$NewARMStorageAccountType = ($StorageAccountName).Replace("NewStorage_", "")
-			$StorageAccountName = $($NewARMStorageAccountType.ToLower().Replace("_", "")) + "$RGRandomNumber"
-			$NewStorageAccountName = $StorageAccountName
-			Write-LogInfo "Using New ARM Storage Account : $StorageAccountName"
-			$StorageAccountType = $NewARMStorageAccountType
-		}
-
-		#Condition New Storage - Managed disk
-		if ( $StorageAccountName -imatch "NewStorage" -and $UseManagedDisks) {
-			Write-LogInfo "Conflicting parameters - NewStorage and UseManagedDisks. Storage account will not be created."
-		}
 		#Region Define all Variables.
 
 		Write-LogInfo "Generating Template : $azuredeployJSONFilePath"
@@ -683,22 +754,6 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			Add-Content -Value "$($indents[3])}" -Path $jsonFile
 			Add-Content -Value "$($indents[2])}," -Path $jsonFile
 			Write-LogInfo "Added Custom image '$RGName-Image' from '$OsVHD'.."
-		}
-		#endregion
-
-		#region New ARM Storage Account, if necessary!
-		if ( $NewStorageAccountName) {
-			Add-Content -Value "$($indents[2]){" -Path $jsonFile
-			Add-Content -Value "$($indents[3])^apiVersion^: ^2015-06-15^," -Path $jsonFile
-			Add-Content -Value "$($indents[3])^type^: ^Microsoft.Storage/storageAccounts^," -Path $jsonFile
-			Add-Content -Value "$($indents[3])^name^: ^$NewStorageAccountName^," -Path $jsonFile
-			Add-Content -Value "$($indents[3])^location^: ^[variables('location')]^," -Path $jsonFile
-			Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
-			Add-Content -Value "$($indents[3]){" -Path $jsonFile
-			Add-Content -Value "$($indents[4])^accountType^: ^$($NewARMStorageAccountType.Trim())^" -Path $jsonFile
-			Add-Content -Value "$($indents[3])}" -Path $jsonFile
-			Add-Content -Value "$($indents[2])}," -Path $jsonFile
-			Write-LogInfo "Added New Storage Account $NewStorageAccountName.."
 		}
 		#endregion
 
@@ -1249,9 +1304,6 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			if ($createAvailabilitySet) {
 				Add-Content -Value "$($indents[4])^[concat('Microsoft.Compute/availabilitySets/', variables('availabilitySetName'))]^," -Path $jsonFile
 			}
-			if ( $NewARMStorageAccountType) {
-				Add-Content -Value "$($indents[4])^[concat('Microsoft.Storage/storageAccounts/', variables('StorageAccountName'))]^," -Path $jsonFile
-			}
 			if ( $OsVHD -and $UseManagedDisks ) {
 				Add-Content -Value "$($indents[4])^[resourceId('Microsoft.Compute/images', '$RGName-Image')]^," -Path $jsonFile
 			}
@@ -1360,7 +1412,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 
 						$copyStatus = Copy-VHDToAnotherStorageAccount -sourceStorageAccount $StorageAccountName -sourceStorageContainer $sourceContainer -destinationStorageAccount $StorageAccountName -destinationStorageContainer "vhds" -vhdName $OsVHD -destVHDName $destVHDName
 						if (!$copyStatus) {
-							Throw "Failed to copy the VHD to $ARMStorageAccount"
+							Throw "Failed to create copy of VHD '$OsVHD' -> '$destVHDName' from storage account '$StorageAccountName'"
 						} else {
 							Write-LogInfo "New Base VHD name - $destVHDName"
 						}
@@ -1541,12 +1593,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
         $locationCounter = 0
         Write-LogInfo "$RGCount Resource groups will be deployed in $($xRegionLocations.Replace('-',' and '))"
     }
-    $storageAccount = Change-StorageAccountType -Location $location -TestCaseData $TestCaseData -GlobalConfig $GlobalConfig -OsVHD $OsVHD
-    if ($storageAccount) {
-        $used_SC = $storageAccount
-    } else {
-        $used_SC = $GlobalConfig.Global.Azure.Subscription.ARMStorageAccount
-    }
+    $used_SC = Change-StorageAccountType -Location $location -TestCaseData $TestCaseData -GlobalConfig $GlobalConfig -OsVHD $OsVHD
     $patternOfResourceNamePrefix = ($SetupTypeData.ResourceGroup | Select-Object -ExpandProperty "VirtualMachine" `
                                     | Where-Object {$_.RoleName -imatch '[^\s]+'} | Select-Object -ExpandProperty RoleName) -join '|'
     foreach ($RG in $setupTypeData.ResourceGroup) {
@@ -1625,7 +1672,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
                             }
                         }
                         else {
-                            $outputError = "Unable to Deploy one or more VM's. " + $CreateRGDeployments.Error
+                            $outputError = "Unable to Deploy one or more VMs, the Error Message is: `n" + $CreateRGDeployments.Error
                             Write-LogErr $outputError
 
                             if ($ResourceCleanup -imatch "Keep") {
@@ -1983,8 +2030,20 @@ Function Create-ResourceGroupDeployment([string]$RGName, $TemplateFile, $UseExis
                 #endregion
             }
         } else {
-            $errMsg = $testRGDeployment.Message
-            Write-LogErr "Resource group configuration is not valid: $errMsg"
+			$errMsg = ""
+			$RetrieveErrMsg = {
+				param (
+					[string] $ErrMsg,
+					[object] $PSResourceManagerError
+				)
+				$ErrMsg += $PSResourceManagerError.Message
+				if ($PSResourceManagerError.Details) {
+					$ErrMsg += "`n Details: `n"
+					$PSResourceManagerError.Details | Foreach-Object {$ErrMsg += &$RetrieveErrMsg -ErrMsg $ErrMsg -PSResourceManagerError $_}
+				}
+				return $ErrMsg
+			}
+			$errMsg = &$RetrieveErrMsg -ErrMsg $errMsg -PSResourceManagerError $testRGDeployment
         }
     }
     catch {
@@ -2612,38 +2671,6 @@ function Check-AzureVmKernelPanic {
         }
     }
     return $false
-}
-
-Function Get-StorageAccountFromRegion($Region,$StorageAccount)
-{
-#region Select Storage Account Type
-    $RegionName = $Region.Replace(" ","").Replace('"',"").ToLower()
-    $regionStorageMapping = [xml](Get-Content .\XML\RegionAndStorageAccounts.xml)
-    if ($StorageAccount) {
-        if ( $StorageAccount -imatch "ExistingStorage_Standard" ) {
-            $StorageAccountName = $regionStorageMapping.AllRegions.$RegionName.StandardStorage
-        }
-        elseif ( $StorageAccount -imatch "ExistingStorage_Premium" )
-        {
-            $StorageAccountName = $regionStorageMapping.AllRegions.$RegionName.PremiumStorage
-        }
-        elseif ( $StorageAccount -imatch "NewStorage_Standard" )
-        {
-            $StorageAccountName = "NewStorage_Standard_LRS"
-        }
-        elseif ( $StorageAccount -imatch "NewStorage_Premium" )
-        {
-            $StorageAccountName = "NewStorage_Premium_LRS"
-        }
-        elseif ($StorageAccount -eq "")
-        {
-            $StorageAccountName = $regionStorageMapping.AllRegions.$RegionName.StandardStorage
-        }
-    } else {
-        $StorageAccountName = $regionStorageMapping.AllRegions.$RegionName.StandardStorage
-    }
-    Write-LogInfo "Selected : $StorageAccountName"
-    return $StorageAccountName
 }
 
 function Get-CurrentAzurePSAuthStatus() {
