@@ -135,7 +135,7 @@ echo disk > /sys/power/state
 
 		# Check the VM status before hibernation
 		$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
-		if ($vmStatus.Statuses[1].DisplayStatus = "VM running") {
+		if ($vmStatus.Statuses[1].DisplayStatus -eq "VM running") {
 			Write-LogInfo "$($vmStatus.Statuses[1].DisplayStatus): Verified successfully VM status is running before hibernation"
 		} else {
 			Write-LogErr "$($vmStatus.Statuses[1].DisplayStatus): Could not find the VM status before hibernation"
