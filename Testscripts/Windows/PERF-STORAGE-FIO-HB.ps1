@@ -18,6 +18,7 @@
 	6. Verify no kernel panic or call trace
 	7. Run the second fio testing.
 	8. Verify no kernel panic or call trace after resume.
+	TODO: Find IOPS or Utilization rate from fio output, and compare fio results before/after hibernation.
 #>
 
 param([object] $AllVmData, [string]$TestParams)
