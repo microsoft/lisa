@@ -17,10 +17,7 @@
 	5. Resume the VM and verify the VM status.
 	6. Verify no kernel panic or call trace
 	7. Run the second fio testing.
-	8. Verify IOPS counts
-	9. Run the thrid fio testing.
-	10. In the middle of fio, hibernation starts.
-	11. Verify no kernel panic or call trace after resume.
+	8. Verify no kernel panic or call trace after resume.
 #>
 
 param([object] $AllVmData, [string]$TestParams)
@@ -76,9 +73,9 @@ function Main {
 
 		# Verify the new data disk addition
 		if ($ret_val.IsSuccessStatusCode) {
-			Write-LogInfo "Successfully add a new disk to the Resource Group, $($rgName)"
+			Write-LogInfo "Successfully add a new disk to the Resource Group, $rgName"
 		} else {
-			Write-LogErr "Failed to add a new disk to the Resource Group, $($rgname)"
+			Write-LogErr "Failed to add a new disk to the Resource Group, $rgname"
 			throw "Failed to add a new disk"
 		}
 		#endregion
@@ -123,7 +120,7 @@ SetTestStateCompleted
 		while ($sw.elapsed -lt $timeout){
 			$vmCount = $AllVMData.Count
 			Wait-Time -seconds 30
-			$state = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password "cat /home/$username/state.txt"
+			$state = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password "cat /home/$user/state.txt"
 			if ($state -eq "TestCompleted") {
 				$kernelCompileCompleted = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password "cat ~/constants.sh | grep setup_completed=0"
 				if ($kernelCompileCompleted -ne "setup_completed=0") {
@@ -164,7 +161,7 @@ SetTestStateCompleted
 
 		# Check the VM status before hibernation
 		$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
-		if ($vmStatus.Statuses[1].DisplayStatus = "VM running") {
+		if ($vmStatus.Statuses[1].DisplayStatus -eq "VM running") {
 			Write-LogInfo "$($vmStatus.Statuses[1].DisplayStatus): Verified successfully VM status is running before hibernation"
 		} else {
 			Write-LogErr "$($vmStatus.Statuses[1].DisplayStatus): Could not find the VM status before hibernation"
@@ -179,7 +176,7 @@ SetTestStateCompleted
 		Wait-Time -seconds 5
 		while ($sw.elapsed -lt $timeout){
 			Wait-Time -seconds 15
-			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat /home/$username/state.txt"
+			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat /home/$user/state.txt"
 			if ($state -eq "TestCompleted") {
 				Write-LogInfo "Completed fio command execution in the VM $($AllVMData.RoleName) successfully"
 				break
@@ -227,7 +224,7 @@ SetTestStateCompleted
 		while ($sw.elapsed -lt $timeout){
 			$vmCount = $AllVMData.Count
 			Wait-Time -seconds 60
-			$state = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password "cat /home/$username/state.txt"
+			$state = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password "cat /home/$user/state.txt"
 			if ($state -eq "TestCompleted") {
 				Write-LogInfo "VM $($AllVMData.RoleName) resumed successfully."
 				$vmCount--
@@ -283,7 +280,7 @@ SetTestStateCompleted
 		Wait-Time -seconds 5
 		while ($sw.elapsed -lt $timeout){
 			Wait-Time -seconds 15
-			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat /home/$username/state.txt"
+			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat /home/$user/state.txt"
 			if ($state -eq "TestCompleted") {
 				Write-LogInfo "Completed fio command execution in the VM $($AllVMData.RoleName) successfully"
 				break
