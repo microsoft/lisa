@@ -102,9 +102,14 @@ SetTestStateCompleted
 "@
 		Set-Content "$LogDir\fio2Command.sh" $fio2Command
 
+		$testcommand = @"
+echo disk > /sys/power/state
+"@
+		Set-Content "$LogDir\test.sh" $testcommand
+
 		#region Upload files to VM
 		foreach ($VMData in $AllVMData) {
-			Copy-RemoteFiles -uploadTo $VMData.PublicIP -port $VMData.SSHPort -files "$constantsFile,$($CurrentTestData.files),$LogDir\fio*.sh" -username $user -password $password -upload
+			Copy-RemoteFiles -uploadTo $VMData.PublicIP -port $VMData.SSHPort -files "$constantsFile,$($CurrentTestData.files),$LogDir\*.sh" -username $user -password $password -upload
 			Write-LogInfo "Copied the script files to the VM"
 		}
 		#endregion
@@ -190,7 +195,7 @@ SetTestStateCompleted
 
 		# Hibernate the VM
 		Write-LogInfo "Hibernating ..."
-		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./test.sh" -runAsSudo -RunInBackground -ignoreLinuxExitCode:$true | Out-Null
+		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash ./test.sh" -runAsSudo -RunInBackground -ignoreLinuxExitCode:$true | Out-Null
 		Write-LogInfo "Sent hibernate command to the VM and continue checking its status in every 1 minute until $maxVMHibernateWaitMin minutes timeout."
 
 		# Verify the VM status

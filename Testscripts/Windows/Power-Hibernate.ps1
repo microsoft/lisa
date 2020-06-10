@@ -72,9 +72,14 @@ function Main {
 			throw "Failed to add a new disk"
 		}
 
-		#region Upload files to master VM
+		$testcommand = @"
+echo disk > /sys/power/state
+"@
+		Set-Content "$LogDir\test.sh" $testcommand
+
+		#region Upload files to VM
 		foreach ($VMData in $AllVMData) {
-			Copy-RemoteFiles -uploadTo $VMData.PublicIP -port $VMData.SSHPort -files "$constantsFile,$($CurrentTestData.files)" -username $user -password $password -upload
+			Copy-RemoteFiles -uploadTo $VMData.PublicIP -port $VMData.SSHPort -files "$constantsFile,$($CurrentTestData.files),$LogDir\*.sh" -username $user -password $password -upload
 			Write-LogInfo "Copied the script files to the VM"
 		}
 		#endregion

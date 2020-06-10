@@ -160,10 +160,6 @@ function Main() {
 		LogMsg "$?: Ran update-grub2"
 	fi
 
-	LogMsg "Setting hibernate command to test.sh"
-	echo 'echo disk > /sys/power/state' > test.sh
-	chmod 766 test.sh
-
 	echo "setup_completed=0" >> constants.sh
 	LogMsg "Main function completed"
 }
