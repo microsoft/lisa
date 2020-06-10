@@ -3,8 +3,8 @@
 # Licensed under the Apache License.
 
 # This script verifies XDP Action - TX or DROP
-# For DROP Action verification script will compare number of ping packets
-#		lossed before XDP DROP action and after XDP DROP action
+# For DROP/ABORTED Action verification script will compare number of ping packets
+#		lossed before XDP DROP/ABORTED action and after XDP DROP/ABORTED action
 # For TX Action verification script will start ping on server and measure the packets captured by tcpdump
 #		Expected result: 0 packets should be captured by tcpdump after TX action as this action
 #		will return all ping packets to sender at hardware level
@@ -66,16 +66,16 @@ beforeString="before"
 afterString="after"
 packetLossInNetwork=10
 
-if [ "${ACTION}" == "DROP" ];then
+if [ "${ACTION}" == "DROP" ] || [ "${ACTION}" == "ABORTED" ];then
 	LogMsg "Initializing validation for XDP Action ${ACTION}"
 
 	# Ping test before changing action
 	ping_test $beforeString
 
-	# Build xdpdump with DROP Config
-	LogMsg "Build XDPDump with DROP flag"
-	ssh ${client} "cd bpf-samples/xdpdump && make clean && CFLAGS='-D __ACTION_DROP__ -I../libbpf/src/root/usr/include' make"
-	check_exit_status "Building xdpdump with DROP config"
+	# Build xdpdump with DROP/ABORTED Config
+	LogMsg "Build XDPDump with ${ACTION} flag"
+	ssh ${client} "cd bpf-samples/xdpdump && make clean && CFLAGS='-D __ACTION_${ACTION}__ -I../libbpf/src/root/usr/include' make"
+	check_exit_status "Building xdpdump with ${ACTION} config"
 
 	# Ping test after changing action
 	ping_test $afterString
@@ -133,7 +133,7 @@ elif [ "${ACTION}" == "TX" ];then
 	fi
 
 else
-	LogErr "Please provide ACTION variable: DROP or TX"
+	LogErr "Please provide ACTION variable: DROP/TX/ABORTED"
 	SetTestStateFailed
 	exit 0
 fi
