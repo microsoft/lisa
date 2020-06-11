@@ -147,18 +147,19 @@ SetTestStateCompleted
 			Set-Content "$LogDir\work2Command.sh" $work2Command
 		}
 		if ($isNetworkWorkloadEnable -eq 1) {
+			$targetIPAddress = $AllVMData[1].InternalIP
 			$work1Command = @"
 source utils.sh
 SetTestStateRunning
-iperf -c $AllVMData[1].InternalIP -t 300 -P 8 -o beforewl.json
+iperf -c $targetIPAddress -t 300 -P 8 -o beforewl.json
 SetTestStateCompleted
 "@
-			Set-Content "$LogDir\work1Command.sh" $work2Command
+			Set-Content "$LogDir\work1Command.sh" $work1Command
 
 			$work2Command = @"
 source utils.sh
 SetTestStateRunning
-iperf -c $AllVMData[1].InternalIP -t 300 -P 8 -o afterwl.json
+iperf -c $targetIPAddress -t 300 -P 8 -o afterwl.json
 SetTestStateCompleted
 "@
 			Set-Content "$LogDir\work2Command.sh" $work2Command
