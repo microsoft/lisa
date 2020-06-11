@@ -11,12 +11,26 @@ import sys
 
 parser = argparse.ArgumentParser()
 
+
+def install_and_import(package):
+    import importlib
+    try:
+        importlib.import_module(package)
+    except ImportError:
+        import pip
+        pip.main(['install', '--user', package])
+        import site
+        importlib.reload(site)
+    finally:
+        globals()[package] = importlib.import_module(package)
+
+
 file_path = os.path.dirname(os.path.realpath(__file__))
 constants_path = os.path.join(file_path, "constants.sh")
 params = GetParams(constants_path)
 passwd = params["PASSWORD"]
 if sys.version_info[0] >= 3:
-    import distro
+    install_and_import('distro')
     distro = distro.linux_distribution(full_distribution_name=False)
 else:
     distro = platform.dist()
