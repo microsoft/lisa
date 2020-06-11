@@ -98,31 +98,29 @@ function Main {
 			throw "This test needs either network workload or storage workload. Please check your test parameter."
 		}
 
-		if ($isStorageWorkloadEnable -eq 1) {
-			#region Add a new swap disk to Azure VM
-			$diskConfig = New-AzDiskConfig -SkuName $storageType -Location $location -CreateOption Empty -DiskSizeGB 1024
-			$dataDisk1 = New-AzDisk -DiskName $dataDiskName -Disk $diskConfig -ResourceGroupName $rgName
+		#region Add a new swap disk to Azure VM
+		$diskConfig = New-AzDiskConfig -SkuName $storageType -Location $location -CreateOption Empty -DiskSizeGB 1024
+		$dataDisk1 = New-AzDisk -DiskName $dataDiskName -Disk $diskConfig -ResourceGroupName $rgName
 
-			$vm = Get-AzVM -Name $AllVMData[0].RoleName -ResourceGroupName $rgName
-			Start-Sleep -s $azureSyncSecond
-			$vm = Add-AzVMDataDisk -VM $vm -Name $dataDiskName -CreateOption Attach -ManagedDiskId $dataDisk1.Id -Lun 1
-			Start-Sleep -s $azureSyncSecond
+		$vm = Get-AzVM -Name $AllVMData[0].RoleName -ResourceGroupName $rgName
+		Start-Sleep -s $azureSyncSecond
+		$vm = Add-AzVMDataDisk -VM $vm -Name $dataDiskName -CreateOption Attach -ManagedDiskId $dataDisk1.Id -Lun 1
+		Start-Sleep -s $azureSyncSecond
 
-			$ret_val = Update-AzVM -VM $vm -ResourceGroupName $rgName
-			Write-LogInfo "Updated the VM with a new data disk"
-			Write-LogInfo "Waiting for $azureSyncSecond seconds for configuration sync"
-			# Wait for disk sync with Azure host
-			Start-Sleep -s $azureSyncSecond
+		$ret_val = Update-AzVM -VM $vm -ResourceGroupName $rgName
+		Write-LogInfo "Updated the VM with a new data disk"
+		Write-LogInfo "Waiting for $azureSyncSecond seconds for configuration sync"
+		# Wait for disk sync with Azure host
+		Start-Sleep -s $azureSyncSecond
 
-			# Verify the new data disk addition
-			if ($ret_val.IsSuccessStatusCode) {
-				Write-LogInfo "Successfully add a new disk to the Resource Group, $rgName"
-			} else {
-				Write-LogErr "Failed to add a new disk to the Resource Group, $rgname"
-				throw "Failed to add a new disk"
-			}
-			#endregion
+		# Verify the new data disk addition
+		if ($ret_val.IsSuccessStatusCode) {
+			Write-LogInfo "Successfully add a new disk to the Resource Group, $rgName"
+		} else {
+			Write-LogErr "Failed to add a new disk to the Resource Group, $rgname"
+			throw "Failed to add a new disk"
 		}
+		#endregion
 
 		# setting up the workload script
 		if ($isStorageWorkloadEnable -eq 1) {
@@ -200,7 +198,6 @@ echo disk > /sys/power/state
 						Write-LogInfo "SetupHbKernel.sh finished on $($VMData.RoleName)"
 						$vmCount--
 					}
-					break
 				} elseif ($state -eq "TestSkipped") {
 					Write-LogInfo "SetupHbKernel.sh finished with SKIPPED state on $($VMData.RoleName)!"
 					$resultArr = $resultSkipped
@@ -220,6 +217,7 @@ echo disk > /sys/power/state
 					Write-LogInfo "SetupHbKernel.sh is still running in the VM on $($VMData.RoleName)..."
 				}
 			}
+			Write-LogInfo "Remaining VMs - $($vmCount)"
 			if ($vmCount -eq 0) {
 				# before hit the timeout
 				break
