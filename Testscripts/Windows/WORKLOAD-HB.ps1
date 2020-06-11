@@ -167,10 +167,18 @@ echo disk > /sys/power/state
 "@
 		Set-Content "$LogDir\test.sh" $testcommand
 
+		$setupcommand = @"
+source utils.sh
+update_repos
+install_package fio iperf
+"@
+		Set-Content "$LogDir\setup.sh" $setupcommand
+
 		#region Upload files to VM
 		foreach ($VMData in $AllVMData) {
 			Copy-RemoteFiles -uploadTo $VMData.PublicIP -port $VMData.SSHPort -files "$constantsFile,$($CurrentTestData.files),$LogDir\*.sh" -username $user -password $password -upload
 			Write-LogInfo "Copied the script files to the VM"
+			Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "bash ./setup.sh" -runAsSudo
 		}
 		#endregion
 
