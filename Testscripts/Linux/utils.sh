@@ -2761,9 +2761,7 @@ function remote_copy () {
 		shift
 	done
 
-	install_sshpass
-
-	if [ "x$host" == "x" ] || [ "x$user" == "x" ] || [ "x$passwd" == "x" ] || [ "x$filename" == "x" ] ; then
+	if [ "x$host" == "x" ] || [ "x$user" == "x" ] || [ "x$filename" == "x" ] ; then
 		LogErr "Usage: remote_copy -user <username> -passwd <user password> -host <host ipaddress> -filename <filename> -remote_path <location of the file on remote vm> -cmd <put/get>"
 		return
 	fi
@@ -2780,7 +2778,13 @@ function remote_copy () {
 		destination_path=$user@$host:$remote_path/
 	fi
 
-	status=$(sshpass -p $passwd scp -o StrictHostKeyChecking=no -P $port $source_path $destination_path 2>&1)
+	if [ "x$passwd" == "x" ]; then
+		status=$(scp -o StrictHostKeyChecking=no -P $port $source_path $destination_path 2>&1)
+	else
+		install_sshpass
+		status=$(sshpass -p $passwd scp -o StrictHostKeyChecking=no -P $port $source_path $destination_path 2>&1)
+	fi
+
 	exit_status=$?
 	LogMsg $status
 	return $exit_status
