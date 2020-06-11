@@ -101,10 +101,6 @@ if [ "$role" == "server" ]; then
             echo "Please mention -level1ClientUser next"
             exit 1
     fi
-    if [ -z "$level1ClientPassword" ]; then
-            echo "Please mention -level1ClientPassword next"
-            exit 1
-    fi
     if [ -z "$level1ClientPort" ]; then
             echo "Please mention -level1ClientPort next"
             exit 1
@@ -169,7 +165,7 @@ Prepare_Server()
     Remote_Exec_Wrapper "root" $HOST_FWD_PORT 'md5sum /root/.ssh/id_rsa > /root/servermd5sum.log'
     Remote_Copy_Wrapper "root" $HOST_FWD_PORT "servermd5sum.log" "get"
 
-    remote_copy -host $level1ClientIP -user $level1ClientUser -passwd $level1ClientPassword -port $level1ClientPort -filename ./sshFix.tar -remote_path "/tmp" -cmd put
+    remote_copy -host $level1ClientIP -user $level1ClientUser -port $level1ClientPort -filename ./sshFix.tar -remote_path "/tmp" -cmd put
 }
 
 Prepare_Nested_VMs()

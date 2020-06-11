@@ -112,15 +112,15 @@ function Main () {
 				$hs2secondip = $vm.SecondInternalIP
 			}
 		}
-
+		Provision-VMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
 		if($TestPlatform -eq "Azure") {
-			$cmd = "/home/$user/${testScript} -role server -level1ClientIP $hs2secondip -level1ServerIP $hs1secondip -level1User $user -level1Password $password -level1Port 22 -logFolder /home/$user > /home/$user/TestExecutionConsole.log"
+			$cmd = "/home/$user/${testScript} -role server -level1ClientIP $hs2secondip -level1ServerIP $hs1secondip -level1User root -level1Port 22 -logFolder /home/$user > /home/$user/TestExecutionConsole.log"
 			Start-TestExecution -ip $hs1VIP -port $hs1vm1sshport -cmd $cmd
 
-			$cmd = "/home/$user/${testScript} -role client -level1ClientIP $hs2secondip -level1ServerIP $hs1secondip -level1User $user -level1Password $password -level1Port 22 -logFolder /home/$user > /home/$user/TestExecutionConsole.log"
+			$cmd = "/home/$user/${testScript} -role client -level1ClientIP $hs2secondip -level1ServerIP $hs1secondip -level1User root -level1Port 22 -logFolder /home/$user > /home/$user/TestExecutionConsole.log"
 			Start-TestExecution -ip $hs2VIP -port $hs2vm1sshport -cmd $cmd
 		} else {
-			$cmd = "/home/$user/${testScript} -role server -level1ClientIP $hs2VIP -level1ClientUser $user -level1ClientPassword $password -level1ClientPort $hs2vm1sshport -logFolder /home/$user > /home/$user/TestExecutionConsole.log"
+			$cmd = "/home/$user/${testScript} -role server -level1ClientIP $hs2VIP -level1ClientUser root -level1ClientPort $hs2vm1sshport -logFolder /home/$user > /home/$user/TestExecutionConsole.log"
 			Start-TestExecution -ip $hs1VIP -port $hs1vm1sshport -cmd $cmd
 
 			$cmd = "/home/$user/${testScript} -role client -logFolder /home/$user > /home/$user/TestExecutionConsole.log"

@@ -419,7 +419,7 @@ Function Create-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 		#$PublicIPv6Name = $($RGName.ToUpper() -replace '[^a-z]') + "PublicIPv6"
 		$PublicIPv6Name = "LISAv2-PublicIPv6"
 		$sshPath = '/home/' + $user + '/.ssh/authorized_keys'
-		$sshKeyData = $global:sshPublicKey
+		$sshKeyData = ExtractSSHPublicKeyFromPPKFile -filePath $global:SSHPrivateKey
 		$createAvailabilitySet = !$UseExistingRG
 		$networkSecurityGroupName = "LISAv2-NSG"
 

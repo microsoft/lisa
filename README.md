@@ -111,6 +111,7 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
             <!--VMs Credential-->
             <linuxTestUsername>Enter Linux VM user name</linuxTestUsername>
             <linuxTestPassword>Enter Linux VM user password with high complexity</linuxTestPassword>
+            <sshPrivateKey>Downloadable URL or local file - ssh ppk private key</sshPrivateKey>
             <!--Database info for upload results-->
             <DatabaseServer></DatabaseServer>
             <DatabaseUser></DatabaseUser>
@@ -193,8 +194,6 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
         .\Run-LisaV2.ps1 -TestPlatform "Azure" -TestLocation "westus" -RGIdentifier "deployment" -ARMImageName "canonical ubuntuserver 18.04-lts Latest" -TestNames "VERIFY-DEPLOYMENT-PROVISION"
         Azure platform using secret file:
         .\Run-LisaV2.ps1 -TestPlatform "Azure" -TestLocation "westus" -RGIdentifier "deployment" -ARMImageName "canonical ubuntuserver 18.04-lts Latest" -TestNames "VERIFY-DEPLOYMENT-PROVISION" -XMLSecretFile "E:\AzureCredential.xml"
-        Azure platform using SSH key authentication:
-        .\Run-LisaV2.ps1 -TestPlatform "Azure" -TestLocation "westus" -RGIdentifier "deployment" -ARMImageName "canonical ubuntuserver 18.04-lts Latest" -TestNames "VERIFY-DEPLOYMENT-PROVISION" -XMLSecretFile "E:\AzureCredential.xml" -SSHPublicKey "E:\test.pub" -SSHPrivateKey "E:\test.ppk"
 
         .\Run-LisaV2.ps1 -TestPlatform "HyperV" [-TestLocation "ServerName"] -RGIdentifier "<Identifier of the vm group>" -OsVHD "<local or UNC path or downloadable URL of VHD>" [[-TestCategory "<Test Catogry from Jenkins pipeline>" | -TestArea "<Test Area from Jenkins pipeline>"]* | -TestTag "<A Tag from Jenkins pipeline>" | -TestNames "<Test cases separated by comma>"]
         HyperV platform examples:

@@ -104,10 +104,6 @@ if [ "$role" == "server" ]; then
             echo "Please mention -level1User next"
             exit 1
     fi
-    if [ -z "$level1Password" ]; then
-            echo "Please mention -level1Password next"
-            exit 1
-    fi
     if [ -z "$level1Port" ]; then
             echo "Please mention -level1Port next"
             exit 1
@@ -185,7 +181,7 @@ Prepare_Server()
     Remote_Exec_Wrapper "root" $HOST_FWD_PORT 'md5sum /root/.ssh/id_rsa > /root/servermd5sum.log'
     Remote_Copy_Wrapper "root" $HOST_FWD_PORT "servermd5sum.log" "get"
 
-    remote_copy -host $level1ClientIP -user $level1User -passwd $level1Password -port $level1Port -filename ./sshFix.tar -remote_path "/tmp" -cmd put
+    remote_copy -host $level1ClientIP -user $level1User -port $level1Port -filename ./sshFix.tar -remote_path "/tmp" -cmd put
     echo "Setup iptables to route the traffic from L1 guest to L2 guest"
 
     iptables -t nat -A PREROUTING -d $L1_SERVER_IP_ADDR -p tcp -j DNAT --to $L2_IP_ADDR

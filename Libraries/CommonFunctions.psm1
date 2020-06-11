@@ -402,9 +402,10 @@ Function Provision-VMsForLisa($allVMData, $installPackagesOnRoleNames)
 		Write-LogInfo "Configuring $($vmData.RoleName) for LISA test..."
 		Copy-RemoteFiles -uploadTo $vmData.PublicIP -port $vmData.SSHPort -files ".\Testscripts\Linux\utils.sh,.\Testscripts\Linux\enable_root.sh,.\Testscripts\Linux\enable_passwordless_root.sh" -username $user -password $password -upload
 		$Null = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username $user -password $password -command "chmod +x /home/$user/*.sh" -runAsSudo
+		$cmd_To_Execution = ("/home/{0}/enable_root.sh -usesshkey {1} -user {2} -password {3}" -f @($user, !([string]::IsNullOrEmpty($global:sshPrivateKey)), $user, $password.Replace('"','')))
 		$rootPasswordSet = Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort `
 			-username $user -password $password -runAsSudo `
-			-command ("/home/{0}/enable_root.sh -password {1}" -f @($user, $password.Replace('"','')))
+			-command $cmd_To_Execution
 		Write-LogInfo $rootPasswordSet
 		if (( $rootPasswordSet -imatch "ROOT_PASSWRD_SET" ) -and ( $rootPasswordSet -imatch "SSHD_RESTART_SUCCESSFUL" ))
 		{
@@ -1941,36 +1942,6 @@ function Restore-LatestVMSnapshot($vmName, $hvServer)
     return $True
 }
 
-function Enable-RootUser {
-    <#
-    .DESCRIPTION
-    Sets a new password for the root user for all VMs in deployment.
-    #>
-
-    param(
-        $VMData,
-        [string]$RootPassword,
-        [string]$Username,
-        [string]$Password
-    )
-
-    $deploymentResult = $True
-
-    foreach ($VM in $VMData) {
-        Copy-RemoteFiles -upload -uploadTo $VM.PublicIP -Port $VM.SSHPort `
-             -files ".\Testscripts\Linux\utils.sh,.\Testscripts\Linux\enable_root.sh" -Username $Username -password $Password
-        $cmdResult = Run-LinuxCmd -Command "bash enable_root.sh -password ${RootPassword}" -runAsSudo `
-             -Username $Username -password $Password -ip $VM.PublicIP -Port $VM.SSHPort
-        if (-not $cmdResult) {
-            Write-LogInfo "Fail to enable root user for VM: $($VM.RoleName)"
-        }
-        $deploymentResult = $deploymentResult -and $cmdResult
-    }
-
-    return $deploymentResult
-}
-
-
 function Compare-KernelVersion {
     param (
         [string] $KernelVersion1,
@@ -2407,4 +2378,25 @@ Function Get-ExpectedDevicesCount {
     }
 
     return $expectedCount,$keyWord
+}
+
+# Extract values from file between two lines which has specified start pattern
+Function ExtractSSHPublicKeyFromPPKFile {
+    param (
+        [String] $filePath,
+        [String] $startLinePattern="Public-Lines",
+        [String] $endLinePattern="private-Lines"
+    )
+        if (![string]::IsNullOrEmpty($filePath)) {
+            $fromHereStartingLine = Select-String $filePath -pattern $startLinePattern | Select-Object LineNumber
+            $uptoHereStartingLine = Select-String $filePath -pattern $endLinePattern | Select-Object LineNumber
+            $extractedValue = ""
+            for($i=$fromHereStartingLine.LineNumber; $i -lt $uptoHereStartingLine.LineNumber-1; $i+=1) {
+                $extractedValue += Get-Content -Path $FilePath | Foreach-Object { ($_  -replace "`r*`n*","") } | Select-Object -Index $i
+            }
+
+            return "ssh-rsa $extractedValue"
+        } else {
+            return $null
+        }
 }

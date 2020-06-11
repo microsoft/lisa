@@ -189,5 +189,7 @@ Class AzureProvider : TestProvider
 		if (($spClientID -and $spKey) -or $contextFilePath) {
 			Clear-AzContext -Force -ErrorAction SilentlyContinue | Out-NULL
 		}
+		# Remove ppk file if exist
+		Remove-Item "$env:TEMP\*.ppk" -Force -ErrorAction SilentlyCont
 	}
 }

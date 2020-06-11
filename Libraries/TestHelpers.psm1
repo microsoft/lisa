@@ -66,6 +66,9 @@ function Upload-RemoteFile($uploadTo, $port, $file, $username, $password, $usePr
 		if ($usePrivateKey) {
 			Write-LogDbg "Uploading $file to $username : $uploadTo, port $port using PrivateKey authentication"
 			Write-Output "yes" | .\Tools\pscp -i $sshKey -q -P $port $file $username@${uploadTo}:
+			if ($LASTEXITCODE -ne 0) {
+				Write-Output "yes" | .\Tools\pscp -scp -i $sshKey -q -P $port $file $username@${uploadTo}:
+			}
 			$returnCode = $LASTEXITCODE
 		} else {
 			Write-LogDbg "Uploading $file to $username @ $uploadTo : $port using password authentication"
@@ -165,7 +168,10 @@ function Download-RemoteFile($downloadFrom, $downloadTo, $port, $file, $username
 				$downloadTo=$args[6];
 				$downloadStatusRandomFile=$args[7];
 				Set-Location $curDir;
-				Write-Output "yes" | .\Tools\pscp -i $sshKey -q -P $port $username@${downloadFrom}:$testFile $downloadTo 2> $downloadStatusRandomFile;
+				Write-Output "yes" | .\Tools\pscp.exe -2 -unsafe -i $sshKey -q -P $port $username@${downloadFrom}:$testFile $downloadTo 2> $downloadStatusRandomFile;
+				if ($LASTEXITCODE -ne 0) {
+					Write-Output "yes" | .\Tools\pscp.exe -2 -v -scp -unsafe -i $sshKey -q -P $port $username@${downloadFrom}:$testFile $downloadTo 2> $downloadStatusRandomFile;
+				}
 				Add-Content -Value "DownloadExitCode_$LASTEXITCODE" -Path $downloadStatusRandomFile;
 			} -ArgumentList $curDir,$sshKey,$port,$file,$username,${downloadFrom},$downloadTo,$downloadStatusRandomFile
 		} else {
@@ -338,15 +344,26 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 	}
 	if ($runAsSudo) {
 		$plainTextPassword = $password.Replace('"','');
-		if ( $detectedDistro -eq "COREOS" ) {
-			$linuxCommand = "`"export PATH=/usr/share/oem/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/oem/bin:/opt/bin && echo $plainTextPassword | sudo -S env `"PATH=`$PATH`" bash -c `'bash runtest.sh ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
-			$logCommand = "`"export PATH=/usr/share/oem/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/oem/bin:/opt/bin && echo $plainTextPassword | sudo -S env `"PATH=`$PATH`" $MaskedCommand`""
+		if ($detectedDistro -eq "COREOS") {
+			$linuxCommand = "`"export PATH=/usr/share/oem/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/oem/bin:/opt/bin && "
+			if (!$global:SSHPrivateKey) {
+				$linuxCommand += "echo $plainTextPassword | "
+			}
+			$linuxCommand += "sudo -S env `"PATH=`$PATH`" "
+			$logCommand = $linuxCommand
+			$linuxCommand += "bash -c `'bash runtest.sh ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
+			$logCommand += " $MaskedCommand`""
 		} else {
-			$linuxCommand = "`"echo $plainTextPassword | sudo -S bash -c `'bash runtest.sh ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
-			$logCommand = "`"echo $plainTextPassword | sudo -S $MaskedCommand`""
+			$linuxCommand = "`""
+			if (!$global:SSHPrivateKey) {
+				$linuxCommand += "echo $plainTextPassword | "
+			}
+			$logCommand = $linuxCommand
+			$linuxCommand += "sudo -S bash -c `'bash runtest.sh ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
+			$logCommand += "sudo -S $MaskedCommand`""
 		}
 	} else {
-		if ( $detectedDistro -eq "COREOS" ) {
+		if ($detectedDistro -eq "COREOS") {
 			$linuxCommand = "`"export PATH=/usr/share/oem/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/oem/bin:/opt/bin && bash -c `'bash runtest.sh ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
 			$logCommand = "`"export PATH=/usr/share/oem/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/oem/bin:/opt/bin && $MaskedCommand`""
 		} else {
@@ -355,7 +372,7 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 		}
 	}
 	if ($global:sshPrivateKey) {
-		Write-LogDbg ".\Tools\plink.exe -ssh -t -i $sshKey -P $port $username@$ip $logCommand"
+		Write-LogDbg ".\Tools\plink.exe -ssh -t -i ppkfile -P $port $username@$ip $logCommand"
 	} else {
 		Write-LogDbg ".\Tools\plink.exe -ssh -t -pw $password -P $port $username@$ip $logCommand"
 	}
@@ -719,6 +736,40 @@ Function Get-LISAv2Tools($XMLSecretFile) {
 			}
 		}
 	}
+}
+
+Function Get-SSHKey ($XMLSecretFile) {
+	# Download SSHKey when provide a URL
+	$temp_Folder = $env:TEMP
+	$sshKeyPath = [string]::Empty
+	if ($XMLSecretFile) {
+		$WebClient = New-Object System.Net.WebClient
+		$xmlSecret = [xml](Get-Content $XMLSecretFile)
+		$privateSSHKey = $xmlSecret.secrets.sshPrivateKey.InnerText
+		if ($privateSSHKey) {
+			$sshKeyPath = $privateSSHKey
+		}
+	}
+	if ($privateSSHKey) {
+		if ($privateSSHKey -match "^(http|https)://") {
+			$WebClient = New-Object System.Net.WebClient
+			$privateSSHKeyName = $privateSSHKey.Split('?')[0].Split('/')[-1]
+			try {
+				$WebClient.DownloadFile("$privateSSHKey", "$temp_Folder/$privateSSHKeyName")
+			} catch {
+				Throw "Failed to download from $privateSSHKey, please double check the path."
+			}
+			$sshKeyPath = "$temp_Folder/$privateSSHKeyName"
+		}
+		if (![System.IO.File]::Exists($sshKeyPath)) {
+			Throw "SSH Private key $sshKeyPath doesn't exist, please double check."
+		}
+		$sshKeyPath = (Resolve-Path $sshKeyPath).Path
+		if ($sshKeyPath -notmatch ".ppk$") {
+			Throw "Only support .ppk format."
+		}
+	}
+	return $sshKeyPath
 }
 
 function Create-ConstantsFile {

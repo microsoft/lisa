@@ -15,7 +15,7 @@ else
     Custom_Path="/root"
 fi
 
-rm -rf /root/.ssh
+rm -rf /root/.ssh/id_rsa*
 cd /root
 keyTarFile=sshFix.tar
 if [ -e "${Custom_Path}/${keyTarFile}" ]; then
@@ -30,7 +30,17 @@ if [ -e "${Custom_Path}/${keyTarFile}" ]; then
     echo "KEY_COPIED_SUCCESSFULLY"
 else
     echo | ssh-keygen -N ''
-    cat /root/.ssh/id_rsa.pub > /root/.ssh/authorized_keys
+    if [[ $SUDO_USER != "" ]]; then
+        if [ -f /home/${SUDO_USER}/.ssh/authorized_keys ]; then
+            mkdir -p /root/.ssh
+            cp /home/${SUDO_USER}/.ssh/authorized_keys /root/.ssh/authorized_keys
+        fi
+    fi
+    if [ -f /root/.ssh/authorized_keys ]; then
+        cat /root/.ssh/id_rsa.pub >> /root/.ssh/authorized_keys
+    else
+        cat /root/.ssh/id_rsa.pub > /root/.ssh/authorized_keys
+    fi
     echo "Host *" > /root/.ssh/config
     echo "StrictHostKeyChecking no" >> /root/.ssh/config
     rm -rf /root/.ssh/known_hosts
