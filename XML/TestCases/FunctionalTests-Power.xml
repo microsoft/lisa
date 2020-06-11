@@ -54,7 +54,7 @@
 	<test>
 		<testName>POWER-NETWORK-WORKLOAD-HIBERNATE</testName>
 		<testScript>WORKLOAD-HB.ps1</testScript>
-		<setupType>TwoVM</setupType>
+		<setupType>TwoVM1Dep</setupType>
 		<OverrideVMSize>Standard_D8s_v3</OverrideVMSize>
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SetupHbKernel.sh</files>
 		<TestParameters>
