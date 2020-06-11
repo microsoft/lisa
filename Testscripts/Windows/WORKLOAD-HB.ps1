@@ -153,12 +153,15 @@ SetTestStateRunning
 iperf -c $AllVMData[1].InternalIP -t 300 -P 8 -o beforewl.json
 SetTestStateCompleted
 "@
+			Set-Content "$LogDir\work1Command.sh" $work2Command
+
 			$work2Command = @"
 source utils.sh
 SetTestStateRunning
 iperf -c $AllVMData[1].InternalIP -t 300 -P 8 -o afterwl.json
 SetTestStateCompleted
 "@
+			Set-Content "$LogDir\work2Command.sh" $work2Command
 		}
 		#endregion
 
