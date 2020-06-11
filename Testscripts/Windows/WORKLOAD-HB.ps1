@@ -66,11 +66,11 @@ function Main {
 		$isNetworkWorkloadEnable = 0
 		$testResult = $resultFail
 
-		Write-LogDbg "Prepare swap space for VM $($AllVMData.RoleName) in RG $($AllVMData.ResourceGroupName)."
+		Write-LogDbg "Prepare swap space for VM $($AllVMData[0].RoleName) in RG $($AllVMData[0].ResourceGroupName)."
 		# Prepare the swap space in the target VM
-		$rgName = $AllVMData.ResourceGroupName
-		$vmName = $AllVMData.RoleName
-		$location = $AllVMData.Location
+		$rgName = $AllVMData[0].ResourceGroupName
+		$vmName = $AllVMData[0].RoleName
+		$location = $AllVMData[0].Location
 		$storageType = 'StandardSSD_LRS'
 		$dataDiskName = $vmName + '_datadisk1'
 
@@ -190,6 +190,7 @@ echo disk > /sys/power/state
 			if ($allVMData.Count) {
 				$vmCount = $allVMData.Count
 			}
+			Write-LogInfo "The number of VM: $($vmCount)"
 			Wait-Time -seconds 30
 			foreach ($VMData in $AllVMData) {
 				$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat /home/$user/state.txt"
