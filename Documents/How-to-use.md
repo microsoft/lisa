@@ -130,6 +130,8 @@ This XML file defines the regions per Category. It may require specific region o
 
     Here is the format inside of TestCases.xml file. TODO: Revise the definition, and required field or not.
     [Req] Required
+        For Azure, <setupType>TwoVM1Dep</setupType>
+        For Hyper-V, <setupType>TwoVM</setupType>.
     [Opt] Optional
         <testName></testName>: Represent unique Test Case name [Req]
         <testScript></testScript>: test script file name [Opt]
