@@ -66,6 +66,9 @@ function Upload-RemoteFile($uploadTo, $port, $file, $username, $password, $usePr
 		if ($usePrivateKey) {
 			Write-LogDbg "Uploading $file to $username : $uploadTo, port $port using PrivateKey authentication"
 			Write-Output "yes" | .\Tools\pscp -i $sshKey -q -P $port $file $username@${uploadTo}:
+			if ($LASTEXITCODE -ne 0) {
+				Write-Output "yes" | .\Tools\pscp -scp -i $sshKey -q -P $port $file $username@${uploadTo}:
+			}
 			$returnCode = $LASTEXITCODE
 		} else {
 			Write-LogDbg "Uploading $file to $username @ $uploadTo : $port using password authentication"
@@ -165,7 +168,10 @@ function Download-RemoteFile($downloadFrom, $downloadTo, $port, $file, $username
 				$downloadTo=$args[6];
 				$downloadStatusRandomFile=$args[7];
 				Set-Location $curDir;
-				Write-Output "yes" | .\Tools\pscp -i $sshKey -q -P $port $username@${downloadFrom}:$testFile $downloadTo 2> $downloadStatusRandomFile;
+				Write-Output "yes" | .\Tools\pscp.exe -2 -unsafe -i $sshKey -q -P $port $username@${downloadFrom}:$testFile $downloadTo 2> $downloadStatusRandomFile;
+				if ($LASTEXITCODE -ne 0) {
+					Write-Output "yes" | .\Tools\pscp.exe -2 -v -scp -unsafe -i $sshKey -q -P $port $username@${downloadFrom}:$testFile $downloadTo 2> $downloadStatusRandomFile;
+				}
 				Add-Content -Value "DownloadExitCode_$LASTEXITCODE" -Path $downloadStatusRandomFile;
 			} -ArgumentList $curDir,$sshKey,$port,$file,$username,${downloadFrom},$downloadTo,$downloadStatusRandomFile
 		} else {
