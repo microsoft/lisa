@@ -97,7 +97,7 @@ function Main {
 		if (($isNetworkWorkloadEnable -ne 1) -and ($isStorageWorkloadEnable -ne 1)) {
 			throw "This test needs either network workload or storage workload. Please check your test parameter."
 		}
-
+		Write-LogInfo "$location"
 		#region Add a new swap disk to Azure VM
 		$diskConfig = New-AzDiskConfig -SkuName $storageType -Location $location -CreateOption Empty -DiskSizeGB 1024
 		$dataDisk1 = New-AzDisk -DiskName $dataDiskName -Disk $diskConfig -ResourceGroupName $rgName
