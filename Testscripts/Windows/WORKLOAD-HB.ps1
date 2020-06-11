@@ -127,7 +127,7 @@ function Main {
 			$work1Command = @"
 source utils.sh
 SetTestStateRunning
-fio --size=1G --name=beforehb --direct=1 --ioengine=libaio --filename=fiodata --overwrite=1 --readwrite=readwrite --bs=1M --runtime=1 --iodepth=128 --numjobs=32 --runtime=300 --output-format=json+ --output=beforehb.json
+fio --size=1G --name=beforehb --direct=1 --ioengine=libaio --filename=fiodata --overwrite=1 --readwrite=readwrite --bs=1M --runtime=1 --iodepth=128 --numjobs=32 --runtime=300 --output-format=json+ --output=beforewl.json
 rm -f fiodata
 sync
 echo 3 > /proc/sys/vm/drop_caches
@@ -138,7 +138,7 @@ SetTestStateCompleted
 			$work2Command = @"
 source utils.sh
 SetTestStateRunning
-fio --size=1G --name=afterhb --direct=1 --ioengine=libaio --filename=fiodata --overwrite=1 --readwrite=readwrite --bs=1M --runtime=1 --iodepth=128 --numjobs=32 --runtime=300 --output-format=json+ --output=afterhb.json
+fio --size=1G --name=afterhb --direct=1 --ioengine=libaio --filename=fiodata --overwrite=1 --readwrite=readwrite --bs=1M --runtime=1 --iodepth=128 --numjobs=32 --runtime=300 --output-format=json+ --output=afterwl.json
 rm -f fiodata
 sync
 echo 3 > /proc/sys/vm/drop_caches
@@ -150,13 +150,13 @@ SetTestStateCompleted
 			$work1Command = @"
 source utils.sh
 SetTestStateRunning
-# TODO
+iperf -c $AllVMData[1].InternalIP -t 300 -P 8 -o beforewl.json
 SetTestStateCompleted
 "@
 			$work2Command = @"
 source utils.sh
 SetTestStateRunning
-# TODO
+iperf -c $AllVMData[1].InternalIP -t 300 -P 8 -o afterwl.json
 SetTestStateCompleted
 "@
 		}
