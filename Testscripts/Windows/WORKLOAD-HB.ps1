@@ -38,7 +38,7 @@ function Main {
 		if ($isNetworkWorkloadEnable -eq 1) {
 			$state = Run-LinuxCmd -ip $AllVMData[1].PublicIP -port $AllVMData[1].SSHPort -username $user -password $password -command "iperf -s -D" -RunInBackground -runAsSudo
 		}
-		$state = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $VMData.SSHPort -username $user -password $password -command "bash ./work$($iteration))Command.sh" -RunInBackground -runAsSudo
+		$state = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $VMData.SSHPort -username $user -password $password -command "bash ./work$($iteration)Command.sh" -RunInBackground -runAsSudo
 		Wait-Time -seconds 5
 		while ($sw.elapsed -lt $timeout) {
 			Wait-Time -seconds 15
@@ -267,7 +267,7 @@ echo disk > /sys/power/state
 				Write-LogInfo "$vmStatus.Statuses[1].DisplayStatus: VM status is not stopped. Wating for 1 minute..."
 			}
 		}
-		if (($vmStatus.Statuses[1].DisplayStatus -ne "VM stopped") {
+		if ($vmStatus.Statuses[1].DisplayStatus -ne "VM stopped") {
 			throw "$($vmStatus.Statuses[1].DisplayStatus): Could not find the VM status after hibernation command sent."
 		}
 
