@@ -69,7 +69,7 @@ function Main() {
 
 	# fio installation for storage test case.
 	update_repos
-	install_package fio
+	install_package fio iperf
 
 	if [[ $hb_url != "" ]]; then
 		LogMsg "Starting Hibernation required packages and kernel build in the VM"
