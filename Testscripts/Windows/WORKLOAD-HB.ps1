@@ -186,7 +186,10 @@ echo disk > /sys/power/state
 		$timeout = New-Timespan -Minutes $maxKernelCompileMin
 		$sw = [diagnostics.stopwatch]::StartNew()
 		while ($sw.elapsed -lt $timeout){
-			$vmCount = $AllVMData.Count
+			$vmCount = 1
+			if ($allVMData.Count) {
+				$vmCount = $allVMData.Count
+			}
 			Wait-Time -seconds 30
 			foreach ($VMData in $AllVMData) {
 				$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat /home/$user/state.txt"
