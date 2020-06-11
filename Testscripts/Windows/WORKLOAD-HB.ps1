@@ -151,7 +151,7 @@ SetTestStateCompleted
 			$work1Command = @"
 source utils.sh
 SetTestStateRunning
-iperf -c $targetIPAddress -t 300 -P 8 -o beforewl.json
+iperf -c $targetIPAddress -t 300 -P 8 > beforewl.json
 SetTestStateCompleted
 "@
 			Set-Content "$LogDir\work1Command.sh" $work1Command
@@ -159,7 +159,7 @@ SetTestStateCompleted
 			$work2Command = @"
 source utils.sh
 SetTestStateRunning
-iperf -c $targetIPAddress -t 300 -P 8 -o afterwl.json
+iperf -c $targetIPAddress -t 300 -P 8 > afterwl.json
 SetTestStateCompleted
 "@
 			Set-Content "$LogDir\work2Command.sh" $work2Command
@@ -327,6 +327,13 @@ install_package fio iperf
 		$testResult = $resultPass
 
 		Copy-RemoteFiles -downloadFrom $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -download -downloadTo $LogDir -files "*.json, *.log" -runAsSudo
+		$work1Output = Get-Content -Path "$LogDir\beforewl.json"
+		$work2Output = Get-Content -Path "$LogDir\afterwl.json"
+		Write-LogDbg "Output content of before-hibernate workload"
+		Write-LogDbg $work1Output
+		Write-LogDbg "Output content of after-hibernate workload"
+		Write-LogDbg $work2Output
+
 	} catch {
 		$ErrorMessage =  $_.Exception.Message
 		$ErrorLine = $_.InvocationInfo.ScriptLineNumber
