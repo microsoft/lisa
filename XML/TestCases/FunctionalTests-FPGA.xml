@@ -17,6 +17,6 @@
         <Area>FPGA</Area>
         <Tags>fpga</Tags>
         <Timeout>1200</Timeout>
-        <Priority>0</Priority>
+        <Priority>3</Priority>
     </test>
 </TestCases>
