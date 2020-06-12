@@ -36,9 +36,9 @@ function Main {
 		$timeout = New-Timespan -Minutes $maxWorkRunWaitMin
 		$sw = [diagnostics.stopwatch]::StartNew()
 		if ($isNetworkWorkloadEnable -eq 1) {
-			$state = Run-LinuxCmd -ip $AllVMData[1].PublicIP -port $AllVMData[1].SSHPort -username $user -password $password -command "iperf -s -D" -RunInBackground -runAsSudo
+			Run-LinuxCmd -ip $AllVMData[1].PublicIP -port $AllVMData[1].SSHPort -username $user -password $password -command "iperf -s -D" -RunInBackground -runAsSudo
 		}
-		$state = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "bash ./workCommand.sh $iteration" -RunInBackground -runAsSudo
+		Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "bash ./workCommand.sh $iteration" -RunInBackground -runAsSudo
 		Wait-Time -seconds 5
 		while ($sw.elapsed -lt $timeout) {
 			Wait-Time -seconds 15
@@ -127,7 +127,7 @@ function Main {
 			$workCommand = @"
 source utils.sh
 SetTestStateRunning
-fio --size=1G --name=$1 --direct=1 --ioengine=libaio --filename=fiodata --overwrite=1 --readwrite=readwrite --bs=1M --runtime=1 --iodepth=128 --numjobs=32 --runtime=300 --output-format=json+ --output=$1.json
+fio --size=1G --name=${1} --direct=1 --ioengine=libaio --filename=fiodata --overwrite=1 --readwrite=readwrite --bs=1M --iodepth=128 --numjobs=32 --runtime=300 --output-format=json+ --output=${1}.json
 rm -f fiodata
 sync
 echo 3 > /proc/sys/vm/drop_caches
@@ -140,7 +140,7 @@ SetTestStateCompleted
 			$workCommand = @"
 source utils.sh
 SetTestStateRunning
-iperf -c $targetIPAddress -t 300 -P 8 > $1.json
+iperf -c $targetIPAddress -t 300 -P 8 > ${1}.json
 SetTestStateCompleted
 "@
 			Set-Content "$LogDir\workCommand.sh" $workCommand
