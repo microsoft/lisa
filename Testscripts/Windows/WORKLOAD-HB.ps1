@@ -296,7 +296,7 @@ install_package "fio iperf"
 			Write-LogInfo "Searching the keyword: $_"
 			if ($pm_log_filter -eq "") {
 				Write-LogErr "Could not find Power Management log in dmesg"
-				throw "Missing PM logging in dmesg"
+				#throw "Missing PM logging in dmesg"
 			} else {
 				Write-LogInfo "Successfully found Power Management log in dmesg"
 				Write-LogInfo $pm_log_filter
