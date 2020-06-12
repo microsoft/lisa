@@ -28,7 +28,7 @@ function Main {
 	param($AllVMData, $TestParams)
 	$currentTestResult = Create-TestResultObject
 
-	function WorkLoad {
+	function Start-WorkLoad {
 		param($iteration)
 		$maxWorkRunWaitMin = 7
 		# Send workload command for 5 min
@@ -38,7 +38,7 @@ function Main {
 		if ($isNetworkWorkloadEnable -eq 1) {
 			$state = Run-LinuxCmd -ip $AllVMData[1].PublicIP -port $AllVMData[1].SSHPort -username $user -password $password -command "iperf -s -D" -RunInBackground -runAsSudo
 		}
-		$state = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "bash ./work$($iteration)Command.sh" -RunInBackground -runAsSudo
+		$state = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "bash ./workCommand.sh $iteration" -RunInBackground -runAsSudo
 		Wait-Time -seconds 5
 		while ($sw.elapsed -lt $timeout) {
 			Wait-Time -seconds 15
@@ -124,45 +124,26 @@ function Main {
 
 		# setting up the workload script
 		if ($isStorageWorkloadEnable -eq 1) {
-			$work1Command = @"
+			$workCommand = @"
 source utils.sh
 SetTestStateRunning
-fio --size=1G --name=beforehb --direct=1 --ioengine=libaio --filename=fiodata --overwrite=1 --readwrite=readwrite --bs=1M --runtime=1 --iodepth=128 --numjobs=32 --runtime=300 --output-format=json+ --output=beforewl.json
+fio --size=1G --name=$1 --direct=1 --ioengine=libaio --filename=fiodata --overwrite=1 --readwrite=readwrite --bs=1M --runtime=1 --iodepth=128 --numjobs=32 --runtime=300 --output-format=json+ --output=$1.json
 rm -f fiodata
 sync
 echo 3 > /proc/sys/vm/drop_caches
 SetTestStateCompleted
 "@
-			Set-Content "$LogDir\work1Command.sh" $work1Command
-
-			$work2Command = @"
-source utils.sh
-SetTestStateRunning
-fio --size=1G --name=afterhb --direct=1 --ioengine=libaio --filename=fiodata --overwrite=1 --readwrite=readwrite --bs=1M --runtime=1 --iodepth=128 --numjobs=32 --runtime=300 --output-format=json+ --output=afterwl.json
-rm -f fiodata
-sync
-echo 3 > /proc/sys/vm/drop_caches
-SetTestStateCompleted
-"@
-			Set-Content "$LogDir\work2Command.sh" $work2Command
+			Set-Content "$LogDir\workCommand.sh" $workCommand
 		}
 		if ($isNetworkWorkloadEnable -eq 1) {
 			$targetIPAddress = $AllVMData[1].InternalIP
-			$work1Command = @"
+			$workCommand = @"
 source utils.sh
 SetTestStateRunning
-iperf -c $targetIPAddress -t 300 -P 8 > beforewl.json
+iperf -c $targetIPAddress -t 300 -P 8 > $1.json
 SetTestStateCompleted
 "@
-			Set-Content "$LogDir\work1Command.sh" $work1Command
-
-			$work2Command = @"
-source utils.sh
-SetTestStateRunning
-iperf -c $targetIPAddress -t 300 -P 8 > afterwl.json
-SetTestStateCompleted
-"@
-			Set-Content "$LogDir\work2Command.sh" $work2Command
+			Set-Content "$LogDir\workCommand.sh" $workCommand
 		}
 		#endregion
 
@@ -174,7 +155,7 @@ echo disk > /sys/power/state
 		$setupcommand = @"
 source utils.sh
 update_repos
-install_package fio iperf
+install_package "fio iperf"
 "@
 		Set-Content "$LogDir\setup.sh" $setupcommand
 
@@ -242,7 +223,7 @@ install_package fio iperf
 			throw "Can not proceed because VM $($AllVMData[0].RoleName) status was $($vmStatus.Statuses[1].DisplayStatus)"
 		}
 
-		WorkLoad 1
+		Start-WorkLoad "beforehb"
 
 		# Hibernate the VM
 		Write-LogInfo "Hibernating ..."
@@ -322,7 +303,7 @@ install_package fio iperf
 			}
 		}
 
-		WorkLoad 2
+		Start-WorkLoad "afterhb"
 
 		$testResult = $resultPass
 
