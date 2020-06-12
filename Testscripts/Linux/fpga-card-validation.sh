@@ -148,6 +148,8 @@ validate_cards
 
 if [ $? -ne 0 ]; then
     LogErr "Could not validate cards!"
+    SetTestStateFailed
+    exit 0
 fi
 
 SetTestStateCompleted
