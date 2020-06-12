@@ -16,22 +16,103 @@
 ########################################################################
 
 #######################################################################
+function check_os(){
+    GetOSVersion
+    if [[ "$DISTRO" == "ubuntu"* && "$os_RELEASE" != $SupportedUbuntu ]]; then
+        LogErr "Ubuntu $os_RELEASE is not supported"
+        return 1
+    fi
+    if [[ "$DISTRO" == "centos_7" && "$os_RELEASE" != $SupportedCentOS ]]; then
+        LogErr "CentOS $os_RELEASE is not supported"
+        return 1
+    fi
+}
+
+function check_kernel(){
+    if [[ "$DISTRO" == "ubuntu"* ]]; then
+        kernel=$(uname -r)
+        if ! [[ $kernel  =~ $SupportedUbuntuKernel.* ]]; then
+            LogErr "Kernel $kernel is not supported"
+            return 1
+        fi
+    fi
+}
+
 function prepare() {
     xrt_setup="/opt/xilinx/xrt/setup.sh"
     if [[ ! -f $xrt_setup ]]; then
-        LogErr "$xrt_setup file not found on VM!"
-        SetTestStateAborted
+        LogErr "$xrt_setup file not found on the VM!"
         return 1
     fi
     source $xrt_setup
 }
+
+function install_xrt(){
+    LogMsg "Installing XRT ..."
+    current_dir=$(pwd)
+    case $DISTRO in
+        ubuntu*)
+            git clone https://github.com/xilinx/xrt.git /tmp/xrt
+            cd /tmp/xrt
+            git checkout $XRTBranchVersion
+            apt-get update
+            cd /tmp/xrt/src/runtime_src/tools/scripts
+            DEBIAN_FRONTEND=noninteractive apt-get install -yq --no-install-recommends libssl-dev
+            ./xrtdeps.sh
+            cd /tmp/xrt/build
+            ./build.sh clean
+            ./build.sh
+            cd Release
+            apt -y install ./xrt_*-xrt.deb
+            apt -y install ./xrt_*-azure.deb
+            XDMA_PKG="${XDMAFileName}_$SupportedUbuntu.deb"
+            wget https://www.xilinx.com/bin/public/openDownload?filename="$XDMA_PKG" -O /tmp/"$XDMA_PKG"
+            apt -y install /tmp/"$XDMA_PKG"
+            cd ${current_dir}
+            prepare
+            ;;
+
+        centos_7)
+            sudo yum install -y git
+            git clone https://github.com/xilinx/xrt.git /tmp/xrt 
+            cd /tmp/xrt
+            git checkout $XRTBranchVersion
+            cd /tmp/xrt/src/runtime_src/tools/scripts
+#            DEBIAN_FRONTEND=noninteractive apt-get install -yq --no-install-recommends libssl-dev
+            ./xrtdeps.sh
+            yum install -y devtoolset-9
+            export PATH=/opt/rh/devtoolset-9/root/usr/bin:$PATH
+            export LD_LIBRARY_PATH=/opt/rh/devtoolset-9/root/usr/lib64:/opt/rh/devtoolset-9/root/usr/lib:/opt/rh/devtoolset-9/root/usr/lib64/dyninst:/opt/rh/devtoolset-9/root/usr/lib/dyninst:/opt/rh/devtoolset-9/root/usr/lib64:/opt/rh/devtoolset-9/root/usr/lib:$LD_LIBRARY_PATH
+            cd /tmp/xrt/build
+            ./build.sh
+            ./build.sh
+            cd Release
+            pip install numpy==1.16
+            yum install -y ./xrt_*-xrt.rpm >> ~/install.log
+            yum install -y ./xrt_*-azure.rpm >> ~/install.log
+            service mpd restart
+            XDMA_PKG="$XDMAFileName.x86_64.rpm"
+            wget https://www.xilinx.com/bin/public/openDownload?filename="$XDMA_PKG" -O /tmp/"$XDMA_PKG"
+            yum install -y /tmp/"$XMDA_PKG"
+            cd ${current_dir}
+            prepare
+            ;;
+
+        *)
+            LogErr "$DISTRO is not supported"
+            return 1
+    esac
+    LogMsg "Finished installing XRT"
+}
+
 function validate_cards() {
-    LogMsg "Validating FPGA cards"
+    LogMsg "Validating FPGA cards ..."
     if ! [ -x "$(command -v xbutil)" ]; then
         LogErr "xbutil not found in the path!"
         SetTestStateAborted
         return 1
     fi
+    xbutil scan >> TestExecution.log
     xbutil validate >> TestExecution.log
 }
 
@@ -47,14 +128,26 @@ function validate_cards() {
     exit 0
 }
 UtilsInit
-
-prepare
+check_os
+if [ $? -ne 0 ]; then
+    SetTestStateFailed
+    exit 0
+fi
+check_kernel
+if [ $? -ne 0 ]; then
+    SetTestStateFailed
+    exit 0
+fi
+prepare || install_xrt
+if [ $? -ne 0 ]; then
+    LogErr "Failed to install XRT"
+    SetTestStateFailed
+    exit 0
+fi
 validate_cards
 
 if [ $? -ne 0 ]; then
     LogErr "Could not validate cards!"
-    SetTestStateFailed
-    exit 0
 fi
 
 SetTestStateCompleted

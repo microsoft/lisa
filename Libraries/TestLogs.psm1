@@ -112,7 +112,7 @@ function Collect-TestLogs {
 	$currentTestResult = Create-TestResultObject
 
 	if ($TestType -eq "sh") {
-		$filesTocopy = "./state.txt, ./summary.log, ./TestExecution.log, ./TestExecutionError.log"
+		$filesTocopy = "./state.txt, ./summary.log, ./${TestName}_summary.log, ./TestExecution.log, ./TestExecutionError.log"
 		Copy-RemoteFiles -download -downloadFrom $PublicIP -downloadTo $LogsDestination `
 			 -Port $SSHPort -Username $Username -password $Password `
 			 -files $filesTocopy
