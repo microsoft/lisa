@@ -3,7 +3,6 @@
         <Subscription>
             <SubscriptionID>xxxxxxxx-xxxx-xxxx-xxxxx-xxxxxxxxxxxx</SubscriptionID>
             <SubscriptionName>YOUR_SUBSCRIPTION_NAME</SubscriptionName>
-            <ManagementEndpoint>https://management.core.windows.net</ManagementEndpoint>
             <Environment>AzureCloud</Environment>
             <ARMStorageAccount>ExistingStorage_Standard</ARMStorageAccount>
         </Subscription>

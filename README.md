@@ -1,6 +1,6 @@
 ﻿# Linux Integration Services Automation (LISA), version 2
 
-Nov 2018
+June 2020
 
 ### Overview
 
@@ -59,15 +59,12 @@ LISAv2 includes below test suite categories:
 2. Start Web Platform Installer and select Azure PowerShell (required 6.3.0 or above) and proceed for Azure PowerShell Installation. (Azure PowerShell version is different from PowerShell version)
 3. Install the Azure Powershell Az module [here](https://docs.microsoft.com/en-us/powershell/azure/install-az-ps?view=azps-2.6.0)
 
-### Authenticate Your Test Driver Machine with Your Azure Subscription
+### Authenticate from LISAv2 Orchestrator Machine with Your Azure Subscription
+* Sign in with Azure PowerShell
 
-#### Azure AD method
+Refer to this URL [here](https://docs.microsoft.com/en-us/powershell/azure/authenticate-azureps)
 
-This creates a 12 Hours temporary session in PowerShell. In that session, you are allowed to run Windows Azure Cmdlets to control / use your subscription.
-
-After 12 hours you will be asked to enter username and password of your subscription again.
-
-#### Service Principal method
+* Prepare Service Principal and create secret file
 
 Refer to this URL [here](https://docs.microsoft.com/en-us/azure/azure-resource-manager/resource-group-create-service-principal-portal)
 
@@ -92,17 +89,25 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
 
           git clone https://github.com/LIS/LISAv2.git
 
-2. Create a new secret file, or update it with those required fields from .\XML\GlobalConfigurations.xml manually for the preparation:
+2. Create a new secret xml file, and update required fields from .\XML\GlobalConfigurations.xml:
 
-    2.1 Update below subscription info using created service principal, can use [this script](https://github.com/LIS/LISAv2/blob/master/Utilities/CreateServicePrincipal.ps1) to create service principal.
-        For example, if you run test case in location 'eastasia', then you create a standard and premium storage account under the test subscription in 'eastasia' and replace storage account names in secrets file.
-        If you run against other regions, add new tag sections like <new_region></new_region>
+    2.1 Secret File to be used by `-XMLSecretFile <Path of Secret File>` when Run-LISAv2.ps1
+     - If Run LISAv2 for Azure Platform with authentication from service principal, please update created service principal info in your secrete file, can use [this script](https://github.com/LIS/LISAv2/blob/master/Utilities/CreateServicePrincipal.ps1) to create service principal.
+	 - If Run-LISAv2.ps1 for Azure Platform from an authenticated PowerShell session (check `Get-AzContext` from PowerShell), no need prepare Service Principla info in your secrete file.
+	 - Storage Accounts Tips:
+        -   If you want LISAv2 to create all potential needed Azure storage accouts from all available Azure regions that supports `'Microsoft.Storage'` resource type and keep using those storage accounts in the following automation or ad-hoc testing, give `<ARMStorageAccount>Auto_Complet_RG=Xxx</ARMStorageAccount>` from .\XML\GlobalConfigurations.xml, or you can specify `-StorageAccount "Auto_Complet_RG=Xxx"` during Run-LISAv2.ps1.
+	        - `'Xxx'` is the Resource Group Name to host storage accounts which are used for LISAv2 execution. If Azure resource group `'Xxx'` does not exist, LISAv2 will create `'Xxx'` resource group automatically.
+	        - LISAv2 will create new storage accounts automatically with name following regular expression `lisa[a-z0-9]{15}`, and make sure there are two storage accounts (one is `Standard_LRS` type, another is `Premium_LRS` type) created (or checked for existence) in Azure resource group `'Xxx'` for each Azure region which supports `'Microsoft.Storage'` resource type. Any existing storage account that follows the naming format `lisa[a-z0-9]{15}` from Azure resource group `'Xxx'` will be taken as expected storage accounts and LISAv2 will not create duplicate storage accounts with same storage account type (`Standard_LRS` or `Premium_LRS`) at the same region.
+	        - LISAv2 will update `<RegionAndStorageAccounts>` of user specified secret file with expected storage accounts from Azure resource group `'Xxx'` for the following execution, just as user created those storage accounts manually and replaced in secret file as below example.
+	        - If user changes to another Azure resource group `'Yyy'` instead of `'Xxx'` used previously when Run-LISAv2 with the same subscription, LISAv2 will create (or check existence of) another set of storage accounts with naming `lisa[a-z0-9]{15}` in Azure resource group `'Yyy'`. So note about this, and think over before changing to another resource group in the following automation or ad-hoc testing.
+        -   If you already prepared standard and premium storage accounts in your test subscription for your test location, e.g., `'eastasia'`, please replace storage account names in secret file as below. If you may run against other regions, add more tag elements like `<other_region></other_region>`.
     ```xml
         <secrets>
             <!--Not mandatory-->
             <SubscriptionName>Enter your subscription name</SubscriptionName>
-            <!--Below four sections are mandatory when test against Azure platform-->
+            <!--'SubscriptionID' is manadatory if 'SubscriptionID' is empty/invalid from .\XML\GlobalConfigurations.xml, otherwise, it's optional-->
             <SubscriptionID>Enter your subscription id</SubscriptionID>
+            <!--Below three elements are mandatory if testing against Azure platform with service principal, otherwise they are optional (e.g., Signing in with Azure PowerShell before Run-LISAv2.ps1)-->
             <SubscriptionServicePrincipalTenantID>Enter a new Tenant id from CreateServicePrincipal.ps1 result</SubscriptionServicePrincipalTenantID>
             <SubscriptionServicePrincipalClientID>Enter a new Client id from CreateServicePrincipal.ps1 result</SubscriptionServicePrincipalClientID>
             <SubscriptionServicePrincipalKey>Enter a new Principal key from CreateServicePrincipal.ps1 result<SubscriptionServicePrincipalKey>
@@ -117,6 +122,9 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
             <DatabaseUser></DatabaseUser>
             <DatabasePassword></DatabasePassword>
             <DatabaseName></DatabaseName>
+            <!--Below <RegionAndStorageAccounts> is optional when <ARMStorageAccount> is set with 'Auto_Complete_RG=Xxx' from .\XML\GlobalConfigurations.xml-->
+            <!--Below <RegionAndStorageAccounts> is optional when run LISAv2 in Windows PowerShell with parameter '-StorageAccount "Auto_Complete_RG=Xxx"'-->
+            <!-- 'Xxx' is the Resource Group Name to host all the storage accounts, if 'Xxx' is not exist, LISAv2 will create resource group automatically and will create storage accounts in that resource group for all available regions-->
             <RegionAndStorageAccounts>
                 <eastasia>
                     <StandardStorage>Enter Standard Storage Account name</StandardStorage>
@@ -133,13 +141,12 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
 
     2.2 Update the .\XML\GlobalConfigurations.xml file with your Azure subscription information or Hyper-V host information:
 
-        Go to Global > Azure/HyperV and update following fields:
+        Go to Global > Azure/HyperV and update following fields if necessary:
 
             a. SubscriptionID
             b. SubscriptionName (Optional)
-            c. ManagementEndpoint
-            d. Environment (For Azure PublicCloud, use `AzureCloud`)
-            e. ARMStorageAccount
+            c. Environment (For Azure PublicCloud, use `AzureCloud`)
+            d. ARMStorageAccount
 
         Example:
 
@@ -147,10 +154,11 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
 
         <Azure>
             <Subscription>
+                <!--This 'SubscriptionID' is mandatory if 'SubscriptionID' is empty/invalid from the secret xml file, which is indicated by '-XMLSecretFile' when Run-LISAv2.ps1, otherwise, it's optional -->
                 <SubscriptionID>2cd20493-0000-1111-2222-0123456789ab</SubscriptionID>
                 <SubscriptionName>YOUR_SUBSCRIPTION_NAME</SubscriptionName>
-                <ManagementEndpoint>https://management.core.windows.net</ManagementEndpoint>
                 <Environment>AzureCloud</Environment>
+                <!--This 'ARMStorageAccount' is mandatory if '-StorageAccount' is not specified when Run-LISAv2.ps1, otherwise, it's optional-->
                 <ARMStorageAccount>ExistingStorage_Standard</ARMStorageAccount>
             </Subscription>
         </Azure>
