@@ -293,7 +293,7 @@ install_package "fio iperf"
 
 		# Check the system log if it shows Power Management log
 		"hibernation entry", "hibernation exit" | ForEach-Object {
-			$pm_log_filter = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "dmesg | grep -i '$_'" -ignoreLinuxExitCode:$true
+			$pm_log_filter = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "cat /var/log/syslog | grep -i '$_'" -ignoreLinuxExitCode:$true
 			Write-LogInfo "Searching the keyword: $_"
 			if ($pm_log_filter -eq "") {
 				Write-LogErr "Could not find Power Management log in dmesg"
