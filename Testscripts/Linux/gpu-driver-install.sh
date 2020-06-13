@@ -75,8 +75,9 @@ function skip_test() {
 			unsupport_flag=1
 		fi
 		if [ $unsupport_flag = 1 ]; then
-			LogErr "$DISTRO not supported. Abort the test."
-			SetTestStateAborted
+			LogErr "$DISTRO not supported. Skip the test."
+			SetTestStateSkipped
+			exit 0
 		fi
 	fi
 }
