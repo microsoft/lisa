@@ -178,7 +178,7 @@ function Main() {
 
 		_entry=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'GRUB_TIMEOUT=')
 		if [ -n "$_entry" ]; then
-			sed -i -e "s/GRUB_TIMEOUT=*.*/GRUB_TIMEOUT=30/g" /etc/default/grub.d/50-cloudimg-settings.cfg
+			sed -i -e "s/GRUB_TIMEOUT=.*/GRUB_TIMEOUT=30/g" /etc/default/grub.d/50-cloudimg-settings.cfg
 			LogMsg "$?: Updated GRUB_TIMEOUT value with 30"
 		else
 			echo 'GRUB_TIMEOUT=30' >> /etc/default/grub.d/50-cloudimg-settings.cfg
