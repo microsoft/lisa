@@ -163,8 +163,8 @@ function Main() {
 				sed -i  '/^GRUB_CMDLINE_LINUX_DEFAULT=/ s/"$/ resume='$sw_uuid'"/'  /etc/default/grub.d/50-cloudimg-settings.cfg
 			else
 				echo GRUB_CMDLINE_LINUX_DEFAULT="console=tty1 console=ttyS0 earlyprintk=ttyS0 rootdelay=300 resume=$sw_uuid" >> /etc/default/grub.d/50-cloudimg-settings.cfg
-				LogMsg "$?: Added resume=$sw_uuid in 50-cloudimg-settings.cfg file"
 			fi
+			LogMsg "$?: Added resume=$sw_uuid in 50-cloudimg-settings.cfg file"
 		fi
 
 		_entry=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'GRUB_HIDDEN_TIMEOUT=')
