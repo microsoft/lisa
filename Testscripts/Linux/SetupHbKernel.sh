@@ -158,7 +158,7 @@ function Main() {
 			sed -i -e "s/rootdelay=300/rootdelay=300 resume=$sw_uuid/g" /etc/default/grub.d/50-cloudimg-settings.cfg
 			LogMsg "$?: Updated the 50-cloudimg-settings.cfg with resume=$sw_uuid"
 		else
-			echo 'rootdelay=300 resume=$sw_uuid' >> /etc/default/grub.d/50-cloudimg-settings.cfg
+			echo rootdelay=300 resume=$sw_uuid >> /etc/default/grub.d/50-cloudimg-settings.cfg
 			LogMsg "$?: Added resume=$sw_uuid in 50-cloudimg-settings.cfg file"
 		fi
 
@@ -186,8 +186,8 @@ function Main() {
 		_entry1=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'rootdelay=')
 		_entry2=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'GRUB_HIDDEN_TIMEOUT=')
 		_entry3=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'GRUB_TIMEOUT=')
-		if [ $_entry1 && $_entry2 && $_entry3 ]; then
-			LogMsg "Successfully update 50-cloudimg-settings.cfg file"
+		if [ -n "$_entry1" ] && [ -n "$_entry2" ] && [ -n "$_entry3" ]; then
+			LogMsg "Successfully updated 50-cloudimg-settings.cfg file with all three entries"
 		else
 			LogErr "$_entry, $_entry2, $_entry3 - Missing config update in 50-cloudimg-settings.cfg file"
 			SetTestStateAborted
