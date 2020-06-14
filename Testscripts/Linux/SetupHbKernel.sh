@@ -154,16 +154,21 @@ function Main() {
 		LogMsg "$?: Run dracut -f"
 	else
 		_entry=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'rootdelay=')
-		if [ $_entry ]; then
+		if [ -n "$_entry" ]; then
 			sed -i -e "s/rootdelay=300/rootdelay=300 resume=$sw_uuid/g" /etc/default/grub.d/50-cloudimg-settings.cfg
 			LogMsg "$?: Updated the 50-cloudimg-settings.cfg with resume=$sw_uuid"
 		else
-			echo rootdelay=300 resume=$sw_uuid >> /etc/default/grub.d/50-cloudimg-settings.cfg
-			LogMsg "$?: Added resume=$sw_uuid in 50-cloudimg-settings.cfg file"
+			_entry=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep GRUB_CMDLINE_LINUX_DEFAULT)
+			if [ -n "$_entry" ]; then
+				sed -i  '/^GRUB_CMDLINE_LINUX_DEFAULT=/ s/"$/ resume='$sw_uuid'"/'  /etc/default/grub.d/50-cloudimg-settings.cfg
+			else
+				echo GRUB_CMDLINE_LINUX_DEFAULT="console=tty1 console=ttyS0 earlyprintk=ttyS0 rootdelay=300 resume=$sw_uuid" >> /etc/default/grub.d/50-cloudimg-settings.cfg
+				LogMsg "$?: Added resume=$sw_uuid in 50-cloudimg-settings.cfg file"
+			fi
 		fi
 
 		_entry=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'GRUB_HIDDEN_TIMEOUT=')
-		if [ $_entry ]; then
+		if [ -n "$_entry" ]; then
 			sed -i -e "s/GRUB_HIDDEN_TIMEOUT=*.*/GRUB_HIDDEN_TIMEOUT=30/g" /etc/default/grub.d/50-cloudimg-settings.cfg
 			LogMsg "$?: Updated GRUB_HIDDEN_TIMEOUT value with 30"
 		else
@@ -172,7 +177,7 @@ function Main() {
 		fi
 
 		_entry=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'GRUB_TIMEOUT=')
-		if [ $_entry ]; then
+		if [ -n "$_entry" ]; then
 			sed -i -e "s/GRUB_TIMEOUT=*.*/GRUB_TIMEOUT=30/g" /etc/default/grub.d/50-cloudimg-settings.cfg
 			LogMsg "$?: Updated GRUB_TIMEOUT value with 30"
 		else
@@ -183,7 +188,7 @@ function Main() {
 		update-grub2
 		LogMsg "$?: Ran update-grub2"
 
-		_entry1=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'rootdelay=')
+		_entry1=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'resume=')
 		_entry2=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'GRUB_HIDDEN_TIMEOUT=')
 		_entry3=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'GRUB_TIMEOUT=')
 		if [ -n "$_entry1" ] && [ -n "$_entry2" ] && [ -n "$_entry3" ]; then
