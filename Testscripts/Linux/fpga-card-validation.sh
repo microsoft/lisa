@@ -47,24 +47,37 @@ function prepare() {
     source $xrt_setup
 }
 
+function get_repo(){
+    # do not wait on username/password prompt
+    git clone -c core.askPass $echo $XRTRepoUrl /tmp/xrt
+    if [ $? -ne 0 ]; then
+        LogErr "Unable to clone $XRTRepoUrl"
+        return 1
+    fi
+    cd /tmp/xrt
+    git checkout $XRTBranchVersion
+    cd /tmp/xrt/src/runtime_src/tools/scripts
+    ./xrtdeps.sh
+    cd /tmp/xrt/build
+}
+
 function install_xrt(){
     LogMsg "Installing XRT ..."
     current_dir=$(pwd)
     case $DISTRO in
         ubuntu*)
-            git clone https://github.com/xilinx/xrt.git /tmp/xrt
-            cd /tmp/xrt
-            git checkout $XRTBranchVersion
             apt-get update
-            cd /tmp/xrt/src/runtime_src/tools/scripts
-            DEBIAN_FRONTEND=noninteractive apt-get install -yq --no-install-recommends libssl-dev
-            ./xrtdeps.sh
-            cd /tmp/xrt/build
+            get_repo
+            if [ $? -ne 0 ]; then
+                LogErr "Unable to setup the XRT repository"
+                return 1
+            fi
             ./build.sh clean
             ./build.sh
             cd Release
             apt -y install ./xrt_*-xrt.deb
             apt -y install ./xrt_*-azure.deb
+            service mpd restart
             XDMA_PKG="${XDMAFileName}_$SupportedUbuntu.deb"
             wget https://www.xilinx.com/bin/public/openDownload?filename="$XDMA_PKG" -O /tmp/"$XDMA_PKG"
             apt -y install /tmp/"$XDMA_PKG"
@@ -74,22 +87,20 @@ function install_xrt(){
 
         centos_7)
             sudo yum install -y git
-            git clone https://github.com/xilinx/xrt.git /tmp/xrt 
-            cd /tmp/xrt
-            git checkout $XRTBranchVersion
-            cd /tmp/xrt/src/runtime_src/tools/scripts
-#            DEBIAN_FRONTEND=noninteractive apt-get install -yq --no-install-recommends libssl-dev
-            ./xrtdeps.sh
+            get_repo
+            if [ $? -ne 0 ]; then
+                LogErr "Unable to setup the XRT repository"
+                return 1
+            fi
             yum install -y devtoolset-9
             export PATH=/opt/rh/devtoolset-9/root/usr/bin:$PATH
             export LD_LIBRARY_PATH=/opt/rh/devtoolset-9/root/usr/lib64:/opt/rh/devtoolset-9/root/usr/lib:/opt/rh/devtoolset-9/root/usr/lib64/dyninst:/opt/rh/devtoolset-9/root/usr/lib/dyninst:/opt/rh/devtoolset-9/root/usr/lib64:/opt/rh/devtoolset-9/root/usr/lib:$LD_LIBRARY_PATH
-            cd /tmp/xrt/build
-            ./build.sh
+            ./build.sh clean
             ./build.sh
             cd Release
             pip install numpy==1.16
-            yum install -y ./xrt_*-xrt.rpm >> ~/install.log
-            yum install -y ./xrt_*-azure.rpm >> ~/install.log
+            yum install -y ./xrt_*-xrt.rpm
+            yum install -y ./xrt_*-azure.rpm
             service mpd restart
             XDMA_PKG="$XDMAFileName.x86_64.rpm"
             wget https://www.xilinx.com/bin/public/openDownload?filename="$XDMA_PKG" -O /tmp/"$XDMA_PKG"

@@ -6,6 +6,7 @@
         <OverrideVMSize>Standard_NP10s</OverrideVMSize>
         <files>.\Testscripts\Linux\fpga-card-validation.sh,.\Testscripts\Linux\utils.sh</files>
         <TestParameters>
+            <param>XRTRepoUrl=XRT_Repo_Url</param>
             <param>XRTBranchVersion=XRT_Version</param>
             <param>XDMAFileName=XDMA_File_Name</param>
             <param>SupportedCentOS=CentOS_Supported_Version</param>
