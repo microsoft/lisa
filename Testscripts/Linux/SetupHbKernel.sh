@@ -67,10 +67,6 @@ function Main() {
 	ret=$(cat /etc/fstab)
 	LogMsg "$?: Displayed the contents in /etc/fstab"
 
-	# fio installation for storage test case.
-	update_repos
-	install_package fio
-
 	if [[ $hb_url != "" ]]; then
 		LogMsg "Starting Hibernation required packages and kernel build in the VM"
 		update_repos
@@ -127,13 +123,23 @@ function Main() {
 		cd
 
 		# Append the test log to the main log files.
-		cat /usr/src/linux/TestExecution.log >> TestExecution.log
-		cat /usr/src/linux/TestExecutionError.log >> TestExecutionError.log
+		if [ -f /usr/src/linux/TestExecution.log ]; then
+			cat /usr/src/linux/TestExecution.log >> TestExecution.log
+		fi
+		if [ -f /usr/src/linux/TestExecutionError.log ]; then
+			cat /usr/src/linux/TestExecutionError.log >> TestExecutionError.log
+		fi
 	fi
 
 	if [[ "$DISTRO" =~ "redhat" ]];then
-		sed -i -e "s/rootdelay=300/rootdelay=300 resume=$sw_uuid/g" /etc/default/grub
-		LogMsg "$?: Updated the /etc/default/grub with resume=$sw_uuid"
+		_entry=$(cat /etc/default/grub | grep 'rootdelay=')
+		if [ $_entry ]; then
+			sed -i -e "s/rootdelay=300/rootdelay=300 resume=$sw_uuid/g" /etc/default/grub
+			LogMsg "$?: Updated the /etc/default/grub with resume=$sw_uuid"
+		else
+			echo GRUB_CMDLINE_LINUX_DEFAULT="console=tty1 console=ttyS0 earlyprintk=ttyS0 rootdelay=300 resume=$sw_uuid" >> /etc/default/grub
+			LogMsg "$?: Added resume=$sw_uuid in /etc/default/grub file"
+		fi
 
 		if [[ "$os_GENERATION" == "2" ]];then
 			grub_cfg="/boot/efi/EFI/redhat/grub.cfg"
@@ -147,17 +153,51 @@ function Main() {
 		dracut -f
 		LogMsg "$?: Run dracut -f"
 	else
-		sed -i -e "s/rootdelay=300/rootdelay=300 resume=$sw_uuid/g" /etc/default/grub.d/50-cloudimg-settings.cfg
-		LogMsg "$?: Updated the 50-cloudimg-settings.cfg with resume=$sw_uuid"
+		_entry=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'rootdelay=')
+		if [ -n "$_entry" ]; then
+			sed -i -e "s/rootdelay=300/rootdelay=300 resume=$sw_uuid/g" /etc/default/grub.d/50-cloudimg-settings.cfg
+			LogMsg "$?: Updated the 50-cloudimg-settings.cfg with resume=$sw_uuid"
+		else
+			_entry=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep GRUB_CMDLINE_LINUX_DEFAULT)
+			if [ -n "$_entry" ]; then
+				sed -i  '/^GRUB_CMDLINE_LINUX_DEFAULT=/ s/"$/ rootdelay=300 resume='$sw_uuid'"/'  /etc/default/grub.d/50-cloudimg-settings.cfg
+			else
+				echo GRUB_CMDLINE_LINUX_DEFAULT="console=tty1 console=ttyS0 earlyprintk=ttyS0 rootdelay=300 resume=$sw_uuid" >> /etc/default/grub.d/50-cloudimg-settings.cfg
+			fi
+			LogMsg "$?: Added resume=$sw_uuid in 50-cloudimg-settings.cfg file"
+		fi
 
-		sed -i -e "s/GRUB_HIDDEN_TIMEOUT=*.*/GRUB_HIDDEN_TIMEOUT=30/g" /etc/default/grub.d/50-cloudimg-settings.cfg
-		LogMsg "$?: Updated GRUB_HIDDEN_TIMEOUT value with 30"
+		_entry=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'GRUB_HIDDEN_TIMEOUT=')
+		if [ -n "$_entry" ]; then
+			sed -i -e "s/GRUB_HIDDEN_TIMEOUT=*.*/GRUB_HIDDEN_TIMEOUT=30/g" /etc/default/grub.d/50-cloudimg-settings.cfg
+			LogMsg "$?: Updated GRUB_HIDDEN_TIMEOUT value with 30"
+		else
+			echo 'GRUB_HIDDEN_TIMEOUT=30' >> /etc/default/grub.d/50-cloudimg-settings.cfg
+			LogMsg "$?: Added GRUB_HIDDEN_TIMEOUT=30 in 50-cloudimg-settings.cfg file"
+		fi
 
-		sed -i -e "s/GRUB_TIMEOUT=*.*/GRUB_TIMEOUT=30/g" /etc/default/grub.d/50-cloudimg-settings.cfg
-		LogMsg "$?: Updated GRUB_TIMEOUT value with 30"
+		_entry=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'GRUB_TIMEOUT=')
+		if [ -n "$_entry" ]; then
+			sed -i -e "s/GRUB_TIMEOUT=.*/GRUB_TIMEOUT=30/g" /etc/default/grub.d/50-cloudimg-settings.cfg
+			LogMsg "$?: Updated GRUB_TIMEOUT value with 30"
+		else
+			echo 'GRUB_TIMEOUT=30' >> /etc/default/grub.d/50-cloudimg-settings.cfg
+			LogMsg "$?: Added GRUB_TIMEOUT=30 in 50-cloudimg-settings.cfg file"
+		fi
 
 		update-grub2
 		LogMsg "$?: Ran update-grub2"
+
+		_entry1=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'resume=')
+		_entry2=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'GRUB_HIDDEN_TIMEOUT=30')
+		_entry3=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'GRUB_TIMEOUT=')
+		if [ -n "$_entry1" ] && [ -n "$_entry2" ] && [ -n "$_entry3" ]; then
+			LogMsg "Successfully updated 50-cloudimg-settings.cfg file with all three entries"
+		else
+			LogErr "$_entry, $_entry2, $_entry3 - Missing config update in 50-cloudimg-settings.cfg file"
+			SetTestStateAborted
+			exit 0
+		fi
 	fi
 
 	echo "setup_completed=0" >> constants.sh
