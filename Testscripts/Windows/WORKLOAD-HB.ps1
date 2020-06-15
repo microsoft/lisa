@@ -281,14 +281,19 @@ install_package "fio iperf"
 		}
 
 		# Verify kernel panic or call trace
-		$calltrace_filter = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "dmesg | grep -i 'call trace'" -ignoreLinuxExitCode:$true
-
-		if ($calltrace_filter -ne "") {
-			Write-LogErr "Found Call Trace in dmesg"
+		$fstate = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "[[ -f /var/log/syslog ]];echo $?" -ignoreLinuxExitCode:$true -RunAsSudo
+		if ($fstate -eq "1") {
+			$logPath = '/var/log/messages'
+		} else {
+			$logPath = '/var/log/syslog'
+		}
+		$calltrace_filter = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "grep -i 'CALL TRACE' ${logPath}" -ignoreLinuxExitCode:$true -RunAsSudo
+		if ($calltrace_filter) {
+			Write-LogErr "Found Call Trace in system logs"
 			# The throw statement is commented out because this is linux-next, so there is high chance to get call trace from other issue. For now, only print the error.
 			# throw "Call trace in dmesg"
 		} else {
-			Write-LogInfo "Not found Call Trace in dmesg"
+			Write-LogInfo "Not found Call Trace in system logs"
 		}
 
 		# Check the system log if it shows Power Management log
