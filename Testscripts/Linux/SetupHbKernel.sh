@@ -160,7 +160,7 @@ function Main() {
 		else
 			_entry=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep GRUB_CMDLINE_LINUX_DEFAULT)
 			if [ -n "$_entry" ]; then
-				sed -i  '/^GRUB_CMDLINE_LINUX_DEFAULT=/ s/"$/ resume='$sw_uuid'"/'  /etc/default/grub.d/50-cloudimg-settings.cfg
+				sed -i  '/^GRUB_CMDLINE_LINUX_DEFAULT=/ s/"$/ rootdelay=300 resume='$sw_uuid'"/'  /etc/default/grub.d/50-cloudimg-settings.cfg
 			else
 				echo GRUB_CMDLINE_LINUX_DEFAULT="console=tty1 console=ttyS0 earlyprintk=ttyS0 rootdelay=300 resume=$sw_uuid" >> /etc/default/grub.d/50-cloudimg-settings.cfg
 			fi
