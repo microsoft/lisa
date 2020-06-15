@@ -34,6 +34,7 @@ function Main {
 		$location = $AllVMData.Location
 		$storageType = 'StandardSSD_LRS'
 		$dataDiskName = $vmName + '_datadisk1'
+		$defaultHibernateLoop = 1
 
 		#region Generate constants.sh
 		# We need to add extra parameters to constants.sh file apart from parameter properties defined in XML.
@@ -44,6 +45,10 @@ function Main {
 		foreach ($TestParam in $CurrentTestData.TestParameters.param) {
 			Add-Content -Value "$TestParam" -Path $constantsFile
 			Write-LogInfo "$TestParam added to constants.sh"
+			if ($TestParam -imatch "hb_loop=") {
+				# Overwrite new max Iteration of VM hibernation and online stress test
+				$defaultHibernateLoop = [int]($TestParam.Replace("hb_loop=", "").Trim('"'))
+			}
 		}
 
 		Write-LogInfo "constants.sh created successfully..."
@@ -133,101 +138,106 @@ echo disk > /sys/power/state
 		Write-LogInfo "Rebooting All VMs!"
 		$TestProvider.RestartAllDeployments($AllVMData)
 
-		# Check the VM status before hibernation
-		$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
-		if ($vmStatus.Statuses[1].DisplayStatus -eq "VM running") {
-			Write-LogInfo "$($vmStatus.Statuses[1].DisplayStatus): Verified successfully VM status is running before hibernation"
-		} else {
-			Write-LogErr "$($vmStatus.Statuses[1].DisplayStatus): Could not find the VM status before hibernation"
-			throw "Can not identify VM status before hibernate"
-		}
-
-		# Hibernate the VM
-		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./test.sh" -runAsSudo -RunInBackground -ignoreLinuxExitCode:$true | Out-Null
-		Write-LogInfo "Sent hibernate command to the VM and continue checking its status in every 15 seconds until 2 minutes timeout "
-
-		# Verify the VM status
-		# Can not find if VM hibernation completion or not as soon as it disconnects the network. Assume it is in timeout.
-		$timeout = New-Timespan -Minutes 10
-		$sw = [diagnostics.stopwatch]::StartNew()
-		while ($sw.elapsed -lt $timeout){
-			Wait-Time -seconds 15
+		For ($iteration=1;$iteration -le $defaultHibernateLoop; $iteration++) {
+			if ($defaultHibernateLoop -ne 1) {
+				Write-LogInfo "Running Hibernation stress test in the iteration - $iteration"
+			}
+			# Check the VM status before hibernation
 			$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
-			if ($vmStatus.Statuses[1].DisplayStatus -eq "VM stopped") {
-				break
+			if ($vmStatus.Statuses[1].DisplayStatus -eq "VM running") {
+				Write-LogInfo "$($vmStatus.Statuses[1].DisplayStatus): Verified successfully VM status is running before hibernation"
 			} else {
-				Write-LogInfo "VM status is not stopped. Wating for 15s..."
+				Write-LogErr "$($vmStatus.Statuses[1].DisplayStatus): Could not find the VM status before hibernation"
+				throw "Can not identify VM status before hibernate"
 			}
-		}
-		if ($vmStatus.Statuses[1].DisplayStatus -eq "VM stopped") {
-			Write-LogInfo "$($vmStatus.Statuses[1].DisplayStatus): Verified successfully VM status is stopped after hibernation command sent"
-		} else {
-			Write-LogErr "$($vmStatus.Statuses[1].DisplayStatus): Could not find the VM status after hibernation command sent"
-			throw "Can not identify VM status after hibernate"
-		}
 
-		# Resume the VM
-		Start-AzVM -Name $vmName -ResourceGroupName $rgName -NoWait | Out-Null
-		Write-LogInfo "Waked up the VM $vmName in Resource Group $rgName and continue checking its status in every 15 seconds until 15 minutes timeout "
+			# Hibernate the VM
+			Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./test.sh" -runAsSudo -RunInBackground -ignoreLinuxExitCode:$true | Out-Null
+			Write-LogInfo "Sent hibernate command to the VM and continue checking its status in every 15 seconds until 2 minutes timeout "
 
-		# Wait for VM resume for 15 min-timeout
-		$timeout = New-Timespan -Minutes 15
-		$sw = [diagnostics.stopwatch]::StartNew()
-		while ($sw.elapsed -lt $timeout){
-			$vmCount = $AllVMData.Count
-			Wait-Time -seconds 15
-			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "date"
-			if ($state -eq 0) {
-				$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "dmesg | grep -i 'hibernation exit'"
-				# This verification might be revised in future. Checking with dmesg is risky.
-				if ($kernelCompileCompleted -ne "hibernation exit") {
-					Write-LogErr "VM $($VMData.RoleName) resumed successfully but could not determine hibernation completion"
+			# Verify the VM status
+			# Can not find if VM hibernation completion or not as soon as it disconnects the network. Assume it is in timeout.
+			$timeout = New-Timespan -Minutes 10
+			$sw = [diagnostics.stopwatch]::StartNew()
+			while ($sw.elapsed -lt $timeout){
+				Wait-Time -seconds 15
+				$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
+				if ($vmStatus.Statuses[1].DisplayStatus -eq "VM stopped") {
+					break
 				} else {
-					Write-LogInfo "VM $($VMData.RoleName) resumed successfully"
-					$vmCount--
+					Write-LogInfo "VM status is not stopped. Wating for 15s..."
 				}
-				break
-			} else {
-				Write-LogInfo "VM is still resuming!"
 			}
-		}
-
-		if ($vmCount -le 0){
-			Write-LogInfo "VM resume completed"
-		} else {
-			# Either VM hang or VM resume needs longer time.
-			throw "VM resume did not finish, the latest state was $state"
-		}
-		#Verify the VM status after power on event
-		$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
-		if ($vmStatus.Statuses[1].DisplayStatus -eq "VM running") {
-			Write-LogInfo "$($vmStatus.Statuses[1].DisplayStatus): Verified successfully VM status is running after resuming"
-		} else {
-			Write-LogErr "$($vmStatus.Statuses[1].DisplayStatus): Could not find the VM status after resuming"
-			throw "Can not identify VM status after resuming"
-		}
-
-		# Verify the kernel panic, call trace or fatal error
-		$calltrace_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg | grep -iE '(call trace|fatal error)'" -ignoreLinuxExitCode:$true
-
-		if ($calltrace_filter -ne "") {
-			Write-LogErr "Found Call Trace or Fatal error in dmesg"
-			# The throw statement is commented out because this is linux-next, so there is high chance to get call trace from other issue. For now, only print the error.
-			# throw "Call trace in dmesg"
-		} else {
-			Write-LogInfo "Not found Call Trace and Fatal error in dmesg"
-		}
-
-		# Check the system log if it shows Power Management log
-		"hibernation entry", "hibernation exit" | ForEach-Object  {
-			$pm_log_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /var/log/syslog | grep -i '$_'" -ignoreLinuxExitCode:$true
-			Write-LogInfo "Searching the keyword: $_"
-			if ($pm_log_filter -eq "") {
-				Write-LogErr "Could not find Power Management log in dmesg"
-				throw "Missing PM logging in dmesg"
+			if ($vmStatus.Statuses[1].DisplayStatus -eq "VM stopped") {
+				Write-LogInfo "$($vmStatus.Statuses[1].DisplayStatus): Verified successfully VM status is stopped after hibernation command sent"
 			} else {
-				Write-LogInfo "Successfully found Power Management log in dmesg"
-				Write-LogInfo $pm_log_filter
+				Write-LogErr "$($vmStatus.Statuses[1].DisplayStatus): Could not find the VM status after hibernation command sent"
+				throw "Can not identify VM status after hibernate"
+			}
+
+			# Resume the VM
+			Start-AzVM -Name $vmName -ResourceGroupName $rgName -NoWait | Out-Null
+			Write-LogInfo "Waked up the VM $vmName in Resource Group $rgName and continue checking its status in every 15 seconds until 15 minutes timeout "
+
+			# Wait for VM resume for 15 min-timeout
+			$timeout = New-Timespan -Minutes 15
+			$sw = [diagnostics.stopwatch]::StartNew()
+			while ($sw.elapsed -lt $timeout){
+				$vmCount = $AllVMData.Count
+				Wait-Time -seconds 15
+				$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "date"
+				if ($state -eq 0) {
+					$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "dmesg | grep -i 'hibernation exit'"
+					# This verification might be revised in future. Checking with dmesg is risky.
+					if ($kernelCompileCompleted -ne "hibernation exit") {
+						Write-LogErr "VM $($VMData.RoleName) resumed successfully but could not determine hibernation completion"
+					} else {
+						Write-LogInfo "VM $($VMData.RoleName) resumed successfully"
+						$vmCount--
+					}
+					break
+				} else {
+					Write-LogInfo "VM is still resuming!"
+				}
+			}
+
+			if ($vmCount -le 0){
+				Write-LogInfo "VM resume completed"
+			} else {
+				# Either VM hang or VM resume needs longer time.
+				throw "VM resume did not finish, the latest state was $state"
+			}
+			#Verify the VM status after power on event
+			$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
+			if ($vmStatus.Statuses[1].DisplayStatus -eq "VM running") {
+				Write-LogInfo "$($vmStatus.Statuses[1].DisplayStatus): Verified successfully VM status is running after resuming"
+			} else {
+				Write-LogErr "$($vmStatus.Statuses[1].DisplayStatus): Could not find the VM status after resuming"
+				throw "Can not identify VM status after resuming"
+			}
+
+			# Verify the kernel panic, call trace or fatal error
+			$calltrace_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg | grep -iE '(call trace|fatal error)'" -ignoreLinuxExitCode:$true
+
+			if ($calltrace_filter -ne "") {
+				Write-LogErr "Found Call Trace or Fatal error in dmesg"
+				# The throw statement is commented out because this is linux-next, so there is high chance to get call trace from other issue. For now, only print the error.
+				# throw "Call trace in dmesg"
+			} else {
+				Write-LogInfo "Not found Call Trace and Fatal error in dmesg"
+			}
+
+			# Check the system log if it shows Power Management log
+			"hibernation entry", "hibernation exit" | ForEach-Object  {
+				$pm_log_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /var/log/syslog | grep -i '$_'" -ignoreLinuxExitCode:$true
+				Write-LogInfo "Searching the keyword: $_"
+				if ($pm_log_filter -eq "") {
+					Write-LogErr "Could not find Power Management log in dmesg"
+					throw "Missing PM logging in dmesg"
+				} else {
+					Write-LogInfo "Successfully found Power Management log in dmesg"
+					Write-LogInfo $pm_log_filter
+				}
 			}
 		}
 		$testResult = $resultPass
