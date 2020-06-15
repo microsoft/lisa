@@ -137,7 +137,7 @@ function Main() {
 			sed -i -e "s/rootdelay=300/rootdelay=300 resume=$sw_uuid/g" /etc/default/grub
 			LogMsg "$?: Updated the /etc/default/grub with resume=$sw_uuid"
 		else
-			echo 'rootdelay=300 resume=$sw_uuid' >> /etc/default/grub
+			echo GRUB_CMDLINE_LINUX_DEFAULT="console=tty1 console=ttyS0 earlyprintk=ttyS0 rootdelay=300 resume=$sw_uuid" >> /etc/default/grub
 			LogMsg "$?: Added resume=$sw_uuid in /etc/default/grub file"
 		fi
 
