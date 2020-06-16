@@ -143,12 +143,13 @@ echo disk > /sys/power/state
 		}
 
 		$getvf = @"
+cat /proc/net/dev | grep -v Inter | grep -v face > netdev.log
 while IFS= read -r line
 do
 	if [[ $line != *lo* ]] && [[ $line != *eth0* ]]; then
-			echo $line | cut -d ':' -f 1
+		echo $line | cut -d ':' -f 1
 	fi
-done <<< $(cat /proc/net/dev | grep -v Inter | grep -v face)
+done < netdev.log
 "@
 		Set-Content "$LogDir\getvf.sh" $getvf
 
@@ -157,9 +158,10 @@ done <<< $(cat /proc/net/dev | grep -v Inter | grep -v face)
 
 		# Getting queue counts and interrupt counts before hibernation
 		$vfname = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash ./getvf.sh" -runAsSudo
-		$tx_queue_count1 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -l ${vfname} | grep -i tx | tail -n 1 | cut -d ":" -f 2 | tr -d '[:space:]'" -runAsSudo
-		$interrupt_count1 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /proc/interrupts | grep -i mlx | grep -i msi | wc -l" -runAsSudo
-
+		if ( $vfname -ne '' ) {
+			$tx_queue_count1 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -l ${vfname} | grep -i tx | tail -n 1 | cut -d ":" -f 2 | tr -d '[:space:]'" -runAsSudo
+			$interrupt_count1 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /proc/interrupts | grep -i mlx | grep -i msi | wc -l" -runAsSudo
+		}
 		# Hibernate the VM
 		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./test.sh" -runAsSudo -RunInBackground -ignoreLinuxExitCode:$true | Out-Null
 		Write-LogInfo "Sent hibernate command to the VM and continue checking its status in every 15 seconds until 2 minutes timeout "
@@ -251,9 +253,10 @@ done <<< $(cat /proc/net/dev | grep -v Inter | grep -v face)
 
 		# Getting queue counts and interrupt counts after resuming.
 		$vfname = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash ./getvf.sh" -runAsSudo
-		$tx_queue_count2 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -l ${vfname} | grep -i tx | tail -n 1 | cut -d ":" -f 2 | tr -d '[:space:]'" -runAsSudo
-		$interrupt_count2 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /proc/interrupts | grep -i mlx | grep -i msi | wc -l" -runAsSudo
-
+		if ($vfname -ne '') {
+				$tx_queue_count2 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -l ${vfname} | grep -i tx | tail -n 1 | cut -d ":" -f 2 | tr -d '[:space:]'" -runAsSudo
+				$interrupt_count2 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /proc/interrupts | grep -i mlx | grep -i msi | wc -l" -runAsSudo
+		}
 		if ($tx_queue_count1 -ne $tx_queue_count2) {
 			Write-LogErr "Before hibernation, Tx queue count - $tx_queue_count1. After waking up, Tx queue count - $tx_queue_count2"
 			throw "Tx queue counts changed after waking up."
