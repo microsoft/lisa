@@ -146,8 +146,8 @@ echo disk > /sys/power/state
 cat /proc/net/dev | grep -v Inter | grep -v face > netdev.log
 while IFS= read -r line
 do
-	if [[ $line != *lo* ]] && [[ $line != *eth0* ]]; then
-		echo $line | cut -d ':' -f 1
+	if [[ `$line != *lo* ]] && [[ `$line != *eth0* ]]; then
+		echo `$line | cut -d ':' -f 1
 	fi
 done < netdev.log
 "@
@@ -159,7 +159,7 @@ done < netdev.log
 		# Getting queue counts and interrupt counts before hibernation
 		$vfname = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash ./getvf.sh" -runAsSudo
 		if ( $vfname -ne '' ) {
-			$tx_queue_count1 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -l ${vfname} | grep -i tx | tail -n 1 | cut -d ":" -f 2 | tr -d '[:space:]'" -runAsSudo
+			$tx_queue_count1 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -l `$vfname | grep -i tx | tail -n 1 | cut -d ":" -f 2 | tr -d '[:space:]'" -runAsSudo
 			$interrupt_count1 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /proc/interrupts | grep -i mlx | grep -i msi | wc -l" -runAsSudo
 		}
 		# Hibernate the VM
