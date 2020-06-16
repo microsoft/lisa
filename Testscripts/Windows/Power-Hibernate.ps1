@@ -207,6 +207,13 @@ echo disk > /sys/power/state
 				# Either VM hang or VM resume needs longer time.
 				throw "VM resume did not finish, the latest state was $state"
 			}
+
+			# Stress test made async issue between host and VM sometimes, so keep one min waiting time.
+			if ($defaultHibernateLoop -ne 1) {
+				Write-LogInfo "Waiting 1 min for VM status sync"
+				Start-Sleep -Minutes 1
+			}
+
 			#Verify the VM status after power on event
 			$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
 			if ($vmStatus.Statuses[1].DisplayStatus -eq "VM running") {
