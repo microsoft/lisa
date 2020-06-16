@@ -208,19 +208,26 @@ echo disk > /sys/power/state
 				throw "VM resume did not finish, the latest state was $state"
 			}
 
-			# Stress test made async issue between host and VM sometimes, so keep one min waiting time.
-			if ($defaultHibernateLoop -ne 1) {
-				Write-LogInfo "Waiting 1 min for VM status sync"
-				Start-Sleep -Minutes 1
+			# Verify the VM status after VM is accessible.
+			# Read VM status from the host during 10 min-timeout
+			$timeout = New-Timespan -Minutes 10
+			$sw = [diagnostics.stopwatch]::StartNew()
+			$_verified = 0
+			while ($sw.elapsed -lt $timeout){
+				Wait-Time -seconds 15
+				$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
+				if ($vmStatus.Statuses[1].DisplayStatus -eq "VM running") {
+					$_verified = 1
+					break
+				} else {
+					Write-LogDbg "$($vmStatus.Statuses[1].DisplayStatus): VM status is not 'VM running' yet. Check the next status in 15 seconds."
+				}
 			}
 
-			#Verify the VM status after power on event
-			$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
-			if ($vmStatus.Statuses[1].DisplayStatus -eq "VM running") {
-				Write-LogInfo "$($vmStatus.Statuses[1].DisplayStatus): Verified successfully VM status is running after resuming"
+			if ($_verified -eq 1) {
+				Write-LogInfo "Successfully verified VM status - $vmStatus.Statuses[1].DisplayStatus"
 			} else {
-				Write-LogErr "$($vmStatus.Statuses[1].DisplayStatus): Could not find the VM status after resuming"
-				throw "Can not identify VM status after resuming"
+				throw "Can not find VM status after 10-min checking - $vmStatus.Statuses[1].DisplayStatus"
 			}
 
 			# Verify the kernel panic, call trace or fatal error
