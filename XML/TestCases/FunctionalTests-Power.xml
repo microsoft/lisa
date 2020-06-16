@@ -48,7 +48,7 @@
 		<Platform>Azure</Platform>
 		<Category>Functional</Category>
 		<Area>POWER</Area>
-		<Tags>power</Tags>
+		<Tags>power,sriov</Tags>
 		<Priority>3</Priority>
 	</test>
 	<test>

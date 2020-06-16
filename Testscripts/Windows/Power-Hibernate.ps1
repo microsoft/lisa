@@ -142,6 +142,23 @@ echo disk > /sys/power/state
 			throw "Can not identify VM status before hibernate"
 		}
 
+		$getvf = @"
+while IFS= read -r line
+do
+	if [[ $line != *lo* ]] && [[ $line != *eth0* ]]; then
+			echo $line | cut -d ':' -f 1
+	fi
+done <<< $(cat /proc/net/dev | grep -v Inter | grep -v face)
+"@
+		Set-Content "$LogDir\getvf.sh" $getvf
+
+		Copy-RemoteFiles -uploadTo $AllVMData.PublicIP -port $AllVMData.SSHPort -files "$LogDir\getvf.sh" -username $user -password $password -upload
+		Write-LogInfo "Copied the script files to the VM"
+		$vfname = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "bash ./getvf.sh" -runAsSudo
+
+
+
+		
 		# Hibernate the VM
 		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./test.sh" -runAsSudo -RunInBackground -ignoreLinuxExitCode:$true | Out-Null
 		Write-LogInfo "Sent hibernate command to the VM and continue checking its status in every 15 seconds until 2 minutes timeout "
