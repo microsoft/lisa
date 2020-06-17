@@ -198,7 +198,7 @@ done < netdev.log
 		while ($sw.elapsed -lt $timeout){
 			$vmCount = $AllVMData.Count
 			Wait-Time -seconds 15
-			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "date"
+			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "date; echo $?"
 			if ($state -eq 0) {
 				$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "dmesg | grep -i 'hibernation exit'"
 				# This verification might be revised in future. Checking with dmesg is risky.
