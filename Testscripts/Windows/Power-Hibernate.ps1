@@ -153,11 +153,11 @@ echo disk > /sys/power/state
 
 			# Hibernate the VM
 			Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./test.sh" -runAsSudo -RunInBackground -ignoreLinuxExitCode:$true | Out-Null
-			Write-LogInfo "Sent hibernate command to the VM and continue checking its status in every 15 seconds until 2 minutes timeout "
+			Write-LogInfo "Sent hibernate command to the VM and continue checking its status in every 15 seconds until 20 minutes timeout "
 
 			# Verify the VM status
 			# Can not find if VM hibernation completion or not as soon as it disconnects the network. Assume it is in timeout.
-			$timeout = New-Timespan -Minutes 10
+			$timeout = New-Timespan -Minutes 20
 			$sw = [diagnostics.stopwatch]::StartNew()
 			while ($sw.elapsed -lt $timeout){
 				Wait-Time -seconds 15
@@ -165,7 +165,7 @@ echo disk > /sys/power/state
 				if ($vmStatus.Statuses[1].DisplayStatus -eq "VM stopped") {
 					break
 				} else {
-					Write-LogInfo "VM status is not stopped. Wating for 15s..."
+					Write-LogInfo "VM status is not stopped. Wating for 15 seconds..."
 				}
 			}
 			if ($vmStatus.Statuses[1].DisplayStatus -eq "VM stopped") {
@@ -177,15 +177,15 @@ echo disk > /sys/power/state
 
 			# Resume the VM
 			Start-AzVM -Name $vmName -ResourceGroupName $rgName -NoWait | Out-Null
-			Write-LogInfo "Waked up the VM $vmName in Resource Group $rgName and continue checking its status in every 15 seconds until 15 minutes timeout "
+			Write-LogInfo "Waked up the VM $vmName in Resource Group $rgName and continue checking its status in every 15 seconds until 20 minutes timeout "
 
 			# Wait for VM resume for 15 min-timeout
-			$timeout = New-Timespan -Minutes 15
+			$timeout = New-Timespan -Minutes 20
 			$sw = [diagnostics.stopwatch]::StartNew()
 			while ($sw.elapsed -lt $timeout){
 				$vmCount = $AllVMData.Count
 				Wait-Time -seconds 15
-				$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "date"
+				$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "date; echo $?"
 				if ($state -eq 0) {
 					$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "dmesg | grep -i 'hibernation exit'"
 					# This verification might be revised in future. Checking with dmesg is risky.
