@@ -146,9 +146,11 @@ echo disk > /sys/power/state
 cat /proc/net/dev | grep -v Inter | grep -v face > netdev.log
 while IFS= read -r line
 do
-	if [[ `$line != *lo* ]] && [[ `$line != *eth0* ]]; then
-		echo `$line | cut -d ':' -f 1
-	fi
+	case "`$line" in
+		*lo* );;
+		*eth0* );;
+		* ) echo `$line | cut -d ':' -f 1;;
+	esac
 done < netdev.log
 "@
 		Set-Content "$LogDir\getvf.sh" $getvf
