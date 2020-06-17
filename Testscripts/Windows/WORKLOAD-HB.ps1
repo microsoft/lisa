@@ -66,6 +66,8 @@ function Main {
 		$isStorageWorkloadEnable = 0
 		$isNetworkWorkloadEnable = 0
 		$testResult = $resultFail
+		$initialQueueSize = -1
+		$postQueueSize = -1
 
 		Write-LogDbg "Prepare swap space for VM $($AllVMData[0].RoleName) in RG $($AllVMData[0].ResourceGroupName)."
 		# Prepare the swap space in the target VM
@@ -156,7 +158,7 @@ echo disk > /sys/power/state
 		$setupcommand = @"
 source utils.sh
 update_repos
-install_package "fio iperf"
+install_package "fio iperf ethtool"
 "@
 		Set-Content "$LogDir\setup.sh" $setupcommand
 
@@ -225,6 +227,8 @@ install_package "fio iperf"
 		}
 
 		Start-WorkLoad "beforehb"
+
+		$initialQueueSize = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "ethtool -S eth0 | grep -i tx_queue | grep bytes | wc -l" -runAsSudo
 
 		# Hibernate the VM
 		Write-LogInfo "Hibernating ..."
@@ -310,6 +314,12 @@ install_package "fio iperf"
 		}
 
 		Start-WorkLoad "afterhb"
+
+		$postQueueSize = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "ethtool -S eth0 | grep -i tx_queue | grep bytes | wc -l" -runAsSudo
+
+		if (($initialQueueSize -ne $postQueueSize) -and ($isNetworkWorkloadEnable -eq 1)) {
+			throw "Mismatching queue sizes of synthetic network interface eth0. Initially $initialQueueSize. $postQueueSize after resuming from hibernation"
+		}
 
 		$testResult = $resultPass
 

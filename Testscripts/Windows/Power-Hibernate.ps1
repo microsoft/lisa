@@ -94,9 +94,9 @@ echo disk > /sys/power/state
 		while ($sw.elapsed -lt $timeout){
 			$vmCount = $AllVMData.Count
 			Wait-Time -seconds 30
-			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat ~/state.txt"
+			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat ~/state.txt"
 			if ($state -eq "TestCompleted") {
-				$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "cat ~/constants.sh | grep setup_completed=0"
+				$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat ~/constants.sh | grep setup_completed=0"
 				if ($kernelCompileCompleted -ne "setup_completed=0") {
 					Write-LogErr "SetupHbKernel.sh run finished on $($VMData.RoleName) but setup was not successful!"
 				} else {
@@ -142,6 +142,28 @@ echo disk > /sys/power/state
 			throw "Can not identify VM status before hibernate"
 		}
 
+		$getvf = @"
+cat /proc/net/dev | grep -v Inter | grep -v face > netdev.log
+while IFS= read -r line
+do
+	case "`$line" in
+		*lo* );;
+		*eth0* );;
+		* ) echo `$line | cut -d ':' -f 1;;
+	esac
+done < netdev.log
+"@
+		Set-Content "$LogDir\getvf.sh" $getvf
+
+		Copy-RemoteFiles -uploadTo $AllVMData.PublicIP -port $AllVMData.SSHPort -files "$LogDir\getvf.sh" -username $user -password $password -upload
+		Write-LogInfo "Copied the script files to the VM"
+
+		# Getting queue counts and interrupt counts before hibernation
+		$vfname = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash ./getvf.sh" -runAsSudo
+		if ( $vfname -ne '' ) {
+			$tx_queue_count1 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -l `$vfname | grep -i tx | tail -n 1 | cut -d ":" -f 2 | tr -d '[:space:]'" -runAsSudo
+			$interrupt_count1 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /proc/interrupts | grep -i mlx | grep -i msi | wc -l" -runAsSudo
+		}
 		# Hibernate the VM
 		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./test.sh" -runAsSudo -RunInBackground -ignoreLinuxExitCode:$true | Out-Null
 		Write-LogInfo "Sent hibernate command to the VM and continue checking its status in every 15 seconds until 2 minutes timeout "
@@ -176,9 +198,9 @@ echo disk > /sys/power/state
 		while ($sw.elapsed -lt $timeout){
 			$vmCount = $AllVMData.Count
 			Wait-Time -seconds 15
-			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "date"
+			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "date > /dev/null; echo $?"
 			if ($state -eq 0) {
-				$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password "dmesg | grep -i 'hibernation exit'"
+				$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "dmesg | grep -i 'hibernation exit'"
 				# This verification might be revised in future. Checking with dmesg is risky.
 				if ($kernelCompileCompleted -ne "hibernation exit") {
 					Write-LogErr "VM $($VMData.RoleName) resumed successfully but could not determine hibernation completion"
@@ -230,6 +252,27 @@ echo disk > /sys/power/state
 				Write-LogInfo $pm_log_filter
 			}
 		}
+
+		# Getting queue counts and interrupt counts after resuming.
+		$vfname = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash ./getvf.sh" -runAsSudo
+		if ($vfname -ne '') {
+				$tx_queue_count2 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -l ${vfname} | grep -i tx | tail -n 1 | cut -d ":" -f 2 | tr -d '[:space:]'" -runAsSudo
+				$interrupt_count2 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /proc/interrupts | grep -i mlx | grep -i msi | wc -l" -runAsSudo
+		}
+		if ($tx_queue_count1 -ne $tx_queue_count2) {
+			Write-LogErr "Before hibernation, Tx queue count - $tx_queue_count1. After waking up, Tx queue count - $tx_queue_count2"
+			throw "Tx queue counts changed after waking up."
+		} else {
+			Write-LogInfo "Successfully verified Tx queue count matching in Current hardware settings."
+		}
+
+		if ($interrupt_count1 -ne $interrupt_count2) {
+			Write-LogErr "Before hibernation, MSI interrupts of mlx driver - $interrupt_count1. After waking up, MSI interrupts of mlx driver - $interrupt_count2"
+			throw "MSI interrupt counts changed after waking up."
+		} else {
+			Write-LogInfo "Successfully verified MSI interrupt counts matching"
+		}
+
 		$testResult = $resultPass
 		Copy-RemoteFiles -downloadFrom $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user -password $password -download -downloadTo $LogDir -files "*.log" -runAsSudo
 	} catch {
