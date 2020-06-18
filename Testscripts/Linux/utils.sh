@@ -172,19 +172,24 @@ function SetTestStateRunning() {
 	return $?
 }
 
+# Echos the date and $1 to stdout.
+function __EchoWithDate() {
+    echo $(date "+%a %b %d %T %Y") : "$1"
+}
+
 # Logging function. The way LIS currently runs scripts and collects log files, just echo the message
 # $1 == Message
 function LogMsg() {
-	echo $(date "+%a %b %d %T %Y") : "${1}"
-	echo $(date "+%a %b %d %T %Y") : "${1}" >> "./TestExecution.log"
+    __EchoWithDate "$1"
+    __EchoWithDate "$1" >> "./TestExecution.log"
 }
 
 # Error Logging function. The way LIS currently runs scripts and collects log files, just echo the message
 # $1 == Message
 function LogErr() {
-	echo $(date "+%a %b %d %T %Y") : "${1}"
-	echo $(date "+%a %b %d %T %Y") : "${1}" >> "./TestExecutionError.log"
-	UpdateSummary "${1}"
+    __EchoWithDate "$1"
+    __EchoWithDate "$1" >> "./TestExecutionError.log"
+    UpdateSummary "$1"
 }
 
 # Update summary file with message $1
@@ -202,7 +207,8 @@ function UpdateSummary() {
         LogMsg "Summary file $__LIS_SUMMARY_FILE either does not exist or is not a regular file. Trying to create it..."
         echo "$1" >> "$__LIS_SUMMARY_FILE" || return 1
     fi
-    LogMsg "$1"
+
+    __EchoWithDate "$1" >> "./TestExecution.log"
 
     return 0
 }
