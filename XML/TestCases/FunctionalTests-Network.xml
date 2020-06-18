@@ -533,7 +533,7 @@
     </test>
     <test>
         <testName>ETHTOOL-GET-SET-GRO-LRO</testName>
-        <testScript>ETHTOOL-GRO-LRO.sh</testScript>
+        <testScript>ETHTOOL-GRO-LRO.ps1</testScript>
         <files>.\TestScripts\Linux\ETHTOOL-GRO-LRO.sh,.\TestScripts\Linux\utils.sh</files>
         <setupType>OneVM</setupType>
         <Platform>Azure,HyperV</Platform>
