@@ -285,7 +285,7 @@ function Get-ClusterVolumePath {
 
 function Create-HyperVGroupDeployment([string]$HyperVGroupName, $HyperVGroupXML, $HyperVHost, $DestinationOsVHDPath, $VMGeneration,
     $GlobalConfig, $SetupTypeData, $CurrentTestData) {
-    $HyperVMappedSizes = [xml](Get-Content .\XML\AzureVMSizeToHyperVMapping.xml)
+    $HyperVMappedSizes = [xml](Get-Content "$PSScriptRoot\..\XML\AzureVMSizeToHyperVMapping.xml")
     $OsVHD = $global:BaseOsVHD
     $ErrorCount = 0
     $i = 0
