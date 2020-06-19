@@ -255,7 +255,7 @@ hwclock > after_timestamp.log
 		$5minAfterTimeStamp = (Get-Content $LogDir\5min_after_timestamp.log).Split(' ')[0]
 		Write-LogDbg $5minAfterTimeStamp
 
-		if ($beforeTimeStamp -ne $afterTimeStamp) -and ($afterTimeStamp -eq $instantTiemStamp) {
+		if (($beforeTimeStamp -ne $afterTimeStamp) -and ($afterTimeStamp -eq $instantTiemStamp)) {
 			Write-LogInfo "Successfully verified the beforeTimeStamp was different from afterTimeStamp"
 		} else {
 			Write-LogErr "Expected 3 timestamps were in the same date in given short time, but found $beforeTimeStamp, $afterTimeStamp, $instantTiemStamp"
