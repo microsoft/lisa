@@ -247,17 +247,22 @@ hwclock > after_timestamp.log
 		Copy-RemoteFiles -downloadFrom $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -download -downloadTo $LogDir -files "*.log" -runAsSudo
 
 		$beforeTimeStamp = (Get-Content $LogDir\before_timestamp.log).Split(' ')[0]
+		Write-LogDbg $beforeTimeStamp
 		$afterTimeStamp = (Get-Content $LogDir\after_timestamp.log).Split(' ')[0]
+		Write-LogDbg $afterTimeStamp
 		$instantTiemStamp = (Get-Content $LogDir\instant_timestamp.log).Split(' ')[0]
+		Write-LogDbg $instantTiemStamp
 		$5minAfterTimeStamp = (Get-Content $LogDir\5min_after_timestamp.log).Split(' ')[0]
+		Write-LogDbg $5minAfterTimeStamp
 
-		if ($beforeTimeStamp -eq $afterTimeStamp -eq $instantTiemStamp) {
-			Write-LogInfo "Successfully verified 3 timestmaps were in the same date"
+		if ($beforeTimeStamp -ne $afterTimeStamp) -and ($afterTimeStamp -eq $instantTiemStamp) {
+			Write-LogInfo "Successfully verified the beforeTimeStamp was different from afterTimeStamp"
 		} else {
 			Write-LogErr "Expected 3 timestamps were in the same date in given short time, but found $beforeTimeStamp, $afterTimeStamp, $instantTiemStamp"
 		}
 
 		$controllerTimeStamp = Get-Date -format "yyyy/MM/dd"
+		Write-LogDbg $controllerTimeStamp
 
 		if ($5minAfterTimeStamp -eq $controllerTimeStamp) {
 			Write-LogInfo "Successfully verified the system date changed back to correct date"
