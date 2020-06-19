@@ -203,8 +203,8 @@ done < netdev.log
 			Start-AzVM -Name $vmName -ResourceGroupName $rgName -NoWait | Out-Null
 			Write-LogInfo "Waked up the VM $vmName in Resource Group $rgName and continue checking its status in every 15 seconds until 20 minutes timeout "
 
-		# Wait for VM resume for 15 min-timeout
-		$timeout = New-Timespan -Minutes 15
+		# Wait for VM resume for 57 min-timeout
+		$timeout = New-Timespan -Minutes 57
 		$sw = [diagnostics.stopwatch]::StartNew()
 		while ($sw.elapsed -lt $timeout){
 			$vmCount = $AllVMData.Count
