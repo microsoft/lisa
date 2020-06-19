@@ -265,7 +265,7 @@ echo disk > /sys/power/state
 		$5minAfterTimeStamp = Get-Content $LogDir\5min_after_timestamp.log
 		Write-LogDbg $5minAfterTimeStamp
 
-		if (($beforeTimeStamp -ne $5minAfterTimeStamp)) {
+		if ($beforeTimeStamp -ne $5minAfterTimeStamp) {
 			Write-LogInfo "Successfully verified the beforeTimeStamp was different from 5minAfterTimeStamp"
 		} else {
 			Write-LogErr "Did not find time synced. $beforeTimeStamp to $5minAfterTimeStamp"
