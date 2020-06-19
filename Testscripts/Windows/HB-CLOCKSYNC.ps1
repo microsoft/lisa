@@ -260,7 +260,6 @@ echo disk > /sys/power/state
 
 		Copy-RemoteFiles -downloadFrom $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -download -downloadTo $LogDir -files "*.log" -runAsSudo
 
-		if ( )
 		$beforeTimeStamp = Get-Content $LogDir\before_timestamp.log
 		Write-LogDbg $beforeTimeStamp
 		$5minAfterTimeStamp = Get-Content $LogDir\5min_after_timestamp.log
