@@ -71,12 +71,22 @@ function Main {
 			throw "Failed to add a new disk"
 		}
 
+		# TODO: This will be revised with other distro. hwclock output format might be different.
+		$getyear = @"
+source utils.sh
+hwclock --set --date='2033-07-01 12:00:00'
+_time=$(hwclock)
+if [[ $DISTRO_NAME == 'ubuntu' && $DISTRO_VERSION == '16.04' ]]; then
+	_y=$(echo $_time | cut -d ' ' -f 4)
+else
+	_y=$(echo $_time | cut -d '-' -f 1)
+fi
+echo $_y> timestamp.log
+"@
+		Set-Content "$LogDir\getyear.sh" $getyear
+
 		$testcommand = @"
-hwclock --set --date='2033-07-01 00:00:00'
-hwclock > before_timestamp.log
 echo disk > /sys/power/state
-sleep 1
-hwclock > after_timestamp.log
 "@
 		Set-Content "$LogDir\test.sh" $testcommand
 
@@ -146,7 +156,11 @@ hwclock > after_timestamp.log
 		}
 
 		# Hibernate the VM
-		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./test.sh" -runAsSudo -RunInBackground -ignoreLinuxExitCode:$true | Out-Null
+		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash getyear.sh" -runAsSudo -RunInBackground -ignoreLinuxExitCode:$true | Out-Null
+		Start-Sleep -s 1
+		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "mv timestamp.log before_timestamp.log" -runAsSudo -RunInBackground -ignoreLinuxExitCode:$true | Out-Null
+		Start-Sleep -s 1
+		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash test.sh" -runAsSudo -RunInBackground -ignoreLinuxExitCode:$true | Out-Null
 		Write-LogInfo "Sent hibernate command to the VM and continue checking its status in every 15 seconds until 10 minutes timeout "
 
 		# Verify the VM status
@@ -202,14 +216,14 @@ hwclock > after_timestamp.log
 			throw "VM resume did not finish, the latest state was $state"
 		}
 
-		Write-LogInfo "Capturing the RTC timestmap to instant_timestamp.log file"
-		Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "hwclock > instant_timestamp.log" -runAsSudo | Out-Null
-
 		Write-LogInfo "Waiting for RTC re-sync in 5 minutes"
 		Start-Sleep -m 5
 
 		Write-LogInfo "Capturing the RTC timestmap to 5min_after_timestamp.log file"
-		Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "hwclock > 5min_after_timestamp.log" -runAsSudo | Out-Null
+		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash getyear.sh" -runAsSudo -RunInBackground -ignoreLinuxExitCode:$true | Out-Null
+		Start-Sleep -s 1
+		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "mv timestamp.log 5min_after_timestamp.log" -runAsSudo -RunInBackground -ignoreLinuxExitCode:$true | Out-Null
+		Start-Sleep -s 1
 
 		#Verify the VM status after power on event
 		$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
@@ -246,22 +260,19 @@ hwclock > after_timestamp.log
 
 		Copy-RemoteFiles -downloadFrom $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -download -downloadTo $LogDir -files "*.log" -runAsSudo
 
-		$beforeTimeStamp = (Get-Content $LogDir\before_timestamp.log).Split(' ')[0]
+		if ( )
+		$beforeTimeStamp = Get-Content $LogDir\before_timestamp.log
 		Write-LogDbg $beforeTimeStamp
-		$afterTimeStamp = (Get-Content $LogDir\after_timestamp.log).Split(' ')[0]
-		Write-LogDbg $afterTimeStamp
-		$instantTiemStamp = (Get-Content $LogDir\instant_timestamp.log).Split(' ')[0]
-		Write-LogDbg $instantTiemStamp
-		$5minAfterTimeStamp = (Get-Content $LogDir\5min_after_timestamp.log).Split(' ')[0]
+		$5minAfterTimeStamp = Get-Content $LogDir\5min_after_timestamp.log
 		Write-LogDbg $5minAfterTimeStamp
 
-		if (($beforeTimeStamp -ne $afterTimeStamp) -and ($afterTimeStamp -eq $instantTiemStamp)) {
-			Write-LogInfo "Successfully verified the beforeTimeStamp was different from afterTimeStamp"
+		if (($beforeTimeStamp -ne $5minAfterTimeStamp)) {
+			Write-LogInfo "Successfully verified the beforeTimeStamp was different from 5minAfterTimeStamp"
 		} else {
-			Write-LogErr "Expected 3 timestamps were in the same date in given short time, but found $beforeTimeStamp, $afterTimeStamp, $instantTiemStamp"
+			Write-LogErr "Did not find time synced. $beforeTimeStamp to $5minAfterTimeStamp"
 		}
 
-		$controllerTimeStamp = Get-Date -format "yyyy/MM/dd"
+		$controllerTimeStamp = Get-Date -format "yyyy"
 		Write-LogDbg $controllerTimeStamp
 
 		if ($5minAfterTimeStamp -eq $controllerTimeStamp) {
