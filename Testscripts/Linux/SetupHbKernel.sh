@@ -155,14 +155,14 @@ function Main() {
 	else
 		_entry=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'rootdelay=')
 		if [ -n "$_entry" ]; then
-			sed -i -e "s/rootdelay=300/rootdelay=300 resume=$sw_uuid/g" /etc/default/grub.d/50-cloudimg-settings.cfg
+			sed -i -e "s/rootdelay=300/rootdelay=300 log_buf_len=200M resume=$sw_uuid/g" /etc/default/grub.d/50-cloudimg-settings.cfg
 			LogMsg "$?: Updated the 50-cloudimg-settings.cfg with resume=$sw_uuid"
 		else
 			_entry=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep GRUB_CMDLINE_LINUX_DEFAULT)
 			if [ -n "$_entry" ]; then
-				sed -i  '/^GRUB_CMDLINE_LINUX_DEFAULT=/ s/"$/ rootdelay=300 resume='$sw_uuid'"/'  /etc/default/grub.d/50-cloudimg-settings.cfg
+				sed -i  '/^GRUB_CMDLINE_LINUX_DEFAULT=/ s/"$/ rootdelay=300 log_buf_len=200M resume='$sw_uuid'"/'  /etc/default/grub.d/50-cloudimg-settings.cfg
 			else
-				echo GRUB_CMDLINE_LINUX_DEFAULT="console=tty1 console=ttyS0 earlyprintk=ttyS0 rootdelay=300 resume=$sw_uuid" >> /etc/default/grub.d/50-cloudimg-settings.cfg
+				echo GRUB_CMDLINE_LINUX_DEFAULT="console=tty1 console=ttyS0 earlyprintk=ttyS0 rootdelay=300 log_buf_len=200M resume=$sw_uuid" >> /etc/default/grub.d/50-cloudimg-settings.cfg
 			fi
 			LogMsg "$?: Added resume=$sw_uuid in 50-cloudimg-settings.cfg file"
 		fi
