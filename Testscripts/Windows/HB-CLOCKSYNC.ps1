@@ -75,6 +75,7 @@ function Main {
 hwclock --set --date='2033-01-01 00:00:00'
 hwclock > before_timestamp.log
 echo disk > /sys/power/state
+sleep 1
 hwclock > after_timestamp.log
 "@
 		Set-Content "$LogDir\test.sh" $testcommand
