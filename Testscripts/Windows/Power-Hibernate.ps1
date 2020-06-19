@@ -141,6 +141,8 @@ echo disk > /sys/power/state
 		For ($iteration=1;$iteration -le $defaultHibernateLoop; $iteration++) {
 			if ($defaultHibernateLoop -ne 1) {
 				Write-LogInfo "Running Hibernation stress test in the iteration - $iteration"
+				# Clear dmesg log before running test
+				Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg -c" -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
 			}
 			# Check the VM status before hibernation
 			$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
@@ -268,11 +270,15 @@ done < netdev.log
 				$pm_log_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /var/log/syslog | grep -i '$_'" -ignoreLinuxExitCode:$true
 				Write-LogInfo "Searching the keyword: $_"
 				if ($pm_log_filter -eq "") {
-					Write-LogErr "Could not find Power Management log in dmesg"
-					throw "Missing PM logging in dmesg"
+					Write-LogErr "Could not find Power Management log in syslog"
+					$pm_log_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg | grep -i '$_'" -ignoreLinuxExitCode:$true
+					if ($pm_log_filter -eq "") {
+						throw "Missing PM logging in both syslog and dmesg"
+					} else {
+						Write-LogInfo "Successfully found Power Management log in dmesg"
+					}
 				} else {
-					Write-LogInfo "Successfully found Power Management log in dmesg"
-					Write-LogInfo $pm_log_filter
+					Write-LogInfo "Successfully found Power Management log in syslog"
 				}
 			}
 		}
