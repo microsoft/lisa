@@ -179,7 +179,7 @@ echo disk > /sys/power/state
 			Start-AzVM -Name $vmName -ResourceGroupName $rgName -NoWait | Out-Null
 			Write-LogInfo "Waked up the VM $vmName in Resource Group $rgName and continue checking its status in every 15 seconds until 20 minutes timeout "
 
-			# Wait for VM resume for 15 min-timeout
+			# Wait for VM resume
 			$timeout = New-Timespan -Minutes 20
 			$sw = [diagnostics.stopwatch]::StartNew()
 			while ($sw.elapsed -lt $timeout){
