@@ -172,19 +172,24 @@ function SetTestStateRunning() {
 	return $?
 }
 
+# Echos the date and $1 to stdout.
+function __EchoWithDate() {
+    echo $(date "+%a %b %d %T %Y") : "$1"
+}
+
 # Logging function. The way LIS currently runs scripts and collects log files, just echo the message
 # $1 == Message
 function LogMsg() {
-	echo $(date "+%a %b %d %T %Y") : "${1}"
-	echo $(date "+%a %b %d %T %Y") : "${1}" >> "./TestExecution.log"
+    __EchoWithDate "$1"
+    __EchoWithDate "$1" >> "./TestExecution.log"
 }
 
 # Error Logging function. The way LIS currently runs scripts and collects log files, just echo the message
 # $1 == Message
 function LogErr() {
-	echo $(date "+%a %b %d %T %Y") : "${1}"
-	echo $(date "+%a %b %d %T %Y") : "${1}" >> "./TestExecutionError.log"
-	UpdateSummary "${1}"
+    __EchoWithDate "$1"
+    __EchoWithDate "$1" >> "./TestExecutionError.log"
+    UpdateSummary "$1"
 }
 
 # Update summary file with message $1
@@ -202,7 +207,8 @@ function UpdateSummary() {
         LogMsg "Summary file $__LIS_SUMMARY_FILE either does not exist or is not a regular file. Trying to create it..."
         echo "$1" >> "$__LIS_SUMMARY_FILE" || return 1
     fi
-    LogMsg "$1"
+
+    __EchoWithDate "$1" >> "./TestExecution.log"
 
     return 0
 }
@@ -2103,6 +2109,7 @@ function yum_remove () {
 # Zypper install packages, parameter: package name
 function zypper_install () {
 	package_name=$1
+	CheckInstallLockSLES
 	sudo zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys in $package_name
 	check_exit_status "zypper_install $package_name" "exit"
 }
@@ -2274,6 +2281,7 @@ function add_sles_network_utilities_repo () {
 				LogErr "Unsupported SLES version $DISTRO_VERSION for add_sles_network_utilities_repo"
 				return 1
 		esac
+		CheckInstallLockSLES
 		zypper addrepo $repo_url
 		zypper --no-gpg-checks refresh
 		return 0
@@ -2326,7 +2334,7 @@ function install_fio () {
 			;;
 
 		sles|sle_hpc)
-			if [[ $DISTRO_VERSION =~ 12|15 ]]; then
+			if [[ $DISTRO_VERSION =~ 12|15* ]]; then
 				add_sles_benchmark_repo
 				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install wget mdadm blktrace libaio1 sysstat bc
 				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install fio
@@ -3406,6 +3414,16 @@ function CheckInstallLockUbuntu() {
         CheckInstallLockUbuntu
     else
         LogMsg "No apt lock present."
+    fi
+}
+
+function CheckInstallLockSLES() {
+    if pidof zypper;then
+        LogMsg "Another install is in progress. Waiting 1 seconds."
+        sleep 1
+        CheckInstallLockSLES
+    else
+        LogMsg "No zypper lock present."
     fi
 }
 
