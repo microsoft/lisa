@@ -72,7 +72,7 @@ function Main {
 		}
 
 		$testcommand = @"
-hwclock --set --date='2033-01-01 00:00:00'
+hwclock --set --date='2033-07-01 00:00:00'
 hwclock > before_timestamp.log
 echo disk > /sys/power/state
 sleep 1
