@@ -53,15 +53,15 @@ function Main {
 		$dataDisk1 = New-AzDisk -DiskName $dataDiskName -Disk $diskConfig -ResourceGroupName $rgName
 
 		$vm = Get-AzVM -Name $vmName -ResourceGroupName $rgName
-		Start-Sleep -s 30
+		Start-Sleep -seconds 30
 		$vm = Add-AzVMDataDisk -VM $vm -Name $dataDiskName -CreateOption Attach -ManagedDiskId $dataDisk1.Id -Lun 1
-		Start-Sleep -s 30
+		Start-Sleep -seconds 30
 
 		$ret_val = Update-AzVM -VM $vm -ResourceGroupName $rgName
 		Write-LogInfo "Updated the VM with a new data disk"
 		Write-LogInfo "Waiting for 30 seconds for configuration sync"
 		# Wait for disk sync with Azure host
-		Start-Sleep -s 30
+		Start-Sleep -seconds 30
 
 		# Verify the new data disk addition
 		if ($ret_val.IsSuccessStatusCode) {
@@ -74,14 +74,12 @@ function Main {
 		# TODO: This will be revised with other distro. hwclock output format might be different.
 		$getyear = @"
 source utils.sh
-hwclock --set --date='2033-07-01 12:00:00'
-_time=$(hwclock)
-if [[ $DISTRO_NAME == 'ubuntu' && $DISTRO_VERSION == '16.04' ]]; then
-	_y=$(echo $_time | cut -d ' ' -f 4)
+hwclock > _time
+if [[ `$DISTRO_NAME == 'ubuntu' && `$DISTRO_VERSION == '16.04' ]]; then
+	cat _time | cut -d ' ' -f 4 > timestamp.log
 else
-	_y=$(echo $_time | cut -d '-' -f 1)
+	cat _time | cut -d '-' -f 1 > timestamp.log
 fi
-echo $_y> timestamp.log
 "@
 		Set-Content "$LogDir\getyear.sh" $getyear
 
@@ -156,10 +154,12 @@ echo disk > /sys/power/state
 		}
 
 		# Hibernate the VM
-		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash getyear.sh" -runAsSudo -RunInBackground -ignoreLinuxExitCode:$true | Out-Null
-		Start-Sleep -s 1
-		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "mv timestamp.log before_timestamp.log" -runAsSudo -RunInBackground -ignoreLinuxExitCode:$true | Out-Null
-		Start-Sleep -s 1
+		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "hwclock --set --date='2033-07-01 12:00:00'" -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+		Start-Sleep -seconds 1
+		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash getyear.sh" -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+		Start-Sleep -seconds 1
+		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "mv timestamp.log before_timestamp.log" -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+		Start-Sleep -seconds 1
 		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash test.sh" -runAsSudo -RunInBackground -ignoreLinuxExitCode:$true | Out-Null
 		Write-LogInfo "Sent hibernate command to the VM and continue checking its status in every 15 seconds until 10 minutes timeout "
 
@@ -217,13 +217,15 @@ echo disk > /sys/power/state
 		}
 
 		Write-LogInfo "Waiting for RTC re-sync in 5 minutes"
-		Start-Sleep -m 5
+		Start-Sleep -seconds 300
 
 		Write-LogInfo "Capturing the RTC timestmap to 5min_after_timestamp.log file"
-		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash getyear.sh" -runAsSudo -RunInBackground -ignoreLinuxExitCode:$true | Out-Null
-		Start-Sleep -s 1
-		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "mv timestamp.log 5min_after_timestamp.log" -runAsSudo -RunInBackground -ignoreLinuxExitCode:$true | Out-Null
-		Start-Sleep -s 1
+		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "hwclock --systohc" -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+		Start-Sleep -seconds 1
+		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash getyear.sh" -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+		Start-Sleep -seconds 1
+		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "mv timestamp.log 5min_after_timestamp.log" -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+		Start-Sleep -seconds 1
 
 		#Verify the VM status after power on event
 		$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
@@ -244,6 +246,9 @@ echo disk > /sys/power/state
 		} else {
 			Write-LogInfo "Not found Call Trace and Fatal error in dmesg"
 		}
+
+		Write-LogDbg "Waiting 60-second for logging sync"
+		Start-Sleep -seconds 60
 
 		# Check the system log if it shows Power Management log
 		"hibernation entry", "hibernation exit" | ForEach-Object {
