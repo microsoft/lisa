@@ -216,15 +216,16 @@ echo disk > /sys/power/state
 			throw "VM resume did not finish, the latest state was $state"
 		}
 
-		Write-LogInfo "Waiting for RTC re-sync in 5 minutes"
-		Start-Sleep -seconds 300
+		# Note that if you use NTP, the hardware clock is automatically synchronized to the system clock every 11 minutes,
+		# and this command is useful only at boot time to get a reasonable initial system time.
+		# https://docs.fedoraproject.org/en-US/Fedora/23/html/System_Administrators_Guide/sect4-synchronizing-date-time-hwclock.html
+		Write-LogInfo "Waiting for RTC re-sync in 12 minutes"
+		Start-Sleep -seconds 720
 
-		Write-LogInfo "Capturing the RTC timestmap to 5min_after_timestamp.log file"
-		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "hwclock --systohc" -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
-		Start-Sleep -seconds 1
+		Write-LogInfo "Capturing the RTC timestmap to 12min_after_timestamp.log file"
 		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash getyear.sh" -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
 		Start-Sleep -seconds 1
-		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "mv timestamp.log 5min_after_timestamp.log" -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "mv timestamp.log 12min_after_timestamp.log" -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
 		Start-Sleep -seconds 1
 
 		#Verify the VM status after power on event
@@ -267,22 +268,22 @@ echo disk > /sys/power/state
 
 		$beforeTimeStamp = Get-Content $LogDir\before_timestamp.log
 		Write-LogDbg $beforeTimeStamp
-		$5minAfterTimeStamp = Get-Content $LogDir\5min_after_timestamp.log
-		Write-LogDbg $5minAfterTimeStamp
+		$12minAfterTimeStamp = Get-Content $LogDir\12min_after_timestamp.log
+		Write-LogDbg $12minAfterTimeStamp
 
-		if ($beforeTimeStamp -ne $5minAfterTimeStamp) {
-			Write-LogInfo "Successfully verified the beforeTimeStamp was different from 5minAfterTimeStamp"
+		if ($beforeTimeStamp -ne $12minAfterTimeStamp) {
+			Write-LogInfo "Successfully verified the beforeTimeStamp was different from 12minAfterTimeStamp"
 		} else {
-			Write-LogErr "Did not find time synced. $beforeTimeStamp to $5minAfterTimeStamp"
+			Write-LogErr "Did not find time synced. $beforeTimeStamp to $12minAfterTimeStamp"
 		}
 
 		$controllerTimeStamp = Get-Date -format "yyyy"
 		Write-LogDbg $controllerTimeStamp
 
-		if ($5minAfterTimeStamp -eq $controllerTimeStamp) {
+		if ($12minAfterTimeStamp -eq $controllerTimeStamp) {
 			Write-LogInfo "Successfully verified the system date changed back to correct date"
 		} else {
-			Write-LogErr "Expected VM time changed back to the correct one after sync-up, but found $5minAfterTimeStamp"
+			Write-LogErr "Expected VM time changed back to the correct one after sync-up, but found $12minAfterTimeStamp"
 		}
 
 		$testResult = $resultPass
