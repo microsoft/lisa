@@ -32,7 +32,7 @@ function Send-ResultToDatabase ($GlobalConfig, $logDir, $ParseResultArray, $curr
 	if ($dataSource -And $user -And $password -And $database -And $dataTableName) {
 		# Get host info
 		$HostType = $global:TestPlatform
-		$HostBy = $TestLocation
+		$HostBy = $CurrentTestData.SetupConfig.TestLocation
 		$HostOS = Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version"| Foreach-Object{$_ -replace ",Host Version,",""}
 
 		# Get L1 guest info
@@ -52,11 +52,11 @@ function Send-ResultToDatabase ($GlobalConfig, $logDir, $ParseResultArray, $curr
 		$L2GuestDistro = Get-Content "$LogDir\nested_properties.csv" | Select-String "OS type"| Foreach-Object{$_ -replace ",OS type,",""}
 		$L2GuestKernelVersion = Get-Content "$LogDir\nested_properties.csv" | Select-String "Kernel version"| Foreach-Object{$_ -replace ",Kernel version,",""}
 		$flag=1
-		if($TestLocation.split(',').Length -eq 2) {
+		if($CurrentTestData.SetupConfig.TestLocation.split(',').Length -eq 2) {
 			$flag=0
 		}
 
-		$imageName = $global:ARMImageName
+		$imageName = $CurrentTestData.SetupConfig.ARMImageName
 
 		foreach ( $param in $currentTestData.TestParameters.param) {
 			if ($param -match "NestedCpuNum") {

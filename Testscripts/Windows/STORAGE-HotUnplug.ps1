@@ -78,7 +78,7 @@ function Main {
     $REMOTE_SCRIPT = "STORAGE-HotRemove.sh"
 
     if ($null -eq $testParams -or $testParams.Length -lt 3) {
-        Write-LogErr "setupScript requires test params"
+        Write-LogErr "SetupScript requires test params"
         return "FAIL"
     }
 

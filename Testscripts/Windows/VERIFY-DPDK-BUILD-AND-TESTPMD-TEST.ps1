@@ -53,7 +53,7 @@ function Main {
 		} else {
 			Throw "Server and client SRIOV NICs are not same."
 		}
-		if ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
+		if ($currentTestData.SetupConfig.Networking -imatch "SRIOV") {
 			$DataPath = "SRIOV"
 		} else {
 			$DataPath = "Synthetic"
@@ -145,7 +145,7 @@ collect_VM_properties
 					$resultMap["KernelVersion"] = $properties.KernelVersion
 				}
 				$resultMap["HostType"] = "Azure"
-				$resultMap["HostBy"] = $global:TestLocation
+				$resultMap["HostBy"] = $CurrentTestData.SetupConfig.TestLocation
 				$resultMap["GuestOSType"] = "Linux"
 				$resultMap["GuestSize"] = $clientVMData.InstanceSize
 				$resultMap["IPVersion"] = "IPv4"
