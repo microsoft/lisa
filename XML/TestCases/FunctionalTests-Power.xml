@@ -71,7 +71,7 @@
 	<test>
 		<testName>POWER-VMRESIZE-HIBERNATE</testName>
 		<testScript>VMRESIZE-HB.ps1</testScript>
-		<setupType>TwoVM1Dep</setupType>
+		<setupType>OneVM</setupType>
 		<OverrideVMSize>Standard_D8s_v3</OverrideVMSize>
 		<files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\SetupHbKernel.sh</files>
 		<TestParameters>
