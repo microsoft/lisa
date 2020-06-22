@@ -161,7 +161,7 @@ echo disk > /sys/power/state
 			if ($vmStatus.Statuses[1].DisplayStatus -eq "VM stopped") {
 				break
 			} else {
-				Write-LogInfo "VM status is not stopped. Wating for 15s..."
+				Write-LogInfo "VM status is not stopped. Waiting for 15s..."
 			}
 		}
 		if ($vmStatus.Statuses[1].DisplayStatus -eq "VM stopped") {
