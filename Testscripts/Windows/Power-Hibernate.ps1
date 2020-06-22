@@ -138,7 +138,7 @@ echo disk > /sys/power/state
 		Write-LogInfo "Rebooting All VMs!"
 		$TestProvider.RestartAllDeployments($AllVMData)
 
-		For ($iteration=1;$iteration -le $defaultHibernateLoop; $iteration++) {
+		for ($iteration=1;$iteration -le $defaultHibernateLoop; $iteration++) {
 			if ($defaultHibernateLoop -ne 1) {
 				Write-LogInfo "Running Hibernation stress test in the iteration - $iteration"
 				# Clear dmesg log before running test
@@ -251,7 +251,7 @@ done < netdev.log
 			if ($_verified -eq 1) {
 				Write-LogInfo "Successfully verified VM status - $vmStatus.Statuses[1].DisplayStatus"
 			} else {
-				throw "Did not verify the VM status VM running in the last 10-min checking, but found $vmStatus.Statuses[1].DisplayStatus"
+				throw "Did not verify the VM status running in the last 10-min checking, but found $vmStatus.Statuses[1].DisplayStatus"
 			}
 
 			# Verify the kernel panic, call trace or fatal error
