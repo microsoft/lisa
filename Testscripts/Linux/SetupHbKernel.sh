@@ -154,6 +154,9 @@ function Main() {
 		LogMsg "$?: Run dracut -f"
 	else
 		_entry=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'rootdelay=')
+		# Change book kernel parameters in /50-cloudimg-settings.cfg
+		# resume= defines the disk partition address where the hineration image goes in and out.
+		# For stress test purpose, we need to increase the log file size bigger like 200MB.
 		if [ -n "$_entry" ]; then
 			sed -i -e "s/rootdelay=300/rootdelay=300 log_buf_len=200M resume=$sw_uuid/g" /etc/default/grub.d/50-cloudimg-settings.cfg
 			LogMsg "$?: Updated the 50-cloudimg-settings.cfg with resume=$sw_uuid"
@@ -168,6 +171,7 @@ function Main() {
 		fi
 
 		_entry=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'GRUB_HIDDEN_TIMEOUT=')
+		# This is the case about GRUB_HIDDEN_TIMEOUT
 		if [ -n "$_entry" ]; then
 			sed -i -e "s/GRUB_HIDDEN_TIMEOUT=*.*/GRUB_HIDDEN_TIMEOUT=30/g" /etc/default/grub.d/50-cloudimg-settings.cfg
 			LogMsg "$?: Updated GRUB_HIDDEN_TIMEOUT value with 30"
@@ -177,6 +181,7 @@ function Main() {
 		fi
 
 		_entry=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'GRUB_TIMEOUT=')
+		# This is the case about GRUB_TIMEOUT
 		if [ -n "$_entry" ]; then
 			sed -i -e "s/GRUB_TIMEOUT=.*/GRUB_TIMEOUT=30/g" /etc/default/grub.d/50-cloudimg-settings.cfg
 			LogMsg "$?: Updated GRUB_TIMEOUT value with 30"
@@ -186,11 +191,13 @@ function Main() {
 		fi
 
 		update-grub2
+		# Update grup2 configuration
 		LogMsg "$?: Ran update-grub2"
 
 		_entry1=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'resume=')
 		_entry2=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'GRUB_HIDDEN_TIMEOUT=30')
 		_entry3=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'GRUB_TIMEOUT=')
+		# Re-validate the entry in the 50-cloudimg-settings.cfg file.
 		if [ -n "$_entry1" ] && [ -n "$_entry2" ] && [ -n "$_entry3" ]; then
 			LogMsg "Successfully updated 50-cloudimg-settings.cfg file with all three entries"
 		else
