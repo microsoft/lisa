@@ -154,7 +154,7 @@ function Main() {
 		LogMsg "$?: Run dracut -f"
 	else
 		_entry=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'rootdelay=')
-		# Change book kernel parameters in /50-cloudimg-settings.cfg
+		# Change boot kernel parameters in /50-cloudimg-settings.cfg
 		# resume= defines the disk partition address where the hineration image goes in and out.
 		# For stress test purpose, we need to increase the log file size bigger like 200MB.
 		if [ -n "$_entry" ]; then

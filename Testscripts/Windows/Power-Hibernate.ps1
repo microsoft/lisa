@@ -138,7 +138,7 @@ echo disk > /sys/power/state
 		Write-LogInfo "Rebooting All VMs!"
 		$TestProvider.RestartAllDeployments($AllVMData)
 
-		for ($iteration=1;$iteration -le $defaultHibernateLoop; $iteration++) {
+		for ($iteration=1; $iteration -le $defaultHibernateLoop; $iteration++) {
 			if ($defaultHibernateLoop -ne 1) {
 				Write-LogInfo "Running Hibernation stress test in the iteration - $iteration"
 				# Clear dmesg log before running test
@@ -149,8 +149,8 @@ echo disk > /sys/power/state
 			if ($vmStatus.Statuses[1].DisplayStatus -eq "VM running") {
 				Write-LogInfo "$($vmStatus.Statuses[1].DisplayStatus): Verified successfully VM status is running before hibernation"
 			} else {
-				Write-LogErr "$($vmStatus.Statuses[1].DisplayStatus): Could not find the VM status before hibernation"
-				throw "Can not identify VM status before hibernate"
+				Write-LogErr "$($vmStatus.Statuses[1].DisplayStatus): Did not verify the VM status running before hibernation"
+				throw "Did not verify VM status running before hibernate"
 			}
 
 			$getvf = @"
@@ -195,8 +195,8 @@ done < netdev.log
 			if ($vmStatus.Statuses[1].DisplayStatus -eq "VM stopped") {
 				Write-LogInfo "$($vmStatus.Statuses[1].DisplayStatus): Verified successfully VM status is stopped after hibernation command sent"
 			} else {
-				Write-LogErr "$($vmStatus.Statuses[1].DisplayStatus): Could not find the VM status after hibernation command sent"
-				throw "Can not identify VM status after hibernate"
+				Write-LogErr "$($vmStatus.Statuses[1].DisplayStatus): Did not verify the VM status stopped after hibernation command sent"
+				throw "Did not verify the VM status stopped after hibernation starts"
 			}
 
 			# Resume the VM
