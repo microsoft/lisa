@@ -221,7 +221,7 @@ echo disk > /sys/power/state
 			# The throw statement is commented out because this is linux-next, so there is high chance to get call trace from other issue. For now, only print the error.
 			# throw "Call trace in dmesg"
 		} else {
-			Write-LogInfo "Not found Call Trace and Fatal error in dmesg"
+			Write-LogInfo "Found no Call Trace and Fatal error in dmesg"
 		}
 
 		# Check the system log if it shows Power Management log
@@ -236,7 +236,6 @@ echo disk > /sys/power/state
 		}
 
 		$testResult = $resultPass
-		Copy-RemoteFiles -downloadFrom $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user -password $password -download -downloadTo $LogDir -files "*.log" -runAsSudo
 	} catch {
 		$ErrorMessage =  $_.Exception.Message
 		$ErrorLine = $_.InvocationInfo.ScriptLineNumber
