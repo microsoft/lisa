@@ -189,7 +189,7 @@ done < netdev.log
 				if ($vmStatus.Statuses[1].DisplayStatus -eq "VM stopped") {
 					break
 				} else {
-					Write-LogInfo "VM status is not stopped. Wating for 15 seconds..."
+					Write-LogInfo "VM status is not stopped. Waiting for 15 seconds..."
 				}
 			}
 			if ($vmStatus.Statuses[1].DisplayStatus -eq "VM stopped") {
