@@ -3,8 +3,9 @@
 <#
 .Synopsis
 	Perform a simple VM hibernation in Azure before VM resizng
-	VM resizing reboots the VM and fails the hibernation resume.
-	However, VM loads the kernel successful.
+	VM resizing causes system reboot and fails the hibernation resume.
+	This is the expected behavior.
+	However, VM loads the latest kernel successfully. This is the expected.
 	Hibernation will be supported in the general purpose VM with max 16G vRAM
 	and the GPU VMs with max 112G vRAM.
 
@@ -164,10 +165,10 @@ echo disk > /sys/power/state
 			}
 		}
 		if ($vmStatus.Statuses[1].DisplayStatus -eq "VM stopped") {
-			Write-LogInfo "$($vmStatus.Statuses[1].DisplayStatus): Verified successfully VM status is stopped after hibernation command sent"
+			Write-LogInfo "$($vmStatus.Statuses[1].DisplayStatus): Verified successfully VM status stopped after hibernation command sent"
 		} else {
-			Write-LogErr "$($vmStatus.Statuses[1].DisplayStatus): Could not find the VM status after hibernation command sent"
-			throw "Can not identify VM status after hibernate"
+			Write-LogErr "$($vmStatus.Statuses[1].DisplayStatus): Could not verify the VM status stopped after hibernation command sent"
+			throw "Did not verify VM status stopped after hibernate"
 		}
 
 		# Resize Azure VM
@@ -187,30 +188,29 @@ echo disk > /sys/power/state
 		# Wait for VM starting for 15 min-timeout
 		$timeout = New-Timespan -Minutes 15
 		$sw = [diagnostics.stopwatch]::StartNew()
-		while ($sw.elapsed -lt $timeout){
-			$vmCount = $AllVMData.Count
+		while ($sw.elapsed -lt $timeout) {
 			Wait-Time -seconds 15
 			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "date > /dev/null; echo $?"
-			if ($state -eq 0) {
-				Write-LogInfo "VM is not accessible remotely"
+			if ($state) {
+				Write-LogInfo "VM is now accessible remotely"
 				break
 			} else {
 				Write-LogInfo "VM is still resuming!"
 			}
 		}
 
-		if ($vmCount -le 0){
-			Write-LogInfo "VM restarting completed"
+		if ($state){
+			Write-LogInfo "VM restart completed"
 		} else {
-			throw "VM starting halt or hang, the latest state was $state"
+			throw "VM start halt or hang, the latest state of remote connection was $state"
 		}
 		#Verify the VM status after power on event
 		$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
 		if ($vmStatus.Statuses[1].DisplayStatus -eq "VM running") {
-			Write-LogInfo "$($vmStatus.Statuses[1].DisplayStatus): Verified successfully VM status is running"
+			Write-LogInfo "$($vmStatus.Statuses[1].DisplayStatus): Verified successfully VM status running"
 		} else {
-			Write-LogErr "$($vmStatus.Statuses[1].DisplayStatus): Could not find the VM status"
-			throw "Can not identify VM status after resuming"
+			Write-LogErr "$($vmStatus.Statuses[1].DisplayStatus): Did not find the VM status running"
+			throw "Did not verify VM status running or can not connect to the VM"
 		}
 
 		# Verify the kernel panic, call trace or fatal error
