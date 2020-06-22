@@ -96,7 +96,7 @@ echo disk > /sys/power/state
 		# Wait for kernel compilation completion. 90 min timeout
 		$timeout = New-Timespan -Minutes $maxKernelCompileMin
 		$sw = [diagnostics.stopwatch]::StartNew()
-		while ($sw.elapsed -lt $timeout){
+		while ($sw.elapsed -lt $timeout) {
 			$vmCount = $AllVMData.Count
 			Wait-Time -seconds 30
 			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat ~/state.txt"
@@ -131,7 +131,7 @@ echo disk > /sys/power/state
 		if ($vmCount -le 0){
 			Write-LogInfo "SetupHbKernel.sh is done"
 		} else {
-			Throw "SetupHbKernel.sh didn't finish in the VM!"
+			throw "SetupHbKernel.sh didn't finish in the VM!"
 		}
 
 		# Reboot VM to apply swap setup changes
@@ -153,7 +153,7 @@ echo disk > /sys/power/state
 				throw "Can not identify VM status before hibernate"
 			}
 
-		$getvf = @"
+			$getvf = @"
 cat /proc/net/dev | grep -v Inter | grep -v face > netdev.log
 while IFS= read -r line
 do
@@ -164,26 +164,26 @@ do
 	esac
 done < netdev.log
 "@
-		Set-Content "$LogDir\getvf.sh" $getvf
+			Set-Content "$LogDir\getvf.sh" $getvf
 
-		Copy-RemoteFiles -uploadTo $AllVMData.PublicIP -port $AllVMData.SSHPort -files "$LogDir\getvf.sh" -username $user -password $password -upload
-		Write-LogInfo "Copied the script files to the VM"
+			Copy-RemoteFiles -uploadTo $AllVMData.PublicIP -port $AllVMData.SSHPort -files "$LogDir\getvf.sh" -username $user -password $password -upload
+			Write-LogInfo "Copied the script files to the VM"
 
-		# Getting queue counts and interrupt counts before hibernation
-		$vfname = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash ./getvf.sh" -runAsSudo
-		if ( $vfname -ne '' ) {
-			$tx_queue_count1 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -l `$vfname | grep -i tx | tail -n 1 | cut -d ":" -f 2 | tr -d '[:space:]'" -runAsSudo
-			$interrupt_count1 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /proc/interrupts | grep -i mlx | grep -i msi | wc -l" -runAsSudo
-		}
-		# Hibernate the VM
-		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./test.sh" -runAsSudo -RunInBackground -ignoreLinuxExitCode:$true | Out-Null
-		Write-LogInfo "Sent hibernate command to the VM and continue checking its status in every 15 seconds until 2 minutes timeout "
+			# Getting queue counts and interrupt counts before hibernation
+			$vfname = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash ./getvf.sh" -runAsSudo
+			if ( $vfname -ne '' ) {
+				$tx_queue_count1 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -l `$vfname | grep -i tx | tail -n 1 | cut -d ":" -f 2 | tr -d '[:space:]'" -runAsSudo
+				$interrupt_count1 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /proc/interrupts | grep -i mlx | grep -i msi | wc -l" -runAsSudo
+			}
+			# Hibernate the VM
+			Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./test.sh" -runAsSudo -RunInBackground -ignoreLinuxExitCode:$true | Out-Null
+			Write-LogInfo "Sent hibernate command to the VM and continue checking its status in every 15 seconds until 2 minutes timeout "
 
 			# Verify the VM status
 			# Can not find if VM hibernation completion or not as soon as it disconnects the network. Assume it is in timeout.
 			$timeout = New-Timespan -Minutes 20
 			$sw = [diagnostics.stopwatch]::StartNew()
-			while ($sw.elapsed -lt $timeout){
+			while ($sw.elapsed -lt $timeout) {
 				Wait-Time -seconds 15
 				$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
 				if ($vmStatus.Statuses[1].DisplayStatus -eq "VM stopped") {
@@ -203,41 +203,41 @@ done < netdev.log
 			Start-AzVM -Name $vmName -ResourceGroupName $rgName -NoWait | Out-Null
 			Write-LogInfo "Waked up the VM $vmName in Resource Group $rgName and continue checking its status in every 15 seconds until 20 minutes timeout "
 
-		# Wait for VM resume for 57 min-timeout
-		$timeout = New-Timespan -Minutes 57
-		$sw = [diagnostics.stopwatch]::StartNew()
-		while ($sw.elapsed -lt $timeout){
-			$vmCount = $AllVMData.Count
-			Wait-Time -seconds 15
-			$state = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "date > /dev/null; echo $?"
-			if ($state) {
-				$kernelCompileCompleted = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "dmesg | grep -i 'hibernation exit'"
-				# This verification might be revised in future. Checking with dmesg is risky.
-				if ($kernelCompileCompleted -ne "hibernation exit") {
-					Write-LogErr "VM $($AllVMData[0].RoleName) resumed successfully but could not determine hibernation completion"
+			# Wait for VM resume for 57 min-timeout
+			$timeout = New-Timespan -Minutes 57
+			$sw = [diagnostics.stopwatch]::StartNew()
+			while ($sw.elapsed -lt $timeout) {
+				$vmCount = $AllVMData.Count
+				Wait-Time -seconds 15
+				$state = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "date > /dev/null; echo $?"
+				if ($state) {
+					$kernelCompileCompleted = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "dmesg | grep -i 'hibernation exit'"
+					# This verification might be revised in future. Checking with dmesg is risky.
+					if ($kernelCompileCompleted -ne "hibernation exit") {
+						Write-LogErr "VM $($AllVMData[0].RoleName) resumed successfully but could not determine hibernation completion"
+					} else {
+						Write-LogInfo "VM $($AllVMData[0].RoleName) resumed successfully"
+						$vmCount--
+					}
+					break
 				} else {
-					Write-LogInfo "VM $($AllVMData[0].RoleName) resumed successfully"
-					$vmCount--
+					Write-LogInfo "VM is still resuming!"
 				}
-				break
-			} else {
-				Write-LogInfo "VM is still resuming!"
 			}
-		}
 
-		if ($vmCount -le 0){
-			Write-LogInfo "VM resume completed"
-		} else {
-			# Either VM hang or VM resume needs longer time.
-			throw "VM resume did not finish, the latest state was $state"
-		}
+			if ($vmCount -le 0) {
+				Write-LogInfo "VM resume completed"
+			} else {
+				# Either VM hang or VM resume needs longer time.
+				throw "VM resume did not finish, the latest state was $state"
+			}
 
 			# Verify the VM status after VM is accessible.
 			# Read VM status from the host during 10 min-timeout
 			$timeout = New-Timespan -Minutes 10
 			$sw = [diagnostics.stopwatch]::StartNew()
 			$_verified = 0
-			while ($sw.elapsed -lt $timeout){
+			while ($sw.elapsed -lt $timeout) {
 				Wait-Time -seconds 15
 				$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
 				if ($vmStatus.Statuses[1].DisplayStatus -eq "VM running") {
@@ -251,7 +251,7 @@ done < netdev.log
 			if ($_verified -eq 1) {
 				Write-LogInfo "Successfully verified VM status - $vmStatus.Statuses[1].DisplayStatus"
 			} else {
-				throw "Can not find VM status after 10-min checking - $vmStatus.Statuses[1].DisplayStatus"
+				throw "Did not verify the VM status VM running in the last 10-min checking, but found $vmStatus.Statuses[1].DisplayStatus"
 			}
 
 			# Verify the kernel panic, call trace or fatal error
@@ -266,7 +266,7 @@ done < netdev.log
 			}
 
 			# Check the system log if it shows Power Management log
-			"hibernation entry", "hibernation exit" | ForEach-Object  {
+			"hibernation entry", "hibernation exit" | ForEach-Object {
 				$pm_log_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /var/log/syslog | grep -i '$_'" -ignoreLinuxExitCode:$true
 				Write-LogInfo "Searching the keyword: $_"
 				if ($pm_log_filter -eq "") {
