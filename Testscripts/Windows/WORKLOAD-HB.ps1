@@ -267,7 +267,7 @@ install_package "fio iperf ethtool stress-ng"
 				Write-LogInfo "$($vmStatus.Statuses[1].DisplayStatus): Verified successfully VM status is stopped after hibernation command sent."
 				break
 			} else {
-				Write-LogInfo "$vmStatus.Statuses[1].DisplayStatus: VM status is not stopped. Wating for 1 minute..."
+				Write-LogInfo "$($vmStatus.Statuses[1].DisplayStatus): VM status is not stopped. Wating for 1 minute..."
 			}
 		}
 		if ($vmStatus.Statuses[1].DisplayStatus -ne "VM stopped") {
