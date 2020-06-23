@@ -12,11 +12,11 @@
 	1. Prepare swap space for hibernation
 	2. Compile a new kernel (optional)
 	3. Update the grup.cfg with resume=UUID=xxxx where is from blkid swap disk
-	4. Run the first storage or network workload testing
+	4. Run the first storage, network or memory workload testing
 	5. Hibernate the VM, and verify the VM status
 	5. Resume the VM and verify the VM status.
 	6. Verify no kernel panic or call trace
-	7. Run the second storage or network workload testing.
+	7. Run the second storage, network or memory workload testing.
 	8. Verify no kernel panic or call trace after resume.
 	TODO: Find utilization, throughput or latency values parsing from workload output
 	and compare those results before/after hibernation.
@@ -31,30 +31,37 @@ function Main {
 	function Start-WorkLoad {
 		param($iteration)
 		$maxWorkRunWaitMin = 7
-		# Send workload command for 5 min
 		Write-LogInfo "Running workload $($iteration) command"
-		$timeout = New-Timespan -Minutes $maxWorkRunWaitMin
-		$sw = [diagnostics.stopwatch]::StartNew()
-		if ($isNetworkWorkloadEnable -eq 1) {
-			Run-LinuxCmd -ip $AllVMData[1].PublicIP -port $AllVMData[1].SSHPort -username $user -password $password -command "iperf -s -D" -RunInBackground -runAsSudo
-		}
-		Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "bash ./workCommand.sh" -RunInBackground -runAsSudo
-		Wait-Time -seconds 5
-		while ($sw.elapsed -lt $timeout) {
-			Wait-Time -seconds 15
-			$state = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password "cat /home/$user/state.txt"
-			if ($state -eq "TestCompleted") {
-				Write-LogInfo "Completed the workload command execution in the VM $($AllVMData[0].RoleName) successfully"
-				break
-			} else {
-				Write-LogInfo "$($state): The workload command is still running!"
+		if ($isMemoryWorkloadEnable -eq 1) {
+			Write-LogInfo "Starting 10-min memory workload testing"
+			# Memory workload test does not need to complete but wait for 5-min to settle down before proceeding.
+			Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "bash ./workCommand.sh" -RunInBackground -runAsSudo
+			Wait-Time -seconds 300
+		} else {
+			# Send workload command for 5 min
+			$timeout = New-Timespan -Minutes $maxWorkRunWaitMin
+			$sw = [diagnostics.stopwatch]::StartNew()
+			if ($isNetworkWorkloadEnable -eq 1) {
+				Run-LinuxCmd -ip $AllVMData[1].PublicIP -port $AllVMData[1].SSHPort -username $user -password $password -command "iperf -s -D" -RunInBackground -runAsSudo
 			}
+			Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "bash ./workCommand.sh" -RunInBackground -runAsSudo
+			Wait-Time -seconds 5
+			while ($sw.elapsed -lt $timeout) {
+				Wait-Time -seconds 15
+				$state = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password "cat /home/$user/state.txt"
+				if ($state -eq "TestCompleted") {
+					Write-LogInfo "Completed the workload command execution in the VM $($AllVMData[0].RoleName) successfully"
+					break
+				} else {
+					Write-LogInfo "$($state): The workload command is still running!"
+				}
+			}
+			# hit here up on timeout
+			if ($state -ne "TestCompleted") {
+				throw "The workload command is still running after $maxWorkRunWaitMin minutes"
+			}
+			Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "mv workload.json $iteration.json" -RunInBackground -runAsSudo
 		}
-		# hit here up on timeout
-		if ($state -ne "TestCompleted") {
-			throw "The workload command is still running after $maxWorkRunWaitMin minutes"
-		}
-		Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "mv workload.json $iteration.json" -RunInBackground -runAsSudo
 		return
 	}
 
@@ -65,6 +72,7 @@ function Main {
 		$azureSyncSecond = 30
 		$isStorageWorkloadEnable = 0
 		$isNetworkWorkloadEnable = 0
+		$isMemoryWorkloadEnable = 0
 		$testResult = $resultFail
 		$initialQueueSize = -1
 		$postQueueSize = -1
@@ -92,13 +100,16 @@ function Main {
 			if ($TestParam -imatch "network=yes") {
 				$isNetworkWorkloadEnable = 1
 			}
+			if ($TestParam -imatch "memory=yes") {
+				$isMemoryWorkloadEnable = 1
+			}
 		}
 
 		Write-LogInfo "constants.sh created successfully..."
 		#endregion
 
-		if (($isNetworkWorkloadEnable -ne 1) -and ($isStorageWorkloadEnable -ne 1)) {
-			throw "This test needs either network workload or storage workload. Please check your test parameter."
+		if (($isNetworkWorkloadEnable -ne 1) -and ($isStorageWorkloadEnable -ne 1) -and ($isMemoryWorkloadEnable -ne 1)) {
+			throw "This test needs among network, memory or storage workload. Please check your test parameter."
 		}
 
 		#region Add a new swap disk to Azure VM
@@ -148,8 +159,15 @@ SetTestStateCompleted
 "@
 			Set-Content "$LogDir\workCommand.sh" $workCommand
 		}
+		if ($isMemoryWorkloadEnable -eq 1) {
+			$workCommand = @"
+stress-ng --vm 16 --vm-bytes 100% -t 10m
+"@
+			Set-Content "$LogDir\workCommand.sh" $workCommand
+		}
 		#endregion
 
+		# required scripts for other operations.
 		$testcommand = @"
 echo disk > /sys/power/state
 "@
@@ -158,9 +176,10 @@ echo disk > /sys/power/state
 		$setupcommand = @"
 source utils.sh
 update_repos
-install_package "fio iperf ethtool"
+install_package "fio iperf ethtool stress-ng"
 "@
 		Set-Content "$LogDir\setup.sh" $setupcommand
+		#endregion
 
 		#region Upload files to VM
 		foreach ($VMData in $AllVMData) {
@@ -228,7 +247,9 @@ install_package "fio iperf ethtool"
 
 		Start-WorkLoad "beforehb"
 
-		$initialQueueSize = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "ethtool -S eth0 | grep -i tx_queue | grep bytes | wc -l" -runAsSudo
+		if ($isNetworkWorkloadEnable -eq 1) {
+			$initialQueueSize = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "ethtool -S eth0 | grep -i tx_queue | grep bytes | wc -l" -runAsSudo
+		}
 
 		# Hibernate the VM
 		Write-LogInfo "Hibernating ..."
@@ -313,24 +334,26 @@ install_package "fio iperf ethtool"
 			}
 		}
 
-		Start-WorkLoad "afterhb"
+		if (($isStorageWorkloadEnable -eq 1) -or ($isNetworkWorkloadEnable -eq 1)) {
+			Start-WorkLoad "afterhb"
+			if ($isNetworkWorkloadEnable -eq 1) {
+				$postQueueSize = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "ethtool -S eth0 | grep -i tx_queue | grep bytes | wc -l" -runAsSudo
 
-		$postQueueSize = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "ethtool -S eth0 | grep -i tx_queue | grep bytes | wc -l" -runAsSudo
+				if (($initialQueueSize -ne $postQueueSize) -and ($isNetworkWorkloadEnable -eq 1)) {
+					throw "Mismatching queue sizes of synthetic network interface eth0. Initially $initialQueueSize. $postQueueSize after resuming from hibernation"
+				}
+			}
+			Copy-RemoteFiles -downloadFrom $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -download -downloadTo $LogDir -files "*.json, *.log" -runAsSudo
 
-		if (($initialQueueSize -ne $postQueueSize) -and ($isNetworkWorkloadEnable -eq 1)) {
-			throw "Mismatching queue sizes of synthetic network interface eth0. Initially $initialQueueSize. $postQueueSize after resuming from hibernation"
+			$work1Output = Get-Content -Path "$LogDir\beforewl.json"
+			$work2Output = Get-Content -Path "$LogDir\afterwl.json"
+			Write-LogDbg "Output content of before-hibernate workload"
+			Write-LogDbg $work1Output
+			Write-LogDbg "Output content of after-hibernate workload"
+			Write-LogDbg $work2Output
 		}
 
 		$testResult = $resultPass
-
-		Copy-RemoteFiles -downloadFrom $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -download -downloadTo $LogDir -files "*.json, *.log" -runAsSudo
-		$work1Output = Get-Content -Path "$LogDir\beforewl.json"
-		$work2Output = Get-Content -Path "$LogDir\afterwl.json"
-		Write-LogDbg "Output content of before-hibernate workload"
-		Write-LogDbg $work1Output
-		Write-LogDbg "Output content of after-hibernate workload"
-		Write-LogDbg $work2Output
-
 	} catch {
 		$ErrorMessage =  $_.Exception.Message
 		$ErrorLine = $_.InvocationInfo.ScriptLineNumber
