@@ -196,7 +196,7 @@ function Main() {
 
 		_entry1=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'resume=')
 		_entry2=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'GRUB_HIDDEN_TIMEOUT=30')
-		_entry3=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'GRUB_TIMEOUT=')
+		_entry3=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'GRUB_TIMEOUT=30')
 		# Re-validate the entry in the 50-cloudimg-settings.cfg file.
 		if [ -n "$_entry1" ] && [ -n "$_entry2" ] && [ -n "$_entry3" ]; then
 			LogMsg "Successfully updated 50-cloudimg-settings.cfg file with all three entries"
