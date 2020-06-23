@@ -177,7 +177,7 @@ done < netdev.log
 			}
 			# Hibernate the VM
 			Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./test.sh" -runAsSudo -RunInBackground -ignoreLinuxExitCode:$true | Out-Null
-			Write-LogInfo "Sent hibernate command to the VM and continue checking its status in every 15 seconds until 2 minutes timeout "
+			Write-LogInfo "Sent hibernate command to the VM and continue checking its status in every 15 seconds until 20 minutes timeout"
 
 			# Verify the VM status
 			# Can not find if VM hibernation completion or not as soon as it disconnects the network. Assume it is in timeout.
@@ -201,13 +201,13 @@ done < netdev.log
 
 			# Resume the VM
 			Start-AzVM -Name $vmName -ResourceGroupName $rgName -NoWait | Out-Null
-			Write-LogInfo "Waked up the VM $vmName in Resource Group $rgName and continue checking its status in every 15 seconds until 20 minutes timeout "
+			Write-LogInfo "Waked up the VM $vmName in Resource Group $rgName and continue checking its status in every 15 seconds until 57 minutes timeout"
 
 			# Wait for VM resume for 57 min-timeout
 			$timeout = New-Timespan -Minutes 57
 			$sw = [diagnostics.stopwatch]::StartNew()
+			$vmCount = $AllVMData.Count
 			while ($sw.elapsed -lt $timeout) {
-				$vmCount = $AllVMData.Count
 				Wait-Time -seconds 15
 				$state = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "date > /dev/null; echo $?"
 				if ($state) {
