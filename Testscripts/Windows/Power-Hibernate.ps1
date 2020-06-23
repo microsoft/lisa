@@ -150,6 +150,7 @@ echo disk > /sys/power/state
 				Write-LogInfo "$($vmStatus.Statuses[1].DisplayStatus): Verified successfully VM status is running before hibernation"
 			} else {
 				Write-LogErr "$($vmStatus.Statuses[1].DisplayStatus): Did not verify the VM status running before hibernation"
+				Write-LogDbg $vmStatus
 				throw "Did not verify VM status running before hibernate"
 			}
 
