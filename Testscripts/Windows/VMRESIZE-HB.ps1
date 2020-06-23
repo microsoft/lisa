@@ -202,7 +202,7 @@ echo disk > /sys/power/state
 		if ($state){
 			Write-LogInfo "VM restart completed"
 		} else {
-			throw "VM start halt or hang, the latest state of remote connection was $state"
+			throw "VM start halt or hang, the latest state of remote connection was unknown"
 		}
 		#Verify the VM status after power on event
 		$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
