@@ -27,6 +27,22 @@ supported_distro_list=(redhat centos suse debian ubuntu)
 
 readonly da_pid_file="/etc/opt/microsoft/dependency-agent/config/DA_PID"
 
+function test_case_cleanup(){
+    /opt/microsoft/dependency-agent/uninstall
+
+    for dir in "${dir_list[@]}"
+    do
+        rm -rf $dir
+    done
+
+    kill $watch_pid
+
+    LogMsg "Finished cleaning up test cases"
+}
+
+# Calls the cleanup function when interupted or exited
+trap test_case_cleanup SIGINT EXIT
+
 function verify_directory() {
     failed_assertions=0
     for dir in "${dir_list[@]}"
@@ -59,7 +75,7 @@ function verify_da_pid() {
     [ ! -f $da_pid_file ] && LogErr "$da_pid_file does not exist." && SetTestStateFailed && exit 0
 
     if x=$(sed -n '/^[1-9][0-9]*$/p;q' $da_pid_file); then
-        strings /proc/$x/cmdline | grep "/opt/microsoft/dependency-agent/bin/microsoft-dependency-agent-manager" && LogMsg "PID matched" || (LogErr "PID not matched" && SetTestStateFailed && exit 0)
+        strings /proc/$x/cmdline | grep "microsoft-dependency-agent-manager" && LogMsg "PID matched" || (LogErr "PID not matched" && SetTestStateFailed && exit 0)
     else
         LogErr "PID not found in DA_PID"
         SetTestStateFailed
@@ -150,11 +166,17 @@ function enable_disable_da(){
     [ ! -f "/var/opt/microsoft/dependency-agent/log/service.log" ] && LogErr "/var/opt/microsoft/dependency-agent/log/service.log does not exist." && SetTestStateFailed && exit 0
 
     # Check for service.log.1 file and confirm service.log.2 doesn't exist
-    # TODO: Need to revisit the retry logic.
     service_log_time=$(date -r /var/opt/microsoft/dependency-agent/log/service.log +%s)
-    current_time=$(date +%s)
-    time_elapsed=$(($current_time - $service_log_time))
-    sleep $((120-$time_elapsed))
+    time_limit=$(($service_log_time + 120))
+    while [ ! -f "/var/opt/microsoft/dependency-agent/log/service.log.1" ]
+    do
+        current_time=$(date +%s)
+        if [ $current_time -gt $time_limit]; then
+            SetTestStateFailed
+            return
+        fi
+        sleep 5
+    done
 
     [ ! -f "/var/opt/microsoft/dependency-agent/log/service.log.1" ] && LogErr "/var/opt/microsoft/dependency-agent/log/service.log.1 does not exist." && SetTestStateFailed && exit 0
     [ -f "/var/opt/microsoft/dependency-agent/log/service.log.2" ] && LogErr "/var/opt/microsoft/dependency-agent/log/service.log.2 exist." && SetTestStateFailed && exit 0
@@ -178,7 +200,8 @@ function enable_disable_da(){
     ! ls /var/opt/microsoft/dependency-agent/storage/*.hb && LogErr "/var/opt/microsoft/dependency-agent/storage/*.hb does not exist." && SetTestStateFailed && exit 0
     verify_da_pid
 
-    dmesg | egrep -w "BUG:|Modules linked in:|Call Trace:​" && LogErr "Found BUG/Modules linked in/Call Trace in dmesg" && SetTestStateFailed && exit 0
+    dmesg_error=$(dmesg | fgrep -e BUG: -e "Modules linked in:" -e "Call Trace:​" -A 20)
+    [ ! -z "$dmesg_error" ] && LogErr "$dmesg_error" && SetTestStateFailed && exit 0
 
     verify_uninstall_da
 
@@ -214,7 +237,6 @@ function test_case_cleanup(){
 
 test_case_install_uninstall_da
 test_case_enable_disable_da
-test_case_cleanup
 
 LogMsg "Validate DA tests completed"
 SetTestStateCompleted
