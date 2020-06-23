@@ -274,7 +274,7 @@ echo disk > /sys/power/state
 		if ($beforeTimeStamp -ne $12minAfterTimeStamp) {
 			Write-LogInfo "Successfully verified the beforeTimeStamp was different from 12minAfterTimeStamp"
 		} else {
-			Write-LogErr "Did not find time synced. $beforeTimeStamp to $12minAfterTimeStamp"
+			throw "Did not find time synced. $beforeTimeStamp to $12minAfterTimeStamp"
 		}
 
 		$controllerTimeStamp = Get-Date -format "yyyy"
@@ -283,7 +283,7 @@ echo disk > /sys/power/state
 		if ($12minAfterTimeStamp -eq $controllerTimeStamp) {
 			Write-LogInfo "Successfully verified the system date changed back to correct date"
 		} else {
-			Write-LogErr "Expected VM time changed back to the correct one after sync-up, but found $12minAfterTimeStamp"
+			throw "Expected VM time changed back to the correct one after sync-up, but found $12minAfterTimeStamp"
 		}
 
 		$testResult = $resultPass
