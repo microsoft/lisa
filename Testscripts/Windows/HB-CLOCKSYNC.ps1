@@ -102,8 +102,8 @@ echo disk > /sys/power/state
 		# Wait for kernel compilation completion. 90 min timeout
 		$timeout = New-Timespan -Minutes $maxKernelCompileMin
 		$sw = [diagnostics.stopwatch]::StartNew()
+		$vmCount = $AllVMData.Count
 		while ($sw.elapsed -lt $timeout){
-			$vmCount = $AllVMData.Count
 			Wait-Time -seconds 30
 			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat ~/state.txt"
 			if ($state -eq "TestCompleted") {
@@ -190,8 +190,8 @@ echo disk > /sys/power/state
 		# Wait for VM resume for 15 min-timeout
 		$timeout = New-Timespan -Minutes 15
 		$sw = [diagnostics.stopwatch]::StartNew()
+		$vmCount = $AllVMData.Count
 		while ($sw.elapsed -lt $timeout){
-			$vmCount = $AllVMData.Count
 			Wait-Time -seconds 15
 			$state = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "date > /dev/null; echo $?"
 			if ($state) {
