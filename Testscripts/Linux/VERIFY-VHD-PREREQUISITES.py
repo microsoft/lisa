@@ -49,7 +49,7 @@ def verify_grub(distro):
         version_release = 0
         if distro == "REDHAT" or distro == "CENTOS":
             version_release = Run("cat /etc/system-release | grep -Eo '[0-9].?[0-9]?' | head -1 | tr -d '\n'")
-        if float(version_release) == 8.0:
+        if float(version_release) >= 8.0:
             RunLog.info("Getting Contents of /boot/grub2/grubenv")
             grub_out = Run("cat /boot/grub2/grubenv")
         elif os.path.isfile("/boot/grub2/grub.cfg"):
