@@ -228,7 +228,7 @@
 		<Category></Category>
 		<Area></Area>
 		<Tags>stress,hv_storvsc,storage</Tags>
-		<Priority></Priority>
+		<Priority>2</Priority>
 	</test>
 	<test>
 		<testName>STRESS-STORAGE-4K-IO-WITHVERIFY-LONGTIME</testName>
@@ -261,7 +261,7 @@
 		<Category></Category>
 		<Area></Area>
 		<Tags>stress,hv_storvsc,storage</Tags>
-		<Priority></Priority>
+		<Priority>2</Priority>
 	</test>
 	<test>
 		<testName>STRESS-CPU-OFFLINE-ONLINE</testName>
