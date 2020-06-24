@@ -11,7 +11,7 @@
 .Description
 	1. Prepare swap space for hibernation
 	2. Compile a new kernel (optional)
-	3. Update the grup.cfg with resume=UUID=xxxx where is from blkid swap disk
+	3. Update the grub.cfg with resume=UUID=xxxx where is from blkid swap disk
 	4. Run the first storage or network workload testing
 	5. Hibernate the VM, and verify the VM status
 	5. Resume the VM and verify the VM status.
