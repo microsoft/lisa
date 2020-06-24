@@ -35,6 +35,7 @@ function Main {
 		$storageType = 'StandardSSD_LRS'
 		$dataDiskName = $vmName + '_datadisk1'
 		$defaultHibernateLoop = 1
+		$isStress = $false
 
 		#region Generate constants.sh
 		# We need to add extra parameters to constants.sh file apart from parameter properties defined in XML.
@@ -48,6 +49,7 @@ function Main {
 			if ($TestParam -imatch "hb_loop=") {
 				# Overwrite new max Iteration of VM hibernation and online stress test
 				$defaultHibernateLoop = [int]($TestParam.Replace("hb_loop=", "").Trim('"'))
+				$isStress = $true
 			}
 		}
 
@@ -139,7 +141,7 @@ echo disk > /sys/power/state
 		$TestProvider.RestartAllDeployments($AllVMData)
 
 		for ($iteration=1; $iteration -le $defaultHibernateLoop; $iteration++) {
-			if ($defaultHibernateLoop -ne 1) {
+			if ($isStress) {
 				Write-LogInfo "Running Hibernation stress test in the iteration - $iteration"
 				# Clear dmesg log before running test
 				Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg -c" -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
@@ -167,8 +169,20 @@ done < netdev.log
 "@
 			Set-Content "$LogDir\getvf.sh" $getvf
 
-			Copy-RemoteFiles -uploadTo $AllVMData.PublicIP -port $AllVMData.SSHPort -files "$LogDir\getvf.sh" -username $user -password $password -upload
-			Write-LogInfo "Copied the script files to the VM"
+			$setupcommand = @"
+source utils.sh
+update_repos
+install_package "ethtool"
+"@
+			Set-Content "$LogDir\setup.sh" $setupcommand
+
+			#region Upload files to VM
+			foreach ($VMData in $AllVMData) {
+				Copy-RemoteFiles -uploadTo $VMData.PublicIP -port $VMData.SSHPort -files "$constantsFile,$($CurrentTestData.files),$LogDir\*.sh" -username $user -password $password -upload
+				Write-LogInfo "Copied the script files to the VM"
+				Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "bash ./setup.sh" -runAsSudo
+			}
+			#endregion
 
 			# Getting queue counts and interrupt counts before hibernation
 			$vfname = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash ./getvf.sh" -runAsSudo
