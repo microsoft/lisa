@@ -12,7 +12,7 @@
 		<Category>Stress</Category>
 		<Area>STRESS</Area>
 		<Tags>stress,boot</Tags>
-		<Priority>2</Priority>
+		<Priority>3</Priority>
 	</test>
 	<test>
 		<testName>STRESSTEST-VERIFY-RESTART-MAX-SRIOV-NICS</testName>
@@ -30,7 +30,7 @@
 		<Category>Stress</Category>
 		<Area>STRESS</Area>
 		<Tags>stress,boot,network,sriov</Tags>
-		<Priority>2</Priority>
+		<Priority>3</Priority>
 	</test>
 	<test>
 		<testName>STRESSTEST-VERIFY-RESTART-MAX-NVME-DISK</testName>
@@ -46,7 +46,7 @@
 		<Category>Stress</Category>
 		<Area>STRESS</Area>
 		<Tags>stress,boot,storage,nvme</Tags>
-		<Priority>2</Priority>
+		<Priority>3</Priority>
 	</test>
 	<test>
 		<testName>STRESSTEST-VERIFY-RESTART-MAX-GPU-GRID</testName>
@@ -62,7 +62,7 @@
 		<Category>Stress</Category>
 		<Area>STRESS</Area>
 		<Tags>stress,boot,gpu</Tags>
-		<Priority>2</Priority>
+		<Priority>3</Priority>
 	</test>
 	<test>
 		<testName>STRESSTEST-VERIFY-RESTART-MAX-GPU-CUDA</testName>
@@ -78,7 +78,7 @@
 		<Category>Stress</Category>
 		<Area>STRESS</Area>
 		<Tags>stress,boot,gpu</Tags>
-		<Priority>2</Priority>
+		<Priority>3</Priority>
 	</test>
 	<test>
 		<testName>STRESSTEST-RELOAD-LIS-MODULES</testName>
@@ -92,7 +92,7 @@
 		<Category>Stress</Category>
 		<Area>STRESS</Area>
 		<Tags>stress</Tags>
-		<Priority>2</Priority>
+		<Priority>3</Priority>
 	</test>
 	<test>
 		<testName>STRESSTEST-SYSBENCH</testName>
@@ -106,7 +106,7 @@
 		<Category>Stress</Category>
 		<Area>STRESS</Area>
 		<Tags>stress</Tags>
-		<Priority>2</Priority>
+		<Priority>3</Priority>
 	</test>
 	<test>
 		<testName>STRESSTEST-CHANGE-MTU-RELOAD-NETVSC</testName>
@@ -116,7 +116,7 @@
 		<Category>Stress</Category>
 		<Area>STRESS</Area>
 		<Tags>stress</Tags>
-		<Priority>1</Priority>
+		<Priority>3</Priority>
 	</test>
 	<test>
 		<testName>STRESSTEST-BOOT-VM-LARGE-MEMORY</testName>
@@ -132,7 +132,7 @@
 		<Category>Stress</Category>
 		<Area>STRESS</Area>
 		<Tags>stress</Tags>
-		<Priority>2</Priority>
+		<Priority>3</Priority>
 	</test>
 	<test>
 		<testName>STRESSTEST-CHECK-EVENTID-18602</testName>
@@ -145,7 +145,7 @@
 		<Category>Stress</Category>
 		<Area>STRESS</Area>
 		<Tags>stress</Tags>
-		<Priority>2</Priority>
+		<Priority>3</Priority>
 	</test>
 	<test>
 		<testName>STRESSTEST-WEB-PARALLEL-ACCESS</testName>
@@ -172,7 +172,7 @@
 		<Category>Stress</Category>
 		<Area>STRESS</Area>
 		<Tags>stress,network,sriov</Tags>
-		<Priority>2</Priority>
+		<Priority>3</Priority>
 	</test>
 	<test>
 		<testName>STRESSTEST-NVME-4K-IO</testName>
@@ -200,7 +200,7 @@
 		<Category>Stress</Category>
 		<Area>STRESS</Area>
 		<Tags>stress,nvme,storage</Tags>
-		<Priority>2</Priority>
+		<Priority>3</Priority>
 	</test>
 	<test>
 		<testName>STRESS-STORAGE-4K-IO-WITHVERIFY</testName>
@@ -228,7 +228,7 @@
 		<Category></Category>
 		<Area></Area>
 		<Tags>stress,hv_storvsc,storage</Tags>
-		<Priority></Priority>
+		<Priority>3</Priority>
 	</test>
 	<test>
 		<testName>STRESS-STORAGE-4K-IO-WITHVERIFY-LONGTIME</testName>
@@ -261,7 +261,7 @@
 		<Category></Category>
 		<Area></Area>
 		<Tags>stress,hv_storvsc,storage</Tags>
-		<Priority></Priority>
+		<Priority>3</Priority>
 	</test>
 	<test>
 		<testName>STRESS-CPU-OFFLINE-ONLINE</testName>
