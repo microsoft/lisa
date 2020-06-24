@@ -175,6 +175,7 @@ echo disk > /sys/power/state
 		Write-LogInfo "Verified the current VM size is $($vm.HardwareProfile.VmSize) and change to new size Standard_D4s_v3"
 		$vm.HardwareProfile.VmSize = "Standard_D4s_v3"
 		Write-LogInfo "Updating VM size ..."
+		# TODO: Sometimes there is host side error. Need to invesitgate later.
 		$updated_vm = Update-AzVM -VM $vm -ResourceGroupName $rgName
 		if (($updated_vm.StatusCode -eq 'OK') -and $updated_vm.IsSuccessStatusCode) {
 			Write-LogInfo "Successfully changed the VM size"
