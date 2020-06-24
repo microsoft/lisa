@@ -230,7 +230,7 @@ done < netdev.log
 				Write-LogInfo "VM resume completed"
 			} else {
 				# Either VM hang or VM resume needs longer time.
-				throw "VM resume did not finish, the latest state was $state"
+				throw "VM resume did not finish or did not have the expected log message"
 			}
 
 			# Verify the VM status after VM is accessible.
@@ -268,6 +268,7 @@ done < netdev.log
 
 			# Check the system log if it shows Power Management log
 			"hibernation entry", "hibernation exit" | ForEach-Object {
+				# TODO: For other distro, need to check out the syslog or messages.
 				$pm_log_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /var/log/syslog | grep -i '$_'" -ignoreLinuxExitCode:$true
 				Write-LogInfo "Searching the keyword: $_"
 				if ($pm_log_filter -eq "") {
