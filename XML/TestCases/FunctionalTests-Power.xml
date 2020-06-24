@@ -83,7 +83,6 @@
 		<Category>Functional</Category>
 		<Area>POWER</Area>
 		<Tags>power,memory</Tags>
-		<Tags>power</Tags>
 		<Priority>3</Priority>
 	</test>
   <test>
