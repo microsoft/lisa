@@ -22,18 +22,31 @@ UtilsInit
 
 CheckResults()
 {
-    action="$1"
-    sts=$(ethtool -k "${SYNTH_NET_INTERFACES[@]}" 2>&1 | grep generic-receive-offload | awk {'print $2'})
+    case $1 in
+        lro)
+            feature="large-receive-offload"
+            ;;
+        gro)
+            feature="generic-receive-offload"
+            ;;
+        *)
+            echo "Error: no such feature $2! Exit."
+            SetTestStateAborted
+            exit 0
+            ;;
+    esac
+    action="$2"
+    sts=$(ethtool -k "${SYNTH_NET_INTERFACES[@]}" 2>&1 | grep $feature | awk {'print $2'})
     if [ "$action" == "disabled" ] && [ "$sts" == "on" ]; then
-        LogMsg "Generic-receive-offload NOT disabled."
+        LogMsg "$feature NOT disabled."
         SetTestStateFailed
         exit 0 
     elif [ "$action" == "enabled" ] && [ "$sts" == "off" ]; then 
-        LogMsg "Generic-receive-offload NOT enabled."
+        LogMsg "$feature NOT enabled."
         SetTestStateFailed
         exit 0
     else
-        LogMsg "Generic-receive-offload is $action."
+        LogMsg "$feature is $action."
     fi
 }
 
@@ -66,7 +79,7 @@ for (( i = 0 ; i < 2 ; i++ )); do
             exit 0
         fi
         # Check if is disabled
-        CheckResults "disabled"
+        CheckResults "gro" "disabled"
     elif [[ "$sts" == "off" ]];then
         # Enable GRO
         if ! ethtool -K "${SYNTH_NET_INTERFACES[@]}" gro on >/dev/null 2>&1;then
@@ -75,23 +88,47 @@ for (( i = 0 ; i < 2 ; i++ )); do
             exit 0
         fi
         # Check if is enabled
-        CheckResults "enabled"
+        CheckResults "gro" "enabled"
     else
         LogMsg "Cannot get status of generic-receive-offload."
         SetTestStateFailed
         exit 0
-    fi   
+    fi
 done
 
-# Disable/Enable LRO
-LogMsg "LRO status:"
-ethtool -k "${SYNTH_NET_INTERFACES[@]}" | grep large-receive-offload 
-LogMsg "Enable large-receive-offload:"
-ethtool -K "${SYNTH_NET_INTERFACES[@]}" lro on
-LogMsg "LRO status:"
-ethtool -k "${SYNTH_NET_INTERFACES[@]}" | grep large-receive-offload
-LogMsg "Disable large-receive-offload:"
-ethtool -K "${SYNTH_NET_INTERFACES[@]}" lro off
+GetPlatform
+# Disable/Enable LRO (HyperV only)
+if [[ $PLATFORM == "HyperV" ]];then
+    for (( i = 0 ; i < 2 ; i++ )); do
+        # Show LRO status
+        sts=$(ethtool -k "${SYNTH_NET_INTERFACES[@]}" 2>&1 | grep large-receive-offload | awk {'print $2'})
+        if [[ "$sts" == "on" ]];then
+            # Disable LRO
+            if ! ethtool -K "${SYNTH_NET_INTERFACES[@]}" lro off >/dev/null 2>&1;then
+                LogMsg "Cannot disable large-receive-offload."
+                SetTestStateFailed
+                exit 0
+            fi
+            # Check if is disabled
+            CheckResults "lro" "disabled"
+        elif [[ "$sts" == "off" ]];then
+            # Enable LRO
+            if ! ethtool -K "${SYNTH_NET_INTERFACES[@]}" lro on >/dev/null 2>&1;then
+                LogMsg "Cannot enable large-receive-offload."
+                SetTestStateFailed
+                exit 0
+            fi
+            # Check if is enabled
+            CheckResults "lro" "enabled"
+        else
+            LogMsg "Cannot get status of large-receive-offload."
+            SetTestStateFailed
+            exit 0
+        fi
+    done
+else
+    LogMsg "Azure doesn't support changing LRO. Skip."
+fi
 
 SetTestStateCompleted
 exit 0
