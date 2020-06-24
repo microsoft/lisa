@@ -2,21 +2,20 @@
 # Licensed under the Apache License.
 <#
 .Synopsis
-	Perform a simple VM hibernation in Azure
-	This feature might be available in kernel 5.7 or later. By the time,
-	customized kernel will be built.
+	RTC (Real-Time Clock) returns hardware clock from Hyper-v host.
+	Hibernation does not reset RTC until the next host sync-up time.
 	# Hibernation will be supported in the general purpose VM with max 16G vRAM
 	# and the GPU VMs with max 112G vRAM.
-
 
 .Description
 	This test can be performed in Azure and Hyper-V both. But this script only covers Azure.
 	1. Prepare swap space for hibernation
 	2. Compile a new kernel (optional)
 	3. Update the grub.cfg with resume=UUID=xxxx where is from blkid swap disk
-	4. Hibernate the VM, and verify the VM status
-	5. Resume the VM and verify the VM status.
-	6. Verify no kernel panic or call trace
+	4. Set RTC to future time or past time
+	5. Hibernate the VM
+	5. Resume the VM
+	6. Read RTC timestamp and compare to the original value
 #>
 
 param([object] $AllVmData, [string]$TestParams)
@@ -54,15 +53,15 @@ function Main {
 		$dataDisk1 = New-AzDisk -DiskName $dataDiskName -Disk $diskConfig -ResourceGroupName $rgName
 
 		$vm = Get-AzVM -Name $vmName -ResourceGroupName $rgName
-		Start-Sleep -s 30
+		Start-Sleep -seconds 30
 		$vm = Add-AzVMDataDisk -VM $vm -Name $dataDiskName -CreateOption Attach -ManagedDiskId $dataDisk1.Id -Lun 1
-		Start-Sleep -s 30
+		Start-Sleep -seconds 30
 
 		$ret_val = Update-AzVM -VM $vm -ResourceGroupName $rgName
 		Write-LogInfo "Updated the VM with a new data disk"
 		Write-LogInfo "Waiting for 30 seconds for configuration sync"
 		# Wait for disk sync with Azure host
-		Start-Sleep -s 30
+		Start-Sleep -seconds 30
 
 		# Verify the new data disk addition
 		if ($ret_val.IsSuccessStatusCode) {
@@ -91,8 +90,8 @@ echo disk > /sys/power/state
 		# Wait for kernel compilation completion. 90 min timeout
 		$timeout = New-Timespan -Minutes $maxKernelCompileMin
 		$sw = [diagnostics.stopwatch]::StartNew()
+		$vmCount = $AllVMData.Count
 		while ($sw.elapsed -lt $timeout){
-			$vmCount = $AllVMData.Count
 			Wait-Time -seconds 30
 			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat ~/state.txt"
 			if ($state -eq "TestCompleted") {
@@ -142,30 +141,26 @@ echo disk > /sys/power/state
 			throw "Can not identify VM status before hibernate"
 		}
 
-		$getvf = @"
-cat /proc/net/dev | grep -v Inter | grep -v face > netdev.log
-while IFS= read -r line
-do
-	case "`$line" in
-		*lo* );;
-		*eth0* );;
-		* ) echo `$line | cut -d ':' -f 1;;
-	esac
-done < netdev.log
-"@
-		Set-Content "$LogDir\getvf.sh" $getvf
-
-		Copy-RemoteFiles -uploadTo $AllVMData.PublicIP -port $AllVMData.SSHPort -files "$LogDir\getvf.sh" -username $user -password $password -upload
-		Write-LogInfo "Copied the script files to the VM"
-
-		# Getting queue counts and interrupt counts before hibernation
-		$vfname = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash ./getvf.sh" -runAsSudo
-		if ( $vfname -ne '' ) {
-			$tx_queue_count1 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -l `$vfname | grep -i tx | tail -n 1 | cut -d ":" -f 2 | tr -d '[:space:]'" -runAsSudo
-			$interrupt_count1 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /proc/interrupts | grep -i mlx | grep -i msi | wc -l" -runAsSudo
-		}
 		# Hibernate the VM
-		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./test.sh" -runAsSudo -RunInBackground -ignoreLinuxExitCode:$true | Out-Null
+		# TODO: This will be revised with other distro. hwclock output format might be different.
+		$getyear = @"
+source utils.sh
+hwclock > _time
+if [[ `$DISTRO_NAME == 'ubuntu' && `$DISTRO_VERSION == '16.04' ]]; then
+	cat _time | cut -d ' ' -f 4 > timestamp.log
+else
+	cat _time | cut -d '-' -f 1 > timestamp.log
+fi
+"@
+		Set-Content "$LogDir\getyear.sh" $getyear
+
+		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "hwclock --set --date='2033-07-01 12:00:00'" -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+		Start-Sleep -seconds 1
+		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash getyear.sh" -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+		Start-Sleep -seconds 1
+		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "mv timestamp.log before_timestamp.log" -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+		Start-Sleep -seconds 1
+		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash test.sh" -runAsSudo -RunInBackground -ignoreLinuxExitCode:$true | Out-Null
 		Write-LogInfo "Sent hibernate command to the VM and continue checking its status in every 15 seconds until 10 minutes timeout "
 
 		# Verify the VM status
@@ -195,17 +190,17 @@ done < netdev.log
 		# Wait for VM resume for 15 min-timeout
 		$timeout = New-Timespan -Minutes 15
 		$sw = [diagnostics.stopwatch]::StartNew()
+		$vmCount = $AllVMData.Count
 		while ($sw.elapsed -lt $timeout){
-			$vmCount = $AllVMData.Count
 			Wait-Time -seconds 15
-			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "date > /dev/null; echo $?"
+			$state = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "date > /dev/null; echo $?"
 			if ($state) {
-				$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "dmesg | grep -i 'hibernation exit'"
+				$kernelCompileCompleted = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "dmesg | grep -i 'hibernation exit'"
 				# This verification might be revised in future. Checking with dmesg is risky.
 				if ($kernelCompileCompleted -ne "hibernation exit") {
-					Write-LogErr "VM $($VMData.RoleName) resumed successfully but could not determine hibernation completion"
+					Write-LogErr "VM $($AllVMData[0].RoleName) resumed successfully but could not determine hibernation completion"
 				} else {
-					Write-LogInfo "VM $($VMData.RoleName) resumed successfully"
+					Write-LogInfo "VM $($AllVMData[0].RoleName) resumed successfully"
 					$vmCount--
 				}
 				break
@@ -220,6 +215,24 @@ done < netdev.log
 			# Either VM hang or VM resume needs longer time.
 			throw "VM resume did not finish, the latest state was $state"
 		}
+
+		# Note that if you use NTP, the hardware clock is automatically synchronized to the system clock every 11 minutes,
+		# and this command is useful only at boot time to get a reasonable initial system time.
+		# https://docs.fedoraproject.org/en-US/Fedora/23/html/System_Administrators_Guide/sect4-synchronizing-date-time-hwclock.html
+		Write-LogInfo "Waiting for RTC re-sync in 12 minutes"
+		$timeout = New-Timespan -Minutes 12
+		$sw = [diagnostics.stopwatch]::StartNew()
+		while ($sw.elapsed -lt $timeout) {
+			Wait-Time -seconds 60
+			Write-LogInfo "Test in progress, and check the timeout value in next 1 minute."
+		}
+
+		Write-LogInfo "Capturing the RTC timestmap to 12min_after_timestamp.log file"
+		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash getyear.sh" -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+		Start-Sleep -seconds 1
+		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "mv timestamp.log 12min_after_timestamp.log" -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+		Start-Sleep -seconds 1
+
 		#Verify the VM status after power on event
 		$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
 		if ($vmStatus.Statuses[1].DisplayStatus -eq "VM running") {
@@ -230,7 +243,7 @@ done < netdev.log
 		}
 
 		# Verify the kernel panic, call trace or fatal error
-		$calltrace_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg | grep -iE '(call trace|fatal error)'" -ignoreLinuxExitCode:$true
+		$calltrace_filter = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "dmesg | grep -iE '(call trace|fatal error)'" -ignoreLinuxExitCode:$true
 
 		if ($calltrace_filter -ne "") {
 			Write-LogErr "Found Call Trace or Fatal error in dmesg"
@@ -240,9 +253,12 @@ done < netdev.log
 			Write-LogInfo "Not found Call Trace and Fatal error in dmesg"
 		}
 
+		Write-LogDbg "Waiting 60-second for logging sync"
+		Start-Sleep -seconds 60
+
 		# Check the system log if it shows Power Management log
-		"hibernation entry", "hibernation exit" | ForEach-Object  {
-			$pm_log_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /var/log/syslog | grep -i '$_'" -ignoreLinuxExitCode:$true
+		"hibernation entry", "hibernation exit" | ForEach-Object {
+			$pm_log_filter = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "cat /var/log/syslog | grep -i '$_'" -ignoreLinuxExitCode:$true
 			Write-LogInfo "Searching the keyword: $_"
 			if ($pm_log_filter -eq "") {
 				Write-LogErr "Could not find Power Management log in dmesg"
@@ -253,28 +269,29 @@ done < netdev.log
 			}
 		}
 
-		# Getting queue counts and interrupt counts after resuming.
-		$vfname = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash ./getvf.sh" -runAsSudo
-		if ($vfname -ne '') {
-				$tx_queue_count2 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -l ${vfname} | grep -i tx | tail -n 1 | cut -d ":" -f 2 | tr -d '[:space:]'" -runAsSudo
-				$interrupt_count2 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /proc/interrupts | grep -i mlx | grep -i msi | wc -l" -runAsSudo
-		}
-		if ($tx_queue_count1 -ne $tx_queue_count2) {
-			Write-LogErr "Before hibernation, Tx queue count - $tx_queue_count1. After waking up, Tx queue count - $tx_queue_count2"
-			throw "Tx queue counts changed after waking up."
+		Copy-RemoteFiles -downloadFrom $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -download -downloadTo $LogDir -files "*.log" -runAsSudo
+
+		$beforeTimeStamp = Get-Content $LogDir\before_timestamp.log
+		Write-LogDbg $beforeTimeStamp
+		$12minAfterTimeStamp = Get-Content $LogDir\12min_after_timestamp.log
+		Write-LogDbg $12minAfterTimeStamp
+
+		if ($beforeTimeStamp -ne $12minAfterTimeStamp) {
+			Write-LogInfo "Successfully verified the beforeTimeStamp was different from 12minAfterTimeStamp"
 		} else {
-			Write-LogInfo "Successfully verified Tx queue count matching in Current hardware settings."
+			throw "Did not find time synced. $beforeTimeStamp to $12minAfterTimeStamp"
 		}
 
-		if ($interrupt_count1 -ne $interrupt_count2) {
-			Write-LogErr "Before hibernation, MSI interrupts of mlx driver - $interrupt_count1. After waking up, MSI interrupts of mlx driver - $interrupt_count2"
-			throw "MSI interrupt counts changed after waking up."
+		$controllerTimeStamp = Get-Date -format "yyyy"
+		Write-LogDbg $controllerTimeStamp
+
+		if ($12minAfterTimeStamp -eq $controllerTimeStamp) {
+			Write-LogInfo "Successfully verified the system date changed back to correct date"
 		} else {
-			Write-LogInfo "Successfully verified MSI interrupt counts matching"
+			throw "Expected VM time changed back to the correct one after sync-up, but found $12minAfterTimeStamp"
 		}
 
 		$testResult = $resultPass
-		Copy-RemoteFiles -downloadFrom $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user -password $password -download -downloadTo $LogDir -files "*.log" -runAsSudo
 	} catch {
 		$ErrorMessage =  $_.Exception.Message
 		$ErrorLine = $_.InvocationInfo.ScriptLineNumber

@@ -2,21 +2,26 @@
 # Licensed under the Apache License.
 <#
 .Synopsis
-	Perform a simple VM hibernation in Azure
-	This feature might be available in kernel 5.7 or later. By the time,
-	customized kernel will be built.
-	# Hibernation will be supported in the general purpose VM with max 16G vRAM
-	# and the GPU VMs with max 112G vRAM.
+	Perform a simple VM hibernation in Azure before VM resizng
+	VM resizing causes system reboot and fails the hibernation resume.
+	This is the expected behavior.
+	However, VM loads the latest kernel successfully. This is the expected.
+	Hibernation will be supported in the general purpose VM with max 16G vRAM
+	and the GPU VMs with max 112G vRAM.
 
 
 .Description
 	This test can be performed in Azure and Hyper-V both. But this script only covers Azure.
 	1. Prepare swap space for hibernation
 	2. Compile a new kernel (optional)
-	3. Update the grub.cfg with resume=UUID=xxxx where is from blkid swap disk
+	3. Update the grup.cfg with resume=UUID=xxxx where is from blkid swap disk
 	4. Hibernate the VM, and verify the VM status
-	5. Resume the VM and verify the VM status.
-	6. Verify no kernel panic or call trace
+	5. Resize the VM
+	6. Verify VM resume fail with below error messages
+		6.1 Hibernate inconsistent memory map detected
+		6.2 PM: hibernation: Image mismatch: architecture specific data
+		6.3 PM: hibernation: Failed to load image, recovering
+	7. Verify VM is rebooted successfully
 #>
 
 param([object] $AllVmData, [string]$TestParams)
@@ -91,8 +96,8 @@ echo disk > /sys/power/state
 		# Wait for kernel compilation completion. 90 min timeout
 		$timeout = New-Timespan -Minutes $maxKernelCompileMin
 		$sw = [diagnostics.stopwatch]::StartNew()
+		$vmCount = $AllVMData.Count
 		while ($sw.elapsed -lt $timeout){
-			$vmCount = $AllVMData.Count
 			Wait-Time -seconds 30
 			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat ~/state.txt"
 			if ($state -eq "TestCompleted") {
@@ -105,7 +110,7 @@ echo disk > /sys/power/state
 				}
 				break
 			} elseif ($state -eq "TestSkipped") {
-				Write-LogInfo "SetupHbKernel.sh finished with SKIPPED state!"
+				Write-LogInfo "SetupHbKernel.sh finished with Skipped state!"
 				$resultArr = $resultSkipped
 				$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
 				return $currentTestResult.TestResult
@@ -142,28 +147,6 @@ echo disk > /sys/power/state
 			throw "Can not identify VM status before hibernate"
 		}
 
-		$getvf = @"
-cat /proc/net/dev | grep -v Inter | grep -v face > netdev.log
-while IFS= read -r line
-do
-	case "`$line" in
-		*lo* );;
-		*eth0* );;
-		* ) echo `$line | cut -d ':' -f 1;;
-	esac
-done < netdev.log
-"@
-		Set-Content "$LogDir\getvf.sh" $getvf
-
-		Copy-RemoteFiles -uploadTo $AllVMData.PublicIP -port $AllVMData.SSHPort -files "$LogDir\getvf.sh" -username $user -password $password -upload
-		Write-LogInfo "Copied the script files to the VM"
-
-		# Getting queue counts and interrupt counts before hibernation
-		$vfname = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash ./getvf.sh" -runAsSudo
-		if ( $vfname -ne '' ) {
-			$tx_queue_count1 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -l `$vfname | grep -i tx | tail -n 1 | cut -d ":" -f 2 | tr -d '[:space:]'" -runAsSudo
-			$interrupt_count1 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /proc/interrupts | grep -i mlx | grep -i msi | wc -l" -runAsSudo
-		}
 		# Hibernate the VM
 		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./test.sh" -runAsSudo -RunInBackground -ignoreLinuxExitCode:$true | Out-Null
 		Write-LogInfo "Sent hibernate command to the VM and continue checking its status in every 15 seconds until 10 minutes timeout "
@@ -178,55 +161,58 @@ done < netdev.log
 			if ($vmStatus.Statuses[1].DisplayStatus -eq "VM stopped") {
 				break
 			} else {
-				Write-LogInfo "VM status is not stopped. Wating for 15s..."
+				Write-LogInfo "VM status is not stopped. Waiting for 15s..."
 			}
 		}
 		if ($vmStatus.Statuses[1].DisplayStatus -eq "VM stopped") {
-			Write-LogInfo "$($vmStatus.Statuses[1].DisplayStatus): Verified successfully VM status is stopped after hibernation command sent"
+			Write-LogInfo "$($vmStatus.Statuses[1].DisplayStatus): Verified successfully VM status stopped after hibernation command sent"
 		} else {
-			Write-LogErr "$($vmStatus.Statuses[1].DisplayStatus): Could not find the VM status after hibernation command sent"
-			throw "Can not identify VM status after hibernate"
+			Write-LogErr "$($vmStatus.Statuses[1].DisplayStatus): Could not verify the VM status stopped after hibernation command sent"
+			throw "Did not verify VM status stopped after hibernate"
 		}
 
-		# Resume the VM
-		Start-AzVM -Name $vmName -ResourceGroupName $rgName -NoWait | Out-Null
-		Write-LogInfo "Waked up the VM $vmName in Resource Group $rgName and continue checking its status in every 15 seconds until 15 minutes timeout "
+		# Resize Azure VM
+		# TODO: VMsize in to parameter.
+		Write-LogInfo "Verified the current VM size is $($vm.HardwareProfile.VmSize) and change to new size Standard_D4s_v3"
+		$vm.HardwareProfile.VmSize = "Standard_D4s_v3"
+		Write-LogInfo "Updating VM size ..."
+		# TODO: Sometimes there is host side error. Need to invesitgate later.
+		$updated_vm = Update-AzVM -VM $vm -ResourceGroupName $rgName
+		if (($updated_vm.StatusCode -eq 'OK') -and $updated_vm.IsSuccessStatusCode) {
+			Write-LogInfo "Successfully changed the VM size"
+		} else {
+			$vm = Get-AzVM -Name $vmName -ResourceGroupName $rgName
+			throw "Failed to change the VM size. Expected Standard_D4s_v3, but $($vm.HardwareProfile.VmSize). $($updated_vm.ReasonPhase)"
+		}
 
-		# Wait for VM resume for 15 min-timeout
+		Write-LogInfo "VM $vmName in Resource Group $rgName is restarting becasue of different memory size or VM size. Continue checking its status in every 15 seconds until 15 minutes timeout "
+
+		# Wait for VM starting for 15 min-timeout
 		$timeout = New-Timespan -Minutes 15
 		$sw = [diagnostics.stopwatch]::StartNew()
-		while ($sw.elapsed -lt $timeout){
-			$vmCount = $AllVMData.Count
+		while ($sw.elapsed -lt $timeout) {
 			Wait-Time -seconds 15
 			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "date > /dev/null; echo $?"
 			if ($state) {
-				$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "dmesg | grep -i 'hibernation exit'"
-				# This verification might be revised in future. Checking with dmesg is risky.
-				if ($kernelCompileCompleted -ne "hibernation exit") {
-					Write-LogErr "VM $($VMData.RoleName) resumed successfully but could not determine hibernation completion"
-				} else {
-					Write-LogInfo "VM $($VMData.RoleName) resumed successfully"
-					$vmCount--
-				}
+				Write-LogInfo "VM is now accessible remotely"
 				break
 			} else {
 				Write-LogInfo "VM is still resuming!"
 			}
 		}
 
-		if ($vmCount -le 0){
-			Write-LogInfo "VM resume completed"
+		if ($state){
+			Write-LogInfo "VM restart completed"
 		} else {
-			# Either VM hang or VM resume needs longer time.
-			throw "VM resume did not finish, the latest state was $state"
+			throw "VM start halt or hang, the latest state of remote connection was unknown"
 		}
 		#Verify the VM status after power on event
 		$vmStatus = Get-AzVM -Name $vmName -ResourceGroupName $rgName -Status
 		if ($vmStatus.Statuses[1].DisplayStatus -eq "VM running") {
-			Write-LogInfo "$($vmStatus.Statuses[1].DisplayStatus): Verified successfully VM status is running after resuming"
+			Write-LogInfo "$($vmStatus.Statuses[1].DisplayStatus): Verified successfully VM status running"
 		} else {
-			Write-LogErr "$($vmStatus.Statuses[1].DisplayStatus): Could not find the VM status after resuming"
-			throw "Can not identify VM status after resuming"
+			Write-LogErr "$($vmStatus.Statuses[1].DisplayStatus): Did not find the VM status running"
+			throw "Did not verify VM status running or can not connect to the VM"
 		}
 
 		# Verify the kernel panic, call trace or fatal error
@@ -237,44 +223,21 @@ done < netdev.log
 			# The throw statement is commented out because this is linux-next, so there is high chance to get call trace from other issue. For now, only print the error.
 			# throw "Call trace in dmesg"
 		} else {
-			Write-LogInfo "Not found Call Trace and Fatal error in dmesg"
+			Write-LogInfo "Found no Call Trace and Fatal error in dmesg"
 		}
 
 		# Check the system log if it shows Power Management log
-		"hibernation entry", "hibernation exit" | ForEach-Object  {
+		"Hibernate inconsistent memory map detected", "Image mismatch: architecture specific data", "Failed to load image, recovering" | ForEach-Object {
 			$pm_log_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /var/log/syslog | grep -i '$_'" -ignoreLinuxExitCode:$true
 			Write-LogInfo "Searching the keyword: $_"
 			if ($pm_log_filter -eq "") {
-				Write-LogErr "Could not find Power Management log in dmesg"
-				throw "Missing PM logging in dmesg"
+				throw "Missing the expected log in syslog"
 			} else {
-				Write-LogInfo "Successfully found Power Management log in dmesg"
-				Write-LogInfo $pm_log_filter
+				Write-LogInfo "Successfully found syslog log in dmesg - $pm_log_filter"
 			}
 		}
 
-		# Getting queue counts and interrupt counts after resuming.
-		$vfname = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash ./getvf.sh" -runAsSudo
-		if ($vfname -ne '') {
-				$tx_queue_count2 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -l ${vfname} | grep -i tx | tail -n 1 | cut -d ":" -f 2 | tr -d '[:space:]'" -runAsSudo
-				$interrupt_count2 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /proc/interrupts | grep -i mlx | grep -i msi | wc -l" -runAsSudo
-		}
-		if ($tx_queue_count1 -ne $tx_queue_count2) {
-			Write-LogErr "Before hibernation, Tx queue count - $tx_queue_count1. After waking up, Tx queue count - $tx_queue_count2"
-			throw "Tx queue counts changed after waking up."
-		} else {
-			Write-LogInfo "Successfully verified Tx queue count matching in Current hardware settings."
-		}
-
-		if ($interrupt_count1 -ne $interrupt_count2) {
-			Write-LogErr "Before hibernation, MSI interrupts of mlx driver - $interrupt_count1. After waking up, MSI interrupts of mlx driver - $interrupt_count2"
-			throw "MSI interrupt counts changed after waking up."
-		} else {
-			Write-LogInfo "Successfully verified MSI interrupt counts matching"
-		}
-
 		$testResult = $resultPass
-		Copy-RemoteFiles -downloadFrom $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user -password $password -download -downloadTo $LogDir -files "*.log" -runAsSudo
 	} catch {
 		$ErrorMessage =  $_.Exception.Message
 		$ErrorLine = $_.InvocationInfo.ScriptLineNumber
