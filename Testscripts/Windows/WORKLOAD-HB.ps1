@@ -339,7 +339,7 @@ install_package "fio iperf ethtool stress-ng"
 			if ($isNetworkWorkloadEnable -eq 1) {
 				$postQueueSize = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "ethtool -S eth0 | grep -i tx_queue | grep bytes | wc -l" -runAsSudo
 
-				if (($initialQueueSize -ne $postQueueSize) -and ($isNetworkWorkloadEnable -eq 1)) {
+				if ($initialQueueSize -ne $postQueueSize) {
 					throw "Mismatching queue sizes of synthetic network interface eth0. Initially $initialQueueSize. $postQueueSize after resuming from hibernation"
 				}
 			}
