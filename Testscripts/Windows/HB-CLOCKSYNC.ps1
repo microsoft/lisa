@@ -71,18 +71,6 @@ function Main {
 			throw "Failed to add a new disk"
 		}
 
-		# TODO: This will be revised with other distro. hwclock output format might be different.
-		$getyear = @"
-source utils.sh
-hwclock > _time
-if [[ `$DISTRO_NAME == 'ubuntu' && `$DISTRO_VERSION == '16.04' ]]; then
-	cat _time | cut -d ' ' -f 4 > timestamp.log
-else
-	cat _time | cut -d '-' -f 1 > timestamp.log
-fi
-"@
-		Set-Content "$LogDir\getyear.sh" $getyear
-
 		$testcommand = @"
 echo disk > /sys/power/state
 "@
@@ -154,6 +142,18 @@ echo disk > /sys/power/state
 		}
 
 		# Hibernate the VM
+		# TODO: This will be revised with other distro. hwclock output format might be different.
+		$getyear = @"
+source utils.sh
+hwclock > _time
+if [[ `$DISTRO_NAME == 'ubuntu' && `$DISTRO_VERSION == '16.04' ]]; then
+	cat _time | cut -d ' ' -f 4 > timestamp.log
+else
+	cat _time | cut -d '-' -f 1 > timestamp.log
+fi
+"@
+		Set-Content "$LogDir\getyear.sh" $getyear
+
 		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "hwclock --set --date='2033-07-01 12:00:00'" -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
 		Start-Sleep -seconds 1
 		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash getyear.sh" -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
@@ -220,7 +220,12 @@ echo disk > /sys/power/state
 		# and this command is useful only at boot time to get a reasonable initial system time.
 		# https://docs.fedoraproject.org/en-US/Fedora/23/html/System_Administrators_Guide/sect4-synchronizing-date-time-hwclock.html
 		Write-LogInfo "Waiting for RTC re-sync in 12 minutes"
-		Start-Sleep -seconds 720
+		$timeout = New-Timespan -Minutes 12
+		$sw = [diagnostics.stopwatch]::StartNew()
+		while ($sw.elapsed -lt $timeout) {
+			Wait-Time -seconds 60
+			Write-LogInfo "Test in progress, and check the timeout value in next 1 minute."
+		}
 
 		Write-LogInfo "Capturing the RTC timestmap to 12min_after_timestamp.log file"
 		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash getyear.sh" -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
