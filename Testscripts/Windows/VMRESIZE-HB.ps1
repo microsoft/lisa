@@ -172,6 +172,7 @@ echo disk > /sys/power/state
 		}
 
 		# Resize Azure VM
+		# TODO: VMsize in to parameter.
 		Write-LogInfo "Verified the current VM size is $($vm.HardwareProfile.VmSize) and change to new size Standard_D4s_v3"
 		$vm.HardwareProfile.VmSize = "Standard_D4s_v3"
 		Write-LogInfo "Updating VM size ..."
@@ -226,7 +227,7 @@ echo disk > /sys/power/state
 		}
 
 		# Check the system log if it shows Power Management log
-		"Hibernate inconsistent memory map detected", "Image mismatch: architecture specific data", "Failed to load image, recovering" | ForEach-Object  {
+		"Hibernate inconsistent memory map detected", "Image mismatch: architecture specific data", "Failed to load image, recovering" | ForEach-Object {
 			$pm_log_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /var/log/syslog | grep -i '$_'" -ignoreLinuxExitCode:$true
 			Write-LogInfo "Searching the keyword: $_"
 			if ($pm_log_filter -eq "") {
