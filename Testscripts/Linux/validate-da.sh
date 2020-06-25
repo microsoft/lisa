@@ -28,7 +28,7 @@ readonly da_pid_file="/etc/opt/microsoft/dependency-agent/config/DA_PID"
 readonly uninstaller="/opt/microsoft/dependency-agent/uninstall"
 
 function test_case_cleanup(){
-    [ -f "$uninstaller" ] && eval $uninstaller
+    [ -f $uninstaller ] && $uninstaller
 
     rm -rf "${dir_list[@]}"
 
@@ -47,7 +47,7 @@ function fail_test() {
     exit 0
 }
 
-function verify_directory_exists() {
+function check_da_directories_exist() {
     failed_assertions=false
     for dir in "${dir_list[@]}"
     do
@@ -58,8 +58,8 @@ function verify_directory_exists() {
     done
 
     if $failed_assertions; then
-        LogErr "Some/All directories exists"
-        echo "$failed_assertions"
+        LogErr "Some directories exists"
+        $failed_assertions
     fi
 }
 
@@ -69,7 +69,9 @@ function verify_distro() {
             LogMsg "Supported Distro family: $DISTRO"
             ;;
         *)
-            fail_test "Unsupported Distro family: $DISTRO"
+            LogMsg "Unsupported Distro family: $DISTRO"
+            SetTestStateSkipped
+            exit 0
             ;;
     esac
 }
@@ -81,16 +83,18 @@ function verify_expected_file() {
 }
 
 function verify_da_pid() {
-    [ ! -f $da_pid_file ] && fail_test "$da_pid_file does not exist."
+    if [ ! -f $da_pid_file ]; then
+        fail_test "$da_pid_file does not exist."
+    fi
 
-    if x=$(sed -n '/^[1-9][0-9]*$/p;q' $da_pid_file); then
+    if ! x=$(sed -n '/^[1-9][0-9]*$/p;q' $da_pid_file); then
+        fail_test "PID not found in DA_PID"
+    else
         if strings /proc/$x/cmdline | fgrep -q  -e "microsoft-dependency-agent-manager"; then
             LogMsg "PID matched"
         else
             fail_test "PID not matched"
         fi
-    else
-        fail_test "PID not found in DA_PID"
     fi
 }
 
@@ -103,8 +107,7 @@ function check_prereqs() {
 
     verify_distro
 
-    directory_exists=$(verify_directory_exists)
-    if [ "directory_exists" == "true" ]; then
+    if check_da_directories_exist; then
         SetTestStateAborted
         exit 0
     fi
@@ -150,7 +153,7 @@ function verify_install_da() {
 function verify_uninstall_da() {
     LogMsg "Starting uninstall tests"
 
-    eval $uninstaller
+    $uninstaller
 
     ret=$?
     if [ $ret -ne 0 ]; then
@@ -159,8 +162,7 @@ function verify_uninstall_da() {
         LogMsg "Uninstalled with exit code 0"
     fi
 
-    directory_exists=$(verify_directory_exists)
-    if [ "directory_exists" == "true" ]; then
+    if check_da_directories_exist; then
         fail_test "Directory exists"
     fi
 
@@ -200,12 +202,22 @@ function enable_disable_da(){
     done
 
     verify_expected_file "/var/opt/microsoft/dependency-agent/log/service.log.1"
-    [ -f "/var/opt/microsoft/dependency-agent/log/service.log.2" ] && fail_test "/var/opt/microsoft/dependency-agent/log/service.log.2 exist."
-    [ ! -c "/dev/msda" ] && fail_test "/dev/msda does not exist."
-
+    
+    if [ -f "/var/opt/microsoft/dependency-agent/log/service.log.2" ]; then
+        fail_test "/var/opt/microsoft/dependency-agent/log/service.log.2 exist."
+    fi
+    
+    if [ ! -c "/dev/msda" ]; then 
+        fail_test "/dev/msda does not exist."
+    fi
     # Check for "driver setup status=0" and "starting the dependency agent" in service.log.1 and service.log respectively
-    ! grep -iq "driver setup status=0" /var/opt/microsoft/dependency-agent/log/service.log.1 && fail_test "driver setup status=0 not found"
-    ! grep -iq "starting the dependency agent" /var/opt/microsoft/dependency-agent/log/service.log && fail_test starting the dependency agent not found
+    if ! grep -iq "driver setup status=0" /var/opt/microsoft/dependency-agent/log/service.log.1; then
+        fail_test "driver setup status=0 not found"
+    fi
+
+    if ! grep -iq "starting the dependency agent" /var/opt/microsoft/dependency-agent/log/service.log; then
+        fail_test "starting the dependency agent not found"
+    fi
 
     # Wait for DA to be running and verify by checking for MicrosoftDependencyAgent.log
     sleep 60
@@ -214,15 +226,21 @@ function enable_disable_da(){
 
     # Wait for events and verify by checking for /var/opt/microsoft/dependency-agent/storage/*.bb files
     sleep 120
-    ! ls /var/opt/microsoft/dependency-agent/storage/*.bb && fail_test "/var/opt/microsoft/dependency-agent/storage/*.bb does not exist."
+    if ! ls /var/opt/microsoft/dependency-agent/storage/*.bb; then
+        fail_test "/var/opt/microsoft/dependency-agent/storage/*.bb does not exist."
+    fi
 
     # Wait for more events and verify by checking for /var/opt/microsoft/dependency-agent/storage/*.hb files
     sleep 90
-    ! ls /var/opt/microsoft/dependency-agent/storage/*.hb && fail_test "/var/opt/microsoft/dependency-agent/storage/*.hb does not exist."
+    if ! ls /var/opt/microsoft/dependency-agent/storage/*.hb; then
+        fail_test "/var/opt/microsoft/dependency-agent/storage/*.hb does not exist."
+    fi
     verify_da_pid
 
     dmesg_error=$(dmesg | fgrep -e BUG: -e "Modules linked in:" -e "Call Trace:​" -A 20)
-    [ ! -z "$dmesg_error" ] && fail_test "$dmesg_error"
+    if [ ! -z "$dmesg_error" ]; then
+        fail_test "$dmesg_error"
+    fi
 
     verify_uninstall_da
 
