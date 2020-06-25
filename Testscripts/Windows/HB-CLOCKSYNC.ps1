@@ -154,6 +154,13 @@ fi
 "@
 		Set-Content "$LogDir\getyear.sh" $getyear
 
+		#region Upload files to VM
+		foreach ($VMData in $AllVMData) {
+			Copy-RemoteFiles -uploadTo $VMData.PublicIP -port $VMData.SSHPort -files "$constantsFile,$($CurrentTestData.files),$LogDir\*.sh" -username $user -password $password -upload
+			Write-LogInfo "Copied the script files to the VM"
+		}
+		#endregion
+
 		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "hwclock --set --date='2033-07-01 12:00:00'" -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
 		Start-Sleep -seconds 1
 		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash getyear.sh" -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
