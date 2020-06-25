@@ -23,7 +23,6 @@ set -x
 GetDistro
 
 readonly dir_list=(/opt/microsoft/dependency-agent /var/opt/microsoft/dependency-agent /etc/opt/microsoft/dependency-agent /lib/microsoft-dependency-agent /etc/init.d/microsoft-dependency-agent)
-readonly supported_distro_list=(redhat centos suse debian ubuntu)
 
 readonly da_pid_file="/etc/opt/microsoft/dependency-agent/config/DA_PID"
 readonly uninstaller="/opt/microsoft/dependency-agent/uninstall"
@@ -52,20 +51,21 @@ function verify_directory_exists() {
     failed_assertions=false
     for dir in "${dir_list[@]}"
     do
-        [ -d $dir ] && LogErr "Directory $dir exists." && failed_assertions=true
+        if [ -d "$dir" ]; then
+            LogErr "Directory $dir exists."
+            failed_assertions=true
+        fi
     done
 
-    if [ $failed_assertions ]; then
+    if $failed_assertions; then
         LogErr "Some/All directories exists"
         echo "$failed_assertions"
     fi
 }
 
 function verify_distro() {
-    LogMsg "Current distro: $DISTRO"
-
     case $DISTRO in
-        redhat | centos | suse | debian | ubuntu)
+        redhat* | centos* | suse* | debian* | ubuntu*)
             LogMsg "Supported Distro family: $DISTRO"
             ;;
         *)
@@ -84,7 +84,7 @@ function verify_da_pid() {
     [ ! -f $da_pid_file ] && fail_test "$da_pid_file does not exist."
 
     if x=$(sed -n '/^[1-9][0-9]*$/p;q' $da_pid_file); then
-        if [ strings /proc/$x/cmdline | fgrep -q  -e "microsoft-dependency-agent-manager" ]; then
+        if strings /proc/$x/cmdline | fgrep -q  -e "microsoft-dependency-agent-manager"; then
             LogMsg "PID matched"
         else
             fail_test "PID not matched"
@@ -115,7 +115,7 @@ function check_prereqs() {
 function download_da_linux_installer() {
     LogMsg "Download Dependency Agent Linux installer"
 
-    if [ ! curl -L https://aka.ms/dependencyagentlinux -o InstallDependencyAgent-Linux64.bin ]; then
+    if ! curl -L https://aka.ms/dependencyagentlinux -o InstallDependencyAgent-Linux64.bin; then
         fail_test Download failed
     fi
 
@@ -178,13 +178,17 @@ function enable_disable_da(){
 
     verify_install_da
 
-    # Wait for 30s and check for service.log
+    # Wait for 30s for DA to start running and check for service.log
     sleep 30
     verify_expected_file "/var/opt/microsoft/dependency-agent/log/service.log"
 
     # Check for service.log.1 file and confirm service.log.2 doesn't exist
     service_log_time=$(date -r /var/opt/microsoft/dependency-agent/log/service.log +%s)
-    time_limit=$(($service_log_time + 120))
+    time_limit=$(($service_log_time + 60))
+    if [ "$DISTRO" == "debian"*] || ["$DISTRO" == "ubuntu"* ]; then
+        time_limit=$(($time_limit + 60))
+    fi
+
     while [ ! -f "/var/opt/microsoft/dependency-agent/log/service.log.1" ]
     do
         current_time=$(date +%s)
@@ -227,18 +231,18 @@ function enable_disable_da(){
 
 function test_case_install_uninstall_da(){
     LogMsg "Starting Test Case 1: Install/Uninstall DA"
-    check_prereqs
-    download_da_linux_installer
     verify_install_da
     verify_uninstall_da
 }
 
 function test_case_enable_disable_da(){
-    LogMsg "Starting Test Case 2: Enable/Disable DA" 
+    LogMsg "Starting Test Case 2: Enable/Disable DA"
     generate_network_activity
     enable_disable_da
 }
 
+check_prereqs
+download_da_linux_installer
 test_case_install_uninstall_da
 test_case_enable_disable_da
 

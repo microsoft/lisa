@@ -13,14 +13,15 @@ param([String] $TestParams,
       [object] $AllVmData)
 function Main {
     param (
-        $VMName,
-        $Ipv4,
-        $VMPort,
-        $VMUserName,
-        $VMPassword
+        [String] $VMName,
+        [String] $Ipv4,
+        [int] $VMPort,
+        [String] $VMUserName,
+        [String] $VMPassword
     )
 
-    $remoteScript = "validate-da.sh"
+    $remoteScriptName = "validate-da"
+    $remoteScriptType = "sh"
     #######################################################################
     #
     #	Main body script
@@ -33,8 +34,8 @@ function Main {
         return "FAIL"
     }
 
-    Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort $remoteScript -runAsSudo
-    $testResult = Collect-TestLogs -LogsDestination $LogDir -ScriptName $remoteScript.split(".")[0] -TestType "sh" `
+    Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort ($remoteScriptName + "." + $remoteScriptType) -runAsSudo
+    $testResult = Collect-TestLogs -LogsDestination $LogDir -ScriptName $remoteScriptName -TestType $remoteScriptType `
         -PublicIP $Ipv4 -SSHPort $VMPort -Username $VMUserName -password $VMPassword `
         -TestName $currentTestData.testName
     $resultArr += $testResult
