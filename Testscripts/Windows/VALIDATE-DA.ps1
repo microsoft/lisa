@@ -29,8 +29,8 @@ function Main {
     #######################################################################
 
     # Checking the input arguments
-    if (-not $VMName) {
-        Write-LogErr "VM name is null!"
+    if ($VMName.length -eq 0) {
+        Write-LogErr "VM name is empty!"
         return "FAIL"
     }
 
