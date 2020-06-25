@@ -49,6 +49,14 @@ function Install_XDP_Dependencies(){
                 exit 1
             fi
         ;;
+        rhel)
+            yum install -y --nogpgcheck git llvm clang elfutils-devel make
+            if [ $? -ne 0 ]; then
+                LogErr "ERROR: Failed to install required packages on ${DISTRO_STRING}"
+                SetTestStateFailed
+                exit 1
+            fi
+        ;;
         * )
             LogErr "Distribution (${DISTRO_NAME}) is not supported by this script."
             SetTestStateSkipped

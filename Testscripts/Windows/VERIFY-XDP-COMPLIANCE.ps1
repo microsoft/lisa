@@ -11,6 +11,8 @@ param([object] $AllVmData,
 	[object] $CurrentTestData)
 
 $MIN_KERNEL_VERSION = "5.6"
+# RHEL kernel supports XDP since 4.18.0-214
+$RHEL_MIN_KERNEL_VERSION = "4.18.0-213"
 
 function Main{
     try{
@@ -22,8 +24,18 @@ function Main{
 
         $currentKernelVersion = Run-LinuxCmd -ip $allVMData.PublicIP -port $allVMData.SSHPort `
                 -username $user -password $password -command "uname -r"
-        if ((Compare-KernelVersion $currentKernelVersion $MIN_KERNEL_VERSION) -lt 0 -or $global:DetectedDistro -ne "UBUNTU"){
-            Write-LogInfo "Unsupported kernel version: $currentKernelVersion or Unsupported distro: $($global:DetectedDistro)."
+        if ($global:DetectedDistro -eq "UBUNTU"){
+            if ((Compare-KernelVersion $currentKernelVersion $MIN_KERNEL_VERSION) -lt 0){
+                Write-LogInfo "Unsupported kernel version: $currentKernelVersion"
+                return $global:ResultSkipped
+            }
+        } elseif ($global:DetectedDistro -eq "REDHAT"){
+            if ((Compare-KernelVersion $currentKernelVersion $RHEL_MIN_KERNEL_VERSION) -lt 0){
+                Write-LogInfo "Unsupported kernel version: $currentKernelVersion"
+                return $global:ResultSkipped
+            }
+        } else {
+            Write-LogInfo "Unsupported distro: $($global:DetectedDistro)."
             return $global:ResultSkipped
         }
 
