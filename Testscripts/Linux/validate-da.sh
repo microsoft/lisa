@@ -22,64 +22,75 @@ set -x
 # Get distro information
 GetDistro
 
-dir_list=(/opt/microsoft/dependency-agent /var/opt/microsoft/dependency-agent /etc/opt/microsoft/dependency-agent /lib/microsoft-dependency-agent /etc/init.d/microsoft-dependency-agent)
-supported_distro_list=(redhat centos suse debian ubuntu)
+readonly dir_list=(/opt/microsoft/dependency-agent /var/opt/microsoft/dependency-agent /etc/opt/microsoft/dependency-agent /lib/microsoft-dependency-agent /etc/init.d/microsoft-dependency-agent)
+readonly supported_distro_list=(redhat centos suse debian ubuntu)
 
 readonly da_pid_file="/etc/opt/microsoft/dependency-agent/config/DA_PID"
+readonly uninstaller="/opt/microsoft/dependency-agent/uninstall"
 
 function test_case_cleanup(){
-    /opt/microsoft/dependency-agent/uninstall
+    [ -f "$uninstaller" ] && eval $uninstaller
 
-    for dir in "${dir_list[@]}"
-    do
-        rm -rf $dir
-    done
+    rm -rf "${dir_list[@]}"
 
-    kill $watch_pid
+    # This can be a NOP if the test exits before calling generate_network_activity
+    kill $network_activity_generator_pid
 
     LogMsg "Finished cleaning up test cases"
 }
 
 # Calls the cleanup function when interupted or exited
-trap test_case_cleanup SIGINT EXIT
+trap test_case_cleanup SIGINT EXIT SIGHUP SIGQUIT SIGTERM
 
-function verify_directory() {
-    failed_assertions=0
+function fail_test() {
+    LogErr "$*"
+    SetTestStateFailed
+    exit 0
+}
+
+function verify_directory_exists() {
+    failed_assertions=false
     for dir in "${dir_list[@]}"
     do
-        [ -d $dir ] && LogErr "Directory $dir exists." && SetTestStateFailed && failed_assertions=$[[failed_assertions+1]]
+        [ -d $dir ] && LogErr "Directory $dir exists." && failed_assertions=true
     done
 
-    if ["$failed_assertions" -gt 0]; then
+    if [ $failed_assertions ]; then
         LogErr "Some/All directories exists"
-        SetTestStateFailed
-        exit 0
+        echo "$failed_assertions"
     fi
 }
 
 function verify_distro() {
     LogMsg "Current distro: $DISTRO"
-    for distro in "${supported_distro_list[@]}"
-    do
-        if [[ "$distro"* == $DISTRO ]]; then
-        LogMsg "Supported Distro family"
-        break
-    else
-        LogErr "Unsupported Distro family"
-        SetTestStateSkipped
-        exit 0
-    done
+
+    case $DISTRO in
+        redhat | centos | suse | debian | ubuntu)
+            LogMsg "Supported Distro family: $DISTRO"
+            ;;
+        *)
+            fail_test "Unsupported Distro family: $DISTRO"
+            ;;
+    esac
+}
+
+function verify_expected_file() {
+    if [ ! -f "$1" ]; then
+        fail_test "${1} doesn't exist."
+    fi
 }
 
 function verify_da_pid() {
-    [ ! -f $da_pid_file ] && LogErr "$da_pid_file does not exist." && SetTestStateFailed && exit 0
+    [ ! -f $da_pid_file ] && fail_test "$da_pid_file does not exist."
 
     if x=$(sed -n '/^[1-9][0-9]*$/p;q' $da_pid_file); then
-        strings /proc/$x/cmdline | grep "microsoft-dependency-agent-manager" && LogMsg "PID matched" || (LogErr "PID not matched" && SetTestStateFailed && exit 0)
+        if [ strings /proc/$x/cmdline | fgrep -q  -e "microsoft-dependency-agent-manager" ]; then
+            LogMsg "PID matched"
+        else
+            fail_test "PID not matched"
+        fi
     else
-        LogErr "PID not found in DA_PID"
-        SetTestStateFailed
-        exit 0
+        fail_test "PID not found in DA_PID"
     fi
 }
 
@@ -87,13 +98,16 @@ function check_prereqs() {
     LogMsg "Checking for preconditions"
 
     if [[ $EUID -ne 0 ]]; then
-        LogErr "This script must be run as root" 
-        SetTestStateFailed
-        exit 0
+        fail_test "This script must be run as root"
     fi
 
-    verify_directory
     verify_distro
+
+    directory_exists=$(verify_directory_exists)
+    if [ "directory_exists" == "true" ]; then
+        SetTestStateAborted
+        exit 0
+    fi
 
     LogMsg "Preconditions met"
 }
@@ -101,53 +115,54 @@ function check_prereqs() {
 function download_da_linux_installer() {
     LogMsg "Download Dependency Agent Linux installer"
 
-    curl -L https://aka.ms/dependencyagentlinux -o InstallDependencyAgent-Linux64.bin
+    if [ ! curl -L https://aka.ms/dependencyagentlinux -o InstallDependencyAgent-Linux64.bin ]; then
+        fail_test Download failed
+    fi
 
     chmod +x InstallDependencyAgent-Linux64.bin
 }
 
 function verify_install_da() {
+    LogMsg "Starting Install tests"
+
     ./InstallDependencyAgent-Linux64.bin -vme
 
     ret=$?
     if [ $ret -ne 0 ]; then
-        LogErr "Install failed with exit code ${ret}"
-        SetTestStateFailed
-        exit 0
-    else
-        LogMsg "Installed with exit code 0"
+        fail_test "Install failed with exit code ${ret}"
     fi
+    LogMsg "Dependency Agent installed successfully"
 
-    [ ! -f "/opt/microsoft/dependency-agent/uninstall" ] && LogErr "/opt/microsoft/dependency-agent/uninstall does not exist." && SetTestStateFailed && exit 0
-    [ ! -f "/etc/init.d/microsoft-dependency-agent" ] && LogErr "/etc/init.d/microsoft-dependency-agent does not exist." && SetTestStateFailed && exit 0
-    [ ! -f "/var/opt/microsoft/dependency-agent/log/install.log" ] && LogErr "/var/opt/microsoft/dependency-agent/log/install.log does not exist." && SetTestStateFailed && exit 0
+    verify_expected_file "$uninstaller"
+    verify_expected_file "/etc/init.d/microsoft-dependency-agent"
+    verify_expected_file "/var/opt/microsoft/dependency-agent/log/install.log"
 
     bin_version=$(./InstallDependencyAgent-Linux64.bin --version | awk '{print $5}')
     install_log_version=$(sed -n 's/^Dependency Agent version\.revision: //p' /var/opt/microsoft/dependency-agent/log/install.log)
     if [ "$bin_version" -ne "$install_log_version" ]; then
-        LogErr "Version mismatch between bin version($bin_version) and install log version($install_log_version)"
-        SetTestStateFailed
-        exit 0
-    else
-        LogMsg "Version matches between bin version and install log version"
+        fail_test "Version mismatch between bin version($bin_version) and install log version($install_log_version)"
     fi
+    LogMsg "Version matches between bin version and install log version"
 
     LogMsg "Install tests passed successfully"
 }
 
 function verify_uninstall_da() {
-    /opt/microsoft/dependency-agent/uninstall
+    LogMsg "Starting uninstall tests"
+
+    eval $uninstaller
 
     ret=$?
     if [ $ret -ne 0 ]; then
-        LogErr "Uninstall failed with exit code ${ret}"
-        SetTestStateFailed
-        exit 0
+        fail_test "Uninstall failed with exit code ${ret}"
     else
         LogMsg "Uninstalled with exit code 0"
     fi
 
-    verify_directory
+    directory_exists=$(verify_directory_exists)
+    if [ "directory_exists" == "true" ]; then
+        fail_test "Directory exists"
+    fi
 
     LogMsg "Uninstall tests passed successfully"
 }
@@ -155,15 +170,17 @@ function verify_uninstall_da() {
 function generate_network_activity() {
     LogMsg "Generate network activity"
     watch -n 5 curl https://microsoft.com &>/dev/null &
-    watch_pid=$!
+    network_activity_generator_pid=$!
 }
 
 function enable_disable_da(){
+    LogMsg "Starting Enable/Disable DA tests"
+
     verify_install_da
 
     # Wait for 30s and check for service.log
     sleep 30
-    [ ! -f "/var/opt/microsoft/dependency-agent/log/service.log" ] && LogErr "/var/opt/microsoft/dependency-agent/log/service.log does not exist." && SetTestStateFailed && exit 0
+    verify_expected_file "/var/opt/microsoft/dependency-agent/log/service.log"
 
     # Check for service.log.1 file and confirm service.log.2 doesn't exist
     service_log_time=$(date -r /var/opt/microsoft/dependency-agent/log/service.log +%s)
@@ -178,30 +195,30 @@ function enable_disable_da(){
         sleep 5
     done
 
-    [ ! -f "/var/opt/microsoft/dependency-agent/log/service.log.1" ] && LogErr "/var/opt/microsoft/dependency-agent/log/service.log.1 does not exist." && SetTestStateFailed && exit 0
-    [ -f "/var/opt/microsoft/dependency-agent/log/service.log.2" ] && LogErr "/var/opt/microsoft/dependency-agent/log/service.log.2 exist." && SetTestStateFailed && exit 0
-    [ ! -c "/dev/msda" ] && LogErr "/dev/msda does not exist." && SetTestStateFailed && exit 0
+    verify_expected_file "/var/opt/microsoft/dependency-agent/log/service.log.1"
+    [ -f "/var/opt/microsoft/dependency-agent/log/service.log.2" ] && fail_test "/var/opt/microsoft/dependency-agent/log/service.log.2 exist."
+    [ ! -c "/dev/msda" ] && fail_test "/dev/msda does not exist."
 
     # Check for "driver setup status=0" and "starting the dependency agent" in service.log.1 and service.log respectively
-    ! grep -iq "driver setup status=0" /var/opt/microsoft/dependency-agent/log/service.log.1 && LogErr "driver setup status=0 not found" && SetTestStateFailed && exit 0
-    ! grep -iq "starting the dependency agent" /var/opt/microsoft/dependency-agent/log/service.log && LogErr "starting the dependency agent not found" && SetTestStateFailed && exit 0
+    ! grep -iq "driver setup status=0" /var/opt/microsoft/dependency-agent/log/service.log.1 && fail_test "driver setup status=0 not found"
+    ! grep -iq "starting the dependency agent" /var/opt/microsoft/dependency-agent/log/service.log && fail_test starting the dependency agent not found
 
     # Wait for DA to be running and verify by checking for MicrosoftDependencyAgent.log
     sleep 60
-    [ ! -f "/var/opt/microsoft/dependency-agent/log/MicrosoftDependencyAgent.log" ] && LogErr "/var/opt/microsoft/dependency-agent/log/MicrosoftDependencyAgent.log does not exist." && SetTestStateFailed && exit 0
+    verify_expected_file "/var/opt/microsoft/dependency-agent/log/MicrosoftDependencyAgent.log"
     verify_da_pid
 
     # Wait for events and verify by checking for /var/opt/microsoft/dependency-agent/storage/*.bb files
     sleep 120
-    ! ls /var/opt/microsoft/dependency-agent/storage/*.bb && LogErr "/var/opt/microsoft/dependency-agent/storage/*.bb does not exist." && SetTestStateFailed && exit 0
+    ! ls /var/opt/microsoft/dependency-agent/storage/*.bb && fail_test "/var/opt/microsoft/dependency-agent/storage/*.bb does not exist."
 
     # Wait for more events and verify by checking for /var/opt/microsoft/dependency-agent/storage/*.hb files
     sleep 90
-    ! ls /var/opt/microsoft/dependency-agent/storage/*.hb && LogErr "/var/opt/microsoft/dependency-agent/storage/*.hb does not exist." && SetTestStateFailed && exit 0
+    ! ls /var/opt/microsoft/dependency-agent/storage/*.hb && fail_test "/var/opt/microsoft/dependency-agent/storage/*.hb does not exist."
     verify_da_pid
 
     dmesg_error=$(dmesg | fgrep -e BUG: -e "Modules linked in:" -e "Call Trace:​" -A 20)
-    [ ! -z "$dmesg_error" ] && LogErr "$dmesg_error" && SetTestStateFailed && exit 0
+    [ ! -z "$dmesg_error" ] && fail_test "$dmesg_error"
 
     verify_uninstall_da
 
@@ -220,19 +237,6 @@ function test_case_enable_disable_da(){
     LogMsg "Starting Test Case 2: Enable/Disable DA" 
     generate_network_activity
     enable_disable_da
-}
-
-function test_case_cleanup(){
-    /opt/microsoft/dependency-agent/uninstall
-
-    for dir in "${dir_list[@]}"
-    do
-        rm -rf $dir
-    done
-
-    kill $watch_pid
-
-    LogMsg "Finished cleaning up test cases"
 }
 
 test_case_install_uninstall_da
