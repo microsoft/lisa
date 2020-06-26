@@ -801,4 +801,23 @@
         <Tags>cpu</Tags>
         <Priority>3</Priority>
     </test>
+    <test>
+        <testName>KDUMP-CRASH-SSH</testName>
+        <testScript>KDUMP-CRASH-SSH.ps1</testScript>
+        <files>.\Testscripts\Linux\KDUMP-Execute.sh,.\Testscripts\Linux\KDUMP-Config.sh,.\Testscripts\Linux\KDUMP-Results.sh,.\Testscripts\Linux\utils.sh</files>
+        <setupType>TwoVM2Host</setupType>
+        <OverrideVMSize>Standard_D4_v2</OverrideVMSize>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <TestParameters>
+            <param>crashkernel=512M</param>
+            <param>kexecVersion=KEXEC_VERSION</param>
+        </TestParameters>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>KDUMP</Area>
+        <Tags>kdump</Tags>
+        <Priority>0</Priority>
+    </test>
 </TestCases>

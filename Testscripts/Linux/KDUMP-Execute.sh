@@ -44,9 +44,9 @@ Exec_Rhel()
         # RHEL7, kdump status has "Active: active" and "Active: inactive"
         # So, select "Active: active" to check active
         #
-        timeout=50
+        timeout=70
         while [ $timeout -ge 0 ]; do
-            service kdump status | grep "Active: active" &>/dev/null
+            service kdump status | grep "Active: active"
             if [ $? -eq 0 ];then
                 break
             else

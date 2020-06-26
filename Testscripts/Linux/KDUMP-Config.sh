@@ -120,7 +120,7 @@ Rhel_Extra_Settings() {
 Config_Rhel() {
     # Modifying kdump.conf settings
     LogMsg "Configuring kdump (Rhel)..."
-
+    extra_modules=""
     sed -i '/^path/ s/path/#path/g' $kdump_conf
     if [ $? -ne 0 ]; then
         LogErr "Failed to comment path in /etc/kdump.conf. Probably kdump is not installed."
@@ -150,7 +150,7 @@ Config_Rhel() {
         Rhel_Extra_Settings
     # Extra config for WS2012 - RHEL6.3+
     elif [[ $os_RELEASE.$os_UPDATE =~ ^6.* ]] && [[ $BuildNumber == "9200" ]] ; then
-        echo "extra_modules ata_piix sr_mod sd_mod" >> /etc/kdump.conf
+        extra_modules="$extra_modules ata_piix sr_mod sd_mod"
         echo "options ata_piix prefer_ms_hyperv=0" >> /etc/kdump.conf
         echo "blacklist hv_vmbus hv_storvsc hv_utils hv_netvsc hid-hyperv" >> /etc/kdump.conf
         echo "disk_timeout 100" >> /etc/kdump.conf
@@ -158,7 +158,7 @@ Config_Rhel() {
 
     # Extra config for WS2012 - RHEL7
     if [[ $os_RELEASE.$os_UPDATE =~ ^7.* ]] && [[ $BuildNumber == "9200" ]] ; then
-        echo "extra_modules ata_piix sr_mod sd_mod" >> /etc/kdump.conf
+        extra_modules="$extra_modules ata_piix sr_mod sd_mod"
         echo "KDUMP_COMMANDLINE_APPEND=\"ata_piix.prefer_ms_hyperv=0 disk_timeout=100 rd.driver.blacklist=hv_vmbus,hv_storvsc,hv_utils,hv_netvsc,hid-hyperv,hyperv_fb\"" >> /etc/sysconfig/kdump
     fi
 
@@ -221,6 +221,20 @@ Config_Rhel() {
             SetTestStateAborted
             exit 0
         fi
+    elif [ "$sshIP" ] && [ "$sshIP" != "" ]; then
+        LogMsg "Enabling SSH KDUMP"
+        ssh_cmd="sed -i '/^#ssh[[:space:]]/c\ssh root@$sshIP' /etc/kdump.conf"
+        eval "$ssh_cmd"
+        sed -i '/^#sshkey[[:space:]]/c\sshkey /root/.ssh/id_rsa' /etc/kdump.conf
+        # Include extra modules
+        extra_modules="$extra_modules mlx4_en mlx4_core mlx5_core pps_core ptp devlink pci_hyperv hv_vmbus mlxfw"
+
+        # enable -f
+        sed -i 's/\bcore_collector makedumpfile -l\b/& -F/' /etc/kdump.conf
+    fi
+    if [ "$extra_modules" ] && [ "$extra_modules" != "" ]; then
+        modules_cmd="sed -i '/^#extra_modules[[:space:]]/c\extra_modules $extra_modules' /etc/kdump.conf"
+        eval "$modules_cmd"
     fi
 }
 
@@ -259,6 +273,21 @@ Config_Sles() {
         sed -i 's\KDUMP_SAVEDIR="/var/crash"\KDUMP_SAVEDIR="nfs://'"$vm2ipv4"':/mnt"\g' /etc/sysconfig/kdump
         service kdump restart
     fi
+    if [ "$sshIP" ]; then
+        LogMsg "Enabling SSH KDUMP"
+        ssh_cmd="sed -i '/^#ssh[[:space:]]/c\ssh root@$sshIP' /etc/sysconfig/kdump"
+        eval "$ssh_cmd"
+        sed -i '/^#sshkey[[:space:]]/c\sshkey /root/.ssh/id_rsa' /etc/sysconfig/kdump
+        # Include extra modules
+        extra_modules="$extra_modules mlx4_en mlx4_core mlx5_core pps_core ptp pci_hyperv hv_vmbus mlxfw"
+
+        # enable -f
+        sed -i 's/\bcore_collector makedumpfile -l\b/& -F/' /etc/sysconfig/kdump
+    fi
+    if [ "$extra_modules" ] && [ "$extra_modules" != "" ]; then
+        modules_cmd="sed -i '/^#extra_modules[[:space:]]/c\extra_modules $extra_modules' /etc/sysconfig/kdump"
+        eval "$modules_cmd"
+    fi
 }
 
 Config_Debian() {
@@ -295,6 +324,15 @@ Config_Debian() {
             exit 0
         fi
         echo "NFS=\"$vm2ipv4:/mnt\"" >> /etc/default/kdump-tools
+        service kexec restart
+    elif [ "$sshIP" ]; then
+        LogMsg "Enabling SSH KDUMP"
+        ssh_cmd="sed -i '/^#[[:space:]]SSH=/c\SSH=root@$sshIP' /etc/default/kdump-tools"
+        eval "$ssh_cmd"
+        sed -i '/^#[[:space:]]SSH_KEY=/c\SSH_KEY=/root/.ssh/id_rsa' /etc/default/kdump-tools
+
+        # enable -f
+        sed -i 's/\bcore_collector makedumpfile -l\b/& -F/' /etc/default/kdump-tools
         service kexec restart
     fi
 }
@@ -367,4 +405,3 @@ fi
 mkdir -p /var/crash
 rm -rf /var/crash/*
 SetTestStateCompleted
-
