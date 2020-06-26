@@ -1275,14 +1275,15 @@ function Wait-ForVMToStartSSH {
 	#  Wait for a Linux VM to start SSH. This is done by testing
 	# if the target machine is listening on port 22.
 	param (
-		[String] $Ipv4addr,
-		[int] $StepTimeout
+        [String] $Ipv4addr,
+        [String] $PortNumber=22,
+        [int] $StepTimeout
 	)
 	$retVal = $False
 
 	$waitTimeOut = $StepTimeout
 	while ($waitTimeOut -gt 0) {
-		$sts = Test-Port -ipv4addr $Ipv4addr -timeout 5
+		$sts = Test-Port -ipv4addr $Ipv4addr -portNumber $PortNumber -timeout 5
 		if ($sts) {
 			return $True
 		}
