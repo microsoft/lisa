@@ -24,10 +24,12 @@ GetDistro
 
 readonly dir_list=(/opt/microsoft/dependency-agent /var/opt/microsoft/dependency-agent /etc/opt/microsoft/dependency-agent /lib/microsoft-dependency-agent /etc/init.d/microsoft-dependency-agent)
 
-readonly da_pid_file="/etc/opt/microsoft/dependency-agent/config/DA_PID"
-readonly uninstaller="/opt/microsoft/dependency-agent/uninstall"
-readonly da_log_dir="/var/opt/microsoft/dependency-agent/log"
 readonly da_installer="InstallDependencyAgent-Linux64.bin"
+readonly uninstaller="/opt/microsoft/dependency-agent/uninstall"
+
+readonly da_pid_file="/etc/opt/microsoft/dependency-agent/config/DA_PID"
+readonly da_log_dir="/var/opt/microsoft/dependency-agent/log"
+readonly da_storage_dir="/var/opt/microsoft/dependency-agent/storage"
 
 function test_case_cleanup(){
     [ -f $uninstaller ] && $uninstaller
@@ -233,14 +235,14 @@ function enable_disable_da(){
 
     # Wait for events and verify by checking for /var/opt/microsoft/dependency-agent/storage/*.bb files
     sleep 120
-    if ! ls /var/opt/microsoft/dependency-agent/storage/*.bb; then
-        fail_test "/var/opt/microsoft/dependency-agent/storage/*.bb does not exist."
+    if ! ls $da_storage_dir/*.bb>/dev/null; then
+        fail_test "$da_storage_dir/*.bb does not exist."
     fi
 
     # Wait for more events and verify by checking for /var/opt/microsoft/dependency-agent/storage/*.hb files
     sleep 90
-    if ! ls /var/opt/microsoft/dependency-agent/storage/*.hb; then
-        fail_test "/var/opt/microsoft/dependency-agent/storage/*.hb does not exist."
+    if ! ls $da_storage_dir/*.hb>/dev/null; then
+        fail_test "$da_storage_dir/*.hb does not exist."
     fi
     verify_da_pid
 
