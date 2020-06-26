@@ -17,6 +17,7 @@
 
 supported_kernels=(ppa proposed proposed-azure proposed-edge latest
                     linuxnext netnext upstream-stable)
+tarDestination="./linux-source"
 
 # Source utils.sh
 . utils.sh || {
@@ -212,7 +213,8 @@ function InstallKernel() {
     fi
 
     if [[ $CustomKernel = *tar.gz || $CustomKernel = *.tar ]]; then
-        tar -xf "${CustomKernel#$LOCAL_FILE_PREFIX}"
+        mkdir -p $tarDestination
+        tar -xf "${CustomKernel#$LOCAL_FILE_PREFIX}" -C $tarDestination --strip-components=1
         CustomKernel="$(Get_Kernel_Name)"
     fi
 
@@ -431,10 +433,14 @@ function InstallKernel() {
         fi
     fi
     if [[ ${CustomKernel} == "linuxnext" ]] || [[ ${CustomKernel} == "netnext" ]] || \
-        [[ ${CustomKernel} == "upstream-stable" ]]; then
+        [[ ${CustomKernel} == "upstream-stable" ]] || [[ ${CustomKernel} == *.tar.gz ]]; then
         LogMsg "Custom Kernel:$CustomKernel"
         Install_Build_Deps
-        sourceDir=$(Get_Upstream_Source "." "$kernelSource")
+        if [[ ${CustomKernel} == *.tar.gz ]]; then
+            sourceDir=$tarDestination
+        else
+            sourceDir=$(Get_Upstream_Source "." "$kernelSource")
+        fi
         Build_Kernel "$sourceDir"
         if [ $? -eq 0 ]; then
             LogMsg "CUSTOM_KERNEL_SUCCESS"
