@@ -26,9 +26,13 @@ readonly dir_list=(/opt/microsoft/dependency-agent /var/opt/microsoft/dependency
 
 readonly da_pid_file="/etc/opt/microsoft/dependency-agent/config/DA_PID"
 readonly uninstaller="/opt/microsoft/dependency-agent/uninstall"
+readonly da_log_dir="/var/opt/microsoft/dependency-agent/log"
+readonly da_installer="InstallDependencyAgent-Linux64.bin"
 
 function test_case_cleanup(){
     [ -f $uninstaller ] && $uninstaller
+
+    rm -f "$da_installer"
 
     rm -rf "${dir_list[@]}"
 
@@ -65,7 +69,12 @@ function check_da_directories_exist() {
 
 function verify_distro() {
     case $DISTRO in
-        redhat* | centos* | suse* | debian* | ubuntu*)
+        redhat* | centos* | suse*)
+            readonly enable_timeout=60 
+            LogMsg "Supported Distro family: $DISTRO"
+            ;;
+        debian* | ubuntu*)
+            readonly enable_timeout=120
             LogMsg "Supported Distro family: $DISTRO"
             ;;
         *)
@@ -87,7 +96,7 @@ function verify_da_pid() {
         fail_test "$da_pid_file does not exist."
     fi
 
-    if ! x=$(sed -n '/^[1-9][0-9]*$/p;q' $da_pid_file); then
+    if ! x=$(sed -n "/^[1-9][0-9]*$/p;q" $da_pid_file); then
         fail_test "PID not found in DA_PID"
     else
         if strings /proc/$x/cmdline | fgrep -q  -e "microsoft-dependency-agent-manager"; then
@@ -101,8 +110,10 @@ function verify_da_pid() {
 function check_prereqs() {
     LogMsg "Checking for preconditions"
 
-    if [[ $EUID -ne 0 ]]; then
-        fail_test "This script must be run as root"
+    if [ $EUID -ne 0 ]; then
+        LogErr "This script must be run as root: $EUID"
+        SetTestStateAborted
+        exit 0
     fi
 
     verify_distro
@@ -118,17 +129,17 @@ function check_prereqs() {
 function download_da_linux_installer() {
     LogMsg "Download Dependency Agent Linux installer"
 
-    if ! curl -L https://aka.ms/dependencyagentlinux -o InstallDependencyAgent-Linux64.bin; then
+    if ! curl -L https://aka.ms/dependencyagentlinux -o "$da_installer"; then
         fail_test Download failed
     fi
 
-    chmod +x InstallDependencyAgent-Linux64.bin
+    chmod +x "$da_installer"
 }
 
 function verify_install_da() {
     LogMsg "Starting Install tests"
 
-    ./InstallDependencyAgent-Linux64.bin -vme
+    ./"$da_installer" -vme
 
     ret=$?
     if [ $ret -ne 0 ]; then
@@ -138,16 +149,16 @@ function verify_install_da() {
 
     verify_expected_file "$uninstaller"
     verify_expected_file "/etc/init.d/microsoft-dependency-agent"
-    verify_expected_file "/var/opt/microsoft/dependency-agent/log/install.log"
+    verify_expected_file "$da_log_dir/install.log"
 
-    bin_version=$(./InstallDependencyAgent-Linux64.bin --version | awk '{print $5}')
-    install_log_version=$(sed -n 's/^Dependency Agent version\.revision: //p' /var/opt/microsoft/dependency-agent/log/install.log)
+    bin_version=$(./"$da_installer" --version | awk "{print $5}")
+    install_log_version=$(sed -n "s/^Dependency Agent version\.revision: //p" $da_log_dir/install.log)
     if [ "$bin_version" -ne "$install_log_version" ]; then
         fail_test "Version mismatch between bin version($bin_version) and install log version($install_log_version)"
     fi
     LogMsg "Version matches between bin version and install log version"
 
-    LogMsg "Install tests passed successfully"
+    LogMsg "Install tests completed"
 }
 
 function verify_uninstall_da() {
@@ -166,7 +177,7 @@ function verify_uninstall_da() {
         fail_test "Directory exists"
     fi
 
-    LogMsg "Uninstall tests passed successfully"
+    LogMsg "Uninstall tests completed"
 }
 
 function generate_network_activity() {
@@ -182,46 +193,42 @@ function enable_disable_da(){
 
     # Wait for 30s for DA to start running and check for service.log
     sleep 30
-    verify_expected_file "/var/opt/microsoft/dependency-agent/log/service.log"
+    verify_expected_file "$da_log_dir/service.log"
 
     # Check for service.log.1 file and confirm service.log.2 doesn't exist
-    service_log_time=$(date -r /var/opt/microsoft/dependency-agent/log/service.log +%s)
-    time_limit=$(($service_log_time + 60))
-    if [ "$DISTRO" == "debian"*] || ["$DISTRO" == "ubuntu"* ]; then
-        time_limit=$(($time_limit + 60))
-    fi
+    service_log_time=$(date -r $da_log_dir/service.log +%s)
+    time_limit=$(($service_log_time + $enable_timeout))
 
-    while [ ! -f "/var/opt/microsoft/dependency-agent/log/service.log.1" ]
+    while [ ! -f "$da_log_dir/service.log.1" ]
     do
         current_time=$(date +%s)
         if [ $current_time -gt $time_limit]; then
-            SetTestStateFailed
-            return
+            fail_test "Exceeded time limit to check service.log.1 file"
         fi
         sleep 5
     done
 
-    verify_expected_file "/var/opt/microsoft/dependency-agent/log/service.log.1"
+    verify_expected_file "$da_log_dir/service.log.1"
     
-    if [ -f "/var/opt/microsoft/dependency-agent/log/service.log.2" ]; then
-        fail_test "/var/opt/microsoft/dependency-agent/log/service.log.2 exist."
+    if [ -f "$da_log_dir/service.log.2" ]; then
+        fail_test "$da_log_dir/service.log.2 exist."
     fi
     
     if [ ! -c "/dev/msda" ]; then 
         fail_test "/dev/msda does not exist."
     fi
     # Check for "driver setup status=0" and "starting the dependency agent" in service.log.1 and service.log respectively
-    if ! grep -iq "driver setup status=0" /var/opt/microsoft/dependency-agent/log/service.log.1; then
+    if ! grep -iq "driver setup status=0" $da_log_dir/service.log.1; then
         fail_test "driver setup status=0 not found"
     fi
 
-    if ! grep -iq "starting the dependency agent" /var/opt/microsoft/dependency-agent/log/service.log; then
+    if ! grep -iq "starting the dependency agent" $da_log_dir/service.log; then
         fail_test "starting the dependency agent not found"
     fi
 
     # Wait for DA to be running and verify by checking for MicrosoftDependencyAgent.log
     sleep 60
-    verify_expected_file "/var/opt/microsoft/dependency-agent/log/MicrosoftDependencyAgent.log"
+    verify_expected_file "$da_log_dir/MicrosoftDependencyAgent.log"
     verify_da_pid
 
     # Wait for events and verify by checking for /var/opt/microsoft/dependency-agent/storage/*.bb files
@@ -244,7 +251,7 @@ function enable_disable_da(){
 
     verify_uninstall_da
 
-    LogMsg "Enable/Disable DA tests passed successfully"
+    LogMsg "Enable/Disable DA tests completed"
 }
 
 function test_case_install_uninstall_da(){
