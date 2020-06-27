@@ -24,7 +24,7 @@ GetDistro
 
 readonly dir_list=(/opt/microsoft/dependency-agent /var/opt/microsoft/dependency-agent /etc/opt/microsoft/dependency-agent /lib/microsoft-dependency-agent /etc/init.d/microsoft-dependency-agent)
 
-readonly da_installer="InstallDependencyAgent-Linux64.bin"
+readonly da_installer="./InstallDependencyAgent-Linux64.bin"
 readonly uninstaller="/opt/microsoft/dependency-agent/uninstall"
 
 readonly da_pid_file="/etc/opt/microsoft/dependency-agent/config/DA_PID"
@@ -32,7 +32,10 @@ readonly da_log_dir="/var/opt/microsoft/dependency-agent/log"
 readonly da_storage_dir="/var/opt/microsoft/dependency-agent/storage"
 
 function test_case_cleanup(){
-    [ -f $uninstaller ] && $uninstaller
+    if [ -f $uninstaller ]; then
+        $uninstaller
+        rm -f "$uninstaller"
+    fi
 
     rm -f "$da_installer"
 
@@ -65,8 +68,9 @@ function check_da_directories_exist() {
 
     if $failed_assertions; then
         LogErr "Some directories exists"
-        $failed_assertions
     fi
+
+    $failed_assertions
 }
 
 function verify_distro() {
@@ -100,12 +104,12 @@ function verify_da_pid() {
 
     if ! x=$(sed -n "/^[1-9][0-9]*$/p;q" $da_pid_file); then
         fail_test "PID not found in DA_PID"
+    fi
+    
+    if strings /proc/$x/cmdline | fgrep -q  -e "microsoft-dependency-agent-manager"; then
+        LogMsg "PID matched"
     else
-        if strings /proc/$x/cmdline | fgrep -q  -e "microsoft-dependency-agent-manager"; then
-            LogMsg "PID matched"
-        else
-            fail_test "PID not matched"
-        fi
+        fail_test "PID not matched"
     fi
 }
 
@@ -141,7 +145,7 @@ function download_da_linux_installer() {
 function verify_install_da() {
     LogMsg "Starting Install tests"
 
-    ./"$da_installer" -vme
+    "$da_installer" -vme
 
     ret=$?
     if [ $ret -ne 0 ]; then
@@ -153,7 +157,7 @@ function verify_install_da() {
     verify_expected_file "/etc/init.d/microsoft-dependency-agent"
     verify_expected_file "$da_log_dir/install.log"
 
-    bin_version=$(./"$da_installer" --version | awk "{print $5}")
+    bin_version=$("$da_installer" --version | awk "{print $5}")
     install_log_version=$(sed -n "s/^Dependency Agent version\.revision: //p" $da_log_dir/install.log)
     if [ "$bin_version" -ne "$install_log_version" ]; then
         fail_test "Version mismatch between bin version($bin_version) and install log version($install_log_version)"
@@ -220,11 +224,15 @@ function enable_disable_da(){
         fail_test "/dev/msda does not exist."
     fi
     # Check for "driver setup status=0" and "starting the dependency agent" in service.log.1 and service.log respectively
-    if ! grep -iq "driver setup status=0" $da_log_dir/service.log.1; then
+    if ! driver_status=$(sed -n 's/.*Driver setup status=//p' $da_log_dir/service.log.1); then
         fail_test "driver setup status=0 not found"
+    else
+        if [ $driver_status -ne 0 ]; then
+            fail_test "driver setup status=$driver_status"
+        fi
     fi
 
-    if ! grep -iq "starting the dependency agent" $da_log_dir/service.log; then
+    if ! fgrep -q -e "Starting the Dependency Agent" $da_log_dir/service.log; then
         fail_test "starting the dependency agent not found"
     fi
 
@@ -235,13 +243,13 @@ function enable_disable_da(){
 
     # Wait for events and verify by checking for /var/opt/microsoft/dependency-agent/storage/*.bb files
     sleep 120
-    if ! ls $da_storage_dir/*.bb>/dev/null; then
+    if ! ls $da_storage_dir/*.bb &> /dev/null; then
         fail_test "$da_storage_dir/*.bb does not exist."
     fi
 
     # Wait for more events and verify by checking for /var/opt/microsoft/dependency-agent/storage/*.hb files
     sleep 90
-    if ! ls $da_storage_dir/*.hb>/dev/null; then
+    if ! ls $da_storage_dir/*.hb &> /dev/null; then
         fail_test "$da_storage_dir/*.hb does not exist."
     fi
     verify_da_pid
