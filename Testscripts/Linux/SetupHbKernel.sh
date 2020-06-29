@@ -133,7 +133,7 @@ function Main() {
 
 	if [[ "$DISTRO" =~ "redhat" ]];then
 		_entry=$(cat /etc/default/grub | grep 'rootdelay=')
-		if [ $_entry ]; then
+		if [ "$_entry" ]; then
 			sed -i -e "s/rootdelay=300/rootdelay=300 resume=$sw_uuid/g" /etc/default/grub
 			LogMsg "$?: Updated the /etc/default/grub with resume=$sw_uuid"
 		else
