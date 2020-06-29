@@ -223,14 +223,25 @@ function enable_disable_da(){
     if [ ! -c "/dev/msda" ]; then 
         fail_test "/dev/msda does not exist."
     fi
+    
     # Check for "driver setup status=0" and "starting the dependency agent" in service.log.1 and service.log respectively
-    if ! driver_status=$(sed -n 's/.*Driver setup status=//p' $da_log_dir/service.log.1); then
-        fail_test "driver setup status=0 not found"
-    else
-        if [ $driver_status -ne 0 ]; then
-            fail_test "driver setup status=$driver_status"
-        fi
+    
+    if ! driver_status=$(sed -n '/Driver setup status=//s/^[^=]*//p' $da_log_dir/service.log.1); then
+        fail_test "sed command failed while reading service.log.1 file"
     fi
+
+    case "$driver_status" in
+        =0)
+            # expected result
+            ;;
+        =*)
+            # anything except =0 indicated setup failure
+            fail_test Unexpected driver setup status $driver_status
+            ;;
+        *)
+            fail_test did not find driver setup status
+            ;;
+    esac
 
     if ! fgrep -q -e "Starting the Dependency Agent" $da_log_dir/service.log; then
         fail_test "starting the dependency agent not found"
