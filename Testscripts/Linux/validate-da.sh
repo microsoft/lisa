@@ -145,7 +145,7 @@ function download_da_linux_installer() {
 function verify_install_da() {
     LogMsg "Starting Install tests"
 
-    "$da_installer" -vme
+    "$da_installer" -$1
 
     ret=$?
     if [ $ret -ne 0 ]; then
@@ -195,7 +195,7 @@ function generate_network_activity() {
 function enable_disable_da(){
     LogMsg "Starting Enable/Disable DA tests"
 
-    verify_install_da
+    verify_install_da s
 
     # Wait for 30s for DA to start running and check for service.log
     sleep 30
@@ -220,10 +220,6 @@ function enable_disable_da(){
         fail_test "$da_log_dir/service.log.2 exist."
     fi
     
-    if [ ! -c "/dev/msda" ]; then 
-        fail_test "/dev/msda does not exist."
-    fi
-    
     # Check for "driver setup status=0" and "starting the dependency agent" in service.log.1 and service.log respectively
     
     if ! driver_status=$(sed -n '/Driver setup status=//s/^[^=]*//p' $da_log_dir/service.log.1); then
@@ -242,6 +238,10 @@ function enable_disable_da(){
             fail_test did not find driver setup status
             ;;
     esac
+
+    if [ ! -c "/dev/msda" ]; then 
+        fail_test "/dev/msda does not exist."
+    fi
 
     if ! fgrep -q -e "Starting the Dependency Agent" $da_log_dir/service.log; then
         fail_test "starting the dependency agent not found"
@@ -277,7 +277,7 @@ function enable_disable_da(){
 
 function test_case_install_uninstall_da(){
     LogMsg "Starting Test Case 1: Install/Uninstall DA"
-    verify_install_da
+    verify_install_da vme
     verify_uninstall_da
 }
 
