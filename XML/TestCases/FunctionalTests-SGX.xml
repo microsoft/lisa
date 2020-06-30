@@ -9,6 +9,6 @@
         <Category>Functional</Category>
         <Area>SGX</Area>
         <Tags>sgx</Tags>
-        <Priority>1</Priority>
+        <Priority></Priority>
     </test>
 </TestCases>
