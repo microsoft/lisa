@@ -75,7 +75,7 @@ Class ReadyProvider : TestProvider
 				$vmNode.SSHPort = $vmInfo.Split(":")[1]
 				$vmNode.UserName = $Global:user
 				$vmNode.Password = $Global:password
-				$vmNode.RoleName = "Role$vmIndex"
+				$vmNode.RoleName = "Role-$vmIndex"
 				$allVMData += $vmNode;
 			}
 			SetInternalIPv4Address -AllVMData $allVMData
@@ -102,19 +102,7 @@ Class ReadyProvider : TestProvider
 	}
 
 	[void] RunSetup($VmData, $CurrentTestData, $TestParameters, $ApplyCheckPoint) {
-		if ($CurrentTestData.SetupScript) {
-			if ($null -eq $CurrentTestData.runSetupScriptOnlyOnce) {
-				foreach ($VM in $VmData) {
-					foreach ($script in $($CurrentTestData.SetupScript).Split(",")) {
-						$null = Run-SetupScript -Script $script -Parameters $TestParameters -VMData $VM -CurrentTestData $CurrentTestData
-					}
-				}
-			} else {
-				foreach ($script in $($CurrentTestData.SetupScript).Split(",")) {
-					$null = Run-SetupScript -Script $script -Parameters $TestParameters -VMData $VmData -CurrentTestData $CurrentTestData
-				}
-			}
-		}
+		# Do nothing
 	}
 
 	[bool] RestartAllDeployments($AllVMData) {
