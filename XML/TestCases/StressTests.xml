@@ -273,7 +273,7 @@
 			<param>repo_url=CPU_CUSTOM_KERNEL_URL</param>
 			<param>repo_branch=CPU_CUSTOM_KERNEL_BRANCH</param>
 			<param>maxIteration=MAX_CPU_OFFLINEONLINE</param>
-			<param>vm_reboot=yes</param>
+			<param>vm_reboot=CPU_OFFLINE_VM_REBOOT</param>
 		</TestParameters>
 		<Platform>Azure</Platform>
 		<Category>Stress</Category>
