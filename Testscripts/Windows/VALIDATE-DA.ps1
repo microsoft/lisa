@@ -34,7 +34,7 @@ function Main {
         return "FAIL"
     }
 
-    Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort ($remoteScriptName + "." + $remoteScriptType) -runAsSudo
+    Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort -runMaxAllowedTime 480 -command "sudo bash $remoteScriptName.$remoteScriptType" -runAsSudo
     $testResult = Collect-TestLogs -LogsDestination $LogDir -ScriptName $remoteScriptName -TestType $remoteScriptType `
         -PublicIP $Ipv4 -SSHPort $VMPort -Username $VMUserName -password $VMPassword `
         -TestName $currentTestData.testName

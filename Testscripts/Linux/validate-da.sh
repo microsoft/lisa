@@ -9,15 +9,14 @@
 #    Validate the enable and disable of the Dependency Agent.
 #######################################################################
 
-set -e
-set -x
-
 # Source utils.sh
 . utils.sh || {
     echo "ERROR: unable to source utils.sh!"
     echo "TestAborted" > state.txt
     exit 0
 }
+
+UtilsInit
 
 # Get distro information
 GetDistro
@@ -31,7 +30,7 @@ readonly da_pid_file="/etc/opt/microsoft/dependency-agent/config/DA_PID"
 readonly da_log_dir="/var/opt/microsoft/dependency-agent/log"
 readonly da_storage_dir="/var/opt/microsoft/dependency-agent/storage"
 
-function test_case_cleanup(){
+function test_case_cleanup() {
     if [ -f $uninstaller ]; then
         $uninstaller
         rm -f "$uninstaller"
@@ -54,6 +53,10 @@ function fail_test() {
     LogErr "$*"
     SetTestStateFailed
     exit 0
+}
+
+function sleep_log_message() {
+    LogMsg "Sleeping for $1s"
 }
 
 function check_da_directories_exist() {
@@ -148,18 +151,30 @@ function verify_install_da() {
     "$da_installer" -$1
 
     ret=$?
-    if [ $ret -ne 0 ]; then
-        fail_test "Install failed with exit code ${ret}"
-    fi
-    LogMsg "Dependency Agent installed successfully"
+    case $ret in
+        0)
+            LogMsg "Dependency Agent installed successfully"
+            ;;
+        51) 
+            # Exit code for unsupported Distro version
+            if check_da_directories_exist; then
+                fail_test "Install on unsupported version but created directories"
+            fi
+            SetTestStateSkipped
+            exit 0
+            ;;
+        *)
+            fail_test "Install failed with exit code ${ret}"
+            ;;
+    esac
 
     verify_expected_file "$uninstaller"
     verify_expected_file "/etc/init.d/microsoft-dependency-agent"
     verify_expected_file "$da_log_dir/install.log"
 
-    bin_version=$("$da_installer" --version | awk "{print $5}")
+    bin_version=$("$da_installer" --version | awk '{print $5}')
     install_log_version=$(sed -n "s/^Dependency Agent version\.revision: //p" $da_log_dir/install.log)
-    if [ "$bin_version" -ne "$install_log_version" ]; then
+    if [ "$bin_version" != "$install_log_version" ]; then
         fail_test "Version mismatch between bin version($bin_version) and install log version($install_log_version)"
     fi
     LogMsg "Version matches between bin version and install log version"
@@ -198,6 +213,7 @@ function enable_disable_da(){
     verify_install_da s
 
     # Wait for 30s for DA to start running and check for service.log
+    sleep_log_message 30
     sleep 30
     verify_expected_file "$da_log_dir/service.log"
 
@@ -208,9 +224,10 @@ function enable_disable_da(){
     while [ ! -f "$da_log_dir/service.log.1" ]
     do
         current_time=$(date +%s)
-        if [ $current_time -gt $time_limit]; then
+        if [ $current_time -gt $time_limit ]; then
             fail_test "Exceeded time limit to check service.log.1 file"
         fi
+        sleep_log_message 5
         sleep 5
     done
 
@@ -222,8 +239,8 @@ function enable_disable_da(){
     
     # Check for "driver setup status=0" and "starting the dependency agent" in service.log.1 and service.log respectively
     
-    if ! driver_status=$(sed -n '/Driver setup status=//s/^[^=]*//p' $da_log_dir/service.log.1); then
-        fail_test "sed command failed while reading service.log.1 file"
+    if ! driver_status=$(sed -n '/Driver setup status=/s/^[^=]*//p' "$da_log_dir/service.log.1"); then
+        fail_test "sed command failed while reading $da_log_dir/service.log.1 file"
     fi
 
     case "$driver_status" in
@@ -248,17 +265,20 @@ function enable_disable_da(){
     fi
 
     # Wait for DA to be running and verify by checking for MicrosoftDependencyAgent.log
+    sleep_log_message 60
     sleep 60
     verify_expected_file "$da_log_dir/MicrosoftDependencyAgent.log"
     verify_da_pid
 
     # Wait for events and verify by checking for /var/opt/microsoft/dependency-agent/storage/*.bb files
+    sleep_log_message 120
     sleep 120
     if ! ls $da_storage_dir/*.bb &> /dev/null; then
         fail_test "$da_storage_dir/*.bb does not exist."
     fi
 
     # Wait for more events and verify by checking for /var/opt/microsoft/dependency-agent/storage/*.hb files
+    sleep_log_message 90
     sleep 90
     if ! ls $da_storage_dir/*.hb &> /dev/null; then
         fail_test "$da_storage_dir/*.hb does not exist."
