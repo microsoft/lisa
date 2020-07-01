@@ -11,12 +11,14 @@
 	Assign cpu to vmbus channels
 	Reboot VM and repeat above steps for a few times, if this is stress mode.
 	Handle the offline cpu assignment to the vmbus channel in negative test.
+	It's optional to have no VM reboot.
 #>
 
 param([object] $AllVmData, [string]$TestParams)
 # Set default Iteration value of the Stress test
 # Set 1 for functional test. New value can be overwritten.
 $max_stress_count = 1
+# Set yes for VM reboot. New value can be overwritten.
 $vm_reboot = "yes"
 
 function Main {
@@ -107,6 +109,8 @@ function Main {
 				Write-LogInfo "Rebooting VM! - Loop Count: $loopCount"
 				$TestProvider.RestartAllDeployments($AllVMData)
 			} else {
+				# ##################################################################################
+				# No reboot but wait for 60 seconds for settling down
 				Write-LogInfo "Loop Count: $loopCount"
 				Start-Sleep -second 60
 			}
