@@ -108,6 +108,7 @@ function Main {
 				$TestProvider.RestartAllDeployments($AllVMData)
 			} else {
 				Write-LogInfo "Loop Count: $loopCount"
+				Start-Sleep -second 60
 			}
 			# Feature test and stress test case with $local_script
 			# Running the local test script
