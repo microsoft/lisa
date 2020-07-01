@@ -101,7 +101,7 @@ function Main {
 		}
 
 		for ($loopCount = 1;$loopCount -le $max_stress_count;$loopCount++) {
-			if ($vm_reboot -eq "yes") {
+			if (($vm_reboot -eq "yes") -or ($loopCount -eq 1)) {
 				# ##################################################################################
 				# Reboot VM
 				Write-LogInfo "Rebooting VM! - Loop Count: $loopCount"
