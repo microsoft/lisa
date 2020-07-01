@@ -68,7 +68,6 @@ Class ReadyProvider : TestProvider
 			$allVmList = $RGIdentifier.Split(";");
 			$vmIndex = 0
 			foreach($vmInfo in $allVmList){
-				$vmIndex++
 				$vmNode = Create-QuickVMNode
 
 				$vmNode.PublicIP = $vmInfo.Split(":")[0]
@@ -77,6 +76,7 @@ Class ReadyProvider : TestProvider
 				$vmNode.Password = $Global:password
 				$vmNode.RoleName = "Role-$vmIndex"
 				$allVMData += $vmNode;
+				$vmIndex++
 			}
 			SetInternalIPv4Address -AllVMData $allVMData
 			Write-LogInfo("No need to deploy new VM as this test case is running against a prepared environment.")
