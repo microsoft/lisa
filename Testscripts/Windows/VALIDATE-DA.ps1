@@ -34,6 +34,8 @@ function Main {
         return "FAIL"
     }
 
+    # Running validate-da script
+    # runMaxAllowedTime accounts for sum of sleep time in the validate-da script. This helps prevent timeout during execution.
     Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort -runMaxAllowedTime 480 -command "sudo bash $remoteScriptName.$remoteScriptType" -runAsSudo
     $testResult = Collect-TestLogs -LogsDestination $LogDir -ScriptName $remoteScriptName -TestType $remoteScriptType `
         -PublicIP $Ipv4 -SSHPort $VMPort -Username $VMUserName -password $VMPassword `

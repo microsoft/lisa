@@ -56,7 +56,8 @@ function fail_test() {
 }
 
 function sleep_log_message() {
-    LogMsg "Sleeping for $1s"
+    LogMsg "Sleeping for $1 seconds"
+    sleep $1
 }
 
 function check_da_directories_exist() {
@@ -214,7 +215,6 @@ function enable_disable_da(){
 
     # Wait for 30s for DA to start running and check for service.log
     sleep_log_message 30
-    sleep 30
     verify_expected_file "$da_log_dir/service.log"
 
     # Check for service.log.1 file and confirm service.log.2 doesn't exist
@@ -228,7 +228,6 @@ function enable_disable_da(){
             fail_test "Exceeded time limit to check service.log.1 file"
         fi
         sleep_log_message 5
-        sleep 5
     done
 
     verify_expected_file "$da_log_dir/service.log.1"
@@ -246,12 +245,28 @@ function enable_disable_da(){
     case "$driver_status" in
         =0)
             # expected result
+            if [ ! -c "/dev/msda" ]; then 
+                fail_test "/dev/msda does not exist."
+            fi
             ;;
-        =36)
+        =35)
+            LogErr "Excluded kernel. Driver status $driver_status"
+            if [ -c "/dev/msda" ]; then
+                fail_test "/dev/msda does exist."
+            fi
+            ;;
+        =3[67])
             # Unsupported kernel case
-            LogErr "Unsupported kernel case"
-            SetTestStateSkipped
-            exit 0
+            LogErr "Unsupported kernel case. Driver status $driver_status"
+            if [ -f  "/sys/devices/system/cpu/vulnerabilities/spectre_v2" ]; then
+                word=$(head -n 1 "/sys/devices/system/cpu/vulnerabilities/spectre_v2" | awk '{print $1}')
+                if [ $word == "Mitigation:" ]; then
+                    fail_test "Spectre mitigation found"
+                fi
+            fi
+            if [ -c "/dev/msda" ]; then 
+                fail_test "/dev/msda does exist."
+            fi
             ;;
         =*)
             # anything except =0 indicated setup failure
@@ -262,30 +277,23 @@ function enable_disable_da(){
             ;;
     esac
 
-    if [ ! -c "/dev/msda" ]; then 
-        fail_test "/dev/msda does not exist."
-    fi
-
     if ! fgrep -q -e "Starting the Dependency Agent" $da_log_dir/service.log; then
         fail_test "starting the dependency agent not found"
     fi
 
     # Wait for DA to be running and verify by checking for MicrosoftDependencyAgent.log
     sleep_log_message 60
-    sleep 60
     verify_expected_file "$da_log_dir/MicrosoftDependencyAgent.log"
     verify_da_pid
 
     # Wait for events and verify by checking for /var/opt/microsoft/dependency-agent/storage/*.bb files
     sleep_log_message 120
-    sleep 120
     if ! ls $da_storage_dir/*.bb &> /dev/null; then
         fail_test "$da_storage_dir/*.bb does not exist."
     fi
 
     # Wait for more events and verify by checking for /var/opt/microsoft/dependency-agent/storage/*.hb files
     sleep_log_message 90
-    sleep 90
     if ! ls $da_storage_dir/*.hb &> /dev/null; then
         fail_test "$da_storage_dir/*.hb does not exist."
     fi
