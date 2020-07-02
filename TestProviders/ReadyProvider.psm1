@@ -37,6 +37,7 @@ Class ReadyProvider : TestProvider
 			Add-Member -InputObject $objNode -MemberType NoteProperty -Name Password -Value $null -Force
 			Add-Member -InputObject $objNode -MemberType NoteProperty -Name RoleName -Value $null -Force
 			Add-Member -InputObject $objNode -MemberType NoteProperty -Name InternalIP -Value $null -Force
+			Add-Member -InputObject $objNode -MemberType NoteProperty -Name InstanceSize -Value $null -Force
 			return $objNode
 		}
 
@@ -51,12 +52,29 @@ Class ReadyProvider : TestProvider
 			$count = 0
 			foreach ($vmData in $AllVMData) {
 				# get the first active nic device's IPv4 address. This is the temporary approach, as it may not be right for VMs that have multi nic devices.
-				$ipAddrInfo = Run-LinuxCmd -username $global:user -password $global:password -ip $($vmData.PublicIp) -port $($vmData.SSHPort) -command "ip -4 address | awk -F': ' '!/lo/ {print `$2}' | xargs ip address show" -RunAsSudo
+				$ipAddrInfo = Run-LinuxCmd -username $global:user -password $global:password -ip $($vmData.PublicIp) -port $($vmData.SSHPort) `
+					-command "ip -4 address | awk -F': ' '!/lo/ {print `$2}' | xargs ip address show" -RunAsSudo
 				$ipAddress = GetIPv4AddressFromIpAddrInfo -ipAddrInfo $ipAddrInfo
 				if ($ipAddress) {
 					$AllVmData[$count].InternalIP = $ipAddress
 				} else {
 					Write-LogErr "Cannot get the internal IP address for $($vmData.PublicIp):$($vmData.SSHPort)"
+				}
+				$count++
+			}
+		}
+
+		function SetInstanceSize([object] $AllVmData) {
+			$count = 0
+			foreach ($vmData in $AllVMData) {
+				if ($global:OverrideVMSize) {
+					$AllVmData[$count].InstanceSize = $global:OverrideVMSize
+				} else {
+					$coreCount = Run-LinuxCmd -username $global:user -password $global:password -ip $($vmData.PublicIp) -port $($vmData.SSHPort) `
+						-command "cat /proc/cpuinfo | grep -c ^processor"
+					$memGB = Run-LinuxCmd -username $global:user -password $global:password -ip $($vmData.PublicIp) -port $($vmData.SSHPort) `
+						-command "free -g | grep Mem | awk {'print `$2'}"
+					$AllVmData[$count].InstanceSize = "${coreCount}_CPU_${memGB}_GB_Mem"
 				}
 				$count++
 			}
@@ -79,6 +97,7 @@ Class ReadyProvider : TestProvider
 				$vmIndex++
 			}
 			SetInternalIPv4Address -AllVMData $allVMData
+			SetInstanceSize -AllVmData $allVMData
 			Write-LogInfo("No need to deploy new VM as this test case is running against a prepared environment.")
 
 			$isVmAlive = Is-VmAlive -AllVMDataObject $allVMData
