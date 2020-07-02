@@ -247,6 +247,12 @@ function enable_disable_da(){
         =0)
             # expected result
             ;;
+        =36)
+            # Unsupported kernel case
+            LogErr "Unsupported kernel case"
+            SetTestStateSkipped
+            exit 0
+            ;;
         =*)
             # anything except =0 indicated setup failure
             fail_test Unexpected driver setup status $driver_status
