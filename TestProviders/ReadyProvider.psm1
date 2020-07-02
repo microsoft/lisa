@@ -84,10 +84,19 @@ Class ReadyProvider : TestProvider
 		$ErrorMessage = ""
 		try {
 			$allVmList = $RGIdentifier.Split(";");
-			$vmIndex = 0
-			foreach($vmInfo in $allVmList){
+			$machines = @()
+			$machines += $SetupTypeData.ResourceGroup.VirtualMachine
+
+			if ($allVmList.Count -lt $machines.Count) {
+				Write-LogErr "Not enough test targets provided for case $($TestCaseData.TestName)"
+				return $null
+			}
+
+			$vmIndex=0
+			while ($vmIndex -lt $machines.Count) {
 				$vmNode = Create-QuickVMNode
 
+				$vmInfo = $allVmList[$vmIndex]
 				$vmNode.PublicIP = $vmInfo.Split(":")[0]
 				$vmNode.SSHPort = $vmInfo.Split(":")[1]
 				$vmNode.UserName = $Global:user
