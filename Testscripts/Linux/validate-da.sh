@@ -261,7 +261,8 @@ function enable_disable_da(){
             if [ -f  "/sys/devices/system/cpu/vulnerabilities/spectre_v2" ]; then
                 word=$(head -n 1 "/sys/devices/system/cpu/vulnerabilities/spectre_v2" | awk '{print $1}')
                 if [ $word == "Mitigation:" ]; then
-                    fail_test "Spectre mitigation found"
+                    log=$(tail -n 20 "$da_log_dir/service.log.1")
+                    fail_test "$log"
                 fi
             fi
             if [ -c "/dev/msda" ]; then 
