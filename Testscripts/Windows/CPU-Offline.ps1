@@ -11,12 +11,15 @@
 	Assign cpu to vmbus channels
 	Reboot VM and repeat above steps for a few times, if this is stress mode.
 	Handle the offline cpu assignment to the vmbus channel in negative test.
+	It's optional to have no VM reboot.
 #>
 
 param([object] $AllVmData, [string]$TestParams)
 # Set default Iteration value of the Stress test
 # Set 1 for functional test. New value can be overwritten.
 $max_stress_count = 1
+# Set yes for VM reboot. New value can be overwritten.
+$vm_reboot = "yes"
 
 function Main {
 	param($AllVMData, $TestParams)
@@ -43,6 +46,10 @@ function Main {
 			if ($TestParam -imatch "maxIteration") {
 				# Overwrite new max Iteration of CPU offline and online stress test
 				$max_stress_count = [int]($TestParam.Replace("maxIteration=", "").Trim('"'))
+			}
+			if ($TestParam -imatch "vm_reboot") {
+				# Overwrite if vm_reboot parameter is set
+				$vm_reboot = [string]($TestParam.Replace("vm_reboot=", "").Trim('"'))
 			}
 		}
 		Write-LogInfo "constants.sh created successfully..."
@@ -96,11 +103,17 @@ function Main {
 		}
 
 		for ($loopCount = 1;$loopCount -le $max_stress_count;$loopCount++) {
-			# ##################################################################################
-			# Reboot VM
-			Write-LogInfo "Rebooting VM! - Loop Count: $loopCount"
-			$TestProvider.RestartAllDeployments($AllVMData)
-
+			if (($vm_reboot -eq "yes") -or ($loopCount -eq 1)) {
+				# ##################################################################################
+				# Reboot VM
+				Write-LogInfo "Rebooting VM! - Loop Count: $loopCount"
+				$TestProvider.RestartAllDeployments($AllVMData)
+			} else {
+				# ##################################################################################
+				# No reboot but wait for 60 seconds for settling down
+				Write-LogInfo "Loop Count: $loopCount"
+				Start-Sleep -second 60
+			}
 			# Feature test and stress test case with $local_script
 			# Running the local test script
 			Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./$local_script" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
