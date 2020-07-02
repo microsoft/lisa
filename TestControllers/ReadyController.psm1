@@ -86,7 +86,7 @@ Class ReadyController : TestController
 		}
 		if( $this.ResultDBTestTag ) {
 			$readyVConfig.ResultsDatabase.testTag = ($this.ResultDBTestTag).Trim()
-			Write-LogInfo "ResultDBTestTag: $this.ResultDBTestTag added to GlobalConfig.Global.HReadyyperV.ResultsDatabase.testTag"
+			Write-LogInfo "ResultDBTestTag: $this.ResultDBTestTag added to GlobalConfig.Global.Ready.ResultsDatabase.testTag"
 		}
 
 		Write-LogInfo "------------------------------------------------------------------"
