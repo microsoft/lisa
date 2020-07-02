@@ -135,7 +135,7 @@ Function Collect-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Tes
         $currentTests = ([xml]( Get-Content -Path $file)).TestCases
         foreach ($test in $currentTests.test) {
             $platformMatched = $false
-            if ($TestPlatform -eq "Any") {
+            if ($TestPlatform -eq "Ready") {
                 $platformMatched = $true
             } else {
                 $platforms = $test.Platform.Split(",")

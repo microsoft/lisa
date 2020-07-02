@@ -33,7 +33,7 @@ Class ReadyController : TestController
 
 	ReadyController() {
 		$this.TestProvider = New-Object -TypeName "ReadyProvider"
-		$this.TestPlatform = "Any"
+		$this.TestPlatform = "Ready"
 	}
 
 	[void] ParseAndValidateParameters([Hashtable]$ParamTable) {
