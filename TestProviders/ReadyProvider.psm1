@@ -105,14 +105,15 @@ Class ReadyProvider : TestProvider
 				$allVMData += $vmNode;
 				$vmIndex++
 			}
-			SetInternalIPv4Address -AllVMData $allVMData
-			SetInstanceSize -AllVmData $allVMData
-			Write-LogInfo("No need to deploy new VM as this test case is running against a prepared environment.")
 
 			$isVmAlive = Is-VmAlive -AllVMDataObject $allVMData
 			if ($isVmAlive -ne "True") {
 				Write-LogErr "Unable to connect SSH ports.."
+				return $null
 			}
+			SetInternalIPv4Address -AllVMData $allVMData
+			SetInstanceSize -AllVmData $allVMData
+			Write-LogInfo("No need to deploy new VM as this test case is running against a prepared environment.")
 		} catch {
 			Write-LogErr "Exception detected. Source : DeployVMs()"
 			$line = $_.InvocationInfo.ScriptLineNumber

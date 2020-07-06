@@ -65,9 +65,9 @@ function Upload-RemoteFile($uploadTo, $port, $file, $username, $password, $usePr
 	while($retry -le $maxRetry) {
 		if ($usePrivateKey) {
 			Write-LogDbg "Uploading $file to $username : $uploadTo, port $port using PrivateKey authentication"
-			Write-Output "y" | .\Tools\pscp -i $sshKey -q -P $port $file $username@${uploadTo}:
+			Write-Output "yes" | .\Tools\pscp -i $sshKey -q -P $port $file $username@${uploadTo}:
 			if ($LASTEXITCODE -ne 0) {
-				Write-Output "y" | .\Tools\pscp -scp -i $sshKey -q -P $port $file $username@${uploadTo}:
+				Write-Output "yes" | .\Tools\pscp -scp -i $sshKey -q -P $port $file $username@${uploadTo}:
 			}
 			$returnCode = $LASTEXITCODE
 		} else {
