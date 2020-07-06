@@ -390,7 +390,7 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 			{ `
 				$username = $args[1]; $password = $args[2]; $ip = $args[3]; $port = $args[4]; $jcommand = $args[5]; $sshKey = $args[6];`
 				Set-Location $args[0]; `
-				if ($sshKey) { .\Tools\plink.exe -ssh -C -v -i $sshKey -P $port $username@$ip $jcommand; } `
+				if ($sshKey) { Write-Output "y" | .\Tools\plink.exe -ssh -C -v -i $sshKey -P $port $username@$ip $jcommand; } `
 				else { .\Tools\plink.exe -ssh -C -v -pw $password -P $port $username@$ip $jcommand; } `
 			} `
 			-ArgumentList $currentDir, $username, $password, $ip, $port, $linuxCommand, $sshKey
@@ -400,7 +400,7 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 			{ `
 				$username = $args[1]; $password = $args[2]; $ip = $args[3]; $port = $args[4]; $jcommand = $args[5]; $sshKey = $args[6];`
 				Set-Location $args[0]; `
-				if ($sshKey) { .\Tools\plink.exe -ssh -t -C -v -i $sshKey -P $port $username@$ip $jcommand; } `
+				if ($sshKey) { Write-Output "y" | .\Tools\plink.exe -ssh -t -C -v -i $sshKey -P $port $username@$ip $jcommand; } `
 				else { .\Tools\plink.exe -ssh -t -C -v -pw $password -P $port $username@$ip $jcommand; } `
 			} `
 			-ArgumentList $currentDir, $username, $password, $ip, $port, $linuxCommand, $sshKey
