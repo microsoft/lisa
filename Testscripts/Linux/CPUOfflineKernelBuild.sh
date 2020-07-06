@@ -22,6 +22,49 @@ function Main() {
 
 	basedir=$(pwd)
 
+	if [[ $storage == "yes" ]]; then
+		# Set up new disk
+		for key in n p 1 2048 '' t 1 p w
+		do
+			echo $key >> keys.txt
+		done
+		LogMsg "Generated the keys.txt file for fdisk commanding"
+
+		cat keys.txt | fdisk /dev/sdc
+		LogMsg "$?: Executed fdisk command"
+
+		partprobe
+		LogMsg "$?: Updated the kernel with the change"
+
+		ret=$(ls /dev/sd*)
+		LogMsg "$?: Listed out /dev/sd* - $ret"
+
+		mkfs -t ext4 /dev/sdc1
+		LogMsg "$?: Wrote a file system to the partition"
+
+		mkdir -p $basedir/data
+		chmod 777 $basedir/data
+		LogMsg "$?: Created a new directory"
+
+		mount /dev/sdc1 $basedir/data
+		LogMsg "$?: Mounted the disk partition to the data directory"
+
+		ext_uuid=$(blkid | grep -i ext4 | awk '{print $2}' | tr -d " " | sed 's/"//g' | tail -n 1)
+		LogMsg "$?: Found the disk space UUID: $ext_uuid"
+		if [[ -z "$ext_uuid" ]];then
+			LogErr "New space disk UUID is empty. Abort the test."
+			SetTestStateAborted
+			exit 0
+		fi
+
+		chmod 766 /etc/fstab
+
+		echo $ext_uuid $basedir/data ext4 defaults,nofail 1 2 >> /etc/fstab
+		LogMsg "$?: Updated /etc/fstab file with uuid information"
+		ret=$(cat /etc/fstab)
+		LogMsg "$?: Displayed the contents in /etc/fstab"
+	fi
+
 	if [[ $repo_url != "" ]]; then
 		LogMsg "CPU offline and vmbus interrupt reassignement requires kernel build in the VM until the version 5.7"
 		update_repos
