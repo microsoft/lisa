@@ -20,29 +20,38 @@ function Main {
         [String] $VMPassword
     )
 
-    $remoteScriptName = "validate-da"
-    $remoteScriptType = "sh"
+    $remoteScript = "validate-da.sh"
+    # timeout accounts for sum of sleep time in the validate-da script. This helps prevent timeout during execution.
+    $timeout = 480
     #######################################################################
     #
     #	Main body script
     #
     #######################################################################
-
-    # Checking the input arguments
-    if ($VMName.length -eq 0) {
-        Write-LogErr "VM name is empty!"
-        return "FAIL"
-    }
-
-    # Running validate-da script
-    # runMaxAllowedTime accounts for sum of sleep time in the validate-da script. This helps prevent timeout during execution.
-    Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort -runMaxAllowedTime 480 -command "sudo bash $remoteScriptName.$remoteScriptType" -runAsSudo
-    $testResult = Collect-TestLogs -LogsDestination $LogDir -ScriptName $remoteScriptName -TestType $remoteScriptType `
-        -PublicIP $Ipv4 -SSHPort $VMPort -Username $VMUserName -password $VMPassword `
-        -TestName $currentTestData.testName
-    $resultArr += $testResult
-    Write-LogInfo "Test result : $testResult"
     $currentTestResult = Create-TestResultObject
+    try {
+        # Checking the input arguments
+        if ($VMName.length -eq 0) {
+            Write-LogErr "VM name is empty!"
+            return "FAIL"
+        }
+
+        # Running validate-da script
+        Run-LinuxCmd -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort -runMaxAllowedTime $timeout -command "sudo bash $remoteScript" -runAsSudo
+        $testResult = Collect-TestLogs -LogsDestination $LogDir -ScriptName $remoteScript.split(".")[0] -TestType "sh" `
+            -PublicIP $Ipv4 -SSHPort $VMPort -Username $VMUserName -password $VMPassword `
+            -TestName $currentTestData.testName
+        Write-LogInfo "Test result : $testResult"
+    } catch {
+        $ErrorMessage = $_.Exception.Message
+        $ErrorLine = $_.InvocationInfo.ScriptLineNumber
+        Write-LogInfo "EXCEPTION: $ErrorMessage at line: $ErrorLine"
+    } finally {
+        if (!$testResult) {
+            $testResult = "Aborted"
+        }
+        $resultArr += $testResult
+    }
     $currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
     return $currentTestResult
 }
