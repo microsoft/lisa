@@ -372,7 +372,7 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 		}
 	}
 	if ($global:sshPrivateKey) {
-		Write-LogDbg ".\Tools\plink.exe -ssh -t -i $sshKey -P $port $username@$ip $logCommand"
+		Write-LogDbg ".\Tools\plink.exe -ssh -t -i ppkfile -P $port $username@$ip $logCommand"
 	} else {
 		Write-LogDbg ".\Tools\plink.exe -ssh -t -pw $password -P $port $username@$ip $logCommand"
 	}
