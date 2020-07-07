@@ -65,9 +65,9 @@ function Upload-RemoteFile($uploadTo, $port, $file, $username, $password, $usePr
 	while($retry -le $maxRetry) {
 		if ($usePrivateKey) {
 			Write-LogDbg "Uploading $file to $username : $uploadTo, port $port using PrivateKey authentication"
-			Write-Output "yes" | .\Tools\pscp -i $sshKey -q -P $port $file $username@${uploadTo}:
+			Write-Output "y" | .\Tools\pscp -i $sshKey -q -P $port $file $username@${uploadTo}:
 			if ($LASTEXITCODE -ne 0) {
-				Write-Output "yes" | .\Tools\pscp -scp -i $sshKey -q -P $port $file $username@${uploadTo}:
+				Write-Output "y" | .\Tools\pscp -scp -i $sshKey -q -P $port $file $username@${uploadTo}:
 			}
 			$returnCode = $LASTEXITCODE
 		} else {
@@ -168,9 +168,9 @@ function Download-RemoteFile($downloadFrom, $downloadTo, $port, $file, $username
 				$downloadTo=$args[6];
 				$downloadStatusRandomFile=$args[7];
 				Set-Location $curDir;
-				Write-Output "yes" | .\Tools\pscp.exe -2 -unsafe -i $sshKey -q -P $port $username@${downloadFrom}:$testFile $downloadTo 2> $downloadStatusRandomFile;
+				Write-Output "y" | .\Tools\pscp.exe -2 -unsafe -i $sshKey -q -P $port $username@${downloadFrom}:$testFile $downloadTo 2> $downloadStatusRandomFile;
 				if ($LASTEXITCODE -ne 0) {
-					Write-Output "yes" | .\Tools\pscp.exe -2 -v -scp -unsafe -i $sshKey -q -P $port $username@${downloadFrom}:$testFile $downloadTo 2> $downloadStatusRandomFile;
+					Write-Output "y" | .\Tools\pscp.exe -2 -v -scp -unsafe -i $sshKey -q -P $port $username@${downloadFrom}:$testFile $downloadTo 2> $downloadStatusRandomFile;
 				}
 				Add-Content -Value "DownloadExitCode_$LASTEXITCODE" -Path $downloadStatusRandomFile;
 			} -ArgumentList $curDir,$sshKey,$port,$file,$username,${downloadFrom},$downloadTo,$downloadStatusRandomFile
@@ -307,7 +307,7 @@ Function Get-AvailableExecutionFolder([string] $username, [string] $password, [s
 		Write-LogInfo "Check if execution folder /home/$username exists or not, if not, create one."
 		if ($global:sshPrivateKey) {
 			$sshKey = $global:sshPrivateKey
-			$output = Write-Output "yes" | .\Tools\plink.exe -C -i $sshKey -P $port "$username@$ip" "sudo -S bash -c 'if [ ! -d /home/$username ]; then mkdir -p /home/$username; chown -R ${user}: /home/$username; fi; if [ -d /home/$username ]; then echo EXIST; else echo NOTEXIST; fi;'" 2> $null
+			$output = Write-Output "y" | .\Tools\plink.exe -C -i $sshKey -P $port "$username@$ip" "sudo -S bash -c 'if [ ! -d /home/$username ]; then mkdir -p /home/$username; chown -R ${user}: /home/$username; fi; if [ -d /home/$username ]; then echo EXIST; else echo NOTEXIST; fi;'" 2> $null
 		} else {
 			$output = Write-Output "yes" | .\Tools\plink.exe -C -pw $password -P $port "$username@$ip" "sudo -S bash -c 'if [ ! -d /home/$username ]; then mkdir -p /home/$username; chown -R ${user}: /home/$username; fi; if [ -d /home/$username ]; then echo EXIST; else echo NOTEXIST; fi;'" 2> $null
 		}

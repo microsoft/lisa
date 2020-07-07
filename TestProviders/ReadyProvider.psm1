@@ -37,6 +37,7 @@ Class ReadyProvider : TestProvider
 			Add-Member -InputObject $objNode -MemberType NoteProperty -Name Password -Value $null -Force
 			Add-Member -InputObject $objNode -MemberType NoteProperty -Name RoleName -Value $null -Force
 			Add-Member -InputObject $objNode -MemberType NoteProperty -Name InternalIP -Value $null -Force
+			Add-Member -InputObject $objNode -MemberType NoteProperty -Name InstanceSize -Value $null -Force
 			return $objNode
 		}
 
@@ -51,7 +52,8 @@ Class ReadyProvider : TestProvider
 			$count = 0
 			foreach ($vmData in $AllVMData) {
 				# get the first active nic device's IPv4 address. This is the temporary approach, as it may not be right for VMs that have multi nic devices.
-				$ipAddrInfo = Run-LinuxCmd -username $global:user -password $global:password -ip $($vmData.PublicIp) -port $($vmData.SSHPort) -command "ip -4 address | awk -F': ' '!/lo/ {print `$2}' | xargs ip address show" -RunAsSudo
+				$ipAddrInfo = Run-LinuxCmd -username $global:user -password $global:password -ip $($vmData.PublicIp) -port $($vmData.SSHPort) `
+					-command "ip -4 address | awk -F': ' '!/lo/ {print `$2}' | xargs ip address show" -RunAsSudo
 				$ipAddress = GetIPv4AddressFromIpAddrInfo -ipAddrInfo $ipAddrInfo
 				if ($ipAddress) {
 					$AllVmData[$count].InternalIP = $ipAddress
@@ -62,29 +64,56 @@ Class ReadyProvider : TestProvider
 			}
 		}
 
+		function SetInstanceSize([object] $AllVmData) {
+			$count = 0
+			foreach ($vmData in $AllVMData) {
+				if ($global:OverrideVMSize) {
+					$AllVmData[$count].InstanceSize = $global:OverrideVMSize
+				} else {
+					$coreCount = Run-LinuxCmd -username $global:user -password $global:password -ip $($vmData.PublicIp) -port $($vmData.SSHPort) `
+						-command "cat /proc/cpuinfo | grep -c ^processor"
+					$memGB = Run-LinuxCmd -username $global:user -password $global:password -ip $($vmData.PublicIp) -port $($vmData.SSHPort) `
+						-command "free -g | grep Mem | awk {'print `$2'}"
+					$AllVmData[$count].InstanceSize = "${coreCount}_CPU_${memGB}_GB_Mem"
+				}
+				$count++
+			}
+		}
+
 		$allVMData = @()
 		$ErrorMessage = ""
 		try {
 			$allVmList = $RGIdentifier.Split(";");
-			$vmIndex = 0
-			foreach($vmInfo in $allVmList){
-				$vmIndex++
+			$machines = @()
+			$machines += $SetupTypeData.ResourceGroup.VirtualMachine
+
+			if ($allVmList.Count -lt $machines.Count) {
+				Write-LogErr "Not enough test targets provided for case $($TestCaseData.TestName)"
+				return $null
+			}
+
+			$vmIndex=0
+			while ($vmIndex -lt $machines.Count) {
 				$vmNode = Create-QuickVMNode
 
+				$vmInfo = $allVmList[$vmIndex]
 				$vmNode.PublicIP = $vmInfo.Split(":")[0]
 				$vmNode.SSHPort = $vmInfo.Split(":")[1]
 				$vmNode.UserName = $Global:user
 				$vmNode.Password = $Global:password
-				$vmNode.RoleName = "Role$vmIndex"
+				$vmNode.RoleName = "Role-$vmIndex"
 				$allVMData += $vmNode;
+				$vmIndex++
 			}
-			SetInternalIPv4Address -AllVMData $allVMData
-			Write-LogInfo("No need to deploy new VM as this test case is running against a prepared environment.")
 
 			$isVmAlive = Is-VmAlive -AllVMDataObject $allVMData
 			if ($isVmAlive -ne "True") {
 				Write-LogErr "Unable to connect SSH ports.."
+				return $null
 			}
+			SetInternalIPv4Address -AllVMData $allVMData
+			SetInstanceSize -AllVmData $allVMData
+			Write-LogInfo("No need to deploy new VM as this test case is running against a prepared environment.")
 		} catch {
 			Write-LogErr "Exception detected. Source : DeployVMs()"
 			$line = $_.InvocationInfo.ScriptLineNumber
@@ -102,19 +131,7 @@ Class ReadyProvider : TestProvider
 	}
 
 	[void] RunSetup($VmData, $CurrentTestData, $TestParameters, $ApplyCheckPoint) {
-		if ($CurrentTestData.SetupScript) {
-			if ($null -eq $CurrentTestData.runSetupScriptOnlyOnce) {
-				foreach ($VM in $VmData) {
-					foreach ($script in $($CurrentTestData.SetupScript).Split(",")) {
-						$null = Run-SetupScript -Script $script -Parameters $TestParameters -VMData $VM -CurrentTestData $CurrentTestData
-					}
-				}
-			} else {
-				foreach ($script in $($CurrentTestData.SetupScript).Split(",")) {
-					$null = Run-SetupScript -Script $script -Parameters $TestParameters -VMData $VmData -CurrentTestData $CurrentTestData
-				}
-			}
-		}
+		# Do nothing
 	}
 
 	[bool] RestartAllDeployments($AllVMData) {

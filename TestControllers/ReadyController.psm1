@@ -33,7 +33,7 @@ Class ReadyController : TestController
 
 	ReadyController() {
 		$this.TestProvider = New-Object -TypeName "ReadyProvider"
-		$this.TestPlatform = "Any"
+		$this.TestPlatform = "Ready"
 	}
 
 	[void] ParseAndValidateParameters([Hashtable]$ParamTable) {
@@ -62,6 +62,7 @@ Class ReadyController : TestController
 		if ($this.XMLSecrets) {
 			$readyVConfig.TestCredentials.LinuxUsername = $secrets.linuxTestUsername
 			$readyVConfig.TestCredentials.LinuxPassword = $secrets.linuxTestPassword
+			$readyVConfig.TestCredentials.sshPrivateKey = Get-SSHKey -XMLSecretFile $XMLSecretFile
 			$readyVConfig.ResultsDatabase.server = $secrets.DatabaseServer
 			$readyVConfig.ResultsDatabase.user = $secrets.DatabaseUser
 			$readyVConfig.ResultsDatabase.password = $secrets.DatabasePassword
@@ -69,6 +70,15 @@ Class ReadyController : TestController
 		}
 		$this.VmUsername = $readyVConfig.TestCredentials.LinuxUsername
 		$this.VmPassword = $readyVConfig.TestCredentials.LinuxPassword
+		$this.SSHPrivateKey = $readyVConfig.TestCredentials.sshPrivateKey
+
+		if (!$this.sshPrivateKey -and !$this.VmPassword) {
+			Write-LogErr "Please set sshPrivateKey or linuxTestPassword."
+		}
+		if ($this.sshPrivateKey -and $this.VmPassword) {
+			Write-LogDbg "Use private key, reset password into empty."
+			$this.VmPassword = ""
+		}
 
 		if( $this.ResultDBTable ) {
 			$readyVConfig.ResultsDatabase.dbtable = ($this.ResultDBTable).Trim()
@@ -76,7 +86,7 @@ Class ReadyController : TestController
 		}
 		if( $this.ResultDBTestTag ) {
 			$readyVConfig.ResultsDatabase.testTag = ($this.ResultDBTestTag).Trim()
-			Write-LogInfo "ResultDBTestTag: $this.ResultDBTestTag added to GlobalConfig.Global.HReadyyperV.ResultsDatabase.testTag"
+			Write-LogInfo "ResultDBTestTag: $this.ResultDBTestTag added to GlobalConfig.Global.Ready.ResultsDatabase.testTag"
 		}
 
 		Write-LogInfo "------------------------------------------------------------------"
