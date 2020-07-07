@@ -241,7 +241,7 @@ Class TestController
 		$vmSizes | ForEach-Object {
 			if ($_ -and !($AllTestVMSizes.$_)) { $AllTestVMSizes["$_"] = @{} }
 		}
-		$this.OverrideVMSize | ForEach-Object {
+		$this.OverrideVMSize.Split(", ").Trim() | ForEach-Object {
 			if ($_ -and !($AllTestVMSizes.$_)) { $AllTestVMSizes["$_"] = @{} }
 		}
 		# Inject custom parameters
