@@ -202,7 +202,7 @@
             <param>PERF_NIC=HYPERV_PERF_NIC_NAME</param>
             <param>STATIC_IP_1=10.10.10.14</param>
             <param>STATIC_IP_2=10.10.10.34</param>
-            <param>pingIteration=1000000</param>
+            <param>pingIteration=LAGSCOPE_PING_ITERATIONS</param>
             <param>lagscopeVersion=LAGSCOPE_VERSION</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
@@ -225,7 +225,7 @@
             <param>PERF_NIC=HYPERV_PERF_NIC_NAME</param>
             <param>STATIC_IP_1=10.10.10.15</param>
             <param>STATIC_IP_2=10.10.10.35</param>
-            <param>pingIteration=1000000</param>
+            <param>pingIteration=LAGSCOPE_PING_ITERATIONS</param>
             <param>lagscopeVersion=LAGSCOPE_VERSION</param>
         </TestParameters>
         <Platform>Azure,HyperV</Platform>
@@ -747,5 +747,25 @@
         <Area>LKP</Area>
         <Tags>lkp</Tags>
         <Priority>3</Priority>
+    </test>
+    <test>
+        <testName>PERF-XDP-TCP-LATENCY</testName>
+        <testScript>PERF-XDP-TCP-LATENCY.ps1</testScript>
+        <setupType>TwoVM2NIC</setupType>
+        <OverrideVMSize>Standard_D64_v3</OverrideVMSize>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh,.\Testscripts\Linux\perf_lagscope.sh</files>
+        <TestParameters>
+            <param>pingIteration=LAGSCOPE_PING_ITERATIONS</param>
+            <param>lagscopeVersion=LAGSCOPE_VERSION</param>
+            <param>repo_url=XDPDUMP_REPO_URL</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Performance</Category>
+        <Area>NETWORK</Area>
+        <Tags>xdp,network,hv_netvsc,sriov</Tags>
+        <Priority>2</Priority>
     </test>
 </TestCases>

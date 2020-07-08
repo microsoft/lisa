@@ -2400,3 +2400,27 @@ Function ExtractSSHPublicKeyFromPPKFile {
             return $null
         }
 }
+
+function Is-XDPCompatible() {
+    param (
+        [string] $KernelVersion,
+        [string] $DetectedDistro
+    )
+    # ToDo: Update Minimum kernel version check once patches are in downstream distro.
+    $SUPPORTED_DISTRO_KERNEL = @{
+        "UBUNTU" = "5.6";
+        "REDHAT" = "4.18.0-213";
+    }
+
+    if ($SUPPORTED_DISTRO_KERNEL.Keys -contains $DetectedDistro) {
+        if ((Compare-KernelVersion $KernelVersion $SUPPORTED_DISTRO_KERNEL[$DetectedDistro]) -ge 0) {
+            return $true
+        } else {
+            return $false
+        }
+    } else {
+        Write-LogWarn "Unsupported Distro: $DetectedDistro"
+        return $false
+    }
+    Write-LogInfo "$KernelVersion $DetectedDistro"
+}
