@@ -22,7 +22,8 @@ function Main() {
 
 	basedir=$(pwd)
 
-	if [[ $storage == "yes" ]]; then
+	# RHEL/CentOS need an extra disk for customized kernel compilation
+	if [[ $storage == "yes" ]] || [[ $DISTRO == *"redhat"* ]] || [[ $DISTRO == *"centos"* ]]; then
 		# Set up new disk
 		for key in n p 1 2048 '' t 1 p w
 		do
@@ -77,7 +78,7 @@ function Main() {
 
 		case $DISTRO in
 			redhat_7|centos_7|redhat_8|centos_8)
-				req_pkg="elfutils-libelf-devel ncurses-devel bc elfutils-libelf-devel openssl-devel grub2"
+				req_pkg="elfutils-libelf-devel ncurses-devel bc elfutils-libelf-devel openssl-devel grub2 flex"
 				;;
 			suse*|sles*)
 				req_pkg="ncurses-devel libopenssl-devel libelf-devel"
@@ -98,28 +99,42 @@ function Main() {
 		LogMsg "$?: Installed required packages, $req_pkg"
 
 		# Start kernel compilation
+		# RHEL & CentOS need extra space for kernel repo due to different disk partitioning.
 		LogMsg "Clone and compile new kernel from $repo_url"
-		git clone $repo_url linux
+		if [[ $DISTRO == *"redhat"* ]] || [[ $DISTRO == *"centos"* ]]; then
+			git clone $repo_url data/linux
+			cd data/linux
+		else
+			git clone $repo_url linux
+			cd linux
+		fi
 		LogMsg "$?: Cloned the kernel source repo"
-
-		cd linux
 
 		git checkout $repo_branch
 		LogMsg "$?: Changed to $repo_branch"
 
 		config_file="/boot/config-$(uname -r)"
 
-		cp $config_file $basedir/linux/.config
+		if [[ $DISTRO == *"redhat"* ]] || [[ $DISTRO == *"centos"* ]]; then
+			cp $config_file $basedir/data/linux/.config
+		else
+			cp $config_file $basedir/linux/.config
+		fi
 		LogMsg "$?: Copied the default config file from /boot"
 
 		if [[ $DISTRO == "redhat_8" ]]; then
 			# comment out those 2 parameters in RHEL 8.x
-			sed -i -e "s/CONFIG_SYSTEM_TRUSTED_KEY*.*/#CONFIG_SYSTEM_TRUSTED_KEY/g" ~/.config
-			sed -i -e "s/CONFIG_MODULE_SIG_KEY*.*/#CONFIG_MODULE_SIG_KEY/g" ~/.config
+			sed -i -e "s/CONFIG_SYSTEM_TRUSTED_KEY*.*/#CONFIG_SYSTEM_TRUSTED_KEY/g" .config
+			sed -i -e "s/CONFIG_MODULE_SIG_KEY*.*/#CONFIG_MODULE_SIG_KEY/g" .config
 		fi
 
-		yes '' | make oldconfig
-		LogMsg "Did make oldconfig file"
+		if [[ $DISTRO == *"redhat"* ]] || [[ $DISTRO == *"centos"* ]]; then
+			yes '' | make prepare
+			LogMsg "Did make prepare"
+		else
+			yes '' | make oldconfig
+			LogMsg "Did make oldconfig"
+		fi
 
 		make -j $(getconf _NPROCESSORS_ONLN)
 		LogMsg "Compiled the source codes"
@@ -135,10 +150,17 @@ function Main() {
 			LogMsg "$?: Ran update-grub2"
 		fi
 
-		cp $basedir/TestExecution.log $basedir/Setup-TestExecution.log
-		cat ./TestExecution.log >> $basedir/Setup-TestExecution.log
-		cp $basedir/TestExecutionError,log $basedir/Setup-TestExecutionError.log
-		cat ./TestExecutionError.log >> $basedir/Setup-TestExecutionError.log
+		if [ -f ./TestExecution.log ]; then
+			cp $basedir/TestExecution.log $basedir/Setup-TestExecution.log
+			chmod 766 $basedir/Setup-TestExecution.log
+			cat ./TestExecution.log >> $basedir/Setup-TestExecution.log
+		fi
+		if [ -f ./TestExecutionError.log ]; then
+			cp $basedir/TestExecutionError.log $basedir/Setup-TestExecutionError.log
+			chmod 766 $basedir/Setup-TestExecutionError.log
+			cat ./TestExecutionError.log >> $basedir/Setup-TestExecutionError.log
+		fi
+		cd $basedir
 	fi
 
 	echo "setup_completed=0" >> $basedir/constants.sh
