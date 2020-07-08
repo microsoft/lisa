@@ -118,7 +118,7 @@ function Main {
 			Wait-Time -seconds 15
 			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat ~/state.txt"
 			if ($state -eq "TestCompleted") {
-				$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat ~/constants.sh | grep setup_completed=0" -runAsSudo
+				$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat ~/constants.sh | grep setup_completed=0"
 				if ($kernelCompileCompleted -ne "setup_completed=0") {
 					Write-LogErr "CPUOfflineKernelBuild.sh finished on $($VMData.RoleName) but setup was not successful!"
 				} else {
@@ -201,7 +201,7 @@ install_package "fio"
 				Wait-Time -seconds 30
 				$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat ~/state.txt"
 				if ($state -eq "TestCompleted") {
-					$channelChangeCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat ~/constants.sh | grep job_completed=0" -runAsSudo
+					$channelChangeCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat ~/constants.sh | grep job_completed=0"
 					if ($channelChangeCompleted -ne "job_completed=0") {
 						throw "$local_script finished on $($VMData.RoleName) but job was not successful!"
 					} else {
