@@ -107,7 +107,7 @@ function Main {
 
 		# ##################################################################################
 		# New kernel build for CPU channel change and vmbus interrupt re-assignment
-		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./CPUOfflineKernelBuild.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash CPUOfflineKernelBuild.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
 		Write-LogInfo "Executing CPUOfflineKernelBuild script inside VM"
 
 		# Wait for kernel compilation completion. 60 min timeout
@@ -178,7 +178,7 @@ install_package "fio"
 			foreach ($VMData in $AllVMData) {
 				Copy-RemoteFiles -uploadTo $VMData.PublicIP -port $VMData.SSHPort -files "$constantsFile,$($CurrentTestData.files),$LogDir\*.sh" -username $user -password $password -upload
 				Write-LogInfo "Copied the script files to the VM"
-				Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "bash ./setup.sh" -runAsSudo
+				Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "bash setup.sh" -runAsSudo
 			}
 			#endregion
 		}
@@ -186,7 +186,7 @@ install_package "fio"
 		for ($loopCount = 1;$loopCount -le $max_stress_count;$loopCount++) {
 			if ($isStorageWorkloadEnable -eq 1) {
 				Write-LogInfo "Running workload command in the background job"
-				Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "bash ./workCommand.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+				Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "bash workCommand.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
 			}
 			# Feature test and stress test case with $local_script
 			# Running the local test script
@@ -241,10 +241,12 @@ install_package "fio"
 			}
 
 			# Revert state.txt and remove job_completed=0
-			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat /dev/null > ~/state.txt" -runAsSudo
-			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "sed -i -e 's/job_completed=0//g' ~/constants.sh" -runAsSudo
+			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "chmod 766 state.txt" -runAsSudo
+			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat /dev/null > state.txt" -runAsSudo
+			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "sed -i -e 's/job_completed=0//g' constants.sh" -runAsSudo
 		}
 		$testResult = $resultPass
+		Write-LogInfo "The test passed"
 	} catch {
 		$ErrorMessage =  $_.Exception.Message
 		$ErrorLine = $_.InvocationInfo.ScriptLineNumber
