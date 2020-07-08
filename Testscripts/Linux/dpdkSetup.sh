@@ -35,8 +35,20 @@ LogMsg "INFO: Configuring huge pages on client ${client}..."
 Hugepage_Setup "${client}"
 
 LogMsg "*********INFO: Starting setup & configuration of DPDK*********"
-LogMsg "INFO: Installing DPDK on client ${client}..."
-Install_Dpdk "${client}" "${clientNIC1ip}" "${serverNIC1ip}"
+# If $dpdkSrcLink is defined and is empty, use downstream dpdk package(RHEL only)
+if [[ $DISTRO =~ "redhat" ]] && [ ! -z "${dpdkSrcLink+x}" ] && [[ "${dpdkSrcLink}" == "" ]];then
+	LogMsg "INFO: Detecting downstrean dpdk package on ${client}"
+	dpdk_version=$(rpm -q dpdk)
+	if [[ $? == 0 ]];then
+		LogMsg "INFO: Package ${dpdk_version} is installed."
+	else
+		LogErr "ERROR: No downstream dpdk package found."
+		exit 1
+	fi
+else
+	LogMsg "INFO: Installing DPDK on client ${client}..."
+	Install_Dpdk "${client}" "${clientNIC1ip}" "${serverNIC1ip}"
+fi
 
 if [[ ${client} == ${server} ]];
 then
