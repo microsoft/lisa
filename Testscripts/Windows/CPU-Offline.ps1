@@ -22,7 +22,6 @@ param([object] $AllVmData, [string]$TestParams)
 $max_stress_count = 1
 # Set yes for VM reboot. New value can be overwritten.
 $vm_reboot = "yes"
-$isStorageWorkloadEnable = 0
 
 function Main {
 	param($AllVMData, $TestParams)

@@ -62,6 +62,7 @@ function Main() {
 		echo $ext_uuid $basedir/data ext4 defaults,nofail 1 2 >> /etc/fstab
 		LogMsg "$?: Updated /etc/fstab file with uuid information"
 		ret=$(cat /etc/fstab)
+		LogMsg "$ret"
 		LogMsg "$?: Displayed the contents in /etc/fstab"
 	fi
 
