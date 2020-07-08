@@ -72,19 +72,19 @@ function Main() {
 		update_repos
 
 		# Install common packages
-		req_pkg="gcc make bison git"
+		req_pkg="gcc make bison git flex"
 		install_package $req_pkg
 		LogMsg "$?: Installed the required common packages; $req_pkg"
 
 		case $DISTRO in
 			redhat_7|centos_7|redhat_8|centos_8)
-				req_pkg="elfutils-libelf-devel ncurses-devel bc elfutils-libelf-devel openssl-devel grub2 flex"
+				req_pkg="elfutils-libelf-devel ncurses-devel bc elfutils-libelf-devel openssl-devel grub2"
 				;;
 			suse*|sles*)
 				req_pkg="ncurses-devel libopenssl-devel libelf-devel"
 				;;
 			ubuntu*)
-				req_pkg="build-essential fakeroot libncurses5-dev libssl-dev ccache flex dkms"
+				req_pkg="build-essential fakeroot libncurses5-dev libssl-dev ccache dkms"
 				if [[ "${DISTRO_VERSION}" == "16.04" ]]; then
 					req_pkg="${req_pkg} bc libelf-dev"
 				fi
