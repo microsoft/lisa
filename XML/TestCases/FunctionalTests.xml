@@ -803,4 +803,15 @@
         <Tags>cpu</Tags>
         <Priority>3</Priority>
     </test>
+    <test>
+        <testName>VALIDATE-DEPENDENCY-AGENT</testName>
+        <testScript>VALIDATE-DA.ps1</testScript>
+        <files>.\Testscripts\Linux\validate-da.sh,.\Testscripts\Linux\utils.sh</files>
+        <setupType>OneVM</setupType>
+        <Platform>Azure,HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>DA</Area>
+        <Tags>da</Tags>
+        <Priority>0</Priority>
+    </test>  
 </TestCases>
