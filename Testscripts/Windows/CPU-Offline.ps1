@@ -226,7 +226,7 @@ install_package "fio iperf"
 				$state = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password "cat /home/$user/state.txt"
 				if ($state -eq "TestCompleted") {
 					$kernelCompileCompleted = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password "cat ~/constants.sh | grep job_completed=0"
-					if ($kernelCompileCompleted -ne "setup_completed=0") {
+					if ($kernelCompileCompleted -ne "job_completed=0") {
 						Write-LogErr "$local_script finished on $($AllVMData[0].RoleName) but setup was not successful!"
 					} else {
 						Write-LogInfo "$local_script finished on $($AllVMData[0].RoleName)"
