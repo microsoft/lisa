@@ -181,9 +181,7 @@ SetTestStateCompleted
 			$targetIPAddress = $AllVMData[1].InternalIP
 			$workCommand = @"
 source utils.sh
-SetTestStateRunning
 iperf -c $targetIPAddress -t 600 -P 8 > workload.json
-SetTestStateCompleted
 "@
 			Set-Content "$LogDir\workCommand.sh" $workCommand
 		}
