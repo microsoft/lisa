@@ -258,13 +258,15 @@ install_package "fio iperf"
 
 			if ($isNetworkWorkloadEnable -eq 1) {
 				Write-LogInfo "Archiving network workload result"
-				Run-LinuxCmd -ip $AllVMData[1].PublicIP -port $AllVMData[1].SSHPort -username $user -password $password -command "cat workload.json >> TestExecution.log" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+				Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "cat workload.json >> TestExecution.log" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
 			}
 
 			# Revert state.txt and remove job_completed=0
-			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "chmod 766 state.txt" -runAsSudo
-			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat /dev/null > state.txt" -runAsSudo
-			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "sed -i -e 's/job_completed=0//g' constants.sh" -runAsSudo
+			foreach ($VMData in $AllVMData) {
+				$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "chmod 766 state.txt" -runAsSudo
+				$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat /dev/null > state.txt" -runAsSudo
+				$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "sed -i -e 's/job_completed=0//g' constants.sh" -runAsSudo
+			}
 
 			if ($vm_reboot -eq "yes") {
 				# ##################################################################################
