@@ -221,7 +221,7 @@ install_package "fio iperf"
 			Write-LogInfo "Executed $local_script script inside VM"
 
 			# Wait for kernel compilation completion. 90 min timeout
-			$timeout = New-Timespan -Minutes $60
+			$timeout = New-Timespan -Minutes 60
 			$sw = [diagnostics.stopwatch]::StartNew()
 			while ($sw.elapsed -lt $timeout){
 				Wait-Time -seconds 30
