@@ -122,12 +122,6 @@ function Main() {
 		fi
 		LogMsg "$?: Copied the default config file from /boot"
 
-		if [[ $DISTRO == "redhat_8" ]]; then
-			# comment out those 2 parameters in RHEL 8.x
-			sed -i -e "s/CONFIG_SYSTEM_TRUSTED_KEY*.*/#CONFIG_SYSTEM_TRUSTED_KEY/g" .config
-			sed -i -e "s/CONFIG_MODULE_SIG_KEY*.*/#CONFIG_MODULE_SIG_KEY/g" .config
-		fi
-
 		if [[ $DISTRO == *"redhat"* ]] || [[ $DISTRO == *"centos"* ]]; then
 			yes '' | make prepare
 			LogMsg "Did make prepare"
@@ -136,18 +130,33 @@ function Main() {
 			LogMsg "Did make oldconfig"
 		fi
 
-		make -j $(getconf _NPROCESSORS_ONLN)
+		if [[ $DISTRO == "redhat_8" ]] || [[ $DISTRO == "centos_8" ]]; then
+			# comment out those 2 parameters in RHEL/CentOS 8.x
+			sed -i -e "s/CONFIG_SYSTEM_TRUSTED_KEY*.*/#CONFIG_SYSTEM_TRUSTED_KEY/g" .config
+			sed -i -e "s/CONFIG_MODULE_SIG_KEY*.*/#CONFIG_MODULE_SIG_KEY/g" .config
+			sed -i -e "s/CONFIG_DEBUG_INFO_BTF*.*/#CONFIG_DEBUG_INFO_BTF/g" .config
+			yes '' | make -j $(getconf _NPROCESSORS_ONLN)
+
+		else
+			make -j $(getconf _NPROCESSORS_ONLN)
+		fi
 		LogMsg "Compiled the source codes"
 
 		make modules_install
-		LogMsg "Installed new kernel modules"
+		LogMsg "$?: Installed new kernel modules"
 
 		make install
-		LogMsg "Install new kernel"
+		LogMsg "$?: Install new kernel"
 
 		if [[ $DISTRO =~ "ubuntu" ]]; then
 			update-grub2
 			LogMsg "$?: Ran update-grub2"
+		fi
+
+		if [[ $DISTRO == "redhat_8" ]] || [[ $DISTRO == "centos_8" ]]; then
+			vmlinux_file=$(find /boot/ -name vmlinuz-5*)
+			grubby --set-default=$vmlinux_file
+			LogMsg "Set $vmlinux_file to the default kernel"
 		fi
 
 		if [ -f ./TestExecution.log ]; then

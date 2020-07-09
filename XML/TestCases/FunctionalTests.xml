@@ -822,6 +822,24 @@
         <Priority>3</Priority>
     </test>
     <test>
+        <testName>CPU-OFFLINE-NETWORK-WORKLOAD</testName>
+        <testScript>CPU-Offline.ps1</testScript>
+        <setupType>TwoVM1Dep</setupType>
+        <OverrideVMSize>Standard_L32s_v2</OverrideVMSize>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\CPUOfflineKernelBuild.sh,.\Testscripts\Linux\channel_change.sh</files>
+        <TestParameters>
+            <param>repo_url=CPU_CUSTOM_KERNEL_URL</param>
+            <param>repo_branch=CPU_CUSTOM_KERNEL_BRANCH</param>
+            <param>vm_reboot=CPU_OFFLINE_VM_REBOOT</param>
+            <param>network=ENABLE_NETWORK_WORKLOAD</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>CORE</Area>
+        <Tags>cpu</Tags>
+        <Priority>3</Priority>
+    </test>
+    <test>
         <testName>VALIDATE-DEPENDENCY-AGENT</testName>
         <testScript>VALIDATE-DA.ps1</testScript>
         <files>.\Testscripts\Linux\validate-da.sh,.\Testscripts\Linux\utils.sh</files>
