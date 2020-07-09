@@ -261,6 +261,11 @@ install_package "fio iperf"
 				Run-LinuxCmd -ip $AllVMData[1].PublicIP -port $AllVMData[1].SSHPort -username $user -password $password -command "cat workload.json >> TestExecution.log" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
 			}
 
+			# Revert state.txt and remove job_completed=0
+			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "chmod 766 state.txt" -runAsSudo
+			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat /dev/null > state.txt" -runAsSudo
+			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "sed -i -e 's/job_completed=0//g' constants.sh" -runAsSudo
+
 			if ($vm_reboot -eq "yes") {
 				# ##################################################################################
 				# Reboot VM
@@ -272,11 +277,6 @@ install_package "fio iperf"
 				Write-LogInfo "Loop Count: $loopCount"
 				Start-Sleep -second 60
 			}
-
-			# Revert state.txt and remove job_completed=0
-			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "chmod 766 state.txt" -runAsSudo
-			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat /dev/null > state.txt" -runAsSudo
-			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "sed -i -e 's/job_completed=0//g' constants.sh" -runAsSudo
 		}
 		$testResult = $resultPass
 		Write-LogInfo "The test passed"
