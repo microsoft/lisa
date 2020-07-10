@@ -204,7 +204,7 @@ install_package "fio iperf"
 
 		if ($isNetworkWorkloadEnable -eq 1) {
 			Write-LogInfo "Running iperf server in the backgroud job"
-			Run-LinuxCmd -ip $AllVMData[1].PublicIP -port $AllVMData[1].SSHPort -username $user -password $password -command "iperf -s -D" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+			Run-LinuxCmd -ip $AllVMData[1].PublicIP -port $AllVMData[1].SSHPort -username $user -password $password -command "iperf -s -D" -RunInBackground -runAsSudo | Out-Null
 			Start-Sleep -s 10
 		}
 
