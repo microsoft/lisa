@@ -70,7 +70,7 @@ function Main {
 		Write-LogInfo "constants.sh created successfully..."
 		#endregion
 
-		if ($isStorageWorkloadEnable -eq 1) {
+		if (($isStorageWorkloadEnable -eq 1) -or (-not @("UBUNTU").contains($global:detectedDistro)) {
 			Write-LogDbg "Prepare a disk space for VM $($AllVMData[0].RoleName) in RG $($AllVMData[0].ResourceGroupName)."
 			# region Prepare the disk space in the target VM
 			$rgName = $AllVMData[0].ResourceGroupName
