@@ -153,6 +153,12 @@ function Main() {
 			LogMsg "$?: Ran update-grub2"
 		fi
 
+		if [[ $DISTRO == "redhat_8" ]] || [[ $DISTRO == "centos_8" ]]; then
+			vmlinux_file=$(find /boot/ -name vmlinuz-5*)
+			grubby --set-default=$vmlinux_file
+			LogMsg "Set $vmlinux_file to the default kernel"
+		fi
+
 		if [ -f ./TestExecution.log ]; then
 			cp $basedir/TestExecution.log $basedir/Setup-TestExecution.log
 			chmod 766 $basedir/Setup-TestExecution.log

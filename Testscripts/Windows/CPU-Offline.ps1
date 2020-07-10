@@ -122,9 +122,10 @@ function Main {
 		$sw = [diagnostics.stopwatch]::StartNew()
 		while ($sw.elapsed -lt $timeout){
 			Wait-Time -seconds 30
-			$state = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password "cat /home/$user/state.txt"
+			$state = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password "cat /home/$user/state.txt" -runAsSudo
+			Write-LogDbg "state is $state"
 			if ($state -eq "TestCompleted") {
-				$kernelCompileCompleted = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password "cat ~/constants.sh | grep setup_completed=0"
+				$kernelCompileCompleted = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password "cat /home/$user/constants.sh | grep setup_completed=0" -runAsSudo
 				if ($kernelCompileCompleted -ne "setup_completed=0") {
 					Write-LogErr "CPUOfflineKernelBuild.sh finished on $($AllVMData[0].RoleName) but setup was not successful!"
 				} else {
@@ -227,9 +228,10 @@ install_iperf3
 			$sw = [diagnostics.stopwatch]::StartNew()
 			while ($sw.elapsed -lt $timeout){
 				Wait-Time -seconds 30
-				$state = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password "cat /home/$user/state.txt"
+				$state = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password "cat /home/$user/state.txt" -runAsSudo
+				Write-LogDbg "state is $state"
 				if ($state -eq "TestCompleted") {
-					$kernelCompileCompleted = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password "cat ~/constants.sh | grep job_completed=0"
+					$kernelCompileCompleted = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password "cat /home/$user/constants.sh | grep job_completed=0" -runAsSudo
 					if ($kernelCompileCompleted -ne "job_completed=0") {
 						Write-LogErr "$local_script finished on $($AllVMData[0].RoleName) but setup was not successful!"
 					} else {
