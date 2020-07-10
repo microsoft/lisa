@@ -140,59 +140,44 @@ Function Upload-TestResultDataToDatabase ([Array] $TestResultData, [Object] $Dat
 	$tableName = $DatabaseConfig.dbtable
 
 	if ($server -and $dbUser -and $dbPassword -and $dbName -and $tableName) {
-		$retry = 0
-		$maxRetry = 3
-		while ($retry -lt $maxRetry) {
-			$retry++
-			$uploadSucceeded = $true
-			try {
-				$connectionString = "Server=$server;uid=$dbuser; pwd=$dbpassword;Database=$dbName;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
-				$connection = New-Object System.Data.SqlClient.SqlConnection
-				$connection.ConnectionString = $connectionString
-				$connection.Open()
-				foreach ($map in $TestResultData) {
-					$queryKey = "INSERT INTO $tableName ("
-					$queryValue = "VALUES ("
-					foreach ($key in $map.Keys) {
-						$queryKey += "$key,"
-						if (($null -ne $map[$key]) -and ($map[$key].GetType().Name -eq "String")) {
-							$queryValue += "'$($map[$key])',"
-						}
-						else {
-							$queryValue += "$($map[$key]),"
-						}
+		try {
+			$connectionString = "Server=$server;uid=$dbuser; pwd=$dbpassword;Database=$dbName;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
+			$connection = New-Object System.Data.SqlClient.SqlConnection
+			$connection.ConnectionString = $connectionString
+			$connection.Open()
+			foreach ($map in $TestResultData) {
+				$queryKey = "INSERT INTO $tableName ("
+				$queryValue = "VALUES ("
+				foreach ($key in $map.Keys) {
+					$queryKey += "$key,"
+					if (($null -ne $map[$key]) -and ($map[$key].GetType().Name -eq "String")) {
+						$queryValue += "'$($map[$key])',"
 					}
-					$query = $queryKey.TrimEnd(",") + ") " + $queryValue.TrimEnd(",") + ")"
-					Write-LogInfo "SQLQuery:  $query"
-					$command = $connection.CreateCommand()
-					$command.CommandText = $query
-					$null = $command.executenonquery()
+					else {
+						$queryValue += "$($map[$key]),"
+					}
 				}
-				$connection.Close()
-				Write-LogInfo "Succeed to upload test results to database"
+				$query = $queryKey.TrimEnd(",") + ") " + $queryValue.TrimEnd(",") + ")"
+				Write-LogInfo "SQLQuery:  $query"
+				$command = $connection.CreateCommand()
+				$command.CommandText = $query
+				$null = $command.executenonquery()
 			}
-			catch {
-				$uploadSucceeded = $false
-				Write-LogErr "Fail to upload test results to database"
-				$line = $_.InvocationInfo.ScriptLineNumber
-				$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD, ".")
-				$ErrorMessage = $_.Exception.Message
-				Write-LogInfo "EXCEPTION : $ErrorMessage"
-				Write-LogInfo "Source : Line $line in script $script_name."
-				if ($retry -lt $maxRetry) {
-					Start-Sleep -Seconds 1
-					Write-LogWarn "Retring, attempt $retry"
-				} else {
-					# throw from catch, in order to be caught by caller module/function
-					throw $_.Exception
-				}
-			}
-			finally {
-				$connection.Close()
-			}
+			$connection.Close()
+			Write-LogInfo "Succeed to upload test results to database"
 		}
-		if ($uploadSucceeded) {
-			break
+		catch {
+			Write-LogErr "Fail to upload test results to database"
+			$line = $_.InvocationInfo.ScriptLineNumber
+			$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD, ".")
+			$ErrorMessage = $_.Exception.Message
+			Write-LogInfo "EXCEPTION : $ErrorMessage"
+			Write-LogInfo "Source : Line $line in script $script_name."
+			# throw from catch, in order to be caught by caller module/function
+			throw $_.Exception
+		}
+		finally {
+			$connection.Close()
 		}
 	}
  else {
