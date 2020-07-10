@@ -181,10 +181,9 @@ SetTestStateCompleted
 			$targetIPAddress = $AllVMData[1].InternalIP
 			$workCommand = @"
 source utils.sh
-touch workload.json
 for jn in 1 2 3 4 5 6 7 8 9 10
 do
-iperf -c $targetIPAddress -t 60 -P 8 >> workload.json
+iperf3 -c $targetIPAddress -t 60 -P 8 >> workload.json
 done
 "@
 			Set-Content "$LogDir\workCommand.sh" $workCommand
@@ -193,7 +192,8 @@ done
 		$setupcommand = @"
 source utils.sh
 update_repos
-install_package "fio iperf"
+install_package "fio"
+install_iperf3
 "@
 		Set-Content "$LogDir\setup.sh" $setupcommand
 		#endregion
@@ -208,7 +208,7 @@ install_package "fio iperf"
 
 		if ($isNetworkWorkloadEnable -eq 1) {
 			Write-LogInfo "Running iperf server in the backgroud job"
-			Run-LinuxCmd -ip $AllVMData[1].PublicIP -port $AllVMData[1].SSHPort -username $user -password $password -command "iperf -s -D" -RunInBackground -runAsSudo
+			Run-LinuxCmd -ip $AllVMData[1].PublicIP -port $AllVMData[1].SSHPort -username $user -password $password -command "iperf3 -s -D" -RunInBackground -runAsSudo
 			Start-Sleep -s 10
 		}
 
