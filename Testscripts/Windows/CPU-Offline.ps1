@@ -181,7 +181,11 @@ SetTestStateCompleted
 			$targetIPAddress = $AllVMData[1].InternalIP
 			$workCommand = @"
 source utils.sh
-iperf -c $targetIPAddress -t 600 -P 8 > workload.json
+touch workload.json
+for jn in 1 2 3 4 5 6 7 8 9 10
+do
+iperf -c $targetIPAddress -t 60 -P 8 >> workload.json
+done
 "@
 			Set-Content "$LogDir\workCommand.sh" $workCommand
 		}
@@ -204,7 +208,7 @@ install_package "fio iperf"
 
 		if ($isNetworkWorkloadEnable -eq 1) {
 			Write-LogInfo "Running iperf server in the backgroud job"
-			Run-LinuxCmd -ip $AllVMData[1].PublicIP -port $AllVMData[1].SSHPort -username $user -password $password -command "iperf -s -D" -RunInBackground -runAsSudo | Out-Null
+			Run-LinuxCmd -ip $AllVMData[1].PublicIP -port $AllVMData[1].SSHPort -username $user -password $password -command "iperf -s -D" -RunInBackground -runAsSudo
 			Start-Sleep -s 10
 		}
 
@@ -258,15 +262,13 @@ install_package "fio iperf"
 
 			if ($isNetworkWorkloadEnable -eq 1) {
 				Write-LogInfo "Archiving network workload result"
-				Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "cat workload.json >> TestExecution.log" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+				Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "cat workload.json >> TestExecution.log" -RunInBackground -runAsSudo
 			}
 
 			# Revert state.txt and remove job_completed=0
-			foreach ($VMData in $AllVMData) {
-				$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "chmod 766 state.txt" -runAsSudo
-				$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat /dev/null > state.txt" -runAsSudo
-				$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "sed -i -e 's/job_completed=0//g' constants.sh" -runAsSudo
-			}
+			$state = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "chmod 766 /home/$user/state.txt" -runAsSudo
+			$state = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "cat /dev/null > /home/$user/state.txt" -runAsSudo
+			$state = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "sed -i -e 's/job_completed=0//g' /home/$user/constants.sh" -runAsSudo
 
 			if ($vm_reboot -eq "yes") {
 				# ##################################################################################
