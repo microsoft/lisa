@@ -1,0 +1,14 @@
+<TestCases>
+ 
+    <test>
+        <testName>KERNEL-DEBUG-BASIC</testName>
+        <testScript>KERNEL-DEBUG-BASIC.ps1</testScript>
+        <files>.\Testscripts\Linux\check_traces.sh,.\Testscripts\Linux\utils.sh</files>
+        <setupType>OneVM</setupType>
+        <Platform>HyperV</Platform>
+        <Category>Functional</Category>
+        <Area>Kernel-Debug</Area>
+        <Tags>kernel-debug</Tags>
+        <Priority>1</Priority>    </test>
+    
+</TestCases>
