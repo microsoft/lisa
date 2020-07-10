@@ -82,30 +82,45 @@ Function Upload-TestResultToDatabase ([String]$SQLQuery) {
 		$database = $XmlSecrets.secrets.DatabaseName
 
 		if ($dataSource -and $dbuser -and $dbpassword -and $database) {
-			try {
-				Write-LogInfo "SQLQuery:  $SQLQuery"
-				$connectionString = "Server=$dataSource;uid=$dbuser; pwd=$dbpassword;Database=$database;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
-				$connection = New-Object System.Data.SqlClient.SqlConnection
-				$connection.ConnectionString = $connectionString
-				$connection.Open()
-				$command = $connection.CreateCommand()
-				$command.CommandText = $SQLQuery
-				$null = $command.executenonquery()
-				$connection.Close()
-				Write-LogInfo "Uploading test results to database: DONE"
-			}
-			catch {
-				Write-LogErr "Uploading test results to database: ERROR"
-				$line = $_.InvocationInfo.ScriptLineNumber
-				$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD, ".")
-				$ErrorMessage = $_.Exception.Message
-				Write-LogErr "EXCEPTION : $ErrorMessage"
-				Write-LogErr "Source : Line $line in script $script_name."
-				# throw from catch, in order to be caught by caller module/function
-				throw $_.Exception
-			}
-			finally {
-				$connection.Close()
+			$retry = 0
+			$maxRetry = 3
+			while ($retry -lt $maxRetry) {
+				$retry++
+				$uploadSucceeded = $true
+				try {
+					Write-LogInfo "SQLQuery:  $SQLQuery"
+					$connectionString = "Server=$dataSource;uid=$dbuser; pwd=$dbpassword;Database=$database;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
+					$connection = New-Object System.Data.SqlClient.SqlConnection
+					$connection.ConnectionString = $connectionString
+					$connection.Open()
+					$command = $connection.CreateCommand()
+					$command.CommandText = $SQLQuery
+					$null = $command.executenonquery()
+					$connection.Close()
+					Write-LogInfo "Uploading test results to database: DONE"
+				}
+				catch {
+					$uploadSucceeded = $false
+					Write-LogErr "Uploading test results to database: ERROR"
+					$line = $_.InvocationInfo.ScriptLineNumber
+					$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD, ".")
+					$ErrorMessage = $_.Exception.Message
+					Write-LogErr "EXCEPTION : $ErrorMessage"
+					Write-LogErr "Source : Line $line in script $script_name."
+					if ($retry -lt $maxRetry) {
+						Start-Sleep -Seconds 1
+						Write-LogWarn "Retring, attempt $retry"
+					} else {
+						# throw from catch, in order to be caught by caller module/function
+						throw $_.Exception
+					}
+				}
+				finally {
+					$connection.Close()
+				}
+				if ($uploadSucceeded) {
+					break
+				}
 			}
 		}
 		else {
@@ -125,44 +140,59 @@ Function Upload-TestResultDataToDatabase ([Array] $TestResultData, [Object] $Dat
 	$tableName = $DatabaseConfig.dbtable
 
 	if ($server -and $dbUser -and $dbPassword -and $dbName -and $tableName) {
-		try {
-			$connectionString = "Server=$server;uid=$dbuser; pwd=$dbpassword;Database=$dbName;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
-			$connection = New-Object System.Data.SqlClient.SqlConnection
-			$connection.ConnectionString = $connectionString
-			$connection.Open()
-			foreach ($map in $TestResultData) {
-				$queryKey = "INSERT INTO $tableName ("
-				$queryValue = "VALUES ("
-				foreach ($key in $map.Keys) {
-					$queryKey += "$key,"
-					if (($null -ne $map[$key]) -and ($map[$key].GetType().Name -eq "String")) {
-						$queryValue += "'$($map[$key])',"
+		$retry = 0
+		$maxRetry = 3
+		while ($retry -lt $maxRetry) {
+			$retry++
+			$uploadSucceeded = $true
+			try {
+				$connectionString = "Server=$server;uid=$dbuser; pwd=$dbpassword;Database=$dbName;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
+				$connection = New-Object System.Data.SqlClient.SqlConnection
+				$connection.ConnectionString = $connectionString
+				$connection.Open()
+				foreach ($map in $TestResultData) {
+					$queryKey = "INSERT INTO $tableName ("
+					$queryValue = "VALUES ("
+					foreach ($key in $map.Keys) {
+						$queryKey += "$key,"
+						if (($null -ne $map[$key]) -and ($map[$key].GetType().Name -eq "String")) {
+							$queryValue += "'$($map[$key])',"
+						}
+						else {
+							$queryValue += "$($map[$key]),"
+						}
 					}
-					else {
-						$queryValue += "$($map[$key]),"
-					}
+					$query = $queryKey.TrimEnd(",") + ") " + $queryValue.TrimEnd(",") + ")"
+					Write-LogInfo "SQLQuery:  $query"
+					$command = $connection.CreateCommand()
+					$command.CommandText = $query
+					$null = $command.executenonquery()
 				}
-				$query = $queryKey.TrimEnd(",") + ") " + $queryValue.TrimEnd(",") + ")"
-				Write-LogInfo "SQLQuery:  $query"
-				$command = $connection.CreateCommand()
-				$command.CommandText = $query
-				$null = $command.executenonquery()
+				$connection.Close()
+				Write-LogInfo "Succeed to upload test results to database"
 			}
-			$connection.Close()
-			Write-LogInfo "Succeed to upload test results to database"
+			catch {
+				$uploadSucceeded = $false
+				Write-LogErr "Fail to upload test results to database"
+				$line = $_.InvocationInfo.ScriptLineNumber
+				$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD, ".")
+				$ErrorMessage = $_.Exception.Message
+				Write-LogInfo "EXCEPTION : $ErrorMessage"
+				Write-LogInfo "Source : Line $line in script $script_name."
+				if ($retry -lt $maxRetry) {
+					Start-Sleep -Seconds 1
+					Write-LogWarn "Retring, attempt $retry"
+				} else {
+					# throw from catch, in order to be caught by caller module/function
+					throw $_.Exception
+				}
+			}
+			finally {
+				$connection.Close()
+			}
 		}
-		catch {
-			Write-LogErr "Fail to upload test results to database"
-			$line = $_.InvocationInfo.ScriptLineNumber
-			$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD, ".")
-			$ErrorMessage = $_.Exception.Message
-			Write-LogInfo "EXCEPTION : $ErrorMessage"
-			Write-LogInfo "Source : Line $line in script $script_name."
-			# throw from catch, in order to be caught by caller module/function
-			throw $_.Exception
-		}
-		finally {
-			$connection.Close()
+		if ($uploadSucceeded) {
+			break
 		}
 	}
  else {
