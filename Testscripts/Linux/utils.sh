@@ -2421,11 +2421,13 @@ function install_iperf3 () {
 		sles|sle_hpc)
 			if [[ $DISTRO_VERSION =~ 12|15 ]]; then
 				add_sles_network_utilities_repo
-				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install sysstat git bc make gcc psmisc iperf3 iperf
+				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install sysstat git bc make gcc psmisc iperf
 			else
 				LogErr "Unsupported SLES version"
 				return 1
 			fi
+			# For SUSE, keep iperf and iperf3 in the same way
+			ln -s /usr/bin/iperf3 /usr/bin/iperf
 			# iperf3 is not available in the repository of SLES 12
 			which iperf3
 			if [ $? -ne 0 ]; then
