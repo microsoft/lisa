@@ -131,7 +131,9 @@ function Main() {
 		fi
 
 		if [[ $DISTRO == "redhat_8" ]] || [[ $DISTRO == "centos_8" ]]; then
-			# comment out those 2 parameters in RHEL/CentOS 8.x
+			# comment out those 3 parameters in RHEL/CentOS 8.x
+			# In 8.x, those new trusted key files need to update. But this is out of scope of testing.
+			# Commented out unnecessary debug kernel parameter.
 			sed -i -e "s/CONFIG_SYSTEM_TRUSTED_KEY*.*/#CONFIG_SYSTEM_TRUSTED_KEY/g" .config
 			sed -i -e "s/CONFIG_MODULE_SIG_KEY*.*/#CONFIG_MODULE_SIG_KEY/g" .config
 			sed -i -e "s/CONFIG_DEBUG_INFO_BTF*.*/#CONFIG_DEBUG_INFO_BTF/g" .config

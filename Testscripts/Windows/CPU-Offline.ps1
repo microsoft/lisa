@@ -117,7 +117,7 @@ function Main {
 		Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "bash CPUOfflineKernelBuild.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
 		Write-LogInfo "Executing CPUOfflineKernelBuild script inside VM"
 
-		# Wait for kernel compilation completion. 90 min timeout
+		# Wait for kernel compilation completion. 60 min timeout
 		$timeout = New-Timespan -Minutes 60
 		$sw = [diagnostics.stopwatch]::StartNew()
 		while ($sw.elapsed -lt $timeout){
@@ -138,7 +138,7 @@ function Main {
 				$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
 				return $currentTestResult.TestResult
 			} elseif ($state -eq "TestFailed") {
-				Write-LogErr "CPUOfflineKernelBuild.sh didn't finish on $($AllVMData[0].RoleName)."
+				Write-LogErr "CPUOfflineKernelBuild.sh finished the failed state on $($AllVMData[0].RoleName)."
 				$resultArr = $resultFail
 				$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
 				return $currentTestResult.TestResult
@@ -184,7 +184,7 @@ SetTestStateCompleted
 source utils.sh
 for jn in 1 2 3 4 5 6 7 8 9 10
 do
-iperf3 -c $targetIPAddress -t 60 -P 8 >> workload.json
+iperf3 -c $targetIPAddress -t 60 -P $(nproc) >> workload.json
 done
 "@
 			Set-Content "$LogDir\workCommand.sh" $workCommand
@@ -223,7 +223,7 @@ install_iperf3
 			Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "./$local_script" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
 			Write-LogInfo "Executed $local_script script inside VM"
 
-			# Wait for kernel compilation completion. 90 min timeout
+			# Wait for kernel compilation completion. 60 min timeout
 			$timeout = New-Timespan -Minutes 60
 			$sw = [diagnostics.stopwatch]::StartNew()
 			while ($sw.elapsed -lt $timeout){
@@ -244,7 +244,7 @@ install_iperf3
 					$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
 					return $currentTestResult.TestResult
 				} elseif ($state -eq "TestFailed") {
-					Write-LogErr "$local_script didn't finish on $($AllVMData[0].RoleName)."
+					Write-LogErr "$local_script finished the failed state on $($AllVMData[0].RoleName)."
 					$resultArr = $resultFail
 					$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
 					return $currentTestResult.TestResult
