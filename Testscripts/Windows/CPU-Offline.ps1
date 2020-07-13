@@ -182,10 +182,9 @@ SetTestStateCompleted
 			$targetIPAddress = $AllVMData[1].InternalIP
 			$workCommand = @"
 source utils.sh
-nc=$(nproc)
 for jn in 1 2 3 4 5 6 7 8 9 10
 do
-iperf3 -c $targetIPAddress -t 60 -P $nc >> workload.json
+iperf3 -c $targetIPAddress -t 60 -P 32 >> workload.json
 done
 "@
 			Set-Content "$LogDir\workCommand.sh" $workCommand
