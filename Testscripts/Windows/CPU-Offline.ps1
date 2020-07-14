@@ -114,7 +114,7 @@ function Main {
 
 		# ##################################################################################
 		# New kernel build for CPU channel change and vmbus interrupt re-assignment
-		Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "bash CPUOfflineKernelBuild.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+		Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "bash /home/$user/CPUOfflineKernelBuild.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
 		Write-LogInfo "Executing CPUOfflineKernelBuild script inside VM"
 
 		# Wait for kernel compilation completion. 60 min timeout
@@ -203,7 +203,7 @@ install_iperf3
 		foreach ($VMData in $AllVMData) {
 			Copy-RemoteFiles -uploadTo $VMData.PublicIP -port $VMData.SSHPort -files "$constantsFile,$($CurrentTestData.files),$LogDir\*.sh" -username $user -password $password -upload
 			Write-LogInfo "Copied the script files to the VM"
-			Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "bash setup.sh" -runAsSudo
+			Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "bash /home/$user/setup.sh" -runAsSudo
 		}
 		#endregion
 
@@ -216,11 +216,11 @@ install_iperf3
 		for ($loopCount = 1;$loopCount -le $max_stress_count;$loopCount++) {
 			if (($isStorageWorkloadEnable -eq 1) -or ($isNetworkWorkloadEnable -eq 1)) {
 				Write-LogInfo "Running workload command in the background job"
-				Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "bash workCommand.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+				Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "bash /home/$user/workCommand.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
 			}
 			# Feature test and stress test case with $local_script
 			# Running the local test script
-			Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "./$local_script" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+			Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "bash /home/$user/$local_script" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
 			Write-LogInfo "Executed $local_script script inside VM"
 
 			# Wait for kernel compilation completion. 60 min timeout
@@ -264,7 +264,7 @@ install_iperf3
 
 			if ($isNetworkWorkloadEnable -eq 1) {
 				Write-LogInfo "Archiving network workload result"
-				Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "cat workload.json >> TestExecution.log" -RunInBackground -runAsSudo
+				Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "cat /home/$user/workload.json >> /home/$user/TestExecution.log" -RunInBackground -runAsSudo
 			}
 
 			# Revert state.txt and remove job_completed=0
