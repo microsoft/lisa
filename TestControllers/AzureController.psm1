@@ -74,9 +74,7 @@ Class AzureController : TestController
 				$parameterErrors += "-OsVHD $($this.OsVHD) does not have .vhd extension required by Platform Azure."
 			}
 		}
-		if (!$this.TestLocation) {
-			$parameterErrors += "-TestLocation <AzureRegion> is required."
-		}
+
 		if ($parameterErrors.Count -gt 0) {
 			$parameterErrors | ForEach-Object { Write-LogErr $_ }
 			throw "Failed to validate the test parameters provided. Please fix above issues and retry."
@@ -99,11 +97,11 @@ Class AzureController : TestController
 		}
 		# Invoke Base.PrepareTestEnvironment($XMLSecretFile)
 		([TestController]$this).PrepareTestEnvironment($XMLSecretFile)
-		$RegionAndStorageMapFile = Resolve-Path ".\XML\RegionAndStorageAccounts.xml"
+		$RegionAndStorageMapFile = "$PSScriptRoot\..\XML\RegionAndStorageAccounts.xml"
 		if (Test-Path $RegionAndStorageMapFile) {
 			$RegionAndStorageMap = [xml](Get-Content $RegionAndStorageMapFile)
 		} else {
-			throw "File $RegionAndStorageMapFile does not exist"
+			throw "File '$RegionAndStorageMapFile' does not exist"
 		}
 		$azureConfig = $this.GlobalConfig.Global.Azure
 		# $this.XMLSecrets will be assigned after Base.PrepareTestEnvironment($XMLSecretFile)
@@ -130,29 +128,35 @@ Class AzureController : TestController
 			$this.VmPassword = ""
 		}
 		# global variables: StorageAccount, TestLocation
-		if ( $this.StorageAccount -imatch "^ExistingStorage_Standard" ) {
-			$azureConfig.Subscription.ARMStorageAccount = $RegionAndStorageMap.AllRegions.$($this.TestLocation).StandardStorage
-			Write-LogInfo "Selecting existing standard storage account in $($this.TestLocation) - $($azureConfig.Subscription.ARMStorageAccount)"
-		}
-		elseif ( $this.StorageAccount -imatch "^ExistingStorage_Premium" ) {
-			$azureConfig.Subscription.ARMStorageAccount = $RegionAndStorageMap.AllRegions.$($this.TestLocation).PremiumStorage
-			Write-LogInfo "Selecting existing premium storage account in $($this.TestLocation) - $($azureConfig.Subscription.ARMStorageAccount)"
-		}
-		elseif ($this.StorageAccount -and ($this.StorageAccount -inotmatch "^Auto_Complete_RG=.+")) {
-			 # $this.StorageAccount should be some exact name of Storage Account
-			$sc = Get-AzStorageAccount | Where-Object {$_.StorageAccountName -eq $this.StorageAccount}
-			if (!$sc) {
-				Throw "Provided storage account $($this.StorageAccount) does not exist, abort testing."
+		if ($this.TestLocation) {
+			if ( $this.StorageAccount -imatch "^ExistingStorage_Standard" ) {
+				$azureConfig.Subscription.ARMStorageAccount = $RegionAndStorageMap.AllRegions.$($this.TestLocation).StandardStorage
+				Write-LogInfo "Selecting existing standard storage account in $($this.TestLocation) - $($azureConfig.Subscription.ARMStorageAccount)"
 			}
-			if($sc.Location -ne $this.TestLocation) {
-				Throw "Provided storage account $($this.StorageAccount) location $($sc.Location) is different from test location $($this.TestLocation), abort testing."
+			elseif ( $this.StorageAccount -imatch "^ExistingStorage_Premium" ) {
+				$azureConfig.Subscription.ARMStorageAccount = $RegionAndStorageMap.AllRegions.$($this.TestLocation).PremiumStorage
+				Write-LogInfo "Selecting existing premium storage account in $($this.TestLocation) - $($azureConfig.Subscription.ARMStorageAccount)"
 			}
-			$azureConfig.Subscription.ARMStorageAccount = $this.StorageAccount.Trim()
-			Write-LogInfo "Selecting custom storage account : $($azureConfig.Subscription.ARMStorageAccount) as per your test region."
+			elseif ($this.StorageAccount -and ($this.StorageAccount -inotmatch "^Auto_Complete_RG=.+")) {
+				# $this.StorageAccount should be some exact name of Storage Account
+				$sc = Get-AzStorageAccount | Where-Object {$_.StorageAccountName -eq $this.StorageAccount}
+				if (!$sc) {
+					Throw "Provided storage account $($this.StorageAccount) does not exist, abort testing."
+				}
+				if($sc.Location -ne $this.TestLocation) {
+					Throw "Provided storage account $($this.StorageAccount) location $($sc.Location) is different from test location $($this.TestLocation), abort testing."
+				}
+				$azureConfig.Subscription.ARMStorageAccount = $this.StorageAccount.Trim()
+				Write-LogInfo "Selecting custom storage account : $($azureConfig.Subscription.ARMStorageAccount) as per your test region."
+			}
+			else { # else means $this.StorageAccount is empty, or $this.StorageAccount is like 'Auto_Complete_RG=Xxx'
+				$azureConfig.Subscription.ARMStorageAccount = $RegionAndStorageMap.AllRegions.$($this.TestLocation).StandardStorage
+				Write-LogInfo "Auto selecting storage account : $($azureConfig.Subscription.ARMStorageAccount) as per your test region."
+			}
 		}
-		else { # else means $this.StorageAccount is empty, or $this.StorageAccount is like 'Auto_Complete_RG=Xxx'
-			$azureConfig.Subscription.ARMStorageAccount = $RegionAndStorageMap.AllRegions.$($this.TestLocation).StandardStorage
-			Write-LogInfo "Auto selecting storage account : $($azureConfig.Subscription.ARMStorageAccount) as per your test region."
+		else {
+			$azureConfig.Subscription.ARMStorageAccount = $RegionAndStorageMap.AllRegions.ChildNodes[0].StandardStorage
+			Write-LogInfo "Parameter '-TestLocation' is null, auto selecting the first storage account : $($azureConfig.Subscription.ARMStorageAccount) per storage accounts from .\XML\RegionAndStorageAccounts.xml (or copied from secrets xml file)"
 		}
 
 		if ($this.ResultDBTable) {
@@ -238,5 +242,11 @@ Class AzureController : TestController
 			Set-Variable -Name BaseOsVHD -Value $this.OsVHD -Scope Global
 			Write-LogInfo "New Base VHD name - $($this.OsVHD)"
 		}
+	}
+
+	[void] LoadTestCases($WorkingDirectory, $CustomTestParameters) {
+		([TestController]$this).LoadTestCases($WorkingDirectory, $CustomTestParameters)
+
+		Measure-SubscriptionCapabilities
 	}
 }

@@ -266,8 +266,8 @@ function Main() {
 				fi
 			done
 			LogMsg "*** System updating with the customized ppa"
-			apt update
-			apt upgrade -y
+			update_repos
+			Update_Kernel
 			Verify_Result
 			;;
 		*)

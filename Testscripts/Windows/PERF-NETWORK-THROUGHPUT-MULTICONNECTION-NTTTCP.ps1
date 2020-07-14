@@ -61,17 +61,17 @@ function Main {
         #endregion
 
         Write-LogInfo "Getting Active NIC Name."
-        if ($TestPlatform -eq "Azure") {
+        if ($TestPlatform -eq "HyperV") {
+            $clientNicName = Get-GuestInterfaceByVSwitch $TestParams.PERF_NIC $clientVMData.RoleName `
+                $clientVMData.HypervHost $user $clientVMData.PublicIP $password $clientVMData.SSHPort
+            $serverNicName = Get-GuestInterfaceByVSwitch $TestParams.PERF_NIC $serverVMData.RoleName `
+                $serverVMData.HypervHost $user $serverVMData.PublicIP $password $serverVMData.SSHPort
+        } else {
             $getNicCmd = ". ./utils.sh &> /dev/null && get_active_nic_name"
             $clientNicName = (Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort `
                 -username "root" -password $password -command $getNicCmd).Trim()
             $serverNicName = (Run-LinuxCmd -ip $serverVMData.PublicIP -port $serverVMData.SSHPort `
                 -username "root" -password $password -command $getNicCmd).Trim()
-        } elseif ($TestPlatform -eq "HyperV") {
-            $clientNicName = Get-GuestInterfaceByVSwitch $TestParams.PERF_NIC $clientVMData.RoleName `
-                $clientVMData.HypervHost $user $clientVMData.PublicIP $password $clientVMData.SSHPort
-            $serverNicName = Get-GuestInterfaceByVSwitch $TestParams.PERF_NIC $serverVMData.RoleName `
-                $serverVMData.HypervHost $user $serverVMData.PublicIP $password $serverVMData.SSHPort
         }
 
         if ($serverNicName -eq $clientNicName) {

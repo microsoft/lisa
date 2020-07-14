@@ -26,8 +26,8 @@ SetTestStateRunning
 
 rm -rf ~/samples
 
-sudo apt-get update
-sudo apt-get -y upgrade
+sudo DEBIAN_FRONTEND=noninteractive apt-get update
+sudo DEBIAN_FRONTEND=noninteractive apt-get upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"
 echo "----- Checking sgx driver -----"
 if ! modinfo intel_sgx; then
     echo "modinfo intel_sgx failed"
@@ -93,5 +93,45 @@ if [ $NUM_PASS -ne "$(wc -w <<< $SAMPLES)" ]; then
     SetTestStateFailed
     exit 1
 fi
+
+echo "----- Running FS/GS Enabled Test -----"
+cd ~
+cat <<EOF >main.c
+#include <stdio.h>
+#include <stdlib.h>
+#include <signal.h>
+#include <unistd.h>
+
+#define handle_error(msg) \
+    do { perror(msg); exit(-1); } while (0)
+
+static void handler(int sig, siginfo_t *si, void *unused)
+{
+    exit(-1);
+}
+
+int main() {
+    struct sigaction sa;
+    sa.sa_flags = SA_SIGINFO;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_sigaction = handler;
+    if (sigaction(SIGILL, &sa, NULL) == -1)
+        handle_error("sigaction");
+
+    volatile unsigned long x;
+    __asm__ volatile ( "rdfsbase %0" : "=r" (x) );
+    __asm__ volatile ( "wrfsbase %0" :: "r" (x) );
+    __asm__ volatile ( "rdgsbase %0" : "=r" (x) );
+    __asm__ volatile ( "wrgsbase %0" :: "r" (x) );
+    printf("SUCCESS\n");
+    exit(0);
+}
+EOF
+gcc -o test-fsgs-enabled ./main.c
+if [[ "$(./test-fsgs-enabled)" != "SUCCESS" ]]; then
+    SetTestStateFailed
+    exit 1
+fi
+
 SetTestStateCompleted
 exit 0

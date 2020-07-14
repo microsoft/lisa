@@ -117,7 +117,7 @@ Class TestController
 	[void] UpdateXMLStringsFromSecretsFile()
 	{
 		if ($this.XMLSecrets) {
-			$TestXMLs = Get-ChildItem -Path ".\XML\TestCases\*.xml"
+			$TestXMLs = Get-ChildItem -Path "$PSScriptRoot\..\XML\TestCases\*.xml"
 
 			foreach ($file in $TestXMLs)
 			{
@@ -141,7 +141,7 @@ Class TestController
 	[void] UpdateRegionAndStorageAccountsFromSecretsFile()
 	{
 		if ($this.XMLSecrets.secrets.RegionAndStorageAccounts) {
-			$FilePath = Resolve-Path ".\XML\RegionAndStorageAccounts.xml"
+			$FilePath = "$PSScriptRoot\..\XML\RegionAndStorageAccounts.xml"
 			$CurrentStorageXML = [xml](Get-Content $FilePath)
 			$CurrentStorageXML.AllRegions.InnerXml = $this.XMLSecrets.secrets.RegionAndStorageAccounts.InnerXml
 			$CurrentStorageXML.Save($FilePath)
@@ -153,23 +153,22 @@ Class TestController
 		if ($XMLSecretFile) {
 			if (Test-Path -Path $XMLSecretFile) {
 				$this.XmlSecrets = ([xml](Get-Content $XMLSecretFile))
-
 				# Download the tools required for LISAv2 execution.
 				Get-LISAv2Tools -XMLSecretFile $XMLSecretFile
 				$this.UpdateXMLStringsFromSecretsFile()
 				$this.UpdateRegionAndStorageAccountsFromSecretsFile()
 			} else {
-				Write-LogErr "The Secret file provided: $XMLSecretFile does not exist"
+				Write-LogErr "The Secret file provided: '$XMLSecretFile' does not exist"
 			}
 		} else {
 			Write-LogErr "Failed to update configuration files. '-XMLSecretFile [FilePath]' is not provided."
 		}
-		$GlobalConfigurationFile = Resolve-Path ".\XML\GlobalConfigurations.xml"
+		$GlobalConfigurationFile = "$PSScriptRoot\..\XML\GlobalConfigurations.xml"
 		if (Test-Path -Path $GlobalConfigurationFile) {
 			$this.GlobalConfigurationFilePath = $GlobalConfigurationFile
 			$this.GlobalConfig = [xml](Get-Content $GlobalConfigurationFile)
 		} else {
-			throw "Global configuration $GlobalConfigurationFile file does not exist"
+			throw "Global configuration '$GlobalConfigurationFile' file does not exist"
 		}
 	}
 
@@ -209,28 +208,41 @@ Class TestController
 	[void] LoadTestCases($WorkingDirectory, $CustomTestParameters) {
 		$this.SetupTypeToTestCases = @{}
 		$this.SetupTypeTable = @{}
-
+		if (!$global:AllTestVMSizes) {
+			Set-Variable -Name AllTestVMSizes -Value @{} -Option ReadOnly -Scope Global
+		}
 		$TestXMLs = Get-ChildItem -Path "$WorkingDirectory\XML\TestCases\*.xml"
 		$SetupTypeXMLs = Get-ChildItem -Path "$WorkingDirectory\XML\VMConfigurations\*.xml"
 		$ReplaceableTestParameters = [xml](Get-Content -Path "$WorkingDirectory\XML\Other\ReplaceableTestParameters.xml")
 
-		$allTests = Collect-TestCases -TestXMLs $TestXMLs -TestCategory $this.TestCategory -TestArea $this.TestArea `
+		$allTests = Select-TestCases -TestXMLs $TestXMLs -TestCategory $this.TestCategory -TestArea $this.TestArea -TestLocation $this.TestLocation `
 			-TestNames $this.TestNames -TestTag $this.TestTag -TestPriority $this.TestPriority -ExcludeTests $this.ExcludeTests
 
-		if( !$allTests ) {
+		if (!$allTests) {
 			Throw "Not able to collect any test cases from XML files"
 		}
 		Write-LogInfo "$(@($allTests).Length) Test Cases have been collected"
 
-		$SetupTypes = $allTests.setupType | Sort-Object | Get-Unique
-
-		foreach ( $file in $SetupTypeXMLs.FullName) {
-			foreach ( $SetupType in $SetupTypes ) {
-				$CurrentSetupType = ([xml]( Get-Content -Path $file)).TestSetup
-				if ($CurrentSetupType.$SetupType) {
-					$this.SetupTypeTable[$SetupType] = $CurrentSetupType.$SetupType
+		$SetupTypes = $allTests.setupType | Sort-Object -Unique
+		foreach ($file in $SetupTypeXMLs.FullName) {
+			$setupXml = [xml]( Get-Content -Path $file)
+			foreach ($SetupType in $SetupTypes) {
+				$vmSizes = $setupXml.SelectNodes("/TestSetup/$SetupType/ResourceGroup/VirtualMachine/ARMInstanceSize") | Sort-Object -Unique
+				$vmSizes | ForEach-Object {
+					if ($_.InnerText -and !$AllTestVMSizes.($_.InnerText)) { $AllTestVMSizes["$($_.InnerText)"] = @{} }
+				}
+				if ($setupXml.TestSetup.$SetupType) {
+					$this.SetupTypeTable[$SetupType] = $setupXml.TestSetup.$SetupType
 				}
 			}
+		}
+
+		$vmSizes = $allTests.OverrideVMSize | Sort-Object -Unique
+		$vmSizes | ForEach-Object {
+			if ($_ -and !($AllTestVMSizes.$_)) { $AllTestVMSizes["$_"] = @{} }
+		}
+		$this.OverrideVMSize.Split(", ").Trim() | ForEach-Object {
+			if ($_ -and !($AllTestVMSizes.$_)) { $AllTestVMSizes["$_"] = @{} }
 		}
 		# Inject custom parameters
 		if ($CustomTestParameters) {
@@ -297,7 +309,7 @@ Class TestController
 			if ($test.setupType) {
 				$key = "$($test.setupType),$($test.OverrideVMSize),$($test.AdditionalHWConfig.Networking),$($test.AdditionalHWConfig.DiskType)," +
 					"$($test.AdditionalHWConfig.OSDiskType),$($test.AdditionalHWConfig.SwitchName),$($test.AdditionalHWConfig.ImageType)," +
-					"$($test.AdditionalHWConfig.OSType),$($test.AdditionalHWConfig.StorageAccountType)"
+					"$($test.AdditionalHWConfig.OSType),$($test.AdditionalHWConfig.StorageAccountType),$($test.AdditionalHWConfig.TestLocation)"
 				if ($this.SetupTypeToTestCases.ContainsKey($key)) {
 					$this.SetupTypeToTestCases[$key] += $test
 				} else {

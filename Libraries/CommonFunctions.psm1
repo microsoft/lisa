@@ -111,31 +111,26 @@ Function Match-TestTag($currentTest, $TestTag)
 # Before entering this function, $TestPlatform has been verified as "valid" in Run-LISAv2.ps1.
 # So, here we don't need to check $TestPlatform
 #
-Function Collect-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $TestTag, $TestPriority, $ExcludeTests)
+Function Select-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $TestTag, $TestPriority, $ExcludeTests, $TestLocation)
 {
     $AllLisaTests = @()
     $WildCards = @('^','.','[',']','?','+','*')
     $ExcludedTestsCount = 0
 
     # Check and cleanup the parameters
-    if ( $TestCategory -eq "All")   { $TestCategory = "*" }
-    if ( $TestArea -eq "All")       { $TestArea = "*" }
-    if ( $TestNames -eq "All")      { $TestNames = "*" }
-    if ( $TestTag -eq "All")        { $TestTag = "*" }
-    if ( $TestPriority -eq "All")   { $TestPriority = "*" }
-
-    if (!$TestCategory) { $TestCategory = "*" }
-    if (!$TestArea)     { $TestArea = "*" }
-    if (!$TestNames)    { $TestNames = "*" }
-    if (!$TestTag)      { $TestTag = "*" }
-    if (!$TestPriority) { $TestPriority = "*" }
+    if ("All" -imatch $TestCategory)   { $TestCategory = "*" }
+    if ("All" -imatch $TestArea)       { $TestArea = "*" }
+    if ("All" -imatch $TestNames)      { $TestNames = "*" }
+    if ("All" -imatch  $TestTag)       { $TestTag = "*" }
+    if ("All" -imatch  $TestPriority)  { $TestPriority = "*" }
+    if ("All" -imatch  $TestLocation)  { $TestLocation = "*" }
 
     # Filter test cases based on the criteria
     foreach ($file in $TestXMLs.FullName) {
         $currentTests = ([xml]( Get-Content -Path $file)).TestCases
         foreach ($test in $currentTests.test) {
             $platformMatched = $false
-            if ($TestPlatform -eq "Any") {
+            if ($TestPlatform -eq "Ready") {
                 $platformMatched = $true
             } else {
                 $platforms = $test.Platform.Split(",")
@@ -149,16 +144,20 @@ Function Collect-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Tes
             if (!$platformMatched) {
                 continue
             }
+            # case insensitive 'contains', and always complete match the concatenated expression for TestLocation of TestCase
+            if (($TestLocation -ne "*") -and $test.AdditionalHWConfig.TestLocation -and !($TestLocation.Trim(', ').Split(',').Trim() -contains $test.AdditionalHWConfig.TestLocation)) {
+                continue
+            }
             # case insensitive 'contains', and always complete match the concatenated expression for Category of TestCase
-            if (!($TestCategory.Trim(', ').Split(',').Trim() -contains $test.Category) -and ($TestCategory -ne "*")) {
+            if (($TestCategory -ne "*") -and !($TestCategory.Trim(', ').Split(',').Trim() -contains $test.Category)) {
                 continue
             }
             # case insensitive 'contains', and always complete match the concatenated expression for Area of TestCase
-            if (!($TestArea.Trim(', ').Split(',').Trim() -contains $test.Area) -and ($TestArea -ne "*")) {
+            if (($TestArea -ne "*") -and !($TestArea.Trim(', ').Split(',').Trim() -contains $test.Area)) {
                 continue
             }
             # case insensitive 'contains', and always complete match the concatenated expression for TestName of TestCase
-            if (!($TestNames.Trim(', ').Split(',').Trim() -contains $test.testName) -and ($TestNames -ne "*")) {
+            if (($TestNames -ne "*") -and !($TestNames.Trim(', ').Split(',').Trim() -contains $test.testName)) {
                 continue
             }
 
@@ -194,14 +193,7 @@ Function Collect-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Tes
                 }
             }
 
-            $testExist = $false
-            for ($i=0; $i -lt $AllLisaTests.length; $i++) {
-                if ($AllLisaTests[$i].TestName -eq $test.TestName) {
-                    $testExist = $true
-                    break
-                }
-            }
-            if ( $testExist -eq $false ) {
+            if (!($AllLisaTests | Where-Object {$_.TestName -eq $test.TestName})) {
                 Write-LogInfo "Collected test: $($test.TestName) from $file"
                 $AllLisaTests += $test
             } else {
@@ -212,7 +204,6 @@ Function Collect-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Tes
     if ($ExcludeTests) {
         Write-LogInfo "$ExcludedTestsCount Test Cases have been excluded"
     }
-
     return $AllLisaTests
 }
 

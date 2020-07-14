@@ -37,6 +37,7 @@ else
         fi
     fi
     if [ -f /root/.ssh/authorized_keys ]; then
+        echo >> /root/.ssh/authorized_keys
         cat /root/.ssh/id_rsa.pub >> /root/.ssh/authorized_keys
     else
         cat /root/.ssh/id_rsa.pub > /root/.ssh/authorized_keys

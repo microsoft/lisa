@@ -552,6 +552,30 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<!-- Reference: https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/index.html -->
 		<ReplaceWith>10.1.105-1</ReplaceWith>
 	</Parameter>
+    <Parameter>
+        <ReplaceThis>XRT_Repo_Url</ReplaceThis>
+        <ReplaceWith>https://github.com/xilinx/xrt.git</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>XDMA_File_Name</ReplaceThis>
+        <ReplaceWith>xilinx-u250-xdma-201830.2-2580015</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>XRT_Version</ReplaceThis>
+        <ReplaceWith>2019.2_PU2_RC4</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>CentOS_Supported_Version</ReplaceThis>
+        <ReplaceWith>7.7</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>Ubuntu_Supported_Version</ReplaceThis>
+        <ReplaceWith>18.04</ReplaceWith>
+    </Parameter>
+    <Parameter>
+        <ReplaceThis>Ubuntu_Supported_Kernel</ReplaceThis>
+        <ReplaceWith>4.18</ReplaceWith>
+    </Parameter>
 	<Parameter>
 		<ReplaceThis>LTP_BUILD_URL</ReplaceThis>
 		<ReplaceWith></ReplaceWith>
@@ -692,5 +716,21 @@ Scenario 2 : You need to run all the performance tests quickly.
 	<Parameter>
 		<ReplaceThis>LAGSCOPE_PING_ITERATIONS</ReplaceThis>
 		<ReplaceWith>1000000</ReplaceWith>
+  </Parameter>
+	<Parameter>
+		<ReplaceThis>ENABLE_MEMORY_WORKLOAD</ReplaceThis>
+		<ReplaceWith>yes</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>DEFAULT_HB_LOOP_COUNT</ReplaceThis>
+		<ReplaceWith>50</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>CPU_OFFLINE_VM_REBOOT</ReplaceThis>
+		<ReplaceWith>yes</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>DPDK_FAILSAFE_SH_URL</ReplaceThis>
+		<ReplaceWith>https://gallery.technet.microsoft.com/Azure-DPDK-Failsafe-PMD-c34b1a4b/file/183012/1/failsafe.sh</ReplaceWith>
 	</Parameter>
 </ReplaceableTestParameters>

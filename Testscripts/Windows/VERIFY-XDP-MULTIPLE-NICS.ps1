@@ -11,6 +11,7 @@ param([object] $AllVmData,
     [object] $CurrentTestData)
 
 $MIN_KERNEL_VERSION = "5.6"
+$RHEL_MIN_KERNEL_VERSION = "4.18.0-213"
 $iface1 = "eth1"
 $iface2 = "eth2"
 
@@ -71,9 +72,18 @@ function Main {
         $currentKernelVersion = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort `
                 -username $user -password $password -command "uname -r"
         # ToDo: Update Minimum kernel version check once patches are in downstream distro.
-        if ((Compare-KernelVersion $currentKernelVersion $MIN_KERNEL_VERSION) -lt 0 -or $global:DetectedDistro -ne "UBUNTU"){
-            Write-LogInfo "Minimum kernel version required for XDP: $MIN_KERNEL_VERSION."`
-                "Unsupported kernel version: $currentKernelVersion or Unsupported distro: $($global:DetectedDistro)."
+        if ($global:DetectedDistro -eq "UBUNTU"){
+            if ((Compare-KernelVersion $currentKernelVersion $MIN_KERNEL_VERSION) -lt 0){
+                Write-LogInfo "Unsupported kernel version: $currentKernelVersion"
+                return $global:ResultSkipped
+            }
+        } elseif ($global:DetectedDistro -eq "REDHAT"){
+            if ((Compare-KernelVersion $currentKernelVersion $RHEL_MIN_KERNEL_VERSION) -lt 0){
+                Write-LogInfo "Unsupported kernel version: $currentKernelVersion"
+                return $global:ResultSkipped
+            }
+        } else {
+            Write-LogInfo "Unsupported distro: $($global:DetectedDistro)."
             return $global:ResultSkipped
         }
 

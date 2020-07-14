@@ -18,11 +18,13 @@ function ping_test () {
 
 	xdpdumpCommand="cd bpf-samples/xdpdump && timeout 20 ./xdpdump -i ${nicName} > ~/xdpdumpout_${logSuffix}.txt"
 	LogMsg "Starting xdpdump on ${client} with command: ${xdpdumpCommand}"
-	ssh ${client} "sh -c '${xdpdumpCommand} &'"
+	ssh -f ${client} "sh -c '${xdpdumpCommand}'"
 
 	LogMsg "Starting ping on ${server} with command: ping -I ${nicName} -c 10 ${clientSecondIP} > ~/pingOut_${logSuffix}.txt"
 	ssh ${server} "ping -I ${nicName} -c 10 ${clientSecondIP} > ~/pingOut_${logSuffix}.txt"
 	check_exit_status "ping test ${logSuffix} XDPDump-${ACTION} config"
+	# Cleanup xdpdump process
+	killall xdpdump
 }
 
 # Helper function

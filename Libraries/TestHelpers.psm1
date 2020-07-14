@@ -65,9 +65,9 @@ function Upload-RemoteFile($uploadTo, $port, $file, $username, $password, $usePr
 	while($retry -le $maxRetry) {
 		if ($usePrivateKey) {
 			Write-LogDbg "Uploading $file to $username : $uploadTo, port $port using PrivateKey authentication"
-			Write-Output "yes" | .\Tools\pscp -i $sshKey -q -P $port $file $username@${uploadTo}:
+			Write-Output "y" | .\Tools\pscp -i $sshKey -q -P $port $file $username@${uploadTo}:
 			if ($LASTEXITCODE -ne 0) {
-				Write-Output "yes" | .\Tools\pscp -scp -i $sshKey -q -P $port $file $username@${uploadTo}:
+				Write-Output "y" | .\Tools\pscp -scp -i $sshKey -q -P $port $file $username@${uploadTo}:
 			}
 			$returnCode = $LASTEXITCODE
 		} else {
@@ -168,9 +168,9 @@ function Download-RemoteFile($downloadFrom, $downloadTo, $port, $file, $username
 				$downloadTo=$args[6];
 				$downloadStatusRandomFile=$args[7];
 				Set-Location $curDir;
-				Write-Output "yes" | .\Tools\pscp.exe -2 -unsafe -i $sshKey -q -P $port $username@${downloadFrom}:$testFile $downloadTo 2> $downloadStatusRandomFile;
+				Write-Output "y" | .\Tools\pscp.exe -2 -unsafe -i $sshKey -q -P $port $username@${downloadFrom}:$testFile $downloadTo 2> $downloadStatusRandomFile;
 				if ($LASTEXITCODE -ne 0) {
-					Write-Output "yes" | .\Tools\pscp.exe -2 -v -scp -unsafe -i $sshKey -q -P $port $username@${downloadFrom}:$testFile $downloadTo 2> $downloadStatusRandomFile;
+					Write-Output "y" | .\Tools\pscp.exe -2 -v -scp -unsafe -i $sshKey -q -P $port $username@${downloadFrom}:$testFile $downloadTo 2> $downloadStatusRandomFile;
 				}
 				Add-Content -Value "DownloadExitCode_$LASTEXITCODE" -Path $downloadStatusRandomFile;
 			} -ArgumentList $curDir,$sshKey,$port,$file,$username,${downloadFrom},$downloadTo,$downloadStatusRandomFile
@@ -296,9 +296,10 @@ Function Wrap-CommandsToFile([string] $username,[string] $password,[string] $ip,
 		Set-Variable -Name lastIP -Value $ip -Scope Global
 		Set-Variable -Name lastPort -Value $port -Scope Global
 		Set-Variable -Name lastUser -Value $username -Scope Global
-		$command | out-file -encoding ASCII -filepath "$LogDir\runtest.sh"
-		Copy-RemoteFiles -upload -uploadTo $ip -username $username -port $port -password $password -files "$LogDir\runtest.sh"
-		Remove-Item "$LogDir\runtest.sh"
+		$fileName = "runtest-${global:TestID}.sh"
+		$command | out-file -encoding ASCII -filepath "$LogDir\$fileName"
+		Copy-RemoteFiles -upload -uploadTo $ip -username $username -port $port -password $password -files "$LogDir\$fileName"
+		Remove-Item "$LogDir\$fileName"
 	}
 }
 
@@ -307,7 +308,7 @@ Function Get-AvailableExecutionFolder([string] $username, [string] $password, [s
 		Write-LogInfo "Check if execution folder /home/$username exists or not, if not, create one."
 		if ($global:sshPrivateKey) {
 			$sshKey = $global:sshPrivateKey
-			$output = Write-Output "yes" | .\Tools\plink.exe -C -i $sshKey -P $port "$username@$ip" "sudo -S bash -c 'if [ ! -d /home/$username ]; then mkdir -p /home/$username; chown -R ${user}: /home/$username; fi; if [ -d /home/$username ]; then echo EXIST; else echo NOTEXIST; fi;'" 2> $null
+			$output = Write-Output "y" | .\Tools\plink.exe -C -i $sshKey -P $port "$username@$ip" "sudo -S bash -c 'if [ ! -d /home/$username ]; then mkdir -p /home/$username; chown -R ${user}: /home/$username; fi; if [ -d /home/$username ]; then echo EXIST; else echo NOTEXIST; fi;'" 2> $null
 		} else {
 			$output = Write-Output "yes" | .\Tools\plink.exe -C -pw $password -P $port "$username@$ip" "sudo -S bash -c 'if [ ! -d /home/$username ]; then mkdir -p /home/$username; chown -R ${user}: /home/$username; fi; if [ -d /home/$username ]; then echo EXIST; else echo NOTEXIST; fi;'" 2> $null
 		}
@@ -338,6 +339,7 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 	}
 	$currentDir = $PWD.Path
 	$RunStartTime = Get-Date
+	$scriptName = "runtest-${global:TestID}.sh"
 
 	if ($global:sshPrivateKey) {
 		$sshKey = $global:sshPrivateKey
@@ -351,7 +353,7 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 			}
 			$linuxCommand += "sudo -S env `"PATH=`$PATH`" "
 			$logCommand = $linuxCommand
-			$linuxCommand += "bash -c `'bash runtest.sh ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
+			$linuxCommand += "bash -c `'bash $scriptName ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
 			$logCommand += " $MaskedCommand`""
 		} else {
 			$linuxCommand = "`""
@@ -359,15 +361,15 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 				$linuxCommand += "echo $plainTextPassword | "
 			}
 			$logCommand = $linuxCommand
-			$linuxCommand += "sudo -S bash -c `'bash runtest.sh ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
+			$linuxCommand += "sudo -S bash -c `'bash $scriptName ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
 			$logCommand += "sudo -S $MaskedCommand`""
 		}
 	} else {
 		if ($detectedDistro -eq "COREOS") {
-			$linuxCommand = "`"export PATH=/usr/share/oem/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/oem/bin:/opt/bin && bash -c `'bash runtest.sh ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
+			$linuxCommand = "`"export PATH=/usr/share/oem/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/oem/bin:/opt/bin && bash -c `'bash $scriptName ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
 			$logCommand = "`"export PATH=/usr/share/oem/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/oem/bin:/opt/bin && $MaskedCommand`""
 		} else {
-			$linuxCommand = "`"bash -c `'bash runtest.sh ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
+			$linuxCommand = "`"bash -c `'bash $scriptName ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
 			$logCommand = "`"$MaskedCommand`""
 		}
 	}
@@ -715,7 +717,7 @@ Function Get-LISAv2Tools($XMLSecretFile) {
 	# Copy required binary files to working folder
 	$CurrentDirectory = Get-Location
 	$CmdArray = @('7za.exe','dos2unix.exe','gawk','jq','plink.exe','pscp.exe', `
-					'kvp_client32','kvp_client64','nc.exe')
+					'kvp_client32','kvp_client64','nc.exe','lz4.exe')
 
 	if ($XMLSecretFile) {
 		$WebClient = New-Object System.Net.WebClient
@@ -727,7 +729,7 @@ Function Get-LISAv2Tools($XMLSecretFile) {
 	$CmdArray | ForEach-Object {
 		# Verify the binary file in Tools location
 		if (! (Test-Path $CurrentDirectory/Tools/$_) ) {
-			Write-LogErr "$_ file is not found in Tools folder."
+			Write-LogWarn "$_ file is not found in Tools folder."
 			if ($toolFileAccessLocation) {
 				$WebClient.DownloadFile("$toolFileAccessLocation/$_","$CurrentDirectory\Tools\$_")
 				Write-LogInfo "File $_ successfully downloaded in Tools folder: $CurrentDirectory\Tools."

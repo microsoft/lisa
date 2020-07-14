@@ -45,7 +45,7 @@ Describe "Test if ${moduleName} Run-LISAv2 fails with no test cases found" {
 		}
 
 		Mock Write-LogErr -Verifiable -ModuleName "TestController" {}
-		Mock Collect-TestCases -Verifiable -ModuleName "TestController" {}
+		Mock Select-TestCases -Verifiable -ModuleName "TestController" {}
 
 		{ Run-LISAv2 -Verbose -TestPlatform "Azure" -RGIdentifier "test" -ARMImageName "one two three four" `
 			-TestLocation "westus2" } | Should -Throw
@@ -57,6 +57,7 @@ Describe "Test if ${moduleName} Run-LISAv2 fails with no test cases found" {
 Describe "Test if ${moduleName} Run-LISAv2 fails to parse report results on Azure" {
 	It "Should fail at parsing report results on Azure" {
 		Mock Write-LogInfo -Verifiable -ModuleName "AzureController" {}
+		Mock Measure-SubscriptionCapabilities -Verifiable -ModuleName "AzureController" {}
 		Mock Select-AzSubscription -Verifiable -ModuleName "AzureController" {
 			return @{
 				"Account" = @{
@@ -71,14 +72,13 @@ Describe "Test if ${moduleName} Run-LISAv2 fails to parse report results on Azur
 		}
 
 		Mock Write-LogErr -Verifiable -ModuleName "AzureProvider" {}
-		Mock Create-AllResourceGroupDeployments -Verifiable -ModuleName "AzureProvider" { return }
+		Mock Invoke-AllResourceGroupDeployments -Verifiable -ModuleName "AzureProvider" { return }
 
 		Mock Write-LogInfo -Verifiable -ModuleName "TestController" {}
 		Mock Write-LogErr -Verifiable -ModuleName "TestController" {}
 
 		Mock New-Item -Verifiable -ModuleName "TestLogs" { return }
 		Mock Add-Content -Verifiable -ModuleName "TestLogs" { return }
-
 		Mock Write-LogInfo -Verifiable -ModuleName $moduleName {}
 		Mock Validate-XmlFiles -Verifiable -ModuleName $moduleName {}
 		Mock New-Item -Verifiable -ModuleName $moduleName { return }
