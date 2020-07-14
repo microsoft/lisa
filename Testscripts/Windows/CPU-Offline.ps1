@@ -138,7 +138,7 @@ function Main {
 				$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
 				return $currentTestResult.TestResult
 			} elseif ($state -eq "TestFailed") {
-				Write-LogErr "CPUOfflineKernelBuild.sh finished the failed state on $($AllVMData[0].RoleName)."
+				Write-LogErr "CPUOfflineKernelBuild.sh finished with Failed state on $($AllVMData[0].RoleName)."
 				$resultArr = $resultFail
 				$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
 				return $currentTestResult.TestResult
@@ -244,7 +244,7 @@ install_iperf3
 					$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
 					return $currentTestResult.TestResult
 				} elseif ($state -eq "TestFailed") {
-					Write-LogErr "$local_script finished the failed state on $($AllVMData[0].RoleName)."
+					Write-LogErr "$local_script finished with Failed state on $($AllVMData[0].RoleName)."
 					$resultArr = $resultFail
 					$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
 					return $currentTestResult.TestResult
