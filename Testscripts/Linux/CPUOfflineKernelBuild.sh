@@ -104,6 +104,7 @@ function Main() {
 		if [[ $DISTRO == *"redhat"* ]] || [[ $DISTRO == *"centos"* ]]; then
 			git clone $repo_url data/linux
 			cd data/linux
+			ls /boot/vmlinuz* > old_state.txt
 		else
 			git clone $repo_url linux
 			cd linux
@@ -156,9 +157,16 @@ function Main() {
 		fi
 
 		if [[ $DISTRO == "redhat_8" ]] || [[ $DISTRO == "centos_8" ]]; then
-			vmlinux_file=$(find /boot/ -name vmlinuz-5*)
-			grubby --set-default=$vmlinux_file
-			LogMsg "Set $vmlinux_file to the default kernel"
+			ls /boot/vmlinuz* > new_state.txt
+			vmlinux_file=$(diff old_state.txt new_state.txt | tail -n 1 | cut -d ' ' -f2)
+			if [ -f $vmlinux_file ]; then
+				grubby --set-default=$vmlinux_file
+				LogMsg "Set $vmlinux_file to the default kernel"
+			else
+				LogErr "Can not set new vmlinuz file in grubby command. Expected new vmlinuz file, but found $vmlinux_file"
+				SetTestStateCompleted
+				exit 0
+			fi
 		fi
 
 		if [ -f ./TestExecution.log ]; then
