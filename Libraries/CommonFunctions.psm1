@@ -213,6 +213,9 @@ Function Add-SetupConfig {
             elseif ($Force) {
                 $test.SetupConfig.$ConfigName = $ConfigValue
             }
+            else {
+                Write-LogWarn "Pre-defined '$($test.SetupConfig.$ConfigName)' (instead of '$ConfigValue') is used as '<$ConfigName>' for test case '$($test.TestName)', if it's not expected, use '-ForceCustom' parameter of LISAv2 to force override it."
+            }
         }
     }
     if ($ConfigValue) {
