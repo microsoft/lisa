@@ -4,7 +4,7 @@
 <#
 .Synopsis
     Use two VMs to test a Private Network.
-    Dependency VM is configured by the setupScript. Test VM is configured
+    Dependency VM is configured by the SetupScript. Test VM is configured
     by this script. AFter the config is done, several ping tests will
     be performed
 

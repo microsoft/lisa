@@ -41,7 +41,7 @@ function Get-SQLQueryOfGolangBenchmark ($currentTestResult, $currentTestData) {
             $resultMap["TestCaseName"] = $TestCaseName
             $resultMap["TestDate"] = $TestDate
             $resultMap["HostType"] = $TestPlatform
-            $resultMap["HostBy"] = $TestLocation
+            $resultMap["HostBy"] = $CurrentTestData.SetupConfig.TestLocation
             $resultMap["GuestOSType"] = 'Linux'
             $resultMap["GuestKernelVersion"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Kernel version" | ForEach-Object {$_ -replace ",Kernel version,",""})
             $resultMap["GuestSize"] = $guestSize

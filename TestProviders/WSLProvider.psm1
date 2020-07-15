@@ -143,13 +143,15 @@ Class WSLProvider : TestProvider
 			$ErrorLine = $_.InvocationInfo.ScriptLineNumber
 			Write-LogErr "EXCEPTION in WSLProvider : $ErrorMessage at line: $ErrorLine"
 		}
-		if (!$deploySuccess){
+		if (!$deploySuccess) {
 			if ($allVMData) {
 				$this.DeleteVMs($allVMData, $SetupTypeData, $false)
 			}
 		} else {
 			$isVmAlive = Is-VmAlive -AllVMDataObject $allVMData
 			if ($isVmAlive -eq "True") {
+				# After each successful deployment, update the $global:detectedDistro for reference by other scripts and logic
+				$null = Detect-LinuxDistro -VIP $allVMData[0].PublicIP -SSHport $allVMData[0].SSHPort -testVMUser $global:user -testVMPassword $global:password
 				return $allVMData
 			}
 			else

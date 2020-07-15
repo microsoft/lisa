@@ -1,9 +1,9 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache License.
-param([object] $AllVmData)
+param([object] $AllVmData, [object] $CurrentTestData, [String] $TestParams)
 
 function Main {
-    param([object] $AllVMData)
+    param([object] $AllVMData, [object] $CurrentTestData, [String] $TestParams)
     # Create test result
     $currentTestResult = Create-TestResultObject
     $resultArr = @()
@@ -32,7 +32,9 @@ function Main {
         Write-LogInfo "Shutting down VM..."
         $null = Stop-AzVM -Name $captureVMData.RoleName -ResourceGroupName $captureVMData.ResourceGroupName -Force
         Write-LogInfo "VM shutdown successful."
-        $Append = $Global:RGIdentifier
+        if ($CurrentTestData.SetupScript.RGIdentifier) {
+            $Append = $CurrentTestData.SetupScript.RGIdentifier
+        }
         if ($env:BUILD_NAME){
             $Append += "-$env:BUILD_NAME"
         }
@@ -40,8 +42,8 @@ function Main {
             $Append += "-$env:BUILD_NUMBER"
         }
         #Copy the OS VHD with different name.
-        if ($global:ARMImageName) {
-            $ARMImage = $global:ARMImageName.Split(" ")
+        if ($CurrentTestData.SetupScript.ARMImageName) {
+            $ARMImage = $CurrentTestData.SetupScript.ARMImageName.Split(" ")
             $newVHDName = "EOSG-AUTOBUILT-$($ARMImage[0])-$($ARMImage[1])-$($ARMImage[2])-$($ARMImage[3])-$Append"
         }
         if ($global:BaseOsVHD) {
@@ -109,4 +111,4 @@ function Main {
     return $currentTestResult.TestResult
 }
 
-Main -AllVMData $AllVmData
+Main -AllVMData $AllVmData -TestParams $TestParams -CurrentTestData $CurrentTestData

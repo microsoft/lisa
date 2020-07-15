@@ -169,7 +169,7 @@ chmod 666 /root/perf_fio.csv
                 $resultMap["TestCaseName"] = $TestCaseName
                 $resultMap["TestDate"] = $TestDate
                 $resultMap["HostType"] = "Azure"
-                $resultMap["HostBy"] = ($global:TestLocation).Replace('"','')
+                $resultMap["HostBy"] = ($CurrentTestData.SetupConfig.TestLocation).Replace('"','')
                 $resultMap["HostOS"] = cat "$LogDir\VM_properties.csv" | Select-String "Host Version"| %{$_ -replace ",Host Version,",""}
                 $resultMap["GuestOSType"] = "Linux"
                 $resultMap["GuestDistro"] = cat "$LogDir\VM_properties.csv" | Select-String "OS type"| %{$_ -replace ",OS type,",""}

@@ -28,7 +28,6 @@ using Module ".\TestProvider.psm1"
 
 Class HyperVProvider : TestProvider
 {
-	[string] $VMGeneration
 	[string] $BaseCheckpoint = "ICAbase"
 
 	[object] DeployVMs([xml] $GlobalConfig, [object] $SetupTypeData, [object] $TestCaseData, [string] $TestLocation, [string] $RGIdentifier, [bool] $UseExistingRG, [string] $ResourceCleanup) {
@@ -45,7 +44,7 @@ Class HyperVProvider : TestProvider
 			}
 			if (!$allVMData) {
 				$isAllDeployed = Create-AllHyperVGroupDeployments -SetupTypeData $SetupTypeData -GlobalConfig $GlobalConfig -TestLocation $TestLocation `
-				-Distro $RGIdentifier -VMGeneration $this.VMGeneration -TestCaseData $TestCaseData -UseExistingRG $UseExistingRG
+				-Distro $RGIdentifier -VMGeneration $TestCaseData.SetupConfig.VMGeneration -CurrentTestData $TestCaseData -UseExistingRG $UseExistingRG
 
 				if ($isAllDeployed[0] -eq "True") {
 					$DeployedHyperVGroup = $isAllDeployed[1]
@@ -62,6 +61,8 @@ Class HyperVProvider : TestProvider
 			$isVmAlive = Is-VmAlive -AllVMDataObject $allVMData
 			if ($isVmAlive -eq "True") {
 				if (!$global:IsWindowsImage) {
+					# After each successful deployment, update the $global:detectedDistro for reference by other scripts and logic
+					$null = Detect-LinuxDistro -VIP $allVMData[0].PublicIP -SSHport $allVMData[0].SSHPort -testVMUser $global:user -testVMPassword $global:password
 					$customStatus = Set-CustomConfigInVMs -CustomKernel $this.CustomKernel -CustomLIS $this.CustomLIS `
 						-AllVMData $allVMData -TestProvider $this -RegisterRhelSubscription
 					if (!$customStatus) {
@@ -113,13 +114,13 @@ Class HyperVProvider : TestProvider
 			Write-LogInfo "Public IP found for all VMs in deployment after checkpoint restore"
 		}
 
-		if ($CurrentTestData.SetupScript) {
+		if ($CurrentTestData.SetupConfig.SetupScript) {
 			if ($null -eq $CurrentTestData.runSetupScriptOnlyOnce) {
 				foreach ($VM in $VmData) {
 					if (Get-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -EA SilentlyContinue) {
 						Stop-VM -Name $VM.RoleName -TurnOff -Force -ComputerName $VM.HyperVHost
 					}
-					foreach ($script in $($CurrentTestData.SetupScript).Split(",")) {
+					foreach ($script in $($CurrentTestData.SetupConfig.SetupScript).Split(",")) {
 						$null = Run-SetupScript -Script $script -Parameters $TestParameters -VMData $VM -CurrentTestData $CurrentTestData
 					}
 					if (Get-VM -Name $VM.RoleName -ComputerName $VM.HyperVHost -EA SilentlyContinue) {
@@ -128,7 +129,7 @@ Class HyperVProvider : TestProvider
 				}
 			}
 			else {
-				foreach ($script in $($CurrentTestData.SetupScript).Split(",")) {
+				foreach ($script in $($CurrentTestData.SetupConfig.SetupScript).Split(",")) {
 					$null = Run-SetupScript -Script $script -Parameters $TestParameters -VMData $VmData -CurrentTestData $CurrentTestData
 				}
 			}
