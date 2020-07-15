@@ -50,6 +50,7 @@
             <param>dpdkSrcLink="DPDK_SOURCE_URL"</param>
             <param>testDuration=30</param>
             <param>modes="rxonly"</param>
+            <param>pmd=failsafe</param>
         </TestParameters>
         <Platform>Azure</Platform>
         <Category>Functional</Category>
@@ -188,6 +189,26 @@
             <param>dpdkSrcLink="DPDK_SOURCE_URL"</param>
             <param>testDuration=DPDK_TEST_DURATION_IN_SECONDS</param>
             <param>modes="rxonly io"</param>
+            <param>pmd=netvsc</param>
+        </TestParameters>
+        <Platform>Azure</Platform>
+        <Category>Functional</Category>
+        <Area>DPDK</Area>
+        <Tags>dpdk,dpdk-core,network,hv_netvsc,sriov</Tags>
+        <Priority>2</Priority>
+    </test>
+    <test>
+        <testName>VERIFY-SRIOV-FAILSAFE-FOR-DPDK-NETVSCPMD</testName>
+        <testScript>VERIFY-SRIOV-FAILSAFE-FOR-DPDK.ps1</testScript>
+        <setupType>TwoVM3NIC</setupType>
+        <AdditionalHWConfig>
+            <Networking>SRIOV</Networking>
+        </AdditionalHWConfig>
+        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkSetup.sh,.\Testscripts\Linux\dpdkUtils.sh,.\Testscripts\Linux\dpdkTestPmd.sh</files>
+        <TestParameters>
+            <param>dpdkSrcLink="DPDK_SOURCE_URL"</param>
+            <param>testDuration=30</param>
+            <param>modes="rxonly"</param>
             <param>pmd=netvsc</param>
         </TestParameters>
         <Platform>Azure</Platform>
