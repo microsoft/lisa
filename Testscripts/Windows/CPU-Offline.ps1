@@ -38,8 +38,9 @@ function Main {
 
 		# Find the local test script
 		foreach ($TestScript in $CurrentTestData.files) {
-			if ($TestParam -imatch "handle_offline_cpu.sh") {
-				local_script="handle_offline_cpu.sh"
+			if ($TestScript -imatch "handle_offline_cpu.sh") {
+				$local_script = "handle_offline_cpu.sh"
+				Write-LogDbg "Changed the local_script file name"
 			}
 		}
 		#region Generate constants.sh
