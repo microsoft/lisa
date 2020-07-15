@@ -124,7 +124,7 @@ function Start-LISAv2 {
 				$paramValue = (Get-Variable -Name $paramName -ErrorAction "SilentlyContinue").Value
 				if ($paramValue) {
 					if ($paramTable.ContainsKey($paramName)) {
-						Write-WarnInfo "Duplicated parameter '$paramName' and overwrite with value: $($paramTable[$paramName]) -> $paramValue"
+						Write-LogWarn "Duplicated parameter '$paramName' and overwrite with value: $($paramTable[$paramName]) -> $paramValue"
 						$paramTable[$paramName] = $paramValue
 					} else {
 						Write-LogInfo "Setting parameter: $paramName = $paramValue"
