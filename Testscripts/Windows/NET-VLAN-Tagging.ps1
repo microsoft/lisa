@@ -103,7 +103,7 @@ function Main {
         return "FAIL"
     }
 
-    # VM 2 NIC was configred by the setupscript. We need to configure
+    # VM 2 NIC was configred by the SetupScript. We need to configure
     # the test VM NIC
     Write-LogInfo "Setting up the net adapter on guest $VMName"
     if (-not $vm1MacAddress.Contains(":")) {

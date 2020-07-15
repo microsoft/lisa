@@ -25,7 +25,7 @@
 #>
 ###############################################################################################
 
-function Create-AllHyperVGroupDeployments($SetupTypeData, $GlobalConfig, $TestLocation, $Distro, $VMGeneration = "1", $TestCaseData, $UseExistingRG) {
+function Create-AllHyperVGroupDeployments($SetupTypeData, $GlobalConfig, $TestLocation, $Distro, $VMGeneration = "1", $CurrentTestData, $UseExistingRG) {
     $DeployedHyperVGroup = @()
 
     $HyperVGroupCount = 0
@@ -89,7 +89,7 @@ function Create-AllHyperVGroupDeployments($SetupTypeData, $GlobalConfig, $TestLo
                         $HyperVGroupXML.VirtualMachine | ForEach-Object {$ExpectedVMs += 1}
                         $VMCreationStatus = Create-HyperVGroupDeployment -HyperVGroupName $HyperVGroupName -HyperVGroupXML $HyperVGroupXML `
                             -HyperVHost $HyperVHostArray -DestinationOsVHDPath $DestinationOsVHDPath `
-                            -VMGeneration $VMGeneration -GlobalConfig $GlobalConfig -SetupTypeData $SetupTypeData -CurrentTestData $TestCaseData
+                            -VMGeneration $VMGeneration -GlobalConfig $GlobalConfig -SetupTypeData $SetupTypeData -CurrentTestData $CurrentTestData
 
                         $DeploymentEndTime = (Get-Date)
                         $DeploymentElapsedTime = $DeploymentEndTime - $DeploymentStartTime
@@ -293,7 +293,7 @@ function Create-HyperVGroupDeployment([string]$HyperVGroupName, $HyperVGroupXML,
     $CurrentHyperVGroup = Get-VMGroup -Name $HyperVGroupName -ComputerName $HyperVHost
     if ( $CurrentHyperVGroup.Count -eq 1) {
         foreach ( $VirtualMachine in $HyperVGroupXML.VirtualMachine) {
-            if ($VirtualMachine.DeployOnDifferentHyperVHost -and ($TestLocation -match ",")) {
+            if ($VirtualMachine.DeployOnDifferentHyperVHost -and ($CurrentTestData.SetupConfig.TestLocation -match ",")) {
                 $hostNumber = $HyperVGroupXML.VirtualMachine.indexOf($VirtualMachine)
                 $HyperVHost = $GlobalConfig.Global.HyperV.Hosts.ChildNodes[$hostNumber].ServerName
                 $DestinationOsVHDPath = $GlobalConfig.Global.HyperV.Hosts.ChildNodes[$hostNumber].DestinationOsVHDPath
@@ -307,10 +307,10 @@ function Create-HyperVGroupDeployment([string]$HyperVGroupName, $HyperVGroupXML,
                 }
             }
             # Check host memory before creating any VM
-            if ($CurrentTestData.OverrideVMSize) {
-                $CurrentVMSize = $CurrentTestData.OverrideVMSize
+            if ($CurrentTestData.SetupConfig.OverrideVMSize) {
+                $CurrentVMSize = $CurrentTestData.SetupConfig.OverrideVMSize
             } else {
-                $CurrentVMSize = $VirtualMachine.ARMInstanceSize
+                $CurrentVMSize = $VirtualMachine.InstanceSize
             }
             Set-Variable -Name HyperVInstanceSize -Value $CurrentVMSize -Scope Global
             $CurrentVMCpu = $HyperVMappedSizes.HyperV.$CurrentVMSize.NumberOfCores
@@ -396,8 +396,8 @@ function Create-HyperVGroupDeployment([string]$HyperVGroupName, $HyperVGroupXML,
                     Write-LogInfo "Set-VM -Name $CurrentVMName -AutomaticCheckpointsEnabled $false -ComputerName $HyperVHost"
                     Set-VM -Name $CurrentVMName -AutomaticCheckpointsEnabled $false -ComputerName $HyperVHost
                 }
-                if ($currentTestData.AdditionalHWConfig.SwitchName) {
-                    Add-VMNetworkAdapter -VMName $CurrentVMName -SwitchName $currentTestData.AdditionalHWConfig.SwitchName -ComputerName $HyperVHost
+                if ($currentTestData.SetupConfig.SwitchName) {
+                    Add-VMNetworkAdapter -VMName $CurrentVMName -SwitchName $currentTestData.SetupConfig.SwitchName -ComputerName $HyperVHost
                 }
                 if ($?) {
                     Write-LogInfo "Set-VM -VM $($NewVM.Name) -ProcessorCount $CurrentVMCpu -StaticMemory -CheckpointType Disabled -Notes $HyperVGroupName"

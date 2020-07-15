@@ -28,7 +28,7 @@ function Get-SQLQueryOfWebStress ($currentTestResult) {
             $GuestSize = "$($guestCPUNum)Cores $($guestMemInMB/1024)G"
         }
 
-        foreach ($param in $currentTestData.TestParameters.param) {
+        foreach ($param in $CurrentTestData.TestParameters.param) {
             if ($param -match "parallelConnections") {
                 $parallelConnectionsList = $param.Replace("parallelConnections=","").Replace("'","")
             }
@@ -43,10 +43,10 @@ function Get-SQLQueryOfWebStress ($currentTestResult) {
             $resultMap = @{}
             $resultMap["GuestDistro"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type" | ForEach-Object {$_ -replace ",OS type,",""})
             $resultMap["HostOS"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version" | ForEach-Object {$_ -replace ",Host Version,",""})
-            $resultMap["TestCaseName"] = $currentTestData.testName
+            $resultMap["TestCaseName"] = $CurrentTestData.testName
             $resultMap["TestDate"] = $TestDate
             $resultMap["HostType"] = "$TestPlatform"
-            $resultMap["HostBy"] = $TestLocation
+            $resultMap["HostBy"] = $CurrentTestData.SetupConfig.TestLocation
             $resultMap["GuestOSType"] = "Linux"
             $resultMap["GuestKernelVersion"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Kernel version" | ForEach-Object {$_ -replace ",Kernel version,",""})
             $resultMap["GuestSize"] = $GuestSize
@@ -67,6 +67,10 @@ function Get-SQLQueryOfWebStress ($currentTestResult) {
 }
 
 function Main() {
+    param (
+        [object] $AllVmData,
+        [object] $CurrentTestData
+    )
     $currentTestResult = Create-TestResultObject
     $resultArr = @()
     $testResult = $resultAborted
@@ -101,7 +105,7 @@ function Main() {
             $clientSSHPort = $allVMData.SSHPort
             $clientPublicIP = $allVMData.PublicIP
             $serverSSHPort = $clientSSHPort
-            $VM2Name = (Get-VM -ComputerName $DependencyVmHost | Where-Object {$_.Name -like "*-$RGIdentifier-*dependency*" }).Name
+            $VM2Name = (Get-VM -ComputerName $DependencyVmHost | Where-Object {$_.Name -like "*-$($CurrentTestData.SetupScript.RGIdentifier)-*dependency*" }).Name
             $serverPublicIP = Get-IPv4ViaKVP $VM2Name $DependencyVmHost
         }
 
@@ -163,4 +167,4 @@ function Main() {
 }
 
 # Main Body
-Main
+Main -AllVmData $AllVmData -CurrentTestData $CurrentTestData

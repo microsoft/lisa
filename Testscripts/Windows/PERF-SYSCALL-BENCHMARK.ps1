@@ -141,7 +141,7 @@ collect_VM_properties
                             $resultMap["TestCaseName"] = $TestCaseName
                             $resultMap["TestDate"] = $TestDate
                             $resultMap["HostType"] = "$TestPlatform"
-                            $resultMap["HostBy"] = ($global:TestLocation).Replace('"','')
+                            $resultMap["HostBy"] = ($CurrentTestData.SetupConfig.TestLocation).Replace('"','')
                             $resultMap["GuestOSType"] = "Linux"
                             $resultMap["GuestSize"] = $testVMData.InstanceSize
                             $resultMap["LISVersion"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "LIS Version"| ForEach-Object{$_ -replace ",LIS Version,",""})

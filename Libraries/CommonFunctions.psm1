@@ -111,7 +111,7 @@ Function Match-TestTag($currentTest, $TestTag)
 # Before entering this function, $TestPlatform has been verified as "valid" in Run-LISAv2.ps1.
 # So, here we don't need to check $TestPlatform
 #
-Function Select-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $TestTag, $TestPriority, $ExcludeTests, $TestLocation)
+Function Select-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $TestTag, $TestPriority, $ExcludeTests)
 {
     $AllLisaTests = @()
     $WildCards = @('^','.','[',']','?','+','*')
@@ -123,7 +123,6 @@ Function Select-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Test
     if ("All" -imatch $TestNames)      { $TestNames = "*" }
     if ("All" -imatch  $TestTag)       { $TestTag = "*" }
     if ("All" -imatch  $TestPriority)  { $TestPriority = "*" }
-    if ("All" -imatch  $TestLocation)  { $TestLocation = "*" }
 
     # Filter test cases based on the criteria
     foreach ($file in $TestXMLs.FullName) {
@@ -144,20 +143,16 @@ Function Select-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Test
             if (!$platformMatched) {
                 continue
             }
-            # case insensitive 'contains', and always complete match the concatenated expression for TestLocation of TestCase
-            if (($TestLocation -ne "*") -and $test.AdditionalHWConfig.TestLocation -and !($TestLocation.Trim(', ').Split(',').Trim() -contains $test.AdditionalHWConfig.TestLocation)) {
-                continue
-            }
             # case insensitive 'contains', and always complete match the concatenated expression for Category of TestCase
-            if (($TestCategory -ne "*") -and !($TestCategory.Trim(', ').Split(',').Trim() -contains $test.Category)) {
+            if (($TestCategory -ne "*") -and !(@($TestCategory.Trim(', ').Split(',').Trim()) -contains $test.Category)) {
                 continue
             }
             # case insensitive 'contains', and always complete match the concatenated expression for Area of TestCase
-            if (($TestArea -ne "*") -and !($TestArea.Trim(', ').Split(',').Trim() -contains $test.Area)) {
+            if (($TestArea -ne "*") -and !(@($TestArea.Trim(', ').Split(',').Trim()) -contains $test.Area)) {
                 continue
             }
             # case insensitive 'contains', and always complete match the concatenated expression for TestName of TestCase
-            if (($TestNames -ne "*") -and !($TestNames.Trim(', ').Split(',').Trim() -contains $test.testName)) {
+            if (($TestNames -ne "*") -and !(@($TestNames.Trim(', ').Split(',').Trim()) -contains $test.testName)) {
                 continue
             }
 
@@ -173,7 +168,7 @@ Function Select-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Test
 
             if ($ExcludeTests) {
                 $ExcludeTestMatched = $false
-                foreach ($TestString in $ExcludeTests.Trim(', ').Split(',').Trim()) {
+                foreach ($TestString in @($ExcludeTests.Trim(', ').Split(',').Trim())) {
                     if (($TestString.IndexOfAny($WildCards))-ge 0) {
                         if ($TestString.StartsWith('*')) {
                             $TestString = ".$TestString"
@@ -207,17 +202,45 @@ Function Select-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Test
     return $AllLisaTests
 }
 
-# This function set the AdditionalHWConfig of the test case data
-# Called when DiskType=Managed/Unmanaged or Networking=SRIOV/Synthetic or ImageType=Specialized/Generalized or OSType=Windows/Linux set in -CustomParameters
-function Set-AdditionalHWConfigInTestCaseData ($CurrentTestData, $ConfigName, $ConfigValue) {
-	Write-LogInfo "The AdditionalHWConfig $ConfigName of case $($CurrentTestData.testName) is set to $ConfigValue"
-	if (!$CurrentTestData.AdditionalHWConfig) {
-		$CurrentTestData.InnerXml += "<AdditionalHWConfig><$ConfigName>$ConfigValue</$ConfigName></AdditionalHWConfig>"
-	} elseif ($CurrentTestData.AdditionalHWConfig.$ConfigName) {
-		$CurrentTestData.AdditionalHWConfig.$ConfigName = $ConfigValue
-	} else {
-		$CurrentTestData.AdditionalHWConfig.InnerXml += "<$ConfigName>$ConfigValue</$ConfigName>"
-	}
+Function Add-SetupConfig {
+    param ([ref]$AllTests, [string]$ConfigName, [string]$ConfigValue, [string]$SplitBy = ',', [bool]$Force = $false)
+    $AddSplittedConfigValue = {
+        param ([object[]]$TestArray, [string]$ConfigName, [string]$ConfigValue, [bool]$Force = $false)
+        foreach ($test in $TestArray) {
+            if (!$test.SetupConfig.$ConfigName) {
+                $test.SetupConfig.InnerXml += "<$ConfigName>$ConfigValue</$ConfigName>"
+            }
+            elseif ($Force) {
+                $test.SetupConfig.$ConfigName = $ConfigValue
+            }
+        }
+    }
+    if ($ConfigValue) {
+        $expandedConfigValues = @($ConfigValue.Trim("$SplitBy ").Split($SplitBy).Trim())
+        if ($expandedConfigValues.Count -gt 1) {
+            $updatedTests = @()
+            foreach ($singleConfigValue in $expandedConfigValues) {
+                $clonedTestsArray = @()
+                foreach ($singleTest in $AllTests.Value) {
+                    $clonedTest = ([System.Xml.XmlElement]$singleTest).CloneNode($true)
+                    $clonedTestsArray += $clonedTest
+                }
+                &$AddSplittedConfigValue -TestArray $clonedTestsArray -ConfigName $ConfigName -ConfigValue $singleConfigValue -Force $Force
+                $clonedTestsArray | Foreach-Object {$updatedTests += $_}
+                if ($Force) {
+                    Write-LogWarn "Force customized '<$ConfigName>' with value '$singleConfigValue' for all selected Test Cases."
+                }
+            }
+            $AllTests.Value = $updatedTests
+            # Set-Variable -Name ExpandedSetupConfig -Value $true -Scope Global
+        }
+        else {
+            &$AddSplittedConfigValue -TestArray $AllTests.Value -ConfigName $ConfigName -ConfigValue $ConfigValue -Force $Force
+            if ($Force) {
+                Write-LogWarn "Force customized '<$ConfigName>' with value '$ConfigValue' for all selected Test Cases."
+            }
+        }
+    }
 }
 
 function Get-SecretParams {
@@ -933,7 +956,7 @@ Function Set-CustomConfigInVMs($CustomKernel, $CustomLIS, $EnableSRIOV, $AllVMDa
 
 	# Solution for resolve download file issue "Fatal: Received unexpected end-of-file from server" for clear-os-linux
 	foreach ($vm in $AllVMData) {
-		if($detectedDistro -imatch "CLEARLINUX") {
+		if($global:detectedDistro -imatch "CLEARLINUX") {
 			Run-LinuxCmd -Username $global:user -password $global:password -ip $vm.PublicIP -Port $vm.SSHPort `
 				-Command "echo 'Subsystem sftp internal-sftp' >> /etc/ssh/sshd_config && sed -i 's/.*ExecStart=.*/ExecStart=\/usr\/sbin\/sshd -D `$OPTIONS -f \/etc\/ssh\/sshd_config/g' /usr/lib/systemd/system/sshd.service && systemctl daemon-reload && systemctl restart sshd.service" -runAsSudo
 		}

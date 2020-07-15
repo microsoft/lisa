@@ -19,7 +19,7 @@ netsh advfirewall firewall add rule name="WinRM HTTP" dir=in action=allow protoc
 	if(-not $storageName) {
 		$randomNum = Get-Random -Maximum 999 -Minimum 100
 		$storageName = "temp" + [string]$randomNum
-		$location = $global:TestLocation
+		$location = $CurrentTestData.SetupConfig.TestLocation
 		New-AzStorageAccount -ResourceGroupName $rgName -AccountName $storageName -Location $location -SkuName "Standard_GRS" | Out-Null
 	}
 	$StorageKey = (Get-AzStorageAccountKey  -Name $storageName -ResourceGroupName $rgName).Value[0]
@@ -52,7 +52,7 @@ function Invoke-CustomScript($fileUri)
 	$publisher = "Microsoft.Compute"
 	$type = "CustomScriptExtension"
 	$name = "CustomScriptExtension"
-	$location = $global:TestLocation
+	$location = $CurrentTestData.SetupConfig.TestLocation
 	foreach($vm in $myVM) {
 		$sts=Set-AzVMExtension -ResourceGroupName $rgName -Location $location -VMName $vm  -Name $name -Publisher $publisher -ExtensionType $type  -TypeHandlerVersion "1.9"  -Settings $settings  -ProtectedSettings $proSettings
 		if($sts.IsSuccessStatusCode) {
@@ -270,7 +270,7 @@ function Send-ResultToDatabase ($GlobalConfig, $logDir, $session, $CurrentTestDa
 	if ($dataSource -And $user -And $password -And $database -And $dataTableName) {
 		# Get host info
 		$HostType = $global:TestPlatform
-		$HostBy = $TestLocation
+		$HostBy = $CurrentTestData.SetupConfig.TestLocation
 
 		if ($TestPlatform -eq "hyperV") {
 			$HyperVMappedSizes = [xml](Get-Content .\XML\AzureVMSizeToHyperVMapping.xml)
@@ -303,7 +303,7 @@ function Send-ResultToDatabase ($GlobalConfig, $logDir, $session, $CurrentTestDa
 		$L2GuestDistro = Get-Content "$LogDir\nested_properties.csv" | Select-String "OS type"| ForEach-Object{$_ -replace ",OS type,",""}
 		$L2GuestKernelVersion = Get-Content "$LogDir\nested_properties.csv" | Select-String "Kernel version"| ForEach-Object{$_ -replace ",Kernel version,",""}
 		$flag=1
-		if($TestLocation.split(',').Length -eq 2) {
+		if($CurrentTestData.SetupConfig.TestLocation.split(',').Length -eq 2) {
 			$flag=0
 		}
 		foreach ( $param in $currentTestData.TestParameters.param) {

@@ -31,6 +31,22 @@ Function New-ResultSummary($testResult, $checkValues, $testName, $metaData) {
 	return $resultString
 }
 
+$ExcludedSetupConfigsToDisplay = @("RGIdentifier","SetupScript")
+function ConvertFrom-SetupConfig([object]$SetupConfig, [switch]$WrappingLines) {
+	$resultString = ""
+	$SetupConfig.ChildNodes | Sort-Object LocalName | Foreach-Object {
+		if ($SetupConfig.($_.LocalName) -and !($ExcludedSetupConfigsToDisplay -contains $_.LocalName)) {
+			if ($WrappingLines.IsPresent) {
+				$resultString += "&nbsp;&nbsp;$($_.LocalName):$($SetupConfig.($_.LocalName))<br />"
+			}
+			else {
+				$resultString += "$($_.LocalName): $($SetupConfig.($_.LocalName)), "
+			}
+		}
+	}
+	return $resultString.Trim(", ")
+}
+
 Function Get-FinalResultHeader($resultArr) {
 	switch ($resultArr) {
 		{($_ -imatch "FAIL")} { $result = $global:ResultFail; break}

@@ -64,7 +64,7 @@ function Main {
         else {
             Throw "Server and client SRIOV NICs are not same."
         }
-        if ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
+        if ($currentTestData.SetupConfig.Networking -imatch "SRIOV") {
             $DataPath = "SRIOV"
         }
         else {
@@ -204,7 +204,7 @@ collect_VM_properties
                 $IPVersion = "IPv4"
                 $ProtocolType = "TCP"
                 $SQLQuery = "INSERT INTO $dataTableName (TestExecutionTag,TestDate,HostType,HostBy,HostOS,GuestOSType,GuestDistro,GuestSize,KernelVersion,IPVersion,ProtocolType,DataPath,TestType,RxPpsMinimum,RxPpsAverage,RxPpsMaximum,TxPpsMinimum,TxPpsAverage,TxPpsMaximum,RxTxPpsMinimum,RxTxPpsAverage,RxTxPpsMaximum) VALUES "
-                $SQLQuery += "('$TestExecutionTag','$(Get-Date -Format 'yyyy-MM-dd hh:mm:ss')','$TestPlatform','$TestLocation','$HostOS','$GuestOSType','$GuestDistro','$GuestSize','$KernelVersion','$IPVersion','$ProtocolType','$DataPath','$TestType','$RxPpsMinimum','$RxPpsAverage','$RxPpsMaximum','$TxPpsMinimum','$TxPpsAverage','$TxPpsMaximum','$RxTxPpsMinimum','$RxTxPpsAverage','$RxTxPpsMaximum')"
+                $SQLQuery += "('$TestExecutionTag','$(Get-Date -Format 'yyyy-MM-dd hh:mm:ss')','$TestPlatform','$($CurrentTestData.SetupConfig.TestLocation)','$HostOS','$GuestOSType','$GuestDistro','$GuestSize','$KernelVersion','$IPVersion','$ProtocolType','$DataPath','$TestType','$RxPpsMinimum','$RxPpsAverage','$RxPpsMaximum','$TxPpsMinimum','$TxPpsAverage','$TxPpsMaximum','$RxTxPpsMinimum','$RxTxPpsAverage','$RxTxPpsMaximum')"
                 Upload-TestResultToDatabase $SQLQuery
             } else {
                 Write-LogErr "Invalid database details. Failed to upload result to database!"
