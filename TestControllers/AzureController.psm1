@@ -137,7 +137,7 @@ Class AzureController : TestController
 						throw "'-RGIdentifier' must be an existing Resource Group Name when Run-LISAv2 with '-UseExistingRG' on Azure Platform."
 					}
 					else {
-						if (Get-AzResource -ResourceGroupName $this.RGIdentifier | Where-Object { $_.ResourceType -inotmatch "availabilitySets" }) {
+						if (($this.TiPSessionId -or $this.TipCluster) -and (Get-AzResource -ResourceGroupName $this.RGIdentifier | Where-Object { $_.ResourceType -inotmatch "availabilitySets" })) {
 							throw "Existing Resource Group '$($this.RGIdentifier)' is not clean, please remove all other resources, except 'availabilitySets' resource type."
 						}
 					}
