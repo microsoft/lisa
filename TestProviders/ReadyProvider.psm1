@@ -83,7 +83,7 @@ Class ReadyProvider : TestProvider
 		$allVMData = @()
 		$ErrorMessage = ""
 		try {
-			$allVmList = $RGIdentifier.Split(";");
+			$allVmList = $TestLocation.Split(",");
 			$machines = @()
 			$machines += $SetupTypeData.ResourceGroup.VirtualMachine
 
@@ -92,7 +92,7 @@ Class ReadyProvider : TestProvider
 				return $null
 			}
 
-			$vmIndex=0
+			$vmIndex = 0
 			while ($vmIndex -lt $machines.Count) {
 				$vmNode = Create-QuickVMNode
 
@@ -151,7 +151,8 @@ Class ReadyProvider : TestProvider
 				foreach ($VM in $AllVMData) {
 					foreach ($script in $($CurrentTestData.CleanupScript).Split(",")) {
 						$null = Run-SetupScript -Script $script -Parameters $TestParameters -VMData $VM -CurrentTestData $CurrentTestData
-					}				}
+					}
+				}
 			}
 
 			([TestProvider]$this).RunTestCaseCleanup($AllVMData, $CurrentTestData, $CurrentTestResult, $CollectVMLogs, $RemoveFiles, $User, $Password, $SetupTypeData, $TestParameters)

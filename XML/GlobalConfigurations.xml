@@ -6,6 +6,7 @@
             <Environment>AzureCloud</Environment>
             <ARMStorageAccount>ExistingStorage_Standard</ARMStorageAccount>
         </Subscription>
+        <DefaultARMImageName>Canonical UbuntuServer 18.04-LTS Latest</DefaultARMImageName>
         <ResultsDatabase>
             <server></server>
             <user></user>

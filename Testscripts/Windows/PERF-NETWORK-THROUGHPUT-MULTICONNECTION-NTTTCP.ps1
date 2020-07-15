@@ -79,7 +79,7 @@ function Main {
         } else {
             Throw "Server and client SRIOV NICs are not same."
         }
-        if ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
+        if ($currentTestData.SetupConfig.Networking -imatch "SRIOV") {
             $DataPath = "SRIOV"
         } else {
             $DataPath = "Synthetic"
@@ -229,7 +229,7 @@ collect_VM_properties
                 $resultMap["TestCaseName"] = $TestCaseName
                 $resultMap["TestDate"] = $TestDate
                 $resultMap["HostType"] = $TestPlatform
-                $resultMap["HostBy"] = $TestLocation
+                $resultMap["HostBy"] = $CurrentTestData.SetupConfig.TestLocation
                 $resultMap["HostOS"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version"| ForEach-Object{$_ -replace ",Host Version,",""})
                 $resultMap["GuestOSType"] = "Linux"
                 $resultMap["GuestDistro"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object{$_ -replace ",OS type,",""})

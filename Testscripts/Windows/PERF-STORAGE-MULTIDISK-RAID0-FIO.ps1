@@ -183,7 +183,7 @@ function Consume-FioPerformanceResults {
                 $resultMap["TestCaseName"] = $TestCaseName
                 $resultMap["TestDate"] = $TestDate
                 $resultMap["HostType"] = $TestPlatform
-                $resultMap["HostBy"] = $TestLocation
+                $resultMap["HostBy"] = $CurrentTestData.SetupConfig.TestLocation
                 $resultMap["GuestOSType"] = "Linux"
                 $resultMap["GuestSize"] = $allVMData.InstanceSize
                 $resultMap["DiskSetup"] = 'RAID0:12xP30'

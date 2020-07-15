@@ -67,7 +67,7 @@ function Send-ResultToDatabase ($GlobalConfig, $logDir, $CurrentTestData) {
 	{
 		# Get host info
 		$HostType = $global:TestPlatform
-		$HostBy = $TestLocation
+		$HostBy = $CurrentTestData.SetupConfig.TestLocation
 		$HostOS = (Get-WmiObject -Class Win32_OperatingSystem -ComputerName $GlobalConfig.Global.$TestPlatform.Hosts.ChildNodes[0].ServerName).Version
 
 		# Get L1 guest info
@@ -86,7 +86,7 @@ function Send-ResultToDatabase ($GlobalConfig, $logDir, $CurrentTestData) {
 		$L2GuestDistro = Get-Content "$LogDir\nested_properties.csv" | Select-String "OS type"| ForEach-Object{$_ -replace ",OS type,",""}
 		$L2GuestKernelVersion = Get-Content "$LogDir\nested_properties.csv" | Select-String "Kernel version"| ForEach-Object{$_ -replace ",Kernel version,",""}
 		$flag=1
-		if($TestLocation.split(',').Length -eq 2)
+		if($CurrentTestData.SetupConfig.TestLocation.split(',').Length -eq 2)
 		{
 			$flag=0
 		}

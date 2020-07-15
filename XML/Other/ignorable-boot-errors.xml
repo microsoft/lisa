@@ -30,6 +30,7 @@
             <keywords>hv-fcopy-daemon.service: Main process exited, code=exited, status=1/FAILURE</keywords>
             <keywords>hv-fcopy-daemon.service: Failed with result 'exit-code'</keywords>
             <keywords>dnf.*: Failed determining last makecache time</keywords>
+            <keywords>dbus-daemon.*: .system. Activation via systemd failed for unit 'dbus-org.freedesktop.resolve1.service': Unit dbus-org.freedesktop.resolve1.service not found.</keywords>
         </failures>
         <errors>
             <keywords>TLS record write failed</keywords>

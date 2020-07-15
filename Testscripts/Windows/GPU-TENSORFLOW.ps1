@@ -113,7 +113,7 @@ function Main {
                 $resultMap["CudaToolkitVersion"] = $CudaToolkitVersion
                 $resultMap["TensorflowVersion"] = $TensorflowVersion
                 $resultMap["HostType"] = $global:TestPlatform
-                $resultMap["HostBy"] = $global:TestLocation
+                $resultMap["HostBy"] = $CurrentTestData.SetupConfig.TestLocation
                 $resultMap["GuestOSType"] = $global:detectedDistro
                 $resultMap["GuestSize"] = $AllVMData.InstanceSize
                 $resultMap["TestCaseName"] = $global:GlobalConfig.Global.Azure.ResultsDatabase.testTag
