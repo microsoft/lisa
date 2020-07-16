@@ -332,12 +332,6 @@ Class AzureController : TestController
 			# Only when 'OsVHD' exist from parameters, then we should Add-SetupConfig for 'VMGeneration',
 			#   because HyperVGeneration property for Azure Gallery Image is only decided by the 'ARMImageName' (Publisher, Provider, SKU, Version),
 			#   and from ARM template constraint, there's no Generation property to be applied when deploying with Gallery image with (Publisher, Provider, SKU, Version)
-			# If VMGeneration is null/empty, set the default value '1', so as to make LISAv2 backward compatible
-			if (!$this.VMGeneration) {
-				Write-Loginfo "'-VMGeneration' is not set for HyperV platform, set the default value '1'"
-				$this.VMGeneration = "1"
-				$this.SyncEquivalentCustomParameters("VMGeneration", $this.VMGeneration)
-			}
 			if (("1", "2") -contains $this.CustomParams["VMGeneration"]) {
 				Add-SetupConfig -AllTests ([ref]$AllTests) -ConfigName "VMGeneration" -ConfigValue $this.CustomParams["VMGeneration"] -Force $this.ForceCustom
 			}

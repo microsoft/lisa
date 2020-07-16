@@ -13,6 +13,9 @@ function Main {
     param (
         $TestParams, $AllVMData
     )
+    if ($global:TestPlatform -ne 'HyperV') {
+        return
+    }
     $currentTestResult = Create-TestResultObject
     try {
         $testResult = $null

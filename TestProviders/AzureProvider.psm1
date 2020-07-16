@@ -167,6 +167,25 @@ Class AzureProvider : TestProvider
 		return $false
 	}
 
+	[void] RunTestCaseCleanup ($AllVMData, $CurrentTestData, $CurrentTestResult, $CollectVMLogs, $RemoveFiles, $User, $Password, $SetupTypeData, $TestParameters){
+		try
+		{
+			if ($CurrentTestData.CleanupScript) {
+				foreach ($vmData in $AllVMData) {
+					foreach ($script in $($CurrentTestData.CleanupScript).Split(",")) {
+						$null = Run-SetupScript -Script $script -Parameters $TestParameters -VMData $vmData -CurrentTestData $CurrentTestData -TestProvider $this
+					}
+				}
+			}
+			([TestProvider]$this).RunTestCaseCleanup($AllVMData, $CurrentTestData, $CurrentTestResult, $CollectVMLogs, $RemoveFiles, $User, $Password, $SetupTypeData, $TestParameters)
+		}
+		catch
+		{
+			$ErrorMessage =  $_.Exception.Message
+			Write-Output "EXCEPTION in RunTestCaseCleanup : $ErrorMessage"
+		}
+	}
+
 	[void] RunTestCleanup() {
 		# Wait till all the cleanup background jobs successfully started cleanup of resource groups.
 		$DeleteResourceGroupJobs = Get-Job | Where-Object { $_.Name -imatch "DeleteResourceGroup" }
