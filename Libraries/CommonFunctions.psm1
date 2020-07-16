@@ -2436,5 +2436,4 @@ function Is-XDPCompatible() {
         Write-LogWarn "Unsupported Distro: $DetectedDistro"
         return $false
     }
-    Write-LogInfo "$KernelVersion $DetectedDistro"
 }

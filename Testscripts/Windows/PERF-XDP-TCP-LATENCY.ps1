@@ -3,7 +3,7 @@
 
 <#
 .Description
-    This script deploys the VM and Verifies there are no regression in Network Latency caused
+    This script deploys the VM and verifies there are no regression in Network Latency caused
     by XDP. We achieve this by comparing lagscope results.
 #>
 
@@ -11,7 +11,7 @@ param([object] $AllVmData,
     [object] $CurrentTestData)
 
 $iFaceName = "eth1"
-# Threshold Value is calculated with considering 10 samples
+# Threshold value (40%) is calculated by analyzing 10 samples of latency values with and w/o XDP
 $thresholdValue = 1.4
 
 function Run_Lagscope_PERF {
@@ -28,8 +28,8 @@ function Run_Lagscope_PERF {
     }
     # Copy result
     Copy-RemoteFiles -downloadFrom $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
-        -username "root" -password $password -download `
-        -downloadTo $ResultDir -files "/root/lagscope-n*.txt"
+        -username $user -password $password -download `
+        -downloadTo $ResultDir -files "~/lagscope-n*.txt" -runAsSudo
 }
 
 function Compare_Result {
@@ -156,7 +156,7 @@ collect_VM_properties
             Run_Lagscope_PERF $ResultDir
 
             # Start XDPDump on client
-            $xdp_command = "cd /root/bpf-samples/xdpdump && ./xdpdump -i $iFaceName > ~/xdpdumpoutPERF.txt"
+            $xdp_command = "cd ~/bpf-samples/xdpdump && ./xdpdump -i $iFaceName > ~/xdpdumpoutPERF.txt"
             $testJobXDP = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort -username $user `
                 -password $password -command $xdp_command -RunInBackground -runAsSudo
             Write-LogInfo "XDP Dump process started with id: $testJobXDP"
