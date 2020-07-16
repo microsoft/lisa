@@ -104,6 +104,7 @@ function Main() {
 		if [[ $DISTRO == *"redhat"* ]] || [[ $DISTRO == *"centos"* ]]; then
 			git clone $repo_url data/linux
 			cd data/linux
+			ls /boot/vmlinuz* > old_state.txt
 		else
 			git clone $repo_url linux
 			cd linux
@@ -122,12 +123,6 @@ function Main() {
 		fi
 		LogMsg "$?: Copied the default config file from /boot"
 
-		if [[ $DISTRO == "redhat_8" ]]; then
-			# comment out those 2 parameters in RHEL 8.x
-			sed -i -e "s/CONFIG_SYSTEM_TRUSTED_KEY*.*/#CONFIG_SYSTEM_TRUSTED_KEY/g" .config
-			sed -i -e "s/CONFIG_MODULE_SIG_KEY*.*/#CONFIG_MODULE_SIG_KEY/g" .config
-		fi
-
 		if [[ $DISTRO == *"redhat"* ]] || [[ $DISTRO == *"centos"* ]]; then
 			yes '' | make prepare
 			LogMsg "Did make prepare"
@@ -136,18 +131,42 @@ function Main() {
 			LogMsg "Did make oldconfig"
 		fi
 
-		make -j $(getconf _NPROCESSORS_ONLN)
+		if [[ $DISTRO == "redhat_8" ]] || [[ $DISTRO == "centos_8" ]]; then
+			# comment out those 3 parameters in RHEL/CentOS 8.x
+			# In 8.x, those new trusted key files need to update. But this is out of scope of testing.
+			# Commented out unnecessary debug kernel parameter.
+			sed -i -e "s/CONFIG_SYSTEM_TRUSTED_KEY*.*/#CONFIG_SYSTEM_TRUSTED_KEY/g" .config
+			sed -i -e "s/CONFIG_MODULE_SIG_KEY*.*/#CONFIG_MODULE_SIG_KEY/g" .config
+			sed -i -e "s/CONFIG_DEBUG_INFO_BTF*.*/#CONFIG_DEBUG_INFO_BTF/g" .config
+			yes '' | make -j $(getconf _NPROCESSORS_ONLN)
+
+		else
+			make -j $(getconf _NPROCESSORS_ONLN)
+		fi
 		LogMsg "Compiled the source codes"
 
 		make modules_install
-		LogMsg "Installed new kernel modules"
+		LogMsg "$?: Installed new kernel modules"
 
 		make install
-		LogMsg "Install new kernel"
+		LogMsg "$?: Install new kernel"
 
 		if [[ $DISTRO =~ "ubuntu" ]]; then
 			update-grub2
 			LogMsg "$?: Ran update-grub2"
+		fi
+
+		if [[ $DISTRO == "redhat_8" ]] || [[ $DISTRO == "centos_8" ]]; then
+			ls /boot/vmlinuz* > new_state.txt
+			vmlinux_file=$(diff old_state.txt new_state.txt | tail -n 1 | cut -d ' ' -f2)
+			if [ -f $vmlinux_file ]; then
+				grubby --set-default=$vmlinux_file
+				LogMsg "Set $vmlinux_file to the default kernel"
+			else
+				LogErr "Can not set new vmlinuz file in grubby command. Expected new vmlinuz file, but found $vmlinux_file"
+				SetTestStateCompleted
+				exit 0
+			fi
 		fi
 
 		if [ -f ./TestExecution.log ]; then
