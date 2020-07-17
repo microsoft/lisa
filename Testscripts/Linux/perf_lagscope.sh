@@ -23,6 +23,7 @@ UTIL_FILE="./utils.sh"
 ICA_TESTCOMPLETED="TestCompleted"	# The test completed successfully
 ICA_TESTABORTED="TestAborted"		# Error during the setup of the test
 touch ./lagscopeTest.log
+pingIteration=1000000
 
 LogMsg()
 {
@@ -112,7 +113,7 @@ sleep 10
 LogMsg "lagscope client running..."
 # Run lagscope with histogram of per-iteration latency values, length of interval is 1 and capture first histogram value at 40th interval
 # to capture total 98 intervals. for more info refer: https://github.com/microsoft/lagscope
-ssh root@"${client}" "${cmd} -s${testServerIP} -i0 -n${pingIteration} -H -P -a40 -l1 -c98 > lagscope-n${pingIteration}-output.txt"
+ssh root@"${client}" "${cmd} -s${testServerIP} -i0 -n${pingIteration} -H -P -a40 -l1 -c98 > /tmp/lagscope-n${pingIteration}-output.txt"
 ssh root@"${server}" 'killall lagscope'
 ssh root@"${client}" 'killall lagscope'
 LogMsg "Test finished."

@@ -46,9 +46,6 @@ function Main {
         Add-Content -Value "server=$($serverVMData.InternalIP)" -Path $constantsFile
         Add-Content -Value "client=$($clientVMData.InternalIP)" -Path $constantsFile
         foreach ($param in $currentTestData.TestParameters.param) {
-            if ($param -imatch "pingIteration") {
-                $pingIteration=$param.Trim().Replace("pingIteration=","")
-            }
             Add-Content -Value "$param" -Path $constantsFile
         }
         Write-LogInfo "constants.sh created successfully..."
@@ -77,16 +74,16 @@ collect_VM_properties
             Wait-Time -seconds 20
         }
         $finalStatus = Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -command "cat /root/state.txt"
-        Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "lagscope-n$pingIteration-output.txt"
+        Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "/tmp/lagscope-n*-output.txt"
         Copy-RemoteFiles -downloadFrom $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root" -password $password -download -downloadTo $LogDir -files "VM_properties.csv"
 
         $testSummary = $null
-        $lagscopeReportLog = Get-Content -Path "$LogDir\lagscope-n$pingIteration-output.txt"
+        $lagscopeReportLog = Get-Content -Path "$LogDir\lagscope-n*-output.txt"
         Write-LogInfo $lagscopeReportLog
         #endregion
 
         try {
-            $matchLine= (Select-String -Path "$LogDir\lagscope-n$pingIteration-output.txt" -Pattern "Average").Line
+            $matchLine= (Select-String -Path "$LogDir\lagscope-n*-output.txt" -Pattern "Average").Line
             $minimumLat = $matchLine.Split(",").Split("=").Trim().Replace("us","")[1]
             $maximumLat = $matchLine.Split(",").Split("=").Trim().Replace("us","")[3]
             $averageLat = $matchLine.Split(",").Split("=").Trim().Replace("us","")[5]

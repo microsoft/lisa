@@ -29,23 +29,29 @@ function Run_Lagscope_PERF {
     # Copy result
     Copy-RemoteFiles -downloadFrom $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
         -username $user -password $password -download `
-        -downloadTo $ResultDir -files "~/lagscope-n*.txt" -runAsSudo
+        -downloadTo $ResultDir -files "/tmp/lagscope-n*.txt" -runAsSudo
 }
 
 function Compare_Result {
-    $pingIteration = $args[2]
 
     Write-LogInfo "Comparing lagscope results"
-    $beforeDirPath = Join-Path -Path $args[0] -ChildPath "lagscope-n$pingIteration-output.txt"
-    $afterDirPath = Join-Path -Path $args[1] -ChildPath "lagscope-n$pingIteration-output.txt"
+    $beforeDirPath = Join-Path -Path $args[0] -ChildPath "lagscope-n*-output.txt"
+    $afterDirPath = Join-Path -Path $args[1] -ChildPath "lagscope-n*-output.txt"
+    $avgLatency = 'default'
+    $avgLatencyXDP = 'default'
+    try {
+        $matchLine= (Select-String -Path $beforeDirPath -Pattern "Average").Line
+        $avgLatency = $matchLine.Split(",").Split("=").Trim().Replace("us","")[5]
+        $avgLatency = $avgLatency/1
+        $matchLineXDP= (Select-String -Path $afterDirPath -Pattern "Average").Line
+        $avgLatencyXDP = $matchLineXDP.Split(",").Split("=").Trim().Replace("us","")[5]
+        $avgLatencyXDP = $avgLatencyXDP/1
 
-    $matchLine= (Select-String -Path $beforeDirPath -Pattern "Average").Line
-    $avgLatency = $matchLine.Split(",").Split("=").Trim().Replace("us","")[5]
-    $avgLatency = $avgLatency/1
-    $matchLineXDP= (Select-String -Path $afterDirPath -Pattern "Average").Line
-    $avgLatencyXDP = $matchLineXDP.Split(",").Split("=").Trim().Replace("us","")[5]
-    $avgLatencyXDP = $avgLatencyXDP/1
-
+        $currentTestResult.TestSummary += New-ResultSummary -testResult $avgLatency -metaData "Without XDP Average Latency" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+        $currentTestResult.TestSummary += New-ResultSummary -testResult $avgLatencyXDP -metaData "With XDP Average Latency" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+    } catch {
+        $currentTestResult.TestSummary += New-ResultSummary -testResult "Error in parsing logs." -metaData "LAGSCOPE" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
+    }
     $thresholdLatency = $avgLatency * $thresholdValue
     Write-LogInfo "Average XDP value: $avgLatencyXDP Average w/o XDP value: $avgLatency & threshold: $thresholdLatency"
     if ($avgLatencyXDP -gt $thresholdLatency) {
@@ -110,9 +116,6 @@ function Main {
         Add-Content -Value "testServerIP=$($senderVMData.SecondInternalIP)" -Path $constantsFile
         Add-Content -Value "nicName=$iFaceName" -Path $constantsFile
         foreach ($param in $currentTestData.TestParameters.param) {
-            if ($param -imatch "pingIteration") {
-                $pingIteration=$param.Trim().Replace("pingIteration=","")
-            }
             Add-Content -Value "$param" -Path $constantsFile
         }
         Write-LogInfo "constants.sh created successfully..."
@@ -166,7 +169,7 @@ collect_VM_properties
             New-Item -Path $ResultDirXDP -ItemType Directory -Force | Out-Null
             Run_Lagscope_PERF $ResultDirXDP
             # collect and compare result
-            $currentState = Compare_Result $ResultDir $ResultDirXDP $pingIteration
+            $currentState = Compare_Result $ResultDir $ResultDirXDP
         }
 
         if ($currentState -imatch "TestCompleted") {
