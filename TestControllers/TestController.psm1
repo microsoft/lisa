@@ -151,8 +151,12 @@ Class TestController
 				$CurrentXMLText = Get-Content -Path $file.FullName
 				foreach ($Replace in $this.XMLSecrets.secrets.ReplaceTestXMLStrings.Replace)
 				{
-					$ReplaceString = $Replace.Split("=")[0]
-					$ReplaceWith = $Replace.Split("=")[1]
+					if ($Replace.InnerText) {
+						$Replace.InnerText = [System.Security.SecurityElement]::Escape($Replace.InnerText)
+						$ReplaceString, $ReplaceWith = $Replace.InnerText -split '=',2
+					} else {
+						$ReplaceString, $ReplaceWith = $Replace -split '=',2
+					}
 					if ($CurrentXMLText -imatch $ReplaceString)
 					{
 						$content = [System.IO.File]::ReadAllText($file.FullName).Replace($ReplaceString,$ReplaceWith)
