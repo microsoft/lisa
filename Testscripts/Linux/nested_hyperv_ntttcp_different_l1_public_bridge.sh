@@ -127,7 +127,6 @@ Collect_Logs() {
     remote_exec -host $SERVER_IP_ADDR -user root -passwd $NestedUserPassword -port 22 "tar -cf ./ntttcp-test-logs-receiver.tar ./ntttcp-${testType}-test-logs-receiver"
     remote_copy -host $SERVER_IP_ADDR -user root -passwd $NestedUserPassword -port 22 -filename "ntttcp-test-logs-receiver.tar" -remote_path "/root" -cmd "get" 
     remote_exec -host localhost -user root -passwd $NestedUserPassword -port 22 "mv /root/report.log /home/${NestedUser}"
-    remote_exec -host localhost -user root -passwd $NestedUserPassword -port 22 "mv /root/ntttcpTest.log /home/${NestedUser}"
     remote_exec -host localhost -user root -passwd $NestedUserPassword -port 22 "mv /root/ntttcpConsoleLogs /home/${NestedUser}"
     check_exit_status "Get the NTTTCP report" "exit"
 }
