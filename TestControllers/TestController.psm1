@@ -112,6 +112,7 @@ Class TestController
 
 		$this.TestProvider.CustomKernel = $ParamTable["CustomKernel"]
 		$this.TestProvider.CustomLIS = $ParamTable["CustomLIS"]
+		$this.TestProvider.ReuseVmOnFailure = ($ParamTable.ContainsKey("ReuseVmOnFailure"))
 		$this.CustomParams = @{}
 		if ( $ParamTable.ContainsKey("CustomParameters") ) {
 			$ParamTable["CustomParameters"].Split(';').Trim() | ForEach-Object {
@@ -619,6 +620,12 @@ Class TestController
 					# unless '-ReuseVmOnFailure', keep $vmData as last failure environment, no new deployment behavior followed.
 					if ($this.TestProvider.ReuseVmOnFailure) {
 						Write-LogInfo "Keep deployed target machine for future reuse, as '-ReuseVmOnFailure' is True"
+						if($vmData) {
+							$isRestartSuccess = $this.TestProvider.RestartAllDeployments($vmData)
+							if (!$isRestartSuccess) {
+								&$CleanupResource -VmDataToBeDeleted ([ref]$vmData)
+							}
+						}
 					}
 					# unless '-ResourceCleanup = Delete', possibly means choose economy option for saving cost and resources
 					# unless '-UseExistingRG', preserve deployed VMs in the same RG will cause following Testing Aborted (names of resources are fixed in LISAv2)

@@ -119,7 +119,8 @@ Param(
 	[string] $ResultDBTestTag = "",
 
 	[switch] $ExitWithZero,
-	[switch] $ForceCustom
+	[switch] $ForceCustom,
+	[switch] $ReuseVMOnFailure
 )
 
 
