@@ -2298,15 +2298,21 @@ function Collect-GcovData {
 }
 
 Function Restart-VMFromShell($VMData, [switch]$SkipRestartCheck) {
-    Write-LogInfo "Restarting $($VMData.RoleName) from shell..."
-    $Null = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "sleep 2 && reboot" -runAsSudo -RunInBackground
-    Start-Sleep -Seconds 5
-    if ($SkipRestartCheck) {
-        return $true
-    } else {
-        if ((Is-VmAlive -AllVMDataObject $AllVMData) -eq "True") {
+    try {
+        Write-LogInfo "Restarting $($VMData.RoleName) from shell..."
+        $Null = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "sleep 2 && reboot" -runAsSudo -RunInBackground
+        Start-Sleep -Seconds 5
+        if ($SkipRestartCheck) {
             return $true
+        } else {
+            if ((Is-VmAlive -AllVMDataObject $VMData) -eq "True") {
+                return $true
+            }
+            return $false
         }
+    }
+    catch {
+        Write-LogErr "Restarting $($VMData.RoleName) from shell failed with exception."
         return $false
     }
 }
