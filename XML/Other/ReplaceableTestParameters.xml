@@ -729,4 +729,20 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceThis>DPDK_FAILSAFE_SH_URL</ReplaceThis>
 		<ReplaceWith>https://gallery.technet.microsoft.com/Azure-DPDK-Failsafe-PMD-c34b1a4b/file/183012/1/failsafe.sh</ReplaceWith>
 	</Parameter>
+	<Parameter>
+		<ReplaceThis>NTTTCP_MONITOR_SECS_RUNTIME</ReplaceThis>
+		<ReplaceWith>2592000</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>NTTTCP_MONITOR_INTERVAL</ReplaceThis>
+		<ReplaceWith>5</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>NTTTCP_MONITOR_TOLERANCE</ReplaceThis>
+		<ReplaceWith>0.3</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>NTTTCP_MONITOR_PATCH</ReplaceThis>
+		<ReplaceWith></ReplaceWith>
+	</Parameter>
 </ReplaceableTestParameters>
