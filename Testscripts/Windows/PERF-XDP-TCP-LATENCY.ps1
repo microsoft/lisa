@@ -94,13 +94,14 @@ function Main {
         Write-LogInfo "  SSH Port : $($senderVMData.SSHPort)"
         Write-LogInfo "  Internal IP : $($senderVMData.InternalIP)"
 
-        # Check for compatible kernel
-        $currentKernelVersion = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
-                -username $user -password $password -command "uname -r"
-        if (Is-XDPCompatible -KernelVersion $currentKernelVersion -DetectedDistro $global:DetectedDistro) {
-            Write-LogInfo "Confirmed Kernel version supported: $currentKernelVersion"
+        # Check if current kernel supports xdp or not
+        $numberOfXDPQueues = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
+                -username $user -password $password -command "ethtool -S ${iFaceName}  | grep xdp_drop | wc -l"
+        Write-LogInfo "Number of XDP DROP queues: $numberOfXDPQueues"
+        if ($numberOfXDPQueues -gt 0) {
+            Write-LogInfo "Kernel version supports XDP"
         } else {
-            Write-LogWarn "Unsupported Kernel version: $currentKernelVersion or unsupported distro $($global:DetectedDistro)"
+            Write-LogWarn "Unsupported Kernel or unsupported distro $($global:DetectedDistro)"
             return $global:ResultSkipped
         }
 
