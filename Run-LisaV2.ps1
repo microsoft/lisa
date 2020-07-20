@@ -118,7 +118,9 @@ Param(
 	[string] $ResultDBTable = "",
 	[string] $ResultDBTestTag = "",
 
-	[switch] $ExitWithZero
+	[switch] $ExitWithZero,
+	[switch] $ForceCustom,
+	[switch] $ReuseVMOnFailure
 )
 
 

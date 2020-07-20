@@ -26,7 +26,7 @@ param(
 	[string]$NestedUser = "",
 	[string]$NestedUserPassword = "",
 	[string]$RaidOption = "",
-	[string]$setupType = ""
+	[string]$SetupType = ""
 )
 
 $TestXMLs = Get-ChildItem -Path ".\XML\TestCases\*.xml"
@@ -57,10 +57,10 @@ foreach ( $file in $TestXMLs.FullName)
 					$param."#text" = "RaidOption='$RaidOption'"
 				}
 			}
-			if ($setupType)
+			if ($SetupType)
 			{
 				Write-Host "Update test setup type: $setupType"
-				$test.setupType = $setupType
+				$test.SetupConfig.SetupType = $setupType
 			}
 		}
 	}

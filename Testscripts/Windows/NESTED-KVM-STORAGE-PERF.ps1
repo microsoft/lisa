@@ -44,7 +44,7 @@ function Send-ResultToDatabase ($currentTestResult, $AllVMData, $currentTestData
 	$fioDataCsv = Import-Csv -Path $LogDir\fioData.csv
 
 	if ($TestPlatform -eq "hyperV") {
-		$HostBy = $TestLocation
+		$HostBy = $CurrentTestData.SetupConfig.TestLocation
 		$HyperVMappedSizes = [xml](Get-Content .\XML\AzureVMSizeToHyperVMapping.xml)
 		$L1GuestCpuNum = $HyperVMappedSizes.HyperV.$HyperVInstanceSize.NumberOfCores
 		$L1GuestMemMB = [int]($HyperVMappedSizes.HyperV.$HyperVInstanceSize.MemoryInMB)
@@ -54,7 +54,7 @@ function Send-ResultToDatabase ($currentTestResult, $AllVMData, $currentTestData
 		$count = $vm.HardDrives.count - 1
 		$disk_size = $vhd.PhysicalSectorSize
 	} else {
-		$HostBy	= ($global:TestLocation).Replace('"','')
+		$HostBy	= ($CurrentTestData.SetupConfig.TestLocation).Replace('"','')
 		$L1GuestSize = $AllVMData.InstanceSize
 		$vm = (Get-AzVM -ResourceGroupName $AllVMData.ResourceGroupName -Name $AllVMData.RoleName)
 		$count = $vm.StorageProfile.DataDisks.Count

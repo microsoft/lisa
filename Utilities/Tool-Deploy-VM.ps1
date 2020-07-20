@@ -114,7 +114,6 @@ try {
             <VirtualMachine>
                 <state></state>
                 <InstanceSize>VM_SIZE</InstanceSize>
-                <ARMInstanceSize>VM_SIZE</ARMInstanceSize>
                 <RoleName>VM_NAME</RoleName>
                 CUSTOM_ENDPOINTS
                 CUSTOM_DISKS

@@ -31,6 +31,22 @@ Function New-ResultSummary($testResult, $checkValues, $testName, $metaData) {
 	return $resultString
 }
 
+$ExcludedSetupConfigsToDisplay = @("RGIdentifier","SetupScript")
+function ConvertFrom-SetupConfig([object]$SetupConfig, [switch]$WrappingLines) {
+	$resultString = ""
+	$SetupConfig.ChildNodes | Sort-Object LocalName | Foreach-Object {
+		if ($SetupConfig.($_.LocalName) -and !($ExcludedSetupConfigsToDisplay -contains $_.LocalName)) {
+			if ($WrappingLines.IsPresent) {
+				$resultString += "&nbsp;&nbsp;$($_.LocalName):$($SetupConfig.($_.LocalName))<br />"
+			}
+			else {
+				$resultString += "$($_.LocalName): $($SetupConfig.($_.LocalName)), "
+			}
+		}
+	}
+	return $resultString.Trim(", ")
+}
+
 Function Get-FinalResultHeader($resultArr) {
 	switch ($resultArr) {
 		{($_ -imatch "FAIL")} { $result = $global:ResultFail; break}
@@ -296,9 +312,10 @@ Function Wrap-CommandsToFile([string] $username,[string] $password,[string] $ip,
 		Set-Variable -Name lastIP -Value $ip -Scope Global
 		Set-Variable -Name lastPort -Value $port -Scope Global
 		Set-Variable -Name lastUser -Value $username -Scope Global
-		$command | out-file -encoding ASCII -filepath "$LogDir\runtest.sh"
-		Copy-RemoteFiles -upload -uploadTo $ip -username $username -port $port -password $password -files "$LogDir\runtest.sh"
-		Remove-Item "$LogDir\runtest.sh"
+		$fileName = "runtest-${global:TestID}.sh"
+		$command | out-file -encoding ASCII -filepath "$LogDir\$fileName"
+		Copy-RemoteFiles -upload -uploadTo $ip -username $username -port $port -password $password -files "$LogDir\$fileName"
+		Remove-Item "$LogDir\$fileName"
 	}
 }
 
@@ -338,6 +355,7 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 	}
 	$currentDir = $PWD.Path
 	$RunStartTime = Get-Date
+	$scriptName = "runtest-${global:TestID}.sh"
 
 	if ($global:sshPrivateKey) {
 		$sshKey = $global:sshPrivateKey
@@ -351,7 +369,7 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 			}
 			$linuxCommand += "sudo -S env `"PATH=`$PATH`" "
 			$logCommand = $linuxCommand
-			$linuxCommand += "bash -c `'bash runtest.sh ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
+			$linuxCommand += "bash -c `'bash $scriptName ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
 			$logCommand += " $MaskedCommand`""
 		} else {
 			$linuxCommand = "`""
@@ -359,15 +377,15 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 				$linuxCommand += "echo $plainTextPassword | "
 			}
 			$logCommand = $linuxCommand
-			$linuxCommand += "sudo -S bash -c `'bash runtest.sh ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
+			$linuxCommand += "sudo -S bash -c `'bash $scriptName ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
 			$logCommand += "sudo -S $MaskedCommand`""
 		}
 	} else {
 		if ($detectedDistro -eq "COREOS") {
-			$linuxCommand = "`"export PATH=/usr/share/oem/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/oem/bin:/opt/bin && bash -c `'bash runtest.sh ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
+			$linuxCommand = "`"export PATH=/usr/share/oem/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/oem/bin:/opt/bin && bash -c `'bash $scriptName ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
 			$logCommand = "`"export PATH=/usr/share/oem/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/oem/bin:/opt/bin && $MaskedCommand`""
 		} else {
-			$linuxCommand = "`"bash -c `'bash runtest.sh ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
+			$linuxCommand = "`"bash -c `'bash $scriptName ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
 			$logCommand = "`"$MaskedCommand`""
 		}
 	}

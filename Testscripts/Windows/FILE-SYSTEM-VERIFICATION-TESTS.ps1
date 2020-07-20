@@ -35,7 +35,7 @@ function New-FileShare {
     # Create a new storage account inside the test RG
     Write-LogInfo "Creating a new storage account"
     $storageAccount = New-AzStorageAccount -ResourceGroupName $AllVmData.ResourceGroupName `
-        -Name $storageAccountName -Location $TestLocation -SkuName $skuName -Verbose
+        -Name $storageAccountName -Location $CurrentTestData.SetupConfig.TestLocation -SkuName $skuName -Verbose
     if ($null -eq $storageAccount) {
         Write-LogErr "Failed to create a new storage account"
         Remove-StorageAccount $storageAccountName

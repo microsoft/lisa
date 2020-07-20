@@ -19,7 +19,9 @@ function Main {
         $HvServer,
         $TestParams
     )
-
+    if ($global:TestPlatform -ne 'HyperV') {
+        return
+    }
     $controllerNumber = $null
 
     # Check arguments

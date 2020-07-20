@@ -66,7 +66,7 @@ function Main {
         } else {
             Throw "Server and client SRIOV NICs are not same."
         }
-        if ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
+        if ($currentTestData.SetupConfig.Networking -imatch "SRIOV") {
             $DataPath = "SRIOV"
         } else {
             $DataPath = "Synthetic"
@@ -320,7 +320,7 @@ collect_VM_properties
             $SQLQuery = "INSERT INTO $dataTableName (TestCaseName,TestDate,HostType,HostBy,HostOS,GuestOSType,GuestDistro,GuestSize,KernelVersion,IPVersion,ProtocolType,DataPath,SendBufSize_KBytes,NumberOfConnections,TxThroughput_Gbps,RxThroughput_Gbps,DatagramLoss) VALUES "
 
             foreach ($udpResultObject in $FinalServerClientUDPResultObjArr) {
-                $SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$TestPlatform','$TestLocation','$HostOS','$GuestOSType','$GuestDistro','$GuestSize','$KernelVersion','$IPVersion','$ProtocolType','$DataPath','$($udpResultObject.BufferSize)','$($udpResultObject.Connections)','$($udpResultObject.ClientTxGbps)','$($udpResultObject.ServerRxGbps)','$($udpResultObject.ClientUDPLoss)'),"
+                $SQLQuery += "('$TestCaseName','$(Get-Date -Format yyyy-MM-dd)','$TestPlatform','$($CurrentTestData.SetupConfig.TestLocation)','$HostOS','$GuestOSType','$GuestDistro','$GuestSize','$KernelVersion','$IPVersion','$ProtocolType','$DataPath','$($udpResultObject.BufferSize)','$($udpResultObject.Connections)','$($udpResultObject.ClientTxGbps)','$($udpResultObject.ServerRxGbps)','$($udpResultObject.ClientUDPLoss)'),"
             }
 
             $SQLQuery = $SQLQuery.TrimEnd(',')

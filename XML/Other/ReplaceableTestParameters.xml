@@ -453,7 +453,7 @@ Scenario 2 : You need to run all the performance tests quickly.
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>NTTTCP_TCP_CONNECTIONS</ReplaceThis>
-		<ReplaceWith>(1 2 4 8 16 32 64 128 256 512 1024 2048 4096 6144 8192 10240)</ReplaceWith>
+		<ReplaceWith>(1 2 4 8 16 32 64 128 256 512 1024 2048 4096 6144 8192 10240 20480 40960 50000 55000)</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>NTTTCP_MULTICLIENTS_TCP_CONNECTIONS</ReplaceThis>
@@ -724,5 +724,9 @@ Scenario 2 : You need to run all the performance tests quickly.
 	<Parameter>
 		<ReplaceThis>CPU_OFFLINE_VM_REBOOT</ReplaceThis>
 		<ReplaceWith>yes</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>DPDK_FAILSAFE_SH_URL</ReplaceThis>
+		<ReplaceWith>https://gallery.technet.microsoft.com/Azure-DPDK-Failsafe-PMD-c34b1a4b/file/183012/1/failsafe.sh</ReplaceWith>
 	</Parameter>
 </ReplaceableTestParameters>

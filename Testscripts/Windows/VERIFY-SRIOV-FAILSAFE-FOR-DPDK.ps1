@@ -92,7 +92,7 @@ function Main {
 		} else {
 			Throw "Server and client SRIOV NICs are not same."
 		}
-		if($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
+		if($currentTestData.SetupConfig.Networking -imatch "SRIOV") {
 			$DataPath = "SRIOV"
 		} else {
 			$DataPath = "Synthetic"
