@@ -231,7 +231,10 @@ function Main() {
 			else
 				LogMsg "Successfully added the required dpdk-azure-18.11 repo"
 			fi
-
+			LogMsg "*** System updating with the customized ppa"
+			update_repos
+			Update_Kernel
+			Verify_Result
 			LogMsg "Required 32-bit java"
 			dpkg --add-architecture i386
 
@@ -265,10 +268,6 @@ function Main() {
 					LogMsg "Module $ex_module already loaded"
 				fi
 			done
-			LogMsg "*** System updating with the customized ppa"
-			update_repos
-			Update_Kernel
-			Verify_Result
 			;;
 		*)
 			LogErr "MPI type $mpi_type does not support on '$DISTRO' or not implement"
