@@ -337,7 +337,7 @@ function Main () {
 
 		if ($testResult -imatch $resultPass)
 		{
-			Copy-RemoteFiles -download -downloadFrom $nttcpClientIP -files "/home/$nestedUser/ntttcpConsoleLogs, /home/$nestedUser/ntttcpTest.log" -downloadTo $LogDir -port $nestVMSSHPort -username $nestedUser -password $nestedPassword
+			Copy-RemoteFiles -download -downloadFrom $nttcpClientIP -files "/home/$nestedUser/ntttcpConsoleLogs" -downloadTo $LogDir -port $nestVMSSHPort -username $nestedUser -password $nestedPassword
 			Copy-RemoteFiles -download -downloadFrom $nttcpClientIP -files "/home/$nestedUser/nested_properties.csv, /home/$nestedUser/report.log" -downloadTo $LogDir -port $nestVMSSHPort -username $nestedUser -password $nestedPassword
 			Copy-RemoteFiles -download -downloadFrom $nttcpClientIP -files "/home/$nestedUser/ntttcp-test-logs-receiver.tar, /home/$nestedUser/ntttcp-test-logs-sender.tar" -downloadTo $LogDir -port $nestVMSSHPort -username $nestedUser -password $nestedPassword
 
