@@ -1963,21 +1963,48 @@ function get_host_version() {
 
 # Validate the exit status of previous execution
 function check_exit_status() {
+	# The failed/aborted options are used when Linux script is the testscript,
+	# to check the checkpoint and set test result.
 	exit_status=$?
 	message=$1
+	test_state=$2
 
 	cmd="echo"
 	if [ $exit_status -ne 0 ]; then
 		$cmd "$message: Failed (exit code: $exit_status)"
 		UpdateSummary "$message Failed·(exit·code:·$exit_status)"
-		if [ "$2" == "exit" ]; then
-			SetTestStateAborted
-			exit $exit_status
-		fi
+		case "${test_state}" in
+			failed)
+				SetTestStateFailed
+				exit 0
+				;;
+			aborted)
+				SetTestStateAborted
+				exit 0
+				;;
+			exit)
+				SetTestStateAborted
+				exit $exit_status
+				;;
+			*)
+				LogWarn "Unsupported check_exit_status option: ${test_state}"
+				;;
+		esac
 	else
 		$cmd "$message: Success"
 		UpdateSummary "$message: Success"
 	fi
+}
+
+# Validate the previous command exit code is 0
+function VerifyExitCodeZero() {
+	check_exit_status "$1" "failed" "$2"
+}
+
+# Validate the previous command exit code is not 0
+function VerifyExitCodeNotZero() {
+	[ $? -ne 0 ]
+	check_exit_status "$1" "failed" "$2"
 }
 
 # Detect the version of Linux distribution, it gets the version only
