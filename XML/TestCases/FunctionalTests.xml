@@ -702,7 +702,6 @@
 	<SetupConfig>
 	<SetupType>OneVM</SetupType>
 	<SetupScript>.\TestScripts\Windows\SETUP-Config-VM.ps1</SetupScript>
-	<ARMImageName>Redhat RHEL 7.7 Latest</ARMImageName>
 	</SetupConfig>
 </test>
 <test>

@@ -616,29 +616,33 @@ Class TestController
 						}
 					}
 				}
-				else { # Last Test is Failed/Aborted, by default preserve VM for analysis/debugging, but set $vmData = null: (force another deployment happen for next TC)
-					# unless '-ReuseVmOnFailure', keep $vmData as last failure environment, no new deployment behavior followed.
+				else {
+					#Last Test is Failed/Aborted, check '-ReuseVMOnFailure', and set $readyForReuseVM = $true if RestartAllDeployments successfully.
+					$readyForReuseVM = $false
 					if ($this.TestProvider.ReuseVmOnFailure) {
-						Write-LogInfo "Keep deployed target machine for future reuse, as '-ReuseVmOnFailure' is True"
+						Write-LogInfo "Try reuse VM instances from last deployment, as '-ReuseVmOnFailure' is True"
 						if($vmData) {
-							$isRestartSuccess = $this.TestProvider.RestartAllDeployments($vmData)
-							if (!$isRestartSuccess) {
+							$readyForReuseVM = $this.TestProvider.RestartAllDeployments($vmData)
+						}
+					}
+					# If -not $readyForReuseVM, LISA will preserve VM environment for analysis/debugging by default.
+					# but eventually will set $vmData = $null, which means force another deployment happen for next test case
+					if (!$readyForReuseVM) {
+						# when '-ResourceCleanup = Delete', &$CleanupResource
+						if ($vmData -and $this.ResourceCleanup -imatch "Delete") {
+							&$CleanupResource -VmDataToBeDeleted ([ref]$vmData)
+						}
+						# when '-UseExistingRG', try to &$CleanupResource, unless '-ResourceCleanup = Keep'
+						if ($vmData -and $this.UseExistingRG) {
+							if ($this.ResourceCleanup -imatch "Keep") {
+								# '-ResourceCleanup = Keep' may cause following test cases in the same Setup group Aborted (because resource names of deployment are duplicated in the ExistingRG)
+								Write-LogWarn "ResourceCleanup = 'Keep' is respected, but may conflict with '-UseExistingRG', as 'Keep' will cause following tests Aborted."
+							}
+							else {
 								&$CleanupResource -VmDataToBeDeleted ([ref]$vmData)
 							}
 						}
-					}
-					# unless '-ResourceCleanup = Delete', possibly means choose economy option for saving cost and resources
-					# unless '-UseExistingRG', preserve deployed VMs in the same RG will cause following Testing Aborted (names of resources are fixed in LISAv2)
-					elseif ($this.UseExistingRG -or ($this.ResourceCleanup -imatch "Delete")) {
-						if ($this.ResourceCleanup -imatch "Keep") {
-							Write-LogWarn "ResourceCleanup = 'Keep' is respected, but may conflict with '-UseExistingRG', as 'Keep' will cause following tests Aborted."
-							$vmData = $null
-						}
-						else {
-							&$CleanupResource -VmDataToBeDeleted ([ref]$vmData)
-						}
-					}
-					else { # this is by default choice for last Failed/Aborted
+						# this is by default choice for last Failed/Aborted
 						$vmData = $null
 					}
 				}
