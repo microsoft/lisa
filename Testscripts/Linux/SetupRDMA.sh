@@ -232,7 +232,7 @@ function Main() {
 				LogMsg "Successfully added the required dpdk-azure-18.11 repo"
 			fi
 
-			LogMsg "*** System updating with the customized ppa"
+			LogMsg "*** System updating with the customized ppa repo"
 			update_repos
 			Update_Kernel
 			Verify_Result
