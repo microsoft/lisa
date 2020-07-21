@@ -92,23 +92,22 @@ echo disk > /sys/power/state
 		#endregion
 
 		# Configuration for the hibernation
-		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./SetupHbKernel.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "/home/$user/SetupHbKernel.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
 		Write-LogInfo "Executed SetupHbKernel script inside VM"
 
 		# Wait for kernel compilation completion. 90 min timeout
 		$timeout = New-Timespan -Minutes $maxKernelCompileMin
 		$sw = [diagnostics.stopwatch]::StartNew()
 		while ($sw.elapsed -lt $timeout) {
-			$vmCount = $AllVMData.Count
 			Wait-Time -seconds 30
-			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat ~/state.txt"
+			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat /home/$user/state.txt" -runAsSudo
+			Write-LogDbg "state is $state"
 			if ($state -eq "TestCompleted") {
-				$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat ~/constants.sh | grep setup_completed=0"
+				$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat /home/$user/constants.sh | grep setup_completed=0" -runAsSudo
 				if ($kernelCompileCompleted -ne "setup_completed=0") {
 					Write-LogErr "SetupHbKernel.sh run finished on $($VMData.RoleName) but setup was not successful!"
 				} else {
 					Write-LogInfo "SetupHbKernel.sh finished on $($VMData.RoleName)"
-					$vmCount--
 				}
 				break
 			} elseif ($state -eq "TestSkipped") {
@@ -129,11 +128,6 @@ echo disk > /sys/power/state
 			} else {
 				Write-LogInfo "SetupHbKernel.sh is still running in the VM!"
 			}
-		}
-		if ($vmCount -le 0){
-			Write-LogInfo "SetupHbKernel.sh is done"
-		} else {
-			throw "SetupHbKernel.sh didn't finish in the VM!"
 		}
 
 		# Reboot VM to apply swap setup changes
@@ -180,18 +174,18 @@ install_package "ethtool"
 			foreach ($VMData in $AllVMData) {
 				Copy-RemoteFiles -uploadTo $VMData.PublicIP -port $VMData.SSHPort -files "$constantsFile,$($CurrentTestData.files),$LogDir\*.sh" -username $user -password $password -upload
 				Write-LogInfo "Copied the script files to the VM"
-				Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "bash ./setup.sh" -runAsSudo
+				Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "bash /home/$user/setup.sh" -runAsSudo
 			}
 			#endregion
 
 			# Getting queue counts and interrupt counts before hibernation
-			$vfname = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash ./getvf.sh" -runAsSudo
+			$vfname = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash /home/$user/getvf.sh" -runAsSudo
 			if ( $vfname -ne '' ) {
 				$tx_queue_count1 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -l $vfname | grep -i tx | tail -n 1 | cut -d ':' -f 2 | tr -d '[:space:]'" -runAsSudo
 				$interrupt_count1 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /proc/interrupts | grep -i mlx | grep -i msi | wc -l" -runAsSudo
 			}
 			# Hibernate the VM
-			Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "./test.sh" -runAsSudo -RunInBackground -ignoreLinuxExitCode:$true | Out-Null
+			Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "/home/$user/test.sh" -runAsSudo -RunInBackground -ignoreLinuxExitCode:$true | Out-Null
 			Write-LogInfo "Sent hibernate command to the VM and continue checking its status in every 15 seconds until 20 minutes timeout"
 
 			# Verify the VM status
@@ -225,8 +219,10 @@ install_package "ethtool"
 			while ($sw.elapsed -lt $timeout) {
 				Wait-Time -seconds 15
 				$state = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "date > /dev/null; echo $?"
+				Write-LogDbg "state is $state"
 				if ($state) {
-					$kernelCompileCompleted = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "dmesg | grep -i 'hibernation exit'"
+					#$kernelCompileCompleted1 = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "dmesg | grep -i 'hibernation exit'" -runAsSudo
+					$kernelCompileCompleted = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "cat /var/log/syslog | grep -i 'hibernation exit'" -runAsSudo
 					# This verification might be revised in future. Checking with dmesg is risky.
 					if ($kernelCompileCompleted -ne "hibernation exit") {
 						Write-LogErr "VM $($AllVMData[0].RoleName) resumed successfully but could not determine hibernation completion"
@@ -270,7 +266,7 @@ install_package "ethtool"
 			}
 
 			# Verify the kernel panic, call trace or fatal error
-			$calltrace_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg | grep -iE '(call trace|fatal error)'" -ignoreLinuxExitCode:$true
+			$calltrace_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg | grep -iE '(call trace|fatal error)'" -runAsSudo -ignoreLinuxExitCode:$true
 
 			if ($calltrace_filter -ne "") {
 				Write-LogErr "Found Call Trace or Fatal error in dmesg"
@@ -283,11 +279,11 @@ install_package "ethtool"
 			# Check the system log if it shows Power Management log
 			"hibernation entry", "hibernation exit" | ForEach-Object {
 				# TODO: For other distro, need to check out the syslog or messages.
-				$pm_log_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /var/log/syslog | grep -i '$_'" -ignoreLinuxExitCode:$true
+				$pm_log_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /var/log/syslog | grep -i '$_'" -runAsSudo -ignoreLinuxExitCode:$true
 				Write-LogInfo "Searching the keyword: $_"
 				if ($pm_log_filter -eq "") {
 					Write-LogErr "Could not find Power Management log in syslog"
-					$pm_log_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg | grep -i '$_'" -ignoreLinuxExitCode:$true
+					$pm_log_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg | grep -i '$_'" -runAsSudo -ignoreLinuxExitCode:$true
 					if ($pm_log_filter -eq "") {
 						throw "Missing PM logging in both syslog and dmesg"
 					} else {
@@ -300,7 +296,7 @@ install_package "ethtool"
 		}
 
 		# Getting queue counts and interrupt counts after resuming.
-		$vfname = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash ./getvf.sh" -runAsSudo
+		$vfname = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash /home/$user/getvf.sh" -runAsSudo
 		if ($vfname -ne '') {
 			$tx_queue_count2 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "ethtool -l ${vfname} | grep -i tx | tail -n 1 | cut -d ':' -f 2 | tr -d '[:space:]'" -runAsSudo
 			$interrupt_count2 = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /proc/interrupts | grep -i mlx | grep -i msi | wc -l" -runAsSudo

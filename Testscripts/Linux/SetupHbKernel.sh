@@ -32,6 +32,7 @@ if [[ $DISTRO =~ "redhat" ]];then
 fi
 
 function Main() {
+	basedir=$(pwd)
 	# Prepare swap space
 	for key in n p 1 2048 '' t 82 p w
 	do
@@ -81,10 +82,10 @@ function Main() {
 				req_pkg="elfutils-libelf-devel ncurses-devel bc elfutils-libelf-devel openssl-devel grub2"
 				;;
 			suse*|sles*)
-				req_pkg="ncurses-devel libelf-dev"
+				req_pkg="ncurses-devel libopenssl-devel libbtrfs-devel cryptsetup dmraid mdadm cryptsetup dmraid mdadm libelf-devel"
 				;;
 			ubuntu*)
-				req_pkg="build-essential fakeroot libncurses5-dev libssl-dev ccache bc"
+				req_pkg="build-essential fakeroot libncurses5-dev libssl-dev ccache bc dracut-core"
 				;;
 			*)
 				LogErr "$DISTRO does not support hibernation"
@@ -120,14 +121,14 @@ function Main() {
 		make install
 		LogMsg "$?: Install new kernel"
 
-		cd
+		cd $basedir
 
 		# Append the test log to the main log files.
 		if [ -f /usr/src/linux/TestExecution.log ]; then
-			cat /usr/src/linux/TestExecution.log >> TestExecution.log
+			cat /usr/src/linux/TestExecution.log >> $basedir/TestExecution.log
 		fi
 		if [ -f /usr/src/linux/TestExecutionError.log ]; then
-			cat /usr/src/linux/TestExecutionError.log >> TestExecutionError.log
+			cat /usr/src/linux/TestExecutionError.log >> $basedir/TestExecutionError.log
 		fi
 	fi
 
@@ -141,10 +142,16 @@ function Main() {
 			LogMsg "$?: Added resume=$sw_uuid in /etc/default/grub file"
 		fi
 
+		# VM Gen is 2
 		if [[ "$os_GENERATION" == "2" ]];then
 			grub_cfg="/boot/efi/EFI/redhat/grub.cfg"
 		else
-			grub_cfg="/boot/grub2/grub.cfg"
+			# VM Gen is 1
+			if [ -f /boot/grub2/grub.cfg ]; then
+				grub_cfg="/boot/grub2/grub.cfg"
+			else
+				grub_cfg="/boot/grub/grub.cfg"
+			fi
 		fi
 		grub2-mkconfig -o ${grub_cfg}
 		LogMsg "$?: Run grub2-mkconfig -o ${grub_cfg}"
@@ -152,7 +159,61 @@ function Main() {
 		# Must run dracut -f, or it cannot recover image in boot after hibernation
 		dracut -f
 		LogMsg "$?: Run dracut -f"
+	elif [[ "$DISTRO" =~ "sles" || "$DISTRO" =~ "suse" ]];then
+		_entry=$(cat /etc/default/grub | grep 'rootdelay=')
+		if [ -n "$_entry" ]; then
+			sed -i -e "s/rootdelay=300/rootdelay=300 log_buf_len=200M resume=$sw_uuid/g" /etc/default/grub
+			LogMsg "$?: Updated the grub file with resume=$sw_uuid"
+		else
+			echo GRUB_CMDLINE_LINUX_DEFAULT="console=tty1 console=ttyS0 earlyprintk=ttyS0 rootdelay=300 log_buf_len=200M resume=$sw_uuid" >> /etc/default/grub
+			LogMsg "$?: Added resume=$sw_uuid in the grub file"
+		fi
+
+		_entry=$(cat /etc/default/grub | grep 'GRUB_HIDDEN_TIMEOUT=')
+		if [ -n "$_entry" ]; then
+			sed -i -e "s/GRUB_HIDDEN_TIMEOUT=*.*/GRUB_HIDDEN_TIMEOUT=30/g" /etc/default/grub
+			LogMsg "$?: Updated GRUB_HIDDEN_TIMEOUT value with 30"
+		else
+			echo 'GRUB_HIDDEN_TIMEOUT=30' >> /etc/default/grub
+			LogMsg "$?: Added GRUB_HIDDEN_TIMEOUT=30 in /etc/default/grub file"
+		fi
+
+		_entry=$(cat /etc/default/grub | grep 'GRUB_TIMEOUT=')
+		if [ -n "$_entry" ]; then
+			sed -i -e "s/GRUB_TIMEOUT=.*/GRUB_TIMEOUT=30/g" /etc/default/grub
+			LogMsg "$?: Updated GRUB_TIMEOUT value with 30"
+		else
+			echo 'GRUB_TIMEOUT=30' >> /etc/default/grub
+			LogMsg "$?: Added GRUB_TIMEOUT=30 in /etc/default/grub file"
+		fi
+
+		# VM Gen is 2
+		if [[ "$os_GENERATION" == "2" ]];then
+			grub_cfg="/boot/efi/EFI/redhat/grub.cfg"
+		else
+			# VM Gen is 1
+			if [ -f /boot/grub2/grub.cfg ]; then
+				grub_cfg="/boot/grub2/grub.cfg"
+			else
+				grub_cfg="/boot/grub/grub.cfg"
+			fi
+		fi
+		grub2-mkconfig -o ${grub_cfg}
+		LogMsg "$?: Run grub2-mkconfig -o ${grub_cfg}"
+
+		_entry1=$(cat /etc/default/grub | grep 'resume=')
+		_entry2=$(cat /etc/default/grub | grep 'GRUB_HIDDEN_TIMEOUT=30')
+		_entry3=$(cat /etc/default/grub | grep 'GRUB_TIMEOUT=30')
+		# Re-validate the entry in the grub file.
+		if [ -n "$_entry1" ] && [ -n "$_entry2" ] && [ -n "$_entry3" ]; then
+			LogMsg "Successfully updated grub file with all three entries"
+		else
+			LogErr "$_entry, $_entry2, $_entry3 - Missing config update in grub file"
+			SetTestStateAborted
+			exit 0
+		fi
 	else
+		# Canonical Ubuntu
 		_entry=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'rootdelay=')
 		# Change boot kernel parameters in 50-cloudimg-settings.cfg
 		# resume= defines the disk partition address where the hibernation image goes in and out.
@@ -163,7 +224,7 @@ function Main() {
 		else
 			_entry=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep GRUB_CMDLINE_LINUX_DEFAULT)
 			if [ -n "$_entry" ]; then
-				sed -i  '/^GRUB_CMDLINE_LINUX_DEFAULT=/ s/"$/ rootdelay=300 log_buf_len=200M resume='$sw_uuid'"/'  /etc/default/grub.d/50-cloudimg-settings.cfg
+				sed -i '/^GRUB_CMDLINE_LINUX_DEFAULT=/ s/"$/ rootdelay=300 log_buf_len=200M resume='$sw_uuid'"/'  /etc/default/grub.d/50-cloudimg-settings.cfg
 			else
 				echo GRUB_CMDLINE_LINUX_DEFAULT="console=tty1 console=ttyS0 earlyprintk=ttyS0 rootdelay=300 log_buf_len=200M resume=$sw_uuid" >> /etc/default/grub.d/50-cloudimg-settings.cfg
 			fi
@@ -190,6 +251,13 @@ function Main() {
 			LogMsg "$?: Added GRUB_TIMEOUT=30 in 50-cloudimg-settings.cfg file"
 		fi
 
+		_entry=$(cat /etc/default/grub.d/40-force-partuuid.cfg | grep 'GRUB_FORCE_PARTUUID=')
+		# This is the case about GRUB_FORCE_PARTUUID
+		if [ -n "$_entry" ]; then
+			sed -i -e "s/GRUB_FORCE_PARTUUID=.*/#GRUB_FORCE_PARTUUID=/g" /etc/default/grub.d/40-force-partuuid.cfg
+			LogMsg "$?: Commented out GRUB_FORCE_PARTUUID line"
+		fi
+
 		update-grub2
 		# Update grup2 configuration
 		LogMsg "$?: Ran update-grub2"
@@ -207,7 +275,7 @@ function Main() {
 		fi
 	fi
 
-	echo "setup_completed=0" >> constants.sh
+	echo "setup_completed=0" >> $basedir/constants.sh
 	LogMsg "Main function completed"
 }
 
