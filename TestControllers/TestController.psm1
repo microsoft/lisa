@@ -621,7 +621,8 @@ Class TestController
 					$readyForReuseVM = $false
 					if ($this.TestProvider.ReuseVmOnFailure) {
 						Write-LogInfo "Try reuse VM instances from last deployment, as '-ReuseVmOnFailure' is True"
-						if($vmData) {
+						# Here the VM is not an initial state after provision, should be responsible immediately, but maybe already kernel panic or no response at all, so if VM is Not Alive after 3 retries, giving up the restart.
+						if($vmData -and ((Is-VmAlive -AllVMDataObject $vmData -MaxRetryCount 3) -eq "True")) {
 							$readyForReuseVM = $this.TestProvider.RestartAllDeployments($vmData)
 						}
 					}
