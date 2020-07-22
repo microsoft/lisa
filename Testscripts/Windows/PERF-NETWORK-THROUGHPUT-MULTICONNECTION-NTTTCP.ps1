@@ -60,13 +60,22 @@ function Main {
         Provision-VMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
         #endregion
 
-        # Add a new line configuration in systemd logind.conf. UserTasksMax Sets the maximum number of OS tasks each user may run concurrently.
-        $setSystemdConfig = "sed -i '`$aUserTasksMax=122880' /etc/systemd/logind.conf"
-        foreach ($vmData in $allVMData) {
-            Run-LinuxCmd -ip $vmData.PublicIP -port $vmData.SSHPort -username "root" `
-                    -password $password -command $setSystemdConfig | Out-Null
-        }
+        Write-LogInfo "Getting Systemd Version."
+        $getSystemdVersion = "systemctl --version | head -n1 | awk '{ print `$NF }'"
+        $systemdVersion = (Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort `
+            -username "root" -password $password -command $getSystemdVersion).Trim()
+        Write-LogInfo "Systemd Version is $systemdVersion. Set Systemd user config file..."
 
+        if (($systemdVersion -as [int]) -ge 239) {
+            # In systemd v239 and later, the user default is set via TasksMax= in /usr/lib/systemd/system/user-.slice.d/10-defaults.conf
+            $setSystemdConfig = "sed -i 's/TasksMax.*/TasksMax=122880/' /usr/lib/systemd/system/user-.slice.d/10-defaults.conf"
+        } else {
+            # Add a new line configuration in systemd logind.conf. UserTasksMax Sets the maximum number of OS tasks each user may run concurrently.
+            $setSystemdConfig = "sed -i '`$aUserTasksMax=122880' /etc/systemd/logind.conf"
+        }
+        Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username "root"`
+                    -password $password -command $setSystemdConfig | Out-Null
+ 
         # Restart VM to apply systemd setting
         if (-not $TestProvider.RestartAllDeployments($allVMData)) {
             Write-LogErr "Unable to connect to VM after restart!"
