@@ -21,18 +21,26 @@ GetDistro
 GetGuestGeneration
 
 # Hibernation is supported in RHEL-8 since kernel-4.18.0-202. Not supported in RHEL-7.
-if [[ $DISTRO =~ "redhat" ]];then
-	MIN_KERNEL="4.18.0-202"
-	CheckVMFeatureSupportStatus $MIN_KERNEL
-	if [[ $? == 1 ]];then
-		UpdateSummary "Hibernation is supported since kernel-4.18.0-202. Current version: $(uname -r). Skip the test."
-		SetTestStateSkipped
-		exit 0
-	fi
-fi
+#if [[ $DISTRO =~ "redhat" ]];then
+#	MIN_KERNEL="4.18.0-202"
+#	CheckVMFeatureSupportStatus $MIN_KERNEL
+#	if [[ $? == 1 ]];then
+#		UpdateSummary "Hibernation is supported since kernel-4.18.0-202. Current version: $(uname -r). Skip the test."
+#		SetTestStateSkipped
+#		exit 0
+#	fi
+#fi
 
 function Main() {
 	basedir=$(pwd)
+	if [[ "$DISTRO" =~ "redhat" ]];then
+		# RHEL requires bigger disk space for kernel repo and its compilation.
+		# This is Azure mnt disk from the host.
+		linux_path=/mnt/linux
+	else
+		linux_path=/usr/src/linux
+	fi
+
 	# Prepare swap space
 	for key in n p 1 2048 '' t 82 p w
 	do
@@ -97,17 +105,28 @@ function Main() {
 		LogMsg "$?: Installed required packages, $req_pkg"
 
 		# Start kernel compilation
-		LogMsg "Clone and compile new kernel from $hb_url to /usr/src/linux"
-		git clone $hb_url /usr/src/linux
-		LogMsg "$?: Cloned the kernel source repo in /usr/src/linux"
+		LogMsg "Clone and compile new kernel from $hb_url to $linux_path"
+		git clone $hb_url $linux_path
+		LogMsg "$?: Cloned the kernel source repo in $linux_path"
 
-		cd /usr/src/linux/
+		cd $linux_path
 
 		git checkout $hb_branch
 		LogMsg "$?: Changed to $hb_branch"
 
-		cp /boot/config*-azure /usr/src/linux/.config
+		if [[ "$DISTRO" =~ "redhat" ]];then
+			cp /boot/config* $linux_path/.config
+		else
+			cp /boot/config*-azure $linux_path/.config
+		fi
 		LogMsg "$?: Copied the default config file from /boot"
+		if [[ "$DISTRO" =~ "redhat" ]];then
+			# Commented out CONFIG_SYSTEM_TRUSTED_KEY parameter for redhat kernel compilation
+			sed -i -e "s/CONFIG_MODULE_SIG_KEY=/#CONFIG_MODULE_SIG_KEY=/g" $linux_path/.config
+			sed -i -e "s/CONFIG_SYSTEM_TRUSTED_KEYRING=/#CONFIG_SYSTEM_TRUSTED_KEYRING=/g" $linux_path/.config
+			sed -i -e "s/CONFIG_SYSTEM_TRUSTED_KEYS=/#CONFIG_SYSTEM_TRUSTED_KEYS=/g" $linux_path/.config
+			sed -i -e "s/CONFIG_DEBUG_INFO_BTF=/#CONFIG_DEBUG_INFO_BTF=/g" $linux_path/.config
+		fi
 
 		yes '' | make oldconfig
 		LogMsg "$?: Did oldconfig make file"
@@ -124,11 +143,11 @@ function Main() {
 		cd $basedir
 
 		# Append the test log to the main log files.
-		if [ -f /usr/src/linux/TestExecution.log ]; then
-			cat /usr/src/linux/TestExecution.log >> $basedir/TestExecution.log
+		if [ -f $linux_path/TestExecution.log ]; then
+			cat $linux_path/TestExecution.log >> $basedir/TestExecution.log
 		fi
-		if [ -f /usr/src/linux/TestExecutionError.log ]; then
-			cat /usr/src/linux/TestExecutionError.log >> $basedir/TestExecutionError.log
+		if [ -f $linux_path/TestExecutionError.log ]; then
+			cat $linux_path/TestExecutionError.log >> $basedir/TestExecutionError.log
 		fi
 	fi
 
@@ -140,6 +159,24 @@ function Main() {
 		else
 			echo GRUB_CMDLINE_LINUX_DEFAULT="console=tty1 console=ttyS0 earlyprintk=ttyS0 rootdelay=300 resume=$sw_uuid" >> /etc/default/grub
 			LogMsg "$?: Added resume=$sw_uuid in /etc/default/grub file"
+		fi
+
+		_entry=$(cat /etc/default/grub | grep 'GRUB_HIDDEN_TIMEOUT=')
+		if [ -n "$_entry" ]; then
+			sed -i -e "s/GRUB_HIDDEN_TIMEOUT=*.*/GRUB_HIDDEN_TIMEOUT=30/g" /etc/default/grub
+			LogMsg "$?: Updated GRUB_HIDDEN_TIMEOUT value with 30"
+		else
+			echo 'GRUB_HIDDEN_TIMEOUT=30' >> /etc/default/grub
+			LogMsg "$?: Added GRUB_HIDDEN_TIMEOUT=30 in /etc/default/grub file"
+		fi
+
+		_entry=$(cat /etc/default/grub | grep 'GRUB_TIMEOUT=')
+		if [ -n "$_entry" ]; then
+			sed -i -e "s/GRUB_TIMEOUT=.*/GRUB_TIMEOUT=30/g" /etc/default/grub
+			LogMsg "$?: Updated GRUB_TIMEOUT value with 30"
+		else
+			echo 'GRUB_TIMEOUT=30' >> /etc/default/grub
+			LogMsg "$?: Added GRUB_TIMEOUT=30 in /etc/default/grub file"
 		fi
 
 		# VM Gen is 2
