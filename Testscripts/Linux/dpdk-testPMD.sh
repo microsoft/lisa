@@ -64,6 +64,16 @@ function Run_Testpmd() {
 	local modes=${2}
 	local test_duration=${3}
 
+	if [ -z "${pmd}" ]; then
+		pmd="failsafe"
+	fi
+
+	trx_rx_ips=$(Get_Trx_Rx_Ip_Flags "${receiver}")
+	if [ ${pmd} = "netvsc" ]; then
+		. dpdkUtils.sh && NetvscDevice_Setup "${sender}"
+		. dpdkUtils.sh && NetvscDevice_Setup "${receiver}"
+	fi
+
 	for test_mode in ${modes}; do
 		LogMsg "Ensuring free hugepages"
 		local free_huge_cmd="rm -rf /dev/hugepages/*"
@@ -74,14 +84,13 @@ function Run_Testpmd() {
 		# start receiver in advance so traffic spike doesn't cause output freeze
 		local receiver_duration=$(expr "${test_duration}" + 5)
 
-		local receiver_testpmd_cmd="$(Create_Timed_Testpmd_Cmd "${receiver_duration}" "${core}" "${receiver_busaddr}" "${receiver_iface}" "${test_mode}")"
+		local receiver_testpmd_cmd="$(Create_Timed_Testpmd_Cmd "${receiver_duration}" "${core}" "${receiver_busaddr}" "${receiver_iface}" "${test_mode}" "${pmd}")"
 		LogMsg "${receiver_testpmd_cmd}"
 		ssh "${receiver}" "${receiver_testpmd_cmd}" 2>&1 > "${LOG_DIR}"/dpdk-testpmd-"${test_mode}"-receiver-"${core}"-core-$(date +"%m%d%Y-%H%M%S").log &
 
 		sleep 5
 
-		trx_rx_ips=$(Get_Trx_Rx_Ip_Flags "${receiver}")
-		local sender_testpmd_cmd="$(Create_Timed_Testpmd_Cmd "${test_duration}" "${core}" "${sender_busaddr}" "${sender_iface}" txonly "${trx_rx_ips}")"
+		local sender_testpmd_cmd="$(Create_Timed_Testpmd_Cmd "${test_duration}" "${core}" "${sender_busaddr}" "${sender_iface}" txonly "${pmd}" "${trx_rx_ips}")"
 		LogMsg "${sender_testpmd_cmd}"
 		eval "${sender_testpmd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testpmd-${test_mode}-sender-${core}-core-$(date +"%m%d%Y-%H%M%S").log &"
 

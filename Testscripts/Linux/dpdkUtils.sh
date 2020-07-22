@@ -434,7 +434,7 @@ function Create_Timed_Testpmd_Cmd() {
 	fi
 	local duration="${1}"
 
-	cmd="$(Create_Testpmd_Cmd ${2} ${3} ${4} ${5} ${6})"
+	cmd="$(Create_Testpmd_Cmd ${2} ${3} ${4} ${5} ${6} ${7})"
 	echo "timeout ${duration} ${cmd}"
 }
 
@@ -479,9 +479,9 @@ function Create_Testpmd_Cmd() {
 			DEV_UUID=$(basename $(readlink /sys/class/net/eth1/device))
 			NET_UUID="f8615163-df3e-46c5-913f-f2d2f965ed0e"
 			modprobe uio_hv_generic
-			echo $NET_UUID > /sys/bus/vmbus/drivers/uio_hv_generic/new_id
-			echo $DEV_UUID > /sys/bus/vmbus/drivers/hv_netvsc/unbind
-			echo $DEV_UUID > /sys/bus/vmbus/drivers/uio_hv_generic/bind
+			echo $NET_UUID > /sys/bus/vmbus/drivers/uio_hv_generic/new_id &>/dev/null
+			echo $DEV_UUID > /sys/bus/vmbus/drivers/hv_netvsc/unbind &>/dev/null
+			echo $DEV_UUID > /sys/bus/vmbus/drivers/uio_hv_generic/bind &>/dev/null
 			eal_opts="-l 0-${core} -w ${busaddr} --"
 			;;
 		failsafe)
@@ -664,7 +664,11 @@ function NetvscDevice_Setup() {
 		SetTestStateAborted
 		exit 1
 	fi
+	NET_UUID="f8615163-df3e-46c5-913f-f2d2f965ed0e"
+	DEV_UUID_pre=$(ssh "${1}" "readlink /sys/class/net/eth1/device")
+	DEV_UUID=$(basename ${DEV_UUID_pre})
 	ssh "${1}" "modprobe uio_hv_generic"
-	ssh "${1}" 'DEV_UUID=$(basename $(readlink /sys/class/net/eth1/device)) && echo $DEV_UUID > /sys/bus/vmbus/drivers/hv_netvsc/unbind && echo $DEV_UUID > /sys/bus/vmbus/drivers/uio_hv_generic/bind'
-	ssh "${1}" 'NET_UUID='f8615163-df3e-46c5-913f-f2d2f965ed0e' && echo $NET_UUID > /sys/bus/vmbus/drivers/uio_hv_generic/new_id'
+	ssh "${1}" "echo ${NET_UUID} > /sys/bus/vmbus/drivers/uio_hv_generic/new_id"
+	ssh "${1}" "echo ${DEV_UUID} > /sys/bus/vmbus/drivers/hv_netvsc/unbind"
+	ssh "${1}" "echo ${DEV_UUID} > /sys/bus/vmbus/drivers/uio_hv_generic/bind"
 }

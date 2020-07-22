@@ -6,6 +6,7 @@
     <TestParameters>
       <param>dpdkSrcLink="DPDK_SOURCE_URL"</param>
       <param>MODES="txonly"</param>
+      <param>pmd=failsafe</param>
     </TestParameters>
     <Platform>Azure</Platform>
     <Category>Functional</Category>
@@ -216,23 +217,42 @@
         </SetupConfig>
     </test>
     <test>
-        <testName>VERIFY-SRIOV-FAILSAFE-FOR-DPDK-NETVSCPMD</testName>
-        <testScript>VERIFY-SRIOV-FAILSAFE-FOR-DPDK.ps1</testScript>
-        <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkSetup.sh,.\Testscripts\Linux\dpdkUtils.sh,.\Testscripts\Linux\dpdkTestPmd.sh</files>
-        <TestParameters>
-            <param>dpdkSrcLink="DPDK_SOURCE_URL"</param>
-            <param>testDuration=30</param>
-            <param>modes="rxonly"</param>
-            <param>pmd=netvsc</param>
-        </TestParameters>
-        <Platform>Azure</Platform>
-        <Category>Functional</Category>
-        <Area>DPDK</Area>
-        <Tags>dpdk,dpdk-core,network,hv_netvsc,sriov</Tags>
-        <Priority>2</Priority>
-        <SetupConfig>
-            <Networking>SRIOV</Networking>
-            <SetupType>TwoVM3NIC</SetupType>
-        </SetupConfig>
+      <testName>VERIFY-SRIOV-FAILSAFE-FOR-DPDK-NETVSCPMD</testName>
+      <testScript>VERIFY-SRIOV-FAILSAFE-FOR-DPDK.ps1</testScript>
+      <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\dpdkSetup.sh,.\Testscripts\Linux\dpdkUtils.sh,.\Testscripts\Linux\dpdkTestPmd.sh</files>
+      <TestParameters>
+          <param>dpdkSrcLink="DPDK_SOURCE_URL"</param>
+          <param>testDuration=30</param>
+          <param>modes="rxonly"</param>
+          <param>pmd=netvsc</param>
+      </TestParameters>
+      <Platform>Azure</Platform>
+      <Category>Functional</Category>
+      <Area>DPDK</Area>
+      <Tags>dpdk,dpdk-core,network,hv_netvsc,sriov</Tags>
+      <Priority>2</Priority>
+      <SetupConfig>
+          <Networking>SRIOV</Networking>
+          <SetupType>TwoVM3NIC</SetupType>
+      </SetupConfig>
     </test>
+    <test>
+    <testName>VERIFY-DPDK-FAILSAFE-DURING-TRAFFIC-NETVSCPMD</testName>
+    <testScript>DPDK-TESTCASE-DRIVER.ps1</testScript>
+    <files>.\Testscripts\Linux\dpdk-testFailsafe.sh,.\Testscripts\Windows\dpdk-testFailsafe.ps1,.\Testscripts\Linux\dpdkUtils.sh</files>
+    <TestParameters>
+      <param>dpdkSrcLink="DPDK_SOURCE_URL"</param>
+      <param>MODES="txonly"</param>
+      <param>pmd=netvsc</param>
+    </TestParameters>
+    <Platform>Azure</Platform>
+    <Category>Functional</Category>
+    <Area>DPDK</Area>
+    <Tags>dpdk,dpdk-core,network,hv_netvsc,sriov</Tags>
+    <Priority>1</Priority>
+    <SetupConfig>
+      <Networking>SRIOV</Networking>
+      <SetupType>ThreeVM2NIC</SetupType>
+    </SetupConfig>
+  </test>
 </TestCases>

@@ -84,7 +84,6 @@ function Run_Testfailsafe() {
 	LogMsg "${sender_testfwd_cmd}"
 	eval "${sender_testfwd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testfailsafe-sender.log &"
 
-
 	sleep 120
 	# testpmd is has now run for 120 request testcase driver to revoke VF
 	local ready_for_revoke_msg="READY_FOR_REVOKE"

@@ -74,9 +74,11 @@ runTestPmd()
 	ssh "${server}" "mkdir -p  /mnt/huge; mkdir -p  /mnt/huge-1G; mount -t hugetlbfs nodev /mnt/huge && mount -t hugetlbfs nodev /mnt/huge-1G -o 'pagesize=1G' && echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages && grep -i hug /proc/meminfo"
 	mkdir -p  /mnt/huge; mkdir -p  /mnt/huge-1G; mount -t hugetlbfs nodev /mnt/huge && mount -t hugetlbfs nodev /mnt/huge-1G -o 'pagesize=1G' && echo 4096 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages && echo 1 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages && grep -i hug /proc/meminfo
 
-	pci_info_client=$(ssh "${client}" "ethtool -i rename6 | grep bus-info |  cut -d' ' -f2-")
+	vf_name_client=$(ssh "${client}" ". utils.sh && get_vf_name 'eth1'")
+	pci_info_client=$(ssh "${client}" "ethtool -i $vf_name_client | grep bus-info |  cut -d' ' -f2-")
 	LogMsg "pci_info_client $pci_info_client"
-	pci_info_server=$(ssh "${server}" 'ethtool -i rename6 | grep bus-info |  cut -d" " -f2-')
+	vf_name_server=$(ssh "${server}" ". utils.sh && get_vf_name 'eth1'")
+	pci_info_server=$(ssh "${server}" "ethtool -i $vf_name_server | grep bus-info |  cut -d' ' -f2-")
 	LogMsg "pci_info_server $pci_info_server"
 	trx_rx_ips=$(Get_Trx_Rx_Ip_Flags "${server}")
 	if [ ${pmd} = "netvsc" ]; then
