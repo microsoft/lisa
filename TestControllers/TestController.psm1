@@ -139,6 +139,13 @@ Class TestController
 
 		$parameterErrors = @()
 		# Validate general parameters
+		if (!$this.RGIdentifier) {
+			$parameterErrors += "-RGIdentifier is not set"
+		}
+		elseif (@($this.RGIdentifier.Split(",")).Count -ne 1) {
+
+			Write-LogErr "'RGIdentifier' must not contain ',' and multiple values (seperated by ',') of RDIdentifier is not supported."
+		}
 		return $parameterErrors
 	}
 
@@ -219,7 +226,7 @@ Class TestController
 		$this.TestCasePassStatus = @($global:ResultPass, $global:ResultSkipped)
 	}
 
-	[void] PrepareSetupTypeToTestCases([hashtable]$SetupTypeToTestCases, [object[]]$AllTests) {
+	[void] PrepareSetupTypeToTestCases([hashtable]$SetupTypeToTestCases, [System.Collections.ArrayList]$AllTests) {
 		# The multiple TestLocation may be separated by ','
 		# and in most cases, the multiple TestLocations should always stick together for certain one TestCase.
 		# So, use a fake SplitBy ';' to avoid TestLocations being Splitted into multi single ConfigValues for $AllTests.
@@ -241,7 +248,7 @@ Class TestController
 				}
 			}
 		}
-		$this.TotalCaseNum = @($AllTests).Count
+		$this.TotalCaseNum = ([System.Collections.ArrayList]$AllTests).Count
 	}
 
 	[void] LoadTestCases($WorkingDirectory, $CustomTestParameters) {
