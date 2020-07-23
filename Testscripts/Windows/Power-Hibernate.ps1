@@ -221,8 +221,11 @@ install_package "ethtool"
 				$state = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "date > /dev/null; echo $?"
 				Write-LogDbg "state is $state"
 				if ($state) {
-					#$kernelCompileCompleted1 = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "dmesg | grep -i 'hibernation exit'" -runAsSudo
-					$kernelCompileCompleted = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "cat /var/log/syslog | grep -i 'hibernation exit'" -runAsSudo
+					if (($global:detectedDistro -imatch "CENTOS") -or ($global:detectedDistro -imatch "REDHAT")) {
+						$kernelCompileCompleted1 = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "dmesg | grep -i 'hibernation exit'" -runAsSudo
+					} else {
+						$kernelCompileCompleted = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "cat /var/log/syslog | grep -i 'hibernation exit'" -runAsSudo
+					}
 					# This verification might be revised in future. Checking with dmesg is risky.
 					if ($kernelCompileCompleted -ne "hibernation exit") {
 						Write-LogErr "VM $($AllVMData[0].RoleName) resumed successfully but could not determine hibernation completion"
@@ -278,19 +281,16 @@ install_package "ethtool"
 
 			# Check the system log if it shows Power Management log
 			"hibernation entry", "hibernation exit" | ForEach-Object {
-				# TODO: For other distro, need to check out the syslog or messages.
-				$pm_log_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /var/log/syslog | grep -i '$_'" -runAsSudo -ignoreLinuxExitCode:$true
+				if (($global:detectedDistro -imatch "CENTOS") -or ($global:detectedDistro -imatch "REDHAT") ) {
+					$pm_log_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg | grep -i '$_'" -runAsSudo -ignoreLinuxExitCode:$true
+				} else {
+					$pm_log_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /var/log/syslog | grep -i '$_'" -runAsSudo -ignoreLinuxExitCode:$true
+				}
 				Write-LogInfo "Searching the keyword: $_"
 				if ($pm_log_filter -eq "") {
-					Write-LogErr "Could not find Power Management log in syslog. Search in dmesg again."
-					$pm_log_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg | grep -i '$_'" -runAsSudo -ignoreLinuxExitCode:$true
-					if ($pm_log_filter -eq "") {
-						throw "Missing PM logging in both syslog and dmesg"
-					} else {
-						Write-LogInfo "Successfully found Power Management log in dmesg"
-					}
+					throw "Missing PM logging in both syslog and dmesg. Failed to find $_"
 				} else {
-					Write-LogInfo "Successfully found Power Management log in syslog"
+					Write-LogInfo "Successfully found Power Management log, $_"
 				}
 			}
 		}
