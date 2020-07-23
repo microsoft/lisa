@@ -221,18 +221,10 @@ install_package "ethtool"
 				$state = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "date > /dev/null; echo $?"
 				Write-LogDbg "state is $state"
 				if ($state) {
-					if (($global:detectedDistro -imatch "CENTOS") -or ($global:detectedDistro -imatch "REDHAT")) {
-						$kernelCompileCompleted1 = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "dmesg | grep -i 'hibernation exit'" -runAsSudo
-					} else {
-						$kernelCompileCompleted = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "cat /var/log/syslog | grep -i 'hibernation exit'" -runAsSudo
-					}
-					# This verification might be revised in future. Checking with dmesg is risky.
-					if ($kernelCompileCompleted -ne "hibernation exit") {
-						Write-LogErr "VM $($AllVMData[0].RoleName) resumed successfully but could not determine hibernation completion"
-					} else {
-						Write-LogInfo "VM $($AllVMData[0].RoleName) resumed successfully"
-						$vmCount--
-					}
+					# Wait for 10 seconds for syslog sync after resume.
+					Start-Sleep -s 10
+					Write-LogInfo "VM $($AllVMData[0].RoleName) resumed successfully"
+					$vmCount--
 					break
 				} else {
 					Write-LogInfo "VM is still resuming!"
