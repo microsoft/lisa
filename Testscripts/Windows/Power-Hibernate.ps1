@@ -282,7 +282,7 @@ install_package "ethtool"
 				$pm_log_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "cat /var/log/syslog | grep -i '$_'" -runAsSudo -ignoreLinuxExitCode:$true
 				Write-LogInfo "Searching the keyword: $_"
 				if ($pm_log_filter -eq "") {
-					Write-LogErr "Could not find Power Management log in syslog"
+					Write-LogErr "Could not find Power Management log in syslog. Search in dmesg again."
 					$pm_log_filter = Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "dmesg | grep -i '$_'" -runAsSudo -ignoreLinuxExitCode:$true
 					if ($pm_log_filter -eq "") {
 						throw "Missing PM logging in both syslog and dmesg"

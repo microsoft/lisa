@@ -20,20 +20,9 @@ GetDistro
 # Get generation: 1/2
 GetGuestGeneration
 
-# Hibernation is supported in RHEL-8 since kernel-4.18.0-202. Not supported in RHEL-7.
-#if [[ $DISTRO =~ "redhat" ]];then
-#	MIN_KERNEL="4.18.0-202"
-#	CheckVMFeatureSupportStatus $MIN_KERNEL
-#	if [[ $? == 1 ]];then
-#		UpdateSummary "Hibernation is supported since kernel-4.18.0-202. Current version: $(uname -r). Skip the test."
-#		SetTestStateSkipped
-#		exit 0
-#	fi
-#fi
-
 function Main() {
 	basedir=$(pwd)
-	if [[ "$DISTRO" =~ "redhat" ]];then
+	if [[ "$DISTRO" =~ "redhat" || "$DISTRO" =~ "centos" ]];then
 		# RHEL requires bigger disk space for kernel repo and its compilation.
 		# This is Azure mnt disk from the host.
 		linux_path=/mnt/linux
@@ -88,6 +77,7 @@ function Main() {
 		case $DISTRO in
 			redhat_7|centos_7|redhat_8|centos_8)
 				req_pkg="elfutils-libelf-devel ncurses-devel bc elfutils-libelf-devel openssl-devel grub2"
+				ls /boot/vmlinuz* > old_state.txt
 				;;
 			suse*|sles*)
 				req_pkg="ncurses-devel libopenssl-devel libbtrfs-devel cryptsetup dmraid mdadm cryptsetup dmraid mdadm libelf-devel"
@@ -105,7 +95,7 @@ function Main() {
 		LogMsg "$?: Installed required packages, $req_pkg"
 
 		# Start kernel compilation
-		LogMsg "Clone and compile new kernel from $hb_url to $linux_path"
+		LogMsg "Cloning a new kernel from $hb_url to $linux_path"
 		git clone $hb_url $linux_path
 		LogMsg "$?: Cloned the kernel source repo in $linux_path"
 
@@ -114,19 +104,20 @@ function Main() {
 		git checkout $hb_branch
 		LogMsg "$?: Changed to $hb_branch"
 
-		if [[ "$DISTRO" =~ "redhat" ]];then
+		if [[ "$DISTRO" =~ "redhat" || "$DISTRO" =~ "centos" ]];then
 			cp /boot/config* $linux_path/.config
-		else
-			cp /boot/config*-azure $linux_path/.config
-		fi
-		LogMsg "$?: Copied the default config file from /boot"
-		if [[ "$DISTRO" =~ "redhat" ]];then
 			# Commented out CONFIG_SYSTEM_TRUSTED_KEY parameter for redhat kernel compilation
 			sed -i -e "s/CONFIG_MODULE_SIG_KEY=/#CONFIG_MODULE_SIG_KEY=/g" $linux_path/.config
 			sed -i -e "s/CONFIG_SYSTEM_TRUSTED_KEYRING=/#CONFIG_SYSTEM_TRUSTED_KEYRING=/g" $linux_path/.config
 			sed -i -e "s/CONFIG_SYSTEM_TRUSTED_KEYS=/#CONFIG_SYSTEM_TRUSTED_KEYS=/g" $linux_path/.config
 			sed -i -e "s/CONFIG_DEBUG_INFO_BTF=/#CONFIG_DEBUG_INFO_BTF=/g" $linux_path/.config
+
+			grubby_output=$(grubby --default-kernel)
+			LogMsg "grubby default-kernel output - $grubby_output"
+		else
+			cp /boot/config*-azure $linux_path/.config
 		fi
+		LogMsg "$?: Copied the default config file from /boot"
 
 		yes '' | make oldconfig
 		LogMsg "$?: Did oldconfig make file"
@@ -141,7 +132,7 @@ function Main() {
 		LogMsg "$?: Install new kernel"
 
 		cd $basedir
-
+	
 		# Append the test log to the main log files.
 		if [ -f $linux_path/TestExecution.log ]; then
 			cat $linux_path/TestExecution.log >> $basedir/TestExecution.log
@@ -151,7 +142,7 @@ function Main() {
 		fi
 	fi
 
-	if [[ "$DISTRO" =~ "redhat" ]];then
+	if [[ "$DISTRO" =~ "redhat" || "$DISTRO" =~ "centos" ]];then
 		_entry=$(cat /etc/default/grub | grep 'rootdelay=')
 		if [ "$_entry" ]; then
 			sed -i -e "s/rootdelay=300/rootdelay=300 resume=$sw_uuid/g" /etc/default/grub
@@ -190,13 +181,31 @@ function Main() {
 				grub_cfg="/boot/grub/grub.cfg"
 			fi
 		fi
-		grub2-mkconfig -o ${grub_cfg}
-		LogMsg "$?: Run grub2-mkconfig -o ${grub_cfg}"
-
-		# Must run dracut -f, or it cannot recover image in boot after hibernation
-		dracut -f
-		LogMsg "$?: Run dracut -f"
+		# grub2-mkconfig shows the image build problem in RHEL/CentOS, so we use alternative.
+		#grub2-mkconfig -o ${grub_cfg}
+		#LogMsg "$?: Run grub2-mkconfig -o ${grub_cfg}"
+		ls /boot/vmlinuz* > new_state.txt
+		vmlinux_file=$(diff old_state.txt new_state.txt | tail -n 1 | cut -d ' ' -f2)
+		if [ -f $vmlinux_file ]; then
+			original_args=$(grubby --info=0 | grep -i args | cut -d '"' -f 2)
+			LogMsg "Original boot parameters $original_args"
+			grubby --args="$original_args resume=$sw_uuid" --update-kernel=$vmlinux_file
+			
+			grubby --set-default=$vmlinux_file
+			LogMsg "Set $vmlinux_file to the default kernel"
+			
+			new_args=$(grubby --info=ALL)
+			LogMsg "Updated grubby output $new_args"
+			
+			grubby_output=$(grubby --default-kernel)
+			LogMsg "grubby default-kernel output $grubby_output"
+		else
+			LogErr "Can not set new vmlinuz file in grubby command. Expected new vmlinuz file, but found $vmlinux_file"
+			SetTestStateAborted
+			exit 0
+		fi
 	elif [[ "$DISTRO" =~ "sles" || "$DISTRO" =~ "suse" ]];then
+		# TODO: This part need another revision once we can access to SUSE repo.
 		_entry=$(cat /etc/default/grub | grep 'rootdelay=')
 		if [ -n "$_entry" ]; then
 			sed -i -e "s/rootdelay=300/rootdelay=300 log_buf_len=200M resume=$sw_uuid/g" /etc/default/grub
