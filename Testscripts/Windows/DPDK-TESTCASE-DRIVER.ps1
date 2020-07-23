@@ -286,7 +286,7 @@ collect_VM_properties
 					$resultMap["KernelVersion"] = $properties.KernelVersion
 				}
 				$resultMap["HostType"] = "Azure"
-				$resultMap["HostBy"] = $global:TestLocation
+				$resultMap["HostBy"] = $CurrentTestData.SetupConfig.TestLocation
 				$resultMap["GuestOSType"] = "Linux"
 				$resultMap["GuestSize"] = $masterVM.InstanceSize
 				$resultMap["IPVersion"] = "IPv4"
@@ -298,7 +298,7 @@ collect_VM_properties
 				}
 				$resultMap["TestDate"] = $testDate
 				$resultMap["LISVersion"] = "Inbuilt"
-				if ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
+				if ($currentTestData.SetupConfig.Networking -imatch "SRIOV") {
 					$resultMap["DataPath"] = "SRIOV"
 				} else {
 					$resultMap["DataPath"] = "Synthetic"

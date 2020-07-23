@@ -53,8 +53,8 @@ Class AzureProvider : TestProvider
 				}
 			}
 			if (!$allVMData) {
-				$isAllDeployed = Invoke-AllResourceGroupDeployments -SetupTypeData $SetupTypeData -TestCaseData $TestCaseData -Distro $RGIdentifier `
-					-TestLocation $TestLocation -GlobalConfig $GlobalConfig -TipSessionId $this.TipSessionId -TipCluster $this.TipCluster `
+				$isAllDeployed = Invoke-AllResourceGroupDeployments -SetupTypeData $SetupTypeData -CurrentTestData $TestCaseData -RGIdentifier $RGIdentifier `
+					-TestLocation $TestCaseData.SetupConfig.TestLocation -GlobalConfig $GlobalConfig -TipSessionId $this.TipSessionId -TipCluster $this.TipCluster `
 					-UseExistingRG $UseExistingRG -ResourceCleanup $ResourceCleanup -PlatformFaultDomainCount $this.PlatformFaultDomainCount `
 					-PlatformUpdateDomainCount $this.PlatformUpdateDomainCount -EnableNSG $this.EnableNSG
 
@@ -62,6 +62,8 @@ Class AzureProvider : TestProvider
 					$deployedGroups = $isAllDeployed[1]
 					$DeploymentElapsedTime = $isAllDeployed[3]
 					$allVMData = Get-AllDeploymentData -ResourceGroups $deployedGroups -PatternOfResourceNamePrefix $patternOfResourceNamePrefix
+					# After each successful deployment, update the $global:detectedDistro for reference by other scripts and logic
+					$null = Detect-LinuxDistro -VIP $allVMData[0].PublicIP -SSHport $allVMData[0].SSHPort -testVMUser $global:user -testVMPassword $global:password
 				} else {
 					$ErrorMessage = "One or more deployments failed. " + $isAllDeployed[4]
 					Write-LogErr $ErrorMessage
@@ -76,7 +78,7 @@ Class AzureProvider : TestProvider
 					Write-LogInfo "Skipping boot data telemetry collection."
 				}
 
-				$enableSRIOV = $TestCaseData.AdditionalHWConfig.Networking -imatch "SRIOV"
+				$enableSRIOV = $TestCaseData.SetupConfig.Networking -imatch "SRIOV"
 				if (!$global:IsWindowsImage) {
 					$customStatus = Set-CustomConfigInVMs -CustomKernel $this.CustomKernel -CustomLIS $this.CustomLIS -EnableSRIOV $enableSRIOV `
 						-AllVMData $allVMData -TestProvider $this
@@ -163,6 +165,25 @@ Class AzureProvider : TestProvider
 			return $true
 		}
 		return $false
+	}
+
+	[void] RunTestCaseCleanup ($AllVMData, $CurrentTestData, $CurrentTestResult, $CollectVMLogs, $RemoveFiles, $User, $Password, $SetupTypeData, $TestParameters){
+		try
+		{
+			if ($CurrentTestData.CleanupScript) {
+				foreach ($vmData in $AllVMData) {
+					foreach ($script in $($CurrentTestData.CleanupScript).Split(",")) {
+						$null = Run-SetupScript -Script $script -Parameters $TestParameters -VMData $vmData -CurrentTestData $CurrentTestData -TestProvider $this
+					}
+				}
+			}
+			([TestProvider]$this).RunTestCaseCleanup($AllVMData, $CurrentTestData, $CurrentTestResult, $CollectVMLogs, $RemoveFiles, $User, $Password, $SetupTypeData, $TestParameters)
+		}
+		catch
+		{
+			$ErrorMessage =  $_.Exception.Message
+			Write-Output "EXCEPTION in RunTestCaseCleanup : $ErrorMessage"
+		}
 	}
 
 	[void] RunTestCleanup() {

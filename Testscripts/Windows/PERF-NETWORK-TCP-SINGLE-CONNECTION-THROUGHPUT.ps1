@@ -128,7 +128,7 @@ function Consume-Iperf3Results {
         $RetransmittedSegments = $perfResult["retransmitted_segments"]
         $CongestionWindowSize_KB = $perfResult["congestion_windowsize_kb"]
 
-        $SQLQuery += "('$TestCaseName','$DataPath','$TestDate','$TestLocation','$HostOS','$TestPlatform','$GuestSize','$GuestOSType','$GuestDistro','$KernelVersion','$IPVersion','$ProtocolType','$BufferSize_Bytes','$RxThroughput_Gbps','$TxThroughput_Gbps','$RetransmittedSegments','$CongestionWindowSize_KB'),"
+        $SQLQuery += "('$TestCaseName','$DataPath','$TestDate','$($CurrentTestData.SetupConfig.TestLocation)','$HostOS','$TestPlatform','$GuestSize','$GuestOSType','$GuestDistro','$KernelVersion','$IPVersion','$ProtocolType','$BufferSize_Bytes','$RxThroughput_Gbps','$TxThroughput_Gbps','$RetransmittedSegments','$CongestionWindowSize_KB'),"
     }
 
     Write-LogInfo "Uploading the test results.."
@@ -167,7 +167,7 @@ function Main {
         Write-TestInformation $clientVMData $serverVMData
         Provision-VMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
 
-        if ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
+        if ($currentTestData.SetupConfig.Networking -imatch "SRIOV") {
             $DataPath = "SRIOV"
         } else {
             $DataPath = "Synthetic"

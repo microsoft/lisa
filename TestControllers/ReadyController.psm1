@@ -39,11 +39,16 @@ Class ReadyController : TestController
 	[void] ParseAndValidateParameters([Hashtable]$ParamTable) {
 		$parameterErrors = ([TestController]$this).ParseAndValidateParameters($ParamTable)
 
-		if ( $ParamTable.RGIdentifier ) {
-			if ( ($ParamTable.RGIdentifier.Contains(" ")) `
-			-or !($ParamTable.RGIdentifier.Contains(":")) `
-			-or !($ParamTable.RGIdentifier.Contains(".")) ) {
-				$parameterErrors += "-RGIdentifier format error (expected format: 1.1.1.1:22;2.2.2.2:22)."
+		if ($ParamTable.TestLocation) {
+			$locationArray = @($ParamTable.TestLocation.Split(", ").Trim())
+			if ($locationArray | Select-String -Pattern "(?:[0-9]{1,3}\.){3}[0-9]{1,3}:\d{1,}" -NotMatch) {
+				$parameterErrors += "-TestLocation format error (expected format: 1.1.1.1:22,2.2.2.2:22)."
+			}
+		}
+		else {
+			$parameterErrors += "-TestLocation is not set."
+			if ($ParamTable.RGIdentifier) {
+				$parameterErrors += "Note: '-RGIdentifier' is deprecated now, please try '-TestLocation' with expected format: 1.1.1.1:22,2.2.2.2:22"
 			}
 		}
 
@@ -90,7 +95,7 @@ Class ReadyController : TestController
 		}
 
 		Write-LogInfo "------------------------------------------------------------------"
-		$vmList = $this.RGIdentifier.split(';')
+		$vmList = $this.TestLocation.split(',')
 		for( $index=0 ; $index -lt $vmList.Count ; $index++ ) {
 			Write-LogInfo "Target Machine   : $($this.VmUsername) @ $($vmList[$index])"
 		}
@@ -98,6 +103,10 @@ Class ReadyController : TestController
 
 		Write-LogInfo "Setting global variables"
 		$this.SetGlobalVariables()
+
+		if ($this.OverrideVMSize) {
+			$this.TestProvider.InstanceSize = $this.OverrideVMSize
+		}
 	}
 
 	[void] SetGlobalVariables() {

@@ -1,17 +1,20 @@
 <TestCases>
-    <test>
-        <testName>VALIDATE-INTEL-SGX-DRIVER-FOR-DC-VM</testName>
-        <testScript>VALIDATE-INTEL-SGX-DRIVER.ps1</testScript>
-        <setupType>OneVM</setupType>
-        <AdditionalHWConfig>
-            <TestLocation>uksouth</TestLocation>
-        </AdditionalHWConfig>
-        <OverrideVMSize>Standard_DC2s_v2</OverrideVMSize>
-        <files>.\Testscripts\Linux\validate-intel-sgx-driver.sh,.\Testscripts\Linux\utils.sh</files>
-        <Platform>Azure</Platform>
-        <Category>Functional</Category>
-        <Area>SGX</Area>
-        <Tags>sgx</Tags>
-        <Priority></Priority>
-    </test>
+  <test>
+    <testName>VALIDATE-INTEL-SGX-DRIVER-FOR-DC-VM</testName>
+    <testScript>VALIDATE-INTEL-SGX-DRIVER.ps1</testScript>
+    <files>.\Testscripts\Linux\validate-intel-sgx-driver.sh,.\Testscripts\Linux\utils.sh</files>
+    <Platform>Azure</Platform>
+    <Category>Functional</Category>
+    <Area>SGX</Area>
+    <Tags>sgx</Tags>
+    <Priority>
+    </Priority>
+    <SetupConfig>
+      <TestLocation>uksouth</TestLocation>
+      <SetupType>OneVM</SetupType>
+      <OverrideVMSize>Standard_DC2s_v2</OverrideVMSize>
+      <VMGeneration>2</VMGeneration>
+      <ARMImageName>Canonical UbuntuServer 18_04-lts-gen2 latest</ARMImageName>
+    </SetupConfig>
+  </test>
 </TestCases>

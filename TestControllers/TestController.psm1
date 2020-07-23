@@ -72,6 +72,22 @@ Class TestController
 	[bool] $EnableCodeCoverage
 	[Hashtable] $CustomParams
 	[string] $VMGeneration
+	[bool] $ForceCustom # For overwrite custom parameters or not
+
+	[void] SyncEquivalentCustomParameters([string] $Key, [string] $Value) {
+		if ($Value) {
+			if ($this.CustomParams.$Key) {
+				Write-LogWarn "Custom Parameter of '$Key' has been updated with Value: '$Value', previous value is '$($this.CustomParams.$Key)'"
+			}
+			$this.CustomParams[$Key] = $Value
+		}
+		else {
+			if ($this.CustomParams.$Key) {
+				$this.$Key = $this.CustomParams.$Key
+				Write-LogWarn "'$($this.GetType()).$Key' is equivalent updated with Value'$($this.CustomParams.$Key)'"
+			}
+		}
+	}
 
 	[string[]] ParseAndValidateParameters([Hashtable]$ParamTable) {
 		$this.TestLocation = $ParamTable["TestLocation"]
@@ -93,11 +109,10 @@ Class TestController
 		$this.UseExistingRG = $ParamTable["UseExistingRG"]
 		$this.EnableCodeCoverage = $ParamTable["EnableCodeCoverage"]
 		$this.VMGeneration = $ParamTable["VMGeneration"]
-		if (!$this.VMGeneration) {
-			$this.VMGeneration = "1"
-		}
+
 		$this.TestProvider.CustomKernel = $ParamTable["CustomKernel"]
 		$this.TestProvider.CustomLIS = $ParamTable["CustomLIS"]
+		$this.TestProvider.ReuseVmOnFailure = ($ParamTable.ContainsKey("ReuseVmOnFailure"))
 		$this.CustomParams = @{}
 		if ( $ParamTable.ContainsKey("CustomParameters") ) {
 			$ParamTable["CustomParameters"].Split(';').Trim() | ForEach-Object {
@@ -106,11 +121,24 @@ Class TestController
 				$this.CustomParams[$key] = $value
 			}
 		}
+		$this.ForceCustom = ($ParamTable.ContainsKey("ForceCustom"))
+		$GlobalConfigurationFile = "$PSScriptRoot\..\XML\GlobalConfigurations.xml"
+		if (Test-Path -Path $GlobalConfigurationFile) {
+			$this.GlobalConfigurationFilePath = $GlobalConfigurationFile
+			$this.GlobalConfig = [xml](Get-Content $GlobalConfigurationFile)
+		} else {
+			throw "Global configuration '$GlobalConfigurationFile' file does not exist"
+		}
+		$this.SyncEquivalentCustomParameters("TestLocation", $this.TestLocation)
+		$this.SyncEquivalentCustomParameters("OsVHD", $this.OsVHD)
+		$this.SyncEquivalentCustomParameters("OverrideVMSize", $this.OverrideVMSize)
+		$this.SyncEquivalentCustomParameters("RGIdentifier", $this.RGIdentifier)
+		# Sync VMGeneration with whatever values it got from command parameter;
+		# if $null/empty, inherited controller will update it with default value
+		$this.SyncEquivalentCustomParameters("VMGeneration", $this.VMGeneration)
+
 		$parameterErrors = @()
 		# Validate general parameters
-		if (!$this.RGIdentifier) {
-			$parameterErrors += "-RGIdentifier is not set"
-		}
 		return $parameterErrors
 	}
 
@@ -124,8 +152,12 @@ Class TestController
 				$CurrentXMLText = Get-Content -Path $file.FullName
 				foreach ($Replace in $this.XMLSecrets.secrets.ReplaceTestXMLStrings.Replace)
 				{
-					$ReplaceString = $Replace.Split("=")[0]
-					$ReplaceWith = $Replace.Split("=")[1]
+					if ($Replace.InnerText) {
+						$Replace.InnerText = [System.Security.SecurityElement]::Escape($Replace.InnerText)
+						$ReplaceString, $ReplaceWith = $Replace.InnerText -split '=',2
+					} else {
+						$ReplaceString, $ReplaceWith = $Replace -split '=',2
+					}
 					if ($CurrentXMLText -imatch $ReplaceString)
 					{
 						$content = [System.IO.File]::ReadAllText($file.FullName).Replace($ReplaceString,$ReplaceWith)
@@ -163,22 +195,12 @@ Class TestController
 		} else {
 			Write-LogErr "Failed to update configuration files. '-XMLSecretFile [FilePath]' is not provided."
 		}
-		$GlobalConfigurationFile = "$PSScriptRoot\..\XML\GlobalConfigurations.xml"
-		if (Test-Path -Path $GlobalConfigurationFile) {
-			$this.GlobalConfigurationFilePath = $GlobalConfigurationFile
-			$this.GlobalConfig = [xml](Get-Content $GlobalConfigurationFile)
-		} else {
-			throw "Global configuration '$GlobalConfigurationFile' file does not exist"
-		}
+		$this.GlobalConfig = [xml](Get-Content $this.GlobalConfigurationFilePath)
 	}
 
 	[void] SetGlobalVariables() {
-		# Used in STRESS-WEB.ps1, CAPTURE-VHD-BEFORE-TEST.ps1
-		Set-Variable -Name RGIdentifier -Value $this.RGIdentifier -Scope Global -Force
 		# Used in CAPTURE-VHD-BEFORE-TEST.ps1, and Create-HyperVGroupDeployment
 		Set-Variable -Name BaseOsVHD -Value $this.OsVHD -Scope Global -Force
-		# used in telemetry
-		Set-Variable -Name TestLocation -Value $this.TestLocation -Scope Global -Force
 		Set-Variable -Name TestPlatform -Value $this.TestPlatform -Scope Global -Force
 		# Used in test cases
 		Set-Variable -Name user -Value $this.VmUsername -Scope Global -Force
@@ -188,34 +210,48 @@ Class TestController
 		Set-Variable -Name GlobalConfig -Value $this.GlobalConfig -Scope Global -Force
 		# XML secrets, used in Upload-TestResultToDatabase
 		Set-Variable -Name XmlSecrets -Value $this.XmlSecrets -Scope Global -Force
-		# VMGeneration
-		Set-Variable -Name VMGeneration -Value $this.VMGeneration -Scope Global -Force
-		# OverrideVMSize
-		Set-Variable -Name OverrideVMSize -Value $this.OverrideVMSize -Scope Global -Force
 		# Test results
-		$passResult = "PASS"
-		$skippedResult = "SKIPPED"
-		$failResult = "FAIL"
-		$abortedResult = "ABORTED"
-		Set-Variable -Name ResultPass -Value $passResult -Scope Global
-		Set-Variable -Name ResultSkipped -Value $skippedResult -Scope Global
-		Set-Variable -Name ResultFail -Value $failResult -Scope Global
-		Set-Variable -Name ResultAborted -Value $abortedResult -Scope Global
-		$this.TestCaseStatus = @($passResult, $skippedResult, $failResult, $abortedResult)
-		$this.TestCasePassStatus = @($passResult, $skippedResult)
+		Set-Variable -Name ResultPass -Value "PASS" -Scope Global
+		Set-Variable -Name ResultSkipped -Value "SKIPPED" -Scope Global
+		Set-Variable -Name ResultFail -Value "FAIL" -Scope Global
+		Set-Variable -Name ResultAborted -Value "ABORTED" -Scope Global
+		$this.TestCaseStatus = @($global:ResultPass, $global:ResultSkipped, $global:ResultFail, $global:ResultAborted)
+		$this.TestCasePassStatus = @($global:ResultPass, $global:ResultSkipped)
+	}
+
+	[void] PrepareSetupTypeToTestCases([hashtable]$SetupTypeToTestCases, [object[]]$AllTests) {
+		# The multiple TestLocation may be separated by ','
+		# and in most cases, the multiple TestLocations should always stick together for certain one TestCase.
+		# So, use a fake SplitBy ';' to avoid TestLocations being Splitted into multi single ConfigValues for $AllTests.
+		Add-SetupConfig -AllTests ([ref]$AllTests) -ConfigName "TestLocation" -ConfigValue $this.CustomParams["TestLocation"] -SplitBy ';' -Force $this.ForceCustom
+		Add-SetupConfig -AllTests ([ref]$AllTests) -ConfigName "OsVHD" -ConfigValue $this.CustomParams["OsVHD"] -Force $this.ForceCustom
+		if ($this.TestIterations -gt 1) {
+			$testIterationsParamValue = @(1..$this.TestIterations) -join ','
+			Add-SetupConfig -AllTests ([ref]$AllTests) -ConfigName "TestIteration" -ConfigValue $testIterationsParamValue -Force $this.ForceCustom
+		}
+
+		foreach ($test in $AllTests) {
+			# Put test case to hashtable, per setupType, TestLocation, OsVHD
+			$key = "$($test.SetupConfig.SetupType),$($test.SetupConfig.TestLocation),$($test.SetupConfig.OsVHD)"
+			if ($test.SetupConfig.SetupType) {
+				if ($SetupTypeToTestCases.ContainsKey($key)) {
+					$SetupTypeToTestCases[$key] += $test
+				} else {
+					$SetupTypeToTestCases.Add($key, @($test))
+				}
+			}
+		}
+		$this.TotalCaseNum = @($AllTests).Count
 	}
 
 	[void] LoadTestCases($WorkingDirectory, $CustomTestParameters) {
 		$this.SetupTypeToTestCases = @{}
 		$this.SetupTypeTable = @{}
-		if (!$global:AllTestVMSizes) {
-			Set-Variable -Name AllTestVMSizes -Value @{} -Option ReadOnly -Scope Global
-		}
 		$TestXMLs = Get-ChildItem -Path "$WorkingDirectory\XML\TestCases\*.xml"
 		$SetupTypeXMLs = Get-ChildItem -Path "$WorkingDirectory\XML\VMConfigurations\*.xml"
 		$ReplaceableTestParameters = [xml](Get-Content -Path "$WorkingDirectory\XML\Other\ReplaceableTestParameters.xml")
 
-		$allTests = Select-TestCases -TestXMLs $TestXMLs -TestCategory $this.TestCategory -TestArea $this.TestArea -TestLocation $this.TestLocation `
+		$allTests = Select-TestCases -TestXMLs $TestXMLs -TestCategory $this.TestCategory -TestArea $this.TestArea `
 			-TestNames $this.TestNames -TestTag $this.TestTag -TestPriority $this.TestPriority -ExcludeTests $this.ExcludeTests
 
 		if (!$allTests) {
@@ -223,34 +259,22 @@ Class TestController
 		}
 		Write-LogInfo "$(@($allTests).Length) Test Cases have been collected"
 
-		$SetupTypes = $allTests.setupType | Sort-Object -Unique
+		$SetupTypes = $allTests.SetupConfig.SetupType | Sort-Object -Unique
 		foreach ($file in $SetupTypeXMLs.FullName) {
 			$setupXml = [xml]( Get-Content -Path $file)
 			foreach ($SetupType in $SetupTypes) {
-				$vmSizes = $setupXml.SelectNodes("/TestSetup/$SetupType/ResourceGroup/VirtualMachine/ARMInstanceSize") | Sort-Object -Unique
-				$vmSizes | ForEach-Object {
-					if ($_.InnerText -and !$AllTestVMSizes.($_.InnerText)) { $AllTestVMSizes["$($_.InnerText)"] = @{} }
-				}
 				if ($setupXml.TestSetup.$SetupType) {
 					$this.SetupTypeTable[$SetupType] = $setupXml.TestSetup.$SetupType
 				}
 			}
 		}
 
-		$vmSizes = $allTests.OverrideVMSize | Sort-Object -Unique
-		$vmSizes | ForEach-Object {
-			if ($_ -and !($AllTestVMSizes.$_)) { $AllTestVMSizes["$_"] = @{} }
-		}
-		$this.OverrideVMSize.Split(", ").Trim() | ForEach-Object {
-			if ($_ -and !($AllTestVMSizes.$_)) { $AllTestVMSizes["$_"] = @{} }
-		}
 		# Inject custom parameters
 		if ($CustomTestParameters) {
 			Write-LogInfo "Checking custom parameters ..."
-			$CustomTestParameters = $CustomTestParameters.Trim().Trim(";").Split(";")
+			$CustomTestParameters = @($CustomTestParameters.Trim("; ").Split(";").Trim())
 			foreach ($CustomParameter in $CustomTestParameters)
 			{
-				$CustomParameter = $CustomParameter.Trim()
 				$ReplaceThis = $CustomParameter.Split("=")[0]
 				$ReplaceWith = $CustomParameter.Substring($CustomParameter.IndexOf("=")+1)
 
@@ -281,55 +305,15 @@ Class TestController
 					}
 				}
 			}
-
-			# Inject Networking=SRIOV/Synthetic, DiskType=Managed, OverrideVMSize to test case data
-			if ( $this.CustomParams["Networking"] -eq "sriov" -or $this.CustomParams["Networking"] -eq "synthetic" ) {
-				Set-AdditionalHWConfigInTestCaseData -CurrentTestData $test -ConfigName "Networking" -ConfigValue $this.CustomParams["Networking"]
-			}
-			if ( $this.CustomParams["DiskType"] -eq "managed" -or $this.CustomParams["DiskType"] -eq "unmanaged") {
-				Set-AdditionalHWConfigInTestCaseData -CurrentTestData $test -ConfigName "DiskType" -ConfigValue $this.CustomParams["DiskType"]
-			}
-			if ( $this.CustomParams["ImageType"] -eq "Specialized" -or $this.CustomParams["ImageType"] -eq "Generalized") {
-				Set-AdditionalHWConfigInTestCaseData -CurrentTestData $test -ConfigName "ImageType" -ConfigValue $this.CustomParams["ImageType"]
-			}
-			if ( $this.CustomParams["OSType"] -eq "Windows" -or $this.CustomParams["OSType"] -eq "Linux") {
-				Set-AdditionalHWConfigInTestCaseData -CurrentTestData $test -ConfigName "OSType" -ConfigValue $this.CustomParams["OSType"]
-			}
-			if ($this.OverrideVMSize) {
-				$this.OverrideVMSize = ($this.OverrideVMSize.Split(",") | Select-Object -Unique) -join ","
-				Write-LogInfo "The OverrideVMSize of case $($test.testName) is set to $($this.OverrideVMSize)"
-				if ($test.OverrideVMSize) {
-					$test.OverrideVMSize = $this.OverrideVMSize
-				} else {
-					$test.InnerXml += "<OverrideVMSize>$($this.OverrideVMSize)</OverrideVMSize>"
-				}
-			}
-
-			# Put test case to hashtable, per setupType,OverrideVMSize,networking,diskType,osDiskType,switchName
-			if ($test.setupType) {
-				$key = "$($test.setupType),$($test.OverrideVMSize),$($test.AdditionalHWConfig.Networking),$($test.AdditionalHWConfig.DiskType)," +
-					"$($test.AdditionalHWConfig.OSDiskType),$($test.AdditionalHWConfig.SwitchName),$($test.AdditionalHWConfig.ImageType)," +
-					"$($test.AdditionalHWConfig.OSType),$($test.AdditionalHWConfig.StorageAccountType),$($test.AdditionalHWConfig.TestLocation)"
-				if ($this.SetupTypeToTestCases.ContainsKey($key)) {
-					$this.SetupTypeToTestCases[$key] += $test
-				} else {
-					$this.SetupTypeToTestCases.Add($key, @($test))
-				}
-			}
-
 			# Check whether the case if for Windows images
 			$IsWindowsImage = $false
 			if(($test.AdditionalHWConfig.OSType -contains "Windows")) {
 				$IsWindowsImage = $true
 			}
 			Set-Variable -Name IsWindowsImage -Value $IsWindowsImage -Scope Global
-			if ($test.OverrideVMSize) {
-				$this.TotalCaseNum += $test.OverrideVMSize.Split(",").Count
-			} else {
-				$this.TotalCaseNum++
-			}
 		}
-		$this.TotalCaseNum *= $this.TestIterations
+
+		$this.PrepareSetupTypeToTestCases($this.SetupTypeToTestCases, $allTests)
 	}
 
 	[void] PrepareTestImage() {}
@@ -447,12 +431,6 @@ Class TestController
 			$this.TestProvider.RunSetup($VmData, $CurrentTestData, $testParameters, $ApplyCheckpoint)
 
 			if (!$global:IsWindowsImage) {
-				if (!$global:detectedDistro) {
-					$detectedDistro = Detect-LinuxDistro -VIP $VmData[0].PublicIP -SSHport $VmData[0].SSHPort `
-						-testVMUser $global:user -testVMPassword $global:password
-				}
-				Set-DistroSpecificVariables -detectedDistro $detectedDistro
-
 				Write-LogInfo "==> Check the target machine kernel log."
 				$this.GetAndCompareOsLogs($VmData, "Initial")
 			}
@@ -483,7 +461,7 @@ Class TestController
 					$VmData,
 					$global:user,
 					$global:password,
-					$this.TestLocation,
+					$CurrentTestData.SetupConfig.TestLocation,
 					$timeout,
 					$this.GlobalConfig,
 					$this.TestProvider)
@@ -552,52 +530,15 @@ Class TestController
 		return $currentTestResult
 	}
 
-	# According to Test Parameters $this.TestIterations and $this.OverrideVMSize,
-	# Get an array of expanded possible Tests @({TestName=xxx-<vmSize>-<iteration>;TestVmSize=<vmSize>}, { }, ...)
-	# If $this.TestIteration and $this.OverrideVMSize are both default value, return just one element in the result array.
-	[array] GetArrayOfExpandedTestConfigsFromTestParameters($testName, $testOverrideVmSize) {
-		$arrayOfTestConfigs = @()
-		$testVmSizes = @("unknown")
-
-		if ($testOverrideVmSize) {
-			$testVmSizes = $testOverrideVmSize.Split(",").Trim()
-		}
-		if ($this.OverrideVMSize) {
-			$testVmSizes = $this.OverrideVMSize.Split(",").Trim()
-		}
-
-		if ($this.TestIterations -gt 1 -or $testVmSizes.Count -gt 1) {
-			foreach($testVmSize in $testVmSizes) {
-				for ($iteration = 1; $iteration -lt $this.TestIterations + 1; $iteration++) {
-					$expandedTestConfig = @{
-						"TestName" = $testName
-					}
-					if ($testVmSizes.Count -gt 1) {
-						$expandedTestConfig["TestName"] += "-${testVmSize}"
-						$expandedTestConfig["TestVmSize"] = $testVmSize
-					}
-					if ($this.TestIterations -gt 1) {
-						$expandedTestConfig["TestName"] += "-${iteration}"
-					}
-					$arrayOfTestConfigs += $expandedTestConfig
-				}
-			}
-		} else {
-			$arrayOfTestConfigs = @(@{
-				"TestName" = $testName
-			})
-		}
-
-		return $arrayOfTestConfigs
-	}
-
 	[void] RunTestCasesInSequence([int]$TestIterations)
 	{
 		$executionCount = 0
 		$CleanupResource = {
-			if ($vmData) {
+			param ([ref]$VmDataToBeDeleted)
+			if ($VmDataToBeDeleted.Value) {
 				Write-LogInfo "Delete deployed target machine ..."
-				$null = $this.TestProvider.DeleteVMs($vmData, $this.SetupTypeTable[$setupType], $this.UseExistingRG); $null
+				$null = $this.TestProvider.DeleteVMs($VmDataToBeDeleted.Value, $this.SetupTypeTable[$setupType], $this.UseExistingRG);
+				$VmDataToBeDeleted.Value = $null
 			}
 		}
 		foreach ($setupKey in $this.SetupTypeToTestCases.Keys) {
@@ -606,101 +547,103 @@ Class TestController
 			$lastResult = $null
 			$tests = 0
 			foreach ($currentTestCase in $this.SetupTypeToTestCases[$setupKey]) {
-				# array like: @({TestName=xxx-<vmSize>-<iteration>;TestVmSize=yyy}, { }, ...)
-				$arrayOfTestConfigs = $this.GetArrayOfExpandedTestConfigsFromTestParameters($currentTestCase.testName, $currentTestCase.OverrideVMSize)
-				$tcDeployVM = $this.DeployVMPerEachTest
-				$tcRemoveVM = $this.DeployVMPerEachTest
-
-				for ($indexOfTC = 0; $indexOfTC -lt $arrayOfTestConfigs.Count; $indexOfTC++) {
-					$expandedTestConfig = $arrayOfTestConfigs[$indexOfTC]
-					$currentTestCase.testName = $expandedTestConfig["TestName"]
-					if ($indexOfTC -lt ($arrayOfTestConfigs.Count - 1)) {
-						$tcRemoveVM = $this.DeployVMPerEachTest -or `
-							($arrayOfTestConfigs[$indexOfTC + 1]["TestVmSize"] -ne $expandedTestConfig["TestVmSize"])
-					}
-					if ($indexOfTC -gt 0) {
-						$tcDeployVM = $this.DeployVMPerEachTest -or `
-							($arrayOfTestConfigs[$indexOfTC - 1]["TestVmSize"] -ne $expandedTestConfig["TestVmSize"])
-					}
-					if ($expandedTestConfig["TestVmSize"]) {
-						$currentTestCase.OverrideVMSize = $expandedTestConfig["TestVmSize"]
-					}
-					$executionCount += 1
-					Write-LogInfo "($executionCount/$($this.TotalCaseNum)) testing started: $($currentTestCase.testName)"
-					if (!$vmData -or $tcDeployVM) {
-						# Deploy the VM for the setup
-						Write-LogInfo "Deploy target machine for test if required ..."
-						$deployVMResults = $this.TestProvider.DeployVMs($this.GlobalConfig, $this.SetupTypeTable[$setupType], $currentTestCase, `
-							$this.TestLocation, $this.RGIdentifier, $this.UseExistingRG, $this.ResourceCleanup)
-						$vmData = $null
-						$deployErrors = ""
-						if ($deployVMResults) {
-							# By default set $vmData with $deployVMResults, because providers may return array of vmData directly if no errors.
-							$vmData = $deployVMResults
-							# override the $vmData if $deployResults give VmData specifically with property 'VmData'
-							if ($deployVMResults.Keys -and ($deployVMResults.Keys -contains "VmData")) {
-								$vmData = $deployVMResults.VmData
-							}
-							# if there are deployment errors, skip RunTestCase and try to CleanupResource, as this is unrecoverable
-							# and we do not care about the last test run result (Pass or Fail), always try to CleanupResource, unless 'ResourceCleanup = Keep' set
-							if ($vmData -and $deployVMResults.Error) {
-								if ($this.ResourceCleanup -imatch "Keep") {
-									Write-LogWarn "ResourceCleanup = 'Keep' is respected, current test will abort, as deployment error(s) detected."
-									$vmData = $null
-								}
-								else {
-									$vmData = &$CleanupResource
-								}
-							}
-							$deployErrors = Trim-ErrorLogMessage $deployVMResults.Error
+				$executionCount += 1
+				Write-LogInfo "($executionCount/$($this.TotalCaseNum)) testing started: $($currentTestCase.testName)"
+				Write-LogInfo "SetupConfig: { $(ConvertFrom-SetupConfig -SetupConfig $currentTestCase.SetupConfig) }"
+				if (!$vmData -or $this.DeployVMPerEachTest) {
+					# Deploy the VM for the setup
+					Write-LogInfo "Deploy target machine for test if required ..."
+					$deployVMResults = $this.TestProvider.DeployVMs($this.GlobalConfig, $this.SetupTypeTable[$setupType], $currentTestCase, `
+						$currentTestCase.SetupConfig.TestLocation, $currentTestCase.SetupConfig.RGIdentifier, $this.UseExistingRG, $this.ResourceCleanup)
+					$vmData = $null
+					$deployErrors = ""
+					if ($deployVMResults) {
+						# By default set $vmData with $deployVMResults, because providers may return array of vmData directly if no errors.
+						$vmData = $deployVMResults
+						# override the $vmData if $deployResults give VmData specifically with property 'VmData'
+						if ($deployVMResults.Keys -and ($deployVMResults.Keys -contains "VmData")) {
+							$vmData = $deployVMResults.VmData
 						}
-						if (!$vmData) {
-							# Failed to deploy the VMs, Set the case to abort
-							Write-LogWarn("VMData is empty (null). Aborting the testing.")
-							$this.JunitReport.StartLogTestCase("LISAv2Test-$($this.TestPlatform)","$($currentTestCase.testName)","$($this.TestPlatform)-$($currentTestCase.Category)-$($currentTestCase.Area)")
-							$this.JunitReport.CompleteLogTestCase("LISAv2Test-$($this.TestPlatform)","$($currentTestCase.testName)","Aborted", $deployErrors)
-							$this.TestSummary.UpdateTestSummaryForCase($currentTestCase, $executionCount, "Aborted", "0", $deployErrors, $null)
-							continue
-						}
-					}
-					# Run current test case
-					Write-LogInfo "Run test case against the target machine ..."
-					# After RunOneTestCase, we care about '$lastResult', to choose flow of 'reuse' or 'preserve' VMs
-					$lastResult = $this.RunOneTestCase($vmData, $currentTestCase, $executionCount, $this.SetupTypeTable[$setupType], ($tests -ne 0))
-					$tests++
-
-					# Last Test is 'Pass', by default reuse VM deployment till the end of current SetupType (with the Combined Setup Key)
-					if ($this.TestCasePassStatus.contains($lastResult.TestResult)) {
-						# Unless 'tcRemoveVM' = true, then ==>  $vmData = &$CleanupResource
-						if ($tcRemoveVM) {
+						# if there are deployment errors, skip RunTestCase and try to CleanupResource, as this is unrecoverable
+						# and we do not care about the last test run result (Pass or Fail), always try to CleanupResource, unless 'ResourceCleanup = Keep' set
+						if ($vmData -and $deployVMResults.Error) {
 							if ($this.ResourceCleanup -imatch "Keep") {
-								Write-LogWarn "ResourceCleanup = 'Keep' is respected, but may be huge waste of resources when '-DeployVMPerEachTest' is Set."
+								Write-LogWarn "ResourceCleanup = 'Keep' is respected, current test will abort, as deployment error(s) detected."
 								$vmData = $null
 							}
 							else {
-								$vmData = &$CleanupResource
+								&$CleanupResource -VmDataToBeDeleted ([ref]$vmData)
 							}
+						}
+						$deployErrors = Trim-ErrorLogMessage $deployVMResults.Error
+					}
+					if (!$vmData) {
+						# Failed to deploy the VMs, Set the case to abort
+						Write-LogWarn("VMData is empty (null). Aborting the testing.")
+						$this.JunitReport.StartLogTestCase("LISAv2Test-$($this.TestPlatform)","$($currentTestCase.testName)","$($this.TestPlatform)-$($currentTestCase.Category)-$($currentTestCase.Area)")
+						$this.JunitReport.CompleteLogTestCase("LISAv2Test-$($this.TestPlatform)","$($currentTestCase.testName)","Aborted", $deployErrors)
+						$this.TestSummary.UpdateTestSummaryForCase($currentTestCase, $executionCount, "Aborted", "0", $deployErrors, $null)
+						continue
+					}
+					else {
+						if(!$global:detectedDistro) {
+							$detectedDistro = Detect-LinuxDistro -VIP $vmData[0].PublicIP -SSHport $vmData[0].SSHPort `
+								-testVMUser $global:user -testVMPassword $global:password
 						}
 					}
-					else { # Last Test is Failed/Aborted, by default preserve VM for analysis/debugging, but set $vmData = null: (force another deployment happen for next TC)
-						# unless '-ReuseVmOnFailure', keep $vmData as last failure environment, no new deployment behavior followed.
-						if ($this.TestProvider.ReuseVmOnFailure) {
-							Write-LogInfo "Keep deployed target machine for future reuse, as '-ReuseVmOnFailure' is True"
-						}
-						# unless '-ResourceCleanup = Delete', possibly means choose economy option for saving cost and resources
-						# unless '-UseExistingRG', preserve deployed VMs in the same RG will cause following Testing Aborted (names of resources are fixed in LISAv2)
-						elseif ($this.UseExistingRG -or ($this.ResourceCleanup -imatch "Delete")) {
-							if ($this.ResourceCleanup -imatch "Keep") {
-								Write-LogWarn "ResourceCleanup = 'Keep' is respected, but may conflict with '-UseExistingRG', as 'Keep' will cause following tests Aborted."
-								$vmData = $null
-							}
-							else {
-								$vmData = &$CleanupResource
-							}
-						}
-						else { # this is by default choice for last Failed/Aborted
+				}
+				# Run current test case
+				Write-LogInfo "Run test case against the target machine ..."
+				# If reuse $vmData of last test case, making sure the TestLocation also copied to '$currentTestCase.SetupConfig.TestLocation', as '-TestLocation' may be empty and only auto-selected by LISAv2 during DeployVMs()
+				if ($vmData -and $vmData.Location -and !$currentTestCase.SetupConfig.TestLocation) {
+					$location = $vmData.Location | Select-Object -First 1
+					$currentTestCase.SetupConfig.InnerXml += "<TestLocation>$location</TestLocation>"
+				}
+				# After RunOneTestCase, we care about '$lastResult', to choose flow of 'reuse' or 'preserve' VMs
+				$lastResult = $this.RunOneTestCase($vmData, $currentTestCase, $executionCount, $this.SetupTypeTable[$setupType], ($tests -ne 0))
+				$tests++
+
+				# Last Test is 'Pass', by default reuse VM deployment till the end of current SetupType (with the Combined Setup Key)
+				if ($this.TestCasePassStatus.contains($lastResult.TestResult)) {
+					# Unless '$this.DeployVMPerEachTest' is $true, then: (&$CleanupResource -VmDataToBeDeleted ([ref]$vmData))
+					if ($this.DeployVMPerEachTest) {
+						if ($this.ResourceCleanup -imatch "Keep") {
+							Write-LogWarn "ResourceCleanup = 'Keep' is respected, but may be huge waste of resources when '-DeployVMPerEachTest' is Set."
 							$vmData = $null
 						}
+						else {
+							&$CleanupResource -VmDataToBeDeleted ([ref]$vmData)
+						}
+					}
+				}
+				else {
+					#Last Test is Failed/Aborted, check '-ReuseVMOnFailure', and set $readyForReuseVM = $true if RestartAllDeployments successfully.
+					$readyForReuseVM = $false
+					if ($this.TestProvider.ReuseVmOnFailure) {
+						Write-LogInfo "Try reuse VM instances from last deployment, as '-ReuseVmOnFailure' is True"
+						if($vmData) {
+							$readyForReuseVM = $this.TestProvider.RestartAllDeployments($vmData)
+						}
+					}
+					# If -not $readyForReuseVM, LISA will preserve VM environment for analysis/debugging by default.
+					# but eventually will set $vmData = $null, which means force another deployment happen for next test case
+					if (!$readyForReuseVM) {
+						# when '-ResourceCleanup = Delete', &$CleanupResource
+						if ($vmData -and $this.ResourceCleanup -imatch "Delete") {
+							&$CleanupResource -VmDataToBeDeleted ([ref]$vmData)
+						}
+						# when '-UseExistingRG', try to &$CleanupResource, unless '-ResourceCleanup = Keep'
+						if ($vmData -and $this.UseExistingRG) {
+							if ($this.ResourceCleanup -imatch "Keep") {
+								# '-ResourceCleanup = Keep' may cause following test cases in the same Setup group Aborted (because resource names of deployment are duplicated in the ExistingRG)
+								Write-LogWarn "ResourceCleanup = 'Keep' is respected, but may conflict with '-UseExistingRG', as 'Keep' will cause following tests Aborted."
+							}
+							else {
+								&$CleanupResource -VmDataToBeDeleted ([ref]$vmData)
+							}
+						}
+						# this is by default choice for last Failed/Aborted
+						$vmData = $null
 					}
 				}
 			}
@@ -714,7 +657,7 @@ Class TestController
 					$vmData = $null
 				}
 				else {
-					$vmData = &$CleanupResource
+					&$CleanupResource -VmDataToBeDeleted ([ref]$vmData)
 				}
 			}
 		}
@@ -779,7 +722,7 @@ Class TestController
 				$HostVersion = ($FinalLine.Split(":")[$FinalLine.Split(":").Count - 1 ]).Trim().TrimEnd(";")
 			}
 
-			if ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
+			if ($currentTestData.SetupConfig.Networking -imatch "SRIOV") {
 				$Networking = "SRIOV"
 			} else {
 				$Networking = "Synthetic"
@@ -791,7 +734,7 @@ Class TestController
 			if ($global:TestPlatform -eq "HyperV") {
 				$VMSize = $global:HyperVInstanceSize
 			}
-			$VMGen = $vmData.VMGeneration
+			$VMGen = $CurrentTestData.SetupConfig.VMGeneration
 
 			if ($enableTelemetry) {
 				$dataTableName = ""
@@ -802,11 +745,11 @@ Class TestController
 					$dataTableName = "LISAv2Results"
 				}
 
-				$SQLQuery = Get-SQLQueryOfTelemetryData -TestPlatform $global:TestPlatform -TestLocation $global:TestLocation -TestCategory $CurrentTestData.Category `
+				$SQLQuery = Get-SQLQueryOfTelemetryData -TestPlatform $global:TestPlatform -TestLocation $CurrentTestData.SetupConfig.TestLocation -TestCategory $CurrentTestData.Category `
 					-TestArea $CurrentTestData.Area -TestName $CurrentTestData.TestName -CurrentTestResult $CurrentTestResult `
-					-ExecutionTag $global:GlobalConfig.Global.$global:TestPlatform.ResultsDatabase.testTag -GuestDistro $GuestDistro -KernelVersion $global:FinalKernelVersion `
+					-ExecutionTag ($global:GlobalConfig).Global.($global:TestPlatform).ResultsDatabase.testTag -GuestDistro $GuestDistro -KernelVersion $global:FinalKernelVersion `
 					-HardwarePlatform $HardwarePlatform -LISVersion $LISVersion -HostVersion $HostVersion -VMSize $VMSize -VMGeneration $VMGen -Networking $Networking `
-					-ARMImageName $global:ARMImageName -OsVHD $global:BaseOsVHD -BuildURL $env:BUILD_URL -TableName $dataTableName
+					-ARMImageName $CurrentTestData.SetupConfig.ARMImageName -OsVHD $global:BaseOsVHD -BuildURL $env:BUILD_URL -TableName $dataTableName
 
 				Upload-TestResultToDatabase -SQLQuery $SQLQuery
 			}

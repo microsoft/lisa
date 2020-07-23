@@ -44,6 +44,9 @@ Class WSLController : TestController
 		if (!$this.OsVHD ) {
 			$parameterErrors += "-OsVHD <'Path-To-Distro.zip'> is required. It can be the URL of the distro, or the path to the distro file on the local host."
 		}
+		if (!$this.RGIdentifier) {
+			$parameterErrors += "-RGIdentifier is not set"
+		}
 		if ($parameterErrors.Count -gt 0) {
 			$parameterErrors | ForEach-Object { Write-LogErr $_ }
 			throw "Failed to validate the test parameters provided. Please fix above issues and retry."
@@ -135,7 +138,7 @@ Class WSLController : TestController
 	[void] SetGlobalVariables() {
 		([TestController]$this).SetGlobalVariables()
 
-		Set-Variable -Name VMGeneration -Value $this.TestProvider.VMGeneration -Scope Global
+		#Set-Variable -Name VMGeneration -Value $this.TestProvider.VMGeneration -Scope Global
 	}
 
 	[void] PrepareTestImage() {

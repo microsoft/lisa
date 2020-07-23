@@ -22,7 +22,9 @@ function Main {
         $HvServer,
         $TestParams
     )
-
+    if ($global:TestPlatform -ne 'HyperV') {
+        return
+    }
     if ($null -eq $TestParams -or $TestParams.Length -lt 13) {
         # The minimum length testParams string is "IDE=1,1,Fixed"
         Write-LogErr "No testParams provided"

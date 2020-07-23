@@ -185,7 +185,7 @@ function Main {
 
 		if ($installOFEDFromExtension) {
 			foreach ($VMData in $AllVMData) {
-				$install_Output = Set-AzVMExtension -ResourceGroupName $VMData.ResourceGroupName -Location $TestLocation -VMName $VMData.RoleName `
+				$install_Output = Set-AzVMExtension -ResourceGroupName $VMData.ResourceGroupName -Location $CurrentTestData.SetupConfig.TestLocation -VMName $VMData.RoleName `
 					-ExtensionName "InfiniBandDriverLinux" -Publisher "Microsoft.HpcCompute" -Type "InfiniBandDriverLinux" -TypeHandlerVersion "1.0"
 				if ($install_Output.StatusCode -ne "OK") {
 					Throw "Extension InfiniBandDriverLinux install failed on $($VMData.RoleName)!"

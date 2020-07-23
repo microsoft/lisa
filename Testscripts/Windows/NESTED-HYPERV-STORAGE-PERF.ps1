@@ -230,7 +230,7 @@ function Get-SQLQueryOfNestedHyperv ($currentTestResult, $session, $AllVMData, $
 			$resultMap["TestCaseName"] = $TestCaseName
 			$resultMap["TestDate"] = $TestDate
 			$resultMap["HostType"] = $TestPlatform
-			$resultMap["HostBy"] = $TestLocation
+			$resultMap["HostBy"] = $CurrentTestData.SetupConfig.TestLocation
 			$resultMap["HostOS"] = $HostOS
 			$resultMap["L1GuestOSType"] = "Windows"
 			$resultMap["L1GuestDistro"] = $computerInfo.OsName
@@ -277,7 +277,7 @@ netsh advfirewall firewall add rule name="WinRM HTTP" dir=in action=allow protoc
 	if (-not $storageName) {
 		$randomNum = Get-Random -Maximum 999 -Minimum 100
 		$storageName = "temp" + [string]$randomNum
-		$location = $global:TestLocation
+		$location = $CurrentTestData.SetupConfig.TestLocation
 		New-AzStorageAccount -ResourceGroupName $rgName -AccountName $storageName -Location $location -SkuName "Standard_GRS"   | Out-Null
 	}
 	$StorageKey = (Get-AzStorageAccountKey  -Name $storageName -ResourceGroupName $rgName).Value[0]
@@ -311,7 +311,7 @@ function Invoke-CustomScript($fileUri) {
 	$publisher = "Microsoft.Compute"
 	$type = "CustomScriptExtension"
 	$name = "CustomScriptExtension"
-	$location = $global:TestLocation
+	$location = $CurrentTestData.SetupConfig.TestLocation
 	$sts=Set-AzVMExtension -ResourceGroupName $rgName -Location $location -VMName $myVM  -Name $name -Publisher $publisher -ExtensionType $type  -TypeHandlerVersion "1.9"  -Settings $settings  -ProtectedSettings $proSettings
 	if ($sts.IsSuccessStatusCode) {
 	  Write-LogInfo "Run custom script successfully."

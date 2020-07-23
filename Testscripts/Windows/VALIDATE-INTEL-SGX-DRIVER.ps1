@@ -20,6 +20,17 @@ function Main {
 
     $ubuntuVersion = Run-LinuxCmd -Command "cat /etc/issue" `
         -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort
+
+    if (($ubuntuVersion -imatch "Ubuntu 18.04") -or ($ubuntuVersion -imatch "Ubuntu 16.04") -or ($ubuntuVersion -imatch "Ubuntu 20.04") -or ($ubuntuVersion -imatch "Ubuntu 19.10")) {
+        $retVal = Run-LinuxCmd -Command "lsmod | grep -i intel_sgx" -username $VMUserName -password $VMPassword -ip $Ipv4 -port $VMPort -ignoreLinuxExitCode
+        if (!$retVal) {
+            Write-LogErr "Module intel_sgx not load automatically."
+            return "FAIL"
+        } else {
+            Write-LogInfo "Module intel_sgx load automatically - $retVal."
+        }
+    }
+
     if (($ubuntuVersion -notmatch "Ubuntu 18.04") -and ($ubuntuVersion -notmatch "Ubuntu 16.04")) {
         $shortUbuntuVersion = $ubuntuVersion.replace(" \n \l","")
         Write-LogInfo "$shortUbuntuVersion is not supported! Test skipped!"

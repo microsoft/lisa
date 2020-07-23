@@ -12,6 +12,8 @@
 	Reboot VM and repeat above steps for a few times, if this is stress mode.
 	Handle the offline cpu assignment to the vmbus channel in negative test.
 	It's optional to have no VM reboot.
+	If either storage or network workload defined, either background workload running
+	during CPU state change and vmbus interrupt assignment change.
 	TODO: Find utilization, throughput or latency values parsing from workload output
 	and compare those results during CPU offline/vmbus interrupt change.
 #>
@@ -31,12 +33,14 @@ function Main {
 	try {
 		$testResult = $resultFail
 		$isStorageWorkloadEnable = 0
+		$isNetworkWorkloadEnable = 0
 		$azureSyncSecond = 30
 
 		# Find the local test script
 		foreach ($TestScript in $CurrentTestData.files) {
-			if ($TestParam -imatch "handle_offline_cpu.sh") {
-				local_script="handle_offline_cpu.sh"
+			if ($TestScript -imatch "handle_offline_cpu.sh") {
+				$local_script = "handle_offline_cpu.sh"
+				Write-LogDbg "Changed the local_script file name"
 			}
 		}
 		#region Generate constants.sh
@@ -59,11 +63,15 @@ function Main {
 				# Overwrite if storage is set
 				$isStorageWorkloadEnable = 1
 			}
+			if ($TestParam -imatch "network=yes") {
+				# Overwrite if network is set
+				$isNetworkWorkloadEnable = 1
+			}
 		}
 		Write-LogInfo "constants.sh created successfully..."
 		#endregion
 
-		if ($isStorageWorkloadEnable -eq 1) {
+		if (($isStorageWorkloadEnable -eq 1) -or (-not @("UBUNTU").contains($global:detectedDistro))) {
 			Write-LogDbg "Prepare a disk space for VM $($AllVMData[0].RoleName) in RG $($AllVMData[0].ResourceGroupName)."
 			# region Prepare the disk space in the target VM
 			$rgName = $AllVMData[0].ResourceGroupName
@@ -107,41 +115,45 @@ function Main {
 
 		# ##################################################################################
 		# New kernel build for CPU channel change and vmbus interrupt re-assignment
-		Run-LinuxCmd -ip $AllVMData.PublicIP -port $AllVMData.SSHPort -username $user -password $password -command "bash CPUOfflineKernelBuild.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+		Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "bash /home/$user/CPUOfflineKernelBuild.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
 		Write-LogInfo "Executing CPUOfflineKernelBuild script inside VM"
 
 		# Wait for kernel compilation completion. 60 min timeout
 		$timeout = New-Timespan -Minutes 60
 		$sw = [diagnostics.stopwatch]::StartNew()
 		while ($sw.elapsed -lt $timeout){
-			$vmCount = $AllVMData.Count
-			Wait-Time -seconds 15
-			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat ~/state.txt"
+			Wait-Time -seconds 30
+			$state = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password "cat /home/$user/state.txt" -runAsSudo
+			Write-LogDbg "state is $state"
 			if ($state -eq "TestCompleted") {
-				$kernelCompileCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat ~/constants.sh | grep setup_completed=0"
+				$kernelCompileCompleted = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password "cat /home/$user/constants.sh | grep setup_completed=0" -runAsSudo
 				if ($kernelCompileCompleted -ne "setup_completed=0") {
-					Write-LogErr "CPUOfflineKernelBuild.sh finished on $($VMData.RoleName) but setup was not successful!"
+					Write-LogErr "CPUOfflineKernelBuild.sh finished on $($AllVMData[0].RoleName) but setup was not successful!"
 				} else {
-					Write-LogInfo "CPUOfflineKernelBuild.sh finished on $($VMData.RoleName)"
-					$vmCount--
+					Write-LogInfo "CPUOfflineKernelBuild.sh finished on $($AllVMData[0].RoleName)"
+					break
 				}
-				break
 			} elseif ($state -eq "TestSkipped") {
+				Write-LogInfo "CPUOfflineKernelBuild.sh finished with SKIPPED state on $($AllVMData[0].RoleName)!"
 				$resultArr = $resultSkipped
-				throw "CPUOfflineKernelBuild.sh finished with SKIPPED state!"
+				$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
+				return $currentTestResult.TestResult
 			} elseif ($state -eq "TestFailed") {
+				Write-LogErr "CPUOfflineKernelBuild.sh finished with Failed state on $($AllVMData[0].RoleName)."
 				$resultArr = $resultFail
-				throw "CPUOfflineKernelBuild.sh finished with FAILED state!"
+				$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
+				return $currentTestResult.TestResult
 			} elseif ($state -eq "TestAborted") {
+				Write-LogInfo "CPUOfflineKernelBuild.sh finished with Aborted state on $($AllVMData[0].RoleName)."
 				$resultArr = $resultAborted
-				throw "CPUOfflineKernelBuild.sh finished with ABORTED state!"
+				$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
+				return $currentTestResult.TestResult
 			} else {
-				Write-LogInfo "CPUOfflineKernelBuild.sh is still running in the VM!"
+				Write-LogInfo "CPUOfflineKernelBuild.sh is still running in the VM on $($AllVMData[0].RoleName)..."
 			}
 		}
-		if ($vmCount -le 0){
-			Write-LogInfo "CPUOfflineKernelBuild.sh is done successfully"
-		} else {
+		# Either timeout or vmCount equal 0 lands here
+		if ($kernelCompileCompleted -ne "setup_completed=0") {
 			throw "CPUOfflineKernelBuild.sh didn't finish in the VM!"
 		}
 
@@ -165,68 +177,101 @@ done
 SetTestStateCompleted
 "@
 			Set-Content "$LogDir\workCommand.sh" $workCommand
+		}
 
-			$setupcommand = @"
+		if ($isNetworkWorkloadEnable -eq 1) {
+			$targetIPAddress = $AllVMData[1].InternalIP
+			$workCommand = @"
+source utils.sh
+for jn in 1 2 3 4 5 6 7 8 9 10
+do
+iperf3 -c $targetIPAddress -t 60 -P 32 >> workload.json
+done
+"@
+			Set-Content "$LogDir\workCommand.sh" $workCommand
+		}
+
+		$setupcommand = @"
 source utils.sh
 update_repos
 install_package "fio"
+install_iperf3
 "@
-			Set-Content "$LogDir\setup.sh" $setupcommand
-			#endregion
+		Set-Content "$LogDir\setup.sh" $setupcommand
+		#endregion
 
-			#region Upload files to VM
-			foreach ($VMData in $AllVMData) {
-				Copy-RemoteFiles -uploadTo $VMData.PublicIP -port $VMData.SSHPort -files "$constantsFile,$($CurrentTestData.files),$LogDir\*.sh" -username $user -password $password -upload
-				Write-LogInfo "Copied the script files to the VM"
-				Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "bash setup.sh" -runAsSudo
-			}
-			#endregion
+		#region Upload files to VM
+		foreach ($VMData in $AllVMData) {
+			Copy-RemoteFiles -uploadTo $VMData.PublicIP -port $VMData.SSHPort -files "$constantsFile,$($CurrentTestData.files),$LogDir\*.sh" -username $user -password $password -upload
+			Write-LogInfo "Copied the script files to the VM"
+			Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "bash /home/$user/setup.sh" -runAsSudo
+		}
+		#endregion
+
+		if ($isNetworkWorkloadEnable -eq 1) {
+			Write-LogInfo "Running iperf server in the backgroud job"
+			Run-LinuxCmd -ip $AllVMData[1].PublicIP -port $AllVMData[1].SSHPort -username $user -password $password -command "iperf3 -s -D" -RunInBackground -runAsSudo
+			Start-Sleep -s 10
 		}
 
 		for ($loopCount = 1;$loopCount -le $max_stress_count;$loopCount++) {
-			if ($isStorageWorkloadEnable -eq 1) {
+			if (($isStorageWorkloadEnable -eq 1) -or ($isNetworkWorkloadEnable -eq 1)) {
 				Write-LogInfo "Running workload command in the background job"
-				Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "bash workCommand.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+				Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "bash /home/$user/workCommand.sh" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
 			}
 			# Feature test and stress test case with $local_script
 			# Running the local test script
-			Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "./$local_script" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
+			Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "bash /home/$user/$local_script" -RunInBackground -runAsSudo -ignoreLinuxExitCode:$true | Out-Null
 			Write-LogInfo "Executed $local_script script inside VM"
 
 			# Wait for kernel compilation completion. 60 min timeout
 			$timeout = New-Timespan -Minutes 60
 			$sw = [diagnostics.stopwatch]::StartNew()
 			while ($sw.elapsed -lt $timeout){
-				$vmCount = $AllVMData.Count
 				Wait-Time -seconds 30
-				$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat ~/state.txt"
+				$state = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password "cat /home/$user/state.txt" -runAsSudo
+				Write-LogDbg "state is $state"
 				if ($state -eq "TestCompleted") {
-					$channelChangeCompleted = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat ~/constants.sh | grep job_completed=0"
-					if ($channelChangeCompleted -ne "job_completed=0") {
-						throw "$local_script finished on $($VMData.RoleName) but job was not successful!"
+					$kernelCompileCompleted = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password "cat /home/$user/constants.sh | grep job_completed=0" -runAsSudo
+					if ($kernelCompileCompleted -ne "job_completed=0") {
+						Write-LogErr "$local_script finished on $($AllVMData[0].RoleName) but setup was not successful!"
 					} else {
-						Write-LogInfo "$local_script finished on $($VMData.RoleName)"
-						$vmCount--
+						Write-LogInfo "$local_script finished on $($AllVMData[0].RoleName)"
+						break
 					}
-					break
 				} elseif ($state -eq "TestSkipped") {
+					Write-LogInfo "$local_script finished with SKIPPED state on $($AllVMData[0].RoleName)!"
 					$resultArr = $resultSkipped
-					throw "$local_script finished with SKIPPED state!"
+					$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
+					return $currentTestResult.TestResult
 				} elseif ($state -eq "TestFailed") {
+					Write-LogErr "$local_script finished with Failed state on $($AllVMData[0].RoleName)."
 					$resultArr = $resultFail
-					throw "$local_script finished with FAILED state!"
+					$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
+					return $currentTestResult.TestResult
 				} elseif ($state -eq "TestAborted") {
+					Write-LogInfo "$local_script finished with Aborted state on $($AllVMData[0].RoleName)."
 					$resultArr = $resultAborted
-					throw "$local_script finished with ABORTED state!"
+					$currentTestResult.TestResult = Get-FinalResultHeader -resultarr $resultArr
+					return $currentTestResult.TestResult
 				} else {
-					Write-LogInfo "$local_script is still running in the VM!"
+					Write-LogInfo "$local_script is still running in the VM on $($AllVMData[0].RoleName)..."
 				}
 			}
-			if ($vmCount -le 0){
-				Write-LogInfo "$local_script is done"
-			} else {
-				Throw "$local_script didn't finish in the VM!"
+			# Either timeout or vmCount equal 0 lands here
+			if ($kernelCompileCompleted -ne "job_completed=0") {
+				throw "$local_script didn't finish in the VM!"
 			}
+
+			if ($isNetworkWorkloadEnable -eq 1) {
+				Write-LogInfo "Archiving network workload result"
+				Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "cat /home/$user/workload.json >> /home/$user/TestExecution.log" -RunInBackground -runAsSudo
+			}
+
+			# Revert state.txt and remove job_completed=0
+			$state = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "chmod 766 /home/$user/state.txt" -runAsSudo
+			$state = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "cat /dev/null > /home/$user/state.txt" -runAsSudo
+			$state = Run-LinuxCmd -ip $AllVMData[0].PublicIP -port $AllVMData[0].SSHPort -username $user -password $password -command "sed -i -e 's/job_completed=0//g' /home/$user/constants.sh" -runAsSudo
 
 			if ($vm_reboot -eq "yes") {
 				# ##################################################################################
@@ -239,11 +284,6 @@ install_package "fio"
 				Write-LogInfo "Loop Count: $loopCount"
 				Start-Sleep -second 60
 			}
-
-			# Revert state.txt and remove job_completed=0
-			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "chmod 766 state.txt" -runAsSudo
-			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "cat /dev/null > state.txt" -runAsSudo
-			$state = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "sed -i -e 's/job_completed=0//g' constants.sh" -runAsSudo
 		}
 		$testResult = $resultPass
 		Write-LogInfo "The test passed"
