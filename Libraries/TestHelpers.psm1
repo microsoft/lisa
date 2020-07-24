@@ -259,6 +259,10 @@ function Download-RemoteFile($downloadFrom, $downloadTo, $port, $file, $username
 
 # Upload or download files to/from remote VMs
 Function Copy-RemoteFiles($uploadTo, $downloadFrom, $downloadTo, $port, $files, $username, $password, [switch]$upload, [switch]$download, [switch]$usePrivateKey, [switch]$doNotCompress, $maxRetry) {
+	if ($global:IsWindowsImage) {
+		Write-LogDbg "It is a Windows VM. Skip Copy-RemoteFiles."
+		return
+	}
 	if (!$files) {
 		Write-LogErr "No file(s) to copy."
 		return
@@ -344,6 +348,10 @@ Function Get-AvailableExecutionFolder([string] $username, [string] $password, [s
 }
 
 Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [string] $command, [int] $port, [switch]$runAsSudo, [Boolean]$WriteHostOnly, [Boolean]$NoLogsPlease, [switch]$ignoreLinuxExitCode, [int]$runMaxAllowedTime = 300, [switch]$RunInBackGround, [int]$maxRetryCount = 20, [string] $MaskStrings) {
+	if ($global:IsWindowsImage) {
+		Write-LogDbg "It is a Windows VM. Skip Run-LinuxCmd."
+		return
+	}
 	if (!$global:AvailableExecutionFolder) {
 		Get-AvailableExecutionFolder $username $password $ip $port
 	}
