@@ -770,4 +770,42 @@
       <OverrideVMSize>Standard_D3_v2</OverrideVMSize>
     </SetupConfig>
   </test>
+  <test>
+    <testName>PERF-XDP-TCP-RX-DROP-SINGLECORE</testName>
+    <testScript>PERF-XDP-RX-DROP.ps1</testScript>
+    <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh,.\Testscripts\Linux\pktgenSetup.sh</files>
+    <TestParameters>
+      <param>repo_url=XDPDUMP_REPO_URL</param>
+      <param>cores=single</param>
+    </TestParameters>
+    <Platform>Azure</Platform>
+    <Category>Performance</Category>
+    <Area>NETWORK</Area>
+    <Tags>xdp</Tags>
+    <Priority>3</Priority>
+    <SetupConfig>
+      <setupType>TwoVM2NIC</setupType>
+      <OverrideVMSize>Standard_D64_v3</OverrideVMSize>
+      <Networking>SRIOV</Networking>
+    </SetupConfig>
+  </test>
+  <test>
+    <testName>PERF-XDP-TCP-RX-DROP-MULTICORE</testName>
+    <testScript>PERF-XDP-RX-DROP.ps1</testScript>
+    <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh,.\Testscripts\Linux\pktgenSetup.sh</files>
+    <TestParameters>
+      <param>repo_url=XDPDUMP_REPO_URL</param>
+      <param>cores=multi</param>
+    </TestParameters>
+    <Platform>Azure</Platform>
+    <Category>Performance</Category>
+    <Area>NETWORK</Area>
+    <Tags>xdp</Tags>
+    <Priority>3</Priority>
+    <SetupConfig>
+      <setupType>TwoVM2NIC</setupType>
+      <OverrideVMSize>Standard_D64_v3</OverrideVMSize>
+      <Networking>SRIOV</Networking>
+    </SetupConfig>
+  </test>
 </TestCases>
