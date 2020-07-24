@@ -21,7 +21,7 @@ GetDistro
 GetGuestGeneration
 
 function Main() {
-	basedir=$(pwd)
+	base_dir=$(pwd)
 	if [[ "$DISTRO" =~ "redhat" || "$DISTRO" =~ "centos" ]];then
 		# RHEL requires bigger disk space for kernel repo and its compilation.
 		# This is Azure mnt disk from the host.
@@ -131,14 +131,14 @@ function Main() {
 		make install
 		LogMsg "$?: Install new kernel"
 
-		cd $basedir
+		cd $base_dir
 	
 		# Append the test log to the main log files.
 		if [ -f $linux_path/TestExecution.log ]; then
-			cat $linux_path/TestExecution.log >> $basedir/TestExecution.log
+			cat $linux_path/TestExecution.log >> $base_dir/TestExecution.log
 		fi
 		if [ -f $linux_path/TestExecutionError.log ]; then
-			cat $linux_path/TestExecutionError.log >> $basedir/TestExecutionError.log
+			cat $linux_path/TestExecutionError.log >> $base_dir/TestExecutionError.log
 		fi
 	fi
 
@@ -321,7 +321,7 @@ function Main() {
 		fi
 	fi
 
-	echo "setup_completed=0" >> $basedir/constants.sh
+	echo "setup_completed=0" >> $base_dir/constants.sh
 	LogMsg "Main function completed"
 }
 
