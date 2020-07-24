@@ -39,6 +39,9 @@ Class HyperVController : TestController
 	[void] ParseAndValidateParameters([Hashtable]$ParamTable) {
 		$parameterErrors = ([TestController]$this).ParseAndValidateParameters($ParamTable)
 
+		if (!$this.RGIdentifier) {
+			$parameterErrors += "-RGIdentifier is not set"
+		}
 		$this.DestinationOsVhdPath = $ParamTable["DestinationOsVhdPath"]
 		$this.SyncEquivalentCustomParameters("VMGeneration", $this.VMGeneration)
 
@@ -135,9 +138,6 @@ Class HyperVController : TestController
 		if (("sriov", "synthetic") -contains $this.CustomParams["Networking"]) {
 			Add-SetupConfig -AllTests $AllTests -ConfigName "Networking" -ConfigValue $this.CustomParams["Networking"] -Force $this.ForceCustom
 		}
-		if (("managed", "unmanaged") -contains $this.CustomParams["DiskType"]) {
-			Add-SetupConfig -AllTests $AllTests -ConfigName "DiskType" -ConfigValue $this.CustomParams["DiskType"] -Force $this.ForceCustom
-		}
 		if (("Specialized", "Generalized") -contains $this.CustomParams["ImageType"]) {
 			Add-SetupConfig -AllTests $AllTests -ConfigName "ImageType" -ConfigValue $this.CustomParams["ImageType"] -Force $this.ForceCustom
 		}
@@ -145,7 +145,6 @@ Class HyperVController : TestController
 			Add-SetupConfig -AllTests $AllTests -ConfigName "OSType" -ConfigValue $this.CustomParams["OSType"] -Force $this.ForceCustom
 		}
 		Add-SetupConfig -AllTests $AllTests -ConfigName "VMGeneration" -ConfigValue $this.CustomParams["VMGeneration"] -DefaultConfigValue "1" -Force $this.ForceCustom
-		Add-SetupConfig -AllTests $AllTests -ConfigName "RGIdentifier" -ConfigValue $this.CustomParams["RGIdentifier"] -Force $this.ForceCustom
 		# As Hyper-V do not need to separate TestLocations ('localhost,AnotherServerName') for one TestCase.
 		# Instead, multiple TestLocations must always stick together for every test case.
 		# So, use a fake SplitBy to avoid TestLocations been Splitted for different TestCases.

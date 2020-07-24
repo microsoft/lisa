@@ -40,6 +40,9 @@ Class AzureController : TestController
 	[void] ParseAndValidateParameters([Hashtable]$ParamTable) {
 		$parameterErrors = ([TestController]$this).ParseAndValidateParameters($ParamTable)
 
+		if (!$this.RGIdentifier) {
+			$parameterErrors += "-RGIdentifier is not set"
+		}
 		$ValidateARMImageName = {
 			$ArmImagesToBeUsed = @($this.ARMImageName.Trim(", ").Split(',').Trim())
 			if ($ArmImagesToBeUsed | Where-Object {$_.Split(" ").Count -ne 4}) {
@@ -240,6 +243,11 @@ Class AzureController : TestController
 
 		Write-LogInfo "Setting global variables"
 		$this.SetGlobalVariables()
+	}
+
+	[void] SetGlobalVariables() {
+		([TestController]$this).SetGlobalVariables()
+
 		if (!$global:AllTestVMSizes) {
 			Set-Variable -Name AllTestVMSizes -Value @{} -Option ReadOnly -Scope Global
 		}
@@ -312,8 +320,6 @@ Class AzureController : TestController
 		if (("Windows", "Linux") -contains $this.CustomParams["OSType"]) {
 			Add-SetupConfig -AllTests $AllTests -ConfigName "OSType" -ConfigValue $this.CustomParams["OSType"] -Force $this.ForceCustom
 		}
-		Add-SetupConfig -AllTests $AllTests -ConfigName "RGIdentifier" -ConfigValue $this.CustomParams["RGIdentifier"] -Force $this.ForceCustom
-
 		if ($this.CustomParams.TiPSessionId -and $this.CustomParams.TiPCluster -and $this.CustomParams.PlatformFaultDomainCount -and $this.CustomParams.PlatformUpdateDomainCount) {
 			Add-SetupConfig -AllTests $AllTests -ConfigName "TiPSessionId" -ConfigValue $this.CustomParams.TiPSessionId -Force $true
 			Add-SetupConfig -AllTests $AllTests -ConfigName "TiPCluster" -ConfigValue $this.CustomParams.TiPCluster -Force $true

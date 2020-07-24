@@ -132,20 +132,13 @@ Class TestController
 		$this.SyncEquivalentCustomParameters("TestLocation", $this.TestLocation)
 		$this.SyncEquivalentCustomParameters("OsVHD", $this.OsVHD)
 		$this.SyncEquivalentCustomParameters("OverrideVMSize", $this.OverrideVMSize)
-		$this.SyncEquivalentCustomParameters("RGIdentifier", $this.RGIdentifier)
 		# Sync VMGeneration with whatever values it got from command parameter;
 		# if $null/empty, inherited controller will update it with default value
 		$this.SyncEquivalentCustomParameters("VMGeneration", $this.VMGeneration)
 
 		$parameterErrors = @()
 		# Validate general parameters
-		if (!$this.RGIdentifier) {
-			$parameterErrors += "-RGIdentifier is not set"
-		}
-		elseif (@($this.RGIdentifier.Split(",")).Count -ne 1) {
 
-			Write-LogErr "'RGIdentifier' must not contain ',' and multiple values (seperated by ',') of RDIdentifier is not supported."
-		}
 		return $parameterErrors
 	}
 
@@ -561,7 +554,7 @@ Class TestController
 					# Deploy the VM for the setup
 					Write-LogInfo "Deploy target machine for test if required ..."
 					$deployVMResults = $this.TestProvider.DeployVMs($this.GlobalConfig, $this.SetupTypeTable[$setupType], $currentTestCase, `
-						$currentTestCase.SetupConfig.TestLocation, $currentTestCase.SetupConfig.RGIdentifier, $this.UseExistingRG, $this.ResourceCleanup)
+						$currentTestCase.SetupConfig.TestLocation, $this.RGIdentifier, $this.UseExistingRG, $this.ResourceCleanup)
 					$vmData = $null
 					$deployErrors = ""
 					if ($deployVMResults) {
