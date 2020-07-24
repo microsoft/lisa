@@ -36,11 +36,16 @@ function ConvertFrom-SetupConfig([object]$SetupConfig, [switch]$WrappingLines) {
 	$resultString = ""
 	$SetupConfig.ChildNodes | Sort-Object LocalName | Foreach-Object {
 		if ($SetupConfig.($_.LocalName) -and !($ExcludedSetupConfigsToDisplay -contains $_.LocalName)) {
+			if ($SetupConfig.($_.LocalName).InnerText) {
+				$value = $SetupConfig.($_.LocalName).InnerText
+			} else {
+				$value = $SetupConfig.($_.LocalName)
+			}
 			if ($WrappingLines.IsPresent) {
-				$resultString += "&nbsp;&nbsp;$($_.LocalName):$($SetupConfig.($_.LocalName))<br />"
+				$resultString += "&nbsp;&nbsp;$($_.LocalName):$value<br />"
 			}
 			else {
-				$resultString += "$($_.LocalName): $($SetupConfig.($_.LocalName)), "
+				$resultString += "$($_.LocalName): $value, "
 			}
 		}
 	}
@@ -763,7 +768,7 @@ Function Get-SSHKey ($XMLSecretFile) {
 	if ($XMLSecretFile) {
 		$WebClient = New-Object System.Net.WebClient
 		$xmlSecret = [xml](Get-Content $XMLSecretFile)
-		$privateSSHKey = $xmlSecret.secrets.sshPrivateKey.InnerText
+		$privateSSHKey = if ($xmlSecret.secrets.sshPrivateKey.InnerText) { $xmlSecret.secrets.sshPrivateKey.InnerText } else { $xmlSecret.secrets.sshPrivateKey }
 		if ($privateSSHKey) {
 			$sshKeyPath = $privateSSHKey
 		}

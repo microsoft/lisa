@@ -179,13 +179,6 @@ Class AzureController : TestController
 		$this.VmPassword = $azureConfig.TestCredentials.LinuxPassword
 		$this.SSHPrivateKey = $azureConfig.TestCredentials.sshPrivateKey
 
-		if (!$this.sshPrivateKey -and !$this.VmPassword) {
-			Write-LogErr "Please set sshPrivateKey or linuxTestPassword."
-		}
-		if ($this.sshPrivateKey -and $this.VmPassword) {
-			Write-LogDbg "Use private key, reset password into empty."
-			$this.VmPassword = ""
-		}
 		# global variables: StorageAccount, TestLocation
 		if ($this.TestLocation) {
 			if ( $this.StorageAccount -imatch "^ExistingStorage_Standard" ) {

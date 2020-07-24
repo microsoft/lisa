@@ -307,7 +307,7 @@ Class TestController
 			}
 			# Check whether the case if for Windows images
 			$IsWindowsImage = $false
-			if(($test.AdditionalHWConfig.OSType -contains "Windows")) {
+			if(($test.SetupConfig.OSType -contains "Windows")) {
 				$IsWindowsImage = $true
 			}
 			Set-Variable -Name IsWindowsImage -Value $IsWindowsImage -Scope Global
