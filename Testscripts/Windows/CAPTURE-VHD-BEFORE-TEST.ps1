@@ -32,9 +32,6 @@ function Main {
         Write-LogInfo "Shutting down VM..."
         $null = Stop-AzVM -Name $captureVMData.RoleName -ResourceGroupName $captureVMData.ResourceGroupName -Force
         Write-LogInfo "VM shutdown successful."
-        if ($CurrentTestData.SetupScript.RGIdentifier) {
-            $Append = $CurrentTestData.SetupScript.RGIdentifier
-        }
         if ($env:BUILD_NAME){
             $Append += "-$env:BUILD_NAME"
         }
