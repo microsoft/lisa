@@ -54,9 +54,8 @@ Class AzureProvider : TestProvider
 			}
 			if (!$allVMData) {
 				$isAllDeployed = Invoke-AllResourceGroupDeployments -SetupTypeData $SetupTypeData -CurrentTestData $TestCaseData -RGIdentifier $RGIdentifier `
-					-TestLocation $TestCaseData.SetupConfig.TestLocation -GlobalConfig $GlobalConfig -TipSessionId $this.TipSessionId -TipCluster $this.TipCluster `
-					-UseExistingRG $UseExistingRG -ResourceCleanup $ResourceCleanup -PlatformFaultDomainCount $this.PlatformFaultDomainCount `
-					-PlatformUpdateDomainCount $this.PlatformUpdateDomainCount -EnableNSG $this.EnableNSG
+					-TestLocation $TestCaseData.SetupConfig.TestLocation -GlobalConfig $GlobalConfig `
+					-UseExistingRG $UseExistingRG -ResourceCleanup $ResourceCleanup -EnableNSG $this.EnableNSG
 
 				if ($isAllDeployed[0] -eq "True") {
 					$deployedGroups = $isAllDeployed[1]
@@ -165,6 +164,25 @@ Class AzureProvider : TestProvider
 			return $true
 		}
 		return $false
+	}
+
+	[void] RunTestCaseCleanup ($AllVMData, $CurrentTestData, $CurrentTestResult, $CollectVMLogs, $RemoveFiles, $User, $Password, $SetupTypeData, $TestParameters){
+		try
+		{
+			if ($CurrentTestData.CleanupScript) {
+				foreach ($vmData in $AllVMData) {
+					foreach ($script in $($CurrentTestData.CleanupScript).Split(",")) {
+						$null = Run-SetupScript -Script $script -Parameters $TestParameters -VMData $vmData -CurrentTestData $CurrentTestData -TestProvider $this
+					}
+				}
+			}
+			([TestProvider]$this).RunTestCaseCleanup($AllVMData, $CurrentTestData, $CurrentTestResult, $CollectVMLogs, $RemoveFiles, $User, $Password, $SetupTypeData, $TestParameters)
+		}
+		catch
+		{
+			$ErrorMessage =  $_.Exception.Message
+			Write-Output "EXCEPTION in RunTestCaseCleanup : $ErrorMessage"
+		}
 	}
 
 	[void] RunTestCleanup() {

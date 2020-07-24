@@ -195,7 +195,6 @@ Collect_Logs()
     Remote_Exec_Wrapper "root" $HOST_FWD_PORT  ". ./utils.sh && collect_VM_properties nested_properties.csv"
     Remote_Copy_Wrapper "root" $HOST_FWD_PORT "ntttcp-test-logs-sender.tar" "get"
     Remote_Copy_Wrapper "root" $HOST_FWD_PORT "ntttcpConsoleLogs" "get"
-    Remote_Copy_Wrapper "root" $HOST_FWD_PORT "ntttcpTest.log" "get"
     Remote_Copy_Wrapper "root" $HOST_FWD_PORT "nested_properties.csv" "get"
     Remote_Copy_Wrapper "root" $HOST_FWD_PORT "report.log" "get"
 

@@ -168,7 +168,7 @@ function Main () {
 
 		if ($testResult -imatch $resultPass)
 		{
-			Copy-RemoteFiles -download -downloadFrom $hs2VIP -files "/home/$user/ntttcpConsoleLogs, /home/$user/ntttcpTest.log" -downloadTo $LogDir -port $hs2vm1sshport -username $user -password $password
+			Copy-RemoteFiles -download -downloadFrom $hs2VIP -files "/home/$user/ntttcpConsoleLogs" -downloadTo $LogDir -port $hs2vm1sshport -username $user -password $password
 			Copy-RemoteFiles -download -downloadFrom $hs2VIP -files "/home/$user/nested_properties.csv, /home/$user/report.log" -downloadTo $LogDir -port $hs2vm1sshport -username $user -password $password
 			Copy-RemoteFiles -download -downloadFrom $hs2VIP -files "/home/$user/ntttcp-test-logs-receiver.tar, /home/$user/ntttcp-test-logs-sender.tar" -downloadTo $LogDir -port $hs2vm1sshport -username $user -password $password
 

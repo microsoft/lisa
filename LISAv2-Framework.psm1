@@ -73,7 +73,8 @@ function Start-LISAv2 {
 		[string] $ResultDBTestTag = "",
 
 		[switch] $ExitWithZero,
-		[switch] $ForceCustom
+		[switch] $ForceCustom,
+		[switch] $ReuseVmOnFailure
 	)
 
 	PROCESS {
