@@ -39,20 +39,15 @@ Class AzureController : TestController
 
 	[void] ParseAndValidateParameters([Hashtable]$ParamTable) {
 		$parameterErrors = ([TestController]$this).ParseAndValidateParameters($ParamTable)
-		if ($this.TiPSessionId -or $this.TipCluster) {
-			if (!$this.UseExistingRG) {
-				$parameterErrors += "'-UseExistingRG' is necessary when Run-LISAv2 with 'TiPSessionId' and 'TiPCluster'."
-			}
-		}
 
+		if (!$this.RGIdentifier) {
+			$parameterErrors += "-RGIdentifier is not set"
+		}
 		$ValidateARMImageName = {
 			$ArmImagesToBeUsed = @($this.ARMImageName.Trim(", ").Split(',').Trim())
 			if ($ArmImagesToBeUsed | Where-Object {$_.Split(" ").Count -ne 4}) {
 				$parameterErrors += ("Invalid value for the provided ARMImageName parameter: <'$($this.ARMImageName)'>." + `
 									 "The ARM image should be in the format: '<Publisher> <Offer> <Sku> <Version>,<Publisher> <Offer> <Sku> <Version>,...'")
-			}
-			else {
-				$this.SyncEquivalentCustomParameters("ARMImageName", $this.ARMImageName)
 			}
 		}
 		if ($ParamTable["StorageAccount"] -imatch "^NewStorage_") {
@@ -66,6 +61,7 @@ Class AzureController : TestController
 		}
 
 		$this.ARMImageName = $ParamTable["ARMImageName"]
+		$this.SyncEquivalentCustomParameters("ARMImageName", $this.ARMImageName)
 		# Validate -ARMImageName and -OsVHD
 		# when both OsVHD and ARMImageName exist, parameterErrors += "..."
 		if ($this.OsVHD -and $this.ARMImageName) {
@@ -75,39 +71,53 @@ Class AzureController : TestController
 			if ($this.OsVHD -and [System.IO.Path]::GetExtension($this.OsVHD) -ne ".vhd" -and !$this.OsVHD.Contains("vhd")) {
 				$parameterErrors += "-OsVHD $($this.OsVHD) does not have .vhd (.vhdx is not supported) extension required by Platform Azure."
 			}
-			if (("1", "2") -notcontains $this.VMGeneration) {
-				$parameterErrors += "-VMGeneration '$($this.VMGeneration)' is empty, or not yet supported."
+			if ($this.VMGeneration -and (("1", "2") -notcontains $this.VMGeneration)) {
+				$parameterErrors += "-VMGeneration '$($this.VMGeneration)' is not supported."
 			}
 		}
 		elseif (!$this.ARMImageName) {
-			# Both $this.OsVHD and $this.ARMImageName are empty, try to load <DefaultARMImageName> from .\XML\GlobalConfigurations.xml
-			if (!$this.ARMImageName -and $this.GlobalConfig) {
-				# $this.GlobalConfig has been set by base ([TestController]$this).ParseAndValidateParameters() at the beginning of this overwritten function
-				$this.ARMImageName = $this.GlobalConfig.Global.Azure.DefaultARMImageName
-				if (!$this.ARMImageName) {
-					$parameterErrors += "-OsVHD <'VHD_Name.vhd'>, or -ARMImageName '<Publisher> <Offer> <Sku> <Version>,<Publisher> <Offer> <Sku> <Version>,...', or <DefaultARMImageName> from .\XML\GlobalConfigurations.xml if required."
-				}
-				else {
-					&$ValidateARMImageName
-				}
+			# Both $this.OsVHD and $this.ARMImageName are empty, <DefaultARMImageName> from .\XML\GlobalConfigurations.xml should be applied as default value
+			# $this.GlobalConfig has been set by base ([TestController]$this).ParseAndValidateParameters() at the beginning of this overwritten function
+			if (!$this.GlobalConfig.Global.Azure.DefaultARMImageName) {
+				$parameterErrors += "-OsVHD <'VHD_Name.vhd'>, or -ARMImageName '<Publisher> <Offer> <Sku> <Version>,<Publisher> <Offer> <Sku> <Version>,...', or <DefaultARMImageName> from .\XML\GlobalConfigurations.xml if required."
 			}
 		}
 		elseif ($this.ARMImageName) {
 			&$ValidateARMImageName
 		}
 
-		$this.TestProvider.TipSessionId = $this.CustomParams["TipSessionId"]
-		$this.TestProvider.TipCluster = $this.CustomParams["TipCluster"]
-		$this.TestProvider.PlatformFaultDomainCount = $this.CustomParams["PlatformFaultDomainCount"]
-		$this.TestProvider.PlatformUpdateDomainCount = $this.CustomParams["PlatformUpdateDomainCount"]
+		if ($this.CustomParams["TipSessionId"] -or $this.CustomParams["TipCluster"]) {
+			if (!$this.CustomParams["TipSessionId"] -or !$this.CustomParams["TipCluster"]) {
+				$parameterErrors += "Both 'TipSessionId' and 'TipCluster' are necessary in CustomParameters when Run-LISAv2 with TiP."
+			}
+			if (!$this.UseExistingRG) {
+				$parameterErrors += "'-UseExistingRG' is necessary when Run-LISAv2 with 'TiPSessionId' and 'TiPCluster'."
+			}
+			if (!$this.TestLocation) {
+				$parameterErrors += "'-TestLocation' is necessary when Run-LISAv2 with 'TiPSessionId' and 'TiPCluster'."
+			}
+			if (!$this.CustomParams["PlatformFaultDomainCount"]) {
+				Write-LogWarn "'PlatformFaultDomainCount' is not provided in CustomParameters, use default value 1"
+				$this.CustomParams["PlatformFaultDomainCount"] = 1
+			}
+			if (!$this.CustomParams["PlatformUpdateDomainCount"]) {
+				Write-LogWarn "'PlatformUpdateDomainCount' is not provided in CustomParameters, use default value 1"
+				$this.CustomParams["PlatformUpdateDomainCount"] = 1
+			}
+		}
+		else {
+			if (!$this.CustomParams["PlatformFaultDomainCount"]) {
+				$this.CustomParams["PlatformFaultDomainCount"] = 2
+			}
+			if (!$this.CustomParams["PlatformUpdateDomainCount"]) {
+				$this.CustomParams["PlatformUpdateDomainCount"] = 5
+			}
+		}
 		$this.TestProvider.EnableTelemetry = $ParamTable["EnableTelemetry"]
 		if ($this.CustomParams["EnableNSG"] -and $this.CustomParams["EnableNSG"] -eq "true") {
 			$this.TestProvider.EnableNSG = $true
 		}
 
-		if (!$this.RGIdentifier) {
-			$parameterErrors += "-RGIdentifier is not set"
-		}
 		if ($parameterErrors.Count -gt 0) {
 			$parameterErrors | ForEach-Object { Write-LogErr $_ }
 			throw "Failed to validate the test parameters provided. Please fix above issues and retry."
@@ -137,7 +147,7 @@ Class AzureController : TestController
 						throw "'-RGIdentifier' must be an existing Resource Group Name when Run-LISAv2 with '-UseExistingRG' on Azure Platform."
 					}
 					else {
-						if (($this.TiPSessionId -or $this.TipCluster) -and (Get-AzResource -ResourceGroupName $this.RGIdentifier | Where-Object { $_.ResourceType -inotmatch "availabilitySets" })) {
+						if (($this.CustomParams["TipSessionId"] -or $this.CustomParams["TipCluster"]) -and (Get-AzResource -ResourceGroupName $this.RGIdentifier | Where-Object { $_.ResourceType -inotmatch "availabilitySets" })) {
 							throw "Existing Resource Group '$($this.RGIdentifier)' is not clean, please remove all other resources, except 'availabilitySets' resource type."
 						}
 					}
@@ -235,6 +245,14 @@ Class AzureController : TestController
 		$this.SetGlobalVariables()
 	}
 
+	[void] SetGlobalVariables() {
+		([TestController]$this).SetGlobalVariables()
+
+		if (!$global:AllTestVMSizes) {
+			Set-Variable -Name AllTestVMSizes -Value @{} -Option ReadOnly -Scope Global
+		}
+	}
+
 	[void] PrepareTestImage() {
 		#If Base OS VHD is present in another storage account, then copy to test storage account first.
 		if ($this.OsVHD) {
@@ -288,53 +306,49 @@ Class AzureController : TestController
 		}
 	}
 
-	[void] PrepareSetupTypeToTestCases([hashtable]$SetupTypeToTestCases, [object[]]$AllTests) {
-		if (!$global:AllTestVMSizes) {
-			Set-Variable -Name AllTestVMSizes -Value @{} -Option ReadOnly -Scope Global
-		}
+	[void] PrepareSetupTypeToTestCases([hashtable]$SetupTypeToTestCases, [System.Collections.ArrayList]$AllTests) {
 		# Inject Networking=SRIOV/Synthetic, DiskType=Managed, OverrideVMSize to test case data
 		if (("sriov", "synthetic") -contains $this.CustomParams["Networking"]) {
-			Add-SetupConfig -AllTests ([ref]$AllTests) -ConfigName "Networking" -ConfigValue $this.CustomParams["Networking"] -Force $this.ForceCustom
+			Add-SetupConfig -AllTests $AllTests -ConfigName "Networking" -ConfigValue $this.CustomParams["Networking"] -Force $this.ForceCustom
 		}
 		if (("managed", "unmanaged") -contains $this.CustomParams["DiskType"]) {
-			Add-SetupConfig -AllTests ([ref]$AllTests) -ConfigName "DiskType" -ConfigValue $this.CustomParams["DiskType"] -Force $this.ForceCustom
+			Add-SetupConfig -AllTests $AllTests -ConfigName "DiskType" -ConfigValue $this.CustomParams["DiskType"] -Force $this.ForceCustom
 		}
 		if (("Specialized", "Generalized") -contains $this.CustomParams["ImageType"]) {
-			Add-SetupConfig -AllTests ([ref]$AllTests) -ConfigName "ImageType" -ConfigValue $this.CustomParams["ImageType"] -Force $this.ForceCustom
+			Add-SetupConfig -AllTests $AllTests -ConfigName "ImageType" -ConfigValue $this.CustomParams["ImageType"] -Force $this.ForceCustom
 		}
 		if (("Windows", "Linux") -contains $this.CustomParams["OSType"]) {
-			Add-SetupConfig -AllTests ([ref]$AllTests) -ConfigName "OSType" -ConfigValue $this.CustomParams["OSType"] -Force $this.ForceCustom
+			Add-SetupConfig -AllTests $AllTests -ConfigName "OSType" -ConfigValue $this.CustomParams["OSType"] -Force $this.ForceCustom
 		}
-		if (@($this.CustomParams["RGIdentifier"].Split(",")).Count -eq 1) {
-			Add-SetupConfig -AllTests ([ref]$AllTests) -ConfigName "RGIdentifier" -ConfigValue $this.CustomParams["RGIdentifier"] -Force $this.ForceCustom
+		if ($this.CustomParams.TiPSessionId -and $this.CustomParams.TiPCluster -and $this.CustomParams.PlatformFaultDomainCount -and $this.CustomParams.PlatformUpdateDomainCount) {
+			Add-SetupConfig -AllTests $AllTests -ConfigName "TiPSessionId" -ConfigValue $this.CustomParams.TiPSessionId -Force $true
+			Add-SetupConfig -AllTests $AllTests -ConfigName "TiPCluster" -ConfigValue $this.CustomParams.TiPCluster -Force $true
+			Add-SetupConfig -AllTests $AllTests -ConfigName "PlatformFaultDomainCount" -ConfigValue $this.CustomParams.PlatformFaultDomainCount -Force $true
+			Add-SetupConfig -AllTests $AllTests -ConfigName "PlatformUpdateDomainCount" -ConfigValue $this.CustomParams.PlatformUpdateDomainCount -Force $true
 		}
 		else {
-			Write-LogErr "'RGIdentifier' must not contain ',' and multiple values of RDIdentifier is not supported for now."
+			Add-SetupConfig -AllTests $AllTests -ConfigName "PlatformFaultDomainCount" -ConfigValue $this.CustomParams.PlatformFaultDomainCount -Force $this.ForceCustom
+			Add-SetupConfig -AllTests $AllTests -ConfigName "PlatformUpdateDomainCount" -ConfigValue $this.CustomParams.PlatformUpdateDomainCount -Force $this.ForceCustom
 		}
-		if ($this.CustomParams.TiPSessionId -and $this.CustomParams.TiPCluster) {
-			Add-SetupConfig -AllTests ([ref]$AllTests) -ConfigName "TiPSessionId" -ConfigValue $this.CustomParams.TiPSessionId -Force $this.ForceCustom
-			Add-SetupConfig -AllTests ([ref]$AllTests) -ConfigName "TiPCluster" -ConfigValue $this.CustomParams.TiPCluster -Force $this.ForceCustom
-		}
+
 		# Multiple TestLocations (parameter '-TestLocation' with value like 'eastus,westus') means to deploy from different Regions,
 		# so spliting with default Splitby (','), and apply multi single ConfigValues to $AllTests one by one.
-		Add-SetupConfig -AllTests ([ref]$AllTests) -ConfigName "TestLocation" -ConfigValue $this.CustomParams["TestLocation"] -Force $this.ForceCustom
+		Add-SetupConfig -AllTests $AllTests -ConfigName "TestLocation" -ConfigValue $this.CustomParams["TestLocation"] -Force $this.ForceCustom
 		if ($this.TestIterations -gt 1) {
 			$testIterationsParamValue = @(1..$this.TestIterations) -join ','
-			Add-SetupConfig -AllTests ([ref]$AllTests) -ConfigName "TestIteration" -ConfigValue $testIterationsParamValue -Force $this.ForceCustom
+			Add-SetupConfig -AllTests $AllTests -ConfigName "TestIteration" -ConfigValue $testIterationsParamValue -Force $this.ForceCustom
 		}
-		Add-SetupConfig -AllTests ([ref]$AllTests) -ConfigName "OverrideVMSize" -ConfigValue $this.CustomParams["OverrideVMSize"] -Force $this.ForceCustom
-		Add-SetupConfig -AllTests ([ref]$AllTests) -ConfigName "OsVHD" -ConfigValue $this.CustomParams["OsVHD"] -Force $this.ForceCustom
+		Add-SetupConfig -AllTests $AllTests -ConfigName "OverrideVMSize" -ConfigValue $this.CustomParams["OverrideVMSize"] -Force $this.ForceCustom
+		Add-SetupConfig -AllTests $AllTests -ConfigName "OsVHD" -ConfigValue $this.CustomParams["OsVHD"] -Force $this.ForceCustom
 		# 'OsVHD' should not coexist with 'ARMImageName', when OsVHD exist, take OsVHD as prioritized than ARMImageName
 		if (!$this.CustomParams["OsVHD"]) {
-			Add-SetupConfig -AllTests ([ref]$AllTests) -ConfigName "ARMImageName" -ConfigValue $this.CustomParams["ARMImageName"] -Force $this.ForceCustom
+			Add-SetupConfig -AllTests $AllTests -ConfigName "ARMImageName" -ConfigValue $this.CustomParams["ARMImageName"] -DefaultConfigValue $this.GlobalConfig.Global.Azure.DefaultARMImageName -Force $this.ForceCustom
 		}
 		else {
 			# Only when 'OsVHD' exist from parameters, then we should Add-SetupConfig for 'VMGeneration',
 			#   because HyperVGeneration property for Azure Gallery Image is only decided by the 'ARMImageName' (Publisher, Provider, SKU, Version),
 			#   and from ARM template constraint, there's no Generation property to be applied when deploying with Gallery image with (Publisher, Provider, SKU, Version)
-			if (("1", "2") -contains $this.CustomParams["VMGeneration"]) {
-				Add-SetupConfig -AllTests ([ref]$AllTests) -ConfigName "VMGeneration" -ConfigValue $this.CustomParams["VMGeneration"] -Force $this.ForceCustom
-			}
+			Add-SetupConfig -AllTests $AllTests -ConfigName "VMGeneration" -ConfigValue $this.CustomParams["VMGeneration"] -DefaultConfigValue "1" -Force $this.ForceCustom
 		}
 
 		foreach ($test in $AllTests) {
@@ -355,7 +369,7 @@ Class AzureController : TestController
 		$AllTests.SetupConfig.OverrideVMSize | Sort-Object -Unique | Foreach-Object {
 			if (!($global:AllTestVMSizes.$_)) { $global:AllTestVMSizes["$_"] = @{} }
 		}
-		$this.TotalCaseNum = @($AllTests).Count
+		$this.TotalCaseNum = ([System.Collections.ArrayList]$AllTests).Count
 	}
 
 	[void] LoadTestCases($WorkingDirectory, $CustomTestParameters) {
