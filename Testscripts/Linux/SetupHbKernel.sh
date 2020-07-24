@@ -152,7 +152,7 @@ function Main() {
 			LogMsg "$?: Added resume=$sw_uuid in /etc/default/grub file"
 		fi
 
-		_entry=$(cat /etc/default/grub | grep 'GRUB_HIDDEN_TIMEOUT=')
+		_entry=$(cat /etc/default/grub | grep '^GRUB_HIDDEN_TIMEOUT=')
 		if [ -n "$_entry" ]; then
 			sed -i -e "s/GRUB_HIDDEN_TIMEOUT=*.*/GRUB_HIDDEN_TIMEOUT=30/g" /etc/default/grub
 			LogMsg "$?: Updated GRUB_HIDDEN_TIMEOUT value with 30"
@@ -161,7 +161,7 @@ function Main() {
 			LogMsg "$?: Added GRUB_HIDDEN_TIMEOUT=30 in /etc/default/grub file"
 		fi
 
-		_entry=$(cat /etc/default/grub | grep 'GRUB_TIMEOUT=')
+		_entry=$(cat /etc/default/grub | grep '^GRUB_TIMEOUT=')
 		if [ -n "$_entry" ]; then
 			sed -i -e "s/GRUB_TIMEOUT=.*/GRUB_TIMEOUT=30/g" /etc/default/grub
 			LogMsg "$?: Updated GRUB_TIMEOUT value with 30"
@@ -215,7 +215,7 @@ function Main() {
 			LogMsg "$?: Added resume=$sw_uuid in the grub file"
 		fi
 
-		_entry=$(cat /etc/default/grub | grep 'GRUB_HIDDEN_TIMEOUT=')
+		_entry=$(cat /etc/default/grub | grep '^GRUB_HIDDEN_TIMEOUT=')
 		if [ -n "$_entry" ]; then
 			sed -i -e "s/GRUB_HIDDEN_TIMEOUT=*.*/GRUB_HIDDEN_TIMEOUT=30/g" /etc/default/grub
 			LogMsg "$?: Updated GRUB_HIDDEN_TIMEOUT value with 30"
@@ -224,7 +224,7 @@ function Main() {
 			LogMsg "$?: Added GRUB_HIDDEN_TIMEOUT=30 in /etc/default/grub file"
 		fi
 
-		_entry=$(cat /etc/default/grub | grep 'GRUB_TIMEOUT=')
+		_entry=$(cat /etc/default/grub | grep '^GRUB_TIMEOUT=')
 		if [ -n "$_entry" ]; then
 			sed -i -e "s/GRUB_TIMEOUT=.*/GRUB_TIMEOUT=30/g" /etc/default/grub
 			LogMsg "$?: Updated GRUB_TIMEOUT value with 30"
@@ -248,8 +248,8 @@ function Main() {
 		LogMsg "$?: Run grub2-mkconfig -o ${grub_cfg}"
 
 		_entry1=$(cat /etc/default/grub | grep 'resume=')
-		_entry2=$(cat /etc/default/grub | grep 'GRUB_HIDDEN_TIMEOUT=30')
-		_entry3=$(cat /etc/default/grub | grep 'GRUB_TIMEOUT=30')
+		_entry2=$(cat /etc/default/grub | grep '^GRUB_HIDDEN_TIMEOUT=30')
+		_entry3=$(cat /etc/default/grub | grep '^GRUB_TIMEOUT=30')
 		# Re-validate the entry in the grub file.
 		if [ -n "$_entry1" ] && [ -n "$_entry2" ] && [ -n "$_entry3" ]; then
 			LogMsg "Successfully updated grub file with all three entries"
@@ -268,7 +268,7 @@ function Main() {
 			sed -i -e "s/rootdelay=300/rootdelay=300 log_buf_len=200M resume=$sw_uuid/g" /etc/default/grub.d/50-cloudimg-settings.cfg
 			LogMsg "$?: Updated the 50-cloudimg-settings.cfg with resume=$sw_uuid"
 		else
-			_entry=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep GRUB_CMDLINE_LINUX_DEFAULT)
+			_entry=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep '^GRUB_CMDLINE_LINUX_DEFAULT')
 			if [ -n "$_entry" ]; then
 				sed -i '/^GRUB_CMDLINE_LINUX_DEFAULT=/ s/"$/ rootdelay=300 log_buf_len=200M resume='$sw_uuid'"/'  /etc/default/grub.d/50-cloudimg-settings.cfg
 			else
@@ -277,7 +277,7 @@ function Main() {
 			LogMsg "$?: Added resume=$sw_uuid in 50-cloudimg-settings.cfg file"
 		fi
 
-		_entry=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'GRUB_HIDDEN_TIMEOUT=')
+		_entry=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep '^GRUB_HIDDEN_TIMEOUT=')
 		# This is the case about GRUB_HIDDEN_TIMEOUT
 		if [ -n "$_entry" ]; then
 			sed -i -e "s/GRUB_HIDDEN_TIMEOUT=*.*/GRUB_HIDDEN_TIMEOUT=30/g" /etc/default/grub.d/50-cloudimg-settings.cfg
@@ -287,7 +287,7 @@ function Main() {
 			LogMsg "$?: Added GRUB_HIDDEN_TIMEOUT=30 in 50-cloudimg-settings.cfg file"
 		fi
 
-		_entry=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'GRUB_TIMEOUT=')
+		_entry=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep '^GRUB_TIMEOUT=')
 		# This is the case about GRUB_TIMEOUT
 		if [ -n "$_entry" ]; then
 			sed -i -e "s/GRUB_TIMEOUT=.*/GRUB_TIMEOUT=30/g" /etc/default/grub.d/50-cloudimg-settings.cfg
@@ -297,7 +297,7 @@ function Main() {
 			LogMsg "$?: Added GRUB_TIMEOUT=30 in 50-cloudimg-settings.cfg file"
 		fi
 
-		_entry=$(cat /etc/default/grub.d/40-force-partuuid.cfg | grep 'GRUB_FORCE_PARTUUID=')
+		_entry=$(cat /etc/default/grub.d/40-force-partuuid.cfg | grep '^GRUB_FORCE_PARTUUID=')
 		# This is the case about GRUB_FORCE_PARTUUID
 		if [ -n "$_entry" ]; then
 			sed -i -e "s/GRUB_FORCE_PARTUUID=.*/#GRUB_FORCE_PARTUUID=/g" /etc/default/grub.d/40-force-partuuid.cfg
@@ -309,8 +309,8 @@ function Main() {
 		LogMsg "$?: Ran update-grub2"
 
 		_entry1=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'resume=')
-		_entry2=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'GRUB_HIDDEN_TIMEOUT=30')
-		_entry3=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep 'GRUB_TIMEOUT=30')
+		_entry2=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep '^GRUB_HIDDEN_TIMEOUT=30')
+		_entry3=$(cat /etc/default/grub.d/50-cloudimg-settings.cfg | grep '^GRUB_TIMEOUT=30')
 		# Re-validate the entry in the 50-cloudimg-settings.cfg file.
 		if [ -n "$_entry1" ] && [ -n "$_entry2" ] && [ -n "$_entry3" ]; then
 			LogMsg "Successfully updated 50-cloudimg-settings.cfg file with all three entries"
