@@ -10,25 +10,18 @@
 UtilsInit
 homeDir=$(dirname "$0")
 
-if [ ! -e ${homeDir}/sbinfo ]; then
+if [ ! -e $homeDir/sbinfo ]; then
     LogErr "sbinfo tool is not on the system"
     SetTestStateAborted
     exit 0
 fi
 
-chmod +x ${homeDir}/sbinfo
+chmod +x $homeDir/sbinfo
 
 SBEnforcementStage=$(sudo ${homeDir}/sbinfo | grep SBEnforcementStage | sed -e s/'  "SBEnforcementStage": '//)
 LogMsg "$SBEnforcementStage"
 
-if [[ "$SBEnforcementStage" == *"Secure Boot is not enforced"* ]]; then
-    UpdateSummary "This OS image is compatible with Secure Boot."
-
-    SetTestStateCompleted
-    exit 0
-fi
-
-if [[ "$SBEnforcementStage" == *"Secure Boot is enforced"* ]]; then
+if [[ "$SBEnforcementStage" == *"Secure Boot is enforced"* ]] || [[ "$SBEnforcementStage" == *"Secure Boot is not enforced"* ]]; then
     UpdateSummary "This OS image is compatible with Secure Boot."
 
     SetTestStateCompleted

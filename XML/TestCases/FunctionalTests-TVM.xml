@@ -6,8 +6,8 @@
     <Platform>Azure</Platform>
     <Category>Functional</Category>
     <Area>TVM</Area>
-    <Tags>SecureBoot</Tags>
-    <Priority></Priority>
+    <Tags>secureboot</Tags>
+    <Priority>3</Priority>
     <SetupConfig>
       <TestLocation>eastus2euap</TestLocation>
       <SetupType>OneVM</SetupType>
@@ -23,8 +23,8 @@
     <Platform>Azure</Platform>
     <Category>Functional</Category>
     <Area>TVM</Area>
-    <Tags>SecureBoot</Tags>
-    <Priority></Priority>
+    <Tags>secureboot</Tags>
+    <Priority>3</Priority>
     <SetupConfig>
       <TestLocation>eastus2euap</TestLocation>
       <SetupType>OneVM</SetupType>
@@ -40,8 +40,8 @@
     <Platform>Azure</Platform>
     <Category>Functional</Category>
     <Area>TVM</Area>
-    <Tags>SecureBoot</Tags>
-    <Priority></Priority>
+    <Tags>secureboot</Tags>
+    <Priority>3</Priority>
     <SetupConfig>
       <TestLocation>eastus2euap</TestLocation>
       <SetupType>OneVM</SetupType>
@@ -57,8 +57,8 @@
     <Platform>Azure</Platform>
     <Category>Functional</Category>
     <Area>TVM</Area>
-    <Tags>SecureBoot</Tags>
-    <Priority></Priority>
+    <Tags>secureboot</Tags>
+    <Priority>3</Priority>
     <SetupConfig>
       <TestLocation>eastus2euap</TestLocation>
       <SetupType>OneVM</SetupType>
@@ -74,8 +74,8 @@
     <Platform>Azure</Platform>
     <Category>Functional</Category>
     <Area>TVM</Area>
-    <Tags>SecureBoot</Tags>
-    <Priority></Priority>
+    <Tags>secureboot</Tags>
+    <Priority>3</Priority>
     <SetupConfig>
       <TestLocation>eastus2euap</TestLocation>
       <SetupType>OneVM</SetupType>
