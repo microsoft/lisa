@@ -62,7 +62,8 @@ function Main {
 
 		$vm = Get-AzVM -Name $vmName -ResourceGroupName $rgName
 		Start-Sleep -s 30
-		$vm = Add-AzVMDataDisk -VM $vm -Name $dataDiskName -CreateOption Attach -ManagedDiskId $dataDisk1.Id -Lun 1
+		# RW cache make the disk speed faster in our test
+		$vm = Add-AzVMDataDisk -VM $vm -Name $dataDiskName -CreateOption Attach -ManagedDiskId $dataDisk1.Id -Lun 1 -Caching 'ReadWrite'
 		Start-Sleep -s 30
 
 		$ret_val = Update-AzVM -VM $vm -ResourceGroupName $rgName
