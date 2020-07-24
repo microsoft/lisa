@@ -14,7 +14,8 @@
 # Description:
 #   This script tests the basic functionality of nested VM in a Linux VM, steps:
 #     1. Start a nested ubuntu VM, VM network: user mode network, with host port redirect enabled
-#     2. Verify the nested VM can access public network, by running a command in the nested VM to download a public file from github
+#     2. Verify to be able to copy files from the L1 host to the nested VM, by scp constants.sh to the nested VM
+#     3. Verify the nested VM can access public network, by running a command in the nested VM to download a public file from github
 #
 # Parameters:
 #   -NestedImageUrl: The public url of the nested image, the image format should be qcow2
@@ -28,11 +29,19 @@
 . nested_vm_utils.sh || {
 	echo "ERROR: unable to source nested_vm_utils.sh!"
 	echo "TestAborted" > state.txt
-	exit 2
+	exit 0
 }
 
 # Source constants file and initialize most common variables
 UtilsInit
+
+case "$DISTRO" in
+	redhat_6)
+		LogMsg "Not support in RHEL-6. Skip."
+		SetTestStateSkipped
+		exit 0
+		;;
+esac
 
 while echo "$1" | grep -q ^-; do
 	declare $( echo "$1" | sed 's/^-//' )=$2
@@ -43,26 +52,30 @@ done
 ImageName="nested.qcow2"
 
 if [ -z "$NestedImageUrl" ]; then
-	echo "Please mention -NestedImageUrl next"
-	exit 1
+	LogErr "Missing the required parameter -NestedImageUrl. Test Aborted"
+	SetTestStateAborted
+	exit 0
 fi
 if [ -z "$HostFwdPort" ]; then
-	echo "Please mention -HostFwdPort next"
-	exit 1
+	LogErr "Missing the required parameter -HostFwdPort. Test Aborted"
+	SetTestStateAborted
+	exit 0
 fi
 if [ -z "$NestedUser" ]; then
-	echo "Please mention -NestedUser next"
-	exit 1
+	LogErr "Missing the required parameter -NestedUser. Test Aborted"
+	SetTestStateAborted
+	exit 0
 fi
 if [ -z "$NestedUserPassword" ]; then
-	echo "Please mention -NestedUserPassword next"
-	exit 1
+	LogErr "Missing the required parameter -NestedUserPassword. Test Aborted"
+	SetTestStateAborted
+	exit 0
 fi
 if [ -z "$logFolder" ]; then
 	logFolder="."
-	echo "-logFolder is not mentioned. Using ."
+	LogMsg "-logFolder is not mentioned. Using ."
 else
-	echo "Using Log Folder $logFolder"
+	LogMsg "Using Log Folder $logFolder"
 fi
 
 Test_Nested_VM()
@@ -71,9 +84,11 @@ Test_Nested_VM()
 	cmd="qemu-system-x86_64 -smp 2 -m 2048 -hda /mnt/resource/$ImageName -display none -device e1000,netdev=user.0 -netdev user,id=user.0,hostfwd=tcp::$HostFwdPort-:22 -enable-kvm -daemonize"
 	#Start nested kvm
 	Start_Nested_VM -user "$NestedUser" -passwd "$NestedUserPassword" -port "$HostFwdPort" "$cmd"
+	#Verify copying file from L1 host to nested VM
+	Verify_Host_Connection -user "$NestedUser" -passwd "$NestedUserPassword" -port "$HostFwdPort"
+	#Verify downloading a file from Internet to the nested VM
+	Verify_External_Connection -user "$NestedUser" -passwd "$NestedUserPassword" -port "$HostFwdPort"
 }
-
-
 
 Install_KVM_Dependencies
 Download_Image_Files -destination_image_name $ImageName -source_image_url "$NestedImageUrl"
