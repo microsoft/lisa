@@ -31,7 +31,7 @@ Function New-ResultSummary($testResult, $checkValues, $testName, $metaData) {
 	return $resultString
 }
 
-$ExcludedSetupConfigsToDisplay = @("RGIdentifier","SetupScript")
+$ExcludedSetupConfigsToDisplay = @("RGIdentifier","SetupScript","TiPSessionId","TiPCluster","PlatformFaultDomainCount","PlatformUpdateDomainCount")
 function ConvertFrom-SetupConfig([object]$SetupConfig, [switch]$WrappingLines) {
 	$resultString = ""
 	$SetupConfig.ChildNodes | Sort-Object LocalName | Foreach-Object {
