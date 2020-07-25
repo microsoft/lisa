@@ -43,7 +43,6 @@ Class HyperVController : TestController
 			$parameterErrors += "-RGIdentifier is not set"
 		}
 		$this.DestinationOsVhdPath = $ParamTable["DestinationOsVhdPath"]
-		$this.SyncEquivalentCustomParameters("VMGeneration", $this.VMGeneration)
 
 		if ($this.VMGeneration -and (("1", "2") -notcontains $this.VMGeneration)) {
 			$parameterErrors += "-VMGeneration '$($this.VMGeneration)' is not supported."
