@@ -41,6 +41,7 @@ function Start-LISAv2 {
 		[string] $TestTag = "",
 		[string] $TestNames="",
 		[string] $TestPriority="",
+		[string] $TestSetup="",
 
 		# [Optional] Exclude the tests from being executed. (Comma separated values)
 		[string] $ExcludeTests = "",
@@ -186,7 +187,7 @@ function Start-LISAv2 {
 			Write-LogInfo "Test $global:testId finished"
 
 			# Output text summary
-			$plainTextSummary = $testController.TestSummary.GetPlainTextSummary($OsVHD, $ARMImageName, $OverrideVMSize)
+			$plainTextSummary = $testController.TestSummary.GetPlainTextSummary($OsVHD, $testController.ARMImageName, $OverrideVMSize)
 			Write-LogInfo $plainTextSummary
 
 			# Zip the test log folder
