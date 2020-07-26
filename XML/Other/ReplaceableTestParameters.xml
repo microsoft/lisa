@@ -687,7 +687,7 @@ Scenario 2 : You need to run all the performance tests quickly.
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>HB_CUSTOM_KERNEL_BRANCH</ReplaceThis>
-		<ReplaceWith>master</ReplaceWith>
+		<ReplaceWith>stable</ReplaceWith>
 	</Parameter>
 	<Parameter>
 		<ReplaceThis>CPU_CUSTOM_KERNEL_URL</ReplaceThis>
