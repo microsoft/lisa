@@ -209,7 +209,12 @@ Function Add-SetupConfig {
         param ([System.Collections.ArrayList]$TestCollections, [string]$ConfigName, [string]$ConfigValue, [bool]$Force = $false)
         foreach ($test in $TestCollections) {
             if (!$test.SetupConfig.$ConfigName) {
-                $test.SetupConfig.InnerXml += "<$ConfigName>$ConfigValue</$ConfigName>"
+                # use CDATA when the value contains XML escaped characters
+                if ($ConfigValue -imatch "&|<|>|'|""") {
+                    $test.SetupConfig.InnerXml += "<$ConfigName><![CDATA['$ConfigValue']]></$ConfigName>"
+                } else {
+                    $test.SetupConfig.InnerXml += "<$ConfigName>$ConfigValue</$ConfigName>"
+                }
             }
             elseif ($Force) {
                 $test.SetupConfig.$ConfigName = $ConfigValue
@@ -1022,7 +1027,7 @@ Function Set-CustomConfigInVMs($CustomKernel, $CustomLIS, $EnableSRIOV, $AllVMDa
 	}
 
 	# Detect Linux Distro
-	if(!$global:detectedDistro) {
+	if (!$global:detectedDistro) {
 		$detectedDistro = Detect-LinuxDistro -VIP $AllVMData[0].PublicIP -SSHport $AllVMData[0].SSHPort `
 			-testVMUser $global:user -testVMPassword $global:password
 	}
@@ -1084,7 +1089,11 @@ Function Detect-LinuxDistro() {
 	$DistroName = Run-LinuxCmd -username $testVMUser -password $testVMPassword -ip $VIP -port $SSHport -command "bash ./DetectLinuxDistro.sh" -runAsSudo
 
 	if (($DistroName -imatch "Unknown") -or (!$DistroName)) {
-		Write-LogErr "Linux distro detected : $DistroName"
+		if ($global:IsWindowsImage) {
+			Write-LogInfo "Running on a Windows VM."
+		} else {
+			Write-LogErr "Linux distro detected : $DistroName"
+		}
 		# Instead of throw, it sets 'Unknown' if it does not exist
 		$CleanedDistroName = "Unknown"
 	} else {

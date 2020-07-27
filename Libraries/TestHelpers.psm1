@@ -36,11 +36,16 @@ function ConvertFrom-SetupConfig([object]$SetupConfig, [switch]$WrappingLines) {
 	$resultString = ""
 	$SetupConfig.ChildNodes | Sort-Object LocalName | Foreach-Object {
 		if ($SetupConfig.($_.LocalName) -and !($ExcludedSetupConfigsToDisplay -contains $_.LocalName)) {
+			if ($SetupConfig.($_.LocalName).InnerText) {
+				$value = $SetupConfig.($_.LocalName).InnerText
+			} else {
+				$value = $SetupConfig.($_.LocalName)
+			}
 			if ($WrappingLines.IsPresent) {
-				$resultString += "&nbsp;&nbsp;$($_.LocalName):$($SetupConfig.($_.LocalName))<br />"
+				$resultString += "&nbsp;&nbsp;$($_.LocalName):$value<br />"
 			}
 			else {
-				$resultString += "$($_.LocalName): $($SetupConfig.($_.LocalName)), "
+				$resultString += "$($_.LocalName): $value, "
 			}
 		}
 	}
@@ -254,6 +259,10 @@ function Download-RemoteFile($downloadFrom, $downloadTo, $port, $file, $username
 
 # Upload or download files to/from remote VMs
 Function Copy-RemoteFiles($uploadTo, $downloadFrom, $downloadTo, $port, $files, $username, $password, [switch]$upload, [switch]$download, [switch]$usePrivateKey, [switch]$doNotCompress, $maxRetry) {
+	if ($global:IsWindowsImage) {
+		Write-LogDbg "It is a Windows VM. Skip Copy-RemoteFiles."
+		return
+	}
 	if (!$files) {
 		Write-LogErr "No file(s) to copy."
 		return
@@ -339,6 +348,10 @@ Function Get-AvailableExecutionFolder([string] $username, [string] $password, [s
 }
 
 Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [string] $command, [int] $port, [switch]$runAsSudo, [Boolean]$WriteHostOnly, [Boolean]$NoLogsPlease, [switch]$ignoreLinuxExitCode, [int]$runMaxAllowedTime = 300, [switch]$RunInBackGround, [int]$maxRetryCount = 20, [string] $MaskStrings) {
+	if ($global:IsWindowsImage) {
+		Write-LogDbg "It is a Windows VM. Skip Run-LinuxCmd."
+		return
+	}
 	if (!$global:AvailableExecutionFolder) {
 		Get-AvailableExecutionFolder $username $password $ip $port
 	}
@@ -763,7 +776,7 @@ Function Get-SSHKey ($XMLSecretFile) {
 	if ($XMLSecretFile) {
 		$WebClient = New-Object System.Net.WebClient
 		$xmlSecret = [xml](Get-Content $XMLSecretFile)
-		$privateSSHKey = $xmlSecret.secrets.sshPrivateKey.InnerText
+		$privateSSHKey = if ($xmlSecret.secrets.sshPrivateKey.InnerText) { $xmlSecret.secrets.sshPrivateKey.InnerText } else { $xmlSecret.secrets.sshPrivateKey }
 		if ($privateSSHKey) {
 			$sshKeyPath = $privateSSHKey
 		}
