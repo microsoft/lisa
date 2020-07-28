@@ -50,6 +50,18 @@ if [ ! "${nicName}" ]; then
 	exit 0
 fi
 
+if [ ! "${CONCURRENCIES}" ]; then
+	CONCURRENCIES=(1 2 4 8 16 32 64 128 256 512 1024)
+fi
+
+if [ ! "${max_concurrency_per_ab}" ]; then
+	max_concurrency_per_ab=4
+fi
+
+if [ ! "${max_ab_instances}" ]; then
+	max_ab_instances=16
+fi
+
 # Install apache on client and server Machine
 LogMsg "Configuring client ${client}..."
 install_apache
@@ -97,9 +109,6 @@ vmstat_cmd="vmstat"
 testName="apache"
 log_folder="$(pwd)/${testName}-test-logs"
 result_file="${log_folder}/report.csv"
-max_concurrency_per_ab=4
-max_ab_instances=16
-testConcurrency=(1 2 4 8 16 32 64 128 256 512 1024)
 
 Start_Monitor()
 {
@@ -197,10 +206,10 @@ Run_apache()
 	rm -rf ${log_folder}
 	mkdir -p ${log_folder}
 
-	echo "WebServerVersion,TestConcurrency,NumberOfAbInstances,ConcurrencyPerAbInstance,Document_bytes,\
+	echo "WebServerVersion,Concurrencies,NumberOfAbInstances,ConcurrencyPerAbInstance,Document_bytes,\
 CompleteRequests,RequestsPerSec,TransferRate_KBps,MeanConnectionTimes_ms" > "${result_file}"
 
-	for current_concurrency in "${testConcurrency[@]}"; do
+	for current_concurrency in "${CONCURRENCIES[@]}"; do
 		LogMsg "Running apache_bench test with current concurrency: ${current_concurrency}"
 
 		Start_Monitor ${current_concurrency}

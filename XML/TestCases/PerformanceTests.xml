@@ -777,6 +777,9 @@
     <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_apache.sh</files>
     <TestParameters>
       <param>PERF_NIC=HYPERV_PERF_NIC_NAME</param>
+      <param>CONCURRENCIES=APACHE_CONCURRENCIES</param>
+      <param>max_concurrency_per_ab=MAX_CONCURRENCY_PER_AB</param>
+      <param>max_ab_instances=MAX_AB_INSTANCES</param>
     </TestParameters>
     <Platform>Azure,HyperV</Platform>
     <Category>Performance</Category>
@@ -796,6 +799,8 @@
     <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_memcached.sh</files>
     <TestParameters>
       <param>PERF_NIC=HYPERV_PERF_NIC_NAME</param>
+      <param>THREADS=MEMCACHED_THREADS</param>
+      <param>max_threads=MEMCACHED_MAX_THREADS</param>
     </TestParameters>
     <Platform>Azure,HyperV</Platform>
     <Category>Performance</Category>

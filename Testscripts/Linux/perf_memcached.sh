@@ -21,8 +21,6 @@ CONSTANTS_FILE="./constants.sh"
 UTIL_FILE="./utils.sh"
 
 PORT="21789"
-THREADS=(1 2 4 8 16 32 64 128 256 512)
-max_threads=16
 
 . ${CONSTANTS_FILE} || {
 	errMsg="Error: missing ${CONSTANTS_FILE} file"
@@ -52,6 +50,14 @@ if [ ! "${nicName}" ]; then
 	LogErr "Please add/provide value for nicName in constants.sh. nicName=eth0/bond0"
 	SetTestStateAborted
 	exit 0
+fi
+
+if [ ! "${THREADS}" ]; then
+	THREADS=(1 2 4 8 16 32 64 128 256 512)
+fi
+
+if [ ! "${max_threads}" ]; then	
+	max_threads=16
 fi
 
 # Install memcached on client and server Machine
