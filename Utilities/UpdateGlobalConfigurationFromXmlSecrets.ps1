@@ -42,7 +42,7 @@ $GlobalXML.Global.Azure.Subscription.SubscriptionID = $XmlSecrets.secrets.Subscr
 
 $GlobalXML.Global.Azure.TestCredentials.LinuxUsername = $XmlSecrets.secrets.linuxTestUsername
 $GlobalXML.Global.Azure.TestCredentials.LinuxPassword = $XmlSecrets.secrets.linuxTestPassword
-$GlobalXML.Global.Azure.TestCredentials.sshPrivateKey = $XmlSecrets.secrets.sshPrivateKey.InnerText
+$GlobalXML.Global.Azure.TestCredentials.sshPrivateKey = if ($XmlSecrets.secrets.sshPrivateKey.InnerText) { $XmlSecrets.secrets.sshPrivateKey.InnerText } else { $XmlSecrets.secrets.sshPrivateKey }
 $GlobalXML.Global.Azure.ResultsDatabase.server = $XmlSecrets.secrets.DatabaseServer
 $GlobalXML.Global.Azure.ResultsDatabase.user = $XmlSecrets.secrets.DatabaseUser
 $GlobalXML.Global.Azure.ResultsDatabase.password = $XmlSecrets.secrets.DatabasePassword

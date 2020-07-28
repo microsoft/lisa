@@ -180,17 +180,19 @@ collect_VM_properties
                     $testType = "TCP"
                     $test_connections = ($line.Trim() -Replace " +"," ").Split(" ")[0]
                     $throughput_gbps = ($line.Trim() -Replace " +"," ").Split(" ")[1]
-                    $cycles_per_byte = ($line.Trim() -Replace " +"," ").Split(" ")[2]
-                    $average_tcp_latency = ($line.Trim() -Replace " +"," ").Split(" ")[3]
-                    $txpackets_sender = ($line.Trim() -Replace " +"," ").Split(" ")[4]
-                    $rxpackets_sender = ($line.Trim() -Replace " +"," ").Split(" ")[5]
-                    $pktsInterrupt_sender = ($line.Trim() -Replace " +"," ").Split(" ")[6]
-                    $concreatedtime = ($line.Trim() -Replace " +"," ").Split(" ")[7]
-                    $retrans_segs = ($line.Trim() -Replace " +"," ").Split(" ")[8]
-                    $connResult = "throughput=$throughput_gbps`Gbps cyclesPerByte=$cycles_per_byte Avg_TCP_lat=$average_tcp_latency pktsPerInterrupt=$pktsInterrupt_sender conCreatedTime=$concreatedtime retransSegs=$retrans_segs"
+                    $cycles_per_byte_sender = ($line.Trim() -Replace " +"," ").Split(" ")[2]
+                    $cycles_per_byte_receiver = ($line.Trim() -Replace " +"," ").Split(" ")[3]
+                    $average_tcp_latency = ($line.Trim() -Replace " +"," ").Split(" ")[4]
+                    $txpackets_sender = ($line.Trim() -Replace " +"," ").Split(" ")[5]
+                    $rxpackets_sender = ($line.Trim() -Replace " +"," ").Split(" ")[6]
+                    $pktsInterrupt_sender = ($line.Trim() -Replace " +"," ").Split(" ")[7]
+                    $concreatedtime = ($line.Trim() -Replace " +"," ").Split(" ")[8]
+                    $retrans_segs = ($line.Trim() -Replace " +"," ").Split(" ")[9]
+                    $connResult = "throughput=$throughput_gbps`Gbps cyclesPerByte_sender=$cycles_per_byte_sender cyclesPerByte_receiver=$cycles_per_byte_receiver Avg_TCP_lat=$average_tcp_latency pktsPerInterrupt=$pktsInterrupt_sender conCreatedTime=$concreatedtime retransSegs=$retrans_segs"
                     $currentNtttcpResultObject["meta_data"]["connections"] = $test_connections
                     $currentNtttcpResultObject["meta_data"]["type"] = $testType
-                    $currentNtttcpResultObject["cycles_per_byte"] = $cycles_per_byte
+                    $currentNtttcpResultObject["cycles_per_byte_sender"] = $cycles_per_byte_sender
+                    $currentNtttcpResultObject["cycles_per_byte_receiver"] = $cycles_per_byte_receiver
                     $currentNtttcpResultObject["tx_throughput_gbps"] = $throughput_gbps
                     $currentNtttcpResultObject["average_tcp_latency"] = $average_tcp_latency
                     $currentNtttcpResultObject["txpackets_sender"] = $txpackets_sender
@@ -265,12 +267,13 @@ collect_VM_properties
                 } else {
                     $resultMap["Throughput_Gbps"] = $($Line[1])
                     $resultMap["SenderCyclesPerByte"] = $($Line[2])
-                    $resultMap["Latency_ms"] = $($Line[3])
-                    $resultMap["TXpackets"] = $($Line[4])
-                    $resultMap["RXpackets"] = $($Line[5])
-                    $resultMap["PktsInterrupts"] = $($Line[6])
-                    $resultMap["ConnectionsCreatedTime"] = $($Line[7])
-                    $resultMap["RetransSegments"] = $($Line[8])
+                    $resultMap["ReceiverCyclesPerByte"] = $($Line[3])
+                    $resultMap["Latency_ms"] = $($Line[4])
+                    $resultMap["TXpackets"] = $($Line[5])
+                    $resultMap["RXpackets"] = $($Line[6])
+                    $resultMap["PktsInterrupts"] = $($Line[7])
+                    $resultMap["ConnectionsCreatedTime"] = $($Line[8])
+                    $resultMap["RetransSegments"] = $($Line[9])
                 }
                 if ($TestPlatform -eq "Azure") {
                     $resultMap["NumberOfReceivers"] = $numberOfReceivers
