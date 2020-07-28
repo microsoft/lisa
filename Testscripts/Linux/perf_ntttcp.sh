@@ -71,24 +71,6 @@ if [ ! "${nicName}" ]; then
 	exit 1
 fi
 
-localaddress=$(hostname -i)
-
-Run_SSHCommand()
-{
-	ips="$1"
-	cmd="$2"
-	IFS=',' read -r -a array <<< "$ips"
-	for ip in "${array[@]}"
-	do
-		LogMsg "Execute ${cmd} on ${ip}"
-		if [[ ${localaddress} = ${ip} ]]; then
-			bash -c "${cmd}"
-		else
-			ssh "${ip}" "${cmd}"
-		fi
-	done
-}
-
 # Make & build ntttcp on client and server Machine
 LogMsg "Configuring client ${client}..."
 Run_SSHCommand "${client}" ". $UTIL_FILE && install_ntttcp ${ntttcpVersion} ${lagscopeVersion}"
