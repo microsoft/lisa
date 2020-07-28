@@ -2259,10 +2259,13 @@ function add_sles_benchmark_repo () {
 	IFS='- ' read -r -a array <<< "$VERSION"
 	repo_url="https://download.opensuse.org/repositories/benchmark/SLE_${array[0]}_${array[1]}/benchmark.repo"
 	wget $repo_url -O /dev/null -o /dev/null
+	# if no judgement for repo url not existing, the script will hung when execute zypper --no-gpg-checks refresh
 	if [ $? -eq 0 ]; then
 		LogMsg "add_sles_benchmark_repo - $repo_url"
 		zypper addrepo $repo_url
 		zypper --no-gpg-checks refresh
+	else
+		LogMsg "$repo_url doesn't exist"
 	fi
 	return 0
 }
