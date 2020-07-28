@@ -1,0 +1,8 @@
+# IDE Settings
+/.vscode
+
+# lisa runtime folder
+/runtime/*
+
+# python cache
+__pycache__

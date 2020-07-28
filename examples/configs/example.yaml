@@ -1,0 +1,57 @@
+name: best-guest # run name prefix
+parent: parentconfig.yaml # share configurations for similar runs.
+logLevel: debug # specify log level, can be overwritten in lower level.
+# it uses to dispatch test suites on serveral environments.
+# to be implement in next phase.
+combinations:
+  parameters:
+    - platform:
+      - azure
+      - hyperv
+    - AzurePlatform: # Azure platform specified parameters
+        dataCenter:
+          - wu
+          - wu2
+# supports multiple artifacts in future.
+artifacts:
+  - name: sample # optional. artifacts can be referred by name or index.
+    type: repo
+    git:  https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git
+    ref: v5.8-rc6
+    baseDistro: ubuntu-1804 # there is a default value, but can be specified here.
+platform:
+  - name: azure-1 # name is for reference only
+    type: azure
+    tag: vf # use tag to find some platform specified features.
+    secret: filepath.yaml
+    topology: crossRegion
+    totalInstances: 2 # two suites of environments can be created in same time.
+  - type: hyperv
+environment: # ready environment are list directly, no need platform.
+  - type: existing
+    proxy: 240.x.x.x
+    tag: dpdk # meet requirement of dpdk test cases.
+    username: lisa # the same on all nodes.
+    nodes:
+      - ip: 10.0.0.1
+        port: 22
+        publicPort: 1111
+        password: $PASSWORD # reference to environment variable
+        isPrimary: true
+      - name: secondary
+        ip: 10.0.0.2
+        port: 22
+        publicPort: 1111
+        password: $PASSWORD2
+testSuites:
+  - name: set1
+    type: lisav2 # know the runner, then it's possible to select cases.
+    tag: azure
+  - tag: vf # match case by tags
+    force: true # force to select. If any reason test cases are dropped, fail the run.
+  - name: unstable cases
+    pattern: "*-network*" # match case by name pattern
+    retry: 2 # retry one time
+  - name: set2
+    include: false # use to exclude some test cases
+    pattern: "*-legacy"
