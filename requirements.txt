@@ -1,5 +1,2 @@
-attrs==19.3.0
-certifi==2020.6.20
-pathspec==0.8.0
 regex==2020.7.14
-wincertstore==0.2
+retry==0.9.2

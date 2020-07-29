@@ -26,6 +26,10 @@ Make sure below settings are in root level of `.vscode/settings.json`
     "python.linting.flake8Enabled": true,
     "python.linting.enabled": true,
     "python.formatting.provider": "black",
-    "python.linting.mypyEnabled": true
+    "python.linting.mypyEnabled": true,
+    "python.formatting.blackArgs": [
+        "--line-length",
+        "80"
+    ]
 }
 ```

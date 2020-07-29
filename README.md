@@ -2,4 +2,4 @@
 
 ## Overview
 
-LISA v3 is a fresh new toolkit, and at very early stage. All v2 things are moved to core/runners/v2runner.
+LISA v3 is a fresh new toolkit, and at very early stage. All v2 things are moved to lisa/runners/v2runner.
