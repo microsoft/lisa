@@ -1,6 +1,6 @@
 <TestCases>
   <test>
-    <testName>VALIDATE-SECUREBOOT-COMPATIBILITY-FOR-UBUNTU18_04</testName>
+    <testName>TVM-TEST-SECUREBOOT-COMPATIBILITY</testName>
     <testScript>TVM-TestSecureBootCompatibility.sh</testScript>
     <files>.\Testscripts\Linux\TVM-TestSecureBootCompatibility.sh,.\Testscripts\Linux\utils.sh,.\Tools\sbinfo</files>
     <Platform>Azure</Platform>
@@ -14,74 +14,6 @@
       <OverrideVMSize>Standard_D2s_v3</OverrideVMSize>
       <VMGeneration>2</VMGeneration>
       <ARMImageName>Canonical 0003-com-ubuntu-server-trusted-vm 18_04-gen2 18.04.202004290</ARMImageName>
-    </SetupConfig>
-  </test>
-  <test>
-    <testName>VALIDATE-SECUREBOOT-COMPATIBILITY-FOR-RHEL7_8</testName>
-    <testScript>TVM-TestSecureBootCompatibility.sh</testScript>
-    <files>.\Testscripts\Linux\TVM-TestSecureBootCompatibility.sh,.\Testscripts\Linux\utils.sh,.\Tools\sbinfo</files>
-    <Platform>Azure</Platform>
-    <Category>Functional</Category>
-    <Area>TVM</Area>
-    <Tags>secureboot</Tags>
-    <Priority>3</Priority>
-    <SetupConfig>
-      <TestLocation>eastus2euap</TestLocation>
-      <SetupType>OneVM</SetupType>
-      <OverrideVMSize>Standard_D2s_v3</OverrideVMSize>
-      <VMGeneration>2</VMGeneration>
-      <ARMImageName>RedHat RHEL 78-gen2 7.8.2020050911</ARMImageName>
-    </SetupConfig>
-  </test>
-  <test>
-    <testName>VALIDATE-SECUREBOOT-COMPATIBILITY-FOR-RHEL8_2</testName>
-    <testScript>TVM-TestSecureBootCompatibility.sh</testScript>
-    <files>.\Testscripts\Linux\TVM-TestSecureBootCompatibility.sh,.\Testscripts\Linux\utils.sh,.\Tools\sbinfo</files>
-    <Platform>Azure</Platform>
-    <Category>Functional</Category>
-    <Area>TVM</Area>
-    <Tags>secureboot</Tags>
-    <Priority>3</Priority>
-    <SetupConfig>
-      <TestLocation>eastus2euap</TestLocation>
-      <SetupType>OneVM</SetupType>
-      <OverrideVMSize>Standard_D2s_v3</OverrideVMSize>
-      <VMGeneration>2</VMGeneration>
-      <ARMImageName>RedHat RHEL 82gen2 8.2.2020050812</ARMImageName>
-    </SetupConfig>
-  </test>
-  <test>
-    <testName>VALIDATE-SECUREBOOT-COMPATIBILITY-FOR-CENTOS7_8</testName>
-    <testScript>TVM-TestSecureBootCompatibility.sh</testScript>
-    <files>.\Testscripts\Linux\TVM-TestSecureBootCompatibility.sh,.\Testscripts\Linux\utils.sh,.\Tools\sbinfo</files>
-    <Platform>Azure</Platform>
-    <Category>Functional</Category>
-    <Area>TVM</Area>
-    <Tags>secureboot</Tags>
-    <Priority>3</Priority>
-    <SetupConfig>
-      <TestLocation>eastus2euap</TestLocation>
-      <SetupType>OneVM</SetupType>
-      <OverrideVMSize>Standard_D2s_v3</OverrideVMSize>
-      <VMGeneration>2</VMGeneration>
-      <ARMImageName>OpenLogic CentOS 7_8-gen2 7.8.2020062401</ARMImageName>
-    </SetupConfig>
-  </test>
-  <test>
-    <testName>VALIDATE-SECUREBOOT-COMPATIBILITY-FOR-CENTOS8_2</testName>
-    <testScript>TVM-TestSecureBootCompatibility.sh</testScript>
-    <files>.\Testscripts\Linux\TVM-TestSecureBootCompatibility.sh,.\Testscripts\Linux\utils.sh,.\Tools\sbinfo</files>
-    <Platform>Azure</Platform>
-    <Category>Functional</Category>
-    <Area>TVM</Area>
-    <Tags>secureboot</Tags>
-    <Priority>3</Priority>
-    <SetupConfig>
-      <TestLocation>eastus2euap</TestLocation>
-      <SetupType>OneVM</SetupType>
-      <OverrideVMSize>Standard_D2s_v3</OverrideVMSize>
-      <VMGeneration>2</VMGeneration>
-      <ARMImageName>OpenLogic CentOS 8_2-gen2 8.2.2020062401</ARMImageName>
     </SetupConfig>
   </test>
 </TestCases>

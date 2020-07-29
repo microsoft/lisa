@@ -18,17 +18,15 @@ fi
 
 chmod +x $homeDir/sbinfo
 
-SBEnforcementStage=$(sudo ${homeDir}/sbinfo | grep SBEnforcementStage | sed -e s/'  "SBEnforcementStage": '//)
+SBEnforcementStage=$(sudo $homeDir/sbinfo | grep SBEnforcementStage | sed -e s/'  "SBEnforcementStage": '//)
 LogMsg "$SBEnforcementStage"
 
 if [[ "$SBEnforcementStage" == *"Secure Boot is enforced"* ]] || [[ "$SBEnforcementStage" == *"Secure Boot is not enforced"* ]]; then
     UpdateSummary "This OS image is compatible with Secure Boot."
-
     SetTestStateCompleted
     exit 0
 fi
 
 UpdateSummary "This OS image is not compatible with Secure Boot."
-
 SetTestStateFailed
 exit 0
