@@ -769,7 +769,50 @@
     </SetupConfig>
   </test>
   <test>
-    <testName>PERF-XDP-TCP-LATENCY</testName>
+    <testName>PERF-APACHE-BENCHMARK</testName>
+    <testScript>PERF-TWOVM-MIDDLEWARE-BENCHMARK.ps1</testScript>
+    <runSetupScriptOnlyOnce>yes</runSetupScriptOnlyOnce>
+    <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_apache.sh</files>
+    <TestParameters>
+      <param>PERF_NIC=HYPERV_PERF_NIC_NAME</param>
+      <param>CONCURRENCIES=APACHE_CONCURRENCIES</param>
+      <param>max_concurrency_per_ab=MAX_CONCURRENCY_PER_AB</param>
+      <param>max_ab_instances=MAX_AB_INSTANCES</param>
+    </TestParameters>
+    <Platform>Azure,HyperV</Platform>
+    <Category>Performance</Category>
+    <Area>BENCHMARK</Area>
+    <Tags>benchmark,apache,sriov</Tags>
+    <Priority>2</Priority>
+    <SetupConfig>
+      <Networking>SRIOV</Networking>
+      <SetupType>TwoVM2Host</SetupType>
+      <SetupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\SETUP-PERF-Add-NIC.ps1</SetupScript>
+    </SetupConfig>
+  </test>
+  <test>
+    <testName>PERF-MEMCACHED-BENCHMARK</testName>
+    <testScript>PERF-TWOVM-MIDDLEWARE-BENCHMARK.ps1</testScript>
+    <runSetupScriptOnlyOnce>yes</runSetupScriptOnlyOnce>
+    <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\perf_memcached.sh</files>
+    <TestParameters>
+      <param>PERF_NIC=HYPERV_PERF_NIC_NAME</param>
+      <param>THREADS=MEMCACHED_THREADS</param>
+      <param>max_threads=MEMCACHED_MAX_THREADS</param>
+    </TestParameters>
+    <Platform>Azure,HyperV</Platform>
+    <Category>Performance</Category>
+    <Area>BENCHMARK</Area>
+    <Tags>benchmark,memcached,sriov</Tags>
+    <Priority>2</Priority>
+    <SetupConfig>
+      <Networking>SRIOV</Networking>
+      <SetupType>TwoVM2Host</SetupType>
+      <SetupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\SETUP-PERF-Add-NIC.ps1</SetupScript>
+    </SetupConfig>
+  </test>
+<test>
+  <testName>PERF-XDP-TCP-LATENCY</testName>
     <testScript>PERF-XDP-TCP-LATENCY.ps1</testScript>
     <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh,.\Testscripts\Linux\perf_lagscope.sh</files>
     <TestParameters>

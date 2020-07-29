@@ -423,13 +423,25 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 			$DiskType = "Unmanaged"
 		}
 
+		if (!$global:password -and !$global:sshPrivateKey) {
+			Throw "Please set sshPrivateKey or linuxTestPassword."
+		}
 		$UseSpecializedImage = $CurrentTestData.SetupConfig.ImageType -contains "Specialized"
 		$IsWindowsOS = $CurrentTestData.SetupConfig.OSType -contains "Windows"
 		if ($IsWindowsOS) {
 			$OSType = "Windows"
+			if (!$global:password) {
+				Throw "Please provide password when provision a Windows VM."
+			}
+			Write-LogDbg "Windows OS, use password authentication, reset Key into empty."
+			$global:sshPrivateKey = ""
 		}
 		else {
 			$OSType = "Linux"
+			if ($global:sshPrivateKey) {
+				Write-LogDbg "Linux OS, use SSH key authentication, reset password into empty."
+				$global:password = ""
+			}
 		}
 		if ( $CurrentTestData.SetupConfig.OSDiskType -eq "Ephemeral" ) {
 			if ( $UseManagedDisks ) {
