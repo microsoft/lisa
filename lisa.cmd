@@ -57,8 +57,6 @@ IF NOT EXIST "!RUNTIME_PYTHON_COMMAND!" (
 REM updating Python packages
 %RUNTIME_PYTHON_PATH%\python -m pip install -q -r requirements.txt
 
-pushd lisa
 %RUNTIME_PYTHON_PATH%\python -m lisa.main %*
-popd
 
 ENDLOCAL

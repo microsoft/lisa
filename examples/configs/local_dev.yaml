@@ -1,0 +1,51 @@
+# run name prefix to help grouping results, and put it in title.
+name: local try
+notifier:
+  - type: junit
+  - type: html
+# it's examples for all platforms, but currently should leave single one only.
+platform:
+  - type: local
+tests:
+  - criteria:
+      # all rules in same criteria are AND condition.
+      # we may support richer conditions later.
+      # match case by name pattern
+      name: "*-network*"
+      # compatible with current test cases.
+      area: network
+      category: network
+      priority: 0
+      # tag is a simple way to include test cases within same topic.
+      tag: vf
+    # force to select. If any reason test cases are dropped, fail the run.
+    forceInclude: true
+    name: network
+  # it means there are dependencies among test cases.
+  - dependedOn: network
+    # we will support some basic functionality of other test runner,
+    # for example, environment information, once it's ready.
+    # any other parameters should be handled by runner itself.
+    type: LISAv2
+    extraParameters: -TestNames "VERIFY-DEPLOYMENT-PROVISION" -ResourceCleanup Keep
+  - name: settings
+    criteria:
+      name: this group shows different settings
+    # run this group of test cases several times
+    # default is 1
+    iteration: 5
+    # Once it's set, failed test result will be rewrite to success
+    # it uses to work around some cases temporarily, don't overuse it.
+    # default is false
+    ignoreFailure: true
+  - name: excluded cases
+    criteria:
+      name: "excluded test cases"
+    # use to exclude some test cases
+    # default is true
+    include: false
+  - name: unstable test cases
+    criteria:
+      name: "we don't have unstable case"
+    # retry times. default is 0, means not retry.
+    retry: 1
