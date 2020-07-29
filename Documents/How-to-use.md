@@ -2,7 +2,7 @@
 
 ## Objective
 
-This document provides instructions for partners to create their own customized menu for the Jenkins pipeline and to run Microsoft-provided tests and/or customized test cases in Jenkins. This instruction has 2 major parts; creating the menu from xml files and executing the tests. Creating a custom menu may be optional for your test development. If you keep the same menu structure and add new tests into the existing menu, you will only update the existing XML files in **./XML/TestCases/**
+This document provides instructions for partners to create their own customized menu for the Jenkins pipeline and to run Microsoft-provided tests and/or customized test cases in Jenkins. This instruction has 2 major parts; creating the menu from XML files and executing the tests. Creating a custom menu may be optional for your test development. If you keep the same menu structure and add new tests into the existing menu, you will only update the existing XML files in **./XML/TestCases/**
 
 If you add a custom test menu, you will need to re-build the Jenkins menu, and then can run new tests.
 
@@ -49,7 +49,10 @@ If you add a custom test menu, you will need to re-build the Jenkins menu, and t
                 $resultPass: PASS
                 $resultFail: FAIL
                 $resultAborted: ABORTED
+                    ; It's the case the test has the right procedure, but its step stopped or failed due to another issues beyond verifications
+                    such as dependency package inaccessible, repo access issue, or no result from Get-VM commands, for example.
                 $resultSkipped: SKIPPED
+                    ; It's the case the test bypassed the procedure like unsupported distro or kernel versions. It comes with invalid condition or procedures.
                 $IsWindowsImage: Whether the test image is Windows
 
             ii. For Azure
@@ -114,7 +117,7 @@ It has pre-defined region information. We do not recommend making changes to thi
 
 ## TestToRegionMapping.xml in XML folder
 
-This XML file defines the regions per Category. It may require specific region only for available setup/resource. By default, 'global' has all regions.
+This XML file defines the regions per Category. It may require a specific region only for available setup/resources. By default, 'global' has all regions.
 
 ## XML files in XML/TestCases folder
 
@@ -146,7 +149,7 @@ This XML file defines the regions per Category. It may require specific region o
 
 ## TestsConfigurations.xml in XML/VMConfigurations
 
-Per Category, each XML file has VM name, Resource Group name, etc. We do not recommend to make change of the file.
+Per Category, each XML file has VM name, Resource Group name, etc. We do not recommend to make the change of the file.
 
 ## Basic standard of code changing
 
@@ -194,10 +197,19 @@ Per Category, each XML file has VM name, Resource Group name, etc. We do not rec
     9. Recommended Bash & Python function name format - Function_Name(). Upper letter in each string connected
         with underscore character. PowerShell function name format remains Verb-Entity() format like Get-VMSize().
     10. Use the same terminology:
-        1. PASS
-        2. FAIL
-        3. ABORTED (all upper cases)
+        a. PASS
+        b. FAIL
+        c. ABORTED (all upper cases)
+        d. SKIPPED
     11. TestCase names in XML files are in all Capital.
+    12. In PowerShell scripts,
+        a. Write-LogInfo: Inform out the context
+        b. Write-LogWarn: It's warning but not failed or error.
+        c. Write-LogDbg: debugging log only
+        d. Write-LogErr: printing error log but does not associate to test failure. Needs to work with throw, resultAborted or resultFail
+    13. In Bash scripts,
+        a. LogMsg: Logging goes to TestExecution.log file
+        b. LogErr: Logging goes to TestExecutionError.log. It also updates the summary.log file.
 
 ## Use recommended distro name
 
@@ -208,7 +220,7 @@ Per Category, each XML file has VM name, Resource Group name, etc. We do not rec
             CentOS Linux release 7.2.1511 (Core)
             CentOS Linux release 7.3.1611 (Core)
             CentOS Linux release 7.4.1708 (Core)
-            CentOS Linux release 7.5.1804 (Core)
+            CentOS Linux release 7.5.1804 (Core) and so on.
             CentOS release 6.5 (Final)
             CentOS release 6.6 (Final)
             CentOS release 6.7 (Final)
@@ -220,14 +232,14 @@ Per Category, each XML file has VM name, Resource Group name, etc. We do not rec
         c. Debian
             Debian GNU/Linux 7 (wheezy)
             Debian GNU/Linux 8 (jessie)
-            Debian GNU/Linux 9 (stretch)
+            Debian GNU/Linux 9 (stretch) and so on.
         d. OpenSUSE
             openSUSE Leap 42.3
         e. Oracle
             Oracle Linux Server 6.8
             Oracle Linux Server 6.9
             Oracle Linux Server 7.3
-            Oracle Linux Server 7.4
+            Oracle Linux Server 7.4 and so on.
         f. RHEL
             Red Hat Enterprise Linux Server release 6.7 (Santiago)
             Red Hat Enterprise Linux Server release 6.8 (Santiago)
@@ -236,12 +248,12 @@ Per Category, each XML file has VM name, Resource Group name, etc. We do not rec
             Red Hat Enterprise Linux Server release 7.2 (Maipo)
             Red Hat Enterprise Linux Server release 7.3 (Maipo)
             Red Hat Enterprise Linux Server release 7.4 (Maipo)
-            Red Hat Enterprise Linux Server release 7.5 (Maipo)
+            Red Hat Enterprise Linux Server release 7.5 (Maipo) and so on.
         g. SLES
             SUSE Linux Enterprise Server 11 SP4
             SUSE Linux Enterprise Server 12 SP2
             SUSE Linux Enterprise Server 12 SP3
-            SUSE Linux Enterprise Server 15
+            SUSE Linux Enterprise Server 15 and so on.
         h. Ubuntu
             Ubuntu 12.04.5 LTS, Precise Pangolin
             Ubuntu 14.04.5 LTS, Trusty Tahr
@@ -249,9 +261,9 @@ Per Category, each XML file has VM name, Resource Group name, etc. We do not rec
             Ubuntu 16.04.5 LTS (Xenial Xerus)
             Ubuntu 17.10 (Artful Aardvark)
             Ubuntu 18.04 LTS (Bionic Beaver)
-            Ubuntu 18.04.1 LTS (Bionic Beaver)
+            Ubuntu 18.04.1 LTS (Bionic Beaver) and so on.
         j. CoreOS
-            CoreOS Linux (Stable)
+            CoreOS Linux (Stable) and so on.
             CoreOS Linux (Alpha)
             CoreOS Linux (Beta)
     2. Add version number, project name or use full name if space is sufficient.

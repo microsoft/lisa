@@ -21,13 +21,6 @@
 CONSTANTS_FILE="./constants.sh"
 UTIL_FILE="./utils.sh"
 ICA_TESTABORTED="TestAborted"           # Error during the setup of the test
-touch ./ntttcpTest.log
-
-LogMsg()
-{
-	echo $(date "+%b %d %Y %T") : "${1}"	# Add the time stamp to the log message
-	echo "${1}" >> ./ntttcpTest.log
-}
 
 UpdateTestState()
 {
@@ -78,24 +71,6 @@ if [ ! "${nicName}" ]; then
 	exit 1
 fi
 
-localaddress=$(hostname -i)
-
-Run_SSHCommand()
-{
-	ips="$1"
-	cmd="$2"
-	IFS=',' read -r -a array <<< "$ips"
-	for ip in "${array[@]}"
-	do
-		LogMsg "Execute ${cmd} on ${ip}"
-		if [[ ${localaddress} = ${ip} ]]; then
-			bash -c "${cmd}"
-		else
-			ssh "${ip}" "${cmd}"
-		fi
-	done
-}
-
 # Make & build ntttcp on client and server Machine
 LogMsg "Configuring client ${client}..."
 Run_SSHCommand "${client}" ". $UTIL_FILE && install_ntttcp ${ntttcpVersion} ${lagscopeVersion}"
@@ -135,7 +110,6 @@ max_server_threads=64
 
 Get_Throughput()
 {
-	throughput=0
 	throughput=$(grep 'INFO.*throughput' "${1}" | tail -1 | tr ":" " " | awk '{ print $NF }')
 	if [[ $throughput =~ "Gbps" ]];
 	then
@@ -158,7 +132,6 @@ Get_Throughput()
 
 Get_Average_Latency()
 {
-	avglatency=0
 	avglatency=$(grep Average "${1}" | sed 's/.* //')
 	if [[ $avglatency =~ "us" ]];
 	then
@@ -176,9 +149,8 @@ Get_Average_Latency()
 	echo "$avglatency"
 }
 
-Get_Cyclesperbytes()
+Get_CyclesPerBytes()
 {
-	cyclesperbytes=0
 	cyclesperbytes=$(grep "cycles/byte" "${1}" | tr ":" " " | awk '{ print $NF }')
 	if [[ ! $cyclesperbytes ]];
 	then
@@ -188,9 +160,28 @@ Get_Cyclesperbytes()
 	echo "$cyclesperbytes"
 }
 
-Get_pktsInterrupts()
+Get_ConCreatedTime()
 {
-	pktsinterrupts=0
+	concreatedtime_us=$(grep "connections created in" "${1}" | tr ":" " " | awk '{ print $(NF-1) }')
+	if [[ ! $concreatedtime_us ]];
+	then
+		concreatedtime_us=0
+	fi
+	echo  "$concreatedtime_us"
+}
+
+Get_RetransSegs()
+{
+	retrans_segs=$(grep "retrans segs" "${1}" | tr ":" " " | awk '{ print $NF }')
+	if [[ ! $retrans_segs ]];
+	then
+		retrans_segs=0
+	fi
+	echo  "$retrans_segs"
+}
+
+Get_PktsInterrupts()
+{
 	pktsinterrupts=$(grep "pkts/interrupt" "${1}" | tr ":" " " | awk '{ print $NF }')
 	if [[ ! $pktsinterrupts ]];
 	then
@@ -200,9 +191,8 @@ Get_pktsInterrupts()
 	echo "$pktsinterrupts"
 }
 
-Get_packets()
+Get_Packets()
 {
-	packets=0
 	packets=$(grep "${2}" "${1}" | tr ":" " " | awk '{ print $NF }')
 	if [[ ! $packets ]];
 	then
@@ -227,9 +217,15 @@ Get_VFName()
 		vf_interface=$(ssh "$ip" lshw -c network -businfo | grep -i "Virtual Function" | awk '{print $2}')
 		if [ $vf_interface ]; then
 			if [[ $currentVersion == "master" ]]; then
-				ntttcp_cmd="$ntttcp_cmd --show-nic-packets $vf_interface --show-dev-interrupts mlx4"
+				ntttcp_cmd="$ntttcp_cmd --show-nic-packets $vf_interface --show-dev-interrupts mlx"
 			else
-				ntttcp_cmd="$ntttcp_cmd -K $vf_interface -I mlx4"
+				ntttcp_cmd="$ntttcp_cmd -K $vf_interface -I mlx"
+			fi
+		else
+			if [[ $currentVersion == "master" ]]; then
+				ntttcp_cmd="$ntttcp_cmd --show-nic-packets ${nicName} --show-dev-interrupts Hypervisor callback interrupts"
+			else
+				ntttcp_cmd="$ntttcp_cmd -K ${nicName} -I Hypervisor callback interrupts"
 			fi
 		fi
 	fi
@@ -259,7 +255,10 @@ Run_Ntttcp()
 		Run_SSHCommand "${client}" "${core_mem_set_cmd}"
 	else
 		testType="tcp"
-		echo "test_connections,throughput_in_Gbps,cycles/byte,avglatency_in_us,txpackets_sender,rxpackets_sender,pktsInterrupt_sender" > "${result_file}"
+		# Set sysctl config for creating more than 40960 connections
+		core_mem_set_cmd="sysctl -w kernel.pid_max=122880; sysctl -w vm.max_map_count=655300; sysctl -w net.ipv4.ip_local_port_range='1024 65535'"
+		Run_SSHCommand "${client}" "${core_mem_set_cmd}"
+		echo "test_connections,throughput_in_Gbps,cycles/byte_sender,cycles/byte_receiver,avglatency_in_us,txpackets_sender,rxpackets_sender,pktsInterrupt_sender,concreatedtime_us,retrans_segs" > "${result_file}"
 	fi
 
 	IFS=',' read -r -a array <<< "$client"
@@ -374,29 +373,37 @@ Run_Ntttcp()
 		rxpackets_sender_value=0.0
 		pktsInterrupt_sender_value=0.0
 		avg_latency_value=0.0
+		retrans_segs_value=0.0
+		concreatedtime_us_value=0.0
 		for tx_ntttcp_log_file in "${tx_ntttcp_log_files[@]}";
 		do
 			tx_throughput=$(Get_Throughput "$tx_ntttcp_log_file")
 			tx_throughput_value=$(echo "$tx_throughput + $tx_throughput_value" | ${bc_cmd})
-			tx_cyclesperbytes=$(Get_Cyclesperbytes "$tx_ntttcp_log_file")
+			tx_cyclesperbytes=$(Get_CyclesPerBytes "$tx_ntttcp_log_file")
 			tx_cyclesperbytes_value=$(echo "$tx_cyclesperbytes + $tx_cyclesperbytes_value" | ${bc_cmd})
-			txpackets_sender=$(Get_packets "$tx_ntttcp_log_file" "tx_packets")
+			txpackets_sender=$(Get_Packets "$tx_ntttcp_log_file" "tx_packets")
 			txpackets_sender_value=$(echo "$txpackets_sender + $txpackets_sender_value" | ${bc_cmd})
-			rxpackets_sender=$(Get_packets "$tx_ntttcp_log_file" "rx_packets")
+			rxpackets_sender=$(Get_Packets "$tx_ntttcp_log_file" "rx_packets")
 			rxpackets_sender_value=$(echo "$rxpackets_sender + $rxpackets_sender_value" | ${bc_cmd})
-			pktsInterrupt_sender=$(Get_pktsInterrupts "$tx_ntttcp_log_file")
+			pktsInterrupt_sender=$(Get_PktsInterrupts "$tx_ntttcp_log_file")
 			pktsInterrupt_sender_value=$(echo "$pktsInterrupt_sender + $pktsInterrupt_sender_value" | ${bc_cmd})
+			concreatedtime_us=$(Get_ConCreatedTime "$tx_ntttcp_log_file")
+			concreatedtime_us_value=$(echo "$concreatedtime_us + $concreatedtime_us_value" | ${bc_cmd})
+			retrans_segs=$(Get_RetransSegs "$tx_ntttcp_log_file")
+			retrans_segs_value=$(echo "$retrans_segs + $retrans_segs_value" | ${bc_cmd})
 		done
 		tx_throughput=$tx_throughput_value
 		rx_throughput=$(Get_Throughput "$rx_ntttcp_log_file")
 		tx_cyclesperbytes=$tx_cyclesperbytes_value
+		retrans_segs=$retrans_segs_value
+		concreatedtime_us=$(echo "$concreatedtime_us_value/${#tx_ntttcp_log_files[@]}" | bc)
 		for tx_lagscope_log_file in "${tx_lagscope_log_files[@]}";
 		do
 			avg_latency=$(Get_Average_Latency "$tx_lagscope_log_file")
 			avg_latency_value=$(echo "$avg_latency + $avg_latency_value" | ${bc_cmd})
 		done
 		avg_latency=$avg_latency_value
-		rx_cyclesperbytes=$(Get_Cyclesperbytes "$rx_ntttcp_log_file")
+		rx_cyclesperbytes=$(Get_CyclesPerBytes "$rx_ntttcp_log_file")
 		if [[ $tx_throughput == "0.00" ]];
 		then
 			data_loss=$(printf %.2f 0)
@@ -405,10 +412,10 @@ Run_Ntttcp()
 		fi
 		txpackets_sender=$txpackets_sender_value
 		rxpackets_sender=$rxpackets_sender_value
-		txpackets_receiver=$(Get_packets "$rx_ntttcp_log_file" "tx_packets")
-		rxpackets_receiver=$(Get_packets "$rx_ntttcp_log_file" "rx_packets")
+		txpackets_receiver=$(Get_Packets "$rx_ntttcp_log_file" "tx_packets")
+		rxpackets_receiver=$(Get_Packets "$rx_ntttcp_log_file" "rx_packets")
 		pktsInterrupt_sender=$pktsInterrupt_sender_value
-		pktsInterrupt_receiver=$(Get_pktsInterrupts "$rx_ntttcp_log_file")
+		pktsInterrupt_receiver=$(Get_PktsInterrupts "$rx_ntttcp_log_file")
 
 		LogMsg "Test Results: "
 		LogMsg "---------------"
@@ -419,16 +426,19 @@ Run_Ntttcp()
 		LogMsg "tx_packets/rx_packets on sender: $txpackets_sender / $rxpackets_sender"
 		LogMsg "tx_packets/rx_packets on receiver: $txpackets_receiver / $rxpackets_receiver"
 		LogMsg "pkts/interrupt:  Tx: $pktsInterrupt_sender , Rx: $pktsInterrupt_receiver"
+		LogMsg "Connections created time: $concreatedtime_us"
+		LogMsg "Retrasmit segments: $retrans_segs"
+
 		if [[ $testType == "udp" ]];
 		then
 			echo "$current_test_threads,$tx_throughput,$rx_throughput,$data_loss" >> "${result_file}"
 		else
 			testType="tcp"
-			echo "$current_test_threads,$tx_throughput,$tx_cyclesperbytes,$avg_latency,$txpackets_sender,$rxpackets_sender,$pktsInterrupt_sender" >> "${result_file}"
+			echo "$current_test_threads,$tx_throughput,$tx_cyclesperbytes,$rx_cyclesperbytes,$avg_latency,$txpackets_sender,$rxpackets_sender,$pktsInterrupt_sender,$concreatedtime_us,$retrans_segs" >> "${result_file}"
 		fi
 		LogMsg "current test finished. wait for next one... "
 		i=$(($i + 1))
-		sleep 5
+		sleep 15
 	done
 }
 

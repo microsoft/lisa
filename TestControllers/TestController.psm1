@@ -112,6 +112,7 @@ Class TestController
 
 		$this.TestProvider.CustomKernel = $ParamTable["CustomKernel"]
 		$this.TestProvider.CustomLIS = $ParamTable["CustomLIS"]
+		$this.TestProvider.ReuseVmOnFailure = ($ParamTable.ContainsKey("ReuseVmOnFailure"))
 		$this.CustomParams = @{}
 		if ( $ParamTable.ContainsKey("CustomParameters") ) {
 			$ParamTable["CustomParameters"].Split(';').Trim() | ForEach-Object {
@@ -131,13 +132,13 @@ Class TestController
 		$this.SyncEquivalentCustomParameters("TestLocation", $this.TestLocation)
 		$this.SyncEquivalentCustomParameters("OsVHD", $this.OsVHD)
 		$this.SyncEquivalentCustomParameters("OverrideVMSize", $this.OverrideVMSize)
-		$this.SyncEquivalentCustomParameters("RGIdentifier", $this.RGIdentifier)
 		# Sync VMGeneration with whatever values it got from command parameter;
 		# if $null/empty, inherited controller will update it with default value
 		$this.SyncEquivalentCustomParameters("VMGeneration", $this.VMGeneration)
 
 		$parameterErrors = @()
 		# Validate general parameters
+
 		return $parameterErrors
 	}
 
@@ -151,8 +152,12 @@ Class TestController
 				$CurrentXMLText = Get-Content -Path $file.FullName
 				foreach ($Replace in $this.XMLSecrets.secrets.ReplaceTestXMLStrings.Replace)
 				{
-					$ReplaceString = $Replace.Split("=")[0]
-					$ReplaceWith = $Replace.Split("=")[1]
+					if ($Replace.InnerText) {
+						$Replace.InnerText = [System.Security.SecurityElement]::Escape($Replace.InnerText)
+						$ReplaceString, $ReplaceWith = $Replace.InnerText -split '=',2
+					} else {
+						$ReplaceString, $ReplaceWith = $Replace -split '=',2
+					}
 					if ($CurrentXMLText -imatch $ReplaceString)
 					{
 						$content = [System.IO.File]::ReadAllText($file.FullName).Replace($ReplaceString,$ReplaceWith)
@@ -214,7 +219,7 @@ Class TestController
 		$this.TestCasePassStatus = @($global:ResultPass, $global:ResultSkipped)
 	}
 
-	[void] PrepareSetupTypeToTestCases([hashtable]$SetupTypeToTestCases, [object[]]$AllTests) {
+	[void] PrepareSetupTypeToTestCases([hashtable]$SetupTypeToTestCases, [System.Collections.ArrayList]$AllTests) {
 		# The multiple TestLocation may be separated by ','
 		# and in most cases, the multiple TestLocations should always stick together for certain one TestCase.
 		# So, use a fake SplitBy ';' to avoid TestLocations being Splitted into multi single ConfigValues for $AllTests.
@@ -236,7 +241,7 @@ Class TestController
 				}
 			}
 		}
-		$this.TotalCaseNum = @($AllTests).Count
+		$this.TotalCaseNum = ([System.Collections.ArrayList]$AllTests).Count
 	}
 
 	[void] LoadTestCases($WorkingDirectory, $CustomTestParameters) {
@@ -302,7 +307,7 @@ Class TestController
 			}
 			# Check whether the case if for Windows images
 			$IsWindowsImage = $false
-			if(($test.AdditionalHWConfig.OSType -contains "Windows")) {
+			if(($test.SetupConfig.OSType -contains "Windows")) {
 				$IsWindowsImage = $true
 			}
 			Set-Variable -Name IsWindowsImage -Value $IsWindowsImage -Scope Global
@@ -549,7 +554,7 @@ Class TestController
 					# Deploy the VM for the setup
 					Write-LogInfo "Deploy target machine for test if required ..."
 					$deployVMResults = $this.TestProvider.DeployVMs($this.GlobalConfig, $this.SetupTypeTable[$setupType], $currentTestCase, `
-						$currentTestCase.SetupConfig.TestLocation, $currentTestCase.SetupConfig.RGIdentifier, $this.UseExistingRG, $this.ResourceCleanup)
+						$currentTestCase.SetupConfig.TestLocation, $this.RGIdentifier, $this.UseExistingRG, $this.ResourceCleanup)
 					$vmData = $null
 					$deployErrors = ""
 					if ($deployVMResults) {
@@ -611,23 +616,34 @@ Class TestController
 						}
 					}
 				}
-				else { # Last Test is Failed/Aborted, by default preserve VM for analysis/debugging, but set $vmData = null: (force another deployment happen for next TC)
-					# unless '-ReuseVmOnFailure', keep $vmData as last failure environment, no new deployment behavior followed.
+				else {
+					#Last Test is Failed/Aborted, check '-ReuseVMOnFailure', and set $readyForReuseVM = $true if RestartAllDeployments successfully.
+					$readyForReuseVM = $false
 					if ($this.TestProvider.ReuseVmOnFailure) {
-						Write-LogInfo "Keep deployed target machine for future reuse, as '-ReuseVmOnFailure' is True"
-					}
-					# unless '-ResourceCleanup = Delete', possibly means choose economy option for saving cost and resources
-					# unless '-UseExistingRG', preserve deployed VMs in the same RG will cause following Testing Aborted (names of resources are fixed in LISAv2)
-					elseif ($this.UseExistingRG -or ($this.ResourceCleanup -imatch "Delete")) {
-						if ($this.ResourceCleanup -imatch "Keep") {
-							Write-LogWarn "ResourceCleanup = 'Keep' is respected, but may conflict with '-UseExistingRG', as 'Keep' will cause following tests Aborted."
-							$vmData = $null
+						Write-LogInfo "Try reuse VM instances from last deployment, as '-ReuseVmOnFailure' is True"
+						# Here the VM is not an initial state after provision, should be responsible immediately, but maybe already kernel panic or no response at all, so if VM is Not Alive after 3 retries, giving up the restart.
+						if($vmData -and ((Is-VmAlive -AllVMDataObject $vmData -MaxRetryCount 3) -eq "True")) {
+							$readyForReuseVM = $this.TestProvider.RestartAllDeployments($vmData)
 						}
-						else {
+					}
+					# If -not $readyForReuseVM, LISA will preserve VM environment for analysis/debugging by default.
+					# but eventually will set $vmData = $null, which means force another deployment happen for next test case
+					if (!$readyForReuseVM) {
+						# when '-ResourceCleanup = Delete', &$CleanupResource
+						if ($vmData -and $this.ResourceCleanup -imatch "Delete") {
 							&$CleanupResource -VmDataToBeDeleted ([ref]$vmData)
 						}
-					}
-					else { # this is by default choice for last Failed/Aborted
+						# when '-UseExistingRG', try to &$CleanupResource, unless '-ResourceCleanup = Keep'
+						if ($vmData -and $this.UseExistingRG) {
+							if ($this.ResourceCleanup -imatch "Keep") {
+								# '-ResourceCleanup = Keep' may cause following test cases in the same Setup group Aborted (because resource names of deployment are duplicated in the ExistingRG)
+								Write-LogWarn "ResourceCleanup = 'Keep' is respected, but may conflict with '-UseExistingRG', as 'Keep' will cause following tests Aborted."
+							}
+							else {
+								&$CleanupResource -VmDataToBeDeleted ([ref]$vmData)
+							}
+						}
+						# this is by default choice for last Failed/Aborted
 						$vmData = $null
 					}
 				}

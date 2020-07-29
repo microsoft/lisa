@@ -139,7 +139,7 @@ function Main {
         Copy-RemoteFiles -download -downloadFrom $hs1VIP -files "/home/$user/VM_properties.csv" -downloadTo $LogDir -port $hs1vm1sshport -username $user -password $password
 
         if ($testResult -imatch $resultPass) {
-            $files = "/home/$user/ntttcpConsoleLogs, /home/$user/ntttcpTest.log, /home/$user/report.log, /home/$user/nested_properties.csv"
+            $files = "/home/$user/ntttcpConsoleLogs, /home/$user/report.log, /home/$user/nested_properties.csv"
             Copy-RemoteFiles -download -downloadFrom $hs1VIP -files $files -downloadTo $LogDir -port $hs1vm1sshport -username $user -password $password
             $files = "/home/$user/ntttcp-test-logs-receiver.tar, /home/$user/ntttcp-test-logs-sender.tar"
             Copy-RemoteFiles -download -downloadFrom $hs1VIP -files $files -downloadTo $LogDir -port $hs1vm1sshport -username $user -password $password
