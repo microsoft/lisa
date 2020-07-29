@@ -3546,8 +3546,9 @@ function GetPlatform() {
 # $2 == command
 function Run_SSHCommand()
 {
-	ips="$1"
-	cmd="$2"
+	ips=${1}
+	cmd=${2}
+	localaddress=$(hostname -i)
 	IFS=',' read -r -a array <<< "$ips"
 	for ip in "${array[@]}"
 	do
