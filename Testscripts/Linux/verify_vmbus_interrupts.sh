@@ -6,14 +6,18 @@
 #
 # Description:
 #    This script was created to automate the testing of a Linux
-#    Integration services. This script will verify if all the CPUs 
-#    inside a Linux VM are processing VMBus interrupts, by checking 
+#    Integration services. This script will verify if all the CPUs
+#    inside a Linux VM are processing VMBus interrupts, by checking
 #    the /proc/interrupts file.
 #
 #    The test performs the following steps:
 #        1. Looks for the Hyper-v timer property of each CPU under /proc/interrupts
 #        2. Verifies if each CPU has more than 0 interrupts processed.
-#     
+#           a) Hypervisor callback interrupts: vmbus messages/events. It could have CPU
+#              with 0 interrupts in big VM size.
+#           b) Hyper-V reenlightenment interrupts: Only used in Nexted virtualization.
+#           c) Hyper-V stimer0 interrupts: new Hyper-V timer, and if exsts, this count
+#              should not be zero.
 ################################################################
 
 # Source utils.sh
@@ -45,9 +49,10 @@ function verify_vmbus_interrupts() {
     #
     # Verify if VMBUS interrupts are processed by all CPUs
     #
+    cat /proc/interrupts > interrupts
     while read line
     do
-        if [[ ($line = *hyperv* ) || ( $line = *Hypervisor* ) ]]; then
+        if [[ ($line = *Hyper-V* ) || ( $line = *Hypervisor* ) ]]; then
             for (( core=0; core<=$cpu_count-1; core++ ))
             do
                 intrCount=$(echo "$line" | xargs echo |cut -f $(( $core+2 )) -d ' ')
@@ -57,16 +62,18 @@ function verify_vmbus_interrupts() {
                 fi
             done
         fi
-    done < "/proc/interrupts"
+    done < interrupts
 
-    if [ $nonCPU0inter -ne "$cpu_count" ]; then
-        LogErr "Not all CPU cores are processing VMBUS interrupts!"
+    if [ $nonCPU0inter -eq 0 ]; then
+        LogMsg "Total CPU counts: $cpu_count"
+        LogMsg "The number of CPU counts using interrupts: $nonCPU0inter"
+        LogErr "None of CPU cores are processing VMBUS interrupts!"
         SetTestStateFailed
-        exit 0
+    else
+        UpdateSummary "All {$cpu_count} CPU cores are processing interrupts."
+        SetTestStateCompleted
     fi
-
-    UpdateSummary "All {$cpu_count} CPU cores are processing interrupts."
-    SetTestStateCompleted
 }
 
 verify_vmbus_interrupts
+exit 0
