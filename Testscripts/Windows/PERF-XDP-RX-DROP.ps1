@@ -44,16 +44,6 @@ function Main {
         Write-LogInfo "  SSH Port : $($senderVMData.SSHPort)"
         Write-LogInfo "  Internal IP : $($senderVMData.InternalIP)"
 
-        # Check for compatible kernel
-        $numberOfXDPQueues = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
-                -username $user -password $password -command "ethtool -S eth1  | grep xdp_drop | wc -l"
-        Write-LogInfo "Number of XDP DROP queues: $numberOfXDPQueues"
-        if ($numberOfXDPQueues -gt 0) {
-            Write-LogInfo "Kernel version supports XDP"
-        } else {
-            Write-LogWarn "Unsupported Kernel or unsupported distro $($global:DetectedDistro)"
-            return $global:ResultSkipped
-        }
         # PROVISION VMS FOR LISA WILL ENABLE ROOT USER AND WILL MAKE ENABLE PASSWORDLESS AUTHENTICATION ACROSS ALL VMS.
         Provision-VMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
 
@@ -92,7 +82,7 @@ collect_VM_properties
         # Terminate process if ran more than 5 mins
         # TODO: Check max installation time for other distros when added
         $timer = 0
-        while ((Get-Job -Id $testJob).State -eq "Running") {
+        while ($testJob -and ((Get-Job -Id $testJob).State -eq "Running")) {
             $currentStatus = Run-LinuxCmd -ip $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
                 -username $user -password $password -command "tail -2 ~/xdpConsoleLogs.txt | head -1" -runAsSudo
             Write-LogInfo "Current Test Status: $currentStatus"
