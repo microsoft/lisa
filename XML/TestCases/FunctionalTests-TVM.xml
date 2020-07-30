@@ -7,7 +7,7 @@
     <Category>Functional</Category>
     <Area>TVM</Area>
     <Tags>secureboot</Tags>
-    <Priority>3</Priority>
+    <Priority>1</Priority>
     <SetupConfig>
       <TestLocation>eastus2euap</TestLocation>
       <SetupType>OneVM</SetupType>
