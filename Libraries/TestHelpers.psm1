@@ -746,7 +746,7 @@ Function Get-LISAv2Tools($XMLSecretFile) {
 	# Copy required binary files to working folder
 	$CurrentDirectory = Get-Location
 	$CmdArray = @('7za.exe','dos2unix.exe','gawk','jq','plink.exe','pscp.exe', `
-					'kvp_client32','kvp_client64','nc.exe','lz4.exe')
+					'kvp_client32','kvp_client64','nc.exe','lz4.exe','sbinfo')
 
 	if ($XMLSecretFile) {
 		$WebClient = New-Object System.Net.WebClient
