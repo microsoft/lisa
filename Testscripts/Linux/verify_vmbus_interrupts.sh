@@ -15,8 +15,8 @@
 #        2. Verifies if each CPU has more than 0 interrupts processed.
 #           a) Hypervisor callback interrupts: vmbus messages/events. It could have CPU
 #              with 0 interrupts in big VM size.
-#           b) Hyper-V reenlightenment interrupts: Only used in Nexted virtualization.
-#           c) Hyper-V stimer0 interrupts: new Hyper-V timer, and if exsts, this count
+#           b) Hyper-V reenlightenment interrupts: Only used in Nested virtualization.
+#           c) Hyper-V stimer0 interrupts: new Hyper-V timer, and if exists, this count
 #              should not be zero.
 ################################################################
 
