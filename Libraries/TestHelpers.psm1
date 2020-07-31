@@ -760,8 +760,19 @@ Function Get-LISAv2Tools($XMLSecretFile) {
 		if (! (Test-Path $CurrentDirectory/Tools/$_) ) {
 			Write-LogWarn "$_ file is not found in Tools folder."
 			if ($toolFileAccessLocation) {
-				$WebClient.DownloadFile("$toolFileAccessLocation/$_","$CurrentDirectory\Tools\$_")
-				Write-LogInfo "File $_ successfully downloaded in Tools folder: $CurrentDirectory\Tools."
+				$downloadFileError = $False
+				try {
+					$WebClient.DownloadFile("$toolFileAccessLocation/$_","$CurrentDirectory\Tools\$_")
+				}
+				catch {
+					$downloadFileError = $True
+				}
+				if ($downloadFileError) {
+					Write-LogWarn "Failed to download '$_', please make sure it's available from '$toolFileAccessLocation'"
+				}
+				else {
+					Write-LogInfo "File $_ successfully downloaded in Tools folder: $CurrentDirectory\Tools."
+				}
 			} else {
 				Throw "$_ file is not found, please either download the file to Tools folder, or specify the blobStorageLocation in XMLSecretFile"
 			}
