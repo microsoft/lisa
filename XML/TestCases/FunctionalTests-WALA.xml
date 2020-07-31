@@ -160,4 +160,20 @@
       <SetupType>OneVM</SetupType>
     </SetupConfig>
   </test>
+  <test>
+    <TestName>WALA-VERIFY-HOSTNAME-CHANGE</TestName>
+    <testScript>WALA-VERIFY-HOSTNAME-CHANGE.py</testScript>
+    <files>.\Testscripts\Linux\WALA-VERIFY-HOSTNAME-CHANGE.py,.\Testscripts\Linux\azuremodules.py</files>
+    <TestParameters>
+        <param>SECRET_PARAMS=(RoleName)</param>
+    </TestParameters>
+    <Platform>Azure</Platform>
+    <Category>Functional</Category>
+    <Area>WALA</Area>
+    <Tags>wala</Tags>
+    <Priority>1</Priority>
+    <SetupConfig>
+      <SetupType>OneVM</SetupType>
+    </SetupConfig>
+</test>
 </TestCases>
