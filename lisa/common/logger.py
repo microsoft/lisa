@@ -1,16 +1,16 @@
 import logging
 import time
-import os
+from lisa.common import env
 
 
 def init_log():
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG,
         format="%(asctime)s.%(msecs)03d [%(levelname)s] %(message)s",
         datefmt="%m%d %H:%M:%S",
         handlers=[
             logging.FileHandler(
-                "%s/lisa-host.log" % os.environ["RESULT_PATH"]
+                "%s/lisa-host.log" % env.get_env(env.RESULT_PATH)
             ),
             logging.StreamHandler(),
         ],

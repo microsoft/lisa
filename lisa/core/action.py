@@ -58,7 +58,6 @@ class Action(ABC):
                 "%s status changed from %s to %s"
                 % (self.name, self.__status.name, status.name)
             )
-        log.info("action status called")
         self.__status = status
 
     def validateStarted(self):

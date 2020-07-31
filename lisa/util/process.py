@@ -1,5 +1,6 @@
 import os
-from subprocess import Popen
+import subprocess
+import logging
 from threading import Thread
 
 from lisa.common import log
@@ -51,32 +52,35 @@ class Process:
         if new_envs is not None:
             for key, value in new_envs:
                 environ[key] = value
-        self.log_pipe = LogPipe(log.level)
-        self.process = Popen(
+        self.stdout_pipe = LogPipe(logging.INFO)
+        self.stderr_pipe = LogPipe(logging.ERROR)
+        self.process = subprocess.Popen(
             command,
             shell=True,
-            stdout=self.log_pipe,
-            stderr=self.log_pipe,
+            stdout=self.stdout_pipe,
+            stderr=self.stderr_pipe,
             cwd=cwd,
             env=dict(environ),
         )
         self.running = True
-        log.info("process %s stared", self.process.pid)
+        log.debug("process %s started", self.process.pid)
 
     def stop(self):
         if self.process is not None:
             self.process.terminate()
-            log.info("process %s stopped", self.process.pid)
+            log.debug("process %s stopped", self.process.pid)
 
     def cleanup(self):
-        if self.log_pipe is not None:
-            self.log_pipe.close()
+        if self.self.stdout_pipe is not None:
+            self.self.stdout_pipe.close()
+        if self.self.stderr_pipe is not None:
+            self.self.stderr_pipe.close()
 
     def isRunning(self):
         self.exitCode = self.getExitCode()
         if self.exitCode is not None:
             if self.running:
-                log.info(
+                log.debug(
                     "process %s exited: %s", self.process.pid, self.exitCode
                 )
             self.running = False

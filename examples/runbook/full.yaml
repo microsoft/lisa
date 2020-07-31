@@ -1,20 +1,35 @@
-# run name prefix to help grouping results, and put it in title.
-name: best guest
+# run name prefix to help grouping results and put it in title.
+name: full example
 # share configurations for similar runs.
-parent: parentconfig.yaml
+parent: 
+  - path: parentconfig.yaml
+    # for simple merge, this part is optional. 
+    # operations include:
+    # overwrite: default behavior. add non-exist items and replace exist.
+    # remove: remove specified path totally
+    # add: add non-exist, not replace exist.
+    strategy: 
+      - path: platform.template
+        operation: remove
+# add extended classes can be put in folders and include here.
+# it doesn't matter how those files are organized, lisa loads by their inherits relationship.
+# if there is any conflict on type name, there should be an error message.
+extends:
+  paths: 
+    - "./myextends"
 # it uses to support variables in other fields.
 # duplicate items will be overwritten one by one.
 # if a variable is not defined here, LISA can fail earlier to ask check it.
 # file path is relative to LISA command starts.
 variables:
-  - path: secrets.yaml
+  - file: secrets.yaml
     # If it's secret, it will be removed from log and other output information.
     # secret files also need to be removed after test is done.
     isSecret: true
   # continue to support v2 format. it's simple.
-  - path: v2secrets.xml
+  - file: v2secrets.xml
     isSecret: true
-  - path: env.yaml
+  - file: env.yaml
   # redefine parameters in file to reuse configurations
   - name: username
     value: azureuser
@@ -42,7 +57,8 @@ environment:
       # sometimes, it may need special configuration for a platform
       # we should avoid this kind of setting, it limits configuration to other platforms.
       azure:
-        - vmSize: testSize
+        vmSize: testSize
+        flag: "test=true"
   nodeCount: 
   nodes:
     - memoryGB: 4
@@ -54,7 +70,7 @@ environment:
   # If so, there is a warning message.
   # Environment spec can be forced to apply, as error is loud.
   warnAsError: true
-# it send test progress and results to any place wanted.
+# it sends test progress and results to any place wanted.
 notifier:
   - type: junit
   - type: html
@@ -68,7 +84,6 @@ platform:
     subscription: $$SubscriptionID$$
     subscriptionKey: $$SubscriptionServicePrincipalKey$$
     datacenter: wu
-    flag: "test=true"
   # for test case development, run test cases on current machine.
   - type: local
   - type: ready

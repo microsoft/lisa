@@ -5,7 +5,8 @@ from datetime import datetime
 
 from lisa import ActionStatus
 from lisa.common.logger import init_log, log
-from lisa.core.lisarunner import LISARunner
+from lisa.common import env
+from lisa.test_runner.lisarunner import LISARunner
 from retry import retry
 
 path_template = "runtime/results/{0}/{0}-{1}"
@@ -25,7 +26,7 @@ def create_result_path():
 
 result_path = os.path.realpath(create_result_path())
 os.makedirs(result_path)
-os.environ["RESULT_PATH"] = result_path
+env.set_env(env.RESULT_PATH, result_path)
 
 
 def main():
@@ -33,7 +34,7 @@ def main():
     log.info("Python version: %s" % sys.version)
     log.info("command line args: %s" % sys.argv)
     log.info("local time: %s", datetime.now())
-    log.info("result path: %s", os.environ["RESULT_PATH"])
+    log.info("result path: %s", env.get_env(env.RESULT_PATH))
     runner = LISARunner()
     runner.start()
     while True:

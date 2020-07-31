@@ -14,7 +14,7 @@ class LISARunner(TestRunner):
 
     def start(self):
         self.process = Process()
-        self.process.start("echo hello world",)
+        self.process.start("echo hello world")
         self.setStatus(ActionStatus.RUNNING)
         super().start()
 
