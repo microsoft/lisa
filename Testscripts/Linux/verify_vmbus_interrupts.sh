@@ -40,7 +40,8 @@ function verify_vmbus_interrupts() {
     # It is not mandatory to have the Hyper-V interrupts present
     # Skip test execution if these are not showing up
     #
-    if ! [[ $(grep 'hyperv\|Hypervisor' /proc/interrupts) ]]; then
+    if ! grep -q 'hyperv\|Hypervisor' /proc/interrupts
+    then
         UpdateSummary "Hyper-V interrupts are not recorded, abort test."
         SetTestStateAborted
         exit 0
@@ -50,27 +51,33 @@ function verify_vmbus_interrupts() {
     # Verify if VMBUS interrupts are processed by all CPUs
     #
     cat /proc/interrupts > interrupts
-    while read line
+    while read -r line
     do
         if [[ ($line = *Hyper-V* ) || ( $line = *Hypervisor* ) ]]; then
-            for (( core=0; core<=$cpu_count-1; core++ ))
+            for (( core=0; core<=cpu_count-1; core++ ))
             do
-                intrCount=$(echo "$line" | xargs echo |cut -f $(( $core+2 )) -d ' ')
+                intrCount=$(echo "$line" | xargs echo |cut -f $(( core+2 )) -d ' ')
                 if [ "$intrCount" -ne 0 ]; then
                     (( nonCPU0inter++ ))
-                    UpdateSummary "CPU core ${core} is processing VMBUS interrupts."
+                    UpdateSummary "CPU core ${core} is processing VMBUS $intrCount interrupts."
                 fi
             done
         fi
     done < interrupts
 
-    if [ $nonCPU0inter -eq 0 ]; then
+    if [ "$nonCPU0inter" -eq 0 ]; then
         LogMsg "Total CPU counts: $cpu_count"
         LogMsg "The number of CPU counts using interrupts: $nonCPU0inter"
         LogErr "None of CPU cores are processing VMBUS interrupts!"
         SetTestStateFailed
+    elif [ "$nonCPU0inter" -eq "$cpu_count" ]; then
+        LogMsg "All {$nonCPU0inter} CPU cores are processing interrupts"
+        SetTestStateCompleted
+    elif [ "$nonCPU0inter" -gt "$cpu_count" ]; then
+        LogMsg "All {$nonCPU0inter} CPU cores are processing interrupts. $((nonCPU0inter - cpu_count)) CPUs are processing multiple interrupts"
+        SetTestStateCompleted
     else
-        UpdateSummary "All {$cpu_count} CPU cores are processing interrupts."
+        UpdateSummary "{$nonCPU0inter} CPU cores are processing interrupts."
         SetTestStateCompleted
     fi
 }
