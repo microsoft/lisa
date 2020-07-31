@@ -59,7 +59,7 @@ function verify_vmbus_interrupts() {
                 intrCount=$(echo "$line" | xargs echo |cut -f $(( core+2 )) -d ' ')
                 if [ "$intrCount" -ne 0 ]; then
                     (( nonCPU0inter++ ))
-                    UpdateSummary "CPU core ${core} is processing VMBUS $intrCount interrupts."
+                    UpdateSummary "CPU core $core be processing VMBUS $intrCount interrupts."
                 fi
             done
         fi
@@ -71,13 +71,13 @@ function verify_vmbus_interrupts() {
         LogErr "None of CPU cores are processing VMBUS interrupts!"
         SetTestStateFailed
     elif [ "$nonCPU0inter" -eq "$cpu_count" ]; then
-        LogMsg "All {$nonCPU0inter} CPU cores are processing interrupts"
+        LogMsg "All $nonCPU0inter CPU cores are processing interrupts"
         SetTestStateCompleted
     elif [ "$nonCPU0inter" -gt "$cpu_count" ]; then
-        LogMsg "All {$nonCPU0inter} CPU cores are processing interrupts. $((nonCPU0inter - cpu_count)) CPUs are processing multiple interrupts"
+        LogMsg "All $nonCPU0inter CPU cores are processing interrupts. $((nonCPU0inter - cpu_count)) CPUs are processing multiple interrupts"
         SetTestStateCompleted
     else
-        UpdateSummary "{$nonCPU0inter} CPU cores are processing interrupts."
+        UpdateSummary "$nonCPU0inter CPU cores are processing interrupts."
         SetTestStateCompleted
     fi
 }
