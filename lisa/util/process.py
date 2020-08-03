@@ -2,6 +2,7 @@ import os
 import subprocess
 import logging
 from threading import Thread
+import psutil
 
 from lisa.common import log
 
@@ -67,6 +68,8 @@ class Process:
 
     def stop(self):
         if self.process is not None:
+            for child in psutil.Process(self.process.pid).children(True):
+                child.terminate()
             self.process.terminate()
             log.debug("process %s stopped", self.process.pid)
 

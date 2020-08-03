@@ -38,15 +38,16 @@ class Action(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def start(self):
+    async def start(self):
         self.isStarted = True
+        self.setStatus(ActionStatus.RUNNING)
 
     @abstractmethod
-    def stop(self):
+    async def stop(self):
         self.validateStarted()
 
     @abstractmethod
-    def cleanup(self):
+    async def cleanup(self):
         self.validateStarted()
 
     def getStatus(self):

@@ -85,20 +85,15 @@ platform:
     subscriptionKey: $$SubscriptionServicePrincipalKey$$
     datacenter: wu
   # for test case development, run test cases on current machine.
-  - type: local
   - type: ready
     nodes:
-      - ip: 10.0.0.1
-        port: 22
-        publicIp: 23.36.36.36
-        publicPort: 1111
-        # reference to environment variable
-        password: $$linuxTestPassword$$
-        privateKey: $$sshPrivateKey$$
+      - type: local
         # If test suite doesn't specify where to run a case,
         #  it should be run on default node.
         isDefault: true
-      - name: secondary
+        # it's optional
+      - type: ssh
+        name: secondary
         ip: 10.0.0.2
         port: 22
         publicIp: 23.36.36.36

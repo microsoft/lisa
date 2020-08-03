@@ -1,6 +1,8 @@
-from lisa import TestRunner
-from lisa.util import Process
-from lisa import ActionStatus
+from lisa.core.environment import Environment
+from lisa.core.testsuite import TestSuite
+from lisa.core.testfactory import testFactory
+from lisa import ActionStatus, TestRunner, log
+from lisa.util.module import import_module
 
 
 class LISARunner(TestRunner):
@@ -12,13 +14,19 @@ class LISARunner(TestRunner):
     def getTypeName(self):
         return "LISAv2"
 
-    def start(self):
-        self.process = Process()
-        self.process.start("echo hello world")
+    async def start(self):
+        await super().start()
         self.setStatus(ActionStatus.RUNNING)
-        super().start()
+        import_module("examples\\testsuites")
+        suites = testFactory.suites
+        environment = Environment()
+        for suite in suites.values():
+            test_object: TestSuite = suite.test_class(environment, suite.cases)
+            await test_object.start()
 
-    def stop(self):
+        self.setStatus(ActionStatus.SUCCESS)
+
+    async def stop(self):
         super().stop()
         self.process.stop()
 

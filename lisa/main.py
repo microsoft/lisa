@@ -2,6 +2,10 @@ import os
 import sys
 import time
 from datetime import datetime
+from argparse import ArgumentParser
+from logging import DEBUG, INFO
+
+import asyncio
 
 from lisa import ActionStatus
 from lisa.common.logger import init_log, log
@@ -29,14 +33,28 @@ os.makedirs(result_path)
 env.set_env(env.RESULT_PATH, result_path)
 
 
-def main():
+async def run():
     init_log()
     log.info("Python version: %s" % sys.version)
     log.info("command line args: %s" % sys.argv)
     log.info("local time: %s", datetime.now())
     log.info("result path: %s", env.get_env(env.RESULT_PATH))
+
+    # parse args run function.
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--verbose", "-v", action="store_true", help="set log level to debug"
+    )
+    args = parser.parse_args()
+    if args.verbose:
+        log_level = DEBUG
+    else:
+        log_level = INFO
+    log.setLevel(log_level)
+    log.info("set log level to %s", args.verbose)
+
     runner = LISARunner()
-    runner.start()
+    await runner.start()
     while True:
         status = runner.getStatus()
         log.info("main status is %s", status.name)
@@ -49,7 +67,9 @@ def main():
 if __name__ == "__main__":
     exitCode = 0
     try:
-        main()
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(run())
+        loop.close()
     except Exception as exception:
         log.exception(exception)
         exitCode = -1
