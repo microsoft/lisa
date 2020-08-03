@@ -164,11 +164,23 @@ function Install_Dpdk () {
 	packages=(gcc make git tar wget dos2unix psmisc make)
 	case "${DISTRO_NAME}" in
 		oracle|rhel|centos)
+			devel_source=(  "7.5=http://vault.centos.org/7.5.1804/updates/x86_64/Packages/kernel-devel-$(uname -r).rpm"
+			                "7.6=http://vault.centos.org/7.6.1810/updates/x86_64/Packages/kernel-devel-$(uname -r).rpm"
+			                "8.1=http://vault.centos.org//8.1.1911/BaseOS/x86_64/os/Packages/kernel-devel-$(uname -r).rpm" )
+			curr_version=$(ssh "${1}" 'grep -E '7.5|7.6|8.1' /etc/redhat-release')
+			for source in "${devel_source[@]}" ; do
+				KEY="${source%%=*}"
+				if [ $KEY == $curr_version ]; then
+					VALUE="${source##*=}"
+					LogMsg "Installing kernel-devel package for $KEY from $VALUE."
+					ssh "${1}" "rpm -ivh $VALUE"
+				fi
+			done
 			ssh "${1}" ". utils.sh && install_epel"
 			ssh "${1}" "yum -y groupinstall 'Infiniband Support' && dracut --add-drivers 'mlx4_en mlx4_ib mlx5_ib' -f && systemctl enable rdma"
 			check_exit_status "Install Infiniband Support on ${1}" "exit"
-			#ssh "${1}" "(grep -E '7.5|7.6|7.8' /etc/redhat-release) && curl https://partnerpipelineshare.blob.core.windows.net/kernel-devel-rpms/CentOS-Vault.repo > /etc/yum.repos.d/CentOS-Vault.repo"
-			ssh "${1}" "(grep -E '7.5' /etc/redhat-release) && rpm -ivh http://vault.centos.org/7.5.1804/updates/x86_64/Packages/kernel-devel-$(uname -r).rpm"
+			#ssh "${1}" "(grep -E '7.5' /etc/redhat-release) && rpm -ivh http://vault.centos.org/7.5.1804/updates/x86_64/Packages/kernel-devel-$(uname -r).rpm"
+			#ssh "${1}" "(grep -E '7.6' /etc/redhat-release) && rpm -ivh http://vault.centos.org/7.6.1810/updates/x86_64/Packages/kernel-devel-$(uname -r).rpm"
 			packages+=(kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel)
 			ssh "${1}" "yum makecache"
 			check_package "libmnl-devel"
