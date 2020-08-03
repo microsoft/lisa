@@ -56,9 +56,9 @@ function Compare_Result {
     Write-LogInfo "Average XDP value: $avgLatencyXDP Average w/o XDP value: $avgLatency & threshold: $thresholdLatency"
     if ($avgLatencyXDP -gt $thresholdLatency) {
         Write-LogErr "Average Latency with XDP $avgLatencyXDP is greater than threshold $thresholdLatency"
-        return "TestFailed"
+        return $false
     } else {
-        return "TestCompleted"
+        return $true
     }
 }
 
@@ -159,12 +159,13 @@ collect_VM_properties
             New-Item -Path $ResultDirXDP -ItemType Directory -Force | Out-Null
             Run_Lagscope_PERF $ResultDirXDP
             # collect and compare result
-            $currentState = Compare_Result $ResultDir $ResultDirXDP
-        }
-
-        if ($currentState -imatch "TestCompleted") {
-            Write-LogInfo "Test Completed"
-            $testResult = "PASS"
+            if (Compare_Result $ResultDir $ResultDirXDP) {
+                Write-LogInfo "Test Completed"
+                $testResult = "PASS"
+            } else {
+                Write-LogErr "Test failed. Lantency result below threshold."
+                $testResult = "FAIL"
+            }
         }   elseif ($currentState -imatch "TestAborted") {
             Write-LogErr "Test Aborted. Last known status: $currentStatus."
             $testResult = "ABORTED"
