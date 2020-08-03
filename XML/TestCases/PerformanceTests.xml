@@ -817,7 +817,6 @@
     <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh,.\Testscripts\Linux\perf_lagscope.sh</files>
     <TestParameters>
       <param>lagscopeVersion=LAGSCOPE_VERSION</param>
-      <param>repo_url=XDPDUMP_REPO_URL</param>
     </TestParameters>
     <Platform>Azure</Platform>
     <Category>Performance</Category>
