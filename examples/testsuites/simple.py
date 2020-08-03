@@ -3,7 +3,7 @@ from lisa.core.testsuite import TestSuite
 from lisa import TestMethod, log
 
 
-@TestClass("sample area", "sample category", ["demo"])
+@TestClass(area="sample area", category="sample category", tags=["demo"])
 class SimpleTestSuite(TestSuite):
     @TestMethod(priority=1)
     def hello(self):
