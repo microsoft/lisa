@@ -961,4 +961,21 @@
 	<SetupType>OneVM</SetupType>
 	</SetupConfig>
 </test>
+<test>
+	<testName>VERIFY-UIO-DRIVER</testName>
+	<testScript>verify_uio_driver.sh</testScript>
+	<files>.\Testscripts\Linux\verify_uio_driver.sh,.\Testscripts\Linux\utils.sh</files>
+	<TestParameters>
+	<param>NIC_1=NetworkAdapter,None,InvalidNIC</param>
+	</TestParameters>
+	<Platform>Azure,HyperV</Platform>
+	<Category>Functional</Category>
+	<Area>CORE</Area>
+	<Tags>uio,network</Tags>
+	<Priority>2</Priority>
+	<SetupConfig>
+	<SetupType>OneVM2NIC</SetupType>
+	<setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1</setupScript>
+	</SetupConfig>
+</test>
 </TestCases>
