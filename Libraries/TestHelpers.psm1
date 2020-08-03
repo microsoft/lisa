@@ -31,7 +31,7 @@ Function New-ResultSummary($testResult, $checkValues, $testName, $metaData) {
 	return $resultString
 }
 
-$ExcludedSetupConfigsToDisplay = @("RGIdentifier","SetupScript","TiPSessionId","TiPCluster","PlatformFaultDomainCount","PlatformUpdateDomainCount")
+$ExcludedSetupConfigsToDisplay = @("RGIdentifier", "SetupType", "SetupScript","TiPSessionId","TiPCluster","PlatformFaultDomainCount","PlatformUpdateDomainCount")
 function ConvertFrom-SetupConfig([object]$SetupConfig, [switch]$WrappingLines) {
 	$resultString = ""
 	$SetupConfig.ChildNodes | Sort-Object LocalName | Foreach-Object {
@@ -746,7 +746,7 @@ Function Get-LISAv2Tools($XMLSecretFile) {
 	# Copy required binary files to working folder
 	$CurrentDirectory = Get-Location
 	$CmdArray = @('7za.exe','dos2unix.exe','gawk','jq','plink.exe','pscp.exe', `
-					'kvp_client32','kvp_client64','nc.exe','lz4.exe')
+					'kvp_client32','kvp_client64','nc.exe','lz4.exe','sbinfo')
 
 	if ($XMLSecretFile) {
 		$WebClient = New-Object System.Net.WebClient
@@ -760,8 +760,19 @@ Function Get-LISAv2Tools($XMLSecretFile) {
 		if (! (Test-Path $CurrentDirectory/Tools/$_) ) {
 			Write-LogWarn "$_ file is not found in Tools folder."
 			if ($toolFileAccessLocation) {
-				$WebClient.DownloadFile("$toolFileAccessLocation/$_","$CurrentDirectory\Tools\$_")
-				Write-LogInfo "File $_ successfully downloaded in Tools folder: $CurrentDirectory\Tools."
+				$downloadFileError = $False
+				try {
+					$WebClient.DownloadFile("$toolFileAccessLocation/$_","$CurrentDirectory\Tools\$_")
+				}
+				catch {
+					$downloadFileError = $True
+				}
+				if ($downloadFileError) {
+					Write-LogWarn "Failed to download '$_', please make sure it's available from '$toolFileAccessLocation'"
+				}
+				else {
+					Write-LogInfo "File $_ successfully downloaded in Tools folder: $CurrentDirectory\Tools."
+				}
 			} else {
 				Throw "$_ file is not found, please either download the file to Tools folder, or specify the blobStorageLocation in XMLSecretFile"
 			}

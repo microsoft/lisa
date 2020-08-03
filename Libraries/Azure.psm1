@@ -2616,7 +2616,9 @@ Function Add-DefaultTagsToResourceGroup {
 		}
 		Add-ResourceGroupTag -ResourceGroup $ResourceGroup -TagName BuildURL -TagValue $BuildURLTag
 		# Add test name.
-		Add-ResourceGroupTag -ResourceGroup $ResourceGroup -TagName TestName -TagValue $currentTestData.testName
+		if ($currentTestData.testName) {
+			Add-ResourceGroupTag -ResourceGroup $ResourceGroup -TagName TestName -TagValue $currentTestData.testName
+		}
 		# Add LISAv2 launch machine name.
 		Add-ResourceGroupTag -ResourceGroup $ResourceGroup -TagName BuildMachine -TagValue "$env:UserDomain\$env:ComputerName"
 		# Add date-time.

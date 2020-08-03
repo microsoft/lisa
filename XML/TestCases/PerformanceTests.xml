@@ -811,8 +811,46 @@
       <SetupScript>.\Testscripts\Windows\SETUP-Check-PowerPlan.ps1,.\Testscripts\Windows\SETUP-PERF-Add-NIC.ps1</SetupScript>
     </SetupConfig>
   </test>
-<test>
-  <testName>PERF-XDP-TCP-LATENCY</testName>
+  <test>
+    <testName>PERF-XDP-TCP-RX-DROP-SINGLECORE</testName>
+    <testScript>PERF-XDP-RX-DROP.ps1</testScript>
+    <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh,.\Testscripts\Linux\pktgenSetup.sh</files>
+    <TestParameters>
+      <param>repo_url=XDPDUMP_REPO_URL</param>
+      <param>cores=single</param>
+    </TestParameters>
+    <Platform>Azure</Platform>
+    <Category>Performance</Category>
+    <Area>NETWORK</Area>
+    <Tags>xdp</Tags>
+    <Priority>3</Priority>
+    <SetupConfig>
+      <setupType>TwoVM2NIC</setupType>
+      <OverrideVMSize>Standard_D64_v3</OverrideVMSize>
+      <Networking>SRIOV</Networking>
+    </SetupConfig>
+  </test>
+  <test>
+    <testName>PERF-XDP-TCP-RX-DROP-MULTICORE</testName>
+    <testScript>PERF-XDP-RX-DROP.ps1</testScript>
+    <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh,.\Testscripts\Linux\pktgenSetup.sh</files>
+    <TestParameters>
+      <param>repo_url=XDPDUMP_REPO_URL</param>
+      <param>cores=multi</param>
+    </TestParameters>
+    <Platform>Azure</Platform>
+    <Category>Performance</Category>
+    <Area>NETWORK</Area>
+    <Tags>xdp</Tags>
+    <Priority>3</Priority>
+    <SetupConfig>
+      <setupType>TwoVM2NIC</setupType>
+      <OverrideVMSize>Standard_D64_v3</OverrideVMSize>
+      <Networking>SRIOV</Networking>
+    </SetupConfig>
+  </test>
+  <test>
+    <testName>PERF-XDP-TCP-LATENCY</testName>
     <testScript>PERF-XDP-TCP-LATENCY.ps1</testScript>
     <files>.\Testscripts\Linux\utils.sh,.\Testscripts\Linux\XDPDumpSetup.sh,.\Testscripts\Linux\perf_lagscope.sh</files>
     <TestParameters>
@@ -822,7 +860,7 @@
     <Category>Performance</Category>
     <Area>NETWORK</Area>
     <Tags>xdp</Tags>
-    <Priority>2</Priority>
+    <Priority>3</Priority>
     <SetupConfig>
       <setupType>TwoVM2NIC</setupType>
       <OverrideVMSize>Standard_D64_v3</OverrideVMSize>
