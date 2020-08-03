@@ -130,6 +130,7 @@ Function Select-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Test
     $testNamesArray = @($TestNames.Trim(', ').Split(',').Trim())
     $testSetupTypeArray = @($TestSetup.Trim(', ').Split(',').Trim())
     $excludedTestsArray = @($ExcludeTests.Trim(', ').Split(',').Trim())
+
     # Filter test cases based on the criteria
     foreach ($file in $TestXMLs.FullName) {
         $currentTests = ([xml]( Get-Content -Path $file)).TestCases
