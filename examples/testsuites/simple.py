@@ -3,7 +3,7 @@ from lisa.core.testsuite import TestSuite
 from lisa import TestMethod, log
 
 
-@TestClass(area="sample area", category="sample category", tags=["demo"])
+@TestClass(area="demo", category="simple", tags=["demo"])
 class SimpleTestSuite(TestSuite):
     @TestMethod(priority=1)
     def hello(self):
@@ -15,6 +15,7 @@ class SimpleTestSuite(TestSuite):
 
     def setup(self):
         log.info("setup my test suite")
+        log.info("see my code at %s", __file__)
 
     def cleanup(self):
         log.info("clean up my test suite")

@@ -81,14 +81,14 @@ class TestFactory:
         class_name = full_name.split(".")[0]
         test_suite = self.suites.get(class_name)
         if test_suite is not None:
+            log.debug(
+                "add case '%s' to suite '%s'", test_case.name, test_suite.name
+            )
             self._addCaseToSuite(test_suite, test_case)
 
     def _addCaseToSuite(
         self, test_suite: TestSuiteMetadata, test_case: TestCaseMetadata
     ):
-        log.debug(
-            "add case '%s' to suite '%s'", test_case.name, test_suite.name
-        )
         test_suite.addCase(test_case)
         test_case.suite = test_suite
 

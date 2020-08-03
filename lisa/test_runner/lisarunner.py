@@ -1,8 +1,7 @@
 from lisa.core.environment import Environment
 from lisa.core.testsuite import TestSuite
 from lisa.core.testfactory import testFactory
-from lisa import ActionStatus, TestRunner, log
-from lisa.util.module import import_module
+from lisa import ActionStatus, TestRunner
 
 
 class LISARunner(TestRunner):
@@ -17,7 +16,6 @@ class LISARunner(TestRunner):
     async def start(self):
         await super().start()
         self.setStatus(ActionStatus.RUNNING)
-        import_module("examples\\testsuites")
         suites = testFactory.suites
         environment = Environment()
         for suite in suites.values():

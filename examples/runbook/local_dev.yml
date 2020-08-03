@@ -6,7 +6,9 @@ notifier:
   - type: html
 # it's examples for all platforms, but currently should leave single one only.
 platform:
-  - type: local
+  - type: ready
+    nodes:
+      - type: local
 tests:
   - criteria:
       # all rules in same criteria are AND condition.

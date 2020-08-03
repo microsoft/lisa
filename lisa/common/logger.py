@@ -4,9 +4,10 @@ from lisa.common import env
 
 
 def init_log():
+    format = "%(asctime)s.%(msecs)03d[%(levelname)-.1s]%(name)s %(message)s"
     logging.basicConfig(
         level=logging.DEBUG,
-        format="%(asctime)s.%(msecs)03d [%(levelname)s] %(message)s",
+        format=format,
         datefmt="%m%d %H:%M:%S",
         handlers=[
             logging.FileHandler(
