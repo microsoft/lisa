@@ -89,6 +89,7 @@ UnbindClockEvent()
 # MAIN SCRIPT
 #
 GetDistro
+VCPU=$(nproc)
 case $DISTRO in
     redhat_6 | centos_6)
         LogMsg "WARNING: $DISTRO does not support Hyper-V clockevent."

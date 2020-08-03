@@ -103,6 +103,10 @@ Class ReadyController : TestController
 
 		Write-LogInfo "Setting global variables"
 		$this.SetGlobalVariables()
+
+		if ($this.OverrideVMSize) {
+			$this.TestProvider.InstanceSize = $this.OverrideVMSize
+		}
 	}
 
 	[void] SetGlobalVariables() {

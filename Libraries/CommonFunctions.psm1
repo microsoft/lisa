@@ -111,18 +111,25 @@ Function Match-TestTag($currentTest, $TestTag)
 # Before entering this function, $TestPlatform has been verified as "valid" in Run-LISAv2.ps1.
 # So, here we don't need to check $TestPlatform
 #
-Function Select-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $TestTag, $TestPriority, $ExcludeTests)
+Function Select-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $TestTag, $TestPriority, $ExcludeTests, $TestSetup)
 {
-    $AllLisaTests = @()
+    $AllLisaTests =  [System.Collections.ArrayList]@()
     $WildCards = @('^','.','[',']','?','+','*')
     $ExcludedTestsCount = 0
 
-    # Check and cleanup the parameters
+    # if the expected filter parameter is 'ALL' or empty ("ALL" -imatch "" return $True), the actually filter used in this function will be '*', except for '$ExcludedTests'
     if ("All" -imatch $TestCategory)   { $TestCategory = "*" }
     if ("All" -imatch $TestArea)       { $TestArea = "*" }
     if ("All" -imatch $TestNames)      { $TestNames = "*" }
     if ("All" -imatch  $TestTag)       { $TestTag = "*" }
     if ("All" -imatch  $TestPriority)  { $TestPriority = "*" }
+    if ("All" -imatch  $TestSetup)     { $TestSetup = "*" }
+
+    $testCategoryArray = @($TestCategory.Trim(', ').Split(',').Trim())
+    $testAreaArray = @($TestArea.Trim(', ').Split(',').Trim())
+    $testNamesArray = @($TestNames.Trim(', ').Split(',').Trim())
+    $testSetupTypeArray = @($TestSetup.Trim(', ').Split(',').Trim())
+    $excludedTestsArray = @($ExcludeTests.Trim(', ').Split(',').Trim())
 
     # Filter test cases based on the criteria
     foreach ($file in $TestXMLs.FullName) {
@@ -143,16 +150,20 @@ Function Select-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Test
             if (!$platformMatched) {
                 continue
             }
-            # case insensitive 'contains', and always complete match the concatenated expression for Category of TestCase
-            if (($TestCategory -ne "*") -and !(@($TestCategory.Trim(', ').Split(',').Trim()) -contains $test.Category)) {
+            # case insensitive 'notcontains', and only select complete matched with the concatenated expression for Category of TestCase, otherwise skip (continue)
+            if (($TestCategory -ne "*") -and ($testCategoryArray -notcontains $test.Category)) {
                 continue
             }
-            # case insensitive 'contains', and always complete match the concatenated expression for Area of TestCase
-            if (($TestArea -ne "*") -and !(@($TestArea.Trim(', ').Split(',').Trim()) -contains $test.Area)) {
+            # case insensitive 'notcontains', and only select complete matched with the concatenated expression for Area of TestCase, otherwise skip (continue)
+            if (($TestArea -ne "*") -and ($testAreaArray -notcontains $test.Area)) {
                 continue
             }
-            # case insensitive 'contains', and always complete match the concatenated expression for TestName of TestCase
-            if (($TestNames -ne "*") -and !(@($TestNames.Trim(', ').Split(',').Trim()) -contains $test.testName)) {
+            # only select TestCase that has SetupType value insensitive matching the expected Setup pattern, otherwise skip (continue)
+            if (($TestSetup -ne "*") -and !$($testSetupTypeArray | Where-Object {"$($test.SetupConfig.SetupType)" -imatch $_})) {
+                continue
+            }
+            # case insensitive 'notcontains', and only select complete matched with the concatenated expression for TestName of TestCase, otherwise skip (continue)
+            if (($TestNames -ne "*") -and ($testNamesArray -notcontains $test.testName)) {
                 continue
             }
 
@@ -168,7 +179,7 @@ Function Select-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Test
 
             if ($ExcludeTests) {
                 $ExcludeTestMatched = $false
-                foreach ($TestString in @($ExcludeTests.Trim(', ').Split(',').Trim())) {
+                foreach ($TestString in $excludedTestsArray) {
                     if (($TestString.IndexOfAny($WildCards))-ge 0) {
                         if ($TestString.StartsWith('*')) {
                             $TestString = ".$TestString"
@@ -190,7 +201,7 @@ Function Select-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Test
 
             if (!($AllLisaTests | Where-Object {$_.TestName -eq $test.TestName})) {
                 Write-LogInfo "Collected test: $($test.TestName) from $file"
-                $AllLisaTests += $test
+                $null = $AllLisaTests.Add($test)
             } else {
                 Write-LogWarn "Ignore duplicated test: $($test.TestName) from $file"
             }
@@ -199,50 +210,165 @@ Function Select-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Test
     if ($ExcludeTests) {
         Write-LogInfo "$ExcludedTestsCount Test Cases have been excluded"
     }
-    return $AllLisaTests
+    return ,$AllLisaTests
 }
 
 Function Add-SetupConfig {
-    param ([ref]$AllTests, [string]$ConfigName, [string]$ConfigValue, [string]$SplitBy = ',', [bool]$Force = $false)
+    param ([System.Collections.ArrayList]$AllTests, [string]$ConfigName, [string]$ConfigValue, [string]$DefaultConfigValue, [string]$SplitBy = ',', [bool]$Force = $false)
+
     $AddSplittedConfigValue = {
-        param ([object[]]$TestArray, [string]$ConfigName, [string]$ConfigValue, [bool]$Force = $false)
-        foreach ($test in $TestArray) {
+        param ([System.Collections.ArrayList]$TestCollections, [string]$ConfigName, [string]$ConfigValue, [bool]$Force = $false)
+        foreach ($test in $TestCollections) {
             if (!$test.SetupConfig.$ConfigName) {
-                $test.SetupConfig.InnerXml += "<$ConfigName>$ConfigValue</$ConfigName>"
+                # use CDATA when the value contains XML escaped characters
+                if ($ConfigValue -imatch "&|<|>|'|""") {
+                    $test.SetupConfig.InnerXml += "<$ConfigName><![CDATA['$ConfigValue']]></$ConfigName>"
+                } else {
+                    $test.SetupConfig.InnerXml += "<$ConfigName>$ConfigValue</$ConfigName>"
+                }
             }
             elseif ($Force) {
                 $test.SetupConfig.$ConfigName = $ConfigValue
             }
-            else {
-                Write-LogWarn "Pre-defined '$($test.SetupConfig.$ConfigName)' (instead of '$ConfigValue') is used as '<$ConfigName>' for test case '$($test.TestName)', if it's not expected, use '-ForceCustom' parameter of LISAv2 to force override it."
-            }
         }
     }
+
+    $IfNotContains = {
+        param ([string]$OriginalConfigValue, [string]$ToBeCheckedConfigValue, [string]$SplitBy)
+
+        $originalConfigValueArr = @($OriginalConfigValue.Trim("$SplitBy ").Split($SplitBy).Trim())
+        if (($originalConfigValueArr.Count -eq 0) -or !$ToBeCheckedConfigValue) {
+            return $True
+        }
+        elseif ($originalConfigValueArr -contains $ToBeCheckedConfigValue) {
+            return $False
+        }
+        else {
+            $matchedPattern = $null
+            $originalConfigValueArr | ForEach-Object {
+                if (!$matchedPattern -and $_.Contains("=~")) {
+                    $pattern = $_.SubString($_.IndexOf("=~") + 2)
+                    if ($ToBeCheckedConfigValue -imatch $pattern) {
+                        $matchedPattern = $pattern
+                    }
+                }
+            }
+            return !$matchedPattern
+        }
+    }
+
+    if ($DefaultConfigValue) {
+        $expandedConfigValues = @($DefaultConfigValue.Trim("$SplitBy ").Split($SplitBy).Trim())
+        if ($expandedConfigValues.Count -gt 1) {
+            Write-LogErr "Only support singular value (spliting by '$SplitBy') as default value. '$DefaultConfigValue' is invalid."
+        }
+        else {
+            $DefaultConfigValue = $DefaultConfigValue.Trim()
+        }
+    }
+    $ConfigValue = $ConfigValue.Trim()
     if ($ConfigValue) {
+        $messageKeySet = @{}
         $expandedConfigValues = @($ConfigValue.Trim("$SplitBy ").Split($SplitBy).Trim())
         if ($expandedConfigValues.Count -gt 1) {
-            $updatedTests = @()
+            $updatedTests = [System.Collections.ArrayList]@()
             foreach ($singleConfigValue in $expandedConfigValues) {
-                $clonedTestsArray = @()
-                foreach ($singleTest in $AllTests.Value) {
-                    $clonedTest = ([System.Xml.XmlElement]$singleTest).CloneNode($true)
-                    $clonedTestsArray += $clonedTest
+                $clonedTests = [System.Collections.ArrayList]@()
+                foreach ($singleTest in $AllTests) {
+                    # If not pre-defined in TestXml, or -ForceCustom used, duplicate
+                    if (!$singleTest.SetupConfig.$ConfigName -or $Force) {
+                        $clonedTest = ([System.Xml.XmlElement]$singleTest).CloneNode($true)
+                        $null = $clonedTests.Add($clonedTest)
+                    }
+                    elseif ($singleConfigValue) {
+                        # If pre-defined, let's decide skip or not
+                        if (&$IfNotContains -OriginalConfigValue "$($singleTest.SetupConfig.$ConfigName)" -ToBeCheckedConfigValue "$singleConfigValue" -SplitBy $SplitBy) {
+                            $messageKey = "$ConfigName,$($singleTest.TestName),$singleConfigValue"
+                            if (!$messageKeySet.ContainsKey($messageKey)) {
+                                Write-LogWarn "Pre-defined '<$ConfigName>' of test case '$($singleTest.TestName)'  with value '$($singleTest.SetupConfig.$ConfigName)' does not contains '$singleConfigValue', skip this custom setup for '$($singleTest.TestName)'"
+                                $messageKeySet[$messageKey] = $null
+                            }
+                        }
+                        else {
+                            $clonedTest = ([System.Xml.XmlElement]$singleTest).CloneNode($true)
+                            $clonedTest.SetupConfig.$ConfigName = $singleConfigValue
+                            $null = $clonedTests.Add($clonedTest)
+                        }
+                    }
                 }
-                &$AddSplittedConfigValue -TestArray $clonedTestsArray -ConfigName $ConfigName -ConfigValue $singleConfigValue -Force $Force
-                $clonedTestsArray | Foreach-Object {$updatedTests += $_}
+                &$AddSplittedConfigValue -TestCollections $clonedTests -ConfigName $ConfigName -ConfigValue $singleConfigValue -Force $Force
+                $clonedTests | Foreach-Object {$null = $updatedTests.Add($_)}
                 if ($Force) {
                     Write-LogWarn "Force customized '<$ConfigName>' with value '$singleConfigValue' for all selected Test Cases."
                 }
             }
-            $AllTests.Value = $updatedTests
+            $AllTests.Clear()
+            $AllTests.AddRange($updatedTests)
             # Set-Variable -Name ExpandedSetupConfig -Value $true -Scope Global
         }
         else {
-            &$AddSplittedConfigValue -TestArray $AllTests.Value -ConfigName $ConfigName -ConfigValue $ConfigValue -Force $Force
+            $toBeSkippedTests = [System.Collections.ArrayList]@()
+            foreach ($singleTest in $AllTests) {
+                # If there's pre-defined value in TestXml, let's decide skip or not
+                if ($singleTest.SetupConfig.$ConfigName) {
+                    if ((&$IfNotContains -OriginalConfigValue "$($singleTest.SetupConfig.$ConfigName)" -ToBeCheckedConfigValue "$ConfigValue" -SplitBy $SplitBy) -and !$Force) {
+                        $messageKey = "$ConfigName,$($singleTest.TestName),$ConfigValue"
+                        if (!$messageKeySet.ContainsKey($messageKey)) {
+                            Write-LogWarn "Pre-defined '<$ConfigName>' of test case '$($singleTest.TestName)' with value '$($singleTest.SetupConfig.$ConfigName)' does not contains '$ConfigValue', skip this custom setup for '$($singleTest.TestName)'"
+                            $messageKeySet[$messageKey] = $null
+                        }
+                        $null = $toBeSkippedTests.Add($singleTest)
+                    }
+                    else {
+                        $singleTest.SetupConfig.$ConfigName = $ConfigValue
+                    }
+                }
+            }
+            $toBeSkippedTests | Foreach-Object {$AllTests.RemoveAt($AllTests.IndexOf($_))}
+            &$AddSplittedConfigValue -TestCollections $AllTests -ConfigName $ConfigName -ConfigValue $ConfigValue -Force $Force
             if ($Force) {
                 Write-LogWarn "Force customized '<$ConfigName>' with value '$ConfigValue' for all selected Test Cases."
             }
         }
+    }
+    else {
+        # If no Config Value provided, check self pre-defined value, and expand it as custom setup configurations
+        $toBeSkippedTests = [System.Collections.ArrayList]@()
+        $toBeAddedTests = [System.Collections.ArrayList]@()
+        $messageKeySet = @{}
+        foreach ($singleTest in $AllTests) {
+            # If there's pre-defined value in TestXml, let's expand and apply as custom setup for current TestCase only
+            if ($singleTest.SetupConfig.$ConfigName) {
+                $originalConfigValueArr = @($singleTest.SetupConfig.$ConfigName.Trim("$SplitBy ").Split($SplitBy).Trim()) | Where-Object {!$_.StartsWith("=~")}
+                if ($originalConfigValueArr.Count -gt 1) {
+                    $null = $toBeSkippedTests.Add($singleTest)
+                    foreach ($singleConfigValue in $originalConfigValueArr) {
+                        $clonedTest = ([System.Xml.XmlElement]$singleTest).CloneNode($true)
+                        $clonedTest.SetupConfig.$ConfigName = $singleConfigValue
+                        $null = $toBeAddedTests.Add($clonedTest)
+                    }
+                    $messageKey = "$ConfigName,$($singleTest.TestName),$($singleTest.SetupConfig.$ConfigName)"
+                    if (!$messageKeySet.ContainsKey($messageKey)) {
+                        Write-LogInfo "Pre-defined '<$ConfigName>' of test case '$($singleTest.TestName)' with '$SplitBy' separated value '$($singleTest.SetupConfig.$ConfigName)' has been expanded and applied according to SetupConfig"
+                        $messageKeySet[$messageKey] = $null
+                    }
+                }
+                elseif ($originalConfigValueArr.Count -eq 1) {
+                    $singleTest.SetupConfig.$ConfigName = $originalConfigValueArr.ToString()
+                }
+                elseif ($originalConfigValueArr.Count -eq 0) {
+                    # Keep silent for ConfigName that all starts with '=~', silent with no warning message, and try the $DefaultConfigValue
+                    if (!(&$IfNotContains -OriginalConfigValue "$($singleTest.SetupConfig.$ConfigName)" -ToBeCheckedConfigValue "$DefaultConfigValue" -SplitBy $SplitBy)) {
+                        $singleTest.SetupConfig.$ConfigName = $DefaultConfigValue
+                    }
+                }
+            }
+            elseif ($DefaultConfigValue) {
+                $singleTest.SetupConfig.InnerXml += "<$ConfigName>$DefaultConfigValue</$ConfigName>"
+            }
+        }
+        $toBeSkippedTests | Foreach-Object {$AllTests.RemoveAt($AllTests.IndexOf($_))}
+        $toBeAddedTests | Foreach-Object {$null = $AllTests.Add($_)}
     }
 }
 
@@ -952,7 +1078,7 @@ Function Set-CustomConfigInVMs($CustomKernel, $CustomLIS, $EnableSRIOV, $AllVMDa
 	}
 
 	# Detect Linux Distro
-	if(!$global:detectedDistro) {
+	if (!$global:detectedDistro) {
 		$detectedDistro = Detect-LinuxDistro -VIP $AllVMData[0].PublicIP -SSHport $AllVMData[0].SSHPort `
 			-testVMUser $global:user -testVMPassword $global:password
 	}
@@ -1014,7 +1140,11 @@ Function Detect-LinuxDistro() {
 	$DistroName = Run-LinuxCmd -username $testVMUser -password $testVMPassword -ip $VIP -port $SSHport -command "bash ./DetectLinuxDistro.sh" -runAsSudo
 
 	if (($DistroName -imatch "Unknown") -or (!$DistroName)) {
-		Write-LogErr "Linux distro detected : $DistroName"
+		if ($global:IsWindowsImage) {
+			Write-LogInfo "Running on a Windows VM."
+		} else {
+			Write-LogErr "Linux distro detected : $DistroName"
+		}
 		# Instead of throw, it sets 'Unknown' if it does not exist
 		$CleanedDistroName = "Unknown"
 	} else {
@@ -2298,15 +2428,21 @@ function Collect-GcovData {
 }
 
 Function Restart-VMFromShell($VMData, [switch]$SkipRestartCheck) {
-    Write-LogInfo "Restarting $($VMData.RoleName) from shell..."
-    $Null = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "sleep 2 && reboot" -runAsSudo -RunInBackground
-    Start-Sleep -Seconds 5
-    if ($SkipRestartCheck) {
-        return $true
-    } else {
-        if ((Is-VmAlive -AllVMDataObject $AllVMData) -eq "True") {
+    try {
+        Write-LogInfo "Restarting $($VMData.RoleName) from shell..."
+        $Null = Run-LinuxCmd -ip $VMData.PublicIP -port $VMData.SSHPort -username $user -password $password -command "sleep 2 && reboot" -runAsSudo -RunInBackground
+        Start-Sleep -Seconds 5
+        if ($SkipRestartCheck) {
             return $true
+        } else {
+            if ((Is-VmAlive -AllVMDataObject $VMData) -eq "True") {
+                return $true
+            }
+            return $false
         }
+    }
+    catch {
+        Write-LogErr "Restarting $($VMData.RoleName) from shell failed with exception."
         return $false
     }
 }

@@ -71,24 +71,6 @@ if [ ! "${nicName}" ]; then
 	exit 1
 fi
 
-localaddress=$(hostname -i)
-
-Run_SSHCommand()
-{
-	ips="$1"
-	cmd="$2"
-	IFS=',' read -r -a array <<< "$ips"
-	for ip in "${array[@]}"
-	do
-		LogMsg "Execute ${cmd} on ${ip}"
-		if [[ ${localaddress} = ${ip} ]]; then
-			bash -c "${cmd}"
-		else
-			ssh "${ip}" "${cmd}"
-		fi
-	done
-}
-
 # Make & build ntttcp on client and server Machine
 LogMsg "Configuring client ${client}..."
 Run_SSHCommand "${client}" ". $UTIL_FILE && install_ntttcp ${ntttcpVersion} ${lagscopeVersion}"
@@ -276,7 +258,7 @@ Run_Ntttcp()
 		# Set sysctl config for creating more than 40960 connections
 		core_mem_set_cmd="sysctl -w kernel.pid_max=122880; sysctl -w vm.max_map_count=655300; sysctl -w net.ipv4.ip_local_port_range='1024 65535'"
 		Run_SSHCommand "${client}" "${core_mem_set_cmd}"
-		echo "test_connections,throughput_in_Gbps,cycles/byte,avglatency_in_us,txpackets_sender,rxpackets_sender,pktsInterrupt_sender,concreatedtime_us,retrans_segs" > "${result_file}"
+		echo "test_connections,throughput_in_Gbps,cycles/byte_sender,cycles/byte_receiver,avglatency_in_us,txpackets_sender,rxpackets_sender,pktsInterrupt_sender,concreatedtime_us,retrans_segs" > "${result_file}"
 	fi
 
 	IFS=',' read -r -a array <<< "$client"
@@ -391,6 +373,8 @@ Run_Ntttcp()
 		rxpackets_sender_value=0.0
 		pktsInterrupt_sender_value=0.0
 		avg_latency_value=0.0
+		retrans_segs_value=0.0
+		concreatedtime_us_value=0.0
 		for tx_ntttcp_log_file in "${tx_ntttcp_log_files[@]}";
 		do
 			tx_throughput=$(Get_Throughput "$tx_ntttcp_log_file")
@@ -404,11 +388,15 @@ Run_Ntttcp()
 			pktsInterrupt_sender=$(Get_PktsInterrupts "$tx_ntttcp_log_file")
 			pktsInterrupt_sender_value=$(echo "$pktsInterrupt_sender + $pktsInterrupt_sender_value" | ${bc_cmd})
 			concreatedtime_us=$(Get_ConCreatedTime "$tx_ntttcp_log_file")
+			concreatedtime_us_value=$(echo "$concreatedtime_us + $concreatedtime_us_value" | ${bc_cmd})
 			retrans_segs=$(Get_RetransSegs "$tx_ntttcp_log_file")
+			retrans_segs_value=$(echo "$retrans_segs + $retrans_segs_value" | ${bc_cmd})
 		done
 		tx_throughput=$tx_throughput_value
 		rx_throughput=$(Get_Throughput "$rx_ntttcp_log_file")
 		tx_cyclesperbytes=$tx_cyclesperbytes_value
+		retrans_segs=$retrans_segs_value
+		concreatedtime_us=$(echo "$concreatedtime_us_value/${#tx_ntttcp_log_files[@]}" | bc)
 		for tx_lagscope_log_file in "${tx_lagscope_log_files[@]}";
 		do
 			avg_latency=$(Get_Average_Latency "$tx_lagscope_log_file")
@@ -446,7 +434,7 @@ Run_Ntttcp()
 			echo "$current_test_threads,$tx_throughput,$rx_throughput,$data_loss" >> "${result_file}"
 		else
 			testType="tcp"
-			echo "$current_test_threads,$tx_throughput,$tx_cyclesperbytes,$avg_latency,$txpackets_sender,$rxpackets_sender,$pktsInterrupt_sender,$concreatedtime_us,$retrans_segs" >> "${result_file}"
+			echo "$current_test_threads,$tx_throughput,$tx_cyclesperbytes,$rx_cyclesperbytes,$avg_latency,$txpackets_sender,$rxpackets_sender,$pktsInterrupt_sender,$concreatedtime_us,$retrans_segs" >> "${result_file}"
 		fi
 		LogMsg "current test finished. wait for next one... "
 		i=$(($i + 1))

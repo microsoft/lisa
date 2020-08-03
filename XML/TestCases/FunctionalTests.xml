@@ -188,9 +188,6 @@
 	<testName>TIME-CLOCKEVENT-UP</testName>
 	<testScript>TIME-CLOCKEVENT.sh</testScript>
 	<files>.\TestScripts\Linux\TIME-CLOCKEVENT.sh,.\TestScripts\Linux\utils.sh</files>
-	<TestParameters>
-	<param>VCPU=1</param>
-	</TestParameters>
 	<Platform>Azure,HyperV</Platform>
 	<Category>Functional</Category>
 	<Area>CORE</Area>
@@ -204,9 +201,6 @@
 	<testName>TIME-CLOCKEVENT-SMP</testName>
 	<testScript>TIME-CLOCKEVENT.sh</testScript>
 	<files>.\TestScripts\Linux\TIME-CLOCKEVENT.sh,.\TestScripts\Linux\utils.sh</files>
-	<TestParameters>
-	<param>VCPU=8</param>
-	</TestParameters>
 	<Platform>Azure,HyperV</Platform>
 	<Category>Functional</Category>
 	<Area>CORE</Area>
@@ -702,7 +696,6 @@
 	<SetupConfig>
 	<SetupType>OneVM</SetupType>
 	<SetupScript>.\TestScripts\Windows\SETUP-Config-VM.ps1</SetupScript>
-	<ARMImageName>Redhat RHEL 7.7 Latest</ARMImageName>
 	</SetupConfig>
 </test>
 <test>
@@ -966,6 +959,23 @@
 	<Priority>0</Priority>
 	<SetupConfig>
 	<SetupType>OneVM</SetupType>
+	</SetupConfig>
+</test>
+<test>
+	<testName>VERIFY-UIO-DRIVER</testName>
+	<testScript>verify_uio_driver.sh</testScript>
+	<files>.\Testscripts\Linux\verify_uio_driver.sh,.\Testscripts\Linux\utils.sh</files>
+	<TestParameters>
+	<param>NIC_1=NetworkAdapter,None,InvalidNIC</param>
+	</TestParameters>
+	<Platform>Azure,HyperV</Platform>
+	<Category>Functional</Category>
+	<Area>CORE</Area>
+	<Tags>uio,network</Tags>
+	<Priority>2</Priority>
+	<SetupConfig>
+	<SetupType>OneVM2NIC</SetupType>
+	<setupScript>.\Testscripts\Windows\SETUP-NET-Add-NIC.ps1</setupScript>
 	</SetupConfig>
 </test>
 </TestCases>

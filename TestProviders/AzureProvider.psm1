@@ -54,9 +54,8 @@ Class AzureProvider : TestProvider
 			}
 			if (!$allVMData) {
 				$isAllDeployed = Invoke-AllResourceGroupDeployments -SetupTypeData $SetupTypeData -CurrentTestData $TestCaseData -RGIdentifier $RGIdentifier `
-					-TestLocation $TestCaseData.SetupConfig.TestLocation -GlobalConfig $GlobalConfig -TipSessionId $this.TipSessionId -TipCluster $this.TipCluster `
-					-UseExistingRG $UseExistingRG -ResourceCleanup $ResourceCleanup -PlatformFaultDomainCount $this.PlatformFaultDomainCount `
-					-PlatformUpdateDomainCount $this.PlatformUpdateDomainCount -EnableNSG $this.EnableNSG
+					-TestLocation $TestCaseData.SetupConfig.TestLocation -GlobalConfig $GlobalConfig `
+					-UseExistingRG $UseExistingRG -ResourceCleanup $ResourceCleanup -EnableNSG $this.EnableNSG
 
 				if ($isAllDeployed[0] -eq "True") {
 					$deployedGroups = $isAllDeployed[1]

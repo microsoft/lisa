@@ -1,0 +1,19 @@
+<TestCases>
+  <test>
+    <testName>TVM-TEST-SECUREBOOT-COMPATIBILITY</testName>
+    <testScript>TVM-TestSecureBootCompatibility.sh</testScript>
+    <files>.\Testscripts\Linux\TVM-TestSecureBootCompatibility.sh,.\Testscripts\Linux\utils.sh,.\Tools\sbinfo</files>
+    <Platform>Azure</Platform>
+    <Category>Functional</Category>
+    <Area>TVM</Area>
+    <Tags>secureboot</Tags>
+    <Priority>1</Priority>
+    <SetupConfig>
+      <TestLocation>eastus2euap</TestLocation>
+      <SetupType>OneVM</SetupType>
+      <OverrideVMSize>Standard_D2s_v3</OverrideVMSize>
+      <VMGeneration>2</VMGeneration>
+      <ARMImageName>Canonical 0003-com-ubuntu-server-trusted-vm 18_04-gen2 latest,RedHat RHEL 78-gen2 latest,RedHat RHEL 82gen2 latest,OpenLogic CentOS 7_8-gen2 latest,OpenLogic CentOS 8_2-gen2 latest</ARMImageName>
+    </SetupConfig>
+  </test>
+</TestCases>

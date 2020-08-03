@@ -1963,21 +1963,48 @@ function get_host_version() {
 
 # Validate the exit status of previous execution
 function check_exit_status() {
+	# The failed/aborted options are used when Linux script is the testscript,
+	# to check the checkpoint and set test result.
 	exit_status=$?
 	message=$1
+	test_state=$2
 
 	cmd="echo"
 	if [ $exit_status -ne 0 ]; then
 		$cmd "$message: Failed (exit code: $exit_status)"
 		UpdateSummary "$message Failed·(exit·code:·$exit_status)"
-		if [ "$2" == "exit" ]; then
-			SetTestStateAborted
-			exit $exit_status
-		fi
+		case "${test_state}" in
+			failed)
+				SetTestStateFailed
+				exit 0
+				;;
+			aborted)
+				SetTestStateAborted
+				exit 0
+				;;
+			exit)
+				SetTestStateAborted
+				exit $exit_status
+				;;
+			*)
+				LogWarn "Unsupported check_exit_status option: ${test_state}"
+				;;
+		esac
 	else
 		$cmd "$message: Success"
 		UpdateSummary "$message: Success"
 	fi
+}
+
+# Validate the previous command exit code is 0
+function VerifyExitCodeZero() {
+	check_exit_status "$1" "failed" "$2"
+}
+
+# Validate the previous command exit code is not 0
+function VerifyExitCodeNotZero() {
+	[ $? -ne 0 ]
+	check_exit_status "$1" "failed" "$2"
 }
 
 # Detect the version of Linux distribution, it gets the version only
@@ -2258,9 +2285,15 @@ function add_sles_benchmark_repo () {
 	source /etc/os-release
 	IFS='- ' read -r -a array <<< "$VERSION"
 	repo_url="https://download.opensuse.org/repositories/benchmark/SLE_${array[0]}_${array[1]}/benchmark.repo"
-	LogMsg "add_sles_benchmark_repo - $repo_url"
-	zypper addrepo $repo_url
-	zypper --no-gpg-checks refresh
+	wget $repo_url -O /dev/null -o /dev/null
+	# if no judgement for repo url not existing, the script will hung when execute zypper --no-gpg-checks refresh
+	if [ $? -eq 0 ]; then
+		LogMsg "add_sles_benchmark_repo - $repo_url"
+		zypper addrepo $repo_url
+		zypper --no-gpg-checks refresh
+	else
+		LogMsg "$repo_url doesn't exist"
+	fi
 	return 0
 }
 
@@ -2623,6 +2656,80 @@ function install_ntttcp () {
 	else
 		which ntttcp
 	fi
+	if [ $? -ne 0 ]; then
+		return 1
+	fi
+}
+
+# Install apache and required packages
+function install_apache () {
+	LogMsg "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of apache"
+	update_repos
+	case "$DISTRO_NAME" in
+		oracle|rhel|centos)
+			install_epel
+			yum clean dbcache
+			yum -y --nogpgcheck install sysstat zip httpd httpd-tools dstat
+			;;
+
+		ubuntu|debian)
+			dpkg_configure
+			install_package "libaio1 sysstat zip apache2 apache2-utils dstat"
+			;;
+
+		sles|suse)
+			if [[ $DISTRO_VERSION =~ 12|15 ]]; then
+				add_sles_network_utilities_repo
+				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install libaio1 dstat sysstat zip apache2 apache2-utils
+			else
+				LogErr "Unsupported SLES version"
+				return 1
+			fi
+			;;
+
+		*)
+			LogErr "Unsupported distribution for install_apache"
+			return 1
+	esac
+	if [ $? -ne 0 ]; then
+		return 1
+	fi
+}
+
+# Install memcached and required packages
+function install_memcached () {
+	LogMsg "Detected $DISTRO_NAME $DISTRO_VERSION; installing required packages of memcached"
+	update_repos
+	case "$DISTRO_NAME" in
+		oracle|rhel|centos)
+			install_epel
+			yum clean dbcache
+			yum -y --nogpgcheck install git sysstat zip memcached libmemcached dstat openssl-devel autoconf automake \
+			make gcc-c++ pcre-devel libevent-devel pkgconfig zlib-devel
+			export PATH=$PATH:/usr/local/bin
+			;;
+
+		ubuntu|debian)
+			dpkg_configure
+			install_package "git libaio1 sysstat zip memcached libmemcached-tools libssl-dev build-essential autoconf automake libpcre3-dev libevent-dev pkg-config zlib1g-dev"
+			;;
+
+		sles|suse)
+			if [[ $DISTRO_VERSION =~ 12|15 ]]; then
+				add_sles_network_utilities_repo
+				zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install git libaio1 dstat sysstat zip \
+				memcached libmemcached openssl-devel autoconf automake pcre-devel libevent-devel pkg-config zlib-devel \
+				make gcc-c++
+			else
+				LogErr "Unsupported SLES version"
+				return 1
+			fi
+			;;
+
+		*)
+			LogErr "Unsupported distribution for install_memcached"
+			return 1
+	esac
 	if [ $? -ne 0 ]; then
 		return 1
 	fi
@@ -3495,5 +3602,24 @@ function get_vf_name() {
 			echo "${vf_if}"
 		fi
 	done
+}
 
+# Run ssh command
+# $1 == ips
+# $2 == command
+function Run_SSHCommand()
+{
+	ips=${1}
+	cmd=${2}
+	localaddress=$(hostname -i)
+	IFS=',' read -r -a array <<< "$ips"
+	for ip in "${array[@]}"
+	do
+		LogMsg "Execute ${cmd} on ${ip}"
+		if [[ ${localaddress} = ${ip} ]]; then
+			bash -c "${cmd}"
+		else
+			ssh "${ip}" "${cmd}"
+		fi
+	done
 }

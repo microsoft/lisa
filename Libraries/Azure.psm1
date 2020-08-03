@@ -118,9 +118,6 @@ Function Assert-DeploymentLimitation($RGXMLData, [ref]$TargetLocation, $CurrentT
 		return $networkErrors
 	}
 
-	if ($CurrentTestData.SetupConfig.TiPSessionId -and $CurrentTestData.SetupConfig.TiPCluster) {
-		return $true
-	}
 	$VMGeneration = $CurrentTestData.SetupConfig.VMGeneration
 	$OsVHD = $CurrentTestData.SetupConfig.OsVHD
 	$overFlowErrors = 0
@@ -412,7 +409,7 @@ Function PrepareAutoCompleteStorageAccounts ($storageAccountsRGName, $XMLSecretF
 	}
 }
 
-Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $RGIdentifier, [string]$TestLocation, $GlobalConfig, $TiPSessionId, $TipCluster, $UseExistingRG, $ResourceCleanup, $PlatformFaultDomainCount, $PlatformUpdateDomainCount, [boolean]$EnableNSG = $false) {
+Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $RGIdentifier, [string]$TestLocation, $GlobalConfig, $UseExistingRG, $ResourceCleanup, [boolean]$EnableNSG = $false) {
 	Function GenerateAzDeploymentJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, $Location, $azuredeployJSONFilePath, $StorageAccountName) {
 		#Random Data
 		$RGrandomWord = ([System.IO.Path]::GetRandomFileName() -replace '[^a-z]')
@@ -426,13 +423,25 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 			$DiskType = "Unmanaged"
 		}
 
+		if (!$global:password -and !$global:sshPrivateKey) {
+			Throw "Please set sshPrivateKey or linuxTestPassword."
+		}
 		$UseSpecializedImage = $CurrentTestData.SetupConfig.ImageType -contains "Specialized"
 		$IsWindowsOS = $CurrentTestData.SetupConfig.OSType -contains "Windows"
 		if ($IsWindowsOS) {
 			$OSType = "Windows"
+			if (!$global:password) {
+				Throw "Please provide password when provision a Windows VM."
+			}
+			Write-LogDbg "Windows OS, use password authentication, reset Key into empty."
+			$global:sshPrivateKey = ""
 		}
 		else {
 			$OSType = "Linux"
+			if ($global:sshPrivateKey) {
+				Write-LogDbg "Linux OS, use SSH key authentication, reset password into empty."
+				$global:password = ""
+			}
 		}
 		if ( $CurrentTestData.SetupConfig.OSDiskType -eq "Ephemeral" ) {
 			if ( $UseManagedDisks ) {
@@ -669,30 +678,22 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 				Add-Content -Value "$($indents[4])^name^: ^Aligned^" -Path $jsonFile
 				Add-Content -Value "$($indents[3])}," -Path $jsonFile
 			}
-			if ( $TiPSessionId -and $TiPCluster) {
+			if ($CurrentTestData.SetupConfig.TiPSessionId) {
 				Add-Content -Value "$($indents[3])^tags^:" -Path $jsonFile
 				Add-Content -Value "$($indents[3]){" -Path $jsonFile
-				Add-Content -Value "$($indents[4])^TipNode.SessionId^: ^$TiPSessionId^" -Path $jsonFile
+				Add-Content -Value "$($indents[4])^TipNode.SessionId^: ^$($CurrentTestData.SetupConfig.TiPSessionId)^" -Path $jsonFile
 				Add-Content -Value "$($indents[3])}," -Path $jsonFile
 			}
 
-			$faultDomainCount = 2
-			$updateDomainCount = 5
-			if ($PlatformFaultDomainCount) {
-				$faultDomainCount = $PlatformFaultDomainCount
-			}
-			if ($PlatformUpdateDomainCount) {
-				$updateDomainCount = $PlatformUpdateDomainCount
-			}
 			Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
 			Add-Content -Value "$($indents[3]){" -Path $jsonFile
-			Add-Content -Value "$($indents[4])^platformFaultDomainCount^:$faultDomainCount," -Path $jsonFile
-			Add-Content -Value "$($indents[4])^platformUpdateDomainCount^:$updateDomainCount" -Path $jsonFile
-			if ( $TiPSessionId -and $TiPCluster) {
+			Add-Content -Value "$($indents[4])^platformFaultDomainCount^:$($CurrentTestData.SetupConfig.PlatformFaultDomainCount)," -Path $jsonFile
+			Add-Content -Value "$($indents[4])^platformUpdateDomainCount^:$($CurrentTestData.SetupConfig.PlatformUpdateDomainCount)" -Path $jsonFile
+			if ($CurrentTestData.SetupConfig.TiPCluster) {
 				Add-Content -Value "$($indents[4])," -Path $jsonFile
 				Add-Content -Value "$($indents[4])^internalData^:" -Path $jsonFile
 				Add-Content -Value "$($indents[4]){" -Path $jsonFile
-				Add-Content -Value "$($indents[5])^pinnedFabricCluster^ : ^$TiPCluster^" -Path $jsonFile
+				Add-Content -Value "$($indents[5])^pinnedFabricCluster^ : ^$($CurrentTestData.SetupConfig.TiPCluster)^" -Path $jsonFile
 				Add-Content -Value "$($indents[4])}" -Path $jsonFile
 			}
 			Add-Content -Value "$($indents[3])}" -Path $jsonFile
@@ -1637,6 +1638,9 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 		$validateStartTime = Get-Date
 		Write-LogInfo "Checking the subscription usage..."
 		$readyToDeploy = $false
+		if ($CurrentTestData.SetupConfig.TiPSessionId -and $CurrentTestData.SetupConfig.TiPCluster -and $CurrentTestData.SetupConfig.TestLocation) {
+			$readyToDeploy = $true
+		}
 		$coreCountExceededTimeout = 3600
 		while (!$readyToDeploy) {
 			$readyToDeploy = Assert-DeploymentLimitation -RGXMLData $RG -TargetLocation ([ref]$location) -CurrentTestData $CurrentTestData
@@ -2612,7 +2616,9 @@ Function Add-DefaultTagsToResourceGroup {
 		}
 		Add-ResourceGroupTag -ResourceGroup $ResourceGroup -TagName BuildURL -TagValue $BuildURLTag
 		# Add test name.
-		Add-ResourceGroupTag -ResourceGroup $ResourceGroup -TagName TestName -TagValue $currentTestData.testName
+		if ($currentTestData.testName) {
+			Add-ResourceGroupTag -ResourceGroup $ResourceGroup -TagName TestName -TagValue $currentTestData.testName
+		}
 		# Add LISAv2 launch machine name.
 		Add-ResourceGroupTag -ResourceGroup $ResourceGroup -TagName BuildMachine -TagValue "$env:UserDomain\$env:ComputerName"
 		# Add date-time.
