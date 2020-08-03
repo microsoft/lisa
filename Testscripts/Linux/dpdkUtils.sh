@@ -307,19 +307,19 @@ function Install_Dpdk () {
 	LogMsg "MLX_PMD flag enabling on ${1}"
 	if type Dpdk_Configure > /dev/null; then
 		echo "Calling testcase provided Dpdk_Configure(1) on ${1}"
-		ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && make config T=x86_64-native-linuxapp-gcc"
+		ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && make config T=x86_64-native-linuxapp-gcc MAKE_PAUSE=n"
 		ssh ${1} "sed -ri 's,(MLX._PMD=)n,\1y,' ${LIS_HOME}/${DPDK_DIR}/build/.config"
 		# shellcheck disable=SC2034
 		ssh ${1} ". constants.sh; . utils.sh; . dpdkUtils.sh; cd ${LIS_HOME}/${DPDK_DIR}; $(typeset -f Dpdk_Configure); DPDK_DIR=${DPDK_DIR} LIS_HOME=${LIS_HOME} Dpdk_Configure ${1}"
-		ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && make -j && make install"
+		ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && make -j MAKE_PAUSE=n && make install MAKE_PAUSE=n"
 		check_exit_status "dpdk build on ${1}" "exit"
 	else
 		ssh "${1}" "sed -i 's/^CONFIG_RTE_LIBRTE_MLX4_PMD=n/CONFIG_RTE_LIBRTE_MLX4_PMD=y/g' $RTE_SDK/config/common_base"
 		check_exit_status "${1} CONFIG_RTE_LIBRTE_MLX4_PMD=y" "exit"
 		ssh "${1}" "sed -i 's/^CONFIG_RTE_LIBRTE_MLX5_PMD=n/CONFIG_RTE_LIBRTE_MLX5_PMD=y/g' $RTE_SDK/config/common_base"
 		check_exit_status "${1} CONFIG_RTE_LIBRTE_MLX5_PMD=y" "exit"
-		ssh "${1}" "cd $RTE_SDK && make config O=$RTE_TARGET T=$RTE_TARGET"
-		ssh "${1}" "cd $RTE_SDK/$RTE_TARGET && make -j 2>&1 && make install 2>&1"
+		ssh "${1}" "cd $RTE_SDK && make config O=$RTE_TARGET T=$RTE_TARGET MAKE_PAUSE=n"
+		ssh "${1}" "cd $RTE_SDK/$RTE_TARGET && make -j MAKE_PAUSE=n 2>&1 && make install MAKE_PAUSE=n 2>&1"
 		check_exit_status "dpdk build on ${1}" "exit"
 	fi
 
