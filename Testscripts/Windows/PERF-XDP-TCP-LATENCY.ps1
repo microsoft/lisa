@@ -40,16 +40,17 @@ function Compare_Result {
     $avgLatency = 'default'
     $avgLatencyXDP = 'default'
     try {
-        $matchLine= (Select-String -Path $beforeDirPath -Pattern "Average").Line
-        $avgLatency = $matchLine.Split(",").Split("=").Trim().Replace("us","")[5]
-        $avgLatency = $avgLatency/1
-        $matchLineXDP= (Select-String -Path $afterDirPath -Pattern "Average").Line
-        $avgLatencyXDP = $matchLineXDP.Split(",").Split("=").Trim().Replace("us","")[5]
-        $avgLatencyXDP = $avgLatencyXDP/1
+        $matchLine = (Select-String -Path $beforeDirPath -Pattern "Average").Line
+        $avgLatency = $matchLine.Split(",").Split("=").Trim().Replace("us", "")[5]
+        $avgLatency = $avgLatency / 1
+        $matchLineXDP = (Select-String -Path $afterDirPath -Pattern "Average").Line
+        $avgLatencyXDP = $matchLineXDP.Split(",").Split("=").Trim().Replace("us", "")[5]
+        $avgLatencyXDP = $avgLatencyXDP / 1
 
         $currentTestResult.TestSummary += New-ResultSummary -testResult $avgLatency -metaData "Without XDP Average Latency" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
         $currentTestResult.TestSummary += New-ResultSummary -testResult $avgLatencyXDP -metaData "With XDP Average Latency" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
-    } catch {
+    }
+    catch {
         $currentTestResult.TestSummary += New-ResultSummary -testResult "Error in parsing logs." -metaData "LAGSCOPE" -checkValues "PASS,FAIL,ABORTED" -testName $currentTestData.testName
     }
     $thresholdLatency = $avgLatency * $thresholdValue
@@ -57,7 +58,8 @@ function Compare_Result {
     if ($avgLatencyXDP -gt $thresholdLatency) {
         Write-LogErr "Average Latency with XDP $avgLatencyXDP is greater than threshold $thresholdLatency"
         return $false
-    } else {
+    }
+    else {
         return $true
     }
 }
@@ -70,7 +72,8 @@ function Main {
             if ($vmData.RoleName -imatch "receiver") {
                 $receiverVMData = $vmData
                 $noReceiver = $false
-            } elseif ($vmData.RoleName -imatch "sender") {
+            }
+            elseif ($vmData.RoleName -imatch "sender") {
                 $noSender = $false
                 $senderVMData = $vmData
             }
@@ -162,31 +165,38 @@ collect_VM_properties
             if (Compare_Result $ResultDir $ResultDirXDP) {
                 Write-LogInfo "Test Completed"
                 $testResult = "PASS"
-            } else {
+            }
+            else {
                 Write-LogErr "Test failed. Lantency result below threshold."
                 $testResult = "FAIL"
             }
-        }   elseif ($currentState -imatch "TestAborted") {
+        }
+        elseif ($currentState -imatch "TestAborted") {
             Write-LogErr "Test Aborted. Last known status: $currentStatus."
             $testResult = "ABORTED"
-        }   elseif ($currentState -imatch "TestSkipped") {
+        }
+        elseif ($currentState -imatch "TestSkipped") {
             Write-LogErr "Test Skipped. Last known status: $currentStatus"
             $testResult = "SKIPPED"
-        }   elseif ($currentState -imatch "TestFailed") {
+        }
+        elseif ($currentState -imatch "TestFailed") {
             Write-LogErr "Test failed. Last known status: $currentStatus."
             $testResult = "FAIL"
-        }   else {
+        }
+        else {
             Write-LogErr "Test execution is not successful, check test logs in VM."
             $testResult = "ABORTED"
         }
         Copy-RemoteFiles -downloadFrom $receiverVMData.PublicIP -port $receiverVMData.SSHPort `
             -username $user -password $password -download `
             -downloadTo $LogDir -files "*.txt, *.log" -runAsSudo
-    } catch {
+    }
+    catch {
         $ErrorMessage = $_.Exception.Message
         $ErrorLine = $_.InvocationInfo.ScriptLineNumber
         Write-LogErr "EXCEPTION : $ErrorMessage at line: $ErrorLine"
-    } finally {
+    }
+    finally {
         if (!$testResult) {
             $testResult = "ABORTED"
         }
