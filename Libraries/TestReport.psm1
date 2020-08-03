@@ -286,21 +286,28 @@ Class TestSummary
 		$this.TestPriority = $TestPriority
 	}
 
-	[string] GetPlainTextSummary ()
+	[string] GetPlainTextSummary ($OSVHD, $ARMImageName, $OverrideVMSize)
 	{
 		$testDuration= [Datetime]::Now.ToUniversalTime() - $this.TestStartTime
 		$durationStr=$testDuration.Days.ToString() + ":" +  $testDuration.hours.ToString() + ":" + $testDuration.minutes.ToString()
 		$str = "`r`n[LISAv2 Test Results Summary]`r`n"
 		$str += "Test Run On           : " + $this.TestStartTime
-		if ( $global:BaseOSVHD ) {
-			$str += "`r`nVHD Under Test        : " + $global:BaseOSVHD
+		if ($OSVHD) {
+			$str += "`r`nVHD Under Test        : " + $OSVHD
 		}
-		if ($global:ARMImageName) {
-			$imageInfo = $global:ARMImageName.Split(' ')
-			$str += "`r`nARM Image Under Test  : " + "$($imageInfo[0]) : $($imageInfo[1]) : $($imageInfo[2]) : $($imageInfo[3])"
+		# This is 'ARMImageName' from Controller
+		if ($ARMImageName) {
+			$armImageNameArr = @($ARMImageName.Trim(", ").Split(',').Trim())
+			$armImageNameArr | ForEach-Object {
+				$imageInfo = $_.Split(' ')
+				$str += "`r`nARM Image Under Test  : " + "$($imageInfo[0]) : $($imageInfo[1]) : $($imageInfo[2]) : $($imageInfo[3])"
+			}
 		}
-		if ($global:OverrideVMSize) {
-			$str += "`r`nOverride VM size      : " + "$($global:OverrideVMSize)"
+		if ($OverrideVMSize) {
+			$overrideVMSizeArr = @($OverrideVMSize.Trim(", ").Split(',').Trim())
+			$overrideVMSizeArr | ForEach-Object {
+				$str += "`r`nOverride VM size Under Test  : " + "$_"
+			}
 		}
 		if ($this.TestCategory) {
 			$str += "`r`nTest Category         : $($this.TestCategory)"
@@ -314,12 +321,7 @@ Class TestSummary
 		if ($this.TestPriority) {
 			$str += "`r`nTest Priority         : $($this.TestPriority)"
 		}
-		if ($global:InitialKernelVersion) {
-			$str += "`r`nInitial Kernel Version: " + $global:InitialKernelVersion
-		}
-		if ($global:FinalKernelVersion) {
-			$str += "`r`nFinal Kernel Version  : " + $global:FinalKernelVersion
-		}
+
 		$str += "`r`nTotal Test Cases      : " + $this.TotalTc + " (" + $this.TotalPassTc + " Passed, " + `
 			$this.TotalFailTc + " Failed, " + $this.TotalAbortedTc + " Aborted, " + $this.TotalSkippedTc + " Skipped)"
 		$str += "`r`nTotal Time (dd:hh:mm) : $durationStr`r`n`r`n"
@@ -358,10 +360,6 @@ Class TestSummary
 		}
 		if ( $global:BaseOSVHD ) {
 			$strHtml += "<TR><TD class=`"bg3`" colspan=`"2`">VHD under test - $global:BaseOSVHD</TD></TR>"
-		}
-		if ( $global:ARMImageName ) {
-			$imageInfo = $global:ARMImageName.Split(' ')
-			$strHtml += "<TR><TD class=`"bg3`" colspan=`"2`">ARM Image under test - $($imageInfo[0]) : $($imageInfo[1]) : $($imageInfo[2]) : $($imageInfo[3])</TD></TR>"
 		}
 		if ($this.TestCategory) {
 			$strHtml += "<TR><TD class=`"bg3`" colspan=`"2`">Test Category - $($this.TestCategory)</TD></TR>"
@@ -403,21 +401,42 @@ Class TestSummary
 
 	[void] UpdateTestSummaryForCase([object]$TestData, [int]$ExecutionCount, [string]$TestResult, [string]$Duration, [string]$TestSummary, [object]$AllVMData)
 	{
+		$GetKernelInfoForTestCase = {
+			$kernalInfoStr = ""
+			if ($global:InitialKernelVersion -and $global:FinalKernelVersion) {
+				if ($global:InitialKernelVersion -ne $global:FinalKernelVersion) {
+					$kernalInfoStr += "Kernel Version: " + $global:InitialKernelVersion + " -> " + $global:FinalKernelVersion
+				}
+				else {
+					$kernalInfoStr += "Kernel Version: " + $global:InitialKernelVersion
+				}
+			}
+			elseif ($global:InitialKernelVersion) {
+				$kernalInfoStr += "Initial Kernel Version: " + $global:InitialKernelVersion
+			}
+			elseif ($global:FinalKernelVersion) {
+				$kernalInfoStr += "Final Kernel Version: " + $global:FinalKernelVersion
+			}
+			return $kernalInfoStr
+		}
 		if ( $this.AddHeader ) {
-			$this.TextSummary += "{0,5} {1, -20} {2,-65} {3,20} {4,20} `r`n" -f "ID", "TestArea", "TestCaseName", "TestResult", "TestDuration(in minutes)"
+			$this.TextSummary += "{0,5} {1,-20} {2,-65} {3,20} {4,20} `r`n" -f "ID", "TestArea", "TestCaseName", "TestResult", "TestDuration(in minutes)"
 			$this.TextSummary += "-------------------------------------------------------------------------------------------------------------------------------------------`r`n"
 			$this.AddHeader = $false
 		}
-		$this.TextSummary += "{0,5} {1, -20} {2,-65} {3,20} {4,20} `r`n" -f "$ExecutionCount", "$($TestData.Area)", "$($TestData.testName)", "$TestResult", "$Duration"
-		if ( $TestSummary ) {
-			$this.TextSummary += "$TestSummary"
+		$this.TextSummary += "{0,5} {1,-20} {2,-65} {3,20} {4,20} `r`n" -f "$ExecutionCount", "$($TestData.Area)", "$($TestData.testName)", "$TestResult", "$Duration"
+		$this.TextSummary += "{0, 5} $(ConvertFrom-SetupConfig -SetupConfig $TestData.SetupConfig), $(&$GetKernelInfoForTestCase)`r`n" -f " "
+		if ($TestSummary) {
+			@($TestSummary.Split([string[]]"<br />", [StringSplitOptions]::None).Trim()) | ForEach-Object {
+				$this.TextSummary += "{0, 5} $_`r`n" -f " "
+			}
 		}
 		if ($TestSummary) {
-			$testSummaryLinePassSkip = "<tr><td>$ExecutionCount</td><td>$($TestData.Area)</td><td>$($TestData.testName)<br><br><font size=`"1`">$($TestSummary)</font></td><td>$Duration min</td><td>" + '{0}' + "</td></tr>"
-			$testSummaryLineFailAbort = "<tr><td>$ExecutionCount</td><td>$($TestData.Area)</td><td>$($TestData.testName)<br><br><font size=`"1`">$($TestSummary)</font>$($this.GetReproVMDetails($AllVMData))</td><td>$Duration min</td><td>" + '{0}' + "</td></tr>"
+			$testSummaryLinePassSkip = "<tr><td>$ExecutionCount</td><td>Test Area:<br><font size=`"1`">&nbsp;&nbsp;$($TestData.Area)</font><br>Test Setup Configuration:<br><font size=`"1`">$(ConvertFrom-SetupConfig -SetupConfig $TestData.SetupConfig -WrappingLines)</font></td><td>$($TestData.testName)<br><br><font size=`"1`">$($TestSummary)</font></td><td>$Duration min</td><td>" + '{0}' + "</td></tr>"
+			$testSummaryLineFailAbort = "<tr><td>$ExecutionCount</td><td>Test Area:<br><font size=`"1`">&nbsp;&nbsp;$($TestData.Area)</font><br>Test Setup Configuration:<br><font size=`"1`">$(ConvertFrom-SetupConfig -SetupConfig $TestData.SetupConfig -WrappingLines)</font></td><td>$($TestData.testName)<br><br><font size=`"1`">$($TestSummary)</font>$($this.GetReproVMDetails($AllVMData))</td><td>$Duration min</td><td>" + '{0}' + "</td></tr>"
 		} else {
-			$testSummaryLinePassSkip = "<tr><td>$ExecutionCount</td><td>$($TestData.Area)</td><td>$($TestData.testName)</td><td>$Duration min</td><td>" + '{0}' + "</td></tr>"
-			$testSummaryLineFailAbort = "<tr><td>$ExecutionCount</td><td>$($TestData.Area)</td><td>$($TestData.testName)$($this.GetReproVMDetails($AllVMData))</td><td>$Duration min</td><td>" + '{0}' + "</td></tr>"
+			$testSummaryLinePassSkip = "<tr><td>$ExecutionCount</td><td>Test Area:<br><font size=`"1`">&nbsp;&nbsp;$($TestData.Area)</font><br>Test Setup Configuration:<br><font size=`"1`">$(ConvertFrom-SetupConfig -SetupConfig $TestData.SetupConfig -WrappingLines)</font></td><td>$($TestData.testName)</td><td>$Duration min</td><td>" + '{0}' + "</td></tr>"
+			$testSummaryLineFailAbort = "<tr><td>$ExecutionCount</td><td>Test Area:<br><font size=`"1`">&nbsp;&nbsp;$($TestData.Area)</font><br>Test Setup Configuration:<br><font size=`"1`">$(ConvertFrom-SetupConfig -SetupConfig $TestData.SetupConfig -WrappingLines)</font></td><td>$($TestData.testName)$($this.GetReproVMDetails($AllVMData))</td><td>$Duration min</td><td>" + '{0}' + "</td></tr>"
 		}
 		if ($TestResult -imatch $global:ResultPass) {
 			$this.TotalPassTc += 1
@@ -441,7 +460,7 @@ Class TestSummary
 			$testResultRow = "<span style='background-color:yellow;font-weight:bolder'>$($global:ResultAborted)</span>"
 			$this.HtmlSummary += $testSummaryLineFailAbort -f @($testResultRow)
 		}
-		Write-LogInfo "End of testing: $($TestData.testName) , result: $(if ($TestResult) {$TestResult} else {$global:ResultAborted})"
+		Write-LogInfo "End of testing: $($TestData.testName) with SetupConfig: { $(ConvertFrom-SetupConfig -SetupConfig $TestData.SetupConfig) }, result: $(if ($TestResult) {$TestResult} else {$global:ResultAborted})"
 		Write-LogInfo "$($global:ResultPass)    - $($this.TotalPassTc)"
 		Write-LogInfo "$($global:ResultSkipped) - $($this.TotalSkippedTc)"
 		Write-LogInfo "$($global:ResultFail)    - $($this.TotalFailTc)"

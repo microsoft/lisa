@@ -72,6 +72,7 @@ Param(
 	[string] $TestTag = "",
 	[string] $TestNames="",
 	[string] $TestPriority="",
+	[string] $TestSetup="",
 
 	# [Optional] Exclude the tests from being executed. (Comma separated values)
 	[string] $ExcludeTests = "",
@@ -118,7 +119,9 @@ Param(
 	[string] $ResultDBTable = "",
 	[string] $ResultDBTestTag = "",
 
-	[switch] $ExitWithZero
+	[switch] $ExitWithZero,
+	[switch] $ForceCustom,
+	[switch] $ReuseVMOnFailure
 )
 
 
@@ -132,9 +135,6 @@ $MyInvocation.MyCommand.Parameters.Keys | ForEach-Object {
 		$params[$_] = $value
 		if ($params.TestNames) {
 			$params.TestNames = $params.TestNames.replace(' ','')
-		}
-		if ($params.ARMImageName) {
-			$params.ARMImageName = $params.ARMImageName.trim() -replace '\s{2,}', ' '
 		}
 		Write-Host ($_ + " = " + $params[$_])
 	}

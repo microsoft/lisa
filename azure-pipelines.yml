@@ -13,7 +13,7 @@ jobs:
     - powershell:
         $pesterModule = Get-InstalledModule -Name Pester -ErrorAction SilentlyContinue;
         if ($pesterModule -and $pesterModule.Version -inotmatch '4\.10\.1') { Uninstall-Module -Name Pester -Force; };
-        if (!$pesterModule) { Install-Module -Name Pester -Scope CurrentUser -Force -Repository PSGallery -RequiredVersion 4.10.1 -AllowClobber; };
+        if (!$pesterModule -or ($pesterModule.Version -inotmatch '4\.10\.1')) { Install-Module -Name Pester -Scope CurrentUser -Force -Repository PSGallery -RequiredVersion 4.10.1 -AllowClobber -SkipPublisherCheck; };
         if (!((Get-Command Clear-AzContext -ErrorAction SilentlyContinue).Version)) {
           Install-PackageProvider NuGet -Force | Out-Null;
           Set-PSRepository PSGallery -InstallationPolicy Trusted | Out-Null;

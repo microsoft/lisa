@@ -53,7 +53,7 @@ Describe "Test if module ${moduleName} ParseAndValidateParameters is valid" {
 
 Describe "Test if module ${moduleName} SetGlobalVariables is valid" {
 	It "Should set global variables" {
-		Mock Set-Variable -Verifiable -ModuleName $moduleName { return }
+		#Mock Set-Variable -Verifiable -ModuleName $moduleName { return }
 
 		$azureController = New-Object -TypeName $moduleName
 
@@ -88,7 +88,7 @@ Describe "Test if module ${moduleName} PrepareTestEnvironment is valid" {
 			return $fakeXML
 		}
 		Mock Get-LISAv2Tools -Verifiable -ModuleName "TestController" { return }
-		Mock Select-AzSubscription -Verifiable -ModuleName $moduleName {
+		Mock Set-AzContext -Verifiable -ModuleName $moduleName {
 			return @{
 				"Account" = @{
 					"Id" = "Id"
@@ -97,12 +97,16 @@ Describe "Test if module ${moduleName} PrepareTestEnvironment is valid" {
 					"SubscriptionId" = "SubscriptionId";
 					"ARMStorageAccount" = "ARMStorageAccount";
 					"Name" = "SubscriptionId"
+				};
+				"Environment" = @{
+					"ActiveDirectoryServiceEndpointResourceId" = "https://management.core.windows.net/"
 				}
 			}
 		}
 
 		$azureController = New-Object -TypeName $moduleName
 		$azureController.TestLocation = "westus2"
+		$azureController.GlobalConfigurationFilePath = ".\XML\GlobalConfigurations.xml"
 		$fakeXML = "test1.xml"
 
 		{ $azureController.PrepareTestEnvironment($fakeXML) } | Should -Not -Throw

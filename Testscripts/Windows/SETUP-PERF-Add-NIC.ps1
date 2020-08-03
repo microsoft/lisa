@@ -43,7 +43,7 @@ function Main {
                 $vmData.HypervHost -SwitchName $TestParams.PERF_NIC
 
             # Enable SR-IOV if it's the case
-            if ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
+            if ($currentTestData.SetupConfig.Networking -imatch "SRIOV") {
                 Write-LogInfo "Will enable SR-IOV on the newly added NIC"
                 $(Get-VM -Name $vmData.RoleName -ComputerName $vmData.HypervHost).NetworkAdapters `
                     | Where-Object { $_.SwitchName -imatch $TestParams.PERF_NIC } `

@@ -17,8 +17,9 @@ FIREWALL_USER = os.environ["SUDO_USER"]
 EXECUTION_USER = "root"
 WIRESERVER_ENDPOINT_FILE = '/var/lib/waagent/WireServerEndpoint'
 VERSIONS_PATH = '/?comp=versions'
-AGENT_CONFIG_FILE = '/etc/waagent.conf'
 OS_ENABLE_FIREWALL_RX = r'OS.EnableFirewall\s*=\s*(\S+)'
+AGENT_CONFIG_FILE = Run("find / -name waagent.conf")
+AGENT_CONFIG_FILE = AGENT_CONFIG_FILE.rstrip()
 
 
 def is_firewall_enabled():

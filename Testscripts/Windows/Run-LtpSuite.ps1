@@ -58,7 +58,7 @@ function Get-SQLQueryOfLTP ($currentTestResult, $currentTestData) {
                 $resultMap["TestCaseName"] = $TestCaseName
                 $resultMap["TestDate"] = $TestDate
                 $resultMap["HostType"] = $TestPlatform
-                $resultMap["HostBy"] = $TestLocation
+                $resultMap["HostBy"] = $currentTestData.SetupConfig.TestLocation
                 $resultMap["GuestOSType"] = 'Linux'
                 $resultMap["GuestSize"] = $allVMData.InstanceSize
                 $resultMap["GuestKernelVersion"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Kernel version" `

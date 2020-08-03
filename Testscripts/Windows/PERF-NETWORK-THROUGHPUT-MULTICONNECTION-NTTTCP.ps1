@@ -60,6 +60,29 @@ function Main {
         Provision-VMsForLisa -allVMData $allVMData -installPackagesOnRoleNames "none"
         #endregion
 
+        Write-LogInfo "Getting Systemd Version."
+        $getSystemdVersion = "systemctl --version | head -n1 | awk '{ print `$NF }'"
+        $systemdVersion = (Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort `
+            -username $user -password $password -command $getSystemdVersion ).Trim()
+        Write-LogInfo "Systemd Version is $systemdVersion. Set Systemd user config file..."
+
+        if (($systemdVersion -as [int]) -ge 239) {
+            # In systemd v239 and later, the user default is set via TasksMax= in /usr/lib/systemd/system/user-.slice.d/10-defaults.conf
+            $setSystemdConfig = "sed -i 's/TasksMax.*/TasksMax=122880/' /usr/lib/systemd/system/user-.slice.d/10-defaults.conf"
+        } else {
+            # Add a new line configuration in systemd logind.conf. UserTasksMax sets the maximum number of OS tasks each user may run concurrently.
+            $setSystemdConfig = "sed -i '`$aUserTasksMax=122880' /etc/systemd/logind.conf"
+        }
+        Run-LinuxCmd -ip $clientVMData.PublicIP -port $clientVMData.SSHPort -username $user `
+                    -password $password -command $setSystemdConfig -runAsSudo | Out-Null
+
+        # Restart VM to apply systemd setting
+        if (-not $TestProvider.RestartAllDeployments($allVMData)) {
+            Write-LogErr "Unable to connect to VM after restart!"
+            $currentTestResult.TestResult = "ABORTED"
+            return $currentTestResult
+        }
+
         Write-LogInfo "Getting Active NIC Name."
         if ($TestPlatform -eq "HyperV") {
             $clientNicName = Get-GuestInterfaceByVSwitch $TestParams.PERF_NIC $clientVMData.RoleName `
@@ -79,7 +102,7 @@ function Main {
         } else {
             Throw "Server and client SRIOV NICs are not same."
         }
-        if ($currentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
+        if ($currentTestData.SetupConfig.Networking -imatch "SRIOV") {
             $DataPath = "SRIOV"
         } else {
             $DataPath = "Synthetic"
@@ -166,20 +189,26 @@ collect_VM_properties
                     $testType = "TCP"
                     $test_connections = ($line.Trim() -Replace " +"," ").Split(" ")[0]
                     $throughput_gbps = ($line.Trim() -Replace " +"," ").Split(" ")[1]
-                    $cycle_per_byte = ($line.Trim() -Replace " +"," ").Split(" ")[2]
-                    $average_tcp_latency = ($line.Trim() -Replace " +"," ").Split(" ")[3]
-                    $txpackets_sender = ($line.Trim() -Replace " +"," ").Split(" ")[4]
-                    $rxpackets_sender = ($line.Trim() -Replace " +"," ").Split(" ")[5]
-                    $pktsInterrupt_sender = ($line.Trim() -Replace " +"," ").Split(" ")[6]
-                    $connResult = "throughput=$throughput_gbps`Gbps cyclePerBytet=$cycle_per_byte Avg_TCP_lat=$average_tcp_latency"
+                    $cycles_per_byte_sender = ($line.Trim() -Replace " +"," ").Split(" ")[2]
+                    $cycles_per_byte_receiver = ($line.Trim() -Replace " +"," ").Split(" ")[3]
+                    $average_tcp_latency = ($line.Trim() -Replace " +"," ").Split(" ")[4]
+                    $txpackets_sender = ($line.Trim() -Replace " +"," ").Split(" ")[5]
+                    $rxpackets_sender = ($line.Trim() -Replace " +"," ").Split(" ")[6]
+                    $pktsInterrupt_sender = ($line.Trim() -Replace " +"," ").Split(" ")[7]
+                    $concreatedtime = ($line.Trim() -Replace " +"," ").Split(" ")[8]
+                    $retrans_segs = ($line.Trim() -Replace " +"," ").Split(" ")[9]
+                    $connResult = "throughput=$throughput_gbps`Gbps cyclesPerByte_sender=$cycles_per_byte_sender cyclesPerByte_receiver=$cycles_per_byte_receiver Avg_TCP_lat=$average_tcp_latency pktsPerInterrupt=$pktsInterrupt_sender conCreatedTime=$concreatedtime retransSegs=$retrans_segs"
                     $currentNtttcpResultObject["meta_data"]["connections"] = $test_connections
                     $currentNtttcpResultObject["meta_data"]["type"] = $testType
-                    $currentNtttcpResultObject["cycle_per_byte"] = $cycle_per_byte
+                    $currentNtttcpResultObject["cycles_per_byte_sender"] = $cycles_per_byte_sender
+                    $currentNtttcpResultObject["cycles_per_byte_receiver"] = $cycles_per_byte_receiver
                     $currentNtttcpResultObject["tx_throughput_gbps"] = $throughput_gbps
                     $currentNtttcpResultObject["average_tcp_latency"] = $average_tcp_latency
                     $currentNtttcpResultObject["txpackets_sender"] = $txpackets_sender
                     $currentNtttcpResultObject["rxpackets_sender"] = $rxpackets_sender
                     $currentNtttcpResultObject["pktsInterrupt_sender"] = $pktsInterrupt_sender
+                    $currentNtttcpResultObject["concreatedtime"] = $concreatedtime
+                    $currentNtttcpResultObject["retrans_segs"] = $retrans_segs
                 }
                 $ntttcpResults += $currentNtttcpResultObject
                 $metadata = "Connections=$test_connections"
@@ -229,7 +258,7 @@ collect_VM_properties
                 $resultMap["TestCaseName"] = $TestCaseName
                 $resultMap["TestDate"] = $TestDate
                 $resultMap["HostType"] = $TestPlatform
-                $resultMap["HostBy"] = $TestLocation
+                $resultMap["HostBy"] = $CurrentTestData.SetupConfig.TestLocation
                 $resultMap["HostOS"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version"| ForEach-Object{$_ -replace ",Host Version,",""})
                 $resultMap["GuestOSType"] = "Linux"
                 $resultMap["GuestDistro"] = $(Get-Content "$LogDir\VM_properties.csv" | Select-String "OS type"| ForEach-Object{$_ -replace ",OS type,",""})
@@ -246,10 +275,14 @@ collect_VM_properties
                     $resultMap["DatagramLoss"] = $($Line[3])
                 } else {
                     $resultMap["Throughput_Gbps"] = $($Line[1])
-                    $resultMap["Latency_ms"] = $($Line[3])
-                    $resultMap["TXpackets"] = $($Line[4])
-                    $resultMap["RXpackets"] = $($Line[5])
-                    $resultMap["PktsInterrupts"] = $($Line[6])
+                    $resultMap["SenderCyclesPerByte"] = $($Line[2])
+                    $resultMap["ReceiverCyclesPerByte"] = $($Line[3])
+                    $resultMap["Latency_ms"] = $($Line[4])
+                    $resultMap["TXpackets"] = $($Line[5])
+                    $resultMap["RXpackets"] = $($Line[6])
+                    $resultMap["PktsInterrupts"] = $($Line[7])
+                    $resultMap["ConnectionsCreatedTime"] = $($Line[8])
+                    $resultMap["RetransSegments"] = $($Line[9])
                 }
                 if ($TestPlatform -eq "Azure") {
                     $resultMap["NumberOfReceivers"] = $numberOfReceivers

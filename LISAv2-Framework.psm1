@@ -41,6 +41,7 @@ function Start-LISAv2 {
 		[string] $TestTag = "",
 		[string] $TestNames="",
 		[string] $TestPriority="",
+		[string] $TestSetup="",
 
 		# [Optional] Exclude the tests from being executed. (Comma separated values)
 		[string] $ExcludeTests = "",
@@ -72,7 +73,9 @@ function Start-LISAv2 {
 		[string] $ResultDBTable = "",
 		[string] $ResultDBTestTag = "",
 
-		[switch] $ExitWithZero
+		[switch] $ExitWithZero,
+		[switch] $ForceCustom,
+		[switch] $ReuseVmOnFailure
 	)
 
 	PROCESS {
@@ -123,7 +126,7 @@ function Start-LISAv2 {
 				$paramValue = (Get-Variable -Name $paramName -ErrorAction "SilentlyContinue").Value
 				if ($paramValue) {
 					if ($paramTable.ContainsKey($paramName)) {
-						Write-LogInfo "Overwriting parameter $paramName value: $($paramTable[$paramName]) -> $paramValue"
+						Write-LogWarn "Duplicated parameter '$paramName' and overwrite with value: $($paramTable[$paramName]) -> $paramValue"
 						$paramTable[$paramName] = $paramValue
 					} else {
 						Write-LogInfo "Setting parameter: $paramName = $paramValue"
@@ -184,7 +187,7 @@ function Start-LISAv2 {
 			Write-LogInfo "Test $global:testId finished"
 
 			# Output text summary
-			$plainTextSummary = $testController.TestSummary.GetPlainTextSummary()
+			$plainTextSummary = $testController.TestSummary.GetPlainTextSummary($OsVHD, $testController.ARMImageName, $OverrideVMSize)
 			Write-LogInfo $plainTextSummary
 
 			# Zip the test log folder

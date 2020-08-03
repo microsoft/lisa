@@ -37,30 +37,25 @@ Class HyperVController : TestController
 	}
 
 	[void] ParseAndValidateParameters([Hashtable]$ParamTable) {
-		$this.DestinationOsVhdPath = $ParamTable["DestinationOsVhdPath"]
-		$vmGeneration = [string]($ParamTable["VMGeneration"])
-		$this.TestProvider.VMGeneration = $vmGeneration
-
 		$parameterErrors = ([TestController]$this).ParseAndValidateParameters($ParamTable)
 
-		if (!($this.TestProvider.VMGeneration)) {
-			# Set VM Generation default value to 1, if not specified.
-			Write-LogInfo "-VMGeneration not specified. Using default VMGeneration = 1"
-			$this.TestProvider.VMGeneration = 1
-		} else {
-			$supportedVMGenerations = @("1","2")
-			if ($supportedVMGenerations.contains($vmGeneration)) {
-				if ($vmGeneration -eq "2" -and $this.OsVHD `
-							-and [System.IO.Path]::GetExtension($this.OsVHD) -ne ".vhdx") {
-					$parameterErrors += "-VMGeneration 2 requires .vhdx files."
-				}
-			} else {
-				$parameterErrors += "-VMGeneration $vmGeneration is not yet supported."
-			}
+		if (!$this.RGIdentifier) {
+			$parameterErrors += "-RGIdentifier is not set"
+		}
+		$this.DestinationOsVhdPath = $ParamTable["DestinationOsVhdPath"]
+
+		if ($this.VMGeneration -and (("1", "2") -notcontains $this.VMGeneration)) {
+			$parameterErrors += "-VMGeneration '$($this.VMGeneration)' is not supported."
+		}
+		elseif ($this.VMGeneration -eq "2" -and $this.OsVHD -and [System.IO.Path]::GetExtension($this.OsVHD) -ne ".vhdx") {
+			$parameterErrors += "-VMGeneration 2 requires .vhdx files."
 		}
 
 		if (!$this.OsVHD ) {
 			$parameterErrors += "-OsVHD <'VHD_Name.vhd'> is required."
+		}
+		if (!$this.RGIdentifier) {
+			$parameterErrors += "-RGIdentifier is not set"
 		}
 		if ($parameterErrors.Count -gt 0) {
 			$parameterErrors | ForEach-Object { Write-LogErr $_ }
@@ -134,8 +129,46 @@ Class HyperVController : TestController
 	[void] SetGlobalVariables() {
 		([TestController]$this).SetGlobalVariables()
 
-		Set-Variable -Name VMGeneration -Value $this.TestProvider.VMGeneration -Scope Global
 		Set-Variable -Name VMIntegrationGuestService -Value "Guest Service Interface" -Scope Global
 		Set-Variable -Name VMIntegrationKeyValuePairExchange -Value "Key-Value Pair Exchange" -Scope Global
+	}
+
+	[void] PrepareSetupTypeToTestCases([hashtable]$SetupTypeToTestCases, [System.Collections.ArrayList]$AllTests) {
+		if (("sriov", "synthetic") -contains $this.CustomParams["Networking"]) {
+			Add-SetupConfig -AllTests $AllTests -ConfigName "Networking" -ConfigValue $this.CustomParams["Networking"] -Force $this.ForceCustom
+		}
+		if (("Specialized", "Generalized") -contains $this.CustomParams["ImageType"]) {
+			Add-SetupConfig -AllTests $AllTests -ConfigName "ImageType" -ConfigValue $this.CustomParams["ImageType"] -Force $this.ForceCustom
+		}
+		if (("Windows", "Linux") -contains $this.CustomParams["OSType"]) {
+			Add-SetupConfig -AllTests $AllTests -ConfigName "OSType" -ConfigValue $this.CustomParams["OSType"] -Force $this.ForceCustom
+		}
+		Add-SetupConfig -AllTests $AllTests -ConfigName "VMGeneration" -ConfigValue $this.CustomParams["VMGeneration"] -DefaultConfigValue "1" -Force $this.ForceCustom
+		# As Hyper-V do not need to separate TestLocations ('localhost,AnotherServerName') for one TestCase.
+		# Instead, multiple TestLocations must always stick together for every test case.
+		# So, use a fake SplitBy to avoid TestLocations been Splitted for different TestCases.
+		Add-SetupConfig -AllTests $AllTests -ConfigName "TestLocation" -ConfigValue $this.CustomParams["TestLocation"] -SplitBy ';' -Force $this.ForceCustom
+		if ($this.TestIterations -gt 1) {
+			$testIterationsParamValue = @(1..$this.TestIterations) -join ','
+			Add-SetupConfig -AllTests $AllTests -ConfigName "TestIteration" -ConfigValue $testIterationsParamValue -Force $this.ForceCustom
+		}
+		Add-SetupConfig -AllTests $AllTests -ConfigName "OverrideVMSize" -ConfigValue $this.CustomParams["OverrideVMSize"] -Force $this.ForceCustom
+		Add-SetupConfig -AllTests $AllTests -ConfigName "OsVHD" -ConfigValue $this.CustomParams["OsVHD"] -Force $this.ForceCustom
+
+		foreach ($test in $AllTests) {
+			# Put test case to hashtable, per setupType,OverrideVMSize,networking,diskType,osDiskType,switchName
+			$key = "$($test.SetupConfig.SetupType),$($test.SetupConfig.OverrideVMSize),$($test.SetupConfig.Networking),$($test.SetupConfig.DiskType)," +
+				"$($test.SetupConfig.OSDiskType),$($test.SetupConfig.SwitchName),$($test.SetupConfig.ImageType)," +
+				"$($test.SetupConfig.OSType),$($test.SetupConfig.StorageAccountType),$($test.SetupConfig.TestLocation)," +
+				"$($test.SetupConfig.OsVHD),$($test.SetupConfig.VMGeneration)"
+			if ($test.SetupConfig.SetupType) {
+				if ($SetupTypeToTestCases.ContainsKey($key)) {
+					$SetupTypeToTestCases[$key] += $test
+				} else {
+					$SetupTypeToTestCases.Add($key, @($test))
+				}
+			}
+		}
+		$this.TotalCaseNum = ([System.Collections.ArrayList]$AllTests).Count
 	}
 }

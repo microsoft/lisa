@@ -5,7 +5,6 @@
             <VirtualMachine>
                 <state></state>
                 <InstanceSize>Standard_DS1_v2</InstanceSize>
-                <ARMInstanceSize>Standard_DS1_v2</ARMInstanceSize>
                 <RoleName></RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
@@ -23,7 +22,6 @@
             <VirtualMachine>
                 <state></state>
                 <InstanceSize>Standard_DS1_v2</InstanceSize>
-                <ARMInstanceSize>Standard_DS1_v2</ARMInstanceSize>
                 <RoleName></RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
@@ -47,7 +45,6 @@
             <VirtualMachine>
                 <state></state>
                 <InstanceSize>Standard_DS1_v2</InstanceSize>
-                <ARMInstanceSize>Standard_DS1_v2</ARMInstanceSize>
                 <RoleName></RoleName>
                 <EndPoints>
                     <Name>RDP</Name>
@@ -72,7 +69,6 @@
             <VirtualMachine>
                 <state></state>
                 <InstanceSize>Standard_DS1_v2</InstanceSize>
-                <ARMInstanceSize>Standard_DS1_v2</ARMInstanceSize>
                 <RoleName></RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
@@ -89,7 +85,7 @@
         <ResourceGroup>
             <VirtualMachine>
                 <state></state>
-                <ARMInstanceSize>Standard_DS1_v2</ARMInstanceSize>
+                <InstanceSize>Standard_DS1_v2</InstanceSize>
                 <RoleName></RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
@@ -107,7 +103,7 @@
         <ResourceGroup>
             <VirtualMachine>
                 <state></state>
-                <ARMInstanceSize>Standard_DS5_v2</ARMInstanceSize>
+                <InstanceSize>Standard_DS5_v2</InstanceSize>
                 <RoleName></RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
@@ -126,7 +122,6 @@
             <VirtualMachine>
                 <state></state>
                 <InstanceSize>Standard_DS14_v2</InstanceSize>
-                <ARMInstanceSize>Standard_DS14_v2</ARMInstanceSize>
                 <RoleName></RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
@@ -143,7 +138,7 @@
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
             <VirtualMachine>
-                <ARMInstanceSize>Standard_DS14_v2</ARMInstanceSize>
+                <InstanceSize>Standard_DS14_v2</InstanceSize>
                 <RoleName></RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
@@ -163,7 +158,7 @@
         <isDeployed>NO</isDeployed>
         <ResourceGroup>
             <VirtualMachine>
-                <ARMInstanceSize>Standard_DS14_v2</ARMInstanceSize>
+                <InstanceSize>Standard_DS14_v2</InstanceSize>
                 <RoleName></RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
@@ -185,7 +180,6 @@
             <VirtualMachine>
                 <state></state>
                 <InstanceSize>Standard_D16s_v3</InstanceSize>
-                <ARMInstanceSize>Standard_D16s_v3</ARMInstanceSize>
                 <RoleName></RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
@@ -225,7 +219,6 @@
             <VirtualMachine>
                 <state></state>
                 <InstanceSize>Standard_F16</InstanceSize>
-                <ARMInstanceSize>Standard_F16</ARMInstanceSize>
                 <RoleName></RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
@@ -262,7 +255,6 @@
             <VirtualMachine>
                 <state></state>
                 <InstanceSize>Standard_D16s_v3</InstanceSize>
-                <ARMInstanceSize>Standard_D16s_v3</ARMInstanceSize>
                 <RoleName></RoleName>
                 <EndPoints>
                     <Name>SSH</Name>
@@ -327,7 +319,6 @@
             <VirtualMachine>
                 <state></state>
                 <InstanceSize>Standard_DS14_v2</InstanceSize>
-                <ARMInstanceSize>Standard_DS14_v2</ARMInstanceSize>
                 <EndPoints>
                     <Name>SSH</Name>
                     <Protocol>tcp</Protocol>
@@ -403,7 +394,6 @@
             <VirtualMachine>
                 <state></state>
                 <InstanceSize>Standard_D32s_v3</InstanceSize>
-                <ARMInstanceSize>Standard_D32s_v3</ARMInstanceSize>
                 <RoleName></RoleName>
                 <EndPoints>
                     <Name>SSH</Name>

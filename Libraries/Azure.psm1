@@ -36,7 +36,7 @@ Function Measure-SubscriptionCapabilities() {
 		}
 
 		Set-Variable -Name SubscriptionVMResourceSkus -Option ReadOnly -Scope script `
-			-Value (Get-AzComputeResourceSku | Where-Object { $_.ResourceType.Contains("virtualMachines") } | Select-Object Name, @{l = "Location"; e = { $_.Locations[0] } }, Family, Capabilities | Where-Object { $regionScopeFromUser -cmatch "$($_.Location)" })
+			-Value (Get-AzComputeResourceSku | Where-Object { $_.ResourceType.Contains("virtualMachines") -and ($_.Restrictions.Type -notcontains 'Location')} | Select-Object Name, @{l = "Location"; e = { $_.Locations[0] } }, Family, Restrictions, Capabilities | Where-Object { $regionScopeFromUser -cmatch "$($_.Location)" })
 		$avRegions = $SubscriptionVMResourceSkus | Group-Object Location | Select-Object -ExpandProperty Name
 		Set-Variable -Name TestableLocations -Option ReadOnly -Scope script -Value ($avRegions | Where-Object { $regionScopeFromUser -contains $_ })
 	}
@@ -51,26 +51,28 @@ Function Measure-SubscriptionCapabilities() {
 		$global:AllTestVMSizes.Keys | Foreach-Object {
 			$vmSize = $_
 			$vmSizeSkus = $SubscriptionVMResourceSkus | Where-Object Name -eq "$vmSize"
-			$vmSizeSkusFirst = $vmSizeSkus | Select-Object -First 1
-			$vmSizeCapabilities = $vmSizeSkusFirst | Select-Object -ExpandProperty Capabilities
+			if ($vmSizeSkus) {
+				$vmSizeSkusFirst = $vmSizeSkus | Select-Object -First 1
+				$vmSizeCapabilities = $vmSizeSkusFirst | Select-Object -ExpandProperty Capabilities
 
-			$vmTestableLocation = $vmSizeSkus | Group-Object Location | Select-Object -ExpandProperty Name | Where-Object { $TestableLocations -contains $_ }
-			$vmFamily = $vmSizeSkusFirst | Select-Object -ExpandProperty Family
-			$vmCPUs = $vmSizeCapabilities | Where-Object { $_.Name -eq 'vCPUs' } | Select-Object -ExpandProperty Value
-			$vmGenerations = $vmSizeCapabilities | Where-Object { $_.Name -eq 'HyperVGenerations' } | Select-Object -ExpandProperty Value
+				$vmTestableLocation = $vmSizeSkus | Group-Object Location | Select-Object -ExpandProperty Name | Where-Object { $TestableLocations -contains $_ }
+				$vmFamily = $vmSizeSkusFirst | Select-Object -ExpandProperty Family
+				$vmCPUs = $vmSizeCapabilities | Where-Object { $_.Name -eq 'vCPUs' } | Select-Object -ExpandProperty Value
+				$vmGenerations = $vmSizeCapabilities | Where-Object { $_.Name -eq 'HyperVGenerations' } | Select-Object -ExpandProperty Value
 
-			$locationFamilyUsage = [System.Collections.ArrayList]@()
-			$vmTestableLocation | Where-Object {
-				$locationFamilyUsage += $svmusage.$_ | Where-Object { $_.VMFamily -eq $vmFamily } | Select-Object Location, AvailableUsage
+				$locationFamilyUsage = [System.Collections.ArrayList]@()
+				$vmTestableLocation | Where-Object {
+					$locationFamilyUsage += $svmusage.$_ | Where-Object { $_.VMFamily -eq $vmFamily } | Select-Object Location, AvailableUsage
+				}
+				$global:AllTestVMSizes.$vmSize["AvailableLocations"] = @($locationFamilyUsage | Sort-Object AvailableUsage -Descending | Select-Object -ExpandProperty Location)
+				$global:AllTestVMSizes.$vmSize["Family"] = $vmFamily
+				$global:AllTestVMSizes.$vmSize["vCPUs"] = [int]$vmCPUs
+				$global:AllTestVMSizes.$vmSize["Generations"] = $vmGenerations
 			}
-			$global:AllTestVMSizes.$vmSize["AvailableLocations"] = @($locationFamilyUsage | Sort-Object AvailableUsage -Descending | Select-Object -ExpandProperty Location)
-			$global:AllTestVMSizes.$vmSize["Family"] = $vmFamily
-			$global:AllTestVMSizes.$vmSize["vCPUs"] = [int]$vmCPUs
-			$global:AllTestVMSizes.$vmSize["Generations"] = $vmGenerations
 		}
 	}
 }
-Function Assert-DeploymentLimitation($RGXMLData, [ref]$TargetLocation, $OverrideVMSize) {
+Function Assert-DeploymentLimitation($RGXMLData, [ref]$TargetLocation, $CurrentTestData) {
 	Function Test-OverflowErrors {
 		Param (
 			[string] $ResourceType,
@@ -79,9 +81,9 @@ Function Assert-DeploymentLimitation($RGXMLData, [ref]$TargetLocation, $Override
 			[int] $MaximumLimit,
 			[string] $Location
 		)
-		$AllowedUsagePercentage = 0.99
+		$AllowedUsagePercentage = 1
 		$ActualLimit = [int]($MaximumLimit * $AllowedUsagePercentage)
-		$Message = "Current '$ResourceType' in region '$Location': Requested: $RequiredValue, Estimated usage after deploy: $($CurrentValue + $RequiredValue), Maximum allowed: $ActualLimit/$MaximumLimit"
+		$Message = "Current '$ResourceType' in region '$Location': Requested: $RequiredValue, Estimated usage after deploy: $($CurrentValue + $RequiredValue), Maximum allowed: $ActualLimit"
 		if (($CurrentValue + $RequiredValue) -le $ActualLimit) {
 			Write-LogDbg $Message
 			return 0
@@ -116,6 +118,8 @@ Function Assert-DeploymentLimitation($RGXMLData, [ref]$TargetLocation, $Override
 		return $networkErrors
 	}
 
+	$VMGeneration = $CurrentTestData.SetupConfig.VMGeneration
+	$OsVHD = $CurrentTestData.SetupConfig.OsVHD
 	$overFlowErrors = 0
 	# Verify usage and select Test Location
 	$vmCounter = 0
@@ -123,18 +127,32 @@ Function Assert-DeploymentLimitation($RGXMLData, [ref]$TargetLocation, $Override
 	foreach ($VM in $RGXMLData.VirtualMachine) {
 		$vmCounter += 1
 		Write-LogInfo "Estimating VM #$vmCounter usage."
-		# this 'OverrideVMSize' is already one item from OverrideVMSize Array that already splitted by ','
-		if ($OverrideVMSize) {
-			$testVMSize = $OverrideVMSize
+		# this 'OverrideVMSize' is already expanded from CurrentTestData with single value
+		if ($CurrentTestData.SetupConfig.OverrideVMSize) {
+			$testVMSize = $CurrentTestData.SetupConfig.OverrideVMSize
 		}
 		else {
-			$testVMSize = $VM.ARMInstanceSize
+			$testVMSize = $VM.InstanceSize
 		}
 
 		if (!$AllTestVMSizes.$testVMSize) {
 			Measure-SubscriptionCapabilities
 		}
-		if ($AllTestVMSizes.$testVMSize) {
+
+		# For Gallery Image, leave HyperVGeneration checking before deployment 'Test-AzResourceGroupDeployment',
+		# because getting 'HyperVGeneration' is not sufficient here to check from Region to Region.
+		# Note: '-Location' and specific '-Version' (not <Latest>) is necessary to get Gallery Image Detail by Get-AzVMImage command
+		if ($OsVHD -and $VMGeneration -and !$AllTestVMSizes.$testVMSize.Generations.Contains($VMGeneration)) {
+			$TargetLocation.Value = 'NOT_ENABLED'
+			$overFlowErrors += 1
+			Write-LogErr "Requested VM size: '$testVMSize' with VM generation: '$VMGeneration' is supported, this should be an Azure limitation temporarily, please try other VM Sizes that support HyperVGeneration '$VMGeneration'."
+		}
+		elseif (!$AllTestVMSizes.$testVMSize.AvailableLocations) {
+			$TargetLocation.Value = 'NOT_ENABLED'
+			$overFlowErrors += 1
+			Write-LogErr "Requested VM size: '$testVMSize' is NOT enabled from any region of current subscription, please open Azure Support Tickets for it."
+		}
+		else {
 			$vmCPUs = $global:AllTestVMSizes.$testVMSize.vCPUs
 			$vmFamily = $global:AllTestVMSizes.$testVMSize.Family
 			if ($vmFamilyRequiredCPUs.$vmFamily) {
@@ -190,16 +208,13 @@ Function Assert-DeploymentLimitation($RGXMLData, [ref]$TargetLocation, $Override
 				$TargetLocation.Value = $vmAvailableLocations[$index]
 			}
 		}
-		else {
-			Write-LogErr "Requested VM size: $testVMSize is not yet registered to monitor. Usage simulation skipped."
-		}
 	}
 	# Check Resource Group Limitation
 	#Source for current limit : https://docs.microsoft.com/en-us/azure/azure-subscription-service-limits#subscription-limits---azure-resource-manager
 	$RGLimit = 980
 	$currentRGCount = (Get-AzResourceGroup).Count
 	$overFlowErrors += Test-OverflowErrors -ResourceType "Resource Group" -CurrentValue $currentRGCount `
-		-RequiredValue 1 -MaximumLimit $RGLimit -Location $vmAvailableLocations[$index]
+		-RequiredValue 1 -MaximumLimit $RGLimit -Location $TargetLocation.Value
 
 	if ($overFlowErrors -eq 0) {
 		Write-LogInfo "Estimated subscription usage is under allowed limits."
@@ -230,7 +245,7 @@ Function Get-StorageAccountFromRegion($Region, $StorageAccount) {
 	return $StorageAccountName
 }
 
-Function Update-StorageAccountType($TestCaseData, [string]$Location, $GlobalConfig, $OsVHD) {
+Function Update-StorageAccountType($CurrentTestData, [string]$Location, $GlobalConfig, $OsVHD) {
 	$RegionAndStorageMapFile = "$PSScriptRoot\..\XML\RegionAndStorageAccounts.xml"
 	if (Test-Path $RegionAndStorageMapFile) {
 		$RegionAndStorageMap = [xml](Get-Content $RegionAndStorageMapFile)
@@ -242,7 +257,7 @@ Function Update-StorageAccountType($TestCaseData, [string]$Location, $GlobalConf
 	# Set '$global:GlobalConfig' ARMStorageAccount, in case Test Scripts from Test Case using the '$global:GlobalConfig.Global.Azure.Subscription.ARMStorageAccount' directly
 	$global:GlobalConfig.Global.Azure.Subscription.ARMStorageAccount = $currentStorageAccount
 	$resultStorageAccount = $currentStorageAccount
-	if ($TestCaseData.AdditionalHWConfig.StorageAccountType -and $TestCaseData.AdditionalHWConfig.StorageAccountType.Contains("Premium")) {
+	if ($CurrentTestData.SetupConfig.StorageAccountType -and $CurrentTestData.SetupConfig.StorageAccountType.Contains("Premium")) {
 		$storageAccountType = (Get-AzStorageAccount | Where-Object { $_.StorageAccountName -eq $currentStorageAccount }).Sku.Tier.ToString()
 		if ($storageAccountType -inotmatch "premium") {
 			$existingStandardStorageAccount = Get-StorageAccountFromRegion -Region $Location -StorageAccount "ExistingStorage_Standard"
@@ -268,8 +283,8 @@ Function Update-StorageAccountType($TestCaseData, [string]$Location, $GlobalConf
 			}
 			else {
 				# if $currentStorageAccount's StorageType is Standard_LRS, but not from existing standard storage accounts, then throw exception with messages
-				Write-LogErr "Provided storage account is not premium type, this case $($TestCaseData.testName) need run under premium type of storage account."
-				Throw "Case $($TestCaseData.testName) need run under premium type of storage account."
+				Write-LogErr "Provided storage account is not premium type, this case $($CurrentTestData.testName) need run under premium type of storage account."
+				Throw "Case $($CurrentTestData.testName) need run under premium type of storage account."
 			}
 		}
 	}
@@ -311,7 +326,8 @@ Function PrepareAutoCompleteStorageAccounts ($storageAccountsRGName, $XMLSecretF
 		)
 		if ($RSAMapping -and (Test-Path $AzureSecretFile)) {
 			$AzureSecretXml = [xml](Get-Content $AzureSecretFile)
-			$outDatedNodes = $AzureSecretXml.SelectNodes('/secrets/RegionAndStorageAccounts')
+			# avoid case sensitive
+			$outDatedNodes = @($AzureSecretXml.secrets.RegionAndStorageAccounts)
 			if ($outDatedNodes) {
 				$outDatedNodes | ForEach-Object { $AzureSecretXml.secrets.RemoveChild($_)  | Out-Null }
 			}
@@ -393,13 +409,13 @@ Function PrepareAutoCompleteStorageAccounts ($storageAccountsRGName, $XMLSecretF
 	}
 }
 
-Function Invoke-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Distro, [string]$TestLocation, $GlobalConfig, $TiPSessionId, $TipCluster, $UseExistingRG, $ResourceCleanup, $PlatformFaultDomainCount, $PlatformUpdateDomainCount, [boolean]$EnableNSG = $false) {
-	Function GenerateAzDeploymentJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, $Location, $azuredeployJSONFilePath, $CurrentTestData, $StorageAccountName) {
+Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $RGIdentifier, [string]$TestLocation, $GlobalConfig, $UseExistingRG, $ResourceCleanup, [boolean]$EnableNSG = $false) {
+	Function GenerateAzDeploymentJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, $Location, $azuredeployJSONFilePath, $StorageAccountName) {
 		#Random Data
 		$RGrandomWord = ([System.IO.Path]::GetRandomFileName() -replace '[^a-z]')
 		$RGRandomNumber = Get-Random -Minimum 11111 -Maximum 99999
 
-		$UseManagedDisks = $CurrentTestData.AdditionalHWConfig.DiskType -inotcontains "unmanaged"
+		$UseManagedDisks = $CurrentTestData.SetupConfig.DiskType -inotcontains "unmanaged"
 		if ($UseManagedDisks) {
 			$DiskType = "Managed"
 		}
@@ -407,15 +423,27 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			$DiskType = "Unmanaged"
 		}
 
-		$UseSpecializedImage = $CurrentTestData.AdditionalHWConfig.ImageType -contains "Specialized"
-		$IsWindowsOS = $CurrentTestData.AdditionalHWConfig.OSType -contains "Windows"
+		if (!$global:password -and !$global:sshPrivateKey) {
+			Throw "Please set sshPrivateKey or linuxTestPassword."
+		}
+		$UseSpecializedImage = $CurrentTestData.SetupConfig.ImageType -contains "Specialized"
+		$IsWindowsOS = $CurrentTestData.SetupConfig.OSType -contains "Windows"
 		if ($IsWindowsOS) {
 			$OSType = "Windows"
+			if (!$global:password) {
+				Throw "Please provide password when provision a Windows VM."
+			}
+			Write-LogDbg "Windows OS, use password authentication, reset Key into empty."
+			$global:sshPrivateKey = ""
 		}
 		else {
 			$OSType = "Linux"
+			if ($global:sshPrivateKey) {
+				Write-LogDbg "Linux OS, use SSH key authentication, reset password into empty."
+				$global:password = ""
+			}
 		}
-		if ( $CurrentTestData.AdditionalHWConfig.OSDiskType -eq "Ephemeral" ) {
+		if ( $CurrentTestData.SetupConfig.OSDiskType -eq "Ephemeral" ) {
 			if ( $UseManagedDisks ) {
 				$UseEphemeralOSDisk = $true
 				$DiskType += "-Ephemeral"
@@ -650,30 +678,22 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 				Add-Content -Value "$($indents[4])^name^: ^Aligned^" -Path $jsonFile
 				Add-Content -Value "$($indents[3])}," -Path $jsonFile
 			}
-			if ( $TiPSessionId -and $TiPCluster) {
+			if ($CurrentTestData.SetupConfig.TiPSessionId) {
 				Add-Content -Value "$($indents[3])^tags^:" -Path $jsonFile
 				Add-Content -Value "$($indents[3]){" -Path $jsonFile
-				Add-Content -Value "$($indents[4])^TipNode.SessionId^: ^$TiPSessionId^" -Path $jsonFile
+				Add-Content -Value "$($indents[4])^TipNode.SessionId^: ^$($CurrentTestData.SetupConfig.TiPSessionId)^" -Path $jsonFile
 				Add-Content -Value "$($indents[3])}," -Path $jsonFile
 			}
 
-			$faultDomainCount = 2
-			$updateDomainCount = 5
-			if ($PlatformFaultDomainCount) {
-				$faultDomainCount = $PlatformFaultDomainCount
-			}
-			if ($PlatformUpdateDomainCount) {
-				$updateDomainCount = $PlatformUpdateDomainCount
-			}
 			Add-Content -Value "$($indents[3])^properties^:" -Path $jsonFile
 			Add-Content -Value "$($indents[3]){" -Path $jsonFile
-			Add-Content -Value "$($indents[4])^platformFaultDomainCount^:$faultDomainCount," -Path $jsonFile
-			Add-Content -Value "$($indents[4])^platformUpdateDomainCount^:$updateDomainCount" -Path $jsonFile
-			if ( $TiPSessionId -and $TiPCluster) {
+			Add-Content -Value "$($indents[4])^platformFaultDomainCount^:$($CurrentTestData.SetupConfig.PlatformFaultDomainCount)," -Path $jsonFile
+			Add-Content -Value "$($indents[4])^platformUpdateDomainCount^:$($CurrentTestData.SetupConfig.PlatformUpdateDomainCount)" -Path $jsonFile
+			if ($CurrentTestData.SetupConfig.TiPCluster) {
 				Add-Content -Value "$($indents[4])," -Path $jsonFile
 				Add-Content -Value "$($indents[4])^internalData^:" -Path $jsonFile
 				Add-Content -Value "$($indents[4]){" -Path $jsonFile
-				Add-Content -Value "$($indents[5])^pinnedFabricCluster^ : ^$TiPCluster^" -Path $jsonFile
+				Add-Content -Value "$($indents[5])^pinnedFabricCluster^ : ^$($CurrentTestData.SetupConfig.TiPCluster)^" -Path $jsonFile
 				Add-Content -Value "$($indents[4])}" -Path $jsonFile
 			}
 			Add-Content -Value "$($indents[3])}" -Path $jsonFile
@@ -765,7 +785,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			Add-Content -Value "$($indents[5])}" -Path $jsonFile
 
 			Add-Content -Value "$($indents[4])}" -Path $jsonFile
-			if ($VMGeneration -eq "2") {
+			if ($CurrentTestData.SetupConfig.VMGeneration -eq "2") {
 				Add-Content -Value "$($indents[4]),^hyperVGeneration^: ^V2^" -Path $jsonFile
 			}
 			else {
@@ -1094,11 +1114,11 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 		$vmAdded = $false
 		$role = 0
 		foreach ( $newVM in $RGXMLData.VirtualMachine) {
-			if ( $CurrentTestData.OverrideVMSize) {
-				$instanceSize = $CurrentTestData.OverrideVMSize
+			if ( $CurrentTestData.SetupConfig.OverrideVMSize) {
+				$instanceSize = $CurrentTestData.SetupConfig.OverrideVMSize
 			}
 			else {
-				$instanceSize = $newVM.ARMInstanceSize
+				$instanceSize = $newVM.InstanceSize
 			}
 
 			$ExistingSubnet = $newVM.ARMSubnetName
@@ -1201,7 +1221,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 			}
 			#endregion
 			Add-Content -Value "$($indents[4])]" -Path $jsonFile
-			if ($CurrentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
+			if ($CurrentTestData.SetupConfig.Networking -imatch "SRIOV") {
 				Add-Content -Value "$($indents[4])," -Path $jsonFile
 				Add-Content -Value "$($indents[4])^enableAcceleratedNetworking^: true" -Path $jsonFile
 				Write-LogInfo "Enabled Accelerated Networking."
@@ -1243,7 +1263,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 				Add-Content -Value "$($indents[6])}" -Path $jsonFile
 				Add-Content -Value "$($indents[5])}" -Path $jsonFile
 				Add-Content -Value "$($indents[4])]" -Path $jsonFile
-				if ($CurrentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
+				if ($CurrentTestData.SetupConfig.Networking -imatch "SRIOV") {
 					Add-Content -Value "$($indents[4])," -Path $jsonFile
 					Add-Content -Value "$($indents[4])^enableAcceleratedNetworking^: true" -Path $jsonFile
 					Write-LogInfo "Enabled Accelerated Networking for $NicName."
@@ -1286,7 +1306,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 				Add-Content -Value "$($indents[6])}" -Path $jsonFile
 				Add-Content -Value "$($indents[5])}" -Path $jsonFile
 				Add-Content -Value "$($indents[4])]" -Path $jsonFile
-				if ($CurrentTestData.AdditionalHWConfig.Networking -imatch "SRIOV") {
+				if ($CurrentTestData.SetupConfig.Networking -imatch "SRIOV") {
 					Add-Content -Value "$($indents[4])," -Path $jsonFile
 					Add-Content -Value "$($indents[4])^enableAcceleratedNetworking^: true" -Path $jsonFile
 					Write-LogInfo "  Enabled Accelerated Networking for $NicName."
@@ -1603,12 +1623,13 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 	Write-LogInfo "Current test setup: $($SetupTypeData.Name)"
 
 	$OsVHD = $global:BaseOSVHD
-	$osImage = $global:ARMImageName
-	if ($TestCaseData.AdditionalHWConfig.TestLocation) {
-		$location = $TestCaseData.AdditionalHWConfig.TestLocation
+	$osImage = $CurrentTestData.SetupConfig.ARMImageName
+	if ($CurrentTestData.SetupConfig.TestLocation) {
+		$location = $CurrentTestData.SetupConfig.TestLocation
 	}
 	else {
 		$location = $TestLocation
+		Write-LogInfo "'TestLocation' of: '$($CurrentTestData.TestName)' is not set from Test Xml Definition or from LISAv2 Parameter '-TestLocation'.`nLISAv2 will auto select an available TestLocation/(Region) with current subscription"
 	}
 
 	$patternOfResourceNamePrefix = ($SetupTypeData.ResourceGroup | Select-Object -ExpandProperty "VirtualMachine" `
@@ -1617,13 +1638,17 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 		$validateStartTime = Get-Date
 		Write-LogInfo "Checking the subscription usage..."
 		$readyToDeploy = $false
+		if ($CurrentTestData.SetupConfig.TiPSessionId -and $CurrentTestData.SetupConfig.TiPCluster -and $CurrentTestData.SetupConfig.TestLocation) {
+			$readyToDeploy = $true
+		}
 		$coreCountExceededTimeout = 3600
 		while (!$readyToDeploy) {
-			$readyToDeploy = Assert-DeploymentLimitation -RGXMLData $RG -TargetLocation ([ref]$location) -OverrideVMSize $TestCaseData.OverrideVMSize
+			$readyToDeploy = Assert-DeploymentLimitation -RGXMLData $RG -TargetLocation ([ref]$location) -CurrentTestData $CurrentTestData
 			$validateCurrentTime = Get-Date
 			$elapsedWaitTime = ($validateCurrentTime - $validateStartTime).TotalSeconds
-			# Don't wait if -UseExistingRG, otherwise waiting for resource cleanup to release quota
-			if ($elapsedWaitTime -gt $coreCountExceededTimeout -or $UseExistingRG) {
+			# When assertion failed, break the loop if '-UseExistingRG', or target VMSize is detected 'NOT_ENABLED' from all regions,
+			# otherwise waiting for Resources cleanup until timeout (1 hour)
+			if ($elapsedWaitTime -gt $coreCountExceededTimeout -or $UseExistingRG -or ($location -eq 'NOT_ENABLED')) {
 				break
 			}
 			elseif (!$readyToDeploy) {
@@ -1635,12 +1660,14 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 		}
 		if ($readyToDeploy) {
 			# After Assert-DeploymentLimitation, '$location' may be changed and selected by LISAv2
-			$updatedStorageAccount = Update-StorageAccountType -Location $location -TestCaseData $TestCaseData -GlobalConfig $GlobalConfig -OsVHD $OsVHD
-
+			$updatedStorageAccount = Update-StorageAccountType -Location $location -CurrentTestData $CurrentTestData -GlobalConfig $GlobalConfig -OsVHD $OsVHD
+			if (!$CurrentTestData.SetupConfig.TestLocation) {
+				$CurrentTestData.SetupConfig.InnerXml += "<TestLocation>$location</TestLocation>"
+			}
 			$uniqueId = New-TimeBasedUniqueId
 			$isResourceGroupDeploymentCompleted = "False"
 			$retryDeployment = 0
-			$groupName = "LISAv2-" + $SetupTypeData.Name + "-" + $Distro + "-" + "$TestID-" + "$uniqueId"
+			$groupName = "LISAv2-" + $SetupTypeData.Name + "-" + $RGIdentifier + "-" + "$TestID-" + "$uniqueId"
 
 			if ($SetupTypeData.ResourceGroup.Count -gt 1) {
 				$groupName = $groupName + "-" + $resourceGroupCount
@@ -1649,7 +1676,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 				if ($UseExistingRG) {
 					$isResourceGroupCreated = "True"
 					$isRGDeleted = $true
-					$groupName = $Distro
+					$groupName = $RGIdentifier
 				}
 				else {
 					Write-LogInfo "Creating Resource Group : $groupName."
@@ -1658,13 +1685,13 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 				}
 				if ($isRGDeleted) {
 					if (!$UseExistingRG) {
-						$isResourceGroupCreated = Create-ResourceGroup -RGName $groupName -location $location -CurrentTestData $TestCaseData
+						$isResourceGroupCreated = Create-ResourceGroup -RGName $groupName -location $location -CurrentTestData $CurrentTestData
 					}
 					Write-LogInfo "test platform is : $testPlatform"
 					if ($isResourceGroupCreated -eq "True") {
 						$azureDeployJSONFilePath = Join-Path $env:TEMP "$groupName.json"
 						$null = GenerateAzDeploymentJSONFile -RGName $groupName -ImageName $osImage -osVHD $osVHD -RGXMLData $RG -Location $location `
-							-azuredeployJSONFilePath $azureDeployJSONFilePath -CurrentTestData $TestCaseData -StorageAccountName $updatedStorageAccount
+							-azuredeployJSONFilePath $azureDeployJSONFilePath -StorageAccountName $updatedStorageAccount
 
 						$DeploymentStartTime = (Get-Date)
 						$CreateRGDeployments = Invoke-ResourceGroupDeployment -RGName $groupName -TemplateFile $azureDeployJSONFilePath `
@@ -1673,9 +1700,6 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $TestCaseData, $Dist
 						$DeploymentEndTime = (Get-Date)
 						$DeploymentElapsedTime = $DeploymentEndTime - $DeploymentStartTime
 						if ( $CreateRGDeployments.Status ) {
-							# After Resource Group deployment completed successfully, set global:TestLocation with selected Region/TestLocation
-							# Get rid of potential risk that Test Scripts from Test Cases using the global '$TestLocation' arbitrarily
-							Set-Variable -Name TestLocation -Value $location -Scope Global -Force
 							$retValue = "True"
 							$isResourceGroupDeploymentCompleted = "True"
 							$resourceGroupCount = $resourceGroupCount + 1
@@ -2100,7 +2124,6 @@ Function Get-AllDeploymentData([string]$ResourceGroups, [string]$PatternOfResour
 		Add-Member -InputObject $objNode -MemberType NoteProperty -Name URLv6 -Value $URL -Force
 		Add-Member -InputObject $objNode -MemberType NoteProperty -Name Status -Value $Status -Force
 		Add-Member -InputObject $objNode -MemberType NoteProperty -Name InstanceSize -Value $InstanceSize -Force
-		Add-Member -InputObject $objNode -MemberType NoteProperty -Name VMGeneration -Value $VMGeneration -Force
 		return $objNode
 	}
 
@@ -2247,55 +2270,6 @@ Function Create-RGDeploymentWithTempParameters([string]$RGName, $TemplateFile, $
 	}
 	return $retValue
 }
-
-Function Create-AllRGDeploymentsWithTempParameters($templateName, $location, $TemplateFile, $TemplateParameterFile) {
-	$resourceGroupCount = 0
-	$isResourceGroupDeploymentCompleted = "False"
-	$retryDeployment = 0
-	$uniqueId = New-TimeBasedUniqueId
-	$groupName = "LISAv2-" + $templateName + "-" + $uniqueId
-
-	while (($isResourceGroupDeploymentCompleted -eq "False") -and ($retryDeployment -lt 3)) {
-		Write-LogInfo "Creating Resource Group : $groupName."
-		Write-LogInfo "Verifying that Resource group name is not in use."
-		$isRGDeleted = Delete-ResourceGroup -RGName $groupName
-		if ($isRGDeleted) {
-			$isResourceGroupCreated = Create-ResourceGroup -RGName $groupName -location $location
-			if ($isResourceGroupCreated -eq "True") {
-				$DeploymentStartTime = (Get-Date)
-				$CreateRGDeployments = Create-RGDeploymentWithTempParameters -RGName $groupName -location $location -TemplateFile $TemplateFile -TemplateParameterFile $TemplateParameterFile
-				$DeploymentEndTime = (Get-Date)
-				$DeploymentElapsedTime = $DeploymentEndTime - $DeploymentStartTime
-				if ( $CreateRGDeployments ) {
-					$retValue = "True"
-					$isResourceGroupDeploymentCompleted = "True"
-					$resourceGroupCount = $resourceGroupCount + 1
-					$deployedGroups = $groupName
-				}
-				else {
-					Write-LogErr "Unable to Deploy one or more VM's"
-					$retryDeployment = $retryDeployment + 1
-					$retValue = "False"
-					$isResourceGroupDeploymentCompleted = "False"
-				}
-			}
-			else {
-				Write-LogErr "Unable to create $groupName"
-				$retryDeployment = $retryDeployment + 1
-				$retValue = "False"
-				$isResourceGroupDeploymentCompleted = "False"
-			}
-		}
-		else {
-			Write-LogErr "Unable to delete existing resource group - $groupName"
-			$retryDeployment = $retryDeployment + 1
-			$retValue = "False"
-			$isResourceGroupDeploymentCompleted = "False"
-		}
-	}
-	return $retValue, $deployedGroups, $resourceGroupCount, $DeploymentElapsedTime
-}
-
 
 Function Copy-VHDToAnotherStorageAccount ($sourceStorageAccount, $sourceStorageContainer, $destinationStorageAccount, $destinationStorageContainer, $vhdName, $destVHDName, $SasUrl) {
 	$retValue = $false
@@ -2642,7 +2616,9 @@ Function Add-DefaultTagsToResourceGroup {
 		}
 		Add-ResourceGroupTag -ResourceGroup $ResourceGroup -TagName BuildURL -TagValue $BuildURLTag
 		# Add test name.
-		Add-ResourceGroupTag -ResourceGroup $ResourceGroup -TagName TestName -TagValue $currentTestData.testName
+		if ($currentTestData.testName) {
+			Add-ResourceGroupTag -ResourceGroup $ResourceGroup -TagName TestName -TagValue $currentTestData.testName
+		}
 		# Add LISAv2 launch machine name.
 		Add-ResourceGroupTag -ResourceGroup $ResourceGroup -TagName BuildMachine -TagValue "$env:UserDomain\$env:ComputerName"
 		# Add date-time.
@@ -3055,7 +3031,7 @@ Function Upload-AzureBootAndDeploymentDataToDB ($DeploymentTime, $AllVMData, $Cu
 			#region KernelVersion checking
 			$KernelVersion = Get-Content "$LogDir\$($vmData.RoleName)-kernelVersion.txt"
 			#endregion
-			$SQLQuery += "('$DateTimeUTC','$global:TestPlatform','$global:TestLocation','$TestCaseName','$SubscriptionID','$SubscriptionName','$ResourceGroupName','$NumberOfVMsInRG','$RoleName',$DeploymentTime,$KernelBootTime,$WALAProvisionTime,'$HostVersion','$GuestDistro','$KernelVersion','$LISVersion','$WALAVersion','$RoleSize','$StorageType','$CallTraces','$kernelLogFile','$WALAlogFile'),"
+			$SQLQuery += "('$DateTimeUTC','$global:TestPlatform','$($CurrentTestData.SetupConfig.TestLocation)','$TestCaseName','$SubscriptionID','$SubscriptionName','$ResourceGroupName','$NumberOfVMsInRG','$RoleName',$DeploymentTime,$KernelBootTime,$WALAProvisionTime,'$HostVersion','$GuestDistro','$KernelVersion','$LISVersion','$WALAVersion','$RoleSize','$StorageType','$CallTraces','$kernelLogFile','$WALAlogFile'),"
 		}
 		$SQLQuery = $SQLQuery.TrimEnd(',')
 

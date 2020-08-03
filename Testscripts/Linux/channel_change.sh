@@ -101,6 +101,7 @@ function Main() {
 			failed_count=$((failed_count+1))
 		fi
 	done
+	LogMsg "Completed the non-assigned cpu state change"
 
 	# ########################################################################
 	# The previous step sets all cpus to online state, but all channels use cpu 0

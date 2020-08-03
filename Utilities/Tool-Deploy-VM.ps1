@@ -75,7 +75,9 @@ try {
             <TestName>TOOL-DEPLOYMENT-PROVISION</TestName>
             <testScript>TOOL-DEPLOYMENT-PROVISION.ps1</testScript>
             <files></files>
-            <setupType>SETUP_TYPE_NAME</setupType>
+            <SetupConfig>
+                <setupType>SETUP_TYPE_NAME</setupType>
+            </SetupConfig>
             <Platform>Azure,HyperV</Platform>
             <Category>Tool</Category>
             <Area>DEPLOYVM</Area>
@@ -114,7 +116,6 @@ try {
             <VirtualMachine>
                 <state></state>
                 <InstanceSize>VM_SIZE</InstanceSize>
-                <ARMInstanceSize>VM_SIZE</ARMInstanceSize>
                 <RoleName>VM_NAME</RoleName>
                 CUSTOM_ENDPOINTS
                 CUSTOM_DISKS

@@ -31,6 +31,27 @@ Function New-ResultSummary($testResult, $checkValues, $testName, $metaData) {
 	return $resultString
 }
 
+$ExcludedSetupConfigsToDisplay = @("RGIdentifier", "SetupType", "SetupScript","TiPSessionId","TiPCluster","PlatformFaultDomainCount","PlatformUpdateDomainCount")
+function ConvertFrom-SetupConfig([object]$SetupConfig, [switch]$WrappingLines) {
+	$resultString = ""
+	$SetupConfig.ChildNodes | Sort-Object LocalName | Foreach-Object {
+		if ($SetupConfig.($_.LocalName) -and !($ExcludedSetupConfigsToDisplay -contains $_.LocalName)) {
+			if ($SetupConfig.($_.LocalName).InnerText) {
+				$value = $SetupConfig.($_.LocalName).InnerText
+			} else {
+				$value = $SetupConfig.($_.LocalName)
+			}
+			if ($WrappingLines.IsPresent) {
+				$resultString += "&nbsp;&nbsp;$($_.LocalName):$value<br />"
+			}
+			else {
+				$resultString += "$($_.LocalName): $value, "
+			}
+		}
+	}
+	return $resultString.Trim(", ")
+}
+
 Function Get-FinalResultHeader($resultArr) {
 	switch ($resultArr) {
 		{($_ -imatch "FAIL")} { $result = $global:ResultFail; break}
@@ -238,6 +259,10 @@ function Download-RemoteFile($downloadFrom, $downloadTo, $port, $file, $username
 
 # Upload or download files to/from remote VMs
 Function Copy-RemoteFiles($uploadTo, $downloadFrom, $downloadTo, $port, $files, $username, $password, [switch]$upload, [switch]$download, [switch]$usePrivateKey, [switch]$doNotCompress, $maxRetry) {
+	if ($global:IsWindowsImage) {
+		Write-LogDbg "It is a Windows VM. Skip Copy-RemoteFiles."
+		return
+	}
 	if (!$files) {
 		Write-LogErr "No file(s) to copy."
 		return
@@ -296,9 +321,10 @@ Function Wrap-CommandsToFile([string] $username,[string] $password,[string] $ip,
 		Set-Variable -Name lastIP -Value $ip -Scope Global
 		Set-Variable -Name lastPort -Value $port -Scope Global
 		Set-Variable -Name lastUser -Value $username -Scope Global
-		$command | out-file -encoding ASCII -filepath "$LogDir\runtest.sh"
-		Copy-RemoteFiles -upload -uploadTo $ip -username $username -port $port -password $password -files "$LogDir\runtest.sh"
-		Remove-Item "$LogDir\runtest.sh"
+		$fileName = "runtest-${global:TestID}.sh"
+		$command | out-file -encoding ASCII -filepath "$LogDir\$fileName"
+		Copy-RemoteFiles -upload -uploadTo $ip -username $username -port $port -password $password -files "$LogDir\$fileName"
+		Remove-Item "$LogDir\$fileName"
 	}
 }
 
@@ -322,6 +348,10 @@ Function Get-AvailableExecutionFolder([string] $username, [string] $password, [s
 }
 
 Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [string] $command, [int] $port, [switch]$runAsSudo, [Boolean]$WriteHostOnly, [Boolean]$NoLogsPlease, [switch]$ignoreLinuxExitCode, [int]$runMaxAllowedTime = 300, [switch]$RunInBackGround, [int]$maxRetryCount = 20, [string] $MaskStrings) {
+	if ($global:IsWindowsImage) {
+		Write-LogDbg "It is a Windows VM. Skip Run-LinuxCmd."
+		return
+	}
 	if (!$global:AvailableExecutionFolder) {
 		Get-AvailableExecutionFolder $username $password $ip $port
 	}
@@ -338,6 +368,7 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 	}
 	$currentDir = $PWD.Path
 	$RunStartTime = Get-Date
+	$scriptName = "runtest-${global:TestID}.sh"
 
 	if ($global:sshPrivateKey) {
 		$sshKey = $global:sshPrivateKey
@@ -351,7 +382,7 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 			}
 			$linuxCommand += "sudo -S env `"PATH=`$PATH`" "
 			$logCommand = $linuxCommand
-			$linuxCommand += "bash -c `'bash runtest.sh ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
+			$linuxCommand += "bash -c `'bash $scriptName ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
 			$logCommand += " $MaskedCommand`""
 		} else {
 			$linuxCommand = "`""
@@ -359,15 +390,15 @@ Function Run-LinuxCmd([string] $username, [string] $password, [string] $ip, [str
 				$linuxCommand += "echo $plainTextPassword | "
 			}
 			$logCommand = $linuxCommand
-			$linuxCommand += "sudo -S bash -c `'bash runtest.sh ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
+			$linuxCommand += "sudo -S bash -c `'bash $scriptName ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
 			$logCommand += "sudo -S $MaskedCommand`""
 		}
 	} else {
 		if ($detectedDistro -eq "COREOS") {
-			$linuxCommand = "`"export PATH=/usr/share/oem/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/oem/bin:/opt/bin && bash -c `'bash runtest.sh ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
+			$linuxCommand = "`"export PATH=/usr/share/oem/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/oem/bin:/opt/bin && bash -c `'bash $scriptName ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
 			$logCommand = "`"export PATH=/usr/share/oem/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/share/oem/bin:/opt/bin && $MaskedCommand`""
 		} else {
-			$linuxCommand = "`"bash -c `'bash runtest.sh ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
+			$linuxCommand = "`"bash -c `'bash $scriptName ; echo AZURE-LINUX-EXIT-CODE-`$?`' `""
 			$logCommand = "`"$MaskedCommand`""
 		}
 	}
@@ -715,7 +746,7 @@ Function Get-LISAv2Tools($XMLSecretFile) {
 	# Copy required binary files to working folder
 	$CurrentDirectory = Get-Location
 	$CmdArray = @('7za.exe','dos2unix.exe','gawk','jq','plink.exe','pscp.exe', `
-					'kvp_client32','kvp_client64','nc.exe','lz4.exe')
+					'kvp_client32','kvp_client64','nc.exe','lz4.exe','sbinfo')
 
 	if ($XMLSecretFile) {
 		$WebClient = New-Object System.Net.WebClient
@@ -729,8 +760,19 @@ Function Get-LISAv2Tools($XMLSecretFile) {
 		if (! (Test-Path $CurrentDirectory/Tools/$_) ) {
 			Write-LogWarn "$_ file is not found in Tools folder."
 			if ($toolFileAccessLocation) {
-				$WebClient.DownloadFile("$toolFileAccessLocation/$_","$CurrentDirectory\Tools\$_")
-				Write-LogInfo "File $_ successfully downloaded in Tools folder: $CurrentDirectory\Tools."
+				$downloadFileError = $False
+				try {
+					$WebClient.DownloadFile("$toolFileAccessLocation/$_","$CurrentDirectory\Tools\$_")
+				}
+				catch {
+					$downloadFileError = $True
+				}
+				if ($downloadFileError) {
+					Write-LogWarn "Failed to download '$_', please make sure it's available from '$toolFileAccessLocation'"
+				}
+				else {
+					Write-LogInfo "File $_ successfully downloaded in Tools folder: $CurrentDirectory\Tools."
+				}
 			} else {
 				Throw "$_ file is not found, please either download the file to Tools folder, or specify the blobStorageLocation in XMLSecretFile"
 			}
@@ -745,7 +787,7 @@ Function Get-SSHKey ($XMLSecretFile) {
 	if ($XMLSecretFile) {
 		$WebClient = New-Object System.Net.WebClient
 		$xmlSecret = [xml](Get-Content $XMLSecretFile)
-		$privateSSHKey = $xmlSecret.secrets.sshPrivateKey.InnerText
+		$privateSSHKey = if ($xmlSecret.secrets.sshPrivateKey.InnerText) { $xmlSecret.secrets.sshPrivateKey.InnerText } else { $xmlSecret.secrets.sshPrivateKey }
 		if ($privateSSHKey) {
 			$sshKeyPath = $privateSSHKey
 		}

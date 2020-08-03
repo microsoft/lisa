@@ -95,12 +95,12 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
      - If Run LISAv2 for Azure Platform with authentication from service principal, please update created service principal info in your secrete file, can use [this script](https://github.com/LIS/LISAv2/blob/master/Utilities/CreateServicePrincipal.ps1) to create service principal.
 	 - If Run-LISAv2.ps1 for Azure Platform from an authenticated PowerShell session (check `Get-AzContext` from PowerShell), no need prepare Service Principla info in your secrete file.
 	 - Storage Accounts Tips:
-        -   If you want LISAv2 to create all potential needed Azure storage accouts from all available Azure regions that supports `'Microsoft.Storage'` resource type and keep using those storage accounts in the following automation or ad-hoc testing, give `<ARMStorageAccount>Auto_Complet_RG=Xxx</ARMStorageAccount>` from .\XML\GlobalConfigurations.xml, or you can specify `-StorageAccount "Auto_Complet_RG=Xxx"` during Run-LISAv2.ps1.
-	        - `'Xxx'` is the Resource Group Name to host storage accounts which are used for LISAv2 execution. If Azure resource group `'Xxx'` does not exist, LISAv2 will create `'Xxx'` resource group automatically.
-	        - LISAv2 will create new storage accounts automatically with name following regular expression `lisa[a-z0-9]{15}`, and make sure there are two storage accounts (one is `Standard_LRS` type, another is `Premium_LRS` type) created (or checked for existence) in Azure resource group `'Xxx'` for each Azure region which supports `'Microsoft.Storage'` resource type. Any existing storage account that follows the naming format `lisa[a-z0-9]{15}` from Azure resource group `'Xxx'` will be taken as expected storage accounts and LISAv2 will not create duplicate storage accounts with same storage account type (`Standard_LRS` or `Premium_LRS`) at the same region.
-	        - LISAv2 will update `<RegionAndStorageAccounts>` of user specified secret file with expected storage accounts from Azure resource group `'Xxx'` for the following execution, just as user created those storage accounts manually and replaced in secret file as below example.
-	        - If user changes to another Azure resource group `'Yyy'` instead of `'Xxx'` used previously when Run-LISAv2 with the same subscription, LISAv2 will create (or check existence of) another set of storage accounts with naming `lisa[a-z0-9]{15}` in Azure resource group `'Yyy'`. So note about this, and think over before changing to another resource group in the following automation or ad-hoc testing.
-        -   If you already prepared standard and premium storage accounts in your test subscription for your test location, e.g., `'eastasia'`, please replace storage account names in secret file as below. If you may run against other regions, add more tag elements like `<other_region></other_region>`.
+        *   If you want LISAv2 to create all potential needed Azure storage accouts from all available Azure regions that supports `'Microsoft.Storage'` resource type and keep using those storage accounts in the following automation or ad-hoc testing, give `<ARMStorageAccount>Auto_Complet_RG=Xxx</ARMStorageAccount>` from .\XML\GlobalConfigurations.xml, or you can specify `-StorageAccount "Auto_Complet_RG=Xxx"` during Run-LISAv2.ps1.
+	        * `'Xxx'` is the Resource Group Name to host storage accounts which are used for LISAv2 execution. If Azure resource group `'Xxx'` does not exist, LISAv2 will create `'Xxx'` resource group automatically.
+	        * LISAv2 will create new storage accounts automatically with name following regular expression `lisa[a-z0-9]{15}`, and make sure there are two storage accounts (one is `Standard_LRS` type, another is `Premium_LRS` type) created (or checked for existence) in Azure resource group `'Xxx'` for each Azure region which supports `'Microsoft.Storage'` resource type. Any existing storage account that follows the naming format `lisa[a-z0-9]{15}` from Azure resource group `'Xxx'` will be taken as expected storage accounts and LISAv2 will not create duplicate storage accounts with same storage account type (`Standard_LRS` or `Premium_LRS`) at the same region.
+	        * LISAv2 will update `<RegionAndStorageAccounts>` of user specified secret file with expected storage accounts from Azure resource group `'Xxx'` for the following execution, just as user created those storage accounts manually and replaced in secret file as below example.
+	        * If user changes to another Azure resource group `'Yyy'` instead of `'Xxx'` used previously when Run-LISAv2 with the same subscription, LISAv2 will create (or check existence of) another set of storage accounts with naming `lisa[a-z0-9]{15}` in Azure resource group `'Yyy'`. So note about this, and think over before changing to another resource group in the following automation or ad-hoc testing.
+        *   If you already prepared standard and premium storage accounts in your test subscription for your test location, e.g., `'eastasia'`, please replace storage account names in secret file as below. If you may run against other regions, add more tag elements like `<other_region></other_region>`.
     ```xml
         <secrets>
             <!--Not mandatory-->
@@ -139,7 +139,7 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
         </secrets>
     ```
 
-    2.2 Update the .\XML\GlobalConfigurations.xml file with your Azure subscription information or Hyper-V host information:
+    2.2 Update .\XML\GlobalConfigurations.xml file is optional, depending on your [authentication options](https://github.com/LIS/LISAv2#authenticate-from-lisav2-orchestrator-machine-with-your-azure-subscription) and how you have prepared the secrets file. But in some cases, you may need to update .\XML\GlobalConfigurations.xml with your Azure subscription information or Hyper-V host information:
 
         Go to Global > Azure/HyperV and update following fields if necessary:
 
@@ -147,6 +147,7 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
             b. SubscriptionName (Optional)
             c. Environment (For Azure PublicCloud, use `AzureCloud`)
             d. ARMStorageAccount
+            e. DefaultARMImageName
 
         Example:
 
@@ -161,6 +162,8 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
                 <!--This 'ARMStorageAccount' is mandatory if '-StorageAccount' is not specified when Run-LISAv2.ps1, otherwise, it's optional-->
                 <ARMStorageAccount>ExistingStorage_Standard</ARMStorageAccount>
             </Subscription>
+            <!--This 'DefaultARMImageName' is the default value for '-ARMImageName' from Azure Gallery, when '-OsVHD' and '-ARMImageName' both are not specified form Run-LISAv2 test parameters-->
+            <DefaultARMImageName>Canonical UbuntuServer 18.04-LTS Latest</DefaultARMImageName>
         </Azure>
         <HyperV>
             <Hosts>
@@ -194,14 +197,30 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
     ```
 
 3. There are two ways to run LISAv2 tests:
+  * Note when testing with 'Azure' platform:
+
+    * `-ARMImageName` is optional when testing with Azure Gallery Images (`-OsVHD` is used for testing with custom image). If both `-ARMImageName` and `-OsVHD` are not provided from Run-LISAv2.ps1 parameters, LISAv2 will try to use `<DefaultARMImageName>` from .\XML\GlobalConfigurations.xml as value of `-ARMImageName`. In this case, if `<DefaultARMImageName>` is not defined from `.\XML\GlobalConfigurations.xml`, exeption will be thrown.
+
+    * `-TestLocation` is optional. If `-TestLocation` is not provided from Run-LISAv2.ps1 parameters, LISAv2 will use the pre-defined `<TestLocation>` from test definition xml for each test case. If test case does not have any specific `<TestLocation>`, LISAv2 will choose an Azure Region automatically per test case Vm Size and Vm Family from current subscription context. The auto-selected TestLocation (Azure Region) is likely to have the most available vCPUs Compute resources for the target Vm Size and Vm Family of current test case. The available vCPU resources of all enabled Azure Regions is calculated and ordered by LISAv2 dynamically based on the current Compute vCPUs resource usage of current subscription when necessary. Run-LISAv2 without `-TestLocation` can be used when Compute resources for testing VM Sizes are not coming from single Azure Region, but distributed from different Azure Regions, in that case, running selected test cases all in once of LISAv2 execution is possible. If the target VM Size is not enabled from any region of current subscription, LISAv2 will report exception. If LISAv2 could not deploy a target Vm Size due to vCPUs Compute resource is not enough temporarily, LISAv2 will wait for at most 1 hour for any released Compute resources, and then continue the testing when resources getting available, or abort the current test case when waiting timeout.
+
+    * Test Cases which is selected by `-TestCategory`, `-TestPriority`, `-TestArea`, `-TestTag`, can be tested with expandable setup parameters, such as `-ARMImageName "<publisher  offer  SKU  version>(,<publisher  offer  SKU  version>)..."`, `-OverrideVMSize "<Azure_Vm_Size>(,<Azure_Vm_Size>)..."`, `-TestLocation "<Azure_Region>(,<Azure_Region>)..."`. These setup parameters may contain Comma-Separated values, which means the selected test cases can be tested multiple times with different ARMImageNames, different Vm Sizes, and different Azure Regions/Locations. If Comma-Separated values used in `-ARMImageName` `-OverrideVMSize`, `-TestLocation`, the overall test case execution times will be: (Count of Test Cases) * (Count of ARMImageNames) * (Count of TestLocations/Regions) * (Count of OverrideVMSizes) * (Number of TestIterations)
+
+    * If a test case has designed a pre-defined value for `<ARMImanageName>`, `<OverrideVMSize>`, `<TestLocation>` in test definition xml, then the pre-defined SetupConfig value will be respected in LISAv2 deployment stage before any testing script eventually being invoked. If user wants to apply the custom value forcibly from LISAv2 parameters for selected test cases, the switch parameter `-ForceCustom` can be used in this scenario. Specifically, `-ForceCustom` will choose the additional setup configurations from `-ArmImageName`, `-TestLocation`, `-OverrideVMSize` and force override the pre-defined settings for each selected test case, no matter these setup configurations are defined or not by test cases. `-ForceCustom` is generally an optional parameter to Run-LISAv2 for most scenarios, but you can also apply `-ForceCustom` in your LISAv2 pipeline configurations to make a backward compatible with special requirements.
+
+    * The test parameters of `-ARMImageName`, `-TestLocation`, `-OverrideVMSize` are semantically equivalent to be used as CustomParameters like `'Network=xxx;OSType=yyy;DiskType=mmm;ImageType=nnn'`. For example, `-ARMImageName "Redhat RHEL 7.7 Latest,Canonical UbuntuServer 18.04-LTS Latest"` has the same effect as `-CustomParameters "ARMImageName=Redhat RHEL 7.7 Latest,Canonical UbuntuServer 18.04-LTS Latest"` in LISAv2.
 
    a. Provide all parameters to Run-LisaV2.ps1
 
-        .\Run-LisaV2.ps1 -TestPlatform "Azure" -TestLocation "<Region location>" -RGIdentifier "<Identifier of the resource group>" [-ARMImageName "<publisher offer SKU version>" | -OsVHD "<VHD from storage account>" ] [[-TestCategory "<Test Catogry from Jenkins pipeline>" | -TestArea "<Test Area from Jenkins pipeline>"]* | -TestTag "<A Tag from Jenkins pipeline>" | -TestNames "<Test cases separated by comma>"]
+        .\Run-LisaV2.ps1 -TestPlatform "Azure" [-TestLocation "<Azure Region>(,<Azure Region>)..."] -RGIdentifier "<Identifier of the resource group>" [-ARMImageName "<publisher offer SKU version>(,<publisher offer SKU version>)..." | -OsVHD "<VHD from storage account>" ] [OverrideVMSize "<Azure_Vm_Size>(,<Azure_Vm_Size>)..."] [[-TestCategory "<Test Catogry from Jenkins pipeline>" | -TestArea "<Test Area from Jenkins pipeline>"]* | -TestTag "<A Tag from Jenkins pipeline>" | -TestNames "<Test cases separated by comma>"]"
+
         Basic Azure platform example:
         .\Run-LisaV2.ps1 -TestPlatform "Azure" -TestLocation "westus" -RGIdentifier "deployment" -ARMImageName "canonical ubuntuserver 18.04-lts Latest" -TestNames "VERIFY-DEPLOYMENT-PROVISION"
         Azure platform using secret file:
         .\Run-LisaV2.ps1 -TestPlatform "Azure" -TestLocation "westus" -RGIdentifier "deployment" -ARMImageName "canonical ubuntuserver 18.04-lts Latest" -TestNames "VERIFY-DEPLOYMENT-PROVISION" -XMLSecretFile "E:\AzureCredential.xml"
+        Azure platform using default ARMImageName and auto-selected TestLoacation:
+        .\Run-LisaV2.ps1 -TestPlatform "Azure" -RGIdentifier "deployment" -TestNames "VERIFY-DEPLOYMENT-PROVISION" -XMLSecretFile "E:\AzureCredential.xml"
+        Azure platform using Comma-Separated ARMImageName, OverrideVMSize, TestLoacation and TestIterations to test multiple times for selected test cases:
+        .\Run-LisaV2.ps1 -TestPlatform "Azure" -RGIdentifier "deployment" -TestLocation "westus,eastus2" -ARMImageName "canonical ubuntuserver 18.04-lts Latest,Redhat RHEL 7.7 Latest" -OverrideVMSize "Standard_D2s_v2,Standard_D15s_v2" -TestIterations 2 -TestNames "VERIFY-DEPLOYMENT-PROVISION" -XMLSecretFile "E:\AzureCredential.xml"
 
         .\Run-LisaV2.ps1 -TestPlatform "HyperV" [-TestLocation "ServerName"] -RGIdentifier "<Identifier of the vm group>" -OsVHD "<local or UNC path or downloadable URL of VHD>" [[-TestCategory "<Test Catogry from Jenkins pipeline>" | -TestArea "<Test Area from Jenkins pipeline>"]* | -TestTag "<A Tag from Jenkins pipeline>" | -TestNames "<Test cases separated by comma>"]
         HyperV platform examples:
@@ -220,8 +239,9 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
         Multiple override virtual machine size example:
         .\Run-LisaV2.ps1 -TestPlatform "Azure" -TestLocation "westus" -RGIdentifier "deployment" -ARMImageName "canonical ubuntuserver 18.04-lts Latest" -TestNames "VERIFY-DEPLOYMENT-PROVISION" -OverrideVMSize "Standard_A2,Standard_DS1_v2"
 
+        'Ready' platform relies on '-TestLocation' to provide the locations of test environment, then LISAv2 will skip deployment step for selected test cases. TestLocation of Read platform should follow this Comma-Separated format: `<public_ip_address_a>:<ssh_port_a>,<public_ip_address_b>:<ssh_port_b>`
         Ready platform example:
-        .\Run-LisaV2.ps1 -TestPlatform "Ready" -RGIdentifier "10.100.100.100:1111;10.100.100.100:1112" -TestNames "<Test cases separated by comma>" -XMLSecretFile "E:\AzureCredential.xml" [-EnableTelemetry]
+        .\Run-LisaV2.ps1 -TestPlatform "Ready" -TestLocation "10.100.100.100:1111,10.100.100.100:1112" -TestNames "<Test cases separated by comma>" -XMLSecretFile "E:\AzureCredential.xml" [-EnableTelemetry]
 
    b. Provide parameters in .\XML\TestParameters.xml.
 
@@ -234,3 +254,22 @@ Please follow the steps mentioned at [here](https://docs.microsoft.com/en-us/azu
 For more details, please refer to the documents [here](https://github.com/LIS/LISAv2/blob/master/Documents/How-to-use.md).
 
 Contact: <lisasupport@microsoft.com>
+
+## Contributing
+
+This project welcomes contributions and suggestions. Most contributions require
+you to agree to a Contributor License Agreement (CLA) declaring that you have
+the right to, and actually do, grant us the rights to use your contribution. For
+details, visit https://cla.opensource.microsoft.com.
+
+When you submit a pull request, a CLA bot will automatically determine whether
+you need to provide a CLA and decorate the PR appropriately (e.g., status check,
+comment). Simply follow the instructions provided by the bot. You will only need
+to do this once across all repos using our CLA.
+
+This project has adopted the [Microsoft Open Source Code of
+Conduct](https://opensource.microsoft.com/codeofconduct/). For more information
+see the [Code of Conduct
+FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact
+[opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional
+questions or comments.

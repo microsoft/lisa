@@ -42,7 +42,7 @@ function Send-ResultToDatabase ($GlobalConfig, $logDir) {
     if ($dataSource -And $user -And $password -And $database -And $dataTableName) {
         # Get host info
         $hostType    = "Azure"
-        $hostBy    = ($global:TestLocation).Replace('"','')
+        $hostBy    = ($CurrentTestData.SetupConfig.TestLocation).Replace('"','')
         $hostOS    = Get-Content "$logDir\VM_properties.csv" | Select-String "Host Version"| ForEach-Object{$_ -replace ",Host Version,",""}
 
         # Get L1 guest info
@@ -50,7 +50,7 @@ function Send-ResultToDatabase ($GlobalConfig, $logDir) {
         $l1GuestOSType    = "Linux"
         $l1GuestSize = $AllVMData.InstanceSize
         $l1GuestKernelVersion    = Get-Content "$logDir\VM_properties.csv" | Select-String "Kernel version"| ForEach-Object{$_ -replace ",Kernel version,",""}
-        $imageName = $Global:ARMImageName
+        $imageName = $CurrentTestData.SetupConfig.ARMImageName
 
         # Get L2 guest info
         $l2GuestDistro    = Get-Content "$logDir\nested_properties.csv" | Select-String "OS type"| ForEach-Object{$_ -replace ",OS type,",""}
@@ -139,7 +139,7 @@ function Main {
         Copy-RemoteFiles -download -downloadFrom $hs1VIP -files "/home/$user/VM_properties.csv" -downloadTo $LogDir -port $hs1vm1sshport -username $user -password $password
 
         if ($testResult -imatch $resultPass) {
-            $files = "/home/$user/ntttcpConsoleLogs, /home/$user/ntttcpTest.log, /home/$user/report.log, /home/$user/nested_properties.csv"
+            $files = "/home/$user/ntttcpConsoleLogs, /home/$user/report.log, /home/$user/nested_properties.csv"
             Copy-RemoteFiles -download -downloadFrom $hs1VIP -files $files -downloadTo $LogDir -port $hs1vm1sshport -username $user -password $password
             $files = "/home/$user/ntttcp-test-logs-receiver.tar, /home/$user/ntttcp-test-logs-sender.tar"
             Copy-RemoteFiles -download -downloadFrom $hs1VIP -files $files -downloadTo $LogDir -port $hs1vm1sshport -username $user -password $password

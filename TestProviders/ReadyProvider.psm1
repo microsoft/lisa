@@ -28,6 +28,8 @@ using Module ".\TestProvider.psm1"
 
 Class ReadyProvider : TestProvider
 {
+	[string]$InstanceSize
+
 	[object] DeployVMs([xml] $GlobalConfig, [object] $SetupTypeData, [object] $TestCaseData, [string] $TestLocation, [string] $RGIdentifier, [bool] $UseExistingRG, [string] $ResourceCleanup) {
 		function Create-QuickVMNode() {
 			$objNode = New-Object -TypeName PSObject
@@ -67,8 +69,8 @@ Class ReadyProvider : TestProvider
 		function SetInstanceSize([object] $AllVmData) {
 			$count = 0
 			foreach ($vmData in $AllVMData) {
-				if ($global:OverrideVMSize) {
-					$AllVmData[$count].InstanceSize = $global:OverrideVMSize
+				if ($this.InstanceSize) {
+					$AllVmData[$count].InstanceSize = $this.InstanceSize
 				} else {
 					$coreCount = Run-LinuxCmd -username $global:user -password $global:password -ip $($vmData.PublicIp) -port $($vmData.SSHPort) `
 						-command "cat /proc/cpuinfo | grep -c ^processor"
@@ -83,7 +85,7 @@ Class ReadyProvider : TestProvider
 		$allVMData = @()
 		$ErrorMessage = ""
 		try {
-			$allVmList = $RGIdentifier.Split(";");
+			$allVmList = $TestLocation.Split(",");
 			$machines = @()
 			$machines += $SetupTypeData.ResourceGroup.VirtualMachine
 
@@ -92,7 +94,7 @@ Class ReadyProvider : TestProvider
 				return $null
 			}
 
-			$vmIndex=0
+			$vmIndex = 0
 			while ($vmIndex -lt $machines.Count) {
 				$vmNode = Create-QuickVMNode
 
@@ -151,7 +153,8 @@ Class ReadyProvider : TestProvider
 				foreach ($VM in $AllVMData) {
 					foreach ($script in $($CurrentTestData.CleanupScript).Split(",")) {
 						$null = Run-SetupScript -Script $script -Parameters $TestParameters -VMData $VM -CurrentTestData $CurrentTestData
-					}				}
+					}
+				}
 			}
 
 			([TestProvider]$this).RunTestCaseCleanup($AllVMData, $CurrentTestData, $CurrentTestResult, $CollectVMLogs, $RemoveFiles, $User, $Password, $SetupTypeData, $TestParameters)

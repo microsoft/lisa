@@ -32,7 +32,7 @@ function Send-ResultToDatabase ($GlobalConfig, $logDir, $currentTestData) {
 	if ($dataSource -And $user -And $password -And $database -And $dataTableName) {
 		# Get host info
 		$HostType = $global:TestPlatform
-		$HostBy = $TestLocation
+		$HostBy = $CurrentTestData.SetupConfig.TestLocation
 		$HostOS = Get-Content "$LogDir\VM_properties.csv" | Select-String "Host Version"| ForEach-Object{$_ -replace ",Host Version,",""}
 
 		# Get L1 guest info
@@ -49,12 +49,12 @@ function Send-ResultToDatabase ($GlobalConfig, $logDir, $currentTestData) {
 		$L2GuestDistro = Get-Content "$LogDir\nested_properties.csv" | Select-String "OS type"| ForEach-Object{$_ -replace ",OS type,",""}
 		$L2GuestKernelVersion = Get-Content "$LogDir\nested_properties.csv" | Select-String "Kernel version"| ForEach-Object{$_ -replace ",Kernel version,",""}
 		$flag=1
-		if($TestLocation.split(',').Length -eq 2)
+		if($CurrentTestData.SetupConfig.TestLocation.split(',').Length -eq 2)
 		{
 			$flag=0
 		}
 
-		$imageName = $global:ARMImageName
+		$imageName = $CurrentTestData.SetupConfig.ARMImageName
 
 		foreach ( $param in $currentTestData.TestParameters.param)
 		{
@@ -168,7 +168,7 @@ function Main () {
 
 		if ($testResult -imatch $resultPass)
 		{
-			Copy-RemoteFiles -download -downloadFrom $hs2VIP -files "/home/$user/ntttcpConsoleLogs, /home/$user/ntttcpTest.log" -downloadTo $LogDir -port $hs2vm1sshport -username $user -password $password
+			Copy-RemoteFiles -download -downloadFrom $hs2VIP -files "/home/$user/ntttcpConsoleLogs" -downloadTo $LogDir -port $hs2vm1sshport -username $user -password $password
 			Copy-RemoteFiles -download -downloadFrom $hs2VIP -files "/home/$user/nested_properties.csv, /home/$user/report.log" -downloadTo $LogDir -port $hs2vm1sshport -username $user -password $password
 			Copy-RemoteFiles -download -downloadFrom $hs2VIP -files "/home/$user/ntttcp-test-logs-receiver.tar, /home/$user/ntttcp-test-logs-sender.tar" -downloadTo $LogDir -port $hs2vm1sshport -username $user -password $password
 
