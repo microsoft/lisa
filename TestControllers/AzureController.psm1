@@ -43,13 +43,6 @@ Class AzureController : TestController
 		if (!$this.RGIdentifier) {
 			$parameterErrors += "-RGIdentifier is not set"
 		}
-		$ValidateARMImageName = {
-			$ArmImagesToBeUsed = @($this.ARMImageName.Trim(", ").Split(',').Trim())
-			if ($ArmImagesToBeUsed | Where-Object {$_.Split(" ").Count -ne 4}) {
-				$parameterErrors += ("Invalid value for the provided ARMImageName parameter: <'$($this.ARMImageName)'>." + `
-									 "The ARM image should be in the format: '<Publisher> <Offer> <Sku> <Version>,<Publisher> <Offer> <Sku> <Version>,...'")
-			}
-		}
 		if ($ParamTable["StorageAccount"] -imatch "^NewStorage_") {
 			Throw "LISAv2 only supports specified storage account by '-StorageAccount' or candidate parameters values as below. `n
 			Please use '-StorageAccount ""Auto_Complete_RG=XXXResourceGroupName""' or `n
@@ -62,6 +55,13 @@ Class AzureController : TestController
 
 		$this.ARMImageName = $ParamTable["ARMImageName"]
 		$this.SyncEquivalentCustomParameters("ARMImageName", $this.ARMImageName)
+		# After triming multi blanks internally between publisher, offer, sku, and version. Keep sync again between '-ARMImageName' and '-CustomParameters ARMImageName=xxx'
+		if ($this.ARMImageName) {
+			$this.ARMImageName = $this.ARMImageName -replace '\s{2,}', ' '
+			$ParamTable["ARMImageName"] = $this.ARMImageName
+			$this.SyncEquivalentCustomParameters("ARMImageName", $this.ARMImageName)
+		}
+
 		# Validate -ARMImageName and -OsVHD
 		# when both OsVHD and ARMImageName exist, parameterErrors += "..."
 		if ($this.OsVHD -and $this.ARMImageName) {
@@ -83,16 +83,19 @@ Class AzureController : TestController
 			}
 		}
 		elseif ($this.ARMImageName) {
-			&$ValidateARMImageName
+			$ArmImagesToBeUsed = @($this.ARMImageName.Trim(", ").Split(',').Trim())
+			if ($ArmImagesToBeUsed | Where-Object {$_.Split(" ").Count -ne 4}) {
+				$parameterErrors += ("Invalid value for the provided ARMImageName parameter: <'$($this.ARMImageName)'>." + `
+									 "The ARM image should be in the format: '<Publisher> <Offer> <Sku> <Version>,<Publisher> <Offer> <Sku> <Version>,...'")
+			}
 		}
 
 		if ($this.CustomParams["TipSessionId"] -or $this.CustomParams["TipCluster"]) {
 			if (!$this.CustomParams["TipSessionId"] -or !$this.CustomParams["TipCluster"]) {
 				$parameterErrors += "Both 'TipSessionId' and 'TipCluster' are necessary in CustomParameters when Run-LISAv2 with TiP."
 			}
-			if (!$this.UseExistingRG) {
-				$parameterErrors += "'-UseExistingRG' is necessary when Run-LISAv2 with 'TiPSessionId' and 'TiPCluster'."
-			}
+			# Force $this.UseExistingRG = $true when testing with TiP, and always stick to the provided Resoruce Group by '-RGIdentifier'
+			$this.UseExistingRG = $true
 			if (!$this.TestLocation) {
 				$parameterErrors += "'-TestLocation' is necessary when Run-LISAv2 with 'TiPSessionId' and 'TiPCluster'."
 			}
@@ -138,18 +141,38 @@ Class AzureController : TestController
 				PrepareAutoCompleteStorageAccounts -storageAccountsRGName $storageAccountRG -XMLSecretFile $XMLSecretFile
 			}
 			if ($this.UseExistingRG) {
-				if (!$this.RGIdentifier) {
-					throw "'-RGIdentifier' is necessary and its value must be an existing Resource Group Name when Run-LISAv2 with '-UseExistingRG' on Azure Platform."
-				}
-				else {
-					$existingRG = Get-AzResourceGroup -Name $this.RGIdentifier
-					if (!$existingRG) {
-						throw "'-RGIdentifier' must be an existing Resource Group Name when Run-LISAv2 with '-UseExistingRG' on Azure Platform."
+				$existingRG = Get-AzResourceGroup -Name $this.RGIdentifier -ErrorAction SilentlyContinue
+				if (!$existingRG) {
+					if ($this.CustomParams["TipSessionId"] -or $this.CustomParams["TipCluster"]) {
+						# Create resource group for TiP if resource group does not exist, as '$this.TestLocation' always available after ParseAndValidateParameters()
+						Write-LogInfo "Resource group '$($this.RGIdentifier)' does not exist, create it for TiP"
+						Create-ResourceGroup -RGName $this.RGIdentifier -location $this.TestLocation | Out-Null
 					}
 					else {
-						if (($this.CustomParams["TipSessionId"] -or $this.CustomParams["TipCluster"]) -and (Get-AzResource -ResourceGroupName $this.RGIdentifier | Where-Object { $_.ResourceType -inotmatch "availabilitySets" })) {
-							throw "Existing Resource Group '$($this.RGIdentifier)' is not clean, please remove all other resources, except 'availabilitySets' resource type."
+						throw "'-RGIdentifier' must be an existing Resource Group Name when Run-LISAv2 with '-UseExistingRG' on Azure Platform"
+					}
+				}
+				else {
+					$allExistingResources = Get-AzResource -ResourceGroupName $this.RGIdentifier
+					if (($this.CustomParams["TipSessionId"] -or $this.CustomParams["TipCluster"]) -and $allExistingResources) {
+						Write-LogInfo "Try to cleanup all resources from Resource Group '$($this.RGIdentifier)' for testing with TiP..."
+						$isResoruceCleanedExceptAvailabilitySet = Delete-ResourceGroup -RGName $this.RGIdentifier -UseExistingRG $this.UseExistingRG
+						if ($isResoruceCleanedExceptAvailabilitySet) {
+							$allExistingResources | Where-Object { $_.ResourceType -imatch "availabilitySets" } | ForEach-Object {
+								if (Remove-AzResource -ResourceGroupName $this.RGIdentifier -ResourceName $_.Name -ResourceType $_.ResourceType -Force) {
+									Write-LogInfo "`tCleanup resource group '$($this.RGIdentifier)' successfully."
+								}
+								else {
+									throw "Failed to cleanup resources from '$($this.RGIdentifier)', please remove all resources manually."
+								}
+							}
 						}
+						else {
+							throw "Failed to cleanup resources from '$($this.RGIdentifier)', please remove all resources manually."
+						}
+					}
+					elseif (!$allExistingResources) {
+						Write-LogInfo "Resource group '$($this.RGIdentifier)' is empty, new resources will be deployed"
 					}
 				}
 			}
