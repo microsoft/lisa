@@ -32,6 +32,7 @@ function Main {
         Write-LogInfo "Shutting down VM..."
         $null = Stop-AzVM -Name $captureVMData.RoleName -ResourceGroupName $captureVMData.ResourceGroupName -Force
         Write-LogInfo "VM shutdown successful."
+        $Append = $Global:TestID
         if ($env:BUILD_NAME){
             $Append += "-$env:BUILD_NAME"
         }
@@ -39,8 +40,8 @@ function Main {
             $Append += "-$env:BUILD_NUMBER"
         }
         #Copy the OS VHD with different name.
-        if ($CurrentTestData.SetupScript.ARMImageName) {
-            $ARMImage = $CurrentTestData.SetupScript.ARMImageName.Split(" ")
+        if ($CurrentTestData.SetupConfig.ARMImageName) {
+            $ARMImage = $CurrentTestData.SetupConfig.ARMImageName.Split(" ")
             $newVHDName = "EOSG-AUTOBUILT-$($ARMImage[0])-$($ARMImage[1])-$($ARMImage[2])-$($ARMImage[3])-$Append"
         }
         if ($global:BaseOsVHD) {
