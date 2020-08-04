@@ -36,14 +36,37 @@ poetry install
 Now run LISAv3 using Poetry’s environment:
 
 ```bash
-poetry run lisa/main.py
+poetry run python lisa/main.py
 ```
+
+You can also use `poetry shell` to drop into new shell where the first `python`
+in `PATH` is the virtualenv’s Python.
+
+To obtain the path of the Poetry virtual environment setup for LISA (where the
+isolated Python installation and packages are located), run:
+
+```bash
+poetry env list --full-path
+```
+
+This command is the same for Windows and Linux, and it should show something like:
+
+```
+/home/<username>/.cache/pypoetry/virtualenvs/lisa-s7Q404Ij-py3.8 (Activated)
+C:\Users\<username>\AppData\Local\pypoetry\Cache\virtualenvs\lisa-WNmvsOCZ-py3.8 (Activated)
+```
+
+“Activated” means you have successfully used Poetry to create the isolated
+virtual environment for our Python distribution and packages.
 
 ### Editor Setup
 
 This is subject to change as we intend to make as much of it automatic as possible.
 
 #### Visual Studio Code
+
+First, click the Python version in the bottom left, then enter the path emitted
+by the command above. This will point Code to the Poetry virtual environment.
 
 Make sure below settings are in root level of `.vscode/settings.json`
 
@@ -64,4 +87,25 @@ Make sure below settings are in root level of `.vscode/settings.json`
     "python.linting.pylintUseMinimalCheckers": false,
     "editor.formatOnSave": true,
 }
+```
+
+#### Emacs
+
+Use the [pyvenv](https://github.com/jorgenschaefer/pyvenv) package:
+
+```emacs-lisp
+(use-package pyvenv
+  :ensure t
+  :hook (python-mode . pyvenv-tracking-mode))
+```
+
+Then run `M-x add-dir-local-variable RET python-mode RET pyvenv-activate RET
+<path/to/virtualenv>` where the value is the path given by the command above.
+This will create a `.dir-locals.el` file which looks like this:
+
+```emacs-lisp
+;;; Directory Local Variables
+;;; For more information see (info "(emacs) Directory Variables")
+
+((python-mode . ((pyvenv-activate . "~/.cache/pypoetry/virtualenvs/lisa-s7Q404Ij-py3.8"))))
 ```
