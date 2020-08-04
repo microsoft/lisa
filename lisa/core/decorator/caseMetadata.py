@@ -3,7 +3,7 @@ from lisa import log
 from lisa.core.testfactory import testFactory
 
 
-class TestMethod(object):
+class CaseMetadata(object):
     def __init__(self, priority):
         self.priority = priority
 

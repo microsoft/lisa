@@ -1,7 +1,8 @@
+from .util import constants
 from .common.logger import log
 from .core.action import Action, ActionStatus
-from .core.decorator.testmethod import TestMethod
-from .core.decorator.testclass import TestClass
+from .core.decorator.caseMetadata import CaseMetadata
+from .core.decorator.suiteMetadata import SuiteMetadata
 from .core.testrunner import TestRunner
 from .core.testsuite import TestSuite
 from .core.environment import Environment
@@ -14,9 +15,10 @@ __all__ = [
     "Environment",
     "Node",
     "TestRunner",
-    "TestClass",
-    "TestMethod",
+    "SuiteMetadata",
+    "CaseMetadata",
     "TestSuite",
     "Platform",
     "log",
+    "constants",
 ]

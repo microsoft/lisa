@@ -53,7 +53,7 @@ class TestFactory:
             test_suite = TestSuiteMetadata(test_class, area, category, tags)
             self.suites[key] = test_suite
         else:
-            raise Exception("TestFactory duplicate test class name: %s!" % key)
+            raise Exception("TestFactory duplicate test class name: %s" % key)
 
         class_prefix = "%s." % key
         for test_case in self.cases.values():
@@ -72,7 +72,7 @@ class TestFactory:
         if self.cases.get(full_name) is None:
             self.cases[full_name] = test_case
         else:
-            raise Exception("duplicate test class name: %s!" % full_name)
+            raise Exception("duplicate test class name: %s" % full_name)
 
         # this should be None in current observation.
         # the methods are loadded prior to test class

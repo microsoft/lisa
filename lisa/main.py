@@ -8,11 +8,10 @@ from lisa.common import env
 from lisa.common.logger import init_log, log
 from retry import retry
 
-path_template = "runtime/results/{0}/{0}-{1}"
-
 
 @retry(FileExistsError, tries=10, delay=0)
 def create_result_path():
+    path_template = "runtime/results/{0}/{0}-{1}"
     date = datetime.utcnow().strftime("%Y%m%d")
     time = datetime.utcnow().strftime("%H%M%S-%f")[:-3]
     current_path = path_template.format(date, time)

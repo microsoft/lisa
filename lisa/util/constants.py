@@ -1,0 +1,66 @@
+# config types
+CONFIG_CONFIG = "config"
+
+# common
+NAME = "name"
+VALUE = "value"
+TYPE = "type"
+PATH = "path"
+PATHS = "paths"
+STRATEGY = "strategy"
+FILE = "file"
+HTTP = "http"
+IS_DEFAULT = "isDefault"
+WARN_AS_ERROR = "warnAsError"
+
+
+# by level
+PARENT = "parent"
+OPERATION = "operation"
+OPERATION_REMOVE = "remove"
+OPERATION_ADD = "add"
+OPERATION_OVERWRITE = "overwrite"
+
+EXTENSIONS = "extensions"
+
+VARIABLES = "variables"
+VARIABLES_ISSECRET = "isSecret"
+
+ARTIFACT = "artifact"
+ARTIFACT_TYPE_VHD = "vhd"
+ARTIFACT_LOCATIONS = "locations"
+ARTIFACT_LOCATIONS_TYPE_HTTP = "http"
+
+ENVIRONMENT = "environment"
+ENVIRONMENT_TOPOLOGY = "topology"
+ENVIRONMENT_TEMPLATE = "template"
+ENVIRONMENT_TEMPLATE_NODECOUNT = "nodeCount"
+ENVIRONMENT_NODES = "nodes"
+ENVIRONMENT_NODES_SPEC = "spec"
+ENVIRONMENT_NODES_REMOTE = "remote"
+ENVIRONMENT_NODES_LOCAL = "local"
+ENVIRONMENT_NODES_REMOTE_ADDRESS = "address"
+ENVIRONMENT_NODES_REMOTE_PORT = "port"
+ENVIRONMENT_NODES_REMOTE_PUBLIC_ADDRESS = "publicAddress"
+ENVIRONMENT_NODES_REMOTE_PUBLIC_PORT = "publicPort"
+ENVIRONMENT_NODES_REMOTE_USERNAME = "username"
+ENVIRONMENT_NODES_REMOTE_PASSWORD = "password"
+ENVIRONMENT_NODES_REMOTE_PRIVATEKEYFILE = "privateKeyFile"
+
+NOTIFIER = "notifier"
+
+PLATFORM = "platform"
+PLATFORM_AZURE = "azure"
+PLATFORM_READY = "ready"
+
+TESTS = "tests"
+TESTS_CRITERIA = "criteria"
+TESTS_CRITERIA_AREA = "area"
+TESTS_CRITERIA_CATEGORY = "category"
+TESTS_CRITERIA_PRIORITY = "priority"
+TESTS_CRITERIA_TAG = "tag"
+TESTS_FORCEINCLUDE = "forceInclude"
+TESTS_ITERATION = "iteration"
+TESTS_IGNOREFAILURE = "ignoreFailure"
+TESTS_INCLUDE = "include"
+TESTS_RETRY = "retry"

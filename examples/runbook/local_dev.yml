@@ -4,11 +4,16 @@ name: local try
 notifier:
   - type: junit
   - type: html
+environment:
+  nodes:
+    - type: local
+      # If test suite doesn't specify where to run a case,
+      #  it should be run on default node.
+      isDefault: true
+      # it's optional
 # it's examples for all platforms, but currently should leave single one only.
 platform:
   - type: ready
-    nodes:
-      - type: local
 tests:
   - criteria:
       # all rules in same criteria are AND condition.

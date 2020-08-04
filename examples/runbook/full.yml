@@ -1,21 +1,21 @@
 # run name prefix to help grouping results and put it in title.
 name: full example
 # share configurations for similar runs.
-parent: 
+parent:
   - path: parentconfig.yaml
-    # for simple merge, this part is optional. 
+    # for simple merge, this part is optional.
     # operations include:
     # overwrite: default behavior. add non-exist items and replace exist.
     # remove: remove specified path totally
     # add: add non-exist, not replace exist.
-    strategy: 
+    strategy:
       - path: platform.template
         operation: remove
 # add extended classes can be put in folders and include here.
 # it doesn't matter how those files are organized, lisa loads by their inherits relationship.
 # if there is any conflict on type name, there should be an error message.
-extends:
-  paths: 
+extensions:
+  paths:
     - "./myextends"
 # it uses to support variables in other fields.
 # duplicate items will be overwritten one by one.
@@ -36,36 +36,57 @@ variables:
     # it's not recommended highly to put secret in configurations directly.
     isSecret: true
 # supports multiple artifacts in future.
-artifacts:
+artifact:
   # name is optional. artifacts can be referred by name or index.
   - name: default
     type: vhd
     locations:
-      http: https://path-to-azure-storage/aaa.vhd
+      - type: http
+        path: https://path-to-azure-storage/aaa.vhd
   - name: dsvm
     type: vhd
     locations:
-      http: https://path-to-azure-storage/bbb.vhd
+      - type: http
+        path: https://path-to-azure-storage/bbb.vhd
 # it's spec of environment and node.
-# for ready type, it's optional
+# for ready type, it's optional.
 environment:
   topology: subnet
+  # template and nodes conflicts, they should have only one.
+  #  it uses to prevent duplicate content for big amount nodes.
   template:
     - vcpu: 4
-      # optional, if there is only one artifact
+      nodeCount: 2
+      # optional, if there is only one artifact.
       artifact: default
       # sometimes, it may need special configuration for a platform
       # we should avoid this kind of setting, it limits configuration to other platforms.
       azure:
         vmSize: testSize
         flag: "test=true"
-  nodeCount: 
   nodes:
-    - memoryGB: 4
-      isDefault: true
-    - memoryGB: 8
+    - type: spec
+      azure:
+        vmSize: testSize
+    - type: spec
+      memoryGB: 8
       gpuCount: 1
       artifact: dsvm
+    # local and remote are node type, and don't need platform to handle
+    - type: local
+      # If test suite doesn't specify where to run a case,
+      #  it should be run on default node.
+      isDefault: true
+      # it's optional
+    - type: remote
+      name: secondary
+      address: 10.0.0.2
+      port: 22
+      publicAddress: 23.36.36.36
+      publicPort: 1112
+      username: $$linuxTestUsername$$
+      password: $$linuxTestPassword$$
+      privateKeyFile: $$sshPrivateKey$$
   # the environment spec may not be fully supported by each platform.
   # If so, there is a warning message.
   # Environment spec can be forced to apply, as error is loud.
@@ -84,22 +105,9 @@ platform:
     subscription: $$SubscriptionID$$
     subscriptionKey: $$SubscriptionServicePrincipalKey$$
     datacenter: wu
-  # for test case development, run test cases on current machine.
+  # It uses to pure existing environment.
+  #  run test cases on existing machine.
   - type: ready
-    nodes:
-      - type: local
-        # If test suite doesn't specify where to run a case,
-        #  it should be run on default node.
-        isDefault: true
-        # it's optional
-      - type: ssh
-        name: secondary
-        ip: 10.0.0.2
-        port: 22
-        publicIp: 23.36.36.36
-        publicPort: 1112
-        password: $$linuxTestPassword$$
-        privateKey: $$sshPrivateKey$$
 # rules apply ordered on previous selection.
 # The order of test cases running is not guaranteed, until it set dependencies.
 tests:

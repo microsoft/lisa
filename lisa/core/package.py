@@ -17,7 +17,9 @@ def import_module(path, logDetails=True):
     packages.append(package_name)
     package_dir = os.path.dirname(path)
     sys.path.append(package_dir)
-    log.info("loading extensions from %s", path)
+    if logDetails:
+        log.info("loading extensions from %s", path)
+
     for file in glob(os.path.join(path, "**", "*.py"), recursive=True):
         file_name = os.path.basename(file)
         dir_name = os.path.dirname(file)
@@ -40,9 +42,7 @@ def import_module(path, logDetails=True):
                     full_module_name,
                     local_module_name,
                 )
-            importlib.import_module(
-                local_module_name, package=local_package_name
-            )
+            importlib.import_module(local_module_name, package=local_package_name)
 
 
 packages = ["lisa"]

@@ -1,3 +1,4 @@
+from lisa.parameter_parser.config import Config
 import os
 import yaml
 from lisa import log
@@ -12,6 +13,7 @@ def parse(args):
 
     with open(path, "r") as file:
         data = yaml.safe_load(file)
-    log.debug("yaml content: %s", data)
 
-    return data
+    log.debug("final config data: %s", data)
+    config = Config(data)
+    return config

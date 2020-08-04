@@ -50,6 +50,11 @@ def parse_args():
     support_config_file(list_parser)
     support_variable(list_parser)
 
+    check_parser = subparsers.add_parser("check")
+    check_parser.set_defaults(func=command_entries.check)
+    support_config_file(check_parser)
+    support_variable(check_parser)
+
     parser.set_defaults(func=command_entries.run)
 
     for sub_parser in subparsers.choices.values():

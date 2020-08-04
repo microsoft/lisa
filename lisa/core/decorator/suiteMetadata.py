@@ -2,7 +2,7 @@ from lisa.core.testfactory import testFactory
 from typing import List
 
 
-class TestClass:
+class SuiteMetadata:
     def __init__(self, area: str, category: str, tags: List[str], name=None):
         self.area = area
         self.category = category

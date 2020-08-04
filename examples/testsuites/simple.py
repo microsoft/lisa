@@ -1,15 +1,14 @@
-from lisa.core.decorator.testclass import TestClass
 from lisa.core.testsuite import TestSuite
-from lisa import TestMethod, log
+from lisa import SuiteMetadata, CaseMetadata, log
 
 
-@TestClass(area="demo", category="simple", tags=["demo"])
+@SuiteMetadata(area="demo", category="simple", tags=["demo"])
 class SimpleTestSuite(TestSuite):
-    @TestMethod(priority=1)
+    @CaseMetadata(priority=1)
     def hello(self):
         log.info("hello world")
 
-    @TestMethod(priority=1)
+    @CaseMetadata(priority=1)
     def bye(self):
         log.info("bye!")
 
