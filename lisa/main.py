@@ -6,9 +6,8 @@ from logging import DEBUG, INFO
 from retry import retry
 
 from lisa.common import env
+from lisa.common.logger import init_log, log
 from lisa.parameter_parser.argparser import parse_args
-
-from .common.logger import init_log, log
 
 
 @retry(FileExistsError, tries=10, delay=0)
