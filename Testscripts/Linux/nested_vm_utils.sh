@@ -55,16 +55,16 @@ Install_KVM_Dependencies()
     lsmod | grep kvm_intel
     exit_status=$?
     if [ $exit_status -ne 0 ]; then
-        echo "Failed to install KVM"
+        LogErr "Failed to install KVM"
         Update_Test_State $ICA_TESTFAILED
         exit 0
     else
-        echo "Install KVM succeed"
+        LogMsg "Install KVM succeed"
     fi
     if [ $DISTRO_NAME == "centos" ] || [ $DISTRO_NAME == "rhel" ] || [ $DISTRO_NAME == "oracle" ]; then
-        echo "Install epel repository"
+        LogMsg "Install epel repository"
         install_epel
-        echo "Install qemu-system-x86"
+        LogMsg "Install qemu-system-x86"
         check_package "qemu-system-x86"
         if [ $? -eq 0 ]; then
             install_package qemu-system-x86
@@ -73,12 +73,13 @@ Install_KVM_Dependencies()
     fi
     which qemu-system-x86_64
     if [ $? -ne 0 ]; then
-        echo "Cannot find qemu-system-x86_64"
+        LogErr "Cannot find qemu-system-x86_64"
         Update_Test_State $ICA_TESTFAILED
         exit 0
     fi
     check_package "aria2"
     if [ $? -eq 0 ]; then
+        install_epel
         install_package aria2
     else
         install_package make
@@ -99,21 +100,21 @@ Download_Image_Files()
     done
     [ ! -d /mnt/resource ] && mkdir /mnt/resource
     if [ "x$destination_image_name" == "x" ] || [ "x$source_image_url" == "x" ] ; then
-        echo "Usage: GetImageFiles -destination_image_name <destination image name> -source_image_url <source nested image url>"
+        LogMsg "Usage: Download_Image_Files -destination_image_name <destination image name> -source_image_url <source nested image url>"
         Update_Test_State $ICA_TESTABORTED
         exit 0
     fi
-    echo "Downloading $NestedImageUrl..."
+    LogMsg "Downloading $NestedImageUrl..."
     rm -f /mnt/resource/$destination_image_name
-    echo "aria2c -d /mnt/resource -o $destination_image_name -x 10 $source_image_url"
+    LogMsg "aria2c -d /mnt/resource -o $destination_image_name -x 10 $source_image_url"
     aria2c -d /mnt/resource -o $destination_image_name -x 10 $source_image_url
     exit_status=$?
     if [ $exit_status -ne 0 ]; then
-        echo "Download image fail: $NestedImageUrl"
+        LogErr "Download image fail: $NestedImageUrl"
         Update_Test_State $ICA_TESTFAILED
         exit 0
     else
-        echo "Download image succeed"
+        LogMsg "Download image succeed"
     fi
 }
 
@@ -127,14 +128,14 @@ Start_Nested_VM()
     cmd=$@
 
     if [ "x$user" == "x" ] || [ "x$passwd" == "x" ] || [ "x$port" == "x" ] || [ "x$cmd" == "x" ] ; then
-        echo "Usage: StartNestedVM -user <username> -passwd <user password> -port <port> <command for start nested kvm>"
+        LogMsg "Usage: StartNestedVM -user <username> -passwd <user password> -port <port> <command for start nested kvm>"
         Update_Test_State $ICA_TESTABORTED
         exit 0
     fi
 
-    echo "Run command: $cmd"
+    LogMsg "Run command: $cmd"
     $cmd
-    echo "Wait for the nested VM to boot up ..."
+    LogMsg "Wait for the nested VM to boot up ..."
     sleep 10
     retry_times=20
     exit_status=1
@@ -142,12 +143,12 @@ Start_Nested_VM()
     do
         retry_times=$(expr $retry_times - 1)
         if [ $retry_times -eq 0 ]; then
-            echo "Timeout to connect to the nested VM"
+            LogMsg "Timeout to connect to the nested VM"
             Update_Test_State $ICA_TESTFAILED
             exit 0
         else
             sleep 10
-            echo "Try to connect to the nested VM, left retry times: $retry_times"
+            LogMsg "Try to connect to the nested VM, left retry times: $retry_times"
             remote_exec -host localhost -user $user -passwd $passwd -port $port "hostname"
             exit_status=$?
         fi
@@ -156,6 +157,62 @@ Start_Nested_VM()
         Update_Test_State $ICA_TESTFAILED
         exit 0
     fi
+}
+
+Verify_External_Connection() {
+    while echo $1 | grep -q ^-; do
+       declare $( echo $1 | sed 's/^-//' )=$2
+       shift
+       shift
+    done
+    cmd=$@
+
+    if [ "x$user" == "x" ] || [ "x$passwd" == "x" ] || [ "x$port" == "x" ] ; then
+        LogMsg "Usage: ${FUNCNAME[0]} -user <username> -passwd <user password> -port <port>"
+        Update_Test_State $ICA_TESTABORTED
+        exit 0
+    fi
+
+    remote_exec -host localhost -user $user -passwd $passwd -port $port "which curl > /dev/null"
+    [ $? == 0 ] || {
+        LogErr "No curl in the nested image. Abort the test."
+        Update_Test_State $ICA_TESTABORTED
+        exit 0
+    }
+    LogMsg "Downloading file from Internet to the nested VM..."
+    output=$(remote_exec -host localhost -user $user -passwd $passwd -port $port "curl -s -S https://github.com > /dev/null")
+    [ $? == 0 ] || {
+        LogErr "Failed to download a public file"
+        LogErr "$output"
+        Update_Test_State $ICA_TESTFAILED
+        exit 0
+    }
+    LogMsg "Verify downloading file from Internet to the nested VM: Success"
+}
+
+Verify_Host_Connection() {
+    while echo $1 | grep -q ^-; do
+       declare $( echo $1 | sed 's/^-//' )=$2
+       shift
+       shift
+    done
+    cmd=$@
+
+    if [ "x$user" == "x" ] || [ "x$passwd" == "x" ] || [ "x$port" == "x" ] ; then
+        LogMsg "Usage: ${FUNCNAME[0]} -user <username> -passwd <user password> -port <port>"
+        Update_Test_State $ICA_TESTABORTED
+        exit 0
+    fi
+
+    LogMsg "Copying file from L1 host to the nested VM..."
+    output=$(remote_copy -host localhost -user $user -passwd $passwd -port $port -filename "./constants.sh" -remote_path "/tmp" -cmd "put")
+    [ $? == 0 ] || {
+        LogErr "Failed to download a public file"
+        LogErr "$output"
+        Update_Test_State $ICA_TESTFAILED
+        exit 0
+    }
+    LogMsg "Verify copying file from L1 host to the nested VM: Success"
 }
 
 Reboot_Nested_VM()
@@ -200,7 +257,7 @@ Reboot_Nested_VM()
 
 Stop_Nested_VM()
 {
-    echo "Stop the nested VMs"
+    LogMsg "Stop the nested VMs"
     pid=$(pidof qemu-system-x86_64)
     if [ $? -eq 0 ]; then
         kill -9 $pid
