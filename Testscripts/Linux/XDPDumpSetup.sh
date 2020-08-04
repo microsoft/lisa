@@ -4,6 +4,8 @@
 
 # This script installs XDP dump application
 
+repo_url="https://github.com/LIS/bpf-samples.git"
+
 # Helper Function
 # Install dependencies for XDP
 function Install_XDP_Dependencies(){
@@ -110,6 +112,25 @@ function Run_XDPDump {
     fi
 }
 
+# Check if kernel supports XDP or not
+function check_xdp_support {
+    if [ -z "${1}" -o -z "${2}" ]; then
+        LogErr "ERROR: must provide install ip and NIC Name to Run_XDPDump"
+        SetTestStateAborted
+        exit 0
+    fi
+    local install_ip="${1}"
+    local nic_name="${2}"
+    command="ethtool -S ${nic_name}  | grep xdp_drop | wc -l"
+    xdp_counter="$(ssh ${install_ip} $command)"
+    if [ $xdp_counter -gt 0 ]; then
+        LogMsg "Kernel version supports XDP"
+    else
+        LogErr "Kernel Version does not support XDP"
+        SetTestStateSkipped
+        exit 0
+    fi
+}
 
 UTIL_FILE="./utils.sh"
 
@@ -125,6 +146,8 @@ UtilsInit
 # Script start from here
 LogMsg "*********INFO: Script execution Started********"
 LogMsg "vm : eth0 : ${ip}"
+
+check_xdp_support ${ip} ${nicName}
 
 LogMsg "Installing XDP Dependencies on ${ip}"
 Install_XDP_Dependencies ${ip}
