@@ -17,12 +17,12 @@ class RuntimeObject:
         environment_config = self.config.getEnvironment()
         warn_as_error = None
         if environment_config is not None:
-            warn_as_error = environment_config[constants.WARN_AS_ERROR]
+            warn_as_error = environment_config.get(constants.WARN_AS_ERROR)
         if self.environment.spec is not None and isinstance(
             self.platform, ReadyPlatform
         ):
             self._validateMessage(
-                warn_as_error, "environment spec won't be processed by ready platform."
+                warn_as_error, "the ready platform cannot process environment spec"
             )
 
     def _validateMessage(self, warn_as_error: bool, message, *args):
