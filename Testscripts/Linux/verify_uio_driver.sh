@@ -9,7 +9,7 @@
 #
 #       The test performs the following steps:
 #         1. Assign a NIC to uio_hv_generic driver and check the uio device
-#         2. Restore to hv_netvsc and check the eth1
+#         2. Restore to hv_netvsc and check the NIC
 #
 ########################################################################
 
@@ -47,12 +47,24 @@ case "$DISTRO" in
         ;;
 esac
 
+# Get the secondary nic(e.g. $secondary_nic). If more than 1 NIC, get the first one
+GetSynthNetInterfaces
+primary_nic=$(ip route | grep default | awk '{print $5}')
+secondary_nics=(${SYNTH_NET_INTERFACES[@]/$primary_nic})
+secondary_nic=${secondary_nics[0]}
+[ -n "$secondary_nic" ] || {
+    LogErr "Cannot get the secondary NIC."
+    SetTestStateAborted
+    exit 0
+}
+LogMsg "Detected the secondary NIC: $secondary_nic"
+
 # Get device_id and class_id
-device_id=$(cat /sys/class/net/eth1/device/device_id | tr -d '{}')
-class_id=$(cat /sys/class/net/eth1/device/class_id | tr -d '{}')
+device_id=$(cat /sys/class/net/$secondary_nic/device/device_id | tr -d '{}')
+class_id=$(cat /sys/class/net/$secondary_nic/device/class_id | tr -d '{}')
 
 function register_uio() {
-    LogMsg "Register eth1 to uio"
+    LogMsg "Register $secondary_nic to uio"
     output=$(modprobe uio_hv_generic 2>&1)
     lsmod | grep uio_hv_generic
     VerifyExitCodeZero "Verify uio_hv_generic is loaded"
@@ -72,11 +84,11 @@ function recovery() {
     LogMsg "Restore to hv_netvsc"
     echo ${device_id} > /sys/bus/vmbus/drivers/uio_hv_generic/unbind
     echo ${device_id} > /sys/bus/vmbus/drivers/hv_netvsc/bind
-    # Verify uio0 is removed and eth1 exists
+    # Verify uio0 is removed and $secondary_nic exists
     [ ! -e /dev/uio0 ]
     VerifyExitCodeZero "Verify /dev/uio0 is removed"
-    ip addr show eth1
-    VerifyExitCodeZero "Verify eth1 exists"
+    ip addr show $secondary_nic
+    VerifyExitCodeZero "Verify $secondary_nic exists"
     # Remove uio_hv_generic module
     rmmod uio_hv_generic
     VerifyExitCodeZero "rmmod uio_hv_generic"
