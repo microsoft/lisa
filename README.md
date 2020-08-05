@@ -1,5 +1,9 @@
 # Linux Integration Services Automation 3.0 (LISAv3)
 
+[![CI Workflow for LISAv3](https://github.com/LIS/LISAv2/workflows/CI%20Workflow%20for%20LISAv3/badge.svg?branch=main)](https://github.com/LIS/LISAv2/actions?query=workflow%3A%22CI+Workflow+for+LISAv3%22+event%3Apush+branch%3Amain)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![GitHub license](https://img.shields.io/github/license/LIS/LISAv2)](https://github.com/LIS/LISAv2/blob/main/LICENSE-2.0.txt)
+
 LISAv3 is a fresh new toolkit, and at its earliest stage. We are redeveloping
 LISA in Python and to support both Windows and Linux.
 
