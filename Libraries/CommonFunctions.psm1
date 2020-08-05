@@ -70,7 +70,7 @@ Function Select-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Test
     $WildCards = @('^','.','[',']','?','+','*')
     $ExcludedTestsCount = 0
     $testCategoryArray = $testAreaArray = $testNamesArray = $testTagArray = $testPriorityArray = $testSetupTypeArray = $excludedTestsArray = @()
-    # if the expected filter parameter is 'All' (case insensitive) or empty or $null, the actually filter used in this function will be '*', except for '$ExcludedTests'
+    # if the expected filter parameter is 'All' (case insensitive), empty or $null, the actual filter used in this function will be '*', except for '$ExcludedTests'
     if (!$TestCategory -or ($TestCategory -eq "All")) {
         $TestCategory = "*"
     }
@@ -210,7 +210,8 @@ Function Add-SetupConfig {
                 # use CDATA when the value contains XML escaped characters
                 if ($ConfigValue -imatch "&|<|>|'|""") {
                     $test.SetupConfig.InnerXml += "<$ConfigName><![CDATA['$ConfigValue']]></$ConfigName>"
-                } else {
+                }
+                else {
                     $test.SetupConfig.InnerXml += "<$ConfigName>$ConfigValue</$ConfigName>"
                 }
             }
@@ -347,6 +348,10 @@ Function Add-SetupConfig {
                     # Keep silent for ConfigName that all starts with '=~', silent with no warning message, and try the $DefaultConfigValue
                     if (!(&$IfNotContains -OriginalConfigValue "$($singleTest.SetupConfig.$ConfigName)" -ToBeCheckedConfigValue "$DefaultConfigValue" -SplitBy $SplitBy)) {
                         $singleTest.SetupConfig.$ConfigName = $DefaultConfigValue
+                    }
+                    else {
+                        # if none of pattern matches the DefaultConfigValue, skip this TestCase
+                        $null = $toBeSkippedTests.Add($singleTest)
                     }
                 }
             }
