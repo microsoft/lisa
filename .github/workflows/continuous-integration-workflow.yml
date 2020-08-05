@@ -43,3 +43,9 @@ jobs:
 
       - name: Install Python dependencies
         run: poetry install
+
+      - name: Run LISAv3 hello-world
+        run: poetry run python lisa/main.py
+
+      - name: Run black/flake8/isort
+        run: poetry run flake8
