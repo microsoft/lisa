@@ -71,6 +71,18 @@ pyflakes = ">=2.2.0,<2.3.0"
 
 [[package]]
 category = "dev"
+description = "flake8 plugin to call black as a code style validator"
+name = "flake8-black"
+optional = false
+python-versions = "*"
+version = "0.2.1"
+
+[package.dependencies]
+black = "*"
+flake8 = ">=3.0.0"
+
+[[package]]
+category = "dev"
 description = "A plugin for flake8 finding likely bugs and design problems in your program. Contains warnings that don't belong in pyflakes and pycodestyle."
 name = "flake8-bugbear"
 optional = false
@@ -396,7 +408,7 @@ python-versions = "*"
 version = "1.35"
 
 [metadata]
-content-hash = "6e227278f6784856f902ff0f61f704e22a9c5222758fe7440aa49654acbf3baf"
+content-hash = "4d0216f755bae5066ebc7fb06448f659be9e75b1f73a943926bba6e2d7f332ce"
 lock-version = "1.0"
 python-versions = "^3.8"
 
@@ -424,6 +436,9 @@ decorator = [
 flake8 = [
     {file = "flake8-3.8.3-py2.py3-none-any.whl", hash = "sha256:15e351d19611c887e482fb960eae4d44845013cc142d42896e9862f775d8cf5c"},
     {file = "flake8-3.8.3.tar.gz", hash = "sha256:f04b9fcbac03b0a3e58c0ab3a0ecc462e023a9faf046d57794184028123aa208"},
+]
+flake8-black = [
+    {file = "flake8-black-0.2.1.tar.gz", hash = "sha256:f26651bc10db786c03f4093414f7c9ea982ed8a244cec323c984feeffdf4c118"},
 ]
 flake8-bugbear = [
     {file = "flake8-bugbear-20.1.4.tar.gz", hash = "sha256:bd02e4b009fb153fe6072c31c52aeab5b133d508095befb2ffcf3b41c4823162"},
