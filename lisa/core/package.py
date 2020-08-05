@@ -25,7 +25,7 @@ def import_module(path: str, logDetails: bool = True):
         dir_name = os.path.dirname(file)
         package_dir_len = len(package_dir) + 1
         local_package_name = dir_name[package_dir_len:]
-        local_package_name = local_package_name.replace("\\", ".")
+        local_package_name = local_package_name.replace("\\", ".").replace("/", ".")
         local_module_name = ".%s" % os.path.splitext(file_name)[0]
         full_module_name = "%s%s" % (local_package_name, local_module_name)
 
