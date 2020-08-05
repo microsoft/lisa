@@ -1,0 +1,45 @@
+name: CI Workflow for LISAv3
+
+on:
+  push:
+    branches:
+      - main
+      - v3/**
+    paths-ignore:
+      - '**.md'
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-20.04, windows-2019]
+      fail-fast: false
+    steps:
+      - name: Checkout repository to $GITHUB_WORKSPACE
+        uses: actions/checkout@v2
+
+      - name: Setup bootstrap Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+
+      - name: Install Poetry for Linux
+        if: runner.os == 'Linux'
+        run: |
+          curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python
+          echo "::add-path::$HOME/.poetry/bin"
+
+      - name: Install Poetry for Windows
+        if: runner.os == 'Windows'
+        run: |
+          (Invoke-WebRequest -Uri https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py -UseBasicParsing).Content | python
+          echo "::add-path::$env:USERPROFILE\.poetry\bin"
+
+      - name: Install Python dependencies
+        run: poetry install
