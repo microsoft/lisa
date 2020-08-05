@@ -1,9 +1,13 @@
-from lisa.common.logger import log
-from lisa.core.action import ActionStatus
-from typing import List
-from lisa import Action
-from .environment import Environment
+from __future__ import annotations
+
 from abc import ABC
+from typing import TYPE_CHECKING, List
+
+from lisa.common.logger import log
+from lisa.core.action import Action, ActionStatus
+
+if TYPE_CHECKING:
+    from .environment import Environment
 
 
 class TestSuite(Action, ABC):
@@ -16,10 +20,10 @@ class TestSuite(Action, ABC):
         self.cases = cases
         self.shouldStop = False
 
-    def setup(self):
+    def suiteSetup(self):
         pass
 
-    def cleanup(self):
+    def suiteCleanup(self):
         pass
 
     def beforeCase(self):
@@ -32,18 +36,21 @@ class TestSuite(Action, ABC):
         return "TestSuite"
 
     async def start(self):
-        self.setup()
+        self.suiteSetup()
         for test_case in self.cases:
             self.beforeCase()
             test_method = getattr(self, test_case)
-            test_method(self)
+            test_method()
             self.afterCase()
             if self.shouldStop:
                 log.info("received stop message, stop run")
                 self.setStatus(ActionStatus.STOPPED)
                 break
-        self.cleanup()
+        self.suiteCleanup()
 
     async def stop(self):
         self.setStatus(ActionStatus.STOPPING)
         self.shouldStop = True
+
+    async def cleanup(self):
+        pass

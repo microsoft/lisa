@@ -1,24 +1,24 @@
-from lisa.parameter_parser.argparser import parse_args
 import os
 import sys
 from datetime import datetime
 from logging import DEBUG, INFO
 
-from lisa.common import env
-from lisa.common.logger import init_log, log
 from retry import retry
+
+from lisa.common import env
+from lisa.parameter_parser.argparser import parse_args
+
+from .common.logger import init_log, log
 
 
 @retry(FileExistsError, tries=10, delay=0)
-def create_result_path():
+def create_result_path() -> str:
     path_template = "runtime/results/{0}/{0}-{1}"
     date = datetime.utcnow().strftime("%Y%m%d")
     time = datetime.utcnow().strftime("%H%M%S-%f")[:-3]
     current_path = path_template.format(date, time)
     if os.path.exists(current_path):
-        raise FileExistsError(
-            "%s exists, and not found an unique path." % current_path
-        )
+        raise FileExistsError("%s exists, and not found an unique path." % current_path)
     return current_path
 
 

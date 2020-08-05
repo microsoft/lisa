@@ -1,24 +1,35 @@
-from typing import Dict
-from lisa import log
+from typing import Callable, Dict, List, Optional, Type
+
+from lisa.common.logger import log
+from lisa.core.testSuite import TestSuite
 
 
 class TestCaseMetadata:
-    def __init__(self, method, priority, name=None):
-        if name is not None:
+    def __init__(
+        self, method: Callable[[], None], priority: Optional[int] = 2, name: str = "",
+    ):
+        if name is not None and name != "":
             self.name = name
         else:
             self.name = method.__name__
-        self.key = self.name.lower()
+        self.key: str = self.name.lower()
         self.full_name = method.__qualname__.lower()
         self.method = method
         self.priority = priority
-        self.suite = None
+        self.suite: Optional[TestSuiteMetadata] = None
 
 
 class TestSuiteMetadata:
-    def __init__(self, test_class, area, category, tags, name=None):
+    def __init__(
+        self,
+        test_class: Type[TestSuite],
+        area: Optional[str],
+        category: Optional[str],
+        tags: List[str],
+        name: str = "",
+    ):
         self.test_class = test_class
-        if name is not None:
+        if name is not None and name != "":
             self.name = name
         else:
             self.name = test_class.__name__
@@ -26,7 +37,7 @@ class TestSuiteMetadata:
         self.area = area
         self.category = category
         self.tags = tags
-        self.cases = dict()
+        self.cases: Dict[str, TestCaseMetadata] = dict()
 
     def addCase(self, test_case: TestCaseMetadata):
         if self.cases.get(test_case.key) is None:
@@ -42,7 +53,14 @@ class TestFactory:
         self.suites: Dict[str, TestSuiteMetadata] = dict()
         self.cases: Dict[str, TestCaseMetadata] = dict()
 
-    def addTestClass(self, test_class, area, category, tags, name):
+    def addTestClass(
+        self,
+        test_class: Type[TestSuite],
+        area: Optional[str],
+        category: Optional[str],
+        tags: List[str],
+        name: Optional[str],
+    ):
         if name is not None:
             name = name
         else:
@@ -65,7 +83,7 @@ class TestFactory:
             ", ".join([key for key in test_suite.cases]),
         )
 
-    def addTestMethod(self, test_method, priority):
+    def addTestMethod(self, test_method: Callable[[], None], priority: Optional[int]):
         test_case = TestCaseMetadata(test_method, priority)
         full_name = test_case.full_name
 
@@ -81,9 +99,7 @@ class TestFactory:
         class_name = full_name.split(".")[0]
         test_suite = self.suites.get(class_name)
         if test_suite is not None:
-            log.debug(
-                "add case '%s' to suite '%s'", test_case.name, test_suite.name
-            )
+            log.debug("add case '%s' to suite '%s'", test_case.name, test_suite.name)
             self._addCaseToSuite(test_suite, test_case)
 
     def _addCaseToSuite(
@@ -93,4 +109,4 @@ class TestFactory:
         test_case.suite = test_suite
 
 
-testFactory = TestFactory()
+test_factory = TestFactory()

@@ -1,4 +1,4 @@
-from lisa import Action
+from lisa.core.action import Action
 
 
 class TestRunner(Action):

@@ -1,17 +1,19 @@
-from lisa import Platform, Environment
+from lisa.core.environment import Environment
+from lisa.core.platform import Platform
 
 
 class ReadyPlatform(Platform):
+    @classmethod
     def platformType(cls) -> str:
         return "ready"
 
-    def config(self, key: str, value: object):
+    def config(self, key: str, value: object) -> None:
         # ready platform has no config
         pass
 
-    def requestEnvironment(self, environment: Environment):
+    def requestEnvironmentInternal(self, environment: Environment) -> Environment:
         return environment
 
-    def deleteEnvironment(self, environment: Environment):
+    def deleteEnvironmentInternal(self, environment: Environment) -> None:
         # ready platform doesn't support delete environment
         pass

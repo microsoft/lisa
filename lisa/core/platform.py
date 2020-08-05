@@ -1,20 +1,35 @@
-from lisa.core.environment import Environment
-from abc import ABC, abstractclassmethod
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .environment import Environment
 
 
 class Platform(ABC):
-    @abstractclassmethod
+    @classmethod
+    @abstractmethod
     def platformType(cls) -> str:
-        pass
+        raise NotImplementedError()
 
-    @abstractclassmethod
+    @abstractmethod
     def config(self, key: str, value: object):
         pass
 
-    @abstractclassmethod
-    def requestEnvironment(self, environmentSpec):
-        pass
+    @abstractmethod
+    def requestEnvironmentInternal(self, environment: Environment) -> Environment:
+        raise NotImplementedError
 
-    @abstractclassmethod
-    def deleteEnvironment(self, environment: Environment):
-        pass
+    @abstractmethod
+    def deleteEnvironmentInternal(self, environment: Environment) -> None:
+        raise NotImplementedError()
+
+    def requestEnvironment(self, environment: Environment) -> Environment:
+        environment = self.requestEnvironmentInternal(environment)
+        environment.isReady = True
+        return environment
+
+    def deleteEnvironment(self, environment: Environment) -> None:
+        self.deleteEnvironmentInternal(environment)
+        environment.isReady = False

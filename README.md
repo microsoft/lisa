@@ -15,7 +15,7 @@ then install Poetry:
 On Linux (or WSL):
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python
+curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3
 PATH=$PATH:$HOME/.poetry/bin
 ```
 
@@ -23,18 +23,19 @@ On Windows (in PowerShell):
 
 ```powershell
 (Invoke-WebRequest -Uri https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py -UseBasicParsing).Content | python
+# the path can be added to system, so it applies to every terminal.
 $env:PATH += ";$env:USERPROFILE\.poetry\bin"
 ```
 
 Then use Poetry to install our Python package dependencies:
 
-```
+```bash
 poetry install
 ```
 
 Now run LISAv3 using Poetry’s environment:
 
-```
+```bash
 poetry run lisa/main.py
 ```
 
@@ -48,14 +49,19 @@ Make sure below settings are in root level of `.vscode/settings.json`
 
 ```json
 {
-    "python.linting.pylintEnabled": false,
-    "python.linting.flake8Enabled": true,
-    "python.linting.enabled": true,
+    "python.analysis.typeCheckingMode": "strict",
     "python.formatting.provider": "black",
-    "python.linting.mypyEnabled": true,
+    "python.linting.enabled": true,
     "python.linting.flake8Args": [
         "--max-line-length",
         "88"
-    ]
+    ],
+    "python.linting.flake8CategorySeverity.W": "Error",
+    "python.linting.flake8Enabled": true,
+    "python.linting.mypyCategorySeverity.note": "Error",
+    "python.linting.mypyEnabled": true,
+    "python.linting.pylintEnabled": false,
+    "python.linting.pylintUseMinimalCheckers": false,
+    "editor.formatOnSave": true,
 }
 ```

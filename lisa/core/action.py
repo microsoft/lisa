@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from enum import Enum
-from lisa.common import log
+from typing import Dict
+
+from lisa.common.logger import log
 
 
 class ActionStatus(Enum):
@@ -34,26 +36,26 @@ class Action(ABC):
         return name
 
     @abstractmethod
-    def getTypeName(self):
+    def getTypeName(self) -> str:
         raise NotImplementedError()
 
     @abstractmethod
-    async def start(self):
+    async def start(self) -> None:
         self.isStarted = True
         self.setStatus(ActionStatus.RUNNING)
 
     @abstractmethod
-    async def stop(self):
+    async def stop(self) -> None:
         self.validateStarted()
 
     @abstractmethod
-    async def cleanup(self):
+    async def cleanup(self) -> None:
         self.validateStarted()
 
-    def getStatus(self):
+    def getStatus(self) -> ActionStatus:
         return self.__status
 
-    def setStatus(self, status: ActionStatus):
+    def setStatus(self, status: ActionStatus) -> None:
         if self.__status != status:
             log.info(
                 "%s status changed from %s to %s"
@@ -68,8 +70,6 @@ class Action(ABC):
     def getPrerequisites(self):
         return None
 
-    def validateParameters(self, parameters):
+    # TODO to validate action specified configs
+    def validateConfig(self, config: Dict[str, object]) -> None:
         pass
-
-    def getPostValidation(self, parameters):
-        return None

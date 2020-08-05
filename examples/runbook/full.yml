@@ -14,14 +14,14 @@ parent:
 # add extended classes can be put in folders and include here.
 # it doesn't matter how those files are organized, lisa loads by their inherits relationship.
 # if there is any conflict on type name, there should be an error message.
-extensions:
+extension:
   paths:
     - "./myextends"
 # it uses to support variables in other fields.
 # duplicate items will be overwritten one by one.
 # if a variable is not defined here, LISA can fail earlier to ask check it.
 # file path is relative to LISA command starts.
-variables:
+variable:
   - file: secrets.yaml
     # If it's secret, it will be removed from log and other output information.
     # secret files also need to be removed after test is done.
@@ -51,51 +51,55 @@ artifact:
 # it's spec of environment and node.
 # for ready type, it's optional.
 environment:
-  topology: subnet
-  # template and nodes conflicts, they should have only one.
-  #  it uses to prevent duplicate content for big amount nodes.
-  template:
-    - vcpu: 4
-      nodeCount: 2
-      # optional, if there is only one artifact.
-      artifact: default
-      # sometimes, it may need special configuration for a platform
-      # we should avoid this kind of setting, it limits configuration to other platforms.
-      azure:
-        vmSize: testSize
-        flag: "test=true"
-  nodes:
-    - type: spec
-      azure:
-        vmSize: testSize
-    - type: spec
-      memoryGB: 8
-      gpuCount: 1
-      artifact: dsvm
-    # local and remote are node type, and don't need platform to handle
-    - type: local
-      # If test suite doesn't specify where to run a case,
-      #  it should be run on default node.
-      isDefault: true
-      # it's optional
-    - type: remote
-      name: secondary
-      address: 10.0.0.2
-      port: 22
-      publicAddress: 23.36.36.36
-      publicPort: 1112
-      username: $$linuxTestUsername$$
-      password: $$linuxTestPassword$$
-      privateKeyFile: $$sshPrivateKey$$
-  # the environment spec may not be fully supported by each platform.
-  # If so, there is a warning message.
-  # Environment spec can be forced to apply, as error is loud.
-  warnAsError: true
+  maxConcurrency: 1
+  environments:
+    - name: default
+      topology: subnet
+      # template and nodes conflicts, they should have only one.
+      #  it uses to prevent duplicate content for big amount nodes.
+      template:
+        - vcpu: 4
+          nodeCount: 2
+          # optional, if there is only one artifact.
+          artifact: default
+          # sometimes, it may need special configuration for a platform
+          # we should avoid this kind of setting, it limits configuration to other platforms.
+          azure:
+            vmSize: testSize
+            flag: "test=true"
+      nodes:
+        - type: spec
+          azure:
+            vmSize: testSize
+        - type: spec
+          memoryGB: 8
+          gpuCount: 1
+          artifact: dsvm
+        # local and remote are node type, and don't need platform to handle
+        - type: local
+          # If test suite doesn't specify where to run a case,
+          #  it should be run on default node.
+          isDefault: true
+          # it's optional
+        - type: remote
+          name: secondary
+          address: 10.0.0.2
+          port: 22
+          publicAddress: 23.36.36.36
+          publicPort: 1112
+          username: $$linuxTestUsername$$
+          password: $$linuxTestPassword$$
+          privateKeyFile: $$sshPrivateKey$$
+      # the environment spec may not be fully supported by each platform.
+      # If so, there is a warning message.
+      # Environment spec can be forced to apply, as error is loud.
+      warnAsError: true
 # it sends test progress and results to any place wanted.
 notifier:
   - type: junit
   - type: html
   - type: database
+    enableTelemetry: true
     connectionstring: $$ResultDatabaseString$$
 # it's examples for all platforms, but currently should leave single one only.
 platform:
@@ -110,7 +114,7 @@ platform:
   - type: ready
 # rules apply ordered on previous selection.
 # The order of test cases running is not guaranteed, until it set dependencies.
-tests:
+testcase:
   - criteria:
       # all rules in same criteria are AND condition.
       # we may support richer conditions later.
@@ -124,24 +128,25 @@ tests:
       tag: vf
     # force to select. If any reason test cases are dropped, fail the run.
     forceInclude: true
+    # if it's false, the test cases are disable in current run.
+    # it uses to control test cases dynamic form command line.
+    enable: true
     name: network
+    # TODO: if failed
+    stopRunAfterFailed: true
   # it means there are dependencies among test cases.
-  - dependedOn: network
-    # we will support some basic functionality of other test runner,
-    # for example, environment information, once it's ready.
-    # any other parameters should be handled by runner itself.
-    type: LISAv2
-    extraParameters: -TestNames "VERIFY-DEPLOYMENT-PROVISION" -ResourceCleanup Keep
   - name: settings
     criteria:
       name: this group shows different settings
     # run this group of test cases several times
     # default is 1
     iteration: 5
+    needNewEnvironment: true
     # Once it's set, failed test result will be rewrite to success
     # it uses to work around some cases temporarily, don't overuse it.
     # default is false
     ignoreFailure: true
+    environment: default
   - name: excluded cases
     criteria:
       name: "excluded test cases"

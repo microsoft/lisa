@@ -1,44 +1,58 @@
-from lisa.core.environment import Environment
-from lisa.core.testsuite import TestSuite
-from lisa.core.testfactory import testFactory
-from lisa import ActionStatus, TestRunner
+from typing import cast
+
+from lisa.common.logger import log
+from lisa.core.action import ActionStatus
+from lisa.core.environment_factory import EnvironmentsFactory
+from lisa.core.platform import Platform
+from lisa.core.test_factory import test_factory
+from lisa.core.testRunner import TestRunner
+from lisa.core.testSuite import TestSuite
+from lisa.util import constants
 
 
 class LISARunner(TestRunner):
     def __init__(self):
         super().__init__()
-        self.process = None
         self.exitCode = None
 
     def getTypeName(self):
         return "LISAv2"
 
+    def config(self, key: str, value: object):
+        if key == constants.CONFIG_ENVIRONMENT_FACTORY:
+            self.environmentsFactory: EnvironmentsFactory = cast(
+                EnvironmentsFactory, value
+            )
+        elif key == constants.CONFIG_PLATFORM:
+            self.platform: Platform = cast(Platform, value)
+
     async def start(self):
         await super().start()
         self.setStatus(ActionStatus.RUNNING)
-        suites = testFactory.suites
-        environment = Environment()
+        suites = test_factory.suites
+        # request environment
+        log.info("platform %s environment requesting", self.platform.platformType())
+        environment = self.environmentsFactory.getEnvironment()
+        log.info("platform %s environment requested", self.platform.platformType())
+
         for suite in suites.values():
-            test_object: TestSuite = suite.test_class(environment, suite.cases)
+            test_object: TestSuite = suite.test_class(
+                environment, list(suite.cases.keys())
+            )
             await test_object.start()
+
+        # delete enviroment after run
+        log.info("platform %s environment deleting", self.platform.platformType())
+        self.platform.deleteEnvironment(environment)
+        log.info("platform %s environment deleted", self.platform.platformType())
 
         self.setStatus(ActionStatus.SUCCESS)
 
     async def stop(self):
         super().stop()
-        self.process.stop()
 
-    def cleanup(self):
+    async def cleanup(self):
         super().cleanup()
-        self.process.cleanup()
 
     def getStatus(self):
-        if self.process is not None:
-            running = self.process.isRunning()
-            if not running:
-                self.exitCode = self.process.getExitCode()
-                if self.exitCode == 0:
-                    self.setStatus(ActionStatus.SUCCESS)
-                else:
-                    self.setStatus(ActionStatus.FAILED)
-        return super().getStatus()
+        pass

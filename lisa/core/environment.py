@@ -1,52 +1,65 @@
+from __future__ import annotations
+
 import copy
-from lisa import log
+from typing import TYPE_CHECKING, Dict, List, Optional, cast
+
+from lisa.common.logger import log
 from lisa.core.nodeFactory import NodeFactory
+from lisa.util import constants
+
 from .node import Node
-from lisa import constants
+
+if TYPE_CHECKING:
+    from lisa.core.platform import Platform
 
 
 class Environment(object):
-    CONFIG_NODES = "nodes"
-    CONFIG_TEMPLATE = "template"
-    CONFIG_TEMPLATE_NODE_COUNT = "nodeCount"
-
     def __init__(self):
         self.nodes: list[Node] = []
+        self.name: Optional[str] = None
         self.platform = None
-        self.spec = None
+        self.isReady = False
+        self.spec: Optional[Dict[str, object]] = None
 
     @staticmethod
-    def loadEnvironment(config):
+    def loadEnvironment(config: Dict[str, object]):
         environment = Environment()
         spec = copy.deepcopy(config)
 
+        environment.name = cast(Optional[str], spec.get(constants.NAME))
+
         has_default_node = False
         nodes_spec = []
-        node_config = spec.get(Environment.CONFIG_NODES)
-        if node_config is not None:
-            for node_config in config.get(Environment.CONFIG_NODES):
+        nodes_config = cast(
+            List[Dict[str, object]], spec.get(constants.ENVIRONMENTS_NODES)
+        )
+        if nodes_config is not None:
+            for node_config in nodes_config:
                 node = NodeFactory.createNodeFromConfig(node_config)
                 if node is not None:
                     environment.nodes.append(node)
                 else:
                     nodes_spec.append(node_config)
 
+                is_default = cast(Optional[bool], node_config.get(constants.IS_DEFAULT))
                 has_default_node = environment._validateSingleDefault(
-                    has_default_node, node_config.get(constants.IS_DEFAULT)
+                    has_default_node, is_default
                 )
 
         # validate template and node not appear together
-        nodes_template = spec.get(Environment.CONFIG_TEMPLATE)
+        nodes_template = spec.get(constants.ENVIRONMENTS_TEMPLATE)
         if nodes_template is not None:
+            nodes_template = cast(List[Dict[str, object]], nodes_template)
             for item in nodes_template:
-
-                node_count = item.get(Environment.CONFIG_TEMPLATE_NODE_COUNT)
+                node_count = cast(
+                    Optional[int], item.get(constants.ENVIRONMENTS_TEMPLATE_NODE_COUNT)
+                )
                 if node_count is None:
                     node_count = 1
                 else:
-                    del item[Environment.CONFIG_TEMPLATE_NODE_COUNT]
+                    del item[constants.ENVIRONMENTS_TEMPLATE_NODE_COUNT]
 
-                is_default = item.get(constants.IS_DEFAULT)
+                is_default = cast(Optional[bool], item.get(constants.IS_DEFAULT))
                 has_default_node = environment._validateSingleDefault(
                     has_default_node, is_default
                 )
@@ -56,12 +69,12 @@ class Environment(object):
                     if is_default is True and index > 0:
                         del copied_item[constants.IS_DEFAULT]
                     nodes_spec.append(copied_item)
-            del spec[Environment.CONFIG_TEMPLATE]
+            del spec[constants.ENVIRONMENTS_TEMPLATE]
 
         if len(nodes_spec) == 0 and len(environment.nodes) == 0:
             raise Exception("not found any node in environment")
 
-        spec[Environment.CONFIG_NODES] = nodes_spec
+        spec[constants.ENVIRONMENTS_NODES] = nodes_spec
 
         environment.spec = spec
         log.debug("environment spec is %s", environment.spec)
@@ -79,7 +92,7 @@ class Environment(object):
                 default = self.nodes[0]
         return default
 
-    def getNodeByName(self, name: str, throwError=True):
+    def getNodeByName(self, name: str, throwError: bool = True):
         found = None
         if self.nodes is not None:
             for node in self.nodes:
@@ -93,7 +106,7 @@ class Environment(object):
                 raise Exception("nodes shouldn't be None when call getNode")
         return found
 
-    def getNodeByIndex(self, index: int, throwError=True):
+    def getNodeByIndex(self, index: int, throwError: bool = True):
         found = None
         if self.nodes is not None:
             if len(self.nodes) > index:
@@ -102,13 +115,12 @@ class Environment(object):
             raise Exception("nodes shouldn't be None when call getNode")
         return found
 
-    def setPlatform(self, platform):
+    def setPlatform(self, platform: Platform):
         self.platform = platform
 
-    def setNodes(self, nodes):
-        self.nodes = nodes
-
-    def _validateSingleDefault(self, has_default, is_default):
+    def _validateSingleDefault(
+        self, has_default: bool, is_default: Optional[bool]
+    ) -> bool:
         if is_default is True:
             if has_default is True:
                 raise Exception("only one node can set isDefault to True")

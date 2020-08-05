@@ -1,18 +1,19 @@
 import logging
+import os
 import time
-from lisa.common import env
+
+# to prevent circular import, hard code it here.
+env_result_path = "LISA_RESULT_PATH"
 
 
 def init_log():
     format = "%(asctime)s.%(msecs)03d[%(levelname)-.1s]%(name)s %(message)s"
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=logging.INFO,
         format=format,
         datefmt="%m%d %H:%M:%S",
         handlers=[
-            logging.FileHandler(
-                "%s/lisa-host.log" % env.get_env(env.RESULT_PATH)
-            ),
+            logging.FileHandler("%s/lisa-host.log" % os.getenv(env_result_path)),
             logging.StreamHandler(),
         ],
     )

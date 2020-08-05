@@ -1,4 +1,5 @@
 from abc import ABC
+
 from lisa import Node
 
 
@@ -12,9 +13,9 @@ class ExecutableBase(ABC):
         self.node = node
 
     def getCommand(self) -> str:
-        pass
+        return ""
 
-    def run(self, extraParameters: str) -> str:
+    def run(self, extraParameters: str) -> None:
         pass
 
     def canInstall(self):

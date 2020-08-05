@@ -1,7 +1,9 @@
-from lisa.parameter_parser.config import Config
 import os
+
 import yaml
-from lisa import log
+
+from lisa.common.logger import log
+from lisa.parameter_parser.config import Config
 
 
 def parse(args):

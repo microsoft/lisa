@@ -2,19 +2,16 @@
 name: local try
 # share configurations for similar runs.
 # it's examples for all platforms, but currently should leave single one only.
-extensions:
+extension:
   paths:
     - "examples/testsuites"
 environment:
-  nodes:
-    - type: local
-      # If test suite doesn't specify where to run a case,
-      #  it should be run on default node.
-      isDefault: true
-      # it's optional
+  environments:
+    - nodes:
+        - type: local
 platform:
   - type: ready
-tests:
+testcase:
   - criteria:
       # compatible with current test cases.
       area: demo

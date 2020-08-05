@@ -1,27 +1,29 @@
-from lisa.util import constants
+from typing import Dict, List, Optional, Type, cast
+
 from lisa.common.logger import log
+from lisa.util import constants
+
 from .platform import Platform
-from typing import Dict
 
 
 class PlatformFactory:
     def __init__(self):
         self.platforms: Dict[str, Platform] = dict()
 
-    def registerPlatform(self, platform):
-        platform_type = platform.platformType(platform).lower()
+    def registerPlatform(self, platform: Type[Platform]):
+        platform_type = platform.platformType().lower()
         if self.platforms.get(platform_type) is None:
             self.platforms[platform_type] = platform()
         else:
             raise Exception("platform '%s' exists, cannot be registered again")
 
-    def initializePlatform(self, config):
+    def initializePlatform(self, config: List[Dict[str, object]]):
         # we may extend it later to support multiple platforms
         platform_count = len(config)
         if platform_count != 1:
             raise Exception("There must be 1 and only 1 platform")
 
-        platform_type = config[0].get("type")
+        platform_type = cast(Optional[str], config[0].get("type"))
         if platform_type is None:
             raise Exception("type of platfrom shouldn't be None")
 

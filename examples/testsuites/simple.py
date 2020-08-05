@@ -1,5 +1,6 @@
-from lisa.core.testsuite import TestSuite
-from lisa import SuiteMetadata, CaseMetadata, log
+from lisa import SuiteMetadata, CaseMetadata
+from lisa.common.logger import log
+from lisa.core.testSuite import TestSuite
 
 
 @SuiteMetadata(area="demo", category="simple", tags=["demo"])
@@ -12,11 +13,11 @@ class SimpleTestSuite(TestSuite):
     def bye(self):
         log.info("bye!")
 
-    def setup(self):
+    def caseSetup(self):
         log.info("setup my test suite")
         log.info("see my code at %s", __file__)
 
-    def cleanup(self):
+    def caseCleanup(self):
         log.info("clean up my test suite")
 
     def beforeCase(self):

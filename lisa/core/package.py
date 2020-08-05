@@ -3,10 +3,10 @@ import os
 import sys
 from glob import glob
 
-from lisa import log
+from lisa.common.logger import log
 
 
-def import_module(path, logDetails=True):
+def import_module(path: str, logDetails: bool = True):
 
     path = os.path.realpath(path)
     if not os.path.exists(path):
@@ -18,7 +18,7 @@ def import_module(path, logDetails=True):
     package_dir = os.path.dirname(path)
     sys.path.append(package_dir)
     if logDetails:
-        log.info("loading extensions from %s", path)
+        log.info("loading extension from %s", path)
 
     for file in glob(os.path.join(path, "**", "*.py"), recursive=True):
         file_name = os.path.basename(file)

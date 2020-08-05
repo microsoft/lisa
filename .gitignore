@@ -6,3 +6,9 @@
 
 # python cache
 __pycache__
+
+# you can have your own command alias on Windows
+lisa.cmd
+
+# it's done by 
+lisa.egg-info

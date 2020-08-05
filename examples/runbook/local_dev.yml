@@ -5,16 +5,13 @@ notifier:
   - type: junit
   - type: html
 environment:
-  nodes:
-    - type: local
-      # If test suite doesn't specify where to run a case,
-      #  it should be run on default node.
-      isDefault: true
-      # it's optional
+  environments:
+    - nodes:
+        - type: local
 # it's examples for all platforms, but currently should leave single one only.
 platform:
   - type: ready
-tests:
+testcase:
   - criteria:
       # all rules in same criteria are AND condition.
       # we may support richer conditions later.
@@ -29,13 +26,6 @@ tests:
     # force to select. If any reason test cases are dropped, fail the run.
     forceInclude: true
     name: network
-  # it means there are dependencies among test cases.
-  - dependedOn: network
-    # we will support some basic functionality of other test runner,
-    # for example, environment information, once it's ready.
-    # any other parameters should be handled by runner itself.
-    type: LISAv2
-    extraParameters: -TestNames "VERIFY-DEPLOYMENT-PROVISION" -ResourceCleanup Keep
   - name: settings
     criteria:
       name: this group shows different settings
