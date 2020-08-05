@@ -1,4 +1,4 @@
-from lisa import SuiteMetadata, CaseMetadata
+from lisa import CaseMetadata, SuiteMetadata
 from lisa.common.logger import log
 from lisa.core.testSuite import TestSuite
 
