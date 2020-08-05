@@ -77,7 +77,7 @@ Class TestController
 
 	[void] SyncEquivalentCustomParameters([string] $Key, [string] $Value) {
 		if ($Value) {
-			if ($this.CustomParams.$Key -ne $Value) {
+			if ($this.CustomParams.$Key -and $this.CustomParams.$Key -cne $Value) {
 				Write-LogWarn "Custom Parameter of '$Key' has been updated with Value: '$Value', previous value is '$($this.CustomParams.$Key)'"
 			}
 			$this.CustomParams[$Key] = $Value
@@ -256,7 +256,8 @@ Class TestController
 		if (!$allTests) {
 			Throw "Not able to collect any test cases from XML files"
 		}
-		Write-LogInfo "$(@($allTests).Length) Test Cases have been collected"
+		$collectedTCCount = $allTests.Count
+		Write-LogInfo "$collectedTCCount Test Cases have been collected"
 
 		$SetupTypes = $allTests.SetupConfig.SetupType | Sort-Object -Unique
 		foreach ($file in $SetupTypeXMLs.FullName) {
@@ -286,7 +287,7 @@ Class TestController
 			Write-LogInfo "Custom parameter(s) are ready to be injected along with default parameters, if any."
 		}
 
-		foreach ( $test in $allTests) {
+		foreach ($test in $allTests) {
 			# Inject replaceable parameters
 			foreach ($ReplaceableParameter in $ReplaceableTestParameters.ReplaceableTestParameters.Parameter) {
 				$replaceWith = [System.Security.SecurityElement]::Escape($ReplaceableParameter.ReplaceWith)
@@ -313,6 +314,13 @@ Class TestController
 		}
 
 		$this.PrepareSetupTypeToTestCases($this.SetupTypeToTestCases, $allTests)
+
+		if (($this.TotalCaseNum -eq 0) -or ($allTests.Count -eq 0)) {
+			Write-LogWarn "All collected test cases are skipped, because test case has native SetupConfig that conflicts with current Run-LISAv2 parameters, or LISAv2 needs more specific parameters to run against selected test cases, please double check"
+		}
+		elseif ($collectedTCCount -ne $allTests.Count) {
+			Write-LogInfo "$($allTests.Count) Test Cases have been selected or expanded to be run in this LISAv2 execution, other test cases may have been skipped due to test case native SetupConfig conflicts with current Run-LISAv2 parameters"
+		}
 	}
 
 	[void] PrepareTestImage() {}

@@ -35,17 +35,21 @@ $ExcludedSetupConfigsToDisplay = @("RGIdentifier", "SetupType", "SetupScript","T
 function ConvertFrom-SetupConfig([object]$SetupConfig, [switch]$WrappingLines) {
 	$resultString = ""
 	$SetupConfig.ChildNodes | Sort-Object LocalName | Foreach-Object {
-		if ($SetupConfig.($_.LocalName) -and !($ExcludedSetupConfigsToDisplay -contains $_.LocalName)) {
+		if ($SetupConfig.($_.LocalName) -and ($ExcludedSetupConfigsToDisplay -notcontains $_.LocalName)) {
 			if ($SetupConfig.($_.LocalName).InnerText) {
 				$value = $SetupConfig.($_.LocalName).InnerText
-			} else {
-				$value = $SetupConfig.($_.LocalName)
-			}
-			if ($WrappingLines.IsPresent) {
-				$resultString += "&nbsp;&nbsp;$($_.LocalName):$value<br />"
 			}
 			else {
-				$resultString += "$($_.LocalName): $value, "
+				$value = $SetupConfig.($_.LocalName)
+			}
+			# TestCase may define expected ARMImageNames, exclude 'ARMImageName' from result SetupString if 'OsVHD' is used
+			if ($_.LocalName -ne "ARMImageName" -or !$SetupConfig.OsVHD) {
+				if ($WrappingLines.IsPresent) {
+					$resultString += "&nbsp;&nbsp;$($_.LocalName):$value<br />"
+				}
+				else {
+					$resultString += "$($_.LocalName): $value, "
+				}
 			}
 		}
 	}

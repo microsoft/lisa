@@ -223,7 +223,8 @@ Function Add-SetupConfig {
                 # use CDATA when the value contains XML escaped characters
                 if ($ConfigValue -imatch "&|<|>|'|""") {
                     $test.SetupConfig.InnerXml += "<$ConfigName><![CDATA['$ConfigValue']]></$ConfigName>"
-                } else {
+                }
+                else {
                     $test.SetupConfig.InnerXml += "<$ConfigName>$ConfigValue</$ConfigName>"
                 }
             }
@@ -360,6 +361,10 @@ Function Add-SetupConfig {
                     # Keep silent for ConfigName that all starts with '=~', silent with no warning message, and try the $DefaultConfigValue
                     if (!(&$IfNotContains -OriginalConfigValue "$($singleTest.SetupConfig.$ConfigName)" -ToBeCheckedConfigValue "$DefaultConfigValue" -SplitBy $SplitBy)) {
                         $singleTest.SetupConfig.$ConfigName = $DefaultConfigValue
+                    }
+                    else {
+                        # if none of pattern matches the DefaultConfigValue, skip this TestCase
+                        $null = $toBeSkippedTests.Add($singleTest)
                     }
                 }
             }

@@ -72,7 +72,7 @@ Function Measure-SubscriptionCapabilities() {
 		}
 	}
 }
-Function Assert-DeploymentLimitation($RGXMLData, [ref]$TargetLocation, $CurrentTestData) {
+Function Assert-ResourceLimitationForDeployment($RGXMLData, [ref]$TargetLocation, $CurrentTestData) {
 	Function Test-OverflowErrors {
 		Param (
 			[string] $ResourceType,
@@ -119,7 +119,6 @@ Function Assert-DeploymentLimitation($RGXMLData, [ref]$TargetLocation, $CurrentT
 	}
 
 	$VMGeneration = $CurrentTestData.SetupConfig.VMGeneration
-	$OsVHD = $CurrentTestData.SetupConfig.OsVHD
 	$overFlowErrors = 0
 	# Verify usage and select Test Location
 	$vmCounter = 0
@@ -142,7 +141,7 @@ Function Assert-DeploymentLimitation($RGXMLData, [ref]$TargetLocation, $CurrentT
 		# For Gallery Image, leave HyperVGeneration checking before deployment 'Test-AzResourceGroupDeployment',
 		# because getting 'HyperVGeneration' is not sufficient here to check from Region to Region.
 		# Note: '-Location' and specific '-Version' (not <Latest>) is necessary to get Gallery Image Detail by Get-AzVMImage command
-		if ($OsVHD -and $VMGeneration -and !$AllTestVMSizes.$testVMSize.Generations.Contains($VMGeneration)) {
+		if ($CurrentTestData.SetupConfig.OsVHD -and $VMGeneration -and !$AllTestVMSizes.$testVMSize.Generations.Contains($VMGeneration)) {
 			$TargetLocation.Value = 'NOT_ENABLED'
 			$overFlowErrors += 1
 			Write-LogErr "Requested VM size: '$testVMSize' with VM generation: '$VMGeneration' is supported, this should be an Azure limitation temporarily, please try other VM Sizes that support HyperVGeneration '$VMGeneration'."
@@ -183,7 +182,7 @@ Function Assert-DeploymentLimitation($RGXMLData, [ref]$TargetLocation, $CurrentT
 					$index++
 				}
 				else {
-					Write-LogInfo "Selected Test Location '$($vmAvailableLocations[$index])' for Azure Platform testing on VM Size '$testVMSize'"
+					Write-LogInfo "Test Location '$($vmAvailableLocations[$index])' has VM Size '$testVMSize' enabled and has enought quota for '$($CurrentTestData.TestName)' deployment"
 					break
 				}
 			}
@@ -199,9 +198,11 @@ Function Assert-DeploymentLimitation($RGXMLData, [ref]$TargetLocation, $CurrentT
 					$AllTestVMSizes.$testVMSize.AvailableLocations = ($locationFamilyUsage | Sort-Object AvailableUsage -Descending | Select-Object -ExpandProperty Location)
 				}
 				else {
+					if ($TargetLocation.Value) {
+						Write-LogErr "Estimated resource usage for VM Size: '$testVMSize' exceeds allowed limits from TestLocation '$($TargetLocation.Value)'"
+					}
 					$TargetLocation.Value = $null
 					$overFlowErrors += 1
-					Write-LogErr "Coult not find available Test Locations for VM Size: $testVMSize"
 				}
 			}
 			else {
@@ -211,41 +212,67 @@ Function Assert-DeploymentLimitation($RGXMLData, [ref]$TargetLocation, $CurrentT
 	}
 	# Check Resource Group Limitation
 	#Source for current limit : https://docs.microsoft.com/en-us/azure/azure-subscription-service-limits#subscription-limits---azure-resource-manager
-	$RGLimit = 980
-	$currentRGCount = (Get-AzResourceGroup).Count
-	$overFlowErrors += Test-OverflowErrors -ResourceType "Resource Group" -CurrentValue $currentRGCount `
-		-RequiredValue 1 -MaximumLimit $RGLimit -Location $TargetLocation.Value
+	if ($TargetLocation.Value) {
+		$RGLimit = 980
+		$currentRGCount = (Get-AzResourceGroup).Count
+		$overFlowErrors += Test-OverflowErrors -ResourceType "Resource Group" -CurrentValue $currentRGCount `
+			-RequiredValue 1 -MaximumLimit $RGLimit -Location $TargetLocation.Value
+	}
 
-	if ($overFlowErrors -eq 0) {
-		Write-LogInfo "Estimated subscription usage is under allowed limits."
-		return $true
-	}
-	else {
-		Write-LogErr "Estimated subscription usage exceeded allowed limits."
-		return $false
-	}
+	return $($overFlowErrors -eq 0)
 }
 
-Function Get-StorageAccountFromRegion($Region, $StorageAccount) {
-	#region Select Storage Account Type
-	$RegionName = $Region.Replace(" ", "").Replace('"', "").ToLower()
-	$regionStorageMapping = [xml](Get-Content "$PSScriptRoot\..\XML\RegionAndStorageAccounts.xml")
-	if ($StorageAccount) {
-		if ($StorageAccount -imatch "^ExistingStorage_Standard") {
-			$StorageAccountName = $regionStorageMapping.AllRegions.$RegionName.StandardStorage
+Function Move-OsVHDToStorageAccount($OriginalOsVHD, $TargetStorageAccount) {
+	$sourceStorageAccount = $OriginalOsVHD.Replace("https://","").Replace("http://","").Split(".")[0]
+	$sourceContainer =  $OriginalOsVHD.Split("/")[$OriginalOsVHD.Split("/").Count - 2]
+	$vhdName = $OriginalOsVHD.Split("?")[0].split('/')[-1]
+
+	$targetOsVHD = 'http://{0}.blob.core.windows.net/vhds/{1}' -f $TargetStorageAccount, $vhdName
+
+	if (($sourceStorageAccount -ne $TargetStorageAccount) -or ($sourceContainer -ne "vhds")) {
+		Write-LogInfo "Your test VHD is not in target storage account '$TargetStorageAccount' or not in target container 'vhds', start copying now."
+		#Check if the OriginalOsVHD is a SasUrl
+		if (($OriginalOsVHD -imatch 'sp=') -and ($OriginalOsVHD -imatch 'sig=')) {
+			$copyStatus = Copy-VHDToAnotherStorageAccount -SasUrl $OriginalOsVHD -destinationStorageAccount $TargetStorageAccount -destinationStorageContainer "vhds" -vhdName $vhdName
+		} else {
+			$copyStatus = Copy-VHDToAnotherStorageAccount -sourceStorageAccount $sourceStorageAccount -sourceStorageContainer $sourceContainer -destinationStorageAccount $TargetStorageAccount -destinationStorageContainer "vhds" -vhdName $vhdName
 		}
-		elseif ($StorageAccount -imatch "^ExistingStorage_Premium") {
-			$StorageAccountName = $regionStorageMapping.AllRegions.$RegionName.PremiumStorage
+		if (!$copyStatus) {
+			Throw "Failed to copy the VHD to target storage account '$TargetStorageAccount'"
 		}
 	}
 	else {
-		$StorageAccountName = $regionStorageMapping.AllRegions.$RegionName.StandardStorage
+		$sc = Get-AzStorageAccount | Where-Object {$_.StorageAccountName -eq $TargetStorageAccount}
+		$storageKey = (Get-AzStorageAccountKey -ResourceGroupName $sc.ResourceGroupName -Name $TargetStorageAccount)[0].Value
+		$context = New-AzStorageContext -StorageAccountName $TargetStorageAccount -StorageAccountKey $storageKey
+		$blob = Get-AzStorageBlob -Blob $vhdName -Container "vhds" -Context $context -ErrorAction Ignore
+		if (!$blob) {
+			Throw "OsVHD '$($targetOsVHD)' does not existed, abort testing."
+		}
 	}
-	Write-LogInfo "Selected : $StorageAccountName"
-	return $StorageAccountName
+	if (($global:BaseOsVHD -inotmatch "/") -or (($global:BaseOsVHD -imatch 'sp=') -and ($global:BaseOsVHD -imatch 'sig='))) {
+		Set-Variable -Name BaseOsVHD -Value $targetOsVHD -Scope Global
+		Write-LogInfo "New Base VHD name - '$targetOsVHD'"
+	}
+	if (!$global:StorageAccountsCopiedOsVHD) {
+		Set-Variable -Name StorageAccountsCopiedOsVHD -Value @("$TargetStorageAccount") -Scope Global -Force
+	}
+	else {
+		$global:StorageAccountsCopiedOsVHD += "$TargetStorageAccount"
+	}
+	return $targetOsVHD
 }
-
-Function Update-StorageAccountType($CurrentTestData, [string]$Location, $GlobalConfig, $OsVHD) {
+Function Select-StorageAccountByTestLocation($CurrentTestData, [string]$Location) {
+	# If $Location is not empty, usually it means $Location has passed resouce limitation check by Assert-ResourceLimitationForDeployment()
+	# Besides updating Storage Account, we will update the SetupConfig's TestLocation to the target $Location eventually
+	if ($Location) {
+		if (!$CurrentTestData.SetupConfig.TestLocation) {
+			$CurrentTestData.SetupConfig.InnerXml += "<TestLocation>$Location</TestLocation>"
+		}
+		elseif ($CurrentTestData.SetupConfig.TestLocation -ne $Location) {
+			$CurrentTestData.SetupConfig.TestLocation = $Location
+		}
+	}
 	$RegionAndStorageMapFile = "$PSScriptRoot\..\XML\RegionAndStorageAccounts.xml"
 	if (Test-Path $RegionAndStorageMapFile) {
 		$RegionAndStorageMap = [xml](Get-Content $RegionAndStorageMapFile)
@@ -253,43 +280,28 @@ Function Update-StorageAccountType($CurrentTestData, [string]$Location, $GlobalC
 	else {
 		throw "File $RegionAndStorageMapFile does not exist"
 	}
-	$currentStorageAccount = $RegionAndStorageMap.AllRegions.$Location.StandardStorage
-	# Set '$global:GlobalConfig' ARMStorageAccount, in case Test Scripts from Test Case using the '$global:GlobalConfig.Global.Azure.Subscription.ARMStorageAccount' directly
-	$global:GlobalConfig.Global.Azure.Subscription.ARMStorageAccount = $currentStorageAccount
-	$resultStorageAccount = $currentStorageAccount
-	if ($CurrentTestData.SetupConfig.StorageAccountType -and $CurrentTestData.SetupConfig.StorageAccountType.Contains("Premium")) {
-		$storageAccountType = (Get-AzStorageAccount | Where-Object { $_.StorageAccountName -eq $currentStorageAccount }).Sku.Tier.ToString()
-		if ($storageAccountType -inotmatch "premium") {
-			$existingStandardStorageAccount = Get-StorageAccountFromRegion -Region $Location -StorageAccount "ExistingStorage_Standard"
-			# if $currentStorageAccount from GlobalConfig is the existing standard storage accounts, then change to existing Premium storage
-			if ($existingStandardStorageAccount -eq $currentStorageAccount) {
-				$resultStorageAccount = Get-StorageAccountFromRegion -Region $Location -StorageAccount "ExistingStorage_Premium"
-				if ($OsVHD) {
-					$originalContainerFromOsVHD = $OsVHD.Split("/")[$OsVHD.Split("/").Count - 2]
-					$vhdName = $OsVHD.Split("?")[0].split('/')[-1]
-					Write-LogInfo "Copy VHD from $currentStorageAccount to $resultStorageAccount."
-					if (($OsVHD -imatch 'sp=') -and ($OsVHD -imatch 'sig=')) {
-						$copyStatus = Copy-VHDToAnotherStorageAccount -SasUrl $OsVHD -destinationStorageAccount $resultStorageAccount `
-							-destinationStorageContainer "vhds" -vhdName $vhdName
-					}
-					else {
-						$copyStatus = Copy-VHDToAnotherStorageAccount -sourceStorageAccount $currentStorageAccount -sourceStorageContainer $originalContainerFromOsVHD `
-							-destinationStorageAccount $resultStorageAccount -destinationStorageContainer "vhds" -vhdName $vhdName
-					}
-					if (!$copyStatus) {
-						Throw "Failed to copy the VHD $currentStorageAccount to $resultStorageAccount."
-					}
-				}
-			}
-			else {
-				# if $currentStorageAccount's StorageType is Standard_LRS, but not from existing standard storage accounts, then throw exception with messages
-				Write-LogErr "Provided storage account is not premium type, this case $($CurrentTestData.testName) need run under premium type of storage account."
-				Throw "Case $($CurrentTestData.testName) need run under premium type of storage account."
-			}
+	if ($CurrentTestData.SetupConfig.StorageAccountType -imatch "premium") {
+		$targetStorageAccount = $RegionAndStorageMap.AllRegions.$Location.PremiumStorage
+	}
+	else {
+		$targetStorageAccount = $RegionAndStorageMap.AllRegions.$Location.StandardStorage
+	}
+
+	if ($CurrentTestData.SetupConfig.OsVHD) {
+		if ($global:StorageAccountsCopiedOsVHD -notcontains $targetStorageAccount) {
+			$updatedOsVHD = Move-OsVHDToStorageAccount -OriginalOsVHD $CurrentTestData.SetupConfig.OsVHD -TargetStorageAccount $targetStorageAccount
+			$CurrentTestData.SetupConfig.OsVHD = $updatedOsVHD
+		}
+		else {
+			$vhdName = $CurrentTestData.SetupConfig.OsVHD.Split("?")[0].split('/')[-1]
+			Write-LogInfo "VHD '$vhdName' had ever been copied to '$targetStorageAccount', skip copying again"
+			$CurrentTestData.SetupConfig.OsVHD = 'http://{0}.blob.core.windows.net/vhds/{1}' -f $targetStorageAccount, $vhdName
 		}
 	}
-	Write-LogInfo "Using Location: '$Location', Storage Account: '$resultStorageAccount'"
-	return $resultStorageAccount
+	# update ARMStorageAccount value from '$global:GlobalConfig', in case Test Scripts use '$global:GlobalConfig.Global.Azure.Subscription.ARMStorageAccount' directly
+	$global:GlobalConfig.Global.Azure.Subscription.ARMStorageAccount = $targetStorageAccount
+	Write-LogInfo "Using Location: '$Location', Storage Account: '$targetStorageAccount'"
+	return $targetStorageAccount
 }
 
 Function PrepareAutoCompleteStorageAccounts ($storageAccountsRGName, $XMLSecretFile) {
@@ -409,8 +421,8 @@ Function PrepareAutoCompleteStorageAccounts ($storageAccountsRGName, $XMLSecretF
 	}
 }
 
-Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $RGIdentifier, [string]$TestLocation, $GlobalConfig, $UseExistingRG, $ResourceCleanup, [boolean]$EnableNSG = $false) {
-	Function GenerateAzDeploymentJSONFile ($RGName, $ImageName, $osVHD, $RGXMLData, $Location, $azuredeployJSONFilePath, $StorageAccountName) {
+Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $RGIdentifier, $UseExistingRG, $ResourceCleanup, [boolean]$EnableNSG = $false) {
+	Function GenerateAzDeploymentJSONFile($RGName, $ImageName, $VHDName, $RGXMLData, $Location, $azuredeployJSONFilePath, $StorageAccountName) {
 		#Random Data
 		$RGrandomWord = ([System.IO.Path]::GetRandomFileName() -replace '[^a-z]')
 		$RGRandomNumber = Get-Random -Minimum 11111 -Maximum 99999
@@ -520,15 +532,12 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 		Write-LogInfo "Generating Template : $azuredeployJSONFilePath"
 		$jsonFile = $azuredeployJSONFilePath
 
-		if ($ImageName -and !$osVHD) {
+		if ($ImageName -and !$VHDName) {
 			$imageInfo = $ImageName.Split(' ')
 			$publisher = $imageInfo[0]
 			$offer = $imageInfo[1]
 			$sku = $imageInfo[2]
 			$version = $imageInfo[3]
-		}
-		if ($osVHD) {
-			$osVHD = $osVHD.Split("?")[0].split('/')[-1]
 		}
 
 		$vmCount = 0
@@ -765,7 +774,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 		#endregion
 
 		#region CustomImages
-		if ($OsVHD -and $UseManagedDisks) {
+		if ($VHDName -and $UseManagedDisks) {
 			Add-Content -Value "$($indents[2]){" -Path $jsonFile
 			Add-Content -Value "$($indents[3])^apiVersion^: ^2019-03-01^," -Path $jsonFile
 			Add-Content -Value "$($indents[3])^type^: ^Microsoft.Compute/images^," -Path $jsonFile
@@ -780,7 +789,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 			Add-Content -Value "$($indents[5]){" -Path $jsonFile
 			Add-Content -Value "$($indents[6])^osType^: ^$OSType^," -Path $jsonFile
 			Add-Content -Value "$($indents[6])^osState^: ^Generalized^," -Path $jsonFile
-			Add-Content -Value "$($indents[6])^blobUri^: ^https://$StorageAccountName.blob.core.windows.net/vhds/$OsVHD^," -Path $jsonFile
+			Add-Content -Value "$($indents[6])^blobUri^: ^https://$StorageAccountName.blob.core.windows.net/vhds/$VHDName^," -Path $jsonFile
 			Add-Content -Value "$($indents[6])^storageAccountType^: ^$StorageAccountType^" -Path $jsonFile
 			Add-Content -Value "$($indents[5])}" -Path $jsonFile
 
@@ -793,7 +802,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 			}
 			Add-Content -Value "$($indents[3])}" -Path $jsonFile
 			Add-Content -Value "$($indents[2])}," -Path $jsonFile
-			Write-LogInfo "Added Custom image '$RGName-Image' from '$OsVHD'.."
+			Write-LogInfo "Added Custom image '$RGName-Image' from '$VHDName'.."
 		}
 		#endregion
 
@@ -1338,7 +1347,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 			if ($createAvailabilitySet) {
 				Add-Content -Value "$($indents[4])^[concat('Microsoft.Compute/availabilitySets/', variables('availabilitySetName'))]^," -Path $jsonFile
 			}
-			if ( $OsVHD -and $UseManagedDisks ) {
+			if ($VHDName -and $UseManagedDisks ) {
 				Add-Content -Value "$($indents[4])^[resourceId('Microsoft.Compute/images', '$RGName-Image')]^," -Path $jsonFile
 			}
 
@@ -1398,7 +1407,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 			#region Storage Profile
 			Add-Content -Value "$($indents[4])^storageProfile^: " -Path $jsonFile
 			Add-Content -Value "$($indents[4]){" -Path $jsonFile
-			if ($ImageName -and !$osVHD) {
+			if ($ImageName -and !$VHDName) {
 				Write-LogInfo ">>> Using ARMImage : $publisher : $offer : $sku : $version"
 				Add-Content -Value "$($indents[5])^imageReference^ : " -Path $jsonFile
 				Add-Content -Value "$($indents[5]){" -Path $jsonFile
@@ -1408,7 +1417,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 				Add-Content -Value "$($indents[6])^version^: ^$version^" -Path $jsonFile
 				Add-Content -Value "$($indents[5])}," -Path $jsonFile
 			}
-			elseif ( $OsVHD -and $UseManagedDisks ) {
+			elseif ($VHDName -and $UseManagedDisks) {
 				Add-Content -Value "$($indents[5])^imageReference^ : " -Path $jsonFile
 				Add-Content -Value "$($indents[5]){" -Path $jsonFile
 				Add-Content -Value "$($indents[6])^id^: ^[resourceId('Microsoft.Compute/images', '$RGName-Image')]^," -Path $jsonFile
@@ -1416,9 +1425,9 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 			}
 			Add-Content -Value "$($indents[5])^osDisk^ : " -Path $jsonFile
 			Add-Content -Value "$($indents[5]){" -Path $jsonFile
-			if ($osVHD) {
+			if ($VHDName) {
 				if ($UseManagedDisks) {
-					Write-LogInfo ">>> Using VHD : $osVHD (Converted to Managed Image)"
+					Write-LogInfo ">>> Using VHD : $VHDName (Converted to Managed Image)"
 					Add-Content -Value "$($indents[6])^osType^: ^$OSType^," -Path $jsonFile
 					Add-Content -Value "$($indents[6])^name^: ^$vmName-OSDisk^," -Path $jsonFile
 					Add-Content -Value "$($indents[6])^managedDisk^: " -Path $jsonFile
@@ -1439,15 +1448,15 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 					Add-Content -Value "$($indents[6])^createOption^: ^FromImage^" -Path $jsonFile
 				}
 				else {
-					Write-LogInfo ">>> Using VHD : $osVHD"
+					Write-LogInfo ">>> Using VHD : $VHDName"
 					if ($UseSpecializedImage) {
-						$vhduri = "https://$StorageAccountName.blob.core.windows.net/vhds/$OsVHD"
+						$vhduri = "https://$StorageAccountName.blob.core.windows.net/vhds/$VHDName"
 						$sourceContainer = $vhduri.Split("/")[$vhduri.Split("/").Count - 2]
 						$destVHDName = "$vmName-$RGrandomWord-osdisk.vhd"
 
-						$copyStatus = Copy-VHDToAnotherStorageAccount -sourceStorageAccount $StorageAccountName -sourceStorageContainer $sourceContainer -destinationStorageAccount $StorageAccountName -destinationStorageContainer "vhds" -vhdName $OsVHD -destVHDName $destVHDName
+						$copyStatus = Copy-VHDToAnotherStorageAccount -sourceStorageAccount $StorageAccountName -sourceStorageContainer $sourceContainer -destinationStorageAccount $StorageAccountName -destinationStorageContainer "vhds" -vhdName $VHDName -destVHDName $destVHDName
 						if (!$copyStatus) {
-							Throw "Failed to create copy of VHD '$OsVHD' -> '$destVHDName' from storage account '$StorageAccountName'"
+							Throw "Failed to create copy of VHD '$VHDName' -> '$destVHDName' from storage account '$StorageAccountName'"
 						}
 						else {
 							Write-LogInfo "New Base VHD name - $destVHDName"
@@ -1465,7 +1474,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 					else {
 						Add-Content -Value "$($indents[6])^image^: " -Path $jsonFile
 						Add-Content -Value "$($indents[6]){" -Path $jsonFile
-						Add-Content -Value "$($indents[7])^uri^: ^[concat('http://',variables('StorageAccountName'),'.blob.core.windows.net/vhds/','$osVHD')]^" -Path $jsonFile
+						Add-Content -Value "$($indents[7])^uri^: ^[concat('http://',variables('StorageAccountName'),'.blob.core.windows.net/vhds/','$VHDName')]^" -Path $jsonFile
 						Add-Content -Value "$($indents[6])}," -Path $jsonFile
 						Add-Content -Value "$($indents[6])^osType^: ^$OSType^," -Path $jsonFile
 						Add-Content -Value "$($indents[6])^name^: ^$vmName-OSDisk^," -Path $jsonFile
@@ -1621,15 +1630,14 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 	$resourceGroupCount = 0
 	$outputError = ""
 	Write-LogInfo "Current test setup: $($SetupTypeData.Name)"
-
-	$OsVHD = $global:BaseOSVHD
-	$osImage = $CurrentTestData.SetupConfig.ARMImageName
-	if ($CurrentTestData.SetupConfig.TestLocation) {
-		$location = $CurrentTestData.SetupConfig.TestLocation
+	$osVHDName = ""
+	if ($CurrentTestData.SetupConfig.OsVHD) {
+		$osVHDName = $CurrentTestData.SetupConfig.OsVHD.Split("?")[0].split('/')[-1]
 	}
-	else {
-		$location = $TestLocation
-		Write-LogInfo "'TestLocation' of: '$($CurrentTestData.TestName)' is not set from Test Xml Definition or from LISAv2 Parameter '-TestLocation'.`nLISAv2 will auto select an available TestLocation/(Region) with current subscription"
+	$osImage = $CurrentTestData.SetupConfig.ARMImageName
+	$location = $CurrentTestData.SetupConfig.TestLocation
+	if (!$location) {
+		Write-LogInfo "'TestLocation' is not set from Run-LISAv2 parameter, or '$($CurrentTestData.TestName)' does not define expected 'TestLocation' from SetupConfig section.`nLISAv2 will auto select an available TestLocation (Azure Region) for deployment and testing"
 	}
 
 	$patternOfResourceNamePrefix = ($SetupTypeData.ResourceGroup | Select-Object -ExpandProperty "VirtualMachine" `
@@ -1643,7 +1651,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 		}
 		$coreCountExceededTimeout = 3600
 		while (!$readyToDeploy) {
-			$readyToDeploy = Assert-DeploymentLimitation -RGXMLData $RG -TargetLocation ([ref]$location) -CurrentTestData $CurrentTestData
+			$readyToDeploy = Assert-ResourceLimitationForDeployment -RGXMLData $RG -TargetLocation ([ref]$location) -CurrentTestData $CurrentTestData
 			$validateCurrentTime = Get-Date
 			$elapsedWaitTime = ($validateCurrentTime - $validateStartTime).TotalSeconds
 			# When assertion failed, break the loop if '-UseExistingRG', or target VMSize is detected 'NOT_ENABLED' from all regions,
@@ -1656,14 +1664,12 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 				Write-LogInfo "Timeout in approx. $($coreCountExceededTimeout - $elapsedWaitTime) seconds..."
 				Write-LogInfo "Waiting $waitPeriod minutes..."
 				Start-Sleep -Seconds ($waitPeriod * 60)
+				$location = $CurrentTestData.SetupConfig.TestLocation
 			}
 		}
 		if ($readyToDeploy) {
-			# After Assert-DeploymentLimitation, '$location' may be changed and selected by LISAv2
-			$updatedStorageAccount = Update-StorageAccountType -Location $location -CurrentTestData $CurrentTestData -GlobalConfig $GlobalConfig -OsVHD $OsVHD
-			if (!$CurrentTestData.SetupConfig.TestLocation) {
-				$CurrentTestData.SetupConfig.InnerXml += "<TestLocation>$location</TestLocation>"
-			}
+			# After Assert-ResourceLimitationForDeployment(), '$location' may be auto-selected or updated by LISAv2 with a Azure Region that has enabled target VMSize (from $CurrentTestData) and has enough quota
+			$updatedStorageAccount = Select-StorageAccountByTestLocation -Location $location -CurrentTestData $CurrentTestData
 			$uniqueId = New-TimeBasedUniqueId
 			$isResourceGroupDeploymentCompleted = "False"
 			$retryDeployment = 0
@@ -1690,7 +1696,7 @@ Function Invoke-AllResourceGroupDeployments($SetupTypeData, $CurrentTestData, $R
 					Write-LogInfo "test platform is : $testPlatform"
 					if ($isResourceGroupCreated -eq "True") {
 						$azureDeployJSONFilePath = Join-Path $env:TEMP "$groupName.json"
-						$null = GenerateAzDeploymentJSONFile -RGName $groupName -ImageName $osImage -osVHD $osVHD -RGXMLData $RG -Location $location `
+						$null = GenerateAzDeploymentJSONFile -RGName $groupName -ImageName $osImage -VHDName $osVHDName -RGXMLData $RG -Location $location `
 							-azuredeployJSONFilePath $azureDeployJSONFilePath -StorageAccountName $updatedStorageAccount
 
 						$DeploymentStartTime = (Get-Date)
