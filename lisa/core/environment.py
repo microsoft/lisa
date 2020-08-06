@@ -7,22 +7,22 @@ from lisa.common.logger import log
 from lisa.core.nodeFactory import NodeFactory
 from lisa.util import constants
 
-from .node import Node
-
 if TYPE_CHECKING:
     from lisa.core.platform import Platform
 
+    from .node import Node
+
 
 class Environment(object):
-    def __init__(self):
-        self.nodes: list[Node] = []
-        self.name: Optional[str] = None
-        self.platform = None
-        self.isReady = False
+    def __init__(self) -> None:
+        self.nodes: List[Node] = []
+        self.name: Optional[str] = ""
+        self.platform: Optional[Platform] = None
+        self.isReady: bool = False
         self.spec: Optional[Dict[str, object]] = None
 
     @staticmethod
-    def loadEnvironment(config: Dict[str, object]):
+    def loadEnvironment(config: Dict[str, object]) -> Environment:
         environment = Environment()
         spec = copy.deepcopy(config)
 
@@ -81,7 +81,7 @@ class Environment(object):
         return environment
 
     @property
-    def defaultNode(self):
+    def defaultNode(self) -> Node:
         default = None
         if self.nodes is not None:
             for node in self.nodes:
@@ -90,9 +90,11 @@ class Environment(object):
                     break
             if default is None:
                 default = self.nodes[0]
+        if default is None:
+            raise Exception("No node found in current environment")
         return default
 
-    def getNodeByName(self, name: str, throwError: bool = True):
+    def getNodeByName(self, name: str, throwError: bool = True) -> Optional[Node]:
         found = None
         if self.nodes is not None:
             for node in self.nodes:
@@ -103,19 +105,19 @@ class Environment(object):
                 raise Exception("cannot find node %s" % (name))
         else:
             if throwError:
-                raise Exception("nodes shouldn't be None when call getNode")
+                raise Exception("nodes shouldn't be None when call getNodeByName")
         return found
 
-    def getNodeByIndex(self, index: int, throwError: bool = True):
+    def getNodeByIndex(self, index: int, throwError: bool = True) -> Optional[Node]:
         found = None
         if self.nodes is not None:
             if len(self.nodes) > index:
                 found = self.nodes[index]
         elif throwError:
-            raise Exception("nodes shouldn't be None when call getNode")
+            raise Exception("nodes shouldn't be None when call getNodeByIndex")
         return found
 
-    def setPlatform(self, platform: Platform):
+    def setPlatform(self, platform: Platform) -> None:
         self.platform = platform
 
     def _validateSingleDefault(

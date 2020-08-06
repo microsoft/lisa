@@ -4,10 +4,10 @@ from lisa import Node
 
 
 class ExecutableBase(ABC):
-    def __init__(self):
+    def __init__(self) -> None:
         self.node = None
 
-    def assignNode(self, node: Node):
+    def assignNode(self, node: Node) -> None:
         if self.node is not None:
             raise Exception("Node is assigned, cannot be assigned again")
         self.node = node
@@ -18,10 +18,10 @@ class ExecutableBase(ABC):
     def run(self, extraParameters: str) -> None:
         pass
 
-    def canInstall(self):
-        pass
+    def canInstall(self) -> bool:
+        raise NotImplementedError()
 
-    def install(self):
+    def install(self) -> None:
         pass
 
     def installed(self) -> bool:

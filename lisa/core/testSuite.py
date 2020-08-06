@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from abc import ABC
+from abc import ABCMeta
 from typing import TYPE_CHECKING, List
 
 from lisa.common.logger import log
@@ -10,32 +10,32 @@ if TYPE_CHECKING:
     from .environment import Environment
 
 
-class TestSuite(Action, ABC):
+class TestSuite(Action, metaclass=ABCMeta):
     area: str = ""
     category: str = ""
     tags: List[str] = []
 
-    def __init__(self, environment: Environment, cases: List[str]):
+    def __init__(self, environment: Environment, cases: List[str]) -> None:
         self.environment = environment
         self.cases = cases
         self.shouldStop = False
 
-    def suiteSetup(self):
+    def suiteSetup(self) -> None:
         pass
 
-    def suiteCleanup(self):
+    def suiteCleanup(self) -> None:
         pass
 
-    def beforeCase(self):
+    def beforeCase(self) -> None:
         pass
 
-    def afterCase(self):
+    def afterCase(self) -> None:
         pass
 
-    def getTypeName(self):
+    def getTypeName(self) -> str:
         return "TestSuite"
 
-    async def start(self):
+    async def start(self) -> None:
         self.suiteSetup()
         for test_case in self.cases:
             self.beforeCase()
@@ -48,9 +48,9 @@ class TestSuite(Action, ABC):
                 break
         self.suiteCleanup()
 
-    async def stop(self):
+    async def stop(self) -> None:
         self.setStatus(ActionStatus.STOPPING)
         self.shouldStop = True
 
-    async def cleanup(self):
+    async def cleanup(self) -> None:
         pass

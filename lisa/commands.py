@@ -14,7 +14,7 @@ from lisa.test_runner.lisarunner import LISARunner
 from lisa.util import constants
 
 
-def _load_extends(extends_config: Dict[str, object]):
+def _load_extends(extends_config: Optional[Dict[str, object]]) -> None:
     if extends_config is not None:
         paths = cast(List[str], extends_config.get("paths"))
         if paths is not None:
@@ -22,7 +22,7 @@ def _load_extends(extends_config: Dict[str, object]):
                 import_module(path)
 
 
-def _initialize(args: Namespace):
+def _initialize(args: Namespace) -> RuntimeObject:
 
     # make sure extension in lisa is loaded
     base_module_path = os.path.dirname(__file__)
@@ -50,7 +50,7 @@ def _initialize(args: Namespace):
     return runtime_object
 
 
-def run(args):
+def run(args: Namespace) -> None:
     runtime_object = _initialize(args)
 
     platform = runtime_object.platform
@@ -64,11 +64,11 @@ def run(args):
 
 
 # check configs
-def check(args: Namespace):
+def check(args: Namespace) -> None:
     _initialize(args)
 
 
-def list_start(args: Namespace):
+def list_start(args: Namespace) -> None:
     _initialize(args)
     listAll = cast(Optional[bool], args.listAll)
     if args.type == "case":

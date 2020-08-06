@@ -11,14 +11,14 @@ from lisa.util import constants
 
 
 class LISARunner(TestRunner):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.exitCode = None
 
-    def getTypeName(self):
+    def getTypeName(self) -> str:
         return "LISAv2"
 
-    def config(self, key: str, value: object):
+    def config(self, key: str, value: object) -> None:
         if key == constants.CONFIG_ENVIRONMENT_FACTORY:
             self.environmentsFactory: EnvironmentsFactory = cast(
                 EnvironmentsFactory, value
@@ -26,7 +26,7 @@ class LISARunner(TestRunner):
         elif key == constants.CONFIG_PLATFORM:
             self.platform: Platform = cast(Platform, value)
 
-    async def start(self):
+    async def start(self) -> None:
         await super().start()
         self.setStatus(ActionStatus.RUNNING)
         suites = test_factory.suites
@@ -48,11 +48,8 @@ class LISARunner(TestRunner):
 
         self.setStatus(ActionStatus.SUCCESS)
 
-    async def stop(self):
+    async def stop(self) -> None:
         super().stop()
 
-    async def cleanup(self):
+    async def cleanup(self) -> None:
         super().cleanup()
-
-    def getStatus(self):
-        pass

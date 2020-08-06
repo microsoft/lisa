@@ -16,7 +16,7 @@ class TestCaseMetadata:
         self.full_name = method.__qualname__.lower()
         self.method = method
         self.priority = priority
-        self.suite: Optional[TestSuiteMetadata] = None
+        self.suite: TestSuiteMetadata
 
 
 class TestSuiteMetadata:
@@ -30,7 +30,7 @@ class TestSuiteMetadata:
     ):
         self.test_class = test_class
         if name is not None and name != "":
-            self.name = name
+            self.name: str = name
         else:
             self.name = test_class.__name__
         self.key = self.name.lower()
@@ -39,7 +39,7 @@ class TestSuiteMetadata:
         self.tags = tags
         self.cases: Dict[str, TestCaseMetadata] = dict()
 
-    def addCase(self, test_case: TestCaseMetadata):
+    def addCase(self, test_case: TestCaseMetadata) -> None:
         if self.cases.get(test_case.key) is None:
             self.cases[test_case.key] = test_case
         else:
@@ -49,7 +49,7 @@ class TestSuiteMetadata:
 
 
 class TestFactory:
-    def __init__(self):
+    def __init__(self) -> None:
         self.suites: Dict[str, TestSuiteMetadata] = dict()
         self.cases: Dict[str, TestCaseMetadata] = dict()
 
@@ -60,7 +60,7 @@ class TestFactory:
         category: Optional[str],
         tags: List[str],
         name: Optional[str],
-    ):
+    ) -> None:
         if name is not None:
             name = name
         else:
@@ -83,7 +83,9 @@ class TestFactory:
             ", ".join([key for key in test_suite.cases]),
         )
 
-    def addTestMethod(self, test_method: Callable[[], None], priority: Optional[int]):
+    def addTestMethod(
+        self, test_method: Callable[[], None], priority: Optional[int]
+    ) -> None:
         test_case = TestCaseMetadata(test_method, priority)
         full_name = test_case.full_name
 
@@ -104,7 +106,7 @@ class TestFactory:
 
     def _addCaseToSuite(
         self, test_suite: TestSuiteMetadata, test_case: TestCaseMetadata
-    ):
+    ) -> None:
         test_suite.addCase(test_case)
         test_case.suite = test_suite
 

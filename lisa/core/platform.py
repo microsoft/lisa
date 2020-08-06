@@ -14,7 +14,7 @@ class Platform(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def config(self, key: str, value: object):
+    def config(self, key: str, value: object) -> None:
         pass
 
     @abstractmethod

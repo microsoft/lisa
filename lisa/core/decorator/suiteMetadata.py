@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 class SuiteMetadata:
     def __init__(
         self, area: str, category: str, tags: List[str], name: Optional[str] = None
-    ):
+    ) -> None:
         self.area = area
         self.category = category
         self.tags = tags

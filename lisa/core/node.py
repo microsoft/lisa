@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Dict, Optional
 
 from lisa.core.sshConnection import SshConnection
@@ -23,7 +25,7 @@ class Node:
         spec: Optional[Dict[str, object]] = None,
         node_type: str = constants.ENVIRONMENTS_NODES_REMOTE,
         isDefault: bool = False,
-    ):
+    ) -> Node:
         if node_type == constants.ENVIRONMENTS_NODES_REMOTE:
             isRemote = True
         elif node_type == constants.ENVIRONMENTS_NODES_LOCAL:
@@ -42,10 +44,10 @@ class Node:
         username: str = "root",
         password: str = "",
         privateKeyFile: str = "",
-    ):
+    ) -> None:
         self.connection = SshConnection(
             address, port, publicAddress, publicPort, username, password, privateKeyFile
         )
 
-    def connect(self):
+    def connect(self) -> None:
         pass

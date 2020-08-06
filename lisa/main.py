@@ -10,7 +10,7 @@ from lisa.common.logger import init_log, log
 from lisa.parameter_parser.argparser import parse_args
 
 
-@retry(FileExistsError, tries=10, delay=0)
+@retry(FileExistsError, tries=10, delay=0)  # type: ignore
 def create_result_path() -> str:
     path_template = "runtime/results/{0}/{0}-{1}"
     date = datetime.utcnow().strftime("%Y%m%d")
@@ -21,7 +21,7 @@ def create_result_path() -> str:
     return current_path
 
 
-def main():
+def main() -> None:
     # create result path
     result_path = os.path.realpath(create_result_path())
     os.makedirs(result_path)
@@ -54,4 +54,4 @@ if __name__ == "__main__":
         exitCode = -1
     finally:
         # force all threads end.
-        os._exit(exitCode)
+        sys.exit(exitCode)

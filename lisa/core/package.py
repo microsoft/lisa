@@ -6,7 +6,7 @@ from glob import glob
 from lisa.common.logger import log
 
 
-def import_module(path: str, logDetails: bool = True):
+def import_module(path: str, logDetails: bool = True) -> None:
 
     path = os.path.realpath(path)
     if not os.path.exists(path):

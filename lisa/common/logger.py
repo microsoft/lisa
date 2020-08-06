@@ -6,7 +6,7 @@ import time
 env_result_path = "LISA_RESULT_PATH"
 
 
-def init_log():
+def init_log() -> None:
     format = "%(asctime)s.%(msecs)03d[%(levelname)-.1s]%(name)s %(message)s"
     logging.basicConfig(
         level=logging.INFO,

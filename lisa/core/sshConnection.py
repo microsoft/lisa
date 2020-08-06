@@ -11,7 +11,7 @@ class SshConnection:
         username: str = "root",
         password: str = "",
         privateKeyFile: str = "",
-    ):
+    ) -> None:
         self.address = address
         self.port = port
         self.publicAddress = publicAddress
@@ -54,8 +54,8 @@ class SshConnection:
         if self.username is None or self.username == "":
             raise Exception("username must be set")
 
-    def getInternalConnection(self):
+    def getInternalConnection(self) -> None:
         pass
 
-    def getPublicConnection(self):
+    def getPublicConnection(self) -> None:
         pass

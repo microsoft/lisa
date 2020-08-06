@@ -8,12 +8,16 @@ default_no_name = "_no_name_default"
 
 
 class EnvironmentsFactory:
-    def __init__(self):
+    def __init__(self) -> None:
         self.environments: Dict[str, Environment] = dict()
         self.maxConcurrency = 1
 
-    def loadEnvironments(self, config: Dict[str, object]):
-        maxConcurrency = config.get(constants.ENVIRONMENT_MAX_CONCURRENDCY)
+    def loadEnvironments(self, config: Optional[Dict[str, object]]) -> None:
+        if config is None:
+            raise Exception("environment section must be set in config")
+        maxConcurrency = cast(
+            Optional[int], config.get(constants.ENVIRONMENT_MAX_CONCURRENDCY)
+        )
         if maxConcurrency is not None:
             self.maxConcurrency = maxConcurrency
         environments_config = cast(

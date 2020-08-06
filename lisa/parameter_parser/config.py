@@ -1,13 +1,13 @@
-from typing import Dict, Optional, cast
+from typing import Dict, List, Optional, cast
 
 from lisa.util import constants
 
 
-class Config(dict):
-    def __init__(self, config: Dict[str, object]):
+class Config(Dict[str, object]):
+    def __init__(self, config: Dict[str, object]) -> None:
         self.config: Dict[str, object] = config
 
-    def validate(self):
+    def validate(self) -> None:
         # TODO implement config validation
         pass
 
@@ -17,8 +17,10 @@ class Config(dict):
     def getEnvironment(self) -> Optional[Dict[str, object]]:
         return self._getAndCast(constants.ENVIRONMENT)
 
-    def getPlatform(self) -> Optional[Dict[str, object]]:
-        return self._getAndCast(constants.PLATFORM)
+    def getPlatform(self) -> Optional[List[Dict[str, object]]]:
+        return cast(
+            Optional[List[Dict[str, object]]], self.config.get(constants.PLATFORM)
+        )
 
     def getTestCase(self) -> Optional[Dict[str, object]]:
         return self._getAndCast(constants.TESTCASE)

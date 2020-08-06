@@ -1,4 +1,5 @@
 import os
+from argparse import Namespace
 
 import yaml
 
@@ -6,7 +7,7 @@ from lisa.common.logger import log
 from lisa.parameter_parser.config import Config
 
 
-def parse(args):
+def parse(args: Namespace) -> Config:
     path = args.config
     path = os.path.realpath(path)
     log.info("load config from: %s", path)
