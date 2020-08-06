@@ -4,11 +4,11 @@ from argparse import Namespace
 from typing import Dict, List, Optional, cast
 
 from lisa.common.logger import log
-from lisa.core.environment_factory import environment_factory
+from lisa.core.environmentFactory import EnvironmentFactory
 from lisa.core.package import import_module
-from lisa.core.platform_factory import platform_factory
+from lisa.core.platformFactory import PlatformFactory
 from lisa.core.runtimeObject import RuntimeObject
-from lisa.core.test_factory import test_factory
+from lisa.core.testFactory import TestFactory
 from lisa.parameter_parser.parser import parse
 from lisa.test_runner.lisarunner import LISARunner
 from lisa.util import constants
@@ -38,12 +38,13 @@ def _initialize(args: Namespace) -> RuntimeObject:
 
     # initialize environment
     environments_config = config.getEnvironment()
+    environment_factory = EnvironmentFactory()
     environment_factory.loadEnvironments(environments_config)
-    runtime_object.environment_factory = environment_factory
 
     # initialize platform
     platform_config = config.getPlatform()
-    runtime_object.platform = platform_factory.initializePlatform(platform_config)
+    factory = PlatformFactory()
+    runtime_object.platform = factory.initializePlatform(platform_config)
 
     runtime_object.validate()
 
@@ -54,10 +55,8 @@ def run(args: Namespace) -> None:
     runtime_object = _initialize(args)
 
     platform = runtime_object.platform
-    environment_factory = runtime_object.environment_factory
 
     runner = LISARunner()
-    runner.config(constants.CONFIG_ENVIRONMENT_FACTORY, environment_factory)
     runner.config(constants.CONFIG_PLATFORM, platform)
     awaitable = runner.start()
     asyncio.run(awaitable)
@@ -73,7 +72,8 @@ def list_start(args: Namespace) -> None:
     listAll = cast(Optional[bool], args.listAll)
     if args.type == "case":
         if listAll is True:
-            for metadata in test_factory.cases.values():
+            factory = TestFactory()
+            for metadata in factory.cases.values():
                 log.info(
                     "case: %s, suite: %s, area: %s, "
                     + "category: %s, tags: %s, priority: %s",

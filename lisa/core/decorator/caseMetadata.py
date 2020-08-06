@@ -2,7 +2,7 @@ from timeit import default_timer as timer
 from typing import Callable, Optional
 
 from lisa.common.logger import log
-from lisa.core.test_factory import test_factory
+from lisa.core.testFactory import TestFactory
 
 
 class CaseMetadata(object):
@@ -10,7 +10,8 @@ class CaseMetadata(object):
         self.priority = priority
 
     def __call__(self, func: Callable[..., None]) -> Callable[..., None]:
-        test_factory.addTestMethod(func, self.priority)
+        factory = TestFactory()
+        factory.addTestMethod(func, self.priority)
 
         def wrapper(*args: object) -> None:
             log.info("case '%s' started", func.__name__)

@@ -1,11 +1,14 @@
 from typing import Dict, List, Optional, Type, cast
 
+from singleton_decorator import singleton
+
 from lisa.common.logger import log
 from lisa.util import constants
 
 from .platform import Platform
 
 
+@singleton
 class PlatformFactory:
     def __init__(self) -> None:
         self.platforms: Dict[str, Platform] = dict()
@@ -46,6 +49,3 @@ class PlatformFactory:
     def _buildFactory(self) -> None:
         for sub_class in Platform.__subclasses__():
             self.registerPlatform(sub_class)
-
-
-platform_factory = PlatformFactory()

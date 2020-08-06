@@ -1,5 +1,7 @@
 from typing import Callable, Dict, List, Optional, Type
 
+from singleton_decorator import singleton
+
 from lisa.common.logger import log
 from lisa.core.testSuite import TestSuite
 
@@ -48,6 +50,7 @@ class TestSuiteMetadata:
             )
 
 
+@singleton
 class TestFactory:
     def __init__(self) -> None:
         self.suites: Dict[str, TestSuiteMetadata] = dict()
@@ -109,6 +112,3 @@ class TestFactory:
     ) -> None:
         test_suite.addCase(test_case)
         test_case.suite = test_suite
-
-
-test_factory = TestFactory()

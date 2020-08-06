@@ -2,9 +2,9 @@ from typing import cast
 
 from lisa.common.logger import log
 from lisa.core.action import ActionStatus
-from lisa.core.environment_factory import EnvironmentsFactory
+from lisa.core.environmentFactory import EnvironmentFactory
 from lisa.core.platform import Platform
-from lisa.core.test_factory import test_factory
+from lisa.core.testFactory import TestFactory
 from lisa.core.testRunner import TestRunner
 from lisa.core.testSuite import TestSuite
 from lisa.util import constants
@@ -19,20 +19,19 @@ class LISARunner(TestRunner):
         return "LISAv2"
 
     def config(self, key: str, value: object) -> None:
-        if key == constants.CONFIG_ENVIRONMENT_FACTORY:
-            self.environmentsFactory: EnvironmentsFactory = cast(
-                EnvironmentsFactory, value
-            )
-        elif key == constants.CONFIG_PLATFORM:
+        if key == constants.CONFIG_PLATFORM:
             self.platform: Platform = cast(Platform, value)
 
     async def start(self) -> None:
         await super().start()
         self.setStatus(ActionStatus.RUNNING)
+        test_factory = TestFactory()
         suites = test_factory.suites
+
+        environment_factory = EnvironmentFactory()
         # request environment
         log.info("platform %s environment requesting", self.platform.platformType())
-        environment = self.environmentsFactory.getEnvironment()
+        environment = environment_factory.getEnvironment()
         log.info("platform %s environment requested", self.platform.platformType())
 
         for suite in suites.values():

@@ -1,13 +1,16 @@
 from typing import Dict, List, Optional, cast
 
+from singleton_decorator import singleton
+
 from lisa.util import constants
 
 from .environment import Environment
 
-default_no_name = "_no_name_default"
 
+@singleton
+class EnvironmentFactory:
+    default_no_name = "_no_name_default"
 
-class EnvironmentsFactory:
     def __init__(self) -> None:
         self.environments: Dict[str, Environment] = dict()
         self.maxConcurrency = 1
@@ -29,13 +32,13 @@ class EnvironmentsFactory:
             if environment.name is None:
                 if without_name is True:
                     raise Exception("at least two environments has no name")
-                environment.name = default_no_name
+                environment.name = self.default_no_name
                 without_name = True
             self.environments[environment.name] = environment
 
     def getEnvironment(self, name: Optional[str] = None) -> Environment:
         if name is None:
-            key = default_no_name
+            key = self.default_no_name
         else:
             key = name.lower()
         environmet = self.environments.get(key)
@@ -43,6 +46,3 @@ class EnvironmentsFactory:
             raise Exception("not found environment '%s'", name)
 
         return environmet
-
-
-environment_factory = EnvironmentsFactory()
