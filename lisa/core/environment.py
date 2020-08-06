@@ -3,9 +3,9 @@ from __future__ import annotations
 import copy
 from typing import TYPE_CHECKING, Dict, List, Optional, cast
 
-from lisa.common.logger import log
 from lisa.core.nodeFactory import NodeFactory
 from lisa.util import constants
+from lisa.util.logger import log
 
 if TYPE_CHECKING:
     from lisa.core.platform import Platform
@@ -128,3 +128,7 @@ class Environment(object):
                 raise Exception("only one node can set isDefault to True")
             has_default = True
         return has_default
+
+    def cleanup(self) -> None:
+        for node in self.nodes:
+            node.cleanup()

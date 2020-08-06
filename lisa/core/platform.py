@@ -31,5 +31,6 @@ class Platform(ABC):
         return environment
 
     def deleteEnvironment(self, environment: Environment) -> None:
+        environment.cleanup()
         self.deleteEnvironmentInternal(environment)
         environment.isReady = False

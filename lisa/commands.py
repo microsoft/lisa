@@ -3,7 +3,6 @@ import os
 from argparse import Namespace
 from typing import Dict, List, Optional, cast
 
-from lisa.common.logger import log
 from lisa.core.environmentFactory import EnvironmentFactory
 from lisa.core.package import import_module
 from lisa.core.platformFactory import PlatformFactory
@@ -12,6 +11,7 @@ from lisa.core.testFactory import TestFactory
 from lisa.parameter_parser.parser import parse
 from lisa.test_runner.lisarunner import LISARunner
 from lisa.util import constants
+from lisa.util.logger import log
 
 
 def _load_extends(base_path: str, extends_config: Optional[Dict[str, object]]) -> None:

@@ -1,4 +1,9 @@
-import os
+from lisa.util.excutableResult import ExecutableResult
+from typing import Optional
+
+import paramiko
+
+from lisa.util.connectionInfo import ConnectionInfo
 
 
 class SshConnection:
@@ -38,24 +43,70 @@ class SshConnection:
         elif self.publicPort is None or self.publicPort <= 0:
             self.publicPort = self.port
 
-        if (self.password is None or self.password == "") and (
-            self.privateKeyFile is None or self.privateKeyFile == ""
-        ):
-            raise Exception(
-                "at least one of password and privateKeyFile need to be set"
-            )
-        elif self.password is not None and self.password != "":
-            self.usePassword = True
+        self._connectionInfo = ConnectionInfo(
+            self.address, self.port, self.username, self.password, self.privateKeyFile
+        )
+        self._publicConnectionInfo = ConnectionInfo(
+            self.publicAddress,
+            self.publicPort,
+            self.username,
+            self.password,
+            self.privateKeyFile,
+        )
+
+        self._connection: Optional[paramiko.SSHClient] = None
+        self._publicConnection: Optional[paramiko.SSHClient] = None
+
+        self._isConnected: bool = False
+        self._isPublicConnected: bool = False
+
+    @property
+    def connectionInfo(self) -> ConnectionInfo:
+        return self._connectionInfo
+
+    @property
+    def publicConnectionInfo(self) -> ConnectionInfo:
+        return self._publicConnectionInfo
+
+    def execute(self, cmd: str) -> ExecutableResult:
+        client = self.connect()
+        _, stdout_file, stderr_file = client.exec_command(cmd)
+        exit_code: int = stdout_file.channel.recv_exit_status()
+
+        stdout: str = stdout_file.read().decode("utf-8")
+        stderr: str = stderr_file.read().decode("utf-8")
+        result = ExecutableResult(stdout, stderr, exit_code)
+
+        return result
+
+    def connect(self, isPublic: bool = True) -> paramiko.SSHClient:
+        if isPublic:
+            connection = self._publicConnection
+            connectionInfo = self.publicConnectionInfo
         else:
-            if not os.path.exists(self.privateKeyFile):
-                raise FileNotFoundError(self.privateKeyFile)
-            self.usePassword = False
+            connection = self._connection
+            connectionInfo = self.connectionInfo
+        if connection is None:
+            connection = paramiko.SSHClient()
+            connection.set_missing_host_key_policy(paramiko.client.AutoAddPolicy)
+            connection.connect(
+                connectionInfo.address,
+                port=connectionInfo.port,
+                username=connectionInfo.username,
+                password=connectionInfo.password,
+                key_filename=connectionInfo.privateKeyFile,
+                look_for_keys=False,
+            )
+            if isPublic:
+                self._publicConnection = connection
+            else:
+                self._connection = connection
+        return connection
 
-        if self.username is None or self.username == "":
-            raise Exception("username must be set")
-
-    def getInternalConnection(self) -> None:
-        pass
-
-    def getPublicConnection(self) -> None:
-        pass
+    def cleanup(self) -> None:
+        if self._connection is not None:
+            self._connection.close()
+            self._connection = None
+        if self._publicConnection is not None:
+            self._publicConnection.close()
+            self._publicConnection = None

@@ -1,13 +1,19 @@
 from lisa import CaseMetadata, SuiteMetadata
-from lisa.common.logger import log
 from lisa.core.testSuite import TestSuite
+from lisa.util.logger import log
 
 
 @SuiteMetadata(area="demo", category="simple", tags=["demo"])
 class SimpleTestSuite(TestSuite):
     @CaseMetadata(priority=1)
     def hello(self) -> None:
-        log.info("hello world")
+        log.info("environment: %s", len(self.environment.nodes))
+        default_node = self.environment.defaultNode
+        result = default_node.execute("echo hello world!")
+        log.info("stdout of node: '%s'", result.stdout)
+        log.info("stderr of node: '%s'", result.stderr)
+        log.info("exitCode of node: '%s'", result.exitCode)
+        log.info("try me on a remote node, same code!")
 
     @CaseMetadata(priority=1)
     def bye(self) -> None:

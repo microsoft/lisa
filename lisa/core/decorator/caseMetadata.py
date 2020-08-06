@@ -1,8 +1,8 @@
 from timeit import default_timer as timer
 from typing import Callable, Optional
 
-from lisa.common.logger import log
 from lisa.core.testFactory import TestFactory
+from lisa.util.logger import log
 
 
 class CaseMetadata(object):

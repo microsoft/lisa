@@ -5,9 +5,9 @@ from logging import DEBUG, INFO
 
 from retry import retry
 
-from lisa.common import env
-from lisa.common.logger import init_log, log
 from lisa.parameter_parser.argparser import parse_args
+from lisa.util import env
+from lisa.util.logger import init_log, log
 
 
 @retry(FileExistsError, tries=10, delay=0)  # type: ignore
@@ -54,4 +54,4 @@ if __name__ == "__main__":
         exitCode = -1
     finally:
         # force all threads end.
-        sys.exit(exitCode)
+        os._exit(exitCode)

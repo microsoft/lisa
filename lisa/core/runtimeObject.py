@@ -1,11 +1,11 @@
 from typing import Optional, cast
 
-from lisa.common.logger import log
 from lisa.core.environmentFactory import EnvironmentFactory
 from lisa.core.platform import Platform
 from lisa.parameter_parser.config import Config
 from lisa.sut_orchestrator.ready import ReadyPlatform
 from lisa.util import constants
+from lisa.util.logger import log
 
 
 class RuntimeObject:

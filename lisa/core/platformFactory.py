@@ -2,8 +2,8 @@ from typing import Dict, List, Optional, Type, cast
 
 from singleton_decorator import singleton
 
-from lisa.common.logger import log
 from lisa.util import constants
+from lisa.util.logger import log
 
 from .platform import Platform
 

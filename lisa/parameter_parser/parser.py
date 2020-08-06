@@ -3,8 +3,8 @@ from argparse import Namespace
 
 import yaml
 
-from lisa.common.logger import log
 from lisa.parameter_parser.config import Config
+from lisa.util.logger import log
 
 
 def parse(args: Namespace) -> Config:

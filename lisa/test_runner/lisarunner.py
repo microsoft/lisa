@@ -1,6 +1,5 @@
 from typing import cast
 
-from lisa.common.logger import log
 from lisa.core.action import ActionStatus
 from lisa.core.environmentFactory import EnvironmentFactory
 from lisa.core.platform import Platform
@@ -8,6 +7,7 @@ from lisa.core.testFactory import TestFactory
 from lisa.core.testRunner import TestRunner
 from lisa.core.testSuite import TestSuite
 from lisa.util import constants
+from lisa.util.logger import log
 
 
 class LISARunner(TestRunner):

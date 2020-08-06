@@ -2,8 +2,8 @@ from typing import Callable, Dict, List, Optional, Type
 
 from singleton_decorator import singleton
 
-from lisa.common.logger import log
 from lisa.core.testSuite import TestSuite
+from lisa.util.logger import log
 
 
 class TestCaseMetadata:

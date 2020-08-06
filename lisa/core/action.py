@@ -3,8 +3,8 @@ from __future__ import annotations
 from abc import ABCMeta, abstractmethod
 from typing import Dict, Optional
 
-from lisa.common.logger import log
 from lisa.core.actionStatus import ActionStatus
+from lisa.util.logger import log
 
 
 class Action(metaclass=ABCMeta):

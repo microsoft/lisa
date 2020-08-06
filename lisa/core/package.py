@@ -3,7 +3,7 @@ import os
 import sys
 from glob import glob
 
-from lisa.common.logger import log
+from lisa.util.logger import log
 
 
 def import_module(path: str, logDetails: bool = True) -> None:

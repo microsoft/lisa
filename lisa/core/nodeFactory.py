@@ -1,7 +1,7 @@
 from typing import Dict, Optional
 
-from lisa.common.logger import log
 from lisa.util import constants
+from lisa.util.logger import log
 
 from .node import Node
 
@@ -19,6 +19,16 @@ class NodeFactory:
         ]:
             is_default = NodeFactory._isDefault(config)
             node = Node.createNode(node_type=node_type, isDefault=is_default)
+            if node.isRemote:
+                node.setConnectionInfo(
+                    config.get(constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS),
+                    config.get(constants.ENVIRONMENTS_NODES_REMOTE_PORT),
+                    config.get(constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_ADDRESS),
+                    config.get(constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_PORT),
+                    config.get(constants.ENVIRONMENTS_NODES_REMOTE_USERNAME),
+                    config.get(constants.ENVIRONMENTS_NODES_REMOTE_PASSWORD),
+                    config.get(constants.ENVIRONMENTS_NODES_REMOTE_PRIVATEKEYFILE),
+                )
         if node is not None:
             log.debug("created node '%s'", node_type)
         return node

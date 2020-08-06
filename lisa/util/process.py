@@ -2,12 +2,21 @@ import logging
 import os
 import shlex
 import subprocess
+import time
 from threading import Thread
-from typing import Any, Dict, List, Optional, cast
+from types import TracebackType
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, cast
+from timeit import default_timer as timer
 
 import psutil
 
-from lisa.common.logger import log
+from lisa.util.excutableResult import ExecutableResult
+from lisa.util.logger import log
+
+if TYPE_CHECKING:
+    BaseExceptionType = Type[BaseException]
+else:
+    BaseExceptionType = bool
 
 
 class LogPipe(Thread):
@@ -16,10 +25,13 @@ class LogPipe(Thread):
         and start the thread
         """
         Thread.__init__(self)
+        self.output: str = ""
         self.daemon = False
         self.level = level
         self.fdRead, self.fdWrite = os.pipe()
         self.pipeReader = os.fdopen(self.fdRead)
+        self.isReadCompleted = False
+        self.isClosed = False
         self.start()
 
     def fileno(self) -> int:
@@ -30,23 +42,40 @@ class LogPipe(Thread):
     def run(self) -> None:
         """Run the thread, logging everything.
         """
-        for line in iter(self.pipeReader.readline, ""):
-            log.log(self.level, line.strip("\n"))
+        output = self.pipeReader.read()
+        self.output = "".join([self.output, output])
+        for line in output.splitlines(False):
+            log.log(self.level, line)
 
         self.pipeReader.close()
+        self.isReadCompleted = True
 
     def close(self) -> None:
         """Close the write end of the pipe.
         """
-        os.close(self.fdWrite)
+        if not self.isClosed:
+            os.close(self.fdWrite)
+            self.isClosed = True
 
 
 class Process:
     def __init__(self) -> None:
         self.process: Optional[subprocess.Popen[Any]] = None
         self.exitCode: Optional[int] = None
-        self.running: bool = False
         self.log_pipe: Optional[LogPipe] = None
+
+        self._running: bool = False
+
+    def __enter__(self) -> None:
+        pass
+
+    def __exit__(
+        self,
+        exc_type: Optional[BaseExceptionType],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> None:
+        self.cleanup()
 
     def start(
         self,
@@ -72,9 +101,35 @@ class Process:
             cwd=cwd,
             env=cast(Optional[Dict[str, str]], dictEnv),
         )
-        self.running = True
+        self._running = True
         if self.process is not None:
             log.debug("process %s started", self.process.pid)
+
+    def waitResult(self, timeout: float = 600) -> ExecutableResult:
+        budget_time = timeout
+        # wait for all content read
+        while self.isRunning() is True and budget_time >= 0:
+            start = timer()
+            time.sleep(0.01)
+            end = timer()
+            budget_time = budget_time - (end - start)
+
+        if budget_time < 0:
+            if self.process is not None:
+                log.warn("process %s timeout in %s sec", self.process.pid, timeout)
+            self.stop()
+
+        # cleanup to get pipe complete
+        self.cleanup()
+
+        # wait all content flushed
+        while (
+            not self.stdout_pipe.isReadCompleted or not self.stderr_pipe.isReadCompleted
+        ):
+            time.sleep(0.01)
+        return ExecutableResult(
+            self.stdout_pipe.output, self.stderr_pipe.output, self.exitCode
+        )
 
     def stop(self) -> None:
         if self.process is not None:
@@ -95,10 +150,10 @@ class Process:
     def isRunning(self) -> bool:
         self.exitCode = self.getExitCode()
         if self.exitCode is not None and self.process is not None:
-            if self.running is True:
+            if self._running is True:
                 log.debug("process %s exited: %s", self.process.pid, self.exitCode)
-            self.running = False
-        return self.running
+            self._running = False
+        return self._running
 
     def getExitCode(self) -> Optional[int]:
         if self.process is not None:
