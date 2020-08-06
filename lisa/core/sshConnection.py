@@ -1,9 +1,9 @@
-from lisa.util.excutableResult import ExecutableResult
 from typing import Optional
 
 import paramiko
 
 from lisa.util.connectionInfo import ConnectionInfo
+from lisa.util.excutableResult import ExecutableResult
 
 
 class SshConnection:

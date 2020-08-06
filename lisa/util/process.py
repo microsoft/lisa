@@ -4,9 +4,9 @@ import shlex
 import subprocess
 import time
 from threading import Thread
+from timeit import default_timer as timer
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, cast
-from timeit import default_timer as timer
 
 import psutil
 

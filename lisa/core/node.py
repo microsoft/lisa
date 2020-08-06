@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import random
-from time import sleep
 from timeit import default_timer as timer
 from typing import Dict, Optional
 
