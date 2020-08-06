@@ -3568,6 +3568,42 @@ function GetPlatform() {
 	LogMsg "Running on platform: $PLATFORM"
 }
 
+# This function returns name of vf pair against specific synthetic interface
+function get_vf_name() {
+	if [ -z "${1}" ]; then
+		LogErr "ERROR: must provide interface name to get_name_synthetic_vf_pairs()"
+		SetTestStateAborted
+		exit 1
+	fi
+	local synth_if=$1
+	local ignore_if=$(ip route | grep default | awk '{print $5}')
+	local interfaces=$(ls /sys/class/net | grep -v lo | grep -v ${ignore_if})
+
+	local synth_ifs=""
+	local vf_ifs=""
+	local interface
+	for interface in ${interfaces}; do
+		# alternative is, but then must always know driver name
+		# readlink -f /sys/class/net/<interface>/device/driver/
+		local bus_addr=$(ethtool -i ${interface} | grep bus-info | awk '{print $2}')
+		if [ -z "${bus_addr}" ]; then
+			synth_ifs="${synth_ifs} ${interface}"
+		else
+			vf_ifs="${vf_ifs} ${interface}"
+		fi
+	done
+
+	local vf_if
+	local synth_mac=$(ip link show ${synth_if} | grep ether | awk '{print $2}')
+	for vf_if in ${vf_ifs}; do
+		local vf_mac=$(ip link show ${vf_if} | grep ether | awk '{print $2}')
+		# single = is posix compliant
+		if [ "${synth_mac}" = "${vf_mac}" ]; then
+			echo "${vf_if}"
+		fi
+	done
+}
+
 # Run ssh command
 # $1 == ips
 # $2 == command

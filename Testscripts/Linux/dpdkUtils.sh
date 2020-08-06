@@ -434,7 +434,7 @@ function Create_Timed_Testpmd_Cmd() {
 	fi
 	local duration="${1}"
 
-	cmd="$(Create_Testpmd_Cmd ${2} ${3} ${4} ${5} ${6})"
+	cmd="$(Create_Testpmd_Cmd ${2} ${3} ${4} ${5} ${6} ${7})"
 	echo "timeout ${duration} ${cmd}"
 }
 
@@ -467,11 +467,33 @@ function Create_Testpmd_Cmd() {
 	local busaddr="${2}"
 	local iface="${3}"
 	local mode="${4}"
-	local additional_params="${5}"
+	local pmd="${5}"
+	local additional_params="${6}"
+
 
 	# partial strings to concat
 	local testpmd="${LIS_HOME}/${DPDK_DIR}/build/app/testpmd"
-	local eal_opts="-l 0-${core} -w ${busaddr} --vdev='net_vdev_netvsc0,iface=${iface}' --"
+	local eal_opts=""
+	case "$pmd" in
+		netvsc)
+			DEV_UUID=$(basename $(readlink /sys/class/net/eth1/device))
+			NET_UUID="f8615163-df3e-46c5-913f-f2d2f965ed0e"
+			modprobe uio_hv_generic
+			echo $NET_UUID > /sys/bus/vmbus/drivers/uio_hv_generic/new_id &>/dev/null
+			echo $DEV_UUID > /sys/bus/vmbus/drivers/hv_netvsc/unbind &>/dev/null
+			echo $DEV_UUID > /sys/bus/vmbus/drivers/uio_hv_generic/bind &>/dev/null
+			eal_opts="-l 0-${core} -w ${busaddr} --"
+			;;
+		failsafe)
+			eal_opts="-l 0-${core} -w ${busaddr} --vdev='net_vdev_netvsc0,iface=${iface}' --"
+			;;
+		*)
+			LogMsg "Not supported PMD $pmd. Abort."
+			SetTestStateAborted
+			exit 0
+			;;
+	esac
+
 	local testpmd_opts0="--port-topology=chained --nb-cores ${core} --txq ${core} --rxq ${core}"
 	local testpmd_opts1="--mbcache=512 --txd=4096 --rxd=4096 --forward-mode=${mode} --stats-period 1 --tx-offloads=0x800e ${additional_params}"
 
@@ -627,4 +649,26 @@ function wget_retry() {
 		SetTestStateAborted
 		exit 1
 	fi
+}
+
+function NetvscDevice_Setup() {
+	if [ -z "${1}" ]; then
+		LogErr "ERROR: must provide target ip to NetvscDevice_Setup()"
+		SetTestStateAborted
+		exit 1
+	fi
+
+	CheckIP ${1}
+	if [ $? -eq 1 ]; then
+		LogErr "ERROR: must pass valid ip to NetvscDevice_Setup()"
+		SetTestStateAborted
+		exit 1
+	fi
+	NET_UUID="f8615163-df3e-46c5-913f-f2d2f965ed0e"
+	DEV_UUID_pre=$(ssh "${1}" "readlink /sys/class/net/eth1/device")
+	DEV_UUID=$(basename ${DEV_UUID_pre})
+	ssh "${1}" "modprobe uio_hv_generic"
+	ssh "${1}" "echo ${NET_UUID} > /sys/bus/vmbus/drivers/uio_hv_generic/new_id"
+	ssh "${1}" "echo ${DEV_UUID} > /sys/bus/vmbus/drivers/hv_netvsc/unbind"
+	ssh "${1}" "echo ${DEV_UUID} > /sys/bus/vmbus/drivers/uio_hv_generic/bind"
 }

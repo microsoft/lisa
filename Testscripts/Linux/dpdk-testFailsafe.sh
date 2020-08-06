@@ -56,6 +56,9 @@ function Run_Testfailsafe() {
 		exit 1
 	fi
 
+	if [ -z "${pmd}" ]; then
+		pmd="failsafe"
+	fi
 	local core=8
 
 	local ip
@@ -64,23 +67,22 @@ function Run_Testfailsafe() {
 	for ip in $IP_ADDRS; do
 		ssh "${ip}" "${free_huge_cmd}"
 	done
-	
-	local receiver_testfwd_cmd="$(Create_Testpmd_Cmd ${core} "${receiver_busaddr}" "${receiver_iface}" rxonly)"
+
+	local receiver_testfwd_cmd="$(Create_Testpmd_Cmd ${core} "${receiver_busaddr}" "${receiver_iface}" rxonly "${pmd}")"
 	LogMsg "${receiver_testfwd_cmd}"
 	ssh "${receiver}" "${receiver_testfwd_cmd}" 2>&1 > "${LOG_DIR}"/dpdk-testfailsafe-receiver.log &
- 
-	local forwarder_testfwd_cmd="$(Create_Testpmd_Cmd ${core} "${forwarder_busaddr}" "${forwarder_iface}" mac)"
+
+	local forwarder_testfwd_cmd="$(Create_Testpmd_Cmd ${core} "${forwarder_busaddr}" "${forwarder_iface}" mac "${pmd}")"
 	LogMsg "${forwarder_testfwd_cmd}"
 	ssh "${forwarder}" "${forwarder_testfwd_cmd}" 2>&1 > "${LOG_DIR}"/dpdk-testfailsafe-forwarder.log &
 
 	sleep 5
 	trx_rx_ips=$(Get_Trx_Rx_Ip_Flags "${forwarder}")
-	local sender_testfwd_cmd="$(Create_Testpmd_Cmd ${core} "${sender_busaddr}" "${sender_iface}" txonly "${trx_rx_ips}")"
+	local sender_testfwd_cmd="$(Create_Testpmd_Cmd ${core} "${sender_busaddr}" "${sender_iface}" txonly "${pmd}" "${trx_rx_ips}")"
 	# reduce txd so VF revoke doesn't kill forwarder
 	sender_testfwd_cmd=$(echo "${sender_testfwd_cmd}" | sed -r 's,(--.xd=)4096,\110,')
 	LogMsg "${sender_testfwd_cmd}"
 	eval "${sender_testfwd_cmd} 2>&1 > ${LOG_DIR}/dpdk-testfailsafe-sender.log &"
-	
 
 	sleep 120
 	# testpmd is has now run for 120 request testcase driver to revoke VF
@@ -107,13 +109,13 @@ function Run_Testfailsafe() {
 			break
 		fi
 	done
-	
+
 	LogMsg "killing testpmd"
 	local kill_cmd="pkill testpmd"
 	for ip in $IP_ADDRS; do
 		ssh "${ip}" "${kill_cmd}"
 	done
-	
+
 	LogMsg "Testfailsafe execution is COMPLETED"
 }
 
