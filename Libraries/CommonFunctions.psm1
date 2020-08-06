@@ -117,7 +117,7 @@ Function Select-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Test
     $WildCards = @('^','.','[',']','?','+','*')
     $ExcludedTestsCount = 0
 
-    # if the expected filter parameter is 'ALL' or empty ("ALL" -imatch "" return $True), the actually filter used in this function will be '*', except for '$ExcludedTests'
+    # if the expected filter parameter is 'ALL' or empty or $null (-imatch successfully), the actually filter used in this function will be '*', except for '$ExcludedTests'
     if ("All" -imatch $TestCategory)   { $TestCategory = "*" }
     if ("All" -imatch $TestArea)       { $TestArea = "*" }
     if ("All" -imatch $TestNames)      { $TestNames = "*" }
@@ -125,11 +125,22 @@ Function Select-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Test
     if ("All" -imatch  $TestPriority)  { $TestPriority = "*" }
     if ("All" -imatch  $TestSetup)     { $TestSetup = "*" }
 
-    $testCategoryArray = @($TestCategory.Trim(', ').Split(',').Trim())
-    $testAreaArray = @($TestArea.Trim(', ').Split(',').Trim())
-    $testNamesArray = @($TestNames.Trim(', ').Split(',').Trim())
-    $testSetupTypeArray = @($TestSetup.Trim(', ').Split(',').Trim())
-    $excludedTestsArray = @($ExcludeTests.Trim(', ').Split(',').Trim())
+    $testCategoryArray = $testAreaArray = $testNamesArray = $testSetupTypeArray = $excludedTestsArray = @()
+    if ($TestCategory -and ($TestCategory -ne "*")) {
+        $testCategoryArray = @($TestCategory.Trim(', ').Split(',').Trim())
+    }
+    if ($TestArea -and ($TestArea -ne "*")) {
+        $testAreaArray = @($TestArea.Trim(', ').Split(',').Trim())
+    }
+    if ($TestNames -and ($TestNames -ne "*")) {
+        $testNamesArray = @($TestNames.Trim(', ').Split(',').Trim())
+    }
+    if ($TestSetup -and ($TestSetup -ne "*")) {
+        $testSetupTypeArray = @($TestSetup.Trim(', ').Split(',').Trim())
+    }
+    if ($ExcludeTests) {
+        $excludedTestsArray = @($ExcludeTests.Trim(', ').Split(',').Trim())
+    }
 
     # Filter test cases based on the criteria
     foreach ($file in $TestXMLs.FullName) {
