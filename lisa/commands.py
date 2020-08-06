@@ -14,11 +14,13 @@ from lisa.test_runner.lisarunner import LISARunner
 from lisa.util import constants
 
 
-def _load_extends(extends_config: Optional[Dict[str, object]]) -> None:
+def _load_extends(base_path: str, extends_config: Optional[Dict[str, object]]) -> None:
     if extends_config is not None:
         paths = cast(List[str], extends_config.get("paths"))
         if paths is not None:
             for path in paths:
+                if not os.path.isabs(path):
+                    path = os.path.join(base_path, path)
                 import_module(path)
 
 
@@ -34,7 +36,7 @@ def _initialize(args: Namespace) -> RuntimeObject:
 
     # load external extension
     extends_config = config.getExtension()
-    _load_extends(extends_config)
+    _load_extends(config.base_path, extends_config)
 
     # initialize environment
     environments_config = config.getEnvironment()

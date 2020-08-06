@@ -18,5 +18,7 @@ def parse(args: Namespace) -> Config:
         data = yaml.safe_load(file)
 
     log.debug("final config data: %s", data)
-    config = Config(data)
+    base_path = os.path.dirname(path)
+    log.debug("base path is %s", base_path)
+    config = Config(base_path, data)
     return config

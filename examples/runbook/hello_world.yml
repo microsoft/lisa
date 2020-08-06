@@ -4,7 +4,7 @@ name: local try
 # it's examples for all platforms, but currently should leave single one only.
 extension:
   paths:
-    - "examples/testsuites"
+    - "../testsuites"
 environment:
   environments:
     - nodes:
