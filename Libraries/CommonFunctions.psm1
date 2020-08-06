@@ -53,53 +53,6 @@ Function Import-TestParameters($ParametersFile)
 	return $paramTable
 }
 
-Function Match-TestPriority($currentTest, $TestPriority)
-{
-    if ( -not $TestPriority ) {
-        return $True
-    }
-
-    if ( $TestPriority -eq "*") {
-        return $True
-    }
-
-    $priorityInXml = $currentTest.Priority
-    if (-not $priorityInXml) {
-        Write-LogWarn "Priority of $($currentTest.TestName) is not defined."
-    }
-    foreach( $priority in $TestPriority.Split(",") ) {
-        if ($priorityInXml -eq $priority) {
-            return $True
-        }
-    }
-    return $False
-}
-
-Function Match-TestTag($currentTest, $TestTag)
-{
-    if ( -not $TestTag ) {
-        return $True
-    }
-
-    if ( $TestTag -eq "*") {
-        return $True
-    }
-
-    $tagsInXml = $currentTest.Tags
-    if (-not $tagsInXml) {
-        Write-LogWarn "Test Tags of $($currentTest.TestName) is not defined; include this test case by default."
-        return $True
-    }
-    foreach( $tagInTestRun in $TestTag.Split(",") ) {
-        foreach( $tagInTestXml in $tagsInXml.Split(",") ) {
-            if ($tagInTestRun -eq $tagInTestXml) {
-                return $True
-            }
-        }
-    }
-    return $False
-}
-
 #
 # This function will filter and collect all qualified test cases from XML files.
 #
@@ -116,26 +69,42 @@ Function Select-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Test
     $AllLisaTests =  [System.Collections.ArrayList]@()
     $WildCards = @('^','.','[',']','?','+','*')
     $ExcludedTestsCount = 0
-
-    # if the expected filter parameter is 'ALL' or empty or $null (-imatch successfully), the actually filter used in this function will be '*', except for '$ExcludedTests'
-    if ("All" -imatch $TestCategory)   { $TestCategory = "*" }
-    if ("All" -imatch $TestArea)       { $TestArea = "*" }
-    if ("All" -imatch $TestNames)      { $TestNames = "*" }
-    if ("All" -imatch  $TestTag)       { $TestTag = "*" }
-    if ("All" -imatch  $TestPriority)  { $TestPriority = "*" }
-    if ("All" -imatch  $TestSetup)     { $TestSetup = "*" }
-
-    $testCategoryArray = $testAreaArray = $testNamesArray = $testSetupTypeArray = $excludedTestsArray = @()
-    if ($TestCategory -and ($TestCategory -ne "*")) {
+    $testCategoryArray = $testAreaArray = $testNamesArray = $testTagArray = $testPriorityArray = $testSetupTypeArray = $excludedTestsArray = @()
+    # if the expected filter parameter is 'All' (case insensitive) or empty or $null, the actually filter used in this function will be '*', except for '$ExcludedTests'
+    if (!$TestCategory -or ($TestCategory -eq "All")) {
+        $TestCategory = "*"
+    }
+    else {
         $testCategoryArray = @($TestCategory.Trim(', ').Split(',').Trim())
     }
-    if ($TestArea -and ($TestArea -ne "*")) {
+    if (!$TestArea -or ($TestArea -eq "All")) {
+        $TestArea = "*"
+    }
+    else {
         $testAreaArray = @($TestArea.Trim(', ').Split(',').Trim())
     }
-    if ($TestNames -and ($TestNames -ne "*")) {
+    if (!$TestNames -or ($TestNames -eq "All")) {
+        $TestNames = "*"
+    }
+    else {
         $testNamesArray = @($TestNames.Trim(', ').Split(',').Trim())
     }
-    if ($TestSetup -and ($TestSetup -ne "*")) {
+    if (!$TestTag -or ($TestTag -eq "All")) {
+        $TestTag = "*"
+    }
+    else {
+        $testTagArray = @($TestTag.Trim(', ').Split(',').Trim())
+    }
+    if (!$TestPriority -or ($TestPriority -eq "All")) {
+        $TestPriority = "*"
+    }
+    else {
+        $testPriorityArray = @($TestPriority.Trim(', ').Split(',').Trim())
+    }
+    if (!$TestSetup -or ($TestSetup -eq "All")) {
+        $TestSetup = "*"
+    }
+    else {
         $testSetupTypeArray = @($TestSetup.Trim(', ').Split(',').Trim())
     }
     if ($ExcludeTests) {
@@ -161,30 +130,37 @@ Function Select-TestCases($TestXMLs, $TestCategory, $TestArea, $TestNames, $Test
             if (!$platformMatched) {
                 continue
             }
-            # case insensitive 'notcontains', and only select complete matched with the concatenated expression for Category of TestCase, otherwise skip (continue)
+            # if TestCategory not provided, or test case has Category completely matching one of expected TestCategory (case insensitive 'contains'), otherwise continue (skip this test case)
             if (($TestCategory -ne "*") -and ($testCategoryArray -notcontains $test.Category)) {
                 continue
             }
-            # case insensitive 'notcontains', and only select complete matched with the concatenated expression for Area of TestCase, otherwise skip (continue)
+            # if TestArea not provided, or test case has Area completely matching one of expected TestArea (case insensitive 'contains'), otherwise continue (skip this test case)
             if (($TestArea -ne "*") -and ($testAreaArray -notcontains $test.Area)) {
                 continue
             }
-            # only select TestCase that has SetupType value insensitive matching the expected Setup pattern, otherwise skip (continue)
-            if (($TestSetup -ne "*") -and !$($testSetupTypeArray | Where-Object {"$($test.SetupConfig.SetupType)" -imatch $_})) {
+            # if TestSetup not provided, or test case has SetupType value defined which could insensitively match one of expected Setup pattern, otherwise continue (skip this test case)
+            if (($TestSetup -ne "*") -and !$($testSetupTypeArray | Where-Object {$test.SetupConfig.SetupType -and ("$($test.SetupConfig.SetupType)" -imatch $_)})) {
                 continue
             }
-            # case insensitive 'notcontains', and only select complete matched with the concatenated expression for TestName of TestCase, otherwise skip (continue)
+            # if TestNames not provided, or test case has TestName completely matching one of expected TestNames (case insensitive 'contains'), otherwise continue (skip this test case)
             if (($TestNames -ne "*") -and ($testNamesArray -notcontains $test.testName)) {
                 continue
             }
 
-            $testTagMatched = Match-TestTag -currentTest $test -TestTag $TestTag
-            if ($testTagMatched -eq $false) {
-                continue
+            # if TestTag not provided, or test case has Tags not defined (backward compatible), or test case has defined Tags scope and this Tags scope has value completely matching one of expected TestTag (case insensitive 'contains'), otherwise continue (skip this test case)
+            if (($TestTag -ne "*")) {
+                if (!$test.Tags) {
+                    Write-LogWarn "Test Tags of $($test.TestName) is not defined; include this test case by default."
+                }
+                elseif (!$($testTagArray | Where-Object {$test.Tags.Trim(', ').Split(',').Trim() -contains $_})) {
+                    continue
+                }
             }
-
-            $testPriorityMatched = Match-TestPriority -currentTest $test -TestPriority $TestPriority
-            if ($testPriorityMatched -eq $false) {
+            # if TestPriority not provided, or test case has Priority defined which equals to one of expected TestPriority, otherwise continue (skip this test case)
+            if (($TestPriority -ne "*") -and !$($testPriorityArray | Where-Object {$test.Priority -and ($test.Priority -eq $_)})) {
+                if (!$test.Priority) {
+                    Write-LogWarn "Priority of $($test.TestName) is not defined."
+                }
                 continue
             }
 
