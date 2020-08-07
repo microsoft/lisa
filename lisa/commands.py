@@ -15,14 +15,12 @@ from lisa.util import constants
 from lisa.util.logger import log
 
 
-def _load_extends(base_path: Path, extends_config: Optional[Dict[str, object]]) -> None:
-    if extends_config is not None:
-        paths_str = cast(List[str], extends_config.get(constants.PATHS))
-        for path_str in paths_str:
-            path = PurePath(path_str)
-            if not path.is_absolute():
-                path = base_path.joinpath(path)
-            import_module(Path(path))
+def _load_extends(base_path: Path, extends_config: Dict[str, object] = dict()) -> None:
+    for p in cast(List[str], extends_config.get(constants.PATHS, list())):
+        path = PurePath(p)
+        if not path.is_absolute():
+            path = base_path.joinpath(path)
+        import_module(Path(path))
 
 
 def _initialize(args: Namespace) -> None:
