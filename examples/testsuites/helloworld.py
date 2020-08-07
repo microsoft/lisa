@@ -1,5 +1,7 @@
 from lisa import CaseMetadata, SuiteMetadata
 from lisa.core.testSuite import TestSuite
+from lisa.executable import Uname
+from lisa.executable.echo import Echo
 from lisa.util.logger import log
 
 
@@ -15,18 +17,37 @@ from lisa.util.logger import log
 class HelloWorld(TestSuite):
     @CaseMetadata(
         description="""
-        this test case use default node to start a procecss to echo hello world.
+        this test case use default node to
+            1. get system info
+            2. echo hello world!
         """,
         priority=1,
     )
     def hello(self) -> None:
         log.info(f"node count: {len(self.environment.nodes)}")
-        default_node = self.environment.defaultNode
-        result = default_node.execute("echo hello world!")
+        node = self.environment.defaultNode
+
+        if node.isRemote:
+            log.info("It's remote machine, try on local one!")
+        else:
+            log.info("It's local machine, try on remote one!")
+
+        if node.isLinux:
+            uname = node.getTool(Uname)
+            release, version, hardware = uname.getLinuxInformation()
+            log.info(
+                f"release: '{release}', version: '{version}', hardware: '{hardware}'"
+            )
+            log.info("It's Linux, try on Windows!")
+        else:
+            log.info("It's Windows, try on Linux!")
+
+        # get process output directly.
+        echo = node.getTool(Echo)
+        result = echo.run("hello world!")
         log.info(f"stdout of node: '{result.stdout}'")
         log.info(f"stderr of node: '{result.stderr}'")
         log.info(f"exitCode of node: '{result.exitCode}'")
-        log.info("try me on a remote node, same code!")
 
     @CaseMetadata(
         description="""

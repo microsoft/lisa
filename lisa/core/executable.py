@@ -1,28 +1,46 @@
-from abc import ABC
+from __future__ import annotations
 
-from lisa import Node
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
+
+from lisa.util.excutableResult import ExecutableResult
+
+if TYPE_CHECKING:
+    from lisa.core.node import Node
 
 
 class Executable(ABC):
-    def __init__(self) -> None:
-        self.node = None
+    def __init__(self, node: Node) -> None:
+        self.node: Node = node
+        self.initialize()
 
-    def assignNode(self, node: Node) -> None:
-        if self.node is not None:
-            raise Exception("Node is assigned, cannot be assigned again")
-        self.node = node
-
-    def getCommand(self) -> str:
-        return ""
-
-    def run(self, extraParameters: str) -> None:
+    def initialize(self) -> None:
         pass
 
+    @property
+    @abstractmethod
+    def command(self) -> str:
+        raise NotImplementedError()
+
+    @abstractmethod
     def canInstall(self) -> bool:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def installed(self) -> bool:
         raise NotImplementedError()
 
     def install(self) -> None:
         pass
 
-    def installed(self) -> bool:
-        return False
+    def run(
+        self, extraParameters: str = "", noErrorLog: bool = False
+    ) -> ExecutableResult:
+        command = f"{self.command} {extraParameters}"
+        result: ExecutableResult = self.node.execute(command, noErrorLog)
+        return result
+
+
+class ExecutableException(Exception):
+    def __init__(self, exe: Executable, message: str):
+        self.message = f"{exe.command}: {message}"

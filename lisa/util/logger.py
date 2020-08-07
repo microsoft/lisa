@@ -6,6 +6,14 @@ import time
 env_result_path = "LISA_RESULT_PATH"
 
 
+def log_lines(logLevel: int, content: str, prefix: str = "") -> None:
+    for line in content.splitlines(False):
+        if prefix:
+            log.log(logLevel, f"{prefix} {line}")
+        else:
+            log.log(logLevel, line)
+
+
 def init_log() -> None:
     format = "%(asctime)s.%(msecs)03d[%(levelname)-.1s]%(name)s %(message)s"
     logging.basicConfig(

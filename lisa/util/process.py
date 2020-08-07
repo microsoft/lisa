@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, cast
 import psutil
 
 from lisa.util.excutableResult import ExecutableResult
-from lisa.util.logger import log
+from lisa.util.logger import log, log_lines
 
 if TYPE_CHECKING:
     BaseExceptionType = Type[BaseException]
@@ -20,7 +20,7 @@ else:
 
 
 class LogPipe(Thread):
-    def __init__(self, level: int):
+    def __init__(self, level: int, cmd_id: str = ""):
         """Setup the object with a logger and a loglevel
         and start the thread
         """
@@ -32,6 +32,7 @@ class LogPipe(Thread):
         self.pipeReader = os.fdopen(self.fdRead)
         self.isReadCompleted = False
         self.isClosed = False
+        self.cmd_id = cmd_id
         self.start()
 
     def fileno(self) -> int:
@@ -44,8 +45,7 @@ class LogPipe(Thread):
         """
         output = self.pipeReader.read()
         self.output = "".join([self.output, output])
-        for line in output.splitlines(False):
-            log.log(self.level, line)
+        log_lines(self.level, output, prefix=f"cmd[{self.cmd_id}]")
 
         self.pipeReader.close()
         self.isReadCompleted = True
@@ -82,6 +82,8 @@ class Process:
         command: str,
         cwd: Optional[str] = None,
         new_envs: Optional[Dict[str, str]] = None,
+        cmd_id: str = "",
+        noErrorLog: bool = False,
     ) -> None:
         """
             command include all parameters also.
@@ -90,8 +92,12 @@ class Process:
         if new_envs is not None:
             for key, value in new_envs.items():
                 dictEnv[key] = value
-        self.stdout_pipe = LogPipe(logging.INFO)
-        self.stderr_pipe = LogPipe(logging.ERROR)
+        self.stdout_pipe = LogPipe(logging.INFO, cmd_id)
+        if noErrorLog:
+            logLevel = logging.INFO
+        else:
+            logLevel = logging.ERROR
+        self.stderr_pipe = LogPipe(logLevel, cmd_id)
         args = shlex.split(command)
         self.process = subprocess.Popen(
             args,

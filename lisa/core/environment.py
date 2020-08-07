@@ -20,6 +20,7 @@ class Environment(object):
         self.platform: Optional[Platform] = None
         self.isReady: bool = False
         self.spec: Optional[Dict[str, object]] = None
+        self._defaultNode: Optional[Node] = None
 
     @staticmethod
     def loadEnvironment(config: Dict[str, object]) -> Environment:
@@ -82,17 +83,19 @@ class Environment(object):
 
     @property
     def defaultNode(self) -> Node:
-        default = None
-        for node in self.nodes:
-            if node.isDefault:
-                default = node
-                break
-        if default is None:
-            if len(self.nodes) == 0:
-                raise Exception("No node found in current environment")
-            else:
-                default = self.nodes[0]
-        return default
+        if self._defaultNode is None:
+            default = None
+            for node in self.nodes:
+                if node.isDefault:
+                    default = node
+                    break
+            if default is None:
+                if len(self.nodes) == 0:
+                    raise Exception("No node found in current environment")
+                else:
+                    default = self.nodes[0]
+            self._defaultNode = default
+        return self._defaultNode
 
     def getNodeByName(self, name: str, throwError: bool = True) -> Optional[Node]:
         found = None

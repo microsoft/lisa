@@ -1,9 +1,11 @@
+import logging
 from typing import Optional
 
 import paramiko
 
 from lisa.util.connectionInfo import ConnectionInfo
 from lisa.util.excutableResult import ExecutableResult
+from lisa.util.logger import log_lines
 
 
 class SshConnection:
@@ -64,13 +66,22 @@ class SshConnection:
     def publicConnectionInfo(self) -> ConnectionInfo:
         return self._publicConnectionInfo
 
-    def execute(self, cmd: str) -> ExecutableResult:
+    def execute(
+        self, cmd: str, noErrorLog: bool = False, cmd_id: str = ""
+    ) -> ExecutableResult:
         client = self.connect()
         _, stdout_file, stderr_file = client.exec_command(cmd)
         exit_code: int = stdout_file.channel.recv_exit_status()
 
         stdout: str = stdout_file.read().decode("utf-8")
+        log_lines(logging.INFO, stdout, prefix=f"cmd[{cmd_id}]stdout: ")
         stderr: str = stderr_file.read().decode("utf-8")
+        if noErrorLog:
+            log_level = logging.INFO
+        else:
+            log_level = logging.ERROR
+        # fix, cannot print them together
+        log_lines(log_level, stderr, prefix=f"cmd[{cmd_id}]stderr: ")
         result = ExecutableResult(stdout, stderr, exit_code)
 
         return result
