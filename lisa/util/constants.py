@@ -3,6 +3,10 @@ CONFIG_CONFIG = "config"
 CONFIG_PLATFORM = "platform"
 CONFIG_ENVIRONMENT_FACTORY = "environmentFactory"
 
+# list types
+LIST = "list"
+LIST_CASE = "case"
+
 # common
 NAME = "name"
 VALUE = "value"

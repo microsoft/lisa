@@ -1,7 +1,6 @@
-from typing import Dict, Optional
+from typing import Dict, Optional, cast
 
 from lisa.util import constants
-from lisa.util.logger import log
 
 from .node import Node
 
@@ -20,15 +19,20 @@ class NodeFactory:
             is_default = NodeFactory._isDefault(config)
             node = Node.createNode(node_type=node_type, isDefault=is_default)
             if node.isRemote:
-                node.setConnectionInfo(
-                    config.get(constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS),
-                    config.get(constants.ENVIRONMENTS_NODES_REMOTE_PORT),
-                    config.get(constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_ADDRESS),
-                    config.get(constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_PORT),
-                    config.get(constants.ENVIRONMENTS_NODES_REMOTE_USERNAME),
-                    config.get(constants.ENVIRONMENTS_NODES_REMOTE_PASSWORD),
-                    config.get(constants.ENVIRONMENTS_NODES_REMOTE_PRIVATEKEYFILE),
-                )
+                fields = [
+                    constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS,
+                    constants.ENVIRONMENTS_NODES_REMOTE_PORT,
+                    constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_ADDRESS,
+                    constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_PORT,
+                    constants.ENVIRONMENTS_NODES_REMOTE_USERNAME,
+                    constants.ENVIRONMENTS_NODES_REMOTE_PASSWORD,
+                    constants.ENVIRONMENTS_NODES_REMOTE_PRIVATEKEYFILE,
+                ]
+                parameters: Dict[str, str] = dict()
+                for key in config:
+                    if key in fields:
+                        parameters[key] = cast(str, config[key])
+                node.setConnectionInfo(**parameters)
         return node
 
     @staticmethod
@@ -41,9 +45,7 @@ class NodeFactory:
 
     @staticmethod
     def _isDefault(config: Dict[str, object]) -> bool:
-        default = config.get(constants.IS_DEFAULT)
-        if default is True:
-            default = True
-        else:
+        default = cast(bool, config.get(constants.IS_DEFAULT))
+        if default is not True:
             default = False
         return default

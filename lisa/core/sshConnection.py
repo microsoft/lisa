@@ -25,22 +25,18 @@ class SshConnection:
         self.password = password
         self.privateKeyFile = privateKeyFile
 
-        if (self.address is None or self.address == "") and (
-            self.publicAddress is None or self.publicAddress == ""
-        ):
+        if not self.address and not self.publicAddress:
             raise Exception("at least one of address and publicAddress need to be set")
-        elif self.address is None or self.address == "":
+        elif not self.address:
             self.address = self.publicAddress
-        elif self.publicAddress is None or self.publicAddress == "":
+        elif not self.publicAddress:
             self.publicAddress = self.address
 
-        if (self.port is None or self.port <= 0) and (
-            self.publicPort is None or self.publicPort <= 0
-        ):
+        if not self.port and not self.publicPort:
             raise Exception("at least one of port and publicPort need to be set")
-        elif self.port is None or self.port <= 0:
+        elif not self.port:
             self.port = self.publicPort
-        elif self.publicPort is None or self.publicPort <= 0:
+        elif not self.publicPort:
             self.publicPort = self.port
 
         self._connectionInfo = ConnectionInfo(

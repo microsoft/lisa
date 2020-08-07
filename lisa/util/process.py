@@ -108,7 +108,7 @@ class Process:
     def waitResult(self, timeout: float = 600) -> ExecutableResult:
         budget_time = timeout
         # wait for all content read
-        while self.isRunning() is True and budget_time >= 0:
+        while self.isRunning() and budget_time >= 0:
             start = timer()
             time.sleep(0.01)
             end = timer()
@@ -150,7 +150,7 @@ class Process:
     def isRunning(self) -> bool:
         self.exitCode = self.getExitCode()
         if self.exitCode is not None and self.process is not None:
-            if self._running is True:
+            if self._running:
                 log.debug(f"process {self.process.pid} exited: {self.exitCode}")
             self._running = False
         return self._running

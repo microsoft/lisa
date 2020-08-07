@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 class Environment(object):
     def __init__(self) -> None:
         self.nodes: List[Node] = []
-        self.name: Optional[str] = ""
+        self.name: Optional[str] = None
         self.platform: Optional[Platform] = None
         self.isReady: bool = False
         self.spec: Optional[Dict[str, object]] = None
@@ -49,26 +49,27 @@ class Environment(object):
         nodes_template = cast(
             List[Dict[str, object]], spec.get(constants.ENVIRONMENTS_TEMPLATE)
         )
-        for item in nodes_template:
-            node_count = cast(
-                Optional[int], item.get(constants.ENVIRONMENTS_TEMPLATE_NODE_COUNT)
-            )
-            if node_count is None:
-                node_count = 1
-            else:
-                del item[constants.ENVIRONMENTS_TEMPLATE_NODE_COUNT]
+        if nodes_template is not None:
+            for item in nodes_template:
+                node_count = cast(
+                    Optional[int], item.get(constants.ENVIRONMENTS_TEMPLATE_NODE_COUNT)
+                )
+                if node_count is None:
+                    node_count = 1
+                else:
+                    del item[constants.ENVIRONMENTS_TEMPLATE_NODE_COUNT]
 
-            is_default = cast(Optional[bool], item.get(constants.IS_DEFAULT))
-            has_default_node = environment._validateSingleDefault(
-                has_default_node, is_default
-            )
-            for index in range(node_count):
-                copied_item = copy.deepcopy(item)
-                # only one default node for template also
-                if is_default is True and index > 0:
-                    del copied_item[constants.IS_DEFAULT]
-                nodes_spec.append(copied_item)
-        del spec[constants.ENVIRONMENTS_TEMPLATE]
+                is_default = cast(Optional[bool], item.get(constants.IS_DEFAULT))
+                has_default_node = environment._validateSingleDefault(
+                    has_default_node, is_default
+                )
+                for index in range(node_count):
+                    copied_item = copy.deepcopy(item)
+                    # only one default node for template also
+                    if is_default and index > 0:
+                        del copied_item[constants.IS_DEFAULT]
+                    nodes_spec.append(copied_item)
+            del spec[constants.ENVIRONMENTS_TEMPLATE]
 
         if len(nodes_spec) == 0 and len(environment.nodes) == 0:
             raise Exception("not found any node in environment")
@@ -83,7 +84,7 @@ class Environment(object):
     def defaultNode(self) -> Node:
         default = None
         for node in self.nodes:
-            if node.isDefault is True:
+            if node.isDefault:
                 default = node
                 break
         if default is None:
@@ -122,8 +123,8 @@ class Environment(object):
     def _validateSingleDefault(
         self, has_default: bool, is_default: Optional[bool]
     ) -> bool:
-        if is_default is True:
-            if has_default is True:
+        if is_default:
+            if has_default:
                 raise Exception("only one node can set isDefault to True")
             has_default = True
         return has_default

@@ -30,7 +30,7 @@ class EnvironmentFactory:
         for environment_config in environments_config:
             environment = Environment.loadEnvironment(environment_config)
             if environment.name is None:
-                if without_name is True:
+                if without_name:
                     raise Exception("at least two environments has no name")
                 environment.name = self.default_no_name
                 without_name = True

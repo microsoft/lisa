@@ -42,36 +42,12 @@ class Node:
         )
         return node
 
-    def setConnectionInfo(
-        self,
-        address: Optional[object],
-        port: Optional[object],
-        publicAddress: Optional[object],
-        publicPort: Optional[object],
-        username: Optional[object],
-        password: Optional[object],
-        privateKeyFile: Optional[object],
-    ) -> None:
+    def setConnectionInfo(self, **kwargs: str) -> None:
         if self.connection is not None:
             raise Exception(
                 "node is set connection information already, cannot set again"
             )
-        parameters: Dict[str, object] = dict()
-        if address is not None:
-            parameters["address"] = address
-        if port is not None:
-            parameters["port"] = port
-        if publicAddress is not None:
-            parameters["publicAddress"] = publicAddress
-        if publicPort is not None:
-            parameters["publicPort"] = publicPort
-        if username is not None:
-            parameters["username"] = username
-        if password is not None:
-            parameters["password"] = password
-        if privateKeyFile is not None:
-            parameters["privateKeyFile"] = privateKeyFile
-        self.connection = SshConnection(**parameters)
+        self.connection = SshConnection(**kwargs)
 
     def execute(self, cmd: str) -> ExecutableResult:
         result: ExecutableResult

@@ -1,6 +1,7 @@
 from argparse import ArgumentParser, Namespace
 
 from lisa import commands
+from lisa.util import constants
 
 
 def support_config_file(parser: ArgumentParser, required: bool = True) -> None:
@@ -46,7 +47,7 @@ def parse_args() -> Namespace:
     support_config_file(run_parser)
     support_variable(run_parser)
 
-    list_parser = subparsers.add_parser("list")
+    list_parser = subparsers.add_parser(constants.LIST)
     list_parser.set_defaults(func=commands.list_start)
     list_parser.add_argument("--type", "-t", dest="type", choices=["case"])
     list_parser.add_argument("--all", "-a", dest="listAll", action="store_true")

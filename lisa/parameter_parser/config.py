@@ -1,13 +1,22 @@
 from pathlib import Path
 from typing import Dict, List, Optional, cast
 
+from singleton_decorator import singleton
+
 from lisa.util import constants
 
 
+@singleton
 class Config(Dict[str, object]):
-    def __init__(self, base_path: Path, config: Dict[str, object]) -> None:
-        self.config: Dict[str, object] = config
-        self.base_path = base_path
+    def __init__(
+        self,
+        base_path: Optional[Path] = None,
+        config: Optional[Dict[str, object]] = None,
+    ) -> None:
+        if base_path is not None:
+            self.base_path = base_path
+        if config is not None:
+            self.config: Dict[str, object] = config
 
     def validate(self) -> None:
         # TODO implement config validation

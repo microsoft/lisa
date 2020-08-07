@@ -17,13 +17,11 @@ class ConnectionInfo:
         self.password = password
         self.privateKeyFile = privateKeyFile
 
-        if (self.password is None or self.password == "") and (
-            self.privateKeyFile is None or self.privateKeyFile == ""
-        ):
+        if not self.password and not self.privateKeyFile:
             raise Exception(
                 "at least one of password and privateKeyFile need to be set"
             )
-        elif self.password is not None and self.password != "":
+        elif not self.privateKeyFile:
             self.usePassword = True
         else:
             if not Path(self.privateKeyFile).exists():
@@ -31,5 +29,5 @@ class ConnectionInfo:
             self.password = None
             self.usePassword = False
 
-        if self.username is None or self.username == "":
+        if not self.username:
             raise Exception("username must be set")

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABCMeta, abstractmethod
-from typing import Dict, Optional
+from typing import Dict
 
 from lisa.core.actionStatus import ActionStatus
 from lisa.util.logger import log
@@ -10,19 +10,11 @@ from lisa.util.logger import log
 class Action(metaclass=ABCMeta):
     def __init__(self) -> None:
         self.__status = ActionStatus.UNINITIALIZED
-        self.__name: Optional[str] = None
+        self.name: str = self.__class__.__name__
         self.isStarted = False
 
     def config(self, key: str, value: object) -> None:
         pass
-
-    @property
-    def name(self) -> str:
-        if self.__name is not None:
-            name = self.__name
-        else:
-            name = self.__class__.__name__
-        return name
 
     @abstractmethod
     def getTypeName(self) -> str:
