@@ -1,7 +1,7 @@
 import logging
 from typing import Optional
 
-import paramiko
+import paramiko  # type: ignore
 
 from lisa.util.connectionInfo import ConnectionInfo
 from lisa.util.excutableResult import ExecutableResult

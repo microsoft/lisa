@@ -4,7 +4,7 @@ from datetime import datetime
 from logging import DEBUG, INFO
 from pathlib import Path
 
-from retry import retry
+from retry import retry  # type: ignore
 
 from lisa.parameter_parser.argparser import parse_args
 from lisa.util import env

@@ -7,7 +7,7 @@ from timeit import default_timer as timer
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, cast
 
-import psutil
+import psutil  # type: ignore
 
 from lisa.util.excutableResult import ExecutableResult
 from lisa.util.logger import log, log_lines

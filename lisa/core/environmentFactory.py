@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional, cast
 
-from singleton_decorator import singleton
+from singleton_decorator import singleton  # type: ignore
 
 from lisa.util import constants
 

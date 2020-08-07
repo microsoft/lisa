@@ -1,6 +1,6 @@
 from typing import cast
 
-from lisa.core.action import ActionStatus
+from lisa.core.actionStatus import ActionStatus
 from lisa.core.environmentFactory import EnvironmentFactory
 from lisa.core.platform import Platform
 from lisa.core.testFactory import TestFactory

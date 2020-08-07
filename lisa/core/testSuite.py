@@ -3,7 +3,8 @@ from __future__ import annotations
 from abc import ABCMeta
 from typing import TYPE_CHECKING, List
 
-from lisa.core.action import Action, ActionStatus
+from lisa.core.action import Action
+from lisa.core.actionStatus import ActionStatus
 from lisa.util.logger import log
 
 if TYPE_CHECKING:
