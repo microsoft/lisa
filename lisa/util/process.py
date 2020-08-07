@@ -1,6 +1,5 @@
 import logging
 import os
-import shlex
 import subprocess
 import time
 from threading import Thread
@@ -98,9 +97,8 @@ class Process:
         else:
             logLevel = logging.ERROR
         self.stderr_pipe = LogPipe(logLevel, cmd_id)
-        args = shlex.split(command)
         self.process = subprocess.Popen(
-            args,
+            command,
             shell=True,
             stdout=cast(int, self.stdout_pipe),
             stderr=cast(int, self.stderr_pipe),
