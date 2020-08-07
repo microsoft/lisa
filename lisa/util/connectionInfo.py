@@ -1,5 +1,5 @@
-import os
 from typing import Optional
+from pathlib import Path
 
 
 class ConnectionInfo:
@@ -26,7 +26,7 @@ class ConnectionInfo:
         elif self.password is not None and self.password != "":
             self.usePassword = True
         else:
-            if not os.path.exists(self.privateKeyFile):
+            if not Path(self.privateKeyFile).exists():
                 raise FileNotFoundError(self.privateKeyFile)
             self.password = None
             self.usePassword = False

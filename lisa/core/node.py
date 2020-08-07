@@ -37,6 +37,9 @@ class Node:
         else:
             raise Exception(f"unsupported node_type '{node_type}'")
         node = Node(spec=spec, isRemote=isRemote, isDefault=isDefault)
+        log.debug(
+            f"created node '{node_type}', isDefault: {isDefault}, isRemote: {isRemote}"
+        )
         return node
 
     def setConnectionInfo(
@@ -87,7 +90,7 @@ class Node:
                 process.start(cmd)
                 result = process.waitResult()
         end_timer = timer()
-        log.info(f"cmd[{cmd_id}] executed with {end_timer - start_timer}")
+        log.info(f"cmd[{cmd_id}] executed with {end_timer - start_timer:.3f}")
         return result
 
     def cleanup(self) -> None:

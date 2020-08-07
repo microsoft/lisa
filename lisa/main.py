@@ -2,6 +2,7 @@ import os
 import sys
 from datetime import datetime
 from logging import DEBUG, INFO
+from pathlib import Path
 
 from retry import retry
 
@@ -11,20 +12,21 @@ from lisa.util.logger import init_log, log
 
 
 @retry(FileExistsError, tries=10, delay=0)  # type: ignore
-def create_result_path() -> str:
+def create_result_path() -> Path:
     date = datetime.utcnow().strftime("%Y%m%d")
     time = datetime.utcnow().strftime("%H%M%S-%f")[:-3]
     current_path = f"runtime/results/{date}/{date}-{time}"
-    if os.path.exists(current_path):
+    path_obj = Path(current_path)
+    if path_obj.exists():
         raise FileExistsError(f"{current_path} exists, and not found an unique path.")
-    return current_path
+    return path_obj
 
 
 def main() -> None:
     # create result path
-    result_path = os.path.realpath(create_result_path())
-    os.makedirs(result_path)
-    env.set_env(env.RESULT_PATH, result_path)
+    result_path = create_result_path().absolute()
+    result_path.mkdir(parents=True)
+    env.set_env(env.RESULT_PATH, str(result_path))
 
     args = parse_args()
 

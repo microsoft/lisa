@@ -1,10 +1,11 @@
+from pathlib import Path
 from typing import Dict, List, Optional, cast
 
 from lisa.util import constants
 
 
 class Config(Dict[str, object]):
-    def __init__(self, base_path: str, config: Dict[str, object]) -> None:
+    def __init__(self, base_path: Path, config: Dict[str, object]) -> None:
         self.config: Dict[str, object] = config
         self.base_path = base_path
 

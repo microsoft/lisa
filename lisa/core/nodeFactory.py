@@ -29,8 +29,6 @@ class NodeFactory:
                     config.get(constants.ENVIRONMENTS_NODES_REMOTE_PASSWORD),
                     config.get(constants.ENVIRONMENTS_NODES_REMOTE_PRIVATEKEYFILE),
                 )
-        if node is not None:
-            log.debug(f"created node '{node_type}'")
         return node
 
     @staticmethod
@@ -44,7 +42,7 @@ class NodeFactory:
     @staticmethod
     def _isDefault(config: Dict[str, object]) -> bool:
         default = config.get(constants.IS_DEFAULT)
-        if default is not None and default is True:
+        if default is True:
             default = True
         else:
             default = False

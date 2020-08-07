@@ -1,32 +1,30 @@
 import importlib
-import os
 import sys
-from glob import glob
+from pathlib import Path
 
 from lisa.util.logger import log
 
 
-def import_module(path: str, logDetails: bool = True) -> None:
+def import_module(path: Path, logDetails: bool = True) -> None:
 
-    path = os.path.realpath(path)
-    if not os.path.exists(path):
+    path = path.absolute()
+    if not path.exists():
         raise FileNotFoundError(path)
 
-    package_name = os.path.basename(path)
+    package_name = path.stem
     global packages
     packages.append(package_name)
-    package_dir = os.path.dirname(path)
-    sys.path.append(package_dir)
+    package_dir = path.parent
+    sys.path.append(str(package_dir))
     if logDetails:
         log.info(f"loading extension from {path}")
 
-    for file in glob(os.path.join(path, "**", "*.py"), recursive=True):
-        file_name = os.path.basename(file)
-        dir_name = os.path.dirname(file)
-        package_dir_len = len(package_dir) + 1
-        local_package_name = dir_name[package_dir_len:]
-        local_package_name = local_package_name.replace("\\", ".").replace("/", ".")
-        local_module_name = f".{os.path.splitext(file_name)[0]}"
+    for file in path.glob("**/*.py"):
+        file_name = file.stem
+        dir_name = file.parent
+        local_package_path = dir_name.relative_to(package_dir)
+        local_package_name = ".".join(local_package_path.parts)
+        local_module_name = f".{file_name}"
         full_module_name = f"{local_package_name}{local_module_name}"
 
         if file_name.startswith("__"):

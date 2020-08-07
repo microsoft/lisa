@@ -1,6 +1,6 @@
 import asyncio
-import os
 from argparse import Namespace
+from pathlib import Path, PurePath
 from typing import Dict, List, Optional, cast
 
 from lisa.core.environmentFactory import EnvironmentFactory
@@ -17,17 +17,18 @@ from lisa.util.logger import log
 def _load_extends(base_path: str, extends_config: Optional[Dict[str, object]]) -> None:
     if extends_config is not None:
         paths = cast(List[str], extends_config.get("paths"))
-        if paths is not None:
-            for path in paths:
-                if not os.path.isabs(path):
-                    path = os.path.join(base_path, path)
-                import_module(path)
+        base_path_obj = PurePath(base_path)
+        for path in paths:
+            path_obj = PurePath(path)
+            if not path_obj.is_absolute():
+                path_obj = base_path_obj.joinpath(path_obj)
+            import_module(Path(path_obj))
 
 
 def _initialize(args: Namespace) -> RuntimeObject:
 
     # make sure extension in lisa is loaded
-    base_module_path = os.path.dirname(__file__)
+    base_module_path = Path(__file__).parent
     import_module(base_module_path, logDetails=False)
 
     # merge all parameters
