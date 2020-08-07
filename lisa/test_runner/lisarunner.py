@@ -51,5 +51,5 @@ class LISARunner(TestRunner):
     async def stop(self) -> None:
         super().stop()
 
-    async def cleanup(self) -> None:
-        super().cleanup()
+    async def close(self) -> None:
+        super().close()

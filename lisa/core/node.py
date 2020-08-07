@@ -124,6 +124,6 @@ class Node:
         log.info(f"cmd[{cmd_id}] executed with {end_timer - start_timer:.3f} sec")
         return result
 
-    def cleanup(self) -> None:
+    def close(self) -> None:
         if self.connection is not None:
-            self.connection.cleanup()
+            self.connection.close()

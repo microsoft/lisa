@@ -49,5 +49,5 @@ class TestSuite(Action, metaclass=ABCMeta):
         self.setStatus(ActionStatus.STOPPING)
         self.shouldStop = True
 
-    async def cleanup(self) -> None:
+    async def close(self) -> None:
         pass

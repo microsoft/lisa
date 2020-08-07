@@ -110,7 +110,7 @@ class SshConnection:
                 self._connection = connection
         return connection
 
-    def cleanup(self) -> None:
+    def close(self) -> None:
         if self._connection is not None:
             self._connection.close()
             self._connection = None

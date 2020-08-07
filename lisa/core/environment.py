@@ -132,6 +132,6 @@ class Environment(object):
             has_default = True
         return has_default
 
-    def cleanup(self) -> None:
+    def close(self) -> None:
         for node in self.nodes:
-            node.cleanup()
+            node.close()

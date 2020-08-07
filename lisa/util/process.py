@@ -74,7 +74,7 @@ class Process:
         exc_value: Optional[BaseException],
         traceback: Optional[TracebackType],
     ) -> None:
-        self.cleanup()
+        self.close()
 
     def start(
         self,
@@ -123,8 +123,8 @@ class Process:
                 log.warn(f"process {self.process.pid} timeout in {timeout} sec")
             self.stop()
 
-        # cleanup to get pipe complete
-        self.cleanup()
+        # close to get pipe complete
+        self.close()
 
         # wait all content flushed
         while (
@@ -145,7 +145,7 @@ class Process:
             self.process.terminate()
             log.debug(f"process {self.process.pid} stopped")
 
-    def cleanup(self) -> None:
+    def close(self) -> None:
         if self.stdout_pipe is not None:
             self.stdout_pipe.close()
         if self.stderr_pipe is not None:

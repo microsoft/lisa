@@ -30,7 +30,7 @@ class Action(metaclass=ABCMeta):
         self.validateStarted()
 
     @abstractmethod
-    async def cleanup(self) -> None:
+    async def close(self) -> None:
         self.validateStarted()
 
     def getStatus(self) -> ActionStatus:
