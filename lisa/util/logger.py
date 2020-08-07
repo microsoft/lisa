@@ -13,7 +13,7 @@ def init_log() -> None:
         format=format,
         datefmt="%m%d %H:%M:%S",
         handlers=[
-            logging.FileHandler("%s/lisa-host.log" % os.getenv(env_result_path)),
+            logging.FileHandler(f"{os.getenv(env_result_path)}/lisa-host.log"),
             logging.StreamHandler(),
         ],
     )

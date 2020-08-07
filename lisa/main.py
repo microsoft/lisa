@@ -12,12 +12,11 @@ from lisa.util.logger import init_log, log
 
 @retry(FileExistsError, tries=10, delay=0)  # type: ignore
 def create_result_path() -> str:
-    path_template = "runtime/results/{0}/{0}-{1}"
     date = datetime.utcnow().strftime("%Y%m%d")
     time = datetime.utcnow().strftime("%H%M%S-%f")[:-3]
-    current_path = path_template.format(date, time)
+    current_path = f"runtime/results/{date}/{date}-{time}"
     if os.path.exists(current_path):
-        raise FileExistsError("%s exists, and not found an unique path." % current_path)
+        raise FileExistsError(f"{current_path} exists, and not found an unique path.")
     return current_path
 
 
@@ -30,17 +29,16 @@ def main() -> None:
     args = parse_args()
 
     init_log()
-    log.info("Python version: %s" % sys.version)
-    log.info("local time: %s", datetime.now().astimezone())
-    log.info("command line args: %s" % sys.argv)
-    log.info("result path: %s", env.get_env(env.RESULT_PATH))
+    log.info(f"Python version: {sys.version}")
+    log.info(f"local time: {datetime.now().astimezone()}")
+    log.info(f"command line args: {sys.argv}")
+    log.info(f"result path: {env.get_env(env.RESULT_PATH)}")
 
     if args.debug:
         log_level = DEBUG
     else:
         log_level = INFO
     log.setLevel(log_level)
-    log.info("show debug log: %s", args.debug)
 
     args.func(args)
 

@@ -35,7 +35,7 @@ class Node:
         elif node_type == constants.ENVIRONMENTS_NODES_LOCAL:
             isRemote = False
         else:
-            raise Exception("unsupported node_type '%s'", node_type)
+            raise Exception(f"unsupported node_type '{node_type}'")
         node = Node(spec=spec, isRemote=isRemote, isDefault=isDefault)
         return node
 
@@ -74,7 +74,7 @@ class Node:
         result: ExecutableResult
         cmd_id = random.randint(0, 10000)
         start_timer = timer()
-        log.debug("remote(%s) cmd[%s] %s", self.isRemote, cmd_id, cmd)
+        log.debug(f"remote({self.isRemote}) cmd[{cmd_id}] {cmd}")
         if self.isRemote:
             # remote
             if self.connection is None:
@@ -87,7 +87,7 @@ class Node:
                 process.start(cmd)
                 result = process.waitResult()
         end_timer = timer()
-        log.info("cmd[%s] executed with %f", cmd_id, end_timer - start_timer)
+        log.info(f"cmd[{cmd_id}] executed with {end_timer - start_timer}")
         return result
 
     def cleanup(self) -> None:

@@ -11,19 +11,15 @@ if TYPE_CHECKING:
 
 
 class TestSuite(Action, metaclass=ABCMeta):
-    area: str = ""
-    category: str = ""
-    tags: List[str] = []
-
     def __init__(self, environment: Environment, cases: List[str]) -> None:
         self.environment = environment
         self.cases = cases
         self.shouldStop = False
 
-    def suiteSetup(self) -> None:
+    def beforeSuite(self) -> None:
         pass
 
-    def suiteCleanup(self) -> None:
+    def afterSuite(self) -> None:
         pass
 
     def beforeCase(self) -> None:
@@ -36,7 +32,7 @@ class TestSuite(Action, metaclass=ABCMeta):
         return "TestSuite"
 
     async def start(self) -> None:
-        self.suiteSetup()
+        self.beforeSuite()
         for test_case in self.cases:
             self.beforeCase()
             test_method = getattr(self, test_case)
@@ -46,7 +42,7 @@ class TestSuite(Action, metaclass=ABCMeta):
                 log.info("received stop message, stop run")
                 self.setStatus(ActionStatus.STOPPED)
                 break
-        self.suiteCleanup()
+        self.afterSuite()
 
     async def stop(self) -> None:
         self.setStatus(ActionStatus.STOPPING)

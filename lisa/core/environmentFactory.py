@@ -43,6 +43,6 @@ class EnvironmentFactory:
             key = name.lower()
         environmet = self.environments.get(key)
         if environmet is None:
-            raise Exception("not found environment '%s'", name)
+            raise Exception(f"not found environment '{name}'")
 
         return environmet

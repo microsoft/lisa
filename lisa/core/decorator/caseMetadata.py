@@ -5,19 +5,20 @@ from lisa.core.testFactory import TestFactory
 from lisa.util.logger import log
 
 
-class CaseMetadata(object):
-    def __init__(self, priority: Optional[int]) -> None:
+class CaseMetadata:
+    def __init__(self, description: str, priority: Optional[int]) -> None:
         self.priority = priority
+        self.description = description
 
     def __call__(self, func: Callable[..., None]) -> Callable[..., None]:
         factory = TestFactory()
-        factory.addTestMethod(func, self.priority)
+        factory.addTestMethod(func, self.description, self.priority)
 
         def wrapper(*args: object) -> None:
-            log.info("case '%s' started", func.__name__)
+            log.info(f"case '{func.__name__}' started")
             start = timer()
             func(*args)
             end = timer()
-            log.info("case '%s' ended with %f", func.__name__, end - start)
+            log.info(f"case '{func.__name__}' ended with {end - start}")
 
         return wrapper

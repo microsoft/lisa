@@ -30,7 +30,7 @@ class NodeFactory:
                     config.get(constants.ENVIRONMENTS_NODES_REMOTE_PRIVATEKEYFILE),
                 )
         if node is not None:
-            log.debug("created node '%s'", node_type)
+            log.debug(f"created node '{node_type}'")
         return node
 
     @staticmethod

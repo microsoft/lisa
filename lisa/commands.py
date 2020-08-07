@@ -77,17 +77,14 @@ def list_start(args: Namespace) -> None:
             factory = TestFactory()
             for metadata in factory.cases.values():
                 log.info(
-                    "case: %s, suite: %s, area: %s, "
-                    + "category: %s, tags: %s, priority: %s",
-                    metadata.name,
-                    metadata.suite.name,
-                    metadata.suite.area,
-                    metadata.suite.category,
-                    ",".join(metadata.suite.tags),
-                    metadata.priority,
+                    f"case: {metadata.name}, suite: {metadata.suite.name}, "
+                    f"area: {metadata.suite.area}, "
+                    f"category: {metadata.suite.category}, "
+                    f"tags: {','.join(metadata.suite.tags)}, "
+                    f"priority: {metadata.priority}"
                 )
         else:
             log.error("TODO: cannot list selected cases yet.")
     else:
-        raise Exception("unknown list type '%s'" % args.type)
+        raise Exception(f"unknown list type '{args.type}'")
     log.info("list information here")

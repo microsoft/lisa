@@ -11,16 +11,24 @@ if TYPE_CHECKING:
 
 class SuiteMetadata:
     def __init__(
-        self, area: str, category: str, tags: List[str], name: Optional[str] = None
+        self,
+        area: str,
+        category: str,
+        description: str,
+        tags: List[str],
+        name: Optional[str] = None,
     ) -> None:
         self.area = area
         self.category = category
         self.tags = tags
+        self.description = description
         self.name = name
 
     def __call__(self, test_class: Type[TestSuite]) -> Callable[..., object]:
         factory = TestFactory()
-        factory.addTestClass(test_class, self.area, self.category, self.tags, self.name)
+        factory.addTestClass(
+            test_class, self.area, self.category, self.description, self.tags, self.name
+        )
 
         def wrapper(
             test_class: Type[TestSuite], environment: Environment, cases: List[str]

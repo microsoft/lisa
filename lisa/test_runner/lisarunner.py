@@ -29,10 +29,11 @@ class LISARunner(TestRunner):
         suites = test_factory.suites
 
         environment_factory = EnvironmentFactory()
+        platform_type = self.platform.platformType()
         # request environment
-        log.info("platform %s environment requesting", self.platform.platformType())
+        log.info(f"platform {platform_type} environment requesting")
         environment = environment_factory.getEnvironment()
-        log.info("platform %s environment requested", self.platform.platformType())
+        log.info(f"platform {platform_type} environment requested")
 
         for suite in suites.values():
             test_object: TestSuite = suite.test_class(
@@ -41,9 +42,9 @@ class LISARunner(TestRunner):
             await test_object.start()
 
         # delete enviroment after run
-        log.info("platform %s environment deleting", self.platform.platformType())
+        log.info(f"platform {platform_type} environment {environment.name} deleting")
         self.platform.deleteEnvironment(environment)
-        log.info("platform %s environment deleted", self.platform.platformType())
+        log.info(f"platform {platform_type} environment {environment.name} deleted")
 
         self.setStatus(ActionStatus.SUCCESS)
 

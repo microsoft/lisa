@@ -77,7 +77,7 @@ class Environment(object):
         spec[constants.ENVIRONMENTS_NODES] = nodes_spec
 
         environment.spec = spec
-        log.debug("environment spec is %s", environment.spec)
+        log.debug(f"environment spec is {environment.spec}")
         return environment
 
     @property
@@ -102,7 +102,7 @@ class Environment(object):
                     found = node
                     break
             if throwError:
-                raise Exception("cannot find node %s" % (name))
+                raise Exception(f"cannot find node {name}")
         else:
             if throwError:
                 raise Exception("nodes shouldn't be None when call getNodeByName")

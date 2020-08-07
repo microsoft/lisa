@@ -8,7 +8,11 @@ from lisa.util.logger import log
 
 class TestCaseMetadata:
     def __init__(
-        self, method: Callable[[], None], priority: Optional[int] = 2, name: str = "",
+        self,
+        method: Callable[[], None],
+        description: str,
+        priority: Optional[int] = 2,
+        name: str = "",
     ):
         if name is not None and name != "":
             self.name = name
@@ -17,6 +21,7 @@ class TestCaseMetadata:
         self.key: str = self.name.lower()
         self.full_name = method.__qualname__.lower()
         self.method = method
+        self.description = description
         self.priority = priority
         self.suite: TestSuiteMetadata
 
@@ -27,6 +32,7 @@ class TestSuiteMetadata:
         test_class: Type[TestSuite],
         area: Optional[str],
         category: Optional[str],
+        description: str,
         tags: List[str],
         name: str = "",
     ):
@@ -38,6 +44,7 @@ class TestSuiteMetadata:
         self.key = self.name.lower()
         self.area = area
         self.category = category
+        self.description = description
         self.tags = tags
         self.cases: Dict[str, TestCaseMetadata] = dict()
 
@@ -46,7 +53,7 @@ class TestSuiteMetadata:
             self.cases[test_case.key] = test_case
         else:
             raise Exception(
-                "TestSuiteMetadata has test method %s already" % test_case.key
+                f"TestSuiteMetadata has test method {test_case.key} already"
             )
 
 
@@ -61,6 +68,7 @@ class TestFactory:
         test_class: Type[TestSuite],
         area: Optional[str],
         category: Optional[str],
+        description: str,
         tags: List[str],
         name: Optional[str],
     ) -> None:
@@ -71,31 +79,32 @@ class TestFactory:
         key = name.lower()
         test_suite = self.suites.get(key)
         if test_suite is None:
-            test_suite = TestSuiteMetadata(test_class, area, category, tags)
+            test_suite = TestSuiteMetadata(
+                test_class, area, category, description, tags
+            )
             self.suites[key] = test_suite
         else:
-            raise Exception("TestFactory duplicate test class name: %s" % key)
+            raise Exception(f"TestFactory duplicate test class name: {key}")
 
-        class_prefix = "%s." % key
+        class_prefix = f"{key}."
         for test_case in self.cases.values():
             if test_case.full_name.startswith(class_prefix):
                 self._addCaseToSuite(test_suite, test_case)
         log.info(
-            "registered test suite '%s' with test cases: '%s'",
-            test_suite.key,
-            ", ".join([key for key in test_suite.cases]),
+            f"registered test suite '{test_suite.key}' "
+            f"with test cases: '{', '.join([key for key in test_suite.cases])}'"
         )
 
     def addTestMethod(
-        self, test_method: Callable[[], None], priority: Optional[int]
+        self, test_method: Callable[[], None], description: str, priority: Optional[int]
     ) -> None:
-        test_case = TestCaseMetadata(test_method, priority)
+        test_case = TestCaseMetadata(test_method, description, priority)
         full_name = test_case.full_name
 
         if self.cases.get(full_name) is None:
             self.cases[full_name] = test_case
         else:
-            raise Exception("duplicate test class name: %s" % full_name)
+            raise Exception(f"duplicate test class name: {full_name}")
 
         # this should be None in current observation.
         # the methods are loadded prior to test class
@@ -104,7 +113,7 @@ class TestFactory:
         class_name = full_name.split(".")[0]
         test_suite = self.suites.get(class_name)
         if test_suite is not None:
-            log.debug("add case '%s' to suite '%s'", test_case.name, test_suite.name)
+            log.debug(f"add case '{test_case.name}' to suite '{test_suite.name}'")
             self._addCaseToSuite(test_suite, test_case)
 
     def _addCaseToSuite(

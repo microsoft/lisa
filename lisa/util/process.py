@@ -103,7 +103,7 @@ class Process:
         )
         self._running = True
         if self.process is not None:
-            log.debug("process %s started", self.process.pid)
+            log.debug(f"process {self.process.pid} started")
 
     def waitResult(self, timeout: float = 600) -> ExecutableResult:
         budget_time = timeout
@@ -116,7 +116,7 @@ class Process:
 
         if budget_time < 0:
             if self.process is not None:
-                log.warn("process %s timeout in %s sec", self.process.pid, timeout)
+                log.warn(f"process {self.process.pid} timeout in {timeout} sec")
             self.stop()
 
         # cleanup to get pipe complete
@@ -139,7 +139,7 @@ class Process:
             for child in children:
                 child.terminate()
             self.process.terminate()
-            log.debug("process %s stopped", self.process.pid)
+            log.debug(f"process {self.process.pid} stopped")
 
     def cleanup(self) -> None:
         if self.stdout_pipe is not None:
@@ -151,7 +151,7 @@ class Process:
         self.exitCode = self.getExitCode()
         if self.exitCode is not None and self.process is not None:
             if self._running is True:
-                log.debug("process %s exited: %s", self.process.pid, self.exitCode)
+                log.debug(f"process {self.process.pid} exited: {self.exitCode}")
             self._running = False
         return self._running
 

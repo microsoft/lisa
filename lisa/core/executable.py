@@ -3,7 +3,7 @@ from abc import ABC
 from lisa import Node
 
 
-class ExecutableBase(ABC):
+class Executable(ABC):
     def __init__(self) -> None:
         self.node = None
 

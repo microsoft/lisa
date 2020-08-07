@@ -32,10 +32,8 @@ class RuntimeObject:
                     warn_as_error, "the ready platform cannot process environment spec"
                 )
 
-    def _validateMessage(
-        self, warn_as_error: Optional[bool], message: str, *args: str
-    ) -> None:
+    def _validateMessage(self, warn_as_error: Optional[bool], message: str) -> None:
         if warn_as_error:
-            raise Exception(message % args)
+            raise Exception(message)
         else:
-            log.warn(message, *args)
+            log.warn(message)

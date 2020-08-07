@@ -18,7 +18,9 @@ class PlatformFactory:
         if self.platforms.get(platform_type) is None:
             self.platforms[platform_type] = platform()
         else:
-            raise Exception("platform '%s' exists, cannot be registered again")
+            raise Exception(
+                f"platform '{platform_type}' exists, cannot be registered again"
+            )
 
     def initializePlatform(self, config: Optional[List[Dict[str, object]]]) -> Platform:
 
@@ -34,14 +36,14 @@ class PlatformFactory:
 
         self._buildFactory()
         log.debug(
-            "registered platforms [%s]",
-            ", ".join([name for name in self.platforms.keys()]),
+            f"registered platforms: "
+            f"[{', '.join([name for name in self.platforms.keys()])}]"
         )
 
         platform = self.platforms.get(platform_type.lower())
         if platform is None:
-            raise Exception("cannot find platform type '%s'" % platform_type)
-        log.info("activated platform '%s'", platform_type)
+            raise Exception(f"cannot find platform type '{platform_type}'")
+        log.info(f"activated platform '{platform_type}'")
 
         platform.config(constants.CONFIG_CONFIG, config[0])
         return platform

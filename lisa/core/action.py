@@ -47,8 +47,7 @@ class Action(metaclass=ABCMeta):
     def setStatus(self, status: ActionStatus) -> None:
         if self.__status != status:
             log.info(
-                "%s status changed from %s to %s"
-                % (self.name, self.__status.name, status.name)
+                f"{self.name} status changed from {self.__status.name} to {status.name}"
             )
         self.__status = status
 
