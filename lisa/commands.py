@@ -85,10 +85,10 @@ def list_start(args: Namespace) -> None:
 
 def _validate() -> None:
     environment_config = Config().getEnvironment()
-    warn_as_error: Optional[bool] = None
-    if environment_config is not None:
+    warn_as_error = False
+    if environment_config:
         warn_as_error = cast(
-            Optional[bool], environment_config.get(constants.WARN_AS_ERROR)
+            bool, environment_config.get(constants.WARN_AS_ERROR, False)
         )
     factory = EnvironmentFactory()
     enviornments = factory.environments
@@ -100,7 +100,7 @@ def _validate() -> None:
             )
 
 
-def _validateMessage(warn_as_error: Optional[bool], message: str) -> None:
+def _validateMessage(warn_as_error: bool, message: str) -> None:
     if warn_as_error:
         raise Exception(message)
     else:
