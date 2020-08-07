@@ -20,6 +20,17 @@ GetDistro
 # Get generation: 1/2
 GetGuestGeneration
 
+# If RHEL and use downstream kernel, limit kernel version
+if [[ "$DISTRO" =~ "redhat" ]] && [[ $hb_url == "" ]]; then
+	MIN_KERNEL="4.18.0-202"
+	CheckVMFeatureSupportStatus $MIN_KERNEL
+	if [[ $? == 1 ]];then
+		UpdateSummary "Hibernation is supported since kernel-4.18.0-202. Current version: $(uname -r). Skip the test."
+		SetTestStateSkipped
+		exit 0
+	fi
+fi
+
 function Main() {
 	base_dir=$(pwd)
 	if [[ "$DISTRO" =~ "redhat" || "$DISTRO" =~ "centos" ]];then
@@ -184,9 +195,15 @@ function Main() {
 		# grub2-mkconfig shows the image build problem in RHEL/CentOS, so we use alternative.
 		#grub2-mkconfig -o ${grub_cfg}
 		#LogMsg "$?: Run grub2-mkconfig -o ${grub_cfg}"
-		ls /boot/vmlinuz* > new_state.txt
-		vmlinux_file=$(diff old_state.txt new_state.txt | tail -n 1 | cut -d ' ' -f2)
-		if [ -f $vmlinux_file ]; then
+
+		# If downstream kernel, use the current kernel
+		if [[ $hb_url == "" ]]; then
+			vmlinux_file="/boot/vmlinuz-$(uname -r)"
+		else
+			ls /boot/vmlinuz* > new_state.txt
+			vmlinux_file=$(diff old_state.txt new_state.txt | tail -n 1 | cut -d ' ' -f2)
+		fi
+		if [ -f "$vmlinux_file" ]; then
 			original_args=$(grubby --info=0 | grep -i args | cut -d '"' -f 2)
 			LogMsg "Original boot parameters $original_args"
 			grubby --args="$original_args resume=$sw_uuid" --update-kernel=$vmlinux_file
@@ -199,6 +216,10 @@ function Main() {
 			
 			grubby_output=$(grubby --default-kernel)
 			LogMsg "grubby default-kernel output $grubby_output"
+
+			# Must run dracut -f, or it cannot recover image in boot after hibernation
+			dracut -f
+			LogMsg "$?: Run dracut -f"
 		else
 			LogErr "Can not set new vmlinuz file in grubby command. Expected new vmlinuz file, but found $vmlinux_file"
 			SetTestStateAborted
