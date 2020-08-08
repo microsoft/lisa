@@ -15,7 +15,7 @@ from lisa.util import constants
 from lisa.util.logger import log
 
 
-def _load_extends(base_path: Path, extends_config: Dict[str, object] = dict()) -> None:
+def _load_extends(base_path: Path, extends_config: Dict[str, object]) -> None:
     for p in cast(List[str], extends_config.get(constants.PATHS, list())):
         path = PurePath(p)
         if not path.is_absolute():

@@ -22,19 +22,23 @@ class Config(Dict[str, object]):
         # TODO implement config validation
         pass
 
-    def getExtension(self) -> Optional[Dict[str, object]]:
+    def getExtension(self) -> Dict[str, object]:
         return self._getAndCast(constants.EXTENSION)
 
-    def getEnvironment(self) -> Optional[Dict[str, object]]:
+    def getEnvironment(self) -> Dict[str, object]:
         return self._getAndCast(constants.ENVIRONMENT)
 
-    def getPlatform(self) -> Optional[List[Dict[str, object]]]:
+    def getPlatform(self) -> List[Dict[str, object]]:
         return cast(
-            Optional[List[Dict[str, object]]], self.config.get(constants.PLATFORM)
+            List[Dict[str, object]], self.config.get(constants.PLATFORM, list())
         )
 
-    def getTestCase(self) -> Optional[Dict[str, object]]:
+    def getTestCase(self) -> Dict[str, object]:
         return self._getAndCast(constants.TESTCASE)
 
-    def _getAndCast(self, name: str) -> Optional[Dict[str, object]]:
-        return cast(Optional[Dict[str, object]], self.config.get(name))
+    # TODO: This is a hack to get around our data not being
+    # structured. Since we generally know the type of the data we’re
+    # trying to get, this indicates that we need to properly structure
+    # said data. Doing so correctly will enable us to delete this.
+    def _getAndCast(self, name: str) -> Dict[str, object]:
+        return cast(Dict[str, object], self.config.get(name, dict()))

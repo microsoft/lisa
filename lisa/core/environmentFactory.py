@@ -15,8 +15,8 @@ class EnvironmentFactory:
         self.environments: Dict[str, Environment] = dict()
         self.maxConcurrency = 1
 
-    def loadEnvironments(self, config: Optional[Dict[str, object]]) -> None:
-        if config is None:
+    def loadEnvironments(self, config: Dict[str, object]) -> None:
+        if not config:
             raise Exception("environment section must be set in config")
         maxConcurrency = cast(
             Optional[int], config.get(constants.ENVIRONMENT_MAX_CONCURRENDCY)

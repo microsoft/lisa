@@ -23,10 +23,10 @@ class PlatformFactory:
                 f"platform '{platform_type}' exists, cannot be registered again"
             )
 
-    def initializePlatform(self, config: Optional[List[Dict[str, object]]]) -> None:
-
-        if config is None:
+    def initializePlatform(self, config: List[Dict[str, object]]) -> None:
+        if not config:
             raise Exception("cannot find platform")
+
         # we may extend it later to support multiple platforms
         platform_count = len(config)
         if platform_count != 1:
