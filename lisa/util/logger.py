@@ -6,14 +6,22 @@ import time
 env_result_path = "LISA_RESULT_PATH"
 
 
-def init_log():
+def log_lines(logLevel: int, content: str, prefix: str = "") -> None:
+    for line in content.splitlines(False):
+        if prefix:
+            log.log(logLevel, f"{prefix} {line}")
+        else:
+            log.log(logLevel, line)
+
+
+def init_log() -> None:
     format = "%(asctime)s.%(msecs)03d[%(levelname)-.1s]%(name)s %(message)s"
     logging.basicConfig(
         level=logging.INFO,
         format=format,
         datefmt="%m%d %H:%M:%S",
         handlers=[
-            logging.FileHandler("%s/lisa-host.log" % os.getenv(env_result_path)),
+            logging.FileHandler(f"{os.getenv(env_result_path)}/lisa-host.log"),
             logging.StreamHandler(),
         ],
     )

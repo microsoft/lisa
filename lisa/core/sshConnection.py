@@ -1,4 +1,11 @@
-import os
+import logging
+from typing import Optional
+
+import paramiko  # type: ignore
+
+from lisa.util.connectionInfo import ConnectionInfo
+from lisa.util.executableResult import ExecutableResult
+from lisa.util.logger import log_lines
 
 
 class SshConnection:
@@ -11,7 +18,7 @@ class SshConnection:
         username: str = "root",
         password: str = "",
         privateKeyFile: str = "",
-    ):
+    ) -> None:
         self.address = address
         self.port = port
         self.publicAddress = publicAddress
@@ -20,42 +27,93 @@ class SshConnection:
         self.password = password
         self.privateKeyFile = privateKeyFile
 
-        if (self.address is None or self.address == "") and (
-            self.publicAddress is None or self.publicAddress == ""
-        ):
+        if not self.address and not self.publicAddress:
             raise Exception("at least one of address and publicAddress need to be set")
-        elif self.address is None or self.address == "":
+        elif not self.address:
             self.address = self.publicAddress
-        elif self.publicAddress is None or self.publicAddress == "":
+        elif not self.publicAddress:
             self.publicAddress = self.address
 
-        if (self.port is None or self.port <= 0) and (
-            self.publicPort is None or self.publicPort <= 0
-        ):
+        if not self.port and not self.publicPort:
             raise Exception("at least one of port and publicPort need to be set")
-        elif self.port is None or self.port <= 0:
+        elif not self.port:
             self.port = self.publicPort
-        elif self.publicPort is None or self.publicPort <= 0:
+        elif not self.publicPort:
             self.publicPort = self.port
 
-        if (self.password is None or self.password == "") and (
-            self.privateKeyFile is None or self.privateKeyFile == ""
-        ):
-            raise Exception(
-                "at least one of password and privateKeyFile need to be set"
-            )
-        elif self.password is not None and self.password != "":
-            self.usePassword = True
+        self._connectionInfo = ConnectionInfo(
+            self.address, self.port, self.username, self.password, self.privateKeyFile
+        )
+        self._publicConnectionInfo = ConnectionInfo(
+            self.publicAddress,
+            self.publicPort,
+            self.username,
+            self.password,
+            self.privateKeyFile,
+        )
+
+        self._connection: Optional[paramiko.SSHClient] = None
+        self._publicConnection: Optional[paramiko.SSHClient] = None
+
+        self._isConnected: bool = False
+        self._isPublicConnected: bool = False
+
+    @property
+    def connectionInfo(self) -> ConnectionInfo:
+        return self._connectionInfo
+
+    @property
+    def publicConnectionInfo(self) -> ConnectionInfo:
+        return self._publicConnectionInfo
+
+    def execute(
+        self, cmd: str, noErrorLog: bool = False, cmd_id: str = ""
+    ) -> ExecutableResult:
+        client = self.connect()
+        _, stdout_file, stderr_file = client.exec_command(cmd)
+        exit_code: int = stdout_file.channel.recv_exit_status()
+
+        stdout: str = stdout_file.read().decode("utf-8").strip()
+        log_lines(logging.INFO, stdout, prefix=f"cmd[{cmd_id}]stdout: ")
+        stderr: str = stderr_file.read().decode("utf-8").strip()
+        if noErrorLog:
+            log_level = logging.INFO
         else:
-            if not os.path.exists(self.privateKeyFile):
-                raise FileNotFoundError(self.privateKeyFile)
-            self.usePassword = False
+            log_level = logging.ERROR
+        # fix, cannot print them together
+        log_lines(log_level, stderr, prefix=f"cmd[{cmd_id}]stderr: ")
+        result = ExecutableResult(stdout, stderr, exit_code)
 
-        if self.username is None or self.username == "":
-            raise Exception("username must be set")
+        return result
 
-    def getInternalConnection(self):
-        pass
+    def connect(self, isPublic: bool = True) -> paramiko.SSHClient:
+        if isPublic:
+            connection = self._publicConnection
+            connectionInfo = self.publicConnectionInfo
+        else:
+            connection = self._connection
+            connectionInfo = self.connectionInfo
+        if connection is None:
+            connection = paramiko.SSHClient()
+            connection.set_missing_host_key_policy(paramiko.client.AutoAddPolicy)
+            connection.connect(
+                connectionInfo.address,
+                port=connectionInfo.port,
+                username=connectionInfo.username,
+                password=connectionInfo.password,
+                key_filename=connectionInfo.privateKeyFile,
+                look_for_keys=False,
+            )
+            if isPublic:
+                self._publicConnection = connection
+            else:
+                self._connection = connection
+        return connection
 
-    def getPublicConnection(self):
-        pass
+    def close(self) -> None:
+        if self._connection is not None:
+            self._connection.close()
+            self._connection = None
+        if self._publicConnection is not None:
+            self._publicConnection.close()
+            self._publicConnection = None

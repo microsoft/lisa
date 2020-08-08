@@ -14,7 +14,7 @@ class Platform(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def config(self, key: str, value: object):
+    def config(self, key: str, value: object) -> None:
         pass
 
     @abstractmethod
@@ -31,5 +31,6 @@ class Platform(ABC):
         return environment
 
     def deleteEnvironment(self, environment: Environment) -> None:
+        environment.close()
         self.deleteEnvironmentInternal(environment)
         environment.isReady = False

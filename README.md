@@ -55,7 +55,7 @@ poetry env list --full-path
 
 This command is the same for Windows and Linux, and it should show something like:
 
-```
+```cmd
 /home/<username>/.cache/pypoetry/virtualenvs/lisa-s7Q404Ij-py3.8 (Activated)
 C:\Users\<username>\AppData\Local\pypoetry\Cache\virtualenvs\lisa-WNmvsOCZ-py3.8 (Activated)
 ```
@@ -79,17 +79,21 @@ Make sure below settings are in root level of `.vscode/settings.json`
     "python.analysis.typeCheckingMode": "strict",
     "python.formatting.provider": "black",
     "python.linting.enabled": true,
-    "python.linting.flake8Args": [
-        "--max-line-length",
-        "88"
-    ],
-    "python.linting.flake8CategorySeverity.W": "Error",
     "python.linting.flake8Enabled": true,
-    "python.linting.mypyCategorySeverity.note": "Error",
     "python.linting.mypyEnabled": true,
     "python.linting.pylintEnabled": false,
     "python.linting.pylintUseMinimalCheckers": false,
     "editor.formatOnSave": true,
+    "python.analysis.diagnosticMode": "workspace",
+    "python.linting.mypyArgs": [
+        "--strict",
+        "--ignore-missing-imports",
+        "--follow-imports=silent",
+        "--show-column-numbers",
+    ],
+    "python.sortImports.path": "isort",
+    "python.analysis.useLibraryCodeForTypes": false,
+    "python.analysis.autoImportCompletions": false,
 }
 ```
 

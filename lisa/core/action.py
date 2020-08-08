@@ -1,39 +1,20 @@
-from abc import ABC, abstractmethod
-from enum import Enum
+from __future__ import annotations
+
+from abc import ABCMeta, abstractmethod
 from typing import Dict
 
-from lisa.common.logger import log
+from lisa.core.actionStatus import ActionStatus
+from lisa.util.logger import log
 
 
-class ActionStatus(Enum):
-    UNINITIALIZED = 1
-    INITIALIZING = 2
-    INITIALIZED = 3
-    WAITING = 4
-    RUNNING = 5
-    SUCCESS = 6
-    FAILED = 7
-    STOPPING = 8
-    STOPPED = 9
-    UNKNOWN = 10
-
-
-class Action(ABC):
-    def __init__(self):
+class Action(metaclass=ABCMeta):
+    def __init__(self) -> None:
         self.__status = ActionStatus.UNINITIALIZED
-        self.__name = None
+        self.name: str = self.__class__.__name__
         self.isStarted = False
 
-    def config(self, key: str, value: object):
+    def config(self, key: str, value: object) -> None:
         pass
-
-    @property
-    def name(self):
-        if self.__name is not None:
-            name = self.__name
-        else:
-            name = self.__class__.__name__
-        return name
 
     @abstractmethod
     def getTypeName(self) -> str:
@@ -49,7 +30,7 @@ class Action(ABC):
         self.validateStarted()
 
     @abstractmethod
-    async def cleanup(self) -> None:
+    async def close(self) -> None:
         self.validateStarted()
 
     def getStatus(self) -> ActionStatus:
@@ -58,16 +39,15 @@ class Action(ABC):
     def setStatus(self, status: ActionStatus) -> None:
         if self.__status != status:
             log.info(
-                "%s status changed from %s to %s"
-                % (self.name, self.__status.name, status.name)
+                f"{self.name} status changed from {self.__status.name} to {status.name}"
             )
         self.__status = status
 
-    def validateStarted(self):
+    def validateStarted(self) -> None:
         if not self.isStarted:
             raise Exception("action is not started yet.")
 
-    def getPrerequisites(self):
+    def getPrerequisites(self) -> None:
         return None
 
     # TODO to validate action specified configs

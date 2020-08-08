@@ -1,101 +1,165 @@
 import logging
 import os
-import shlex
 import subprocess
+import time
 from threading import Thread
-from typing import Dict, Optional, cast
+from timeit import default_timer as timer
+from types import TracebackType
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, cast
 
-from psutil import Process as psutilProcess
+import psutil  # type: ignore
 
-from lisa.common.logger import log
+from lisa.util.executableResult import ExecutableResult
+from lisa.util.logger import log, log_lines
+
+if TYPE_CHECKING:
+    BaseExceptionType = Type[BaseException]
+else:
+    BaseExceptionType = bool
 
 
 class LogPipe(Thread):
-    def __init__(self, level: int):
+    def __init__(self, level: int, cmd_id: str = ""):
         """Setup the object with a logger and a loglevel
         and start the thread
         """
         Thread.__init__(self)
+        self.output: str = ""
         self.daemon = False
         self.level = level
         self.fdRead, self.fdWrite = os.pipe()
         self.pipeReader = os.fdopen(self.fdRead)
+        self.isReadCompleted = False
+        self.isClosed = False
+        self.cmd_id = cmd_id
         self.start()
 
-    def fileno(self):
+    def fileno(self) -> int:
         """Return the write file descriptor of the pipe
         """
         return self.fdWrite
 
-    def run(self):
+    def run(self) -> None:
         """Run the thread, logging everything.
         """
-        for line in iter(self.pipeReader.readline, ""):
-            log.log(self.level, line.strip("\n"))
+        output = self.pipeReader.read()
+        self.output = "".join([self.output, output])
+        log_lines(self.level, output, prefix=f"cmd[{self.cmd_id}]")
 
         self.pipeReader.close()
+        self.isReadCompleted = True
 
-    def close(self):
+    def close(self) -> None:
         """Close the write end of the pipe.
         """
-        os.close(self.fdWrite)
+        if not self.isClosed:
+            os.close(self.fdWrite)
+            self.isClosed = True
 
 
 class Process:
-    def __init__(self):
-        self.process: Optional[subprocess.Popen] = None
+    def __init__(self) -> None:
+        self.process: Optional[subprocess.Popen[Any]] = None
         self.exitCode: Optional[int] = None
-        self.running: Optional[bool] = None
         self.log_pipe: Optional[LogPipe] = None
+
+        self._running: bool = False
+
+    def __enter__(self) -> None:
+        pass
+
+    def __exit__(
+        self,
+        exc_type: Optional[BaseExceptionType],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> None:
+        self.close()
 
     def start(
         self,
         command: str,
         cwd: Optional[str] = None,
         new_envs: Optional[Dict[str, str]] = None,
-    ):
+        cmd_id: str = "",
+        noErrorLog: bool = False,
+    ) -> None:
         """
             command include all parameters also.
         """
-        dictEnv = cast(Dict[str, str], dict(os.environ.copy()))
+        dictEnv = dict(os.environ.copy())
         if new_envs is not None:
             for key, value in new_envs.items():
                 dictEnv[key] = value
-        self.stdout_pipe = cast(int, LogPipe(logging.INFO))
-        self.stderr_pipe = cast(int, LogPipe(logging.ERROR))
-        args = shlex.split(command)
+        self.stdout_pipe = LogPipe(logging.INFO, cmd_id)
+        if noErrorLog:
+            logLevel = logging.INFO
+        else:
+            logLevel = logging.ERROR
+        self.stderr_pipe = LogPipe(logLevel, cmd_id)
         self.process = subprocess.Popen(
-            args,
+            command,
             shell=True,
-            stdout=self.stdout_pipe,
-            stderr=self.stderr_pipe,
+            stdout=cast(int, self.stdout_pipe),
+            stderr=cast(int, self.stderr_pipe),
             cwd=cwd,
             env=cast(Optional[Dict[str, str]], dictEnv),
         )
-        self.running = True
+        self._running = True
         if self.process is not None:
-            log.debug("process %s started", self.process.pid)
+            log.debug(f"process {self.process.pid} started")
 
-    def stop(self):
+    def waitResult(self, timeout: float = 600) -> ExecutableResult:
+        budget_time = timeout
+        # wait for all content read
+        while self.isRunning() and budget_time >= 0:
+            start = timer()
+            time.sleep(0.01)
+            end = timer()
+            budget_time = budget_time - (end - start)
+
+        if budget_time < 0:
+            if self.process is not None:
+                log.warn(f"process {self.process.pid} timeout in {timeout} sec")
+            self.stop()
+
+        # close to get pipe complete
+        self.close()
+
+        # wait all content flushed
+        while (
+            not self.stdout_pipe.isReadCompleted or not self.stderr_pipe.isReadCompleted
+        ):
+            time.sleep(0.01)
+        return ExecutableResult(
+            self.stdout_pipe.output.strip(),
+            self.stderr_pipe.output.strip(),
+            self.exitCode,
+        )
+
+    def stop(self) -> None:
         if self.process is not None:
-            for child in psutilProcess(self.process.pid).children(True):
+            children = cast(
+                List[psutil.Process], psutil.Process(self.process.pid).children(True)
+            )
+            for child in children:
                 child.terminate()
             self.process.terminate()
-            log.debug("process %s stopped", self.process.pid)
+            log.debug(f"process {self.process.pid} stopped")
 
-    def cleanup(self):
+    def close(self) -> None:
         if self.stdout_pipe is not None:
             self.stdout_pipe.close()
         if self.stderr_pipe is not None:
             self.stderr_pipe.close()
 
-    def isRunning(self):
+    def isRunning(self) -> bool:
         self.exitCode = self.getExitCode()
         if self.exitCode is not None and self.process is not None:
-            if self.running is True:
-                log.debug("process %s exited: %s", self.process.pid, self.exitCode)
-            self.running = False
-        return self.running
+            if self._running:
+                log.debug(f"process {self.process.pid} exited: {self.exitCode}")
+            self._running = False
+        return self._running
 
     def getExitCode(self) -> Optional[int]:
         if self.process is not None:

@@ -1,91 +1,107 @@
 import asyncio
-import os
 from argparse import Namespace
+from pathlib import Path, PurePath
 from typing import Dict, List, Optional, cast
 
-from lisa.common.logger import log
-from lisa.core.environment_factory import environment_factory
+from lisa.core.environmentFactory import EnvironmentFactory
 from lisa.core.package import import_module
-from lisa.core.platform_factory import platform_factory
-from lisa.core.runtimeObject import RuntimeObject
-from lisa.core.test_factory import test_factory
+from lisa.core.platformFactory import PlatformFactory
+from lisa.core.testFactory import TestFactory
+from lisa.parameter_parser.config import Config
 from lisa.parameter_parser.parser import parse
+from lisa.sut_orchestrator.ready import ReadyPlatform
 from lisa.test_runner.lisarunner import LISARunner
 from lisa.util import constants
+from lisa.util.logger import log
 
 
-def _load_extends(extends_config: Dict[str, object]):
-    if extends_config is not None:
-        paths = cast(List[str], extends_config.get("paths"))
-        if paths is not None:
-            for path in paths:
-                import_module(path)
+def _load_extends(base_path: Path, extends_config: Dict[str, object]) -> None:
+    for p in cast(List[str], extends_config.get(constants.PATHS, list())):
+        path = PurePath(p)
+        if not path.is_absolute():
+            path = base_path.joinpath(path)
+        import_module(Path(path))
 
 
-def _initialize(args: Namespace):
+def _initialize(args: Namespace) -> None:
 
     # make sure extension in lisa is loaded
-    base_module_path = os.path.dirname(__file__)
+    base_module_path = Path(__file__).parent
     import_module(base_module_path, logDetails=False)
 
     # merge all parameters
     config = parse(args)
-    runtime_object = RuntimeObject(config)
 
     # load external extension
-    extends_config = config.getExtension()
-    _load_extends(extends_config)
+    _load_extends(config.base_path, config.getExtension())
 
     # initialize environment
-    environments_config = config.getEnvironment()
-    environment_factory.loadEnvironments(environments_config)
-    runtime_object.environment_factory = environment_factory
+    environment_factory = EnvironmentFactory()
+    environment_factory.loadEnvironments(config.getEnvironment())
 
     # initialize platform
-    platform_config = config.getPlatform()
-    runtime_object.platform = platform_factory.initializePlatform(platform_config)
+    factory = PlatformFactory()
+    factory.initializePlatform(config.getPlatform())
 
-    runtime_object.validate()
-
-    return runtime_object
+    _validate()
 
 
-def run(args):
-    runtime_object = _initialize(args)
+def run(args: Namespace) -> None:
+    _initialize(args)
 
-    platform = runtime_object.platform
-    environment_factory = runtime_object.environment_factory
+    platform = PlatformFactory().current
 
     runner = LISARunner()
-    runner.config(constants.CONFIG_ENVIRONMENT_FACTORY, environment_factory)
     runner.config(constants.CONFIG_PLATFORM, platform)
     awaitable = runner.start()
     asyncio.run(awaitable)
 
 
 # check configs
-def check(args: Namespace):
+def check(args: Namespace) -> None:
     _initialize(args)
 
 
-def list_start(args: Namespace):
+def list_start(args: Namespace) -> None:
     _initialize(args)
     listAll = cast(Optional[bool], args.listAll)
-    if args.type == "case":
-        if listAll is True:
-            for metadata in test_factory.cases.values():
+    if args.type == constants.LIST_CASE:
+        if listAll:
+            factory = TestFactory()
+            for metadata in factory.cases.values():
                 log.info(
-                    "case: %s, suite: %s, area: %s, "
-                    + "category: %s, tags: %s, priority: %s",
-                    metadata.name,
-                    metadata.suite.name,
-                    metadata.suite.area,
-                    metadata.suite.category,
-                    ",".join(metadata.suite.tags),
-                    metadata.priority,
+                    f"case: {metadata.name}, suite: {metadata.suite.name}, "
+                    f"area: {metadata.suite.area}, "
+                    f"category: {metadata.suite.category}, "
+                    f"tags: {','.join(metadata.suite.tags)}, "
+                    f"priority: {metadata.priority}"
                 )
         else:
             log.error("TODO: cannot list selected cases yet.")
     else:
-        raise Exception("unknown list type '%s'" % args.type)
+        raise Exception(f"unknown list type '{args.type}'")
     log.info("list information here")
+
+
+def _validate() -> None:
+    environment_config = Config().getEnvironment()
+    warn_as_error = False
+    if environment_config:
+        warn_as_error = cast(
+            bool, environment_config.get(constants.WARN_AS_ERROR, False)
+        )
+    factory = EnvironmentFactory()
+    enviornments = factory.environments
+    platform = PlatformFactory().current
+    for environment in enviornments.values():
+        if environment.spec is not None and isinstance(platform, ReadyPlatform):
+            _validateMessage(
+                warn_as_error, "the ready platform cannot process environment spec"
+            )
+
+
+def _validateMessage(warn_as_error: bool, message: str) -> None:
+    if warn_as_error:
+        raise Exception(message)
+    else:
+        log.warn(message)

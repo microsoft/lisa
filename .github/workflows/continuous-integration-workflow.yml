@@ -44,7 +44,7 @@ jobs:
         run: poetry install
 
       - name: Run LISAv3 hello-world
-        run: poetry run python lisa/main.py
+        run: poetry run python lisa/main.py --debug
 
       - name: Run black/flake8/isort
         run: poetry run flake8

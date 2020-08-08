@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Callable, List, Optional, Type
 
-from lisa.core.test_factory import test_factory
+from lisa.core.testFactory import TestFactory
 from lisa.core.testSuite import TestSuite
 
 if TYPE_CHECKING:
@@ -11,16 +11,23 @@ if TYPE_CHECKING:
 
 class SuiteMetadata:
     def __init__(
-        self, area: str, category: str, tags: List[str], name: Optional[str] = None
-    ):
+        self,
+        area: str,
+        category: str,
+        description: str,
+        tags: List[str],
+        name: Optional[str] = None,
+    ) -> None:
         self.area = area
         self.category = category
         self.tags = tags
+        self.description = description
         self.name = name
 
     def __call__(self, test_class: Type[TestSuite]) -> Callable[..., object]:
-        test_factory.addTestClass(
-            test_class, self.area, self.category, self.tags, self.name
+        factory = TestFactory()
+        factory.addTestClass(
+            test_class, self.area, self.category, self.description, self.tags, self.name
         )
 
         def wrapper(

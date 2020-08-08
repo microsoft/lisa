@@ -1,10 +1,7 @@
-# run name prefix to help grouping results and put it in title.
 name: local try
-# share configurations for similar runs.
-# it's examples for all platforms, but currently should leave single one only.
 extension:
   paths:
-    - "examples/testsuites"
+    - "../testsuites"
 environment:
   environments:
     - nodes:
@@ -13,6 +10,5 @@ platform:
   - type: ready
 testcase:
   - criteria:
-      # compatible with current test cases.
       area: demo
       category: simple

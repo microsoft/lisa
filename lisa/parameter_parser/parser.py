@@ -1,21 +1,24 @@
-import os
+from argparse import Namespace
+from pathlib import Path
 
 import yaml
 
-from lisa.common.logger import log
 from lisa.parameter_parser.config import Config
+from lisa.util.logger import log
 
 
-def parse(args):
-    path = args.config
-    path = os.path.realpath(path)
-    log.info("load config from: %s", path)
-    if not os.path.exists(path):
+def parse(args: Namespace) -> Config:
+    path = Path(args.config).absolute()
+
+    log.info(f"load config from: {path}")
+    if not path.exists():
         raise FileNotFoundError(path)
 
     with open(path, "r") as file:
         data = yaml.safe_load(file)
 
-    log.debug("final config data: %s", data)
-    config = Config(data)
+    log.debug(f"final config data: {data}")
+    base_path = path.parent
+    log.debug(f"base path is {base_path}")
+    config = Config(base_path, data)
     return config
