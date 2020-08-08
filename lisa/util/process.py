@@ -132,7 +132,9 @@ class Process:
         ):
             time.sleep(0.01)
         return ExecutableResult(
-            self.stdout_pipe.output, self.stderr_pipe.output, self.exitCode
+            self.stdout_pipe.output.strip(),
+            self.stderr_pipe.output.strip(),
+            self.exitCode,
         )
 
     def stop(self) -> None:

@@ -73,9 +73,9 @@ class SshConnection:
         _, stdout_file, stderr_file = client.exec_command(cmd)
         exit_code: int = stdout_file.channel.recv_exit_status()
 
-        stdout: str = stdout_file.read().decode("utf-8")
+        stdout: str = stdout_file.read().decode("utf-8").strip()
         log_lines(logging.INFO, stdout, prefix=f"cmd[{cmd_id}]stdout: ")
-        stderr: str = stderr_file.read().decode("utf-8")
+        stderr: str = stderr_file.read().decode("utf-8").strip()
         if noErrorLog:
             log_level = logging.INFO
         else:
