@@ -175,12 +175,14 @@ do
 done
 
 echo "constants disk count= $diskCount"
+os_disk=$(get_OSdisk)
+LogMsg "OS disk: $os_disk"
 
 # Compute the number of sd* drives on the system
 for driveName in /dev/sd*[^0-9];
 do
-    # Skip /dev/sda
-    if [ ${driveName} = "/dev/sda" ] || [ ${driveName} = "/dev/sdb" ]; then
+    # Skip the OS disk
+    if [ ${driveName} = "/dev/${os_disk}" ]; then
         continue
     fi
 

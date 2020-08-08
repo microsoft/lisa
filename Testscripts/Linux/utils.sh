@@ -1987,7 +1987,7 @@ function check_exit_status() {
 				exit $exit_status
 				;;
 			*)
-				LogWarn "Unsupported check_exit_status option: ${test_state}"
+				LogErr "Unsupported check_exit_status option: ${test_state}"
 				;;
 		esac
 	else
@@ -2798,14 +2798,18 @@ function install_netperf () {
 	fi
 }
 
-# Get the active NIC name
-function get_active_nic_name () {
+function install_net_tools () {
 	if [[ $DISTRO_NAME == "sles" ]] && [[ $DISTRO_VERSION =~ 15 ]] || [[ $DISTRO_NAME == "sle_hpc" ]]; then
 		zypper_install "net-tools-deprecated" > /dev/null 2>&1
 	fi
 	if [[ "${DISTRO_NAME}" == "ubuntu" ]]; then
 		apt_get_install "net-tools" > /dev/null 2>&1
 	fi
+}
+
+# Get the active NIC name
+function get_active_nic_name () {
+	install_net_tools
 	echo $(route | grep '^default' | grep -o '[^ ]*$')
 }
 
@@ -3554,6 +3558,10 @@ function get_OSdisk() {
 # Sets the $PLATFORM variable to one of the following: Azure, HyperV
 # Takes no arguments
 function GetPlatform() {
+	which route
+	if [ $? -ne 0 ]; then
+		install_net_tools
+	fi
 	route -n | grep "169.254.169.254" > /dev/null
 	if [[ $? == 0 ]];then
 		http_code=$(curl -H Metadata:true "http://169.254.169.254/metadata/instance?api-version=2019-06-01" -w "%{http_code}" -o /dev/null -s -m 3)
@@ -3621,5 +3629,95 @@ function Run_SSHCommand()
 		else
 			ssh "${ip}" "${cmd}"
 		fi
+	done
+}
+
+get_AvailableDisks() {
+	for disk in $(lsblk | grep "sd[a-z].*disk" | cut -d ' ' -f1); do
+		if [ $(df | grep -c $disk) -eq 0 ]; then
+			echo $disk
+		fi
+	done
+}
+
+delete_partition() {
+	all_disks=$(get_AvailableDisks)
+
+	declare -A TEST_DICT
+	for disk in ${all_disks}; do
+		count=0
+		count=$(cat /proc/partitions | grep "$disk" | wc -l)
+		TEST_DICT["$disk"]=$((count-1))
+	done
+
+	for disk in "${!TEST_DICT[@]}"; do
+		count="${TEST_DICT[$disk]}"
+		LogMsg "Disk /dev/$disk has ${TEST_DICT[$disk]} partition"
+		for ((c=1 ; c<=$((count-1)); c++)); do
+			LogMsg "Delete the $c partition of disk /dev/$disk"
+			(echo d; echo $c ; echo ; echo w) | fdisk "/dev/$disk"
+			sleep 5
+		done
+		if [[ $count -ne 0 ]]; then
+			LogMsg "Delete the last partition of disk /dev/$disk"
+			(echo d; echo ; echo w) | fdisk "/dev/$disk"
+			sleep 5
+		fi
+	done
+}
+
+function make_partition() {
+	os_disk=$(get_OSdisk)
+	paratition_count="$1"
+	for driveName in /dev/sd*[^0-9]; do
+		if [ $driveName == "/dev/${os_disk}" ] ; then
+			continue
+		fi
+		for ((c=1 ; c<="$paratition_count"; c++)); do
+			if [ $c -eq 1 ]; then
+				(echo n; echo p; echo $c; echo ; echo +500M; echo ; echo w) | fdisk $driveName
+			else
+				(echo n; echo p; echo $c; echo ; echo; echo ; echo w) | fdisk $driveName
+			fi
+			check_exit_status "Make the ${c} partition for disk $driveName" "exit"
+		done
+	done
+}
+
+function make_filesystem() {
+	os_disk=$(get_OSdisk)
+	paratition_count="$1"
+	filesys="$2"
+	option="-f"
+	if [ "$filesys" = "ext4" ]; then
+		option="-F"
+	fi
+	for driveName in /dev/sd*[^0-9]; do
+		if [ $driveName == "/dev/${os_disk}" ] ; then
+			continue
+		fi
+		for ((c=1 ; c<="$paratition_count"; c++)); do
+			echo "y" | mkfs.$filesys $option "${driveName}$c"
+			check_exit_status "Creating FileSystem $filesys on disk ${driveName}${c}" "exit"
+		done
+	done
+}
+
+function mount_disk() {
+	os_disk=$(get_OSdisk)
+	paratition_count="$1"
+	for driveName in /dev/sd*[^0-9]; do
+		if [ $driveName == "/dev/${os_disk}" ] ; then
+			continue
+		fi
+		for ((c=1 ; c<="$paratition_count"; c++)); do
+			MountName="/mnt/$c"
+			if [ ! -e ${MountName} ]; then
+				mkdir $MountName
+			fi
+			sleep 1
+			mount  "${driveName}$c" $MountName
+			check_exit_status "Mounting disk ${driveName}${c} on $MountName" "exit"
+		done
 	done
 }

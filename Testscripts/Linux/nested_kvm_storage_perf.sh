@@ -157,7 +157,7 @@ Collect_Logs()
 ############################################################
 Update_Test_State $ICA_TESTRUNNING
 
-disks=$(ls -l /dev | grep sd[c-z]$ | awk '{print $10}')
+disks=$(get_AvailableDisks)
 Remove_Raid
 
 if [[ $RaidOption == 'RAID in L1' ]]; then

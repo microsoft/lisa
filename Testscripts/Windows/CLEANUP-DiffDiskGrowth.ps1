@@ -153,7 +153,7 @@ function Main {
     if ($controller) {
         $drive = Get-VMHardDiskDrive $controller -ControllerLocation $lun
         if ($drive) {
-            Write-LogErr "Removing $controllerType $controllerID $lun"
+            Write-LogInfo "Removing $controllerType $controllerID $lun"
             Remove-VMHardDiskDrive $drive
         } else {
             Write-LogInfo "Drive $controllerType $controllerID,$Lun does not exist"

@@ -96,7 +96,7 @@ sd_count=$(ls /dev/sd*[^0-9] | wc -l)
 # Subtract the boot disk and resource from the sd_count, then make
 # sure the two disk counts match
 #
-sd_count=$((sd_count - 2))
+sd_count=$((sd_count - 1))
 LogMsg "/dev/sd* disk count = $sd_count"
 
 if [ $sd_count != $disk_count ]; then
@@ -113,13 +113,11 @@ fi
 fixed_disk_size=1073741824
 disk_4k_size=4096
 dynamic_disk_size=136365211648
-
+os_disk=$(get_OSdisk)
+LogMsg "OS disk: $os_disk"
 for drive_name in /dev/sd*[^0-9]; do
-    # Skip /dev/sda and /dev/sdb
-    if [ ${drive_name} = "/dev/sda" ]; then
-        continue
-    fi
-    if [ ${drive_name} = "/dev/sdb" ]; then
+    # Skip the OS disk
+    if [ ${drive_name} = "/dev/${os_disk}" ]; then
         continue
     fi
 

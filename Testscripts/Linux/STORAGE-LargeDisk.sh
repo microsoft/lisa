@@ -169,7 +169,7 @@ done
 
 # Subtract the boot disk from the sdCount, then make
 # sure the two disk counts match
-sdCount=$((sdCount-2))
+sdCount=$((sdCount-1))
 echo "/dev/sd* disk count = $sdCount"
 
 if [ $sdCount != $diskCount ];
@@ -178,12 +178,14 @@ then
     SetTestStateAborted
     exit 0
 fi
+os_disk=$(get_OSdisk)
+LogMsg "OS disk: $os_disk"
 
 for driveName in /dev/sd*[^0-9];
 do
 
-    # Skip /dev/sda
-    if [ "${driveName}" = "/dev/sda" ] || [ "${driveName}" = "/dev/sdb" ]; then
+    # Skip the OS disk
+    if [ "${driveName}" = "/dev/${os_disk}" ]; then
         continue
     fi
 
