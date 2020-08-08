@@ -8,7 +8,7 @@ from lisa.core.executable import Executable
 from lisa.core.sshConnection import SshConnection
 from lisa.executable import Echo, Uname
 from lisa.util import constants
-from lisa.util.excutableResult import ExecutableResult
+from lisa.util.executableResult import ExecutableResult
 from lisa.util.logger import log
 from lisa.util.process import Process
 

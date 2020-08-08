@@ -4,7 +4,7 @@ from typing import Optional
 import paramiko  # type: ignore
 
 from lisa.util.connectionInfo import ConnectionInfo
-from lisa.util.excutableResult import ExecutableResult
+from lisa.util.executableResult import ExecutableResult
 from lisa.util.logger import log_lines
 
 

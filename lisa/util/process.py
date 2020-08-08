@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, cast
 
 import psutil  # type: ignore
 
-from lisa.util.excutableResult import ExecutableResult
+from lisa.util.executableResult import ExecutableResult
 from lisa.util.logger import log, log_lines
 
 if TYPE_CHECKING:
