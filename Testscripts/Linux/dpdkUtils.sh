@@ -101,7 +101,7 @@ function Install_Dpdk_Dependencies() {
 
 	LogMsg "Detected distro: ${distro}"
 	if [[ "${distro}" == ubuntu* ]]; then
-		apt_packages="librdmacm-dev librdmacm1 build-essential libnuma-dev libmnl-dev libelf-dev dpkg-dev"
+		apt_packages="librdmacm-dev librdmacm1 build-essential libnuma-dev libmnl-dev libelf-dev dpkg-dev meson"
 		if [[ "${distro}" == "ubuntu16.04" ]]; then
 			ssh ${install_ip} ". utils.sh && CheckInstallLockUbuntu && add-apt-repository ppa:canonical-server/dpdk-azure -y"
 		else
@@ -123,11 +123,11 @@ function Install_Dpdk_Dependencies() {
 			ssh ${install_ip} "yum makecache"
 			yum_flags="--enablerepo=C*-base --enablerepo=C*-updates"
 		fi
-		ssh ${install_ip} "yum install --nogpgcheck ${yum_flags} --setopt=skip_missing_names_on_install=False -y gcc make git tar wget dos2unix psmisc kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel libmnl-devel"
+		ssh ${install_ip} "yum install --nogpgcheck ${yum_flags} --setopt=skip_missing_names_on_install=False -y gcc make git tar wget dos2unix psmisc kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel libmnl-devel meson"
 
 	elif [[ "${distro}" == "sles15" ]]; then
 		local kernel=$(uname -r)
-		dependencies_install_command="zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install gcc make git tar wget dos2unix psmisc libnuma-devel numactl librdmacm1 rdma-core-devel libmnl-devel"
+		dependencies_install_command="zypper --no-gpg-checks --non-interactive --gpg-auto-import-keys install gcc make git tar wget dos2unix psmisc libnuma-devel numactl librdmacm1 rdma-core-devel libmnl-devel meson"
 		if [[ "${kernel}" == *azure ]]; then
 			ssh "${install_ip}" "zypper install --oldpackage -y kernel-azure-devel=${kernel::-6}"
 			dependencies_install_command="${dependencies_install_command} kernel-devel-azure"
@@ -168,7 +168,7 @@ function Install_Dpdk () {
 			ssh "${1}" "yum -y groupinstall 'Infiniband Support' && dracut --add-drivers 'mlx4_en mlx4_ib mlx5_ib' -f && systemctl enable rdma"
 			check_exit_status "Install Infiniband Support on ${1}" "exit"
 			ssh "${1}" "(grep -E '7.5|7.6|7.8' /etc/redhat-release) && curl https://partnerpipelineshare.blob.core.windows.net/kernel-devel-rpms/CentOS-Vault.repo > /etc/yum.repos.d/CentOS-Vault.repo"
-			packages+=(kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel)
+			packages+=(kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel meson)
 			ssh "${1}" "yum makecache"
 			check_package "libmnl-devel"
 			if [ $? -eq 0 ]; then
@@ -188,8 +188,9 @@ function Install_Dpdk () {
 			else
 				packages+=(rdma-core)
 			fi
+			ssh "${1}" ". utils.sh && CheckInstallLockUbuntu && add-apt-repository 'deb http://cz.archive.ubuntu.com/ubuntu eoan main universe' "
 			ssh "${1}" ". utils.sh && CheckInstallLockUbuntu && update_repos"
-			packages+=(librdmacm-dev librdmacm1 build-essential libnuma-dev libmnl-dev libelf-dev dpkg-dev)
+			packages+=(librdmacm-dev librdmacm1 build-essential libnuma-dev libmnl-dev libelf-dev dpkg-dev meson)
 			;;
 		suse|opensuse|sles)
 			ssh "${1}" ". utils.sh && add_sles_network_utilities_repo"
@@ -201,7 +202,7 @@ function Install_Dpdk () {
 			else
 				packages+=(kernel-default-devel)
 			fi
-			packages+=(libnuma-devel numactl librdmacm1 rdma-core-devel libmnl-devel)
+			packages+=(libnuma-devel numactl librdmacm1 rdma-core-devel libmnl-devel meson)
 			;;
 		*)
 			echo "Unknown distribution"
@@ -306,19 +307,19 @@ function Install_Dpdk () {
 	LogMsg "MLX_PMD flag enabling on ${1}"
 	if type Dpdk_Configure > /dev/null; then
 		echo "Calling testcase provided Dpdk_Configure(1) on ${1}"
-		ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && make config T=x86_64-native-linuxapp-gcc"
-		ssh ${1} "sed -ri 's,(MLX._PMD=)n,\1y,' ${LIS_HOME}/${DPDK_DIR}/build/.config"
+		ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && meson build"
+		#ssh ${1} "sed -ri 's,(MLX._PMD=)n,\1y,' ${LIS_HOME}/${DPDK_DIR}/build/.config"
 		# shellcheck disable=SC2034
 		ssh ${1} ". constants.sh; . utils.sh; . dpdkUtils.sh; cd ${LIS_HOME}/${DPDK_DIR}; $(typeset -f Dpdk_Configure); DPDK_DIR=${DPDK_DIR} LIS_HOME=${LIS_HOME} Dpdk_Configure ${1}"
-		ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR} && make -j && make install"
+		ssh ${1} "cd ${LIS_HOME}/${DPDK_DIR}/build && ninja && ninja install"
 		check_exit_status "dpdk build on ${1}" "exit"
 	else
 		ssh "${1}" "sed -i 's/^CONFIG_RTE_LIBRTE_MLX4_PMD=n/CONFIG_RTE_LIBRTE_MLX4_PMD=y/g' $RTE_SDK/config/common_base"
 		check_exit_status "${1} CONFIG_RTE_LIBRTE_MLX4_PMD=y" "exit"
 		ssh "${1}" "sed -i 's/^CONFIG_RTE_LIBRTE_MLX5_PMD=n/CONFIG_RTE_LIBRTE_MLX5_PMD=y/g' $RTE_SDK/config/common_base"
 		check_exit_status "${1} CONFIG_RTE_LIBRTE_MLX5_PMD=y" "exit"
-		ssh "${1}" "cd $RTE_SDK && make config O=$RTE_TARGET T=$RTE_TARGET"
-		ssh "${1}" "cd $RTE_SDK/$RTE_TARGET && make -j 2>&1 && make install 2>&1"
+		ssh "${1}" "cd $RTE_SDK && meson $RTE_TARGET"
+		ssh "${1}" "cd $RTE_SDK/$RTE_TARGET && ninja 2>&1 && ninja install 2>&1"
 		check_exit_status "dpdk build on ${1}" "exit"
 	fi
 
@@ -472,7 +473,7 @@ function Create_Testpmd_Cmd() {
 
 
 	# partial strings to concat
-	local testpmd="${LIS_HOME}/${DPDK_DIR}/build/app/testpmd"
+	local testpmd="dpdk-testpmd"
 	local eal_opts=""
 	case "$pmd" in
 		netvsc)
