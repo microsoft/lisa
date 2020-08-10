@@ -176,12 +176,7 @@ Main() {
         exit 0
     fi
     GetDistro
-    config_path="/boot/config-$(uname -r)"
-    if [[ $(detect_linux_distribution) == clear-linux-os ]]; then
-        config_path="/usr/lib/kernel/config-$(uname -r)"
-    elif [[ $(detect_linux_distribution) == coreos ]];then
-        config_path="/usr/boot/config-$(uname -r)"
-    fi
+    config_path=$(get_bootconfig_path)
 
     grep -q "CONFIG_BTRFS_FS is not set" $config_path
     if [ $? -eq 0 ] && [ $FSTYP == "btrfs" ];then

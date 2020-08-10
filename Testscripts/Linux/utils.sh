@@ -3721,3 +3721,13 @@ function mount_disk() {
 		done
 	done
 }
+
+function get_bootconfig_path() {
+	config_path="/boot/config-$(uname -r)"
+	if [[ $(detect_linux_distribution) == clear-linux-os ]]; then
+		config_path="/usr/lib/kernel/config-$(uname -r)"
+	elif [[ $(detect_linux_distribution) == coreos ]];then
+		config_path="/usr/boot/config-$(uname -r)"
+	fi
+	echo "$config_path"
+}

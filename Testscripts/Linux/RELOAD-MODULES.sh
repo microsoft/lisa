@@ -32,12 +32,7 @@ HYPERV_MODULES=(hv_vmbus hv_netvsc hv_storvsc hv_utils hv_balloon hid_hyperv hyp
 MODULES_TO_RELOAD=(hv_netvsc)
 MODULES_NOT_TO_RELOAD=(hyperv_fb)
 skip_modules=()
-config_path="/boot/config-$(uname -r)"
-if [[ $(detect_linux_distribution) == clear-linux-os ]]; then
-    config_path="/usr/lib/kernel/config-$(uname -r)"
-elif [[ $(detect_linux_distribution) == coreos ]];then
-    config_path="/usr/boot/config-$(uname -r)"
-fi
+config_path=$(get_bootconfig_path)
 
 declare -A config_modulesDic
 config_modulesDic=(
