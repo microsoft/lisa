@@ -31,8 +31,11 @@ class SuiteMetadata:
         )
 
         def wrapper(
-            test_class: Type[TestSuite], environment: Environment, cases: List[str]
+            test_class: Type[TestSuite],
+            environment: Environment,
+            cases: List[str],
+            metadata: SuiteMetadata,
         ) -> TestSuite:
-            return test_class(environment, cases)
+            return test_class(environment, cases, metadata)
 
         return wrapper

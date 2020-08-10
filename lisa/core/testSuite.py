@@ -8,14 +8,23 @@ from lisa.core.actionStatus import ActionStatus
 from lisa.util.logger import log
 
 if TYPE_CHECKING:
+    from lisa import SuiteMetadata
+
     from .environment import Environment
 
 
 class TestSuite(Action, metaclass=ABCMeta):
-    def __init__(self, environment: Environment, cases: List[str]) -> None:
+    def __init__(
+        self, environment: Environment, cases: List[str], suiteMetadata: SuiteMetadata
+    ) -> None:
         self.environment = environment
         self.cases = cases
+        self.suiteMetadata = suiteMetadata
         self.shouldStop = False
+
+    @property
+    def skipRun(self) -> bool:
+        return False
 
     def beforeSuite(self) -> None:
         pass
@@ -33,6 +42,9 @@ class TestSuite(Action, metaclass=ABCMeta):
         return "TestSuite"
 
     async def start(self) -> None:
+        if self.skipRun:
+            log.info(f"suite[{self.suiteMetadata.name}] skipped on this run")
+            return
         self.beforeSuite()
         for test_case in self.cases:
             self.beforeCase()

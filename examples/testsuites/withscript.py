@@ -12,6 +12,11 @@ from lisa.tool import Ntttcp
     tags=["demo"],
 )
 class WithScript(TestSuite):
+    @property
+    def skipRun(self) -> bool:
+        node = self.environment.defaultNode
+        return not node.isLinux
+
     @CaseMetadata(
         description="""
         this test case run script on test node.
