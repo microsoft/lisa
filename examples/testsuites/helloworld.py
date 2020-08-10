@@ -33,9 +33,10 @@ class HelloWorld(TestSuite):
 
         if node.isLinux:
             uname = node.getTool(Uname)
-            release, version, hardware = uname.getLinuxInformation()
+            release, version, hardware, os = uname.getLinuxInformation()
             log.info(
-                f"release: '{release}', version: '{version}', hardware: '{hardware}'"
+                f"release: '{release}', version: '{version}', "
+                f"hardware: '{hardware}', os: '{os}'"
             )
             log.info("It's Linux, try on Windows!")
         else:

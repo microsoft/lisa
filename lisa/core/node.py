@@ -39,6 +39,7 @@ class Node:
         self.kernelRelease: str = ""
         self.kernelVersion: str = ""
         self.hardwarePlatform: str = ""
+        self.os: str = ""
 
         self.tools: Dict[Type[Tool], Tool] = dict()
 
@@ -172,8 +173,9 @@ class Node:
                 self.kernelRelease,
                 self.kernelVersion,
                 self.hardwarePlatform,
+                self.os,
             ) = uname.getLinuxInformation(noErrorLog=True)
-            if not self.kernelRelease:
+            if (not self.kernelRelease) or ("Linux" not in self.os):
                 self._isLinux = False
             if self._isLinux:
                 log.info(

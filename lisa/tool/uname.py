@@ -7,7 +7,8 @@ from lisa.core.tool import Tool
 class Uname(Tool):
     def initialize(self) -> None:
         self.key_info_pattern = re.compile(
-            r"(?P<release>[^ ]*?) (?P<version>[\w\W]*) (?P<platform>[\w_]+?)$"
+            r"(?P<release>[^ ]*?) (?P<version>[\w\W]*) (?P<platform>[\w\W]+?) "
+            r"(?P<os>[\w\W]+?)$"
         )
         # uname's result suppose not be changed frequently,
         #  so cache it for performance.
@@ -16,6 +17,7 @@ class Uname(Tool):
         self.kernelRelease: str = ""
         self.kernelVersion: str = ""
         self.hardwarePlatform: str = ""
+        self.os: str = ""
 
     @property
     def command(self) -> str:
@@ -40,7 +42,7 @@ class Uname(Tool):
         """
 
         if (not self.hasResult) or force:
-            cmd_result = self.run("-vri", noErrorLog=noErrorLog)
+            cmd_result = self.run("-vrio", noErrorLog=noErrorLog)
 
             if cmd_result.exitCode != 0:
                 self.isLinux = False
@@ -51,9 +53,11 @@ class Uname(Tool):
                 self.kernelRelease = match_result.group("release")
                 self.kernelVersion = match_result.group("version")
                 self.hardwarePlatform = match_result.group("platform")
+                self.os = match_result.group("os")
             self.hasResult = True
         return (
             self.kernelRelease,
             self.kernelVersion,
             self.hardwarePlatform,
+            self.os,
         )
