@@ -1,13 +1,14 @@
 import re
 from typing import Tuple
 
-from lisa.core.executable import Executable
+from lisa.core.tool import Tool
 
 
-class Uname(Executable):
+class Uname(Tool):
     def initialize(self) -> None:
         self.key_info_pattern = re.compile(
-            r"(?P<release>[^ ]*?) (?P<version>[\w\W]*) (?P<platform>[\w_]+?)$"
+            r"(?P<release>[^ ]*?) (?P<version>[\w\W]*) (?P<platform>[\w\W]+?) "
+            r"(?P<os>[\w\W]+?)$"
         )
         # uname's result suppose not be changed frequently,
         #  so cache it for performance.
@@ -16,15 +17,18 @@ class Uname(Executable):
         self.kernelRelease: str = ""
         self.kernelVersion: str = ""
         self.hardwarePlatform: str = ""
+        self.os: str = ""
 
     @property
     def command(self) -> str:
         return "uname"
 
+    @property
     def canInstall(self) -> bool:
         return False
 
-    def installed(self) -> bool:
+    @property
+    def isInstalledInternal(self) -> bool:
         return True
 
     def getLinuxInformation(
@@ -38,7 +42,7 @@ class Uname(Executable):
         """
 
         if (not self.hasResult) or force:
-            cmd_result = self.run("-vri", noErrorLog=noErrorLog)
+            cmd_result = self.run("-vrio", noErrorLog=noErrorLog)
 
             if cmd_result.exitCode != 0:
                 self.isLinux = False
@@ -49,9 +53,11 @@ class Uname(Executable):
                 self.kernelRelease = match_result.group("release")
                 self.kernelVersion = match_result.group("version")
                 self.hardwarePlatform = match_result.group("platform")
+                self.os = match_result.group("os")
             self.hasResult = True
         return (
             self.kernelRelease,
             self.kernelVersion,
             self.hardwarePlatform,
+            self.os,
         )

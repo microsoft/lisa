@@ -35,7 +35,8 @@ class Environment(object):
             List[Dict[str, object]], spec.get(constants.ENVIRONMENTS_NODES)
         )
         for node_config in nodes_config:
-            node = NodeFactory.createNodeFromConfig(node_config)
+            index = str(len(environment.nodes))
+            node = NodeFactory.createNodeFromConfig(index, node_config)
             if node is not None:
                 environment.nodes.append(node)
             else:

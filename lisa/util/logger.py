@@ -3,13 +3,13 @@ import os
 import time
 
 # to prevent circular import, hard code it here.
-env_result_path = "LISA_RESULT_PATH"
+env_key_run_local_path = "LISA_RUN_LOCAL_PATH"
 
 
 def log_lines(logLevel: int, content: str, prefix: str = "") -> None:
     for line in content.splitlines(False):
         if prefix:
-            log.log(logLevel, f"{prefix} {line}")
+            log.log(logLevel, f"{prefix}{line}")
         else:
             log.log(logLevel, line)
 
@@ -21,7 +21,7 @@ def init_log() -> None:
         format=format,
         datefmt="%m%d %H:%M:%S",
         handlers=[
-            logging.FileHandler(f"{os.getenv(env_result_path)}/lisa-host.log"),
+            logging.FileHandler(f"{os.getenv(env_key_run_local_path)}/lisa-host.log"),
             logging.StreamHandler(),
         ],
     )

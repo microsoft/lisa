@@ -37,7 +37,7 @@ class LISARunner(TestRunner):
 
         for suite in suites.values():
             test_object: TestSuite = suite.test_class(
-                environment, list(suite.cases.keys())
+                environment, list(suite.cases.keys()), suite
             )
             await test_object.start()
 

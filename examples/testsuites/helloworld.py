@@ -1,7 +1,6 @@
 from lisa import CaseMetadata, SuiteMetadata
 from lisa.core.testSuite import TestSuite
-from lisa.executable import Uname
-from lisa.executable.echo import Echo
+from lisa.tool import Echo, Uname
 from lisa.util.logger import log
 
 
@@ -34,9 +33,10 @@ class HelloWorld(TestSuite):
 
         if node.isLinux:
             uname = node.getTool(Uname)
-            release, version, hardware = uname.getLinuxInformation()
+            release, version, hardware, os = uname.getLinuxInformation()
             log.info(
-                f"release: '{release}', version: '{version}', hardware: '{hardware}'"
+                f"release: '{release}', version: '{version}', "
+                f"hardware: '{hardware}', os: '{os}'"
             )
             log.info("It's Linux, try on Windows!")
         else:

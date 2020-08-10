@@ -1,16 +1,15 @@
 import logging
-import os
-import subprocess
+import pathlib
+import shlex
 import time
-from threading import Thread
 from timeit import default_timer as timer
-from types import TracebackType
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, cast
+from typing import TYPE_CHECKING, Dict, Optional, Type
 
-import psutil  # type: ignore
+import spur
 
 from lisa.util.executableResult import ExecutableResult
-from lisa.util.logger import log, log_lines
+from lisa.util.logger import log
+from lisa.util.shell import Shell
 
 if TYPE_CHECKING:
     BaseExceptionType = Type[BaseException]
@@ -18,100 +17,90 @@ else:
     BaseExceptionType = bool
 
 
-class LogPipe(Thread):
-    def __init__(self, level: int, cmd_id: str = ""):
-        """Setup the object with a logger and a loglevel
-        and start the thread
-        """
-        Thread.__init__(self)
-        self.output: str = ""
-        self.daemon = False
+class LogWriter:
+    def __init__(self, level: int, cmd_prefix: str = ""):
         self.level = level
-        self.fdRead, self.fdWrite = os.pipe()
-        self.pipeReader = os.fdopen(self.fdRead)
-        self.isReadCompleted = False
-        self.isClosed = False
-        self.cmd_id = cmd_id
-        self.start()
+        self.cmd_prefix = cmd_prefix
+        self.buffer: str = ""
 
-    def fileno(self) -> int:
-        """Return the write file descriptor of the pipe
-        """
-        return self.fdWrite
+    def write(self, message: str):
+        if message == "\n":
+            log.log(self.level, f"{self. cmd_prefix}{self.buffer}")
+            self.buffer = ""
+        else:
+            self.buffer = "".join([self.buffer, message])
 
-    def run(self) -> None:
-        """Run the thread, logging everything.
-        """
-        output = self.pipeReader.read()
-        self.output = "".join([self.output, output])
-        log_lines(self.level, output, prefix=f"cmd[{self.cmd_id}]")
-
-        self.pipeReader.close()
-        self.isReadCompleted = True
-
-    def close(self) -> None:
-        """Close the write end of the pipe.
-        """
-        if not self.isClosed:
-            os.close(self.fdWrite)
-            self.isClosed = True
+    def close(self):
+        if len(self.buffer) > 0:
+            log.log(self.level, f"{self.cmd_prefix}{self.buffer}")
 
 
 class Process:
-    def __init__(self) -> None:
-        self.process: Optional[subprocess.Popen[Any]] = None
-        self.exitCode: Optional[int] = None
-        self.log_pipe: Optional[LogPipe] = None
-
+    def __init__(self, cmd_prefix: str, shell: Shell, isLinux: bool = True) -> None:
+        # the shell can be LocalShell or SshShell
+        self.shell = shell
+        self.cmd_prefix = cmd_prefix
+        self.isLinux = isLinux
         self._running: bool = False
-
-    def __enter__(self) -> None:
-        pass
-
-    def __exit__(
-        self,
-        exc_type: Optional[BaseExceptionType],
-        exc_value: Optional[BaseException],
-        traceback: Optional[TracebackType],
-    ) -> None:
-        self.close()
 
     def start(
         self,
         command: str,
-        cwd: Optional[str] = None,
+        useBash: bool = False,
+        cwd: Optional[pathlib.Path] = None,
         new_envs: Optional[Dict[str, str]] = None,
-        cmd_id: str = "",
         noErrorLog: bool = False,
+        noInfoLog: bool = False,
     ) -> None:
         """
             command include all parameters also.
         """
-        dictEnv = dict(os.environ.copy())
-        if new_envs is not None:
-            for key, value in new_envs.items():
-                dictEnv[key] = value
-        self.stdout_pipe = LogPipe(logging.INFO, cmd_id)
+        stdoutLogLevel = logging.INFO
+        stderrLogLevel = logging.ERROR
+        if noInfoLog:
+            stdoutLogLevel = logging.DEBUG
         if noErrorLog:
-            logLevel = logging.INFO
-        else:
-            logLevel = logging.ERROR
-        self.stderr_pipe = LogPipe(logLevel, cmd_id)
-        self.process = subprocess.Popen(
-            command,
-            shell=True,
-            stdout=cast(int, self.stdout_pipe),
-            stderr=cast(int, self.stderr_pipe),
-            cwd=cwd,
-            env=cast(Optional[Dict[str, str]], dictEnv),
-        )
-        self._running = True
-        if self.process is not None:
-            log.debug(f"process {self.process.pid} started")
+            stderrLogLevel = stdoutLogLevel
+
+        self.stdout_writer = LogWriter(stdoutLogLevel, f"{self.cmd_prefix}stdout: ")
+        self.stderr_writer = LogWriter(stderrLogLevel, f"{self.cmd_prefix}stderr: ")
+
+        if useBash:
+            if self.isLinux:
+                command = f'bash -c "{command}"'
+            else:
+                command = f'cmd /c "{command}"'
+
+        split_command = shlex.split(command)
+        log.debug(f"split command: {split_command}")
+        try:
+            real_shell = self.shell.innerShell
+            assert real_shell
+            self._start_timer = timer()
+            self.process = real_shell.spawn(
+                command=split_command,
+                stdout=self.stdout_writer,
+                stderr=self.stderr_writer,
+                cwd=cwd,
+                update_env=new_envs,
+                allow_error=True,
+                store_pid=True,
+                encoding="utf-8",
+            )
+            self._running = True
+            log.debug(f"{self.cmd_prefix}started")
+        except (FileNotFoundError, spur.errors.NoSuchCommandError) as identifier:
+            # FileNotFoundError: not found command on Windows
+            # NoSuchCommandError: not found command on remote Linux
+            self._end_timer = timer()
+            self.process = ExecutableResult(
+                "", identifier.strerror, 1, self._end_timer - self._start_timer
+            )
+            log.debug(f"{self.cmd_prefix} not found command")
 
     def waitResult(self, timeout: float = 600) -> ExecutableResult:
         budget_time = timeout
-        # wait for all content read
+
         while self.isRunning() and budget_time >= 0:
             start = timer()
             time.sleep(0.01)
@@ -120,48 +109,32 @@ class Process:
 
         if budget_time < 0:
             if self.process is not None:
-                log.warn(f"process {self.process.pid} timeout in {timeout} sec")
+                log.warn(f"{self.cmd_prefix}timeout in {timeout} sec, and killed")
             self.stop()
 
-        # close to get pipe complete
-        self.close()
+        if not isinstance(self.process, ExecutableResult):
+            assert self.process
+            proces_result = self.process.wait_for_result()
+            self._end_timer = timer()
+            self.stdout_writer.close()
+            self.stderr_writer.close()
+            result = ExecutableResult(
+                proces_result.output.strip(),
+                proces_result.stderr_output.strip(),
+                proces_result.return_code,
+                self._end_timer - self._start_timer,
+            )
+        else:
+            result = self.process
 
-        # wait all content flushed
-        while (
-            not self.stdout_pipe.isReadCompleted or not self.stderr_pipe.isReadCompleted
-        ):
-            time.sleep(0.01)
-        return ExecutableResult(
-            self.stdout_pipe.output.strip(),
-            self.stderr_pipe.output.strip(),
-            self.exitCode,
-        )
+        log.info(f"{self.cmd_prefix}executed with {result.elapsed:.3f} sec")
+        return result
 
     def stop(self) -> None:
-        if self.process is not None:
-            children = cast(
-                List[psutil.Process], psutil.Process(self.process.pid).children(True)
-            )
-            for child in children:
-                child.terminate()
-            self.process.terminate()
-            log.debug(f"process {self.process.pid} stopped")
-
-    def close(self) -> None:
-        if self.stdout_pipe is not None:
-            self.stdout_pipe.close()
-        if self.stderr_pipe is not None:
-            self.stderr_pipe.close()
+        if self.process and not isinstance(self.process, ExecutableResult):
+            self.process.send_signal(9)
 
     def isRunning(self) -> bool:
-        self.exitCode = self.getExitCode()
-        if self.exitCode is not None and self.process is not None:
-            if self._running:
-                log.debug(f"process {self.process.pid} exited: {self.exitCode}")
-            self._running = False
+        if self._running:
+            self._running = self.process.is_running()
         return self._running
-
-    def getExitCode(self) -> Optional[int]:
-        if self.process is not None:
-            self.exitCode = self.process.poll()
-        return self.exitCode

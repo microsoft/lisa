@@ -7,3 +7,4 @@ class ExecutableResult:
     stdout: str
     stderr: str
     exitCode: Optional[int]
+    elapsed: float
