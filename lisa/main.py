@@ -11,21 +11,24 @@ from lisa.util.logger import init_log, log
 
 
 @retry(FileExistsError, tries=10, delay=0)  # type: ignore
-def create_run_root_path() -> Path:
+def create_run_path(root_path: Path) -> Path:
     date = datetime.utcnow().strftime("%Y%m%d")
     time = datetime.utcnow().strftime("%H%M%S-%f")[:-3]
-    current_path = f"runtime/runs/{date}/{date}-{time}"
-    path_obj = Path(current_path)
-    if path_obj.exists():
-        raise FileExistsError(f"{current_path} exists, and not found an unique path.")
-    return path_obj
+    run_path = Path(f"{date}/{date}-{time}")
+    local_path = root_path.joinpath(run_path)
+    if local_path.exists():
+        raise FileExistsError(f"{local_path} exists, and not found an unique path.")
+    return run_path
 
 
 def main() -> None:
+    local_path = Path("runtime").joinpath("runs").absolute()
     # create run root path
-    run_root_path = create_run_root_path().absolute()
-    run_root_path.mkdir(parents=True)
-    env.set_env(env.KEY_RUN_ROOT_PATH, str(run_root_path))
+    run_path = create_run_path(local_path)
+    local_path = local_path.joinpath(run_path)
+    local_path.mkdir(parents=True)
+    env.set_env(env.KEY_RUN_LOCAL_PATH, str(local_path))
+    env.set_env(env.KEY_RUN_PATH, str(run_path))
 
     args = parse_args()
 
@@ -33,7 +36,7 @@ def main() -> None:
     log.info(f"Python version: {sys.version}")
     log.info(f"local time: {datetime.now().astimezone()}")
     log.info(f"command line args: {sys.argv}")
-    log.info(f"run root path: {env.get_env(env.KEY_RUN_ROOT_PATH)}")
+    log.info(f"run local path: {env.get_run_local_path()}")
 
     if args.debug:
         log_level = DEBUG

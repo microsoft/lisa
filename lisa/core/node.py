@@ -1,42 +1,37 @@
 from __future__ import annotations
 
+import pathlib
 import random
-from timeit import default_timer as timer
 from typing import Dict, Optional, Type, TypeVar, cast
-
-import spur
-import spurplus
 
 from lisa.core.tool import Tool
 from lisa.tool import Echo, Uname
-from lisa.util import constants
+from lisa.util import constants, env
 from lisa.util.connectionInfo import ConnectionInfo
 from lisa.util.executableResult import ExecutableResult
 from lisa.util.logger import log
 from lisa.util.process import Process
+from lisa.util.shell import Shell
 
 T = TypeVar("T")
 
 
 class Node:
-    builtinTools = [Uname, Echo]
-
     def __init__(
         self,
+        id: str,
         isRemote: bool = True,
         spec: Optional[Dict[str, object]] = None,
         isDefault: bool = False,
     ) -> None:
-        self.name: Optional[str] = None
+        self.id = id
+        self.name: str = ""
         self.isDefault = isDefault
         self.isRemote = isRemote
         self.spec = spec
         self.connection_info: Optional[ConnectionInfo] = None
-        self.tempFolder: str = ""
-        if self.isRemote:
-            self.shell: Optional[spurplus.SshShell] = None
-        else:
-            self.shell: Optional[spur.LocalShell] = None
+        self.workingPath: pathlib.Path = ""
+        self.shell = Shell()
 
         self._isInitialized: bool = False
         self._isLinux: bool = True
@@ -46,11 +41,10 @@ class Node:
         self.hardwarePlatform: str = ""
 
         self.tools: Dict[Type[Tool], Tool] = dict()
-        for tool_class in self.builtinTools:
-            self.tools[tool_class] = tool_class(self)
 
     @staticmethod
     def createNode(
+        id: str,
         spec: Optional[Dict[str, object]] = None,
         node_type: str = constants.ENVIRONMENTS_NODES_REMOTE,
         isDefault: bool = False,
@@ -61,7 +55,7 @@ class Node:
             isRemote = False
         else:
             raise Exception(f"unsupported node_type '{node_type}'")
-        node = Node(spec=spec, isRemote=isRemote, isDefault=isDefault)
+        node = Node(id, spec=spec, isRemote=isRemote, isDefault=isDefault)
         log.debug(
             f"created node '{node_type}', isDefault: {isDefault}, isRemote: {isRemote}"
         )
@@ -99,27 +93,68 @@ class Node:
         self.connection_info = ConnectionInfo(
             publicAddress, publicPort, username, password, privateKeyFile,
         )
+        self.shell.setConnectionInfo(self.connection_info)
         self.internalAddress = address
         self.internalPort = port
+
+    def getToolPath(self, tool: Optional[Tool] = None) -> pathlib.Path:
+        assert self.workingPath
+        if tool:
+            tool_name = tool.__class__.__name__.lower()
+            tool_path = self.workingPath.joinpath(constants.PATH_TOOL, tool_name)
+        else:
+            tool_path = self.workingPath.joinpath(constants.PATH_TOOL)
+        return tool_path
 
     def getTool(self, tool_type: Type[T]) -> T:
         tool = cast(T, self.tools.get(tool_type))
         if tool is None:
+            tool_prefix = f"tool '{tool_type.__name__}'"
+            log.debug(f"{tool_prefix} is initializing")
             # the Tool is not installed on current node, try to install it.
-            tool = cast(Tool, T(self))
+            tool = cast(Tool, tool_type(self))
             if not tool.isInstalled:
+                log.debug(f"{tool_prefix} is not installed")
                 if tool.canInstall:
-                    tool.install()
-            if not tool.isInstalled:
-                raise Exception(
-                    f"Tool {tool_type.__name__} is not found on node, "
-                    f"and cannot be installed or is install failed."
-                )
+                    log.debug(f"{tool_prefix} installing")
+                    success = tool.install()
+                    if not success:
+                        raise Exception(f"{tool_prefix} install failed")
+                else:
+                    raise Exception(
+                        f"{tool_prefix} doesn't support install on Node({self.id}), "
+                        f"Linux({self.isLinux}), Remote({self.isRemote})"
+                    )
+            else:
+                log.debug(f"{tool_prefix} is installed already")
         return tool
 
-    def execute(self, cmd: str, noErrorLog: bool = False) -> ExecutableResult:
+    def execute(
+        self,
+        cmd: str,
+        useBash: bool = False,
+        noErrorLog: bool = False,
+        noInfoLog: bool = False,
+        cwd: pathlib.Path = None,
+    ) -> ExecutableResult:
         self._initialize()
-        return self._execute(cmd, noErrorLog)
+        process = self._execute(
+            cmd, useBash=useBash, noErrorLog=noErrorLog, noInfoLog=noInfoLog, cwd=cwd
+        )
+        return process.waitResult()
+
+    def executeAsync(
+        self,
+        cmd: str,
+        useBash: bool = False,
+        noErrorLog: bool = False,
+        noInfoLog: bool = False,
+        cwd: pathlib.Path = None,
+    ) -> Process:
+        self._initialize()
+        return self._execute(
+            cmd, useBash=useBash, noErrorLog=noErrorLog, noInfoLog=noInfoLog, cwd=cwd
+        )
 
     @property
     def isLinux(self) -> bool:
@@ -128,11 +163,11 @@ class Node:
 
     def _initialize(self) -> None:
         if not self._isInitialized:
-            # prevent loop calls, put it at top
+            # prevent loop calls, set _isInitialized to True first
             self._isInitialized = True
             log.debug(f"initializing node {self.name}")
+            self.shell.initialize()
             uname = self.getTool(Uname)
-
             (
                 self.kernelRelease,
                 self.kernelVersion,
@@ -150,33 +185,45 @@ class Node:
             else:
                 log.info(f"initialized Windows node '{self.name}', ")
 
-    def _execute(self, cmd: str, noErrorLog: bool = False) -> ExecutableResult:
-        cmd_prefix = f"cmd[{str(random.randint(0, 10000))}]"
-        start_timer = timer()
-        log.debug(f"{cmd_prefix}remote({self.isRemote}) '{cmd}'")
-
-        if self.shell is None:
+            # set working path
             if self.isRemote:
-                assert self.connection_info is not None
-                self.shell = spurplus.connect_with_retries(
-                    self.connection_info.address,
-                    port=self.connection_info.port,
-                    username=self.connection_info.username,
-                    password=self.connection_info.password,
-                    private_key_file=self.connection_info.privateKeyFile,
-                    missing_host_key=spur.ssh.MissingHostKey.accept,
-                )
+                assert self.shell
+                assert self.connection_info
+
+                if self.isLinux:
+                    remote_root_path = pathlib.Path("$HOME")
+                else:
+                    remote_root_path = pathlib.Path("%TEMP%")
+                working_path = remote_root_path.joinpath(
+                    constants.PATH_REMOTE_ROOT, env.get_run_path()
+                ).as_posix()
+
+                # expand environment variables in path
+                echo = self.getTool(Echo)
+                result = echo.run(working_path, useBash=True)
+
+                # PurePath is more reasonable here, but spurplus doesn't support it.
+                self.workingPath = pathlib.Path(result.stdout)
             else:
-                self.shell = spur.LocalShell()
+                self.workingPath = pathlib.Path(env.get_run_local_path())
+            log.debug(f"working path is: {self.workingPath.as_posix()}")
+            self.shell.mkdir(self.workingPath, parents=True, exist_ok=True)
 
-        process = Process(cmd_prefix, self.shell)
-        process.start(cmd, noErrorLog=noErrorLog)
-        result = process.waitResult()
-
-        end_timer = timer()
-        log.info(f"{cmd_prefix}executed with {end_timer - start_timer:.3f} sec")
-        return result
+    def _execute(
+        self,
+        cmd: str,
+        useBash: bool = False,
+        noErrorLog: bool = False,
+        noInfoLog: bool = False,
+        cwd: pathlib.Path = None,
+    ) -> Process:
+        cmd_prefix = f"cmd[{str(random.randint(0, 10000))}]"
+        log.debug(f"{cmd_prefix}remote({self.isRemote}) '{cmd}'")
+        process = Process(cmd_prefix, self.shell, self.isLinux)
+        process.start(
+            cmd, useBash=useBash, noErrorLog=noErrorLog, noInfoLog=noInfoLog, cwd=cwd
+        )
+        return process
 
     def close(self) -> None:
-        if self.shell and isinstance(self.shell, spurplus.SshShell):
-            self.shell.close()
+        self.shell.close()

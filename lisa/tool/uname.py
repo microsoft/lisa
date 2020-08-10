@@ -21,10 +21,12 @@ class Uname(Tool):
     def command(self) -> str:
         return "uname"
 
+    @property
     def canInstall(self) -> bool:
         return False
 
-    def installed(self) -> bool:
+    @property
+    def isInstalledInternal(self) -> bool:
         return True
 
     def getLinuxInformation(

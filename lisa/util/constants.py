@@ -3,11 +3,16 @@ CONFIG_CONFIG = "config"
 CONFIG_PLATFORM = "platform"
 CONFIG_ENVIRONMENT_FACTORY = "environmentFactory"
 
+# path related
+PATH_REMOTE_ROOT = "lisa_working"
+PATH_TOOL = "tool"
+
 # list types
 LIST = "list"
 LIST_CASE = "case"
 
 # common
+NODE = "node"
 NAME = "name"
 VALUE = "value"
 TYPE = "type"

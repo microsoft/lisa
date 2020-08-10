@@ -19,6 +19,6 @@ class CaseMetadata:
             start = timer()
             func(*args)
             end = timer()
-            log.info(f"case '{func.__name__}' ended with {end - start:.3f}")
+            log.info(f"case '{func.__name__}' ended with {end - start:.3f} sec")
 
         return wrapper

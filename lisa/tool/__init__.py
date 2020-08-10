@@ -1,5 +1,6 @@
 from .echo import Echo
-from .ping import Ping
+from .git import Git
+from .ntttcp import Ntttcp
 from .uname import Uname
 
-__all__ = ["Uname", "Ping", "Echo"]
+__all__ = ["Uname", "Ntttcp", "Echo", "Git"]
