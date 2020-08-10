@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from lisa.core.node import Node
 
 
-class Executable(ABC):
+class Tool(ABC):
     def __init__(self, node: Node) -> None:
         self.node: Node = node
         self.initialize()
@@ -30,7 +30,7 @@ class Executable(ABC):
     def installed(self) -> bool:
         raise NotImplementedError()
 
-    def install(self) -> None:
+    def install(self) -> bool:
         pass
 
     def run(
@@ -42,5 +42,5 @@ class Executable(ABC):
 
 
 class ExecutableException(Exception):
-    def __init__(self, exe: Executable, message: str):
+    def __init__(self, exe: Tool, message: str):
         self.message = f"{exe.command}: {message}"

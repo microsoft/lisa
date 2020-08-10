@@ -7,6 +7,20 @@ python-versions = "*"
 version = "1.4.4"
 
 [[package]]
+category = "main"
+description = "Annotate AST trees with source code positions"
+name = "asttokens"
+optional = false
+python-versions = "*"
+version = "2.0.4"
+
+[package.dependencies]
+six = "*"
+
+[package.extras]
+test = ["astroid", "pytest"]
+
+[[package]]
 category = "dev"
 description = "Classes Without Boilerplate"
 name = "attrs"
@@ -157,6 +171,20 @@ version = ">=4.3.5,<5"
 
 [package.extras]
 test = ["pytest (>=4.0.2,<6)"]
+
+[[package]]
+category = "main"
+description = "Provide design-by-contract with informative violation messages."
+name = "icontract"
+optional = false
+python-versions = "*"
+version = "2.3.4"
+
+[package.dependencies]
+asttokens = ">=2,<3"
+
+[package.extras]
+dev = ["mypy (0.750)", "pylint (2.3.1)", "yapf (0.20.2)", "tox (>=3.0.0)", "pydocstyle (>=2.1.1,<3)", "coverage (>=4.5.1,<5)", "docutils (>=0.14,<1)", "pygments (>=2.2.0,<3)", "dpcontracts (0.6.0)", "tabulate (>=0.8.7,<1)", "py-cpuinfo (>=5.0.0,<6)"]
 
 [[package]]
 category = "dev"
@@ -467,6 +495,46 @@ python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*"
 version = "1.15.0"
 
 [[package]]
+category = "main"
+description = "Run commands and manipulate files locally or over SSH using the same interface"
+name = "spur"
+optional = false
+python-versions = "*"
+version = "0.3.20"
+
+[package.dependencies]
+paramiko = ">=1.13.1,<3"
+
+[[package]]
+category = "main"
+description = "Manage remote machines and file operations over SSH."
+name = "spurplus"
+optional = false
+python-versions = "*"
+version = "2.3.3"
+
+[package.dependencies]
+icontract = ">=2.0.1,<3"
+spur = "0.3.20"
+temppathlib = ">=1.0.3,<2"
+typing_extensions = ">=3.6.2.1"
+
+[package.extras]
+dev = ["mypy (0.620)", "pylint (1.8.2)", "yapf (0.20.2)", "tox (>=3.0.0)", "coverage (>=4.5.1,<5)", "pydocstyle (>=2.1.1,<3)"]
+
+[[package]]
+category = "main"
+description = "Wraps tempfile to give you pathlib.Path."
+name = "temppathlib"
+optional = false
+python-versions = "*"
+version = "1.0.3"
+
+[package.extras]
+dev = ["mypy (0.570)", "pylint (1.8.2)", "yapf (0.20.2)", "tox (>=3.0.0)"]
+test = ["tox (>=3.0.0)"]
+
+[[package]]
 category = "dev"
 description = "A collection of helpers and mock objects for unit tests and doc tests."
 name = "testfixtures"
@@ -496,7 +564,7 @@ python-versions = "*"
 version = "1.4.1"
 
 [[package]]
-category = "dev"
+category = "main"
 description = "Backported and Experimental Type Hints for Python 3.5+"
 name = "typing-extensions"
 optional = false
@@ -513,7 +581,7 @@ python-versions = "*"
 version = "1.35"
 
 [metadata]
-content-hash = "59cde0dfa40d3e9d1494ed53142ff22b698a890bb024defd051d4fd1145caa0e"
+content-hash = "47bdcdb43ab99e6e4c725e65fd612356d1f74c86032b19d610aa27503d88f560"
 lock-version = "1.0"
 python-versions = "^3.8"
 
@@ -521,6 +589,10 @@ python-versions = "^3.8"
 appdirs = [
     {file = "appdirs-1.4.4-py2.py3-none-any.whl", hash = "sha256:a841dacd6b99318a741b166adb07e19ee71a274450e68237b4650ca1055ab128"},
     {file = "appdirs-1.4.4.tar.gz", hash = "sha256:7d5d0167b2b1ba821647616af46a749d1c653740dd0d2415100fe26e27afdf41"},
+]
+asttokens = [
+    {file = "asttokens-2.0.4-py2.py3-none-any.whl", hash = "sha256:766d3352908730efb20b95ae22db0f1cb1bedb67c6071fcffb5c236ea673f2f7"},
+    {file = "asttokens-2.0.4.tar.gz", hash = "sha256:a42e57e28f2ac1c85ed9b1f84109401427e5c63c04f61d15b8842b027eec5128"},
 ]
 attrs = [
     {file = "attrs-19.3.0-py2.py3-none-any.whl", hash = "sha256:08a96c641c3a74e44eb59afb61a24f2cb9f4d7188748e76ba4bb5edfa3cb7d1c"},
@@ -623,6 +695,9 @@ flake8-bugbear = [
 flake8-isort = [
     {file = "flake8-isort-3.0.1.tar.gz", hash = "sha256:5d976da513cc390232ad5a9bb54aee8a092466a15f442d91dfc525834bee727a"},
     {file = "flake8_isort-3.0.1-py2.py3-none-any.whl", hash = "sha256:df1dd6dd73f6a8b128c9c783356627231783cccc82c13c6dc343d1a5a491699b"},
+]
+icontract = [
+    {file = "icontract-2.3.4.tar.gz", hash = "sha256:5e45f7fcf957375163d63ef9b34a0413a15024f35029fd4b1f2ec21d8463879f"},
 ]
 isort = [
     {file = "isort-4.3.21-py2.py3-none-any.whl", hash = "sha256:6e811fcb295968434526407adb8796944f1988c5b65e8139058f2014cbe100fd"},
@@ -787,6 +862,16 @@ singleton-decorator = [
 six = [
     {file = "six-1.15.0-py2.py3-none-any.whl", hash = "sha256:8b74bedcbbbaca38ff6d7491d76f2b06b3592611af620f8426e82dddb04a5ced"},
     {file = "six-1.15.0.tar.gz", hash = "sha256:30639c035cdb23534cd4aa2dd52c3bf48f06e5f4a941509c8bafd8ce11080259"},
+]
+spur = [
+    {file = "spur-0.3.20-py2.py3-none-any.whl", hash = "sha256:f9446f418f419c046f49543ca55b35eff2e96b13cf7e0cf8605d657e5fa530ee"},
+    {file = "spur-0.3.20.tar.gz", hash = "sha256:f359e0573c0e4aaf8427494d6e67bc2bfac4f0c719e47f05e4750921b5804760"},
+]
+spurplus = [
+    {file = "spurplus-2.3.3.tar.gz", hash = "sha256:71c734a0827a68235d5b610c3570c3abc0c6be56708a340ba7bebc0a6eb77e92"},
+]
+temppathlib = [
+    {file = "temppathlib-1.0.3.tar.gz", hash = "sha256:58eaea9190639591f5005289e128b3b822eb5a3341d538ffdb7e67a73526421a"},
 ]
 testfixtures = [
     {file = "testfixtures-6.14.1-py2.py3-none-any.whl", hash = "sha256:30566e24a1b34e4d3f8c13abf62557d01eeb4480bcb8f1745467bfb0d415a7d9"},

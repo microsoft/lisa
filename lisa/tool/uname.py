@@ -1,10 +1,10 @@
 import re
 from typing import Tuple
 
-from lisa.core.executable import Executable
+from lisa.core.tool import Tool
 
 
-class Uname(Executable):
+class Uname(Tool):
     def initialize(self) -> None:
         self.key_info_pattern = re.compile(
             r"(?P<release>[^ ]*?) (?P<version>[\w\W]*) (?P<platform>[\w_]+?)$"

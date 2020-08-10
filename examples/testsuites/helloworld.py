@@ -1,7 +1,6 @@
 from lisa import CaseMetadata, SuiteMetadata
 from lisa.core.testSuite import TestSuite
-from lisa.executable import Uname
-from lisa.executable.echo import Echo
+from lisa.tool import Echo, Uname
 from lisa.util.logger import log
 
 

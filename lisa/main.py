@@ -1,4 +1,3 @@
-import os
 import sys
 from datetime import datetime
 from logging import DEBUG, INFO
@@ -12,10 +11,10 @@ from lisa.util.logger import init_log, log
 
 
 @retry(FileExistsError, tries=10, delay=0)  # type: ignore
-def create_result_path() -> Path:
+def create_run_root_path() -> Path:
     date = datetime.utcnow().strftime("%Y%m%d")
     time = datetime.utcnow().strftime("%H%M%S-%f")[:-3]
-    current_path = f"runtime/results/{date}/{date}-{time}"
+    current_path = f"runtime/runs/{date}/{date}-{time}"
     path_obj = Path(current_path)
     if path_obj.exists():
         raise FileExistsError(f"{current_path} exists, and not found an unique path.")
@@ -23,10 +22,10 @@ def create_result_path() -> Path:
 
 
 def main() -> None:
-    # create result path
-    result_path = create_result_path().absolute()
-    result_path.mkdir(parents=True)
-    env.set_env(env.RESULT_PATH, str(result_path))
+    # create run root path
+    run_root_path = create_run_root_path().absolute()
+    run_root_path.mkdir(parents=True)
+    env.set_env(env.KEY_RUN_ROOT_PATH, str(run_root_path))
 
     args = parse_args()
 
@@ -34,7 +33,7 @@ def main() -> None:
     log.info(f"Python version: {sys.version}")
     log.info(f"local time: {datetime.now().astimezone()}")
     log.info(f"command line args: {sys.argv}")
-    log.info(f"result path: {env.get_env(env.RESULT_PATH)}")
+    log.info(f"run root path: {env.get_env(env.KEY_RUN_ROOT_PATH)}")
 
     if args.debug:
         log_level = DEBUG
@@ -53,5 +52,4 @@ if __name__ == "__main__":
         log.exception(exception)
         exitCode = -1
     finally:
-        # force all threads end.
-        os._exit(exitCode)
+        sys.exit(exitCode)

@@ -1,7 +1,7 @@
-from lisa.core.executable import Executable
+from lisa.core.tool import Tool
 
 
-class Echo(Executable):
+class Echo(Tool):
     @property
     def command(self) -> str:
         return "echo"
