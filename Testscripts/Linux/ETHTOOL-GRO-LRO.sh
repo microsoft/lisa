@@ -96,6 +96,7 @@ for (( i = 0 ; i < 2 ; i++ )); do
     fi
 done
 
+LogMsg "Check - support to update lro or not by filter keyword 'fix' from the line of large-receive-offload."
 lro_output=$(ethtool -k "${SYNTH_NET_INTERFACES[@]}" | grep -i large-receive-offload | grep -i fixed)
 if [[ $? != 0 ]];then
     for (( i = 0 ; i < 2 ; i++ )); do

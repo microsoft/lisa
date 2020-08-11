@@ -3632,7 +3632,7 @@ function Run_SSHCommand()
 	done
 }
 
-get_AvailableDisks() {
+function get_AvailableDisks() {
 	for disk in $(lsblk | grep "sd[a-z].*disk" | cut -d ' ' -f1); do
 		if [ $(df | grep -c $disk) -eq 0 ]; then
 			echo $disk
@@ -3640,7 +3640,7 @@ get_AvailableDisks() {
 	done
 }
 
-delete_partition() {
+function delete_partition() {
 	all_disks=$(get_AvailableDisks)
 
 	declare -A TEST_DICT
