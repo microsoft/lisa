@@ -4,7 +4,6 @@ from hashlib import md5
 from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional, Type
 
-from lisa.core.testSuite import TestSuite
 from lisa.core.tool import Tool
 from lisa.util.executableResult import ExecutableResult
 from lisa.util.process import Process
