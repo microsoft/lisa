@@ -87,8 +87,7 @@ Make sure below settings are in root level of `.vscode/settings.json`
     "python.analysis.diagnosticMode": "workspace",
     "python.linting.mypyArgs": [
         "--strict",
-        "--ignore-missing-imports",
-        "--follow-imports=silent",
+        "--namespace-packages",
         "--show-column-numbers",
     ],
     "python.sortImports.path": "isort",
