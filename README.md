@@ -8,10 +8,14 @@ LISAv3 is a fresh new toolkit, and at its earliest stage. We are redeveloping
 LISA in Python and to support both Windows and Linux.
 
 ## Getting Started
-
+```
+git clone https://github.com/LIS/LISAv2.git
+cd LISAv2/
+git checkout main
+```
 ### Install Poetry
 
-Install your system’s Python package (either from your Linux distribution’s
+In the LISAv2 directory, install your system’s Python package (either from your Linux distribution’s
 package repositories, or directly from [Python](https://www.python.org/) for
 Windows). It used for bootstrapping [Poetry](https://python-poetry.org/docs/),
 then install Poetry:
