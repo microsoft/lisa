@@ -51,7 +51,7 @@ class CustomScriptSpec:
         root_path: Path,
         files: List[str],
         command: Optional[str] = None,
-        dependencies: List[Type[Tool]] = [],
+        dependencies: Optional[List[Type[Tool]]] = None,
     ) -> None:
         if not files:
             raise Exception("CustomScriptSpec should have at least one file")
@@ -74,8 +74,9 @@ class CustomScriptSpec:
     def install(self, node: Node) -> CustomScript:
         assert self.files
 
-        for dependency in self.dependencies:
-            node.getTool(dependency)
+        if self.dependencies:
+            for dependency in self.dependencies:
+                node.getTool(dependency)
 
         for file_str in self.files:
             file = self._localRootPath.joinpath(file_str)
