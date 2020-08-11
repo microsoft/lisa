@@ -1,8 +1,8 @@
 from pathlib import Path
 from typing import Optional, Union
 
-import spur
-import spurplus
+import spur  # type: ignore
+import spurplus  # type: ignore
 
 from lisa.util.connectionInfo import ConnectionInfo
 
@@ -12,7 +12,7 @@ class Shell:
     this class wraps local and remote file operations with similar behavior.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.isRemote = False
         self.innerShell: Optional[Union[spurplus.SshShell, spur.LocalShell]] = None
         self._isInitialized = False
@@ -21,7 +21,7 @@ class Shell:
         self.connectionInfo = connectionInfo
         self.isRemote = True
 
-    def initialize(self):
+    def initialize(self) -> None:
         if not self._isInitialized:
             self._isInitialized = True
             if self.isRemote:
@@ -37,7 +37,7 @@ class Shell:
             else:
                 self.innerShell = spur.LocalShell()
 
-    def close(self):
+    def close(self) -> None:
         if self.innerShell and isinstance(self.innerShell, spurplus.SshShell):
             self.innerShell.close()
 
@@ -47,7 +47,7 @@ class Shell:
         mode: int = 0o777,
         parents: bool = True,
         exist_ok: bool = False,
-    ):
+    ) -> None:
         self.initialize()
         if self.isRemote:
             assert self.innerShell

@@ -7,8 +7,10 @@ from .node import Node
 
 class NodeFactory:
     @staticmethod
-    def createNodeFromConfig(id: str, config: Dict[str, object]) -> Optional[Node]:
-        node_type = config.get(constants.TYPE)
+    def createNodeFromConfig(
+        identifier: str, config: Dict[str, object]
+    ) -> Optional[Node]:
+        node_type = cast(str, config.get(constants.TYPE))
         node = None
         if node_type is None:
             raise Exception("type of node shouldn't be None")
@@ -17,7 +19,9 @@ class NodeFactory:
             constants.ENVIRONMENTS_NODES_REMOTE,
         ]:
             is_default = cast(bool, config.get(constants.IS_DEFAULT, False))
-            node = Node.createNode(id, node_type=node_type, isDefault=is_default)
+            node = Node.createNode(
+                identifier, node_type=node_type, isDefault=is_default
+            )
             if node.isRemote:
                 fields = [
                     constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS,
@@ -32,7 +36,7 @@ class NodeFactory:
                 for key in config:
                     if key in fields:
                         parameters[key] = cast(str, config[key])
-                node.setConnectionInfo(**parameters)
+                node.setConnectionInfo(**parameters)  # type: ignore
         return node
 
     @staticmethod

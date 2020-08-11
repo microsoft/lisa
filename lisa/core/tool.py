@@ -5,7 +5,6 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, List, Optional, TypeVar
 
 from lisa.util.executableResult import ExecutableResult
-from lisa.util.process import Process
 
 if TYPE_CHECKING:
     from lisa.core.node import Node
@@ -59,7 +58,7 @@ class Tool(ABC):
     def install(self) -> bool:
         # check dependencies
         for dependency in self.dependentedTools:
-            self.node.getTool(dependency)
+            self.node.getTool(dependency)  # type: ignore
         result = self.installInternal()
         return result
 
@@ -68,8 +67,8 @@ class Tool(ABC):
         extraParameters: str = "",
         useBash: bool = False,
         noErrorLog: bool = False,
-        cwd: pathlib.Path = None,
-    ) -> Process:
+        cwd: Optional[pathlib.Path] = None,
+    ) -> ExecutableResult:
         command = f"{self.command} {extraParameters}"
         result: ExecutableResult = self.node.execute(
             command, useBash, noErrorLog=noErrorLog, cwd=cwd
@@ -82,7 +81,7 @@ class Tool(ABC):
         useBash: bool = False,
         noErrorLog: bool = False,
         noInfoLog: bool = False,
-        cwd: pathlib.Path = None,
+        cwd: Optional[pathlib.Path] = None,
     ) -> ExecutableResult:
         command = f"{self.command} {extraParameters}"
         result: ExecutableResult = self.node.execute(

@@ -51,4 +51,4 @@ class PlatformFactory:
 
     def _buildFactory(self) -> None:
         for sub_class in Platform.__subclasses__():
-            self.registerPlatform(sub_class)
+            self.registerPlatform(sub_class)  # type: ignore

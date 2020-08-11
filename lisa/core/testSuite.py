@@ -8,14 +8,16 @@ from lisa.core.actionStatus import ActionStatus
 from lisa.util.logger import log
 
 if TYPE_CHECKING:
-    from lisa import SuiteMetadata
-
-    from .environment import Environment
+    from lisa.core.testFactory import TestSuiteMetadata
+    from lisa.core.environment import Environment
 
 
 class TestSuite(Action, metaclass=ABCMeta):
     def __init__(
-        self, environment: Environment, cases: List[str], suiteMetadata: SuiteMetadata
+        self,
+        environment: Environment,
+        cases: List[str],
+        suiteMetadata: TestSuiteMetadata,
     ) -> None:
         self.environment = environment
         self.cases = cases

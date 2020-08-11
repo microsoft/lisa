@@ -33,7 +33,7 @@ class Uname(Tool):
 
     def getLinuxInformation(
         self, force: bool = False, noErrorLog: bool = False
-    ) -> Tuple[str, str, str]:
+    ) -> Tuple[str, str, str, str]:
         """
             return:
                 kernel-release

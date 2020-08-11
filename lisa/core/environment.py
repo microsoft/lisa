@@ -65,10 +65,10 @@ class Environment(object):
                 has_default_node = environment._validateSingleDefault(
                     has_default_node, is_default
                 )
-                for index in range(node_count):
+                for i in range(node_count):
                     copied_item = copy.deepcopy(item)
                     # only one default node for template also
-                    if is_default and index > 0:
+                    if is_default and i > 0:
                         del copied_item[constants.IS_DEFAULT]
                     nodes_spec.append(copied_item)
             del spec[constants.ENVIRONMENTS_TEMPLATE]
