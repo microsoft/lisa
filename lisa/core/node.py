@@ -1,10 +1,10 @@
 from __future__ import annotations
-from lisa.core.customScript import CustomScript, CustomScriptSpec
 
 import pathlib
 import random
 from typing import Dict, Optional, Type, TypeVar, cast
 
+from lisa.core.customScript import CustomScript, CustomScriptSpec
 from lisa.core.tool import Tool
 from lisa.tool import Echo, Uname
 from lisa.util import constants, env

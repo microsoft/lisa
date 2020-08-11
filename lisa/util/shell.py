@@ -1,7 +1,7 @@
 import os
+import shutil
 from pathlib import Path
 from typing import Optional, Union, cast
-import shutil
 
 import paramiko  # type: ignore
 import spur  # type: ignore

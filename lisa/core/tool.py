@@ -1,11 +1,11 @@
 from __future__ import annotations
-from lisa.util.process import Process
 
 import pathlib
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, List, Optional, Type
 
 from lisa.util.executableResult import ExecutableResult
+from lisa.util.process import Process
 
 if TYPE_CHECKING:
     from lisa.core.node import Node

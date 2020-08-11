@@ -1,4 +1,4 @@
-from typing import Dict, Optional, cast, Any
+from typing import Any, Dict, Optional, cast
 
 from lisa.core.node import Node
 from lisa.util import constants

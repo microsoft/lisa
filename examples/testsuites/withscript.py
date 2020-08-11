@@ -1,4 +1,5 @@
 from pathlib import Path
+
 from lisa import TestCaseMetadata, TestSuiteMetadata
 from lisa.core.customScript import CustomScriptSpec
 from lisa.core.testSuite import TestSuite
