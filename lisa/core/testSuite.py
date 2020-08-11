@@ -8,20 +8,18 @@ from lisa.core.actionStatus import ActionStatus
 from lisa.util.logger import log
 
 if TYPE_CHECKING:
-    from lisa.core.testFactory import TestSuiteMetadata
+    from lisa.core.testFactory import TestSuiteData
     from lisa.core.environment import Environment
 
 
 class TestSuite(Action, metaclass=ABCMeta):
     def __init__(
-        self,
-        environment: Environment,
-        cases: List[str],
-        suiteMetadata: TestSuiteMetadata,
+        self, environment: Environment, cases: List[str], testSuiteData: TestSuiteData,
     ) -> None:
         self.environment = environment
+        # test cases to run, must be a test method in this class.
         self.cases = cases
-        self.suiteMetadata = suiteMetadata
+        self.testSuiteData = testSuiteData
         self.shouldStop = False
 
     @property
@@ -45,7 +43,7 @@ class TestSuite(Action, metaclass=ABCMeta):
 
     async def start(self) -> None:
         if self.skipRun:
-            log.info(f"suite[{self.suiteMetadata.name}] skipped on this run")
+            log.info(f"suite[{self.testSuiteData.name}] skipped on this run")
             return
         self.beforeSuite()
         for test_case in self.cases:

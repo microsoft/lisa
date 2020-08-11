@@ -67,12 +67,14 @@ class Process:
 
         if useBash:
             if self.isLinux:
-                command = f'bash -c "{command}"'
+                split_command = ["bash", "-c"]
             else:
-                command = f'cmd /c "{command}"'
+                split_command = ["cmd", "/c"]
+            split_command.append(command)
+        else:
+            split_command = shlex.split(command)
+            log.debug(f"split command: {split_command}")
 
-        split_command = shlex.split(command)
-        log.debug(f"split command: {split_command}")
         try:
             real_shell = self.shell.innerShell
             assert real_shell
@@ -110,7 +112,7 @@ class Process:
         if budget_time < 0:
             if self.process is not None:
                 log.warn(f"{self.cmd_prefix}timeout in {timeout} sec, and killed")
-            self.stop()
+            self.kill()
 
         if not isinstance(self.process, ExecutableResult):
             assert self.process
@@ -127,10 +129,10 @@ class Process:
         else:
             result = self.process
 
-        log.info(f"{self.cmd_prefix}executed with {result.elapsed:.3f} sec")
+        log.debug(f"{self.cmd_prefix}executed with {result.elapsed:.3f} sec")
         return result
 
-    def stop(self) -> None:
+    def kill(self) -> None:
         if self.process and not isinstance(self.process, ExecutableResult):
             self.process.send_signal(9)
 

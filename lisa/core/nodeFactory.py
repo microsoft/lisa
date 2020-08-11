@@ -1,8 +1,7 @@
-from typing import Dict, Optional, cast
+from typing import Dict, Optional, cast, Any
 
+from lisa.core.node import Node
 from lisa.util import constants
-
-from .node import Node
 
 
 class NodeFactory:
@@ -32,11 +31,11 @@ class NodeFactory:
                     constants.ENVIRONMENTS_NODES_REMOTE_PASSWORD,
                     constants.ENVIRONMENTS_NODES_REMOTE_PRIVATEKEYFILE,
                 ]
-                parameters: Dict[str, str] = dict()
+                parameters: Dict[str, Any] = dict()
                 for key in config:
                     if key in fields:
                         parameters[key] = cast(str, config[key])
-                node.setConnectionInfo(**parameters)  # type: ignore
+                node.setConnectionInfo(**parameters)
         return node
 
     @staticmethod

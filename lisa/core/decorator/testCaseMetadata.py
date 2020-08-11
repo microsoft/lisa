@@ -5,7 +5,7 @@ from lisa.core.testFactory import TestFactory
 from lisa.util.logger import log
 
 
-class CaseMetadata:
+class TestCaseMetadata:
     def __init__(self, description: str, priority: Optional[int]) -> None:
         self.priority = priority
         self.description = description

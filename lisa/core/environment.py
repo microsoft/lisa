@@ -8,9 +8,8 @@ from lisa.util import constants
 from lisa.util.logger import log
 
 if TYPE_CHECKING:
+    from lisa.core.node import Node
     from lisa.core.platform import Platform
-
-    from .node import Node
 
 
 class Environment(object):

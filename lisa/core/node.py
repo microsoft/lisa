@@ -1,4 +1,5 @@
 from __future__ import annotations
+from lisa.core.customScript import CustomScript, CustomScriptSpec
 
 import pathlib
 import random
@@ -42,6 +43,7 @@ class Node:
         self.os: str = ""
 
         self.tools: Dict[Type[Tool], Tool] = dict()
+        self.scripts: Dict[str, CustomScript] = dict()
 
     @staticmethod
     def createNode(
@@ -98,6 +100,19 @@ class Node:
         self.internalAddress = address
         self.internalPort = port
 
+    def getScriptPath(self) -> pathlib.Path:
+        assert self.workingPath
+        script_path = self.workingPath.joinpath(constants.PATH_SCRIPT)
+        return script_path
+
+    def getScript(self, script_spec: CustomScriptSpec) -> CustomScript:
+        # register on node to prevent copy files again in another test suite
+        script = self.scripts.get(script_spec.name)
+        if not script:
+            script = script_spec.install(self)
+            self.scripts[script_spec.name] = script
+        return script
+
     def getToolPath(self, tool: Optional[Tool] = None) -> pathlib.Path:
         assert self.workingPath
         if tool:
@@ -108,18 +123,21 @@ class Node:
         return tool_path
 
     def getTool(self, tool_type: Type[T]) -> T:
-        tool = cast(T, self.tools.get(tool_type))  # type: ignore
+        if tool_type is CustomScript:
+            raise Exception("CustomScript should call getScript with instance")
+        cast_tool_type = cast(Type[Tool], tool_type)
+        tool = self.tools.get(cast_tool_type)
         if tool is None:
             tool_prefix = f"tool '{tool_type.__name__}'"
             log.debug(f"{tool_prefix} is initializing")
             # the Tool is not installed on current node, try to install it.
-            tool = cast(Tool, tool_type(self))
+            tool = cast_tool_type(self)
             if not tool.isInstalled:
                 log.debug(f"{tool_prefix} is not installed")
                 if tool.canInstall:
                     log.debug(f"{tool_prefix} installing")
-                    success = tool.install()
-                    if not success:
+                    is_success = tool.install()
+                    if not is_success:
                         raise Exception(f"{tool_prefix} install failed")
                 else:
                     raise Exception(
@@ -130,7 +148,8 @@ class Node:
                     )
             else:
                 log.debug(f"{tool_prefix} is installed already")
-        return tool
+            self.tools[cast_tool_type] = tool
+        return cast(T, tool)
 
     def execute(
         self,
@@ -222,7 +241,7 @@ class Node:
         cwd: Optional[pathlib.Path] = None,
     ) -> Process:
         cmd_prefix = f"cmd[{str(random.randint(0, 10000))}]"
-        log.debug(f"{cmd_prefix}remote({self.isRemote}) '{cmd}'")
+        log.debug(f"{cmd_prefix}remote({self.isRemote})bash({useBash}) '{cmd}'")
         process = Process(cmd_prefix, self.shell, self.isLinux)
         process.start(
             cmd, useBash=useBash, noErrorLog=noErrorLog, noInfoLog=noInfoLog, cwd=cwd

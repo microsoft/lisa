@@ -2,9 +2,8 @@ from typing import Dict, List, Optional, cast
 
 from singleton_decorator import singleton  # type: ignore
 
+from lisa.core.environment import Environment
 from lisa.util import constants
-
-from .environment import Environment
 
 
 @singleton

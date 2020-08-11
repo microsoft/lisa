@@ -39,6 +39,7 @@ class Uname(Tool):
                 kernel-release
                 kernel-version
                 hardware-platform
+                os
         """
 
         if (not self.hasResult) or force:

@@ -1,10 +1,10 @@
-from lisa import CaseMetadata, SuiteMetadata
+from lisa import TestCaseMetadata, TestSuiteMetadata
 from lisa.core.testSuite import TestSuite
 from lisa.tool import Echo, Uname
 from lisa.util.logger import log
 
 
-@SuiteMetadata(
+@TestSuiteMetadata(
     area="demo",
     category="simple",
     description="""
@@ -14,7 +14,7 @@ from lisa.util.logger import log
     tags=["demo"],
 )
 class HelloWorld(TestSuite):
-    @CaseMetadata(
+    @TestCaseMetadata(
         description="""
         this test case use default node to
             1. get system info
@@ -26,21 +26,12 @@ class HelloWorld(TestSuite):
         log.info(f"node count: {len(self.environment.nodes)}")
         node = self.environment.defaultNode
 
-        if node.isRemote:
-            log.info("It's remote machine, try on local one!")
-        else:
-            log.info("It's local machine, try on remote one!")
-
-        if node.isLinux:
-            uname = node.getTool(Uname)
-            release, version, hardware, os = uname.getLinuxInformation()
-            log.info(
-                f"release: '{release}', version: '{version}', "
-                f"hardware: '{hardware}', os: '{os}'"
-            )
-            log.info("It's Linux, try on Windows!")
-        else:
-            log.info("It's Windows, try on Linux!")
+        uname = node.getTool(Uname)
+        release, version, hardware, os = uname.getLinuxInformation()
+        log.info(
+            f"release: '{release}', version: '{version}', "
+            f"hardware: '{hardware}', os: '{os}'"
+        )
 
         # get process output directly.
         echo = node.getTool(Echo)
@@ -49,7 +40,7 @@ class HelloWorld(TestSuite):
         log.info(f"stderr of node: '{result.stderr}'")
         log.info(f"exitCode of node: '{result.exitCode}'")
 
-    @CaseMetadata(
+    @TestCaseMetadata(
         description="""
         do nothing, show how caseSetup, suiteSetup works.
         """,

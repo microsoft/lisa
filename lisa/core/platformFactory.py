@@ -2,10 +2,9 @@ from typing import Dict, List, Optional, Type, cast
 
 from singleton_decorator import singleton  # type: ignore
 
+from lisa.core.platform import Platform
 from lisa.util import constants
 from lisa.util.logger import log
-
-from .platform import Platform
 
 
 @singleton
@@ -51,4 +50,5 @@ class PlatformFactory:
 
     def _buildFactory(self) -> None:
         for sub_class in Platform.__subclasses__():
-            self.registerPlatform(sub_class)  # type: ignore
+            platform_class = cast(Type[Platform], sub_class)
+            self.registerPlatform(platform_class)

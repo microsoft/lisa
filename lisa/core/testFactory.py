@@ -6,7 +6,7 @@ from lisa.core.testSuite import TestSuite
 from lisa.util.logger import log
 
 
-class TestCaseMetadata:
+class TestCaseData:
     def __init__(
         self,
         method: Callable[[], None],
@@ -23,10 +23,10 @@ class TestCaseMetadata:
         self.method = method
         self.description = description
         self.priority = priority
-        self.suite: TestSuiteMetadata
+        self.suite: TestSuiteData
 
 
-class TestSuiteMetadata:
+class TestSuiteData:
     def __init__(
         self,
         test_class: Type[TestSuite],
@@ -46,22 +46,20 @@ class TestSuiteMetadata:
         self.category = category
         self.description = description
         self.tags = tags
-        self.cases: Dict[str, TestCaseMetadata] = dict()
+        self.cases: Dict[str, TestCaseData] = dict()
 
-    def addCase(self, test_case: TestCaseMetadata) -> None:
+    def addCase(self, test_case: TestCaseData) -> None:
         if self.cases.get(test_case.key) is None:
             self.cases[test_case.key] = test_case
         else:
-            raise Exception(
-                f"TestSuiteMetadata has test method {test_case.key} already"
-            )
+            raise Exception(f"TestSuiteData has test method {test_case.key} already")
 
 
 @singleton
 class TestFactory:
     def __init__(self) -> None:
-        self.suites: Dict[str, TestSuiteMetadata] = dict()
-        self.cases: Dict[str, TestCaseMetadata] = dict()
+        self.suites: Dict[str, TestSuiteData] = dict()
+        self.cases: Dict[str, TestCaseData] = dict()
 
     def addTestClass(
         self,
@@ -79,9 +77,7 @@ class TestFactory:
         key = name.lower()
         test_suite = self.suites.get(key)
         if test_suite is None:
-            test_suite = TestSuiteMetadata(
-                test_class, area, category, description, tags
-            )
+            test_suite = TestSuiteData(test_class, area, category, description, tags)
             self.suites[key] = test_suite
         else:
             raise Exception(f"TestFactory duplicate test class name: {key}")
@@ -98,7 +94,7 @@ class TestFactory:
     def addTestMethod(
         self, test_method: Callable[[], None], description: str, priority: Optional[int]
     ) -> None:
-        test_case = TestCaseMetadata(test_method, description, priority)
+        test_case = TestCaseData(test_method, description, priority)
         full_name = test_case.full_name
 
         if self.cases.get(full_name) is None:
@@ -117,7 +113,7 @@ class TestFactory:
             self._addCaseToSuite(test_suite, test_case)
 
     def _addCaseToSuite(
-        self, test_suite: TestSuiteMetadata, test_case: TestCaseMetadata
+        self, test_suite: TestSuiteData, test_case: TestCaseData
     ) -> None:
         test_suite.addCase(test_case)
         test_case.suite = test_suite

@@ -6,11 +6,11 @@ from lisa.core.testFactory import TestFactory
 from lisa.core.testSuite import TestSuite
 
 if TYPE_CHECKING:
-    from lisa.core.testFactory import TestSuiteMetadata
     from lisa.core.environment import Environment
+    from lisa.core.testFactory import TestSuiteData
 
 
-class SuiteMetadata:
+class TestSuiteMetadata:
     def __init__(
         self,
         area: str,
@@ -35,7 +35,7 @@ class SuiteMetadata:
             test_class: Type[TestSuite],
             environment: Environment,
             cases: List[str],
-            metadata: TestSuiteMetadata,
+            metadata: TestSuiteData,
         ) -> TestSuite:
             return test_class(environment, cases, metadata)
 

@@ -1,15 +1,14 @@
 from __future__ import annotations
+from lisa.util.process import Process
 
 import pathlib
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, List, Optional, TypeVar
+from typing import TYPE_CHECKING, List, Optional, Type
 
 from lisa.util.executableResult import ExecutableResult
 
 if TYPE_CHECKING:
     from lisa.core.node import Node
-
-T = TypeVar("T")
 
 
 class Tool(ABC):
@@ -22,7 +21,7 @@ class Tool(ABC):
         pass
 
     @property
-    def dependentedTools(self) -> List[T]:
+    def dependencies(self) -> List[Type[Tool]]:
         """
         declare all dependencies here
         they can be batch check and installed.
@@ -41,7 +40,13 @@ class Tool(ABC):
 
     @property
     def isInstalledInternal(self) -> bool:
-        result = self.node.execute(f'bash -c "command -v {self.command}"')
+        if self.node.isLinux:
+            where_command = "command -v"
+        else:
+            where_command = "where"
+        result = self.node.execute(
+            f"{where_command} {self.command}", useBash=True, noInfoLog=True
+        )
         self._isInstalled = result.exitCode == 0
         return self._isInstalled
 
@@ -57,8 +62,8 @@ class Tool(ABC):
 
     def install(self) -> bool:
         # check dependencies
-        for dependency in self.dependentedTools:
-            self.node.getTool(dependency)  # type: ignore
+        for dependency in self.dependencies:
+            self.node.getTool(dependency)
         result = self.installInternal()
         return result
 
@@ -67,13 +72,14 @@ class Tool(ABC):
         extraParameters: str = "",
         useBash: bool = False,
         noErrorLog: bool = False,
+        noInfoLog: bool = False,
         cwd: Optional[pathlib.Path] = None,
-    ) -> ExecutableResult:
+    ) -> Process:
         command = f"{self.command} {extraParameters}"
-        result: ExecutableResult = self.node.execute(
-            command, useBash, noErrorLog=noErrorLog, cwd=cwd
+        process = self.node.executeAsync(
+            command, useBash, noErrorLog=noErrorLog, cwd=cwd, noInfoLog=noInfoLog,
         )
-        return result
+        return process
 
     def run(
         self,
@@ -83,11 +89,14 @@ class Tool(ABC):
         noInfoLog: bool = False,
         cwd: Optional[pathlib.Path] = None,
     ) -> ExecutableResult:
-        command = f"{self.command} {extraParameters}"
-        result: ExecutableResult = self.node.execute(
-            command, useBash, noErrorLog=noErrorLog, noInfoLog=noInfoLog, cwd=cwd
+        process = self.runAsync(
+            extraParameters=extraParameters,
+            useBash=useBash,
+            noErrorLog=noErrorLog,
+            noInfoLog=noInfoLog,
+            cwd=cwd,
         )
-        return result
+        return process.waitResult()
 
 
 class ExecutableException(Exception):

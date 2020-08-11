@@ -1,9 +1,11 @@
-from lisa import CaseMetadata, SuiteMetadata
+from pathlib import Path
+from lisa import TestCaseMetadata, TestSuiteMetadata
+from lisa.core.customScript import CustomScriptSpec
 from lisa.core.testSuite import TestSuite
-from lisa.tool import Ntttcp
+from lisa.util.logger import log
 
 
-@SuiteMetadata(
+@TestSuiteMetadata(
     area="demo",
     category="simple",
     description="""
@@ -17,7 +19,10 @@ class WithScript(TestSuite):
         node = self.environment.defaultNode
         return not node.isLinux
 
-    @CaseMetadata(
+    def beforeSuite(self) -> None:
+        self.echoScript = CustomScriptSpec(Path(__file__).parent, ["scripts/echo.sh"])
+
+    @TestCaseMetadata(
         description="""
         this test case run script on test node.
         """,
@@ -25,5 +30,6 @@ class WithScript(TestSuite):
     )
     def script(self) -> None:
         node = self.environment.defaultNode
-        ntttcp = node.getTool(Ntttcp)
-        ntttcp.help()
+        script_instance = node.getScript(self.echoScript)
+        result = script_instance.run()
+        log.info(f"result stdout: {result.stdout}")

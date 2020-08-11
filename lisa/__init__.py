@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from .core.decorator.caseMetadata import CaseMetadata
-from .core.decorator.suiteMetadata import SuiteMetadata
-from .core.node import Node
-from .core.testSuite import TestSuite
+from lisa.core.decorator.testCaseMetadata import TestCaseMetadata
+from lisa.core.decorator.testSuiteMetadata import TestSuiteMetadata
+from lisa.core.node import Node
+from lisa.core.testSuite import TestSuite
 
 __all__ = [
     "Node",
-    "SuiteMetadata",
-    "CaseMetadata",
+    "TestSuiteMetadata",
+    "TestCaseMetadata",
     "TestSuite",
 ]
