@@ -275,7 +275,7 @@
     <Tags>lsvmbus</Tags>
     <Priority>0</Priority>
     <SetupConfig>
-      <SetupType>OneVM</SetupType>
+      <SetupType>OneVM8NIC</SetupType>
       <OverrideVMSize>Standard_DS4_v2</OverrideVMSize>
     </SetupConfig>
   </test>

@@ -100,45 +100,46 @@ if ! which bc; then
     update_repos
     install_package bc
 fi
+TIMESTAMP=$(date +%Y%m%d-%H%M)
+$lsvmbus_path -vvv > "lsvmbus_$TIMESTAMP.log"
+net_adapter_index=0
+network_counter=0
+scsi_index=0
+scsi_counter=0
 
-$lsvmbus_path -vvv > lsvmbus.log
-
-# Check number of NICs on VM
-nics=$( grep -o "Synthetic network adapter" lsvmbus.log | wc -l)
-if [ "$nics" -gt 1 ]; then
-    LogMsg "Counting the cores spread only for the first NIC..."
-    sed -i ':a;N;$!ba;s/Synthetic network adapter/ignored adapter/2' lsvmbus.log && \
-    sed -i '/ignored adapter/,/^$/d' lsvmbus.log
-fi
-
-# Check number of SCSI Controllers on VM
-scsiAdapters=$( grep -o "Synthetic SCSI Controller" lsvmbus.log | wc -l)
-if [ "$scsiAdapters" -gt 1 ]; then
-    LogMsg "Counting the cores spread only for the first SCSI Adapter..."
-    sed -i ':a;N;$!ba;s/Synthetic SCSI Controller/ignored controller/2' lsvmbus.log && \
-    sed -i '/ignored controller/,/^$/d' lsvmbus.log
-fi
+declare -A ADAPTER_DICT=()
+declare -A SCSI_DICT=()
 
 while IFS='' read -r line || [[ -n "$line" ]]; do
-    if [[ $line =~ "VMBUS ID" ]]; then
+    if [[ "$line" =~ "VMBUS ID" ]]; then
         token=""
     fi
-    if [[ $line =~ "Synthetic network adapter" ]]; then
-        token="adapter"
-    fi
 
-    if [[ $line =~ "Synthetic SCSI Controller" ]]; then
+    if [[ "$line" =~ "Synthetic SCSI Controller" ]]; then
+        ((scsi_index++))
         token="controller"
     fi
 
-    if [[ -n $token ]] && [[ $line =~ "target_cpu" ]]; then
-        if [[ $token == "adapter" ]]; then
-            ((network_counter++))
-        elif [[ $token == "controller" ]]; then
-            ((scsi_counter++))
-        fi
+    if [[ "$line" =~ "Synthetic network adapter" ]]; then
+        ((net_adapter_index++))
+        token="adapter"
     fi
-done < "lsvmbus.log"
+
+    if [[ "$line" == "" ]]; then
+        token=""
+        network_counter=0
+        scsi_counter=0
+    fi
+
+    if [[ "$token" == "adapter" ]] && [[ "$line" =~ "target_cpu" ]]; then
+        ADAPTER_DICT["adapter$net_adapter_index"]=$((++network_counter))
+    fi
+
+    if [[ "$token" == "controller" ]] && [[ "$line" =~ "target_cpu" ]]; then
+        SCSI_DICT["scsi$scsi_index"]=$((++scsi_counter))
+    fi
+done < "lsvmbus_$TIMESTAMP.log"
+
 
 # the cpu count that attached to the network driver is MIN(the number of vCPUs, 8).
 if [ "$VCPU" -gt 8 ];then
@@ -147,48 +148,51 @@ else
     expected_network_counter=$VCPU
 fi
 
-case $VM_Size in
-    # If Lv2, the cpu count that attached to the SCSI driver is MIN(the number of vCPUs, 64).
-    *Standard_L*s_v2*)
-        if [ "$VCPU" -gt 64 ];then
-            expected_scsi_counter=64
-        else
-            expected_scsi_counter=$VCPU
-        fi
-    ;;
-    # Default: the cpu count that attached to the SCSI driver is MIN(the number of vCPUs/4, 64).
-    *)
-        if [ "$VCPU" -gt $((64*4)) ];then
-            expected_scsi_counter=64
-        else
-            expected_scsi_counter=$(bc <<<"scale=2;$VCPU/4")
-            if ! [[ "$expected_scsi_counter" =~ \.00 ]]; then
-                # In this case we have a float number that needs to be rounded up.
-                # For example with 6 cores, scsi controller is spread on 2 cores.
-                expected_scsi_counter=$(bc <<<"("$expected_scsi_counter"+1)/1")
-            fi
-            # normalizing the number to integer
-            expected_scsi_counter=${expected_scsi_counter%.*}
-        fi
-    ;;
-esac
+# Default: the cpu count that attached to the SCSI driver is MIN(the number of vCPUs/4, 64).
+if [ "$VCPU" -gt $((64*4)) ];then
+    expected_scsi_counter=64
+else
+    expected_scsi_counter=$(bc <<<"scale=2;$VCPU/4")
+    if ! [[ "$expected_scsi_counter" =~ \.00 ]]; then
+        # In this case we have a float number that needs to be rounded up.
+        # For example with 6 cores, scsi controller is spread on 2 cores.
+        expected_scsi_counter=$(bc <<<"("$expected_scsi_counter"+1)/1")
+    fi
+    # normalizing the number to integer
+    expected_scsi_counter=${expected_scsi_counter%.*}
+fi
 
-if [ "$network_counter" != "$expected_network_counter" ] || [ "$scsi_counter" != "$expected_scsi_counter" ]; then
-    error_msg="Error: values are wrong. Expected for network adapter: ${expected_network_counter} and actual: $network_counter;
-    expected for scsi controller: ${expected_scsi_counter}, actual: $scsi_counter."
+testfail=0
+for adapter in "${!ADAPTER_DICT[@]}"; do
+    if [ "${ADAPTER_DICT[$adapter]}" != "$expected_network_counter" ]; then
+        error_msg="Error: values are wrong. Expected for network adapter $adapter channels: $expected_network_counter and actual: ${ADAPTER_DICT[$adapter]}"
+        LogErr "$error_msg"
+        UpdateSummary "$error_msg"
+        testfail=1
+    else
+        UpdateSummary "Expected for network adapter $adapter channels: $expected_network_counter and actual: ${ADAPTER_DICT[$adapter]}"
+    fi
+done
+
+for scsi in "${!SCSI_DICT[@]}"; do
+    if [ "${SCSI_DICT[$scsi]}" != "$expected_scsi_counter" ]; then
+        error_msg="Error: values are wrong. Expected for scsi $scsi channels: $expected_scsi_counter and actual: ${SCSI_DICT[$scsi]}"
+        LogErr "$error_msg"
+        UpdateSummary "$error_msg"
+        testfail=1
+    else
+        UpdateSummary "Expected for scsi $scsi channels: $expected_scsi_counter and actual: ${SCSI_DICT[$scsi]}"
+    fi
+done
+
+
+if [ "$testfail" == 1 ]; then
+    error_msg="scsi channels or network adapter channels are NOT expected, test fail."
     LogErr "$error_msg"
     UpdateSummary "$error_msg"
     SetTestStateFailed
     exit 0
 fi
-
-msg="Network driver is spread on all $network_counter cores as expected ${expected_network_counter} cores."
-LogMsg "$msg"
-UpdateSummary "$msg"
-
-msg="Storage driver is spread on all $scsi_counter cores as expected ${expected_scsi_counter} cores."
-LogMsg "$msg"
-UpdateSummary "$msg"
 
 SetTestStateCompleted
 exit 0
