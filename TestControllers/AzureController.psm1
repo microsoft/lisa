@@ -238,11 +238,11 @@ Class AzureController : TestController
 
 		if ($this.ResultDBTable) {
 			$azureConfig.ResultsDatabase.dbtable = ($this.ResultDBTable).Trim()
-			Write-LogInfo "ResultDBTable : $($this.ResultDBTable) added to GlobalConfig.Global.HyperV.ResultsDatabase.dbtable"
+			Write-LogInfo "ResultDBTable : $($this.ResultDBTable) added to GlobalConfig.Global.Azure.ResultsDatabase.dbtable"
 		}
 		if ($this.ResultDBTestTag) {
 			$azureConfig.ResultsDatabase.testTag = ($this.ResultDBTestTag).Trim()
-			Write-LogInfo "ResultDBTestTag: $($this.ResultDBTestTag) added to GlobalConfig.Global.HyperV.ResultsDatabase.testTag"
+			Write-LogInfo "ResultDBTestTag: $($this.ResultDBTestTag) added to GlobalConfig.Global.Azure.ResultsDatabase.testTag"
 		}
 
 		Write-LogInfo "------------------------------------------------------------------"

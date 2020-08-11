@@ -498,9 +498,7 @@ Class TestController
 						$currentTestResult.testSummary += New-ResultSummary -testResult "Test fails for log check"
 					}
 				}
-				if ($this.EnableTelemetry) {
-					$this.SubmitTelemetryResult($VmData, $global:user, $global:password, $CurrentTestData, $currentTestResult) | Out-Null
-				}
+				$this.GetSystemBasicLogs($VmData, $global:user, $global:password, $CurrentTestData, $currentTestResult, $this.EnableTelemetry) | Out-Null
 			}
 
 			Write-LogInfo "==> Run test cleanup script if defined."
@@ -583,7 +581,7 @@ Class TestController
 						$currentTestCase.SetupConfig.TestLocation, $this.RGIdentifier, $this.UseExistingRG, $this.ResourceCleanup)
 					$vmData = $null
 					$deployErrors = ""
-					$telemetrySubmitted = $false
+					$systemBasicLogsCollected = $false
 					if ($deployVMResults) {
 						# By default set $vmData with $deployVMResults, because providers may return array of vmData directly if no errors.
 						$vmData = $deployVMResults
@@ -595,12 +593,12 @@ Class TestController
 						# if there are deployment errors, skip RunTestCase and TryCleanupOnFailure, and we don't care about '-ReuseVmOnFailure', because this is unrecoverable
 						if ($vmData -and $deployVMResults.Error) {
 							# Before TryCleanupOnFailure, Set the case to abort, and Submit Telemetry Result
-							if (!$telemetrySubmitted -and $this.EnableTelemetry) {
+							if (!$systemBasicLogsCollected) {
 								$currentTestResult = Create-TestResultObject
 								$currentTestResult.TestResult = $global:ResultAborted
 								$currentTestResult.TestSummary += $deployErrors
-								$this.SubmitTelemetryResult($vmData, $global:user, $global:password, $currentTestCase, $currentTestResult) | Out-Null
-								$telemetrySubmitted = $true
+								$this.GetSystemBasicLogs($vmData, $global:user, $global:password, $currentTestCase, $currentTestResult, $this.EnableTelemetry) | Out-Null
+								$systemBasicLogsCollected = $true
 							}
 							&$TryCleanupOnFailure -VmDataOnFailure ([ref]$vmData) -SetupTypeData $this.SetupTypeTable[$setupType]
 						}
@@ -608,16 +606,16 @@ Class TestController
 					if (!$vmData) {
 						# Failed to deploy the VMs, Set the case to abort
 						$currentTestResult = Create-TestResultObject
-						if (!$telemetrySubmitted -and $this.EnableTelemetry) {
+						if (!$systemBasicLogsCollected) {
 							$currentTestResult = Create-TestResultObject
 							$currentTestResult.TestResult = $global:ResultAborted
 							$currentTestResult.TestSummary += $deployErrors
-							$this.SubmitTelemetryResult($vmData, $global:user, $global:password, $currentTestCase, $currentTestResult) | Out-Null
+							$this.GetSystemBasicLogs($vmData, $global:user, $global:password, $currentTestCase, $currentTestResult, $this.EnableTelemetry) | Out-Null
 						}
 						Write-LogWarn("VMData is empty (null). Aborting the testing.")
 						$this.JunitReport.StartLogTestCase("LISAv2Test-$($this.TestPlatform)","$($currentTestCase.testName)","$($this.TestPlatform)-$($currentTestCase.Category)-$($currentTestCase.Area)")
-						$this.JunitReport.CompleteLogTestCase("LISAv2Test-$($this.TestPlatform)","$($currentTestCase.testName)","Aborted", $deployErrors)
-						$this.TestSummary.UpdateTestSummaryForCase($currentTestCase, $executionCount, "Aborted", "0", $deployErrors, $null)
+						$this.JunitReport.CompleteLogTestCase("LISAv2Test-$($this.TestPlatform)","$($currentTestCase.testName)", $global:ResultAborted, $deployErrors)
+						$this.TestSummary.UpdateTestSummaryForCase($currentTestCase, $executionCount, $global:ResultAborted, "0", $deployErrors, $null)
 						continue
 					}
 					else {
@@ -695,13 +693,14 @@ Class TestController
 		$this.TestSummary.SaveHtmlTestSummary(".\Report\TestSummary-$global:TestID.html")
 	}
 
-	[void] SubmitTelemetryResult($AllVMData, $User, $Password, $CurrentTestData, $CurrentTestResult) {
+	[void] GetSystemBasicLogs($AllVMData, $User, $Password, $CurrentTestData, $CurrentTestResult, $enableTelemetry) {
 		$GuestDistro = $null
 		$HardwarePlatform = $null
 		$LISVersion = "NA"
 		$HostVersion = $null
 		$VMSize = $null
 		$VMGen = $null
+		$Networking = $null
 		try {
 			$VMGen = $CurrentTestData.SetupConfig.VMGeneration
 			if ($currentTestData.SetupConfig.Networking -imatch "SRIOV") {
@@ -712,10 +711,10 @@ Class TestController
 			if ($global:TestPlatform -eq "HyperV") {
 				$VMSize = $global:HyperVInstanceSize
 			}
-			if ($allVMData.Count -gt 1) {
-				$vmData = $allVMData[0]
+			if ($AllVMData.Count -gt 1) {
+				$vmData = $AllVMData[0]
 			} else {
-				$vmData = $allVMData
+				$vmData = $AllVMData
 			}
 
 			if ($vmData -and ((Is-VmAlive -AllVMDataObject $vmData -MaxRetryCount 5) -eq "True")) {
@@ -764,36 +763,32 @@ Class TestController
 			Write-LogErr "Source: Line $line in script $script_name."
 		}
 
-		try {
-			if ($currentTestData.SetupConfig.Networking -imatch "SRIOV") {
-				$Networking = "SRIOV"
-			} else {
-				$Networking = "Synthetic"
+		if ($enableTelemetry) {
+			try {
+				$dataTableName = ""
+				if ($this.XmlSecrets.secrets.TableName) {
+					$dataTableName = $this.XmlSecrets.secrets.TableName
+					Write-LogInfo "Using table name from secrets: $dataTableName"
+				} else {
+					$dataTableName = "LISAv2Results"
+				}
+
+				$SQLQuery = Get-SQLQueryOfTelemetryData -TestPlatform $global:TestPlatform -TestLocation $CurrentTestData.SetupConfig.TestLocation -TestCategory $CurrentTestData.Category `
+					-TestArea $CurrentTestData.Area -TestName $CurrentTestData.TestName -CurrentTestResult $CurrentTestResult `
+					-ExecutionTag ($global:GlobalConfig).Global.($global:TestPlatform).ResultsDatabase.testTag -GuestDistro $GuestDistro -KernelVersion $global:FinalKernelVersion `
+					-HardwarePlatform $HardwarePlatform -LISVersion $LISVersion -HostVersion $HostVersion -VMSize $VMSize -VMGeneration $VMGen -Networking $Networking `
+					-ARMImageName $CurrentTestData.SetupConfig.ARMImageName -OsVHD $global:BaseOsVHD -BuildURL $env:BUILD_URL -TableName $dataTableName
+
+				Upload-TestResultToDatabase -SQLQuery $SQLQuery
 			}
-
-			$dataTableName = ""
-			if ($this.XmlSecrets.secrets.TableName) {
-				$dataTableName = $this.XmlSecrets.secrets.TableName
-				Write-LogInfo "Using table name from secrets: $dataTableName"
-			} else {
-				$dataTableName = "LISAv2Results"
+			catch {
+				$line = $_.InvocationInfo.ScriptLineNumber
+				$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
+				$ErrorMessage =  $_.Exception.Message
+				Write-LogErr "EXCEPTION: $ErrorMessage"
+				Write-LogErr "Calling function - $($MyInvocation.MyCommand)."
+				Write-LogErr "Source: Line $line in script $script_name."
 			}
-
-			$SQLQuery = Get-SQLQueryOfTelemetryData -TestPlatform $global:TestPlatform -TestLocation $CurrentTestData.SetupConfig.TestLocation -TestCategory $CurrentTestData.Category `
-				-TestArea $CurrentTestData.Area -TestName $CurrentTestData.TestName -CurrentTestResult $CurrentTestResult `
-				-ExecutionTag ($global:GlobalConfig).Global.($global:TestPlatform).ResultsDatabase.testTag -GuestDistro $GuestDistro -KernelVersion $global:FinalKernelVersion `
-				-HardwarePlatform $HardwarePlatform -LISVersion $LISVersion -HostVersion $HostVersion -VMSize $VMSize -VMGeneration $VMGen -Networking $Networking `
-				-ARMImageName $CurrentTestData.SetupConfig.ARMImageName -OsVHD $global:BaseOsVHD -BuildURL $env:BUILD_URL -TableName $dataTableName
-
-			Upload-TestResultToDatabase -SQLQuery $SQLQuery
-		}
-		catch {
-			$line = $_.InvocationInfo.ScriptLineNumber
-			$script_name = ($_.InvocationInfo.ScriptName).Replace($PWD,".")
-			$ErrorMessage =  $_.Exception.Message
-			Write-LogErr "EXCEPTION: $ErrorMessage"
-			Write-LogErr "Calling function - $($MyInvocation.MyCommand)."
-			Write-LogErr "Source: Line $line in script $script_name."
 		}
 	}
 
