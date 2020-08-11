@@ -5,7 +5,7 @@ import time
 from timeit import default_timer as timer
 from typing import TYPE_CHECKING, Dict, Optional, Type
 
-import spur
+import spur  # type: ignore
 
 from lisa.util.executableResult import ExecutableResult
 from lisa.util.logger import log
@@ -18,19 +18,19 @@ else:
 
 
 class LogWriter:
-    def __init__(self, level: int, cmd_prefix: str = ""):
+    def __init__(self, level: int, cmd_prefix: str = "") -> None:
         self.level = level
         self.cmd_prefix = cmd_prefix
         self.buffer: str = ""
 
-    def write(self, message: str):
+    def write(self, message: str) -> None:
         if message == "\n":
             log.log(self.level, f"{self. cmd_prefix}{self.buffer}")
             self.buffer = ""
         else:
             self.buffer = "".join([self.buffer, message])
 
-    def close(self):
+    def close(self) -> None:
         if len(self.buffer) > 0:
             log.log(self.level, f"{self.cmd_prefix}{self.buffer}")
 

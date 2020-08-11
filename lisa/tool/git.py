@@ -1,3 +1,5 @@
+import pathlib
+
 from lisa.core.tool import Tool
 
 
@@ -11,5 +13,5 @@ class Git(Tool):
         # TODO support installation later
         return False
 
-    def clone(self, url: str, cwd: str) -> None:
+    def clone(self, url: str, cwd: pathlib.Path) -> None:
         self.run(f"clone {url}", cwd=cwd)

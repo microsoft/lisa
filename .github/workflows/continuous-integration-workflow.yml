@@ -48,3 +48,6 @@ jobs:
 
       - name: Run black/flake8/isort
         run: poetry run flake8
+
+      - name: Run mypy static type checking
+        run: poetry run mypy --strict --namespace-packages .

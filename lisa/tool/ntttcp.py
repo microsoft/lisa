@@ -12,7 +12,7 @@ class Ntttcp(Tool):
 
     @property
     def dependentedTools(self) -> List[T]:
-        return [Git]
+        return [Git]  # type: ignore
 
     @property
     def command(self) -> str:

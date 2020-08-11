@@ -19,18 +19,18 @@ T = TypeVar("T")
 class Node:
     def __init__(
         self,
-        id: str,
+        identifier: str,
         isRemote: bool = True,
         spec: Optional[Dict[str, object]] = None,
         isDefault: bool = False,
     ) -> None:
-        self.id = id
+        self.identifier = identifier
         self.name: str = ""
         self.isDefault = isDefault
         self.isRemote = isRemote
         self.spec = spec
         self.connection_info: Optional[ConnectionInfo] = None
-        self.workingPath: pathlib.Path = ""
+        self.workingPath: pathlib.Path = pathlib.Path()
         self.shell = Shell()
 
         self._isInitialized: bool = False
@@ -45,7 +45,7 @@ class Node:
 
     @staticmethod
     def createNode(
-        id: str,
+        identifier: str,
         spec: Optional[Dict[str, object]] = None,
         node_type: str = constants.ENVIRONMENTS_NODES_REMOTE,
         isDefault: bool = False,
@@ -56,7 +56,7 @@ class Node:
             isRemote = False
         else:
             raise Exception(f"unsupported node_type '{node_type}'")
-        node = Node(id, spec=spec, isRemote=isRemote, isDefault=isDefault)
+        node = Node(identifier, spec=spec, isRemote=isRemote, isDefault=isDefault)
         log.debug(
             f"created node '{node_type}', isDefault: {isDefault}, isRemote: {isRemote}"
         )
@@ -108,7 +108,7 @@ class Node:
         return tool_path
 
     def getTool(self, tool_type: Type[T]) -> T:
-        tool = cast(T, self.tools.get(tool_type))
+        tool = cast(T, self.tools.get(tool_type))  # type: ignore
         if tool is None:
             tool_prefix = f"tool '{tool_type.__name__}'"
             log.debug(f"{tool_prefix} is initializing")
@@ -123,8 +123,10 @@ class Node:
                         raise Exception(f"{tool_prefix} install failed")
                 else:
                     raise Exception(
-                        f"{tool_prefix} doesn't support install on Node({self.id}), "
-                        f"Linux({self.isLinux}), Remote({self.isRemote})"
+                        f"{tool_prefix} doesn't support install on "
+                        f"Node({self.identifier}), "
+                        f"Linux({self.isLinux}), "
+                        f"Remote({self.isRemote})"
                     )
             else:
                 log.debug(f"{tool_prefix} is installed already")
@@ -136,7 +138,7 @@ class Node:
         useBash: bool = False,
         noErrorLog: bool = False,
         noInfoLog: bool = False,
-        cwd: pathlib.Path = None,
+        cwd: Optional[pathlib.Path] = None,
     ) -> ExecutableResult:
         self._initialize()
         process = self._execute(
@@ -150,7 +152,7 @@ class Node:
         useBash: bool = False,
         noErrorLog: bool = False,
         noInfoLog: bool = False,
-        cwd: pathlib.Path = None,
+        cwd: Optional[pathlib.Path] = None,
     ) -> Process:
         self._initialize()
         return self._execute(
@@ -217,7 +219,7 @@ class Node:
         useBash: bool = False,
         noErrorLog: bool = False,
         noInfoLog: bool = False,
-        cwd: pathlib.Path = None,
+        cwd: Optional[pathlib.Path] = None,
     ) -> Process:
         cmd_prefix = f"cmd[{str(random.randint(0, 10000))}]"
         log.debug(f"{cmd_prefix}remote({self.isRemote}) '{cmd}'")
