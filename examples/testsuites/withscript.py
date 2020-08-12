@@ -15,6 +15,11 @@ from lisa.util.logger import log
     tags=["demo"],
 )
 class WithScript(TestSuite):
+    @property
+    def skipRun(self) -> bool:
+        node = self.environment.defaultNode
+        return not node.isLinux
+
     def beforeSuite(self) -> None:
         self.echoScript = CustomScriptBuilder(
             Path(__file__).parent.joinpath("scripts"), ["echo.sh"]
