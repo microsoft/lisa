@@ -82,14 +82,11 @@ Make sure below settings are in root level of `.vscode/settings.json`
     "python.linting.flake8Enabled": true,
     "python.linting.mypyEnabled": true,
     "python.linting.pylintEnabled": false,
-    "python.linting.pylintUseMinimalCheckers": false,
     "editor.formatOnSave": true,
-    "python.analysis.diagnosticMode": "workspace",
     "python.linting.mypyArgs": [
         "--strict",
         "--namespace-packages",
         "--show-column-numbers",
-        "--follow-imports=silent"
     ],
     "python.sortImports.path": "isort",
     "python.analysis.useLibraryCodeForTypes": false,

@@ -77,6 +77,7 @@ class CustomScript(Tool):
 
     @property
     def command(self) -> str:
+        assert self._command
         return self._command
 
     @property
@@ -108,7 +109,7 @@ class CustomScript(Tool):
                 self._command = f"./{pathlib.PurePosixPath(self.files[0])}"
             else:
                 # windows needs absolute path
-                self._command = self.cwd.joinpath(self.files[0])
+                self._command = f"{self.cwd.joinpath(self.files[0])}"
         return True
 
 
