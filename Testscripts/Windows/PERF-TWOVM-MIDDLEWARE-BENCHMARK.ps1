@@ -214,12 +214,9 @@ collect_VM_properties
                 $resultMap["HostType"] = $TestPlatform
                 $resultMap["HostBy"] = $CurrentTestData.SetupConfig.TestLocation
                 $resultMap["HostOS"] = $HostOs
-                $resultMap["GuestOSType"] = "Linux"
-                $resultMap["GuestDistro"] = $GuestDistro
-                $resultMap["GuestSize"] = $clientVMData.InstanceSize
+                $resultMap["GuestOS"] = $GuestDistro
+                $resultMap["InstanceSize"] = $clientVMData.InstanceSize
                 $resultMap["KernelVersion"] = $KernelVersion
-                $resultMap["IPVersion"] = "IPv4"
-                $resultMap["ProtocolType"] = $testType
                 $resultMap["DataPath"] = $DataPath
                 if ($currentTestData.testName -imatch "PERF-APACHE-BENCHMARK") {
                     $resultMap["WebServerVersion"] = $($Line[0])
