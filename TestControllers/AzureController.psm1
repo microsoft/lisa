@@ -40,6 +40,10 @@ Class AzureController : TestController
 	[void] ParseAndValidateParameters([Hashtable]$ParamTable) {
 		$parameterErrors = ([TestController]$this).ParseAndValidateParameters($ParamTable)
 
+		if ($this.TestLocation) {
+			$this.TestLocation = $this.TestLocation.Replace('"', "").ToLower()
+			$this.SyncEquivalentCustomParameters("TestLocation", $this.TestLocation)
+		}
 		if (!$this.RGIdentifier) {
 			$parameterErrors += "-RGIdentifier is not set"
 		}
@@ -203,7 +207,7 @@ Class AzureController : TestController
 		$this.SSHPrivateKey = $azureConfig.TestCredentials.sshPrivateKey
 
 		# global variables: StorageAccount, TestLocation
-		if ($this.TestLocation) {
+		if ($this.TestLocation -and ($this.TestLocation.Trim(", ").Split(",").Trim().Count -eq 1)) {
 			if ( $this.StorageAccount -imatch "^ExistingStorage_Standard" ) {
 				$azureConfig.Subscription.ARMStorageAccount = $RegionAndStorageMap.AllRegions.$($this.TestLocation).StandardStorage
 				Write-LogInfo "Selecting existing standard storage account in $($this.TestLocation) - $($azureConfig.Subscription.ARMStorageAccount)"
@@ -266,59 +270,6 @@ Class AzureController : TestController
 
 		if (!$global:AllTestVMSizes) {
 			Set-Variable -Name AllTestVMSizes -Value @{} -Option ReadOnly -Scope Global
-		}
-	}
-
-	[void] PrepareTestImage() {
-		#If Base OS VHD is present in another storage account, then copy to test storage account first.
-		if ($this.OsVHD) {
-			$ARMStorageAccount = $this.GlobalConfig.Global.Azure.Subscription.ARMStorageAccount
-			if ($ARMStorageAccount -imatch "^NewStorage_") {
-				Throw "LISAv2 only supports copying VHDs to existing storage account.`n
-				Please use <ARMStorageAccount>Auto_Complete_RG=XXXResourceGroupName<ARMStorageAccount> or `n
-				<ARMStorageAccount>Existing_Storage_Standard<ARMStorageAccount> `n
-				<ARMStorageAccount>Existing_Storage_Premium<ARMStorageAccount>"
-			}
-			$useSASURL = $false
-			if (($this.OsVHD -imatch 'sp=') -and ($this.OsVHD -imatch 'sig=')) {
-				$useSASURL = $true
-			}
-
-			if (!$useSASURL -and ($this.OsVHD -inotmatch "/")) {
-				$this.OsVHD = 'http://{0}.blob.core.windows.net/vhds/{1}' -f $ARMStorageAccount, $this.OsVHD
-			}
-
-			#Check if the test storage account is same as VHD's original storage account.
-			$givenVHDStorageAccount = $this.OsVHD.Replace("https://","").Replace("http://","").Split(".")[0]
-			$sourceContainer =  $this.OsVHD.Split("/")[$this.OsVHD.Split("/").Count - 2]
-			$vhdName = $this.OsVHD.Split("?")[0].split('/')[-1]
-
-			if ($givenVHDStorageAccount -ne $ARMStorageAccount) {
-				Write-LogInfo "Your test VHD is not in target storage account ($ARMStorageAccount)."
-				Write-LogInfo "Your VHD will be copied to $ARMStorageAccount now."
-
-				#Copy the VHD to current storage account.
-				#Check if the OsVHD is a SasUrl
-				if ($useSASURL) {
-					$copyStatus = Copy-VHDToAnotherStorageAccount -SasUrl $this.OsVHD -destinationStorageAccount $ARMStorageAccount -destinationStorageContainer "vhds" -vhdName $vhdName
-					$this.OsVHD = 'http://{0}.blob.core.windows.net/vhds/{1}' -f $ARMStorageAccount, $vhdName
-				} else {
-					$copyStatus = Copy-VHDToAnotherStorageAccount -sourceStorageAccount $givenVHDStorageAccount -sourceStorageContainer $sourceContainer -destinationStorageAccount $ARMStorageAccount -destinationStorageContainer "vhds" -vhdName $vhdName
-				}
-				if (!$copyStatus) {
-					Throw "Failed to copy the VHD to $ARMStorageAccount"
-				}
-			} else {
-				$sc = Get-AzStorageAccount | Where-Object {$_.StorageAccountName -eq $ARMStorageAccount}
-				$storageKey = (Get-AzStorageAccountKey -ResourceGroupName $sc.ResourceGroupName -Name $ARMStorageAccount)[0].Value
-				$context = New-AzStorageContext -StorageAccountName $ARMStorageAccount -StorageAccountKey $storageKey
-				$blob = Get-AzStorageBlob -Blob $vhdName -Container $sourceContainer -Context $context -ErrorAction Ignore
-				if (!$blob) {
-					Throw "Provided VHD not existed, abort testing."
-				}
-			}
-			Set-Variable -Name BaseOsVHD -Value $this.OsVHD -Scope Global
-			Write-LogInfo "New Base VHD name - $($this.OsVHD)"
 		}
 	}
 
