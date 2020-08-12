@@ -1,10 +1,10 @@
-from lisa.util.exceptions import LisaException
 from typing import Dict, List, Optional, cast
 
 from singleton_decorator import singleton  # type: ignore
 
 from lisa.core.environment import Environment
 from lisa.util import constants
+from lisa.util.exceptions import LisaException
 
 
 @singleton

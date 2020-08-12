@@ -1,5 +1,4 @@
 from __future__ import annotations
-from lisa.util.exceptions import LisaException
 
 import pathlib
 import random
@@ -10,6 +9,7 @@ from lisa.core.tool import Tool
 from lisa.tool import Echo, Uname
 from lisa.util import constants, env
 from lisa.util.connectionInfo import ConnectionInfo
+from lisa.util.exceptions import LisaException
 from lisa.util.executableResult import ExecutableResult
 from lisa.util.logger import log
 from lisa.util.process import Process

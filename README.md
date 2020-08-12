@@ -44,7 +44,7 @@ poetry run python lisa/main.py
 ```
 
 You can also use `poetry shell` to drop into new shell where the first `python`
-in `PATH` is the virtualenv’s Python.
+in `PATH` is the virtualenv's Python.
 
 To obtain the path of the Poetry virtual environment setup for LISA (where the
 isolated Python installation and packages are located), run:

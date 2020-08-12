@@ -4,8 +4,8 @@ from abc import ABCMeta, abstractmethod
 from typing import Dict
 
 from lisa.core.actionStatus import ActionStatus
-from lisa.util.logger import log
 from lisa.util.exceptions import LisaException
+from lisa.util.logger import log
 
 
 class Action(metaclass=ABCMeta):

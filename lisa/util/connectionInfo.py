@@ -1,6 +1,7 @@
-from lisa.util.exceptions import LisaException
 from pathlib import Path
 from typing import Optional
+
+from lisa.util.exceptions import LisaException
 
 
 class ConnectionInfo:

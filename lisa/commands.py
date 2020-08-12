@@ -12,8 +12,8 @@ from lisa.parameter_parser.parser import parse
 from lisa.sut_orchestrator.ready import ReadyPlatform
 from lisa.test_runner.lisarunner import LISARunner
 from lisa.util import constants
-from lisa.util.logger import log
 from lisa.util.exceptions import LisaException
+from lisa.util.logger import log
 
 
 def _load_extends(base_path: Path, extends_config: Dict[str, object]) -> None:

@@ -1,9 +1,9 @@
-from lisa.util.exceptions import LisaException
 from typing import Callable, Dict, List, Optional, Type
 
 from singleton_decorator import singleton  # type: ignore
 
 from lisa.core.testSuite import TestSuite
+from lisa.util.exceptions import LisaException
 from lisa.util.logger import log
 
 

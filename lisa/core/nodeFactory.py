@@ -1,8 +1,8 @@
-from lisa.util.exceptions import LisaException
 from typing import Any, Dict, Optional, cast
 
 from lisa.core.node import Node
 from lisa.util import constants
+from lisa.util.exceptions import LisaException
 
 
 class NodeFactory:

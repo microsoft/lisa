@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import copy
-from lisa.util.exceptions import LisaException
 from typing import TYPE_CHECKING, Dict, List, Optional, cast
 
 from lisa.core.nodeFactory import NodeFactory
 from lisa.util import constants
+from lisa.util.exceptions import LisaException
 from lisa.util.logger import log
 
 if TYPE_CHECKING:

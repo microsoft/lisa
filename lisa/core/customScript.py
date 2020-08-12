@@ -1,15 +1,14 @@
 from __future__ import annotations
-from lisa.util.exceptions import LisaException
 
+import pathlib
 import re
 from hashlib import sha256
-import pathlib
 from typing import TYPE_CHECKING, List, Optional, Type, Union
 
 from lisa.core.tool import Tool
+from lisa.util.exceptions import LisaException
 from lisa.util.executableResult import ExecutableResult
 from lisa.util.process import Process
-
 
 if TYPE_CHECKING:
     from lisa.core.node import Node

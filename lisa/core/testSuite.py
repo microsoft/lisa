@@ -8,8 +8,8 @@ from lisa.core.actionStatus import ActionStatus
 from lisa.util.logger import log
 
 if TYPE_CHECKING:
-    from lisa.core.testFactory import TestSuiteData
     from lisa.core.environment import Environment
+    from lisa.core.testFactory import TestSuiteData
 
 
 class TestSuite(Action, metaclass=ABCMeta):
