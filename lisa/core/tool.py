@@ -21,6 +21,10 @@ class Tool(ABC):
         pass
 
     @property
+    def name(self) -> str:
+        return self.__class__.__name__
+
+    @property
     def dependencies(self) -> List[Type[Tool]]:
         """
         declare all dependencies here
@@ -45,7 +49,7 @@ class Tool(ABC):
         else:
             where_command = "where"
         result = self.node.execute(
-            f"{where_command} {self.command}", useBash=True, noInfoLog=True
+            f"{where_command} {self.command}", shell=True, noInfoLog=True
         )
         self._isInstalled = result.exitCode == 0
         return self._isInstalled
@@ -70,28 +74,28 @@ class Tool(ABC):
     def runAsync(
         self,
         extraParameters: str = "",
-        useBash: bool = False,
+        shell: bool = False,
         noErrorLog: bool = False,
         noInfoLog: bool = False,
-        cwd: Optional[pathlib.Path] = None,
+        cwd: Optional[pathlib.PurePath] = None,
     ) -> Process:
         command = f"{self.command} {extraParameters}"
         process = self.node.executeAsync(
-            command, useBash, noErrorLog=noErrorLog, cwd=cwd, noInfoLog=noInfoLog,
+            command, shell, noErrorLog=noErrorLog, cwd=cwd, noInfoLog=noInfoLog,
         )
         return process
 
     def run(
         self,
         extraParameters: str = "",
-        useBash: bool = False,
+        shell: bool = False,
         noErrorLog: bool = False,
         noInfoLog: bool = False,
-        cwd: Optional[pathlib.Path] = None,
+        cwd: Optional[pathlib.PurePath] = None,
     ) -> ExecutableResult:
         process = self.runAsync(
             extraParameters=extraParameters,
-            useBash=useBash,
+            shell=shell,
             noErrorLog=noErrorLog,
             noInfoLog=noInfoLog,
             cwd=cwd,

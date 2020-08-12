@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from lisa.util.exceptions import LisaException
 from typing import TYPE_CHECKING, Dict, List, Optional, cast
 
 from lisa.core.nodeFactory import NodeFactory
@@ -73,7 +74,7 @@ class Environment(object):
             del spec[constants.ENVIRONMENTS_TEMPLATE]
 
         if len(nodes_spec) == 0 and len(environment.nodes) == 0:
-            raise Exception("not found any node in environment")
+            raise LisaException("not found any node in environment")
 
         spec[constants.ENVIRONMENTS_NODES] = nodes_spec
 
@@ -91,7 +92,7 @@ class Environment(object):
                     break
             if default is None:
                 if len(self.nodes) == 0:
-                    raise Exception("No node found in current environment")
+                    raise LisaException("No node found in current environment")
                 else:
                     default = self.nodes[0]
             self._defaultNode = default
@@ -101,23 +102,25 @@ class Environment(object):
         found = None
 
         if len(self.nodes) == 0:
-            raise Exception("nodes shouldn't be Empty when call getNodeByName")
-        else:
-            for node in self.nodes:
-                if node.name == name:
-                    found = node
-                    break
-            if throwError:
-                raise Exception(f"cannot find node {name}")
+            raise LisaException("nodes shouldn't be Empty when call getNodeByName")
+
+        for node in self.nodes:
+            if node.name == name:
+                found = node
+                break
+        if found is None and throwError:
+            raise LisaException(f"cannot find node {name}")
         return found
 
-    def getNodeByIndex(self, index: int, throwError: bool = True) -> Optional[Node]:
+    def getNodeByIndex(self, index: int) -> Node:
         found = None
         if self.nodes is not None:
             if len(self.nodes) > index:
                 found = self.nodes[index]
-        elif throwError:
-            raise Exception("nodes shouldn't be None when call getNodeByIndex")
+        else:
+            raise LisaException("nodes shouldn't be None when call getNodeByIndex")
+
+        assert found
         return found
 
     def setPlatform(self, platform: Platform) -> None:
@@ -128,7 +131,7 @@ class Environment(object):
     ) -> bool:
         if is_default:
             if has_default:
-                raise Exception("only one node can set isDefault to True")
+                raise LisaException("only one node can set isDefault to True")
             has_default = True
         return has_default
 

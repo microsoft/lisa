@@ -1,3 +1,4 @@
+from lisa.util.exceptions import LisaException
 import re
 from typing import Tuple
 
@@ -50,12 +51,15 @@ class Uname(Tool):
             else:
                 match_result = self.key_info_pattern.fullmatch(cmd_result.stdout)
                 if not match_result:
-                    raise Exception(f"no result matched, stdout: '{cmd_result.stdout}'")
+                    raise LisaException(
+                        f"no result matched, stdout: '{cmd_result.stdout}'"
+                    )
                 self.kernelRelease = match_result.group("release")
                 self.kernelVersion = match_result.group("version")
                 self.hardwarePlatform = match_result.group("platform")
                 self.os = match_result.group("os")
             self.hasResult = True
+
         return (
             self.kernelRelease,
             self.kernelVersion,

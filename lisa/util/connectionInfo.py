@@ -1,3 +1,4 @@
+from lisa.util.exceptions import LisaException
 from pathlib import Path
 from typing import Optional
 
@@ -18,7 +19,7 @@ class ConnectionInfo:
         self.privateKeyFile = privateKeyFile
 
         if not self.password and not self.privateKeyFile:
-            raise Exception(
+            raise LisaException(
                 "at least one of password and privateKeyFile need to be set"
             )
         elif not self.privateKeyFile:
@@ -30,4 +31,4 @@ class ConnectionInfo:
             self.usePassword = False
 
         if not self.username:
-            raise Exception("username must be set")
+            raise LisaException("username must be set")

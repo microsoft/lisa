@@ -5,12 +5,12 @@ on:
     branches:
       - main
     paths-ignore:
-      - '**.md'
+      - "**.md"
   pull_request:
     branches:
       - main
     paths-ignore:
-      - '**.md'
+      - "**.md"
 
 jobs:
   build:
@@ -26,7 +26,7 @@ jobs:
       - name: Setup bootstrap Python
         uses: actions/setup-python@v2
         with:
-          python-version: '3.8'
+          python-version: "3.8"
 
       - name: Install Poetry for Linux
         if: runner.os == 'Linux'

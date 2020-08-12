@@ -46,8 +46,8 @@ class Process:
     def start(
         self,
         command: str,
-        useBash: bool = False,
-        cwd: Optional[pathlib.Path] = None,
+        shell: bool = False,
+        cwd: Optional[pathlib.PurePath] = None,
         new_envs: Optional[Dict[str, str]] = None,
         noErrorLog: bool = False,
         noInfoLog: bool = False,
@@ -65,32 +65,47 @@ class Process:
         self.stdout_writer = LogWriter(stdoutLogLevel, f"{self.cmd_prefix}stdout: ")
         self.stderr_writer = LogWriter(stderrLogLevel, f"{self.cmd_prefix}stderr: ")
 
-        if useBash:
+        # command may be Path object, convert it to str
+        command = f"{command}"
+        if shell:
             if self.isLinux:
                 split_command = ["bash", "-c"]
             else:
                 split_command = ["cmd", "/c"]
             split_command.append(command)
         else:
-            split_command = shlex.split(command)
-            log.debug(f"split command: {split_command}")
+            split_command = shlex.split(command, posix=self.isLinux)
+
+        cwd_path: Optional[str] = None
+        if cwd:
+            if self.isLinux:
+                cwd_path = str(pathlib.PurePosixPath(cwd))
+            else:
+                cwd_path = str(pathlib.PureWindowsPath(cwd))
+
+        log.debug(
+            f"{self.cmd_prefix}"
+            f"Linux({1 if self.isLinux else 0})"
+            f"Remote({1 if self.shell.isRemote else 0}): "
+            f"{split_command}"
+        )
 
         try:
             real_shell = self.shell.innerShell
             assert real_shell
             self._start_timer = timer()
+            log.debug(f"cwd '{cwd_path}'")
             self.process = real_shell.spawn(
                 command=split_command,
                 stdout=self.stdout_writer,
                 stderr=self.stderr_writer,
-                cwd=cwd,
+                cwd=cwd_path,
                 update_env=new_envs,
                 allow_error=True,
                 store_pid=True,
                 encoding="utf-8",
             )
             self._running = True
-            log.debug(f"{self.cmd_prefix}started")
         except (FileNotFoundError, spur.errors.NoSuchCommandError) as identifier:
             # FileNotFoundError: not found command on Windows
             # NoSuchCommandError: not found command on remote Linux
@@ -98,7 +113,7 @@ class Process:
             self.process = ExecutableResult(
                 "", identifier.strerror, 1, self._end_timer - self._start_timer
             )
-            log.debug(f"{self.cmd_prefix} not found command")
+            log.debug(f"{self.cmd_prefix} not found command: {identifier}")
 
     def waitResult(self, timeout: float = 600) -> ExecutableResult:
         budget_time = timeout

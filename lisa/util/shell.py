@@ -1,6 +1,6 @@
 import os
 import shutil
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Optional, Union, cast
 
 import paramiko  # type: ignore
@@ -46,7 +46,7 @@ class Shell:
 
     def mkdir(
         self,
-        path: Path,
+        path: PurePath,
         mode: int = 0o777,
         parents: bool = True,
         exist_ok: bool = False,
@@ -54,41 +54,52 @@ class Shell:
         self.initialize()
         if self.isRemote:
             assert self.innerShell
-            self.innerShell.mkdir(path, mode=mode, parents=parents, exist_ok=exist_ok)
+            path_str = self._purePathToStr(path)
+            self.innerShell.mkdir(
+                path_str, mode=mode, parents=parents, exist_ok=exist_ok
+            )
         else:
+            assert isinstance(path, Path)
             path.mkdir(mode=mode, parents=parents, exist_ok=exist_ok)
 
-    def exists(self, path: Path) -> bool:
+    def exists(self, path: PurePath) -> bool:
         self.initialize()
         exists = False
         if self.isRemote:
             assert self.innerShell
-            exists = self.innerShell.exists(path)
+            path_str = self._purePathToStr(path)
+            exists = self.innerShell.exists(path_str)
         else:
+            assert isinstance(path, Path)
             exists = path.exists()
         return exists
 
-    def remove(self, path: Path, recursive: bool = False) -> None:
+    def remove(self, path: PurePath, recursive: bool = False) -> None:
         self.initialize()
         if self.isRemote:
             assert self.innerShell
-            self.innerShell.remove(path, recursive)
+            path_str = self._purePathToStr(path)
+            self.innerShell.remove(path_str, recursive)
         else:
+            assert isinstance(path, Path)
             path.rmdir()
 
-    def chmod(self, path: Path, mode: int) -> None:
+    def chmod(self, path: PurePath, mode: int) -> None:
         self.initialize()
         if self.isRemote:
             assert self.innerShell
-            self.innerShell.chmod(path, mode)
+            path_str = self._purePathToStr(path)
+            self.innerShell.chmod(path_str, mode)
         else:
+            assert isinstance(path, Path)
             path.chmod(mode)
 
-    def stat(self, path: Path) -> os.stat_result:
+    def stat(self, path: PurePath) -> os.stat_result:
         self.initialize()
         if self.isRemote:
             assert self.innerShell
-            sftp_attributes: paramiko.SFTPAttributes = self.innerShell.stat(path)
+            path_str = self._purePathToStr(path)
+            sftp_attributes: paramiko.SFTPAttributes = self.innerShell.stat(path_str)
 
             result = os.stat_result(sftp_attributes.st_mode)
             result.st_mode = sftp_attributes.st_mode
@@ -98,48 +109,73 @@ class Shell:
             result.st_atime = sftp_attributes.st_atime
             result.st_mtime = sftp_attributes.st_mtime
         else:
+            assert isinstance(path, Path)
             result = path.stat()
         return result
 
-    def is_dir(self, path: Path) -> bool:
+    def is_dir(self, path: PurePath) -> bool:
         self.initialize()
         if self.isRemote:
             assert self.innerShell
-            result: bool = self.innerShell.is_dir(path)
+            path_str = self._purePathToStr(path)
+            result: bool = self.innerShell.is_dir(path_str)
         else:
+            assert isinstance(path, Path)
             result = path.is_dir()
         return result
 
-    def is_symlink(self, path: Path) -> bool:
+    def is_symlink(self, path: PurePath) -> bool:
         self.initialize()
         if self.isRemote:
             assert self.innerShell
-            result: bool = self.innerShell.is_symlink(path)
+            path_str = self._purePathToStr(path)
+            result: bool = self.innerShell.is_symlink(path_str)
         else:
+            assert isinstance(path, Path)
             result = path.is_symlink()
         return result
 
-    def symlink(self, source: Path, destination: Path) -> None:
+    def symlink(self, source: PurePath, destination: PurePath) -> None:
         self.initialize()
         if self.isRemote:
             assert self.innerShell
-            self.innerShell.symlink(source, destination)
+            source_str = self._purePathToStr(source)
+            destination_str = self._purePathToStr(destination)
+            self.innerShell.symlink(source_str, destination_str)
         else:
+            assert isinstance(source, Path)
+            assert isinstance(destination, Path)
             source.symlink_to(destination)
 
-    def chown(self, path: Path, uid: int, gid: int) -> None:
+    def chown(self, path: PurePath, uid: int, gid: int) -> None:
         self.initialize()
         if self.isRemote:
             assert self.innerShell
-            self.innerShell.chown(path, uid, gid)
+            path_str = self._purePathToStr(path)
+            self.innerShell.chown(path_str, uid, gid)
         else:
+            assert isinstance(path, Path)
             shutil.chown(path, cast(str, uid), cast(str, gid))
 
-    def copy(self, local_path: Path, node_path: Path) -> None:
+    def copy(self, local_path: PurePath, node_path: PurePath) -> None:
         self.initialize()
-        self.mkdir(node_path.parent)
+        self.mkdir(node_path.parent, parents=True, exist_ok=True)
         if self.isRemote:
             assert self.innerShell
-            self.innerShell.put(local_path, node_path, create_directories=True)
+            local_path_str = self._purePathToStr(local_path)
+            node_path_str = self._purePathToStr(node_path)
+            self.innerShell.put(local_path_str, node_path_str, create_directories=True)
         else:
+            assert isinstance(local_path, Path)
+            assert isinstance(node_path, Path)
             shutil.copy(local_path, node_path)
+
+    def _purePathToStr(
+        self, path: Union[Path, PurePath, str]
+    ) -> Union[Path, PurePath, str]:
+        """
+        spurplus doesn't support pure path, so it needs to convert.
+        """
+        if isinstance(path, PurePath):
+            path = str(path)
+        return path

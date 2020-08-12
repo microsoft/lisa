@@ -13,5 +13,5 @@ class Git(Tool):
         # TODO support installation later
         return False
 
-    def clone(self, url: str, cwd: pathlib.Path) -> None:
+    def clone(self, url: str, cwd: pathlib.PurePath) -> None:
         self.run(f"clone {url}", cwd=cwd)

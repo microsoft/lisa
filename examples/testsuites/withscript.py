@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from lisa import TestCaseMetadata, TestSuiteMetadata
-from lisa.core.customScript import CustomScriptSpec
+from lisa.core.customScript import CustomScript, CustomScriptBuilder
 from lisa.core.testSuite import TestSuite
 from lisa.util.logger import log
 
@@ -15,13 +15,10 @@ from lisa.util.logger import log
     tags=["demo"],
 )
 class WithScript(TestSuite):
-    @property
-    def skipRun(self) -> bool:
-        node = self.environment.defaultNode
-        return not node.isLinux
-
     def beforeSuite(self) -> None:
-        self.echoScript = CustomScriptSpec(Path(__file__).parent, ["scripts/echo.sh"])
+        self.echoScript = CustomScriptBuilder(
+            Path(__file__).parent.joinpath("scripts"), ["echo.sh"]
+        )
 
     @TestCaseMetadata(
         description="""
@@ -31,6 +28,6 @@ class WithScript(TestSuite):
     )
     def script(self) -> None:
         node = self.environment.defaultNode
-        script_instance = node.getScript(self.echoScript)
-        result = script_instance.run()
+        script: CustomScript = node.getTool(self.echoScript)
+        result = script.run()
         log.info(f"result stdout: {result.stdout}")

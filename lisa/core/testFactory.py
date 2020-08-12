@@ -1,3 +1,4 @@
+from lisa.util.exceptions import LisaException
 from typing import Callable, Dict, List, Optional, Type
 
 from singleton_decorator import singleton  # type: ignore
@@ -52,7 +53,9 @@ class TestSuiteData:
         if self.cases.get(test_case.key) is None:
             self.cases[test_case.key] = test_case
         else:
-            raise Exception(f"TestSuiteData has test method {test_case.key} already")
+            raise LisaException(
+                f"TestSuiteData has test method {test_case.key} already"
+            )
 
 
 @singleton
@@ -80,7 +83,7 @@ class TestFactory:
             test_suite = TestSuiteData(test_class, area, category, description, tags)
             self.suites[key] = test_suite
         else:
-            raise Exception(f"TestFactory duplicate test class name: {key}")
+            raise LisaException(f"TestFactory duplicate test class name: {key}")
 
         class_prefix = f"{key}."
         for test_case in self.cases.values():
@@ -100,7 +103,7 @@ class TestFactory:
         if self.cases.get(full_name) is None:
             self.cases[full_name] = test_case
         else:
-            raise Exception(f"duplicate test class name: {full_name}")
+            raise LisaException(f"duplicate test class name: {full_name}")
 
         # this should be None in current observation.
         # the methods are loadded prior to test class

@@ -29,7 +29,7 @@ class Ntttcp(Tool):
         git = self.node.getTool(Git)
         git.clone(self.repo, tool_path)
         code_path = tool_path.joinpath("ntttcp-for-linux/src")
-        self.node.execute("make && sudo make install", useBash=True, cwd=code_path)
+        self.node.execute("make && sudo make install", shell=True, cwd=code_path)
         return self.isInstalledInternal
 
     def help(self) -> ExecutableResult:

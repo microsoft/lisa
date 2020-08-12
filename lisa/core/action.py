@@ -5,6 +5,7 @@ from typing import Dict
 
 from lisa.core.actionStatus import ActionStatus
 from lisa.util.logger import log
+from lisa.util.exceptions import LisaException
 
 
 class Action(metaclass=ABCMeta):
@@ -45,7 +46,7 @@ class Action(metaclass=ABCMeta):
 
     def validateStarted(self) -> None:
         if not self.isStarted:
-            raise Exception("action is not started yet.")
+            raise LisaException("action is not started yet.")
 
     def getPrerequisites(self) -> None:
         return None

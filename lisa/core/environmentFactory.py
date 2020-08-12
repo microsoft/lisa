@@ -1,3 +1,4 @@
+from lisa.util.exceptions import LisaException
 from typing import Dict, List, Optional, cast
 
 from singleton_decorator import singleton  # type: ignore
@@ -16,7 +17,7 @@ class EnvironmentFactory:
 
     def loadEnvironments(self, config: Dict[str, object]) -> None:
         if not config:
-            raise Exception("environment section must be set in config")
+            raise LisaException("environment section must be set in config")
         maxConcurrency = cast(
             Optional[int], config.get(constants.ENVIRONMENT_MAX_CONCURRENDCY)
         )
@@ -30,7 +31,7 @@ class EnvironmentFactory:
             environment = Environment.loadEnvironment(environment_config)
             if environment.name is None:
                 if without_name:
-                    raise Exception("at least two environments has no name")
+                    raise LisaException("at least two environments has no name")
                 environment.name = self.default_no_name
                 without_name = True
             self.environments[environment.name] = environment
@@ -42,6 +43,6 @@ class EnvironmentFactory:
             key = name.lower()
         environmet = self.environments.get(key)
         if environmet is None:
-            raise Exception(f"not found environment '{name}'")
+            raise LisaException(f"not found environment '{name}'")
 
         return environmet

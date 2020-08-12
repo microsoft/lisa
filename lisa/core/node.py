@@ -1,10 +1,11 @@
 from __future__ import annotations
+from lisa.util.exceptions import LisaException
 
 import pathlib
 import random
-from typing import Dict, Optional, Type, TypeVar, cast
+from typing import Dict, Optional, Type, TypeVar, Union, cast
 
-from lisa.core.customScript import CustomScript, CustomScriptSpec
+from lisa.core.customScript import CustomScript, CustomScriptBuilder
 from lisa.core.tool import Tool
 from lisa.tool import Echo, Uname
 from lisa.util import constants, env
@@ -31,7 +32,7 @@ class Node:
         self.isRemote = isRemote
         self.spec = spec
         self.connection_info: Optional[ConnectionInfo] = None
-        self.workingPath: pathlib.Path = pathlib.Path()
+        self.workingPath: pathlib.PurePath = pathlib.PurePath()
         self.shell = Shell()
 
         self._isInitialized: bool = False
@@ -42,7 +43,7 @@ class Node:
         self.hardwarePlatform: str = ""
         self.os: str = ""
 
-        self.tools: Dict[Type[Tool], Tool] = dict()
+        self.tools: Dict[str, Tool] = dict()
         self.scripts: Dict[str, CustomScript] = dict()
 
     @staticmethod
@@ -57,7 +58,7 @@ class Node:
         elif node_type == constants.ENVIRONMENTS_NODES_LOCAL:
             isRemote = False
         else:
-            raise Exception(f"unsupported node_type '{node_type}'")
+            raise LisaException(f"unsupported node_type '{node_type}'")
         node = Node(identifier, spec=spec, isRemote=isRemote, isDefault=isDefault)
         log.debug(
             f"created node '{node_type}', isDefault: {isDefault}, isRemote: {isRemote}"
@@ -75,19 +76,21 @@ class Node:
         privateKeyFile: str = "",
     ) -> None:
         if self.connection_info is not None:
-            raise Exception(
+            raise LisaException(
                 "node is set connection information already, cannot set again"
             )
 
         if not address and not publicAddress:
-            raise Exception("at least one of address and publicAddress need to be set")
+            raise LisaException(
+                "at least one of address and publicAddress need to be set"
+            )
         elif not address:
             address = publicAddress
         elif not publicAddress:
             publicAddress = address
 
         if not port and not publicPort:
-            raise Exception("at least one of port and publicPort need to be set")
+            raise LisaException("at least one of port and publicPort need to be set")
         elif not port:
             port = publicPort
         elif not publicPort:
@@ -100,47 +103,45 @@ class Node:
         self.internalAddress = address
         self.internalPort = port
 
-    def getScriptPath(self) -> pathlib.Path:
-        assert self.workingPath
-        script_path = self.workingPath.joinpath(constants.PATH_SCRIPT)
-        return script_path
-
-    def getScript(self, script_spec: CustomScriptSpec) -> CustomScript:
-        # register on node to prevent copy files again in another test suite
-        script = self.scripts.get(script_spec.name)
-        if not script:
-            script = script_spec.install(self)
-            self.scripts[script_spec.name] = script
-        return script
-
-    def getToolPath(self, tool: Optional[Tool] = None) -> pathlib.Path:
+    def getToolPath(self, tool: Optional[Tool] = None) -> pathlib.PurePath:
         assert self.workingPath
         if tool:
-            tool_name = tool.__class__.__name__.lower()
+            tool_name = tool.name
             tool_path = self.workingPath.joinpath(constants.PATH_TOOL, tool_name)
         else:
             tool_path = self.workingPath.joinpath(constants.PATH_TOOL)
         return tool_path
 
-    def getTool(self, tool_type: Type[T]) -> T:
-        if tool_type is CustomScript:
-            raise Exception("CustomScript should call getScript with instance")
-        cast_tool_type = cast(Type[Tool], tool_type)
-        tool = self.tools.get(cast_tool_type)
+    def getTool(self, tool_type: Union[Type[T], CustomScriptBuilder]) -> T:
+        if tool_type is CustomScriptBuilder:
+            raise LisaException("CustomScript should call getScript with instance")
+        if isinstance(tool_type, CustomScriptBuilder):
+            tool_key = tool_type.name
+        else:
+            tool_key = tool_type.__name__
+        tool = self.tools.get(tool_key)
         if tool is None:
-            tool_prefix = f"tool '{tool_type.__name__}'"
-            log.debug(f"{tool_prefix} is initializing")
             # the Tool is not installed on current node, try to install it.
-            tool = cast_tool_type(self)
+            tool_prefix = f"tool '{tool_key}'"
+            log.debug(f"{tool_prefix} is initializing")
+
+            if isinstance(tool_type, CustomScriptBuilder):
+                tool_key = tool_type.name
+                tool = tool_type.build(self)
+            else:
+                tool_key = tool_type.__name__
+                cast_tool_type = cast(Type[Tool], tool_type)
+                tool = cast_tool_type(self)
+
             if not tool.isInstalled:
                 log.debug(f"{tool_prefix} is not installed")
                 if tool.canInstall:
                     log.debug(f"{tool_prefix} installing")
                     is_success = tool.install()
                     if not is_success:
-                        raise Exception(f"{tool_prefix} install failed")
+                        raise LisaException(f"{tool_prefix} install failed")
                 else:
-                    raise Exception(
+                    raise LisaException(
                         f"{tool_prefix} doesn't support install on "
                         f"Node({self.identifier}), "
                         f"Linux({self.isLinux}), "
@@ -148,34 +149,33 @@ class Node:
                     )
             else:
                 log.debug(f"{tool_prefix} is installed already")
-            self.tools[cast_tool_type] = tool
+            self.tools[tool_key] = tool
         return cast(T, tool)
 
     def execute(
         self,
         cmd: str,
-        useBash: bool = False,
+        shell: bool = False,
         noErrorLog: bool = False,
         noInfoLog: bool = False,
-        cwd: Optional[pathlib.Path] = None,
+        cwd: Optional[pathlib.PurePath] = None,
     ) -> ExecutableResult:
-        self._initialize()
-        process = self._execute(
-            cmd, useBash=useBash, noErrorLog=noErrorLog, noInfoLog=noInfoLog, cwd=cwd
+        process = self.executeAsync(
+            cmd, shell=shell, noErrorLog=noErrorLog, noInfoLog=noInfoLog, cwd=cwd
         )
         return process.waitResult()
 
     def executeAsync(
         self,
         cmd: str,
-        useBash: bool = False,
+        shell: bool = False,
         noErrorLog: bool = False,
         noInfoLog: bool = False,
-        cwd: Optional[pathlib.Path] = None,
+        cwd: Optional[pathlib.PurePath] = None,
     ) -> Process:
         self._initialize()
         return self._execute(
-            cmd, useBash=useBash, noErrorLog=noErrorLog, noInfoLog=noInfoLog, cwd=cwd
+            cmd, shell=shell, noErrorLog=noErrorLog, noInfoLog=noInfoLog, cwd=cwd
         )
 
     @property
@@ -223,28 +223,30 @@ class Node:
 
                 # expand environment variables in path
                 echo = self.getTool(Echo)
-                result = echo.run(working_path, useBash=True)
+                result = echo.run(working_path, shell=True)
 
                 # PurePath is more reasonable here, but spurplus doesn't support it.
-                self.workingPath = pathlib.Path(result.stdout)
+                if self.isLinux:
+                    self.workingPath = pathlib.PurePosixPath(result.stdout)
+                else:
+                    self.workingPath = pathlib.PureWindowsPath(result.stdout)
             else:
                 self.workingPath = pathlib.Path(env.get_run_local_path())
-            log.debug(f"working path is: {self.workingPath.as_posix()}")
+            log.debug(f"working path is: '{self.workingPath}'")
             self.shell.mkdir(self.workingPath, parents=True, exist_ok=True)
 
     def _execute(
         self,
         cmd: str,
-        useBash: bool = False,
+        shell: bool = False,
         noErrorLog: bool = False,
         noInfoLog: bool = False,
-        cwd: Optional[pathlib.Path] = None,
+        cwd: Optional[pathlib.PurePath] = None,
     ) -> Process:
         cmd_prefix = f"cmd[{str(random.randint(0, 10000))}]"
-        log.debug(f"{cmd_prefix}remote({self.isRemote})bash({useBash}) '{cmd}'")
         process = Process(cmd_prefix, self.shell, self.isLinux)
         process.start(
-            cmd, useBash=useBash, noErrorLog=noErrorLog, noInfoLog=noInfoLog, cwd=cwd
+            cmd, shell=shell, noErrorLog=noErrorLog, noInfoLog=noInfoLog, cwd=cwd
         )
         return process
 

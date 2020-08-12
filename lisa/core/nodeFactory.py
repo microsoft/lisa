@@ -1,3 +1,4 @@
+from lisa.util.exceptions import LisaException
 from typing import Any, Dict, Optional, cast
 
 from lisa.core.node import Node
@@ -12,7 +13,7 @@ class NodeFactory:
         node_type = cast(str, config.get(constants.TYPE))
         node = None
         if node_type is None:
-            raise Exception("type of node shouldn't be None")
+            raise LisaException("type of node shouldn't be None")
         if node_type in [
             constants.ENVIRONMENTS_NODES_LOCAL,
             constants.ENVIRONMENTS_NODES_REMOTE,

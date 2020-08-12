@@ -89,6 +89,7 @@ Make sure below settings are in root level of `.vscode/settings.json`
         "--strict",
         "--namespace-packages",
         "--show-column-numbers",
+        "--follow-imports=silent"
     ],
     "python.sortImports.path": "isort",
     "python.analysis.useLibraryCodeForTypes": false,

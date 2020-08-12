@@ -13,6 +13,7 @@ from lisa.sut_orchestrator.ready import ReadyPlatform
 from lisa.test_runner.lisarunner import LISARunner
 from lisa.util import constants
 from lisa.util.logger import log
+from lisa.util.exceptions import LisaException
 
 
 def _load_extends(base_path: Path, extends_config: Dict[str, object]) -> None:
@@ -79,7 +80,7 @@ def list_start(args: Namespace) -> None:
         else:
             log.error("TODO: cannot list selected cases yet.")
     else:
-        raise Exception(f"unknown list type '{args.type}'")
+        raise LisaException(f"unknown list type '{args.type}'")
     log.info("list information here")
 
 
@@ -102,6 +103,6 @@ def _validate() -> None:
 
 def _validateMessage(warn_as_error: bool, message: str) -> None:
     if warn_as_error:
-        raise Exception(message)
+        raise LisaException(message)
     else:
         log.warn(message)
