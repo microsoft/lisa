@@ -3632,7 +3632,7 @@ function Run_SSHCommand()
 	done
 }
 
-get_AvailableDisks() {
+function get_AvailableDisks() {
 	for disk in $(lsblk | grep "sd[a-z].*disk" | cut -d ' ' -f1); do
 		if [ $(df | grep -c $disk) -eq 0 ]; then
 			echo $disk
@@ -3640,7 +3640,7 @@ get_AvailableDisks() {
 	done
 }
 
-delete_partition() {
+function delete_partition() {
 	all_disks=$(get_AvailableDisks)
 
 	declare -A TEST_DICT
@@ -3720,4 +3720,14 @@ function mount_disk() {
 			check_exit_status "Mounting disk ${driveName}${c} on $MountName" "exit"
 		done
 	done
+}
+
+function get_bootconfig_path() {
+	config_path="/boot/config-$(uname -r)"
+	if [[ $(detect_linux_distribution) == clear-linux-os ]]; then
+		config_path="/usr/lib/kernel/config-$(uname -r)"
+	elif [[ $(detect_linux_distribution) == coreos ]];then
+		config_path="/usr/boot/config-$(uname -r)"
+	fi
+	echo "$config_path"
 }
