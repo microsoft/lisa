@@ -6,7 +6,6 @@ CONFIG_ENVIRONMENT_FACTORY = "environmentFactory"
 # path related
 PATH_REMOTE_ROOT = "lisa_working"
 PATH_TOOL = "tool"
-PATH_SCRIPT = "script"
 
 
 # list types
