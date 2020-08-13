@@ -167,7 +167,18 @@ function Install_Dpdk () {
 			ssh "${1}" ". utils.sh && install_epel"
 			ssh "${1}" "yum -y groupinstall 'Infiniband Support' && dracut --add-drivers 'mlx4_en mlx4_ib mlx5_ib' -f && systemctl enable rdma"
 			check_exit_status "Install Infiniband Support on ${1}" "exit"
-			ssh "${1}" "(grep -E '7.5|7.6|7.8' /etc/redhat-release) && curl https://partnerpipelineshare.blob.core.windows.net/kernel-devel-rpms/CentOS-Vault.repo > /etc/yum.repos.d/CentOS-Vault.repo"
+			devel_source=(  "7.5=http://vault.centos.org/7.5.1804/updates/x86_64/Packages/kernel-devel-$(uname -r).rpm"
+			                "7.6=http://vault.centos.org/7.6.1810/updates/x86_64/Packages/kernel-devel-$(uname -r).rpm"
+			                "8.1=http://vault.centos.org//8.1.1911/BaseOS/x86_64/os/Packages/kernel-devel-$(uname -r).rpm" )
+			curr_version=$(ssh "${1}" "grep -E '7.5|7.6|8.1' /etc/redhat-release")
+			for source in "${devel_source[@]}" ; do
+				KEY="${source%%=*}"
+				if [[ "$curr_version" == *"$KEY"* ]]; then
+					VALUE="${source##*=}"
+					LogMsg "Installing kernel-devel package for $KEY from $VALUE."
+					ssh "${1}" "rpm -ivh $VALUE"
+				fi
+			done
 			packages+=(kernel-devel-$(uname -r) numactl-devel.x86_64 librdmacm-devel meson)
 			ssh "${1}" "yum makecache"
 			check_package "libmnl-devel"
