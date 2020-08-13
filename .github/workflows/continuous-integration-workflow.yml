@@ -51,3 +51,7 @@ jobs:
 
       - name: Run mypy static type checking
         run: poetry run mypy --strict --namespace-packages .
+
+      - name: Run ShellCheck
+        if: runner.os == 'Linux'
+        uses: ludeeus/action-shellcheck@0.5.0
