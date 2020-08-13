@@ -488,6 +488,30 @@ Scenario 2 : You need to run all the performance tests quickly.
 		<ReplaceWith>16</ReplaceWith>
 	</Parameter>
 	<Parameter>
+		<ReplaceThis>SCHBENCH_MSG_THREADS</ReplaceThis>
+		<ReplaceWith>(6 12)</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>SCHBENCH_RUNTIME</ReplaceThis>
+		<ReplaceWith>300</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>SCHBENCH_SLEEPTIME</ReplaceThis>
+		<ReplaceWith>30000</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>SCHBENCH_CPUTIME</ReplaceThis>
+		<ReplaceWith>30000</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>HACKBENCH_DATASIZE</ReplaceThis>
+		<ReplaceWith>(128 256 512 1024 2048 4096)</ReplaceWith>
+	</Parameter>
+	<Parameter>
+		<ReplaceThis>HACKBENCH_LOOPS</ReplaceThis>
+		<ReplaceWith>2000</ReplaceWith>
+	</Parameter>
+	<Parameter>
 		<ReplaceThis>STRESS_REBOOT_NUMBER</ReplaceThis>
 		<ReplaceWith>100</ReplaceWith>
 	</Parameter>
