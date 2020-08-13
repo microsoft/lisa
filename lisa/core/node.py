@@ -12,6 +12,7 @@ from lisa.util.connectionInfo import ConnectionInfo
 from lisa.util.exceptions import LisaException
 from lisa.util.executableResult import ExecutableResult
 from lisa.util.logger import log
+from lisa.util.perf_timer import create_timer
 from lisa.util.process import Process
 from lisa.util.shell import Shell
 
@@ -45,7 +46,7 @@ class Node:
         self._tools: Dict[str, Tool] = dict()
 
         self._is_initialized: bool = False
-        self._isLinux: bool = True
+        self._is_linux: bool = True
 
     @staticmethod
     def create(
@@ -124,22 +125,23 @@ class Node:
         tool = self._tools.get(tool_key)
         if tool is None:
             # the Tool is not installed on current node, try to install it.
-            tool_prefix = f"tool '{tool_key}'"
+            tool_prefix = f"tool[{tool_key}]"
             log.debug(f"{tool_prefix} is initializing")
 
             if isinstance(tool_type, CustomScriptBuilder):
-                tool_key = tool_type.name
                 tool = tool_type.build(self)
             else:
-                tool_key = tool_type.__name__
                 cast_tool_type = cast(Type[Tool], tool_type)
                 tool = cast_tool_type(self)
+                tool.initialize()
 
             if not tool.is_installed:
                 log.debug(f"{tool_prefix} is not installed")
                 if tool.can_install:
                     log.debug(f"{tool_prefix} installing")
+                    timer = create_timer()
                     is_success = tool.install()
+                    log.debug(f"{tool_prefix} installed in {timer}")
                     if not is_success:
                         raise LisaException(f"{tool_prefix} install failed")
                 else:
@@ -191,7 +193,7 @@ class Node:
     @property
     def is_linux(self) -> bool:
         self._initialize()
-        return self._isLinux
+        return self._is_linux
 
     def _initialize(self) -> None:
         if not self._is_initialized:
@@ -207,8 +209,8 @@ class Node:
                 self.operating_system,
             ) = uname.get_linux_information(no_error_log=True)
             if (not self.kernel_release) or ("Linux" not in self.operating_system):
-                self._isLinux = False
-            if self._isLinux:
+                self._is_linux = False
+            if self._is_linux:
                 log.info(
                     f"initialized Linux node '{self.name}', "
                     f"kernelRelease: {self.kernel_release}, "

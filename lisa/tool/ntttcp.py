@@ -23,7 +23,7 @@ class Ntttcp(Tool):
             can_install = True
         return can_install
 
-    def install(self) -> bool:
+    def _install_internal(self) -> bool:
         tool_path = self.node.get_tool_path(self)
         self.node.shell.mkdir(tool_path)
         git = self.node.get_tool(Git)

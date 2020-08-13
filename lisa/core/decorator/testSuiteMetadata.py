@@ -8,6 +8,7 @@ from lisa.core.testSuite import TestSuite
 if TYPE_CHECKING:
     from lisa.core.environment import Environment
     from lisa.core.testFactory import TestSuiteData
+    from lisa.core.testResult import TestResult
 
 
 class TestSuiteMetadata:
@@ -39,7 +40,7 @@ class TestSuiteMetadata:
         def wrapper(
             test_class: Type[TestSuite],
             environment: Environment,
-            cases: List[str],
+            cases: List[TestResult],
             metadata: TestSuiteData,
         ) -> TestSuite:
             return test_class(environment, cases, metadata)
